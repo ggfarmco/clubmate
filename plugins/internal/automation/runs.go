@@ -151,8 +151,12 @@ func (v RunsView) selection(groups []runGroup) (string, Run) {
 			return g.id, g.runs[0]
 		}
 		for _, r := range g.runs {
-			if RunID(r) == v.Selected && (len(g.runs) == 1 || v.Expanded[g.id]) {
+			switch {
+			case RunID(r) != v.Selected:
+			case len(g.runs) == 1 || v.Expanded[g.id]:
 				return v.Selected, r
+			default:
+				return g.id, r
 			}
 		}
 	}

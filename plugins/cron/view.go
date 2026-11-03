@@ -22,6 +22,8 @@ const (
 	dayLayout    = "Jan 2 15:04"
 	nextLayout   = "Mon, Jan 2 · 15:04"
 	pausedLayout = "Jan 2"
+	doesFormID   = "runs"
+	noJobs       = "No cron jobs yet. Agents schedule them for you."
 )
 
 var missedOptions = []sdui.Option{
@@ -31,7 +33,7 @@ var missedOptions = []sdui.Option{
 
 func sidebarView(jobs []*Job, selected string, now time.Time) sdui.Node {
 	if len(jobs) == 0 {
-		return sdui.Empty("No cron jobs yet. Agents schedule them for you.")
+		return sdui.Empty(noJobs)
 	}
 	items := make([]sdui.Item, 0, len(jobs))
 	for _, j := range jobs {
@@ -50,7 +52,7 @@ func sidebarView(jobs []*Job, selected string, now time.Time) sdui.Node {
 
 func mainView(j *Job, titles map[string]string, open automation.Open, runs automation.RunsView, d draft, now time.Time) sdui.Node {
 	if j == nil {
-		return sdui.Empty("Select a cron job")
+		return sdui.VStack(sdui.MutedText(noJobs), ghostFlow())
 	}
 	if open.Edit {
 		return editView(j, d)
@@ -91,15 +93,16 @@ func mainView(j *Job, titles map[string]string, open automation.Open, runs autom
 	if branch, ok := worktree(j); ok {
 		rows = append(rows, automation.Property("Worktree", branch, ""))
 	}
-	rows = append(rows, automation.Property("Owner", automation.OwnerLabel(j.Owner, titles), ""))
-	rows = append(rows, automation.Does(j.ID, j.Command, j.Args, titles, open)...)
+	rows = append(rows, automation.Property("Owner", automation.OwnerLabel(j.Owner, titles), ""), automation.Property("Does", "", ""))
+	does := automation.Does(j.ID, j.Command, j.Args, titles, open)[1:]
 	if len(j.History) == 0 {
-		return sdui.VStack(header, automation.Properties(append(rows, automation.Property("Runs", noRuns(j, now), ""))...))
+		does = append(does, automation.Property("Runs", noRuns(j, now), ""))
+		return sdui.VStack(header, sdui.Scroll(sdui.VStack(automation.Properties(rows...), doesFlow(j, titles), sdui.Form(doesFormID, does...))))
 	}
 	cells := func(r Run) ([]string, string) { return nil, automation.Words(j.Command, j.Args, r, titles) }
 	table, run := automation.RunsTable(j.History, loc, nil, cells, runs)
-	rows = append(rows, automation.RunsRows(j.ID, j.History, run, open.RunJSON)...)
-	return sdui.VStack(header, automation.Properties(rows...), sdui.Scroll(table))
+	does = append(does, automation.RunsRows(j.ID, j.History, run, open.RunJSON)...)
+	return sdui.VStack(header, sdui.Scroll(sdui.VStack(automation.Properties(rows...), doesFlow(j, titles), sdui.Form(doesFormID, does...), runStrip(j, j.History, run, titles, now), table)))
 }
 
 func pausedLine(j *Job, loc *time.Location) string {

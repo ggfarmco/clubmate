@@ -26,6 +26,10 @@ func TestRunsTableCollapsesOnlyConsecutiveIdenticalRuns(t *testing.T) {
 	}, rows)
 	assert.Equal(t, history[4], selected)
 	assert.Equal(t, "g"+RunID(history[3])[1:], table.Props["selected"])
+
+	table, selected = RunsTable(history, time.UTC, nil, cells, RunsView{Selected: RunID(history[0])})
+	assert.Equal(t, history[0], selected)
+	assert.Equal(t, "g"+RunID(history[0])[1:], table.Props["selected"])
 }
 
 func tableRows(n sdui.Node) [][]string {

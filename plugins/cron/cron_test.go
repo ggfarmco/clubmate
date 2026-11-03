@@ -412,8 +412,7 @@ func TestEditFormSavesThroughTheUpdate(t *testing.T) {
 	var added job
 	require.NoError(t, f.run(t, "cron.add", ping(nil), &added))
 	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool {
-		titled := nodesWhere(n, func(c sdui.Node) bool { return c.Props["text"] == "Post notification" })
-		return len(titled) == 1 && len(nodesWithID(n, added.ID+"/edit")) == 1
+		return len(nodesWithType(n, "flow")) == 1 && len(nodesWithID(n, added.ID+"/edit")) == 1
 	})
 
 	f.h.Event(t, f.workspace, "cron.main", added.ID+"/edit", "edit", nil)
@@ -463,7 +462,7 @@ func TestRunsGroupAndShowTheSelectedRunAsJSON(t *testing.T) {
 		child = rows[2]
 		return child.Depth == 1
 	})
-	f.h.Event(t, f.workspace, "cron.main", "history", "select", child.ID)
+	f.h.Event(t, f.workspace, "cron.main", "strip", "select", child.ID)
 	f.h.Event(t, f.workspace, "cron.main", added.ID+"/runJson", "runJson", nil)
 	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool {
 		return len(nodesWhere(n, func(c sdui.Node) bool {

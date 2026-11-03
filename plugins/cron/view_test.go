@@ -71,19 +71,91 @@ func TestMainSplitsMissedRunsFromThePolicy(t *testing.T) {
 	assert.Equal(t, []sdui.HeaderBadge{{Text: "active"}, {Text: "missed 1 run", Tone: "warning"}}, view.Children[0].Props["badges"])
 	got := texts(view)
 	assert.Contains(t, got, "in 13 h")
-	missedRow := view.Children[1].Children[2]
+	props := nodesWithType(view, "form")[0]
+	missedRow := props.Children[2]
 	assert.Equal(t, "warning", missedRow.Children[1].Props["tone"])
-	policy := view.Children[1].Children[3].Children[1]
+	policy := props.Children[3].Children[1]
 	assert.Equal(t, []any{"select", missedSkip, actMissed}, []any{policy.Type, policy.Props["value"], policy.Props["action"]})
 	assert.Contains(t, got, "the main checkout")
 	assert.Contains(t, got, "nobody — failures go to the inbox")
-	assert.Contains(t, got, "Start an agent · Claude · new session")
-	assert.Contains(t, childIDs(view.Children[1].Children[2]), "cj_a/runMissed")
+	assert.Contains(t, childIDs(missedRow), "cj_a/runMissed")
 }
 
 func TestEmptyStates(t *testing.T) {
 	assert.Equal(t, "empty", sidebarView(nil, "", time.Now()).Type)
-	assert.Equal(t, "empty", mainView(nil, nil, automation.Open{}, automation.RunsView{}, draft{}, time.Now()).Type)
+	view := mainView(nil, nil, automation.Open{}, automation.RunsView{}, draft{}, time.Now())
+	require.NoError(t, isdui.Validate(view))
+	assert.Equal(t, []string{"text", "flow"}, []string{view.Children[0].Type, view.Children[1].Type})
+	assert.Equal(t, "No cron jobs yet. Agents schedule them for you.", view.Children[0].Props["text"])
+	for _, c := range view.Children[1].Props["cards"].([]sdui.FlowCard) {
+		assert.True(t, c.Ghost, c.ID)
+	}
+}
+
+func TestDoesIsDrawnAndRunsSitOnAStrip(t *testing.T) {
+	now := time.Date(2026, 11, 3, 16, 27, 0, 0, time.UTC)
+	runs := []Run{
+		{At: now.Add(-5 * time.Minute), Status: automation.StatusOK},
+		{At: now.Add(-3 * time.Minute), Status: automation.StatusError, Reason: "403"},
+		{At: now.Add(-time.Minute), Status: automation.StatusSkipped, Reason: reasonMissed},
+	}
+	poll := &Job{ID: "cj_a", Name: "Poll CI", Enabled: true, Command: "github.ci", Schedule: Schedule{Every: "2m", Timezone: "UTC"}, NextRun: now.Add(time.Minute), History: runs}
+	titles := map[string]string{"github.ci": "Check CI status", "agt_1": "Backlog grooming"}
+
+	view := mainView(poll, titles, automation.Open{}, automation.RunsView{}, draft{}, now)
+	require.NoError(t, isdui.Validate(view))
+	flow := nodesWithType(view, "flow")[0]
+	card := flow.Props["cards"].([]sdui.FlowCard)[0]
+	assert.Equal(t, []string{"Check CI status", "plugin command"}, []string{card.Label, card.State})
+	assert.Equal(t, []sdui.FlowOut{{ID: "ok", Label: "ok", Count: 1, State: sdui.EdgeTaken}, {ID: "failed", Label: "failed", Count: 1, State: sdui.EdgeLast}}, card.Outs)
+	edges := flow.Props["edges"].([]sdui.FlowEdge)
+	assert.Equal(t, []string{"when→action taken", "action.failed→inbox last"}, edgeKeys(edges))
+	strip := nodesWithType(view, "runstrip")[0]
+	assert.Equal(t, []string{sdui.RunOK, sdui.RunFailed, sdui.RunMissed}, stripStatuses(strip))
+	assert.Equal(t, automation.RunID(runs[2]), strip.Props["selected"])
+	assert.Equal(t, poll.NextRun.Format(time.RFC3339), strip.Props["next"])
+
+	review := &Job{ID: "cj_b", Name: "Weekly review", Owner: "agt_1", Command: "agents.prompt", Args: json.RawMessage(`{"session":"agt_1","text":"groom"}`),
+		Schedule: Schedule{Cron: "0 9 * * 1", Timezone: "UTC"}, History: runs[:1], Paused: []automation.Span{{From: now.Add(-2 * time.Minute)}}}
+	view = mainView(review, titles, automation.Open{}, automation.RunsView{}, draft{}, now)
+	require.NoError(t, isdui.Validate(view))
+	flow = nodesWithType(view, "flow")[0]
+	assert.Equal(t, []string{"when→action dim", "action.ok→owner dim", "action.failed→owner never"}, edgeKeys(flow.Props["edges"].([]sdui.FlowEdge)))
+	assert.Equal(t, "Backlog grooming", flow.Props["markers"].([]sdui.FlowMarker)[1].Label)
+	strip = nodesWithType(view, "runstrip")[0]
+	assert.NotContains(t, strip.Props, "next")
+	assert.Equal(t, []sdui.PausedSpan{{From: now.Add(-2 * time.Minute)}}, strip.Props["paused"])
+}
+
+func nodesWithType(n sdui.Node, typ string) []sdui.Node {
+	var out []sdui.Node
+	if n.Type == typ {
+		out = append(out, n)
+	}
+	for _, c := range n.Children {
+		out = append(out, nodesWithType(c, typ)...)
+	}
+	return out
+}
+
+func edgeKeys(edges []sdui.FlowEdge) []string {
+	keys := make([]string, 0, len(edges))
+	for _, e := range edges {
+		from := e.From
+		if e.Out != "" {
+			from += "." + e.Out
+		}
+		keys = append(keys, from+"→"+e.To+" "+e.State)
+	}
+	return keys
+}
+
+func stripStatuses(n sdui.Node) []string {
+	var out []string
+	for _, r := range n.Props["runs"].([]sdui.StripRun) {
+		out = append(out, r.Status)
+	}
+	return out
 }
 
 func listItems(t *testing.T, n sdui.Node) []sdui.Item {

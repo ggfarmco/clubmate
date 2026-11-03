@@ -145,7 +145,7 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	var id string
 	switch ev.Slot {
 	case mainSlot:
-		if ev.NodeID == automation.HistoryID {
+		if ev.NodeID == automation.HistoryID || ev.NodeID == stripID {
 			if err := a.runRows.Handle(ctx, a.host, ev); err != nil {
 				return nil, err
 			}
