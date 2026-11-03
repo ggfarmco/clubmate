@@ -15,6 +15,7 @@ import (
 func TestBuiltinGraphsWiring(t *testing.T) {
 	tests := []struct {
 		graph string
+		dirs  []string
 		steps []string
 		edges []string
 	}{
@@ -36,6 +37,7 @@ func TestBuiltinGraphsWiring(t *testing.T) {
 		},
 		{
 			graph: "nightly",
+			dirs:  []string{"../.."},
 			steps: []string{
 				"tidy agent branch= end=[nothing]",
 				"tests run=make test in=main timeout=1h0m0s end=[]",
@@ -51,9 +53,9 @@ func TestBuiltinGraphsWiring(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.graph, func(t *testing.T) {
-			g, builtin, err := loadGraph(nil, tt.graph)
+			g, builtin, err := loadGraph(tt.dirs, tt.graph)
 			require.NoError(t, err)
-			require.True(t, builtin)
+			require.Equal(t, tt.dirs == nil, builtin)
 			var steps, edges []string
 			for _, n := range g.Nodes {
 				if n.step() {

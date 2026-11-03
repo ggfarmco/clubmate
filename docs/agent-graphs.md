@@ -136,7 +136,7 @@ Clubmate ships graphs inside the graphs plugin: `plugins/graphs/builtin/<name>.j
 
 ### Nightly
 
-`nightly` is Clubmate's own nightly tidy and release; the "Nightly tidy" cron job runs it (`graphs.run {"graph":"nightly"}`, `owner: none`).
+`nightly` is Clubmate's own nightly tidy and release. It is not built in but a project graph of the Clubmate repo (`.clubmate/graphs/nightly.json`), so it shows only there and runs only once you trusted its steps (`graphs.trust {"graph":"nightly"}`, again after any change to them); the "Nightly tidy" cron job runs it (`graphs.run {"graph":"nightly"}`, `owner: none`).
 
 - **Tidy** (AFK session) follows the `nightly-tidy` skill and reports `changed` when at least one of its commits stays on `main`, else `nothing`, which ends the run.
 - **Tests** (`make test`), **Push main** (`git push origin main`) and **Ship** (`scripts/graph/ship-next.sh`, timeout 7200 s) are actions in the main checkout, each on the previous one's `done`; a failing one stops the run with `<Role> error`. `make test` skips `dist/`, the release bundle's copy of the sources.

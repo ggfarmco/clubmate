@@ -1,6 +1,6 @@
 ---
 name: nightly-tidy
-description: Use when running the nightly tidy (the Tidy node of the built-in `nightly` graph, which the "Nightly tidy" cron job runs) or when asked for a code health pass over Clubmate — performance, code quality, security audit, ARCHITECTURE.md conformance, docs freshness, CLAUDE.md completeness — fixing what is safe and reporting the rest.
+description: Use when running the nightly tidy (the Tidy node of the Clubmate repo's `nightly` graph, which the "Nightly tidy" cron job runs) or when asked for a code health pass over Clubmate — performance, code quality, security audit, ARCHITECTURE.md conformance, docs freshness, CLAUDE.md completeness — fixing what is safe and reporting the rest.
 ---
 
 # Nightly tidy
@@ -63,6 +63,6 @@ cron_add name="Nightly tidy" command=graphs.run cron="30 3 * * *" owner=none mis
   args={"graph":"nightly"}
 ```
 
-The `nightly` graph (`plugins/graphs/builtin/nightly.json`, [docs](../../../docs/agent-graphs.md#nightly)) starts this skill as its AFK Tidy node. Its steps run in the main checkout with no caller, so they need `Bash(make test)`, `Bash(git push origin main)` and `Bash(scripts/graph/ship-next.sh)` in the main checkout's `.claude/settings.local.json`; without them each step waits for an approval nobody gives. A core restart while Ship runs kills `ship.sh` (the step ends `error · interrupted`); a kill between the tag push and the publish leaves the tag, so check `gh release list` against `git tag` after one.
+The repo's `nightly` graph (`.clubmate/graphs/nightly.json`, trusted with `graphs.trust`; [docs](../../../docs/agent-graphs.md#nightly)) starts this skill as its AFK Tidy node. Its steps run in the main checkout with no caller, so they need `Bash(make test)`, `Bash(git push origin main)` and `Bash(scripts/graph/ship-next.sh)` in the main checkout's `.claude/settings.local.json`; without them each step waits for an approval nobody gives. A core restart while Ship runs kills `ship.sh` (the step ends `error · interrupted`); a kill between the tag push and the publish leaves the tag, so check `gh release list` against `git tag` after one.
 
 `missed: once` runs it after a night the Mac slept, possibly while the user works; step 5's checks are what keep that safe.
