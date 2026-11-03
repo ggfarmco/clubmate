@@ -715,3 +715,57 @@ func TestRemovedRunTakesItsOutput(t *testing.T) {
 		})
 	}
 }
+
+func splitApp(t *testing.T, mode string) (*app, *fakeProc, *Run, string, string) {
+	t.Helper()
+	main, wt := t.TempDir(), t.TempDir()
+	data, err := os.ReadFile("testdata/.clubmate/graphs/gate.json")
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(wt, graphsDir), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(wt, graphsDir, "gate.json"), data, 0o644))
+	core := &fakeCore{worktrees: `[{"repo":"` + main + `","path":"` + main + `","branch":"main","main":true},{"repo":"` + main + `","path":"` + wt + `","branch":"feat"}]`}
+	a := testApp(t, core)
+	a.sessions = func(context.Context, string) ([]api.Session, error) {
+		return []api.Session{{ID: "agt_boss", Worktree: wt, Mode: mode}, {ID: "agt_1", Worktree: wt}, {ID: "agt_2", Worktree: wt}}, nil
+	}
+	a.workspace = func(context.Context, string) (pluginsdk.Workspace, error) {
+		return pluginsdk.Workspace{ID: "ws1", Folders: []pluginsdk.Folder{{Path: wt}}}, nil
+	}
+	p := &fakeProc{}
+	a.proc, a.spawn = p, func(f func()) { f() }
+	return a, p, runNamed(t, a, "gate"), main, wt
+}
+
+func TestStepSec_C8_WorktreeAllowRuleIsIgnored(t *testing.T) {
+	allow := map[string]any{"permissions": map[string]any{"allow": []string{"Bash(make test)"}}}
+	a, p, r, _, wt := splitApp(t, "default")
+	writeSettings(t, filepath.Join(wt, ".claude", "settings.local.json"), allow)
+	turnDone(t, a, "agt_1", 1)
+	assert.Zero(t, p.ran())
+	assert.Equal(t, stepWaiting, stepMoves(a, r.ID, "tests")[0].Step.Status)
+
+	a, p, r, main, _ := splitApp(t, "default")
+	writeSettings(t, filepath.Join(main, ".claude", "settings.local.json"), allow)
+	a.runs[r.ID].Spec.node("tests").In = inMain
+	turnDone(t, a, "agt_1", 1)
+	assert.Equal(t, 1, p.ran())
+}
+
+func TestAlwaysAllowGoesToMainCheckout(t *testing.T) {
+	a, _, r, main, wt := splitApp(t, "default")
+	turnDone(t, a, "agt_1", 1)
+	require.NoError(t, approve(t, a, r, "tests", "always"))
+	assert.NoFileExists(t, filepath.Join(wt, ".claude", "settings.local.json"))
+	data, err := os.ReadFile(filepath.Join(main, ".claude", "settings.local.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "Bash(make test)")
+}
+
+func TestBypassAsksOnQuotedCommandWithDeny(t *testing.T) {
+	a, _, p, r := approvalApp(t, modeBypass)
+	writeSettings(t, filepath.Join(a.home, ".claude", "settings.json"), map[string]any{"permissions": map[string]any{"deny": []string{"Bash(rm:*)"}}})
+	a.runs[r.ID].Spec.node("tests").Run = `r\m -rf x`
+	turnDone(t, a, "agt_1", 1)
+	assert.Zero(t, p.ran())
+	assert.Equal(t, stepWaiting, stepMoves(a, r.ID, "tests")[0].Step.Status)
+}

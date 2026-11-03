@@ -42,7 +42,7 @@ type settingsFile struct {
 	} `json:"permissions"`
 }
 
-func loadRules(managed, home, dir string) ruleSet {
+func loadRules(managed, home, dir string, project bool) ruleSet {
 	var rs ruleSet
 	paths := []struct {
 		path    string
@@ -59,7 +59,9 @@ func loadRules(managed, home, dir string) ruleSet {
 			continue
 		}
 		p := f.Permissions
-		rs.Allow = append(rs.Allow, p.Allow...)
+		if src.trusted || project {
+			rs.Allow = append(rs.Allow, p.Allow...)
+		}
 		rs.Ask = append(rs.Ask, p.Ask...)
 		rs.Deny = append(rs.Deny, p.Deny...)
 		if p.DefaultMode != "" && (src.trusted || p.DefaultMode != modeBypass) {
@@ -126,6 +128,9 @@ func (rs ruleSet) denied(command string) (string, bool) {
 }
 
 func (rs ruleSet) suspicious(command string) (string, bool) {
+	if strings.ContainsAny(command, "'\"\\$`") && len(rs.Deny)+len(rs.Ask) > 0 {
+		return "a quoted or expanded command", true
+	}
 	words := commandWords(command)
 	for _, rule := range rs.Deny {
 		need := ruleWords(rule)
@@ -247,6 +252,11 @@ func addAllowRule(dir, command string) error {
 		return errors.New("always: a command with *, ( or ) would read as a pattern; allow it once instead")
 	}
 	path := filepath.Join(dir, ".claude", localSettings)
+	for _, p := range []string{filepath.Dir(path), path} {
+		if info, err := os.Lstat(p); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("always: %s is a symlink; allow it once instead", p)
+		}
+	}
 	doc := map[string]any{}
 	data, err := os.ReadFile(path)
 	switch {
@@ -276,5 +286,20 @@ func addAllowRule(dir, command string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(out, '\n'), 0o600)
+	tmp, err := os.CreateTemp(filepath.Dir(path), localSettings+".*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(append(out, '\n')); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }

@@ -212,7 +212,8 @@ func (a *app) approval(ctx context.Context, r *Run, n *Node, spec stepSpec) (str
 	if n.Command != "" {
 		return allowedCommand, false, nil
 	}
-	rules := loadRules(a.managedPath, a.home, spec.Dir)
+	project := filepath.Clean(spec.Dir) == filepath.Clean(a.repoRoot(ctx, r.Workspace, spec.Dir))
+	rules := loadRules(a.managedPath, a.home, spec.Dir, project)
 	mode := rules.DefaultMode
 	if r.Agent && r.Caller != "" {
 		sessions, err := a.sessions(ctx, r.Workspace)
@@ -357,7 +358,7 @@ func (a *app) approveStep(ctx context.Context, cmd pluginsdk.CommandRun) error {
 			a.stepDone(ctx, args.ID, args.Node, p.move, stepResult{ExitCode: exitUnknown, Reason: reasonStopped})
 			return errors.New("run is stopped")
 		}
-		if err := addAllowRule(p.spec.Dir, n.Run); err != nil {
+		if err := addAllowRule(a.repoRoot(ctx, cmd.WorkspaceID, p.spec.Dir), n.Run); err != nil {
 			return err
 		}
 	}

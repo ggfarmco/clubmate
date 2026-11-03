@@ -55,7 +55,7 @@ func TestManagedDenyWins(t *testing.T) {
 	writeSettings(t, managed, map[string]any{"permissions": map[string]any{"deny": []string{"Bash(git push:*)"}}})
 	writeSettings(t, filepath.Join(dir, ".claude", "settings.local.json"), map[string]any{"permissions": map[string]any{"allow": []string{"Bash(git push:*)"}, "defaultMode": "bypassPermissions"}})
 	writeSettings(t, filepath.Join(home, ".claude", "settings.json"), map[string]any{"permissions": map[string]any{"defaultMode": "auto"}})
-	rs := loadRules(managed, home, dir)
+	rs := loadRules(managed, home, dir, true)
 	got, _ := rs.decide("git push origin main")
 	assert.Equal(t, verdictDeny, got)
 	assert.Equal(t, "auto", rs.DefaultMode)
@@ -88,11 +88,11 @@ func TestProjectSettingsCannotTurnOnBypass(t *testing.T) {
 	managed, home, dir := filepath.Join(root, "managed.json"), filepath.Join(root, "home"), filepath.Join(root, "repo")
 	writeSettings(t, filepath.Join(dir, ".claude", "settings.json"), map[string]any{"permissions": map[string]any{"defaultMode": "bypassPermissions"}})
 	writeSettings(t, filepath.Join(dir, ".claude", "settings.local.json"), map[string]any{"permissions": map[string]any{"defaultMode": "bypassPermissions"}})
-	assert.Empty(t, loadRules(managed, home, dir).DefaultMode)
+	assert.Empty(t, loadRules(managed, home, dir, true).DefaultMode)
 	writeSettings(t, filepath.Join(home, ".claude", "settings.json"), map[string]any{"permissions": map[string]any{"defaultMode": "bypassPermissions"}})
-	assert.Equal(t, modeBypass, loadRules(managed, home, dir).DefaultMode)
+	assert.Equal(t, modeBypass, loadRules(managed, home, dir, true).DefaultMode)
 	writeSettings(t, managed, map[string]any{"permissions": map[string]any{"disableBypassPermissionsMode": "disable"}})
-	rs := loadRules(managed, home, dir)
+	rs := loadRules(managed, home, dir, true)
 	assert.Empty(t, rs.DefaultMode)
 	assert.True(t, rs.NoBypass)
 }
@@ -101,4 +101,31 @@ func TestAlwaysRefusesPatternCommands(t *testing.T) {
 	for _, command := range []string{"rm *", "echo a)", "make test:*", "make test *"} {
 		assert.Error(t, addAllowRule(t.TempDir(), command), command)
 	}
+}
+
+func TestProjectAllowRulesNeedTrust(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "repo")
+	writeSettings(t, filepath.Join(dir, ".claude", "settings.local.json"), map[string]any{"permissions": map[string]any{"allow": []string{"Bash(make test)"}, "deny": []string{"Bash(rm:*)"}}})
+	untrusted := loadRules(filepath.Join(root, "none.json"), filepath.Join(root, "home"), dir, false)
+	assert.Empty(t, untrusted.Allow)
+	assert.Equal(t, []string{"Bash(rm:*)"}, untrusted.Deny)
+	assert.Equal(t, []string{"Bash(make test)"}, loadRules(filepath.Join(root, "none.json"), filepath.Join(root, "home"), dir, true).Allow)
+}
+
+func TestAlwaysAllowRefusesSymlinks(t *testing.T) {
+	victim := filepath.Join(t.TempDir(), "victim")
+	require.NoError(t, os.WriteFile(victim, []byte("keep"), 0o600))
+	file := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(file, ".claude"), 0o700))
+	require.NoError(t, os.Symlink(victim, filepath.Join(file, ".claude", "settings.local.json")))
+	folder := t.TempDir()
+	require.NoError(t, os.Symlink(filepath.Dir(victim), filepath.Join(folder, ".claude")))
+	for _, dir := range []string{file, folder} {
+		assert.Error(t, addAllowRule(dir, "make test"))
+	}
+	data, err := os.ReadFile(victim)
+	require.NoError(t, err)
+	assert.Equal(t, "keep", string(data))
+	assert.NoFileExists(t, filepath.Join(filepath.Dir(victim), "settings.local.json"))
 }
