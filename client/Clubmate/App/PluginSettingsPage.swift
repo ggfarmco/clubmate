@@ -313,8 +313,8 @@ private struct PluginNativeRows: View {
         case "terminals":
             SettingsRow(title: "Family", detail: "Every terminal and nvim, and code, commands and diffs in the interface.") {
                 Picker("Font", selection: fontFamily) {
-                    Text("Default").tag("")
-                    ForEach(MonospacedFonts.families, id: \.self) { Text($0).tag($0) }
+                    Text("Ghostty's built-in").tag("")
+                    ForEach(FontFamilies.monospaced, id: \.self) { Text($0).tag($0) }
                 }
                 .labelsHidden()
                 .fixedSize()
@@ -463,7 +463,9 @@ struct FontFamilyPicker: View {
             }
             ForEach([FontFamily.terminal, FontFamily.system, FontFamily.systemMonospaced], id: \.self) { Text(Self.name($0)).tag(String?.some($0)) }
             Divider()
-            ForEach(MonospacedFonts.families, id: \.self) { Text($0).tag(String?.some($0)) }
+            ForEach(FontFamilies.monospaced, id: \.self) { Text($0).tag(String?.some($0)) }
+            Divider()
+            ForEach(FontFamilies.proportional, id: \.self) { Text($0).tag(String?.some($0)) }
         }
         .labelsHidden()
         .fixedSize()
@@ -471,17 +473,30 @@ struct FontFamilyPicker: View {
 
     static func name(_ family: String) -> String {
         switch family {
-        case FontFamily.terminal: "Terminals font · \(GhosttyApp.shared.theme.fontFamily.flatMap { $0.isEmpty ? nil : $0 } ?? "default")"
+        case FontFamily.terminal: "Terminals font · \(terminalFamily ?? "SF Mono")"
         case FontFamily.system: "System"
         case FontFamily.systemMonospaced: "System monospaced"
         default: family
         }
     }
+
+    static var terminalFamily: String? {
+        GhosttyApp.shared.theme.fontFamily.flatMap { $0.isEmpty ? nil : $0 }
+    }
 }
 
-enum MonospacedFonts {
-    static let families: [String] = {
+enum FontFamilies {
+    static let monospaced: [String] = {
         let names = NSFontManager.shared.availableFontNames(with: .fixedPitchFontMask) ?? []
         return Array(Set(names.compactMap { NSFont(name: $0, size: 12)?.familyName })).filter { !$0.hasPrefix(".") }.sorted()
     }()
+
+    static let proportional: [String] = {
+        let fixed = Set(monospaced)
+        return NSFontManager.shared.availableFontFamilies.filter { !$0.hasPrefix(".") && !fixed.contains($0) }.sorted()
+    }()
+
+    static func isFixedPitch(_ family: String) -> Bool {
+        monospaced.contains(family)
+    }
 }

@@ -300,6 +300,7 @@ private struct CodeBlock: View {
     let text: String
 
     @State private var copied = false
+    @State private var labelWidth: CGFloat = 0
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -310,6 +311,7 @@ private struct CodeBlock: View {
                 .textSelection(.enabled)
                 .fixedSize()
                 .padding(theme.gutter)
+                .padding(.trailing, max(0, labelWidth - theme.gutter))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.surface2))
@@ -329,7 +331,10 @@ private struct CodeBlock: View {
                 .help("Copy")
                 .accessibilityLabel(copied ? "Copied" : "Copy")
             }
-            .padding(theme.spacing.m)
+            .padding(theme.spacing.s)
+            .background(RoundedRectangle(cornerRadius: theme.radius.s).fill(theme.surface2))
+            .padding(theme.spacing.xs)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { labelWidth = $0 }
         }
     }
 

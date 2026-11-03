@@ -211,7 +211,9 @@ struct Theme: Sendable {
     private static func nsFont(_ family: String?, size: CGFloat, bold: Bool) -> NSFont {
         let weight: NSFont.Weight = bold ? .semibold : .regular
         if family == FontFamily.system { return .systemFont(ofSize: size, weight: weight) }
-        guard let family, !family.isEmpty, family != FontFamily.systemMonospaced, let font = NSFont(name: family, size: size) else { return .monospacedSystemFont(ofSize: size, weight: weight) }
+        guard let family, !family.isEmpty, family != FontFamily.systemMonospaced,
+              let font = NSFontManager.shared.font(withFamily: family, traits: bold ? .boldFontMask : [], weight: 5, size: size) ?? NSFont(name: family, size: size)
+        else { return .monospacedSystemFont(ofSize: size, weight: weight) }
         return bold ? NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask) : font
     }
 
@@ -219,7 +221,7 @@ struct Theme: Sendable {
         switch family {
         case FontFamily.system: DocumentTheme.systemFont
         case nil, "", FontFamily.systemMonospaced: DocumentTheme.monoFont
-        case let family?: "\"\(family)\", \(DocumentTheme.monoFont)"
+        case let family?: "\"\(family)\", \(FontFamilies.isFixedPitch(family) ? DocumentTheme.monoFont : DocumentTheme.systemFont)"
         }
     }
 

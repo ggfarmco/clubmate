@@ -137,8 +137,8 @@ private struct DiffFileHeading: View {
                     .help(path)
                     .layoutPriority(1)
             }
-            Text("+\(file.added)").foregroundStyle(theme.success)
-            Text("−\(file.removed)").foregroundStyle(theme.danger)
+            Text("+\(file.added)").foregroundStyle(theme.success).fixedSize()
+            Text("−\(file.removed)").foregroundStyle(theme.danger).fixedSize()
         }
         .font(theme.monoSmall)
     }

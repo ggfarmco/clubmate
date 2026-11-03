@@ -110,7 +110,7 @@ private struct GeneralSettings: View {
     var body: some View {
         Form {
             Section("Appearance") {
-                SettingsRow(title: "Interface font", detail: "Sidebars, lists, forms and chats. Code, commands and diffs use the Terminals font.") {
+                SettingsRow(title: "Interface font", detail: interfaceFontDetail) {
                     FontFamilyPicker(selection: interfaceFamily, inherited: nil)
                 }
                 SettingsStepper(title: "Interface font size", detail: "⌘+ in a pane sets that plugin's own size.", value: $settings.interfaceFontSize, range: AppSettings.interfaceFontRange)
@@ -152,6 +152,11 @@ private struct GeneralSettings: View {
                 if let error = await plugins.setDefaultEditor(plugin) { banner?.show(error) }
             }
         }
+    }
+
+    private var interfaceFontDetail: String {
+        let base = "Sidebars, lists, forms and chats. Code, commands and diffs use the Terminals font"
+        return FontFamilyPicker.terminalFamily == nil ? base + " (unset: SF Mono here, Ghostty's built-in in terminals)." : base + "."
     }
 
     private var interfaceFamily: Binding<String?> {
