@@ -393,6 +393,11 @@ end
 out.lua = vim.api.nvim_get_runtime_file("parser/lua.so", false)[1] or ""
 out.go = vim.api.nvim_get_runtime_file("parser/go.so", false)[1] or ""
 out.site = site
+local buf = vim.api.nvim_create_buf(false, true)
+vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "package x", "// TODO: x" })
+vim.bo[buf].filetype = "go"
+vim.treesitter.get_parser(buf):parse(true)
+out.todo = vim.tbl_map(function(c) return c.capture end, vim.treesitter.get_captures_at_pos(buf, 1, 3))
 return out`
 
 func TestParsersLoadAndHighlight(t *testing.T) {
@@ -402,11 +407,13 @@ func TestParsersLoadAndHighlight(t *testing.T) {
 		Lua    string   `msgpack:"lua"`
 		Go     string   `msgpack:"go"`
 		Site   string   `msgpack:"site"`
+		Todo   []string `msgpack:"todo"`
 	}
 	require.NoError(t, v.ExecLua(parserCheck, &got))
 	assert.Empty(t, got.Failed)
 	assert.True(t, strings.HasPrefix(got.Lua, got.Site+"/"), got.Lua)
 	assert.True(t, strings.HasPrefix(got.Go, got.Site+"/"), got.Go)
+	assert.Contains(t, got.Todo, "comment.todo")
 	assert.Empty(t, errorsOf(t, v))
 }
 
