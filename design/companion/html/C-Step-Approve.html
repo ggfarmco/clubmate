@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Companion: a graph step waiting for approval</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+<link rel="stylesheet" href="assets/c.css">
+
+
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.comp .st.sq{border-radius:7px}
+.comp .nrow{display:flex;align-items:center;gap:12px;padding:10px 14px;min-width:0}
+.comp .nrow+.nrow{border-top:1px solid var(--bd)}
+.comp .nrow .nb{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.comp .nrow .nb .mono{font-size:12px;line-height:16px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.comp .nrow .sw{flex:none;text-align:right;font-size:13px;line-height:18px}
+.comp .seg{margin:12px 16px 0;height:34px;border-radius:17px;background:var(--s2);display:grid;grid-template-columns:1fr 1fr;padding:2px}
+.comp .seg>button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
+.comp .seg>button[aria-selected="true"]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.comp.th-cdark .seg>button[aria-selected="true"]{background:#636366}
+.comp.th-clight .seg>button[aria-selected="true"]{background:#FFFFFF}
+</style>
+
+</head><body>
+
+<div class="cm comp th-cdark" style="width: 393px; height: 852px">
+<div class="edge"></div>
+<div class="top">
+<button class="gbtn glass" aria-label="Back"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button>
+<div class="t"><span class="tt">Review gate · #4</span><span class="ts"><span class="wa-i">Waiting for you</span> · <span class="mdot id-blue" style="margin: 0 4px 0 1px; width: 7px; height: 7px"></span>Mac Studio · clubmate</span></div>
+<button class="gbtn glass" aria-label="More: stop run, open on Mac"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button>
+</div>
+<div style="position: absolute; left: 16px; right: 16px; top: 120px; display: flex; flex-direction: column; gap: 8px">
+<span class="cap mut" style="padding: 0 4px">Fix the flaky switcher test · turn 4 of 12</span>
+<div class="cc" style="padding: 2px 0">
+<div class="nrow"><span class="st n"><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg></span><div class="nb"><span class="sub w6 ell">Coder</span><span class="cap mut">agent</span></div><span class="sw ok-i">done<br><span class='mut foot'>8 min</span></span></div>
+<div class="nrow"><span class="st n sq"><span class="mono" style="font-size: 15px; font-weight: 600">$</span></span><div class="nb"><span class="sub w6 ell">Tests</span><span class="mono">make test</span></div><span class="sw ok-i">pass<br><span class='mut foot'>1 min 10 s</span></span></div>
+<div class="nrow"><span class="st n"><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg></span><div class="nb"><span class="sub w6 ell">Reviewer</span><span class="cap mut">agent</span></div><span class="sw ok-i">approved<br><span class='mut foot'>3 min</span></span></div>
+<div class="nrow"><span class="st wa sq"><span class="mono" style="font-size: 15px; font-weight: 600">$</span></span><div class="nb"><span class="sub w6 ell">Squash into main</span><span class="mono">git merge --squash review/fix-flaky-switcher</span></div><span class="sw wa-i">waiting<br><span class='mut foot'>4 min</span></span></div>
+</div>
+<span class="foot mut" style="padding: 0 4px">Square marks a step: Clubmate runs the command itself. Round is an agent.</span>
+</div>
+<div class="bar" style="padding-bottom: 24px">
+<section class="cc" aria-label="Step approval" style="display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1.5px solid var(--wa-bd); background: color-mix(in srgb, var(--wa) 9%, var(--s1))">
+<div style="display: flex; align-items: center; gap: 10px"><span class="st wa sq" style="width: 26px; height: 26px"><span class="mono" style="font-size: 15px; font-weight: 600">$</span></span><div style="display: flex; flex-direction: column; min-width: 0"><span class="sub w6">Run a command?</span><span class="foot mut ell">Squash into main · a step of Review gate</span></div></div>
+<div class="mono" style="padding: 10px 12px; border-radius: 12px; background: var(--bg); font-size: 13px; line-height: 19px; word-break: break-all">git merge --squash review/fix-flaky-switcher &amp;&amp; git commit -m "Fix the flaky switcher test (#4)"</div>
+<span class="cap mut">in <span class="mono" style="font-size: 12px">~/src/clubmate</span> · the main checkout · not in the allow list</span>
+<button class="cb pri full">Allow once</button>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px"><button class="cb plain sm">Always allow…</button><button class="cb dgt sm">Reject</button></div>
+<span class="foot mut" style="text-align: center">Reject ends the step with error · the run stops</span>
+</section>
+</div>
+</div>
+</body></html>

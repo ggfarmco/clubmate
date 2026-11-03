@@ -58,6 +58,16 @@ Your task: implement every **a**, **b** and **c** item, in the priority order be
    - When Closed holds sessions from two or more worktrees, each closed row's detail is its worktree's short name (`design-brief`, `3.1`, `main`) instead of the age. Closed lists the newest first and shows a handful, then "N more · search to find one".
    - Boards: `Agents-1280`, `Agents-Mate-1280` (two worktrees), `Agents-OneTree-1280-Mate` (one worktree, Closed and Service open), `Agents-Drawer-640-MateLight` (⌘B at 640). The phone does not change.
 
+9. **Steps in graphs: nodes Clubmate runs itself (3 Nov).** A check's exit picks the next edge; an action does the work. Full rules on `Graph-Steps`.
+   - Kind by shape, not colour: agents are round cards with a sparkle; steps are square with a left rule and a `$ command` strip. A small word at the right says agent, check or action. On the phone, a round state badge marks an agent and a square one a step.
+   - States: not started · running (elapsed, progress bar with a timeout) · waiting for you (amber) · pass (teal) · fail (neutral: a route, not an alarm) · error (red: timed out, interrupted by a restart, rejected, not found). A step that's done shows its duration.
+   - Approval reuses the permission card: the exact command, the folder, Allow once ⌥1 · Always allow… ⌥2 · Reject ⌥3. It is a needs-you state on the card, the run row, the bell and the phone.
+   - Output: selecting a step opens its output panel beside History (the tail, exit code, duration, Full output ⌘O, Copy). An empty output says so. A fail edge passes the tail to the next agent.
+   - Edge caps: "at most N" in the definition and ×n/N on a run. When the cap is hit, the edge turns amber and the run waits for you: Continue ⌘↩ allows one more round, or Stop run ⌘.
+   - Trust: a graph file whose steps changed since you trusted it is untrusted. Run becomes Trust… ⌘↩, which lists every command and marks what changed.
+   - History: a step's move is a bar from start to exit; rounds get a bracket, so a loop reads as a loop.
+   - Boards: `Graphs-Gate-1280-Mate`, `Graphs-Nightly-1280-Mate`, `Graphs-GateDef-1280-Mate`, `Graphs-Approve-640-MateLight`, `Graphs-Cap-640-MateLight`, `Graphs-NightlyDef-640-MateLight`, `C-Step-Approve`, `C-Step-NeedsYou-Light`.
+
 ## 3. Work list, by priority
 
 ### P1b: drawn views (decision 7)

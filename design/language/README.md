@@ -9,6 +9,10 @@ Claude Design's answer to `design/brief/prompt.md`: the review, the design langu
       * `Agents-Mate-1280` is the Agents screen with the Mac's colour dot in the workspace pill.
       * The Agents tree (3 Nov, main cdc26f6a): `Agents-1280` and `Agents-Mate-1280` show two worktrees with Closed and Service at the root; `Agents-OneTree-1280-Mate` shows one worktree with no branch row, Closed rows carrying their worktree and Service open because it needs you; `Agents-Drawer-640-MateLight` is the same tree opened with ⌘B at 640.
       * `Graphs-1280-Mate` and `Graphs-640-MateLight` are the drawn graph run as built on 3 Nov (main 43f02ac2); `Graphs-Def-*` is the definition, with an edge shown as its trigger.
+   * `Graph-Steps`: steps in graphs (nodes Clubmate runs itself): step vs agent card, states, approval, output, edge caps, trust, History bars.
+      * `Graphs-Gate-1280-Mate` (Review gate: Tests failed once, Coder in round 2, output tail), `Graphs-Nightly-1280-Mate` (Ship running 40 min; empty output), `Graphs-GateDef-1280-Mate` (definition, untrusted file).
+      * `Graphs-Approve-640-MateLight` (a step waiting for approval), `Graphs-Cap-640-MateLight` (round cap hit), `Graphs-NightlyDef-640-MateLight` (the Trust… sheet).
+      * The phone side is `C-Step-Approve` and `C-Step-NeedsYou-Light` in `design/companion/`.
    * `Drawn-Views`: the vocabulary of the drawn views (cards, ports, edges, markers, lanes, run strip), what each screen draws and what stays a form or a list, the rules and the handoff.
       * `Cron-Runs-1280-Mate` (missed and failed, run strip), `Cron-Paused-640-MateLight`, `Cron-Empty-640-MateLight`.
       * `Triggers-Edge-1280-Mate` (a graph's trigger, drawn in its graph), `Triggers-Chain-640-MateLight` (a chain, a failed run), `Triggers-Empty-640-MateLight`.

@@ -592,6 +592,71 @@
    "w": 640,
    "h": 800,
    "title": "Agents · sessions open (⌘B) · one worktree, Service opened because it needs you · 640 · Mate light"
+  },
+  "Graphs-Gate-1280-Mate.dc.html": {
+   "x": 9800,
+   "y": 24660,
+   "w": 1280,
+   "h": 800,
+   "title": "Graph run with steps · Tests failed once, Coder round 2 · 1280 · Mate"
+  },
+  "Graphs-Nightly-1280-Mate.dc.html": {
+   "x": 11240,
+   "y": 24660,
+   "w": 1280,
+   "h": 800,
+   "title": "Graph run with steps · Ship running 40 min, empty output · 1280 · Mate"
+  },
+  "Graphs-GateDef-1280-Mate.dc.html": {
+   "x": 12680,
+   "y": 24660,
+   "w": 1280,
+   "h": 800,
+   "title": "Graph definition with steps · untrusted file · 1280 · Mate"
+  },
+  "Graph-Steps.dc.html": {
+   "x": 14120,
+   "y": 24660,
+   "w": 1480,
+   "h": 2300,
+   "title": "G · Steps in graphs — step vs agent, states, approval, output, caps, trust"
+  },
+  "Graphs-Approve-640-MateLight.dc.html": {
+   "x": 9800,
+   "y": 25580,
+   "w": 640,
+   "h": 800,
+   "title": "Graph run · a step waiting for approval · 640 · Mate light"
+  },
+  "Graphs-Cap-640-MateLight.dc.html": {
+   "x": 10520,
+   "y": 25580,
+   "w": 640,
+   "h": 800,
+   "title": "Graph run · round cap hit · 640 · Mate light"
+  },
+  "Graphs-NightlyDef-640-MateLight.dc.html": {
+   "x": 11240,
+   "y": 25580,
+   "w": 640,
+   "h": 800,
+   "title": "Graph definition · Trust… sheet · 640 · Mate light"
+  },
+  "C-Step-Approve.dc.html": {
+   "x": 11960,
+   "y": 25580,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · a graph step waiting for approval · dark",
+   "radius": 50
+  },
+  "C-Step-NeedsYou-Light.dc.html": {
+   "x": 12433,
+   "y": 25580,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · graph runs with steps in Needs you · light",
+   "radius": 50
   }
  },
  "order": [
@@ -674,7 +739,16 @@
   "Agents-Drawer-640-MateLight.dc.html",
   "T-Themes.dc.html",
   "T-Nvim-Map.dc.html",
-  "T-Nvim-Clubmate.dc.html"
+  "T-Nvim-Clubmate.dc.html",
+  "Graphs-Gate-1280-Mate.dc.html",
+  "Graphs-Nightly-1280-Mate.dc.html",
+  "Graphs-GateDef-1280-Mate.dc.html",
+  "Graph-Steps.dc.html",
+  "Graphs-Approve-640-MateLight.dc.html",
+  "Graphs-Cap-640-MateLight.dc.html",
+  "Graphs-NightlyDef-640-MateLight.dc.html",
+  "C-Step-Approve.dc.html",
+  "C-Step-NeedsYou-Light.dc.html"
  ],
  "notes": {
   "t_lang": {
@@ -739,6 +813,13 @@
    "text": "Agents sidebar, 3 Nov (main cdc26f6a) — branch rows only for 2+ worktrees; Closed and Service at the root",
    "kind": "title1",
    "maxW": 1280
+  },
+  "t_steps": {
+   "x": 9800,
+   "y": 24400,
+   "text": "Steps in graphs — nodes Clubmate runs itself: checks pick the next edge, actions do the work; Review gate and Nightly",
+   "kind": "title1",
+   "maxW": 5800
   }
  },
  "designSystems": []

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Companion: graph runs with steps in Needs you</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
+<link rel="stylesheet" href="/_blob/4987a8b4234bbea3e512a6d02560ee1d">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.comp .st.sq{border-radius:7px}
+.comp .nrow{display:flex;align-items:center;gap:12px;padding:10px 14px;min-width:0}
+.comp .nrow+.nrow{border-top:1px solid var(--bd)}
+.comp .nrow .nb{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.comp .nrow .nb .mono{font-size:12px;line-height:16px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.comp .nrow .sw{flex:none;text-align:right;font-size:13px;line-height:18px}
+.comp .seg{margin:12px 16px 0;height:34px;border-radius:17px;background:var(--s2);display:grid;grid-template-columns:1fr 1fr;padding:2px}
+.comp .seg>button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
+.comp .seg>button[aria-selected="true"]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.comp.th-cdark .seg>button[aria-selected="true"]{background:#636366}
+.comp.th-clight .seg>button[aria-selected="true"]{background:#FFFFFF}
+</style>
+</helmet>
+<div class="cm comp th-{{theme}}" style="width: 393px; height: 852px">
+<div class="top">
+<button class="gbtn glass" aria-label="Back to Macs"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button>
+<span style="flex: 1"></span>
+<div class="gpill glass"><button aria-label="Files"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button></div>
+</div>
+<div style="position: absolute; inset: 0; padding-top: 112px; overflow: hidden">
+<h1 class="big" style="margin: 0; padding: 0 20px">clubmate</h1>
+<div class="cap mut" style="padding: 2px 20px 0"><span class="mdot id-blue" style="margin-right: 6px"></span>Mac Studio · online</div>
+<div class="seg" role="tablist"><button role="tab" aria-selected="true">Agents</button><button role="tab" aria-selected="false">Backlog</button></div>
+<div class="hdr"><span>Needs you</span><span class="cap">2</span></div>
+<div class="ig">
+<div class="c" style="align-items: flex-start"><span class="st wa sq" style="margin-top: 2px"><span class="mono" style="font-size: 15px; font-weight: 600">$</span></span><div class="cbody"><span class="w6 ell">Review gate · #4</span><span class="cap ell"><span class="wa-i">Squash into main wants to run</span> <span class="mono" style="font-size: 12px">git merge --squash…</span> <span class="mut">· 4 min</span></span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+<div class="c" style="align-items: flex-start"><span class="st wa" style="margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg></span><div class="cbody"><span class="w6 ell">Review gate · #1</span><span class="cap ell"><span class="wa-i">Tests failed 2 of 2 rounds</span><span class="mut"> · continue or stop</span></span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+<div class="hdr"><span>Running</span><span class="cap">2</span></div>
+<div class="ig">
+<div class="c" style="align-items: flex-start"><span class="st ac" style="margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.9 5.7v4.6L10.5 8Z"/></svg></span><div class="cbody"><span class="w6 ell">Review gate · #2</span><span class="cap ell"><span class="mut">Coder · round 2 · 3 min</span></span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+<div class="c" style="align-items: flex-start"><span class="st ac sq" style="margin-top: 2px"><span class="mono" style="font-size: 15px; font-weight: 600">$</span></span><div class="cbody"><span class="w6 ell">Nightly</span><span class="cap ell"><span class="mut">Ship · 40 min of 2 h</span></span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+<div class="hdr"><span>Done</span><span class="cap">1</span></div>
+<div class="ig">
+<div class="c" style="align-items: flex-start"><span class="st n" style="margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg></span><div class="cbody"><span class="w6 ell">Nightly · Nov 2</span><span class="cap ell"><span class="mut">ended · Tidy had nothing to do · 4 min</span></span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+<div class="hdr" style="padding-top: 22px"><span>Closed · 144</span><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"clight"},"$preview":{"width":393,"height":852}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'clight' };
+}
+}
+</script>
+</body>
+</html>
