@@ -157,6 +157,11 @@ return {
 
       require("diffview").setup({
         enhanced_diff_hl = true,
+        use_icons = false,
+        signs = {
+          fold_closed = " ",
+          fold_open = " ",
+        },
         hooks = {
           view_opened = function()
             commit_labels = {}
@@ -195,6 +200,12 @@ return {
           win_config = {
             position = "right",
             height = 15,
+            win_opts = { signcolumn = "no" },
+          },
+        },
+        file_history_panel = {
+          win_config = {
+            win_opts = { signcolumn = "no" },
           },
         },
         keymaps = {
