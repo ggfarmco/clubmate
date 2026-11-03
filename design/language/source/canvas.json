@@ -305,11 +305,11 @@
    "title": "Mac · Settings → Remote (native form, as built)"
   },
   "Agents-Mate-1280.dc.html": {
-   "x": 3266,
-   "y": 14880,
+   "x": 0,
+   "y": 22660,
    "w": 1280,
    "h": 800,
-   "title": "Agents · 1280 · Mate · paired (blue dot in the pill)"
+   "title": "Agents · 1280 · Mate · paired (blue Mac dot in the pill)"
   },
   "C-Duo-Outer.dc.html": {
    "x": 2365,
@@ -396,6 +396,97 @@
    "h": 620,
    "radius": 12,
    "title": "Mac · Code chat on a graph step: off until the loop runs it · Kanagawa (new)"
+  },
+  "Code-1280-Mate.dc.html": {
+   "x": 1360,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Code + chat · 1280 · Mate"
+  },
+  "Backlog-1280-Mate.dc.html": {
+   "x": 2720,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Backlog task · 1280 · Mate"
+  },
+  "Cron-1280-Mate.dc.html": {
+   "x": 4080,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Cron job · 1280 · Mate"
+  },
+  "Processes-1280-Mate.dc.html": {
+   "x": 5440,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Processes · 1280 · Mate"
+  },
+  "Graphs-1280-Mate.dc.html": {
+   "x": 6800,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Graph run · 1280 · Mate"
+  },
+  "Agents-640-MateLight.dc.html": {
+   "x": 0,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Agents · 640 · Mate light"
+  },
+  "Code-640-MateLight.dc.html": {
+   "x": 1360,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Code + chat · 640 · Mate light"
+  },
+  "Backlog-640-MateLight.dc.html": {
+   "x": 2720,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Backlog task · 640 · Mate light"
+  },
+  "Triggers-640-MateLight.dc.html": {
+   "x": 4080,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Trigger · 640 · Mate light"
+  },
+  "Processes-640-MateLight.dc.html": {
+   "x": 5440,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Processes · 640 · Mate light"
+  },
+  "Graphs-640-MateLight.dc.html": {
+   "x": 6800,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Graph run · 640 · Mate light"
+  },
+  "T-Themes.dc.html": {
+   "x": 0,
+   "y": 24640,
+   "w": 1480,
+   "h": 1420,
+   "title": "T · Mate for Ghostty and nvim"
+  },
+  "T-Nvim-Map.dc.html": {
+   "x": 1560,
+   "y": 24640,
+   "w": 1480,
+   "h": 4000,
+   "title": "T2 · How nvim takes colour — every role, Light Owl as the example"
   }
  },
  "order": [
@@ -443,14 +534,27 @@
   "C-MacInfo.dc.html",
   "C-MacInfo-Light.dc.html",
   "Mac-Settings-Remote.dc.html",
-  "Agents-Mate-1280.dc.html",
   "K1-Check-Mac.dc.html",
   "K2-Check-Companion.dc.html",
   "C-Backlog.dc.html",
   "C-Backlog-Light.dc.html",
   "C-Offline.dc.html",
   "Mac-AlwaysAllow.dc.html",
-  "Mac-ChatGraphStep.dc.html"
+  "Mac-ChatGraphStep.dc.html",
+  "Agents-Mate-1280.dc.html",
+  "Code-1280-Mate.dc.html",
+  "Backlog-1280-Mate.dc.html",
+  "Cron-1280-Mate.dc.html",
+  "Processes-1280-Mate.dc.html",
+  "Graphs-1280-Mate.dc.html",
+  "Agents-640-MateLight.dc.html",
+  "Code-640-MateLight.dc.html",
+  "Backlog-640-MateLight.dc.html",
+  "Triggers-640-MateLight.dc.html",
+  "Processes-640-MateLight.dc.html",
+  "Graphs-640-MateLight.dc.html",
+  "T-Themes.dc.html",
+  "T-Nvim-Map.dc.html"
  ],
  "notes": {
   "t_lang": {
@@ -470,7 +574,7 @@
   "t_mock": {
    "x": 0,
    "y": 7440,
-   "text": "Mockups — 1280 in Kanagawa (dark), 640 in Catppuccin Latte (light); theme is a Tweak on every board",
+   "text": "Earlier mockups in Kanagawa (dark) and Catppuccin Latte (light) — the interface now always uses Mate (section below); these stay as the source the Mate versions import",
    "kind": "title1",
    "maxW": 8080
   },
@@ -494,6 +598,13 @@
    "text": "Build check, 1 Nov 2026 — screenshots vs boards",
    "kind": "title1",
    "maxW": 3986
+  },
+  "t_mate": {
+   "x": 0,
+   "y": 22400,
+   "text": "Mac interface in Mate — every window and plugin panel; terminal and nvim default to the Clubmate themes",
+   "kind": "title1",
+   "maxW": 8080
   }
  },
  "designSystems": []

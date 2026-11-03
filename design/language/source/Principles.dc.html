@@ -76,7 +76,7 @@ a{color:#2B6E39}a:hover{color:#1B4A25}
 <div style="display: flex; flex-direction: column; gap: 14px; padding-top: 16px">
 <div class="eyebrow">Brand</div>
 <h2>Where the mate green belongs</h2>
-<p class="lead">Not inside a themed window. The user picked their colours in Ghostty; a second green would compete with their success tone and make “done” ambiguous. The brand lives where the theme doesn't.</p>
+<p class="lead">Everywhere in Clubmate's own interface, plugin panels included: it always uses the Mate palette, dark or light with macOS. The terminal and the editor belong to the user. Clubmate ships Mate themes for Ghostty and nvim and uses them by default, but a theme the user picks there wins, and the interface stays Mate.</p>
 </div>
 <div style="display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px; align-items: start">
 <img src="/_blob/4b558c00d99e720abb43561cf5b737fb" alt="Clubmate app icon" style="width: 200px; height: 200px; display: block">
@@ -85,8 +85,8 @@ a{color:#2B6E39}a:hover{color:#1B4A25}
 <h3 style="color: #2B6E39">Yes</h3>
 <ul>
 <li>App icon, Dock, About window</li>
-<li>First run and onboarding: the one screen with no Ghostty theme yet</li>
-<li>The <b>Mate</b> fallback theme, used when no Ghostty config is found (replaces Kanagawa)</li>
+<li>The interface in every window and every plugin: accent, selection, focus</li>
+<li>Default terminal and editor themes: <b>Clubmate</b> / <b>Clubmate Light</b> for Ghostty, <b>clubmate</b> for nvim</li>
 <li>Website, docs, release notes</li>
 <li>Monochrome gourd mark in empty states, drawn in muted fg, not green</li>
 </ul>
@@ -94,8 +94,8 @@ a{color:#2B6E39}a:hover{color:#1B4A25}
 <div style="display: flex; flex-direction: column; gap: 8px">
 <h3 style="color: #8A2E26">No</h3>
 <ul>
-<li>Accent, selection or focus colour when a user theme is active</li>
-<li>Success or “connected” indicators</li>
+<li>Overriding a theme the user picked for the terminal or nvim</li>
+<li>Success or “connected” indicators: teal, never the accent</li>
 <li>Title bar, rail or status bar tint</li>
 <li>Gradients anywhere in the window</li>
 </ul>
@@ -104,11 +104,11 @@ a{color:#2B6E39}a:hover{color:#1B4A25}
 </div>
 
 <div style="display: flex; flex-direction: column; gap: 12px">
-<h3>The Mate fallback theme</h3>
-<p class="muted" style="font-size: 14px; max-width: 820px">Derived from the icon: calabash cream, yerba lime, teal for success so it never reads as the accent. It goes through the same role formulas as any Ghostty theme. Accent and tones are the same values as the companion app (C2), so Mate green, amber and red match on the Mac, iPhone and iPad; only the grounds differ — calabash here, system surfaces on the phone.</p>
+<h3>The Mate palette</h3>
+<p class="muted" style="font-size: 14px; max-width: 820px">Derived from the icon: calabash cream, yerba lime, teal for success so it never reads as the accent. The interface roles are derived from it by formula (Tokens). Accent and tones are the same values as the companion app (C2), so Mate green, amber and red match on the Mac, iPhone and iPad; only the grounds differ — calabash here, system surfaces on the phone.</p>
 <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
 <div class="cm th-mate" style="border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
-<div style="display: flex; justify-content: space-between; align-items: center"><span class="b">Mate · dark</span><span class="mut cap">fallback when no Ghostty config</span></div>
+<div style="display: flex; justify-content: space-between; align-items: center"><span class="b">Mate · dark</span><span class="mut cap">interface, macOS dark</span></div>
 <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px">
 <div style="display: flex; flex-direction: column; gap: 4px"><div style="height: 36px; border-radius: 6px; background: var(--bg); border: 1px solid var(--bd2)"></div><span class="cap mut">bg #151B17</span></div>
 <div style="display: flex; flex-direction: column; gap: 4px"><div style="height: 36px; border-radius: 6px; background: var(--fg)"></div><span class="cap mut">fg #E3E3D3</span></div>
@@ -124,7 +124,7 @@ a{color:#2B6E39}a:hover{color:#1B4A25}
 </div>
 </div>
 <div class="cm th-matelight" style="border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid #DAD8CF">
-<div style="display: flex; justify-content: space-between; align-items: center"><span class="b">Mate · light</span><span class="mut cap">same roles, light ground</span></div>
+<div style="display: flex; justify-content: space-between; align-items: center"><span class="b">Mate · light</span><span class="mut cap">interface, macOS light</span></div>
 <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px">
 <div style="display: flex; flex-direction: column; gap: 4px"><div style="height: 36px; border-radius: 6px; background: var(--bg); border: 1px solid var(--bd2)"></div><span class="cap mut">bg #F6F1E6</span></div>
 <div style="display: flex; flex-direction: column; gap: 4px"><div style="height: 36px; border-radius: 6px; background: var(--fg)"></div><span class="cap mut">fg #2B2A22</span></div>
