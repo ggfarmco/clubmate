@@ -110,6 +110,10 @@ type newResult struct {
 	parent   string
 }
 
+type promptResult struct {
+	Turn int `json:"turn"`
+}
+
 type promptArgs struct {
 	Session     string       `json:"session"`
 	Text        string       `json:"text"`
@@ -255,7 +259,18 @@ func (a *app) newCommand(ctx context.Context, cmd pluginsdk.CommandRun, args new
 func (a *app) promptCommand(_ context.Context, cmd pluginsdk.CommandRun, args promptArgs) (any, error) {
 	args.From = origin(cmd)
 	args.Voice = !cmd.Agent && cmd.Via == voicePlugin
-	return nil, a.prompt(cmd.WorkspaceID, args)
+	s, err := a.lookup(cmd.WorkspaceID, args.Session)
+	if err != nil {
+		return nil, err
+	}
+	before := s.currentTurn()
+	if err := a.prompt(cmd.WorkspaceID, args); err != nil {
+		return nil, err
+	}
+	if turn := s.currentTurn(); turn > before {
+		return promptResult{Turn: turn}, nil
+	}
+	return nil, nil
 }
 
 func (a *app) answerCommand(_ context.Context, cmd pluginsdk.CommandRun, args answerArgs) (any, error) {

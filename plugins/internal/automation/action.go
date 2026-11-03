@@ -104,6 +104,11 @@ func (x Executor) Execute(ctx context.Context, act Action, r Run) Run {
 		r.Status, r.Reason = StatusError, err.Error()
 		return r
 	}
+	if act.Command == PromptCommand {
+		var target promptTarget
+		_ = json.Unmarshal(act.Args, &target)
+		r.Target = target.Session
+	}
 	raw, err := x.RunCommand(ctx, CommandRequest{ID: act.Command, WorkspaceID: act.Workspace, Args: args, Agent: true, Caller: act.Owner})
 	switch {
 	case err == nil:

@@ -17,7 +17,7 @@ func TestRunsTableCollapsesOnlyConsecutiveIdenticalRuns(t *testing.T) {
 	}
 	cells := func(r Run) ([]string, string) { return nil, Words("github.ci", nil, r, nil) }
 
-	table, selected := RunsTable(history, time.UTC, nil, cells, RunsView{})
+	table, selected, picked := RunsTable(history, time.UTC, nil, cells, RunsView{})
 	rows := tableRows(table)
 	assert.Equal(t, [][]string{
 		{"15:54 – 15:52", "ok ×2", "same result: main is green"},
@@ -25,10 +25,12 @@ func TestRunsTableCollapsesOnlyConsecutiveIdenticalRuns(t *testing.T) {
 		{"15:48 – 15:46", "ok ×2", "same result: main is green"},
 	}, rows)
 	assert.Equal(t, history[4], selected)
-	assert.Equal(t, "g"+RunID(history[3])[1:], table.Props["selected"])
+	assert.False(t, picked)
+	assert.NotContains(t, table.Props, "selected")
 
-	table, selected = RunsTable(history, time.UTC, nil, cells, RunsView{Selected: RunID(history[0])})
+	table, selected, picked = RunsTable(history, time.UTC, nil, cells, RunsView{Selected: RunID(history[0])})
 	assert.Equal(t, history[0], selected)
+	assert.True(t, picked)
 	assert.Equal(t, "g"+RunID(history[0])[1:], table.Props["selected"])
 }
 

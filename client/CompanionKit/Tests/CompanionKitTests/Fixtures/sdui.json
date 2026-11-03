@@ -644,9 +644,9 @@
    "props": {
     "items": [
      {
-      "id": "cj_nightly",
-      "label": "Nightly tests",
-      "detail": "03:41",
+      "id": "cj_aec2f3f1ebb52cf9",
+      "label": "Poll CI for main",
+      "detail": "23:43",
       "icon": "clock",
       "menu": [
        {
@@ -658,29 +658,8 @@
         "label": "Pause"
        },
        {
-        "action": "duplicate",
-        "label": "Duplicate"
-       },
-       {
-        "action": "delete",
-        "label": "Delete",
-        "confirm": "Delete cron job “Nightly tests”?"
-       }
-      ]
-     },
-     {
-      "id": "cj_check",
-      "label": "Check children",
-      "detail": "22:45",
-      "icon": "clock",
-      "menu": [
-       {
-        "action": "run",
-        "label": "Run now"
-       },
-       {
-        "action": "pause",
-        "label": "Pause"
+        "action": "edit",
+        "label": "Edit"
        },
        {
         "action": "duplicate",
@@ -689,37 +668,41 @@
        {
         "action": "delete",
         "label": "Delete",
-        "confirm": "Delete cron job “Check children”?"
+        "confirm": "Delete cron job “Poll CI for main”?"
        }
       ]
      },
      {
-      "id": "cj_report",
-      "label": "Weekly report",
+      "id": "cj_00309297493709ea",
+      "label": "Weekly backlog review",
       "detail": "paused",
       "icon": "pause.circle",
       "menu": [
        {
         "action": "run",
-        "label": "Run now"
+        "label": "Run once"
        },
        {
         "action": "resume",
         "label": "Resume"
        },
        {
+        "action": "edit",
+        "label": "Edit"
+       },
+       {
         "action": "duplicate",
         "label": "Duplicate"
        },
        {
         "action": "delete",
         "label": "Delete",
-        "confirm": "Delete cron job “Weekly report”?"
+        "confirm": "Delete cron job “Weekly backlog review”?"
        }
       ]
      }
     ],
-    "selected": "cj_nightly"
+    "selected": "cj_aec2f3f1ebb52cf9"
    }
   },
   "cron.main": {
@@ -737,12 +720,12 @@
        }
       ],
       "icon": "clock",
-      "title": "Nightly tests"
+      "title": "Poll CI for main"
      },
      "children": [
       {
        "type": "button",
-       "id": "cj_nightly/run",
+       "id": "cj_aec2f3f1ebb52cf9/run",
        "props": {
         "action": "run",
         "icon": "play.fill",
@@ -753,7 +736,7 @@
       },
       {
        "type": "button",
-       "id": "cj_nightly/pause",
+       "id": "cj_aec2f3f1ebb52cf9/pause",
        "props": {
         "action": "pause",
         "icon": "pause",
@@ -764,7 +747,18 @@
       },
       {
        "type": "button",
-       "id": "cj_nightly/duplicate",
+       "id": "cj_aec2f3f1ebb52cf9/edit",
+       "props": {
+        "action": "edit",
+        "icon": "pencil",
+        "label": "Edit",
+        "shortcut": "e",
+        "variant": "ghost"
+       }
+      },
+      {
+       "type": "button",
+       "id": "cj_aec2f3f1ebb52cf9/duplicate",
        "props": {
         "action": "duplicate",
         "icon": "plus.square.on.square",
@@ -774,20 +768,10 @@
       },
       {
        "type": "button",
-       "id": "cj_nightly/reveal",
-       "props": {
-        "action": "reveal",
-        "icon": "sparkles",
-        "label": "Show session",
-        "variant": "ghost"
-       }
-      },
-      {
-       "type": "button",
-       "id": "cj_nightly/delete",
+       "id": "cj_aec2f3f1ebb52cf9/delete",
        "props": {
         "action": "delete",
-        "confirm": "Delete cron job “Nightly tests”?",
+        "confirm": "Delete cron job “Poll CI for main”?",
         "icon": "trash",
         "label": "Delete",
         "shortcut": "cmd+delete",
@@ -797,389 +781,424 @@
      ]
     },
     {
-     "type": "form",
-     "id": "props",
+     "type": "scroll",
      "children": [
       {
        "type": "stack",
        "props": {
-        "direction": "horizontal"
+        "direction": "vertical"
        },
        "children": [
         {
-         "type": "text",
-         "props": {
-          "style": "muted",
-          "text": "Schedule"
-         }
-        },
-        {
-         "type": "text",
-         "props": {
-          "text": "Every day 03:00"
-         }
-        },
-        {
-         "type": "text",
-         "props": {
-          "style": "muted",
-          "text": "0 3 * * *"
-         }
-        }
-       ]
-      },
-      {
-       "type": "stack",
-       "props": {
-        "direction": "horizontal"
-       },
-       "children": [
-        {
-         "type": "text",
-         "props": {
-          "style": "muted",
-          "text": "Next run"
-         }
-        },
-        {
-         "type": "text",
-         "props": {
-          "text": "Mon, Nov 2 · 03:41"
-         }
-        },
-        {
-         "type": "text",
-         "props": {
-          "style": "muted",
-          "text": "in 5 h"
-         }
-        }
-       ]
-      },
-      {
-       "type": "stack",
-       "props": {
-        "direction": "horizontal"
-       },
-       "children": [
-        {
-         "type": "text",
-         "props": {
-          "style": "muted",
-          "text": "When missed"
-         }
-        },
-        {
-         "type": "select",
-         "id": "cj_nightly/missed",
-         "props": {
-          "action": "missed",
-          "options": [
-           {
-            "value": "once",
-            "label": "Run once when Clubmate is back"
+         "type": "form",
+         "id": "props",
+         "children": [
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
            },
-           {
-            "value": "skip",
-            "label": "Skip it and wait for the next run"
-           }
-          ],
-          "value": "once"
-         }
-        }
-       ]
-      },
-      {
-       "type": "stack",
-       "props": {
-        "direction": "horizontal"
-       },
-       "children": [
-        {
-         "type": "text",
-         "props": {
-          "style": "muted",
-          "text": "Owner"
-         }
-        },
-        {
-         "type": "text",
-         "props": {
-          "text": "Fix flaky checkout test"
-         }
-        }
-       ]
-      },
-      {
-       "type": "stack",
-       "props": {
-        "direction": "horizontal"
-       },
-       "children": [
-        {
-         "type": "text",
-         "props": {
-          "style": "muted",
-          "text": "Does"
-         }
-        },
-        {
-         "type": "text",
-         "props": {
-          "text": "Send a prompt to Fix flaky checkout test"
-         }
-        }
-       ]
-      },
-      {
-       "type": "stack",
-       "props": {
-        "direction": "horizontal"
-       },
-       "children": [
-        {
-         "type": "text",
-         "props": {
-          "style": "muted",
-          "text": ""
-         }
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "Schedule"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "text": "Every 2m"
+             }
+            }
+           ]
+          },
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "Next run"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "text": "Tue, Nov 3 · 23:43"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "in less than a minute"
+             }
+            }
+           ]
+          },
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "When missed"
+             }
+            },
+            {
+             "type": "select",
+             "id": "cj_aec2f3f1ebb52cf9/missed",
+             "props": {
+              "action": "missed",
+              "options": [
+               {
+                "value": "once",
+                "label": "Run once when Clubmate is back"
+               },
+               {
+                "value": "skip",
+                "label": "Skip it and wait for the next run"
+               }
+              ],
+              "value": "once"
+             }
+            }
+           ]
+          },
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "Owner"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "text": "nobody — failures go to the inbox"
+             }
+            }
+           ]
+          },
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "Does"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "text": ""
+             }
+            }
+           ]
+          }
+         ]
         },
         {
          "type": "flow",
-         "id": "cj_nightly/does",
+         "id": "does",
          "props": {
           "cards": [
            {
-            "id": "check",
-            "label": "Check CI status",
-            "state": "GitHub · branch main",
+            "id": "action",
+            "label": "List backlog tasks",
+            "state": "plugin command",
             "icon": "powerplug",
-            "tooltip": "Run the check-ci command",
+            "tooltip": "List backlog tasks · plugin command",
             "outs": [
              {
               "id": "ok",
               "label": "ok",
-              "count": 19,
-              "state": "taken"
+              "count": 17,
+              "state": "last"
              },
              {
               "id": "failed",
               "label": "failed",
-              "count": 1,
-              "state": "last"
+              "state": "never"
              }
             ]
+           }
+          ],
+          "edges": [
+           {
+            "from": "when",
+            "to": "action",
+            "state": "taken"
+           },
+           {
+            "from": "action",
+            "out": "ok",
+            "to": "runs",
+            "state": "last",
+            "tooltip": "ok runs stay in Runs below"
+           },
+           {
+            "from": "action",
+            "out": "failed",
+            "to": "inbox",
+            "state": "never",
+            "tooltip": "failed and missed runs post to the inbox; ok runs stay in Runs"
            }
           ],
           "markers": [
            {
             "id": "when",
             "kind": "schedule",
-            "label": "every 2 min"
+            "label": "every 2m"
+           },
+           {
+            "id": "runs",
+            "kind": "runs"
            },
            {
             "id": "inbox",
             "kind": "inbox",
             "label": "Inbox"
            }
-          ],
-          "edges": [
-           {
-            "from": "when",
-            "to": "check",
-            "state": "taken"
-           },
-           {
-            "from": "check",
-            "out": "failed",
-            "to": "inbox",
-            "state": "last",
-            "ref": "trg_gallery",
-            "tooltip": "failed runs post to the inbox"
-           }
           ]
          }
-        }
-       ]
-      },
-      {
-       "type": "stack",
-       "props": {
-        "direction": "horizontal"
-       },
-       "children": [
-        {
-         "type": "text",
-         "props": {
-          "style": "muted",
-          "text": ""
-         }
         },
         {
-         "type": "card",
+         "type": "form",
+         "id": "runs",
          "children": [
           {
-           "type": "text",
+           "type": "stack",
            "props": {
-            "lines": 3,
-            "text": "Run make test and report failures"
-           }
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": ""
+             }
+            },
+            {
+             "type": "button",
+             "id": "cj_aec2f3f1ebb52cf9/json",
+             "props": {
+              "action": "json",
+              "icon": "chevron.right",
+              "label": "Show as JSON",
+              "variant": "ghost"
+             }
+            }
+           ]
+          },
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "Runs"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "text": "ok 17"
+             }
+            },
+            {
+             "type": "button",
+             "id": "cj_aec2f3f1ebb52cf9/runJson",
+             "props": {
+              "action": "runJson",
+              "icon": "chevron.right",
+              "label": "Show the latest run as JSON",
+              "variant": "ghost"
+             }
+            }
+           ]
           }
          ]
-        }
-       ]
-      },
-      {
-       "type": "stack",
-       "props": {
-        "direction": "horizontal"
-       },
-       "children": [
-        {
-         "type": "text",
-         "props": {
-          "style": "muted",
-          "text": ""
-         }
-        },
-        {
-         "type": "button",
-         "id": "cj_nightly/json",
-         "props": {
-          "action": "json",
-          "icon": "chevron.right",
-          "label": "Show as JSON",
-          "variant": "ghost"
-         }
-        }
-       ]
-      },
-      {
-       "type": "stack",
-       "props": {
-        "direction": "horizontal"
-       },
-       "children": [
-        {
-         "type": "text",
-         "props": {
-          "style": "muted",
-          "text": "Runs"
-         }
         },
         {
          "type": "runstrip",
-         "id": "cj_nightly/runs",
+         "id": "strip",
          "props": {
+          "next": "2026-11-03T22:43:31Z",
+          "now": "2026-11-03T22:43:15Z",
           "runs": [
            {
-            "at": "2026-11-03T15:46:00Z",
+            "at": "2026-11-03T23:37:31.682081+01:00",
             "status": "ok",
-            "tooltip": "15:46 · ok · main is green · 14 checks passed",
-            "ref": "run-946"
+            "tooltip": "Nov 3 23:37 · ok · ok",
+            "ref": "r1793745451682081000"
            },
            {
-            "at": "2026-11-03T15:48:00Z",
+            "at": "2026-11-03T23:37:31.74786+01:00",
             "status": "ok",
-            "tooltip": "15:48 · ok · main is green · 14 checks passed",
-            "ref": "run-948"
+            "tooltip": "Nov 3 23:37 · ok · ok",
+            "ref": "r1793745451747860000"
            },
            {
-            "at": "2026-11-03T15:50:00Z",
+            "at": "2026-11-03T23:37:31.811656+01:00",
             "status": "ok",
-            "tooltip": "15:50 · ok · main is green · 14 checks passed",
-            "ref": "run-950"
+            "tooltip": "Nov 3 23:37 · ok · ok",
+            "ref": "r1793745451811656000"
            },
            {
-            "at": "2026-11-03T16:00:00Z",
+            "at": "2026-11-03T23:37:31.874045+01:00",
             "status": "ok",
-            "tooltip": "16:00 · ok · main is green · 14 checks passed",
-            "ref": "run-960"
+            "tooltip": "Nov 3 23:37 · ok · ok",
+            "ref": "r1793745451874045000"
            },
            {
-            "at": "2026-11-03T16:02:00Z",
+            "at": "2026-11-03T23:37:31.93537+01:00",
             "status": "ok",
-            "tooltip": "16:02 · ok · main is green · 14 checks passed",
-            "ref": "run-962"
+            "tooltip": "Nov 3 23:37 · ok · ok",
+            "ref": "r1793745451935370000"
            },
            {
-            "at": "2026-11-03T16:04:00Z",
+            "at": "2026-11-03T23:37:31.9971+01:00",
             "status": "ok",
-            "tooltip": "16:04 · ok · main is green · 14 checks passed",
-            "ref": "run-964"
+            "tooltip": "Nov 3 23:37 · ok · ok",
+            "ref": "r1793745451997100000"
+           },
+           {
+            "at": "2026-11-03T23:37:32.055236+01:00",
+            "status": "ok",
+            "tooltip": "Nov 3 23:37 · ok · ok",
+            "ref": "r1793745452055236000"
+           },
+           {
+            "at": "2026-11-03T23:37:32.111881+01:00",
+            "status": "ok",
+            "tooltip": "Nov 3 23:37 · ok · ok",
+            "ref": "r1793745452111881000"
+           },
+           {
+            "at": "2026-11-03T23:37:32.165929+01:00",
+            "status": "ok",
+            "tooltip": "Nov 3 23:37 · ok · ok",
+            "ref": "r1793745452165929000"
+           },
+           {
+            "at": "2026-11-03T23:37:32.21937+01:00",
+            "status": "ok",
+            "tooltip": "Nov 3 23:37 · ok · ok",
+            "ref": "r1793745452219370000"
+           },
+           {
+            "at": "2026-11-03T23:37:32.276361+01:00",
+            "status": "ok",
+            "tooltip": "Nov 3 23:37 · ok · ok",
+            "ref": "r1793745452276361000"
+           },
+           {
+            "at": "2026-11-03T23:37:32.337102+01:00",
+            "status": "ok",
+            "tooltip": "Nov 3 23:37 · ok · ok",
+            "ref": "r1793745452337102000"
+           },
+           {
+            "at": "2026-11-03T23:37:32.40256+01:00",
+            "status": "ok",
+            "tooltip": "Nov 3 23:37 · ok · ok",
+            "ref": "r1793745452402560000"
+           },
+           {
+            "at": "2026-11-03T23:37:32.462188+01:00",
+            "status": "ok",
+            "tooltip": "Nov 3 23:37 · ok · ok",
+            "ref": "r1793745452462188000"
+           },
+           {
+            "at": "2026-11-03T23:37:32.518835+01:00",
+            "status": "ok",
+            "tooltip": "Nov 3 23:37 · ok · ok",
+            "ref": "r1793745452518835000"
+           },
+           {
+            "at": "2026-11-03T23:39:31.61615+01:00",
+            "status": "ok",
+            "tooltip": "Nov 3 23:39 · ok · ok",
+            "ref": "r1793745571616150000"
+           },
+           {
+            "at": "2026-11-03T23:41:31.616665+01:00",
+            "status": "ok",
+            "tooltip": "Nov 3 23:41 · ok · ok",
+            "ref": "r1793745691616665000"
+           }
+          ]
+         }
+        },
+        {
+         "type": "table",
+         "id": "history",
+         "props": {
+          "columns": [
+           {
+            "id": "when",
+            "title": "When",
+            "width": 150
+           },
+           {
+            "id": "status",
+            "title": "Status",
+            "width": 80
+           },
+           {
+            "id": "result",
+            "title": "Result"
            }
           ],
-          "now": "2026-11-03T16:28:20Z",
-          "next": "2026-11-03T16:30:00Z",
-          "paused": [
+          "rows": [
            {
-            "from": "2026-11-03T15:51:00Z",
-            "to": "2026-11-03T15:59:00Z"
+            "id": "g1793745451682081000",
+            "hasChildren": true,
+            "cells": [
+             {
+              "text": "23:41 – 23:37"
+             },
+             {
+              "text": "ok ×17",
+              "tone": "ok"
+             },
+             {
+              "text": "same result: ok"
+             }
+            ]
            }
-          ],
-          "selected": "run-failed"
+          ]
          }
         }
        ]
-      }
-     ]
-    },
-    {
-     "type": "scroll",
-     "children": [
-      {
-       "type": "table",
-       "id": "history",
-       "props": {
-        "columns": [
-         {
-          "id": "when",
-          "title": "When",
-          "width": 120
-         },
-         {
-          "id": "status",
-          "title": "Status",
-          "width": 72
-         },
-         {
-          "id": "detail",
-          "title": "Reason / Result"
-         }
-        ],
-        "rows": [
-         {
-          "id": "r0",
-          "cells": [
-           {
-            "text": "Nov 1 03:41:58"
-           },
-           {
-            "text": "ok",
-            "tone": "ok"
-           },
-           {
-            "text": "{\"session\":\"Nightly run\"}"
-           }
-          ]
-         },
-         {
-          "id": "r1",
-          "cells": [
-           {
-            "text": "Oct 31 03:41:58"
-           },
-           {
-            "text": "error",
-            "tone": "danger"
-           },
-           {
-            "text": "agent busy"
-           }
-          ]
-         }
-        ]
-       }
       }
      ]
     }
@@ -1191,9 +1210,9 @@
    "props": {
     "items": [
      {
-      "id": "tr_review",
-      "label": "Review after a turn",
-      "detail": "an agent turn finishes · status done · session Fix flaky checkout test",
+      "id": "tr_d88ea31ae5d69987",
+      "label": "Release after the nightly tidy",
+      "detail": "the event “tidy.done” is emitted",
       "icon": "bolt",
       "menu": [
        {
@@ -1207,33 +1226,12 @@
        {
         "action": "delete",
         "label": "Delete",
-        "confirm": "Delete trigger “Review after a turn”?"
-       }
-      ]
-     },
-     {
-      "id": "tr_nightly",
-      "label": "Nightly",
-      "detail": "the event “nightly” is emitted",
-      "icon": "bolt",
-      "menu": [
-       {
-        "action": "run",
-        "label": "Run now"
-       },
-       {
-        "action": "pause",
-        "label": "Pause"
-       },
-       {
-        "action": "delete",
-        "label": "Delete",
-        "confirm": "Delete trigger “Nightly”?"
+        "confirm": "Delete trigger “Release after the nightly tidy”?"
        }
       ]
      }
     ],
-    "selected": "tr_review"
+    "selected": "tr_d88ea31ae5d69987"
    }
   },
   "triggers.main": {
@@ -1251,23 +1249,23 @@
        }
       ],
       "icon": "bolt",
-      "title": "Review after a turn"
+      "title": "Release after the nightly tidy"
      },
      "children": [
       {
        "type": "button",
-       "id": "tr_review/run",
+       "id": "tr_d88ea31ae5d69987/run",
        "props": {
         "action": "run",
         "icon": "play.fill",
         "label": "Run now",
         "shortcut": "cmd+r",
-        "variant": "secondary"
+        "variant": "primary"
        }
       },
       {
        "type": "button",
-       "id": "tr_review/pause",
+       "id": "tr_d88ea31ae5d69987/pause",
        "props": {
         "action": "pause",
         "icon": "pause",
@@ -1278,10 +1276,10 @@
       },
       {
        "type": "button",
-       "id": "tr_review/delete",
+       "id": "tr_d88ea31ae5d69987/delete",
        "props": {
         "action": "delete",
-        "confirm": "Delete trigger “Review after a turn”?",
+        "confirm": "Delete trigger “Release after the nightly tidy”?",
         "icon": "trash",
         "label": "Delete",
         "shortcut": "cmd+delete",
@@ -1291,141 +1289,300 @@
      ]
     },
     {
-     "type": "form",
-     "id": "props",
+     "type": "scroll",
      "children": [
       {
        "type": "stack",
        "props": {
-        "direction": "horizontal"
+        "direction": "vertical"
        },
        "children": [
         {
-         "type": "text",
-         "props": {
-          "style": "muted",
-          "text": "When"
-         }
-        },
-        {
-         "type": "text",
-         "props": {
-          "text": "an agent turn finishes · status done · session Fix flaky checkout test"
-         }
-        }
-       ]
-      },
-      {
-       "type": "stack",
-       "props": {
-        "direction": "horizontal"
-       },
-       "children": [
-        {
-         "type": "text",
-         "props": {
-          "style": "muted",
-          "text": "Owner"
-         }
-        },
-        {
-         "type": "text",
-         "props": {
-          "text": "nobody — results go to the inbox"
-         }
-        }
-       ]
-      },
-      {
-       "type": "stack",
-       "props": {
-        "direction": "horizontal"
-       },
-       "children": [
-        {
-         "type": "text",
-         "props": {
-          "style": "muted",
-          "text": "Does"
-         }
-        },
-        {
-         "type": "text",
-         "props": {
-          "text": "Send a prompt to Explain the checkout flow"
-         }
-        }
-       ]
-      },
-      {
-       "type": "stack",
-       "props": {
-        "direction": "horizontal"
-       },
-       "children": [
-        {
-         "type": "text",
-         "props": {
-          "style": "muted",
-          "text": ""
-         }
-        },
-        {
-         "type": "card",
+         "type": "form",
+         "id": "tr_d88ea31ae5d69987/caption",
          "children": [
           {
            "type": "text",
            "props": {
-            "lines": 3,
-            "text": "Review the last commit."
+            "style": "muted",
+            "text": "what it waits for and what it does"
            }
           }
          ]
-        }
-       ]
-      },
-      {
-       "type": "stack",
-       "props": {
-        "direction": "horizontal"
-       },
-       "children": [
+        },
         {
-         "type": "text",
+         "type": "flow",
+         "id": "tr_d88ea31ae5d69987/flow",
          "props": {
-          "style": "muted",
-          "text": ""
+          "cards": [
+           {
+            "id": "when",
+            "label": "“tidy.done”",
+            "icon": "dot.radiowaves.left.and.right",
+            "outs": [
+             {
+              "id": "event",
+              "label": "emits tidy.done",
+              "state": "selected"
+             }
+            ]
+           },
+           {
+            "id": "agt_0000000000000002",
+            "label": "Backlog grooming",
+            "state": "ok · 23:39",
+            "tone": "success",
+            "icon": "checkmark.circle",
+            "tooltip": "prompted Backlog grooming",
+            "outs": []
+           }
+          ],
+          "edges": [
+           {
+            "from": "when",
+            "out": "event",
+            "to": "agt_0000000000000002",
+            "state": "selected",
+            "tooltip": "this trigger",
+            "label": "this trigger"
+           }
+          ]
          }
         },
         {
-         "type": "button",
-         "id": "tr_review/json",
-         "props": {
-          "action": "json",
-          "icon": "chevron.right",
-          "label": "Show as JSON",
-          "variant": "ghost"
-         }
-        }
-       ]
-      },
-      {
-       "type": "stack",
-       "props": {
-        "direction": "horizontal"
-       },
-       "children": [
+         "type": "form",
+         "id": "props",
+         "children": [
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "When"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "text": "the event “tidy.done” is emitted"
+             }
+            }
+           ]
+          },
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "Owner"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "text": "nobody — failures go to the inbox"
+             }
+            }
+           ]
+          },
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "Does"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "text": "Send a prompt to Backlog grooming"
+             }
+            }
+           ]
+          },
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": ""
+             }
+            },
+            {
+             "type": "card",
+             "children": [
+              {
+               "type": "text",
+               "props": {
+                "lines": 3,
+                "text": "Release it"
+               }
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": ""
+             }
+            },
+            {
+             "type": "button",
+             "id": "tr_d88ea31ae5d69987/json",
+             "props": {
+              "action": "json",
+              "icon": "chevron.right",
+              "label": "Show as JSON",
+              "variant": "ghost"
+             }
+            }
+           ]
+          },
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "Runs"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "text": "ok 1"
+             }
+            },
+            {
+             "type": "button",
+             "id": "tr_d88ea31ae5d69987/runJson",
+             "props": {
+              "action": "runJson",
+              "icon": "chevron.right",
+              "label": "Show the latest run as JSON",
+              "variant": "ghost"
+             }
+            }
+           ]
+          }
+         ]
+        },
         {
-         "type": "text",
+         "type": "lanes",
+         "id": "tr_d88ea31ae5d69987/lanes",
          "props": {
-          "style": "muted",
-          "text": "Runs"
+          "actors": [
+           {
+            "id": "cause",
+            "label": "“tidy.done”",
+            "icon": "dot.radiowaves.left.and.right"
+           },
+           {
+            "id": "effect",
+            "label": "Backlog grooming",
+            "icon": "sparkle"
+           }
+          ],
+          "count": 1,
+          "moves": [
+           {
+            "actor": "cause",
+            "cause": -1,
+            "tooltip": "Nov 3 23:39:35 · the event “tidy.done” is emitted",
+            "ref": "r1793745575332951000"
+           },
+           {
+            "actor": "effect",
+            "cause": 0,
+            "label": "tidy.done → prompt",
+            "tooltip": "Nov 3 23:39:35 · prompted Backlog grooming",
+            "last": true,
+            "tone": "success",
+            "ref": "r1793745575332951000"
+           }
+          ],
+          "title": "Runs"
          }
         },
         {
-         "type": "text",
+         "type": "table",
+         "id": "history",
          "props": {
-          "text": "No runs yet. It runs when an agent turn finishes · status done · session Fix flaky checkout test."
+          "columns": [
+           {
+            "id": "when",
+            "title": "When",
+            "width": 150
+           },
+           {
+            "id": "event",
+            "title": "Event",
+            "priority": 1
+           },
+           {
+            "id": "status",
+            "title": "Status",
+            "width": 80
+           },
+           {
+            "id": "result",
+            "title": "Result"
+           }
+          ],
+          "rows": [
+           {
+            "id": "r1793745575332951000",
+            "cells": [
+             {
+              "text": "Nov 3 23:39:35"
+             },
+             {
+              "text": "the event “tidy.done” is emitted"
+             },
+             {
+              "text": "ok",
+              "tone": "ok"
+             },
+             {
+              "text": "prompted Backlog grooming"
+             }
+            ]
+           }
+          ]
          }
         }
        ]

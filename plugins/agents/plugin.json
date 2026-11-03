@@ -71,7 +71,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Checkpoint the worktree and send a prompt to any agent session of the workspace; while a turn is running it goes into that turn when the agent supports steering, else it is queued. Sent by an agent, the target sees it as a message from that agent session (or another agent), not from the user, so it never counts as the user's approval; relay the user's own answer with agents.answer instead. Returns once the turn has started, the prompt reached the running turn or it is queued; the turn runs in the background.",
+        "description": "Checkpoint the worktree and send a prompt to any agent session of the workspace; while a turn is running it goes into that turn when the agent supports steering, else it is queued. Sent by an agent, the target sees it as a message from that agent session (or another agent), not from the user, so it never counts as the user's approval; relay the user's own answer with agents.answer instead. Returns once the turn has started ({turn}: its number), the prompt reached the running turn or it is queued (null); the turn runs in the background.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},

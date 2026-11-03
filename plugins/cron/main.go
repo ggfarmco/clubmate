@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -153,6 +154,14 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 			a.registry.Flush(ctx)
 			return nil, nil
 		}
+		if ev.NodeID == doesFlowID {
+			var card string
+			_ = json.Unmarshal(ev.Value, &card)
+			if ev.Action != actOpen || !strings.HasPrefix(card, "agt_") {
+				return nil, nil
+			}
+			return nil, agentcall.Reveal(ctx, a.host, ev.WorkspaceID, card)
+		}
 		target, ok := automation.ActionTarget(ev.NodeID, ev.Action)
 		if !ok {
 			return nil, nil
@@ -268,7 +277,7 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	if err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
-	titles := a.registry.Titles(ctx, workspace, jobs)
+	titles, statuses := a.registry.Names(ctx, workspace, jobs)
 	a.mu.Lock()
 	d := a.drafts[workspace]
 	a.mu.Unlock()
@@ -276,7 +285,7 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(jobs, selected, now)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
-	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, titles, open, runs, d, now)); err != nil {
+	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, titles, statuses, open, runs, d, now)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
 	return nil

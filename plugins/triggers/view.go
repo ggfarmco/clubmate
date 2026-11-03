@@ -67,7 +67,7 @@ func triggerItem(t *Trigger, titles map[string]string) sdui.TreeItem {
 	}
 }
 
-func mainView(t *Trigger, triggers []*Trigger, titles map[string]string, open automation.Open, runs automation.RunsView) sdui.Node {
+func mainView(t *Trigger, triggers []*Trigger, titles map[string]string, shape *graphShape, open automation.Open, runs automation.RunsView) sdui.Node {
 	if len(triggers) == 0 {
 		return emptyView()
 	}
@@ -97,10 +97,10 @@ func mainView(t *Trigger, triggers []*Trigger, titles map[string]string, open au
 	}
 	rows = append(rows, automation.Property("Owner", ownerLine(t, titles), ""))
 	rows = append(rows, automation.Does(t.ID, t.Command, t.Args, titles, open)...)
-	caption, flow, lanes, drawn := drawnRuns(t, triggers, titles, time.Local)
+	caption, flow, lanes, drawn := drawnRuns(t, triggers, titles, shape, time.Local)
 	var body []sdui.Node
 	if drawn {
-		body = append(body, sdui.MutedText(caption), flow)
+		body = append(body, sdui.Form(t.ID+captionSuffix, sdui.MutedText(caption)), flow)
 	}
 	if len(t.History) == 0 {
 		body = append(body, automation.Properties(append(rows, automation.Property("Runs", "No runs yet. It runs when "+when+".", ""))...))
@@ -110,12 +110,8 @@ func mainView(t *Trigger, triggers []*Trigger, titles map[string]string, open au
 		return []string{eventWords(r, titles)}, automation.Words(t.Command, t.Args, r, titles)
 	}
 	event := []sdui.Column{{ID: "event", Title: "Event", Priority: 1}}
-	table, run := automation.RunsTable(t.History, time.Local, event, cells, runs)
-	if runs.Selected == "" {
-		table.Props = maps.Clone(table.Props)
-		delete(table.Props, "selected")
-	}
-	rows = append(rows, automation.RunsRows(t.ID, t.History, run, open.RunJSON)...)
+	table, run, picked := automation.RunsTable(t.History, time.Local, event, cells, runs)
+	rows = append(rows, automation.RunsRows(t.ID, t.History, run, picked, open.RunJSON)...)
 	body = append(body, automation.Properties(rows...))
 	if drawn {
 		body = append(body, lanes)
@@ -219,12 +215,12 @@ func deleteConfirm(t *Trigger) string {
 }
 
 func triggerMenu(t *Trigger) []sdui.MenuEntry {
-	toggle := sdui.MenuEntry{Action: automation.ActPause, Label: "Pause"}
+	run, toggle := sdui.MenuEntry{Action: automation.ActRun, Label: "Run now"}, sdui.MenuEntry{Action: automation.ActPause, Label: "Pause"}
 	if !t.Enabled {
-		toggle = sdui.MenuEntry{Action: automation.ActResume, Label: "Resume"}
+		run.Label, toggle = "Run once", sdui.MenuEntry{Action: automation.ActResume, Label: "Resume"}
 	}
 	return []sdui.MenuEntry{
-		{Action: automation.ActRun, Label: "Run now"},
+		run,
 		toggle,
 		{Action: automation.ActDelete, Label: "Delete", Confirm: deleteConfirm(t)},
 	}

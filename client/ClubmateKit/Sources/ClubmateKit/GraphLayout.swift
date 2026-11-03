@@ -101,7 +101,7 @@ public struct GraphLayout: Sendable {
         let row = Dictionary(uniqueKeysWithValues: stacks.flatMap { $0.enumerated().map { ($0.element, $0.offset) } })
         func extent(_ item: Item) -> CGSize {
             switch item {
-            case .card(let card): CGSize(width: m.cardWidth, height: m.top(card) + 2 * m.rowHeight / 3 + m.rowHeight * CGFloat(card.outs.count))
+            case .card(let card): CGSize(width: m.cardWidth, height: card.outs.isEmpty ? m.top(card) : m.top(card) + 2 * m.rowHeight / 3 + m.rowHeight * CGFloat(card.outs.count))
             case .marker(let marker): sizes[marker.id] ?? CGSize(width: m.rowHeight, height: m.headHeight)
             }
         }

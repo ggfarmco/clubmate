@@ -34,6 +34,7 @@ type Run struct {
 	Status string    `json:"status"`
 	Reason string    `json:"reason,omitempty"`
 	Result string    `json:"result,omitempty"`
+	Target string    `json:"target,omitempty"`
 	Chain  *Chain    `json:"chain,omitempty"`
 }
 

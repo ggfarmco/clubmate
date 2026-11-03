@@ -37,9 +37,12 @@ type runGroup struct {
 	words string
 }
 
-func RunsTable(history []Run, loc *time.Location, extra []sdui.Column, cells RunCells, v RunsView) (sdui.Node, Run) {
+func RunsTable(history []Run, loc *time.Location, extra []sdui.Column, cells RunCells, v RunsView) (sdui.Node, Run, bool) {
 	groups := groupRuns(history, cells)
-	selected, run := v.selection(groups)
+	selected, run, picked := v.selection(groups)
+	if !picked {
+		selected = ""
+	}
 	rows := make([]sdui.TableRow, 0, len(history))
 	for _, g := range groups {
 		if len(g.runs) == 1 {
@@ -67,17 +70,18 @@ func RunsTable(history []Run, loc *time.Location, extra []sdui.Column, cells Run
 	}
 	columns := append([]sdui.Column{{ID: "when", Title: "When", Width: 150}}, extra...)
 	columns = append(columns, sdui.Column{ID: "status", Title: "Status", Width: 80}, sdui.Column{ID: "result", Title: "Result"})
-	return sdui.Table(HistoryID, columns, rows, selected, sdui.Sort{}), run
+	return sdui.Table(HistoryID, columns, rows, selected, sdui.Sort{}), run, picked
 }
 
 func RunID(r Run) string {
 	return "r" + strconv.FormatInt(r.At.UnixNano(), 10)
 }
 
-func RunsRows(id string, history []Run, selected Run, open bool) []sdui.Node {
-	toggle := DetailAction{Action: ActRunJSON, Label: "Show the selected run as JSON", Icon: "chevron.right", Variant: sdui.VariantGhost}
+func RunsRows(id string, history []Run, selected Run, picked, open bool) []sdui.Node {
+	which := map[bool]string{true: "selected", false: "latest"}[picked]
+	toggle := DetailAction{Action: ActRunJSON, Label: "Show the " + which + " run as JSON", Icon: "chevron.right", Variant: sdui.VariantGhost}
 	if open {
-		toggle.Label, toggle.Icon = "Hide the selected run's JSON", "chevron.down"
+		toggle.Label, toggle.Icon = "Hide the "+which+" run's JSON", "chevron.down"
 	}
 	rows := []sdui.Node{sdui.HStack(sdui.MutedText("Runs"), sdui.Text(runCounts(history)), ActionNode(id, toggle))}
 	if open {
@@ -145,29 +149,28 @@ func runRow(id string, r Run, extra []string, words string, loc *time.Location, 
 	return sdui.TableRow{ID: id, Depth: depth, Cells: cells}
 }
 
-func (v RunsView) selection(groups []runGroup) (string, Run) {
+func (v RunsView) selection(groups []runGroup) (string, Run, bool) {
 	for _, g := range groups {
+		if v.Selected == "" {
+			break
+		}
 		if g.id == v.Selected {
-			return g.id, g.runs[0]
+			return g.id, g.runs[0], true
 		}
 		for _, r := range g.runs {
 			switch {
 			case RunID(r) != v.Selected:
 			case len(g.runs) == 1 || v.Expanded[g.id]:
-				return v.Selected, r
+				return v.Selected, r, true
 			default:
-				return g.id, r
+				return g.id, r, true
 			}
 		}
 	}
 	if len(groups) == 0 {
-		return "", Run{}
+		return "", Run{}, false
 	}
-	g := groups[0]
-	if len(g.runs) == 1 {
-		return RunID(g.runs[0]), g.runs[0]
-	}
-	return g.id, g.runs[0]
+	return groups[0].id, groups[0].runs[0], false
 }
 
 type Runs struct {

@@ -141,12 +141,12 @@ var (
 		"id": uniqueItemID, "label": isString, "state": isString, "tone": oneOf(badgeTones), "icon": isString,
 		"attention": isBool, "pending": isBool, "ghost": isBool, "tooltip": isString, "outs": listOf(flowOut),
 	})
-	markerKinds = []string{"start", "end", "schedule", "inbox", "session"}
+	markerKinds = []string{"start", "end", "schedule", "inbox", "session", "runs"}
 	flowMarker  = objectCheck([]string{"id", "kind"}, map[string]propCheck{
 		"id": uniqueItemID, "kind": oneOf(markerKinds), "label": isString, "reached": isBool,
 	})
 	flowEdge = objectCheck([]string{"from", "to", "state"}, map[string]propCheck{
-		"from": nonEmptyString, "out": nonEmptyString, "to": nonEmptyString, "state": oneOf(flowStates), "ref": nonEmptyString, "tooltip": isString,
+		"from": nonEmptyString, "out": nonEmptyString, "to": nonEmptyString, "state": oneOf(flowStates), "ref": nonEmptyString, "tooltip": isString, "label": isString,
 	})
 
 	laneActor = objectCheck([]string{"id", "label"}, map[string]propCheck{
@@ -323,6 +323,7 @@ var (
 				"moves":     maxLen(maxGraphMoves, listOf(laneMove)),
 				"title":     isString,
 				"collapsed": isBool,
+				"count":     countNumber,
 			},
 			children:    noChildren,
 			interactive: true,

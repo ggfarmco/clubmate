@@ -41,7 +41,7 @@ func TestMainHistoryNewestFirst(t *testing.T) {
 		{At: at, Status: automation.StatusOK, Result: `{"session":"agt_2"}`},
 		{At: at.Add(2 * time.Minute), Status: automation.StatusError, Reason: "boom"},
 	}}
-	view := mainView(j, map[string]string{"agt_1": "Orchestrator", "agt_2": "Child"}, automation.Open{}, automation.RunsView{}, draft{}, at)
+	view := mainView(j, map[string]string{"agt_1": "Orchestrator", "agt_2": "Child"}, nil, automation.Open{}, automation.RunsView{}, draft{}, at)
 	require.NoError(t, isdui.Validate(view))
 	assert.Contains(t, texts(view), "Orchestrator")
 	assert.Equal(t, "header", view.Children[0].Type)
@@ -66,7 +66,7 @@ func TestMainSplitsMissedRunsFromThePolicy(t *testing.T) {
 			{At: now.Add(-11 * time.Hour), Status: automation.StatusSkipped, Reason: reasonMissed},
 		}}
 
-	view := mainView(j, nil, automation.Open{}, automation.RunsView{}, draft{}, now)
+	view := mainView(j, nil, nil, automation.Open{}, automation.RunsView{}, draft{}, now)
 	require.NoError(t, isdui.Validate(view))
 	assert.Equal(t, []sdui.HeaderBadge{{Text: "active"}, {Text: "missed 1 run", Tone: "warning"}}, view.Children[0].Props["badges"])
 	got := texts(view)
@@ -83,11 +83,11 @@ func TestMainSplitsMissedRunsFromThePolicy(t *testing.T) {
 
 func TestEmptyStates(t *testing.T) {
 	assert.Equal(t, "empty", sidebarView(nil, "", time.Now()).Type)
-	view := mainView(nil, nil, automation.Open{}, automation.RunsView{}, draft{}, time.Now())
+	view := mainView(nil, nil, nil, automation.Open{}, automation.RunsView{}, draft{}, time.Now())
 	require.NoError(t, isdui.Validate(view))
-	assert.Equal(t, []string{"text", "flow"}, []string{view.Children[0].Type, view.Children[1].Type})
-	assert.Equal(t, "No cron jobs yet. Agents schedule them for you.", view.Children[0].Props["text"])
-	for _, c := range view.Children[1].Props["cards"].([]sdui.FlowCard) {
+	assert.Equal(t, []any{"empty", "No cron jobs", "flow"}, []any{view.Type, view.Props["title"], view.Children[0].Type})
+	assert.NotEqual(t, sidebarView(nil, "", time.Now()).Props["text"], view.Props["text"])
+	for _, c := range view.Children[0].Props["cards"].([]sdui.FlowCard) {
 		assert.True(t, c.Ghost, c.ID)
 	}
 }
@@ -102,27 +102,31 @@ func TestDoesIsDrawnAndRunsSitOnAStrip(t *testing.T) {
 	poll := &Job{ID: "cj_a", Name: "Poll CI", Enabled: true, Command: "github.ci", Schedule: Schedule{Every: "2m", Timezone: "UTC"}, NextRun: now.Add(time.Minute), History: runs}
 	titles := map[string]string{"github.ci": "Check CI status", "agt_1": "Backlog grooming"}
 
-	view := mainView(poll, titles, automation.Open{}, automation.RunsView{}, draft{}, now)
+	view := mainView(poll, titles, map[string]string{"agt_1": "idle"}, automation.Open{}, automation.RunsView{}, draft{}, now)
 	require.NoError(t, isdui.Validate(view))
 	flow := nodesWithType(view, "flow")[0]
 	card := flow.Props["cards"].([]sdui.FlowCard)[0]
 	assert.Equal(t, []string{"Check CI status", "plugin command"}, []string{card.Label, card.State})
 	assert.Equal(t, []sdui.FlowOut{{ID: "ok", Label: "ok", Count: 1, State: sdui.EdgeTaken}, {ID: "failed", Label: "failed", Count: 1, State: sdui.EdgeLast}}, card.Outs)
 	edges := flow.Props["edges"].([]sdui.FlowEdge)
-	assert.Equal(t, []string{"when→action taken", "action.failed→inbox last"}, edgeKeys(edges))
+	assert.Equal(t, []string{"when→action taken", "action.ok→runs taken", "action.failed→inbox last"}, edgeKeys(edges))
 	strip := nodesWithType(view, "runstrip")[0]
 	assert.Equal(t, []string{sdui.RunOK, sdui.RunFailed, sdui.RunMissed}, stripStatuses(strip))
-	assert.Equal(t, automation.RunID(runs[2]), strip.Props["selected"])
+	assert.NotContains(t, strip.Props, "selected")
 	assert.Equal(t, poll.NextRun.Format(time.RFC3339), strip.Props["next"])
 
 	review := &Job{ID: "cj_b", Name: "Weekly review", Owner: "agt_1", Command: "agents.prompt", Args: json.RawMessage(`{"session":"agt_1","text":"groom"}`),
 		Schedule: Schedule{Cron: "0 9 * * 1", Timezone: "UTC"}, History: runs[:1], Paused: []automation.Span{{From: now.Add(-2 * time.Minute)}}}
-	view = mainView(review, titles, automation.Open{}, automation.RunsView{}, draft{}, now)
+	view = mainView(review, titles, map[string]string{"agt_1": "idle"}, automation.Open{}, automation.RunsView{Selected: automation.RunID(runs[0])}, draft{}, now)
 	require.NoError(t, isdui.Validate(view))
 	flow = nodesWithType(view, "flow")[0]
-	assert.Equal(t, []string{"when→action dim", "action.ok→owner dim", "action.failed→owner never"}, edgeKeys(flow.Props["edges"].([]sdui.FlowEdge)))
-	assert.Equal(t, "Backlog grooming", flow.Props["markers"].([]sdui.FlowMarker)[1].Label)
+	edges = flow.Props["edges"].([]sdui.FlowEdge)
+	assert.Equal(t, []string{"when→action dim", "action.ok→agt_1 dim", "action.failed→agt_1 never"}, edgeKeys(edges))
+	assert.Equal(t, "paused", edges[1].Label)
+	session := flow.Props["cards"].([]sdui.FlowCard)[1]
+	assert.Equal(t, []string{"Backlog grooming", "idle · prompted Nov 3"}, []string{session.Label, session.State})
 	strip = nodesWithType(view, "runstrip")[0]
+	assert.Equal(t, automation.RunID(runs[0]), strip.Props["selected"])
 	assert.NotContains(t, strip.Props, "next")
 	assert.Equal(t, []sdui.PausedSpan{{From: now.Add(-2 * time.Minute)}}, strip.Props["paused"])
 }
@@ -235,5 +239,5 @@ func TestEditArgsKeepTheAgentArgsAndSendOnlyChanges(t *testing.T) {
 
 func TestViewShortcutsDeclared(t *testing.T) {
 	j := &Job{ID: "cj_a", Name: "a", Enabled: true, Command: agentNewCommand, Schedule: Schedule{Every: "1m"}}
-	shortcuttest.RequireDeclared(t, mainView(j, nil, automation.Open{}, automation.RunsView{}, draft{}, time.Now()), editView(j, draft{}))
+	shortcuttest.RequireDeclared(t, mainView(j, nil, nil, automation.Open{}, automation.RunsView{}, draft{}, time.Now()), editView(j, draft{}))
 }

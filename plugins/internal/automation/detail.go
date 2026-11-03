@@ -79,6 +79,7 @@ func StateActions(enabled, primary bool) []DetailAction {
 	if primary {
 		toggle.Variant = sdui.VariantPrimary
 	}
+	run.Label = "Run once"
 	return []DetailAction{toggle, run}
 }
 

@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"encoding/json"
+	"slices"
 	"strings"
 	"time"
 
@@ -11,26 +12,31 @@ import (
 )
 
 const (
-	doesFlowID   = "does"
-	stripID      = "strip"
-	whenMarker   = "when"
-	actionCard   = "action"
-	ownerMarker  = "owner"
-	inboxMarker  = "inbox"
-	outOK        = "ok"
-	outFailed    = "failed"
-	tipLayout    = "Jan 2 15:04"
-	promptAction = "agents.prompt"
-	emitAction   = "triggers.emit"
+	doesFlowID     = "does"
+	stripID        = "strip"
+	whenMarker     = "when"
+	actionCard     = "action"
+	ownerMarker    = "owner"
+	inboxMarker    = "inbox"
+	runsMarker     = "runs"
+	actOpen        = "open"
+	promptedLayout = "Jan 2"
+	outOK          = "ok"
+	outFailed      = "failed"
+	tipLayout      = "Jan 2 15:04"
+	promptAction   = "agents.prompt"
+	emitAction     = "triggers.emit"
 )
 
-func doesFlow(j *Job, titles map[string]string) sdui.Node {
+func doesFlow(j *Job, titles, statuses map[string]string) sdui.Node {
 	label, state, icon := actionLabel(j, titles)
 	counts := map[string]int{}
+	var lastOK time.Time
 	for _, r := range j.History {
 		switch r.Status {
 		case automation.StatusOK:
 			counts[outOK]++
+			lastOK = r.At
 		case automation.StatusError:
 			counts[outFailed]++
 		}
@@ -65,17 +71,71 @@ func doesFlow(j *Job, titles map[string]string) sdui.Node {
 	}
 	markers := []sdui.FlowMarker{{ID: whenMarker, Kind: sdui.MarkerSchedule, Label: j.Schedule.Describe()}}
 	edges := []sdui.FlowEdge{{From: whenMarker, To: actionCard, State: start}}
-	if j.Owner != "" {
-		markers = append(markers, sdui.FlowMarker{ID: ownerMarker, Kind: sdui.MarkerSession, Label: automation.Names(j.Owner, titles)})
-		for _, out := range outs {
-			edges = append(edges, sdui.FlowEdge{From: actionCard, Out: out.ID, To: ownerMarker, State: out.State, Tooltip: out.Label + " runs go to the owner session"})
+	cards := []sdui.FlowCard{{ID: actionCard, Label: label, State: state, Icon: icon, Tooltip: automation.Names(doesTooltip(j, titles), titles), Outs: outs}}
+	route := func(out sdui.FlowOut, to, tooltip string) {
+		edge := sdui.FlowEdge{From: actionCard, Out: out.ID, To: to, State: out.State, Tooltip: tooltip}
+		if out.ID == outOK && !j.Enabled {
+			edge.Label = "paused"
 		}
-	} else {
-		markers = append(markers, sdui.FlowMarker{ID: inboxMarker, Kind: sdui.MarkerInbox, Label: "Inbox"})
-		edges = append(edges, sdui.FlowEdge{From: actionCard, Out: outFailed, To: inboxMarker, State: outs[1].State, Tooltip: "failed and missed runs post to the inbox; ok runs stay in Runs"})
+		edges = append(edges, edge)
 	}
-	card := sdui.FlowCard{ID: actionCard, Label: label, State: state, Icon: icon, Tooltip: automation.Names(doesTooltip(j, titles), titles), Outs: outs}
-	return sdui.Flow(doesFlowID, sdui.FlowProps{Cards: []sdui.FlowCard{card}, Markers: markers, Edges: edges})
+	owner := func() string {
+		if !slices.ContainsFunc(markers, func(m sdui.FlowMarker) bool { return m.ID == ownerMarker }) {
+			markers = append(markers, sdui.FlowMarker{ID: ownerMarker, Kind: sdui.MarkerSession, Label: automation.Names(j.Owner, titles)})
+		}
+		return ownerMarker
+	}
+	failed := func() {
+		if j.Owner != "" {
+			route(outs[1], owner(), "failed runs go to the owner session")
+			return
+		}
+		markers = append(markers, sdui.FlowMarker{ID: inboxMarker, Kind: sdui.MarkerInbox, Label: "Inbox"})
+		route(outs[1], inboxMarker, "failed and missed runs post to the inbox; ok runs stay in Runs")
+	}
+	if target := promptTarget(j); target != "" {
+		cards = append(cards, sessionCard(target, titles, statuses, lastOK, jobLocation(j)))
+		route(outs[0], target, "ok: the prompt reached the session")
+		if j.Owner == target {
+			route(outs[1], target, "failed runs go to the owner session")
+		} else {
+			failed()
+		}
+		return sdui.Flow(doesFlowID, sdui.FlowProps{Cards: cards, Markers: markers, Edges: edges})
+	}
+	if j.Owner != "" {
+		route(outs[0], owner(), "ok runs go to the owner session")
+	} else {
+		markers = append(markers, sdui.FlowMarker{ID: runsMarker, Kind: sdui.MarkerRuns})
+		route(outs[0], runsMarker, "ok runs stay in Runs below")
+	}
+	failed()
+	return sdui.Flow(doesFlowID, sdui.FlowProps{Cards: cards, Markers: markers, Edges: edges})
+}
+
+func promptTarget(j *Job) string {
+	if j.Command != promptAction {
+		return ""
+	}
+	var args struct {
+		Session string `json:"session"`
+	}
+	_ = json.Unmarshal(j.Args, &args)
+	if !strings.HasPrefix(args.Session, "agt_") {
+		return ""
+	}
+	return args.Session
+}
+
+func sessionCard(id string, titles, statuses map[string]string, lastOK time.Time, loc *time.Location) sdui.FlowCard {
+	card := sdui.FlowCard{ID: id, Label: titles[id], State: statuses[id], Icon: "sparkle", Tooltip: "Show the session"}
+	if card.Label == "" {
+		card.Label, card.State, card.Tooltip = "a closed session", "closed", ""
+	}
+	if !lastOK.IsZero() {
+		card.State = strings.TrimPrefix(card.State+" · prompted "+lastOK.In(loc).Format(promptedLayout), " · ")
+	}
+	return card
 }
 
 func actionLabel(j *Job, titles map[string]string) (label, state, icon string) {

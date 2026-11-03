@@ -12,25 +12,77 @@ struct FlowFrame {
     let theme: Theme
     let metrics: GraphMetrics
     let layout: GraphLayout
+    let origin: CGPoint
+    let size: CGSize
 
     init(flow: SDUIFlow, theme: Theme) {
         self.theme = theme
-        let metrics = Self.metrics(theme)
+        var metrics = Self.metrics(theme)
+        let k = theme.uiSize / 12
+        let cards = Set(flow.cards.map(\.id))
+        for edge in flow.edges {
+            guard let label = edge.label else { continue }
+            let room = (label as NSString).size(withAttributes: [.font: theme.nsFont(size: theme.uiSize - 1, bold: false)]).width + 24 * k
+            if cards.contains(edge.from) && cards.contains(edge.to) {
+                metrics.layerGap = max(metrics.layerGap, room)
+            } else {
+                metrics.markerGap = max(metrics.markerGap, room)
+            }
+        }
         self.metrics = metrics
         let sizes = flow.markers.map { ($0.id, FlowMarkerView.size($0, theme: theme, metrics: metrics)) }
-        layout = GraphLayout(flow: flow, metrics: metrics, markers: Dictionary(sizes, uniquingKeysWith: { a, _ in a }))
+        let layout = GraphLayout(flow: flow, metrics: metrics, markers: Dictionary(sizes, uniquingKeysWith: { a, _ in a }))
+        self.layout = layout
+        let pad = 4 * k
+        let bounds = Self.bounds(flow, layout: layout, theme: theme, metrics: metrics)
+        origin = CGPoint(x: pad - bounds.minX, y: pad - bounds.minY)
+        size = CGSize(width: bounds.width + 2 * pad, height: bounds.height + 2 * pad)
     }
 
     static func metrics(_ theme: Theme) -> GraphMetrics {
         let k = theme.uiSize / 12
         let char = ("M" as NSString).size(withAttributes: [.font: theme.nsFont(size: theme.uiSize, bold: true)]).width
-        return GraphMetrics(cardWidth: max(210 * k, (20 * char + 44 * k).rounded()), headHeight: 52 * k, rowHeight: 26 * k, layerGap: 120 * k, nodeGap: 24 * k, trackGap: 12 * k, markerGap: 48 * k)
+        return GraphMetrics(cardWidth: (20 * char + 44 * k).rounded(), headHeight: 52 * k, rowHeight: 26 * k, layerGap: 84 * k, nodeGap: 24 * k, trackGap: 12 * k, markerGap: 36 * k)
+    }
+
+    private static func bounds(_ flow: SDUIFlow, layout: GraphLayout, theme: Theme, metrics: GraphMetrics) -> CGRect {
+        let k = theme.uiSize / 12
+        let half = { (text: String) in (text as NSString).size(withAttributes: [.font: theme.nsFont(size: theme.uiSize - 1, bold: false)]).width / 2 }
+        var rect = CGRect.null
+        for card in layout.cards.values {
+            rect = rect.union(card)
+        }
+        for marker in flow.markers {
+            guard let r = layout.markers[marker.id] else { continue }
+            rect = rect.union(r)
+            switch marker.kind {
+            case .start, .end, .schedule:
+                let w = max(r.width / 2, half(marker.label ?? marker.kind.rawValue))
+                rect = rect.union(CGRect(x: r.midX - w, y: r.minY, width: 2 * w, height: metrics.headHeight / 2 + 32 * k))
+            default:
+                break
+            }
+        }
+        for card in flow.cards {
+            guard let r = layout.cards[card.id] else { continue }
+            if card.start {
+                rect = rect.including(CGPoint(x: r.minX - 40 * k - max(5 * k, half("start")), y: r.minY))
+            }
+            if card.outs.contains(where: \.end) {
+                rect = rect.including(CGPoint(x: r.maxX + 46 * k + max(8 * k, half("end")), y: r.minY))
+            }
+        }
+        for route in layout.routes {
+            for point in route.points {
+                rect = rect.including(point)
+            }
+        }
+        return rect.isNull ? .zero : rect
     }
 
     var k: CGFloat { theme.uiSize / 12 }
-    var pad: CGFloat { 4 * k }
-    var width: CGFloat { layout.size.width + 2 * pad }
-    var height: CGFloat { layout.size.height + 2 * pad }
+    var width: CGFloat { size.width }
+    var height: CGFloat { size.height }
     var order: [String] { layout.layers.flatMap { $0 }.filter { layout.cards[$0] != nil } }
 
     func edgeOrder(_ flow: SDUIFlow) -> [Int] {
@@ -38,6 +90,14 @@ struct FlowFrame {
             let a = $0.points[0], b = $1.points[0]
             return (a.x, a.y, $0.edge) < (b.x, b.y, $1.edge)
         }.map(\.edge)
+    }
+}
+
+private extension CGRect {
+    func including(_ point: CGPoint) -> CGRect {
+        guard !isNull else { return CGRect(origin: point, size: .zero) }
+        let x = Swift.min(minX, point.x), y = Swift.min(minY, point.y)
+        return CGRect(x: x, y: y, width: Swift.max(maxX, point.x) - x, height: Swift.max(maxY, point.y) - y)
     }
 }
 
@@ -62,7 +122,7 @@ struct FlowDiagram: View {
         var seen = Set<String>()
         return flow.cards.compactMap { card in
             guard seen.insert(card.id).inserted, let rect = frame.layout.cards[card.id] else { return nil }
-            return Slot(card: card, rect: rect.offsetBy(dx: frame.pad, dy: frame.pad))
+            return Slot(card: card, rect: rect.offsetBy(dx: frame.origin.x, dy: frame.origin.y))
         }
     }
 
@@ -70,7 +130,7 @@ struct FlowDiagram: View {
         let cards = cards
         ZStack(alignment: .topLeading) {
             Canvas { context, _ in
-                context.translateBy(x: frame.pad, y: frame.pad)
+                context.translateBy(x: frame.origin.x, y: frame.origin.y)
                 drawEdges(&context)
                 drawMarkers(&context)
             }
@@ -79,7 +139,7 @@ struct FlowDiagram: View {
                 openEdge(edge)
             })
             ForEach(flow.markers.filter { frame.layout.markers[$0.id] != nil }, id: \.id) { marker in
-                if let rect = frame.layout.markers[marker.id]?.offsetBy(dx: frame.pad, dy: frame.pad) {
+                if let rect = frame.layout.markers[marker.id]?.offsetBy(dx: frame.origin.x, dy: frame.origin.y) {
                     FlowMarkerView(marker: marker, metrics: frame.metrics, reached: flow.reached)
                         .frame(width: rect.width, height: rect.height)
                         .position(x: rect.midX, y: rect.midY)
@@ -110,7 +170,7 @@ struct FlowDiagram: View {
     private var tip: (edge: Int, at: CGPoint)? {
         if let edgeCursor, let route = frame.layout.routes.first(where: { $0.edge == edgeCursor }) {
             let middle = route.middle
-            return (edgeCursor, CGPoint(x: middle.x + frame.pad, y: middle.y + frame.pad))
+            return (edgeCursor, CGPoint(x: middle.x + frame.origin.x, y: middle.y + frame.origin.y))
         }
         guard let pointer, flow.edges.indices.contains(pointer.edge) else { return nil }
         return (pointer.edge, pointer.at)
@@ -215,7 +275,7 @@ struct FlowDiagram: View {
         }
         for marker in flow.markers where marker.kind == .inbox || marker.kind == .session {
             guard let rect = frame.layout.markers[marker.id], flow.edges.contains(where: { $0.to == marker.id }) else { continue }
-            context.fill(dot(CGPoint(x: rect.minX + frame.pad, y: rect.midY + frame.pad), 3.5 * k), with: .color(theme.muted))
+            context.fill(dot(CGPoint(x: rect.minX + frame.origin.x, y: rect.midY + frame.origin.y), 3.5 * k), with: .color(theme.muted))
         }
     }
 
@@ -273,7 +333,7 @@ private struct EdgePointer: ViewModifier {
 
     private func hit(_ point: CGPoint) -> Int? {
         guard !cards.contains(where: { $0.contains(point) }) else { return nil }
-        return frame.layout.edge(at: CGPoint(x: point.x - frame.pad, y: point.y - frame.pad), tolerance: 7 * frame.k)
+        return frame.layout.edge(at: CGPoint(x: point.x - frame.origin.x, y: point.y - frame.origin.y), tolerance: 7 * frame.k)
     }
 }
 
@@ -349,11 +409,14 @@ struct FlowMarkerView: View {
         case .inbox, .session:
             let text = (chipLabel(marker) as NSString).size(withAttributes: [.font: theme.nsFont(size: theme.uiSize, bold: true)]).width
             return CGSize(width: min(metrics.cardWidth, (text + 42 * k).rounded(.up)), height: metrics.headHeight)
+        case .runs:
+            let text = (chipLabel(marker) as NSString).size(withAttributes: [.font: theme.nsFont(size: theme.uiSize, bold: false)]).width
+            return CGSize(width: min(metrics.cardWidth, (text + 24 * k).rounded(.up)), height: metrics.headHeight)
         }
     }
 
     static func chipLabel(_ marker: SDUIFlow.Marker) -> String {
-        marker.label ?? (marker.kind == .inbox ? "Inbox" : "session")
+        marker.label ?? (marker.kind == .inbox ? "Inbox" : marker.kind == .runs ? "Runs, below" : "session")
     }
 
     var body: some View {
@@ -408,6 +471,22 @@ struct FlowMarkerView: View {
             .overlay(RoundedRectangle(cornerRadius: theme.radius.m).strokeBorder(theme.borderStrong, lineWidth: 1))
             .help(Self.chipLabel(marker))
             .accessibilityElement(children: .combine)
+        case .runs:
+            HStack(spacing: 6 * k) {
+                Image(systemName: "clock")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 12 * k, height: 12 * k)
+                Text(Self.chipLabel(marker))
+                    .font(theme.ui)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .foregroundStyle(theme.muted)
+            .padding(.leading, 6 * k)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .help(Self.chipLabel(marker))
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -460,7 +539,11 @@ struct FlowCardView: View {
                 }
                 .padding(.horizontal, 11 * k)
                 .frame(maxWidth: .infinity, minHeight: metrics.headHeight, maxHeight: metrics.headHeight, alignment: .leading)
-                .overlay(alignment: .bottom) { (card.ghost ? theme.border.opacity(0.6) : theme.border).frame(height: 1) }
+                .overlay(alignment: .bottom) {
+                    if !card.outs.isEmpty || card.command != nil {
+                        (card.ghost ? theme.border.opacity(0.6) : theme.border).frame(height: 1)
+                    }
+                }
                 if let command = card.command {
                     HStack(spacing: 6 * k) {
                         Text("$")
@@ -475,7 +558,7 @@ struct FlowCardView: View {
                     .padding(.horizontal, 11 * k)
                     .frame(maxWidth: .infinity, minHeight: metrics.strip(card), maxHeight: metrics.strip(card), alignment: .leading)
                     .background(theme.background.opacity(0.55))
-                    .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
+                    .overlay(alignment: .bottom) { if !card.outs.isEmpty { theme.border.frame(height: 1) } }
                     .help(command)
                 }
                 VStack(spacing: 0) {
@@ -500,7 +583,7 @@ struct FlowCardView: View {
                         .frame(height: metrics.rowHeight)
                     }
                 }
-                .padding(.vertical, metrics.rowHeight / 3)
+                .padding(.vertical, card.outs.isEmpty ? 0 : metrics.rowHeight / 3)
                 Spacer(minLength: 0)
             }
             .background(shape.fill(fill))

@@ -108,6 +108,7 @@ public struct SDUIFlow: Sendable, Equatable {
             case schedule
             case inbox
             case session
+            case runs
         }
 
         public let id: String
@@ -232,13 +233,15 @@ public struct SDUILanes: Sendable, Equatable {
     public let moves: [Move]
     public let title: String?
     public let collapsed: Bool
+    public let count: Int?
 
-    public init(actors: [Actor], moves: [Move], title: String? = nil, collapsed: Bool = false) {
+    public init(actors: [Actor], moves: [Move], title: String? = nil, collapsed: Bool = false, count: Int? = nil) {
         var seen = Set<String>()
         self.actors = actors.filter { seen.insert($0.id).inserted }
         self.moves = moves
         self.title = title
         self.collapsed = collapsed
+        self.count = count
     }
 
     static func cause(_ value: JSONValue?, index: Int) -> Int {
@@ -359,7 +362,8 @@ extension SDUINode {
                 )
             },
             title: string("title").flatMap { $0.isEmpty ? nil : $0 },
-            collapsed: bool("collapsed") ?? false
+            collapsed: bool("collapsed") ?? false,
+            count: SDUIFlow.int(props["count"]).flatMap { $0 >= 0 ? $0 : nil }
         )
     }
 

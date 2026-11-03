@@ -253,13 +253,19 @@ func (r *Registry[P]) InWorkspace(workspace string) []P {
 }
 
 func (r *Registry[P]) Titles(ctx context.Context, workspace string, items []P) map[string]string {
+	titles, _ := r.Names(ctx, workspace, items)
+	return titles
+}
+
+func (r *Registry[P]) Names(ctx context.Context, workspace string, items []P) (titles, statuses map[string]string) {
 	if len(items) == 0 {
-		return nil
+		return nil, nil
 	}
-	titles := map[string]string{}
+	titles, statuses = map[string]string{}, map[string]string{}
 	if sessions, err := r.Sessions(ctx, workspace); err == nil {
 		for _, s := range sessions {
 			titles[s.ID] = s.Title
+			statuses[s.ID] = s.Status
 		}
 	}
 	if r.Commands != nil {
@@ -267,7 +273,7 @@ func (r *Registry[P]) Titles(ctx context.Context, workspace string, items []P) m
 			maps.Copy(titles, commands)
 		}
 	}
-	return titles
+	return titles, statuses
 }
 
 func (r *Registry[P]) RenderAll(ctx context.Context) {

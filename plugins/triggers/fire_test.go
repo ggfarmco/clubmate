@@ -103,7 +103,7 @@ func TestBusySkipRefiresWhenTargetTurnEnds(t *testing.T) {
 	h := a.triggers["tr_1"].History
 	require.Len(t, h, 2)
 	assert.Equal(t, automation.ReasonBusy, h[0].Reason)
-	assert.Equal(t, Run{At: h[1].At, Topic: "event.ping", Seq: 1, Status: automation.StatusOK, Result: "{}"}, h[1])
+	assert.Equal(t, Run{At: h[1].At, Topic: "event.ping", Seq: 1, Status: automation.StatusOK, Result: "{}", Target: "agt_o"}, h[1])
 }
 
 func TestBusEventFiresOnlyOnEventsFromTheTopicsOwner(t *testing.T) {

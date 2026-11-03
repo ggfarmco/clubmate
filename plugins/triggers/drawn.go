@@ -16,6 +16,7 @@ import (
 
 const (
 	flowSuffix      = "/flow"
+	captionSuffix   = "/caption"
 	lanesSuffix     = "/lanes"
 	actOpen         = "open"
 	actOpenEdge     = "openEdge"
@@ -67,56 +68,93 @@ func graphEdge(t *Trigger) (edge, bool) {
 	return e, e.from != "" && e.to != "" && e.out != ""
 }
 
-func graphFlow(t *Trigger, triggers []*Trigger, titles map[string]string) (sdui.Node, bool) {
+func graphFlow(t *Trigger, triggers []*Trigger, titles map[string]string, shape *graphShape) (sdui.Node, bool) {
 	var edges []edge
+	known := map[string]bool{}
 	for _, s := range triggers {
 		if s.Run != t.Run {
 			continue
 		}
+		known[s.ID] = true
 		if e, ok := graphEdge(s); ok {
 			edges = append(edges, e)
 		}
 	}
 	var cards []sdui.FlowCard
 	index := map[string]int{}
-	card := func(session string) int {
-		if i, ok := index[session]; ok {
+	card := func(id, label, icon string) int {
+		if i, ok := index[id]; ok {
 			return i
 		}
-		index[session] = len(cards)
-		cards = append(cards, sdui.FlowCard{ID: session, Label: role(t, session, titles), State: runName(t), Icon: agentIcon})
+		index[id] = len(cards)
+		cards = append(cards, sdui.FlowCard{ID: id, Label: label, State: runName(t), Icon: icon})
 		return len(cards) - 1
+	}
+	session := func(id string) int { return card(id, role(t, id, titles), agentIcon) }
+	out := func(from int, id string) int {
+		i := slices.IndexFunc(cards[from].Outs, func(o sdui.FlowOut) bool { return o.ID == id })
+		if i < 0 {
+			cards[from].Outs = append(cards[from].Outs, sdui.FlowOut{ID: id, Label: id, State: sdui.EdgeNever})
+			i = len(cards[from].Outs) - 1
+		}
+		return i
 	}
 	var flowEdges []sdui.FlowEdge
 	for _, e := range edges {
-		from := card(e.from)
-		card(e.to)
-		state, ok := sdui.EdgeDim, okRuns(e.trigger.History)
+		from := session(e.from)
+		session(e.to)
+		ok := okRuns(e.trigger.History)
 		fired := ""
 		if ok > 0 {
 			fired = " · fired ×" + strconv.Itoa(ok)
 		}
-		fe := sdui.FlowEdge{From: e.from, Out: e.out, To: e.to, State: state, Ref: e.trigger.ID, Tooltip: strings.TrimPrefix(e.trigger.Name, t.RunTitle+": ") + fired}
+		fe := sdui.FlowEdge{From: e.from, Out: e.out, To: e.to, State: sdui.EdgeDim, Ref: e.trigger.ID, Tooltip: strings.TrimPrefix(e.trigger.Name, t.RunTitle+": ") + fired}
 		if e.trigger.ID == t.ID {
-			fe.State, fe.Ref, fe.Tooltip = sdui.EdgeSelected, "", "this trigger"+fired
+			fe.State, fe.Ref, fe.Tooltip, fe.Label = sdui.EdgeSelected, "", "this trigger"+fired, "this trigger"+fired
 		}
 		flowEdges = append(flowEdges, fe)
-		outs := cards[from].Outs
-		i := slices.IndexFunc(outs, func(o sdui.FlowOut) bool { return o.ID == e.out })
-		if i < 0 {
-			outs = append(outs, sdui.FlowOut{ID: e.out, Label: e.out, State: sdui.EdgeDim})
-			i = len(outs) - 1
+		i := out(from, e.out)
+		cards[from].Outs[i].Count += ok
+		if o := &cards[from].Outs[i]; fe.State == sdui.EdgeSelected || o.State != sdui.EdgeSelected {
+			o.State = fe.State
 		}
-		outs[i].Count += ok
-		if fe.State == sdui.EdgeSelected {
-			outs[i].State = sdui.EdgeSelected
-		}
-		cards[from].Outs = outs
 	}
-	if !slices.ContainsFunc(flowEdges, func(e sdui.FlowEdge) bool { return e.State == sdui.EdgeSelected }) || len(cards) > maxCards || len(flowEdges) > maxEdges {
+	if !slices.ContainsFunc(flowEdges, func(e sdui.FlowEdge) bool { return e.State == sdui.EdgeSelected }) {
 		return sdui.Node{}, false
 	}
-	return sdui.Flow(t.ID+flowSuffix, sdui.FlowProps{Cards: cards, Edges: flowEdges}), true
+	var markers []sdui.FlowMarker
+	if shape != nil {
+		nodes := map[string]string{}
+		for _, n := range shape.Nodes {
+			nodes[n.ID] = n.Session
+			if n.Step || n.Session == "" {
+				nodes[n.ID] = "step:" + n.ID
+				card(nodes[n.ID], automation.Capitalize(n.Role), "terminal")
+			}
+		}
+		for _, e := range shape.Edges {
+			from, to := nodes[e.From], nodes[e.To]
+			if from == "" || to == "" || known[e.Trigger] || slices.ContainsFunc(flowEdges, func(f sdui.FlowEdge) bool { return f.From == from && f.Out == e.out() && f.To == to }) {
+				continue
+			}
+			i := session(from)
+			session(to)
+			out(i, e.out())
+			flowEdges = append(flowEdges, sdui.FlowEdge{From: from, Out: e.out(), To: to, State: sdui.EdgeNever, Tooltip: e.out() + " → " + role(t, to, titles) + " · the graph passes it on itself"})
+		}
+		for _, n := range shape.Nodes {
+			if _, ok := index[nodes[n.ID]]; !n.Start || !ok {
+				continue
+			}
+			id := "start:" + n.ID
+			markers = append(markers, sdui.FlowMarker{ID: id, Kind: sdui.MarkerStart})
+			flowEdges = append(flowEdges, sdui.FlowEdge{From: id, To: nodes[n.ID], State: sdui.EdgeDim})
+		}
+	}
+	if len(cards) > maxCards || len(flowEdges) > maxEdges || len(markers) > maxCards {
+		return sdui.Node{}, false
+	}
+	return sdui.Flow(t.ID+flowSuffix, sdui.FlowProps{Cards: cards, Markers: markers, Edges: flowEdges}), true
 }
 
 func role(t *Trigger, session string, titles map[string]string) string {
@@ -158,7 +196,7 @@ func chainFlow(t *Trigger, titles map[string]string, loc *time.Location) (string
 		if effect.ID == cause.ID {
 			effect.ID = effectCardID
 		}
-		edges := []sdui.FlowEdge{{From: cause.ID, Out: eventOut, To: effect.ID, State: sdui.EdgeSelected, Tooltip: "this trigger"}}
+		edges := []sdui.FlowEdge{{From: cause.ID, Out: eventOut, To: effect.ID, State: sdui.EdgeSelected, Tooltip: "this trigger", Label: "this trigger"}}
 		return "what it waits for and what it does", sdui.Flow(t.ID+flowSuffix, sdui.FlowProps{Cards: []sdui.FlowCard{cause, effect}, Edges: edges})
 	}
 	c := r.Chain
@@ -219,7 +257,7 @@ func chainFlow(t *Trigger, titles map[string]string, loc *time.Location) (string
 		}
 		source = c.Session
 	}
-	edge := sdui.FlowEdge{From: source, To: to, State: sdui.EdgeSelected, Tooltip: "this trigger"}
+	edge := sdui.FlowEdge{From: source, To: to, State: sdui.EdgeSelected, Tooltip: "this trigger", Label: "this trigger"}
 	if source == c.Session {
 		edge.Out = eventOut
 	} else if source == c.Trigger {
@@ -238,6 +276,9 @@ func effectCard(t *Trigger, last *Run, titles map[string]string, loc *time.Locat
 	case automation.PromptCommand:
 		if s, _ := args["session"].(string); s != "" {
 			card.ID = s
+		}
+		if last != nil && last.Target != "" {
+			card.ID, card.Label = last.Target, cmp.Or(titles[last.Target], "a closed session")
 		}
 	case agentNewCommand:
 		var result struct {
@@ -364,7 +405,7 @@ func runLanes(t *Trigger, cause, effect sdui.LaneActor, out string, titles map[s
 	if last >= 0 {
 		moves[last].Last = true
 	}
-	return sdui.Lanes(t.ID+lanesSuffix, sdui.LanesProps{Actors: actors, Moves: moves, Title: "Runs"})
+	return sdui.Lanes(t.ID+lanesSuffix, sdui.LanesProps{Actors: actors, Moves: moves, Title: "Runs", Count: len(t.History)})
 }
 
 func hopOut(r Run) string {
@@ -379,10 +420,10 @@ func hopOut(r Run) string {
 	return "event"
 }
 
-func drawnRuns(t *Trigger, triggers []*Trigger, titles map[string]string, loc *time.Location) (caption string, flow sdui.Node, lanes sdui.Node, ok bool) {
+func drawnRuns(t *Trigger, triggers []*Trigger, titles map[string]string, shape *graphShape, loc *time.Location) (caption string, flow sdui.Node, lanes sdui.Node, ok bool) {
 	if t.Run != "" {
 		e, found := graphEdge(t)
-		flow, drawn := graphFlow(t, triggers, titles)
+		flow, drawn := graphFlow(t, triggers, titles, shape)
 		if !found || !drawn {
 			return "", sdui.Node{}, sdui.Node{}, false
 		}

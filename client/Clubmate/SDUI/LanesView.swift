@@ -23,7 +23,7 @@ struct LanesNodeView: View {
         let refs = lanes.moves.indices.filter { lanes.moves[$0].ref != nil }
         VStack(alignment: .leading, spacing: theme.spacing.s) {
             if let title = lanes.title {
-                LanesRow(title: title, moves: lanes.moves.count, open: open) { views.toggleHistory(id, default: !lanes.collapsed) }
+                LanesRow(title: title, moves: lanes.moves.count, count: lanes.count, open: open) { views.toggleHistory(id, default: !lanes.collapsed) }
             }
             if open {
                 LanesView(lanes: lanes, k: theme.uiSize / 12, headerWidth: FlowFrame.metrics(theme).cardWidth * 0.75, hovered: $hovered, cursor: focused ? cursor : nil) { index in
@@ -80,6 +80,7 @@ struct LanesNodeView: View {
 struct LanesRow: View {
     let title: String
     let moves: Int
+    var count: Int?
     let open: Bool
     let toggle: () -> Void
 
@@ -93,7 +94,7 @@ struct LanesRow: View {
                     .foregroundStyle(theme.muted)
                 Text(title)
                     .foregroundStyle(hovering ? theme.foreground : theme.text2)
-                Text("· \(moves) \(moves == 1 ? "move" : "moves")")
+                Text(count.map { "· \($0)" } ?? "· \(moves) \(moves == 1 ? "move" : "moves")")
                     .foregroundStyle(theme.muted)
                 Spacer(minLength: theme.gutter)
                 Text("h")
@@ -107,7 +108,7 @@ struct LanesRow: View {
         .focusable(false)
         .onHover { hovering = $0 }
         .overlay(alignment: .top) { theme.border.frame(height: 1) }
-        .accessibilityLabel("\(title), \(moves) moves")
+        .accessibilityLabel(count.map { "\(title), \($0)" } ?? "\(title), \(moves) moves")
     }
 }
 

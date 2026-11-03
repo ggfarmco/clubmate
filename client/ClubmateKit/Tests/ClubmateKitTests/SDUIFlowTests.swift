@@ -14,13 +14,15 @@ final class SDUIFlowTests: XCTestCase {
         let flow = try XCTUnwrap(node("""
         {"type": "flow", "id": "f", "props": {
           "cards": [{"id": "check", "label": "Check CI", "outs": [{"id": "ok", "label": "ok", "state": "taken"}, {"id": "failed", "label": "failed", "state": "last"}]}],
-          "markers": [{"id": "when", "kind": "schedule", "label": "every 2 min"}, {"id": "inbox", "kind": "inbox", "label": "Inbox"}, {"id": "odd", "kind": "clock"}],
-          "edges": [{"from": "when", "to": "check", "state": "taken"}, {"from": "check", "out": "failed", "to": "inbox", "state": "last", "ref": "trg_1", "tooltip": "failed → inbox"}, {"from": "check", "to": "inbox", "state": "taken"}]
+          "markers": [{"id": "when", "kind": "schedule", "label": "every 2 min"}, {"id": "inbox", "kind": "inbox", "label": "Inbox"}, {"id": "odd", "kind": "clock"}, {"id": "runs", "kind": "runs"}],
+          "edges": [{"from": "when", "to": "check", "state": "taken"}, {"from": "check", "out": "failed", "to": "inbox", "state": "last", "ref": "trg_1", "tooltip": "failed → inbox", "label": "paused"}, {"from": "check", "to": "inbox", "state": "taken"}]
         }}
         """).flow())
-        XCTAssertEqual(flow.markers.map(\.id), ["when", "inbox"])
+        XCTAssertEqual(flow.markers.map(\.id), ["when", "inbox", "runs"])
+        XCTAssertEqual(flow.markers[2].kind, .runs)
+        XCTAssertEqual(flow.edges.map(\.label), [nil, "paused", nil])
         let m = GraphMetrics()
-        let layout = GraphLayout(flow: flow, metrics: m, markers: ["when": CGSize(width: 28, height: m.headHeight), "inbox": CGSize(width: 80, height: m.headHeight)])
+        let layout = GraphLayout(flow: SDUIFlow(cards: flow.cards, markers: Array(flow.markers.prefix(2)), edges: flow.edges), metrics: m, markers: ["when": CGSize(width: 28, height: m.headHeight), "inbox": CGSize(width: 80, height: m.headHeight)])
         XCTAssertEqual(layout.layers, [["when"], ["check"], ["inbox"]])
         XCTAssertEqual(layout.routes.map(\.edge), [0, 1])
         let when = try XCTUnwrap(layout.markers["when"]), check = try XCTUnwrap(layout.cards["check"]), inbox = try XCTUnwrap(layout.markers["inbox"])

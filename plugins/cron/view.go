@@ -23,7 +23,8 @@ const (
 	nextLayout   = "Mon, Jan 2 · 15:04"
 	pausedLayout = "Jan 2"
 	doesFormID   = "runs"
-	noJobs       = "No cron jobs yet. Agents schedule them for you."
+	noJobs       = "No cron jobs yet"
+	emptyText    = "A job runs on a schedule — every few minutes, nightly or once — and starts an agent, prompts a session or runs a plugin command. Agents schedule them for you."
 )
 
 var missedOptions = []sdui.Option{
@@ -50,9 +51,10 @@ func sidebarView(jobs []*Job, selected string, now time.Time) sdui.Node {
 	return sdui.List(jobsList, items, selected)
 }
 
-func mainView(j *Job, titles map[string]string, open automation.Open, runs automation.RunsView, d draft, now time.Time) sdui.Node {
+func mainView(j *Job, titles, statuses map[string]string, open automation.Open, runs automation.RunsView, d draft, now time.Time) sdui.Node {
 	if j == nil {
-		return sdui.VStack(sdui.MutedText(noJobs), ghostFlow())
+		ghost := ghostFlow()
+		return sdui.EmptyState(emptyText, sdui.EmptyProps{Title: "No cron jobs", Icon: "clock", Action: &ghost})
 	}
 	if open.Edit {
 		return editView(j, d)
@@ -97,12 +99,15 @@ func mainView(j *Job, titles map[string]string, open automation.Open, runs autom
 	does := automation.Does(j.ID, j.Command, j.Args, titles, open)[1:]
 	if len(j.History) == 0 {
 		does = append(does, automation.Property("Runs", noRuns(j, now), ""))
-		return sdui.VStack(header, sdui.Scroll(sdui.VStack(automation.Properties(rows...), doesFlow(j, titles), sdui.Form(doesFormID, does...))))
+		return sdui.VStack(header, sdui.Scroll(sdui.VStack(automation.Properties(rows...), doesFlow(j, titles, statuses), sdui.Form(doesFormID, does...))))
 	}
 	cells := func(r Run) ([]string, string) { return nil, automation.Words(j.Command, j.Args, r, titles) }
-	table, run := automation.RunsTable(j.History, loc, nil, cells, runs)
-	does = append(does, automation.RunsRows(j.ID, j.History, run, open.RunJSON)...)
-	return sdui.VStack(header, sdui.Scroll(sdui.VStack(automation.Properties(rows...), doesFlow(j, titles), sdui.Form(doesFormID, does...), runStrip(j, j.History, run, titles, now), table)))
+	table, run, picked := automation.RunsTable(j.History, loc, nil, cells, runs)
+	does = append(does, automation.RunsRows(j.ID, j.History, run, picked, open.RunJSON)...)
+	if !picked {
+		run = Run{}
+	}
+	return sdui.VStack(header, sdui.Scroll(sdui.VStack(automation.Properties(rows...), doesFlow(j, titles, statuses), sdui.Form(doesFormID, does...), runStrip(j, j.History, run, titles, now), table)))
 }
 
 func pausedLine(j *Job, loc *time.Location) string {
@@ -179,12 +184,12 @@ func headerIcon(j *Job) string {
 }
 
 func jobMenu(j *Job) []sdui.MenuEntry {
-	toggle := sdui.MenuEntry{Action: automation.ActPause, Label: "Pause"}
+	run, toggle := sdui.MenuEntry{Action: automation.ActRun, Label: "Run now"}, sdui.MenuEntry{Action: automation.ActPause, Label: "Pause"}
 	if !j.Enabled {
-		toggle = sdui.MenuEntry{Action: automation.ActResume, Label: "Resume"}
+		run.Label, toggle = "Run once", sdui.MenuEntry{Action: automation.ActResume, Label: "Resume"}
 	}
 	return []sdui.MenuEntry{
-		{Action: automation.ActRun, Label: "Run now"},
+		run,
 		toggle,
 		{Action: automation.ActEdit, Label: "Edit"},
 		{Action: actDuplicate, Label: "Duplicate"},

@@ -415,7 +415,11 @@ func TestPromptStreamsAndLogs(t *testing.T) {
 	workspace := f.workspace(t, repo)
 	session := f.newSession(t, workspace)
 
-	f.prompt(t, workspace, session, "hi")
+	var started struct {
+		Turn int `json:"turn"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.prompt", map[string]any{"session": session, "text": "hi"}, &started))
+	assert.Equal(t, 1, started.Turn)
 	f.waitStatus(t, workspace, session, "done")
 
 	tr := f.transcript(t, workspace, session)

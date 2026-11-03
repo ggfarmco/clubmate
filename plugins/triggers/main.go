@@ -29,6 +29,7 @@ type app struct {
 	collapsed  map[string]map[string]bool
 	held       map[string]heldEvent
 	fired      map[string][]time.Time
+	shapes     map[string]*graphShape
 	runs       sync.WaitGroup
 	runRows    automation.Runs
 	lastSeq    atomic.Int64
@@ -57,6 +58,7 @@ func newApp() *app {
 		collapsed: map[string]map[string]bool{},
 		held:      map[string]heldEvent{},
 		fired:     map[string][]time.Time{},
+		shapes:    map[string]*graphShape{},
 		ready:     make(chan struct{}),
 		now:       time.Now,
 	}
@@ -266,7 +268,7 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(triggers, selected, a.folds(workspace), titles)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
-	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, triggers, titles, open, runs)); err != nil {
+	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, triggers, titles, a.shape(workspace, current), open, runs)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
 	return nil

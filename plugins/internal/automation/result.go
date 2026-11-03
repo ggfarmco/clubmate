@@ -1,8 +1,10 @@
 package automation
 
 import (
+	"cmp"
 	"encoding/json"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -16,10 +18,14 @@ const (
 )
 
 var (
-	rpcPrefix  = regexp.MustCompile(`^(jsonrpc2: code -?\d+ message: |plugin [a-z0-9-]+ command\.run: )`)
-	codePrefix = regexp.MustCompile(`^[a-z]+(_[a-z]+)+: `)
-	textFields = []string{"text", "message", "summary"}
-	reasons    = map[string]string{
+	rpcPrefix   = regexp.MustCompile(`^(jsonrpc2: code -?\d+ message: |plugin [a-z0-9-]+ command\.run: )`)
+	codePrefix  = regexp.MustCompile(`^[a-z]+(_[a-z]+)+: `)
+	textFields  = []string{"text", "message", "summary"}
+	agentErrors = map[string]string{
+		"unknown agent session": "its session was deleted",
+		"the session is closed": "its session is closed",
+	}
+	reasons = map[string]string{
 		ReasonBusy:     "the session was busy",
 		ReasonNoApp:    "no app was open to approve it",
 		ReasonMissed:   "Clubmate was closed or the Mac asleep; the policy skips it",
@@ -48,17 +54,24 @@ func Words(command string, args json.RawMessage, r Run, titles map[string]string
 	case StatusSkipped:
 		return notRun + Names(reasonWords(r.Reason), titles)
 	}
-	return Names(resultWords(command, args, r.Result, titles), titles)
+	return Names(resultWords(command, args, r, titles), titles)
 }
 
 func ErrorWords(err string) string {
 	for {
 		trimmed := codePrefix.ReplaceAllString(rpcPrefix.ReplaceAllString(err, ""), "")
 		if trimmed == err {
-			return strings.TrimSpace(err)
+			break
 		}
 		err = trimmed
 	}
+	err = strings.TrimSpace(err)
+	for prefix, words := range agentErrors {
+		if strings.HasPrefix(err, prefix) {
+			return words
+		}
+	}
+	return err
 }
 
 func reasonWords(reason string) string {
@@ -68,7 +81,8 @@ func reasonWords(reason string) string {
 	return reason
 }
 
-func resultWords(command string, args json.RawMessage, raw string, titles map[string]string) string {
+func resultWords(command string, args json.RawMessage, r Run, titles map[string]string) string {
+	raw := r.Result
 	var fields map[string]any
 	_ = json.Unmarshal([]byte(raw), &fields)
 	str := func(m map[string]any, key string) string {
@@ -83,7 +97,10 @@ func resultWords(command string, args json.RawMessage, raw string, titles map[st
 	case PromptCommand:
 		var target map[string]any
 		_ = json.Unmarshal(args, &target)
-		if s := str(target, "session"); s != "" {
+		if s := cmp.Or(r.Target, str(target, "session")); s != "" {
+			if turn, _ := fields["turn"].(float64); turn > 0 {
+				return "prompted " + s + " · its turn " + strconv.Itoa(int(turn)) + " started"
+			}
 			return "prompted " + s
 		}
 	case agentEmit:

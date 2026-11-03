@@ -400,6 +400,7 @@ const (
 	MarkerSchedule = "schedule"
 	MarkerInbox    = "inbox"
 	MarkerSession  = "session"
+	MarkerRuns     = "runs"
 )
 
 type FlowCard struct {
@@ -436,6 +437,7 @@ type FlowEdge struct {
 	State   string `json:"state"`
 	Ref     string `json:"ref,omitempty"`
 	Tooltip string `json:"tooltip,omitempty"`
+	Label   string `json:"label,omitempty"`
 }
 
 type FlowProps struct {
@@ -481,12 +483,16 @@ type LanesProps struct {
 	Moves     []LaneMove
 	Title     string
 	Collapsed bool
+	Count     int
 }
 
 func Lanes(id string, p LanesProps) Node {
 	props := withOptional(map[string]any{"actors": nonNil(p.Actors), "moves": nonNil(p.Moves)}, "title", p.Title)
 	if p.Collapsed {
 		props["collapsed"] = true
+	}
+	if p.Count > 0 {
+		props["count"] = p.Count
 	}
 	return Node{Type: "lanes", ID: id, Props: props}
 }

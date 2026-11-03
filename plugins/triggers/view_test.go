@@ -34,7 +34,11 @@ func TestGraphTriggersGroupUnderTheirRun(t *testing.T) {
 	assert.False(t, items[1].Expanded)
 	assert.Equal(t, "Coder done → Reviewer", items[1].Children[0].Label)
 
-	view := mainView(edge, []*Trigger{edge, fails, mine}, titles, automation.Open{}, automation.RunsView{})
+	shape := &graphShape{
+		Nodes: []shapeNode{{ID: "coder", Session: "agt_1", Start: true}, {ID: "reviewer", Session: "agt_2"}},
+		Edges: []shapeEdge{{From: "coder", To: "reviewer", On: "done", Trigger: "tr_1"}, {From: "reviewer", To: "coder", On: "outcome", Outcome: "changes"}},
+	}
+	view := mainView(edge, []*Trigger{edge, fails, mine}, titles, shape, automation.Open{}, automation.RunsView{})
 	require.NoError(t, isdui.Validate(view))
 	header := view.Children[0]
 	assert.Equal(t, "created by graph Review loop", header.Props["meta"])
@@ -55,11 +59,14 @@ func TestGraphTriggersGroupUnderTheirRun(t *testing.T) {
 	edges, ok := flow.Props["edges"].([]sdui.FlowEdge)
 	require.True(t, ok)
 	assert.Equal(t, []sdui.FlowEdge{
-		{From: "agt_1", Out: "done", To: "agt_2", State: sdui.EdgeSelected, Tooltip: "this trigger"},
+		{From: "agt_1", Out: "done", To: "agt_2", State: sdui.EdgeSelected, Tooltip: "this trigger", Label: "this trigger"},
 		{From: "agt_1", Out: "error", To: "agt_2", State: sdui.EdgeDim, Ref: "tr_3", Tooltip: "Coder fails → Reviewer"},
+		{From: "agt_2", Out: "changes", To: "agt_1", State: sdui.EdgeNever, Tooltip: "changes → Coder · the graph passes it on itself"},
+		{From: "start:coder", To: "agt_1", State: sdui.EdgeDim},
 	}, edges)
+	assert.Equal(t, []sdui.FlowMarker{{ID: "start:coder", Kind: sdui.MarkerStart}}, flow.Props["markers"])
 
-	own := mainView(mine, []*Trigger{mine}, nil, automation.Open{}, automation.RunsView{}).Children[0]
+	own := mainView(mine, []*Trigger{mine}, nil, nil, automation.Open{}, automation.RunsView{}).Children[0]
 	assert.Equal(t, "tr_2/delete", childIDs(own)[2])
 	assert.Equal(t, sdui.VariantPrimary, own.Children[0].Props["variant"])
 	shortcuttest.RequireDeclared(t, view)
@@ -74,7 +81,7 @@ func TestUserTriggerDrawsItsLastChainAndRunsAsLanes(t *testing.T) {
 			{At: at, Topic: "event.tidy.done", Status: automation.StatusError, Reason: "CI is red on main", Chain: chain},
 		}}
 
-	view := mainView(release, []*Trigger{release}, nil, automation.Open{}, automation.RunsView{})
+	view := mainView(release, []*Trigger{release}, nil, nil, automation.Open{}, automation.RunsView{})
 	require.NoError(t, isdui.Validate(view))
 	assert.Contains(t, texts(view), "last time · cron Nightly tidy started the session that emitted it")
 	flow := find(view, "flow")
@@ -97,7 +104,7 @@ func TestUserTriggerDrawsItsLastChainAndRunsAsLanes(t *testing.T) {
 }
 
 func TestNoTriggersShowGhostFlow(t *testing.T) {
-	view := mainView(nil, nil, nil, automation.Open{}, automation.RunsView{})
+	view := mainView(nil, nil, nil, nil, automation.Open{}, automation.RunsView{})
 	require.NoError(t, isdui.Validate(view))
 	cards, ok := find(view, "flow").Props["cards"].([]sdui.FlowCard)
 	require.True(t, ok)
