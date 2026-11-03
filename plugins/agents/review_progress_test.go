@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,15 +30,22 @@ func TestReviewDetailOnOpenerRow(t *testing.T) {
 	reviewEvent(t, b, reviewPayload{WorkspaceID: "ws", ID: "rv_2", Opener: "agt_9", Recipient: "agt_2", Reviewed: 2, Total: 6, Open: 0})
 	now := time.Now()
 	done := sessionRow{Rec: record{ID: "agt_1", Status: statusDone, UpdatedAt: now.Add(-2 * time.Hour)}, Review: b.progress("agt_1")}
-	assert.Equal(t, "review 5/15 · 1", sessionItem(done, 0, now).Detail)
-	assert.Equal(t, &reviewProgress{ID: "rv_2", Reviewed: 2, Total: 6, Text: "review 2/6 · 0"}, b.progress("agt_2"))
+	assert.Equal(t, "5/15 · 1", sessionItem(done, 0, now).Detail)
+	assert.Equal(t, statusIcons[statusReview], sessionItem(done, 0, now).Icon)
+	assert.Equal(t, &reviewProgress{ID: "rv_2", Reviewed: 2, Total: 6, Text: "review 2/6 · 0", Short: "2/6"}, b.progress("agt_2"))
 	changed := sessionRow{Rec: record{ID: "agt_1", Status: statusDone, Review: true}, Review: b.progress("agt_1")}
-	assert.Equal(t, "review 5/15 · 1", sessionItem(changed, 0, now).Detail)
+	assert.Equal(t, "5/15 · 1", sessionItem(changed, 0, now).Detail)
 	running := sessionRow{Rec: record{ID: "agt_1", Status: statusRunning}, Activity: "fixing review", Review: b.progress("agt_1")}
 	assert.Equal(t, "fixing review", sessionItem(running, 0, now).Detail)
+	assert.Equal(t, statusIcons[statusRunning], sessionItem(running, 0, now).Icon)
 	closed := sessionRow{Rec: record{ID: "agt_1", Status: statusClosed, UpdatedAt: now}, Review: b.progress("agt_1")}
 	assert.Equal(t, "just now", sessionItem(closed, 0, now).Detail)
 	assert.Nil(t, b.progress("agt_3"))
+}
+
+func TestReviewShortFitsTheRowDetail(t *testing.T) {
+	t.Parallel()
+	assert.LessOrEqual(t, utf8.RuneCountInString(shortProgress(99, 99, 9)), 9)
 }
 
 func TestReviewDetailDropsOnClose(t *testing.T) {

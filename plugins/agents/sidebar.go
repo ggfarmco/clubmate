@@ -533,22 +533,34 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 	}
 	menu = append(menu, sdui.MenuEntry{Action: actDelete, Label: "Delete Session", Confirm: confirm})
 	display := displayStatus(rec, row.Children)
+	icon := statusIcons[display]
+	if reviewRow(row) {
+		icon = statusIcons[statusReview]
+	}
 	return sdui.TreeItem{
 		ID:     rec.ID,
 		Label:  cmp.Or(rec.Title, "New session"),
 		Detail: strings.Join(nonEmpty(afkDetail(rec), notifyLabels[row.Notify], rowActivity(row, now)), " · "),
-		Icon:   statusIcons[display],
+		Icon:   icon,
 		Tone:   statusTones[display],
 		Menu:   menu,
 	}
 }
 
-func rowActivity(row sessionRow, now time.Time) string {
+func reviewRow(row sessionRow) bool {
+	if row.Review == nil {
+		return false
+	}
 	switch displayStatus(row.Rec, row.Children) {
 	case statusDone, statusIdle, statusReview:
-		if row.Review != nil {
-			return row.Review.Text
-		}
+		return true
+	}
+	return false
+}
+
+func rowActivity(row sessionRow, now time.Time) string {
+	if reviewRow(row) {
+		return row.Review.Short
 	}
 	return activity(row, now)
 }

@@ -44,6 +44,7 @@ type reviewProgress struct {
 	Open     int    `json:"open"`
 	Sent     int    `json:"sent"`
 	Text     string `json:"text"`
+	Short    string `json:"short"`
 }
 
 type reviewBoard struct {
@@ -104,8 +105,16 @@ func (b *reviewBoard) progress(session string) *reviewProgress {
 	}
 	return &reviewProgress{
 		ID: best.ID, Reviewed: best.Reviewed, Total: best.Total, Open: best.Open, Sent: best.Sent,
-		Text: fmt.Sprintf("review %d/%d · %d", best.Reviewed, best.Total, best.Open),
+		Text:  fmt.Sprintf("review %d/%d · %d", best.Reviewed, best.Total, best.Open),
+		Short: shortProgress(best.Reviewed, best.Total, best.Open),
 	}
+}
+
+func shortProgress(reviewed, total, open int) string {
+	if open == 0 {
+		return fmt.Sprintf("%d/%d", reviewed, total)
+	}
+	return fmt.Sprintf("%d/%d · %d", reviewed, total, open)
 }
 
 func (b *reviewBoard) cards() (map[string]map[int64]string, map[string]bool) {
