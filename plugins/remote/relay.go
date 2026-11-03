@@ -42,9 +42,10 @@ type relayClient struct {
 }
 
 type relayPush struct {
-	pushType   string
-	collapseID string
-	payload    json.RawMessage
+	pushType     string
+	collapseID   string
+	notification string
+	payload      json.RawMessage
 }
 
 type relayRequest struct {

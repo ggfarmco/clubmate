@@ -232,6 +232,34 @@ final class ModelTests: XCTestCase {
     }
 
     @MainActor
+    func testReplayedPushDoesNotAlertAgain() async throws {
+        let store = ComputerStore(file: nil, vault: MemoryTokenVault())
+        try store.save(Computer(id: "m", name: "Mac", hosts: ["100.64.0.1"], port: 1), token: "t")
+        let transport = FakeTransport(reply: { request in
+            switch FakeTransport.rpc(request) {
+            case "workspaces": (FakeTransport.result(workspacesJSON), 200)
+            default: (FakeTransport.result(helloJSON), 200)
+            }
+        }, stream: { _ in
+            let wire = [
+                #"{"seq":1,"topic":"notify.posted","workspace":"w","payload":{"id":"n1","message":"m","kind":"done","pushed":true}}"#,
+                #"{"seq":2,"topic":"notify.posted","workspace":"w","payload":{"id":"n2","message":"m","kind":"done"}}"#,
+            ].enumerated().map { "id: \($0.offset + 1)\nevent: bus\ndata: \($0.element)\n\n" }.joined()
+            return (200, AsyncThrowingStream { $0.yield(Data((": connected\n\n" + wire).utf8)) })
+        })
+        let model = CompanionModel(store: store, transport: transport, device: DeviceIdentity(id: "d", name: "P", model: "iPhone"), sleep: { _ in })
+        let posted = Recorder<String>()
+        model.posted = { posted.add($0.id) }
+
+        model.start()
+
+        try await waitUntil { model.inbox.items.count == 2 }
+        XCTAssertEqual(posted.values, ["m|n2"])
+        XCTAssertEqual(model.inbox.unread, ["m|n1", "m|n2"])
+        try model.remove("m")
+    }
+
+    @MainActor
     func testAnsweredQuestionWithdrawsOnlyItsSessionsQuestionAlerts() async throws {
         let store = ComputerStore(file: nil, vault: MemoryTokenVault())
         try store.save(Computer(id: "m", name: "Mac", hosts: ["100.64.0.1"], port: 1), token: "t")

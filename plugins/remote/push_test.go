@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -64,6 +65,26 @@ func TestPushGoesToTokensWithoutAnOpenStream(t *testing.T) {
 			"kind":      "permission",
 		},
 	}, reqs[0].body)
+}
+
+func TestReplayMarksWhatWasPushedToThatDevice(t *testing.T) {
+	f := newFixture(t)
+	f.withRelay(t)
+	pushed, silent := f.pair(t, "phone-a"), f.pair(t, "phone-b")
+	f.setPushToken(t, pushed, "aa01", apns.EnvProduction)
+	ev := notifyEvent(`{"id":"ntf_1","message":"m","kind":"done"}`)
+	ev.Seq = 1
+	f.backend.events = []pluginsdk.Event{ev}
+	f.srv.push(t.Context(), ev)
+
+	for token, want := range map[string]string{pushed: `{"id":"ntf_1","message":"m","kind":"done","pushed":true}`, silent: `{"id":"ntf_1","message":"m","kind":"done"}`} {
+		_, r := f.openEvents(t, token, "0")
+		frame(t, r)
+		streamID(t, r)
+		var got wireEvent
+		require.NoError(t, json.Unmarshal([]byte(strings.SplitN(frame(t, r), "data: ", 2)[1]), &got))
+		assert.JSONEq(t, want, string(got.Payload))
+	}
 }
 
 func TestPushFollowsTheSessionPolicy(t *testing.T) {

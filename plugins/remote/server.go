@@ -49,6 +49,7 @@ type server struct {
 	changed  func()
 	watching func(contract.RemoteWatching)
 	ping     time.Duration
+	pushed   pushLog
 
 	uiMu     sync.Mutex
 	sections map[string][]string

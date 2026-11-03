@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"clubmate/pkg/apns"
@@ -35,6 +37,16 @@ var (
 	}
 	needsInputKinds = []string{"needs-input", "permission", "question"}
 )
+
+type pushLog struct {
+	mu   sync.Mutex
+	sent map[pushedKey]time.Time
+}
+
+type pushedKey struct {
+	device       string
+	notification string
+}
 
 type pushTokenRequest struct {
 	Token       string `json:"token"`
@@ -166,7 +178,7 @@ func (s *server) pushNotification(ctx context.Context, ev pluginsdk.Event) {
 	if err != nil {
 		return
 	}
-	s.pushAll(ctx, relayPush{pushType: apns.TypeAlert, collapseID: truncate(n.ID, apns.MaxCollapseID), payload: body})
+	s.pushAll(ctx, relayPush{pushType: apns.TypeAlert, collapseID: truncate(n.ID, apns.MaxCollapseID), notification: n.ID, payload: body})
 }
 
 func (s *server) pushResolved(ctx context.Context, ev pluginsdk.Event) {
@@ -192,7 +204,11 @@ func (s *server) pushAll(ctx context.Context, p relayPush) {
 		if d.PushToken == "" || s.hub.connected(d.ID) {
 			continue
 		}
+		s.pushed.add(d.ID, p.notification)
 		reply, err := s.relay.send(ctx, d.PushEnvironment, d.PushToken, p)
+		if err != nil || reply.Status != http.StatusOK {
+			s.pushed.forget(d.ID, p.notification)
+		}
 		if err != nil {
 			logf("push to %s: %v", d.ID, err)
 			continue
@@ -207,6 +223,54 @@ func (s *server) pushAll(ctx context.Context, p relayPush) {
 			logf("push to %s: %d %s", d.ID, reply.Status, reply.Reason)
 		}
 	}
+}
+
+func (s *server) replayed(device string, ev pluginsdk.Event) pluginsdk.Event {
+	if ev.Topic != notifyTopic {
+		return ev
+	}
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(ev.Payload, &payload); err != nil {
+		return ev
+	}
+	var id string
+	if err := json.Unmarshal(payload["id"], &id); err != nil || !s.pushed.has(device, id) {
+		return ev
+	}
+	payload["pushed"] = json.RawMessage("true")
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return ev
+	}
+	ev.Payload = raw
+	return ev
+}
+
+func (l *pushLog) add(device, notification string) {
+	if notification == "" {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	now := time.Now()
+	if l.sent == nil {
+		l.sent = map[pushedKey]time.Time{}
+	}
+	maps.DeleteFunc(l.sent, func(_ pushedKey, at time.Time) bool { return now.Sub(at) > pushMaxAge })
+	l.sent[pushedKey{device, notification}] = now
+}
+
+func (l *pushLog) forget(device, notification string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	delete(l.sent, pushedKey{device, notification})
+}
+
+func (l *pushLog) has(device, notification string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	_, ok := l.sent[pushedKey{device, notification}]
+	return ok
 }
 
 func (s *server) policy(ctx context.Context, workspace, session string) string {

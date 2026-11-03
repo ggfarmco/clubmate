@@ -258,10 +258,10 @@ public final class CompanionModel {
         let allowed = await policy(item).allows(item.kind)
         guard inbox.add(item) else { return }
         let resolved = (item.session.flatMap { resolvedAt[Self.resolvedKey(item.computerID, $0, item.kind)] } ?? 0) > seq
-        if allowed && !resolved {
-            posted?(item)
-        } else {
+        if !allowed || resolved {
             inbox.markRead(item)
+        } else if !item.pushed {
+            posted?(item)
         }
     }
 

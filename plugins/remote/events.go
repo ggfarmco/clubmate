@@ -189,7 +189,7 @@ func (s *server) events(w http.ResponseWriter, r *http.Request, d device) {
 			return
 		}
 		if after <= head {
-			if seen, err = s.backfill(r.Context(), rc, w, after); err != nil {
+			if seen, err = s.backfill(r.Context(), rc, w, d.ID, after); err != nil {
 				return
 			}
 		}
@@ -241,12 +241,12 @@ func (s *server) catchUp(ctx context.Context, rc *http.ResponseController, w io.
 			seen = ev.Seq
 		default:
 			s.hub.caughtUp(st)
-			return s.backfill(ctx, rc, w, seen)
+			return s.backfill(ctx, rc, w, st.device, seen)
 		}
 	}
 }
 
-func (s *server) backfill(ctx context.Context, rc *http.ResponseController, w io.Writer, after int64) (int64, error) {
+func (s *server) backfill(ctx context.Context, rc *http.ResponseController, w io.Writer, device string, after int64) (int64, error) {
 	for {
 		page, err := s.backend.Events(ctx, after)
 		if err != nil {
@@ -257,7 +257,7 @@ func (s *server) backfill(ctx context.Context, rc *http.ResponseController, w io
 			if !slices.Contains(forwardedTopics, ev.Topic) {
 				continue
 			}
-			if !s.send(rc, w, sseFrame(ev)) {
+			if !s.send(rc, w, sseFrame(s.replayed(device, ev))) {
 				return after, errStreamClosed
 			}
 		}
