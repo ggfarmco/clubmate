@@ -12,6 +12,18 @@ extension FallbackEnum {
     }
 }
 
+public enum SessionGroup: String, FallbackEnum, Identifiable {
+    case needsInput = "needsYou"
+    case running
+    case idle = "done"
+    case closed
+    case service
+
+    public static let fallback = Self.idle
+
+    public var id: String { rawValue }
+}
+
 public enum AgentSessionStatus: String, FallbackEnum {
     case running
     case waiting

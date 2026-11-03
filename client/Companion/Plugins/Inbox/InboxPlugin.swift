@@ -36,7 +36,7 @@ struct InboxPlugin: CompanionPluginUI {
     static func sections(_ context: PluginContext) -> InboxSections {
         context.model.inbox.sections(computer: context.connection.computer.id) { item in
             guard let session = item.session, let store = store(context, item), store.loaded else { return nil }
-            return store.session(session)?.group == .needsInput
+            return store.session(session)?.needsYou == true
         }
     }
 }

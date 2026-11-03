@@ -23,6 +23,8 @@
     },
     "notifyEffective": "all",
     "needsYou": true,
+    "group": "needsYou",
+    "active": true,
     "needsYouSince": "2026-10-30T09:41:00Z",
     "modeLabel": "Ask before edits"
   },
@@ -47,6 +49,7 @@
     },
     "notifyEffective": "all",
     "needsYou": true,
+    "group": "needsYou",
     "needsYouSince": "2026-10-30T09:41:00Z",
     "modeLabel": "Ask before edits"
   },
@@ -65,6 +68,7 @@
     "asks": false,
     "notifyEffective": "all",
     "needsYou": false,
+    "group": "closed",
     "modeLabel": "Ask before edits"
   }
 ]

@@ -18,55 +18,26 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(AgentSession.grouped(sessions)[0].sessions.map(\.id).sorted(), ["agt_0000000000000001", "agt_0000000000000002"])
     }
 
-    func testGroupsChildrenUnderParentsInTheMostUrgentSection() throws {
+    func testGroupsTreesByThePluginsGroupOfTheirRoot() throws {
         let json = #"""
         [
-          {"id":"root","status":"done","updatedAt":"2026-10-30T09:00:00Z"},
-          {"id":"kid","parentSession":"root","status":"waiting","updatedAt":"2026-10-30T08:00:00Z"},
-          {"id":"grandkid","parentSession":"kid","status":"done","updatedAt":"2026-10-30T07:00:00Z"},
-          {"id":"orphan","parentSession":"gone","status":"done","updatedAt":"2026-10-30T10:00:00Z"},
-          {"id":"loop-a","parentSession":"loop-b","status":"closed"},
-          {"id":"loop-b","parentSession":"loop-a","status":"closed"}
+          {"id":"root","status":"done","group":"needsYou","updatedAt":"2026-10-30T09:00:00Z"},
+          {"id":"kid","parentSession":"root","status":"waiting","group":"needsYou","updatedAt":"2026-10-30T08:00:00Z"},
+          {"id":"grandkid","parentSession":"kid","status":"done","group":"done","updatedAt":"2026-10-30T07:00:00Z"},
+          {"id":"orphan","parentSession":"gone","status":"done","group":"done","updatedAt":"2026-10-30T10:00:00Z"},
+          {"id":"voice","status":"running","service":true,"group":"service"},
+          {"id":"loop-a","parentSession":"loop-b","status":"closed","group":"closed"},
+          {"id":"loop-b","parentSession":"loop-a","status":"closed","group":"closed"}
         ]
         """#
         let groups = AgentSession.grouped(try JSONDecoder.clubmate.decode([AgentSession].self, from: Data(json.utf8)))
-        XCTAssertEqual(groups.map(\.group), [.needsInput, .idle, .closed])
+        XCTAssertEqual(groups.map(\.group), [.needsInput, .idle, .closed, .service])
         XCTAssertEqual(groups[0].sessions.map(\.id), ["root"])
         XCTAssertEqual(groups[0].sessions[0].children.map(\.id), ["kid"])
         XCTAssertEqual(groups[0].sessions[0].children[0].children.map(\.id), ["grandkid"])
         XCTAssertEqual(groups[1].sessions.map(\.id), ["orphan"])
         XCTAssertEqual(groups[2].sessions.map(\.id), ["loop-a"])
         XCTAssertEqual(groups[2].sessions[0].children.map(\.id), ["loop-b"])
-    }
-
-    func testClosedParentStaysClosedUnlessAChildIsActive() throws {
-        let json = #"""
-        [
-          {"id":"archived","status":"closed"},
-          {"id":"leftover","parentSession":"archived","status":"done"},
-          {"id":"closing","status":"closed"},
-          {"id":"busy","parentSession":"closing","status":"running"}
-        ]
-        """#
-        let groups = AgentSession.grouped(try JSONDecoder.clubmate.decode([AgentSession].self, from: Data(json.utf8)))
-        XCTAssertEqual(groups.map(\.group), [.running, .closed])
-        XCTAssertEqual(groups[0].sessions.map(\.id), ["closing"])
-        XCTAssertEqual(groups[1].sessions.map(\.id), ["archived"])
-    }
-
-    func testServiceSessionsGoLastUnlessTheyNeedYou() throws {
-        let json = #"""
-        [
-          {"id":"voice","status":"running","service":true},
-          {"id":"kid","parentSession":"voice","status":"running"},
-          {"id":"asking","status":"waiting","service":true,"needsYou":true},
-          {"id":"old","status":"closed"}
-        ]
-        """#
-        let groups = AgentSession.grouped(try JSONDecoder.clubmate.decode([AgentSession].self, from: Data(json.utf8)))
-        XCTAssertEqual(groups.map(\.group), [.needsInput, .closed, .service])
-        XCTAssertEqual(groups[0].sessions.map(\.id), ["asking"])
-        XCTAssertEqual(groups[2].sessions.map(\.id), ["voice"])
     }
 
     func testParentWithActiveChildrenShowsAsWorking() throws {

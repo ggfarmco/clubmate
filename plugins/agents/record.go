@@ -79,6 +79,8 @@ type sessionInfo struct {
 	NotifyEffective string          `json:"notifyEffective"`
 	NeedsYou        bool            `json:"needsYou"`
 	Service         bool            `json:"service,omitempty"`
+	Group           string          `json:"group,omitempty"`
+	Active          bool            `json:"active,omitempty"`
 	NeedsYouSince   *time.Time      `json:"needsYouSince,omitempty"`
 	Activity        *toolActivity   `json:"activity,omitempty"`
 	ChildStatus     string          `json:"childStatus,omitempty"`

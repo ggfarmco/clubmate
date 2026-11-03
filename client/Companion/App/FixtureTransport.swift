@@ -372,6 +372,7 @@ actor FixtureServer {
             record["pending"] = nil
             record["createdAt"] = Self.stamp(ago: 0)
             record["updatedAt"] = Self.stamp(ago: 0)
+            Self.regroup(&record)
             sessions.append(record)
             transcripts[id] = ["entries": .array([])]
             if let prompt = args["prompt"]?.stringValue {
@@ -607,6 +608,7 @@ actor FixtureServer {
             sessions[index]["needsYouSince"] = nil
         }
         if sessions[index]["status"] != .string("running") { sessions[index]["activity"] = nil }
+        Self.regroup(&sessions[index])
         sessions[index]["updatedAt"] = Self.stamp(ago: 0)
         publish("agents.changed", ["workspace": .string(workspace), "session": .string(session), "kind": .string("status")])
     }
@@ -750,11 +752,20 @@ actor FixtureServer {
         fields["createdAt"] = stamp(ago: ago)
         fields["updatedAt"] = stamp(ago: status == "running" ? 5 : ago)
         if status == "running" { fields["turnStartedAt"] = stamp(ago: ago) }
+        regroup(&fields)
         if status == "error" {
             fields["error"] = .string("acp error -32603: exit status 1")
             fields["failure"] = .object(["word": .string("exit 1"), "badge": .string("Stopped · exit 1"), "line": .string("Claude exited with status 1."), "actions": .array([failureAction(id)])])
         }
         return fields
+    }
+
+    private static func regroup(_ fields: inout [String: JSONValue]) {
+        let status = fields["status"]?.stringValue ?? ""
+        let service = fields["service"] == .bool(true)
+        let group = status == "closed" ? "closed" : fields["needsYou"] == .bool(true) ? "needsYou" : service ? "service" : status == "running" ? "running" : "done"
+        fields["group"] = .string(group)
+        fields["active"] = .bool(!service && (status == "running" || status == "waiting"))
     }
 
     private static func failureAction(_ session: String) -> JSONValue {

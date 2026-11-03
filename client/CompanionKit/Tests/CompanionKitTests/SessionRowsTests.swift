@@ -82,7 +82,7 @@ final class SessionRowsTests: XCTestCase {
         let ago = { (seconds: Double) in self.now.addingTimeInterval(-seconds) }
         let needs = AgentSession.grouped([
             AgentSession(id: "a", status: .waiting, updatedAt: ago(1), needsYouSince: ago(60)),
-            AgentSession(id: "b", status: .done, updatedAt: ago(500)),
+            AgentSession(id: "b", status: .done, updatedAt: ago(500), group: .needsInput),
             AgentSession(id: "c", parentSession: "b", status: .waiting, updatedAt: ago(500), needsYouSince: ago(300)),
         ]).first { $0.group == .needsInput }?.sessions
         XCTAssertEqual(needs?.map(\.id), ["b", "a"])

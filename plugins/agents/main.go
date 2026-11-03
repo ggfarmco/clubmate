@@ -317,6 +317,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		}
 		out = append(out, info)
 	}
+	setGroups(out)
 	return out
 }
 

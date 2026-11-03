@@ -67,7 +67,7 @@ public final class AgentsStore {
     }
 
     public var needsInputCount: Int {
-        sessions.filter { $0.group == .needsInput }.count
+        sessions.count(where: \.needsYou)
     }
 
     public func session(_ id: String) -> AgentSession? {

@@ -2,15 +2,7 @@ import Foundation
 
 import ClubmateProtocol
 
-public enum SessionGroup: String, Sendable, CaseIterable, Identifiable {
-    case needsInput
-    case running
-    case idle
-    case closed
-    case service
-
-    public var id: String { rawValue }
-
+extension SessionGroup {
     public var title: String {
         switch self {
         case .needsInput: "Needs you"
@@ -59,14 +51,6 @@ extension AgentSession {
         status == .running || status == .waiting
     }
 
-    public var group: SessionGroup {
-        if isClosed { return .closed }
-        if needsYou { return .needsInput }
-        if service { return .service }
-        if status == .running { return .running }
-        return .idle
-    }
-
     public static func grouped(_ sessions: [AgentSession]) -> [(group: SessionGroup, sessions: [SessionNode])] {
         let ids = Set(sessions.map(\.id))
         var kids: [String: [AgentSession]] = [:]
@@ -110,11 +94,10 @@ public struct SessionNode: Sendable, Equatable, Identifiable {
         for kid in kids[session.id] ?? [] where !seen.contains(kid.id) {
             children.append(build(kid, kids: kids, seen: &seen))
         }
-        let groups = Set(children.map(\.group).filter { $0 == .needsInput || $0 == .running && session.group != .service } + [session.group])
         return SessionNode(
             session: session,
             children: children.sorted(by: newerFirst),
-            group: SessionGroup.allCases.first(where: groups.contains) ?? session.group,
+            group: session.group,
             updatedAt: children.map(\.updatedAt).reduce(session.updatedAt, max),
             needsYouAt: (children.map(\.needsYouAt) + [session.needsYouAt]).compactMap { $0 }.min()
         )
