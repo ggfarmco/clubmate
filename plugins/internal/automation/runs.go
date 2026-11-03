@@ -30,6 +30,8 @@ type RunsView struct {
 
 type RunCells func(r Run) (extra []string, words string)
 
+type RunLink func(r Run) (action, label string)
+
 type runGroup struct {
 	id    string
 	runs  []Run
@@ -37,7 +39,7 @@ type runGroup struct {
 	words string
 }
 
-func RunsTable(history []Run, loc *time.Location, extra []sdui.Column, cells RunCells, v RunsView) (sdui.Node, Run, bool) {
+func RunsTable(history []Run, loc *time.Location, extra []sdui.Column, cells RunCells, link RunLink, v RunsView) (sdui.Node, Run, bool) {
 	groups := groupRuns(history, cells)
 	selected, run, picked := v.selection(groups)
 	if !picked {
@@ -46,7 +48,7 @@ func RunsTable(history []Run, loc *time.Location, extra []sdui.Column, cells Run
 	rows := make([]sdui.TableRow, 0, len(history))
 	for _, g := range groups {
 		if len(g.runs) == 1 {
-			rows = append(rows, runRow(RunID(g.runs[0]), g.runs[0], g.extra, g.words, loc, 0))
+			rows = append(rows, runRow(RunID(g.runs[0]), g.runs[0], g.extra, g.words, link, loc, 0))
 			continue
 		}
 		label, tone := StatusLabel(g.runs[0])
@@ -64,7 +66,7 @@ func RunsTable(history []Run, loc *time.Location, extra []sdui.Column, cells Run
 		rows = append(rows, sdui.TableRow{ID: g.id, HasChildren: true, Expanded: open, Cells: cellsOf})
 		if open {
 			for _, r := range g.runs {
-				rows = append(rows, runRow(RunID(r), r, g.extra, g.words, loc, 1))
+				rows = append(rows, runRow(RunID(r), r, g.extra, g.words, link, loc, 1))
 			}
 		}
 	}
@@ -77,20 +79,20 @@ func RunID(r Run) string {
 	return "r" + strconv.FormatInt(r.At.UnixNano(), 10)
 }
 
-func RunsRows(id string, history []Run, selected Run, picked, open bool) []sdui.Node {
+func RunJSONRows(id string, selected Run, picked, open bool) []sdui.Node {
 	which := map[bool]string{true: "selected", false: "latest"}[picked]
 	toggle := DetailAction{Action: ActRunJSON, Label: "Show the " + which + " run as JSON", Icon: "chevron.right", Variant: sdui.VariantGhost}
 	if open {
 		toggle.Label, toggle.Icon = "Hide the "+which+" run's JSON", "chevron.down"
 	}
-	rows := []sdui.Node{sdui.HStack(sdui.MutedText("Runs"), sdui.Text(runCounts(history)), ActionNode(id, toggle))}
+	rows := []sdui.Node{sdui.HStack(ActionNode(id, toggle))}
 	if open {
-		rows = append(rows, sdui.HStack(sdui.MutedText(""), sdui.WithLines(sdui.MutedText(runJSON(selected)), runJSONLines)))
+		rows = append(rows, sdui.WithLines(sdui.MutedText(runJSON(selected)), runJSONLines))
 	}
 	return rows
 }
 
-func runCounts(history []Run) string {
+func RunCounts(history []Run) string {
 	counts := map[string]int{}
 	for _, r := range history {
 		label, _ := StatusLabel(r)
@@ -139,13 +141,17 @@ func sameRun(g runGroup, r Run, extra []string, words string) bool {
 	return label == last && words == g.words && strings.Join(extra, "\x00") == strings.Join(g.extra, "\x00")
 }
 
-func runRow(id string, r Run, extra []string, words string, loc *time.Location, depth int) sdui.TableRow {
+func runRow(id string, r Run, extra []string, words string, link RunLink, loc *time.Location, depth int) sdui.TableRow {
 	label, tone := StatusLabel(r)
 	cells := []sdui.Cell{{Text: r.At.In(loc).Format(whenLayout)}}
 	for _, e := range extra {
 		cells = append(cells, sdui.Cell{Text: e})
 	}
-	cells = append(cells, sdui.Cell{Text: label, Tone: tone}, sdui.Cell{Text: words})
+	result := sdui.Cell{Text: words}
+	if link != nil {
+		result.Action, result.Label = link(r)
+	}
+	cells = append(cells, sdui.Cell{Text: label, Tone: tone}, result)
 	return sdui.TableRow{ID: id, Depth: depth, Cells: cells}
 }
 

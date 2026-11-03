@@ -13,11 +13,52 @@ struct RunstripNodeView: View {
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.theme) private var theme
 
+    private var id: String { node.id ?? "" }
+    private var views: GraphViews { .shared }
+
     var body: some View {
         let strip = node.runstrip() ?? SDUIRunstrip(runs: [])
+        let open = strip.title == nil || views.state.historyOpen(id, default: true)
+        VStack(alignment: .leading, spacing: theme.spacing.s) {
+            if let title = strip.title {
+                LanesRow(title: title, moves: strip.runs.count, count: strip.count ?? strip.runs.count, open: open) {
+                    views.toggleHistory(id, default: true)
+                } trailing: {
+                    RunLegend(legend: strip.legend)
+                }
+                .padding(.horizontal, theme.gutter)
+            }
+            if open {
+                axis(strip)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .focusable()
+        .focusEffectDisabled()
+        .focused($focused)
+        .keyMonitor(active: focused) { event in
+            guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
+            if event.characters == "h", strip.title != nil {
+                views.toggleHistory(id, default: true)
+                return true
+            }
+            guard open, event.keyCode == 123 || event.keyCode == 124 else { return false }
+            guard let ref = strip.step(from: strip.selected, by: event.keyCode == 124 ? 1 : -1) else { return false }
+            if ref != strip.selected { dispatch(node, .select(ref)) }
+            return true
+        }
+        .reportsFocus(.runstrip(title: strip.title != nil), focused)
+        .onChange(of: paneFocused) { _, value in
+            if value, focusOwner == nil || focusOwner == node.id { focused = true }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Runs")
+    }
+
+    private func axis(_ strip: SDUIRunstrip) -> some View {
         let k = theme.uiSize / 12
         let inset = 16 * k
-        ZStack(alignment: .topLeading) {
+        return ZStack(alignment: .topLeading) {
             Canvas { context, size in
                 draw(&context, strip: strip, size: size, k: k, inset: inset)
             }
@@ -34,21 +75,6 @@ struct RunstripNodeView: View {
         .frame(maxWidth: .infinity)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .padding(.horizontal, theme.gutter)
-        .focusable()
-        .focusEffectDisabled()
-        .focused($focused)
-        .keyMonitor(active: focused) { event in
-            guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty, event.keyCode == 123 || event.keyCode == 124 else { return false }
-            guard let ref = strip.step(from: strip.selected, by: event.keyCode == 124 ? 1 : -1) else { return false }
-            if ref != strip.selected { dispatch(node, .select(ref)) }
-            return true
-        }
-        .reportsFocus(.runstrip, focused)
-        .onChange(of: paneFocused) { _, value in
-            if value, focusOwner == nil || focusOwner == node.id { focused = true }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Runs")
     }
 
     private func axisY(_ k: CGFloat) -> CGFloat {
@@ -120,6 +146,35 @@ struct RunstripNodeView: View {
     }
 }
 
+private struct RunLegend: View {
+    let legend: [(status: SDUIRunstrip.Status, count: Int)]
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        let k = theme.uiSize / 12
+        HStack(spacing: theme.spacing.s) {
+            ForEach(Array(legend.enumerated()), id: \.offset) { index, entry in
+                if index > 0 {
+                    Text("·").foregroundStyle(theme.faint)
+                }
+                RunGlyph(status: entry.status, k: k)
+                    .frame(width: 12 * k, height: 12 * k)
+                Text("\(Self.label(entry.status)) \(entry.count)")
+                    .foregroundStyle(theme.muted)
+                    .monospacedDigit()
+            }
+        }
+        .font(theme.uiSmall)
+        .lineLimit(1)
+        .fixedSize()
+    }
+
+    static func label(_ status: SDUIRunstrip.Status) -> String {
+        status == .ignored ? "skipped" : status.rawValue
+    }
+}
+
 private struct RunDot: View {
     let run: SDUIRunstrip.Run
     let selected: Bool
@@ -130,7 +185,7 @@ private struct RunDot: View {
 
     var body: some View {
         Button(action: select) {
-            glyph
+            RunGlyph(status: run.status, k: k)
                 .frame(width: 16 * k, height: 16 * k)
                 .overlay {
                     if selected {
@@ -145,10 +200,16 @@ private struct RunDot: View {
         .help(run.tooltip ?? run.status.rawValue)
         .accessibilityLabel(run.tooltip ?? run.status.rawValue)
     }
+}
 
-    @ViewBuilder
-    private var glyph: some View {
-        switch run.status {
+private struct RunGlyph: View {
+    let status: SDUIRunstrip.Status
+    let k: CGFloat
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        switch status {
         case .ok:
             Circle().fill(theme.success).frame(width: 7 * k, height: 7 * k)
         case .failed:

@@ -55,7 +55,11 @@ struct SDUINodeView: View {
         if let kind = SDUIKind(rawValue: node.type) {
             content(kind)
         } else if MacOnlyCaption.types.contains(node.type) {
-            if !MacOnlyCaption.ghostOnly(node) { MacOnlyCaption(type: node.type) }
+            if let title = node.string("title"), ["runstrip", "lanes"].contains(node.type), !title.isEmpty {
+                DrawnRunsSummary(node: node, title: title)
+            } else if !MacOnlyCaption.ghostOnly(node) {
+                MacOnlyCaption(type: node.type)
+            }
         } else {
             SDUIPlaceholder(type: node.type)
         }

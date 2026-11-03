@@ -18,7 +18,7 @@ final class SDUITests: XCTestCase {
           "columns": [{"id": "name", "title": "Name", "truncate": "middle"}, {"id": "cpu", "title": "CPU", "align": "right", "width": 60, "priority": 2}],
           "rows": [{"id": "42", "depth": 1, "hasChildren": true, "expanded": true, "muted": true, "cells": [
             {"text": "nvim", "spark": {"values": [1, 3], "max": 4}},
-            {"text": "35%", "bar": 0.35, "tone": "warn", "since": 1730000000}
+            {"text": "35%", "bar": 0.35, "tone": "warn", "since": 1730000000, "action": "showLog", "label": "Show log"}
           ]}],
           "sort": {"column": "cpu", "desc": true},
           "selected": "42"
@@ -33,7 +33,7 @@ final class SDUITests: XCTestCase {
         XCTAssertEqual(table.tableRows(), [
             SDUITableRow(id: "42", depth: 1, hasChildren: true, expanded: true, muted: true, cells: [
                 SDUICell(text: "nvim", bar: nil, tone: nil, spark: SDUISpark(values: [1, 3], max: 4)),
-                SDUICell(text: "35%", bar: 0.35, tone: "warn", spark: nil, since: Date(timeIntervalSince1970: 1_730_000_000)),
+                SDUICell(text: "35%", bar: 0.35, tone: "warn", spark: nil, since: Date(timeIntervalSince1970: 1_730_000_000), link: .init(action: "showLog", label: "Show log")),
             ]),
         ])
         XCTAssertEqual(SDUICell.elapsed(since: Date(timeIntervalSince1970: 0), now: Date(timeIntervalSince1970: 36 * 3600 + 5 * 60 + 7.9)), "36:05:07")

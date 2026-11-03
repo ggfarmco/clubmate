@@ -96,9 +96,11 @@ final class SDUIFlowTests: XCTestCase {
         let strip = try XCTUnwrap(node("""
         {"type": "runstrip", "id": "r", "props": {
           "runs": [{"at": "2026-11-03T16:24:00Z", "status": "failed", "ref": "b"}, {"at": "2026-11-03T16:20:00.5Z", "status": "ok", "ref": "a"}, {"at": "nope", "status": "ok"}, {"at": "2026-11-03T16:26:00Z", "status": "missed"}],
-          "now": "2026-11-03T16:27:00Z", "next": "2026-11-03T16:30:00Z", "paused": [{"from": "2026-11-03T16:25:00Z"}], "selected": "b"}}
+          "now": "2026-11-03T16:27:00Z", "next": "2026-11-03T16:30:00Z", "paused": [{"from": "2026-11-03T16:25:00Z"}], "selected": "b", "title": "Runs", "count": 3}}
         """).runstrip())
         XCTAssertEqual(strip.runs.map(\.ref), ["a", "b", nil])
+        XCTAssertEqual(strip.legend.map(\.status), [.ok, .failed, .missed])
+        XCTAssertEqual([strip.title, strip.count.map(String.init)], ["Runs", "3"])
         XCTAssertNil(strip.paused.first?.to)
         let next = try XCTUnwrap(strip.next)
         XCTAssertEqual(strip.range?.upperBound, next)

@@ -38,6 +38,10 @@ func Close(ctx context.Context, h *pluginsdk.Host, action, workspace string) err
 	return h.StorageDelete(ctx, openKey(action, workspace))
 }
 
+func Show(ctx context.Context, h *pluginsdk.Host, action, workspace, id string) error {
+	return h.StorageSet(ctx, openKey(action, workspace), id)
+}
+
 func Toggle(ctx context.Context, h *pluginsdk.Host, action, workspace, id string) error {
 	var current string
 	if _, err := h.StorageGet(ctx, openKey(action, workspace), &current); err != nil {

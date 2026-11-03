@@ -181,18 +181,30 @@ public struct SDUISpark: Sendable, Equatable {
 }
 
 public struct SDUICell: Sendable, Equatable {
+    public struct Link: Sendable, Equatable {
+        public let action: String
+        public let label: String
+
+        public init(action: String, label: String) {
+            self.action = action
+            self.label = label
+        }
+    }
+
     public let text: String
     public let bar: Double?
     public let tone: String?
     public let spark: SDUISpark?
     public let since: Date?
+    public let link: Link?
 
-    public init(text: String, bar: Double?, tone: String?, spark: SDUISpark?, since: Date? = nil) {
+    public init(text: String, bar: Double?, tone: String?, spark: SDUISpark?, since: Date? = nil, link: Link? = nil) {
         self.text = text
         self.bar = bar
         self.tone = tone
         self.spark = spark
         self.since = since
+        self.link = link
     }
 
     public static func elapsed(since start: Date, now: Date) -> String {
@@ -211,7 +223,11 @@ public struct SDUICell: Sendable, Equatable {
             bar: fields["bar"]?.numberValue.map { Swift.min(Swift.max($0, 0), 1) },
             tone: tone?.isEmpty == false ? tone : nil,
             spark: spark.flatMap { SDUISpark(values: $0["values"], max: $0["max"]) },
-            since: fields["since"]?.numberValue.flatMap { $0 > 0 ? Date(timeIntervalSince1970: $0) : nil }
+            since: fields["since"]?.numberValue.flatMap { $0 > 0 ? Date(timeIntervalSince1970: $0) : nil },
+            link: fields["action"]?.stringValue.flatMap { action in
+                guard let label = fields["label"]?.stringValue, !action.isEmpty, !label.isEmpty else { return nil }
+                return Link(action: action, label: label)
+            }
         )
     }
 }

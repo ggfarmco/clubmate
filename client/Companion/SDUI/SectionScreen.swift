@@ -46,8 +46,22 @@ struct SectionScreen: View {
         .onChange(of: ui.sections) { _, sections in
             if navigation.detail == section, !sections.contains(where: { $0.id == section }) { navigation.detail = nil }
         }
+        .task(id: ui.view(main) != nil && ui.view(sidebar) != nil) { await openItem(sidebar: sidebar, main: main) }
         .onAppear { ui.show([sidebar, main], owner: owner) }
         .onDisappear { ui.hide(owner: owner) }
+    }
+
+    private func openItem(sidebar: String, main: String) async {
+        guard let item = navigation.sectionItem, navigation.detail == section, PhoneSections.root(section, sidebar: ui.view(sidebar), main: ui.view(main)) == sidebar,
+              let list = ui.view(sidebar).flatMap({ Self.list(in: $0.tree) }), ui.view(main) != nil else { return }
+        navigation.sectionItem = nil
+        _ = try? await ui.send(slot: sidebar, nodeId: list, action: "select", value: .string(item))
+        path = [main]
+    }
+
+    private static func list(in node: SDUINode) -> String? {
+        if node.type == "list" || node.type == "tree", let id = node.id { return id }
+        return node.children.lazy.compactMap(list(in:)).first
     }
 
     private var docOpener: ((String) -> Void)? {

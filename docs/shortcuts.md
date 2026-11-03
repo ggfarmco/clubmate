@@ -121,6 +121,7 @@ A click on a row, or focus moving to the main pane, focuses the table; the selec
 | j / ↓, k / ↑ | Move the selection |
 | l / → | Expand the row, or step to its first child |
 | h / ← | Collapse the row, or go to its parent row |
+| ↩ | Follow the selected row's link (Cron's Show log, a trigger's Open session; a click on the link does the same) |
 
 Keys with ⌘, ⌃, ⌥ or ⇧ pass through (⇧K stays the plugin's Kill). Defined in `SDUI/TableView.swift`, rows in `ClubmateKit/TableKeys.swift`.
 
@@ -157,6 +158,7 @@ When a pane holds several of them (or a table or graph), focus moving to the pan
 | ↩ | lanes | Open the selected move (a click on its dot does the same) |
 | h | lanes with a title | Open or close the lanes |
 | ← / → | runstrip | Select the previous / next run (the newest when none is selected; a click on a run does the same) |
+| h | runstrip with a title | Open or close the axis (the Runs · N row with the counts stays; a click on it does the same) |
 
 Keys with ⌘, ⌃ or ⌥ pass through. Defined in `SDUI/GraphNodeView.swift` (`FlowNodeView`, `FlowKeys`), `SDUI/LanesView.swift` and `SDUI/RunstripNodeView.swift`.
 

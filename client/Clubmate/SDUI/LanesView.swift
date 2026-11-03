@@ -77,12 +77,13 @@ struct LanesNodeView: View {
     }
 }
 
-struct LanesRow: View {
+struct LanesRow<Trailing: View>: View {
     let title: String
     let moves: Int
     var count: Int?
     let open: Bool
     let toggle: () -> Void
+    @ViewBuilder var trailing: Trailing
 
     @State private var hovering = false
     @Environment(\.theme) private var theme
@@ -97,8 +98,7 @@ struct LanesRow: View {
                 Text(count.map { "· \($0)" } ?? "· \(moves) \(moves == 1 ? "move" : "moves")")
                     .foregroundStyle(theme.muted)
                 Spacer(minLength: theme.gutter)
-                Text("h")
-                    .foregroundStyle(theme.faint)
+                trailing
             }
             .font(theme.ui)
             .frame(height: theme.rowHeight2)
@@ -109,6 +109,21 @@ struct LanesRow: View {
         .onHover { hovering = $0 }
         .overlay(alignment: .top) { theme.border.frame(height: 1) }
         .accessibilityLabel(count.map { "\(title), \($0)" } ?? "\(title), \(moves) moves")
+    }
+}
+
+extension LanesRow where Trailing == FoldKey {
+    init(title: String, moves: Int, count: Int? = nil, open: Bool, toggle: @escaping () -> Void) {
+        self.init(title: title, moves: moves, count: count, open: open, toggle: toggle) { FoldKey() }
+    }
+}
+
+struct FoldKey: View {
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Text("h")
+            .foregroundStyle(theme.faint)
     }
 }
 

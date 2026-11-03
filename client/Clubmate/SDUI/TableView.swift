@@ -68,6 +68,8 @@ struct TableNodeView: View {
             select(row.id)
         } toggle: { expanded in
             dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
+        } follow: { link in
+            dispatch(node, .named(link.action, .string(row.id)))
         }
         .id(row.id)
     }
@@ -79,6 +81,11 @@ struct TableNodeView: View {
 
     private func handle(_ event: NSEvent) -> Bool {
         let plain = event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
+        if plain, event.keyCode == 36 || event.keyCode == 76 {
+            guard let row = node.tableRows().first(where: { $0.id == selected }), let link = row.cells.lazy.compactMap(\.link).first else { return false }
+            dispatch(node, .named(link.action, .string(row.id)))
+            return true
+        }
         guard let action = TableKeys.action(keyCode: event.keyCode, plain: plain) else { return false }
         let all = node.tableRows()
         let rows = TableKeys.rows(all)
@@ -168,6 +175,7 @@ private struct TableRowView: View {
     let active: Bool
     let select: () -> Void
     let toggle: (Bool) -> Void
+    let follow: (SDUICell.Link) -> Void
 
     @State private var hovering = false
     @Environment(\.theme) private var theme
@@ -182,6 +190,10 @@ private struct TableRowView: View {
                             .padding(.leading, CGFloat(row.depth) * theme.indent)
                     }
                     TableCellView(cell: cell, truncate: entry.column.truncate, muted: row.muted)
+                    if let link = cell.link {
+                        Spacer(minLength: theme.spacing.m)
+                        CellLink(label: link.label) { follow(link) }
+                    }
                 }
                 .tableColumn(entry.column)
                 .background(alignment: .leading) {
@@ -209,6 +221,28 @@ private struct TableRowView: View {
     private var background: Color {
         if selected { return active ? theme.selected : theme.selectedIdle }
         return hovering ? theme.hover : .clear
+    }
+}
+
+private struct CellLink: View {
+    let label: String
+    let action: () -> Void
+
+    @State private var hovering = false
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .lineLimit(1)
+                .fixedSize()
+                .foregroundStyle(hovering ? theme.foreground : theme.text2)
+                .underline(hovering)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .onHover { hovering = $0 }
     }
 }
 

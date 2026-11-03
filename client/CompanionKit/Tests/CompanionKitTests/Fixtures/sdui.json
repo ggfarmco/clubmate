@@ -644,9 +644,9 @@
    "props": {
     "items": [
      {
-      "id": "cj_aec2f3f1ebb52cf9",
+      "id": "cj_60973ea0f743d6b2",
       "label": "Poll CI for main",
-      "detail": "23:43",
+      "detail": "00:48",
       "icon": "clock",
       "menu": [
        {
@@ -673,7 +673,7 @@
       ]
      },
      {
-      "id": "cj_00309297493709ea",
+      "id": "cj_c13bc7e5c5681146",
       "label": "Weekly backlog review",
       "detail": "paused",
       "icon": "pause.circle",
@@ -702,7 +702,7 @@
       ]
      }
     ],
-    "selected": "cj_aec2f3f1ebb52cf9"
+    "selected": "cj_60973ea0f743d6b2"
    }
   },
   "cron.main": {
@@ -717,6 +717,10 @@
       "badges": [
        {
         "text": "active"
+       },
+       {
+        "text": "missed 1 run",
+        "tone": "warning"
        }
       ],
       "icon": "clock",
@@ -725,7 +729,7 @@
      "children": [
       {
        "type": "button",
-       "id": "cj_aec2f3f1ebb52cf9/run",
+       "id": "cj_60973ea0f743d6b2/run",
        "props": {
         "action": "run",
         "icon": "play.fill",
@@ -736,7 +740,7 @@
       },
       {
        "type": "button",
-       "id": "cj_aec2f3f1ebb52cf9/pause",
+       "id": "cj_60973ea0f743d6b2/pause",
        "props": {
         "action": "pause",
         "icon": "pause",
@@ -747,7 +751,7 @@
       },
       {
        "type": "button",
-       "id": "cj_aec2f3f1ebb52cf9/edit",
+       "id": "cj_60973ea0f743d6b2/edit",
        "props": {
         "action": "edit",
         "icon": "pencil",
@@ -758,7 +762,7 @@
       },
       {
        "type": "button",
-       "id": "cj_aec2f3f1ebb52cf9/duplicate",
+       "id": "cj_60973ea0f743d6b2/duplicate",
        "props": {
         "action": "duplicate",
         "icon": "plus.square.on.square",
@@ -768,7 +772,7 @@
       },
       {
        "type": "button",
-       "id": "cj_aec2f3f1ebb52cf9/delete",
+       "id": "cj_60973ea0f743d6b2/delete",
        "props": {
         "action": "delete",
         "confirm": "Delete cron job “Poll CI for main”?",
@@ -830,14 +834,14 @@
             {
              "type": "text",
              "props": {
-              "text": "Tue, Nov 3 · 23:43"
+              "text": "Wed, Nov 4 · 00:48"
              }
             },
             {
              "type": "text",
              "props": {
               "style": "muted",
-              "text": "in less than a minute"
+              "text": "in 28 min"
              }
             }
            ]
@@ -857,7 +861,7 @@
             },
             {
              "type": "select",
-             "id": "cj_aec2f3f1ebb52cf9/missed",
+             "id": "cj_60973ea0f743d6b2/missed",
              "props": {
               "action": "missed",
               "options": [
@@ -870,7 +874,7 @@
                 "label": "Skip it and wait for the next run"
                }
               ],
-              "value": "once"
+              "value": "skip"
              }
             }
            ]
@@ -934,13 +938,14 @@
              {
               "id": "ok",
               "label": "ok",
-              "count": 17,
-              "state": "last"
+              "count": 18,
+              "state": "taken"
              },
              {
               "id": "failed",
               "label": "failed",
-              "state": "never"
+              "count": 1,
+              "state": "last"
              }
             ]
            }
@@ -955,14 +960,14 @@
             "from": "action",
             "out": "ok",
             "to": "runs",
-            "state": "last",
+            "state": "taken",
             "tooltip": "ok runs stay in Runs below"
            },
            {
             "from": "action",
             "out": "failed",
             "to": "inbox",
-            "state": "never",
+            "state": "last",
             "tooltip": "failed and missed runs post to the inbox; ok runs stay in Runs"
            }
           ],
@@ -1003,7 +1008,7 @@
             },
             {
              "type": "button",
-             "id": "cj_aec2f3f1ebb52cf9/json",
+             "id": "cj_60973ea0f743d6b2/json",
              "props": {
               "action": "json",
               "icon": "chevron.right",
@@ -1012,7 +1017,16 @@
              }
             }
            ]
-          },
+          }
+         ]
+        },
+        {
+         "type": "card",
+         "props": {
+          "icon": "exclamationmark.circle",
+          "tone": "warning"
+         },
+         "children": [
           {
            "type": "stack",
            "props": {
@@ -1022,24 +1036,17 @@
             {
              "type": "text",
              "props": {
-              "style": "muted",
-              "text": "Runs"
-             }
-            },
-            {
-             "type": "text",
-             "props": {
-              "text": "ok 17"
+              "text": "Missed Wed, Nov 4 · 00:14 — not run: Clubmate was closed or the Mac asleep",
+              "tone": "warning"
              }
             },
             {
              "type": "button",
-             "id": "cj_aec2f3f1ebb52cf9/runJson",
+             "id": "cj_60973ea0f743d6b2/runMissed",
              "props": {
-              "action": "runJson",
-              "icon": "chevron.right",
-              "label": "Show the latest run as JSON",
-              "variant": "ghost"
+              "action": "runMissed",
+              "label": "Run it now",
+              "variant": "secondary"
              }
             }
            ]
@@ -1050,112 +1057,133 @@
          "type": "runstrip",
          "id": "strip",
          "props": {
-          "next": "2026-11-03T22:43:31Z",
-          "now": "2026-11-03T22:43:15Z",
+          "count": 20,
+          "next": "2026-11-03T23:48:35Z",
+          "now": "2026-11-03T23:20:11Z",
           "runs": [
            {
-            "at": "2026-11-03T23:37:31.682081+01:00",
+            "at": "2026-11-03T22:36:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:37 · ok · ok",
-            "ref": "r1793745451682081000"
+            "tooltip": "Nov 3 23:36 · ok · main is green · 14 checks passed",
+            "ref": "r1793745395000000000"
            },
            {
-            "at": "2026-11-03T23:37:31.74786+01:00",
+            "at": "2026-11-03T22:38:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:37 · ok · ok",
-            "ref": "r1793745451747860000"
+            "tooltip": "Nov 3 23:38 · ok · main is green · 14 checks passed",
+            "ref": "r1793745515000000000"
            },
            {
-            "at": "2026-11-03T23:37:31.811656+01:00",
+            "at": "2026-11-03T22:40:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:37 · ok · ok",
-            "ref": "r1793745451811656000"
+            "tooltip": "Nov 3 23:40 · ok · main is green · 14 checks passed",
+            "ref": "r1793745635000000000"
            },
            {
-            "at": "2026-11-03T23:37:31.874045+01:00",
+            "at": "2026-11-03T22:42:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:37 · ok · ok",
-            "ref": "r1793745451874045000"
+            "tooltip": "Nov 3 23:42 · ok · main is green · 14 checks passed",
+            "ref": "r1793745755000000000"
            },
            {
-            "at": "2026-11-03T23:37:31.93537+01:00",
+            "at": "2026-11-03T22:44:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:37 · ok · ok",
-            "ref": "r1793745451935370000"
+            "tooltip": "Nov 3 23:44 · ok · main is green · 14 checks passed",
+            "ref": "r1793745875000000000"
            },
            {
-            "at": "2026-11-03T23:37:31.9971+01:00",
+            "at": "2026-11-03T22:46:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:37 · ok · ok",
-            "ref": "r1793745451997100000"
+            "tooltip": "Nov 3 23:46 · ok · main is green · 14 checks passed",
+            "ref": "r1793745995000000000"
            },
            {
-            "at": "2026-11-03T23:37:32.055236+01:00",
+            "at": "2026-11-03T22:48:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:37 · ok · ok",
-            "ref": "r1793745452055236000"
+            "tooltip": "Nov 3 23:48 · ok · main is green · 14 checks passed",
+            "ref": "r1793746115000000000"
            },
            {
-            "at": "2026-11-03T23:37:32.111881+01:00",
+            "at": "2026-11-03T22:50:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:37 · ok · ok",
-            "ref": "r1793745452111881000"
+            "tooltip": "Nov 3 23:50 · ok · main is green · 14 checks passed",
+            "ref": "r1793746235000000000"
            },
            {
-            "at": "2026-11-03T23:37:32.165929+01:00",
+            "at": "2026-11-03T22:52:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:37 · ok · ok",
-            "ref": "r1793745452165929000"
+            "tooltip": "Nov 3 23:52 · ok · main is green · 14 checks passed",
+            "ref": "r1793746355000000000"
            },
            {
-            "at": "2026-11-03T23:37:32.21937+01:00",
+            "at": "2026-11-03T22:54:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:37 · ok · ok",
-            "ref": "r1793745452219370000"
+            "tooltip": "Nov 3 23:54 · ok · main is green · 14 checks passed",
+            "ref": "r1793746475000000000"
            },
            {
-            "at": "2026-11-03T23:37:32.276361+01:00",
+            "at": "2026-11-03T22:56:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:37 · ok · ok",
-            "ref": "r1793745452276361000"
+            "tooltip": "Nov 3 23:56 · ok · main is green · 14 checks passed",
+            "ref": "r1793746595000000000"
            },
            {
-            "at": "2026-11-03T23:37:32.337102+01:00",
+            "at": "2026-11-03T22:58:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:37 · ok · ok",
-            "ref": "r1793745452337102000"
+            "tooltip": "Nov 3 23:58 · ok · main is green · 14 checks passed",
+            "ref": "r1793746715000000000"
            },
            {
-            "at": "2026-11-03T23:37:32.40256+01:00",
+            "at": "2026-11-03T23:00:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:37 · ok · ok",
-            "ref": "r1793745452402560000"
+            "tooltip": "Nov 4 00:00 · ok · main is green · 14 checks passed",
+            "ref": "r1793746835000000000"
            },
            {
-            "at": "2026-11-03T23:37:32.462188+01:00",
+            "at": "2026-11-03T23:02:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:37 · ok · ok",
-            "ref": "r1793745452462188000"
+            "tooltip": "Nov 4 00:02 · ok · main is green · 14 checks passed",
+            "ref": "r1793746955000000000"
            },
            {
-            "at": "2026-11-03T23:37:32.518835+01:00",
+            "at": "2026-11-03T23:04:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:37 · ok · ok",
-            "ref": "r1793745452518835000"
+            "tooltip": "Nov 4 00:04 · ok · main is green · 14 checks passed",
+            "ref": "r1793747075000000000"
            },
            {
-            "at": "2026-11-03T23:39:31.61615+01:00",
+            "at": "2026-11-03T23:06:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:39 · ok · ok",
-            "ref": "r1793745571616150000"
+            "tooltip": "Nov 4 00:06 · ok · main is green · 14 checks passed",
+            "ref": "r1793747195000000000"
            },
            {
-            "at": "2026-11-03T23:41:31.616665+01:00",
+            "at": "2026-11-03T23:08:35Z",
             "status": "ok",
-            "tooltip": "Nov 3 23:41 · ok · ok",
-            "ref": "r1793745691616665000"
+            "tooltip": "Nov 4 00:08 · ok · main is green · 14 checks passed",
+            "ref": "r1793747315000000000"
+           },
+           {
+            "at": "2026-11-03T23:10:35Z",
+            "status": "ok",
+            "tooltip": "Nov 4 00:10 · ok · main is green · 14 checks passed",
+            "ref": "r1793747435000000000"
+           },
+           {
+            "at": "2026-11-03T23:12:35Z",
+            "status": "failed",
+            "tooltip": "Nov 4 00:12 · failed · GitHub answered 403: API rate limit exceeded · exit 1",
+            "ref": "r1793747555000000000"
+           },
+           {
+            "at": "2026-11-03T23:14:35Z",
+            "status": "missed",
+            "tooltip": "Nov 4 00:14 · missed · not run — Clubmate was closed or the Mac asleep; the policy skips it",
+            "ref": "r1793747675000000000"
            }
-          ]
+          ],
+          "selected": "r1793747555000000000",
+          "title": "Runs"
          }
         },
         {
@@ -1180,23 +1208,80 @@
           ],
           "rows": [
            {
-            "id": "g1793745451682081000",
+            "id": "r1793747675000000000",
+            "cells": [
+             {
+              "text": "Nov 4 00:14:35"
+             },
+             {
+              "text": "missed",
+              "tone": "warn"
+             },
+             {
+              "text": "not run — Clubmate was closed or the Mac asleep; the policy skips it"
+             }
+            ]
+           },
+           {
+            "id": "r1793747555000000000",
+            "cells": [
+             {
+              "text": "Nov 4 00:12:35"
+             },
+             {
+              "text": "failed",
+              "tone": "danger"
+             },
+             {
+              "text": "GitHub answered 403: API rate limit exceeded · exit 1",
+              "action": "showLog",
+              "label": "Show log"
+             }
+            ]
+           },
+           {
+            "id": "g1793745395000000000",
             "hasChildren": true,
             "cells": [
              {
-              "text": "23:41 – 23:37"
+              "text": "Nov 4 – Nov 3"
              },
              {
-              "text": "ok ×17",
+              "text": "ok ×18",
               "tone": "ok"
              },
              {
-              "text": "same result: ok"
+              "text": "same result: main is green · 14 checks passed"
              }
             ]
            }
-          ]
+          ],
+          "selected": "r1793747555000000000"
          }
+        },
+        {
+         "type": "form",
+         "id": "runJson",
+         "children": [
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "button",
+             "id": "cj_60973ea0f743d6b2/runJson",
+             "props": {
+              "action": "runJson",
+              "icon": "chevron.right",
+              "label": "Show the selected run as JSON",
+              "variant": "ghost"
+             }
+            }
+           ]
+          }
+         ]
         }
        ]
       }
@@ -1210,10 +1295,11 @@
    "props": {
     "items": [
      {
-      "id": "tr_d88ea31ae5d69987",
+      "id": "tr_67c683385a5fc075",
       "label": "Release after the nightly tidy",
       "detail": "the event “tidy.done” is emitted",
-      "icon": "bolt",
+      "icon": "xmark.circle",
+      "tone": "danger",
       "menu": [
        {
         "action": "run",
@@ -1231,7 +1317,7 @@
       ]
      }
     ],
-    "selected": "tr_d88ea31ae5d69987"
+    "selected": "tr_67c683385a5fc075"
    }
   },
   "triggers.main": {
@@ -1246,6 +1332,10 @@
       "badges": [
        {
         "text": "active"
+       },
+       {
+        "text": "failed",
+        "tone": "danger"
        }
       ],
       "icon": "bolt",
@@ -1254,7 +1344,7 @@
      "children": [
       {
        "type": "button",
-       "id": "tr_d88ea31ae5d69987/run",
+       "id": "tr_67c683385a5fc075/run",
        "props": {
         "action": "run",
         "icon": "play.fill",
@@ -1265,7 +1355,7 @@
       },
       {
        "type": "button",
-       "id": "tr_d88ea31ae5d69987/pause",
+       "id": "tr_67c683385a5fc075/pause",
        "props": {
         "action": "pause",
         "icon": "pause",
@@ -1276,7 +1366,7 @@
       },
       {
        "type": "button",
-       "id": "tr_d88ea31ae5d69987/delete",
+       "id": "tr_67c683385a5fc075/delete",
        "props": {
         "action": "delete",
         "confirm": "Delete trigger “Release after the nightly tidy”?",
@@ -1299,7 +1389,7 @@
        "children": [
         {
          "type": "form",
-         "id": "tr_d88ea31ae5d69987/caption",
+         "id": "tr_67c683385a5fc075/caption",
          "children": [
           {
            "type": "text",
@@ -1312,7 +1402,7 @@
         },
         {
          "type": "flow",
-         "id": "tr_d88ea31ae5d69987/flow",
+         "id": "tr_67c683385a5fc075/flow",
          "props": {
           "cards": [
            {
@@ -1328,12 +1418,12 @@
             ]
            },
            {
-            "id": "agt_0000000000000002",
-            "label": "Backlog grooming",
-            "state": "ok · 23:39",
-            "tone": "success",
-            "icon": "checkmark.circle",
-            "tooltip": "prompted Backlog grooming",
+            "id": "agt_0bf661853af5f8c9",
+            "label": "Release",
+            "state": "failed · Release stopped: CI is red on main",
+            "tone": "danger",
+            "icon": "xmark.circle",
+            "tooltip": "Release stopped: CI is red on main",
             "outs": []
            }
           ],
@@ -1341,7 +1431,7 @@
            {
             "from": "when",
             "out": "event",
-            "to": "agt_0000000000000002",
+            "to": "agt_0bf661853af5f8c9",
             "state": "selected",
             "tooltip": "this trigger",
             "label": "this trigger"
@@ -1411,7 +1501,7 @@
             {
              "type": "text",
              "props": {
-              "text": "Send a prompt to Backlog grooming"
+              "text": "Send a prompt to Release"
              }
             }
            ]
@@ -1436,7 +1526,7 @@
                "type": "text",
                "props": {
                 "lines": 3,
-                "text": "Release it"
+                "text": "Push main and tag"
                }
               }
              ]
@@ -1458,42 +1548,11 @@
             },
             {
              "type": "button",
-             "id": "tr_d88ea31ae5d69987/json",
+             "id": "tr_67c683385a5fc075/json",
              "props": {
               "action": "json",
               "icon": "chevron.right",
               "label": "Show as JSON",
-              "variant": "ghost"
-             }
-            }
-           ]
-          },
-          {
-           "type": "stack",
-           "props": {
-            "direction": "horizontal"
-           },
-           "children": [
-            {
-             "type": "text",
-             "props": {
-              "style": "muted",
-              "text": "Runs"
-             }
-            },
-            {
-             "type": "text",
-             "props": {
-              "text": "ok 1"
-             }
-            },
-            {
-             "type": "button",
-             "id": "tr_d88ea31ae5d69987/runJson",
-             "props": {
-              "action": "runJson",
-              "icon": "chevron.right",
-              "label": "Show the latest run as JSON",
               "variant": "ghost"
              }
             }
@@ -1503,7 +1562,7 @@
         },
         {
          "type": "lanes",
-         "id": "tr_d88ea31ae5d69987/lanes",
+         "id": "tr_67c683385a5fc075/lanes",
          "props": {
           "actors": [
            {
@@ -1513,26 +1572,47 @@
            },
            {
             "id": "effect",
-            "label": "Backlog grooming",
+            "label": "Release",
             "icon": "sparkle"
            }
           ],
-          "count": 1,
+          "count": 3,
           "moves": [
            {
             "actor": "cause",
             "cause": -1,
-            "tooltip": "Nov 3 23:39:35 · the event “tidy.done” is emitted",
-            "ref": "r1793745575332951000"
+            "tooltip": "Nov 2 00:16:40 · the event “tidy.done” is emitted",
+            "tone": "neutral",
+            "ref": "r1793575000000000000"
+           },
+           {
+            "actor": "cause",
+            "cause": -1,
+            "tooltip": "Nov 3 00:14:40 · the event “tidy.done” is emitted",
+            "ref": "r1793661280000000000"
            },
            {
             "actor": "effect",
-            "cause": 0,
+            "cause": 1,
             "label": "tidy.done → prompt",
-            "tooltip": "Nov 3 23:39:35 · prompted Backlog grooming",
-            "last": true,
+            "tooltip": "Nov 3 00:14:40 · prompted Release · its turn 2 started",
             "tone": "success",
-            "ref": "r1793745575332951000"
+            "ref": "r1793661280000000000"
+           },
+           {
+            "actor": "cause",
+            "cause": -1,
+            "tooltip": "Nov 4 00:09:40 · the event “tidy.done” is emitted",
+            "ref": "r1793747380000000000"
+           },
+           {
+            "actor": "effect",
+            "cause": 3,
+            "label": "tidy.done → prompt",
+            "tooltip": "Nov 4 00:09:40 · Release stopped: CI is red on main",
+            "last": true,
+            "tone": "danger",
+            "ref": "r1793747380000000000"
            }
           ],
           "title": "Runs"
@@ -1565,10 +1645,30 @@
           ],
           "rows": [
            {
-            "id": "r1793745575332951000",
+            "id": "r1793747380000000000",
             "cells": [
              {
-              "text": "Nov 3 23:39:35"
+              "text": "Nov 4 00:09:40"
+             },
+             {
+              "text": "the event “tidy.done” is emitted"
+             },
+             {
+              "text": "failed",
+              "tone": "danger"
+             },
+             {
+              "text": "Release stopped: CI is red on main",
+              "action": "openSession",
+              "label": "Open session"
+             }
+            ]
+           },
+           {
+            "id": "r1793661280000000000",
+            "cells": [
+             {
+              "text": "Nov 3 00:14:40"
              },
              {
               "text": "the event “tidy.done” is emitted"
@@ -1578,12 +1678,53 @@
               "tone": "ok"
              },
              {
-              "text": "prompted Backlog grooming"
+              "text": "prompted Release · its turn 2 started"
+             }
+            ]
+           },
+           {
+            "id": "r1793575000000000000",
+            "cells": [
+             {
+              "text": "Nov 2 00:16:40"
+             },
+             {
+              "text": "the event “tidy.done” is emitted"
+             },
+             {
+              "text": "skipped"
+             },
+             {
+              "text": "not run — the session was busy"
              }
             ]
            }
           ]
          }
+        },
+        {
+         "type": "form",
+         "id": "runJson",
+         "children": [
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "button",
+             "id": "tr_67c683385a5fc075/runJson",
+             "props": {
+              "action": "runJson",
+              "icon": "chevron.right",
+              "label": "Show the latest run as JSON",
+              "variant": "ghost"
+             }
+            }
+           ]
+          }
+         ]
         }
        ]
       }

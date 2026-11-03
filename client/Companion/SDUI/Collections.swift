@@ -458,6 +458,15 @@ struct TableNode: View {
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
+            if let link = row.cells.lazy.compactMap(\.link).first {
+                Button(link.label) {
+                    context.run { await $0.fire(node, .named(link.action, .string(row.id))) }
+                }
+                .font(.footnote.weight(.semibold))
+                .buttonStyle(.borderless)
+                .frame(minHeight: 44)
+                .accessibilityIdentifier("sdui.table.link.\(row.id)")
+            }
         }
         .padding(.leading, CGFloat(row.depth) * 12)
         .opacity(row.muted ? 0.6 : 1)

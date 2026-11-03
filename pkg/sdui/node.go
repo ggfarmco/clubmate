@@ -76,11 +76,13 @@ type TableRow struct {
 }
 
 type Cell struct {
-	Text  string   `json:"text,omitempty"`
-	Bar   *float64 `json:"bar,omitempty"`
-	Tone  string   `json:"tone,omitempty"`
-	Spark *Spark   `json:"spark,omitempty"`
-	Since int64    `json:"since,omitempty"`
+	Text   string   `json:"text,omitempty"`
+	Bar    *float64 `json:"bar,omitempty"`
+	Tone   string   `json:"tone,omitempty"`
+	Spark  *Spark   `json:"spark,omitempty"`
+	Since  int64    `json:"since,omitempty"`
+	Action string   `json:"action,omitempty"`
+	Label  string   `json:"label,omitempty"`
 }
 
 type Spark struct {
@@ -524,6 +526,8 @@ type RunstripProps struct {
 	Next     time.Time
 	Paused   []PausedSpan
 	Selected string
+	Title    string
+	Count    int
 }
 
 func Runstrip(id string, p RunstripProps) Node {
@@ -535,6 +539,10 @@ func Runstrip(id string, p RunstripProps) Node {
 	}
 	if len(p.Paused) > 0 {
 		props["paused"] = p.Paused
+	}
+	props = withOptional(props, "title", p.Title)
+	if p.Count > 0 {
+		props["count"] = p.Count
 	}
 	return Node{Type: "runstrip", ID: id, Props: props}
 }

@@ -28,6 +28,7 @@ final class AppNavigation {
     @ObservationIgnored private(set) var pairingSheetUp = false
     @ObservationIgnored private var pairedUnderSheet: String?
     var doc: OpenDoc?
+    var sectionItem: String?
     var voiceDock: CGRect?
     var searching = false
     var preferredColumn: NavigationSplitViewColumn = .sidebar

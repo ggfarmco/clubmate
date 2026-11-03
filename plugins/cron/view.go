@@ -11,20 +11,22 @@ import (
 )
 
 const (
-	sidebarSlot  = "cron.sidebar"
-	mainSlot     = "cron.main"
-	jobsList     = "jobs"
-	historyID    = "history"
-	actDuplicate = "duplicate"
-	actRunMissed = "runMissed"
-	actMissed    = "missed"
-	clockLayout  = "15:04"
-	dayLayout    = "Jan 2 15:04"
-	nextLayout   = "Mon, Jan 2 · 15:04"
-	pausedLayout = "Jan 2"
-	doesFormID   = "runs"
-	noJobs       = "No cron jobs yet"
-	emptyText    = "A job runs on a schedule — every few minutes, nightly or once — and starts an agent, prompts a session or runs a plugin command. Agents schedule them for you."
+	sidebarSlot   = "cron.sidebar"
+	mainSlot      = "cron.main"
+	jobsList      = "jobs"
+	historyID     = "history"
+	actDuplicate  = "duplicate"
+	actRunMissed  = "runMissed"
+	actMissed     = "missed"
+	clockLayout   = "15:04"
+	dayLayout     = "Jan 2 15:04"
+	nextLayout    = "Mon, Jan 2 · 15:04"
+	pausedLayout  = "Jan 2"
+	doesFormID    = "runs"
+	runJSONFormID = "runJson"
+	actShowLog    = "showLog"
+	noJobs        = "No cron jobs yet"
+	emptyText     = "A job runs on a schedule — every few minutes, nightly or once — and starts an agent, prompts a session or runs a plugin command. Agents schedule them for you."
 )
 
 var missedOptions = []sdui.Option{
@@ -85,11 +87,6 @@ func mainView(j *Job, titles, statuses map[string]string, open automation.Open, 
 	case !j.NextRun.IsZero():
 		rows = append(rows, automation.Property("Next run", j.NextRun.In(loc).Format(nextLayout), automation.Until(j.NextRun, now)))
 	}
-	if missed > 0 {
-		text := last.In(loc).Format(nextLayout) + " — not run: Clubmate was closed or the Mac asleep"
-		run := automation.ActionNode(j.ID, automation.DetailAction{Action: actRunMissed, Label: "Run it now", Variant: sdui.VariantSecondary})
-		rows = append(rows, sdui.HStack(sdui.MutedText("Missed"), sdui.WithTone(sdui.Text(text), "warning"), run))
-	}
 	policy := sdui.WithAction(sdui.Select(j.ID+"/"+actMissed, missedOptions, cmp.Or(j.Missed, missedOnce)), actMissed)
 	rows = append(rows, sdui.HStack(sdui.MutedText("When missed"), policy))
 	if branch, ok := worktree(j); ok {
@@ -101,13 +98,31 @@ func mainView(j *Job, titles, statuses map[string]string, open automation.Open, 
 		does = append(does, automation.Property("Runs", noRuns(j, now), ""))
 		return sdui.VStack(header, sdui.Scroll(sdui.VStack(automation.Properties(rows...), doesFlow(j, titles, statuses), sdui.Form(doesFormID, does...))))
 	}
-	cells := func(r Run) ([]string, string) { return nil, automation.Words(j.Command, j.Args, r, titles) }
-	table, run, picked := automation.RunsTable(j.History, loc, nil, cells, runs)
-	does = append(does, automation.RunsRows(j.ID, j.History, run, picked, open.RunJSON)...)
-	if !picked {
-		run = Run{}
+	body := []sdui.Node{automation.Properties(rows...), doesFlow(j, titles, statuses), sdui.Form(doesFormID, does...)}
+	if missed > 0 {
+		body = append(body, missedBanner(j, last.In(loc)))
 	}
-	return sdui.VStack(header, sdui.Scroll(sdui.VStack(automation.Properties(rows...), doesFlow(j, titles, statuses), sdui.Form(doesFormID, does...), runStrip(j, j.History, run, titles, now), table)))
+	cells := func(r Run) ([]string, string) { return nil, automation.Words(j.Command, j.Args, r, titles) }
+	table, run, picked := automation.RunsTable(j.History, loc, nil, cells, showLog, runs)
+	marked := run
+	if !picked {
+		marked = Run{}
+	}
+	body = append(body, runStrip(j, j.History, marked, titles, now), table, sdui.Form(runJSONFormID, automation.RunJSONRows(j.ID, run, picked, open.RunJSON)...))
+	return sdui.VStack(header, sdui.Scroll(sdui.VStack(body...)))
+}
+
+func missedBanner(j *Job, at time.Time) sdui.Node {
+	text := "Missed " + at.Format(nextLayout) + " — not run: Clubmate was closed or the Mac asleep"
+	run := automation.ActionNode(j.ID, automation.DetailAction{Action: actRunMissed, Label: "Run it now", Variant: sdui.VariantSecondary})
+	return sdui.Card("warning", "exclamationmark.circle", sdui.HStack(sdui.WithTone(sdui.Text(text), "warning"), run))
+}
+
+func showLog(r Run) (string, string) {
+	if r.Status != automation.StatusError {
+		return "", ""
+	}
+	return actShowLog, "Show log"
 }
 
 func pausedLine(j *Job, loc *time.Location) string {

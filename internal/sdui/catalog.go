@@ -336,6 +336,8 @@ var (
 				"next":     timeString,
 				"paused":   maxLen(maxStripRuns, listOf(pausedSpan)),
 				"selected": isString,
+				"title":    isString,
+				"count":    countNumber,
 			},
 			children:    noChildren,
 			interactive: true,
@@ -797,6 +799,7 @@ var (
 	})
 	cellCheck = objectCheck(nil, map[string]propCheck{
 		"text": isString, "bar": unitNumber, "tone": oneOf(cellTones), "spark": objectCheck([]string{"values", "max"}, sparkFields), "since": nonNegative,
+		"action": actionCheck, "label": isString,
 	})
 	sortCheck  = objectCheck([]string{"column"}, map[string]propCheck{"column": columnID, "desc": isBool})
 	cellsArray = arrayOf(cellCheck)

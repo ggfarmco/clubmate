@@ -145,6 +145,9 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	switch ev.Slot {
 	case mainSlot:
 		if ev.NodeID == automation.HistoryID {
+			if ev.Action == actOpenSession {
+				return nil, a.openSession(ctx, ev)
+			}
 			if err := a.runRows.Handle(ctx, a.host, ev); err != nil {
 				return nil, err
 			}
@@ -199,6 +202,30 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	}
 	_, err = a.command(ctx, nil, pluginsdk.CommandRun{ID: cmdID, WorkspaceID: ev.WorkspaceID, Args: args})
 	return nil, err
+}
+
+func (a *app) openSession(ctx context.Context, ev pluginsdk.UIEvent) error {
+	var id, selected string
+	if err := json.Unmarshal(ev.Value, &id); err != nil {
+		return fmt.Errorf("%s value: %w", ev.Action, err)
+	}
+	if _, err := a.host.StorageGet(ctx, automation.SelectedKey(ev.WorkspaceID), &selected); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	session := ""
+	if t, ok := a.triggers[selected]; ok && t.Workspace == ev.WorkspaceID {
+		for _, r := range t.History {
+			if automation.RunID(r) == id {
+				session = runSession(t, r)
+			}
+		}
+	}
+	a.mu.Unlock()
+	if session == "" {
+		return nil
+	}
+	return agentcall.Reveal(ctx, a.host, ev.WorkspaceID, session)
 }
 
 func (a *app) selectTrigger(ctx context.Context, workspace, id string) error {

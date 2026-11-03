@@ -147,6 +147,9 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	switch ev.Slot {
 	case mainSlot:
 		if ev.NodeID == automation.HistoryID || ev.NodeID == stripID {
+			if ev.Action == actShowLog {
+				return nil, a.showLog(ctx, ev)
+			}
 			if err := a.runRows.Handle(ctx, a.host, ev); err != nil {
 				return nil, err
 			}
@@ -232,6 +235,23 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	}
 	_, err = a.command(ctx, nil, cmd)
 	return nil, err
+}
+
+func (a *app) showLog(ctx context.Context, ev pluginsdk.UIEvent) error {
+	var job string
+	if _, err := a.host.StorageGet(ctx, automation.SelectedKey(ev.WorkspaceID), &job); err != nil {
+		return err
+	}
+	ev.Action = "select"
+	if err := a.runRows.Handle(ctx, a.host, ev); err != nil {
+		return err
+	}
+	if err := automation.Show(ctx, a.host, automation.ActRunJSON, ev.WorkspaceID, job); err != nil {
+		return err
+	}
+	a.registry.Invalidate(ev.WorkspaceID)
+	a.registry.Flush(ctx)
+	return nil
 }
 
 func (a *app) setMissed(ctx context.Context, ev pluginsdk.UIEvent, id string) error {

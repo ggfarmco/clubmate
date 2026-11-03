@@ -51,7 +51,7 @@ func TestMainHistoryNewestFirst(t *testing.T) {
 	assert.Contains(t, texts(view), "paused by you, Oct 30")
 	rows := tableRows(t, view)
 	require.Len(t, rows, 3)
-	assert.Equal(t, []sdui.Cell{{Text: "Oct 30 09:02:00"}, {Text: "failed", Tone: "danger"}, {Text: "boom"}}, rows[0].Cells)
+	assert.Equal(t, []sdui.Cell{{Text: "Oct 30 09:02:00"}, {Text: "failed", Tone: "danger"}, {Text: "boom", Action: actShowLog, Label: "Show log"}}, rows[0].Cells)
 	assert.Equal(t, "not run — the previous run was still running", rows[1].Cells[2].Text)
 	assert.Equal(t, "started Child", rows[2].Cells[2].Text)
 }
@@ -72,13 +72,15 @@ func TestMainSplitsMissedRunsFromThePolicy(t *testing.T) {
 	got := texts(view)
 	assert.Contains(t, got, "in 13 h")
 	props := nodesWithType(view, "form")[0]
-	missedRow := props.Children[2]
-	assert.Equal(t, "warning", missedRow.Children[1].Props["tone"])
-	policy := props.Children[3].Children[1]
+	policy := props.Children[2].Children[1]
 	assert.Equal(t, []any{"select", missedSkip, actMissed}, []any{policy.Type, policy.Props["value"], policy.Props["action"]})
 	assert.Contains(t, got, "the main checkout")
 	assert.Contains(t, got, "nobody — failures go to the inbox")
-	assert.Contains(t, childIDs(missedRow), "cj_a/runMissed")
+	cards := nodesWithType(view, "card")
+	banner := cards[len(cards)-1]
+	assert.Equal(t, "warning", banner.Props["tone"])
+	assert.Contains(t, texts(banner), "Missed Sat, Oct 31 · 03:00 — not run: Clubmate was closed or the Mac asleep")
+	assert.Contains(t, childIDs(banner.Children[0]), "cj_a/runMissed")
 }
 
 func TestEmptyStates(t *testing.T) {
@@ -112,6 +114,7 @@ func TestDoesIsDrawnAndRunsSitOnAStrip(t *testing.T) {
 	assert.Equal(t, []string{"when→action taken", "action.ok→runs taken", "action.failed→inbox last"}, edgeKeys(edges))
 	strip := nodesWithType(view, "runstrip")[0]
 	assert.Equal(t, []string{sdui.RunOK, sdui.RunFailed, sdui.RunMissed}, stripStatuses(strip))
+	assert.Equal(t, []any{"Runs", 3}, []any{strip.Props["title"], strip.Props["count"]})
 	assert.NotContains(t, strip.Props, "selected")
 	assert.Equal(t, poll.NextRun.Format(time.RFC3339), strip.Props["next"])
 

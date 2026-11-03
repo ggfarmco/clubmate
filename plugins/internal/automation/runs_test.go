@@ -16,8 +16,14 @@ func TestRunsTableCollapsesOnlyConsecutiveIdenticalRuns(t *testing.T) {
 		history = append(history, Run{At: at.Add(time.Duration(i) * 2 * time.Minute), Status: status, Result: `{"text":"main is green"}`, Reason: "boom"})
 	}
 	cells := func(r Run) ([]string, string) { return nil, Words("github.ci", nil, r, nil) }
+	link := func(r Run) (string, string) {
+		if r.Status != StatusError {
+			return "", ""
+		}
+		return "showLog", "Show log"
+	}
 
-	table, selected, picked := RunsTable(history, time.UTC, nil, cells, RunsView{})
+	table, selected, picked := RunsTable(history, time.UTC, nil, cells, link, RunsView{})
 	rows := tableRows(table)
 	assert.Equal(t, [][]string{
 		{"15:54 – 15:52", "ok ×2", "same result: main is green"},
@@ -27,8 +33,15 @@ func TestRunsTableCollapsesOnlyConsecutiveIdenticalRuns(t *testing.T) {
 	assert.Equal(t, history[4], selected)
 	assert.False(t, picked)
 	assert.NotContains(t, table.Props, "selected")
+	links := map[string]string{}
+	for _, r := range table.Props["rows"].([]sdui.TableRow) {
+		if c := r.Cells[len(r.Cells)-1]; c.Action != "" {
+			links[r.ID] = c.Action + " " + c.Label
+		}
+	}
+	assert.Equal(t, map[string]string{RunID(history[2]): "showLog Show log"}, links)
 
-	table, selected, picked = RunsTable(history, time.UTC, nil, cells, RunsView{Selected: RunID(history[0])})
+	table, selected, picked = RunsTable(history, time.UTC, nil, cells, link, RunsView{Selected: RunID(history[0])})
 	assert.Equal(t, history[0], selected)
 	assert.True(t, picked)
 	assert.Equal(t, "g"+RunID(history[0])[1:], table.Props["selected"])

@@ -81,7 +81,7 @@ func TestUserTriggerDrawsItsLastChainAndRunsAsLanes(t *testing.T) {
 			{At: at, Topic: "event.tidy.done", Status: automation.StatusError, Reason: "CI is red on main", Chain: chain},
 		}}
 
-	view := mainView(release, []*Trigger{release}, nil, nil, automation.Open{}, automation.RunsView{})
+	view := mainView(release, []*Trigger{release}, map[string]string{"agt_9": "Nightly tidy"}, nil, automation.Open{}, automation.RunsView{})
 	require.NoError(t, isdui.Validate(view))
 	assert.Contains(t, texts(view), "last time · cron Nightly tidy started the session that emitted it")
 	flow := find(view, "flow")
@@ -101,6 +101,8 @@ func TestUserTriggerDrawsItsLastChainAndRunsAsLanes(t *testing.T) {
 	assert.Equal(t, []string{"success", "danger"}, []string{moves[1].Tone, moves[3].Tone})
 	assert.True(t, moves[3].Last)
 	assert.Equal(t, automation.RunID(release.History[1]), moves[3].Ref)
+	rows := find(view, "table").Props["rows"].([]sdui.TableRow)
+	assert.Equal(t, []string{actOpenSession, ""}, []string{rows[0].Cells[3].Action, rows[1].Cells[3].Action})
 }
 
 func TestNoTriggersShowGhostFlow(t *testing.T) {

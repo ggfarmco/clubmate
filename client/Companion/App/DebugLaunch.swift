@@ -70,13 +70,14 @@ enum DebugLaunch {
             if target == "mac" { navigation.showMac(computer.id) }
             return
         }
-        let parts = target.split(separator: "/", maxSplits: 1).map(String.init)
+        let parts = target.split(separator: "/", maxSplits: 2).map(String.init)
         if let workspace = defaults.string(forKey: "workspace") {
             navigation.workspaces[computer.id] = workspace
         }
         for _ in 0..<50 where model.connection(computer.id)?.state != .online {
             try? await Task.sleep(for: .milliseconds(100))
         }
+        navigation.sectionItem = parts.count > 2 ? parts[2] : nil
         navigation.open(computer: computer.id, plugin: parts[0], detail: parts.count > 1 ? parts[1] : nil)
         if let query = defaults.string(forKey: "search"), let connection = model.connection(computer.id), let workspace = navigation.workspace(for: connection) {
             model.agents(computer: computer.id, workspace: workspace.id)?.searchQuery = query

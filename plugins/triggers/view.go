@@ -23,6 +23,9 @@ const (
 	actGraph     = "graph"
 	graphIcon    = "point.3.connected.trianglepath.dotted"
 	graphOutcome = emitPrefix + "graph."
+
+	actOpenSession = "openSession"
+	runJSONFormID  = "runJson"
 )
 
 func sidebarView(triggers []*Trigger, selected string, collapsed map[string]bool, titles map[string]string) sdui.Node {
@@ -109,14 +112,35 @@ func mainView(t *Trigger, triggers []*Trigger, titles map[string]string, shape *
 	cells := func(r Run) ([]string, string) {
 		return []string{eventWords(r, titles)}, automation.Words(t.Command, t.Args, r, titles)
 	}
-	event := []sdui.Column{{ID: "event", Title: "Event", Priority: 1}}
-	table, run, picked := automation.RunsTable(t.History, time.Local, event, cells, runs)
-	rows = append(rows, automation.RunsRows(t.ID, t.History, run, picked, open.RunJSON)...)
-	body = append(body, automation.Properties(rows...))
-	if drawn {
-		body = append(body, lanes)
+	link := func(r Run) (string, string) {
+		if r.Status != automation.StatusError || titles[runSession(t, r)] == "" {
+			return "", ""
+		}
+		return actOpenSession, "Open session"
 	}
-	return sdui.VStack(header, sdui.Scroll(sdui.VStack(append(body, table)...)))
+	event := []sdui.Column{{ID: "event", Title: "Event", Priority: 1}}
+	table, run, picked := automation.RunsTable(t.History, time.Local, event, cells, link, runs)
+	if drawn {
+		body = append(body, automation.Properties(rows...), lanes)
+	} else {
+		body = append(body, automation.Properties(append(rows, automation.Property("Runs", automation.RunCounts(t.History), ""))...))
+	}
+	body = append(body, table, sdui.Form(runJSONFormID, automation.RunJSONRows(t.ID, run, picked, open.RunJSON)...))
+	return sdui.VStack(header, sdui.Scroll(sdui.VStack(body...)))
+}
+
+func runSession(t *Trigger, r Run) string {
+	var result struct {
+		Session string `json:"session"`
+	}
+	if t.Command == agentNewCommand {
+		_ = json.Unmarshal([]byte(r.Result), &result)
+	}
+	session := cmp.Or(r.Target, result.Session)
+	if session == "" && r.Chain != nil {
+		session = r.Chain.Session
+	}
+	return session
 }
 
 func whenLine(t *Trigger, titles map[string]string) string {

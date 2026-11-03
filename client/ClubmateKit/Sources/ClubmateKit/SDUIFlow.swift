@@ -287,13 +287,24 @@ public struct SDUIRunstrip: Sendable, Equatable {
     public let next: Date?
     public let paused: [Span]
     public let selected: String?
+    public let title: String?
+    public let count: Int?
 
-    public init(runs: [Run], now: Date? = nil, next: Date? = nil, paused: [Span] = [], selected: String? = nil) {
+    public init(runs: [Run], now: Date? = nil, next: Date? = nil, paused: [Span] = [], selected: String? = nil, title: String? = nil, count: Int? = nil) {
         self.runs = runs.sorted { $0.at < $1.at }
         self.now = now
         self.next = next
         self.paused = paused
         self.selected = selected
+        self.title = title
+        self.count = count
+    }
+
+    public var legend: [(status: Status, count: Int)] {
+        [Status.ok, .failed, .missed, .running, .ignored].compactMap { status in
+            let n = runs.count { $0.status == status }
+            return n > 0 ? (status, n) : nil
+        }
     }
 
     public var range: ClosedRange<Date>? {
@@ -381,7 +392,9 @@ extension SDUINode {
                 guard let fields = value.objectValue, let from = SDUIRunstrip.date(fields["from"]) else { return nil }
                 return SDUIRunstrip.Span(from: from, to: SDUIRunstrip.date(fields["to"]))
             } ?? [],
-            selected: string("selected").flatMap { $0.isEmpty ? nil : $0 }
+            selected: string("selected").flatMap { $0.isEmpty ? nil : $0 },
+            title: string("title").flatMap { $0.isEmpty ? nil : $0 },
+            count: SDUIFlow.int(props["count"]).flatMap { $0 >= 0 ? $0 : nil }
         )
     }
 }
