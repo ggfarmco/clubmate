@@ -78,7 +78,7 @@
    "y": 7700,
    "w": 1280,
    "h": 800,
-   "title": "Agents · 1280 · dark"
+   "title": "Agents · 1280 · dark · two worktrees, Closed and Service at the root"
   },
   "Code-1280.dc.html": {
    "x": 1360,
@@ -309,7 +309,7 @@
    "y": 22660,
    "w": 1280,
    "h": 800,
-   "title": "Agents · 1280 · Mate · paired (blue Mac dot in the pill)"
+   "title": "Agents · 1280 · Mate · paired (blue Mac dot) · two worktrees, Closed and Service at the root"
   },
   "C-Duo-Outer.dc.html": {
    "x": 2365,
@@ -430,7 +430,7 @@
    "y": 22660,
    "w": 1280,
    "h": 800,
-   "title": "Graph run · 1280 · Mate"
+   "title": "Graph run · drawn (as built 3 Nov) · 1280 · Mate"
   },
   "Agents-640-MateLight.dc.html": {
    "x": 0,
@@ -472,7 +472,7 @@
    "y": 23580,
    "w": 640,
    "h": 800,
-   "title": "Graph run · 640 · Mate light"
+   "title": "Graph run · drawn (as built 3 Nov) · 640 · Mate light"
   },
   "T-Themes.dc.html": {
    "x": 0,
@@ -485,7 +485,7 @@
    "x": 1560,
    "y": 24640,
    "w": 1480,
-   "h": 4000,
+   "h": 4100,
    "title": "T2 · How nvim takes colour — every role, Light Owl as the example"
   },
   "T-Nvim-Clubmate.dc.html": {
@@ -494,6 +494,104 @@
    "w": 1640,
    "h": 8100,
    "title": "T3 · Clubmate for nvim — every role, dark and light"
+  },
+  "Drawn-Views.dc.html": {
+   "x": 8240,
+   "y": 22660,
+   "w": 1480,
+   "h": 3040,
+   "title": "D · Drawn views — cards, ports, edges, lanes: what each screen draws"
+  },
+  "Graphs-Def-1280-Mate.dc.html": {
+   "x": 9800,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Graph definition · structure, an edge as its trigger · 1280 · Mate"
+  },
+  "Cron-Runs-1280-Mate.dc.html": {
+   "x": 11240,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Cron job · missed + failed, run strip · 1280 · Mate"
+  },
+  "Triggers-Edge-1280-Mate.dc.html": {
+   "x": 12680,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Trigger · a graph's edge, drawn in its graph · 1280 · Mate"
+  },
+  "Backlog-Owned-1280-Mate.dc.html": {
+   "x": 14120,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Backlog task · owned by a graph run · links, attachments · 1280 · Mate"
+  },
+  "Graphs-Def-640-MateLight.dc.html": {
+   "x": 9800,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Graph definition · selected edge · 640 · Mate light"
+  },
+  "Cron-Paused-640-MateLight.dc.html": {
+   "x": 11240,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Cron job · paused, owner a session · 640 · Mate light"
+  },
+  "Cron-Empty-640-MateLight.dc.html": {
+   "x": 11960,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Cron · no jobs · 640 · Mate light"
+  },
+  "Triggers-Chain-640-MateLight.dc.html": {
+   "x": 12680,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Trigger · a chain, failed run · 640 · Mate light"
+  },
+  "Triggers-Empty-640-MateLight.dc.html": {
+   "x": 13400,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Triggers · none · 640 · Mate light"
+  },
+  "Backlog-Start-640-MateLight.dc.html": {
+   "x": 14120,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Backlog task · Start agent, links, last owner failed · 640 · Mate light"
+  },
+  "Backlog-Empty-640-MateLight.dc.html": {
+   "x": 14840,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Backlog · empty · 640 · Mate light"
+  },
+  "Agents-OneTree-1280-Mate.dc.html": {
+   "x": 15560,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Agents · one worktree: no branch row · Closed (branch per row) and Service at the root · 1280 · Mate"
+  },
+  "Agents-Drawer-640-MateLight.dc.html": {
+   "x": 15560,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Agents · sessions open (⌘B) · one worktree, Service opened because it needs you · 640 · Mate light"
   }
  },
  "order": [
@@ -560,6 +658,20 @@
   "Triggers-640-MateLight.dc.html",
   "Processes-640-MateLight.dc.html",
   "Graphs-640-MateLight.dc.html",
+  "Drawn-Views.dc.html",
+  "Graphs-Def-1280-Mate.dc.html",
+  "Cron-Runs-1280-Mate.dc.html",
+  "Triggers-Edge-1280-Mate.dc.html",
+  "Backlog-Owned-1280-Mate.dc.html",
+  "Graphs-Def-640-MateLight.dc.html",
+  "Cron-Paused-640-MateLight.dc.html",
+  "Cron-Empty-640-MateLight.dc.html",
+  "Triggers-Chain-640-MateLight.dc.html",
+  "Triggers-Empty-640-MateLight.dc.html",
+  "Backlog-Start-640-MateLight.dc.html",
+  "Backlog-Empty-640-MateLight.dc.html",
+  "Agents-OneTree-1280-Mate.dc.html",
+  "Agents-Drawer-640-MateLight.dc.html",
   "T-Themes.dc.html",
   "T-Nvim-Map.dc.html",
   "T-Nvim-Clubmate.dc.html"
@@ -613,6 +725,20 @@
    "text": "Mac interface in Mate — every window and plugin panel; terminal and nvim default to the Clubmate themes",
    "kind": "title1",
    "maxW": 8080
+  },
+  "t_drawn": {
+   "x": 8240,
+   "y": 22400,
+   "text": "Drawn views — Graphs, Cron, Triggers, Backlog: a trigger is an edge, a cron job is a strip of runs, a task's owners are lanes",
+   "kind": "title1",
+   "maxW": 7240
+  },
+  "t_agents_tree": {
+   "x": 15560,
+   "y": 22400,
+   "text": "Agents sidebar, 3 Nov (main cdc26f6a) — branch rows only for 2+ worktrees; Closed and Service at the root",
+   "kind": "title1",
+   "maxW": 1280
   }
  },
  "designSystems": []
