@@ -76,9 +76,9 @@ func stepsHash(g *Graph) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func (a *app) trustKey(ctx context.Context, workspace, dir, hash string) string {
-	sum := sha256.Sum256([]byte(a.repoRoot(ctx, workspace, dir) + "\n" + hash))
-	return trustPrefix + hex.EncodeToString(sum[:])
+func repoKey(prefix, root, id string) string {
+	sum := sha256.Sum256([]byte(root + "\n" + id))
+	return prefix + hex.EncodeToString(sum[:])
 }
 
 func (a *app) repoRoot(ctx context.Context, workspace, dir string) string {
@@ -99,8 +99,9 @@ func (a *app) trustState(ctx context.Context, workspace, dir string, g *Graph, b
 	if builtin || hash == "" {
 		return false, nil, nil
 	}
+	root := a.repoRoot(ctx, workspace, dir)
 	var trusted bool
-	found, err := a.kvGet(ctx, a.trustKey(ctx, workspace, dir, hash), &trusted)
+	found, err := a.kvGet(ctx, repoKey(trustPrefix, root, hash), &trusted)
 	if err != nil {
 		return true, nil, err
 	}
@@ -108,7 +109,7 @@ func (a *app) trustState(ctx context.Context, workspace, dir string, g *Graph, b
 		return false, nil, nil
 	}
 	var last trustedSteps
-	if _, err := a.kvGet(ctx, trustedPrefix+g.Name, &last); err != nil {
+	if _, err := a.kvGet(ctx, repoKey(trustedPrefix, root, g.Name), &last); err != nil {
 		return true, nil, err
 	}
 	var changed []string
@@ -153,10 +154,11 @@ func (a *app) trustGraph(ctx context.Context, cmd pluginsdk.CommandRun) error {
 	if args.Hash != "" && args.Hash != hash {
 		return fmt.Errorf("graph %s changed since it was shown: look at its steps again", args.Graph)
 	}
-	if err := a.kvSet(ctx, a.trustKey(ctx, cmd.WorkspaceID, graphDir(dirs, args.Graph), hash), true); err != nil {
+	root := a.repoRoot(ctx, cmd.WorkspaceID, graphDir(dirs, args.Graph))
+	if err := a.kvSet(ctx, repoKey(trustPrefix, root, hash), true); err != nil {
 		return err
 	}
-	return a.kvSet(ctx, trustedPrefix+g.Name, trustedSteps{Hash: hash, Steps: stepsOf(g), Routing: routingOf(g), At: a.now()})
+	return a.kvSet(ctx, repoKey(trustedPrefix, root, g.Name), trustedSteps{Hash: hash, Steps: stepsOf(g), Routing: routingOf(g), At: a.now()})
 }
 
 func (a *app) storageGet(ctx context.Context, key string, out any) (bool, error) {

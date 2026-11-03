@@ -44,14 +44,19 @@ type settingsFile struct {
 
 func loadRules(managed, home, dir string, project bool) ruleSet {
 	var rs ruleSet
-	paths := []struct {
+	type source struct {
 		path    string
 		trusted bool
-	}{
-		{filepath.Join(home, ".claude", "settings.json"), true},
-		{filepath.Join(dir, ".claude", "settings.json"), false},
-		{filepath.Join(dir, ".claude", localSettings), false},
-		{managed, true},
+		managed bool
+	}
+	paths := []source{
+		{filepath.Join(home, ".claude", "settings.json"), true, false},
+		{filepath.Join(dir, ".claude", "settings.json"), false, false},
+		{filepath.Join(dir, ".claude", localSettings), false, false},
+		{managed, true, true},
+	}
+	for _, path := range managedDropIns(managed) {
+		paths = append(paths, source{path, true, true})
 	}
 	for _, src := range paths {
 		f, ok := readSettings(src.path)
@@ -67,7 +72,7 @@ func loadRules(managed, home, dir string, project bool) ruleSet {
 		if p.DefaultMode != "" && (src.trusted || p.DefaultMode != modeBypass) {
 			rs.DefaultMode = p.DefaultMode
 		}
-		if src.path == managed && p.NoBypass == "disable" {
+		if src.managed && p.NoBypass == "disable" {
 			rs.NoBypass = true
 		}
 	}
@@ -75,6 +80,24 @@ func loadRules(managed, home, dir string, project bool) ruleSet {
 		rs.DefaultMode = ""
 	}
 	return rs
+}
+
+func managedDropIns(managed string) []string {
+	dir := strings.TrimSuffix(managed, ".json") + ".d"
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			logError(fmt.Errorf("read %s: %w", dir, err))
+		}
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		if !e.IsDir() && filepath.Ext(e.Name()) == ".json" {
+			out = append(out, filepath.Join(dir, e.Name()))
+		}
+	}
+	return out
 }
 
 func readSettings(path string) (settingsFile, bool) {

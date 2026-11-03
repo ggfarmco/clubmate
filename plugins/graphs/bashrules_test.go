@@ -61,6 +61,21 @@ func TestManagedDenyWins(t *testing.T) {
 	assert.Equal(t, "auto", rs.DefaultMode)
 }
 
+func TestManagedDropInsMergeByName(t *testing.T) {
+	root := t.TempDir()
+	managed, home, dir := filepath.Join(root, "managed.json"), filepath.Join(root, "home"), filepath.Join(root, "repo")
+	drop := filepath.Join(root, "managed.d")
+	writeSettings(t, managed, map[string]any{"permissions": map[string]any{"defaultMode": "auto"}})
+	writeSettings(t, filepath.Join(drop, "20-b.json"), map[string]any{"permissions": map[string]any{"defaultMode": "acceptEdits", "deny": []string{"Bash(git push:*)"}}})
+	writeSettings(t, filepath.Join(drop, "10-a.json"), map[string]any{"permissions": map[string]any{"defaultMode": "plan", "disableBypassPermissionsMode": "disable"}})
+	writeSettings(t, filepath.Join(home, ".claude", "settings.json"), map[string]any{"permissions": map[string]any{"allow": []string{"Bash(git push:*)"}}})
+	rs := loadRules(managed, home, dir, true)
+	got, _ := rs.decide("git push origin main")
+	assert.Equal(t, verdictDeny, got)
+	assert.Equal(t, "acceptEdits", rs.DefaultMode)
+	assert.True(t, rs.NoBypass)
+}
+
 func TestAlwaysAllowWritesExactRule(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".claude", "settings.local.json")

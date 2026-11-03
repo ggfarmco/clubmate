@@ -46,6 +46,8 @@ const (
 	envGraph             = "CLUBMATE_GRAPH"
 )
 
+var coreEnv = []string{"CLUBMATE_STATE_DIR", "CLUBMATE_RUNTIME_DIR"}
+
 type ownedCause struct {
 	Reply   string `json:"reply,omitempty"`
 	Tail    string `json:"tail,omitempty"`
@@ -427,6 +429,10 @@ func (a *app) cancelSteps(ctx context.Context, runID string) {
 			delete(a.pending, k)
 		}
 	}
+	if r := a.runs[runID]; r != nil && r.Status != statusRunning && r.closeQueued(reasonStopped, a.now(), true) {
+		a.touch(r.Workspace)
+		logError(a.store.Save(ctx, r))
+	}
 	a.mu.Unlock()
 	for _, c := range cancels {
 		c()
@@ -450,14 +456,12 @@ func (a *app) recoverSteps(ctx context.Context) {
 				lost = append(lost, i)
 			}
 		}
-		if len(lost) == 0 {
-			continue
-		}
 		for _, i := range lost {
 			m := &r.Moves[i]
 			m.Open = false
 			m.Step.Status, m.Step.Outcome, m.Step.Reason, m.Step.EndedAt = stepFinished, onError, reasonInterrupted, now
 		}
+		closed := r.closeQueued(reasonInterrupted, now, r.Status != statusRunning)
 		if r.Status == statusRunning && r.Spec != nil {
 			for _, i := range lost {
 				node := r.Moves[i].Node
@@ -477,7 +481,9 @@ func (a *app) recoverSteps(ctx context.Context) {
 				stopped = append(stopped, cloneRun(r))
 			}
 		}
-		logError(a.store.Save(ctx, r))
+		if len(lost) > 0 || closed {
+			logError(a.store.Save(ctx, r))
+		}
 	}
 	a.mu.Unlock()
 	for _, r := range stopped {
@@ -489,6 +495,23 @@ func (a *app) recoverSteps(ctx context.Context) {
 	for _, d := range owed {
 		a.deliver(ctx, d)
 	}
+}
+
+func (r *Run) closeQueued(reason string, now time.Time, held bool) bool {
+	closed := false
+	for i := range r.Moves {
+		m := &r.Moves[i]
+		if !m.Open || m.Step != nil || (m.Held && !held) || r.Spec == nil {
+			continue
+		}
+		if n := r.Spec.node(m.Node); n == nil || !n.step() {
+			continue
+		}
+		m.Open, m.Held = false, false
+		m.Step = &StepMove{Status: stepFinished, Outcome: onError, Reason: reason, EndedAt: now}
+		closed = true
+	}
+	return closed
 }
 
 func (a *app) killLeftovers(ctx context.Context, workspace string) {
@@ -779,7 +802,10 @@ func (a *app) resolveStep(ctx context.Context, r *Run, n *Node, move int) (stepS
 }
 
 func stepEnv(r *Run, move int, trees []worktreeInfo, worktreeOf func(string) string) []string {
-	env := slices.DeleteFunc(os.Environ(), func(kv string) bool { return strings.HasPrefix(kv, envPrefix) })
+	env := slices.DeleteFunc(os.Environ(), func(kv string) bool {
+		k, _, _ := strings.Cut(kv, "=")
+		return strings.HasPrefix(k, envPrefix) && !slices.Contains(coreEnv, k)
+	})
 	from := ""
 	if c := r.Moves[move].Cause; c >= 0 {
 		from = r.Moves[c].Node

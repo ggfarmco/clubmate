@@ -110,6 +110,23 @@ func TestStepSec_T5_TrustDoesNotCrossRepos(t *testing.T) {
 	assert.ErrorContains(t, agentRun(t, a, "gate"), "untrusted")
 }
 
+func TestTrustedStepsArePerRepo(t *testing.T) {
+	data, err := os.ReadFile("testdata/.clubmate/graphs/gate.json")
+	require.NoError(t, err)
+	a, path := graphHome(t, "gate", string(data))
+	repoA := filepath.Dir(filepath.Dir(filepath.Dir(path)))
+	repoB := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(repoB, graphsDir), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(repoB, graphsDir, "gate.json"), []byte(strings.Replace(string(data), "make test", "make check", 1)), 0o644))
+	core := &fakeCore{worktrees: `[{"repo":"` + repoA + `","path":"` + repoA + `","main":true},{"repo":"` + repoB + `","path":"` + repoB + `","main":true}]`}
+	a.runCommand = core.run
+	require.NoError(t, trustGraph(t, a, "gate"))
+	a.workspace = func(context.Context, string) (pluginsdk.Workspace, error) {
+		return pluginsdk.Workspace{ID: "ws1", Folders: []pluginsdk.Folder{{Path: repoB}}}, nil
+	}
+	assert.Equal(t, []string{"tests", "merge"}, listed(t, a, "gate").Changed)
+}
+
 func TestStepSec_T6_RewiredGraphNeedsTrust(t *testing.T) {
 	data, err := os.ReadFile("testdata/.clubmate/graphs/gate.json")
 	require.NoError(t, err)

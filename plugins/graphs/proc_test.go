@@ -33,7 +33,8 @@ func TestShellRunnerExitCodes(t *testing.T) {
 	}{
 		{"exit 0", 0, "", ""},
 		{"echo hi; exit 3", 3, "hi", ""},
-		{"nosuchcmd-xyz", 127, "", "not found"},
+		{"echo not found; nosuchcmd-xyz", 127, "", ""},
+		{"kill -9 $$", exitUnknown, "", "killed by signal 9"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.shell, func(t *testing.T) {
@@ -69,6 +70,18 @@ func TestShellRunnerCapsAndCleansOutput(t *testing.T) {
 	assert.True(t, utf8.ValidString(res.Tail))
 	assert.LessOrEqual(t, utf8.RuneCountInString(res.Tail), outputTail)
 	assert.True(t, strings.HasSuffix(res.Tail, "end"))
+}
+
+func TestShellRunnerExactCapIsNotCut(t *testing.T) {
+	_, dir := runShell(t, `head -c 1048576 /dev/zero | tr '\0' 'a'`, 10*time.Second)
+	data, err := os.ReadFile(filepath.Join(dir, "out", "step.log"))
+	require.NoError(t, err)
+	assert.Len(t, data, outputCap)
+}
+
+func TestShellRunnerTailDropsControlChars(t *testing.T) {
+	res, _ := runShell(t, `printf '\033[31mred\033[0m \033]0;title\007\a\001ok\tx\r\nend'`, 5*time.Second)
+	assert.Equal(t, "red ok\tx\nend", res.Tail)
 }
 
 func TestShellRunnerStopsOnContext(t *testing.T) {

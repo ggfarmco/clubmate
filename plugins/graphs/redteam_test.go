@@ -95,6 +95,9 @@ func TestRedTeam_StepLoopStops(t *testing.T) {
 	graph := `{"maxSteps":5,"nodes":[{"id":"coder","prompt":"p","start":true},{"id":"tests","role":"Tests","run":"sh check.sh"}],"edges":[{"from":"coder","to":"tests"},{"from":"tests","to":"tests","on":"outcome","outcome":"fail"},{"from":"tests","to":"coder","on":"outcome","outcome":"pass"}]}`
 	a, _, r, _ := redTeam(t, graph, "exit 1")
 	turnDone(t, a, "agt_1", 1)
-	assert.Len(t, stepMoves(a, r.ID, "tests"), 5)
+	moves := stepMoves(a, r.ID, "tests")
+	require.Len(t, moves, 6)
+	assert.Equal(t, reasonStopped, moves[5].Step.Reason)
+	assert.Nil(t, moves[5].Step.ExitCode)
 	assert.Equal(t, "step budget of 5 reached", a.runs[r.ID].Reason)
 }

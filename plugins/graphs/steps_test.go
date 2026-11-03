@@ -255,13 +255,20 @@ func TestStepRunsInNamedFolder(t *testing.T) {
 
 func TestStepSec_C6_EnvNotShell(t *testing.T) {
 	t.Setenv("CLUBMATE_PLUGIN_SOCKET", "/tmp/x.sock")
+	t.Setenv("CLUBMATE_AGENT_SESSION", "agt_x")
+	t.Setenv("CLUBMATE_STATE_DIR", "/tmp/dev/state")
+	t.Setenv("CLUBMATE_RUNTIME_DIR", "/tmp/dev/run")
 	a, p, _ := folderApp(t)
 	turnDone(t, a, "agt_1", 1)
 	spec := p.specs[0]
 	assert.Equal(t, "make test", spec.Shell)
 	input, _ := envOf(spec, "CLUBMATE_GRAPH_INPUT")
 	assert.Equal(t, `"; rm -rf ~`, input)
-	allowed := []string{"CLUBMATE_WORKSPACE_ID", "CLUBMATE_GRAPH", "CLUBMATE_GRAPH_RUN", "CLUBMATE_GRAPH_INPUT", "CLUBMATE_GRAPH_FROM"}
+	for key, want := range map[string]string{"CLUBMATE_STATE_DIR": "/tmp/dev/state", "CLUBMATE_RUNTIME_DIR": "/tmp/dev/run"} {
+		got, _ := envOf(spec, key)
+		assert.Equal(t, want, got, key)
+	}
+	allowed := []string{"CLUBMATE_WORKSPACE_ID", "CLUBMATE_GRAPH", "CLUBMATE_GRAPH_RUN", "CLUBMATE_GRAPH_INPUT", "CLUBMATE_GRAPH_FROM", "CLUBMATE_STATE_DIR", "CLUBMATE_RUNTIME_DIR"}
 	for _, kv := range spec.Env {
 		k, _, _ := strings.Cut(kv, "=")
 		if strings.HasPrefix(k, "CLUBMATE_") && !strings.HasPrefix(k, "CLUBMATE_GRAPH_NODE_") && !strings.HasPrefix(k, "CLUBMATE_GRAPH_WORKTREE_") && !strings.HasPrefix(k, "CLUBMATE_GRAPH_BRANCH_") {
@@ -538,6 +545,17 @@ func TestStopCancelsRunningStep(t *testing.T) {
 	}, time.Second, 5*time.Millisecond)
 }
 
+func TestStopClosesQueuedStepMoves(t *testing.T) {
+	a, _, r := blockedStep(t)
+	turnDone(t, a, "agt_1", 2)
+	_, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.stop", WorkspaceID: "ws1", Args: json.RawMessage(`{"id":"` + r.ID + `"}`)})
+	require.NoError(t, err)
+	assert.Eventually(t, func() bool {
+		m := stepMoves(a, r.ID, "tests")
+		return len(m) == 2 && !m[1].Open && m[1].Step.Outcome == onError && m[1].Step.Reason == reasonStopped
+	}, time.Second, 5*time.Millisecond)
+}
+
 func TestWorkspaceDeleteKillsSteps(t *testing.T) {
 	a, _, _ := blockedStep(t)
 	a.workspaces = func(context.Context) ([]pluginsdk.Workspace, error) { return nil, nil }
@@ -554,6 +572,7 @@ func TestRestartMarksOpenStepInterrupted(t *testing.T) {
 	live := a.runs[r.ID]
 	live.fire(0, 0, a.now())
 	live.Moves[len(live.Moves)-1].Step = &StepMove{Status: stepRunning, Command: "make test"}
+	live.fire(0, 0, a.now())
 	var killed []int
 	a.roots = func(context.Context, string) ([]pluginsdk.ProcessRoot, error) {
 		return []pluginsdk.ProcessRoot{{PID: 42, Label: stepLabel + r.ID + "/tests"}, {PID: 7, Label: "nvim"}, {PID: 9, Label: stepLabel + "x", Ended: true}}, nil
@@ -563,9 +582,13 @@ func TestRestartMarksOpenStepInterrupted(t *testing.T) {
 		return nil
 	}
 	a.recoverSteps(t.Context())
-	m := stepMoves(a, r.ID, "tests")[0]
-	assert.Equal(t, onError, m.Step.Outcome)
-	assert.Equal(t, reasonInterrupted, m.Step.Reason)
+	moves := stepMoves(a, r.ID, "tests")
+	require.Len(t, moves, 2)
+	for _, m := range moves {
+		assert.False(t, m.Open)
+		assert.Equal(t, onError, m.Step.Outcome)
+		assert.Equal(t, reasonInterrupted, m.Step.Reason)
+	}
 	assert.Equal(t, statusStopped, live.Status)
 	assert.Equal(t, "Tests error · interrupted", live.Reason)
 	assert.Equal(t, []int{42}, killed)
