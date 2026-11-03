@@ -531,6 +531,43 @@ return out`, &bars))
 	assert.Contains(t, open("HEAD")[0], " main "+git("rev-parse", "--short", "HEAD")+" · ")
 }
 
+func TestDiffviewHostAPIVersion(t *testing.T) {
+	v := startDistro(t, opts{})
+	repo := t.TempDir()
+	git := func(args ...string) {
+		out, err := exec.Command("git", append([]string{"-C", repo, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	git("init", "-q", "-b", "main")
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "a.txt"), []byte("one\n"), 0o644))
+	git("add", ".")
+	git("commit", "-qm", "init")
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "new.txt"), []byte("one\ntwo\n"), 0o644))
+
+	var version int
+	require.NoError(t, v.ExecLua(`
+require("lazy").load({ plugins = { "diffview.nvim" } })
+local cm = require("diffview.clubmate")
+_G.review_tab = cm.open({ cwd = ..., base = "HEAD", labels = { left = "Before turn 3" } })
+cm.select("new.txt", _G.review_tab)
+return cm.version`, &version, repo))
+	assert.Equal(t, 2, version)
+
+	var bars []string
+	testutil.Eventually(t, func() bool {
+		require.NoError(t, v.ExecLua(`
+local view = require("diffview.lib").tabpage_to_view(_G.review_tab)
+local cur = view and view.cur_entry
+if not (cur and cur.path == "new.txt" and cur.opened) then return {} end
+return vim.tbl_map(function(win)
+  return (vim.wo[win.id].winbar:gsub("%%#[^#]*#", ""))
+end, view.cur_layout.windows)`, &bars))
+		return len(bars) == 2
+	}, 10*time.Second)
+	assert.Equal(t, "Before turn 3 did not exist %<new.txt", strings.TrimSpace(bars[0]))
+	assert.Equal(t, "Working tree new file · 2 lines %<new.txt", strings.TrimSpace(bars[1]))
+}
+
 const notifierWarnings = `
 local notifier = package.loaded["snacks.notifier"]
 local out = {}

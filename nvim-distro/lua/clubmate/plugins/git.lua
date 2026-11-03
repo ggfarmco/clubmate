@@ -133,17 +133,6 @@ return {
       { "<leader>dq", "<cmd>DiffviewClose<cr>", desc = "Diffview close" },
     },
     config = function()
-      local FileEntry = require("diffview.scene.file_entry").FileEntry
-      local Diff1 = require("diffview.scene.layouts.diff_1").Diff1
-      local original_with_layout = FileEntry.with_layout
-
-      FileEntry.with_layout = function(layout_class, opt)
-        if opt.status and vim.tbl_contains({ "A", "?" }, opt.status) then
-          return original_with_layout(Diff1, opt)
-        end
-        return original_with_layout(layout_class, opt)
-      end
-
       local Window = require("diffview.scene.window").Window
       local original_show_winbar_info = Window.show_winbar_info
 
