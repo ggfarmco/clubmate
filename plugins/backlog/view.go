@@ -203,13 +203,13 @@ func mainView(t *Task, owners map[string]string, hasTasks bool, errs map[string]
 		fields = append(fields, sdui.HStack(sdui.MutedText("Status"), sdui.Select("status", options(editStatuses, statusLabels), t.Status)))
 	}
 	fields = append(fields, sdui.HStack(sdui.MutedText("Priority"), sdui.Select("priority", options(priorities, priorityText), t.Priority)))
-	tags := sdui.TextField(tagsField, strings.Join(t.Tags, ", "), "voice, phone")
+	tags := sdui.TextField(tagsField, strings.Join(t.Tags, ", "), "Tags — comma-separated words")
 	if errs[tagsField] != "" {
 		tags = sdui.WithError(tags, errs[tagsField])
 	}
 	fields = append(fields, sdui.HStack(sdui.MutedText("Tags"), tags))
 	if !described {
-		fields = append(fields, sdui.HStack(sdui.MutedText("Description"), sdui.WithLines(sdui.TextField("description", t.Description, "Markdown details an agent needs"), formLines)))
+		fields = append(fields, sdui.HStack(sdui.MutedText("Description"), sdui.WithLines(sdui.TextField("description", t.Description, "Description — markdown"), formLines)))
 	}
 	fields = append(fields, sdui.WithShortcut(sdui.WithVariant(saved, sdui.VariantGhost), "cmd+s"))
 	form := sdui.VStack(sdui.WithAutosave(sdui.WithAction(sdui.Form("edit", fields...), "save."+strconv.Itoa(t.ID))))
