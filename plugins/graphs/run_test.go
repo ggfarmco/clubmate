@@ -218,3 +218,26 @@ func TestListWithoutProjectGraphsOrRuns(t *testing.T) {
 	assert.Equal(t, []any{"pr-walkthrough", true}, []any{res.Graphs[0].Name, res.Graphs[0].Builtin})
 	assert.JSONEq(t, `[]`, string(res.Runs))
 }
+
+func TestRunFromSectionSelectsNewRun(t *testing.T) {
+	core := &fakeCore{}
+	a := testApp(t, core)
+	var chosen string
+	a.choose = func(_ context.Context, _, id string) error {
+		chosen = id
+		return nil
+	}
+
+	require.NoError(t, a.startGraph(t.Context(), "ws1", "review-loop", "{{x}}"))
+	assert.Equal(t, draft{graph: "review-loop", input: "{{x}}", err: "Input: must not contain {{."}, a.drafts["ws1"])
+	assert.Empty(t, chosen)
+
+	require.NoError(t, a.startGraph(t.Context(), "ws1", "review-loop", "add a flag"))
+	require.Len(t, a.runs, 1)
+	for id, r := range a.runs {
+		assert.Equal(t, id, chosen)
+		assert.False(t, r.Agent)
+	}
+	assert.Empty(t, a.drafts)
+	assert.False(t, core.calls[0].Agent)
+}

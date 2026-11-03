@@ -6,7 +6,7 @@
   "command": ["graphs"],
   "contributes": {
     "shortcuts": [
-      {"keys": "cmd+return", "action": "Open the session of the step that needs you (else the running or start step)"},
+      {"keys": "cmd+return", "action": "Open the session of the step that needs you (else the running or start step); on a graph, run it with its input"},
       {"keys": "cmd+.", "action": "Stop the run (confirmed)"},
       {"keys": "cmd+delete", "action": "Remove the finished run (confirmed)"}
     ],

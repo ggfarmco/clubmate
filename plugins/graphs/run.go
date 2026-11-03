@@ -130,13 +130,20 @@ func newRun(g *Graph, workspace, input string, agent bool, caller string, now ti
 		StartedAt: now,
 		Spec:      g,
 	}
+	shape := runShape(g)
+	r.Nodes, r.Edges = shape.Nodes, shape.Edges
+	return r, nil
+}
+
+func runShape(g *Graph) *Run {
+	r := &Run{Graph: g.Name, Title: graphTitle(g)}
 	for _, n := range g.Nodes {
 		r.Nodes = append(r.Nodes, RunNode{ID: n.ID, Role: n.label(), Start: n.Start})
 	}
 	for _, e := range g.Edges {
 		r.Edges = append(r.Edges, RunEdge{From: e.From, To: e.To, On: e.On, Outcome: e.Outcome})
 	}
-	return r, nil
+	return r
 }
 
 func (x *runner) start(ctx context.Context, g *Graph) error {

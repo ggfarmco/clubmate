@@ -56,7 +56,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌘R | Run the cron job or trigger now | cron, triggers |
 | P | Pause or resume the job or trigger | cron, triggers |
 | ⌘⌫ | Delete the job, trigger or task, or remove the graph run (confirmed) | cron, triggers, backlog, graphs |
-| ⌘↩ | Start an agent on the task; open the session of the graph node that needs you (else the running or start node) | backlog, graphs |
+| ⌘↩ | Start an agent on the task; open the session of the graph node that needs you (else the running or start node); run the selected graph with its input (↩ in the Input field too) | backlog, graphs |
 | ⌘. | Stop the graph run (confirmed) | graphs |
 | G | Open the graph run that created the trigger | triggers |
 | D | Mark the task done | backlog |
@@ -96,7 +96,7 @@ Pickers are the fuzzy lists for worktrees: the worktree switcher in the window t
 
 `g` waits for the next key; a key that is not listed is swallowed. Defined in `ClubmateKit/TreeKeys.swift`.
 
-## Sidebar lists (Terminals, Processes, Cron, Graphs; list focused)
+## Sidebar lists (Terminals, Processes, Cron; list focused)
 
 A click on a row, or focus moving to the sidebar, focuses the list.
 

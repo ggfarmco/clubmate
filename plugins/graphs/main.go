@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -39,6 +40,9 @@ type app struct {
 	renderMu   sync.Mutex
 	runs       map[string]*Run
 	dirty      map[string]bool
+	drafts     map[string]draft
+	starting   map[string]string
+	collapsed  map[string]map[string]bool
 	lastSeq    atomic.Int64
 	subs       map[string]string
 	store      automation.Storage[*Run]
@@ -50,6 +54,13 @@ type app struct {
 	workspace  func(ctx context.Context, workspace string) (pluginsdk.Workspace, error)
 	workspaces func(ctx context.Context) ([]pluginsdk.Workspace, error)
 	render     func(ctx context.Context, workspace string) error
+	choose     func(ctx context.Context, workspace, id string) error
+}
+
+type draft struct {
+	graph string
+	input string
+	err   string
 }
 
 type outcomePayload struct {
@@ -65,17 +76,21 @@ func main() {
 
 func newApp() *app {
 	a := &app{
-		runs:  map[string]*Run{},
-		dirty: map[string]bool{},
-		subs:  map[string]string{},
-		ready: make(chan struct{}),
-		now:   time.Now,
+		runs:      map[string]*Run{},
+		dirty:     map[string]bool{},
+		drafts:    map[string]draft{},
+		starting:  map[string]string{},
+		collapsed: map[string]map[string]bool{},
+		subs:      map[string]string{},
+		ready:     make(chan struct{}),
+		now:       time.Now,
 	}
 	a.runCommand = a.callCommand
 	a.sessions = a.agentSessions
 	a.workspace = a.getWorkspace
 	a.workspaces = a.listWorkspaces
 	a.render = a.renderWorkspace
+	a.choose = a.storeSelected
 	return a
 }
 
@@ -189,17 +204,26 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	default:
 		return nil, nil
 	}
+	switch {
+	case ev.Action == "expand" || ev.Action == "collapse":
+		a.fold(ev.WorkspaceID, id, ev.Action == "collapse")
+		a.invalidate(ev.WorkspaceID)
+		a.flush(ctx)
+		return nil, nil
+	case strings.HasPrefix(id, groupPrefix):
+		return nil, nil
+	case ev.Action == actRun:
+		return nil, a.runFromSection(ctx, ev, strings.TrimPrefix(id, graphPrefix))
+	}
 	cmd := pluginsdk.CommandRun{WorkspaceID: ev.WorkspaceID}
 	switch ev.Action {
 	case actOpen:
 		return nil, a.openAttention(ctx, ev.WorkspaceID, id)
 	case "select":
-		if err := a.host.StorageSet(ctx, selectedPrefix+ev.WorkspaceID, id); err != nil {
-			return nil, err
-		}
-		a.invalidate(ev.WorkspaceID)
-		a.flush(ctx)
-		return nil, nil
+		a.mu.Lock()
+		delete(a.drafts, ev.WorkspaceID)
+		a.mu.Unlock()
+		return nil, a.choose(ctx, ev.WorkspaceID, id)
 	case actStop:
 		cmd.ID = "graphs.stop"
 	case actRemove:
@@ -214,6 +238,67 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	cmd.Args = args
 	_, err = a.command(ctx, nil, cmd)
 	return nil, err
+}
+
+func (a *app) runFromSection(ctx context.Context, ev pluginsdk.UIEvent, graph string) error {
+	var values map[string]string
+	if err := json.Unmarshal(ev.Value, &values); err != nil {
+		return fmt.Errorf("%s value: %w", ev.Action, err)
+	}
+	a.mu.Lock()
+	if a.starting[ev.WorkspaceID] != "" {
+		a.mu.Unlock()
+		return nil
+	}
+	a.starting[ev.WorkspaceID] = graph
+	a.touch(ev.WorkspaceID)
+	a.mu.Unlock()
+	a.flush(ctx)
+	ctx = context.WithoutCancel(ctx)
+	go func() {
+		logError(a.startGraph(ctx, ev.WorkspaceID, graph, strings.TrimSpace(values[fieldInput])))
+	}()
+	return nil
+}
+
+func (a *app) startGraph(ctx context.Context, workspace, graph, input string) error {
+	args, err := json.Marshal(runArgs{Graph: graph, Input: input})
+	if err != nil {
+		return err
+	}
+	out, err := a.command(ctx, nil, pluginsdk.CommandRun{ID: "graphs.run", WorkspaceID: workspace, Args: args})
+	a.mu.Lock()
+	delete(a.starting, workspace)
+	if err != nil {
+		a.drafts[workspace] = draft{graph: graph, input: input, err: automation.Capitalize(err.Error()) + "."}
+	} else {
+		delete(a.drafts, workspace)
+	}
+	a.touch(workspace)
+	a.mu.Unlock()
+	if err != nil {
+		a.flush(ctx)
+		return nil
+	}
+	return a.choose(ctx, workspace, out.(*Run).ID)
+}
+
+func (a *app) storeSelected(ctx context.Context, workspace, id string) error {
+	if err := a.host.StorageSet(ctx, selectedPrefix+workspace, id); err != nil {
+		return err
+	}
+	a.invalidate(workspace)
+	a.flush(ctx)
+	return nil
+}
+
+func (a *app) fold(workspace, id string, collapsed bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.collapsed[workspace] == nil {
+		a.collapsed[workspace] = map[string]bool{}
+	}
+	a.collapsed[workspace][id] = collapsed
 }
 
 func (a *app) openAttention(ctx context.Context, workspace, id string) error {
@@ -486,28 +571,50 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	if _, err := a.host.StorageGet(ctx, selectedPrefix+workspace, &selected); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
+	dirs, err := a.graphDirs(ctx, workspace, false, "")
+	logError(err)
+	graphs := listGraphs(dirs)
 	runs := a.workspaceRuns(workspace)
 	var statuses map[string]api.Session
 	if len(runs) > 0 {
 		statuses = a.sessionMap(ctx, workspace)
 	}
-	if i := slices.IndexFunc(runs, func(r *Run) bool { return r.ID == selected }); i < 0 {
-		selected = ""
-		if len(runs) > 0 {
-			selected = runs[0].ID
-		}
-	}
-	var current *Run
-	if i := slices.IndexFunc(runs, func(r *Run) bool { return r.ID == selected }); i >= 0 {
-		current = runs[i]
-	}
-	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(runs, selected, statuses)); err != nil {
+	selected = pickSelected(selected, graphs, runs)
+	a.mu.Lock()
+	d, starting, collapsed := a.drafts[workspace], a.starting[workspace], maps.Clone(a.collapsed[workspace])
+	a.mu.Unlock()
+	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(graphs, runs, selected, statuses, collapsed)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
-	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, statuses)); err != nil {
+	main := emptyView()
+	if i := slices.IndexFunc(runs, func(r *Run) bool { return r.ID == selected }); i >= 0 {
+		main = mainView(runs[i], statuses)
+	} else if i := slices.IndexFunc(graphs, func(g graphFile) bool { return graphPrefix+g.Name == selected }); i >= 0 {
+		g := graphs[i]
+		var spec *Graph
+		if g.Error == "" {
+			spec, _, err = loadGraph(dirs, g.Name)
+			logError(err)
+		}
+		main = graphView(g, spec, d, starting)
+	}
+	if _, err := a.host.Render(ctx, workspace, mainSlot, main); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
 	return nil
+}
+
+func pickSelected(selected string, graphs []graphFile, runs []*Run) string {
+	if slices.ContainsFunc(runs, func(r *Run) bool { return r.ID == selected }) || slices.ContainsFunc(graphs, func(g graphFile) bool { return graphPrefix+g.Name == selected }) {
+		return selected
+	}
+	if len(runs) > 0 {
+		return runs[0].ID
+	}
+	if i := slices.IndexFunc(graphs, func(g graphFile) bool { return g.Error == "" }); i >= 0 {
+		return graphPrefix + graphs[i].Name
+	}
+	return ""
 }
 
 func (a *app) sessionMap(ctx context.Context, workspace string) map[string]api.Session {

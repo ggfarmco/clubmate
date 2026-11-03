@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"clubmate/pkg/sdui"
@@ -17,6 +18,12 @@ const (
 	mainSlot    = "graphs.main"
 	listID      = "runs"
 	tableID     = "nodes"
+	graphPrefix = "graph:"
+	groupPrefix = "group:"
+	groupGraphs = groupPrefix + "graphs"
+	groupRuns   = groupPrefix + "runs"
+	fieldInput  = "input"
+	actRun      = "run"
 	graphIcon   = "point.3.connected.trianglepath.dotted"
 	actOpen     = "open"
 	actStop     = "stop"
@@ -24,27 +31,124 @@ const (
 	timeLayout  = "2006-01-02T15:04:05Z"
 	whenLayout  = "Jan 2 15:04"
 	maxBrief    = 160
+	descLines   = 3
 )
 
 var liveOrder = []string{"waiting", "running", "error"}
 
-func sidebarView(runs []*Run, selected string, sessions map[string]api.Session) sdui.Node {
-	if len(runs) == 0 {
-		return sdui.Empty("No graph runs yet")
+func sidebarView(graphs []graphFile, runs []*Run, selected string, sessions map[string]api.Session, collapsed map[string]bool) sdui.Node {
+	if len(graphs) == 0 && len(runs) == 0 {
+		return sdui.Empty("No graphs or graph runs yet")
 	}
-	items := make([]sdui.Item, 0, len(runs))
-	for _, r := range runs {
-		icon, tone := runIcon(r, runLive(r, sessions))
-		items = append(items, sdui.Item{
-			ID:     r.ID,
-			Label:  r.Title,
-			Detail: runDetail(r),
-			Icon:   icon,
-			Tone:   tone,
-			Menu:   runMenu(r),
-		})
+	var groups []sdui.TreeItem
+	if len(graphs) > 0 {
+		items := make([]sdui.TreeItem, 0, len(graphs))
+		for _, g := range graphs {
+			items = append(items, graphItem(g))
+		}
+		groups = append(groups, group(groupGraphs, "Graphs", items, collapsed))
 	}
-	return sdui.List(listID, items, selected)
+	if len(runs) > 0 {
+		items := make([]sdui.TreeItem, 0, len(runs))
+		for _, r := range runs {
+			icon, tone := runIcon(r, runLive(r, sessions))
+			items = append(items, sdui.TreeItem{
+				ID:     r.ID,
+				Label:  r.Title,
+				Detail: runDetail(r),
+				Icon:   icon,
+				Tone:   tone,
+				Menu:   runMenu(r),
+			})
+		}
+		groups = append(groups, group(groupRuns, "Runs", items, collapsed))
+	}
+	return sdui.Tree(listID, groups, selected)
+}
+
+func group(id, label string, items []sdui.TreeItem, collapsed map[string]bool) sdui.TreeItem {
+	return sdui.TreeItem{ID: id, Label: label, Detail: strconv.Itoa(len(items)), Muted: true, HasChildren: true, Expanded: !collapsed[id], Children: items}
+}
+
+func graphItem(g graphFile) sdui.TreeItem {
+	item := sdui.TreeItem{ID: graphPrefix + g.Name, Label: cmp.Or(g.Title, g.Name), Icon: "doc", Detail: fmt.Sprintf("%d nodes", g.Nodes)}
+	switch {
+	case g.Error != "":
+		item.Icon, item.Tone, item.Detail = "xmark.circle", "danger", "invalid"
+	case g.Builtin:
+		item.Detail = "built in"
+	}
+	return item
+}
+
+func graphView(g graphFile, spec *Graph, d draft, starting string) sdui.Node {
+	id := graphPrefix + g.Name
+	props := sdui.HeaderProps{Icon: graphIcon}
+	if g.Title != "" {
+		props.Meta = g.Name
+	}
+	var rows []sdui.Node
+	if g.Description != "" {
+		rows = append(rows, sdui.HStack(sdui.MutedText("Description"), sdui.Card("", "", sdui.WithLines(sdui.Text(g.Description), descLines))))
+	}
+	var actions []sdui.Node
+	if g.Error != "" {
+		props.Badges = []sdui.HeaderBadge{{Text: "invalid", Tone: "danger"}}
+		rows = append(rows, sdui.HStack(sdui.MutedText("Error"), sdui.WithTone(sdui.Text(g.Error), "danger")))
+	} else {
+		run := sdui.WithShortcut(sdui.WithVariant(sdui.Button(id+"/submit", "Run", "play.fill"), sdui.VariantPrimary), "cmd+return")
+		if starting == g.Name {
+			run = sdui.WithLoading(run, "Starting…")
+		} else if starting != "" {
+			run = sdui.WithDisabled(run)
+		}
+		actions = append(actions, run)
+		var value string
+		if d.graph == g.Name {
+			value = d.input
+		}
+		rows = append(rows, sdui.HStack(sdui.MutedText("Input"), sdui.TextField(fieldInput, value, "What the run works on; ↩ runs it")))
+		if d.graph == g.Name && d.err != "" {
+			rows = append(rows, sdui.HStack(sdui.MutedText(""), sdui.WithTone(sdui.Text(d.err), "danger")))
+		}
+	}
+	definition := graphsDir + "/" + g.Name + graphExt
+	if g.Builtin {
+		definition = "Built into Clubmate"
+	}
+	rows = append(rows, automation.Property("Definition", definition, ""))
+	if spec != nil {
+		rows = append(rows, automation.Property("Turns", fmt.Sprintf("at most %d", spec.maxTurns()), ""))
+	}
+	header := sdui.Header(cmp.Or(g.Title, g.Name), props, actions...)
+	form := sdui.WithAction(sdui.Form(id+"/"+actRun, append([]sdui.Node{header}, rows...)...), actRun)
+	if spec == nil {
+		return sdui.VStack(form)
+	}
+	shape := runShape(spec)
+	nodes := sdui.Table(tableID, graphColumns, graphRows(shape), "", sdui.Sort{})
+	return sdui.VStack(form, sdui.Scroll(nodes))
+}
+
+var graphColumns = []sdui.Column{
+	{ID: "node", Title: "Node"},
+	{ID: "when", Title: "When"},
+}
+
+func graphRows(r *Run) []sdui.TableRow {
+	rows := make([]sdui.TableRow, 0, len(r.Nodes)+len(r.Edges))
+	for _, n := range r.Nodes {
+		label := n.Role
+		if n.Start {
+			label += " · start"
+		}
+		rows = append(rows, sdui.TableRow{ID: n.ID, Cells: []sdui.Cell{{Text: label}, {}}})
+		for _, e := range edgeRows(r, n.ID) {
+			e.Cells = e.Cells[:2]
+			rows = append(rows, e)
+		}
+	}
+	return rows
 }
 
 func mainView(r *Run, sessions map[string]api.Session) sdui.Node {
@@ -73,7 +177,7 @@ func mainView(r *Run, sessions map[string]api.Session) sdui.Node {
 }
 
 func emptyView() sdui.Node {
-	return sdui.EmptyState("Graphs chain agents: when one finishes, the next starts. Start one with graphs.run.", sdui.EmptyProps{Title: "No graph runs yet", Icon: graphIcon, Hint: graphsDir + "/<name>" + graphExt})
+	return sdui.EmptyState("Graphs chain agents: when one finishes, the next starts. Add a graph file, then select it here and run it.", sdui.EmptyProps{Title: "No graphs yet", Icon: graphIcon, Hint: graphsDir + "/<name>" + graphExt})
 }
 
 func runHeader(r *Run, sessions map[string]api.Session) sdui.Node {
