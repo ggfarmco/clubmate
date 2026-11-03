@@ -30,7 +30,7 @@ final class TestHarness {
                 for window in NSApp.windows { window.attachedSheet.map(window.endSheet) }
                 return
             }
-            Task { _ = await Confirmation.ask(Self.approvalFixture, font: GhosttyApp.shared.theme.nsFont(size: 12, bold: false), window: NSApp.promptWindow, expiry: nil) }
+            Task { _ = await Confirmation.ask(Self.approvalFixture, font: GhosttyApp.shared.theme.nsMono(size: 12, bold: false), window: NSApp.promptWindow, expiry: nil) }
         }
     }
 

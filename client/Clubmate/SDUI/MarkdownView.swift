@@ -8,7 +8,7 @@ extension Theme {
     func inlineMarkdown(_ text: String) -> AttributedString {
         var content = Markdown.inline(text)
         for run in content.runs where run.inlinePresentationIntent?.contains(.code) == true {
-            content[run.range].font = ui
+            content[run.range].font = mono
             content[run.range].backgroundColor = pressed
         }
         return content
@@ -104,7 +104,7 @@ extension Theme {
     func prose(_ blocks: [MarkdownBlock], muted: Bool, docLinks: [String: String] = [:]) -> NSAttributedString {
         let result = NSMutableAttributedString()
         let body = nsFont(size: uiSize, bold: false)
-        let theme = [fontFamily ?? "", "\(uiSize)", foregroundHex, backgroundHex].joined(separator: "\u{1}")
+        let theme = [fontFamily ?? "", interfaceFamily, "\(uiSize)", foregroundHex, backgroundHex].joined(separator: "\u{1}")
         for (index, block) in blocks.enumerated() {
             if index > 0 { result.append(NSAttributedString(string: "\n", attributes: [.font: body])) }
             let key = ProseCache.Key(block: block, first: index == 0, muted: muted, docLinks: docLinks, theme: theme)
@@ -201,7 +201,10 @@ extension Theme {
             if intent.contains(.stronglyEmphasized) { runFont = NSFontManager.shared.convert(runFont, toHaveTrait: .boldFontMask) }
             if intent.contains(.emphasized) { runFont = NSFontManager.shared.convert(runFont, toHaveTrait: .italicFontMask) }
             var attributes: [NSAttributedString.Key: Any] = [.font: runFont, .foregroundColor: color, .paragraphStyle: paragraphStyle(lead: indent, hang: indent, before: 0)]
-            if intent.contains(.code) { attributes[.backgroundColor] = NSColor(pressed) }
+            if intent.contains(.code) {
+                attributes[.font] = nsMono(size: runFont.pointSize, bold: runFont.fontDescriptor.symbolicTraits.contains(.bold))
+                attributes[.backgroundColor] = NSColor(pressed)
+            }
             if intent.contains(.strikethrough) { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
             if let link = run.link, MarkdownLinkPolicy.allows(link) || MarkdownDocLink.target(link) != nil { attributes[.link] = link }
             result.append(NSAttributedString(string: String(source[run.range].characters), attributes: attributes))
@@ -302,7 +305,7 @@ private struct CodeBlock: View {
     var body: some View {
         ScrollView(.horizontal) {
             Text(text)
-                .font(theme.ui.monospaced())
+                .font(theme.mono)
                 .foregroundStyle(theme.foreground)
                 .textSelection(.enabled)
                 .fixedSize()

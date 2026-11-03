@@ -34,7 +34,7 @@ struct PermissionCardNodeView: View {
             if let command = node.string("command") {
                 CappedScroll {
                     Text(command)
-                        .font(theme.ui.monospaced())
+                        .font(theme.mono)
                         .foregroundStyle(theme.foreground)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
@@ -189,7 +189,7 @@ private struct AlwaysAllowConfirm: View {
                 .fixedSize(horizontal: false, vertical: true)
             if let rule = option.rule {
                 Text(rule)
-                    .font(theme.ui.monospaced())
+                    .font(theme.mono)
                     .foregroundStyle(theme.foreground)
                     .textSelection(.enabled)
                     .lineLimit(3)

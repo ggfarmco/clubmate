@@ -176,11 +176,21 @@ struct PluginSettingsPage: View {
                 DevicesSettings(model: app.remoteDevices, client: app.supervisor.client, active: true)
             } else {
                 Form {
-                    Section {
-                        PluginNativeRows(plugin: plugin.id, settings: settings, select: select)
-                        pluginView
-                    } header: {
-                        if let sectionTitle { Text(sectionTitle) }
+                    if PluginNativeRows.has(plugin.id) || plugin.declaresSettings || !PaneFontRows.has(plugin) {
+                        Section {
+                            PluginNativeRows(plugin: plugin.id, settings: settings, select: select)
+                            pluginView
+                        } header: {
+                            if let sectionTitle { Text(sectionTitle) }
+                        }
+                    }
+                    if PaneFontRows.has(plugin) {
+                        Section("Font") {
+                            PaneFontRows(title: "Font", key: plugin.id, settings: settings)
+                            if plugin.id == "agents" {
+                                PaneFontRows(title: "Chat font", key: PaneFont.chat, settings: settings)
+                            }
+                        }
                     }
                     if plugin.id == "agents" {
                         ClaudeCodeSettings()
@@ -204,7 +214,6 @@ struct PluginSettingsPage: View {
     private var sectionTitle: String? {
         switch plugin.id {
         case "terminals", "editor-nvim": "Font"
-        case "agents": "Chat"
         default: nil
         }
     }
@@ -224,12 +233,12 @@ struct PluginSettingsPage: View {
             SDUISettingsRows(tree: view.tree, slot: slot, rev: view.rev) { [store] event in
                 await store.send(event)
             }
-            .environment(\.theme, theme.withSystemFonts(size: NSFont.systemFontSize).withoutGutter())
+            .environment(\.theme, theme.interface(family: FontFamily.system, size: NSFont.systemFontSize).withoutGutter())
         } else if plugin.declaresSettings, plugin.healthy || plugin.state == "starting" {
             ProgressView().controlSize(.small)
         } else if plugin.declaresSettings {
             Text("Shows once \(plugin.name) is running").foregroundStyle(.secondary)
-        } else if !PluginNativeRows.has(plugin.id) {
+        } else if !PluginNativeRows.has(plugin.id), !PaneFontRows.has(plugin) {
             Text("No settings.").foregroundStyle(.secondary)
         }
     }
@@ -296,13 +305,13 @@ private struct PluginNativeRows: View {
     @Environment(EventBanner.self) private var banner: EventBanner?
 
     static func has(_ plugin: String) -> Bool {
-        ["terminals", "agents", "editor-nvim"].contains(plugin)
+        ["terminals", "editor-nvim"].contains(plugin)
     }
 
     var body: some View {
         switch plugin {
         case "terminals":
-            SettingsRow(title: "Family", detail: "Every terminal and nvim, and the interface's monospaced text.") {
+            SettingsRow(title: "Family", detail: "Every terminal and nvim, and code, commands and diffs in the interface.") {
                 Picker("Font", selection: fontFamily) {
                     Text("Default").tag("")
                     ForEach(MonospacedFonts.families, id: \.self) { Text($0).tag($0) }
@@ -330,22 +339,8 @@ private struct PluginNativeRows: View {
                     .fixedSize()
                 }
             }
-        case "agents":
-            SettingsRow(title: "Chat font size", detail: "Every agent chat. ⌘+ in the chat changes this too.") {
-                HStack(spacing: 10) {
-                    if settings.paneFontSizes[PaneFont.chat] != nil {
-                        Button("Reset") { settings.resetPaneFont(PaneFont.chat) }
-                            .help("Follow the interface font size again")
-                    }
-                    Text(settingsPoints(settings.chatFontSize))
-                        .monospacedDigit()
-                    Stepper("Chat font size", value: $settings.chatFontSize, in: AppSettings.interfaceFontRange, step: 1)
-                        .labelsHidden()
-                }
-                .fixedSize()
-            }
         case "editor-nvim":
-            SettingsRow(title: "Font size", detail: "nvim runs in a terminal and uses Terminals → Font size.") {
+            SettingsRow(title: "Font", detail: "nvim runs in a terminal and uses the Terminals font; the chat beside it uses Agents → Chat font.") {
                 Button("Open Terminals") { select(.plugin("terminals")) }
             }
         default:
@@ -418,6 +413,72 @@ private struct ClaudeCodeSettings: View {
 }
 
 @MainActor
+struct PaneFontRows: View {
+    let title: String
+    let key: String
+    @Bindable var settings: AppSettings
+
+    static func has(_ plugin: PluginStatus) -> Bool {
+        !plugin.manifest.contributes.sections.isEmpty && !["terminals", "editor-nvim"].contains(plugin.id)
+    }
+
+    var body: some View {
+        SettingsRow(title: title) {
+            FontFamilyPicker(selection: family, inherited: settings.interfaceFontFamily)
+        }
+        SettingsRow(title: "\(title) size") {
+            HStack(spacing: 10) {
+                if settings.paneFontSizes[key] != nil {
+                    Button("Reset") { settings.resetPaneFont(key) }
+                        .help("Follow the interface font size again")
+                }
+                Text(settings.paneFontSizes[key] == nil ? "General · \(settingsPoints(settings.paneFontSize(key)))" : settingsPoints(settings.paneFontSize(key)))
+                    .monospacedDigit()
+                    .foregroundStyle(settings.paneFontSizes[key] == nil ? .secondary : .primary)
+                Stepper("\(title) size", value: size, in: AppSettings.interfaceFontRange, step: 1)
+                    .labelsHidden()
+            }
+            .fixedSize()
+        }
+    }
+
+    private var family: Binding<String?> {
+        Binding { settings.paneFontFamilies[key] } set: { settings.setPaneFontFamily(key, $0) }
+    }
+
+    private var size: Binding<Double> {
+        Binding { settings.paneFontSize(key) } set: { settings.setPaneFontSize(key, $0) }
+    }
+}
+
+struct FontFamilyPicker: View {
+    @Binding var selection: String?
+    let inherited: String?
+
+    var body: some View {
+        Picker("Font", selection: $selection) {
+            if let inherited {
+                Text("General · \(Self.name(inherited))").tag(String?.none)
+                Divider()
+            }
+            ForEach([FontFamily.terminal, FontFamily.system, FontFamily.systemMonospaced], id: \.self) { Text(Self.name($0)).tag(String?.some($0)) }
+            Divider()
+            ForEach(MonospacedFonts.families, id: \.self) { Text($0).tag(String?.some($0)) }
+        }
+        .labelsHidden()
+        .fixedSize()
+    }
+
+    static func name(_ family: String) -> String {
+        switch family {
+        case FontFamily.terminal: "Terminals font · \(GhosttyApp.shared.theme.fontFamily.flatMap { $0.isEmpty ? nil : $0 } ?? "default")"
+        case FontFamily.system: "System"
+        case FontFamily.systemMonospaced: "System monospaced"
+        default: family
+        }
+    }
+}
+
 enum MonospacedFonts {
     static let families: [String] = {
         let names = NSFontManager.shared.availableFontNames(with: .fixedPitchFontMask) ?? []

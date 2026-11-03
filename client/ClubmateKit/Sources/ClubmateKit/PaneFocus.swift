@@ -58,6 +58,6 @@ public enum PaneFont {
     public static let chat = "chat"
 
     public static func key(slot: String, composer: Bool) -> String {
-        composer ? chat : slot
+        composer ? chat : String(slot.prefix { $0 != "." })
     }
 }

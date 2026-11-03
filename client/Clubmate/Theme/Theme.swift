@@ -14,7 +14,7 @@ struct Theme: Sendable {
     var onWarning: Color
     var danger: Color
     var fontFamily: String?
-    var systemFonts = false
+    var interfaceFamily = FontFamily.terminal
     var uiSize: CGFloat = 12
     var isDark: Bool
     var backgroundHex: String
@@ -56,20 +56,25 @@ struct Theme: Sendable {
         self.muted = Color(foreground).opacity(mutedAlpha)
         self.accentInk = ink(accent)
         self.onAccent = Color(ThemeContrast.on(accent, candidates: [background, RGB(hex: 0xFFFFFF)], reaching: 4.5))
-        let font = fontFamily.flatMap { $0.isEmpty ? nil : "\"\($0)\", \(DocumentTheme.monoFont)" } ?? DocumentTheme.monoFont
         self.documentBase = DocumentTheme(
             background: background.eventHex, text: foreground.eventHex,
             muted: mix(mutedAlpha), accent: inkRGB(accent).eventHex,
             border: mix(0.12), codeBackground: mix(0.07),
             success: inkRGB(success).eventHex, warning: inkRGB(warning).eventHex, danger: inkRGB(danger).eventHex,
-            font: font, codeFont: font, dark: dark
+            dark: dark
         )
     }
 
     var document: DocumentTheme {
         var theme = documentBase
+        theme.font = Self.css(uiFamily)
+        theme.codeFont = Self.css(fontFamily)
         theme.fontSize = uiSize + 1
         return theme
+    }
+
+    var uiFamily: String? {
+        interfaceFamily == FontFamily.terminal ? fontFamily : interfaceFamily
     }
 
     var faint: Color { foreground.opacity(isDark ? 0.42 : 0.52) }
@@ -91,6 +96,8 @@ struct Theme: Sendable {
     var heading: Font { font(size: uiSize + 4).weight(.semibold) }
     var count: Font { font(size: max(9, uiSize - 2)).weight(.semibold) }
     var glyph: Font { .system(size: uiSize - 4, weight: .semibold) }
+    var mono: Font { Self.font(fontFamily, size: uiSize) }
+    var monoSmall: Font { Self.font(fontFamily, size: uiSize - 1) }
 
     var rowHeight: CGFloat { (uiSize * 5 / 3).rounded() }
     var labelMaxWidth: CGFloat { (uiSize * 12).rounded() }
@@ -169,9 +176,9 @@ struct Theme: Sendable {
         return theme
     }
 
-    func withSystemFonts(size: Double) -> Theme {
+    func interface(family: String, size: Double) -> Theme {
         var theme = scaled(size)
-        theme.systemFonts = true
+        theme.interfaceFamily = family
         return theme
     }
 
@@ -182,15 +189,38 @@ struct Theme: Sendable {
     }
 
     func nsFont(size: CGFloat, bold: Bool) -> NSFont {
-        let weight: NSFont.Weight = bold ? .semibold : .regular
-        guard let fontFamily, !fontFamily.isEmpty, let font = NSFont(name: fontFamily, size: size) else { return .monospacedSystemFont(ofSize: size, weight: weight) }
-        return bold ? NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask) : font
+        Self.nsFont(uiFamily, size: size, bold: bold)
+    }
+
+    func nsMono(size: CGFloat, bold: Bool) -> NSFont {
+        Self.nsFont(fontFamily, size: size, bold: bold)
     }
 
     private func font(size: CGFloat) -> Font {
-        if systemFonts { return .system(size: size) }
-        guard let fontFamily, !fontFamily.isEmpty else { return .system(size: size, design: .monospaced) }
-        return .custom(fontFamily, size: size)
+        Self.font(uiFamily, size: size)
+    }
+
+    private static func font(_ family: String?, size: CGFloat) -> Font {
+        switch family {
+        case FontFamily.system: .system(size: size)
+        case nil, "", FontFamily.systemMonospaced: .system(size: size, design: .monospaced)
+        case let family?: .custom(family, size: size)
+        }
+    }
+
+    private static func nsFont(_ family: String?, size: CGFloat, bold: Bool) -> NSFont {
+        let weight: NSFont.Weight = bold ? .semibold : .regular
+        if family == FontFamily.system { return .systemFont(ofSize: size, weight: weight) }
+        guard let family, !family.isEmpty, family != FontFamily.systemMonospaced, let font = NSFont(name: family, size: size) else { return .monospacedSystemFont(ofSize: size, weight: weight) }
+        return bold ? NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask) : font
+    }
+
+    private static func css(_ family: String?) -> String {
+        switch family {
+        case FontFamily.system: DocumentTheme.systemFont
+        case nil, "", FontFamily.systemMonospaced: DocumentTheme.monoFont
+        case let family?: "\"\(family)\", \(DocumentTheme.monoFont)"
+        }
     }
 
     static let fallback = mate(dark: true)

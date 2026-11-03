@@ -16,6 +16,12 @@ public enum CodeSection {
     }
 }
 
+public enum FontFamily {
+    public static let terminal = ""
+    public static let system = ".system"
+    public static let systemMonospaced = ".systemMonospaced"
+}
+
 @MainActor
 @Observable
 public final class AppSettings {
@@ -25,11 +31,17 @@ public final class AppSettings {
     public var interfaceFontSize: Double {
         didSet { defaults.set(interfaceFontSize, forKey: Key.interfaceFontSize) }
     }
+    public var interfaceFontFamily: String {
+        didSet { save(interfaceFontFamily.isEmpty ? nil : interfaceFontFamily, Key.interfaceFontFamily) }
+    }
     public var ghosttyImportOffered: Bool {
         didSet { defaults.set(ghosttyImportOffered, forKey: Key.ghosttyImportOffered) }
     }
     public private(set) var paneFontSizes: [String: Double] {
         didSet { save(paneFontSizes.isEmpty ? nil : paneFontSizes, Key.paneFontSizes) }
+    }
+    public private(set) var paneFontFamilies: [String: String] {
+        didSet { save(paneFontFamilies.isEmpty ? nil : paneFontFamilies, Key.paneFontFamilies) }
     }
     public var recentsClearedAt: Date? {
         didSet { save(recentsClearedAt, Key.recentsClearedAt) }
@@ -44,8 +56,11 @@ public final class AppSettings {
         self.defaults = defaults
         sidebarSide = defaults.string(forKey: Key.sidebarSide).flatMap(SidebarSide.init(rawValue:)) ?? .left
         interfaceFontSize = defaults.object(forKey: Key.interfaceFontSize) as? Double ?? 12
+        interfaceFontFamily = defaults.string(forKey: Key.interfaceFontFamily) ?? FontFamily.terminal
         ghosttyImportOffered = defaults.bool(forKey: Key.ghosttyImportOffered)
-        paneFontSizes = defaults.dictionary(forKey: Key.paneFontSizes) as? [String: Double] ?? [:]
+        let sizes = defaults.dictionary(forKey: Key.paneFontSizes) as? [String: Double] ?? [:]
+        paneFontSizes = Dictionary(sizes.map { (PaneFont.key(slot: $0.key, composer: false), $0.value) }, uniquingKeysWith: max)
+        paneFontFamilies = defaults.dictionary(forKey: Key.paneFontFamilies) as? [String: String] ?? [:]
         recentsClearedAt = defaults.object(forKey: Key.recentsClearedAt) as? Date
         sectionOrder = defaults.stringArray(forKey: Key.sectionOrder)
     }
@@ -70,21 +85,34 @@ public final class AppSettings {
         paneFontSizes[pane] = Self.fontSteps(current: paneFontSize(pane), delta: delta, range: Self.interfaceFontRange)
     }
 
+    public func setPaneFontSize(_ pane: String, _ size: Double) {
+        paneFontSizes[pane] = min(max(size, Self.interfaceFontRange.lowerBound), Self.interfaceFontRange.upperBound)
+    }
+
     public func resetPaneFont(_ pane: String) {
         paneFontSizes[pane] = nil
     }
 
-    public var chatFontSize: Double {
-        get { paneFontSize(PaneFont.chat) }
-        set { paneFontSizes[PaneFont.chat] = min(max(newValue, Self.interfaceFontRange.lowerBound), Self.interfaceFontRange.upperBound) }
+    public func paneFontFamily(_ pane: String) -> String {
+        paneFontFamilies[pane] ?? interfaceFontFamily
     }
 
-    public var zoomedPaneCount: Int {
-        paneFontSizes.count
+    public func setPaneFontFamily(_ pane: String, _ family: String?) {
+        paneFontFamilies[pane] = family
+    }
+
+    public var chatFontSize: Double {
+        get { paneFontSize(PaneFont.chat) }
+        set { setPaneFontSize(PaneFont.chat, newValue) }
+    }
+
+    public var paneFontOverrideCount: Int {
+        Set(paneFontSizes.keys).union(paneFontFamilies.keys).count
     }
 
     public func resetPaneFonts() {
         paneFontSizes = [:]
+        paneFontFamilies = [:]
     }
 
     private func save(_ value: Any?, _ key: String) {
@@ -94,9 +122,11 @@ public final class AppSettings {
     private enum Key {
         static let sidebarSide = "sidebarSide"
         static let interfaceFontSize = "interfaceFontSize"
+        static let interfaceFontFamily = "interfaceFontFamily"
         static let terminalFontSize = "terminalFontSize"
         static let ghosttyImportOffered = "ghosttyImportOffered"
         static let paneFontSizes = "paneFontSizes"
+        static let paneFontFamilies = "paneFontFamilies"
         static let recentsClearedAt = "recentsClearedAt"
         static let sectionOrder = "sectionOrder"
     }

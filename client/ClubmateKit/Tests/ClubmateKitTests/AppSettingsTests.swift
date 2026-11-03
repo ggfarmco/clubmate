@@ -33,16 +33,43 @@ final class AppSettingsTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: name) }
         let settings = AppSettings(defaults: defaults)
         for _ in 0..<20 { settings.stepPaneFont("chat", by: 1) }
-        settings.stepPaneFont("agents.sidebar", by: -1)
+        settings.stepPaneFont("agents", by: -1)
 
         let saved = AppSettings(defaults: defaults)
         XCTAssertEqual(saved.paneFontSize("chat"), AppSettings.interfaceFontRange.upperBound)
-        XCTAssertEqual(saved.paneFontSize("agents.sidebar"), 11)
-        XCTAssertEqual(saved.paneFontSize("agents.main"), 12)
+        XCTAssertEqual(saved.paneFontSize("agents"), 11)
+        XCTAssertEqual(saved.paneFontSize("backlog"), 12)
 
         saved.resetPaneFont("chat")
         saved.interfaceFontSize = 14
         XCTAssertEqual(saved.paneFontSize("chat"), 14)
+    }
+
+    func testSlotKeyedPaneSizesBecomePluginKeyed() throws {
+        let name = "AppSettingsTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(["backlog.main": 14.0, "backlog.sidebar": 13.0, "chat": 15.0], forKey: "paneFontSizes")
+        let settings = AppSettings(defaults: defaults)
+        XCTAssertEqual(settings.paneFontSize("backlog"), 14)
+        XCTAssertEqual(settings.paneFontSize("chat"), 15)
+        XCTAssertEqual(PaneFont.key(slot: "agents.main", composer: true), PaneFont.chat)
+    }
+
+    func testPaneFontFamilyFollowsInterfaceUntilOverridden() throws {
+        let name = "AppSettingsTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = AppSettings(defaults: defaults)
+        XCTAssertEqual(settings.paneFontFamily("cron"), FontFamily.terminal)
+        settings.setPaneFontFamily("backlog", FontFamily.system)
+        settings.interfaceFontFamily = "Menlo"
+
+        let saved = AppSettings(defaults: defaults)
+        XCTAssertEqual(saved.paneFontFamily("backlog"), FontFamily.system)
+        XCTAssertEqual(saved.paneFontFamily("cron"), "Menlo")
+        saved.setPaneFontFamily("backlog", nil)
+        XCTAssertEqual(saved.paneFontFamily("backlog"), "Menlo")
     }
 
     func testChatFontFollowsInterfaceUntilSet() throws {
@@ -64,11 +91,12 @@ final class AppSettingsTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         let settings = AppSettings(defaults: defaults)
-        settings.stepPaneFont("agents.sidebar", by: 1)
+        settings.stepPaneFont("agents", by: 1)
         settings.chatFontSize = 16
-        XCTAssertEqual(settings.zoomedPaneCount, 2)
+        settings.setPaneFontFamily("backlog", FontFamily.system)
+        XCTAssertEqual(settings.paneFontOverrideCount, 3)
         settings.resetPaneFonts()
-        XCTAssertEqual(AppSettings(defaults: defaults).zoomedPaneCount, 0)
+        XCTAssertEqual(AppSettings(defaults: defaults).paneFontOverrideCount, 0)
     }
 
     func testCodeChatStacksUnderTheEditorBelow1100() {

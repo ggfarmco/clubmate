@@ -56,7 +56,7 @@ struct SettingsTheme: ViewModifier {
     let settings: AppSettings
 
     func body(content: Content) -> some View {
-        content.environment(\.theme, GhosttyApp.shared.theme.scaled(settings.interfaceFontSize))
+        content.environment(\.theme, GhosttyApp.shared.theme.interface(family: settings.interfaceFontFamily, size: settings.interfaceFontSize))
     }
 }
 

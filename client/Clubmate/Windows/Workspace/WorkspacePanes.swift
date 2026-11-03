@@ -16,10 +16,14 @@ struct SlotPane: View {
                 await store.send(event)
             }
             .equatable()
-            .environment(\.theme, theme.scaled(app.settings.paneFontSize(PaneFont.key(slot: slot, composer: store.hasComposer(slot)))))
+            .environment(\.theme, theme.interface(family: app.settings.paneFontFamily(fontKey), size: app.settings.paneFontSize(fontKey)))
         } else {
             EmptyNodeView(text: "")
         }
+    }
+
+    private var fontKey: String {
+        PaneFont.key(slot: slot, composer: store.hasComposer(slot))
     }
 }
 

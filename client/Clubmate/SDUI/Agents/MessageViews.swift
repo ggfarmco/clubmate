@@ -96,7 +96,7 @@ private struct VoicePromptView: View {
                 if expanded {
                     CappedScroll {
                         Text(Self.pretty(text))
-                            .font(theme.ui.monospaced())
+                            .font(theme.mono)
                             .textSelection(.enabled)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)

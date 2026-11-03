@@ -112,7 +112,7 @@ struct DiffCardBody: View {
                         DiffLines(file: file)
                     }
                 }
-                .font(theme.ui.monospaced())
+                .font(theme.mono)
                 .textSelection(.enabled)
                 .padding(.vertical, theme.spacing.m)
             }
@@ -140,7 +140,7 @@ private struct DiffFileHeading: View {
             Text("+\(file.added)").foregroundStyle(theme.success)
             Text("−\(file.removed)").foregroundStyle(theme.danger)
         }
-        .font(theme.uiSmall.monospaced())
+        .font(theme.monoSmall)
     }
 }
 
@@ -272,7 +272,7 @@ struct ToolBodyView: View, Equatable {
                         .background(tint(line.kind), ignoresSafeAreaEdges: [])
                 }
             }
-            .font(theme.ui.monospaced())
+            .font(theme.mono)
             .textSelection(.enabled)
             .padding(.vertical, theme.spacing.m)
         }

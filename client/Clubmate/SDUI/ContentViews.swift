@@ -157,7 +157,7 @@ struct DiffNodeView: View {
                     .foregroundStyle(color(line.kind))
             }
         }
-        .font(theme.ui.monospaced())
+        .font(theme.mono)
         .textSelection(.enabled)
         .padding(.horizontal, theme.gutter)
         .frame(maxWidth: .infinity, alignment: .leading)

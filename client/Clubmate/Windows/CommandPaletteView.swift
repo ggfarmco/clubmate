@@ -107,7 +107,7 @@ struct PaletteField: NSViewRepresentable {
         field.drawsBackground = false
         field.focusRingType = .none
         field.placeholderString = placeholder
-        field.font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        field.font = theme.nsFont(size: fontSize, bold: false)
         field.autofocus = autofocus
         field.delegate = context.coordinator
         field.onListKey = { [weak coordinator = context.coordinator] action in

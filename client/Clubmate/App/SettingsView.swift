@@ -110,7 +110,10 @@ private struct GeneralSettings: View {
     var body: some View {
         Form {
             Section("Appearance") {
-                SettingsStepper(title: "Interface font size", detail: "Sidebars, lists and forms. A pane you zoomed with ⌘+ keeps its own size.", value: $settings.interfaceFontSize, range: AppSettings.interfaceFontRange)
+                SettingsRow(title: "Interface font", detail: "Sidebars, lists, forms and chats. Code, commands and diffs use the Terminals font.") {
+                    FontFamilyPicker(selection: interfaceFamily, inherited: nil)
+                }
+                SettingsStepper(title: "Interface font size", detail: "⌘+ in a pane sets that plugin's own size.", value: $settings.interfaceFontSize, range: AppSettings.interfaceFontRange)
                 SettingsRow(title: "Sidebar side") {
                     Picker("Sidebar side", selection: $settings.sidebarSide) {
                         ForEach(SidebarSide.allCases, id: \.self) { side in
@@ -121,9 +124,9 @@ private struct GeneralSettings: View {
                     .labelsHidden()
                     .fixedSize()
                 }
-                SettingsRow(title: "Zoomed panes", detail: zoomed) {
+                SettingsRow(title: "Plugin fonts", detail: overrides) {
                     Button("Reset All") { settings.resetPaneFonts() }
-                        .disabled(settings.zoomedPaneCount == 0)
+                        .disabled(settings.paneFontOverrideCount == 0)
                 }
             }
             if let editors = plugins.editors, editors.enabled.count > 1 {
@@ -151,11 +154,15 @@ private struct GeneralSettings: View {
         }
     }
 
-    private var zoomed: String {
-        switch settings.zoomedPaneCount {
-        case 0: "No pane has its own size."
-        case 1: "1 pane has its own size."
-        case let count: "\(count) panes have their own size."
+    private var interfaceFamily: Binding<String?> {
+        Binding { settings.interfaceFontFamily } set: { settings.interfaceFontFamily = $0 ?? FontFamily.terminal }
+    }
+
+    private var overrides: String {
+        switch settings.paneFontOverrideCount {
+        case 0: "Every plugin uses the interface font. A plugin's page can set its own."
+        case 1: "1 plugin has its own font or size."
+        case let count: "\(count) plugins have their own font or size."
         }
     }
 }

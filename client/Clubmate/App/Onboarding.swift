@@ -133,7 +133,7 @@ struct OnboardingSheet: View {
                         await store.send(event)
                     }
                 }
-                .environment(\.theme, theme.withSystemFonts(size: NSFont.systemFontSize).withoutGutter())
+                .environment(\.theme, theme.interface(family: FontFamily.system, size: NSFont.systemFontSize).withoutGutter())
             } else {
                 HStack(spacing: theme.spacing.s) {
                     ProgressView().controlSize(.small)

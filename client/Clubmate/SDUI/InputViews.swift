@@ -360,7 +360,7 @@ struct FolderFieldNodeView: View {
             .onHover { hovering = $0 }
             ForEach(paths, id: \.self) { path in
                 Text((path as NSString).abbreviatingWithTildeInPath)
-                    .font(theme.uiSmall.monospaced())
+                    .font(theme.monoSmall)
                     .foregroundStyle(theme.muted)
                     .lineLimit(1)
                     .truncationMode(.label)

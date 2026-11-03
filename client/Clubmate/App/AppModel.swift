@@ -73,7 +73,7 @@ final class AppModel {
     )
 
     @ObservationIgnored private lazy var browserHost = BrowserWindowHost(
-        theme: { [weak self] in GhosttyApp.shared.theme.scaled(self?.settings.interfaceFontSize ?? 12) },
+        theme: { [weak self] in GhosttyApp.shared.theme.interface(family: self?.settings.interfaceFontFamily ?? FontFamily.terminal, size: self?.settings.interfaceFontSize ?? 12) },
         title: { [weak self] owner in await self?.sessionTitle(owner) }
     )
 
@@ -264,7 +264,7 @@ final class AppModel {
         let window = windows.attentionWindow.map { onboarding.show ? $0.attachedSheet ?? $0 : $0 }
         let attention = NSApp.requestUserAttention(.criticalRequest)
         defer { NSApp.cancelUserAttentionRequest(attention) }
-        let font = GhosttyApp.shared.theme.nsFont(size: settings.interfaceFontSize, bold: false)
+        let font = GhosttyApp.shared.theme.nsMono(size: settings.interfaceFontSize, bold: false)
         return await Confirmation.ask(request, font: font, window: window, expiry: expiry)
     }
 
