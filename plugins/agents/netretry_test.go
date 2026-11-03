@@ -12,6 +12,7 @@ import (
 const noResponse = "API Error: No response from API (waited 3m, then 10m on the retry)."
 
 func TestNetworkErrorRetriedInOrchestration(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		after   string
@@ -24,8 +25,8 @@ func TestNetworkErrorRetriedInOrchestration(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("CLUBMATE_AGENTS_NET_RETRY_AFTER", tt.after)
-			f := start(t, map[string]any{"prompt": tt.fail})
+			t.Parallel()
+			f := startEnv(t, []string{"CLUBMATE_AGENTS_NET_RETRY_AFTER=" + tt.after}, map[string]any{"prompt": tt.fail})
 			workspace := f.workspace(t, newRepo(t))
 			parent := f.newSession(t, workspace)
 			parentID := f.agentID(t, workspace, parent)

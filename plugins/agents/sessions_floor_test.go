@@ -8,6 +8,7 @@ import (
 )
 
 func TestSessionsPagePrunesOldRemovalsAndAnswersOlderCursorsInFull(t *testing.T) {
+	t.Parallel()
 	var r sessionRevs
 	infos := make([]sessionInfo, keptRemoved+2)
 	for i := range infos {

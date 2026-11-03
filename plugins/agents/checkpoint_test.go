@@ -13,6 +13,7 @@ import (
 )
 
 func TestCheckpointUnbornHead(t *testing.T) {
+	t.Parallel()
 	repo, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	require.NoError(t, exec.Command("git", "-C", repo, "init", "-q").Run())

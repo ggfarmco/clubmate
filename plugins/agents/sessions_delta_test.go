@@ -28,6 +28,7 @@ func (p sessionsPage) ids() []string {
 }
 
 func TestSessionsSinceReturnsOnlyChangedAndRemovedSessions(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	kept := f.newSession(t, workspace)
@@ -58,6 +59,7 @@ func TestSessionsSinceReturnsOnlyChangedAndRemovedSessions(t *testing.T) {
 }
 
 func TestSessionsSinceACursorFromBeforeARestartReturnsTheFullList(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	id := f.newSession(t, workspace)

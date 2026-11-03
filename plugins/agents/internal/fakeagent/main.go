@@ -144,7 +144,7 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 			res.Meta = &acp.InitializeMeta{Steering: acp.SteeringMeta{Supported: true}}
 		}
 		if a.script.AuthFile != "" {
-			res.AuthMethods = []json.RawMessage{json.RawMessage(`{"id":"login","name":"Fake login","type":"terminal","args":["` + loginArg + `"]}`)}
+			res.AuthMethods = []json.RawMessage{json.RawMessage(`{"id":"login","name":"Fake login","type":"terminal","args":["` + loginArg + `"],"env":{"FAKEAGENT_SCRIPT":` + strconv.Quote(os.Getenv("FAKEAGENT_SCRIPT")) + `}}`)}
 		}
 		return res, nil
 	case acp.MethodSessionNew:

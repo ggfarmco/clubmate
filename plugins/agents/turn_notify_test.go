@@ -30,6 +30,7 @@ func (f *fixture) notes(t *testing.T) []notePost {
 }
 
 func TestTurnEndPostsNotification(t *testing.T) {
+	t.Parallel()
 	crash := []map[string]any{{"child": true}, {"exit": 3}}
 	for _, tc := range []struct {
 		name, text, message, kind string
@@ -40,6 +41,7 @@ func TestTurnEndPostsNotification(t *testing.T) {
 		{"stuck", "go", "Stopped with an error", "stuck", crash},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			f := start(t, map[string]any{"prompt": tc.script})
 			workspace := f.workspace(t, newRepo(t))
 			session := f.newSession(t, workspace)
@@ -54,6 +56,7 @@ func TestTurnEndPostsNotification(t *testing.T) {
 }
 
 func TestChildTurnEndPostsNothing(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -67,6 +70,7 @@ func TestChildTurnEndPostsNothing(t *testing.T) {
 }
 
 func TestCancelledTurnPostsNothing(t *testing.T) {
+	t.Parallel()
 	f, workspace, session := startQueued(t)
 
 	require.NoError(t, f.run(t, workspace, "agents.cancel", map[string]any{"session": session}, nil))
@@ -76,6 +80,7 @@ func TestCancelledTurnPostsNothing(t *testing.T) {
 }
 
 func TestDoneWaitsForChildren(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "work", "sleep": 3000}}})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)

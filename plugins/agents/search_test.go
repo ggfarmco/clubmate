@@ -53,6 +53,7 @@ func appendLog(t *testing.T, a *app, id string, lines ...string) {
 }
 
 func TestSearchMatchesTitlesFirstThenConversationByRecency(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	a := searchApp(t,
 		record{ID: "agt_title", Workspace: "w", Title: "Refund flow", UpdatedAt: now.Add(-time.Hour)},
@@ -75,6 +76,7 @@ func TestSearchMatchesTitlesFirstThenConversationByRecency(t *testing.T) {
 }
 
 func TestSearchPicksUpLinesAppendedAfterTheFirstSearch(t *testing.T) {
+	t.Parallel()
 	a := searchApp(t, record{ID: "agt_1", Workspace: "w"})
 	appendLog(t, a, "agt_1", promptLine(t, 1, "first"))
 	assert.Empty(t, a.search("w", "second"))
@@ -97,6 +99,7 @@ func TestSearchPicksUpLinesAppendedAfterTheFirstSearch(t *testing.T) {
 }
 
 func TestSnippetCutsAroundTheMatchOnItsLine(t *testing.T) {
+	t.Parallel()
 	text := "first line\n" + strings.Repeat("а", 40) + "needle" + strings.Repeat("б", 200)
 	got := snippet(text, strings.Index(text, "needle"))
 	assert.Equal(t, "…"+strings.Repeat("а", snippetBefore)+"needle"+strings.Repeat("б", snippetRunes-snippetBefore-6)+"…", got)
@@ -104,6 +107,7 @@ func TestSnippetCutsAroundTheMatchOnItsLine(t *testing.T) {
 }
 
 func TestSidebarShowsSearchResultsInPlaceOfTheTree(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	rows := []sessionRow{{Rec: record{ID: "agt_1", Worktree: "/r/a", Title: "Refunds", Status: statusDone}}}
 	search := sidebarSearch{query: "refund", results: []searchResult{

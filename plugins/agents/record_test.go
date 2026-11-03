@@ -15,6 +15,7 @@ import (
 )
 
 func TestRecordJSONContract(t *testing.T) {
+	t.Parallel()
 	const want = `{"id":"agt_1","workspace":"ws","worktree":"/r","agent":"claude","agentSessionId":"acp-1",` +
 		`"parentSession":"agt_p","advisor":"opus","fork":"abc","handoffFrom":"agt_f","handoffTo":"agt_t",` +
 		`"importedFrom":"agt_i","title":"T","titleSet":true,"status":"closed","mode":"plan","finish":"merge",` +
@@ -35,6 +36,7 @@ func TestRecordJSONContract(t *testing.T) {
 }
 
 func TestSessionInfoDecodesAsAPISession(t *testing.T) {
+	t.Parallel()
 	info := sessionInfo{record: record{
 		ID:        "agt_1",
 		Workspace: "ws",
@@ -59,6 +61,7 @@ func TestSessionInfoDecodesAsAPISession(t *testing.T) {
 }
 
 func TestLoadRecordsMigratesLegacySessions(t *testing.T) {
+	t.Parallel()
 	kv := memStore{
 		"session/agt_000000000000000b":       `{"id":"agt_000000000000000b","workspace":"prj_1","title":"flat","updatedAt":"2026-10-31T12:00:00Z"}`,
 		"session/prj_1/agt_000000000000000b": `{"id":"agt_000000000000000b","workspace":"prj_1","title":"nested","updatedAt":"2026-10-31T11:00:00Z"}`,

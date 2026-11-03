@@ -13,6 +13,7 @@ import (
 )
 
 func TestBundleCarriesOnlyTheSessionsNotes(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tmp, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)

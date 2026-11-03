@@ -13,6 +13,7 @@ import (
 )
 
 func TestSaveUploadsWritesFileAndPointsAttachmentAtIt(t *testing.T) {
+	t.Parallel()
 	a := &app{stateDir: t.TempDir()}
 	data := []byte("PK\x03\x04\xff\x00")
 	atts := []attachment{
@@ -33,6 +34,7 @@ func TestSaveUploadsWritesFileAndPointsAttachmentAtIt(t *testing.T) {
 }
 
 func TestPromptBlocksLinksBinaryFile(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.zip"), []byte("PK\x03\x04\xff\xfe"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hi"), 0o600))

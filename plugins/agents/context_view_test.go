@@ -13,6 +13,7 @@ import (
 )
 
 func TestContextViewReplacesTranscriptAndFollowsTreeEvents(t *testing.T) {
+	t.Parallel()
 	v := transcriptView{Session: record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, AgentSessionID: "sid", Status: statusDone}}
 	v.Entries = []*entry{{Kind: entryAgent, ID: "m1", Turn: 1, Text: "hi"}}
 	data := claudectx.Context{
@@ -72,6 +73,7 @@ func TestContextViewReplacesTranscriptAndFollowsTreeEvents(t *testing.T) {
 }
 
 func TestContextEventsRouteByNodeNotSidebar(t *testing.T) {
+	t.Parallel()
 	for node, want := range map[string]bool{"agt_1/context": true, "agt_1/context/toggle": true, "sessions": false, "agt_1/contextual": false} {
 		_, ok := isContextEvent(pluginsdk.UIEvent{NodeID: node, Action: actExpand})
 		assert.Equal(t, want, ok, node)
@@ -79,6 +81,7 @@ func TestContextEventsRouteByNodeNotSidebar(t *testing.T) {
 }
 
 func TestDisplayPathKeepsTheEndThatDiffers(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, ".worktrees/feat/x/CLAUDE.md", displayPath("/r/.worktrees/feat/x/CLAUDE.md", "/r"))
 	assert.Equal(t, "/…/memory/MEMORY.md", displayPath("/a/b/c/projects/memory/MEMORY.md", "/r"))
 	assert.Equal(t, "/etc/CLAUDE.md", displayPath("/etc/CLAUDE.md", "/r"))

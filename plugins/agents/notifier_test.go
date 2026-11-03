@@ -8,6 +8,7 @@ import (
 )
 
 func TestEndQueueCoalescesWithinBudget(t *testing.T) {
+	t.Parallel()
 	q := newEndQueue()
 	t0 := time.Now()
 	end := func(session, kind, policy string) ending {

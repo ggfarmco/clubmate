@@ -10,6 +10,7 @@ import (
 )
 
 func TestBackgroundWork(t *testing.T) {
+	t.Parallel()
 	up := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)
 	claude := proc.Process{PID: 2, PPID: 1, Comm: "claude", StartTime: up}
 	mcp := []proc.Process{
@@ -34,6 +35,7 @@ func TestBackgroundWork(t *testing.T) {
 }
 
 func TestSessionBackground(t *testing.T) {
+	t.Parallel()
 	up := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
 	procs := []proc.Process{
 		{PID: 2, PPID: 1, Comm: "claude", StartTime: up},

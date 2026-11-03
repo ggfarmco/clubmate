@@ -14,6 +14,7 @@ import (
 )
 
 func TestTraceSplitsTurnAndHumanLines(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	repo, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)

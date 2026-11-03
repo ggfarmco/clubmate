@@ -28,6 +28,7 @@ func writePNG(t *testing.T, path string, w, h int) []byte {
 }
 
 func TestImagesListMentionedImagesInOrder(t *testing.T) {
+	t.Parallel()
 	wt, other := t.TempDir(), t.TempDir()
 	writePNG(t, filepath.Join(wt, "shots", "a.png"), 3, 2)
 	for _, name := range []string{"b.PNG", "c.gif", "d.webp"} {
@@ -52,6 +53,7 @@ func TestImagesListMentionedImagesInOrder(t *testing.T) {
 }
 
 func TestImageCommandServesOnlyNamedImages(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	named, unnamed := filepath.Join(dir, "named.png"), filepath.Join(dir, "other.png")
 	data := writePNG(t, named, 2, 2)

@@ -24,6 +24,7 @@ func announce(id, title, role string, state map[string]any) map[string]any {
 }
 
 func TestSubagentsNestUnderTheirCardAndSurviveRestart(t *testing.T) {
+	t.Parallel()
 	running := map[string]any{"state": "running"}
 	f := start(t, map[string]any{"resume": true, "prompt": []map[string]any{
 		subagentStep("", announce("sub-1", "find auth", "Explore", running)),
@@ -86,6 +87,7 @@ func TestSubagentsNestUnderTheirCardAndSurviveRestart(t *testing.T) {
 }
 
 func TestStopSendsCancelToTheRunningSubagent(t *testing.T) {
+	t.Parallel()
 	cancellable := announce("sub-1", "run tests", "", map[string]any{"state": "running"})
 	cancellable["capabilities"] = map[string]any{"cancel": map[string]any{}}
 	f := start(t, map[string]any{"prompt": []map[string]any{subagentStep("", cancellable)}})
@@ -103,6 +105,7 @@ func TestStopSendsCancelToTheRunningSubagent(t *testing.T) {
 }
 
 func TestStopSubagentCommandCancelsTheStoppableSubagent(t *testing.T) {
+	t.Parallel()
 	cancellable := announce("sub-1", "run tests", "", map[string]any{"state": "running"})
 	cancellable["capabilities"] = map[string]any{"cancel": map[string]any{}}
 	f := start(t, map[string]any{"prompt": []map[string]any{subagentStep("", cancellable)}})
@@ -121,6 +124,7 @@ func TestStopSubagentCommandCancelsTheStoppableSubagent(t *testing.T) {
 }
 
 func TestSubagentPermissionAsksInTheParentSession(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"after": []map[string]any{
 		subagentStep("", announce("sub-1", "run tests", "", map[string]any{"state": "running"})),
 		{"session": "sub-1", "permission": permissionScript()},

@@ -47,6 +47,7 @@ func (f *fixture) agentID(t *testing.T, workspace, session string) string {
 }
 
 func TestTurnCutOffByRestartContinues(t *testing.T) {
+	t.Parallel()
 	f := start(t, longTurn)
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -62,6 +63,7 @@ func TestTurnCutOffByRestartContinues(t *testing.T) {
 }
 
 func TestChildDoneWakesSuspendedParent(t *testing.T) {
+	t.Parallel()
 	f := startSuspending(t, map[string]any{"resume": true, "prompt": []map[string]any{{"match": "work", "sleep": 500}}})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -78,6 +80,7 @@ func TestChildDoneWakesSuspendedParent(t *testing.T) {
 }
 
 func TestChildrenDoneWakeParentOnce(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "plan", "sleep": 2000}}})
 	workspace := f.workspace(t, newRepo(t))
 	var lead struct {
@@ -100,6 +103,7 @@ func TestChildrenDoneWakeParentOnce(t *testing.T) {
 }
 
 func TestParentWaitingOnChildIsNotWoken(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 500}}})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -113,6 +117,7 @@ func TestParentWaitingOnChildIsNotWoken(t *testing.T) {
 }
 
 func TestChildQuestionGoesToParent(t *testing.T) {
+	t.Parallel()
 	ask := map[string]any{"match": "pick a store", "elicitation": askScript(false)}
 	f := start(t, map[string]any{"prompt": []map[string]any{ask, ask}})
 	workspace := f.workspace(t, newRepo(t))
@@ -140,6 +145,7 @@ func TestChildQuestionGoesToParent(t *testing.T) {
 }
 
 func TestChildSignInStaysWithUser(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "sign in", "elicitation": map[string]any{"mode": "url", "elicitationId": "e1", "url": "https://example.com/login", "message": "Sign in"}}}})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)

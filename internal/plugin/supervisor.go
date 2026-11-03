@@ -89,6 +89,7 @@ type Supervisor struct {
 	crashWindow time.Duration
 	onStop      func(id string)
 	resourceDir string
+	env         []string
 	bus         *bus.Bus
 	enabled     func(Manifest) bool
 
@@ -153,6 +154,10 @@ func WithOnStop(fn func(id string)) SupervisorOption {
 
 func WithResourcesDir(dir string) SupervisorOption {
 	return func(s *Supervisor) { s.resourceDir = dir }
+}
+
+func WithEnv(env ...string) SupervisorOption {
+	return func(s *Supervisor) { s.env = append(s.env, env...) }
 }
 
 func WithBus(b *bus.Bus) SupervisorOption {
@@ -413,7 +418,7 @@ func (s *Supervisor) spawn(m Manifest) (*process, error) {
 	defer stdoutW.Close()
 	cmd := exec.Command(m.Executable(), m.Command[1:]...)
 	cmd.Dir = m.Dir
-	cmd.Env = append(sessionhost.StripMarkers(os.Environ()), pluginIDEnv+"="+m.ID, runtimeDirEnv+"="+runtimeDir, stateDirEnv+"="+s.dirs.PluginState(m.ID), flavorEnv+"="+buildinfo.Flavor)
+	cmd.Env = append(append(sessionhost.StripMarkers(os.Environ()), s.env...), pluginIDEnv+"="+m.ID, runtimeDirEnv+"="+runtimeDir, stateDirEnv+"="+s.dirs.PluginState(m.ID), flavorEnv+"="+buildinfo.Flavor)
 	if s.resourceDir != "" {
 		cmd.Env = append(cmd.Env, resourcesEnv+"="+s.resourceDir)
 	}

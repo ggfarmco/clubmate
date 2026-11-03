@@ -18,6 +18,7 @@ import (
 var docsBase = time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
 
 func TestAgentDocsUnique(t *testing.T) {
+	t.Parallel()
 	var lines []string
 	for i := range 30 {
 		lines = append(lines, docLine(i, "", fmt.Sprintf("a%d", i), "/r/a.md"))
@@ -34,6 +35,7 @@ func TestAgentDocsUnique(t *testing.T) {
 }
 
 func TestAgentDocsPerSession(t *testing.T) {
+	t.Parallel()
 	s1 := docsSession(t, "s1", "ws",
 		docLine(1, "", "a", "/r/a.md"),
 		`{"turn":1,"ts":"`+docsBase.Add(2*time.Minute).Format(time.RFC3339)+`","kind":"session/update","payload":{"sessionUpdate":"subagent_update","sessionId":"sub-1","title":"plan","state":{"state":"running"}}}`,

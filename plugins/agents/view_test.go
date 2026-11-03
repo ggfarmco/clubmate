@@ -49,6 +49,7 @@ func rawJSON(t *testing.T, v any) json.RawMessage {
 }
 
 func TestSidebarGroupsByWorktree(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	rows := []sessionRow{
 		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Refunds", Status: statusWaiting}, Activity: "go test", Branch: branchLabel("(detached 03a9ff5f)"), Detached: true},
@@ -87,6 +88,7 @@ func menuActions(menu []sdui.MenuEntry) []string {
 }
 
 func TestSidebarExpandedClosedGroup(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	rows := []sessionRow{
 		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now}},
@@ -105,6 +107,7 @@ func TestSidebarExpandedClosedGroup(t *testing.T) {
 }
 
 func TestSidebarFilter(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	rows := []sessionRow{
 		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Refunds", Status: statusWaiting}, Since: now.Add(-time.Minute)},
@@ -143,6 +146,7 @@ func TestSidebarFilter(t *testing.T) {
 }
 
 func TestDoneAsksWhenLastAgentMessageIsQuestion(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		texts []string
 		want  string
@@ -169,6 +173,7 @@ func TestDoneAsksWhenLastAgentMessageIsQuestion(t *testing.T) {
 }
 
 func TestPermissionSummaryPrefersCommand(t *testing.T) {
+	t.Parallel()
 	at := time.Date(2026, 10, 31, 9, 41, 0, 0, time.UTC)
 	for _, tc := range []struct {
 		call string
@@ -184,6 +189,7 @@ func TestPermissionSummaryPrefersCommand(t *testing.T) {
 }
 
 func TestSidebarNestsChildren(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	rows := []sessionRow{
 		{Rec: record{ID: "agt_c", Worktree: "/r/b", lineage: lineage{ParentSession: "agt_p"}, Agent: agentClaude, Status: statusDone, Asks: true, UpdatedAt: now}},
@@ -210,6 +216,7 @@ func TestSidebarNestsChildren(t *testing.T) {
 }
 
 func TestSidebarNestsGraphRunSessions(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	run := &api.Run{ID: "gr_1", Title: "Review loop"}
 	rows := []sessionRow{
@@ -244,6 +251,7 @@ func TestSidebarNestsGraphRunSessions(t *testing.T) {
 }
 
 func TestRunningActivityElapsed(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	row := sessionRow{Rec: record{ID: "agt_1", Status: statusRunning}, Activity: "go test", Started: now.Add(-4 * time.Minute)}
 
@@ -253,6 +261,7 @@ func TestRunningActivityElapsed(t *testing.T) {
 }
 
 func TestAutoClosedActivity(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	rec := record{ID: "agt_1", Status: statusClosed, UpdatedAt: now.Add(-2 * time.Hour)}
 
@@ -262,6 +271,7 @@ func TestAutoClosedActivity(t *testing.T) {
 }
 
 func TestTickerRefreshesElapsedWhileRunning(t *testing.T) {
+	t.Parallel()
 	clock := &fakeClock{now: time.Unix(0, 0)}
 	row := sessionRow{Rec: record{ID: "agt_1", Status: statusRunning}, Started: clock.Now()}
 	var details []string
@@ -282,6 +292,7 @@ func TestTickerRefreshesElapsedWhileRunning(t *testing.T) {
 }
 
 func TestChildHeaderAndAgentMessage(t *testing.T) {
+	t.Parallel()
 	v := transcriptView{Session: record{ID: "agt_c", Worktree: "/r", Agent: agentClaude, Status: statusDone, lineage: lineage{ParentSession: "agt_p"}}}
 	v.Entries = []*entry{{Kind: entryUser, ID: "prompt-1", Turn: 1, Text: "do it", From: "agt_p"}, {Kind: entryUser, ID: "prompt-2", Turn: 2, Text: "again", From: unknownCaller}}
 
@@ -303,6 +314,7 @@ func TestChildHeaderAndAgentMessage(t *testing.T) {
 }
 
 func TestVoicePromptRendersHeard(t *testing.T) {
+	t.Parallel()
 	text := `{"utterance":"vu_1","heard":"открой бэклог","context":{"section":"agents"}}`
 	v := transcriptView{Session: record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, Status: statusDone}, Entries: []*entry{{Kind: entryUser, ID: "prompt-1", Turn: 1, Text: text, Voice: &voicePrompt{Heard: "открой бэклог", Utterance: "vu_1"}}}}
 
@@ -316,6 +328,7 @@ func TestVoicePromptRendersHeard(t *testing.T) {
 }
 
 func TestTranscriptWindowAndShowEarlier(t *testing.T) {
+	t.Parallel()
 	v := transcriptView{Session: record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, Status: statusDone}}
 	for turn := 1; turn <= 45; turn++ {
 		n := strconv.Itoa(turn)
@@ -358,6 +371,7 @@ func TestTranscriptWindowAndShowEarlier(t *testing.T) {
 }
 
 func TestPlanOnly(t *testing.T) {
+	t.Parallel()
 	for text, want := range map[string]bool{
 		"## Plan\n\n1. Read\n2. Edit\n":             true,
 		"**Plan:**\n- [ ] Read\n  - nested\n- Edit": true,
@@ -373,6 +387,7 @@ func TestPlanOnly(t *testing.T) {
 }
 
 func TestPlanOnlyMessageFoldsIntoFollowingPlan(t *testing.T) {
+	t.Parallel()
 	plan := rawJSON(t, map[string]any{"sessionUpdate": "plan", "entries": []map[string]string{{"content": "Read", "status": "completed"}, {"content": "Edit", "status": "pending"}}})
 	v := transcriptView{Session: record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, Status: statusDone}}
 	v.Entries = []*entry{
@@ -399,6 +414,7 @@ func TestPlanOnlyMessageFoldsIntoFollowingPlan(t *testing.T) {
 }
 
 func TestInstallingNotice(t *testing.T) {
+	t.Parallel()
 	v := transcriptView{Session: record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, Status: statusIdle}}
 	tree := mainView(screen{View: v, Installing: true, Composer: "agt_1/composer/0"})
 	require.NoError(t, internalsdui.Validate(tree))
@@ -411,6 +427,7 @@ func TestInstallingNotice(t *testing.T) {
 }
 
 func TestHugeToolOutputRendersTruncated(t *testing.T) {
+	t.Parallel()
 	output := strings.Repeat(strings.Repeat("x", 99)+"\n", 50_000)
 	tool := map[string]json.RawMessage{
 		"title":    rawJSON(t, "go test ./..."),
@@ -447,6 +464,7 @@ func TestHugeToolOutputRendersTruncated(t *testing.T) {
 }
 
 func TestOpenOutputOnlyWhenBodyWouldScroll(t *testing.T) {
+	t.Parallel()
 	execute := func(lines int) map[string]json.RawMessage {
 		return map[string]json.RawMessage{
 			"kind":    rawJSON(t, "execute"),
@@ -469,6 +487,7 @@ func TestOpenOutputOnlyWhenBodyWouldScroll(t *testing.T) {
 }
 
 func TestToolPathsRelativeToWorktree(t *testing.T) {
+	t.Parallel()
 	tool := map[string]json.RawMessage{
 		"title":   rawJSON(t, "Edit `/r/a/pkg/x.go`"),
 		"kind":    rawJSON(t, "edit"),
@@ -546,6 +565,7 @@ func (c *fakeClock) advance(d time.Duration) {
 }
 
 func TestRenderThrottle(t *testing.T) {
+	t.Parallel()
 	clock := &fakeClock{now: time.Unix(0, 0)}
 	var renders, lastRender int
 	th := newThrottle(clock, renderEvery, func() {
@@ -565,6 +585,7 @@ func TestRenderThrottle(t *testing.T) {
 }
 
 func TestConfigPickers(t *testing.T) {
+	t.Parallel()
 	var configs []acp.SessionConfigOption
 	require.NoError(t, json.Unmarshal([]byte(`[
 		{"id":"mode","name":"Mode","category":"mode","type":"select","currentValue":"plan","options":[{"value":"plan","name":"Plan"}]},
@@ -587,6 +608,7 @@ func TestConfigPickers(t *testing.T) {
 }
 
 func TestComposerClipsCommandDescriptions(t *testing.T) {
+	t.Parallel()
 	long := strings.Repeat("é", commandRunes+50)
 	v := transcriptView{
 		Session:  record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, Status: statusIdle},
@@ -601,6 +623,7 @@ func TestComposerClipsCommandDescriptions(t *testing.T) {
 }
 
 func TestPromptBlocksImage(t *testing.T) {
+	t.Parallel()
 	args := promptArgs{Text: "look", Attachments: []attachment{{Kind: "image", MimeType: "image/jpeg", Data: "AAAA"}}}
 	assert.Equal(t, []acp.ContentBlock{{Type: "text", Text: "look"}, {Type: "image", Data: "AAAA", MimeType: "image/jpeg"}}, promptBlocks(args, "/r", acp.PromptCapabilities{Image: true}))
 	assert.Equal(t, []acp.ContentBlock{{Type: "text", Text: "look"}, {Type: "text", Text: imageOmitted}}, promptBlocks(args, "/r", acp.PromptCapabilities{}))
@@ -609,12 +632,14 @@ func TestPromptBlocksImage(t *testing.T) {
 }
 
 func TestDropImageData(t *testing.T) {
+	t.Parallel()
 	entries := []*entry{{Kind: entryUser, Content: []json.RawMessage{rawJSON(t, acp.ContentBlock{Type: "text", Text: "see"}), rawJSON(t, acp.ContentBlock{Type: "image", Data: "AAAA", MimeType: "image/jpeg"})}}}
 	dropImageData(entries)
 	assert.JSONEq(t, `{"type":"image","mimeType":"image/jpeg"}`, string(entries[0].Content[1]))
 }
 
 func TestChildStatusesAggregateActiveDescendants(t *testing.T) {
+	t.Parallel()
 	recs := []record{
 		{ID: "agt_p", Status: statusDone},
 		{ID: "agt_c", Status: statusIdle, lineage: lineage{ParentSession: "agt_p"}},
@@ -630,6 +655,7 @@ func TestChildStatusesAggregateActiveDescendants(t *testing.T) {
 }
 
 func TestSidebarShowsParentWaitingForChildren(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	for _, tc := range []struct {
 		children, icon, tone, detail string
@@ -650,6 +676,7 @@ func TestSidebarShowsParentWaitingForChildren(t *testing.T) {
 }
 
 func TestHeaderShowsAFKAndWaitingForChildren(t *testing.T) {
+	t.Parallel()
 	v := transcriptView{Session: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, AFK: true}}
 
 	tree := mainView(screen{View: v, Children: statusRunning, Composer: "agt_p/composer/0"})
@@ -659,6 +686,7 @@ func TestHeaderShowsAFKAndWaitingForChildren(t *testing.T) {
 }
 
 func TestPendingPermissionDocksAboveTheComposer(t *testing.T) {
+	t.Parallel()
 	call := rawJSON(t, map[string]string{"title": "go test", "kind": "execute"})
 	options := []acp.PermissionOption{{OptionID: "always", Name: "Always Allow", Kind: "allow_always"}, {OptionID: "allow", Name: "Allow", Kind: "allow_once"}, {OptionID: "deny", Name: "Reject", Kind: "reject_once"}}
 	v := transcriptView{
@@ -686,6 +714,7 @@ func TestPendingPermissionDocksAboveTheComposer(t *testing.T) {
 }
 
 func TestToolCardFollowsToolUpdates(t *testing.T) {
+	t.Parallel()
 	s := newSession(record{}, nil, true, nil)
 	s.running = true
 	status := func() any {
@@ -705,6 +734,7 @@ func TestToolCardFollowsToolUpdates(t *testing.T) {
 }
 
 func TestCodePanelHeaderAndStarters(t *testing.T) {
+	t.Parallel()
 	rec := record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusIdle}
 	idle := screen{View: transcriptView{Session: rec}, Composer: "agt_1/composer/0", Branch: "docs/design-brief"}
 	tree := codeView([]record{rec}, "agt_1", &idle, "/r/a/internal/notify/notify.go")
@@ -729,6 +759,7 @@ func TestCodePanelHeaderAndStarters(t *testing.T) {
 }
 
 func TestCodePanelOnUnstartedGraphStep(t *testing.T) {
+	t.Parallel()
 	coderRun := &api.Run{ID: "gr_1", Title: "Review loop", After: []api.RunAfter{{Role: "Reviewer", On: "outcome", Outcome: "changes"}}}
 	reviewerRun := &api.Run{ID: "gr_1", Title: "Review loop", After: []api.RunAfter{{Role: "Coder", On: "done"}, {Role: "Coder", On: "error"}}}
 	coder := record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Review loop · Coder", Status: statusWaiting, Run: coderRun, CreatedAt: time.Unix(1, 0)}
@@ -760,11 +791,13 @@ func TestCodePanelOnUnstartedGraphStep(t *testing.T) {
 }
 
 func TestStepNoteNamesEveryIncomingEdge(t *testing.T) {
+	t.Parallel()
 	after := []api.RunAfter{{Role: "Reviewer", On: "outcome", Outcome: "changes"}, {Role: "Tester", On: "asks"}}
 	assert.Equal(t, "It starts on its own when Reviewer says changes or Tester asks a question, and gets their result. You can write here once it has run.", stepNoteFor(after))
 }
 
 func TestDefaultCodeSessionSkipsGraphSteps(t *testing.T) {
+	t.Parallel()
 	step := record{ID: "agt_1", Status: statusWaiting, Run: &api.Run{ID: "gr_1"}, UpdatedAt: time.Unix(9, 0)}
 	older := record{ID: "agt_2", Status: statusDone, UpdatedAt: time.Unix(1, 0)}
 	newer := record{ID: "agt_3", Status: statusIdle, UpdatedAt: time.Unix(5, 0)}
@@ -774,6 +807,7 @@ func TestDefaultCodeSessionSkipsGraphSteps(t *testing.T) {
 }
 
 func TestEntryNodeCachedUntilEntryChanges(t *testing.T) {
+	t.Parallel()
 	s := newSession(record{ID: "agt_1"}, nil, true, nil)
 	chunk := func(text string) {
 		s.applyUpdate(1, rawJSON(t, map[string]any{"sessionUpdate": acp.UpdateAgentMessageChunk, "content": map[string]string{"type": "text", "text": text}}))
@@ -792,6 +826,7 @@ func TestEntryNodeCachedUntilEntryChanges(t *testing.T) {
 }
 
 func TestFailedSessionReadsInWords(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		err, detail, badge, line string
 	}{
@@ -816,6 +851,7 @@ func TestFailedSessionReadsInWords(t *testing.T) {
 }
 
 func TestFailedSessionOffersTheMacButtonsAsActions(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		needsAuth, cannotResume bool
 		id, label, command      string
@@ -840,6 +876,7 @@ func TestFailedSessionOffersTheMacButtonsAsActions(t *testing.T) {
 }
 
 func TestSidebarNeverFoldsSessionThatNeedsYou(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	rows := []sessionRow{
 		{Rec: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusRunning}},
@@ -857,6 +894,7 @@ func TestSidebarNeverFoldsSessionThatNeedsYou(t *testing.T) {
 }
 
 func TestSidebarFoldsServiceSessions(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	rows := []sessionRow{
 		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusRunning}},
@@ -885,6 +923,7 @@ func TestSidebarFoldsServiceSessions(t *testing.T) {
 }
 
 func TestChildAskingParentShowsAsAskingParent(t *testing.T) {
+	t.Parallel()
 	parent := record{ID: "agt_p", Status: statusDone}
 	kid := record{ID: "agt_c", Status: statusWaiting, AsksParent: true, lineage: lineage{ParentSession: "agt_p"}}
 
@@ -896,6 +935,7 @@ func TestChildAskingParentShowsAsAskingParent(t *testing.T) {
 }
 
 func TestThoughtCarriesItsDuration(t *testing.T) {
+	t.Parallel()
 	at := time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
 	v := transcriptView{
 		Session: record{ID: "agt_1", Agent: agentClaude, Status: statusRunning},
@@ -918,6 +958,7 @@ func TestThoughtCarriesItsDuration(t *testing.T) {
 }
 
 func TestSessionHeaderNamesStatusAgentBranchAndMode(t *testing.T) {
+	t.Parallel()
 	v := transcriptView{
 		Session: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Rate-limit", Status: statusWaiting, Mode: "default"},
 		Modes:   []acp.SessionMode{{ID: "default", Name: "Default"}},
@@ -932,6 +973,7 @@ func TestSessionHeaderNamesStatusAgentBranchAndMode(t *testing.T) {
 }
 
 func TestPermissionCardForACommand(t *testing.T) {
+	t.Parallel()
 	call := rawJSON(t, map[string]any{"title": "go test ./internal/notify/...", "kind": "execute", "rawInput": map[string]string{"command": "go test ./internal/notify/...", "description": "Run the notify tests"}})
 	options := []acp.PermissionOption{
 		{OptionID: "reject", Name: "No", Kind: "reject_once"},
@@ -953,6 +995,7 @@ func TestPermissionCardForACommand(t *testing.T) {
 }
 
 func TestComposerPlaceholderFollowsState(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		rec     record
 		pending map[string]bool
@@ -972,12 +1015,14 @@ func TestComposerPlaceholderFollowsState(t *testing.T) {
 }
 
 func TestShownPromptDropsIDs(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, `[Clubmate] Child "Fix tests" is done.`, shownPrompt(`[Clubmate] Child "Fix tests" (agt_a928b82b8bcb94ab) is done.`))
 	head := fmt.Sprintf(handoffHead, "Old", "agt_0123abcd", "/r/a", "agt_0123abcd")
 	assert.Equal(t, `[Clubmate handoff] You continue agent session "Old" in /r/a; it is closed now.`, shownPrompt(head))
 }
 
 func TestReviewStatusYieldsToAsks(t *testing.T) {
+	t.Parallel()
 	rec := record{ID: "agt_1", Status: statusDone, Review: true}
 
 	assert.Equal(t, statusReview, displayStatus(rec, ""))
@@ -987,6 +1032,7 @@ func TestReviewStatusYieldsToAsks(t *testing.T) {
 }
 
 func TestViewShortcutsDeclared(t *testing.T) {
+	t.Parallel()
 	options := make([]elicitOption, maxOptionShortcut+1)
 	for i := range options {
 		options[i] = elicitOption{Value: strconv.Itoa(i), Label: strconv.Itoa(i)}

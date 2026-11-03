@@ -11,6 +11,7 @@ import (
 )
 
 func TestUsageMergesRateLimitReportsAndSurvivesRestart(t *testing.T) {
+	t.Parallel()
 	rateLimit := func(info map[string]any) map[string]any {
 		return map[string]any{"update": map[string]any{"sessionUpdate": "usage_update", "used": 10, "size": 100, "_meta": map[string]any{"_claude/rateLimit": info}}}
 	}

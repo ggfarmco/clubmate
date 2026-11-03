@@ -15,9 +15,9 @@ import (
 )
 
 func TestDoneTreeClosesItselfUnlessItAsksOrOwnsJobs(t *testing.T) {
+	t.Parallel()
 	const after = 300 * time.Millisecond
-	t.Setenv("CLUBMATE_AGENTS_CLOSE_AFTER", after.String())
-	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}},
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_CLOSE_AFTER=" + after.String()}, map[string]any{"prompt": []map[string]any{{"echo": true}}},
 		testutil.BuildPluginDir(t, "clubmate/plugins/cron", "plugins/cron/plugin.json"),
 		testutil.BuildPluginDir(t, "clubmate/plugins/triggers", "plugins/triggers/plugin.json"))
 	workspace := f.workspace(t, newRepo(t))
@@ -53,10 +53,10 @@ func closeActor(t *testing.T, lines []map[string]json.RawMessage) string {
 }
 
 func TestChangedAskSessionWaitsForReviewBeforeClosing(t *testing.T) {
+	t.Parallel()
 	const after = 2 * time.Second
-	t.Setenv("CLUBMATE_AGENTS_CLOSE_AFTER", after.String())
 	repo := newRepo(t)
-	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}},
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_CLOSE_AFTER=" + after.String()}, map[string]any{"prompt": []map[string]any{{"echo": true}}},
 		testutil.BuildPluginDir(t, "clubmate/plugins/cron", "plugins/cron/plugin.json"),
 		testutil.BuildPluginDir(t, "clubmate/plugins/triggers", "plugins/triggers/plugin.json"))
 	workspace := f.workspace(t, repo)

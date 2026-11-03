@@ -16,6 +16,7 @@ import (
 )
 
 func TestReplayedEntriesCarryTheirLogTimes(t *testing.T) {
+	t.Parallel()
 	base := time.Date(2026, 10, 31, 9, 41, 0, 0, time.UTC)
 	lines := []string{
 		`{"turn":1,"ts":"2026-10-31T09:41:00Z","kind":"session/prompt","payload":{"prompt":[{"type":"text","text":"go"}]}}`,
@@ -38,6 +39,7 @@ func TestReplayedEntriesCarryTheirLogTimes(t *testing.T) {
 }
 
 func TestViewSinceReturnsOnlyEntriesChangedAfterTheCursor(t *testing.T) {
+	t.Parallel()
 	lines := []string{
 		`{"turn":1,"kind":"session/prompt","payload":{"prompt":[{"type":"text","text":"go"}]}}`,
 		`{"turn":1,"kind":"session/update","payload":{"sessionUpdate":"tool_call","toolCallId":"t1","title":"Read","status":"pending"}}`,
@@ -79,6 +81,7 @@ func TestViewSinceReturnsOnlyEntriesChangedAfterTheCursor(t *testing.T) {
 }
 
 func TestDocOnlyForCompletedDocTools(t *testing.T) {
+	t.Parallel()
 	tool := func(update, id, status string, rest string) string {
 		return `{"turn":1,"kind":"session/update","payload":{"sessionUpdate":"` + update + `","toolCallId":"` + id + `","kind":"edit","status":"` + status + `"` + rest + `}}`
 	}
@@ -150,6 +153,7 @@ func TestDocLinksResolveWhenTheTurnEnds(t *testing.T) {
 }
 
 func TestDocCardsListMentionedDocsInOrder(t *testing.T) {
+	t.Parallel()
 	wt, other := t.TempDir(), t.TempDir()
 	files := map[string]string{
 		filepath.Join(wt, "docs", "plan.md"):    "intro\n\n# Retry plan\n",
@@ -177,6 +181,7 @@ func TestDocCardsListMentionedDocsInOrder(t *testing.T) {
 }
 
 func TestPresentedDocsAreMarkedAndAddedWhenTheTurnEnds(t *testing.T) {
+	t.Parallel()
 	wt := t.TempDir()
 	for _, name := range []string{"spec.md", "notes.md", "report.html", "later.md"} {
 		require.NoError(t, os.WriteFile(filepath.Join(wt, name), []byte("# "+name+"\n"), 0o600))

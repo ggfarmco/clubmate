@@ -46,6 +46,7 @@ func elicitationForm(t *testing.T, f *fixture, workspace string) sdui.Node {
 }
 
 func TestElicitationOptionPick(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"elicitation": askScript(false)}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -80,6 +81,7 @@ func TestElicitationOptionPick(t *testing.T) {
 }
 
 func TestElicitationFormSubmit(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"elicitation": askScript(true)}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -98,6 +100,7 @@ func TestElicitationFormSubmit(t *testing.T) {
 }
 
 func TestElicitationCancelledWithTurn(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"elicitation": askScript(false)}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -112,6 +115,7 @@ func TestElicitationCancelledWithTurn(t *testing.T) {
 }
 
 func TestElicitationURLCompletes(t *testing.T) {
+	t.Parallel()
 	signIn := map[string]any{"mode": "url", "message": "Authenticate with MCP server linear", "url": "https://example.com/auth", "elicitationId": "e1"}
 	f := start(t, map[string]any{"prompt": []map[string]any{{"elicitation": signIn, "complete": "e1"}}})
 	workspace := f.workspace(t, newRepo(t))
@@ -124,6 +128,7 @@ func TestElicitationURLCompletes(t *testing.T) {
 }
 
 func TestElicitationRemoteDecline(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"elicitation": askScript(false)}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)

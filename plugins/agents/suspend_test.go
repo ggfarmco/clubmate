@@ -17,8 +17,7 @@ const suspendAfter = 300 * time.Millisecond
 
 func startSuspending(t *testing.T, script map[string]any) *fixture {
 	t.Helper()
-	t.Setenv("CLUBMATE_AGENTS_SUSPEND_AFTER", suspendAfter.String())
-	return start(t, script)
+	return startEnv(t, []string{"CLUBMATE_AGENTS_SUSPEND_AFTER=" + suspendAfter.String()}, script)
 }
 
 func suspendedSession(t *testing.T, script map[string]any) (*fixture, string, string) {
@@ -34,6 +33,7 @@ func suspendedSession(t *testing.T, script map[string]any) (*fixture, string, st
 }
 
 func TestIdleSessionSuspendsAndResumesOnPrompt(t *testing.T) {
+	t.Parallel()
 	f, workspace, session := suspendedSession(t, map[string]any{"resume": true})
 	got := f.session(t, workspace, session)
 	assert.Equal(t, "done", got.Status)
@@ -53,6 +53,7 @@ func TestIdleSessionSuspendsAndResumesOnPrompt(t *testing.T) {
 }
 
 func TestSuspendedSessionKeepsMode(t *testing.T) {
+	t.Parallel()
 	f, workspace, session := suspendedSession(t, map[string]any{
 		"resume": true,
 		"modes":  map[string]any{"currentModeId": "default", "availableModes": []map[string]string{{"id": "default", "name": "Manual"}, {"id": "plan", "name": "Plan"}}},
@@ -70,6 +71,7 @@ func TestSuspendedSessionKeepsMode(t *testing.T) {
 }
 
 func TestWaitOnSuspendedChild(t *testing.T) {
+	t.Parallel()
 	f := startSuspending(t, map[string]any{"resume": true})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -89,6 +91,7 @@ func TestWaitOnSuspendedChild(t *testing.T) {
 }
 
 func TestBackgroundShellDelaysSuspend(t *testing.T) {
+	t.Parallel()
 	f := startSuspending(t, map[string]any{"resume": true, "prompt": []map[string]any{{"shell": "while :; do sleep 0.1; done"}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -105,6 +108,7 @@ func TestBackgroundShellDelaysSuspend(t *testing.T) {
 }
 
 func TestIdleSessionKeepsAgent(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		script map[string]any
@@ -115,6 +119,7 @@ func TestIdleSessionKeepsAgent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			f := startSuspending(t, tt.script)
 			workspace := f.workspace(t, newRepo(t))
 			session := f.newSession(t, workspace)

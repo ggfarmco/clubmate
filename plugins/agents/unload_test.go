@@ -11,6 +11,7 @@ import (
 )
 
 func TestUnloadedTranscriptReadsBackAndResendsEveryEntry(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "s.jsonl")
 	require.NoError(t, os.WriteFile(path, []byte(`{"turn":1,"kind":"session/prompt","payload":{"prompt":[{"type":"text","text":"go"}]}}`+"\n"), 0o600))
 	s := newSession(record{}, newEventLog(path), false, func(string, bool) {})

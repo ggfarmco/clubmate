@@ -13,6 +13,7 @@ import (
 )
 
 func TestUsageKeepsLatestAndCostAndWarnsInHeader(t *testing.T) {
+	t.Parallel()
 	usage := func(used int, cost any) map[string]any {
 		u := map[string]any{"sessionUpdate": "usage_update", "used": used, "size": 200000}
 		if cost != nil {
@@ -51,6 +52,7 @@ func TestUsageKeepsLatestAndCostAndWarnsInHeader(t *testing.T) {
 }
 
 func TestCompactionIsOneEntryWithItsSummary(t *testing.T) {
+	t.Parallel()
 	compaction := func(fields map[string]any) map[string]any {
 		fields["compactionId"] = "c1"
 		return map[string]any{"update": fields}
@@ -94,6 +96,7 @@ func TestCompactionIsOneEntryWithItsSummary(t *testing.T) {
 }
 
 func TestBooleanConfigOptionIsAToggleSentTypedAndRestored(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"configs": []map[string]any{
 		{"id": "fast", "name": "Fast mode", "category": "model_config", "type": "boolean", "currentValue": false},
 	}})

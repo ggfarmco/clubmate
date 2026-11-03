@@ -40,6 +40,7 @@ var (
 )
 
 func TestCompanionFixtures(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	write(t, filepath.Join(repo, "cart.go"), "func total(items []Item) int {\n\treturn sum(items)\n}\n")
 	f := start(t, companionScript(repo))

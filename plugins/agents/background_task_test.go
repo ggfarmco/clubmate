@@ -21,7 +21,7 @@ func followUp(delay int) []map[string]any {
 	return []map[string]any{
 		{"sleep": delay},
 		{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "CI is green"}}},
-		{"sleep": 500},
+		{"sleep": 1500},
 		{"update": map[string]any{"sessionUpdate": "usage_update", "used": 1, "size": 10, "cost": map[string]any{"amount": 1, "currency": "USD"}}},
 	}
 }
@@ -36,6 +36,7 @@ func endedTurn(t *testing.T, f *fixture, workspace, session string) record {
 }
 
 func TestBackgroundTaskKeepsSessionRunningUntilFollowUpEnds(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{
 		"prompt": []map[string]any{backgroundCall("b1"), {"shell": "sleep 30; :"}},
 		"after":  followUp(1500),
@@ -49,7 +50,8 @@ func TestBackgroundTaskKeepsSessionRunningUntilFollowUpEnds(t *testing.T) {
 }
 
 func TestAgentFollowUpWithoutPromptRuns(t *testing.T) {
-	f := start(t, map[string]any{"after": followUp(800)})
+	t.Parallel()
+	f := start(t, map[string]any{"after": followUp(2000)})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
 	f.prompt(t, workspace, session, "go")
@@ -60,6 +62,7 @@ func TestAgentFollowUpWithoutPromptRuns(t *testing.T) {
 }
 
 func TestFinishedBackgroundTaskEndsTurnDone(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{backgroundCall("b1")}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -69,6 +72,7 @@ func TestFinishedBackgroundTaskEndsTurnDone(t *testing.T) {
 }
 
 func TestCancelStopsWaitingForBackgroundTask(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{backgroundCall("b1"), {"shell": "sleep 30; :"}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)

@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/bus"
+	"clubmate/internal/plugin"
 	"clubmate/internal/rpc"
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/session"
@@ -117,6 +118,8 @@ type fakeCall struct {
 	Params json.RawMessage `json:"params"`
 }
 
+var harnesses = make(chan struct{}, 6)
+
 type fixture struct {
 	h       *testutil.PluginHarness
 	fakeLog string
@@ -126,6 +129,7 @@ type fixture struct {
 func TestMain(m *testing.M) {
 	os.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
 	os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	os.Setenv("SHELL", "/bin/sh")
 	os.Exit(m.Run())
 }
 
@@ -156,15 +160,25 @@ func write(t *testing.T, path, content string) {
 
 func start(t *testing.T, script map[string]any, dirs ...string) *fixture {
 	t.Helper()
+	return startEnv(t, nil, script, dirs...)
+}
+
+func startEnv(t *testing.T, env []string, script map[string]any, dirs ...string) *fixture {
+	t.Helper()
 	raw, err := json.Marshal(script)
 	require.NoError(t, err)
 	scriptPath := filepath.Join(t.TempDir(), "script.json")
 	require.NoError(t, os.WriteFile(scriptPath, raw, 0o600))
 	f := &fixture{fakeLog: filepath.Join(t.TempDir(), "fake.jsonl"), subs: map[string]string{}}
-	t.Setenv("CLUBMATE_AGENTS_COMMAND", testutil.BuildBinary(t, "clubmate/plugins/agents/internal/fakeagent"))
-	t.Setenv("FAKEAGENT_SCRIPT", scriptPath)
-	t.Setenv("FAKEAGENT_LOG", f.fakeLog)
-	f.h = testutil.NewPluginHarness(t, append([]string{testutil.BuildPluginDir(t, "clubmate/plugins/agents", "plugins/agents/plugin.json")}, dirs...)...)
+	env = append([]string{
+		"CLUBMATE_AGENTS_COMMAND=" + testutil.BuildBinary(t, "clubmate/plugins/agents/internal/fakeagent"),
+		"FAKEAGENT_SCRIPT=" + scriptPath,
+		"FAKEAGENT_LOG=" + f.fakeLog,
+	}, env...)
+	harnesses <- struct{}{}
+	t.Cleanup(func() { <-harnesses })
+	f.h = testutil.NewHarness(t, plugin.WithEnv(env...))
+	f.h.Start(t, append([]string{testutil.BuildPluginDir(t, "clubmate/plugins/agents", "plugins/agents/plugin.json")}, dirs...)...)
 	f.waitReady(t, restartWait)
 	return f
 }
@@ -355,6 +369,7 @@ func permissionScript() map[string]any {
 }
 
 func TestNewTitleSurvivesAgentTitle(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{
 		{"update": map[string]any{"sessionUpdate": "session_info_update", "title": "Agent title"}},
 	}})
@@ -367,6 +382,7 @@ func TestNewTitleSurvivesAgentTitle(t *testing.T) {
 }
 
 func TestAgentTitleIgnoresSenderTitle(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{
 		{"update": map[string]any{"sessionUpdate": "session_info_update", "title": "orchestrate"}},
 	}})
@@ -381,6 +397,7 @@ func TestAgentTitleIgnoresSenderTitle(t *testing.T) {
 }
 
 func TestPromptStreamsAndLogs(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	toolCall := map[string]any{
 		"sessionUpdate": "tool_call", "toolCallId": "e1", "title": "Edit a.go", "kind": "edit", "status": "pending",
@@ -454,6 +471,7 @@ func TestPromptStreamsAndLogs(t *testing.T) {
 }
 
 func TestStoppedTranscriptClosesOpenToolsWithoutRawOutputAndCompactDropsImages(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{
 		{"update": map[string]any{"sessionUpdate": "tool_call", "toolCallId": "w1", "title": "Wait", "kind": "other", "status": "in_progress", "rawOutput": "partial", "_meta": map[string]any{"claudeCode": map[string]any{"toolResponse": "partial"}},
 			"content": []map[string]any{{"type": "content", "content": map[string]any{"type": "image", "data": "AAAA", "mimeType": "image/png"}}, {"type": "content", "content": map[string]any{"type": "text", "text": "seen"}}}}},
@@ -477,6 +495,7 @@ func TestStoppedTranscriptClosesOpenToolsWithoutRawOutputAndCompactDropsImages(t
 }
 
 func TestTranscriptLastKeepsOnlyTheLastTurnWithoutCatalogs(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{
 		"prompt":   []map[string]any{{"echo": true}},
 		"modes":    map[string]any{"currentModeId": "default", "availableModes": []map[string]string{{"id": "default", "name": "Manual"}}},
@@ -504,6 +523,7 @@ func TestTranscriptLastKeepsOnlyTheLastTurnWithoutCatalogs(t *testing.T) {
 }
 
 func TestReaderNeverBlocks(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"burst": 5000}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -526,6 +546,7 @@ func TestReaderNeverBlocks(t *testing.T) {
 }
 
 func TestDocsAnAgentOpensOrPresentsBecomePresentedCards(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	for _, name := range []string{"spec.md", "plan.md"} {
 		write(t, filepath.Join(repo, name), "# "+name+"\n")
@@ -550,6 +571,7 @@ func TestDocsAnAgentOpensOrPresentsBecomePresentedCards(t *testing.T) {
 }
 
 func TestPermissionOutsidePrompt(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"after": []map[string]any{{"permission": permissionScript()}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -567,6 +589,7 @@ func TestPermissionOutsidePrompt(t *testing.T) {
 }
 
 func TestAnsweredPermissionPublishesResolved(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"after": []map[string]any{{"permission": permissionScript()}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -575,12 +598,18 @@ func TestAnsweredPermissionPublishesResolved(t *testing.T) {
 	f.waitStatus(t, workspace, session, "waiting")
 	perms := ofKind(f.transcript(t, workspace, session).Entries, "permission")
 	require.Len(t, perms, 1)
+	testutil.Eventually(t, func() bool {
+		events, err := f.h.Bus.Read(t.Context(), "notify.posted", 0, 100)
+		require.NoError(t, err)
+		return len(events) > 0
+	}, wait)
 	f.answerPermission(t, workspace, session, perms[0].ID)
 
 	f.waitResolved(t, api.Changed{Workspace: workspace, Session: session, Kind: api.ChangeResolved, Request: perms[0].ID, RequestKind: api.RequestPermission})
 }
 
 func TestPendingRequestsPostNotifications(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}, {"elicitation": askScript(false)}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -630,6 +659,7 @@ func (f *fixture) waitResolved(t *testing.T, want api.Changed) {
 }
 
 func TestCancelAnswersPendingPermission(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -647,6 +677,7 @@ func TestCancelAnswersPendingPermission(t *testing.T) {
 }
 
 func TestAgentCrash(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{
 		{"child": true},
 		{"stderr": "fatal: adapter blew up"},
@@ -674,6 +705,7 @@ func TestAgentCrash(t *testing.T) {
 }
 
 func TestTwoWorktrees(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	tree := filepath.Join(t.TempDir(), "feat")
 	git(t, repo, "worktree", "add", "-q", "-b", "feat", tree)
@@ -699,6 +731,7 @@ func TestTwoWorktrees(t *testing.T) {
 }
 
 func TestWorkspacesOnOneRootGetOwnAgents(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	f := start(t, map[string]any{})
 	first, second := f.workspace(t, repo), f.workspace(t, repo)
@@ -723,6 +756,7 @@ func TestWorkspacesOnOneRootGetOwnAgents(t *testing.T) {
 }
 
 func TestCheckpointPerTurn(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	write(t, filepath.Join(repo, "a.go"), "two\n")
 	write(t, filepath.Join(repo, "b.go"), "staged\n")
@@ -768,6 +802,7 @@ func (f *fixture) restartPlugin(t *testing.T, workspace string) {
 }
 
 func TestResume(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"resume": true})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -799,6 +834,7 @@ func TestResume(t *testing.T) {
 }
 
 func TestUnpromptedSessionStartsFreshAfterRestart(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"resume": true})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -813,6 +849,7 @@ func TestUnpromptedSessionStartsFreshAfterRestart(t *testing.T) {
 }
 
 func TestFailedAttachKeepsPrompt(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -830,6 +867,7 @@ func TestFailedAttachKeepsPrompt(t *testing.T) {
 }
 
 func TestModeAndCommands(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{
 		"modes":    map[string]any{"currentModeId": "default", "availableModes": []map[string]string{{"id": "default", "name": "Manual"}, {"id": "plan", "name": "Plan"}}},
 		"commands": []map[string]string{{"name": "review", "description": "Review the diff"}},
@@ -855,6 +893,7 @@ func TestModeAndCommands(t *testing.T) {
 }
 
 func TestConfigOptionsAndAdvisor(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"configs": []map[string]any{
 		{"id": "mode", "name": "Mode", "category": "mode", "type": "select", "currentValue": "default", "options": []map[string]string{{"value": "default", "name": "Manual"}}},
 		{"id": "model", "name": "Model", "category": "model", "type": "select", "currentValue": "default", "options": []map[string]string{{"value": "default", "name": "Default"}, {"value": "opus", "name": "Opus"}}},
@@ -897,6 +936,7 @@ func TestConfigOptionsAndAdvisor(t *testing.T) {
 }
 
 func TestFinishMode(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	first := f.newSession(t, workspace)
@@ -920,6 +960,7 @@ func TestFinishMode(t *testing.T) {
 }
 
 func TestSettingsViewFinishDefault(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	view := func() string {
@@ -944,6 +985,7 @@ func TestSettingsViewFinishDefault(t *testing.T) {
 }
 
 func TestAFKMode(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	require.NoError(t, f.run(t, workspace, "agents.afk-default", map[string]any{"on": true}, nil))
@@ -959,6 +1001,9 @@ func TestAFKMode(t *testing.T) {
 
 	afk := map[string]bool{}
 	for _, c := range f.calls(t, "session/prompt") {
+		if strings.Contains(string(c.Params), "[Clubmate] Child") {
+			continue
+		}
 		for _, text := range []string{"while away", "after return"} {
 			if strings.Contains(string(c.Params), text) {
 				afk[text] = strings.Contains(string(c.Params), "[Clubmate AFK mode]")
@@ -972,6 +1017,7 @@ func TestAFKMode(t *testing.T) {
 }
 
 func TestAFKOnMidTurnSteersRunningSessions(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"steering": true, "prompt": []map[string]any{{"sleep": 3000}}})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -1001,6 +1047,7 @@ func TestAFKOnMidTurnSteersRunningSessions(t *testing.T) {
 }
 
 func TestDeleteDuringTurn(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 1500}}})
 	workspace := f.workspace(t, repo)
@@ -1021,6 +1068,7 @@ func TestDeleteDuringTurn(t *testing.T) {
 }
 
 func TestPermissionAfterAgentRestart(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"resume": true, "prompt": []map[string]any{{"permission": permissionScript()}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -1047,6 +1095,7 @@ func TestPermissionAfterAgentRestart(t *testing.T) {
 }
 
 func TestDeleteWorkspaceDeletesSessions(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	f := start(t, map[string]any{})
 	workspace := f.workspace(t, repo)
@@ -1069,6 +1118,7 @@ func TestDeleteWorkspaceDeletesSessions(t *testing.T) {
 }
 
 func TestOrphanAgentReapedAfterPluginCrash(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"linger": true})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -1086,6 +1136,7 @@ func TestOrphanAgentReapedAfterPluginCrash(t *testing.T) {
 }
 
 func TestStopRoot(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	f := start(t, map[string]any{})
 	workspace := f.workspace(t, repo)
@@ -1114,6 +1165,7 @@ func TestStopRoot(t *testing.T) {
 }
 
 func TestResumedSessionClosedWhenWorktreeVanishes(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	f := start(t, map[string]any{})
 	workspace := f.workspace(t, repo)
@@ -1163,6 +1215,7 @@ func echoed(t *testing.T, f *fixture, command string) json.RawMessage {
 }
 
 func TestPermissionCardAction(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -1184,6 +1237,7 @@ func TestPermissionCardAction(t *testing.T) {
 }
 
 func TestReviewActionUsesCheckpoint(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}}, testutil.EchoPluginDirAs(t, diffviewManifest))
 	workspace := f.workspace(t, repo)
@@ -1199,6 +1253,7 @@ func TestReviewActionUsesCheckpoint(t *testing.T) {
 }
 
 func TestReviewButtonFollowsWorktreeChanges(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}})
 	workspace := f.workspace(t, repo)
@@ -1222,6 +1277,7 @@ func TestReviewButtonFollowsWorktreeChanges(t *testing.T) {
 }
 
 func TestOpenLocationShowsEditor(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	path := filepath.Join(repo, "a.go")
 	read := map[string]any{"sessionUpdate": "tool_call", "toolCallId": "r1", "title": "Read a.go", "kind": "read", "status": "completed", "locations": []map[string]any{{"path": path, "line": 1}}}
@@ -1238,6 +1294,7 @@ func TestOpenLocationShowsEditor(t *testing.T) {
 }
 
 func TestOpenDocRunsDocsOpenForTheSession(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	path := filepath.Join(repo, "a.md")
 	edit := map[string]any{"sessionUpdate": "tool_call", "toolCallId": "w1", "title": "Write a.md", "kind": "edit", "status": "completed", "locations": []map[string]any{{"path": path}}}
@@ -1253,6 +1310,7 @@ func TestOpenDocRunsDocsOpenForTheSession(t *testing.T) {
 }
 
 func TestMessageDocLinkOpensTheDoc(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	path := filepath.Join(repo, "a.md")
 	require.NoError(t, os.WriteFile(path, []byte("# A"), 0o600))
@@ -1274,6 +1332,7 @@ func TestMessageDocLinkOpensTheDoc(t *testing.T) {
 }
 
 func TestOpenOutputWritesFullOutputAndOpensIt(t *testing.T) {
+	t.Parallel()
 	output := strings.Repeat("line\n", 300)
 	run := map[string]any{"sessionUpdate": "tool_call", "toolCallId": "x1", "title": "make", "kind": "execute", "status": "completed", "content": []map[string]any{{"type": "content", "content": map[string]string{"type": "text", "text": output}}}}
 	f := start(t, map[string]any{"prompt": []map[string]any{{"update": run}}}, testutil.EchoPluginDirAs(t, codeManifest))
@@ -1298,6 +1357,7 @@ func TestOpenOutputWritesFullOutputAndOpensIt(t *testing.T) {
 }
 
 func TestRevealSelectsTheSessionAndFocusesAgents(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	first := f.newSession(t, workspace)
@@ -1312,6 +1372,7 @@ func TestRevealSelectsTheSessionAndFocusesAgents(t *testing.T) {
 }
 
 func TestRevealOpensTheGraphRunRow(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	var out struct{ Session, Worktree string }
@@ -1365,6 +1426,7 @@ func waitFocus(t *testing.T, c *rpc.Client, section, slot string) {
 }
 
 func TestCodePanelFollowsWorktree(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{}, testutil.EchoPluginDirAs(t, codeManifest))
 	repo := newRepo(t)
 	workspace := f.workspace(t, repo)
@@ -1398,6 +1460,7 @@ func TestCodePanelFollowsWorktree(t *testing.T) {
 }
 
 func TestCodePanelStarterAttachesEditorFile(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{}, testutil.EchoPluginDirAs(t, codeManifest))
 	repo := newRepo(t)
 	workspace := f.workspace(t, repo)
@@ -1425,6 +1488,7 @@ func rawTree(t *testing.T, n sdui.Node) []byte {
 }
 
 func TestSignInReattaches(t *testing.T) {
+	t.Parallel()
 	authFile := filepath.Join(t.TempDir(), "authed")
 	f := start(t, map[string]any{"authFile": authFile})
 	workspace := f.workspace(t, newRepo(t))
@@ -1446,6 +1510,7 @@ func TestSignInReattaches(t *testing.T) {
 }
 
 func TestCloseCancelsSignIn(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"authFile": filepath.Join(t.TempDir(), "authed")})
 	workspace := f.workspace(t, newRepo(t))
 	id := f.newSession(t, workspace)
@@ -1489,6 +1554,7 @@ func (f *fixture) rev(t *testing.T, workspace, slot string) int64 {
 }
 
 func TestBackgroundSessionKeepsMainUnrendered(t *testing.T) {
+	t.Parallel()
 	steps := []map[string]any{}
 	for i := range 30 {
 		steps = append(steps, map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": strconv.Itoa(i)}}}, map[string]any{"sleep": 10})
@@ -1514,6 +1580,7 @@ func TestBackgroundSessionKeepsMainUnrendered(t *testing.T) {
 }
 
 func TestHiddenSlotsStayUnrendered(t *testing.T) {
+	t.Parallel()
 	steps := []map[string]any{}
 	for i := range 100 {
 		steps = append(steps, map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": strconv.Itoa(i) + " "}}}, map[string]any{"sleep": 20})
@@ -1585,6 +1652,7 @@ func (f *fixture) treeBytes(t *testing.T, workspace, slot string) int {
 }
 
 func TestContinueHandsOff(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	f := start(t, map[string]any{})
 	workspace := f.workspace(t, repo)
@@ -1611,6 +1679,7 @@ func TestContinueHandsOff(t *testing.T) {
 }
 
 func TestHandoff(t *testing.T) {
+	t.Parallel()
 	reply := map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "half done"}}}
 	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 800}, reply}})
 	workspace := f.workspace(t, newRepo(t))
@@ -1640,6 +1709,7 @@ func TestHandoff(t *testing.T) {
 }
 
 func TestExportImportContinuesInAnotherClone(t *testing.T) {
+	t.Parallel()
 	reply := map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "half done"}}}
 	f := start(t, map[string]any{"prompt": []map[string]any{reply}})
 	repo := newRepo(t)
@@ -1706,6 +1776,7 @@ func startQueued(t *testing.T, queued ...string) (*fixture, string, string) {
 }
 
 func TestQueuedPromptsSentAsNextTurn(t *testing.T) {
+	t.Parallel()
 	f, workspace, session := startQueued(t, "two", "three")
 
 	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "unqueue")) == 2 })
@@ -1717,6 +1788,7 @@ func TestQueuedPromptsSentAsNextTurn(t *testing.T) {
 }
 
 func TestInternalErrorRetriesTurnOnce(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "boom", "fail": "no results for tool calls"}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -1731,6 +1803,7 @@ func TestInternalErrorRetriesTurnOnce(t *testing.T) {
 }
 
 func TestInternalErrorAfterRetryFailsTurn(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"fail": "no results for tool calls"}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -1743,6 +1816,7 @@ func TestInternalErrorAfterRetryFailsTurn(t *testing.T) {
 }
 
 func TestToolCallsOpenAtSteerDoNotFailTurn(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"steering": true, "prompt": []map[string]any{
 		{"update": map[string]any{"sessionUpdate": "tool_call", "toolCallId": "srvtoolu_a", "title": "advisor", "kind": "other", "status": "pending"}},
 		{"sleep": 1500},
@@ -1765,6 +1839,7 @@ func TestToolCallsOpenAtSteerDoNotFailTurn(t *testing.T) {
 }
 
 func TestCancelKeepsQueue(t *testing.T) {
+	t.Parallel()
 	f, workspace, session := startQueued(t, "two")
 
 	require.NoError(t, f.run(t, workspace, "agents.cancel", map[string]any{"session": session}, nil))
@@ -1778,6 +1853,7 @@ func TestCancelKeepsQueue(t *testing.T) {
 }
 
 func TestUnqueueDropsPrompt(t *testing.T) {
+	t.Parallel()
 	f, workspace, _ := startQueued(t, "two", "three")
 	main := f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "unqueue")) == 2 })
 
@@ -1796,6 +1872,7 @@ func userTexts(t *testing.T, f *fixture, workspace, session string) []string {
 }
 
 func TestPromptDuringTurnSteers(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"steering": true, "prompt": []map[string]any{{"sleep": 1500}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -1816,6 +1893,7 @@ func TestPromptDuringTurnSteers(t *testing.T) {
 }
 
 func TestSteerPromptRequiredQueues(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"steering": true, "idle": true, "prompt": []map[string]any{{"sleep": 1500}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -1831,6 +1909,7 @@ func TestSteerPromptRequiredQueues(t *testing.T) {
 }
 
 func TestAgentProcessRegistered(t *testing.T) {
+	t.Parallel()
 	repo := newRepo(t)
 	f := start(t, map[string]any{"linger": true})
 	workspace := f.workspace(t, repo)
@@ -1891,6 +1970,7 @@ func promptEvent(t *testing.T, lines []map[string]json.RawMessage) (string, stri
 }
 
 func TestAgentNewCreatesChildInOwnWorktree(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{
 		"modes": map[string]any{"currentModeId": "default", "availableModes": []map[string]string{{"id": "default", "name": "Manual"}, {"id": "plan", "name": "Plan"}}},
 		"configs": []map[string]any{
@@ -1932,6 +2012,7 @@ func TestAgentNewCreatesChildInOwnWorktree(t *testing.T) {
 }
 
 func TestChildLimit(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}}})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -1950,6 +2031,7 @@ func TestChildLimit(t *testing.T) {
 }
 
 func TestChildrenFoldedUntilOpenedAndRemembered(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -1986,6 +2068,7 @@ func TestChildrenFoldedUntilOpenedAndRemembered(t *testing.T) {
 }
 
 func TestDeleteParentDeletesChildren(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 5000}}})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -2007,6 +2090,7 @@ func TestDeleteParentDeletesChildren(t *testing.T) {
 }
 
 func TestDoneParentShowsRunningChildren(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "slow", "sleep": 1500}}})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -2040,6 +2124,7 @@ func TestDoneParentShowsRunningChildren(t *testing.T) {
 }
 
 func TestSessionsFilteredToOneSessionKeepItsChildStatus(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "slow", "sleep": 1500}}})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -2065,6 +2150,7 @@ func TestSessionsFilteredToOneSessionKeepItsChildStatus(t *testing.T) {
 }
 
 func TestCloseParentClosesChildren(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -2078,6 +2164,7 @@ func TestCloseParentClosesChildren(t *testing.T) {
 }
 
 func TestChildWorktreeFailure(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
 	repo := newRepo(t)
 	require.NoError(t, os.MkdirAll(filepath.Join(repo, ".worktrees", "c1"), 0o700))
@@ -2096,6 +2183,7 @@ func TestChildWorktreeFailure(t *testing.T) {
 }
 
 func TestChildAdvisorOnlyInRecord(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -2110,6 +2198,7 @@ func TestChildAdvisorOnlyInRecord(t *testing.T) {
 }
 
 func TestAgentPromptWithoutCaller(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -2124,6 +2213,7 @@ func TestAgentPromptWithoutCaller(t *testing.T) {
 }
 
 func TestPermissionScope(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}}})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -2154,6 +2244,7 @@ func TestPermissionScope(t *testing.T) {
 }
 
 func TestPermissionFromVoicePluginIsUser(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -2168,6 +2259,7 @@ func TestPermissionFromVoicePluginIsUser(t *testing.T) {
 }
 
 func TestNewSessionOptionsOnlyFromPlugin(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{
 		"modes": map[string]any{"currentModeId": "default", "availableModes": []map[string]string{{"id": "default", "name": "Manual"}, {"id": "bypassPermissions", "name": "Bypass permissions"}}},
 		"configs": []map[string]any{
@@ -2198,6 +2290,7 @@ func TestNewSessionOptionsOnlyFromPlugin(t *testing.T) {
 }
 
 func TestNewSessionFromVoiceNotSelected(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	first := f.newSession(t, workspace)
@@ -2232,6 +2325,7 @@ func TestNewSessionFromVoiceNotSelected(t *testing.T) {
 }
 
 func TestVoiceSessionNeverSelectedByFallback(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	params := map[string]any{"id": "agents.new", "workspaceId": workspace, "args": map[string]any{"systemPrompt": "Route the user's words."}}
@@ -2252,6 +2346,7 @@ func TestVoiceSessionNeverSelectedByFallback(t *testing.T) {
 }
 
 func TestVoicePromptMarkedInTranscript(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -2271,6 +2366,7 @@ func TestVoicePromptMarkedInTranscript(t *testing.T) {
 }
 
 func TestVoiceSessionGetsNoPolicyTexts(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	params := map[string]any{"id": "agents.new", "workspaceId": workspace, "args": map[string]any{"systemPrompt": "Route the user's words.", "prompt": `{"text":"hi"}`}}
@@ -2294,6 +2390,7 @@ func listedIDs(t *testing.T, f *fixture, workspace string) []string {
 }
 
 func TestAnswerIsUserTurn(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -2310,6 +2407,7 @@ func TestAnswerIsUserTurn(t *testing.T) {
 }
 
 func TestNotifyPolicy(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -2347,6 +2445,7 @@ func startWithGit(t *testing.T, dirs ...string) (*fixture, string, string, strin
 }
 
 func TestChildPolicyNamesParentBranch(t *testing.T) {
+	t.Parallel()
 	f, repo, workspace, parent := startWithGit(t)
 
 	own := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "own"}).Session
@@ -2362,6 +2461,7 @@ func TestChildPolicyNamesParentBranch(t *testing.T) {
 }
 
 func TestChildOfDefaultBranchOnlyCommits(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -2375,6 +2475,7 @@ func TestChildOfDefaultBranchOnlyCommits(t *testing.T) {
 }
 
 func TestMergedChildCleanedUp(t *testing.T) {
+	t.Parallel()
 	f, repo, workspace, parent := startWithGit(t, testutil.EchoPluginDirAs(t, stopManifest))
 	kid := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "plan"})
 	f.waitStatus(t, workspace, kid.Session, "done")
@@ -2394,6 +2495,7 @@ func TestMergedChildCleanedUp(t *testing.T) {
 }
 
 func TestChildWithRemovedWorktreeClosedAfterParentTurn(t *testing.T) {
+	t.Parallel()
 	f, repo, workspace, parent := startWithGit(t)
 	kid := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "plan"})
 	f.waitStatus(t, workspace, kid.Session, "done")
@@ -2415,6 +2517,7 @@ func mergeChild(t *testing.T, f *fixture, repo, workspace, parent string, kid ch
 }
 
 func TestMergedChildAskingStaysOpen(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"), testutil.EchoPluginDirAs(t, stopManifest))
 	repo := newRepo(t)
 	git(t, repo, "checkout", "-qb", "feat")
@@ -2430,6 +2533,7 @@ func TestMergedChildAskingStaysOpen(t *testing.T) {
 }
 
 func TestMergedChildCleanupFailureNotice(t *testing.T) {
+	t.Parallel()
 	failing := strings.Replace(stopManifest, `"echoResults"`, `"echoErrors":{"editor-nvim.stop-root":"unsaved buffers: b.go"},"echoResults"`, 1)
 	f, repo, workspace, parent := startWithGit(t, testutil.EchoPluginDirAs(t, failing))
 	kid := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "plan"})
@@ -2443,6 +2547,7 @@ func TestMergedChildCleanupFailureNotice(t *testing.T) {
 }
 
 func TestOrchestratorPolicyAfterFirstChild(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	parent, alone := f.newSession(t, workspace), f.newSession(t, workspace)
@@ -2494,6 +2599,7 @@ func (f *fixture) wait(t *testing.T, workspace, caller string, sessions ...strin
 }
 
 func TestWaitReturnsOnFirstDone(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 500}, {"match": "slow", "sleep": 3000}}})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -2508,6 +2614,7 @@ func TestWaitReturnsOnFirstDone(t *testing.T) {
 }
 
 func TestWaitReturnsOnNextTurn(t *testing.T) {
+	t.Parallel()
 	f, workspace, session := startQueued(t, "two")
 
 	got := f.wait(t, workspace, "", session)[0]
@@ -2517,6 +2624,7 @@ func TestWaitReturnsOnNextTurn(t *testing.T) {
 }
 
 func TestWaitReturnsQueuedUserMessage(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "slow", "sleep": 4000}}})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -2538,6 +2646,7 @@ func TestWaitReturnsQueuedUserMessage(t *testing.T) {
 }
 
 func TestWaitImmediateWhenIdle(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -2552,6 +2661,7 @@ func TestWaitImmediateWhenIdle(t *testing.T) {
 }
 
 func TestWaitReportsPermission(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}}})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)
@@ -2573,6 +2683,7 @@ func TestWaitReportsPermission(t *testing.T) {
 }
 
 func TestAsksUser(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -2620,6 +2731,7 @@ func TestAsksUser(t *testing.T) {
 }
 
 func TestNewInWorktree(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
 	repo := newRepo(t)
 	workspace := f.workspace(t, repo)
@@ -2639,6 +2751,7 @@ func TestNewInWorktree(t *testing.T) {
 }
 
 func TestSessionsCarryRunningToolActivity(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{
 		{"update": map[string]any{"sessionUpdate": "tool_call", "toolCallId": "e1", "title": "Editing reserve.go", "kind": "edit", "status": "in_progress"}},
 		{"sleep": 1500},
@@ -2682,6 +2795,7 @@ func (f *fixture) turns(t *testing.T, session string) []api.Turn {
 }
 
 func TestCronStartedSessionCarriesFlagsAndOrigin(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil, testutil.BuildPluginDir(t, "clubmate/plugins/cron", "plugins/cron/plugin.json"))
 	workspace := f.workspace(t, newRepo(t))
 	assert.ErrorContains(t, f.runAs(t, workspace, "", "agents.new", map[string]any{"cronJob": "cj_1"}, nil), "only the cron plugin may set cronJob")
@@ -2714,6 +2828,7 @@ func TestCronStartedSessionCarriesFlagsAndOrigin(t *testing.T) {
 }
 
 func TestTurnFinishedOnlyWithoutActiveChildren(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "slow", "sleep": 3000}}})
 	workspace := f.workspace(t, newRepo(t))
 	parent := f.newSession(t, workspace)

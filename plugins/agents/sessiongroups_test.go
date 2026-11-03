@@ -7,6 +7,7 @@ import (
 )
 
 func TestSetGroupsLiftsParentsToTheMostUrgentChildGroup(t *testing.T) {
+	t.Parallel()
 	info := func(id, parent, status string, needsYou, service bool) sessionInfo {
 		return sessionInfo{record: record{ID: id, lineage: lineage{ParentSession: parent}, Status: status}, NeedsYou: needsYou, Service: service}
 	}

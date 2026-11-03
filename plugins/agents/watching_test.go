@@ -7,6 +7,7 @@ import (
 )
 
 func TestShownSlotsWhilePhoneWatches(t *testing.T) {
+	t.Parallel()
 	a := &app{uiState: newUIState(), codePanel: true}
 	a.present["p"] = true
 	a.setSection("p", "processes")

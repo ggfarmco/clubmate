@@ -12,6 +12,7 @@ import (
 )
 
 func TestBranchCacheRetriesWorktreeCreatedLater(t *testing.T) {
+	t.Parallel()
 	root := filepath.Join(t.TempDir(), "feat", "x")
 	var c branchCache
 	assert.Empty(t, c.name(context.Background(), root))

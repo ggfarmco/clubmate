@@ -10,6 +10,7 @@ import (
 )
 
 func TestLimitFailureEndsTurnWithTitle(t *testing.T) {
+	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"fail": "Internal error: max_output_tokens", "errorKind": "max_output_tokens"}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -29,6 +30,7 @@ func TestLimitFailureEndsTurnWithTitle(t *testing.T) {
 }
 
 func TestTypedFailureInOrchestration(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		fail    string
@@ -41,8 +43,8 @@ func TestTypedFailureInOrchestration(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("CLUBMATE_AGENTS_NET_RETRY_AFTER", "10ms")
-			f := start(t, map[string]any{"prompt": []map[string]any{{"match": "build it", "fail": tt.fail, "errorKind": tt.kind}}})
+			t.Parallel()
+			f := startEnv(t, []string{"CLUBMATE_AGENTS_NET_RETRY_AFTER=10ms"}, map[string]any{"prompt": []map[string]any{{"match": "build it", "fail": tt.fail, "errorKind": tt.kind}}})
 			workspace := f.workspace(t, newRepo(t))
 			parent := f.newSession(t, workspace)
 			kid := f.newChild(t, workspace, parent, map[string]any{"title": "Kid", "prompt": "build it"}).Session
