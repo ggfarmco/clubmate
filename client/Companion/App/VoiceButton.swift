@@ -145,11 +145,15 @@ struct SearchBar: ViewModifier {
     let prompt: String
 
     @Environment(AppNavigation.self) private var navigation
+    @State private var searching = false
 
     func body(content: Content) -> some View {
         if navigation.layout == .compact {
             content
-                .searchable(text: text, prompt: prompt)
+                .searchable(text: text, isPresented: $searching, prompt: prompt)
+                .onChange(of: searching) { _, searching in navigation.searching = searching }
+                .onAppear { navigation.searching = searching }
+                .onDisappear { navigation.searching = false }
                 .toolbar {
                     ToolbarItem(placement: .bottomBar) {
                         ComposerMic()
@@ -185,7 +189,7 @@ private struct VoicePressStyle: ButtonStyle {
 
 extension AppNavigation {
     func floatingMic(_ model: CompanionModel) -> Bool {
-        voiceDock == nil && voiceTarget(model) != nil
+        voiceDock == nil && !searching && voiceTarget(model) != nil
     }
 
     func voiceTarget(_ model: CompanionModel) -> VoiceTarget? {
