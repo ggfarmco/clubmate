@@ -17,12 +17,17 @@ Every night:
 1. The commits since the last run (date of the newest `$NOTES/tidy/*.md`; none → 24 h), read through every lens below.
 2. Whole repo: `go vet`, `staticcheck`, `govulncheck ./...`.
 3. Benchmarks against the previous night.
+4. Disk footprint against the previous night, and what one test run leaves behind (Leaks below).
 
 Plus one deep dive over the whole repo, by weekday: Mon security, Tue performance, Wed ARCHITECTURE.md, Thu docs, Fri CLAUDE.md, skills and the MCP guide, Sat code quality, Sun none.
 
 ## Lenses
 
 - **Performance**: hot paths (rpc wire, bus, SDUI renders, processes tick, agents render, transcript), allocations in loops, N+1 SQLite queries, unbounded goroutines or channels, polling where an event exists, work on the main thread in the Swift clients. Benchmarks: `go test -run '^$' -bench . -benchmem -count 6 ./internal/rpc ./internal/proc ./plugins/processes ./plugins/agents > $NOTES/tidy/bench/<date>.txt`, compared with the newest earlier file via `go run golang.org/x/perf/cmd/benchstat@latest old new`. A regression over 10 % with p < 0.05: find the commit, fix or file it.
+- **Leaks** (disk and process): temp dirs and files nothing removes (`os.MkdirTemp`/`CreateTemp` without `RemoveAll` or `t.TempDir`, build outputs per test process, scratch dirs per run), state that only grows (`bus.db`, `plugins.db`, `plugin-data/agents/sessions`, logs, caches with no cap or prune), leftover processes and sockets after tests. Two checks with `.claude/skills/nightly-tidy/footprint.sh`:
+  - Night over night: `footprint.sh snapshot > $NOTES/tidy/disk/<date>.txt`, then `footprint.sh compare <newest earlier file> <today>` lists every temp prefix, state dir or cache that grew over 1 GB or 200 entries, and a drop in free disk over 1 GB.
+  - One test run: `footprint.sh snapshot tmp` before and after the step 4 test run, `compare before after 10240 20`; a prefix that grew is the tests' leak — `grep -rn '"<prefix>'` finds the creator.
+  A leak in code is fixed like any finding (a test that the dir is gone or reused); growth with no code cause (user data, simulators, `.worktrees`) goes in the report with sizes. Never delete anything during the run; the report names what is safe to remove.
 - **Code quality**: `go-style` skill, repo and user CLAUDE.md (no code comments, 4 import blocks, minimal non-redundant tests), dropped errors, dead code, duplicated helpers, functions or files grown too big, tests that re-prove what others prove.
 - **Security**: socket and state file permissions, path traversal in file, docs and browser handlers and WKWebView scheme handlers, shell injection around `exec.Command`, secrets or tokens in logs, the `remote` plugin and push relay (auth, pairing, what is reachable over Tailscale), MCP tools missing their destructive flag, `govulncheck` hits. A fix lands only with a test that fails without it; anything exploitable is a high-priority backlog item and named first in the notification.
 - **ARCHITECTURE.md**: every process, package and plugin it lists exists and does what it says; new ones are missing from it; the rules it states hold in code (core owns state, plugins speak JSON-RPC, UI is SDUI, clients render fields the plugin sends and never re-derive a rule).
@@ -32,7 +37,7 @@ Plus one deep dive over the whole repo, by weekday: Mon security, Tue performanc
 
 ## Run
 
-1. **Triage, read-only.** The main checkout holds other sessions' uncommitted work, so check `main` in a throwaway tree: `git worktree add --detach <scratchpad>/tidy HEAD`, run all checks and benchmarks there (`mkdir -p $NOTES/tidy/bench` first), read the night's commits with `git log`/`git show`. Collect findings, drop duplicates of open backlog items (`backlog_list`).
+1. **Triage, read-only.** The main checkout holds other sessions' uncommitted work, so check `main` in a throwaway tree: `git worktree add --detach <scratchpad>/tidy HEAD`, run all checks, benchmarks and the footprint there (`mkdir -p $NOTES/tidy/bench $NOTES/tidy/disk` first), read the night's commits with `git log`/`git show`. Collect findings, drop duplicates of open backlog items (`backlog_list`).
 2. **Fix in children.** You edit nothing in the main checkout. Start at most 4 children with `agents_new`, `branch: tidy/<YYYY-MM-DD>-<area>`, one area each. The prompt stands alone: the findings, the fix rules, the test commands, "AFK: never ask the user, a finding you can't fix without them goes back to me in your reply; run tests in the foreground, rebase on current main, stop at one conventional commit and reply with its sha".
 3. **Fix rules** (put them in every child prompt):
    - Go code and docs only; docs include `internal/mcp/clubmate.md` and the `description` texts in `plugin.json` (not arg names, types or flags). Swift, views and plugin-rendered UI need `make app` and a look → backlog.
@@ -43,7 +48,7 @@ Plus one deep dive over the whole repo, by weekday: Mon security, Tue performanc
 4. **Tests**: `env $(env | grep -o '^CLUBMATE_[A-Z_]*' | sed 's/^/-u /') go test $(go list ./... | grep -v -e /dist/ -e /.worktrees/)` and `cd third_party/jsonrpc2 && go test ./...`; plus `go vet` and `staticcheck` on the touched packages.
 5. **Merge.** For each child: its branch tip equals the sha it reported; right before, in the main checkout, the index is empty (`git diff --cached --quiet`) and no uncommitted file is one the branch changes (other sessions' work in progress lives there; otherwise stop merging, leave the branches, say so in the report). Squash and commit in one guarded command: `git merge --squash <branch> && git commit -m "<type>(<scope>): …"`. After the last squash run the tests on `main`; red → `git revert` the tidy commits of this run and file why.
 6. **File the rest**: `backlog_add` as `idea` with tag `tidy`, one item per finding with file:line and the suggested fix; add tag `needs-you` when the user has to decide or act (say what exactly in the description), `security` for security findings.
-7. **Report** `$NOTES/tidy/<date>.md`: per lens — fixed (sha), filed (backlog id), CLAUDE.md proposals, benchmark deltas; at most a screen. Commit it in clubmate-notes. `docs_present` it, then `notify_post` one line: `Tidy: N fixed, M filed[, K need you][, S security]`.
+7. **Report** `$NOTES/tidy/<date>.md`: per lens — fixed (sha), filed (backlog id), CLAUDE.md proposals, benchmark deltas, footprint growth and free disk; at most a screen. Commit it in clubmate-notes. `docs_present` it, then `notify_post` one line: `Tidy: N fixed, M filed[, K need you][, S security]`.
 8. **Hand over**: `triggers_emit name=tidy.done payload={"changed":<true when at least one tidy commit of this run stays on main>,"commits":[<shas>]}`. With `changed: true` it starts the release (`nightly-release` skill).
 9. **Clean up last** (an approval may stall here, the report is already out): remove the triage tree, each merged worktree and `git branch -D` its branch; leave a worktree with uncommitted changes or a running process.
 
