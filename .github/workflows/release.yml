@@ -67,16 +67,30 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version-file: go.mod
+          cache: false
 
-      - name: Install zig and XcodeGen
-        run: brew install zig@0.16 xcodegen
+      - name: Restore Go cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          key: go-app-${{ hashFiles('go.mod', 'go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-app-${{ hashFiles('go.mod', 'go.sum') }}-
+            go-app-
+          path: |
+            ~/Library/Caches/go-build
+            ~/go/pkg/mod
+
+      - name: Install XcodeGen
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+        run: brew install xcodegen
 
       - name: GhosttyKit cache key
         id: ghostty
         run: |
           rev="$(sed -n 's/^GHOSTTY_REV="\(.*\)"$/\1/p' scripts/build-ghostty.sh)"
-          zig="$("$(brew --prefix zig@0.16)/bin/zig" version)"
-          echo "key=ghosttykit-$rev-zig$zig" >>"$GITHUB_OUTPUT"
+          zig="$(sed -n 's/^ZIG_FORMULA="\(.*\)"$/\1/p' scripts/build-ghostty.sh)"
+          echo "key=ghosttykit-$rev-$zig" >>"$GITHUB_OUTPUT"
 
       - name: Restore GhosttyKit
         id: ghostty-cache
@@ -88,6 +102,10 @@ jobs:
             client/Clubmate/Resources/ghostty
             client/Clubmate/Resources/terminfo
             .ghostty-build-stamp
+
+      - name: Install zig
+        if: steps.ghostty-cache.outputs.cache-hit != 'true'
+        run: brew install zig@0.16
 
       - name: Install Metal toolchain
         if: steps.ghostty-cache.outputs.cache-hit != 'true'
