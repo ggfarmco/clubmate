@@ -487,6 +487,13 @@
    "w": 1480,
    "h": 4000,
    "title": "T2 · How nvim takes colour — every role, Light Owl as the example"
+  },
+  "T-Nvim-Clubmate.dc.html": {
+   "x": 3120,
+   "y": 24640,
+   "w": 1640,
+   "h": 8100,
+   "title": "T3 · Clubmate for nvim — every role, dark and light"
   }
  },
  "order": [
@@ -554,7 +561,8 @@
   "Processes-640-MateLight.dc.html",
   "Graphs-640-MateLight.dc.html",
   "T-Themes.dc.html",
-  "T-Nvim-Map.dc.html"
+  "T-Nvim-Map.dc.html",
+  "T-Nvim-Clubmate.dc.html"
  ],
  "notes": {
   "t_lang": {

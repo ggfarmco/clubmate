@@ -5,6 +5,8 @@ M.known = {
   ["Kanagawa Dragon"] = "kanagawa-dragon",
   ["Kanagawa Lotus"] = "kanagawa-lotus",
   ["Light Owl"] = "lightowl",
+  ["Clubmate"] = "clubmate",
+  ["Clubmate Light"] = "clubmate-light",
 }
 
 M.default = {
@@ -248,8 +250,16 @@ function M.chrome(t)
   return vim.tbl_extend("force", g, diff(c))
 end
 
+local function mate(c)
+  return require("clubmate.mate").variants[c.name or ""]
+end
+
 function M.lualine()
   local c = M.tokens()
+  local variant = mate(c)
+  if variant then
+    return require("clubmate.mate").lualine(variant)
+  end
   local function mode(color)
     return {
       a = { fg = c.bg, bg = color, gui = "bold" },
@@ -277,7 +287,20 @@ local function set(groups)
   end
 end
 
+local function reset()
+  vim.cmd("hi clear")
+  if vim.fn.exists("syntax_on") == 1 then
+    vim.cmd("syntax reset")
+  end
+end
+
 local function syntax(c)
+  local variant = mate(c)
+  if variant then
+    reset()
+    set(require("clubmate.mate").groups(variant))
+    return true
+  end
   local scheme = M.known[c.name or ""]
   if scheme == "lightowl" then
     vim.cmd.runtime("colors/lightowl.lua")
@@ -290,10 +313,7 @@ local function syntax(c)
     kanagawa.load(variant)
     return
   end
-  vim.cmd("hi clear")
-  if vim.fn.exists("syntax_on") == 1 then
-    vim.cmd("syntax reset")
-  end
+  reset()
   set(M.generate(vim.g.clubmate_theme))
 end
 
@@ -304,8 +324,9 @@ function M.load()
     vim.o.background = background
   end
   vim.o.termguicolors = true
-  syntax(c)
-  set(M.chrome(vim.g.clubmate_theme))
+  if not syntax(c) then
+    set(M.chrome(vim.g.clubmate_theme))
+  end
   for i, color in ipairs(c.palette) do
     vim.g["terminal_color_" .. (i - 1)] = color
   end

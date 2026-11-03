@@ -9,8 +9,14 @@ SRC_DIR="build/ghostty-src"
 XCFRAMEWORK_DIR="client/GhosttyKit.xcframework"
 RESOURCES_DIR="client/Clubmate/Resources"
 STAMP_FILE=".ghostty-build-stamp"
+OWN_THEMES_DIR="client/ghostty-themes"
+
+stage_own_themes() {
+  cp "$OWN_THEMES_DIR"/* "$RESOURCES_DIR/ghostty/themes/"
+}
 
 if [[ -f "$STAMP_FILE" && "$(cat "$STAMP_FILE")" == "$GHOSTTY_REV" && -d "$XCFRAMEWORK_DIR" && -d "$RESOURCES_DIR/ghostty" && -d "$RESOURCES_DIR/terminfo" ]]; then
+  stage_own_themes
   echo "GhosttyKit $GHOSTTY_REV already built"
   exit 0
 fi
@@ -54,6 +60,7 @@ cp -R "$SRC_DIR/macos/GhosttyKit.xcframework" "$XCFRAMEWORK_DIR"
 mkdir -p "$RESOURCES_DIR/ghostty"
 cp -R "$SRC_DIR/zig-out/share/ghostty/shell-integration" "$RESOURCES_DIR/ghostty/"
 cp -R "$SRC_DIR/zig-out/share/ghostty/themes" "$RESOURCES_DIR/ghostty/"
+stage_own_themes
 cp -R "$SRC_DIR/zig-out/share/terminfo" "$RESOURCES_DIR/terminfo"
 printf '%s\n' "$GHOSTTY_REV" > "$STAMP_FILE"
 echo "GhosttyKit $GHOSTTY_REV staged"

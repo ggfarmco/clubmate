@@ -614,6 +614,13 @@ var (
 			"#989fb1", "#de3d3b", "#08916a", "#daaa01", "#288ed7", "#d6438a", "#2aa298", "#f0f0f0",
 		},
 	}
+	clubmateTheme = themePayload{
+		Name: "Clubmate", Dark: true, Background: "#151b17", Foreground: "#e3e3d3",
+		Palette: []string{
+			"#1e2621", "#ff6b5e", "#a6d85b", "#f2b84b", "#7aa6d6", "#c792d8", "#4fb3a0", "#c9c9b8",
+			"#5e6b61", "#ff8a7e", "#bce77a", "#f7cc74", "#96bce4", "#d6a9e4", "#6ccbb8", "#f4f4e8",
+		},
+	}
 	draculaTheme = themePayload{
 		Name: "Dracula", Dark: true, Background: "#282a36", Foreground: "#f8f8f2",
 		Palette: []string{
@@ -712,6 +719,19 @@ func TestLightOwlIsLight(t *testing.T) {
 	require.NoError(t, v.Eval("&background", &bg))
 	assert.Equal(t, "light", bg)
 	assert.Equal(t, "#fbfbfb", hl(t, v, "Normal").Bg)
+	assert.Equal(t, "clubmate", colorsName(t, v))
+	assert.Empty(t, errorsOf(t, v))
+}
+
+func TestClubmateThemeOwnsChrome(t *testing.T) {
+	v := startDistro(t, opts{ThemeFile: writeTheme(t, clubmateTheme)})
+	settle(t, v)
+	assert.Equal(t, "#a6d85b", hl(t, v, "Keyword").Fg)
+	assert.Equal(t, "#96bce4", hl(t, v, "Type").Fg)
+	assert.Equal(t, "#a6d85b", hl(t, v, "FloatTitle").Fg)
+	assert.Equal(t, "#1c241f", hl(t, v, "NormalFloat").Bg)
+	assert.Equal(t, "#22352f", hl(t, v, "DiffAdd").Bg)
+	assert.Equal(t, "#a6d85b", hl(t, v, "lualine_a_normal").Bg)
 	assert.Equal(t, "clubmate", colorsName(t, v))
 	assert.Empty(t, errorsOf(t, v))
 }
