@@ -114,7 +114,8 @@ jobs:
       - name: Restore vendor cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          key: vendor-${{ hashFiles('scripts/tools.lock', 'scripts/nvim-distro.lock') }}
+          key: vendor-${{ hashFiles('scripts/tools.lock', 'scripts/nvim-distro.lock', 'scripts/nvim-distro/parsers.lua') }}
+          restore-keys: vendor-
           path: build/vendor
 
       - name: Build
