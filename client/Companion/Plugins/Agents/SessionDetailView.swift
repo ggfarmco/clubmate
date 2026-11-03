@@ -22,7 +22,7 @@ struct SessionDetailView: View {
     @State private var alwaysAsked: AlwaysAsk?
     @State private var width = 0.0
     @State private var visibleHeight = 0.0
-    @FocusState private var composerFocused: Bool
+    @State private var composerFocused = false
 
     private static let pairedWidth = 520.0
 
@@ -127,7 +127,7 @@ struct SessionDetailView: View {
                 ContentUnavailableView("No Messages Yet", systemImage: "text.bubble", description: Text("Send the first prompt below."))
             }
         }
-        .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
+        .simultaneousGesture(TapGesture().onEnded { if composerFocused { composerFocused = false } })
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 10) {
                 docBanner
@@ -576,7 +576,7 @@ struct ComposerView: View {
     @Binding var draft: String
     let dictation: String
     @Binding var attachments: [ComposerAttachment]
-    var focused: FocusState<Bool>.Binding
+    @Binding var focused: Bool
     let session: AgentSession?
     let enabled: Bool
     var blocked: String? = nil
@@ -588,9 +588,7 @@ struct ComposerView: View {
     @State private var choosingPhotos = false
     @State private var choosingFiles = false
     @State private var tooLarge = false
-    @State private var clipboardImage = false
-    @State private var pastedChange = -1
-    @State private var selection: TextSelection?
+    @State private var caret = ComposerCaret()
     @Environment(VoiceSession.self) private var voice
 
     private var attachedBytes: Int {
@@ -620,14 +618,6 @@ struct ComposerView: View {
         } else {
             GlassEffectContainer(spacing: 10) {
                 VStack(alignment: .leading, spacing: 8) {
-                    if clipboardImage && focused.wrappedValue && enabled {
-                        PasteButton(payloadType: PastedImage.self) { images in
-                            Task { @MainActor in paste(images) }
-                        }
-                        .buttonBorderShape(.capsule)
-                        .controlSize(.small)
-                        .padding(.leading, 4)
-                    }
                     if !attachments.isEmpty || importing > 0 {
                         AttachmentsRow(attachments: $attachments, importing: importing)
                             .disabled(!enabled)
@@ -651,11 +641,16 @@ struct ComposerView: View {
                         .fileImporter(isPresented: $choosingFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
                             if case .success(let urls) = result { addFiles(urls) }
                         }
-                        TextField(placeholder, text: $draft, selection: $selection, axis: .vertical)
-                            .lineLimit(1...6)
-                            .focused(focused)
-                            .accessibilityIdentifier("composer")
-                            .pasteDestination(for: PastedImage.self, action: paste)
+                        ComposerTextView(text: $draft, caret: caret, focused: $focused, placeholder: placeholder, enabled: enabled, pasteImage: paste)
+                            .overlay(alignment: .topLeading) {
+                                if draft.isEmpty {
+                                    Text(placeholder)
+                                        .foregroundStyle(Color(uiColor: .placeholderText))
+                                        .lineLimit(1)
+                                        .allowsHitTesting(false)
+                                        .accessibilityHidden(true)
+                                }
+                            }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 11)
                             .glassEffect(.regular, in: .rect(cornerRadius: 22))
@@ -688,13 +683,9 @@ struct ComposerView: View {
                 }
             }
             .onAppear {
-                refreshClipboard()
-                if session == nil { focused.wrappedValue = true }
+                if session == nil { focused = true }
             }
-            .onChange(of: focused.wrappedValue) { refreshClipboard() }
             .onChange(of: voice.dictated, initial: true) { insertDictation() }
-            .onReceive(NotificationCenter.default.publisher(for: UIPasteboard.changedNotification)) { _ in refreshClipboard() }
-            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in refreshClipboard() }
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
             .frame(maxWidth: 820)
@@ -720,17 +711,13 @@ struct ComposerView: View {
 
     private func insertDictation() {
         guard let text = voice.take(dictation) else { return }
-        var caret: Int?
-        if case .selection(let range)? = selection?.indices, let at = String.Index(range.upperBound, within: draft) {
-            caret = draft.distance(from: draft.startIndex, to: at)
-        }
-        let inserted = Dictation.insert(text, into: draft, at: caret)
+        let inserted = Dictation.insert(text, into: draft, at: caret.offset)
+        caret.requested = inserted.caret
         draft = inserted.text
-        selection = TextSelection(insertionPoint: draft.index(draft.startIndex, offsetBy: inserted.caret))
     }
 
     private func submit() {
-        focused.wrappedValue = false
+        focused = false
         send()
     }
 
@@ -753,13 +740,7 @@ struct ComposerView: View {
         }
     }
 
-    private func paste(_ images: [PastedImage]) {
-        attachments += images.compactMap { PhotoEncoder.jpeg($0.data).map(ComposerAttachment.photo) }
-        pastedChange = UIPasteboard.general.changeCount
-        refreshClipboard()
-    }
-
-    private func refreshClipboard() {
-        clipboardImage = UIPasteboard.general.hasImages && UIPasteboard.general.changeCount != pastedChange
+    private func paste(_ data: Data) {
+        if let jpeg = PhotoEncoder.jpeg(data) { attachments.append(.photo(jpeg)) }
     }
 }

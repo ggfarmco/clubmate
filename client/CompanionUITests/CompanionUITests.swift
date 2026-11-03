@@ -45,7 +45,7 @@ final class CompanionUITests: XCTestCase {
     func testNewSessionSendsPhoto() {
         let app = launch(open: "agents")
         app.navigationBars.buttons["New Session"].tap()
-        let composer = app.textFields["composer"]
+        let composer = app.textViews["composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertTrue(wait(for: composer, "hasKeyboardFocus == true"))
         app.buttons["Attach"].tap()
@@ -71,21 +71,25 @@ final class CompanionUITests: XCTestCase {
         }
         let app = launch(open: "agents")
         app.navigationBars.buttons["New Session"].tap()
-        let composer = app.textFields["composer"]
+        let composer = app.textViews["composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
-        let paste = app.buttons["Paste"]
-        XCTAssertTrue(paste.waitForExistence(timeout: 5))
-        add(screenshot(app, "paste-button"))
-        paste.tap()
+        XCTAssertTrue(wait(for: composer, "hasKeyboardFocus == true"))
+        let suggestion = app.buttons["RecentPaste"]
+        XCTAssertTrue(suggestion.waitForExistence(timeout: 5))
+        suggestion.tap()
         XCTAssertTrue(app.buttons["Remove"].waitForExistence(timeout: 10))
-        XCTAssertTrue(wait(for: paste, "exists == false"))
         add(screenshot(app, "pasted"))
+        composer.press(forDuration: 1)
+        let paste = app.menuItems["Paste"]
+        XCTAssertTrue(paste.waitForExistence(timeout: 5))
+        paste.tap()
+        XCTAssertTrue(wait(for: app.buttons.matching(identifier: "Remove").element(boundBy: 1), "exists == true"))
     }
 
     func testNewSessionSendsFile() {
         let app = launch(open: "agents")
         app.navigationBars.buttons["New Session"].tap()
-        let composer = app.textFields["composer"]
+        let composer = app.textViews["composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         app.buttons["Attach"].tap()
         add(screenshot(app, "attach-menu"))
@@ -166,7 +170,7 @@ final class CompanionUITests: XCTestCase {
 
     func testSendQueuesAndStopAsksOnceFromTheMenu() {
         let app = launch(open: "agents/agt_0000000000000002")
-        let composer = app.textFields["composer"]
+        let composer = app.textViews["composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 10))
         composer.tap()
         composer.typeText("Add retries")
@@ -233,7 +237,7 @@ final class CompanionUITests: XCTestCase {
         for orientation in [UIDeviceOrientation.landscapeLeft, .portrait] {
             XCUIDevice.shared.orientation = orientation
             XCTAssertTrue(title.waitForExistence(timeout: 5))
-            XCTAssertTrue(app.textFields["composer"].exists)
+            XCTAssertTrue(app.textViews["composer"].exists)
         }
     }
 
@@ -345,7 +349,7 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(handoff.waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Claude exited with status 1."].exists)
         handoff.tap()
-        XCTAssertTrue(app.textFields["composer"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textViews["composer"].waitForExistence(timeout: 5))
         XCTAssertTrue(wait(for: app.staticTexts["Claude exited with status 1."], "exists == false"))
         XCTAssertFalse(app.staticTexts["This session is closed"].exists)
     }
