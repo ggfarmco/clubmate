@@ -110,7 +110,7 @@ var (
 	depthNumber    = number(func(n float64) bool { return n >= 0 && n <= maxDepth && n == math.Trunc(n) }, fmt.Sprintf("an integer within 0…%d", maxDepth))
 	causeNumber    = number(func(n float64) bool { return n >= -1 && n == math.Trunc(n) }, "an integer ≥ -1")
 
-	graphStates = []string{"taken", "last", "never"}
+	graphStates = []string{"taken", "last", "never", "plain"}
 	graphOut    = objectCheck([]string{"id", "label", "state"}, map[string]propCheck{
 		"id": nonEmptyString, "label": isString, "count": countNumber, "state": oneOf(graphStates), "end": isBool,
 	})

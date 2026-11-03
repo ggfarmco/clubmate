@@ -122,17 +122,17 @@ Keys with ⌘, ⌃, ⌥ or ⇧ pass through (⇧K stays the plugin's Kill). Defi
 
 ## Graph diagram (Graphs main pane focused)
 
-Focus moving to the Graphs main pane focuses the run's diagram; the focused card gets an accent ring (the node that needs you first, else the first card).
+Focus moving to the Graphs main pane focuses the diagram of the run or graph; the focused card gets an accent ring (the node that needs you first, else the first card).
 
 | Keys | Action |
 |---|---|
 | j / k | Focus the next / previous card: layer by layer from the start, top to bottom inside a layer |
-| ↩ | Open the focused card's session (a click on a card does the same) |
+| ↩ | Open the focused card's session (a click on a card does the same); on a graph's definition page cards open nothing |
 | - / + (=) / 0 | Zoom the diagram out / in (×1.25, 50…200%) / back to fit the pane width (never below 80%); the − + Fit buttons at its top-right do the same |
-| h | Open or close History under the diagram |
+| h | Open or close History under the diagram (only when the run has moves) |
 | Pinch, ⌘/⌃+wheel | Zoom the diagram |
 
-Keys with ⌘, ⌃ or ⌥ pass through. The zoom level and History stay per run until the app quits. Defined in `SDUI/GraphNodeView.swift` (`ClubmateKit/GraphViewState.swift`).
+Keys with ⌘, ⌃ or ⌥ pass through. The zoom level and History stay per run (and the zoom per graph) until the app quits. Defined in `SDUI/GraphNodeView.swift` (`ClubmateKit/GraphViewState.swift`).
 
 ## Agent composer (Agents section or Code chat panel, prompt focused)
 

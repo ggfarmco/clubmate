@@ -17,7 +17,6 @@ const (
 	sidebarSlot = "graphs.sidebar"
 	mainSlot    = "graphs.main"
 	listID      = "runs"
-	tableID     = "nodes"
 	graphPrefix = "graph:"
 	groupPrefix = "group:"
 	groupGraphs = groupPrefix + "graphs"
@@ -33,6 +32,7 @@ const (
 	clockLayout = "15:04"
 	maxBrief    = 160
 	descLines   = 3
+	statePlain  = "plain"
 )
 
 var liveOrder = []string{"waiting", "running", "error"}
@@ -126,30 +126,24 @@ func graphView(g graphFile, spec *Graph, d draft, starting string) sdui.Node {
 	if spec == nil {
 		return sdui.VStack(form)
 	}
-	shape := runShape(spec)
-	nodes := sdui.Table(tableID, graphColumns, graphRows(shape), "", sdui.Sort{})
-	return sdui.VStack(form, sdui.Scroll(nodes))
+	return sdui.VStack(form, definitionDiagram(id, runShape(spec)))
 }
 
-var graphColumns = []sdui.Column{
-	{ID: "node", Title: "Node"},
-	{ID: "when", Title: "When"},
-}
-
-func graphRows(r *Run) []sdui.TableRow {
-	rows := make([]sdui.TableRow, 0, len(r.Nodes)+len(r.Edges))
+func definitionDiagram(id string, r *Run) sdui.Node {
+	nodes := make([]sdui.GraphNode, 0, len(r.Nodes))
 	for _, n := range r.Nodes {
-		label := n.Role
-		if n.Start {
-			label += " · start"
+		ids, ends := nodeOuts(r, n.ID)
+		outs := make([]sdui.GraphOut, 0, len(ids))
+		for _, o := range ids {
+			outs = append(outs, sdui.GraphOut{ID: o, Label: o, State: statePlain, End: slices.Contains(ends, o)})
 		}
-		rows = append(rows, sdui.TableRow{ID: n.ID, Cells: []sdui.Cell{{Text: label}, {}}})
-		for _, e := range edgeRows(r, n.ID) {
-			e.Cells = e.Cells[:2]
-			rows = append(rows, e)
-		}
+		nodes = append(nodes, sdui.GraphNode{ID: n.ID, Label: n.Role, Start: n.Start, Outs: outs})
 	}
-	return rows
+	edges := make([]sdui.GraphEdge, 0, len(r.Edges))
+	for _, e := range r.Edges {
+		edges = append(edges, sdui.GraphEdge{From: e.From, Out: edgeOut(e), To: e.To, State: statePlain})
+	}
+	return sdui.Graph(id+graphSuffix, sdui.GraphProps{Nodes: nodes, Edges: edges})
 }
 
 func mainView(r *Run, sessions map[string]api.Session) sdui.Node {
@@ -215,37 +209,6 @@ func attentionNode(r *Run, sessions map[string]api.Session) (*RunNode, string) {
 		}
 	}
 	return nil, ""
-}
-
-func edgeRows(r *Run, from string) []sdui.TableRow {
-	var targets []string
-	ons := map[string][]string{}
-	for _, e := range r.Edges {
-		if e.From != from {
-			continue
-		}
-		if _, ok := ons[e.To]; !ok {
-			targets = append(targets, e.To)
-		}
-		ons[e.To] = append(ons[e.To], edgeLabel(e))
-	}
-	rows := make([]sdui.TableRow, 0, len(targets))
-	for _, to := range targets {
-		rows = append(rows, sdui.TableRow{
-			ID:    from + "/" + to,
-			Depth: 1,
-			Muted: true,
-			Cells: []sdui.Cell{{Text: "→ " + roleOf(r, to)}, {Text: strings.Join(ons[to], " · ")}, {}},
-		})
-	}
-	return rows
-}
-
-func edgeLabel(e RunEdge) string {
-	if e.On == onOutcome {
-		return "on outcome " + e.Outcome
-	}
-	return "on " + e.On
 }
 
 func roleOf(r *Run, id string) string {
@@ -366,7 +329,7 @@ func runDiagram(r *Run, sessions map[string]api.Session) sdui.Node {
 	for i, e := range r.Edges {
 		edges = append(edges, sdui.GraphEdge{From: e.From, Out: edgeOut(e), To: e.To, State: edgeState(slices.Contains(last, i), counts[i])})
 	}
-	return sdui.Graph(r.ID+"/graph", sdui.GraphProps{Nodes: nodes, Edges: edges, Moves: graphMoves(r, last, end), Reached: end >= 0})
+	return sdui.Graph(r.ID+graphSuffix, sdui.GraphProps{Nodes: nodes, Edges: edges, Moves: graphMoves(r, last, end), Reached: end >= 0})
 }
 
 func graphNode(r *Run, n RunNode, sessions map[string]api.Session, end int, last, counts []int) sdui.GraphNode {
@@ -423,23 +386,26 @@ func turnsLabel(r *Run, turns int) string {
 	return fmt.Sprintf(" · %d turns", turns)
 }
 
-func graphOuts(r *Run, node string, end int, last, counts []int) []sdui.GraphOut {
-	var spec *Node
+func nodeOuts(r *Run, node string) ([]string, []string) {
+	var ids, ends []string
 	if r.Spec != nil {
-		spec = r.Spec.node(node)
-	}
-	var ids []string
-	if spec != nil {
-		ids = slices.Clone(spec.Outcomes)
+		if spec := r.Spec.node(node); spec != nil {
+			ids, ends = slices.Clone(spec.Outcomes), spec.End
+		}
 	}
 	for _, e := range r.Edges {
 		if e.From == node && !slices.Contains(ids, edgeOut(e)) {
 			ids = append(ids, edgeOut(e))
 		}
 	}
+	return ids, ends
+}
+
+func graphOuts(r *Run, node string, end int, last, counts []int) []sdui.GraphOut {
+	ids, ends := nodeOuts(r, node)
 	outs := make([]sdui.GraphOut, 0, len(ids))
 	for _, id := range ids {
-		o := sdui.GraphOut{ID: id, Label: id, End: spec != nil && slices.Contains(spec.End, id)}
+		o := sdui.GraphOut{ID: id, Label: id, End: slices.Contains(ends, id)}
 		lit := false
 		for i, e := range r.Edges {
 			if e.From == node && edgeOut(e) == id {

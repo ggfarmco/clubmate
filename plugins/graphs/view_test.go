@@ -137,20 +137,19 @@ func TestGraphViewRunsWithInput(t *testing.T) {
 	assert.Contains(t, form.Children, sdk.HStack(sdk.MutedText("Input"), sdk.TextField(fieldInput, "{{x}}", "What the run works on; ↩ runs it")))
 	assert.Contains(t, form.Children, sdk.HStack(sdk.MutedText(""), sdk.WithTone(sdk.Text("Input: must not contain {{."), "danger")))
 	assert.Contains(t, form.Children, automation.Property("Definition", "Built into Clubmate", ""))
-	rows, ok := view.Children[1].Children[0].Props["rows"].([]sdk.TableRow)
+	diagram := view.Children[1]
+	assert.Equal(t, "graph:pr-walkthrough/graph", diagram.ID)
+	assert.NotContains(t, diagram.Props, "moves")
+	nodes, ok := diagram.Props["nodes"].([]sdk.GraphNode)
 	require.True(t, ok)
-	assert.Equal(t, []string{"Slicer · start", ""}, cellTexts(rows[0]))
+	assert.Equal(t, sdk.GraphNode{ID: "slicer", Label: "Slicer", Start: true, Outs: []sdk.GraphOut{{ID: "step", Label: "step", State: "plain"}, {ID: "complete", Label: "complete", State: "plain"}}}, nodes[0])
+	assert.Equal(t, []sdk.GraphOut{{ID: "reported", Label: "reported", State: "plain", End: true}}, nodes[2].Outs)
+	edges, ok := diagram.Props["edges"].([]sdk.GraphEdge)
+	require.True(t, ok)
+	assert.Equal(t, sdk.GraphEdge{From: "quizzer", Out: "finish", To: "reconciler", State: "plain"}, edges[len(edges)-1])
 
 	invalid := graphView(graphFile{Name: "broken", Error: "invalid graph JSON"}, nil, draft{}, "")
 	assert.Empty(t, invalid.Children[0].Children[0].Children)
-}
-
-func cellTexts(row sdk.TableRow) []string {
-	texts := make([]string, 0, len(row.Cells))
-	for _, c := range row.Cells {
-		texts = append(texts, c.Text)
-	}
-	return texts
 }
 
 func TestStoppedRunShowsItsPath(t *testing.T) {
@@ -211,6 +210,18 @@ func TestOpenMoveRevealsTurn(t *testing.T) {
 	_, err = a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "gr_1/graph", Action: actOpen, Value: json.RawMessage(`"coder"`)})
 	require.NoError(t, err)
 	assert.Equal(t, []any{"ws1", "agt_2", 3, "ws1", "agt_1", 0}, got)
+}
+
+func TestOpenOnGraphDefinitionIsIgnored(t *testing.T) {
+	a := testApp(t, &fakeCore{})
+	a.revealTurn = func(context.Context, string, string, int) error {
+		t.Fatal("revealed a session")
+		return nil
+	}
+
+	_, err := a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "graph:pr-walkthrough/graph", Action: actOpen, Value: json.RawMessage(`"slicer"`)})
+
+	require.NoError(t, err)
 }
 
 func outIDs(n sdk.GraphNode) []string {

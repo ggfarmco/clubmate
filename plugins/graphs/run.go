@@ -142,7 +142,7 @@ func newRun(g *Graph, workspace, input string, agent bool, caller string, now ti
 }
 
 func runShape(g *Graph) *Run {
-	r := &Run{Graph: g.Name, Title: graphTitle(g)}
+	r := &Run{Graph: g.Name, Title: graphTitle(g), Spec: g}
 	for _, n := range g.Nodes {
 		r.Nodes = append(r.Nodes, RunNode{ID: n.ID, Role: n.label(), Start: n.Start})
 	}

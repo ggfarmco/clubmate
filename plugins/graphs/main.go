@@ -194,6 +194,9 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 		return nil, ctx.Err()
 	}
 	if run, ok := strings.CutSuffix(ev.NodeID, graphSuffix); ok && ev.Slot == mainSlot {
+		if strings.HasPrefix(run, graphPrefix) {
+			return nil, nil
+		}
 		return nil, a.openGraph(ctx, ev, run)
 	}
 	var id string

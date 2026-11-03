@@ -44,6 +44,11 @@ final class GraphLayoutTests: XCTestCase {
         XCTAssertEqual(kinds(layout), [0: .forward, 1: .skip, 2: .back, 3: .back, 4: .forward])
     }
 
+    func testPlainStateDecodes() throws {
+        let g = try graph(#"{"type": "graph", "id": "g", "props": {"nodes": [{"id": "a", "label": "A", "state": "", "outs": [{"id": "x", "label": "x", "state": "plain"}]}], "edges": [{"from": "a", "out": "x", "to": "a", "state": "plain"}]}}"#)
+        XCTAssertEqual([g.nodes[0].outs[0].state, g.edges[0].state], [.plain, .plain])
+    }
+
     func testLimitsDoNotOverlap() {
         let targets = [[1, 2, 3, 7], [4, 5, 7, 0], [4, 5, 6, 0], [4, 5, 6, 0], [7, 7, 0, 1], [7, 0, 1, 0], [7, 0, 2, 0], [0, 0, 0, 0]]
         let label = String(repeating: "x", count: 20)

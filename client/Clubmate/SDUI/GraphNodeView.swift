@@ -100,12 +100,14 @@ struct GraphNodeView: View {
                         if let card { withAnimation(Motion.disclosure) { proxy.scrollTo(card) } }
                     }
                 }
-                GraphHistoryRow(moves: graph.moves.count, open: open) { views.toggleHistory(id) }
-                if open {
-                    GraphHistory(graph: graph, frame: frame, hovered: $hovered) { move in
-                        dispatch(node, .named("openMove", .number(Double(move))))
+                if !graph.moves.isEmpty {
+                    GraphHistoryRow(moves: graph.moves.count, open: open) { views.toggleHistory(id) }
+                    if open {
+                        GraphHistory(graph: graph, frame: frame, hovered: $hovered) { move in
+                            dispatch(node, .named("openMove", .number(Double(move))))
+                        }
+                        .environment(\.theme, frame.theme)
                     }
-                    .environment(\.theme, frame.theme)
                 }
             }
             .padding(.horizontal, theme.gutter)
@@ -115,7 +117,7 @@ struct GraphNodeView: View {
             .focusEffectDisabled()
             .focused($focused)
             .keyMonitor(active: focused) { handle($0, graph: graph, order: frame.order, zoom: zoom) }
-            .reportsFocus(.graph, focused)
+            .reportsFocus(.graph(history: !graph.moves.isEmpty), focused)
             .onChange(of: paneFocused) { _, value in
                 if value { focused = true }
             }
@@ -160,7 +162,7 @@ struct GraphNodeView: View {
         case "-": views.zoom(id, steps: -1, from: zoom)
         case "+", "=": views.zoom(id, steps: 1, from: zoom)
         case "0": views.fit(id)
-        case "h": views.toggleHistory(id)
+        case "h" where !graph.moves.isEmpty: views.toggleHistory(id)
         default: return false
         }
         return true
@@ -246,7 +248,7 @@ private struct GraphDiagram: View {
     }
 
     private func drawEdges(_ context: inout GraphicsContext) {
-        let rank: [SDUIGraph.EdgeState: Int] = [.never: 0, .taken: 1, .last: 2]
+        let rank: [SDUIGraph.EdgeState: Int] = [.never: 0, .plain: 1, .taken: 1, .last: 2]
         let routes = frame.layout.routes.filter { graph.edges.indices.contains($0.edge) }.sorted {
             let a = graph.edges[$0.edge], b = graph.edges[$1.edge]
             return (lit(a) ? 3 : rank[a.state] ?? 0, $0.edge) < (lit(b) ? 3 : rank[b.state] ?? 0, $1.edge)
@@ -320,7 +322,7 @@ private struct GraphDiagram: View {
                 }
                 switch out.state {
                 case .last: context.fill(dot(point, 4 * k), with: .color(theme.accent))
-                case .taken: context.fill(dot(point, 4 * k), with: .color(theme.muted))
+                case .taken, .plain: context.fill(dot(point, 4 * k), with: .color(theme.muted))
                 case .never:
                     context.fill(dot(point, 4 * k), with: .color(theme.background))
                     context.stroke(dot(point, 4 * k), with: .color(theme.borderStrong), lineWidth: 1.25 * k)
@@ -341,7 +343,7 @@ private struct GraphDiagram: View {
         if lit { return (theme.foreground, StrokeStyle(lineWidth: 2.75 * k, lineCap: .round, lineJoin: .round)) }
         switch state {
         case .last: return (theme.accent, StrokeStyle(lineWidth: 2 * k, lineCap: .round, lineJoin: .round))
-        case .taken: return (theme.muted, StrokeStyle(lineWidth: 1.25 * k, lineCap: .round, lineJoin: .round))
+        case .taken, .plain: return (theme.muted, StrokeStyle(lineWidth: 1.25 * k, lineCap: .round, lineJoin: .round))
         case .never: return (theme.faint, StrokeStyle(lineWidth: k, lineCap: .round, lineJoin: .round, dash: [3 * k, 4 * k]))
         }
     }
@@ -381,18 +383,22 @@ private struct GraphCard: View {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 3 * k) {
                     HStack(spacing: 7 * k) {
-                        GraphGlyph(node: node, size: 14 * k)
+                        if !node.state.isEmpty {
+                            GraphGlyph(node: node, size: 14 * k)
+                        }
                         Text(node.label)
                             .font(theme.strong)
                             .foregroundStyle(node.pending ? theme.muted : theme.foreground)
                             .lineLimit(1)
                             .truncationMode(.tail)
                     }
-                    Text(node.state)
-                        .font(theme.uiSmall)
-                        .foregroundStyle(theme.tone(node.tone) ?? (node.pending ? theme.muted : theme.text2))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                    if !node.state.isEmpty {
+                        Text(node.state)
+                            .font(theme.uiSmall)
+                            .foregroundStyle(theme.tone(node.tone) ?? (node.pending ? theme.muted : theme.text2))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
                 }
                 .padding(.horizontal, 11 * k)
                 .frame(maxWidth: .infinity, minHeight: metrics.headHeight, maxHeight: metrics.headHeight, alignment: .leading)
@@ -438,7 +444,7 @@ private struct GraphCard: View {
         .focusable(false)
         .onHover { hovering = $0 }
         .help(node.tooltip ?? node.label)
-        .accessibilityLabel("\(node.label), \(node.state)")
+        .accessibilityLabel(node.state.isEmpty ? node.label : "\(node.label), \(node.state)")
     }
 
     private func cut(_ out: SDUIGraph.Out, k: CGFloat) -> Bool {

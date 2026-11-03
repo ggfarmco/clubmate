@@ -7,6 +7,7 @@ public struct SDUIGraph: Sendable, Equatable {
         case taken
         case last
         case never
+        case plain
 
         init(_ raw: String?) {
             self = raw.flatMap(EdgeState.init(rawValue:)) ?? .never
