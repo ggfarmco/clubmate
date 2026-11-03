@@ -2,6 +2,8 @@ package testutil
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -35,6 +37,8 @@ type builtBinary struct {
 var (
 	buildsMu sync.Mutex
 	builds   = map[string]*builtBinary{}
+
+	binCache, binCacheErr = os.UserCacheDir()
 )
 
 func ShortDirs(t *testing.T) paths.Dirs {
@@ -228,15 +232,29 @@ func build(pkg string) (string, error) {
 		return "", err
 	}
 	root := filepath.Dir(strings.TrimSpace(string(gomod)))
-	dir, err := os.MkdirTemp("", "cmbin")
-	if err != nil {
+	sum := sha256.Sum256([]byte(root + "\x00" + pkg))
+	if binCacheErr != nil {
+		return "", binCacheErr
+	}
+	dir := filepath.Join(binCache, "clubmate-test-bin", hex.EncodeToString(sum[:8]))
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
 	out := filepath.Join(dir, filepath.Base(pkg))
-	cmd := exec.Command("go", "build", "-o", out, pkg)
+	tmp, err := os.CreateTemp(dir, filepath.Base(pkg)+".*")
+	if err != nil {
+		return "", err
+	}
+	tmp.Close()
+	cmd := exec.Command("go", "build", "-o", tmp.Name(), pkg)
 	cmd.Dir = root
 	if msg, err := cmd.CombinedOutput(); err != nil {
+		os.Remove(tmp.Name())
 		return "", &buildError{pkg: pkg, output: string(msg), err: err}
+	}
+	if err := os.Rename(tmp.Name(), out); err != nil {
+		os.Remove(tmp.Name())
+		return "", err
 	}
 	return out, nil
 }
