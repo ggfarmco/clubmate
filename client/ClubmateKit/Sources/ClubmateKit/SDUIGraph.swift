@@ -18,8 +18,14 @@ public struct SDUIGraph: Sendable, Equatable {
         public let user: Bool
         public let last: Bool
         public let end: String?
+        public let bar: String?
+        public let tone: String?
+        public let round: Int
 
-        public init(node: String, cause: Int = -1, label: String? = nil, tooltip: String = "", out: String? = nil, current: Bool = false, user: Bool = false, last: Bool = false, end: String? = nil) {
+        public init(node: String, cause: Int = -1, label: String? = nil, tooltip: String = "", out: String? = nil, current: Bool = false, user: Bool = false, last: Bool = false, end: String? = nil, bar: String? = nil, tone: String? = nil, round: Int = 0) {
+            self.bar = bar
+            self.tone = tone
+            self.round = round
             self.node = node
             self.cause = cause
             self.label = label
@@ -42,7 +48,10 @@ public struct SDUIGraph: Sendable, Equatable {
                 current: fields["current"]?.boolValue ?? false,
                 user: fields["user"]?.boolValue ?? false,
                 last: fields["last"]?.boolValue ?? false,
-                end: fields["end"]?.stringValue
+                end: fields["end"]?.stringValue,
+                bar: fields["bar"]?.stringValue,
+                tone: fields["tone"]?.stringValue,
+                round: SDUIFlow.int(fields["round"]) ?? 0
             )
         }
     }
@@ -67,7 +76,7 @@ public struct SDUIGraph: Sendable, Equatable {
         let actors = nodes.map { SDUILanes.Actor(id: $0.id, label: $0.label, icon: $0.icon, tone: $0.tone, attention: $0.attention, pending: $0.pending) }
         return SDUILanes(actors: actors, moves: moves.enumerated().map { index, move in
             let end = move.end.map { end in nodes.first { $0.id == move.node }?.outs.first { $0.id == end }?.label ?? end }
-            return SDUILanes.Move(actor: move.node, cause: move.cause, label: move.label, tooltip: move.tooltip, out: move.out, current: move.current, user: move.user, last: move.last, end: end, ref: String(index))
+            return SDUILanes.Move(actor: move.node, cause: move.cause, label: move.label, tooltip: move.tooltip, out: move.out, current: move.current, user: move.user, last: move.last, end: end, tone: move.tone, ref: String(index), bar: move.bar, round: move.round)
         }, title: "History", collapsed: true)
     }
 }

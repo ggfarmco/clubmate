@@ -116,3 +116,8 @@ func TestShellRunnerBackgroundChildDoesNotHang(t *testing.T) {
 	require.NoError(t, err)
 	assert.Eventually(t, func() bool { return errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) }, 5*time.Second, 20*time.Millisecond)
 }
+
+func TestShellRunnerCountsEveryLine(t *testing.T) {
+	res, _ := runShell(t, `seq 1 5000; printf end`, 5*time.Second)
+	assert.Equal(t, 5001, res.Lines)
+}

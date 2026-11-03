@@ -43,6 +43,7 @@ type stepResult struct {
 	ExitCode   int
 	Reason     string
 	Tail       string
+	Lines      int
 	Duration   time.Duration
 	CheckFiles []string
 }
@@ -61,6 +62,8 @@ type stepOutput struct {
 	written int
 	cut     bool
 	tail    []byte
+	lines   int
+	partial bool
 }
 
 func (r shellRunner) Run(ctx context.Context, s stepSpec, started func(pid int)) stepResult {
@@ -96,7 +99,7 @@ func (r shellRunner) Run(ctx context.Context, s stepSpec, started func(pid int))
 	if reason == "" && cmd.ProcessState != nil {
 		reason = signalReason(cmd.ProcessState)
 	}
-	return stepResult{ExitCode: exitCode(cmd, werr), Reason: reason, Tail: out.tailText(), Duration: time.Since(begin)}
+	return stepResult{ExitCode: exitCode(cmd, werr), Reason: reason, Tail: out.tailText(), Lines: out.lineCount(), Duration: time.Since(begin)}
 }
 
 func (r shellRunner) kill(pid int, done <-chan error) error {
@@ -156,6 +159,10 @@ func (o *stepOutput) Write(p []byte) (int, error) {
 		o.cut = true
 	}
 	o.tail = append(o.tail, p...)
+	if len(p) > 0 {
+		o.lines += bytes.Count(p, []byte{'\n'})
+		o.partial = p[len(p)-1] != '\n'
+	}
 	if extra := len(o.tail) - 4*outputTail; extra > 0 {
 		o.tail = o.tail[escapeEnd(o.tail, extra):]
 	}
@@ -182,6 +189,15 @@ func (o *stepOutput) tailText() string {
 		text = string([]rune(text)[n-outputTail:])
 	}
 	return text
+}
+
+func (o *stepOutput) lineCount() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.partial {
+		return o.lines + 1
+	}
+	return o.lines
 }
 
 func (o *stepOutput) close() {

@@ -6,6 +6,7 @@ struct CardNodeView: View {
     let node: SDUINode
 
     @Environment(\.theme) private var theme
+    @Environment(\.sheetInset) private var sheetInset
 
     var body: some View {
         let tone = theme.tone(node.string("tone"))
@@ -24,6 +25,6 @@ struct CardNodeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: theme.radius.l).fill(tone.map(theme.toneBg) ?? theme.surface2))
         .overlay(RoundedRectangle(cornerRadius: theme.radius.l).stroke(tone.map(theme.toneBorder) ?? theme.border, lineWidth: 1))
-        .padding(.horizontal, theme.gutter * 2)
+        .padding(.horizontal, sheetInset ? theme.gutter : theme.gutter * 2)
     }
 }

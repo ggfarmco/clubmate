@@ -213,8 +213,12 @@ public struct SDUILanes: Sendable, Equatable {
         public let end: String?
         public let tone: String?
         public let ref: String?
+        public let bar: String?
+        public let round: Int
 
-        public init(actor: String, cause: Int = -1, label: String? = nil, tooltip: String = "", out: String? = nil, current: Bool = false, user: Bool = false, last: Bool = false, end: String? = nil, tone: String? = nil, ref: String? = nil) {
+        public init(actor: String, cause: Int = -1, label: String? = nil, tooltip: String = "", out: String? = nil, current: Bool = false, user: Bool = false, last: Bool = false, end: String? = nil, tone: String? = nil, ref: String? = nil, bar: String? = nil, round: Int = 0) {
+            self.bar = bar
+            self.round = round
             self.actor = actor
             self.cause = cause
             self.label = label

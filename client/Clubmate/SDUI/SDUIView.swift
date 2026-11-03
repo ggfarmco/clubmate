@@ -214,13 +214,21 @@ struct SDUIView: View, Equatable {
     }
 
     var body: some View {
-        SDUINodeView(node: node)
+        let sheet = node.rootSheet
+        let dispatch = SDUIDispatch(slot: slot, workspaceID: workspaceID, sink: send, banner: banner)
+        SDUINodeView(node: sheet == nil ? node : node.withoutSheets)
             .padding(.top, topInset)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .environment(\.sduiDispatch, SDUIDispatch(slot: slot, workspaceID: workspaceID, sink: send, banner: banner))
+            .environment(\.sduiDispatch, dispatch)
             .environment(\.composerDrafts, drafts)
             .environment(\.sduiParent, slot)
             .environment(\.paneFocusOwner, node.paneFocusOwner ?? "")
+            .sheet(item: .constant(sheet)) { sheet in
+                SheetNodeView(node: sheet.node, presented: true)
+                    .environment(\.theme, theme)
+                    .environment(\.sduiDispatch, dispatch)
+                    .environment(\.sduiParent, slot)
+            }
     }
 }
 
@@ -269,6 +277,7 @@ struct SDUINodeView: View, Equatable {
         case "plan": PlanNodeView(node: node)
         case "toolCard": ToolCardNodeView(node: node)
         case "card": CardNodeView(node: node)
+        case "sheet": SheetNodeView(node: node)
         case "permissionCard": PermissionCardNodeView(node: node)
         case "composer": ComposerNodeView(node: node)
         case "surface": SurfaceHost(sessionID: node.string("sessionId") ?? "")

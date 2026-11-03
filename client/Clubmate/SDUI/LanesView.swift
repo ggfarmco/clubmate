@@ -149,8 +149,34 @@ struct LanesView: View {
 
     private var step: CGFloat { 82 * k }
 
+    private var top: CGFloat { lanes.moves.contains { $0.round > 0 } ? 24 * k : 0 }
+
     private func laneY(_ index: Int) -> CGFloat {
-        30 * k + 50 * k * CGFloat(index)
+        top + 30 * k + 50 * k * CGFloat(index)
+    }
+
+    private func barStart(_ index: Int) -> CGFloat {
+        moveX(index) - 6 * k
+    }
+
+    private func barEnd(_ index: Int, width: CGFloat) -> CGFloat {
+        let x = moveX(index)
+        if lanes.moves[index].current { return max(width - 16 * k, x + 24 * k) }
+        guard index + 1 < lanes.moves.count else { return x + step * 0.6 }
+        return max(moveX(index + 1) - 16 * k, x + 12 * k)
+    }
+
+    private func roundSpans(width: CGFloat) -> [(round: Int, from: CGFloat, to: CGFloat)] {
+        var spans: [(round: Int, from: CGFloat, to: CGFloat)] = []
+        for (index, move) in lanes.moves.enumerated() where move.round > 0 {
+            let end = move.bar == nil ? moveX(index) + 10 * k : barEnd(index, width: width)
+            if let last = spans.last, last.round == move.round {
+                spans[spans.count - 1].to = max(last.to, end)
+            } else {
+                spans.append((move.round, moveX(index) - 10 * k, end))
+            }
+        }
+        return spans
     }
 
     private func moveX(_ index: Int) -> CGFloat {
@@ -160,10 +186,10 @@ struct LanesView: View {
     var body: some View {
         let actors = lanes.actors
         let lane = Dictionary(actors.enumerated().map { ($0.element.id, $0.offset) }, uniquingKeysWith: { a, _ in a })
-        let hops = hops(lane: lane)
         let end = endMove(lane: lane)
         let width = max(viewport, moveX(max(lanes.moves.count - 1, 0)) + (end == nil ? 0 : 84 * k) + 30 * k)
-        let height = 10 * k + 50 * k * CGFloat(actors.count)
+        let hops = hops(lane: lane, width: width)
+        let height = top + 10 * k + 50 * k * CGFloat(actors.count)
         HStack(alignment: .top, spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(actors, id: \.id) { actor in
@@ -181,6 +207,7 @@ struct LanesView: View {
                 }
             }
             .padding(.vertical, 5 * k)
+            .padding(.top, top)
             .frame(width: headerWidth, alignment: .leading)
             ScrollView(.horizontal) {
                 ZStack(alignment: .topLeading) {
@@ -191,8 +218,22 @@ struct LanesView: View {
                             line.addLine(to: CGPoint(x: width, y: laneY(index)))
                             context.stroke(line, with: .color(theme.border), lineWidth: 1)
                         }
+                        for span in roundSpans(width: width) {
+                            var bracket = Path()
+                            bracket.move(to: CGPoint(x: span.from, y: 20 * k))
+                            bracket.addLine(to: CGPoint(x: span.from, y: 14 * k))
+                            bracket.addLine(to: CGPoint(x: span.to, y: 14 * k))
+                            bracket.addLine(to: CGPoint(x: span.to, y: 20 * k))
+                            context.stroke(bracket, with: .color(theme.borderStrong), lineWidth: 1)
+                            context.draw(Text("round \(span.round)").font(theme.uiSmall).foregroundStyle(theme.muted), at: CGPoint(x: (span.from + span.to) / 2, y: 12 * k), anchor: .bottom)
+                        }
                         for hop in hops {
                             draw(&context, hop)
+                        }
+                        for (index, move) in lanes.moves.enumerated() {
+                            guard let bar = move.bar, let row = lane[move.actor] else { continue }
+                            let ink = theme.tone(move.tone) ?? theme.muted
+                            context.draw(Text(bar).font(theme.uiSmall).foregroundStyle(ink), at: CGPoint(x: barStart(index), y: laneY(row) + 9 * k), anchor: .topLeading)
                         }
                         for (index, move) in lanes.moves.enumerated() where move.cause < 0 {
                             guard let label = move.label, let row = lane[move.actor] else { continue }
@@ -209,9 +250,16 @@ struct LanesView: View {
                     }
                     ForEach(Array(lanes.moves.enumerated()), id: \.offset) { index, move in
                         if let row = lane[move.actor] {
-                            LaneMoveDot(actor: actors[row], move: move, size: 14 * k, focused: cursor == index) { openMove(index) }
-                                .id(index)
-                                .position(x: moveX(index), y: laneY(row))
+                            if move.bar != nil {
+                                let from = barStart(index), to = barEnd(index, width: width)
+                                LaneMoveBar(move: move, length: to - from, height: 10 * k, focused: cursor == index) { openMove(index) }
+                                    .id(index)
+                                    .position(x: (from + to) / 2, y: laneY(row))
+                            } else {
+                                LaneMoveDot(actor: actors[row], move: move, size: 14 * k, focused: cursor == index) { openMove(index) }
+                                    .id(index)
+                                    .position(x: moveX(index), y: laneY(row))
+                            }
                         }
                     }
                 }
@@ -237,13 +285,15 @@ struct LanesView: View {
         .padding(.bottom, theme.spacing.s)
     }
 
-    private func hops(lane: [String: Int]) -> [Hop] {
+    private func hops(lane: [String: Int], width: CGFloat) -> [Hop] {
         lanes.moves.enumerated().compactMap { index, move in
             guard move.cause >= 0, move.cause < index, let to = lane[move.actor] else { return nil }
             let cause = lanes.moves[move.cause]
             guard let from = lane[cause.actor] else { return nil }
             let hop = move.out.map { FlowHop(node: cause.actor, out: $0) }
-            return Hop(from: CGPoint(x: moveX(move.cause), y: laneY(from)), to: CGPoint(x: moveX(index), y: laneY(to)), label: move.label ?? move.out ?? "", last: move.last, hop: hop)
+            let fromX = cause.bar == nil ? moveX(move.cause) : barEnd(move.cause, width: width) - 7 * k
+            let label = cause.bar == nil ? move.label ?? move.out ?? "" : move.label ?? ""
+            return Hop(from: CGPoint(x: fromX, y: laneY(from)), to: CGPoint(x: moveX(index), y: laneY(to)), label: label, last: move.last, hop: hop)
         }
     }
 
@@ -289,6 +339,44 @@ struct LanesView: View {
             let y = u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y
             return hypot(point.x - x, point.y - y) < 7 * k
         }
+    }
+}
+
+private struct LaneMoveBar: View {
+    let move: SDUILanes.Move
+    let length: CGFloat
+    let height: CGFloat
+    let focused: Bool
+    let open: () -> Void
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        let ink = theme.tone(move.tone) ?? theme.muted
+        let shape = RoundedRectangle(cornerRadius: height / 3)
+        Button(action: open) {
+            shape
+                .fill(theme.toneBg(ink))
+                .overlay {
+                    if move.current {
+                        shape.stroke(ink, style: StrokeStyle(lineWidth: 1.25, dash: [4, 3]))
+                    } else {
+                        shape.stroke(ink, lineWidth: 1.25)
+                    }
+                }
+                .frame(width: max(length, height), height: height)
+                .overlay {
+                    if focused {
+                        RoundedRectangle(cornerRadius: height / 3 + 2).stroke(theme.accent, lineWidth: theme.focusRing).padding(-3)
+                    }
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .disabled(move.ref == nil)
+        .help(move.tooltip)
+        .accessibilityLabel(move.tooltip)
     }
 }
 

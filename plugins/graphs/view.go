@@ -39,7 +39,7 @@ const (
 
 var liveOrder = []string{"waiting", "running", "error"}
 
-func sidebarView(graphs []graphFile, runs []*Run, selected string, sessions map[string]api.Session, collapsed map[string]bool) sdui.Node {
+func sidebarView(graphs []graphFile, untrusted map[string]bool, runs []*Run, selected string, sessions map[string]api.Session, collapsed map[string]bool) sdui.Node {
 	if len(graphs) == 0 && len(runs) == 0 {
 		return sdui.Empty("No graphs or graph runs yet")
 	}
@@ -47,7 +47,7 @@ func sidebarView(graphs []graphFile, runs []*Run, selected string, sessions map[
 	if len(graphs) > 0 {
 		items := make([]sdui.TreeItem, 0, len(graphs))
 		for _, g := range graphs {
-			items = append(items, graphItem(g))
+			items = append(items, graphItem(g, untrusted[g.Name]))
 		}
 		groups = append(groups, group(groupGraphs, "Graphs", items, collapsed))
 	}
@@ -77,11 +77,13 @@ func group(id, label string, items []sdui.TreeItem, collapsed map[string]bool) s
 	return sdui.TreeItem{ID: id, Label: label, Detail: strconv.Itoa(len(items)), Muted: true, HasChildren: true, Expanded: !collapsed[id], Children: items}
 }
 
-func graphItem(g graphFile) sdui.TreeItem {
+func graphItem(g graphFile, untrusted bool) sdui.TreeItem {
 	item := sdui.TreeItem{ID: graphPrefix + g.Name, Label: cmp.Or(g.Title, g.Name), Icon: "doc", Detail: fmt.Sprintf("%d nodes", g.Nodes)}
 	switch {
 	case g.Error != "":
 		item.Icon, item.Tone, item.Detail = "xmark.circle", "danger", "invalid"
+	case untrusted:
+		item.Tone, item.Detail = "warning", "untrusted"
 	case g.Builtin:
 		item.Detail = "built in"
 	}
@@ -95,10 +97,7 @@ func graphView(g graphFile, spec *Graph, d draft, starting string, tv trustView)
 		props.Meta = g.Name
 	}
 	var rows []sdui.Node
-	switch {
-	case tv.confirming:
-		rows = append(rows, trustConfirm(id, cmp.Or(g.Title, g.Name), spec, tv))
-	case tv.untrusted:
+	if tv.untrusted {
 		rows = append(rows, trustNotice(tv))
 	}
 	if g.Description != "" {
@@ -111,9 +110,7 @@ func graphView(g graphFile, spec *Graph, d draft, starting string, tv trustView)
 		rows = append(rows, sdui.HStack(sdui.MutedText("Error"), sdui.WithTone(sdui.Text(g.Error), "danger")))
 	case tv.untrusted:
 		props.Badges = []sdui.HeaderBadge{{Text: "untrusted", Tone: "warning"}}
-		if !tv.confirming {
-			actions = append(actions, automation.ActionNode(id, automation.DetailAction{Action: actTrust, Label: "Trust…", Icon: "checkmark", Variant: sdui.VariantPrimary, Shortcut: "cmd+return"}))
-		}
+		actions = append(actions, automation.ActionNode(id, automation.DetailAction{Action: actTrust, Label: "Trust…", Icon: "checkmark", Variant: sdui.VariantPrimary, Shortcut: "cmd+return"}))
 		rows = append(rows, sdui.HStack(sdui.MutedText("Input"), sdui.TextField(fieldInput, "", "Trust the file to run it")))
 	default:
 		run := sdui.WithShortcut(sdui.WithVariant(sdui.Button(id+"/submit", "Run", "play.fill"), sdui.VariantPrimary), "cmd+return")
@@ -155,6 +152,9 @@ func graphView(g graphFile, spec *Graph, d draft, starting string, tv trustView)
 	out := []sdui.Node{form, definitionDiagram(id, runShape(spec), changed)}
 	if card, ok := changedCard(spec, tv); ok {
 		out = append(out, card)
+	}
+	if tv.confirming {
+		out = append(out, trustConfirm(id, cmp.Or(g.Title, g.Name), spec, tv))
 	}
 	return sdui.VStack(out...)
 }
@@ -219,7 +219,7 @@ func mainView(r *Run, sessions map[string]api.Session, x runExtras) sdui.Node {
 		children = append(children, approvalCard(r, need, x.pending[need.Node]))
 	}
 	if node, move := r.outputStep(x.selected); move >= 0 {
-		children = append(children, outputPanel(r, node, move))
+		children = append(children, outputPanel(r, node, move, x.live))
 	}
 	return sdui.VStack(runHeader(r, sessions, need), automation.Properties(rows...), runDiagram(r, sessions, children...))
 }
@@ -233,21 +233,27 @@ func runHeader(r *Run, sessions map[string]api.Session, need *runNeed) sdui.Node
 	if r.Status == statusRunning {
 		state = "running"
 	}
-	badges := []sdui.HeaderBadge{{Text: fmt.Sprintf("%s · turn %d of %d", state, r.Turns, r.MaxTurns)}}
+	var badges []sdui.HeaderBadge
 	switch {
 	case need != nil && need.Kind == needCap:
 		badges = append(badges, sdui.HeaderBadge{Text: stateLabel(stepWaiting, false) + " · round cap", Tone: statusTone(stepWaiting)})
 	case need != nil:
 		badges = append(badges, sdui.HeaderBadge{Text: stateLabel(stepWaiting, false), Tone: statusTone(stepWaiting)})
+	default:
+		badges = append(badges, sdui.HeaderBadge{Text: fmt.Sprintf("%s · turn %d of %d", state, r.Turns, r.MaxTurns)})
 	}
 	if n, status := attentionNode(r, sessions); n != nil && (status == "waiting" || status == "error") {
 		badges = append(badges, sdui.HeaderBadge{Text: n.Role + " " + stateLabel(status, true), Tone: statusTone(status)})
 	}
 	var actions []sdui.Node
-	switch n, _ := attentionNode(r, sessions); {
+	switch n, status := attentionNode(r, sessions); {
 	case need != nil && need.Kind == needCap:
 		actions = append(actions, automation.ActionNode(r.ID, automation.DetailAction{Action: actContinue, Label: "Continue", Icon: "play.fill", Variant: sdui.VariantPrimary, Shortcut: "cmd+return"}))
 	case need != nil:
+	case n != nil && (status == "waiting" || status == "error"):
+		actions = append(actions, automation.ActionNode(r.ID, automation.DetailAction{Action: actOpen, Label: "Open " + n.Role, Icon: "sparkles", Variant: sdui.VariantPrimary, Shortcut: "cmd+return"}))
+	case r.Status == statusRunning && r.runningStep() != "":
+		actions = append(actions, automation.ActionNode(r.ID, automation.DetailAction{Action: actStepOutput, Label: "Open " + roleOf(r, r.runningStep()) + " output", Icon: "terminal", Variant: sdui.VariantPrimary, Shortcut: "cmd+return"}))
 	case n != nil:
 		actions = append(actions, automation.ActionNode(r.ID, automation.DetailAction{Action: actOpen, Label: "Open " + n.Role, Icon: "sparkles", Variant: sdui.VariantPrimary, Shortcut: "cmd+return"}))
 	}
@@ -535,9 +541,60 @@ func graphMoves(r *Run, last []int, end int) []sdui.GraphMove {
 		if i == end {
 			g.End = m.End
 		}
+		if m.Step != nil {
+			g.Bar, g.Tone = stepBar(m.Step), statusTone(stepGlyph(stepStatus(m.Step)))
+		}
 		moves = append(moves, g)
 	}
+	for i, n := range moveRounds(r.Moves) {
+		moves[i].Round = n
+	}
 	return moves
+}
+
+func stepBar(st *StepMove) string {
+	switch status := stepStatus(st); status {
+	case stepRunning, stepWaiting:
+		return stateLabel(status, false)
+	case onError:
+		return onError + " · " + cmp.Or(st.Reason, "failed")
+	default:
+		return status + " · " + clockDuration(time.Duration(st.Duration)*time.Millisecond)
+	}
+}
+
+func clockDuration(d time.Duration) string {
+	d = d.Round(time.Second)
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%d s", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%d:%02d", int(d.Minutes()), int(d.Seconds())%60)
+	}
+	return fmt.Sprintf("%d:%02d:%02d", int(d.Hours()), int(d.Minutes())%60, int(d.Seconds())%60)
+}
+
+func moveRounds(moves []Move) []int {
+	count := map[string]int{}
+	head := ""
+	for _, m := range moves {
+		if count[m.Node]++; count[m.Node] == 2 {
+			head = m.Node
+			break
+		}
+	}
+	out := make([]int, len(moves))
+	if head == "" {
+		return out
+	}
+	round := 0
+	for i, m := range moves {
+		if m.Node == head {
+			round++
+		}
+		out[i] = round
+	}
+	return out
 }
 
 func (r *Run) endMove() int {

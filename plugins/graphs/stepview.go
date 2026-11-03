@@ -19,6 +19,7 @@ const (
 	actApprove    = "approve"
 	actContinue   = "continue"
 	actFullOutput = "fullOutput"
+	actStepOutput = "stepOutput"
 	actOutput     = "output"
 	optOnce       = "once"
 	optAlways     = "always"
@@ -30,6 +31,7 @@ var userOnly = []string{actApprove, actContinue, actTrust, actTrustConfirm}
 type runExtras struct {
 	pending  map[string]*pendingInfo
 	selected string
+	live     *liveOutput
 }
 
 func nodeKind(g *Graph, id string) string {
@@ -143,7 +145,7 @@ func (r *Run) round(node string, move int) (int, int) {
 	return at, n
 }
 
-func outputPanel(r *Run, node string, move int) sdui.Node {
+func outputPanel(r *Run, node string, move int, live *liveOutput) sdui.Node {
 	st := r.Moves[move].Step
 	role := roleOf(r, node)
 	var meta []string
@@ -169,22 +171,31 @@ func outputPanel(r *Run, node string, move int) sdui.Node {
 	if st.Output == "" {
 		full = sdui.WithDisabled(full)
 	}
-	tail := strings.TrimRight(st.Tail, "\n")
+	tail, lines := strings.TrimRight(st.Tail, "\n"), st.Lines
+	if live != nil {
+		tail, lines = live.tail, live.lines
+	}
 	var body []sdui.Node
 	switch {
-	case st.Status == stepRunning:
-		body = append(body, sdui.MutedText(role+" is still running: Full output shows what it printed so far."), sdui.HStack(full))
+	case st.Status == stepRunning && strings.TrimSpace(tail) == "":
+		body = append(body, sdui.BlockText("Nothing printed yet."), sdui.HStack(full), sdui.MutedText(role+" is still running: the tail follows its output."))
 	case strings.TrimSpace(tail) == "":
-		body = append(body, sdui.Text("No output — the command printed nothing."), sdui.MonoText(st.Command+" in "+cmp.Or(st.Dir, "the run's folder")), sdui.HStack(full))
+		body = append(body, sdui.BlockText("No output — the command printed nothing.\n"+st.Command+" in "+cmp.Or(st.Dir, "the run's folder")), sdui.HStack(full))
 	default:
-		lines := strings.Split(tail, "\n")
-		shown := lines[max(0, len(lines)-tailLines):]
+		split := strings.Split(tail, "\n")
+		shown := split[max(0, len(split)-tailLines):]
 		copyButton := sdui.WithCopy(sdui.WithVariant(sdui.Button(r.ID+"/copy", "Copy", "doc.on.doc"), sdui.VariantGhost), tail)
-		row := []sdui.Node{full, copyButton}
-		if len(shown) < len(lines) {
-			row = append(row, sdui.MutedText(fmt.Sprintf("last %d of %d lines", len(shown), len(lines))))
+		body = append(body, sdui.BlockText(strings.Join(shown, "\n")), sdui.HStack(full, copyButton))
+		var notes []string
+		if all := max(lines, len(split)); len(shown) < all {
+			notes = append(notes, fmt.Sprintf("last %d of %d lines", len(shown), all))
 		}
-		body = append(body, sdui.MonoText(strings.Join(shown, "\n")), sdui.HStack(row...))
+		if st.Status == stepRunning {
+			notes = append(notes, role+" is still running: the tail follows its output.")
+		}
+		if len(notes) > 0 {
+			body = append(body, sdui.MutedText(strings.Join(notes, " · ")))
+		}
 	}
 	top := []sdui.Node{head}
 	if len(st.CheckFiles) > 0 {
@@ -208,13 +219,18 @@ func stepGlyph(status string) string {
 	return "fail"
 }
 
-func (a *app) extras(runID string) runExtras {
+func (a *app) extras(r *Run) runExtras {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	x := runExtras{pending: map[string]*pendingInfo{}, selected: a.stepSel[runID]}
+	x := runExtras{pending: map[string]*pendingInfo{}, selected: a.stepSel[r.ID]}
 	for k, p := range a.pending {
-		if node, ok := strings.CutPrefix(k, runID+"/"); ok {
+		if node, ok := strings.CutPrefix(k, r.ID+"/"); ok {
 			x.pending[node] = pendingOf(p)
+		}
+	}
+	a.mu.Unlock()
+	if _, move := r.outputStep(x.selected); move >= 0 && r.Moves[move].Step.Status == stepRunning && r.Moves[move].Step.Output != "" {
+		if live, ok := readLive(r.Moves[move].Step.Output); ok {
+			x.live = &live
 		}
 	}
 	return x
@@ -275,6 +291,23 @@ func (a *app) fullOutput(ctx context.Context, workspace, runID, node string) err
 	}
 	_, err = a.runCommand(ctx, automation.CommandRequest{ID: "editor.open", WorkspaceID: workspace, Args: args})
 	return err
+}
+
+func (a *app) stepOutput(ctx context.Context, workspace, runID string) error {
+	r, err := a.lookup(workspace, runID)
+	if err != nil {
+		return err
+	}
+	node := r.runningStep()
+	if node == "" {
+		return fmt.Errorf("graph run %q has no running step", runID)
+	}
+	a.mu.Lock()
+	a.stepSel[runID] = node
+	a.touch(workspace)
+	a.mu.Unlock()
+	a.flush(ctx)
+	return a.fullOutput(ctx, workspace, runID, node)
 }
 
 func needDetail(r *Run, n *runNeed) string {

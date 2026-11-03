@@ -15,4 +15,11 @@ final class AgentTallyTests: XCTestCase {
         XCTAssertEqual(tally.active, 3)
         XCTAssertEqual(tally.needYou, 3)
     }
+
+    func testRunsAloneReadAsRuns() {
+        let run = AgentSession(id: "gr_1", status: .waiting, needsYou: true, kind: "run")
+        XCTAssertEqual(AgentTally([run, AgentSession(id: "gr_2", status: .waiting, needsYou: true, kind: "run")]).needYouLabel, "2 runs need you")
+        XCTAssertEqual(AgentTally([run]).needYouLabel, "1 run needs you")
+        XCTAssertEqual(AgentTally([run, AgentSession(id: "a", status: .waiting, needsYou: true)]).needYouLabel, "2 need you")
+    }
 }

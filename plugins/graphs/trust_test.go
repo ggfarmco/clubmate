@@ -15,6 +15,7 @@ import (
 	"clubmate/pkg/pluginsdk"
 	sdk "clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/automation"
 )
 
 func agentRun(t *testing.T, a *app, graph string) error {
@@ -218,9 +219,9 @@ func TestTrustConfirmView(t *testing.T) {
 	tv := a.trustFor(t.Context(), "ws1", dirs, g, spec)
 	view := graphView(g, spec, draft{}, "", tv)
 	require.NoError(t, sdui.Validate(view))
-	assert.Empty(t, view.Children[0].Children[0].Children)
-	confirm := texts(view.Children[0].Children[1])
-	assert.Equal(t, "Trust Review gate?", confirm[0])
+	sheet := view.Children[len(view.Children)-1]
+	assert.Equal(t, "Trust Review gate?", sheet.Props["title"])
+	confirm := texts(sheet)
 	assert.Contains(t, confirm, "was: make test")
 	assert.Contains(t, confirm, "$ make test && ./up.sh")
 	a.shownHash["ws1/gate"] = tv.hash
@@ -244,4 +245,19 @@ func TestNeverTrustedTagsNothing(t *testing.T) {
 		assert.Empty(t, n.Tag)
 	}
 	assert.Len(t, view.Children, 2)
+}
+
+func TestSidebarUntrustedIsCached(t *testing.T) {
+	a, g, _, dirs := changedGate(t)
+	assert.Equal(t, map[string]bool{"gate": true}, a.untrustedGraphs(t.Context(), "ws1", dirs, []graphFile{g}))
+	assert.Equal(t, "untrusted", graphItem(g, true).Detail)
+	run := a.runCommand
+	a.runCommand = func(context.Context, automation.CommandRequest) (json.RawMessage, error) {
+		t.Fatal("trust state looked up again")
+		return nil, nil
+	}
+	assert.Len(t, a.untrustedGraphs(t.Context(), "ws1", dirs, []graphFile{g}), 1)
+	a.runCommand = run
+	require.NoError(t, trustGraph(t, a, "gate"))
+	assert.Empty(t, a.untrustedGraphs(t.Context(), "ws1", dirs, []graphFile{g}))
 }

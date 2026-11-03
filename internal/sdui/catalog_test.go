@@ -365,3 +365,15 @@ func TestGraphStepProps(t *testing.T) {
 	assert.NoError(t, internalsdui.Validate(graph(sdui.KindCheck)))
 	assert.ErrorContains(t, internalsdui.Validate(graph("robot")), "prop nodes: [0]: kind")
 }
+
+func TestSheetNode(t *testing.T) {
+	sheet := func(cancel string) sdui.Node {
+		return sdui.Sheet("trust", sdui.SheetProps{Title: "Trust Nightly?", Icon: "checkmark", Tone: "warning", Cancel: cancel},
+			sdui.Text("Clubmate runs these commands as you."),
+			sdui.HStack(sdui.WithAction(sdui.Button("trust/cancel", "Cancel", ""), "cancel"), sdui.WithAction(sdui.Button("trust/ok", "Trust", ""), "ok")),
+		)
+	}
+	assert.NoError(t, internalsdui.Validate(sdui.VStack(sdui.Text("page"), sheet("cancel"))))
+	assert.ErrorContains(t, internalsdui.Validate(sdui.VStack(sheet("close"))), `cancel "close" is not the action of a button`)
+	assert.ErrorContains(t, internalsdui.Validate(sdui.VStack(sdui.VStack(sheet("cancel")))), "child of the slot's root")
+}

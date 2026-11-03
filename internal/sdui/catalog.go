@@ -62,6 +62,7 @@ type spec struct {
 	children    childRule
 	interactive bool
 	prepare     func(c *validator, props map[string]any)
+	check       func(c *validator, n sdui.Node) error
 }
 
 var (
@@ -69,7 +70,7 @@ var (
 	noChildren  = childRule{min: 0, max: 0}
 
 	directions   = []string{"vertical", "horizontal"}
-	textStyles   = []string{"body", "muted", "title", "mono"}
+	textStyles   = []string{"body", "muted", "title", "mono", "block"}
 	variants     = []string{"primary", "secondary", "ghost", "danger"}
 	toggleStyles = []string{"switch", "checkbox"}
 
@@ -165,6 +166,7 @@ var (
 	graphMove  = objectCheck([]string{"node", "cause", "tooltip"}, map[string]propCheck{
 		"node": nonEmptyString, "cause": causeNumber, "label": isString, "tooltip": isString, "out": isString,
 		"current": isBool, "user": isBool, "last": isBool, "end": nonEmptyString,
+		"bar": nonEmptyString, "tone": oneOf(badgeTones), "round": countNumber,
 	})
 
 	sparkValues = maxLen(maxSparkValues, sparkBudget(arrayOf(anyNumber)))
@@ -286,6 +288,13 @@ var (
 			interactive: true,
 		},
 		"card": {props: map[string]propCheck{"tone": oneOf(badgeTones), "icon": isString}, children: childRule{min: 1, max: -1}},
+		"sheet": {
+			required:    []string{"title", "cancel"},
+			props:       map[string]propCheck{"title": isString, "icon": isString, "tone": oneOf(badgeTones), "cancel": actionCheck},
+			children:    childRule{min: 1, max: -1},
+			interactive: true,
+			check:       sheetCheck,
+		},
 		"permissionCard": {
 			required: []string{"request", "text", "options"},
 			props: map[string]propCheck{
@@ -399,6 +408,11 @@ func (v *validator) node(n sdui.Node, path string, depth int) error {
 	}
 	if err := checkChildCount(n, sp, path); err != nil {
 		return err
+	}
+	if sp.check != nil {
+		if err := sp.check(v, n); err != nil {
+			return invalid(path, "%v", err)
+		}
 	}
 	for i, c := range n.Children {
 		if err := v.node(c, path+"["+strconv.Itoa(i)+"]."+c.Type, depth+1); err != nil {
@@ -557,6 +571,23 @@ func isBool(_ *validator, v any) error {
 		return errors.New("must be a boolean")
 	}
 	return nil
+}
+
+func sheetCheck(c *validator, n sdui.Node) error {
+	if c.depth != 2 {
+		return errors.New("a sheet must be a child of the slot's root node")
+	}
+	cancel, _ := n.Props["cancel"].(string)
+	if !hasButton(n.Children, cancel) {
+		return fmt.Errorf("cancel %q is not the action of a button in the sheet", cancel)
+	}
+	return nil
+}
+
+func hasButton(nodes []sdui.Node, action string) bool {
+	return slices.ContainsFunc(nodes, func(c sdui.Node) bool {
+		return c.Type == "button" && c.Props["action"] == action || hasButton(c.Children, action)
+	})
 }
 
 func actionCheck(_ *validator, v any) error {

@@ -31,6 +31,7 @@ type StepMove struct {
 	Dir        string    `json:"dir,omitempty"`
 	Command    string    `json:"command,omitempty"`
 	Tail       string    `json:"tail,omitempty"`
+	Lines      int       `json:"lines,omitempty"`
 	Output     string    `json:"output,omitempty"`
 	WaitingAt  time.Time `json:"waitingAt,omitzero"`
 	StartedAt  time.Time `json:"startedAt,omitzero"`

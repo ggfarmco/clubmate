@@ -24,7 +24,7 @@ struct TextNode: View {
         switch node.string("style") {
         case "muted": .subheadline
         case "title": .title3.weight(.semibold)
-        case "mono": .callout.monospaced()
+        case "mono", "block": .callout.monospaced()
         default: .body
         }
     }
@@ -40,6 +40,9 @@ struct TextNode: View {
                 .foregroundStyle(color)
                 .lineLimit(expanded ? nil : lines)
                 .textSelection(.enabled)
+                .padding(node.string("style") == "block" ? 10 : 0)
+                .frame(maxWidth: node.string("style") == "block" ? .infinity : nil, alignment: .leading)
+                .background(node.string("style") == "block" ? Color(.secondarySystemBackground) : .clear, in: .rect(cornerRadius: 8))
             if clamped {
                 Button(expanded ? "Show less" : "Show all") { Motion.disclose { expanded.toggle() } }
                     .font(.footnote.weight(.semibold))

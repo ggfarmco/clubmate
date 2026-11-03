@@ -872,3 +872,24 @@ func TestBypassAsksOnCompoundCommandWithDeny(t *testing.T) {
 	assert.Zero(t, p.ran())
 	assert.Equal(t, stepWaiting, stepMoves(a, r.ID, "tests")[0].Step.Status)
 }
+
+func TestRunningStepFollowsItsLog(t *testing.T) {
+	a, _, r := blockedStep(t)
+	out := filepath.Join(t.TempDir(), "1.log")
+	require.NoError(t, os.WriteFile(out, []byte(strings.Repeat("ok\n", 40)), 0o600))
+	a.mu.Lock()
+	moves := a.runs[r.ID].Moves
+	moves[len(moves)-1].Step.Output = out
+	a.mu.Unlock()
+	view := runView(t, a, r.ID)
+	assert.Equal(t, "Open Tests output", view.Children[0].Children[0].Props["label"])
+	assert.Contains(t, texts(graphChildren(view)[0]), "last 12 of 40 lines · Tests is still running: the tail follows its output.")
+	var opened []string
+	a.runCommand = func(_ context.Context, req automation.CommandRequest) (json.RawMessage, error) {
+		opened = append(opened, req.ID+" "+string(req.Args))
+		return json.RawMessage(`{}`), nil
+	}
+	_, err := a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: r.ID + "/" + actStepOutput, Action: actStepOutput})
+	require.NoError(t, err)
+	assert.Equal(t, []string{`editor.open {"path":"` + out + `","focus":true}`}, opened)
+}

@@ -95,6 +95,17 @@
           ]},
           {"type": "button", "id": "card-skip", "props": {"label": "Skip", "variant": "ghost"}}
         ]},
+        {"type": "sheet", "id": "gallery-sheet", "props": {"title": "Trust Nightly?", "icon": "checkmark", "tone": "warning", "cancel": "trustCancel"}, "children": [
+          {"type": "text", "props": {"text": "Clubmate runs these commands as you when the graph reaches them."}},
+          {"type": "card", "props": {"tone": "warning"}, "children": [
+            {"type": "stack", "props": {"direction": "horizontal"}, "children": [{"type": "text", "props": {"text": "Push main"}}, {"type": "text", "props": {"text": "action", "style": "muted"}}, {"type": "badge", "props": {"text": "changed", "tone": "warning"}}]},
+            {"type": "text", "props": {"text": "$ git push --force-with-lease origin main", "style": "mono"}}
+          ]},
+          {"type": "stack", "props": {"direction": "horizontal"}, "children": [
+            {"type": "button", "id": "gallery-sheet/trustCancel", "props": {"label": "Cancel", "variant": "secondary", "action": "trustCancel"}},
+            {"type": "button", "id": "gallery-sheet/trustConfirm", "props": {"label": "Trust", "variant": "primary", "action": "trustConfirm", "shortcut": "cmd+return"}}
+          ]}
+        ]},
         {"type": "text", "props": {"text": "SESSIONS", "style": "muted"}},
         {
           "type": "list",

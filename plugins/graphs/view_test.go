@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,7 +40,7 @@ func TestExecutionView(t *testing.T) {
 		"agt_3": {ID: "agt_3", Title: "Review loop · Tester", Status: "idle"},
 	}
 
-	side := sidebarView(nil, []*Run{r}, "gr_1", sessions, nil)
+	side := sidebarView(nil, nil, []*Run{r}, "gr_1", sessions, nil)
 	groups, ok := side.Props["items"].([]sdk.TreeItem)
 	require.True(t, ok)
 	items := groups[0].Children
@@ -78,7 +79,7 @@ func TestExecutionView(t *testing.T) {
 func TestStoppedRunOffersRemove(t *testing.T) {
 	r := &Run{ID: "gr_1", Title: "Review loop", Status: statusStopped, StartedAt: time.Now()}
 
-	groups, ok := sidebarView(nil, []*Run{r}, "gr_1", nil, nil).Props["items"].([]sdk.TreeItem)
+	groups, ok := sidebarView(nil, nil, []*Run{r}, "gr_1", nil, nil).Props["items"].([]sdk.TreeItem)
 	require.True(t, ok)
 	items := groups[0].Children
 	assert.Equal(t, []string{actRemove}, []string{items[0].Menu[0].Action})
@@ -110,7 +111,7 @@ func TestSidebarListsGraphsAboveRuns(t *testing.T) {
 	}
 	runs := []*Run{{ID: "gr_1", Title: "Review loop", Status: statusStopped, StartedAt: time.Now()}}
 
-	groups, ok := sidebarView(graphs, runs, "gr_1", nil, map[string]bool{groupRuns: true}).Props["items"].([]sdk.TreeItem)
+	groups, ok := sidebarView(graphs, nil, runs, "gr_1", nil, map[string]bool{groupRuns: true}).Props["items"].([]sdk.TreeItem)
 	require.True(t, ok)
 	assert.Equal(t, []string{"Graphs", "3", "Runs", "1"}, []string{groups[0].Label, groups[0].Detail, groups[1].Label, groups[1].Detail})
 	assert.Equal(t, []bool{true, false}, []bool{groups[0].Expanded, groups[1].Expanded})
@@ -186,11 +187,11 @@ func TestStoppedRunShowsItsPath(t *testing.T) {
 	}, g.Props["edges"])
 	hhmm := at.Local().Format("15:04")
 	assert.Equal(t, []sdk.GraphMove{
-		{Node: "coder", Cause: -1, Tooltip: "move 1 · Coder · " + hhmm},
-		{Node: "reviewer", Cause: 0, Out: "done", Tooltip: "move 2 · Reviewer · " + hhmm},
-		{Node: "coder", Cause: 1, Out: "changes", Tooltip: "move 3 · Coder · " + hhmm},
-		{Node: "coder", Cause: -1, Label: "you", User: true, Tooltip: "move 4 · Coder · " + hhmm},
-		{Node: "reviewer", Cause: 2, Out: "done", Last: true, End: "approved", Tooltip: "move 5 · Reviewer · " + hhmm},
+		{Node: "coder", Cause: -1, Tooltip: "move 1 · Coder · " + hhmm, Round: 1},
+		{Node: "reviewer", Cause: 0, Out: "done", Tooltip: "move 2 · Reviewer · " + hhmm, Round: 1},
+		{Node: "coder", Cause: 1, Out: "changes", Tooltip: "move 3 · Coder · " + hhmm, Round: 2},
+		{Node: "coder", Cause: -1, Label: "you", User: true, Tooltip: "move 4 · Coder · " + hhmm, Round: 3},
+		{Node: "reviewer", Cause: 2, Out: "done", Last: true, End: "approved", Tooltip: "move 5 · Reviewer · " + hhmm, Round: 3},
 	}, g.Props["moves"])
 }
 
@@ -340,7 +341,7 @@ func runView(t *testing.T, a *app, id string) sdk.Node {
 	a.mu.Lock()
 	r := cloneRun(a.runs[id])
 	a.mu.Unlock()
-	view := mainView(r, nil, a.extras(id))
+	view := mainView(r, nil, a.extras(r))
 	require.NoError(t, sdui.Validate(view))
 	return view
 }
@@ -368,7 +369,7 @@ func TestApprovalCard(t *testing.T) {
 	a, _, _, r := approvalApp(t, "default")
 	turnDone(t, a, "agt_1", 1)
 	view := runView(t, a, r.ID)
-	assert.Equal(t, []sdk.HeaderBadge{{Text: "running · turn 1 of 12"}, {Text: "waiting for you", Tone: "warning"}}, view.Children[0].Props["badges"])
+	assert.Equal(t, []sdk.HeaderBadge{{Text: "waiting for you", Tone: "warning"}}, view.Children[0].Props["badges"])
 	require.Len(t, view.Children[0].Children, 1)
 	card := graphChildren(view)[0].Children[0]
 	assert.Equal(t, "permissionCard", card.Type)
@@ -389,8 +390,8 @@ func TestHeldEdgeView(t *testing.T) {
 	}
 	view := runView(t, a, r.ID)
 	header := view.Children[0]
-	assert.Equal(t, sdk.HeaderBadge{Text: "waiting for you · round cap", Tone: "warning"}, header.Props["badges"].([]sdk.HeaderBadge)[1])
-	row := sidebarView(nil, []*Run{a.runs[r.ID]}, r.ID, nil, nil).Props["items"].([]sdk.TreeItem)[0].Children[0]
+	assert.Equal(t, sdk.HeaderBadge{Text: "waiting for you · round cap", Tone: "warning"}, header.Props["badges"].([]sdk.HeaderBadge)[0])
+	row := sidebarView(nil, nil, []*Run{a.runs[r.ID]}, r.ID, nil, nil).Props["items"].([]sdk.TreeItem)[0].Children[0]
 	assert.Equal(t, []string{"2 of 2", "exclamationmark.circle", "warning"}, []string{row.Detail, row.Icon, row.Tone})
 	assert.Equal(t, []string{r.ID + "/continue", "Continue", "cmd+return"}, []string{header.Children[0].ID, header.Children[0].Props["label"].(string), header.Children[0].Props["shortcut"].(string)})
 	edges := view.Children[2].Props["edges"].([]sdk.GraphEdge)
@@ -408,7 +409,14 @@ func TestOutputPanelWhenEmpty(t *testing.T) {
 	a, _, _, r := stepApp(t, stepResult{ExitCode: 0})
 	turnDone(t, a, "agt_1", 1)
 	panel := graphChildren(runView(t, a, r.ID))[0]
-	assert.Equal(t, []string{"Tests", "pass · exit 0 · 0 s", "No output — the command printed nothing.", "make test in /wt/coder"}, texts(panel))
+	assert.Equal(t, []string{"Tests", "pass · exit 0 · 0 s", "No output — the command printed nothing.\nmake test in /wt/coder"}, texts(panel))
+}
+
+func TestOutputPanelCountsWholeOutput(t *testing.T) {
+	a, _, _, r := stepApp(t, stepResult{ExitCode: 1, Tail: strings.Repeat("line\n", 30) + "end", Lines: 212})
+	turnDone(t, a, "agt_1", 1)
+	panel := graphChildren(runView(t, a, r.ID))[0]
+	assert.Contains(t, texts(panel), "last 12 of 212 lines")
 }
 
 func TestOutputPanelFlagsCheckFiles(t *testing.T) {
@@ -427,4 +435,14 @@ func texts(n sdk.Node) []string {
 		out = append(out, texts(c)...)
 	}
 	return out
+}
+
+func TestHistoryDrawsStepBarsAndRounds(t *testing.T) {
+	a, _, _, r := stepApp(t, stepResult{ExitCode: 1, Tail: "FAIL", Duration: 64 * time.Second})
+	turnDone(t, a, "agt_1", 1)
+	moves := runView(t, a, r.ID).Children[2].Props["moves"].([]sdk.GraphMove)
+	require.Len(t, moves, 3)
+	assert.Equal(t, []string{"", "fail · 1:04", ""}, []string{moves[0].Bar, moves[1].Bar, moves[2].Bar})
+	assert.Equal(t, "neutral", moves[1].Tone)
+	assert.Equal(t, []int{1, 1, 2}, []int{moves[0].Round, moves[1].Round, moves[2].Round})
 }

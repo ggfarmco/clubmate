@@ -614,7 +614,7 @@ func (a *app) stepDone(ctx context.Context, runID, node string, move int, res st
 	n := r.Spec.node(node)
 	outcome, reason := stepOutcome(r.Spec, n, res)
 	st := r.Moves[move].Step
-	st.Status, st.Outcome, st.Reason, st.Tail, st.EndedAt, st.Duration, st.CheckFiles = stepFinished, outcome, reason, res.Tail, now, res.Duration.Milliseconds(), res.CheckFiles
+	st.Status, st.Outcome, st.Reason, st.Tail, st.Lines, st.EndedAt, st.Duration, st.CheckFiles = stepFinished, outcome, reason, res.Tail, res.Lines, now, res.Duration.Milliseconds(), res.CheckFiles
 	if res.ExitCode >= 0 {
 		code := res.ExitCode
 		st.ExitCode = &code

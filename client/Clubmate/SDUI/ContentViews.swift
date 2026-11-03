@@ -23,7 +23,19 @@ struct TextNodeView: View {
 
     var body: some View {
         let text = node.string("text") ?? ""
-        if node.string("style") == "title" {
+        if node.string("style") == "block" {
+            Text(text)
+                .font(theme.ui)
+                .foregroundStyle(color)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, theme.gutter)
+                .padding(.vertical, theme.spacing.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.background))
+                .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(theme.border, lineWidth: 1))
+                .padding(.horizontal, theme.gutter)
+        } else if node.string("style") == "title" {
             Text(text)
                 .font(theme.title)
                 .foregroundStyle(theme.foreground)
@@ -263,35 +275,23 @@ struct HeaderNodeView: View {
         let session = node.string("status") != nil
         let inline = width >= Self.inlineCaptionWidth
         return VStack(alignment: .leading, spacing: theme.spacing.l) {
-            HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
-                if let icon = node.string("icon") {
-                    Image(systemName: SymbolName.resolve(icon))
-                        .foregroundStyle(theme.tone(node.headerStatusTone) ?? theme.muted)
+            if !session, node.string("field") == nil || form == nil, !node.headerBadges().isEmpty {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
+                        titleLine(title)
+                            .fixedSize()
+                        badges
+                        Spacer(minLength: 0)
+                    }
+                    VStack(alignment: .leading, spacing: theme.spacing.s) {
+                        titleLine(title)
+                        HStack(spacing: theme.spacing.m) { badges }
+                    }
                 }
-                if let field = node.string("field"), form != nil {
-                    HeaderTitleField(title: title, field: field, error: node.string("error").flatMap { $0.isEmpty ? nil : $0 })
-                        .layoutPriority(1)
-                } else {
-                    Text(title)
-                        .font(theme.heading)
-                        .foregroundStyle(theme.foreground)
-                        .lineLimit(2)
-                        .truncationMode(.label)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .help(title)
-                        .layoutPriority(1)
-                }
-                if inline, let caption = sessionCaption {
-                    captionText(caption)
-                }
-                if !session { badges }
-                Spacer(minLength: 0)
-                if session {
-                    badges
-                    stop(compact: !inline)
-                }
+                .padding(.trailing, trailingInset)
+            } else {
+                titleRow(title, session: session, inline: inline)
             }
-            .padding(.trailing, trailingInset)
             if !inline, let caption = sessionCaption {
                 captionText(caption)
             }
@@ -343,6 +343,53 @@ struct HeaderNodeView: View {
             .lineLimit(1)
             .truncationMode(.middle)
             .help(caption)
+    }
+
+    private func titleRow(_ title: String, session: Bool, inline: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
+            if let icon = node.string("icon") {
+                Image(systemName: SymbolName.resolve(icon))
+                    .foregroundStyle(theme.tone(node.headerStatusTone) ?? theme.muted)
+            }
+            if let field = node.string("field"), form != nil {
+                HeaderTitleField(title: title, field: field, error: node.string("error").flatMap { $0.isEmpty ? nil : $0 })
+                    .layoutPriority(1)
+            } else {
+                Text(title)
+                    .font(theme.heading)
+                    .foregroundStyle(theme.foreground)
+                    .lineLimit(2)
+                    .truncationMode(.label)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .help(title)
+                    .layoutPriority(1)
+            }
+            if inline, let caption = sessionCaption {
+                captionText(caption)
+            }
+            if !session { badges }
+            Spacer(minLength: 0)
+            if session {
+                badges
+                stop(compact: !inline)
+            }
+        }
+        .padding(.trailing, trailingInset)
+    }
+
+    private func titleLine(_ title: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
+            if let icon = node.string("icon") {
+                Image(systemName: SymbolName.resolve(icon))
+                    .foregroundStyle(theme.tone(node.headerStatusTone) ?? theme.muted)
+            }
+            Text(title)
+                .font(theme.heading)
+                .foregroundStyle(theme.foreground)
+                .lineLimit(1)
+                .truncationMode(.label)
+                .help(title)
+        }
     }
 
     private var badges: some View {
@@ -636,6 +683,10 @@ private struct ButtonKeyHintKey: EnvironmentKey {
     static let defaultValue: String? = nil
 }
 
+private struct ButtonIsDefaultKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 private struct FieldGutterKey: EnvironmentKey {
     static let defaultValue = true
 }
@@ -649,6 +700,11 @@ extension EnvironmentValues {
     var buttonKeyHint: String? {
         get { self[ButtonKeyHintKey.self] }
         set { self[ButtonKeyHintKey.self] = newValue }
+    }
+
+    var buttonIsDefault: Bool {
+        get { self[ButtonIsDefaultKey.self] }
+        set { self[ButtonIsDefaultKey.self] = newValue }
     }
 
     var fieldGutter: Bool {

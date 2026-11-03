@@ -133,7 +133,7 @@ func trustConfirm(id, title string, spec *Graph, tv trustView) sdui.Node {
 	if tv.last != nil {
 		intro += " Changed since you trusted it on " + tv.last.At.Local().Format(dateLayout) + ":"
 	}
-	children := []sdui.Node{sdui.Text("Trust " + title + "?"), sdui.Text(intro)}
+	children := []sdui.Node{sdui.Text(intro)}
 	for _, n := range spec.Nodes {
 		if !n.step() {
 			continue
@@ -141,26 +141,31 @@ func trustConfirm(id, title string, spec *Graph, tv trustView) sdui.Node {
 		kind := nodeKind(spec, n.ID)
 		row := []sdui.Node{sdui.Text(n.label()), sdui.MutedText(kind)}
 		tone := ""
+		var notes []string
 		if tv.last != nil && slices.Contains(tv.changed, n.ID) {
 			tone = "warning"
 			row = append(row, sdui.Badge(tagChanged, "warning"))
 			if was, ok := tv.lastStep(n.ID); ok && commandLine(&was) != commandLine(&n) {
-				row = append(row, sdui.MutedText("was: "+commandLine(&was)))
+				notes = append(notes, "was: "+commandLine(&was))
 			}
 		}
 		if n.Timeout > 0 {
-			row = append(row, sdui.MutedText("timeout "+roundDuration(time.Duration(n.Timeout)*time.Second)))
+			notes = append(notes, "timeout "+roundDuration(time.Duration(n.Timeout)*time.Second))
 		}
-		children = append(children, sdui.Card(tone, "", sdui.HStack(row...), sdui.MonoText("$ "+commandLine(&n))))
+		card := []sdui.Node{sdui.HStack(row...), sdui.MonoText("$ " + commandLine(&n))}
+		if len(notes) > 0 {
+			card = append(card, sdui.MutedText(strings.Join(notes, " · ")))
+		}
+		children = append(children, sdui.Card(tone, "", card...))
 	}
 	children = append(children,
 		sdui.MutedText("A command outside the allow list still asks before it runs. Trust lasts until the file changes again."),
 		sdui.HStack(
 			automation.ActionNode(id, automation.DetailAction{Action: actTrustCancel, Label: "Cancel", Variant: sdui.VariantSecondary}),
-			automation.ActionNode(id, automation.DetailAction{Action: actTrustConfirm, Label: "Trust", Icon: "checkmark", Variant: sdui.VariantPrimary, Shortcut: "cmd+return"}),
+			automation.ActionNode(id, automation.DetailAction{Action: actTrustConfirm, Label: "Trust", Variant: sdui.VariantPrimary, Shortcut: "cmd+return"}),
 		),
 	)
-	return sdui.Card("", "checkmark.shield", children...)
+	return sdui.Sheet(id+"/sheet", sdui.SheetProps{Title: "Trust " + title + "?", Icon: "checkmark", Tone: "warning", Cancel: actTrustCancel}, children...)
 }
 
 func (a *app) trustFor(ctx context.Context, workspace string, dirs []string, g graphFile, spec *Graph) trustView {

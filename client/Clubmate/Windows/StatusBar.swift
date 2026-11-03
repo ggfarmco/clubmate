@@ -112,7 +112,7 @@ private struct AgentCounts: View {
                 if tally.needYou > 0 { Text(" · ").foregroundStyle(theme.muted) }
             }
             if tally.needYou > 0 {
-                Text("\(tally.needYou) need you").foregroundStyle(theme.warning)
+                Text(tally.needYouLabel).foregroundStyle(theme.warning)
             }
         }
         .monospacedDigit()

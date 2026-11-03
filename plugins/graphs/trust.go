@@ -165,7 +165,40 @@ func (a *app) trustGraph(ctx context.Context, cmd pluginsdk.CommandRun) error {
 	if err := a.kvSet(ctx, repoKey(trustPrefix, root, hash), true); err != nil {
 		return err
 	}
+	a.mu.Lock()
+	clear(a.untrusted)
+	a.mu.Unlock()
 	return a.kvSet(ctx, repoKey(trustedPrefix, root, g.Name), trustedSteps{Hash: hash, Steps: stepsOf(g), Routing: routingOf(g), At: a.now()})
+}
+
+func (a *app) untrustedGraphs(ctx context.Context, workspace string, dirs []string, graphs []graphFile) map[string]bool {
+	out := map[string]bool{}
+	for _, g := range graphs {
+		if g.Error != "" {
+			continue
+		}
+		spec, _, err := loadGraph(dirs, g.Name)
+		if err != nil {
+			continue
+		}
+		key := workspace + "\n" + g.Name + "\n" + stepsHash(spec)
+		a.mu.Lock()
+		untrusted, ok := a.untrusted[key]
+		a.mu.Unlock()
+		if !ok {
+			if untrusted, _, err = a.trustState(ctx, workspace, trustDir(dirs, g.Name), spec); err != nil {
+				logError(err)
+				continue
+			}
+			a.mu.Lock()
+			a.untrusted[key] = untrusted
+			a.mu.Unlock()
+		}
+		if untrusted {
+			out[g.Name] = true
+		}
+	}
+	return out
 }
 
 func (a *app) storageGet(ctx context.Context, key string, out any) (bool, error) {

@@ -15,6 +15,7 @@ struct ButtonNodeView: View {
     @Environment(FormState.self) private var form: FormState?
     @Environment(\.theme) private var theme
     @Environment(\.buttonKeyHint) private var keyHint
+    @Environment(\.buttonIsDefault) private var isDefault
     @Environment(\.sduiPopover) private var popover
 
     private var variant: String? { node.string("variant") }
@@ -77,7 +78,7 @@ struct ButtonNodeView: View {
         .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(hovering && !disabled ? theme.hover : .clear))
         .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(stroke, lineWidth: 1))
         .overlay {
-            if keyboardFocus && focused {
+            if isDefault || keyboardFocus && focused {
                 RoundedRectangle(cornerRadius: theme.radius.m + Self.ringGap)
                     .stroke(theme.accent, lineWidth: theme.focusRing)
                     .padding(-Self.ringGap)

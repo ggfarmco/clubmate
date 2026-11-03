@@ -65,6 +65,7 @@ type app struct {
 	pending     map[string]pendingStep
 	stepSel     map[string]string
 	trusting    map[string]string
+	untrusted   map[string]bool
 	shownHash   map[string]string
 	sentNeeds   map[string][]runNeed
 	resync      bool
@@ -121,6 +122,7 @@ func newApp() *app {
 	a.pending = map[string]pendingStep{}
 	a.stepSel = map[string]string{}
 	a.trusting = map[string]string{}
+	a.untrusted = map[string]bool{}
 	a.shownHash = map[string]string{}
 	a.sentNeeds = map[string][]runNeed{}
 	a.callStep = func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error) {
@@ -171,6 +173,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.mu.Unlock()
 	close(a.ready)
 	a.renderAll(ctx)
+	go a.followLive(ctx)
 	return nil
 }
 
@@ -291,6 +294,8 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 		node := a.stepSel[id]
 		a.mu.Unlock()
 		return nil, a.fullOutput(ctx, ev.WorkspaceID, id, node)
+	case actStepOutput:
+		return nil, a.stepOutput(ctx, ev.WorkspaceID, id)
 	case "select":
 		a.mu.Lock()
 		delete(a.drafts, ev.WorkspaceID)
@@ -769,12 +774,12 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	a.mu.Lock()
 	d, starting, collapsed := a.drafts[workspace], a.starting[workspace], maps.Clone(a.collapsed[workspace])
 	a.mu.Unlock()
-	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(graphs, runs, selected, statuses, collapsed)); err != nil {
+	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(graphs, a.untrustedGraphs(ctx, workspace, dirs, graphs), runs, selected, statuses, collapsed)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
 	main := emptyView()
 	if i := slices.IndexFunc(runs, func(r *Run) bool { return r.ID == selected }); i >= 0 {
-		main = mainView(runs[i], statuses, a.extras(runs[i].ID))
+		main = mainView(runs[i], statuses, a.extras(runs[i]))
 	} else if i := slices.IndexFunc(graphs, func(g graphFile) bool { return graphPrefix+g.Name == selected }); i >= 0 {
 		g := graphs[i]
 		var spec *Graph

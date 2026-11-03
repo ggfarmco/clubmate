@@ -266,6 +266,10 @@ func MonoText(text string) Node {
 	return Node{Type: "text", Props: map[string]any{"text": text, "style": "mono"}}
 }
 
+func BlockText(text string) Node {
+	return Node{Type: "text", Props: map[string]any{"text": text, "style": "block"}}
+}
+
 func Badge(text, tone string) Node {
 	return Node{Type: "badge", Props: withOptional(map[string]any{"text": text}, "tone", tone)}
 }
@@ -355,6 +359,9 @@ type GraphMove struct {
 	User    bool   `json:"user,omitempty"`
 	Last    bool   `json:"last,omitempty"`
 	End     string `json:"end,omitempty"`
+	Bar     string `json:"bar,omitempty"`
+	Tone    string `json:"tone,omitempty"`
+	Round   int    `json:"round,omitempty"`
 }
 
 type GraphProps struct {
@@ -684,6 +691,18 @@ func ToolCard(id string, p ToolCardProps) Node {
 func Card(tone, icon string, children ...Node) Node {
 	props := withOptional(map[string]any{}, "tone", tone)
 	return Node{Type: "card", Props: withOptional(props, "icon", icon), Children: children}
+}
+
+type SheetProps struct {
+	Title  string
+	Icon   string
+	Tone   string
+	Cancel string
+}
+
+func Sheet(id string, p SheetProps, children ...Node) Node {
+	props := withOptional(withOptional(map[string]any{"title": p.Title, "cancel": p.Cancel}, "icon", p.Icon), "tone", p.Tone)
+	return Node{Type: "sheet", ID: id, Props: props, Children: children}
 }
 
 func PermissionCard(id, request string, p PermissionCardProps) Node {
