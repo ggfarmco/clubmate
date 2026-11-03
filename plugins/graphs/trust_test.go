@@ -76,12 +76,31 @@ func TestStepSec_T2_ChangedStepNeedsTrustAgain(t *testing.T) {
 	assert.NoError(t, agentRun(t, a, "gate"))
 }
 
-func TestBuiltinAndAgentOnlyGraphsNeedNoTrust(t *testing.T) {
+func TestAgentOnlyGraphsNeedNoTrust(t *testing.T) {
 	a := testApp(t, &fakeCore{})
 	assert.NoError(t, agentRun(t, a, "review-loop"))
 	assert.NoError(t, agentRun(t, a, "pr-walkthrough"))
-	assert.NoError(t, agentRun(t, a, "review-gate"))
 	assert.False(t, listed(t, a, "review-loop").Untrusted)
+	assert.False(t, listed(t, a, "pr-walkthrough").Untrusted)
+}
+
+func TestBuiltinWithStepsNeedsTrustPerRepo(t *testing.T) {
+	repoA, repoB := t.TempDir(), t.TempDir()
+	a := testApp(t, &fakeCore{worktrees: `[{"repo":"` + repoA + `","path":"` + repoA + `","main":true},{"repo":"` + repoB + `","path":"` + repoB + `","main":true}]`})
+	caller := repoA
+	a.sessions = func(context.Context, string) ([]api.Session, error) {
+		return []api.Session{{ID: "agt_boss", Worktree: caller}}, nil
+	}
+	a.workspace = func(context.Context, string) (pluginsdk.Workspace, error) {
+		return pluginsdk.Workspace{ID: "ws1", Folders: []pluginsdk.Folder{{Path: repoA}}}, nil
+	}
+	assert.ErrorContains(t, agentRun(t, a, "review-gate"), "untrusted")
+	assert.True(t, listed(t, a, "review-gate").Untrusted)
+	require.NoError(t, trustGraph(t, a, "review-gate"))
+	assert.NoError(t, agentRun(t, a, "review-gate"))
+	assert.False(t, listed(t, a, "review-gate").Untrusted)
+	caller = repoB
+	assert.ErrorContains(t, agentRun(t, a, "review-gate"), "untrusted")
 }
 
 func TestStepSec_T3_ShadowingFileIsProjectFile(t *testing.T) {

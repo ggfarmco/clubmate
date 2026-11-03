@@ -164,16 +164,16 @@ func trustConfirm(id, title string, spec *Graph, tv trustView) sdui.Node {
 }
 
 func (a *app) trustFor(ctx context.Context, workspace string, dirs []string, g graphFile, spec *Graph) trustView {
-	if g.Builtin || spec == nil {
+	if spec == nil {
 		return trustView{}
 	}
-	untrusted, changed, err := a.trustState(ctx, workspace, graphDir(dirs, g.Name), spec, false)
+	untrusted, changed, err := a.trustState(ctx, workspace, trustDir(dirs, g.Name), spec)
 	if err != nil || !untrusted {
 		logError(err)
 		return trustView{}
 	}
 	tv := trustView{untrusted: true, changed: changed, hash: stepsHash(spec)}
-	if last, ok, err := a.lastTrusted(ctx, a.repoRoot(ctx, workspace, graphDir(dirs, g.Name)), g.Name); err == nil && ok {
+	if last, ok, err := a.lastTrusted(ctx, a.repoRoot(ctx, workspace, trustDir(dirs, g.Name)), g.Name); err == nil && ok {
 		tv.last = &last
 	} else {
 		logError(err)

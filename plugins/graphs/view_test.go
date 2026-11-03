@@ -411,6 +411,13 @@ func TestOutputPanelWhenEmpty(t *testing.T) {
 	assert.Equal(t, []string{"Tests", "pass · exit 0 · 0 s", "No output — the command printed nothing.", "make test in /wt/coder"}, texts(panel))
 }
 
+func TestOutputPanelFlagsCheckFiles(t *testing.T) {
+	a, _, _, r := stepApp(t, stepResult{ExitCode: 0, CheckFiles: []string{"Makefile", "rules.mk"}})
+	turnDone(t, a, "agt_1", 1)
+	panel := graphChildren(runView(t, a, r.ID))[0]
+	assert.Equal(t, []any{"The check's own files changed in this run: Makefile, rules.mk.", "warning"}, []any{panel.Children[1].Props["text"], panel.Children[1].Props["tone"]})
+}
+
 func texts(n sdk.Node) []string {
 	var out []string
 	if n.Type == "text" {

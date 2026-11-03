@@ -15,10 +15,12 @@ import (
 
 	"github.com/sourcegraph/jsonrpc2"
 
+	"clubmate/internal/paths"
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/automation"
+	"clubmate/plugins/internal/gitrepo"
 )
 
 const (
@@ -45,14 +47,20 @@ const (
 	noOutput             = "(no output)"
 	envPrefix            = "CLUBMATE_"
 	envGraph             = "CLUBMATE_GRAPH"
+	checkFilesNote       = "The check's own files changed in this run: %s."
 )
 
-var coreEnv = []string{"CLUBMATE_STATE_DIR", "CLUBMATE_RUNTIME_DIR"}
+var (
+	coreEnv      = []string{"CLUBMATE_STATE_DIR", "CLUBMATE_RUNTIME_DIR"}
+	interpreters = []string{"sh", "bash", "zsh", "python", "python3", "node", "ruby", "perl"}
+	makefiles    = []string{"Makefile", "makefile", "GNUmakefile"}
+)
 
 type ownedCause struct {
-	Reply   string `json:"reply,omitempty"`
-	Tail    string `json:"tail,omitempty"`
-	Outcome string `json:"outcome,omitempty"`
+	Reply      string   `json:"reply,omitempty"`
+	Tail       string   `json:"tail,omitempty"`
+	Outcome    string   `json:"outcome,omitempty"`
+	CheckFiles []string `json:"checkFiles,omitempty"`
 }
 
 type worktreeInfo struct {
@@ -394,6 +402,10 @@ func (a *app) execStep(ctx context.Context, runID, node string, move int, spec s
 		if n.Command != "" {
 			res = a.commandStep(pctx, snapshot, n)
 		} else {
+			var files []string
+			if snapshot.Spec.check(node) && spec.Start != "" {
+				files = checkOwnFiles(n.Run, changedSince(base, spec.Dir, spec.Start))
+			}
 			pid := 0
 			res = a.proc.Run(pctx, spec, func(p int) {
 				pid = p
@@ -401,6 +413,9 @@ func (a *app) execStep(ctx context.Context, runID, node string, move int, spec s
 			})
 			if pid != 0 {
 				a.unregister(base, pid)
+			}
+			if len(files) > 0 {
+				res.CheckFiles = files
 			}
 		}
 		a.mu.Lock()
@@ -599,7 +614,7 @@ func (a *app) stepDone(ctx context.Context, runID, node string, move int, res st
 	n := r.Spec.node(node)
 	outcome, reason := stepOutcome(r.Spec, n, res)
 	st := r.Moves[move].Step
-	st.Status, st.Outcome, st.Reason, st.Tail, st.EndedAt, st.Duration = stepFinished, outcome, reason, res.Tail, now, res.Duration.Milliseconds()
+	st.Status, st.Outcome, st.Reason, st.Tail, st.EndedAt, st.Duration, st.CheckFiles = stepFinished, outcome, reason, res.Tail, now, res.Duration.Milliseconds(), res.CheckFiles
 	if res.ExitCode >= 0 {
 		code := res.ExitCode
 		st.ExitCode = &code
@@ -615,7 +630,7 @@ func (a *app) stepDone(ctx context.Context, runID, node string, move int, res st
 				r.fire(move, e, now)
 			}
 		}
-		owed = r.owedSince(before, ownedCause{Tail: res.Tail, Outcome: outcome})
+		owed = r.owedSince(before, ownedCause{Tail: res.Tail, Outcome: outcome, CheckFiles: res.CheckFiles})
 		switch {
 		case slices.Contains(n.End, outcome):
 			r.Moves[move].End = outcome
@@ -727,7 +742,7 @@ func (x *runner) ownedText(g *Graph, e Edge, cause ownedCause) string {
 	text = placeholderRe.ReplaceAllStringFunc(x.render(text), func(m string) string {
 		switch placeholderRe.FindStringSubmatch(m)[1] {
 		case "payload.output":
-			return fence(cause.Tail)
+			return fence(cause.Tail) + checkNote(cause.CheckFiles)
 		case "payload.reply":
 			return cause.Reply
 		case "payload.outcome":
@@ -795,6 +810,7 @@ func (a *app) resolveStep(ctx context.Context, r *Run, n *Node, move int) (stepS
 	}
 	return stepSpec{
 		Dir:     dir,
+		Start:   r.startFor(dir, trees),
 		Main:    mainCheckout(trees, dir),
 		Shell:   n.Run,
 		Env:     stepEnv(r, move, trees, worktreeOf),
@@ -804,10 +820,10 @@ func (a *app) resolveStep(ctx context.Context, r *Run, n *Node, move int) (stepS
 }
 
 func stepEnv(r *Run, move int, trees []worktreeInfo, worktreeOf func(string) string) []string {
-	env := slices.DeleteFunc(os.Environ(), func(kv string) bool {
+	env := paths.StripDefaults(slices.DeleteFunc(os.Environ(), func(kv string) bool {
 		k, _, _ := strings.Cut(kv, "=")
 		return strings.HasPrefix(k, envPrefix) && !slices.Contains(coreEnv, k)
-	})
+	}))
 	from := ""
 	if c := r.Moves[move].Cause; c >= 0 {
 		from = r.Moves[c].Node
@@ -833,6 +849,103 @@ func stepEnv(r *Run, move int, trees []worktreeInfo, worktreeOf func(string) str
 		}
 	}
 	return env
+}
+
+func (a *app) startCommits(ctx context.Context, workspace string, dirs []string) []Start {
+	if w, err := a.workspace(ctx, workspace); err == nil {
+		dirs = append(dirs, w.Roots()...)
+	}
+	var out []Start
+	for _, dir := range dirs {
+		if dir == "" || slices.ContainsFunc(out, func(s Start) bool { return s.Dir == filepath.Clean(dir) }) {
+			continue
+		}
+		head, err := gitrepo.Run(ctx, dir, "rev-parse", "--verify", "HEAD")
+		if err != nil {
+			continue
+		}
+		out = append(out, Start{Dir: filepath.Clean(dir), Commit: strings.TrimSpace(string(head))})
+	}
+	return out
+}
+
+func (r *Run) startFor(dir string, trees []worktreeInfo) string {
+	for _, s := range r.Starts {
+		if s.Dir == filepath.Clean(dir) {
+			return s.Commit
+		}
+	}
+	repo := repoOf(trees, dir)
+	for _, s := range r.Starts {
+		if repo != "" && repoOf(trees, s.Dir) == repo {
+			return s.Commit
+		}
+	}
+	return ""
+}
+
+func repoOf(trees []worktreeInfo, path string) string {
+	for _, t := range trees {
+		if inside(path, t.Path) {
+			return t.Repo
+		}
+	}
+	return ""
+}
+
+func changedSince(ctx context.Context, dir, commit string) []string {
+	diff, err := gitrepo.Run(ctx, dir, "diff", "--name-only", "--relative", commit)
+	if err != nil {
+		logError(fmt.Errorf("check files: %w", err))
+		return nil
+	}
+	untracked, err := gitrepo.Run(ctx, dir, "ls-files", "--others", "--exclude-standard")
+	if err != nil {
+		logError(fmt.Errorf("check files: %w", err))
+	}
+	files := strings.Fields(string(diff) + "\n" + string(untracked))
+	slices.Sort(files)
+	return slices.Compact(files)
+}
+
+func checkOwnFiles(run string, changed []string) []string {
+	usesMake := false
+	scripts := map[string]bool{}
+	for _, part := range commandParts(run)[1:] {
+		words := strings.Fields(part)
+		w := words[0]
+		if slices.Contains(interpreters, w) {
+			i := slices.IndexFunc(words[1:], func(v string) bool { return !strings.HasPrefix(v, "-") })
+			if i < 0 {
+				continue
+			}
+			w = words[i+1]
+		}
+		switch {
+		case w == "make" || w == "gmake":
+			usesMake = true
+		case strings.Contains(w, "/"):
+			scripts[filepath.Clean(w)] = true
+		}
+	}
+	var out []string
+	for _, f := range changed {
+		if usesMake && (slices.Contains(makefiles, filepath.Base(f)) || filepath.Ext(f) == ".mk") || scripts[filepath.Clean(f)] {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+func checkNote(files []string) string {
+	if len(files) == 0 {
+		return ""
+	}
+	names := make([]string, len(files))
+	for i, f := range files {
+		names[i] = "`" + strings.ReplaceAll(f, "`", "") + "`"
+	}
+	return "\n" + fmt.Sprintf(checkFilesNote, strings.Join(names, ", "))
 }
 
 func mainCheckout(trees []worktreeInfo, folder string) string {

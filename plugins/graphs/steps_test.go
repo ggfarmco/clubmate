@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/paths"
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
@@ -256,7 +258,10 @@ func TestStepRunsInNamedFolder(t *testing.T) {
 func TestStepSec_C6_EnvNotShell(t *testing.T) {
 	t.Setenv("CLUBMATE_PLUGIN_SOCKET", "/tmp/x.sock")
 	t.Setenv("CLUBMATE_AGENT_SESSION", "agt_x")
-	t.Setenv("CLUBMATE_STATE_DIR", "/tmp/dev/state")
+	t.Setenv("HOME", t.TempDir())
+	defaults, err := paths.Defaults()
+	require.NoError(t, err)
+	t.Setenv("CLUBMATE_STATE_DIR", defaults.State)
 	t.Setenv("CLUBMATE_RUNTIME_DIR", "/tmp/dev/run")
 	a, p, _ := folderApp(t)
 	turnDone(t, a, "agt_1", 1)
@@ -264,10 +269,10 @@ func TestStepSec_C6_EnvNotShell(t *testing.T) {
 	assert.Equal(t, "make test", spec.Shell)
 	input, _ := envOf(spec, "CLUBMATE_GRAPH_INPUT")
 	assert.Equal(t, `"; rm -rf ~`, input)
-	for key, want := range map[string]string{"CLUBMATE_STATE_DIR": "/tmp/dev/state", "CLUBMATE_RUNTIME_DIR": "/tmp/dev/run"} {
-		got, _ := envOf(spec, key)
-		assert.Equal(t, want, got, key)
-	}
+	runtime, _ := envOf(spec, "CLUBMATE_RUNTIME_DIR")
+	assert.Equal(t, "/tmp/dev/run", runtime)
+	_, ok := envOf(spec, "CLUBMATE_STATE_DIR")
+	assert.False(t, ok)
 	allowed := []string{"CLUBMATE_WORKSPACE_ID", "CLUBMATE_GRAPH", "CLUBMATE_GRAPH_RUN", "CLUBMATE_GRAPH_INPUT", "CLUBMATE_GRAPH_FROM", "CLUBMATE_STATE_DIR", "CLUBMATE_RUNTIME_DIR"}
 	for _, kv := range spec.Env {
 		k, _, _ := strings.Cut(kv, "=")
@@ -320,6 +325,60 @@ func TestStepSec_C1_FrozenCommand(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte(strings.ReplaceAll(string(data), "make test", "exit 0")), 0o644))
 	turnDone(t, a, "agt_1", 1)
 	assert.Equal(t, "make test", p.specs[0].Shell)
+}
+
+func TestCheckFilesChangedInRun(t *testing.T) {
+	dir := t.TempDir()
+	git := func(args ...string) {
+		out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	git("init", "-q", "-b", "main")
+	git("config", "user.email", "t@example.com")
+	git("config", "user.name", "t")
+	data, err := os.ReadFile("testdata/.clubmate/graphs/gate.json")
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, graphsDir), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, graphsDir, "gate.json"), data, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Makefile"), []byte("test:\n\tgo test ./...\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a\n"), 0o644))
+	git("add", ".")
+	git("commit", "-qm", "init")
+	core := &fakeCore{worktrees: `[{"repo":"` + dir + `","path":"` + dir + `","branch":"main","main":true}]`}
+	a := testApp(t, core)
+	a.sessions = func(context.Context, string) ([]api.Session, error) {
+		return []api.Session{{ID: "agt_boss", Worktree: dir, Mode: modeBypass}, {ID: "agt_1", Worktree: dir}, {ID: "agt_2", Worktree: dir}}, nil
+	}
+	a.workspace = func(context.Context, string) (pluginsdk.Workspace, error) {
+		return pluginsdk.Workspace{ID: "ws1", Folders: []pluginsdk.Folder{{Path: dir}}}, nil
+	}
+	a.proc, a.spawn = &fakeProc{}, func(f func()) { f() }
+	r := runNamed(t, a, "gate")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Makefile"), []byte("test:\n\ttrue\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), []byte("package b\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "rules.mk"), []byte("x:\n"), 0o644))
+	git("commit", "-qam", "weaken")
+	turnDone(t, a, "agt_1", 1)
+	assert.Equal(t, []string{"Makefile", "rules.mk"}, stepMoves(a, r.ID, "tests")[0].Step.CheckFiles)
+	got := prompts(t, core, "agt_2")
+	require.Len(t, got, 1)
+	assert.Contains(t, got[0], "```\nThe check's own files changed in this run: `Makefile`, `rules.mk`.")
+}
+
+func TestCheckOwnFiles(t *testing.T) {
+	changed := []string{"Makefile", "sub/Makefile", "sub/x.mk", "scripts/check.sh", "scripts/other.sh", "a.go"}
+	tests := []struct {
+		run  string
+		want []string
+	}{
+		{"make test", []string{"Makefile", "sub/Makefile", "sub/x.mk"}},
+		{"./scripts/check.sh --fast", []string{"scripts/check.sh"}},
+		{"go vet ./... && bash scripts/check.sh", []string{"scripts/check.sh"}},
+		{"go test ./...", nil},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, checkOwnFiles(tt.run, changed), tt.run)
+	}
 }
 
 func approvalApp(t *testing.T, mode string, allow ...string) (*app, *fakeCore, *fakeProc, *Run) {

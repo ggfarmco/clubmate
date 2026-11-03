@@ -93,7 +93,7 @@ func managedDropIns(managed string) []string {
 	}
 	var out []string
 	for _, e := range entries {
-		if !e.IsDir() && filepath.Ext(e.Name()) == ".json" {
+		if !e.IsDir() && !strings.HasPrefix(e.Name(), ".") && filepath.Ext(e.Name()) == ".json" {
 			out = append(out, filepath.Join(dir, e.Name()))
 		}
 	}

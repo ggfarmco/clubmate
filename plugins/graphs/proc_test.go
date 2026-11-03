@@ -84,6 +84,16 @@ func TestShellRunnerTailDropsControlChars(t *testing.T) {
 	assert.Equal(t, "red ok\tx\nend", res.Tail)
 }
 
+func TestTailNeverStartsInsideEscape(t *testing.T) {
+	out, err := openOutput(filepath.Join(t.TempDir(), "step.log"))
+	require.NoError(t, err)
+	defer out.close()
+	for range 2000 {
+		_, _ = out.Write([]byte("\x1b[31mrr\x1b[0m\n"))
+	}
+	assert.Regexp(t, `^(rr\n)*rr$`, out.tailText())
+}
+
 func TestShellRunnerStopsOnContext(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()

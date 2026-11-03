@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -21,6 +22,7 @@ const (
 	outputTail  = 4000
 	cutNotice   = "\n… cut at 1 MB\n"
 	exitUnknown = -1
+	escapeReach = 1024
 )
 
 const reasonTimedOut = "timed out"
@@ -29,6 +31,7 @@ var escapeRe = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:
 
 type stepSpec struct {
 	Dir     string
+	Start   string
 	Shell   string
 	Env     []string
 	Timeout time.Duration
@@ -37,10 +40,11 @@ type stepSpec struct {
 }
 
 type stepResult struct {
-	ExitCode int
-	Reason   string
-	Tail     string
-	Duration time.Duration
+	ExitCode   int
+	Reason     string
+	Tail       string
+	Duration   time.Duration
+	CheckFiles []string
 }
 
 type procRunner interface {
@@ -153,9 +157,21 @@ func (o *stepOutput) Write(p []byte) (int, error) {
 	}
 	o.tail = append(o.tail, p...)
 	if extra := len(o.tail) - 4*outputTail; extra > 0 {
-		o.tail = o.tail[extra:]
+		o.tail = o.tail[escapeEnd(o.tail, extra):]
 	}
 	return len(p), nil
+}
+
+func escapeEnd(b []byte, at int) int {
+	from := max(at-escapeReach, 0)
+	i := bytes.LastIndexByte(b[from:at], 0x1b)
+	if i < 0 {
+		return at
+	}
+	if m := escapeRe.FindIndex(b[from+i:]); m != nil && m[0] == 0 && from+i+m[1] > at {
+		return from + i + m[1]
+	}
+	return at
 }
 
 func (o *stepOutput) tailText() string {

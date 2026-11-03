@@ -263,6 +263,12 @@ func (f *fixture) waitStatus(t *testing.T, workspace, session, status string) re
 	return got
 }
 
+func (f *fixture) waitBranchChildDone(t *testing.T, workspace, session string) record {
+	t.Helper()
+	testutil.Eventually(t, func() bool { return f.session(t, workspace, session).AgentSessionID != "" }, restartWait)
+	return f.waitStatus(t, workspace, session, "done")
+}
+
 func (f *fixture) transcript(t *testing.T, workspace, session string) transcript {
 	t.Helper()
 	var out transcript
@@ -2524,7 +2530,7 @@ func TestChildPolicyNamesParentBranch(t *testing.T) {
 	shared := f.newChild(t, workspace, parent, map[string]any{"prompt": "shared"}).Session
 
 	sent := func(session string) string {
-		id := f.waitStatus(t, workspace, session, "done").AgentSessionID
+		id := f.waitBranchChildDone(t, workspace, session).AgentSessionID
 		return string(f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.Contains(string(c.Params), id) }).Params)
 	}
 	assert.Contains(t, sent(own), "merge your branch into feat inside "+repo+" (`git -C "+repo+" merge --no-edit c1`)")
@@ -2540,7 +2546,7 @@ func TestChildOfDefaultBranchOnlyCommits(t *testing.T) {
 
 	kid := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "own"}).Session
 
-	id := f.waitStatus(t, workspace, kid, "done").AgentSessionID
+	id := f.waitBranchChildDone(t, workspace, kid).AgentSessionID
 	sent := string(f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.Contains(string(c.Params), id) }).Params)
 	assert.Contains(t, sent, "commit your work and stop")
 	assert.NotContains(t, sent, "merge your branch")
@@ -2550,7 +2556,7 @@ func TestMergedChildCleanedUp(t *testing.T) {
 	t.Parallel()
 	f, repo, workspace, parent := startWithGit(t, testutil.EchoPluginDirAs(t, stopManifest))
 	kid := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "plan"})
-	f.waitStatus(t, workspace, kid.Session, "done")
+	f.waitBranchChildDone(t, workspace, kid.Session)
 	testutil.Never(t, func() bool { return f.session(t, workspace, kid.Session).Status == "closed" }, 500*time.Millisecond)
 
 	write(t, filepath.Join(kid.Worktree, "b.go"), "two\n")
@@ -2570,7 +2576,7 @@ func TestChildWithRemovedWorktreeClosedAfterParentTurn(t *testing.T) {
 	t.Parallel()
 	f, repo, workspace, parent := startWithGit(t)
 	kid := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "plan"})
-	f.waitStatus(t, workspace, kid.Session, "done")
+	f.waitBranchChildDone(t, workspace, kid.Session)
 
 	git(t, repo, "worktree", "remove", "--force", kid.Worktree)
 	f.prompt(t, workspace, parent, "squashed")
@@ -2580,7 +2586,7 @@ func TestChildWithRemovedWorktreeClosedAfterParentTurn(t *testing.T) {
 
 func mergeChild(t *testing.T, f *fixture, repo, workspace, parent string, kid child) {
 	t.Helper()
-	f.waitStatus(t, workspace, kid.Session, "done")
+	f.waitBranchChildDone(t, workspace, kid.Session)
 	write(t, filepath.Join(kid.Worktree, "b.go"), "two\n")
 	git(t, kid.Worktree, "add", ".")
 	git(t, kid.Worktree, "commit", "-qm", "work")

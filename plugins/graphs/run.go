@@ -50,7 +50,13 @@ type Run struct {
 	Moves     []Move      `json:"moves,omitempty"`
 	Held      []HeldEdge  `json:"held,omitempty"`
 	Extra     map[int]int `json:"extra,omitempty"`
+	Starts    []Start     `json:"starts,omitempty"`
 	Spec      *Graph      `json:"spec,omitempty"`
+}
+
+type Start struct {
+	Dir    string `json:"dir"`
+	Commit string `json:"commit"`
 }
 
 type RunNode struct {

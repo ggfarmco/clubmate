@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"path/filepath"
 	"slices"
 
 	"clubmate/pkg/pluginsdk"
@@ -43,8 +42,8 @@ type shownRun struct {
 
 type shownNode struct {
 	RunNode
-	Title  string    `json:"title,omitempty"`
-	Status string    `json:"status"`
+	Title   string       `json:"title,omitempty"`
+	Status  string       `json:"status"`
 	Last    *StepMove    `json:"last,omitempty"`
 	Pending *pendingInfo `json:"pending,omitempty"`
 }
@@ -88,14 +87,15 @@ func (a *app) list(ctx context.Context, cmd pluginsdk.CommandRun) (listResult, e
 	res := listResult{Graphs: listGraphs(dirs)}
 	for i := range res.Graphs {
 		f := &res.Graphs[i]
-		if f.Error != "" || f.Builtin {
+		if f.Error != "" {
 			continue
 		}
 		if g, _, err := loadGraph(dirs, f.Name); err == nil {
+			dir := trustDir(dirs, f.Name)
 			f.Hash = stepsHash(g)
-			f.Untrusted, f.Changed, err = a.trustState(ctx, cmd.WorkspaceID, filepath.Dir(filepath.Dir(filepath.Dir(f.Path))), g, false)
+			f.Untrusted, f.Changed, err = a.trustState(ctx, cmd.WorkspaceID, dir, g)
 			logError(err)
-			if last, ok, err := a.lastTrusted(ctx, a.repoRoot(ctx, cmd.WorkspaceID, filepath.Dir(filepath.Dir(filepath.Dir(f.Path)))), f.Name); f.Untrusted && ok {
+			if last, ok, err := a.lastTrusted(ctx, a.repoRoot(ctx, cmd.WorkspaceID, dir), f.Name); f.Untrusted && ok {
 				f.Trusted = &last
 			} else {
 				logError(err)
@@ -135,7 +135,7 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	if err != nil {
 		return nil, err
 	}
-	switch untrusted, _, err := a.trustState(ctx, cmd.WorkspaceID, graphDir(dirs, args.Graph), g, builtin); {
+	switch untrusted, _, err := a.trustState(ctx, cmd.WorkspaceID, trustDir(dirs, args.Graph), g); {
 	case err != nil:
 		return nil, err
 	case untrusted:
@@ -147,6 +147,7 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	}
 	r.Builtin = builtin
 	r.Dir = graphDir(dirs, args.Graph)
+	r.Starts = a.startCommits(ctx, cmd.WorkspaceID, append(dirs, r.Dir))
 	x := &runner{call: a.runCommand, run: r}
 	if err := x.start(ctx, g); err != nil {
 		cleanup := context.WithoutCancel(ctx)

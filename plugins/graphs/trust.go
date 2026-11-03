@@ -94,9 +94,16 @@ func (a *app) repoRoot(ctx context.Context, workspace, dir string) string {
 	return cmp.Or(mainCheckout(trees, dir), dir)
 }
 
-func (a *app) trustState(ctx context.Context, workspace, dir string, g *Graph, builtin bool) (bool, []string, error) {
+func trustDir(dirs []string, name string) string {
+	if dir := graphDir(dirs, name); dir != "" || len(dirs) == 0 {
+		return dir
+	}
+	return dirs[0]
+}
+
+func (a *app) trustState(ctx context.Context, workspace, dir string, g *Graph) (bool, []string, error) {
 	hash := stepsHash(g)
-	if builtin || hash == "" {
+	if hash == "" {
 		return false, nil, nil
 	}
 	root := a.repoRoot(ctx, workspace, dir)
@@ -143,18 +150,18 @@ func (a *app) trustGraph(ctx context.Context, cmd pluginsdk.CommandRun) error {
 	if err != nil {
 		return err
 	}
-	g, builtin, err := loadGraph(dirs, args.Graph)
+	g, _, err := loadGraph(dirs, args.Graph)
 	if err != nil {
 		return err
 	}
 	hash := stepsHash(g)
-	if builtin || hash == "" {
+	if hash == "" {
 		return nil
 	}
 	if args.Hash != "" && args.Hash != hash {
 		return fmt.Errorf("graph %s changed since it was shown: look at its steps again", args.Graph)
 	}
-	root := a.repoRoot(ctx, cmd.WorkspaceID, graphDir(dirs, args.Graph))
+	root := a.repoRoot(ctx, cmd.WorkspaceID, trustDir(dirs, args.Graph))
 	if err := a.kvSet(ctx, repoKey(trustPrefix, root, hash), true); err != nil {
 		return err
 	}

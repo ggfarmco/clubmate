@@ -68,12 +68,14 @@ func TestManagedDropInsMergeByName(t *testing.T) {
 	writeSettings(t, managed, map[string]any{"permissions": map[string]any{"defaultMode": "auto"}})
 	writeSettings(t, filepath.Join(drop, "20-b.json"), map[string]any{"permissions": map[string]any{"defaultMode": "acceptEdits", "deny": []string{"Bash(git push:*)"}}})
 	writeSettings(t, filepath.Join(drop, "10-a.json"), map[string]any{"permissions": map[string]any{"defaultMode": "plan", "disableBypassPermissionsMode": "disable"}})
+	writeSettings(t, filepath.Join(drop, ".30-c.json"), map[string]any{"permissions": map[string]any{"deny": []string{"Bash(make test)"}}})
 	writeSettings(t, filepath.Join(home, ".claude", "settings.json"), map[string]any{"permissions": map[string]any{"allow": []string{"Bash(git push:*)"}}})
 	rs := loadRules(managed, home, dir, true)
 	got, _ := rs.decide("git push origin main")
 	assert.Equal(t, verdictDeny, got)
 	assert.Equal(t, "acceptEdits", rs.DefaultMode)
 	assert.True(t, rs.NoBypass)
+	assert.NotContains(t, rs.Deny, "Bash(make test)")
 }
 
 func TestAlwaysAllowWritesExactRule(t *testing.T) {

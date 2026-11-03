@@ -22,19 +22,20 @@ type Move struct {
 }
 
 type StepMove struct {
-	Status    string    `json:"status"`
-	Outcome   string    `json:"outcome,omitempty"`
-	Reason    string    `json:"reason,omitempty"`
-	ExitCode  *int      `json:"exitCode,omitempty"`
-	AllowedBy string    `json:"allowedBy,omitempty"`
-	Dir       string    `json:"dir,omitempty"`
-	Command   string    `json:"command,omitempty"`
-	Tail      string    `json:"tail,omitempty"`
-	Output    string    `json:"output,omitempty"`
-	WaitingAt time.Time `json:"waitingAt,omitzero"`
-	StartedAt time.Time `json:"startedAt,omitzero"`
-	EndedAt   time.Time `json:"endedAt,omitzero"`
-	Duration  int64     `json:"durationMs,omitempty"`
+	Status     string    `json:"status"`
+	Outcome    string    `json:"outcome,omitempty"`
+	Reason     string    `json:"reason,omitempty"`
+	ExitCode   *int      `json:"exitCode,omitempty"`
+	AllowedBy  string    `json:"allowedBy,omitempty"`
+	Dir        string    `json:"dir,omitempty"`
+	Command    string    `json:"command,omitempty"`
+	Tail       string    `json:"tail,omitempty"`
+	Output     string    `json:"output,omitempty"`
+	WaitingAt  time.Time `json:"waitingAt,omitzero"`
+	StartedAt  time.Time `json:"startedAt,omitzero"`
+	EndedAt    time.Time `json:"endedAt,omitzero"`
+	Duration   int64     `json:"durationMs,omitempty"`
+	CheckFiles []string  `json:"checkFilesChanged,omitempty"`
 }
 
 func (r *Run) startMove(node string, now time.Time) {

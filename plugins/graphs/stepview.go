@@ -186,8 +186,12 @@ func outputPanel(r *Run, node string, move int) sdui.Node {
 		}
 		body = append(body, sdui.MonoText(strings.Join(shown, "\n")), sdui.HStack(row...))
 	}
+	top := []sdui.Node{head}
+	if len(st.CheckFiles) > 0 {
+		top = append(top, sdui.WithTone(sdui.Text(fmt.Sprintf(checkFilesNote, strings.Join(st.CheckFiles, ", "))), "warning"))
+	}
 	glyph := stepGlyph(stepStatus(st))
-	return sdui.Card("", statusIcon(glyph), append([]sdui.Node{head}, body...)...)
+	return sdui.Card("", statusIcon(glyph), append(top, body...)...)
 }
 
 func stepGlyph(status string) string {
