@@ -182,11 +182,12 @@ func (b *backlog) push(ctx context.Context, w *workspaceUI, workspaceID, slot st
 
 func (b *backlog) ownerLabels(ctx context.Context, workspaceID string, current *Task) map[string]owner {
 	ids := map[string]bool{}
-	if current != nil && current.Status == statusInProgress {
-		ids[current.ClaimedBy] = true
-	}
-	if current != nil && current.LastClaimedBy != "" {
-		ids[current.LastClaimedBy] = true
+	if current != nil {
+		for _, m := range ownerHistory(*current) {
+			ids[m.Owner] = true
+		}
+		ids[current.ClaimedBy], ids[current.LastClaimedBy], ids[current.CreatedBy] = true, true, true
+		delete(ids, "")
 	}
 	owners := make(map[string]owner, len(ids))
 	for id := range ids {
@@ -293,6 +294,15 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return fmt.Errorf("%s value: %w", ev.Action, err)
 		}
 		return b.refAction(ctx, ev.WorkspaceID, w, ev.NodeID, ev.Action, item)
+	case ev.Slot == mainSlot && ev.NodeID == ownersNode && ev.Action == actOpenMove:
+		var ref string
+		if err := json.Unmarshal(ev.Value, &ref); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+		if run, ok := strings.CutPrefix(ref, runRef); ok {
+			return b.h.RunCommand(ctx, "graphs.reveal", ev.WorkspaceID, map[string]string{"id": run}, nil)
+		}
+		return b.openOwner(ctx, ev.WorkspaceID, ref)
 	case ev.Slot == mainSlot && ev.Action == actDescribe:
 		b.mu.Lock()
 		defer b.mu.Unlock()
@@ -347,7 +357,8 @@ func (b *backlog) taskAction(ctx context.Context, workspaceID string, w *workspa
 	user := pluginsdk.CommandRun{WorkspaceID: workspaceID}
 	args := commandArgs{ID: id}
 	var err error
-	switch verb, value := parseAction(action); verb {
+	verb, value := parseAction(action)
+	switch verb {
 	case actStart:
 		err = b.startAgent(ctx, workspaceID, id)
 	case actTakeBack:
@@ -362,18 +373,18 @@ func (b *backlog) taskAction(ctx context.Context, workspaceID string, w *workspa
 	case "priority":
 		args.Priority = &value
 		_, err = b.updateCmd(ctx, user, args)
-	case actReveal:
+	case actReveal, actRevealLast:
 		var t Task
 		if t, err = b.store.get(ctx, workspaceID, id); err != nil {
 			return err
 		}
-		if t.Status != statusInProgress || !strings.HasPrefix(t.ClaimedBy, sessionPfx) {
-			return fmt.Errorf("task #%d is not claimed by an agent session", id)
+		target := t.ClaimedBy
+		if verb == actRevealLast {
+			target = t.LastClaimedBy
+		} else if t.Status != statusInProgress {
+			target = ""
 		}
-		if s, ok := b.live.session(ctx, workspaceID, t.ClaimedBy); ok && s.Run != nil {
-			return b.h.RunCommand(ctx, "graphs.reveal", workspaceID, map[string]string{"id": s.Run.ID}, nil)
-		}
-		err = agentcall.Reveal(ctx, b.h, workspaceID, t.ClaimedBy)
+		err = b.openOwner(ctx, workspaceID, target)
 	case "delete":
 		if err = b.store.remove(ctx, workspaceID, id); err != nil {
 			return err
@@ -465,4 +476,14 @@ func (b *backlog) refAction(ctx context.Context, workspaceID string, w *workspac
 		return err
 	}
 	return fmt.Errorf("%w: %s %q", errUnknownAction, node, action)
+}
+
+func (b *backlog) openOwner(ctx context.Context, workspaceID, owner string) error {
+	if !strings.HasPrefix(owner, sessionPfx) {
+		return fmt.Errorf("%q is not an agent session", owner)
+	}
+	if s, ok := b.live.session(ctx, workspaceID, owner); ok && s.Run != nil {
+		return b.h.RunCommand(ctx, "graphs.reveal", workspaceID, map[string]string{"id": s.Run.ID}, nil)
+	}
+	return agentcall.Reveal(ctx, b.h, workspaceID, owner)
 }

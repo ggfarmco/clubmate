@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -173,12 +174,45 @@ func TestMainFormAutosaves(t *testing.T) {
 	assert.Equal(t, "cmd+s", saved.Props["shortcut"])
 }
 
-func TestMainNamesClosedClaimer(t *testing.T) {
-	owners := map[string]owner{"agt_b": {label: ownerLabel("agt_b", "Refactor", true), session: true, stale: true}}
-	main := mainView(&Task{ID: 4, Title: "Old", Status: statusInProgress, Priority: priorityNormal, ClaimedBy: "agt_b"}, detail{owners: owners, hasTasks: true})
-	header, ok := findNode(main, "heading")
+func TestOwnerRowsAndLanes(t *testing.T) {
+	at := time.Date(2026, 11, 2, 17, 20, 0, 0, time.Local)
+	task := &Task{ID: 4, Title: "Old", Status: statusInProgress, Priority: priorityNormal, ClaimedBy: "agt_c", LastClaimedBy: "agt_b", CreatedBy: userOwner, Owners: []OwnerMove{
+		{Owner: userOwner, Why: whyCreated},
+		{Owner: "agt_b", Title: "Fix", Why: whyStarted},
+		{Owner: userOwner, At: at, Why: whyStopped},
+		{Owner: "agt_c", Run: "run_1", RunTitle: "Review loop", Why: whyClaimed},
+	}}
+	owners := map[string]owner{
+		"agt_b": {label: "Fix (closed)", session: true, stale: true},
+		"agt_c": {label: "Review loop · Coder", session: true, run: "run_1", runTitle: "Review loop"},
+	}
+	main := mainView(task, detail{owners: owners, hasTasks: true})
+
+	header, _ := findNode(main, "heading")
+	assert.Equal(t, "#4", header.Props["meta"])
+	chip, ok := findNode(main, "owner")
 	require.True(t, ok)
-	assert.Equal(t, "#4 · In progress by Refactor (closed)", header.Props["meta"])
+	assert.Equal(t, "Review loop · Coder", chip.Props["label"])
+	assert.Equal(t, actReveal, chip.Props["action"])
+	last, ok := findNode(main, "lastOwner")
+	require.True(t, ok)
+	assert.Equal(t, actRevealLast, last.Props["action"])
+	assert.Contains(t, mustText(t, main), "stopped · Nov 2 17:20")
+
+	lanes, ok := findNode(main, ownersNode)
+	require.True(t, ok)
+	assert.Equal(t, "lanes", lanes.Type)
+	var actorIDs []string
+	for _, a := range lanes.Props["actors"].([]sdui.LaneActor) {
+		actorIDs = append(actorIDs, a.ID)
+	}
+	assert.Equal(t, []string{"you", "agt_b", "run:run_1"}, actorIDs)
+	assert.Equal(t, []sdui.LaneMove{
+		{Actor: "you", Cause: -1, Label: "created", Tooltip: "you · created"},
+		{Actor: "agt_b", Cause: 0, Label: "Start agent", Tooltip: "Fix (closed) · Start agent", User: true, Tone: "danger", Ref: "agt_b"},
+		{Actor: "you", Cause: 1, Label: "stopped", Tooltip: "you · stopped · Nov 2 17:20"},
+		{Actor: "run:run_1", Cause: 2, Label: "claimed", Tooltip: "Review loop · run · claimed", Ref: "run:run_1", Current: true, Last: true},
+	}, lanes.Props["moves"])
 }
 
 func TestMainHeaderIsTheTitleField(t *testing.T) {
@@ -225,4 +259,25 @@ func TestMainDescriptionIsADocumentUntilEdited(t *testing.T) {
 
 func TestViewShortcutsDeclared(t *testing.T) {
 	shortcuttest.RequireDeclared(t, mainView(&Task{ID: 1, Title: "a", Status: statusTodo, Priority: priorityNormal}, detail{hasTasks: true}))
+}
+
+func mustText(t *testing.T, n sdui.Node) string {
+	raw, err := json.Marshal(n)
+	require.NoError(t, err)
+	return string(raw)
+}
+
+func TestOwnerLanesTellSameTitlesApart(t *testing.T) {
+	first, second := time.Date(2026, 11, 3, 14, 5, 0, 0, time.Local), time.Date(2026, 11, 3, 14, 5, 30, 0, time.Local)
+	task := &Task{ID: 1, Title: "T", Status: statusInProgress, ClaimedBy: "agt_b", Owners: []OwnerMove{
+		{Owner: userOwner, Why: whyCreated},
+		{Owner: "agt_a", Title: "T", At: first, Why: whyStarted},
+		{Owner: "agt_b", Title: "T", At: second, Why: whyStarted},
+	}}
+	var labels []string
+	owners := map[string]owner{"agt_a": {label: "T (closed)", session: true, stale: true}}
+	for _, a := range ownerLanes(task, owners).Props["actors"].([]sdui.LaneActor) {
+		labels = append(labels, a.Label)
+	}
+	assert.Equal(t, []string{"you", "14:05:00 · T (closed)", "14:05:30 · T"}, labels)
 }

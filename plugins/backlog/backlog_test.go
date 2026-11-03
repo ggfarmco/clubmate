@@ -458,6 +458,9 @@ func TestTakeBack(t *testing.T) {
 	assert.Equal(t, "user", got.ClaimedBy)
 	assert.Equal(t, "agt_live", got.LastClaimedBy)
 	assert.Equal(t, []string{"user created", "agt_live claimed", "user taken back"}, e.owners(tk.ID))
+
+	e.h.Event(t, e.p, "backlog.main", "owners", "openMove", "agt_live")
+	require.Eventually(t, func() bool { return e.echoed("agents.reveal", `"session":"agt_live"`) }, 10*time.Second, 20*time.Millisecond)
 }
 
 func TestClosedSessionHandsTheTaskBack(t *testing.T) {
