@@ -102,17 +102,15 @@ func (a *app) attach(s *session) (*agentProc, error) {
 		a.release(p)
 		return nil, fmt.Errorf("session/new: bad response %s", raw)
 	}
+	p.register(res.SessionID, s)
 	s.mu.Lock()
 	s.rec.AgentSessionID = res.SessionID
 	if s.rec.Status == statusError {
 		s.setStatusLocked(statusIdle, "")
 	}
-	s.mu.Unlock()
-	a.notes.persist(ctx, s)
-	p.register(res.SessionID, s)
-	s.mu.Lock()
 	s.recordLocked(s.actor(), kindNew, raw)
 	s.mu.Unlock()
+	a.notes.persist(ctx, s)
 	s.changed(changeStatus, true)
 	mode, value := a.startSettings(ctx, rec)
 	a.applyMode(ctx, s, res.Modes, cmp.Or(rec.StartMode, mode))
