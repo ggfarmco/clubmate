@@ -1,5 +1,7 @@
 package sdui
 
+import "time"
+
 type Node struct {
 	Type     string         `json:"type"`
 	ID       string         `json:"id,omitempty"`
@@ -314,10 +316,12 @@ type GraphOut struct {
 }
 
 type GraphEdge struct {
-	From  string `json:"from"`
-	Out   string `json:"out"`
-	To    string `json:"to"`
-	State string `json:"state"`
+	From    string `json:"from"`
+	Out     string `json:"out"`
+	To      string `json:"to"`
+	State   string `json:"state"`
+	Ref     string `json:"ref,omitempty"`
+	Tooltip string `json:"tooltip,omitempty"`
 }
 
 type GraphMove struct {
@@ -353,6 +357,154 @@ func Graph(id string, p GraphProps) Node {
 		props["reached"] = true
 	}
 	return Node{Type: "graph", ID: id, Props: props}
+}
+
+const (
+	EdgeTaken    = "taken"
+	EdgeLast     = "last"
+	EdgeNever    = "never"
+	EdgePlain    = "plain"
+	EdgeSelected = "selected"
+	EdgeDim      = "dim"
+	EdgeGhost    = "ghost"
+)
+
+const (
+	MarkerStart    = "start"
+	MarkerEnd      = "end"
+	MarkerSchedule = "schedule"
+	MarkerInbox    = "inbox"
+	MarkerSession  = "session"
+)
+
+type FlowCard struct {
+	ID        string    `json:"id"`
+	Label     string    `json:"label"`
+	State     string    `json:"state,omitempty"`
+	Tone      string    `json:"tone,omitempty"`
+	Icon      string    `json:"icon,omitempty"`
+	Attention bool      `json:"attention,omitempty"`
+	Pending   bool      `json:"pending,omitempty"`
+	Ghost     bool      `json:"ghost,omitempty"`
+	Tooltip   string    `json:"tooltip,omitempty"`
+	Outs      []FlowOut `json:"outs"`
+}
+
+type FlowOut struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Count int    `json:"count,omitempty"`
+	State string `json:"state"`
+}
+
+type FlowMarker struct {
+	ID      string `json:"id"`
+	Kind    string `json:"kind"`
+	Label   string `json:"label,omitempty"`
+	Reached bool   `json:"reached,omitempty"`
+}
+
+type FlowEdge struct {
+	From    string `json:"from"`
+	Out     string `json:"out,omitempty"`
+	To      string `json:"to"`
+	State   string `json:"state"`
+	Ref     string `json:"ref,omitempty"`
+	Tooltip string `json:"tooltip,omitempty"`
+}
+
+type FlowProps struct {
+	Cards   []FlowCard
+	Markers []FlowMarker
+	Edges   []FlowEdge
+}
+
+func Flow(id string, p FlowProps) Node {
+	cards := make([]FlowCard, len(p.Cards))
+	for i, c := range p.Cards {
+		c.Outs = nonNil(c.Outs)
+		cards[i] = c
+	}
+	props := map[string]any{"cards": cards, "edges": nonNil(p.Edges)}
+	if len(p.Markers) > 0 {
+		props["markers"] = p.Markers
+	}
+	return Node{Type: "flow", ID: id, Props: props}
+}
+
+type LaneActor struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Icon  string `json:"icon,omitempty"`
+	Tone  string `json:"tone,omitempty"`
+}
+
+type LaneMove struct {
+	Actor   string `json:"actor"`
+	Cause   int    `json:"cause"`
+	Label   string `json:"label,omitempty"`
+	Tooltip string `json:"tooltip"`
+	Current bool   `json:"current,omitempty"`
+	Last    bool   `json:"last,omitempty"`
+	User    bool   `json:"user,omitempty"`
+	Tone    string `json:"tone,omitempty"`
+	Ref     string `json:"ref,omitempty"`
+}
+
+type LanesProps struct {
+	Actors    []LaneActor
+	Moves     []LaneMove
+	Title     string
+	Collapsed bool
+}
+
+func Lanes(id string, p LanesProps) Node {
+	props := withOptional(map[string]any{"actors": nonNil(p.Actors), "moves": nonNil(p.Moves)}, "title", p.Title)
+	if p.Collapsed {
+		props["collapsed"] = true
+	}
+	return Node{Type: "lanes", ID: id, Props: props}
+}
+
+const (
+	RunOK      = "ok"
+	RunFailed  = "failed"
+	RunMissed  = "missed"
+	RunRunning = "running"
+	RunIgnored = "ignored"
+)
+
+type StripRun struct {
+	At      time.Time `json:"at"`
+	Status  string    `json:"status"`
+	Tooltip string    `json:"tooltip,omitempty"`
+	Ref     string    `json:"ref,omitempty"`
+}
+
+type PausedSpan struct {
+	From time.Time `json:"from"`
+	To   time.Time `json:"to,omitzero"`
+}
+
+type RunstripProps struct {
+	Runs     []StripRun
+	Now      time.Time
+	Next     time.Time
+	Paused   []PausedSpan
+	Selected string
+}
+
+func Runstrip(id string, p RunstripProps) Node {
+	props := withOptional(map[string]any{"runs": nonNil(p.Runs)}, "selected", p.Selected)
+	for key, t := range map[string]time.Time{"now": p.Now, "next": p.Next} {
+		if !t.IsZero() {
+			props[key] = t.UTC().Format(time.RFC3339)
+		}
+	}
+	if len(p.Paused) > 0 {
+		props["paused"] = p.Paused
+	}
+	return Node{Type: "runstrip", ID: id, Props: props}
 }
 
 func Button(id, label, icon string) Node {

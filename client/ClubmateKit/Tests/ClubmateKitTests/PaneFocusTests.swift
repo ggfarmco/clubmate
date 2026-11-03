@@ -27,6 +27,7 @@ final class PaneFocusTests: XCTestCase {
         XCTAssertEqual(FocusedPane.list.hints, "j/k · ↩ open")
         XCTAssertEqual(FocusedPane.graph(history: true).hints, "j/k · ↩ open · h history")
         XCTAssertEqual(FocusedPane.graph(history: false).hints, "j/k · ↩ open")
+        XCTAssertEqual(FocusedPane.graph(history: true, edges: true).hints, "j/k · ↩ open · tab edge · h history")
         XCTAssertEqual(FocusedPane.composer(running: false, queues: false).hints, "⌘↩ send")
         XCTAssertEqual(FocusedPane.composer(running: true, queues: true).hints, "⌘↩ queue · Esc stop")
         XCTAssertNil(FocusedPane.terminal.hints)

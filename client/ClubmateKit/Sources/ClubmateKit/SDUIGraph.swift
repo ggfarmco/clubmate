@@ -3,98 +3,10 @@ import Foundation
 import ClubmateProtocol
 
 public struct SDUIGraph: Sendable, Equatable {
-    public enum EdgeState: String, Sendable {
-        case taken
-        case last
-        case never
-        case plain
-
-        init(_ raw: String?) {
-            self = raw.flatMap(EdgeState.init(rawValue:)) ?? .never
-        }
-    }
-
-    public struct Out: Sendable, Equatable {
-        public let id: String
-        public let label: String
-        public let count: Int
-        public let state: EdgeState
-        public let end: Bool
-
-        public init(id: String, label: String, count: Int = 0, state: EdgeState, end: Bool = false) {
-            self.id = id
-            self.label = label
-            self.count = count
-            self.state = state
-            self.end = end
-        }
-
-        init?(_ value: JSONValue) {
-            guard let fields = value.objectValue, let id = fields["id"]?.stringValue else { return nil }
-            self.init(id: id, label: fields["label"]?.stringValue ?? id, count: max(0, SDUIGraph.int(fields["count"]) ?? 0), state: EdgeState(fields["state"]?.stringValue), end: fields["end"]?.boolValue ?? false)
-        }
-    }
-
-    public struct Node: Sendable, Equatable {
-        public let id: String
-        public let label: String
-        public let state: String
-        public let tone: String?
-        public let icon: String?
-        public let attention: Bool
-        public let pending: Bool
-        public let start: Bool
-        public let tooltip: String?
-        public let outs: [Out]
-
-        public init(id: String, label: String, state: String, tone: String? = nil, icon: String? = nil, attention: Bool = false, pending: Bool = false, start: Bool = false, tooltip: String? = nil, outs: [Out]) {
-            self.id = id
-            self.label = label
-            self.state = state
-            self.tone = tone
-            self.icon = icon
-            self.attention = attention
-            self.pending = pending
-            self.start = start
-            self.tooltip = tooltip
-            self.outs = outs
-        }
-
-        init?(_ value: JSONValue) {
-            guard let fields = value.objectValue, let id = fields["id"]?.stringValue, !id.isEmpty else { return nil }
-            self.init(
-                id: id,
-                label: fields["label"]?.stringValue ?? id,
-                state: fields["state"]?.stringValue ?? "",
-                tone: fields["tone"]?.stringValue,
-                icon: fields["icon"]?.stringValue,
-                attention: fields["attention"]?.boolValue ?? false,
-                pending: fields["pending"]?.boolValue ?? false,
-                start: fields["start"]?.boolValue ?? false,
-                tooltip: fields["tooltip"]?.stringValue,
-                outs: fields["outs"]?.arrayValue?.compactMap(Out.init) ?? []
-            )
-        }
-    }
-
-    public struct Edge: Sendable, Equatable {
-        public let from: String
-        public let out: String
-        public let to: String
-        public let state: EdgeState
-
-        public init(from: String, out: String, to: String, state: EdgeState) {
-            self.from = from
-            self.out = out
-            self.to = to
-            self.state = state
-        }
-
-        init?(_ value: JSONValue) {
-            guard let fields = value.objectValue, let from = fields["from"]?.stringValue, let out = fields["out"]?.stringValue, let to = fields["to"]?.stringValue else { return nil }
-            self.init(from: from, out: out, to: to, state: EdgeState(fields["state"]?.stringValue))
-        }
-    }
+    public typealias EdgeState = SDUIFlow.EdgeState
+    public typealias Out = SDUIFlow.Out
+    public typealias Node = SDUIFlow.Card
+    public typealias Edge = SDUIFlow.Edge
 
     public struct Move: Sendable, Equatable {
         public let node: String
@@ -121,10 +33,9 @@ public struct SDUIGraph: Sendable, Equatable {
 
         init(_ value: JSONValue, index: Int) {
             let fields = value.objectValue ?? [:]
-            let cause = SDUIGraph.int(fields["cause"]).flatMap { (0..<index).contains($0) ? $0 : nil } ?? -1
             self.init(
                 node: fields["node"]?.stringValue ?? "",
-                cause: cause,
+                cause: SDUILanes.cause(fields["cause"], index: index),
                 label: fields["label"]?.stringValue,
                 tooltip: fields["tooltip"]?.stringValue ?? "",
                 out: fields["out"]?.stringValue,
@@ -148,8 +59,16 @@ public struct SDUIGraph: Sendable, Equatable {
         self.reached = reached
     }
 
-    fileprivate static func int(_ value: JSONValue?) -> Int? {
-        value?.numberValue.flatMap { Int(exactly: $0.rounded(.towardZero)) }
+    public var flow: SDUIFlow {
+        SDUIFlow(cards: nodes, edges: edges.filter { $0.out != nil }, reached: reached)
+    }
+
+    public var lanes: SDUILanes {
+        let actors = nodes.map { SDUILanes.Actor(id: $0.id, label: $0.label, icon: $0.icon, tone: $0.tone, attention: $0.attention, pending: $0.pending) }
+        return SDUILanes(actors: actors, moves: moves.enumerated().map { index, move in
+            let end = move.end.map { end in nodes.first { $0.id == move.node }?.outs.first { $0.id == end }?.label ?? end }
+            return SDUILanes.Move(actor: move.node, cause: move.cause, label: move.label, tooltip: move.tooltip, out: move.out, current: move.current, user: move.user, last: move.last, end: end, ref: String(index))
+        }, title: "History", collapsed: true)
     }
 }
 

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -293,9 +294,49 @@ func TestGraphEdgeStates(t *testing.T) {
 	graph := func(state string) sdui.Node {
 		return sdui.Graph("run", sdui.GraphProps{
 			Nodes: []sdui.GraphNode{{ID: "a", Label: "A", Outs: []sdui.GraphOut{{ID: "done", Label: "done", State: "plain"}}}},
-			Edges: []sdui.GraphEdge{{From: "a", Out: "done", To: "a", State: state}},
+			Edges: []sdui.GraphEdge{{From: "a", Out: "done", To: "a", State: state, Ref: "trg_1", Tooltip: "when A is done → prompt A"}},
 		})
 	}
 	assert.NoError(t, internalsdui.Validate(graph("plain")))
 	assert.ErrorContains(t, internalsdui.Validate(graph("maybe")), "prop edges: [0]: state")
+}
+
+func TestFlowNode(t *testing.T) {
+	flow := func(edge sdui.FlowEdge) sdui.Node {
+		return sdui.Flow("does", sdui.FlowProps{
+			Cards:   []sdui.FlowCard{{ID: "check", Label: "Check CI", Outs: []sdui.FlowOut{{ID: "ok", Label: "ok", Count: 19, State: sdui.EdgeTaken}}}},
+			Markers: []sdui.FlowMarker{{ID: "when", Kind: sdui.MarkerSchedule, Label: "every 2 min"}, {ID: "inbox", Kind: sdui.MarkerInbox, Label: "Inbox"}},
+			Edges:   []sdui.FlowEdge{{From: "when", To: "check", State: sdui.EdgeTaken}, edge},
+		})
+	}
+	assert.NoError(t, internalsdui.Validate(flow(sdui.FlowEdge{From: "check", Out: "ok", To: "inbox", State: sdui.EdgeSelected, Ref: "trg_1", Tooltip: "ok → inbox"})))
+	assert.ErrorContains(t, internalsdui.Validate(flow(sdui.FlowEdge{From: "check", Out: "ok", To: "inbox", State: "maybe"})), "prop edges: [1]: state")
+	ghost := sdui.Flow("empty", sdui.FlowProps{Cards: []sdui.FlowCard{{ID: "a", Label: "Action", Ghost: true}}, Markers: []sdui.FlowMarker{{ID: "k", Kind: "clock"}}})
+	assert.ErrorContains(t, internalsdui.Validate(ghost), "prop markers: [0]: kind")
+}
+
+func TestLanesNode(t *testing.T) {
+	lanes := func(cause int) sdui.Node {
+		return sdui.Lanes("owners", sdui.LanesProps{
+			Actors: []sdui.LaneActor{{ID: "you", Label: "You", Icon: "person"}, {ID: "s1", Label: "Coder", Tone: "accent"}},
+			Moves:  []sdui.LaneMove{{Actor: "you", Cause: -1, Tooltip: "created"}, {Actor: "s1", Cause: cause, Label: "Start agent", Tooltip: "started", Last: true, Ref: "agt_1"}},
+			Title:  "Owners",
+		})
+	}
+	assert.NoError(t, internalsdui.Validate(lanes(0)))
+	assert.ErrorContains(t, internalsdui.Validate(lanes(-2)), "prop moves: [1]: cause")
+}
+
+func TestRunstripNode(t *testing.T) {
+	at := time.Date(2026, 11, 3, 16, 20, 0, 0, time.UTC)
+	strip := sdui.Runstrip("runs", sdui.RunstripProps{
+		Runs:     []sdui.StripRun{{At: at, Status: sdui.RunOK, Ref: "r1"}, {At: at.Add(2 * time.Minute), Status: sdui.RunFailed, Tooltip: "exit 1", Ref: "r2"}},
+		Now:      at.Add(5 * time.Minute),
+		Next:     at.Add(6 * time.Minute),
+		Paused:   []sdui.PausedSpan{{From: at.Add(3 * time.Minute)}},
+		Selected: "r2",
+	})
+	assert.NoError(t, internalsdui.Validate(strip))
+	strip.Props["now"] = "16:25"
+	assert.ErrorContains(t, internalsdui.Validate(strip), "prop now: must be an RFC 3339 time")
 }

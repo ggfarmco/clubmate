@@ -262,6 +262,9 @@ struct SDUINodeView: View, Equatable {
         case "empty": EmptyNodeView(node: node)
         case "header": HeaderNodeView(node: node)
         case "graph": GraphNodeView(node: node)
+        case "flow": FlowNodeView(node: node)
+        case "lanes": LanesNodeView(node: node)
+        case "runstrip": RunstripNodeView(node: node)
         default: UnsupportedNodeView(type: node.type)
         }
     }

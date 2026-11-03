@@ -44,6 +44,24 @@ final class GraphLayoutTests: XCTestCase {
         XCTAssertEqual(kinds(layout), [0: .forward, 1: .skip, 2: .back, 3: .back, 4: .forward])
     }
 
+    func testWalkthroughGeometryIsPinned() throws {
+        let layout = GraphLayout(graph: try graph(Self.walkthrough), metrics: GraphMetrics())
+        let f = { (v: CGFloat) in String(format: "%.1f", v) }
+        let cards = layout.cards.sorted { $0.key < $1.key }.map { "\($0.key) \(f($0.value.minX)),\(f($0.value.minY)),\(f($0.value.width)),\(f($0.value.height))" }
+        let routes = layout.routes.map { "\($0.edge):" + $0.points.map { "\(f($0.x)),\(f($0.y))" }.joined(separator: " ") }
+        XCTAssertEqual(([f(layout.size.width) + "x" + f(layout.size.height)] + cards + routes).joined(separator: "\n"), """
+        990.0x279.3
+        quizzer 390.0,72.0,210.0,147.3
+        reconciler 720.0,72.0,210.0,95.3
+        slicer 60.0,72.0,210.0,121.3
+        0:270.0,145.7 330.0,145.7 330.0,98.0 390.0,98.0
+        1:270.0,171.7 306.0,171.7 288.0,255.3 342.0,255.3 444.0,255.3 546.0,255.3 648.0,255.3 702.0,255.3 684.0,98.0 720.0,98.0
+        2:600.0,145.7 636.0,145.7 624.0,36.0 576.0,36.0 408.0,36.0 240.0,36.0 72.0,36.0 24.0,36.0 24.0,98.0 60.0,98.0
+        3:600.0,171.7 648.0,171.7 636.0,24.0 576.0,24.0 408.0,24.0 240.0,24.0 72.0,24.0 12.0,24.0 12.0,98.0 60.0,98.0
+        4:600.0,197.7 660.0,197.7 660.0,98.0 720.0,98.0
+        """)
+    }
+
     func testPlainStateDecodes() throws {
         let g = try graph(#"{"type": "graph", "id": "g", "props": {"nodes": [{"id": "a", "label": "A", "state": "", "outs": [{"id": "x", "label": "x", "state": "plain"}]}], "edges": [{"from": "a", "out": "x", "to": "a", "state": "plain"}]}}"#)
         XCTAssertEqual([g.nodes[0].outs[0].state, g.edges[0].state], [.plain, .plain])

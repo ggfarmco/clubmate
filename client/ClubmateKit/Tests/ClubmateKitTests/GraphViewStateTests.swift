@@ -21,4 +21,12 @@ final class GraphViewStateTests: XCTestCase {
         XCTAssertEqual(GraphViewState.fit(width: 400, content: 1000), 0.8)
         XCTAssertEqual(GraphViewState.fit(width: 1600, content: 1000), 1)
     }
+
+    func testHistoryStartsAtItsDefaultAndTogglesFromIt() {
+        var state = GraphViewState()
+        XCTAssertFalse(state.historyOpen("run/graph"))
+        XCTAssertTrue(state.historyOpen("task/owners", default: true))
+        state.toggleHistory("task/owners", default: true)
+        XCTAssertFalse(state.historyOpen("task/owners", default: true))
+    }
 }

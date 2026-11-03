@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"clubmate/pkg/id"
 	"clubmate/pkg/sdui"
@@ -32,6 +33,10 @@ const (
 	maxGraphNodes = 8
 	maxGraphEdges = 32
 	maxGraphMoves = 1000
+
+	maxFlowMarkers = 8
+	maxLaneActors  = 8
+	maxStripRuns   = 200
 )
 
 var (
@@ -119,9 +124,39 @@ var (
 		"attention": isBool, "pending": isBool, "start": isBool, "tooltip": isString, "outs": listOf(graphOut),
 	})
 	graphEdge = objectCheck([]string{"from", "out", "to", "state"}, map[string]propCheck{
-		"from": nonEmptyString, "out": nonEmptyString, "to": nonEmptyString, "state": oneOf(graphStates),
+		"from": nonEmptyString, "out": nonEmptyString, "to": nonEmptyString, "state": oneOf(graphStates), "ref": nonEmptyString, "tooltip": isString,
 	})
-	graphMove = objectCheck([]string{"node", "cause", "tooltip"}, map[string]propCheck{
+
+	flowStates = []string{"taken", "last", "never", "plain", "selected", "dim", "ghost"}
+	flowOut    = objectCheck([]string{"id", "label", "state"}, map[string]propCheck{
+		"id": nonEmptyString, "label": isString, "count": countNumber, "state": oneOf(flowStates),
+	})
+	flowCard = objectCheck([]string{"id", "label", "outs"}, map[string]propCheck{
+		"id": uniqueItemID, "label": isString, "state": isString, "tone": oneOf(badgeTones), "icon": isString,
+		"attention": isBool, "pending": isBool, "ghost": isBool, "tooltip": isString, "outs": listOf(flowOut),
+	})
+	markerKinds = []string{"start", "end", "schedule", "inbox", "session"}
+	flowMarker  = objectCheck([]string{"id", "kind"}, map[string]propCheck{
+		"id": uniqueItemID, "kind": oneOf(markerKinds), "label": isString, "reached": isBool,
+	})
+	flowEdge = objectCheck([]string{"from", "to", "state"}, map[string]propCheck{
+		"from": nonEmptyString, "out": nonEmptyString, "to": nonEmptyString, "state": oneOf(flowStates), "ref": nonEmptyString, "tooltip": isString,
+	})
+
+	laneActor = objectCheck([]string{"id", "label"}, map[string]propCheck{
+		"id": uniqueItemID, "label": isString, "icon": isString, "tone": oneOf(badgeTones),
+	})
+	laneMove = objectCheck([]string{"actor", "cause", "tooltip"}, map[string]propCheck{
+		"actor": nonEmptyString, "cause": causeNumber, "label": isString, "tooltip": isString,
+		"current": isBool, "last": isBool, "user": isBool, "tone": oneOf(badgeTones), "ref": nonEmptyString,
+	})
+
+	runStatuses = []string{"ok", "failed", "missed", "running", "ignored"}
+	stripRun    = objectCheck([]string{"at", "status"}, map[string]propCheck{
+		"at": timeString, "status": oneOf(runStatuses), "tooltip": isString, "ref": nonEmptyString,
+	})
+	pausedSpan = objectCheck([]string{"from"}, map[string]propCheck{"from": timeString, "to": timeString})
+	graphMove  = objectCheck([]string{"node", "cause", "tooltip"}, map[string]propCheck{
 		"node": nonEmptyString, "cause": causeNumber, "label": isString, "tooltip": isString, "out": isString,
 		"current": isBool, "user": isBool, "last": isBool, "end": nonEmptyString,
 	})
@@ -256,6 +291,39 @@ var (
 				"edges":   maxLen(maxGraphEdges, listOf(graphEdge)),
 				"moves":   maxLen(maxGraphMoves, listOf(graphMove)),
 				"reached": isBool,
+			},
+			children:    noChildren,
+			interactive: true,
+		},
+		"flow": {
+			required: []string{"cards", "edges"},
+			props: map[string]propCheck{
+				"cards":   maxLen(maxGraphNodes, listOf(flowCard)),
+				"markers": maxLen(maxFlowMarkers, listOf(flowMarker)),
+				"edges":   maxLen(maxGraphEdges, listOf(flowEdge)),
+			},
+			children:    noChildren,
+			interactive: true,
+		},
+		"lanes": {
+			required: []string{"actors", "moves"},
+			props: map[string]propCheck{
+				"actors":    maxLen(maxLaneActors, listOf(laneActor)),
+				"moves":     maxLen(maxGraphMoves, listOf(laneMove)),
+				"title":     isString,
+				"collapsed": isBool,
+			},
+			children:    noChildren,
+			interactive: true,
+		},
+		"runstrip": {
+			required: []string{"runs"},
+			props: map[string]propCheck{
+				"runs":     maxLen(maxStripRuns, listOf(stripRun)),
+				"now":      timeString,
+				"next":     timeString,
+				"paused":   maxLen(maxStripRuns, listOf(pausedSpan)),
+				"selected": isString,
 			},
 			children:    noChildren,
 			interactive: true,
@@ -455,6 +523,17 @@ func stringMap(_ *validator, v any) error {
 func nonEmptyString(_ *validator, v any) error {
 	if s, ok := v.(string); !ok || s == "" {
 		return errors.New("must be a non-empty string")
+	}
+	return nil
+}
+
+func timeString(_ *validator, v any) error {
+	s, ok := v.(string)
+	if !ok {
+		return errors.New("must be an RFC 3339 time")
+	}
+	if _, err := time.Parse(time.RFC3339, s); err != nil {
+		return errors.New("must be an RFC 3339 time")
 	}
 	return nil
 }

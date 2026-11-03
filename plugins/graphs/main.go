@@ -33,6 +33,8 @@ const (
 	selectedPrefix  = "selected/"
 	graphSuffix     = "/graph"
 	actOpenMove     = "openMove"
+	actOpenEdge     = "openEdge"
+	triggersSection = "triggers"
 )
 
 var errNotYours = errors.New("this run was not started by this agent session or its child sessions")
@@ -58,6 +60,7 @@ type app struct {
 	render     func(ctx context.Context, workspace string) error
 	choose     func(ctx context.Context, workspace, id string) error
 	revealTurn func(ctx context.Context, workspace, session string, turn int) error
+	selectTrig func(ctx context.Context, workspace, trigger string) error
 }
 
 type draft struct {
@@ -95,6 +98,7 @@ func newApp() *app {
 	a.render = a.renderWorkspace
 	a.choose = a.storeSelected
 	a.revealTurn = a.revealSession
+	a.selectTrig = a.selectTrigger
 	return a
 }
 
@@ -351,6 +355,18 @@ func (a *app) openGraph(ctx context.Context, ev pluginsdk.UIEvent, id string) er
 			return fmt.Errorf("graph run %q has no move %d", id, i)
 		}
 		node, turn = r.Moves[i].Node, r.Moves[i].Turn
+	case actOpenEdge:
+		var trigger string
+		if err := json.Unmarshal(ev.Value, &trigger); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+		if r.Status != statusRunning {
+			return fmt.Errorf("graph run %q is %s: its triggers are gone", id, r.Status)
+		}
+		if trigger == "" || !slices.ContainsFunc(r.Edges, func(e RunEdge) bool { return e.Trigger == trigger }) {
+			return fmt.Errorf("graph run %q has no trigger %q", id, trigger)
+		}
+		return a.selectTrig(ctx, ev.WorkspaceID, trigger)
 	default:
 		return fmt.Errorf("%w: action %q", agentcall.ErrUnknownCommand, ev.Action)
 	}
@@ -359,6 +375,17 @@ func (a *app) openGraph(ctx context.Context, ev pluginsdk.UIEvent, id string) er
 		return fmt.Errorf("graph run %q has no session for node %q", id, node)
 	}
 	return a.revealTurn(ctx, ev.WorkspaceID, n.Session, turn)
+}
+
+func (a *app) selectTrigger(ctx context.Context, workspace, trigger string) error {
+	value, err := json.Marshal(trigger)
+	if err != nil {
+		return err
+	}
+	if _, err := a.host.UIEvent(ctx, pluginsdk.UIEvent{WorkspaceID: workspace, Slot: triggersSection + ".sidebar", NodeID: triggersSection, Action: "select", Value: value}); err != nil {
+		return fmt.Errorf("select trigger %s: %w", trigger, err)
+	}
+	return a.host.Focus(ctx, workspace, triggersSection, triggersSection+".main")
 }
 
 func (a *app) revealSession(ctx context.Context, workspace, session string, turn int) error {

@@ -7,7 +7,7 @@ public struct GraphViewState: Sendable, Equatable {
     public static let step: CGFloat = 1.25
 
     private var zooms: [String: CGFloat] = [:]
-    private var open: Set<String> = []
+    private var open: [String: Bool] = [:]
 
     public init() {}
 
@@ -36,11 +36,11 @@ public struct GraphViewState: Sendable, Equatable {
         zooms[id] = nil
     }
 
-    public func historyOpen(_ id: String) -> Bool {
-        open.contains(id)
+    public func historyOpen(_ id: String, default initial: Bool = false) -> Bool {
+        open[id] ?? initial
     }
 
-    public mutating func toggleHistory(_ id: String) {
-        if open.remove(id) == nil { open.insert(id) }
+    public mutating func toggleHistory(_ id: String, default initial: Bool = false) {
+        open[id] = !historyOpen(id, default: initial)
     }
 }

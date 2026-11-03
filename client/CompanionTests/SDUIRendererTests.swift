@@ -14,7 +14,7 @@ final class SDUIRendererTests: XCTestCase {
     }
 
     func testGalleryRendersEveryKnownType() throws {
-        let macOnly: Set<String> = ["graph"]
+        let macOnly: Set<String> = ["graph", "flow", "lanes", "runstrip"]
         let url = try XCTUnwrap(Bundle.main.url(forResource: "GalleryFixture", withExtension: "json"))
         let tree = try JSONDecoder().decode(SDUINode.self, from: Data(contentsOf: url))
         var types: Set<String> = []

@@ -127,12 +127,31 @@ Focus moving to the Graphs main pane focuses the diagram of the run or graph; th
 | Keys | Action |
 |---|---|
 | j / k | Focus the next / previous card: layer by layer from the start, top to bottom inside a layer |
-| ↩ | Open the focused card's session (a click on a card does the same); on a graph's definition page cards open nothing |
+| ↩ | Open the focused card's session (a click on a card does the same); on a graph's definition page cards open nothing. With an edge selected (Tab): select that edge's trigger in Triggers (a click on the edge does the same; a definition's edges open nothing) |
+| Tab / ⇧Tab | Select the next / previous edge, left to right, and show what it does in words (hovering an edge does the same); j/k go back to the cards |
 | - / + (=) / 0 | Zoom the diagram out / in (×1.25, 50…200%) / back to fit the pane width (never below 80%); the − + Fit buttons at its top-right do the same |
 | h | Open or close History under the diagram (only when the run has moves) |
 | Pinch, ⌘/⌃+wheel | Zoom the diagram |
 
 Keys with ⌘, ⌃ or ⌥ pass through. The zoom level and History stay per run (and the zoom per graph) until the app quits. Defined in `SDUI/GraphNodeView.swift` (`ClubmateKit/GraphViewState.swift`).
+
+The boards' "Open in Triggers ⌘7" is not bound: ⌘7 stays the Triggers section; ↩ on the selected edge opens it.
+
+## Drawn views (a `flow`, `lanes` or `runstrip` focused)
+
+Cron's Does, a trigger's chain and empty lists are `flow`s; owners and runs as moves are `lanes`; Cron's runs are a `runstrip`.
+
+| Keys | Where | Action |
+|---|---|---|
+| j / k | flow | Focus the next / previous card (the focused card gets an accent ring) |
+| ↩ | flow | Open the focused card, or the selected edge's target (a click does the same) |
+| Tab / ⇧Tab | flow | Select the next / previous edge and show its tooltip |
+| ← / → | lanes | Select the previous / next move that opens something (accent ring) |
+| ↩ | lanes | Open the selected move (a click on its dot does the same) |
+| h | lanes with a title | Open or close the lanes |
+| ← / → | runstrip | Select the previous / next run (the newest when none is selected; a click on a run does the same) |
+
+Keys with ⌘, ⌃ or ⌥ pass through. Defined in `SDUI/GraphNodeView.swift` (`FlowNodeView`, `FlowKeys`), `SDUI/LanesView.swift` and `SDUI/RunstripNodeView.swift`.
 
 ## Agent composer (Agents section or Code chat panel, prompt focused)
 

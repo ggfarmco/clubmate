@@ -28,9 +28,9 @@ func TestExecutionView(t *testing.T) {
 			{ID: "fixer", Role: "Fixer", Session: "agt_4"},
 		},
 		Edges: []RunEdge{
-			{From: "coder", To: "reviewer", On: onDone},
-			{From: "coder", To: "reviewer", On: onError},
-			{From: "reviewer", To: "coder", On: onOutcome, Outcome: "changes"},
+			{From: "coder", To: "reviewer", On: onDone, Trigger: "trg_1"},
+			{From: "coder", To: "reviewer", On: onError, Trigger: "trg_2"},
+			{From: "reviewer", To: "coder", On: onOutcome, Outcome: "changes", Trigger: "trg_3"},
 		},
 	}
 	sessions := map[string]api.Session{
@@ -67,9 +67,9 @@ func TestExecutionView(t *testing.T) {
 	assert.Equal(t, []string{"done", "error"}, outIDs(nodes[0]))
 	assert.Equal(t, []string{"changes"}, outIDs(nodes[1]))
 	assert.Equal(t, []sdk.GraphEdge{
-		{From: "coder", Out: "done", To: "reviewer", State: "never"},
-		{From: "coder", Out: "error", To: "reviewer", State: "never"},
-		{From: "reviewer", Out: "changes", To: "coder", State: "never"},
+		{From: "coder", Out: "done", To: "reviewer", State: "never", Ref: "trg_1", Tooltip: "when Coder is done → prompt Reviewer"},
+		{From: "coder", Out: "error", To: "reviewer", State: "never", Ref: "trg_2", Tooltip: "when Coder fails → prompt Reviewer"},
+		{From: "reviewer", Out: "changes", To: "coder", State: "never", Ref: "trg_3", Tooltip: "when Reviewer reports changes → prompt Coder"},
 	}, g.Props["edges"])
 
 	assert.Equal(t, "empty", mainView(nil, nil).Type)
@@ -146,7 +146,7 @@ func TestGraphViewRunsWithInput(t *testing.T) {
 	assert.Equal(t, []sdk.GraphOut{{ID: "reported", Label: "reported", State: "plain", End: true}}, nodes[2].Outs)
 	edges, ok := diagram.Props["edges"].([]sdk.GraphEdge)
 	require.True(t, ok)
-	assert.Equal(t, sdk.GraphEdge{From: "quizzer", Out: "finish", To: "reconciler", State: "plain"}, edges[len(edges)-1])
+	assert.Equal(t, sdk.GraphEdge{From: "quizzer", Out: "finish", To: "reconciler", State: "plain", Tooltip: "when Quizzer reports finish → prompt Reconciler"}, edges[len(edges)-1])
 
 	invalid := graphView(graphFile{Name: "broken", Error: "invalid graph JSON"}, nil, draft{}, "")
 	assert.Empty(t, invalid.Children[0].Children[0].Children)
@@ -161,7 +161,7 @@ func TestStoppedRunShowsItsPath(t *testing.T) {
 	r := &Run{
 		ID: "gr_1", Title: "Review loop", Status: statusStopped, Spec: spec,
 		Nodes: []RunNode{{ID: "coder", Role: "Coder", Start: true, Session: "agt_1"}, {ID: "reviewer", Role: "Reviewer", Session: "agt_2"}},
-		Edges: []RunEdge{{From: "coder", To: "reviewer", On: onDone}, {From: "reviewer", To: "coder", On: onOutcome, Outcome: "changes"}},
+		Edges: []RunEdge{{From: "coder", To: "reviewer", On: onDone, Trigger: "trg_1"}, {From: "reviewer", To: "coder", On: onOutcome, Outcome: "changes", Trigger: "trg_2"}},
 		Moves: []Move{
 			{Node: "coder", Cause: -1, Edge: -1, Fired: []int{0}, At: at, Turn: 1},
 			{Node: "reviewer", Cause: 0, Edge: 0, Fired: []int{1}, At: at, Turn: 1},
@@ -180,7 +180,10 @@ func TestStoppedRunShowsItsPath(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, []string{"idle · 3 turns", "approved"}, []string{nodes[0].State, nodes[1].State})
 	assert.Equal(t, []sdk.GraphOut{{ID: "changes", Label: "changes", Count: 1, State: "taken"}, {ID: "approved", Label: "approved", Count: 1, State: "last", End: true}}, nodes[1].Outs)
-	assert.Equal(t, []string{"last", "taken"}, []string{g.Props["edges"].([]sdk.GraphEdge)[0].State, g.Props["edges"].([]sdk.GraphEdge)[1].State})
+	assert.Equal(t, []sdk.GraphEdge{
+		{From: "coder", Out: "done", To: "reviewer", State: "last", Tooltip: "when Coder is done → prompt Reviewer"},
+		{From: "reviewer", Out: "changes", To: "coder", State: "taken", Tooltip: "when Reviewer reports changes → prompt Coder"},
+	}, g.Props["edges"])
 	hhmm := at.Local().Format("15:04")
 	assert.Equal(t, []sdk.GraphMove{
 		{Node: "coder", Cause: -1, Tooltip: "move 1 · Coder · " + hhmm},
@@ -210,6 +213,26 @@ func TestOpenMoveRevealsTurn(t *testing.T) {
 	_, err = a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "gr_1/graph", Action: actOpen, Value: json.RawMessage(`"coder"`)})
 	require.NoError(t, err)
 	assert.Equal(t, []any{"ws1", "agt_2", 3, "ws1", "agt_1", 0}, got)
+}
+
+func TestOpenEdgeSelectsItsTrigger(t *testing.T) {
+	a := testApp(t, &fakeCore{})
+	a.runs["gr_1"] = &Run{ID: "gr_1", Workspace: "ws1", Status: statusRunning, Edges: []RunEdge{{From: "coder", To: "reviewer", On: onDone, Trigger: "trg_1"}}}
+	var got []string
+	a.selectTrig = func(_ context.Context, workspace, trigger string) error {
+		got = append(got, workspace, trigger)
+		return nil
+	}
+	edge := func(trigger string) error {
+		_, err := a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "gr_1/graph", Action: actOpenEdge, Value: json.RawMessage(`"` + trigger + `"`)})
+		return err
+	}
+
+	require.NoError(t, edge("trg_1"))
+	assert.ErrorContains(t, edge("trg_other"), `graph run "gr_1" has no trigger "trg_other"`)
+	a.runs["gr_1"].Status = statusStopped
+	assert.ErrorContains(t, edge("trg_1"), `graph run "gr_1" is stopped: its triggers are gone`)
+	assert.Equal(t, []string{"ws1", "trg_1"}, got)
 }
 
 func TestOpenOnGraphDefinitionIsIgnored(t *testing.T) {

@@ -141,7 +141,7 @@ func definitionDiagram(id string, r *Run) sdui.Node {
 	}
 	edges := make([]sdui.GraphEdge, 0, len(r.Edges))
 	for _, e := range r.Edges {
-		edges = append(edges, sdui.GraphEdge{From: e.From, Out: edgeOut(e), To: e.To, State: statePlain})
+		edges = append(edges, sdui.GraphEdge{From: e.From, Out: edgeOut(e), To: e.To, State: statePlain, Tooltip: edgeTooltip(r, e)})
 	}
 	return sdui.Graph(id+graphSuffix, sdui.GraphProps{Nodes: nodes, Edges: edges})
 }
@@ -327,7 +327,11 @@ func runDiagram(r *Run, sessions map[string]api.Session) sdui.Node {
 	}
 	edges := make([]sdui.GraphEdge, 0, len(r.Edges))
 	for i, e := range r.Edges {
-		edges = append(edges, sdui.GraphEdge{From: e.From, Out: edgeOut(e), To: e.To, State: edgeState(slices.Contains(last, i), counts[i])})
+		edge := sdui.GraphEdge{From: e.From, Out: edgeOut(e), To: e.To, State: edgeState(slices.Contains(last, i), counts[i]), Tooltip: edgeTooltip(r, e)}
+		if r.Status == statusRunning {
+			edge.Ref = e.Trigger
+		}
+		edges = append(edges, edge)
 	}
 	return sdui.Graph(r.ID+graphSuffix, sdui.GraphProps{Nodes: nodes, Edges: edges, Moves: graphMoves(r, last, end), Reached: end >= 0})
 }
@@ -473,6 +477,27 @@ func edgeOut(e RunEdge) string {
 		return e.Outcome
 	}
 	return e.On
+}
+
+func edgeTooltip(r *Run, e RunEdge) string {
+	role := func(id string) string {
+		if n := r.node(id); n != nil {
+			return n.Role
+		}
+		return id
+	}
+	var when string
+	switch e.On {
+	case onError:
+		when = "fails"
+	case onAsks:
+		when = "asks you"
+	case onOutcome:
+		when = "reports " + e.Outcome
+	default:
+		when = "is done"
+	}
+	return "when " + role(e.From) + " " + when + " → prompt " + role(e.To)
 }
 
 func edgeState(last bool, count int) string {
