@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 
@@ -44,6 +45,9 @@ type app struct {
 	reviewWatched    map[*client]bool
 	reviewStatusHint func(workspaceID string)
 	switchRoot       func(ctx context.Context, r *review)
+	exportComments   func(dir string) string
+	nrev             string
+	sheetSeq         int
 }
 
 func main() {
@@ -64,6 +68,8 @@ func main() {
 
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.reviewStatusHint = func(workspaceID string) { a.refreshStatus(h, workspaceID) }
+	a.nrev = filepath.Join(pluginsdk.ResourcesDir(), "tools", "nrev")
+	a.exportComments = nrevExport(a.nrev)
 	a.switchRoot = func(ctx context.Context, r *review) {
 		if _, err := a.target(ctx, h, r.Workspace, r.Root); err != nil {
 			logError("review switch", err)

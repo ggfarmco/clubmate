@@ -20,6 +20,7 @@ const (
 	changeCreated  = api.ChangeCreated
 	changeDeleted  = api.ChangeDeleted
 	changeResolved = api.ChangeResolved
+	changeReview   = api.ChangeReview
 
 	notifyPermission = "permission"
 	notifyQuestion   = "question"

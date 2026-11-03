@@ -43,6 +43,7 @@ type app struct {
 	branches  branchCache
 	texts     textIndex
 	watchdog  watchdog
+	reviews   *reviewBoard
 
 	sessionRevs sessionRevs
 	runNeeds    runNeeds
@@ -70,7 +71,7 @@ type sectionRef struct {
 }
 
 func main() {
-	a := &app{loaded: make(chan struct{}), quit: make(chan struct{}), watchdog: newWatchdog(), registry: newRegistry(), uiState: newUIState()}
+	a := &app{loaded: make(chan struct{}), quit: make(chan struct{}), watchdog: newWatchdog(), reviews: newReviewBoard(), registry: newRegistry(), uiState: newUIState()}
 	signal.Notify(make(chan os.Signal, 1), syscall.SIGTERM)
 	err := pluginsdk.Run(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
 	a.stopAll()
@@ -136,6 +137,9 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if _, err := h.Subscribe(ctx, editorFileTopic, ready.Seq); err != nil {
 		return err
 	}
+	if _, err := h.Subscribe(ctx, reviewTopic, ready.Seq); err != nil {
+		return err
+	}
 	for _, topic := range []string{docsOpenedTopic, docsPresentedTopic} {
 		if _, err := h.Subscribe(ctx, topic, ready.Seq); err != nil {
 			return err
@@ -181,6 +185,15 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		var f editorFile
 		if json.Unmarshal(ev.Payload, &f) == nil && a.setEditorFile(f) {
 			a.kick(f.Workspace)
+		}
+	case reviewTopic:
+		if ws, people, ok := a.reviews.apply(ev.Payload); ok {
+			for _, id := range people {
+				if s := a.session(id); s != nil {
+					a.notes.mark(s, changeReview, false)
+				}
+			}
+			a.kick(ws)
 		}
 	case docsOpenedTopic, docsPresentedTopic:
 		var p docsPresented
@@ -297,6 +310,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		if info.ModeLabel == "" {
 			info.ModeLabel = modeWord(rec.Mode, nil)
 		}
+		info.ReviewProgress = a.reviews.progress(rec.ID)
 		info.NeedsYou = needsYou(info.record)
 		info.Service = rec.restricted()
 		if rec.Status == statusError {

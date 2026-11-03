@@ -52,30 +52,33 @@ var (
 )
 
 type screen struct {
-	View        transcriptView
-	Workspace   string
-	Pending     map[string]bool
-	Window      int
-	Anchor      string
-	AnchorRev   int
-	Expanded    map[string]bool
-	Attachments []pendingAttachment
-	Queue       []queuedPrompt
-	Composer    string
-	Steers      bool
-	NeedsAuth   bool
-	Continue    bool
-	SignIn      string
-	NodeProblem string
-	Installing  bool
-	Changes     bool
-	Advisor     string
-	Branch      string
-	Parent      string
-	Children    string
-	FromTitles  map[string]string
-	Context     *contextScreen
-	Code        *codePanel
+	View         transcriptView
+	Workspace    string
+	Pending      map[string]bool
+	Window       int
+	Anchor       string
+	AnchorRev    int
+	Expanded     map[string]bool
+	Attachments  []pendingAttachment
+	Queue        []queuedPrompt
+	Composer     string
+	Steers       bool
+	NeedsAuth    bool
+	Continue     bool
+	SignIn       string
+	NodeProblem  string
+	Installing   bool
+	Changes      bool
+	Advisor      string
+	Branch       string
+	Parent       string
+	Children     string
+	FromTitles   map[string]string
+	Context      *contextScreen
+	Code         *codePanel
+	Review       *reviewProgress
+	ReviewStates map[string]map[int64]string
+	ReviewsOpen  map[string]bool
 }
 
 type codePanel struct {
@@ -251,6 +254,9 @@ func header(sc screen) sdui.Node {
 	if display == statusReview {
 		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/"+reviewedNode, reviewedLabel, "checkmark"), actReviewed))
 	}
+	if sc.Review != nil {
+		buttons = append(buttons, openReviewButton(sid))
+	}
 	var top sdui.Node
 	if sc.Code != nil {
 		icon := cmp.Or(statusIcons[display], statusIcons[statusIdle])
@@ -269,6 +275,9 @@ func header(sc screen) sdui.Node {
 		}
 		if full {
 			badges = append(badges, sdui.HeaderBadge{Text: fill, Tone: "warning"})
+		}
+		if sc.Review != nil {
+			badges = append(badges, reviewBadge(sc.Review))
 		}
 		top = sdui.Header(cmp.Or(rec.Title, "New session"), sdui.HeaderProps{
 			Icon:   statusIcons[display],

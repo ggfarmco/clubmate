@@ -24,6 +24,10 @@ func TestKeep(t *testing.T) {
 
 		"repo/.git/worktrees/wt/HEAD":      true,
 		"repo/.git/worktrees/wt/logs/HEAD": false,
+
+		"repo/.git/review.db-wal":          true,
+		"repo/.git/worktrees/wt/review.db": true,
+		"repo/.git/review.db-shm":          false,
 	} {
 		assert.Equal(t, want, fswatch.Keep(path), path)
 	}

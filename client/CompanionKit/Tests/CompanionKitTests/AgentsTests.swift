@@ -18,6 +18,12 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(AgentSession.grouped(sessions)[0].sessions.map(\.id).sorted(), ["agt_0000000000000001", "agt_0000000000000002"])
     }
 
+    func testDecodesTheReviewProgressText() throws {
+        let json = #"[{"id":"a","status":"done","reviewProgress":{"id":"rv_1","reviewed":5,"total":15,"open":1,"sent":0,"text":"review 5/15 · 1"}}]"#
+        let sessions = try JSONDecoder.clubmate.decode([AgentSession].self, from: Data(json.utf8))
+        XCTAssertEqual(sessions[0].reviewProgress, ReviewProgress(text: "review 5/15 · 1"))
+    }
+
     func testGroupsTreesByThePluginsGroupOfTheirRoot() throws {
         let json = #"""
         [

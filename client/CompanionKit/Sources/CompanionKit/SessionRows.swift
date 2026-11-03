@@ -103,9 +103,9 @@ extension AgentSession {
         case .stopped:
             return SessionStateLine(text: stopped.word, tone: .danger)
         case .review:
-            return SessionStateLine(text: SessionState.review.label, age: age(updatedAt))
+            return SessionStateLine(text: reviewProgress?.text ?? SessionState.review.label, age: age(updatedAt))
         case .done:
-            return SessionStateLine(text: SessionState.done.label, age: age(updatedAt))
+            return SessionStateLine(text: reviewProgress?.text ?? SessionState.done.label, age: age(updatedAt))
         case .closed:
             return SessionStateLine(text: autoClosed ? "Auto-closed" : SessionState.closed.label, age: age(updatedAt))
         }

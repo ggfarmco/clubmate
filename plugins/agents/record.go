@@ -87,6 +87,7 @@ type sessionInfo struct {
 	ChildStatus     string          `json:"childStatus,omitempty"`
 	Failure         *sessionFailure `json:"failure,omitempty"`
 	ModeLabel       string          `json:"modeLabel,omitempty"`
+	ReviewProgress  *reviewProgress `json:"reviewProgress,omitempty"`
 }
 
 type sessionFailure struct {

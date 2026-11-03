@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -22,6 +24,7 @@ const (
 	categoryTest   = "test"
 	categoryGen    = "generated"
 	commentsRootID = "comments"
+	reviewDB       = "review.db"
 )
 
 var (
@@ -52,6 +55,9 @@ type review struct {
 	Current        string
 	Collapsed      map[string]bool
 	CommentsFolded bool
+	Sheet          *sendSheet
+	Export         string
+	exportSig      string
 	seq            int
 	nv             reviewer
 }
@@ -61,21 +67,28 @@ type reviewHost interface {
 	Publish(ctx context.Context, topic string, payload any) (pluginsdk.Event, error)
 	StorageGet(ctx context.Context, key string, out any) (bool, error)
 	StorageSet(ctx context.Context, key string, v any) error
+	RunCommand(ctx context.Context, id, workspaceID string, args any, out any) error
 }
 
 type reviewPayload struct {
-	WorkspaceID string `json:"workspaceId"`
-	ID          string `json:"id"`
-	Worktree    string `json:"worktree"`
-	Base        string `json:"base"`
-	Head        string `json:"head"`
-	Opener      string `json:"opener"`
-	Recipient   string `json:"recipient"`
-	Reviewed    int    `json:"reviewed"`
-	Total       int    `json:"total"`
-	Open        int    `json:"open"`
-	Sent        int    `json:"sent"`
-	Closed      bool   `json:"closed"`
+	WorkspaceID string         `json:"workspaceId"`
+	ID          string         `json:"id"`
+	Worktree    string         `json:"worktree"`
+	Base        string         `json:"base"`
+	Head        string         `json:"head"`
+	Opener      string         `json:"opener"`
+	Recipient   string         `json:"recipient"`
+	Reviewed    int            `json:"reviewed"`
+	Total       int            `json:"total"`
+	Open        int            `json:"open"`
+	Sent        int            `json:"sent"`
+	Closed      bool           `json:"closed"`
+	Comments    []commentState `json:"comments,omitempty"`
+}
+
+type commentState struct {
+	ID     int64  `json:"id"`
+	Status string `json:"status"`
 }
 
 func reviewID(k reviewKey) string {
@@ -143,9 +156,14 @@ func (r *review) openComments() []reviewComment {
 
 func (r *review) payload(closed bool) reviewPayload {
 	done, total := r.progress()
+	var states []commentState
+	for _, c := range r.Comments {
+		states = append(states, commentState{ID: c.ID, Status: c.Status})
+	}
 	return reviewPayload{
 		WorkspaceID: r.Workspace, ID: r.ID, Worktree: r.Key.Worktree, Base: r.Key.Base, Head: r.Key.Head,
 		Opener: r.Opener, Recipient: r.Recipient, Reviewed: done, Total: total, Open: len(r.openComments()), Sent: r.Sent, Closed: closed,
+		Comments: states,
 	}
 }
 
@@ -245,13 +263,14 @@ func (a *app) removeReviewLocked(ctx context.Context, h reviewHost, r *review) {
 }
 
 func (a *app) reviewChangedLocked(ctx context.Context, h reviewHost, r *review) {
+	a.refreshExportLocked(r)
 	a.publishReviewLocked(ctx, h, r, false)
 	a.renderReviewsLocked(ctx, h, r.Workspace)
 }
 
 func (a *app) publishReviewLocked(ctx context.Context, h reviewHost, r *review, closed bool) {
 	p := r.payload(closed)
-	if last, ok := a.reviewPublished[r.ID]; ok && last == p {
+	if last, ok := a.reviewPublished[r.ID]; ok && reflect.DeepEqual(last, p) {
 		return
 	}
 	a.reviewPublished[r.ID] = p
@@ -267,6 +286,21 @@ func (a *app) renderReviewsLocked(ctx context.Context, h reviewHost, ws string) 
 	}
 	if hint := a.reviewStatusHint; hint != nil {
 		hint(ws)
+	}
+}
+
+func isReviewDB(path string) bool {
+	return strings.HasPrefix(filepath.Base(path), reviewDB)
+}
+
+func (a *app) reviewDBChanged(ctx context.Context, h reviewHost, ws string) {
+	a.reviewMu.Lock()
+	defer a.reviewMu.Unlock()
+	for _, r := range a.workspaceReviewsLocked(ws) {
+		if err := r.refresh(true); err != nil {
+			logError("review comments", err)
+		}
+		a.reviewChangedLocked(ctx, h, r)
 	}
 }
 
@@ -292,6 +326,14 @@ func (a *app) dropReviewsOf(ctx context.Context, h reviewHost, nv reviewer) {
 }
 
 func (a *app) reviewUIEvent(ctx context.Context, h reviewHost, ev pluginsdk.UIEvent) error {
+	switch ev.Action {
+	case "send":
+		return a.openSendSheet(ctx, h, ev.WorkspaceID)
+	case "sendReview":
+		return a.submitSend(ctx, h, ev.WorkspaceID, ev.Value)
+	case "cancel":
+		return a.closeSendSheet(ctx, h, ev.WorkspaceID)
+	}
 	a.reviewMu.Lock()
 	defer a.reviewMu.Unlock()
 	if ev.Action == "layout" {
@@ -307,11 +349,7 @@ func (a *app) reviewUIEvent(ctx context.Context, h reviewHost, ev pluginsdk.UIEv
 	value := decodeString(ev.Value)
 	switch {
 	case ev.Action == "switch":
-		a.reviewSel[ev.WorkspaceID] = r.ID
-		if a.switchRoot != nil {
-			a.switchRoot(ctx, r)
-		}
-		if err := r.nv.reviewFocus(r.Tab); err != nil {
+		if err := a.selectReviewLocked(ctx, r); err != nil {
 			return err
 		}
 	case ev.Action == "select" && strings.HasPrefix(value, "c:"):
@@ -373,6 +411,33 @@ func (a *app) reviewUIEvent(ctx context.Context, h reviewHost, ev pluginsdk.UIEv
 	}
 	a.reviewChangedLocked(ctx, h, r)
 	return nil
+}
+
+func (a *app) selectReviewLocked(ctx context.Context, r *review) error {
+	a.reviewSel[r.Workspace] = r.ID
+	if a.switchRoot != nil {
+		a.switchRoot(ctx, r)
+	}
+	return r.nv.reviewFocus(r.Tab)
+}
+
+func (a *app) showReview(ctx context.Context, h *pluginsdk.Host, ws, id string) error {
+	a.reviewMu.Lock()
+	r := a.reviews[id]
+	if r == nil || r.Workspace != ws {
+		a.reviewMu.Unlock()
+		return fmt.Errorf("%w: %s", errUnknownReview, id)
+	}
+	err := a.selectReviewLocked(ctx, r)
+	if err == nil {
+		a.reviewChangedLocked(ctx, h, r)
+	}
+	a.reviewMu.Unlock()
+	if err != nil {
+		return err
+	}
+	focusMain(ctx, h, ws)
+	return h.Focus(ctx, ws, h.PluginID(), reviewSlot)
 }
 
 func (r *review) setFilter(name string, on bool) {

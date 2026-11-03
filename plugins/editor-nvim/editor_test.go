@@ -454,7 +454,7 @@ func TestReviewCommandOpensMergeBaseForTheCaller(t *testing.T) {
 	require.NotEmpty(t, events)
 	var p map[string]any
 	require.NoError(t, json.Unmarshal(events[len(events)-1].Payload, &p))
-	assert.Equal(t, map[string]any{"workspaceId": e.workspaceID, "id": res.ID, "worktree": wt, "base": base, "head": "", "opener": "agt_1", "recipient": "", "reviewed": 0.0, "total": 1.0, "open": 1.0, "sent": 0.0, "closed": false}, p)
+	assert.Equal(t, map[string]any{"workspaceId": e.workspaceID, "id": res.ID, "worktree": wt, "base": base, "head": "", "opener": "agt_1", "recipient": "", "reviewed": 0.0, "total": 1.0, "open": 1.0, "sent": 0.0, "closed": false, "comments": []any{map[string]any{"id": 1.0, "status": "open"}}}, p)
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": e.workspaceID, "slot": reviewSlot, "nodeId": "review", "action": "layout", "value": "inline"}, nil))
 	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasText(n, "r reviewed · ]f next · ,rc comment · ⌘B files") })
 }

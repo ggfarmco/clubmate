@@ -59,6 +59,10 @@ type restartArgs struct {
 	Force bool `json:"force"`
 }
 
+type reviewShowArgs struct {
+	ID string `json:"id"`
+}
+
 type terminalArgs struct {
 	Cwd string `json:"cwd"`
 }
@@ -98,6 +102,12 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		return struct{}{}, a.diffview(ctx, h, cmd.WorkspaceID, args)
 	case "review":
 		return a.reviewCommand(ctx, h, cmd)
+	case "review-show":
+		var args reviewShowArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("review-show args: %w", err)
+		}
+		return struct{}{}, a.showReview(ctx, h, cmd.WorkspaceID, args.ID)
 	case "checktime":
 		if _, err := decodeRoot(name, cmd.Args, errChecktimeRoot); err != nil {
 			return nil, err

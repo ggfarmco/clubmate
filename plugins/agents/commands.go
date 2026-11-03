@@ -16,6 +16,7 @@ const (
 	remotePlugin  = "remote"
 	voicePlugin   = "voice"
 	cronPlugin    = "cron"
+	editorPlugin  = "editor-nvim"
 	triggerPlugin = "triggers"
 	unknownCaller = "unknown"
 )
@@ -53,6 +54,7 @@ var (
 		"agents.resume":         withSession((*app).resumeCommand),
 		"agents.reveal":         withArgs((*app).revealCommand),
 		"agents.reviewed":       withSession((*app).reviewedCommand),
+		"agents.send-review":    withArgs((*app).sendReviewCommand),
 		"agents.run-needs":      withArgs((*app).runNeedsCommand),
 	}
 
@@ -62,6 +64,8 @@ var (
 	errVoiceOnly     = errors.New("invalid_params: only the voice plugin may set disallowedTools, systemPrompt, mode or model")
 	errOriginOnly    = errors.New("invalid_params: only the cron plugin may set cronJob and only the triggers plugin may set trigger")
 	errFinishUser    = errors.New("invalid_params: only the user may set finish")
+	errBadReview     = errors.New("invalid_params: send-review needs a worktree and at least one comment")
+	errReviewOnly    = errors.New("invalid_params: only the editor-nvim plugin may send a review")
 )
 
 type commandFunc func(a *app, ctx context.Context, cmd pluginsdk.CommandRun) (any, error)
@@ -102,6 +106,8 @@ type newArgs struct {
 	Finish          string         `json:"finish"`
 	CronJob         string         `json:"cronJob"`
 	Trigger         string         `json:"trigger"`
+	worktree        string
+	review          *reviewSent
 }
 
 type newResult struct {
@@ -120,6 +126,7 @@ type promptArgs struct {
 	Attachments []attachment `json:"attachments"`
 	From        string       `json:"-"`
 	Voice       bool         `json:"-"`
+	Review      *reviewSent  `json:"-"`
 }
 
 type attachment struct {

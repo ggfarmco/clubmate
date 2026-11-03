@@ -101,6 +101,7 @@ type entry struct {
 	DocCards   []sdui.DocCard    `json:"docCards,omitempty"`
 	Images     []sdui.ImageRef   `json:"images,omitempty"`
 	Voice      *voicePrompt      `json:"voice,omitempty"`
+	Review     *reviewSent       `json:"review,omitempty"`
 
 	node   *nodeCache
 	sub    *subagent
@@ -130,10 +131,11 @@ type turnInfo struct {
 
 type promptPayload struct {
 	acp.PromptRequest
-	From      string `json:"from,omitempty"`
-	FromTitle string `json:"fromTitle,omitempty"`
-	Steered   bool   `json:"steered,omitempty"`
-	Voice     bool   `json:"voice,omitempty"`
+	From      string      `json:"from,omitempty"`
+	FromTitle string      `json:"fromTitle,omitempty"`
+	Steered   bool        `json:"steered,omitempty"`
+	Voice     bool        `json:"voice,omitempty"`
+	Review    *reviewSent `json:"review,omitempty"`
 }
 
 type permissionPayload struct {
@@ -471,6 +473,7 @@ func (s *session) applyPrompt(e envelope) {
 		}
 	}
 	en.Voice = nil
+	en.Review = req.Review
 	if v := (voicePrompt{}); req.Voice && json.Unmarshal([]byte(en.Text), &v) == nil && v.Heard != "" {
 		en.Voice = &v
 	}

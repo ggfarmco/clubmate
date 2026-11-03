@@ -50,6 +50,9 @@ func reviewView(rs []*review, sel string) sdui.Node {
 		))
 	}
 	children = append(children, reviewFooter(cur), reviewStrip(cur))
+	if cur.Sheet != nil {
+		children = append(children, sendSheetView(cur))
+	}
 	n := sdui.VStack(children...)
 	n.ID = "review"
 	return n
@@ -309,8 +312,16 @@ func reviewFooter(r *review) sdui.Node {
 	if total > 0 && done == total && open > 0 {
 		variant = sdui.VariantPrimary
 	}
-	send := sdui.WithDisabled(sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button("review/send", label, "bubble.left"), "send"), variant), "cmd+return"))
-	copyButton := sdui.WithDisabled(sdui.WithVariant(sdui.WithAction(sdui.Button("review/copy", "Copy ,re", ""), "copy"), sdui.VariantGhost))
+	send := sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button("review/send", label, "bubble.left"), "send"), variant), "cmd+return")
+	if open == 0 || r.Sheet != nil {
+		send = sdui.WithDisabled(send)
+	}
+	copyButton := sdui.WithVariant(sdui.Button("review/copy", "Copy ,re", ""), sdui.VariantGhost)
+	if r.Export == "" {
+		copyButton = sdui.WithDisabled(copyButton)
+	} else {
+		copyButton.Props["copy"] = r.Export
+	}
 	n := sdui.VStack(sdui.MutedText(reviewKeys), sdui.HStack(send, copyButton), sdui.MutedText(reviewLegend))
 	n.ID = "review/footer"
 	return n

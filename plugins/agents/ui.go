@@ -227,7 +227,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	needs := a.runNeeds.byRun(workspaceID)
 	for _, rec := range recs {
 		branch := a.branches.name(ctx, rec.Worktree)
-		row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children[rec.ID], Branch: branchLabel(branch), Detached: detachedBranch(branch)}
+		row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children[rec.ID], Branch: branchLabel(branch), Detached: detachedBranch(branch), Review: a.reviews.progress(rec.ID)}
 		if n, ok := needs[runID(rec)]; ok {
 			row.RunNeed = &n
 		}
@@ -454,7 +454,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 		st.anchor, st.anchorTurn = "", 0
 	}
 	needsAuth, cannotResume := a.recoveryLocked(v.Session)
-	return screen{
+	sc := screen{
 		View:        v,
 		Pending:     pending,
 		Window:      st.window,
@@ -477,7 +477,10 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 		Children:    childStatuses(a.list(workspaceID))[sid],
 		FromTitles:  fromTitles,
 		Context:     ctxScreen,
+		Review:      a.reviews.progress(sid),
 	}
+	sc.ReviewStates, sc.ReviewsOpen = a.reviews.cards()
+	return sc
 }
 
 func (a *app) relatives(v transcriptView) (string, map[string]string) {

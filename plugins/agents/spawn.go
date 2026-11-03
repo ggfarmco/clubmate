@@ -74,13 +74,19 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 		}
 		ready = newSetup(plan)
 	}
+	if args.worktree != "" {
+		if err := workspaceWorktree(ctx, p, args.worktree); err != nil {
+			return newResult{}, err
+		}
+		root = args.worktree
+	}
 	rec.Worktree = root
 	rec.Finish, rec.AFK = a.sessionDefaults(ctx, rec.ParentSession)
 	rec.Finish = cmp.Or(args.Finish, rec.Finish)
 	if args.AFK != nil {
 		rec.AFK = *args.AFK
 	}
-	s, err := a.spawn(rec, promptArgs{Text: args.Prompt, From: from}, ready)
+	s, err := a.spawn(rec, promptArgs{Text: args.Prompt, From: from, Review: args.review}, ready)
 	if ready != nil && s != nil {
 		go a.createWorktree(s, ready)
 	}
@@ -176,6 +182,23 @@ func planWorktree(ctx context.Context, p pluginsdk.Workspace, base, branch strin
 		}
 	}
 	return worktreeNewArgs{}, "", errNotGit
+}
+
+func workspaceWorktree(ctx context.Context, p pluginsdk.Workspace, dir string) error {
+	if !filepath.IsAbs(dir) || filepath.Clean(dir) != dir {
+		return errNotGit
+	}
+	if top, ok := gitrepo.RepoRoot(dir); !ok || top != dir {
+		return errNotGit
+	}
+	for _, repo := range p.Paths() {
+		if f, err := gitrepo.OpenFolder(ctx, repo); err == nil {
+			if _, ok := f.Member(dir); ok {
+				return nil
+			}
+		}
+	}
+	return errNotGit
 }
 
 func (a *app) createWorktree(s *session, ready *setup) {

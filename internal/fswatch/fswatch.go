@@ -22,13 +22,17 @@ func Keep(path string) bool {
 }
 
 func keepGit(rest string) bool {
-	if rest == "HEAD" || rest == "index" || rest == "packed-refs" ||
+	if rest == "HEAD" || rest == "index" || rest == "packed-refs" || reviewDB(rest) ||
 		strings.HasPrefix(rest, "refs/heads/") || strings.HasPrefix(rest, "refs/remotes/") {
 		return true
 	}
 	linked, ok := strings.CutPrefix(rest, "worktrees/")
 	name, file, hasFile := strings.Cut(linked, "/")
-	return ok && hasFile && name != "" && (file == "HEAD" || file == "index")
+	return ok && hasFile && name != "" && (file == "HEAD" || file == "index" || reviewDB(file))
+}
+
+func reviewDB(file string) bool {
+	return file == "review.db" || file == "review.db-wal"
 }
 
 func keeper(gitRoots []string) func(string) bool {

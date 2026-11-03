@@ -6,6 +6,9 @@
   "command": ["editor-nvim"],
   "contributes": {
     "sections": [{"id": "editor-nvim", "title": "Neovim", "icon": "chevron.left.forwardslash.chevron.right", "order": 10, "slots": ["review"]}],
+    "shortcuts": [
+      {"keys": "cmd+return", "action": "Send the review's open comments: opens the Send sheet, and in the sheet sends them", "when": "a review with open comments is shown"}
+    ],
     "commands": [
       {
         "id": "editor-nvim.open",
@@ -64,6 +67,19 @@
             "head": {"type": "string", "description": "Right side: a branch or commit; absent for the working tree of your worktree (or of cwd)."},
             "cwd": {"type": "string", "description": "Absolute path inside the worktree the review is for, instead of your own worktree."}
           }
+        }
+      },
+      {
+        "id": "editor-nvim.review-show",
+        "title": "Show review",
+        "hidden": true,
+        "agent": false,
+        "description": "Make the open review with this id the selected one, switch its folder's worktree when it lives in another Neovim, make its tab current and show the Code section's Review tab. Fails for an id that is not open in the workspace.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Review id (rv_ and 8 hex digits) from the editor-nvim.review bus topic."}
+          },
+          "required": ["id"]
         }
       },
       {

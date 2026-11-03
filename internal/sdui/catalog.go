@@ -251,7 +251,7 @@ var (
 			children:    noChildren,
 			interactive: true,
 		},
-		"form":    {props: map[string]propCheck{"action": actionCheck, "autosave": isBool}, children: anyChildren, interactive: true},
+		"form":    {props: map[string]propCheck{"action": actionCheck, "autosave": isBool, "sheet": isBool}, children: anyChildren, interactive: true},
 		"surface": {required: []string{"sessionId"}, props: map[string]propCheck{"sessionId": sessionIDCheck}, children: noChildren},
 		"webview": {required: []string{"key", "url"}, props: map[string]propCheck{"key": isString, "url": loopbackURL, "rev": countNumber}, children: noChildren},
 		"header": {

@@ -7,6 +7,7 @@
   "contributes": {
     "shortcuts": [
       {"keys": "cmd+i", "action": "Show the session's context, or back to the transcript"},
+      {"keys": "cmd+r", "action": "Open the session's review in the Code section", "when": "the session opened or received an open review"},
       {"keys": "opt+1", "action": "Allow the permission request once, or pick the question's 1st option", "when": "a permission request or question is pending"},
       {"keys": "opt+2", "action": "Always allow… the permission request (asks to confirm), or pick the question's 2nd option", "when": "a permission request or question is pending"},
       {"keys": "opt+3", "action": "Reject the permission request, or pick the question's 3rd option", "when": "a permission request or question is pending"},
@@ -397,6 +398,43 @@
             "session": {"type": "string", "description": "Session id."}
           },
           "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.send-review",
+        "title": "Send review comments",
+        "hidden": true,
+        "description": "Send the open comments of a Clubmate review to a session as one Review prompt, shown as a Review card on the Mac. session is used while open; else the most recently active open session in worktree; else a new session there. Returns {session}.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Recipient session id; may be empty or closed."},
+            "worktree": {"type": "string", "description": "The review's head worktree."},
+            "review": {"type": "string", "description": "Review id (rv_…)."},
+            "base": {"type": "string", "description": "Left side label."},
+            "head": {"type": "string", "description": "Right side label."},
+            "reviewed": {"type": "integer", "description": "Files reviewed."},
+            "total": {"type": "integer", "description": "Files in the review."},
+            "comments": {
+              "type": "array",
+              "description": "Open comments to send.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {"type": "integer", "description": "nrev comment id."},
+                  "file": {"type": "string", "description": "Path relative to the worktree."},
+                  "side": {"type": "string", "description": "left or right."},
+                  "lineStart": {"type": "integer", "description": "First line."},
+                  "lineEnd": {"type": "integer", "description": "Last line."},
+                  "type": {"type": "string", "description": "issue, suggestion or question."},
+                  "text": {"type": "string", "description": "Comment text."},
+                  "lineText": {"type": "string", "description": "The commented line."}
+                }
+              }
+            },
+            "note": {"type": "string", "description": "Optional note added at the end."},
+            "nrev": {"type": "string", "description": "Absolute path of the nrev binary the agent resolves comments with."}
+          },
+          "required": ["worktree", "comments"]
         }
       },
       {

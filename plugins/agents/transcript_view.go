@@ -62,6 +62,7 @@ type nodeKey struct {
 	reviewable bool
 	pending    bool
 	from       string
+	review     string
 }
 
 type builtNode struct {
@@ -269,7 +270,7 @@ func entryNode(sc screen, en *entry, sha string) builtNode {
 	if en.node == nil || en.Kind == entryTool && sc.Expanded[en.ID] {
 		return build()
 	}
-	key := nodeKey{sid: sc.View.Session.ID, root: sc.View.Session.Worktree, reviewable: sha != "", pending: sc.Pending[en.ID], from: sc.FromTitles[en.From]}
+	key := nodeKey{sid: sc.View.Session.ID, root: sc.View.Session.Worktree, reviewable: sha != "", pending: sc.Pending[en.ID], from: sc.FromTitles[en.From], review: reviewCardKey(sc, en)}
 	return en.node.get(key, build)
 }
 
@@ -287,6 +288,9 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 	root := sc.View.Session.Worktree
 	switch en.Kind {
 	case entryUser:
+		if en.Review != nil {
+			return reviewCard(sc, en), true
+		}
 		n := sdui.Message("user", shownPrompt(en.Text), promptAttachments(en.Content, root))
 		if en.Voice != nil {
 			n = sdui.Message("user", en.Text, nil)

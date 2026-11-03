@@ -67,6 +67,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌘S | Save the cron job's edit form | cron |
 | ↩ | Edit the task title (title focused); while editing ↩ saves it, Esc cancels | backlog |
 | ⌘I | Show the session's context, or back to the transcript | agents |
+| ⌘R | Open the session's review in the Code section (while it opened or received an open review) | agents |
 | ⇧K | Kill the selected process and its children (confirmed) | processes |
 | ⇧⌘R | Reveal the selected process's executable in Finder | processes |
 
@@ -231,8 +232,11 @@ The file tree and the comment list are trees, so the tree keys above apply; on t
 | ↩, click | Open the file's diff in nvim (a comment: jump to its line) | `plugins/editor-nvim/review.go` |
 | r | Mark the file under the cursor reviewed, or not reviewed (the row's menu entry key; nvim's `r` does the same and the panel follows) | `plugins/editor-nvim/review_view.go`, `SDUI/CollectionViews.swift` |
 | ‹ ›, click | In the narrow strip above the editor: previous / next file of the panel's list | `plugins/editor-nvim/review_view.go` |
+| ⌘↩ | Send N comments: opens the Send sheet (while the review has open comments) | `plugins/editor-nvim/review_view.go` |
+| ⌘↩ | In the Send sheet: send the open comments to the chosen session | `plugins/editor-nvim/review_send.go`, `SDUI/FormSheet.swift` |
+| ⎋ | In the Send sheet: cancel | `SDUI/FormSheet.swift` |
 
-The panel prints the nvim keys (`r`, `]f`, `,rc`, `]a`, `,rl`, `,re`) as hints; they work in the diff panes, see nvim below. ⌘↩ on Send and Copy arrive with the Send sheet.
+The panel prints the nvim keys (`r`, `]f`, `,rc`, `]a`, `,rl`, `,re`) as hints; they work in the diff panes, see nvim below. Copy `,re` has no key of its own in the panel: a click puts the same text as nvim's `,re` on the clipboard.
 
 ## Code chat panel starters (session with no turns yet)
 

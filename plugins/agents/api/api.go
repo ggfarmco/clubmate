@@ -14,6 +14,7 @@ const (
 	ChangeStatus   = "status"
 	ChangeDeleted  = "deleted"
 	ChangeResolved = "resolved"
+	ChangeReview   = "review"
 
 	RequestPermission  = "permission"
 	RequestElicitation = "elicitation"

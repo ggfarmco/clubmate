@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -106,6 +107,29 @@ type fakeHost struct {
 	views    map[string]sdui.Node
 	payloads []reviewPayload
 	store    map[string][]byte
+	sessions []agentSession
+	sent     []sendReviewArgs
+}
+
+func (f *fakeHost) RunCommand(_ context.Context, id, _ string, args any, out any) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var res any
+	switch id {
+	case sessionsCmd:
+		res = f.sessions
+	case sendReviewCmd:
+		a := args.(sendReviewArgs)
+		f.sent = append(f.sent, a)
+		res = sendReviewResult{Session: cmp.Or(a.Session, "agt_made")}
+	default:
+		return fmt.Errorf("unexpected command %s", id)
+	}
+	b, err := json.Marshal(res)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, out)
 }
 
 func (f *fakeHost) StorageGet(_ context.Context, key string, out any) (bool, error) {
@@ -191,6 +215,14 @@ func TestReviewFollowsNvimEvents(t *testing.T) {
 	assert.Equal(t, 2, h.last().Reviewed)
 	a.applyReviewEvent(t.Context(), h, "ws", "/other", nvimEvent{Event: "review", Kind: "reviewed", Path: "a.go", Tab: 1})
 	assert.Len(t, h.payloads, 3)
+	nv.comments = []reviewComment{{ID: 4, Status: "open"}, {ID: 7, Status: "resolved"}}
+	a.applyReviewEvent(t.Context(), h, "ws", "/repo", nvimEvent{Event: "review", Kind: "comments", Tab: 1})
+	assert.Equal(t, []commentState{{ID: 4, Status: "open"}, {ID: 7, Status: "resolved"}}, h.last().Comments)
+	assert.Equal(t, 1, h.last().Open)
+	nv.comments[0].Status = "resolved"
+	assert.True(t, isReviewDB("/repo/.git/review.db-wal"))
+	a.reviewDBChanged(t.Context(), h, "ws")
+	assert.Equal(t, 0, h.last().Open)
 }
 
 func TestReviewClosedClearsSlotAndBus(t *testing.T) {

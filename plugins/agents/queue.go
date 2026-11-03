@@ -12,6 +12,7 @@ type queuedPrompt struct {
 	Attachments []attachment
 	From        string
 	Voice       bool
+	Review      *reviewSent
 }
 
 func (s *session) enqueueLocked(args promptArgs) {
@@ -39,7 +40,7 @@ func (s *session) queued() []queuedPrompt {
 
 func (s *session) queuedLocked(args promptArgs) queuedPrompt {
 	s.queueSeq++
-	return queuedPrompt{ID: "q" + strconv.Itoa(s.queueSeq), Text: args.Text, Attachments: args.Attachments, From: args.From, Voice: args.Voice}
+	return queuedPrompt{ID: "q" + strconv.Itoa(s.queueSeq), Text: args.Text, Attachments: args.Attachments, From: args.From, Voice: args.Voice, Review: args.Review}
 }
 
 func (s *session) dequeueLocked() (promptArgs, bool) {
@@ -47,13 +48,16 @@ func (s *session) dequeueLocked() (promptArgs, bool) {
 		return promptArgs{}, false
 	}
 	from, voice := s.queue[0].From, s.queue[0].Voice
-	n := slices.IndexFunc(s.queue, func(q queuedPrompt) bool { return q.From != from || q.Voice != voice })
-	if n < 0 {
+	n := slices.IndexFunc(s.queue, func(q queuedPrompt) bool { return q.From != from || q.Voice != voice || q.Review != nil })
+	switch {
+	case s.queue[0].Review != nil:
+		n = 1
+	case n < 0:
 		n = len(s.queue)
 	}
 	parts := s.queue[:n]
 	s.queue = slices.Clone(s.queue[n:])
-	args := promptArgs{From: from, Voice: voice}
+	args := promptArgs{From: from, Voice: voice, Review: parts[0].Review}
 	var texts []string
 	for _, q := range parts {
 		if strings.TrimSpace(q.Text) != "" {

@@ -92,6 +92,7 @@ type entry struct {
 	Subagent  string                     `json:"subagent"`
 	Stoppable bool                       `json:"stoppable"`
 	Voice     json.RawMessage            `json:"voice"`
+	Review    json.RawMessage            `json:"review"`
 	DocCards  []sdui.DocCard             `json:"docCards"`
 }
 
@@ -1253,7 +1254,7 @@ func TestReviewActionUsesCheckpoint(t *testing.T) {
 
 	f.h.Event(t, workspace, "agents.main", session+"/review", "review", nil)
 
-	assert.JSONEq(t, `{"cwd":"`+repo+`","rev":"`+sha+`"}`, string(echoed(t, f, "editor-nvim.diffview")))
+	assert.JSONEq(t, `{"cwd":"`+repo+`","rev":"`+sha+`","session":"`+session+`","turn":1}`, string(echoed(t, f, "editor-nvim.diffview")))
 }
 
 func TestReviewButtonFollowsWorktreeChanges(t *testing.T) {

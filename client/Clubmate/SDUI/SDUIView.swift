@@ -262,6 +262,7 @@ struct SDUINodeView: View, Equatable {
         case "toggle": ToggleNodeView(node: node)
         case "progress": ProgressNodeView(node: node)
         case "select": SelectNodeView(node: node)
+        case "form" where node.bool("sheet") == true: FormSheetHost(node: node)
         case "form": FormNodeView(node: node)
         case "transcript": TranscriptNodeView(node: node)
         case "message": MessageNodeView(node: node).equatable()

@@ -126,8 +126,10 @@ type selection struct {
 }
 
 type diffviewArgs struct {
-	Cwd string `json:"cwd"`
-	Rev string `json:"rev"`
+	Cwd     string `json:"cwd"`
+	Rev     string `json:"rev"`
+	Session string `json:"session"`
+	Turn    int    `json:"turn"`
 }
 
 func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
@@ -327,6 +329,8 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 	case actReviewed:
 		a.setReviewed(s)
 		return nil
+	case actOpenReview:
+		return a.openReview(ctx, ev.WorkspaceID, sid, a.cardReview(s, node))
 	case actSelectParent:
 		parent := s.snapshot().ParentSession
 		if a.session(parent) == nil {
@@ -560,6 +564,6 @@ func (a *app) review(ctx context.Context, workspaceID string, s *session, turn i
 	if i < 0 {
 		return errNoCheckpoint
 	}
-	args := diffviewArgs{Cwd: v.Session.Worktree, Rev: v.Turns[i].CheckpointSha}
+	args := diffviewArgs{Cwd: v.Session.Worktree, Rev: v.Turns[i].CheckpointSha, Session: v.Session.ID, Turn: turn}
 	return a.host.RunCommand(ctx, diffviewCmd, workspaceID, args, nil)
 }

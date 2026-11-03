@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/gitrepo"
@@ -58,9 +59,12 @@ type reviewState struct {
 }
 
 type agentSession struct {
-	ID       string `json:"id"`
-	Worktree string `json:"worktree"`
-	Title    string `json:"title"`
+	ID        string    `json:"id"`
+	Worktree  string    `json:"worktree"`
+	Title     string    `json:"title"`
+	Status    string    `json:"status"`
+	Service   bool      `json:"service"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 func (a *app) reviewCommand(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (reviewResult, error) {

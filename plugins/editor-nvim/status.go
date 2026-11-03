@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"clubmate/pkg/pluginsdk"
@@ -73,6 +74,9 @@ func (a *app) openDoc(h *pluginsdk.Host, e *editor, path string) {
 func (a *app) fsChanged(_ context.Context, h *pluginsdk.Host, ev pluginsdk.FSChange) {
 	if a.heads.Moved(ev) {
 		go a.refreshBranches(h, ev.WorkspaceID)
+	}
+	if ev.Overflow || slices.ContainsFunc(ev.Paths, isReviewDB) {
+		go a.reviewDBChanged(context.Background(), h, ev.WorkspaceID)
 	}
 }
 

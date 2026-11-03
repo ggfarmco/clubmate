@@ -109,6 +109,7 @@ type sessionRow struct {
 	Detached bool
 	Asking   bool
 	Since    time.Time
+	Review   *reviewProgress
 	RunNeed  *runNeed
 }
 
@@ -535,11 +536,21 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 	return sdui.TreeItem{
 		ID:     rec.ID,
 		Label:  cmp.Or(rec.Title, "New session"),
-		Detail: strings.Join(nonEmpty(afkDetail(rec), notifyLabels[row.Notify], activity(row, now)), " · "),
+		Detail: strings.Join(nonEmpty(afkDetail(rec), notifyLabels[row.Notify], rowActivity(row, now)), " · "),
 		Icon:   statusIcons[display],
 		Tone:   statusTones[display],
 		Menu:   menu,
 	}
+}
+
+func rowActivity(row sessionRow, now time.Time) string {
+	switch displayStatus(row.Rec, row.Children) {
+	case statusDone, statusIdle, statusReview:
+		if row.Review != nil {
+			return row.Review.Text
+		}
+	}
+	return activity(row, now)
 }
 
 func afkDetail(rec record) string {
