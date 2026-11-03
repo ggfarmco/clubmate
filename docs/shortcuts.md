@@ -37,6 +37,16 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 Inside terminals, Ghostty's own bindings apply, except ⌘W, which is unbound so the app gets it (`GhosttyApp.swift`).
 ⇧⌘I, ⇧⌘D and ⌘J are app menu keys, so they shadow any mapping of them in terminals (Ghostty's default ⇧⌘D split) and nvim.
 
+## First-launch editor sheet
+
+| Keys | Action |
+|---|---|
+| ↑ ↓ | Choose Neovim or VS Code |
+| ↩ | Continue with the chosen editor; on the VS Code step, Done |
+| Esc | Keep Neovim and close; on the VS Code step, Done |
+
+Defined in `App/Onboarding.swift` (`OnboardingSheet.key`).
+
 ## Plugin buttons
 
 A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the button is on screen; a combo without ⌘, ⌃ or ⌥ does nothing while a text field has focus, app menu keys always win, and Esc, ↩ and ⇥ without ⌘, ⌃ or ⌥ cannot be plugin shortcuts. Defined in `SDUI/InputViews.swift` (`ButtonNodeView`), combos parsed by `ClubmateKit/KeyCombo.swift`. Plugin shortcuts in use:

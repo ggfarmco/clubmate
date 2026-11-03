@@ -13,6 +13,7 @@ final class AppModel {
     let updates: Updates
     let settings = AppSettings(defaults: TestMode.defaults)
     let claude = ClaudeIntegration()
+    let onboarding = OnboardingModel()
     private(set) var workspaceStore: WorkspacesStore?
     private(set) var commands: [Command] = []
 
@@ -211,6 +212,7 @@ final class AppModel {
             workspaceStore = store
             self.commands = commands
             listen(client)
+            Task { await onboarding.load(client) }
             windows.restore(store.workspaces)
             if let id = launchWorkspace {
                 launchWorkspace = nil
@@ -225,7 +227,7 @@ final class AppModel {
 
     private func approve(_ request: ConfirmRequest, _ expiry: ConfirmExpiry) async -> Bool {
         if TestMode.current { return false }
-        let window = windows.attentionWindow
+        let window = windows.attentionWindow.map { onboarding.show ? $0.attachedSheet ?? $0 : $0 }
         let attention = NSApp.requestUserAttention(.criticalRequest)
         defer { NSApp.cancelUserAttentionRequest(attention) }
         let font = GhosttyApp.shared.theme.nsFont(size: settings.interfaceFontSize, bold: false)

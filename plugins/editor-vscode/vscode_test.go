@@ -22,9 +22,10 @@ import (
 )
 
 const (
-	mainSlot    = "editor-vscode.main"
-	statusSlot  = "editor-vscode.status"
-	restartWait = 15 * time.Second
+	mainSlot     = "editor-vscode.main"
+	statusSlot   = "editor-vscode.status"
+	settingsSlot = "editor-vscode.settings"
+	restartWait  = 15 * time.Second
 )
 
 const fakeCodeScript = `#!/bin/sh
@@ -59,6 +60,7 @@ type vscodeEditor struct {
 
 type setup struct {
 	accepted bool
+	bare     bool
 	marks    []string
 	seed     func(h *testutil.PluginHarness)
 }
@@ -83,6 +85,9 @@ func startVSCode(t *testing.T, s setup) *vscodeEditor {
 		s.seed(h)
 	}
 	h.Start(t, testutil.BuildPluginDir(t, "clubmate/plugins/editor-vscode", "plugins/editor-vscode/plugin.json"))
+	if s.bare {
+		return &vscodeEditor{h: h, code: code}
+	}
 	top, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", []string{top})
@@ -233,6 +238,22 @@ func TestVSCodeConsentFirst(t *testing.T) {
 	q := e.webview(t, func(url.Values) bool { return true })
 	assert.Equal(t, e.top, q.Get("folder"))
 	assert.True(t, e.accepted(t))
+}
+
+func TestAcceptInSettingsDownloadsWithoutWorkspace(t *testing.T) {
+	e := startVSCode(t, setup{bare: true})
+	e.h.WaitSlot(t, "", settingsSlot, func(n sdui.Node) bool { return hasButton(n, "vscode-accept") })
+	params := map[string]any{"workspaceId": "", "slot": settingsSlot, "nodeId": "vscode-accept", "action": "vscode-accept", "agent": true}
+	assert.Error(t, e.h.Client(t).Call(t.Context(), "ui.event", params, nil))
+	assert.False(t, e.accepted(t))
+
+	e.event(t, settingsSlot, "vscode-accept")
+
+	e.h.WaitSlotWithin(t, "", settingsSlot, restartWait, func(n sdui.Node) bool {
+		return strings.Contains(nodeText(n), "Downloaded.") && hasButton(n, "import-extensions") && !hasButton(n, "vscode-accept")
+	})
+	assert.True(t, e.accepted(t))
+	assert.FileExists(t, filepath.Join(e.state(), "cli", "serve-web", "c1", "bin", "code-server"))
 }
 
 func TestVSCodeFollowsRoot(t *testing.T) {

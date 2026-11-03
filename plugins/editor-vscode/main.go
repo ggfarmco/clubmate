@@ -45,6 +45,8 @@ type app struct {
 	rev    int
 	dark   bool
 	imp    importStatus
+
+	downloading bool
 }
 
 type settings struct {
@@ -152,12 +154,18 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
 	switch ev.Action {
 	case "vscode-accept":
-		if _, err := a.server(h); err != nil || ev.Slot != mainSlot || !a.isTracked(ev.WorkspaceID) {
+		if _, err := a.server(h); err != nil || !a.showsConsent(ev) {
 			return nil, errNoConsent
 		}
 		return nil, a.accept(ctx, h)
 	case "vscode-retry":
 		a.retry(ctx, h)
+		return nil, nil
+	case downloadAction:
+		if ev.Slot != settingsSlot {
+			return nil, fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
+		}
+		go a.prepare(context.WithoutCancel(ctx), h)
 		return nil, nil
 	case importAction:
 		if ev.Slot != settingsSlot {
@@ -171,6 +179,13 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 		return nil, nil
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
+}
+
+func (a *app) showsConsent(ev pluginsdk.UIEvent) bool {
+	if ev.Slot == settingsSlot {
+		return ev.WorkspaceID == ""
+	}
+	return ev.Slot == mainSlot && a.isTracked(ev.WorkspaceID)
 }
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {

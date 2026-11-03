@@ -110,3 +110,69 @@ func TestControlMigratesVSCodeChoice(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `41234`, string(port))
 }
+
+func TestOnboardingIsDecidedOnceOnFreshState(t *testing.T) {
+	off := false
+	vscode := plugin.Manifest{ID: "editor-vscode", EnabledByDefault: &off}
+	cases := []struct {
+		name       string
+		fresh      bool
+		vscodePref string
+		show       bool
+	}{
+		{name: "fresh install", fresh: true, show: true},
+		{name: "workspaces exist", fresh: false},
+		{name: "vscode already on", fresh: true, vscodePref: "true"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store, err := kv.Open(filepath.Join(t.TempDir(), "plugins.db"))
+			require.NoError(t, err)
+			t.Cleanup(func() { store.Close() })
+			if tc.vscodePref != "" {
+				require.NoError(t, store.Set(t.Context(), "core", "plugin.enabled.editor-vscode", json.RawMessage(tc.vscodePref)))
+			}
+			load := func(fresh bool) bool {
+				control, err := plugin.NewControl(t.Context(), store, []plugin.Manifest{vscode})
+				require.NoError(t, err)
+				require.NoError(t, control.LoadOnboarding(t.Context(), fresh))
+				return control.Onboarding()
+			}
+
+			assert.Equal(t, tc.show, load(tc.fresh))
+			assert.Equal(t, tc.show, load(!tc.fresh))
+		})
+	}
+}
+
+func TestFinishOnboardingWithVSCodeTurnsItOnAsDefaultEditor(t *testing.T) {
+	h := testutil.NewHarness(t)
+	editor := func(id, extra string) string {
+		return fmt.Sprintf(`{"id":%q,"name":%q,"version":"0.1.0","protocol":1,"command":["echo"]%s,"contributes":{"commands":[{"id":"%s.open","title":"Open","provides":["editor.open"]}]}}`, id, id, extra, id)
+	}
+	root := testutil.EchoPluginDirAs(t, editor("editor-nvim", ""), editor("editor-vscode", `,"enabledByDefault":false`))
+	h.Start(t, root)
+	require.NoError(t, h.Control.LoadOnboarding(t.Context(), true))
+	c := h.Client(t)
+	show := func() bool {
+		var out rpc.OnboardingState
+		require.NoError(t, c.Call(t.Context(), "onboarding.state", struct{}{}, &out))
+		return out.Show
+	}
+
+	require.True(t, show())
+	assert.ErrorContains(t, c.Call(t.Context(), "onboarding.finish", map[string]string{"editor": "emacs"}, nil), "editor must be")
+	assert.True(t, show())
+
+	require.NoError(t, c.Call(t.Context(), "onboarding.finish", map[string]string{"editor": "editor-vscode"}, nil))
+	assert.False(t, show())
+	assert.True(t, h.Control.Enabled("editor-vscode"))
+	assert.Equal(t, "editor-vscode", h.Control.Providers("editor.open").Default)
+
+	manifests, errs := plugin.Discover([]string{root})
+	require.Empty(t, errs)
+	reloaded, err := plugin.NewControl(t.Context(), h.KV, manifests)
+	require.NoError(t, err)
+	require.NoError(t, reloaded.LoadOnboarding(t.Context(), true))
+	assert.False(t, reloaded.Onboarding())
+}

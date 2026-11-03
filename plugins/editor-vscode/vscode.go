@@ -152,9 +152,7 @@ func (a *app) ready(ctx context.Context, h *pluginsdk.Host) (*vscodeServer, sdui
 		return nil, consentView(), false, nil
 	}
 	if !srv.Downloaded() {
-		a.renderAll(ctx, h, downloadingView())
-		if err := srv.Download(ctx); err != nil {
-			a.setFailure(err)
+		if err := a.download(ctx, h, srv); err != nil {
 			return nil, failedView(err), false, err
 		}
 	}
@@ -166,6 +164,34 @@ func (a *app) ready(ctx context.Context, h *pluginsdk.Host) (*vscodeServer, sdui
 		return nil, failedView(err), false, err
 	}
 	return srv, sdui.Node{}, true, nil
+}
+
+func (a *app) download(ctx context.Context, h *pluginsdk.Host, srv *vscodeServer) error {
+	a.setDownloading(true)
+	a.renderAll(ctx, h, downloadingView())
+	a.renderSettings(ctx, h)
+	err := srv.Download(ctx)
+	a.setDownloading(false)
+	if err != nil {
+		a.setFailure(err)
+	}
+	a.renderSettings(ctx, h)
+	return err
+}
+
+func (a *app) prepare(ctx context.Context, h *pluginsdk.Host) {
+	a.vsMu.Lock()
+	defer a.vsMu.Unlock()
+	srv, err := a.server(h)
+	if err != nil || a.failure() != nil || srv.Downloaded() {
+		return
+	}
+	s, err := a.loadSettings(ctx, h)
+	if err != nil || !s.Accepted {
+		logError("prepare", err)
+		return
+	}
+	logError("download", a.download(ctx, h, srv))
 }
 
 func (a *app) render(ctx context.Context, h *pluginsdk.Host, workspaceID, root, slot string, n sdui.Node) error {
@@ -242,6 +268,7 @@ func (a *app) watchServer(h *pluginsdk.Host, srv *vscodeServer) {
 		logError("vscode server", err)
 		if time.Since(last) < vscodeRetryWindow {
 			a.setFailure(err)
+			a.renderSettings(context.Background(), h)
 		}
 		last = time.Now()
 		a.rerender(context.Background(), h, "")
@@ -253,16 +280,20 @@ func (a *app) accept(ctx context.Context, h *pluginsdk.Host) error {
 		return err
 	}
 	go a.rerender(ctx, h, "")
+	go a.prepare(context.WithoutCancel(ctx), h)
 	return nil
 }
 
 func (a *app) retry(ctx context.Context, h *pluginsdk.Host) {
 	a.setFailure(nil)
+	a.renderSettings(ctx, h)
 	go a.rerender(ctx, h, "")
+	go a.prepare(context.WithoutCancel(ctx), h)
 }
 
 func (a *app) restart(ctx context.Context, h *pluginsdk.Host) {
 	a.setFailure(nil)
+	a.renderSettings(ctx, h)
 	if srv := a.runningServer(); srv != nil {
 		srv.Stop()
 	}
@@ -343,6 +374,12 @@ func (a *app) setFailure(err error) {
 	a.srvErr = err
 }
 
+func (a *app) setDownloading(on bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.downloading = on
+}
+
 func (a *app) revision() int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -355,9 +392,15 @@ func fileExists(path string) bool {
 }
 
 func consentView() sdui.Node {
-	terms := "[VS Code Server License Terms](" + vscodeLicenseURL + ")"
-	accept := sdui.WithConfirm(sdui.Button("vscode-accept", "Accept & Download", "arrow.down.circle"), "Accept the VS Code Server License Terms and download the VS Code server?")
-	return sdui.VStack(sdui.Card("", vscodeIcon, sdui.Markdown(strings.Replace(vscodeConsent, "VS Code Server License Terms", terms, 1)), accept))
+	return sdui.VStack(sdui.Card("", vscodeIcon, sdui.Markdown(consentText()), acceptButton()))
+}
+
+func consentText() string {
+	return strings.Replace(vscodeConsent, "VS Code Server License Terms", "[VS Code Server License Terms]("+vscodeLicenseURL+")", 1)
+}
+
+func acceptButton() sdui.Node {
+	return sdui.WithConfirm(sdui.Button("vscode-accept", "Accept & Download", "arrow.down.circle"), "Accept the VS Code Server License Terms and download the VS Code server?")
 }
 
 func downloadingView() sdui.Node {

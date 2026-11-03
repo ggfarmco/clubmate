@@ -156,6 +156,15 @@ public final class CoreClient {
         let _: NoParams = try await connection.call("capability.set-default", CapabilityDefaultParams(name: name, plugin: plugin))
     }
 
+    public func onboardingState() async throws -> Bool {
+        let state: OnboardingState = try await connection.call("onboarding.state", NoParams())
+        return state.show
+    }
+
+    public func onboardingFinish(editor: String) async throws {
+        let _: NoParams = try await connection.call("onboarding.finish", OnboardingFinishParams(editor: editor), timeout: .seconds(60))
+    }
+
     public func commandList() async throws -> [Command] {
         try await connection.call("command.list", NoParams())
     }
@@ -290,6 +299,14 @@ private struct EnabledParams: Encodable, Sendable {
 
 private struct CapabilityParams: Encodable, Sendable {
     let name: String
+}
+
+private struct OnboardingState: Decodable, Sendable {
+    let show: Bool
+}
+
+private struct OnboardingFinishParams: Encodable, Sendable {
+    let editor: String
 }
 
 private struct CapabilityDefaultParams: Encodable, Sendable {

@@ -235,6 +235,8 @@ Clients keep the highest `rev` per `(workspaceId, slot)` and ignore views with a
 | plugin.set-enabled | `{id, enabled}` (not for plugin callers) | `{}` |
 | capability.providers | `{name}` | `{default, providers: [{plugin, name, enabled}]}` |
 | capability.set-default | `{name, plugin}` (not for plugin callers) | `{}` |
+| onboarding.state | `{}` (not for plugin callers) | `{show}`: the first-launch editor sheet is pending |
+| onboarding.finish | `{editor}`: `editor-nvim` or `editor-vscode` (not for plugin callers) | `{}`; `editor-vscode` turns it on and makes it the `editor.open` default; marks onboarding done |
 | process.tree | `{workspaceId, sessionId}` (both optional filters) | `[{process: {pid, ppid, pgid, comm, args, startTime, rssKiB, cpu}, sessionId, orphan, duplicate}]`; `rssKiB` is resident memory, `cpu` the percent of one core the process used since the core's previous snapshot (its lifetime average the first time it is seen); processes that exit while the snapshot is read are left out |
 | process.kill | `{pids, sessionId, workspaceId, orphansOnly}` | `{killed: [pid]}` |
 | process.register | `{workspaceId, pid, label}` (plugin callers only) | `{id, workspaceId, label, owner, pid, ended}` |

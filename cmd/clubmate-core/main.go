@@ -146,6 +146,13 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("load plugin preferences: %w", err)
 	}
+	existing, err := store.List(context.Background())
+	if err != nil {
+		return err
+	}
+	if err := control.LoadOnboarding(context.Background(), len(existing) == 0 && onboardingAllowed()); err != nil {
+		return err
+	}
 	uiStore := sdui.NewStore()
 	sup = plugin.NewSupervisor(srv, dirs, logger, plugin.WithOnStop(uiStore.ClearOwner), plugin.WithBus(eventBus), plugin.WithResourcesDir(filepath.Dir(filepath.Dir(exe))), plugin.WithEnabled(control.StartEnabled))
 	router := plugin.NewRouter(sup)
@@ -175,6 +182,10 @@ func run(logger *slog.Logger) error {
 	<-loopDone
 	logger.Info("clubmate-core stopped")
 	return serveErr
+}
+
+func onboardingAllowed() bool {
+	return os.Getenv("CLUBMATE_TEST_MODE") != "1" || os.Getenv("CLUBMATE_ONBOARDING") == "1"
 }
 
 func applyShellEnv(logger *slog.Logger) {

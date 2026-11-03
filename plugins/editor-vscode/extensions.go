@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -15,9 +16,11 @@ import (
 )
 
 const (
-	settingsSlot   = "editor-vscode.settings"
-	importAction   = "import-extensions"
-	extensionsHint = "Install the extensions of your desktop VS Code into the VS Code in Clubmate."
+	settingsSlot    = "editor-vscode.settings"
+	importAction    = "import-extensions"
+	downloadAction  = "vscode-download"
+	extensionsHint  = "Install the extensions of your desktop VS Code into the VS Code in Clubmate."
+	codeMissingHint = "VS Code isn't installed on this Mac. Install it from code.visualstudio.com: Clubmate runs its VS Code server and imports extensions from it."
 )
 
 var (
@@ -34,6 +37,15 @@ type importResult struct {
 	Installed []string        `json:"installed"`
 	Skipped   []string        `json:"skipped"`
 	Failed    []importFailure `json:"failed"`
+}
+
+type settingsState struct {
+	codeMissing bool
+	accepted    bool
+	downloading bool
+	downloaded  bool
+	failure     error
+	imp         importStatus
 }
 
 type importStatus struct {
@@ -125,7 +137,7 @@ func (a *app) importExtensions(ctx context.Context, h *pluginsdk.Host) (importRe
 		})
 	}
 	if errors.Is(err, errServerMissing) {
-		err = errors.New("download the VS Code server first: open the VS Code section and accept")
+		err = errors.New("download the VS Code server first: Settings → VS Code → VS Code server")
 	}
 	a.mu.Lock()
 	a.imp = importStatus{result: &res, err: err}
@@ -141,29 +153,68 @@ func (a *app) importExtensions(ctx context.Context, h *pluginsdk.Host) (importRe
 }
 
 func (a *app) renderSettings(ctx context.Context, h *pluginsdk.Host) {
-	a.mu.Lock()
-	st := a.imp
-	a.mu.Unlock()
-	_, err := h.Render(ctx, "", settingsSlot, settingsView(st))
+	_, err := h.Render(ctx, "", settingsSlot, settingsView(a.settingsState(ctx, h)))
 	logError("render settings", err)
 }
 
-func settingsView(st importStatus) sdui.Node {
+func (a *app) settingsState(ctx context.Context, h *pluginsdk.Host) settingsState {
+	srv, err := a.server(h)
+	if errors.Is(err, errCodeMissing) {
+		return settingsState{codeMissing: true}
+	}
+	s, serr := a.loadSettings(ctx, h)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	st := settingsState{accepted: s.Accepted, downloading: a.downloading, failure: cmp.Or(err, serr, a.srvErr), imp: a.imp}
+	if srv != nil {
+		st.downloaded = srv.Downloaded()
+	}
+	return st
+}
+
+func settingsView(st settingsState) sdui.Node {
+	const server = "VS Code server"
+	var rows []sdui.Node
+	switch {
+	case st.codeMissing:
+		return sdui.VStack(sdui.SettingRow(server, codeMissingHint, sdui.MutedText("Not found")))
+	case !st.accepted:
+		rows = append(rows, sdui.Markdown(consentText()), sdui.SettingRow(server, "Not downloaded.", acceptButton()))
+	case st.failure != nil:
+		rows = append(rows, sdui.SettingRow(server, st.failure.Error(), sdui.Button("vscode-retry", "Retry", "arrow.clockwise")))
+	case st.downloading:
+		rows = append(rows, sdui.SettingRow(server, "Downloading the VS Code server…", sdui.WithLoading(downloadButton(), "Downloading")))
+	case !st.downloaded:
+		rows = append(rows, sdui.SettingRow(server, "Not downloaded.", downloadButton()))
+	default:
+		rows = append(rows, sdui.SettingRow(server, "Downloaded.", sdui.MutedText("Ready")))
+	}
+	return sdui.VStack(append(rows, extensionsRow(st))...)
+}
+
+func downloadButton() sdui.Node {
+	return sdui.Button(downloadAction, "Download", "arrow.down.circle")
+}
+
+func extensionsRow(st settingsState) sdui.Node {
 	button := sdui.Button(importAction, "Import from VS Code", "square.and.arrow.down")
 	hint := extensionsHint
 	switch {
-	case st.running:
+	case st.imp.running:
 		button = sdui.WithLoading(button, "Importing")
-		if st.total > 0 {
-			hint = fmt.Sprintf("Installing %d of %d…", st.done+1, st.total)
-			if st.done == st.total {
+		if st.imp.total > 0 {
+			hint = fmt.Sprintf("Installing %d of %d…", st.imp.done+1, st.imp.total)
+			if st.imp.done == st.imp.total {
 				hint = "Finishing…"
 			}
 		}
-	case st.err != nil:
-		hint = "Import failed: " + st.err.Error()
-	case st.result != nil:
-		hint = importSummary(*st.result)
+	case st.imp.err != nil:
+		hint = "Import failed: " + st.imp.err.Error()
+	case st.imp.result != nil:
+		hint = importSummary(*st.imp.result)
+	case !st.downloaded:
+		button = sdui.WithDisabled(button)
+		hint = "Download the VS Code server first."
 	}
 	return sdui.SettingRow("Extensions", hint, button)
 }
