@@ -7,7 +7,6 @@ struct SettingsView: View {
 
     @Environment(AppModel.self) private var app
     @Environment(\.appearsActive) private var appearsActive
-    @Environment(\.theme) private var theme
     @State private var page = SettingsPage.initial
     @State private var plugins = SettingsPlugins()
 
@@ -27,7 +26,7 @@ struct SettingsView: View {
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
-            .background(theme.surface1)
+            .background(Color(nsColor: .windowBackgroundColor))
             .frame(width: 190)
             Divider()
             detail
