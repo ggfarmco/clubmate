@@ -46,7 +46,7 @@ git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null && stuck "tag v$VERSI
 git tag "v$VERSION" "$SHA" || stuck "tagging failed"
 git push -q origin "v$VERSION" || stuck "tag push failed"
 
-RUN="$(run_of --workflow release.yml --branch "v$VERSION")"
+RUN="$(run_of --workflow release.yml --branch "v$VERSION" --commit "$SHA")"
 [[ -n "$RUN" ]] || stuck "no release run for v$VERSION"
 echo "release run $RUN"
 if ! gh run watch "$RUN" -R "$REPO" --exit-status --interval 60 >/dev/null; then
