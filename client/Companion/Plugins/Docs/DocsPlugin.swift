@@ -92,7 +92,7 @@ private struct DocsListContent: View {
             }
         }
         .listStyle(.insetGrouped)
-        .searchable(text: $query, prompt: "Search docs")
+        .searchBar(text: $query, prompt: "Search docs")
         .overlay {
             if !store.loaded {
                 ProgressView()

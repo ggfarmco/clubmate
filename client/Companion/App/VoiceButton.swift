@@ -14,7 +14,7 @@ struct VoiceOverlay: View {
         let target = navigation.floatingMic(model) ? navigation.voiceTarget(model) : nil
         GeometryReader { proxy in
             let frame = proxy.frame(in: .global)
-            let column = navigation.voiceDock.map { $0.intersection(frame) } ?? frame
+            let column = navigation.layout == .compact ? frame : navigation.voiceDock.map { $0.intersection(frame) } ?? frame
             let room = column.isNull ? frame.width : column.width
             let width = navigation.layout == .compact ? room - 2 * Self.margin : min(Self.panelWidth, room - 2 * Self.margin)
             let button = clearance(in: frame, across: VoiceButton.floating + 2 * Self.margin)
@@ -137,6 +137,31 @@ private struct VoiceDock: ViewModifier {
             .onDisappear {
                 if navigation.voiceDock == frame { navigation.voiceDock = nil }
             }
+    }
+}
+
+struct SearchBar: ViewModifier {
+    let text: Binding<String>
+    let prompt: String
+
+    @Environment(AppNavigation.self) private var navigation
+
+    func body(content: Content) -> some View {
+        if navigation.layout == .compact {
+            content
+                .searchable(text: text, prompt: prompt)
+                .toolbar {
+                    ToolbarItem(placement: .bottomBar) {
+                        ComposerMic()
+                            .voiceDock()
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                    DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                }
+        } else {
+            content
+                .searchable(text: text, prompt: prompt)
+        }
     }
 }
 

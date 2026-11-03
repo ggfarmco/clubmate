@@ -101,7 +101,7 @@ struct SessionListView: View {
             }
         }
         .listStyle(insetGrouped: context.navigation.layout == .compact)
-        .searchable(enabled: context.connection.supports(AgentsStore.searchCommand), text: Bindable(store).searchQuery, prompt: "Search sessions")
+        .searchBar(enabled: context.connection.supports(AgentsStore.searchCommand), text: Bindable(store).searchQuery, prompt: "Search sessions")
         .overlay {
             if !store.loaded {
                 ProgressView()
@@ -210,9 +210,9 @@ struct SelectedSessionRow: ViewModifier {
 
 extension View {
     @ViewBuilder
-    func searchable(enabled: Bool, text: Binding<String>, prompt: String) -> some View {
+    func searchBar(enabled: Bool = true, text: Binding<String>, prompt: String) -> some View {
         if enabled {
-            searchable(text: text, prompt: prompt)
+            modifier(SearchBar(text: text, prompt: prompt))
         } else {
             self
         }
