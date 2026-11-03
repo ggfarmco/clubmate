@@ -97,6 +97,12 @@ func TestReviewClientRoundTrip(t *testing.T) {
 	entries, err = c.reviewEntries(tab)
 	require.NoError(t, err)
 	assert.Len(t, entries, 2)
+	newer, err := c.reviewOpen(reviewOpenArgs{Cwd: repo, Base: "HEAD"})
+	require.NoError(t, err)
+	require.NotEqual(t, tab, newer)
+	require.NoError(t, c.v.ExecLua("vim.cmd.tabclose(vim.api.nvim_tabpage_get_number(...))", nil, tab))
+	testutil.Eventually(t, func() bool { return events.has(nvimEvent{Event: "review", Kind: "closed", Tab: tab}) }, 5*time.Second)
+	assert.False(t, events.has(nvimEvent{Event: "review", Kind: "closed", Tab: newer}))
 }
 
 type eventLog struct {
