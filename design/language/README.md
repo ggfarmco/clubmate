@@ -9,6 +9,9 @@ Claude Design's answer to `design/brief/prompt.md`: the review, the design langu
       * `Agents-Mate-1280` is the Agents screen with the Mac's colour dot in the workspace pill.
       * The Agents tree (3 Nov, main cdc26f6a): `Agents-1280` and `Agents-Mate-1280` show two worktrees with Closed and Service at the root; `Agents-OneTree-1280-Mate` shows one worktree with no branch row, Closed rows carrying their worktree and Service open because it needs you; `Agents-Drawer-640-MateLight` is the same tree opened with ⌘B at 640.
       * `Graphs-1280-Mate` and `Graphs-640-MateLight` are the drawn graph run as built on 3 Nov (main 43f02ac2); `Graphs-Def-*` is the definition, with an edge shown as its trigger.
+   * `Review-Rules`: reviewing an agent's changes. nvim draws only the diff panes; the review lives in a native Mate panel. Covers the verdicts on the eight points, the row grammar, Agents and Send, and the handoff.
+      * `Review-Open-1280-Mate` (just opened), `Review-Mid-1280-Mate` (mid-review with comments), `Review-NewFile-1280-Mate` (a new file), `Review-Done-1280-Mate` (all reviewed → send), `Review-Agents-1280-Mate` (the session after Send).
+      * `Review-Mid-640-MateLight` (inline layout), `Review-Deleted-640-MateLight` (a deleted file, files drawer), `Review-Done-640-MateLight`.
    * `Graph-Steps`: steps in graphs (nodes Clubmate runs itself): step vs agent card, states, approval, output, edge caps, trust, History bars.
       * `Graphs-Gate-1280-Mate` (Review gate: Tests failed once, Coder in round 2, output tail), `Graphs-Nightly-1280-Mate` (Ship running 40 min; empty output), `Graphs-GateDef-1280-Mate` (definition, untrusted file).
       * `Graphs-Approve-640-MateLight` (a step waiting for approval), `Graphs-Cap-640-MateLight` (round cap hit), `Graphs-NightlyDef-640-MateLight` (the Trust… sheet).

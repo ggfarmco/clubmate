@@ -657,6 +657,69 @@
    "h": 852,
    "title": "iPhone · graph runs with steps in Needs you · light",
    "radius": 50
+  },
+  "Review-Open-1280-Mate.dc.html": {
+   "x": 9800,
+   "y": 27100,
+   "w": 1280,
+   "h": 800,
+   "title": "Review · just opened · 1280 · Mate"
+  },
+  "Review-Mid-1280-Mate.dc.html": {
+   "x": 11240,
+   "y": 27100,
+   "w": 1280,
+   "h": 800,
+   "title": "Review · mid-review with comments · 1280 · Mate"
+  },
+  "Review-NewFile-1280-Mate.dc.html": {
+   "x": 12680,
+   "y": 27100,
+   "w": 1280,
+   "h": 800,
+   "title": "Review · a new file · 1280 · Mate"
+  },
+  "Review-Done-1280-Mate.dc.html": {
+   "x": 14120,
+   "y": 27100,
+   "w": 1280,
+   "h": 800,
+   "title": "Review · everything reviewed → send to the agent · 1280 · Mate"
+  },
+  "Review-Agents-1280-Mate.dc.html": {
+   "x": 15560,
+   "y": 27100,
+   "w": 1280,
+   "h": 800,
+   "title": "Agents · a session after its review was sent · 1280 · Mate"
+  },
+  "Review-Mid-640-MateLight.dc.html": {
+   "x": 9800,
+   "y": 28020,
+   "w": 640,
+   "h": 800,
+   "title": "Review · inline layout · 640 · Mate light"
+  },
+  "Review-Deleted-640-MateLight.dc.html": {
+   "x": 10520,
+   "y": 28020,
+   "w": 640,
+   "h": 800,
+   "title": "Review · a deleted file, files drawer · 640 · Mate light"
+  },
+  "Review-Done-640-MateLight.dc.html": {
+   "x": 11240,
+   "y": 28020,
+   "w": 640,
+   "h": 800,
+   "title": "Review · done → send · 640 · Mate light"
+  },
+  "Review-Rules.dc.html": {
+   "x": 12000,
+   "y": 28020,
+   "w": 1480,
+   "h": 1800,
+   "title": "R · Review — native panel + nvim panes: decisions, row grammar, Agents, handoff"
   }
  },
  "order": [
@@ -748,7 +811,16 @@
   "Graphs-Cap-640-MateLight.dc.html",
   "Graphs-NightlyDef-640-MateLight.dc.html",
   "C-Step-Approve.dc.html",
-  "C-Step-NeedsYou-Light.dc.html"
+  "C-Step-NeedsYou-Light.dc.html",
+  "Review-Open-1280-Mate.dc.html",
+  "Review-Mid-1280-Mate.dc.html",
+  "Review-NewFile-1280-Mate.dc.html",
+  "Review-Done-1280-Mate.dc.html",
+  "Review-Agents-1280-Mate.dc.html",
+  "Review-Mid-640-MateLight.dc.html",
+  "Review-Deleted-640-MateLight.dc.html",
+  "Review-Done-640-MateLight.dc.html",
+  "Review-Rules.dc.html"
  ],
  "notes": {
   "t_lang": {
@@ -820,6 +892,13 @@
    "text": "Steps in graphs — nodes Clubmate runs itself: checks pick the next edge, actions do the work; Review gate and Nightly",
    "kind": "title1",
    "maxW": 5800
+  },
+  "t_review": {
+   "x": 9800,
+   "y": 26840,
+   "text": "Review in the Code section — nvim draws the two diff panes; the review (files, progress, comments, send to the agent) is a native Mate panel",
+   "kind": "title1",
+   "maxW": 7040
   }
  },
  "designSystems": []

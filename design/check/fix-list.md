@@ -68,6 +68,21 @@ Your task: implement every **a**, **b** and **c** item, in the priority order be
    - History: a step's move is a bar from start to exit; rounds get a bracket, so a loop reads as a loop.
    - Boards: `Graphs-Gate-1280-Mate`, `Graphs-Nightly-1280-Mate`, `Graphs-GateDef-1280-Mate`, `Graphs-Approve-640-MateLight`, `Graphs-Cap-640-MateLight`, `Graphs-NightlyDef-640-MateLight`, `C-Step-Approve`, `C-Step-NeedsYou-Light`.
 
+10. **Review of an agent's changes (Code section, main dbb3ef65): a native panel plus nvim panes.** Full rules on `Review-Rules`.
+   - nvim draws only the two Diffview panes in the Clubmate theme (T3 diff colours).
+     - Review profile: `showtabline=0`, absolute line numbers, no relative numbers, no cwd or `Help: g?` lines.
+     - Winbars lead with what you compare ("Before turn 3" | "Working tree"), then a tag, then a path that truncates from the left.
+   - Comments are virtual lines that wrap at the pane width, with a left rule in their tone. The other pane gets the same number of filler lines, so both sides stay in line. A resolved comment collapses to one faint line.
+   - New file: the left pane is filler with "New file — nothing before turn 3", and the right pane is all added fill. A deleted file is the mirror.
+   - The native Mate panel is the Code section's right column, with tabs Review | Chat (⌘B). It runs on the diffview host API.
+     - Its header is pinned: progress, +/−, open comments, and Show filters as checkboxes.
+     - File rows read: state (○ to review · ✓ reviewed · ● changed since you reviewed), name, a kind badge (new · deleted · renamed), an amber comment count, then +/−. Folders show reviewed/total.
+     - Below the tree: the comment list, the keys, Send and Copy ,re, and a legend.
+   - Done: when the last file is ✓, the header turns teal and "Send review" becomes primary. The send sheet lists the comments and takes an optional note. Comments go to the session that made the changes, and the review skill reads them as a structured Review message.
+   - Below ~900 pt of editor width the review uses Diffview's inline layout, and the panel becomes a drawer under a one-line strip.
+   - Agents: a session row shows "review 5/15 · 1", and its header shows the review state with Open review ⌘R. After Send, the transcript shows a Review card. Files the agent then changes turn ● in the review.
+   - Boards: `Review-Open-1280-Mate`, `Review-Mid-1280-Mate`, `Review-NewFile-1280-Mate`, `Review-Done-1280-Mate`, `Review-Agents-1280-Mate`, `Review-Mid-640-MateLight`, `Review-Deleted-640-MateLight`, `Review-Done-640-MateLight`.
+
 ## 3. Work list, by priority
 
 ### P1b: drawn views (decision 7)
