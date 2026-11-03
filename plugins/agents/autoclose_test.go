@@ -30,7 +30,9 @@ func TestDoneTreeClosesItselfUnlessItAsksOrOwnsJobs(t *testing.T) {
 	f.prompt(t, workspace, asking, "Ship it?")
 	f.prompt(t, workspace, scheduled, "done")
 
-	assert.True(t, f.waitStatus(t, workspace, root, "closed").AutoClosed)
+	closed := f.waitStatus(t, workspace, root, "closed")
+	assert.True(t, closed.AutoClosed)
+	assert.Equal(t, "done", closed.ClosedStatus)
 	assert.True(t, f.waitStatus(t, workspace, kid, "closed").AutoClosed)
 	assert.Equal(t, "clubmate", closeActor(t, f.logLines(t, root)))
 	time.Sleep(3 * after)
@@ -38,7 +40,9 @@ func TestDoneTreeClosesItselfUnlessItAsksOrOwnsJobs(t *testing.T) {
 	assert.Equal(t, "done", f.session(t, workspace, scheduled).Status)
 
 	require.NoError(t, f.run(t, workspace, "agents.resume", map[string]any{"session": root}, nil))
-	assert.False(t, f.session(t, workspace, root).AutoClosed)
+	resumed := f.session(t, workspace, root)
+	assert.False(t, resumed.AutoClosed)
+	assert.Empty(t, resumed.ClosedStatus)
 }
 
 func closeActor(t *testing.T, lines []map[string]json.RawMessage) string {

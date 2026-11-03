@@ -116,6 +116,7 @@ extension RowGroup where Header == EmptyView {
 
 struct ItemLabel: View {
     let item: SDUIItem
+    var detailTone: String?
     var muted = false
     var faint = false
     var opens = false
@@ -135,7 +136,7 @@ struct ItemLabel: View {
                 if let detail = item.detail, !detail.isEmpty {
                     Text(detail)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(SDUITone.ink(detailTone) ?? .secondary)
                         .lineLimit(1)
                 }
             }
@@ -284,7 +285,7 @@ struct TreeNode: View {
                         selected = id
                         context.run { await $0.select(node, id) }
                     } label: {
-                        ItemLabel(item: row.item.item, muted: row.item.muted, faint: row.item.faint, opens: context.mainSlot != nil && !row.item.hasChildren)
+                        ItemLabel(item: row.item.item, detailTone: row.item.detailTone, muted: row.item.muted, faint: row.item.faint, opens: context.mainSlot != nil && !row.item.hasChildren)
                     }
                     .buttonStyle(.plain)
                 }

@@ -87,6 +87,12 @@ func (s *session) envelope(actor, kind string, payload json.RawMessage) envelope
 }
 
 func (s *session) setStatusLocked(status, errText string) {
+	switch {
+	case status != statusClosed:
+		s.rec.ClosedStatus = ""
+	case !s.rec.closed():
+		s.rec.ClosedStatus = s.rec.Status
+	}
 	s.rec.Status = status
 	s.rec.AutoClosed = false
 	s.rec.Review = false

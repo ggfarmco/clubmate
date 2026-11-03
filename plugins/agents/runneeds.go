@@ -99,7 +99,6 @@ func runNeedChanges(workspace string, prev, next []runNeed) []api.Changed {
 	return out
 }
 
-
 func runInfo(workspace string, n runNeed) sessionInfo {
 	since := n.Since
 	summary := &pendingSummary{Kind: pendingQuestion, Text: n.Text, At: since}

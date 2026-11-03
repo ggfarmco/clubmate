@@ -64,6 +64,7 @@ type record struct {
 	} `json:"pendingSummary"`
 	Suspended       bool     `json:"suspended"`
 	AutoClosed      bool     `json:"autoClosed"`
+	ClosedStatus    string   `json:"closedStatus"`
 	Service         bool     `json:"service"`
 	Review          bool     `json:"review"`
 	NeedsYou        bool     `json:"needsYou"`

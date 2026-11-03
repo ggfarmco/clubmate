@@ -94,6 +94,8 @@ func TestSidebarExpandedClosedGroup(t *testing.T) {
 	rows := []sessionRow{
 		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now}},
 		{Rec: record{ID: "agt_2", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, UpdatedAt: now}},
+		{Rec: record{ID: "agt_3", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, ClosedStatus: statusDone, UpdatedAt: now.Add(-time.Minute)}},
+		{Rec: record{ID: "agt_4", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, ClosedStatus: statusError, UpdatedAt: now.Add(-2 * time.Minute)}},
 	}
 	tree := sidebarView(rows, "", map[string]bool{closedKey: false}, now, "/r/a", false, "", sidebarSearch{})
 	require.NoError(t, internalsdui.Validate(tree))
@@ -103,10 +105,15 @@ func TestSidebarExpandedClosedGroup(t *testing.T) {
 	assert.Equal(t, "agt_1", items[0].ID)
 	closed := items[1]
 	assert.True(t, closed.Expanded)
-	require.Len(t, closed.Children, 1)
+	require.Len(t, closed.Children, 3)
 	assert.Equal(t, "agt_2", closed.Children[0].ID)
 	assert.Equal(t, "just now", closed.Children[0].Detail)
 	assert.Equal(t, []string{actHandoff, actNotifyNeeds, actNotifyMuted, actDelete}, menuActions(closed.Children[0].Menu))
+	var glyphs [][2]string
+	for _, kid := range closed.Children {
+		glyphs = append(glyphs, [2]string{kid.Icon, kid.Tone})
+	}
+	assert.Equal(t, [][2]string{{"archivebox", ""}, {"checkmark.circle", ""}, {"xmark.circle", ""}}, glyphs)
 }
 
 func TestSidebarBranchRowWhenTheOnlyWorktreeIsNotTheWindows(t *testing.T) {
@@ -945,7 +952,7 @@ func TestSidebarFoldsServiceSessions(t *testing.T) {
 	waiting := groups(rows)
 	assert.Equal(t, []string{"agt_1", groupPrefix + closedKey, groupPrefix + serviceKey}, []string{waiting[0].ID, waiting[1].ID, waiting[2].ID})
 	service := waiting[2]
-	assert.Equal(t, []string{"Service", "1", "warning"}, []string{service.Label, service.Detail, service.Tone})
+	assert.Equal(t, []string{"Service", "1", "", "warning"}, []string{service.Label, service.Detail, service.Tone, service.DetailTone})
 	assert.True(t, service.Expanded)
 	assert.Equal(t, "agt_v", service.Children[0].ID)
 }

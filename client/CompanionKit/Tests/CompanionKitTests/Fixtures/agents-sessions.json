@@ -63,6 +63,7 @@
     "status": "closed",
     "mode": "default",
     "finish": "ask",
+    "closedStatus": "idle",
     "createdAt": "2026-10-30T09:41:00Z",
     "updatedAt": "2026-10-30T09:41:00Z",
     "asks": false,

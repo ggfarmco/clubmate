@@ -88,6 +88,7 @@ var (
 		childrenRunning:  "Waiting for child sessions",
 		childrenWaiting:  "Child session waiting",
 	}
+	closedGlyphs = map[string]string{statusDone: statusDone, statusError: statusError}
 	hitIcons     = map[string]string{hitPrompt: "person", hitReply: "text.bubble"}
 	childDisplay = map[string]string{statusRunning: childrenRunning, statusWaiting: childrenWaiting}
 	filterEmpty  = map[string]string{filterNeeds: noneNeedYou, filterRunning: noneRunning}
@@ -224,7 +225,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		group := groupItem(serviceKey, "Service", serviceIcon, items, ok && !folded || needs)
 		group.Detail = strconv.Itoa(len(service))
 		if needs {
-			group.Tone = statusTones[statusWaiting]
+			group.DetailTone = statusTones[statusWaiting]
 		}
 		groups = append(groups, group)
 	}
@@ -533,7 +534,7 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 	}
 	menu = append(menu, sdui.MenuEntry{Action: actDelete, Label: "Delete Session", Confirm: confirm})
 	display := displayStatus(rec, row.Children)
-	icon := statusIcons[display]
+	icon := statusIcons[cmp.Or(closedGlyphs[rec.ClosedStatus], display)]
 	if reviewRow(row) {
 		icon = statusIcons[statusReview]
 	}

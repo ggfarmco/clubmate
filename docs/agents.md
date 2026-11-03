@@ -84,7 +84,7 @@ One map for both clients: the glyph (SF Symbol), the word and the tone of each s
 | `done` | `checkmark.circle` | age ("2 h ago") | none (secondary ink) |
 | `idle` (no turn yet) | `circle` | "idle" | none |
 | `error` (the turn failed) | `xmark.circle` | "exit 1" when the error carries the agent's exit status, else "Stopped"; the session header badge reads "Stopped · exit 1" or "Stopped · error" | danger |
-| `closed` | `archivebox` | "Closed"; when Clubmate closed it (`autoClosed`) "auto" on the Mac row, "Auto-closed" on the phone | none |
+| `closed` | `archivebox`; on the Mac row the glyph of the status it closed from when that was `done` (`checkmark.circle`) or `error` (`xmark.circle`), kept as `closedStatus` (sessions closed before it was kept have none) | "Closed"; when Clubmate closed it (`autoClosed`) "auto" on the Mac row, "Auto-closed" on the phone | none |
 | `childrenRunning` (done or idle, a child runs) | `play.circle` | "Waiting for child sessions" | accent |
 | `childrenWaiting` (done or idle, a child waits) | `exclamationmark.circle` | "Child session waiting" | warning |
 

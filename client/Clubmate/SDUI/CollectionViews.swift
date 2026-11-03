@@ -254,7 +254,7 @@ struct TreeNodeView: View {
     }
 
     private func itemRow(_ row: Row, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
-        ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, faint: row.item.faint, tone: row.item.tone, depth: row.depth, badges: row.item.badges, changes: row.item.changes, action: action) {
+        ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, faint: row.item.faint, tone: row.item.tone, detailTone: row.item.detailTone, depth: row.depth, badges: row.item.badges, changes: row.item.changes, action: action) {
             Disclosure(hasChildren: row.item.hasChildren, expanded: row.item.expanded) { expanded in
                 dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
             }
@@ -371,6 +371,7 @@ struct ItemRow<Leading: View>: View {
     var muted = false
     var faint = false
     var tone: String?
+    var detailTone: String?
     var depth = 0
     var badges: [SDUIHeaderBadge] = []
     var changes: SDUIChanges?
@@ -422,7 +423,7 @@ struct ItemRow<Leading: View>: View {
             if let detail = item.detail {
                 Text(detail)
                     .font(theme.uiSmall)
-                    .foregroundStyle(theme.tone(tone) ?? theme.muted)
+                    .foregroundStyle(theme.tone(detailTone ?? tone) ?? theme.muted)
                     .lineLimit(1)
                     .truncationMode(.label)
                     .help(detail)
