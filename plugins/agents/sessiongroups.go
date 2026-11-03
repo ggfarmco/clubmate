@@ -37,8 +37,9 @@ func setGroups(infos []sessionInfo) {
 			kids[p] = append(kids[p], i)
 		}
 	}
-	var lift func(i int, visiting map[int]bool) string
-	lift = func(i int, visiting map[int]bool) string {
+	visiting := map[int]bool{}
+	var lift func(i int) string
+	lift = func(i int) string {
 		if infos[i].Group != "" {
 			return infos[i].Group
 		}
@@ -49,7 +50,7 @@ func setGroups(infos []sessionInfo) {
 			if visiting[k] {
 				continue
 			}
-			if g := lift(k, visiting); g == groupNeedsYou || g == groupRunning && own != groupService {
+			if g := lift(k); g == groupNeedsYou || g == groupRunning && own != groupService {
 				best = min(best, slices.Index(groupOrder, g))
 			}
 		}
@@ -58,6 +59,7 @@ func setGroups(infos []sessionInfo) {
 	}
 	for i := range infos {
 		infos[i].Active = !infos[i].Service && (infos[i].Status == statusRunning || infos[i].Status == statusWaiting)
-		lift(i, map[int]bool{})
+		clear(visiting)
+		lift(i)
 	}
 }

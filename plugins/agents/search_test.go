@@ -87,6 +87,13 @@ func TestSearchPicksUpLinesAppendedAfterTheFirstSearch(t *testing.T) {
 	got := a.search("w", "second")
 	require.Len(t, got, 1)
 	assert.Equal(t, []searchHit{{Kind: hitPrompt, Turn: 2, Snippet: "the second prompt"}}, got[0].Hits)
+
+	appendLog(t, a, "agt_1", replyLine(t, 2, "m1", "a **thi"))
+	assert.Empty(t, a.search("w", "third"))
+	appendLog(t, a, "agt_1", replyLine(t, 2, "m1", "rd** reply"))
+	got = a.search("w", "third")
+	require.Len(t, got, 1)
+	assert.Equal(t, []searchHit{{Kind: hitReply, Turn: 2, Snippet: "a third reply"}}, got[0].Hits)
 }
 
 func TestSnippetCutsAroundTheMatchOnItsLine(t *testing.T) {

@@ -65,13 +65,14 @@ type textIndex struct {
 type indexedLog struct {
 	offset int64
 	texts  []indexedText
+	tail   strings.Builder
+	grown  bool
 }
 
 type indexedText struct {
 	kind  string
 	turn  int
 	id    string
-	raw   string
 	text  string
 	lower string
 }
@@ -155,6 +156,7 @@ func (l *indexedLog) extend(path string) error {
 	for {
 		line, err := r.ReadBytes('\n')
 		if err != nil {
+			l.finish()
 			return nil
 		}
 		l.offset += int64(len(line))
@@ -198,9 +200,8 @@ func (l *indexedLog) add(line []byte) {
 		if n := len(l.texts); n > 0 {
 			last := &l.texts[n-1]
 			if last.kind == hitReply && last.turn == e.Turn && last.id == u.MessageID {
-				last.raw += u.Content.Text
-				last.text = plainText(last.raw)
-				last.lower = strings.ToLower(last.text)
+				l.tail.WriteString(u.Content.Text)
+				l.grown = true
 				return
 			}
 		}
@@ -212,8 +213,23 @@ func (l *indexedLog) append(kind string, turn int, id, text string) {
 	if strings.TrimSpace(text) == "" {
 		return
 	}
+	l.finish()
+	l.tail.Reset()
+	if kind == hitReply {
+		l.tail.WriteString(text)
+	}
 	plain := plainText(text)
-	l.texts = append(l.texts, indexedText{kind: kind, turn: turn, id: id, raw: text, text: plain, lower: strings.ToLower(plain)})
+	l.texts = append(l.texts, indexedText{kind: kind, turn: turn, id: id, text: plain, lower: strings.ToLower(plain)})
+}
+
+func (l *indexedLog) finish() {
+	if !l.grown {
+		return
+	}
+	last := &l.texts[len(l.texts)-1]
+	last.text = plainText(l.tail.String())
+	last.lower = strings.ToLower(last.text)
+	l.grown = false
 }
 
 func plainText(md string) string {
