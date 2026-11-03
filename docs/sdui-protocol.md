@@ -67,8 +67,8 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 | diff | text* (string, unified diff) | none | no |
 | markdown | text* (string) | none | no |
 | document | html* (string, a `pkg/docrender` fragment), path (string), rev (int ≥ 0), size (`fill`\|`fit`, default `fill`), anchor (string, an element id), kind (`markdown`\|`artifact`, default `markdown`) | none | yes |
-| button | label* (string), icon (string), confirm (string), variant (`primary`\|`secondary`\|`ghost`\|`danger`), disabled (bool), shortcut (key combo), loading (string), iconOnly (bool), copy (string), overflow (bool), action | none | yes |
-| textField | value (string), placeholder (string), lines (int 2…50: multi-line, grows up to `lines` rows), error (string), live (bool), action | none | yes |
+| button | label* (string), icon (string), confirm (string), variant (`primary`\|`secondary`\|`ghost`\|`danger`), disabled (bool), shortcut (key combo), loading (string), iconOnly (bool), copy (string), overflow (bool), action | 0-1: `form` (a popover) | yes |
+| textField | value (string), placeholder (string), lines (int 2…50: multi-line, grows up to `lines` rows), error (string), live (bool), drop (bool), action | none | yes |
 | folderField | label* (string), values (string[]), action | none | yes |
 | toggle | value* (bool), label (string), style (`switch`\|`checkbox`, default `switch`), action | none | yes |
 | progress | value* (int ≥ 0), total* (int ≥ 0), tone (`neutral`\|`accent`\|`success`\|`warning`\|`danger`, default accent) | none | no |
@@ -128,6 +128,10 @@ Agent chat nodes (the `agents` section):
 
 `button.copy`: the client puts that text on the clipboard instead of sending the event (after `confirm`, when set); the shortcut does the same.
 
+A `button` with a `form` child is a popover button: a click (or its `shortcut`) opens an anchored popover holding that form instead of sending the button's event; clients without popovers (the phone) send the event as before, so the plugin keeps the defaults behind it. In the popover the form works as everywhere else and a submit also closes it; ↩ submits it (⌘↩ too, and a plain ↩ only when no text field has focus: a single-line field submits by itself), ⎋ or a click outside closes it without sending anything, and so does a button whose `action` is `dismiss`, which sends no event. Submit buttons (no `action`) print ↩, `dismiss` ones ⎋; a horizontal `stack` of only buttons is the popover's footer, aligned to the trailing edge. Events from the popover's other buttons and fields (an Edit that re-renders the form) keep it open; the plugin keeps the form's `id` stable so the chosen values survive the re-render. Backlog's Start agent is the first user.
+
+`textField.drop: true` makes the field a drop zone, drawn with a dashed border and a paperclip: dropped files send `drop` with the string[] of their absolute paths (the plugin decides which it takes, e.g. only files inside the workspace folder once symlinks are resolved), a dropped `http(s)` link is put into the field as text, and `@` typed into the empty field opens the workspace's file picker (the composer's `@`) and sends the picked file the same way. The phone ignores it.
+
 `textField.live: true` (outside a `form`) also sends the field's submit event 250 ms after the last keystroke, besides on Return; while the field has focus, a changed `value` from the plugin does not replace the text, so a render that lags behind the typing cannot undo it. Filter fields use it.
 
 `textField.error` and `select.error` (one short sentence, `Title is empty`) draw the field with a danger border and the text as one caption line under it. Unlike `value` it is not an initial value: the field shows whatever the latest render says, so the plugin drops the prop once the input is valid.
@@ -154,7 +158,7 @@ The Companion (`client/Companion/SDUI`) draws the same trees with iOS controls a
 - `tabs`: horizontally scrolling chips; the selected chip is filled with the accent.
 - `form`: consecutive fields and property rows are grouped like a Settings form. `header.field` is an always-editable title field.
 - `header`: up to three buttons on a wrapping action bar, the rest (and `overflow` ones) in a "…" menu.
-- `button.shortcut` is ignored; `confirm` is an alert.
+- `button.shortcut` is ignored; `confirm` is an alert. A `button`'s `form` child (a Mac popover) is not drawn: the button sends its own event. `textField.drop` is ignored.
 - `folderField` shows its folders read-only with "Choose folders on the Mac".
 - `surface` shows "Terminal — open it on the Mac"; `graph`, `flow`, `lanes` and `runstrip` one faint line "Drawn on the Mac" (a `flow` of only ghost cards nothing); `webview` and any other unknown type shows "<type> isn't supported on the phone".
 - `transcript`: adjacent `toolCard`s (except `failed` and `standalone`) fold into one "N actions" row. `message.from` shows as "From another agent". `composer` is a field and Send only: no modes, pickers, attach, `/` commands or `@` files.
@@ -539,6 +543,7 @@ A plugin's `session.create` (`pluginsdk.Host.CreateSession`) also takes `env`, e
 | table | header click | `"sort"` | object `{column, desc}`: the clicked column id; `desc` flips when it is already the sort column, otherwise starts `true` for right-aligned columns and `false` for others |
 | tabs | select tab | `props.action ?? "select"` | tab id |
 | textField | submit | `props.action ?? "submit"` | text |
+| textField with `drop` | drop files, or pick one with `@` | `"drop"` | string[] of absolute paths |
 | toggle | change | `props.action ?? "toggle"` | bool |
 | select | change | `props.action ?? "select"` | option value |
 | folderField | pick folders | `props.action ?? "pick"` | string[] of absolute paths |

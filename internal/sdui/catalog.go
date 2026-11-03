@@ -225,11 +225,11 @@ var (
 		"button": {
 			required:    []string{"label"},
 			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck, "loading": isString, "iconOnly": isBool, "copy": isString, "overflow": isBool},
-			children:    noChildren,
+			children:    childRule{min: 0, max: 1, only: []string{"form"}},
 			interactive: true,
 		},
 		"textField": {
-			props:       map[string]propCheck{"value": isString, "placeholder": isString, "lines": linesNumber, "error": isString, "action": actionCheck, "live": isBool},
+			props:       map[string]propCheck{"value": isString, "placeholder": isString, "lines": linesNumber, "error": isString, "action": actionCheck, "live": isBool, "drop": isBool},
 			children:    noChildren,
 			interactive: true,
 		},

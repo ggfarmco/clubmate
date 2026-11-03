@@ -135,9 +135,14 @@ func TestPrimaryFollowsOwner(t *testing.T) {
 	todo := &Task{ID: 1, Title: "a", Status: statusTodo, Description: "x", Links: []Link{{Kind: linkBlocks, Task: 2}}, Attachments: []Attachment{{Kind: attachFile, Ref: "a.go"}, {Kind: attachURL, Ref: "https://x.y"}, {Kind: attachURL, Ref: "https://y.z"}}}
 	start := primary(todo, nil)
 	assert.Equal(t, "start", start.Props["action"])
-	assert.Equal(t, "Start agent · description, 1 link, 3 attachments", start.Props["label"])
+	assert.Equal(t, "Start agent", start.Props["label"])
 	assert.Equal(t, "cmd+return", start.Props["shortcut"])
-	assert.Equal(t, "Start agent · 2 URLs", primary(&Task{ID: 1, Title: "a", Status: statusIdea, Attachments: todo.Attachments[1:]}, nil).Props["label"])
+	require.Len(t, start.Children, 1)
+	assert.Equal(t, "start", start.Children[0].Props["action"])
+	raw, err := json.Marshal(start.Children[0])
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"text":"description, 1 link, 3 attachments"`)
+	assert.Equal(t, "2 URLs", startSummary(&Task{Attachments: todo.Attachments[1:]}))
 
 	inProgress := func(owner string) *Task {
 		return &Task{ID: 1, Title: "a", Status: statusInProgress, ClaimedBy: owner}
@@ -318,4 +323,26 @@ func TestOwnerLanesTellSameTitlesApart(t *testing.T) {
 		labels = append(labels, a.Label)
 	}
 	assert.Equal(t, []string{"you", "14:05:00 · T (closed)", "14:05:30 · T"}, labels)
+}
+
+func TestDropRefsStayInsideTheWorktree(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "design"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "design", "board.png"), nil, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(outside, "secret"), nil, 0o644))
+	require.NoError(t, os.Symlink(filepath.Join(outside, "secret"), filepath.Join(root, "link")))
+
+	refs, err := dropRefs(root, []string{filepath.Join(root, "design", "board.png")})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"design/board.png"}, refs)
+	for _, bad := range []string{filepath.Join(outside, "secret"), filepath.Join(root, "link"), filepath.Join(root, "design")} {
+		_, err := dropRefs(root, []string{bad})
+		assert.ErrorIs(t, err, errNotInRoot, bad)
+	}
+}
+
+func TestBranchFor(t *testing.T) {
+	assert.Equal(t, "backlog/4-fix-the-flaky-switcher-test", branchFor(&Task{ID: 4, Title: "Fix the flaky switcher test!"}))
+	assert.Equal(t, "backlog/5", branchFor(&Task{ID: 5, Title: "Ёлка"}))
 }

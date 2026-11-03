@@ -39,6 +39,7 @@ var (
 	errAddStatus      = errors.New("status must be idea, todo or not_now")
 	errReservedOwner  = errors.New("owner user, agent and agt_… are reserved; pass a name unique to you")
 	errNoSession      = errors.New("agents.new returned no session")
+	errStartOption    = errors.New("invalid_params")
 )
 
 type actor struct {
@@ -109,6 +110,26 @@ type commandArgs struct {
 	Note        *string       `json:"note"`
 	Owner       string        `json:"owner"`
 	keepClaim   bool
+	startOptions
+}
+
+type startOptions struct {
+	Agent  string `json:"agent"`
+	Mode   string `json:"mode"`
+	Where  string `json:"where"`
+	Prompt string `json:"prompt"`
+}
+
+func (o startOptions) check() error {
+	switch {
+	case o.Agent != "" && o.Agent != agentClaude:
+		return fmt.Errorf("%w: unknown agent %q", errStartOption, o.Agent)
+	case o.Mode != "" && !slices.ContainsFunc(api.ClaudeModes, func(m api.Mode) bool { return m.ID == o.Mode }):
+		return fmt.Errorf("%w: unknown mode %q", errStartOption, o.Mode)
+	case o.Where != "" && o.Where != whereNew:
+		return fmt.Errorf("%w: where must be empty or %q", errStartOption, whereNew)
+	}
+	return nil
 }
 
 func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -137,7 +158,7 @@ func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.
 	case "backlog.done":
 		return b.doneCmd(ctx, cmd, args)
 	case "backlog.start":
-		session, err := b.startAgent(ctx, cmd.WorkspaceID, args.ID)
+		session, err := b.startAgent(ctx, cmd.WorkspaceID, args.ID, args.startOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -396,7 +417,10 @@ func (b *backlog) takeBack(ctx context.Context, workspaceID string, id int) erro
 	return nil
 }
 
-func (b *backlog) startAgent(ctx context.Context, workspaceID string, id int) (string, error) {
+func (b *backlog) startAgent(ctx context.Context, workspaceID string, id int, opts startOptions) (string, error) {
+	if err := opts.check(); err != nil {
+		return "", err
+	}
 	t, err := b.store.get(ctx, workspaceID, id)
 	if err != nil {
 		return "", err
@@ -408,8 +432,19 @@ func (b *backlog) startAgent(ctx context.Context, workspaceID string, id int) (s
 	if err != nil {
 		return "", err
 	}
+	body := startBody(t, linked)
+	if p := strings.TrimSpace(opts.Prompt); p != "" {
+		body = p
+	}
+	args := map[string]string{"prompt": body + "\n\n" + ownsLine(t.ID), "title": t.Title}
+	if opts.Mode != "" {
+		args["firstMode"] = opts.Mode
+	}
+	if opts.Where == whereNew {
+		args["branch"] = branchFor(&t)
+	}
 	var res startResult
-	if err := b.h.RunCommand(ctx, "agents.new", workspaceID, map[string]string{"prompt": startPrompt(t, linked), "title": t.Title}, &res); err != nil {
+	if err := b.h.RunCommand(ctx, "agents.new", workspaceID, args, &res); err != nil {
 		return "", err
 	}
 	if res.Session == "" {
@@ -552,7 +587,7 @@ func deref(s *string) string {
 	return *s
 }
 
-func startPrompt(t Task, linked map[int]Task) string {
+func startBody(t Task, linked map[int]Task) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Backlog task #%d: %s\n", t.ID, t.Title)
 	if desc := strings.TrimSpace(t.Description); desc != "" {
@@ -578,6 +613,9 @@ func startPrompt(t Task, linked map[int]Task) string {
 			b.WriteString("\n")
 		}
 	}
-	fmt.Fprintf(&b, "\nYou own backlog task #%d. Finish it with backlog_done and a note naming the commit, or backlog_release with a note if you stop.", t.ID)
-	return b.String()
+	return strings.TrimSpace(b.String())
+}
+
+func ownsLine(id int) string {
+	return fmt.Sprintf("You own backlog task #%d. Finish it with backlog_done and a note naming the commit, or backlog_release with a note if you stop.", id)
 }

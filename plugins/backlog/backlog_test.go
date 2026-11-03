@@ -437,7 +437,7 @@ func TestStartAgentHandsTheTaskToASession(t *testing.T) {
 	dep := e.add("Record missed runs", nil)
 	tk := e.add("Show missed runs", map[string]any{"description": "Builds on #1.", "links": []map[string]any{{"kind": "blocked_by", "task": dep.ID}}, "attachments": []map[string]any{{"kind": "file", "ref": "design/check/fix-list.md"}}})
 	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "select", strconv.Itoa(tk.ID))
-	e.slotHas("backlog.main", `"label":"Start agent · description, 1 link, 1 file"`)
+	e.slotHas("backlog.main", `"text":"description, 1 link, 1 file"`)
 
 	e.h.Event(t, e.p, "backlog.main", "start", "start", nil)
 
@@ -448,6 +448,28 @@ func TestStartAgentHandsTheTaskToASession(t *testing.T) {
 	assert.Equal(t, "in_progress", got.Status)
 	assert.Equal(t, "agt_new", got.ClaimedBy)
 	assert.Equal(t, []string{"user created", "agt_new started"}, e.owners(tk.ID))
+}
+
+func TestStartAgentOptions(t *testing.T) {
+	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
+	tk := e.add("Fix the flaky switcher test", map[string]any{"description": "Fails on CI."})
+	_, err := e.user("backlog.start", map[string]any{"id": tk.ID, "mode": "yolo"})
+	assert.ErrorContains(t, err, "args.mode")
+	err = e.h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": e.p, "slot": "backlog.main", "nodeId": "start-1", "action": "start", "value": map[string]any{"mode": "bypassPermissions"}, "agent": true}, nil)
+	assert.ErrorContains(t, err, `"start" is the user's`)
+	err = e.h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": e.p, "slot": "backlog.sidebar", "nodeId": "tasks", "action": "start.x", "value": "1", "agent": true}, nil)
+	assert.ErrorContains(t, err, `"start.x" is the user's`)
+
+	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "select", strconv.Itoa(tk.ID))
+	e.h.Event(t, e.p, "backlog.main", "start-edit", "editPrompt", nil)
+	e.slotHas("backlog.main", `"id":"prompt"`)
+	e.h.Event(t, e.p, "backlog.main", "start-1", "start", map[string]any{"agent": "claude", "mode": "plan", "where": "worktree", "prompt": "Only the CI part."})
+
+	require.Eventually(t, func() bool {
+		return e.echoed("agents.new", `"firstMode":"plan"`) && e.echoed("agents.new", `"branch":"backlog/1-fix-the-flaky-switcher-test"`) && e.echoed("agents.new", `Only the CI part.\n\nYou own backlog task #1.`)
+	}, 10*time.Second, 20*time.Millisecond)
+	assert.False(t, e.echoed("agents.new", "Fails on CI."))
 }
 
 func TestTakeBack(t *testing.T) {

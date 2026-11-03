@@ -8,11 +8,14 @@ struct ButtonNodeView: View {
 
     @State private var hovering = false
     @State private var keyboardFocus = false
+    @State private var popoverShown = false
+    @State private var popoverLink = SDUIPopover()
     @FocusState private var focused: Bool
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(FormState.self) private var form: FormState?
     @Environment(\.theme) private var theme
     @Environment(\.buttonKeyHint) private var keyHint
+    @Environment(\.sduiPopover) private var popover
 
     private var variant: String? { node.string("variant") }
     private var disabled: Bool { press.disabled }
@@ -34,10 +37,20 @@ struct ButtonNodeView: View {
                 return .handled
             }
             .onHover { hovering = $0 }
-            .keyMonitor(active: combo != nil && !disabled, handle: press.handle)
+            .keyMonitor(active: combo != nil && !disabled && !popoverShown, handle: press.handle)
+            .keyMonitor(active: popoverShown, handle: popoverLink.handle)
             .help(iconOnly ? tooltip : "")
             .accessibilityLabel(node.string("label") ?? "")
+            .popover(isPresented: $popoverShown, arrowEdge: .bottom) {
+                if let popoverForm {
+                    SDUIPopoverView(form: popoverForm, popover: popoverLink)
+                }
+            }
+            .onAppear { popoverLink.dismiss = { popoverShown = false } }
+            .modifier(PopoverPresenter(target: popoverForm == nil ? nil : node.id.map { "popover:" + $0 }, shown: $popoverShown))
     }
+
+    private var popoverForm: SDUINode? { node.children.first { $0.type == "form" } }
 
     private var iconOnly: Bool { node.bool("iconOnly") == true && node.string("icon") != nil }
 
@@ -93,9 +106,11 @@ struct ButtonNodeView: View {
         }
     }
 
-    private var press: ButtonPress { ButtonPress(node: node, dispatch: dispatch, form: form) }
+    private var press: ButtonPress {
+        ButtonPress(node: node, dispatch: dispatch, form: form, open: popoverForm == nil ? nil : { popoverShown = true }, dismiss: popover?.dismiss)
+    }
 
-    private var keyLabel: String? { combo?.label ?? keyHint }
+    private var keyLabel: String? { combo?.label ?? (popover == nil ? nil : SDUIPopover.keyLabel(node)) ?? keyHint }
 
     private var foreground: Color {
         if loading != nil { return variant == "primary" ? theme.onAccent : theme.text2 }
@@ -130,6 +145,8 @@ struct ButtonPress {
     let node: SDUINode
     let dispatch: SDUIDispatch
     let form: FormState?
+    var open: (() -> Void)?
+    var dismiss: (() -> Void)?
 
     var combo: KeyCombo? { node.string("shortcut").flatMap(KeyCombo.init) }
     var loading: String? { node.string("loading").flatMap { $0.isEmpty ? nil : $0 } }
@@ -155,6 +172,8 @@ struct ButtonPress {
 
     private func perform() {
         if let text = node.string("copy") { return Clipboard.copy(text) }
+        if let open { return open() }
+        if let dismiss, node.string("action") == SDUIPopover.dismissAction { return dismiss() }
         guard let form, node.string("action") == nil else { return dispatch(node, .click) }
         form.submit()
     }
@@ -396,6 +415,7 @@ struct TextFieldNodeView: View {
 
     @State private var text = ""
     @State private var pending: Task<Void, Never>?
+    @State private var targeted = false
     @FocusState private var focused: Bool
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(FormState.self) private var form: FormState?
@@ -403,10 +423,13 @@ struct TextFieldNodeView: View {
     @Environment(\.focusRouter) private var router
     @Environment(\.sidebarSlot) private var sidebarSlot
     @Environment(\.fieldGutter) private var gutter
+    @Environment(\.filePicker) private var filePicker
 
     private static let liveDelay: Duration = .milliseconds(250)
 
     private var live: Bool { form == nil && node.bool("live") == true }
+
+    private var drops: Bool { node.bool("drop") == true }
 
     private var lines: Int? {
         node.props["lines"]?.numberValue.flatMap { Int(exactly: $0) }.flatMap { $0 >= 2 ? min($0, 50) : nil }
@@ -426,7 +449,8 @@ struct TextFieldNodeView: View {
             .padding(.horizontal, theme.spacing.m)
             .padding(.vertical, lines == nil ? 0 : theme.spacing.s)
             .frame(minWidth: 160, minHeight: theme.control, alignment: lines == nil ? .center : .topLeading)
-            .fieldChrome(focused: focused, error: node.string("error"))
+            .fieldChrome(focused: focused || targeted, error: node.string("error"), dashed: drops)
+            .modifier(FileDrop(active: drops, targeted: $targeted, drop: drop))
             .padding(.horizontal, gutter ? theme.gutter : 0)
             .onSubmit(submit)
             .onChange(of: focused) { _, now in
@@ -449,7 +473,13 @@ struct TextFieldNodeView: View {
     @ViewBuilder
     private var field: some View {
         let prompt = Text(node.string("placeholder") ?? "").foregroundStyle(theme.muted)
-        if let lines {
+        if drops {
+            HStack(spacing: theme.spacing.m) {
+                Image(systemName: "paperclip")
+                    .foregroundStyle(theme.muted)
+                TextField("", text: typed, prompt: prompt)
+            }
+        } else if let lines {
             TextField("", text: typed, prompt: prompt, axis: .vertical).lineLimit(2...lines)
         } else {
             TextField("", text: typed, prompt: prompt)
@@ -459,6 +489,7 @@ struct TextFieldNodeView: View {
     private var typed: Binding<String> {
         Binding(get: { text }, set: { value in
             guard value != text else { return }
+            if drops, text.isEmpty, value == "@", filePicker != nil { return pickFile() }
             text = value
             if let id = node.id { form?.touch(id) }
             form?.edited(after: FormState.typingDelay)
@@ -479,6 +510,28 @@ struct TextFieldNodeView: View {
         pending?.cancel()
         guard let form, node.string("action") == nil else { return dispatch(node, .submit(.string(text))) }
         form.submit()
+    }
+
+    private func pickFile() {
+        let node = node
+        let dispatch = dispatch
+        let focus = $focused
+        filePicker?.pick { path in
+            dispatch(node, .named("drop", .array([.string(path)])))
+            focus.wrappedValue = true
+        }
+    }
+
+    private func drop(_ urls: [URL]) -> Bool {
+        let files = urls.filter(\.isFileURL).map { $0.standardizedFileURL.path }
+        if !files.isEmpty {
+            dispatch(node, .named("drop", .array(files.map(JSONValue.string))))
+            return true
+        }
+        guard let link = urls.first(where: { ["http", "https"].contains($0.scheme?.lowercased()) }) else { return false }
+        text = link.absoluteString
+        focused = true
+        return true
     }
 }
 
@@ -605,14 +658,15 @@ struct SelectNodeView: View {
 }
 
 extension View {
-    func fieldChrome(focused: Bool, error: String? = nil) -> some View {
-        modifier(FieldChrome(focused: focused, error: error.flatMap { $0.isEmpty ? nil : $0 }))
+    func fieldChrome(focused: Bool, error: String? = nil, dashed: Bool = false) -> some View {
+        modifier(FieldChrome(focused: focused, error: error.flatMap { $0.isEmpty ? nil : $0 }, dashed: dashed))
     }
 }
 
 private struct FieldChrome: ViewModifier {
     let focused: Bool
     let error: String?
+    var dashed = false
 
     @Environment(\.theme) private var theme
 
@@ -621,7 +675,7 @@ private struct FieldChrome: ViewModifier {
         VStack(alignment: .leading, spacing: theme.spacing.xs) {
             content
                 .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.background))
-                .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(focused || error != nil ? tone : theme.borderStrong, lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(focused || error != nil ? tone : theme.borderStrong, style: StrokeStyle(lineWidth: 1, dash: dashed && !focused && error == nil ? [4, 3] : [])))
                 .background(RoundedRectangle(cornerRadius: theme.radius.m).stroke(focused ? theme.toneBg(tone) : .clear, lineWidth: 6))
             if let error {
                 Text(error)

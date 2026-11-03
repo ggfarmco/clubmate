@@ -790,6 +790,15 @@ func WithCopy(n Node, text string) Node {
 	return withProp(n, "copy", text)
 }
 
+func WithPopover(n Node, form Node) Node {
+	n.Children = []Node{form}
+	return n
+}
+
+func WithDrop(n Node) Node {
+	return withProp(n, "drop", true)
+}
+
 func WithAnchor(n Node, id string) Node {
 	return withProp(n, "anchor", id)
 }

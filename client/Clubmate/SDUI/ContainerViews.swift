@@ -7,6 +7,12 @@ struct StackNodeView: View {
     let node: SDUINode
 
     @Environment(\.formKeyWidth) private var keyWidth
+    @Environment(\.sduiPopover) private var popover
+    @Environment(\.theme) private var theme
+
+    private var footer: Bool {
+        popover != nil && node.string("direction") == "horizontal" && !node.children.isEmpty && node.children.allSatisfy { $0.type == "button" }
+    }
 
     private var gap: CGFloat {
         guard case .number(let value) = node.props["gap"] else { return 0 }
@@ -28,6 +34,12 @@ struct StackNodeView: View {
                 }
             }
             .environment(\.formKeyWidth, nil)
+        } else if footer {
+            HStack(spacing: theme.spacing.m) {
+                Spacer(minLength: 0)
+                SDUIChildren(node: node)
+            }
+            .frame(maxWidth: .infinity)
         } else if node.string("direction") == "horizontal" {
             HStack(alignment: .center, spacing: gap) { SDUIChildren(node: node) }
         } else {
@@ -109,6 +121,7 @@ struct FormNodeView: View {
     @Environment(\.composerDrafts) private var drafts
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.theme) private var theme
+    @Environment(\.sduiPopover) private var popover
 
     @State private var width: CGFloat = 0
 
@@ -130,6 +143,10 @@ struct FormNodeView: View {
         }
         .onChange(of: state.submissions) {
             send()
+            popover?.dismiss()
+        }
+        .onAppear {
+            popover?.submit = { [state] in state.submit() }
         }
         .onDisappear {
             if state.dirty { send() }

@@ -820,12 +820,31 @@
         "remote": true,
         "title": "Start agent on backlog task",
         "hidden": true,
-        "description": "The user's Start agent: start an agent session on the task (agents.new with the title, description, links and attachments as the prompt) and hand the task to it. Allowed on idea and todo tasks, tasks you own and tasks whose owner session ended. Not for agents.",
+        "description": "The user's Start agent: start an agent session on the task (agents.new with the title, description, links and attachments as the prompt) and hand the task to it. Allowed on idea and todo tasks, tasks you own and tasks whose owner session ended. Without the optional args it starts Claude in the workspace's first git folder in the worktree's last used mode, as the phone does. Not for agents.",
         "args": {
           "properties": {
             "id": {
               "type": "integer",
               "description": "Task number, as in #12."
+            },
+            "agent": {
+              "type": "string",
+              "enum": ["claude"],
+              "description": "Agent to run."
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["default", "acceptEdits", "plan", "bypassPermissions"],
+              "description": "Mode the session starts in (agents.new firstMode); omit for the worktree's last used mode."
+            },
+            "where": {
+              "type": "string",
+              "enum": ["worktree"],
+              "description": "worktree: run in a new worktree on branch backlog/<id>-<title slug> (the existing branch when it is there); omit for the workspace's first git folder."
+            },
+            "prompt": {
+              "type": "string",
+              "description": "Replaces the title, description, links and attachments part of the prompt; the line that hands the task to the session is kept."
             }
           },
           "required": [

@@ -57,7 +57,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌘R | Run the cron job or trigger now | cron, triggers |
 | P | Pause or resume the job or trigger | cron, triggers |
 | ⌘⌫ | Delete the job, trigger or task, or remove the graph run (confirmed) | cron, triggers, backlog, graphs |
-| ⌘↩ | Start an agent on the task while you own it, else open the session or graph run that owns it; on a graph run held at a round cap Continue it, else open the session of the graph node that needs you (else the running or start node); run the selected graph with its input (↩ in the Input field too); on an untrusted graph Trust… (then Trust in its confirm) | backlog, graphs |
+| ⌘↩ | Open the Start agent popover on the task while you own it (↩ in it starts, ⎋ cancels), else open the session or graph run that owns it; on a graph run held at a round cap Continue it, else open the session of the graph node that needs you (else the running or start node); run the selected graph with its input (↩ in the Input field too); on an untrusted graph Trust… (then Trust in its confirm) | backlog, graphs |
 | ⌥1 / ⌥2 / ⌥3 | A graph step waiting for approval: Allow once / Always allow… (asks first) / Reject | graphs |
 | ⌘. | Stop the graph run (confirmed) | graphs |
 | G | Open the graph run that created the trigger | triggers |
@@ -66,6 +66,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | E | Edit the cron job; in the form, cancel the edit | cron |
 | ⌘S | Save the cron job's edit form | cron |
 | ↩ | Edit the task title (title focused); while editing ↩ saves it, Esc cancels | backlog |
+| @ | In the empty Attachments field: pick a file to attach | backlog |
 | ⌘I | Show the session's context, or back to the transcript | agents |
 | ⌘R | Open the session's review in the Code section (while it opened or received an open review) | agents |
 | ⇧K | Kill the selected process and its children (confirmed) | processes |
@@ -73,7 +74,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 
 ## Lists: palette, file picker, pickers, switcher
 
-Pickers are the fuzzy lists for worktrees: the worktree switcher in the window title and Switch Worktree… in the palette. The file picker is the composer's attach list. Esc closes the title switcher too.
+Pickers are the fuzzy lists for worktrees: the worktree switcher in the window title and Switch Worktree… in the palette. The file picker is the composer's attach list, also opened by @ in Backlog's empty Attachments field. Esc closes the title switcher too.
 
 | Keys | Action |
 |---|---|

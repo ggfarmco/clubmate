@@ -153,6 +153,31 @@
                     },
                     {
                       "type": "header",
+                      "id": "gallery-start-header",
+                      "props": {"title": "Fix the flaky switcher test", "icon": "circle"},
+                      "children": [
+                        {
+                          "type": "button", "id": "gallery-start", "props": {"label": "Start agent", "icon": "play.fill", "variant": "primary", "shortcut": "cmd+return", "action": "start"},
+                          "children": [
+                            {
+                              "type": "form", "id": "gallery-start-form", "props": {"action": "start"},
+                              "children": [
+                                {"type": "stack", "props": {"direction": "horizontal"}, "children": [{"type": "icon", "props": {"name": "sparkles", "tone": "accent"}}, {"type": "text", "props": {"text": "Start agent on #4", "style": "title"}}]},
+                                {"type": "stack", "props": {"direction": "horizontal"}, "children": [{"type": "text", "props": {"text": "Agent", "style": "muted"}}, {"type": "select", "id": "gallery-start-agent", "props": {"options": [{"value": "claude", "label": "Claude"}], "value": "claude"}}]},
+                                {"type": "stack", "props": {"direction": "horizontal"}, "children": [{"type": "text", "props": {"text": "Mode", "style": "muted"}}, {"type": "select", "id": "gallery-start-mode", "props": {"options": [{"value": "", "label": "Last used"}, {"value": "default", "label": "Ask before edits"}, {"value": "plan", "label": "Plan"}], "value": ""}}]},
+                                {"type": "stack", "props": {"direction": "horizontal"}, "children": [{"type": "text", "props": {"text": "Where", "style": "muted"}}, {"type": "select", "id": "gallery-start-where", "props": {"options": [{"value": "", "label": "this worktree"}, {"value": "worktree", "label": "a new worktree · backlog/4-fix-the-flaky-switcher-test"}], "value": ""}}]},
+                                {"type": "stack", "props": {"direction": "horizontal"}, "children": [{"type": "text", "props": {"text": "Prompt", "style": "muted"}}, {"type": "text", "props": {"text": "description, 1 link, 1 file"}}, {"type": "button", "id": "gallery-start-edit", "props": {"label": "Edit", "variant": "ghost", "action": "editPrompt"}}]},
+                                {"type": "text", "props": {"text": "The session owns #4 until it ends or you take it back.", "style": "muted"}},
+                                {"type": "stack", "props": {"direction": "horizontal"}, "children": [{"type": "button", "id": "gallery-start-cancel", "props": {"label": "Cancel", "variant": "secondary", "action": "dismiss"}}, {"type": "button", "id": "gallery-start-go", "props": {"label": "Start", "variant": "primary"}}]}
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {"type": "textField", "id": "gallery-drop", "props": {"placeholder": "Drop files, paste a link, or @ a file", "drop": true}},
+                    {
+                      "type": "header",
                       "id": "gallery-filter-header",
                       "props": {"title": "All processes", "meta": "5 running · 0 orphans"},
                       "children": [

@@ -11,6 +11,7 @@ import (
 
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/acp"
+	"clubmate/plugins/agents/api"
 )
 
 const (
@@ -434,12 +435,13 @@ func pickers(sc screen) []sdui.Picker {
 	)
 }
 
-var modeLabels = map[string]string{
-	"default":           "Ask before edits",
-	"acceptEdits":       "Accept edits",
-	"plan":              "Plan",
-	"bypassPermissions": "Bypass permissions",
-}
+var modeLabels = func() map[string]string {
+	labels := make(map[string]string, len(api.ClaudeModes))
+	for _, m := range api.ClaudeModes {
+		labels[m.ID] = m.Label
+	}
+	return labels
+}()
 
 func modeLabel(m acp.SessionMode) string {
 	return cmp.Or(modeLabels[m.ID], m.Name, m.ID)

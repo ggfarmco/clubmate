@@ -22,6 +22,18 @@ const (
 	StatusClosed = "closed"
 )
 
+type Mode struct {
+	ID    string
+	Label string
+}
+
+var ClaudeModes = []Mode{
+	{ID: "default", Label: "Ask before edits"},
+	{ID: "acceptEdits", Label: "Accept edits"},
+	{ID: "plan", Label: "Plan"},
+	{ID: "bypassPermissions", Label: "Bypass permissions"},
+}
+
 type Session struct {
 	ID            string `json:"id"`
 	Workspace     string `json:"workspace"`

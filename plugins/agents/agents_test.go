@@ -2336,6 +2336,31 @@ func TestNewSessionOptionsOnlyFromPlugin(t *testing.T) {
 	assert.NotContains(t, string(f.calls(t, "session/new")[1].Params), "settingSources")
 }
 
+func TestNewSessionFirstModeFromUser(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{
+		"modes": map[string]any{"currentModeId": "default", "availableModes": []map[string]string{{"id": "default", "name": "Manual"}, {"id": "plan", "name": "Plan"}}},
+	})
+	workspace := f.workspace(t, newRepo(t))
+	args := map[string]any{"firstMode": "plan"}
+
+	assert.ErrorContains(t, f.runAs(t, workspace, "", "agents.new", args, nil), "only the user may set firstMode")
+	var out struct {
+		Session string `json:"session"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.new", args, &out))
+
+	got := f.waitCall(t, "session/set_mode", func(fakeCall) bool { return true })
+	assert.Contains(t, string(got.Params), `"modeId":"plan"`)
+	var list []struct {
+		Service bool `json:"service"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
+	require.Len(t, list, 1)
+	assert.False(t, list[0].Service)
+	assert.NotContains(t, string(f.calls(t, "session/new")[0].Params), "settingSources")
+}
+
 func TestNewSessionFromVoiceNotSelected(t *testing.T) {
 	t.Parallel()
 	f := start(t, nil)

@@ -113,7 +113,7 @@ func (a *app) attach(s *session) (*agentProc, error) {
 	a.notes.persist(ctx, s)
 	s.changed(changeStatus, true)
 	mode, value := a.startSettings(ctx, rec)
-	a.applyMode(ctx, s, res.Modes, cmp.Or(rec.StartMode, mode))
+	a.applyMode(ctx, s, res.Modes, cmp.Or(rec.StartMode, rec.FirstMode, mode))
 	a.applyConfigs(ctx, s, res.ConfigOptions, withModel(res.ConfigOptions, rec.StartModel, value))
 	return p, nil
 }

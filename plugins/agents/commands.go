@@ -66,6 +66,7 @@ var (
 	errFinishUser    = errors.New("invalid_params: only the user may set finish")
 	errBadReview     = errors.New("invalid_params: send-review needs a worktree and at least one comment")
 	errReviewOnly    = errors.New("invalid_params: only the editor-nvim plugin may send a review")
+	errFirstModeUser = errors.New("invalid_params: only the user may set firstMode")
 )
 
 type commandFunc func(a *app, ctx context.Context, cmd pluginsdk.CommandRun) (any, error)
@@ -101,6 +102,7 @@ type newArgs struct {
 	DisallowedTools []string       `json:"disallowedTools"`
 	SystemPrompt    string         `json:"systemPrompt"`
 	Mode            string         `json:"mode"`
+	FirstMode       string         `json:"firstMode"`
 	Model           string         `json:"model"`
 	AFK             *bool          `json:"afk"`
 	Finish          string         `json:"finish"`
@@ -249,6 +251,9 @@ func (a *app) newCommand(ctx context.Context, cmd pluginsdk.CommandRun, args new
 	}
 	if args.Finish != "" && cmd.Agent {
 		return nil, errFinishUser
+	}
+	if args.FirstMode != "" && cmd.Agent {
+		return nil, errFirstModeUser
 	}
 	res, err := a.newSession(ctx, a.host, cmd.WorkspaceID, origin(cmd), args)
 	if err != nil {

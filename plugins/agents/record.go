@@ -69,6 +69,7 @@ type record struct {
 	DisallowedTools []string  `json:"disallowedTools,omitempty"`
 	SystemPrompt    string    `json:"systemPrompt,omitempty"`
 	StartMode       string    `json:"startMode,omitempty"`
+	FirstMode       string    `json:"firstMode,omitempty"`
 	StartModel      string    `json:"startModel,omitempty"`
 }
 

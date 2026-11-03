@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -70,6 +71,26 @@ func (b *backlog) openAttachment(ctx context.Context, workspaceID string, a Atta
 		return err
 	}
 	return exec.CommandContext(ctx, "/usr/bin/open", "-a", "Preview", path).Run()
+}
+
+func dropRefs(root string, paths []string) ([]string, error) {
+	realRoot, err := filepath.EvalSymlinks(root)
+	if root == "" || err != nil {
+		return nil, errNotInRoot
+	}
+	refs := make([]string, 0, len(paths))
+	for _, p := range paths {
+		real, err := insideRoot(root, p)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", filepath.Base(p), errNotInRoot)
+		}
+		rel, err := filepath.Rel(realRoot, real)
+		if err != nil {
+			return nil, err
+		}
+		refs = append(refs, rel)
+	}
+	return refs, nil
 }
 
 func insideRoot(root, path string) (string, error) {

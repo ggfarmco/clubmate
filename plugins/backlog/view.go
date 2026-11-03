@@ -13,6 +13,7 @@ import (
 
 	"clubmate/pkg/docrender"
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/agents/api"
 )
 
 const (
@@ -30,6 +31,16 @@ const (
 	actReveal     = "reveal"
 	actDescribe   = "describe"
 	actStart      = "start"
+	actEditPrompt = "editPrompt"
+	actDismiss    = "dismiss"
+	actDrop       = "drop"
+	agentField    = "agent"
+	modeField     = "mode"
+	whereField    = "where"
+	promptField   = "prompt"
+	whereNew      = "worktree"
+	agentClaude   = "claude"
+	maxBranchSlug = 32
 	actTakeBack   = "takeback"
 	actLink       = "link"
 	actUnlink     = "unlink"
@@ -84,6 +95,7 @@ type detail struct {
 	hasTasks bool
 	errs     map[string]string
 	editing  bool
+	prompt   bool
 	rev      int
 }
 
@@ -227,7 +239,7 @@ func mainView(t *Task, d detail) sdui.Node {
 	if len(errs) > 0 {
 		saved = sdui.Button("save", "Not saved", "")
 	}
-	header := sdui.Header(t.Title, sdui.HeaderProps{Icon: statusIcons[t.Status], Meta: strings.Join(meta, "\n"), Field: "title", Error: errs["title"]}, actions(t, d.owners[t.ClaimedBy])...)
+	header := sdui.Header(t.Title, sdui.HeaderProps{Icon: statusIcons[t.Status], Meta: strings.Join(meta, "\n"), Field: "title", Error: errs["title"]}, actions(t, d)...)
 	header.ID = "heading"
 	fields := []sdui.Node{header}
 	described := t.Description != "" && !d.editing
@@ -443,7 +455,7 @@ func attachmentsView(t *Task, d detail) sdui.Node {
 		}
 		items = append(items, item)
 	}
-	field := sdui.WithAction(sdui.TextField(attachField, "", "Attach — a worktree path or a URL"), actAttach)
+	field := sdui.WithDrop(sdui.WithAction(sdui.TextField(attachField, "", "Drop files, paste a link, or @ a file"), actAttach))
 	return section(fmt.Sprintf("attachments-%d-%d", t.ID, d.rev), "Attachments", sdui.List(attachNode, items, ""), len(items), field, d.errs[attachField])
 }
 
@@ -508,7 +520,8 @@ func primary(t *Task, cur owner) *primaryView {
 	return &primaryView{Action: actTakeBack, Label: "Take back"}
 }
 
-func actions(t *Task, cur owner) []sdui.Node {
+func actions(t *Task, d detail) []sdui.Node {
+	cur := d.owners[t.ClaimedBy]
 	button := func(id, label, icon, variant string) sdui.Node {
 		return sdui.WithVariant(sdui.WithAction(sdui.Button(id, label, icon), id), variant)
 	}
@@ -518,11 +531,8 @@ func actions(t *Task, cur owner) []sdui.Node {
 	switch {
 	case p == nil:
 	case p.Action == actStart:
-		label := p.Label
-		if p.Summary != "" {
-			label += " · " + p.Summary
-		}
-		buttons = append(buttons, sdui.WithShortcut(button(actStart, label, "play.fill", sdui.VariantPrimary), "cmd+return"))
+		start := sdui.WithShortcut(button(actStart, p.Label, "play.fill", sdui.VariantPrimary), "cmd+return")
+		buttons = append(buttons, sdui.WithPopover(start, startForm(t, d)))
 	case p.Action == actReveal:
 		icon := "sparkles"
 		if p.Run != "" {
@@ -542,6 +552,53 @@ func actions(t *Task, cur owner) []sdui.Node {
 	}
 	buttons = append(buttons, sdui.WithShortcut(sdui.WithConfirm(button("delete", "Delete", "trash", sdui.VariantDanger), deleteConfirm(t.ID)), "cmd+delete"))
 	return buttons
+}
+
+func startForm(t *Task, d detail) sdui.Node {
+	title := sdui.Node{Type: "text", Props: map[string]any{"text": fmt.Sprintf("Start agent on #%d", t.ID), "style": "title"}}
+	prompt := sdui.HStack(sdui.MutedText("Prompt"), sdui.Text(cmp.Or(startSummary(t), "the title")), sdui.WithVariant(sdui.WithAction(sdui.Button("start-edit", "Edit", ""), actEditPrompt), sdui.VariantGhost))
+	if d.prompt {
+		prompt = sdui.HStack(sdui.MutedText("Prompt"), sdui.WithLines(sdui.TextField(promptField, startBody(*t, d.linked), ""), formLines))
+	}
+	return sdui.WithAction(sdui.Form(fmt.Sprintf("start-%d", t.ID),
+		sdui.HStack(sdui.WithTone(sdui.Icon("sparkles"), "accent"), title),
+		sdui.HStack(sdui.MutedText("Agent"), sdui.Select(agentField, []sdui.Option{{Value: agentClaude, Label: "Claude"}}, agentClaude)),
+		sdui.HStack(sdui.MutedText("Mode"), sdui.Select(modeField, modeOptions(), "")),
+		sdui.HStack(sdui.MutedText("Where"), sdui.Select(whereField, []sdui.Option{{Value: "", Label: "this worktree"}, {Value: whereNew, Label: "a new worktree · " + branchFor(t)}}, "")),
+		prompt,
+		sdui.MutedText(fmt.Sprintf("The session owns #%d until it ends or you take it back.", t.ID)),
+		sdui.HStack(sdui.WithVariant(sdui.WithAction(sdui.Button("start-cancel", "Cancel", ""), actDismiss), sdui.VariantSecondary), sdui.WithVariant(sdui.Button("start-go", "Start", ""), sdui.VariantPrimary)),
+	), actStart)
+}
+
+func modeOptions() []sdui.Option {
+	opts := []sdui.Option{{Value: "", Label: "Last used"}}
+	for _, m := range api.ClaudeModes {
+		opts = append(opts, sdui.Option{Value: m.ID, Label: m.Label})
+	}
+	return opts
+}
+
+func branchFor(t *Task) string {
+	var slug []rune
+	dash := true
+	for _, r := range strings.ToLower(t.Title) {
+		ok := r >= 'a' && r <= 'z' || r >= '0' && r <= '9'
+		switch {
+		case ok:
+			slug, dash = append(slug, r), false
+		case !dash:
+			slug, dash = append(slug, '-'), true
+		}
+		if len(slug) >= maxBranchSlug {
+			break
+		}
+	}
+	name := fmt.Sprintf("backlog/%d", t.ID)
+	if s := strings.Trim(string(slug), "-"); s != "" {
+		name += "-" + s
+	}
+	return name
 }
 
 func startSummary(t *Task) string {

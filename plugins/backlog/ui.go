@@ -36,6 +36,7 @@ type workspaceUI struct {
 	sent       map[string][32]byte
 	fieldError fieldError
 	editing    int
+	prompt     int
 	tagFilter  string
 }
 
@@ -136,7 +137,7 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 	if w.tagFilter != "" && tagCounts(tasks)[w.tagFilter] == 0 {
 		w.tagFilter = ""
 	}
-	selected, collapsed, rev, fieldRev, fieldErr, editing, filter := w.selected, maps.Clone(w.collapsed), w.formRev, w.fieldRev, w.fieldError, w.editing, w.tagFilter
+	selected, collapsed, rev, fieldRev, fieldErr, editing, prompt, filter := w.selected, maps.Clone(w.collapsed), w.formRev, w.fieldRev, w.fieldError, w.editing, w.prompt, w.tagFilter
 	b.mu.Unlock()
 	var current *Task
 	byID := make(map[int]Task, len(tasks))
@@ -158,7 +159,7 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 	if fieldErr.task == selected && fieldErr.text != "" {
 		errs = map[string]string{fieldErr.field: fieldErr.text}
 	}
-	d := detail{owners: owners, linked: byID, hasTasks: len(tasks) > 0, errs: errs, editing: current != nil && editing == current.ID, rev: rev + fieldRev}
+	d := detail{owners: owners, linked: byID, hasTasks: len(tasks) > 0, errs: errs, editing: current != nil && editing == current.ID, prompt: current != nil && prompt == current.ID, rev: rev + fieldRev}
 	return b.push(ctx, w, workspaceID, mainSlot, mainView(current, d))
 }
 
@@ -226,7 +227,10 @@ func (b *backlog) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.U
 func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 	w := b.workspace(ev.WorkspaceID)
 	user := pluginsdk.CommandRun{WorkspaceID: ev.WorkspaceID}
+	verb, _ := parseAction(ev.Action)
 	switch {
+	case ev.Agent && (verb == actStart || verb == actTakeBack):
+		return fmt.Errorf("%w: %q is the user's", errUnknownAction, ev.Action)
 	case ev.NodeID == "new" && ev.Action == "add":
 		var args commandArgs
 		if err := json.Unmarshal(ev.Value, &args); err != nil {
@@ -291,12 +295,19 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			w.tagFilter = ""
 		}
 		return nil
+	case ev.Slot == mainSlot && ev.NodeID == attachField && ev.Action == actDrop:
+		var paths []string
+		if err := json.Unmarshal(ev.Value, &paths); err != nil {
+			return fmt.Errorf("drop value: %w", err)
+		}
+		refs, err := dropRefs(b.root(ctx, ev.WorkspaceID), paths)
+		return b.addRef(ctx, ev.WorkspaceID, w, attachField, refs, err)
 	case ev.Slot == mainSlot && (ev.NodeID == linkField || ev.NodeID == attachField):
 		var text string
 		if err := json.Unmarshal(ev.Value, &text); err != nil {
 			return fmt.Errorf("%s value: %w", ev.NodeID, err)
 		}
-		return b.addRef(ctx, ev.WorkspaceID, w, ev.NodeID, text)
+		return b.addRef(ctx, ev.WorkspaceID, w, ev.NodeID, []string{text}, nil)
 	case ev.Slot == mainSlot && (ev.NodeID == linksNode || ev.NodeID == attachNode || ev.Action == actOpenDoc):
 		var item string
 		if err := json.Unmarshal(ev.Value, &item); err != nil {
@@ -312,6 +323,25 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return b.h.RunCommand(ctx, "graphs.reveal", ev.WorkspaceID, map[string]string{"id": run}, nil)
 		}
 		return b.openOwner(ctx, ev.WorkspaceID, ref)
+	case ev.Slot == mainSlot && ev.Action == actStart:
+		var opts startOptions
+		if len(ev.Value) > 0 && string(ev.Value) != "null" {
+			if err := json.Unmarshal(ev.Value, &opts); err != nil {
+				return fmt.Errorf("start value: %w", err)
+			}
+		}
+		if _, err := b.startAgent(ctx, ev.WorkspaceID, b.selected(w), opts); err != nil {
+			return err
+		}
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		w.prompt = 0
+		return nil
+	case ev.Slot == mainSlot && ev.Action == actEditPrompt:
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		w.prompt = w.selected
+		return nil
 	case ev.Slot == mainSlot && ev.Action == actDescribe:
 		b.mu.Lock()
 		defer b.mu.Unlock()
@@ -369,7 +399,7 @@ func (b *backlog) taskAction(ctx context.Context, workspaceID string, w *workspa
 	verb, value := parseAction(action)
 	switch verb {
 	case actStart:
-		_, err = b.startAgent(ctx, workspaceID, id)
+		_, err = b.startAgent(ctx, workspaceID, id, startOptions{})
 	case actTakeBack:
 		err = b.takeBack(ctx, workspaceID, id)
 	case "release":
@@ -410,20 +440,23 @@ func (b *backlog) taskAction(ctx context.Context, workspaceID string, w *workspa
 	return err
 }
 
-func (b *backlog) addRef(ctx context.Context, workspaceID string, w *workspaceUI, field, text string) error {
+func (b *backlog) addRef(ctx context.Context, workspaceID string, w *workspaceUI, field string, refs []string, err error) error {
 	id := b.selected(w)
-	t, err := b.store.get(ctx, workspaceID, id)
-	if err != nil {
-		return err
+	t, gerr := b.store.get(ctx, workspaceID, id)
+	if gerr != nil {
+		return gerr
 	}
 	args := commandArgs{ID: id, keepClaim: true}
 	if field == linkField {
-		l, perr := parseLink(text)
+		l, perr := parseLink(refs[0])
 		err = perr
 		links := append(slices.Clone(t.Links), l)
 		args.Links = &links
 	} else {
-		attachments := append(slices.Clone(t.Attachments), parseAttachment(text))
+		attachments := slices.Clone(t.Attachments)
+		for _, ref := range refs {
+			attachments = append(attachments, parseAttachment(ref))
+		}
 		args.Attachments = &attachments
 	}
 	if err == nil {
