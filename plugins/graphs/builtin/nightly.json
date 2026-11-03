@@ -1,0 +1,17 @@
+{
+  "title": "Nightly",
+  "description": "An unattended tidy pass over the repo; when it changed main, make test runs there, main is pushed and the next patch version ships.",
+  "maxTurns": 100,
+  "nodes": [
+    {"id": "tidy", "role": "Tidy", "start": true, "afk": true, "outcomes": ["changed", "nothing"], "end": ["nothing"],
+     "prompt": "Run the nightly tidy: invoke the nightly-tidy skill and follow it. You are AFK: never ask the user. Hand over by reporting the outcome as this brief says (changed when at least one tidy commit of this run stays on main, else nothing), not with tidy.done."},
+    {"id": "tests", "role": "Tests", "run": "make test", "in": "main", "timeout": 3600},
+    {"id": "push", "role": "Push main", "run": "git push origin main", "in": "main"},
+    {"id": "ship", "role": "Ship", "run": "scripts/graph/ship-next.sh", "in": "main", "timeout": 7200, "end": ["done"]}
+  ],
+  "edges": [
+    {"from": "tidy", "to": "tests", "on": "outcome", "outcome": "changed"},
+    {"from": "tests", "to": "push", "on": "done"},
+    {"from": "push", "to": "ship", "on": "done"}
+  ]
+}

@@ -1,11 +1,13 @@
 ---
 name: nightly-release
-description: Use when running the nightly release (started by the "Nightly release" trigger after the nightly tidy merged something into main) or when asked to cut a release unattended — pushes main, then a detached script waits for green CI, tags the next patch version and waits for the release to publish.
+description: Use when asked to cut a release by hand or from an agent session — pushes main, then a detached script waits for green CI, tags the next patch version and waits for the release to publish. The nightly release no longer uses this skill; it is the Push main and Ship steps of the built-in `nightly` graph.
 ---
 
 # Nightly release
 
-Nobody is watching. First call `agents_afk on=true` for yourself. Never ask the user; what needs them goes to the backlog tagged `needs-you` and `release`, plus a `notify_post` of kind `stuck`.
+The nightly release runs as steps of the built-in `nightly` graph instead (`plugins/graphs/builtin/nightly.json`, [docs](../../../docs/agent-graphs.md#nightly)): after Tidy reports `changed`, `make test` and `git push origin main` run in the main checkout, then `scripts/graph/ship-next.sh` picks the version as in step 2, refuses when a `v*` tag already points at `HEAD`, and runs `ship.sh` in the foreground, so the step lasts until publish or failure. This skill is for releases cut by hand.
+
+Nobody may be watching. First call `agents_afk on=true` for yourself. Never ask the user; what needs them goes to the backlog tagged `needs-you` and `release`, plus a `notify_post` of kind `stuck`.
 
 Pushing a `v*` tag publishes at once (the `release` environment has no reviewers), so tag only through these steps.
 
@@ -17,13 +19,6 @@ Pushing a `v*` tag publishes at once (the `release` environment has no reviewers
    Once the ci run on `SHA` exists it tags and pushes the tag, so the release builds, signs and notarizes while CI runs; `release.yml` publishes only after that ci run passed (`scripts/release/wait-ci.sh`). It waits for the release run and notifies `done` or `stuck`; when the release run fails before publishing, it deletes the tag.
 5. Reply in one line: version, sha, log path. Don't install the update on this Mac (it restarts the core and kills running agent sessions); Sparkle offers it when the user is back.
 
-## Trigger
+## No trigger
 
-Lives in the triggers plugin, not in git; recreate it if it is gone:
-
-```
-triggers_add name="Nightly release" on=event.tidy.done match={"changed":true} command=agents.new owner=none
-  args={"title":"Nightly release","notify":"needs-input","prompt":"Run the nightly release: invoke the nightly-release skill and follow it. You are AFK: turn AFK mode on for yourself first and never ask the user."}
-```
-
-The nightly tidy emits `event.tidy.done` with `changed: true` when at least one of its commits stays on `main`.
+The "Nightly release" trigger on `event.tidy.done` is gone: with the `nightly` graph it would release twice. Don't recreate it.

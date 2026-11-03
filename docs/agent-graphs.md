@@ -124,6 +124,26 @@ Clubmate ships graphs inside the graphs plugin: `plugins/graphs/builtin/<name>.j
 - **Reconciler** compares the PR with the last step, running the PR's own tests there, and sorts each part into same / changed by you / dropped / lost, lost first.
 - **Limits:** no resume; a second run on the same PR is refused until the old `walkthrough/<pr>/*` branches and worktrees are removed. Step worktrees stay until you remove them.
 
+### Review gate
+
+`review-gate` turns its input into one squashed commit on the main checkout's branch, with `make test` and a reviewer between the coder and the merge.
+
+- **Coder** works in its own worktree on branch `graph/<run>`, commits with conventional-commit messages and never touches the main branch.
+- **Tests** (`make test` in the coder's worktree, timeout 1200 s) is a check: `pass` → Reviewer; `fail` → Coder with the output's tail, at most 3 rounds before it waits for `graphs.continue`; a timeout or a missing `make` is `error` and stops the run.
+- **Reviewer** reads `graph/<run>` against the main checkout's branch without editing and reports `approved` or `changes`; `changes` → Coder.
+- **Squash into main** runs `scripts/graph/squash.sh` in the main checkout: it squashes `$CLUBMATE_GRAPH_BRANCH_CODER` into the branch checked out there as one commit and ends the run. The message is the branch's one commit, or the oldest subject with the other subjects as a list. It refuses (`error`, the reason in the output) when that variable is unset or its branch is missing, HEAD is detached or is that branch, the checkout has staged or unstaged changes (untracked files are fine), the branch has no commits the checkout lacks, the squash conflicts (it resets the checkout first) or changes nothing. It never pushes, rebases or forces.
+- **Elsewhere:** the graph runs `make test` and `scripts/graph/squash.sh` from the repo, so a repo without them copies the graph to `.clubmate/graphs/review-gate.json` and changes those steps (and then trusts it). Unattended, Tests and Squash need `Bash(make test)` and `Bash(scripts/graph/squash.sh)` allow rules, or bypass mode; the Tests step runs in the coder's worktree, where a repo's own allow rules don't count (§ Steps).
+
+### Nightly
+
+`nightly` is Clubmate's own nightly tidy and release; the "Nightly tidy" cron job runs it (`graphs.run {"graph":"nightly"}`, `owner: none`).
+
+- **Tidy** (AFK session) follows the `nightly-tidy` skill and reports `changed` when at least one of its commits stays on `main`, else `nothing`, which ends the run.
+- **Tests** (`make test`), **Push main** (`git push origin main`) and **Ship** (`scripts/graph/ship-next.sh`, timeout 7200 s) are actions in the main checkout, each on the previous one's `done`; a failing one stops the run with `<Role> error`. `make test` skips `dist/`, the release bundle's copy of the sources.
+- `ship-next.sh` fetches tags, refuses when a `v*` tag already points at `HEAD`, takes the newest `vX.Y.Z` tag plus one patch and runs `scripts/release/ship.sh <version> <HEAD> $CLUBMATE_WORKSPACE_ID` in the foreground, so Ship lasts until the release publishes or fails. A restart mid-ship kills it (`error · interrupted`); `ship.sh` deletes a tag whose release failed, but a kill between tag push and publish leaves the tag.
+- The cron run has no caller, so steps follow your `permissions.defaultMode`; in anything but bypass mode they need `Bash(make test)`, `Bash(git push origin main)` and `Bash(scripts/graph/ship-next.sh)` in the main checkout's `.claude/settings.local.json`, or they wait for you.
+- The `nightly-release` skill stays for releases cut by hand.
+
 ## Running
 
 | Command | Does |

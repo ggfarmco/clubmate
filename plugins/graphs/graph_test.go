@@ -23,10 +23,10 @@ func TestLoadGraph(t *testing.T) {
 	assert.True(t, builtin)
 
 	files := listGraphs([]string{"testdata"})
-	require.Len(t, files, 4)
-	assert.Equal(t, []string{"gate", "pr-walkthrough", "red-team", "review-loop"}, []string{files[0].Name, files[1].Name, files[2].Name, files[3].Name})
-	assert.Equal(t, graphFile{Name: "pr-walkthrough", Title: "PR walkthrough", Description: files[1].Description, Path: "builtin/pr-walkthrough.json", Nodes: files[1].Nodes, Builtin: true}, files[1])
-	assert.Equal(t, graphFile{Name: "review-loop", Title: "Review loop", Description: g.Description, Path: "testdata/.clubmate/graphs/review-loop.json", Nodes: 2}, files[3])
+	require.Len(t, files, 6)
+	assert.Equal(t, []string{"gate", "nightly", "pr-walkthrough", "red-team", "review-gate", "review-loop"}, []string{files[0].Name, files[1].Name, files[2].Name, files[3].Name, files[4].Name, files[5].Name})
+	assert.Equal(t, graphFile{Name: "pr-walkthrough", Title: "PR walkthrough", Description: files[2].Description, Path: "builtin/pr-walkthrough.json", Nodes: files[2].Nodes, Builtin: true}, files[2])
+	assert.Equal(t, graphFile{Name: "review-loop", Title: "Review loop", Description: g.Description, Path: "testdata/.clubmate/graphs/review-loop.json", Nodes: 2}, files[5])
 }
 
 func TestProjectGraphOverridesBuiltin(t *testing.T) {
@@ -40,9 +40,9 @@ func TestProjectGraphOverridesBuiltin(t *testing.T) {
 	assert.False(t, builtin)
 
 	files := listGraphs([]string{dir})
-	require.Len(t, files, 1)
-	assert.Equal(t, "Mine", files[0].Title)
-	assert.False(t, files[0].Builtin)
+	require.Len(t, files, 3)
+	assert.Equal(t, "Mine", files[1].Title)
+	assert.False(t, files[1].Builtin)
 }
 
 func TestBuiltinGraphsParse(t *testing.T) {

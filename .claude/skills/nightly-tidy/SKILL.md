@@ -1,6 +1,6 @@
 ---
 name: nightly-tidy
-description: Use when running the nightly tidy (started by the "Nightly tidy" cron job) or when asked for a code health pass over Clubmate — performance, code quality, security audit, ARCHITECTURE.md conformance, docs freshness, CLAUDE.md completeness — fixing what is safe and reporting the rest.
+description: Use when running the nightly tidy (the Tidy node of the built-in `nightly` graph, which the "Nightly tidy" cron job runs) or when asked for a code health pass over Clubmate — performance, code quality, security audit, ARCHITECTURE.md conformance, docs freshness, CLAUDE.md completeness — fixing what is safe and reporting the rest.
 ---
 
 # Nightly tidy
@@ -49,7 +49,9 @@ Plus one deep dive over the whole repo, by weekday: Mon security, Tue performanc
 5. **Merge.** For each child: its branch tip equals the sha it reported; right before, in the main checkout, the index is empty (`git diff --cached --quiet`) and no uncommitted file is one the branch changes (other sessions' work in progress lives there; otherwise stop merging, leave the branches, say so in the report). Squash and commit in one guarded command: `git merge --squash <branch> && git commit -m "<type>(<scope>): …"`. After the last squash run the tests on `main`; red → `git revert` the tidy commits of this run and file why.
 6. **File the rest**: `backlog_add` as `idea` with tag `tidy`, one item per finding with file:line and the suggested fix; add tag `needs-you` when the user has to decide or act (say what exactly in the description), `security` for security findings.
 7. **Report** `$NOTES/tidy/<date>.md`: per lens — fixed (sha), filed (backlog id), CLAUDE.md proposals, benchmark deltas, footprint growth and free disk; at most a screen. Commit it in clubmate-notes. `docs_present` it, then `notify_post` one line: `Tidy: N fixed, M filed[, K need you][, S security]`.
-8. **Hand over**: `triggers_emit name=tidy.done payload={"changed":<true when at least one tidy commit of this run stays on main>,"commits":[<shas>]}`. With `changed: true` it starts the release (`nightly-release` skill).
+8. **Hand over**: `changed` means at least one tidy commit of this run stays on `main`.
+   - Started as a graph node (your brief starts `[Agent graph nightly, run …]`): report `changed` or `nothing` with the `triggers_emit` call your brief gives, and emit no `tidy.done`. `changed` makes the graph run `make test` in the main checkout, `git push origin main` and `scripts/graph/ship-next.sh` (next patch version, foreground `ship.sh`); `nothing` ends the run.
+   - Started any other way: `triggers_emit name=tidy.done payload={"changed":<bool>,"commits":[<shas>]}`; nothing listens to it any more, so a release then is manual (`nightly-release` skill).
 9. **Clean up last** (an approval may stall here, the report is already out): remove the triage tree, each merged worktree and `git branch -D` its branch; leave a worktree with uncommitted changes or a running process.
 
 ## Cron job
@@ -57,8 +59,10 @@ Plus one deep dive over the whole repo, by weekday: Mon security, Tue performanc
 Lives in the cron plugin, not in git; recreate it if it is gone:
 
 ```
-cron_add name="Nightly tidy" command=agents.new cron="30 3 * * *" owner=none missed=once
-  args={"title":"Nightly tidy","notify":"needs-input","prompt":"Run the nightly tidy: invoke the nightly-tidy skill and follow it. You are AFK: turn AFK mode on for yourself first and never ask the user."}
+cron_add name="Nightly tidy" command=graphs.run cron="30 3 * * *" owner=none missed=once
+  args={"graph":"nightly"}
 ```
+
+The `nightly` graph (`plugins/graphs/builtin/nightly.json`, [docs](../../../docs/agent-graphs.md#nightly)) starts this skill as its AFK Tidy node. Its steps run in the main checkout with no caller, so they need `Bash(make test)`, `Bash(git push origin main)` and `Bash(scripts/graph/ship-next.sh)` in the main checkout's `.claude/settings.local.json`; without them each step waits for an approval nobody gives. A core restart while Ship runs kills `ship.sh` (the step ends `error · interrupted`); a kill between the tag push and the publish leaves the tag, so check `gh release list` against `git tag` after one.
 
 `missed: once` runs it after a night the Mac slept, possibly while the user works; step 5's checks are what keep that safe.

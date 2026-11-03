@@ -78,6 +78,7 @@ func TestBuiltinAndAgentOnlyGraphsNeedNoTrust(t *testing.T) {
 	a := testApp(t, &fakeCore{})
 	assert.NoError(t, agentRun(t, a, "review-loop"))
 	assert.NoError(t, agentRun(t, a, "pr-walkthrough"))
+	assert.NoError(t, agentRun(t, a, "review-gate"))
 	assert.False(t, listed(t, a, "review-loop").Untrusted)
 }
 
