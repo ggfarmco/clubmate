@@ -103,7 +103,7 @@ struct MessageNode: View {
             case .user: UserBubble(text: text, fromAgent: node.string("from")?.isEmpty == false, images: [], files: attachments)
             case .thought: ThoughtView(text: text, title: thought)
             case .agent:
-                AgentMessage(cards: node.docCards, entry: entry, images: node.images) { MarkdownView(text: text, docLinks: node.docLinks) }
+                AgentMessage(cards: node.docCards, entry: entry, images: node.images) { MarkdownView(text: text, docLinks: node.docLinks, imageLinks: node.imageLinks) }
                     .environment(\.openDoc, { target in
                         context.run { await $0.fire(node, .named("openDoc", .string(target))) }
                     })

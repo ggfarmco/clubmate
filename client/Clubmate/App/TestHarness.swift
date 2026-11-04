@@ -62,7 +62,9 @@ final class TestHarness {
             return request.shown
         }
         if request.target.hasPrefix("image:") {
-            ImageExpansion.shared.set(String(request.target.dropFirst(6)), open: request.shown)
+            let target = request.target.dropFirst(6)
+            guard let hash = target.firstIndex(of: "#") else { throw TestModeError("image target is image:<message node id>#<path>") }
+            ImageViewer.shared.shown = request.shown ? ImageViewer.Shown(message: String(target[..<hash]), path: String(target[target.index(after: hash)...])) : nil
             return request.shown
         }
         if request.target.hasPrefix("message:") {

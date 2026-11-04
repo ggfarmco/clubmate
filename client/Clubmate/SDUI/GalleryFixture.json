@@ -75,7 +75,7 @@
             {"type": "message", "id": "m2-images", "props": {"role": "agent", "text": "The calibration card is `/System/Library/Desktop Pictures/.thumbnails/Calibrate 5120x2880.jpg`, the swatch `Teal.png`.", "images": [
               {"path": "/System/Library/Desktop Pictures/.thumbnails/Calibrate 5120x2880.jpg", "rel": "Desktop Pictures/.thumbnails/Calibrate 5120x2880.jpg", "width": 355, "height": 200},
               {"path": "/System/Library/Desktop Pictures/Solid Colors/Teal.png", "rel": "Teal.png"}
-            ]}},
+            ], "imageLinks": {"/System/Library/Desktop Pictures/.thumbnails/Calibrate 5120x2880.jpg": "/System/Library/Desktop Pictures/.thumbnails/Calibrate 5120x2880.jpg", "Teal.png": "/System/Library/Desktop Pictures/Solid Colors/Teal.png"}}},
             {"type": "permissionCard", "id": "gallery-permission", "props": {"request": "permission-1", "text": "Claude wants to run go test ./internal/notify/...", "title": "Run a command?", "command": "go test ./internal/notify/...", "caption": "Claude says: Run the notify tests", "options": [
               {"id": "allow-once", "label": "Allow once", "kind": "allow_once", "shortcut": "opt+1"},
               {"id": "allow-with-updates", "label": "Always allow…", "kind": "allow_always", "shortcut": "opt+2", "rule": "Bash(go test:*)", "scope": "in shop on this Mac", "workspace": "shop"},

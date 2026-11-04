@@ -25,18 +25,23 @@ struct MessageNodeView: View, Equatable {
             ThoughtView(text: text, seconds: node.props["seconds"]?.numberValue.map(Int.init))
         case .agent:
             let open = { [node, dispatch] (target: String) in dispatch(node, .named("openDoc", .string(target))) }
+            let message = node.id ?? ""
+            let images = node.images
+            let openImage = { (path: String) in ImageViewer.shared.open(message: message, path: path) }
             VStack(alignment: .leading, spacing: theme.spacing.l) {
-                MarkdownText(text: text, docLinks: node.docLinks, openDoc: open)
+                MarkdownText(text: text, links: ProseLinks(docs: node.docLinks, images: node.imageLinks), openDoc: open, openImage: openImage)
                     .equatable()
                     .frame(maxWidth: .infinity, alignment: .leading)
                 let cards = node.docCards
                 if !cards.isEmpty {
                     MessageDocCards(id: (node.id ?? cards[0].path) + "/docs", groups: DocCardGroups(cards), open: open)
                 }
-                let images = node.images
                 if !images.isEmpty {
-                    MessageImages(message: node.id ?? "", images: images)
+                    MessageImages(message: message, images: images)
                 }
+            }
+            .sheet(item: ImageViewer.shared.binding(message: message)) { shown in
+                ImageViewerSheet(path: shown.path, rel: images.first { $0.path == shown.path }?.rel, size: NSApp.keyWindow?.contentLayoutRect.size)
             }
         }
     }

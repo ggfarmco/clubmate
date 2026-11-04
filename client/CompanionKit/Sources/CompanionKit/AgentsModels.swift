@@ -351,9 +351,10 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     public let docLinks: [String: String]
     public let docCards: [DocCard]
     public let images: [ImageRef]
+    public let imageLinks: [String: String]
 
     enum CodingKeys: String, CodingKey {
-        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction, elicitation, response, completed, stoppable, doc, docLinks, docCards, images, card, voice
+        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction, elicitation, response, completed, stoppable, doc, docLinks, docCards, images, imageLinks, card, voice
     }
 
     static let outgoingPrefix = "outgoing/"
@@ -367,6 +368,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         docLinks = [:]
         docCards = []
         self.images = []
+        imageLinks = [:]
     }
 
     public var isOutgoing: Bool {
@@ -383,6 +385,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         docLinks = (try? c.decodeIfPresent([String: String].self, forKey: .docLinks)) ?? [:]
         docCards = DocCard.list(try? c.decodeIfPresent(JSONValue.self, forKey: .docCards))
         images = ImageRef.list(try? c.decodeIfPresent(JSONValue.self, forKey: .images))
+        imageLinks = (try? c.decodeIfPresent([String: String].self, forKey: .imageLinks)) ?? [:]
         let text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
         switch TranscriptEntryKind(raw) {
         case .user:

@@ -11,20 +11,18 @@ struct MessageImages: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: theme.spacing.s) {
+        FlowLayout(spacing: theme.spacing.m) {
             ForEach(images) { image in
-                MessageImageRow(key: ImageExpansionState.key(message: message, path: image.path), image: image)
+                ImageThumbnail(image: image) { ImageViewer.shared.open(message: message, path: image.path) }
             }
         }
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
     }
 }
 
-private struct MessageImageRow: View {
-    static let maxHeight: CGFloat = 480
-
-    let key: String
+private struct ImageThumbnail: View {
     let image: ImageRef
+    let open: () -> Void
 
     @State private var loaded: TranscriptImage?
     @State private var hovering = false
@@ -33,47 +31,26 @@ private struct MessageImageRow: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        let open = ImageExpansion.shared.state.isOpen(key)
-        VStack(alignment: .leading, spacing: theme.spacing.s) {
-            row(open)
-            if open {
-                opened
-                    .task(id: TranscriptImages.key(image.path)) { loaded = await TranscriptImages.shared.image(path: image.path) }
-            }
-        }
-    }
-
-    private func row(_ open: Bool) -> some View {
-        Button { ImageExpansion.shared.toggle(key) } label: {
-            HStack(spacing: theme.spacing.s) {
-                Image(systemName: "photo")
-                    .font(theme.glyph)
-                    .foregroundStyle(theme.muted)
+        let shown = TranscriptImages.shared.cached(path: image.path) ?? loaded
+        let height = theme.rowHeight * 4
+        let width = Self.width(aspect: aspect(shown), height: height)
+        Button(action: open) {
+            VStack(alignment: .leading, spacing: theme.spacing.xs) {
+                tile(shown)
+                    .frame(width: width, height: height)
+                    .clipShape(RoundedRectangle(cornerRadius: theme.radius.m))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: theme.radius.m)
+                            .strokeBorder(keyboardFocus && focused ? theme.accent : hovering ? theme.borderStrong : theme.border, lineWidth: keyboardFocus && focused ? theme.focusRing : 1)
+                    }
                 Text(image.name)
-                    .font(theme.ui)
-                    .foregroundStyle(hovering ? theme.foreground : theme.text2)
+                    .font(theme.uiSmall)
+                    .foregroundStyle(hovering ? theme.text2 : theme.muted)
                     .lineLimit(1)
-                    .truncationMode(.label)
-                    .layoutPriority(1)
-                if image.rel != image.name {
-                    Text(image.rel)
-                        .font(theme.uiSmall)
-                        .foregroundStyle(theme.muted)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                DisclosureChevron(expanded: open)
-                    .foregroundStyle(theme.muted)
+                    .truncationMode(.middle)
+                    .frame(width: width, alignment: .leading)
             }
-            .padding(.horizontal, theme.spacing.s)
-            .padding(.vertical, theme.spacing.xs)
             .contentShape(Rectangle())
-            .overlay {
-                if keyboardFocus && focused {
-                    RoundedRectangle(cornerRadius: theme.radius.m)
-                        .stroke(theme.accent, lineWidth: theme.focusRing)
-                }
-            }
         }
         .buttonStyle(.plain)
         .focusable(interactions: .activate)
@@ -83,62 +60,98 @@ private struct MessageImageRow: View {
             keyboardFocus = now && !ButtonNodeView.mouseEvents.contains(NSApp.currentEvent?.type ?? .keyDown)
         }
         .onKeyPress(keys: [.space, .return]) { _ in
-            ImageExpansion.shared.toggle(key)
+            open()
             return .handled
         }
         .onHover { hovering = $0 }
-        .help(image.path)
+        .help(image.rel)
         .accessibilityLabel(image.name)
-        .accessibilityValue(open ? "Expanded" : "Collapsed")
+        .accessibilityHint("Opens the image")
+        .task(id: TranscriptImages.key(image.path)) { loaded = await TranscriptImages.shared.image(path: image.path) }
     }
 
-    @ViewBuilder private var opened: some View {
-        let shown = TranscriptImages.shared.cached(path: image.path) ?? loaded
+    static func width(aspect: Double, height: CGFloat) -> CGFloat {
+        height * min(max(aspect, 1), 2)
+    }
+
+    private func aspect(_ shown: TranscriptImage?) -> Double {
+        if let aspect = image.aspect { return aspect }
+        if case .image(let cg) = shown { return Double(cg.width) / Double(max(cg.height, 1)) }
+        return 4.0 / 3.0
+    }
+
+    @ViewBuilder private func tile(_ shown: TranscriptImage?) -> some View {
         switch shown {
-        case .missing:
-            Text("Image not found")
-                .font(theme.uiSmall)
-                .foregroundStyle(theme.muted)
-                .padding(.leading, theme.spacing.s)
         case .image(let cg):
-            frame(aspect: Double(cg.width) / Double(max(cg.height, 1))) {
+            Color.clear.overlay(alignment: .top) {
                 Image(decorative: cg, scale: 1)
                     .resizable()
-                    .scaledToFit()
+                    .scaledToFill()
             }
+        case .missing:
+            VStack(spacing: theme.spacing.xs) {
+                Image(systemName: "photo")
+                    .font(theme.glyph)
+                Text("Image not found")
+                    .font(theme.uiSmall)
+                    .multilineTextAlignment(.center)
+            }
+            .foregroundStyle(theme.muted)
+            .padding(theme.spacing.s)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(theme.surface2)
         case nil:
-            if let aspect = image.aspect {
-                frame(aspect: aspect) { ProgressView().controlSize(.small) }
-            } else {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(height: theme.rowHeight * 4)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            ProgressView()
+                .controlSize(.small)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(theme.surface2)
         }
-    }
-
-    private func frame(aspect: Double, @ViewBuilder content: () -> some View) -> some View {
-        Color.clear
-            .aspectRatio(aspect, contentMode: .fit)
-            .frame(maxWidth: Self.maxHeight * aspect)
-            .overlay { content() }
-            .agentCard()
-            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-@MainActor @Observable final class ImageExpansion {
-    static let shared = ImageExpansion()
+struct ImageViewerSheet: View {
+    let path: String
+    let rel: String?
+    let size: CGSize?
 
-    private(set) var state = ImageExpansionState()
+    @State private var loaded: TranscriptImage?
 
-    func toggle(_ key: String) {
-        Motion.disclose { state.toggle(key) }
+    var body: some View {
+        let shown = TranscriptImages.shared.cached(path: path) ?? loaded
+        let image: CGImage? = if case .image(let cg) = shown { cg } else { nil }
+        let name = path.split(separator: "/").last.map(String.init) ?? path
+        ZoomSheet(title: name, detail: rel.flatMap { $0 == name ? nil : $0 }, image: image, missing: shown.isMissing, scale: NSScreen.main?.backingScaleFactor ?? 2, size: size)
+            .task(id: TranscriptImages.key(path)) { loaded = await TranscriptImages.shared.image(path: path) }
+    }
+}
+
+@MainActor @Observable final class ImageViewer {
+    static let shared = ImageViewer()
+
+    struct Shown: Identifiable, Equatable {
+        let message: String
+        let path: String
+
+        var id: String { message + "#" + path }
     }
 
-    func set(_ key: String, open: Bool) {
-        if state.isOpen(key) != open { toggle(key) }
+    var shown: Shown?
+
+    func open(message: String, path: String) {
+        shown = Shown(message: message, path: path)
+    }
+
+    func binding(message: String) -> Binding<Shown?> {
+        Binding(
+            get: { self.shown?.message == message ? self.shown : nil },
+            set: { if $0 == nil, self.shown?.message == message { self.shown = nil } }
+        )
+    }
+}
+
+private extension Optional where Wrapped == TranscriptImage {
+    var isMissing: Bool {
+        if case .missing = self { true } else { false }
     }
 }
 

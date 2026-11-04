@@ -100,6 +100,7 @@ type entry struct {
 	DocLinks   map[string]string `json:"docLinks,omitempty"`
 	DocCards   []sdui.DocCard    `json:"docCards,omitempty"`
 	Images     []sdui.ImageRef   `json:"images,omitempty"`
+	ImageLinks map[string]string `json:"imageLinks,omitempty"`
 	Voice      *voicePrompt      `json:"voice,omitempty"`
 	Review     *reviewSent       `json:"review,omitempty"`
 

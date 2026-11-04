@@ -320,6 +320,10 @@ extension SDUINode {
         ImageRef.list(props["images"])
     }
 
+    public var imageLinks: [String: String] {
+        props["imageLinks"]?.objectValue?.compactMapValues(\.stringValue) ?? [:]
+    }
+
     public func items() -> [SDUIItem] {
         props["items"]?.arrayValue?.compactMap(SDUIItem.init) ?? []
     }

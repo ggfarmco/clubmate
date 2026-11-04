@@ -40,16 +40,22 @@ func TestImagesListMentionedImagesInOrder(t *testing.T) {
 	require.NoError(t, os.Symlink(filepath.Join(wt, "plan.md"), filepath.Join(wt, "key.png")))
 	text := "[shot](shots/a.png), `shots/a.png`, `" + outside + "`, `missing.png`, `b.PNG#x`, `plan.md`, `key.png`, `b.PNG`, `c.gif`, `d.webp`."
 
-	links, cards, images := docRefs(text, wt)
+	r := docRefs(text, wt)
 
 	assert.Equal(t, []sdui.ImageRef{
 		{Path: filepath.Join(wt, "shots", "a.png"), Rel: "shots/a.png", Width: 3, Height: 2},
 		{Path: outside, Rel: outside},
 		{Path: filepath.Join(wt, "b.PNG"), Rel: "b.PNG", Width: 1, Height: 1},
 		{Path: filepath.Join(wt, "c.gif"), Rel: "c.gif", Width: 1, Height: 1},
-	}, images)
-	assert.Equal(t, map[string]string{"plan.md": filepath.Join(wt, "plan.md")}, links)
-	assert.Len(t, cards, 1)
+	}, r.images)
+	assert.Equal(t, map[string]string{
+		"shots/a.png": filepath.Join(wt, "shots", "a.png"),
+		outside:       outside,
+		"b.PNG":       filepath.Join(wt, "b.PNG"),
+		"c.gif":       filepath.Join(wt, "c.gif"),
+	}, r.imageLinks)
+	assert.Equal(t, map[string]string{"plan.md": filepath.Join(wt, "plan.md")}, r.links)
+	assert.Len(t, r.cards, 1)
 }
 
 func TestImageCommandServesOnlyNamedImages(t *testing.T) {

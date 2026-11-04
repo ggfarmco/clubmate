@@ -137,10 +137,8 @@ func (s *session) present(turn int, p presentedDoc) {
 
 func (s *session) linkDocs(turn int) {
 	type message struct {
-		en     *entry
-		links  map[string]string
-		cards  []sdui.DocCard
-		images []sdui.ImageRef
+		refs
+		en *entry
 	}
 	var messages []message
 	mentioned := map[string]bool{}
@@ -148,12 +146,12 @@ func (s *session) linkDocs(turn int) {
 		if en.Kind != entryAgent || en.Turn != turn {
 			continue
 		}
-		links, cards, images := docRefs(en.Text, s.rec.Worktree)
-		for i, c := range cards {
-			cards[i] = presentCard(c, s.presented[turn])
+		r := docRefs(en.Text, s.rec.Worktree)
+		for i, c := range r.cards {
+			r.cards[i] = presentCard(c, s.presented[turn])
 			mentioned[gitrepo.Canonical(c.Path)] = true
 		}
-		messages = append(messages, message{en: en, links: links, cards: cards, images: images})
+		messages = append(messages, message{refs: r, en: en})
 	}
 	if len(messages) == 0 {
 		return
@@ -176,8 +174,8 @@ func (s *session) linkDocs(turn int) {
 		if len(cards) == 0 {
 			cards = nil
 		}
-		if !maps.Equal(m.links, m.en.DocLinks) || !slices.Equal(cards, m.en.DocCards) || !slices.Equal(m.images, m.en.Images) {
-			m.en.DocLinks, m.en.DocCards, m.en.Images, m.en.node = m.links, cards, m.images, nil
+		if !maps.Equal(m.links, m.en.DocLinks) || !slices.Equal(cards, m.en.DocCards) || !slices.Equal(m.images, m.en.Images) || !maps.Equal(m.imageLinks, m.en.ImageLinks) {
+			m.en.DocLinks, m.en.DocCards, m.en.Images, m.en.ImageLinks, m.en.node = m.links, cards, m.images, m.imageLinks, nil
 		}
 	}
 }
@@ -197,15 +195,26 @@ func boolRank(b bool) int {
 	return 0
 }
 
-func docRefs(markdown, root string) (map[string]string, []sdui.DocCard, []sdui.ImageRef) {
+type refs struct {
+	links      map[string]string
+	cards      []sdui.DocCard
+	images     []sdui.ImageRef
+	imageLinks map[string]string
+}
+
+func docRefs(markdown, root string) refs {
 	src := []byte(markdown)
-	links := map[string]string{}
+	links, imageLinks := map[string]string{}, map[string]string{}
 	var cards []sdui.DocCard
 	var images []sdui.ImageRef
 	add := func(target string) {
 		if path, ok := resolveImage(target, root); ok {
-			if len(images) < maxImages && !slices.ContainsFunc(images, func(r sdui.ImageRef) bool { return r.Path == path }) {
-				images = append(images, imageRef(path, root))
+			named := slices.ContainsFunc(images, func(r sdui.ImageRef) bool { return r.Path == path })
+			if !named && len(images) < maxImages {
+				images, named = append(images, imageRef(path, root)), true
+			}
+			if named {
+				imageLinks[target] = path
 			}
 			return
 		}
@@ -245,10 +254,14 @@ func docRefs(markdown, root string) (map[string]string, []sdui.DocCard, []sdui.I
 		}
 		return ast.WalkContinue, nil
 	})
-	if len(links) == 0 {
-		return nil, nil, images
+	r := refs{cards: cards, images: images}
+	if len(links) > 0 {
+		r.links = links
 	}
-	return links, cards, images
+	if len(imageLinks) > 0 {
+		r.imageLinks = imageLinks
+	}
+	return r
 }
 
 func docCard(path, root string) sdui.DocCard {

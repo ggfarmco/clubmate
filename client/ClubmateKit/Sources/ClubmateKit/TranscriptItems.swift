@@ -174,21 +174,3 @@ extension SDUINode {
         return items
     }
 }
-
-public struct ImageExpansionState: Sendable, Equatable {
-    private var open: Set<String> = []
-
-    public init() {}
-
-    public static func key(message: String, path: String) -> String {
-        "\(message)#\(path)"
-    }
-
-    public func isOpen(_ key: String) -> Bool {
-        open.contains(key)
-    }
-
-    @discardableResult public mutating func toggle(_ key: String) -> Bool {
-        open.remove(key) == nil && open.insert(key).inserted
-    }
-}

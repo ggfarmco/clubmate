@@ -158,7 +158,7 @@ actor FixtureServer {
                     Self.imageRef("/Users/me/src/shop/docs/checkout-funnel.png", width: 1200, height: 750),
                     Self.imageRef("/Users/me/src/shop/build/screens/checkout.png"),
                     Self.imageRef("/Users/me/src/shop/docs/old-flow.png"),
-                ]),
+                ], imageLinks: ["docs/checkout-funnel.png": "/Users/me/src/shop/docs/checkout-funnel.png", "build/screens/checkout.png": "/Users/me/src/shop/build/screens/checkout.png", "docs/old-flow.png": "/Users/me/src/shop/docs/old-flow.png"]),
             ])]
         }
         transcripts["agt_00000000000000a1"] = ["session": .object(Self.session(sessions.first ?? [:], id: "agt_00000000000000a1", title: "Voice", status: "idle", ago: 60)), "entries": .array([
@@ -869,11 +869,12 @@ actor FixtureServer {
         }
     }
 
-    private static func entry(_ kind: String, _ id: String, text: String, docLinks: [String: String] = [:], docCards: [JSONValue] = [], images: [JSONValue] = []) -> JSONValue {
+    private static func entry(_ kind: String, _ id: String, text: String, docLinks: [String: String] = [:], docCards: [JSONValue] = [], images: [JSONValue] = [], imageLinks: [String: String] = [:]) -> JSONValue {
         var fields: [String: JSONValue] = ["kind": .string(kind), "id": .string(id), "turn": .number(1), "text": .string(text)]
         if !docLinks.isEmpty { fields["docLinks"] = .object(docLinks.mapValues(JSONValue.string)) }
         if !docCards.isEmpty { fields["docCards"] = .array(docCards) }
         if !images.isEmpty { fields["images"] = .array(images) }
+        if !imageLinks.isEmpty { fields["imageLinks"] = .object(imageLinks.mapValues(JSONValue.string)) }
         return .object(fields)
     }
 

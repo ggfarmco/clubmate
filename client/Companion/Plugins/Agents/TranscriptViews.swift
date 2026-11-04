@@ -12,8 +12,8 @@ struct RowView: View {
         case .entry(let entry):
             EntryView(entry: entry)
                 .opacity(entry.isOutgoing ? 0.6 : 1)
-        case .agent(let id, let blocks, let docLinks, let docCards, let images):
-            AgentMessage(cards: docCards, entry: id, images: images) { MarkdownView(blocks: blocks, docLinks: docLinks) }
+        case .agent(let id, let blocks, let docLinks, let docCards, let images, let imageLinks):
+            AgentMessage(cards: docCards, entry: id, images: images) { MarkdownView(blocks: blocks, docLinks: docLinks, imageLinks: imageLinks) }
         case .tools(_, let group):
             if group.calls.count == 1 {
                 ToolRow(tool: group.calls[0])
@@ -40,7 +40,7 @@ struct EntryView: View {
         case .voice(let prompt):
             VoicePromptRow(prompt: prompt)
         case .agent(let text):
-            AgentMessage(cards: entry.docCards, entry: entry.id, images: entry.images) { MarkdownView(text: text, docLinks: entry.docLinks) }
+            AgentMessage(cards: entry.docCards, entry: entry.id, images: entry.images) { MarkdownView(text: text, docLinks: entry.docLinks, imageLinks: entry.imageLinks) }
         case .thought(let text):
             ThoughtView(text: text, title: "Thought")
         case .tool(let tool):
@@ -221,27 +221,34 @@ struct AgentMessage<Content: View>: View {
     @Environment(\.openDoc) private var openDoc
     @Environment(\.imageStore) private var imageStore
     @Environment(\.imageSession) private var imageSession
+    @State private var shown: ImageRef?
 
     var body: some View {
         let cards = openDoc == nil ? [] : cards
-        let images = imageStore == nil || imageSession.isEmpty ? [] : images
-        if cards.isEmpty && images.isEmpty {
-            text
-        } else {
-            let groups = DocCardGroups(cards)
-            VStack(alignment: .leading, spacing: 12) {
+        let store = imageSession.isEmpty || images.isEmpty ? nil : imageStore
+        Group {
+            if cards.isEmpty && store == nil {
                 text
-                ForEach(groups.presented) { card in
-                    DocCardButton(card: card) { openDoc?(card.path) }
-                }
-                if let plate = groups.plate {
-                    MentionedDocs(label: plate, cards: groups.mentioned) { openDoc?($0) }
-                }
-                if let imageStore {
-                    ForEach(images) { ref in
-                        TranscriptImageRow(ref: ref, entry: entry, session: imageSession, store: imageStore)
+            } else {
+                let groups = DocCardGroups(cards)
+                VStack(alignment: .leading, spacing: 12) {
+                    text
+                    ForEach(groups.presented) { card in
+                        DocCardButton(card: card) { openDoc?(card.path) }
+                    }
+                    if let plate = groups.plate {
+                        MentionedDocs(label: plate, cards: groups.mentioned) { openDoc?($0) }
+                    }
+                    if let store {
+                        ImageTiles(images: images, entry: entry, session: imageSession, store: store) { shown = $0 }
                     }
                 }
+            }
+        }
+        .environment(\.openImage, store == nil ? nil : { path in shown = images.first { $0.path == path } })
+        .fullScreenCover(item: $shown) { ref in
+            if let store {
+                ImageScreen(ref: ref, entry: entry, session: imageSession, store: store)
             }
         }
     }
@@ -345,21 +352,25 @@ private struct DocCardPressStyle: ButtonStyle {
 struct MarkdownView: View {
     let blocks: [MarkdownBlock]
     var docLinks: [String: String] = [:]
+    var imageLinks: [String: String] = [:]
     @Environment(\.openDoc) private var openDoc
+    @Environment(\.openImage) private var openImage
     @Environment(\.openURL) private var openURL
 
-    init(blocks: [MarkdownBlock], docLinks: [String: String] = [:]) {
+    init(blocks: [MarkdownBlock], docLinks: [String: String] = [:], imageLinks: [String: String] = [:]) {
         self.blocks = blocks
         self.docLinks = docLinks
+        self.imageLinks = imageLinks
     }
 
-    init(text: String, docLinks: [String: String] = [:]) {
+    init(text: String, docLinks: [String: String] = [:], imageLinks: [String: String] = [:]) {
         blocks = Markdown.blocks(text)
         self.docLinks = docLinks
+        self.imageLinks = imageLinks
     }
 
     private func inline(_ text: String) -> AttributedString {
-        Markdown.inline(text, docLinks: docLinks)
+        Markdown.inline(text, docLinks: docLinks, imageLinks: openImage == nil ? [:] : imageLinks)
     }
 
     var body: some View {
@@ -410,6 +421,8 @@ struct MarkdownView: View {
         .environment(\.openURL, OpenURLAction { url in
             if let target = MarkdownDocLink.target(url) {
                 openDoc?(target)
+            } else if let target = MarkdownImageLink.target(url) {
+                openImage?(target)
             } else if MarkdownLinkPolicy.allows(url) {
                 openURL(url)
             }
@@ -531,11 +544,10 @@ private struct MermaidScreen: View {
 
     @State private var image: CGImage?
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         let theme = DocumentTheme.system(dark: scheme == .dark)
-        NavigationStack {
+        ZoomScreen(title: "Diagram") {
             GeometryReader { proxy in
                 Group {
                     if let image {
@@ -547,14 +559,6 @@ private struct MermaidScreen: View {
                 }
                 .task(id: theme) {
                     image = await MermaidRenderer.shared.image(source: source, theme: theme, width: max(proxy.size.width, MermaidBlock.width), scale: 4)
-                }
-            }
-            .background(Color(.systemBackground))
-            .navigationTitle("Diagram")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
                 }
             }
         }

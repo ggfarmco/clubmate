@@ -21,7 +21,6 @@ struct SessionDetailView: View {
     @State private var showingSettings = false
     @State private var alwaysAsked: AlwaysAsk?
     @State private var width = 0.0
-    @State private var visibleHeight = 0.0
     @State private var composerFocused = false
 
     private static let pairedWidth = 520.0
@@ -105,8 +104,6 @@ struct SessionDetailView: View {
         .environment(\.openDoc, docOpener)
         .environment(\.imageStore, context.connection.supports(AgentsStore.imageCommand) ? store : nil)
         .environment(\.imageSession, sessionID)
-        .environment(\.imageMaxHeight, max(visibleHeight - 64, 240))
-        .onScrollGeometryChange(for: Double.self) { $0.containerSize.height } action: { _, height in visibleHeight = height }
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom)
         .scrollDismissesKeyboard(.interactively)

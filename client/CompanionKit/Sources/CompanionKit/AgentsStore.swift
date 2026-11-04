@@ -33,7 +33,6 @@ public final class AgentsStore {
     }
     public private(set) var searchResults: [AgentSearchResult]?
     public private(set) var searchError: String?
-    public private(set) var openImages: Set<String> = []
     public private(set) var images: [String: TranscriptImage] = [:]
     public private(set) var runs: [String: GraphRun] = [:]
     public private(set) var runErrors: [String: String] = [:]
@@ -110,15 +109,6 @@ public final class AgentsStore {
         case .event:
             break
         }
-    }
-
-    public func isOpen(image path: String, entry: String, in session: String) -> Bool {
-        openImages.contains(session + "|" + entry + "|" + path)
-    }
-
-    public func toggle(image path: String, entry: String, in session: String) {
-        let key = session + "|" + entry + "|" + path
-        if openImages.contains(key) { openImages.remove(key) } else { openImages.insert(key) }
     }
 
     public func image(_ path: String, entry: String, in session: String) -> TranscriptImage? {

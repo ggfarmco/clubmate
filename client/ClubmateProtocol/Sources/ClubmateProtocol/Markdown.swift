@@ -113,13 +113,15 @@ public enum Markdown {
         inline(text, docLinks: [:])
     }
 
-    public static func inline(_ text: String, docLinks: [String: String]) -> AttributedString {
+    public static func inline(_ text: String, docLinks: [String: String], imageLinks: [String: String] = [:]) -> AttributedString {
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         var content = (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
         var linked: [(Range<AttributedString.Index>, URL?)] = []
         for run in content.runs {
             let code = run.inlinePresentationIntent?.contains(.code) == true ? String(content[run.range].characters) : nil
             if let key = run.link?.relativeString ?? code, let path = docLinks[key], let url = MarkdownDocLink.url(path) {
+                linked.append((run.range, url))
+            } else if let key = run.link?.relativeString ?? code, let path = imageLinks[key], let url = MarkdownImageLink.url(path) {
                 linked.append((run.range, url))
             } else if let link = run.link, !MarkdownLinkPolicy.allows(link) {
                 linked.append((run.range, nil))
@@ -232,5 +234,21 @@ public enum MarkdownDocLink {
     public static func target(_ url: URL) -> String? {
         guard url.scheme?.lowercased() == scheme, let components = URLComponents(url: url, resolvingAgainstBaseURL: false), !components.path.isEmpty else { return nil }
         return components.fragment.map { "\(components.path)#\($0)" } ?? components.path
+    }
+}
+
+public enum MarkdownImageLink {
+    private static let scheme = "clubmate-image"
+
+    public static func url(_ path: String) -> URL? {
+        var components = URLComponents()
+        components.scheme = scheme
+        components.path = path
+        return components.url
+    }
+
+    public static func target(_ url: URL) -> String? {
+        guard url.scheme?.lowercased() == scheme, let components = URLComponents(url: url, resolvingAgainstBaseURL: false), !components.path.isEmpty else { return nil }
+        return components.path
     }
 }

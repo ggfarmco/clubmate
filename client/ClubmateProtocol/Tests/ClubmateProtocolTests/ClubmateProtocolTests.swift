@@ -66,11 +66,11 @@ final class ClubmateProtocolTests: XCTestCase {
     }
 
     func testInlineLinksKeepDocsAndWebDropOthers() {
-        let text = "See [the plan](docs/plan.md#goals), `my plan.md`, [web](https://x.dev/a.md), [run](shortcuts://run), [rel](notes.md) and `other.md`."
-        let content = Markdown.inline(text, docLinks: ["docs/plan.md#goals": "/w/docs/plan.md#goals", "my plan.md": "/w/my plan.md"])
-        let links = content.runs.compactMap { run in run.link.map { (String(content[run.range].characters), MarkdownDocLink.target($0)) } }
-        XCTAssertEqual(links.map(\.0), ["the plan", "my plan.md", "web"])
-        XCTAssertEqual(links.map(\.1), ["/w/docs/plan.md#goals", "/w/my plan.md", nil])
+        let text = "See [the plan](docs/plan.md#goals), `my plan.md`, [web](https://x.dev/a.md), [run](shortcuts://run), [rel](notes.md), `shots/a b.png` and `other.md`."
+        let content = Markdown.inline(text, docLinks: ["docs/plan.md#goals": "/w/docs/plan.md#goals", "my plan.md": "/w/my plan.md"], imageLinks: ["shots/a b.png": "/w/shots/a b.png"])
+        let links = content.runs.compactMap { run in run.link.map { (String(content[run.range].characters), MarkdownDocLink.target($0) ?? MarkdownImageLink.target($0).map { "image:" + $0 }) } }
+        XCTAssertEqual(links.map(\.0), ["the plan", "my plan.md", "web", "shots/a b.png"])
+        XCTAssertEqual(links.map(\.1), ["/w/docs/plan.md#goals", "/w/my plan.md", nil, "image:/w/shots/a b.png"])
     }
 
     func testMessageDocCardsDecodeWithTheirKindWords() throws {

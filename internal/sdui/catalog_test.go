@@ -125,6 +125,7 @@ func TestValidateAgentNodes(t *testing.T) {
 	}
 	linked := sdui.Message("agent", "**hi** `a.md`", nil)
 	linked.Props["docLinks"] = map[string]string{"a.md": "/r/a.md"}
+	linked.Props["imageLinks"] = map[string]string{"a.png": "/r/a.png"}
 	linked.Props["docCards"] = []sdui.DocCard{{Path: "/r/a.md", Kind: "markdown", Title: "A", Rel: "a.md"}, {Path: "/r/f.mmd", Kind: "mermaid", Title: "f", Rel: "f.mmd", Presented: true}}
 	attachments := []sdui.Attachment{{Kind: "file", Path: "a.go"}, {ID: "s1", Kind: "selection", Path: "b.go", StartLine: 12, EndLine: 40}, {Kind: "image", Path: "image"}}
 	nodes := map[string]sdui.Node{

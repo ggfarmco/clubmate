@@ -261,14 +261,6 @@ final class TranscriptImageTests: XCTestCase {
         await store.loadImage("/w/a.png", entry: "later", in: "s")
         XCTAssertEqual(runner.calls, 3)
     }
-
-    func testTappingAnImageRowOpensAndFoldsIt() {
-        let store = AgentsStore(workspace: "w", runner: ImageRunner())
-        store.toggle(image: "/w/a.png", entry: "agent/a1", in: "s")
-        XCTAssertTrue(store.isOpen(image: "/w/a.png", entry: "agent/a1", in: "s"))
-        store.toggle(image: "/w/a.png", entry: "agent/a1", in: "s")
-        XCTAssertFalse(store.isOpen(image: "/w/a.png", entry: "agent/a1", in: "s"))
-    }
 }
 
 @MainActor
