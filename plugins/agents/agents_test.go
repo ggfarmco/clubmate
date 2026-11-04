@@ -79,6 +79,11 @@ type record struct {
 			Args    map[string]string `json:"args"`
 		} `json:"actions"`
 	} `json:"failure"`
+	Reopen *struct {
+		ID      string            `json:"id"`
+		Command string            `json:"command"`
+		Args    map[string]string `json:"args"`
+	} `json:"reopen"`
 	ModeLabel string `json:"modeLabel"`
 }
 
@@ -811,6 +816,23 @@ func (f *fixture) restartPlugin(t *testing.T, workspace string) {
 	testutil.Eventually(t, func() bool {
 		return !slices.ContainsFunc(first, func(c fakeCall) bool { return !errors.Is(syscall.Kill(c.PID, 0), syscall.ESRCH) })
 	}, wait)
+}
+
+func TestClosedSessionOffersReopen(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{"resume": true})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "one")
+	f.waitStatus(t, workspace, session, "done")
+	assert.Nil(t, f.session(t, workspace, session).Reopen)
+	require.NoError(t, f.run(t, workspace, "agents.close", map[string]any{"session": session}, nil))
+
+	reopen := f.waitStatus(t, workspace, session, "closed").Reopen
+	require.NotNil(t, reopen)
+	assert.Equal(t, []string{"reopen", "agents.resume"}, []string{reopen.ID, reopen.Command})
+	require.NoError(t, f.run(t, workspace, reopen.Command, map[string]any{"session": reopen.Args["session"]}, nil))
+	f.waitStatus(t, workspace, session, "idle")
 }
 
 func TestResume(t *testing.T) {
@@ -1758,6 +1780,9 @@ func TestContinueHandsOff(t *testing.T) {
 	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
 		return slices.ContainsFunc(cardsOf(n, "button"), func(b sdui.Node) bool { return b.ID == old+"/continue" })
 	})
+	reopen := f.session(t, workspace, old).Reopen
+	require.NotNil(t, reopen)
+	assert.Equal(t, []string{"continue", "agents.handoff"}, []string{reopen.ID, reopen.Command})
 	f.h.Event(t, workspace, "agents.main", old+"/continue", "continue", nil)
 
 	var list []record
@@ -1770,7 +1795,10 @@ func TestContinueHandsOff(t *testing.T) {
 		return len(cardsOf(n, "transcript")) == 1 && cardsOf(n, "transcript")[0].ID == fresh.ID+"/transcript"
 	})
 	assert.Equal(t, old, fresh.HandoffFrom)
-	assert.Equal(t, fresh.ID, f.session(t, workspace, old).HandoffTo)
+	handedOff := f.session(t, workspace, old)
+	assert.Equal(t, fresh.ID, handedOff.HandoffTo)
+	assert.Nil(t, handedOff.Reopen)
+	assert.Nil(t, fresh.Reopen)
 }
 
 func TestHandoff(t *testing.T) {

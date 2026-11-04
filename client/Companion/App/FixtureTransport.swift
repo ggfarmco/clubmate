@@ -943,6 +943,8 @@ actor FixtureServer {
         let group = status == "closed" ? "closed" : fields["needsYou"] == .bool(true) ? "needsYou" : service ? "service" : status == "running" ? "running" : "done"
         fields["group"] = .string(group)
         fields["active"] = .bool(!service && (status == "running" || status == "waiting"))
+        let id = fields["id"] ?? .null
+        fields["reopen"] = status == "closed" && fields["handoffTo"] == nil ? .object(["id": .string("reopen"), "label": .string("Reopen"), "icon": .string("arrow.clockwise"), "command": .string("agents.resume"), "args": .object(["session": id])]) : nil
     }
 
     private static func failureAction(_ session: String) -> JSONValue {

@@ -31,6 +31,7 @@ const (
 	recoverSignIn   = "signin"
 	recoverRetry    = "retry"
 	recoverContinue = "continue"
+	recoverReopen   = "reopen"
 )
 
 type (
@@ -209,6 +210,13 @@ func failureActions(sid string, needsAuth, cannotResume bool) []failureAction {
 		return []failureAction{continueAction(sid)}
 	}
 	return []failureAction{{ID: recoverRetry, Label: "Retry", Icon: "arrow.clockwise", Command: "agents.resume", Args: map[string]string{"session": sid}, action: actRetry}}
+}
+
+func reopenAction(sid string, cannotResume bool) failureAction {
+	if cannotResume {
+		return continueAction(sid)
+	}
+	return failureAction{ID: recoverReopen, Label: "Reopen", Icon: "arrow.clockwise", Command: "agents.resume", Args: map[string]string{"session": sid}, action: actRetry}
 }
 
 func continueAction(sid string) failureAction {

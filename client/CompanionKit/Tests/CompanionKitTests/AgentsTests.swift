@@ -13,6 +13,7 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(sessions[1].pendingSummary?.kind, .question)
         XCTAssertEqual(sessions[1].question, "Should I add retries to the charge step?")
         XCTAssertEqual(sessions[0].modeLabel, "Ask before edits")
+        XCTAssertEqual(sessions.map(\.reopen?.command), [nil, nil, "agents.handoff"])
         XCTAssertEqual(sessions[0].createdAt, Date.parseRFC3339("2026-10-30T09:41:00Z"))
         XCTAssertEqual(AgentSession.grouped(sessions).map { $0.group }, [.needsInput, .closed])
         XCTAssertEqual(AgentSession.grouped(sessions)[0].sessions.map(\.id).sorted(), ["agt_0000000000000001", "agt_0000000000000002"])

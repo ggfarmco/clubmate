@@ -135,10 +135,7 @@ func mainView(sc screen) sdui.Node {
 		return sdui.VStack(children...)
 	}
 	if rec.closed() {
-		reopen := sdui.WithAction(sdui.Button(sid+"/reopen", "Reopen", "arrow.clockwise"), actRetry)
-		if sc.Continue {
-			reopen = failureButton(sid, continueAction(sid))
-		}
+		reopen := failureButton(sid, reopenAction(sid, sc.Continue))
 		closed := "The session is closed; its transcript stays readable."
 		if rec.AutoClosed {
 			closed = "Closed automatically an hour after it finished; its transcript stays readable."

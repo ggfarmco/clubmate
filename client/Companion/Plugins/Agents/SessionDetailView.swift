@@ -173,6 +173,13 @@ struct SessionDetailView: View {
                         blocked: answerDocked || !failureButtons.isEmpty || reviewable ? nil : blocked,
                         sending: sending,
                         wide: stopInHeader,
+                        reopen: { action in
+                            perform {
+                                if let next = try await store.recover(sessionID, with: action) {
+                                    context.navigation.detail = next
+                                }
+                            }
+                        },
                         send: send
                     )
                 }
@@ -579,6 +586,7 @@ struct ComposerView: View {
     var blocked: String? = nil
     let sending: Bool
     var wide = false
+    var reopen: (FailureAction) -> Void = { _ in }
     let send: () -> Void
     @State private var picked: [PhotosPickerItem] = []
     @State private var importing = 0
@@ -596,6 +604,29 @@ struct ComposerView: View {
         draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty
     }
 
+    private func closedLabel(short: Bool) -> some View {
+        let auto = session?.autoClosed == true
+        return Label(short ? (auto ? "Auto-closed" : "Closed") : (auto ? "Closed automatically" : "This session is closed"), systemImage: "archivebox")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+            .glassEffect()
+    }
+
+    @ViewBuilder
+    private var reopenButton: some View {
+        if let action = session?.reopen {
+            Button(action.label, systemImage: action.icon) { reopen(action) }
+                .font(.callout.weight(.semibold))
+                .lineLimit(1)
+                .buttonStyle(.glassProminent)
+                .controlSize(.large)
+                .disabled(!enabled || blocked != nil)
+        }
+    }
+
     private var placeholder: String {
         session?.composerPlaceholder ?? "What should the agent do?"
     }
@@ -604,12 +635,11 @@ struct ComposerView: View {
         if session?.isClosed == true {
             HStack(spacing: 10) {
                 ComposerMic()
-                Label(session?.autoClosed == true ? "Closed automatically" : "This session is closed", systemImage: "archivebox")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 12)
-                    .glassEffect()
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) { closedLabel(short: false); reopenButton }
+                    HStack(spacing: 10) { closedLabel(short: true); reopenButton }
+                    reopenButton
+                }
             }
             .padding(.bottom, 8)
         } else {

@@ -33,6 +33,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let needsYouSince: Date?
     public let activity: SessionActivity?
     public let failure: SessionFailure?
+    public let reopen: FailureAction?
     public let modeLabel: String?
     public let autoClosed: Bool
     public let review: Bool
@@ -51,7 +52,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         createdAt: Date = .distantPast, updatedAt: Date? = nil, asks: Bool = false,
         notify: NotificationPolicy? = nil, error: String? = nil, pending: [String] = [], notifyEffective: NotificationPolicy = .all,
         childStatus: AgentSessionStatus? = nil, pendingSummary: PendingSummary? = nil, question: String? = nil, turnStartedAt: Date? = nil, needsYou: Bool? = nil,
-        needsYouSince: Date? = nil, activity: SessionActivity? = nil, failure: SessionFailure? = nil, modeLabel: String? = nil,
+        needsYouSince: Date? = nil, activity: SessionActivity? = nil, failure: SessionFailure? = nil, reopen: FailureAction? = nil, modeLabel: String? = nil,
         autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false, group: SessionGroup? = nil, active: Bool = false, kind: String? = nil, run: SessionRun? = nil,
         reviewProgress: ReviewProgress? = nil
     ) {
@@ -87,6 +88,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.needsYouSince = needsYouSince
         self.activity = activity
         self.failure = failure
+        self.reopen = reopen
         self.modeLabel = modeLabel
         self.autoClosed = autoClosed
         self.review = review
@@ -104,7 +106,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
-        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, modeLabel, autoClosed, review, asksParent, service, group, active, kind, run, reviewProgress
+        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, active, kind, run, reviewProgress
     }
 
     public init(from decoder: any Decoder) throws {
@@ -147,6 +149,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             needsYouSince: date(.needsYouSince),
             activity: try? c.decodeIfPresent(SessionActivity.self, forKey: .activity),
             failure: try? c.decodeIfPresent(SessionFailure.self, forKey: .failure),
+            reopen: try? c.decodeIfPresent(FailureAction.self, forKey: .reopen),
             modeLabel: try optional(.modeLabel),
             autoClosed: try flag(.autoClosed),
             review: try flag(.review),
@@ -196,6 +199,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encodeIfPresent(needsYouSince.map(formatter.string(from:)), forKey: .needsYouSince)
         try c.encodeIfPresent(activity, forKey: .activity)
         try c.encodeIfPresent(failure, forKey: .failure)
+        try c.encodeIfPresent(reopen, forKey: .reopen)
         try c.encodeIfPresent(modeLabel, forKey: .modeLabel)
         try c.encode(autoClosed, forKey: .autoClosed)
         try c.encode(review, forKey: .review)

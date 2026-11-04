@@ -72,6 +72,15 @@
     "notifyEffective": "all",
     "needsYou": false,
     "group": "closed",
+    "reopen": {
+      "id": "continue",
+      "label": "Hand off to a new session",
+      "icon": "arrow.turn.down.right",
+      "command": "agents.handoff",
+      "args": {
+        "session": "agt_0000000000000003"
+      }
+    },
     "modeLabel": "Ask before edits"
   }
 ]

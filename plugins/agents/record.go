@@ -89,6 +89,7 @@ type sessionInfo struct {
 	Activity        *toolActivity   `json:"activity,omitempty"`
 	ChildStatus     string          `json:"childStatus,omitempty"`
 	Failure         *sessionFailure `json:"failure,omitempty"`
+	Reopen          *failureAction  `json:"reopen,omitempty"`
 	ModeLabel       string          `json:"modeLabel,omitempty"`
 	ReviewProgress  *reviewProgress `json:"reviewProgress,omitempty"`
 }

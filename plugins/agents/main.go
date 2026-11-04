@@ -323,6 +323,13 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			failure.Actions = failureActions(rec.ID, needsAuth, cannotResume)
 			info.Failure = &failure
 		}
+		if rec.closed() && rec.HandoffTo == "" {
+			a.uiMu.Lock()
+			_, cannotResume := a.recoveryLocked(rec)
+			a.uiMu.Unlock()
+			reopen := reopenAction(rec.ID, cannotResume)
+			info.Reopen = &reopen
+		}
 		if info.PendingSummary == nil && info.Asks && rec.Question != "" {
 			info.PendingSummary = &pendingSummary{Kind: pendingQuestion, Text: rec.Question, At: rec.UpdatedAt}
 		}
