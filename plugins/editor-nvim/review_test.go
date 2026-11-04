@@ -31,6 +31,7 @@ type fakeReviewer struct {
 	metas    []reviewMeta
 	tabs     []reviewTab
 	tab      int
+	reads    int
 }
 
 func (f *fakeReviewer) reviewFilters(int) (reviewFilters, error) {
@@ -76,6 +77,7 @@ func (f *fakeReviewer) reviewEntries(int) ([]reviewEntry, error) {
 func (f *fakeReviewer) reviewComments(int) ([]reviewComment, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.reads++
 	return slices.Clone(f.comments), nil
 }
 
@@ -383,15 +385,16 @@ func TestReviewDBChangesCoalesce(t *testing.T) {
 	a.reviewDBDelay = 50 * time.Millisecond
 	nv := &fakeReviewer{entries: []reviewEntry{{Path: "a.go", Kind: "modified", Category: "code"}}}
 	openTestReview(t, a, h, nv)
-	poked := func() int {
+	reads := func() int {
 		nv.mu.Lock()
 		defer nv.mu.Unlock()
-		return nv.pokes
+		return nv.reads
 	}
+	base := reads()
 	for range 3 {
 		a.scheduleReviewDB(h, "ws")
 	}
-	assert.Zero(t, poked())
-	require.Eventually(t, func() bool { return poked() == 1 }, time.Second, 5*time.Millisecond)
-	assert.Never(t, func() bool { return poked() > 1 }, 150*time.Millisecond, 10*time.Millisecond)
+	assert.Equal(t, base, reads())
+	require.Eventually(t, func() bool { return reads() == base+1 }, time.Second, 5*time.Millisecond)
+	assert.Never(t, func() bool { return reads() > base+1 }, 150*time.Millisecond, 10*time.Millisecond)
 }
