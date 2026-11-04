@@ -29,7 +29,6 @@ struct DocumentNodeView: View {
         DocumentWebView(content: content, theme: theme.document, size: fit ? .fit : .fill, zoom: fit ? nil : zoom, find: fit ? nil : find) { link in
             open(link)
         }
-        .padding(.horizontal, fit ? theme.gutter : 0)
         .frame(maxWidth: .infinity, maxHeight: fit ? nil : .infinity)
         .overlay(alignment: .topTrailing) {
             if !fit, let find, find.visible {

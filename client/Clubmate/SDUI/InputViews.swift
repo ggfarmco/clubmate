@@ -423,7 +423,6 @@ struct TextFieldNodeView: View {
     @Environment(\.theme) private var theme
     @Environment(\.focusRouter) private var router
     @Environment(\.sidebarSlot) private var sidebarSlot
-    @Environment(\.fieldGutter) private var gutter
     @Environment(\.filePicker) private var filePicker
 
     private static let liveDelay: Duration = .milliseconds(250)
@@ -452,7 +451,6 @@ struct TextFieldNodeView: View {
             .frame(minWidth: 160, minHeight: theme.control, alignment: lines == nil ? .center : .topLeading)
             .fieldChrome(focused: focused || targeted, error: node.string("error"), dashed: drops)
             .modifier(FileDrop(active: drops, targeted: $targeted, drop: drop))
-            .padding(.horizontal, gutter ? theme.gutter : 0)
             .onSubmit(submit)
             .onChange(of: focused) { _, now in
                 if !now { form?.flush() }
@@ -547,7 +545,6 @@ struct ToggleNodeView: View {
     var body: some View {
         control
             .tint(theme.accent)
-            .padding(.horizontal, theme.gutter)
             .onChange(of: node.bool("value"), initial: true) { _, value in
                 isOn = node.id.flatMap { form?.draft($0)?.boolValue } ?? value ?? false
             }
@@ -622,7 +619,6 @@ struct SelectNodeView: View {
         .padding(.horizontal, theme.spacing.m)
         .frame(height: theme.control)
         .fieldChrome(focused: false, error: node.string("error"))
-        .padding(.horizontal, theme.gutter)
         .onChange(of: node.string("value"), initial: true) { _, current in
             value = node.id.flatMap { form?.draft($0)?.stringValue } ?? current ?? options.first?.value ?? ""
         }

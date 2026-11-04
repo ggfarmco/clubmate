@@ -12,6 +12,7 @@
 | Expanded last item stays off-screen | No scroll after expanding | `scrollTo(edge: .bottom)` when the last item opens | b8865b0 |
 | Fuzzy picker list jumps, wrong row scrolled | `ForEach`/`scrollTo` keyed by index | Stable `id`, `scrollTo(item.id)` with bounds check | e0dc3f9 |
 | Tree cursor hides rows under sticky headers | `scrollTo(id)` ignores pinned headers | `TreeCursor.scrollTarget(..., limit:)` | 237cff4 |
+| Trigger flow's first port dot and focus ring touch the sidebar divider | Every leaf renderer padded itself by the gutter and `FlowNodeView` forgot | The gutter moved into `SDUINodeView` (`SDUIGutter.pads`), renderers no longer pad themselves | c34c1cbf, refactor(sdui) pane gutter |
 | Overlay shortcut closes the overlay instead of focusing it | Toggle ignores focus | Focus the field if the overlay is open | e0dc3f9 |
 | Rail not reachable by keyboard | `onTapGesture` | Real `Button` with `.buttonStyle(.plain)` | 857a76c |
 | Key monitor eats terminal keys or leaks | No first-responder check, no teardown | Shared `.keyMonitor(active:handle:)` | 1627793, 48176d7 |

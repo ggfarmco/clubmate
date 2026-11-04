@@ -26,7 +26,6 @@ struct RunstripNodeView: View {
                 } trailing: {
                     RunLegend(legend: strip.legend)
                 }
-                .padding(.horizontal, theme.gutter)
             }
             if open {
                 axis(strip)
@@ -74,7 +73,6 @@ struct RunstripNodeView: View {
         .frame(height: 62 * k)
         .frame(maxWidth: .infinity)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-        .padding(.horizontal, theme.gutter)
     }
 
     private func axisY(_ k: CGFloat) -> CGFloat {

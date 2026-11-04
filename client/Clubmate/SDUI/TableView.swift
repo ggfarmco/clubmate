@@ -298,7 +298,6 @@ struct SparklineNodeView: View {
     var body: some View {
         if let spark = node.spark() {
             SparklineView(spark: spark, height: node.sparklineHeight().map { CGFloat($0) })
-                .padding(.horizontal, theme.gutter)
         }
     }
 }

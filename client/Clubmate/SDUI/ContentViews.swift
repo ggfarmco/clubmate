@@ -34,7 +34,6 @@ struct TextNodeView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.background))
                 .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(theme.border, lineWidth: 1))
-                .padding(.horizontal, theme.gutter)
         } else if node.string("style") == "title" {
             Text(text)
                 .font(theme.title)
@@ -43,16 +42,13 @@ struct TextNodeView: View {
                 .truncationMode(.label)
                 .help(text)
                 .layoutPriority(1)
-                .padding(.horizontal, theme.gutter)
         } else if let lines {
             ClampedText(text: text, lines: lines, color: color)
-                .padding(.horizontal, theme.gutter)
         } else {
             Text(text)
                 .font(theme.ui)
                 .foregroundStyle(color)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, theme.gutter)
         }
     }
 
@@ -109,7 +105,6 @@ struct BadgeNodeView: View {
 
     var body: some View {
         BadgeLabel(text: node.string("text") ?? "", tone: theme.tone(node.string("tone")))
-            .padding(.horizontal, theme.gutter)
     }
 }
 
@@ -159,7 +154,6 @@ struct IconNodeView: View {
         Image(systemName: SymbolName.resolve(node.string("name")))
             .font(theme.ui)
             .foregroundStyle(theme.tone(node.string("tone")) ?? theme.foreground)
-            .padding(.horizontal, theme.gutter)
     }
 }
 
@@ -175,7 +169,6 @@ struct MarkdownNodeView: View {
             .foregroundStyle(theme.foreground)
             .tint(theme.accent)
             .textSelection(.enabled)
-            .padding(.horizontal, theme.gutter)
     }
 }
 
@@ -193,7 +186,6 @@ struct DiffNodeView: View {
         }
         .font(theme.mono)
         .textSelection(.enabled)
-        .padding(.horizontal, theme.gutter)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -256,7 +248,7 @@ struct HeaderNodeView: View {
             if let field = node.headerField {
                 SDUINodeView(node: field.node)
                     .equatable()
-                    .environment(\.fieldGutter, false)
+                    .environment(\.sduiGutter, false)
                     .frame(width: Self.filterWidth)
             }
             ForEach(node.headerBar) { child in
@@ -422,8 +414,9 @@ struct HeaderNodeView: View {
         if let field = node.headerField {
             SDUINodeView(node: field.node)
                 .equatable()
-                .frame(maxWidth: Self.filterWidth)
-                .padding(.leading, -theme.gutter)
+                .environment(\.sduiGutter, false)
+                .frame(maxWidth: Self.filterWidth - theme.gutter * 2)
+                .padding(.trailing, theme.gutter)
         }
     }
 
@@ -671,7 +664,6 @@ struct UnsupportedNodeView: View {
         Text("unsupported: \(type)")
             .font(theme.uiSmall)
             .foregroundStyle(theme.muted)
-            .padding(.horizontal, theme.gutter)
     }
 }
 
@@ -685,10 +677,6 @@ private struct ButtonKeyHintKey: EnvironmentKey {
 
 private struct ButtonIsDefaultKey: EnvironmentKey {
     static let defaultValue = false
-}
-
-private struct FieldGutterKey: EnvironmentKey {
-    static let defaultValue = true
 }
 
 extension EnvironmentValues {
@@ -705,10 +693,5 @@ extension EnvironmentValues {
     var buttonIsDefault: Bool {
         get { self[ButtonIsDefaultKey.self] }
         set { self[ButtonIsDefaultKey.self] = newValue }
-    }
-
-    var fieldGutter: Bool {
-        get { self[FieldGutterKey.self] }
-        set { self[FieldGutterKey.self] = newValue }
     }
 }

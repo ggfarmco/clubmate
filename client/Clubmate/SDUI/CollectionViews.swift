@@ -26,7 +26,6 @@ struct TabsNodeView: View {
             }
         }
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, theme.gutter)
         .padding(.vertical, theme.spacing.s)
         .onChange(of: node.string("selected"), initial: true) { _, value in
             selected = value ?? ""

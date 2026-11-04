@@ -239,9 +239,20 @@ struct SDUINodeView: View, Equatable {
         lhs.node == rhs.node
     }
 
+    @Environment(\.sduiGutter) private var gutter
+
     var body: some View {
         if TestMode.current {
-            content.modifier(SDUIProbe(node: node))
+            inset.modifier(SDUIProbe(node: node))
+        } else {
+            inset
+        }
+    }
+
+    @ViewBuilder
+    private var inset: some View {
+        if gutter, SDUIGutter.pads(node) {
+            content.modifier(GutterInset())
         } else {
             content
         }
@@ -302,4 +313,35 @@ struct SDUIChildren: View {
             SDUINodeView(node: child.node).equatable()
         }
     }
+}
+
+enum SDUIGutter {
+    static func pads(_ node: SDUINode) -> Bool {
+        switch node.type {
+        case "stack", "split", "scroll", "spacer", "form", "sheet", "card":
+            false
+        case "list", "tree", "table", "header", "empty", "graph", "composer", "surface", "webview":
+            false
+        case "transcript", "message", "plan", "toolCard", "permissionCard":
+            false
+        case "button", "folderField", "progress":
+            false
+        case "document":
+            node.string("size") == "fit"
+        default:
+            true
+        }
+    }
+}
+
+private struct GutterInset: ViewModifier {
+    @Environment(\.theme) private var theme
+
+    func body(content: Content) -> some View {
+        content.padding(.horizontal, theme.gutter)
+    }
+}
+
+extension EnvironmentValues {
+    @Entry var sduiGutter = true
 }

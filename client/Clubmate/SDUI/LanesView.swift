@@ -31,7 +31,6 @@ struct LanesNodeView: View {
                 }
             }
         }
-        .padding(.horizontal, theme.gutter)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .focusable()
         .focusEffectDisabled()

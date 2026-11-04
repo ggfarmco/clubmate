@@ -42,6 +42,7 @@ Neighbouring code may be the bug (the `/` command popup was an uncapped `VStack`
 
 - **List or popup**: `LazyVStack` in `ScrollView`, `.frame(height: rowHeight * min(count, 8))`, `.id(item.id)` on rows, `scrollTo(id)` when the highlight moves, an empty-state text.
 - **ScrollView inside a stack**: `.clipped()`.
+- **Pane gutter**: an SDUI renderer never pads itself by `theme.gutter` on the outside. `SDUINodeView` insets every node by one gutter, except the types `SDUIGutter.pads` (`SDUI/SDUIView.swift`) lists: containers, nodes with edge-to-edge rows or rules (list, tree, table, header), and ones that lay out their own insets (empty, graph, composer, transcript cards, button). A new node type gets the gutter for free; one that must draw to the edge is added to that list, never undone with a negative padding. `.environment(\.sduiGutter, false)` drops it for a subtree that places its children itself (the header filter field).
 - **Row of controls**: fits at 640pt. `ViewThatFits(in: .horizontal)` with one row, then a wrapped `FlowLayout`; container `.frame(minWidth: 0, maxWidth: .infinity)`; no fixed `minWidth` on fields.
 - **Label**: `.lineLimit(1)`, `.truncationMode(.label)` (`.path` for a file path; both in `Theme/Theme.swift`), `.help(full)`; the identifying part gets `.layoutPriority(1)`.
 - **Selected row**: `theme.selected` plus a 2pt `theme.accent` leading bar in the focused pane, `theme.selectedIdle` without a bar elsewhere (`ItemRow(active:)`); hover `theme.hover`; a keyboard cursor apart from the selection gets a `theme.focusRing` stroke.
