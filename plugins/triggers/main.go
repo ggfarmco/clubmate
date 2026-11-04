@@ -144,6 +144,12 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	var id string
 	switch ev.Slot {
 	case mainSlot:
+		if ev.NodeID == eventsID {
+			return nil, a.askFromRow(ctx, ev)
+		}
+		if ev.NodeID == helpID+"/"+actAsk {
+			return nil, a.askAgent(ctx, ev.WorkspaceID, "")
+		}
 		if ev.NodeID == automation.HistoryID {
 			if ev.Action == actOpenSession {
 				return nil, a.openSession(ctx, ev)
@@ -268,7 +274,7 @@ func (a *app) drawnEvent(ctx context.Context, ev pluginsdk.UIEvent) error {
 
 func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	triggers := a.registry.InWorkspace(workspace)
-	current, selected, err := automation.Selection(ctx, a.host, workspace, triggers)
+	current, selected, err := a.selection(ctx, workspace, triggers)
 	if err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
@@ -299,6 +305,28 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
 	return nil
+}
+
+func (a *app) selection(ctx context.Context, workspace string, triggers []*Trigger) (*Trigger, string, error) {
+	var stored string
+	if _, err := a.host.StorageGet(ctx, automation.SelectedKey(workspace), &stored); err != nil {
+		return nil, "", err
+	}
+	if stored == helpID || len(triggers) == 0 {
+		return nil, helpID, nil
+	}
+	return automation.Selection(ctx, a.host, workspace, triggers)
+}
+
+func (a *app) askFromRow(ctx context.Context, ev pluginsdk.UIEvent) error {
+	if ev.Action != actAsk {
+		return nil
+	}
+	var topic string
+	if err := json.Unmarshal(ev.Value, &topic); err != nil {
+		return fmt.Errorf("%s value: %w", ev.Action, err)
+	}
+	return a.askAgent(ctx, ev.WorkspaceID, topic)
 }
 
 func (a *app) fold(workspace, id string, collapsed bool) {

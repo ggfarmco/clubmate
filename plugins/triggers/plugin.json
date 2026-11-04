@@ -6,6 +6,7 @@
   "command": ["triggers"],
   "contributes": {
     "shortcuts": [
+      {"keys": "cmd+n", "action": "Ask an agent to add a trigger"},
       {"keys": "cmd+r", "action": "Run the trigger now"},
       {"keys": "p", "action": "Pause or resume the trigger"},
       {"keys": "g", "action": "Open the graph run that created the trigger"},
@@ -13,6 +14,11 @@
     ],
     "sections": [{"id": "triggers", "title": "Triggers", "icon": "bolt", "order": 36}],
     "commands": [
+      {
+        "id": "triggers.new",
+        "title": "Ask an agent to add a trigger",
+        "description": "Start an agent session that asks you what the trigger should wait for and do, then adds it, and show it in Agents."
+      },
       {
         "id": "triggers.add",
         "title": "Add trigger",

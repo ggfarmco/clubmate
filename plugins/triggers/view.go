@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"clubmate/pkg/sdui"
-	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/automation"
 )
 
@@ -29,10 +28,8 @@ const (
 )
 
 func sidebarView(triggers []*Trigger, selected string, collapsed map[string]bool, titles map[string]string) sdui.Node {
-	if len(triggers) == 0 {
-		return sdui.Empty("No triggers yet")
-	}
-	var items, groups []sdui.TreeItem
+	items := []sdui.TreeItem{helpItem()}
+	var groups []sdui.TreeItem
 	index := map[string]int{}
 	for _, t := range triggers {
 		item := triggerItem(t, titles)
@@ -71,11 +68,8 @@ func triggerItem(t *Trigger, titles map[string]string) sdui.TreeItem {
 }
 
 func mainView(t *Trigger, triggers []*Trigger, titles map[string]string, shape *graphShape, open automation.Open, runs automation.RunsView) sdui.Node {
-	if len(triggers) == 0 {
-		return emptyView()
-	}
 	if t == nil {
-		return sdui.Empty("Select a trigger")
+		return helpView(triggers)
 	}
 	props := sdui.HeaderProps{Icon: headerIcon(t), Badges: automation.StateBadges(t.Enabled, t.History)}
 	var actions []sdui.Node
@@ -181,18 +175,18 @@ func topicPhrase(on string) string {
 	switch {
 	case on == manualTopic:
 		return "run now"
-	case on == api.TopicTurn:
-		return "an agent turn finishes"
-	case on == api.TopicChanged:
-		return "an agent session changes"
 	case strings.HasPrefix(on, graphOutcome):
-		return "a graph step reports its outcome"
-	case on == emitPrefix+"*":
+		k, _ := catalogRow(on)
+		return k.phrase
+	case on == emitAny:
 		return "any event is emitted"
 	case strings.HasPrefix(on, emitPrefix):
 		return "the event “" + strings.TrimPrefix(on, emitPrefix) + "” is emitted"
 	case strings.HasSuffix(on, ".*"):
 		return "any “" + strings.TrimSuffix(on, ".*") + "” event arrives"
+	}
+	if phrase, ok := catalogPhrase(on); ok {
+		return phrase
 	}
 	return "“" + on + "” arrives"
 }

@@ -77,6 +77,8 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 		return a.registry.Show(cmd)
 	case "triggers.emit":
 		return a.emit(ctx, cmd)
+	case "triggers.new":
+		return nil, a.askAgent(ctx, cmd.WorkspaceID, "")
 	}
 	defer a.registry.Flush(ctx)
 	switch cmd.ID {

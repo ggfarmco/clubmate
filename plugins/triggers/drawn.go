@@ -35,7 +35,6 @@ const (
 	maxCards        = 8
 	maxEdges        = 32
 	maxActors       = 8
-	emptyText       = "A trigger waits for an event and then acts. Agents add them to chain sessions, and every edge of a graph run is one."
 )
 
 type edge struct {
@@ -357,6 +356,9 @@ func causeLabel(t *Trigger, titles map[string]string) string {
 	case strings.HasPrefix(t.On, notifyPrefix):
 		return "notifications"
 	}
+	if k, ok := catalogRow(t.On); ok && k.topic == t.On && k.group != "" {
+		return k.group
+	}
 	return t.On
 }
 
@@ -385,6 +387,9 @@ func outWords(topic, status string) string {
 		return "posts " + status
 	case strings.HasPrefix(topic, notifyPrefix):
 		return "posted"
+	}
+	if phrase, ok := catalogPhrase(topic); ok {
+		return phrase
 	}
 	return "arrives"
 }
@@ -467,24 +472,6 @@ func drawnRuns(t *Trigger, triggers []*Trigger, titles map[string]string, shape 
 	}
 	lanes = runLanes(t, cause, sdui.LaneActor{Label: effectLabel(t, titles), Icon: agentIcon}, "", titles, loc)
 	return caption, flow, lanes, true
-}
-
-func emptyView() sdui.Node {
-	ghost := func(labels ...string) []sdui.FlowOut {
-		outs := make([]sdui.FlowOut, len(labels))
-		for i, l := range labels {
-			outs[i] = sdui.FlowOut{ID: strconv.Itoa(i), Label: l, State: sdui.EdgeGhost}
-		}
-		return outs
-	}
-	flow := sdui.Flow("empty"+flowSuffix, sdui.FlowProps{
-		Cards: []sdui.FlowCard{
-			{ID: "when", Label: "When", Ghost: true, Outs: ghost("an agent turn finishes", "a cron job's session", "an agent emits an event")},
-			{ID: "does", Label: "Does", Ghost: true, Outs: ghost("start an agent", "prompt a session", "run a plugin command")},
-		},
-		Edges: []sdui.FlowEdge{{From: "when", Out: "0", To: "does", State: sdui.EdgeGhost}},
-	})
-	return sdui.EmptyState(emptyText, sdui.EmptyProps{Title: "No triggers", Icon: "bolt", Action: &flow})
 }
 
 func chainTitles(t *Trigger, titles map[string]string) map[string]string {

@@ -90,11 +90,11 @@ func TestCronEmitFiresTrigger(t *testing.T) {
 	require.Len(t, events, 1)
 	assert.Equal(t, "n=7", events[0].Payload.Message)
 
-	f.h.WaitSlot(t, f.workspace, "triggers.sidebar", func(n sdui.Node) bool { return firstIcon(n) == "bolt" })
+	f.h.WaitSlot(t, f.workspace, "triggers.sidebar", func(n sdui.Node) bool { return triggerIcon(n) == "bolt" })
 	f.h.Event(t, f.workspace, "triggers.sidebar", "triggers", "pause", added.ID)
-	f.h.WaitSlot(t, f.workspace, "triggers.sidebar", func(n sdui.Node) bool { return firstIcon(n) == "pause.circle" })
+	f.h.WaitSlot(t, f.workspace, "triggers.sidebar", func(n sdui.Node) bool { return triggerIcon(n) == "pause.circle" })
 	f.h.Event(t, f.workspace, "triggers.main", added.ID+"/resume", "resume", nil)
-	f.h.WaitSlot(t, f.workspace, "triggers.sidebar", func(n sdui.Node) bool { return firstIcon(n) == "bolt" })
+	f.h.WaitSlot(t, f.workspace, "triggers.sidebar", func(n sdui.Node) bool { return triggerIcon(n) == "bolt" })
 }
 
 func TestAddRejectsLoopsAndCatchAll(t *testing.T) {
@@ -120,12 +120,12 @@ func TestAddRejectsLoopsAndCatchAll(t *testing.T) {
 	}
 }
 
-func firstIcon(n sdui.Node) string {
+func triggerIcon(n sdui.Node) string {
 	items, _ := n.Props["items"].([]any)
-	if len(items) == 0 {
+	if len(items) < 2 {
 		return ""
 	}
-	item, _ := items[0].(map[string]any)
+	item, _ := items[1].(map[string]any)
 	icon, _ := item["icon"].(string)
 	return icon
 }

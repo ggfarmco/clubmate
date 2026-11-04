@@ -28,12 +28,12 @@ func TestGraphTriggersGroupUnderTheirRun(t *testing.T) {
 	require.NoError(t, isdui.Validate(side))
 	items, ok := side.Props["items"].([]sdui.TreeItem)
 	require.True(t, ok)
-	require.Len(t, items, 2)
-	assert.Equal(t, "tr_2", items[0].ID)
-	assert.Equal(t, []string{"from graph Review loop", "1"}, []string{items[1].Label, items[1].Detail})
-	assert.False(t, items[1].Expanded)
-	assert.True(t, items[1].Action)
-	assert.Equal(t, "Coder done → Reviewer", items[1].Children[0].Label)
+	require.Len(t, items, 3)
+	assert.Equal(t, []string{helpID, "tr_2"}, []string{items[0].ID, items[1].ID})
+	assert.Equal(t, []string{"from graph Review loop", "1"}, []string{items[2].Label, items[2].Detail})
+	assert.False(t, items[2].Expanded)
+	assert.True(t, items[2].Action)
+	assert.Equal(t, "Coder done → Reviewer", items[2].Children[0].Label)
 
 	shape := &graphShape{
 		Nodes: []shapeNode{{ID: "coder", Session: "agt_1", Start: true}, {ID: "reviewer", Session: "agt_2"}},
@@ -169,7 +169,8 @@ func TestCauseCardNamesTheEventNotTheLastSession(t *testing.T) {
 		{"notification of one kind", "notify.posted", `{"kind":"done"}`, "notifications", "bell", "posts done"},
 		{"notification of several kinds", "notify.posted", `{"kind":["done","stuck"]}`, "notifications", "bell", "posted"},
 		{"any session's turn", "agents.turn", `{"status":"done"}`, "agent turns", "sparkle", "turn ends · done"},
-		{"other plugin event", "git.changed", "", "git.changed", "bolt", "arrives"},
+		{"cataloged plugin event", "git.changed", "", "Git", "bolt", "the branch or worktree changes"},
+		{"other plugin event", "processes.killed", "", "processes.killed", "bolt", "arrives"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -182,4 +183,32 @@ func TestCauseCardNamesTheEventNotTheLastSession(t *testing.T) {
 			assert.Equal(t, []string{tt.label, tt.icon, tt.out}, []string{cards[0].Label, cards[0].Icon, cards[0].Outs[0].Label})
 		})
 	}
+}
+
+func TestHelpPageListsEventsWithYourTriggers(t *testing.T) {
+	turns := &Trigger{ID: "tr_1", Name: "Review", Enabled: true, On: "agents.turn,event.tidy.done", Command: automation.PromptCommand}
+	graph := &Trigger{ID: "tr_2", Name: "Step", Enabled: true, On: "event.graph.gr_1.review", Command: automation.PromptCommand}
+	view := mainView(nil, []*Trigger{turns, graph}, nil, nil, automation.Open{}, automation.RunsView{})
+	require.NoError(t, isdui.Validate(view))
+	assert.Equal(t, []string{helpID + "/" + actAsk}, childIDs(view.Children[0]))
+	assert.Equal(t, "cmd+n", view.Children[0].Children[0].Props["shortcut"])
+
+	rows, ok := find(view, "table").Props["rows"].([]sdui.TableRow)
+	require.True(t, ok)
+	yours := map[string]string{}
+	for _, r := range rows {
+		yours[r.ID] = r.Cells[3].Text
+		assert.Equal(t, actAsk, r.Cells[4].Action)
+	}
+	assert.Equal(t, "1 trigger", yours["agents.turn"])
+	assert.Equal(t, "1 trigger", yours["event.*"])
+	assert.Equal(t, "1 trigger", yours["event.graph.*"])
+	assert.Empty(t, yours["git.changed"])
+	assert.Equal(t, "the branch or worktree changes", whenLine(&Trigger{On: "git.changed"}, nil))
+}
+
+func TestAskPromptNamesTheEvent(t *testing.T) {
+	assert.Contains(t, askPrompt("event.*"), "fires when an agent or a cron job emits an event (on: event.<name>)")
+	assert.Contains(t, askPrompt(""), "owner none")
+	assert.NotContains(t, askPrompt(""), "fires when")
 }

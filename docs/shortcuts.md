@@ -8,7 +8,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 
 | Keys | Action | Where defined |
 |---|---|---|
-| ⌘N | New (terminal or item in the current section; in Backlog it focuses the new task field) | `ClubmateApp.swift` |
+| ⌘N | New (terminal or item in the current section; in Backlog it focuses the new task field, in Triggers it starts an agent session that asks you for a trigger and adds it) | `ClubmateApp.swift` |
 | ⇧⌘N | New Home Terminal | `ClubmateApp.swift` |
 | ⌘O | Open Folder… | `ClubmateApp.swift` |
 | ⇧⌘D | Open Doc…: fuzzy picker over `docs.list` (agent-written docs first), ↩ opens the doc in the popup | `ClubmateApp.swift` |
@@ -71,6 +71,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌥1 / ⌥2 / ⌥3 | A graph step waiting for approval: Allow once / Always allow… (asks first) / Reject | graphs |
 | ⌘. | Stop the graph run (confirmed) | graphs |
 | G | Open the graph run that created the trigger | triggers |
+| ⌘N | Ask an agent to add a trigger (How triggers work; the app menu's ⌘N does the same anywhere in Triggers), ↩ on an event row asks for a trigger on that event | triggers |
 | D | Mark the task done | backlog |
 | ⌘S | Save the task now (the form also autosaves) | backlog |
 | E | Edit the cron job; in the form, cancel the edit | cron |
