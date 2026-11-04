@@ -635,6 +635,11 @@ func TestPendingRequestsPostNotifications(t *testing.T) {
 	f.waitStatus(t, workspace, session, "waiting")
 	perms := ofKind(f.transcript(t, workspace, session).Entries, "permission")
 	require.Len(t, perms, 1)
+	testutil.Eventually(t, func() bool {
+		events, err := f.h.Bus.Read(t.Context(), "notify.posted", 0, 100)
+		require.NoError(t, err)
+		return len(events) == 1
+	}, wait)
 	f.answerPermission(t, workspace, session, perms[0].ID)
 	f.waitStatus(t, workspace, session, "waiting")
 

@@ -156,17 +156,21 @@ func TestRestartReplacesRunningPlugin(t *testing.T) {
 	}, 5*time.Second)
 	assert.False(t, testutil.Alive(old))
 	assert.Zero(t, h.Sup.Statuses()[0].Restarts)
-	events, err := h.Bus.Read(t.Context(), plugin.ChangedTopic, 0, 10)
-	require.NoError(t, err)
 	var payloads []string
-	for _, ev := range events {
-		payloads = append(payloads, string(ev.Payload))
-	}
+	testutil.Eventually(t, func() bool {
+		events, err := h.Bus.Read(t.Context(), plugin.ChangedTopic, 0, 10)
+		require.NoError(t, err)
+		payloads = payloads[:0]
+		for _, ev := range events {
+			payloads = append(payloads, string(ev.Payload))
+		}
+		return len(payloads) >= 3
+	}, 5*time.Second)
 	assert.Equal(t, []string{`{"id":"echo","running":true,"enabled":true}`, `{"id":"echo","running":false,"enabled":true}`, `{"id":"echo","running":true,"enabled":true}`}, payloads)
 	var echoed map[string]any
 	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "workspaceId": p.ID, "args": map[string]any{"text": "hi"}}, &echoed))
 	assert.Equal(t, "echo", echoed["plugin"])
-	err = c.Call(t.Context(), "plugin.restart", map[string]string{"id": "nope"}, nil)
+	err := c.Call(t.Context(), "plugin.restart", map[string]string{"id": "nope"}, nil)
 	assert.ErrorIs(t, err, rpc.ErrNotFound)
 }
 
