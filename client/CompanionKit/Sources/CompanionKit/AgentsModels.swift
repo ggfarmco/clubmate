@@ -698,6 +698,13 @@ public struct Elicitation: Sendable, Equatable {
         public var id: String { value }
     }
 
+    public struct Question: Sendable, Equatable, Identifiable {
+        public let field: Field
+        public let other: Field?
+
+        public var id: String { field.key }
+    }
+
     public struct Response: Decodable, Sendable, Equatable {
         public let action: String
         public let content: [String: JSONValue]?
@@ -720,10 +727,20 @@ public struct Elicitation: Sendable, Equatable {
 
     public var isURL: Bool { request.mode == "url" }
 
+    public var questions: [Question] { Self.questions(request.fields) }
+
     public var singleChoice: Field? {
-        let choices = request.fields.filter { $0.type == "choice" }
-        guard choices.count == 1, !request.fields.contains(where: { $0.type == "multi" || $0.type == "boolean" }) else { return nil }
-        return choices[0]
+        guard let only = questions.first, questions.count == 1, only.field.type == "choice" else { return nil }
+        return only.field
+    }
+
+    static func questions(_ fields: [Field]) -> [Question] {
+        let questions = fields.map { field in
+            let takesOther = field.type == "choice" || field.type == "multi"
+            return Question(field: field, other: takesOther ? fields.first { $0.key == field.key + "_custom" && $0.type == "text" } : nil)
+        }
+        let others = Set(questions.compactMap(\.other?.key))
+        return questions.filter { !others.contains($0.field.key) }
     }
 
     public var answer: String? {
@@ -764,11 +781,13 @@ public struct ElicitationDraft: Sendable, Equatable {
     public var picks: [String: Set<String>] = [:]
     public var texts: [String: String] = [:]
     public var toggles: [String: Bool] = [:]
+    public var opened: Set<String> = []
+    public var page = 0
 
     public init() {}
 
     public var isEmpty: Bool {
-        picks.isEmpty && texts.isEmpty && toggles.isEmpty
+        picks.isEmpty && texts.isEmpty && toggles.isEmpty && opened.isEmpty && page == 0
     }
 
     public mutating func toggle(_ field: Elicitation.Field, _ option: Elicitation.Option) {
@@ -783,8 +802,13 @@ public struct ElicitationDraft: Sendable, Equatable {
         picks[field.key] = set.isEmpty ? nil : set
     }
 
+    public mutating func toggleOther(_ other: Elicitation.Field) {
+        opened.formSymmetricDifference([other.key])
+    }
+
     public func answers(_ fields: [Elicitation.Field]) -> [Elicitation.Answer] {
-        fields.flatMap { field -> [Elicitation.Answer] in
+        let others = Set(Elicitation.questions(fields).compactMap(\.other?.key))
+        return fields.flatMap { field -> [Elicitation.Answer] in
             switch field.type {
             case "choice", "multi":
                 return field.options.filter { picks[field.key, default: []].contains($0.value) }.map { Elicitation.Answer(key: field.key, value: $0.value) }
@@ -792,7 +816,8 @@ public struct ElicitationDraft: Sendable, Equatable {
                 return toggles[field.key].map { [Elicitation.Answer(key: field.key, value: $0 ? "true" : "false")] } ?? []
             default:
                 let text = texts[field.key] ?? ""
-                return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [Elicitation.Answer(key: field.key, value: text)]
+                let closed = others.contains(field.key) && !opened.contains(field.key)
+                return closed || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [Elicitation.Answer(key: field.key, value: text)]
             }
         }
     }

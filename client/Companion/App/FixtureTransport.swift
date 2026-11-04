@@ -165,6 +165,19 @@ actor FixtureServer {
             Self.voiceEntry("voice-1", heard: "Ответь агенту в checkout: да, добавь ретраи к шагу оплаты и покрой это тестом"),
             Self.entry("agent", "agent-v1", text: "Sent to «Explain the checkout flow»."),
         ])]
+        if UserDefaults.standard.bool(forKey: "questionFixture"), sessions.count > 3 {
+            sessions[3]["status"] = .string("waiting")
+            sessions[3]["activity"] = nil
+            sessions[3]["pending"] = .array([.string("elicitation-1")])
+            sessions[3]["pendingSummary"] = .object(["kind": .string("question"), "text": .string("Please answer the following questions."), "at": Self.stamp(ago: 240)])
+            sessions[3]["needsYou"] = .bool(true)
+            sessions[3]["needsYouSince"] = Self.stamp(ago: 240)
+            Self.regroup(&sessions[3])
+            transcripts["agt_0000000000000004"] = ["entries": .array([
+                Self.entry("agent", "agent-q1", text: "`reserve.go` holds stock with no end date. Before I add the expiry job I need two decisions from you."),
+                Self.questionEntry(),
+            ])]
+        }
         self.sessions = sessions
         self.transcripts = transcripts
         tasks = (decode("backlog-tasks.json")["tasks"]?.arrayValue ?? []).enumerated().compactMap { index, value in
@@ -347,6 +360,9 @@ actor FixtureServer {
             return .null
         case "agents.permission":
             answer(session, request: args["request"]?.stringValue ?? "", option: args["option"]?.stringValue ?? "")
+            return .null
+        case "agents.elicitation":
+            respond(session, request: args["request"]?.stringValue ?? "", action: args["action"]?.stringValue ?? "", answers: args["answers"]?.arrayValue ?? [])
             return .null
         case "agents.cancel":
             turns.removeValue(forKey: session)?.cancel()
@@ -664,6 +680,22 @@ actor FixtureServer {
         }
     }
 
+    private func respond(_ session: String, request: String, action: String, answers: [JSONValue]) {
+        guard case .array(var entries) = transcripts[session]?["entries"] else { return }
+        var content: [String: JSONValue] = [:]
+        for answer in answers {
+            guard let key = answer["key"]?.stringValue, let value = answer["value"] else { continue }
+            content[key] = .array((content[key]?.arrayValue ?? []) + [value])
+        }
+        for index in entries.indices where entries[index]["id"]?.stringValue == request {
+            guard case .object(var fields) = entries[index] else { continue }
+            fields["response"] = .object(["action": .string(action), "content": .object(content)])
+            entries[index] = .object(fields)
+        }
+        transcripts[session]?["entries"] = .array(entries)
+        update(session) { $0["status"] = .string("running"); $0["pending"] = nil }
+    }
+
     private func stopSubagent(_ session: String, _ subagent: String) {
         guard case .array(var entries) = transcripts[session]?["entries"] else { return }
         for index in entries.indices where entries[index]["kind"] == .string("tool") && entries[index]["id"]?.stringValue == subagent {
@@ -912,6 +944,30 @@ actor FixtureServer {
                 UIBezierPath(roundedRect: rect, cornerRadius: slot * 0.12).fill()
             }
         }
+    }
+
+    private static func questionEntry() -> JSONValue {
+        let note = JSONValue.string("Type your own answer, or add a note to the option you chose above (optional).")
+        let other: (String) -> JSONValue = { .object(["key": .string($0), "type": .string("text"), "title": .string("Other"), "description": note]) }
+        let option: (String, String) -> JSONValue = { .object(["value": .string($0), "label": .string($0), "description": .string($1)]) }
+        return .object(["kind": .string("elicitation"), "id": .string("elicitation-1"), "turn": .number(1), "elicitation": .object([
+            "mode": .string("form"),
+            "message": .string("Please answer the following questions."),
+            "fields": .array([
+                .object(["key": .string("question_0"), "type": .string("choice"), "title": .string("Hold"), "description": .string("How long should a reservation hold stock?"), "options": .array([
+                    option("10 minutes", "Same as the checkout timeout"),
+                    option("30 minutes", "Covers slow payment pages"),
+                    option("24 hours", "For saved carts"),
+                ])]),
+                other("question_0_custom"),
+                .object(["key": .string("question_1"), "type": .string("multi"), "title": .string("Expiry"), "description": .string("What should happen when a reservation expires?"), "options": .array([
+                    option("Email the shopper", "One reminder with a link back to the cart"),
+                    option("Count it", "A metric for how many carts expire"),
+                    option("Restock at once", "No grace period before the stock returns"),
+                ])]),
+                other("question_1_custom"),
+            ]),
+        ])])
     }
 
     private static func docCard(_ path: String, kind: String, title: String, presented: Bool = false) -> JSONValue {

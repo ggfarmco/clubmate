@@ -423,9 +423,39 @@ final class ElicitationDraftTests: XCTestCase {
         let json = #"{"mode":"form","message":"Which store?","fields":[{"key":"question_0","type":"choice","options":[{"value":"pg","label":"Postgres"},{"value":"redis","label":"Redis"}]},{"key":"question_0_custom","type":"text","title":"Other"}]}"#
         let request = try JSONDecoder.clubmate.decode(Elicitation.Request.self, from: Data(json.utf8))
         var draft = ElicitationDraft()
+        draft.toggleOther(request.fields[1])
         draft.texts["question_0_custom"] = "only as a cache"
         let answers = draft.answers(request.fields, picking: request.fields[0].options[1], in: request.fields[0])
         XCTAssertEqual(answers, [Elicitation.Answer(key: "question_0", value: "redis"), Elicitation.Answer(key: "question_0_custom", value: "only as a cache")])
+    }
+
+    func testEachQuestionTakesItsOtherAndAFreeFieldStandsAlone() throws {
+        let json = #"{"kind":"elicitation","id":"elicitation-1","turn":1,"elicitation":{"mode":"form","fields":[{"key":"question_0","type":"choice","options":[{"value":"a","label":"A"}]},{"key":"question_0_custom","type":"text","title":"Other"},{"key":"question_1","type":"multi","options":[{"value":"b","label":"B"}]},{"key":"question_1_custom","type":"text","title":"Other"},{"key":"name","type":"text"}]}}"#
+        let entry = try JSONDecoder.clubmate.decode(TranscriptEntry.self, from: Data(json.utf8))
+        guard case .elicitation(let question) = entry.content else { return XCTFail("\(entry.content)") }
+        XCTAssertEqual(question.questions.map(\.field.key), ["question_0", "question_1", "name"])
+        XCTAssertEqual(question.questions.map(\.other?.key), ["question_0_custom", "question_1_custom", nil])
+        XCTAssertNil(question.singleChoice)
+    }
+
+    func testClosedOtherKeepsItsTextButSendsNothing() throws {
+        let json = #"{"mode":"form","fields":[{"key":"question_0","type":"choice","options":[{"value":"a","label":"A"}]},{"key":"question_0_custom","type":"text","title":"Other"}]}"#
+        let request = try JSONDecoder.clubmate.decode(Elicitation.Request.self, from: Data(json.utf8))
+        var draft = ElicitationDraft()
+        draft.toggleOther(request.fields[1])
+        draft.texts["question_0_custom"] = "neither"
+        XCTAssertEqual(draft.answers(request.fields), [Elicitation.Answer(key: "question_0_custom", value: "neither")])
+        draft.toggleOther(request.fields[1])
+        XCTAssertEqual(draft.answers(request.fields), [])
+        XCTAssertEqual(draft.texts["question_0_custom"], "neither")
+    }
+
+    func testDraftAtALaterPageIsNotEmpty() async throws {
+        let store = AgentsStore(workspace: "w", runner: ScriptedRunner(replies: []))
+        var draft = ElicitationDraft()
+        draft.page = 1
+        store.setElicitationDraft(draft, session: "s", request: "elicitation-1")
+        XCTAssertEqual(store.elicitationDraft("s", request: "elicitation-1").page, 1)
     }
 }
 

@@ -1532,10 +1532,9 @@ struct ElicitationCard: View {
     @State private var sending = false
     @State private var failure: String?
     @State private var fieldsHeight: CGFloat = 0
-    @State private var armed = false
+    @State private var armedPage: Int?
+    @FocusState private var focused: String?
     @Environment(\.openURL) private var openURL
-
-    private static let maxFieldsHeight: CGFloat = 300
 
     var body: some View {
         DockCard {
@@ -1545,11 +1544,22 @@ struct ElicitationCard: View {
                     Text(question.isURL ? "\(agentName) needs you to sign in" : "\(agentName) is asking")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.warning)
+                    if paged {
+                        Spacer(minLength: 0)
+                        stepper
+                    }
                 }
-                Text(Markdown.inline(question.request.message))
-                    .font(.title3.weight(.semibold))
-                    .lineLimit(4)
-                    .fixedSize(horizontal: false, vertical: true)
+                if paged {
+                    Text(Markdown.inline(question.request.message))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                } else {
+                    Text(Markdown.inline(question.request.message))
+                        .font(.title3.weight(.semibold))
+                        .lineLimit(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if question.isURL {
                     link
                 } else {
@@ -1557,12 +1567,11 @@ struct ElicitationCard: View {
                         fields
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fieldsHeight = $0 }
                     }
-                    .frame(height: min(fieldsHeight, Self.maxFieldsHeight))
+                    .frame(maxHeight: fieldsHeight)
                     .scrollBounceBehavior(.basedOnSize)
+                    .id(page)
                 }
                 actions
-                    .disabled(!answerable)
-                    .opacity(enabled ? 1 : 0.5)
                 if let blocked {
                     Text(blocked)
                         .font(.footnote)
@@ -1577,9 +1586,10 @@ struct ElicitationCard: View {
             }
         }
         .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("elicitation-card")
         .task {
             try? await Task.sleep(for: .milliseconds(600))
-            armed = true
+            armedPage = page
         }
     }
 
@@ -1587,8 +1597,44 @@ struct ElicitationCard: View {
         blocked == nil
     }
 
+    private var armed: Bool {
+        armedPage == page
+    }
+
     private var answerable: Bool {
         enabled && armed && !sending
+    }
+
+    private var questions: [Elicitation.Question] {
+        question.questions
+    }
+
+    private var paged: Bool {
+        questions.count > 1
+    }
+
+    private var page: Int {
+        min(draft.page, max(questions.count - 1, 0))
+    }
+
+    private var stepper: some View {
+        let label = Text("\(page + 1) of \(questions.count)")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .fixedSize()
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    ForEach(questions.indices, id: \.self) { index in
+                        Capsule()
+                            .fill(index == page ? Color.primary : Color(.tertiaryLabel))
+                            .frame(width: index == page ? 18 : 7, height: 7)
+                    }
+                }
+                label
+            }
+            label
+        }
     }
 
     @ViewBuilder
@@ -1601,18 +1647,31 @@ struct ElicitationCard: View {
     private var fields: some View {
         let single = question.singleChoice
         return VStack(alignment: .leading, spacing: 12) {
-            ForEach(question.request.fields) { field in
+            ForEach(paged ? [questions[page]] : questions) { item in
+                let field = item.field
                 VStack(alignment: .leading, spacing: 6) {
-                    if field.key != single?.key, !field.title.isEmpty || !field.description.isEmpty {
-                        Text(field.description.isEmpty || field.type == "text" ? field.label : field.description)
+                    if paged {
+                        Text(Markdown.inline(heading(field)))
+                            .font(.title3.weight(.semibold))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.bottom, 6)
+                    } else if field.key != single?.key, !field.title.isEmpty || !field.description.isEmpty {
+                        Text(heading(field))
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
                     input(field, single: field.key == single?.key)
+                    if let other = item.other {
+                        otherRow(other, of: field, single: field.key == single?.key)
+                    }
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func heading(_ field: Elicitation.Field) -> String {
+        field.description.isEmpty || field.type == "text" ? field.label : field.description
     }
 
     @ViewBuilder
@@ -1628,10 +1687,11 @@ struct ElicitationCard: View {
                         draft.toggle(field, option)
                     }
                 } label: {
-                    optionRow(option, symbol: single ? nil : selected ? "checkmark.circle.fill" : "circle")
+                    optionRow(option.label, detail: option.description, symbol: symbol(field, selected: selected, single: single), selected: selected)
                 }
                 .buttonStyle(.plain)
                 .disabled(!answerable)
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
         case "boolean":
             Toggle(field.label, isOn: Binding(get: { draft.toggles[field.key] ?? false }, set: { draft.toggles[field.key] = $0 }))
@@ -1639,22 +1699,47 @@ struct ElicitationCard: View {
             TextField(field.type == "text" ? (field.description.isEmpty ? field.label : field.description) : field.label, text: Binding(get: { draft.texts[field.key] ?? "" }, set: { draft.texts[field.key] = $0 }), axis: .vertical)
                 .lineLimit(1...4)
                 .keyboardType(field.type == "text" ? .default : .decimalPad)
+                .focused($focused, equals: field.key)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(Color.surface2, in: .rect(cornerRadius: 14))
         }
     }
 
-    private func optionRow(_ option: Elicitation.Option, symbol: String?) -> some View {
+    @ViewBuilder
+    private func otherRow(_ other: Elicitation.Field, of field: Elicitation.Field, single: Bool) -> some View {
+        let open = draft.opened.contains(other.key)
+        Button {
+            draft.toggleOther(other)
+            focused = open ? nil : other.key
+        } label: {
+            optionRow("Other…", detail: nil, symbol: symbol(field, selected: open, single: single), selected: open, muted: true)
+        }
+        .buttonStyle(.plain)
+        .disabled(!answerable)
+        .accessibilityAddTraits(open ? .isSelected : [])
+        if open {
+            input(other, single: false)
+        }
+    }
+
+    private func symbol(_ field: Elicitation.Field, selected: Bool, single: Bool) -> String? {
+        guard !single else { return nil }
+        guard selected else { return "circle" }
+        return field.type == "multi" ? "checkmark.circle.fill" : "circle.inset.filled"
+    }
+
+    private func optionRow(_ title: String, detail: String?, symbol: String?, selected: Bool, muted: Bool = false) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             if let symbol {
                 Image(systemName: symbol)
                     .foregroundStyle(symbol == "circle" ? Color.secondary : Color.accentColor)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(option.label)
+                Text(title)
                     .font(.headline)
-                if let detail = option.description, !detail.isEmpty {
+                    .foregroundStyle(muted ? Color.secondary : Color.primary)
+                if let detail, !detail.isEmpty {
                     Text(detail)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -1665,6 +1750,7 @@ struct ElicitationCard: View {
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .padding(.vertical, 4)
+        .background(selected ? Color.accentColor.opacity(0.22) : .clear, in: .rect(cornerRadius: 14))
         .background(Color.surface2, in: .rect(cornerRadius: 14))
         .contentShape(.rect)
     }
@@ -1680,14 +1766,43 @@ struct ElicitationCard: View {
                 }
                 PlainCapsule(title: "Decline", tint: Color.danger) { submit("decline", []) }
             }
+            .answering(answerable, enabled: enabled)
+        } else if paged {
+            HStack(spacing: 10) {
+                Group {
+                    if page == 0 {
+                        skip
+                    } else {
+                        PlainCapsule(title: "Back", tint: .primary) { turn(to: page - 1) }
+                            .disabled(!armed)
+                    }
+                }
+                .frame(maxWidth: 110)
+                if page < questions.count - 1 {
+                    primary("Next") { turn(to: page + 1) }
+                        .disabled(!armed)
+                } else {
+                    sendButton
+                }
+            }
         } else {
             HStack(spacing: 10) {
-                if question.singleChoice == nil || question.request.fields.count > 1 {
-                    primary("Send") { submit("accept", draft.answers(question.request.fields)) }
+                if question.singleChoice == nil || !draft.opened.isEmpty {
+                    sendButton
                 }
-                PlainCapsule(title: "Skip", tint: .primary) { submit("decline", []) }
+                skip
             }
         }
+    }
+
+    private var skip: some View {
+        PlainCapsule(title: "Skip", tint: .primary) { submit("decline", []) }
+            .answering(answerable, enabled: enabled)
+    }
+
+    private var sendButton: some View {
+        primary("Send") { submit("accept", draft.answers(question.request.fields)) }
+            .answering(answerable, enabled: enabled)
     }
 
     private func primary(_ title: String, action: @escaping () -> Void) -> some View {
@@ -1702,6 +1817,14 @@ struct ElicitationCard: View {
         .buttonStyle(.plain)
     }
 
+    private func turn(to target: Int) {
+        draft.page = target
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            armedPage = target
+        }
+    }
+
     private func submit(_ action: String, _ answers: [Elicitation.Answer]) {
         sending = true
         failure = nil
@@ -1713,6 +1836,12 @@ struct ElicitationCard: View {
                 sending = false
             }
         }
+    }
+}
+
+private extension View {
+    func answering(_ answerable: Bool, enabled: Bool) -> some View {
+        disabled(!answerable).opacity(enabled ? 1 : 0.5)
     }
 }
 

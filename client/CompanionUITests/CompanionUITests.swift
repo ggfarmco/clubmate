@@ -382,6 +382,56 @@ final class CompanionUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["This session is closed"].exists)
     }
 
+    func testQuestionCardPagesItsQuestionsAndSendsEveryAnswer() {
+        let app = launch(open: "agents/agt_0000000000000004", ["-questionFixture", "YES"])
+        let card = app.otherElements["elicitation-card"]
+        XCTAssertTrue(card.staticTexts["1 of 2"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["What should happen when a reservation expires?"].exists)
+        let thirty = option("30 minutes", in: card)
+        XCTAssertTrue(wait(for: thirty, "isEnabled == true"))
+        thirty.tap()
+        card.buttons["Next"].tap()
+        XCTAssertTrue(card.staticTexts["2 of 2"].waitForExistence(timeout: 5))
+        XCTAssertFalse(card.buttons["Skip"].exists)
+        let other = option("Other…", in: card)
+        XCTAssertTrue(wait(for: other, "isEnabled == true"))
+        XCTAssertEqual(card.textFields.count, 0)
+        other.tap()
+        let note = card.textFields.firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        XCTAssertTrue(wait(for: note, "hasKeyboardFocus == true"))
+        note.typeText("Log it")
+        card.buttons["Send"].tap()
+        let answer = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '30 minutes · Log it'")).firstMatch
+        XCTAssertTrue(answer.waitForExistence(timeout: 5))
+    }
+
+    func testQuestionCardKeepsItsPageAndPicksAfterLeavingTheSession() {
+        let app = launch(open: "agents/agt_0000000000000004", ["-questionFixture", "YES"])
+        let card = app.otherElements["elicitation-card"]
+        let thirty = option("30 minutes", in: card)
+        XCTAssertTrue(thirty.waitForExistence(timeout: 10))
+        XCTAssertTrue(wait(for: thirty, "isEnabled == true"))
+        thirty.tap()
+        card.buttons["Next"].tap()
+        XCTAssertTrue(card.staticTexts["2 of 2"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons.firstMatch.tap()
+        let row = app.staticTexts["Add stock reservation expiry"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        XCTAssertTrue(card.staticTexts["2 of 2"].waitForExistence(timeout: 5))
+        let back = card.buttons["Back"]
+        XCTAssertTrue(wait(for: back, "isEnabled == true"))
+        back.tap()
+        XCTAssertTrue(card.staticTexts["1 of 2"].waitForExistence(timeout: 5))
+        XCTAssertTrue(thirty.isSelected)
+        XCTAssertTrue(wait(for: card.buttons["Next"], "isEnabled == true"))
+    }
+
+    private func option(_ title: String, in card: XCUIElement) -> XCUIElement {
+        card.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
+    }
+
     private func launch(open target: String, _ extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target] + extra
