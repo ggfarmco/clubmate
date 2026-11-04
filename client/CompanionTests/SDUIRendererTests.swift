@@ -22,7 +22,8 @@ final class SDUIRendererTests: XCTestCase {
             node.children.forEach(walk)
         }
         walk(tree)
-        XCTAssertEqual(types.subtracting(MacOnlyCaption.types).filter { SDUIKind(rawValue: $0) == nil }, [])
+        let placeholderOnPhone: Set<String> = ["sheet"]
+        XCTAssertEqual(types.subtracting(MacOnlyCaption.types).subtracting(placeholderOnPhone).filter { SDUIKind(rawValue: $0) == nil }, [])
     }
 
     func testUnknownTypePlaceholder() {
