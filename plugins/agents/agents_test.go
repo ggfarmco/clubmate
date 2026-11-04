@@ -1407,7 +1407,7 @@ func TestRevealSelectsTheSessionAndFocusesAgents(t *testing.T) {
 	require.NoError(t, f.run(t, workspace, "agents.reveal", map[string]any{"session": first}, nil))
 
 	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return cardsOf(n, "tree")[0].Props["selected"] == first })
-	waitFocus(t, c, "agents", "agents.main")
+	waitFocus(t, c, "agents", "agents.main", first+"/composer")
 }
 
 func TestNewFromTheAppFocusesItsPrompt(t *testing.T) {
@@ -1421,7 +1421,7 @@ func TestNewFromTheAppFocusesItsPrompt(t *testing.T) {
 	second := f.newSession(t, workspace)
 
 	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return cardsOf(n, "tree")[0].Props["selected"] == second })
-	waitFocus(t, c, "agents", "agents.main")
+	waitFocus(t, c, "agents", "agents.main", second+"/composer")
 }
 
 func TestStepWalksTheShownSessionsAround(t *testing.T) {
@@ -1531,7 +1531,7 @@ func TestRevealSameTurnAgainBumpsAnchorRev(t *testing.T) {
 	assert.NotEqual(t, first, second)
 }
 
-func waitFocus(t *testing.T, c *rpc.Client, section, slot string) {
+func waitFocus(t *testing.T, c *rpc.Client, section, slot, node string) {
 	t.Helper()
 	deadline := time.After(wait)
 	for {
@@ -1540,9 +1540,9 @@ func waitFocus(t *testing.T, c *rpc.Client, section, slot string) {
 			if n.Method != "ui.focus" {
 				continue
 			}
-			var got struct{ Section, Slot string }
+			var got struct{ Section, Slot, Node string }
 			require.NoError(t, json.Unmarshal(n.Params, &got))
-			if got.Section == section && got.Slot == slot {
+			if got.Section == section && got.Slot == slot && (node == "" || got.Node == node) {
 				return
 			}
 		case <-deadline:
@@ -1576,7 +1576,7 @@ func TestCodePanelFollowsWorktree(t *testing.T) {
 	c := f.h.Client(t)
 	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": workspace}, nil))
 	f.h.Event(t, workspace, "editor-nvim.sidebar", "code/new", "codeNew", nil)
-	waitFocus(t, c, "editor-nvim", "editor-nvim.sidebar")
+	waitFocus(t, c, "editor-nvim", "editor-nvim.sidebar", "")
 	panel = f.h.WaitSlot(t, workspace, "editor-nvim.sidebar", func(n sdui.Node) bool { return !shows(first)(n) && len(cardsOf(n, "composer")) == 1 })
 	second := strings.SplitN(cardsOf(panel, "composer")[0].ID, "/", 2)[0]
 	assert.NotEqual(t, other.Session, second)

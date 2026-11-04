@@ -657,7 +657,11 @@ func (a *app) reveal(ctx context.Context, workspaceID, sid string) error {
 	if err := a.render(ctx, workspaceID); err != nil {
 		return err
 	}
-	return a.host.Focus(ctx, workspaceID, sectionID, mainSlot)
+	return a.focusComposer(ctx, workspaceID, sid)
+}
+
+func (a *app) focusComposer(ctx context.Context, workspaceID, sid string) error {
+	return a.host.FocusNode(ctx, workspaceID, sectionID, mainSlot, sid+"/composer")
 }
 
 func (a *app) anchorTurn(workspaceID string, s *session, turn int) error {

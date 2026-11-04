@@ -92,6 +92,7 @@ type focusParams struct {
 	Section     string `json:"section"`
 	Slot        string `json:"slot"`
 	Field       bool   `json:"field"`
+	Node        string `json:"node"`
 }
 
 type uiFocusParams struct {
@@ -99,6 +100,7 @@ type uiFocusParams struct {
 	Section      string `json:"section"`
 	Slot         string `json:"slot"`
 	Field        bool   `json:"field,omitempty"`
+	Node         string `json:"node,omitempty"`
 }
 
 type deliveredResult struct {
@@ -236,11 +238,14 @@ func (s *Server) uiFocus(ctx context.Context, p focusParams) (deliveredResult, e
 	if p.Field && p.Slot != p.Section+".sidebar" {
 		return deliveredResult{}, invalidParams(fmt.Sprintf("field needs slot %q", p.Section+".sidebar"))
 	}
+	if p.Node != "" && (p.Slot == "" || p.Field) {
+		return deliveredResult{}, invalidParams("node needs a slot and no field")
+	}
 	var wg sync.WaitGroup
 	var delivered atomic.Int32
 	for _, t := range s.presence.focusTargets(p.WorkspaceID) {
 		wg.Go(func() {
-			params := uiFocusParams{Subscription: t.sid, Section: p.Section, Slot: p.Slot, Field: p.Field}
+			params := uiFocusParams{Subscription: t.sid, Section: p.Section, Slot: p.Slot, Field: p.Field, Node: p.Node}
 			if t.conn.Notify(ctx, notifyUIFocus, params) == nil {
 				delivered.Add(1)
 			}

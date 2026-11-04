@@ -162,6 +162,7 @@ var primitives = browserPrimitives(map[string]primitive{
 			Properties: map[string]schema.Prop{
 				"section": {Type: "string", Description: "Section id, e.g. editor-nvim, terminals, agents."},
 				"slot":    {Type: "string", Description: "Slot to focus: <section>.sidebar, <section>.main, or <section>.popup when the section declares it; empty shows the section only."},
+				"node":    {Type: "string", Description: "Node in the slot that takes focus (its id, or an id prefix before a /), e.g. <session>/composer; the app waits briefly for it to appear, then focuses the slot."},
 			},
 			Required: []string{"section"},
 		}),

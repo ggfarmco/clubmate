@@ -74,6 +74,23 @@ func TestUIFocusFieldTargetsSidebarField(t *testing.T) {
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 }
 
+func TestUIFocusNodeNamesItsTarget(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("echo", `{"sections":[{"id":"echo","title":"Echo"}]}`)))
+	p := h.CreateWorkspace(t, "p")
+	c := h.Client(t)
+	var sub struct {
+		Subscription string `json:"subscription"`
+	}
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": p.ID}, &sub))
+	require.NoError(t, c.Call(t.Context(), "ui.focus", map[string]any{"workspaceId": p.ID, "section": "echo", "slot": "echo.main", "node": "s1/composer"}, nil))
+	n, ok := nextFocus(c, 2*time.Second)
+	require.True(t, ok, "no ui.focus notification")
+	assert.JSONEq(t, fmt.Sprintf(`{"subscription":%q,"section":"echo","slot":"echo.main","node":"s1/composer"}`, sub.Subscription), string(n.Params))
+	err := c.Call(t.Context(), "ui.focus", map[string]any{"workspaceId": p.ID, "section": "echo", "slot": "", "node": "s1/composer"}, nil)
+	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
+}
+
 func TestUIFocusRailOffSectionOnlyPopup(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("echo", `{"sections":[{"id":"echo","title":"Echo"},{"id":"echo.docs","title":"Docs","rail":false,"slots":["popup"]}]}`)))

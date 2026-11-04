@@ -277,7 +277,7 @@ func (a *app) newCommand(ctx context.Context, cmd pluginsdk.CommandRun, args new
 	if err := a.render(ctx, cmd.WorkspaceID); err != nil {
 		return nil, err
 	}
-	return res, a.host.Focus(ctx, cmd.WorkspaceID, sectionID, mainSlot)
+	return res, a.focusComposer(ctx, cmd.WorkspaceID, res.Session)
 }
 
 func (a *app) promptCommand(_ context.Context, cmd pluginsdk.CommandRun, args promptArgs) (any, error) {

@@ -73,15 +73,18 @@ struct ComposerNodeView: View {
         .onChange(of: focused, initial: true) { _, focused in drafts.focus(node.id ?? "", focused) }
         .onChange(of: selection) { model.caret = caret.map { model.text.distance(from: model.text.startIndex, to: min($0, model.text.endIndex)) } }
         .onDisappear { drafts.focus(node.id ?? "", false) }
-        .onChange(of: router?.pending, initial: true) {
-            guard let focusSlot, router?.take(focusSlot) == true, !disabled else { return }
-            focused = true
-        }
+        .onChange(of: router?.pending, initial: true) { claim() }
+        .onChange(of: node.id) { claim() }
         .onAppear {
             guard let session = ComposerFocus.afterSend, session == ComposerFocus.session(of: node.id), !disabled else { return }
             ComposerFocus.afterSend = nil
             focused = true
         }
+    }
+
+    private func claim() {
+        guard let focusSlot, router?.take(focusSlot, node: node.id) == true, !disabled else { return }
+        focused = true
     }
 
     private var editor: some View {

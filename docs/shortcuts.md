@@ -178,7 +178,7 @@ Keys with ⌘, ⌃ or ⌥ pass through. Defined in `SDUI/GraphNodeView.swift` (`
 
 ## Agent composer (Agents section or Code chat panel, prompt focused)
 
-Focus moving to the Agents main pane (switching to the section, Esc or ⌃L/⌃H from the sessions tree, ⌘N's new session) lands in the prompt when the session shows one. Switching back to a section returns focus to where it was when you left it (the prompt, the sessions tree, the terminal), unless that sidebar has been hidden since.
+Focus moving to the Agents main pane (switching to the section, Esc or ⌃L/⌃H from the sessions tree, ⌘N's new session, ⌃⌘↓/⌃⌘↑) lands in the prompt when the session shows one; ⌘N and ⌃⌘↓/⌃⌘↑ wait for that session's prompt, not the one shown before (the rules: [SDUI protocol](sdui-protocol.md) § Focus). Switching back to a section returns focus to where it was when you left it (the prompt, the sessions tree, the terminal), unless that sidebar has been hidden since.
 
 | Keys | Action |
 |---|---|

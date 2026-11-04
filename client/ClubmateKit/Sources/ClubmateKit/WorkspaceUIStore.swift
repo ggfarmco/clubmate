@@ -352,7 +352,7 @@ public final class WorkspaceUIStore {
         let slot = select(params.section, slot: params.slot)
         guard !slot.isEmpty else { return }
         focusSerial += 1
-        focusRequest = FocusRequest(slot: slot, serial: focusSerial, field: params.field ?? false)
+        focusRequest = FocusRequest(slot: slot, serial: focusSerial, field: params.field ?? false, node: params.node)
     }
 
     private func recover() async {
@@ -512,11 +512,19 @@ public struct FocusRequest: Equatable, Sendable {
     public let slot: String
     public let serial: Int
     public let field: Bool
+    public let node: String?
 
-    public init(slot: String, serial: Int, field: Bool = false) {
+    public init(slot: String, serial: Int, field: Bool = false, node: String? = nil) {
         self.slot = slot
         self.serial = serial
         self.field = field
+        self.node = node
+    }
+
+    public static func matches(_ node: String?, target: String?) -> Bool {
+        guard let target else { return true }
+        guard let node else { return false }
+        return node == target || node.hasPrefix(target + "/")
     }
 }
 
@@ -546,6 +554,7 @@ private struct UIFocusNotification: Decodable, Sendable {
     let section: String
     let slot: String
     let field: Bool?
+    let node: String?
 }
 
 private struct UINotification: Decodable, Sendable {

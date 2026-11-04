@@ -61,6 +61,7 @@ extension EnvironmentValues {
 struct FocusTarget: Equatable {
     let slot: String
     let serial: Int
+    var node: String?
 }
 
 @MainActor
@@ -69,9 +70,18 @@ final class FocusRouter {
     private(set) var pending: FocusTarget?
     @ObservationIgnored private var serial = 0
 
-    func request(_ slot: String) {
+    static let nodeWait = Duration.milliseconds(1500)
+
+    func request(_ slot: String, node: String? = nil) {
         serial += 1
-        pending = FocusTarget(slot: slot, serial: serial)
+        pending = FocusTarget(slot: slot, serial: serial, node: node)
+        guard node != nil else { return }
+        let serial = serial
+        Task { [weak self] in
+            try? await Task.sleep(for: Self.nodeWait)
+            guard let self, let pending = self.pending, pending.serial == serial else { return }
+            self.pending = FocusTarget(slot: pending.slot, serial: serial)
+        }
     }
 
     func requestMain(from slot: String) {
@@ -79,8 +89,8 @@ final class FocusRouter {
         request(String(slot[..<dot]) + ".main")
     }
 
-    func take(_ slot: String) -> Bool {
-        guard pending?.slot == slot else { return false }
+    func take(_ slot: String, node: String? = nil) -> Bool {
+        guard let target = pending, target.slot == slot, FocusRequest.matches(node, target: target.node) else { return false }
         pending = nil
         return true
     }

@@ -578,6 +578,13 @@ final class StoresTests: XCTestCase {
         XCTAssertNil(AgentsSection.close(sidebar: tree("sessions", ""), commands: commands))
     }
 
+    func testFocusTargetTakesOnlyItsNode() {
+        XCTAssertTrue(FocusRequest.matches("agt_1/composer/3", target: "agt_1/composer"))
+        XCTAssertFalse(FocusRequest.matches("agt_0/composer/3", target: "agt_1/composer"))
+        XCTAssertFalse(FocusRequest.matches(nil, target: "agt_1/composer"))
+        XCTAssertTrue(FocusRequest.matches(nil, target: nil))
+    }
+
     func testAgentStepOnlyInAgents() throws {
         let commands = try JSONDecoder().decode([Command].self, from: Data(#"""
         [{"id":"agents.step","title":"Next agent session","plugin":"agents","hidden":true}]

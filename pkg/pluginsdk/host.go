@@ -87,6 +87,10 @@ func (h *Host) Focus(ctx context.Context, workspaceID, section, slot string) err
 	return h.Call(ctx, "ui.focus", map[string]string{"workspaceId": workspaceID, "section": section, "slot": slot}, nil)
 }
 
+func (h *Host) FocusNode(ctx context.Context, workspaceID, section, slot, node string) error {
+	return h.Call(ctx, "ui.focus", map[string]string{"workspaceId": workspaceID, "section": section, "slot": slot, "node": node}, nil)
+}
+
 func (h *Host) FocusField(ctx context.Context, workspaceID, section string) error {
 	return h.Call(ctx, "ui.focus", map[string]any{"workspaceId": workspaceID, "section": section, "slot": section + ".sidebar", "field": true}, nil)
 }

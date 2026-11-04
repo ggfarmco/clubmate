@@ -155,6 +155,7 @@ struct MainFocus: ViewModifier {
     func body(content: Content) -> some View {
         let surface = surface
         let composer = store.hasComposer(slot)
+        let loaded = store.hasSlot(slot)
         return content
             .focusable(surface == nil)
             .focusEffectDisabled()
@@ -164,10 +165,11 @@ struct MainFocus: ViewModifier {
             .onChange(of: slot) { claim() }
             .onChange(of: surface) { claim() }
             .onChange(of: composer) { claim() }
+            .onChange(of: loaded) { claim() }
     }
 
     private func claim() {
-        guard !store.hasComposer(slot), router?.take(slot) == true else { return }
+        guard store.hasSlot(slot), !store.hasComposer(slot), router?.take(slot) == true else { return }
         if let surface { deck?.focus(surface) } else { focused = true }
     }
 }

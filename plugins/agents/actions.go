@@ -148,7 +148,11 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	switch {
 	case err != nil:
 	case ev.Action == actNew || ev.Action == actNewBranch:
-		err = h.Focus(ctx, ev.WorkspaceID, sectionID, mainSlot)
+		p := a.workspaceState(ev.WorkspaceID)
+		a.uiMu.Lock()
+		sid := p.selected
+		a.uiMu.Unlock()
+		err = a.focusComposer(ctx, ev.WorkspaceID, sid)
 	case ev.Action == actCodeNew:
 		err = h.Focus(ctx, ev.WorkspaceID, editorSection, codeSlot)
 	case ev.Action == actOpenGraphs:

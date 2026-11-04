@@ -262,7 +262,7 @@ Clients keep the highest `rev` per `(workspaceId, slot)` and ignore views with a
 | command.run | `{id, workspaceId, args, agent}` | plugin-defined JSON, or the primitive's result |
 | command.capabilities | none | `{capabilities: {name: commandId}}` |
 | command.broadcast | `{topic, workspaceId, args}` | `{}`; runs every command whose `handles` lists `topic` (see below) |
-| ui.focus | `{workspaceId, section, slot, field}` | `{delivered}` |
+| ui.focus | `{workspaceId, section, slot, field, node?}` | `{delivered}` |
 | client.register | `{handles}` | `{}` |
 | workspace.show | `{id}` | `{clients}` |
 | workspace.rename | `{id, name}` | workspace |
@@ -343,7 +343,17 @@ A workspace is `{id, name, folders, createdAt, home, lastOpenedAt}`; `lastOpened
 
 `client.register` marks the calling connection for the listed handles: `"workspace.show"` and `"ui.confirm"`; anything else is invalid params. The app registers both. Registration lasts for the connection. Plugin callers get invalid params.
 
-`ui.focus` is open to any caller. It is invalid params when the workspace does not exist, the section is not registered or is app-scope, or `slot` is not `""`, `<section>.sidebar`, `<section>.main` or a slot the section declares in `slots` (a `rail: false` section accepts only `<section>.popup`), or `field` is true with a `slot` other than `<section>.sidebar`. It sends the `ui.focus` notification to every `ui.subscribe` subscription of that workspace (app-scope subscriptions never receive it) and returns their count as `delivered`. Plugins call it as `Host.Focus`, or as `Host.FocusField` to focus the sidebar's text field.
+`ui.focus` is open to any caller. It is invalid params when the workspace does not exist, the section is not registered or is app-scope, or `slot` is not `""`, `<section>.sidebar`, `<section>.main` or a slot the section declares in `slots` (a `rail: false` section accepts only `<section>.popup`), or `field` is true with a `slot` other than `<section>.sidebar`, or `node` is set without a `slot` or with `field`. It sends the `ui.focus` notification to every `ui.subscribe` subscription of that workspace (app-scope subscriptions never receive it) and returns their count as `delivered`. Plugins call it as `Host.Focus`, as `Host.FocusField` to focus the sidebar's text field, or as `Host.FocusNode` to name the node in the slot that should take focus.
+
+### Focus
+
+Where key focus goes in the Mac app, and when it moves (`SDUI/SDUIView.swift` `FocusRouter`, `WorkspaceView.swift`, `WorkspaceUIStore` `focusRequest`):
+
+- **Focus moves for the user.** A key, a click, a command the user runs (app menu, palette, `cm`), or an agent tool whose job is to show the user something (`docs_open`, `editor_open`, a review the user asked for). Starting or selecting a session from an agent, cron, a trigger, voice or the phone never moves focus (agents.new from them selects the session at most), and new output, a session appearing or a notification never takes it.
+- **A request names its target.** `ui.focus` shows the section at once and asks for a slot; with `node` it names the node in that slot, by id or by an id prefix before a `/` (agents asks for `<session>/composer`). Only that node takes it. The request waits up to 1.5 s for the node to be on screen, then any view of the slot may take it. The node's content may arrive after the request (a section's slots load when it is shown), so a request never goes to whatever the slot showed before.
+- **Inside a slot.** `<section>.main` goes to the slot's composer when it shows one, else to its terminal or nvim surface, else to the pane; the pane does not take it before the slot has content. `<section>.sidebar` goes to the sidebar's tree or list, with `field` to its text field; `<section>.popup` to the popup.
+- **Switching sections** without a request puts focus back where it was when you left that section (the composer, the tree, the terminal), unless that sidebar has been hidden since.
+- **When the focused view goes away.** Hiding the sidebar moves focus to the main pane; closing or leaving the popup returns it to where it was before the popup; Esc or ⌃L/⌃H in a sidebar moves it to the main pane; showing or hiding Code's chat column moves it to the chat or to the editor. After sending, the composer keeps focus.
 
 `ui.render` is invalid params for a workspace that has been deleted.
 
