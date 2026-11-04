@@ -90,7 +90,7 @@ public final class ConnectionSupervisor {
         do {
             let client = try await connect()
             do {
-                try await client.register(handles: ["workspace.show", "ui.confirm"] + (TestMode.current ? ["ui.snapshot", "ui.present", "ui.key"] : []) + (browser ? ["browser.call"] : []))
+                try await client.register(handles: ["workspace.show", "ui.confirm", "ui.report"] + (TestMode.current ? ["ui.snapshot", "ui.present", "ui.key"] : []) + (browser ? ["browser.call"] : []))
             } catch {
                 await client.close()
                 throw error

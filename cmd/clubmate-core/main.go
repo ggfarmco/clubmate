@@ -142,6 +142,9 @@ func run(logger *slog.Logger) error {
 	if err := srv.MigrateUIState(context.Background()); err != nil {
 		logger.Error("migrate ui state", "err", err)
 	}
+	if err := srv.RemoveStaleReports(); err != nil {
+		logger.Error("remove stale reports", "err", err)
+	}
 	control, err := plugin.NewControl(context.Background(), pluginKV, manifests)
 	if err != nil {
 		return fmt.Errorf("load plugin preferences: %w", err)

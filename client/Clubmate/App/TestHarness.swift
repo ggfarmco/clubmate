@@ -40,6 +40,16 @@ final class TestHarness {
         return ConfirmRequest(title: "Run .clubmate/setup.sh", workspaceName: "a-rather-long-repository-name", command: "git.worktree-hooks", args: .object(args.mapValues { .string($0) }), body: lines.joined(separator: "\n") + "\n", plugin: true)
     }
 
+    static func reportFixture(over: Bool) -> ReportRequest {
+        let root = "/Users/someone/develop/organisation/a-rather-long-repository-name/.worktrees/feat/some-feature"
+        let core = ["info.json": 1_204, "logs/core.log": 482_113, "logs/plugins/agents.log": 96_388, "logs/plugins/editor-nvim.log": 12_904, "plugins.json": 3_311, "workspaces.json": 1_870, "sessions.json": 9_442, "transcript.json": 211_560]
+        let files = core.sorted { $0.key < $1.key }.map { ReportRequest.File(name: $0.key, bytes: $0.value, path: "/tmp/report-20261104-120000/\($0.key)", checked: true) } + [
+            ReportRequest.File(name: "files/login-screen-after-the-redirect-loop.png", bytes: over ? 31_457_280 : 742_331, path: "/tmp/report-20261104-120000/files/login-screen-after-the-redirect-loop.png", checked: true, source: "\(root)/build/shots/login-screen-after-the-redirect-loop.png"),
+            ReportRequest.File(name: "files/id_ed25519", bytes: 411, path: "/tmp/report-20261104-120000/files/id_ed25519", checked: false, warning: "outside the workspace", source: "/Users/someone/.ssh/id_ed25519"),
+        ]
+        return ReportRequest(workspaceId: "", workspaceName: "a-rather-long-repository-name", relayHost: "clubmate-push.exe.xyz", text: "Login keeps redirecting back to /login after I sign in with SSO. Started after this morning's update.", summary: "Ran the dev server, signed in with the test account, saw a 302 loop between /login and /callback; the session cookie is set with SameSite=Strict, so the callback never sees it.", sessionTitle: "Fix login redirect", timeoutMs: 600_000, maxBytes: 25 << 20, maxText: 20 << 10, files: files)
+    }
+
     func register(_ probe: TestProbeNSView) {
         probes.add(probe)
     }

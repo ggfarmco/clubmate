@@ -36,9 +36,10 @@ type relayClient struct {
 	kv     kvStore
 	client *http.Client
 
-	mu    sync.Mutex
-	url   string
-	token string
+	mu        sync.Mutex
+	url       string
+	token     string
+	reportURL string
 }
 
 type relayPush struct {
@@ -57,7 +58,7 @@ type relayRequest struct {
 }
 
 func newRelayClient(kv kvStore, client *http.Client) *relayClient {
-	return &relayClient{kv: kv, client: client}
+	return &relayClient{kv: kv, client: client, reportURL: defaultReportRelay}
 }
 
 func (c *relayClient) load(ctx context.Context) error {
@@ -83,14 +84,14 @@ func (c *relayClient) configure(ctx context.Context, rawURL, token string) error
 	if rawURL == "" {
 		token = ""
 	} else {
-		u, err := url.Parse(rawURL)
-		if err != nil || u.Scheme != "https" || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {
+		base, ok := httpsBase(rawURL)
+		if !ok {
 			return errRelayNotHTTPS
 		}
 		if token == "" {
 			return errNoRelayToken
 		}
-		rawURL = strings.TrimSuffix(u.String(), "/")
+		rawURL = base
 	}
 	if err := c.kv.StorageSet(ctx, pushRelayURLKey, rawURL); err != nil {
 		return err
@@ -108,6 +109,24 @@ func (c *relayClient) configured() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.url != ""
+}
+
+func (c *relayClient) reportTarget() (string, string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.url != "" {
+		return c.url, c.token
+	}
+	return c.reportURL, ""
+}
+
+func (c *relayClient) reportHost() string {
+	base, _ := c.reportTarget()
+	u, err := url.Parse(base)
+	if err != nil {
+		return ""
+	}
+	return u.Host
 }
 
 func (c *relayClient) send(ctx context.Context, env, deviceToken string, p relayPush) (apns.Reply, error) {
@@ -144,4 +163,12 @@ func (c *relayClient) send(ctx context.Context, env, deviceToken string, p relay
 		return apns.Reply{}, fmt.Errorf("push relay reply: %w", err)
 	}
 	return reply, nil
+}
+
+func httpsBase(raw string) (string, bool) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {
+		return "", false
+	}
+	return strings.TrimSuffix(u.String(), "/"), true
 }

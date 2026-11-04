@@ -58,6 +58,20 @@ var primitives = browserPrimitives(map[string]primitive{
 		method: "diagnostics.collect",
 		params: withWorkspace,
 	},
+	"report.send": {
+		cmd: coreCommand("report.send", "Send Problem Report", "Send a problem report about Clubmate itself to its developers. The app opens a sheet with the text, your summary, diagnostics, the session's last 3 turns and the files, where the user edits, unchecks and sends it or cancels; returns {sent, id}, or {sent: false, reason} with reason cancelled or timed out (after 10 minutes).", &schema.Object{
+			Properties: map[string]schema.Prop{
+				"text":      {Type: "string", Description: "The user's own words about the problem, up to 20 KiB."},
+				"summary":   {Type: "string", Description: "Your account: what was done, what was seen, the error; up to 20 KiB."},
+				"sessionId": {Type: "string", Description: "Agent session whose last 3 turns go in the report; defaults to yours."},
+				"files":     {Type: "array", Items: &schema.Prop{Type: "string"}, Description: "Absolute paths of regular files to attach, e.g. screenshots; files outside the workspace start unchecked."},
+			},
+			Required: []string{"text"},
+		}),
+		method:         reportMethod,
+		needsWorkspace: true,
+		params:         withWorkspace,
+	},
 	"session.list": {
 		cmd:    coreCommand("session.list", "List Sessions", "List the terminal and plugin sessions of all workspaces.", nil),
 		method: "session.list",

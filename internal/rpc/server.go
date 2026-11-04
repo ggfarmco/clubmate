@@ -60,6 +60,7 @@ type Server struct {
 	browserURLsMu sync.Mutex
 	writeTimeout  time.Duration
 	fsOverflow    int
+	reportTimeout time.Duration
 }
 
 type boundedConn struct {
@@ -96,7 +97,7 @@ func WithWriteTimeout(d time.Duration) ServerOption {
 }
 
 func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
-	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]*client{}, started: time.Now(), logger: slog.New(slog.DiscardHandler), notifyLimit: notify.NewLimiter(notifyRateMax, notifyRateTotal, notifyRateWindow), testAppRoot: "/tmp", writeTimeout: clientWriteTimeout, fsOverflow: fswatch.OverflowOver}
+	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]*client{}, started: time.Now(), logger: slog.New(slog.DiscardHandler), notifyLimit: notify.NewLimiter(notifyRateMax, notifyRateTotal, notifyRateWindow), testAppRoot: "/tmp", writeTimeout: clientWriteTimeout, fsOverflow: fswatch.OverflowOver, reportTimeout: reportTimeout}
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -108,6 +109,7 @@ func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
 	maps.Copy(s.methods, s.uiMethods())
 	maps.Copy(s.methods, s.fsMethods())
 	maps.Copy(s.methods, s.diagnosticsMethods())
+	maps.Copy(s.methods, s.reportMethods())
 	maps.Copy(s.methods, s.debugMethods())
 	maps.Copy(s.methods, s.notifyMethods())
 	maps.Copy(s.methods, s.browserMethods())

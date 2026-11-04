@@ -34,6 +34,17 @@ type relay struct {
 	apns    sender
 	limiter *limiter
 	log     *log.Logger
+
+	admins     *tokens
+	bans       *bans
+	reports    *store
+	limits     *reportLimits
+	seen       *replayCache
+	uploads    chan struct{}
+	macUploads chan struct{}
+	active     *inflight
+	grace      time.Duration
+	now        func() time.Time
 }
 
 type sender interface {
@@ -51,6 +62,7 @@ type pushRequest struct {
 type limiter struct {
 	rate  float64
 	burst float64
+	max   int
 	now   func() time.Time
 
 	mu      sync.Mutex
@@ -63,12 +75,16 @@ type bucket struct {
 }
 
 func newLimiter(rate, burst float64, now func() time.Time) *limiter {
-	return &limiter{rate: rate, burst: burst, now: now, buckets: map[string]*bucket{}}
+	return &limiter{rate: rate, burst: burst, max: maxTracked, now: now, buckets: map[string]*bucket{}}
 }
 
 func (r *relay) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/push", r.push)
+	mux.HandleFunc("POST /v1/reports", r.postReport)
+	mux.HandleFunc("GET /v1/reports", r.adminOnly(r.listReports))
+	mux.HandleFunc("GET /v1/reports/{id}/bundle", r.adminOnly(r.reportBundle))
+	mux.HandleFunc("DELETE /v1/reports/{id}", r.adminOnly(r.deleteReport))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -135,19 +151,44 @@ func (p pushRequest) validate() error {
 func (l *limiter) allow(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	b, ok := l.bucket(key)
+	if !ok || b.tokens < 1 {
+		return false
+	}
+	b.tokens--
+	return true
+}
+
+func (l *limiter) ready(key string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	b, ok := l.bucket(key)
+	return ok && b.tokens >= 1
+}
+
+func (l *limiter) prune(now time.Time) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for key, b := range l.buckets {
+		if now.Sub(b.at) > idleBucket {
+			delete(l.buckets, key)
+		}
+	}
+}
+
+func (l *limiter) bucket(key string) (*bucket, bool) {
 	now := l.now()
 	b, ok := l.buckets[key]
 	if !ok {
+		if len(l.buckets) >= l.max {
+			return nil, false
+		}
 		b = &bucket{tokens: l.burst, at: now}
 		l.buckets[key] = b
 	}
 	b.tokens = min(l.burst, b.tokens+now.Sub(b.at).Seconds()*l.rate)
 	b.at = now
-	if b.tokens < 1 {
-		return false
-	}
-	b.tokens--
-	return true
+	return b, true
 }
 
 func bearer(req *http.Request) string {

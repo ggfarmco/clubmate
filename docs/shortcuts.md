@@ -47,6 +47,16 @@ Inside terminals, Ghostty's own bindings apply, except ⌘W, which is unbound so
 
 Defined in `App/Onboarding.swift` (`OnboardingSheet.key`).
 
+## Problem report sheet
+
+| Keys | Action |
+|---|---|
+| Esc | Cancel: nothing is sent |
+| ⌃⇥ | Leave a text field for the next control (⇥ in a text field types a tab) |
+| ⇥ ⇧⇥ | Once out of the text fields: move between the file checkboxes, Quick Look buttons, Cancel and Send (with Keyboard navigation on in System Settings; Space presses) |
+
+Send has no key on purpose, so a keystroke meant for the window under the sheet never sends a report. Defined in `App/ReportSheet.swift` (`ReportSheet`).
+
 ## Plugin buttons
 
 A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the button is on screen; a combo without ⌘, ⌃ or ⌥ does nothing while a text field has focus, app menu keys always win, and Esc, ↩ and ⇥ without ⌘, ⌃ or ⌥ cannot be plugin shortcuts. Plugin shortcuts do nothing while a terminal or nvim has focus, except ⌘↩, which presses over them too; a focused agent message field (the composer) keeps ⌘↩ to send its message. Defined in `SDUI/InputViews.swift` (`ButtonNodeView`) and `SDUI/KeyMonitor.swift`, combos parsed by `ClubmateKit/KeyCombo.swift`. In a plugin's sheet (the `sheet` node) Esc, ↩ and Enter press its cancel button (↩ and Enter not while a text field has focus), which prints ⎋; the sheet's other buttons keep their shortcuts and the page's buttons under it wait (`SDUI/SheetNodeView.swift`). Plugin shortcuts in use:

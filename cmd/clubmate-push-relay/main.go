@@ -24,19 +24,46 @@ const (
 )
 
 var (
-	errUsage    = errors.New("usage: clubmate-push-relay [-listen addr -key file -key-id id -team-id id -tokens file] | token add|rm <name> -tokens file | token ls -tokens file")
+	errUsage    = errors.New("usage: clubmate-push-relay [-listen addr -key file -key-id id -team-id id -tokens file -admins file -bans file -reports dir] | token add|rm <name> -tokens file | token ls -tokens file | admin add|rm <name> -admins file | admin ls -admins file")
 	errNoKey    = errors.New("-key is required")
 	errNoKeyID  = errors.New("-key-id is required unless the key file is named AuthKey_<KEYID>.p8")
 	errNoTeamID = errors.New("-team-id is required")
 	errNoTokens = errors.New("-tokens is required")
+	errNoAdmins = errors.New("-admins is required")
+
+	macTokens = tokenFile{
+		command: "token",
+		flag:    "tokens",
+		env:     "PUSH_RELAY_TOKENS",
+		usage:   "Mac tokens file (PUSH_RELAY_TOKENS)",
+		missing: errNoTokens,
+	}
+	adminTokens = tokenFile{
+		command: "admin",
+		flag:    "admins",
+		env:     "PUSH_RELAY_ADMINS",
+		usage:   "admin tokens file (PUSH_RELAY_ADMINS)",
+		missing: errNoAdmins,
+	}
 )
 
 type config struct {
-	listen string
-	key    string
-	keyID  string
-	teamID string
-	tokens string
+	listen  string
+	key     string
+	keyID   string
+	teamID  string
+	tokens  string
+	admins  string
+	bans    string
+	reports string
+}
+
+type tokenFile struct {
+	command string
+	flag    string
+	env     string
+	usage   string
+	missing error
 }
 
 func main() {
@@ -47,8 +74,13 @@ func main() {
 }
 
 func run(args []string, out io.Writer) error {
-	if len(args) > 0 && args[0] == "token" {
-		return tokenCommand(args[1:], out)
+	if len(args) > 0 {
+		switch args[0] {
+		case macTokens.command:
+			return tokenCommand(macTokens, args[1:], out)
+		case adminTokens.command:
+			return tokenCommand(adminTokens, args[1:], out)
+		}
 	}
 	return serve(args)
 }
@@ -61,6 +93,9 @@ func serve(args []string) error {
 	fs.StringVar(&cfg.keyID, "key-id", env("PUSH_RELAY_KEY_ID", ""), "APNs key id, default from the key file name (PUSH_RELAY_KEY_ID)")
 	fs.StringVar(&cfg.teamID, "team-id", env("PUSH_RELAY_TEAM_ID", ""), "Apple Developer team id (PUSH_RELAY_TEAM_ID)")
 	fs.StringVar(&cfg.tokens, "tokens", env("PUSH_RELAY_TOKENS", ""), "Mac tokens file (PUSH_RELAY_TOKENS)")
+	fs.StringVar(&cfg.admins, "admins", env("PUSH_RELAY_ADMINS", ""), "admin tokens file for the reports API (PUSH_RELAY_ADMINS)")
+	fs.StringVar(&cfg.bans, "bans", env("PUSH_RELAY_BANS", ""), "banned report keys and IPs (PUSH_RELAY_BANS)")
+	fs.StringVar(&cfg.reports, "reports", env("PUSH_RELAY_REPORTS", "reports"), "problem reports directory (PUSH_RELAY_REPORTS)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -75,8 +110,37 @@ func serve(args []string) error {
 	if err != nil {
 		return err
 	}
+	var admins *tokens
+	if cfg.admins != "" {
+		if admins, err = loadTokens(cfg.admins); err != nil {
+			return err
+		}
+	}
+	b, err := loadBans(cfg.bans)
+	if err != nil {
+		return err
+	}
+	reports, err := openStore(cfg.reports, reportQuota)
+	if err != nil {
+		return err
+	}
 	logger := log.New(os.Stderr, "", 0)
-	r := &relay{tokens: toks, apns: client, limiter: newLimiter(pushRate, pushBurst, time.Now), log: logger}
+	r := &relay{
+		tokens:     toks,
+		apns:       client,
+		limiter:    newLimiter(pushRate, pushBurst, time.Now),
+		log:        logger,
+		admins:     admins,
+		bans:       b,
+		reports:    reports,
+		limits:     newReportLimits(time.Now),
+		seen:       newReplayCache(),
+		uploads:    make(chan struct{}, maxUploads),
+		macUploads: make(chan struct{}, maxMacUploads),
+		active:     newInflight(),
+		grace:      minTransfer,
+		now:        time.Now,
+	}
 	srv := &http.Server{
 		Addr:              cfg.listen,
 		Handler:           r.handler(),
@@ -92,6 +156,7 @@ func serve(args []string) error {
 	go func() {
 		errc <- srv.ListenAndServe()
 	}()
+	go r.sweepEvery(ctx, sweepInterval)
 	logger.Printf("listening on %s", cfg.listen)
 	select {
 	case err := <-errc:
@@ -103,7 +168,7 @@ func serve(args []string) error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-func tokenCommand(args []string, out io.Writer) error {
+func tokenCommand(file tokenFile, args []string, out io.Writer) error {
 	if len(args) == 0 {
 		return errUsage
 	}
@@ -115,8 +180,8 @@ func tokenCommand(args []string, out io.Writer) error {
 		}
 		name, rest = rest[0], rest[1:]
 	}
-	fs := flag.NewFlagSet("token "+sub, flag.ContinueOnError)
-	path := fs.String("tokens", env("PUSH_RELAY_TOKENS", ""), "Mac tokens file (PUSH_RELAY_TOKENS)")
+	fs := flag.NewFlagSet(file.command+" "+sub, flag.ContinueOnError)
+	path := fs.String(file.flag, env(file.env, ""), file.usage)
 	if err := fs.Parse(rest); err != nil {
 		return err
 	}
@@ -124,7 +189,7 @@ func tokenCommand(args []string, out io.Writer) error {
 		return errUsage
 	}
 	if *path == "" {
-		return errNoTokens
+		return file.missing
 	}
 	switch sub {
 	case "add":

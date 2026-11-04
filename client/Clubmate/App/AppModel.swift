@@ -14,6 +14,7 @@ final class AppModel {
     let settings = AppSettings(defaults: TestMode.defaults)
     let claude = ClaudeIntegration()
     let onboarding = OnboardingModel()
+    let reports = ReportModel()
     private(set) var workspaceStore: WorkspacesStore?
     private(set) var commands: [Command] = []
 
@@ -229,6 +230,7 @@ final class AppModel {
         try await CoreLauncher(cliPath: cli, bundledVersion: Bundle.main.clubmateVersion).ensureRunning(paths: paths)
         let client = try await CoreClient.connect(paths: paths)
         client.confirmHandler = { [weak self] request, expiry in await self?.approve(request, expiry) ?? false }
+        client.reportHandler = { [weak self] request, expiry in await self?.report(request, expiry) ?? .unanswered(request, reason: ReportReply.noWindow) }
         client.browserHandler = { [weak self] call in
             guard let self else { throw ClubmateError.notRunning }
             return try await self.browser.handle(call)
@@ -261,7 +263,7 @@ final class AppModel {
 
     private func approve(_ request: ConfirmRequest, _ expiry: ConfirmExpiry) async -> Bool {
         if TestMode.current { return false }
-        let window = windows.attentionWindow.map { onboarding.show ? $0.attachedSheet ?? $0 : $0 }
+        let window = windows.attentionWindow.map { onboarding.show || $0.attachedSheet?.identifier == ReportSheet.windowID ? $0.attachedSheet ?? $0 : $0 }
         let attention = NSApp.requestUserAttention(.criticalRequest)
         defer { NSApp.cancelUserAttentionRequest(attention) }
         let font = GhosttyApp.shared.theme.nsMono(size: settings.interfaceFontSize, bold: false)

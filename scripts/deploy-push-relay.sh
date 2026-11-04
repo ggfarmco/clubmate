@@ -22,8 +22,10 @@ scp -q "$OUT/clubmate-push-relay.service" "$HOST:/tmp/clubmate-push-relay.servic
 ssh "$HOST" 'set -e
 chmod 755 ~/push-relay/clubmate-push-relay.new
 mv -f ~/push-relay/clubmate-push-relay.new ~/push-relay/clubmate-push-relay
-touch ~/push-relay/tokens
-chmod 600 ~/push-relay/tokens
+touch ~/push-relay/tokens ~/push-relay/admins ~/push-relay/bans
+chmod 600 ~/push-relay/tokens ~/push-relay/admins ~/push-relay/bans
+mkdir -p ~/push-relay/reports
+chmod 700 ~/push-relay/reports
 sudo install -m 644 -o root -g root /tmp/clubmate-push-relay.service /etc/systemd/system/clubmate-push-relay.service
 rm -f /tmp/clubmate-push-relay.service
 sudo systemctl daemon-reload

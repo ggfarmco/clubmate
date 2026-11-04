@@ -7,6 +7,7 @@ public final class CoreClient {
     private var pumpFinished = false
     public private(set) var stoppedIntentionally = false
     public var confirmHandler: (@MainActor (ConfirmRequest, ConfirmExpiry) async -> Bool)?
+    public var reportHandler: (@MainActor (ReportRequest, ConfirmExpiry) async -> ReportReply)?
     public var snapshotHandler: (@MainActor (SnapshotRequest) async throws -> SnapshotResult)?
     public var presentHandler: (@MainActor (PresentRequest) async throws -> Bool)?
     public var keyHandler: (@MainActor (KeyRequest) async throws -> [String])?
@@ -225,6 +226,9 @@ public final class CoreClient {
         case "browser.call":
             await answerTest(request, browserHandler)
             return
+        case "ui.report":
+            await answerReport(request)
+            return
         default:
             break
         }
@@ -238,6 +242,16 @@ public final class CoreClient {
         }
         let handler = confirmHandler
         let reply = await ConfirmRequest.answer(confirm) { await handler?($0, $1) ?? false }
+        try? await connection.reply(id: request.id, result: reply)
+    }
+
+    private func answerReport(_ request: RPCRequest) async {
+        guard let report = try? request.params.decode(ReportRequest.self) else {
+            try? await connection.replyError(id: request.id, code: -32602, message: "invalid ui.report params")
+            return
+        }
+        let handler = reportHandler
+        let reply = await ReportRequest.answer(report) { await handler?($0, $1) ?? .unanswered($0, reason: ReportReply.noWindow) }
         try? await connection.reply(id: request.id, result: reply)
     }
 

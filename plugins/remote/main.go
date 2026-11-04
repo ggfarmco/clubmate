@@ -45,6 +45,7 @@ type app struct {
 	srv   *server
 	ln    *listeners
 	ident *identity
+	rep   *reports
 
 	enableMu sync.Mutex
 	seedMu   sync.Mutex
@@ -74,6 +75,7 @@ type status struct {
 	OtherMacs      []otherMac `json:"otherMacs"`
 	TitleDot       bool       `json:"titleDot"`
 	Push           bool       `json:"push"`
+	ReportRelay    string     `json:"reportRelay"`
 }
 
 type otherMac struct {
@@ -148,6 +150,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err := relay.load(ctx); err != nil {
 		logf("load push relay: %v", err)
 	}
+	a.rep = newReports(relay, h, &http.Client{Timeout: reportTimeout}, pluginsdk.StateDir(), time.Now)
 	a.srv = &server{
 		backend:  hostBackend{host: h},
 		devices:  devices,
@@ -252,6 +255,26 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, err
 		}
 		return a.status(), nil
+	case "remote.report-upload":
+		var args reportUploadArgs
+		if err := decodeArgs(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		return a.rep.upload(ctx, args.Path)
+	case "remote.set-report-inbox":
+		var args relayArgs
+		if err := decodeArgs(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		return nil, a.rep.setInbox(ctx, args.URL, args.Token)
+	case "remote.reports-fetch":
+		return a.rep.fetch(ctx)
+	case "remote.reports-done":
+		var args reportsDoneArgs
+		if err := decodeArgs(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		return nil, a.rep.done(args.IDs)
 	}
 	return nil, fmt.Errorf("%w: %s", errUnknownCommand, cmd.ID)
 }
@@ -480,6 +503,7 @@ func (a *app) status() status {
 		OtherMacs:      others,
 		TitleDot:       a.titleBar && len(others) > 0,
 		Push:           a.srv.relay.configured(),
+		ReportRelay:    a.srv.relay.reportHost(),
 	}
 	dns := a.dns
 	a.mu.Unlock()

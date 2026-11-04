@@ -22,9 +22,9 @@ import (
 const tokenPrefix = "cmr_"
 
 var (
-	errBadMacName  = errors.New("mac name must be one word without spaces")
-	errMacExists   = errors.New("mac already has a token")
-	errUnknownMac  = errors.New("no token for that mac")
+	errBadMacName  = errors.New("name must be one word without spaces")
+	errMacExists   = errors.New("name already has a token")
+	errUnknownMac  = errors.New("no token for that name")
 	errBadTokenRow = errors.New("want <name> <sha256 hex>")
 )
 

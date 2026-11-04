@@ -19,16 +19,7 @@ extension AppModel {
         }
         Task {
             guard let screenshot = await DiagnosticsSheet.ask(window: window) else { return }
-            var extra: [String: Data] = [:]
-            if let id = Bundle.main.bundleIdentifier, let domain = UserDefaults.standard.persistentDomain(forName: id) {
-                extra[Diagnostics.settingsName] = Diagnostics.redactedSettings(domain)
-            }
-            if let log = AppLog.recent() {
-                extra[Diagnostics.appLogName] = log
-            }
-            if screenshot, let png = window.flatMap { WindowImage.png($0) }, png.count <= Diagnostics.extraLimit {
-                extra[Diagnostics.windowName] = png
-            }
+            let extra = Diagnostics.appExtras(window: window, screenshot: screenshot)
             let result: DiagnosticsResult
             do {
                 result = try await client.collectDiagnostics(workspaceID: workspaceID, appVersion: Bundle.main.clubmateVersion, extra: extra)
@@ -51,6 +42,23 @@ extension AppModel {
                 report("Could not save diagnostics: \(error.localizedDescription)")
             }
         }
+    }
+}
+
+extension Diagnostics {
+    @MainActor
+    static func appExtras(window: NSWindow?, screenshot: Bool) -> [String: Data] {
+        var extra: [String: Data] = [:]
+        if let id = Bundle.main.bundleIdentifier, let domain = UserDefaults.standard.persistentDomain(forName: id) {
+            extra[settingsName] = redactedSettings(domain)
+        }
+        if let log = AppLog.recent() {
+            extra[appLogName] = log
+        }
+        if screenshot, let png = window.flatMap({ WindowImage.png($0) }), png.count <= extraLimit {
+            extra[windowName] = png
+        }
+        return extra
     }
 }
 

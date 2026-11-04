@@ -63,6 +63,11 @@ final class WindowRouter {
         (keyWindowID.flatMap { layout.window($0)?.active }, keyWindowID.flatMap(host))
     }
 
+    func reportWindow(_ workspaceID: String) -> String? {
+        let shown = layout.windows.filter { host($0.id) != nil }
+        return shown.first { $0.active == workspaceID }?.id ?? shown.first { $0.workspaces.contains(workspaceID) }?.id ?? keyWindowID.flatMap { id in shown.first { $0.id == id }?.id } ?? shown.first?.id
+    }
+
     var attentionWindow: NSWindow? {
         keyWindowID.flatMap(host) ?? layout.windows.lazy.compactMap { self.host($0.id) }.first
     }

@@ -30,7 +30,7 @@ struct FormSheetHost: View {
                     .environment(\.composerDrafts, drafts)
                     .environment(\.theme, theme)
                     .environment(\.formSheet, true)
-                    .background(FormSheetWindowTag())
+                    .background(SheetWindowTag(id: Self.windowID))
             }
     }
 
@@ -50,17 +50,30 @@ extension EnvironmentValues {
     }
 }
 
-private struct FormSheetWindowTag: NSViewRepresentable {
-    func makeNSView(context: Context) -> FormSheetWindowTagView {
-        FormSheetWindowTagView()
+struct SheetWindowTag: NSViewRepresentable {
+    let id: NSUserInterfaceItemIdentifier
+
+    func makeNSView(context: Context) -> SheetWindowTagView {
+        SheetWindowTagView(id: id)
     }
 
-    func updateNSView(_ view: FormSheetWindowTagView, context: Context) {}
+    func updateNSView(_ view: SheetWindowTagView, context: Context) {}
 }
 
-private final class FormSheetWindowTagView: NSView {
+final class SheetWindowTagView: NSView {
+    private let id: NSUserInterfaceItemIdentifier
+
+    init(id: NSUserInterfaceItemIdentifier) {
+        self.id = id
+        super.init(frame: .zero)
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        window?.identifier = FormSheetHost.windowID
+        window?.identifier = id
     }
 }

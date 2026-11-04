@@ -148,6 +148,60 @@ final class ClubmateKitTests: XCTestCase {
         XCTAssertEqual(reply, ConfirmReply(approved: false, reason: "approval timed out"))
     }
 
+    func testReportRequestRoundTrip() async throws {
+        let base = try TestCore.makeTempDir()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let paths = ClubmatePaths(state: base.appending(path: "state"), runtime: base.appending(path: "run"))
+        for dir in [paths.runtime, paths.sessionsSocketDir] {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        }
+        let server = try listen(at: paths.coreSocket.path(percentEncoded: false))
+        defer { close(server) }
+        let client = CoreClient(connection: try await RPCConnection.connect(paths: paths))
+        let png = Data([0x89, 0x50, 0x4E, 0x47, 0x00, 0xFF])
+        var asked: ReportRequest?
+        client.reportHandler = { request, _ in
+            asked = request
+            return ReportReply(send: true, text: "edited", summary: request.summary, files: request.files.filter(\.checked).map(\.name), extra: [Diagnostics.windowName: png], appVersion: "0.0.16 (abc1234)")
+        }
+        let request = #"{"jsonrpc":"2.0","id":7,"method":"ui.report","params":{"workspaceId":"ws_1","workspaceName":"demo","relayHost":"clubmate-push.exe.xyz","text":"it broke","summary":"ran make","sessionTitle":"Fix login","timeoutMs":600000,"maxBytes":26214400,"maxText":20480,"files":[{"name":"logs/core.log","bytes":120,"path":"/r/logs/core.log","checked":true,"warning":""},{"name":"files/id_rsa","bytes":3,"path":"/r/files/id_rsa","checked":false,"warning":"outside the workspace","source":"/Users/me/.ssh/id_rsa"}]}}"#
+        let line = try await Task.detached { try Self.exchange(server, request) }.value
+        XCTAssertEqual(asked, ReportRequest(workspaceId: "ws_1", workspaceName: "demo", relayHost: "clubmate-push.exe.xyz", text: "it broke", summary: "ran make", sessionTitle: "Fix login", timeoutMs: 600000, maxBytes: 26214400, maxText: 20480, files: [
+            ReportRequest.File(name: "logs/core.log", bytes: 120, path: "/r/logs/core.log", checked: true),
+            ReportRequest.File(name: "files/id_rsa", bytes: 3, path: "/r/files/id_rsa", checked: false, warning: "outside the workspace", source: "/Users/me/.ssh/id_rsa"),
+        ]))
+        let reply = try JSONDecoder().decode(JSONValue.self, from: Data(line.utf8))
+        XCTAssertEqual(reply["id"], .number(7))
+        XCTAssertEqual(reply["result"], .object([
+            "send": .bool(true),
+            "text": .string("edited"),
+            "summary": .string("ran make"),
+            "files": .array([.string("logs/core.log")]),
+            "extra": .object(["window.png": .string(png.base64EncodedString())]),
+            "appVersion": .string("0.0.16 (abc1234)"),
+        ]))
+        await client.close()
+    }
+
+    func testReportTextProblemCountsUTF8Bytes() {
+        let request = ReportRequest(workspaceId: "ws_1", workspaceName: "demo", relayHost: "clubmate-push.exe.xyz", text: "", maxBytes: 26214400, maxText: 4, files: [])
+        XCTAssertEqual(request.textProblem(text: " \n", summary: ""), "Your words can't be empty")
+        XCTAssertEqual(request.textProblem(text: "жжж", summary: ""), "Your words are over 4 B")
+        XCTAssertEqual(request.textProblem(text: "ok", summary: "жжж"), "Agent's summary is over 4 B")
+        XCTAssertNil(request.textProblem(text: "жж", summary: "abcd"))
+    }
+
+    func testReportExpiresAsTimedOutNeverSent() async {
+        let request = ReportRequest(workspaceId: "ws_1", workspaceName: "demo", relayHost: "clubmate-push.exe.xyz", text: "it broke", timeoutMs: 5001, maxBytes: 26214400, maxText: 20480, files: [])
+        let reply = await ReportRequest.answer(request) { request, expiry in
+            await withCheckedContinuation { continuation in
+                expiry.onExpire { continuation.resume() }
+            }
+            return ReportReply(send: true, text: request.text, summary: "", files: [], extra: [:], appVersion: "1")
+        }
+        XCTAssertEqual(reply, ReportReply(send: false, text: "it broke", summary: "", files: [], extra: [:], appVersion: "", reason: "timed out"))
+    }
+
     func testAgentApprovalRoundTrip() async throws {
         let client = try await startCore()
         let workspace = try await client.createWorkspace(name: "demo")
@@ -282,6 +336,22 @@ final class ClubmateKitTests: XCTestCase {
         let core = try await TestCore.start()
         self.core = core
         return try await CoreClient.connect(paths: core.paths)
+    }
+
+    nonisolated private static func exchange(_ server: Int32, _ line: String) throws -> String {
+        let peer = accept(server, nil, nil)
+        guard peer >= 0 else { throw TestFailure(description: "accept: \(String(cString: strerror(errno)))") }
+        defer { close(peer) }
+        let out = Array((line + "\n").utf8)
+        guard write(peer, out, out.count) == out.count else { throw TestFailure(description: "write: \(String(cString: strerror(errno)))") }
+        var received: [UInt8] = []
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while !received.contains(0x0A) {
+            let n = read(peer, &buffer, buffer.count)
+            guard n > 0 else { throw TestFailure(description: "read ended before a reply") }
+            received += buffer[..<n]
+        }
+        return String(decoding: received.prefix { $0 != 0x0A }, as: UTF8.self)
     }
 
     private func listen(at path: String) throws -> Int32 {
