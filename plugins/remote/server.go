@@ -49,7 +49,10 @@ type server struct {
 	changed  func()
 	watching func(contract.RemoteWatching)
 	ping     time.Duration
+	now      func() time.Time
 	pushed   pushLog
+
+	relayAlert relayAlert
 
 	uiMu     sync.Mutex
 	sections map[string][]string

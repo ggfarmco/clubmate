@@ -18,7 +18,7 @@
         "title": "Add trigger",
         "hidden": true,
         "agent": true,
-        "description": "Call an agent-visible command whenever a bus event of this workspace arrives, e.g. have a reviewer session look at another session's work when its turn ends: on agents.turn, match {\"session\":\"<coder id>\",\"status\":\"done\"}, command agents.prompt, args {\"session\":\"<reviewer id>\",\"text\":\"Review what {{payload.session}} just did\"}. Clubmate already prompts you when your own child sessions end their turns, so don't add triggers for that. To follow the sessions a cron job or trigger starts with agents.new, whatever their ids: on agents.turn, match {\"cronJob\":\"cj_…\",\"finished\":true} (or \"trigger\":\"tr_…\"); finished is true only when the session's turn ended done with no child session still running or waiting. Only events naming this workspace (in workspace, workspaceId or session.workspaceId) fire it. String values in args may hold {{topic}}, {{seq}}, {{payload}} and {{payload.<field.path>}}, filled from the event. The target command and its args are checked now. A trigger never runs twice at once; 10 runs within 1m or 3 errors in a row pause it. triggers.* and cron.* commands cannot be targets. Returns the trigger: {id, name, workspace, on, match?, command, args, enabled, owner?, createdBy?, failures?, lastError?}. Non-destructive.",
+        "description": "Call an agent-visible command whenever a bus event of this workspace arrives, e.g. have a reviewer session look at another session's work when its turn ends: on agents.turn, match {\"session\":\"<coder id>\",\"status\":\"done\"}, command agents.prompt, args {\"session\":\"<reviewer id>\",\"text\":\"Review what {{payload.session}} just did\"}. Clubmate already prompts you when your own child sessions end their turns, so don't add triggers for that. To follow the sessions a cron job or trigger starts with agents.new, whatever their ids: on agents.turn, match {\"cronJob\":\"cj_…\",\"finished\":true} (or \"trigger\":\"tr_…\"); finished is true only when the session's turn ended done with no child session still running or waiting. Only events naming this workspace (in workspace, workspaceId or session.workspaceId) fire it. String values in args may hold {{topic}}, {{seq}}, {{payload}} and {{payload.<field.path>}}, filled from the event. The target command and its args are checked now. A trigger never runs twice at once unless parallel is true; more runs within 1m than limit (default 10) or 3 errors in a row pause it. triggers.* and cron.* commands cannot be targets. Returns the trigger: {id, name, workspace, on, match?, command, args, enabled, limit?, parallel?, owner?, createdBy?, failures?, lastError?}. Non-destructive.",
         "args": {
           "properties": {
             "name": {"type": "string", "description": "Short human name of the trigger."},
@@ -26,6 +26,8 @@
             "match": {"type": "string", "description": "Payload filter as JSON text (a string holding a JSON object): every key, a dotted path into the event payload, must equal its value; an array value matches any of its elements, e.g. {\"status\":[\"done\",\"error\"]}. Default: every event on the topic."},
             "command": {"type": "string", "description": "Id of the agent-visible command to call, e.g. agents.prompt or agents.new."},
             "args": {"type": "string", "default": "{}", "description": "Arguments of the command as JSON text, e.g. {\"session\":\"<id>\",\"text\":\"{{payload.session}} finished\"}; default {}."},
+            "limit": {"type": "integer", "description": "Runs a minute (1–60) before the loop guard pauses the trigger; 0 or unset: 10."},
+            "parallel": {"type": "boolean", "description": "true: a run starts while the previous one is still running instead of the event being dropped. Default false."},
             "owner": {"type": "string", "enum": ["self", "none"], "default": "self", "description": "self (default): the trigger belongs to your agent session, fires as you and is deleted when your session is closed. none: it outlives your session and fires with no caller. Triggers created by the user have no owner."},
             "run": {"type": "string", "description": "Id of the agent graph run (gr_…) the trigger is an edge of; only the Graphs plugin can set it; from any other caller it is ignored. The Triggers section groups the run's triggers under the run and offers Open graph instead of Delete."},
             "runTitle": {"type": "string", "description": "Title of that run, shown on the group row and as \"created by graph <title>\"."}
@@ -38,7 +40,7 @@
         "title": "List triggers",
         "hidden": true,
         "agent": true,
-        "description": "List the workspace's triggers without their run history: {triggers: [{id, name, on, match?, command, args, enabled, owner?, createdBy?, failures?, lastError?}]}. Non-destructive."
+        "description": "List the workspace's triggers without their run history: {triggers: [{id, name, on, match?, command, args, enabled, limit?, parallel?, owner?, createdBy?, failures?, lastError?}]}. Non-destructive."
       },
       {
         "id": "triggers.show",
@@ -58,7 +60,7 @@
         "title": "Update trigger",
         "hidden": true,
         "agent": true,
-        "description": "Change a trigger; only the given fields change; match \"\" or \"{}\" drops the filter. command and args are checked like in triggers.add. An agent may change only triggers owned or created by itself or its child sessions. Returns the trigger. Non-destructive.",
+        "description": "Change a trigger; only the given fields change; match \"\" or \"{}\" drops the filter. command and args are checked like in triggers.add. An agent may change only triggers owned or created by itself or its child sessions, or ones a plugin added (createdBy plugin:<id>). Returns the trigger. Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Trigger id (tr_…)."},
@@ -66,7 +68,9 @@
             "on": {"type": "string", "description": "New topic or prefix pattern."},
             "match": {"type": "string", "description": "New payload filter as JSON text; \"\" drops it."},
             "command": {"type": "string", "description": "New agent-visible command id."},
-            "args": {"type": "string", "description": "New arguments as JSON text."}
+            "args": {"type": "string", "description": "New arguments as JSON text."},
+            "limit": {"type": "integer", "description": "Runs a minute (1–60) before the loop guard pauses the trigger; 0: back to 10."},
+            "parallel": {"type": "boolean", "description": "true: a run starts while the previous one is still running instead of the event being dropped. Default false."}
           },
           "required": ["id"]
         }
@@ -76,7 +80,7 @@
         "title": "Pause trigger",
         "hidden": true,
         "agent": true,
-        "description": "Stop a trigger from firing until triggers.resume. An agent may pause only triggers owned or created by itself or its child sessions. Returns the trigger. Non-destructive.",
+        "description": "Stop a trigger from firing until triggers.resume. An agent may pause only triggers owned or created by itself or its child sessions, or ones a plugin added (createdBy plugin:<id>). Returns the trigger. Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Trigger id (tr_…)."}
@@ -89,7 +93,7 @@
         "title": "Resume trigger",
         "hidden": true,
         "agent": true,
-        "description": "Resume a paused trigger (also one paused by errors or the loop limit) and clear its failure count and last error. An agent may resume only triggers owned or created by itself or its child sessions. Returns the trigger. Non-destructive.",
+        "description": "Resume a paused trigger (also one paused by errors or the loop limit) and clear its failure count and last error. An agent may resume only triggers owned or created by itself or its child sessions, or ones a plugin added (createdBy plugin:<id>). Returns the trigger. Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Trigger id (tr_…)."}
@@ -102,7 +106,7 @@
         "title": "Delete trigger",
         "hidden": true,
         "agent": true,
-        "description": "Delete a trigger. An agent may delete only triggers owned or created by itself or its child sessions. Non-destructive.",
+        "description": "Delete a trigger. An agent may delete only triggers owned or created by itself or its child sessions, or ones a plugin added (createdBy plugin:<id>). Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Trigger id (tr_…)."}

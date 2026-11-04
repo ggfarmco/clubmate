@@ -143,3 +143,13 @@ func childIDs(n sdui.Node) []string {
 	}
 	return ids
 }
+
+func TestPaceLineShowsOnlyWhatIsSet(t *testing.T) {
+	assert.Equal(t, "up to 60 runs a minute · runs overlap", paceLine(&Trigger{Limit: 60, Parallel: true}))
+	assert.Equal(t, "runs overlap", paceLine(&Trigger{Parallel: true}))
+	assert.Empty(t, paceLine(&Trigger{}))
+}
+
+func TestOwnerLineNamesTheAddingPlugin(t *testing.T) {
+	assert.Equal(t, "added by remote", ownerLine(&Trigger{CreatedBy: "plugin:remote"}, nil))
+}

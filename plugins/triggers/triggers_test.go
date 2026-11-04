@@ -147,3 +147,39 @@ func TestAddIgnoresRunFromOtherCallers(t *testing.T) {
 	assert.Empty(t, added.Run)
 	assert.Empty(t, added.RunTitle)
 }
+
+func TestAddRejectsLimitOutOfRange(t *testing.T) {
+	f := newFixture(t)
+	base := map[string]any{"name": "x", "on": "event.ping", "command": "notify.post", "args": `{"message":"hi"}`}
+	var added map[string]any
+	args := maps.Clone(base)
+	args["limit"] = 0
+	require.NoError(t, f.run(t, "triggers.add", args, &added))
+	assert.NotContains(t, added, "limit")
+	for _, limit := range []int{61, -1} {
+		args["limit"] = limit
+		assert.ErrorContains(t, f.run(t, "triggers.add", args, nil), "limit: 1–60 runs a minute")
+	}
+}
+
+func TestAddFromAPluginRecordsIt(t *testing.T) {
+	f := newFixture(t)
+	require.NoError(t, f.h.PluginCall(t, "remote", "command.run", map[string]any{"id": "triggers.add", "workspaceId": f.workspace, "args": map[string]any{
+		"name": "Push to phone", "on": "notify.posted", "command": "notify.post", "args": `{"message":"hi"}`, "owner": "none",
+	}}))
+	var list struct {
+		Triggers []struct {
+			ID        string `json:"id"`
+			Owner     string `json:"owner"`
+			CreatedBy string `json:"createdBy"`
+		} `json:"triggers"`
+	}
+	require.NoError(t, f.run(t, "triggers.list", map[string]any{}, &list))
+	require.Len(t, list.Triggers, 1)
+	added := list.Triggers[0]
+	assert.Equal(t, []string{"plugin:remote", ""}, []string{added.CreatedBy, added.Owner})
+	require.NoError(t, f.h.Client(t).Call(t.Context(), "command.run", map[string]any{
+		"id": "triggers.update", "workspaceId": f.workspace, "agent": true, "caller": "agt_0000000000000001",
+		"args": map[string]any{"id": added.ID, "name": "Push more"},
+	}, nil))
+}

@@ -70,11 +70,12 @@ func TestFromOwner(t *testing.T) {
 		{"workspace.deleted", "plugin:git", false},
 		{"event.tidy.done", "plugin:triggers", true},
 		{"event.tidy.done", "plugin:graphs", false},
+		{"event.tidy.done", "cli", false},
 		{"event.graph.r.n", "plugin:graphs", true},
 		{"event.graph.r.n", "cli", false},
 		{"notify.posted", "agent", true},
 		{"notify.posted", "plugin:agents", true},
-		{"notify.posted", "cli", false},
+		{"notify.posted", "cli", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.topic+" from "+tt.source, func(t *testing.T) {

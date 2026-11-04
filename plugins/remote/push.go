@@ -1,11 +1,15 @@
 package main
 
 import (
+	"cmp"
 	"context"
+	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"maps"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,7 +25,23 @@ const (
 	requestPermission  = "permission"
 	agentSessionPrefix = "agt_"
 	sessionsCommand    = "agents.sessions"
+	notifyPostCommand  = "notify.post"
 	pushMaxAge         = time.Hour
+	relayAlertEvery    = time.Hour
+	freePushKind       = "info"
+	stuckKind          = "stuck"
+	relayAlertTitle    = "Push relay unreachable"
+
+	summaryAccessOff    = "companion access off"
+	summaryNoRelay      = "no relay set"
+	summaryStale        = "held: older than 1h"
+	summaryMuted        = "held: session muted"
+	summaryNeedsInput   = "held: session needs-input only"
+	summaryNoToken      = "no device with a token"
+	outcomeStreamOpen   = "skipped, stream open"
+	outcomeUnreachable  = "relay unreachable"
+	outcomeTokenDropped = ", token dropped"
+	summarySeparator    = " · "
 
 	policyNeedsInput = "needs-input"
 	policyMuted      = "muted"
@@ -36,7 +56,40 @@ var (
 		"stuck":       "Stuck",
 	}
 	needsInputKinds = []string{"needs-input", "permission", "question"}
+
+	errNoPushMessage   = errors.New("remote.push needs notification or message")
+	errBadNotification = errors.New("notification must be JSON text of a notify.posted payload with an id")
 )
+
+type pushArgs struct {
+	Notification string `json:"notification"`
+	Title        string `json:"title"`
+	Message      string `json:"message"`
+	Session      string `json:"session"`
+}
+
+type pushResult struct {
+	Summary string       `json:"summary"`
+	Devices []devicePush `json:"devices,omitempty"`
+}
+
+type devicePush struct {
+	Device  string `json:"device"`
+	Name    string `json:"name"`
+	Outcome string `json:"outcome"`
+	err     error
+}
+
+type relayAlert struct {
+	mu   sync.Mutex
+	last time.Time
+}
+
+type notifyPost struct {
+	Kind    string `json:"kind"`
+	Title   string `json:"title"`
+	Message string `json:"message"`
+}
 
 type pushLog struct {
 	mu   sync.Mutex
@@ -131,54 +184,97 @@ func (s *server) pushToken(ctx context.Context, d device, p pushTokenRequest) (p
 }
 
 func (s *server) push(ctx context.Context, ev pluginsdk.Event) {
-	if !s.relay.configured() {
+	if ev.Topic != agentsChangedTopic || !s.relay.configured() {
 		return
 	}
-	switch ev.Topic {
-	case notifyTopic:
-		s.pushNotification(ctx, ev)
-	case agentsChangedTopic:
-		s.pushResolved(ctx, ev)
-	}
+	s.pushResolved(ctx, ev)
 }
 
-func (s *server) pushNotification(ctx context.Context, ev pluginsdk.Event) {
+func (s *server) pushCommand(ctx context.Context, workspace string, enabled bool, a pushArgs) (pushResult, error) {
 	var n notifyPayload
-	if err := json.Unmarshal(ev.Payload, &n); err != nil || n.ID == "" {
-		return
+	switch {
+	case a.Notification != "":
+		if err := json.Unmarshal([]byte(a.Notification), &n); err != nil || n.ID == "" {
+			return pushResult{}, errBadNotification
+		}
+		workspace = cmp.Or(n.Workspace, workspace)
+	case a.Message != "":
+		n = notifyPayload{Title: a.Title, Message: a.Message, Session: a.Session, Kind: freePushKind}
+	default:
+		return pushResult{}, errNoPushMessage
 	}
-	label, ok := pushKinds[n.Kind]
-	if !ok || stale(n.TS) {
-		return
-	}
-	workspace := n.Workspace
-	if workspace == "" {
-		workspace = ev.Workspace
-	}
-	if !allows(s.policy(ctx, workspace, n.Session), n.Kind) {
-		return
+	if held := s.held(ctx, workspace, enabled, n); held != "" {
+		return pushResult{Summary: held}, nil
 	}
 	comp := s.identity.get()
-	subtitle := n.Title
-	if subtitle == "" {
-		subtitle = label
+	id := n.ID
+	if id == "" {
+		id = rand.Text()
 	}
 	body, err := json.Marshal(alertBody{
 		APS: alertAPS{
-			Alert:    alert{Title: s.alertTitle(ctx, comp.Name, workspace), Subtitle: subtitle, Body: n.Message},
+			Alert:    alert{Title: s.alertTitle(ctx, comp.Name, workspace), Subtitle: cmp.Or(n.Title, kindLabel(n.Kind)), Body: n.Message},
 			Sound:    "default",
 			ThreadID: comp.ID,
 		},
-		ID:        comp.ID + "|" + n.ID,
+		ID:        comp.ID + "|" + id,
 		Computer:  comp.ID,
 		Workspace: workspace,
 		Session:   n.Session,
 		Kind:      n.Kind,
 	})
 	if err != nil {
+		return pushResult{}, err
+	}
+	devices := s.pushAll(ctx, relayPush{pushType: apns.TypeAlert, collapseID: truncate(n.ID, apns.MaxCollapseID), notification: n.ID, payload: body})
+	if i := slices.IndexFunc(devices, func(d devicePush) bool { return d.err != nil }); i >= 0 {
+		s.alertRelayDown(ctx, workspace, devices[i].err)
+	}
+	return pushResult{Summary: summary(devices), Devices: devices}, nil
+}
+
+func (s *server) held(ctx context.Context, workspace string, enabled bool, n notifyPayload) string {
+	switch {
+	case !enabled:
+		return summaryAccessOff
+	case !s.relay.configured():
+		return summaryNoRelay
+	case s.stale(n.TS):
+		return summaryStale
+	}
+	if policy := s.policy(ctx, workspace, n.Session); !allows(policy, n.Kind) {
+		if policy == policyMuted {
+			return summaryMuted
+		}
+		return summaryNeedsInput
+	}
+	if !slices.ContainsFunc(s.devices.list(), func(d device) bool { return d.PushToken != "" }) {
+		return summaryNoToken
+	}
+	return ""
+}
+
+func (s *server) alertRelayDown(ctx context.Context, workspace string, cause error) {
+	if !s.relayAlert.due(s.now()) {
 		return
 	}
-	s.pushAll(ctx, relayPush{pushType: apns.TypeAlert, collapseID: truncate(n.ID, apns.MaxCollapseID), notification: n.ID, payload: body})
+	args, err := json.Marshal(notifyPost{Kind: stuckKind, Title: relayAlertTitle, Message: cause.Error()})
+	if err == nil {
+		_, err = s.backend.Run(ctx, notifyPostCommand, workspace, args)
+	}
+	if err != nil {
+		logf("post relay alert: %v", err)
+	}
+}
+
+func (r *relayAlert) due(now time.Time) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.last.IsZero() && now.Sub(r.last) < relayAlertEvery {
+		return false
+	}
+	r.last = now
+	return true
 }
 
 func (s *server) pushResolved(ctx context.Context, ev pluginsdk.Event) {
@@ -199,9 +295,16 @@ func (s *server) pushResolved(ctx context.Context, ev pluginsdk.Event) {
 	s.pushAll(ctx, relayPush{pushType: apns.TypeBackground, payload: body})
 }
 
-func (s *server) pushAll(ctx context.Context, p relayPush) {
+func (s *server) pushAll(ctx context.Context, p relayPush) []devicePush {
+	var out []devicePush
 	for _, d := range s.devices.list() {
-		if d.PushToken == "" || s.hub.connected(d.ID) {
+		if d.PushToken == "" {
+			continue
+		}
+		r := devicePush{Device: d.ID, Name: d.Name}
+		if s.hub.connected(d.ID) {
+			r.Outcome = outcomeStreamOpen
+			out = append(out, r)
 			continue
 		}
 		s.pushed.add(d.ID, p.notification)
@@ -209,20 +312,24 @@ func (s *server) pushAll(ctx context.Context, p relayPush) {
 		if err != nil || reply.Status != http.StatusOK {
 			s.pushed.forget(d.ID, p.notification)
 		}
-		if err != nil {
+		switch {
+		case err != nil:
 			logf("push to %s: %v", d.ID, err)
-			continue
-		}
-		if reply.GoneToken() {
+			r.Outcome, r.err = outcomeUnreachable, err
+		case reply.GoneToken():
+			r.Outcome = replyWords(reply) + outcomeTokenDropped
 			if err := s.devices.dropPush(ctx, d.PushToken); err != nil {
 				logf("drop push token of %s: %v", d.ID, err)
 			}
-			continue
+		default:
+			r.Outcome = replyWords(reply)
+			if reply.Status != http.StatusOK {
+				logf("push to %s: %d %s", d.ID, reply.Status, reply.Reason)
+			}
 		}
-		if reply.Status != http.StatusOK {
-			logf("push to %s: %d %s", d.ID, reply.Status, reply.Reason)
-		}
+		out = append(out, r)
 	}
+	return out
 }
 
 func (s *server) replayed(device string, ev pluginsdk.Event) pluginsdk.Event {
@@ -316,9 +423,31 @@ func allows(policy, kind string) bool {
 	return true
 }
 
-func stale(ts string) bool {
+func (s *server) stale(ts string) bool {
 	t, err := time.Parse(time.RFC3339, ts)
-	return err == nil && time.Since(t) > pushMaxAge
+	return err == nil && s.now().Sub(t) > pushMaxAge
+}
+
+func summary(devices []devicePush) string {
+	parts := make([]string, 0, len(devices))
+	for _, d := range devices {
+		parts = append(parts, d.Name+" "+d.Outcome)
+	}
+	return strings.Join(parts, summarySeparator)
+}
+
+func replyWords(r apns.Reply) string {
+	return strings.TrimSpace(strconv.Itoa(r.Status) + " " + r.Reason)
+}
+
+func kindLabel(kind string) string {
+	if label, ok := pushKinds[kind]; ok {
+		return label
+	}
+	if kind == "" {
+		return ""
+	}
+	return strings.ToUpper(kind[:1]) + kind[1:]
 }
 
 func truncate(s string, n int) string {

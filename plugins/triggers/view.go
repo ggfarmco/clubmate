@@ -95,6 +95,9 @@ func mainView(t *Trigger, triggers []*Trigger, titles map[string]string, shape *
 	titles = chainTitles(t, titles)
 	when := whenLine(t, titles)
 	rows := []sdui.Node{automation.Property("When", when, "")}
+	if pace := paceLine(t); pace != "" {
+		rows = append(rows, automation.Property("Limits", pace, ""))
+	}
 	if !t.Enabled && t.LastError != "" {
 		rows = append(rows, automation.Property("Paused", automation.ErrorWords(t.LastError), ""))
 	}
@@ -156,6 +159,17 @@ func whenLine(t *Trigger, titles map[string]string) string {
 	return strings.Join(parts, " · ")
 }
 
+func paceLine(t *Trigger) string {
+	var parts []string
+	if t.Limit > 0 {
+		parts = append(parts, "up to "+strconv.Itoa(t.Limit)+" runs a minute")
+	}
+	if t.Parallel {
+		parts = append(parts, "runs overlap")
+	}
+	return strings.Join(parts, " · ")
+}
+
 func rank(key string) int {
 	if key == "status" {
 		return 0
@@ -206,6 +220,9 @@ func matchPart(key string, v any, titles map[string]string) string {
 func ownerLine(t *Trigger, titles map[string]string) string {
 	if t.Run != "" {
 		return "graph " + runName(t)
+	}
+	if plugin, ok := strings.CutPrefix(t.CreatedBy, automation.PluginCreatorPrefix); ok {
+		return "added by " + plugin
 	}
 	return automation.OwnerLabel(t.Owner, titles)
 }

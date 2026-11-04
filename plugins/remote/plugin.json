@@ -105,6 +105,21 @@
         }
       },
       {
+        "id": "remote.push",
+        "title": "Push to phone",
+        "hidden": true,
+        "agent": true,
+        "description": "Send a push notification to every paired phone with a push token and no open event stream, through the push relay. Pass one of notification or message. notification is the JSON text of a notify.posted payload ({{payload}} in a trigger on notify.posted): the push carries its title (or the kind's name), message, session and kind, and is held when it is older than 1h or the session's notification policy mutes its kind. message (with an optional title and session) sends a free push of kind info. Only bad arguments are errors; a held or undelivered push returns ok with what happened. Returns {summary, devices: [{device, name, outcome}]}; summary reads e.g. \"iPhone 200 · iPad skipped, stream open\", \"held: session muted\" or \"no relay set\". Non-destructive.",
+        "args": {
+          "properties": {
+            "notification": {"type": "string", "description": "JSON text of a notify.posted payload, e.g. {{payload}} in a trigger on notify.posted."},
+            "title": {"type": "string", "description": "Title of a free push; default Info."},
+            "message": {"type": "string", "description": "Body of a free push."},
+            "session": {"type": "string", "description": "Agent session (agt_…) a free push is about; its notification policy applies."}
+          }
+        }
+      },
+      {
         "id": "remote.set-push-relay",
         "title": "Set push relay",
         "hidden": true,

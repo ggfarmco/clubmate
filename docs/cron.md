@@ -13,7 +13,7 @@ The `cron` plugin calls an agent-visible command on a schedule: a job is "call c
 | `command`, `args` | The command to call and its arguments. The command must be agent-visible and neither a `cron.*` one nor a `triggers.*` one other than `triggers.emit`; `args` (JSON text holding an object) are checked against its schema when the job is added or updated, so a typo fails at once, not at 9:00. |
 | `enabled` | `false` while paused. |
 | `owner` | The agent session the job belongs to, if any (see [Owner](#owner)). |
-| `createdBy` | The agent session that added it; empty when added by the user or the CLI. |
+| `createdBy` | The agent session that added it; `plugin:<id>` when a plugin added it; empty when added by the user or the CLI. |
 | `missed` | `once` or `skip` (see [Missed runs](#missed-runs)). |
 | `nextRun` | When it fires next. |
 | `failures`, `lastError` | Errors in a row and the last error message. |
@@ -58,9 +58,9 @@ When the Mac slept or Clubmate was down, a job that is more than 1 minute late f
 
 A job that calls `triggers.emit` names itself in the event (`cronJob` in the payload), and a session a job starts remembers the job (`cronJob` in `agents.sessions` and on its `agents.turn`), so a trigger's runs can say which job led to them (see [Triggers](triggers.md#triggers-section)).
 
-A job added by an agent belongs to that agent session by default (`owner: "self"`) and is deleted when the session is closed or deleted. `owner: "none"` makes it outlive the session. Jobs added by the user or the CLI have no owner. In the Cron section, "Show Session" next to the owner selects that session in Agents.
+A job added by an agent belongs to that agent session by default (`owner: "self"`) and is deleted when the session is closed or deleted. `owner: "none"` makes it outlive the session. Jobs added by the user, the CLI or a plugin have no owner. In the Cron section, "Show Session" next to the owner selects that session in Agents.
 
-An agent may update, pause, resume, run and delete only jobs owned or created by itself or by its child sessions; an agent call without an agent session may not change any. The Cron section acts for you, so it can change any job.
+An agent may update, pause, resume, run and delete only jobs owned or created by itself or by its child sessions, and any job a plugin added (`createdBy: plugin:<id>`); an agent call without an agent session may not change any. The Cron section acts for you, so it can change any job.
 
 ## Commands
 

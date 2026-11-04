@@ -61,7 +61,7 @@
         "title": "Update cron job",
         "hidden": true,
         "agent": true,
-        "description": "Change a cron job; only the given fields change. Any of cron, timezone, every, at, in replaces the whole schedule (give exactly one of cron, every, at, in) and recomputes the next run. command and args are checked like in cron.add. An agent may change only jobs owned or created by itself or its child sessions. Returns the job. Non-destructive.",
+        "description": "Change a cron job; only the given fields change. Any of cron, timezone, every, at, in replaces the whole schedule (give exactly one of cron, every, at, in) and recomputes the next run. command and args are checked like in cron.add. An agent may change only jobs owned or created by itself or its child sessions, or ones a plugin added (createdBy plugin:<id>). Returns the job. Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Job id (cj_…)."},
@@ -83,7 +83,7 @@
         "title": "Pause cron job",
         "hidden": true,
         "agent": true,
-        "description": "Stop a cron job from firing until cron.resume. An agent may pause only jobs owned or created by itself or its child sessions. Returns the job. Non-destructive.",
+        "description": "Stop a cron job from firing until cron.resume. An agent may pause only jobs owned or created by itself or its child sessions, or ones a plugin added (createdBy plugin:<id>). Returns the job. Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Job id (cj_…)."}
@@ -96,7 +96,7 @@
         "title": "Resume cron job",
         "hidden": true,
         "agent": true,
-        "description": "Resume a paused cron job (also one paused after 3 failed runs in a row): clears the failure count and last error and schedules the next run from now. An agent may resume only jobs owned or created by itself or its child sessions. Returns the job. Non-destructive.",
+        "description": "Resume a paused cron job (also one paused after 3 failed runs in a row): clears the failure count and last error and schedules the next run from now. An agent may resume only jobs owned or created by itself or its child sessions, or ones a plugin added (createdBy plugin:<id>). Returns the job. Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Job id (cj_…)."}
@@ -109,7 +109,7 @@
         "title": "Run cron job now",
         "hidden": true,
         "agent": true,
-        "description": "Run a cron job's command now, without changing its schedule; the run is added to its history. Returns the run: {at, status, reason?, result?}, status ok, error or skipped. An agent may run only jobs owned or created by itself or its child sessions. Non-destructive.",
+        "description": "Run a cron job's command now, without changing its schedule; the run is added to its history. Returns the run: {at, status, reason?, result?}, status ok, error or skipped. An agent may run only jobs owned or created by itself or its child sessions, or ones a plugin added (createdBy plugin:<id>). Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Job id (cj_…)."}
@@ -122,7 +122,7 @@
         "title": "Delete cron job",
         "hidden": true,
         "agent": true,
-        "description": "Delete a cron job. An agent may delete only jobs owned or created by itself or its child sessions. Non-destructive.",
+        "description": "Delete a cron job. An agent may delete only jobs owned or created by itself or its child sessions, or ones a plugin added (createdBy plugin:<id>). Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Job id (cj_…)."}

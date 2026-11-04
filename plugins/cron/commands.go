@@ -91,7 +91,7 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error) {
 		CreatedBy: caller,
 		NextRun:   next,
 	}
-	if args.Owner != automation.OwnerNone {
+	if cmd.Agent && args.Owner != automation.OwnerNone {
 		j.Owner = caller
 	}
 	j.Missed = cmp.Or(args.Missed, defaultMissed(j))

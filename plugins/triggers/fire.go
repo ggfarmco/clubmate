@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"maps"
@@ -20,10 +21,13 @@ const (
 	triggerNoun   = "Trigger"
 	reasonForeign = "emitted by another agent session"
 	maxFires      = 10
+	maxLimit      = 60
 	fireWindow    = time.Minute
 )
 
-var reasonLoop = "fired " + strconv.Itoa(maxFires) + " times in " + fireWindow.String() + "; paused to stop a loop"
+func loopReason(limit int) string {
+	return "fired " + strconv.Itoa(limit) + " times in " + fireWindow.String() + "; paused to stop a loop"
+}
 
 type pendingRun struct {
 	trigger *Trigger
@@ -44,16 +48,16 @@ func (a *app) dispatch(ctx context.Context, ev pluginsdk.Event) {
 	admit := func(t *Trigger, ev pluginsdk.Event, refire bool) {
 		r := Run{At: now, Topic: ev.Topic, Seq: ev.Seq, Status: automation.StatusSkipped, Reason: automation.ReasonInFlight}
 		switch {
-		case a.inFlight[t.ID]:
-		case a.overLimit(t.ID, now):
-			r.Status, r.Reason = automation.StatusError, reasonLoop
+		case a.running(t):
+		case a.overLimit(t, now):
+			r.Status, r.Reason = automation.StatusError, loopReason(cmp.Or(t.Limit, maxFires))
 		default:
-			a.inFlight[t.ID] = true
+			a.inFlight[t.ID]++
 			runs = append(runs, pendingRun{trigger: t.Clone(), ev: ev, refire: refire})
 			return
 		}
 		updated := t.Clone()
-		if record(updated, r) || r.Reason == reasonLoop {
+		if record(updated, r) || r.Status == automation.StatusError {
 			updated.Enabled = false
 			updated.Paused = automation.Pause(updated.Paused, r.At, r.Reason)
 			tripped = append(tripped, updated)
@@ -65,7 +69,7 @@ func (a *app) dispatch(ctx context.Context, ev pluginsdk.Event) {
 		t, ok := a.triggers[id]
 		switch {
 		case !ok || !t.Enabled:
-		case a.inFlight[id]:
+		case a.inFlight[id] > 0:
 			a.held[id] = h
 		default:
 			admit(t, h.ev, true)
@@ -109,18 +113,22 @@ func (a *app) unhold(session string) {
 	maps.DeleteFunc(a.held, func(_ string, h heldEvent) bool { return h.session == session })
 }
 
-func (a *app) overLimit(id string, now time.Time) bool {
-	recent := a.fired[id][:0]
-	for _, at := range a.fired[id] {
+func (a *app) running(t *Trigger) bool {
+	return !t.Parallel && a.inFlight[t.ID] > 0
+}
+
+func (a *app) overLimit(t *Trigger, now time.Time) bool {
+	recent := a.fired[t.ID][:0]
+	for _, at := range a.fired[t.ID] {
 		if now.Sub(at) < fireWindow {
 			recent = append(recent, at)
 		}
 	}
-	if len(recent) >= maxFires {
-		delete(a.fired, id)
+	if len(recent) >= cmp.Or(t.Limit, maxFires) {
+		delete(a.fired, t.ID)
 		return true
 	}
-	a.fired[id] = append(recent, now)
+	a.fired[t.ID] = append(recent, now)
 	return false
 }
 
@@ -164,7 +172,9 @@ func foreign(t *Trigger, ev pluginsdk.Event, sessions []api.Session) bool {
 
 func (a *app) settle(ctx context.Context, id string, r Run, refire bool) error {
 	a.mu.Lock()
-	delete(a.inFlight, id)
+	if a.inFlight[id]--; a.inFlight[id] <= 0 {
+		delete(a.inFlight, id)
+	}
 	current, ok := a.triggers[id]
 	if !ok || refire && r.Reason == automation.ReasonBusy {
 		a.mu.Unlock()

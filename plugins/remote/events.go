@@ -28,8 +28,9 @@ const (
 )
 
 var (
-	forwardedTopics = []string{"agents.changed", "backlog.changed", "docs.changed", "docs.opened", "notify.posted", "plugin.changed", "remote.identity", "voice.changed", "voice.settings-changed"}
-	busPattern      = strings.Join(forwardedTopics, ",")
+	forwardedTopics  = []string{"agents.changed", "backlog.changed", "docs.changed", "docs.opened", "notify.posted", "plugin.changed", "remote.identity", "voice.changed", "voice.settings-changed"}
+	busPattern       = strings.Join(forwardedTopics, ",")
+	subscribePattern = busPattern + "," + workspaceCreatedTopic + "," + workspaceDeletedTopic
 
 	errBadCursor = errors.New("invalid Last-Event-ID or after")
 )

@@ -25,7 +25,7 @@ var uiCommands = map[string]string{
 type app struct {
 	mu         sync.Mutex
 	triggers   map[string]*Trigger
-	inFlight   map[string]bool
+	inFlight   map[string]int
 	collapsed  map[string]map[string]bool
 	held       map[string]heldEvent
 	fired      map[string][]time.Time
@@ -54,7 +54,7 @@ func main() {
 func newApp() *app {
 	a := &app{
 		triggers:  map[string]*Trigger{},
-		inFlight:  map[string]bool{},
+		inFlight:  map[string]int{},
 		collapsed: map[string]map[string]bool{},
 		held:      map[string]heldEvent{},
 		fired:     map[string][]time.Time{},
@@ -324,11 +324,11 @@ func (a *app) runNow(ctx context.Context, workspace, id string) error {
 		return fmt.Errorf("trigger %q not found", id)
 	}
 	t = t.Clone()
-	if a.inFlight[id] {
+	if a.running(t) {
 		a.mu.Unlock()
 		return fmt.Errorf("trigger %q is already running", t.Name)
 	}
-	a.inFlight[id] = true
+	a.inFlight[id]++
 	a.mu.Unlock()
 	a.runs.Go(func() { logError(a.settle(ctx, id, a.fire(ctx, t, pluginsdk.Event{Topic: manualTopic}), false)) })
 	return nil

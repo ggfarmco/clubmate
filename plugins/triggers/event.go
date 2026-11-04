@@ -30,6 +30,7 @@ const (
 	pluginSource = "plugin:"
 	coreSource   = "core"
 	agentSource  = "agent"
+	cliSource    = "cli"
 	notifyOwner  = "notify"
 )
 
@@ -56,7 +57,7 @@ func fromOwner(ev pluginsdk.Event) bool {
 	case owner+"." == emitPrefix:
 		return ev.Source == pluginSource+"triggers"
 	case owner == notifyOwner:
-		return ev.Source == agentSource || strings.HasPrefix(ev.Source, pluginSource)
+		return ev.Source == agentSource || ev.Source == cliSource || strings.HasPrefix(ev.Source, pluginSource)
 	case slices.Contains(coreOwners, owner):
 		return ev.Source == coreSource
 	}

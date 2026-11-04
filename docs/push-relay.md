@@ -1,6 +1,6 @@
 # Push relay
 
-`clubmate-push-relay` (`cmd/clubmate-push-relay`) is a small server that holds the APNs auth key. Each Mac's `remote` plugin sends its pushes to the relay with its own token; the relay signs them with the key and forwards them to APNs. No Mac holds the `.p8`. What gets pushed and when is decided on the Mac (see [Remote § Real push](remote.md#real-push)); the relay only authenticates, validates and forwards.
+`clubmate-push-relay` (`cmd/clubmate-push-relay`) is a small server that holds the APNs auth key. Each Mac's `remote` plugin sends its pushes to the relay with its own token; the relay signs them with the key and forwards them to APNs. No Mac holds the `.p8`. What gets pushed and when is decided on the Mac by the workspace's triggers that call `remote.push` (see [Remote § Real push](remote.md#real-push)); the relay only authenticates, validates and forwards.
 
 ## Configuration
 

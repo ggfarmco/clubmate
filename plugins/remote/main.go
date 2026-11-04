@@ -47,6 +47,11 @@ type app struct {
 	ident *identity
 
 	enableMu sync.Mutex
+	seedMu   sync.Mutex
+
+	store     kvStore
+	seedEvery time.Duration
+	seedFor   time.Duration
 
 	mu       sync.Mutex
 	enabled  bool
@@ -109,13 +114,14 @@ type relayArgs struct {
 }
 
 func main() {
-	a := &app{ready: make(chan struct{})}
+	a := &app{ready: make(chan struct{}), seedEvery: seedEvery, seedFor: seedFor}
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, Command: a.command, BusEvent: a.busEvent, BusClosed: a.busClosed, UIUpdated: a.uiUpdated, Shutdown: a.shutdown})
 }
 
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.ctx = ctx
 	a.host = h
+	a.store = h
 	comp, err := loadComputer(ctx, h)
 	if err != nil {
 		return err
@@ -152,16 +158,19 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		changed:  a.changed,
 		watching: a.watching,
 		ping:     pingInterval,
+		now:      time.Now,
 	}
 	if err := a.srv.clearWatching(ctx); err != nil {
 		logf("clear watching: %v", err)
 	}
 	a.ln = newListeners(a.srv.handler(), os.Getenv(listenEnv), a.scanAddrs)
+	a.subscribe(ctx, h, math.MaxInt64)
 	if enabled {
 		a.activate(ctx)
 	}
 	close(a.ready)
 	go a.rescanLoop(ctx)
+	go a.seedPushTriggers(ctx)
 	return nil
 }
 
@@ -223,6 +232,17 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, err
 		}
 		return nil, a.srv.revoke(ctx, args.Device)
+	case "remote.push":
+		var args pushArgs
+		if err := decodeArgs(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		a.mu.Lock()
+		enabled := a.enabled
+		a.mu.Unlock()
+		ctx, cancel := context.WithTimeout(ctx, pushTimeout)
+		defer cancel()
+		return a.srv.pushCommand(ctx, cmd.WorkspaceID, enabled, args)
 	case "remote.set-push-relay":
 		var args relayArgs
 		if err := decodeArgs(cmd.Args, &args); err != nil {
@@ -236,16 +256,20 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 	return nil, fmt.Errorf("%w: %s", errUnknownCommand, cmd.ID)
 }
 
-func (a *app) busEvent(_ context.Context, _ *pluginsdk.Host, _ string, ev pluginsdk.Event) {
+func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev pluginsdk.Event) {
 	a.mu.Lock()
 	a.lastSeq = max(a.lastSeq, ev.Seq)
 	enabled := a.enabled
 	a.mu.Unlock()
+	if ev.Topic == workspaceCreatedTopic || ev.Topic == workspaceDeletedTopic {
+		a.workspaceEvent(ctx, ev)
+		return
+	}
 	if ev.Topic == pluginChangedTopic {
 		a.srv.forgetCommands()
 	}
 	a.srv.hub.publish(ev)
-	if enabled && (ev.Topic == notifyTopic || ev.Topic == agentsChangedTopic) && a.srv.relay.configured() {
+	if enabled && ev.Topic == agentsChangedTopic && a.srv.relay.configured() {
 		go func() {
 			ctx, cancel := context.WithTimeout(a.ctx, pushTimeout)
 			defer cancel()
@@ -385,7 +409,7 @@ func (a *app) activate(ctx context.Context) {
 }
 
 func (a *app) subscribe(ctx context.Context, h *pluginsdk.Host, after int64) {
-	sid, err := h.Subscribe(ctx, busPattern, after)
+	sid, err := h.Subscribe(ctx, subscribePattern, after)
 	if err != nil {
 		logf("subscribe to bus: %v", err)
 		return
@@ -409,11 +433,11 @@ func (a *app) rescanLoop(ctx context.Context) {
 		enabled, subscribed := a.enabled, a.sub != ""
 		after := a.lastSeq
 		a.mu.Unlock()
-		if !enabled {
-			continue
-		}
 		if !subscribed {
 			a.subscribe(ctx, a.host, resumeAfter(after))
+		}
+		if !enabled {
+			continue
 		}
 		before := a.dnsName()
 		a.refreshTailscale(ctx)

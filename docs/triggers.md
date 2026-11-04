@@ -13,8 +13,10 @@ The `triggers` plugin calls an agent-visible command when a bus event arrives: a
 | `match` | Optional payload filter (see [Filter](#filter)). |
 | `command`, `args` | The command to call and its arguments. The command must be agent-visible and not a `triggers.*` or `cron.*` one; `args` (JSON text holding an object) are checked against its schema when the trigger is added or updated. String values may hold placeholders (see [Placeholders](#placeholders)). |
 | `enabled` | `false` while paused. |
+| `limit` | Runs a minute before the loop guard pauses it, 1–60; unset (or `0`) is 10 (see [Loops and limits](#loops-and-limits)). |
+| `parallel` | `true` lets a run start while the previous one is still running; unset is `false`, and the event is skipped (see [Firing](#firing)). |
 | `owner` | The agent session the trigger belongs to, if any (see [Owner](#owner)). |
-| `createdBy` | The agent session that added it; empty when added by the user or the CLI. |
+| `createdBy` | The agent session that added it; `plugin:<id>` when a plugin added it on its own (e.g. `plugin:remote`); empty when added by the user or the CLI, and for a graph's edge the run's starter (a session, or empty for you). |
 | `run`, `runTitle` | The graph run that made the trigger for one of its edges and that run's title; empty for other triggers. Only the Graphs plugin can set them; `triggers.add` drops them from any other caller, so an agent can't pass its trigger off as a graph's. The Triggers section groups and labels a run's triggers by them. |
 | `failures`, `lastError` | Errors in a row and the last error message. |
 | `history` | The last 100 runs: `{at, topic, seq, status, reason?, result?, chain?}`, `topic` and `seq` of the event, `status` `ok`, `error` or `skipped`; `result` is the command's raw result cut to 200 characters; `chain` is what led to the event (see [Chain](#chain)). Only `triggers.show` returns it. |
@@ -40,10 +42,10 @@ The core stamps every bus event with its `source`: `plugin:<id>`, `core`, `agent
 | `event.*` | `plugin:triggers` (`triggers.emit`) |
 | `event.graph.*` | also `plugin:graphs` (a graph step's outcome) |
 | `workspace.*`, `session.*`, `ui.*` | `core` |
-| `notify.*` | `agent` or a plugin (`notify.post`) |
+| `notify.*` | `agent`, a plugin (`notify.post`) or `cli` (`cm notify`) |
 | `<id>.*`, e.g. `agents.turn`, `cron.ready`, `git.changed` | `plugin:<id>` |
 
-So an agent's `clubmate bus publish agents.turn …` or `event.graph.<run>.<node> {"outcome":…}` fires nothing, and neither does `cm notify` (source `cli`; the `notify_post` MCP tool and `cm command run notify.post --agent` are `agent`). Such an event is only logged to the plugin's stderr (`ignore <topic> from <source>: only its owner fires triggers`), not recorded in any trigger's history, and the plugin ignores it entirely, so a forged `agents.turn` can't release a held event either. To fire a trigger by hand use `triggers.emit` (`cm command run triggers.emit …`, see [CLI](#cli)) or Run now. Every process of your user can still reach the core socket and call `triggers.emit` itself (see [the protocol](sdui-protocol.md)); what this stops is an event passing for another plugin's.
+So an agent's `clubmate bus publish agents.turn …` or `event.graph.<run>.<node> {"outcome":…}` fires nothing. `notify.*` is the one topic that fires from `cli` too, so a `cm notify` from a Claude Code hook in a terminal fires the same triggers as the `notify_post` MCP tool: any local process can already post a real notification through `cm notify`, so a forged `notify.posted` can do no more than a real one. An event from a source that does not own its topic is only logged to the plugin's stderr (`ignore <topic> from <source>: only its owner fires triggers`), not recorded in any trigger's history, and the plugin ignores it entirely, so a forged `agents.turn` can't release a held event either. To fire a trigger by hand use `triggers.emit` (`cm command run triggers.emit …`, see [CLI](#cli)) or Run now. Every process of your user can still reach the core socket and call `triggers.emit` itself (see [the protocol](sdui-protocol.md)); what this stops is an event passing for another plugin's.
 
 ## Placeholders
 
@@ -66,7 +68,7 @@ A run is skipped, never counted as a failure, with one of these reasons:
 
 | Reason | When |
 |---|---|
-| `previous run still running` | The trigger's previous run has not returned yet; the event is dropped, not queued. |
+| `previous run still running` | The trigger's previous run has not returned yet; the event is dropped, not queued. A `parallel` trigger never skips for this: each event starts its own run. |
 | `busy` | An `agents.prompt` trigger whose target session is running or waiting for permission. The trigger holds the event (only the latest one, in memory, so not across a restart) and runs again with it when the target's turn ends (`agents.turn`); a run that finds the target busy again keeps holding it without a new history entry. |
 | `no app` | The command needs an approval and no app is open to ask. |
 | `owner gone` | The trigger's owner session is closed or deleted; the trigger is about to be deleted with it. |
@@ -82,8 +84,8 @@ A run is skipped, never counted as a failure, with one of these reasons:
 A trigger's command can publish the very event it listens to (`notify.post` on `notify.posted`, `agents.prompt` on `agents.turn` of the same session). Three guards stop that:
 
 - `triggers.*` and `cron.*` commands cannot be targets, so a trigger can't emit events or create triggers or jobs. Cron, in turn, may schedule `triggers.emit` but no other `triggers.*` command.
-- A trigger never runs twice at once (see `previous run still running` above).
-- A trigger that starts 10 runs within 1 minute is paused at the 11th matching event, with the error `fired 10 times in 1m0s; paused to stop a loop`, and a `stuck` notification is posted to the workspace.
+- A trigger never runs twice at once unless it is `parallel` (see `previous run still running` above).
+- A trigger that starts `limit` runs (10 unless set, at most 60) within 1 minute is paused at the next matching event, with the error `fired 10 times in 1m0s; paused to stop a loop` (its own `limit` in place of 10), and a `stuck` notification is posted to the workspace. A trigger that has to keep up with bursts, such as one per notification, sets a higher `limit` and `parallel`.
 
 Three errors in a row also pause it, keep the last error and post a `stuck` notification. `triggers.resume` clears the count.
 
@@ -91,13 +93,13 @@ A trigger without an owner, other than a graph's (the graph run reports its own 
 
 ## Chain
 
-Each run keeps what led to its event as `chain`: `session` (and its `title`) for an `agents.*` event or an `event.*` emitted by an agent session, `turn` and `status` of an `agents.turn`, and what started that session or emitted the event: `cronJob` (with `cronName`, from `cron.show`) or `trigger` (with `triggerName`), taken from the event and else from the session in `agents.sessions`. A Run now has `{user: true}`; an event that names none of these has no chain.
+Each run keeps what led to its event as `chain`: `session` (and its `title`) for an `agents.*` event or an `event.*` emitted by an agent session, `turn` and `status` of an `agents.turn`, `session` (and its `title`) and `kind` of a `notify.*` event, and what started that session or emitted the event: `cronJob` (with `cronName`, from `cron.show`) or `trigger` (with `triggerName`), taken from the event and else from the session in `agents.sessions`. A Run now has `{user: true}`; an event that names none of these has no chain.
 
 ## Owner
 
-A trigger added by an agent belongs to that agent session by default (`owner: "self"`) and is deleted when the session is closed or deleted. `owner: "none"` makes it outlive the session. Triggers added by the user or the CLI have no owner.
+A trigger added by an agent belongs to that agent session by default (`owner: "self"`) and is deleted when the session is closed or deleted. `owner: "none"` makes it outlive the session. Triggers added by the user, the CLI or a plugin have no owner.
 
-An agent may update, pause, resume and delete only triggers owned or created by itself or by its child sessions; an agent call without an agent session may not change any. The Triggers section acts for you, so it can change any trigger.
+An agent may update, pause, resume and delete only triggers owned or created by itself or by its child sessions, and any trigger a plugin added (`createdBy: plugin:<id>`), so you can change such a rule by asking any session; an agent call without an agent session may not change any. The Triggers section acts for you, so it can change any trigger.
 
 ## Commands
 
@@ -105,10 +107,10 @@ All are agent-visible and none is destructive (the fired command carries its own
 
 | Command | Does |
 |---|---|
-| `triggers.add {name, on, match?, command, args?, owner?}` | Adds a trigger and returns it. |
+| `triggers.add {name, on, match?, command, args?, limit?, parallel?, owner?}` | Adds a trigger and returns it. `limit` outside 0–60 is refused with `limit: 1–60 runs a minute`. |
 | `triggers.list` | The workspace's triggers, without history. |
 | `triggers.show {id}` | One trigger with its history. |
-| `triggers.update {id, name?, on?, match?, command?, args?}` | Changes the given fields; `match: ""` drops the filter. |
+| `triggers.update {id, name?, on?, match?, command?, args?, limit?, parallel?}` | Changes the given fields; `match: ""` drops the filter, `limit: 0` goes back to 10. |
 | `triggers.pause {id}`, `triggers.resume {id}` | Stops and restarts firing. |
 | `triggers.delete {id}` | Deletes it. |
 | `triggers.emit {name, payload?}` | Publishes `event.<name>` with `payload` (JSON text holding an object), its `workspace` set to this workspace and `by` to the caller (see [Emitted events](#emitted-events)); returns `{topic, seq}`. |
@@ -153,7 +155,7 @@ cm command run triggers.show id=tr_1a2b3c4d
 
 ## Triggers section
 
-The sidebar lists the triggers by name with what they wait for in words (`an agent turn finishes · status done · session Review loop · Coder`), or `paused · <last error>`; a trigger whose last run failed has a danger ✕ icon. Triggers a graph run created (`run`, `runTitle` set by `graphs.run`) are grouped under `from graph <title> · N`, labelled without the `<title>: ` prefix. A row's context menu has Run now (Run once while paused), Pause or Resume and Delete; for a graph's trigger Delete warns that the run stops at that step. The main view shows the selected trigger: a header with `active` or `paused` and `failed`, Run now (⌘R, fires it at once with an empty event, so its `{{…}}` placeholders are left empty) and Pause (P), Run now primary while active and Resume (P, first) primary with Run once while paused, neither for a graph's trigger, then Delete (⌘⌫) for the user's and agents' triggers, or `created by graph <title>` and Open graph (G, selects the run in Graphs) for a graph's, whose Delete (⌘⌫) is in the header's ••• menu with the warning that the run stops at that step; then When in words, Owner (`graph <title>` for a graph's), Does in words with the prompt in a card clamped to 3 lines (Show all) and Show as JSON, and Runs as in a [cron job](cron.md#cron-section) (counts, results in words, identical runs folded, nothing marked and Show the latest run as JSON until you pick a run), with Open session on a failed run's Result (the session it prompted or started, else the one whose event fired it; only while that session is listed), and with an Event column that names the event and its chain in words (`Coder's turn 2 ended · done`, `“tidy.done” emitted by Nightly tidy · from cron Nightly tidy`, `run now by you`). An `agents.prompt` run reads `prompted <session> · its turn N started` (or `prompted <session>` when queued), naming the session its `{{payload.session}}` resolved to: each run keeps the target it prompted as `target`. Session and graph run ids, and a cron job in When, are shown as their names.
+The sidebar lists the triggers by name with what they wait for in words (`an agent turn finishes · status done · session Review loop · Coder`), or `paused · <last error>`; a trigger whose last run failed has a danger ✕ icon. Triggers a graph run created (`run`, `runTitle` set by `graphs.run`) are grouped under `from graph <title> · N`, labelled without the `<title>: ` prefix. A row's context menu has Run now (Run once while paused), Pause or Resume and Delete; for a graph's trigger Delete warns that the run stops at that step. The main view shows the selected trigger: a header with `active` or `paused` and `failed`, Run now (⌘R, fires it at once with an empty event, so its `{{…}}` placeholders are left empty) and Pause (P), Run now primary while active and Resume (P, first) primary with Run once while paused, neither for a graph's trigger, then Delete (⌘⌫) for the user's and agents' triggers, or `created by graph <title>` and Open graph (G, selects the run in Graphs) for a graph's, whose Delete (⌘⌫) is in the header's ••• menu with the warning that the run stops at that step; then When in words, Limits (`up to 60 runs a minute · runs overlap`, each part only when `limit` or `parallel` is set; no row without either), Owner (`graph <title>` for a graph's, `added by <plugin>` for a plugin's), Does in words with the prompt in a card clamped to 3 lines (Show all) and Show as JSON, and Runs as in a [cron job](cron.md#cron-section) (counts, results in words, identical runs folded, nothing marked and Show the latest run as JSON until you pick a run), with Open session on a failed run's Result (the session it prompted or started, else the one whose event fired it; only while that session is listed), and with an Event column that names the event and its chain in words (`Coder's turn 2 ended · done`, `“tidy.done” emitted by Nightly tidy · from cron Nightly tidy`, `Coder · done notification`, `run now by you`). An `agents.prompt` run reads `prompted <session> · its turn N started` (or `prompted <session>` when queued), naming the session its `{{payload.session}}` resolved to: each run keeps the target it prompted as `target`. Session and graph run ids, and a cron job in When, are shown as their names.
 
 Under the header the trigger is drawn as an edge between what fires it and what it does:
 

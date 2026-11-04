@@ -15,6 +15,8 @@ import (
 const (
 	sessionPrefix = "agt_"
 	agentsPrefix  = "agents."
+	notifyPrefix  = notifyOwner + "."
+	kindField     = "kind"
 )
 
 func (a *app) chain(ctx context.Context, workspace string, ev pluginsdk.Event, sessions []api.Session) *automation.Chain {
@@ -41,6 +43,8 @@ func (a *app) chain(ctx context.Context, workspace string, ev pluginsdk.Event, s
 				c.Turn = int(f)
 			}
 		}
+	case strings.HasPrefix(ev.Topic, notifyPrefix):
+		c.Session, c.Kind = field(sessionField), field(kindField)
 	}
 	if c.Session != "" {
 		if sessions == nil {
@@ -110,6 +114,11 @@ func eventWords(r Run, titles map[string]string) string {
 			emitted += " by " + session
 		}
 		parts = append(parts, emitted)
+	case strings.HasPrefix(r.Topic, notifyPrefix) && c.Kind != "":
+		if session != "" {
+			parts = append(parts, session)
+		}
+		parts = append(parts, c.Kind+" notification")
 	default:
 		parts = append(parts, topicPhrase(r.Topic))
 		if session != "" {

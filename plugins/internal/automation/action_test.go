@@ -24,6 +24,8 @@ func TestAllowed(t *testing.T) {
 		{"cycle", pluginsdk.CommandRun{Agent: true, Caller: "agt_x"}, Action{Owner: "agt_a"}, map[string]string{"agt_a": "agt_b", "agt_b": "agt_a"}, false},
 		{"caller-less vs owned", pluginsdk.CommandRun{Agent: true}, Action{Owner: "agt_a", CreatedBy: "agt_a"}, chain, false},
 		{"user", pluginsdk.CommandRun{}, Action{Owner: "agt_a"}, nil, true},
+		{"plugin-added", pluginsdk.CommandRun{Agent: true, Caller: "agt_x"}, Action{CreatedBy: "plugin:remote"}, nil, true},
+		{"plugin-added, no caller", pluginsdk.CommandRun{Agent: true}, Action{CreatedBy: "plugin:remote"}, nil, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

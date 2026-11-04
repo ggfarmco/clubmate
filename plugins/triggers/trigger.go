@@ -24,6 +24,8 @@ type Trigger struct {
 	Command   string            `json:"command"`
 	Args      json.RawMessage   `json:"args,omitempty"`
 	Enabled   bool              `json:"enabled"`
+	Limit     int               `json:"limit,omitempty"`
+	Parallel  bool              `json:"parallel,omitempty"`
 	Owner     string            `json:"owner,omitempty"`
 	CreatedBy string            `json:"createdBy,omitempty"`
 	Run       string            `json:"run,omitempty"`

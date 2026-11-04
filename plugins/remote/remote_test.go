@@ -28,13 +28,14 @@ import (
 )
 
 type fixture struct {
-	ts      *httptest.Server
-	srv     *server
-	backend *fakeBackend
-	kv      *memKV
-	clock   *clock
-	topics  *topicLog
-	watched *watchLog
+	ts          *httptest.Server
+	relayServer *httptest.Server
+	srv         *server
+	backend     *fakeBackend
+	kv          *memKV
+	clock       *clock
+	topics      *topicLog
+	watched     *watchLog
 }
 
 type watchLog struct {
@@ -59,6 +60,9 @@ type fakeBackend struct {
 	uiEvents    []pluginsdk.UIEvent
 	views       []pluginsdk.SlotView
 	sessions    json.RawMessage
+	workspaces  []pluginsdk.Workspace
+	addFails    int
+	adds        int
 }
 
 type runCall struct {
@@ -573,6 +577,7 @@ func newFixture(t *testing.T) *fixture {
 		changed:  func() {},
 		watching: f.watched.add,
 		ping:     time.Hour,
+		now:      f.clock.Now,
 	}
 	f.ts = httptest.NewServer(f.srv.handler())
 	t.Cleanup(func() {
@@ -709,6 +714,14 @@ func (b *fakeBackend) Run(_ context.Context, id, workspace string, args json.Raw
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.runs = append(b.runs, runCall{id: id, workspace: workspace, args: string(args)})
+	if id == triggersAddCommand {
+		b.adds++
+		if b.addFails > 0 {
+			b.addFails--
+			return nil, errTriggersDown
+		}
+		return json.RawMessage(`{"id":"tr_` + strconv.Itoa(b.adds) + `"}`), nil
+	}
 	if id == sessionsCommand && b.sessions != nil {
 		return b.sessions, nil
 	}
@@ -716,6 +729,9 @@ func (b *fakeBackend) Run(_ context.Context, id, workspace string, args json.Raw
 }
 
 func (b *fakeBackend) Workspaces(context.Context) ([]pluginsdk.Workspace, error) {
+	if b.workspaces != nil {
+		return b.workspaces, nil
+	}
 	return []pluginsdk.Workspace{{ID: "prj_1", Name: "demo", Folders: []pluginsdk.Folder{{Path: "/tmp/demo", Worktree: "/tmp/demo-wt"}}}}, nil
 }
 

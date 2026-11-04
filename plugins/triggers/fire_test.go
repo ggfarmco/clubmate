@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -59,21 +60,47 @@ func TestDispatchSkipsWhileRunning(t *testing.T) {
 	assert.Equal(t, automation.StatusOK, h[1].Status)
 }
 
-func TestDispatchPausesALoop(t *testing.T) {
-	a, notified := testApp(t, func(context.Context, automation.CommandRequest) (json.RawMessage, error) {
+func TestDispatchPausesALoopAtItsLimit(t *testing.T) {
+	for _, tt := range []struct{ limit, want int }{{0, maxFires}, {3, 3}} {
+		t.Run(strconv.Itoa(tt.limit), func(t *testing.T) {
+			a, notified := testApp(t, func(context.Context, automation.CommandRequest) (json.RawMessage, error) {
+				return json.RawMessage(`{}`), nil
+			})
+			a.triggers["tr_1"].Limit = tt.limit
+			for i := range tt.want + 1 {
+				a.dispatch(t.Context(), ping(int64(i)))
+				a.runs.Wait()
+			}
+			a.dispatch(t.Context(), ping(99))
+			a.runs.Wait()
+			tr := a.triggers["tr_1"]
+			assert.False(t, tr.Enabled)
+			assert.Equal(t, loopReason(tt.want), tr.LastError)
+			assert.Len(t, tr.History, tt.want+1)
+			assert.Equal(t, []string{loopReason(tt.want)}, *notified)
+		})
+	}
+	assert.Equal(t, "fired 10 times in 1m0s; paused to stop a loop", loopReason(maxFires))
+}
+
+func TestParallelTriggerRunsOverlap(t *testing.T) {
+	started, release := make(chan struct{}, 2), make(chan struct{})
+	a, _ := testApp(t, func(context.Context, automation.CommandRequest) (json.RawMessage, error) {
+		started <- struct{}{}
+		<-release
 		return json.RawMessage(`{}`), nil
 	})
-	for i := range maxFires + 1 {
-		a.dispatch(t.Context(), ping(int64(i)))
-		a.runs.Wait()
-	}
-	a.dispatch(t.Context(), ping(99))
+	a.triggers["tr_1"].Parallel = true
+	a.dispatch(t.Context(), ping(1))
+	a.dispatch(t.Context(), ping(2))
+	<-started
+	<-started
+	close(release)
 	a.runs.Wait()
-	tr := a.triggers["tr_1"]
-	assert.False(t, tr.Enabled)
-	assert.Equal(t, reasonLoop, tr.LastError)
-	assert.Len(t, tr.History, maxFires+1)
-	assert.Equal(t, []string{reasonLoop}, *notified)
+	h := a.triggers["tr_1"].History
+	require.Len(t, h, 2)
+	assert.Equal(t, []string{automation.StatusOK, automation.StatusOK}, []string{h[0].Status, h[1].Status})
+	assert.Empty(t, a.inFlight)
 }
 
 func TestBusySkipRefiresWhenTargetTurnEnds(t *testing.T) {
@@ -168,7 +195,7 @@ func TestRunsKeepTheChainThatLedToThem(t *testing.T) {
 		return json.RawMessage(`null`), nil
 	})
 	a.triggers["tr_0"] = &Trigger{ID: "tr_0", Name: "Release after tidy", Workspace: "ws1"}
-	a.triggers["tr_1"].On = "event.*,agents.turn"
+	a.triggers["tr_1"].On = "event.*,agents.turn,notify.posted"
 	a.sessions = func(context.Context, string) ([]api.Session, error) {
 		return []api.Session{{ID: "agt_t", Title: "Tidy", CronJob: "cj_1"}, {ID: "agt_c", Title: "Coder"}}, nil
 	}
@@ -178,10 +205,15 @@ func TestRunsKeepTheChainThatLedToThem(t *testing.T) {
 		`{"workspace":"ws1","by":"agt_t","n":"x"}`,
 		`{"workspace":"ws1","session":"agt_c","turn":2,"status":"done","trigger":"tr_0"}`,
 		`{"workspace":"ws1","by":"agent","cronJob":"cj_9","n":"x"}`,
+		`{"workspace":"ws1","session":"agt_c","kind":"done","n":"x"}`,
+		`{"workspace":"ws1","kind":"stuck","n":"x"}`,
 	} {
 		topic := "event.tidy.done"
-		if i == 1 {
+		switch {
+		case i == 1:
 			topic = api.TopicTurn
+		case i > 2:
+			topic = "notify.posted"
 		}
 		a.dispatch(t.Context(), pluginsdk.Event{Seq: int64(i), Topic: topic, Payload: json.RawMessage(payload)})
 		a.runs.Wait()
@@ -195,7 +227,10 @@ func TestRunsKeepTheChainThatLedToThem(t *testing.T) {
 		"“tidy.done” emitted by Tidy · from cron Nightly tidy",
 		"Coder's turn 2 ended · done · from trigger Release after tidy",
 		"“tidy.done” emitted · from cron a deleted cron job",
+		"Coder · done notification",
+		"stuck notification",
 	}, got)
+	assert.Equal(t, &automation.Chain{Session: "agt_c", Title: "Coder", Kind: "done"}, a.triggers["tr_1"].History[3].Chain)
 }
 
 func TestOnlyAUsersOwnerlessTriggerPostsItsFailures(t *testing.T) {

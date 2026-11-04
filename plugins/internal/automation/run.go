@@ -44,6 +44,7 @@ type Chain struct {
 	Title       string `json:"title,omitempty"`
 	Turn        int    `json:"turn,omitempty"`
 	Status      string `json:"status,omitempty"`
+	Kind        string `json:"kind,omitempty"`
 	CronJob     string `json:"cronJob,omitempty"`
 	CronName    string `json:"cronName,omitempty"`
 	Trigger     string `json:"trigger,omitempty"`

@@ -18,6 +18,7 @@ const cronPlugin = "cron"
 
 var (
 	errNoName   = errors.New("name is required")
+	errLimit    = errors.New("limit: 1–60 runs a minute")
 	errCronOnly = errors.New("invalid_params: only the cron plugin may set cronJob")
 )
 
@@ -31,6 +32,21 @@ type triggerArgs struct {
 	Owner    string  `json:"owner"`
 	Run      string  `json:"run"`
 	RunTitle string  `json:"runTitle"`
+	Limit    *int    `json:"limit"`
+	Parallel *bool   `json:"parallel"`
+}
+
+func (args triggerArgs) apply(t *Trigger) error {
+	if args.Limit != nil {
+		if *args.Limit < 0 || *args.Limit > maxLimit {
+			return errLimit
+		}
+		t.Limit = *args.Limit
+	}
+	if args.Parallel != nil {
+		t.Parallel = *args.Parallel
+	}
+	return nil
 }
 
 type emitArgs struct {
@@ -102,8 +118,11 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Trigger, erro
 		return nil, err
 	}
 	caller := automation.CallerOf(cmd)
-	if cmd.Via != graphsPlugin {
+	switch {
+	case cmd.Via != graphsPlugin:
 		args.Run, args.RunTitle = "", ""
+	case !cmd.Agent:
+		caller = ""
 	}
 	t := &Trigger{
 		Name:      args.Name,
@@ -117,8 +136,11 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Trigger, erro
 		Run:       args.Run,
 		RunTitle:  args.RunTitle,
 	}
-	if args.Owner != automation.OwnerNone {
+	if cmd.Agent && args.Owner != automation.OwnerNone {
 		t.Owner = caller
+	}
+	if err := args.apply(t); err != nil {
+		return nil, err
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -177,7 +199,7 @@ func (a *app) update(ctx context.Context, cmd pluginsdk.CommandRun) (*Trigger, e
 			}
 			t.Command, t.Args = command, raw
 		}
-		return nil
+		return args.apply(t)
 	})
 }
 

@@ -14,11 +14,12 @@ import (
 )
 
 const (
-	PromptCommand = "agents.prompt"
-	OriginCronJob = "cronJob"
-	OriginTrigger = "trigger"
-	OwnerNone     = "none"
-	nobody        = "nobody — failures go to the inbox"
+	PromptCommand       = "agents.prompt"
+	OriginCronJob       = "cronJob"
+	OriginTrigger       = "trigger"
+	OwnerNone           = "none"
+	PluginCreatorPrefix = "plugin:"
+	nobody              = "nobody — failures go to the inbox"
 )
 
 const (
@@ -154,12 +155,18 @@ func Allowed(cmd pluginsdk.CommandRun, act Action, parents map[string]string) bo
 	if cmd.Caller == "" {
 		return false
 	}
+	if strings.HasPrefix(act.CreatedBy, PluginCreatorPrefix) {
+		return true
+	}
 	return agentcall.Descends(act.Owner, cmd.Caller, parents) || agentcall.Descends(act.CreatedBy, cmd.Caller, parents)
 }
 
 func CallerOf(cmd pluginsdk.CommandRun) string {
-	if cmd.Agent {
+	switch {
+	case cmd.Agent:
 		return cmd.Caller
+	case cmd.Via != "":
+		return PluginCreatorPrefix + cmd.Via
 	}
 	return ""
 }
