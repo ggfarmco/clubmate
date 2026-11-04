@@ -26,7 +26,10 @@ import (
 	"clubmate/internal/workspace"
 )
 
-const testKillGrace = 300 * time.Millisecond
+const (
+	testKillGrace = 300 * time.Millisecond
+	binCacheTTL   = 24 * time.Hour
+)
 
 type builtBinary struct {
 	once sync.Once
@@ -39,6 +42,7 @@ var (
 	builds   = map[string]*builtBinary{}
 
 	binCache, binCacheErr = os.UserCacheDir()
+	pruneOnce             sync.Once
 )
 
 func ShortDirs(t *testing.T) paths.Dirs {
@@ -99,6 +103,11 @@ func newServiceIn(t *testing.T, dirs paths.Dirs, opts ...core.Option) *core.Serv
 
 func BuildBinary(t *testing.T, pkg string) string {
 	t.Helper()
+	pruneOnce.Do(func() {
+		if binCacheErr == nil {
+			pruneBinCache(filepath.Join(binCache, "clubmate-test-bin"), time.Now().Add(-binCacheTTL))
+		}
+	})
 	buildsMu.Lock()
 	b, ok := builds[pkg]
 	if !ok {
@@ -257,6 +266,19 @@ func build(pkg string) (string, error) {
 		return "", err
 	}
 	return out, nil
+}
+
+func pruneBinCache(dir string, before time.Time) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		info, err := e.Info()
+		if err == nil && e.IsDir() && info.ModTime().Before(before) {
+			os.RemoveAll(filepath.Join(dir, e.Name()))
+		}
+	}
 }
 
 type buildError struct {

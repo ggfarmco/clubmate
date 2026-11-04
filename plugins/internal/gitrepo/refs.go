@@ -2,12 +2,14 @@ package gitrepo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 var Identity = []string{
@@ -16,6 +18,8 @@ var Identity = []string{
 	"GIT_COMMITTER_NAME=Clubmate",
 	"GIT_COMMITTER_EMAIL=clubmate@localhost",
 }
+
+var errUnsafeScratch = errors.New("scratch dir is not a private directory")
 
 type Ref struct {
 	Name    string
@@ -27,7 +31,7 @@ type Ref struct {
 }
 
 func Snapshot(ctx context.Context, root string) (string, string, error) {
-	dir, err := os.MkdirTemp("", "clubmate-cp")
+	dir, err := scratchDir()
 	if err != nil {
 		return "", "", err
 	}
@@ -98,6 +102,40 @@ func output(ctx context.Context, repo string, env []string, args ...string) (str
 		return "", fmt.Errorf("git %s: %w", args[0], err)
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+func scratchDir() (string, error) {
+	parent := filepath.Join(os.TempDir(), "clubmate-cp")
+	if err := os.MkdirAll(parent, 0o700); err != nil {
+		return "", err
+	}
+	info, err := os.Lstat(parent)
+	if err != nil {
+		return "", err
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !info.IsDir() || !ok || int(st.Uid) != os.Getuid() || info.Mode().Perm()&0o077 != 0 {
+		return "", fmt.Errorf("%w: %s", errUnsafeScratch, parent)
+	}
+	pruneScratch(parent)
+	return os.MkdirTemp(parent, strconv.Itoa(os.Getpid())+"-")
+}
+
+func pruneScratch(parent string) {
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		owner, _, ok := strings.Cut(e.Name(), "-")
+		pid, err := strconv.Atoi(owner)
+		if !ok || err != nil || pid <= 0 {
+			continue
+		}
+		if errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) {
+			os.RemoveAll(filepath.Join(parent, e.Name()))
+		}
+	}
 }
 
 func seedIndex(ctx context.Context, root, dst string) bool {

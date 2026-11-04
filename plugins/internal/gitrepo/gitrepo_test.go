@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -148,4 +149,35 @@ func TestValidBranchName(t *testing.T) {
 	for _, name := range []string{"", "-x", "a..b", "a b", "x@{1}", "a/", "/a", "a//b", ".a", "a/.b", "a.lock", "a.", "a:b", "a\\b"} {
 		assert.False(t, gitrepo.ValidBranchName(name), name)
 	}
+}
+
+func TestSnapshotPrunesScratchOfDeadProcesses(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	parent := filepath.Join(os.TempDir(), "clubmate-cp")
+	dead := exec.Command("/usr/bin/true")
+	require.NoError(t, dead.Run())
+	stale := filepath.Join(parent, strconv.Itoa(dead.ProcessState.Pid())+"-1")
+	live := filepath.Join(parent, strconv.Itoa(os.Getpid())+"-1")
+	require.NoError(t, os.MkdirAll(stale, 0o700))
+	require.NoError(t, os.MkdirAll(live, 0o700))
+	repo := newRepo(t)
+	write(t, filepath.Join(repo, "a"), "a")
+
+	tree, _, err := gitrepo.Snapshot(t.Context(), repo)
+	require.NoError(t, err)
+	assert.NotEmpty(t, tree)
+	assert.NoDirExists(t, stale)
+	assert.DirExists(t, live)
+	entries, err := os.ReadDir(parent)
+	require.NoError(t, err)
+	assert.Len(t, entries, 1)
+}
+
+func TestSnapshotRefusesSharedScratchParent(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	require.NoError(t, os.Mkdir(filepath.Join(os.TempDir(), "clubmate-cp"), 0o777))
+	require.NoError(t, os.Chmod(filepath.Join(os.TempDir(), "clubmate-cp"), 0o777))
+
+	_, _, err := gitrepo.Snapshot(t.Context(), newRepo(t))
+	assert.Error(t, err)
 }
