@@ -6,6 +6,7 @@
   "command": ["cron"],
   "contributes": {
     "shortcuts": [
+      {"keys": "cmd+n", "action": "Ask an agent to add a cron job"},
       {"keys": "cmd+r", "action": "Run the job now"},
       {"keys": "p", "action": "Pause or resume the job"},
       {"keys": "e", "action": "Edit the job; in the form, cancel the edit"},
@@ -14,6 +15,11 @@
     ],
     "sections": [{"id": "cron", "title": "Cron", "icon": "clock", "order": 35}],
     "commands": [
+      {
+        "id": "cron.new",
+        "title": "Ask an agent to add a cron job",
+        "description": "Start an agent session that asks you what the cron job should do and when, then adds it, and show it in Agents."
+      },
       {
         "id": "cron.add",
         "title": "Add cron job",

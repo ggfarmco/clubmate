@@ -206,16 +206,16 @@ func TestLegacyShortIDLoads(t *testing.T) {
 
 func TestSectionFollowsUIActions(t *testing.T) {
 	f := newFixture(t)
-	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return n.Type == "empty" })
+	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return n.Type == "tree" && jobItem(n) == nil })
 	var added job
 	require.NoError(t, f.runAs(t, "agt_0000000000000001", "cron.add", ping(nil), &added))
-	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return firstItem(n)["icon"] == "clock" })
+	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return jobItem(n)["icon"] == "clock" })
 	f.h.Event(t, f.workspace, "cron.sidebar", "jobs", "pause", added.ID)
-	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return firstItem(n)["icon"] == "pause.circle" })
+	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return jobItem(n)["icon"] == "pause.circle" })
 	f.h.Event(t, f.workspace, "cron.main", added.ID+"/resume", "resume", nil)
-	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return firstItem(n)["icon"] == "clock" })
+	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return jobItem(n)["icon"] == "clock" })
 	f.h.Event(t, f.workspace, "cron.sidebar", "jobs", "delete", added.ID)
-	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return n.Type == "empty" })
+	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return n.Type == "tree" && jobItem(n) == nil })
 }
 
 func TestAddRejectsInvalidTarget(t *testing.T) {
@@ -398,12 +398,12 @@ func nodesWhere(n sdui.Node, match func(sdui.Node) bool) []sdui.Node {
 	return out
 }
 
-func firstItem(n sdui.Node) map[string]any {
+func jobItem(n sdui.Node) map[string]any {
 	items, _ := n.Props["items"].([]any)
-	if len(items) == 0 {
+	if len(items) < 2 {
 		return nil
 	}
-	item, _ := items[0].(map[string]any)
+	item, _ := items[1].(map[string]any)
 	return item
 }
 

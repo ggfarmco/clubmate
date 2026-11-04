@@ -25,8 +25,6 @@ const (
 	doesFormID    = "runs"
 	runJSONFormID = "runJson"
 	actShowLog    = "showLog"
-	noJobs        = "No cron jobs yet"
-	emptyText     = "A job runs on a schedule — every few minutes, nightly or once — and starts an agent, prompts a session or runs a plugin command. Agents schedule them for you."
 )
 
 var missedOptions = []sdui.Option{
@@ -35,13 +33,10 @@ var missedOptions = []sdui.Option{
 }
 
 func sidebarView(jobs []*Job, selected string, now time.Time) sdui.Node {
-	if len(jobs) == 0 {
-		return sdui.Empty(noJobs)
-	}
-	items := make([]sdui.Item, 0, len(jobs))
+	items := []sdui.TreeItem{automation.HelpItem("How cron works")}
 	for _, j := range jobs {
 		icon, tone := automation.ListIcon(j.Enabled, j.History, "clock")
-		items = append(items, sdui.Item{
+		items = append(items, sdui.TreeItem{
 			ID:     j.ID,
 			Label:  j.Name,
 			Detail: jobDetail(j, now),
@@ -50,13 +45,12 @@ func sidebarView(jobs []*Job, selected string, now time.Time) sdui.Node {
 			Menu:   jobMenu(j),
 		})
 	}
-	return sdui.List(jobsList, items, selected)
+	return sdui.Tree(jobsList, items, selected)
 }
 
-func mainView(j *Job, titles, statuses map[string]string, open automation.Open, runs automation.RunsView, d draft, now time.Time) sdui.Node {
+func mainView(j *Job, jobs []*Job, titles, statuses map[string]string, open automation.Open, runs automation.RunsView, d draft, now time.Time) sdui.Node {
 	if j == nil {
-		ghost := ghostFlow()
-		return sdui.EmptyState(emptyText, sdui.EmptyProps{Title: "No cron jobs", Icon: "clock", Action: &ghost})
+		return helpView(jobs)
 	}
 	if open.Edit {
 		return editView(j, d)

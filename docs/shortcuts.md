@@ -8,7 +8,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 
 | Keys | Action | Where defined |
 |---|---|---|
-| ⌘N | New (terminal or item in the current section; in Backlog it focuses the new task field, in Triggers it starts an agent session that asks you for a trigger and adds it, in Graphs one that asks you for a graph and writes its file) | `ClubmateApp.swift` |
+| ⌘N | New (terminal or item in the current section; in Backlog it focuses the new task field, in Triggers and Cron it starts an agent session that asks you for a trigger or a cron job and adds it, in Graphs one that asks you for a graph and writes its file) | `ClubmateApp.swift` |
 | ⇧⌘N | New Home Terminal | `ClubmateApp.swift` |
 | ⌘O | Open Folder… | `ClubmateApp.swift` |
 | ⇧⌘D | Open Doc…: fuzzy picker over `docs.list` (agent-written docs first), ↩ opens the doc in the popup | `ClubmateApp.swift` |
@@ -76,6 +76,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌘N | Ask an agent to add a trigger (How triggers work; the app menu's ⌘N does the same anywhere in Triggers), ↩ on an event row asks for a trigger on that event | triggers |
 | D | Mark the task done | backlog |
 | ⌘S | Save the task now (the form also autosaves) | backlog |
+| ⌘N | Ask an agent to add a cron job (How cron works; the app menu's ⌘N does the same anywhere in Cron), ↩ on a schedule row asks for a job on that schedule | cron |
 | E | Edit the cron job; in the form, cancel the edit | cron |
 | ⌘S | Save the cron job's edit form | cron |
 | ↩ | Edit the task title (title focused); while editing ↩ saves it, Esc cancels | backlog |

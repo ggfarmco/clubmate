@@ -155,6 +155,12 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	var id string
 	switch ev.Slot {
 	case mainSlot:
+		if ev.NodeID == kindsID {
+			return nil, a.askFromRow(ctx, ev)
+		}
+		if ev.NodeID == automation.AskID {
+			return nil, a.askAgent(ctx, ev.WorkspaceID, "")
+		}
 		if _, strip := automation.ActionTarget(ev.NodeID, stripNode); ev.NodeID == automation.HistoryID || strip {
 			if ev.Action == actShowLog {
 				return nil, a.showLog(ctx, ev)
@@ -294,7 +300,7 @@ func (a *app) revealOwner(ctx context.Context, workspace, id string) error {
 
 func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	jobs := a.registry.InWorkspace(workspace)
-	current, selected, err := automation.Selection(ctx, a.host, workspace, jobs)
+	current, selected, err := automation.HelpSelection(ctx, a.host, workspace, jobs)
 	if err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
@@ -314,7 +320,7 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(jobs, selected, now)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
-	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, titles, statuses, open, runs, d, now)); err != nil {
+	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, jobs, titles, statuses, open, runs, d, now)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
 	return nil

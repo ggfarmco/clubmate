@@ -48,6 +48,8 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 		return a.list(cmd), nil
 	case "cron.show":
 		return a.registry.Show(cmd)
+	case "cron.new":
+		return nil, a.askAgent(ctx, cmd.WorkspaceID, "")
 	}
 	defer a.registry.Flush(ctx)
 	switch cmd.ID {

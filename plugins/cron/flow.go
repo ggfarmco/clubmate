@@ -177,17 +177,10 @@ func ghostFlow() sdui.Node {
 		{ID: "prompt", Label: "prompt a session", State: sdui.EdgeGhost},
 		{ID: "command", Label: "run a plugin command", State: sdui.EdgeGhost},
 	}}
-	results := sdui.FlowCard{ID: "results", Label: "Results go to", Ghost: true, Outs: []sdui.FlowOut{
-		{ID: "owner", Label: "its owner session", State: sdui.EdgeGhost},
-		{ID: "inbox", Label: "or the inbox", State: sdui.EdgeGhost},
-	}}
 	return sdui.Flow(doesFlowID, sdui.FlowProps{
-		Cards:   []sdui.FlowCard{does, results},
+		Cards:   []sdui.FlowCard{does},
 		Markers: []sdui.FlowMarker{{ID: whenMarker, Kind: sdui.MarkerSchedule, Label: "a schedule"}},
-		Edges: []sdui.FlowEdge{
-			{From: whenMarker, To: "does", State: sdui.EdgeGhost},
-			{From: "does", Out: "agent", To: "results", State: sdui.EdgeGhost},
-		},
+		Edges:   []sdui.FlowEdge{{From: whenMarker, To: "does", State: sdui.EdgeGhost}},
 	})
 }
 
