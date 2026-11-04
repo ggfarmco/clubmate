@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,6 +33,16 @@ func TestDoneSessionWithOneShotReminderShowsRunning(t *testing.T) {
 	job := selfPrompt(reminded, "in", "10h")
 	f.waitStatus(t, workspace, reminded, "running")
 	assert.Equal(t, "done", f.session(t, workspace, polling).Status)
+	var list []struct {
+		Activity struct {
+			Title string `json:"title"`
+		} `json:"activity"`
+		TurnStartedAt *string `json:"turnStartedAt"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{"session": reminded}, &list))
+	require.Len(t, list, 1)
+	assert.True(t, strings.HasPrefix(list[0].Activity.Title, "next check "))
+	assert.Nil(t, list[0].TurnStartedAt)
 
 	require.NoError(t, f.runAs(t, workspace, reminded, "cron.delete", map[string]any{"id": job}, nil))
 	f.waitStatus(t, workspace, reminded, "done")

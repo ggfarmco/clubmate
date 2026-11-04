@@ -310,6 +310,9 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 				info.TurnStartedAt = &started
 			}
 		}
+		if at, ok := a.reminders.at(rec.Workspace, rec.ID); ok && rec.Status == statusRunning && info.Activity == nil {
+			info.Activity, info.TurnStartedAt = &toolActivity{Title: reminderActivity(at), At: at}, nil
+		}
 		if info.ModeLabel == "" {
 			info.ModeLabel = modeWord(rec.Mode, nil)
 		}
