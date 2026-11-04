@@ -8,10 +8,11 @@ struct StackNodeView: View {
 
     @Environment(\.formKeyWidth) private var keyWidth
     @Environment(\.sduiPopover) private var popover
+    @Environment(\.formSheet) private var formSheet
     @Environment(\.theme) private var theme
 
     private var footer: Bool {
-        popover != nil && node.string("direction") == "horizontal" && !node.children.isEmpty && node.children.allSatisfy { $0.type == "button" }
+        (popover != nil || formSheet) && node.string("direction") == "horizontal" && !node.children.isEmpty && node.children.allSatisfy { $0.type == "button" }
     }
 
     private var gap: CGFloat {
@@ -28,7 +29,7 @@ struct StackNodeView: View {
     }
 
     private var propertyKey: SDUINode? {
-        guard keyWidth != nil, node.children.count > 1, let first = node.children.first, first.type == "text", first.string("style") == "muted" else { return nil }
+        guard keyWidth != nil, node.string("direction") == "horizontal", node.children.count > 1, let first = node.children.first, first.type == "text", first.string("style") == "muted" else { return nil }
         return first
     }
 
@@ -48,7 +49,11 @@ struct StackNodeView: View {
         } else if footer {
             HStack(spacing: theme.spacing.m) {
                 Spacer(minLength: 0)
-                SDUIChildren(node: node)
+                ForEach(node.identifiedChildren) { child in
+                    SDUINodeView(node: child.node)
+                        .equatable()
+                        .environment(\.buttonKeyHint, formSheet && child.node.string("action") == FormSheetHost.cancelAction ? FormSheetHost.cancelHint : nil)
+                }
             }
             .frame(maxWidth: .infinity)
         } else if node.string("direction") == "horizontal" {

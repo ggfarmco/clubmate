@@ -13,7 +13,7 @@ struct StackNode: View {
     }
 
     private var propertyKey: SDUINode? {
-        guard formRow, node.children.count > 1, let first = node.children.first, first.type == "text", first.string("style") == "muted" else { return nil }
+        guard formRow, node.string("direction") == "horizontal", node.children.count > 1, let first = node.children.first, first.type == "text", first.string("style") == "muted" else { return nil }
         return first
     }
 

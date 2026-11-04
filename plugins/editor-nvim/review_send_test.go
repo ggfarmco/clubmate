@@ -70,6 +70,7 @@ func TestSendSheetDefaultsToOpener(t *testing.T) {
 		values = append(values, o.Value)
 	}
 	assert.Equal(t, []string{"agt_open", "agt_new", newRecipient}, values)
+	assert.Contains(t, texts(sheet), sendToOpener)
 	assert.Equal(t, reviewMeta{Subtitle: "Claude · Opener", Recipient: "Opener"}, r.nv.(*fakeReviewer).lastMeta())
 
 	r.Opener = "agt_gone"
@@ -78,6 +79,8 @@ func TestSendSheetDefaultsToOpener(t *testing.T) {
 	sendFromNvim(t, a, h)
 	to, _ = findNode(sheetNode(t, h), sendToNode)
 	assert.Equal(t, "agt_new", to.Props["value"])
+	assert.NotContains(t, texts(sheetNode(t, h)), sendToOpener)
+	assert.Contains(t, texts(sheetNode(t, h)), sendToOther)
 
 	h.sessions = nil
 	sendFromNvim(t, a, h)
@@ -98,6 +101,7 @@ func TestSendSkipsResolved(t *testing.T) {
 	sendFromNvim(t, a, h)
 	sheet := sheetNode(t, h)
 	assert.Contains(t, texts(sheet), "Say why.")
+	assert.Contains(t, texts(sheet), "issue · a.go:3")
 	assert.NotContains(t, texts(sheet), "Done already.")
 	assert.ErrorIs(t, a.reviewUIEvent(t.Context(), h, pluginsdk.UIEvent{WorkspaceID: "ws", Slot: reviewSlot, NodeID: sheet.ID, Action: "sendReview", Value: json.RawMessage(`{"review/sendSheet/to":"agt_far"}`)}), errNotRecipient)
 	uiEvent(t, a, h, sheet.ID, "sendReview", map[string]string{sendToNode: "agt_open", sendNoteNode: "Keep it short."})
@@ -137,4 +141,13 @@ func texts(n sdui.Node) []string {
 		out = append(out, texts(c)...)
 	}
 	return out
+}
+
+func TestSendSheetIDsDifferAcrossRestarts(t *testing.T) {
+	a, h, _ := sendTestReview(t)
+	sendFromNvim(t, a, h)
+	first := sheetNode(t, h).ID
+	restarted, h2, _ := sendTestReview(t)
+	sendFromNvim(t, restarted, h2)
+	assert.NotEqual(t, first, sheetNode(t, h2).ID)
 }

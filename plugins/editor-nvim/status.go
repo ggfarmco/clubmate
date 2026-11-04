@@ -76,7 +76,7 @@ func (a *app) fsChanged(_ context.Context, h *pluginsdk.Host, ev pluginsdk.FSCha
 		go a.refreshBranches(h, ev.WorkspaceID)
 	}
 	if ev.Overflow || slices.ContainsFunc(ev.Paths, isReviewDB) {
-		go a.reviewDBChanged(context.Background(), h, ev.WorkspaceID)
+		a.scheduleReviewDB(h, ev.WorkspaceID)
 	}
 }
 

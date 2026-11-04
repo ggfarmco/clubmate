@@ -407,6 +407,15 @@
                             {"type": "text", "props": {"text": "Priority", "style": "muted"}},
                             {"type": "select", "id": "task-priority", "props": {"value": "high", "options": [{"value": "high", "label": "High"}, {"value": "normal", "label": "Normal"}]}}
                           ]
+                        },
+                        {
+                          "type": "stack",
+                          "id": "task-column",
+                          "props": {"direction": "vertical"},
+                          "children": [
+                            {"type": "text", "props": {"text": "Links", "style": "muted"}},
+                            {"type": "text", "props": {"text": "A vertical stack in a form is a column, not a property row"}}
+                          ]
                         }
                       ]
                     },

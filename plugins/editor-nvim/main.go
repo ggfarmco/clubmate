@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sync"
+	"time"
 
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
@@ -44,9 +45,12 @@ type app struct {
 	reviewSeq        int
 	reviewWatched    map[*client]bool
 	reviewStatusHint func(workspaceID string)
+	reviewDBMu       sync.Mutex
+	reviewDBPending  map[string]bool
+	reviewDBDelay    time.Duration
 	switchRoot       func(ctx context.Context, r *review)
 	nrev             string
-	sheetSeq         int
+	sheetSeq         int64
 }
 
 func main() {
@@ -60,6 +64,7 @@ func main() {
 		reviewLayouts:   map[string]string{},
 		reviewPublished: map[string]reviewPayload{},
 		reviewWatched:   map[*client]bool{},
+		reviewDBDelay:   reviewDBDelay,
 	}
 	a.heads = editorroot.NewHeads(a.isDeleted)
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, FSChanged: a.fsChanged})

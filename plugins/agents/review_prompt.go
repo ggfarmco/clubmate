@@ -10,12 +10,16 @@ import (
 	"clubmate/pkg/sdui"
 )
 
-const reviewCardPrefix = openReviewNode + "/"
+const (
+	reviewCardPrefix = openReviewNode + "/"
+	commentOpen      = "open"
+	commentWorking   = "working"
+)
 
-var reviewGlyphs = map[string]struct{ icon, tone string }{
-	"issue":      {"circle.fill", "warning"},
-	"question":   {"questionmark", "neutral"},
-	"suggestion": {"diamond.fill", "neutral"},
+var reviewGlyphs = map[string]struct{ glyph, tone string }{
+	"issue":      {"●", "warning"},
+	"question":   {"?", "neutral"},
+	"suggestion": {"◆", "neutral"},
 }
 
 type reviewComment struct {
@@ -127,25 +131,29 @@ func commentPlace(c reviewComment, span bool) string {
 func reviewCard(sc screen, en *entry) sdui.Node {
 	sid, r := sc.View.Session.ID, en.Review
 	n := len(r.Comments)
+	meta := fmt.Sprintf("you · %d/%d files · %d %s", r.Reviewed, r.Total, n, plural(n, "comment", "comments"))
+	if !en.At.IsZero() {
+		meta += " · " + en.At.Local().Format("15:04")
+	}
 	head := []sdui.Node{
 		{Type: "text", Props: map[string]any{"text": "Review", "style": "title"}},
-		sdui.MutedText(fmt.Sprintf("you · %d/%d files · %d %s", r.Reviewed, r.Total, n, plural(n, "comment", "comments"))),
+		sdui.MutedText(meta),
 	}
 	if sc.ReviewsOpen[r.ID] {
-		head = append(head, sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/"+reviewCardPrefix+en.ID, "Open review", "checklist"), actOpenReview), sdui.VariantGhost))
+		open := sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/"+reviewCardPrefix+en.ID, "Open review", "checklist"), actOpenReview), sdui.VariantGhost)
+		if sc.Review != nil && sc.Review.ID == r.ID {
+			open = sdui.WithShortcut(open, "cmd+r")
+		}
+		head = append(head, sdui.Spacer(), open)
 	}
 	children := []sdui.Node{sdui.HStack(head...)}
 	states := sc.ReviewStates[r.ID]
 	for _, c := range r.Comments {
 		g, ok := reviewGlyphs[c.Type]
 		if !ok {
-			g.icon, g.tone = "circle", "neutral"
+			g.glyph, g.tone = "○", "neutral"
 		}
-		state := states[c.ID]
-		if state == "" {
-			state = "open"
-		}
-		row := sdui.HStack(sdui.WithTone(sdui.Icon(g.icon), g.tone), sdui.MutedText(commentPlace(c, false)), sdui.Text(firstLine(c.Text)), sdui.MutedText(state))
+		row := sdui.HStack(sdui.WithTone(sdui.Text(g.glyph), g.tone), sdui.MutedText(commentPlace(c, false)), sdui.Text(firstLine(c.Text)), sdui.Spacer(), sdui.MutedText(commentState(states[c.ID], sc.View.Session.Status)))
 		row.ID = fmt.Sprintf("%s/review/%s/c%d", sid, en.ID, c.ID)
 		children = append(children, row)
 	}
@@ -157,12 +165,24 @@ func reviewCard(sc screen, en *entry) sdui.Node {
 	return card
 }
 
+func commentState(state, status string) string {
+	switch {
+	case state != "" && state != commentOpen:
+		return state
+	case status == statusRunning:
+		return commentWorking
+	default:
+		return commentOpen
+	}
+}
+
 func reviewCardKey(sc screen, en *entry) string {
 	if en.Review == nil {
 		return ""
 	}
 	states := sc.ReviewStates[en.Review.ID]
-	parts := []string{fmt.Sprint(sc.ReviewsOpen[en.Review.ID])}
+	current := sc.Review != nil && sc.Review.ID == en.Review.ID
+	parts := []string{fmt.Sprint(sc.ReviewsOpen[en.Review.ID], current), sc.View.Session.Status}
 	for _, c := range en.Review.Comments {
 		parts = append(parts, states[c.ID])
 	}

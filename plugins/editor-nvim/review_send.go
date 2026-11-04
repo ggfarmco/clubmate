@@ -24,19 +24,21 @@ const (
 	statusClosed    = "closed"
 	recipientAgent  = "Claude"
 	newSessionTitle = "a new session"
+	sendToOpener    = "To the session that made these changes:"
+	sendToOther     = "To"
 )
 
 var commentGlyphs = map[string][2]string{
-	"issue":      {"circle.fill", "warning"},
-	"question":   {"questionmark", "neutral"},
-	"suggestion": {"diamond.fill", "neutral"},
-	"":           {"circle", "neutral"},
+	"issue":      {"●", "warning"},
+	"question":   {"?", "neutral"},
+	"suggestion": {"◆", "neutral"},
+	"":           {"○", "neutral"},
 }
 
 var errNotRecipient = errors.New("send review: not one of the offered recipients")
 
 type sendSheet struct {
-	Gen     int
+	Gen     int64
 	Options []sdui.Option
 	Default string
 	Titles  map[string]string
@@ -87,7 +89,7 @@ func (a *app) openSendSheet(ctx context.Context, h reviewHost, id string) error 
 	for _, o := range a.workspaceReviewsLocked(r.Workspace) {
 		o.Sheet = nil
 	}
-	a.sheetSeq++
+	a.sheetSeq = max(a.sheetSeq+1, time.Now().UnixNano())
 	sheet.Gen = a.sheetSeq
 	r.Sheet = sheet
 	a.reviewSel[r.Workspace] = r.ID
@@ -234,18 +236,22 @@ func sendSheetView(r *review) sdui.Node {
 	s := r.Sheet
 	id := fmt.Sprintf("%s/%d", sendSheetID, s.Gen)
 	open := r.openComments()
+	to := sdui.HStack(sdui.MutedText(sendToOther), sdui.Select(sendToNode, s.Options, s.Default))
+	if r.Opener != "" && s.Default == r.Opener {
+		to = sdui.HStack(sdui.Text(sendToOpener), sdui.Select(sendToNode, s.Options, s.Default))
+	}
 	children := []sdui.Node{
-		sdui.HStack(sdui.Icon("bubble.left"), textStyled("Send review to "+recipientAgent+"?", "title")),
-		sdui.HStack(sdui.MutedText("To"), sdui.Select(sendToNode, s.Options, s.Default)),
+		sdui.HStack(sdui.WithTone(sdui.Icon("bubble.left"), "accent"), textStyled("Send review to "+recipientAgent+"?", "title")),
+		to,
 	}
 	for _, c := range open {
 		g, ok := commentGlyphs[c.Type]
 		if !ok {
 			g = commentGlyphs[""]
 		}
-		children = append(children, sdui.HStack(
-			sdui.MutedText(c.Type),
-			sdui.VStack(sdui.HStack(sdui.WithTone(sdui.Icon(g[0]), g[1]), sdui.MutedText(fmt.Sprintf("%s:%d", c.File, c.LineStart))), sdui.Text(c.Text)),
+		children = append(children, sdui.VStack(
+			sdui.HStack(sdui.WithTone(sdui.Text(g[0]), g[1]), sdui.MutedText(fmt.Sprintf("%s · %s:%d", cmp.Or(c.Type, "comment"), c.File, c.LineStart))),
+			sdui.Text(c.Text),
 		))
 	}
 	children = append(children,

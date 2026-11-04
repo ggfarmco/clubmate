@@ -1,9 +1,13 @@
+import AppKit
 import SwiftUI
 
 import ClubmateKit
 
 struct FormSheetHost: View {
     static let width: CGFloat = 560
+    static let cancelAction = "cancel"
+    static let cancelHint = "⎋"
+    static let windowID = NSUserInterfaceItemIdentifier("clubmate.formSheet")
 
     let node: SDUINode
 
@@ -25,10 +29,38 @@ struct FormSheetHost: View {
                     .environment(\.sduiDispatch, dispatch)
                     .environment(\.composerDrafts, drafts)
                     .environment(\.theme, theme)
+                    .environment(\.formSheet, true)
+                    .background(FormSheetWindowTag())
             }
     }
 
     private func cancel() {
-        dispatch(node, .named("cancel", .null))
+        dispatch(node, .named(Self.cancelAction, .null))
+    }
+}
+
+private struct FormSheetKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var formSheet: Bool {
+        get { self[FormSheetKey.self] }
+        set { self[FormSheetKey.self] = newValue }
+    }
+}
+
+private struct FormSheetWindowTag: NSViewRepresentable {
+    func makeNSView(context: Context) -> FormSheetWindowTagView {
+        FormSheetWindowTagView()
+    }
+
+    func updateNSView(_ view: FormSheetWindowTagView, context: Context) {}
+}
+
+private final class FormSheetWindowTagView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        window?.identifier = FormSheetHost.windowID
     }
 }

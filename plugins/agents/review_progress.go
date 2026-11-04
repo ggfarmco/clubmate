@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"os"
 	"slices"
 	"sync"
 
@@ -13,28 +14,38 @@ import (
 
 const (
 	reviewTopic    = "editor-nvim.review"
+	editorReady    = "editor-nvim.ready"
 	reviewShowCmd  = "editor-nvim.review-show"
 	actOpenReview  = "openReview"
 	openReviewNode = "openReview"
+	reviewBoardKey = "reviews"
 )
 
 type reviewPayload struct {
-	WorkspaceID string `json:"workspaceId"`
-	ID          string `json:"id"`
-	Worktree    string `json:"worktree"`
-	Base        string `json:"base"`
-	Head        string `json:"head"`
-	Opener      string `json:"opener"`
-	Recipient   string `json:"recipient"`
-	Reviewed    int    `json:"reviewed"`
-	Total       int    `json:"total"`
-	Open        int    `json:"open"`
-	Sent        int    `json:"sent"`
-	Closed      bool   `json:"closed"`
-	Comments    []struct {
-		ID     int64  `json:"id"`
-		Status string `json:"status"`
-	} `json:"comments"`
+	WorkspaceID string                 `json:"workspaceId"`
+	ID          string                 `json:"id"`
+	Worktree    string                 `json:"worktree"`
+	Base        string                 `json:"base"`
+	Head        string                 `json:"head"`
+	Opener      string                 `json:"opener"`
+	Recipient   string                 `json:"recipient"`
+	Reviewed    int                    `json:"reviewed"`
+	Total       int                    `json:"total"`
+	Open        int                    `json:"open"`
+	Sent        int                    `json:"sent"`
+	Closed      bool                   `json:"closed"`
+	Comments    []reviewPayloadComment `json:"comments"`
+}
+
+type reviewPayloadComment struct {
+	ID     int64  `json:"id"`
+	Status string `json:"status"`
+}
+
+type savedBoard struct {
+	Seq    int64                       `json:"seq"`
+	Open   []reviewPayload             `json:"open,omitempty"`
+	States map[string]map[int64]string `json:"states,omitempty"`
 }
 
 type reviewProgress struct {
@@ -88,6 +99,65 @@ func (b *reviewBoard) apply(raw json.RawMessage) (string, []string, bool) {
 	b.next++
 	b.open[p.ID], b.seq[p.ID] = p, b.next
 	return p.WorkspaceID, people, true
+}
+
+func (b *reviewBoard) closeAll() map[string][]string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	people := map[string][]string{}
+	for _, p := range b.open {
+		for _, id := range []string{p.Opener, p.Recipient} {
+			if id != "" && !slices.Contains(people[p.WorkspaceID], id) {
+				people[p.WorkspaceID] = append(people[p.WorkspaceID], id)
+			}
+		}
+	}
+	for _, ids := range people {
+		slices.Sort(ids)
+	}
+	clear(b.open)
+	clear(b.seq)
+	return people
+}
+
+func (b *reviewBoard) save(ctx context.Context, kv sessionStore, seq int64) error {
+	b.mu.Lock()
+	saved := savedBoard{Seq: seq, Open: slices.SortedFunc(maps.Values(b.open), func(x, y reviewPayload) int { return b.seq[x.ID] - b.seq[y.ID] }), States: b.states}
+	raw, err := json.Marshal(saved)
+	b.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	return kv.StorageSet(ctx, reviewBoardKey, json.RawMessage(raw))
+}
+
+func (b *reviewBoard) load(ctx context.Context, kv sessionStore) (int64, error) {
+	var saved savedBoard
+	if found, err := kv.StorageGet(ctx, reviewBoardKey, &saved); err != nil || !found {
+		return 0, err
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for _, p := range saved.Open {
+		b.next++
+		b.open[p.ID], b.seq[p.ID] = p, b.next
+	}
+	maps.Copy(b.states, saved.States)
+	return saved.Seq, nil
+}
+
+func (a *app) reviewsChanged(ctx context.Context, seq int64, people map[string][]string) {
+	if err := a.reviews.save(ctx, a.host, seq); err != nil {
+		fmt.Fprintln(os.Stderr, "agents: save reviews:", err)
+	}
+	for ws, ids := range people {
+		for _, id := range ids {
+			if s := a.session(id); s != nil {
+				a.notes.mark(s, changeReview, false)
+			}
+		}
+		a.kick(ws)
+	}
 }
 
 func (b *reviewBoard) progress(session string) *reviewProgress {

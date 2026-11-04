@@ -81,15 +81,14 @@ final class TestHarness {
             guard let combo = KeyCombo(key) else { throw TestModeError("unknown key \(key); use [cmd+][ctrl+][opt+][shift+]<a-z, 0-9, punctuation, return, tab, space, delete, esc, up, down, left, right>") }
             return combo
         }
-        guard let window = try request.focus.map(focus) ?? NSApp.promptWindow else { throw TestModeError("no window to send keys to") }
+        let formSheet = NSApp.windows.first { $0.isVisible && $0.sheetParent != nil && $0.identifier == FormSheetHost.windowID }
+        guard let window = try request.focus.map(focus) ?? formSheet ?? NSApp.promptWindow else { throw TestModeError("no window to send keys to") }
         var routes: [String] = []
         for combo in combos {
-            if NSApp.modalWindow != nil || NSApp.windows.contains(where: { $0.isVisible && $0.sheetParent != nil }) {
+            if NSApp.modalWindow != nil || NSApp.windows.contains(where: { $0.isVisible && $0.sheetParent != nil && $0.identifier != FormSheetHost.windowID }) {
                 throw TestModeError("a sheet or alert is open; keys are never sent to approvals")
             }
-            if window.firstResponder is TerminalSurfaceView {
-                throw TestModeError("a terminal has focus; keys are never sent to terminals")
-            }
+            let overTerminal = window.firstResponder is TerminalSurfaceView
             var flags: NSEvent.ModifierFlags = []
             if combo.command { flags.insert(.command) }
             if combo.control { flags.insert(.control) }
@@ -103,7 +102,9 @@ final class TestHarness {
                 _ = voiceKeys(up)
                 routes.append("voice")
             } else if monitors.allObjects.contains(where: { $0.deliver(down) }) {
-                routes.append("monitor")
+                routes.append(overTerminal ? "monitor over terminal" : "monitor")
+            } else if overTerminal {
+                throw TestModeError("a terminal has focus and no key monitor took \(combo.label); keys are never sent to terminals")
             } else if combo.command, window.performKeyEquivalent(with: down) {
                 routes.append("shortcut")
             } else {

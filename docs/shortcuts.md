@@ -68,7 +68,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ↩ | Edit the task title (title focused); while editing ↩ saves it, Esc cancels | backlog |
 | @ | In the empty Attachments field: pick a file to attach | backlog |
 | ⌘I | Show the session's context, or back to the transcript | agents |
-| ⌘R | Open the session's review in the Code section (while it opened or received an open review) | agents |
+| ⌘R | Open the session's review in the Code section (while it opened or received an open review; the header's Open review, printed also on that review's card in the transcript) | agents |
 | ⇧K | Kill the selected process and its children (confirmed) | processes |
 | ⇧⌘R | Reveal the selected process's executable in Finder | processes |
 

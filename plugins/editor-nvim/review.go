@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"time"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
@@ -24,6 +25,7 @@ const (
 	categoryTest  = "test"
 	categoryGen   = "generated"
 	reviewDB      = "review.db"
+	reviewDBDelay = 150 * time.Millisecond
 )
 
 var (
@@ -281,6 +283,24 @@ func (a *app) renderReviewsLocked(ctx context.Context, h reviewHost, ws string) 
 
 func isReviewDB(path string) bool {
 	return strings.HasPrefix(filepath.Base(path), reviewDB)
+}
+
+func (a *app) scheduleReviewDB(h reviewHost, ws string) {
+	a.reviewDBMu.Lock()
+	defer a.reviewDBMu.Unlock()
+	if a.reviewDBPending[ws] {
+		return
+	}
+	if a.reviewDBPending == nil {
+		a.reviewDBPending = map[string]bool{}
+	}
+	a.reviewDBPending[ws] = true
+	time.AfterFunc(a.reviewDBDelay, func() {
+		a.reviewDBMu.Lock()
+		delete(a.reviewDBPending, ws)
+		a.reviewDBMu.Unlock()
+		a.reviewDBChanged(context.Background(), h, ws)
+	})
 }
 
 func (a *app) reviewDBChanged(ctx context.Context, h reviewHost, ws string) {

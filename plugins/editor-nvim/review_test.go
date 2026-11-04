@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -351,4 +352,22 @@ func TestReviewRestoresSentAfterReopen(t *testing.T) {
 	assert.NotSame(t, r, again)
 	assert.Equal(t, []any{"agt_1", "Coder", "agt_1", 3}, []any{again.Opener, again.OpenerTitle, again.Recipient, again.Sent})
 	assert.Equal(t, 3, h.last().Sent)
+}
+
+func TestReviewDBChangesCoalesce(t *testing.T) {
+	a, h := newTestApp(), &fakeHost{}
+	a.reviewDBDelay = 50 * time.Millisecond
+	nv := &fakeReviewer{entries: []reviewEntry{{Path: "a.go", Kind: "modified", Category: "code"}}}
+	openTestReview(t, a, h, nv)
+	poked := func() int {
+		nv.mu.Lock()
+		defer nv.mu.Unlock()
+		return nv.pokes
+	}
+	for range 3 {
+		a.scheduleReviewDB(h, "ws")
+	}
+	assert.Zero(t, poked())
+	require.Eventually(t, func() bool { return poked() == 1 }, time.Second, 5*time.Millisecond)
+	assert.Never(t, func() bool { return poked() > 1 }, 150*time.Millisecond, 10*time.Millisecond)
 }

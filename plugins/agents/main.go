@@ -137,7 +137,11 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if _, err := h.Subscribe(ctx, editorFileTopic, ready.Seq); err != nil {
 		return err
 	}
-	if _, err := h.Subscribe(ctx, reviewTopic, ready.Seq); err != nil {
+	reviewsAfter, err := a.reviews.load(ctx, h)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "agents: load reviews:", err)
+	}
+	if _, err := h.Subscribe(ctx, reviewTopic+","+editorReady, reviewsAfter); err != nil {
 		return err
 	}
 	for _, topic := range []string{docsOpenedTopic, docsPresentedTopic} {
@@ -188,13 +192,10 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		}
 	case reviewTopic:
 		if ws, people, ok := a.reviews.apply(ev.Payload); ok {
-			for _, id := range people {
-				if s := a.session(id); s != nil {
-					a.notes.mark(s, changeReview, false)
-				}
-			}
-			a.kick(ws)
+			a.reviewsChanged(ctx, ev.Seq, map[string][]string{ws: people})
 		}
+	case editorReady:
+		a.reviewsChanged(ctx, ev.Seq, a.reviews.closeAll())
 	case docsOpenedTopic, docsPresentedTopic:
 		var p docsPresented
 		if json.Unmarshal(ev.Payload, &p) == nil {

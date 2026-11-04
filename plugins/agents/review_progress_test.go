@@ -88,3 +88,39 @@ func buttonByID(t *testing.T, n sdui.Node, id string) sdui.Node {
 	require.Failf(t, "no button", "%s", id)
 	return sdui.Node{}
 }
+
+func TestReviewBoardSurvivesRestart(t *testing.T) {
+	t.Parallel()
+	b := newReviewBoard()
+	reviewEvent(t, b, reviewPayload{WorkspaceID: "ws", ID: "rv_1", Opener: "agt_1", Reviewed: 1, Total: 2})
+	reviewEvent(t, b, reviewPayload{WorkspaceID: "ws", ID: "rv_2", Opener: "agt_1", Reviewed: 3, Total: 4})
+	reviewEvent(t, b, reviewPayload{WorkspaceID: "ws", ID: "rv_3", Opener: "agt_2", Closed: true, Comments: []reviewPayloadComment{{ID: 4, Status: "resolved"}}})
+	kv := memStore{}
+	require.NoError(t, b.save(t.Context(), kv, 42))
+
+	restarted := newReviewBoard()
+	seq, err := restarted.load(t.Context(), kv)
+	require.NoError(t, err)
+	assert.Equal(t, int64(42), seq)
+	assert.Equal(t, b.progress("agt_1"), restarted.progress("agt_1"))
+	assert.Nil(t, restarted.progress("agt_2"))
+	states, open := restarted.cards()
+	assert.Equal(t, map[string]map[int64]string{"rv_3": {4: "resolved"}}, states)
+	assert.Equal(t, map[string]bool{"rv_1": true, "rv_2": true}, open)
+
+	seq, err = newReviewBoard().load(t.Context(), memStore{})
+	require.NoError(t, err)
+	assert.Zero(t, seq)
+}
+
+func TestEditorRestartClosesReviews(t *testing.T) {
+	t.Parallel()
+	b := newReviewBoard()
+	reviewEvent(t, b, reviewPayload{WorkspaceID: "ws", ID: "rv_1", Opener: "agt_1", Recipient: "agt_2", Total: 2, Comments: []reviewPayloadComment{{ID: 4, Status: "resolved"}}})
+	reviewEvent(t, b, reviewPayload{WorkspaceID: "ws2", ID: "rv_2", Opener: "agt_3", Total: 1})
+	assert.Equal(t, map[string][]string{"ws": {"agt_1", "agt_2"}, "ws2": {"agt_3"}}, b.closeAll())
+	assert.Nil(t, b.progress("agt_1"))
+	states, open := b.cards()
+	assert.Equal(t, map[string]map[int64]string{"rv_1": {4: "resolved"}}, states)
+	assert.Empty(t, open)
+}
