@@ -81,6 +81,7 @@ func TestMetaRecordsOutputAndBell(t *testing.T) {
 }
 
 func TestSessionHostReplacesInheritedMarkers(t *testing.T) {
+	testutil.ClearClubmateEnv(t)
 	t.Setenv("CLUBMATE_SESSION_ID", "ses_outer")
 	cfg := testConfig(t, os.Args[0], "-test.run=^TestHelperSleep$")
 	cfg.Env = []string{"CLUBMATE_HELPER_SLEEP=1", "CLUBMATE_WORKSPACE_ID=prj_outer"}

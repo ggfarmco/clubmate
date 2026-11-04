@@ -41,6 +41,7 @@ func createWorkspace(t *testing.T) string {
 }
 
 func TestNotifyResolvesWorkspaceAndSession(t *testing.T) {
+	testutil.ClearClubmateEnv(t)
 	b := startCore(t)
 	here, there := createWorkspace(t), createWorkspace(t)
 	sid := strings.TrimSpace(string(run(t, "session", "create", "--workspace", here, "--", "true")))

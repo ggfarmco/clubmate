@@ -175,6 +175,18 @@ func moduleRoot(t *testing.T) string {
 	return filepath.Dir(strings.TrimSpace(string(gomod)))
 }
 
+func ClearClubmateEnv(t *testing.T) {
+	t.Helper()
+	for _, kv := range os.Environ() {
+		if k, _, _ := strings.Cut(kv, "="); strings.HasPrefix(k, "CLUBMATE_") {
+			t.Setenv(k, "")
+			if err := os.Unsetenv(k); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+}
+
 func Eventually(t *testing.T, cond func() bool, timeout time.Duration) {
 	t.Helper()
 	require.Eventually(t, cond, timeout, 20*time.Millisecond)
