@@ -44,7 +44,15 @@ struct StackNodeView: View {
             }
             .frame(maxWidth: .infinity)
         } else if node.string("direction") == "horizontal" {
-            HStack(alignment: .center, spacing: gap) { SDUIChildren(node: node) }
+            HStack(alignment: .center, spacing: gap) {
+                ForEach(node.identifiedChildren) { child in
+                    if child.node.type == "spacer" {
+                        Spacer(minLength: 0)
+                    } else {
+                        SDUINodeView(node: child.node).equatable()
+                    }
+                }
+            }
         } else {
             VStack(alignment: .leading, spacing: gap) { SDUIChildren(node: node) }
         }

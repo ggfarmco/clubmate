@@ -204,6 +204,10 @@ func HStack(children ...Node) Node {
 	return Node{Type: "stack", Props: map[string]any{"direction": "horizontal"}, Children: children}
 }
 
+func Spacer() Node {
+	return Node{Type: "spacer"}
+}
+
 func Split(direction string, children ...Node) Node {
 	return Node{Type: "split", Props: map[string]any{"direction": direction}, Children: children}
 }

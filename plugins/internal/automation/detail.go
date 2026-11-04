@@ -162,16 +162,16 @@ func Does(id, command string, args json.RawMessage, titles map[string]string, op
 	_ = json.Unmarshal(args, &fields)
 	rows := []sdui.Node{Property("Does", doesLine(command, fields, titles), "")}
 	if prompt := Names(promptOf(fields), titles); prompt != "" {
-		rows = append(rows, sdui.HStack(sdui.MutedText(""), sdui.Card("", "", sdui.WithLines(sdui.Text(prompt), promptLines))))
+		rows = append(rows, sdui.Card("", "", sdui.WithLines(sdui.Text(prompt), promptLines)))
 	}
 	toggle := DetailAction{Action: ActJSON, Label: "Show as JSON", Icon: "chevron.right", Variant: sdui.VariantGhost}
 	if open.JSON {
 		toggle.Label, toggle.Icon = "Hide JSON", "chevron.down"
 	}
-	rows = append(rows, sdui.HStack(sdui.MutedText(""), ActionNode(id, toggle)))
+	rows = append(rows, sdui.HStack(ActionNode(id, toggle)))
 	if open.JSON {
 		raw, _ := json.MarshalIndent(map[string]any{"command": command, "args": fields}, "", "  ")
-		rows = append(rows, sdui.HStack(sdui.MutedText(""), sdui.MutedText(string(raw))))
+		rows = append(rows, sdui.MutedText(string(raw)))
 	}
 	return rows
 }

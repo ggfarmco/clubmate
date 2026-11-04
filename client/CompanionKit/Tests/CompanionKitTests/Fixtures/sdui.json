@@ -1000,13 +1000,6 @@
            },
            "children": [
             {
-             "type": "text",
-             "props": {
-              "style": "muted",
-              "text": ""
-             }
-            },
-            {
              "type": "button",
              "id": "cj_60973ea0f743d6b2/json",
              "props": {
@@ -1041,6 +1034,9 @@
              }
             },
             {
+             "type": "spacer"
+            },
+            {
              "type": "button",
              "id": "cj_60973ea0f743d6b2/runMissed",
              "props": {
@@ -1055,7 +1051,7 @@
         },
         {
          "type": "runstrip",
-         "id": "strip",
+         "id": "cj_60973ea0f743d6b2/strip",
          "props": {
           "count": 20,
           "next": "2026-11-03T23:48:35Z",
@@ -1507,29 +1503,14 @@
            ]
           },
           {
-           "type": "stack",
-           "props": {
-            "direction": "horizontal"
-           },
+           "type": "card",
            "children": [
             {
              "type": "text",
              "props": {
-              "style": "muted",
-              "text": ""
+              "lines": 3,
+              "text": "Push main and tag"
              }
-            },
-            {
-             "type": "card",
-             "children": [
-              {
-               "type": "text",
-               "props": {
-                "lines": 3,
-                "text": "Push main and tag"
-               }
-              }
-             ]
             }
            ]
           },
@@ -1539,13 +1520,6 @@
             "direction": "horizontal"
            },
            "children": [
-            {
-             "type": "text",
-             "props": {
-              "style": "muted",
-              "text": ""
-             }
-            },
             {
              "type": "button",
              "id": "tr_67c683385a5fc075/json",
@@ -1729,6 +1703,85 @@
        ]
       }
      ]
+    }
+   ]
+  }
+ },
+ "empty": {
+  "cron.main": {
+   "type": "empty",
+   "props": {
+    "icon": "clock",
+    "text": "A job runs on a schedule — every few minutes, nightly or once — and starts an agent, prompts a session or runs a plugin command. Agents schedule them for you.",
+    "title": "No cron jobs"
+   },
+   "children": [
+    {
+     "type": "flow",
+     "id": "does",
+     "props": {
+      "cards": [
+       {
+        "id": "does",
+        "label": "Does",
+        "ghost": true,
+        "outs": [
+         {
+          "id": "agent",
+          "label": "start an agent",
+          "state": "ghost"
+         },
+         {
+          "id": "prompt",
+          "label": "prompt a session",
+          "state": "ghost"
+         },
+         {
+          "id": "command",
+          "label": "run a plugin command",
+          "state": "ghost"
+         }
+        ]
+       },
+       {
+        "id": "results",
+        "label": "Results go to",
+        "ghost": true,
+        "outs": [
+         {
+          "id": "owner",
+          "label": "its owner session",
+          "state": "ghost"
+         },
+         {
+          "id": "inbox",
+          "label": "or the inbox",
+          "state": "ghost"
+         }
+        ]
+       }
+      ],
+      "edges": [
+       {
+        "from": "when",
+        "to": "does",
+        "state": "ghost"
+       },
+       {
+        "from": "does",
+        "out": "agent",
+        "to": "results",
+        "state": "ghost"
+       }
+      ],
+      "markers": [
+       {
+        "id": "when",
+        "kind": "schedule",
+        "label": "a schedule"
+       }
+      ]
+     }
     }
    ]
   }

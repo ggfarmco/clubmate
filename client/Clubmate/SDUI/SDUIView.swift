@@ -288,6 +288,7 @@ struct SDUINodeView: View, Equatable {
         case "flow": FlowNodeView(node: node)
         case "lanes": LanesNodeView(node: node)
         case "runstrip": RunstripNodeView(node: node)
+        case "spacer": Spacer(minLength: 0)
         default: UnsupportedNodeView(type: node.type)
         }
     }

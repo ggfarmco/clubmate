@@ -30,7 +30,15 @@ struct StackNode: View {
             }
         } else if node.string("direction") == "horizontal" {
             ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: gap ?? 8) { SDUIChildren(node: node, context: context) }
+                HStack(alignment: .center, spacing: gap ?? 8) {
+                    ForEach(node.identifiedChildren) { child in
+                        if child.node.type == "spacer" {
+                            Spacer(minLength: 0)
+                        } else {
+                            SDUINodeView(node: child.node, context: context)
+                        }
+                    }
+                }
                 FlowLayout(spacing: gap ?? 8) { SDUIChildren(node: node, context: context) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

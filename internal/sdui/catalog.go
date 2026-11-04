@@ -177,6 +177,7 @@ var (
 		"stack":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions)}, children: anyChildren},
 		"split":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions)}, children: childRule{min: 2, max: 4}},
 		"scroll": {children: childRule{min: 1, max: 1}},
+		"spacer": {children: noChildren},
 		"tabs": {
 			required:    []string{"items", "selected"},
 			props:       map[string]propCheck{"items": listOf(itemCheck), "selected": isString, "action": actionCheck},

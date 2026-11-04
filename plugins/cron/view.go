@@ -115,7 +115,7 @@ func mainView(j *Job, titles, statuses map[string]string, open automation.Open, 
 func missedBanner(j *Job, at time.Time) sdui.Node {
 	text := "Missed " + at.Format(nextLayout) + " — not run: Clubmate was closed or the Mac asleep"
 	run := automation.ActionNode(j.ID, automation.DetailAction{Action: actRunMissed, Label: "Run it now", Variant: sdui.VariantSecondary})
-	return sdui.Card("warning", "exclamationmark.circle", sdui.HStack(sdui.WithTone(sdui.Text(text), "warning"), run))
+	return sdui.Card("warning", "exclamationmark.circle", sdui.HStack(sdui.WithTone(sdui.Text(text), "warning"), sdui.Spacer(), run))
 }
 
 func showLog(r Run) (string, string) {

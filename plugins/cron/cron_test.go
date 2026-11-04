@@ -462,7 +462,7 @@ func TestRunsGroupAndShowTheSelectedRunAsJSON(t *testing.T) {
 		child = rows[2]
 		return child.Depth == 1
 	})
-	f.h.Event(t, f.workspace, "cron.main", "strip", "select", child.ID)
+	f.h.Event(t, f.workspace, "cron.main", added.ID+"/strip", "select", child.ID)
 	f.h.Event(t, f.workspace, "cron.main", added.ID+"/runJson", "runJson", nil)
 	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool {
 		return len(nodesWhere(n, func(c sdui.Node) bool {

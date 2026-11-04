@@ -191,6 +191,9 @@ actor FixtureServer {
         for (slot, tree) in sdui["views"]?.objectValue ?? [:] {
             uiViews[slot] = (1, tree)
         }
+        if let slot = UserDefaults.standard.string(forKey: "empty"), let tree = sdui["empty"]?[slot] {
+            uiViews[slot] = (1, tree)
+        }
         voice = decode("voice-states.json")
         guard mac.id != FixtureMac.studio.id else { return }
         uiViews = [:]

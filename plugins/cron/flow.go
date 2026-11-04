@@ -13,7 +13,7 @@ import (
 
 const (
 	doesFlowID     = "does"
-	stripID        = "strip"
+	stripNode      = "strip"
 	whenMarker     = "when"
 	actionCard     = "action"
 	ownerMarker    = "owner"
@@ -213,7 +213,7 @@ func runStrip(j *Job, history []Run, selected Run, titles map[string]string, now
 	if !selected.At.IsZero() {
 		p.Selected = automation.RunID(selected)
 	}
-	return sdui.Runstrip(stripID, p)
+	return sdui.Runstrip(j.ID+"/"+stripNode, p)
 }
 
 func stripStatus(label string) string {

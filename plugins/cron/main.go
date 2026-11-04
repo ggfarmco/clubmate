@@ -146,7 +146,7 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	var id string
 	switch ev.Slot {
 	case mainSlot:
-		if ev.NodeID == automation.HistoryID || ev.NodeID == stripID {
+		if _, strip := automation.ActionTarget(ev.NodeID, stripNode); ev.NodeID == automation.HistoryID || strip {
 			if ev.Action == actShowLog {
 				return nil, a.showLog(ctx, ev)
 			}

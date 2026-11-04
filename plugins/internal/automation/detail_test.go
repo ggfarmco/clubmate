@@ -16,15 +16,16 @@ func TestDoesSaysItInWordsAndClampsThePrompt(t *testing.T) {
 	rows := Does("tr_1", PromptCommand, args, titles, Open{})
 	require.Len(t, rows, 3)
 	assert.Equal(t, "Send a prompt to Review loop · Coder", rows[0].Children[1].Props["text"])
-	prompt := rows[1].Children[1].Children[0]
+	assert.Equal(t, "card", rows[1].Type)
+	prompt := rows[1].Children[0]
 	assert.Equal(t, "see Review loop\n2\n3\n4", prompt.Props["text"])
 	assert.Equal(t, 3, prompt.Props["lines"])
-	assert.Equal(t, "Show as JSON", rows[2].Children[1].Props["label"])
+	assert.Equal(t, "Show as JSON", rows[2].Children[0].Props["label"])
 
 	rows = Does("tr_1", PromptCommand, args, titles, Open{JSON: true})
 	require.Len(t, rows, 4)
-	assert.Equal(t, "Hide JSON", rows[2].Children[1].Props["label"])
-	assert.Contains(t, rows[3].Children[1].Props["text"], `"command": "agents.prompt"`)
+	assert.Equal(t, "Hide JSON", rows[2].Children[0].Props["label"])
+	assert.Contains(t, rows[3].Props["text"], `"command": "agents.prompt"`)
 }
 
 func TestUntil(t *testing.T) {
