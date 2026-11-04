@@ -218,8 +218,12 @@ func mainView(r *Run, sessions map[string]api.Session, x runExtras) sdui.Node {
 	default:
 		children = append(children, approvalCard(r, need, x.pending[need.Node]))
 	}
-	if node, move := r.outputStep(x.selected); move >= 0 {
-		children = append(children, outputPanel(r, node, move, x.live))
+	switch node, move := r.shownMove(x.selected); {
+	case move < 0:
+	case r.Moves[move].Step != nil:
+		children = append(children, outputPanel(r, node, move, x.live, x.summarizing))
+	default:
+		children = append(children, agentPanel(r, node, move, x.summarizing))
 	}
 	return sdui.VStack(runHeader(r, sessions, need), automation.Properties(rows...), runDiagram(r, sessions, children...))
 }

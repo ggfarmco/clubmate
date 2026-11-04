@@ -135,6 +135,27 @@ func TestFailRoutesBackWithFencedTail(t *testing.T) {
 	assert.Contains(t, got[1], "Tests failed:\n```text\nFAIL x\n```\nFix them and commit.")
 }
 
+func TestFinishedMovesGetSummaries(t *testing.T) {
+	a, _, _, r := stepApp(t, stepResult{ExitCode: 1, Tail: "FAIL x"})
+	var inputs []string
+	a.summarize = func(_ context.Context, _, input string) (string, error) {
+		inputs = append(inputs, input)
+		return "summary " + strconv.Itoa(len(inputs)), nil
+	}
+
+	turnDone(t, a, "agt_1", 1)
+
+	run := cloneRun(a.runs[r.ID])
+	coder := run.lastTurn("coder")
+	_, tests := run.outputStep("tests")
+	require.Len(t, inputs, 2)
+	assert.Contains(t, inputs[0], "edited x.go")
+	assert.Equal(t, "$ make test\nexit 1\n\nFAIL x", inputs[1])
+	assert.Equal(t, "summary 1", run.Moves[coder].Summary)
+	assert.Equal(t, "did it", run.Moves[coder].Reply)
+	assert.Equal(t, "summary 2", outputPanel(run, "tests", tests, nil, false).Children[1].Props["text"])
+}
+
 func TestExitCodeNamesOutcome(t *testing.T) {
 	a, core, _, r := stepApp(t, stepResult{ExitCode: 3})
 	turnDone(t, a, "agt_1", 1)

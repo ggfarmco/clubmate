@@ -132,7 +132,7 @@ Focus moving to the Graphs main pane focuses the diagram of the run or graph; th
 | Keys | Action |
 |---|---|
 | j / k | Focus the next / previous card: layer by layer from the start, top to bottom inside a layer |
-| ↩ | Open the focused card's session (a click on a card does the same); on a graph's definition page cards open nothing. With an edge selected (Tab): select that edge's trigger in Triggers (a click on the edge does the same; a definition's edges open nothing) |
+| ↩ | Open the focused card's session (a click on a card does the same); on an agent card whose session is not running or waiting, the first ↩ shows its last finished turn's panel (summary, Open ‹Role›) and the second opens the session; on a graph's definition page cards open nothing. With an edge selected (Tab): select that edge's trigger in Triggers (a click on the edge does the same; a definition's edges open nothing) |
 | Tab / ⇧Tab | Select the next / previous edge, left to right, and show what it does in words (hovering an edge does the same); j/k go back to the cards |
 | - / + (=) / 0 | Zoom the diagram out / in (×1.25, 50…200%) / back to fit the pane width (never below 80%); the − + Fit buttons at its top-right do the same |
 | o | Open the focused step card's full output in Neovim (Full output in its output panel does the same; the board's ⌘O is Open Folder…, so Full output has no ⌘ key) |

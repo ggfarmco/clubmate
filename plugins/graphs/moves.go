@@ -8,18 +8,20 @@ import (
 )
 
 type Move struct {
-	Node  string    `json:"node"`
-	Cause int       `json:"cause"`
-	Edge  int       `json:"edge"`
-	User  bool      `json:"user,omitempty"`
-	Fired []int     `json:"fired,omitempty"`
-	End   string    `json:"end,omitempty"`
-	At    time.Time `json:"at"`
-	Turn  int       `json:"turn,omitempty"`
-	Open  bool      `json:"open,omitempty"`
-	Step  *StepMove `json:"step,omitempty"`
-	Held  bool      `json:"held,omitempty"`
-	Ended time.Time `json:"ended,omitzero"`
+	Node    string    `json:"node"`
+	Cause   int       `json:"cause"`
+	Edge    int       `json:"edge"`
+	User    bool      `json:"user,omitempty"`
+	Fired   []int     `json:"fired,omitempty"`
+	End     string    `json:"end,omitempty"`
+	At      time.Time `json:"at"`
+	Turn    int       `json:"turn,omitempty"`
+	Open    bool      `json:"open,omitempty"`
+	Step    *StepMove `json:"step,omitempty"`
+	Held    bool      `json:"held,omitempty"`
+	Ended   time.Time `json:"ended,omitzero"`
+	Reply   string    `json:"reply,omitempty"`
+	Summary string    `json:"summary,omitempty"`
 }
 
 type StepMove struct {
@@ -44,10 +46,10 @@ func (r *Run) startMove(node string, now time.Time) {
 	r.Moves = append(r.Moves, Move{Node: node, Cause: -1, Edge: -1, At: now, Open: true})
 }
 
-func (r *Run) endTurn(p api.Turn, now time.Time) {
+func (r *Run) endTurn(p api.Turn, now time.Time) int {
 	n := r.nodeBySession(p.Session)
 	if n == nil || !turnOver(p) {
-		return
+		return -1
 	}
 	i := r.closeMove(n.ID, p.Turn, now)
 	if i < 0 {
@@ -55,13 +57,14 @@ func (r *Run) endTurn(p api.Turn, now time.Time) {
 		i = len(r.Moves) - 1
 	}
 	if r.Spec == nil {
-		return
+		return i
 	}
 	for e, edge := range r.Spec.Edges {
 		if edge.From == n.ID && edgeMatchesTurn(r.Spec, edge, p) {
 			r.fire(i, e, now)
 		}
 	}
+	return i
 }
 
 func (r *Run) outcome(node, outcome string, now time.Time) {

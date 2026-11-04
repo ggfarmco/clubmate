@@ -646,9 +646,14 @@ func (a *app) stepDone(ctx context.Context, runID, node string, move int, res st
 	}
 	ev := stepEvent{Workspace: r.Workspace, Outcome: outcome, ExitCode: st.ExitCode, DurationMs: res.Duration.Milliseconds()}
 	topic := eventPrefix + r.outcomeEvent(node)
+	failed := outcome != onDone && outcome != outPass
+	summary := stepInput(st.Command, st.ExitCode, st.Output, st.Tail)
 	a.touch(r.Workspace)
 	logError(a.store.Save(ctx, r))
 	a.mu.Unlock()
+	if failed {
+		a.queueSummary(runID, move, stepSummaryPrompt, summary)
+	}
 	logError(a.publish(ctx, topic, ev))
 	if stopped != nil {
 		a.finish(ctx, stopped)

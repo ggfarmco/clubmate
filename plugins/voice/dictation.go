@@ -11,24 +11,23 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"time"
+
+	"clubmate/plugins/internal/claudecli"
 )
 
 const (
 	modeAssistant = "assistant"
 	modeDictation = "dictation"
 
-	cleanModel   = "claude-haiku-5-5"
 	cleanTimeout = 3 * time.Second
 	maxCleanGrow = 2
 )
 
 var (
-	errClaudeMissing = errors.New("claude CLI not found")
 	errCleanRejected = errors.New("cleaned text rejected")
 
 	modes = []string{modeAssistant, modeDictation}
@@ -96,16 +95,11 @@ func plausible(heard, text string) bool {
 }
 
 func startCleaner(d dictionary) cleaner {
-	claude, err := findClaude()
+	claude, err := claudecli.Find()
 	if err != nil {
 		return &claudeCleaner{err: err}
 	}
-	cmd := exec.Command(claude, "-p", "--model", cleanModel, "--tools", "", "--setting-sources", "", "--strict-mcp-config", "--no-session-persistence",
-		"--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--system-prompt", cleanPrompt(d))
-	cmd.Dir = os.TempDir()
-	cmd.Env = slices.DeleteFunc(os.Environ(), func(kv string) bool {
-		return strings.HasPrefix(kv, "CLUBMATE_") || strings.HasPrefix(kv, "CLAUDECODE=")
-	})
+	cmd := claudecli.Command(context.Background(), claude, claudecli.Haiku, cleanPrompt(d), "--input-format", "stream-json", "--output-format", "stream-json", "--verbose")
 	return newClaudeCleaner(cmd)
 }
 
@@ -181,17 +175,3 @@ func cleanPrompt(d dictionary) string {
 	}
 	return dictationPrompt + "\nProject terms: " + strings.Join(terms, ", ") + "\n"
 }
-
-func findClaude() (string, error) {
-	if path, err := exec.LookPath("claude"); err == nil {
-		return path, nil
-	}
-	home, _ := os.UserHomeDir()
-	for _, path := range []string{filepath.Join(home, ".local", "bin", "claude"), filepath.Join(home, ".claude", "local", "claude"), "/opt/homebrew/bin/claude"} {
-		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
-			return path, nil
-		}
-	}
-	return "", errClaudeMissing
-}
-

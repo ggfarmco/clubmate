@@ -195,25 +195,38 @@ func TestStoppedRunShowsItsPath(t *testing.T) {
 	}, g.Props["moves"])
 }
 
-func TestOpenMoveRevealsTurn(t *testing.T) {
+func TestFinishedTurnPreviewsBeforeOpening(t *testing.T) {
 	a := testApp(t, &fakeCore{})
-	a.runs["gr_1"] = &Run{
+	r := &Run{
 		ID: "gr_1", Workspace: "ws1", Status: statusRunning,
-		Nodes: []RunNode{{ID: "coder", Role: "Coder", Start: true, Session: "agt_1"}, {ID: "reviewer", Role: "Reviewer", Session: "agt_2"}},
-		Moves: []Move{{Node: "coder", Cause: -1, Edge: -1, Turn: 1}, {Node: "reviewer", Cause: 0, Edge: 0, Turn: 3}},
+		Nodes: []RunNode{{ID: "coder", Role: "Coder", Start: true, Session: "agt_1"}, {ID: "reviewer", Role: "Reviewer", Session: "agt_2"}, {ID: "fixer", Role: "Fixer", Session: "agt_3"}},
+		Moves: []Move{{Node: "coder", Cause: -1, Edge: -1, Turn: 1, Summary: "Fixed the flaky test."}, {Node: "reviewer", Cause: 0, Edge: 0, Turn: 3}, {Node: "fixer", Cause: 1, Edge: 1, Turn: 2}},
+	}
+	a.runs["gr_1"] = r
+	a.sessions = func(context.Context, string) ([]api.Session, error) {
+		return []api.Session{{ID: "agt_3", Status: "running"}}, nil
 	}
 	var got []any
 	a.revealTurn = func(_ context.Context, workspace, session string, turn int) error {
 		got = append(got, workspace, session, turn)
 		return nil
 	}
+	event := func(action, value string) {
+		t.Helper()
+		_, err := a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "gr_1/graph", Action: action, Value: json.RawMessage(value)})
+		require.NoError(t, err)
+	}
 
-	_, err := a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "gr_1/graph", Action: "openMove", Value: json.RawMessage("1")})
+	event(actOpenMove, "1")
+	event(actOpenMove, "1")
+	event(actOpen, `"coder"`)
+	panel := agentPanel(r, "coder", 0, false)
+	_, err := a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "gr_1/" + actOpenTurn, Action: actOpenTurn})
+	require.NoError(t, err)
+	event(actOpen, `"fixer"`)
 
-	require.NoError(t, err)
-	_, err = a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "gr_1/graph", Action: actOpen, Value: json.RawMessage(`"coder"`)})
-	require.NoError(t, err)
-	assert.Equal(t, []any{"ws1", "agt_2", 3, "ws1", "agt_1", 0}, got)
+	assert.Equal(t, []any{"ws1", "agt_2", 3, "ws1", "agt_1", 1, "ws1", "agt_3", 0}, got)
+	assert.Equal(t, "Fixed the flaky test.", panel.Children[1].Props["text"])
 }
 
 func TestOpenEdgeSelectsItsTrigger(t *testing.T) {

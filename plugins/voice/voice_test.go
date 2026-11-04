@@ -19,6 +19,7 @@ import (
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/internal/claudecli"
 )
 
 const (
@@ -343,7 +344,7 @@ func newTestVoice(t *testing.T) (*voice, *fakeHost, *fakeRecognizer) {
 	h.clock = &fakeClock{}
 	v := newVoice()
 	v.h, v.rec, v.ctx, v.after = h, rec, t.Context(), h.clock.after
-	v.cleaner = func(dictionary) cleaner { return &fakeCleaner{err: errClaudeMissing} }
+	v.cleaner = func(dictionary) cleaner { return &fakeCleaner{err: claudecli.ErrMissing} }
 	return v, h, rec
 }
 

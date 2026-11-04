@@ -63,7 +63,7 @@ type app struct {
 	proc        procRunner
 	spawn       func(f func())
 	pending     map[string]pendingStep
-	stepSel     map[string]string
+	stepSel     map[string]pick
 	trusting    map[string]string
 	untrusted   map[string]bool
 	shownHash   map[string]string
@@ -81,6 +81,8 @@ type app struct {
 	managedPath string
 	publish     func(ctx context.Context, topic string, payload any) error
 	selectTrig  func(ctx context.Context, workspace, trigger string) error
+	summarize   func(ctx context.Context, system, input string) (string, error)
+	summarizing map[string]bool
 }
 
 type draft struct {
@@ -120,7 +122,7 @@ func newApp() *app {
 	a.revealTurn = a.revealSession
 	a.proc = shellRunner{grace: 5 * time.Second}
 	a.pending = map[string]pendingStep{}
-	a.stepSel = map[string]string{}
+	a.stepSel = map[string]pick{}
 	a.trusting = map[string]string{}
 	a.untrusted = map[string]bool{}
 	a.shownHash = map[string]string{}
@@ -140,6 +142,8 @@ func newApp() *app {
 	a.spawn = func(f func()) { go f() }
 	a.publish = a.publishEvent
 	a.selectTrig = a.selectTrigger
+	a.summarize = askHaiku
+	a.summarizing = map[string]bool{}
 	return a
 }
 
@@ -291,9 +295,11 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 		return nil, a.continueFromSection(ctx, ev.WorkspaceID, id)
 	case actFullOutput:
 		a.mu.Lock()
-		node := a.stepSel[id]
+		node := a.stepSel[id].node
 		a.mu.Unlock()
 		return nil, a.fullOutput(ctx, ev.WorkspaceID, id, node)
+	case actOpenTurn:
+		return nil, a.openShownTurn(ctx, ev.WorkspaceID, id)
 	case actStepOutput:
 		return nil, a.stepOutput(ctx, ev.WorkspaceID, id)
 	case "select":
@@ -403,7 +409,7 @@ func (a *app) openGraph(ctx context.Context, ev pluginsdk.UIEvent, id string) er
 		return err
 	}
 	var node string
-	turn := 0
+	turn, move := 0, -1
 	switch ev.Action {
 	case actOpen, actOutput:
 		if err := json.Unmarshal(ev.Value, &node); err != nil {
@@ -417,7 +423,7 @@ func (a *app) openGraph(ctx context.Context, ev pluginsdk.UIEvent, id string) er
 		if i < 0 || i >= len(r.Moves) {
 			return fmt.Errorf("graph run %q has no move %d", id, i)
 		}
-		node, turn = r.Moves[i].Node, r.Moves[i].Turn
+		node, turn, move = r.Moves[i].Node, r.Moves[i].Turn, i
 	case actOpenEdge:
 		var trigger string
 		if err := json.Unmarshal(ev.Value, &trigger); err != nil {
@@ -439,7 +445,7 @@ func (a *app) openGraph(ctx context.Context, ev pluginsdk.UIEvent, id string) er
 			return a.fullOutput(ctx, ev.WorkspaceID, id, node)
 		}
 		a.mu.Lock()
-		a.stepSel[id] = node
+		a.stepSel[id] = pick{node: node}
 		a.touch(ev.WorkspaceID)
 		a.mu.Unlock()
 		a.flush(ctx)
@@ -448,7 +454,50 @@ func (a *app) openGraph(ctx context.Context, ev pluginsdk.UIEvent, id string) er
 	if n == nil || n.Session == "" {
 		return fmt.Errorf("graph run %q has no session for node %q", id, node)
 	}
+	if ev.Action != actOutput && a.previewTurn(ctx, ev.WorkspaceID, r, node, move) {
+		return nil
+	}
 	return a.revealTurn(ctx, ev.WorkspaceID, n.Session, turn)
+}
+
+func (a *app) previewTurn(ctx context.Context, workspace string, r *Run, node string, move int) bool {
+	sel := pick{node: node, move: move, exact: move >= 0}
+	if move < 0 {
+		move = r.lastTurn(node)
+	}
+	if move < 0 || !r.closedTurn(move) {
+		return false
+	}
+	switch a.sessionMap(ctx, workspace)[r.node(node).Session].Status {
+	case "running", "waiting":
+		return false
+	}
+	a.mu.Lock()
+	shownNode, shown := r.shownMove(a.stepSel[r.ID])
+	if shownNode == node && shown == move {
+		a.mu.Unlock()
+		return false
+	}
+	a.stepSel[r.ID] = sel
+	a.touch(workspace)
+	a.mu.Unlock()
+	a.flush(ctx)
+	return true
+}
+
+func (a *app) openShownTurn(ctx context.Context, workspace, runID string) error {
+	r, err := a.lookup(workspace, runID)
+	if err != nil {
+		return err
+	}
+	a.mu.Lock()
+	node, move := r.shownMove(a.stepSel[runID])
+	a.mu.Unlock()
+	n := r.node(node)
+	if move < 0 || n == nil || n.Step || n.Session == "" {
+		return fmt.Errorf("graph run %q shows no agent turn", runID)
+	}
+	return a.revealTurn(ctx, workspace, n.Session, r.Moves[move].Turn)
 }
 
 func (a *app) selectTrigger(ctx context.Context, workspace, trigger string) error {
@@ -476,13 +525,23 @@ func (a *app) countTurn(ctx context.Context, p api.Turn, source string) {
 	a.mu.Lock()
 	var spent []*Run
 	var owed []delivery
+	type closed struct {
+		run  string
+		move int
+	}
+	var ended []closed
 	for _, r := range a.runs {
 		n := r.nodeBySession(p.Session)
 		if r.Workspace != p.Workspace || n == nil {
 			continue
 		}
 		if r.Status != statusRunning {
-			if turnOver(p) && r.closeMove(n.ID, p.Turn, a.now()) >= 0 {
+			if !turnOver(p) {
+				continue
+			}
+			if i := r.closeMove(n.ID, p.Turn, a.now()); i >= 0 {
+				r.Moves[i].Reply = clip(p.Reply, replyKeep)
+				ended = append(ended, closed{r.ID, i})
 				a.touch(r.Workspace)
 				logError(a.store.Save(ctx, r))
 			}
@@ -490,7 +549,10 @@ func (a *app) countTurn(ctx context.Context, p api.Turn, source string) {
 		}
 		before := len(r.Moves)
 		r.Turns++
-		r.endTurn(p, a.now())
+		if i := r.endTurn(p, a.now()); i >= 0 {
+			r.Moves[i].Reply = clip(p.Reply, replyKeep)
+			ended = append(ended, closed{r.ID, i})
+		}
 		owed = append(owed, r.owedSince(before, ownedCause{Reply: p.Reply})...)
 		a.touch(r.Workspace)
 		if r.Turns >= r.MaxTurns {
@@ -500,6 +562,9 @@ func (a *app) countTurn(ctx context.Context, p api.Turn, source string) {
 		logError(a.store.Save(ctx, r))
 	}
 	a.mu.Unlock()
+	for _, c := range ended {
+		a.queueSummary(c.run, c.move, agentSummaryPrompt, a.turnInput(p.Workspace, p.Session, p.Turn))
+	}
 	for _, r := range spent {
 		a.finish(ctx, r)
 	}

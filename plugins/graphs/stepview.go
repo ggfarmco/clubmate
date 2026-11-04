@@ -21,6 +21,7 @@ const (
 	actFullOutput = "fullOutput"
 	actStepOutput = "stepOutput"
 	actOutput     = "output"
+	actOpenTurn   = "openTurn"
 	optOnce       = "once"
 	optAlways     = "always"
 	tailLines     = 12
@@ -29,9 +30,16 @@ const (
 var userOnly = []string{actApprove, actContinue, actTrust, actTrustConfirm}
 
 type runExtras struct {
-	pending  map[string]*pendingInfo
-	selected string
-	live     *liveOutput
+	pending     map[string]*pendingInfo
+	selected    pick
+	live        *liveOutput
+	summarizing bool
+}
+
+type pick struct {
+	node  string
+	move  int
+	exact bool
 }
 
 func nodeKind(g *Graph, id string) string {
@@ -132,6 +140,33 @@ func (r *Run) outputStep(selected string) (string, int) {
 	return "", -1
 }
 
+func (r *Run) shownMove(sel pick) (string, int) {
+	if sel.exact && sel.move < len(r.Moves) && r.Moves[sel.move].Node == sel.node && r.closedTurn(sel.move) {
+		return sel.node, sel.move
+	}
+	if n := r.node(sel.node); n != nil && !n.Step {
+		if i := r.lastTurn(sel.node); i >= 0 {
+			return sel.node, i
+		}
+	}
+	return r.outputStep(sel.node)
+}
+
+func (r *Run) closedTurn(i int) bool {
+	m := r.Moves[i]
+	n := r.node(m.Node)
+	return n != nil && !n.Step && m.Step == nil && !m.Open
+}
+
+func (r *Run) lastTurn(node string) int {
+	for i := len(r.Moves) - 1; i >= 0; i-- {
+		if r.Moves[i].Node == node && r.closedTurn(i) {
+			return i
+		}
+	}
+	return -1
+}
+
 func (r *Run) round(node string, move int) (int, int) {
 	n, at := 0, 0
 	for i, m := range r.Moves {
@@ -145,7 +180,34 @@ func (r *Run) round(node string, move int) (int, int) {
 	return at, n
 }
 
-func outputPanel(r *Run, node string, move int, live *liveOutput) sdui.Node {
+func agentPanel(r *Run, node string, move int, summarizing bool) sdui.Node {
+	m := r.Moves[move]
+	role := roleOf(r, node)
+	meta := []string{cmp.Or(r.moveOutcome(m), onDone)}
+	if m.Turn > 0 {
+		meta = append(meta, "turn "+strconv.Itoa(m.Turn))
+	}
+	if !m.Ended.IsZero() {
+		meta = append(meta, humanDuration(m.Ended.Sub(m.At)))
+	}
+	var text sdui.Node
+	var notes []sdui.Node
+	switch {
+	case m.Summary != "":
+		text, notes = sdui.Text(m.Summary), []sdui.Node{sdui.MutedText("summary by Haiku")}
+	case summarizing:
+		text = sdui.MutedText("Summarizing…")
+	case m.Reply != "":
+		text, notes = sdui.WithLines(sdui.Text(m.Reply), 3), []sdui.Node{sdui.MutedText("the end of its reply")}
+	default:
+		text = sdui.MutedText("No summary of this turn.")
+	}
+	open := automation.ActionNode(r.ID, automation.DetailAction{Action: actOpenTurn, Label: "Open " + role, Icon: "sparkles", Variant: sdui.VariantSecondary})
+	head := sdui.HStack(sdui.Text(role), sdui.MutedText(strings.Join(meta, " · ")))
+	return sdui.Card("", statusIcon("done"), append([]sdui.Node{head, text, sdui.HStack(open)}, notes...)...)
+}
+
+func outputPanel(r *Run, node string, move int, live *liveOutput, summarizing bool) sdui.Node {
 	st := r.Moves[move].Step
 	role := roleOf(r, node)
 	var meta []string
@@ -160,7 +222,7 @@ func outputPanel(r *Run, node string, move int, live *liveOutput) sdui.Node {
 	default:
 		meta = append(meta, st.Outcome)
 	}
-	if st.ExitCode != nil {
+	if st.ExitCode != nil && st.Reason != "exit "+strconv.Itoa(*st.ExitCode) {
 		meta = append(meta, "exit "+strconv.Itoa(*st.ExitCode))
 	}
 	if st.Status == stepFinished {
@@ -187,6 +249,9 @@ func outputPanel(r *Run, node string, move int, live *liveOutput) sdui.Node {
 		copyButton := sdui.WithCopy(sdui.WithVariant(sdui.Button(r.ID+"/copy", "Copy", "doc.on.doc"), sdui.VariantGhost), tail)
 		body = append(body, sdui.BlockText(strings.Join(shown, "\n")), sdui.HStack(full, copyButton))
 		var notes []string
+		if r.Moves[move].Summary != "" {
+			notes = append(notes, "summary by Haiku")
+		}
 		if all := max(lines, len(split)); len(shown) < all {
 			notes = append(notes, fmt.Sprintf("last %d of %d lines", len(shown), all))
 		}
@@ -198,6 +263,12 @@ func outputPanel(r *Run, node string, move int, live *liveOutput) sdui.Node {
 		}
 	}
 	top := []sdui.Node{head}
+	switch {
+	case r.Moves[move].Summary != "":
+		top = append(top, sdui.Text(r.Moves[move].Summary))
+	case summarizing && st.Status == stepFinished:
+		top = append(top, sdui.MutedText("Summarizing…"))
+	}
 	if len(st.CheckFiles) > 0 {
 		top = append(top, sdui.WithTone(sdui.Text(fmt.Sprintf(checkFilesNote, strings.Join(st.CheckFiles, ", "))), "warning"))
 	}
@@ -227,8 +298,10 @@ func (a *app) extras(r *Run) runExtras {
 			x.pending[node] = pendingOf(p)
 		}
 	}
+	_, move := r.shownMove(x.selected)
+	x.summarizing = move >= 0 && a.summarizing[r.ID+"/"+strconv.Itoa(move)]
 	a.mu.Unlock()
-	if _, move := r.outputStep(x.selected); move >= 0 && r.Moves[move].Step.Status == stepRunning && r.Moves[move].Step.Output != "" {
+	if move >= 0 && r.Moves[move].Step != nil && r.Moves[move].Step.Status == stepRunning && r.Moves[move].Step.Output != "" {
 		if live, ok := readLive(r.Moves[move].Step.Output); ok {
 			x.live = &live
 		}
@@ -303,7 +376,7 @@ func (a *app) stepOutput(ctx context.Context, workspace, runID string) error {
 		return fmt.Errorf("graph run %q has no running step", runID)
 	}
 	a.mu.Lock()
-	a.stepSel[runID] = node
+	a.stepSel[runID] = pick{node: node}
 	a.touch(workspace)
 	a.mu.Unlock()
 	a.flush(ctx)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/automation"
+	"clubmate/plugins/internal/claudecli"
 )
 
 type memStore struct{}
@@ -25,6 +27,7 @@ func (memStore) Save(context.Context, *Run) error { return nil }
 func (memStore) Remove(context.Context, *Run) error { return nil }
 
 type fakeCore struct {
+	mu        sync.Mutex
 	calls     []automation.CommandRequest
 	next      int
 	worktrees string
@@ -33,24 +36,30 @@ type fakeCore struct {
 }
 
 func (f *fakeCore) run(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error) {
+	f.mu.Lock()
 	f.calls = append(f.calls, req)
-	if f.block[req.ID] {
+	block, err := f.block[req.ID], f.errs[req.ID]
+	if !block && err == nil && req.ID != "git.worktrees" {
+		f.next++
+	}
+	next := f.next
+	f.mu.Unlock()
+	if block {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
-	if err := f.errs[req.ID]; err != nil {
+	if err != nil {
 		return nil, err
-	}
-	if req.ID != "git.worktrees" {
-		f.next++
 	}
 	switch req.ID {
 	case "agents.new":
-		return json.RawMessage(fmt.Sprintf(`{"session":"agt_%d"}`, f.next)), nil
+		return json.RawMessage(fmt.Sprintf(`{"session":"agt_%d"}`, next)), nil
 	case "triggers.add":
-		return json.RawMessage(fmt.Sprintf(`{"id":"tr_%d"}`, f.next)), nil
+		return json.RawMessage(fmt.Sprintf(`{"id":"tr_%d"}`, next)), nil
 	case "git.worktrees":
 		return json.RawMessage(cmp.Or(f.worktrees, `[]`)), nil
+	case "agents.transcript":
+		return json.RawMessage(`{"entries":[{"kind":"message","text":"edited x.go"}]}`), nil
 	}
 	return json.RawMessage(`{}`), nil
 }
@@ -70,6 +79,7 @@ func testApp(t *testing.T, core *fakeCore) *app {
 	a.now = func() time.Time { return time.Date(2026, 10, 31, 3, 0, 0, 0, time.UTC) }
 	a.runCommand = core.run
 	a.callStep = core.run
+	a.summarize = func(context.Context, string, string) (string, error) { return "", claudecli.ErrMissing }
 	kv := map[string]json.RawMessage{}
 	a.kvGet = func(_ context.Context, key string, out any) (bool, error) {
 		raw, ok := kv[key]
