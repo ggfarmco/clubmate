@@ -12,37 +12,44 @@ import (
 )
 
 func TestLoadGraph(t *testing.T) {
-	g, _, err := loadGraph([]string{t.TempDir(), "testdata"}, "review-loop")
+	g, _, err := loadGraph([]string{t.TempDir(), "testdata"}, "", "review-loop")
 	require.NoError(t, err)
 	assert.Equal(t, "review-loop", g.Name)
 	assert.Len(t, g.Nodes, 2)
 	assert.Equal(t, onDone, g.Edges[0].On)
 
-	_, builtin, err := loadGraph([]string{t.TempDir()}, "pr-walkthrough")
+	_, from, err := loadGraph([]string{t.TempDir()}, "", "pr-walkthrough")
 	require.NoError(t, err)
-	assert.True(t, builtin)
+	assert.Equal(t, fromBuiltin, from)
 
-	files := listGraphs([]string{"testdata"})
+	files := listGraphs([]string{"testdata"}, "")
 	require.Len(t, files, 5)
 	assert.Equal(t, []string{"gate", "pr-walkthrough", "red-team", "review-gate", "review-loop"}, []string{files[0].Name, files[1].Name, files[2].Name, files[3].Name, files[4].Name})
 	assert.Equal(t, graphFile{Name: "pr-walkthrough", Title: "PR walkthrough", Description: files[1].Description, Path: "builtin/pr-walkthrough.json", Nodes: files[1].Nodes, Builtin: true}, files[1])
 	assert.Equal(t, graphFile{Name: "review-loop", Title: "Review loop", Description: g.Description, Path: "testdata/.clubmate/graphs/review-loop.json", Nodes: 2}, files[4])
 }
 
-func TestProjectGraphOverridesBuiltin(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, graphsDir), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, graphsDir, "pr-walkthrough.json"), []byte(`{"title":"Mine","nodes":[{"id":"a","prompt":"p","start":true}]}`), 0o644))
+func TestGraphPrecedenceProjectUserBuiltin(t *testing.T) {
+	dir, home := t.TempDir(), t.TempDir()
+	write := func(root, name, title string) {
+		require.NoError(t, os.MkdirAll(filepath.Join(root, graphsDir), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(root, graphsDir, name+graphExt), []byte(`{"title":"`+title+`","nodes":[{"id":"a","prompt":"p","start":true}]}`), 0o644))
+	}
+	write(dir, "pr-walkthrough", "Mine")
+	write(home, "pr-walkthrough", "Yours")
+	write(home, "review-gate", "Yours")
 
-	g, builtin, err := loadGraph([]string{dir}, "pr-walkthrough")
+	g, from, err := loadGraph([]string{dir}, home, "pr-walkthrough")
 	require.NoError(t, err)
-	assert.Equal(t, "Mine", g.Title)
-	assert.False(t, builtin)
+	assert.Equal(t, []any{"Mine", fromProject}, []any{g.Title, from})
+	g, from, err = loadGraph([]string{t.TempDir()}, home, "review-gate")
+	require.NoError(t, err)
+	assert.Equal(t, []any{"Yours", fromUser}, []any{g.Title, from})
 
-	files := listGraphs([]string{dir})
+	files := listGraphs([]string{dir}, home)
 	require.Len(t, files, 2)
-	assert.Equal(t, "Mine", files[0].Title)
-	assert.False(t, files[0].Builtin)
+	assert.Equal(t, []any{"Mine", false, false}, []any{files[0].Title, files[0].User, files[0].Builtin})
+	assert.Equal(t, graphFile{Name: "review-gate", Title: "Yours", Path: filepath.Join(home, graphsDir, "review-gate.json"), Nodes: 1, User: true}, files[1])
 }
 
 func TestBuiltinGraphsParse(t *testing.T) {
@@ -58,7 +65,7 @@ func TestBuiltinGraphsParse(t *testing.T) {
 }
 
 func TestStepGraphParses(t *testing.T) {
-	g, _, err := loadGraph([]string{"testdata"}, "gate")
+	g, _, err := loadGraph([]string{"testdata"}, "", "gate")
 	require.NoError(t, err)
 	tests := g.node("tests")
 	assert.True(t, tests.step())

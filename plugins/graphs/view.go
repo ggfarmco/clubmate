@@ -86,8 +86,20 @@ func graphItem(g graphFile, untrusted bool) sdui.TreeItem {
 		item.Tone, item.Detail = "warning", "untrusted"
 	case g.Builtin:
 		item.Detail = "built in"
+	case g.User:
+		item.Detail = "global"
 	}
 	return item
+}
+
+func definitionOf(name string, builtin, user bool) string {
+	switch {
+	case builtin:
+		return "Built into Clubmate"
+	case user:
+		return userGraphsDir + "/" + name + graphExt
+	}
+	return graphsDir + "/" + name + graphExt
 }
 
 func graphView(g graphFile, spec *Graph, d draft, starting string, tv trustView) sdui.Node {
@@ -129,10 +141,7 @@ func graphView(g graphFile, spec *Graph, d draft, starting string, tv trustView)
 			rows = append(rows, sdui.HStack(sdui.MutedText(""), sdui.WithTone(sdui.Text(d.err), "danger")))
 		}
 	}
-	definition := graphsDir + "/" + g.Name + graphExt
-	if g.Builtin {
-		definition = "Built into Clubmate"
-	}
+	definition := definitionOf(g.Name, g.Builtin, g.User)
 	if tv.untrusted {
 		definition = trustDefinition(definition, tv)
 	}
@@ -204,10 +213,7 @@ func mainView(r *Run, sessions map[string]api.Session, x runExtras) sdui.Node {
 		}
 		rows = append(rows, automation.Property("Stopped", stopped, ""))
 	}
-	definition := graphsDir + "/" + r.Graph + graphExt
-	if r.Builtin {
-		definition = "Built into Clubmate"
-	}
+	definition := definitionOf(r.Graph, r.Builtin, r.User)
 	rows = append(rows, automation.Property("Definition", definition, ""))
 	need := r.need()
 	var children []sdui.Node

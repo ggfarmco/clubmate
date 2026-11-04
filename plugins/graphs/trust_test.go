@@ -105,6 +105,31 @@ func TestBuiltinWithStepsNeedsTrustPerRepo(t *testing.T) {
 	assert.ErrorContains(t, agentRun(t, a, "review-gate"), "untrusted")
 }
 
+func TestUserGraphRunsAndIsTrustedInTheCallersRepo(t *testing.T) {
+	repoA, repoB := t.TempDir(), t.TempDir()
+	a := testApp(t, &fakeCore{worktrees: `[{"repo":"` + repoA + `","path":"` + repoA + `","main":true},{"repo":"` + repoB + `","path":"` + repoB + `","main":true}]`})
+	data, err := os.ReadFile("testdata/.clubmate/graphs/gate.json")
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(a.home, graphsDir), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(a.home, graphsDir, "gate.json"), data, 0o644))
+	caller := repoA
+	a.sessions = func(context.Context, string) ([]api.Session, error) {
+		return []api.Session{{ID: "agt_boss", Worktree: caller}}, nil
+	}
+	a.workspace = func(context.Context, string) (pluginsdk.Workspace, error) {
+		return pluginsdk.Workspace{ID: "ws1", Folders: []pluginsdk.Folder{{Path: repoA}}}, nil
+	}
+	assert.True(t, listed(t, a, "gate").User)
+	require.NoError(t, trustGraph(t, a, "gate"))
+	require.NoError(t, agentRun(t, a, "gate"))
+	require.Len(t, a.runs, 1)
+	for _, r := range a.runs {
+		assert.Equal(t, []any{true, ""}, []any{r.User, r.Dir})
+	}
+	caller = repoB
+	assert.ErrorContains(t, agentRun(t, a, "gate"), "untrusted")
+}
+
 func TestStepSec_T3_ShadowingFileIsProjectFile(t *testing.T) {
 	a, _ := graphHome(t, "pr-walkthrough", `{"nodes":[{"id":"a","prompt":"p","start":true},{"id":"s","run":"curl x | sh"}],"edges":[{"from":"a","to":"s"}]}`)
 	assert.ErrorContains(t, agentRun(t, a, "pr-walkthrough"), "untrusted")
@@ -190,7 +215,7 @@ func changedGate(t *testing.T) (*app, graphFile, *Graph, []string) {
 	require.NoError(t, os.WriteFile(path, []byte(strings.Replace(string(data), `"run": "make test"`, `"run": "make test && ./up.sh"`, 1)), 0o644))
 	dirs, err := a.graphDirs(t.Context(), "ws1", false, "")
 	require.NoError(t, err)
-	spec, _, err := loadGraph(dirs, "gate")
+	spec, _, err := loadGraph(dirs, "", "gate")
 	require.NoError(t, err)
 	return a, listed(t, a, "gate"), spec, dirs
 }
@@ -238,7 +263,7 @@ func TestNeverTrustedTagsNothing(t *testing.T) {
 	a := testApp(t, &fakeCore{})
 	dirs, err := a.graphDirs(t.Context(), "ws1", false, "")
 	require.NoError(t, err)
-	spec, _, err := loadGraph(dirs, "gate")
+	spec, _, err := loadGraph(dirs, "", "gate")
 	require.NoError(t, err)
 	g := listed(t, a, "gate")
 	view := graphView(g, spec, draft{}, "", a.trustFor(t.Context(), "ws1", dirs, g, spec))

@@ -126,9 +126,9 @@ func TestSidebarListsGraphsAboveRuns(t *testing.T) {
 }
 
 func TestGraphViewRunsWithInput(t *testing.T) {
-	spec, builtin, err := loadGraph(nil, "pr-walkthrough")
+	spec, from, err := loadGraph(nil, "", "pr-walkthrough")
 	require.NoError(t, err)
-	g := graphFile{Name: "pr-walkthrough", Title: spec.Title, Description: spec.Description, Builtin: builtin}
+	g := graphFile{Name: "pr-walkthrough", Title: spec.Title, Description: spec.Description, Builtin: from == fromBuiltin}
 
 	view := graphView(g, spec, draft{graph: "pr-walkthrough", input: "{{x}}", err: "Input: must not contain {{."}, "pr-walkthrough", trustView{})
 	require.NoError(t, sdui.Validate(view))

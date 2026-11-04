@@ -158,7 +158,7 @@ func (a *app) trustGraph(ctx context.Context, cmd pluginsdk.CommandRun) error {
 	if err != nil {
 		return err
 	}
-	g, _, err := loadGraph(dirs, args.Graph)
+	g, _, err := loadGraph(dirs, a.home, args.Graph)
 	if err != nil {
 		return err
 	}
@@ -185,7 +185,7 @@ func (a *app) untrustedGraphs(ctx context.Context, workspace string, dirs []stri
 		if g.Error != "" {
 			continue
 		}
-		spec, _, err := loadGraph(dirs, g.Name)
+		spec, _, err := loadGraph(dirs, a.home, g.Name)
 		if err != nil {
 			continue
 		}

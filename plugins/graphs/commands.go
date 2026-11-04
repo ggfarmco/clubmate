@@ -89,14 +89,14 @@ func (a *app) list(ctx context.Context, cmd pluginsdk.CommandRun) (listResult, e
 	if err != nil {
 		return listResult{}, err
 	}
-	res := listResult{Graphs: listGraphs(dirs)}
+	res := listResult{Graphs: listGraphs(dirs, a.home)}
 	roots := map[string]func() string{}
 	for i := range res.Graphs {
 		f := &res.Graphs[i]
 		if f.Error != "" {
 			continue
 		}
-		if g, _, err := loadGraph(dirs, f.Name); err == nil {
+		if g, _, err := loadGraph(dirs, a.home, f.Name); err == nil {
 			dir := trustDir(dirs, f.Name)
 			root, ok := roots[dir]
 			if !ok {
@@ -145,7 +145,7 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	if err != nil {
 		return nil, err
 	}
-	g, builtin, err := loadGraph(dirs, args.Graph)
+	g, from, err := loadGraph(dirs, a.home, args.Graph)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	if err != nil {
 		return nil, err
 	}
-	r.Builtin = builtin
+	r.Builtin, r.User = from == fromBuiltin, from == fromUser
 	r.Dir = graphDir(dirs, args.Graph)
 	r.Starts = a.startCommits(ctx, cmd.WorkspaceID, append(dirs, r.Dir))
 	x := &runner{call: a.runCommand, run: r}

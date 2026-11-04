@@ -35,6 +35,7 @@ type Run struct {
 	Workspace string      `json:"workspace"`
 	Input     string      `json:"input,omitempty"`
 	Builtin   bool        `json:"builtin,omitempty"`
+	User      bool        `json:"user,omitempty"`
 	Dir       string      `json:"dir,omitempty"`
 	Agent     bool        `json:"agent,omitempty"`
 	Caller    string      `json:"caller,omitempty"`

@@ -847,7 +847,7 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	}
 	dirs, err := a.graphDirs(ctx, workspace, false, "")
 	logError(err)
-	graphs := listGraphs(dirs)
+	graphs := listGraphs(dirs, a.home)
 	runs := a.workspaceRuns(workspace)
 	var statuses map[string]api.Session
 	if len(runs) > 0 {
@@ -867,7 +867,7 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 		g := graphs[i]
 		var spec *Graph
 		if g.Error == "" {
-			spec, _, err = loadGraph(dirs, g.Name)
+			spec, _, err = loadGraph(dirs, a.home, g.Name)
 			logError(err)
 		}
 		tv := a.trustFor(ctx, workspace, dirs, g, spec)

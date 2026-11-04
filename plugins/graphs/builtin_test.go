@@ -88,9 +88,9 @@ func TestBuiltinGraphsWiring(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.graph, func(t *testing.T) {
-			g, builtin, err := loadGraph(tt.dirs, tt.graph)
+			g, from, err := loadGraph(tt.dirs, "", tt.graph)
 			require.NoError(t, err)
-			require.Equal(t, tt.dirs == nil, builtin)
+			require.Equal(t, tt.dirs == nil, from == fromBuiltin)
 			var steps, edges []string
 			for _, n := range g.Nodes {
 				if n.step() {
