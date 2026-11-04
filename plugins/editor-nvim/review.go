@@ -159,14 +159,6 @@ func (r *review) payload(closed bool) reviewPayload {
 	}
 }
 
-func (r *review) entry(path string) (reviewEntry, bool) {
-	i := slices.IndexFunc(r.Entries, func(e reviewEntry) bool { return e.Path == path })
-	if i < 0 {
-		return reviewEntry{}, false
-	}
-	return r.Entries[i], true
-}
-
 func (r *review) refresh(comments bool) error {
 	if filters, err := r.nv.reviewFilters(r.Tab); err == nil {
 		r.Filters = filters
