@@ -23,6 +23,7 @@ const (
 	actOpenMove     = "openMove"
 	agentIcon       = "sparkle"
 	emitIcon        = "dot.radiowaves.left.and.right"
+	notifyIcon      = "bell"
 	causeActor      = "cause"
 	effectActor     = "effect"
 	eventOut        = "event"
@@ -189,7 +190,11 @@ func chainFlow(t *Trigger, titles map[string]string, loc *time.Location) (string
 	effect := effectCard(t, &last, titles, loc)
 	r, ok := lastChain(t.History)
 	if !ok {
-		cause := sdui.FlowCard{ID: "when", Label: causeLabel(t, titles), Icon: causeIcon(t), Outs: []sdui.FlowOut{{ID: eventOut, Label: outWords(t.On, ""), State: sdui.EdgeSelected}}}
+		kind := ""
+		if last.Chain != nil {
+			kind = last.Chain.Kind
+		}
+		cause := sdui.FlowCard{ID: "when", Label: causeLabel(t, titles), Icon: causeIcon(t), Outs: []sdui.FlowOut{{ID: eventOut, Label: outWords(t.On, kind), State: sdui.EdgeSelected}}}
 		if s := matchSession(t); s != "" {
 			cause.ID = s
 		}
@@ -243,7 +248,7 @@ func chainFlow(t *Trigger, titles map[string]string, loc *time.Location) (string
 			count = 0
 		}
 		cards = append(cards, sdui.FlowCard{ID: c.Session, Label: session, State: state, Icon: icon, Tone: tone,
-			Outs: []sdui.FlowOut{{ID: eventOut, Label: outWords(r.Topic, c.Status), Count: count, State: sdui.EdgeSelected}}})
+			Outs: []sdui.FlowOut{{ID: eventOut, Label: outWords(r.Topic, cmp.Or(c.Status, c.Kind)), Count: count, State: sdui.EdgeSelected}}})
 		if source != "" {
 			edge := sdui.FlowEdge{From: source, To: c.Session, State: sdui.EdgeTaken}
 			if source == c.Trigger {
@@ -339,6 +344,8 @@ func causeLabel(t *Trigger, titles map[string]string) string {
 		return "agent turns"
 	case strings.HasPrefix(t.On, emitPrefix):
 		return "“" + strings.TrimPrefix(t.On, emitPrefix) + "”"
+	case strings.HasPrefix(t.On, notifyPrefix):
+		return "notifications"
 	}
 	return t.On
 }
@@ -349,6 +356,9 @@ func causeIcon(t *Trigger) string {
 	}
 	if strings.HasPrefix(t.On, agentsPrefix) {
 		return agentIcon
+	}
+	if strings.HasPrefix(t.On, notifyPrefix) {
+		return notifyIcon
 	}
 	return "bolt"
 }
@@ -361,8 +371,12 @@ func outWords(topic, status string) string {
 		return "turn ends · " + status
 	case topic == api.TopicTurn:
 		return "turn ends"
+	case strings.HasPrefix(topic, notifyPrefix) && status != "":
+		return "posts " + status
+	case strings.HasPrefix(topic, notifyPrefix):
+		return "posted"
 	}
-	return topic
+	return "arrives"
 }
 
 func hopVerb(command string) string {

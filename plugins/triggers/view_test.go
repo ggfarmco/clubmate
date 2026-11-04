@@ -153,3 +153,31 @@ func TestPaceLineShowsOnlyWhatIsSet(t *testing.T) {
 func TestOwnerLineNamesTheAddingPlugin(t *testing.T) {
 	assert.Equal(t, "added by remote", ownerLine(&Trigger{CreatedBy: "plugin:remote"}, nil))
 }
+
+func TestCauseCardNamesTheEventOnce(t *testing.T) {
+	at := time.Date(2026, 11, 4, 11, 1, 0, 0, time.UTC)
+	tests := []struct {
+		name  string
+		on    string
+		chain *automation.Chain
+		label string
+		icon  string
+		out   string
+	}{
+		{"notification without a session", "notify.posted", &automation.Chain{Kind: "done"}, "notifications", "bell", "posts done"},
+		{"notification from a session", "notify.posted", &automation.Chain{Session: "agt_1", Title: "Coder", Kind: "needs-input"}, "Coder", "sparkle", "posts needs-input"},
+		{"other plugin event", "git.changed", nil, "git.changed", "bolt", "arrives"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tr := &Trigger{ID: "tr_1", Name: "x", Enabled: true, On: tt.on, Command: "notify.post", Args: json.RawMessage(`{}`)}
+			if tt.chain != nil {
+				tr.History = []Run{{At: at, Topic: tt.on, Status: automation.StatusOK, Chain: tt.chain}}
+			}
+			view := mainView(tr, []*Trigger{tr}, map[string]string{"agt_1": "Coder"}, nil, automation.Open{}, automation.RunsView{})
+			cards, ok := find(view, "flow").Props["cards"].([]sdui.FlowCard)
+			require.True(t, ok)
+			assert.Equal(t, []string{tt.label, tt.icon, tt.out}, []string{cards[0].Label, cards[0].Icon, cards[0].Outs[0].Label})
+		})
+	}
+}
