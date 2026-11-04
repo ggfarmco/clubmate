@@ -720,6 +720,125 @@
    "w": 1480,
    "h": 1800,
    "title": "R · Review — native panel + nvim panes: decisions, row grammar, Agents, handoff"
+  },
+  "Q1-Ask-1280-Mate.dc.html": {
+   "x": 9800,
+   "y": 30100,
+   "w": 1280,
+   "h": 800,
+   "title": "Q1 (A) · ask before stopping · the last act is a question card · 1280 · Mate"
+  },
+  "Q2-Open-1280-Mate.dc.html": {
+   "x": 11240,
+   "y": 30100,
+   "w": 1280,
+   "h": 800,
+   "title": "Q2 (B) · done, with open items · in the transcript · 1280 · Mate"
+  },
+  "Q2-Queue-1280-Mate.dc.html": {
+   "x": 12680,
+   "y": 30100,
+   "w": 1280,
+   "h": 800,
+   "title": "Q2 (B) · Open: one pass across sessions · 1280 · Mate"
+  },
+  "Q3-Inbox-1280-Mate.dc.html": {
+   "x": 14120,
+   "y": 30100,
+   "w": 1280,
+   "h": 800,
+   "title": "Q3 (B) · Decisions inbox across sessions · 1280 · Mate"
+  },
+  "Q1-Ask-640-MateLight.dc.html": {
+   "x": 9800,
+   "y": 31020,
+   "w": 640,
+   "h": 800,
+   "title": "Q1 (A) · ask before stopping · 640 · Mate light"
+  },
+  "Q2-Open-640-MateLight.dc.html": {
+   "x": 10520,
+   "y": 31020,
+   "w": 640,
+   "h": 800,
+   "title": "Q2 (B) · done, with open items · 640 · Mate light"
+  },
+  "Q2-Seven-640-MateLight.dc.html": {
+   "x": 11240,
+   "y": 31020,
+   "w": 640,
+   "h": 800,
+   "title": "Q2 (B) · 7 open items, Later menu · 640 · Mate light"
+  },
+  "Q3-Inbox-640-MateLight.dc.html": {
+   "x": 11960,
+   "y": 31020,
+   "w": 640,
+   "h": 800,
+   "title": "Q3 (B) · the session points to Decisions · 640 · Mate light"
+  },
+  "Q-Decisions.dc.html": {
+   "x": 16000,
+   "y": 30100,
+   "w": 1480,
+   "h": 3560,
+   "title": "Q · Decisions left in prose — three directions, recommendation, states, handoff"
+  },
+  "C-Q1-Session.dc.html": {
+   "x": 12680,
+   "y": 31020,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · Q1 (A) · end-of-turn card, one question per page · dark",
+   "radius": 50
+  },
+  "C-Q1-NeedsYou-Light.dc.html": {
+   "x": 13140,
+   "y": 31020,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · Q1 (A) · Needs you · light",
+   "radius": 50
+  },
+  "C-Q2-Session.dc.html": {
+   "x": 13600,
+   "y": 31020,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · Q2 (B) · done, 3 open · dark",
+   "radius": 50
+  },
+  "C-Q2-Open-Light.dc.html": {
+   "x": 14060,
+   "y": 31020,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · Q2 (B) · the Open section · light",
+   "radius": 50
+  },
+  "C-Q2-Queue.dc.html": {
+   "x": 14520,
+   "y": 31020,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · Q2 (B) · one pass through open items · dark",
+   "radius": 50
+  },
+  "C-Q3-Decisions.dc.html": {
+   "x": 14980,
+   "y": 31020,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · Q3 (B) · Decisions inbox · dark",
+   "radius": 50
+  },
+  "C-Q3-List-Light.dc.html": {
+   "x": 15440,
+   "y": 31020,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · Q3 (B) · Decisions in the list · light",
+   "radius": 50
   }
  },
  "order": [
@@ -820,7 +939,23 @@
   "Review-Mid-640-MateLight.dc.html",
   "Review-Deleted-640-MateLight.dc.html",
   "Review-Done-640-MateLight.dc.html",
-  "Review-Rules.dc.html"
+  "Review-Rules.dc.html",
+  "Q1-Ask-1280-Mate.dc.html",
+  "Q2-Open-1280-Mate.dc.html",
+  "Q2-Queue-1280-Mate.dc.html",
+  "Q3-Inbox-1280-Mate.dc.html",
+  "Q1-Ask-640-MateLight.dc.html",
+  "Q2-Open-640-MateLight.dc.html",
+  "Q2-Seven-640-MateLight.dc.html",
+  "Q3-Inbox-640-MateLight.dc.html",
+  "Q-Decisions.dc.html",
+  "C-Q1-Session.dc.html",
+  "C-Q1-NeedsYou-Light.dc.html",
+  "C-Q2-Session.dc.html",
+  "C-Q2-Open-Light.dc.html",
+  "C-Q2-Queue.dc.html",
+  "C-Q3-Decisions.dc.html",
+  "C-Q3-List-Light.dc.html"
  ],
  "notes": {
   "t_lang": {
@@ -899,6 +1034,13 @@
    "text": "Review in the Code section — nvim draws the two diff panes; the review (files, progress, comments, send to the agent) is a native Mate panel",
    "kind": "title1",
    "maxW": 7040
+  },
+  "t_q": {
+   "x": 9800,
+   "y": 29840,
+   "text": "Decisions left in prose — 1 (A) ask before stopping · 2 (B) done, with open items (recommended) · 3 (B) decisions inbox",
+   "kind": "title1",
+   "maxW": 7680
   }
  },
  "designSystems": []

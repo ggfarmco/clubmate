@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Companion: one pass through open items (B)</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
+<link rel="stylesheet" href="/_blob/4987a8b4234bbea3e512a6d02560ee1d">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.comp .st.sq{border-radius:7px}
+.comp .nrow{display:flex;align-items:center;gap:12px;padding:10px 14px;min-width:0}
+.comp .nrow+.nrow{border-top:1px solid var(--bd)}
+.comp .nrow .nb{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.comp .nrow .nb .mono{font-size:12px;line-height:16px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.comp .nrow .sw{flex:none;text-align:right;font-size:13px;line-height:18px}
+.comp .seg{margin:12px 16px 0;height:34px;border-radius:17px;background:var(--s2);display:grid;grid-template-columns:1fr 1fr;padding:2px}
+.comp .seg>button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
+.comp .seg>button[aria-selected="true"]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.comp.th-cdark .seg>button[aria-selected="true"]{background:#636366}
+.comp.th-clight .seg>button[aria-selected="true"]{background:#FFFFFF}
+</style>
+</helmet>
+<div class="cm comp th-{{theme}}" style="width: 393px; height: 852px">
+<style>
+.comp .po{display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:12px;align-items:start;padding:12px 14px;border-radius:16px;background:var(--s2)}
+.comp .po.on{background:color-mix(in srgb,var(--ac) 22%,var(--s2))}
+.comp .po .r{width:22px;height:22px;border-radius:11px;border:2px solid var(--t4);margin-top:1px;box-sizing:border-box}
+.comp .po.on .r{border-color:var(--ac);background:var(--ac);box-shadow:inset 0 0 0 4px var(--s2)}
+.comp .po .c{width:22px;height:22px;border-radius:11px;border:2px solid var(--t4);box-sizing:border-box;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.comp .po.on .c{background:var(--ac);border-color:var(--ac);color:var(--on-ac)}
+.comp .po .c svg.i{width:13px;height:13px;stroke-width:2.4}
+.comp .chipq{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;background:var(--s2);color:var(--t2);font-size:12px;font-weight:600}
+.comp .oc{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:10px;border:1.5px solid var(--wa-bd);color:var(--wa-i);font-size:12px;font-weight:600;white-space:nowrap}
+.comp .dots{display:flex;gap:6px;align-items:center}
+.comp .dots i{width:7px;height:7px;border-radius:4px;background:var(--t4);display:block}
+.comp .dots i.on{background:var(--fg);width:18px}
+.comp .ctxq{font-size:13px;line-height:18px;color:var(--t3);border-left:2px solid var(--bd2);padding-left:10px}
+.comp .fold{display:flex;align-items:center;gap:10px;padding:12px 14px;border-top:1px solid var(--bd)}
+.comp .num{width:22px;height:22px;border-radius:11px;border:1.5px solid var(--bd2);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex:none;color:var(--t2)}
+.comp .num.done{border-color:var(--ok-bd);color:var(--ok-i);background:var(--ok-bg)}
+</style><div class="edge"></div><div class="top"><button class="gbtn glass" aria-label="Back"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button><div class="t"><span class="tt">Open</span><span class="ts">5 items · 2 sessions</span></div><button class="gbtn glass" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button></div>
+<div style="position: absolute; left: 16px; right: 16px; top: 122px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; gap: 10px"><div class="dots"><i></i><i class="on"></i><i></i><i></i><i></i></div><span class="foot mut">2 of 5</span><span style="flex: 1"></span><span class="foot mut">1 answered</span></div>
+<section class="cc" style="display: flex; flex-direction: column; gap: 12px; padding: 16px">
+<div style="display: flex; align-items: center; gap: 8px"><span class="chipq">Grouping</span><span class="foot mut ell">Rework the Send review sheet · 6 min</span></div>
+<span class="t20">Where does a session waiting for your review go?</span>
+<span class="ctxq">#132: today it sits under Done.</span>
+<div class="po"><span class="r"></span><div style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span class="sub w6">Done</span><span class='cap mut'>As today</span></div></div>
+<div class="po"><span class="r"></span><div style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span class="sub w6">Needs you</span><span class='cap mut'>Counts in the badge</span></div></div>
+<div class="po on"><span class="r"></span><div style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span class="sub w6">Its own group</span><span class='cap mut'>“Review”, between Running and Done</span></div></div>
+<div class="po"><span class="r"></span><div style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span class="sub w6"><span class="mut" style="font-weight: 500">Other…</span></span></div></div>
+</section>
+</div>
+<div class="bar" style="padding-bottom: 28px">
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px"><button class="cb plain sm">Later</button><button class="cb plain sm">Backlog</button><button class="cb pri sm">Next</button></div>
+<span class="foot mut" style="text-align: center">Answers go to each session when you finish · Send now in •••</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"cdark"},"$preview":{"width":393,"height":852}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'cdark' };
+}
+}
+</script>
+</body>
+</html>
