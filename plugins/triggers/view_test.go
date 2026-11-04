@@ -155,27 +155,28 @@ func TestOwnerLineNamesTheAddingPlugin(t *testing.T) {
 	assert.Equal(t, "added by remote", ownerLine(&Trigger{CreatedBy: "plugin:remote"}, nil))
 }
 
-func TestCauseCardNamesTheEventOnce(t *testing.T) {
+func TestCauseCardNamesTheEventNotTheLastSession(t *testing.T) {
 	at := time.Date(2026, 11, 4, 11, 1, 0, 0, time.UTC)
+	chain := &automation.Chain{Session: "agt_1", Title: "Coder", Kind: "done", Status: "done"}
 	tests := []struct {
 		name  string
 		on    string
-		chain *automation.Chain
+		match string
 		label string
 		icon  string
 		out   string
 	}{
-		{"notification without a session", "notify.posted", &automation.Chain{Kind: "done"}, "notifications", "bell", "posts done"},
-		{"notification from a session", "notify.posted", &automation.Chain{Session: "agt_1", Title: "Coder", Kind: "needs-input"}, "Coder", "sparkle", "posts needs-input"},
-		{"other plugin event", "git.changed", nil, "git.changed", "bolt", "arrives"},
+		{"notification of one kind", "notify.posted", `{"kind":"done"}`, "notifications", "bell", "posts done"},
+		{"notification of several kinds", "notify.posted", `{"kind":["done","stuck"]}`, "notifications", "bell", "posted"},
+		{"any session's turn", "agents.turn", `{"status":"done"}`, "agent turns", "sparkle", "turn ends · done"},
+		{"other plugin event", "git.changed", "", "git.changed", "bolt", "arrives"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tr := &Trigger{ID: "tr_1", Name: "x", Enabled: true, On: tt.on, Command: "notify.post", Args: json.RawMessage(`{}`)}
-			if tt.chain != nil {
-				tr.History = []Run{{At: at, Topic: tt.on, Status: automation.StatusOK, Chain: tt.chain}}
-			}
+			tr := &Trigger{ID: "tr_1", Name: "x", Enabled: true, On: tt.on, Match: json.RawMessage(tt.match), Command: "notify.post", Args: json.RawMessage(`{}`),
+				History: []Run{{At: at, Topic: tt.on, Status: automation.StatusOK, Chain: chain}}}
 			view := mainView(tr, []*Trigger{tr}, map[string]string{"agt_1": "Coder"}, nil, automation.Open{}, automation.RunsView{})
+			assert.Contains(t, texts(view), "what it waits for and what it does")
 			cards, ok := find(view, "flow").Props["cards"].([]sdui.FlowCard)
 			require.True(t, ok)
 			assert.Equal(t, []string{tt.label, tt.icon, tt.out}, []string{cards[0].Label, cards[0].Icon, cards[0].Outs[0].Label})

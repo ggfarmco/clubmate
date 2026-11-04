@@ -189,12 +189,8 @@ func chainFlow(t *Trigger, titles map[string]string, loc *time.Location) (string
 	last, _ := automation.LastRun(t.History)
 	effect := effectCard(t, &last, titles, loc)
 	r, ok := lastChain(t.History)
-	if !ok {
-		kind := ""
-		if last.Chain != nil {
-			kind = last.Chain.Kind
-		}
-		cause := sdui.FlowCard{ID: "when", Label: causeLabel(t, titles), Icon: causeIcon(t), Outs: []sdui.FlowOut{{ID: eventOut, Label: outWords(t.On, kind), State: sdui.EdgeSelected}}}
+	if !ok || !traced(t) {
+		cause := sdui.FlowCard{ID: "when", Label: causeLabel(t, titles), Icon: causeIcon(t), Outs: []sdui.FlowOut{{ID: eventOut, Label: outWords(t.On, matchOne(t)), State: sdui.EdgeSelected}}}
 		if s := matchSession(t); s != "" {
 			cause.ID = s
 		}
@@ -336,6 +332,20 @@ func matchSession(t *Trigger) string {
 	return s
 }
 
+func traced(t *Trigger) bool {
+	return strings.HasPrefix(t.On, emitPrefix) || matchSession(t) != ""
+}
+
+func matchOne(t *Trigger) string {
+	var match map[string]any
+	_ = json.Unmarshal(t.Match, &match)
+	if s, ok := match[kindField].(string); ok {
+		return s
+	}
+	s, _ := match[statusField].(string)
+	return s
+}
+
 func causeLabel(t *Trigger, titles map[string]string) string {
 	switch {
 	case matchSession(t) != "":
@@ -447,7 +457,7 @@ func drawnRuns(t *Trigger, triggers []*Trigger, titles map[string]string, shape 
 	}
 	caption, flow = chainFlow(t, titles, loc)
 	cause := sdui.LaneActor{Label: causeLabel(t, titles), Icon: causeIcon(t)}
-	if r, ok := lastChain(t.History); ok && matchSession(t) == "" {
+	if r, ok := lastChain(t.History); ok && strings.HasPrefix(t.On, emitPrefix) {
 		switch c := r.Chain; {
 		case c.CronName != "":
 			cause = sdui.LaneActor{Label: "cron " + c.CronName, Icon: "clock"}
