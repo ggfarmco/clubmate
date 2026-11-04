@@ -17,14 +17,13 @@ import (
 )
 
 const (
-	reviewIDBytes  = 4
-	layoutInline   = "inline"
-	layoutSplit    = "split"
-	categoryCode   = "code"
-	categoryTest   = "test"
-	categoryGen    = "generated"
-	commentsRootID = "comments"
-	reviewDB       = "review.db"
+	reviewIDBytes = 4
+	layoutInline  = "inline"
+	layoutSplit   = "split"
+	categoryCode  = "code"
+	categoryTest  = "test"
+	categoryGen   = "generated"
+	reviewDB      = "review.db"
 )
 
 var (
@@ -33,8 +32,6 @@ var (
 )
 
 type reviewKey struct{ Worktree, Base, Head string }
-
-type reviewFilters struct{ Code, Tests, Generated, Reviewed bool }
 
 type review struct {
 	ID             string
@@ -51,13 +48,9 @@ type review struct {
 	Entries        []reviewEntry
 	Comments       []reviewComment
 	Filters        reviewFilters
-	Counts         reviewCategories
-	Current        string
-	Collapsed      map[string]bool
-	CommentsFolded bool
+	DefaultTitle   string
 	Sheet          *sendSheet
-	Export         string
-	exportSig      string
+	metaSent       *reviewMeta
 	seq            int
 	nv             reviewer
 }
@@ -103,8 +96,7 @@ func newReview(ws, root string, key reviewKey, tab int, nv reviewer) *review {
 		Key:       key,
 		Root:      root,
 		Tab:       tab,
-		Filters:   reviewFilters{Code: true, Reviewed: true},
-		Collapsed: map[string]bool{},
+		Filters:   reviewFilters{Code: reviewFilter{Shown: true}, Reviewed: reviewFilter{Shown: true}},
 		nv:        nv,
 	}
 }
@@ -112,11 +104,11 @@ func newReview(ws, root string, key reviewKey, tab int, nv reviewer) *review {
 func (r *review) categoryShown(e reviewEntry) bool {
 	switch e.Category {
 	case categoryTest:
-		return r.Filters.Tests
+		return r.Filters.Tests.Shown
 	case categoryGen:
-		return r.Filters.Generated
+		return r.Filters.Generated.Shown
 	}
-	return r.Filters.Code
+	return r.Filters.Code.Shown
 }
 
 func (r *review) shownEntries() []reviewEntry {
@@ -176,9 +168,8 @@ func (r *review) entry(path string) (reviewEntry, bool) {
 }
 
 func (r *review) refresh(comments bool) error {
-	if counts, err := r.nv.reviewFilter(r.Tab, "", false); err == nil {
-		r.Counts = counts
-		r.Filters.Tests, r.Filters.Generated = !counts.HideTests, !counts.HideGenerated
+	if filters, err := r.nv.reviewFilters(r.Tab); err == nil {
+		r.Filters = filters
 	} else {
 		logError("review filters", err)
 	}
@@ -202,6 +193,12 @@ func (a *app) reviewEvent(h reviewHost, e *editor, ev nvimEvent) {
 }
 
 func (a *app) applyReviewEvent(ctx context.Context, h reviewHost, ws, root string, ev nvimEvent) {
+	if ev.Kind == "send" {
+		if err := a.sendAt(ctx, h, ws, root, ev.Tab); err != nil {
+			logError("review send", err)
+		}
+		return
+	}
 	a.reviewMu.Lock()
 	defer a.reviewMu.Unlock()
 	r := a.reviewAtLocked(ws, root, ev.Tab)
@@ -212,10 +209,6 @@ func (a *app) applyReviewEvent(ctx context.Context, h reviewHost, ws, root strin
 		a.removeReviewLocked(ctx, h, r)
 		a.renderReviewsLocked(ctx, h, ws)
 		return
-	}
-	if ev.Kind == "file_open" {
-		r.Current = ev.Path
-		a.reviewSel[ws] = r.ID
 	}
 	if err := r.refresh(ev.Kind != "file_open"); err != nil {
 		logError("review "+ev.Kind, err)
@@ -263,7 +256,6 @@ func (a *app) removeReviewLocked(ctx context.Context, h reviewHost, r *review) {
 }
 
 func (a *app) reviewChangedLocked(ctx context.Context, h reviewHost, r *review) {
-	a.refreshExportLocked(r)
 	a.publishReviewLocked(ctx, h, r, false)
 	a.renderReviewsLocked(ctx, h, r.Workspace)
 }
@@ -279,9 +271,15 @@ func (a *app) publishReviewLocked(ctx context.Context, h reviewHost, r *review, 
 	}
 }
 
+func (a *app) renderReviews(ctx context.Context, h reviewHost, ws string) {
+	a.reviewMu.Lock()
+	defer a.reviewMu.Unlock()
+	a.renderReviewsLocked(ctx, h, ws)
+}
+
 func (a *app) renderReviewsLocked(ctx context.Context, h reviewHost, ws string) {
 	rs := a.workspaceReviewsLocked(ws)
-	if _, err := h.Render(ctx, ws, reviewSlot, reviewView(rs, a.reviewSel[ws])); err != nil {
+	if _, err := h.Render(ctx, ws, reviewSlot, reviewView(rs)); err != nil {
 		logError("render review", err)
 	}
 	if hint := a.reviewStatusHint; hint != nil {
@@ -296,18 +294,29 @@ func isReviewDB(path string) bool {
 func (a *app) reviewDBChanged(ctx context.Context, h reviewHost, ws string) {
 	a.reviewMu.Lock()
 	defer a.reviewMu.Unlock()
+	poked := map[reviewer]bool{}
 	for _, r := range a.workspaceReviewsLocked(ws) {
 		if err := r.refresh(true); err != nil {
 			logError("review comments", err)
 		}
 		a.reviewChangedLocked(ctx, h, r)
+		if !poked[r.nv] {
+			poked[r.nv] = true
+			if err := r.nv.reviewCommentsChanged(); err != nil {
+				logError("review comments changed", err)
+			}
+		}
 	}
 }
 
-func (a *app) reviewOpen(ws string) (bool, string) {
+func (a *app) reviewStatus(ws, root string, tab int) (bool, int) {
 	a.reviewMu.Lock()
 	defer a.reviewMu.Unlock()
-	return len(a.workspaceReviewsLocked(ws)) > 0, a.reviewLayouts[ws]
+	r := a.reviewAtLocked(ws, root, tab)
+	if r == nil {
+		return false, 0
+	}
+	return true, len(r.openComments())
 }
 
 func (a *app) dropReviewsOf(ctx context.Context, h reviewHost, nv reviewer) {
@@ -327,90 +336,16 @@ func (a *app) dropReviewsOf(ctx context.Context, h reviewHost, nv reviewer) {
 
 func (a *app) reviewUIEvent(ctx context.Context, h reviewHost, ev pluginsdk.UIEvent) error {
 	switch ev.Action {
-	case "send":
-		return a.openSendSheet(ctx, h, ev.WorkspaceID)
 	case "sendReview":
 		return a.submitSend(ctx, h, ev.WorkspaceID, ev.Value)
 	case "cancel":
 		return a.closeSendSheet(ctx, h, ev.WorkspaceID)
+	case "layout":
+		a.reviewMu.Lock()
+		defer a.reviewMu.Unlock()
+		return a.setReviewLayoutLocked(ev.WorkspaceID, decodeString(ev.Value))
 	}
-	a.reviewMu.Lock()
-	defer a.reviewMu.Unlock()
-	if ev.Action == "layout" {
-		return a.setReviewLayoutLocked(ctx, h, ev.WorkspaceID, decodeString(ev.Value))
-	}
-	r := a.reviews[a.reviewSel[ev.WorkspaceID]]
-	if ev.Action == "switch" {
-		r = a.reviews[decodeString(ev.Value)]
-	}
-	if r == nil || r.Workspace != ev.WorkspaceID {
-		return errUnknownReview
-	}
-	value := decodeString(ev.Value)
-	switch {
-	case ev.Action == "switch":
-		if err := a.selectReviewLocked(ctx, r); err != nil {
-			return err
-		}
-	case ev.Action == "select" && strings.HasPrefix(value, "c:"):
-		id := strings.TrimPrefix(value, "c:")
-		i := slices.IndexFunc(r.Comments, func(c reviewComment) bool { return fmt.Sprint(c.ID) == id })
-		if i < 0 {
-			return nil
-		}
-		c := r.Comments[i]
-		return r.nv.reviewJump(r.Tab, c.File, c.LineStart, c.Side)
-	case ev.Action == "select":
-		if path, ok := strings.CutPrefix(value, "file:"); ok {
-			r.Current = path
-			return r.nv.reviewSelect(r.Tab, path)
-		}
-		return nil
-	case ev.Action == "expand" || ev.Action == "collapse":
-		folded := ev.Action == "collapse"
-		if value == commentsRootID {
-			r.CommentsFolded = folded
-		} else {
-			r.Collapsed[strings.TrimPrefix(value, "dir:")] = folded
-		}
-	case ev.Action == "toggleReviewed":
-		path := strings.TrimPrefix(value, "file:")
-		e, ok := r.entry(path)
-		if !ok {
-			return nil
-		}
-		if err := r.nv.reviewSetReviewed(r.Tab, path, !reviewedNow(e)); err != nil {
-			return err
-		}
-		if err := r.refresh(false); err != nil {
-			return err
-		}
-	case ev.Action == "filter":
-		name, on := strings.TrimPrefix(ev.NodeID, "review/filters/"), decodeBool(ev.Value)
-		if name == "tests" || name == "generated" {
-			if _, err := r.nv.reviewFilter(r.Tab, name, !on); err != nil {
-				return err
-			}
-			if err := r.refresh(false); err != nil {
-				return err
-			}
-			break
-		}
-		r.setFilter(name, on)
-	case ev.Action == "showReviewed":
-		r.Filters.Reviewed = true
-	case ev.Action == "prev" || ev.Action == "next":
-		if path := r.neighbour(ev.Action == "next"); path != "" {
-			r.Current = path
-			if err := r.nv.reviewSelect(r.Tab, path); err != nil {
-				return err
-			}
-		}
-	default:
-		return fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
-	}
-	a.reviewChangedLocked(ctx, h, r)
-	return nil
+	return fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 }
 
 func (a *app) selectReviewLocked(ctx context.Context, r *review) error {
@@ -437,48 +372,10 @@ func (a *app) showReview(ctx context.Context, h *pluginsdk.Host, ws, id string) 
 		return err
 	}
 	focusMain(ctx, h, ws)
-	return h.Focus(ctx, ws, h.PluginID(), reviewSlot)
+	return nil
 }
 
-func (r *review) setFilter(name string, on bool) {
-	switch name {
-	case "code":
-		r.Filters.Code = on
-	case "reviewed":
-		r.Filters.Reviewed = on
-	}
-}
-
-func (r *review) visibleFiles() []reviewEntry {
-	var out []reviewEntry
-	for _, e := range r.shownEntries() {
-		if r.Filters.Reviewed || !reviewedNow(e) || e.Path == r.Current {
-			out = append(out, e)
-		}
-	}
-	return out
-}
-
-func (r *review) neighbour(next bool) string {
-	files := r.visibleFiles()
-	if len(files) == 0 {
-		return ""
-	}
-	i := slices.IndexFunc(files, func(e reviewEntry) bool { return e.Path == r.Current })
-	switch {
-	case i < 0 && next:
-		i = 0
-	case i < 0:
-		i = len(files) - 1
-	case next:
-		i = (i + 1) % len(files)
-	default:
-		i = (i - 1 + len(files)) % len(files)
-	}
-	return files[i].Path
-}
-
-func (a *app) setReviewLayoutLocked(ctx context.Context, h reviewHost, ws, layout string) error {
+func (a *app) setReviewLayoutLocked(ws, layout string) error {
 	if layout != layoutInline && layout != layoutSplit {
 		return errBadLayout
 	}
@@ -487,7 +384,6 @@ func (a *app) setReviewLayoutLocked(ctx context.Context, h reviewHost, ws, layou
 	for _, r := range a.workspaceReviewsLocked(ws) {
 		errs = append(errs, r.nv.reviewLayout(r.Tab, layout))
 	}
-	a.renderReviewsLocked(ctx, h, ws)
 	return errors.Join(errs...)
 }
 
@@ -495,10 +391,4 @@ func decodeString(raw json.RawMessage) string {
 	var s string
 	_ = json.Unmarshal(raw, &s)
 	return s
-}
-
-func decodeBool(raw json.RawMessage) bool {
-	var b bool
-	_ = json.Unmarshal(raw, &b)
-	return b
 }

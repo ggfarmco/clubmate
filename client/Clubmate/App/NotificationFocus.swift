@@ -21,7 +21,7 @@ struct NotificationFocus {
             workspace: active,
             sidebar: code ? nil : section.flatMap { store?.slot("\($0).sidebar")?.tree },
             main: section.flatMap { store?.mainTree($0) },
-            panel: store?.chatShown == true ? store?.slot(CodeSection.chatSlot)?.tree : nil
+            panel: store?.columnShown == true ? store?.slot(CodeSection.chatSlot)?.tree : nil
         )
     }
 

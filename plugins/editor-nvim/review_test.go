@@ -25,26 +25,34 @@ type fakeReviewer struct {
 	entries  []reviewEntry
 	comments []reviewComment
 	layouts  []string
-	selected []string
 	opened   []reviewOpenArgs
-	filters  []string
-	counts   reviewCategories
+	filters  *reviewFilters
+	metas    []reviewMeta
+	pokes    int
 	tab      int
 }
 
-func (f *fakeReviewer) reviewFilter(_ int, name string, hidden bool) (reviewCategories, error) {
+func (f *fakeReviewer) reviewFilters(int) (reviewFilters, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	switch name {
-	case "tests":
-		f.counts.HideTests = hidden
-	case "generated":
-		f.counts.HideGenerated = hidden
+	if f.filters == nil {
+		return reviewFilters{Code: reviewFilter{Shown: true}, Reviewed: reviewFilter{Shown: true}}, nil
 	}
-	if name != "" {
-		f.filters = append(f.filters, fmt.Sprintf("%s=%t", name, hidden))
-	}
-	return f.counts, nil
+	return *f.filters, nil
+}
+
+func (f *fakeReviewer) reviewMeta(_ int, m reviewMeta) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.metas = append(f.metas, m)
+	return nil
+}
+
+func (f *fakeReviewer) reviewCommentsChanged() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.pokes++
+	return nil
 }
 
 func (f *fakeReviewer) reviewOpen(o reviewOpenArgs) (int, error) {
@@ -71,29 +79,16 @@ func (f *fakeReviewer) reviewComments(int) ([]reviewComment, error) {
 	return slices.Clone(f.comments), nil
 }
 
-func (f *fakeReviewer) reviewSelect(_ int, path string) error {
+func (f *fakeReviewer) lastMeta() reviewMeta {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.selected = append(f.selected, path)
-	return nil
+	return f.metas[len(f.metas)-1]
 }
 
-func (f *fakeReviewer) reviewSetReviewed(_ int, path string, on bool) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	for i := range f.entries {
-		if f.entries[i].Path == path {
-			f.entries[i].Reviewed, f.entries[i].Stale = on, false
-		}
-	}
-	return nil
-}
-
-func (f *fakeReviewer) reviewNext(int, int) error                 { return nil }
-func (f *fakeReviewer) reviewExcludes(int, []string) error        { return nil }
-func (f *fakeReviewer) reviewClose(int) error                     { return nil }
-func (f *fakeReviewer) reviewFocus(int) error                     { return nil }
-func (f *fakeReviewer) reviewJump(int, string, int, string) error { return nil }
+func (f *fakeReviewer) reviewNext(int, int) error          { return nil }
+func (f *fakeReviewer) reviewExcludes(int, []string) error { return nil }
+func (f *fakeReviewer) reviewClose(int) error              { return nil }
+func (f *fakeReviewer) reviewFocus(int) error              { return nil }
 
 func (f *fakeReviewer) reviewLayout(_ int, layout string) error {
 	f.mu.Lock()
@@ -205,16 +200,12 @@ func TestReviewFollowsNvimEvents(t *testing.T) {
 	nv := &fakeReviewer{entries: []reviewEntry{{Path: "a.go", Kind: "modified", Category: "code"}, {Path: "b.go", Kind: "modified", Category: "code"}}}
 	openTestReview(t, a, h, nv)
 	assert.Equal(t, 0, h.last().Reviewed)
-	require.NoError(t, nv.reviewSetReviewed(1, "a.go", true))
+	nv.entries[0].Reviewed = true
 	a.applyReviewEvent(t.Context(), h, "ws", "/repo", nvimEvent{Event: "review", Kind: "reviewed", Path: "a.go", Tab: 1})
-	assert.Equal(t, "checkmark", findItem(t, h.view("ws"), "review/tree", "file:a.go").Icon)
 	assert.Equal(t, 1, h.last().Reviewed)
 	assert.Equal(t, 2, h.last().Total)
-	require.NoError(t, a.reviewUIEvent(t.Context(), h, pluginsdk.UIEvent{WorkspaceID: "ws", Slot: reviewSlot, NodeID: "review/tree", Action: "toggleReviewed", Value: jsonString("file:b.go")}))
-	assert.True(t, nv.entries[1].Reviewed)
-	assert.Equal(t, 2, h.last().Reviewed)
 	a.applyReviewEvent(t.Context(), h, "ws", "/other", nvimEvent{Event: "review", Kind: "reviewed", Path: "a.go", Tab: 1})
-	assert.Len(t, h.payloads, 3)
+	assert.Len(t, h.payloads, 2)
 	nv.comments = []reviewComment{{ID: 4, Status: "open"}, {ID: 7, Status: "resolved"}}
 	a.applyReviewEvent(t.Context(), h, "ws", "/repo", nvimEvent{Event: "review", Kind: "comments", Tab: 1})
 	assert.Equal(t, []commentState{{ID: 4, Status: "open"}, {ID: 7, Status: "resolved"}}, h.last().Comments)
@@ -223,31 +214,30 @@ func TestReviewFollowsNvimEvents(t *testing.T) {
 	assert.True(t, isReviewDB("/repo/.git/review.db-wal"))
 	a.reviewDBChanged(t.Context(), h, "ws")
 	assert.Equal(t, 0, h.last().Open)
+	assert.Equal(t, 1, nv.pokes)
 }
 
-func TestReviewClosedClearsSlotAndBus(t *testing.T) {
+func TestReviewClosedClearsBus(t *testing.T) {
 	a, h := newTestApp(), &fakeHost{}
 	nv := &fakeReviewer{entries: []reviewEntry{{Path: "a.go", Kind: "modified", Category: "code"}}}
 	r := openTestReview(t, a, h, nv)
-	require.Equal(t, "stack", h.view("ws").Type)
-	a.applyReviewEvent(t.Context(), h, "ws", "/repo", nvimEvent{Event: "review", Kind: "closed", Tab: 1})
 	assert.Equal(t, "empty", h.view("ws").Type)
+	shown, _ := a.reviewStatus("ws", "/repo", 1)
+	require.True(t, shown)
+	a.applyReviewEvent(t.Context(), h, "ws", "/repo", nvimEvent{Event: "review", Kind: "closed", Tab: 1})
 	assert.Equal(t, reviewPayload{WorkspaceID: "ws", ID: r.ID, Worktree: "/repo", Base: "main", Total: 1, Closed: true}, h.last())
-	open, _ := a.reviewOpen("ws")
-	assert.False(t, open)
+	shown, _ = a.reviewStatus("ws", "/repo", 1)
+	assert.False(t, shown)
 }
 
-func TestReviewTestsFilterDrivesNvim(t *testing.T) {
+func TestReviewProgressCountsWhatTheForkShows(t *testing.T) {
 	a, h := newTestApp(), &fakeHost{}
-	nv := &fakeReviewer{counts: reviewCategories{Tests: 2, HideTests: true}}
-	r := openTestReview(t, a, h, nv)
-	assert.False(t, r.Filters.Tests)
-	require.NoError(t, a.reviewUIEvent(t.Context(), h, pluginsdk.UIEvent{WorkspaceID: "ws", Slot: reviewSlot, NodeID: "review/filters/tests", Action: "filter", Value: json.RawMessage("true")}))
-	assert.Equal(t, []string{"tests=false"}, nv.filters)
-	assert.True(t, r.Filters.Tests)
-	box, ok := findNode(h.view("ws"), "review/filters/tests")
-	require.True(t, ok)
-	assert.Equal(t, []any{"tests 2", true}, []any{box.Props["label"], box.Props["value"]})
+	nv := &fakeReviewer{
+		entries: []reviewEntry{{Path: "a.go", Category: "code"}, {Path: "a_test.go", Category: "test"}, {Path: "api.pb.go", Category: "generated"}},
+		filters: &reviewFilters{Code: reviewFilter{Shown: true}, Tests: reviewFilter{Shown: true, Count: 1}, Generated: reviewFilter{Count: 1}},
+	}
+	openTestReview(t, a, h, nv)
+	assert.Equal(t, 2, h.last().Total)
 }
 
 func TestReviewLayoutReachesEveryOpenReview(t *testing.T) {
@@ -256,30 +246,10 @@ func TestReviewLayoutReachesEveryOpenReview(t *testing.T) {
 	openTestReview(t, a, h, nv)
 	require.NoError(t, a.reviewUIEvent(t.Context(), h, pluginsdk.UIEvent{WorkspaceID: "ws", Slot: reviewSlot, NodeID: "review", Action: "layout", Value: jsonString("inline")}))
 	assert.Equal(t, []string{"inline"}, nv.layouts)
-	_, layout := a.reviewOpen("ws")
-	assert.Equal(t, layoutInline, layout)
+	_, err := a.startReview(t.Context(), h, "ws", "/repo", nv, openReviewReq{Key: reviewKey{Worktree: "/repo", Base: "feat"}, BaseRev: "feat"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"inline", "inline"}, nv.layouts)
 	assert.ErrorIs(t, a.reviewUIEvent(t.Context(), h, pluginsdk.UIEvent{WorkspaceID: "ws", Slot: reviewSlot, NodeID: "review", Action: "layout", Value: jsonString("wide")}), errBadLayout)
-}
-
-func findItem(t *testing.T, n sdui.Node, id, item string) sdui.TreeItem {
-	t.Helper()
-	tree, ok := findNode(n, id)
-	require.True(t, ok, "no node %s", id)
-	var walk func([]sdui.TreeItem) (sdui.TreeItem, bool)
-	walk = func(items []sdui.TreeItem) (sdui.TreeItem, bool) {
-		for _, it := range items {
-			if it.ID == item {
-				return it, true
-			}
-			if got, ok := walk(it.Children); ok {
-				return got, true
-			}
-		}
-		return sdui.TreeItem{}, false
-	}
-	got, ok := walk(tree.Props["items"].([]sdui.TreeItem))
-	require.True(t, ok, "no item %s", item)
-	return got
 }
 
 func findNode(n sdui.Node, id string) (sdui.Node, bool) {
@@ -341,18 +311,30 @@ func TestReviewHeadResolution(t *testing.T) {
 }
 
 func TestReviewOpenReusesAndMovesOpener(t *testing.T) {
-	a, h := newTestApp(), &fakeHost{}
+	a, h := newTestApp(), &fakeHost{sessions: []agentSession{{ID: "agt_1", Worktree: "/repo", Title: "First", Status: "idle"}, {ID: "agt_2", Worktree: "/repo", Title: "Second", Status: "idle"}}}
 	nv := &fakeReviewer{entries: []reviewEntry{{Path: "a.go", Kind: "modified", Category: "code"}}}
 	req := openReviewReq{Key: reviewKey{Worktree: "/repo", Base: "main"}, BaseRev: "abc1234", Left: "main", Opener: "agt_1", OpenerTitle: "First"}
-	first, err := a.openReviewLocked(t.Context(), h, "ws", "/repo", nv, req)
+	first, err := a.startReview(t.Context(), h, "ws", "/repo", nv, req)
 	require.NoError(t, err)
+	assert.Equal(t, []reviewMeta{{Subtitle: "Claude · First", Recipient: "First"}}, nv.metas)
 	req.Opener, req.OpenerTitle = "agt_2", "Second"
-	second, err := a.openReviewLocked(t.Context(), h, "ws", "/repo", nv, req)
+	second, err := a.startReview(t.Context(), h, "ws", "/repo", nv, req)
 	require.NoError(t, err)
 	assert.Same(t, first, second)
 	assert.Equal(t, []reviewOpenArgs{{Cwd: "/repo", Base: "abc1234", Left: "main"}}, nv.opened)
 	assert.Equal(t, "agt_2", h.last().Opener)
-	assert.Equal(t, "Second", findNodeProp(t, h.view("ws"), "review/header"))
+	assert.Equal(t, reviewMeta{Subtitle: "Claude · Second", Recipient: "Second"}, nv.lastMeta())
+	_, err = a.startReview(t.Context(), h, "ws", "/repo", nv, req)
+	require.NoError(t, err)
+	assert.Len(t, nv.metas, 2)
+}
+
+func TestReviewMetaWithoutOpenerNamesBothSides(t *testing.T) {
+	a, h := newTestApp(), &fakeHost{}
+	nv := &fakeReviewer{}
+	_, err := a.startReview(t.Context(), h, "ws", "/repo", nv, openReviewReq{Key: reviewKey{Worktree: "/repo", Base: "main"}, BaseRev: "main"})
+	require.NoError(t, err)
+	assert.Equal(t, reviewMeta{Subtitle: "Working tree ↔ main", Recipient: newSessionTitle}, nv.lastMeta())
 }
 
 func TestReviewRestoresSentAfterReopen(t *testing.T) {
@@ -369,11 +351,4 @@ func TestReviewRestoresSentAfterReopen(t *testing.T) {
 	assert.NotSame(t, r, again)
 	assert.Equal(t, []any{"agt_1", "Coder", "agt_1", 3}, []any{again.Opener, again.OpenerTitle, again.Recipient, again.Sent})
 	assert.Equal(t, 3, h.last().Sent)
-}
-
-func findNodeProp(t *testing.T, n sdui.Node, id string) any {
-	t.Helper()
-	header, ok := findNode(n, id)
-	require.True(t, ok)
-	return header.Children[0].Props["meta"]
 }

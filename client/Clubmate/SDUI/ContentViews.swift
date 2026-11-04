@@ -598,7 +598,7 @@ private struct HeaderMoreMenu: View {
         .help("More actions")
         .background {
             ForEach(Array(presses.enumerated()), id: \.offset) { _, press in
-                Color.clear.keyMonitor(active: press.combo != nil && !press.disabled, handle: press.handle)
+                Color.clear.keyMonitor(active: press.combo != nil && !press.disabled, overTerminals: press.combo?.passesTerminals == true, handle: press.handle)
             }
         }
         .testMenu(id, presses.map { LayoutMenuItem(title: title($0), enabled: !$0.disabled, destructive: $0.node.string("variant") == "danger") })

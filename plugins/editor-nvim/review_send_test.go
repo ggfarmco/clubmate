@@ -18,7 +18,6 @@ func sendTestReview(t *testing.T) (*app, *fakeHost, *review) {
 	t.Helper()
 	a, h := newTestApp(), &fakeHost{}
 	a.nrev = "/res/tools/nrev"
-	a.exportComments = func(dir string) string { return "# open comments in " + dir }
 	now := time.Now()
 	h.sessions = []agentSession{
 		{ID: "agt_new", Worktree: "/repo", Title: "Newest", Status: "done", UpdatedAt: now},
@@ -38,6 +37,11 @@ func sendTestReview(t *testing.T) (*app, *fakeHost, *review) {
 	return a, h, r
 }
 
+func sendFromNvim(t *testing.T, a *app, h *fakeHost) {
+	t.Helper()
+	a.applyReviewEvent(t.Context(), h, "ws", "/repo", nvimEvent{Event: "review", Kind: "send", Tab: 1})
+}
+
 func uiEvent(t *testing.T, a *app, h *fakeHost, node, action string, value any) {
 	t.Helper()
 	raw, err := json.Marshal(value)
@@ -47,24 +51,14 @@ func uiEvent(t *testing.T, a *app, h *fakeHost, node, action string, value any) 
 
 func sheetNode(t *testing.T, h *fakeHost) sdui.Node {
 	t.Helper()
-	var found sdui.Node
-	var walk func(sdui.Node)
-	walk = func(n sdui.Node) {
-		if n.Type == "form" && n.Props["sheet"] == true {
-			found = n
-		}
-		for _, c := range n.Children {
-			walk(c)
-		}
-	}
-	walk(h.view("ws"))
-	require.Equal(t, "form", found.Type, "no send sheet")
-	return found
+	n := h.view("ws")
+	require.Equal(t, []any{"form", true}, []any{n.Type, n.Props["sheet"]}, "no send sheet")
+	return n
 }
 
 func TestSendSheetDefaultsToOpener(t *testing.T) {
 	a, h, r := sendTestReview(t)
-	uiEvent(t, a, h, "review/send", "send", nil)
+	sendFromNvim(t, a, h)
 	require.NoError(t, internalsdui.Validate(h.view("ws")))
 	shortcuttest.RequireDeclared(t, h.view("ws"))
 	sheet := sheetNode(t, h)
@@ -76,27 +70,32 @@ func TestSendSheetDefaultsToOpener(t *testing.T) {
 		values = append(values, o.Value)
 	}
 	assert.Equal(t, []string{"agt_open", "agt_new", newRecipient}, values)
-	send, ok := findNode(h.view("ws"), "review/send")
-	require.True(t, ok)
-	assert.Equal(t, true, send.Props["disabled"])
+	assert.Equal(t, reviewMeta{Subtitle: "Claude · Opener", Recipient: "Opener"}, r.nv.(*fakeReviewer).lastMeta())
 
 	r.Opener = "agt_gone"
 	uiEvent(t, a, h, sheet.ID+"/cancel", "cancel", nil)
-	_, ok = findNode(h.view("ws"), sendToNode)
-	assert.False(t, ok)
-	uiEvent(t, a, h, "review/send", "send", nil)
+	assert.Equal(t, "empty", h.view("ws").Type)
+	sendFromNvim(t, a, h)
 	to, _ = findNode(sheetNode(t, h), sendToNode)
 	assert.Equal(t, "agt_new", to.Props["value"])
 
 	h.sessions = nil
-	uiEvent(t, a, h, "review/send", "send", nil)
+	sendFromNvim(t, a, h)
 	to, _ = findNode(sheetNode(t, h), sendToNode)
 	assert.Equal(t, newRecipient, to.Props["value"])
 }
 
+func TestSendNeedsOpenComments(t *testing.T) {
+	a, h, r := sendTestReview(t)
+	r.nv.(*fakeReviewer).comments[0].Status = "resolved"
+	a.reviewDBChanged(t.Context(), h, "ws")
+	sendFromNvim(t, a, h)
+	assert.Equal(t, "empty", h.view("ws").Type)
+}
+
 func TestSendSkipsResolved(t *testing.T) {
 	a, h, _ := sendTestReview(t)
-	uiEvent(t, a, h, "review/send", "send", nil)
+	sendFromNvim(t, a, h)
 	sheet := sheetNode(t, h)
 	assert.Contains(t, texts(sheet), "Say why.")
 	assert.NotContains(t, texts(sheet), "Done already.")
@@ -111,26 +110,31 @@ func TestSendSkipsResolved(t *testing.T) {
 
 func TestSendMarksSent(t *testing.T) {
 	a, h, r := sendTestReview(t)
-	uiEvent(t, a, h, "review/send", "send", nil)
+	sendFromNvim(t, a, h)
 	uiEvent(t, a, h, sheetNode(t, h).ID, "sendReview", map[string]string{sendToNode: newRecipient})
 	assert.Empty(t, h.sent[0].Session)
 	assert.Equal(t, []any{"agt_made", 1}, []any{r.Recipient, r.Sent})
 	assert.Equal(t, 1, h.last().Sent)
 	assert.Equal(t, "agt_made", h.last().Recipient)
-	_, ok := findNode(h.view("ws"), sendToNode)
-	assert.False(t, ok)
+	assert.Equal(t, "empty", h.view("ws").Type)
+	assert.Equal(t, 1, r.nv.(*fakeReviewer).lastMeta().Sent)
 	var st reviewState
 	ok, err := h.StorageGet(t.Context(), reviewStorePrefix+r.ID, &st)
 	require.NoError(t, err)
 	require.True(t, ok)
 	assert.Equal(t, []any{"agt_made", 1}, []any{st.Recipient, st.Sent})
-	assert.Contains(t, texts(h.view("ws")), "1/1 · 1 comment sent")
 }
 
-func TestCopyIsTheNrevExport(t *testing.T) {
-	_, h, _ := sendTestReview(t)
-	copyButton, ok := findNode(h.view("ws"), "review/copy")
-	require.True(t, ok)
-	assert.Equal(t, "# open comments in /repo", copyButton.Props["copy"])
-	assert.Nil(t, copyButton.Props["disabled"])
+func texts(n sdui.Node) []string {
+	var out []string
+	if s, ok := n.Props["text"].(string); ok {
+		out = append(out, s)
+	}
+	if s, ok := n.Props["label"].(string); ok && n.Type != "header" {
+		out = append(out, s)
+	}
+	for _, c := range n.Children {
+		out = append(out, texts(c)...)
+	}
+	return out
 }

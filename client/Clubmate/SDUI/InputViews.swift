@@ -38,7 +38,7 @@ struct ButtonNodeView: View {
                 return .handled
             }
             .onHover { hovering = $0 }
-            .keyMonitor(active: combo != nil && !disabled && !popoverShown, handle: press.handle)
+            .keyMonitor(active: combo != nil && !disabled && !popoverShown, overTerminals: combo?.passesTerminals == true, handle: press.handle)
             .keyMonitor(active: popoverShown, handle: popoverLink.handle)
             .help(iconOnly ? tooltip : "")
             .accessibilityLabel(node.string("label") ?? "")

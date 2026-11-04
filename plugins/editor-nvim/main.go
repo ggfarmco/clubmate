@@ -45,7 +45,6 @@ type app struct {
 	reviewWatched    map[*client]bool
 	reviewStatusHint func(workspaceID string)
 	switchRoot       func(ctx context.Context, r *review)
-	exportComments   func(dir string) string
 	nrev             string
 	sheetSeq         int
 }
@@ -69,7 +68,6 @@ func main() {
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.reviewStatusHint = func(workspaceID string) { a.refreshStatus(h, workspaceID) }
 	a.nrev = filepath.Join(pluginsdk.ResourcesDir(), "tools", "nrev")
-	a.exportComments = nrevExport(a.nrev)
 	a.switchRoot = func(ctx context.Context, r *review) {
 		if _, err := a.target(ctx, h, r.Workspace, r.Root); err != nil {
 			logError("review switch", err)
@@ -156,6 +154,9 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
 	if ev.Slot == reviewSlot {
 		return nil, a.reviewUIEvent(ctx, h, ev)
+	}
+	if ev.Slot == statusSlot && ev.Action == sendAction {
+		return nil, a.sendFromStatus(ctx, h, ev.WorkspaceID)
 	}
 	switch ev.Action {
 	case "restart":

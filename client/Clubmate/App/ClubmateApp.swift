@@ -130,8 +130,7 @@ private struct WorkspaceCommands: Commands {
     }
 
     private var toggleTitle: String {
-        guard let store, store.togglesChat else { return "Toggle Sidebar" }
-        return store.isOpen(CodeSection.reviewSlot) ? "Toggle Review" : "Toggle Chat"
+        store?.togglesChat == true ? "Toggle Chat" : "Toggle Sidebar"
     }
 
     private var active: String? {
@@ -206,9 +205,6 @@ private struct WorkspaceCommands: Commands {
             Button(toggleTitle) { store?.toggleSidebar() }
                 .keyboardShortcut(AppShortcuts.toggleSidebar)
                 .disabled(store == nil)
-            Button("Switch Review / Chat") { store?.switchCodeTab() }
-                .keyboardShortcut(AppShortcuts.switchCodeTab)
-                .disabled(store?.togglesChat != true || store?.hasCodeTabs != true)
             Divider()
             Button("Increase Font Size") { app.stepFont(1, panes: session?.panes, store: store) }
                 .keyboardShortcut(AppShortcuts.fontIncrease)

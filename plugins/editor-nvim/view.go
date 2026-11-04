@@ -14,8 +14,10 @@ import (
 const (
 	renderDelay  = 30 * time.Millisecond
 	chatHint     = "⌘B chat"
-	filesHint    = "⌘B files"
-	reviewHotkey = "r reviewed · ]f next · ,rc comment · " + filesHint
+	reviewHint   = ",b files · " + chatHint
+	sendAction   = "send"
+	sendNode     = "status/send"
+	sendShortcut = "cmd+return"
 )
 
 type status struct {
@@ -26,8 +28,9 @@ type status struct {
 	Light      bool
 	Statusline bool
 	OpenError  string
+	Tab        int
 	Review     bool
-	Inline     bool
+	Open       int
 }
 
 var modeNames = map[byte]string{
@@ -65,9 +68,7 @@ func (a *app) scheduleStatus(h *pluginsdk.Host, e *editor) {
 		e.pending = false
 		st := e.status
 		e.mu.Unlock()
-		layout := ""
-		st.Review, layout = a.reviewOpen(e.id)
-		st.Inline = layout == layoutInline
+		st.Review, st.Open = a.reviewStatus(e.id, e.root, st.Tab)
 		if err := a.render(context.Background(), h, e, statusSlot, statusView(st, a.workspaceFolders(e.id))); err != nil {
 			logError("render status", err)
 		}
@@ -121,7 +122,18 @@ func statusView(st status, repos []string) sdui.Node {
 	if st.Branch != "" {
 		items = append(items, sdui.MutedText(st.Branch))
 	}
+	if st.Review {
+		items = append(items, sendButton(st))
+	}
 	return sdui.HStack(items...)
+}
+
+func sendButton(st status) sdui.Node {
+	b := sdui.WithShortcut(sdui.WithAction(sdui.Button(sendNode, "Send review", "bubble.left"), sendAction), sendShortcut)
+	if st.Open == 0 {
+		b = sdui.WithDisabled(b)
+	}
+	return b
 }
 
 func appItems(st status) []sdui.Node {
@@ -132,17 +144,10 @@ func appItems(st status) []sdui.Node {
 	if st.OpenError != "" {
 		items = append(items, sdui.Badge("open failed: "+st.OpenError, "danger"))
 	}
-	return append(items, sdui.MutedText(columnHint(st)))
-}
-
-func columnHint(st status) string {
-	switch {
-	case st.Review && st.Inline:
-		return reviewHotkey
-	case st.Review:
-		return filesHint
+	if st.Review {
+		return append(items, sendButton(st), sdui.MutedText(reviewHint))
 	}
-	return chatHint
+	return append(items, sdui.MutedText(chatHint))
 }
 
 func modeName(mode string) string {

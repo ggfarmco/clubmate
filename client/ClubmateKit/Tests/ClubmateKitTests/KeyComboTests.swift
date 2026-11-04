@@ -31,4 +31,9 @@ final class KeyComboTests: XCTestCase {
         XCTAssertFalse(key.matches(keyCode: 15, command: true, control: false, option: false, shift: false))
         XCTAssertTrue(try XCTUnwrap(KeyCombo("p")).bare)
     }
+
+    func testOnlyCommandReturnPassesTerminals() {
+        let passes = ["cmd+return", "cmd+shift+return", "return", "opt+return", "cmd+r"].map { KeyCombo($0)?.passesTerminals }
+        XCTAssertEqual(passes, [true, false, false, false, false])
+    }
 }

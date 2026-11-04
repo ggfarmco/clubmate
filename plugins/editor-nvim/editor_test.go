@@ -26,7 +26,7 @@ import (
 
 const (
 	stubDiffview = `package.loaded["diffview.clubmate"] = {
-  version = 2,
+  version = 3,
   open = function(opts)
     vim.g.dv_log = vim.list_extend(vim.g.dv_log or {}, { vim.json.encode(opts) })
     vim.cmd("tabnew")
@@ -35,8 +35,10 @@ const (
   info = function() return { labels = { left = "main", right = "Working tree" }, editable = true } end,
   entries = function() return { { path = "a.go", status = "M", kind = "modified", category = "code", additions = 1, deletions = 0, reviewed = false, stale = false, comments = 0 } } end,
   comments = function() return { { id = 1, file = "a.go", side = "new", line_start = 1, line_end = 1, type = "issue", text = "x", status = "open", line_text = "line" } } end,
+  filters = function() return { code = { shown = true, count = 1 }, tests = { shown = false, count = 0 }, generated = { shown = false, count = 0 }, reviewed = { shown = true, count = 0 } } end,
+  set_meta = function(tab, meta) vim.g.dv_meta = vim.json.encode(meta) end,
   subscribe = function() end,
-  set_layout = function() end,
+  set_layout = function(layout) vim.g.dv_layout = layout end,
 }`
 	mainSlot      = "editor-nvim.main"
 	statusSlot    = "editor-nvim.status"
@@ -377,20 +379,20 @@ func TestDiffviewOpensCheckpoint(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal([]byte(eval[[]string](t, v, "g:dv_log")[0]), &got))
 	assert.Equal(t, want, got)
-	var slots []string
-	for len(slots) < 2 {
-		n, ok := nextFocus(c, 5*time.Second)
-		require.True(t, ok, "no ui.focus notification")
-		var focus struct {
-			Section string `json:"section"`
-			Slot    string `json:"slot"`
-		}
-		require.NoError(t, json.Unmarshal(n.Params, &focus))
-		assert.Equal(t, "editor-nvim", focus.Section)
-		slots = append(slots, focus.Slot)
+	n, ok := nextFocus(c, 5*time.Second)
+	require.True(t, ok, "no ui.focus notification")
+	var focus struct {
+		Section string `json:"section"`
+		Slot    string `json:"slot"`
 	}
-	assert.Equal(t, []string{mainSlot, reviewSlot}, slots)
-	e.h.WaitSlot(t, e.workspaceID, reviewSlot, func(n sdui.Node) bool { return n.ID == "review" })
+	require.NoError(t, json.Unmarshal(n.Params, &focus))
+	assert.Equal(t, []string{"editor-nvim", mainSlot}, []string{focus.Section, focus.Slot})
+	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasNode(n, "status/send") })
+}
+
+func TestReviewSlotIsRenderedBeforeAnyReview(t *testing.T) {
+	e := startEditor(t)
+	e.h.WaitSlot(t, e.workspaceID, reviewSlot, func(n sdui.Node) bool { return n.Type == "empty" })
 }
 
 func TestDiffviewRejectsRange(t *testing.T) {
@@ -419,8 +421,8 @@ func TestDiffviewSwitchesWorktree(t *testing.T) {
 func TestDiffviewMissingShowsOpenFailed(t *testing.T) {
 	e := startEditor(t)
 	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diffview", "workspaceId": e.workspaceID, "args": map[string]any{"cwd": e.repo, "rev": "abcdef0"}}, nil)
-	require.ErrorContains(t, err, "diffview host API v2 is not available")
-	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "open failed: diffview host API v2 is not available") })
+	require.ErrorContains(t, err, "diffview host API v3 is not available")
+	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "open failed: diffview host API v3 is not available") })
 }
 
 func TestReviewCommandOpensMergeBaseForTheCaller(t *testing.T) {
@@ -447,8 +449,10 @@ func TestReviewCommandOpensMergeBaseForTheCaller(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal([]byte(eval[[]string](t, v, "g:dv_log")[0]), &got))
 	assert.Equal(t, map[string]any{"cwd": wt, "base": fork, "labels": map[string]any{"left": base}}, got)
-	view := e.h.WaitSlot(t, e.workspaceID, reviewSlot, func(n sdui.Node) bool { return n.ID == "review" })
-	assert.True(t, hasText(view, "1 open comment"))
+	testutil.Eventually(t, func() bool { return eval[int](t, v, "exists('g:dv_meta')") == 1 }, 5*time.Second)
+	var meta map[string]any
+	require.NoError(t, json.Unmarshal([]byte(eval[string](t, v, "g:dv_meta")), &meta))
+	assert.Equal(t, map[string]any{"subtitle": "Claude · Coder", "recipient": "a new session", "sent": 0.0}, meta)
 	events, err := e.h.Bus.Read(t.Context(), "editor-nvim.review", 0, 10)
 	require.NoError(t, err)
 	require.NotEmpty(t, events)
@@ -456,7 +460,11 @@ func TestReviewCommandOpensMergeBaseForTheCaller(t *testing.T) {
 	require.NoError(t, json.Unmarshal(events[len(events)-1].Payload, &p))
 	assert.Equal(t, map[string]any{"workspaceId": e.workspaceID, "id": res.ID, "worktree": wt, "base": base, "head": "", "opener": "agt_1", "recipient": "", "reviewed": 0.0, "total": 1.0, "open": 1.0, "sent": 0.0, "closed": false, "comments": []any{map[string]any{"id": 1.0, "status": "open"}}}, p)
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": e.workspaceID, "slot": reviewSlot, "nodeId": "review", "action": "layout", "value": "inline"}, nil))
-	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasText(n, "r reviewed · ]f next · ,rc comment · ⌘B files") })
+	testutil.Eventually(t, func() bool { return eval[string](t, v, "get(g:, 'dv_layout', '')") == "inline" }, 5*time.Second)
+	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool {
+		send, ok := nodeByID(n, "status/send")
+		return ok && send.Props["disabled"] == nil
+	})
 }
 
 func TestRestartIgnoresScratchBuffers(t *testing.T) {
@@ -853,6 +861,23 @@ func hasBadge(n sdui.Node, sub string) bool {
 		return true
 	}
 	return slices.ContainsFunc(n.Children, func(c sdui.Node) bool { return hasBadge(c, sub) })
+}
+
+func hasNode(n sdui.Node, id string) bool {
+	_, ok := nodeByID(n, id)
+	return ok
+}
+
+func nodeByID(n sdui.Node, id string) (sdui.Node, bool) {
+	if n.ID == id {
+		return n, true
+	}
+	for _, c := range n.Children {
+		if got, ok := nodeByID(c, id); ok {
+			return got, true
+		}
+	}
+	return sdui.Node{}, false
 }
 
 func hasText(n sdui.Node, text string) bool {

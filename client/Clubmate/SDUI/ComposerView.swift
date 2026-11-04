@@ -66,7 +66,7 @@ struct ComposerNodeView: View {
         .padding(.horizontal, theme.gutter * 2)
         .padding(.vertical, theme.gutter + theme.spacing.s)
         .overlay(alignment: .top) { theme.border.frame(height: 1) }
-        .keyMonitor(active: focused && !disabled, handle: handle)
+        .keyMonitor(active: focused && !disabled, claims: { Self.key($0) == .send }, handle: handle)
         .reportsFocus(pane, focused, slot: focusSlot)
         .onChange(of: node.composerCommands(), initial: true) { _, commands in model.commands = commands }
         .onChange(of: running, initial: true) { _, running in model.running = running }
@@ -387,16 +387,20 @@ struct ComposerNodeView: View {
         }
     }
 
-    private func handle(_ event: NSEvent) -> Bool {
+    private static func key(_ event: NSEvent) -> ComposerKey? {
         let flags = event.modifierFlags
-        guard let key = ComposerKey(
+        return ComposerKey(
             keyCode: event.keyCode,
             characters: event.characters,
             command: flags.contains(.command),
             control: flags.contains(.control),
             option: flags.contains(.option),
             shift: flags.contains(.shift)
-        ) else { return false }
+        )
+    }
+
+    private func handle(_ event: NSEvent) -> Bool {
+        guard let key = Self.key(event) else { return false }
         if key == .attach, filePicker == nil || !node.attachKinds().contains("file") { return false }
         if drafts.confirming.contains(ComposerDrafts.session(of: node.id ?? "")), event.keyCode == 53 || event.keyCode == 36 { return false }
         switch model.handle(key, before: model.character(before: caret)) {

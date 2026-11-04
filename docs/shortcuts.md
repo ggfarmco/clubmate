@@ -15,8 +15,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⌘W | Close terminal session, or the window when no terminal is focused (the popup when it has focus, see below; VS Code when it has focus, see VS Code) | `ClubmateApp.swift` (`CloseKeyOwner`) |
 | ⇧⌘W | Close Session: the terminal session shown in the main pane; in Agents the selected agent session with its child sessions, as its row's Close Session (a closed one stays as it is) | `ClubmateApp.swift`, `ClubmateKit/CommandInvocation.swift` (`AgentsSection`) |
 | ⌘K | Command Palette | `ClubmateApp.swift` |
-| ⌘B, ⌃⌘S | Toggle Sidebar; in Neovim, Toggle Chat: the right column (the agent chat panel, or Review \| Chat while a review is open; per window). While the editor is narrower than 900pt with a review open, it opens and closes the column as a drawer over the editor instead | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
-| ⇧⌘B | Switch Review / Chat: the other tab of the Code section's right column while a review is open (shows the column if it is hidden; switching to Chat focuses its composer) | `ClubmateApp.swift`, `WorkspacePanes.swift` (`CodeTabBar`) |
+| ⌘B, ⌃⌘S | Toggle Sidebar; in Neovim, Toggle Chat: the right column with the agent chat panel (per window) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
 | ⌘= (⌘+), ⌘-, ⌘0 | Font size up, down, reset where focus is: in a terminal or nvim (or with nothing focused) the terminal font for all terminals; in the agent chat (composer) the chat font, shared by every chat; in another pane (e.g. the Backlog sidebar) that plugin's font, both its sidebar and its main pane. The terminal font is Settings → Terminals → Font size, the chat font Settings → Agents → Chat font size and a plugin's font its own Settings page → Font size; a plugin follows Settings → General → Interface font size until zoomed or set there, ⌘0 puts it back (General → Plugin fonts resets them all); sizes are kept across restarts. While the popup shows a doc and has focus it zooms the doc instead, see below | `ClubmateApp.swift`, `WorkspaceLayout.swift`, `WorkspacePanes.swift` (`ClubmateKit/PaneFocus.swift`, `AppSettings.swift`) |
 | ⌘1…⌘9 | Switch to the Nth section in the rail, in your order (drag icons to reorder; right-click the rail to reset) | `ClubmateApp.swift` |
 | ⌃⌘→, ⌃⌘← | Next, previous workspace | `ClubmateApp.swift` |
@@ -36,7 +35,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⇧⌘O | Pop the popup out into its own window; later popups of that workspace open there until it is closed | `PopupPanel.swift` |
 
 Inside terminals, Ghostty's own bindings apply, except ⌘W, which is unbound so the app gets it (`GhosttyApp.swift`).
-⇧⌘I, ⇧⌘D, ⇧⌘B and ⌘J are app menu keys, so they shadow any mapping of them in terminals (Ghostty's default ⇧⌘D split) and nvim.
+⇧⌘I, ⇧⌘D and ⌘J are app menu keys, so they shadow any mapping of them in terminals (Ghostty's default ⇧⌘D split) and nvim.
 
 ## First-launch editor sheet
 
@@ -50,7 +49,7 @@ Defined in `App/Onboarding.swift` (`OnboardingSheet.key`).
 
 ## Plugin buttons
 
-A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the button is on screen; a combo without ⌘, ⌃ or ⌥ does nothing while a text field has focus, app menu keys always win, and Esc, ↩ and ⇥ without ⌘, ⌃ or ⌥ cannot be plugin shortcuts. Defined in `SDUI/InputViews.swift` (`ButtonNodeView`), combos parsed by `ClubmateKit/KeyCombo.swift`. In a plugin's sheet (the `sheet` node) Esc, ↩ and Enter press its cancel button (↩ and Enter not while a text field has focus), which prints ⎋; the sheet's other buttons keep their shortcuts and the page's buttons under it wait (`SDUI/SheetNodeView.swift`). Plugin shortcuts in use:
+A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the button is on screen; a combo without ⌘, ⌃ or ⌥ does nothing while a text field has focus, app menu keys always win, and Esc, ↩ and ⇥ without ⌘, ⌃ or ⌥ cannot be plugin shortcuts. Plugin shortcuts do nothing while a terminal or nvim has focus, except ⌘↩, which presses over them too; a focused agent message field (the composer) keeps ⌘↩ to send its message. Defined in `SDUI/InputViews.swift` (`ButtonNodeView`) and `SDUI/KeyMonitor.swift`, combos parsed by `ClubmateKit/KeyCombo.swift`. In a plugin's sheet (the `sheet` node) Esc, ↩ and Enter press its cancel button (↩ and Enter not while a text field has focus), which prints ⎋; the sheet's other buttons keep their shortcuts and the page's buttons under it wait (`SDUI/SheetNodeView.swift`). Plugin shortcuts in use:
 
 | Keys | Action | Plugin |
 |---|---|---|
@@ -58,6 +57,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | P | Pause or resume the job or trigger | cron, triggers |
 | ⌘⌫ | Delete the job, trigger or task, or remove the graph run (confirmed) | cron, triggers, backlog, graphs |
 | ⌘↩ | Open the Start agent popover on the task while you own it (↩ in it starts, ⎋ cancels), else open the session or graph run that owns it; on a graph run held at a round cap Continue it, else open the session of the graph node that needs you, else a running step's output (Open ‹Step› output), else the running or start node's session; run the selected graph with its input (↩ in the Input field too); on an untrusted graph Trust… (then Trust in its sheet, where Esc cancels) | backlog, graphs |
+| ⌘↩ | Send review: opens the Send sheet for the review tab current in Neovim, also while Neovim has focus (status bar button "Send review") | editor-nvim |
 | ⌥1 / ⌥2 / ⌥3 | A graph step waiting for approval: Allow once / Always allow… (asks first) / Reject | graphs |
 | ⌘. | Stop the graph run (confirmed) | graphs |
 | G | Open the graph run that created the trigger | triggers |
@@ -228,20 +228,15 @@ Defined by the `button` `shortcut` props in `plugins/agents/elicit_view.go`.
 
 Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/Agents/SessionKeys.swift`, key mapping in CompanionKit `PermissionRequest.keyed`, the run card's in `RunRequestCard` (`client/Companion/Plugins/Agents/RunDetailView.swift`); the voice keys in `client/Companion/App/VoicePanel.swift`.
 
-## Review panel (Code section, Review tab focused)
+## Review (Code section, a review tab current in Neovim)
 
-The file tree and the comment list are trees, so the tree keys above apply; on top of them:
+The review's file panel is the diffview fork's, inside nvim; its keys are in the nvim table below. The app adds:
 
 | Keys | Action | Where defined |
 |---|---|---|
-| ↩, click | Open the file's diff in nvim (a comment: jump to its line) | `plugins/editor-nvim/review.go` |
-| r | Mark the file under the cursor reviewed, or not reviewed (the row's menu entry key; nvim's `r` does the same and the panel follows) | `plugins/editor-nvim/review_view.go`, `SDUI/CollectionViews.swift` |
-| ‹ ›, click | In the narrow strip above the editor: previous / next file of the panel's list | `plugins/editor-nvim/review_view.go` |
-| ⌘↩ | Send N comments: opens the Send sheet (while the review has open comments) | `plugins/editor-nvim/review_view.go` |
+| ⌘↩ | Send review: opens the Send sheet for the review in Neovim's current tab (the status bar button "Send review"; also while Neovim has focus, since ⌘↩ never reaches it; only while the review has open comments) | `plugins/editor-nvim/view.go`, `plugins/editor-nvim/review_send.go` |
 | ⌘↩ | In the Send sheet: send the open comments to the chosen session | `plugins/editor-nvim/review_send.go`, `SDUI/FormSheet.swift` |
 | ⎋ | In the Send sheet: cancel | `SDUI/FormSheet.swift` |
-
-The panel prints the nvim keys (`r`, `]f`, `,rc`, `]a`, `,rl`, `,re`) as hints; they work in the diff panes, see nvim below. Copy `,re` has no key of its own in the panel: a click puts the same text as nvim's `,re` on the clipboard.
 
 ## Code chat panel starters (session with no turns yet)
 
@@ -287,7 +282,12 @@ Defaults of the bundled nvim distribution (`nvim-distro/`). Keys in normal mode 
 | Diff | ,dm / ,dM | Diff against the merge base with `main`, with a picked branch | `lua/clubmate/plugins/git.lua` |
 | Diff | ,dh / ,dq | File history, close Diffview | `lua/clubmate/plugins/git.lua` |
 | Diff | q / e (Diffview) | Close, edit the file; `s` stage, `r` mark reviewed in the file panel | `lua/clubmate/plugins/git.lua` |
-| Diff | zt / zg / zr (Diffview file panel) | Show or hide test files, generated files, reviewed files | diffview.nvim `config.lua` |
+| Diff | zc / zt / zg / zr (Diffview file panel) | Show or hide code files, test files, generated files, reviewed files (`h` still folds a folder) | diffview.nvim `config.lua` |
+| Diff | ]f / [f (Diffview diff panes and file panel) | Open the next, previous file to review (skips hidden files) | diffview.nvim `config.lua` |
+| Diff | ,b (Diffview) | Show or hide the review panel; in the narrow (inline) layout it opens as a drawer floating over the diff's left edge | diffview.nvim `config.lua` |
+| Diff | Esc (review drawer) | Close the drawer | diffview.nvim `config.lua` |
+| Diff | gS (Diffview review panel) | Send review: the app opens the Send sheet (as ⌘↩ in the app) | diffview.nvim `config.lua` |
+| Diff | click, ↩ (review panel header and footer) | A click on a file or folder row opens or folds it; on a filter checkbox, Send, Copy or a comment it does what the item says (a comment: jump to it); ↩ in the header and footer windows does the same as a click. In the narrow strip in the tabline a click on ‹ › opens the previous / next file, on ☰ the drawer | diffview.nvim `config.lua` |
 | Review | ,rc (normal, visual) / ,rl | Add a review comment, list comments | diffview.nvim `nrev` |
 | Review | ]a / [a | Next, previous review comment | diffview.nvim `nrev` |
 | Review | ,rx / ,rd / ,re | Resolve or reopen, delete, export comments to the clipboard | diffview.nvim `nrev` |

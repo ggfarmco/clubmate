@@ -44,6 +44,8 @@ public struct KeyCombo: Equatable, Sendable {
 
     public var bare: Bool { !(command || control || option) }
 
+    public var passesTerminals: Bool { keyCode == 36 && command && !control && !option && !shift }
+
     public func matches(keyCode: UInt16, command: Bool, control: Bool, option: Bool, shift: Bool) -> Bool {
         keyCode == self.keyCode && command == self.command && control == self.control && option == self.option && shift == self.shift
     }

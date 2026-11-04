@@ -16,22 +16,32 @@ type reviewer interface {
 	reviewInfo(tab int) (reviewInfo, error)
 	reviewEntries(tab int) ([]reviewEntry, error)
 	reviewComments(tab int) ([]reviewComment, error)
-	reviewSelect(tab int, path string) error
-	reviewSetReviewed(tab int, path string, on bool) error
 	reviewNext(tab int, dir int) error
 	reviewExcludes(tab int, globs []string) error
 	reviewLayout(tab int, layout string) error
 	reviewClose(tab int) error
 	reviewFocus(tab int) error
-	reviewJump(tab int, path string, line int, side string) error
-	reviewFilter(tab int, name string, hidden bool) (reviewCategories, error)
+	reviewFilters(tab int) (reviewFilters, error)
+	reviewMeta(tab int, m reviewMeta) error
+	reviewCommentsChanged() error
 }
 
-type reviewCategories struct {
-	Tests         int  `msgpack:"tests"`
-	Generated     int  `msgpack:"generated"`
-	HideTests     bool `msgpack:"hide_tests"`
-	HideGenerated bool `msgpack:"hide_generated"`
+type reviewFilter struct {
+	Shown bool `msgpack:"shown"`
+	Count int  `msgpack:"count"`
+}
+
+type reviewFilters struct {
+	Code      reviewFilter `msgpack:"code"`
+	Tests     reviewFilter `msgpack:"tests"`
+	Generated reviewFilter `msgpack:"generated"`
+	Reviewed  reviewFilter `msgpack:"reviewed"`
+}
+
+type reviewMeta struct {
+	Subtitle  string `msgpack:"subtitle"`
+	Recipient string `msgpack:"recipient"`
+	Sent      int    `msgpack:"sent"`
 }
 
 type reviewOpenArgs struct {
@@ -141,14 +151,6 @@ func (c *client) reviewComments(tab int) ([]reviewComment, error) {
 	return reviewCall[[]reviewComment](c, rpcTimeout, "comments", tab)
 }
 
-func (c *client) reviewSelect(tab int, path string) error {
-	return reviewDo(c, "select", path, tab)
-}
-
-func (c *client) reviewSetReviewed(tab int, path string, on bool) error {
-	return reviewDo(c, "set_reviewed", path, on, tab)
-}
-
 func (c *client) reviewNext(tab int, dir int) error {
 	return reviewDo(c, "next_unreviewed", dir, tab)
 }
@@ -179,17 +181,14 @@ func (c *client) reviewFocus(tab int) error {
 	return nil
 }
 
-func (c *client) reviewJump(tab int, path string, line int, side string) error {
-	return c.exec(reviewJumpLua, nil, tab, path, line, side)
+func (c *client) reviewFilters(tab int) (reviewFilters, error) {
+	return reviewCall[reviewFilters](c, rpcTimeout, "filters", tab)
 }
 
-func (c *client) reviewFilter(tab int, name string, hidden bool) (reviewCategories, error) {
-	var res luaResult[reviewCategories]
-	if err := c.exec(reviewFilterLua, &res, tab, name, hidden); err != nil {
-		return reviewCategories{}, err
-	}
-	if res.Err != "" {
-		return reviewCategories{}, errors.New(res.Err)
-	}
-	return res.Value, nil
+func (c *client) reviewMeta(tab int, m reviewMeta) error {
+	return reviewDo(c, "set_meta", tab, m)
+}
+
+func (c *client) reviewCommentsChanged() error {
+	return c.exec(commentsChangedLua, nil)
 }

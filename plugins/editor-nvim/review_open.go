@@ -176,18 +176,24 @@ func (a *app) openReview(ctx context.Context, h *pluginsdk.Host, workspaceID str
 	if c == nil {
 		return nil, errNoEditor
 	}
-	a.reviewMu.Lock()
-	r, err := a.openReviewLocked(ctx, h, workspaceID, e.root, c, req)
-	a.reviewMu.Unlock()
+	r, err := a.startReview(ctx, h, workspaceID, e.root, c, req)
 	if err != nil {
 		e.setOpenError(shortError(err.Error()))
 		a.scheduleStatus(h, e)
 		return nil, err
 	}
 	focusMain(ctx, h, workspaceID)
-	if err := h.Focus(ctx, workspaceID, h.PluginID(), reviewSlot); err != nil {
-		logError("focus review", err)
+	return r, nil
+}
+
+func (a *app) startReview(ctx context.Context, h reviewHost, ws, root string, nv reviewer, req openReviewReq) (*review, error) {
+	a.reviewMu.Lock()
+	r, err := a.openReviewLocked(ctx, h, ws, root, nv, req)
+	a.reviewMu.Unlock()
+	if err != nil {
+		return nil, err
 	}
+	a.refreshMeta(ctx, h, r.ID)
 	return r, nil
 }
 

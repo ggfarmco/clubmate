@@ -551,7 +551,7 @@ local cm = require("diffview.clubmate")
 _G.review_tab = cm.open({ cwd = ..., base = "HEAD", labels = { left = "Before turn 3" } })
 cm.select("new.txt", _G.review_tab)
 return cm.version`, &version, repo))
-	assert.Equal(t, 2, version)
+	assert.Equal(t, 3, version)
 
 	var bars []string
 	testutil.Eventually(t, func() bool {

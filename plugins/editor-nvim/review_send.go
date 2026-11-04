@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"time"
@@ -15,15 +14,16 @@ import (
 )
 
 const (
-	sendReviewCmd  = "agents.send-review"
-	sessionsCmd    = "agents.sessions"
-	sendSheetID    = "review/sendSheet"
-	sendToNode     = sendSheetID + "/to"
-	sendNoteNode   = sendSheetID + "/note"
-	newRecipient   = "new"
-	exportTimeout  = 2 * time.Second
-	statusClosed   = "closed"
-	recipientAgent = "Claude"
+	sendReviewCmd   = "agents.send-review"
+	sessionsCmd     = "agents.sessions"
+	sendSheetID     = "review/sendSheet"
+	sendToNode      = sendSheetID + "/to"
+	sendNoteNode    = sendSheetID + "/note"
+	newRecipient    = "new"
+	exportTimeout   = 2 * time.Second
+	statusClosed    = "closed"
+	recipientAgent  = "Claude"
+	newSessionTitle = "a new session"
 )
 
 var commentGlyphs = map[string][2]string{
@@ -59,59 +59,93 @@ type sendReviewResult struct {
 	Session string `json:"session"`
 }
 
-func nrevExport(nrev string) func(dir string) string {
-	return func(dir string) string {
-		ctx, cancel := context.WithTimeout(context.Background(), exportTimeout)
-		defer cancel()
-		cmd := exec.CommandContext(ctx, nrev, "list", "--md", "--status", "open")
-		cmd.Dir = dir
-		out, err := cmd.Output()
-		if err != nil {
-			logError("nrev export", err)
-			return ""
-		}
-		return string(out)
-	}
-}
-
-func (a *app) refreshExportLocked(r *review) {
-	if a.exportComments == nil {
-		return
-	}
-	sig := fmt.Sprint(r.openComments())
-	if sig == r.exportSig {
-		return
-	}
-	r.exportSig, r.Export = sig, ""
-	if len(r.openComments()) > 0 {
-		r.Export = a.exportComments(r.Key.Worktree)
-	}
-}
-
-func (a *app) openSendSheet(ctx context.Context, h reviewHost, ws string) error {
+func (a *app) sendAt(ctx context.Context, h reviewHost, ws, root string, tab int) error {
 	a.reviewMu.Lock()
-	r := a.reviews[a.reviewSel[ws]]
-	if r == nil || r.Workspace != ws {
-		a.reviewMu.Unlock()
+	r := a.reviewAtLocked(ws, root, tab)
+	a.reviewMu.Unlock()
+	if r == nil {
 		return errUnknownReview
 	}
-	id, worktree, opener := r.ID, r.Key.Worktree, r.Opener
+	return a.openSendSheet(ctx, h, r.ID)
+}
+
+func (a *app) openSendSheet(ctx context.Context, h reviewHost, id string) error {
+	sheet, err := a.offerRecipients(ctx, h, id)
+	if err != nil {
+		return err
+	}
+	a.reviewMu.Lock()
+	defer a.reviewMu.Unlock()
+	r := a.reviews[id]
+	if r == nil {
+		return errUnknownReview
+	}
+	a.adoptRecipientsLocked(r, sheet)
+	if len(r.openComments()) == 0 {
+		return nil
+	}
+	for _, o := range a.workspaceReviewsLocked(r.Workspace) {
+		o.Sheet = nil
+	}
+	a.sheetSeq++
+	sheet.Gen = a.sheetSeq
+	r.Sheet = sheet
+	a.reviewSel[r.Workspace] = r.ID
+	a.renderReviewsLocked(ctx, h, r.Workspace)
+	return nil
+}
+
+func (a *app) refreshMeta(ctx context.Context, h reviewHost, id string) {
+	sheet, err := a.offerRecipients(ctx, h, id)
+	if err != nil {
+		return
+	}
+	a.reviewMu.Lock()
+	defer a.reviewMu.Unlock()
+	if r := a.reviews[id]; r != nil {
+		a.adoptRecipientsLocked(r, sheet)
+	}
+}
+
+func (a *app) offerRecipients(ctx context.Context, h reviewHost, id string) (*sendSheet, error) {
+	a.reviewMu.Lock()
+	r := a.reviews[id]
+	if r == nil {
+		a.reviewMu.Unlock()
+		return nil, errUnknownReview
+	}
+	ws, worktree, opener := r.Workspace, r.Key.Worktree, r.Opener
 	a.reviewMu.Unlock()
 	var list []agentSession
 	if err := h.RunCommand(ctx, sessionsCmd, ws, map[string]string{}, &list); err != nil {
 		logError("review recipients", err)
 	}
-	sheet := recipients(list, worktree, opener)
-	a.reviewMu.Lock()
-	defer a.reviewMu.Unlock()
-	if r = a.reviews[id]; r == nil {
-		return errUnknownReview
+	return recipients(list, worktree, opener), nil
+}
+
+func (a *app) adoptRecipientsLocked(r *review, sheet *sendSheet) {
+	r.DefaultTitle = cmp.Or(sheet.Titles[sheet.Default], newSessionTitle)
+	r.sendMetaLocked()
+}
+
+func (r *review) meta() reviewMeta {
+	subtitle := r.Info.Labels.Right + " ↔ " + r.Info.Labels.Left
+	if r.OpenerTitle != "" {
+		subtitle = recipientAgent + " · " + r.OpenerTitle
 	}
-	a.sheetSeq++
-	sheet.Gen = a.sheetSeq
-	r.Sheet = sheet
-	a.renderReviewsLocked(ctx, h, ws)
-	return nil
+	return reviewMeta{Subtitle: subtitle, Recipient: r.DefaultTitle, Sent: r.Sent}
+}
+
+func (r *review) sendMetaLocked() {
+	m := r.meta()
+	if r.metaSent != nil && *r.metaSent == m {
+		return
+	}
+	if err := r.nv.reviewMeta(r.Tab, m); err != nil {
+		logError("review meta", err)
+		return
+	}
+	r.metaSent = &m
 }
 
 func recipients(list []agentSession, worktree, opener string) *sendSheet {
@@ -179,7 +213,8 @@ func (a *app) submitSend(ctx context.Context, h reviewHost, ws string, raw json.
 	if r = a.reviews[id]; r == nil {
 		return nil
 	}
-	r.Recipient, r.RecipientTitle, r.Sent, r.Sheet = res.Session, cmp.Or(title, "a new session"), len(args.Comments), nil
+	r.Recipient, r.RecipientTitle, r.Sent, r.Sheet = res.Session, cmp.Or(title, newSessionTitle), len(args.Comments), nil
+	r.sendMetaLocked()
 	a.persistReview(ctx, h, r)
 	a.reviewChangedLocked(ctx, h, r)
 	return nil
@@ -224,4 +259,16 @@ func sendSheetView(r *review) sdui.Node {
 	form := sdui.WithAction(sdui.Form(id, children...), "sendReview")
 	form.Props["sheet"] = true
 	return form
+}
+
+func (a *app) sendFromStatus(ctx context.Context, h reviewHost, ws string) error {
+	for _, e := range a.workspaceEditors(ws) {
+		if a.isCurrent(e) {
+			e.mu.Lock()
+			tab := e.status.Tab
+			e.mu.Unlock()
+			return a.sendAt(ctx, h, ws, e.root, tab)
+		}
+	}
+	return errUnknownReview
 }
