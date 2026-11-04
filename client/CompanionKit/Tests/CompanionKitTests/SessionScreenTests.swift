@@ -151,4 +151,22 @@ final class SessionScreenTests: XCTestCase {
         XCTAssertEqual(session.composerCaption(), "Sends after the current turn · Stop is in •••")
         XCTAssertEqual(session.composerCaption(stopInHeader: true), "Sends after the current turn")
     }
+
+    func testOpenCardWaitsForABlockingRequestAndLeavesWithTheCount() throws {
+        let open = #"{"kind":"openItems","id":"open-1","turn":1,"items":[{"id":"oi-1","kind":"offer","label":"Add a screen","quote":"Q","state":"open"}]}"#
+        let permission = #"{"kind":"permission","id":"permission-1","turn":2,"toolCall":{"title":"go test"},"options":[]}"#
+        let entries = try [open, permission].map { try JSONDecoder.clubmate.decode(TranscriptEntry.self, from: Data($0.utf8)) }
+        let dock = { (session: AgentSession) in SessionScreen(entries: entries, session: session).dock }
+        guard case .permission = dock(AgentSession(id: "s", status: .waiting, pending: ["permission-1"], openCount: 1)) else { return XCTFail("a pending permission docks first") }
+        guard case .open = dock(AgentSession(id: "s", status: .done, openCount: 1)) else { return XCTFail("the card docks once nothing waits") }
+        XCTAssertNil(dock(AgentSession(id: "s", status: .done)))
+        XCTAssertNil(dock(AgentSession(id: "s", status: .closed, openCount: 1)))
+    }
+
+    func testResolvedOpenItemsLeaveOneQuietRow() throws {
+        let json = #"{"kind":"openItems","id":"open-1","turn":1,"overflow":[211],"items":[{"id":"oi-1","kind":"decision","header":"Lists","state":"answered"},{"id":"oi-2","kind":"offer","label":"A","state":"no"},{"id":"oi-3","kind":"offer","label":"B","state":"backlog","task":210}]}"#
+        let entry = try JSONDecoder.clubmate.decode(TranscriptEntry.self, from: Data(json.utf8))
+        guard case .openClosed(_, let items) = SessionScreen(entries: [entry], session: AgentSession(id: "s", status: .done)).rows.first else { return XCTFail("no row") }
+        XCTAssertEqual(items.summary, "1 answered · 1 declined · 2 in the backlog: #210, #211")
+    }
 }

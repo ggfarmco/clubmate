@@ -59,6 +59,10 @@ extension AgentSession {
         state == .stopped ? stopped.badge : state.label
     }
 
+    public var openLabel: String? {
+        openCount > 0 && status == .done && !needsYou ? "\(openCount) open" : nil
+    }
+
     public var headerDetail: String {
         parentSession == nil ? worktreeName : "subagent"
     }
@@ -116,11 +120,12 @@ public enum TranscriptRow: Sendable, Equatable, Identifiable {
     case thought(id: String, text: String, title: String)
     case answered(PermissionRequest)
     case asked(Elicitation)
+    case openClosed(id: String, OpenItems)
 
     public var id: String {
         switch self {
         case .entry(let entry): entry.id
-        case .agent(let id, _, _, _, _, _), .tools(let id, _), .thought(let id, _, _): id
+        case .agent(let id, _, _, _, _, _), .tools(let id, _), .thought(let id, _, _), .openClosed(let id, _): id
         case .answered(let request): "permission/" + request.id
         case .asked(let question): "elicitation/" + question.id
         }
@@ -131,6 +136,7 @@ public enum SessionDock: Sendable, Equatable {
     case permission(PermissionRequest, more: Int)
     case elicitation(Elicitation)
     case question(String)
+    case open(OpenCard)
 }
 
 public struct SessionScreen: Sendable, Equatable {
@@ -147,6 +153,7 @@ public struct SessionScreen: Sendable, Equatable {
         var rows: [TranscriptRow] = []
         var waiting: [PermissionRequest] = []
         var questions: [Elicitation] = []
+        var opens: [OpenItems] = []
         for (index, entry) in entries.enumerated() {
             switch entry.content {
             case .agent(let text):
@@ -179,6 +186,12 @@ public struct SessionScreen: Sendable, Equatable {
                 } else {
                     rows.append(.asked(question))
                 }
+            case .openItems(let items):
+                if items.open.isEmpty {
+                    if !items.items.isEmpty { rows.append(.openClosed(id: entry.id, items)) }
+                } else {
+                    opens.append(items)
+                }
             case .other:
                 break
             default:
@@ -194,6 +207,8 @@ public struct SessionScreen: Sendable, Equatable {
             dock = .question(asked.question)
         } else if session?.state == .askingYou {
             dock = .question("")
+        } else if let session, !session.isClosed, session.openCount > 0, let card = OpenCard(opens) {
+            dock = .open(card)
         } else {
             dock = nil
         }

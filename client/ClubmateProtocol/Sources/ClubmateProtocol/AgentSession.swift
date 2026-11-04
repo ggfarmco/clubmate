@@ -44,6 +44,9 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let kind: String?
     public let run: SessionRun?
     public let reviewProgress: ReviewProgress?
+    public let openCount: Int
+    public let openSince: Date?
+    public let mayAsk: Bool
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -54,7 +57,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         childStatus: AgentSessionStatus? = nil, pendingSummary: PendingSummary? = nil, question: String? = nil, turnStartedAt: Date? = nil, needsYou: Bool? = nil,
         needsYouSince: Date? = nil, activity: SessionActivity? = nil, failure: SessionFailure? = nil, reopen: FailureAction? = nil, modeLabel: String? = nil,
         autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false, group: SessionGroup? = nil, active: Bool = false, kind: String? = nil, run: SessionRun? = nil,
-        reviewProgress: ReviewProgress? = nil
+        reviewProgress: ReviewProgress? = nil, openCount: Int = 0, openSince: Date? = nil, mayAsk: Bool = false
     ) {
         self.id = id
         self.workspace = workspace
@@ -99,6 +102,9 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.kind = kind
         self.run = run
         self.reviewProgress = reviewProgress
+        self.openCount = openCount
+        self.openSince = openSince
+        self.mayAsk = mayAsk
     }
 
     public var isClosed: Bool { status == .closed }
@@ -106,7 +112,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
-        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, active, kind, run, reviewProgress
+        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, active, kind, run, reviewProgress, openCount, openSince, mayAsk
     }
 
     public init(from decoder: any Decoder) throws {
@@ -159,7 +165,10 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             active: try flag(.active),
             kind: try optional(.kind),
             run: try? c.decodeIfPresent(SessionRun.self, forKey: .run),
-            reviewProgress: try? c.decodeIfPresent(ReviewProgress.self, forKey: .reviewProgress)
+            reviewProgress: try? c.decodeIfPresent(ReviewProgress.self, forKey: .reviewProgress),
+            openCount: try c.decodeIfPresent(Int.self, forKey: .openCount) ?? 0,
+            openSince: date(.openSince),
+            mayAsk: try flag(.mayAsk)
         )
     }
 
@@ -210,6 +219,9 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encodeIfPresent(kind, forKey: .kind)
         try c.encodeIfPresent(run, forKey: .run)
         try c.encodeIfPresent(reviewProgress, forKey: .reviewProgress)
+        try c.encode(openCount, forKey: .openCount)
+        try c.encodeIfPresent(openSince.map(formatter.string(from:)), forKey: .openSince)
+        try c.encode(mayAsk, forKey: .mayAsk)
     }
 }
 

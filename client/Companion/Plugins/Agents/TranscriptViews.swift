@@ -26,6 +26,8 @@ struct RowView: View {
             AnsweredRow(request: request)
         case .asked(let question):
             AskedRow(question: question)
+        case .openClosed(_, let items):
+            OpenClosedRow(items: items)
         }
     }
 }
@@ -55,6 +57,8 @@ struct EntryView: View {
             NoticeView(notice: notice)
         case .compaction(let compaction):
             CompactionView(compaction: compaction)
+        case .openItems(let items):
+            OpenClosedRow(items: items)
         case .other:
             EmptyView()
         }
@@ -1111,18 +1115,19 @@ struct AnsweredRow: View {
 }
 
 struct DockCard<Content: View>: View {
+    var neutral = false
     @ViewBuilder let content: Content
 
     var body: some View {
         content
-            .padding(16)
+            .padding(neutral ? 0 : 16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: 20)
                     .fill(Color.surface1)
-                    .overlay(RoundedRectangle(cornerRadius: 20).fill(Color.warning.opacity(0.10)))
+                    .overlay(RoundedRectangle(cornerRadius: 20).fill(Color.warning.opacity(neutral ? 0 : 0.10)))
             }
-            .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color.warning.opacity(0.55), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(neutral ? .clear : Color.warning.opacity(0.55), lineWidth: 1))
     }
 }
 
@@ -1402,6 +1407,45 @@ struct PlainCapsule: View {
                 .contentShape(.capsule)
         }
         .buttonStyle(.plain)
+    }
+}
+
+struct ChoiceRow: View {
+    let title: String
+    var detail: String?
+    let symbol: String?
+    let selected: Bool
+    var muted = false
+
+    static func symbol(multi: Bool, selected: Bool) -> String {
+        guard selected else { return "circle" }
+        return multi ? "checkmark.circle.fill" : "circle.inset.filled"
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            if let symbol {
+                Image(systemName: symbol)
+                    .foregroundStyle(symbol == "circle" ? Color.secondary : Color.accentColor)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(muted ? Color.secondary : Color.primary)
+                if let detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .padding(.vertical, 4)
+        .background(selected ? Color.accentColor.opacity(0.22) : .clear, in: .rect(cornerRadius: 14))
+        .background(Color.surface2, in: .rect(cornerRadius: 14))
+        .contentShape(.rect)
     }
 }
 
@@ -1687,7 +1731,7 @@ struct ElicitationCard: View {
                         draft.toggle(field, option)
                     }
                 } label: {
-                    optionRow(option.label, detail: option.description, symbol: symbol(field, selected: selected, single: single), selected: selected)
+                    ChoiceRow(title: option.label, detail: option.description, symbol: symbol(field, selected: selected, single: single), selected: selected)
                 }
                 .buttonStyle(.plain)
                 .disabled(!answerable)
@@ -1713,7 +1757,7 @@ struct ElicitationCard: View {
             draft.toggleOther(other)
             focused = open ? nil : other.key
         } label: {
-            optionRow("Other…", detail: nil, symbol: symbol(field, selected: open, single: single), selected: open, muted: true)
+            ChoiceRow(title: "Other…", symbol: symbol(field, selected: open, single: single), selected: open, muted: true)
         }
         .buttonStyle(.plain)
         .disabled(!answerable)
@@ -1724,42 +1768,14 @@ struct ElicitationCard: View {
     }
 
     private func symbol(_ field: Elicitation.Field, selected: Bool, single: Bool) -> String? {
-        guard !single else { return nil }
-        guard selected else { return "circle" }
-        return field.type == "multi" ? "checkmark.circle.fill" : "circle.inset.filled"
-    }
-
-    private func optionRow(_ title: String, detail: String?, symbol: String?, selected: Bool, muted: Bool = false) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            if let symbol {
-                Image(systemName: symbol)
-                    .foregroundStyle(symbol == "circle" ? Color.secondary : Color.accentColor)
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(muted ? Color.secondary : Color.primary)
-                if let detail, !detail.isEmpty {
-                    Text(detail)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 16)
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-        .padding(.vertical, 4)
-        .background(selected ? Color.accentColor.opacity(0.22) : .clear, in: .rect(cornerRadius: 14))
-        .background(Color.surface2, in: .rect(cornerRadius: 14))
-        .contentShape(.rect)
+        single ? nil : ChoiceRow.symbol(multi: field.type == "multi", selected: selected)
     }
 
     @ViewBuilder
     private var actions: some View {
         if question.isURL {
             VStack(spacing: 10) {
-                primary("Open") {
+                PrimaryCapsule(title: "Open") {
                     guard let link = question.request.url, let url = URL(string: link), MarkdownLinkPolicy.allows(url) else { return }
                     openURL(url)
                     submit("accept", [])
@@ -1779,7 +1795,7 @@ struct ElicitationCard: View {
                 }
                 .frame(maxWidth: 110)
                 if page < questions.count - 1 {
-                    primary("Next") { turn(to: page + 1) }
+                    PrimaryCapsule(title: "Next") { turn(to: page + 1) }
                         .disabled(!armed)
                 } else {
                     sendButton
@@ -1801,20 +1817,8 @@ struct ElicitationCard: View {
     }
 
     private var sendButton: some View {
-        primary("Send") { submit("accept", draft.answers(question.request.fields)) }
+        PrimaryCapsule(title: "Send") { submit("accept", draft.answers(question.request.fields)) }
             .answering(answerable, enabled: enabled)
-    }
-
-    private func primary(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.headline)
-                .frame(maxWidth: .infinity, minHeight: 50)
-                .foregroundStyle(Color.onAccent)
-                .background(Color.accentColor, in: .capsule)
-                .contentShape(.capsule)
-        }
-        .buttonStyle(.plain)
     }
 
     private func turn(to target: Int) {
@@ -1839,7 +1843,7 @@ struct ElicitationCard: View {
     }
 }
 
-private extension View {
+extension View {
     func answering(_ answerable: Bool, enabled: Bool) -> some View {
         disabled(!answerable).opacity(enabled ? 1 : 0.5)
     }

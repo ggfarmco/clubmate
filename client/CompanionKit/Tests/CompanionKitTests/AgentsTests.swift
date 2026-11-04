@@ -25,6 +25,21 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(sessions[0].reviewProgress, ReviewProgress(text: "review 5/15 · 1"))
     }
 
+    func testOpenSectionSitsAboveRunningOldestFirstAndCountsItsTrees() throws {
+        let json = #"""
+        [
+          {"id":"run","status":"running","group":"running"},
+          {"id":"new","status":"done","group":"open","openCount":2,"openSince":"2026-11-04T10:00:00Z"},
+          {"id":"old","status":"done","group":"open","openCount":3,"openSince":"2026-11-03T10:00:00Z","mayAsk":true},
+          {"id":"ask","status":"done","needsYou":true,"group":"needsYou"}
+        ]
+        """#
+        let groups = AgentSession.grouped(try JSONDecoder.clubmate.decode([AgentSession].self, from: Data(json.utf8)))
+        XCTAssertEqual(groups.map(\.group), [.needsInput, .open, .running])
+        XCTAssertEqual(groups[1].sessions.map(\.id), ["old", "new"])
+        XCTAssertEqual(groups[1].sessions.map(\.openInTree), [3, 2])
+    }
+
     func testGroupsTreesByThePluginsGroupOfTheirRoot() throws {
         let json = #"""
         [
@@ -450,6 +465,79 @@ final class ElicitationDraftTests: XCTestCase {
         XCTAssertEqual(draft.texts["question_0_custom"], "neither")
     }
 
+    private static let openEntry = #"{"kind":"openItems","id":"open-1","turn":3,"later":true,"overflow":[211],"items":[{"id":"oi-1","kind":"decision","header":"Lists","question":"How?","quote":"Q","options":[{"label":"All","description":"Every list"},{"label":"Prop","description":"Only here"}],"state":"answered","answer":"All"},{"id":"oi-2","kind":"decision","header":"Tags","question":"Which?","quote":"Q","multiSelect":true,"options":[{"label":"A","description":"a"},{"label":"B","description":"b"}],"state":"open","at":"2026-11-04T10:00:00.123456Z"},{"id":"oi-3","kind":"offer","label":"Add a screen","quote":"Q","state":"open"},{"id":"oi-4","kind":"offer","label":"Close it","quote":"Q","state":"open"}]}"#
+
+    private func openItems() throws -> OpenItems {
+        guard case .openItems(let items) = try JSONDecoder.clubmate.decode(TranscriptEntry.self, from: Data(Self.openEntry.utf8)).content else { throw RemoteError.badResponse }
+        return items
+    }
+
+    func testDecodesWhatThePluginSendsForOpenItems() throws {
+        let wire = try JSONDecoder.clubmate.decode(OpenItemsWire.self, from: fixture("agents-open-items"))
+        let session = try XCTUnwrap(wire.sessions.first)
+        XCTAssertEqual(session.group, .open)
+        XCTAssertEqual(session.openCount, 3)
+        XCTAssertNotNil(session.openSince)
+        XCTAssertEqual(session.glyph, .open)
+        guard case .open(let card) = SessionScreen(entries: wire.transcript.entries, session: session).dock else { return XCTFail("no card") }
+        XCTAssertEqual(card.items[0].options.map(\.description), ["First", "Second"])
+        XCTAssertTrue(card.items[0].multiSelect)
+        XCTAssertEqual(wire.queue.map(\.session), [session.id])
+        XCTAssertEqual(OpenKinds(wire.queue[0].items).text, "2 decisions, 1 offer")
+    }
+
+    func testOpenCardKeepsTheReportsNumbersAndFoldsOffersIntoOneSection() throws {
+        let items = try openItems()
+        let card = try XCTUnwrap(OpenCard([items]))
+        XCTAssertEqual(card.sections.map(\.number), [2, 3])
+        XCTAssertEqual(card.sections.map(\.folded), ["Which?", "2 offers"])
+        XCTAssertTrue(card.later)
+        XCTAssertEqual(card.overflowLine, "+1 more went to the backlog: #211")
+        XCTAssertEqual(items.items[1].at, Date.parseRFC3339("2026-11-04T10:00:00.123Z"))
+    }
+
+    func testAnsweringOpenItemsSendsPicksOtherAndOffersAndForgetsThem() async throws {
+        let runner = ScriptedRunner(replies: [#"{"session":{"id":"s","status":"running"},"entries":[]}"#])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        let items = try openItems().open
+        var draft = OpenDraft()
+        draft.pick(items[0].options[1], in: items[0])
+        draft.pick(items[0].options[0], in: items[0])
+        draft.toggleOther(items[0])
+        draft.others["oi-2"] = " Both "
+        draft.toggleOffer(items[2])
+        store.setOpenDraft(draft, session: "s")
+        try await store.answerOpen("s", items: items, note: "Go on")
+        XCTAssertEqual(runner.sessionArgs.first, .object([
+            "session": .string("s"),
+            "answers": .array([.object(["item": .string("oi-2"), "options": .array([.string("A"), .string("B")]), "other": .string("Both")])]),
+            "offers": .array([.string("oi-4")]),
+            "note": .string("Go on"),
+        ]))
+        XCTAssertTrue(store.openDraft("s").isEmpty)
+    }
+
+    func testOpenPassSkipsFiledItemsAndDropsOnesAnsweredElsewhere() throws {
+        let entry = { (session: String, ids: [String]) in
+            #"{"session":"\#(session)","title":"\#(session)","items":[\#(ids.map { #"{"id":"\#($0)","kind":"offer","label":"\#($0)","state":"open"}"# }.joined(separator: ","))]}"#
+        }
+        let queue = { (entries: [String]) in try JSONDecoder.clubmate.decode([OpenQueueEntry].self, from: Data("[\(entries.joined(separator: ","))]".utf8)) }
+        var pass = OpenPass(try queue([entry("a", ["oi-1", "oi-2"]), entry("b", ["oi-1"])]))
+        XCTAssertEqual(pass.sessions, ["a", "b"])
+        pass.next()
+        XCTAssertEqual(pass.current?.id, "a/oi-2")
+        pass.file(try XCTUnwrap(pass.current))
+        pass.next()
+        XCTAssertEqual(pass.current?.id, "b/oi-1")
+        XCTAssertTrue(pass.isLast)
+        pass.previous()
+        XCTAssertEqual(pass.current?.id, "a/oi-1")
+        pass.update(try queue([entry("b", ["oi-1"])]))
+        XCTAssertEqual(pass.steps.map(\.id), ["a/oi-2", "b/oi-1"])
+        XCTAssertEqual(pass.current?.id, "b/oi-1")
+        XCTAssertEqual(pass.items("a"), [])
+    }
+
     func testDraftAtALaterPageIsNotEmpty() async throws {
         let store = AgentsStore(workspace: "w", runner: ScriptedRunner(replies: []))
         var draft = ElicitationDraft()
@@ -457,6 +545,12 @@ final class ElicitationDraftTests: XCTestCase {
         store.setElicitationDraft(draft, session: "s", request: "elicitation-1")
         XCTAssertEqual(store.elicitationDraft("s", request: "elicitation-1").page, 1)
     }
+}
+
+private struct OpenItemsWire: Decodable {
+    let sessions: [AgentSession]
+    let transcript: AgentTranscript
+    let queue: [OpenQueueEntry]
 }
 
 @MainActor

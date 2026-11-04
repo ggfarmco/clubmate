@@ -18,6 +18,7 @@ struct SessionDetailView: View {
     @State private var confirmingClose = false
     @State private var confirmingStop = false
     @State private var confirmingHeaderStop = false
+    @State private var confirmingNo = false
     @State private var showingSettings = false
     @State private var alwaysAsked: AlwaysAsk?
     @State private var width = 0.0
@@ -33,6 +34,7 @@ struct SessionDetailView: View {
         let blocked = context.connection.blocked
         let answerDocked = switch screen.dock {
         case .permission, .elicitation: true
+        case .open(let card): !folded(card) || store.openDraft(sessionID).unfolded
         default: false
         }
         ScrollView {
@@ -156,6 +158,13 @@ struct SessionDetailView: View {
                             .id(question.id)
                         case .question(let question):
                             QuestionCard(question: question, agentName: session.agentName, subagent: session.parentSession != nil)
+                        case .open(let card):
+                            OpenItemsCard(card: card, count: session.openCount, folded: folded(card), blocked: blocked, draft: Binding(get: { store.openDraft(sessionID) }, set: { store.setOpenDraft($0, session: sessionID) })) {
+                                try await store.laterOpen(sessionID)
+                            } send: {
+                                try await store.answerOpen(sessionID, items: card.items)
+                                sent += 1
+                            }
                         }
                     }
                     .padding(.horizontal, 12)
@@ -173,6 +182,7 @@ struct SessionDetailView: View {
                         blocked: answerDocked || !failureButtons.isEmpty || reviewable ? nil : blocked,
                         sending: sending,
                         wide: stopInHeader,
+                        hint: answersGoWith(screen) ? "Your answers go with it" : nil,
                         reopen: { action in
                             perform {
                                 if let next = try await store.recover(sessionID, with: action) {
@@ -215,6 +225,20 @@ struct SessionDetailView: View {
             }
             ToolbarItem(placement: .primaryAction) {
                 Menu("More", systemImage: "ellipsis") {
+                    if case .open = screen.dock {
+                        Button("To Backlog", systemImage: "tray.and.arrow.down") {
+                            perform { try await store.backlogOpen(sessionID) }
+                        }
+                        .disabled(blocked != nil)
+                        Button("No to All", systemImage: "xmark.circle", role: .destructive) { confirmingNo = true }
+                            .disabled(blocked != nil)
+                    }
+                    if session?.mayAsk == true, session?.isClosed == false, context.connection.supports(OpenCommand.convert) {
+                        Button("Turn into Items", systemImage: "checklist") {
+                            perform { try await store.convertOpen(sessionID) }
+                        }
+                        .disabled(blocked != nil)
+                    }
                     if let docs = docsList?.docs, !docs.isEmpty {
                         Menu("Docs", systemImage: "doc.richtext") {
                             ForEach(docs) { doc in
@@ -256,6 +280,13 @@ struct SessionDetailView: View {
             }
         } message: {
             Text("The agent stops when no other session uses its worktree. The transcript stays readable.")
+        }
+        .confirmationDialog("Say no to all \(session?.openCount ?? 0)?", isPresented: $confirmingNo, titleVisibility: .visible) {
+            Button("No to All", role: .destructive) {
+                perform { try await store.noOpen(sessionID) }
+            }
+        } message: {
+            Text("\(session?.agentName ?? "The agent") is told “none of these” on its next turn.")
         }
         .alert("Something Went Wrong", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
             Button("OK") { failure = nil }
@@ -337,17 +368,33 @@ struct SessionDetailView: View {
         navigation.openDoc(computer: context.connection.computer.id, workspace: store.workspace, path: path)
     }
 
+    private func folded(_ card: OpenCard) -> Bool {
+        card.later || store.session(sessionID)?.isTurnActive == true
+    }
+
+    private func answersGoWith(_ screen: SessionScreen) -> Bool {
+        guard attachments.isEmpty, case .open(let card) = screen.dock else { return false }
+        return !store.openDraft(sessionID).answered(card.items).isEmpty
+    }
+
     private func send() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         let attached = attachments
         guard !text.isEmpty || !attached.isEmpty else { return }
         let typed = draft
+        let screen = SessionScreen(entries: store.entries(sessionID), session: store.session(sessionID))
+        var answering: [OpenItem]?
+        if answersGoWith(screen), case .open(let card) = screen.dock { answering = card.items }
         sending = true
         draft = ""
         attachments = []
         Task {
             do {
-                try await store.send(text, attachments: attached, to: sessionID)
+                if let answering {
+                    try await store.answerOpen(sessionID, items: answering, note: text)
+                } else {
+                    try await store.send(text, attachments: attached, to: sessionID)
+                }
                 sent += 1
             } catch {
                 if draft.isEmpty { draft = typed }
@@ -412,7 +459,9 @@ struct SessionHeader: View {
 
     static func subtitle(_ session: AgentSession, mac: MacTag?, mode: Bool = false) -> Text {
         let detail = [session.headerDetail, mode ? session.modeLabel ?? "" : ""].filter { !$0.isEmpty }.joined(separator: " · ")
-        return Text(session.headerState).foregroundStyle(session.state.needsYou ? Color.warning : .secondary)
+        let open = session.openLabel.map { Text(" · ").foregroundStyle(.secondary) + Text($0).foregroundStyle(Color.warningInk) } ?? Text("")
+        return Text(session.headerState).foregroundStyle(session.state.needsYou ? Color.warning : session.openLabel != nil ? Color.successInk : .secondary)
+            + open
             + (mac != nil || !detail.isEmpty ? Text(" · ") + mac.lead(detail) : Text("")).foregroundStyle(.secondary)
     }
 }
@@ -586,6 +635,7 @@ struct ComposerView: View {
     var blocked: String? = nil
     let sending: Bool
     var wide = false
+    var hint: String?
     var reopen: (FailureAction) -> Void = { _ in }
     let send: () -> Void
     @State private var picked: [PhotosPickerItem] = []
@@ -628,7 +678,7 @@ struct ComposerView: View {
     }
 
     private var placeholder: String {
-        session?.composerPlaceholder ?? "What should the agent do?"
+        hint ?? session?.composerPlaceholder ?? "What should the agent do?"
     }
 
     var body: some View {

@@ -28,6 +28,11 @@ public struct PluginRegistry {
 public enum AgentsPluginInfo {
     public static let id = "agents"
     public static let newSession = "new"
+    public static let openQueue = "open"
+
+    public static func isSession(_ detail: String) -> Bool {
+        detail != newSession && detail != openQueue
+    }
     public static let requiredCommands = [AgentCommand.sessions, AgentCommand.transcript, AgentCommand.prompt]
 }
 

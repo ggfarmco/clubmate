@@ -428,6 +428,46 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(wait(for: card.buttons["Next"], "isEnabled == true"))
     }
 
+    func testOpenCardSendsItsPicksAndKeepsTheRestOpen() {
+        let app = launch(open: "agents/agt_0000000000000021", ["-openFixture", "YES"])
+        let card = app.otherElements["open-card"]
+        XCTAssertTrue(card.staticTexts["5 open"].waitForExistence(timeout: 10))
+        XCTAssertFalse(card.buttons["Send answers"].isEnabled)
+        option("Add an SDUI prop", in: card).tap()
+        option("3", in: card).tap()
+        option("Close #185", in: card).tap()
+        XCTAssertTrue(card.buttons.matching(NSPredicate(format: "label CONTAINS 'Add an SDUI prop' AND NOT label BEGINSWITH 'Add'")).firstMatch.waitForExistence(timeout: 5))
+        card.buttons["Send answers"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Lists → Add an SDUI prop; do: Close #185'")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(card.staticTexts["3 open"].waitForExistence(timeout: 5))
+    }
+
+    func testAnswerAllPassesEveryItemThenSendsToEachSession() {
+        let app = launch(open: "agents", ["-openFixture", "YES"])
+        let all = app.buttons["Answer all"]
+        XCTAssertTrue(all.waitForExistence(timeout: 10))
+        all.tap()
+        let step = app.otherElements["open-step"]
+        XCTAssertTrue(step.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["1 of 7"].exists)
+        option("Add an SDUI prop", in: step).tap()
+        XCTAssertTrue(app.staticTexts["1 answered"].waitForExistence(timeout: 5))
+        for number in 2...6 {
+            sleep(1)
+            app.buttons[number == 3 ? "Backlog" : number == 2 ? "Next" : "Later"].tap()
+            XCTAssertTrue(app.staticTexts["\(number) of 7"].waitForExistence(timeout: 5))
+        }
+        sleep(1)
+        app.buttons["Next"].tap()
+        XCTAssertTrue(app.staticTexts["7 of 7"].waitForExistence(timeout: 5))
+        sleep(1)
+        option("Do this", in: step).tap()
+        app.buttons["Send answers"].tap()
+        XCTAssertTrue(app.staticTexts["Open"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Rework the Send review sheet"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Send answers"].exists)
+    }
+
     private func option(_ title: String, in card: XCUIElement) -> XCUIElement {
         card.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
     }

@@ -25,6 +25,9 @@ struct AgentsPlugin: CompanionPluginUI {
         if selection == AgentsPluginInfo.newSession {
             return AnyView(NewSessionView(context: context, store: store))
         }
+        if selection == AgentsPluginInfo.openQueue {
+            return AnyView(OpenQueueView(context: context, store: store))
+        }
         if GraphRun.isRun(selection) {
             return AnyView(RunDetailView(context: context, store: store, runID: selection).id(selection))
         }
@@ -41,7 +44,7 @@ struct AgentsPlugin: CompanionPluginUI {
     }
 
     func detailHasMic(connection: ComputerConnection, selection: String) -> Bool {
-        connection.state != .unauthorized && !GraphRun.isRun(selection)
+        connection.state != .unauthorized && !GraphRun.isRun(selection) && selection != AgentsPluginInfo.openQueue
     }
 
     @MainActor
@@ -164,6 +167,23 @@ struct SessionListView: View {
                     }
                     .buttonStyle(.plain)
                 }
+            } else if group.group == .open {
+                Section {
+                    rows(items)
+                } header: {
+                    HStack(spacing: 10) {
+                        Text(group.group.title)
+                        Spacer()
+                        if context.connection.supports(OpenCommand.queue) {
+                            Button("Answer all", action: answerAll)
+                                .buttonStyle(.borderless)
+                                .tint(.accentColor)
+                                .fontWeight(.semibold)
+                                .contentShape(.rect.inset(by: -12))
+                        }
+                        Text("\(group.sessions.reduce(0) { $0 + $1.openInTree })")
+                    }
+                }
             } else {
                 Section {
                     rows(items)
@@ -182,11 +202,17 @@ struct SessionListView: View {
         context.navigation.layout != .compact
     }
 
+    private func answerAll() {
+        store.beginOpenPass()
+        context.navigation.detail = AgentsPluginInfo.openQueue
+        context.navigation.preferredColumn = .detail
+    }
+
     private func rows(_ items: [SessionRowItem]) -> some View {
         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
             let nestedBelow = index + 1 < items.count && items[index + 1].depth > 0
             HStack(spacing: 0) {
-                SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants, chevron: item.toggleCount == nil)
+                SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants, chevron: item.toggleCount == nil, open: store.openKinds(item.id))
                 if let count = item.toggleCount {
                     SubagentToggle(count: count, expanded: item.expanded) {
                         Motion.disclose {
@@ -268,6 +294,7 @@ struct SessionRow: View {
     var depth = 0
     var waitingChildren = 0
     var chevron = false
+    var open: OpenKinds?
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { timeline in
@@ -279,16 +306,23 @@ struct SessionRow: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
-                    Text(session.displayTitle)
-                        .font(.body.weight(session.glyph.needsYou ? .semibold : .regular))
-                        .foregroundStyle(session.isClosed ? .secondary : .primary)
-                        .lineLimit(2)
-                    StateLineText(line: session.stateLine(now: timeline.date, waitingChildren: waitingChildren))
+                    HStack(alignment: .top, spacing: 8) {
+                        Text(session.displayTitle)
+                            .font(.body.weight(session.glyph.needsYou ? .semibold : .regular))
+                            .foregroundStyle(session.isClosed ? .secondary : .primary)
+                            .lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if session.glyph == .open, let label = session.openLabel {
+                            OpenCountChip(text: label)
+                                .frame(height: 22)
+                        }
+                    }
+                    StateLineText(line: session.stateLine(now: timeline.date, waitingChildren: waitingChildren, open: open))
                         .font(.subheadline)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                if chevron {
+                if chevron, session.glyph != .open {
                     RowChevron()
                         .frame(height: 22)
                 }
@@ -362,6 +396,7 @@ struct StateLineText: View {
         switch line.tone {
         case .primary: .primary
         case .secondary: .secondary
+        case .faint: Color(.tertiaryLabel)
         case .needsYou: Color.warningInk
         case .danger: Color.dangerInk
         }
@@ -397,7 +432,7 @@ struct SessionGlyphView: View {
         case .running: "play.fill"
         case .stopped: "xmark"
         case .review: "eye"
-        case .done: "checkmark"
+        case .open, .done: "checkmark"
         case .closed: "archivebox"
         }
     }
@@ -408,6 +443,7 @@ struct SessionGlyphView: View {
         case .childWaiting: Color.warningInk
         case .asksParent, .running, .review: .accentColor
         case .stopped: Color.dangerInk
+        case .open: Color.successInk
         case .done, .closed: .secondary
         }
     }
@@ -418,7 +454,7 @@ struct SessionGlyphView: View {
         case .childWaiting: Color.warning.opacity(0.18)
         case .asksParent, .running, .review: Color.accentColor.opacity(0.18)
         case .stopped: Color.dangerInk.opacity(0.18)
-        case .done, .closed: Color(.tertiarySystemFill)
+        case .open, .done, .closed: Color(.tertiarySystemFill)
         }
     }
 }

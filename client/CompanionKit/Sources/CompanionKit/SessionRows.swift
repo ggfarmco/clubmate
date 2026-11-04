@@ -11,6 +11,7 @@ public enum SessionGlyph: Sendable, Equatable {
     case asksParent
     case running
     case stopped
+    case open
     case review
     case done
     case closed
@@ -24,6 +25,7 @@ public struct SessionStateLine: Sendable, Equatable {
     public enum Tone: Sendable, Equatable {
         case primary
         case secondary
+        case faint
         case needsYou
         case danger
     }
@@ -55,6 +57,7 @@ extension AgentSession {
         if childStatus == .waiting { return .childWaiting }
         if displayStatus == .running { return .running }
         if status == .error { return .stopped }
+        if openLabel != nil { return .open }
         if review { return .review }
         return .done
     }
@@ -72,7 +75,7 @@ extension AgentSession {
         waitingChildren > 0 && !glyph.needsYou ? .childWaiting : glyph
     }
 
-    public func stateLine(now: Date, waitingChildren: Int = 0) -> SessionStateLine {
+    public func stateLine(now: Date, waitingChildren: Int = 0, open: OpenKinds? = nil) -> SessionStateLine {
         let age = { (date: Date) in ShortAge.since(date, now: now) }
         switch glyph(waitingChildren: waitingChildren) {
         case .step:
@@ -105,9 +108,12 @@ extension AgentSession {
             return SessionStateLine(text: SessionState.running.label, age: age(turnStartedAt ?? updatedAt))
         case .stopped:
             return SessionStateLine(text: stopped.word, tone: .danger)
+        case .open:
+            return SessionStateLine(text: [SessionState.done.label, open?.text ?? openLabel ?? ""].joined(separator: " · "))
         case .review:
             return SessionStateLine(text: reviewProgress?.text ?? SessionState.review.label, age: age(updatedAt))
         case .done:
+            if reviewProgress == nil, mayAsk { return SessionStateLine(text: SessionState.done.label + " · may have left a question", tone: .faint) }
             return SessionStateLine(text: reviewProgress?.text ?? SessionState.done.label, age: age(updatedAt))
         case .closed:
             return SessionStateLine(text: autoClosed ? "Auto-closed" : SessionState.closed.label, age: age(updatedAt))

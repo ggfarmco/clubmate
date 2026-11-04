@@ -6,6 +6,7 @@ extension SessionGroup {
     public var title: String {
         switch self {
         case .needsInput: "Needs you"
+        case .open: "Open"
         case .running: "Running"
         case .idle: "Done"
         case .closed: "Closed"
@@ -71,7 +72,12 @@ extension AgentSession {
         let buckets = Dictionary(grouping: trees, by: \.group)
         return SessionGroup.allCases.compactMap { group in
             guard let list = buckets[group], !list.isEmpty else { return nil }
-            return (group, list.sorted(by: group == .needsInput ? SessionNode.waitingLonger : SessionNode.newerFirst))
+            let order = switch group {
+            case .needsInput: SessionNode.waitingLonger
+            case .open: SessionNode.openLonger
+            default: SessionNode.newerFirst
+            }
+            return (group, list.sorted(by: order))
         }
     }
 }
@@ -87,6 +93,10 @@ public struct SessionNode: Sendable, Equatable, Identifiable {
 
     public var descendants: Int {
         children.reduce(children.count) { $0 + $1.descendants }
+    }
+
+    public var openInTree: Int {
+        children.reduce(session.openCount) { $0 + $1.openInTree }
     }
 
     static func build(_ session: AgentSession, kids: [String: [AgentSession]], seen: inout Set<String>) -> SessionNode {
@@ -106,6 +116,11 @@ public struct SessionNode: Sendable, Equatable, Identifiable {
 
     static func waitingLonger(_ a: SessionNode, _ b: SessionNode) -> Bool {
         let (x, y) = (a.needsYouAt ?? .distantFuture, b.needsYouAt ?? .distantFuture)
+        return x != y ? x < y : a.id < b.id
+    }
+
+    static func openLonger(_ a: SessionNode, _ b: SessionNode) -> Bool {
+        let (x, y) = (a.session.openSince ?? .distantFuture, b.session.openSince ?? .distantFuture)
         return x != y ? x < y : a.id < b.id
     }
 
@@ -340,6 +355,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         case elicitation(Elicitation)
         case notice(Notice)
         case compaction(Compaction)
+        case openItems(OpenItems)
         case other(String)
     }
 
@@ -354,7 +370,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     public let imageLinks: [String: String]
 
     enum CodingKeys: String, CodingKey {
-        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction, elicitation, response, completed, stoppable, doc, docLinks, docCards, images, imageLinks, card, voice
+        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction, elicitation, response, completed, stoppable, doc, docLinks, docCards, images, imageLinks, card, voice, items, overflow, later
     }
 
     static let outgoingPrefix = "outgoing/"
@@ -434,6 +450,12 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         case .compaction:
             let state = (try? c.decodeIfPresent(JSONValue.self, forKey: .compaction)) ?? .null
             content = .compaction(Compaction(status: state["status"]?.stringValue ?? "", summary: text, error: state["error"]?.stringValue ?? ""))
+        case .openItems:
+            content = .openItems(OpenItems(
+                items: (try? c.decodeIfPresent([OpenItem].self, forKey: .items)) ?? [],
+                overflow: (try? c.decodeIfPresent([Int].self, forKey: .overflow)) ?? [],
+                later: (try? c.decodeIfPresent(Bool.self, forKey: .later)) ?? false
+            ))
         case .other:
             content = .other(raw)
         }

@@ -1,0 +1,177 @@
+{
+ "sessions": [
+  {
+   "id": "agt_24796047ddd5d144",
+   "workspace": "prj_e2ba758563db781d",
+   "worktree": "/Users/me/src/shop",
+   "agent": "claude",
+   "title": "done",
+   "status": "done",
+   "openCount": 3,
+   "openSince": "2026-11-04T21:36:47.731752Z",
+   "createdAt": "2026-11-04T21:36:47.377736Z",
+   "updatedAt": "2026-11-04T21:36:47.732096Z",
+   "needsYou": false,
+   "group": "open"
+  }
+ ],
+ "transcript": {
+  "session": {
+   "id": "agt_24796047ddd5d144",
+   "workspace": "prj_e2ba758563db781d",
+   "worktree": "/Users/me/src/shop",
+   "agent": "claude",
+   "title": "done",
+   "status": "done",
+   "openCount": 3,
+   "openSince": "2026-11-04T21:36:47.731752Z",
+   "createdAt": "2026-11-04T21:36:47.377736Z",
+   "updatedAt": "2026-11-04T21:36:47.732096Z",
+   "needsYou": false,
+   "group": "open"
+  },
+  "entries": [
+   {
+    "kind": "user",
+    "id": "prompt-1",
+    "turn": 1,
+    "text": "done",
+    "content": [
+     {
+      "type": "text",
+      "text": "done"
+     }
+    ],
+    "at": "2026-11-04T21:36:47.634875Z"
+   },
+   {
+    "kind": "agent",
+    "id": "agent-1",
+    "turn": 1,
+    "text": "done",
+    "at": "2026-11-04T21:36:47.635187Z"
+   },
+   {
+    "kind": "openItems",
+    "id": "open-1",
+    "turn": 1,
+    "at": "2026-11-04T21:36:47.731752Z",
+    "items": [
+     {
+      "id": "oi-1",
+      "kind": "decision",
+      "header": "Tags",
+      "question": "Which Tags?",
+      "quote": "About Tags.",
+      "options": [
+       {
+        "label": "One",
+        "description": "First"
+       },
+       {
+        "label": "Two",
+        "description": "Second"
+       }
+      ],
+      "multiSelect": true,
+      "state": "open",
+      "at": "2026-11-04T21:36:47.731752Z"
+     },
+     {
+      "id": "oi-2",
+      "kind": "decision",
+      "header": "Lists",
+      "question": "Which Lists?",
+      "quote": "About Lists.",
+      "options": [
+       {
+        "label": "One",
+        "description": "First"
+       },
+       {
+        "label": "Two",
+        "description": "Second"
+       }
+      ],
+      "state": "open",
+      "at": "2026-11-04T21:36:47.731752Z"
+     },
+     {
+      "id": "oi-3",
+      "kind": "offer",
+      "label": "add a screen",
+      "quote": "I could add a screen.",
+      "state": "open",
+      "at": "2026-11-04T21:36:47.731752Z"
+     },
+     {
+      "id": "oi-4",
+      "kind": "offer",
+      "label": "close it",
+      "quote": "I could close it.",
+      "state": "no",
+      "at": "2026-11-04T21:36:47.731752Z"
+     }
+    ],
+    "later": true
+   }
+  ]
+ },
+ "queue": [
+  {
+   "session": "agt_24796047ddd5d144",
+   "title": "done",
+   "worktree": "/Users/me/src/shop",
+   "updatedAt": "2026-11-04T21:36:47.732096Z",
+   "items": [
+    {
+     "id": "oi-1",
+     "kind": "decision",
+     "header": "Tags",
+     "question": "Which Tags?",
+     "quote": "About Tags.",
+     "options": [
+      {
+       "label": "One",
+       "description": "First"
+      },
+      {
+       "label": "Two",
+       "description": "Second"
+      }
+     ],
+     "multiSelect": true,
+     "state": "open",
+     "at": "2026-11-04T21:36:47.731752Z"
+    },
+    {
+     "id": "oi-2",
+     "kind": "decision",
+     "header": "Lists",
+     "question": "Which Lists?",
+     "quote": "About Lists.",
+     "options": [
+      {
+       "label": "One",
+       "description": "First"
+      },
+      {
+       "label": "Two",
+       "description": "Second"
+      }
+     ],
+     "state": "open",
+     "at": "2026-11-04T21:36:47.731752Z"
+    },
+    {
+     "id": "oi-3",
+     "kind": "offer",
+     "label": "add a screen",
+     "quote": "I could add a screen.",
+     "state": "open",
+     "at": "2026-11-04T21:36:47.731752Z"
+    }
+   ]
+  }
+ ]
+}

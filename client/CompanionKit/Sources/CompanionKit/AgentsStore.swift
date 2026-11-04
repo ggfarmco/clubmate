@@ -36,8 +36,11 @@ public final class AgentsStore {
     public private(set) var images: [String: TranscriptImage] = [:]
     public private(set) var runs: [String: GraphRun] = [:]
     public private(set) var runErrors: [String: String] = [:]
+    public private(set) var openQueue: [OpenQueueEntry] = []
+    public private(set) var openPass: OpenPass?
     private var outgoing: [String: [Outgoing]] = [:]
     private var elicitationDrafts: [String: [String: ElicitationDraft]] = [:]
+    private var openDrafts: [String: OpenDraft] = [:]
 
     public static let followInterval: Duration = .seconds(2)
     public static let imageCommand = "agents.image"
@@ -161,6 +164,7 @@ public final class AgentsStore {
             self.error = Self.message(error)
         }
         loaded = true
+        await loadOpenQueue()
     }
 
     public var searching: Bool {
@@ -362,6 +366,105 @@ public final class AgentsStore {
     public func setElicitationDraft(_ draft: ElicitationDraft, session: String, request: String) {
         elicitationDrafts[session, default: [:]][request] = draft.isEmpty ? nil : draft
         if elicitationDrafts[session]?.isEmpty == true { elicitationDrafts[session] = nil }
+    }
+
+    public func loadOpenQueue() async {
+        guard sessions.contains(where: { $0.openCount > 0 }) else {
+            setOpenQueue([])
+            return
+        }
+        await coalesced("open") { [weak self] in
+            guard let self, let runner else { return }
+            guard let queue = try? await runner.command(OpenCommand.queue, workspace: workspace, args: .object([:]), as: [OpenQueueEntry].self) else { return }
+            setOpenQueue(queue)
+        }
+    }
+
+    private func setOpenQueue(_ queue: [OpenQueueEntry]) {
+        if openQueue != queue { openQueue = queue }
+        openPass?.update(queue)
+    }
+
+    public func openKinds(_ session: String) -> OpenKinds? {
+        openQueue.first { $0.session == session }.map { OpenKinds($0.items) }
+    }
+
+    public func beginOpenPass() {
+        if openPass == nil, !openQueue.isEmpty { openPass = OpenPass(openQueue) }
+    }
+
+    public func endOpenPass() {
+        openPass = nil
+    }
+
+    public func moveOpenPass(_ move: (inout OpenPass) -> Void) {
+        openPass.map { var pass = $0; move(&pass); openPass = pass }
+    }
+
+    public func openDraft(_ session: String) -> OpenDraft {
+        openDrafts[session] ?? OpenDraft()
+    }
+
+    public func setOpenDraft(_ draft: OpenDraft, session: String) {
+        openDrafts[session] = draft.isEmpty ? nil : draft
+    }
+
+    public func answerOpen(_ session: String, items: [OpenItem], note: String = "") async throws {
+        var draft = openDraft(session)
+        try await run(OpenCommand.answer, draft.reply(session: session, items: items, note: note))
+        draft.clear(items)
+        setOpenDraft(draft, session: session)
+        await afterOpen(session)
+    }
+
+    public func laterOpen(_ session: String) async throws {
+        try await run(OpenCommand.later, ["session": .string(session)])
+        var draft = openDraft(session)
+        draft.unfolded = false
+        setOpenDraft(draft, session: session)
+        await afterOpen(session)
+    }
+
+    public func backlogOpen(_ session: String, items: [OpenItem] = []) async throws {
+        try await close(OpenCommand.backlog, session, items)
+    }
+
+    public func noOpen(_ session: String, items: [OpenItem] = []) async throws {
+        try await close(OpenCommand.no, session, items)
+    }
+
+    public func convertOpen(_ session: String) async throws {
+        try await run(OpenCommand.convert, ["session": .string(session)])
+        await afterOpen(session)
+    }
+
+    public func sendOpenPass() async throws {
+        var failure: (any Error)?
+        for session in openPass?.sessions ?? [] {
+            let items = openPass?.items(session) ?? []
+            guard !openDraft(session).answered(items).isEmpty else { continue }
+            do {
+                try await answerOpen(session, items: items)
+            } catch {
+                failure = failure ?? error
+            }
+        }
+        if let failure { throw failure }
+    }
+
+    private func close(_ command: String, _ session: String, _ items: [OpenItem]) async throws {
+        var args: [String: JSONValue] = ["session": .string(session)]
+        if !items.isEmpty { args["items"] = .array(items.map { .string($0.id) }) }
+        try await run(command, args)
+        var draft = openDraft(session)
+        if items.isEmpty { draft = OpenDraft() } else { draft.clear(items) }
+        setOpenDraft(draft, session: session)
+        await afterOpen(session)
+    }
+
+    private func afterOpen(_ session: String) async {
+        await refresh()
+        await loadTranscript(session, incremental: true)
     }
 
     public func setMode(_ session: String, mode: String) async throws {

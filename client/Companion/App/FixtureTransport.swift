@@ -178,6 +178,27 @@ actor FixtureServer {
                 Self.questionEntry(),
             ])]
         }
+        if UserDefaults.standard.bool(forKey: "openFixture"), let template = sessions.first {
+            for (id, title, ago, report, items) in Self.openSessions {
+                var record = Self.session(template, id: id, title: title, status: "done", ago: ago)
+                let open = items.count
+                if open > 0 {
+                    record["openCount"] = .number(Double(open))
+                    record["openSince"] = Self.stamp(ago: ago)
+                } else if id == "agt_0000000000000023" {
+                    record["mayAsk"] = .bool(true)
+                }
+                Self.regroup(&record)
+                sessions.append(record)
+                var entries = [Self.entry("user", "open-prompt", text: "Rework it"), Self.entry("agent", "open-report", text: report)]
+                if open > 0 {
+                    var fields: [String: JSONValue] = ["kind": .string("openItems"), "id": .string("open-1"), "turn": .number(1), "items": .array(items.map { Self.openItem($0, at: Self.stamp(ago: ago)) })]
+                    if open == 7 { fields["overflow"] = .array([.number(211), .number(212)]) }
+                    entries.append(.object(fields))
+                }
+                transcripts[id] = ["entries": .array(entries)]
+            }
+        }
         self.sessions = sessions
         self.transcripts = transcripts
         tasks = (decode("backlog-tasks.json")["tasks"]?.arrayValue ?? []).enumerated().compactMap { index, value in
@@ -257,7 +278,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "graphs.show", "graphs.approve", "graphs.continue", "graphs.stop"].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "graphs.show", "graphs.approve", "graphs.continue", "graphs.stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge"))])]))
         case "uiSections":
             return (200, Self.json(["result": uiSections]))
@@ -364,6 +385,33 @@ actor FixtureServer {
         case "agents.elicitation":
             respond(session, request: args["request"]?.stringValue ?? "", action: args["action"]?.stringValue ?? "", answers: args["answers"]?.arrayValue ?? [])
             return .null
+        case OpenCommand.queue:
+            return .array(sessions.filter { ($0["openCount"]?.numberValue ?? 0) > 0 }.sorted { ($0["openSince"]?.stringValue ?? "") < ($1["openSince"]?.stringValue ?? "") }.map { record in
+                let id = record["id"]?.stringValue ?? ""
+                return .object(["session": .string(id), "title": record["title"] ?? .null, "worktree": record["worktree"] ?? .null, "updatedAt": record["updatedAt"] ?? .null, "items": .array(openEntries(id).filter { $0["state"] == .string("open") })])
+            })
+        case OpenCommand.answer:
+            answerOpen(session, args)
+            return .null
+        case OpenCommand.later:
+            setOpen(session) { $0["later"] = .bool(true) }
+            update(session) { _ in }
+            return .null
+        case OpenCommand.backlog, OpenCommand.no:
+            let ids = args["items"]?.arrayValue?.compactMap(\.stringValue) ?? []
+            let state = id == OpenCommand.no ? "no" : "backlog"
+            var filed: [JSONValue] = []
+            resolveOpen(session) { item in
+                guard ids.isEmpty || ids.contains(item["id"]?.stringValue ?? "") else { return nil }
+                guard state == "backlog" else { return ["state": .string(state)] }
+                let task = self.command("backlog.add", workspace: workspace, args: .object(["title": item["question"] ?? item["label"] ?? .string("Open item")]))["id"] ?? .null
+                filed.append(task)
+                return ["state": .string(state), "task": task]
+            }
+            return .object(["tasks": .array(filed)])
+        case OpenCommand.convert:
+            update(session) { $0["mayAsk"] = nil }
+            return command("agents.prompt", workspace: workspace, args: .object(["session": .string(session), "text": .string("Post what you left in prose with agents_open_items.")]))
         case "agents.cancel":
             turns.removeValue(forKey: session)?.cancel()
             update(session) { $0["status"] = .string("done"); $0["pending"] = nil }
@@ -696,6 +744,53 @@ actor FixtureServer {
         update(session) { $0["status"] = .string("running"); $0["pending"] = nil }
     }
 
+    private func openEntries(_ session: String) -> [JSONValue] {
+        (transcripts[session]?["entries"]?.arrayValue ?? []).filter { $0["kind"] == .string("openItems") }.flatMap { $0["items"]?.arrayValue ?? [] }
+    }
+
+    private func setOpen(_ session: String, _ change: (inout [String: JSONValue]) -> Void) {
+        guard case .array(var entries) = transcripts[session]?["entries"] else { return }
+        for index in entries.indices where entries[index]["kind"] == .string("openItems") {
+            guard case .object(var fields) = entries[index] else { continue }
+            change(&fields)
+            entries[index] = .object(fields)
+        }
+        transcripts[session]?["entries"] = .array(entries)
+    }
+
+    private func resolveOpen(_ session: String, _ resolution: (JSONValue) -> [String: JSONValue]?) {
+        setOpen(session) { fields in
+            fields["items"] = .array((fields["items"]?.arrayValue ?? []).map { item in
+                guard case .object(var edited) = item, item["state"] == .string("open"), let change = resolution(item) else { return item }
+                edited.merge(change) { $1 }
+                return .object(edited)
+            })
+        }
+        let left = openEntries(session).count { $0["state"] == .string("open") }
+        update(session) { $0["openCount"] = left > 0 ? .number(Double(left)) : nil; if left == 0 { $0["openSince"] = nil } }
+    }
+
+    private func answerOpen(_ session: String, _ args: JSONValue) {
+        var parts: [String] = []
+        let offers = args["offers"]?.arrayValue?.compactMap(\.stringValue) ?? []
+        var done: [String] = []
+        resolveOpen(session) { item in
+            let id = item["id"]?.stringValue ?? ""
+            if let answer = args["answers"]?.arrayValue?.first(where: { $0["item"]?.stringValue == id }) {
+                let picks = (answer["options"]?.arrayValue?.compactMap(\.stringValue) ?? []) + [answer["option"]?.stringValue, answer["other"]?.stringValue].compactMap { $0 }
+                let text = picks.joined(separator: ", ")
+                parts.append((item["header"]?.stringValue ?? "") + " → " + text)
+                return ["state": .string("answered"), "answer": .string(text)]
+            }
+            guard offers.contains(id) else { return nil }
+            done.append(item["label"]?.stringValue ?? "")
+            return ["state": .string("answered")]
+        }
+        if !done.isEmpty { parts.append("do: " + done.joined(separator: ", ")) }
+        let note = args["note"]?.stringValue.map { "\n\n" + $0 } ?? ""
+        _ = command("agents.prompt", workspace: workspace, args: .object(["session": .string(session), "text": .string("Answers: " + parts.joined(separator: "; ") + note)]))
+    }
+
     private func stopSubagent(_ session: String, _ subagent: String) {
         guard case .array(var entries) = transcripts[session]?["entries"] else { return }
         for index in entries.indices where entries[index]["kind"] == .string("tool") && entries[index]["id"]?.stringValue == subagent {
@@ -970,6 +1065,40 @@ actor FixtureServer {
         ])])
     }
 
+    private static let openSessions: [(id: String, title: String, ago: TimeInterval, report: String, items: [[String: JSONValue]])] = [
+        ("agt_0000000000000021", "Rework the Send review sheet", 360, "**Not checked visually:** ⌘↩ in the sheet. Lists only keep a detail up to 6 em, so it gives way to the title. Fixing it means changing that rule for all lists or adding a new SDUI prop, so it's your call (#185). ①\n\nA session waiting for your review sits under Done today (#132). ②\n\nIf you want, I can also add a ⌘/ shortcuts screen. ③", [
+            openDecision("oi-1", "Lists", "How should a long detail in a list row behave?", "Lists only keep a detail up to 6 em, so ⌘↩ gives way to the title.", [("Change the rule for all lists", "Every list changes"), ("Add an SDUI prop", "Only the sheet uses it")]),
+            openDecision("oi-2", "Grouping", "Where does a session waiting for your review go?", "#132: today it sits under Done.", [("Done", "As today"), ("Needs you", "Counts in the badge"), ("Its own group", "“Review”, between Running and Done")]),
+            openOffer("oi-3", "⌘/ shortcuts screen", "A sheet that lists every key of the section", "If you want, I can also add a ⌘/ shortcuts screen."),
+            openOffer("oi-4", "Close #185", "Once the list rule is settled", "I can close #185 after that."),
+            openOffer("oi-5", "Tag v0.0.16", "Cut a release with this", "Want me to tag a release?"),
+        ]),
+        ("agt_0000000000000024", "Port the very long cron detail pattern to every single plugin section in the whole app and check it on the phone", 900, "Done, with the rest left to you.", UserDefaults.standard.bool(forKey: "openStress") ? [
+            openDecision("oi-1", "Timeout", "Should the push keep its thirty second timeout when the Mac is on a slow connection, or should it back off and retry a few times first?", "A long quote from the report that runs over a few lines so the context line wraps the way a real sentence of a real report does on a phone.", [("Keep it", "Thirty seconds, as today"), ("Back off", "Up to two minutes in total, which covers a phone on a train or on a slow hotel connection"), ("Retry once", "One more try after ten seconds"), ("Drop it", "No timeout at all")]),
+            openDecision("oi-2", "Deadline", "When is it due?", "Q", [("Today", "End of day"), ("Friday", "End of week")]),
+            openDecision("oi-3", "Owner", "Who owns it?", "Q", [("Me", "You"), ("Them", "Someone else")]),
+            openOffer("oi-4", "One", "First offer", "Q"), openOffer("oi-5", "Two", "Second offer", "Q"), openOffer("oi-6", "Three", "Third offer", "Q"), openOffer("oi-7", "Four", "Fourth offer", "Q"),
+        ] : []),
+        ("agt_0000000000000022", "Bump ghostty to 1.2", 120, "Bumped ghostty to 1.2 and rebuilt the terminfo. The old cursor shader is gone, so it's up to you whether to keep the setting. ①", [
+            openDecision("oi-1", "Cursor", "Keep the cursor shader setting?", "The old cursor shader is gone.", [("Keep it", "Off by default, ignored for now"), ("Remove it", "Users lose their value")]),
+            openOffer("oi-2", "Note it in the changelog", "One line under Terminal", "I can add it to the changelog."),
+        ]),
+        ("agt_0000000000000023", "Tidy the notifier", 7_200, "Done. If you want, I can also split the file.", []),
+    ]
+
+    private static func openDecision(_ id: String, _ header: String, _ question: String, _ quote: String, _ options: [(String, String)]) -> [String: JSONValue] {
+        ["id": .string(id), "kind": .string("decision"), "header": .string(header), "question": .string(question), "quote": .string(quote), "state": .string("open"),
+         "options": .array(options.map { .object(["label": .string($0.0), "description": .string($0.1)]) })]
+    }
+
+    private static func openOffer(_ id: String, _ label: String, _ description: String, _ quote: String) -> [String: JSONValue] {
+        ["id": .string(id), "kind": .string("offer"), "label": .string(label), "description": .string(description), "quote": .string(quote), "state": .string("open")]
+    }
+
+    private static func openItem(_ fields: [String: JSONValue], at: JSONValue) -> JSONValue {
+        .object(fields.merging(["at": at]) { $1 })
+    }
+
     private static func docCard(_ path: String, kind: String, title: String, presented: Bool = false) -> JSONValue {
         .object(["path": .string(path), "kind": .string(kind), "title": .string(title), "rel": .string(path.replacingOccurrences(of: "/Users/me/src/shop/", with: "")), "presented": .bool(presented)])
     }
@@ -996,7 +1125,8 @@ actor FixtureServer {
     private static func regroup(_ fields: inout [String: JSONValue]) {
         let status = fields["status"]?.stringValue ?? ""
         let service = fields["service"] == .bool(true)
-        let group = status == "closed" ? "closed" : fields["needsYou"] == .bool(true) ? "needsYou" : service ? "service" : status == "running" ? "running" : "done"
+        let open = status == "done" && (fields["openCount"]?.numberValue ?? 0) > 0
+        let group = status == "closed" ? "closed" : fields["needsYou"] == .bool(true) ? "needsYou" : service ? "service" : status == "running" ? "running" : open ? "open" : "done"
         fields["group"] = .string(group)
         fields["active"] = .bool(!service && (status == "running" || status == "waiting"))
         let id = fields["id"] ?? .null

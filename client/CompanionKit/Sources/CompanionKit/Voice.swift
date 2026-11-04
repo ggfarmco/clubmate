@@ -18,7 +18,7 @@ public struct VoiceTarget: Equatable, Sendable {
         switch plugin ?? AgentsPluginInfo.id {
         case AgentsPluginInfo.id:
             section = AgentsPluginInfo.id
-            if let detail, detail != AgentsPluginInfo.newSession { selection = .init(session: detail) }
+            if let detail, AgentsPluginInfo.isSession(detail) { selection = .init(session: detail) }
         case BacklogPluginInfo.id:
             section = BacklogPluginInfo.id
             selection = detail.flatMap(Int.init).map { .init(task: $0) }

@@ -29,6 +29,9 @@ final class SessionRowsTests: XCTestCase {
             (AgentSession(id: "j", status: .done, updatedAt: ago(3_700)), .done, SessionStateLine(text: "Done", age: "1 h")),
             (AgentSession(id: "j2", status: .done, updatedAt: ago(3_700), review: true), .review, SessionStateLine(text: "Review", age: "1 h")),
             (AgentSession(id: "j3", status: .done, updatedAt: ago(3_700), reviewProgress: ReviewProgress(text: "review 5/15 · 1")), .done, SessionStateLine(text: "review 5/15 · 1", age: "1 h")),
+            (AgentSession(id: "j4", status: .done, updatedAt: ago(3_700), openCount: 5), .open, SessionStateLine(text: "Done · 5 open")),
+            (AgentSession(id: "j5", status: .done, updatedAt: ago(3_700), mayAsk: true), .done, SessionStateLine(text: "Done · may have left a question", tone: .faint)),
+            (AgentSession(id: "j6", status: .running, turnStartedAt: ago(60), openCount: 5), .running, SessionStateLine(text: "Running", age: "1 min")),
             (AgentSession(id: "k", status: .closed, updatedAt: ago(200_000)), .closed, SessionStateLine(text: "Closed", age: "2 d")),
             (AgentSession(id: "k2", status: .closed, updatedAt: ago(200_000), autoClosed: true), .closed, SessionStateLine(text: "Auto-closed", age: "2 d")),
         ]
@@ -36,6 +39,8 @@ final class SessionRowsTests: XCTestCase {
             XCTAssertEqual(session.glyph, glyph, session.id)
             XCTAssertEqual(session.stateLine(now: now), line, session.id)
         }
+        XCTAssertEqual(AgentSession(id: "j4", status: .done, openCount: 5).openLabel, "5 open")
+        XCTAssertNil(AgentSession(id: "w", status: .waiting, pending: ["permission-1"], openCount: 5).openLabel)
         XCTAssertEqual(AgentSession(id: "i", status: .error).headerState, "Stopped · error")
         XCTAssertEqual(AgentSession(id: "i2", status: .error, failure: Self.exit1).headerState, "Stopped · exit 1")
     }

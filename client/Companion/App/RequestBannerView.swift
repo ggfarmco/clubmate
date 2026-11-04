@@ -21,7 +21,7 @@ struct RequestBannerHost: View {
     }
 
     private var current: String? {
-        guard let item = navigation.sidebar, item.plugin == AgentsPluginInfo.id, let detail = navigation.detail, detail != AgentsPluginInfo.newSession else { return nil }
+        guard let item = navigation.sidebar, item.plugin == AgentsPluginInfo.id, let detail = navigation.detail, AgentsPluginInfo.isSession(detail) else { return nil }
         return NeedsYouItem.id(computer: item.computer, session: detail)
     }
 }

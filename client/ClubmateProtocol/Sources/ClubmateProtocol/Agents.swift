@@ -14,6 +14,7 @@ extension FallbackEnum {
 
 public enum SessionGroup: String, FallbackEnum, Identifiable {
     case needsInput = "needsYou"
+    case open
     case running
     case idle = "done"
     case closed
@@ -158,6 +159,7 @@ public enum TranscriptEntryKind: String, FallbackEnum {
     case elicitation
     case notice
     case compaction
+    case openItems
     case other
 
     public static let fallback = Self.other
