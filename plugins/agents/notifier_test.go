@@ -7,6 +7,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestDonePostCountsOpenItems(t *testing.T) {
+	t.Parallel()
+	one := ending{workspace: "ws", session: "a", title: "A", kind: notifyDone, policy: notifyAll, open: 3}
+	two := ending{workspace: "ws", session: "b", title: "B", kind: notifyDone, policy: notifyAll}
+
+	single, _ := endPost([]ending{one})
+	both, _ := endPost([]ending{one, two})
+
+	assert.Equal(t, "Done · 3 open", single.Message)
+	assert.Equal(t, notifyDone, single.Kind)
+	assert.Equal(t, "Finished: A · 3 open, B", both.Message)
+}
+
 func TestEndQueueCoalescesWithinBudget(t *testing.T) {
 	t.Parallel()
 	q := newEndQueue()

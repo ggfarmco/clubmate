@@ -48,6 +48,7 @@ type app struct {
 	sessionRevs sessionRevs
 	runNeeds    runNeeds
 	reminders   reminders
+	openWake    chan struct{}
 
 	spawnMu    sync.Mutex
 	worktreeMu sync.Mutex
@@ -72,7 +73,7 @@ type sectionRef struct {
 }
 
 func main() {
-	a := &app{loaded: make(chan struct{}), quit: make(chan struct{}), watchdog: newWatchdog(), reviews: newReviewBoard(), registry: newRegistry(), uiState: newUIState()}
+	a := &app{loaded: make(chan struct{}), quit: make(chan struct{}), openWake: make(chan struct{}, 1), watchdog: newWatchdog(), reviews: newReviewBoard(), registry: newRegistry(), uiState: newUIState()}
 	signal.Notify(make(chan os.Signal, 1), syscall.SIGTERM)
 	err := pluginsdk.Run(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
 	a.stopAll()
@@ -169,6 +170,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	}
 	go a.suspendIdleLoop(envDelay(suspendAfterEnv, suspendAfter))
 	go a.closeDoneLoop(envDelay(closeAfterEnv, closeAfter))
+	go a.ageOpenLoop(envDelay(openAfterEnv, openAfter))
 	go a.continueCutOff(cut)
 	a.renderAll(ctx)
 	return nil

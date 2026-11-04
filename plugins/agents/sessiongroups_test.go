@@ -6,6 +6,26 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestOpenItemsGroupBetweenRunningAndDone(t *testing.T) {
+	t.Parallel()
+	info := func(id, parent, status string, open int, needsYou bool) sessionInfo {
+		return sessionInfo{record: record{ID: id, lineage: lineage{ParentSession: parent}, Status: status, OpenCount: open}, NeedsYou: needsYou}
+	}
+	infos := []sessionInfo{
+		info("open", "", statusDone, 2, false),
+		info("waiting", "", statusWaiting, 2, true),
+		info("working", "", statusRunning, 2, false),
+		info("archived", "", statusClosed, 0, false),
+		info("leftover", "archived", statusDone, 1, false),
+	}
+	setGroups(infos)
+	got := map[string]string{}
+	for _, i := range infos {
+		got[i.ID] = i.Group
+	}
+	assert.Equal(t, map[string]string{"open": "open", "waiting": "needsYou", "working": "running", "archived": "open", "leftover": "open"}, got)
+}
+
 func TestSetGroupsLiftsParentsToTheMostUrgentChildGroup(t *testing.T) {
 	t.Parallel()
 	info := func(id, parent, status string, needsYou, service bool) sessionInfo {

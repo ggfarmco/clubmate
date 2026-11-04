@@ -85,6 +85,10 @@ type record struct {
 		Args    map[string]string `json:"args"`
 	} `json:"reopen"`
 	ModeLabel string `json:"modeLabel"`
+	Group     string `json:"group"`
+	MayAsk    bool   `json:"mayAsk"`
+	OpenCount int    `json:"openCount"`
+	OpenSince string `json:"openSince"`
 }
 
 type entry struct {
@@ -100,6 +104,9 @@ type entry struct {
 	Voice     json.RawMessage            `json:"voice"`
 	Review    json.RawMessage            `json:"review"`
 	DocCards  []sdui.DocCard             `json:"docCards"`
+	Items     []openItem                 `json:"items"`
+	Overflow  []int                      `json:"overflow"`
+	Later     bool                       `json:"later"`
 }
 
 type transcript struct {

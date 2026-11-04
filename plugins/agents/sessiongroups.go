@@ -5,12 +5,13 @@ import "slices"
 const (
 	groupNeedsYou = "needsYou"
 	groupRunning  = "running"
+	groupOpen     = "open"
 	groupDone     = "done"
 	groupClosed   = "closed"
 	groupService  = "service"
 )
 
-var groupOrder = []string{groupNeedsYou, groupRunning, groupDone, groupClosed, groupService}
+var groupOrder = []string{groupNeedsYou, groupRunning, groupOpen, groupDone, groupClosed, groupService}
 
 func ownGroup(info sessionInfo) string {
 	switch {
@@ -22,6 +23,8 @@ func ownGroup(info sessionInfo) string {
 		return groupService
 	case info.Status == statusRunning:
 		return groupRunning
+	case info.OpenCount > 0 && info.Status == statusDone:
+		return groupOpen
 	}
 	return groupDone
 }
@@ -50,7 +53,7 @@ func setGroups(infos []sessionInfo) {
 			if visiting[k] {
 				continue
 			}
-			if g := lift(k); g == groupNeedsYou || g == groupRunning && own != groupService {
+			if g := lift(k); g == groupNeedsYou || (g == groupRunning || g == groupOpen) && own != groupService {
 				best = min(best, slices.Index(groupOrder, g))
 			}
 		}

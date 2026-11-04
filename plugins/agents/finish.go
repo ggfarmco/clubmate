@@ -171,7 +171,7 @@ func (a *app) othersIn(id, root string) bool {
 
 func (a *app) closeIdle(ctx context.Context, s *session) bool {
 	s.mu.Lock()
-	if s.running || len(s.queue) > 0 || s.rec.Status != statusDone || s.asksLocked() {
+	if s.running || len(s.queue) > 0 || s.rec.Status != statusDone || s.rec.OpenCount > 0 || s.asksLocked() {
 		s.mu.Unlock()
 		return false
 	}

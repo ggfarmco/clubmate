@@ -64,7 +64,7 @@ func (a *app) prompt(workspaceID string, args promptArgs) error {
 func (a *app) submit(s *session, args *promptArgs) error {
 	s.mu.Lock()
 	s.loadLocked()
-	if args != nil && s.running && !s.cancelRequested && !s.rec.closed() && s.proc != nil && s.proc.steering {
+	if args != nil && !args.Queued && s.running && !s.cancelRequested && !s.rec.closed() && s.proc != nil && s.proc.steering {
 		p, rec := s.proc, s.rec
 		s.mu.Unlock()
 		if a.steer(s, p, rec, *args) {
@@ -233,6 +233,11 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 	if args.From != "" {
 		req.Prompt[0].Text = fromPrefix(args.From, fromTitle) + req.Prompt[0].Text
 	}
+	s.mu.Lock()
+	if none := s.takeNoneLocked(); none != "" {
+		req.Prompt = slices.Insert(slices.Clip(req.Prompt), 0, acp.ContentBlock{Type: "text", Text: none})
+	}
+	s.mu.Unlock()
 	req.Prompt = sendable(req.Prompt)
 	var res acp.PromptResponse
 	err = p.conn.Call(context.Background(), acp.MethodSessionPrompt, req, &res)

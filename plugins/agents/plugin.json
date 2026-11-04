@@ -478,6 +478,133 @@
         }
       },
       {
+        "id": "agents.open-items",
+        "title": "Post open items",
+        "hidden": true,
+        "agent": true,
+        "description": "Leave the decisions and offers still open at the end of your turn for the user, instead of burying them in your report. The turn ends done; the user sees a quiet card under the report and answers it when they want, and that answer starts your next turn. For a question you cannot go on without, use AskUserQuestion instead. Don't repeat the items as questions at the end of the report. A decision has a header of up to 12 characters, a question, 2 to 4 options with a one-line description each (Other is always offered, don't list it) and optional multiSelect; an offer has a label and an optional description. Each item carries quote, the sentence of your report it comes from, word for word. Pass all you have: Clubmate shows 3 decisions and 4 offers and files the rest in the backlog. From a child session the items go to the session that started it. Returns {items, overflow, handed}: the ids shown, the backlog task ids of the rest, and handed when the parent got them. The user may pass session to seed items; an agent posts for its own session only.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id. Agents leave it out: it is their own session."},
+            "items": {
+              "type": "array",
+              "description": "The open items.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {"type": "string", "enum": ["decision", "offer"], "description": "decision: the user picks an option. offer: something you could do next."},
+                  "header": {"type": "string", "description": "Decision: a chip of up to 12 characters."},
+                  "question": {"type": "string", "description": "Decision: the question."},
+                  "options": {"type": "array", "items": {"type": "string"}, "description": "Decision: 2 to 4 option labels."},
+                  "descriptions": {"type": "array", "items": {"type": "string"}, "description": "Decision: one line per option, in the order of options."},
+                  "multiSelect": {"type": "boolean", "description": "Decision: several options may be picked."},
+                  "label": {"type": "string", "description": "Offer: what you would do."},
+                  "description": {"type": "string", "description": "Offer: one optional line of detail."},
+                  "quote": {"type": "string", "description": "The sentence of your report this item comes from, word for word."}
+                },
+                "required": ["kind", "quote"]
+              }
+            }
+          },
+          "required": ["items"]
+        }
+      },
+      {
+        "id": "agents.open-answer",
+        "title": "Answer open items",
+        "hidden": true,
+        "remote": true,
+        "description": "Answer a session's open items and start one turn with them, queued when a turn runs. An agent gets an error. On a closed session offers start a new session in its worktree (the main checkout when that is gone; returns {session}) and decisions go to the backlog.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."},
+            "answers": {
+              "type": "array",
+              "description": "Answers to decisions.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "item": {"type": "string", "description": "Item id (oi-N)."},
+                  "option": {"type": "string", "description": "The picked option's label."},
+                  "options": {"type": "array", "items": {"type": "string"}, "description": "The picked labels of a multiSelect decision."},
+                  "other": {"type": "string", "description": "Text typed in Other."}
+                },
+                "required": ["item"]
+              }
+            },
+            "offers": {"type": "array", "items": {"type": "string"}, "description": "Ids of the offers to do."},
+            "note": {"type": "string", "description": "Text sent after the answers."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.open-later",
+        "title": "Keep open items for later",
+        "hidden": true,
+        "remote": true,
+        "description": "Keep a session's open items open and fold their cards to one line (later in the transcript entry). An agent gets an error.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.open-backlog",
+        "title": "Move open items to the backlog",
+        "hidden": true,
+        "remote": true,
+        "description": "File open items in the backlog, one task per item, and return {tasks}. An agent gets an error.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."},
+            "items": {"type": "array", "items": {"type": "string"}, "description": "Item ids; all open items when empty."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.open-no",
+        "title": "Say no to open items",
+        "hidden": true,
+        "remote": true,
+        "description": "Close open items. No turn starts; the session's next turn begins with \"None of these: …\". An agent gets an error.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."},
+            "items": {"type": "array", "items": {"type": "string"}, "description": "Item ids; all open items when empty."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.open-queue",
+        "title": "List open items",
+        "hidden": true,
+        "remote": true,
+        "description": "The open items across a workspace's sessions, oldest first: [{session, title, worktree, updatedAt, items}]. An agent gets an error.",
+        "args": {
+          "properties": {
+            "workspace": {"type": "string", "description": "Workspace id; the current one when empty."}
+          }
+        }
+      },
+      {
+        "id": "agents.open-convert",
+        "title": "Turn prose into open items",
+        "hidden": true,
+        "remote": true,
+        "description": "Prompt a session to post what it left in prose with agents_open_items. An agent gets an error.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
         "id": "agents.reviewed",
         "title": "Mark agent session reviewed",
         "hidden": true,

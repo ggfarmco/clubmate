@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"maps"
 	"net/url"
@@ -57,6 +58,8 @@ type transcriptState struct {
 	ended     map[int]bool
 
 	subagents map[string]*subagent
+
+	openState
 }
 
 type transcriptView struct {
@@ -104,10 +107,15 @@ type entry struct {
 	Voice      *voicePrompt      `json:"voice,omitempty"`
 	Review     *reviewSent       `json:"review,omitempty"`
 
+	Items    []openItem `json:"items,omitempty"`
+	Overflow []int      `json:"overflow,omitempty"`
+	Later    bool       `json:"later,omitempty"`
+
 	node   *nodeCache
 	sub    *subagent
 	rev    int64
 	closed bool
+	marked string
 }
 
 type voicePrompt struct {
@@ -181,17 +189,22 @@ func (s *session) viewSince(fromTurn int, since int64) transcriptView {
 	defer s.mu.Unlock()
 	s.loadLocked()
 	v := transcriptView{Session: s.rec, Modes: slices.Clone(s.modes), Configs: slices.Clone(s.configs), Usage: s.usage, Commands: slices.Clone(s.commands), Turns: slices.Clone(s.turns)}
+	marked := s.markedLocked()
 	for _, en := range s.entries {
 		if since < 0 && en.Turn < fromTurn {
 			continue
 		}
 		s.refreshLocked(en)
+		if marked[en] != en.marked {
+			en.marked, en.node = marked[en], nil
+		}
 		if en.node == nil {
 			en.node = new(nodeCache)
 			s.bumpLocked(en)
 		}
 		c := *en
 		c.sub = nil
+		c.Text = cmp.Or(en.marked, en.Text)
 		closed := false
 		if en.Tool != nil && (en.sub == nil && !s.workingLocked() || en.sub != nil && s.proc == nil) {
 			if tool, ok := closeTool(en.Tool); ok {
@@ -429,6 +442,10 @@ func (s *session) apply(e envelope) {
 		s.applyElicitationAnswer(e)
 	case kindElicitationComplete:
 		s.applyElicitationComplete(e)
+	case kindOpenItems:
+		s.applyOpenItems(e)
+	case kindOpenChanged:
+		s.applyOpenChanged(e)
 	}
 }
 

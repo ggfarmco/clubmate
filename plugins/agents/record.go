@@ -61,6 +61,9 @@ type record struct {
 	Review          bool      `json:"review,omitempty"`
 	AsksParent      bool      `json:"asksParent,omitempty"`
 	Reminding       bool      `json:"reminding,omitempty"`
+	MayAsk          bool      `json:"mayAsk,omitempty"`
+	OpenCount       int       `json:"openCount,omitempty"`
+	OpenSince       time.Time `json:"openSince,omitzero"`
 	CreatedAt       time.Time `json:"createdAt"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 	Asks            bool      `json:"asks"`

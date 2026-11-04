@@ -58,6 +58,13 @@ var (
 		"agents.send-review":    withArgs((*app).sendReviewCommand),
 		"agents.run-needs":      withArgs((*app).runNeedsCommand),
 		"agents.reminders":      withArgs((*app).remindersCommand),
+		"agents.open-items":     withArgs((*app).openItemsCommand),
+		"agents.open-answer":    withArgs((*app).openAnswerCommand),
+		"agents.open-later":     withArgs((*app).openLaterCommand),
+		"agents.open-backlog":   withArgs((*app).openBacklogCommand),
+		"agents.open-no":        withArgs((*app).openNoCommand),
+		"agents.open-queue":     withArgs((*app).openQueueCommand),
+		"agents.open-convert":   withArgs((*app).openConvertCommand),
 	}
 
 	errUnknownCmd    = errors.New("unknown command")
@@ -135,6 +142,7 @@ type promptArgs struct {
 	From        string       `json:"-"`
 	Voice       bool         `json:"-"`
 	Review      *reviewSent  `json:"-"`
+	Queued      bool         `json:"-"`
 }
 
 type attachment struct {

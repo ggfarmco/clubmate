@@ -30,6 +30,9 @@ const (
 
 	endPostMax    = 2
 	endPostWindow = 10 * time.Second
+
+	doneOpenFormat   = "Done · %d open"
+	listedOpenFormat = "%s · %d open"
 )
 
 var (
@@ -58,6 +61,7 @@ type ending struct {
 	title     string
 	kind      string
 	policy    string
+	open      int
 }
 
 type endQueue struct {
@@ -219,11 +223,25 @@ func (a *app) notifyEnd(s *session, t api.Turn) {
 	if rec.ParentSession != "" || rec.restricted() || rec.Run != nil && kind != notifyAsks || kind == notifyDone && a.runningChildren(rec.ID) > 0 {
 		return
 	}
-	a.notes.ended(ending{workspace: rec.Workspace, session: rec.ID, title: rec.Title, kind: kind, policy: a.effectiveNotify(rec)})
+	a.notes.ended(ending{workspace: rec.Workspace, session: rec.ID, title: rec.Title, kind: kind, policy: a.effectiveNotify(rec), open: rec.OpenCount})
 }
 
 func (e ending) allowed() bool {
 	return e.policy == notifyAll || e.policy == notifyNeedsInput && e.kind == notifyAsks
+}
+
+func (e ending) message() string {
+	if e.kind == notifyDone && e.open > 0 {
+		return fmt.Sprintf(doneOpenFormat, e.open)
+	}
+	return endMessages[e.kind]
+}
+
+func (e ending) listed() string {
+	if e.kind == notifyDone && e.open > 0 {
+		return fmt.Sprintf(listedOpenFormat, e.title, e.open)
+	}
+	return e.title
 }
 
 func newEndQueue() endQueue {
@@ -265,7 +283,7 @@ func endPost(held []ending) (notifyPost, bool) {
 		return notifyPost{}, false
 	case 1:
 		e := held[0]
-		return notifyPost{WorkspaceID: e.workspace, Session: e.session, Title: e.title, Message: endMessages[e.kind], Kind: e.kind}, true
+		return notifyPost{WorkspaceID: e.workspace, Session: e.session, Title: e.title, Message: e.message(), Kind: e.kind}, true
 	}
 	post := notifyPost{WorkspaceID: held[0].workspace, Title: fmt.Sprintf("%d agent sessions", len(held))}
 	var lines []string
@@ -273,7 +291,7 @@ func endPost(held []ending) (notifyPost, bool) {
 		var titles []string
 		for _, e := range held {
 			if e.kind == kind {
-				titles = append(titles, e.title)
+				titles = append(titles, e.listed())
 			}
 		}
 		if len(titles) > 0 {

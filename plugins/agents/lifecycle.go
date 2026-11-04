@@ -84,6 +84,7 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentP
 		s.turned(ended)
 	}
 	s.changed(changeStatus, true)
+	a.wakeOpenAging()
 	a.cancelSignIn(ctx, rec.Workspace, rec.ID)
 	if p == nil {
 		return nil

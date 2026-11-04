@@ -13,6 +13,7 @@ type session struct {
 	mu        sync.Mutex
 	attachMu  sync.Mutex
 	changesMu sync.Mutex
+	openMu    sync.Mutex
 	rec       record
 	log       *eventLog
 	loaded    bool
@@ -98,8 +99,10 @@ func (s *session) setStatusLocked(status, errText string) {
 	s.rec.Review = false
 	s.rec.Error = errText
 	s.rec.Question = ""
+	s.rec.MayAsk = false
 	if status == statusDone {
 		s.rec.Question = lastQuestion(s.entries)
+		s.rec.MayAsk = s.mayAskLocked()
 	}
 	s.rec.Asks = s.rec.Question != ""
 	s.rec.UpdatedAt = time.Now().UTC()
