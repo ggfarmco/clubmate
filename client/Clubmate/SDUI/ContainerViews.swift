@@ -148,6 +148,7 @@ struct FormNodeView: View {
     @Environment(\.sduiPopover) private var popover
 
     @State private var width: CGFloat = 0
+    @State private var mount = UUID()
 
     private var key: String? { node.id.map { dispatch.slot + "|" + $0 } }
 
@@ -166,18 +167,21 @@ struct FormNodeView: View {
             state.autosave = on
         }
         .onChange(of: state.submissions) {
+            guard state.sends(mount) else { return }
             send()
             popover?.dismiss()
         }
         .onAppear {
+            state.mount(mount)
             popover?.submit = { [state] in state.submit() }
         }
         .onDisappear {
-            if state.dirty { send() }
+            if state.dirty, state.sends(mount) { send() }
+            state.unmount(mount)
             if let key { drafts?.left(form: key) }
         }
         .onChange(of: UIForm.fieldIDs(in: node)) { old, ids in
-            if state.dirty, !old.isSubset(of: ids) {
+            if state.dirty, state.sends(mount), !old.isSubset(of: ids) {
                 send(.object(state.values.filter { old.contains($0.key) }))
             }
             state.values = state.values.filter { ids.contains($0.key) }

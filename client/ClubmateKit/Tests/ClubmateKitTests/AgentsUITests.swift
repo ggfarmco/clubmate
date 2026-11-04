@@ -71,6 +71,18 @@ final class AgentsUITests: XCTestCase {
         XCTAssertNil(drafts.form(for: "a/elicitation/1").draft("a/elicitation/1/f/1"))
     }
 
+    func testOnlyTheNewestViewOfASharedFormSendsIt() {
+        let drafts = ComposerDrafts()
+        let dismissed = UUID(), reopened = UUID()
+        drafts.form(for: "editor-nvim.review|review/sendSheet/1").mount(dismissed)
+        let form = drafts.form(for: "editor-nvim.review|review/sendSheet/1")
+        form.mount(reopened)
+        form.submit()
+        XCTAssertEqual([dismissed, reopened].filter(form.sends), [reopened])
+        form.unmount(reopened)
+        XCTAssertTrue(form.sends(dismissed))
+    }
+
     func testFocusedEmptyComposerIsPerSession() {
         let drafts = ComposerDrafts()
         XCTAssertFalse(drafts.focusedEmpty(session: "a"))

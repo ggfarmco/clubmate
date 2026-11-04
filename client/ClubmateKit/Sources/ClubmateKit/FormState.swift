@@ -12,8 +12,22 @@ public final class FormState {
     @ObservationIgnored public var autosave = false
     @ObservationIgnored private var pending: Task<Void, Never>?
     @ObservationIgnored private var touched: Set<String> = []
+    @ObservationIgnored private var mounts: [UUID] = []
 
     public init() {}
+
+    public func mount(_ view: UUID) {
+        mounts.removeAll { $0 == view }
+        mounts.append(view)
+    }
+
+    public func unmount(_ view: UUID) {
+        mounts.removeAll { $0 == view }
+    }
+
+    public func sends(_ view: UUID) -> Bool {
+        mounts.last.map { $0 == view } ?? true
+    }
 
     public var dirty: Bool { save.dirty }
     public var saving: Bool { save.saving && autosave }
