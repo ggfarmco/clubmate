@@ -62,6 +62,25 @@ struct SDUIPopoverView: View {
             .fixedSize(horizontal: false, vertical: true)
             .presentationBackground(theme.surface3)
             .keyMonitor(active: true, handle: popover.handle)
+            .background(PopoverKeyWindow())
+    }
+}
+
+private struct PopoverKeyWindow: NSViewRepresentable {
+    func makeNSView(context: Context) -> PopoverKeyWindowView {
+        PopoverKeyWindowView()
+    }
+
+    func updateNSView(_ view: PopoverKeyWindowView, context: Context) {}
+}
+
+private final class PopoverKeyWindowView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        DispatchQueue.main.async { [weak self] in
+            guard let window = self?.window, !window.isKeyWindow else { return }
+            window.makeKey()
+        }
     }
 }
 

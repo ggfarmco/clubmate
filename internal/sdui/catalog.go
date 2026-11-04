@@ -175,7 +175,7 @@ var (
 	sparkHeight = number(func(n float64) bool { return n >= minSparkHeight && n <= maxSparkHeight }, fmt.Sprintf("a number within %d…%d", minSparkHeight, maxSparkHeight))
 
 	catalog = map[string]spec{
-		"stack":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions), "align": oneOf(alignments)}, children: anyChildren},
+		"stack":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions), "align": oneOf(alignments), "gap": nonNegative}, children: anyChildren},
 		"split":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions)}, children: childRule{min: 2, max: 4}},
 		"scroll": {children: childRule{min: 1, max: 1}},
 		"spacer": {children: noChildren},

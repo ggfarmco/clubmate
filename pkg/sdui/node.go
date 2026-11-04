@@ -206,6 +206,10 @@ func WithAlign(n Node, align string) Node {
 	return withProp(n, "align", align)
 }
 
+func WithGap(n Node, gap int) Node {
+	return withProp(n, "gap", gap)
+}
+
 func HStack(children ...Node) Node {
 	return Node{Type: "stack", Props: map[string]any{"direction": "horizontal"}, Children: children}
 }

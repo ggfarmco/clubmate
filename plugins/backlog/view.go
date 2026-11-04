@@ -65,6 +65,7 @@ const (
 	attachNode    = "attachments"
 	attachField   = "attachText"
 	maxOpenName   = 32
+	lifecycleGap  = 12
 	emptyText     = "Tasks are ideas and todos, for you or for an agent. Start agent hands a task to a session; it owns the task until it ends or you take it back."
 )
 
@@ -304,7 +305,7 @@ func ownerRows(t *Task, owners map[string]owner) []sdui.Node {
 		if left {
 			words := sdui.MutedText(moveWords(m) + when(m.At))
 			if m.failed() {
-				words = sdui.WithTone(words, toneDanger)
+				words = sdui.WithTone(sdui.MutedText(moveWords(m)), toneDanger)
 			}
 			last.Children = append(last.Children, words)
 		}
@@ -459,7 +460,7 @@ func lifecycle() sdui.Node {
 		steps = append(steps, chip(status))
 	}
 	parks := sdui.HStack(sdui.MutedText("or parks in"), chip(statusNotNow), sdui.MutedText("· In progress is owned by you or a session"))
-	v := sdui.WithAlign(sdui.VStack(sdui.MutedText("A task moves through"), sdui.HStack(steps...), parks), sdui.AlignCenter)
+	v := sdui.WithGap(sdui.WithAlign(sdui.VStack(sdui.MutedText("A task moves through"), sdui.HStack(steps...), parks), sdui.AlignCenter), lifecycleGap)
 	v.ID = "lifecycle"
 	return v
 }
@@ -580,6 +581,9 @@ func ownerLines(t Task, owners map[string]owner) ([]ownerLine, *ownerLine, strin
 	var last *ownerLine
 	if m, ok := leftMove(moves, t.LastClaimedBy); ok && t.LastClaimedBy != "" {
 		l := line(labelOf(owners, t.LastClaimedBy), t.LastClaimedBy, m)
+		if m.failed() {
+			l.At = time.Time{}
+		}
 		last = &l
 	}
 	state := ""

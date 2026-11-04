@@ -239,8 +239,8 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 	user := pluginsdk.CommandRun{WorkspaceID: ev.WorkspaceID}
 	verb, _ := parseAction(ev.Action)
 	switch {
-	case ev.Agent && (verb == actStart || verb == actTakeBack):
-		return fmt.Errorf("%w: %q is the user's", errUnknownAction, ev.Action)
+	case ev.Agent && changesTasks(ev, verb):
+		return fmt.Errorf("%w: %q is the user's; agents use the backlog commands", errUnknownAction, ev.Action)
 	case ev.NodeID == "new" && ev.Action == "add":
 		var args commandArgs
 		if err := json.Unmarshal(ev.Value, &args); err != nil {
@@ -389,6 +389,16 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		return nil
 	}
 	return b.taskAction(ctx, ev.WorkspaceID, w, ev.Action, id)
+}
+
+var taskVerbs = []string{actStart, actTakeBack, "release", "done", "status", "priority", "delete", actDrop, actUnlink, actDetach}
+
+func changesTasks(ev pluginsdk.UIEvent, verb string) bool {
+	switch ev.NodeID {
+	case "new", "edit", linkField, attachField:
+		return true
+	}
+	return slices.Contains(taskVerbs, verb)
 }
 
 func caption(err error) string {

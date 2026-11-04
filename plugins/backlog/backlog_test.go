@@ -508,6 +508,51 @@ func TestTakeBack(t *testing.T) {
 	require.Eventually(t, func() bool { return e.echoed("agents.reveal", `"session":"agt_live"`) }, 10*time.Second, 20*time.Millisecond)
 }
 
+func TestAgentUIEventsDontChangeTasks(t *testing.T) {
+	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
+	other := e.add("Other", nil)
+	tk := e.add("Work", map[string]any{"links": []map[string]any{{"kind": "relates", "task": other.ID}}, "attachments": []map[string]string{{"kind": "url", "ref": "https://example.com"}}})
+	e.must(e.agent("agt_live", "backlog.claim", map[string]any{"id": tk.ID}))
+	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "select", strconv.Itoa(tk.ID))
+	e.slotHas("backlog.main", `"id":"takeback"`)
+
+	for _, ev := range []struct {
+		slot, node, action string
+		value              any
+	}{
+		{"backlog.main", "start", "start", nil},
+		{"backlog.main", "takeback", "takeback", nil},
+		{"backlog.main", "release", "release", nil},
+		{"backlog.main", "done", "done", nil},
+		{"backlog.sidebar", "tasks", "status.not-now", strconv.Itoa(tk.ID)},
+		{"backlog.sidebar", "tasks", "priority.high", strconv.Itoa(tk.ID)},
+		{"backlog.main", "edit", "save." + strconv.Itoa(tk.ID), map[string]string{"title": "Changed"}},
+		{"backlog.sidebar", "new", "add", map[string]string{"title": "Agent task"}},
+		{"backlog.main", "linkText", "link", "relates #" + strconv.Itoa(other.ID)},
+		{"backlog.main", "attachText", "attach", "https://example.org"},
+		{"backlog.main", "links", "unlink", strconv.Itoa(other.ID)},
+		{"backlog.main", "attachments", "detach", "0"},
+	} {
+		params := map[string]any{"workspaceId": e.p, "slot": ev.slot, "nodeId": ev.node, "action": ev.action, "value": ev.value, "agent": true}
+		assert.Error(t, e.h.Client(t).Call(t.Context(), "ui.event", params, nil), ev.action)
+	}
+
+	got := e.must(e.user("backlog.get", map[string]any{"id": tk.ID}))
+	assert.Equal(t, "Work", got.Title)
+	assert.Equal(t, "in_progress", got.Status)
+	assert.Equal(t, "agt_live", got.ClaimedBy)
+	assert.Equal(t, "normal", got.Priority)
+	assert.Len(t, got.Links, 1)
+	assert.Len(t, got.Attachments, 1)
+	assert.False(t, e.echoed("agents.new", "Work"))
+	var list struct {
+		Tasks []task `json:"tasks"`
+	}
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "backlog.list", "workspaceId": e.p, "args": map[string]any{}}, &list))
+	assert.Len(t, list.Tasks, 2)
+}
+
 func TestPhoneStartsAndTakesBack(t *testing.T) {
 	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
 	tk := e.add("Work", map[string]any{"description": "Builds on #1."})
@@ -591,6 +636,11 @@ func TestFailedSessionLeavesItsExitCode(t *testing.T) {
 	got := e.must(e.user("backlog.get", map[string]any{"id": tk.ID}))
 	want := ownerLine{Who: "agt_failed", What: "stopped · exit 1", Tone: "danger", Session: "agt_failed"}
 	assert.Equal(t, want, got.LastOwner)
+	var raw struct {
+		LastOwner map[string]any `json:"lastOwner"`
+	}
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "backlog.get", "workspaceId": e.p, "args": map[string]any{"id": tk.ID}}, &raw))
+	assert.NotContains(t, raw.LastOwner, "at")
 	assert.Equal(t, []ownerLine{{Who: "you", What: "created"}, {Who: "agt_failed", What: "claimed", Session: "agt_failed"}, {Who: "you", What: "stopped · exit 1", Tone: "danger"}}, got.History)
 }
 

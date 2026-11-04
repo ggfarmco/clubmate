@@ -241,7 +241,7 @@ func TestOwnerRowsAndLanes(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, actRevealLast, last.Props["action"])
 	assert.Equal(t, failedIcon, last.Props["icon"])
-	assert.Contains(t, mustText(t, main), `"text":"stopped · exit 1 · Nov 2 17:20","tone":"danger"`)
+	assert.Contains(t, mustText(t, main), `"text":"stopped · exit 1","tone":"danger"`)
 
 	lanes, ok := findNode(main, ownersNode)
 	require.True(t, ok)
