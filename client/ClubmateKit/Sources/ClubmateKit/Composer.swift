@@ -164,7 +164,7 @@ public final class ComposerDrafts {
     }
 
     public func left(form id: String) {
-        if forms[id]?.unsent == false { forms[id] = nil }
+        if forms[id]?.unsent == false, forms[id]?.mounted == false { forms[id] = nil }
     }
 
     public func dictate(_ id: String, _ text: String) {

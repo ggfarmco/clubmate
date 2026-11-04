@@ -74,6 +74,17 @@ final class AgentsUITests: XCTestCase {
         XCTAssertNil(drafts.form(for: "a/elicitation/1").draft("a/elicitation/1/f/1"))
     }
 
+    func testALeavingViewKeepsAFormAnotherViewStillShows() {
+        let drafts = ComposerDrafts()
+        let gone = UUID(), shown = UUID()
+        let form = drafts.form(for: "agents.main|a/elicitation/1")
+        form.mount(gone)
+        form.mount(shown)
+        form.unmount(gone)
+        drafts.left(form: "agents.main|a/elicitation/1")
+        XCTAssertTrue(drafts.form(for: "agents.main|a/elicitation/1") === form)
+    }
+
     func testOnlyTheNewestViewOfASharedFormSendsIt() {
         let drafts = ComposerDrafts()
         let dismissed = UUID(), reopened = UUID()

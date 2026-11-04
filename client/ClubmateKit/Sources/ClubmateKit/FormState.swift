@@ -26,6 +26,8 @@ public final class FormState {
         mounts.removeAll { $0 == view }
     }
 
+    public var mounted: Bool { !mounts.isEmpty }
+
     public func sends(_ view: UUID) -> Bool {
         mounts.last.map { $0 == view } ?? true
     }
