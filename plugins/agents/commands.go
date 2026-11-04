@@ -264,8 +264,14 @@ func (a *app) newCommand(ctx context.Context, cmd pluginsdk.CommandRun, args new
 			return nil, err
 		}
 	}
-	a.kick(cmd.WorkspaceID)
-	return res, nil
+	if res.parent != "" || cmd.Agent || cmd.Via != "" {
+		a.kick(cmd.WorkspaceID)
+		return res, nil
+	}
+	if err := a.render(ctx, cmd.WorkspaceID); err != nil {
+		return nil, err
+	}
+	return res, a.host.Focus(ctx, cmd.WorkspaceID, sectionID, mainSlot)
 }
 
 func (a *app) promptCommand(_ context.Context, cmd pluginsdk.CommandRun, args promptArgs) (any, error) {

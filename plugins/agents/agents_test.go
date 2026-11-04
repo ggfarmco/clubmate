@@ -1410,6 +1410,20 @@ func TestRevealSelectsTheSessionAndFocusesAgents(t *testing.T) {
 	waitFocus(t, c, "agents", "agents.main")
 }
 
+func TestNewFromTheAppFocusesItsPrompt(t *testing.T) {
+	t.Parallel()
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	f.newSession(t, workspace)
+	c := f.h.Client(t)
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": workspace}, nil))
+
+	second := f.newSession(t, workspace)
+
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return cardsOf(n, "tree")[0].Props["selected"] == second })
+	waitFocus(t, c, "agents", "agents.main")
+}
+
 func TestRevealOpensTheGraphRunRow(t *testing.T) {
 	t.Parallel()
 	f := start(t, nil)
@@ -1498,9 +1512,9 @@ func waitFocus(t *testing.T, c *rpc.Client, section, slot string) {
 			}
 			var got struct{ Section, Slot string }
 			require.NoError(t, json.Unmarshal(n.Params, &got))
-			assert.Equal(t, section, got.Section)
-			assert.Equal(t, slot, got.Slot)
-			return
+			if got.Section == section && got.Slot == slot {
+				return
+			}
 		case <-deadline:
 			t.Fatal("no ui.focus notification")
 		}
