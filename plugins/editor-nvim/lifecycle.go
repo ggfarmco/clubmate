@@ -28,7 +28,7 @@ func (a *app) ensureLogged(ctx context.Context, h *pluginsdk.Host, workspaceID s
 	if a.isDeleted(workspaceID) {
 		return
 	}
-	a.renderReviews(ctx, h, workspaceID)
+	a.syncReviews(ctx, h, workspaceID)
 	e, err := a.active(ctx, h, workspaceID)
 	if e != nil && err == nil {
 		_, err = a.ensure(ctx, h, e)

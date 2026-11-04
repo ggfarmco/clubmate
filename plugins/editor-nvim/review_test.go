@@ -221,8 +221,31 @@ func TestReviewFollowsNvimEvents(t *testing.T) {
 	assert.Equal(t, 1, h.last().Open)
 	nv.comments[0].Status = "resolved"
 	assert.True(t, isReviewDB("/repo/.git/review.db-wal"))
-	a.reviewDBChanged(t.Context(), h, "ws")
+	a.syncReviews(t.Context(), h, "ws")
 	assert.Equal(t, 0, h.last().Open)
+}
+
+func TestReviewRereadsLostCommentsOnReopenAndSend(t *testing.T) {
+	a, h := newTestApp(), &fakeHost{}
+	open := []reviewComment{{ID: 1, Status: "open"}}
+	nv := &fakeReviewer{comments: open}
+	req := openReviewReq{Key: reviewKey{Worktree: "/repo", Base: "main"}, BaseRev: "main"}
+	r, err := a.startReview(t.Context(), h, "ws", "/repo", nv, req)
+	require.NoError(t, err)
+	lose := func() {
+		nv.comments = nil
+		a.syncReviews(t.Context(), h, "ws")
+		require.Equal(t, 0, h.last().Open)
+		nv.comments = open
+	}
+	lose()
+	_, err = a.startReview(t.Context(), h, "ws", "/repo", nv, req)
+	require.NoError(t, err)
+	assert.Equal(t, 1, h.last().Open)
+	lose()
+	require.NoError(t, a.sendAt(t.Context(), h, "ws", "/repo", r.Tab))
+	assert.NotNil(t, r.Sheet)
+	assert.Equal(t, 1, h.last().Open)
 }
 
 func TestReviewClosedClearsBus(t *testing.T) {
@@ -377,6 +400,21 @@ func TestReviewAdoptsOpenTabsAfterRestart(t *testing.T) {
 	listed.adoptReviews(t.Context(), h, "ws", "/repo", nv)
 	assert.Equal(t, layoutInline, listed.reviewLayouts["ws"])
 	assert.Len(t, listed.reviews, 1)
+}
+
+func TestReviewAdoptClosesTabOwnedByAnotherWorkspace(t *testing.T) {
+	a, h := newTestApp(), &fakeHost{}
+	key := reviewKey{Worktree: "/repo", Base: "main"}
+	host := reviewTabHost{ID: reviewID(key), Worktree: key.Worktree, Base: key.Base}
+	owner, other := &fakeReviewer{tabs: []reviewTab{{Tab: 2, Host: host}}}, &fakeReviewer{tabs: []reviewTab{{Tab: 5, Host: host}}}
+	a.adoptReviews(t.Context(), h, "a", "/repo", owner)
+	a.adoptReviews(t.Context(), h, "b", "/repo", other)
+	assert.Equal(t, []int{5}, other.closed)
+	assert.Empty(t, owner.closed)
+	assert.Same(t, owner, a.reviews[host.ID].nv)
+	reconnected := &fakeReviewer{tabs: owner.tabs}
+	a.adoptReviews(t.Context(), h, "a", "/repo", reconnected)
+	assert.Empty(t, reconnected.closed)
 }
 
 func TestReviewMetaWithoutOpenerNamesBothSides(t *testing.T) {

@@ -201,6 +201,9 @@ func (a *app) openReviewLocked(ctx context.Context, h reviewHost, ws, root strin
 	if r, ok := a.reviews[reviewID(req.Key)]; ok && r.Workspace == ws {
 		if err := r.nv.reviewFocus(r.Tab); err == nil {
 			r.setOpener(req)
+			if err := r.refresh(true); err != nil {
+				logError("review entries", err)
+			}
 			a.reviewSel[ws] = r.ID
 			a.persistReview(ctx, h, r)
 			a.reviewChangedLocked(ctx, h, r)
@@ -286,6 +289,11 @@ func (a *app) adoptLocked(ctx context.Context, h reviewHost, ws, root string, nv
 			continue
 		}
 		if r, ok := a.reviews[t.Host.ID]; ok && (only == "" || r.nv == nv) {
+			if r.Workspace != ws || r.Root != root {
+				if err := nv.reviewClose(t.Tab); err != nil {
+					logError("review orphan", err)
+				}
+			}
 			continue
 		}
 		if _, ok := a.reviewLayouts[ws]; !ok && (t.Layout == layoutInline || t.Layout == layoutSplit) {

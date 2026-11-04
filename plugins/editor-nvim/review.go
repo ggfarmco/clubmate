@@ -265,12 +265,6 @@ func (a *app) publishReviewLocked(ctx context.Context, h reviewHost, r *review, 
 	}
 }
 
-func (a *app) renderReviews(ctx context.Context, h reviewHost, ws string) {
-	a.reviewMu.Lock()
-	defer a.reviewMu.Unlock()
-	a.renderReviewsLocked(ctx, h, ws)
-}
-
 func (a *app) renderReviewsLocked(ctx context.Context, h reviewHost, ws string) {
 	rs := a.workspaceReviewsLocked(ws)
 	if _, err := h.Render(ctx, ws, reviewSlot, reviewView(rs)); err != nil {
@@ -299,19 +293,20 @@ func (a *app) scheduleReviewDB(h reviewHost, ws string) {
 		a.reviewDBMu.Lock()
 		delete(a.reviewDBPending, ws)
 		a.reviewDBMu.Unlock()
-		a.reviewDBChanged(context.Background(), h, ws)
+		a.syncReviews(context.Background(), h, ws)
 	})
 }
 
-func (a *app) reviewDBChanged(ctx context.Context, h reviewHost, ws string) {
+func (a *app) syncReviews(ctx context.Context, h reviewHost, ws string) {
 	a.reviewMu.Lock()
 	defer a.reviewMu.Unlock()
 	for _, r := range a.workspaceReviewsLocked(ws) {
 		if err := r.refresh(true); err != nil {
 			logError("review comments", err)
 		}
-		a.reviewChangedLocked(ctx, h, r)
+		a.publishReviewLocked(ctx, h, r, false)
 	}
+	a.renderReviewsLocked(ctx, h, ws)
 }
 
 func (a *app) reviewStatus(ws, root string, tab int) (bool, int) {

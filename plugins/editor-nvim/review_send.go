@@ -83,6 +83,10 @@ func (a *app) openSendSheet(ctx context.Context, h reviewHost, id string) error 
 		return errUnknownReview
 	}
 	a.adoptRecipientsLocked(r, sheet)
+	if err := r.refresh(true); err != nil {
+		logError("review comments", err)
+	}
+	a.publishReviewLocked(ctx, h, r, false)
 	if len(r.openComments()) == 0 {
 		return nil
 	}

@@ -91,7 +91,7 @@ func TestSendSheetDefaultsToOpener(t *testing.T) {
 func TestSendNeedsOpenComments(t *testing.T) {
 	a, h, r := sendTestReview(t)
 	r.nv.(*fakeReviewer).comments[0].Status = "resolved"
-	a.reviewDBChanged(t.Context(), h, "ws")
+	a.syncReviews(t.Context(), h, "ws")
 	sendFromNvim(t, a, h)
 	assert.Equal(t, "empty", h.view("ws").Type)
 }
