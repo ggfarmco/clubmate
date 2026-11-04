@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"strings"
 	"sync"
@@ -199,13 +200,26 @@ func (s *session) current() (string, time.Time) {
 			title = en.Elicitation.Message
 		case s.rec.Status == statusRunning && en.Kind == entryTool:
 			s.refreshLocked(en)
-			_ = json.Unmarshal(en.Tool["title"], &title)
+			title = toolActivityTitle(en.Tool)
 		default:
 			continue
 		}
 		return firstLine(title), en.At
 	}
 	return "", time.Time{}
+}
+
+func toolActivityTitle(tool map[string]json.RawMessage) string {
+	var title, kind string
+	_ = json.Unmarshal(tool["title"], &title)
+	if json.Unmarshal(tool["kind"], &kind) != nil || kind != toolExecute {
+		return title
+	}
+	var input struct {
+		Description string `json:"description"`
+	}
+	_ = json.Unmarshal(tool["rawInput"], &input)
+	return cmp.Or(strings.TrimSpace(input.Description), commandActivity)
 }
 
 func newSetup(args worktreeNewArgs) *setup {

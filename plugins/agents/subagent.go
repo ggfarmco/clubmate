@@ -18,6 +18,7 @@ const (
 	subagentFallback  = "Subagent"
 	subagentWaiting   = "waiting for approval"
 	subagentThinking  = "Thinking"
+	commandActivity   = "Running a command"
 	promptLines       = 3
 	activitySeparator = " · "
 )
@@ -289,8 +290,7 @@ func (sub *subagent) activity() string {
 			if en.sub != nil {
 				return en.sub.name()
 			}
-			var title string
-			if json.Unmarshal(en.Tool["title"], &title) == nil && title != "" {
+			if title := toolActivityTitle(en.Tool); title != "" {
 				return firstLine(title)
 			}
 		case entryAgent:

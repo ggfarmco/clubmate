@@ -305,6 +305,21 @@ func TestRunningActivityElapsed(t *testing.T) {
 	assert.Equal(t, "2 h 5 min", activity(sessionRow{Rec: row.Rec, Started: now.Add(-125 * time.Minute)}, now))
 }
 
+func TestCommandActivityHidesTheCommand(t *testing.T) {
+	t.Parallel()
+	tool := func(fields map[string]any) map[string]json.RawMessage {
+		out := map[string]json.RawMessage{}
+		for k, v := range fields {
+			out[k], _ = json.Marshal(v)
+		}
+		return out
+	}
+
+	assert.Equal(t, "Editing reserve.go", toolActivityTitle(tool(map[string]any{"kind": "edit", "title": "Editing reserve.go"})))
+	assert.Equal(t, "Run the tests", toolActivityTitle(tool(map[string]any{"kind": "execute", "title": "`go test ./...`", "rawInput": map[string]any{"command": "go test ./...", "description": "Run the tests"}})))
+	assert.Equal(t, commandActivity, toolActivityTitle(tool(map[string]any{"kind": "execute", "title": "`go test ./...`", "rawInput": map[string]any{"command": "go test ./..."}})))
+}
+
 func TestAutoClosedActivity(t *testing.T) {
 	t.Parallel()
 	now := time.Now()
