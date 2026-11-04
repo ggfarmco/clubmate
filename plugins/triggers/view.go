@@ -28,7 +28,7 @@ const (
 )
 
 func sidebarView(triggers []*Trigger, selected string, collapsed map[string]bool, titles map[string]string) sdui.Node {
-	items := []sdui.TreeItem{helpItem()}
+	items := []sdui.TreeItem{automation.HelpItem("How triggers work")}
 	var groups []sdui.TreeItem
 	index := map[string]int{}
 	for _, t := range triggers {

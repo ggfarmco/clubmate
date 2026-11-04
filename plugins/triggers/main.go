@@ -147,7 +147,7 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 		if ev.NodeID == eventsID {
 			return nil, a.askFromRow(ctx, ev)
 		}
-		if ev.NodeID == helpID+"/"+actAsk {
+		if ev.NodeID == automation.AskID {
 			return nil, a.askAgent(ctx, ev.WorkspaceID, "")
 		}
 		if ev.NodeID == automation.HistoryID {
@@ -274,7 +274,7 @@ func (a *app) drawnEvent(ctx context.Context, ev pluginsdk.UIEvent) error {
 
 func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	triggers := a.registry.InWorkspace(workspace)
-	current, selected, err := a.selection(ctx, workspace, triggers)
+	current, selected, err := automation.HelpSelection(ctx, a.host, workspace, triggers)
 	if err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
@@ -307,19 +307,8 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	return nil
 }
 
-func (a *app) selection(ctx context.Context, workspace string, triggers []*Trigger) (*Trigger, string, error) {
-	var stored string
-	if _, err := a.host.StorageGet(ctx, automation.SelectedKey(workspace), &stored); err != nil {
-		return nil, "", err
-	}
-	if stored == helpID || len(triggers) == 0 {
-		return nil, helpID, nil
-	}
-	return automation.Selection(ctx, a.host, workspace, triggers)
-}
-
 func (a *app) askFromRow(ctx context.Context, ev pluginsdk.UIEvent) error {
-	if ev.Action != actAsk {
+	if ev.Action != automation.ActAsk {
 		return nil
 	}
 	var topic string

@@ -29,7 +29,7 @@ func TestGraphTriggersGroupUnderTheirRun(t *testing.T) {
 	items, ok := side.Props["items"].([]sdui.TreeItem)
 	require.True(t, ok)
 	require.Len(t, items, 3)
-	assert.Equal(t, []string{helpID, "tr_2"}, []string{items[0].ID, items[1].ID})
+	assert.Equal(t, []string{automation.HelpID, "tr_2"}, []string{items[0].ID, items[1].ID})
 	assert.Equal(t, []string{"from graph Review loop", "1"}, []string{items[2].Label, items[2].Detail})
 	assert.False(t, items[2].Expanded)
 	assert.True(t, items[2].Action)
@@ -190,7 +190,7 @@ func TestHelpPageListsEventsWithYourTriggers(t *testing.T) {
 	graph := &Trigger{ID: "tr_2", Name: "Step", Enabled: true, On: "event.graph.gr_1.review", Command: automation.PromptCommand}
 	view := mainView(nil, []*Trigger{turns, graph}, nil, nil, automation.Open{}, automation.RunsView{})
 	require.NoError(t, isdui.Validate(view))
-	assert.Equal(t, []string{helpID + "/" + actAsk}, childIDs(view.Children[0]))
+	assert.Equal(t, []string{automation.AskID}, childIDs(view.Children[0]))
 	assert.Equal(t, "cmd+n", view.Children[0].Children[0].Props["shortcut"])
 
 	rows, ok := find(view, "table").Props["rows"].([]sdui.TableRow)
@@ -198,7 +198,7 @@ func TestHelpPageListsEventsWithYourTriggers(t *testing.T) {
 	yours := map[string]string{}
 	for _, r := range rows {
 		yours[r.ID] = r.Cells[3].Text
-		assert.Equal(t, actAsk, r.Cells[4].Action)
+		assert.Equal(t, automation.ActAsk, r.Cells[4].Action)
 	}
 	assert.Equal(t, "1 trigger", yours["agents.turn"])
 	assert.Equal(t, "1 trigger", yours["event.*"])

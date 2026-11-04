@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -16,10 +15,7 @@ import (
 )
 
 const (
-	helpID     = "help"
-	helpIcon   = "info.circle"
 	eventsID   = "events"
-	actAsk     = "ask"
 	askTitle   = "New trigger"
 	emitAny    = emitPrefix + "*"
 	helpMeta   = "when something happens in this workspace, a trigger does something · cron starts things on a clock, triggers on events · every edge of a graph is a trigger"
@@ -28,8 +24,6 @@ const (
 	askEvent   = "Help me add a trigger in this workspace that fires when %s (on: %s)."
 	askRest    = " Ask me what should happen and anything you need to know (which session, filter), then add it with triggers_add and owner none so it outlives this session, and tell me its When and Does in one line each."
 )
-
-var errNoAskSession = errors.New("agents.new returned no session")
 
 type eventKind struct {
 	group   string
@@ -90,13 +84,8 @@ func listening(triggers []*Trigger) map[string]int {
 	return counts
 }
 
-func helpItem() sdui.TreeItem {
-	return sdui.TreeItem{ID: helpID, Label: "How triggers work", Icon: helpIcon, Muted: true}
-}
-
 func helpView(triggers []*Trigger) sdui.Node {
-	ask := sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(helpID+"/"+actAsk, "Ask an agent to add one", "sparkles"), actAsk), sdui.VariantPrimary), "cmd+n")
-	header := sdui.Header("How triggers work", sdui.HeaderProps{Icon: helpIcon, Meta: helpMeta}, ask)
+	header := automation.HelpHeader("How triggers work", helpMeta, "Ask an agent to add one")
 	counts := listening(triggers)
 	rows := make([]sdui.TableRow, 0, len(catalog))
 	for _, k := range catalog {
@@ -109,7 +98,7 @@ func helpView(triggers []*Trigger) sdui.Node {
 			yours = strconv.Itoa(n) + " triggers"
 		}
 		rows = append(rows, sdui.TableRow{ID: k.topic, Cells: []sdui.Cell{
-			{Text: k.group}, {Text: k.phrase}, {Text: k.filters}, {Text: yours}, {Action: actAsk, Label: "Ask an agent"},
+			{Text: k.group}, {Text: k.phrase}, {Text: k.filters}, {Text: yours}, {Action: automation.ActAsk, Label: "Ask an agent"},
 		}})
 	}
 	columns := []sdui.Column{
@@ -119,15 +108,11 @@ func helpView(triggers []*Trigger) sdui.Node {
 		{ID: "yours", Title: "Yours", Width: 90, Priority: 1},
 		{ID: "ask", Title: "", Width: 110},
 	}
-	facts := make([]sdui.Node, 0, len(helpFacts))
-	for _, f := range helpFacts {
-		facts = append(facts, automation.Property(f[0], f[1], ""))
-	}
 	body := sdui.VStack(
-		ghostFlow(helpID),
+		ghostFlow(automation.HelpID),
 		sdui.MutedText(helpEvents),
 		sdui.Table(eventsID, columns, rows, "", sdui.Sort{}),
-		automation.Properties(facts...),
+		automation.Facts(helpFacts),
 	)
 	return sdui.VStack(header, sdui.Scroll(body))
 }
@@ -162,15 +147,5 @@ func askPrompt(topic string) string {
 }
 
 func (a *app) askAgent(ctx context.Context, workspace, topic string) error {
-	var res struct {
-		Session string `json:"session"`
-	}
-	args := map[string]string{"prompt": askPrompt(topic), "title": askTitle}
-	if err := a.host.RunCommand(ctx, agentNewCommand, workspace, args, &res); err != nil {
-		return err
-	}
-	if res.Session == "" {
-		return errNoAskSession
-	}
-	return agentcall.Reveal(ctx, a.host, workspace, res.Session)
+	return agentcall.Ask(ctx, a.host, workspace, askTitle, askPrompt(topic))
 }

@@ -14,7 +14,10 @@ import (
 
 const corePlugin = "core"
 
-var ErrUnknownCommand = errors.New("unknown command")
+var (
+	ErrUnknownCommand = errors.New("unknown command")
+	ErrNoAskSession   = errors.New("agents.new returned no session")
+)
 
 type target struct {
 	ID     string         `json:"id"`
@@ -121,4 +124,17 @@ func ValidateTarget(ctx context.Context, h *pluginsdk.Host, command, args string
 		}
 	}
 	return raw, nil
+}
+
+func Ask(ctx context.Context, h *pluginsdk.Host, workspace, title, prompt string) error {
+	var res struct {
+		Session string `json:"session"`
+	}
+	if err := h.RunCommand(ctx, "agents.new", workspace, map[string]string{"prompt": prompt, "title": title}, &res); err != nil {
+		return err
+	}
+	if res.Session == "" {
+		return ErrNoAskSession
+	}
+	return Reveal(ctx, h, workspace, res.Session)
 }
