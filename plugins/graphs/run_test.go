@@ -304,13 +304,13 @@ func TestListWithoutProjectGraphsOrRuns(t *testing.T) {
 	assert.JSONEq(t, `[]`, string(res.Runs))
 }
 
-func TestListAsksForWorktreesOncePerFolder(t *testing.T) {
+func TestListCallsNoOtherPlugin(t *testing.T) {
 	core := &fakeCore{}
 	a := testApp(t, core)
 	out, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.list", WorkspaceID: "ws1"})
 	require.NoError(t, err)
 	require.Greater(t, len(out.(listResult).Graphs), 2)
-	assert.Equal(t, []string{"git.worktrees"}, core.ids())
+	assert.Empty(t, core.ids())
 }
 
 func TestRunFromSectionSelectsNewRun(t *testing.T) {

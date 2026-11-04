@@ -172,7 +172,7 @@ func (a *app) trustFor(ctx context.Context, workspace string, dirs []string, g g
 	if spec == nil {
 		return trustView{}
 	}
-	root := a.rootOf(ctx, workspace, trustDir(dirs, g.Name))
+	root := rootOf(ctx, trustDir(dirs, g.Name))
 	untrusted, changed, err := a.trustState(ctx, root, spec)
 	if err != nil || !untrusted {
 		logError(err)

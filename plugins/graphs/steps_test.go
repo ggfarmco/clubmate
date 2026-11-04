@@ -675,6 +675,21 @@ func TestRestartMarksOpenStepInterrupted(t *testing.T) {
 	assert.Equal(t, []int{42}, killed)
 }
 
+func TestRestartDeliversOwedEdgesAfterReady(t *testing.T) {
+	a, core, _, r := stepApp(t)
+	live := a.runs[r.ID]
+	live.Spec.Edges = append(live.Spec.Edges, Edge{From: "tests", To: "coder", On: onError})
+	live.Edges = append(live.Edges, RunEdge{From: "tests", To: "coder", On: onError, Owned: true})
+	live.fire(0, 0, a.now())
+	live.Moves[len(live.Moves)-1].Step = &StepMove{Status: stepRunning, Command: "make test"}
+	coder := live.node("coder").Session
+	before := len(prompts(t, core, coder))
+	resume := a.recoverSteps(t.Context())
+	assert.Len(t, prompts(t, core, coder), before)
+	resume(t.Context())
+	assert.Len(t, prompts(t, core, coder), before+1)
+}
+
 func TestStepSec_C7_CommandStepIsAnAgentCall(t *testing.T) {
 	core := &fakeCore{worktrees: gateWorktrees}
 	a := testApp(t, core)

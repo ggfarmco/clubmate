@@ -1,12 +1,12 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"sync"
 	"time"
@@ -14,6 +14,7 @@ import (
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/automation"
+	"clubmate/plugins/internal/gitrepo"
 )
 
 const (
@@ -82,21 +83,24 @@ func repoKey(prefix, root, id string) string {
 	return prefix + hex.EncodeToString(sum[:])
 }
 
-func (a *app) repoRoot(ctx context.Context, workspace, dir string) string {
-	raw, err := a.runCommand(ctx, automation.CommandRequest{ID: "git.worktrees", WorkspaceID: workspace, Args: json.RawMessage(`{}`)})
-	var trees []worktreeInfo
-	if err == nil {
-		err = json.Unmarshal(raw, &trees)
-	}
-	if err != nil {
-		logError(fmt.Errorf("trust: git.worktrees: %w", err))
+func repoRoot(ctx context.Context, dir string) string {
+	top, ok := gitrepo.RepoRoot(dir)
+	if !ok || !filepath.IsAbs(dir) {
 		return dir
 	}
-	return cmp.Or(mainCheckout(trees, dir), dir)
+	trees, err := gitrepo.Worktrees(ctx, top)
+	if err != nil {
+		logError(fmt.Errorf("trust: worktrees of %s: %w", dir, err))
+		return dir
+	}
+	if len(trees) == 0 || trees[0].Bare || !slices.ContainsFunc(trees, func(t gitrepo.Worktree) bool { return inside(dir, t.Path) }) {
+		return dir
+	}
+	return trees[0].Path
 }
 
-func (a *app) rootOf(ctx context.Context, workspace, dir string) func() string {
-	return sync.OnceValue(func() string { return a.repoRoot(ctx, workspace, dir) })
+func rootOf(ctx context.Context, dir string) func() string {
+	return sync.OnceValue(func() string { return repoRoot(ctx, dir) })
 }
 
 func trustDir(dirs []string, name string) string {
@@ -165,7 +169,7 @@ func (a *app) trustGraph(ctx context.Context, cmd pluginsdk.CommandRun) error {
 	if args.Hash != "" && args.Hash != hash {
 		return fmt.Errorf("graph %s changed since it was shown: look at its steps again", args.Graph)
 	}
-	root := a.repoRoot(ctx, cmd.WorkspaceID, trustDir(dirs, args.Graph))
+	root := repoRoot(ctx, trustDir(dirs, args.Graph))
 	if err := a.kvSet(ctx, repoKey(trustPrefix, root, hash), true); err != nil {
 		return err
 	}
@@ -190,7 +194,7 @@ func (a *app) untrustedGraphs(ctx context.Context, workspace string, dirs []stri
 		untrusted, ok := a.untrusted[key]
 		a.mu.Unlock()
 		if !ok {
-			if untrusted, _, err = a.trustState(ctx, a.rootOf(ctx, workspace, trustDir(dirs, g.Name)), spec); err != nil {
+			if untrusted, _, err = a.trustState(ctx, rootOf(ctx, trustDir(dirs, g.Name)), spec); err != nil {
 				logError(err)
 				continue
 			}

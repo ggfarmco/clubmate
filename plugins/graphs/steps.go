@@ -459,7 +459,7 @@ func (a *app) cancelSteps(ctx context.Context, runID string) {
 	}
 }
 
-func (a *app) recoverSteps(ctx context.Context) {
+func (a *app) recoverSteps(ctx context.Context) func(context.Context) {
 	now := a.now()
 	a.mu.Lock()
 	var owed []delivery
@@ -503,14 +503,16 @@ func (a *app) recoverSteps(ctx context.Context) {
 		}
 	}
 	a.mu.Unlock()
-	for _, r := range stopped {
-		a.finish(ctx, r)
-	}
 	for ws := range workspaces {
 		a.killLeftovers(ctx, ws)
 	}
-	for _, d := range owed {
-		a.deliver(ctx, d)
+	return func(ctx context.Context) {
+		for _, r := range stopped {
+			a.finish(ctx, r)
+		}
+		for _, d := range owed {
+			a.deliver(ctx, d)
+		}
 	}
 }
 

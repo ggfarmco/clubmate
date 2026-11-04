@@ -100,7 +100,7 @@ func (a *app) list(ctx context.Context, cmd pluginsdk.CommandRun) (listResult, e
 			dir := trustDir(dirs, f.Name)
 			root, ok := roots[dir]
 			if !ok {
-				root = a.rootOf(ctx, cmd.WorkspaceID, dir)
+				root = rootOf(ctx, dir)
 				roots[dir] = root
 			}
 			f.Hash = stepsHash(g)
@@ -149,7 +149,7 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	if err != nil {
 		return nil, err
 	}
-	switch untrusted, _, err := a.trustState(ctx, a.rootOf(ctx, cmd.WorkspaceID, trustDir(dirs, args.Graph)), g); {
+	switch untrusted, _, err := a.trustState(ctx, rootOf(ctx, trustDir(dirs, args.Graph)), g); {
 	case err != nil:
 		return nil, err
 	case untrusted:

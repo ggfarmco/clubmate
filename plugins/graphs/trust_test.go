@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -260,4 +261,20 @@ func TestSidebarUntrustedIsCached(t *testing.T) {
 	a.runCommand = run
 	require.NoError(t, trustGraph(t, a, "gate"))
 	assert.Empty(t, a.untrustedGraphs(t.Context(), "ws1", dirs, []graphFile{g}))
+}
+
+func TestRepoRootIsTheMainCheckout(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	git := func(args ...string) {
+		out, err := exec.Command("git", args...).CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	repo := filepath.Join(dir, "repo")
+	git("init", "-q", "-b", "main", repo)
+	git("-C", repo, "-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init")
+	feat := filepath.Join(repo, ".worktrees", "feat")
+	git("-C", repo, "worktree", "add", "-q", "-b", "feat", feat)
+	assert.Equal(t, repo, repoRoot(t.Context(), feat))
+	assert.Equal(t, dir, repoRoot(t.Context(), dir))
 }

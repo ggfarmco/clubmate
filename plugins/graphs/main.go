@@ -171,11 +171,12 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 			return err
 		}
 	}
-	a.recoverSteps(ctx)
+	resume := a.recoverSteps(ctx)
 	a.mu.Lock()
 	a.resync = true
 	a.mu.Unlock()
 	close(a.ready)
+	a.spawn(func() { resume(ctx) })
 	a.renderAll(ctx)
 	go a.followLive(ctx)
 	return nil
