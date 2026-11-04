@@ -100,6 +100,7 @@ func afterClosers(text string, from int) int {
 
 func withMarks(text string, marks []openMark) string {
 	slices.SortStableFunc(marks, func(x, y openMark) int { return x.at - y.at })
+	marks = slices.Compact(marks)
 	var b strings.Builder
 	prev := 0
 	for _, m := range marks {

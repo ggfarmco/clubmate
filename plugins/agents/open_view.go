@@ -148,7 +148,14 @@ func openFolded(rec record, en *entry, data openCardData) sdui.Node {
 
 func openSplit(items []openItem) string {
 	offers := len(offerItems(items))
-	return counted(len(items)-offers, "decision") + " · " + counted(offers, "offer")
+	switch decisions := len(items) - offers; {
+	case decisions == 0:
+		return counted(offers, "offer")
+	case offers == 0:
+		return counted(decisions, "decision")
+	default:
+		return counted(decisions, "decision") + " · " + counted(offers, "offer")
+	}
 }
 
 func counted(n int, word string) string {

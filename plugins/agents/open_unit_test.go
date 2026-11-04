@@ -53,6 +53,19 @@ func TestMarkersKeepTheirItemNumbers(t *testing.T) {
 	assert.Equal(t, "One. ③\nTwo.\nThree ①", onlyMarked(t, s))
 }
 
+func TestOffersOnOneSentenceShareOneMarker(t *testing.T) {
+	t.Parallel()
+	s := openSession(t, 1, []string{"One."},
+		openItem{Kind: itemOffer, Quote: "One.", State: itemOpen},
+		openItem{Kind: itemOffer, Quote: "One.", State: itemOpen})
+	assert.Equal(t, "One. ①", onlyMarked(t, s))
+}
+
+func TestOpenSplitLeavesOutAnEmptyKind(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "2 offers", openSplit([]openItem{{Kind: itemOffer}, {Kind: itemOffer}}))
+}
+
 func TestMarkerFindsTheQuoteInAnEarlierMessageOfTheTurn(t *testing.T) {
 	t.Parallel()
 	s := openSession(t, 1, []string{"The report. Your call.", "Posted."}, openItem{Quote: "Your call.", State: itemOpen})
