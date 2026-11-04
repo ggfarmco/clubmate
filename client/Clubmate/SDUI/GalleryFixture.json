@@ -24,6 +24,16 @@
             {"type": "toggle", "id": "rv-tests", "props": {"value": false, "label": "tests 3", "style": "checkbox"}}
           ]
         },
+        {"type": "form", "id": "gallery-choices", "children": [
+          {"type": "choice", "id": "gallery-choice-radio", "props": {"style": "radio", "title": "Scope", "text": "Where should the rate limit apply?", "number": 1, "open": true, "other": {"id": "gallery-choice-other", "label": "Other…", "placeholder": "Your answer"}, "options": [
+            {"value": "workspace", "label": "Per workspace", "description": "One noisy workspace can't flood the others", "on": true},
+            {"value": "global", "label": "Global", "description": "One bucket for the whole app"}
+          ]}},
+          {"type": "choice", "id": "gallery-choice-check", "props": {"style": "check", "title": "Exempt", "text": "Which notifications should skip the limit?", "number": 2, "options": [
+            {"value": "permissions", "label": "Permission requests", "description": "An agent is blocked until you answer", "on": true},
+            {"value": "cron", "label": "Cron failures"}
+          ]}}
+        ]},
         {"type": "text", "props": {"text": "FILES", "style": "muted"}},
         {
           "type": "tree",

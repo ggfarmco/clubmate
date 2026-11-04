@@ -1110,5 +1110,6 @@ func TestViewShortcutsDeclared(t *testing.T) {
 	require.True(t, ok)
 	en := &entry{Options: []acp.PermissionOption{{OptionID: "once", Kind: "allow_once"}, {OptionID: "always", Kind: "allow_always"}, {OptionID: "reject", Kind: "reject_once"}, {OptionID: "never", Kind: "reject_always"}}}
 	card := sdui.PermissionCard("p", "permission-1", sdui.PermissionCardProps{Text: "Run?", Options: permissionOptions("ws", en, toolFields{})})
-	shortcuttest.RequireDeclared(t, append(optionButtons("q", 0, elicitField{Options: options}), toggle, card)...)
+	fields := []elicitField{{Key: "q", Type: fieldChoice, Options: options}}
+	shortcuttest.RequireDeclared(t, append(fieldNodes("q", fields), toggle, card)...)
 }

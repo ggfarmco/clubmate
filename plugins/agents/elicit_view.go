@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"encoding/json"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -17,8 +18,11 @@ const (
 	actElicitDecline  = "elicitationDecline"
 	actElicitOpen     = "elicitationOpen"
 	maxOptionShortcut = 9
-	noChoice          = "—"
+	customSuffix      = "_custom"
+	otherLabel        = "Other…"
+	otherPlaceholder  = "Your answer"
 	cardTone          = "warning"
+	questionGap       = 10
 )
 
 func elicitationCard(sc screen, en *entry) sdui.Node {
@@ -35,20 +39,11 @@ func elicitationCard(sc screen, en *entry) sdui.Node {
 		decline := sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/decline", "Decline", ""), actElicitDecline), "ghost")
 		return sdui.Form(id, sdui.Card(cardTone, "person.badge.key.fill", sdui.Text(el.Message), sdui.MutedText(el.URL), sdui.HStack(open, decline)))
 	}
-	children := []sdui.Node{sdui.Text(el.Message)}
-	single := singleChoice(el.Fields)
-	for i, f := range el.Fields {
-		fid := id + "/f/" + strconv.Itoa(i)
-		if i == single {
-			children = append(children, optionButtons(id, i, f)...)
-			continue
-		}
-		children = append(children, fieldRow(fid, f))
-	}
+	children := []sdui.Node{sdui.Text(el.Message), sdui.FitScroll(sdui.WithGap(sdui.VStack(fieldNodes(id, el.Fields)...), questionGap))}
 	submit := sdui.WithVariant(sdui.Button(id+"/submit", "Send", ""), "primary")
 	skip := sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/decline", "Skip", ""), actElicitDecline), "ghost")
 	children = append(children, sdui.HStack(submit, skip))
-	return sdui.WithAction(sdui.Form(id, sdui.Card(cardTone, "questionmark.bubble.fill", children...)), actElicitation)
+	return sdui.WithDock(sdui.WithAction(sdui.Form(id, sdui.Card(cardTone, "questionmark.bubble.fill", children...)), actElicitation))
 }
 
 func (a *app) elicitAct(ev pluginsdk.UIEvent, s *session, node string) error {
@@ -56,7 +51,7 @@ func (a *app) elicitAct(ev pluginsdk.UIEvent, s *session, node string) error {
 	if !ok {
 		return errNotAnElicitation
 	}
-	id, sub, _ := strings.Cut(rest, "/")
+	id, _, _ := strings.Cut(rest, "/")
 	el, ok := s.elicitation(id)
 	if !ok {
 		return errNotAnElicitation
@@ -74,15 +69,7 @@ func (a *app) elicitAct(ev pluginsdk.UIEvent, s *session, node string) error {
 	if err := decode(ev.Value, &values); err != nil {
 		return err
 	}
-	content := formContent(elicitationNode(s.snapshot().ID, id), el, values)
-	if ev.Action == actElicitPick {
-		f, o, ok := pickedOption(el, sub)
-		if !ok {
-			return errUnknownOption
-		}
-		content[f.Key] = o.Value
-	}
-	return s.respond(id, acp.ElicitationResponse{Action: acp.ElicitationAccept, Content: content})
+	return s.respond(id, acp.ElicitationResponse{Action: acp.ElicitationAccept, Content: formContent(elicitationNode(s.snapshot().ID, id), el, values)})
 }
 
 func docked(sc screen) bool {
@@ -121,6 +108,10 @@ func elicitationNode(sid, id string) string {
 	return sid + "/" + entryElicitation + "/" + id
 }
 
+func fieldNode(id string, i int) string {
+	return id + "/f/" + strconv.Itoa(i)
+}
+
 func singleChoice(fields []elicitField) int {
 	found := -1
 	for i, f := range fields {
@@ -137,44 +128,83 @@ func singleChoice(fields []elicitField) int {
 	return found
 }
 
-func optionButtons(id string, field int, f elicitField) []sdui.Node {
-	var out []sdui.Node
-	if f.Title != "" {
-		out = append(out, sdui.MutedText(f.Title))
+func fieldNodes(id string, fields []elicitField) []sdui.Node {
+	questions := 0
+	for _, f := range fields {
+		if isChoice(f) {
+			questions++
+		}
 	}
+	single, number := singleChoice(fields), 0
+	nodes := make([]sdui.Node, 0, len(fields))
+	for i, f := range fields {
+		fid := fieldNode(id, i)
+		switch {
+		case isChoice(f):
+			number++
+			p := choiceProps(f, otherField(id, fields, f), i == single)
+			if questions > 1 {
+				p.Number, p.Open = number, number == 1
+			}
+			c := sdui.Choice(fid, p)
+			if i == single {
+				c = sdui.WithAction(c, actElicitPick)
+			}
+			nodes = append(nodes, c)
+		case !isCustom(fields, f):
+			nodes = append(nodes, fieldRow(fid, f))
+		}
+	}
+	return nodes
+}
+
+func isChoice(f elicitField) bool {
+	return f.Type == fieldChoice || f.Type == fieldMulti
+}
+
+func isCustom(fields []elicitField, f elicitField) bool {
+	base, ok := strings.CutSuffix(f.Key, customSuffix)
+	return ok && f.Type == fieldText && slices.ContainsFunc(fields, func(q elicitField) bool { return q.Key == base && isChoice(q) })
+}
+
+func otherField(id string, fields []elicitField, f elicitField) *sdui.ChoiceOther {
+	i := slices.IndexFunc(fields, func(c elicitField) bool { return c.Key == f.Key+customSuffix && c.Type == fieldText })
+	if i < 0 {
+		return nil
+	}
+	return &sdui.ChoiceOther{ID: fieldNode(id, i), Label: otherLabel, Placeholder: otherPlaceholder}
+}
+
+func choiceProps(f elicitField, other *sdui.ChoiceOther, keys bool) sdui.ChoiceProps {
+	p := sdui.ChoiceProps{Style: "radio", Title: f.Title, Text: f.Description, Other: other}
+	if p.Text == "" {
+		p.Title, p.Text = "", f.label()
+	}
+	if f.Type == fieldMulti {
+		p.Style = "check"
+	}
+	p.Options = make([]sdui.ChoiceOption, 0, len(f.Options))
 	for i, o := range f.Options {
-		b := sdui.WithForm(sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/pick/"+strconv.Itoa(field)+"/"+strconv.Itoa(i), o.Label, ""), actElicitPick), "secondary"))
-		if i < maxOptionShortcut {
-			b = sdui.WithShortcut(b, "opt+"+strconv.Itoa(i+1))
-		}
-		row := []sdui.Node{b}
-		if o.Description != "" {
-			row = append(row, sdui.MutedText(o.Description))
-		}
-		out = append(out, sdui.HStack(row...))
+		p.Options = append(p.Options, sdui.ChoiceOption{Value: o.Value, Label: o.Label, Description: o.Description, Shortcut: optionKey(keys, i)})
 	}
-	return out
+	if other != nil {
+		other.Shortcut = optionKey(keys, len(f.Options))
+	}
+	return p
+}
+
+func optionKey(keys bool, i int) string {
+	if !keys || i >= maxOptionShortcut {
+		return ""
+	}
+	return "opt+" + strconv.Itoa(i+1)
 }
 
 func fieldRow(fid string, f elicitField) sdui.Node {
 	var value sdui.Node
-	switch f.Type {
-	case fieldChoice:
-		options := make([]sdui.Option, 0, len(f.Options)+1)
-		options = append(options, sdui.Option{Value: "", Label: noChoice})
-		for _, o := range f.Options {
-			options = append(options, sdui.Option{Value: o.Value, Label: o.Label})
-		}
-		value = sdui.Select(fid, options, "")
-	case fieldMulti:
-		rows := make([]sdui.Node, 0, len(f.Options))
-		for i, o := range f.Options {
-			rows = append(rows, sdui.HStack(sdui.Toggle(fid+"/"+strconv.Itoa(i), false), sdui.Text(o.Label)))
-		}
-		value = sdui.VStack(rows...)
-	case fieldBoolean:
+	if f.Type == fieldBoolean {
 		value = sdui.Toggle(fid, false)
-	default:
+	} else {
 		value = sdui.TextField(fid, "", f.Description)
 	}
 	if f.Type != fieldText && f.Description != "" {
@@ -183,37 +213,11 @@ func fieldRow(fid string, f elicitField) sdui.Node {
 	return sdui.HStack(sdui.MutedText(f.label()), value)
 }
 
-func pickedOption(el elicitation, sub string) (elicitField, elicitOption, bool) {
-	parts := strings.Split(sub, "/")
-	if len(parts) != 3 || parts[0] != "pick" {
-		return elicitField{}, elicitOption{}, false
-	}
-	fi, ferr := strconv.Atoi(parts[1])
-	oi, oerr := strconv.Atoi(parts[2])
-	if ferr != nil || oerr != nil || fi < 0 || fi >= len(el.Fields) || oi < 0 || oi >= len(el.Fields[fi].Options) {
-		return elicitField{}, elicitOption{}, false
-	}
-	return el.Fields[fi], el.Fields[fi].Options[oi], true
-}
-
 func formContent(id string, el elicitation, values map[string]any) map[string]any {
 	content := make(map[string]any, len(el.Fields))
 	for i, f := range el.Fields {
-		fid := id + "/f/" + strconv.Itoa(i)
-		if f.Type != fieldMulti {
-			if v, ok := values[fid]; ok {
-				content[f.Key] = v
-			}
-			continue
-		}
-		var picks []any
-		for j, o := range f.Options {
-			if on, _ := values[fid+"/"+strconv.Itoa(j)].(bool); on {
-				picks = append(picks, o.Value)
-			}
-		}
-		if len(picks) > 0 {
-			content[f.Key] = picks
+		if v, ok := values[fieldNode(id, i)]; ok {
+			content[f.Key] = v
 		}
 	}
 	return content

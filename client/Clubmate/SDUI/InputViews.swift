@@ -141,6 +141,16 @@ struct ButtonNodeView: View {
     }
 }
 
+extension KeyCombo {
+    @MainActor
+    func fires(on event: NSEvent) -> Bool {
+        let flags = event.modifierFlags
+        guard matches(keyCode: event.keyCode, command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift)) else { return false }
+        if bare, event.window?.firstResponder is NSTextView { return false }
+        return NSApp.mainMenu.map { MenuKeys.claims($0, event) } != true
+    }
+}
+
 @MainActor
 struct ButtonPress {
     let node: SDUINode
@@ -155,10 +165,7 @@ struct ButtonPress {
     var saving: String? { form?.saving == true && node.string("action") == nil ? UIFormSave.verb : nil }
 
     func handle(_ event: NSEvent) -> Bool {
-        let flags = event.modifierFlags
-        guard let combo, combo.matches(keyCode: event.keyCode, command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift)) else { return false }
-        if combo.bare, event.window?.firstResponder is NSTextView { return false }
-        if NSApp.mainMenu.map({ MenuKeys.claims($0, event) }) == true { return false }
+        guard combo?.fires(on: event) == true else { return false }
         click()
         return true
     }

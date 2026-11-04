@@ -291,6 +291,7 @@ struct SDUINodeView: View, Equatable {
         case "toggle": ToggleNodeView(node: node)
         case "progress": ProgressNodeView(node: node)
         case "select": SelectNodeView(node: node)
+        case "choice": ChoiceNodeView(node: node)
         case "form" where node.bool("sheet") == true: FormSheetHost(node: node)
         case "form": FormNodeView(node: node)
         case "transcript": TranscriptNodeView(node: node)
@@ -320,7 +321,9 @@ struct SDUIChildren: View {
 
     var body: some View {
         ForEach(node.identifiedChildren) { child in
-            SDUINodeView(node: child.node).equatable()
+            SDUINodeView(node: child.node)
+                .equatable()
+                .layoutPriority(child.node.bool("dock") == true ? 1 : 0)
         }
     }
 }

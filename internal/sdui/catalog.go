@@ -74,6 +74,7 @@ var (
 	alignments   = []string{"leading", "center", "trailing"}
 	variants     = []string{"primary", "secondary", "ghost", "danger"}
 	toggleStyles = []string{"switch", "checkbox"}
+	choiceStyles = []string{"radio", "check"}
 
 	reservedKeys = []string{"esc", "return", "tab"}
 	badgeTones   = []string{"neutral", "accent", "success", "warning", "danger"}
@@ -177,7 +178,7 @@ var (
 	catalog = map[string]spec{
 		"stack":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions), "align": oneOf(alignments), "gap": nonNegative}, children: anyChildren},
 		"split":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions)}, children: childRule{min: 2, max: 4}},
-		"scroll": {children: childRule{min: 1, max: 1}},
+		"scroll": {props: map[string]propCheck{"fit": isBool}, children: childRule{min: 1, max: 1}},
 		"spacer": {children: noChildren},
 		"tabs": {
 			required:    []string{"items", "selected"},
@@ -255,7 +256,13 @@ var (
 			children:    noChildren,
 			interactive: true,
 		},
-		"form":    {props: map[string]propCheck{"action": actionCheck, "autosave": isBool, "sheet": isBool}, children: anyChildren, interactive: true},
+		"choice": {
+			required:    []string{"style", "options"},
+			props:       map[string]propCheck{"style": oneOf(choiceStyles), "title": isString, "text": isString, "number": countNumber, "open": isBool, "options": listOf(choiceOptionCheck), "other": choiceOtherCheck, "action": actionCheck},
+			children:    noChildren,
+			interactive: true,
+		},
+		"form":    {props: map[string]propCheck{"action": actionCheck, "autosave": isBool, "sheet": isBool, "dock": isBool}, children: anyChildren, interactive: true},
 		"surface": {required: []string{"sessionId"}, props: map[string]propCheck{"sessionId": sessionIDCheck}, children: noChildren},
 		"webview": {required: []string{"key", "url"}, props: map[string]propCheck{"key": isString, "url": loopbackURL, "rev": countNumber}, children: noChildren},
 		"header": {
@@ -737,6 +744,14 @@ func headerBadgeCheck(c *validator, v any) error {
 
 func optionCheck(c *validator, v any) error {
 	return objectCheck([]string{"value", "label"}, map[string]propCheck{"value": isString, "label": isString})(c, v)
+}
+
+func choiceOptionCheck(c *validator, v any) error {
+	return objectCheck([]string{"value", "label"}, map[string]propCheck{"value": isString, "label": isString, "description": isString, "shortcut": shortcutCheck, "on": isBool})(c, v)
+}
+
+func choiceOtherCheck(c *validator, v any) error {
+	return objectCheck([]string{"id", "label"}, map[string]propCheck{"id": isString, "label": isString, "placeholder": isString, "shortcut": shortcutCheck})(c, v)
 }
 
 func menuEntryCheck(c *validator, v any) error {

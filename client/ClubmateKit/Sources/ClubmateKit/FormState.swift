@@ -7,6 +7,7 @@ public final class FormState {
     public static let typingDelay = Duration.milliseconds(600)
 
     public var values: [String: JSONValue] = [:]
+    public var openChoice: String?
     public private(set) var submissions = 0
     public private(set) var save = UIFormSave()
     @ObservationIgnored public var autosave = false

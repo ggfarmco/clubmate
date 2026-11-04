@@ -116,6 +116,40 @@ public struct SDUIOption: Sendable, Equatable, Identifiable {
     }
 }
 
+public struct SDUIChoiceOption: Sendable, Equatable, Identifiable {
+    public let value: String
+    public let label: String
+    public let description: String?
+    public let shortcut: String?
+    public let on: Bool
+
+    public var id: String { value }
+
+    public init?(_ json: JSONValue) {
+        guard let fields = json.objectValue, let value = fields["value"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
+        self.value = value
+        self.label = label
+        description = fields["description"]?.stringValue
+        shortcut = fields["shortcut"]?.stringValue
+        on = fields["on"]?.boolValue ?? false
+    }
+}
+
+public struct SDUIChoiceOther: Sendable, Equatable {
+    public let id: String
+    public let label: String
+    public let placeholder: String?
+    public let shortcut: String?
+
+    public init?(_ json: JSONValue) {
+        guard let fields = json.objectValue, let id = fields["id"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
+        self.id = id
+        self.label = label
+        placeholder = fields["placeholder"]?.stringValue
+        shortcut = fields["shortcut"]?.stringValue
+    }
+}
+
 public struct SDUIColumn: Sendable, Equatable, Identifiable {
     public enum Align: String, Sendable {
         case left
@@ -371,6 +405,14 @@ extension SDUINode {
 
     public func options() -> [SDUIOption] {
         props["options"]?.arrayValue?.compactMap(SDUIOption.init) ?? []
+    }
+
+    public func choiceOptions() -> [SDUIChoiceOption] {
+        props["options"]?.arrayValue?.compactMap(SDUIChoiceOption.init) ?? []
+    }
+
+    public func choiceOther() -> SDUIChoiceOther? {
+        props["other"].flatMap(SDUIChoiceOther.init)
     }
 
     public func columns() -> [SDUIColumn] {

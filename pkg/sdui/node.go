@@ -227,6 +227,10 @@ func Scroll(child Node) Node {
 	return Node{Type: "scroll", Children: []Node{child}}
 }
 
+func FitScroll(child Node) Node {
+	return withProp(Scroll(child), "fit", true)
+}
+
 func Tabs(id string, items []Item, selected string) Node {
 	return Node{Type: "tabs", ID: id, Props: map[string]any{"items": nonNil(items), "selected": selected}}
 }
@@ -599,6 +603,47 @@ func Select(id string, options []Option, value string) Node {
 	return Node{Type: "select", ID: id, Props: withOptional(map[string]any{"options": nonNil(options)}, "value", value)}
 }
 
+type ChoiceOption struct {
+	Value       string `json:"value"`
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
+	Shortcut    string `json:"shortcut,omitempty"`
+	On          bool   `json:"on,omitempty"`
+}
+
+type ChoiceOther struct {
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	Placeholder string `json:"placeholder,omitempty"`
+	Shortcut    string `json:"shortcut,omitempty"`
+}
+
+type ChoiceProps struct {
+	Style   string
+	Title   string
+	Text    string
+	Number  int
+	Open    bool
+	Options []ChoiceOption
+	Other   *ChoiceOther
+}
+
+func Choice(id string, p ChoiceProps) Node {
+	props := map[string]any{"style": p.Style, "options": nonNil(p.Options)}
+	withOptional(props, "title", p.Title)
+	withOptional(props, "text", p.Text)
+	if p.Number > 0 {
+		props["number"] = p.Number
+	}
+	if p.Open {
+		props["open"] = true
+	}
+	if p.Other != nil {
+		props["other"] = *p.Other
+	}
+	return Node{Type: "choice", ID: id, Props: props}
+}
+
 func Form(id string, children ...Node) Node {
 	return Node{Type: "form", ID: id, Children: children}
 }
@@ -799,6 +844,10 @@ func WithShortcut(n Node, combo string) Node {
 
 func WithOverflow(n Node) Node {
 	return withProp(n, "overflow", true)
+}
+
+func WithDock(n Node) Node {
+	return withProp(n, "dock", true)
 }
 
 func WithForm(n Node) Node {

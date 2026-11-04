@@ -433,6 +433,15 @@ final class StoresTests: XCTestCase {
         XCTAssertEqual(UIForm.collect(values, in: form), .object(["name": .string("demo"), "repos": .array([.string("/a"), .string("/b")])]))
     }
 
+    func testChoiceAndItsOtherFieldInForm() {
+        let other: [String: JSONValue] = ["id": .string("c/other"), "label": .string("Other…")]
+        let form = SDUINode(type: "form", id: "f", children: [
+            SDUINode(type: "choice", id: "c", props: ["style": .string("check"), "options": .array([]), "other": .object(other)]),
+        ])
+        let values: [String: JSONValue] = ["c": .array([.string("a")]), "c/other": .string("note"), "gone": .string("x")]
+        XCTAssertEqual(UIForm.collect(values, in: form), .object(["c": .array([.string("a")]), "c/other": .string("note")]))
+    }
+
     func testHeaderTitleFieldInForm() {
         let form = SDUINode(type: "form", id: "f", children: [
             SDUINode(type: "header", props: ["title": .string("Fix login"), "field": .string("title")]),

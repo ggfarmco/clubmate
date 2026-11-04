@@ -53,13 +53,14 @@ public enum UIAction {
 }
 
 public enum UIForm {
-    public static let fieldTypes: Set<String> = ["textField", "folderField", "toggle", "select"]
+    public static let fieldTypes: Set<String> = ["textField", "folderField", "toggle", "select", "choice"]
 
     public static func fieldIDs(in form: SDUINode) -> Set<String> {
         var ids: Set<String> = []
         func visit(_ children: [SDUINode]) {
             for child in children where child.type != "form" {
                 if fieldTypes.contains(child.type), let id = child.id { ids.insert(id) }
+                if child.type == "choice", let other = child.choiceOther() { ids.insert(other.id) }
                 if child.type == "header", let field = child.string("field"), !field.isEmpty { ids.insert(field) }
                 visit(child.children)
             }

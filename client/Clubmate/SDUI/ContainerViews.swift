@@ -96,11 +96,34 @@ struct ScrollNodeView: View {
     let node: SDUINode
 
     var body: some View {
+        if node.bool("fit") == true {
+            FitScrollView(node: node)
+        } else {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    SDUIChildren(node: node)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                .environment(\.scrollProxy, proxy)
+            }
+        }
+    }
+}
+
+private struct FitScrollView: View {
+    let node: SDUINode
+
+    @State private var height: CGFloat = 0
+
+    var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 SDUIChildren(node: node)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
             }
+            .frame(maxHeight: height)
+            .clipped()
             .environment(\.scrollProxy, proxy)
         }
     }
@@ -159,6 +182,7 @@ struct FormNodeView: View {
             SDUIChildren(node: node)
         }
         .environment(\.formKeyWidth, theme.uiSize * (width < 480 ? 7.5 : 10) + theme.gutter * 2)
+        .environment(\.formNarrow, width <= ChoiceNodeView.foldWidth)
         .padding(.vertical, theme.spacing.l)
         .frame(maxWidth: .infinity, alignment: .leading)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
@@ -196,6 +220,10 @@ struct FormNodeView: View {
     }
 }
 
+private struct FormNarrowKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 private struct FormKeyWidthKey: EnvironmentKey {
     static let defaultValue: CGFloat? = nil
 }
@@ -204,5 +232,10 @@ extension EnvironmentValues {
     var formKeyWidth: CGFloat? {
         get { self[FormKeyWidthKey.self] }
         set { self[FormKeyWidthKey.self] = newValue }
+    }
+
+    var formNarrow: Bool {
+        get { self[FormNarrowKey.self] }
+        set { self[FormNarrowKey.self] = newValue }
     }
 }
