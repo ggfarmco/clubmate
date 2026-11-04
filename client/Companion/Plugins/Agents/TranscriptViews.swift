@@ -596,17 +596,31 @@ struct CompactionView: View {
             label
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            DisclosureGroup(isExpanded: $expanded.animation(Motion.disclosure)) {
-                Text(detail)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 4)
-            } label: {
-                label
+            VStack(alignment: .leading, spacing: 4) {
+                Button {
+                    Motion.disclose { expanded.toggle() }
+                } label: {
+                    HStack(spacing: 6) {
+                        label
+                        Spacer(minLength: 6)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .rotationEffect(.degrees(expanded ? 90 : 0))
+                    }
+                    .frame(minHeight: 28)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+                if expanded {
+                    Text(detail)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
-            .tint(.secondary)
         }
     }
 }
