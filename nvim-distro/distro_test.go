@@ -780,6 +780,20 @@ func TestClubmateThemeOwnsChrome(t *testing.T) {
 	assert.Empty(t, errorsOf(t, v))
 }
 
+func TestClubmateThemeKeepsRemovedTextReadable(t *testing.T) {
+	v := startDistro(t, opts{ThemeFile: writeTheme(t, clubmateTheme)})
+	settle(t, v)
+	require.NoError(t, v.ExecLua(`require("diffview")`, nil))
+	for range 2 {
+		deleted := hl(t, v, "DiffviewInlineDeleted")
+		assert.Empty(t, deleted.Fg)
+		assert.Equal(t, "#382722", deleted.Bg)
+		assert.Equal(t, hl(t, v, "Removed").Fg, hl(t, v, "DiffviewInlineGutter").Fg)
+		assert.Equal(t, hl(t, v, "Added").Fg, hl(t, v, "DiffviewInlineAdded").Fg)
+		require.NoError(t, v.Command("colorscheme clubmate"))
+	}
+}
+
 func TestUnknownThemeGenerated(t *testing.T) {
 	v := startDistro(t, opts{ThemeFile: writeTheme(t, draculaTheme)})
 	assert.Equal(t, draculaTheme.Palette[2], hl(t, v, "String").Fg)

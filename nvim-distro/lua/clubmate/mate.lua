@@ -278,6 +278,9 @@ function M.groups(c)
     Added = { fg = c.ok },
     Changed = { fg = c.type },
     Removed = { fg = c.error },
+    diffAdded = { link = "Added" },
+    diffChanged = { link = "Changed" },
+    diffRemoved = { link = "Removed" },
     GitSignsAdd = { fg = c.ok },
     GitSignsUntracked = { fg = c.ok },
     GitSignsChange = { fg = c.type },
@@ -320,6 +323,7 @@ function M.groups(c)
 
     DiffviewNormal = { link = "Normal" },
     DiffviewWinSeparator = { link = "WinSeparator" },
+    DiffviewDiffAddAsDelete = { bg = c.diff_delete },
     DiffviewWinBarRev = { fg = c.accent, bg = c.bg, bold = true },
     DiffviewWinBarPath = { fg = c.muted, bg = c.bg },
     DiffviewFilePanelTitle = { fg = c.accent, bold = true },
