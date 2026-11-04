@@ -450,10 +450,10 @@ private struct MarkdownTable: View {
     }
 
     private func cell(_ text: String, _ column: Int) -> some View {
-        Text(inline(text))
-            .multilineTextAlignment(alignment(column) == .trailing ? .trailing : alignment(column) == .center ? .center : .leading)
-            .frame(maxWidth: 240, alignment: Alignment(horizontal: alignment(column), vertical: .top))
-            .fixedSize(horizontal: false, vertical: true)
+        CappedWidth(cap: 240) {
+            Text(inline(text))
+                .multilineTextAlignment(alignment(column) == .trailing ? .trailing : alignment(column) == .center ? .center : .leading)
+        }
     }
 
     private func alignment(_ column: Int) -> HorizontalAlignment {
@@ -462,6 +462,20 @@ private struct MarkdownTable: View {
         case .right: .trailing
         case .none, .left: .leading
         }
+    }
+}
+
+private struct CappedWidth: Layout {
+    let cap: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let child = subviews.first else { return .zero }
+        let width = min(child.sizeThatFits(.unspecified).width, proposal.width ?? cap, cap)
+        return child.sizeThatFits(ProposedViewSize(width: width, height: nil))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(width: bounds.width, height: nil))
     }
 }
 
