@@ -17919,7 +17919,7 @@ SOFTWARE.
 
 ````
 
-### diffview.nvim dc16447ffc3c3f67cf1bc92c582af0677753fd6f
+### diffview.nvim 14147a56bfd18a28b420c9a51b4892c8a1f88a02
 
 Source: https://github.com/0xnorimori/diffview.nvim
 

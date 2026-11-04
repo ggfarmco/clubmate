@@ -301,7 +301,7 @@ Defaults of the bundled nvim distribution (`nvim-distro/`). Keys in normal mode 
 | Diff | Esc (review drawer) | Close the drawer | diffview.nvim `config.lua` |
 | Diff | gS (Diffview review panel) | Send review: the app opens the Send sheet (as ⌘↩ in the app) | diffview.nvim `config.lua` |
 | Diff | click, ↩ (review panel header and footer) | A click on a file or folder row opens or folds it; on a filter checkbox, Send, Copy or a comment it does what the item says (a comment: jump to it); ↩ in the header and footer windows does the same as a click. In the narrow strip in the tabline a click on ‹ › opens the previous / next file, on ☰ the drawer | diffview.nvim `config.lua` |
-| Review | ,rc (normal, visual) / ,rl | Add a review comment, list comments | diffview.nvim `nrev` |
+| Review | ,rc (normal, visual) / ,rl | Add a review comment (straight to its text, no type to pick: it is saved as a note), list comments | diffview.nvim `nrev` |
 | Review | ]a / [a | Next, previous review comment | diffview.nvim `nrev` |
 | Review | ,rx / ,rd / ,re | Resolve or reopen, delete, export comments to the clipboard | diffview.nvim `nrev` |
 | Debug | ,db / ,dB | Toggle breakpoint, conditional breakpoint | `lua/clubmate/plugins/debug.lua` |
