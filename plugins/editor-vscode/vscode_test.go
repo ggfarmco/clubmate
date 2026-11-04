@@ -308,7 +308,7 @@ func TestServerExitRestartsOnceThenFails(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(e.code, "crash"), nil, 0o600))
 	require.NoError(t, syscall.Kill(-serverPID(t, e.state()), syscall.SIGKILL))
 
-	e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool { return hasButton(n, "vscode-retry") })
+	e.h.WaitSlotWithin(t, e.workspaceID, mainSlot, restartWait, func(n sdui.Node) bool { return hasButton(n, "vscode-retry") })
 	raw, err := os.ReadFile(starts)
 	require.NoError(t, err)
 	assert.Equal(t, 2, strings.Count(string(raw), "x"))
