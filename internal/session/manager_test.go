@@ -1,6 +1,7 @@
 package session_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -24,11 +25,15 @@ func spawn(t *testing.T, m *session.Manager, command ...string) session.Session 
 	t.Helper()
 	s, err := m.Create(t.Context(), session.CreateRequest{WorkspaceID: "prj_x", Command: command})
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = unix.Kill(-s.PGID, unix.SIGKILL)
-		_ = unix.Kill(s.HostPID, unix.SIGKILL)
-	})
+	t.Cleanup(func() { stop(t, s) })
 	return s
+}
+
+func stop(t *testing.T, s session.Session) {
+	t.Helper()
+	_ = unix.Kill(-s.PGID, unix.SIGKILL)
+	_ = unix.Kill(s.HostPID, unix.SIGKILL)
+	testutil.Eventually(t, func() bool { return errors.Is(unix.Kill(s.HostPID, 0), unix.ESRCH) }, 3*time.Second)
 }
 
 func TestManagerSessionsSurviveManagerRestart(t *testing.T) {
@@ -212,10 +217,7 @@ func TestManagerPersistsOwner(t *testing.T) {
 	m := session.NewManager(dirs, bin)
 	s, err := m.Create(t.Context(), session.CreateRequest{WorkspaceID: "prj_0123456789abcdef", Owner: "terminals", Command: []string{"sh", "-c", "exec cat"}})
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = unix.Kill(-s.PGID, unix.SIGKILL)
-		_ = unix.Kill(s.HostPID, unix.SIGKILL)
-	})
+	t.Cleanup(func() { stop(t, s) })
 	got, err := session.NewManager(dirs, bin).Get(t.Context(), s.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "terminals", got.Owner)
