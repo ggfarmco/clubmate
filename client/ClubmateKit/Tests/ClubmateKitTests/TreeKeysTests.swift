@@ -47,6 +47,14 @@ final class TreeKeysTests: XCTestCase {
         }
     }
 
+    func testTreeCursorSettles() {
+        let old = ["a", "more", "b"]
+        XCTAssertEqual(TreeCursor.settle("more", activated: true, from: old, to: ["a", "c1", "c2", "b"]), "c1")
+        XCTAssertEqual(TreeCursor.settle("b", activated: false, from: old, to: ["a", "more"]), "more")
+        XCTAssertEqual(TreeCursor.settle("more", activated: true, from: old, to: ["a", "c1", "more", "b"]), "c1")
+        XCTAssertNil(TreeCursor.settle("more", activated: false, from: old, to: ["a", "c1", "more", "b"]))
+    }
+
     func testTreeKeyActions() {
         let rows: [(UInt16, Bool, TreeKeyAction)] = [
             (38, false, .move(1)),

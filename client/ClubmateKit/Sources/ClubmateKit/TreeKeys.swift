@@ -25,6 +25,13 @@ public enum TreeCursor {
         return rows[min(max(index + delta, 0), rows.count - 1)].id
     }
 
+    public static func settle(_ cursor: String?, activated: Bool, from old: [String], to new: [String]) -> String? {
+        guard let cursor, let index = old.firstIndex(of: cursor), !new.isEmpty else { return nil }
+        let target = new[min(index, new.count - 1)]
+        guard let moved = new.firstIndex(of: cursor) else { return target }
+        return activated && moved != index ? target : nil
+    }
+
     public static func resolve(_ action: TreeKeyAction, cursor: String?, in rows: [TreeRow]) -> TreeCommand? {
         let index = rows.firstIndex { $0.id == cursor }
         switch action {

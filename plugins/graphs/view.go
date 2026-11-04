@@ -74,7 +74,7 @@ func sidebarView(graphs []graphFile, untrusted map[string]bool, runs []*Run, sel
 }
 
 func group(id, label string, items []sdui.TreeItem, collapsed map[string]bool) sdui.TreeItem {
-	return sdui.TreeItem{ID: id, Label: label, Detail: strconv.Itoa(len(items)), Muted: true, HasChildren: true, Expanded: !collapsed[id], Children: items}
+	return sdui.TreeItem{ID: id, Label: label, Detail: strconv.Itoa(len(items)), Muted: true, Action: true, HasChildren: true, Expanded: !collapsed[id], Children: items}
 }
 
 func graphItem(g graphFile, untrusted bool) sdui.TreeItem {

@@ -46,7 +46,7 @@ func sidebarView(triggers []*Trigger, selected string, collapsed map[string]bool
 			i = len(groups)
 			index[t.Run] = i
 			id := groupPrefix + t.Run
-			groups = append(groups, sdui.TreeItem{ID: id, Label: runName(t), Icon: graphIcon, Muted: true, HasChildren: true, Expanded: !collapsed[id]})
+			groups = append(groups, sdui.TreeItem{ID: id, Label: runName(t), Icon: graphIcon, Muted: true, Action: true, HasChildren: true, Expanded: !collapsed[id]})
 		}
 		groups[i].Children = append(groups[i].Children, item)
 	}

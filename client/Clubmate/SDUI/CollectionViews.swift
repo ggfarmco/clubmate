@@ -175,6 +175,7 @@ struct TreeNodeView: View {
 
     @State private var selected: String?
     @State private var cursor: String?
+    @State private var activated: String?
     @State private var leader = false
     @FocusState private var focused: Bool
     @Environment(\.sduiDispatch) private var dispatch
@@ -251,6 +252,12 @@ struct TreeNodeView: View {
             cursor = selected ?? rows.first?.id
             focused = true
         }
+        .onChange(of: rows.map(\.id)) { old, new in
+            defer { activated = nil }
+            guard let id = TreeCursor.settle(cursor, activated: cursor == activated, from: old, to: new) else { return }
+            cursor = id
+            scroll?.scrollTo(id)
+        }
     }
 
     private func itemRow(_ row: Row, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
@@ -263,7 +270,8 @@ struct TreeNodeView: View {
     }
 
     private func select(_ id: String) {
-        if rows.first(where: { $0.id == id })?.item.action != true { selected = id }
+        let item = rows.first(where: { $0.id == id })?.item
+        if item?.action != true { selected = id } else if item?.hasChildren == false { activated = id }
         dispatch(node, .select(id))
     }
 

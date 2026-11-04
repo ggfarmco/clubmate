@@ -32,6 +32,7 @@ func TestGraphTriggersGroupUnderTheirRun(t *testing.T) {
 	assert.Equal(t, "tr_2", items[0].ID)
 	assert.Equal(t, []string{"from graph Review loop", "1"}, []string{items[1].Label, items[1].Detail})
 	assert.False(t, items[1].Expanded)
+	assert.True(t, items[1].Action)
 	assert.Equal(t, "Coder done → Reviewer", items[1].Children[0].Label)
 
 	shape := &graphShape{

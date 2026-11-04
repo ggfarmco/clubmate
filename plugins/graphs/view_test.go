@@ -115,6 +115,7 @@ func TestSidebarListsGraphsAboveRuns(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, []string{"Graphs", "3", "Runs", "1"}, []string{groups[0].Label, groups[0].Detail, groups[1].Label, groups[1].Detail})
 	assert.Equal(t, []bool{true, false}, []bool{groups[0].Expanded, groups[1].Expanded})
+	assert.Equal(t, []bool{true, true}, []bool{groups[0].Action, groups[1].Action})
 	items := groups[0].Children
 	assert.Equal(t, []string{"graph:broken", "invalid", "danger"}, []string{items[0].ID, items[0].Detail, items[0].Tone})
 	assert.Equal(t, []string{"PR walkthrough", "built in"}, []string{items[1].Label, items[1].Detail})

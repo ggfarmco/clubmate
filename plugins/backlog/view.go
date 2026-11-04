@@ -181,6 +181,7 @@ func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formR
 			Icon:        statusIcons[status],
 			HasChildren: true,
 			Expanded:    !collapsed[status],
+			Action:      true,
 		}
 		if g.Expanded {
 			g.Children = rows

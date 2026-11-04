@@ -39,6 +39,7 @@ func TestSidebarGroupsByStatus(t *testing.T) {
 	groups := tree.Props["items"].([]sdui.TreeItem)
 	require.Len(t, groups, 3)
 	assert.Equal(t, "group:in_progress", groups[0].ID)
+	assert.True(t, groups[0].Action)
 	rows := groups[0].Children
 	require.Len(t, rows, 2)
 	assert.Equal(t, "3", rows[0].ID)
