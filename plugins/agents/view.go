@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/acp"
@@ -74,6 +75,8 @@ type screen struct {
 	Branch       string
 	Parent       string
 	Children     string
+	Row          sessionRow
+	Now          time.Time
 	FromTitles   map[string]string
 	Context      *contextScreen
 	Code         *codePanel
@@ -225,13 +228,13 @@ func header(sc screen) sdui.Node {
 	rec := sc.View.Session
 	sid := rec.ID
 	display := displayStatus(rec, sc.Children)
-	var meta []string
-	if rec.AFK {
-		meta = append(meta, afkLabel)
+	row := sc.Row
+	row.Rec, row.Children, row.Review = rec, sc.Children, sc.Review
+	activity := rowActivity(row, sc.Now)
+	if needsYou(rec) || rec.Status == statusError || reviewRow(row) {
+		activity = ""
 	}
-	if display == childrenRunning || display == childrenWaiting {
-		meta = append(meta, statusLabels[display])
-	}
+	meta := nonEmpty(afkDetail(rec), notifyLabels[row.Notify], activity)
 	fill, full := usageParts(sc.View.Usage)
 	if !full {
 		meta = append(meta, nonEmpty(fill)...)

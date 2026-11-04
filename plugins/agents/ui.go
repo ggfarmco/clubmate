@@ -227,19 +227,9 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	rows := make([]sessionRow, 0, len(recs))
 	needs := a.runNeeds.byRun(workspaceID)
 	for _, rec := range recs {
-		branch := a.branches.name(ctx, rec.Worktree)
-		row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children[rec.ID], Branch: branchLabel(branch), Detached: detachedBranch(branch), Review: a.reviews.progress(rec.ID)}
+		row := a.sessionRow(ctx, rec, children[rec.ID])
 		if n, ok := needs[runID(rec)]; ok {
 			row.RunNeed = &n
-		}
-		if s := a.session(rec.ID); s != nil {
-			row.Activity = s.activity()
-			row.Asking = s.asking()
-			row.Started = s.turnStart()
-			row.Rec.Asks = s.asks()
-			if sum := s.permissionSummary(); sum != nil {
-				row.Since = sum.At
-			}
 		}
 		rows = append(rows, row)
 		if turnActive(rec) {
@@ -427,6 +417,21 @@ func (a *app) editorFile(workspaceID, root string) string {
 	return f.Path
 }
 
+func (a *app) sessionRow(ctx context.Context, rec record, children string) sessionRow {
+	branch := a.branches.name(ctx, rec.Worktree)
+	row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children, Branch: branchLabel(branch), Detached: detachedBranch(branch), Review: a.reviews.progress(rec.ID)}
+	if s := a.session(rec.ID); s != nil {
+		row.Activity = s.activity()
+		row.Asking = s.asking()
+		row.Started = s.turnStart()
+		row.Rec.Asks = s.asks()
+		if sum := s.permissionSummary(); sum != nil {
+			row.Since = sum.At
+		}
+	}
+	return row
+}
+
 func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen {
 	if s.claimChangesCheck() {
 		go a.refreshChanges(s)
@@ -447,7 +452,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 	st := a.sessionState(workspaceID, sid)
 	parent, fromTitles := a.relatives(v)
 	advisor := a.sessionAdvisor(ctx, v.Session)
-	branch := branchLabel(a.branches.name(ctx, v.Session.Worktree))
+	row := a.sessionRow(ctx, v.Session, childStatuses(a.list(workspaceID))[sid])
 	ctxScreen := a.contextScreen(st, v.Session)
 	current := s.currentTurn()
 	a.uiMu.Lock()
@@ -474,12 +479,14 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 		Installing:  a.installing && detached && !v.Session.closed(),
 		Changes:     changes,
 		Advisor:     advisor,
-		Branch:      branch,
+		Branch:      row.Branch,
 		Parent:      parent,
-		Children:    childStatuses(a.list(workspaceID))[sid],
+		Children:    row.Children,
+		Row:         row,
+		Now:         time.Now(),
 		FromTitles:  fromTitles,
 		Context:     ctxScreen,
-		Review:      a.reviews.progress(sid),
+		Review:      row.Review,
 	}
 	sc.ReviewStates, sc.ReviewsOpen = a.reviews.cards()
 	return sc

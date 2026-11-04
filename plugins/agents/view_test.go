@@ -716,14 +716,26 @@ func TestSidebarShowsParentWaitingForChildren(t *testing.T) {
 	}
 }
 
-func TestHeaderShowsAFKAndWaitingForChildren(t *testing.T) {
+func TestHeaderMetaRepeatsTheSidebarDetail(t *testing.T) {
 	t.Parallel()
-	v := transcriptView{Session: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, AFK: true}}
+	now := time.Now()
+	for _, tc := range []struct {
+		name     string
+		rec      record
+		row      sessionRow
+		children string
+		meta     any
+	}{
+		{"children", record{Status: statusDone, AFK: true}, sessionRow{}, statusRunning, "AFK · Waiting for child sessions"},
+		{"running", record{Status: statusRunning}, sessionRow{Notify: notifyMuted, Started: now.Add(-15 * time.Minute), Activity: "go test ./..."}, "", "Muted · 15 min · go test ./..."},
+		{"badged", record{Status: statusWaiting}, sessionRow{}, "", nil},
+	} {
+		tc.rec.ID, tc.rec.Worktree, tc.rec.Agent = "agt_p", "/r/a", agentClaude
+		tree := mainView(screen{View: transcriptView{Session: tc.rec}, Row: tc.row, Now: now, Children: tc.children, Composer: "agt_p/composer/0"})
+		require.NoError(t, internalsdui.Validate(tree), tc.name)
 
-	tree := mainView(screen{View: v, Children: statusRunning, Composer: "agt_p/composer/0"})
-	require.NoError(t, internalsdui.Validate(tree))
-
-	assert.Equal(t, "AFK · Waiting for child sessions", nodesOf(tree, "header")[0].Props["meta"])
+		assert.Equal(t, tc.meta, nodesOf(tree, "header")[0].Props["meta"], tc.name)
+	}
 }
 
 func TestPendingPermissionDocksAboveTheComposer(t *testing.T) {
