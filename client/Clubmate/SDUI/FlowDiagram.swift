@@ -194,14 +194,16 @@ struct FlowDiagram: View {
             var points = route.points
             let end = points[points.count - 1]
             let tip = CGPoint(x: end.x - 4.5 * k, y: end.y)
-            points[points.count - 1] = tip
+            points[points.count - 1] = CGPoint(x: tip.x - 5 * k, y: tip.y)
+            points[points.count - 2].x -= 5 * k
             var path = Path()
             path.move(to: points[0])
             for i in stride(from: 1, to: points.count - 2, by: 3) {
                 path.addCurve(to: points[i + 2], control1: points[i], control2: points[i + 1])
             }
+            path.addLine(to: tip)
             context.stroke(path, with: .color(color), style: style)
-            arrow(&context, tip: tip, from: points[points.count - 2], color: color, width: style.lineWidth)
+            arrow(&context, tip: tip, from: points[points.count - 1], color: color)
         }
         for route in routes where route.points.count >= 4 {
             guard let label = flow.edges[route.edge].label else { continue }
@@ -230,7 +232,7 @@ struct FlowDiagram: View {
             line.move(to: CGPoint(x: ring.x + 5 * k, y: y))
             line.addLine(to: CGPoint(x: rect.minX - 4.5 * k, y: y))
             context.stroke(line, with: .color(color), style: style)
-            arrow(&context, tip: CGPoint(x: rect.minX - 4.5 * k, y: y), from: ring, color: color, width: style.lineWidth)
+            arrow(&context, tip: CGPoint(x: rect.minX - 4.5 * k, y: y), from: ring, color: color)
             let circle = Path(ellipseIn: CGRect(x: ring.x - 5 * k, y: y - 5 * k, width: 10 * k, height: 10 * k))
             context.fill(circle, with: .color(theme.background))
             context.stroke(circle, with: .color(theme.muted), lineWidth: 1.25 * k)
@@ -298,8 +300,8 @@ struct FlowDiagram: View {
         }
     }
 
-    private func arrow(_ context: inout GraphicsContext, tip: CGPoint, from: CGPoint, color: Color, width: CGFloat) {
-        FlowArrow.draw(&context, tip: tip, from: from, size: 5 * k, color: color, width: width)
+    private func arrow(_ context: inout GraphicsContext, tip: CGPoint, from: CGPoint, color: Color) {
+        FlowArrow.draw(&context, tip: tip, from: from, size: 5 * k, color: color, width: 1.4 * k)
     }
 }
 
@@ -408,10 +410,10 @@ struct FlowMarkerView: View {
         case .schedule: return CGSize(width: 28 * k, height: metrics.headHeight)
         case .inbox, .session:
             let text = (chipLabel(marker) as NSString).size(withAttributes: [.font: theme.nsFont(size: theme.uiSize, bold: true)]).width
-            return CGSize(width: min(metrics.cardWidth, (text + 42 * k).rounded(.up)), height: metrics.headHeight)
+            return CGSize(width: min(metrics.cardWidth, (text + 42 * k).rounded(.up)), height: 28 * k)
         case .runs:
             let text = (chipLabel(marker) as NSString).size(withAttributes: [.font: theme.nsFont(size: theme.uiSize, bold: false)]).width
-            return CGSize(width: min(metrics.cardWidth, (text + 24 * k).rounded(.up)), height: metrics.headHeight)
+            return CGSize(width: min(metrics.cardWidth, (text + 24 * k).rounded(.up)), height: 18 * k)
         }
     }
 

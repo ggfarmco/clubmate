@@ -93,6 +93,19 @@ final class GraphLayoutTests: XCTestCase {
         XCTAssertTrue(tracked.allSatisfy { $0.points[3].y == $0.points[6].y })
     }
 
+    func testMarkersLineUpWithTheirPortWhenThereIsRoom() throws {
+        let card = SDUIFlow.Card(id: "job", label: "Job", state: "", outs: [SDUIFlow.Out(id: "ok", label: "ok", state: .taken), SDUIFlow.Out(id: "failed", label: "failed", state: .never)])
+        let flow = SDUIFlow(cards: [card], markers: [SDUIFlow.Marker(id: "runs", kind: .runs), SDUIFlow.Marker(id: "inbox", kind: .inbox)], edges: [
+            SDUIFlow.Edge(from: "job", out: "ok", to: "runs", state: .taken),
+            SDUIFlow.Edge(from: "job", out: "failed", to: "inbox", state: .never),
+        ])
+        let m = GraphMetrics()
+        let layout = GraphLayout(flow: flow, metrics: m, markers: ["runs": CGSize(width: 80, height: 18), "inbox": CGSize(width: 80, height: 28)])
+        let runs = try XCTUnwrap(layout.markers["runs"]), inbox = try XCTUnwrap(layout.markers["inbox"])
+        XCTAssertEqual(runs.midY, layout.port(node: "job", out: "ok").y, accuracy: 0.01)
+        XCTAssertEqual(inbox.minY, runs.maxY + m.nodeGap, accuracy: 0.01)
+    }
+
     func testDanglingReferencesAreSkipped() throws {
         let json = """
         {"type": "graph", "id": "g", "props": {

@@ -153,7 +153,13 @@ public struct GraphLayout: Sendable {
                     y = rect.maxY + m.nodeGap
                     bottom = max(bottom, rect.maxY)
                 case .marker(let marker):
-                    let rect = CGRect(x: lefts[l] + (widths[l] - s.width) / 2, y: y, width: s.width, height: s.height)
+                    let feed = links.first { $0.to == i && layer[$0.from] < l }.flatMap { link -> CGFloat? in
+                        switch items[link.from] {
+                        case .card(let card): link.out.flatMap { ports[card.id]?[card.outs[$0].id]?.y }
+                        case .marker(let from): outputs[from.id]?.y
+                        }
+                    }
+                    let rect = CGRect(x: lefts[l] + (widths[l] - s.width) / 2, y: feed.map { max(y, $0 - s.height / 2) } ?? y, width: s.width, height: s.height)
                     markers[marker.id] = rect
                     inputs[marker.id] = CGPoint(x: rect.minX, y: rect.midY)
                     outputs[marker.id] = CGPoint(x: rect.maxX, y: rect.midY)
