@@ -65,7 +65,7 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 ## Plugins (`plugins/`)
 | Plugin | Does |
 |---|---|
-| `editor-nvim` | Runs the bundled nvim 0.12.6 with the Clubmate distribution (`NVIM_APPNAME=clubmate`/`clubmate-dev`, else the `nvim` in `PATH`) in a session, one per worktree. It drives nvim over RPC: open/quickfix/diffview/checktime/selection/unsaved, pushes the app's `theme.changed` into running nvims and offers the config import. Hosts the Neovim section. |
+| `editor-nvim` | Runs the bundled nvim 0.12.6 with the Clubmate distribution (`NVIM_APPNAME=clubmate`/`clubmate-dev`, else the `nvim` in `PATH`) in a session, one per worktree. It drives nvim over RPC: open/quickfix/diffview/checktime/selection/unsaved, pushes the app's `theme.changed` into running nvims and offers the config import. Owns reviews: Agents' Review changes (`editor-nvim.diffview`) and the agent command `editor-nvim.review` open them through the bundled diffview fork's host API v3, whose review panel lives inside nvim; it publishes their progress on the `editor-nvim.review` bus topic and renders only the Send sheet natively. Hosts the Neovim section. |
 | `editor-vscode` | Off by default (Settings → VS Code). Runs the VS Code server from the user's installed `code` CLI, after the user accepts its license terms, as one loopback child process for every workspace, and shows the current root's workbench as a `webview` in the VS Code section. See `docs/vscode-integration.md`. |
 | `git` | Worktrees and branches behind the switcher in the window title, and a watch that moves folders off worktrees removed outside Clubmate. No section. |
 | `search` | File index and fuzzy path search behind the agents composer's file picker. No section. |
@@ -76,10 +76,10 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 | `triggers` | Calls an agent-visible command when a bus event arrives; renders the Triggers section. See `docs/triggers.md`. |
 | `docs` | Docs viewer: Markdown, mermaid and HTML artifacts rendered in a popup on the Mac and for the phone. See `docs/docs-viewer.md`. |
 | `cron` | Calls agent-visible commands on a schedule (cron, every, one-shot), jobs per workspace, optionally owned by an agent session; renders the Cron section. See `docs/cron.md`. |
-| `graphs` | Agent graphs: reads `.clubmate/graphs/*.json`, starts a run as one idle agent session per node and one trigger per edge, stops it at its turn budget; renders the Graphs section. See `docs/agent-graphs.md`. |
+| `graphs` | Agent graphs: reads `.clubmate/graphs/*.json` and its built-in graphs (`builtin/`). A run starts one idle agent session per agent node and one trigger per edge between them; step nodes (a shell command or a Clubmate command, no agent) it runs itself, the exit code picking the edge, and it fires every edge into or out of a step (or with `maxFires`) itself. A run stops at its turn or step budget. A graph with steps runs only once trusted in that repo (`graphs.trust`, a hash of its steps and routing); a shell step follows Claude Code's `Bash` rules (a repo's allow rules only in its main checkout), else waits for `graphs.approve`. Renders the Graphs section. See `docs/agent-graphs.md`. |
 | `voice` | Voice assistant and dictation: utterances (audio in, live partial text out), a Python speech recognizer (`asr/`: transcribe.cpp on ggml with Metal, Nemotron streaming by default) run through `uv` only while voice is on (off by default), context from where the user is, and one Voice agent session per workspace that answers agents as the user or runs commands, dangerous ones after the user confirms. Dictation skips the session: one Claude Haiku call (`claude -p`) tidies the text for the composer. No section. See `docs/voice.md`. |
 | `remote` | Companion server: HTTP + SSE on the Mac's Tailscale addresses only, QR pairing, device tokens, proxy for `"remote": true` commands, APNs pushes through the push relay. No section. See `docs/remote.md`. |
-| `internal/` | Shared helpers: `fuzzy`, `gitrepo`, `fileindex` (file lists for search and docs), `agentcall` (agent sessions and command targets), `automation` (what cron, triggers and graphs share: actions, runs, the registry). |
+| `internal/` | Shared helpers: `fuzzy`, `gitrepo`, `fileindex` (file lists for search and docs), `agentcall` (agent sessions and command targets), `automation` (what cron, triggers and graphs share: actions, runs, the registry), `editorroot` (worktree roots and HEAD watches shared by editor-nvim and editor-vscode), `shortcuttest` (test helper: a view's shortcuts are declared in `plugin.json`). |
 
 ## UI model (SDUI)
 - **Sections:** plugins declare them in `plugin.json`, with an icon, order and slots (`<section>.sidebar`, `<section>.main`, plus extra slots a section declares). The rail shows sections in the user's order. A section may name another as its `host`; it then has no rail icon of its own.
@@ -92,7 +92,8 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 - **Agents in terminals:** Claude Code in a Clubmate terminal can drive Clubmate through MCP (`clubmate mcp`), seeing only agent-visible commands. Destructive commands ask for approval in the app. See `docs/agents.md`.
 - **Agents section:** ACP over stdio (`plugins/agents/acp`). The Agents section never writes `~/.claude*` or `.mcp.json`; only Connect Claude Code in Settings runs `claude mcp add --scope user` when the user clicks it. See `.claude/skills/agents-acp/SKILL.md`.
 - **Notifications:** `cm notify`, `notify.post` and the app hub (banners, inbox, badges). See `docs/notifications.md`.
-- **nvim:** the bundled Neovim with Clubmate's own pinned distribution plus a user layer; `~/.config/nvim` is never read or written. The app publishes its Ghostty theme as `theme.changed`; editor-nvim persists it to `theme.json` and applies it live. Agents' Review changes opens diffview. See `docs/nvim-integration.md`.
+- **nvim:** the bundled Neovim with Clubmate's own pinned distribution plus a user layer; `~/.config/nvim` is never read or written. The app publishes its Ghostty theme as `theme.changed`; editor-nvim persists it to `theme.json` and applies it live. Reviews (Agents' Review changes, agents' `editor-nvim.review`) open in nvim through the diffview fork's host API v3, panel included; only the Send sheet is native. See `docs/nvim-integration.md`.
+- **Browser:** agents browse the web in a WebKit (`WKWebView`) browser the app hosts in a hidden window. The `browser.*` commands (MCP `browser_*`) are built into the core (`internal/rpc/methods_browser.go`) and forward each call to the app (`browser.call`), so the app must be running; `browser.handoff` asks the user to solve a captcha or sign in. See `docs/browser.md`.
 
 ## State on disk
 - **State dir:** `~/Library/Application Support/clubmate`, or `clubmate-dev` for dev builds. Holds `clubmate.db`, `bus.db`, `plugins.db`, `plugin-data/<id>/`, `sessions/`, `diagnostics/`, `core.log`, `plugins/<id>.log` and `notifications.json`.
@@ -113,8 +114,8 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
   - end-to-end runs use the dev app with scratch `XDG_*` dirs; the records are in the `clubmate-notes` repo under `verification/`;
   - agents look at the app through `scripts/test-app.sh`: an invisible test-mode instance with its own core that draws its windows to png plus a flagged layout dump (`cm ui snapshot`, MCP `testapp.call`); see `docs/agents.md`.
 - **Release:**
-  - Pushing a `vX.Y.Z` tag runs the release workflow, which waits for approval of the `release` environment.
-  - It signs with Developer ID (entitlements in `scripts/release/`), notarizes, builds a DMG and a Sparkle appcast, and publishes a GitHub release.
+  - Pushing a `vX.Y.Z` tag runs the release workflow (`.github/workflows/release.yml`) in the `release` environment, which holds the signing secrets and allows only `v*` tags; it fails unless the tagged commit is on main.
+  - It builds, signs with Developer ID (entitlements in `scripts/release/`), builds a DMG, notarizes it and makes a Sparkle appcast, then waits for the CI run on that commit to pass (`scripts/release/wait-ci.sh`) before it publishes the GitHub release.
   - The build number is the commit count, so updates always move forward.
 
 ## Conventions
