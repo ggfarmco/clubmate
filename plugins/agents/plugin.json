@@ -465,6 +465,19 @@
         }
       },
       {
+        "id": "agents.reminders",
+        "title": "Set sessions' pending reminders",
+        "hidden": true,
+        "description": "The cron plugin's list of this workspace's one-shot jobs (at, in) that prompt the session that owns them; a done session with one shows as running in agents.sessions. Only the cron plugin may call it.",
+        "args": {
+          "properties": {
+            "reminders": {"type": "array", "description": "Pending reminders: {session, at}.", "items": {"type": "object", "properties": {
+              "session": {"type": "string"}, "at": {"type": "string"}
+            }}}
+          }
+        }
+      },
+      {
         "id": "agents.reviewed",
         "title": "Mark agent session reviewed",
         "hidden": true,

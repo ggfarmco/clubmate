@@ -29,22 +29,23 @@ var uiCommands = map[string]string{
 }
 
 type app struct {
-	mu         sync.Mutex
-	jobs       map[string]*Job
-	inFlight   map[string]bool
-	drafts     map[string]draft
-	runs       sync.WaitGroup
-	runRows    automation.Runs
-	registry   *automation.Registry[*Job]
-	store      automation.Storage[*Job]
-	host       *pluginsdk.Host
-	ready      chan struct{}
-	poke       chan struct{}
-	now        func() time.Time
-	runCommand func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error)
-	sessions   func(ctx context.Context, workspace string) ([]agentSession, error)
-	workspaces func(ctx context.Context) ([]pluginsdk.Workspace, error)
-	render     func(ctx context.Context, workspace string) error
+	mu            sync.Mutex
+	jobs          map[string]*Job
+	inFlight      map[string]bool
+	drafts        map[string]draft
+	sentReminders map[string][]reminder
+	runs          sync.WaitGroup
+	runRows       automation.Runs
+	registry      *automation.Registry[*Job]
+	store         automation.Storage[*Job]
+	host          *pluginsdk.Host
+	ready         chan struct{}
+	poke          chan struct{}
+	now           func() time.Time
+	runCommand    func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error)
+	sessions      func(ctx context.Context, workspace string) ([]agentSession, error)
+	workspaces    func(ctx context.Context) ([]pluginsdk.Workspace, error)
+	render        func(ctx context.Context, workspace string) error
 }
 
 func main() {
@@ -54,12 +55,13 @@ func main() {
 
 func newApp() *app {
 	a := &app{
-		jobs:     map[string]*Job{},
-		inFlight: map[string]bool{},
-		drafts:   map[string]draft{},
-		ready:    make(chan struct{}),
-		poke:     make(chan struct{}, 1),
-		now:      time.Now,
+		jobs:          map[string]*Job{},
+		inFlight:      map[string]bool{},
+		drafts:        map[string]draft{},
+		sentReminders: map[string][]reminder{},
+		ready:         make(chan struct{}),
+		poke:          make(chan struct{}, 1),
+		now:           time.Now,
 	}
 	a.runCommand = a.callCommand
 	a.sessions = a.agentSessions
@@ -72,12 +74,16 @@ func newApp() *app {
 		Sessions:   func(ctx context.Context, ws string) ([]agentSession, error) { return a.sessions(ctx, ws) },
 		Workspaces: func(ctx context.Context) ([]pluginsdk.Workspace, error) { return a.workspaces(ctx) },
 		Commands:   func(ctx context.Context) (map[string]string, error) { return agentcall.CommandTitles(ctx, a.host) },
-		Render:     func(ctx context.Context, ws string) error { return a.render(ctx, ws) },
-		Save:       func(ctx context.Context, j *Job) error { return a.store.Save(ctx, j) },
-		Drop:       a.drop,
-		Changed:    a.wake,
-		Notify:     automation.HostNotify(func() *pluginsdk.Host { return a.host }),
-		Log:        logError,
+		Render: func(ctx context.Context, ws string) error {
+			err := a.render(ctx, ws)
+			a.feedReminders(ctx, ws)
+			return err
+		},
+		Save:    func(ctx context.Context, j *Job) error { return a.store.Save(ctx, j) },
+		Drop:    a.drop,
+		Changed: a.wake,
+		Notify:  automation.HostNotify(func() *pluginsdk.Host { return a.host }),
+		Log:     logError,
 	}
 	return a
 }
@@ -133,6 +139,9 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 	case <-a.ready:
 	case <-ctx.Done():
 		return
+	}
+	if ev.Topic == api.TopicReady {
+		a.forgetReminders()
 	}
 	a.registry.BusEvent(ctx, ev)
 }

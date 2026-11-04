@@ -429,6 +429,9 @@ func (a *app) sessionRow(ctx context.Context, rec record, children string) sessi
 			row.Since = sum.At
 		}
 	}
+	if at, ok := a.reminders.at(rec.Workspace, rec.ID); ok && rec.Status == statusRunning && row.Activity == "" {
+		row.Activity, row.Started = reminderActivity(at), time.Time{}
+	}
 	return row
 }
 
@@ -438,6 +441,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 	}
 	v := s.view(0)
 	v.Session.AsksParent = a.asksParent(s, v.Session)
+	v.Session = a.reminders.present(v.Session)
 	if a.session(v.Session.HandoffFrom) == nil {
 		v.Session.HandoffFrom = ""
 	}

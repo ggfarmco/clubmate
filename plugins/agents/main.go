@@ -47,6 +47,7 @@ type app struct {
 
 	sessionRevs sessionRevs
 	runNeeds    runNeeds
+	reminders   reminders
 
 	spawnMu    sync.Mutex
 	worktreeMu sync.Mutex
@@ -285,7 +286,7 @@ func (a *app) list(workspaceID string) []record {
 	for _, s := range all {
 		if rec := s.snapshot(); rec.Workspace == workspaceID {
 			rec.AsksParent = a.asksParent(s, rec)
-			out = append(out, rec)
+			out = append(out, a.reminders.present(rec))
 		}
 	}
 	slices.SortFunc(out, func(x, y record) int { return x.CreatedAt.Compare(y.CreatedAt) })

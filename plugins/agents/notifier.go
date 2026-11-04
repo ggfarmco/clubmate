@@ -213,6 +213,9 @@ func (a *app) notifyEnd(s *session, t api.Turn) {
 		kind = notifyAsks
 	}
 	rec := s.snapshot()
+	if _, reminded := a.reminders.at(rec.Workspace, rec.ID); reminded && kind != notifyStuck {
+		return
+	}
 	if rec.ParentSession != "" || rec.restricted() || rec.Run != nil && kind != notifyAsks || kind == notifyDone && a.runningChildren(rec.ID) > 0 {
 		return
 	}

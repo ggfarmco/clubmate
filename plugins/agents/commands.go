@@ -57,6 +57,7 @@ var (
 		"agents.reviewed":       withSession((*app).reviewedCommand),
 		"agents.send-review":    withArgs((*app).sendReviewCommand),
 		"agents.run-needs":      withArgs((*app).runNeedsCommand),
+		"agents.reminders":      withArgs((*app).remindersCommand),
 	}
 
 	errUnknownCmd    = errors.New("unknown command")

@@ -58,7 +58,7 @@ When the Mac slept or Clubmate was down, a job that is more than 1 minute late f
 
 A job that calls `triggers.emit` names itself in the event (`cronJob` in the payload), and a session a job starts remembers the job (`cronJob` in `agents.sessions` and on its `agents.turn`), so a trigger's runs can say which job led to them (see [Triggers](triggers.md#triggers-section)).
 
-A job added by an agent belongs to that agent session by default (`owner: "self"`) and is deleted when the session is closed or deleted. `owner: "none"` makes it outlive the session. Jobs added by the user, the CLI or a plugin have no owner. In the Cron section, "Show Session" next to the owner selects that session in Agents.
+A job added by an agent belongs to that agent session by default (`owner: "self"`) and is deleted when the session is closed or deleted. `owner: "none"` makes it outlive the session. Jobs added by the user, the CLI or a plugin have no owner. While an enabled one-shot job prompts its own owner, that session shows as running even after its turn ended (see [agents § Status](agents.md#status)). In the Cron section, "Show Session" next to the owner selects that session in Agents.
 
 An agent may update, pause, resume, run and delete only jobs owned or created by itself or by its child sessions, and any job a plugin added (`createdBy: plugin:<id>`); an agent call without an agent session may not change any. The Cron section acts for you, so it can change any job.
 

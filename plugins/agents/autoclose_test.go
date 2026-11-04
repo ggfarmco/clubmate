@@ -38,7 +38,7 @@ func TestDoneTreeClosesItselfUnlessItAsksOrOwnsJobs(t *testing.T) {
 	assert.Equal(t, "clubmate", closeActor(t, f.logLines(t, root)))
 	time.Sleep(3 * after)
 	assert.Equal(t, "done", f.session(t, workspace, asking).Status)
-	assert.Equal(t, "done", f.session(t, workspace, scheduled).Status)
+	assert.Equal(t, "running", f.session(t, workspace, scheduled).Status)
 
 	require.NoError(t, f.run(t, workspace, "agents.resume", map[string]any{"session": root}, nil))
 	resumed := f.session(t, workspace, root)
