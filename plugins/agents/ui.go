@@ -421,7 +421,6 @@ func (a *app) sessionRow(ctx context.Context, rec record, children string) sessi
 	branch := a.branches.name(ctx, rec.Worktree)
 	row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children, Branch: branchLabel(branch), Detached: detachedBranch(branch), Review: a.reviews.progress(rec.ID)}
 	if s := a.session(rec.ID); s != nil {
-		row.Activity = s.activity()
 		row.Asking = s.asking()
 		row.Started = s.turnStart()
 		row.Rec.Asks = s.asks()
@@ -429,7 +428,7 @@ func (a *app) sessionRow(ctx context.Context, rec record, children string) sessi
 			row.Since = sum.At
 		}
 	}
-	if at, ok := a.reminders.at(rec.Workspace, rec.ID); ok && rec.Status == statusRunning && row.Activity == "" {
+	if at, ok := a.reminders.at(rec.Workspace, rec.ID); ok && rec.Status == statusRunning {
 		row.Activity, row.Started = reminderActivity(at), time.Time{}
 	}
 	return row

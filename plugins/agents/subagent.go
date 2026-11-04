@@ -355,3 +355,16 @@ func capLines(text string, n int) string {
 	}
 	return strings.Join(lines[:n], "\n") + " …"
 }
+
+func toolActivityTitle(tool map[string]json.RawMessage) string {
+	var title, kind string
+	_ = json.Unmarshal(tool["title"], &title)
+	if json.Unmarshal(tool["kind"], &kind) != nil || kind != toolExecute {
+		return title
+	}
+	var input struct {
+		Description string `json:"description"`
+	}
+	_ = json.Unmarshal(tool["rawInput"], &input)
+	return cmp.Or(strings.TrimSpace(input.Description), commandActivity)
+}

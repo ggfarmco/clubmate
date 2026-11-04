@@ -303,14 +303,13 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			info.Pending = s.pending()
 			info.Asks = s.asks()
 			info.PendingSummary = s.permissionSummary()
-			info.Activity = s.toolActivity()
 			info.ModeLabel = s.modeLabel()
 			info.Turns = s.turnsSoFar()
 			if started := s.turnStart().UTC(); rec.Status == statusRunning && !started.IsZero() {
 				info.TurnStartedAt = &started
 			}
 		}
-		if at, ok := a.reminders.at(rec.Workspace, rec.ID); ok && rec.Status == statusRunning && info.Activity == nil {
+		if at, ok := a.reminders.at(rec.Workspace, rec.ID); ok && rec.Status == statusRunning {
 			info.Activity, info.TurnStartedAt = &toolActivity{Title: reminderActivity(at), At: rec.UpdatedAt}, nil
 		}
 		if info.ModeLabel == "" {

@@ -135,7 +135,7 @@ actor FixtureServer {
                 if id == "agt_0000000000000006" { record["review"] = .bool(true) }
                 sessions.append(record)
             }
-            others = [Self.session(template, id: "agt_0000000000000007", title: "Draft the companion brief", status: "running", ago: 600, activity: "Reading prompt.md")]
+            others = [Self.session(template, id: "agt_0000000000000007", title: "Draft the companion brief", status: "running", ago: 600)]
         }
         var transcripts: [String: [String: JSONValue]] = [:]
         if case .object(var first) = decode("agents-transcript.json"), let id = sessions.first?["id"]?.stringValue {

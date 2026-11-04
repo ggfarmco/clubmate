@@ -2945,7 +2945,7 @@ func TestNewInWorktree(t *testing.T) {
 	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return !branchField(n) })
 }
 
-func TestSessionsCarryRunningToolActivityAndTurns(t *testing.T) {
+func TestRunningSessionCarriesTurnsButNoToolActivity(t *testing.T) {
 	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{
 		{"update": map[string]any{"sessionUpdate": "tool_call", "toolCallId": "e1", "title": "Editing reserve.go", "kind": "edit", "status": "in_progress"}},
@@ -2955,17 +2955,15 @@ func TestSessionsCarryRunningToolActivityAndTurns(t *testing.T) {
 	session := f.newSession(t, workspace)
 
 	f.prompt(t, workspace, session, "go")
+	testutil.Eventually(t, func() bool { return len(ofKind(f.transcript(t, workspace, session).Entries, "tool")) == 1 }, wait)
 
-	var got struct {
-		Title string    `json:"title"`
-		At    time.Time `json:"at"`
-	}
 	type info struct {
 		ID       string          `json:"id"`
+		Status   string          `json:"status"`
 		Activity json.RawMessage `json:"activity"`
 		Turns    int             `json:"turns"`
 	}
-	var turns int
+	var got info
 	testutil.Eventually(t, func() bool {
 		var list []info
 		require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
@@ -2973,12 +2971,10 @@ func TestSessionsCarryRunningToolActivityAndTurns(t *testing.T) {
 		if i < 0 {
 			return false
 		}
-		turns = list[i].Turns
-		return json.Unmarshal(list[i].Activity, &got) == nil && got.Title != ""
+		got = list[i]
+		return got.Status == "running" && got.Turns == 1
 	}, wait)
-	assert.Equal(t, "Editing reserve.go", got.Title)
-	assert.False(t, got.At.IsZero())
-	assert.Equal(t, 1, turns)
+	assert.Empty(t, got.Activity)
 }
 
 func (f *fixture) turns(t *testing.T, session string) []api.Turn {

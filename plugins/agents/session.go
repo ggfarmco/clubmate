@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmp"
 	"encoding/json"
 	"strings"
 	"sync"
@@ -157,69 +156,10 @@ func (s *session) currentTurn() int {
 	return s.turn
 }
 
-func (s *session) activity() string {
-	title, _ := s.current()
-	return title
-}
-
 func (s *session) modeLabel() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return modeWord(s.rec.Mode, s.modes)
-}
-
-func (s *session) toolActivity() *toolActivity {
-	s.mu.Lock()
-	running := s.rec.Status == statusRunning
-	s.mu.Unlock()
-	if !running {
-		return nil
-	}
-	title, at := s.current()
-	if title == "" {
-		return nil
-	}
-	return &toolActivity{Title: title, At: at}
-}
-
-func (s *session) current() (string, time.Time) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.loaded || (s.rec.Status != statusRunning && s.rec.Status != statusWaiting) {
-		return "", time.Time{}
-	}
-	for i := len(s.entries) - 1; i >= 0; i-- {
-		en := s.entries[i]
-		var title string
-		switch {
-		case s.rec.Status == statusWaiting && en.Kind == entryPermission && s.perms[en.ID] != nil:
-			var f toolFields
-			_ = json.Unmarshal(en.ToolCall, &f)
-			title = f.Title
-		case s.rec.Status == statusWaiting && en.Kind == entryElicitation && s.perms[en.ID] != nil && en.Elicitation != nil:
-			title = en.Elicitation.Message
-		case s.rec.Status == statusRunning && en.Kind == entryTool:
-			s.refreshLocked(en)
-			title = toolActivityTitle(en.Tool)
-		default:
-			continue
-		}
-		return firstLine(title), en.At
-	}
-	return "", time.Time{}
-}
-
-func toolActivityTitle(tool map[string]json.RawMessage) string {
-	var title, kind string
-	_ = json.Unmarshal(tool["title"], &title)
-	if json.Unmarshal(tool["kind"], &kind) != nil || kind != toolExecute {
-		return title
-	}
-	var input struct {
-		Description string `json:"description"`
-	}
-	_ = json.Unmarshal(tool["rawInput"], &input)
-	return cmp.Or(strings.TrimSpace(input.Description), commandActivity)
 }
 
 func newSetup(args worktreeNewArgs) *setup {
