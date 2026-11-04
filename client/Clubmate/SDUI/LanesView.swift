@@ -321,11 +321,13 @@ struct LanesView: View {
         let (start, c1, c2, end) = controls(hop)
         let color = hop.last ? theme.accent : theme.muted
         let width = (hop.last ? 2 : 1.25) * k
+        let neck = CGPoint(x: end.x - 4 * k, y: end.y)
         var path = Path()
         path.move(to: start)
-        path.addCurve(to: end, control1: c1, control2: c2)
+        path.addCurve(to: neck, control1: c1, control2: CGPoint(x: c2.x - 4 * k, y: c2.y))
+        path.addLine(to: end)
         context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
-        FlowArrow.draw(&context, tip: end, from: c2, size: 4 * k, color: color, width: width)
+        FlowArrow.draw(&context, tip: end, from: neck, size: 4 * k, color: color, width: 1.4 * k)
         guard !hop.label.isEmpty else { return }
         let mid = CGPoint(x: (hop.from.x + hop.to.x) / 2, y: (hop.from.y + hop.to.y) / 2)
         let text = Text(hop.label).font(theme.uiSmall).foregroundStyle(hop.last ? theme.accentInk : theme.muted)
