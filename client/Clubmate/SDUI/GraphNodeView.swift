@@ -208,6 +208,7 @@ struct FlowNodeView: View {
                 if let card { withAnimation(Motion.disclosure) { proxy.scrollTo(card) } }
             }
         }
+        .padding(.horizontal, theme.gutter)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .focusable()
         .focusEffectDisabled()
