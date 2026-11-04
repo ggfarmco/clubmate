@@ -1,0 +1,62 @@
+{
+ "modes": {
+  "currentModeId": "default",
+  "availableModes": [
+   {"id": "default", "name": "Ask before edits"},
+   {"id": "acceptEdits", "name": "Accept edits"},
+   {"id": "plan", "name": "Plan"}
+  ]
+ },
+ "prompt": [
+  {"match": "Rate-limit", "update": {"sessionUpdate": "session_info_update", "title": "Rate-limit notifications per workspace"}},
+  {"match": "Rate-limit", "update": {"sessionUpdate": "tool_call", "toolCallId": "r1", "title": "Read internal/notify/notify.go", "kind": "read", "status": "completed"}},
+  {"match": "Rate-limit", "update": {"sessionUpdate": "tool_call", "toolCallId": "s1", "title": "Search notify.posted in internal, plugins", "kind": "search", "status": "completed"}},
+  {"match": "Rate-limit", "update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "The bus publishes every notification at once. Before I put a limiter in front of `bus.Publish` I need two decisions from you."}}},
+  {"match": "Rate-limit", "elicitation": {
+   "mode": "form",
+   "toolCallId": "ask1",
+   "message": "Two decisions before I add the limiter",
+   "requestedSchema": {
+    "type": "object",
+    "properties": {
+     "question_0": {
+      "type": "string",
+      "title": "Scope",
+      "description": "Where should the rate limit apply?",
+      "oneOf": [
+       {"const": "Per workspace", "title": "Per workspace", "description": "One noisy workspace can't flood the others"},
+       {"const": "Per session", "title": "Per session", "description": "Finer, but a workspace with many sessions still floods"},
+       {"const": "Global", "title": "Global", "description": "One bucket for the whole app"}
+      ]
+     },
+     "question_0_custom": {"type": "string", "title": "Other"},
+     "question_1": {
+      "type": "array",
+      "title": "Exempt",
+      "description": "Which notifications should skip the limit?",
+      "items": {
+       "anyOf": [
+        {"const": "Permission requests", "title": "Permission requests", "description": "An agent is blocked until you answer"},
+        {"const": "Questions", "title": "Questions", "description": "AskUserQuestion from a session"},
+        {"const": "Cron failures", "title": "Cron failures", "description": "A scheduled job ended with an error"}
+       ]
+      }
+     },
+     "question_1_custom": {"type": "string", "title": "Other"}
+    }
+   }
+  }},
+  {"match": "Send sheet", "update": {"sessionUpdate": "session_info_update", "title": "Rework the Send review sheet"}},
+  {"match": "Send sheet", "update": {"sessionUpdate": "tool_call", "toolCallId": "d1", "title": "Read client/Clubmate/Review/SendSheet.swift", "kind": "read", "status": "completed"}},
+  {"match": "Send sheet", "update": {"sessionUpdate": "tool_call", "toolCallId": "d2", "title": "Edit client/Clubmate/Review/SendSheet.swift", "kind": "edit", "status": "completed"}},
+  {"match": "Send sheet", "update": {"sessionUpdate": "tool_call", "toolCallId": "d3", "title": "Edit docs/shortcuts.md", "kind": "edit", "status": "completed"}},
+  {"match": "Send sheet", "update": {"sessionUpdate": "tool_call", "toolCallId": "d4", "title": "make app", "kind": "execute", "status": "completed"}},
+  {"match": "Send sheet", "update": {"sessionUpdate": "tool_call", "toolCallId": "d5", "title": "go test ./plugins/git/...", "kind": "execute", "status": "completed"}},
+  {"match": "Send sheet", "update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Done. The Send review sheet is reworked:\n\n- Files are grouped by directory, each with its `+12 −3` count.\n- ⌘↩ sends and ⎋ closes; both are in `docs/shortcuts.md`.\n- The commit message field grows up to 8 lines, then scrolls.\n- An empty message disables Send and says why under the field.\n- `make app` is green; `go test ./plugins/git/...` passes (42 tests).\n\nCommitted as `a1c4e9f2` on `send-sheet`.\n\n**Not checked visually:** ⌘↩ in the sheet. Lists only keep a detail up to 6 em, so it gives way to the title. Fixing it means changing that rule for all lists or adding a new SDUI prop, so it's your call (#185). If you want, I can also add a ⌘/ shortcuts screen."}}},
+  {"match": "Bump", "update": {"sessionUpdate": "session_info_update", "title": "Bump ghostty to 1.2"}},
+  {"match": "Bump", "update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Bumped the pinned ghostty rev and rebuilt GhosttyKit; `make app` is green."}}},
+  {"match": "Port cron", "update": {"sessionUpdate": "session_info_update", "title": "Port cron to the detail pane"}},
+  {"match": "Port cron", "update": {"sessionUpdate": "tool_call", "toolCallId": "p1", "title": "go build ./plugins/cron", "kind": "execute", "status": "in_progress"}},
+  {"match": "Port cron", "sleep": 3600000}
+ ]
+}

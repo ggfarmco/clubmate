@@ -1,6 +1,6 @@
 # Design
 
-The boards live in the Claude Design project "Clubmate design": https://claude.ai/artifact/GzeKKbWXXXGoUBqGS3S2nN. `language/` and `companion/` are its copy in the repo; `brief/`, `companion-brief/` and `check/` are inputs we send it.
+The boards live in the Claude Design project "Clubmate design": https://claude.ai/artifact/GzeKKbWXXXGoUBqGS3S2nN. `language/` and `companion/` are its copy in the repo; `brief/`, `companion-brief/`, `decisions-brief/` and `check/` are inputs we send it.
 
 ## Reaching the project from Claude Code
 
