@@ -126,16 +126,15 @@ struct VoiceButton: View {
 
 private struct VoiceDock: ViewModifier {
     @Environment(AppNavigation.self) private var navigation
-    @State private var frame: CGRect?
+    @State private var id = UUID()
 
     func body(content: Content) -> some View {
         content
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
-                navigation.voiceDock = frame
-                self.frame = frame
+                navigation.dock(id, at: frame)
             }
             .onDisappear {
-                if navigation.voiceDock == frame { navigation.voiceDock = nil }
+                navigation.undock(id)
             }
     }
 }
@@ -189,7 +188,16 @@ private struct VoicePressStyle: ButtonStyle {
 
 extension AppNavigation {
     func floatingMic(_ model: CompanionModel) -> Bool {
-        voiceDock == nil && !searching && voiceTarget(model) != nil
+        !searching && !screenHasMic(model) && voiceTarget(model) != nil
+    }
+
+    private func screenHasMic(_ model: CompanionModel) -> Bool {
+        guard let item = sidebar, let connection = model.connection(item.computer),
+              let plugin = CompanionPlugins.all.first(where: { $0.id == item.plugin }) else { return false }
+        if layout != .compact || preferredColumn == .detail {
+            return detail.map { plugin.detailHasMic(connection: connection, selection: $0) } ?? false
+        }
+        return preferredColumn == .content && plugin.listHasMic(connection: connection)
     }
 
     func voiceTarget(_ model: CompanionModel) -> VoiceTarget? {

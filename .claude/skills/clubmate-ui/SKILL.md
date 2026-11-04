@@ -45,6 +45,7 @@ Neighbouring code may be the bug (the `/` command popup was an uncapped `VStack`
 - **Row of controls**: fits at 640pt. `ViewThatFits(in: .horizontal)` with one row, then a wrapped `FlowLayout`; container `.frame(minWidth: 0, maxWidth: .infinity)`; no fixed `minWidth` on fields.
 - **Label**: `.lineLimit(1)`, `.truncationMode(.label)` (`.path` for a file path; both in `Theme/Theme.swift`), `.help(full)`; the identifying part gets `.layoutPriority(1)`.
 - **Selected row**: `theme.selected` plus a 2pt `theme.accent` leading bar in the focused pane, `theme.selectedIdle` without a bar elsewhere (`ItemRow(active:)`); hover `theme.hover`; a keyboard cursor apart from the selection gets a `theme.focusRing` stroke.
+- **Whether something shows** (the floating mic, a banner, a dock) is derived from navigation or model state, never from `onAppear`/`onDisappear` pairs or a slot views write into: on iOS 26/27 a pushed screen can get `onDisappear` right after `onAppear` and never appear again.
 - **State that must survive** re-renders and section switches (drafts, expansion, chosen tab): a ClubmateKit store keyed by a stable node id, not `@State`. In `Equatable` views every render input is in `==`; themed parts live in a child view with its own `@Environment(\.theme)`.
 - **Text body in an `NSAlert`**: an `NSTextView` accessory with `isSelectable = false`; a selectable one becomes first responder and AppKit scrolls it to the middle of the document on open.
 - **Keyboard**: every action reachable by keyboard; focusable things are real `Button`s; key changes update `docs/shortcuts.md`.
@@ -73,6 +74,7 @@ Compact, Zed/Ghostty feel; width is the scarce resource. Collapsed by default, e
    - `scripts/test-app.sh stop` afterwards; it deletes `/tmp/clubmate-test-<name>`, so copy snapshots you report elsewhere first.
    Never use `screencapture`.
 4. Put the snapshot next to the screen's mockup and the node specs in `references/design-language.md`; the report names every place it still differs and why (e.g. "action keys wait for the `button` shortcut prop").
-5. If you could not look, write "visually unverified" in the report and say which of the above was skipped.
+5. A phone UI bug fix lands with an XCUITest in `client/CompanionUITests` that fails before the fix (repeat the navigation that broke it, e.g. push the screen 3×).
+6. If you could not look, write "visually unverified" in the report and say which of the above was skipped.
 
 Past bug classes with their commits: `references/bug-classes.md`.

@@ -36,6 +36,14 @@ struct AgentsPlugin: CompanionPluginUI {
         Self.store(context)?.needsInputCount ?? 0
     }
 
+    func listHasMic(connection: ComputerConnection) -> Bool {
+        connection.supports(AgentsStore.searchCommand)
+    }
+
+    func detailHasMic(connection: ComputerConnection, selection: String) -> Bool {
+        connection.state != .unauthorized && !GraphRun.isRun(selection)
+    }
+
     @MainActor
     static func store(_ context: PluginContext) -> AgentsStore? {
         guard let workspace = context.navigation.workspace(for: context.connection) else { return nil }

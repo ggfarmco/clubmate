@@ -27,6 +27,10 @@ struct DocsPlugin: CompanionPluginUI {
         0
     }
 
+    func listHasMic(connection: ComputerConnection) -> Bool {
+        true
+    }
+
     @MainActor
     static func store(_ context: PluginContext) -> DocsListStore? {
         guard let workspace = context.navigation.workspace(for: context.connection) else { return nil }

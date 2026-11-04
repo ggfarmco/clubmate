@@ -8,6 +8,11 @@ struct SidebarItem: Hashable {
     let plugin: String
 }
 
+struct VoiceDockFrame: Equatable {
+    let id: UUID
+    var frame: CGRect
+}
+
 struct OpenDoc: Identifiable, Hashable {
     let computer: String
     let workspace: String
@@ -29,7 +34,7 @@ final class AppNavigation {
     @ObservationIgnored private var pairedUnderSheet: String?
     var doc: OpenDoc?
     var sectionItem: String?
-    var voiceDock: CGRect?
+    private(set) var voiceDocks: [VoiceDockFrame] = []
     var searching = false
     var preferredColumn: NavigationSplitViewColumn = .sidebar
     var layout: CompanionLayout = .compact
@@ -38,10 +43,24 @@ final class AppNavigation {
         didSet { UserDefaults.standard.set(sidebarHidden, forKey: "sidebarHidden") }
     }
 
+    var voiceDock: CGRect? { voiceDocks.last?.frame }
+
     init() {
         let hidden = UserDefaults.standard.bool(forKey: "sidebarHidden")
         sidebarHidden = hidden
         visibility = hidden ? .doubleColumn : .all
+    }
+
+    func dock(_ id: UUID, at frame: CGRect) {
+        if let index = voiceDocks.firstIndex(where: { $0.id == id }) {
+            voiceDocks[index].frame = frame
+        } else {
+            voiceDocks.append(VoiceDockFrame(id: id, frame: frame))
+        }
+    }
+
+    func undock(_ id: UUID) {
+        voiceDocks.removeAll { $0.id == id }
     }
 
     func open(computer: String, plugin: String, detail: String? = nil) {

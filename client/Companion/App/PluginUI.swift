@@ -14,11 +14,15 @@ protocol CompanionPluginUI: CompanionPlugin {
     @MainActor func badge(context: PluginContext) -> Int
     var inWorkspace: Bool { get }
     var needsUI: Bool { get }
+    @MainActor func listHasMic(connection: ComputerConnection) -> Bool
+    @MainActor func detailHasMic(connection: ComputerConnection, selection: String) -> Bool
 }
 
 extension CompanionPluginUI {
     var inWorkspace: Bool { false }
     var needsUI: Bool { false }
+    func listHasMic(connection: ComputerConnection) -> Bool { false }
+    func detailHasMic(connection: ComputerConnection, selection: String) -> Bool { false }
 }
 
 @MainActor

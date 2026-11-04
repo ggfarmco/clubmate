@@ -343,6 +343,23 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Hide done"].exists)
     }
 
+    func testOpeningASessionFromTheListLeavesOnlyTheComposerMic() {
+        let app = launch(open: "agents")
+        let row = app.staticTexts["Explain the checkout flow"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Talk to Clubmate"].waitForExistence(timeout: 5))
+        for _ in 0..<3 {
+            row.tap()
+            XCTAssertTrue(app.textViews["composer"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["Dictate"].waitForExistence(timeout: 5))
+            XCTAssertTrue(wait(for: app.buttons["Talk to Clubmate"], "exists == false"))
+            sleep(1)
+            XCTAssertFalse(app.buttons["Talk to Clubmate"].exists)
+            app.navigationBars.buttons.firstMatch.tap()
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+        }
+    }
+
     func testHandOffAFailedSessionOpensTheNewOne() {
         let app = launch(open: "agents/agt_0000000000000005", ["-failureAction", "continue"])
         let handoff = app.buttons["Hand off to a new session"]
