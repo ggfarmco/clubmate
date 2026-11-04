@@ -143,7 +143,7 @@ struct SessionListView: View {
     private var sections: some View {
         ForEach(store.groups, id: \.group) { group in
             let items = group.sessions.flatMap { $0.rows(expanded: store.expanded) }
-            let count = group.sessions.reduce(0) { $0 + 1 + $1.descendants }
+            let count = group.sessions.count
             if group.group.folds {
                 let open = unfolded.contains(group.group)
                 Section(isExpanded: Binding(get: { open }, set: { _ in })) {
