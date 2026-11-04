@@ -249,6 +249,17 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Checkout retries"].waitForExistence(timeout: 10))
     }
 
+    func testCodeBlockCopyButtonCopies() {
+        let app = launch(open: "agents/agt_0000000000000001")
+        let copy = app.buttons["Copy"]
+        XCTAssertTrue(copy.waitForExistence(timeout: 10))
+        app.swipeDown()
+        app.swipeDown()
+        copy.tap()
+        XCTAssertTrue(app.buttons["Copied"].waitForExistence(timeout: 2))
+        add(screenshot(app, "code-copied"))
+    }
+
     func testDocCardOpensTheDocSheet() {
         let app = launch(open: "agents/agt_0000000000000002")
         let card = app.buttons["Open Checkout retries"]

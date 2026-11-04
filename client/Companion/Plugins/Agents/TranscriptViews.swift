@@ -402,13 +402,8 @@ struct MarkdownView: View {
                         .overlay(alignment: .leading) {
                             Capsule().fill(.quaternary).frame(width: 3)
                         }
-                case .code(_, let text):
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        Text(text)
-                            .font(.callout.monospaced())
-                            .padding(14)
-                    }
-                    .background(Color.surface1, in: .rect(cornerRadius: 16))
+                case .code(let language, let text):
+                    MarkdownCodeBlock(language: language, text: text)
                 case .mermaid(let source):
                     MermaidBlock(source: source)
                 case .table(let header, let align, let rows):
@@ -925,6 +920,52 @@ struct CodeBlock: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.systemGroupedBackground), in: .rect(cornerRadius: 16))
+    }
+}
+
+private struct MarkdownCodeBlock: View {
+    let language: String
+    let text: String
+
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 0) {
+                Text(language)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Button(action: copy) {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        .font(.footnote)
+                        .foregroundStyle(copied ? Color.successInk : Color.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(copied ? "Copied" : "Copy")
+            }
+            .padding(.leading, 14)
+            ScrollView(.horizontal, showsIndicators: false) {
+                Text(text)
+                    .font(.callout.monospaced())
+                    .padding([.horizontal, .bottom], 14)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.surface1, in: .rect(cornerRadius: 16))
+        .sensoryFeedback(.success, trigger: copied) { _, now in now }
+    }
+
+    private func copy() {
+        UIPasteboard.general.string = text
+        copied = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            copied = false
+        }
     }
 }
 
