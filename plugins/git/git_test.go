@@ -224,6 +224,7 @@ func TestWorktreeList(t *testing.T) {
 	repo := committedRepo(t)
 	feat := filepath.Join(repo, ".worktrees", "feat")
 	git(t, repo, "worktree", "add", "-q", "-b", "feat", feat)
+	t.Setenv("GIT_COMMITTER_DATE", time.Now().Add(time.Hour).Format(time.RFC3339))
 	git(t, feat, "commit", "-q", "--allow-empty", "-m", "feat")
 	detached := filepath.Join(repo, ".worktrees", "detached")
 	git(t, repo, "worktree", "add", "-q", "--detach", detached)
@@ -231,15 +232,11 @@ func TestWorktreeList(t *testing.T) {
 
 	head := git(t, repo, "rev-parse", "--short", "HEAD")
 	featHead := git(t, feat, "rev-parse", "--short", "HEAD")
-	list := listWorktrees(t, h, id)
-	require.NotEmpty(t, list)
-	main := worktreeEntry{Repo: repo, Path: repo, Branch: "main", Head: head, Main: true, Current: true}
-	assert.Equal(t, main, list[0])
-	assert.ElementsMatch(t, []worktreeEntry{
-		main,
+	assert.Equal(t, []worktreeEntry{
+		{Repo: repo, Path: repo, Branch: "main", Head: head, Main: true, Current: true},
 		{Repo: repo, Path: feat, Branch: "feat", Head: featHead},
 		{Repo: repo, Path: detached, Head: head},
-	}, list)
+	}, listWorktrees(t, h, id))
 }
 
 func TestNewWorktree(t *testing.T) {
@@ -342,8 +339,9 @@ func TestSwitchMapsSubdir(t *testing.T) {
 	assert.Equal(t, filepath.Join(wt, "sub"), firstRoot(t, h, id))
 	list := listWorktrees(t, h, id)
 	require.Len(t, list, 2)
-	assert.False(t, list[0].Current)
-	assert.True(t, list[1].Current)
+	assert.Equal(t, wt, list[0].Path)
+	assert.True(t, list[0].Current)
+	assert.False(t, list[1].Current)
 	assert.ErrorContains(t, switchTo(filepath.Join(wt, "sub")), "not a worktree of "+folder)
 	require.NoError(t, switchTo(repo))
 	assert.Equal(t, folder, firstRoot(t, h, id))

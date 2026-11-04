@@ -45,18 +45,30 @@ func listWorktrees(ctx context.Context, h *pluginsdk.Host, workspaceID string) (
 		if err != nil {
 			return err
 		}
+		start := len(list)
 		for j, t := range f.Trees {
 			if t.Bare {
 				continue
 			}
 			list = append(list, worktreeInfo{Repo: f.Repo, Path: t.Path, Branch: t.Branch, Head: heads[t.Head].short, Committed: heads[t.Head].committed, Main: j == 0, Current: f.current(t)})
 		}
+		slices.SortStableFunc(list[start:], newestFirst)
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 	return list, nil
+}
+
+func newestFirst(a, b worktreeInfo) int {
+	if a.Current != b.Current {
+		if a.Current {
+			return -1
+		}
+		return 1
+	}
+	return b.Committed.Compare(a.Committed)
 }
 
 func switchWorktree(ctx context.Context, h *pluginsdk.Host, workspaceID string, s *state, repo, path string) error {
