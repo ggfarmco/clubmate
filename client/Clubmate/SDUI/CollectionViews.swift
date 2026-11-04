@@ -208,9 +208,10 @@ struct TreeNodeView: View {
 
     var body: some View {
         let rows = rows
+        let nested = node.treeItems().contains(where: \.hasChildren)
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(rows) { row in
-                itemRow(row, selected: row.id == selected, cursor: focused && row.id == cursor) {
+                itemRow(row, nested: nested, selected: row.id == selected, cursor: focused && row.id == cursor) {
                     cursor = row.id
                     focused = true
                     select(row.id)
@@ -224,7 +225,7 @@ struct TreeNodeView: View {
                 let tree = TreeCursor.rows(node.treeItems())
                 StickyHeaders(rows: tree, limit: Self.stickyLimit) { id in
                     if let row = rows.first(where: { $0.id == id }) {
-                        itemRow(row, selected: false, cursor: false) {
+                        itemRow(row, nested: nested, selected: false, cursor: false) {
                             if let target = TreeCursor.stickyTarget(id, in: tree, limit: Self.stickyLimit) {
                                 scroll?.scrollTo(target, anchor: .top)
                             }
@@ -259,9 +260,9 @@ struct TreeNodeView: View {
         }
     }
 
-    private func itemRow(_ row: Row, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
+    private func itemRow(_ row: Row, nested: Bool, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
         ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, faint: row.item.faint, tone: row.item.tone, detailTone: row.item.detailTone, depth: row.depth, badges: row.item.badges, changes: row.item.changes, action: action) {
-            Disclosure(hasChildren: row.item.hasChildren, expanded: row.item.expanded) { expanded in
+            Disclosure(hasChildren: row.item.hasChildren, expanded: row.item.expanded, reserve: nested) { expanded in
                 dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
             }
         }
@@ -350,6 +351,7 @@ private struct StickyHeaders<Header: View>: View {
 struct Disclosure: View {
     let hasChildren: Bool
     let expanded: Bool
+    var reserve = true
     let toggle: (Bool) -> Void
 
     @Environment(\.theme) private var theme
@@ -364,7 +366,7 @@ struct Disclosure: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(expanded ? "Collapse" : "Expand")
-        } else {
+        } else if reserve {
             Color.clear.frame(width: theme.indent)
         }
     }
