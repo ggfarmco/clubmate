@@ -179,13 +179,14 @@ Focus moving to the Agents main pane (switching to the section, Esc or ⌃L/⌃H
 
 | Keys | Action |
 |---|---|
-| ⌘↩ | Send the prompt; while a turn runs, add it to the running turn (agents that support steering) or queue it for the next turn |
+| ↩ (or ⌘↩) | Send the prompt; while a turn runs, add it to the running turn (agents that support steering) or queue it for the next turn. While the command list is open ↩ inserts the command instead |
+| ⇧↩ / ⌥↩ | Insert a newline |
 | Esc | Stop the running turn |
 | @ (at the start of a word) | Attach a file through the file picker |
 | / (at the start of the prompt) | List the agent's commands, filtered by what follows |
 | ↑ ↓, ↩ / ⇥ | Move in the command list, insert the command |
 
-↩ alone inserts a newline. Defined in `ClubmateKit/Composer.swift` (`ComposerKey`).
+While an input method is composing (marked text), ↩ and Esc go to it. Defined in `ClubmateKit/Composer.swift` (`ComposerKey`).
 
 ## Agent transcript (Agents section or Code chat panel)
 

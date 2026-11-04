@@ -20,7 +20,7 @@ public enum FocusedPane: Equatable, Sendable {
         case .graph(let history, let edges, let output): "j/k · ↩ open" + (edges ? " · tab edge" : "") + (output ? " · o output" : "") + (history ? " · h history" : "")
         case .lanes(let title): title ? "←/→ · ↩ open · h fold" : "←/→ · ↩ open"
         case .runstrip(let title): title ? "←/→ run · h fold" : "←/→ run"
-        case .composer(let running, let queues): queues ? "⌘↩ queue · Esc stop" : running ? "⌘↩ send · Esc stop" : "⌘↩ send"
+        case .composer(let running, let queues): queues ? "↩ queue · Esc stop" : running ? "↩ send · Esc stop" : "↩ send"
         case .field: "↩ submit"
         case .terminal: nil
         }

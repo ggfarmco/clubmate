@@ -24,10 +24,13 @@ final class AgentsUITests: XCTestCase {
         let send = try XCTUnwrap(ComposerKey(keyCode: 36, characters: "\r", command: true, control: false, option: false, shift: false))
         let escape = try XCTUnwrap(ComposerKey(keyCode: 53, characters: "\u{1b}", command: false, control: false, option: false, shift: false))
         let down = try XCTUnwrap(ComposerKey(keyCode: 125, characters: nil, command: false, control: false, option: false, shift: false))
-        let accept = try XCTUnwrap(ComposerKey(keyCode: 36, characters: "\r", command: false, control: false, option: false, shift: false))
+        let enter = try XCTUnwrap(ComposerKey(keyCode: 36, characters: "\r", command: false, control: false, option: false, shift: false))
+        XCTAssertNil(ComposerKey(keyCode: 36, characters: "\r", command: false, control: false, option: false, shift: true))
+        XCTAssertNil(ComposerKey(keyCode: 36, characters: "\r", command: false, control: false, option: true, shift: false))
 
         model.text = "  fix it \n"
         XCTAssertEqual(model.handle(send), .send("fix it"))
+        XCTAssertEqual(model.handle(enter), .send("fix it"))
         XCTAssertNil(model.handle(escape))
         model.running = true
         XCTAssertEqual(model.handle(escape), .stop)
@@ -36,10 +39,10 @@ final class AgentsUITests: XCTestCase {
         model.text = "/co"
         XCTAssertEqual(model.suggestions.map(\.name), ["compact", "context"])
         XCTAssertEqual(model.handle(down), .handled)
-        XCTAssertEqual(model.handle(accept), .handled)
+        XCTAssertEqual(model.handle(enter), .handled)
         XCTAssertEqual(model.text, "/context ")
         XCTAssertEqual(model.suggestions, [])
-        XCTAssertNil(model.handle(accept))
+        XCTAssertEqual(model.handle(enter), .send("/context"))
     }
 
     func testComposerDraftsSurviveRecreation() {

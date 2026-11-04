@@ -401,6 +401,7 @@ struct ComposerNodeView: View {
 
     private func handle(_ event: NSEvent) -> Bool {
         guard let key = Self.key(event) else { return false }
+        if key != .send, (event.window?.firstResponder as? NSTextInputClient)?.hasMarkedText() == true { return false }
         if key == .attach, filePicker == nil || !node.attachKinds().contains("file") { return false }
         if drafts.confirming.contains(ComposerDrafts.session(of: node.id ?? "")), event.keyCode == 53 || event.keyCode == 36 { return false }
         switch model.handle(key, before: model.character(before: caret)) {

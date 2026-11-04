@@ -25,6 +25,7 @@ public enum ComposerKey: Sendable, Equatable {
     case escape
     case up
     case down
+    case enter
     case accept
     case attach
 
@@ -40,7 +41,8 @@ public enum ComposerKey: Sendable, Equatable {
         }
         guard !command, !control, !option, !shift else { return nil }
         switch keyCode {
-        case 36, 76, 48: self = .accept
+        case 36, 76: self = .enter
+        case 48: self = .accept
         case 53: self = .escape
         case 126: self = .up
         case 125: self = .down
@@ -81,6 +83,8 @@ public final class ComposerModel {
         case .send:
             let prompt = text.trimmingCharacters(in: .whitespacesAndNewlines)
             return prompt.isEmpty ? .handled : .send(prompt)
+        case .enter:
+            return suggestions.isEmpty ? handle(.send) : handle(.accept)
         case .escape:
             return running ? .stop : nil
         case .up, .down:
