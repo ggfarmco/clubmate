@@ -44,6 +44,7 @@ const (
 	filterNode    = "filter"
 	filterAll     = "all"
 	filterNeeds   = "needs"
+	filterOpen    = "open"
 	filterRunning = "running"
 
 	statusAsks       = "asks"
@@ -94,7 +95,7 @@ var (
 	closedGlyphs = map[string]string{statusDone: statusDone, statusError: statusError}
 	hitIcons     = map[string]string{hitPrompt: "person", hitReply: "text.bubble"}
 	childDisplay = map[string]string{statusRunning: childrenRunning, statusWaiting: childrenWaiting}
-	filterEmpty  = map[string]string{filterNeeds: noneNeedYou, filterRunning: noneRunning}
+	filterEmpty  = map[string]string{filterNeeds: noneNeedYou, filterOpen: noneOpen, filterRunning: noneRunning}
 	notifyLabels = map[string]string{notifyNeedsInput: "Input only", notifyMuted: "Muted"}
 	notifyMenu   = []notifyChoice{
 		{action: actNotifyAll, policy: notifyAll, label: "Notify About Everything"},
@@ -115,6 +116,7 @@ type sessionRow struct {
 	Since    time.Time
 	Review   *reviewProgress
 	RunNeed  *runNeed
+	Open     int
 }
 
 type sidebarSearch struct {
@@ -162,8 +164,9 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	}
 	filter = cmp.Or(filter, filterAll)
 	runs := map[string][]string{}
-	for _, row := range roots {
+	for i, row := range roots {
 		runs[row.Rec.ID] = runsNeeding(row, kids, map[string]bool{})
+		roots[i].Open = openTotal(row, kids, map[string]bool{})
 	}
 	tabs := filterTabs(roots, filter, runs)
 	roots = slices.DeleteFunc(roots, func(row sessionRow) bool {
@@ -376,6 +379,7 @@ func filterTabs(roots []sessionRow, filter string, runs map[string][]string) sdu
 				counts[f]++
 			}
 		}
+		counts[filterOpen] += row.Open
 	}
 	needs := sdui.Item{ID: filterNeeds, Label: "Needs you", Icon: statusIcons[statusWaiting], Badge: strconv.Itoa(counts[filterNeeds])}
 	if counts[filterNeeds] > 0 {
@@ -384,6 +388,7 @@ func filterTabs(roots []sessionRow, filter string, runs map[string][]string) sdu
 	return sdui.WithAction(sdui.Tabs(filterNode, []sdui.Item{
 		{ID: filterAll, Label: "All", Badge: strconv.Itoa(counts[filterAll])},
 		needs,
+		{ID: filterOpen, Label: "Open", Icon: statusIcons[statusDone], Badge: strconv.Itoa(counts[filterOpen]), Shortcut: openFilterKey},
 		{ID: filterRunning, Label: "Running", Icon: statusIcons[statusRunning], Badge: strconv.Itoa(counts[filterRunning])},
 	}, filter), actFilter)
 }
@@ -412,8 +417,21 @@ func matchesFilter(row sessionRow, filter string) bool {
 		return ownNeeds(row)
 	case filterRunning:
 		return !row.Rec.restricted() && (row.Rec.Status == statusRunning || row.Children == statusRunning)
+	case filterOpen:
+		return !row.Rec.restricted() && (row.Open > 0 || row.Rec.MayAsk)
 	}
 	return true
+}
+
+func openTotal(row sessionRow, kids map[string][]sessionRow, seen map[string]bool) int {
+	seen[row.Rec.ID] = true
+	total := row.Rec.OpenCount
+	for _, kid := range kids[row.Rec.ID] {
+		if !seen[kid.Rec.ID] {
+			total += openTotal(kid, kids, seen)
+		}
+	}
+	return total
 }
 
 func oldestNeed(row sessionRow, kids map[string][]sessionRow, oldest map[string]time.Time, seen map[string]bool) time.Time {
@@ -599,13 +617,27 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 	if reviewRow(row) {
 		icon = statusIcons[statusReview]
 	}
+	act := rowActivity(row, now)
+	var badges []sdui.HeaderBadge
+	if rec.OpenCount > 0 && (display == statusDone || display == statusReview) {
+		badges = append(badges, openBadge(rec.OpenCount))
+		if display == statusDone {
+			act = ""
+		}
+	}
+	mayAsk := rec.MayAsk && display == statusDone && rec.OpenCount == 0
+	if mayAsk {
+		act = mayAskDetail
+	}
 	return sdui.TreeItem{
-		ID:     rec.ID,
-		Label:  cmp.Or(rec.Title, "New session"),
-		Detail: strings.Join(nonEmpty(afkDetail(rec), notifyLabels[row.Notify], rowActivity(row, now)), " · "),
-		Icon:   icon,
-		Tone:   statusTones[display],
-		Menu:   menu,
+		ID:          rec.ID,
+		Label:       cmp.Or(rec.Title, "New session"),
+		Detail:      strings.Join(nonEmpty(afkDetail(rec), notifyLabels[row.Notify], act), " · "),
+		DetailFaint: mayAsk,
+		Icon:        icon,
+		Tone:        statusTones[display],
+		Menu:        menu,
+		Badges:      badges,
 	}
 }
 

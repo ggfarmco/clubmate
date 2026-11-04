@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/testutil"
+	"clubmate/pkg/sdui"
 )
 
 type openItem struct {
@@ -413,4 +414,79 @@ func TestLastParagraphThatMayAskIsFlagged(t *testing.T) {
 		rec := f.session(t, workspace, session)
 		return rec.Status == "done" && !rec.MayAsk
 	}, wait)
+}
+
+func (f *fixture) openCardSlot(t *testing.T, workspace, session string) {
+	t.Helper()
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(nodesWithID(n, session+"/open/keys")) == 1 })
+}
+
+func nodesWithID(n sdui.Node, id string) []sdui.Node {
+	var out []sdui.Node
+	if n.ID == id {
+		out = append(out, n)
+	}
+	for _, c := range n.Children {
+		out = append(out, nodesWithID(c, id)...)
+	}
+	return out
+}
+
+func (f *fixture) waitPrompt(t *testing.T, text string) {
+	t.Helper()
+	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return promptText(t, c) == text })
+}
+
+func TestCardKeysPickAndSendOneTurn(t *testing.T) {
+	t.Parallel()
+	f := start(t, echoScript)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.doneSession(t, workspace)
+	f.postItems(t, workspace, session, decision("Lists"), offer("add a screen"))
+	f.openCardSlot(t, workspace, session)
+
+	keys := session + "/open/keys"
+	f.h.Event(t, workspace, "agents.main", keys, "openKey", "2")
+	f.h.Event(t, workspace, "agents.main", keys, "openKey", "j")
+	f.h.Event(t, workspace, "agents.main", keys, "openKey", "x")
+	f.h.Event(t, workspace, "agents.main", keys, "openKey", "cmd+return")
+
+	f.waitPrompt(t, "Answers: Lists → Two; do: add a screen")
+	assert.Zero(t, f.session(t, workspace, session).OpenCount)
+}
+
+func TestComposerSendCarriesTheCardsPicks(t *testing.T) {
+	t.Parallel()
+	f := start(t, echoScript)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.doneSession(t, workspace)
+	f.postItems(t, workspace, session, decision("Lists"), decision("Grouping"))
+	f.openCardSlot(t, workspace, session)
+
+	f.h.Event(t, workspace, "agents.main", session+"/open", "openDraft", map[string]any{session + "/open/oi-1": "One"})
+	f.h.Event(t, workspace, "agents.main", session+"/composer/0", "send", map[string]any{"text": "and hurry"})
+
+	f.waitPrompt(t, "Answers: Lists → One\n\nand hurry")
+	assert.Equal(t, 1, f.session(t, workspace, session).OpenCount)
+}
+
+func TestQueueSendsAnswersPerSession(t *testing.T) {
+	t.Parallel()
+	f := start(t, echoScript)
+	workspace := f.workspace(t, newRepo(t))
+	first := f.doneSession(t, workspace)
+	second := f.doneSession(t, workspace)
+	f.postItems(t, workspace, first, decision("Lists"))
+	f.postItems(t, workspace, second, decision("Grouping"), offer("add a screen"))
+
+	f.h.Event(t, workspace, "agents.sidebar", "filter", "filter", "open")
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(nodesWithID(n, "openQueue")) == 1 })
+	f.h.Event(t, workspace, "agents.main", "openQueue", "openKey", "1")
+	f.h.Event(t, workspace, "agents.main", "openQueue", "openKey", "j")
+	f.h.Event(t, workspace, "agents.main", "openQueue", "openKey", "2")
+	f.h.Event(t, workspace, "agents.main", "openQueue", "openKey", "cmd+return")
+
+	f.waitPrompt(t, "Answers: Lists → One")
+	f.waitPrompt(t, "Answers: Grouping → Two")
+	assert.Equal(t, 1, f.session(t, workspace, second).OpenCount)
 }

@@ -179,8 +179,8 @@ func TestSidebarFilter(t *testing.T) {
 	needs := sidebarView(rows, "", nil, now, "/r/a", false, filterNeeds, sidebarSearch{}, 0)
 	require.NoError(t, internalsdui.Validate(needs))
 	items := tabs(needs)
-	assert.Equal(t, []string{"5", "3", "1"}, []string{items[0].Badge, items[1].Badge, items[2].Badge})
-	assert.Equal(t, []string{"", "warning", ""}, []string{items[0].Tone, items[1].Tone, items[2].Tone})
+	assert.Equal(t, []string{"5", "3", "0", "1"}, []string{items[0].Badge, items[1].Badge, items[2].Badge, items[3].Badge})
+	assert.Equal(t, []string{"", "warning", "", ""}, []string{items[0].Tone, items[1].Tone, items[2].Tone, items[3].Tone})
 	assert.Equal(t, filterNeeds, nodesOf(needs, "tabs")[0].Props["selected"])
 	assert.Equal(t, []string{"agt_4", "agt_1", "agt_5"}, ids(needs))
 	assert.Equal(t, []string{"agt_2"}, ids(sidebarView(rows, "", nil, now, "/r/a", false, filterRunning, sidebarSearch{}, 0)))
@@ -977,7 +977,7 @@ func TestSidebarFoldsServiceSessions(t *testing.T) {
 		return nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
 	}
 	tabs := nodesOf(sidebarView(rows, "", nil, now, "/r/a", false, "", sidebarSearch{}, 0), "tabs")[0].Props["items"].([]sdui.Item)
-	assert.Equal(t, []string{"1", "0", "1"}, []string{tabs[0].Badge, tabs[1].Badge, tabs[2].Badge})
+	assert.Equal(t, []string{"1", "0", "1"}, []string{tabs[0].Badge, tabs[1].Badge, tabs[3].Badge})
 
 	quiet := groups(rows)
 	assert.False(t, quiet[2].Expanded)

@@ -3,9 +3,13 @@ package main
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	internalsdui "clubmate/internal/sdui"
+	"clubmate/pkg/sdui"
 )
 
 func openSession(t *testing.T, turn int, texts []string, items ...openItem) *session {
@@ -97,4 +101,75 @@ func TestItemsStayOnAChildOnceItsParentIsClosed(t *testing.T) {
 	assert.Equal(t, "open", a.openParent(record{lineage: lineage{ParentSession: "open"}}))
 	assert.Empty(t, a.openParent(record{lineage: lineage{ParentSession: "closed"}}))
 	assert.Empty(t, a.openParent(record{lineage: lineage{ParentSession: "gone"}}))
+}
+
+func TestOffersShareOneNumberAfterTheDecisions(t *testing.T) {
+	t.Parallel()
+	s := openSession(t, 1, []string{"Offer. Ask."},
+		openItem{Kind: itemOffer, Quote: "Offer.", State: itemOpen},
+		openItem{Kind: itemDecision, Quote: "Ask.", State: itemOpen})
+	assert.Equal(t, "Offer. ② Ask. ①", onlyMarked(t, s))
+}
+
+func TestOneCardHoldsTheOpenSetAndFoldsWhenLater(t *testing.T) {
+	t.Parallel()
+	first := &entry{ID: "open-1", Kind: entryOpenItems, Items: []openItem{{ID: "oi-1", Kind: itemDecision, Header: "Lists", Question: "Which?", State: itemOpen, Options: []openOption{{Label: "A", Description: "a"}}}}}
+	last := &entry{ID: "open-2", Kind: entryOpenItems, Items: []openItem{{ID: "oi-2", Kind: itemOffer, Label: "Do it", State: itemOpen}}}
+	s := newSession(record{ID: "s"}, nil, true, nil)
+	s.opens = []*entry{first, last}
+	data := s.openCard()
+	sc := screen{View: transcriptView{Session: record{ID: "s", Status: statusDone, OpenCount: 2}}, Open: data}
+
+	_, shown := openEntryNode(sc, first)
+	assert.False(t, shown)
+	card, shown := openEntryNode(sc, last)
+	require.True(t, shown)
+	require.NoError(t, internalsdui.Validate(card))
+	assert.Len(t, nodesOf(card, "choice"), 2)
+	assert.Equal(t, "2 open", nodesOf(card, "badge")[0].Props["text"])
+
+	sc.Open.Later = true
+	folded, shown := openEntryNode(sc, last)
+	require.True(t, shown)
+	assert.Empty(t, nodesOf(folded, "choice"))
+	sc.Expanded = map[string]bool{"open-2": true}
+	open, _ := openEntryNode(sc, last)
+	assert.NotEmpty(t, nodesOf(open, "choice"))
+}
+
+func TestSidebarOpenFilterCountsItemsAndKeepsAMayAskRow(t *testing.T) {
+	t.Parallel()
+	rows := []sessionRow{
+		{Rec: record{ID: "a", Status: statusDone, Worktree: "/r", OpenCount: 3}},
+		{Rec: record{ID: "b", Status: statusDone, Worktree: "/r", OpenCount: 2}},
+		{Rec: record{ID: "c", Status: statusDone, Worktree: "/r", MayAsk: true}},
+		{Rec: record{ID: "d", Status: statusDone, Worktree: "/r"}},
+	}
+	view := sidebarView(rows, "", nil, time.Now(), "/r", false, filterOpen, sidebarSearch{}, 0)
+	require.NoError(t, internalsdui.Validate(view))
+	var tabs []sdui.Item
+	raw, _ := json.Marshal(nodesOf(view, "tabs")[0].Props["items"])
+	require.NoError(t, json.Unmarshal(raw, &tabs))
+	assert.Equal(t, "5", tabs[2].Badge)
+	assert.Equal(t, openFilterKey, tabs[2].Shortcut)
+	var items []sdui.TreeItem
+	raw, _ = json.Marshal(nodesOf(view, "tree")[0].Props["items"])
+	require.NoError(t, json.Unmarshal(raw, &items))
+	require.Len(t, items, 3)
+	assert.True(t, items[0].Badges[0].Outline)
+	assert.Equal(t, mayAskDetail, items[2].Detail)
+	assert.True(t, items[2].DetailFaint)
+}
+
+func TestRadioPickAndOtherExcludeEachOther(t *testing.T) {
+	t.Parallel()
+	it := openItem{ID: "oi-1", Kind: itemDecision, Options: []openOption{{Label: "A"}, {Label: "B"}}}
+	var d openDraft
+	d.pick(it, 1)
+	d.openOther(it)
+	assert.Empty(t, d.answers["oi-1"].Option)
+	assert.True(t, d.others["oi-1"])
+	d.pick(it, 0)
+	assert.False(t, d.others["oi-1"])
+	assert.Equal(t, "A", d.answers["oi-1"].Option)
 }

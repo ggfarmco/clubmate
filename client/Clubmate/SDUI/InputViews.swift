@@ -111,7 +111,7 @@ struct ButtonNodeView: View {
         ButtonPress(node: node, dispatch: dispatch, form: form, open: popoverForm == nil ? nil : { popoverShown = true }, dismiss: popover?.dismiss)
     }
 
-    private var keyLabel: String? { combo?.label ?? (popover == nil ? nil : SDUIPopover.keyLabel(node)) ?? keyHint }
+    private var keyLabel: String? { combo?.label ?? node.string("hint").flatMap(KeyCombo.init)?.label ?? (popover == nil ? nil : SDUIPopover.keyLabel(node)) ?? keyHint }
 
     private var foreground: Color {
         if loading != nil { return variant == "primary" ? theme.onAccent : theme.text2 }

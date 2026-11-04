@@ -83,6 +83,8 @@ type screen struct {
 	Review       *reviewProgress
 	ReviewStates map[string]map[int64]string
 	ReviewsOpen  map[string]bool
+	Open         openCardData
+	OpenDraft    openDraft
 }
 
 type codePanel struct {
@@ -280,6 +282,9 @@ func header(sc screen) sdui.Node {
 		if sc.Review != nil {
 			badges = append(badges, reviewBadge(sc.Review))
 		}
+		if rec.OpenCount > 0 {
+			badges = append(badges, openBadge(rec.OpenCount))
+		}
 		top = sdui.Header(cmp.Or(rec.Title, "New session"), sdui.HeaderProps{
 			Icon:   statusIcons[display],
 			Meta:   strings.Join(meta, " · "),
@@ -381,6 +386,8 @@ func composerPlaceholder(sc screen) string {
 		return "Answer " + agent + "…"
 	case turnActive(rec) && !sc.Steers:
 		return "Queue a message"
+	case rec.OpenCount > 0:
+		return "Message " + agent + "…" + withAnswers
 	}
 	return "Message " + agent + "…"
 }

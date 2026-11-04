@@ -6,22 +6,30 @@ import ClubmateKit
 struct TabsNodeView: View {
     let node: SDUINode
 
+    private static let wrapCount = 3
+
     @State private var selected = ""
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.theme) private var theme
 
     var body: some View {
         let items = node.items()
-        ViewThatFits(in: .horizontal) {
-            chips(items, compact: false)
-            chips(items, compact: true)
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
+        Group {
+            if items.count > Self.wrapCount {
+                FlowLayout(spacing: theme.spacing.s) { chipButtons(items, compact: false) }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    chips(items, compact: false)
                     chips(items, compact: true)
-                }
-                .clipped()
-                .onChange(of: selected, initial: true) { _, id in
-                    proxy.scrollTo(id)
+                    ScrollViewReader { proxy in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            chips(items, compact: true)
+                        }
+                        .clipped()
+                        .onChange(of: selected, initial: true) { _, id in
+                            proxy.scrollTo(id)
+                        }
+                    }
                 }
             }
         }
@@ -34,15 +42,25 @@ struct TabsNodeView: View {
 
     private func chips(_ items: [SDUIItem], compact: Bool) -> some View {
         HStack(spacing: theme.spacing.s) {
-            ForEach(items) { item in
-                TabButton(item: item, compact: compact, selected: item.id == selected) {
-                    selected = item.id
-                    dispatch(node, .select(item.id))
-                }
-                .id(item.id)
-            }
+            chipButtons(items, compact: compact)
         }
         .fixedSize()
+    }
+
+    private func chipButtons(_ items: [SDUIItem], compact: Bool) -> some View {
+        ForEach(items) { item in
+            TabButton(item: item, compact: compact, selected: item.id == selected) {
+                selected = item.id
+                dispatch(node, .select(item.id))
+            }
+            .id(item.id)
+            .keyMonitor(active: item.shortcut != nil) { event in
+                guard item.shortcut.flatMap(KeyCombo.init)?.fires(on: event) == true else { return false }
+                selected = item.id
+                dispatch(node, .select(item.id))
+                return true
+            }
+        }
     }
 }
 
@@ -261,7 +279,7 @@ struct TreeNodeView: View {
     }
 
     private func itemRow(_ row: Row, nested: Bool, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
-        ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, faint: row.item.faint, tone: row.item.tone, detailTone: row.item.detailTone, depth: row.depth, badges: row.item.badges, changes: row.item.changes, action: action) {
+        ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, faint: row.item.faint, tone: row.item.tone, detailTone: row.item.detailTone, detailFaint: row.item.detailFaint, depth: row.depth, badges: row.item.badges, changes: row.item.changes, action: action) {
             Disclosure(hasChildren: row.item.hasChildren, expanded: row.item.expanded, reserve: nested) { expanded in
                 dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
             }
@@ -381,6 +399,7 @@ struct ItemRow<Leading: View>: View {
     var faint = false
     var tone: String?
     var detailTone: String?
+    var detailFaint = false
     var depth = 0
     var badges: [SDUIHeaderBadge] = []
     var changes: SDUIChanges?
@@ -415,13 +434,13 @@ struct ItemRow<Leading: View>: View {
                     .truncationMode(Text.TruncationMode(item.truncate))
                     .help(item.label)
                 ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
-                    BadgeLabel(text: badge.text, tone: theme.tone(badge.tone))
+                    BadgeLabel(text: badge.text, tone: theme.tone(badge.tone), outline: badge.outline)
                         .fixedSize()
                 }
                 if let detail = item.detail {
                     Text(detail)
                         .font(theme.uiSmall)
-                        .foregroundStyle(theme.tone(detailTone ?? tone) ?? theme.muted)
+                        .foregroundStyle(detailFaint ? theme.faint : theme.tone(detailTone ?? tone) ?? theme.muted)
                         .lineLimit(1)
                         .truncationMode(.label)
                         .help(detail)

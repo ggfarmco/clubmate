@@ -15,6 +15,7 @@ public struct SDUIItem: Sendable, Equatable, Identifiable {
     public let tone: String?
     public let menu: [SDUIMenuEntry]
     public let truncate: SDUITruncate
+    public let shortcut: String?
 
     public init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let id = fields["id"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
@@ -26,6 +27,7 @@ public struct SDUIItem: Sendable, Equatable, Identifiable {
         tone = fields["tone"]?.stringValue
         menu = fields["menu"]?.arrayValue?.compactMap(SDUIMenuEntry.init) ?? []
         truncate = fields["truncate"]?.stringValue.flatMap(SDUITruncate.init) ?? .tail
+        shortcut = fields["shortcut"]?.stringValue
     }
 }
 
@@ -50,6 +52,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
     public let item: SDUIItem
     public let tone: String?
     public let detailTone: String?
+    public let detailFaint: Bool
     public let muted: Bool
     public let faint: Bool
     public let action: Bool
@@ -70,6 +73,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
         self.item = item
         tone = fields["tone"]?.stringValue
         detailTone = fields["detailTone"]?.stringValue
+        detailFaint = fields["detailFaint"]?.boolValue ?? false
         muted = fields["muted"]?.boolValue ?? false
         faint = fields["faint"]?.boolValue ?? false
         action = fields["action"]?.boolValue ?? false
@@ -95,11 +99,13 @@ public struct SDUIChanges: Sendable, Equatable {
 public struct SDUIHeaderBadge: Sendable, Equatable {
     public let text: String
     public let tone: String?
+    public let outline: Bool
 
     public init?(_ json: JSONValue) {
         guard let fields = json.objectValue, let text = fields["text"]?.stringValue else { return nil }
         self.text = text
         tone = fields["tone"]?.stringValue
+        outline = fields["outline"]?.boolValue ?? false
     }
 }
 
@@ -121,6 +127,7 @@ public struct SDUIChoiceOption: Sendable, Equatable, Identifiable {
     public let label: String
     public let description: String?
     public let shortcut: String?
+    public let hint: String?
     public let on: Bool
 
     public var id: String { value }
@@ -131,6 +138,7 @@ public struct SDUIChoiceOption: Sendable, Equatable, Identifiable {
         self.label = label
         description = fields["description"]?.stringValue
         shortcut = fields["shortcut"]?.stringValue
+        hint = fields["hint"]?.stringValue
         on = fields["on"]?.boolValue ?? false
     }
 }
@@ -140,6 +148,10 @@ public struct SDUIChoiceOther: Sendable, Equatable {
     public let label: String
     public let placeholder: String?
     public let shortcut: String?
+    public let hint: String?
+    public let on: Bool
+    public let value: String?
+    public let focus: Int
 
     public init?(_ json: JSONValue) {
         guard let fields = json.objectValue, let id = fields["id"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
@@ -147,6 +159,10 @@ public struct SDUIChoiceOther: Sendable, Equatable {
         self.label = label
         placeholder = fields["placeholder"]?.stringValue
         shortcut = fields["shortcut"]?.stringValue
+        hint = fields["hint"]?.stringValue
+        on = fields["on"]?.boolValue ?? false
+        value = fields["value"]?.stringValue
+        focus = fields["focus"]?.numberValue.flatMap { Int(exactly: $0) } ?? 0
     }
 }
 

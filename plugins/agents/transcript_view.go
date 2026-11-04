@@ -267,7 +267,7 @@ func entryNode(sc screen, en *entry, sha string) builtNode {
 		}
 		return builtNode{node: n, shown: true, cost: nodeCost(n)}
 	}
-	if en.node == nil || en.Kind == entryTool && sc.Expanded[en.ID] {
+	if en.node == nil || en.Kind == entryTool && sc.Expanded[en.ID] || en.Kind == entryOpenItems {
 		return build()
 	}
 	key := nodeKey{sid: sc.View.Session.ID, root: sc.View.Session.Worktree, reviewable: sha != "", pending: sc.Pending[en.ID], from: sc.FromTitles[en.From], review: reviewCardKey(sc, en)}
@@ -342,6 +342,8 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 		return permissionCard(sc, en), true
 	case entryElicitation:
 		return elicitationCard(sc, en), en.Elicitation != nil
+	case entryOpenItems:
+		return openEntryNode(sc, en)
 	case entryCompaction:
 		return compactionCard(sid+"/compaction/"+en.ID, en), true
 	case entryNotice:

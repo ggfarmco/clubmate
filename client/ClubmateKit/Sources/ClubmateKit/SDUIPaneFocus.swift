@@ -4,7 +4,7 @@ public extension SDUINode {
     static let paneFocusTypes: Set<String> = ["table", "graph", "flow", "lanes", "runstrip"]
 
     var paneFocusOwner: String? {
-        if Self.paneFocusTypes.contains(type), let id, !ghostOnly { return id }
+        if Self.paneFocusTypes.contains(type) || type == "keys" && bool("pane") == true, let id, !ghostOnly { return id }
         for child in children {
             if let owner = child.paneFocusOwner { return owner }
         }

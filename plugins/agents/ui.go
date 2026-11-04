@@ -65,21 +65,22 @@ type editorFile struct {
 }
 
 type workspaceUI struct {
-	render    sync.Mutex
-	sent      map[string][]byte
-	throttle  *throttle
-	tick      *ticker
-	selected  string
-	filter    string
-	query     string
-	closed    int
-	restored  bool
-	collapsed map[string]bool
-	folds     bool
-	branch    bool
-	sessions  map[string]*sessionUI
-	code      map[string]string
-	codeRead  bool
+	render     sync.Mutex
+	sent       map[string][]byte
+	throttle   *throttle
+	tick       *ticker
+	selected   string
+	filter     string
+	query      string
+	closed     int
+	restored   bool
+	collapsed  map[string]bool
+	folds      bool
+	branch     bool
+	sessions   map[string]*sessionUI
+	focusAfter string
+	code       map[string]string
+	codeRead   bool
 }
 
 type sessionUI struct {
@@ -92,6 +93,7 @@ type sessionUI struct {
 	anchor      string
 	anchorTurn  int
 	anchorRev   int
+	open        openDraft
 
 	context         bool
 	contextSelected string
@@ -256,7 +258,11 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	var shown *screen
 	if slices.Contains(slots, mainSlot) {
 		main := sdui.Empty(pickSession)
-		if s := a.session(selected); s != nil {
+		if filter == filterOpen {
+			q := a.openQueueScreen(ctx, workspaceID, rows, selected)
+			q.Now = time.Now()
+			main = openQueueView(q)
+		} else if s := a.session(selected); s != nil {
 			sc := a.screen(ctx, workspaceID, s)
 			sc.Workspace = workspace.Name
 			main, shown = mainView(sc), &sc
@@ -458,8 +464,10 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 	row := a.sessionRow(ctx, v.Session, childStatuses(a.list(workspaceID))[sid])
 	ctxScreen := a.contextScreen(st, v.Session)
 	current := s.currentTurn()
+	open := s.openCard()
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
+	st.open.prune(open.Items)
 	if st.anchorTurn != current {
 		st.anchor, st.anchorTurn = "", 0
 	}
@@ -490,6 +498,8 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 		FromTitles:  fromTitles,
 		Context:     ctxScreen,
 		Review:      row.Review,
+		Open:        open,
+		OpenDraft:   st.open.clone(),
 	}
 	sc.ReviewStates, sc.ReviewsOpen = a.reviews.cards()
 	return sc

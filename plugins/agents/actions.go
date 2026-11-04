@@ -160,7 +160,16 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	case ev.Action == actShowBranch:
 		err = h.FocusField(ctx, ev.WorkspaceID, sectionID)
 	}
-	return nil, err
+	if err != nil {
+		return nil, err
+	}
+	switch focus, sid := a.takeFocusAfter(ev.WorkspaceID); focus {
+	case focusQueue:
+		return nil, h.Focus(ctx, ev.WorkspaceID, sectionID, mainSlot)
+	case focusComposer:
+		return nil, a.focusComposer(ctx, ev.WorkspaceID, sid)
+	}
+	return nil, nil
 }
 
 func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
@@ -260,14 +269,24 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if err != nil {
 			return err
 		}
-		if !slices.Contains([]string{filterAll, filterNeeds, filterRunning}, id) {
+		if !slices.Contains([]string{filterAll, filterNeeds, filterOpen, filterRunning}, id) {
 			return fmt.Errorf("%w: %s", errUnknownFilter, id)
 		}
 		p := a.workspaceState(ev.WorkspaceID)
 		a.uiMu.Lock()
 		p.filter = id
+		if id == filterOpen {
+			p.focusAfter = focusQueue
+		}
 		a.uiMu.Unlock()
+		if queue := a.openQueue(ev.WorkspaceID); id == filterOpen && len(queue) > 0 {
+			return a.selectSession(ctx, ev.WorkspaceID, queue[0].Session)
+		}
 		return nil
+	case actOpenKey:
+		return a.openKey(ctx, ev)
+	case actOpenSendAll:
+		return a.sendAllOpen(ctx, ev.WorkspaceID)
 	case actExpand, actCollapse:
 		id, err := itemID(ev)
 		if err != nil {
@@ -333,13 +352,16 @@ func (a *app) rowSession(ev pluginsdk.UIEvent) (*session, error) {
 func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, node string) error {
 	sid := s.snapshot().ID
 	st := a.sessionState(ev.WorkspaceID, sid)
+	if isOpenAction(ev.Action) {
+		return a.openAct(ctx, ev, s, st)
+	}
 	switch ev.Action {
 	case actSend:
 		var v textValue
 		if err := decode(ev.Value, &v); err != nil {
 			return err
 		}
-		return a.send(ev.WorkspaceID, s, st, v.Text)
+		return a.send(ctx, ev.WorkspaceID, s, st, v.Text)
 	case actStop:
 		a.cancel(s)
 		return nil
@@ -518,7 +540,7 @@ func (a *app) addAttachment(st *sessionUI, att attachment) {
 	st.attachments = append(st.attachments, pendingAttachment{ID: "a" + strconv.Itoa(st.nextID), attachment: att})
 }
 
-func (a *app) send(workspaceID string, s *session, st *sessionUI, text string) error {
+func (a *app) send(ctx context.Context, workspaceID string, s *session, st *sessionUI, text string) error {
 	a.uiMu.Lock()
 	pending := st.attachments
 	a.uiMu.Unlock()
@@ -529,7 +551,19 @@ func (a *app) send(workspaceID string, s *session, st *sessionUI, text string) e
 	for _, p := range pending {
 		atts = append(atts, p.attachment)
 	}
-	if err := a.prompt(workspaceID, promptArgs{Session: s.snapshot().ID, Text: text, Attachments: atts}); err != nil {
+	sid := s.snapshot().ID
+	items := s.openList()
+	a.uiMu.Lock()
+	open := st.open.args(sid, items)
+	a.uiMu.Unlock()
+	var err error
+	if open.picked() > 0 {
+		open.Note = text
+		_, err = a.answerOpen(ctx, s, workspaceID, open, atts)
+	} else {
+		err = a.prompt(workspaceID, promptArgs{Session: sid, Text: text, Attachments: atts})
+	}
+	if err != nil {
 		return err
 	}
 	a.uiMu.Lock()

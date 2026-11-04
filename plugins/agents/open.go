@@ -172,6 +172,10 @@ func (a *app) openAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 	if err != nil {
 		return nil, err
 	}
+	return a.answerOpen(ctx, s, cmd.WorkspaceID, args, nil)
+}
+
+func (a *app) answerOpen(ctx context.Context, s *session, workspaceID string, args openAnswerArgs, attachments []attachment) (any, error) {
 	if len(args.Answers) == 0 && len(args.Offers) == 0 && strings.TrimSpace(args.Note) == "" {
 		return nil, errOpenEmpty
 	}
@@ -184,7 +188,7 @@ func (a *app) openAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 	if s.snapshot().closed() {
 		return a.answerClosed(ctx, s, picks, args.Note)
 	}
-	if err := a.prompt(cmd.WorkspaceID, promptArgs{Session: args.Session, Text: picks.prompt(args.Note), Queued: true}); err != nil {
+	if err := a.prompt(workspaceID, promptArgs{Session: args.Session, Text: picks.prompt(args.Note), Attachments: attachments, Queued: true}); err != nil {
 		return nil, err
 	}
 	s.resolveOpen(openChange{Resolved: picks.resolved()})
@@ -237,8 +241,12 @@ func (a *app) openNoCommand(_ context.Context, cmd pluginsdk.CommandRun, args op
 }
 
 func (a *app) openQueueCommand(_ context.Context, cmd pluginsdk.CommandRun, args openQueueArgs) (any, error) {
+	return a.openQueue(cmp.Or(args.Workspace, cmd.WorkspaceID)), nil
+}
+
+func (a *app) openQueue(workspaceID string) []openQueueEntry {
 	out := []openQueueEntry{}
-	for _, rec := range a.list(cmp.Or(args.Workspace, cmd.WorkspaceID)) {
+	for _, rec := range a.list(workspaceID) {
 		s := a.session(rec.ID)
 		if s == nil || rec.OpenCount == 0 {
 			continue
@@ -248,7 +256,7 @@ func (a *app) openQueueCommand(_ context.Context, cmd pluginsdk.CommandRun, args
 	slices.SortStableFunc(out, func(x, y openQueueEntry) int {
 		return cmp.Or(x.since.Compare(y.since), cmp.Compare(x.Session, y.Session))
 	})
-	return out, nil
+	return out
 }
 
 func (a *app) openConvertCommand(_ context.Context, cmd pluginsdk.CommandRun, args sessionArgs) (any, error) {

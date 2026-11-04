@@ -38,14 +38,15 @@ func (s *session) markedLocked() map[*entry]string {
 		}
 	}
 	marks := map[*entry][]openMark{}
+	numbers := openNumbers(s.opens)
 	for _, en := range s.opens {
 		for i, it := range en.Items {
-			if it.State == itemHanded {
+			if numbers[en] == nil || numbers[en][i] == 0 {
 				continue
 			}
 			for _, agent := range slices.Backward(turns[en.Turn]) {
 				if at, ok := quoteEnd(agent.Text, it.Quote); ok {
-					marks[agent] = append(marks[agent], openMark{at: at, number: i + 1})
+					marks[agent] = append(marks[agent], openMark{at: at, number: numbers[en][i]})
 					break
 				}
 			}
@@ -113,6 +114,35 @@ func withMarks(text string, marks []openMark) string {
 	}
 	b.WriteString(text[prev:])
 	return b.String()
+}
+
+func openNumbers(entries []*entry) map[*entry][]int {
+	decisions := 0
+	out := make(map[*entry][]int, len(entries))
+	for _, en := range entries {
+		if !hasOpen(en) {
+			continue
+		}
+		out[en] = make([]int, len(en.Items))
+		for i, it := range en.Items {
+			if it.Kind != itemOffer && it.State != itemHanded {
+				decisions++
+				out[en][i] = decisions
+			}
+		}
+	}
+	for en, numbers := range out {
+		for i, it := range en.Items {
+			if it.Kind == itemOffer && it.State != itemHanded {
+				numbers[i] = decisions + 1
+			}
+		}
+	}
+	return out
+}
+
+func hasOpen(en *entry) bool {
+	return slices.ContainsFunc(en.Items, func(it openItem) bool { return it.State == itemOpen })
 }
 
 func (s *session) mayAskLocked() bool {

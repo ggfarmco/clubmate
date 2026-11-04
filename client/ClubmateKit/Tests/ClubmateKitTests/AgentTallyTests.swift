@@ -22,4 +22,8 @@ final class AgentTallyTests: XCTestCase {
         XCTAssertEqual(AgentTally([run]).needYouLabel, "1 run needs you")
         XCTAssertEqual(AgentTally([run, AgentSession(id: "a", status: .waiting, needsYou: true)]).needYouLabel, "2 need you")
     }
+
+    func testOpenSumsEveryItem() {
+        XCTAssertEqual(AgentTally([AgentSession(id: "a", openCount: 3), AgentSession(id: "b", openCount: 2)]).open, 5)
+    }
 }

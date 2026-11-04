@@ -9,6 +9,7 @@ public enum FocusedPane: Equatable, Sendable {
     case lanes(title: Bool)
     case runstrip(title: Bool)
     case composer(running: Bool, queues: Bool)
+    case openItems
     case field
     case terminal
 
@@ -21,6 +22,7 @@ public enum FocusedPane: Equatable, Sendable {
         case .lanes(let title): title ? "←/→ · ↩ open · h fold" : "←/→ · ↩ open"
         case .runstrip(let title): title ? "←/→ run · h fold" : "←/→ run"
         case .composer(let running, let queues): queues ? "↩ queue · Esc stop" : running ? "↩ send · Esc stop" : "↩ send"
+        case .openItems: "1–4 pick · L later · ⌘↩ send"
         case .field: "↩ submit"
         case .terminal: nil
         }

@@ -108,7 +108,7 @@ Pickers are the fuzzy lists for worktrees: the worktree switcher in the window t
 | ↩ | Select a leaf item, or expand / collapse an item with children |
 | o | Same as ↩, but an item with children gets selected instead |
 | gc | Focus the sidebar's text field, when it has one |
-| < / > | Previous / next chip of the sidebar's filter row, when it has one (Agents: All · Needs you · Running) |
+| < / > | Previous / next chip of the sidebar's filter row, when it has one (Agents: All · Needs you · Open · Running) |
 | Esc | Back to the main pane |
 | ⌃L (sidebar on the left), ⌃H (sidebar on the right) | Back to the main pane |
 
@@ -228,6 +228,26 @@ A pending question (AskUserQuestion or an MCP form) is docked above the composer
 | ↩ | In a text field of the question (e.g. "Other"): send the form |
 
 With 2+ questions the rows have no keys: click them, or Tab to a row and press Space. Defined by the `choice` option `shortcut` props in `plugins/agents/elicit_view.go`.
+
+## Open items (Agents section, card or Open queue)
+
+⌥O works anywhere in Agents; the rest only while the card or the queue has focus (a click in it, Open in the sidebar), never in the composer or a text field.
+
+| Keys | Action |
+|---|---|
+| ⌥O | Open filter: every open item of the workspace, one queue |
+| ↑ ↓, J K | Move between items; the offers are walked one by one |
+| 1 2 3 4 | Pick that option of the focused decision, or tick that offer |
+| X | Tick the focused offer |
+| O | Other…: opens the focused decision's field; Esc or ↩ in it goes back to the card |
+| ⌘↩ | Send answers; in the queue every answered session's, one turn each |
+| L | Later: keep them open and fold the card |
+| B | To backlog: one task per open item of the session |
+| ⌫ | No to the focused item |
+| ⇧⌫ | No to all of the session's open items |
+| ↩ | In the queue: open the item's session |
+
+Defined by the `keys` scope in `plugins/agents/open_view.go`, handled in `plugins/agents/open_actions.go`. ⌥O is the `shortcut` on the sidebar's Open chip.
 
 ## Companion on iPad / Fold (hardware keyboard, a session open)
 

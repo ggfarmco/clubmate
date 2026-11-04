@@ -114,6 +114,10 @@ private struct AgentCounts: View {
             if tally.needYou > 0 {
                 Text(tally.needYouLabel).foregroundStyle(theme.warning)
             }
+            if tally.open > 0 {
+                if active && tally.active > 0 || tally.needYou > 0 { Text(" · ").foregroundStyle(theme.muted) }
+                Text("\(tally.open) open").foregroundStyle(theme.muted)
+            }
         }
         .monospacedDigit()
         .fixedSize()

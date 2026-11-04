@@ -10,6 +10,7 @@ struct ChoiceNodeView: View {
 
     private static let numberSize: CGFloat = 18
     private static let accentBar: CGFloat = 2
+    private static let quoteBar: CGFloat = 2
 
     @State private var picked: [String] = []
     @State private var otherOn = false
@@ -19,6 +20,11 @@ struct ChoiceNodeView: View {
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(FormState.self) private var form: FormState?
     @Environment(\.formNarrow) private var narrow
+    @Environment(\.formAccordion) private var accordion
+    @Environment(\.cardRowInset) private var rowInset
+    @Environment(\.keysFocused) private var keysFocused
+    @Environment(\.keysRefocus) private var keysRefocus
+    @Environment(\.transcriptReveal) private var transcriptReveal
     @Environment(\.scrollProxy) private var scroll
     @Environment(\.theme) private var theme
 
@@ -28,13 +34,14 @@ struct ChoiceNodeView: View {
     private var question: String? { node.string("text") }
     private var number: Int? { node.props["number"]?.numberValue.flatMap { Int(exactly: $0) } }
     private var picksAtOnce: Bool { node.string("action") != nil }
+    private var serverOpens: Bool { node.string("openAction") != nil }
 
     private var current: Bool {
-        guard let openChoice = form?.openChoice else { return node.bool("open") == true }
+        guard !serverOpens, let openChoice = form?.openChoice else { return node.bool("open") == true }
         return openChoice == node.id
     }
 
-    private var folded: Bool { narrow && form != nil && question != nil && !current }
+    private var folded: Bool { accordion && form != nil && question != nil && !current }
 
     private var answer: String? {
         var labels = options.filter { picked.contains($0.value) }.map(\.label)
@@ -46,29 +53,45 @@ struct ChoiceNodeView: View {
         Group {
             if folded { foldedRow } else { unfolded }
         }
+        .id(node.id)
+        .onChange(of: current) { _, now in
+            guard now, serverOpens, let id = node.id else { return }
+            scroll?.scrollTo(id)
+            transcriptReveal?.show(id)
+        }
         .onChange(of: options, initial: true) { restore() }
+        .onChange(of: other, initial: true) { old, new in
+            guard let new, !otherFocused else { return }
+            if new.on { otherOn = true }
+            otherText = new.value ?? otherText
+            store()
+            if new.focus > (old?.focus ?? 0) {
+                focusOther = true
+                otherFocused = otherOn
+            }
+        }
     }
 
     private var foldedRow: some View {
         ChoicePressable(radius: theme.radius.m, press: open) {
             HStack(spacing: theme.spacing.m) {
                 badges
-                Text(question ?? "")
+                Text(node.string("summary") ?? question ?? "")
                     .foregroundStyle(theme.text2)
                     .lineLimit(1)
                     .truncationMode(.label)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text(answer ?? (radio ? "not answered" : "none ticked"))
                     .font(theme.uiSmall)
-                    .foregroundStyle(answer == nil ? theme.faint : theme.text2)
+                    .foregroundStyle(answer == nil ? theme.faint : theme.success)
                     .lineLimit(1)
                     .truncationMode(.label)
                 Image(systemName: "chevron.down")
                     .font(theme.uiSmall)
                     .foregroundStyle(theme.muted)
             }
-            .padding(.vertical, theme.spacing.xs)
-            .padding(.horizontal, theme.spacing.m)
+            .padding(.vertical, rowInset > 0 ? theme.spacing.m : theme.spacing.xs)
+            .padding(.horizontal, rowInset > 0 ? rowInset : theme.spacing.m)
         }
         .help(question ?? "")
     }
@@ -78,23 +101,37 @@ struct ChoiceNodeView: View {
             if let question {
                 HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
                     badges
-                    Text(question)
-                        .font(theme.strong)
+                    Text("\(Text(question).font(theme.strong))\(note)")
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            if let quote = node.string("quote") {
+                HStack(spacing: theme.spacing.m) {
+                    theme.borderStrong.frame(width: Self.quoteBar)
+                    Text(quote)
+                        .font(theme.uiSmall)
+                        .foregroundStyle(theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, Self.numberSize + theme.spacing.m)
+            }
             VStack(alignment: .leading, spacing: 1) {
                 ForEach(options) { option in
-                    ChoiceRow(label: option.label, description: option.description, shortcut: option.shortcut, radio: radio, on: picked.contains(option.value), inline: !narrow) { pick(option.value) }
+                    ChoiceRow(label: option.label, description: option.description, shortcut: option.shortcut, hint: option.hint, radio: radio, on: picked.contains(option.value), inline: !narrow, cursor: keysFocused && node.string("cursor") == option.value, tabStop: !serverOpens) { pick(option.value) }
                 }
                 if let other {
-                    ChoiceRow(label: other.label, description: nil, shortcut: other.shortcut, radio: radio, on: otherOn, inline: !narrow, press: toggleOther)
+                    ChoiceRow(label: other.label, description: nil, shortcut: other.shortcut, hint: other.hint, radio: radio, on: otherOn, inline: !narrow, tabStop: !serverOpens, press: toggleOther)
                     if otherOn { otherField(other) }
                 }
             }
             .padding(.leading, number == nil ? 0 : Self.numberSize)
         }
         .padding(.leading, number == nil ? 0 : theme.spacing.m)
+        .padding(.vertical, rowInset > 0 ? theme.spacing.l : 0)
+        .padding(.leading, max(rowInset - theme.spacing.m, 0))
+        .padding(.trailing, rowInset)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .leading) {
             if number != nil, current {
                 Rectangle().fill(theme.accent).frame(width: Self.accentBar)
@@ -123,6 +160,11 @@ struct ChoiceNodeView: View {
         }
     }
 
+    private var note: Text {
+        guard let note = node.string("note") else { return Text("") }
+        return Text("  \(note)").font(theme.uiSmall).foregroundStyle(theme.muted)
+    }
+
     private func otherField(_ other: SDUIChoiceOther) -> some View {
         let prompt = Text(other.placeholder ?? "").foregroundStyle(theme.muted)
         return TextField("", text: Binding(get: { otherText }, set: { typed($0, in: other) }), prompt: prompt)
@@ -135,7 +177,11 @@ struct ChoiceNodeView: View {
             .fieldChrome(focused: otherFocused)
             .padding(.top, theme.spacing.xs)
             .id(other.id)
-            .onSubmit { form?.submit() }
+            .onSubmit {
+                form?.submit()
+                keysRefocus?.take()
+            }
+            .onExitCommand { keysRefocus?.take() }
             .onAppear {
                 guard focusOther else { return }
                 focusOther = false
@@ -151,7 +197,7 @@ struct ChoiceNodeView: View {
         case .array(let values)?: picked = values.compactMap(\.stringValue)
         default: picked = options.filter(\.on).map(\.value)
         }
-        if let other, let text = form?.draft(other.id)?.stringValue {
+        if let other, let text = form?.draft(other.id)?.stringValue ?? (other.on ? other.value ?? "" : nil) {
             otherOn = true
             otherText = text
         }
@@ -174,11 +220,12 @@ struct ChoiceNodeView: View {
         guard let form, let id = node.id else { return }
         form.touch(id)
         if let other { form.touch(other.id) }
-        form.openChoice = id
+        if !serverOpens { form.openChoice = id }
         form.edited()
     }
 
     private func pick(_ option: String) {
+        keysRefocus?.take()
         if radio {
             picked = [option]
             if !picksAtOnce { otherOn = false }
@@ -211,7 +258,12 @@ struct ChoiceNodeView: View {
     }
 
     private func open() {
-        form?.openChoice = node.id
+        keysRefocus?.take()
+        if serverOpens, let id = node.id, let action = node.string("openAction") {
+            dispatch(node, .named(action, .string(id)))
+        } else {
+            form?.openChoice = node.id
+        }
     }
 }
 
@@ -219,9 +271,12 @@ private struct ChoiceRow: View {
     let label: String
     let description: String?
     let shortcut: String?
+    var hint: String?
     let radio: Bool
     let on: Bool
     let inline: Bool
+    var cursor = false
+    var tabStop = true
     let press: () -> Void
 
     @Environment(\.theme) private var theme
@@ -231,14 +286,14 @@ private struct ChoiceRow: View {
     private var combo: KeyCombo? { shortcut.flatMap(KeyCombo.init) }
 
     var body: some View {
-        ChoicePressable(radius: theme.radius.s, fill: on ? theme.selected : nil, combo: combo, press: press) {
+        ChoicePressable(radius: theme.radius.s, fill: on ? theme.selected : nil, combo: combo, tabStop: tabStop, press: press) {
             HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
                 ChoiceMark(radio: radio, on: on)
                     .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 }
                 text
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                if let key = combo?.label {
+                if let key = combo?.label ?? hint {
                     Text(key)
                         .font(theme.uiSmall)
                         .foregroundStyle(theme.faint)
@@ -246,6 +301,11 @@ private struct ChoiceRow: View {
             }
             .padding(.vertical, inline ? theme.spacing.xs : theme.spacing.s)
             .padding(.horizontal, theme.spacing.m)
+            .overlay {
+                if cursor {
+                    RoundedRectangle(cornerRadius: theme.radius.s).stroke(theme.accent, lineWidth: theme.focusRing)
+                }
+            }
         }
         .accessibilityLabel(label)
         .accessibilityAddTraits(on ? .isSelected : [])
@@ -313,6 +373,7 @@ private struct ChoicePressable<Label: View>: View {
     let radius: CGFloat
     var fill: Color?
     var combo: KeyCombo?
+    var tabStop = true
     let press: () -> Void
     @ViewBuilder let label: () -> Label
 
@@ -335,7 +396,7 @@ private struct ChoicePressable<Label: View>: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .focusable(true, interactions: .activate)
+        .focusable(tabStop, interactions: .activate)
         .focusEffectDisabled()
         .focused($focused)
         .onChange(of: focused) { _, now in

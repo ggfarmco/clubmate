@@ -294,6 +294,7 @@ struct SDUINodeView: View, Equatable {
         case "choice": ChoiceNodeView(node: node)
         case "form" where node.bool("sheet") == true: FormSheetHost(node: node)
         case "form": FormNodeView(node: node)
+        case "keys": KeysNodeView(node: node)
         case "transcript": TranscriptNodeView(node: node)
         case "message": MessageNodeView(node: node).equatable()
         case "plan": PlanNodeView(node: node)
@@ -331,7 +332,7 @@ struct SDUIChildren: View {
 enum SDUIGutter {
     static func pads(_ node: SDUINode) -> Bool {
         switch node.type {
-        case "stack", "split", "scroll", "spacer", "form", "sheet", "card":
+        case "stack", "split", "scroll", "spacer", "form", "sheet", "card", "keys":
             false
         case "list", "tree", "table", "header", "empty", "graph", "composer", "surface", "webview":
             false

@@ -62,7 +62,9 @@ struct StackNodeView: View {
                     if child.node.type == "spacer" {
                         Spacer(minLength: 0)
                     } else {
-                        SDUINodeView(node: child.node).equatable()
+                        SDUINodeView(node: child.node)
+                            .equatable()
+                            .layoutPriority(child.node.string("short") == nil ? 0 : -1)
                     }
                 }
             }
@@ -183,6 +185,7 @@ struct FormNodeView: View {
         }
         .environment(\.formKeyWidth, theme.uiSize * (width < 480 ? 7.5 : 10) + theme.gutter * 2)
         .environment(\.formNarrow, width <= ChoiceNodeView.foldWidth)
+        .environment(\.formAccordion, node.bool("accordion") == true || width <= ChoiceNodeView.foldWidth)
         .padding(.vertical, theme.spacing.l)
         .frame(maxWidth: .infinity, alignment: .leading)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
@@ -224,6 +227,10 @@ private struct FormNarrowKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+private struct FormAccordionKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 private struct FormKeyWidthKey: EnvironmentKey {
     static let defaultValue: CGFloat? = nil
 }
@@ -237,5 +244,10 @@ extension EnvironmentValues {
     var formNarrow: Bool {
         get { self[FormNarrowKey.self] }
         set { self[FormNarrowKey.self] = newValue }
+    }
+
+    var formAccordion: Bool {
+        get { self[FormAccordionKey.self] }
+        set { self[FormAccordionKey.self] = newValue }
     }
 }

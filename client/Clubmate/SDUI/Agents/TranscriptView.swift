@@ -25,6 +25,8 @@ struct TranscriptNodeView: View {
             }
             .padding(.horizontal, theme.gutter * 2)
             .padding(.vertical, theme.gutter + theme.spacing.s)
+            .environment(\.inTranscript, true)
+            .environment(\.transcriptReveal, TranscriptReveal { id in Motion.disclose { position.scrollTo(id: id, anchor: .center) } })
         }
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom)
@@ -93,6 +95,14 @@ struct TranscriptNodeView: View {
         Task { position.scrollTo(id: anchor.id, anchor: .top) }
         return true
     }
+}
+
+struct TranscriptReveal {
+    let show: @MainActor (String) -> Void
+}
+
+extension EnvironmentValues {
+    @Entry var transcriptReveal: TranscriptReveal?
 }
 
 private struct TranscriptItemView: View, Equatable {

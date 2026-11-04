@@ -18,6 +18,7 @@ type Item struct {
 	Tone     string      `json:"tone,omitempty"`
 	Menu     []MenuEntry `json:"menu,omitempty"`
 	Truncate string      `json:"truncate,omitempty"`
+	Shortcut string      `json:"shortcut,omitempty"`
 }
 
 type MenuEntry struct {
@@ -39,6 +40,7 @@ type TreeItem struct {
 	Icon        string        `json:"icon,omitempty"`
 	Tone        string        `json:"tone,omitempty"`
 	DetailTone  string        `json:"detailTone,omitempty"`
+	DetailFaint bool          `json:"detailFaint,omitempty"`
 	Badge       string        `json:"badge,omitempty"`
 	Menu        []MenuEntry   `json:"menu,omitempty"`
 	Muted       bool          `json:"muted,omitempty"`
@@ -608,6 +610,7 @@ type ChoiceOption struct {
 	Label       string `json:"label"`
 	Description string `json:"description,omitempty"`
 	Shortcut    string `json:"shortcut,omitempty"`
+	Hint        string `json:"hint,omitempty"`
 	On          bool   `json:"on,omitempty"`
 }
 
@@ -616,22 +619,36 @@ type ChoiceOther struct {
 	Label       string `json:"label"`
 	Placeholder string `json:"placeholder,omitempty"`
 	Shortcut    string `json:"shortcut,omitempty"`
+	Hint        string `json:"hint,omitempty"`
+	On          bool   `json:"on,omitempty"`
+	Value       string `json:"value,omitempty"`
+	Focus       int    `json:"focus,omitempty"`
 }
 
 type ChoiceProps struct {
-	Style   string
-	Title   string
-	Text    string
-	Number  int
-	Open    bool
-	Options []ChoiceOption
-	Other   *ChoiceOther
+	Style      string
+	Title      string
+	Text       string
+	Quote      string
+	Note       string
+	Summary    string
+	Cursor     string
+	OpenAction string
+	Number     int
+	Open       bool
+	Options    []ChoiceOption
+	Other      *ChoiceOther
 }
 
 func Choice(id string, p ChoiceProps) Node {
 	props := map[string]any{"style": p.Style, "options": nonNil(p.Options)}
 	withOptional(props, "title", p.Title)
 	withOptional(props, "text", p.Text)
+	withOptional(props, "quote", p.Quote)
+	withOptional(props, "note", p.Note)
+	withOptional(props, "summary", p.Summary)
+	withOptional(props, "cursor", p.Cursor)
+	withOptional(props, "openAction", p.OpenAction)
 	if p.Number > 0 {
 		props["number"] = p.Number
 	}
@@ -646,6 +663,14 @@ func Choice(id string, p ChoiceProps) Node {
 
 func Form(id string, children ...Node) Node {
 	return Node{Type: "form", ID: id, Children: children}
+}
+
+func Keys(id string, keys []string, child Node) Node {
+	return Node{Type: "keys", ID: id, Props: map[string]any{"keys": nonNil(keys)}, Children: []Node{child}}
+}
+
+func WithPaneFocus(n Node) Node {
+	return withProp(n, "pane", true)
 }
 
 func Surface(sessionID string) Node {
@@ -665,8 +690,9 @@ func Empty(text string) Node {
 }
 
 type HeaderBadge struct {
-	Text string `json:"text"`
-	Tone string `json:"tone,omitempty"`
+	Text    string `json:"text"`
+	Tone    string `json:"tone,omitempty"`
+	Outline bool   `json:"outline,omitempty"`
 }
 
 type HeaderProps struct {
@@ -889,6 +915,30 @@ func WithCopy(n Node, text string) Node {
 func WithPopover(n Node, form Node) Node {
 	n.Children = []Node{form}
 	return n
+}
+
+func WithShort(n Node, text string) Node {
+	return withProp(n, "short", text)
+}
+
+func WithInline(n Node) Node {
+	return withProp(n, "inline", true)
+}
+
+func WithRows(n Node) Node {
+	return withProp(n, "rows", true)
+}
+
+func WithAccordion(n Node) Node {
+	return withProp(n, "accordion", true)
+}
+
+func WithHint(n Node, combo string) Node {
+	return withProp(n, "hint", combo)
+}
+
+func WithOutline(n Node) Node {
+	return withProp(n, "outline", true)
 }
 
 func WithDrop(n Node) Node {

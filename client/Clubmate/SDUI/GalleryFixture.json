@@ -24,6 +24,26 @@
             {"type": "toggle", "id": "rv-tests", "props": {"value": false, "label": "tests 3", "style": "checkbox"}}
           ]
         },
+        {"type": "keys", "id": "gallery-open", "props": {"keys": ["j", "k"]}, "children": [
+          {"type": "form", "id": "gallery-open-form", "children": [
+            {"type": "card", "props": {"rows": true}, "children": [
+              {"type": "stack", "props": {"direction": "horizontal", "gap": 8}, "children": [
+                {"type": "icon", "props": {"name": "checkmark.circle", "tone": "success"}},
+                {"type": "text", "props": {"text": "Open after this turn", "style": "strong"}},
+                {"type": "badge", "props": {"text": "1 open", "tone": "warning", "outline": true}},
+                {"type": "text", "props": {"text": "1 decision · 0 offers · answer any time; nothing waits", "short": "1 decision · 0 offers", "style": "muted"}}
+              ]},
+              {"type": "choice", "id": "gallery-open-item", "props": {"style": "radio", "title": "Lists", "text": "How should a long detail behave?", "quote": "Lists only keep a detail up to 6 em.", "note": "pick one", "number": 1, "open": true, "openAction": "move", "other": {"id": "gallery-open-other", "label": "Other…", "hint": "o", "placeholder": "Your answer"}, "options": [
+                {"value": "all", "label": "Change the rule", "description": "Every list changes", "hint": "1", "on": true},
+                {"value": "prop", "label": "Add an SDUI prop", "description": "Only the sheet uses it", "hint": "2"}
+              ]}},
+              {"type": "stack", "props": {"direction": "horizontal", "gap": 8}, "children": [
+                {"type": "button", "id": "gallery-open-send", "props": {"label": "Send answers", "variant": "primary", "hint": "cmd+return", "action": "send"}},
+                {"type": "button", "id": "gallery-open-later", "props": {"label": "Later", "variant": "ghost", "hint": "l", "action": "later"}}
+              ]}
+            ]}
+          ]}
+        ]},
         {"type": "form", "id": "gallery-choices", "children": [
           {"type": "choice", "id": "gallery-choice-radio", "props": {"style": "radio", "title": "Scope", "text": "Where should the rate limit apply?", "number": 1, "open": true, "other": {"id": "gallery-choice-other", "label": "Other…", "placeholder": "Your answer"}, "options": [
             {"value": "workspace", "label": "Per workspace", "description": "One noisy workspace can't flood the others", "on": true},

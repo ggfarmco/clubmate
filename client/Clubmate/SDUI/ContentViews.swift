@@ -42,6 +42,23 @@ struct TextNodeView: View {
                 .truncationMode(.label)
                 .help(text)
                 .layoutPriority(1)
+        } else if node.string("style") == "strong" {
+            Text(text)
+                .font(theme.strong)
+                .foregroundStyle(theme.foreground)
+                .lineLimit(1)
+                .truncationMode(.label)
+                .help(text)
+                .layoutPriority(1)
+        } else if let short = node.string("short") {
+            ViewThatFits(in: .horizontal) {
+                Text(text).fixedSize()
+                Text(short).fixedSize()
+                Color.clear.frame(width: 0, height: 0)
+            }
+            .font(theme.ui)
+            .foregroundStyle(color)
+            .help(text)
         } else if let lines {
             ClampedText(text: text, lines: lines, color: color)
         } else {
@@ -104,13 +121,14 @@ struct BadgeNodeView: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        BadgeLabel(text: node.string("text") ?? "", tone: theme.tone(node.string("tone")))
+        BadgeLabel(text: node.string("text") ?? "", tone: theme.tone(node.string("tone")), outline: node.bool("outline") == true)
     }
 }
 
 struct BadgeLabel: View {
     let text: String
     let tone: Color?
+    var outline = false
 
     @Environment(\.theme) private var theme
 
@@ -119,7 +137,12 @@ struct BadgeLabel: View {
             .font(theme.uiSmall)
             .foregroundStyle(tone ?? theme.text2)
             .padding(theme.spacing.badge)
-            .background(Capsule().fill(tone.map(theme.toneBg) ?? theme.hover))
+            .background(Capsule().fill(outline ? .clear : tone.map(theme.toneBg) ?? theme.hover))
+            .overlay {
+                if outline {
+                    Capsule().strokeBorder(tone.map(theme.toneBorder) ?? theme.borderStrong, lineWidth: 1)
+                }
+            }
     }
 }
 
@@ -212,7 +235,7 @@ struct HeaderNodeView: View {
     var body: some View {
         let title = node.string("title") ?? ""
         Group {
-            if node.headerField != nil {
+            if node.headerField != nil || node.bool("inline") == true {
                 ViewThatFits(in: .horizontal) {
                     oneLine(title)
                     stacked(title)
@@ -386,7 +409,7 @@ struct HeaderNodeView: View {
 
     private var badges: some View {
         ForEach(Array(node.headerBadges().enumerated()), id: \.offset) { _, badge in
-            BadgeLabel(text: badge.text, tone: theme.tone(badge.tone))
+            BadgeLabel(text: badge.text, tone: theme.tone(badge.tone), outline: badge.outline)
                 .fixedSize()
         }
     }

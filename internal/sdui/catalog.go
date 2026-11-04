@@ -70,7 +70,7 @@ var (
 	noChildren  = childRule{min: 0, max: 0}
 
 	directions   = []string{"vertical", "horizontal"}
-	textStyles   = []string{"body", "muted", "title", "mono", "block"}
+	textStyles   = []string{"body", "muted", "title", "strong", "mono", "block"}
 	alignments   = []string{"leading", "center", "trailing"}
 	variants     = []string{"primary", "secondary", "ghost", "danger"}
 	toggleStyles = []string{"switch", "checkbox"}
@@ -81,7 +81,7 @@ var (
 
 	itemFields = map[string]propCheck{
 		"id": uniqueItemID, "label": isString, "detail": isString, "icon": isString, "badge": isString, "menu": listOf(menuEntryCheck),
-		"truncate": oneOf(truncates), "tone": oneOf(badgeTones),
+		"truncate": oneOf(truncates), "tone": oneOf(badgeTones), "shortcut": shortcutCheck,
 	}
 	itemRequired = []string{"id", "label"}
 
@@ -216,8 +216,8 @@ var (
 			props:    map[string]propCheck{"values": sparkValues, "max": positive, "height": sparkHeight},
 			children: noChildren,
 		},
-		"text":     {required: []string{"text"}, props: map[string]propCheck{"text": isString, "style": oneOf(textStyles), "lines": linesNumber, "tone": oneOf(badgeTones)}, children: noChildren},
-		"badge":    {required: []string{"text"}, props: map[string]propCheck{"text": isString, "tone": oneOf(badgeTones)}, children: noChildren},
+		"text":     {required: []string{"text"}, props: map[string]propCheck{"text": isString, "style": oneOf(textStyles), "lines": linesNumber, "tone": oneOf(badgeTones), "short": isString}, children: noChildren},
+		"badge":    {required: []string{"text"}, props: map[string]propCheck{"text": isString, "tone": oneOf(badgeTones), "outline": isBool}, children: noChildren},
 		"icon":     {required: []string{"name"}, props: map[string]propCheck{"name": isString, "tone": oneOf(badgeTones)}, children: noChildren},
 		"diff":     {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
 		"markdown": {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
@@ -229,7 +229,7 @@ var (
 		},
 		"button": {
 			required:    []string{"label"},
-			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck, "loading": isString, "iconOnly": isBool, "copy": isString, "overflow": isBool, "withForm": isBool},
+			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck, "hint": isString, "loading": isString, "iconOnly": isBool, "copy": isString, "overflow": isBool, "withForm": isBool},
 			children:    childRule{min: 0, max: 1, only: []string{"form"}},
 			interactive: true,
 		},
@@ -258,11 +258,12 @@ var (
 		},
 		"choice": {
 			required:    []string{"style", "options"},
-			props:       map[string]propCheck{"style": oneOf(choiceStyles), "title": isString, "text": isString, "number": countNumber, "open": isBool, "options": listOf(choiceOptionCheck), "other": choiceOtherCheck, "action": actionCheck},
+			props:       map[string]propCheck{"style": oneOf(choiceStyles), "title": isString, "text": isString, "quote": isString, "note": isString, "summary": isString, "cursor": isString, "openAction": actionCheck, "number": countNumber, "open": isBool, "options": listOf(choiceOptionCheck), "other": choiceOtherCheck, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},
-		"form":    {props: map[string]propCheck{"action": actionCheck, "autosave": isBool, "sheet": isBool, "dock": isBool}, children: anyChildren, interactive: true},
+		"form":    {props: map[string]propCheck{"action": actionCheck, "autosave": isBool, "sheet": isBool, "dock": isBool, "accordion": isBool}, children: anyChildren, interactive: true},
+		"keys":    {required: []string{"keys"}, props: map[string]propCheck{"keys": arrayOf(isString), "pane": isBool, "action": actionCheck}, children: childRule{min: 1, max: 1}, interactive: true},
 		"surface": {required: []string{"sessionId"}, props: map[string]propCheck{"sessionId": sessionIDCheck}, children: noChildren},
 		"webview": {required: []string{"key", "url"}, props: map[string]propCheck{"key": isString, "url": loopbackURL, "rev": countNumber}, children: noChildren},
 		"header": {
@@ -270,7 +271,7 @@ var (
 			props: map[string]propCheck{
 				"title": isString, "icon": isString, "meta": isString, "badges": listOf(headerBadgeCheck),
 				"status": oneOf(sessionStatuses), "agent": isString, "branch": isString, "mode": isString,
-				"field": nonEmptyString, "error": isString,
+				"field": nonEmptyString, "error": isString, "inline": isBool,
 			},
 			children: childRule{min: 0, max: 9, only: []string{"button", "textField"}, once: []string{"textField"}},
 		},
@@ -296,7 +297,7 @@ var (
 			children:    noChildren,
 			interactive: true,
 		},
-		"card": {props: map[string]propCheck{"tone": oneOf(badgeTones), "icon": isString}, children: childRule{min: 1, max: -1}},
+		"card": {props: map[string]propCheck{"tone": oneOf(badgeTones), "icon": isString, "rows": isBool}, children: childRule{min: 1, max: -1}},
 		"sheet": {
 			required:    []string{"title", "cancel"},
 			props:       map[string]propCheck{"title": isString, "icon": isString, "tone": oneOf(badgeTones), "cancel": actionCheck},
@@ -739,7 +740,7 @@ func itemCheck(c *validator, v any) error {
 }
 
 func headerBadgeCheck(c *validator, v any) error {
-	return objectCheck([]string{"text"}, map[string]propCheck{"text": isString, "tone": oneOf(badgeTones)})(c, v)
+	return objectCheck([]string{"text"}, map[string]propCheck{"text": isString, "tone": oneOf(badgeTones), "outline": isBool})(c, v)
 }
 
 func optionCheck(c *validator, v any) error {
@@ -747,11 +748,11 @@ func optionCheck(c *validator, v any) error {
 }
 
 func choiceOptionCheck(c *validator, v any) error {
-	return objectCheck([]string{"value", "label"}, map[string]propCheck{"value": isString, "label": isString, "description": isString, "shortcut": shortcutCheck, "on": isBool})(c, v)
+	return objectCheck([]string{"value", "label"}, map[string]propCheck{"value": isString, "label": isString, "description": isString, "shortcut": shortcutCheck, "hint": isString, "on": isBool})(c, v)
 }
 
 func choiceOtherCheck(c *validator, v any) error {
-	return objectCheck([]string{"id", "label"}, map[string]propCheck{"id": isString, "label": isString, "placeholder": isString, "shortcut": shortcutCheck})(c, v)
+	return objectCheck([]string{"id", "label"}, map[string]propCheck{"id": isString, "label": isString, "placeholder": isString, "shortcut": shortcutCheck, "hint": isString, "on": isBool, "value": isString, "focus": countNumber})(c, v)
 }
 
 func menuEntryCheck(c *validator, v any) error {
@@ -829,7 +830,7 @@ func treeItemCheck(c *validator, v any) error {
 	}
 	fields := map[string]propCheck{
 		"muted": isBool, "faint": isBool, "action": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck),
-		"badges": listOf(headerBadgeCheck), "changes": changesCheck, "detailTone": oneOf(badgeTones),
+		"badges": listOf(headerBadgeCheck), "changes": changesCheck, "detailTone": oneOf(badgeTones), "detailFaint": isBool,
 	}
 	for k, f := range itemFields {
 		fields[k] = f

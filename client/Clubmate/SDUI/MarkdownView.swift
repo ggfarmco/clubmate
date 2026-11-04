@@ -213,12 +213,21 @@ extension Theme {
             }
             if intent.contains(.strikethrough) { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
             if let link = run.link, MarkdownLinkPolicy.allows(link) || MarkdownDocLink.target(link) != nil || MarkdownImageLink.target(link) != nil { attributes[.link] = link }
-            result.append(NSAttributedString(string: String(source[run.range].characters), attributes: attributes))
+            let piece = NSMutableAttributedString(string: String(source[run.range].characters), attributes: attributes)
+            if !intent.contains(.code) { markNumbers(in: piece) }
+            result.append(piece)
         }
         if result.length == 0 { return result }
         let head = (result.string as NSString).paragraphRange(for: NSRange(location: 0, length: 0))
         result.addAttribute(.paragraphStyle, value: paragraphStyle(lead: indent, hang: indent, before: before), range: head)
         return result
+    }
+
+    private func markNumbers(in piece: NSMutableAttributedString) {
+        let text = piece.string as NSString
+        for index in 0..<text.length where CircledNumber.value(text.character(at: index)) != nil {
+            piece.addAttributes([.foregroundColor: NSColor.clear, .proseNumber: NSColor(warning)], range: NSRange(location: index, length: 1))
+        }
     }
 
     private func paragraphStyle(lead: CGFloat, hang: CGFloat, before: CGFloat) -> NSMutableParagraphStyle {
@@ -232,6 +241,7 @@ extension Theme {
 
 private extension NSAttributedString.Key {
     static let quoteBar = NSAttributedString.Key("clubmateQuoteBar")
+    static let proseNumber = NSAttributedString.Key("clubmateProseNumber")
 }
 
 private final class ProseTextView: NSTextView {
@@ -247,7 +257,35 @@ private final class ProseTextView: NSTextView {
             color.setFill()
             NSRect(x: textContainerOrigin.x, y: bar.minY + textContainerOrigin.y, width: 2, height: bar.height).fill()
         }
+        storage.enumerateAttribute(.proseNumber, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+            guard let ink = value as? NSColor else { return }
+            for index in range.location..<NSMaxRange(range) {
+                drawNumber(at: index, ink: ink, storage: storage, layout: layout)
+            }
+        }
     }
+
+    private func drawNumber(at index: Int, ink: NSColor, storage: NSTextStorage, layout: NSLayoutManager) {
+        guard let container = textContainer, let font = storage.attribute(.font, at: index, effectiveRange: nil) as? NSFont, let number = CircledNumber.value((storage.string as NSString).character(at: index)) else { return }
+        let glyph = layout.glyphIndexForCharacter(at: index)
+        let cell = layout.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container)
+        let line = layout.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+        let baseline = line.minY + layout.location(forGlyphAt: glyph).y + textContainerOrigin.y
+        let digits = NSAttributedString(string: String(number), attributes: [.font: NSFont(descriptor: font.fontDescriptor, size: font.pointSize - Self.numberShrink) ?? font, .foregroundColor: ink])
+        let size = digits.size()
+        let height = font.pointSize + Self.ringGrow
+        let width = max(height, ceil(size.width) + Self.ringPadding)
+        let ring = NSRect(x: cell.midX + textContainerOrigin.x - width / 2, y: baseline - font.xHeight / 2 - height / 2, width: width, height: height)
+        let path = NSBezierPath(roundedRect: ring.insetBy(dx: 0.5, dy: 0.5), xRadius: height / 2, yRadius: height / 2)
+        ink.withAlphaComponent(Self.ringAlpha).setStroke()
+        path.stroke()
+        digits.draw(at: NSPoint(x: ring.midX - size.width / 2, y: ring.midY - size.height / 2))
+    }
+
+    private static let numberShrink: CGFloat = 2
+    private static let ringGrow: CGFloat = 3
+    private static let ringPadding: CGFloat = 6
+    private static let ringAlpha: CGFloat = 0.48
 }
 
 private struct ProseText: NSViewRepresentable {
