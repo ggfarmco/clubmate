@@ -158,9 +158,10 @@ public struct WorkspaceActivity: Sendable, Equatable {
     public let closed: Int
 
     public init(_ sessions: [AgentSession]) {
+        let trees = Dictionary(AgentSession.grouped(sessions).map { ($0.group, $0.sessions.count) }, uniquingKeysWith: +)
         waiting = sessions.filter { $0.glyph.needsYou }.count
-        running = sessions.filter { $0.glyph == .running && $0.status == .running }.count
-        closed = sessions.filter(\.isClosed).count
+        running = trees[.running] ?? 0
+        closed = trees[.closed] ?? 0
     }
 
     public var waitingText: String? {

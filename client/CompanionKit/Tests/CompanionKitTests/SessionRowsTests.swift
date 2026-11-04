@@ -89,15 +89,18 @@ final class SessionRowsTests: XCTestCase {
         XCTAssertEqual(needs?.map(\.id), ["b", "a"])
     }
 
-    func testWorkspaceActivityCountsWaitingRunningAndClosed() {
+    func testWorkspaceActivityCountsWaitingAndTopLevelRunningAndClosed() {
         let activity = WorkspaceActivity([
             AgentSession(id: "a", status: .waiting),
             AgentSession(id: "b", parentSession: "a", status: .done, asks: true),
             AgentSession(id: "c", status: .running),
+            AgentSession(id: "f", parentSession: "c", status: .running),
             AgentSession(id: "d", status: .closed),
+            AgentSession(id: "g", parentSession: "d", status: .closed),
+            AgentSession(id: "h", parentSession: "c", status: .waiting),
             AgentSession(id: "e", status: .done),
         ])
-        XCTAssertEqual([activity.waitingText, activity.restText], ["1 waiting", "1 running · 1 closed"])
+        XCTAssertEqual([activity.waitingText, activity.restText], ["2 waiting", "1 running · 1 closed"])
         XCTAssertEqual(WorkspaceActivity([]).restText, "No sessions")
         XCTAssertEqual(WorkspaceActivity([]).offlineText(asOf: nil), "nothing waiting")
     }
