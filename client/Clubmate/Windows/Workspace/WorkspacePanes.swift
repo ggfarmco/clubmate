@@ -6,6 +6,7 @@ import ClubmateKit
 struct SlotPane: View {
     let store: WorkspaceUIStore
     let slot: String
+    var paneTheme: Theme?
 
     @Environment(AppModel.self) private var app
     @Environment(\.theme) private var theme
@@ -16,7 +17,7 @@ struct SlotPane: View {
                 await store.send(event)
             }
             .equatable()
-            .environment(\.theme, theme.interface(family: app.settings.paneFontFamily(fontKey), size: app.settings.paneFontSize(fontKey)))
+            .environment(\.theme, paneTheme ?? theme.interface(family: app.settings.paneFontFamily(fontKey), size: app.settings.paneFontSize(fontKey)))
         } else {
             EmptyNodeView(text: "")
         }

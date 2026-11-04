@@ -43,7 +43,7 @@ struct StatusBar<Trailing: View>: View {
                 .layoutPriority(-2)
             trailing
                 .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+                .fixedSize()
                 .frame(height: 22)
                 .clipped()
             if let hints {

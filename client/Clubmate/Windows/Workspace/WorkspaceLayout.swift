@@ -79,7 +79,7 @@ struct WorkspaceLayout: View {
                 app.retry()
             } trailing: {
                 if store.hasSlot("\(section).status") {
-                    SlotPane(store: store, slot: "\(section).status")
+                    SlotPane(store: store, slot: "\(section).status", paneTheme: theme.scaled(theme.uiSize - 1))
                 }
             }
         }
