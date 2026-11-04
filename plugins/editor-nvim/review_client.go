@@ -53,6 +53,8 @@ type reviewFilters struct {
 
 type reviewMeta struct {
 	Subtitle  string `msgpack:"subtitle"`
+	Base      string `msgpack:"base"`
+	Changes   string `msgpack:"changes"`
 	Recipient string `msgpack:"recipient"`
 	Sent      int    `msgpack:"sent"`
 }

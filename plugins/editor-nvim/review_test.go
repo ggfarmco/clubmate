@@ -347,7 +347,7 @@ func TestReviewOpenReusesAndMovesOpener(t *testing.T) {
 	req := openReviewReq{Key: reviewKey{Worktree: "/repo", Base: "main"}, BaseRev: "abc1234", Left: "main", Opener: "agt_1", OpenerTitle: "First"}
 	first, err := a.startReview(t.Context(), h, "ws", "/repo", nv, req)
 	require.NoError(t, err)
-	assert.Equal(t, []reviewMeta{{Subtitle: "Claude · First", Recipient: "First"}}, nv.metas)
+	assert.Equal(t, []reviewMeta{{Subtitle: "Claude · First", Base: "main", Changes: "repo · working tree", Recipient: "First"}}, nv.metas)
 	req.Opener, req.OpenerTitle = "agt_2", "Second"
 	second, err := a.startReview(t.Context(), h, "ws", "/repo", nv, req)
 	require.NoError(t, err)
@@ -357,7 +357,7 @@ func TestReviewOpenReusesAndMovesOpener(t *testing.T) {
 		Host: reviewTabHost{ID: first.ID, Worktree: "/repo", Base: "main"},
 	}}, nv.opened)
 	assert.Equal(t, "agt_2", h.last().Opener)
-	assert.Equal(t, reviewMeta{Subtitle: "Claude · Second", Recipient: "Second"}, nv.lastMeta())
+	assert.Equal(t, reviewMeta{Subtitle: "Claude · Second", Base: "main", Changes: "repo · working tree", Recipient: "Second"}, nv.lastMeta())
 	_, err = a.startReview(t.Context(), h, "ws", "/repo", nv, req)
 	require.NoError(t, err)
 	assert.Len(t, nv.metas, 2)
@@ -417,12 +417,17 @@ func TestReviewAdoptClosesTabOwnedByAnotherWorkspace(t *testing.T) {
 	assert.Empty(t, reconnected.closed)
 }
 
-func TestReviewMetaWithoutOpenerNamesBothSides(t *testing.T) {
+func TestReviewMetaNamesBaseAndChanges(t *testing.T) {
 	a, h := newTestApp(), &fakeHost{}
 	nv := &fakeReviewer{}
 	_, err := a.startReview(t.Context(), h, "ws", "/repo", nv, openReviewReq{Key: reviewKey{Worktree: "/repo", Base: "main"}, BaseRev: "main"})
 	require.NoError(t, err)
-	assert.Equal(t, reviewMeta{Subtitle: "Working tree ↔ main", Recipient: newSessionTitle}, nv.lastMeta())
+	assert.Equal(t, reviewMeta{Base: "main", Changes: "repo · working tree", Recipient: newSessionTitle}, nv.lastMeta())
+
+	r := &review{Key: reviewKey{Worktree: "/repo", Base: "97a29b4c0ffee", Head: "feat"}, Branch: "DUE-970", OpenerTitle: "Coder", Info: reviewInfo{Base: "97a29b4c0ffee", Labels: reviewLabels{Left: "Before turn 1", Right: "feat"}}}
+	assert.Equal(t, reviewMeta{Subtitle: "Claude · Coder", Base: "Before turn 1 · 97a29b4", Changes: "feat"}, r.meta())
+	r.Key.Head = ""
+	assert.Equal(t, "DUE-970 · working tree", r.meta().Changes)
 }
 
 func TestReviewRestoresSentAfterReopen(t *testing.T) {

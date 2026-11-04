@@ -458,7 +458,7 @@ func TestReviewCommandOpensMergeBaseForTheCaller(t *testing.T) {
 	testutil.Eventually(t, func() bool { return eval[int](t, v, "exists('g:dv_meta')") == 1 }, 5*time.Second)
 	var meta map[string]any
 	require.NoError(t, json.Unmarshal([]byte(eval[string](t, v, "g:dv_meta")), &meta))
-	assert.Equal(t, map[string]any{"subtitle": "Claude · Coder", "recipient": "a new session", "sent": 0.0}, meta)
+	assert.Equal(t, map[string]any{"subtitle": "Claude · Coder", "base": "main", "changes": "feat · working tree", "recipient": "a new session", "sent": 0.0}, meta)
 	events, err := e.h.Bus.Read(t.Context(), "editor-nvim.review", 0, 10)
 	require.NoError(t, err)
 	require.NotEmpty(t, events)

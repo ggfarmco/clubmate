@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"clubmate/pkg/sdui"
@@ -135,11 +136,26 @@ func (a *app) adoptRecipientsLocked(r *review, sheet *sendSheet) {
 }
 
 func (r *review) meta() reviewMeta {
-	subtitle := r.Info.Labels.Right + " ↔ " + r.Info.Labels.Left
+	m := reviewMeta{Base: r.baseLabel(), Changes: r.changesLabel(), Recipient: r.DefaultTitle, Sent: r.Sent}
 	if r.OpenerTitle != "" {
-		subtitle = recipientAgent + " · " + r.OpenerTitle
+		m.Subtitle = recipientAgent + " · " + r.OpenerTitle
 	}
-	return reviewMeta{Subtitle: subtitle, Recipient: r.DefaultTitle, Sent: r.Sent}
+	return m
+}
+
+func (r *review) baseLabel() string {
+	label := cmp.Or(r.Info.Labels.Left, r.Key.Base)
+	if base := r.Info.Base; shaPattern.MatchString(base) && !strings.HasPrefix(base, label) {
+		return label + " · " + base[:7]
+	}
+	return label
+}
+
+func (r *review) changesLabel() string {
+	if r.Key.Head != "" {
+		return cmp.Or(r.Info.Labels.Right, r.Key.Head)
+	}
+	return cmp.Or(r.Branch, filepath.Base(r.Key.Worktree)) + " · working tree"
 }
 
 func (r *review) sendMetaLocked() {

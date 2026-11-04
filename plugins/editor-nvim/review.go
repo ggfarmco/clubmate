@@ -47,6 +47,7 @@ type review struct {
 	RecipientTitle string
 	Sent           int
 	Info           reviewInfo
+	Branch         string
 	Entries        []reviewEntry
 	Comments       []reviewComment
 	Filters        reviewFilters

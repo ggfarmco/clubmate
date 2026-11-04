@@ -251,6 +251,9 @@ func (a *app) trackReviewLocked(ctx context.Context, h reviewHost, ws, root stri
 	if r.Info, err = nv.reviewInfo(tab); err != nil {
 		logError("review info", err)
 	}
+	if key.Head == "" {
+		r.Branch = gitrepo.BranchAt(ctx, key.Worktree)
+	}
 	a.restoreReview(ctx, h, r)
 	if err := r.refresh(true); err != nil {
 		logError("review entries", err)

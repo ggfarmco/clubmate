@@ -564,8 +564,8 @@ return vim.tbl_map(function(win)
 end, view.cur_layout.windows)`, &bars))
 		return len(bars) == 2
 	}, 10*time.Second)
-	assert.Equal(t, "Before turn 3 did not exist %<new.txt", strings.TrimSpace(bars[0]))
-	assert.Equal(t, "Working tree new file · 2 lines %<new.txt", strings.TrimSpace(bars[1]))
+	assert.Equal(t, "Before turn 3  did not exist  %<new.txt", strings.TrimSpace(bars[0]))
+	assert.Equal(t, "Working tree  new file · 2 lines  %<new.txt", strings.TrimSpace(bars[1]))
 }
 
 const notifierWarnings = `

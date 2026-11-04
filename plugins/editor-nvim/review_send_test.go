@@ -71,7 +71,7 @@ func TestSendSheetDefaultsToOpener(t *testing.T) {
 	}
 	assert.Equal(t, []string{"agt_open", "agt_new", newRecipient}, values)
 	assert.Contains(t, texts(sheet), sendToOpener)
-	assert.Equal(t, reviewMeta{Subtitle: "Claude · Opener", Recipient: "Opener"}, r.nv.(*fakeReviewer).lastMeta())
+	assert.Equal(t, reviewMeta{Subtitle: "Claude · Opener", Base: "main", Changes: "repo · working tree", Recipient: "Opener"}, r.nv.(*fakeReviewer).lastMeta())
 
 	r.Opener = "agt_gone"
 	uiEvent(t, a, h, sheet.ID+"/cancel", "cancel", nil)
