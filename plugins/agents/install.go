@@ -284,6 +284,8 @@ func sessionMeta(rec record, advisor string) *acp.SessionMeta {
 		meta.SystemPrompt = &acp.SystemPromptMeta{Append: rec.SystemPrompt}
 	case rec.ParentSession == "":
 		meta.SystemPrompt = &acp.SystemPromptMeta{Append: askUserText}
+	default:
+		meta.SystemPrompt = &acp.SystemPromptMeta{Append: openItemsText}
 	}
 	return meta
 }
