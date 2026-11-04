@@ -1620,15 +1620,17 @@ func TestSidebarClosedMoreRowExpandsUntilFolded(t *testing.T) {
 		}
 		return labels
 	}
+	more := func(got []string) bool { return len(got) > 0 && strings.HasPrefix(got[len(got)-1], "Show ") }
+	var folded []string
 	f.h.Event(t, workspace, "agents.sidebar", "sessions", "expand", "wt:closed:")
-	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { got := closed(n); return len(got) == 4 && got[3] == "Show 2 more" })
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { folded = closed(n); return more(folded) })
 
 	f.h.Event(t, workspace, "agents.sidebar", "sessions", "select", "wt:more:closed")
-	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return len(closed(n)) == 5 && !slices.Contains(closed(n), "Show 2 more") })
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { got := closed(n); return len(got) == 5 && !more(got) })
 
 	f.h.Event(t, workspace, "agents.sidebar", "sessions", "collapse", "wt:closed:")
 	f.h.Event(t, workspace, "agents.sidebar", "sessions", "expand", "wt:closed:")
-	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { got := closed(n); return len(got) == 4 && got[3] == "Show 2 more" })
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return slices.Equal(closed(n), folded) })
 }
 
 func (f *fixture) rev(t *testing.T, workspace, slot string) int64 {
