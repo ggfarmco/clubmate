@@ -172,13 +172,14 @@ func (a *app) trustFor(ctx context.Context, workspace string, dirs []string, g g
 	if spec == nil {
 		return trustView{}
 	}
-	untrusted, changed, err := a.trustState(ctx, workspace, trustDir(dirs, g.Name), spec)
+	root := a.rootOf(ctx, workspace, trustDir(dirs, g.Name))
+	untrusted, changed, err := a.trustState(ctx, root, spec)
 	if err != nil || !untrusted {
 		logError(err)
 		return trustView{}
 	}
 	tv := trustView{untrusted: true, changed: changed, hash: stepsHash(spec)}
-	if last, ok, err := a.lastTrusted(ctx, a.repoRoot(ctx, workspace, trustDir(dirs, g.Name)), g.Name); err == nil && ok {
+	if last, ok, err := a.lastTrusted(ctx, root(), g.Name); err == nil && ok {
 		tv.last = &last
 	} else {
 		logError(err)

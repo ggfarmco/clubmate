@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"sync"
 	"time"
 
 	"clubmate/pkg/pluginsdk"
@@ -94,6 +95,10 @@ func (a *app) repoRoot(ctx context.Context, workspace, dir string) string {
 	return cmp.Or(mainCheckout(trees, dir), dir)
 }
 
+func (a *app) rootOf(ctx context.Context, workspace, dir string) func() string {
+	return sync.OnceValue(func() string { return a.repoRoot(ctx, workspace, dir) })
+}
+
 func trustDir(dirs []string, name string) string {
 	if dir := graphDir(dirs, name); dir != "" || len(dirs) == 0 {
 		return dir
@@ -101,21 +106,20 @@ func trustDir(dirs []string, name string) string {
 	return dirs[0]
 }
 
-func (a *app) trustState(ctx context.Context, workspace, dir string, g *Graph) (bool, []string, error) {
+func (a *app) trustState(ctx context.Context, root func() string, g *Graph) (bool, []string, error) {
 	hash := stepsHash(g)
 	if hash == "" {
 		return false, nil, nil
 	}
-	root := a.repoRoot(ctx, workspace, dir)
 	var trusted bool
-	found, err := a.kvGet(ctx, repoKey(trustPrefix, root, hash), &trusted)
+	found, err := a.kvGet(ctx, repoKey(trustPrefix, root(), hash), &trusted)
 	if err != nil {
 		return true, nil, err
 	}
 	if found && trusted {
 		return false, nil, nil
 	}
-	last, _, err := a.lastTrusted(ctx, root, g.Name)
+	last, _, err := a.lastTrusted(ctx, root(), g.Name)
 	if err != nil {
 		return true, nil, err
 	}
@@ -186,7 +190,7 @@ func (a *app) untrustedGraphs(ctx context.Context, workspace string, dirs []stri
 		untrusted, ok := a.untrusted[key]
 		a.mu.Unlock()
 		if !ok {
-			if untrusted, _, err = a.trustState(ctx, workspace, trustDir(dirs, g.Name), spec); err != nil {
+			if untrusted, _, err = a.trustState(ctx, a.rootOf(ctx, workspace, trustDir(dirs, g.Name)), spec); err != nil {
 				logError(err)
 				continue
 			}

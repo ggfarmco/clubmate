@@ -90,6 +90,7 @@ func (a *app) list(ctx context.Context, cmd pluginsdk.CommandRun) (listResult, e
 		return listResult{}, err
 	}
 	res := listResult{Graphs: listGraphs(dirs)}
+	roots := map[string]func() string{}
 	for i := range res.Graphs {
 		f := &res.Graphs[i]
 		if f.Error != "" {
@@ -97,10 +98,18 @@ func (a *app) list(ctx context.Context, cmd pluginsdk.CommandRun) (listResult, e
 		}
 		if g, _, err := loadGraph(dirs, f.Name); err == nil {
 			dir := trustDir(dirs, f.Name)
+			root, ok := roots[dir]
+			if !ok {
+				root = a.rootOf(ctx, cmd.WorkspaceID, dir)
+				roots[dir] = root
+			}
 			f.Hash = stepsHash(g)
-			f.Untrusted, f.Changed, err = a.trustState(ctx, cmd.WorkspaceID, dir, g)
+			f.Untrusted, f.Changed, err = a.trustState(ctx, root, g)
 			logError(err)
-			if last, ok, err := a.lastTrusted(ctx, a.repoRoot(ctx, cmd.WorkspaceID, dir), f.Name); f.Untrusted && ok {
+			if !f.Untrusted {
+				continue
+			}
+			if last, ok, err := a.lastTrusted(ctx, root(), f.Name); ok {
 				f.Trusted = &last
 			} else {
 				logError(err)
@@ -140,7 +149,7 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	if err != nil {
 		return nil, err
 	}
-	switch untrusted, _, err := a.trustState(ctx, cmd.WorkspaceID, trustDir(dirs, args.Graph), g); {
+	switch untrusted, _, err := a.trustState(ctx, a.rootOf(ctx, cmd.WorkspaceID, trustDir(dirs, args.Graph)), g); {
 	case err != nil:
 		return nil, err
 	case untrusted:

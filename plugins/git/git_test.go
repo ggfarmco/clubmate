@@ -224,18 +224,20 @@ func TestWorktreeList(t *testing.T) {
 	repo := committedRepo(t)
 	feat := filepath.Join(repo, ".worktrees", "feat")
 	git(t, repo, "worktree", "add", "-q", "-b", "feat", feat)
+	git(t, feat, "commit", "-q", "--allow-empty", "-m", "feat")
 	detached := filepath.Join(repo, ".worktrees", "detached")
 	git(t, repo, "worktree", "add", "-q", "--detach", detached)
 	h, id := open(t, repo)
 
 	head := git(t, repo, "rev-parse", "--short", "HEAD")
+	featHead := git(t, feat, "rev-parse", "--short", "HEAD")
 	list := listWorktrees(t, h, id)
 	require.NotEmpty(t, list)
 	main := worktreeEntry{Repo: repo, Path: repo, Branch: "main", Head: head, Main: true, Current: true}
 	assert.Equal(t, main, list[0])
 	assert.ElementsMatch(t, []worktreeEntry{
 		main,
-		{Repo: repo, Path: feat, Branch: "feat", Head: head},
+		{Repo: repo, Path: feat, Branch: "feat", Head: featHead},
 		{Repo: repo, Path: detached, Head: head},
 	}, list)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -107,20 +108,28 @@ func (f *folder) treeName(ctx context.Context, t gitrepo.Worktree) string {
 
 func (f *folder) heads(ctx context.Context) (map[string]head, error) {
 	heads := map[string]head{}
+	var shas []string
 	for _, t := range f.Trees {
-		if _, ok := heads[t.Head]; ok || t.Head == "" {
-			continue
+		if t.Head != "" && !slices.Contains(shas, t.Head) {
+			shas = append(shas, t.Head)
 		}
-		out, err := run(ctx, f.Checkout.Path, "show", "-s", "--format=%h %cI", t.Head)
-		if err != nil {
-			return nil, err
-		}
-		short, date, _ := strings.Cut(strings.TrimSpace(string(out)), " ")
+	}
+	if len(shas) == 0 {
+		return heads, nil
+	}
+	args := append(append([]string{"show", "-s", "--format=%H %h %cI"}, shas...), "--")
+	out, err := run(ctx, f.Checkout.Path, args...)
+	if err != nil {
+		return nil, err
+	}
+	for line := range strings.Lines(string(out)) {
+		full, rest, _ := strings.Cut(strings.TrimSpace(line), " ")
+		short, date, _ := strings.Cut(rest, " ")
 		committed, err := time.Parse(time.RFC3339, date)
 		if err != nil {
 			return nil, fmt.Errorf("commit date of %s: %w", short, err)
 		}
-		heads[t.Head] = head{short: short, committed: committed}
+		heads[full] = head{short: short, committed: committed}
 	}
 	return heads, nil
 }
