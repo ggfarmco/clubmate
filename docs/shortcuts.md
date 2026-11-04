@@ -8,7 +8,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 
 | Keys | Action | Where defined |
 |---|---|---|
-| ⌘N | New (terminal or item in the current section; in Backlog it focuses the new task field, in Triggers it starts an agent session that asks you for a trigger and adds it) | `ClubmateApp.swift` |
+| ⌘N | New (terminal or item in the current section; in Backlog it focuses the new task field, in Triggers it starts an agent session that asks you for a trigger and adds it, in Graphs one that asks you for a graph and writes its file) | `ClubmateApp.swift` |
 | ⇧⌘N | New Home Terminal | `ClubmateApp.swift` |
 | ⌘O | Open Folder… | `ClubmateApp.swift` |
 | ⇧⌘D | Open Doc…: fuzzy picker over `docs.list` (agent-written docs first), ↩ opens the doc in the popup | `ClubmateApp.swift` |
@@ -71,6 +71,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌘↩ | Send review: opens the Send sheet for the review tab current in Neovim, also while Neovim has focus (status bar button "Send review") | editor-nvim |
 | ⌥1 / ⌥2 / ⌥3 | A graph step waiting for approval: Allow once / Always allow… (asks first) / Reject | graphs |
 | ⌘. | Stop the graph run (confirmed) | graphs |
+| ⌘N | Ask an agent to write a graph (How graphs work; the app menu's ⌘N does the same anywhere in Graphs), ↩ on a part row asks for a graph that uses that part | graphs |
 | G | Open the graph run that created the trigger | triggers |
 | ⌘N | Ask an agent to add a trigger (How triggers work; the app menu's ⌘N does the same anywhere in Triggers), ↩ on an event row asks for a trigger on that event | triggers |
 | D | Mark the task done | backlog |

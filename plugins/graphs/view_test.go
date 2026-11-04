@@ -43,7 +43,7 @@ func TestExecutionView(t *testing.T) {
 	side := sidebarView(nil, nil, []*Run{r}, "gr_1", sessions, nil)
 	groups, ok := side.Props["items"].([]sdk.TreeItem)
 	require.True(t, ok)
-	items := groups[0].Children
+	items := groups[1].Children
 	assert.Equal(t, []string{"exclamationmark.circle", "warning"}, []string{items[0].Icon, items[0].Tone})
 	assert.Empty(t, items[0].Badge)
 	assert.Equal(t, []sdk.MenuEntry{{Action: actStop, Label: "Stop", Confirm: stopConfirm(r)}}, items[0].Menu)
@@ -72,8 +72,6 @@ func TestExecutionView(t *testing.T) {
 		{From: "coder", Out: "error", To: "reviewer", State: "never", Ref: "trg_2", Tooltip: "when Coder fails → prompt Reviewer"},
 		{From: "reviewer", Out: "changes", To: "coder", State: "never", Ref: "trg_3", Tooltip: "when Reviewer reports changes → prompt Coder"},
 	}, g.Props["edges"])
-
-	assert.Equal(t, "empty", mainView(nil, nil, runExtras{}).Type)
 }
 
 func TestStoppedRunOffersRemove(t *testing.T) {
@@ -81,7 +79,7 @@ func TestStoppedRunOffersRemove(t *testing.T) {
 
 	groups, ok := sidebarView(nil, nil, []*Run{r}, "gr_1", nil, nil).Props["items"].([]sdk.TreeItem)
 	require.True(t, ok)
-	items := groups[0].Children
+	items := groups[1].Children
 	assert.Equal(t, []string{actRemove}, []string{items[0].Menu[0].Action})
 	assert.Equal(t, "", items[0].Tone)
 	header := mainView(r, nil, runExtras{}).Children[0]
@@ -93,7 +91,7 @@ func TestStoppedRunOffersRemove(t *testing.T) {
 func TestViewShortcutsDeclared(t *testing.T) {
 	running := &Run{ID: "gr_1", Title: "Review loop", Status: statusRunning, Nodes: []RunNode{{ID: "coder", Role: "Coder", Start: true, Session: "agt_1"}}}
 	stopped := &Run{ID: "gr_2", Title: "Review loop", Status: statusStopped}
-	shortcuttest.RequireDeclared(t, mainView(running, map[string]api.Session{"agt_1": {ID: "agt_1", Status: "waiting"}}, runExtras{}), mainView(stopped, nil, runExtras{}), graphView(graphFile{Name: "review-loop"}, nil, draft{}, "", trustView{}))
+	shortcuttest.RequireDeclared(t, mainView(running, map[string]api.Session{"agt_1": {ID: "agt_1", Status: "waiting"}}, runExtras{}), mainView(stopped, nil, runExtras{}), graphView(graphFile{Name: "review-loop"}, nil, draft{}, "", trustView{}), helpView(nil))
 }
 
 func TestBuiltinRunDefinition(t *testing.T) {
@@ -113,6 +111,8 @@ func TestSidebarListsGraphsAboveRuns(t *testing.T) {
 
 	groups, ok := sidebarView(graphs, nil, runs, "gr_1", nil, map[string]bool{groupRuns: true}).Props["items"].([]sdk.TreeItem)
 	require.True(t, ok)
+	assert.Equal(t, automation.HelpID, groups[0].ID)
+	groups = groups[1:]
 	assert.Equal(t, []string{"Graphs", "3", "Runs", "1"}, []string{groups[0].Label, groups[0].Detail, groups[1].Label, groups[1].Detail})
 	assert.Equal(t, []bool{true, false}, []bool{groups[0].Expanded, groups[1].Expanded})
 	assert.Equal(t, []bool{true, true}, []bool{groups[0].Action, groups[1].Action})
@@ -123,6 +123,8 @@ func TestSidebarListsGraphsAboveRuns(t *testing.T) {
 
 	assert.Equal(t, "graph:pr-walkthrough", pickSelected("", graphs, nil))
 	assert.Equal(t, "gr_1", pickSelected("graph:gone", graphs, runs))
+	assert.Equal(t, automation.HelpID, pickSelected(automation.HelpID, graphs, runs))
+	assert.Equal(t, automation.HelpID, pickSelected("", nil, nil))
 }
 
 func TestGraphViewRunsWithInput(t *testing.T) {
@@ -405,7 +407,7 @@ func TestHeldEdgeView(t *testing.T) {
 	view := runView(t, a, r.ID)
 	header := view.Children[0]
 	assert.Equal(t, sdk.HeaderBadge{Text: "waiting for you · round cap", Tone: "warning"}, header.Props["badges"].([]sdk.HeaderBadge)[0])
-	row := sidebarView(nil, nil, []*Run{a.runs[r.ID]}, r.ID, nil, nil).Props["items"].([]sdk.TreeItem)[0].Children[0]
+	row := sidebarView(nil, nil, []*Run{a.runs[r.ID]}, r.ID, nil, nil).Props["items"].([]sdk.TreeItem)[1].Children[0]
 	assert.Equal(t, []string{"2 of 2", "exclamationmark.circle", "warning"}, []string{row.Detail, row.Icon, row.Tone})
 	assert.Equal(t, []string{r.ID + "/continue", "Continue", "cmd+return"}, []string{header.Children[0].ID, header.Children[0].Props["label"].(string), header.Children[0].Props["shortcut"].(string)})
 	edges := view.Children[2].Props["edges"].([]sdk.GraphEdge)
@@ -459,4 +461,32 @@ func TestHistoryDrawsStepBarsAndRounds(t *testing.T) {
 	assert.Equal(t, []string{"", "fail · 1:04", ""}, []string{moves[0].Bar, moves[1].Bar, moves[2].Bar})
 	assert.Equal(t, "neutral", moves[1].Tone)
 	assert.Equal(t, []int{1, 1, 2}, []int{moves[0].Round, moves[1].Round, moves[2].Round})
+}
+
+func TestHelpPageCountsYourGraphsPerPart(t *testing.T) {
+	loop, _, err := loadGraph([]string{"testdata"}, "", "review-loop")
+	require.NoError(t, err)
+	gate, _, err := loadGraph(nil, "", "review-gate")
+	require.NoError(t, err)
+	view := helpView([]*Graph{loop, gate})
+	require.NoError(t, sdui.Validate(view))
+
+	table := view.Children[1].Children[0].Children[2]
+	assert.Equal(t, partsID, table.ID)
+	rows, ok := table.Props["rows"].([]sdk.TableRow)
+	require.True(t, ok)
+	yours := map[string]string{}
+	for _, r := range rows {
+		yours[r.ID] = r.Cells[3].Text
+		assert.Equal(t, automation.ActAsk, r.Cells[4].Action)
+	}
+	assert.Equal(t, map[string]string{
+		"agent": "2 graphs", "check": "1 graph", "action": "1 graph", onDone: "2 graphs",
+		onAsks: "1 graph", onOutcome: "2 graphs", "maxFires": "1 graph", "end": "2 graphs",
+	}, yours)
+}
+
+func TestAskPromptNamesThePart(t *testing.T) {
+	assert.Contains(t, askPrompt("maxFires"), "that uses a round cap (maxFires).")
+	assert.NotContains(t, askPrompt(""), "that uses")
 }

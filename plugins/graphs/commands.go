@@ -74,6 +74,8 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 		return nil, err
 	case "graphs.reveal":
 		return nil, a.reveal(ctx, cmd)
+	case "graphs.new":
+		return nil, a.askAgent(ctx, cmd.WorkspaceID, "")
 	case "graphs.approve":
 		return nil, a.approveStep(ctx, cmd)
 	case "graphs.continue":

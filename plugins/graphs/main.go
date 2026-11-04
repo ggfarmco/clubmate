@@ -15,6 +15,7 @@ import (
 
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
+	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/automation"
@@ -261,6 +262,12 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	var id string
 	switch ev.Slot {
 	case mainSlot:
+		if ev.NodeID == partsID {
+			return nil, a.askFromRow(ctx, ev)
+		}
+		if ev.NodeID == automation.AskID {
+			return nil, a.askAgent(ctx, ev.WorkspaceID, "")
+		}
 		target, ok := automation.ActionTarget(ev.NodeID, ev.Action)
 		if !ok {
 			return nil, nil
@@ -860,7 +867,7 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(graphs, a.untrustedGraphs(ctx, workspace, dirs, graphs), runs, selected, statuses, collapsed)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
-	main := emptyView()
+	var main sdui.Node
 	if i := slices.IndexFunc(runs, func(r *Run) bool { return r.ID == selected }); i >= 0 {
 		main = mainView(runs[i], statuses, a.extras(runs[i]))
 	} else if i := slices.IndexFunc(graphs, func(g graphFile) bool { return graphPrefix+g.Name == selected }); i >= 0 {
@@ -877,6 +884,8 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 		}
 		a.mu.Unlock()
 		main = graphView(g, spec, d, starting, tv)
+	} else {
+		main = helpView(yourGraphs(graphs))
 	}
 	if _, err := a.host.Render(ctx, workspace, mainSlot, main); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
@@ -885,7 +894,7 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 }
 
 func pickSelected(selected string, graphs []graphFile, runs []*Run) string {
-	if slices.ContainsFunc(runs, func(r *Run) bool { return r.ID == selected }) || slices.ContainsFunc(graphs, func(g graphFile) bool { return graphPrefix+g.Name == selected }) {
+	if selected == automation.HelpID || slices.ContainsFunc(runs, func(r *Run) bool { return r.ID == selected }) || slices.ContainsFunc(graphs, func(g graphFile) bool { return graphPrefix+g.Name == selected }) {
 		return selected
 	}
 	if len(runs) > 0 {
@@ -894,7 +903,7 @@ func pickSelected(selected string, graphs []graphFile, runs []*Run) string {
 	if i := slices.IndexFunc(graphs, func(g graphFile) bool { return g.Error == "" }); i >= 0 {
 		return graphPrefix + graphs[i].Name
 	}
-	return ""
+	return automation.HelpID
 }
 
 func (a *app) sessionMap(ctx context.Context, workspace string) map[string]api.Session {

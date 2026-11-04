@@ -6,6 +6,7 @@
   "command": ["graphs"],
   "contributes": {
     "shortcuts": [
+      {"keys": "cmd+n", "action": "Ask an agent to write a graph"},
       {"keys": "cmd+return", "action": "Trust an untrusted graph (Trust… then Trust); continue an edge held at its round cap, else open the session of the step that needs you (else the running or start step); on a graph, run it with its input"},
       {"keys": "opt+1", "action": "Allow a waiting step once"},
       {"keys": "opt+2", "action": "Always allow a waiting step's command (asks first)"},
@@ -15,6 +16,11 @@
     ],
     "sections": [{"id": "graphs", "title": "Graphs", "icon": "point.3.connected.trianglepath.dotted", "order": 37}],
     "commands": [
+      {
+        "id": "graphs.new",
+        "title": "Ask an agent to write a graph",
+        "description": "Start an agent session that asks you what roles and hand-offs the graph should have, then writes its file without running it, and show it in Agents."
+      },
       {
         "id": "graphs.list",
         "title": "List agent graphs",

@@ -40,10 +40,7 @@ const (
 var liveOrder = []string{"waiting", "running", "error"}
 
 func sidebarView(graphs []graphFile, untrusted map[string]bool, runs []*Run, selected string, sessions map[string]api.Session, collapsed map[string]bool) sdui.Node {
-	if len(graphs) == 0 && len(runs) == 0 {
-		return sdui.Empty("No graphs or graph runs yet")
-	}
-	var groups []sdui.TreeItem
+	groups := []sdui.TreeItem{automation.HelpItem("How graphs work")}
 	if len(graphs) > 0 {
 		items := make([]sdui.TreeItem, 0, len(graphs))
 		for _, g := range graphs {
@@ -198,9 +195,6 @@ func definitionDiagram(id string, r *Run, changed []string) sdui.Node {
 }
 
 func mainView(r *Run, sessions map[string]api.Session, x runExtras) sdui.Node {
-	if r == nil {
-		return emptyView()
-	}
 	rows := []sdui.Node{
 		automation.Property("Input", cmp.Or(firstLine(r.Input), "none"), ""),
 		automation.Property("Started", r.StartedAt.Local().Format(whenLayout), ""),
@@ -232,10 +226,6 @@ func mainView(r *Run, sessions map[string]api.Session, x runExtras) sdui.Node {
 		children = append(children, agentPanel(r, node, move, x.summarizing))
 	}
 	return sdui.VStack(runHeader(r, sessions, need), automation.Properties(rows...), runDiagram(r, sessions, children...))
-}
-
-func emptyView() sdui.Node {
-	return sdui.EmptyState("Graphs chain agents: when one finishes, the next starts. Add a graph file, then select it here and run it.", sdui.EmptyProps{Title: "No graphs yet", Icon: graphIcon, Hint: graphsDir + "/<name>" + graphExt})
 }
 
 func runHeader(r *Run, sessions map[string]api.Session, need *runNeed) sdui.Node {
