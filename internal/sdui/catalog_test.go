@@ -67,6 +67,7 @@ func TestValidate(t *testing.T) {
 		{"icon tone", sdui.WithTone(sdui.Icon("play.circle"), "accent"), true},
 		{"icon bad tone", sdui.WithTone(sdui.Icon("play.circle"), "amber"), false},
 		{"button overflow", sdui.WithOverflow(sdui.Button("b", "Delete", "")), true},
+		{"button withForm", sdui.WithForm(sdui.Button("b", "Pick", "")), true},
 		{"tree muted not bool", sdui.Node{Type: "tree", ID: "t", Props: map[string]any{"items": []any{map[string]any{"id": "a", "label": "A", "muted": "yes"}}}}, false},
 		{"diff", sdui.Diff("+a"), true},
 		{"diff without text", sdui.Node{Type: "diff"}, false},

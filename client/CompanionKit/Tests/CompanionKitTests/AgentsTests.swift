@@ -418,6 +418,15 @@ final class ElicitationDraftTests: XCTestCase {
         try await store.respond("s", request: "elicitation-1", action: "accept", answers: draft.answers([]))
         XCTAssertEqual(store.elicitationDraft("s", request: "elicitation-1"), ElicitationDraft())
     }
+
+    func testPickedOptionCarriesTheOtherNote() throws {
+        let json = #"{"mode":"form","message":"Which store?","fields":[{"key":"question_0","type":"choice","options":[{"value":"pg","label":"Postgres"},{"value":"redis","label":"Redis"}]},{"key":"question_0_custom","type":"text","title":"Other"}]}"#
+        let request = try JSONDecoder.clubmate.decode(Elicitation.Request.self, from: Data(json.utf8))
+        var draft = ElicitationDraft()
+        draft.texts["question_0_custom"] = "only as a cache"
+        let answers = draft.answers(request.fields, picking: request.fields[0].options[1], in: request.fields[0])
+        XCTAssertEqual(answers, [Elicitation.Answer(key: "question_0", value: "redis"), Elicitation.Answer(key: "question_0_custom", value: "only as a cache")])
+    }
 }
 
 @MainActor

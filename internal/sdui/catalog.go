@@ -228,7 +228,7 @@ var (
 		},
 		"button": {
 			required:    []string{"label"},
-			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck, "loading": isString, "iconOnly": isBool, "copy": isString, "overflow": isBool},
+			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck, "loading": isString, "iconOnly": isBool, "copy": isString, "overflow": isBool, "withForm": isBool},
 			children:    childRule{min: 0, max: 1, only: []string{"form"}},
 			interactive: true,
 		},

@@ -175,8 +175,9 @@ struct ButtonPress {
         if let text = node.string("copy") { return Clipboard.copy(text) }
         if let open { return open() }
         if let dismiss, node.string("action") == SDUIPopover.dismissAction { return dismiss() }
-        guard let form, node.string("action") == nil else { return dispatch(node, .click) }
-        form.submit()
+        guard let form else { return dispatch(node, .click) }
+        if node.string("action") == nil { return form.submit() }
+        dispatch(node, node.bool("withForm") == true ? .submit(.object(form.values)) : .click)
     }
 }
 

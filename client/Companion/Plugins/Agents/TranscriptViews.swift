@@ -1623,7 +1623,7 @@ struct ElicitationCard: View {
                 let selected = draft.picks[field.key, default: []].contains(option.value)
                 Button {
                     if single {
-                        submit("accept", [Elicitation.Answer(key: field.key, value: option.value)])
+                        submit("accept", draft.answers(question.request.fields, picking: option, in: field))
                     } else {
                         draft.toggle(field, option)
                     }

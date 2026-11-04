@@ -224,7 +224,7 @@ A pending question (AskUserQuestion or an MCP form) is docked above the composer
 
 | Keys | Action |
 |---|---|
-| ⌥1 ⌥2 ⌥3 ⌥4 ⌥5 ⌥6 ⌥7 ⌥8 ⌥9 | Answer with that option (printed on each option button) when the question has a single list of options; the answer is sent at once |
+| ⌥1 ⌥2 ⌥3 ⌥4 ⌥5 ⌥6 ⌥7 ⌥8 ⌥9 | Answer with that option (printed on each option button) when the question has a single list of options; the answer is sent at once, with whatever is typed in Other as a note |
 | ↩ | In a text field of the question (e.g. "Other"): send the form |
 
 Defined by the `button` `shortcut` props in `plugins/agents/elicit_view.go`.

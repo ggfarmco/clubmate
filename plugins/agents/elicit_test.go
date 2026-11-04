@@ -73,10 +73,11 @@ func TestElicitationOptionPick(t *testing.T) {
 	i := slices.IndexFunc(buttons, func(b sdui.Node) bool { return b.Props["label"] == "Redis" })
 	require.GreaterOrEqual(t, i, 0)
 	assert.Equal(t, "opt+2", buttons[i].Props["shortcut"])
-	f.h.Event(t, workspace, "agents.main", buttons[i].ID, "elicitationPick", nil)
+	assert.Equal(t, true, buttons[i].Props["withForm"])
+	f.h.Event(t, workspace, "agents.main", buttons[i].ID, "elicitationPick", map[string]any{form.ID + "/f/1": "only as a cache"})
 
 	got := f.waitCall(t, "elicitation_response", func(fakeCall) bool { return true })
-	assert.JSONEq(t, `{"action":"accept","content":{"question_0":"Redis"}}`, string(got.Params))
+	assert.JSONEq(t, `{"action":"accept","content":{"question_0":"Redis","question_0_custom":"only as a cache"}}`, string(got.Params))
 	f.waitStatus(t, workspace, session, "done")
 }
 

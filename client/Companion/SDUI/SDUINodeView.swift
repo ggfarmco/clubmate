@@ -128,6 +128,7 @@ final class SDUIFormState {
     @ObservationIgnored private var pending: Task<Void, Never>?
 
     var saving: Bool { save.saving && autosave }
+    var collected: JSONValue { UIForm.collect(values, in: node) }
 
     func update(_ node: SDUINode, context: SDUIContext) {
         let ids = UIForm.fieldIDs(in: node)

@@ -801,6 +801,10 @@ func WithOverflow(n Node) Node {
 	return withProp(n, "overflow", true)
 }
 
+func WithForm(n Node) Node {
+	return withProp(n, "withForm", true)
+}
+
 func WithTone(n Node, tone string) Node {
 	return withProp(n, "tone", tone)
 }

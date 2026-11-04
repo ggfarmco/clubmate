@@ -10,6 +10,8 @@ enum SDUIPress {
             UIPasteboard.general.string = copy
         } else if let form, button.string("action") == nil {
             form.submit()
+        } else if let form, button.bool("withForm") == true {
+            context.run { await $0.fire(button, .submit(form.collected)) }
         } else {
             context.run { await $0.fire(button, .click) }
         }

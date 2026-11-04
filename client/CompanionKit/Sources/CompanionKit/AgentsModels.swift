@@ -796,6 +796,12 @@ public struct ElicitationDraft: Sendable, Equatable {
             }
         }
     }
+
+    public func answers(_ fields: [Elicitation.Field], picking option: Elicitation.Option, in field: Elicitation.Field) -> [Elicitation.Answer] {
+        var draft = self
+        draft.picks[field.key] = [option.value]
+        return draft.answers(fields)
+    }
 }
 
 public struct Compaction: Sendable, Equatable {

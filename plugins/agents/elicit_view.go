@@ -69,18 +69,20 @@ func (a *app) elicitAct(ev pluginsdk.UIEvent, s *session, node string) error {
 			return err
 		}
 		return s.respond(id, acp.ElicitationResponse{Action: acp.ElicitationAccept})
-	case actElicitPick:
-		f, o, ok := pickedOption(el, sub)
-		if !ok {
-			return errUnknownOption
-		}
-		return s.respond(id, acp.ElicitationResponse{Action: acp.ElicitationAccept, Content: map[string]any{f.Key: o.Value}})
 	}
 	var values map[string]any
 	if err := decode(ev.Value, &values); err != nil {
 		return err
 	}
-	return s.respond(id, acp.ElicitationResponse{Action: acp.ElicitationAccept, Content: formContent(elicitationNode(s.snapshot().ID, id), el, values)})
+	content := formContent(elicitationNode(s.snapshot().ID, id), el, values)
+	if ev.Action == actElicitPick {
+		f, o, ok := pickedOption(el, sub)
+		if !ok {
+			return errUnknownOption
+		}
+		content[f.Key] = o.Value
+	}
+	return s.respond(id, acp.ElicitationResponse{Action: acp.ElicitationAccept, Content: content})
 }
 
 func docked(sc screen) bool {
@@ -141,7 +143,7 @@ func optionButtons(id string, field int, f elicitField) []sdui.Node {
 		out = append(out, sdui.MutedText(f.Title))
 	}
 	for i, o := range f.Options {
-		b := sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/pick/"+strconv.Itoa(field)+"/"+strconv.Itoa(i), o.Label, ""), actElicitPick), "secondary")
+		b := sdui.WithForm(sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/pick/"+strconv.Itoa(field)+"/"+strconv.Itoa(i), o.Label, ""), actElicitPick), "secondary"))
 		if i < maxOptionShortcut {
 			b = sdui.WithShortcut(b, "opt+"+strconv.Itoa(i+1))
 		}
