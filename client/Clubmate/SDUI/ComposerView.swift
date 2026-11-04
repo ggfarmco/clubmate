@@ -66,7 +66,7 @@ struct ComposerNodeView: View {
         .padding(.horizontal, theme.gutter * 2)
         .padding(.vertical, theme.gutter + theme.spacing.s)
         .overlay(alignment: .top) { theme.border.frame(height: 1) }
-        .keyMonitor(active: focused && !disabled, claims: { Self.key($0) == .send }, handle: handle)
+        .keyMonitor(active: focused && !disabled, claims: claim, handle: handle)
         .reportsFocus(pane, focused, slot: focusSlot)
         .onChange(of: node.composerCommands(), initial: true) { _, commands in model.commands = commands }
         .onChange(of: running, initial: true) { _, running in model.running = running }
@@ -400,6 +400,11 @@ struct ComposerNodeView: View {
             option: flags.contains(.option),
             shift: flags.contains(.shift)
         )
+    }
+
+    private func claim(_ event: NSEvent) -> KeyClaim? {
+        guard Self.key(event) == .send else { return nil }
+        return model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .idle : .typed
     }
 
     private func handle(_ event: NSEvent) -> Bool {

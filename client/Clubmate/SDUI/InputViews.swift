@@ -17,6 +17,7 @@ struct ButtonNodeView: View {
     @Environment(\.buttonKeyHint) private var keyHint
     @Environment(\.buttonIsDefault) private var isDefault
     @Environment(\.sduiPopover) private var popover
+    @Environment(\.formDocked) private var docked
 
     private var variant: String? { node.string("variant") }
     private var disabled: Bool { press.disabled }
@@ -38,7 +39,7 @@ struct ButtonNodeView: View {
                 return .handled
             }
             .onHover { hovering = $0 }
-            .keyMonitor(active: combo != nil && !disabled && !popoverShown, overTerminals: combo?.passesTerminals == true, handle: press.handle)
+            .keyMonitor(active: combo != nil && !disabled && !popoverShown, overTerminals: combo?.passesTerminals == true && !docked, claims: docked ? claim : nil, handle: press.handle)
             .keyMonitor(active: popoverShown, handle: popoverLink.handle)
             .help(iconOnly ? tooltip : "")
             .accessibilityLabel(node.string("label") ?? "")
@@ -49,6 +50,10 @@ struct ButtonNodeView: View {
             }
             .onAppear { popoverLink.dismiss = { popoverShown = false } }
             .modifier(PopoverPresenter(target: popoverForm == nil ? nil : node.id.map { "popover:" + $0 }, shown: $popoverShown))
+    }
+
+    private func claim(_ event: NSEvent) -> KeyClaim? {
+        combo?.fires(on: event) == true ? .docked : nil
     }
 
     private var popoverForm: SDUINode? { node.children.first { $0.type == "form" } }

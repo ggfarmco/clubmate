@@ -97,7 +97,8 @@ func TestElicitationFormSubmit(t *testing.T) {
 	assert.Equal(t, true, choices[0].Props["open"])
 	assert.NotContains(t, choices[1].Props, "open")
 	assert.Empty(t, cardsOf(form, "textField"))
-	assert.NotContains(t, string(rawTree(t, form)), "shortcut")
+	assert.NotContains(t, string(rawTree(t, choices[0])), "shortcut")
+	assert.NotContains(t, string(rawTree(t, choices[1])), "shortcut")
 	other := choices[0].Props["other"].(map[string]any)
 	assert.Equal(t, form.ID+"/f/1", other["id"])
 	assert.NotContains(t, choices[1].Props, "other")
@@ -109,6 +110,37 @@ func TestElicitationFormSubmit(t *testing.T) {
 	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
 		return strings.Contains(string(rawTree(t, n)), "Postgres · SQLite · Redis · Which store?")
 	})
+}
+
+func TestElicitationSendKey(t *testing.T) {
+	t.Parallel()
+	onlyChoice := askScript(false)
+	delete(onlyChoice["requestedSchema"].(map[string]any)["properties"].(map[string]any), "question_0_custom")
+	cases := []struct {
+		name   string
+		script map[string]any
+		key    any
+	}{
+		{"a pick answers", onlyChoice, nil},
+		{"one question with Other", askScript(false), "cmd+return"},
+		{"two questions", askScript(true), "cmd+return"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := start(t, map[string]any{"prompt": []map[string]any{{"elicitation": tc.script}}})
+			workspace := f.workspace(t, newRepo(t))
+			session := f.newSession(t, workspace)
+			f.prompt(t, workspace, session, "go")
+
+			form := elicitationForm(t, f, workspace)
+			buttons := cardsOf(form, "button")
+			send := slices.IndexFunc(buttons, func(b sdui.Node) bool { return b.ID == form.ID+"/submit" })
+			require.GreaterOrEqual(t, send, 0)
+			assert.Equal(t, tc.key, buttons[send].Props["shortcut"])
+			assert.NotContains(t, buttons[slices.IndexFunc(buttons, func(b sdui.Node) bool { return b.ID == form.ID+"/decline" })].Props, "shortcut")
+		})
+	}
 }
 
 func TestElicitationCancelledWithTurn(t *testing.T) {

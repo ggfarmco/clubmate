@@ -23,6 +23,7 @@ const (
 	otherPlaceholder  = "Your answer"
 	cardTone          = "warning"
 	questionGap       = 10
+	elicitSendKey     = "cmd+return"
 )
 
 func elicitationCard(sc screen, en *entry) sdui.Node {
@@ -41,6 +42,9 @@ func elicitationCard(sc screen, en *entry) sdui.Node {
 	}
 	children := []sdui.Node{sdui.Text(el.Message), sdui.FitScroll(sdui.WithGap(sdui.VStack(fieldNodes(id, el.Fields)...), questionGap))}
 	submit := sdui.WithVariant(sdui.Button(id+"/submit", "Send", ""), "primary")
+	if !answersOnPick(el.Fields) {
+		submit = sdui.WithShortcut(submit, elicitSendKey)
+	}
 	skip := sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/decline", "Skip", ""), actElicitDecline), "ghost")
 	children = append(children, sdui.HStack(submit, skip))
 	return sdui.WithDock(sdui.WithAction(sdui.Form(id, sdui.Card(cardTone, "questionmark.bubble.fill", children...)), actElicitation))
@@ -126,6 +130,10 @@ func singleChoice(fields []elicitField) int {
 		}
 	}
 	return found
+}
+
+func answersOnPick(fields []elicitField) bool {
+	return len(fields) == 1 && singleChoice(fields) == 0
 }
 
 func fieldNodes(id string, fields []elicitField) []sdui.Node {

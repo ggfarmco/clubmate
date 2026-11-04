@@ -32,7 +32,7 @@
       {"keys": "b", "action": "To backlog: one task per open item of the session", "when": "an open items card or the Open queue has focus"},
       {"keys": "delete", "action": "No to the focused item", "when": "an open items card or the Open queue has focus"},
       {"keys": "shift+delete", "action": "No to all of the session's open items", "when": "an open items card or the Open queue has focus"},
-      {"keys": "cmd+return", "action": "Send answers; in the Open queue every answered session's", "when": "an open items card or the Open queue has focus"}
+      {"keys": "cmd+return", "action": "Send answers; in the Open queue every answered session's; or send a pending question's form", "when": "an open items card or the Open queue has focus, or a question is pending and the composer is empty"}
     ],
     "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25}],
     "views": [{"slot": "editor-nvim.sidebar"}, {"slot": "agents.settings"}],

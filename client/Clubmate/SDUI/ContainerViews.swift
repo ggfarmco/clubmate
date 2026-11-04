@@ -184,6 +184,7 @@ struct FormNodeView: View {
             SDUIChildren(node: node)
         }
         .environment(\.formKeyWidth, theme.uiSize * (width < 480 ? 7.5 : 10) + theme.gutter * 2)
+        .environment(\.formDocked, node.bool("dock") == true)
         .environment(\.formNarrow, width <= ChoiceNodeView.foldWidth)
         .environment(\.formAccordion, node.bool("accordion") == true || width <= ChoiceNodeView.foldWidth)
         .padding(.vertical, theme.spacing.l)
@@ -250,4 +251,6 @@ extension EnvironmentValues {
         get { self[FormAccordionKey.self] }
         set { self[FormAccordionKey.self] = newValue }
     }
+
+    @Entry var formDocked = false
 }

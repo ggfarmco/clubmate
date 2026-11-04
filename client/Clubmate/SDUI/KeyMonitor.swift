@@ -3,8 +3,14 @@ import SwiftUI
 
 import ClubmateKit
 
+enum KeyClaim: Int {
+    case idle
+    case docked
+    case typed
+}
+
 extension View {
-    func keyMonitor(active: Bool, overTerminals: Bool = false, claims: (@MainActor (NSEvent) -> Bool)? = nil, handle: @escaping @MainActor (NSEvent) -> Bool) -> some View {
+    func keyMonitor(active: Bool, overTerminals: Bool = false, claims: (@MainActor (NSEvent) -> KeyClaim?)? = nil, handle: @escaping @MainActor (NSEvent) -> Bool) -> some View {
         background(KeyMonitor(active: active, overTerminals: overTerminals, claims: claims, handle: handle))
     }
 }
@@ -12,7 +18,7 @@ extension View {
 private struct KeyMonitor: NSViewRepresentable {
     let active: Bool
     let overTerminals: Bool
-    let claims: (@MainActor (NSEvent) -> Bool)?
+    let claims: (@MainActor (NSEvent) -> KeyClaim?)?
     let handle: @MainActor (NSEvent) -> Bool
 
     func makeNSView(context: Context) -> KeyMonitorView {
@@ -30,7 +36,7 @@ private struct KeyMonitor: NSViewRepresentable {
 final class KeyMonitorView: NSView {
     var handle: (@MainActor (NSEvent) -> Bool)?
     var overTerminals = false
-    var claims: (@MainActor (NSEvent) -> Bool)?
+    var claims: (@MainActor (NSEvent) -> KeyClaim?)?
     var active = false {
         didSet { update() }
     }
@@ -62,8 +68,13 @@ final class KeyMonitorView: NSView {
 
     func deliver(_ event: NSEvent) -> Bool {
         guard accepts(event) else { return false }
-        if claims == nil, Self.claimers.allObjects.contains(where: { $0.claims?(event) == true && $0.accepts(event) }) { return false }
+        let own = rank(of: event)
+        if Self.claimers.allObjects.contains(where: { $0.rank(of: event) > own && $0.accepts(event) }) { return false }
         return handle?(event) == true
+    }
+
+    private func rank(of event: NSEvent) -> Int {
+        claims?(event)?.rawValue ?? -1
     }
 
     private func accepts(_ event: NSEvent) -> Bool {

@@ -60,7 +60,7 @@ Send has no key on purpose, so a keystroke meant for the window under the sheet 
 
 ## Plugin buttons
 
-A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the button is on screen; a combo without ⌘, ⌃ or ⌥ does nothing while a text field has focus, app menu keys always win, and Esc, ↩ and ⇥ without ⌘, ⌃ or ⌥ cannot be plugin shortcuts. Plugin shortcuts do nothing while a terminal or nvim has focus, except ⌘↩, which presses over them too; a focused agent message field (the composer) keeps ⌘↩ to send its message. Defined in `SDUI/InputViews.swift` (`ButtonNodeView`) and `SDUI/KeyMonitor.swift`, combos parsed by `ClubmateKit/KeyCombo.swift`. In a plugin's sheet (the `sheet` node) Esc, ↩ and Enter press its cancel button (↩ and Enter not while a text field has focus), which prints ⎋; the sheet's other buttons keep their shortcuts and the page's buttons under it wait (`SDUI/SheetNodeView.swift`). Plugin shortcuts in use:
+A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the button is on screen; a combo without ⌘, ⌃ or ⌥ does nothing while a text field has focus, app menu keys always win, and Esc, ↩ and ⇥ without ⌘, ⌃ or ⌥ cannot be plugin shortcuts. Plugin shortcuts do nothing while a terminal or nvim has focus, except ⌘↩, which presses over them too; a focused agent message field (the composer) keeps ⌘↩ to send its message. A button in a docked form (`form.dock`, the agent's question card) ranks above those: its key beats other buttons and an empty composer, loses to a composer with text, and does nothing while a terminal or nvim has focus. Defined in `SDUI/InputViews.swift` (`ButtonNodeView`) and `SDUI/KeyMonitor.swift`, combos parsed by `ClubmateKit/KeyCombo.swift`. In a plugin's sheet (the `sheet` node) Esc, ↩ and Enter press its cancel button (↩ and Enter not while a text field has focus), which prints ⎋; the sheet's other buttons keep their shortcuts and the page's buttons under it wait (`SDUI/SheetNodeView.swift`). Plugin shortcuts in use:
 
 | Keys | Action | Plugin |
 |---|---|---|
@@ -226,8 +226,9 @@ A pending question (AskUserQuestion or an MCP form) is docked above the composer
 |---|---|
 | ⌥1 ⌥2 ⌥3 ⌥4 ⌥5 ⌥6 ⌥7 ⌥8 ⌥9 | Answer with that option (printed on each option row) when the question has a single list of options; the answer is sent at once, with whatever is typed in Other as a note. The key after the last option picks "Other…": it opens the field and sends nothing |
 | ↩ | In a text field of the question (e.g. "Other"): send the form |
+| ⌘↩ | Send the form (printed on Send), also from an empty composer; a composer with text sends its message instead. Not on a card a pick already answers (one question, no Other), and not while a terminal or Neovim has focus |
 
-With 2+ questions the rows have no keys: click them, or Tab to a row and press Space. Defined by the `choice` option `shortcut` props in `plugins/agents/elicit_view.go`.
+⎋ stays Stop the running turn and answers nothing; Skip has no key. With 2+ questions the rows have no keys: click them, or Tab to a row and press Space. Defined by the `choice` option `shortcut` props and Send's `shortcut` in `plugins/agents/elicit_view.go`, ranked in `SDUI/KeyMonitor.swift` (`KeyClaim`).
 
 ## Open items (Agents section, card or Open queue)
 
@@ -269,7 +270,7 @@ The review's file panel is the diffview fork's, inside nvim; its keys are in the
 
 | Keys | Action | Where defined |
 |---|---|---|
-| ⌘↩ | Send review: opens the Send sheet for the review in Neovim's current tab (the status bar button "Send review"; also while Neovim has focus, since ⌘↩ never reaches it; only while the review has open comments) | `plugins/editor-nvim/view.go`, `plugins/editor-nvim/review_send.go` |
+| ⌘↩ | Send review: opens the Send sheet for the review in Neovim's current tab (the status bar button "Send review"; also while Neovim has focus, since ⌘↩ never reaches it; only while the review has open comments; with an agent's question in the chat panel only while Neovim has focus, elsewhere ⌘↩ goes to the question) | `plugins/editor-nvim/view.go`, `plugins/editor-nvim/review_send.go` |
 | ⌘↩ | In the Send sheet: send the open comments to the chosen session | `plugins/editor-nvim/review_send.go`, `SDUI/FormSheet.swift` |
 | ⎋ | In the Send sheet: cancel | `SDUI/FormSheet.swift` |
 
