@@ -41,9 +41,9 @@ var errNotYours = errors.New("this run was not started by this agent session or 
 
 type app struct {
 	mu          sync.Mutex
-	renderMu    sync.Mutex
 	runs        map[string]*Run
 	dirty       map[string]bool
+	flushing    bool
 	drafts      map[string]draft
 	starting    map[string]string
 	collapsed   map[string]map[string]bool
@@ -62,6 +62,7 @@ type app struct {
 	revealTurn  func(ctx context.Context, workspace, session string, turn int) error
 	proc        procRunner
 	spawn       func(f func())
+	background  func(f func())
 	pending     map[string]pendingStep
 	stepSel     map[string]pick
 	trusting    map[string]string
@@ -140,6 +141,7 @@ func newApp() *app {
 	a.home, _ = os.UserHomeDir()
 	a.managedPath = managedPath
 	a.spawn = func(f func()) { go f() }
+	a.background = func(f func()) { go f() }
 	a.publish = a.publishEvent
 	a.selectTrig = a.selectTrigger
 	a.summarize = askHaiku
@@ -811,16 +813,31 @@ func (a *app) touch(workspace string) {
 }
 
 func (a *app) flush(ctx context.Context) {
-	a.renderMu.Lock()
-	defer a.renderMu.Unlock()
 	a.mu.Lock()
-	dirty := a.dirty
-	a.dirty = map[string]bool{}
-	a.mu.Unlock()
-	for ws := range dirty {
-		logError(a.render(ctx, ws))
-		a.feedNeeds(ctx, ws)
+	if a.flushing || len(a.dirty) == 0 {
+		a.mu.Unlock()
+		return
 	}
+	a.flushing = true
+	a.mu.Unlock()
+	ctx = context.WithoutCancel(ctx)
+	a.background(func() {
+		for {
+			a.mu.Lock()
+			dirty := a.dirty
+			a.dirty = map[string]bool{}
+			if len(dirty) == 0 {
+				a.flushing = false
+				a.mu.Unlock()
+				return
+			}
+			a.mu.Unlock()
+			for ws := range dirty {
+				logError(a.render(ctx, ws))
+				a.feedNeeds(ctx, ws)
+			}
+		}
+	})
 }
 
 func (a *app) renderWorkspace(ctx context.Context, workspace string) error {

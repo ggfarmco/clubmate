@@ -96,6 +96,7 @@ func testApp(t *testing.T, core *fakeCore) *app {
 	a.home = t.TempDir()
 	a.managedPath = filepath.Join(a.home, "managed.json")
 	a.render = func(context.Context, string) error { return nil }
+	a.background = func(f func()) { f() }
 	a.sessions = func(context.Context, string) ([]api.Session, error) {
 		return []api.Session{{ID: "agt_boss", Worktree: "testdata"}}, nil
 	}
@@ -302,6 +303,38 @@ func TestListWithoutProjectGraphsOrRuns(t *testing.T) {
 	require.Len(t, res.Graphs, 2)
 	assert.Equal(t, []any{"pr-walkthrough", true}, []any{res.Graphs[0].Name, res.Graphs[0].Builtin})
 	assert.JSONEq(t, `[]`, string(res.Runs))
+}
+
+func TestCommandAnswersBeforeRender(t *testing.T) {
+	a := testApp(t, &fakeCore{})
+	a.background = func(f func()) { go f() }
+	release, rendered := make(chan struct{}), make(chan string, 8)
+	a.render = func(_ context.Context, ws string) error {
+		<-release
+		rendered <- ws
+		return nil
+	}
+	a.mu.Lock()
+	a.touch("ws1")
+	a.mu.Unlock()
+	done := make(chan error, 1)
+	go func() {
+		_, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.list", WorkspaceID: "ws1"})
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("graphs.list waited for the render")
+	}
+	close(release)
+	select {
+	case ws := <-rendered:
+		assert.Equal(t, "ws1", ws)
+	case <-time.After(time.Second):
+		t.Fatal("ws1 was never rendered")
+	}
 }
 
 func TestListCallsNoOtherPlugin(t *testing.T) {
