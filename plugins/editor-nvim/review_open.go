@@ -207,6 +207,12 @@ func (a *app) openReviewLocked(ctx context.Context, h reviewHost, ws, root strin
 			return r, nil
 		}
 		a.removeReviewLocked(ctx, h, r)
+	} else if ok {
+		if err := r.nv.reviewClose(r.Tab); err != nil {
+			logError("review move", err)
+		}
+		a.removeReviewLocked(ctx, h, r)
+		a.renderReviewsLocked(ctx, h, r.Workspace)
 	}
 	if r := a.adoptOpenLocked(ctx, h, ws, root, nv, reviewID(req.Key)); r != nil {
 		if err := nv.reviewFocus(r.Tab); err != nil {

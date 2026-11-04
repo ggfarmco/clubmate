@@ -170,6 +170,7 @@ return {
           },
         },
         file_panel = {
+          checkbox = { on = "󰄲", off = "󰄱" },
           filters = {
             generated = {
               extend = {

@@ -32,6 +32,7 @@ type fakeReviewer struct {
 	tabs     []reviewTab
 	tab      int
 	reads    int
+	closed   []int
 }
 
 func (f *fakeReviewer) reviewFilters(int) (reviewFilters, error) {
@@ -89,8 +90,14 @@ func (f *fakeReviewer) lastMeta() reviewMeta {
 
 func (f *fakeReviewer) reviewNext(int, int) error          { return nil }
 func (f *fakeReviewer) reviewExcludes(int, []string) error { return nil }
-func (f *fakeReviewer) reviewClose(int) error              { return nil }
 func (f *fakeReviewer) reviewFocus(int) error              { return nil }
+
+func (f *fakeReviewer) reviewClose(tab int) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.closed = append(f.closed, tab)
+	return nil
+}
 
 func (f *fakeReviewer) reviewLayout(_ int, layout string) error {
 	f.mu.Lock()
@@ -331,6 +338,22 @@ func TestReviewOpenReusesAndMovesOpener(t *testing.T) {
 	_, err = a.startReview(t.Context(), h, "ws", "/repo", nv, req)
 	require.NoError(t, err)
 	assert.Len(t, nv.metas, 2)
+}
+
+func TestReviewOpenInAnotherWorkspaceMovesIt(t *testing.T) {
+	a, h := newTestApp(), &fakeHost{}
+	first, second := &fakeReviewer{}, &fakeReviewer{tab: 4}
+	req := openReviewReq{Key: reviewKey{Worktree: "/repo", Base: "main"}, BaseRev: "abc1234", Left: "main"}
+	old, err := a.startReview(t.Context(), h, "a", "/repo", first, req)
+	require.NoError(t, err)
+	moved, err := a.startReview(t.Context(), h, "b", "/repo", second, req)
+	require.NoError(t, err)
+	assert.Equal(t, []int{old.Tab}, first.closed)
+	assert.Equal(t, old.ID, moved.ID)
+	assert.Empty(t, a.workspaceReviewsLocked("a"))
+	assert.Equal(t, []*review{moved}, a.workspaceReviewsLocked("b"))
+	assert.Contains(t, h.payloads, reviewPayload{WorkspaceID: "a", ID: old.ID, Worktree: "/repo", Base: "main", Closed: true})
+	assert.Equal(t, reviewPayload{WorkspaceID: "b", ID: old.ID, Worktree: "/repo", Base: "main"}, h.last())
 }
 
 func TestReviewAdoptsOpenTabsAfterRestart(t *testing.T) {

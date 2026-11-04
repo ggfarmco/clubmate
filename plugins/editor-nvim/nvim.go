@@ -17,6 +17,7 @@ const (
 	modeTimeout   = 500 * time.Millisecond
 	socketPoll    = 50 * time.Millisecond
 	socketWait    = 5 * time.Second
+	startupWait   = 15 * time.Second
 	maxSocketPath = 103
 	rootHashBytes = 4
 	notifyMethod  = "clubmate"
@@ -30,6 +31,7 @@ var (
 	errSocketTooLong = errors.New("nvim socket path too long")
 	errNoRuntimeDir  = errors.New("plugin runtime dir is not set")
 	errNoChannelID   = errors.New("nvim returned no channel id")
+	errNoVimEnter    = errors.New("nvim has not finished starting; going on")
 )
 
 type nvimEvent struct {
@@ -80,6 +82,7 @@ func connect(ctx context.Context, sock string, onEvent func(nvimEvent)) (*client
 		_ = v.Serve()
 		close(c.done)
 	}()
+	c.waitStartup(ctx)
 	if err := c.hook(); err != nil {
 		c.close()
 		return nil, err
@@ -105,6 +108,29 @@ func dial(ctx context.Context, sock string) (*nvim.Nvim, error) {
 			return nil, ctx.Err()
 		case <-deadline.C:
 			return nil, fmt.Errorf("%w: %s: %w", errSocketTimeout, sock, err)
+		case <-tick.C:
+		}
+	}
+}
+
+func (c *client) waitStartup(ctx context.Context) {
+	deadline := time.NewTimer(startupWait)
+	defer deadline.Stop()
+	tick := time.NewTicker(socketPoll)
+	defer tick.Stop()
+	for {
+		var entered int
+		if err := c.call(func(v *nvim.Nvim) error { return v.VVar("vim_did_enter", &entered) }); err != nil || entered == 1 {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-c.done:
+			return
+		case <-deadline.C:
+			logError("nvim startup", errNoVimEnter)
+			return
 		case <-tick.C:
 		}
 	}

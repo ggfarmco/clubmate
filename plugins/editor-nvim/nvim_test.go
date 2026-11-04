@@ -63,6 +63,54 @@ func TestDialWaitsUntilSocketListens(t *testing.T) {
 	}
 }
 
+func TestConnectWaitsForStartupBeforeAUIAttaches(t *testing.T) {
+	bin, err := exec.LookPath("nvim")
+	if err != nil {
+		t.Skip("nvim not in PATH")
+	}
+	dir, err := os.MkdirTemp("/tmp", "cmembed")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	initLua := filepath.Join(dir, "init.lua")
+	require.NoError(t, os.WriteFile(initLua, []byte("vim.g.clubmate_test_init = 1\n"), 0o600))
+	sock := filepath.Join(dir, "n.sock")
+	cmd := exec.Command(bin, "--embed", "-i", "NONE", "-n", "-u", initLua, "--listen", sock)
+	stdin, err := cmd.StdinPipe()
+	require.NoError(t, err)
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() { _ = stdin.Close(); _ = cmd.Process.Kill(); _ = cmd.Wait() })
+
+	connected := make(chan *client, 1)
+	go func() {
+		c, err := connect(t.Context(), sock, func(nvimEvent) {})
+		if err == nil {
+			connected <- c
+		}
+		close(connected)
+	}()
+	select {
+	case <-connected:
+		require.Fail(t, "connect returned before nvim sourced its init")
+	case <-time.After(10 * socketPoll):
+	}
+
+	ui, err := dial(t.Context(), sock)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ui.Close() })
+	go func() { _ = ui.Serve() }()
+	require.NoError(t, ui.AttachUI(80, 24, map[string]any{"ext_linegrid": true}))
+	var c *client
+	select {
+	case c = <-connected:
+	case <-time.After(socketWait):
+	}
+	require.NotNil(t, c, "connect did not return after a UI attached")
+	t.Cleanup(c.close)
+	var set int
+	require.NoError(t, c.v.Var("clubmate_test_init", &set))
+	assert.Equal(t, 1, set)
+}
+
 func TestReviewClientRoundTrip(t *testing.T) {
 	c, events := distroClient(t)
 	repo := reviewRepo(t)
@@ -157,11 +205,6 @@ func distroClient(t *testing.T) (*client, *eventLog) {
 	c, err := connect(t.Context(), sock, events.add)
 	require.NoError(t, err)
 	t.Cleanup(c.close)
-	testutil.Eventually(t, func() bool {
-		var entered int
-		require.NoError(t, c.v.Eval("v:vim_did_enter", &entered))
-		return entered == 1
-	}, 15*time.Second)
 	return c, events
 }
 
