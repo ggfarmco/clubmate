@@ -4,7 +4,7 @@ Distilled from `design/companion/` (Claude Design, 2026-10-31). Boards: `C-Audit
 
 ## Colour
 
-System surfaces and label levels (no Mate cream). Accent is Mate green: `#A6D85B` dark, `#357A27` light (white text passes 4.5:1). Accent = the one primary action, selection, unread dot. Success = teal (`#4FB3A0` / `#1F7F70`), diff additions only; done is muted grey. Warning amber = needs you (permission, question). Danger red = failed, stuck, Reject. Surfaces: background `systemBackground`/`systemGroupedBackground`, surface-1 `#1C1C1E`/`#FFFFFF` (groups, cards, glass base), surface-2 `#2C2C2E`/`#E9E9EE` (user bubble, plain buttons, chips). Accent and tones are the same values as the Mac's Mate theme; the palette does not follow the paired Mac.
+System surfaces and label levels (no Mate cream). Accent is Mate green: `#A6D85B` dark, `#357A27` light (white text passes 4.5:1). Accent = the one primary action, selection, unread dot. Success = teal (`#4FB3A0` / `#1F7F70`), diff additions only; done is muted grey. Warning amber = needs you (permission, question). Danger red = failed, stuck, Reject. Surfaces: background `systemBackground`/`systemGroupedBackground` (a plugin section screen, every SDUI slot under More, sits on `systemGroupedBackground`, set once in `SectionScreen`, so surface-1 groups and cards keep an edge in light), surface-1 `#1C1C1E`/`#FFFFFF` (groups, cards, glass base), surface-2 `#2C2C2E`/`#E9E9EE` (user bubble, plain buttons, chips). Accent and tones are the same values as the Mac's Mate theme; the palette does not follow the paired Mac.
 
 ### Mac colours (C5)
 

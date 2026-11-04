@@ -31,9 +31,13 @@ struct SectionScreen: View {
                     ProgressView()
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.systemGroupedBackground))
             .navigationTitle(title)
             .navigationDestination(for: String.self) { slot in
                 self.slot(slot, open: { _ in })
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(.systemGroupedBackground))
                     .navigationTitle(title)
                     .navigationBarTitleDisplayMode(.inline)
             }
