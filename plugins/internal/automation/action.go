@@ -145,7 +145,7 @@ func BusyTarget(sessions []api.Session, act Action) (string, bool) {
 		return "", false
 	}
 	s, ok := agentcall.Find(sessions, target.Session)
-	return target.Session, ok && (s.Status == sessionRunning || s.Status == sessionWaiting)
+	return target.Session, ok && !s.Reminding && (s.Status == sessionRunning || s.Status == sessionWaiting)
 }
 
 func Allowed(cmd pluginsdk.CommandRun, act Action, parents map[string]string) bool {

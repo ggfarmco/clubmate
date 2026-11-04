@@ -428,7 +428,7 @@ func (a *app) sessionRow(ctx context.Context, rec record, children string) sessi
 			row.Since = sum.At
 		}
 	}
-	if at, ok := a.reminders.at(rec.Workspace, rec.ID); ok && rec.Status == statusRunning {
+	if at, ok := a.reminders.at(rec.Workspace, rec.ID); ok && rec.Reminding {
 		row.Activity, row.Started = reminderActivity(at), time.Time{}
 	}
 	return row

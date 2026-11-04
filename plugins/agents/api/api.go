@@ -42,6 +42,7 @@ type Session struct {
 	ParentSession string `json:"parentSession"`
 	HandoffFrom   string `json:"handoffFrom"`
 	Status        string `json:"status"`
+	Reminding     bool   `json:"reminding,omitempty"`
 	Mode          string `json:"mode"`
 	CronJob       string `json:"cronJob,omitempty"`
 	Trigger       string `json:"trigger,omitempty"`

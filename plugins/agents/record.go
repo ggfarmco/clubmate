@@ -60,6 +60,7 @@ type record struct {
 	ClosedStatus    string    `json:"closedStatus,omitempty"`
 	Review          bool      `json:"review,omitempty"`
 	AsksParent      bool      `json:"asksParent,omitempty"`
+	Reminding       bool      `json:"reminding,omitempty"`
 	CreatedAt       time.Time `json:"createdAt"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 	Asks            bool      `json:"asks"`

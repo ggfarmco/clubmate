@@ -67,7 +67,7 @@ func (r *reminders) present(rec record) record {
 		return rec
 	}
 	if _, ok := r.at(rec.Workspace, rec.ID); ok {
-		rec.Status = statusRunning
+		rec.Status, rec.Reminding = statusRunning, true
 	}
 	return rec
 }

@@ -309,6 +309,21 @@ func TestReminderSkippedWhileTargetRunning(t *testing.T) {
 	assert.Equal(t, run{Status: "ok"}, ran)
 }
 
+func TestOwnReminderFiresWhileItShowsTheSessionRunning(t *testing.T) {
+	f := newAgentsFixture(t, map[string]any{})
+	session := f.newSession(t)
+	require.NoError(t, f.run(t, "agents.prompt", map[string]any{"session": session, "text": "first"}, nil))
+	f.waitStatus(t, session, "done")
+	var added job
+	require.NoError(t, f.runAs(t, session, "cron.add", map[string]any{"name": "ci", "command": "agents.prompt", "args": `{"session":"` + session + `","text":"check"}`, "in": "10h"}, &added))
+	f.waitStatus(t, session, "running")
+
+	var fired run
+	require.NoError(t, f.run(t, "cron.run", map[string]any{"id": added.ID}, &fired))
+
+	assert.Equal(t, run{Status: "ok"}, fired)
+}
+
 func TestOwnerClosedDeletesJobs(t *testing.T) {
 	f := newAgentsFixture(t, map[string]any{})
 	session := f.newSession(t)
