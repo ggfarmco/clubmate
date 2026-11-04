@@ -216,6 +216,13 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if err != nil {
 			return err
 		}
+		if id == moreID {
+			p := a.workspaceState(ev.WorkspaceID)
+			a.uiMu.Lock()
+			p.closed += closedBatch
+			a.uiMu.Unlock()
+			return nil
+		}
 		if strings.HasPrefix(id, groupPrefix) {
 			return nil
 		}
@@ -265,6 +272,12 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		key := expandPrefix + id
 		if wt, ok := strings.CutPrefix(id, groupPrefix); ok {
 			key = wt
+		}
+		if key == closedKey && ev.Action == actCollapse {
+			p := a.workspaceState(ev.WorkspaceID)
+			a.uiMu.Lock()
+			p.closed = 0
+			a.uiMu.Unlock()
 		}
 		return a.setCollapsed(ctx, ev.WorkspaceID, map[string]bool{key: ev.Action == actCollapse})
 	case actClose, actDelete, actHandoff:

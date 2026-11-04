@@ -21,7 +21,9 @@ const (
 	serviceKey   = "service:"
 	moreID       = groupPrefix + "more:closed"
 	closedShown  = 3
-	closedMore   = "%d more · search to find one"
+	closedBatch  = 25
+	closedMore   = "Show %d more"
+	closedLeft   = "Show %d more · %d left"
 	serviceIcon  = "gearshape.2"
 	runPrefix    = "run:"
 	graphIcon    = "point.3.connected.trianglepath.dotted"
@@ -125,7 +127,7 @@ type notifyChoice struct {
 	label  string
 }
 
-func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, now time.Time, home string, branchOpen bool, filter string, search sidebarSearch) sdui.Node {
+func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, now time.Time, home string, branchOpen bool, filter string, search sidebarSearch, closedExtra int) sdui.Node {
 	top := sdui.HStack(sdui.WithAction(sdui.Button("new", "New", "plus"), actNew), sdui.WithAction(sdui.Button("branch", "New in worktree…", "arrow.triangle.branch"), actShowBranch))
 	if branchOpen {
 		top = sdui.WithAction(sdui.Form(actNewBranch,
@@ -214,7 +216,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	}
 	if len(closed) > 0 {
 		folded, ok := collapsed[closedKey]
-		group := groupItem(closedKey, "Closed", statusIcons[statusClosed], closedItems(closed, selected, kids, collapsed, now, oldest), ok && !folded)
+		group := groupItem(closedKey, "Closed", statusIcons[statusClosed], closedItems(closed, selected, closedShown+closedExtra, kids, collapsed, now, oldest), ok && !folded)
 		group.Detail = strconv.Itoa(len(closed))
 		groups = append(groups, group)
 	}
@@ -232,10 +234,10 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	return sdui.VStack(top, field, tabs, sdui.Tree("sessions", groups, selected))
 }
 
-func closedItems(rows []sessionRow, selected string, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, oldest map[string]time.Time) []sdui.TreeItem {
+func closedItems(rows []sessionRow, selected string, limit int, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, oldest map[string]time.Time) []sdui.TreeItem {
 	slices.SortStableFunc(rows, func(x, y sessionRow) int { return y.Rec.UpdatedAt.Compare(x.Rec.UpdatedAt) })
-	shown := rows[:min(len(rows), closedShown)]
-	if i := slices.IndexFunc(rows, func(row sessionRow) bool { return row.Rec.ID == selected }); i >= closedShown {
+	shown := rows[:min(len(rows), limit)]
+	if i := slices.IndexFunc(rows, func(row sessionRow) bool { return row.Rec.ID == selected }); i >= limit {
 		shown = append(slices.Clone(shown), rows[i])
 	}
 	items := runItems(shown, closedKey, kids, collapsed, now, map[string]bool{}, oldest)
@@ -255,7 +257,11 @@ func closedItems(rows []sessionRow, selected string, kids map[string][]sessionRo
 		}
 	}
 	if more := len(rows) - len(shown); more > 0 {
-		items = append(items, sdui.TreeItem{ID: moreID, Label: fmt.Sprintf(closedMore, more), Faint: true})
+		label := fmt.Sprintf(closedMore, more)
+		if more > closedBatch {
+			label = fmt.Sprintf(closedLeft, closedBatch, more)
+		}
+		items = append(items, sdui.TreeItem{ID: moreID, Label: label, Faint: true})
 	}
 	return items
 }

@@ -56,7 +56,7 @@ func TestSidebarRunNeedsYou(t *testing.T) {
 		{Rec: record{ID: "agt_r", Worktree: "/r/a", Run: run, Title: "Review gate · Reviewer", Status: statusIdle, CreatedAt: now, UpdatedAt: now}, RunNeed: need},
 		{Rec: record{ID: "agt_x", Worktree: "/r/a", Title: "Solo", Status: statusDone, UpdatedAt: now}},
 	}
-	tree := sidebarView(rows, "", map[string]bool{runGroupKey("/r/a", "gr_1"): true}, now, "/r/a", false, filterNeeds, sidebarSearch{})
+	tree := sidebarView(rows, "", map[string]bool{runGroupKey("/r/a", "gr_1"): true}, now, "/r/a", false, filterNeeds, sidebarSearch{}, 0)
 	require.NoError(t, internalsdui.Validate(tree))
 	tabs := nodesOf(tree, "tabs")[0].Props["items"].([]sdui.Item)
 	assert.Equal(t, "1", tabs[1].Badge)

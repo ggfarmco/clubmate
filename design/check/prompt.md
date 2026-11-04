@@ -32,7 +32,7 @@ Ignore differences caused by seed data (names, counts, text) unless the structur
 - **The Mac window's minimum width is 800pt**: no < 800 breakpoint exists. For the 640 boards, check only what applies at 800pt: the Code chat panel stacked below 1100pt, and the header overflow menu under 480pt.
 - Diff line backgrounds use the 15% tone fill, not 13%.
 - Backlog autosaves; a ghost "✓ Saved ⌘S" sits where Save was, not top-right of the header.
-- Agents sidebar (3 Nov): branch rows only when open sessions live in two or more worktrees or in one that is not the title pill's; Closed and Service sit once at the root after the branches; Closed shows the newest 3, then "N more · search to find one", with each row's worktree short name as its detail when it holds several worktrees. The Service count turns warning while it needs you, and its glyph with it (a toned row tints glyph and detail together).
+- Agents sidebar (3 Nov): branch rows only when open sessions live in two or more worktrees or in one that is not the title pill's; Closed and Service sit once at the root after the branches; Closed shows the newest 3, then "Show 25 more · N left" (it shows the next 25; the boards' "N more · search to find one" is overruled), with each row's worktree short name as its detail when it holds several worktrees. The Service count turns warning while it needs you, and its glyph with it (a toned row tints glyph and detail together).
 - The phone's accent is Mate green; a Mac's colour shows only with two or more paired Macs.
 
 ## 4. Known gaps (already tracked — confirm, don't re-derive)

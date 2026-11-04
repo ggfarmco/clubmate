@@ -1593,6 +1593,44 @@ func TestCloseCancelsSignIn(t *testing.T) {
 	}))
 }
 
+func TestSidebarClosedMoreRowExpandsUntilFolded(t *testing.T) {
+	t.Parallel()
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	for range 5 {
+		id := f.newSession(t, workspace)
+		require.NoError(t, f.run(t, workspace, "agents.close", map[string]any{"session": id}, nil))
+	}
+	closed := func(n sdui.Node) []string {
+		trees := cardsOf(n, "tree")
+		if len(trees) == 0 {
+			return nil
+		}
+		raw, err := json.Marshal(trees[0].Props["items"])
+		require.NoError(t, err)
+		var groups []sdui.TreeItem
+		require.NoError(t, json.Unmarshal(raw, &groups))
+		i := slices.IndexFunc(groups, func(item sdui.TreeItem) bool { return item.ID == "wt:closed:" })
+		if i < 0 {
+			return nil
+		}
+		var labels []string
+		for _, item := range groups[i].Children {
+			labels = append(labels, item.Label)
+		}
+		return labels
+	}
+	f.h.Event(t, workspace, "agents.sidebar", "sessions", "expand", "wt:closed:")
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { got := closed(n); return len(got) == 4 && got[3] == "Show 2 more" })
+
+	f.h.Event(t, workspace, "agents.sidebar", "sessions", "select", "wt:more:closed")
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return len(closed(n)) == 5 && !slices.Contains(closed(n), "Show 2 more") })
+
+	f.h.Event(t, workspace, "agents.sidebar", "sessions", "collapse", "wt:closed:")
+	f.h.Event(t, workspace, "agents.sidebar", "sessions", "expand", "wt:closed:")
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { got := closed(n); return len(got) == 4 && got[3] == "Show 2 more" })
+}
+
 func (f *fixture) rev(t *testing.T, workspace, slot string) int64 {
 	t.Helper()
 	var views []struct {

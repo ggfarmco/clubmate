@@ -114,7 +114,7 @@ func TestSidebarShowsSearchResultsInPlaceOfTheTree(t *testing.T) {
 		{Session: "agt_1", Title: "Refunds", Status: statusClosed, UpdatedAt: now, Hits: []searchHit{{Kind: hitTitle, Snippet: "Refunds"}, {Kind: hitReply, Turn: 3, Snippet: "the refund is queued"}}},
 		{Session: "agt_2", Title: "Payments", Status: statusDone, UpdatedAt: now, Hits: []searchHit{{Kind: hitTitle, Snippet: "Payments"}}},
 	}}
-	tree := sidebarView(rows, "agt_1", nil, now, "/r/a", false, "", search)
+	tree := sidebarView(rows, "agt_1", nil, now, "/r/a", false, "", search, 0)
 	require.NoError(t, internalsdui.Validate(tree))
 
 	assert.Empty(t, nodesOf(tree, "tabs"))
@@ -131,6 +131,6 @@ func TestSidebarShowsSearchResultsInPlaceOfTheTree(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, "agt_1", session)
 
-	none := sidebarView(rows, "", nil, now, "/r/a", false, "", sidebarSearch{query: "zzz"})
+	none := sidebarView(rows, "", nil, now, "/r/a", false, "", sidebarSearch{query: "zzz"}, 0)
 	assert.Equal(t, fmt.Sprintf(noMatches, "zzz"), nodesOf(none, "empty")[0].Props["text"])
 }
