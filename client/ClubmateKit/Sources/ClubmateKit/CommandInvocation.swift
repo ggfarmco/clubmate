@@ -79,6 +79,7 @@ public enum TerminalsSection {
 public enum AgentsSection {
     public static let id = "agents"
     public static let closeCommand = "agents.close"
+    public static let stepCommand = "agents.step"
     public static let sidebarSlot = "agents.sidebar"
     static let trees = ["sessions", "searchResults"]
 
@@ -86,6 +87,11 @@ public enum AgentsSection {
         guard let selected = trees.lazy.compactMap({ sidebar?.node(type: "tree", id: $0)?.string("selected") }).first(where: { !$0.isEmpty }),
               commands.contains(where: { $0.id == closeCommand }) else { return nil }
         return CommandInvocation(id: closeCommand, args: .object(["session": .string(selected)]))
+    }
+
+    public static func step(_ by: Int, section: String?, commands: [Command]) -> CommandInvocation? {
+        guard section == id, commands.contains(where: { $0.id == stepCommand }) else { return nil }
+        return CommandInvocation(id: stepCommand, args: .object(["by": .number(Double(by))]))
     }
 }
 

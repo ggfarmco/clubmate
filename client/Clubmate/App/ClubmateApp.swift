@@ -220,6 +220,12 @@ private struct WorkspaceCommands: Commands {
             Button("Previous Workspace") { windowID.map(windows.previous) }
                 .keyboardShortcut(AppShortcuts.previousWorkspace)
                 .disabled(!canSwitchWorkspace)
+            Button("Next Session") { run { AgentsSection.step(1, section: $0.selectedSection, commands: $1) } }
+                .keyboardShortcut(AppShortcuts.nextSession)
+                .disabled(!canStepSession)
+            Button("Previous Session") { run { AgentsSection.step(-1, section: $0.selectedSection, commands: $1) } }
+                .keyboardShortcut(AppShortcuts.previousSession)
+                .disabled(!canStepSession)
             Button("Workspace Switcher") { windowID.map(windows.toggleSwitcher) }
                 .keyboardShortcut(AppShortcuts.workspaceSwitcher)
                 .disabled(windowID == nil)
@@ -243,6 +249,10 @@ private struct WorkspaceCommands: Commands {
         guard let session else { return }
         if session.overlay == overlay, let window = NSApp.keyWindow, PaletteTextField.focusIfUnfocused(in: window) { return }
         session.toggle(overlay)
+    }
+
+    private var canStepSession: Bool {
+        store.flatMap { AgentsSection.step(1, section: $0.selectedSection, commands: app.commands) } != nil
     }
 
     private var canSwitchWorkspace: Bool {

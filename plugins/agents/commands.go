@@ -53,6 +53,7 @@ var (
 		"agents.delete":         withSession((*app).deleteCommand),
 		"agents.resume":         withSession((*app).resumeCommand),
 		"agents.reveal":         withArgs((*app).revealCommand),
+		"agents.step":           withArgs((*app).stepCommand),
 		"agents.reviewed":       withSession((*app).reviewedCommand),
 		"agents.send-review":    withArgs((*app).sendReviewCommand),
 		"agents.run-needs":      withArgs((*app).runNeedsCommand),
@@ -83,6 +84,10 @@ type sessionsArgs struct {
 type revealArgs struct {
 	Session string `json:"session"`
 	Turn    int    `json:"turn"`
+}
+
+type stepArgs struct {
+	By int `json:"by"`
 }
 
 type subagentArgs struct {
@@ -503,6 +508,18 @@ func (a *app) revealCommand(ctx context.Context, cmd pluginsdk.CommandRun, args 
 		}
 	}
 	return nil, a.reveal(ctx, cmd.WorkspaceID, s.snapshot().ID)
+}
+
+func (a *app) stepCommand(ctx context.Context, cmd pluginsdk.CommandRun, args stepArgs) (any, error) {
+	p := a.workspaceState(cmd.WorkspaceID)
+	p.render.Lock()
+	raw := p.sent[sidebarSlot]
+	p.render.Unlock()
+	next := stepSession(raw, args.By)
+	if next == "" {
+		return nil, nil
+	}
+	return nil, a.reveal(ctx, cmd.WorkspaceID, next)
 }
 
 func (n newArgs) restricted() bool {

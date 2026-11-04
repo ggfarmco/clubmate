@@ -578,6 +578,15 @@ final class StoresTests: XCTestCase {
         XCTAssertNil(AgentsSection.close(sidebar: tree("sessions", ""), commands: commands))
     }
 
+    func testAgentStepOnlyInAgents() throws {
+        let commands = try JSONDecoder().decode([Command].self, from: Data(#"""
+        [{"id":"agents.step","title":"Next agent session","plugin":"agents","hidden":true}]
+        """#.utf8))
+
+        XCTAssertEqual(AgentsSection.step(-1, section: "agents", commands: commands), CommandInvocation(id: "agents.step", args: .object(["by": .number(-1)])))
+        XCTAssertNil(AgentsSection.step(1, section: "terminals", commands: commands))
+    }
+
     func testTerminalBusyMessage() {
         XCTAssertEqual(TerminalsSection.busyMessage(.object(["busy": .bool(true), "process": .string("sleep")])), "“sleep” is running. Close the terminal?")
         XCTAssertNil(TerminalsSection.busyMessage(.object(["busy": .bool(false), "process": .string("")])))

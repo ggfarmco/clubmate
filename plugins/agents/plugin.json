@@ -375,6 +375,18 @@
         }
       },
       {
+        "id": "agents.step",
+        "title": "Next agent session",
+        "hidden": true,
+        "description": "Select the session `by` rows below the selected one in the Agents sidebar (negative: above), counting only the rows shown and wrapping around, and focus its prompt; the app's Next and Previous Session run it.",
+        "args": {
+          "properties": {
+            "by": {"type": "integer", "description": "Rows to move: 1 the next session, -1 the previous one."}
+          },
+          "required": ["by"]
+        }
+      },
+      {
         "id": "agents.delete",
         "title": "Delete agent session",
         "hidden": true,

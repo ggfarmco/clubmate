@@ -1424,6 +1424,36 @@ func TestNewFromTheAppFocusesItsPrompt(t *testing.T) {
 	waitFocus(t, c, "agents", "agents.main")
 }
 
+func TestStepWalksTheShownSessionsAround(t *testing.T) {
+	t.Parallel()
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	f.newSession(t, workspace)
+	f.newSession(t, workspace)
+	last := f.newSession(t, workspace)
+	var order []string
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool {
+		tree := cardsOf(n, "tree")[0]
+		raw, err := json.Marshal(tree.Props["items"])
+		require.NoError(t, err)
+		var items []sdui.TreeItem
+		require.NoError(t, json.Unmarshal(raw, &items))
+		order = order[:0]
+		for _, item := range items {
+			order = append(order, item.ID)
+		}
+		return len(order) == 3 && tree.Props["selected"] == last
+	})
+	at := slices.Index(order, last)
+	selects := func(by int, want string) {
+		require.NoError(t, f.run(t, workspace, "agents.step", map[string]any{"by": by}, nil))
+		f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return cardsOf(n, "tree")[0].Props["selected"] == want })
+	}
+
+	selects(1, order[(at+1)%3])
+	selects(-2, order[(at+2)%3])
+}
+
 func TestRevealOpensTheGraphRunRow(t *testing.T) {
 	t.Parallel()
 	f := start(t, nil)

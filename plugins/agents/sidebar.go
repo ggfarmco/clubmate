@@ -2,6 +2,7 @@ package main
 
 import (
 	"cmp"
+	"encoding/json"
 	"fmt"
 	"path"
 	"path/filepath"
@@ -284,6 +285,60 @@ func searchResults(search sidebarSearch, selected string, now time.Time) sdui.No
 		items = append(items, item)
 	}
 	return sdui.Tree(searchTree, items, selected)
+}
+
+func stepSession(sidebar []byte, by int) string {
+	var root sdui.Node
+	if by == 0 || json.Unmarshal(sidebar, &root) != nil {
+		return ""
+	}
+	tree, ok := findTree(root)
+	if !ok {
+		return ""
+	}
+	raw, err := json.Marshal(tree.Props["items"])
+	if err != nil {
+		return ""
+	}
+	var items []sdui.TreeItem
+	if json.Unmarshal(raw, &items) != nil {
+		return ""
+	}
+	ids := shownSessions(items)
+	if len(ids) == 0 {
+		return ""
+	}
+	selected, _ := tree.Props["selected"].(string)
+	at := slices.Index(ids, selected)
+	if at < 0 && by < 0 {
+		at = 0
+	}
+	return ids[((at+by)%len(ids)+len(ids))%len(ids)]
+}
+
+func findTree(n sdui.Node) (sdui.Node, bool) {
+	if n.Type == "tree" && (n.ID == "sessions" || n.ID == searchTree) {
+		return n, true
+	}
+	for _, c := range n.Children {
+		if tree, ok := findTree(c); ok {
+			return tree, true
+		}
+	}
+	return sdui.Node{}, false
+}
+
+func shownSessions(items []sdui.TreeItem) []string {
+	var ids []string
+	for _, item := range items {
+		if !strings.HasPrefix(item.ID, groupPrefix) && !strings.HasPrefix(item.ID, hitPrefix) {
+			ids = append(ids, item.ID)
+		}
+		if item.Expanded {
+			ids = append(ids, shownSessions(item.Children)...)
+		}
+	}
+	return ids
 }
 
 func hitSession(id string) (string, bool) {
