@@ -61,6 +61,7 @@ func TestValidate(t *testing.T) {
 		{"unknown item tone", sdui.Tabs("f", []sdui.Item{{ID: "a", Label: "A", Tone: "red"}}, "a"), false},
 		{"unknown item truncate", sdui.List("l", []sdui.Item{{ID: "a", Label: "A", Truncate: "start"}}, ""), false},
 		{"tree faint", sdui.Tree("t", []sdui.TreeItem{{ID: "a", Label: "detached · 03a9ff5f", Faint: true}}, ""), true},
+		{"tree action", sdui.Tree("t", []sdui.TreeItem{{ID: "a", Label: "Show 25 more", Action: true}}, ""), true},
 		{"text lines and tone", sdui.WithTone(sdui.WithLines(sdui.Text("a"), 3), "warning"), true},
 		{"text bad tone", sdui.WithTone(sdui.Text("a"), "amber"), false},
 		{"icon tone", sdui.WithTone(sdui.Icon("play.circle"), "accent"), true},

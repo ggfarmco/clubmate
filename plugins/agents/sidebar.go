@@ -261,7 +261,7 @@ func closedItems(rows []sessionRow, selected string, limit int, kids map[string]
 		if more > closedBatch {
 			label = fmt.Sprintf(closedLeft, closedBatch, more)
 		}
-		items = append(items, sdui.TreeItem{ID: moreID, Label: label, Faint: true})
+		items = append(items, sdui.TreeItem{ID: moreID, Label: label, Faint: true, Action: true})
 	}
 	return items
 }
@@ -502,7 +502,7 @@ func runActivity(rows []sessionRow, now time.Time) string {
 }
 
 func groupItem(key, label, icon string, children []sdui.TreeItem, expanded bool) sdui.TreeItem {
-	item := sdui.TreeItem{ID: groupPrefix + key, Label: label, Icon: icon, HasChildren: true, Expanded: expanded}
+	item := sdui.TreeItem{ID: groupPrefix + key, Label: label, Icon: icon, Action: true, HasChildren: true, Expanded: expanded}
 	if expanded {
 		item.Children = children
 	}

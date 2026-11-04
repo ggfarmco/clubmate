@@ -813,7 +813,7 @@ func treeItemCheck(c *validator, v any) error {
 		return fmt.Errorf("depth exceeds %d", maxDepth)
 	}
 	fields := map[string]propCheck{
-		"muted": isBool, "faint": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck),
+		"muted": isBool, "faint": isBool, "action": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck),
 		"badges": listOf(headerBadgeCheck), "changes": changesCheck, "detailTone": oneOf(badgeTones),
 	}
 	for k, f := range itemFields {

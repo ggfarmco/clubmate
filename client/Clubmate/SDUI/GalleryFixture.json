@@ -53,6 +53,7 @@
               {"id": "agt-wait", "label": "Cron плагин для MCP", "icon": "exclamationmark.circle.fill", "tone": "warning", "detail": "Waiting for permission · go test"},
               {"id": "agt-done", "label": "Отказ от надстроек nvim", "icon": "checkmark.circle", "tone": "success", "detail": "just now"},
               {"id": "agt-closed", "label": "Нагрев Mac и производительность приложения", "icon": "archivebox", "detail": "7 h ago"},
+              {"id": "agt-more", "label": "Show 25 more · 27 left", "faint": true, "action": true},
               {"id": "agt-service", "label": "Service", "icon": "gearshape.2", "detail": "1", "detailTone": "warning"}
             ]
           }

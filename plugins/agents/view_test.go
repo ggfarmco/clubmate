@@ -141,10 +141,14 @@ func TestSidebarClosedShowsNewestWithWorktreeAndMore(t *testing.T) {
 	closed := nodesOf(sidebarView(rows, "agt_0", map[string]bool{closedKey: false}, now, "/r/a", false, "", sidebarSearch{}, 0), "tree")[0].Props["items"].([]sdui.TreeItem)[0]
 	assert.Equal(t, []string{"Closed", "31"}, []string{closed.Label, closed.Detail})
 	var got [][2]string
+	var actions []bool
 	for _, item := range closed.Children {
 		got = append(got, [2]string{item.ID, cmp.Or(item.Detail, item.Label)})
+		actions = append(actions, item.Action)
 	}
 	assert.Equal(t, [][2]string{{"agt_4", "main"}, {"agt_3", "c"}, {"agt_2", "main"}, {"agt_0", "main"}, {moreID, "Show 25 more · 27 left"}}, got)
+	assert.True(t, closed.Action)
+	assert.Equal(t, []bool{false, false, false, false, true}, actions)
 }
 
 func TestSidebarFilter(t *testing.T) {

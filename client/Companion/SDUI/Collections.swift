@@ -282,10 +282,10 @@ struct TreeNode: View {
                     Color.clear.frame(width: CGFloat(row.depth) * 16, height: 1)
                     disclosure(row.item, gutter: gutter)
                     Button {
-                        selected = id
+                        if !row.item.action { selected = id }
                         context.run { await $0.select(node, id) }
                     } label: {
-                        ItemLabel(item: row.item.item, detailTone: row.item.detailTone, muted: row.item.muted, faint: row.item.faint, opens: context.mainSlot != nil && !row.item.hasChildren)
+                        ItemLabel(item: row.item.item, detailTone: row.item.detailTone, muted: row.item.muted, faint: row.item.faint, opens: context.mainSlot != nil && !row.item.hasChildren && !row.item.action)
                     }
                     .buttonStyle(.plain)
                 }

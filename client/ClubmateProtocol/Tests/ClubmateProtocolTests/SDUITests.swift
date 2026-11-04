@@ -58,10 +58,10 @@ final class SDUITests: XCTestCase {
         XCTAssertEqual(tree.treeItems().map(\.item.truncate), [.middle, .tail])
     }
 
-    func testTreeItemBadgesChangesAndMenuKeyDecode() {
+    func testTreeItemBadgesChangesActionAndMenuKeyDecode() {
         let tree = SDUINode(type: "tree", props: ["items": .array([
             .object([
-                "id": .string("file:a.go"), "label": .string("a.go"),
+                "id": .string("file:a.go"), "label": .string("a.go"), "action": .bool(true),
                 "badges": .array([.object(["text": .string("new"), "tone": .string("success")])]),
                 "changes": .object(["added": .number(10), "removed": .number(0)]),
                 "menu": .array([.object(["action": .string("toggleReviewed"), "label": .string("Mark reviewed"), "key": .string("r")])]),
@@ -72,6 +72,7 @@ final class SDUITests: XCTestCase {
         XCTAssertEqual(item.badges, [SDUIHeaderBadge(.object(["text": .string("new"), "tone": .string("success")]))])
         XCTAssertEqual(item.changes, SDUIChanges(.object(["added": .number(10), "removed": .number(0)])))
         XCTAssertEqual(item.item.menu.first?.key, "r")
+        XCTAssertTrue(item.action)
     }
 
     func testTableColumnsDropByPriority() {

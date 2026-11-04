@@ -263,7 +263,7 @@ struct TreeNodeView: View {
     }
 
     private func select(_ id: String) {
-        selected = id
+        if rows.first(where: { $0.id == id })?.item.action != true { selected = id }
         dispatch(node, .select(id))
     }
 

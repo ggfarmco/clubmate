@@ -43,6 +43,7 @@ type TreeItem struct {
 	Menu        []MenuEntry   `json:"menu,omitempty"`
 	Muted       bool          `json:"muted,omitempty"`
 	Faint       bool          `json:"faint,omitempty"`
+	Action      bool          `json:"action,omitempty"`
 	HasChildren bool          `json:"hasChildren,omitempty"`
 	Expanded    bool          `json:"expanded,omitempty"`
 	Children    []TreeItem    `json:"children,omitempty"`

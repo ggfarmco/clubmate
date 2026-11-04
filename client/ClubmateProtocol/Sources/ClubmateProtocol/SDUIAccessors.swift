@@ -52,6 +52,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
     public let detailTone: String?
     public let muted: Bool
     public let faint: Bool
+    public let action: Bool
     public let hasChildren: Bool
     public let expanded: Bool
     public let children: [SDUITreeItem]
@@ -71,6 +72,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
         detailTone = fields["detailTone"]?.stringValue
         muted = fields["muted"]?.boolValue ?? false
         faint = fields["faint"]?.boolValue ?? false
+        action = fields["action"]?.boolValue ?? false
         hasChildren = fields["hasChildren"]?.boolValue ?? false
         expanded = fields["expanded"]?.boolValue ?? false
         children = fields["children"]?.arrayValue?.compactMap(SDUITreeItem.init) ?? []
