@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -43,6 +44,36 @@ func TestDoneTreeClosesItselfUnlessItAsksOrOwnsJobs(t *testing.T) {
 	resumed := f.session(t, workspace, root)
 	assert.False(t, resumed.AutoClosed)
 	assert.Empty(t, resumed.ClosedStatus)
+}
+
+func TestNodeOfStoppedRunClosesItself(t *testing.T) {
+	t.Parallel()
+	const after = 300 * time.Millisecond
+	repo := newRepo(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(repo, ".clubmate", "graphs"), 0o755))
+	write(t, filepath.Join(repo, ".clubmate", "graphs", "solo.json"), `{"title":"Solo","nodes":[{"id":"one","role":"One","start":true,"prompt":"done"}]}`)
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_CLOSE_AFTER=" + after.String()}, map[string]any{"prompt": []map[string]any{{"echo": true}}},
+		testutil.BuildPluginDir(t, "clubmate/plugins/cron", "plugins/cron/plugin.json"),
+		testutil.BuildPluginDir(t, "clubmate/plugins/triggers", "plugins/triggers/plugin.json"),
+		testutil.BuildPluginDir(t, "clubmate/plugins/graphs", "plugins/graphs/plugin.json"))
+	workspace := f.workspace(t, repo)
+	type run struct {
+		ID    string `json:"id"`
+		Nodes []struct {
+			Session string `json:"session"`
+		} `json:"nodes"`
+	}
+	testutil.Eventually(t, func() bool { return f.run(t, workspace, "graphs.list", map[string]any{}, nil) == nil }, restartWait)
+	var stopped, running run
+	require.NoError(t, f.run(t, workspace, "graphs.run", map[string]any{"graph": "solo"}, &stopped))
+	require.NoError(t, f.run(t, workspace, "graphs.run", map[string]any{"graph": "solo"}, &running))
+	f.waitStatus(t, workspace, running.Nodes[0].Session, "done")
+	f.waitStatus(t, workspace, stopped.Nodes[0].Session, "done")
+	require.NoError(t, f.run(t, workspace, "graphs.stop", map[string]any{"id": stopped.ID}, nil))
+
+	assert.True(t, f.waitStatus(t, workspace, stopped.Nodes[0].Session, "closed").AutoClosed)
+	time.Sleep(3 * after)
+	assert.Equal(t, "done", f.session(t, workspace, running.Nodes[0].Session).Status)
 }
 
 func closeActor(t *testing.T, lines []map[string]json.RawMessage) string {

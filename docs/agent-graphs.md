@@ -204,7 +204,7 @@ A run stops when:
 - the agent session that ran it closes;
 - a start prompt failed.
 
-A run's step budget (`maxSteps`) stops it too (reason `step budget of N reached`), and so does a step's `error` without an `on: error` edge. A step's output goes with its run: `graphs.delete` and a deleted workspace remove `output/<run>/`. Stopping deletes the run's triggers and ends its running steps (SIGTERM to the process group, SIGKILL 5 s later; `error · stopped`); a step waiting for approval ends the same way. After a restart, a step that was running or waiting ends `error · interrupted` and its leftover processes are killed. Cancel or close sessions with `agents.cancel` and `agents.close`, or in the Agents section.
+A run's step budget (`maxSteps`) stops it too (reason `step budget of N reached`), and so does a step's `error` without an `on: error` edge. A step's output goes with its run: `graphs.delete` and a deleted workspace remove `output/<run>/`. Stopping deletes the run's triggers and ends its running steps (SIGTERM to the process group, SIGKILL 5 s later; `error · stopped`); a step waiting for approval ends the same way. After a restart, a step that was running or waiting ends `error · interrupted` and its leftover processes are killed. Cancel or close sessions with `agents.cancel` and `agents.close`, or in the Agents section. A stopped run's top-level node sessions that ended `done` close themselves an hour after they went quiet, like any other done session (see [agents](agents.md)); a node that ended in `error` stays. Steps are processes, not sessions, so they leave nothing in Agents.
 
 ### Handoff
 
