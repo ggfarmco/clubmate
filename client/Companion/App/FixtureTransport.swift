@@ -411,7 +411,7 @@ actor FixtureServer {
             if case .number(let limit) = args["limit"] ?? .null { list = Array(list.prefix(Int(limit))) }
             return .object(["tasks": .array(list.map { task in
                 var task = task
-                task["descriptionHtml"] = nil
+                for key in ["descriptionHtml", "ownerState", "lastOwner", "history"] { task[key] = nil }
                 return .object(task)
             })])
         case "backlog.get":
@@ -570,13 +570,34 @@ actor FixtureServer {
             if !(task["description"]?.stringValue ?? "").isEmpty { parts.append("description") }
             if let n = task["links"]?.arrayValue?.count, n > 0 { parts.append(n == 1 ? "1 link" : "\(n) links") }
             if let n = task["attachments"]?.arrayValue?.count, n > 0 { parts.append(n == 1 ? "1 attachment" : "\(n) attachments") }
-            task["primary"] = .object(["action": .string("start"), "label": .string("Start agent"), "summary": .string(parts.joined(separator: ", "))])
+            task["primary"] = .object(["action": .string("start"), "label": .string("Start agent"), "summary": .string(parts.joined(separator: ", ")), "start": startOptions(task)])
         } else if status == "in_progress", let session = sessions.first(where: { $0["id"]?.stringValue == owner }) {
             task["primary"] = .object(["action": .string("reveal"), "label": .string("Open " + (session["title"]?.stringValue ?? owner)), "session": .string(owner)])
         } else if status == "in_progress" {
             task["primary"] = .object(["action": .string("takeback"), "label": .string("Take back")])
         }
         return task
+    }
+
+    private func startOptions(_ task: [String: JSONValue]) -> JSONValue {
+        let number = "#" + String(Int(task["id"]?.numberValue ?? 0))
+        let title = task["title"]?.stringValue ?? ""
+        let slug = title.lowercased().split { !$0.isLetter && !$0.isNumber }.joined(separator: "-")
+        let option = { (value: String, label: String) in JSONValue.object(["value": .string(value), "label": .string(label)]) }
+        let description = task["description"]?.stringValue ?? ""
+        return .object([
+            "agents": .array([option("claude", "Claude")]),
+            "modes": .array([option("", "Last used"), option("default", "Ask before edits"), option("acceptEdits", "Accept edits"), option("plan", "Plan"), option("bypassPermissions", "Bypass permissions")]),
+            "where": .array([option("", "this worktree"), option("worktree", "a new worktree · backlog/\(number.dropFirst())-\(slug)")]),
+            "prompt": .string("Backlog task \(number): \(title)" + (description.isEmpty ? "" : "\n\n" + description)),
+            "owns": .string("The session owns \(number) until it ends or you take it back."),
+        ])
+    }
+
+    private func owned(_ task: inout [String: JSONValue], who: String, what: String, session: JSONValue? = nil) {
+        var event: [String: JSONValue] = ["who": .string(who), "what": .string(what), "at": Self.stamp(ago: 0)]
+        if let session { event["session"] = session }
+        task["history"] = .array((task["history"]?.arrayValue ?? []) + [.object(event)])
     }
 
     private func updateTask(_ command: String, _ args: JSONValue) -> JSONValue {
@@ -591,8 +612,12 @@ actor FixtureServer {
             task["claimedFrom"] = task["status"]
             task["status"] = .string("in_progress")
             task["claimedBy"] = sessions.first?["id"] ?? .null
+            task["ownerState"] = .string("running · turn 1")
+            owned(&task, who: "Claude · " + (sessions.first?["title"]?.stringValue ?? ""), what: "Start agent", session: sessions.first?["id"])
         case "backlog.takeback":
             task["claimedBy"] = .string("user")
+            task["ownerState"] = nil
+            owned(&task, who: "you", what: "took back")
         case "backlog.release":
             task["status"] = task["claimedFrom"] ?? .string("idea")
             task["claimedBy"] = nil

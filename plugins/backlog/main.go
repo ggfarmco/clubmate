@@ -106,8 +106,12 @@ func (b *backlog) agentsEvent(ctx context.Context, ev pluginsdk.Event) {
 		return
 	}
 	b.live.invalidate(p.Workspace)
-	if ev.Topic == api.TopicChanged && p.Session != "" && (p.Status == api.StatusClosed || p.Kind == api.ChangeDeleted) {
+	switch {
+	case ev.Topic != api.TopicChanged || p.Session == "":
+	case p.Status == api.StatusClosed || p.Kind == api.ChangeDeleted:
 		b.sessionStopped(ctx, p.Workspace, p.Session)
+	case p.Kind == api.ChangeStatus:
+		b.sessionStatus(ctx, p.Workspace, p.Session, p.Status)
 	}
 	b.render(ctx, p.Workspace)
 }

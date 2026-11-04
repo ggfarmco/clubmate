@@ -20,11 +20,15 @@ import (
 	"clubmate/plugins/internal/agentcall"
 )
 
-const kindDeleted = "deleted"
+const (
+	kindDeleted    = "deleted"
+	sessionError   = "error"
+	sessionRunning = "running"
+)
 
 var (
 	errUnknownAction = errors.New("unknown action")
-	sessionStates    = map[string]string{"done": "turn done", "error": "failed"}
+	sessionStates    = map[string]string{"done": "turn done", sessionError: "failed"}
 )
 
 type workspaceUI struct {
@@ -209,6 +213,12 @@ func (b *backlog) ownerLabels(ctx context.Context, workspaceID string, current *
 		o.label = ownerLabel(id, title, o.stale)
 		if !o.stale {
 			o.state = cmp.Or(sessionStates[s.Status], s.Status)
+			switch failure := s.failure(); {
+			case s.Status == sessionRunning && s.Turns > 0:
+				o.state += fmt.Sprintf(" · turn %d", s.Turns)
+			case failure != "" && failure != sessionError:
+				o.state += " · " + failure
+			}
 			if s.NeedsYou {
 				o.state = "needs you"
 			}

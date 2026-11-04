@@ -41,6 +41,23 @@ final class BacklogTests: XCTestCase {
         XCTAssertEqual(task.attachments.first?.path, "/r/a.md")
     }
 
+    func testDecodesStartOptionsAndOwnerHistory() throws {
+        let json = #"{"id": 4, "title": "t", "status": "todo", "primary": {"action": "start", "label": "Start agent", "start": {"agents": [{"value": "claude", "label": "Claude"}], "modes": [{"value": "", "label": "Last used"}], "where": [{"value": "worktree", "label": "a new worktree"}], "prompt": "Backlog task #4", "owns": "The session owns #4."}}, "ownerState": "running · turn 3", "lastOwner": {"who": "Claude", "what": "stopped · exit 1", "at": "2026-11-02T18:04:00Z", "tone": "danger", "session": "agt_1"}, "history": [{"who": "you", "what": "created"}, {"who": "Claude", "what": "Start agent", "session": ""}]}"#
+        let task = try JSONDecoder().decode(BacklogTask.self, from: Data(json.utf8))
+        XCTAssertEqual(task.primary?.start, BacklogStart(agents: [BacklogOption(value: "claude", label: "Claude")], modes: [BacklogOption(value: "", label: "Last used")], where: [BacklogOption(value: "worktree", label: "a new worktree")], prompt: "Backlog task #4", owns: "The session owns #4."))
+        XCTAssertEqual(task.ownerState, "running · turn 3")
+        XCTAssertEqual(task.lastOwner, BacklogOwnerEvent(who: "Claude", what: "stopped · exit 1", at: Date.parseRFC3339("2026-11-02T18:04:00Z"), tone: "danger", session: "agt_1"))
+        XCTAssertEqual(task.history.map(\.session), [nil, nil])
+    }
+
+    func testStartSendsOnlyTheChosenOptions() async throws {
+        let runner = BacklogRunner()
+        let store = BacklogStore(workspace: "w", runner: runner)
+        try await store.start(4, agent: "claude", mode: "", where: "worktree")
+        XCTAssertEqual(runner.calls.first?.id, "backlog.start")
+        XCTAssertEqual(runner.calls.first?.args, .object(["id": .number(4), "agent": .string("claude"), "where": .string("worktree")]))
+    }
+
     func testDraftSendsOnlyChangedFieldsAndNeverInProgress() {
         let task = BacklogTask(id: 7, title: "Retry", description: "x", status: .inProgress, priority: .high)
         var draft = BacklogDraft(task)

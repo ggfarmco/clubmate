@@ -144,6 +144,83 @@ public struct BacklogAttachment: Sendable, Equatable, Decodable {
     }
 }
 
+public struct BacklogOption: Sendable, Equatable, Hashable, Decodable {
+    public let value: String
+    public let label: String
+
+    public init(value: String, label: String) {
+        self.value = value
+        self.label = label
+    }
+}
+
+public struct BacklogStart: Sendable, Equatable, Decodable {
+    public let agents: [BacklogOption]
+    public let modes: [BacklogOption]
+    public let `where`: [BacklogOption]
+    public let prompt: String
+    public let owns: String?
+
+    public init(agents: [BacklogOption] = [], modes: [BacklogOption] = [], where: [BacklogOption] = [], prompt: String = "", owns: String? = nil) {
+        self.agents = agents
+        self.modes = modes
+        self.where = `where`
+        self.prompt = prompt
+        self.owns = owns
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case agents, modes, `where`, prompt, owns
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            agents: try c.decodeIfPresent([BacklogOption].self, forKey: .agents) ?? [],
+            modes: try c.decodeIfPresent([BacklogOption].self, forKey: .modes) ?? [],
+            where: try c.decodeIfPresent([BacklogOption].self, forKey: .where) ?? [],
+            prompt: try c.decodeIfPresent(String.self, forKey: .prompt) ?? "",
+            owns: try c.decodeIfPresent(String.self, forKey: .owns)
+        )
+    }
+}
+
+public struct BacklogOwnerEvent: Sendable, Equatable, Decodable {
+    public let who: String
+    public let what: String
+    public let at: Date?
+    public let tone: String?
+    public let session: String?
+
+    public init(who: String, what: String, at: Date? = nil, tone: String? = nil, session: String? = nil) {
+        self.who = who
+        self.what = what
+        self.at = at
+        self.tone = tone
+        self.session = session
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case who, what, at, tone, session
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let session = try c.decodeIfPresent(String.self, forKey: .session) ?? ""
+        self.init(
+            who: try c.decodeIfPresent(String.self, forKey: .who) ?? "",
+            what: try c.decodeIfPresent(String.self, forKey: .what) ?? "",
+            at: (try? c.decodeIfPresent(String.self, forKey: .at)).flatMap { $0.flatMap(Date.parseRFC3339) },
+            tone: try c.decodeIfPresent(String.self, forKey: .tone),
+            session: session.isEmpty ? nil : session
+        )
+    }
+
+    public var danger: Bool {
+        tone == "danger"
+    }
+}
+
 public struct BacklogPrimary: Sendable, Equatable, Decodable {
     public enum Action: String, Sendable, Decodable {
         case start, reveal, takeback, other
@@ -158,13 +235,15 @@ public struct BacklogPrimary: Sendable, Equatable, Decodable {
     public let summary: String?
     public let session: String?
     public let run: String?
+    public let start: BacklogStart?
 
-    public init(action: Action, label: String, summary: String? = nil, session: String? = nil, run: String? = nil) {
+    public init(action: Action, label: String, summary: String? = nil, session: String? = nil, run: String? = nil, start: BacklogStart? = nil) {
         self.action = action
         self.label = label
         self.summary = summary
         self.session = session
         self.run = run
+        self.start = start
     }
 }
 
@@ -184,8 +263,11 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
     public let links: [BacklogLink]
     public let attachments: [BacklogAttachment]
     public let primary: BacklogPrimary?
+    public let ownerState: String?
+    public let lastOwner: BacklogOwnerEvent?
+    public let history: [BacklogOwnerEvent]
 
-    public init(id: Int, title: String, description: String = "", descriptionHtml: String? = nil, status: BacklogStatus, priority: BacklogPriority = .normal, claimedBy: String? = nil, claimedAt: Date? = nil, note: String = "", createdBy: String = "user", createdAt: Date? = nil, updatedAt: Date? = nil, links: [BacklogLink] = [], attachments: [BacklogAttachment] = [], primary: BacklogPrimary? = nil) {
+    public init(id: Int, title: String, description: String = "", descriptionHtml: String? = nil, status: BacklogStatus, priority: BacklogPriority = .normal, claimedBy: String? = nil, claimedAt: Date? = nil, note: String = "", createdBy: String = "user", createdAt: Date? = nil, updatedAt: Date? = nil, links: [BacklogLink] = [], attachments: [BacklogAttachment] = [], primary: BacklogPrimary? = nil, ownerState: String? = nil, lastOwner: BacklogOwnerEvent? = nil, history: [BacklogOwnerEvent] = []) {
         self.id = id
         self.title = title
         self.description = description
@@ -201,10 +283,13 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
         self.links = links
         self.attachments = attachments
         self.primary = primary
+        self.ownerState = ownerState
+        self.lastOwner = lastOwner
+        self.history = history
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, description, descriptionHtml, status, priority, claimedBy, claimedAt, note, createdBy, createdAt, updatedAt, links, attachments, primary
+        case id, title, description, descriptionHtml, status, priority, claimedBy, claimedAt, note, createdBy, createdAt, updatedAt, links, attachments, primary, ownerState, lastOwner, history
     }
 
     public init(from decoder: any Decoder) throws {
@@ -227,7 +312,10 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
             updatedAt: date(.updatedAt),
             links: try c.decodeIfPresent([BacklogLink].self, forKey: .links) ?? [],
             attachments: try c.decodeIfPresent([BacklogAttachment].self, forKey: .attachments) ?? [],
-            primary: try c.decodeIfPresent(BacklogPrimary.self, forKey: .primary)
+            primary: try c.decodeIfPresent(BacklogPrimary.self, forKey: .primary),
+            ownerState: try c.decodeIfPresent(String.self, forKey: .ownerState).flatMap { $0.isEmpty ? nil : $0 },
+            lastOwner: try c.decodeIfPresent(BacklogOwnerEvent.self, forKey: .lastOwner),
+            history: try c.decodeIfPresent([BacklogOwnerEvent].self, forKey: .history) ?? []
         )
     }
 

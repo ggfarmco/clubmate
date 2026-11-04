@@ -21,6 +21,7 @@
       "tool": "execute",
       "at": "2026-10-30T09:41:00Z"
     },
+    "turns": 1,
     "notifyEffective": "all",
     "needsYou": true,
     "group": "needsYou",
@@ -47,6 +48,7 @@
       "text": "Should I add retries to the charge step?",
       "at": "2026-10-30T09:41:00Z"
     },
+    "turns": 1,
     "notifyEffective": "all",
     "needsYou": true,
     "group": "needsYou",

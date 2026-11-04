@@ -83,8 +83,12 @@ public final class BacklogStore {
     }
 
     @discardableResult
-    public func start(_ id: Int) async throws -> String? {
-        let result = try await runner?.command(BacklogCommand.start, workspace: workspace, args: .object(["id": .number(Double(id))]))
+    public func start(_ id: Int, agent: String? = nil, mode: String? = nil, where place: String? = nil, prompt: String? = nil) async throws -> String? {
+        var args: [String: JSONValue] = ["id": .number(Double(id))]
+        for (key, value) in [("agent", agent), ("mode", mode), ("where", place), ("prompt", prompt)] {
+            if let value, !value.isEmpty { args[key] = .string(value) }
+        }
+        let result = try await runner?.command(BacklogCommand.start, workspace: workspace, args: .object(args))
         await refresh()
         return result?["session"]?.stringValue
     }

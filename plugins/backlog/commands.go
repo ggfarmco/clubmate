@@ -90,6 +90,9 @@ type taskView struct {
 	Attachments     []attachmentView `json:"attachments,omitempty"`
 	Primary         *primaryView     `json:"primary,omitempty"`
 	DescriptionHTML string           `json:"descriptionHtml,omitempty"`
+	OwnerState      string           `json:"ownerState,omitempty"`
+	LastOwner       *ownerLine       `json:"lastOwner,omitempty"`
+	History         []ownerLine      `json:"history,omitempty"`
 }
 
 type startResult struct {
@@ -195,7 +198,12 @@ func (b *backlog) getCmd(ctx context.Context, cmd pluginsdk.CommandRun, args com
 	if _, agent := creatorOf(cmd); agent {
 		return out, nil
 	}
-	out.Primary = primary(&t, b.ownerLabels(ctx, cmd.WorkspaceID, &t)[t.ClaimedBy])
+	owners := b.ownerLabels(ctx, cmd.WorkspaceID, &t)
+	out.Primary = primary(&t, owners[t.ClaimedBy])
+	if out.Primary != nil && out.Primary.Action == actStart {
+		out.Primary.Start = startChoicesFor(&t, linked)
+	}
+	out.History, out.LastOwner, out.OwnerState = ownerLines(t, owners)
 	all, err := b.store.list(ctx, cmd.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -481,13 +489,51 @@ func (b *backlog) sessionStopped(ctx context.Context, workspaceID, session strin
 			if t.Status != statusInProgress || t.ClaimedBy != session {
 				return nil
 			}
-			status := cmp.Or(t.ClaimedFrom, statusIdea)
+			status, failure := cmp.Or(t.ClaimedFrom, statusIdea), claimFailure(*t)
 			releaseClaim(t, whyStopped)
+			if last := &t.Owners[len(t.Owners)-1]; last.Why == whyStopped {
+				last.Failure = failure
+			}
 			t.Status = status
 			return nil
 		})
 		logError("stopped "+session, err)
 		b.changed(ctx, workspaceID, t.ID, kindReleased)
+	}
+}
+
+func (b *backlog) sessionStatus(ctx context.Context, workspaceID, session, status string) {
+	tasks, err := b.store.list(ctx, workspaceID)
+	if err != nil {
+		logError("status "+session, err)
+		return
+	}
+	owned := slices.DeleteFunc(tasks, func(t Task) bool { return t.Status != statusInProgress || t.ClaimedBy != session })
+	if len(owned) == 0 {
+		return
+	}
+	failure := ""
+	if status == sessionError {
+		s, _ := b.live.session(ctx, workspaceID, session)
+		failure = cmp.Or(s.failure(), sessionError)
+	}
+	for _, t := range owned {
+		if claimFailure(t) == failure {
+			continue
+		}
+		_, err := b.store.mutate(ctx, workspaceID, t.ID, func(t *Task) error {
+			if t.Status != statusInProgress || t.ClaimedBy != session {
+				return nil
+			}
+			for i := len(t.Owners) - 1; i >= 0; i-- {
+				if t.Owners[i].Owner == session {
+					t.Owners[i].Failure = failure
+					break
+				}
+			}
+			return nil
+		})
+		logError("status "+session, err)
 	}
 }
 

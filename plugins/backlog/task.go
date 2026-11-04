@@ -114,6 +114,7 @@ type OwnerMove struct {
 	RunTitle string    `json:"runTitle,omitempty"`
 	At       time.Time `json:"at,omitzero"`
 	Why      string    `json:"why"`
+	Failure  string    `json:"failure,omitempty"`
 }
 
 func inverse(kind string) string {
@@ -214,6 +215,19 @@ func appendMove(moves []OwnerMove, m OwnerMove) []OwnerMove {
 		return moves
 	}
 	return append(moves, m)
+}
+
+func (m OwnerMove) failed() bool {
+	return m.Why == whyStopped && m.Failure != ""
+}
+
+func claimFailure(t Task) string {
+	for _, m := range slices.Backward(t.Owners) {
+		if m.Owner == t.ClaimedBy {
+			return m.Failure
+		}
+	}
+	return ""
 }
 
 func ownerHistory(t Task) []OwnerMove {

@@ -200,6 +200,12 @@ func VStack(children ...Node) Node {
 	return Node{Type: "stack", Props: map[string]any{"direction": "vertical"}, Children: children}
 }
 
+const AlignCenter = "center"
+
+func WithAlign(n Node, align string) Node {
+	return withProp(n, "align", align)
+}
+
 func HStack(children ...Node) Node {
 	return Node{Type: "stack", Props: map[string]any{"direction": "horizontal"}, Children: children}
 }
@@ -490,6 +496,7 @@ type LaneMove struct {
 	User    bool   `json:"user,omitempty"`
 	Tone    string `json:"tone,omitempty"`
 	Ref     string `json:"ref,omitempty"`
+	Time    string `json:"time,omitempty"`
 }
 
 type LanesProps struct {

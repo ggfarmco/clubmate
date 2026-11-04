@@ -189,7 +189,9 @@ struct LanesView: View {
         let end = endMove(lane: lane)
         let width = max(viewport, moveX(max(lanes.moves.count - 1, 0)) + (end == nil ? 0 : 84 * k) + 30 * k)
         let hops = hops(lane: lane, width: width)
-        let height = top + 10 * k + 50 * k * CGFloat(actors.count)
+        let axis = lanes.moves.contains { $0.time != nil } ? 6 * k : 0
+        let lanesHeight = top + 10 * k + 50 * k * CGFloat(actors.count)
+        let height = lanesHeight + axis
         HStack(alignment: .top, spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(actors, id: \.id) { actor in
@@ -238,6 +240,12 @@ struct LanesView: View {
                         for (index, move) in lanes.moves.enumerated() where move.cause < 0 {
                             guard let label = move.label, let row = lane[move.actor] else { continue }
                             context.draw(Text(label).font(theme.uiSmall).foregroundStyle(theme.muted), at: CGPoint(x: moveX(index), y: laneY(row) - 11 * k), anchor: .bottom)
+                        }
+                        for (index, move) in lanes.moves.enumerated() {
+                            guard let time = move.time else { continue }
+                            let text = context.resolve(Text(time).font(theme.uiSmall).foregroundStyle(theme.muted))
+                            let half = text.measure(in: CGSize(width: CGFloat.infinity, height: .infinity)).width / 2
+                            context.draw(text, at: CGPoint(x: min(max(moveX(index), half), width - half), y: lanesHeight - 12 * k), anchor: .top)
                         }
                         if let end {
                             let y = laneY(end.lane), x = moveX(end.move) + 74 * k

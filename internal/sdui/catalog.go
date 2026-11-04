@@ -71,6 +71,7 @@ var (
 
 	directions   = []string{"vertical", "horizontal"}
 	textStyles   = []string{"body", "muted", "title", "mono", "block"}
+	alignments   = []string{"leading", "center", "trailing"}
 	variants     = []string{"primary", "secondary", "ghost", "danger"}
 	toggleStyles = []string{"switch", "checkbox"}
 
@@ -155,7 +156,7 @@ var (
 	})
 	laneMove = objectCheck([]string{"actor", "cause", "tooltip"}, map[string]propCheck{
 		"actor": nonEmptyString, "cause": causeNumber, "label": isString, "tooltip": isString,
-		"current": isBool, "last": isBool, "user": isBool, "tone": oneOf(badgeTones), "ref": nonEmptyString,
+		"current": isBool, "last": isBool, "user": isBool, "tone": oneOf(badgeTones), "ref": nonEmptyString, "time": isString,
 	})
 
 	runStatuses = []string{"ok", "failed", "missed", "running", "ignored"}
@@ -174,7 +175,7 @@ var (
 	sparkHeight = number(func(n float64) bool { return n >= minSparkHeight && n <= maxSparkHeight }, fmt.Sprintf("a number within %d…%d", minSparkHeight, maxSparkHeight))
 
 	catalog = map[string]spec{
-		"stack":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions)}, children: anyChildren},
+		"stack":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions), "align": oneOf(alignments)}, children: anyChildren},
 		"split":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions)}, children: childRule{min: 2, max: 4}},
 		"scroll": {children: childRule{min: 1, max: 1}},
 		"spacer": {children: noChildren},

@@ -19,6 +19,14 @@ struct StackNodeView: View {
         return CGFloat(value)
     }
 
+    private var alignment: HorizontalAlignment {
+        switch node.string("align") {
+        case "center": .center
+        case "trailing": .trailing
+        default: .leading
+        }
+    }
+
     private var propertyKey: SDUINode? {
         guard keyWidth != nil, node.children.count > 1, let first = node.children.first, first.type == "text", first.string("style") == "muted" else { return nil }
         return first
@@ -54,7 +62,7 @@ struct StackNodeView: View {
                 }
             }
         } else {
-            VStack(alignment: .leading, spacing: gap) { SDUIChildren(node: node) }
+            VStack(alignment: alignment, spacing: gap) { SDUIChildren(node: node) }
         }
     }
 }

@@ -84,11 +84,12 @@ final class SDUIFlowTests: XCTestCase {
     func testLanesNodeDropsCausesThatPointForward() throws {
         let lanes = try XCTUnwrap(node("""
         {"type": "lanes", "id": "l", "props": {"title": "Owners", "actors": [{"id": "you", "label": "You"}, {"id": "you", "label": "dup"}],
-          "moves": [{"actor": "you", "cause": 1, "tooltip": "a"}, {"actor": "you", "cause": 0, "tooltip": "b", "ref": "agt_1", "tone": "danger"}]}}
+          "moves": [{"actor": "you", "cause": 1, "tooltip": "a"}, {"actor": "you", "cause": 0, "tooltip": "b", "ref": "agt_1", "tone": "danger", "time": "Nov 2 14:10"}]}}
         """).lanes())
         XCTAssertEqual(lanes.actors.map(\.label), ["You"])
         XCTAssertEqual(lanes.moves.map(\.cause), [-1, 0])
         XCTAssertEqual(lanes.moves.map(\.ref), [nil, "agt_1"])
+        XCTAssertEqual(lanes.moves.map(\.time), [nil, "Nov 2 14:10"])
         XCTAssertFalse(lanes.collapsed)
     }
 

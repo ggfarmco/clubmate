@@ -217,12 +217,12 @@ func TestMainFormAutosaves(t *testing.T) {
 }
 
 func TestOwnerRowsAndLanes(t *testing.T) {
-	at := time.Date(2026, 11, 2, 17, 20, 0, 0, time.Local)
+	at := func(day, h, m int) time.Time { return time.Date(2026, 11, day, h, m, 0, 0, time.Local) }
 	task := &Task{ID: 4, Title: "Old", Status: statusInProgress, Priority: priorityNormal, ClaimedBy: "agt_c", LastClaimedBy: "agt_b", CreatedBy: userOwner, Owners: []OwnerMove{
-		{Owner: userOwner, Why: whyCreated},
-		{Owner: "agt_b", Title: "Fix", Why: whyStarted},
-		{Owner: userOwner, At: at, Why: whyStopped},
-		{Owner: "agt_c", Run: "run_1", RunTitle: "Review loop", Why: whyClaimed},
+		{Owner: userOwner, At: at(2, 14, 10), Why: whyCreated},
+		{Owner: "agt_b", Title: "Fix", At: at(2, 16, 2), Why: whyStarted, Failure: "exit 1"},
+		{Owner: userOwner, At: at(2, 17, 20), Why: whyStopped, Failure: "exit 1"},
+		{Owner: "agt_c", Run: "run_1", RunTitle: "Review loop", At: at(3, 15, 3), Why: whyClaimed},
 	}}
 	owners := map[string]owner{
 		"agt_b": {label: "Fix (closed)", session: true, stale: true},
@@ -240,21 +240,22 @@ func TestOwnerRowsAndLanes(t *testing.T) {
 	last, ok := findNode(main, "lastOwner")
 	require.True(t, ok)
 	assert.Equal(t, actRevealLast, last.Props["action"])
-	assert.Contains(t, mustText(t, main), "stopped · Nov 2 17:20")
+	assert.Equal(t, failedIcon, last.Props["icon"])
+	assert.Contains(t, mustText(t, main), `"text":"stopped · exit 1 · Nov 2 17:20","tone":"danger"`)
 
 	lanes, ok := findNode(main, ownersNode)
 	require.True(t, ok)
 	assert.Equal(t, "lanes", lanes.Type)
-	var actorIDs []string
-	for _, a := range lanes.Props["actors"].([]sdui.LaneActor) {
-		actorIDs = append(actorIDs, a.ID)
-	}
-	assert.Equal(t, []string{"you", "agt_b", "run:run_1"}, actorIDs)
+	assert.Equal(t, []sdui.LaneActor{
+		{ID: "you", Label: "you", Icon: "person"},
+		{ID: "agt_b", Label: "Fix (closed)", Icon: failedIcon, Tone: "danger"},
+		{ID: "run:run_1", Label: "Review loop · run", Icon: graphIcon},
+	}, lanes.Props["actors"])
 	assert.Equal(t, []sdui.LaneMove{
-		{Actor: "you", Cause: -1, Label: "created", Tooltip: "you · created"},
-		{Actor: "agt_b", Cause: 0, Label: "Start agent", Tooltip: "Fix (closed) · Start agent", User: true, Tone: "danger", Ref: "agt_b"},
-		{Actor: "you", Cause: 1, Label: "stopped", Tooltip: "you · stopped · Nov 2 17:20"},
-		{Actor: "run:run_1", Cause: 2, Label: "claimed", Tooltip: "Review loop · run · claimed", Ref: "run:run_1", Current: true, Last: true},
+		{Actor: "you", Cause: -1, Label: "created", Tooltip: "you · created · Nov 2 14:10", Time: "Nov 2 14:10"},
+		{Actor: "agt_b", Cause: 0, Label: "Start agent", Tooltip: "Fix (closed) · Start agent · Nov 2 16:02", User: true, Tone: "danger", Ref: "agt_b", Time: "16:02"},
+		{Actor: "you", Cause: 1, Label: "failed → back", Tooltip: "you · stopped · exit 1 · Nov 2 17:20", Time: "17:20"},
+		{Actor: "run:run_1", Cause: 2, Label: "claimed", Tooltip: "Review loop · run · claimed · Nov 3 15:03", Ref: "run:run_1", Current: true, Last: true, Time: "Nov 3 15:03"},
 	}, lanes.Props["moves"])
 }
 

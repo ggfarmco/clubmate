@@ -329,12 +329,17 @@ func TestLanesNode(t *testing.T) {
 	lanes := func(cause int) sdui.Node {
 		return sdui.Lanes("owners", sdui.LanesProps{
 			Actors: []sdui.LaneActor{{ID: "you", Label: "You", Icon: "person"}, {ID: "s1", Label: "Coder", Tone: "accent"}},
-			Moves:  []sdui.LaneMove{{Actor: "you", Cause: -1, Tooltip: "created"}, {Actor: "s1", Cause: cause, Label: "Start agent", Tooltip: "started", Last: true, Ref: "agt_1"}},
+			Moves:  []sdui.LaneMove{{Actor: "you", Cause: -1, Tooltip: "created", Time: "Nov 2 14:10"}, {Actor: "s1", Cause: cause, Label: "Start agent", Tooltip: "started", Last: true, Ref: "agt_1"}},
 			Title:  "Owners",
 		})
 	}
 	assert.NoError(t, internalsdui.Validate(lanes(0)))
 	assert.ErrorContains(t, internalsdui.Validate(lanes(-2)), "prop moves: [1]: cause")
+}
+
+func TestStackAlign(t *testing.T) {
+	assert.NoError(t, internalsdui.Validate(sdui.WithAlign(sdui.VStack(sdui.Text("a")), sdui.AlignCenter)))
+	assert.ErrorContains(t, internalsdui.Validate(sdui.WithAlign(sdui.VStack(sdui.Text("a")), "middle")), "prop align")
 }
 
 func TestRunstripNode(t *testing.T) {

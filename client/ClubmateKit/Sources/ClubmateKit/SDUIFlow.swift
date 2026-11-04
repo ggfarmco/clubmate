@@ -215,10 +215,12 @@ public struct SDUILanes: Sendable, Equatable {
         public let ref: String?
         public let bar: String?
         public let round: Int
+        public let time: String?
 
-        public init(actor: String, cause: Int = -1, label: String? = nil, tooltip: String = "", out: String? = nil, current: Bool = false, user: Bool = false, last: Bool = false, end: String? = nil, tone: String? = nil, ref: String? = nil, bar: String? = nil, round: Int = 0) {
+        public init(actor: String, cause: Int = -1, label: String? = nil, tooltip: String = "", out: String? = nil, current: Bool = false, user: Bool = false, last: Bool = false, end: String? = nil, tone: String? = nil, ref: String? = nil, bar: String? = nil, round: Int = 0, time: String? = nil) {
             self.bar = bar
             self.round = round
+            self.time = time
             self.actor = actor
             self.cause = cause
             self.label = label
@@ -373,7 +375,8 @@ extension SDUINode {
                     user: fields["user"]?.boolValue ?? false,
                     last: fields["last"]?.boolValue ?? false,
                     tone: fields["tone"]?.stringValue,
-                    ref: fields["ref"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
+                    ref: fields["ref"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 },
+                    time: fields["time"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
                 )
             },
             title: string("title").flatMap { $0.isEmpty ? nil : $0 },

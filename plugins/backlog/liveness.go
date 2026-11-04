@@ -11,8 +11,26 @@ import (
 
 type agentSession struct {
 	api.Session
-	Run      *api.Run `json:"run,omitempty"`
-	NeedsYou bool     `json:"needsYou,omitempty"`
+	Run      *api.Run      `json:"run,omitempty"`
+	NeedsYou bool          `json:"needsYou,omitempty"`
+	Turns    int           `json:"turns,omitempty"`
+	Failure  *agentFailure `json:"failure,omitempty"`
+}
+
+type agentFailure struct {
+	Badge string `json:"badge"`
+}
+
+func (s agentSession) failure() string {
+	if s.Status != sessionError {
+		return ""
+	}
+	if s.Failure != nil {
+		if _, detail, ok := strings.Cut(s.Failure.Badge, " · "); ok {
+			return detail
+		}
+	}
+	return sessionError
 }
 
 type sessions struct {

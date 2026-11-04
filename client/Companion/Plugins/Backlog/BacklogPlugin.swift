@@ -312,6 +312,7 @@ struct TaskDetailView: View {
     let store: BacklogStore
     let taskID: Int
     @State private var editing = false
+    @State private var starting = false
     @State private var failure: String?
     @State private var detail: TaskDetail?
     @Environment(\.colorScheme) private var scheme
@@ -338,6 +339,19 @@ struct TaskDetailView: View {
                             TaskEditorView(store: store, task: task) { _ in editing = false }
                         }
                     }
+                    .sheet(isPresented: $starting) {
+                        if let primary = detail?.task?.primary, let options = primary.start {
+                            NavigationStack {
+                                StartAgentView(task: task, summary: primary.summary, options: options) { agent, mode, place, prompt in
+                                    try await store.start(task.id, agent: agent, mode: mode, where: place, prompt: prompt)
+                                    starting = false
+                                } cancel: {
+                                    starting = false
+                                }
+                            }
+                            .presentationDetents([.medium, .large])
+                        }
+                    }
             } else if store.loaded {
                 ContentUnavailableView("Task Not Found", systemImage: "checklist", description: Text("It was deleted or moved out of this workspace."))
             } else {
@@ -362,9 +376,12 @@ struct TaskDetailView: View {
                     .font(.title2.bold())
                     .textSelection(.enabled)
                 if task.status == .inProgress, let owner = BacklogPlugin.owner(task, context: context) {
-                    Label("In progress by \(owner)", systemImage: "person.crop.circle")
+                    Label("In progress by \(([owner] + [detail?.task?.ownerState].compactMap { $0 }).joined(separator: " · "))", systemImage: "person.crop.circle")
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                }
+                if let last = detail?.task?.lastOwner, task.status != .inProgress || task.claimedBy != last.session {
+                    lastOwner(last)
                 }
                 buttons(task)
                 if !task.note.isEmpty {
@@ -403,6 +420,18 @@ struct TaskDetailView: View {
                                 .buttonStyle(.plain)
                             } else {
                                 TaskRefRow(symbol: attachment.symbol, label: attachment.label, detail: "on the Mac", chevron: false)
+                            }
+                        }
+                    }
+                }
+                if let full = detail?.task, !full.history.isEmpty {
+                    TaskSection(title: "Owners", count: full.history.count) {
+                        ForEach(Array(full.history.enumerated()), id: \.offset) { _, event in
+                            if let session = event.session {
+                                Button { openSession(session) } label: { OwnerRow(event: event) }
+                                    .buttonStyle(.plain)
+                            } else {
+                                OwnerRow(event: event)
                             }
                         }
                     }
@@ -493,8 +522,10 @@ struct TaskDetailView: View {
     private func primaryButton(_ primary: BacklogPrimary, _ task: BacklogTask) -> some View {
         switch primary.action {
         case .start:
-            Button(primary.label, systemImage: "play.fill") { perform { try await store.start(task.id) } }
-                .buttonStyle(.glassProminent)
+            Button(primary.label, systemImage: "play.fill") {
+                if primary.start != nil { starting = true } else { perform { try await store.start(task.id) } }
+            }
+            .buttonStyle(.glassProminent)
         case .reveal:
             Button { reveal(primary) } label: {
                 Label(primary.label, systemImage: primary.run == nil ? "sparkles" : "point.3.connected.trianglepath.dotted")
@@ -512,7 +543,36 @@ struct TaskDetailView: View {
 
     private func reveal(_ primary: BacklogPrimary) {
         guard let session = primary.session else { return }
+        openSession(session)
+    }
+
+    private func openSession(_ session: String) {
         context.navigation.open(computer: context.connection.computer.id, plugin: AgentsPluginInfo.id, detail: session)
+    }
+
+    @ViewBuilder
+    private func lastOwner(_ last: BacklogOwnerEvent) -> some View {
+        let line = Label {
+            Text("Last owner: \(last.who) · \(OwnerRow.detail(last))")
+        } icon: {
+            Image(systemName: "clock.arrow.circlepath")
+        }
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        if let session = last.session {
+            Button { openSession(session) } label: {
+                HStack {
+                    line
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    RowChevron()
+                }
+                .frame(minHeight: 44)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+        } else {
+            line
+        }
     }
 
     @ViewBuilder
@@ -623,6 +683,135 @@ struct TaskRefRow: View {
         }
         .frame(minHeight: 44)
         .contentShape(.rect)
+    }
+}
+
+struct OwnerRow: View {
+    let event: BacklogOwnerEvent
+
+    static func detail(_ event: BacklogOwnerEvent) -> Text {
+        let what = Text(event.what).foregroundStyle(event.danger ? Color.dangerInk : .secondary)
+        guard let at = event.at else { return what }
+        return Text("\(what) · \(time(at))")
+    }
+
+    static func time(_ date: Date) -> String {
+        Calendar.current.isDateInToday(date) ? date.formatted(date: .omitted, time: .shortened) : date.formatted(.dateTime.day().month(.abbreviated).hour().minute())
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: event.danger ? "xmark.circle" : event.session == nil ? "person" : "sparkles")
+                .foregroundStyle(event.danger ? Color.dangerInk : .secondary)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(event.who)
+                    .lineLimit(1)
+                Self.detail(event)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 6)
+            if event.session != nil {
+                RowChevron()
+            }
+        }
+        .frame(minHeight: 44)
+        .contentShape(.rect)
+    }
+}
+
+struct StartAgentView: View {
+    let task: BacklogTask
+    let summary: String?
+    let options: BacklogStart
+    let start: @MainActor (String, String, String, String?) async throws -> Void
+    let cancel: () -> Void
+    @State private var agent: String
+    @State private var mode: String
+    @State private var place: String
+    @State private var prompt: String
+    @State private var editingPrompt = false
+    @State private var sending = false
+    @State private var failure: String?
+
+    init(task: BacklogTask, summary: String?, options: BacklogStart, start: @escaping @MainActor (String, String, String, String?) async throws -> Void, cancel: @escaping () -> Void) {
+        self.task = task
+        self.summary = summary
+        self.options = options
+        self.start = start
+        self.cancel = cancel
+        _agent = State(initialValue: options.agents.first?.value ?? "")
+        _mode = State(initialValue: options.modes.first?.value ?? "")
+        _place = State(initialValue: options.where.first?.value ?? "")
+        _prompt = State(initialValue: options.prompt)
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                picker("Agent", options.agents, $agent)
+                picker("Mode", options.modes, $mode)
+                picker("Where", options.where, $place)
+            }
+            Section {
+                if editingPrompt {
+                    TextField("Prompt", text: $prompt, axis: .vertical)
+                        .lineLimit(6...16)
+                        .accessibilityIdentifier("startPrompt")
+                } else {
+                    HStack {
+                        LabeledContent("Prompt", value: summary.flatMap { $0.isEmpty ? nil : $0 } ?? "the title")
+                        Button("Edit") { editingPrompt = true }
+                            .buttonStyle(.borderless)
+                    }
+                }
+            } footer: {
+                if let owns = options.owns {
+                    Text(owns)
+                }
+            }
+        }
+        .navigationTitle("Start agent on \(task.number)")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel", action: cancel)
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                if sending {
+                    ProgressView()
+                } else {
+                    Button("Start") { send() }
+                }
+            }
+        }
+        .actionFailure($failure)
+    }
+
+    @ViewBuilder
+    private func picker(_ title: String, _ choices: [BacklogOption], _ selection: Binding<String>) -> some View {
+        if !choices.isEmpty {
+            Picker(title, selection: selection) {
+                ForEach(choices, id: \.value) { choice in
+                    Text(choice.label).tag(choice.value)
+                }
+            }
+        }
+    }
+
+    private func send() {
+        sending = true
+        Task {
+            do {
+                try await start(agent, mode, place, prompt == options.prompt ? nil : prompt)
+            } catch {
+                failure = (error as? RemoteError)?.message ?? error.localizedDescription
+            }
+            sending = false
+        }
     }
 }
 

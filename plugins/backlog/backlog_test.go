@@ -33,8 +33,9 @@ type task struct {
 	} `json:"links"`
 	Attachments []map[string]string `json:"attachments"`
 	Owners      []struct {
-		Owner string `json:"owner"`
-		Why   string `json:"why"`
+		Owner   string `json:"owner"`
+		Why     string `json:"why"`
+		Failure string `json:"failure"`
 	} `json:"owners"`
 	ClaimedBy       string `json:"claimedBy"`
 	ClaimedFrom     string `json:"claimedFrom"`
@@ -46,7 +47,23 @@ type task struct {
 		Label   string `json:"label"`
 		Summary string `json:"summary"`
 		Session string `json:"session"`
+		Start   *struct {
+			Modes  []sdui.Option `json:"modes"`
+			Where  []sdui.Option `json:"where"`
+			Prompt string        `json:"prompt"`
+			Owns   string        `json:"owns"`
+		} `json:"start"`
 	} `json:"primary"`
+	OwnerState string      `json:"ownerState"`
+	LastOwner  ownerLine   `json:"lastOwner"`
+	History    []ownerLine `json:"history"`
+}
+
+type ownerLine struct {
+	Who     string `json:"who"`
+	What    string `json:"what"`
+	Tone    string `json:"tone"`
+	Session string `json:"session"`
 }
 
 type env struct {
@@ -55,7 +72,7 @@ type env struct {
 	t *testing.T
 }
 
-const agentsManifest = `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"agents.sessions","title":"Sessions","hidden":true},{"id":"agents.reveal","title":"Reveal","hidden":true},{"id":"agents.new","title":"New","hidden":true}]},"echoResults":{"agents.reveal":null,"agents.new":{"session":"agt_new"},"agents.sessions":[{"id":"agt_dead","status":"closed"},{"id":"agt_live","status":"running"},{"id":"agt_parent","status":"running"},{"id":"agt_child","status":"running","parentSession":"agt_parent"}]}}`
+const agentsManifest = `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"agents.sessions","title":"Sessions","hidden":true},{"id":"agents.reveal","title":"Reveal","hidden":true},{"id":"agents.new","title":"New","hidden":true}]},"echoResults":{"agents.reveal":null,"agents.new":{"session":"agt_new"},"agents.sessions":[{"id":"agt_dead","status":"closed"},{"id":"agt_live","status":"running","turns":3},{"id":"agt_failed","status":"error","failure":{"word":"exit 1","badge":"Stopped · exit 1","line":"Claude exited with status 1."}},{"id":"agt_parent","status":"running"},{"id":"agt_child","status":"running","parentSession":"agt_parent"}]}}`
 
 func newEnv(t *testing.T, extra ...string) env {
 	dirs := append([]string{testutil.BuildPluginDir(t, "clubmate/plugins/backlog", "plugins/backlog/plugin.json")}, extra...)
@@ -498,6 +515,11 @@ func TestPhoneStartsAndTakesBack(t *testing.T) {
 	require.NotNil(t, got.Primary)
 	assert.Equal(t, "start", got.Primary.Action)
 	assert.Equal(t, "description", got.Primary.Summary)
+	require.NotNil(t, got.Primary.Start)
+	assert.Equal(t, sdui.Option{Value: "", Label: "Last used"}, got.Primary.Start.Modes[0])
+	assert.Equal(t, []sdui.Option{{Value: "", Label: "this worktree"}, {Value: "worktree", Label: "a new worktree · backlog/1-work"}}, got.Primary.Start.Where)
+	assert.Contains(t, got.Primary.Start.Prompt, "Builds on #1.")
+	assert.Equal(t, "The session owns #1 until it ends or you take it back.", got.Primary.Start.Owns)
 	assert.Contains(t, got.DescriptionHTML, `href="clubmate-doc:/task/1"`)
 	assert.Nil(t, e.must(e.agent("agt_a", "backlog.get", map[string]any{"id": tk.ID})).Primary)
 
@@ -516,6 +538,7 @@ func TestPhoneStartsAndTakesBack(t *testing.T) {
 	require.NotNil(t, got.Primary)
 	assert.Equal(t, "reveal", got.Primary.Action)
 	assert.Equal(t, "agt_live", got.Primary.Session)
+	assert.Equal(t, "running · turn 3", got.OwnerState)
 
 	assert.Equal(t, "user", e.must(e.user("backlog.takeback", map[string]any{"id": other.ID})).ClaimedBy)
 	assert.Equal(t, "start", e.must(e.user("backlog.get", map[string]any{"id": other.ID})).Primary.Action)
@@ -533,6 +556,42 @@ func TestClosedSessionHandsTheTaskBack(t *testing.T) {
 		return e.must(e.user("backlog.get", map[string]any{"id": tk.ID})).Status == "todo"
 	}, 10*time.Second, 20*time.Millisecond)
 	assert.Equal(t, []string{"user created", "agt_gone claimed", "user stopped"}, e.owners(tk.ID))
+}
+
+func TestFailedSessionLeavesItsExitCode(t *testing.T) {
+	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
+	tk := e.add("Work", nil)
+	e.must(e.agent("agt_failed", "backlog.claim", map[string]any{"id": tk.ID}))
+	publish := func(status string) {
+		_, err := e.h.Bus.Publish(t.Context(), "agents.changed", "test", json.RawMessage(`{"workspace":"`+e.p+`","session":"agt_failed","kind":"status","status":"`+status+`"}`))
+		require.NoError(t, err)
+	}
+
+	publish("error")
+	require.Eventually(t, func() bool {
+		owners := e.must(e.user("backlog.get", map[string]any{"id": tk.ID})).Owners
+		return owners[len(owners)-1].Failure == "exit 1"
+	}, 10*time.Second, 20*time.Millisecond)
+	assert.Equal(t, "failed · exit 1", e.must(e.user("backlog.get", map[string]any{"id": tk.ID})).OwnerState)
+	publish("running")
+	require.Eventually(t, func() bool {
+		owners := e.must(e.user("backlog.get", map[string]any{"id": tk.ID})).Owners
+		return owners[len(owners)-1].Failure == ""
+	}, 10*time.Second, 20*time.Millisecond)
+	publish("error")
+	require.Eventually(t, func() bool {
+		owners := e.must(e.user("backlog.get", map[string]any{"id": tk.ID})).Owners
+		return owners[len(owners)-1].Failure == "exit 1"
+	}, 10*time.Second, 20*time.Millisecond)
+	publish("closed")
+
+	require.Eventually(t, func() bool {
+		return e.must(e.user("backlog.get", map[string]any{"id": tk.ID})).Status == "todo"
+	}, 10*time.Second, 20*time.Millisecond)
+	got := e.must(e.user("backlog.get", map[string]any{"id": tk.ID}))
+	want := ownerLine{Who: "agt_failed", What: "stopped · exit 1", Tone: "danger", Session: "agt_failed"}
+	assert.Equal(t, want, got.LastOwner)
+	assert.Equal(t, []ownerLine{{Who: "you", What: "created"}, {Who: "agt_failed", What: "claimed", Session: "agt_failed"}, {Who: "you", What: "stopped · exit 1", Tone: "danger"}}, got.History)
 }
 
 func TestLinksFromTheForm(t *testing.T) {

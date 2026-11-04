@@ -55,6 +55,10 @@ const (
 	maxActors     = 8
 	graphIcon     = "point.3.connected.trianglepath.dotted"
 	dayLayout     = "Jan 2 15:04"
+	timeLayout    = "15:04"
+	failedIcon    = "xmark.circle"
+	failedBack    = "failed → back"
+	toneDanger    = "danger"
 	closedSuffix  = " (closed)"
 	linksNode     = "links"
 	linkField     = "linkText"
@@ -291,9 +295,18 @@ func ownerRows(t *Task, owners map[string]owner) []sdui.Node {
 	}
 	rows := []sdui.Node{row}
 	if t.LastClaimedBy != "" {
-		last := sdui.HStack(sdui.MutedText("Last owner"), ownerChip("lastOwner", actRevealLast, t.LastClaimedBy, owners))
-		if why := leftBecause(ownerHistory(*t), t.LastClaimedBy); why != "" {
-			last.Children = append(last.Children, sdui.MutedText(why))
+		m, left := leftMove(ownerHistory(*t), t.LastClaimedBy)
+		chip := ownerChip("lastOwner", actRevealLast, t.LastClaimedBy, owners)
+		if m.failed() && chip.Type == "button" {
+			chip.Props["icon"] = failedIcon
+		}
+		last := sdui.HStack(sdui.MutedText("Last owner"), chip)
+		if left {
+			words := sdui.MutedText(moveWords(m) + when(m.At))
+			if m.failed() {
+				words = sdui.WithTone(words, toneDanger)
+			}
+			last.Children = append(last.Children, words)
 		}
 		rows = append(rows, last)
 	}
@@ -313,36 +326,53 @@ func ownerChip(id, action, who string, owners map[string]owner) sdui.Node {
 	return sdui.WithVariant(sdui.WithAction(sdui.Button(id, o.label, icon), action), sdui.VariantSecondary)
 }
 
-func leftBecause(history []OwnerMove, who string) string {
+func leftMove(history []OwnerMove, who string) (OwnerMove, bool) {
 	for i := len(history) - 1; i > 0; i-- {
-		if history[i-1].Owner != who {
-			continue
+		if history[i-1].Owner == who {
+			return history[i], true
 		}
-		words := moveLabels[history[i].Why]
-		if !history[i].At.IsZero() {
-			words += " · " + history[i].At.Local().Format(dayLayout)
-		}
-		return words
 	}
-	return ""
+	return OwnerMove{}, false
+}
+
+func moveWords(m OwnerMove) string {
+	if m.failed() {
+		return moveLabels[m.Why] + " · " + m.Failure
+	}
+	return moveLabels[m.Why]
+}
+
+func when(at time.Time) string {
+	if at.IsZero() {
+		return ""
+	}
+	return " · " + at.Local().Format(dayLayout)
+}
+
+func laneActor(m OwnerMove, owners map[string]owner) sdui.LaneActor {
+	switch {
+	case m.Owner == userOwner:
+		return sdui.LaneActor{ID: youActor, Label: "you", Icon: "person"}
+	case m.Run != "":
+		return sdui.LaneActor{ID: runRef + m.Run, Label: cmp.Or(m.RunTitle, "graph") + " · run", Icon: graphIcon}
+	case strings.HasPrefix(m.Owner, sessionPfx):
+		label := cmp.Or(m.Title, m.Owner)
+		if o, ok := owners[m.Owner]; ok && o.label != "" && o.label != m.Owner {
+			label = o.label
+		}
+		return sdui.LaneActor{ID: m.Owner, Label: label, Icon: "sparkles"}
+	}
+	return sdui.LaneActor{ID: m.Owner, Label: m.Owner, Icon: "terminal"}
 }
 
 func ownerLanes(t *Task, owners map[string]owner) sdui.Node {
 	history := ownerHistory(*t)
-	actorOf := func(m OwnerMove) sdui.LaneActor {
-		switch {
-		case m.Owner == userOwner:
-			return sdui.LaneActor{ID: youActor, Label: "you", Icon: "person"}
-		case m.Run != "":
-			return sdui.LaneActor{ID: runRef + m.Run, Label: cmp.Or(m.RunTitle, "graph") + " · run", Icon: graphIcon}
-		case strings.HasPrefix(m.Owner, sessionPfx):
-			label := cmp.Or(m.Title, m.Owner)
-			if o, ok := owners[m.Owner]; ok && o.label != "" && o.label != m.Owner {
-				label = o.label
-			}
-			return sdui.LaneActor{ID: m.Owner, Label: label, Icon: "sparkles"}
+	actorOf := func(m OwnerMove) sdui.LaneActor { return laneActor(m, owners) }
+	failed := map[string]bool{}
+	for i := 1; i < len(history); i++ {
+		if history[i].failed() {
+			failed[actorOf(history[i-1]).ID] = true
 		}
-		return sdui.LaneActor{ID: m.Owner, Label: m.Owner, Icon: "terminal"}
 	}
 	keep := map[string]bool{}
 	for i := len(history) - 1; i >= 0 && len(keep) < maxActors; i-- {
@@ -352,6 +382,9 @@ func ownerLanes(t *Task, owners map[string]owner) sdui.Node {
 	since := map[string]time.Time{}
 	for _, m := range history {
 		if a := actorOf(m); keep[a.ID] && !slices.ContainsFunc(actors, func(b sdui.LaneActor) bool { return b.ID == a.ID }) {
+			if failed[a.ID] {
+				a.Icon, a.Tone = failedIcon, toneDanger
+			}
 			actors = append(actors, a)
 			since[a.ID] = m.At
 		}
@@ -376,21 +409,25 @@ func ownerLanes(t *Task, owners map[string]owner) sdui.Node {
 		actors[i].Label = shown[i] + strings.TrimPrefix(actors[i].Label, titles[i])
 	}
 	moves := make([]sdui.LaneMove, 0, len(history))
+	var day time.Time
 	for _, m := range history {
 		a := actorOf(m)
 		if !keep[a.ID] {
 			continue
 		}
-		when := ""
-		if !m.At.IsZero() {
-			when = " · " + m.At.Local().Format(dayLayout)
-		}
-		mv := sdui.LaneMove{Actor: a.ID, Cause: len(moves) - 1, Label: moveLabels[m.Why], Tooltip: a.Label + " · " + moveLabels[m.Why] + when, User: m.Why == whyStarted || m.Why == whyTakenBack}
+		mv := sdui.LaneMove{Actor: a.ID, Cause: len(moves) - 1, Label: moveLabels[m.Why], Tooltip: a.Label + " · " + moveWords(m) + when(m.At), User: m.Why == whyStarted || m.Why == whyTakenBack}
 		if a.ID != youActor && a.Icon != "terminal" {
 			mv.Ref = a.ID
 		}
-		if m.Why == whyStopped && len(moves) > 0 {
-			moves[len(moves)-1].Tone = "danger"
+		if m.failed() && len(moves) > 0 {
+			mv.Label = failedBack
+			moves[len(moves)-1].Tone = toneDanger
+		}
+		if at := m.At.Local(); !m.At.IsZero() {
+			mv.Time = at.Format(timeLayout)
+			if y, mo, d := at.Date(); day.IsZero() || y != day.Year() || mo != day.Month() || d != day.Day() {
+				mv.Time, day = at.Format(dayLayout), at
+			}
 		}
 		moves = append(moves, mv)
 	}
@@ -422,7 +459,7 @@ func lifecycle() sdui.Node {
 		steps = append(steps, chip(status))
 	}
 	parks := sdui.HStack(sdui.MutedText("or parks in"), chip(statusNotNow), sdui.MutedText("· In progress is owned by you or a session"))
-	v := sdui.VStack(sdui.MutedText("A task moves through"), sdui.HStack(steps...), parks)
+	v := sdui.WithAlign(sdui.VStack(sdui.MutedText("A task moves through"), sdui.HStack(steps...), parks), sdui.AlignCenter)
 	v.ID = "lifecycle"
 	return v
 }
@@ -496,11 +533,60 @@ func descriptionRev(desc string) int {
 }
 
 type primaryView struct {
-	Action  string `json:"action"`
-	Label   string `json:"label"`
-	Summary string `json:"summary,omitempty"`
-	Session string `json:"session,omitempty"`
-	Run     string `json:"run,omitempty"`
+	Action  string        `json:"action"`
+	Label   string        `json:"label"`
+	Summary string        `json:"summary,omitempty"`
+	Session string        `json:"session,omitempty"`
+	Run     string        `json:"run,omitempty"`
+	Start   *startChoices `json:"start,omitempty"`
+}
+
+type startChoices struct {
+	Agents []sdui.Option `json:"agents"`
+	Modes  []sdui.Option `json:"modes"`
+	Where  []sdui.Option `json:"where"`
+	Prompt string        `json:"prompt"`
+	Owns   string        `json:"owns"`
+}
+
+type ownerLine struct {
+	Who     string    `json:"who"`
+	What    string    `json:"what"`
+	At      time.Time `json:"at,omitzero"`
+	Tone    string    `json:"tone,omitempty"`
+	Session string    `json:"session,omitempty"`
+}
+
+func startChoicesFor(t *Task, linked map[int]Task) *startChoices {
+	return &startChoices{Agents: agentOptions(), Modes: modeOptions(), Where: whereOptions(t), Prompt: startBody(*t, linked), Owns: sessionOwnsLine(t)}
+}
+
+func ownerLines(t Task, owners map[string]owner) ([]ownerLine, *ownerLine, string) {
+	moves := ownerHistory(t)
+	line := func(who, id string, m OwnerMove) ownerLine {
+		l := ownerLine{Who: who, What: moveWords(m), At: m.At}
+		if m.failed() {
+			l.Tone = toneDanger
+		}
+		if strings.HasPrefix(id, sessionPfx) {
+			l.Session = id
+		}
+		return l
+	}
+	history := make([]ownerLine, 0, len(moves))
+	for _, m := range moves {
+		history = append(history, line(laneActor(m, owners).Label, m.Owner, m))
+	}
+	var last *ownerLine
+	if m, ok := leftMove(moves, t.LastClaimedBy); ok && t.LastClaimedBy != "" {
+		l := line(labelOf(owners, t.LastClaimedBy), t.LastClaimedBy, m)
+		last = &l
+	}
+	state := ""
+	if t.Status == statusInProgress {
+		state = owners[t.ClaimedBy].state
+	}
+	return history, last, state
 }
 
 func primary(t *Task, cur owner) *primaryView {
@@ -562,13 +648,25 @@ func startForm(t *Task, d detail) sdui.Node {
 	}
 	return sdui.WithAction(sdui.Form(fmt.Sprintf("start-%d", t.ID),
 		sdui.HStack(sdui.WithTone(sdui.Icon("sparkles"), "accent"), title),
-		sdui.HStack(sdui.MutedText("Agent"), sdui.Select(agentField, []sdui.Option{{Value: agentClaude, Label: "Claude"}}, agentClaude)),
+		sdui.HStack(sdui.MutedText("Agent"), sdui.Select(agentField, agentOptions(), agentClaude)),
 		sdui.HStack(sdui.MutedText("Mode"), sdui.Select(modeField, modeOptions(), "")),
-		sdui.HStack(sdui.MutedText("Where"), sdui.Select(whereField, []sdui.Option{{Value: "", Label: "this worktree"}, {Value: whereNew, Label: "a new worktree · " + branchFor(t)}}, "")),
+		sdui.HStack(sdui.MutedText("Where"), sdui.Select(whereField, whereOptions(t), "")),
 		prompt,
-		sdui.MutedText(fmt.Sprintf("The session owns #%d until it ends or you take it back.", t.ID)),
+		sdui.MutedText(sessionOwnsLine(t)),
 		sdui.HStack(sdui.WithVariant(sdui.WithAction(sdui.Button("start-cancel", "Cancel", ""), actDismiss), sdui.VariantSecondary), sdui.WithVariant(sdui.Button("start-go", "Start", ""), sdui.VariantPrimary)),
 	), actStart)
+}
+
+func agentOptions() []sdui.Option {
+	return []sdui.Option{{Value: agentClaude, Label: "Claude"}}
+}
+
+func whereOptions(t *Task) []sdui.Option {
+	return []sdui.Option{{Value: "", Label: "this worktree"}, {Value: whereNew, Label: "a new worktree · " + branchFor(t)}}
+}
+
+func sessionOwnsLine(t *Task) string {
+	return fmt.Sprintf("The session owns #%d until it ends or you take it back.", t.ID)
 }
 
 func modeOptions() []sdui.Option {

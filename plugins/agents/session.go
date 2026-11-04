@@ -143,6 +143,12 @@ func (s *session) turnStart() time.Time {
 	return s.started
 }
 
+func (s *session) turnsSoFar() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.turn
+}
+
 func (s *session) currentTurn() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
