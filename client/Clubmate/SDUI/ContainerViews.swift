@@ -28,6 +28,9 @@ struct StackNodeView: View {
         if let keyWidth, let key = propertyKey {
             HStack(alignment: .firstTextBaseline, spacing: gap) {
                 SDUINodeView(node: key)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .help(key.string("text") ?? "")
                     .frame(width: keyWidth, alignment: .leading)
                 ForEach(node.identifiedChildren.dropFirst()) { child in
                     SDUINodeView(node: child.node).equatable()
@@ -133,7 +136,7 @@ struct FormNodeView: View {
         VStack(alignment: .leading, spacing: theme.gutter) {
             SDUIChildren(node: node)
         }
-        .environment(\.formKeyWidth, width < 480 ? 88 : 120)
+        .environment(\.formKeyWidth, theme.uiSize * (width < 480 ? 7.5 : 10) + theme.gutter * 2)
         .padding(.vertical, theme.spacing.l)
         .frame(maxWidth: .infinity, alignment: .leading)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }

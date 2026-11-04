@@ -17,14 +17,17 @@ final class RowFitTests: XCTestCase {
         let full = widths(400)
         XCTAssertEqual(full.label, 290)
         XCTAssertEqual(full.detail, 90)
-        let squeezed = widths(220)
-        XCTAssertEqual(squeezed.label, 120)
-        XCTAssertEqual(squeezed.detail, 80)
+        let capped = widths(300, detail: 200)
+        XCTAssertEqual(capped.label, 120)
+        XCTAssertEqual(capped.detail, 160)
+        let halved = widths(200)
+        XCTAssertEqual(halved.label, 90)
+        XCTAssertEqual(halved.detail, 90)
     }
 
     func testDetailHidesWhenBothMinimaDoNotFit() {
-        let fit = widths(180)
-        XCTAssertEqual(fit.label, 180)
+        let fit = widths(160)
+        XCTAssertEqual(fit.label, 160)
         XCTAssertNil(fit.detail)
         XCTAssertEqual(widths(80, label: 60, detail: nil).label, 60)
     }
