@@ -208,29 +208,88 @@ func (a *app) openReviewLocked(ctx context.Context, h reviewHost, ws, root strin
 		}
 		a.removeReviewLocked(ctx, h, r)
 	}
-	tab, err := nv.reviewOpen(reviewOpenArgs{Cwd: req.Key.Worktree, Base: req.BaseRev, Head: req.Key.Head, Left: req.Left})
+	if r := a.adoptOpenLocked(ctx, h, ws, root, nv, reviewID(req.Key)); r != nil {
+		if err := nv.reviewFocus(r.Tab); err != nil {
+			logError("review focus", err)
+		}
+		r.setOpener(req)
+		a.persistReview(ctx, h, r)
+		a.reviewChangedLocked(ctx, h, r)
+		return r, nil
+	}
+	tab, err := nv.reviewOpen(reviewOpenArgs{
+		Cwd: req.Key.Worktree, Base: req.BaseRev, Head: req.Key.Head, Left: req.Left,
+		Host: reviewTabHost{ID: reviewID(req.Key), Worktree: req.Key.Worktree, Base: req.Key.Base, Head: req.Key.Head},
+	})
 	if err != nil {
 		return nil, err
 	}
-	r := newReview(ws, root, req.Key, tab, nv)
-	if r.Info, err = nv.reviewInfo(tab); err != nil {
-		logError("review info", err)
-	}
-	a.restoreReview(ctx, h, r)
+	r := a.trackReviewLocked(ctx, h, ws, root, req.Key, tab, nv)
 	r.setOpener(req)
 	if layout := a.reviewLayouts[ws]; layout != "" {
 		if err := nv.reviewLayout(tab, layout); err != nil {
 			logError("review layout", err)
 		}
 	}
+	a.persistReview(ctx, h, r)
+	a.reviewChangedLocked(ctx, h, r)
+	return r, nil
+}
+
+func (a *app) trackReviewLocked(ctx context.Context, h reviewHost, ws, root string, key reviewKey, tab int, nv reviewer) *review {
+	r := newReview(ws, root, key, tab, nv)
+	var err error
+	if r.Info, err = nv.reviewInfo(tab); err != nil {
+		logError("review info", err)
+	}
+	a.restoreReview(ctx, h, r)
 	if err := r.refresh(true); err != nil {
 		logError("review entries", err)
 	}
 	a.addReviewLocked(r)
 	a.watchReviewer(h, nv)
-	a.persistReview(ctx, h, r)
-	a.reviewChangedLocked(ctx, h, r)
-	return r, nil
+	return r
+}
+
+func (a *app) adoptReviews(ctx context.Context, h reviewHost, ws, root string, nv reviewer) {
+	a.reviewMu.Lock()
+	adopted := a.adoptLocked(ctx, h, ws, root, nv, "")
+	a.reviewMu.Unlock()
+	for _, r := range adopted {
+		a.refreshMeta(ctx, h, r.ID)
+	}
+}
+
+func (a *app) adoptOpenLocked(ctx context.Context, h reviewHost, ws, root string, nv reviewer, id string) *review {
+	if adopted := a.adoptLocked(ctx, h, ws, root, nv, id); len(adopted) > 0 {
+		return adopted[0]
+	}
+	return nil
+}
+
+func (a *app) adoptLocked(ctx context.Context, h reviewHost, ws, root string, nv reviewer, only string) []*review {
+	tabs, err := nv.reviewList()
+	if err != nil {
+		logError("review list", err)
+		return nil
+	}
+	var adopted []*review
+	for _, t := range tabs {
+		key := reviewKey{Worktree: t.Host.Worktree, Base: t.Host.Base, Head: t.Host.Head}
+		if t.Host.ID == "" || t.Host.ID != reviewID(key) || (only != "" && t.Host.ID != only) {
+			continue
+		}
+		if r, ok := a.reviews[t.Host.ID]; ok && (only == "" || r.nv == nv) {
+			continue
+		}
+		if _, ok := a.reviewLayouts[ws]; !ok && (t.Layout == layoutInline || t.Layout == layoutSplit) {
+			a.reviewLayouts[ws] = t.Layout
+		}
+		r := a.trackReviewLocked(ctx, h, ws, root, key, t.Tab, nv)
+		a.reviewChangedLocked(ctx, h, r)
+		adopted = append(adopted, r)
+	}
+	return adopted
 }
 
 func (r *review) setOpener(req openReviewReq) {

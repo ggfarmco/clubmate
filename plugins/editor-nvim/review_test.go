@@ -29,7 +29,7 @@ type fakeReviewer struct {
 	opened   []reviewOpenArgs
 	filters  *reviewFilters
 	metas    []reviewMeta
-	pokes    int
+	tabs     []reviewTab
 	tab      int
 }
 
@@ -49,11 +49,10 @@ func (f *fakeReviewer) reviewMeta(_ int, m reviewMeta) error {
 	return nil
 }
 
-func (f *fakeReviewer) reviewCommentsChanged() error {
+func (f *fakeReviewer) reviewList() ([]reviewTab, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.pokes++
-	return nil
+	return slices.Clone(f.tabs), nil
 }
 
 func (f *fakeReviewer) reviewOpen(o reviewOpenArgs) (int, error) {
@@ -215,7 +214,6 @@ func TestReviewFollowsNvimEvents(t *testing.T) {
 	assert.True(t, isReviewDB("/repo/.git/review.db-wal"))
 	a.reviewDBChanged(t.Context(), h, "ws")
 	assert.Equal(t, 0, h.last().Open)
-	assert.Equal(t, 1, nv.pokes)
 }
 
 func TestReviewClosedClearsBus(t *testing.T) {
@@ -322,12 +320,38 @@ func TestReviewOpenReusesAndMovesOpener(t *testing.T) {
 	second, err := a.startReview(t.Context(), h, "ws", "/repo", nv, req)
 	require.NoError(t, err)
 	assert.Same(t, first, second)
-	assert.Equal(t, []reviewOpenArgs{{Cwd: "/repo", Base: "abc1234", Left: "main"}}, nv.opened)
+	assert.Equal(t, []reviewOpenArgs{{
+		Cwd: "/repo", Base: "abc1234", Left: "main",
+		Host: reviewTabHost{ID: first.ID, Worktree: "/repo", Base: "main"},
+	}}, nv.opened)
 	assert.Equal(t, "agt_2", h.last().Opener)
 	assert.Equal(t, reviewMeta{Subtitle: "Claude · Second", Recipient: "Second"}, nv.lastMeta())
 	_, err = a.startReview(t.Context(), h, "ws", "/repo", nv, req)
 	require.NoError(t, err)
 	assert.Len(t, nv.metas, 2)
+}
+
+func TestReviewAdoptsOpenTabsAfterRestart(t *testing.T) {
+	a := newTestApp()
+	h := &fakeHost{sessions: []agentSession{{ID: "agt_1", Worktree: "/repo", Title: "First", Status: "idle"}}}
+	nv := &fakeReviewer{entries: []reviewEntry{{Path: "a.go", Kind: "modified", Category: "code"}}}
+	req := openReviewReq{Key: reviewKey{Worktree: "/repo", Base: "main"}, BaseRev: "abc1234", Left: "main", Opener: "agt_1", OpenerTitle: "First"}
+	first, err := a.startReview(t.Context(), h, "ws", "/repo", nv, req)
+	require.NoError(t, err)
+	nv.tabs = []reviewTab{{Tab: first.Tab, Layout: layoutInline, Host: nv.opened[0].Host}, {Tab: 9}}
+
+	restarted := newTestApp()
+	restarted.adoptReviews(t.Context(), h, "other", "/other", &fakeReviewer{tabs: nv.tabs[:1]})
+	adopted, err := restarted.startReview(t.Context(), h, "ws", "/repo", nv, openReviewReq{Key: req.Key, BaseRev: req.BaseRev, Left: req.Left})
+	require.NoError(t, err)
+	assert.Len(t, nv.opened, 1)
+	assert.Equal(t, first.Tab, adopted.Tab)
+	assert.Equal(t, "agt_1", h.last().Opener)
+
+	listed := newTestApp()
+	listed.adoptReviews(t.Context(), h, "ws", "/repo", nv)
+	assert.Equal(t, layoutInline, listed.reviewLayouts["ws"])
+	assert.Len(t, listed.reviews, 1)
 }
 
 func TestReviewMetaWithoutOpenerNamesBothSides(t *testing.T) {

@@ -306,18 +306,11 @@ func (a *app) scheduleReviewDB(h reviewHost, ws string) {
 func (a *app) reviewDBChanged(ctx context.Context, h reviewHost, ws string) {
 	a.reviewMu.Lock()
 	defer a.reviewMu.Unlock()
-	poked := map[reviewer]bool{}
 	for _, r := range a.workspaceReviewsLocked(ws) {
 		if err := r.refresh(true); err != nil {
 			logError("review comments", err)
 		}
 		a.reviewChangedLocked(ctx, h, r)
-		if !poked[r.nv] {
-			poked[r.nv] = true
-			if err := r.nv.reviewCommentsChanged(); err != nil {
-				logError("review comments changed", err)
-			}
-		}
 	}
 }
 

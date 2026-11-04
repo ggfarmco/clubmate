@@ -23,7 +23,20 @@ type reviewer interface {
 	reviewFocus(tab int) error
 	reviewFilters(tab int) (reviewFilters, error)
 	reviewMeta(tab int, m reviewMeta) error
-	reviewCommentsChanged() error
+	reviewList() ([]reviewTab, error)
+}
+
+type reviewTabHost struct {
+	ID       string `msgpack:"id"`
+	Worktree string `msgpack:"worktree"`
+	Base     string `msgpack:"base"`
+	Head     string `msgpack:"head"`
+}
+
+type reviewTab struct {
+	Tab    int           `msgpack:"tab"`
+	Layout string        `msgpack:"layout"`
+	Host   reviewTabHost `msgpack:"host"`
 }
 
 type reviewFilter struct {
@@ -48,6 +61,7 @@ type reviewOpenArgs struct {
 	Cwd, Base, Head string
 	Left, Right     string
 	Excludes        []string
+	Host            reviewTabHost
 }
 
 type reviewLabels struct {
@@ -132,6 +146,9 @@ func (c *client) reviewOpen(o reviewOpenArgs) (int, error) {
 	if len(o.Excludes) > 0 {
 		opts["excludes"] = o.Excludes
 	}
+	if o.Host.ID != "" {
+		opts["host"] = map[string]string{"id": o.Host.ID, "worktree": o.Host.Worktree, "base": o.Host.Base, "head": o.Host.Head}
+	}
 	tab, err := reviewCall[int](c, reviewOpenTimeout, "open", opts)
 	if err == nil && tab == 0 {
 		err = errNoReviewTab
@@ -189,6 +206,13 @@ func (c *client) reviewMeta(tab int, m reviewMeta) error {
 	return reviewDo(c, "set_meta", tab, m)
 }
 
-func (c *client) reviewCommentsChanged() error {
-	return c.exec(commentsChangedLua, nil)
+func (c *client) reviewList() ([]reviewTab, error) {
+	var res luaResult[[]reviewTab]
+	if err := c.exec(reviewListLua, &res); err != nil {
+		return nil, err
+	}
+	if res.Err != "" {
+		return nil, errors.New(res.Err)
+	}
+	return res.Value, nil
 }

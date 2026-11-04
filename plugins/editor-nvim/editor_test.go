@@ -26,7 +26,7 @@ import (
 
 const (
 	stubDiffview = `package.loaded["diffview.clubmate"] = {
-  version = 3,
+  version = 4,
   open = function(opts)
     vim.g.dv_log = vim.list_extend(vim.g.dv_log or {}, { vim.json.encode(opts) })
     vim.cmd("tabnew")
@@ -39,6 +39,7 @@ const (
   set_meta = function(tab, meta) vim.g.dv_meta = vim.json.encode(meta) end,
   subscribe = function() end,
   set_layout = function(layout) vim.g.dv_layout = layout end,
+  reviews = function() return {} end,
 }`
 	mainSlot      = "editor-nvim.main"
 	statusSlot    = "editor-nvim.status"
@@ -378,6 +379,7 @@ func TestDiffviewOpensCheckpoint(t *testing.T) {
 	testutil.Eventually(t, func() bool { return len(eval[[]string](t, v, "get(g:, 'dv_log', [])")) == 1 }, 5*time.Second)
 	var got map[string]any
 	require.NoError(t, json.Unmarshal([]byte(eval[[]string](t, v, "g:dv_log")[0]), &got))
+	delete(got, "host")
 	assert.Equal(t, want, got)
 	n, ok := nextFocus(c, 5*time.Second)
 	require.True(t, ok, "no ui.focus notification")
@@ -421,12 +423,13 @@ func TestDiffviewSwitchesWorktree(t *testing.T) {
 func TestDiffviewMissingShowsOpenFailed(t *testing.T) {
 	e := startEditor(t)
 	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diffview", "workspaceId": e.workspaceID, "args": map[string]any{"cwd": e.repo, "rev": "abcdef0"}}, nil)
-	require.ErrorContains(t, err, "diffview host API v3 is not available")
-	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "open failed: diffview host API v3 is not available") })
+	require.ErrorContains(t, err, "diffview host API v4 is not available")
+	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "open failed: diffview host API v4 is not available") })
 }
 
 func TestReviewCommandOpensMergeBaseForTheCaller(t *testing.T) {
 	e, wt := startWorktreeEditor(t, setup{initLua: stubDiffview, plugins: []string{fakeAgentsWith(t, "")}})
+	waitAgents(t, e)
 	fork := strings.TrimSpace(gitIn(t, e.top, "rev-parse", "HEAD"))
 	base := strings.TrimSpace(gitIn(t, e.top, "rev-parse", "--abbrev-ref", "HEAD"))
 	require.NoError(t, os.WriteFile(filepath.Join(wt, "b.go"), []byte("b\n"), 0o600))
@@ -448,7 +451,10 @@ func TestReviewCommandOpensMergeBaseForTheCaller(t *testing.T) {
 	testutil.Eventually(t, func() bool { return len(eval[[]string](t, v, "get(g:, 'dv_log', [])")) == 1 }, 5*time.Second)
 	var got map[string]any
 	require.NoError(t, json.Unmarshal([]byte(eval[[]string](t, v, "g:dv_log")[0]), &got))
-	assert.Equal(t, map[string]any{"cwd": wt, "base": fork, "labels": map[string]any{"left": base}}, got)
+	assert.Equal(t, map[string]any{
+		"cwd": wt, "base": fork, "labels": map[string]any{"left": base},
+		"host": map[string]any{"id": res.ID, "worktree": wt, "base": base, "head": ""},
+	}, got)
 	testutil.Eventually(t, func() bool { return eval[int](t, v, "exists('g:dv_meta')") == 1 }, 5*time.Second)
 	var meta map[string]any
 	require.NoError(t, json.Unmarshal([]byte(eval[string](t, v, "g:dv_meta")), &meta))
@@ -1017,6 +1023,7 @@ func TestImportStartsAgentSession(t *testing.T) {
 	res := t.TempDir()
 	t.Setenv("CLUBMATE_RESOURCES", res)
 	e := startEditorIn(t, setup{plugins: []string{fakeAgents(t)}})
+	waitAgents(t, e)
 	c := e.h.Client(t)
 	drain(c)
 	e.run(t, "import-config", nil, nil)
@@ -1134,6 +1141,14 @@ func distroWith(t *testing.T, initLua string) {
 func fakeAgents(t *testing.T) string {
 	t.Helper()
 	return testutil.EchoPluginDirAs(t, `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"agents","title":"Agents","icon":"sparkles","order":25}],"commands":[{"id":"agents.new","title":"New Agent Session","hidden":true}]},"echoResults":{"agents.new":{"session":"agt_1","worktree":"/x"}}}`)
+}
+
+func waitAgents(t *testing.T, e *editor) {
+	t.Helper()
+	testutil.Eventually(t, func() bool {
+		_, ok := e.h.Sup.Conn("agents")
+		return ok
+	}, 10*time.Second)
 }
 
 func fakeAgentsWith(t *testing.T, worktree string) string {
