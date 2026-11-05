@@ -64,6 +64,7 @@ type ending struct {
 	kind      string
 	policy    string
 	open      int
+	quiet     bool
 	due       time.Time
 }
 
@@ -80,6 +81,7 @@ type notifyPost struct {
 	Title       string `json:"title,omitempty"`
 	Message     string `json:"message"`
 	Kind        string `json:"kind"`
+	Quiet       bool   `json:"quiet,omitempty"`
 }
 
 type change struct {
@@ -237,7 +239,7 @@ func (a *app) notifyEnd(s *session, t api.Turn) {
 	if rec.ParentSession != "" || rec.restricted() || rec.Run != nil && kind != notifyAsks || kind == notifyDone && a.runningChildren(rec.ID) > 0 {
 		return
 	}
-	a.notes.ended(ending{workspace: rec.Workspace, session: rec.ID, title: rec.Title, kind: kind, policy: a.effectiveNotify(rec), open: rec.OpenCount})
+	a.notes.ended(ending{workspace: rec.Workspace, session: rec.ID, title: rec.Title, kind: kind, policy: a.effectiveNotify(rec), open: rec.OpenCount, quiet: kind == notifyDone && rec.OpenCount == 0 && s.askedInTurn()})
 }
 
 func (e ending) allowed() bool {
@@ -328,7 +330,7 @@ func endPost(held []ending) (notifyPost, bool) {
 		return notifyPost{}, false
 	case 1:
 		e := held[0]
-		return notifyPost{WorkspaceID: e.workspace, Session: e.session, Collapse: e.session, Title: e.title, Message: e.message(), Kind: e.kind}, true
+		return notifyPost{WorkspaceID: e.workspace, Session: e.session, Collapse: e.session, Title: e.title, Message: e.message(), Kind: e.kind, Quiet: e.quiet}, true
 	}
 	post := notifyPost{WorkspaceID: held[0].workspace, Title: fmt.Sprintf("%d agent sessions", len(held))}
 	var lines []string

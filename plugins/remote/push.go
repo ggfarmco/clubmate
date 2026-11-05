@@ -29,6 +29,8 @@ const (
 	pushMaxAge         = time.Hour
 	relayAlertEvery    = time.Hour
 	freePushKind       = "info"
+	alertSound         = "default"
+	passiveLevel       = "passive"
 	stuckKind          = "stuck"
 	relayAlertTitle    = "Push relay unreachable"
 
@@ -118,6 +120,7 @@ type notifyPayload struct {
 	Title     string `json:"title"`
 	Message   string `json:"message"`
 	Kind      string `json:"kind"`
+	Quiet     bool   `json:"quiet"`
 	TS        string `json:"ts"`
 }
 
@@ -153,9 +156,10 @@ type alertBody struct {
 }
 
 type alertAPS struct {
-	Alert    alert  `json:"alert"`
-	Sound    string `json:"sound"`
-	ThreadID string `json:"thread-id"`
+	Alert        alert  `json:"alert"`
+	Sound        string `json:"sound,omitempty"`
+	Interruption string `json:"interruption-level,omitempty"`
+	ThreadID     string `json:"thread-id"`
 }
 
 type alert struct {
@@ -219,12 +223,16 @@ func (s *server) pushCommand(ctx context.Context, workspace string, enabled bool
 	if id == "" {
 		id = rand.Text()
 	}
+	aps := alertAPS{
+		Alert:    alert{Title: s.alertTitle(ctx, comp.Name, workspace), Subtitle: cmp.Or(n.Title, kindLabel(n.Kind)), Body: n.Message},
+		Sound:    alertSound,
+		ThreadID: comp.ID,
+	}
+	if n.Quiet {
+		aps.Sound, aps.Interruption = "", passiveLevel
+	}
 	body, err := json.Marshal(alertBody{
-		APS: alertAPS{
-			Alert:    alert{Title: s.alertTitle(ctx, comp.Name, workspace), Subtitle: cmp.Or(n.Title, kindLabel(n.Kind)), Body: n.Message},
-			Sound:    "default",
-			ThreadID: comp.ID,
-		},
+		APS:       aps,
 		ID:        comp.ID + "|" + id,
 		Computer:  comp.ID,
 		Workspace: workspace,

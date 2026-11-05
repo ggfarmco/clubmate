@@ -13,9 +13,10 @@ public struct InboxItem: Sendable, Equatable, Identifiable, Hashable {
     public let kind: NotificationKind
     public let viaAgent: Bool
     public let pushed: Bool
+    public let quiet: Bool
     public let date: Date
 
-    public init(notificationID: String, computerID: String, workspace: String, session: String? = nil, collapse: String? = nil, title: String = "", message: String, kind: NotificationKind = .info, viaAgent: Bool = false, pushed: Bool = false, date: Date) {
+    public init(notificationID: String, computerID: String, workspace: String, session: String? = nil, collapse: String? = nil, title: String = "", message: String, kind: NotificationKind = .info, viaAgent: Bool = false, pushed: Bool = false, quiet: Bool = false, date: Date) {
         self.notificationID = notificationID
         self.computerID = computerID
         self.workspace = workspace
@@ -26,6 +27,7 @@ public struct InboxItem: Sendable, Equatable, Identifiable, Hashable {
         self.kind = kind
         self.viaAgent = viaAgent
         self.pushed = pushed
+        self.quiet = quiet
         self.date = date
     }
 
@@ -46,6 +48,7 @@ public struct InboxItem: Sendable, Equatable, Identifiable, Hashable {
             kind: posted.kind,
             viaAgent: posted.viaAgent,
             pushed: posted.pushed,
+            quiet: posted.quiet,
             date: posted.date ?? received
         )
     }
@@ -113,6 +116,7 @@ public struct LocalAlert: Sendable, Equatable {
     public let workspace: String
     public let session: String?
     public let kind: NotificationKind
+    public let quiet: Bool
 
     public init?(_ item: InboxItem, computerName: String, workspaceName: String?, now: Date) {
         guard Self.kinds.contains(item.kind), now.timeIntervalSince(item.date) < Self.window else { return nil }
@@ -125,6 +129,7 @@ public struct LocalAlert: Sendable, Equatable {
         workspace = item.workspace
         session = item.session
         kind = item.kind
+        quiet = item.quiet
     }
 }
 

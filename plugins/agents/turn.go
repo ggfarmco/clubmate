@@ -40,6 +40,7 @@ type runState struct {
 	queue           []queuedPrompt
 	queueSeq        int
 	superseded      map[string]bool
+	asked           bool
 }
 
 func (a *app) prompt(workspaceID string, args promptArgs) error {
@@ -385,6 +386,7 @@ func (s *session) beginTurnLocked() int {
 	s.started = time.Now()
 	s.turn++
 	s.superseded = nil
+	s.asked = false
 	s.settleLocked()
 	if s.began != nil {
 		s.began(s.rec.ID)

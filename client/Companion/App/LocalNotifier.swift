@@ -79,10 +79,11 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         let remote = notification.request.trigger is UNPushNotificationTrigger
+        let quiet = notification.request.content.interruptionLevel == .passive
         nonisolated(unsafe) let done = completionHandler
         DispatchQueue.main.async {
             let active = MainActor.assumeIsolated { UIApplication.shared.applicationState == .active }
-            done(remote && active ? [] : [.banner, .list, .sound])
+            done(remote && active ? [] : quiet ? [.list] : [.banner, .list, .sound])
         }
     }
 
@@ -113,7 +114,8 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
         content.title = alert.title
         content.subtitle = alert.subtitle
         content.body = alert.body
-        content.sound = .default
+        content.sound = alert.quiet ? nil : .default
+        content.interruptionLevel = alert.quiet ? .passive : .active
         content.threadIdentifier = alert.computerID
         var info: [String: String] = ["id": alert.id, "computer": alert.computerID, "workspace": alert.workspace, "kind": alert.kind.rawValue]
         if let session = alert.session { info["session"] = session }

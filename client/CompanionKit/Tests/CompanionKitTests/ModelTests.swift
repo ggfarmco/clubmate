@@ -126,6 +126,17 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(NotifyPosted(.object(["id": .string("ntf_1"), "message": .string("m"), "collapse": .string("agt_1")]))?.collapse, "agt_1")
     }
 
+    func testQuietNotificationMakesAQuietAlert() throws {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let posted = try XCTUnwrap(NotifyPosted(.object(["id": .string("ntf_1"), "message": .string("Finished"), "kind": .string("done"), "quiet": .bool(true)])))
+        XCTAssertTrue(posted.quiet)
+        let item = { (quiet: Bool) in
+            InboxItem(notificationID: "ntf_1", computerID: "m", workspace: "w", message: "Finished", kind: .done, quiet: quiet, date: now)
+        }
+        XCTAssertEqual(LocalAlert(item(true), computerName: "", workspaceName: nil, now: now)?.quiet, true)
+        XCTAssertEqual(LocalAlert(item(false), computerName: "", workspaceName: nil, now: now)?.quiet, false)
+    }
+
     func testLocalAlertOnlyForRecentActionableItems() throws {
         let now = Date(timeIntervalSince1970: 10_000)
         let item = { (kind: NotificationKind, age: TimeInterval) in

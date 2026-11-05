@@ -73,6 +73,43 @@ func TestNextTurnOrQuestionReplacesAHeldEnd(t *testing.T) {
 	assert.Equal(t, "question", f.notes(t)[0].Kind)
 }
 
+func TestFinishAfterAQuestionIsQuiet(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "ask", "elicitation": askScript(false)}, {"echo": true}}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	quiet := func(n int) []bool {
+		var got []bool
+		testutil.Eventually(t, func() bool {
+			events, err := f.h.Bus.Read(t.Context(), "notify.posted", 0, 100)
+			require.NoError(t, err)
+			got = got[:0]
+			for _, e := range events {
+				var p struct {
+					Kind  string
+					Quiet bool
+				}
+				require.NoError(t, json.Unmarshal(e.Payload, &p))
+				if p.Kind == "done" {
+					got = append(got, p.Quiet)
+				}
+			}
+			return len(got) == n
+		}, wait)
+		return got
+	}
+
+	f.prompt(t, workspace, session, "ask")
+	f.waitStatus(t, workspace, session, "waiting")
+	request := ofKind(f.transcript(t, workspace, session).Entries, "elicitation")[0].ID
+	require.NoError(t, f.h.PluginCall(t, "remote", "command.run", map[string]any{"id": "agents.elicitation", "workspaceId": workspace, "args": map[string]any{"session": session, "request": request, "action": "decline"}}))
+	f.waitStatus(t, workspace, session, "done")
+	assert.Equal(t, []bool{true}, quiet(1))
+
+	f.prompt(t, workspace, session, "go")
+	assert.Equal(t, []bool{true, false}, quiet(2))
+}
+
 func TestChildTurnEndPostsNothing(t *testing.T) {
 	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}})

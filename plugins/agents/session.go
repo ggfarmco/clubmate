@@ -135,6 +135,12 @@ func (s *session) settings() (string, map[string]string) {
 	return s.rec.Mode, values
 }
 
+func (s *session) askedInTurn() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.asked
+}
+
 func (s *session) detached() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()

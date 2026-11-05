@@ -191,6 +191,20 @@ func TestPushCollapsesOnTheNotificationsGroup(t *testing.T) {
 	assert.Equal(t, "cmp|ntf_2", reqs[1].body["payload"].(map[string]any)["id"])
 }
 
+func TestQuietPushMakesNoSound(t *testing.T) {
+	f := newFixture(t)
+	relay := f.withRelay(t)
+	f.setPushToken(t, f.pairNamed(t, "phone"), "aa01", apns.EnvProduction)
+
+	f.pushNotification(t, `{"id":"ntf_1","message":"Finished","kind":"done","quiet":true}`)
+
+	reqs := relay.requests()
+	require.Len(t, reqs, 1)
+	aps := reqs[0].body["payload"].(map[string]any)["aps"].(map[string]any)
+	assert.NotContains(t, aps, "sound")
+	assert.Equal(t, "passive", aps["interruption-level"])
+}
+
 func TestPushIgnoresACollapseOfAnotherSession(t *testing.T) {
 	f := newFixture(t)
 	relay := f.withRelay(t)

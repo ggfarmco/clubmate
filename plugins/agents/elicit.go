@@ -186,6 +186,7 @@ func (s *session) requestElicitation(ctx context.Context, request string, params
 	s.loadLocked()
 	id := entryElicitation + "-" + strconv.Itoa(s.nextID+1)
 	s.perms[id] = perm
+	s.asked = true
 	s.recordLocked(s.actor(), kindElicitation, elicitationPayload{ID: id, RequestID: request, Params: params})
 	s.settleLocked()
 	waiting := s.turnLocked()
