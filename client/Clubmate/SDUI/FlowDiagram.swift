@@ -20,14 +20,18 @@ struct FlowFrame {
         var metrics = Self.metrics(theme)
         let k = theme.uiSize / 12
         let cards = Set(flow.cards.map(\.id))
+        let width = { (text: String) in (text as NSString).size(withAttributes: [.font: theme.nsFont(size: theme.uiSize - 1, bold: false)]).width }
         for edge in flow.edges {
             guard let label = edge.label else { continue }
-            let room = (label as NSString).size(withAttributes: [.font: theme.nsFont(size: theme.uiSize - 1, bold: false)]).width + 24 * k
+            let room = width(label) + 24 * k
             if cards.contains(edge.from) && cards.contains(edge.to) {
                 metrics.layerGap = max(metrics.layerGap, room)
             } else {
                 metrics.markerGap = max(metrics.markerGap, room)
             }
+        }
+        for marker in flow.markers where marker.kind == .schedule {
+            metrics.markerGap = max(metrics.markerGap, width(marker.label ?? marker.kind.rawValue) / 2 - 14 * k + 7 * k)
         }
         self.metrics = metrics
         let sizes = flow.markers.map { ($0.id, FlowMarkerView.size($0, theme: theme, metrics: metrics)) }
