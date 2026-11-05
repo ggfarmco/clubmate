@@ -75,7 +75,7 @@
         "title": "Answer a graph step's approval",
         "hidden": true,
         "remote": true,
-        "description": "Answer a step of a graph run that waits for your approval: once runs it now, always also adds the exact command as a Bash allow rule to the step folder's .claude/settings.local.json, reject ends the step with error · rejected. Not for agents.",
+        "description": "Answer a step of a graph run that waits for your approval: once runs it now, always also adds the exact command as a Bash allow rule to the main checkout's .claude/settings.local.json, reject ends the step with error · rejected. Not for agents.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Run id (gr_…)."},
@@ -103,7 +103,7 @@
         "id": "graphs.trust",
         "title": "Trust a graph's shell steps",
         "hidden": true,
-        "description": "Trust the shell steps of a project graph as they are now: graphs.run refuses a project graph whose steps (run, command, args, in, timeout, exits) changed since you last trusted them. Not for agents.",
+        "description": "Trust the steps of a project, user or built-in graph as they are now: graphs.run refuses a graph whose steps (run, command, args, in, timeout, exits) or routing changed since you last trusted them. Not for agents.",
         "args": {
           "properties": {
             "graph": {"type": "string", "description": "Graph name."},

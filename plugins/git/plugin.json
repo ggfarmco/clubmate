@@ -61,7 +61,7 @@
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
             "branch": {"type": "string", "description": "Branch name, also the folder name under .worktrees/."},
             "from": {"type": "string", "description": "Worktree root, as listed by git.worktrees, whose HEAD a new branch starts from; defaults to the current worktree. Ignored when the branch exists."},
-            "switch": {"type": "boolean", "description": "Switch the workspace folder to the new worktree; defaults to true. The returned path is the new worktree either way."}
+            "switch": {"type": "boolean", "description": "Switch the workspace folder to the new worktree; defaults to true. The path git.worktree-op-status returns is the new worktree either way."}
           },
           "required": ["branch"]
         }

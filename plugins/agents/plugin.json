@@ -66,7 +66,7 @@
               }
             },
             "disallowedTools": {"type": "array", "items": {"type": "string"}, "description": "Tools the session may not use (Claude Code tool names, e.g. Bash or mcp__clubmate__agents_delete), on every start and resume. Voice plugin only."},
-            "systemPrompt": {"type": "string", "description": "Text appended to the session's system prompt instead of Clubmate's AskUserQuestion hint. Voice plugin only."},
+            "systemPrompt": {"type": "string", "description": "Text appended to the session's system prompt instead of Clubmate's AskUserQuestion and open items hint. Voice plugin only."},
             "mode": {"type": "string", "description": "Mode set right after the session starts or resumes, e.g. bypassPermissions; ignored when the agent does not offer it. Voice plugin only."},
             "model": {"type": "string", "description": "Model set right after the session starts or resumes, e.g. sonnet; ignored when the agent does not offer it. Voice plugin only."},
             "firstMode": {"type": "string", "description": "Mode the session starts in instead of the worktree's remembered one, e.g. plan; ignored when the agent does not offer it. Unlike mode it applies once (the user may change it later) and the session stays an ordinary one. Not from an agent (\"invalid_params: only the user may set firstMode\"); Backlog's Start agent sets it."},
@@ -669,7 +669,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, parentSession?, advisor?, fork?, run?: {id, title, after?: [{role, on, outcome?}]}, title, titleSet?, status, mode, finish?, createdAt, updatedAt, closed, error?, pending?, pendingSummary?: {kind, text, tool?, at}, turnStartedAt?, asks, question?, needsYou}]. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; question is that question. needsYou is true when the session waits for the user: a permission or question is pending, or a top-level session asks; a child session's asks and its pending questions are for the session that started it (asksParent, while that session is open), only its permissions need the user; every client shows exactly these as needing you. pendingSummary says what the session waits for: kind permission (text the pending command or tool title, tool its ACP kind) or question (text the question). parentSession is the agent session that started it with agents.new; run is the agent graph run it is a node of. status is running, waiting (a permission is pending; pending lists the request ids), done, idle, error or closed. Non-destructive.",
+        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, parentSession?, advisor?, fork?, run?: {id, title, after?: [{role, on, outcome?}]}, title, titleSet?, status, mode, finish?, createdAt, updatedAt, closed, error?, pending?, pendingSummary?: {kind, text, tool?, at}, turnStartedAt?, asks, question?, needsYou}]. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; question is that question. needsYou is true when the session waits for the user: a permission or question is pending, or a top-level session asks; a child session's asks and its pending questions are for the session that started it (asksParent, while that session is open), only its permissions need the user; every client shows exactly these as needing you. pendingSummary says what the session waits for: kind permission (text the pending command or tool title, tool its ACP kind) or question (text the question). parentSession is the agent session that started it with agents.new; run is the agent graph run it is a node of. status is running, waiting (a permission or a question is pending; pending lists the request ids), done, idle, error or closed. Non-destructive.",
         "args": {
           "properties": {
             "session": {
@@ -718,7 +718,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Read a session's transcript from Clubmate's own log: {session, modes, configOptions, commands, turns:[{turn, checkpointSha, stopReason, commits}], entries:[{kind, id, turn, at?, ...}], cursor, delta?}. kind is user, agent, thought, tool, plan, permission, elicitation or notice. at is when the entry began (RFC 3339); a permission or elicitation entry also has answeredAt once answered. To read what a session did in its latest turn, pass last=true and compact=true. Non-destructive.",
+        "description": "Read a session's transcript from Clubmate's own log: {session, modes, configOptions, commands, turns:[{turn, checkpointSha, stopReason, commits}], entries:[{kind, id, turn, at?, ...}], cursor, delta?}. kind is user, agent, thought, tool, plan, permission, elicitation, notice, compaction or openItems. at is when the entry began (RFC 3339); a permission or elicitation entry also has answeredAt once answered. To read what a session did in its latest turn, pass last=true and compact=true. Non-destructive.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},

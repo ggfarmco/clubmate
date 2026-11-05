@@ -29,7 +29,7 @@
         "args": {
           "properties": {
             "name": {"type": "string", "description": "Short human name of the job."},
-            "command": {"type": "string", "description": "Id of the agent-visible command to call, e.g. agents.prompt or agents.new; cron.* commands cannot be scheduled."},
+            "command": {"type": "string", "description": "Id of the agent-visible command to call, e.g. agents.prompt or agents.new; cron.* commands and triggers.* ones other than triggers.emit cannot be scheduled."},
             "args": {"type": "string", "default": "{}", "description": "Arguments of the command as JSON text (a string holding a JSON object), e.g. {\"session\":\"<id>\",\"text\":\"Check your children\"}; default {}."},
             "cron": {"type": "string", "description": "5-field cron expression (minute hour day month weekday), e.g. 0 9 * * 1-5."},
             "timezone": {"type": "string", "description": "IANA timezone of the cron expression, e.g. Europe/Berlin; default the system's local zone."},

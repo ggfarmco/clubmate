@@ -28,7 +28,7 @@
         "args": {
           "properties": {
             "name": {"type": "string", "description": "Short human name of the trigger."},
-            "on": {"type": "string", "description": "Bus topic to listen to, e.g. agents.turn, or a prefix pattern, e.g. event.*; * alone is not allowed. triggers.emit {name} publishes event.<name>."},
+            "on": {"type": "string", "description": "Bus topic to listen to, e.g. agents.turn, a prefix pattern, e.g. event.*, or a comma-separated list of those; * alone is not allowed. triggers.emit {name} publishes event.<name>."},
             "match": {"type": "string", "description": "Payload filter as JSON text (a string holding a JSON object): every key, a dotted path into the event payload, must equal its value; an array value matches any of its elements, e.g. {\"status\":[\"done\",\"error\"]}. Default: every event on the topic."},
             "command": {"type": "string", "description": "Id of the agent-visible command to call, e.g. agents.prompt or agents.new."},
             "args": {"type": "string", "default": "{}", "description": "Arguments of the command as JSON text, e.g. {\"session\":\"<id>\",\"text\":\"{{payload.session}} finished\"}; default {}."},

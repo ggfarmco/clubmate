@@ -43,7 +43,7 @@ The same file is `plugins/graphs/testdata/.clubmate/graphs/review-loop.json` (wi
 |---|---|
 | `title`, `description` | Shown in the Graphs section and `graphs.list`. |
 | `maxTurns` | Turn budget of a run, 1–200, default 20 (see [Stopping](#stopping)). |
-| `nodes[].id` | Lowercase id, unique. At most 8 nodes: an agent session runs at most 8 child sessions at once. |
+| `nodes[].id` | Lowercase id, unique. At most 8 agent nodes, since an agent session runs at most 8 child sessions at once, and 16 nodes in all. |
 | `nodes[].role` | Human name of the role; defaults to the id. |
 | `nodes[].prompt` | The role brief. Required. |
 | `nodes[].start` | Prompted when the run starts. At least one node. |
@@ -178,11 +178,11 @@ Clubmate ships graphs inside the graphs plugin: `plugins/graphs/builtin/<name>.j
 | `graphs.delete {id}` | Stops the run and removes it from the list. |
 | `graphs.approve {id, node, decision}` | Not agent-visible. Answers a step waiting for approval (see [Steps](#steps)). |
 | `graphs.continue {id, edge}` | Not agent-visible. Delivers an edge's held firing past its round cap. |
-| `graphs.trust {graph}` | Not agent-visible. Trusts a graph's steps (a project file's or a built-in's) as they are now, in this repo. |
+| `graphs.trust {graph, hash?}` | Not agent-visible. Trusts a graph's steps (a project file's, your own or a built-in's) as they are now, in this repo. |
 | `graphs.show {id}` per step | A step node's `status` is `not started`, `running`, `waiting` or its outcome, `command` is the command or Clubmate command the graph gives it (also before it first runs), and `last` is its last move: `command`, `dir`, `allowedBy` (`rule Bash(…)`, `mode bypass`, `you`, `command`), `exitCode`, `outcome`, `reason`, `tail`, `durationMs`, `waitingAt` (when it began to wait for you), `startedAt` (when its process started), `output` (the full output file), `checkFilesChanged` (see The check's own files). Moves carry `summary` (the Haiku summary of a failed step or a finished agent turn) and an agent turn's `reply` (its last 600 characters). A step waiting for approval also has `pending`: `{command, dir, main, rule}`, `rule` being the `Bash(…)` rule Always allow would write to `main` (absent when there is no main checkout or the command can't be a rule). `graphs.show`, `graphs.stop`, `graphs.approve` and `graphs.continue` are `remote`: the phone answers a run from them. |
 | `graphs.reveal {id}` | Not agent-visible. Selects the run in the Graphs section and focuses it; Open graph in Triggers calls it. |
 
-All but `graphs.reveal` are agent-visible, and all are non-destructive. `graphs.run` runs in three steps, in this order because `triggers.add` checks its target session exists:
+`graphs.list`, `graphs.run`, `graphs.show`, `graphs.stop` and `graphs.delete` are agent-visible, and all are non-destructive. `graphs.run` runs in three steps, in this order because `triggers.add` checks its target session exists:
 
 1. `agents.new` every node, idle (title `<graph title> · <role>`, `run`, `runTitle` and `runAfter` (the edges into the node: `{role, on, outcome}` of each, for the Code chat's "runs after Coder"), so the Agents sidebar lists the node sessions under one run row: the run title with `<Role> needs you`, `Running` or the last change as its detail, each node labelled by its role; selecting a node, also through the run's Open, unfolds the row).
 2. `triggers.add` every edge.
