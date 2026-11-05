@@ -55,6 +55,24 @@ func TestTurnEndPostsNotification(t *testing.T) {
 	}
 }
 
+func TestNextTurnOrQuestionReplacesAHeldEnd(t *testing.T) {
+	t.Parallel()
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_END_HOLD=3s"}, map[string]any{"prompt": []map[string]any{{"echo": true}, {"match": "third", "elicitation": askScript(false)}}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+
+	f.prompt(t, workspace, session, "first")
+	f.waitStatus(t, workspace, session, "done")
+	f.prompt(t, workspace, session, "second")
+	f.waitStatus(t, workspace, session, "done")
+	f.prompt(t, workspace, session, "third")
+	f.waitStatus(t, workspace, session, "waiting")
+
+	testutil.Eventually(t, func() bool { return len(f.notes(t)) > 0 }, wait)
+	testutil.Never(t, func() bool { return len(f.notes(t)) > 1 }, 3500*time.Millisecond)
+	assert.Equal(t, "question", f.notes(t)[0].Kind)
+}
+
 func TestChildTurnEndPostsNothing(t *testing.T) {
 	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}})

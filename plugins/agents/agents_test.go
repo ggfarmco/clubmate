@@ -192,6 +192,7 @@ func startEnv(t *testing.T, env []string, script map[string]any, dirs ...string)
 		"CLUBMATE_AGENTS_COMMAND=" + testutil.BuildBinary(t, "clubmate/plugins/agents/internal/fakeagent"),
 		"FAKEAGENT_SCRIPT=" + scriptPath,
 		"FAKEAGENT_LOG=" + f.fakeLog,
+		"CLUBMATE_AGENTS_END_HOLD=0s",
 	}, env...)
 	harnesses <- struct{}{}
 	t.Cleanup(func() { <-harnesses })
@@ -656,11 +657,11 @@ func TestPendingRequestsPostNotifications(t *testing.T) {
 
 	title := f.session(t, workspace, session).Title
 	type posted struct {
-		Workspace, Session, Title, Message, Kind string
+		Workspace, Session, Collapse, Title, Message, Kind string
 	}
 	want := []posted{
-		{workspace, session, title, "Wants to run a command", "permission"},
-		{workspace, session, title, "Has a question", "question"},
+		{workspace, session, session, title, "Wants to run a command", "permission"},
+		{workspace, session, session, title, "Has a question", "question"},
 	}
 	var got []posted
 	testutil.Eventually(t, func() bool {

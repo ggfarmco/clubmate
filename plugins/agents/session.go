@@ -24,6 +24,7 @@ type session struct {
 	idled     func()
 	resolved  func(kind, request string)
 	requested func(kind, request string)
+	began     func(session string)
 	setup     *setup
 
 	transcriptState

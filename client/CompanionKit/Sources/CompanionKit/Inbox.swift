@@ -7,6 +7,7 @@ public struct InboxItem: Sendable, Equatable, Identifiable, Hashable {
     public let computerID: String
     public let workspace: String
     public let session: String?
+    public let collapse: String?
     public let title: String
     public let message: String
     public let kind: NotificationKind
@@ -14,11 +15,12 @@ public struct InboxItem: Sendable, Equatable, Identifiable, Hashable {
     public let pushed: Bool
     public let date: Date
 
-    public init(notificationID: String, computerID: String, workspace: String, session: String? = nil, title: String = "", message: String, kind: NotificationKind = .info, viaAgent: Bool = false, pushed: Bool = false, date: Date) {
+    public init(notificationID: String, computerID: String, workspace: String, session: String? = nil, collapse: String? = nil, title: String = "", message: String, kind: NotificationKind = .info, viaAgent: Bool = false, pushed: Bool = false, date: Date) {
         self.notificationID = notificationID
         self.computerID = computerID
         self.workspace = workspace
         self.session = session
+        self.collapse = collapse
         self.title = title
         self.message = message
         self.kind = kind
@@ -38,6 +40,7 @@ public struct InboxItem: Sendable, Equatable, Identifiable, Hashable {
             computerID: computerID,
             workspace: posted.workspace ?? event.workspace,
             session: posted.session,
+            collapse: posted.collapse,
             title: posted.title,
             message: posted.message,
             kind: posted.kind,
@@ -102,6 +105,7 @@ public struct LocalAlert: Sendable, Equatable {
     public static let kinds: Set<NotificationKind> = [.needsInput, .permission, .question, .stuck, .done]
 
     public let id: String
+    public let identifier: String
     public let title: String
     public let subtitle: String
     public let body: String
@@ -113,6 +117,7 @@ public struct LocalAlert: Sendable, Equatable {
     public init?(_ item: InboxItem, computerName: String, workspaceName: String?, now: Date) {
         guard Self.kinds.contains(item.kind), now.timeIntervalSince(item.date) < Self.window else { return nil }
         id = item.id
+        identifier = item.collapse ?? item.id
         title = [computerName, workspaceName ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
         subtitle = item.title.isEmpty ? item.kind.label : item.title
         body = item.message

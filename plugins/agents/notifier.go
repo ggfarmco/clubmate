@@ -30,6 +30,8 @@ const (
 
 	endPostMax    = 2
 	endPostWindow = 10 * time.Second
+	endHold       = 5 * time.Second
+	endHoldEnv    = "CLUBMATE_AGENTS_END_HOLD"
 
 	doneOpenFormat   = "Done · %d open"
 	listedOpenFormat = "%s · %d open"
@@ -62,9 +64,11 @@ type ending struct {
 	kind      string
 	policy    string
 	open      int
+	due       time.Time
 }
 
 type endQueue struct {
+	hold time.Duration
 	held map[string][]ending
 	sent map[string][]time.Time
 }
@@ -72,6 +76,7 @@ type endQueue struct {
 type notifyPost struct {
 	WorkspaceID string `json:"workspaceId"`
 	Session     string `json:"session"`
+	Collapse    string `json:"collapse,omitempty"`
 	Title       string `json:"title,omitempty"`
 	Message     string `json:"message"`
 	Kind        string `json:"kind"`
@@ -85,7 +90,7 @@ type change struct {
 }
 
 func newNotifier(h *pluginsdk.Host) *notifier {
-	n := &notifier{host: h, seen: map[change]bool{}, saves: map[*session]bool{}, endq: newEndQueue(), wake: make(chan struct{}, 1)}
+	n := &notifier{host: h, seen: map[change]bool{}, saves: map[*session]bool{}, endq: newEndQueue(envDelay(endHoldEnv, endHold)), wake: make(chan struct{}, 1)}
 	go n.run()
 	return n
 }
@@ -136,6 +141,10 @@ func (n *notifier) ended(e ending) {
 	n.poke()
 }
 
+func (n *notifier) superseded(session string) {
+	n.ended(ending{session: session})
+}
+
 func (n *notifier) poke() {
 	select {
 	case n.wake <- struct{}{}:
@@ -167,10 +176,15 @@ func (n *notifier) run() {
 		for _, c := range asks {
 			n.notify(ctx, c)
 		}
+		now := time.Now()
 		for _, e := range ends {
-			n.endq.add(e)
+			if e.kind == "" {
+				n.endq.drop(e.session)
+			} else {
+				n.endq.add(e, now)
+			}
 		}
-		posts, wait := n.endq.take(time.Now())
+		posts, wait := n.endq.take(now)
 		for _, p := range posts {
 			n.post(ctx, p)
 		}
@@ -197,7 +211,7 @@ func (n *notifier) notify(ctx context.Context, c change) {
 	if c.requestKind == entryElicitation {
 		kind, message = notifyQuestion, "Has a question"
 	}
-	n.post(ctx, notifyPost{WorkspaceID: rec.Workspace, Session: rec.ID, Title: rec.Title, Message: message, Kind: kind})
+	n.post(ctx, notifyPost{WorkspaceID: rec.Workspace, Session: rec.ID, Collapse: rec.ID, Title: rec.Title, Message: message, Kind: kind})
 }
 
 func (n *notifier) post(ctx context.Context, req notifyPost) {
@@ -244,29 +258,60 @@ func (e ending) listed() string {
 	return e.title
 }
 
-func newEndQueue() endQueue {
-	return endQueue{held: map[string][]ending{}, sent: map[string][]time.Time{}}
+func newEndQueue(hold time.Duration) endQueue {
+	return endQueue{hold: hold, held: map[string][]ending{}, sent: map[string][]time.Time{}}
 }
 
-func (q *endQueue) add(e ending) {
+func (q *endQueue) add(e ending, now time.Time) {
+	e.due = now.Add(q.hold)
 	held := slices.DeleteFunc(q.held[e.workspace], func(h ending) bool { return h.session == e.session })
 	q.held[e.workspace] = append(held, e)
+}
+
+func (q *endQueue) drop(session string) {
+	for ws, held := range q.held {
+		held = slices.DeleteFunc(held, func(h ending) bool { return h.session == session })
+		if len(held) == 0 {
+			delete(q.held, ws)
+		} else {
+			q.held[ws] = held
+		}
+	}
 }
 
 func (q *endQueue) take(now time.Time) ([]notifyPost, time.Duration) {
 	var posts []notifyPost
 	var wait time.Duration
+	sooner := func(d time.Duration) {
+		if wait == 0 || d < wait {
+			wait = d
+		}
+	}
 	for ws, held := range q.held {
+		var ripe, waiting []ending
+		for _, e := range held {
+			if e.due.After(now) {
+				waiting = append(waiting, e)
+				sooner(e.due.Sub(now))
+			} else {
+				ripe = append(ripe, e)
+			}
+		}
+		if len(ripe) == 0 {
+			continue
+		}
 		sent := slices.DeleteFunc(q.sent[ws], func(t time.Time) bool { return !t.After(now.Add(-endPostWindow)) })
 		if len(sent) >= endPostMax {
 			q.sent[ws] = sent
-			if d := sent[0].Add(endPostWindow).Sub(now); wait == 0 || d < wait {
-				wait = d
-			}
+			sooner(sent[0].Add(endPostWindow).Sub(now))
 			continue
 		}
-		delete(q.held, ws)
-		if post, ok := endPost(held); ok {
+		if len(waiting) == 0 {
+			delete(q.held, ws)
+		} else {
+			q.held[ws] = waiting
+		}
+		if post, ok := endPost(ripe); ok {
 			posts = append(posts, post)
 			q.sent[ws] = append(sent, now)
 		}
@@ -283,7 +328,7 @@ func endPost(held []ending) (notifyPost, bool) {
 		return notifyPost{}, false
 	case 1:
 		e := held[0]
-		return notifyPost{WorkspaceID: e.workspace, Session: e.session, Title: e.title, Message: e.message(), Kind: e.kind}, true
+		return notifyPost{WorkspaceID: e.workspace, Session: e.session, Collapse: e.session, Title: e.title, Message: e.message(), Kind: e.kind}, true
 	}
 	post := notifyPost{WorkspaceID: held[0].workspace, Title: fmt.Sprintf("%d agent sessions", len(held))}
 	var lines []string

@@ -386,6 +386,9 @@ func (s *session) beginTurnLocked() int {
 	s.turn++
 	s.superseded = nil
 	s.settleLocked()
+	if s.began != nil {
+		s.began(s.rec.ID)
+	}
 	return s.turn
 }
 

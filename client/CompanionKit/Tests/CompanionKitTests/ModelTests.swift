@@ -116,6 +116,16 @@ final class ModelTests: XCTestCase {
         XCTAssertNil(InboxItem.pendingCommand(Array(transcript.entries.prefix(6))))
     }
 
+    func testLocalAlertIdentifierCollapsesOnTheNotificationsGroup() throws {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let item = { (collapse: String?) in
+            InboxItem(notificationID: "ntf_1", computerID: "m", workspace: "w", session: "agt_1", collapse: collapse, message: "Finished", kind: .done, date: now)
+        }
+        XCTAssertEqual(LocalAlert(item("agt_1"), computerName: "", workspaceName: nil, now: now)?.identifier, "agt_1")
+        XCTAssertEqual(LocalAlert(item(nil), computerName: "", workspaceName: nil, now: now)?.identifier, "m|ntf_1")
+        XCTAssertEqual(NotifyPosted(.object(["id": .string("ntf_1"), "message": .string("m"), "collapse": .string("agt_1")]))?.collapse, "agt_1")
+    }
+
     func testLocalAlertOnlyForRecentActionableItems() throws {
         let now = Date(timeIntervalSince1970: 10_000)
         let item = { (kind: NotificationKind, age: TimeInterval) in

@@ -118,7 +118,7 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
         var info: [String: String] = ["id": alert.id, "computer": alert.computerID, "workspace": alert.workspace, "kind": alert.kind.rawValue]
         if let session = alert.session { info["session"] = session }
         content.userInfo = info
-        center.add(UNNotificationRequest(identifier: alert.id, content: content, trigger: nil)) { _ in }
+        center.add(UNNotificationRequest(identifier: alert.identifier, content: content, trigger: nil)) { _ in }
     }
 }
 

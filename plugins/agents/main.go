@@ -259,7 +259,9 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 	}
 	s.idled = func() { a.settleBackground(s) }
 	s.resolved = func(kind, request string) { a.notes.resolved(s, kind, request) }
+	s.began = a.notes.superseded
 	s.requested = func(kind, request string) {
+		a.notes.superseded(s.snapshot().ID)
 		if kind != entryElicitation || !a.asksParent(s, s.snapshot()) {
 			a.notes.requested(s, kind, request)
 		}

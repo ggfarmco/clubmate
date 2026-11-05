@@ -28,6 +28,7 @@ var notifySessionPattern = regexp.MustCompile(`^[a-z]{2,8}_[0-9a-f]{16}$`)
 type notifyParams struct {
 	WorkspaceID string `json:"workspaceId"`
 	Session     string `json:"session"`
+	Collapse    string `json:"collapse"`
 	Title       string `json:"title"`
 	Message     string `json:"message"`
 	Kind        string `json:"kind"`
@@ -37,6 +38,7 @@ type notifyPayload struct {
 	ID        string `json:"id"`
 	Workspace string `json:"workspace"`
 	Session   string `json:"session,omitempty"`
+	Collapse  string `json:"collapse,omitempty"`
 	Owner     string `json:"owner,omitempty"`
 	Title     string `json:"title,omitempty"`
 	Message   string `json:"message"`
@@ -101,6 +103,7 @@ func (s *Server) notifyPayload(ctx context.Context, p notifyParams) (notifyPaylo
 		ID:        id.New(notifyPrefix),
 		Workspace: p.WorkspaceID,
 		Session:   p.Session,
+		Collapse:  p.Collapse,
 		Owner:     owner,
 		Title:     notify.Clip(p.Title, notify.MaxTitle),
 		Message:   message,

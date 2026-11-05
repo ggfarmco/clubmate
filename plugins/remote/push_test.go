@@ -176,6 +176,21 @@ func TestPushCommandWithoutSession(t *testing.T) {
 	assert.Empty(t, f.backend.calls())
 }
 
+func TestPushCollapsesOnTheNotificationsGroup(t *testing.T) {
+	f := newFixture(t)
+	relay := f.withRelay(t)
+	f.setPushToken(t, f.pairNamed(t, "phone"), "aa01", apns.EnvProduction)
+
+	f.pushNotification(t, `{"id":"ntf_1","session":"agt_1","collapse":"agt_1","message":"Has a question","kind":"question"}`)
+	f.pushNotification(t, `{"id":"ntf_2","session":"agt_1","collapse":"agt_1","message":"Finished","kind":"done"}`)
+
+	reqs := relay.requests()
+	require.Len(t, reqs, 2)
+	assert.Equal(t, "agt_1", reqs[0].body["collapseID"])
+	assert.Equal(t, "agt_1", reqs[1].body["collapseID"])
+	assert.Equal(t, "cmp|ntf_2", reqs[1].body["payload"].(map[string]any)["id"])
+}
+
 func TestFreePush(t *testing.T) {
 	f := newFixture(t)
 	relay := f.withRelay(t)

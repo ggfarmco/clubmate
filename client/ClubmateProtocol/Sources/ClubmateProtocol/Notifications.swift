@@ -55,6 +55,7 @@ public struct NotifyPosted: Sendable, Equatable {
     public let id: String
     public let workspace: String?
     public let session: String?
+    public let collapse: String?
     public let owner: String?
     public let title: String
     public let message: String
@@ -70,6 +71,7 @@ public struct NotifyPosted: Sendable, Equatable {
         self.message = message
         workspace = nonEmpty("workspace")
         session = nonEmpty("session")
+        collapse = nonEmpty("collapse")
         owner = nonEmpty("owner")
         title = nonEmpty("title") ?? ""
         kind = nonEmpty("kind").flatMap(NotificationKind.init(rawValue:)) ?? .info

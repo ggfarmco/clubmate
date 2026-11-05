@@ -114,6 +114,7 @@ type notifyPayload struct {
 	ID        string `json:"id"`
 	Workspace string `json:"workspace"`
 	Session   string `json:"session"`
+	Collapse  string `json:"collapse"`
 	Title     string `json:"title"`
 	Message   string `json:"message"`
 	Kind      string `json:"kind"`
@@ -226,7 +227,7 @@ func (s *server) pushCommand(ctx context.Context, workspace string, enabled bool
 	if err != nil {
 		return pushResult{}, err
 	}
-	devices := s.pushAll(ctx, relayPush{pushType: apns.TypeAlert, collapseID: truncate(n.ID, apns.MaxCollapseID), notification: n.ID, payload: body})
+	devices := s.pushAll(ctx, relayPush{pushType: apns.TypeAlert, collapseID: truncate(cmp.Or(n.Collapse, n.ID), apns.MaxCollapseID), notification: n.ID, payload: body})
 	if i := slices.IndexFunc(devices, func(d devicePush) bool { return d.err != nil }); i >= 0 {
 		s.alertRelayDown(ctx, workspace, devices[i].err)
 	}
