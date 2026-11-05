@@ -164,7 +164,7 @@ struct InboxRow: View {
                 }
                 summary
                     .font(.subheadline)
-                    .foregroundStyle(muted ? .tertiary : .secondary)
+                    .foregroundStyle(.secondary)
                     .lineLimit(2)
                 if !place.isEmpty {
                     Text(place)
