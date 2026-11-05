@@ -72,7 +72,7 @@ func (a *app) closeDone(after time.Duration) {
 		}
 		for _, s := range tree {
 			if !s.snapshot().closed() {
-				a.closeIdle(ctx, s)
+				a.closeUnlessBusy(ctx, s, s != root)
 			}
 		}
 	}
@@ -114,5 +114,5 @@ func (a *app) stoppedRuns(ctx context.Context, workspace string) map[string]bool
 func (s *session) settled(after time.Duration) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.rec.closed() || s.rec.Status == statusDone && !s.rec.Review && s.rec.OpenCount == 0 && s.idleLocked(after) && !s.asksLocked()
+	return s.rec.closed() || s.rec.Status == statusDone && !s.rec.Review && s.rec.OpenCount == 0 && s.idleLocked(after) && (s.rec.ParentSession != "" || !s.asksLocked())
 }

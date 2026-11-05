@@ -24,6 +24,8 @@ func TestDoneTreeClosesItselfUnlessItAsksOrOwnsJobs(t *testing.T) {
 	workspace := f.workspace(t, newRepo(t))
 	root := f.newSession(t, workspace)
 	kid := f.newChild(t, workspace, root, map[string]any{"prompt": "one"}).Session
+	askingKid := f.newChild(t, workspace, root, map[string]any{"prompt": "Which one?"}).Session
+	testutil.Eventually(t, func() bool { return f.session(t, workspace, askingKid).Asks }, wait)
 	asking := f.newSession(t, workspace)
 	scheduled := f.newSession(t, workspace)
 	require.NoError(t, f.runAs(t, workspace, scheduled, "cron.add", map[string]any{"name": "ci", "command": "agents.prompt", "args": `{"session":"` + scheduled + `","text":"Check CI"}`, "in": "10h"}, nil))
@@ -35,6 +37,7 @@ func TestDoneTreeClosesItselfUnlessItAsksOrOwnsJobs(t *testing.T) {
 	assert.True(t, closed.AutoClosed)
 	assert.Equal(t, "done", closed.ClosedStatus)
 	assert.True(t, f.waitStatus(t, workspace, kid, "closed").AutoClosed)
+	assert.True(t, f.waitStatus(t, workspace, askingKid, "closed").AutoClosed)
 	assert.Equal(t, "clubmate", closeActor(t, f.logLines(t, root)))
 	time.Sleep(3 * after)
 	assert.Equal(t, "done", f.session(t, workspace, asking).Status)

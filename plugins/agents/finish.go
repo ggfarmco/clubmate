@@ -171,8 +171,12 @@ func (a *app) othersIn(id, root string) bool {
 }
 
 func (a *app) closeIdle(ctx context.Context, s *session) bool {
+	return a.closeUnlessBusy(ctx, s, false)
+}
+
+func (a *app) closeUnlessBusy(ctx context.Context, s *session, evenAsking bool) bool {
 	s.mu.Lock()
-	if s.running || len(s.queue) > 0 || s.rec.Status != statusDone || s.rec.OpenCount > 0 || s.asksLocked() {
+	if s.running || len(s.queue) > 0 || s.rec.Status != statusDone || s.rec.OpenCount > 0 || !evenAsking && s.asksLocked() {
 		s.mu.Unlock()
 		return false
 	}
