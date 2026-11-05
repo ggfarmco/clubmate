@@ -167,6 +167,28 @@ func TestPruneDropsJobsOfDeletedWorkspaces(t *testing.T) {
 	assert.False(t, st.has("cj_gone"))
 }
 
+func TestDeletedWorkspaceForgetsSentReminders(t *testing.T) {
+	now := time.Date(2026, 10, 30, 15, 0, 0, 0, time.UTC)
+	run := func(context.Context, automation.CommandRequest) (json.RawMessage, error) { return nil, nil }
+	a, _ := testApp(&now, run, &Job{
+		ID: "cj_1", Workspace: "prj_1", Enabled: true, Owner: "agt_1", Command: "agents.prompt",
+		Args:     json.RawMessage(`{"session":"agt_1","text":"check"}`),
+		Schedule: Schedule{At: now.Add(time.Hour)},
+	})
+	close(a.ready)
+	live := []pluginsdk.Workspace{{ID: "prj_1"}}
+	a.workspaces = func(context.Context) ([]pluginsdk.Workspace, error) { return live, nil }
+	a.feedReminders(t.Context(), "prj_1")
+	deleted := pluginsdk.Event{Topic: automation.TopicWorkspaceDeleted, Payload: json.RawMessage(`{"workspace":"prj_1"}`)}
+
+	a.busEvent(t.Context(), nil, "", deleted)
+	assert.Contains(t, a.sentReminders, "prj_1")
+
+	live = nil
+	a.busEvent(t.Context(), nil, "", deleted)
+	assert.NotContains(t, a.sentReminders, "prj_1")
+}
+
 func TestReconcileDropsJobsOfGoneOwners(t *testing.T) {
 	now := time.Date(2026, 10, 30, 15, 0, 0, 0, time.UTC)
 	a, st := testApp(&now, nil,

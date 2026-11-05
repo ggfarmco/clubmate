@@ -1,0 +1,58 @@
+package claudecli
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestAskReturnsWhileAChildHoldsStdout(t *testing.T) {
+	dir := t.TempDir()
+	ready := filepath.Join(dir, "ready")
+	script := fmt.Sprintf("#!/bin/sh\n/bin/sleep 20 &\n: > %q\nwait\n", ready)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "claude"), []byte(script), 0o755))
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	go func() {
+		for {
+			if _, err := os.Stat(ready); err == nil {
+				cancel()
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(5 * time.Millisecond):
+			}
+		}
+	}()
+
+	start := time.Now()
+	_, err := Ask(ctx, Haiku, "system", "input")
+
+	require.Error(t, err)
+	assert.Less(t, time.Since(start), 10*time.Second)
+}
+
+func TestFindSkipsHomePathsWithoutHome(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".local", "bin"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".local", "bin", "claude"), []byte("#!/bin/sh\n"), 0o755))
+	t.Chdir(dir)
+	t.Setenv("HOME", "")
+	t.Setenv("PATH", t.TempDir())
+
+	path, err := Find()
+
+	if err == nil {
+		assert.True(t, filepath.IsAbs(path), path)
+	}
+}

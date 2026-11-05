@@ -10,9 +10,13 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 )
 
-const Haiku = "claude-haiku-5-5"
+const (
+	Haiku     = "claude-haiku-5-5"
+	waitDelay = 3 * time.Second
+)
 
 var ErrMissing = errors.New("claude CLI not found")
 
@@ -20,8 +24,11 @@ func Find() (string, error) {
 	if path, err := exec.LookPath("claude"); err == nil {
 		return path, nil
 	}
-	home, _ := os.UserHomeDir()
-	for _, path := range []string{filepath.Join(home, ".local", "bin", "claude"), filepath.Join(home, ".claude", "local", "claude"), "/opt/homebrew/bin/claude"} {
+	var paths []string
+	if home, err := os.UserHomeDir(); err == nil {
+		paths = []string{filepath.Join(home, ".local", "bin", "claude"), filepath.Join(home, ".claude", "local", "claude")}
+	}
+	for _, path := range append(paths, "/opt/homebrew/bin/claude") {
 		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
 			return path, nil
 		}
@@ -48,6 +55,7 @@ func Ask(ctx context.Context, model, system, input string) (string, error) {
 	cmd.Stdin = strings.NewReader(input)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
+	cmd.WaitDelay = waitDelay
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("claude: %w: %s", err, strings.TrimSpace(stderr.String()))

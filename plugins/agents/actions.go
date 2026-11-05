@@ -279,7 +279,10 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			p.focusAfter = focusQueue
 		}
 		a.uiMu.Unlock()
-		if queue := a.openQueue(ev.WorkspaceID); id == filterOpen && len(queue) > 0 {
+		if id != filterOpen {
+			return nil
+		}
+		if queue := a.openQueue(ev.WorkspaceID); len(queue) > 0 {
 			return a.selectSession(ctx, ev.WorkspaceID, queue[0].Session)
 		}
 		return nil

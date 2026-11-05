@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/id"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
@@ -144,6 +145,19 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		a.forgetReminders()
 	}
 	a.registry.BusEvent(ctx, ev)
+	if ev.Topic == automation.TopicWorkspaceDeleted {
+		a.forgetWorkspaceReminders(ev.Payload)
+	}
+}
+
+func (a *app) forgetWorkspaceReminders(payload json.RawMessage) {
+	var p contract.WorkspaceDeleted
+	if json.Unmarshal(payload, &p) != nil || len(a.reminders(p.Workspace)) > 0 {
+		return
+	}
+	a.mu.Lock()
+	delete(a.sentReminders, p.Workspace)
+	a.mu.Unlock()
 }
 
 func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {

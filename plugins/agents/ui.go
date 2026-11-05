@@ -157,6 +157,9 @@ func (a *app) forgetWorkspace(workspaceID string) {
 	delete(a.watched, workspaceID)
 	delete(a.editorFiles, workspaceID)
 	a.uiMu.Unlock()
+	a.reminders.mu.Lock()
+	delete(a.reminders.byWS, workspaceID)
+	a.reminders.mu.Unlock()
 	if p != nil {
 		p.throttle.stop()
 		p.tick.stop()

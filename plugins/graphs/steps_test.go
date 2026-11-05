@@ -813,7 +813,7 @@ func TestCommandStepFailuresAreErrors(t *testing.T) {
 	}
 }
 
-func TestRemovedRunTakesItsOutput(t *testing.T) {
+func TestRemovedRunTakesItsOutputAndSelection(t *testing.T) {
 	for _, how := range []string{"delete", "workspace"} {
 		t.Run(how, func(t *testing.T) {
 			t.Setenv("CLUBMATE_PLUGIN_STATE_DIR", t.TempDir())
@@ -823,6 +823,7 @@ func TestRemovedRunTakesItsOutput(t *testing.T) {
 			require.Equal(t, outputDir(r.ID), filepath.Dir(out))
 			require.NoError(t, os.MkdirAll(filepath.Dir(out), 0o700))
 			require.NoError(t, os.WriteFile(out, []byte("x"), 0o600))
+			a.stepSel[r.ID] = pick{node: "tests"}
 			if how == "delete" {
 				_, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.delete", WorkspaceID: "ws1", Args: json.RawMessage(`{"id":"` + r.ID + `"}`)})
 				require.NoError(t, err)
@@ -831,6 +832,7 @@ func TestRemovedRunTakesItsOutput(t *testing.T) {
 				a.dropWorkspace(t.Context(), "ws1")
 			}
 			assert.NoDirExists(t, outputDir(r.ID))
+			assert.NotContains(t, a.stepSel, r.ID)
 		})
 	}
 }

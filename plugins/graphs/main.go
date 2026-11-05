@@ -742,6 +742,7 @@ func (a *app) dropWorkspace(ctx context.Context, workspace string) {
 	for id, r := range a.runs {
 		if r.Workspace == workspace {
 			delete(a.runs, id)
+			delete(a.stepSel, id)
 			logError(a.store.Remove(ctx, r))
 			dropped = append(dropped, id)
 			removeOutput(id)

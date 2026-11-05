@@ -267,6 +267,7 @@ func (a *app) stopRun(ctx context.Context, cmd pluginsdk.CommandRun, forget bool
 	}
 	if forget {
 		delete(a.runs, r.ID)
+		delete(a.stepSel, r.ID)
 		a.touch(r.Workspace)
 		removeOutput(r.ID)
 		return nil, a.store.Remove(ctx, live)
