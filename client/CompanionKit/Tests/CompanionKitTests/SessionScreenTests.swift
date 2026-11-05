@@ -163,6 +163,30 @@ final class SessionScreenTests: XCTestCase {
         XCTAssertNil(dock(AgentSession(id: "s", status: .closed, openCount: 1)))
     }
 
+    func testOpenCardShowsThePluginsNumbersAcrossTurns() throws {
+        let json = #"""
+        [{"kind":"openItems","id":"open-1","turn":1,"items":[{"id":"oi-1","kind":"decision","header":"Lists","state":"open","number":1},{"id":"oi-2","kind":"offer","label":"A","state":"open","number":3}]},
+         {"kind":"openItems","id":"open-2","turn":2,"items":[{"id":"oi-3","kind":"decision","header":"Keys","state":"open","number":2},{"id":"oi-4","kind":"offer","label":"B","state":"open","number":3}]}]
+        """#
+        let entries = try JSONDecoder.clubmate.decode([TranscriptEntry].self, from: Data(json.utf8))
+        guard case .open(let card) = SessionScreen(entries: entries, session: AgentSession(id: "s", status: .done, openCount: 4)).dock else { return XCTFail("no card") }
+        XCTAssertEqual(card.sections.map(\.number), [1, 2, 3])
+        XCTAssertEqual(card.items.map(\.number), [1, 3, 2, 3])
+    }
+
+    func testHiddenToolCallLeavesNoRowAndIsNotCounted() throws {
+        let json = #"""
+        [{"kind":"tool","id":"a","tool":{"title":"Read a.go","kind":"read","status":"completed"}},
+         {"kind":"tool","id":"open","hidden":true,"tool":{"title":"mcp__clubmate__agents_open_items","kind":"other","status":"completed"}},
+         {"kind":"tool","id":"b","tool":{"title":"Read b.go","kind":"read","status":"completed"}}]
+        """#
+        let entries = try JSONDecoder.clubmate.decode([TranscriptEntry].self, from: Data(json.utf8))
+        let rows = SessionScreen(entries: entries, session: AgentSession(id: "s", status: .done)).rows
+        guard rows.count == 1, case .tools(_, let group) = rows[0] else { return XCTFail("unexpected rows \(rows)") }
+        XCTAssertEqual(group.title, "2 actions")
+        XCTAssertTrue(SessionScreen(entries: [entries[1]], session: AgentSession(id: "s", status: .done)).rows.isEmpty)
+    }
+
     func testResolvedOpenItemsLeaveOneQuietRow() throws {
         let json = #"{"kind":"openItems","id":"open-1","turn":1,"overflow":[211],"items":[{"id":"oi-1","kind":"decision","header":"Lists","state":"answered"},{"id":"oi-2","kind":"offer","label":"A","state":"no"},{"id":"oi-3","kind":"offer","label":"B","state":"backlog","task":210}]}"#
         let entry = try JSONDecoder.clubmate.decode(TranscriptEntry.self, from: Data(json.utf8))

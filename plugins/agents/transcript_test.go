@@ -113,6 +113,40 @@ func TestDocOnlyForCompletedDocTools(t *testing.T) {
 	assert.Equal(t, actOpenLocation, actions[1].Action)
 }
 
+func TestOpenItemsCallLeavesTheRenderedTreeOnceItCompleted(t *testing.T) {
+	t.Parallel()
+	tool := func(id, title, status string) string {
+		return `{"turn":1,"kind":"session/update","payload":{"sessionUpdate":"tool_call","toolCallId":"` + id + `","title":"` + title + `","kind":"other","status":"` + status + `"}}`
+	}
+	lines := []string{
+		tool("search", "ToolSearch", "completed"),
+		tool("failed", openItemsTool, "failed"),
+		tool("posted", openItemsTool, "pending"),
+		`{"turn":1,"kind":"session/update","payload":{"sessionUpdate":"tool_call_update","toolCallId":"posted","status":"completed"}}`,
+		tool("running", openItemsTool, "in_progress"),
+	}
+	path := filepath.Join(t.TempDir(), "s.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600))
+	s := newSession(record{ID: "s"}, newEventLog(path), false, func(string, bool) {})
+
+	view := s.view(0)
+
+	var ids, hidden []string
+	for _, en := range view.Entries {
+		ids = append(ids, en.ID)
+		if en.Hidden {
+			hidden = append(hidden, en.ID)
+		}
+	}
+	assert.Equal(t, []string{"search", "failed", "posted", "running"}, ids)
+	assert.Equal(t, []string{"posted"}, hidden)
+	var cards []string
+	for _, n := range nodesOf(transcript(screen{View: view}), "toolCard") {
+		cards = append(cards, n.ID)
+	}
+	assert.Equal(t, []string{"s/tool/search", "s/tool/failed", "s/tool/running"}, cards)
+}
+
 func TestDocLinksResolveWhenTheTurnEnds(t *testing.T) {
 	wt, home := t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)

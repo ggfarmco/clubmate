@@ -355,7 +355,7 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 		n.ID = sid + "/plan/" + strconv.Itoa(en.Turn)
 		return n, true
 	case entryTool:
-		return toolCard(sid+"/tool/"+en.ID, root, en, sc.Expanded[en.ID], sha != ""), true
+		return toolCard(sid+"/tool/"+en.ID, root, en, sc.Expanded[en.ID], sha != ""), !en.Hidden
 	case entryPermission:
 		return permissionCard(sc, en), true
 	case entryElicitation:

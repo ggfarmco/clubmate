@@ -17,6 +17,7 @@ import (
 
 const (
 	entryOpenItems = "openItems"
+	openItemsTool  = "mcp__" + mcpName + "__agents_open_items"
 
 	itemDecision = "decision"
 	itemOffer    = "offer"
@@ -62,6 +63,7 @@ type openItem struct {
 	State       string       `json:"state"`
 	Answer      string       `json:"answer,omitempty"`
 	Task        int          `json:"task,omitempty"`
+	Number      int          `json:"number,omitempty"`
 	At          time.Time    `json:"at,omitzero"`
 	Changes     []string     `json:"changes,omitempty"`
 
@@ -257,7 +259,7 @@ func (a *app) openQueue(workspaceID string) []openQueueEntry {
 		if s == nil || rec.OpenCount == 0 {
 			continue
 		}
-		out = append(out, openQueueEntry{Session: rec.ID, Title: rec.Title, Worktree: rec.Worktree, UpdatedAt: rec.UpdatedAt, Items: s.openList(), since: rec.OpenSince})
+		out = append(out, openQueueEntry{Session: rec.ID, Title: rec.Title, Worktree: rec.Worktree, UpdatedAt: rec.UpdatedAt, Items: s.numberedOpen(), since: rec.OpenSince})
 	}
 	slices.SortStableFunc(out, func(x, y openQueueEntry) int {
 		return cmp.Or(x.since.Compare(y.since), cmp.Compare(x.Session, y.Session))

@@ -48,10 +48,10 @@ public struct OpenItem: Decodable, Sendable, Equatable, Identifiable {
     public let state: State
     public let task: Int?
     public let at: Date?
-    public var number = 0
+    public var number: Int
 
     enum CodingKeys: String, CodingKey {
-        case id, kind, header, question, label, description, quote, options, multiSelect, state, task, at
+        case id, kind, header, question, label, description, quote, options, multiSelect, state, task, number, at
     }
 
     public init(from decoder: any Decoder) throws {
@@ -68,6 +68,7 @@ public struct OpenItem: Decodable, Sendable, Equatable, Identifiable {
         multiSelect = try c.decodeIfPresent(Bool.self, forKey: .multiSelect) ?? false
         state = try c.decodeIfPresent(State.self, forKey: .state) ?? .open
         task = try c.decodeIfPresent(Int.self, forKey: .task)
+        number = try c.decodeIfPresent(Int.self, forKey: .number) ?? 0
         at = (try? c.decodeIfPresent(String.self, forKey: .at)).flatMap { $0.flatMap(Date.parseRFC3339) }
     }
 }
@@ -80,7 +81,7 @@ public struct OpenItems: Sendable, Equatable {
     public init(items: [OpenItem], overflow: [Int], later: Bool) {
         self.items = items.enumerated().map { index, item in
             var item = item
-            item.number = index + 1
+            if item.number == 0 { item.number = index + 1 }
             return item
         }
         self.overflow = overflow

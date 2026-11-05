@@ -142,6 +142,14 @@ func openNumbers(entries []*entry) map[*entry][]int {
 	return out
 }
 
+func withNumbers(items []openItem, numbers []int) []openItem {
+	out := slices.Clone(items)
+	for i, number := range numbers {
+		out[i].Number = number
+	}
+	return out
+}
+
 func hasOpen(en *entry) bool {
 	return slices.ContainsFunc(en.Items, func(it openItem) bool { return it.State == itemOpen })
 }

@@ -104,6 +104,7 @@ type entry struct {
 	DocCards   []sdui.DocCard    `json:"docCards,omitempty"`
 	Images     []sdui.ImageRef   `json:"images,omitempty"`
 	ImageLinks map[string]string `json:"imageLinks,omitempty"`
+	Hidden     bool              `json:"hidden,omitempty"`
 	Voice      *voicePrompt      `json:"voice,omitempty"`
 	Review     *reviewSent       `json:"review,omitempty"`
 
@@ -111,11 +112,12 @@ type entry struct {
 	Overflow []int      `json:"overflow,omitempty"`
 	Later    bool       `json:"later,omitempty"`
 
-	node   *nodeCache
-	sub    *subagent
-	rev    int64
-	closed bool
-	marked string
+	node    *nodeCache
+	sub     *subagent
+	rev     int64
+	closed  bool
+	marked  string
+	numbers []int
 }
 
 type voicePrompt struct {
@@ -190,6 +192,7 @@ func (s *session) viewSince(fromTurn int, since int64) transcriptView {
 	s.loadLocked()
 	v := transcriptView{Session: s.rec, Modes: slices.Clone(s.modes), Configs: slices.Clone(s.configs), Usage: s.usage, Commands: slices.Clone(s.commands), Turns: slices.Clone(s.turns)}
 	marked := s.markedLocked()
+	numbers := openNumbers(s.opens)
 	for _, en := range s.entries {
 		if since < 0 && en.Turn < fromTurn {
 			continue
@@ -198,6 +201,9 @@ func (s *session) viewSince(fromTurn int, since int64) transcriptView {
 		if marked[en] != en.marked {
 			en.marked, en.node = marked[en], nil
 		}
+		if !slices.Equal(numbers[en], en.numbers) {
+			en.numbers, en.node = numbers[en], nil
+		}
 		if en.node == nil {
 			en.node = new(nodeCache)
 			s.bumpLocked(en)
@@ -205,6 +211,7 @@ func (s *session) viewSince(fromTurn int, since int64) transcriptView {
 		c := *en
 		c.sub = nil
 		c.Text = cmp.Or(en.marked, en.Text)
+		c.Items = withNumbers(en.Items, en.numbers)
 		closed := false
 		if en.Tool != nil && (en.sub == nil && !s.workingLocked() || en.sub != nil && s.proc == nil) {
 			if tool, ok := closeTool(en.Tool); ok {
@@ -569,6 +576,14 @@ func (s *session) applyTool(create bool, turn int, payload json.RawMessage) {
 		s.edited = true
 	}
 	en.Doc = s.docOf(en.Tool)
+	en.Hidden = hiddenTool(en.Tool)
+}
+
+func hiddenTool(tool map[string]json.RawMessage) bool {
+	var title, status string
+	_ = json.Unmarshal(tool["title"], &title)
+	_ = json.Unmarshal(tool["status"], &status)
+	return title == openItemsTool && status == "completed"
 }
 
 func (s *session) docOf(tool map[string]json.RawMessage) string {

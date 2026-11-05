@@ -448,6 +448,7 @@ struct OpenQueueView: View {
         return TimelineView(.periodic(from: .now, by: 30)) { timeline in
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
+                    OpenNumber(number: item.number, done: store.openDraft(step.session).answer(item) != nil)
                     OpenHeaderChip(text: item.kind == .decision ? item.header : "Next")
                     Text([step.title, item.at.map { ShortAge.since($0, now: timeline.date) }].compactMap { $0 }.joined(separator: " · "))
                         .font(.footnote)

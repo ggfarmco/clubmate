@@ -370,7 +370,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     public let imageLinks: [String: String]
 
     enum CodingKeys: String, CodingKey {
-        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction, elicitation, response, completed, stoppable, doc, docLinks, docCards, images, imageLinks, card, voice, items, overflow, later
+        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction, elicitation, response, completed, stoppable, doc, hidden, docLinks, docCards, images, imageLinks, card, voice, items, overflow, later
     }
 
     static let outgoingPrefix = "outgoing/"
@@ -424,7 +424,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         case .thought:
             content = .thought(text)
         case .tool:
-            content = .tool(ToolCall(id: entryID, fields: (try? c.decodeIfPresent(JSONValue.self, forKey: .tool)) ?? .null, stoppable: (try? c.decodeIfPresent(Bool.self, forKey: .stoppable)) ?? false, at: at, doc: try? c.decodeIfPresent(String.self, forKey: .doc)))
+            content = .tool(ToolCall(id: entryID, fields: (try? c.decodeIfPresent(JSONValue.self, forKey: .tool)) ?? .null, stoppable: (try? c.decodeIfPresent(Bool.self, forKey: .stoppable)) ?? false, at: at, doc: try? c.decodeIfPresent(String.self, forKey: .doc), hidden: (try? c.decodeIfPresent(Bool.self, forKey: .hidden)) ?? false))
         case .plan:
             let plan = (try? c.decodeIfPresent(JSONValue.self, forKey: .plan)) ?? .null
             content = .plan((plan["entries"]?.arrayValue ?? []).map(PlanItem.init))
@@ -510,12 +510,14 @@ public struct ToolCall: Sendable, Equatable {
     public let stoppable: Bool
     public let at: Date?
     public let doc: String?
+    public let hidden: Bool
 
-    public init(id: String, fields: JSONValue, stoppable: Bool = false, at: Date? = nil, doc: String? = nil) {
+    public init(id: String, fields: JSONValue, stoppable: Bool = false, at: Date? = nil, doc: String? = nil, hidden: Bool = false) {
         self.id = id
         self.stoppable = stoppable
         self.at = at
         self.doc = doc
+        self.hidden = hidden
         title = fields["title"]?.stringValue ?? ""
         kind = ToolKind(fields["kind"]?.stringValue)
         status = fields["status"]?.stringValue.flatMap { $0.isEmpty ? nil : ToolStatus($0) } ?? .pending

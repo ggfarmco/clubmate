@@ -105,6 +105,22 @@ func (s *session) openList() []openItem {
 	return s.openItemsLocked()
 }
 
+func (s *session) numberedOpen() []openItem {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadLocked()
+	numbers := openNumbers(s.opens)
+	var out []openItem
+	for _, en := range s.opens {
+		for _, it := range withNumbers(en.Items, numbers[en]) {
+			if it.State == itemOpen {
+				out = append(out, it)
+			}
+		}
+	}
+	return out
+}
+
 func (s *session) openItemsLocked() []openItem {
 	var out []openItem
 	for _, en := range s.opens {

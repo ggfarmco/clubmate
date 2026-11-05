@@ -19,6 +19,7 @@ type openItem struct {
 	State    string `json:"state"`
 	Answer   string `json:"answer"`
 	Task     int    `json:"task"`
+	Number   int    `json:"number"`
 	Question string `json:"question"`
 	Label    string `json:"label"`
 }
@@ -108,7 +109,7 @@ func TestOpenItemsLeaveTheSessionDoneAndSurviveARestart(t *testing.T) {
 	assert.Equal(t, 2, f.session(t, workspace, session).OpenCount)
 	items := f.openEntry(t, workspace, session).Items
 	require.Len(t, items, 2)
-	assert.Equal(t, openItem{ID: "oi-1", Kind: "decision", State: "open", Question: "Which Lists?"}, items[0])
+	assert.Equal(t, openItem{ID: "oi-1", Kind: "decision", State: "open", Number: 1, Question: "Which Lists?"}, items[0])
 	assert.Equal(t, []string{"oi-3"}, f.postItems(t, workspace, session, offer("more")).Items)
 }
 
@@ -275,6 +276,52 @@ func TestQueueListsOpenItemsOldestFirst(t *testing.T) {
 	assert.Equal(t, f.session(t, workspace, first).Worktree, queue[1].Worktree)
 	require.Len(t, queue[1].Items, 1)
 	assert.Equal(t, "newer", queue[1].Items[0].Label)
+}
+
+func TestNumbersFollowTheOpenSetAcrossTurns(t *testing.T) {
+	t.Parallel()
+	f := start(t, echoScript)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.doneSession(t, workspace)
+	f.postItems(t, workspace, session, decision("First"))
+	f.prompt(t, workspace, session, "again")
+	testutil.Eventually(t, func() bool { return len(f.transcript(t, workspace, session).Turns) == 2 }, wait)
+	f.waitStatus(t, workspace, session, "done")
+	f.postItems(t, workspace, session, decision("Second"), offer("one"), offer("two"))
+	numbers := func(entries []entry) [][]int {
+		var out [][]int
+		for _, en := range entries {
+			if en.Kind == "openItems" {
+				var list []int
+				for _, it := range en.Items {
+					list = append(list, it.Number)
+				}
+				out = append(out, list)
+			}
+		}
+		return out
+	}
+	var view struct {
+		Cursor  string  `json:"cursor"`
+		Entries []entry `json:"entries"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.transcript", map[string]any{"session": session}, &view))
+	assert.Equal(t, [][]int{{1}, {2, 3, 3}}, numbers(view.Entries))
+	var queue []struct {
+		Items []openItem `json:"items"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.open-queue", map[string]any{}, &queue))
+	require.Len(t, queue, 1)
+	require.Len(t, queue[0].Items, 4)
+	assert.Equal(t, 3, queue[0].Items[3].Number)
+
+	require.NoError(t, f.run(t, workspace, "agents.open-no", map[string]any{"session": session, "items": []string{"oi-1"}}, nil))
+
+	var delta struct {
+		Entries []entry `json:"entries"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.transcript", map[string]any{"session": session, "since": view.Cursor}, &delta))
+	assert.Equal(t, [][]int{{0}, {1, 2, 2}}, numbers(delta.Entries))
 }
 
 func TestConvertPromptsTheSession(t *testing.T) {

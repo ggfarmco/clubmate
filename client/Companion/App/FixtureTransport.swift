@@ -192,8 +192,12 @@ actor FixtureServer {
                 sessions.append(record)
                 var entries = [Self.entry("user", "open-prompt", text: "Rework it"), Self.entry("agent", "open-report", text: report)]
                 if open > 0 {
-                    var fields: [String: JSONValue] = ["kind": .string("openItems"), "id": .string("open-1"), "turn": .number(1), "items": .array(items.map { Self.openItem($0, at: Self.stamp(ago: ago)) })]
-                    if open == 7 { fields["overflow"] = .array([.number(211), .number(212)]) }
+                    entries.append(.object(["kind": .string("tool"), "id": .string("open-call"), "turn": .number(1), "hidden": .bool(true), "tool": .object(["title": .string("mcp__clubmate__agents_open_items"), "kind": .string("other"), "status": .string("completed")])]))
+                }
+                let numbered = Self.openNumbered(items)
+                for (index, group) in (open == 7 ? [Array(numbered.prefix(2)), Array(numbered.dropFirst(2))] : [numbered]).enumerated() where !group.isEmpty {
+                    var fields: [String: JSONValue] = ["kind": .string("openItems"), "id": .string("open-\(index + 1)"), "turn": .number(Double(index + 1)), "items": .array(group.map { Self.openItem($0, at: Self.stamp(ago: ago)) })]
+                    if open == 7, index == 0 { fields["overflow"] = .array([.number(211), .number(212)]) }
                     entries.append(.object(fields))
                 }
                 transcripts[id] = ["entries": .array(entries)]
@@ -1094,6 +1098,16 @@ actor FixtureServer {
 
     private static func openOffer(_ id: String, _ label: String, _ description: String, _ quote: String) -> [String: JSONValue] {
         ["id": .string(id), "kind": .string("offer"), "label": .string(label), "description": .string(description), "quote": .string(quote), "state": .string("open")]
+    }
+
+    private static func openNumbered(_ items: [[String: JSONValue]]) -> [[String: JSONValue]] {
+        let decisions = items.count { $0["kind"] == .string("decision") }
+        var next = 0
+        return items.map { item in
+            guard item["kind"] == .string("decision") else { return item.merging(["number": .number(Double(decisions + 1))]) { $1 } }
+            next += 1
+            return item.merging(["number": .number(Double(next))]) { $1 }
+        }
     }
 
     private static func openItem(_ fields: [String: JSONValue], at: JSONValue) -> JSONValue {
