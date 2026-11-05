@@ -27,29 +27,31 @@ const (
 	openQueueNode = "openQueue"
 	openKeysNode  = "keys"
 
-	openTitle     = "Open after this turn"
-	openNote      = "answer any time; nothing waits"
-	openSendNote  = "Send starts a turn with your answers"
-	openSendShort = "starts a turn"
-	nextHeader    = "Next"
-	nextQuestion  = "Next — tick what you want me to do"
-	nextNote      = "any, or none"
-	openIcon      = "checkmark.circle"
-	openGap       = 8
-	queueGap      = 0
-	openFilterKey = "opt+o"
-	openTone      = "warning"
-	mayAskDetail  = "may have left a question"
-	mayAskNote    = "Its last message may have left a question."
-	mayAskIcon    = "questionmark.circle"
-	convertLabel  = "Turn into items"
-	queueHints    = "j/k item · 1–4 pick · x tick · o other · L later · B backlog · ⌫ no · ⌘↩ send all answered · ↩ open session"
-	noneOpen      = "Nothing open"
-	withAnswers   = " — your answers go with it"
+	openTitle      = "Open after this turn"
+	openNote       = "answer any time; nothing waits"
+	openSendNote   = "Send starts a turn with your answers"
+	openSendShort  = "starts a turn"
+	openNightNote  = "Undo happens at once, with no turn"
+	openBacklogKey = "b"
+	nextHeader     = "Next"
+	nextQuestion   = "Next — tick what you want me to do"
+	nextNote       = "any, or none"
+	openIcon       = "checkmark.circle"
+	openGap        = 8
+	queueGap       = 0
+	openFilterKey  = "opt+o"
+	openTone       = "warning"
+	mayAskDetail   = "may have left a question"
+	mayAskNote     = "Its last message may have left a question."
+	mayAskIcon     = "questionmark.circle"
+	convertLabel   = "Turn into items"
+	queueHints     = "j/k item · 1–4 pick · x tick · o other · L later · B backlog · ⌫ no · ⌘↩ send all answered · ↩ open session"
+	noneOpen       = "Nothing open"
+	withAnswers    = " — your answers go with it"
 )
 
 var (
-	openSessionKeys = []string{"j", "k", "up", "down", "1", "2", "3", "4", "x", "o", "l", "b", "delete", "shift+delete", "cmd+return"}
+	openSessionKeys = []string{"j", "k", "up", "down", "1", "2", "3", "4", "x", "o", "l", openBacklogKey, "delete", "shift+delete", "cmd+return"}
 	openQueueKeys   = append(slices.Clone(openSessionKeys), "return")
 )
 
@@ -60,6 +62,7 @@ type openCardData struct {
 	Overflow []int
 	Later    bool
 	Entry    string
+	Night    bool
 }
 
 type openQueueCard struct {
@@ -79,7 +82,7 @@ func (s *session) openCard() openCardData {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.loadLocked()
-	data := openCardData{Numbers: map[string]int{}}
+	data := openCardData{Numbers: map[string]int{}, Night: s.rec.Night != ""}
 	numbers := openNumbers(s.opens)
 	for _, en := range s.opens {
 		held := numbers[en]
@@ -169,9 +172,13 @@ func openCard(sid string, count int, data openCardData, d openDraft) sdui.Node {
 	if line := overflowLine(data.Overflow); line != "" {
 		rows = append(rows, sdui.MutedText(line))
 	}
-	rows = append(rows, openFooter(sid, d.args(sid, data.Items).picked() > 0))
+	rows = append(rows, openFooter(sid, d.args(sid, data.Items).picked() > 0, data.Night))
 	form := sdui.WithAction(sdui.WithAutosave(sdui.Form(openFormNode(sid), sdui.WithRows(sdui.Card("", "", rows...)))), actOpenDraft)
-	return sdui.WithAction(sdui.Keys(openFormNode(sid)+"/"+openKeysNode, openSessionKeys, form), actOpenKey)
+	keys := openSessionKeys
+	if data.Night {
+		keys = slices.DeleteFunc(slices.Clone(keys), func(key string) bool { return key == openBacklogKey })
+	}
+	return sdui.WithAction(sdui.Keys(openFormNode(sid)+"/"+openKeysNode, keys, form), actOpenKey)
 }
 
 func openRows(sid string, data openCardData, d openDraft, cursor string) []sdui.Node {
@@ -222,16 +229,19 @@ func offersChoice(sid string, offers []openItem, number int, d openDraft, cursor
 	})
 }
 
-func openFooter(sid string, canSend bool) sdui.Node {
+func openFooter(sid string, canSend, night bool) sdui.Node {
 	id := openFormNode(sid)
 	send := sdui.WithHint(sdui.WithVariant(sdui.WithForm(sdui.WithAction(sdui.Button(id+"/send", "Send answers", ""), actOpenSend)), "primary"), "cmd+return")
 	if !canSend {
 		send = sdui.WithDisabled(send)
 	}
 	later := sdui.WithHint(sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/later", "Later", ""), actOpenLater), "ghost"), "l")
-	backlog := sdui.WithHint(sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/backlog", "To backlog", ""), actOpenBacklog), "ghost"), "b")
+	backlog := sdui.WithHint(sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/backlog", "To backlog", ""), actOpenBacklog), "ghost"), openBacklogKey)
 	no := sdui.WithHint(sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/no", "No to all", ""), actOpenNoAll), "ghost"), "shift+delete")
 	more := sdui.WithPopover(sdui.WithIconOnly(sdui.WithVariant(sdui.Button(id+"/more", "More", "ellipsis"), "ghost")), sdui.Form(id+"/more/form", no))
+	if night {
+		return sdui.WithGap(sdui.HStack(send, later, more, sdui.Spacer(), sdui.MutedText(openNightNote)), openGap)
+	}
 	return sdui.WithGap(sdui.HStack(send, later, backlog, more, sdui.Spacer(), sdui.WithShort(sdui.MutedText(openSendNote), openSendShort)), openGap)
 }
 

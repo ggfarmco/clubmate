@@ -19,17 +19,18 @@ import (
 )
 
 type script struct {
-	AuthFile string                    `json:"authFile"`
-	Resume   bool                      `json:"resume"`
-	Linger   bool                      `json:"linger"`
-	Embedded bool                      `json:"embedded"`
-	Steering bool                      `json:"steering"`
-	Idle     bool                      `json:"idle"`
-	Modes    *acp.SessionModeState     `json:"modes"`
-	Configs  []acp.SessionConfigOption `json:"configs"`
-	Commands []acp.AvailableCommand    `json:"commands"`
-	Prompt   []step                    `json:"prompt"`
-	After    []step                    `json:"after"`
+	AuthFile    string                    `json:"authFile"`
+	Resume      bool                      `json:"resume"`
+	Linger      bool                      `json:"linger"`
+	Embedded    bool                      `json:"embedded"`
+	Steering    bool                      `json:"steering"`
+	Idle        bool                      `json:"idle"`
+	FailSetMode bool                      `json:"failSetMode"`
+	Modes       *acp.SessionModeState     `json:"modes"`
+	Configs     []acp.SessionConfigOption `json:"configs"`
+	Commands    []acp.AvailableCommand    `json:"commands"`
+	Prompt      []step                    `json:"prompt"`
+	After       []step                    `json:"after"`
 }
 
 type step struct {
@@ -39,6 +40,7 @@ type step struct {
 	Stderr     string          `json:"stderr"`
 	Child      bool            `json:"child"`
 	Shell      string          `json:"shell"`
+	Wait       string          `json:"wait"`
 	Exit       *int            `json:"exit"`
 	Sleep      int             `json:"sleep"`
 	Echo       bool            `json:"echo"`
@@ -187,6 +189,9 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 		}
 		return acp.SteerResponse{Outcome: acp.SteerInjected}, nil
 	case acp.MethodSessionSetMode:
+		if a.script.FailSetMode {
+			return nil, &acp.Error{Code: acp.CodeInternal, Message: "set_mode failed"}
+		}
 		var set acp.SetSessionModeRequest
 		_ = json.Unmarshal(params, &set)
 		a.update(set.SessionID, map[string]any{"sessionUpdate": acp.UpdateCurrentMode, "currentModeId": set.ModeID})
@@ -220,6 +225,15 @@ func (a *agent) announce(session string) {
 
 func (a *agent) update(session string, update any) {
 	_ = a.conn.Notify(acp.MethodSessionUpdate, map[string]any{"sessionId": session, "update": update})
+}
+
+func (a *agent) waitFile(path string) {
+	for !a.cancelled.Load() {
+		if _, err := os.Stat(path); err == nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func (a *agent) run(ctx context.Context, prompt acp.PromptRequest, steps []step) error {
@@ -277,6 +291,8 @@ func (a *agent) run(ctx context.Context, prompt acp.PromptRequest, steps []step)
 				a.record("shell", cmd.Process.Pid)
 				go cmd.Wait()
 			}
+		case s.Wait != "":
+			a.waitFile(s.Wait)
 		case s.Exit != nil:
 			os.Exit(*s.Exit)
 		case s.Echo && len(prompt.Prompt) > 0:

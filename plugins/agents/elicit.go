@@ -138,6 +138,8 @@ func (p *agentProc) elicit(ctx context.Context, request string, params json.RawM
 	switch {
 	case s == nil:
 		return acp.ElicitationResponse{Action: acp.ElicitationCancel}
+	case s.snapshot().Night != "":
+		return acp.ElicitationResponse{Action: acp.ElicitationDecline}
 	case done && req.Mode == acp.ElicitationURL:
 		return acp.ElicitationResponse{Action: acp.ElicitationAccept}
 	}

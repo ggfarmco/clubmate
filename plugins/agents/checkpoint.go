@@ -45,6 +45,20 @@ func pin(ctx context.Context, root, ref, title string) (string, error) {
 	return sha, nil
 }
 
+func turnCheckpoint(ctx context.Context, rec record, turn int) (string, error) {
+	if rec.Night != "" {
+		return "", nil
+	}
+	return checkpoint(ctx, rec.Worktree, rec.ID, turn)
+}
+
+func dropCheckpoints(ctx context.Context, rec record) error {
+	if rec.Night != "" {
+		return nil
+	}
+	return deleteCheckpoints(ctx, rec.Worktree, rec.ID)
+}
+
 func changedSince(ctx context.Context, root, sha string) (bool, error) {
 	tree, _, err := gitrepo.Snapshot(ctx, root)
 	if err != nil {

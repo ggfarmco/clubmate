@@ -183,7 +183,7 @@ func (a *app) openKey(ctx context.Context, ev pluginsdk.UIEvent) error {
 		}
 	case "l":
 		return a.laterOpen(ctx, cmd, s, st)
-	case "b":
+	case openBacklogKey:
 		_, err := a.openBacklogCommand(ctx, cmd, openPickArgs{Session: stop.session})
 		return err
 	case "delete":

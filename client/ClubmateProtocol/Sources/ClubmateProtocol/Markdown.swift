@@ -55,7 +55,7 @@ public enum Markdown {
             let line = lines[index]
             index += 1
             if let open = fence {
-                if line.trimmingCharacters(in: .whitespaces).hasPrefix(open.marker) {
+                if closesFence(line, marker: open.marker) {
                     let text = open.lines.joined(separator: "\n")
                     blocks.append(open.language.lowercased() == "mermaid" ? .mermaid(text) : .code(language: open.language, text: text))
                     fence = nil
@@ -134,10 +134,14 @@ public enum Markdown {
     }
 
     private static func fenceMarker(_ line: String) -> String? {
-        for marker in ["```", "~~~"] where line.hasPrefix(marker) {
-            return marker
-        }
-        return nil
+        guard let mark = line.first, mark == "`" || mark == "~" else { return nil }
+        let run = line.prefix { $0 == mark }
+        return run.count >= 3 ? String(run) : nil
+    }
+
+    private static func closesFence(_ line: String, marker: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        return trimmed.count >= marker.count && trimmed.allSatisfy { $0 == marker.first }
     }
 
     private static func heading(_ line: String) -> MarkdownBlock? {

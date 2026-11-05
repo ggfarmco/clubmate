@@ -63,6 +63,7 @@ type openItem struct {
 	Answer      string       `json:"answer,omitempty"`
 	Task        int          `json:"task,omitempty"`
 	At          time.Time    `json:"at,omitzero"`
+	Changes     []string     `json:"changes,omitempty"`
 
 	told bool
 }
@@ -185,6 +186,9 @@ func (a *app) answerOpen(ctx context.Context, s *session, workspaceID string, ar
 	if err != nil {
 		return nil, err
 	}
+	if s.snapshot().Night != "" && len(picks.offers) > 0 {
+		return nil, a.answerNight(ctx, s, picks)
+	}
 	if s.snapshot().closed() {
 		return a.answerClosed(ctx, s, picks, args.Note)
 	}
@@ -283,6 +287,16 @@ func (a *app) openParent(rec record) string {
 		return rec.ParentSession
 	}
 	return ""
+}
+
+func (a *app) answerNight(ctx context.Context, s *session, picks openPicks) error {
+	err := a.undoOffers(ctx, picks.offerItems())
+	a.refreshSettings(ctx)
+	if err != nil {
+		return err
+	}
+	s.resolveOpen(openChange{Resolved: picks.offerResolved()})
+	return nil
 }
 
 func (a *app) answerClosed(ctx context.Context, s *session, picks openPicks, note string) (any, error) {

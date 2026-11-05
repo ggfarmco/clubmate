@@ -268,7 +268,7 @@ func registered(ctx context.Context, root string) bool {
 	return cmd.Run() == nil
 }
 
-func sessionMeta(rec record, advisor string) *acp.SessionMeta {
+func sessionMeta(rec record, advisor string, self selfParts) *acp.SessionMeta {
 	opts := acp.ClaudeCodeOptions{Env: map[string]string{agentSessionEnv: rec.ID}, DisallowedTools: rec.DisallowedTools}
 	if advisor != "" {
 		opts.Settings = &acp.ClaudeCodeSettings{AdvisorModel: advisor}
@@ -278,14 +278,28 @@ func sessionMeta(rec record, advisor string) *acp.SessionMeta {
 		opts.SettingSources = []string{}
 		opts.StrictMcpConfig = true
 	}
-	meta := &acp.SessionMeta{ClaudeCode: acp.ClaudeCodeMeta{Options: opts}}
-	switch {
-	case rec.SystemPrompt != "":
-		meta.SystemPrompt = &acp.SystemPromptMeta{Append: rec.SystemPrompt}
-	case rec.ParentSession == "":
-		meta.SystemPrompt = &acp.SystemPromptMeta{Append: askUserText}
-	default:
-		meta.SystemPrompt = &acp.SystemPromptMeta{Append: openItemsText}
+	if rec.Night != "" {
+		opts.Tools, opts.MaxTurns = nightTools, nightMaxTurns
+		if opts.Settings == nil {
+			opts.Settings = &acp.ClaudeCodeSettings{}
+		}
+		opts.Settings.Permissions = &acp.ClaudeCodePermissions{Allow: rec.Allow}
 	}
+	meta := &acp.SessionMeta{ClaudeCode: acp.ClaudeCodeMeta{Options: opts}}
+	if rec.SystemPrompt != "" {
+		meta.SystemPrompt = &acp.SystemPromptMeta{Append: rec.SystemPrompt}
+		return meta
+	}
+	if self.PluginDir != "" {
+		meta.ClaudeCode.Options.Plugins = []acp.ClaudeCodePlugin{{Type: selfPluginType, Path: self.PluginDir}}
+	}
+	text := openItemsText
+	if rec.ParentSession == "" {
+		text = askUserText
+	}
+	if self.Prompt != "" {
+		text += "\n\n" + self.Prompt
+	}
+	meta.SystemPrompt = &acp.SystemPromptMeta{Append: text}
 	return meta
 }

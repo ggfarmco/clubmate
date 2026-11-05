@@ -44,6 +44,7 @@ type app struct {
 	texts     textIndex
 	watchdog  watchdog
 	reviews   *reviewBoard
+	self      *selfStore
 
 	sessionRevs sessionRevs
 	runNeeds    runNeeds
@@ -52,6 +53,8 @@ type app struct {
 
 	spawnMu    sync.Mutex
 	worktreeMu sync.Mutex
+	declareMu  sync.Mutex
+	nightMu    sync.Mutex
 	stopOnce   sync.Once
 
 	registry
@@ -95,6 +98,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.notes = newNotifier(h)
 	a.groups = newGroups(a.stateDir)
 	a.groups.reap(orphanMarkers())
+	a.self = newSelfStore(a.stateDir)
 	var sections []sectionRef
 	if err := h.Call(ctx, "ui.sections", nil, &sections); err != nil {
 		return err
@@ -116,7 +120,9 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		s := a.addSession(rec, false, nil)
 		if stale {
 			a.notes.mark(s, changeStatus, true)
-			cut = append(cut, s)
+			if rec.Night == "" {
+				cut = append(cut, s)
+			}
 		}
 	}
 	go a.texts.warm(a.stateDir, recs)
@@ -164,6 +170,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err := a.loadPresence(ctx); err != nil {
 		return err
 	}
+	a.reapNight(ctx)
 	close(a.loaded)
 	if err := a.renderSettings(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: render settings:", err)
@@ -172,6 +179,8 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	go a.closeDoneLoop(envDelay(closeAfterEnv, closeAfter))
 	go a.ageOpenLoop(envDelay(openAfterEnv, openAfter))
 	go a.continueCutOff(cut)
+	go a.ensureSelf(context.WithoutCancel(ctx))
+	go a.nightLoop()
 	a.renderAll(ctx)
 	return nil
 }

@@ -78,12 +78,15 @@ type indexedText struct {
 }
 
 func (a *app) search(workspaceID, query string) []searchResult {
+	return a.searchIn(a.list(workspaceID), query)
+}
+
+func (a *app) searchIn(recs []record, query string) []searchResult {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return []searchResult{}
 	}
 	needle := strings.ToLower(query)
-	recs := a.list(workspaceID)
 	out := []searchResult{}
 	for _, rec := range recs {
 		var hits []searchHit

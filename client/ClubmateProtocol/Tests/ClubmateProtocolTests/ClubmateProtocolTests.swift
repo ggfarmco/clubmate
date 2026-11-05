@@ -45,6 +45,12 @@ final class ClubmateProtocolTests: XCTestCase {
         XCTAssertEqual(Markdown.blocks("```mermaid\ngraph TD"), [.code(language: "mermaid", text: "graph TD")])
     }
 
+    func testALongerFenceHoldsShorterOnes() {
+        let body = "diff\n ```\n```swift\n~~~"
+        XCTAssertEqual(Markdown.blocks("`````diff\n ```\n```swift\n~~~\n`````\nafter").first, .code(language: "diff", text: String(body.dropFirst(5))))
+        XCTAssertEqual(Markdown.blocks("```\ncode\n```swift\n```").first, .code(language: "", text: "code\n```swift"))
+    }
+
     func testMarkdownTables() {
         let source = "- item\n| Day | `a|b` | N |\n|---|:-:|--:|\n| Mon | x \\| y |\n| Tue | z | 2 | extra |\nafter"
 

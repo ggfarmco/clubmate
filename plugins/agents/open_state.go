@@ -323,6 +323,14 @@ func (p openPicks) decisionItems() []openItem {
 	return out
 }
 
+func (p openPicks) offerItems() []openItem {
+	out := make([]openItem, 0, len(p.offers))
+	for _, o := range p.offers {
+		out = append(out, o.item)
+	}
+	return out
+}
+
 func (p openPicks) offerResolved() []openResolution {
 	out := make([]openResolution, 0, len(p.offers)+len(p.decisions))
 	for _, o := range p.offers {

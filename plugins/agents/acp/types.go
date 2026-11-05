@@ -231,10 +231,23 @@ type ClaudeCodeOptions struct {
 	DisallowedTools []string            `json:"disallowedTools,omitempty"`
 	SettingSources  []string            `json:"settingSources,omitzero"`
 	StrictMcpConfig bool                `json:"strictMcpConfig,omitempty"`
+	Plugins         []ClaudeCodePlugin  `json:"plugins,omitempty"`
+	Tools           []string            `json:"tools,omitempty"`
+	MaxTurns        int                 `json:"maxTurns,omitempty"`
+}
+
+type ClaudeCodePlugin struct {
+	Type string `json:"type"`
+	Path string `json:"path"`
 }
 
 type ClaudeCodeSettings struct {
-	AdvisorModel string `json:"advisorModel,omitempty"`
+	AdvisorModel string                 `json:"advisorModel,omitempty"`
+	Permissions  *ClaudeCodePermissions `json:"permissions,omitempty"`
+}
+
+type ClaudeCodePermissions struct {
+	Allow []string `json:"allow"`
 }
 
 type NewSessionResponse struct {

@@ -199,7 +199,7 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 	}
 	rec := s.snapshot()
 	ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)
-	sha, err := checkpoint(ctx, rec.Worktree, rec.ID, turn)
+	sha, err := turnCheckpoint(ctx, rec, turn)
 	cancel()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "agents: checkpoint:", err)
@@ -213,7 +213,7 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 	if deleted {
 		ctx, cancel := context.WithTimeout(context.Background(), refsTimeout)
 		defer cancel()
-		if err := deleteCheckpoints(ctx, rec.Worktree, rec.ID); err != nil {
+		if err := dropCheckpoints(ctx, rec); err != nil {
 			fmt.Fprintln(os.Stderr, "agents: delete checkpoints:", err)
 		}
 		return 0, promptArgs{}
@@ -309,7 +309,7 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 		a.notifyEnd(s, ended)
 	}
 	s.changed(changeStatus, true)
-	if edited {
+	if edited && rec.Night == "" {
 		a.checktime(rec)
 	}
 	if finished {
@@ -322,7 +322,7 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 
 func (a *app) retryTurn(s *session, rec record, err error) (acp.PromptRequest, bool) {
 	rpcErr, ok := errors.AsType[*acp.Error](err)
-	if !ok || rpcErr.Code != acp.CodeInternal {
+	if !ok || rpcErr.Code != acp.CodeInternal || rec.Night != "" {
 		return acp.PromptRequest{}, false
 	}
 	if f, typed := classifyFailure(err); typed && f.retry != retryInTurn {

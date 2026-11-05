@@ -58,6 +58,17 @@ func (a *app) resume(s *session) {
 }
 
 func (a *app) attach(s *session) (*agentProc, error) {
+	p, err := a.attachAgent(s)
+	if err != nil {
+		return nil, err
+	}
+	if rec := s.snapshot(); rec.Night != "" && rec.Mode != nightMode {
+		return nil, fmt.Errorf("%w: %q", errNightMode, rec.Mode)
+	}
+	return p, nil
+}
+
+func (a *app) attachAgent(s *session) (*agentProc, error) {
 	if err := a.worktreeReady(s).wait(); err != nil {
 		return nil, err
 	}
@@ -80,8 +91,8 @@ func (a *app) attach(s *session) (*agentProc, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), attachTimeout)
 	defer cancel()
-	var extra []string
-	if p.caps.SessionCapabilities.AdditionalDirectories != nil {
+	extra := rec.Reads
+	if rec.Night == "" && p.caps.SessionCapabilities.AdditionalDirectories != nil {
 		if workspace, err := a.host.GetWorkspace(ctx, rec.Workspace); err == nil {
 			_, extra, _ = workRoot(workspace)
 		}
@@ -90,7 +101,7 @@ func (a *app) attach(s *session) (*agentProc, error) {
 		return p, a.resumeOn(ctx, s, p, rec, extra)
 	}
 	var raw json.RawMessage
-	if err := p.conn.Call(ctx, acp.MethodSessionNew, acp.NewSessionRequest{Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcpFor(rec), Meta: sessionMeta(rec, a.sessionAdvisor(ctx, rec))}, &raw); err != nil {
+	if err := p.conn.Call(ctx, acp.MethodSessionNew, acp.NewSessionRequest{Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcpFor(rec), Meta: sessionMeta(rec, a.sessionAdvisor(ctx, rec), a.selfFor(ctx, rec))}, &raw); err != nil {
 		a.release(p)
 		if authErr := a.authRequired(rec.ID, p, err); authErr != nil {
 			return nil, authErr
@@ -136,7 +147,7 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 	}
 	mode, values := s.settings()
 	var raw json.RawMessage
-	if err := p.conn.Call(ctx, acp.MethodSessionResume, acp.ResumeSessionRequest{SessionID: rec.AgentSessionID, Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcpFor(rec), Meta: sessionMeta(rec, a.sessionAdvisor(ctx, rec))}, &raw); err != nil {
+	if err := p.conn.Call(ctx, acp.MethodSessionResume, acp.ResumeSessionRequest{SessionID: rec.AgentSessionID, Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcpFor(rec), Meta: sessionMeta(rec, a.sessionAdvisor(ctx, rec), a.selfFor(ctx, rec))}, &raw); err != nil {
 		a.release(p)
 		if authErr := a.authRequired(rec.ID, p, err); authErr != nil {
 			return authErr
@@ -153,12 +164,28 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 	}
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
+	if rec.Night != "" {
+		if err := a.sendMode(ctx, s, nightMode); err != nil {
+			a.detach(s, p, rec.AgentSessionID)
+			return err
+		}
+	}
 	var res acp.ResumeSessionResponse
 	if json.Unmarshal(raw, &res) == nil {
-		a.applyMode(ctx, s, res.Modes, cmp.Or(rec.StartMode, mode))
+		if rec.Night == "" {
+			a.applyMode(ctx, s, res.Modes, cmp.Or(rec.StartMode, mode))
+		}
 		a.applyConfigs(ctx, s, res.ConfigOptions, withModel(res.ConfigOptions, rec.StartModel, func(id string) string { return values[id] }))
 	}
 	return nil
+}
+
+func (a *app) detach(s *session, p *agentProc, agentID string) {
+	s.mu.Lock()
+	s.proc = nil
+	s.mu.Unlock()
+	p.unregister(agentID)
+	a.release(p)
 }
 
 func (a *app) startSettings(ctx context.Context, rec record) (string, func(id string) string) {

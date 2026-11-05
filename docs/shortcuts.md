@@ -243,7 +243,7 @@ A pending question (AskUserQuestion or an MCP form) is docked above the composer
 | O | Other…: opens the focused decision's field; Esc or ↩ in it goes back to the card |
 | ⌘↩ | Send answers; in the queue every answered session's, one turn each |
 | L | Later: keep them open and fold the card |
-| B | To backlog: one task per open item of the session |
+| B | To backlog: one task per open item of the session (not on a night session's card, whose offers never go to the backlog) |
 | ⌫ | No to the focused item |
 | ⇧⌫ | No to all of the session's open items |
 | ↩ | In the queue: open the item's session |

@@ -58,6 +58,11 @@ var (
 		"agents.send-review":    withArgs((*app).sendReviewCommand),
 		"agents.run-needs":      withArgs((*app).runNeedsCommand),
 		"agents.reminders":      withArgs((*app).remindersCommand),
+		"agents.night-spawn":    withArgs((*app).nightSpawnCommand),
+		"agents.night-run":      (*app).nightRunCommand,
+		"agents.self-declare":   withArgs((*app).selfDeclareCommand),
+		"agents.self-changes":   (*app).selfChangesCommand,
+		"agents.self-undo":      withArgs((*app).selfUndoCommand),
 		"agents.open-items":     withArgs((*app).openItemsCommand),
 		"agents.open-answer":    withArgs((*app).openAnswerCommand),
 		"agents.open-later":     withArgs((*app).openLaterCommand),
@@ -331,10 +336,10 @@ func (a *app) configCommand(ctx context.Context, cmd pluginsdk.CommandRun, args 
 func (a *app) sessionsCommand(_ context.Context, cmd pluginsdk.CommandRun, args sessionsArgs) (any, error) {
 	infos := a.infos(cmd.WorkspaceID)
 	if args.Since == nil {
-		return onlySession(infos, args.Session), nil
+		return onlySession(visibleInfos(cmd, infos), args.Session), nil
 	}
 	page := a.sessionRevs.page(cmd.WorkspaceID, infos, *args.Since)
-	page.Sessions = onlySession(page.Sessions, args.Session)
+	page.Sessions = onlySession(visibleInfos(cmd, page.Sessions), args.Session)
 	if args.Session != "" {
 		page.Removed = slices.DeleteFunc(page.Removed, func(id string) bool { return id != args.Session })
 	}
@@ -398,11 +403,16 @@ func (a *app) stopRootCommand(ctx context.Context, _ pluginsdk.CommandRun, args 
 }
 
 func (a *app) waitCommand(ctx context.Context, cmd pluginsdk.CommandRun, args waitArgs) (any, error) {
+	for _, id := range args.Sessions {
+		if _, err := a.lookupFor(cmd, id); err != nil {
+			return nil, err
+		}
+	}
 	return a.wait(ctx, cmd.WorkspaceID, cmd.Caller, args)
 }
 
 func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, args transcriptArgs) (any, error) {
-	s, err := a.lookup(cmd.WorkspaceID, args.Session)
+	s, err := a.lookupFor(cmd, args.Session)
 	if err != nil {
 		return nil, err
 	}
@@ -435,7 +445,7 @@ func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 }
 
 func (a *app) exportCommand(ctx context.Context, cmd pluginsdk.CommandRun, args exportArgs) (any, error) {
-	s, err := a.lookup(cmd.WorkspaceID, args.Session)
+	s, err := a.lookupFor(cmd, args.Session)
 	if err != nil {
 		return nil, err
 	}
@@ -547,5 +557,6 @@ func origin(cmd pluginsdk.CommandRun) string {
 }
 
 func (a *app) searchCommand(_ context.Context, cmd pluginsdk.CommandRun, args searchArgs) (any, error) {
-	return a.search(cmd.WorkspaceID, args.Query), nil
+	recs := slices.DeleteFunc(a.list(cmd.WorkspaceID), func(rec record) bool { return hiddenFrom(cmd, rec) })
+	return a.searchIn(recs, args.Query), nil
 }

@@ -40,6 +40,9 @@ func (a *app) setMode(ctx context.Context, workspaceID string, args modeArgs) er
 	if err != nil {
 		return err
 	}
+	if s.snapshot().Night != "" {
+		return errNightMode
+	}
 	s.mu.Lock()
 	known := slices.ContainsFunc(s.modes, func(m acp.SessionMode) bool { return m.ID == args.Mode })
 	worktree := s.rec.Worktree
@@ -73,6 +76,9 @@ func (a *app) setConfig(ctx context.Context, workspaceID string, args configArgs
 	s, err := a.lookup(workspaceID, args.Session)
 	if err != nil {
 		return err
+	}
+	if s.snapshot().Night != "" {
+		return errNightConfig
 	}
 	switch args.ID {
 	case advisorID:
@@ -186,10 +192,14 @@ func (a *app) setFinishDefault(ctx context.Context, value string) error {
 	if err := a.host.StorageSet(ctx, finishKey, value); err != nil {
 		return err
 	}
+	a.refreshSettings(ctx)
+	return nil
+}
+
+func (a *app) refreshSettings(ctx context.Context) {
 	if err := a.renderSettings(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: render settings:", err)
 	}
-	return nil
 }
 
 func (a *app) renderSettings(ctx context.Context) error {
@@ -197,21 +207,35 @@ func (a *app) renderSettings(ctx context.Context) error {
 	for _, c := range finishChoices {
 		options = append(options, sdui.Option{Value: c.value, Label: c.label})
 	}
-	_, err := a.host.Render(ctx, "", settingsSlot, sdui.VStack(
+	rows := []sdui.Node{
 		sdui.SettingRow("When a task is done", finishHint, sdui.WithAction(sdui.Select(finishID, options, a.finishDefault(ctx)), finishID)),
-	))
+		sdui.SettingRow("Self-improvement", selfHint, sdui.WithAction(sdui.Toggle(selfEnabledID, a.selfEnabled(ctx)), selfEnabledID)),
+	}
+	if a.self.prompt() != "" || len(a.self.skills()) > 0 {
+		rows = append(rows, sdui.SettingRow("The agent's prompt and skills", "", sdui.WithVariant(sdui.WithConfirm(sdui.Button(selfResetID, "Reset", ""), selfResetConfirm), sdui.VariantDanger)))
+	}
+	_, err := a.host.Render(ctx, "", settingsSlot, sdui.VStack(rows...))
 	return err
 }
 
 func (a *app) settingsEvent(ctx context.Context, ev pluginsdk.UIEvent) error {
-	if ev.Action != finishID {
-		return fmt.Errorf("unknown action %q", ev.Action)
+	switch ev.Action {
+	case finishID:
+		var value string
+		if err := json.Unmarshal(ev.Value, &value); err != nil {
+			return fmt.Errorf("%s: %w", finishID, err)
+		}
+		return a.setFinishDefault(ctx, value)
+	case selfEnabledID:
+		var on bool
+		if err := json.Unmarshal(ev.Value, &on); err != nil {
+			return fmt.Errorf("%s: %w", selfEnabledID, err)
+		}
+		return a.setSelfEnabled(ctx, on)
+	case selfResetID:
+		return a.resetSelf(ctx)
 	}
-	var value string
-	if err := json.Unmarshal(ev.Value, &value); err != nil {
-		return fmt.Errorf("%s: %w", finishID, err)
-	}
-	return a.setFinishDefault(ctx, value)
+	return fmt.Errorf("unknown action %q", ev.Action)
 }
 
 func validFinish(value string) bool {

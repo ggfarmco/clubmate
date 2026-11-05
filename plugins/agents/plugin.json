@@ -29,7 +29,7 @@
       {"keys": "x", "action": "Tick the focused offer", "when": "an open items card or the Open queue has focus"},
       {"keys": "o", "action": "Other…: open the focused decision's text field", "when": "an open items card or the Open queue has focus"},
       {"keys": "l", "action": "Later: keep the items open and fold the card", "when": "an open items card or the Open queue has focus"},
-      {"keys": "b", "action": "To backlog: one task per open item of the session", "when": "an open items card or the Open queue has focus"},
+      {"keys": "b", "action": "To backlog: one task per open item of the session", "when": "an open items card or the Open queue has focus, except a night session's card"},
       {"keys": "delete", "action": "No to the focused item", "when": "an open items card or the Open queue has focus"},
       {"keys": "shift+delete", "action": "No to all of the session's open items", "when": "an open items card or the Open queue has focus"},
       {"keys": "cmd+return", "action": "Send answers; in the Open queue every answered session's; or send a pending question's form", "when": "an open items card or the Open queue has focus, or a question is pending and the composer is empty"}
@@ -43,7 +43,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Start an agent session. Called from an agent session, the new session is its child: it runs in the caller's worktree, starts with the caller's mode, model, effort and advisor, and the caller may answer its permission requests. At most 8 children of one session may be running or waiting at once (\"a session may run at most 8 child sessions at once\"; prompting an idle child counts too). With branch, the session runs in a new worktree <main checkout>/.worktrees/<branch> created in the background from the HEAD of the caller's worktree (or the existing branch checked out), without switching the user's workspace; the agent starts once it exists, and if git fails the session's status is error with git's message. With prompt, sends it as the first turn, marked as coming from the calling agent session. A child with its own branch merges its tested work into the caller's branch in the caller's worktree (only commits when the caller is on the default branch); once merged and clean, Clubmate closes it and removes its worktree and branch. Toward the user, report only the children's questions that need the user's answer; the sidebar shows their status. Answer their permission requests yourself with agents.permission and pass the user's answers with agents.answer, never paraphrased. disallowedTools, systemPrompt, mode and model are accepted only from the voice plugin (anyone else gets \"invalid_params: only the voice plugin may set disallowedTools, systemPrompt, mode or model\"); a session started with them runs without the user's Claude Code settings (no settings files, CLAUDE.md, auto memory, plugins, hooks or output style; MCP only Clubmate's server), is listed in the Agents sidebar's folded \"Service\" group, and a session it starts is not its child but a top-level session of the user. afk sets the session's AFK mode from its first prompt, for any caller; finish its finish mode, from the user only. A session a cron job or trigger starts remembers its id (cronJob or trigger, in agents.sessions and on every agents.turn of it), so a trigger can follow it: on agents.turn match {\"cronJob\":\"cj_…\",\"finished\":true}. Returns {session, worktree} at once; wait for it with agents.wait.",
+        "description": "Start an agent session. Called from an agent session, the new session is its child: it runs in the caller's worktree, starts with the caller's mode, model, effort and advisor, and the caller may answer its permission requests. At most 8 children of one session may be running or waiting at once (\"a session may run at most 8 child sessions at once\"; prompting an idle child counts too). With branch, the session runs in a new worktree <main checkout>/.worktrees/<branch> created in the background from the HEAD of the caller's worktree (or the existing branch checked out), without switching the user's workspace; the agent starts once it exists, and if git fails the session's status is error with git's message. With prompt, sends it as the first turn, marked as coming from the calling agent session. A child with its own branch merges its tested work into the caller's branch in the caller's worktree (only commits when the caller is on the default branch); once merged and clean, Clubmate closes it and removes its worktree and branch. Toward the user, report only the children's questions that need the user's answer; the sidebar shows their status. Answer their permission requests yourself with agents.permission and pass the user's answers with agents.answer, never paraphrased. disallowedTools, systemPrompt, mode and model are accepted only from the voice plugin (anyone else gets \"invalid_params: only the voice plugin may set disallowedTools, systemPrompt, mode or model\"); a session started with them runs without the user's Claude Code settings (no settings files, CLAUDE.md, auto memory, plugins, hooks or output style; MCP only Clubmate's server), is listed in the Agents sidebar's folded \"Service\" group, and a session it starts is not its child but a top-level session of the user. The plugin's night sessions are service sessions too, started by the plugin itself, never through these arguments. afk sets the session's AFK mode from its first prompt, for any caller; finish its finish mode, from the user only. A session a cron job or trigger starts remembers its id (cronJob or trigger, in agents.sessions and on every agents.turn of it), so a trigger can follow it: on agents.turn match {\"cronJob\":\"cj_…\",\"finished\":true}. Returns {session, worktree} at once; wait for it with agents.wait.",
         "args": {
           "properties": {
             "agent": {"type": "string", "enum": ["claude"], "default": "claude", "description": "Agent to run."},
@@ -494,6 +494,68 @@
         }
       },
       {
+        "id": "agents.self-declare",
+        "title": "Declare a change",
+        "hidden": true,
+        "agent": true,
+        "description": "Declare the changes made so far in your sandbox as one change, by committing them; only declared changes count, and Clubmate checks and applies them after the session ends. With reverts, reverts that change of the self instead. Only a night session may call it (\"only a night session may declare changes\"). Fails when there is nothing to declare.",
+        "args": {
+          "properties": {
+            "summary": {"type": "string", "description": "One line saying what changed."},
+            "why": {"type": "string", "description": "Why it changed."},
+            "reverts": {"type": "string", "description": "Full or short sha of an edit or revert in the self's history to revert. Commit other edits first. lessons.md stays as it is."}
+          },
+          "required": ["summary"]
+        },
+        "result": {
+          "properties": {
+            "change": {"type": "string", "description": "The commit in the sandbox."}
+          }
+        }
+      },
+      {
+        "id": "agents.self-changes",
+        "title": "List self changes",
+        "hidden": true,
+        "remote": true,
+        "agent": true,
+        "description": "The changes the night made to the self and to project memory, newest first, at most 50. Works from any session, with no deadline.",
+        "result": {
+          "properties": {
+            "changes": {
+              "type": "array",
+              "description": "The changes, newest first.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "change": {"type": "string", "description": "Sha of the change, for agents.self-undo."},
+                  "kind": {"type": "string", "description": "edit, revert or memory."},
+                  "summary": {"type": "string", "description": "One line saying what changed."},
+                  "why": {"type": "string", "description": "Why it changed."},
+                  "workspace": {"type": "string", "description": "Workspace of the night session that made it."},
+                  "at": {"type": "string", "description": "When it landed."},
+                  "undone": {"type": "boolean", "description": "Undone or reverted since."}
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "agents.self-undo",
+        "title": "Undo a self change",
+        "hidden": true,
+        "remote": true,
+        "agent": true,
+        "description": "Undo one change from agents.self-changes (a git revert, or the reverse patch for memory) and record in lessons.md who undid it (\"Rejected by the user: …\", or \"Undone from session <id>: …\" when an agent calls it), so a later night doesn't redo it. Works from any session, with no deadline; only a night session is refused (\"a night session can't undo a change\"). A change that no longer applies fails with \"this change no longer applies cleanly\", one that would leave a skill with forbidden frontmatter or shell with \"this undo would leave an unsafe skill\", and neither changes anything. An already undone change is a no-op.",
+        "args": {
+          "properties": {
+            "change": {"type": "string", "description": "Full or short sha of the change."}
+          },
+          "required": ["change"]
+        }
+      },
+      {
         "id": "agents.open-items",
         "title": "Post open items",
         "hidden": true,
@@ -648,6 +710,27 @@
             "value": {"type": "string", "description": "Current default finish mode."}
           }
         }
+      },
+      {
+        "id": "agents.night-spawn",
+        "title": "Start a night session (tests)",
+        "hidden": true,
+        "agent": false,
+        "description": "Start a confined night session in a sandbox directory. Only for tests: refused unless CLUBMATE_AGENTS_NIGHT_TEST=1. Returns {session}.",
+        "args": {
+          "properties": {
+            "dir": {"type": "string", "description": "Absolute sandbox directory."},
+            "kind": {"type": "string", "enum": ["sleep", "improve"], "description": "Night session kind."}
+          },
+          "required": ["dir", "kind"]
+        }
+      },
+      {
+        "id": "agents.night-run",
+        "title": "Run the night now",
+        "hidden": true,
+        "agent": false,
+        "description": "Start the nightly review and sleep now, in the background: one Sleep session per project with a digest, then one Improve session, then the report. Refused while the setting is off (\"self-improvement is off\") or while a night is running (\"a night is already running\"). Returns at once."
       },
       {
         "id": "agents.stop-root",

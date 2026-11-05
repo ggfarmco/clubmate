@@ -124,6 +124,21 @@ func TestOffersShareOneNumberAfterTheDecisions(t *testing.T) {
 	assert.Equal(t, "Offer. ② Ask. ①", onlyMarked(t, s))
 }
 
+func TestNightCardOffersNoBacklog(t *testing.T) {
+	t.Parallel()
+	en := &entry{ID: "open-1", Kind: entryOpenItems, Items: []openItem{{ID: "oi-1", Kind: itemOffer, Label: "Undo: x", State: itemOpen}}}
+	s := newSession(record{ID: "s", Night: nightImprove}, nil, true, nil)
+	s.opens = []*entry{en}
+	card, shown := openEntryNode(screen{View: transcriptView{Session: record{ID: "s", Status: statusDone, OpenCount: 1}}, Open: s.openCard()}, en)
+	require.True(t, shown)
+	data, err := json.Marshal(card)
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), actOpenBacklog)
+	assert.NotContains(t, string(data), `"b"`)
+	assert.NotContains(t, string(data), openSendNote)
+	assert.Contains(t, string(data), openNightNote)
+}
+
 func TestOneCardHoldsTheOpenSetAndFoldsWhenLater(t *testing.T) {
 	t.Parallel()
 	first := &entry{ID: "open-1", Kind: entryOpenItems, Items: []openItem{{ID: "oi-1", Kind: itemDecision, Header: "Lists", Question: "Which?", State: itemOpen, Options: []openOption{{Label: "A", Description: "a"}}}}}

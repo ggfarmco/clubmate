@@ -57,7 +57,7 @@ func (a *app) ageOpen(after time.Duration) {
 	a.mu.Lock()
 	var due []*session
 	for id, s := range a.sessions {
-		if rec := s.snapshot(); a.dropped[id] < dropRemoved && rec.OpenCount > 0 && (rec.closed() || now.Sub(rec.OpenSince) >= after) {
+		if rec := s.snapshot(); a.dropped[id] < dropRemoved && rec.Night == "" && rec.OpenCount > 0 && (rec.closed() || now.Sub(rec.OpenSince) >= after) {
 			due = append(due, s)
 		}
 	}
@@ -99,6 +99,9 @@ func (s *session) gone() bool {
 
 func (a *app) fileItems(ctx context.Context, s *session, items []openItem) ([]int, error) {
 	rec := s.snapshot()
+	if rec.Night != "" && len(items) > 0 {
+		return nil, errNightBacklog
+	}
 	tasks := make([]int, 0, len(items))
 	resolved := make([]openResolution, 0, len(items))
 	var failure error

@@ -83,7 +83,7 @@ func (a *app) export(ctx context.Context, s *session, dir string) error {
 
 func bundleRefsOf(ctx context.Context, rec record, commits []string, path string) error {
 	root, ok := gitrepo.RepoRoot(rec.Worktree)
-	if !ok {
+	if !ok || rec.Night != "" {
 		return nil
 	}
 	out, err := gitOutput(ctx, root, nil, "for-each-ref", "--format=%(refname)", checkpointRefs+rec.ID+"/")

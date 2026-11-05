@@ -256,6 +256,10 @@ func (p *agentProc) Request(ctx context.Context, id, method string, params json.
 	if s == nil {
 		return acp.RequestPermissionResponse{Outcome: acp.PermissionOutcome{Outcome: acp.OutcomeCancelled}}, nil
 	}
+	if s.snapshot().Night != "" {
+		s.noteRefused()
+		return acp.RequestPermissionResponse{Outcome: nightOutcome(req.Options)}, nil
+	}
 	return acp.RequestPermissionResponse{Outcome: s.requestPermission(ctx, id, params)}, nil
 }
 

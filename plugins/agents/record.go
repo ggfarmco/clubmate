@@ -75,6 +75,11 @@ type record struct {
 	StartMode       string    `json:"startMode,omitempty"`
 	FirstMode       string    `json:"firstMode,omitempty"`
 	StartModel      string    `json:"startModel,omitempty"`
+	Night           string    `json:"night,omitempty"`
+	NightSealed     bool      `json:"nightSealed,omitempty"`
+	Refused         int       `json:"refused,omitempty"`
+	Reads           []string  `json:"reads,omitempty"`
+	Allow           []string  `json:"allow,omitempty"`
 }
 
 type sessionInfo struct {
@@ -173,7 +178,7 @@ func (r record) closed() bool {
 }
 
 func (r record) restricted() bool {
-	return len(r.DisallowedTools) > 0 || r.SystemPrompt != "" || r.StartMode != "" || r.StartModel != ""
+	return len(r.DisallowedTools) > 0 || r.SystemPrompt != "" || r.StartMode != "" || r.StartModel != "" || r.Night != ""
 }
 
 func titleOf(text string) string {

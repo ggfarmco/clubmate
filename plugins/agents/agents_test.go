@@ -41,6 +41,7 @@ type record struct {
 	ID             string   `json:"id"`
 	Workspace      string   `json:"workspace"`
 	Worktree       string   `json:"worktree"`
+	Night          string   `json:"night"`
 	Agent          string   `json:"agent"`
 	AgentSessionID string   `json:"agentSessionId"`
 	Title          string   `json:"title"`

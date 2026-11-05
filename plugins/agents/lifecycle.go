@@ -127,7 +127,7 @@ func (a *app) deleteSession(ctx context.Context, s *session, remote bool) error 
 
 func (a *app) deleteRefs(ctx context.Context, rec record) error {
 	if _, err := os.Stat(rec.Worktree); err == nil {
-		return deleteCheckpoints(ctx, rec.Worktree, rec.ID)
+		return dropCheckpoints(ctx, rec)
 	}
 	p, err := a.host.GetWorkspace(ctx, rec.Workspace)
 	if err != nil {
@@ -183,8 +183,7 @@ func (a *app) stopRoot(ctx context.Context, root string) error {
 	defer refsCancel()
 	var errs []error
 	for _, s := range hit {
-		rec := s.snapshot()
-		errs = append(errs, deleteCheckpoints(refsCtx, rec.Worktree, rec.ID))
+		errs = append(errs, dropCheckpoints(refsCtx, s.snapshot()))
 	}
 	return errors.Join(errs...)
 }

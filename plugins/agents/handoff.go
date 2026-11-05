@@ -30,6 +30,9 @@ type handoffResult struct {
 }
 
 func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from string) (*session, error) {
+	if s.snapshot().Night != "" {
+		return nil, errNightHandoff
+	}
 	finish, afk := a.sessionDefaults(ctx, s.snapshot().ParentSession)
 	a.spawnMu.Lock()
 	defer a.spawnMu.Unlock()
