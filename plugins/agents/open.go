@@ -165,7 +165,9 @@ func (a *app) openItemsCommand(ctx context.Context, cmd pluginsdk.CommandRun, ar
 		}
 		overflow = append(overflow, id)
 	}
-	return openItemsResult{Items: s.postOpen(kept, overflow, itemOpen), Overflow: overflow}, nil
+	ids := s.postOpen(kept, overflow, itemOpen)
+	a.notes.persist(ctx, s)
+	return openItemsResult{Items: ids, Overflow: overflow}, nil
 }
 
 func (a *app) openAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun, args openAnswerArgs) (any, error) {
