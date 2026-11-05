@@ -25,6 +25,7 @@ func TestNotifyPostValidatesAndPublishes(t *testing.T) {
 		"empty message":     {"workspaceId": p.ID, "message": "  "},
 		"foreign session":   {"workspaceId": p.ID, "message": "hi", "session": s.ID},
 		"malformed session": {"workspaceId": p.ID, "message": "hi", "session": "../x"},
+		"foreign collapse":  {"workspaceId": p.ID, "message": "hi", "collapse": "agt_0123456789abcdef"},
 	} {
 		assert.ErrorIs(t, c.Call(t.Context(), "notify.post", params, nil), rpc.ErrInvalidParams, name)
 	}

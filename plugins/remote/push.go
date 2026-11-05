@@ -121,6 +121,13 @@ type notifyPayload struct {
 	TS        string `json:"ts"`
 }
 
+func (n notifyPayload) collapseID() string {
+	if n.Collapse != "" && n.Collapse == n.Session {
+		return n.Collapse
+	}
+	return n.ID
+}
+
 type agentsChanged struct {
 	Session     string `json:"session"`
 	Kind        string `json:"kind"`
@@ -227,7 +234,7 @@ func (s *server) pushCommand(ctx context.Context, workspace string, enabled bool
 	if err != nil {
 		return pushResult{}, err
 	}
-	devices := s.pushAll(ctx, relayPush{pushType: apns.TypeAlert, collapseID: truncate(cmp.Or(n.Collapse, n.ID), apns.MaxCollapseID), notification: n.ID, payload: body})
+	devices := s.pushAll(ctx, relayPush{pushType: apns.TypeAlert, collapseID: truncate(n.collapseID(), apns.MaxCollapseID), notification: n.ID, payload: body})
 	if i := slices.IndexFunc(devices, func(d devicePush) bool { return d.err != nil }); i >= 0 {
 		s.alertRelayDown(ctx, workspace, devices[i].err)
 	}

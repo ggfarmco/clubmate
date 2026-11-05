@@ -191,6 +191,18 @@ func TestPushCollapsesOnTheNotificationsGroup(t *testing.T) {
 	assert.Equal(t, "cmp|ntf_2", reqs[1].body["payload"].(map[string]any)["id"])
 }
 
+func TestPushIgnoresACollapseOfAnotherSession(t *testing.T) {
+	f := newFixture(t)
+	relay := f.withRelay(t)
+	f.setPushToken(t, f.pairNamed(t, "phone"), "aa01", apns.EnvProduction)
+
+	f.pushNotification(t, `{"id":"ntf_1","session":"agt_2","collapse":"agt_1","message":"m","kind":"done"}`)
+
+	reqs := relay.requests()
+	require.Len(t, reqs, 1)
+	assert.Equal(t, "ntf_1", reqs[0].body["collapseID"])
+}
+
 func TestFreePush(t *testing.T) {
 	f := newFixture(t)
 	relay := f.withRelay(t)

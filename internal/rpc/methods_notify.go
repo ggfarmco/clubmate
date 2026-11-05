@@ -99,6 +99,9 @@ func (s *Server) notifyPayload(ctx context.Context, p notifyParams) (notifyPaylo
 	if err != nil {
 		return notifyPayload{}, err
 	}
+	if p.Collapse != "" && p.Collapse != p.Session {
+		return notifyPayload{}, invalidParams("collapse must be the notification's session")
+	}
 	return notifyPayload{
 		ID:        id.New(notifyPrefix),
 		Workspace: p.WorkspaceID,
