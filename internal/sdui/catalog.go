@@ -262,7 +262,7 @@ var (
 			children:    noChildren,
 			interactive: true,
 		},
-		"form":    {props: map[string]propCheck{"action": actionCheck, "autosave": isBool, "sheet": isBool, "dock": isBool, "accordion": isBool}, children: anyChildren, interactive: true},
+		"form":    {props: map[string]propCheck{"action": actionCheck, "autosave": isBool, "sheet": isBool, "dock": isBool, "accordion": isBool, "needsAny": arrayOf(isString)}, children: anyChildren, interactive: true},
 		"keys":    {required: []string{"keys"}, props: map[string]propCheck{"keys": arrayOf(isString), "pane": isBool, "action": actionCheck}, children: childRule{min: 1, max: 1}, interactive: true},
 		"surface": {required: []string{"sessionId"}, props: map[string]propCheck{"sessionId": sessionIDCheck}, children: noChildren},
 		"webview": {required: []string{"key", "url"}, props: map[string]propCheck{"key": isString, "url": loopbackURL, "rev": countNumber}, children: noChildren},

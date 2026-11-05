@@ -406,6 +406,23 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(answer.waitForExistence(timeout: 5))
     }
 
+    func testQuestionCardSendWaitsForAnAnswer() {
+        let app = launch(open: "agents/agt_0000000000000004", ["-questionFixture", "YES"])
+        let card = app.otherElements["elicitation-card"]
+        XCTAssertTrue(card.staticTexts["1 of 2"].waitForExistence(timeout: 10))
+        let next = card.buttons["Next"]
+        XCTAssertTrue(wait(for: next, "isEnabled == true"))
+        next.tap()
+        XCTAssertTrue(card.staticTexts["2 of 2"].waitForExistence(timeout: 5))
+        let tick = option("Count it", in: card)
+        XCTAssertTrue(wait(for: tick, "isEnabled == true"))
+        XCTAssertFalse(card.buttons["Send"].isEnabled)
+        tick.tap()
+        XCTAssertTrue(wait(for: card.buttons["Send"], "isEnabled == true"))
+        card.buttons["Send"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Count it'")).firstMatch.waitForExistence(timeout: 5))
+    }
+
     func testQuestionCardKeepsItsPageAndPicksAfterLeavingTheSession() {
         let app = launch(open: "agents/agt_0000000000000004", ["-questionFixture", "YES"])
         let card = app.otherElements["elicitation-card"]

@@ -54,6 +54,12 @@
             {"value": "cron", "label": "Cron failures"}
           ]}}
         ]},
+        {"type": "form", "id": "gallery-needs-any", "props": {"needsAny": ["gallery-needs-choice", "gallery-needs-other"]}, "children": [
+          {"type": "choice", "id": "gallery-needs-choice", "props": {"style": "check", "text": "Send waits for an answer", "other": {"id": "gallery-needs-other", "label": "Other…", "placeholder": "Your answer"}, "options": [
+            {"value": "cron", "label": "Cron failures"}
+          ]}},
+          {"type": "button", "id": "gallery-needs-send", "props": {"label": "Send", "variant": "primary", "shortcut": "cmd+shift+return"}}
+        ]},
         {"type": "text", "props": {"text": "FILES", "style": "muted"}},
         {
           "type": "tree",

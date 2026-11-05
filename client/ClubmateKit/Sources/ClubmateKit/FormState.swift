@@ -8,6 +8,7 @@ public final class FormState {
 
     public var values: [String: JSONValue] = [:]
     public var openChoice: String?
+    public var needsAny: [String] = []
     public private(set) var submissions = 0
     public private(set) var save = UIFormSave()
     @ObservationIgnored public var autosave = false
@@ -36,6 +37,19 @@ public final class FormState {
     public var saving: Bool { save.saving && autosave }
     public var unsent: Bool { !touched.isEmpty }
 
+    public var unanswered: Bool {
+        !needsAny.isEmpty && !needsAny.contains { Self.holds(values[$0]) }
+    }
+
+    private static func holds(_ value: JSONValue?) -> Bool {
+        switch value {
+        case nil, .null?: false
+        case .string(let text)?: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .array(let items)?: !items.isEmpty
+        default: true
+        }
+    }
+
     public func touch(_ id: String) {
         touched.insert(id)
     }
@@ -45,6 +59,7 @@ public final class FormState {
     }
 
     public func submit() {
+        guard !unanswered else { return }
         pending?.cancel()
         pending = nil
         submissions += 1

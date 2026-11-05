@@ -434,6 +434,26 @@ final class ElicitationDraftTests: XCTestCase {
         XCTAssertEqual(store.elicitationDraft("s", request: "elicitation-1"), ElicitationDraft())
     }
 
+    func testSendWaitsForAnAnswerOnlyWhenThePluginSaysSo() throws {
+        let json = #"{"kind":"elicitation","id":"elicitation-1","turn":1,"elicitation":{"mode":"form","needsAnswer":true,"fields":[{"key":"question_0","type":"multi","options":[{"value":"a","label":"A"}]},{"key":"question_0_custom","type":"text","title":"Other"}]}}"#
+        let entry = try JSONDecoder.clubmate.decode(TranscriptEntry.self, from: Data(json.utf8))
+        guard case .elicitation(let question) = entry.content else { return XCTFail("\(entry.content)") }
+        let fields = question.request.fields
+        var draft = ElicitationDraft()
+        XCTAssertFalse(question.canSend(draft))
+        draft.texts["question_0_custom"] = "closed row"
+        XCTAssertFalse(question.canSend(draft))
+        draft.toggleOther(fields[1])
+        XCTAssertTrue(question.canSend(draft))
+        draft = ElicitationDraft()
+        draft.toggle(fields[0], fields[0].options[0])
+        XCTAssertTrue(question.canSend(draft))
+
+        let older = try JSONDecoder.clubmate.decode(TranscriptEntry.self, from: Data(json.replacingOccurrences(of: #""needsAnswer":true,"#, with: "").utf8))
+        guard case .elicitation(let oldQuestion) = older.content else { return XCTFail("\(older.content)") }
+        XCTAssertTrue(oldQuestion.canSend(ElicitationDraft()))
+    }
+
     func testPickedOptionCarriesTheOtherNote() throws {
         let json = #"{"mode":"form","message":"Which store?","fields":[{"key":"question_0","type":"choice","options":[{"value":"pg","label":"Postgres"},{"value":"redis","label":"Redis"}]},{"key":"question_0_custom","type":"text","title":"Other"}]}"#
         let request = try JSONDecoder.clubmate.decode(Elicitation.Request.self, from: Data(json.utf8))

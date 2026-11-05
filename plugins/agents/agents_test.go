@@ -93,8 +93,11 @@ type record struct {
 }
 
 type entry struct {
-	Kind      string                     `json:"kind"`
-	ID        string                     `json:"id"`
+	Kind        string `json:"kind"`
+	ID          string `json:"id"`
+	Elicitation struct {
+		NeedsAnswer bool `json:"needsAnswer"`
+	} `json:"elicitation"`
 	Turn      int                        `json:"turn"`
 	Text      string                     `json:"text"`
 	Tool      map[string]json.RawMessage `json:"tool"`

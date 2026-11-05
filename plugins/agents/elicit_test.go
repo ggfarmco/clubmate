@@ -143,6 +143,20 @@ func TestElicitationSendKey(t *testing.T) {
 	}
 }
 
+func TestElicitationNeedsAnswerReachesBothClients(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{"prompt": []map[string]any{{"elicitation": askScript(true)}}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "go")
+
+	form := elicitationForm(t, f, workspace)
+	assert.Equal(t, []any{form.ID + "/f/0", form.ID + "/f/1", form.ID + "/f/2"}, form.Props["needsAny"])
+	asks := ofKind(f.transcript(t, workspace, session).Entries, "elicitation")
+	require.Len(t, asks, 1)
+	assert.True(t, asks[0].Elicitation.NeedsAnswer)
+}
+
 func TestElicitationCancelledWithTurn(t *testing.T) {
 	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"elicitation": askScript(false)}}})

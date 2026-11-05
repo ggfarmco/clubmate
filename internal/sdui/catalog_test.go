@@ -45,6 +45,8 @@ func TestValidate(t *testing.T) {
 		{"outlined badge and shortcut tab", sdui.VStack(sdui.WithOutline(sdui.Badge("3 open", "warning")), sdui.Tabs("t", []sdui.Item{{ID: "open", Label: "Open", Shortcut: "opt+o"}}, "open")), true},
 		{"tree item with a faint detail", sdui.Tree("t", []sdui.TreeItem{{ID: "a", Label: "a", Detail: "b", DetailFaint: true, Badges: []sdui.HeaderBadge{{Text: "3 open", Tone: "warning", Outline: true}}}}, ""), true},
 		{"fit scroll in a docked form", sdui.WithDock(sdui.Form("f", sdui.FitScroll(sdui.Text("a")))), true},
+		{"form that needs an answer", sdui.WithNeedsAny(sdui.Form("f", sdui.Button("go", "Go", "")), []string{"a", "b"}), true},
+		{"form needsAny with a non-string", sdui.Node{Type: "form", ID: "f", Props: map[string]any{"needsAny": []any{1}}}, false},
 		{"choice bad style", sdui.Choice("c", sdui.ChoiceProps{Style: "dropdown"}), false},
 		{"choice other without id", sdui.Node{Type: "choice", ID: "c", Props: map[string]any{"style": "check", "options": []any{}, "other": map[string]any{"label": "Other…"}}}, false},
 		{"toggle bad style", sdui.Node{Type: "toggle", ID: "t", Props: map[string]any{"value": true, "style": "radio"}}, false},

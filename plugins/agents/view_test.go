@@ -1113,3 +1113,28 @@ func TestViewShortcutsDeclared(t *testing.T) {
 	fields := []elicitField{{Key: "q", Type: fieldChoice, Options: options}}
 	shortcuttest.RequireDeclared(t, append(fieldNodes("q", fields), toggle, card)...)
 }
+
+func TestNeedsAnswer(t *testing.T) {
+	t.Parallel()
+	choice := elicitField{Key: "question_0", Type: fieldChoice}
+	multi := elicitField{Key: "question_1", Type: fieldMulti}
+	other := elicitField{Key: "question_0_custom", Type: fieldText}
+	cases := []struct {
+		name   string
+		fields []elicitField
+		want   bool
+	}{
+		{"questions with Other", []elicitField{choice, other, multi}, true},
+		{"no fields", nil, false},
+		{"a free text field", []elicitField{choice, {Key: "note", Type: fieldText}}, false},
+		{"a number", []elicitField{{Key: "n", Type: fieldNumber}}, false},
+		{"a boolean", []elicitField{multi, {Key: "b", Type: fieldBoolean}}, false},
+		{"its own required", []elicitField{{Key: "question_0", Type: fieldChoice, Required: true}}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, needsAnswer(tc.fields))
+		})
+	}
+}

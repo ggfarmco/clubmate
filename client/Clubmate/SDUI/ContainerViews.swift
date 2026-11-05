@@ -194,6 +194,9 @@ struct FormNodeView: View {
         .onChange(of: node.bool("autosave") == true, initial: true) { _, on in
             state.autosave = on
         }
+        .onChange(of: node.props["needsAny"]?.arrayValue?.compactMap(\.stringValue) ?? [], initial: true) { _, ids in
+            state.needsAny = ids
+        }
         .onChange(of: state.submissions) {
             guard state.sends(mount) else { return }
             send()

@@ -226,7 +226,7 @@ A pending question (AskUserQuestion or an MCP form) is docked above the composer
 |---|---|
 | ⌥1 ⌥2 ⌥3 ⌥4 ⌥5 ⌥6 ⌥7 ⌥8 ⌥9 | Answer with that option (printed on each option row) when the question has a single list of options; the answer is sent at once, with whatever is typed in Other as a note. The key after the last option picks "Other…": it opens the field and sends nothing |
 | ↩ | In a text field of the question (e.g. "Other"): send the form |
-| ⌘↩ | Send the form (printed on Send), also from an empty composer; a composer with text sends its message instead. Not on a card a pick already answers (one question, no Other), and not while a terminal or Neovim has focus |
+| ⌘↩ | Send the form (printed on Send), also from an empty composer, when something is answered ([Needs an answer](agents.md#needs-an-answer)); until then it does nothing. A composer with text sends its message instead. Not on a card a pick already answers (one question, no Other), and not while a terminal or Neovim has focus |
 
 ⎋ stays Stop the running turn and answers nothing; Skip has no key. With 2+ questions the rows have no keys: click them, or Tab to a row and press Space. Defined by the `choice` option `shortcut` props and Send's `shortcut` in `plugins/agents/elicit_view.go`, ranked in `SDUI/KeyMonitor.swift` (`KeyClaim`).
 

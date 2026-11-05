@@ -47,7 +47,11 @@ func elicitationCard(sc screen, en *entry) sdui.Node {
 	}
 	skip := sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/decline", "Skip", ""), actElicitDecline), "ghost")
 	children = append(children, sdui.HStack(submit, skip))
-	return sdui.WithDock(sdui.WithAction(sdui.Form(id, sdui.Card(cardTone, "questionmark.bubble.fill", children...)), actElicitation))
+	form := sdui.WithAction(sdui.Form(id, sdui.Card(cardTone, "questionmark.bubble.fill", children...)), actElicitation)
+	if el.NeedsAnswer {
+		form = sdui.WithNeedsAny(form, fieldIDs(id, el.Fields))
+	}
+	return sdui.WithDock(form)
 }
 
 func (a *app) elicitAct(ev pluginsdk.UIEvent, s *session, node string) error {
@@ -116,6 +120,14 @@ func fieldNode(id string, i int) string {
 	return id + "/f/" + strconv.Itoa(i)
 }
 
+func fieldIDs(id string, fields []elicitField) []string {
+	ids := make([]string, 0, len(fields))
+	for i := range fields {
+		ids = append(ids, fieldNode(id, i))
+	}
+	return ids
+}
+
 func singleChoice(fields []elicitField) int {
 	found := -1
 	for i, f := range fields {
@@ -134,6 +146,12 @@ func singleChoice(fields []elicitField) int {
 
 func answersOnPick(fields []elicitField) bool {
 	return len(fields) == 1 && singleChoice(fields) == 0
+}
+
+func needsAnswer(fields []elicitField) bool {
+	return len(fields) > 0 && !slices.ContainsFunc(fields, func(f elicitField) bool {
+		return f.Required || !isChoice(f) && !isCustom(fields, f)
+	})
 }
 
 func fieldNodes(id string, fields []elicitField) []sdui.Node {

@@ -1817,8 +1817,9 @@ struct ElicitationCard: View {
     }
 
     private var sendButton: some View {
-        PrimaryCapsule(title: "Send") { submit("accept", draft.answers(question.request.fields)) }
-            .answering(answerable, enabled: enabled)
+        let canSend = question.canSend(draft)
+        return PrimaryCapsule(title: "Send") { submit("accept", draft.answers(question.request.fields)) }
+            .answering(answerable && canSend, enabled: enabled && canSend)
     }
 
     private func turn(to target: Int) {

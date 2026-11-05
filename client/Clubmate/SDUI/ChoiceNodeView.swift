@@ -252,6 +252,7 @@ struct ChoiceNodeView: View {
 
     private func typed(_ text: String, in other: SDUIChoiceOther) {
         otherText = text
+        guard otherOn else { return }
         form?.values[other.id] = .string(text)
         form?.touch(other.id)
         form?.edited(after: FormState.typingDelay)

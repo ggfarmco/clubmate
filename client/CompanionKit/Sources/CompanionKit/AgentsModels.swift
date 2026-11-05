@@ -670,9 +670,10 @@ public struct Elicitation: Sendable, Equatable {
         public var message = ""
         public var url: String?
         public var fields: [Field] = []
+        public var needsAnswer = false
 
         enum CodingKeys: String, CodingKey {
-            case mode, message, url, fields
+            case mode, message, url, fields, needsAnswer
         }
 
         init() {}
@@ -683,6 +684,7 @@ public struct Elicitation: Sendable, Equatable {
             message = try c.decodeIfPresent(String.self, forKey: .message) ?? ""
             url = try c.decodeIfPresent(String.self, forKey: .url)
             fields = (try? c.decodeIfPresent([Field].self, forKey: .fields)) ?? []
+            needsAnswer = try c.decodeIfPresent(Bool.self, forKey: .needsAnswer) ?? false
         }
     }
 
@@ -754,6 +756,10 @@ public struct Elicitation: Sendable, Equatable {
     public var singleChoice: Field? {
         guard let only = questions.first, questions.count == 1, only.field.type == "choice" else { return nil }
         return only.field
+    }
+
+    public func canSend(_ draft: ElicitationDraft) -> Bool {
+        !request.needsAnswer || !draft.answers(request.fields).isEmpty
     }
 
     static func questions(_ fields: [Field]) -> [Question] {

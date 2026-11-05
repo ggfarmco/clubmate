@@ -39,7 +39,7 @@ struct ButtonNodeView: View {
                 return .handled
             }
             .onHover { hovering = $0 }
-            .keyMonitor(active: combo != nil && !disabled && !popoverShown, overTerminals: combo?.passesTerminals == true && !docked, claims: docked ? claim : nil, handle: press.handle)
+            .keyMonitor(active: combo != nil && (!disabled || press.unanswered) && !popoverShown, overTerminals: combo?.passesTerminals == true && !docked, claims: docked ? claim : nil, handle: press.handle)
             .keyMonitor(active: popoverShown, handle: popoverLink.handle)
             .help(iconOnly ? tooltip : "")
             .accessibilityLabel(node.string("label") ?? "")
@@ -107,7 +107,7 @@ struct ButtonNodeView: View {
             if let keyLabel, !iconOnly {
                 Text(keyLabel)
                     .font(theme.uiSmall)
-                    .foregroundStyle(variant == "primary" ? theme.onAccent : theme.muted)
+                    .foregroundStyle(disabled ? theme.faint : variant == "primary" ? theme.onAccent : theme.muted)
             }
         }
     }
@@ -166,7 +166,8 @@ struct ButtonPress {
 
     var combo: KeyCombo? { node.string("shortcut").flatMap(KeyCombo.init) }
     var loading: String? { node.string("loading").flatMap { $0.isEmpty ? nil : $0 } }
-    var disabled: Bool { node.bool("disabled") == true || loading != nil }
+    var unanswered: Bool { form?.unanswered == true && (node.string("action") == nil || node.bool("withForm") == true) }
+    var disabled: Bool { node.bool("disabled") == true || loading != nil || unanswered }
     var saving: String? { form?.saving == true && node.string("action") == nil ? UIFormSave.verb : nil }
 
     func handle(_ event: NSEvent) -> Bool {

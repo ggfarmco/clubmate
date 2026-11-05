@@ -880,6 +880,10 @@ func WithForm(n Node) Node {
 	return withProp(n, "withForm", true)
 }
 
+func WithNeedsAny(n Node, ids []string) Node {
+	return withProp(n, "needsAny", ids)
+}
+
 func WithTone(n Node, tone string) Node {
 	return withProp(n, "tone", tone)
 }

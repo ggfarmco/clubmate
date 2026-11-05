@@ -1048,6 +1048,7 @@ actor FixtureServer {
         return .object(["kind": .string("elicitation"), "id": .string("elicitation-1"), "turn": .number(1), "elicitation": .object([
             "mode": .string("form"),
             "message": .string("Please answer the following questions."),
+            "needsAnswer": .bool(true),
             "fields": .array([
                 .object(["key": .string("question_0"), "type": .string("choice"), "title": .string("Hold"), "description": .string("How long should a reservation hold stock?"), "options": .array([
                     option("10 minutes", "Same as the checkout timeout"),

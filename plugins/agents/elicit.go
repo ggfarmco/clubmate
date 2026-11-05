@@ -52,6 +52,7 @@ type elicitation struct {
 	ElicitationID string        `json:"elicitationId,omitempty"`
 	ToolCallID    string        `json:"toolCallId,omitempty"`
 	Fields        []elicitField `json:"fields,omitempty"`
+	NeedsAnswer   bool          `json:"needsAnswer,omitempty"`
 }
 
 type elicitField struct {
@@ -333,7 +334,7 @@ func parseElicitation(params json.RawMessage) (*elicitation, error) {
 		if err != nil {
 			return nil, err
 		}
-		el.Fields = fields
+		el.Fields, el.NeedsAnswer = fields, needsAnswer(fields)
 		return el, nil
 	}
 	return nil, fmt.Errorf("%w: mode %q", errUnsupportedForm, req.Mode)
