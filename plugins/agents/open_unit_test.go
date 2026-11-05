@@ -61,6 +61,14 @@ func TestOffersOnOneSentenceShareOneMarker(t *testing.T) {
 	assert.Equal(t, "One. ①", onlyMarked(t, s))
 }
 
+func TestOpenItemsDrawAfterTheirTurnsLastMessage(t *testing.T) {
+	t.Parallel()
+	card := &entry{ID: "open-1", Turn: 1, Kind: entryOpenItems}
+	closing := &entry{ID: "closing", Turn: 1, Kind: entryAgent}
+	next := &entry{ID: "next", Turn: 2, Kind: entryUser}
+	assert.Equal(t, []*entry{closing, card, next}, openItemsLast([]*entry{card, closing, next}))
+}
+
 func TestOpenSplitLeavesOutAnEmptyKind(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "2 offers", openSplit([]openItem{{Kind: itemOffer}, {Kind: itemOffer}}))

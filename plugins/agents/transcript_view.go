@@ -122,6 +122,7 @@ func transcript(sc screen) sdui.Node {
 		}
 	}
 	hidden := len(v.Entries) - len(shown)
+	shown = openItemsLast(shown)
 	var nodes []sdui.Node
 	budget := nodeBudget
 	for i := len(shown) - 1; i >= 0; i-- {
@@ -164,6 +165,23 @@ func transcript(sc screen) sdui.Node {
 		n = sdui.WithAnchorRev(sdui.WithAnchor(n, sc.Anchor), sc.AnchorRev)
 	}
 	return n
+}
+
+func openItemsLast(shown []*entry) []*entry {
+	out := make([]*entry, 0, len(shown))
+	var held []*entry
+	for i, en := range shown {
+		if en.Kind == entryOpenItems {
+			held = append(held, en)
+		} else {
+			out = append(out, en)
+		}
+		if i == len(shown)-1 || shown[i+1].Turn != en.Turn {
+			out = append(out, held...)
+			held = nil
+		}
+	}
+	return out
 }
 
 func shownPrompt(text string) string {
