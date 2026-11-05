@@ -266,3 +266,8 @@ func TestCommandShortensPathsKeepingExecutableAndArgs(t *testing.T) {
 	}}}
 	assert.Equal(t, "/Users/…/bin/nvim --embed --listen=/Users/…/editor-nvim/prj_1a3983d56.sock /tmp/x", displayCommand(n, cellRunes))
 }
+
+func TestAvgNoteDropsAUnitTheLiveValueAlreadyShows(t *testing.T) {
+	assert.Equal(t, "avg 47", avgNote("54 MB", "47 MB"))
+	assert.Equal(t, "avg 998 MB", avgNote("1.0 GB", "998 MB"))
+}

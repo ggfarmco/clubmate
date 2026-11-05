@@ -206,12 +206,25 @@ func totalsView(m viewModel) sdui.Node {
 	cpuHist, memHist := m.hist.cpu(m.totalKey, historyLen), m.hist.mem(m.totalKey, historyLen)
 	cpuPeak, _ := peakAvg(cpuHist)
 	memPeak, memAvg := peakAvg(memHist)
+	mem := formatMB(float64(rss) / kibPerMiB)
 	return withID(sdui.HStack(
-		sdui.VStack(sdui.MutedText(fmt.Sprintf("CPU · peak %.0f%%", cpuPeak)), sdui.Text(strconv.FormatFloat(cpu, 'f', 1, 64)+"%")),
+		sdui.VStack(sdui.MutedText("CPU"), totalReading(strconv.FormatFloat(cpu, 'f', 1, 64)+"%", fmt.Sprintf("peak %.0f%%", cpuPeak))),
 		sdui.SparklineSized("total-cpu", cpuHist, cpuScale(cpuHist), stripHeight),
-		sdui.VStack(sdui.MutedText("MEM · avg "+formatMB(memAvg)), sdui.Text(formatMB(float64(rss)/kibPerMiB))),
+		sdui.VStack(sdui.MutedText("Memory"), totalReading(mem, avgNote(mem, formatMB(memAvg)))),
 		sdui.SparklineSized("total-mem", memHist, max(memPeak, 1), stripHeight),
 	), "totals")
+}
+
+func totalReading(value, note string) sdui.Node {
+	return sdui.HStack(sdui.Text(value), sdui.WithShort(sdui.MutedText(note), note))
+}
+
+func avgNote(live, avg string) string {
+	number, unit, _ := strings.Cut(avg, " ")
+	if strings.HasSuffix(live, unit) {
+		return "avg " + number
+	}
+	return "avg " + avg
 }
 
 func actionStrip(m viewModel) (sdui.Node, bool) {
