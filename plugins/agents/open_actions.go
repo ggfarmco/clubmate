@@ -16,8 +16,6 @@ const (
 	focusComposer = "composer"
 )
 
-var errNoOpenStop = errors.New("no open item")
-
 type openStop struct {
 	session string
 	item    openItem
@@ -120,8 +118,9 @@ func (a *app) laterOpen(ctx context.Context, cmd pluginsdk.CommandRun, s *sessio
 
 func (a *app) sendOpen(ctx context.Context, workspaceID string, s *session, st *sessionUI) error {
 	sid := s.snapshot().ID
+	items := s.openList()
 	a.uiMu.Lock()
-	args := st.open.args(sid, s.openList())
+	args := st.open.args(sid, items)
 	a.uiMu.Unlock()
 	if args.picked() == 0 {
 		return nil
@@ -266,25 +265,22 @@ func (a *app) stopIndex(workspaceID, only string, stops []openStop) int {
 }
 
 func (a *app) moveStop(ctx context.Context, workspaceID string, stops []openStop, to int) error {
-	if to < 0 || to >= len(stops) {
-		return errNoOpenStop
-	}
 	stop := stops[to]
 	st := a.sessionState(workspaceID, stop.session)
 	a.withDraft(st, func(d *openDraft) { d.cursor = stop.item.ID })
 	return a.queueSelect(ctx, workspaceID, stop.session)
 }
 
-func (a *app) openQueueScreen(ctx context.Context, workspaceID string, rows []sessionRow, selected string) openQueueScreen {
+func (a *app) openQueueScreen(workspaceID string, rows []sessionRow, selected string) openQueueScreen {
 	byID := make(map[string]sessionRow, len(rows))
 	for _, row := range rows {
 		byID[row.Rec.ID] = row
 	}
 	q := openQueueScreen{}
-	add := func(sid string) *openQueueCard {
+	add := func(sid string) {
 		s := a.session(sid)
 		if s == nil {
-			return nil
+			return
 		}
 		data := s.openCard()
 		st := a.sessionState(workspaceID, sid)
@@ -293,7 +289,6 @@ func (a *app) openQueueScreen(ctx context.Context, workspaceID string, rows []se
 		draft := st.open.clone()
 		a.uiMu.Unlock()
 		q.Cards = append(q.Cards, openQueueCard{Rec: s.snapshot(), Branch: byID[sid].Branch, Data: data, Draft: draft})
-		return &q.Cards[len(q.Cards)-1]
 	}
 	for _, e := range a.openQueue(workspaceID) {
 		add(e.Session)

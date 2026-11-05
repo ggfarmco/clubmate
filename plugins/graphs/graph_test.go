@@ -25,8 +25,11 @@ func TestLoadGraph(t *testing.T) {
 	files := listGraphs([]string{"testdata"}, "")
 	require.Len(t, files, 5)
 	assert.Equal(t, []string{"gate", "pr-walkthrough", "red-team", "review-gate", "review-loop"}, []string{files[0].Name, files[1].Name, files[2].Name, files[3].Name, files[4].Name})
-	assert.Equal(t, graphFile{Name: "pr-walkthrough", Title: "PR walkthrough", Description: files[1].Description, Path: "builtin/pr-walkthrough.json", Nodes: files[1].Nodes, Builtin: true}, files[1])
-	assert.Equal(t, graphFile{Name: "review-loop", Title: "Review loop", Description: g.Description, Path: "testdata/.clubmate/graphs/review-loop.json", Nodes: 2}, files[4])
+	assert.Equal(t, graphFile{Name: "pr-walkthrough", Title: "PR walkthrough", Description: files[1].Description, Path: "builtin/pr-walkthrough.json", Nodes: files[1].Nodes, Builtin: true, spec: files[1].spec}, files[1])
+	assert.Equal(t, graphFile{Name: "review-loop", Title: "Review loop", Description: g.Description, Path: "testdata/.clubmate/graphs/review-loop.json", Nodes: 2, spec: files[4].spec}, files[4])
+	assert.NotNil(t, files[4].spec)
+	assert.Contains(t, yourGraphs(files), files[4].spec)
+	assert.NotContains(t, yourGraphs(files), files[1].spec)
 }
 
 func TestGraphPrecedenceProjectUserBuiltin(t *testing.T) {
@@ -49,7 +52,7 @@ func TestGraphPrecedenceProjectUserBuiltin(t *testing.T) {
 	files := listGraphs([]string{dir}, home)
 	require.Len(t, files, 2)
 	assert.Equal(t, []any{"Mine", false, false}, []any{files[0].Title, files[0].User, files[0].Builtin})
-	assert.Equal(t, graphFile{Name: "review-gate", Title: "Yours", Path: filepath.Join(home, graphsDir, "review-gate.json"), Nodes: 1, User: true}, files[1])
+	assert.Equal(t, graphFile{Name: "review-gate", Title: "Yours", Path: filepath.Join(home, graphsDir, "review-gate.json"), Nodes: 1, User: true, spec: files[1].spec}, files[1])
 }
 
 func TestBuiltinGraphsParse(t *testing.T) {

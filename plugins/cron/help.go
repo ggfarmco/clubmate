@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
-	"strconv"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
@@ -65,16 +64,8 @@ func helpView(jobs []*Job) sdui.Node {
 	}
 	rows := make([]sdui.TableRow, 0, len(kinds))
 	for _, k := range kinds {
-		yours := ""
-		switch n := counts[k.id]; n {
-		case 0:
-		case 1:
-			yours = "1 job"
-		default:
-			yours = strconv.Itoa(n) + " jobs"
-		}
 		rows = append(rows, sdui.TableRow{ID: k.id, Cells: []sdui.Cell{
-			{Text: k.label}, {Text: k.example}, {Text: yours}, {Action: automation.ActAsk, Label: "Ask an agent"},
+			{Text: k.label}, {Text: k.example}, {Text: automation.Yours(counts[k.id], "job")}, {Action: automation.ActAsk, Label: "Ask an agent"},
 		}})
 	}
 	columns := []sdui.Column{

@@ -190,10 +190,7 @@ func shortProgress(reviewed, total, open int) string {
 func (b *reviewBoard) cards() (map[string]map[int64]string, map[string]bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	states := make(map[string]map[int64]string, len(b.states))
-	for id, s := range b.states {
-		states[id] = maps.Clone(s)
-	}
+	states := maps.Clone(b.states)
 	open := make(map[string]bool, len(b.open))
 	for id := range b.open {
 		open[id] = true

@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"slices"
-	"strconv"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
@@ -73,16 +71,8 @@ func edgeOn(kinds ...string) func(*Graph) bool {
 func yourGraphs(graphs []graphFile) []*Graph {
 	var specs []*Graph
 	for _, g := range graphs {
-		if g.Builtin || g.Error != "" {
-			continue
-		}
-		data, err := os.ReadFile(g.Path)
-		if err != nil {
-			logError(err)
-			continue
-		}
-		if spec, err := parseGraph(g.Name, data); err == nil {
-			specs = append(specs, spec)
+		if !g.Builtin && g.spec != nil {
+			specs = append(specs, g.spec)
 		}
 	}
 	return specs
@@ -98,16 +88,8 @@ func helpView(specs []*Graph) sdui.Node {
 				n++
 			}
 		}
-		yours := ""
-		switch n {
-		case 0:
-		case 1:
-			yours = "1 graph"
-		default:
-			yours = strconv.Itoa(n) + " graphs"
-		}
 		rows = append(rows, sdui.TableRow{ID: p.id, Cells: []sdui.Cell{
-			{Text: p.name}, {Text: p.does}, {Text: p.field}, {Text: yours}, {Action: automation.ActAsk, Label: "Ask an agent"},
+			{Text: p.name}, {Text: p.does}, {Text: p.field}, {Text: automation.Yours(n, "graph")}, {Action: automation.ActAsk, Label: "Ask an agent"},
 		}})
 	}
 	columns := []sdui.Column{

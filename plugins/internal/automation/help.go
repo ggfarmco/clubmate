@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	"strconv"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
@@ -21,6 +22,16 @@ func HelpItem(label string) sdui.TreeItem {
 func HelpHeader(title, meta, ask string) sdui.Node {
 	button := sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(AskID, ask, "sparkles"), ActAsk), sdui.VariantPrimary), "cmd+n")
 	return sdui.Header(title, sdui.HeaderProps{Icon: HelpIcon, Meta: meta}, button)
+}
+
+func Yours(n int, noun string) string {
+	switch n {
+	case 0:
+		return ""
+	case 1:
+		return "1 " + noun
+	}
+	return strconv.Itoa(n) + " " + noun + "s"
 }
 
 func Facts(facts [][2]string) sdui.Node {

@@ -259,11 +259,11 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	if slices.Contains(slots, mainSlot) {
 		main := sdui.Empty(pickSession)
 		if filter == filterOpen {
-			q := a.openQueueScreen(ctx, workspaceID, rows, selected)
+			q := a.openQueueScreen(workspaceID, rows, selected)
 			q.Now = time.Now()
 			main = openQueueView(q)
 		} else if s := a.session(selected); s != nil {
-			sc := a.screen(ctx, workspaceID, s)
+			sc := a.screen(ctx, workspaceID, s, children[selected])
 			sc.Workspace = workspace.Name
 			main, shown = mainView(sc), &sc
 		}
@@ -274,7 +274,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	if !slices.Contains(slots, codeSlot) {
 		return nil
 	}
-	return a.renderCode(ctx, p, workspace, recs, shown)
+	return a.renderCode(ctx, p, workspace, recs, children, shown)
 }
 
 func (a *app) slots() []string {
@@ -372,7 +372,7 @@ func (a *app) setSection(workspaceID, section string) {
 	}
 }
 
-func (a *app) renderCode(ctx context.Context, p *workspaceUI, workspace pluginsdk.Workspace, recs []record, shown *screen) error {
+func (a *app) renderCode(ctx context.Context, p *workspaceUI, workspace pluginsdk.Workspace, recs []record, children map[string]string, shown *screen) error {
 	if !a.codePanel {
 		return nil
 	}
@@ -395,7 +395,7 @@ func (a *app) renderCode(ctx context.Context, p *workspaceUI, workspace pluginsd
 	if sc == nil || sc.View.Session.ID != bound {
 		sc = nil
 		if s := a.session(bound); s != nil {
-			v := a.screen(ctx, workspace.ID, s)
+			v := a.screen(ctx, workspace.ID, s, children[bound])
 			v.Workspace = workspace.Name
 			sc = &v
 		}
@@ -440,7 +440,7 @@ func (a *app) sessionRow(ctx context.Context, rec record, children string) sessi
 	return row
 }
 
-func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen {
+func (a *app) screen(ctx context.Context, workspaceID string, s *session, children string) screen {
 	if s.claimChangesCheck() {
 		go a.refreshChanges(s)
 	}
@@ -461,7 +461,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 	st := a.sessionState(workspaceID, sid)
 	parent, fromTitles := a.relatives(v)
 	advisor := a.sessionAdvisor(ctx, v.Session)
-	row := a.sessionRow(ctx, v.Session, childStatuses(a.list(workspaceID))[sid])
+	row := a.sessionRow(ctx, v.Session, children)
 	ctxScreen := a.contextScreen(st, v.Session)
 	current := s.currentTurn()
 	open := s.openCard()

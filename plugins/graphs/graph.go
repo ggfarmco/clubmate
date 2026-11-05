@@ -105,6 +105,8 @@ type graphFile struct {
 	Changed     []string      `json:"changed,omitempty"`
 	Trusted     *trustedSteps `json:"trusted,omitempty"`
 	Error       string        `json:"error,omitempty"`
+
+	spec *Graph
 }
 
 type origin int
@@ -204,7 +206,7 @@ func describeGraph(f graphFile, data []byte, err error) graphFile {
 	if err == nil {
 		var g *Graph
 		if g, err = parseGraph(f.Name, data); err == nil {
-			f.Title, f.Description, f.Nodes = g.Title, g.Description, len(g.Nodes)
+			f.Title, f.Description, f.Nodes, f.spec = g.Title, g.Description, len(g.Nodes), g
 		}
 	}
 	if err != nil {

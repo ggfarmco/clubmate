@@ -89,16 +89,8 @@ func helpView(triggers []*Trigger) sdui.Node {
 	counts := listening(triggers)
 	rows := make([]sdui.TableRow, 0, len(catalog))
 	for _, k := range catalog {
-		yours := ""
-		switch n := counts[k.topic]; n {
-		case 0:
-		case 1:
-			yours = "1 trigger"
-		default:
-			yours = strconv.Itoa(n) + " triggers"
-		}
 		rows = append(rows, sdui.TableRow{ID: k.topic, Cells: []sdui.Cell{
-			{Text: k.group}, {Text: k.phrase}, {Text: k.filters}, {Text: yours}, {Action: automation.ActAsk, Label: "Ask an agent"},
+			{Text: k.group}, {Text: k.phrase}, {Text: k.filters}, {Text: automation.Yours(counts[k.topic], "trigger")}, {Action: automation.ActAsk, Label: "Ask an agent"},
 		}})
 	}
 	columns := []sdui.Column{

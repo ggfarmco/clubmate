@@ -44,7 +44,6 @@ const (
 	mayAskIcon    = "questionmark.circle"
 	convertLabel  = "Turn into items"
 	queueHints    = "j/k item · 1–4 pick · x tick · o other · L later · B backlog · ⌫ no · ⌘↩ send all answered · ↩ open session"
-	otherAnswer   = "Your answer"
 	noneOpen      = "Nothing open"
 	withAnswers   = " — your answers go with it"
 )
@@ -109,7 +108,7 @@ func openEntryNode(sc screen, en *entry) (sdui.Node, bool) {
 	case en.ID == sc.Open.Entry && rec.Status == statusWaiting:
 		return sdui.Node{}, false
 	case en.ID == sc.Open.Entry && sc.Open.Later && !sc.Expanded[en.ID]:
-		return openFolded(rec, en, sc.Open), true
+		return openFolded(rec, sc.Open), true
 	case en.ID == sc.Open.Entry:
 		return openCard(rec.ID, rec.OpenCount, sc.Open, sc.OpenDraft), true
 	case hasOpen(en):
@@ -132,16 +131,14 @@ func openCountNode(count int) sdui.Node {
 }
 
 func openGlyph() sdui.Node {
-	n := sdui.Icon(openIcon)
-	n.Props["tone"] = "success"
-	return n
+	return sdui.WithTone(sdui.Icon(openIcon), "success")
 }
 
 func openStrong(text string) sdui.Node {
 	return sdui.Node{Type: "text", Props: map[string]any{"text": text, "style": "strong"}}
 }
 
-func openFolded(rec record, en *entry, data openCardData) sdui.Node {
+func openFolded(rec record, data openCardData) sdui.Node {
 	show := sdui.WithVariant(sdui.WithAction(sdui.Button(rec.ID+"/"+openNode+"/show", "Show", ""), actOpenShow), "ghost")
 	return sdui.HStack(openGlyph(), sdui.MutedText("Later"), openCountNode(rec.OpenCount), sdui.MutedText(openSplit(data.Items)), sdui.Spacer(), show)
 }
@@ -200,7 +197,7 @@ func decisionChoice(sid string, it openItem, number int, d openDraft, cursor str
 	for i, o := range it.Options {
 		options = append(options, sdui.ChoiceOption{Value: o.Label, Label: o.Label, Description: o.Description, Hint: strconv.Itoa(i + 1), On: ans.Option == o.Label || slices.Contains(ans.Options, o.Label)})
 	}
-	other := &sdui.ChoiceOther{ID: openOtherID(sid, it.ID), Label: otherLabel, Placeholder: otherAnswer, Hint: "o", On: d.others[it.ID], Value: ans.Other}
+	other := &sdui.ChoiceOther{ID: openOtherID(sid, it.ID), Label: otherLabel, Placeholder: otherPlaceholder, Hint: "o", On: d.others[it.ID], Value: ans.Other}
 	if it.ID == cursor {
 		other.Focus = d.focus
 	}
@@ -275,7 +272,7 @@ func resolvedLine(items []openItem) string {
 }
 
 func openQueueView(q openQueueScreen) sdui.Node {
-	items, answered, sessions := 0, 0, 0
+	items, answered, sessions, answeredIn := 0, 0, 0, 0
 	for _, c := range q.Cards {
 		if c.Rec.OpenCount > 0 {
 			items += c.Rec.OpenCount
@@ -283,6 +280,7 @@ func openQueueView(q openQueueScreen) sdui.Node {
 		}
 		if n := c.Draft.args(c.Rec.ID, c.Data.Items).picked(); n > 0 {
 			answered += n
+			answeredIn++
 		}
 	}
 	if len(q.Cards) == 0 {
@@ -292,7 +290,7 @@ func openQueueView(q openQueueScreen) sdui.Node {
 	meta := ""
 	if answered > 0 {
 		send.Props["label"] = "Send " + counted(answered, "answer")
-		meta = strconv.Itoa(answered) + " answered · to " + counted(answeredSessions(q.Cards), "session")
+		meta = strconv.Itoa(answered) + " answered · to " + counted(answeredIn, "session")
 	} else {
 		send = sdui.WithDisabled(send)
 	}
@@ -304,16 +302,6 @@ func openQueueView(q openQueueScreen) sdui.Node {
 	cards = append(cards, sdui.MutedText(queueHints))
 	body := sdui.VStack(sdui.WithInline(sdui.Header(title, sdui.HeaderProps{Meta: meta}, send)), sdui.Scroll(sdui.WithGap(sdui.VStack(cards...), queueGap)))
 	return sdui.WithPaneFocus(sdui.WithAction(sdui.Keys(openQueueNode, openQueueKeys, body), actOpenKey))
-}
-
-func answeredSessions(cards []openQueueCard) int {
-	n := 0
-	for _, c := range cards {
-		if c.Draft.args(c.Rec.ID, c.Data.Items).picked() > 0 {
-			n++
-		}
-	}
-	return n
 }
 
 func queueCard(c openQueueCard, now time.Time) sdui.Node {
