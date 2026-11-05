@@ -71,7 +71,7 @@ Checks, cheapest first; the first that fails answers:
 | the same signature seen in the last 10 min (replay) | `401` |
 | key banned | `403` |
 | trusted Mac: 30 an hour; anonymous key: 3 an hour and 10 a day, all anonymous reports together 200 a day | `429` |
-| `report.json` missing or invalid, or its fields over 64 KiB; an entry the dev Mac would refuse to unpack (`pkg/report.CheckEntries`: a name with a NUL byte or invalid UTF-8, a path component over 255 bytes or a name over 1000 bytes, `../` or absolute, a first component `stored.json` or `.handled` in any case, not a regular file or folder, over 10 000 entries, an entry declared over 25 MiB, all declared over 100 MiB) | `400` |
+| `report.json` missing or invalid, or its fields over 64 KiB; an entry the dev Mac would refuse to unpack (`pkg/report.CheckEntries`: a name with a control character or invalid UTF-8, a path component over 255 bytes or a name over 1000 bytes, `../` or absolute, a first component `stored.json` or `.handled` in any case, not a regular file or folder, over 10 000 entries, an entry declared over 25 MiB, all declared over 100 MiB) | `400` |
 | storage over the 2 GiB quota | `507` |
 
 A signature is recorded as seen only after the bans and limits have passed, so a report refused with `403`/`429` can be sent again with the same signature. The IP bucket (anonymous only) is charged before the body is read and stays charged when a later check refuses the request. The key and all-anonymous buckets are charged together only when all of them allow it, so a request refused by one takes no token from the others.

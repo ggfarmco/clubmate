@@ -61,7 +61,7 @@ type reportUploadResult struct {
 }
 
 func newReports(relay *relayClient, kv kvStore, client *http.Client, dir string, now func() time.Time) *reports {
-	return &reports{relay: relay, kv: kv, client: client, dir: dir, now: now}
+	return &reports{relay: relay, kv: kv, client: noRedirects(client), dir: dir, now: now}
 }
 
 func (r *reports) upload(ctx context.Context, path string) (reportUploadResult, error) {

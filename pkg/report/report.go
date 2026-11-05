@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -185,7 +186,7 @@ func message(req *http.Request, ts string, body []byte) []byte {
 }
 
 func creatable(name string) bool {
-	if len(name) > MaxName || strings.ContainsRune(name, 0) || !utf8.ValidString(name) {
+	if len(name) > MaxName || strings.ContainsFunc(name, unicode.IsControl) || !utf8.ValidString(name) {
 		return false
 	}
 	for part := range strings.SplitSeq(name, "/") {

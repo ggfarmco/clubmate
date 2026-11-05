@@ -58,7 +58,13 @@ type relayRequest struct {
 }
 
 func newRelayClient(kv kvStore, client *http.Client) *relayClient {
-	return &relayClient{kv: kv, client: client, reportURL: defaultReportRelay}
+	return &relayClient{kv: kv, client: noRedirects(client), reportURL: defaultReportRelay}
+}
+
+func noRedirects(client *http.Client) *http.Client {
+	strict := *client
+	strict.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return &strict
 }
 
 func (c *relayClient) load(ctx context.Context) error {

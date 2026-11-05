@@ -83,6 +83,8 @@ func TestCheckEntries(t *testing.T) {
 		"total":    {{name: "a", size: MaxEntry}, {name: "b", size: MaxEntry}, {name: "c", size: MaxEntry}, {name: "d", size: MaxEntry}, {name: "e", size: 1}},
 		"entries":  many,
 		"nul":      {{name: "a\x00b"}},
+		"control":  {{name: "a\nb"}},
+		"escape":   {{name: "d/a\x1b[2Jb"}},
 		"utf8":     {{name: "\xff\xfe"}},
 		"part":     {{name: "d/" + strings.Repeat("a", MaxNamePart+1)}},
 		"long":     {{name: strings.Repeat("d/", MaxName/2) + "a"}},

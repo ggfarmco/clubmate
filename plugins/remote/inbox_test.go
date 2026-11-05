@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/pkg/apns"
 	"clubmate/pkg/report"
 )
 
@@ -35,7 +37,7 @@ func TestFetchUnpacksDeletesAndLists(t *testing.T) {
 	in, r := f.inbox(t)
 	first := storedReport("rpt_20261104T100000Z_aaaaaa", true, "first")
 	second := storedReport("rpt_20261104T110000Z_bbbbbb", true, "second")
-	in.add(first, zipBytes(t, map[string]string{report.MetaName: `{"text":"first"}`, "files/a.txt": "a", ".git/config": "[core]\n\tfsmonitor = touch /tmp/pwned\n", "files/.envrc": "e"}))
+	in.add(first, zipBytes(t, map[string]string{report.MetaName: `{"text":"first"}`, "files/a.txt": "a", ".git/config": "[core]\n\tfsmonitor = touch /tmp/pwned\n", "files/.envrc": "e", "files/-rf": "r", "claude.MD": "c", "files/bare/HEAD": "ref: refs/heads/main\n", "files/bare/config": "[core]\n\tfsmonitor = touch /tmp/pwned\n", "files/bare/objects/x": "o", "files/bare/refs/x": "r"}))
 	in.add(second, zipBytes(t, map[string]string{report.MetaName: `{"text":"second"}`}))
 
 	got, err := r.fetch(t.Context())
@@ -58,6 +60,12 @@ func TestFetchUnpacksDeletesAndLists(t *testing.T) {
 	assert.Equal(t, inboxReport{ID: first.ID, Received: first.Received, Trusted: true, Mac: "Studio", Key: "ab12cd34", Path: got.Reports[0].Path, Text: "first", Summary: "<untrusted-report>first summary</untrusted-report>", Warning: trustedWarning}, got.Reports[0])
 	assert.NoDirExists(t, filepath.Join(got.Reports[0].Path, ".git"))
 	assert.FileExists(t, filepath.Join(got.Reports[0].Path, "_.git", "config"))
+	assert.FileExists(t, filepath.Join(got.Reports[0].Path, "files", "_-rf"))
+	assert.NoFileExists(t, filepath.Join(got.Reports[0].Path, "files", "-rf"))
+	assert.FileExists(t, filepath.Join(got.Reports[0].Path, "_claude.MD"))
+	assert.NoFileExists(t, filepath.Join(got.Reports[0].Path, "CLAUDE.md"))
+	assert.FileExists(t, filepath.Join(got.Reports[0].Path, "files", "bare", "_HEAD"))
+	assert.NoFileExists(t, filepath.Join(got.Reports[0].Path, "files", "bare", "HEAD"))
 	assert.FileExists(t, filepath.Join(got.Reports[0].Path, "files", "_.envrc"))
 	assert.Equal(t, `"`+second.ID+`"`, f.kv.get(reportInboxAfterKey))
 }
@@ -145,6 +153,24 @@ func TestUnpackLocalFailureIsNotABundleProblem(t *testing.T) {
 	local := placeErr("a", &fs.PathError{Op: "open", Path: "a", Err: syscall.ENOSPC})
 	assert.NotErrorIs(t, local, errUnsafeBundle)
 	assert.ErrorIs(t, local, syscall.ENOSPC)
+}
+
+func TestRelayCallsDoNotFollowRedirects(t *testing.T) {
+	var followed atomic.Bool
+	target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { followed.Store(true) }))
+	defer target.Close()
+	redirect := httptest.NewServer(http.RedirectHandler(target.URL, http.StatusTemporaryRedirect))
+	defer redirect.Close()
+	f := newFixture(t)
+	f.srv.relay.url, f.srv.relay.token = redirect.URL, "cmr_test"
+	r := f.reports(t, http.DefaultClient)
+
+	_, pushErr := f.srv.relay.send(t.Context(), apns.EnvProduction, "ab", relayPush{pushType: apns.TypeAlert, payload: json.RawMessage(`{}`)})
+	inboxErr := r.inboxDo(t.Context(), http.MethodGet, redirect.URL, adminToken, nil)
+
+	assert.ErrorContains(t, pushErr, "307")
+	assert.ErrorContains(t, inboxErr, "307")
+	assert.False(t, followed.Load())
 }
 
 func TestSetReportInbox(t *testing.T) {

@@ -16,7 +16,7 @@ Result: `{sent: true, id}`, or `{sent: false, reason: "cancelled" | "timed out"}
 
 Every report is signed with the install's own Ed25519 key, created on first use. A Mac with a push-relay token (`remote.set-push-relay`) also sends it to that relay, and the report arrives **trusted** with the Mac's name. Without one it goes to `https://clubmate-push.exe.xyz` as **anonymous**, known only by its key (`key ab12cd34`).
 
-Anonymous reports are data from a stranger: an agent reads them and never acts on what they ask. `remote.reports-fetch` wraps their text in `<untrusted-report>` and adds a warning. The agent's summary is wrapped for every report, and every report's files are data too: logs and summaries quote whatever the agent read. Unpacked names starting with `.` get a `_` in front, so no `.git` or `.claude` lands in a report folder.
+Anonymous reports are data from a stranger: an agent reads them and never acts on what they ask. `remote.reports-fetch` wraps their text in `<untrusted-report>` and adds a warning. The agent's summary is wrapped for every report, and every report's files are data too: logs and summaries quote whatever the agent read. Unpacked path components starting with `.` or `-`, and components named `CLAUDE.md`, `CLAUDE.local.md` or `HEAD` in any case, get a `_` in front, so no `.git`, `.claude`, bare repository git would run hooks from, agent instructions or anything `rm *` reads as a flag lands in a report folder.
 
 ## Relay
 
