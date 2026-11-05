@@ -580,10 +580,11 @@ func (s *session) applyTool(create bool, turn int, payload json.RawMessage) {
 }
 
 func hiddenTool(tool map[string]json.RawMessage) bool {
-	var title, status string
-	_ = json.Unmarshal(tool["title"], &title)
+	var name, kind, status string
+	_ = json.Unmarshal(tool["name"], &name)
+	_ = json.Unmarshal(tool["kind"], &kind)
 	_ = json.Unmarshal(tool["status"], &status)
-	return title == openItemsTool && status == "completed"
+	return name == openItemsTool && kind == "other" && status == "completed"
 }
 
 func (s *session) docOf(tool map[string]json.RawMessage) string {

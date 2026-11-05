@@ -113,10 +113,18 @@ func TestDocOnlyForCompletedDocTools(t *testing.T) {
 	assert.Equal(t, actOpenLocation, actions[1].Action)
 }
 
+func TestAToolTitledLikeOpenItemsStaysVisible(t *testing.T) {
+	t.Parallel()
+	raw := func(v string) json.RawMessage { return json.RawMessage(`"` + v + `"`) }
+
+	assert.False(t, hiddenTool(map[string]json.RawMessage{"name": raw("Bash"), "kind": raw("execute"), "title": raw(openItemsTool), "status": raw("completed")}))
+	assert.False(t, hiddenTool(map[string]json.RawMessage{"title": raw(openItemsTool), "status": raw("completed")}))
+}
+
 func TestOpenItemsCallLeavesTheRenderedTreeOnceItCompleted(t *testing.T) {
 	t.Parallel()
-	tool := func(id, title, status string) string {
-		return `{"turn":1,"kind":"session/update","payload":{"sessionUpdate":"tool_call","toolCallId":"` + id + `","title":"` + title + `","kind":"other","status":"` + status + `"}}`
+	tool := func(id, name, status string) string {
+		return `{"turn":1,"kind":"session/update","payload":{"sessionUpdate":"tool_call","toolCallId":"` + id + `","name":"` + name + `","title":"` + name + `","kind":"other","status":"` + status + `"}}`
 	}
 	lines := []string{
 		tool("search", "ToolSearch", "completed"),
