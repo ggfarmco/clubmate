@@ -209,3 +209,12 @@ func TestRadioPickAndOtherExcludeEachOther(t *testing.T) {
 	assert.False(t, d.others["oi-1"])
 	assert.Equal(t, "A", d.answers["oi-1"].Option)
 }
+
+func TestStopIndexWithNoSelectionMakesNoSession(t *testing.T) {
+	t.Parallel()
+	a := &app{uiState: newUIState()}
+
+	assert.Zero(t, a.stopIndex("p", "", nil))
+
+	assert.NotContains(t, a.workspaceState("p").sessions, "")
+}

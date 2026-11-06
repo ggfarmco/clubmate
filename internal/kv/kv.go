@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	_ "modernc.org/sqlite"
+
+	"clubmate/internal/paths"
 )
 
 const (
@@ -40,6 +42,9 @@ func Open(path string) (*Store, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return nil, fmt.Errorf("resolve kv db path: %w", err)
+	}
+	if err := paths.PrivateDB(abs); err != nil {
+		return nil, fmt.Errorf("prepare kv db: %w", err)
 	}
 	q := url.Values{}
 	q.Add("_pragma", "journal_mode(WAL)")

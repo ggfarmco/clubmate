@@ -154,10 +154,7 @@ func (it openItem) taskText(rec record) string {
 }
 
 func movedTitle(n int) string {
-	if n == 1 {
-		return "1 open item moved to the backlog"
-	}
-	return strconv.Itoa(n) + " open items moved to the backlog"
+	return counted(n, "open item") + " moved to the backlog"
 }
 
 func taskRefs(tasks []int) string {

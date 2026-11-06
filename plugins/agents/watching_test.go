@@ -18,12 +18,14 @@ func TestShownSlotsWhilePhoneWatches(t *testing.T) {
 	assert.Equal(t, []string{sidebarSlot, mainSlot, codeSlot}, a.shownSlots("p"))
 }
 
-func TestForgetWorkspaceDropsItsReminders(t *testing.T) {
+func TestForgetWorkspaceDropsItsRemindersAndRunNeeds(t *testing.T) {
 	t.Parallel()
 	a := &app{uiState: newUIState()}
 	a.reminders.set("p", []reminder{{Session: "agt_1", At: time.Unix(100, 0)}})
+	a.runNeeds.set("p", []runNeed{{Run: "run_1"}})
 
 	a.forgetWorkspace("p")
 
 	assert.NotContains(t, a.reminders.byWS, "p")
+	assert.NotContains(t, a.runNeeds.byWS, "p")
 }

@@ -118,6 +118,20 @@ func VerifyPeer(conn *net.UnixConn) error {
 	return nil
 }
 
+func PrivateDB(path string) error {
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
+	if err != nil {
+		return fmt.Errorf("create %s: %w", path, err)
+	}
+	f.Close()
+	for _, p := range []string{path, path + "-wal", path + "-shm"} {
+		if err := os.Chmod(p, 0o600); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("chmod %s: %w", p, err)
+		}
+	}
+	return nil
+}
+
 func (d Dirs) DB() string {
 	return filepath.Join(d.State, "clubmate.db")
 }

@@ -254,6 +254,9 @@ func (a *app) stopIndex(workspaceID, only string, stops []openStop) int {
 		sid = p.selected
 		a.uiMu.Unlock()
 	}
+	if sid == "" {
+		return 0
+	}
 	st := a.sessionState(workspaceID, sid)
 	a.uiMu.Lock()
 	cursor := st.open.cursor

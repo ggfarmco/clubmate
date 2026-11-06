@@ -160,6 +160,9 @@ func (a *app) forgetWorkspace(workspaceID string) {
 	a.reminders.mu.Lock()
 	delete(a.reminders.byWS, workspaceID)
 	a.reminders.mu.Unlock()
+	a.runNeeds.mu.Lock()
+	delete(a.runNeeds.byWS, workspaceID)
+	a.runNeeds.mu.Unlock()
 	if p != nil {
 		p.throttle.stop()
 		p.tick.stop()

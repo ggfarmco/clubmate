@@ -1,6 +1,7 @@
 package paths_test
 
 import (
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -12,9 +13,56 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/buildinfo"
+	"clubmate/internal/bus"
+	"clubmate/internal/kv"
 	"clubmate/internal/paths"
 	"clubmate/internal/testutil"
+	"clubmate/internal/workspace"
 )
+
+func TestStoresKeepTheirDatabasePrivate(t *testing.T) {
+	stores := map[string]func(string) (io.Closer, error){
+		"kv":        func(p string) (io.Closer, error) { return kv.Open(p) },
+		"bus":       func(p string) (io.Closer, error) { return bus.Open(p) },
+		"workspace": func(p string) (io.Closer, error) { return workspace.Open(p) },
+	}
+	files := []string{"", "-wal", "-shm"}
+	for name, open := range stores {
+		for _, existing := range []bool{false, true} {
+			t.Run(name+"/existing="+strconv.FormatBool(existing), func(t *testing.T) {
+				path := filepath.Join(t.TempDir(), "x.db")
+				if existing {
+					require.NoError(t, os.WriteFile(path, nil, 0o644))
+				}
+
+				store, err := open(path)
+				require.NoError(t, err)
+				t.Cleanup(func() { store.Close() })
+
+				for _, suffix := range files {
+					fi, err := os.Stat(path + suffix)
+					require.NoError(t, err)
+					assert.Equal(t, os.FileMode(0o600), fi.Mode().Perm(), suffix)
+				}
+			})
+		}
+	}
+}
+
+func TestPrivateDBTightensAWALLeftByACrash(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "x.db")
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		require.NoError(t, os.WriteFile(path+suffix, []byte("x"), 0o644))
+	}
+
+	require.NoError(t, paths.PrivateDB(path))
+
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		fi, err := os.Stat(path + suffix)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o600), fi.Mode().Perm(), suffix)
+	}
+}
 
 func TestResolveUsesEnvOverrides(t *testing.T) {
 	t.Setenv("CLUBMATE_STATE_DIR", "/x/state")
