@@ -33,11 +33,11 @@
         "title": "Run agent graph",
         "hidden": true,
         "agent": true,
-        "description": "Start a run of the agent graph .clubmate/graphs/<graph>.json, else of ~/.clubmate/graphs/<graph>.json, else of the built-in graph <graph> (see graphs.list): one idle agent session per agent node (your child sessions when you call it), one trigger per edge between agent nodes; steps (nodes with run or command) are run by Clubmate itself after the edges into them and route by exit code, and a graph with steps fails untrusted until the user trusts it, then the start nodes get their prompt with input. The run stops itself when a node reports an outcome listed in its end, after the graph's maxTurns turns (default 20) or when your session closes; graphs.stop stops it earlier. Sessions stay open after a run stops. Returns the run: {id, graph, title, builtin?, user?, status, turns, maxTurns, nodes: [{id, role, start?, session}], edges: [{from, to, on, outcome?, trigger}]}. Watch nodes with agents.wait on their sessions. Non-destructive.",
+        "description": "Start a run of the agent graph .clubmate/graphs/<graph>.json, else of ~/.clubmate/graphs/<graph>.json, else of the built-in graph <graph> (see graphs.list): one idle agent session per agent node (your child sessions when you call it), one trigger per edge between agent nodes; steps (nodes with run or command) are run by Clubmate itself after the edges into them and route by exit code, and a graph with steps fails untrusted until the user trusts it, then the start nodes get their prompt with input. The run stops itself when a node reports an outcome listed in its end, after the graph's maxTurns turns (default 20) or maxSteps steps (default 50), or when your session closes; graphs.stop stops it earlier. Sessions stay open after a run stops. Returns the run: {id, graph, title, number, builtin?, user?, status, reason?, turns, maxTurns, maxSteps, steps?, startedAt, nodes: [{id, role, start?, step?, session}], edges: [{from, to, on, outcome?, owned?, trigger}]}. Watch nodes with agents.wait on their sessions. Non-destructive.",
         "args": {
           "properties": {
             "graph": {"type": "string", "description": "Graph name: the file name in .clubmate/graphs/ without .json, e.g. review-loop."},
-            "input": {"type": "string", "description": "Task for the run, filled into {{input}} of the node prompts or appended to the start nodes' prompt; must not contain {{."}
+            "input": {"type": "string", "description": "Task for the run, filled into {{input}} of the node prompts or appended to the start nodes' prompt; at most 16 KiB, must not contain {{."}
           },
           "required": ["graph"]
         }
@@ -48,7 +48,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Show one graph run with each node's session title and live status (running, waiting, done, idle, error, closed, gone): {id, graph, title, number, status, reason?, input?, turns, maxTurns, startedAt, stoppedAt?, nodes: [{id, role, start?, step?, session, title?, status, command?, outcome?, durationMs?, startedAt?, last?, pending?}], edges: [{from, to, on, outcome?, trigger}]}. Non-destructive.",
+        "description": "Show one graph run with each node's session title and live status (agent nodes: running, waiting, done, idle, error, closed, gone, or unknown when the session list failed; steps: not started, the step's status, or its outcome once finished): {id, graph, title, number, status, reason?, input?, turns, maxTurns, startedAt, stoppedAt?, nodes: [{id, role, start?, step?, session, title?, status, command?, outcome?, durationMs?, startedAt?, last?, pending?}], edges: [{from, to, on, outcome?, trigger}]}. Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Run id (gr_…)."}
@@ -62,7 +62,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Stop a graph run: delete its edge triggers so no node prompts another. Running turns go on and the sessions stay open; cancel their turns with agents.cancel. An agent may stop only runs started by itself or its child sessions. Returns the run. Non-destructive.",
+        "description": "Stop a graph run: delete its edge triggers so no node prompts another. Running steps are cancelled; running turns go on and the sessions stay open; cancel their turns with agents.cancel. An agent may stop only runs started by itself or its child sessions. Returns the run. Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Run id (gr_…)."}

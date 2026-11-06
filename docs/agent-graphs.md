@@ -174,7 +174,7 @@ Clubmate ships graphs inside the graphs plugin: `plugins/graphs/builtin/<name>.j
 | `graphs.list` | Graph files, your own graphs (`user` set) and built-in graphs (`builtin` set; `error` set on invalid ones) and the workspace's runs. |
 | `graphs.run {graph, input?}` | Starts a run and returns it with node sessions and edge trigger ids. |
 | `graphs.show {id}` | One run, each node with its session title and live status. A run has a `number`, its place among the workspace's runs of the same graph (1, 2, …, kept when other runs are deleted, though a new run reuses the number of a deleted newest one; runs from before numbering get theirs by start time when the plugin loads), shown as "Review gate · #4" on the phone. An agent node also has `outcome` (the outcome its last finished turn reported, e.g. `approved`, the word to show instead of `status`; absent while its session runs, waits or failed, and when none was reported), `durationMs` (the time its finished turns took, from the move's start to the turn's end; absent for runs from before it was kept) and, while its session runs, `startedAt` of the current turn. |
-| `graphs.stop {id}` | Deletes the run's triggers; sessions stay open and running turns go on. |
+| `graphs.stop {id}` | Deletes the run's triggers and cancels its running steps; sessions stay open and running turns go on. |
 | `graphs.delete {id}` | Stops the run and removes it from the list. |
 | `graphs.approve {id, node, decision}` | Not agent-visible. Answers a step waiting for approval (see [Steps](#steps)). |
 | `graphs.continue {id, edge}` | Not agent-visible. Delivers an edge's held firing past its round cap. |

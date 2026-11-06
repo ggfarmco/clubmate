@@ -89,7 +89,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Checkpoint the worktree and send a prompt to any agent session of the workspace; while a turn is running it goes into that turn when the agent supports steering, else it is queued. Sent by an agent, the target sees it as a message from that agent session (or another agent), not from the user, so it never counts as the user's approval; relay the user's own answer with agents.answer instead. Returns once the turn has started ({turn}: its number), the prompt reached the running turn or it is queued (null); the turn runs in the background.",
+        "description": "Checkpoint the worktree and send a prompt to any agent session of the workspace; while a turn is running it goes into that turn when the agent supports steering, else it is queued. Sent by an agent, the target sees it as a message from that agent session (or another agent), not from the user, so it never counts as the user's approval; relay the user's own answer with agents.answer instead. Returns once the turn has started ({turn}: its number), the prompt reached the running turn or it is queued (null); the turn runs in the background. Prompting your own idle child fails with \"a session may run at most 8 child sessions at once\" when you are at the limit.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},
@@ -293,7 +293,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Continue a session that is not running in a new session: same worktree, agent, parent and advisor, first prompt a brief built from Clubmate's log (the task, the last prompt, the last reply, the last turn's stop reason and checkpoint, and how to read the full transcript) followed by note. The old session is closed (it can be reopened) and both link to each other (handoffTo, handoffFrom). Fails while a turn is running. Agents may hand off only sessions they started (directly or through their children). Returns {session}.",
+        "description": "Continue a session that is not running in a new session: same worktree, agent, parent, advisor, title, graph run, notification policy, AFK mode and starting cron job or trigger, first prompt a brief built from Clubmate's log (the task, the last prompt, the last reply, the last turn's stop reason and checkpoint, and how to read the full transcript) followed by note. The old session is closed (it can be reopened) and both link to each other (handoffTo, handoffFrom). Fails while a turn is running, on a session already handed off and on a night session. Agents may hand off only sessions they started (directly or through their children). Returns {session}.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id to hand off."},
@@ -498,7 +498,7 @@
         "title": "Declare a change",
         "hidden": true,
         "agent": true,
-        "description": "Declare the changes made so far in your sandbox as one change, by committing them; only declared changes count, and Clubmate checks and applies them after the session ends. With reverts, reverts that change of the self instead. Only a night session may call it (\"only a night session may declare changes\"). Fails when there is nothing to declare.",
+        "description": "Declare the changes made so far in your sandbox as one change, by committing them; only declared changes count, and Clubmate checks and applies them after the session ends. With reverts, an Improve session reverts that change of the self instead; a Sleep session gets \"a sleep session has nothing to revert\". Only a night session may call it (\"only a night session may declare changes\"). Fails when there is nothing to declare.",
         "args": {
           "properties": {
             "summary": {"type": "string", "description": "One line saying what changed."},
@@ -560,7 +560,7 @@
         "title": "Post open items",
         "hidden": true,
         "agent": true,
-        "description": "Leave the decisions and offers still open at the end of your turn for the user, instead of burying them in your report. The turn ends done; the user sees a quiet card under the report and answers it when they want, and that answer starts your next turn. For a question you cannot go on without, use AskUserQuestion instead. Don't repeat the items as questions at the end of the report. A decision has a header of up to 12 characters, a question, 2 to 4 options with a one-line description each (Other is always offered, don't list it) and optional multiSelect; an offer has a label and an optional description. Each item carries quote, the sentence of your report it comes from, word for word. Pass all you have: Clubmate shows 3 decisions and 4 offers and files the rest in the backlog. From a child session the items go to the session that started it. Returns {items, overflow, handed}: the ids shown, the backlog task ids of the rest, and handed when the parent got them. The user may pass session to seed items; an agent posts for its own session only.",
+        "description": "Leave the decisions and offers still open at the end of your turn for the user, instead of burying them in your report. The turn ends done; the user sees a quiet card under the report and answers it when they want, and that answer starts your next turn. For a question you cannot go on without, use AskUserQuestion instead. Don't repeat the items as questions at the end of the report. A decision has a header of up to 12 characters, a question, 2 to 4 options with a one-line description each (Other is always offered, don't list it) and optional multiSelect; an offer has a label and an optional description. Each item carries quote, the sentence of your report it comes from, word for word. Pass all you have: Clubmate shows 3 decisions and 4 offers and files the rest in the backlog. From a child session the items go to the session that started it while it is open, except from a graph run's node, which keeps them. Returns {items, overflow, handed}: the ids shown, the backlog task ids of the rest, and handed when the parent got them. The user may pass session to seed items; an agent posts for its own session only.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id. Agents leave it out: it is their own session."},
@@ -801,14 +801,14 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Read a session's transcript from Clubmate's own log: {session, modes, configOptions, commands, turns:[{turn, checkpointSha, stopReason, commits}], entries:[{kind, id, turn, at?, ...}], cursor, delta?}. kind is user, agent, thought, tool, plan, permission, elicitation, notice, compaction or openItems. at is when the entry began (RFC 3339); a permission or elicitation entry also has answeredAt once answered. To read what a session did in its latest turn, pass last=true and compact=true. Non-destructive.",
+        "description": "Read a session's transcript from Clubmate's own log: {session, modes, configOptions, advisor?, usage?, commands, turns:[{turn, checkpointSha, stopReason, commits}], entries:[{kind, id, turn, at?, ...}], cursor, delta?}. kind is user, agent, thought, tool, plan, permission, elicitation, notice, compaction or openItems. at is when the entry began (RFC 3339); a permission or elicitation entry also has answeredAt once answered. To read what a session did in its latest turn, pass last=true and compact=true. Non-destructive.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},
             "fromTurn": {"type": "integer", "description": "First turn to include; defaults to all."},
             "last": {"type": "boolean", "description": "Only the last turn's entry in turns and its entries; modes, configOptions and commands are null."},
-            "compact": {"type": "boolean", "description": "Drop the images in tool calls' content, the image data in user prompts, and commands (null)."},
-            "since": {"type": "string", "description": "A cursor from an earlier result: entries holds only the entries added or changed since then, in log order, and delta is true; fromTurn is ignored. A cursor from before the plugin restarted is ignored and the full transcript comes back without delta."}
+            "compact": {"type": "boolean", "description": "Also drop the images in tool calls' content and commands (null). Agent calls never get image data in entries, with or without compact."},
+            "since": {"type": "string", "description": "A cursor from an earlier result: entries holds only the entries added or changed since then, in log order, and delta is true; fromTurn is ignored. A cursor from before the plugin restarted is ignored and the full transcript comes back without delta. Ignored with last."}
           },
           "required": ["session"]
         }
