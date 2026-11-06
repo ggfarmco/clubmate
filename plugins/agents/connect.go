@@ -184,7 +184,7 @@ func (a *app) connectRepoCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 }
 
 func (a *app) connectAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun, args connectAnswerArgs) (any, error) {
-	if !userWord(cmd) {
+	if !a.userWord(cmd) {
 		return nil, errConnectUser
 	}
 	answers, err := answersByRepo(args.Answers)
@@ -223,8 +223,8 @@ func (a *app) connectAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun
 	return nil, nil
 }
 
-func userWord(cmd pluginsdk.CommandRun) bool {
-	return !cmd.Agent && cmd.Caller == "" && (cmd.Via == "" || asUser(cmd))
+func (a *app) userWord(cmd pluginsdk.CommandRun) bool {
+	return !cmd.Agent && a.session(cmd.Caller) == nil && (cmd.Via == "" || asUser(cmd))
 }
 
 func (a *app) sessionCaller(cmd pluginsdk.CommandRun) (*session, error) {

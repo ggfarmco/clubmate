@@ -79,7 +79,10 @@ var (
 	errNoCheckpoint  = errors.New("no checkpoint to review yet")
 	errNoOutput      = errors.New("tool has no output")
 	errUnknownFilter = errors.New("unknown filter")
+	errUserAction    = errors.New("only the user presses this")
 )
+
+var userActions = []string{actSend, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll}
 
 type textValue struct {
 	Text string `json:"text"`
@@ -137,6 +140,9 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	case <-a.loaded:
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	}
+	if a.session(ev.Caller) != nil && userAction(ev) {
+		return nil, errUserAction
 	}
 	if ev.Slot == settingsSlot {
 		return nil, a.settingsEvent(ctx, ev)
@@ -334,6 +340,10 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		return err
 	}
 	return a.sessionAct(ctx, ev, s, rest)
+}
+
+func userAction(ev pluginsdk.UIEvent) bool {
+	return ev.Slot == settingsSlot || isOpenAction(ev.Action) || slices.Contains(userActions, ev.Action)
 }
 
 func itemID(ev pluginsdk.UIEvent) (string, error) {

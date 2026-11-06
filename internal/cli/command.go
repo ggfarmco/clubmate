@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -111,7 +112,14 @@ func commandParams(id, workspaceID string) map[string]any {
 	if workspaceID == "" {
 		workspaceID = contract.WorkspaceFromEnv()
 	}
-	return map[string]any{"id": id, "workspaceId": workspaceID}
+	return withCaller(map[string]any{"id": id, "workspaceId": workspaceID})
+}
+
+func withCaller(params map[string]any) map[string]any {
+	if caller := os.Getenv(agentSessionEnv); caller != "" {
+		params["caller"] = caller
+	}
+	return params
 }
 
 func (a *app) resolveCommand(ctx context.Context, id string) (rpc.Command, error) {

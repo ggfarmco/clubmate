@@ -240,7 +240,4 @@ func lineRange(s string) (int, int, error) {
 
 func asAgent(params map[string]any) {
 	params["agent"] = true
-	if caller := os.Getenv(agentSessionEnv); caller != "" {
-		params["caller"] = caller
-	}
 }

@@ -94,7 +94,7 @@ func (a *app) uiEventCmd() *cobra.Command {
 		Short: "Send a UI event to the plugin owning a slot",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			params := map[string]any{"workspaceId": opts.workspaceID, "slot": opts.slot, "nodeId": opts.node, "action": opts.action}
+			params := withCaller(map[string]any{"workspaceId": opts.workspaceID, "slot": opts.slot, "nodeId": opts.node, "action": opts.action})
 			if err := setJSONParam(params, "value", opts.value); err != nil {
 				return err
 			}

@@ -467,6 +467,17 @@ func TestStartAgentHandsTheTaskToASession(t *testing.T) {
 	assert.Equal(t, []string{"user created", "agt_new started"}, e.owners(tk.ID))
 }
 
+func TestUserActionsRefuseASessionOfThisCore(t *testing.T) {
+	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
+	press := func(caller string) error {
+		return e.h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": e.p, "slot": "backlog.main", "nodeId": "new", "action": "add", "value": map[string]any{"title": "From " + caller}, "caller": caller}, nil)
+	}
+
+	assert.ErrorContains(t, press("agt_live"), `"add" is the user's`)
+
+	assert.NoError(t, press("agt_of_another_core"))
+}
+
 func TestStartAgentOptions(t *testing.T) {
 	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))

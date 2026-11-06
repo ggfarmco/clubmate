@@ -323,6 +323,19 @@ func TestRepoFactsRunNothingFromTheRepo(t *testing.T) {
 	assert.NoFileExists(t, marker)
 }
 
+func TestRepoFactsNeverRunFsmonitor(t *testing.T) {
+	repo := cloneOf(t, bareOrigin(t))
+	marker := filepath.Join(t.TempDir(), "ran")
+	script := filepath.Join(t.TempDir(), "fsmonitor.sh")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\ntouch "+marker+"\n"), 0o700))
+	git(t, repo, "config", "core.fsmonitor", script)
+	h, id := open(t, committedRepo(t))
+
+	factsOf(t, h, id, repo)
+
+	assert.NoFileExists(t, marker)
+}
+
 func TestCloneLeavesTheWorkspaceFree(t *testing.T) {
 	repo := committedRepo(t)
 	h, id := open(t, repo)

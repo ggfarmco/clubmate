@@ -118,6 +118,7 @@ type uiEventParams struct {
 	Action      string          `json:"action"`
 	Value       json.RawMessage `json:"value"`
 	Agent       bool            `json:"agent,omitempty"`
+	Caller      string          `json:"caller,omitempty"`
 }
 
 type capabilitiesResult struct {

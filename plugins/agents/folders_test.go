@@ -105,6 +105,19 @@ func TestFolderRemoveRefusesAPathOutsideTheWorkspace(t *testing.T) {
 	assert.Len(t, f.folders(t, workspace), 2)
 }
 
+func TestFolderRemoveRefusesAgentCallers(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	workspace, _, second := f.twoFolders(t)
+	session := f.doneSession(t, workspace)
+	args := map[string]any{"path": second}
+
+	require.Error(t, f.runAs(t, workspace, session, "agents.folder-remove", args, nil))
+	require.Error(t, f.runFrom(t, workspace, session, "agents.folder-remove", args, nil))
+
+	assert.Len(t, f.folders(t, workspace), 2)
+}
+
 func TestFolderImpactListsSessionsAndWorktrees(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{})

@@ -10,7 +10,10 @@ import (
 	"clubmate/plugins/internal/gitrepo"
 )
 
-var errNotFolder = errors.New("not a folder of this workspace")
+var (
+	errNotFolder  = errors.New("not a folder of this workspace")
+	errFolderUser = errors.New("only the user removes a folder")
+)
 
 type folderSession struct {
 	Session  string `json:"session"`
@@ -36,6 +39,9 @@ type folderImpactResult struct {
 }
 
 func (a *app) folderRemoveCommand(ctx context.Context, cmd pluginsdk.CommandRun, args pathArgs) (any, error) {
+	if !a.userWord(cmd) {
+		return nil, errFolderUser
+	}
 	folder, err := a.workspaceFolder(ctx, cmd.WorkspaceID, args.Path)
 	if err != nil {
 		return nil, err

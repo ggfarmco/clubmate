@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -270,10 +271,32 @@ func TestTrustConfirmView(t *testing.T) {
 	a.shownHash["ws1/gate"] = tv.hash
 	_, err := a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "graph:gate/" + actTrustConfirm, Action: actTrustConfirm, Agent: true})
 	require.Error(t, err)
+	_, err = a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "graph:gate/" + actTrustConfirm, Action: actTrustConfirm, Caller: "agt_boss"})
+	require.Error(t, err)
 	assert.True(t, listed(t, a, "gate").Untrusted)
 	ev.Action = actTrustConfirm
 	require.NoError(t, a.trustEvent(t.Context(), ev, "gate"))
 	assert.False(t, listed(t, a, "gate").Untrusted)
+}
+
+func TestTrustConfirmIsTheUsersUnlessTheCallerIsASessionHere(t *testing.T) {
+	tests := map[string]func(context.Context, string) ([]api.Session, error){
+		"another core's session": func(context.Context, string) ([]api.Session, error) { return []api.Session{{ID: "agt_boss"}}, nil },
+		"agents plugin is down":  func(context.Context, string) ([]api.Session, error) { return nil, errors.New("no agents") },
+	}
+	for name, sessions := range tests {
+		t.Run(name, func(t *testing.T) {
+			a, g, spec, dirs := changedGate(t)
+			require.NoError(t, a.trustEvent(t.Context(), pluginsdk.UIEvent{WorkspaceID: "ws1", Action: actTrust}, "gate"))
+			a.shownHash["ws1/gate"] = a.trustFor(t.Context(), "ws1", dirs, g, spec).hash
+			a.sessions = sessions
+
+			_, err := a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "graph:gate/" + actTrustConfirm, Action: actTrustConfirm, Caller: "agt_of_another_core"})
+
+			require.NoError(t, err)
+			assert.False(t, listed(t, a, "gate").Untrusted)
+		})
+	}
 }
 
 func TestNeverTrustedTagsNothing(t *testing.T) {

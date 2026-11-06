@@ -1,6 +1,9 @@
 package main_test
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -10,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/cli"
 	"clubmate/internal/testutil"
 	"clubmate/pkg/contract"
 )
@@ -299,6 +303,80 @@ func TestConnectAnswerRefusesAgentCallers(t *testing.T) {
 
 	assert.Equal(t, []string{first}, f.folderPaths(t, workspace))
 	assert.True(t, f.session(t, workspace, session).NeedsYou)
+}
+
+func cm(t *testing.T, args ...string) error {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRoot(&stdout, &stderr)
+	root.SetArgs(args)
+	return root.Execute()
+}
+
+func cmRun(t *testing.T, command string, args any) error {
+	t.Helper()
+	raw, err := json.Marshal(args)
+	require.NoError(t, err)
+	return cm(t, "command", "run", command, "--args", string(raw))
+}
+
+func (f *fixture) cmEnv(t *testing.T, workspace string) {
+	t.Helper()
+	t.Setenv("CLUBMATE_STATE_DIR", f.h.Dirs.State)
+	t.Setenv("CLUBMATE_RUNTIME_DIR", f.h.Dirs.Runtime)
+	t.Setenv("CLUBMATE_WORKSPACE_ID", workspace)
+}
+
+func TestCmInAnAgentSessionIsNotTheUser(t *testing.T) {
+	f := startGit(t, map[string]any{})
+	first, second, third := newRepo(t), newRepo(t), newRepo(t)
+	workspace := f.workspace(t, first)
+	session := f.doneSession(t, workspace)
+	closing := f.doneSession(t, workspace)
+	answer := func(repo string) map[string]any {
+		res := f.connect(t, workspace, session, map[string]any{"path": repo})
+		return map[string]any{"request": res.Request, "answers": []connectAnswer{{"path": repo, "action": "connect"}}}
+	}
+	toSecond, toThird := answer(second), answer(third)
+	f.cmEnv(t, workspace)
+	t.Setenv("CLUBMATE_AGENT_SESSION", session)
+
+	require.ErrorContains(t, cmRun(t, "agents.connect-answer", toSecond), "only the user")
+	assert.Equal(t, []string{first}, f.folderPaths(t, workspace))
+
+	require.NoError(t, cmRun(t, "agents.close", map[string]any{"session": closing}))
+	assert.Equal(t, "closed", f.session(t, workspace, closing).Status)
+
+	t.Setenv("CLUBMATE_AGENT_SESSION", "agt_of_another_core")
+	require.NoError(t, cmRun(t, "agents.connect-answer", toSecond))
+	assert.Equal(t, []string{first, second}, f.folderPaths(t, workspace))
+
+	t.Setenv("CLUBMATE_AGENT_SESSION", "")
+	require.NoError(t, cmRun(t, "agents.connect-answer", toThird))
+	assert.Equal(t, []string{first, second, third}, f.folderPaths(t, workspace))
+}
+
+func TestCmUIEventInAnAgentSessionIsNotTheUser(t *testing.T) {
+	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "go")
+	f.waitStatus(t, workspace, session, "waiting")
+	request := ofKind(f.transcript(t, workspace, session).Entries, "permission")[0].ID
+	press := func() error {
+		value := fmt.Sprintf(`{"request":%q,"option":"allow"}`, request)
+		return cm(t, "ui", "event", "--workspace", workspace, "--slot", "agents.main", "--node", session+"/permission/"+request, "--action", "permission", "--value", value)
+	}
+	f.cmEnv(t, workspace)
+	t.Setenv("CLUBMATE_AGENT_SESSION", session)
+
+	require.ErrorContains(t, press(), "only the user")
+	assert.Equal(t, "waiting", f.session(t, workspace, session).Status)
+	require.NoError(t, cm(t, "ui", "event", "--workspace", workspace, "--slot", "agents.main", "--node", "filter", "--action", "filter", "--value", `"all"`))
+
+	t.Setenv("CLUBMATE_AGENT_SESSION", "agt_of_another_core")
+	require.NoError(t, press())
+	f.waitStatus(t, workspace, session, "done")
 }
 
 func TestParentsWordIsNotTheUsersYes(t *testing.T) {

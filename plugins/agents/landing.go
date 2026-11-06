@@ -154,7 +154,7 @@ func (a *app) fetchForReport(ctx context.Context, caller *session, rec record) {
 }
 
 func (a *app) repoLeaveCommand(ctx context.Context, cmd pluginsdk.CommandRun, args repoLeaveArgs) (any, error) {
-	if !userWord(cmd) {
+	if !a.userWord(cmd) {
 		return nil, errLandUser
 	}
 	s, err := a.lookup(cmd.WorkspaceID, args.Session)
@@ -182,7 +182,7 @@ func (a *app) repoLeaveCommand(ctx context.Context, cmd pluginsdk.CommandRun, ar
 }
 
 func (a *app) landAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun, args landAnswerArgs) (any, error) {
-	if !userWord(cmd) {
+	if !a.userWord(cmd) {
 		return nil, errLandUser
 	}
 	a.landMu.Lock()

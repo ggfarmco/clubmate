@@ -290,7 +290,7 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 		return nil, nil
 	case ev.Action == actRun:
 		return nil, a.runFromSection(ctx, ev, strings.TrimPrefix(id, graphPrefix))
-	case ev.Agent && slices.Contains(userOnly, ev.Action):
+	case (ev.Agent || a.fromSession(ctx, ev)) && slices.Contains(userOnly, ev.Action):
 		return nil, fmt.Errorf("%w: action %q", agentcall.ErrUnknownCommand, ev.Action)
 	case ev.Action == actTrust || ev.Action == actTrustCancel || ev.Action == actTrustConfirm:
 		return nil, a.trustEvent(ctx, ev, strings.TrimPrefix(id, graphPrefix))
@@ -770,6 +770,18 @@ func (a *app) graphDirs(ctx context.Context, workspace string, agent bool, calle
 		return nil, err
 	}
 	return p.Roots(), nil
+}
+
+func (a *app) fromSession(ctx context.Context, ev pluginsdk.UIEvent) bool {
+	if ev.Caller == "" {
+		return false
+	}
+	sessions, err := a.sessions(ctx, ev.WorkspaceID)
+	if err != nil {
+		return false
+	}
+	_, ok := agentcall.Find(sessions, ev.Caller)
+	return ok
 }
 
 func (a *app) authorize(ctx context.Context, cmd pluginsdk.CommandRun, r *Run) error {

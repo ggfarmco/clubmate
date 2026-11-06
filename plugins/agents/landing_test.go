@@ -355,6 +355,9 @@ func TestLandAnswerRefusesAgentCallers(t *testing.T) {
 
 	require.Error(t, f.runAs(t, l.workspace, l.owner, "agents.land-answer", answer, nil))
 	require.Error(t, f.runFrom(t, l.workspace, l.owner, "agents.land-answer", answer, nil))
+	leave := map[string]any{"session": l.owner, "repo": l.repos[0]}
+	require.Error(t, f.runAs(t, l.workspace, l.owner, "agents.repo-leave", leave, nil))
+	require.Error(t, f.runFrom(t, l.workspace, l.owner, "agents.repo-leave", leave, nil))
 
 	assert.Equal(t, ready.Request, l.repo(t, 0).Request)
 	assert.Zero(t, f.landPrompts(t, l.kids[0].Session))

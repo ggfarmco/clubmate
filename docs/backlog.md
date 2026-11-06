@@ -46,9 +46,9 @@ A task an agent finds goes in with `backlog_add` as `idea` by default; an agent 
 
 Every task keeps its owner history, `owners` in `backlog_get`: moves `{owner, title?, run?, runTitle?, at, why, failure?}`, oldest first, at most 100 (the first kept). A new task starts with you (`created`); `started` (Start agent), `claimed` (backlog_claim, also a stale take-over) move it to the claimer; `released`, `done`, `taken back` and `stopped` move it back to you. A move to the owner the task already has is not recorded. A session owner stores its title and, when it is a graph run's node, the run's id and title. Tasks from before the history have none stored and read as you since creation, then the last owner and the current one (no migration). `backlog_list` leaves `owners` out.
 
-- Hosted agent session (`agt_…`): the owner is that session; any `owner` argument is ignored.
+- Hosted agent session (`agt_…`), also through `cm` in its shell, which sends `CLUBMATE_AGENT_SESSION`: the owner is that session; any `owner` argument is ignored.
 - External agent (for example Claude Code connected with `clubmate mcp` in a terminal): pass `owner`, a name unique to you such as your session id; `user`, `agent` and names starting with `agt_` are rejected. Its claims never go stale.
-- You (UI, palette, `cm command run` without `--agent`): the owner is `user`.
+- You (UI, palette, `cm command run` without `--agent` outside an agent session): the owner is `user`.
 
 Release is allowed to the owner, an ancestor agent session of the owner (an orchestrator closing its children's tasks) and the user. Done is allowed to them too, and to anyone when the task is unclaimed or its claim is stale. A stale claim is taken over with claim. A task claimed by someone else can only get a new title, description, priority or note from other agents, not a new status.
 
