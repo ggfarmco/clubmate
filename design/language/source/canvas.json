@@ -839,6 +839,150 @@
    "h": 852,
    "title": "iPhone · Q3 (B) · Decisions in the list · light",
    "radius": 50
+  },
+  "MR-Request-1280-Mate.dc.html": {
+   "x": 9800,
+   "y": 32200,
+   "w": 1280,
+   "h": 800,
+   "title": "Multi-repo · two repos asked at once, landing rule per repo, one behind origin · 1280 · Mate"
+  },
+  "MR-Task-1280-Mate.dc.html": {
+   "x": 11240,
+   "y": 32200,
+   "w": 1280,
+   "h": 800,
+   "title": "Multi-repo · Repos card in dependency order: merged by PR, failed (needs you), waits on its branch · 1280 · Mate"
+  },
+  "MR-Code-1280-Mate.dc.html": {
+   "x": 12680,
+   "y": 32200,
+   "w": 1280,
+   "h": 800,
+   "title": "Multi-repo · Code: title picker by folder, worktrees named by task, folder actions behind ⋯ · 1280 · Mate"
+  },
+  "MR-Request-640-MateLight.dc.html": {
+   "x": 9800,
+   "y": 33120,
+   "w": 640,
+   "h": 800,
+   "title": "Multi-repo · connect request · 640 · Mate light"
+  },
+  "MR-Tree-640-MateLight.dc.html": {
+   "x": 10520,
+   "y": 33120,
+   "w": 640,
+   "h": 800,
+   "title": "Multi-repo · parent + 8 children by repo · 640 · Mate light"
+  },
+  "MR-AFK-640-MateLight.dc.html": {
+   "x": 11240,
+   "y": 33120,
+   "w": 640,
+   "h": 800,
+   "title": "Multi-repo · connected by AFK · 640 · Mate light"
+  },
+  "C-MR-Request.dc.html": {
+   "x": 11960,
+   "y": 33120,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · connect a repo · dark",
+   "radius": 50
+  },
+  "C-MR-Workspace-Light.dc.html": {
+   "x": 12420,
+   "y": 33120,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · a multi-repo task with children by repo · light",
+   "radius": 50
+  },
+  "C-MR-Task.dc.html": {
+   "x": 12880,
+   "y": 33120,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · the task's repos, ask before merging · dark",
+   "radius": 50
+  },
+  "MR-Rules.dc.html": {
+   "x": 14120,
+   "y": 32200,
+   "w": 1480,
+   "h": 6700,
+   "title": "MR · One task, several repos — decisions, ergonomics, second opinion, cleanup, handoff"
+  },
+  "MR-Archive-1280-Mate.dc.html": {
+   "x": 9800,
+   "y": 34120,
+   "w": 1280,
+   "h": 800,
+   "title": "Multi-repo · archive a landed task: what goes, what stays · 1280 · Mate"
+  },
+  "MR-Sweep-640-MateLight.dc.html": {
+   "x": 11240,
+   "y": 34120,
+   "w": 640,
+   "h": 800,
+   "title": "Multi-repo · clean up hundreds of worktrees, grouped by what removing costs · 640 · Mate light"
+  },
+  "C-MR-Archive.dc.html": {
+   "x": 12000,
+   "y": 34120,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · archive a landed task · dark",
+   "radius": 50
+  },
+  "MR-Remove-1280-Mate.dc.html": {
+   "x": 9800,
+   "y": 35100,
+   "w": 1280,
+   "h": 800,
+   "title": "Multi-repo · remove a folder: what is tied to it, what stays · 1280 · Mate"
+  },
+  "MR-Backlog-1280-Mate.dc.html": {
+   "x": 11240,
+   "y": 35100,
+   "w": 1280,
+   "h": 800,
+   "title": "Multi-repo · Backlog task with a Repos field, Start agent → orchestrator (proposal) · 1280 · Mate"
+  },
+  "MR-Cron-1280-Mate.dc.html": {
+   "x": 12680,
+   "y": 35100,
+   "w": 1280,
+   "h": 800,
+   "title": "Multi-repo · Cron job “Runs in” a folder, folder tags (proposal) · 1280 · Mate"
+  },
+  "MR-Picker-1280-Mate.dc.html": {
+   "x": 9800,
+   "y": 36060,
+   "w": 1280,
+   "h": 800,
+   "title": "Title picker at scale · empty query: now, live, recent, folders with counts · 1280 · Mate"
+  },
+  "MR-PickerFolder-1280-Mate.dc.html": {
+   "x": 11240,
+   "y": 36060,
+   "w": 1280,
+   "h": 800,
+   "title": "Title picker at scale · inside a folder of 214 worktrees: grouped and capped · 1280 · Mate"
+  },
+  "MR-PickerSearch-640-MateLight.dc.html": {
+   "x": 12680,
+   "y": 36060,
+   "w": 640,
+   "h": 800,
+   "title": "Title picker at scale · search across folders, a task is one row · 640 · Mate light"
+  },
+  "MR-Merge-640-MateLight.dc.html": {
+   "x": 13340,
+   "y": 36060,
+   "w": 640,
+   "h": 800,
+   "title": "Multi-repo · ask before merging on the Mac: land the next repo · 640 · Mate light"
   }
  },
  "order": [
@@ -955,7 +1099,27 @@
   "C-Q2-Open-Light.dc.html",
   "C-Q2-Queue.dc.html",
   "C-Q3-Decisions.dc.html",
-  "C-Q3-List-Light.dc.html"
+  "C-Q3-List-Light.dc.html",
+  "MR-Request-1280-Mate.dc.html",
+  "MR-Task-1280-Mate.dc.html",
+  "MR-Code-1280-Mate.dc.html",
+  "MR-Request-640-MateLight.dc.html",
+  "MR-Tree-640-MateLight.dc.html",
+  "MR-AFK-640-MateLight.dc.html",
+  "C-MR-Request.dc.html",
+  "C-MR-Workspace-Light.dc.html",
+  "C-MR-Task.dc.html",
+  "MR-Rules.dc.html",
+  "MR-Archive-1280-Mate.dc.html",
+  "MR-Sweep-640-MateLight.dc.html",
+  "C-MR-Archive.dc.html",
+  "MR-Remove-1280-Mate.dc.html",
+  "MR-Backlog-1280-Mate.dc.html",
+  "MR-Cron-1280-Mate.dc.html",
+  "MR-Picker-1280-Mate.dc.html",
+  "MR-PickerFolder-1280-Mate.dc.html",
+  "MR-PickerSearch-640-MateLight.dc.html",
+  "MR-Merge-640-MateLight.dc.html"
  ],
  "notes": {
   "t_lang": {
@@ -1041,6 +1205,13 @@
    "text": "Decisions left in prose — 1 (A) ask before stopping · 2 (B) done, with open items (recommended) · 3 (B) decisions inbox",
    "kind": "title1",
    "maxW": 7680
+  },
+  "t_mr": {
+   "x": 9800,
+   "y": 31940,
+   "text": "One task, several repos — connect card · tree named by repo · live Repos card · folders of the workspace",
+   "kind": "title1",
+   "maxW": 6000
   }
  },
  "designSystems": []

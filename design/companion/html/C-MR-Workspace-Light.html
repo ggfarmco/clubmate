@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Companion: a multi-repo task in the list</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+<link rel="stylesheet" href="assets/c.css">
+
+
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.comp .st.sq{border-radius:7px}
+.comp .nrow{display:flex;align-items:center;gap:12px;padding:10px 14px;min-width:0}
+.comp .nrow+.nrow{border-top:1px solid var(--bd)}
+.comp .nrow .nb{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.comp .nrow .nb .mono{font-size:12px;line-height:16px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.comp .nrow .sw{flex:none;text-align:right;font-size:13px;line-height:18px}
+.comp .seg{margin:12px 16px 0;height:34px;border-radius:17px;background:var(--s2);display:grid;grid-template-columns:1fr 1fr;padding:2px}
+.comp .seg>button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
+.comp .seg>button[aria-selected="true"]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.comp.th-cdark .seg>button[aria-selected="true"]{background:#636366}
+.comp.th-clight .seg>button[aria-selected="true"]{background:#FFFFFF}
+</style>
+
+</head><body>
+
+<div class="cm comp th-clight" style="width: 393px; height: 852px">
+<style>
+.comp .rr{display:grid;grid-template-columns:24px minmax(0,1fr) auto;column-gap:10px;align-items:center;padding:11px 14px}
+.comp .rr+.rr{border-top:1px solid var(--bd)}
+.comp .ordp{width:22px;height:22px;border-radius:11px;border:1.5px solid var(--bd2);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;color:var(--t2)}
+.comp .c.nest{padding-left:40px}
+</style><div class="top"><button class="gbtn glass" aria-label="Back"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button><span style="flex: 1"></span><div class="gpill glass"><button aria-label="Files"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3"/></svg></button><button aria-label="New"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button></div></div><div style="position: absolute; inset: 0; padding-top: 112px; overflow: hidden"><h1 class="big" style="margin: 0; padding: 0 20px">ads</h1><div class="cap mut" style="padding: 2px 20px 0">MacBook Pro · online · 2 folders</div><div class="hdr"><span>Needs you</span><span class="cap">1</span></div><div class="ig"><div class="c" style="align-items: flex-start"><span class="st wa" style="margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V3h4.5l1.5 1.5h7v8.5h-13Z"/><path d="M8 7v4M6 9h4"/></svg></span><div class="cbody"><span class="w6 ell">Campaign pause reason</span><span class="cap ell"><span class="wa-i">Wants to connect</span> <span class="t2">internal-auth</span> <span class="mut">· 2 min</span></span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div><div class="c nest" style="align-items: flex-start"><span class="st ac" style="margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.9 5.7v4.6L10.5 8Z"/></svg></span><div class="cbody"><span class="ell"><span style="display: inline-flex; align-items: center; gap: 6px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V3h4.5l1.5 1.5h7v8.5h-13Z"/></svg>ads-management</span></span><span class="cap ell"><span class="mut">Editing campaign/pause.go · 3 min</span></span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div><div class="c nest" style="align-items: flex-start"><span class="st ac" style="margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.9 5.7v4.6L10.5 8Z"/></svg></span><div class="cbody"><span class="ell"><span style="display: inline-flex; align-items: center; gap: 6px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V3h4.5l1.5 1.5h7v8.5h-13Z"/></svg>ads-snapshot</span></span><span class="cap ell"><span class="mut">Running migrations · 2 min</span></span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div><div class="c nest" style="align-items: flex-start"><span class="st wa" style="margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg></span><div class="cbody"><span class="ell"><span style="display: inline-flex; align-items: center; gap: 6px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V3h4.5l1.5 1.5h7v8.5h-13Z"/></svg>internal-auth</span></span><span class="cap ell"><span class="wa-i">not connected yet</span></span></div></div></div><div class="hdr"><span>Done</span><span class="cap">1</span></div><div class="ig"><div class="c" style="align-items: flex-start"><span class="st n" style="margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg></span><div class="cbody"><span class="w6 ell">Bump the SDK in ads-management</span><span class="cap ell"><span class="mut">Done · 1 h</span></span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div></div></div>
+</div>
+</body></html>

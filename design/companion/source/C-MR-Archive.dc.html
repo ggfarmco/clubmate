@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Companion: archive a task</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
+<link rel="stylesheet" href="/_blob/4987a8b4234bbea3e512a6d02560ee1d">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.comp .st.sq{border-radius:7px}
+.comp .nrow{display:flex;align-items:center;gap:12px;padding:10px 14px;min-width:0}
+.comp .nrow+.nrow{border-top:1px solid var(--bd)}
+.comp .nrow .nb{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.comp .nrow .nb .mono{font-size:12px;line-height:16px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.comp .nrow .sw{flex:none;text-align:right;font-size:13px;line-height:18px}
+.comp .seg{margin:12px 16px 0;height:34px;border-radius:17px;background:var(--s2);display:grid;grid-template-columns:1fr 1fr;padding:2px}
+.comp .seg>button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
+.comp .seg>button[aria-selected="true"]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.comp.th-cdark .seg>button[aria-selected="true"]{background:#636366}
+.comp.th-clight .seg>button[aria-selected="true"]{background:#FFFFFF}
+</style>
+</helmet>
+<div class="cm comp th-{{theme}}" style="width: 393px; height: 852px">
+<style>
+.comp .rr{display:grid;grid-template-columns:24px minmax(0,1fr) auto;column-gap:10px;align-items:center;padding:11px 14px}
+.comp .rr+.rr{border-top:1px solid var(--bd)}
+.comp .ordp{width:22px;height:22px;border-radius:11px;border:1.5px solid var(--bd2);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;color:var(--t2)}
+.comp .c.nest{padding-left:40px}
+</style><div class="edge"></div><div class="top"><button class="gbtn glass" aria-label="Back"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button><div class="t"><span class="tt">Campaign pause reason</span><span class="ts"><span class="ok-i">Done</span> · 1 PR open</span></div><button class="gbtn glass" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button></div>
+<div style="position: absolute; inset: 0; background: rgba(0,0,0,.45); z-index: 4"></div>
+<div style="position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--s1); border-radius: 28px 28px 0 0; padding: 10px 16px 34px; display: flex; flex-direction: column; gap: 12px">
+<div style="width: 36px; height: 5px; border-radius: 3px; background: var(--bd2); align-self: center"></div>
+<span class="t20">Archive this task?</span>
+<span class="sub t2" style="margin-top: -6px">Cleans up what it left in each repo. Its 4 sessions move to Closed.</span>
+<section class="cc" style="padding: 0; overflow: hidden; background: var(--s2)">
+<div class="rr" style="grid-template-columns: minmax(0, 1fr)"><div style="display: flex; flex-direction: column; min-width: 0; gap: 1px"><span class="w6" style="display: flex; align-items: center; gap: 6px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V3h4.5l1.5 1.5h7v8.5h-13Z"/></svg>ads-snapshot</span><span class="cap t2 ell">Worktree removed · branch deleted</span><span class="cap mut ell">merged in PR #87</span></div></div>
+<div class="rr" style="grid-template-columns: minmax(0, 1fr)"><div style="display: flex; flex-direction: column; min-width: 0; gap: 1px"><span class="w6" style="display: flex; align-items: center; gap: 6px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V3h4.5l1.5 1.5h7v8.5h-13Z"/></svg>internal-auth</span><span class="cap t2 ell">Worktree kept · branch deleted</span><span class="cap wa-i ell">1 untracked file — open it on the Mac</span></div></div>
+<div class="rr" style="grid-template-columns: minmax(0, 1fr)"><div style="display: flex; flex-direction: column; min-width: 0; gap: 1px"><span class="w6" style="display: flex; align-items: center; gap: 6px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V3h4.5l1.5 1.5h7v8.5h-13Z"/></svg>ads-management</span><span class="cap t2 ell">Worktree removed · branch kept</span><span class="cap mut ell">PR #412 is open</span></div></div>
+</section>
+<span class="foot mut">Unpushed commits, uncommitted files, remote branches and transcripts are never deleted. Folders stay in ads. Runs on MacBook Pro; if it is offline, it waits and runs when the Mac is back.</span>
+<button class="cb plain full" style="color: var(--fg)">Archive task</button>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px"><button class="cb plain sm">Close sessions only</button><button class="cb plain sm">Cancel</button></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"cdark"},"$preview":{"width":393,"height":852}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'cdark' };
+}
+}
+</script>
+</body>
+</html>

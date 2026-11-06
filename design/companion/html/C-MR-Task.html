@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Companion: the task's repos, ask before merging</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+<link rel="stylesheet" href="assets/c.css">
+
+
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.comp .st.sq{border-radius:7px}
+.comp .nrow{display:flex;align-items:center;gap:12px;padding:10px 14px;min-width:0}
+.comp .nrow+.nrow{border-top:1px solid var(--bd)}
+.comp .nrow .nb{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.comp .nrow .nb .mono{font-size:12px;line-height:16px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.comp .nrow .sw{flex:none;text-align:right;font-size:13px;line-height:18px}
+.comp .seg{margin:12px 16px 0;height:34px;border-radius:17px;background:var(--s2);display:grid;grid-template-columns:1fr 1fr;padding:2px}
+.comp .seg>button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
+.comp .seg>button[aria-selected="true"]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.comp.th-cdark .seg>button[aria-selected="true"]{background:#636366}
+.comp.th-clight .seg>button[aria-selected="true"]{background:#FFFFFF}
+</style>
+
+</head><body>
+
+<div class="cm comp th-cdark" style="width: 393px; height: 852px">
+<style>
+.comp .rr{display:grid;grid-template-columns:24px minmax(0,1fr) auto;column-gap:10px;align-items:center;padding:11px 14px}
+.comp .rr+.rr{border-top:1px solid var(--bd)}
+.comp .ordp{width:22px;height:22px;border-radius:11px;border:1.5px solid var(--bd2);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;color:var(--t2)}
+.comp .c.nest{padding-left:40px}
+</style><div class="edge"></div><div class="top"><button class="gbtn glass" aria-label="Back"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button><div class="t"><span class="tt">Campaign pause reason</span><span class="ts"><span class="wa-i">Waiting for you</span> · 1 to merge</span></div><button class="gbtn glass" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button></div>
+<div style="position: absolute; left: 16px; right: 16px; top: 118px; display: flex; flex-direction: column; gap: 12px">
+<p class="sub" style="margin: 0">All three children are done. Finish mode is <b>ask before merging</b>: internal-auth is next in order and waits for you.</p>
+<section class="cc" style="padding: 0; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 10px; padding: 14px 14px 8px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V3h4.5l1.5 1.5h7v8.5h-13Z"/></svg><span class="sub w6" style="flex: 1">3 repos</span><span class="foot mut">lands in order</span></div>
+<div class="rr"><span class="ordp">1</span><div style="display: flex; flex-direction: column; min-width: 0"><span class="w6" style="display: flex; align-items: center; gap: 6px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V3h4.5l1.5 1.5h7v8.5h-13Z"/></svg>ads-snapshot</span><span class="cap ok-i ell">merged · PR #87</span></div></div>
+<div class="rr"><span class="ordp">2</span><div style="display: flex; flex-direction: column; min-width: 0"><span class="w6" style="display: flex; align-items: center; gap: 6px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V3h4.5l1.5 1.5h7v8.5h-13Z"/></svg>internal-auth</span><span class="cap wa-i ell">ready to merge to main · tests pass</span></div><span class="st wa" style="width: 26px; height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg></span></div>
+<div class="rr"><span class="ordp">3</span><div style="display: flex; flex-direction: column; min-width: 0"><span class="w6" style="display: flex; align-items: center; gap: 6px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V3h4.5l1.5 1.5h7v8.5h-13Z"/></svg>ads-management</span><span class="cap t2 ell">on its branch · waits for 2</span></div></div>
+</section>
+<span class="foot mut">Order: 1 → 2 → 3. Nothing lands until you say so. The next screen lists the commits and has its own Merge.</span>
+</div>
+<div class="bar" style="padding-bottom: 28px">
+<button class="cb plain full" style="color: var(--fg)">Review and merge internal-auth…</button>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px"><button class="cb plain sm">Open its session</button><button class="cb plain sm">Not now</button></div>
+</div>
+</div>
+</body></html>

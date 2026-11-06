@@ -9,6 +9,14 @@ Claude Design's answer to `design/brief/prompt.md`: the review, the design langu
       * `Agents-Mate-1280` is the Agents screen with the Mac's colour dot in the workspace pill.
       * The Agents tree (3 Nov, main cdc26f6a): `Agents-1280` and `Agents-Mate-1280` show two worktrees with Closed and Service at the root; `Agents-OneTree-1280-Mate` shows one worktree with no branch row, Closed rows carrying their worktree and Service open because it needs you; `Agents-Drawer-640-MateLight` is the same tree opened with ⌘B at 640.
       * `Graphs-1280-Mate` and `Graphs-640-MateLight` are the drawn graph run as built on 3 Nov (main 43f02ac2); `Graphs-Def-*` is the definition, with an edge shown as its trigger.
+   * `MR-Rules`: tasks across several repos. The connect request, the tree named by repo (with two rejected alternatives), the live Repos card (with two rejected alternatives), how a workspace shows the folders it gained, the ergonomics pass, the states and a handoff tagged a–d.
+      * `MR-Request-1280-Mate` (two repos asked at once, one behind origin), `MR-Task-1280-Mate` (Repos card: merged by PR, on its branch, a failed row open with its actions), `MR-Code-1280-Mate` (nvim shows one folder; the title picker switches folder and worktree, the added folder marked new).
+      * `MR-Request-640-MateLight`, `MR-Tree-640-MateLight` (parent + 8 children by repo), `MR-AFK-640-MateLight` (connected while you were away).
+      * Cleanup: `MR-Archive-1280-Mate` (archive a finished task: what goes, what stays), `MR-Sweep-640-MateLight` (worktrees left behind, by task).
+      * Other sections: `MR-Remove-1280-Mate` (remove a folder: what is tied to it), proposals `MR-Backlog-1280-Mate` (a Repos field) and `MR-Cron-1280-Mate` (“Runs in” a folder).
+      * Hundreds of worktrees: `MR-Picker-1280-Mate` (empty query), `MR-PickerFolder-1280-Mate` (inside a folder of 214), `MR-PickerSearch-640-MateLight` (search across folders); `MR-Sweep-640-MateLight` cleans up by what removal costs.
+      * `MR-Merge-640-MateLight`: ask before merging on the Mac (Review… ⌥1 · Merge ⌥2 · Leave it unlanded… ⌥3).
+      * The phone side is `C-MR-*` in `design/companion/`.
    * `Review-Rules`: reviewing an agent's changes. nvim draws only the diff panes; the review lives in a native Mate panel. Covers the verdicts on the eight points, the row grammar, Agents and Send, and the handoff.
       * `Review-Open-1280-Mate` (just opened), `Review-Mid-1280-Mate` (mid-review with comments), `Review-NewFile-1280-Mate` (a new file), `Review-Done-1280-Mate` (all reviewed → send), `Review-Agents-1280-Mate` (the session after Send).
       * `Review-Mid-640-MateLight` (inline layout), `Review-Deleted-640-MateLight` (a deleted file, files drawer), `Review-Done-640-MateLight`.

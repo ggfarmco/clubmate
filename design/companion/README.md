@@ -17,3 +17,5 @@ Same boards as standalone HTML; open in a browser. `assets/c.css` holds the comp
 
 ## source/
 Raw canvas files as they live in the Claude Design project (pulled as in `design/README.md`). `*-Light.dc.html` import the dark board with `theme="clight"`.
+
+- Tasks across several repos (rules on `MR-Rules` in `design/language/`): `C-MR-Request` (dark) connects a repo; `C-MR-Workspace-Light` shows the orchestrator in Needs you with its children by repo; `C-MR-Task` (dark) shows the Repos card with "Review and merge internal-auth…" in ask-before-merging; `C-MR-Archive` archives a finished task.

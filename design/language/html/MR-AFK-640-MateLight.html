@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Multi-repo · connected by AFK · 640 · Mate light</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+<link rel="stylesheet" href="assets/c.css">
+
+
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.cm .gcv{position:relative;flex:none}
+.cm .gcard{position:absolute;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;z-index:1}
+.cm .gcard.cur{box-shadow:0 0 0 3px var(--bg),0 0 0 4.5px var(--ac)}
+.cm .gcard.dim{opacity:.5}
+.cm .gcard.ghost{background:transparent;border:1px dashed var(--bd2)}
+.cm .gcard .gh{display:flex;flex-direction:column;padding:9px 14px 9px;min-width:0}
+.cm .gcard .gt{display:flex;align-items:center;gap:7px;height:20px;min-width:0;white-space:nowrap}
+.cm .gcard .gt b{font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.cm .gcard .gs{font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cm .gcard .gr{border-top:1px solid var(--bd);padding:5px 0}
+.cm .gcard .grow{display:flex;align-items:center;gap:8px;height:24px;padding:0 16px;color:var(--t2);white-space:nowrap}
+.cm .gcard .grow>span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .gsvg{position:absolute;left:0;top:0;overflow:visible;z-index:2;pointer-events:none}
+.cm .glbl{position:absolute;transform:translate(-50%,-50%);font-size:11px;line-height:16px;padding:0 5px;background:var(--bg);border-radius:4px;white-space:nowrap;z-index:3}
+.cm .gmk{position:absolute;font-size:11px;line-height:16px;color:var(--t3);white-space:nowrap;transform:translateX(-50%);z-index:3}
+.cm .sch{position:absolute;width:30px;height:30px;border-radius:15px;border:1px solid var(--bd2);background:var(--s2);display:flex;align-items:center;justify-content:center;z-index:3;color:var(--t2)}
+.cm .ln{position:relative;flex:none}
+.cm .lnl{position:absolute;left:0;display:flex;align-items:center;gap:8px;height:20px;transform:translateY(-50%);white-space:nowrap}
+.cm .lnt{position:absolute;font-size:10.5px;line-height:14px;color:var(--t4);transform:translateX(-50%);white-space:nowrap}
+.cm .lnb{position:absolute;font-size:11px;line-height:16px;transform:translate(-50%,-50%);white-space:nowrap;padding:0 4px;background:var(--bg);border-radius:4px}
+.cm .shd{display:flex;align-items:center;gap:8px;height:24px;color:var(--t3);flex:none}
+.cm .shd .n{color:var(--t4)}
+.cm .tbl{display:flex;flex-direction:column;min-width:0}
+.cm .tr{display:grid;align-items:center;height:24px;column-gap:16px;padding:0 8px;border-radius:4px;white-space:nowrap;min-width:0}
+.cm .tr>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .tr.th{color:var(--t4);font-size:11px;height:22px;border-bottom:1px solid var(--bd);border-radius:0}
+.cm .tr.sel{background:var(--seli)}
+.cm .clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+.cm .pcard{padding:10px 14px;background:var(--s1);border:1px solid var(--bd);border-radius:6px;display:flex;flex-direction:column;gap:6px}
+.cm .lnk{color:var(--t2);text-decoration:underline;text-decoration-color:var(--bd2);text-underline-offset:3px}
+.cm .chip{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 8px;border-radius:10px;background:var(--hov);color:var(--t2);white-space:nowrap;flex:none}
+.cm .chip.on{background:var(--s3);color:var(--fg)}
+.cm .md p{margin:0 0 10px}
+.cm .md ul{margin:0 0 10px;padding-left:18px}
+.cm .md li{margin:2px 0}
+.cm .md code{font-size:11.5px}
+.cm .md pre{margin:0 0 10px;padding:8px 12px;background:var(--s1);border:1px solid var(--bd);border-radius:6px;font:inherit;font-size:11.5px;line-height:18px;color:var(--t2);white-space:pre}
+.cm .crumb{display:flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-bottom:1px solid var(--bd);background:var(--s1);flex:none;white-space:nowrap;min-width:0}
+.cm .zoom{display:flex;align-items:center;gap:12px;color:var(--t3);font-size:11px}
+.cm .empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
+.cm .eic{width:44px;height:44px;border-radius:22px;background:var(--s2);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;color:var(--t3)}
+.cm .tpl{display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:center;column-gap:8px;height:30px;padding:0 10px;border:1px solid var(--bd);border-radius:6px;background:var(--s1);white-space:nowrap}
+.cm .tpl>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .lrow{display:grid;grid-template-columns:78px 16px minmax(0,1fr) auto;align-items:center;column-gap:6px;height:24px;padding:0 6px;border-radius:4px;white-space:nowrap;min-width:0}
+.cm .lrow>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .arow{display:grid;grid-template-columns:16px minmax(0,1fr) auto;align-items:center;column-gap:8px;height:26px;padding:0 6px;border-radius:4px;white-space:nowrap;min-width:0}
+.cm .arow>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .drop{display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border:1px dashed var(--bd2);border-radius:6px;color:var(--t3);font-size:11px;white-space:nowrap;overflow:hidden}
+.cm .tref{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:4px;background:var(--hov);color:var(--t2);font-size:11.5px;vertical-align:1px}
+.cm .owner{max-width:100%;overflow:hidden;text-overflow:ellipsis;display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:5px;background:var(--s2);border:1px solid var(--bd);white-space:nowrap;min-width:0}
+</style>
+
+</head><body>
+
+<div class="cm th-matelight" style="width: 640px; height: 800px; overflow: hidden">
+<style>
+.cm .qcard{border:1px solid var(--bd2);border-radius:8px;background:var(--s1);display:flex;flex-direction:column;min-width:0}
+.cm .qcard.block{border-color:var(--wa-bd);background:color-mix(in srgb,var(--wa) 7%,var(--bg))}
+.cm .qhd{display:flex;align-items:center;gap:8px;padding:9px 12px 8px;min-width:0}
+.cm .qitem{padding:8px 12px 9px;border-top:1px solid var(--bd);display:flex;flex-direction:column;gap:4px;min-width:0}
+.cm .qitem.foc{box-shadow:inset 2px 0 0 var(--ac);background:color-mix(in srgb,var(--fg) 2%,transparent)}
+.cm .qitem.fold{flex-direction:row;align-items:center;gap:8px;padding:6px 12px;white-space:nowrap}
+.cm .qnum{width:18px;height:18px;border-radius:9px;border:1px solid var(--bd2);font-size:10.5px;display:inline-flex;align-items:center;justify-content:center;color:var(--t2);flex:none}
+.cm .qnum.done{background:var(--ok-bg);border-color:var(--ok-bd);color:var(--ok-i)}
+.cm .qchip{font-size:10.5px;height:16px;line-height:16px;padding:0 6px;border-radius:4px;background:var(--hov);color:var(--t2);flex:none;white-space:nowrap}
+.cm .qctx{color:var(--t3);font-size:11px;line-height:16px;border-left:2px solid var(--bd2);padding-left:8px;margin:1px 0 2px 26px}
+.cm .qopts{display:flex;flex-direction:column;gap:1px;margin-left:18px}
+.cm .qopt{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:8px;align-items:start;padding:3px 8px;border-radius:5px;min-width:0}
+.cm .qopt.on{background:var(--sel)}
+.cm .qopt .ds{color:var(--t3);font-size:11px;line-height:15px;display:block}
+.cm .qcard.wide .qopt .ds{display:inline;margin-left:12px}
+.cm .qcard.wide .qopt{padding:2px 8px}
+.cm .qcard.wide .qitem{padding:7px 12px 7px}
+.cm .qopt .k{color:var(--t4);font-size:10.5px}
+.cm .rd{width:13px;height:13px;border-radius:7px;border:1.5px solid var(--bd2);margin-top:3px;box-sizing:border-box}
+.cm .rd.on{border-color:var(--ac);background:var(--ac);box-shadow:inset 0 0 0 2.5px var(--s1)}
+.cm .ck{width:13px;height:13px;border-radius:3px;border:1.5px solid var(--bd2);margin-top:3px;display:flex;align-items:center;justify-content:center;box-sizing:border-box}
+.cm .ck.on{background:var(--ac);border-color:var(--ac);color:var(--on-ac)}
+.cm .ck.on svg.i{width:10px;height:10px;stroke-width:2.2}
+.cm .qref{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:15px;padding:0 4px;border-radius:8px;font-size:10px;line-height:13px;border:1px solid var(--wa-bd);color:var(--wa-i);vertical-align:1px;margin:0 2px}
+.cm .qft{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--bd);flex-wrap:wrap}
+.cm .ocount{display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 6px;border-radius:8px;border:1px solid var(--wa-bd);color:var(--wa-i);font-size:11px;line-height:14px;flex:none;white-space:nowrap}
+.cm .rep p{margin:0 0 8px}.cm .rep ul{margin:0 0 8px;padding-left:18px}.cm .rep li{margin:1px 0}
+.cm .menu{position:absolute;background:var(--s3);border-radius:8px;box-shadow:var(--sh);padding:4px;display:flex;flex-direction:column;z-index:8;min-width:250px}
+.cm .menu .mi{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;padding:5px 10px;border-radius:5px}
+.cm .menu .mi.on{background:var(--sel)}
+.cm .menu .mi .ds{grid-column:1/-1;color:var(--t3);font-size:11px;line-height:15px}
+
+.cm .tree-k{position:relative}
+.cm .tree-k::before{content:"";position:absolute;left:21px;top:0;bottom:10px;border-left:1px solid var(--bd2)}
+.cm .rrow{display:grid;align-items:center;column-gap:12px;min-height:30px;padding:3px 12px;border-top:1px solid var(--bd);white-space:nowrap;min-width:0}
+.cm .rrow>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .ord{width:18px;height:18px;border-radius:9px;border:1px solid var(--bd2);font-size:10.5px;display:inline-flex;align-items:center;justify-content:center;color:var(--t2)}
+.cm .sysrow{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;background:var(--s1);border:1px solid var(--bd);min-width:0}
+.cm .repo{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.cm .crow{display:grid;grid-template-columns:16px minmax(0,1.15fr) minmax(0,1.5fr) minmax(0,0.9fr);column-gap:14px;align-items:start;padding:8px 12px;border-top:1px solid var(--bd);min-width:0}
+.cm .crow>*{min-width:0}
+.cm .rrow.foc{box-shadow:inset 2px 0 0 var(--er);background:color-mix(in srgb,var(--er) 5%,transparent)}
+.cm .tail{margin:0 12px 0 44px;padding:6px 10px;border-radius:6px;background:var(--bg);font-size:11.5px;line-height:17px;color:var(--t2);white-space:pre;overflow:hidden}
+.cm .racts{display:flex;align-items:center;gap:6px;padding:6px 12px 10px 44px;flex-wrap:wrap}
+.cm .hpill{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:6px;border:1px solid var(--bd2);background:var(--s1);font-size:11.5px;white-space:nowrap;color:var(--t2)}
+</style><div class="win">
+<header class="tb">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="pill"><span>ads</span><span class="faint">/</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span>main</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="pill" aria-label="Notifications"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg></button>
+<button class="pill" aria-label="Windows: 1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M5.5 1.5h7a2 2 0 0 1 2 2v7"/></svg><span class="t2">1</span></button>
+</header>
+<div class="body" style="grid-template-columns: 40px minmax(0, 1fr)">
+<nav class="rail" aria-label="Sections"><button class="ri" aria-label="Code ⌘1"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button><button class="ri" aria-label="Terminals ⌘2"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button><button class="ri on" aria-label="Agents ⌘3"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button><button class="ri" aria-label="Backlog ⌘4"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button><button class="ri" aria-label="Processes ⌘5"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg></button><button class="ri" aria-label="Cron ⌘6"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button><button class="ri" aria-label="Triggers ⌘7"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg></button><button class="ri" aria-label="Graphs ⌘8"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg></button></nav>
+
+<main class="main">
+<div class="crumb"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg><span class="mut cap">Agents</span><span class="faint">/</span><span class="cap">Campaign pause reason</span></div><div style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--bd); flex: none; min-width: 0">
+<svg class="i s16 ok-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg><h1 class="ttl ell" style="margin: 0; flex: 0 1 auto">Campaign pause reason</h1>
+
+<span style="flex: 1"></span><span class="badge">AFK</span><span class="badge ok">done</span>
+</div><div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 16px 12px"><div style="display: flex; flex-direction: column; gap: 10px; max-width: 860px"><div class="sysrow"><svg class="i t2" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V3h4.5l1.5 1.5h7v8.5h-13Z"/><path d="M8 7v4M6 9h4"/></svg><div style="display: flex; flex-direction: column; min-width: 0; flex: 1"><span>Connected <b>internal-auth</b> while you were away <span class="badge" style="margin-left: 4px">AFK</span></span><span class="mut cap ell">02:14 · opened a PR, didn’t merge</span></div><button class="btn sm gh">Remove from ads…</button></div><div class="row mut" style="padding-left: 0"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><span>Children: 3 · 38 actions</span></div><div class="rep"><p>Done while you were away. <b>Connected internal-auth on my own</b> (AFK): the scope lives there.</p>
+<ul><li>ads-snapshot: PR #87 merged</li><li>internal-auth: its rule is merge to main, but it was connected while you were away, so I opened <b>PR #203</b> instead</li><li>ads-management: PR #412 open, waits for internal-auth</li></ul></div><div class="qcard"><div class="qhd"><svg class="i t2" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V3h4.5l1.5 1.5h7v8.5h-13Z"/></svg><span class="b">3 repos</span><span class="mut cap ell" style="flex: 1">1 merged · 2 PRs open, in order</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div></div></div></div><div style="padding: 0 16px 12px; flex: none"><div class="card" style="max-width: 860px; display: flex; flex-direction: column"><span class="faint" style="padding: 8px 12px 0; min-height: 40px">Message Claude…</span><div style="display: flex; align-items: center; gap: 4px; padding: 2px 6px 6px"><button class="btn sm gh">Claude · Ask before edits<svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button><span style="flex: 1"></span><button class="btn sm">Send<span class="kbd">⌘⏎</span></button></div></div></div>
+</main>
+</div>
+<footer class="sb">
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span>
+<span>ads gained 1 folder while you were away</span>
+<span style="flex: 1"></span>
+<span>⌘K</span>
+</footer>
+</div>
+</div>
+</body></html>

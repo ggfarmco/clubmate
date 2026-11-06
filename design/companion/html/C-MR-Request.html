@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Companion: connect a repo</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+<link rel="stylesheet" href="assets/c.css">
+
+
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.comp .st.sq{border-radius:7px}
+.comp .nrow{display:flex;align-items:center;gap:12px;padding:10px 14px;min-width:0}
+.comp .nrow+.nrow{border-top:1px solid var(--bd)}
+.comp .nrow .nb{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.comp .nrow .nb .mono{font-size:12px;line-height:16px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.comp .nrow .sw{flex:none;text-align:right;font-size:13px;line-height:18px}
+.comp .seg{margin:12px 16px 0;height:34px;border-radius:17px;background:var(--s2);display:grid;grid-template-columns:1fr 1fr;padding:2px}
+.comp .seg>button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
+.comp .seg>button[aria-selected="true"]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.comp.th-cdark .seg>button[aria-selected="true"]{background:#636366}
+.comp.th-clight .seg>button[aria-selected="true"]{background:#FFFFFF}
+</style>
+
+</head><body>
+
+<div class="cm comp th-cdark" style="width: 393px; height: 852px">
+<style>
+.comp .rr{display:grid;grid-template-columns:24px minmax(0,1fr) auto;column-gap:10px;align-items:center;padding:11px 14px}
+.comp .rr+.rr{border-top:1px solid var(--bd)}
+.comp .ordp{width:22px;height:22px;border-radius:11px;border:1.5px solid var(--bd2);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;color:var(--t2)}
+.comp .c.nest{padding-left:40px}
+</style><div class="edge"></div><div class="top"><button class="gbtn glass" aria-label="Back"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button><div class="t"><span class="tt">Campaign pause reason</span><span class="ts"><span class="wa-i">Waiting for you</span> · ads</span></div><button class="gbtn glass" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button></div>
+<div style="position: absolute; left: 16px; right: 16px; top: 118px; overflow: hidden; height: 110px"><p class="sub" style="margin: 0">ads-management and ads-snapshot are running. internal-auth isn't in this workspace yet.</p></div>
+<div class="bar" style="padding-bottom: 24px">
+<section class="cc" style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1.5px solid var(--wa-bd); background: color-mix(in srgb, var(--wa) 9%, var(--s1))">
+<div style="display: flex; align-items: center; gap: 10px"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V3h4.5l1.5 1.5h7v8.5h-13Z"/><path d="M8 7v4M6 9h4"/></svg></span><span class="sub w6 wa-i">Connect a repo?</span></div>
+<span class="t20" style="display: flex; align-items: center; gap: 8px"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V3h4.5l1.5 1.5h7v8.5h-13Z"/></svg>internal-auth</span>
+<span class="mono" style="font-size: 13px; color: var(--t2)">~/develop/acme/internal-auth</span>
+<span class="foot mut">github.com/acme/internal-auth · main · clean</span>
+<span class="cap" style="color: var(--t2); border-left: 2px solid var(--bd2); padding-left: 10px">“The pause endpoint needs a campaigns:pause scope, and internal-auth issues the scopes.”</span>
+<span class="foot mut">Becomes a folder of ads and stays after the task. Claude works there in a child session on a new branch, by internal-auth's own rules.</span>
+<span class="foot t2">Lands by <b>merge to main after tests</b> · from its CLAUDE.md</span>
+<span class="foot mut">Brings 1 graph and 1 worktree hook — off until you trust them on the Mac</span>
+<button class="cb pri full">Connect</button>
+<button class="cb plain full">Don't connect</button>
+<span class="foot mut" style="text-align: center">No time limit · another folder: on the Mac</span>
+</section></div>
+</div>
+</body></html>
