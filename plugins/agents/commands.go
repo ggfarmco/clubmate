@@ -148,6 +148,7 @@ type promptArgs struct {
 	Voice       bool         `json:"-"`
 	Review      *reviewSent  `json:"-"`
 	Queued      bool         `json:"-"`
+	Answered    []string     `json:"-"`
 }
 
 type attachment struct {

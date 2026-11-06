@@ -13,6 +13,7 @@ type queuedPrompt struct {
 	From        string
 	Voice       bool
 	Review      *reviewSent
+	Answered    []string
 }
 
 func (s *session) enqueueLocked(args promptArgs) {
@@ -40,7 +41,7 @@ func (s *session) queued() []queuedPrompt {
 
 func (s *session) queuedLocked(args promptArgs) queuedPrompt {
 	s.queueSeq++
-	return queuedPrompt{ID: "q" + strconv.Itoa(s.queueSeq), Text: args.Text, Attachments: args.Attachments, From: args.From, Voice: args.Voice, Review: args.Review}
+	return queuedPrompt{ID: "q" + strconv.Itoa(s.queueSeq), Text: args.Text, Attachments: args.Attachments, From: args.From, Voice: args.Voice, Review: args.Review, Answered: args.Answered}
 }
 
 func (s *session) dequeueLocked() (promptArgs, bool) {
@@ -64,6 +65,7 @@ func (s *session) dequeueLocked() (promptArgs, bool) {
 			texts = append(texts, q.Text)
 		}
 		args.Attachments = append(args.Attachments, q.Attachments...)
+		args.Answered = append(args.Answered, q.Answered...)
 	}
 	args.Text = strings.Join(texts, "\n\n")
 	return args, true

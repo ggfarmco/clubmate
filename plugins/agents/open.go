@@ -158,6 +158,10 @@ func (a *app) openItemsCommand(ctx context.Context, cmd pluginsdk.CommandRun, ar
 			return openItemsResult{Items: s.postOpen(items, nil, itemHanded), Handed: true}, nil
 		}
 	}
+	items, unheard := s.dropUnheard(items)
+	if len(items) == 0 {
+		return openItemsResult{Items: unheard}, nil
+	}
 	kept, extra := s.fitOpen(items)
 	overflow := make([]int, 0, len(extra))
 	for _, item := range extra {
@@ -169,7 +173,7 @@ func (a *app) openItemsCommand(ctx context.Context, cmd pluginsdk.CommandRun, ar
 	}
 	ids := s.postOpen(kept, overflow, itemOpen)
 	a.notes.persist(ctx, s)
-	return openItemsResult{Items: ids, Overflow: overflow}, nil
+	return openItemsResult{Items: append(unheard, ids...), Overflow: overflow}, nil
 }
 
 func (a *app) openAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun, args openAnswerArgs) (any, error) {
@@ -196,7 +200,7 @@ func (a *app) answerOpen(ctx context.Context, s *session, workspaceID string, ar
 	if s.snapshot().closed() {
 		return a.answerClosed(ctx, s, picks, args.Note)
 	}
-	if err := a.prompt(workspaceID, promptArgs{Session: args.Session, Text: picks.prompt(args.Note), Attachments: attachments, Queued: true}); err != nil {
+	if err := a.prompt(workspaceID, promptArgs{Session: args.Session, Text: picks.prompt(args.Note), Attachments: attachments, Queued: true, Answered: picks.ids()}); err != nil {
 		return nil, err
 	}
 	s.resolveOpen(openChange{Resolved: picks.resolved()})
@@ -398,6 +402,10 @@ func (it openItem) handedLine() string {
 		options = append(options, o.Label+" ("+o.Description+")")
 	}
 	return it.Header + ": " + it.Question + " Options: " + strings.Join(options, "; ") + ". (from: " + it.Quote + ")"
+}
+
+func (it openItem) sameAs(other openItem) bool {
+	return it.Kind == other.Kind && strings.EqualFold(it.Label, other.Label) && strings.EqualFold(it.Question, other.Question)
 }
 
 func (it openItem) title() string {

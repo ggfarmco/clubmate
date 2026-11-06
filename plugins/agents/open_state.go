@@ -90,6 +90,40 @@ func (s *session) postOpen(items []openItem, overflow []int, state string) []str
 	return ids
 }
 
+func (s *session) dropUnheard(items []openItem) ([]openItem, []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadLocked()
+	var fresh []openItem
+	var unheard []string
+	for _, it := range items {
+		if id := s.unheardLocked(it); id != "" {
+			unheard = append(unheard, id)
+			continue
+		}
+		fresh = append(fresh, it)
+	}
+	return fresh, unheard
+}
+
+func (s *session) unheardLocked(item openItem) string {
+	for _, en := range s.opens {
+		for _, it := range en.Items {
+			if !it.sameAs(item) {
+				continue
+			}
+			if it.State == itemNo && !it.told || it.State == itemAnswered && s.answerQueuedLocked(it.ID) {
+				return it.ID
+			}
+		}
+	}
+	return ""
+}
+
+func (s *session) answerQueuedLocked(id string) bool {
+	return slices.ContainsFunc(s.queue, func(q queuedPrompt) bool { return slices.Contains(q.Answered, id) })
+}
+
 func (s *session) resolveOpen(change openChange) {
 	s.mu.Lock()
 	s.loadLocked()
@@ -326,6 +360,14 @@ func (p openPicks) resolved() []openResolution {
 	out := p.offerResolved()
 	for _, d := range p.decisions {
 		out = append(out, openResolution{Item: d.item.ID, State: itemAnswered, Answer: d.answer})
+	}
+	return out
+}
+
+func (p openPicks) ids() []string {
+	out := make([]string, 0, len(p.decisions)+len(p.offers))
+	for _, r := range p.resolved() {
+		out = append(out, r.Item)
 	}
 	return out
 }
