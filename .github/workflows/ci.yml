@@ -41,7 +41,7 @@ jobs:
             ~/go/pkg/mod
 
       - name: Go tests
-        run: go test ./...
+        run: go test -race ./...
 
       - name: Save Go cache
         if: github.event_name == 'push'

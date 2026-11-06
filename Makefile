@@ -44,7 +44,7 @@ run-core: build
 	bin/clubmate-core
 
 test:
-	go test $$(go list ./... | grep -v /dist/)
+	go test -race $$(go list ./... | grep -v /dist/)
 	cd third_party/jsonrpc2 && go test ./...
 
 lint:
