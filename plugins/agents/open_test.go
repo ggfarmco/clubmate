@@ -542,6 +542,22 @@ func TestCardKeysPickAndSendOneTurn(t *testing.T) {
 	assert.Zero(t, f.session(t, workspace, session).OpenCount)
 }
 
+func TestCardOffersNoToAllWithoutAMenu(t *testing.T) {
+	t.Parallel()
+	f := start(t, echoScript)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.doneSession(t, workspace)
+	f.postItems(t, workspace, session, offer("add a screen"))
+
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
+		return len(nodesWithID(n, session+"/open/no")) == 1 && len(nodesWithID(n, session+"/open/more")) == 0
+	})
+	f.h.Event(t, workspace, "agents.main", session+"/open/no", "openNoAll", nil)
+
+	testutil.Eventually(t, func() bool { return f.session(t, workspace, session).OpenCount == 0 }, wait)
+	assert.Len(t, f.calls(t, "session/prompt"), 1)
+}
+
 func TestComposerSendCarriesTheCardsPicks(t *testing.T) {
 	t.Parallel()
 	f := start(t, echoScript)

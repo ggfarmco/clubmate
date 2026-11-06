@@ -238,11 +238,10 @@ func openFooter(sid string, canSend, night bool) sdui.Node {
 	later := sdui.WithHint(sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/later", "Later", ""), actOpenLater), "ghost"), "l")
 	backlog := sdui.WithHint(sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/backlog", "To backlog", ""), actOpenBacklog), "ghost"), openBacklogKey)
 	no := sdui.WithHint(sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/no", "No to all", ""), actOpenNoAll), "ghost"), "shift+delete")
-	more := sdui.WithPopover(sdui.WithIconOnly(sdui.WithVariant(sdui.Button(id+"/more", "More", "ellipsis"), "ghost")), sdui.Form(id+"/more/form", no))
 	if night {
-		return sdui.WithGap(sdui.HStack(send, later, more, sdui.Spacer(), sdui.MutedText(openNightNote)), openGap)
+		return sdui.WithGap(sdui.HStack(send, later, no, sdui.Spacer(), sdui.MutedText(openNightNote)), openGap)
 	}
-	return sdui.WithGap(sdui.HStack(send, later, backlog, more, sdui.Spacer(), sdui.WithShort(sdui.MutedText(openSendNote), openSendShort)), openGap)
+	return sdui.WithGap(sdui.HStack(send, later, backlog, no, sdui.Spacer(), sdui.WithShort(sdui.MutedText(openSendNote), openSendShort)), openGap)
 }
 
 func overflowLine(tasks []int) string {
