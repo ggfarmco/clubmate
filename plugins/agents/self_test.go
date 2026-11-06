@@ -97,8 +97,40 @@ func TestEnsureFinishesAnInterruptedStart(t *testing.T) {
 	x := newSelfStore(t.TempDir())
 	require.NoError(t, os.MkdirAll(x.dir, 0o700))
 	require.NoError(t, exec.Command("git", "-C", x.dir, "init", "-q").Run())
+	write(t, filepath.Join(x.dir, ".git", "index.lock"), "")
 	require.NoError(t, x.ensure(t.Context()))
 	assert.Equal(t, "1", selfGit(t, x, "rev-list", "--count", "HEAD"))
+}
+
+func TestGlobalGitConfigDoesNotReachTheSelf(t *testing.T) {
+	hooks := t.TempDir()
+	marker := filepath.Join(hooks, "ran")
+	require.NoError(t, os.WriteFile(filepath.Join(hooks, "post-commit"), []byte("#!/bin/sh\ntouch '"+marker+"'\n"), 0o700))
+	global := filepath.Join(t.TempDir(), "gitconfig")
+	write(t, global, "[core]\n\thooksPath = "+hooks+"\n\texcludesFile = "+filepath.Join(hooks, "ignore")+"\n")
+	write(t, filepath.Join(hooks, "ignore"), "skills/\n")
+	t.Setenv("GIT_CONFIG_GLOBAL", global)
+
+	x := newSelfStore(t.TempDir())
+	require.NoError(t, x.ensure(t.Context()))
+	edit(t, x.dir, "skills/tidy/SKILL.md", "tidy")
+	require.NoError(t, x.commit(t.Context(), "moved"))
+
+	assert.NoFileExists(t, marker)
+	assert.Empty(t, selfGit(t, x, "status", "--porcelain", "--ignored"))
+}
+
+func TestStaleIndexLockDoesNotBlockReset(t *testing.T) {
+	x := newSelfStore(t.TempDir())
+	require.NoError(t, x.ensure(t.Context()))
+	edit(t, x.dir, "prompt.md", "be brief")
+	require.NoError(t, x.commit(t.Context(), "moved"))
+	write(t, filepath.Join(x.dir, ".git", "index.lock"), "")
+
+	require.NoError(t, x.reset(t.Context()))
+
+	assert.Empty(t, x.prompt())
+	assert.Empty(t, selfGit(t, x, "status", "--porcelain"))
 }
 
 func TestResetEmptiesPromptAndSkillsOnly(t *testing.T) {

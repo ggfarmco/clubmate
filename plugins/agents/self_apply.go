@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -23,6 +24,7 @@ const (
 	maxPromptBytes   = 6 << 10
 	maxSkills        = 5
 	maxEditsPerNight = 2
+	maxSummaryRunes  = 200
 
 	selfKindEdit   = "edit"
 	selfKindRevert = "revert"
@@ -34,6 +36,7 @@ const (
 
 	selfHandEdits = "Keep edits made outside a night"
 	gitDirName    = ".git"
+	gitIndexLock  = "index.lock"
 	gitNoRenames  = "-Xno-renames"
 
 	dropUndeclared        = "not declared"
@@ -143,7 +146,7 @@ func (a *app) selfDeclareCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 }
 
 func (a *app) declare(ctx context.Context, rec record, args declareArgs) (string, error) {
-	summary := oneLine(args.Summary)
+	summary := clipRunes(oneLine(args.Summary), maxSummaryRunes)
 	if summary == "" {
 		return "", errNoSummary
 	}
@@ -221,11 +224,22 @@ func (x *selfStore) settle(ctx context.Context) error {
 }
 
 func (x *selfStore) clearInterrupted(ctx context.Context) error {
+	if err := x.dropIndexLock(); err != nil {
+		return err
+	}
 	interrupted, err := x.interrupted(ctx)
 	if err != nil || !interrupted {
 		return err
 	}
 	_, err = x.git(ctx, "reset", "-q", "--hard", "HEAD")
+	return err
+}
+
+func (x *selfStore) dropIndexLock() error {
+	err := os.Remove(filepath.Join(x.dir, gitDirName, gitIndexLock))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
 	return err
 }
 
@@ -240,7 +254,7 @@ func (x *selfStore) interrupted(ctx context.Context) (bool, error) {
 }
 
 func (x *selfStore) declared(ctx context.Context, sandbox string) ([]selfCommit, error) {
-	source := filepath.Clean(sandbox) + gitDirName
+	source := sandboxGitDir(sandbox)
 	if _, err := x.git(ctx, "fetch", "-q", "--no-tags", "--no-recurse-submodules", source, "HEAD"); err != nil {
 		return nil, err
 	}
@@ -302,7 +316,7 @@ func (x *selfStore) pick(ctx context.Context, c selfCommit) (string, error) {
 	prompt, skills := len(x.prompt()), len(x.skills())
 	reason := dropConflict
 	var fault error
-	if x.land(ctx, c) == nil {
+	if x.landed(ctx, c) {
 		reason = x.overLimit(prompt, skills)
 		if reason == "" {
 			reason, fault = x.landedFault(ctx, before)
@@ -312,6 +326,14 @@ func (x *selfStore) pick(ctx context.Context, c selfCommit) (string, error) {
 		return "", nil
 	}
 	return reason, errors.Join(fault, x.resetTo(ctx, before))
+}
+
+func (x *selfStore) landed(ctx context.Context, c selfCommit) bool {
+	err := x.land(ctx, c)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "agents: self pick:", err)
+	}
+	return err == nil
 }
 
 func (x *selfStore) resetTo(ctx context.Context, rev string) error {

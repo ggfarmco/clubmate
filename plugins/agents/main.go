@@ -57,6 +57,9 @@ type app struct {
 	nightMu    sync.Mutex
 	stopOnce   sync.Once
 
+	nightStopMu sync.Mutex
+	nightStop   context.CancelCauseFunc
+
 	registry
 	uiState
 	waiters

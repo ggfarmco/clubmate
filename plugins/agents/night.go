@@ -72,8 +72,16 @@ type nightLedger struct {
 }
 
 func nightDue(now, last time.Time) bool {
-	start := time.Date(now.Year(), now.Month(), now.Day(), nightStartHour, 0, 0, 0, now.Location())
-	return !now.Before(start) && now.Before(start.Add(nightWindow)) && last.Before(start)
+	return inNightWindow(now) && last.Before(nightStart(now))
+}
+
+func inNightWindow(now time.Time) bool {
+	start := nightStart(now)
+	return !now.Before(start) && now.Before(start.Add(nightWindow))
+}
+
+func nightStart(now time.Time) time.Time {
+	return time.Date(now.Year(), now.Month(), now.Day(), nightStartHour, 0, 0, 0, now.Location())
 }
 
 func (a *app) nightLoop() {
@@ -83,8 +91,8 @@ func (a *app) nightLoop() {
 		select {
 		case <-a.quit:
 			return
-		case <-ticker.C:
-			a.nightTick()
+		case now := <-ticker.C:
+			a.nightTick(now)
 		}
 	}
 }
@@ -110,10 +118,13 @@ func (a *app) nightRunCommand(ctx context.Context, _ pluginsdk.CommandRun) (any,
 	return nil, nil
 }
 
-func (a *app) nightTick() {
+func (a *app) nightTick(now time.Time) {
+	if !inNightWindow(now) {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 	defer cancel()
-	if !a.selfEnabled(ctx) || !nightDue(time.Now(), a.lastNight(ctx)) {
+	if !a.selfEnabled(ctx) || !nightDue(now, a.lastNight(ctx)) {
 		return
 	}
 	if err := a.runNight(context.Background()); err != nil {
@@ -123,7 +134,7 @@ func (a *app) nightTick() {
 
 func (a *app) nightOff(ctx context.Context) error {
 	if ctx.Err() != nil {
-		return errNightExpired
+		return nightEnded(ctx)
 	}
 	if !a.selfEnabled(ctx) {
 		return errSelfOff
@@ -142,8 +153,33 @@ func (a *app) claimNight(ctx context.Context) error {
 	return nil
 }
 
+func nightEnded(ctx context.Context) error {
+	if errors.Is(context.Cause(ctx), errSelfOff) {
+		return errSelfOff
+	}
+	return errNightExpired
+}
+
+func (a *app) stopNight() {
+	a.nightStopMu.Lock()
+	defer a.nightStopMu.Unlock()
+	if a.nightStop != nil {
+		a.nightStop(errSelfOff)
+	}
+}
+
+func (a *app) holdNightStop(stop context.CancelCauseFunc) {
+	a.nightStopMu.Lock()
+	defer a.nightStopMu.Unlock()
+	a.nightStop = stop
+}
+
 func (a *app) night(parent context.Context) error {
-	ctx, cancel := context.WithTimeout(parent, envDelay(nightLimitEnv, nightLimit))
+	stoppable, stop := context.WithCancelCause(parent)
+	defer stop(nil)
+	a.holdNightStop(stop)
+	defer a.holdNightStop(nil)
+	ctx, cancel := context.WithTimeout(stoppable, envDelay(nightLimitEnv, nightLimit))
 	defer cancel()
 	now := time.Now()
 	if err := a.host.StorageSet(ctx, selfLastRunKey, now); err != nil {
@@ -373,7 +409,7 @@ func (a *app) awaitNight(ctx context.Context, s *session) error {
 			return errNightLimit
 		case <-ctx.Done():
 			a.cancel(s)
-			return errNightExpired
+			return nightEnded(ctx)
 		case <-a.quit:
 			return errNightQuit
 		}
@@ -442,7 +478,8 @@ func (a *app) lastNight(ctx context.Context) time.Time {
 }
 
 func (a *app) clearNight(ctx context.Context, date string) error {
-	for _, id := range a.ledger(ctx).Sessions {
+	ledger, _ := a.ledger(ctx)
+	for _, id := range ledger.Sessions {
 		s := a.session(id)
 		if s == nil {
 			continue
@@ -462,7 +499,10 @@ func (a *app) clearNight(ctx context.Context, date string) error {
 }
 
 func (a *app) noteNight(ctx context.Context, s *session) {
-	ledger := a.ledger(ctx)
+	ledger, ok := a.ledger(ctx)
+	if !ok {
+		return
+	}
 	ledger.Sessions = append(ledger.Sessions, s.snapshot().ID)
 	if err := a.host.StorageSet(ctx, selfNightSessionsKey, ledger); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: night sessions:", err)
@@ -472,7 +512,10 @@ func (a *app) noteNight(ctx context.Context, s *session) {
 func (a *app) nightOver(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
-	ledger := a.ledger(ctx)
+	ledger, ok := a.ledger(ctx)
+	if !ok {
+		return
+	}
 	ledger.Running = false
 	if err := a.host.StorageSet(ctx, selfNightSessionsKey, ledger); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: night sessions:", err)
@@ -480,7 +523,7 @@ func (a *app) nightOver(ctx context.Context) {
 }
 
 func (a *app) reapNight(ctx context.Context) {
-	ledger := a.ledger(ctx)
+	ledger, _ := a.ledger(ctx)
 	if !ledger.Running {
 		return
 	}
@@ -510,12 +553,13 @@ func (a *app) nightSessions() []*session {
 	return slices.DeleteFunc(all, func(s *session) bool { return s.snapshot().Night == "" })
 }
 
-func (a *app) ledger(ctx context.Context) nightLedger {
+func (a *app) ledger(ctx context.Context) (nightLedger, bool) {
 	var ledger nightLedger
 	if _, err := a.host.StorageGet(ctx, selfNightSessionsKey, &ledger); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: night sessions:", err)
+		return nightLedger{}, false
 	}
-	return ledger
+	return ledger, true
 }
 
 func (a *app) nightPath(parts ...string) string {

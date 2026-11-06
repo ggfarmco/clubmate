@@ -28,6 +28,15 @@ func TestApplyCarriesDeclaredCommits(t *testing.T) {
 	assert.Equal(t, "shorter replies", got.Changes[0].Summary)
 }
 
+func TestDeclareClipsALongSummary(t *testing.T) {
+	x, box := selfWithSandbox(t)
+	edit(t, box, "prompt.md", "be brief")
+	declareChange(t, box, strings.Repeat("a", maxSummaryRunes+1), "")
+	got, err := x.apply(ctx, box)
+	require.NoError(t, err)
+	assert.Equal(t, strings.Repeat("a", maxSummaryRunes)+"…", got.Changes[0].Summary)
+}
+
 func TestApplyDescribesTheChangeInTheRealRepo(t *testing.T) {
 	x, box := selfWithSandbox(t)
 	edit(t, box, "prompt.md", "be brief")
@@ -475,6 +484,40 @@ func TestApplyDropsAConflict(t *testing.T) {
 	assert.Equal(t, "theirs", x.prompt())
 	assert.Empty(t, selfGit(t, x, "status", "--porcelain"))
 	assert.NoFileExists(t, filepath.Join(x.dir, ".git", "CHERRY_PICK_HEAD"))
+}
+
+func TestApplySaysWhyAPickFailed(t *testing.T) {
+	logged := filepath.Join(t.TempDir(), "stderr")
+	f, err := os.Create(logged)
+	require.NoError(t, err)
+	defer f.Close()
+	stderr := os.Stderr
+	os.Stderr = f
+	defer func() { os.Stderr = stderr }()
+	x, box := selfWithSandbox(t)
+	edit(t, box, "prompt.md", "ours")
+	declareChange(t, box, "clash", "")
+	edit(t, x.dir, "prompt.md", "theirs")
+	require.NoError(t, x.commit(ctx, "moved"))
+
+	_, err = x.apply(ctx, box)
+
+	require.NoError(t, err)
+	assert.Contains(t, readBox(t, filepath.Dir(logged), "stderr"), "git cherry-pick")
+}
+
+func TestApplyClearsAStaleIndexLock(t *testing.T) {
+	x, box := selfWithSandbox(t)
+	edit(t, box, "prompt.md", "be brief")
+	declareChange(t, box, "shorter replies", "")
+	lock := filepath.Join(x.dir, ".git", "index.lock")
+	write(t, lock, "")
+
+	got, err := x.apply(ctx, box)
+
+	require.NoError(t, err)
+	assert.Len(t, got.Changes, 1)
+	assert.NoFileExists(t, lock)
 }
 
 func TestApplyClearsAnInterruptedPick(t *testing.T) {

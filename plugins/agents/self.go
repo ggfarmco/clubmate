@@ -9,8 +9,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"clubmate/plugins/internal/gitrepo"
 )
 
 const (
@@ -58,11 +56,14 @@ func (x *selfStore) ensure(ctx context.Context) error {
 			return err
 		}
 	}
-	if _, err := gitOutput(ctx, x.dir, nil, "init", "-q", "-b", selfBranch); err != nil {
+	if _, err := x.git(ctx, "init", "-q", "--template=", "-b", selfBranch); err != nil {
 		return err
 	}
-	if _, err := gitOutput(ctx, x.dir, nil, "rev-parse", "-q", "--verify", "HEAD"); err == nil {
+	if _, err := x.git(ctx, "rev-parse", "-q", "--verify", "HEAD"); err == nil {
 		return x.clearInterrupted(ctx)
+	}
+	if err := x.dropIndexLock(); err != nil {
+		return err
 	}
 	return x.commit(ctx, "Start the self")
 }
@@ -93,6 +94,9 @@ func (x *selfStore) skills() []string {
 func (x *selfStore) reset(ctx context.Context) error {
 	x.mu.Lock()
 	defer x.mu.Unlock()
+	if err := x.clearInterrupted(ctx); err != nil {
+		return err
+	}
 	if err := os.WriteFile(filepath.Join(x.dir, selfPrompt), nil, 0o600); err != nil {
 		return err
 	}
@@ -103,14 +107,14 @@ func (x *selfStore) reset(ctx context.Context) error {
 }
 
 func (x *selfStore) commit(ctx context.Context, message string) error {
-	if _, err := gitOutput(ctx, x.dir, nil, "add", "-A"); err != nil {
+	if _, err := x.git(ctx, "add", "-A"); err != nil {
 		return err
 	}
-	changed, err := gitOutput(ctx, x.dir, nil, "status", "--porcelain")
+	changed, err := x.git(ctx, "status", "--porcelain")
 	if err != nil || changed == "" {
 		return err
 	}
-	_, err = gitOutput(ctx, x.dir, gitrepo.Identity, "commit", "-q", "--no-verify", "--no-gpg-sign", "-m", message)
+	_, err = x.git(ctx, "commit", "-q", "--no-verify", "-m", message)
 	return err
 }
 
@@ -142,6 +146,9 @@ func (a *app) selfEnabled(ctx context.Context) bool {
 func (a *app) setSelfEnabled(ctx context.Context, on bool) error {
 	if err := a.host.StorageSet(ctx, selfKey, on); err != nil {
 		return err
+	}
+	if !on {
+		a.stopNight()
 	}
 	a.refreshSettings(ctx)
 	return nil

@@ -404,6 +404,21 @@ func TestTurningOffMidNightAppliesNothing(t *testing.T) {
 	r.noImprove(t)
 }
 
+func TestTurningOffStopsARunningNight(t *testing.T) {
+	t.Parallel()
+	r := startRig(t, nil)
+	r.enable(t)
+	r.day(t, r.workspace)
+	r.runNight(t)
+	sleep := r.night(t, "sleep")
+
+	r.selfEvent(t, "self-enabled", false)
+
+	r.waitStatus(t, r.workspace, sleep.ID, "closed")
+	r.reviewed(t, 1)
+	assert.Equal(t, "Stopped: self-improvement is off", r.reviews(t)[0].Message)
+}
+
 func TestRestartMidNight(t *testing.T) {
 	t.Parallel()
 	r := startRig(t, nil)
