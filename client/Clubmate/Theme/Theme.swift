@@ -32,7 +32,7 @@ struct Theme: Sendable {
     init(background: RGB, foreground: RGB, accent: RGB, success: RGB, warning: RGB, danger: RGB, fontFamily: String?) {
         let surface1 = background.mixed(with: foreground, amount: 0.04)
         let surface3 = background.mixed(with: foreground, amount: 0.11)
-        let mutedAlpha = ThemeContrast.alpha(of: foreground, over: surface3, reaching: 3)
+        let mutedAlpha = ThemeContrast.alpha(of: foreground, over: surface3, reaching: 4.5)
         func inkRGB(_ tone: RGB) -> RGB { ThemeContrast.ink(tone, toward: foreground, on: background, reaching: 4.5) }
         func ink(_ tone: RGB) -> Color { Color(inkRGB(tone)) }
         func mix(_ amount: Double) -> String { background.mixed(with: foreground, amount: amount).eventHex }
@@ -52,7 +52,7 @@ struct Theme: Sendable {
         self.surface1 = Color(surface1)
         self.surface2 = Color(background.mixed(with: foreground, amount: 0.07))
         self.surface3 = Color(surface3)
-        self.text2 = Color(foreground).opacity(ThemeContrast.alpha(of: foreground, over: surface3, reaching: 4.5))
+        self.text2 = Color(foreground).opacity(ThemeContrast.alpha(of: foreground, over: surface3, reaching: 7))
         self.muted = Color(foreground).opacity(mutedAlpha)
         self.accentInk = ink(accent)
         self.onAccent = Color(ThemeContrast.on(accent, candidates: [background, RGB(hex: 0xFFFFFF)], reaching: 4.5))
