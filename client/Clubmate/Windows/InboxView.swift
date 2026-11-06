@@ -152,7 +152,7 @@ struct InboxView: View {
                         .lineLimit(2)
                     Text(source)
                         .font(theme.uiSmall)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
