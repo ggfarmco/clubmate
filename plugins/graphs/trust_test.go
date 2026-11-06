@@ -54,6 +54,23 @@ func graphHome(t *testing.T, name, content string) (*app, string) {
 	return a, path
 }
 
+func TestTrustedListsTheGraphsThatNeedNoFurtherTrust(t *testing.T) {
+	a, path := graphHome(t, "stepped", `{"nodes":[{"id":"a","prompt":"p","start":true},{"id":"s","run":"true"}],"edges":[{"from":"a","to":"s"}]}`)
+	dir := filepath.Dir(filepath.Dir(filepath.Dir(path)))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, graphsDir, "plain.json"), []byte(`{"nodes":[{"id":"a","prompt":"p","start":true}]}`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, graphsDir, "broken.json"), []byte(`{`), 0o644))
+	trusted := func() trustedGraphs {
+		out, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.trusted", WorkspaceID: "ws1", Args: json.RawMessage(`{"path":"` + dir + `"}`)})
+		require.NoError(t, err)
+		return out.(trustedGraphs)
+	}
+
+	assert.Equal(t, trustedGraphs{Graphs: []string{"plain"}}, trusted())
+
+	require.NoError(t, trustGraph(t, a, "stepped"))
+	assert.Equal(t, trustedGraphs{Graphs: []string{"plain", "stepped"}}, trusted())
+}
+
 func TestStepSec_T1_UntrustedFileDoesNotRun(t *testing.T) {
 	a := testApp(t, &fakeCore{})
 	assert.ErrorContains(t, agentRun(t, a, "gate"), "untrusted")

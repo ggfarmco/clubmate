@@ -18,9 +18,18 @@ type Workspace struct {
 }
 
 type Folder struct {
-	Path     string `json:"path"`
-	Worktree string `json:"worktree,omitempty"`
-	Missing  bool   `json:"missing,omitempty"`
+	Path     string    `json:"path"`
+	Worktree string    `json:"worktree,omitempty"`
+	Missing  bool      `json:"missing,omitempty"`
+	AddedBy  string    `json:"addedBy,omitempty"`
+	AddedAt  time.Time `json:"addedAt,omitzero"`
+	AddedAfk bool      `json:"addedAfk,omitempty"`
+	Seen     bool      `json:"seen"`
+}
+
+type FolderMeta struct {
+	AddedBy  string `json:"addedBy,omitempty"`
+	AddedAfk bool   `json:"addedAfk,omitempty"`
 }
 
 func WorkspaceFromEnv() string {

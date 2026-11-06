@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -168,13 +169,13 @@ func (a *app) flushWake(id string) {
 		case !ok || k.Status == statusRunning:
 		case a.asksParent(kid, k):
 			if sum, ids := kid.permissionSummary(), kid.pending(); sum != nil && len(ids) > 0 {
-				lines = append(lines, fmt.Sprintf(askFormat, firstLine(k.Title), k.ID, sum.Text, ids[0]))
+				lines = append(lines, fmt.Sprintf(askFormat, childName(k), k.ID, sum.Text, ids[0]))
 				break
 			}
 			fallthrough
 		default:
 			status := strings.Split(key, "/")[1]
-			lines = append(lines, fmt.Sprintf(childFormat, firstLine(k.Title), k.ID, status))
+			lines = append(lines, fmt.Sprintf(childFormat, childName(k), k.ID, status))
 		}
 	}
 	if len(lines) == 0 || a.submitIdle(parent, promptArgs{Text: strings.Join(lines, "\n")}) {
@@ -197,6 +198,13 @@ func (a *app) dropWakes(id string) {
 	w.mu.Lock()
 	delete(w.pending, id)
 	w.mu.Unlock()
+}
+
+func childName(rec record) string {
+	if rec.RepoPath != "" {
+		return filepath.Base(rec.RepoPath)
+	}
+	return firstLine(rec.Title)
 }
 
 func (a *app) submitIdle(s *session, args promptArgs) bool {

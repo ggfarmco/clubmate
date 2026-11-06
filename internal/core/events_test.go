@@ -11,6 +11,7 @@ import (
 	"clubmate/internal/bus"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/contract"
 )
 
 func TestCoreEventsForWorkspaceAndSessionLifecycle(t *testing.T) {
@@ -30,7 +31,7 @@ func TestCoreEventsForWorkspaceAndSessionLifecycle(t *testing.T) {
 	exited, _ := b.Read(t.Context(), "session.exited", 0, 0)
 	require.Len(t, exited, 1)
 	assert.JSONEq(t, `{"id":"`+s.ID+`","workspace":"`+p.ID+`","owner":"","state":"exited","exitCode":4}`, string(exited[0].Payload))
-	_, err = svc.AddRepo(t.Context(), p.ID, t.TempDir())
+	_, err = svc.AddRepo(t.Context(), p.ID, t.TempDir(), contract.FolderMeta{})
 	require.NoError(t, err)
 	require.NoError(t, svc.RemoveSession(t.Context(), s.ID))
 	require.NoError(t, svc.DeleteWorkspace(t.Context(), p.ID))

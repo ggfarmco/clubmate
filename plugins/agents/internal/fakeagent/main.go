@@ -19,18 +19,20 @@ import (
 )
 
 type script struct {
-	AuthFile    string                    `json:"authFile"`
-	Resume      bool                      `json:"resume"`
-	Linger      bool                      `json:"linger"`
-	Embedded    bool                      `json:"embedded"`
-	Steering    bool                      `json:"steering"`
-	Idle        bool                      `json:"idle"`
-	FailSetMode bool                      `json:"failSetMode"`
-	Modes       *acp.SessionModeState     `json:"modes"`
-	Configs     []acp.SessionConfigOption `json:"configs"`
-	Commands    []acp.AvailableCommand    `json:"commands"`
-	Prompt      []step                    `json:"prompt"`
-	After       []step                    `json:"after"`
+	AuthFile              string                    `json:"authFile"`
+	Resume                bool                      `json:"resume"`
+	Linger                bool                      `json:"linger"`
+	Embedded              bool                      `json:"embedded"`
+	CloseSleep            int                       `json:"closeSleep"`
+	AdditionalDirectories bool                      `json:"additionalDirectories"`
+	Steering              bool                      `json:"steering"`
+	Idle                  bool                      `json:"idle"`
+	FailSetMode           bool                      `json:"failSetMode"`
+	Modes                 *acp.SessionModeState     `json:"modes"`
+	Configs               []acp.SessionConfigOption `json:"configs"`
+	Commands              []acp.AvailableCommand    `json:"commands"`
+	Prompt                []step                    `json:"prompt"`
+	After                 []step                    `json:"after"`
 }
 
 type step struct {
@@ -141,6 +143,9 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 		if a.script.Resume {
 			caps.SessionCapabilities.Resume = &acp.Capability{}
 		}
+		if a.script.AdditionalDirectories {
+			caps.SessionCapabilities.AdditionalDirectories = &acp.Capability{}
+		}
 		res := acp.InitializeResponse{ProtocolVersion: acp.ProtocolVersion, AgentCapabilities: caps, AgentInfo: &acp.Implementation{Name: "fakeagent", Version: "0"}}
 		if a.script.Steering {
 			res.Meta = &acp.InitializeMeta{Steering: acp.SteeringMeta{Supported: true}}
@@ -201,6 +206,7 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 		_ = json.Unmarshal(params, &set)
 		return acp.SetSessionConfigOptionResponse{ConfigOptions: a.setConfig(set.ConfigID, set.Value)}, nil
 	case acp.MethodSessionClose, acp.MethodSessionDelete:
+		time.Sleep(time.Duration(a.script.CloseSleep) * time.Millisecond)
 		return struct{}{}, nil
 	}
 	return nil, acp.MethodNotFound(method)

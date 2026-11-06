@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"slices"
 	"sync"
 	"syscall"
@@ -53,6 +54,9 @@ type app struct {
 
 	spawnMu    sync.Mutex
 	worktreeMu sync.Mutex
+	connectMu  sync.Mutex
+	cloners    map[string]bool
+	landMu     sync.Mutex
 	declareMu  sync.Mutex
 	nightMu    sync.Mutex
 	stopOnce   sync.Once
@@ -174,12 +178,16 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		return err
 	}
 	a.reapNight(ctx)
+	a.requeueLandPrompts()
 	close(a.loaded)
+	a.resumeClones()
+	go a.landingAtStart()
 	if err := a.renderSettings(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: render settings:", err)
 	}
 	go a.suspendIdleLoop(envDelay(suspendAfterEnv, suspendAfter))
 	go a.closeDoneLoop(envDelay(closeAfterEnv, closeAfter))
+	go a.prCheckLoop(envDelay(prCheckEnv, prCheckEvery))
 	go a.ageOpenLoop(envDelay(openAfterEnv, openAfter))
 	go a.continueCutOff(cut)
 	go a.ensureSelf(context.WithoutCancel(ctx))
@@ -251,6 +259,9 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 		if kind == changeStatus {
 			a.wakeWaiters()
 			a.statusChanged(s)
+			if child := s.snapshot(); child.RepoPath != "" && child.ParentSession != "" {
+				go a.landingChanged()
+			}
 		}
 		a.notes.mark(s, kind, save)
 		a.kick(rec.Workspace)
@@ -348,6 +359,22 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			a.uiMu.Unlock()
 			reopen := reopenAction(rec.ID, cannotResume)
 			info.Reopen = &reopen
+		}
+		if rec.connectWaits() {
+			info.Pending = append(info.Pending, rec.connectIDs()...)
+			info.PendingSummary = rec.connectSummary()
+		}
+		if rec.taskWaits() {
+			info.Pending = append(info.Pending, rec.Task.requests()...)
+			if info.PendingSummary == nil {
+				info.PendingSummary = rec.Task.pendingSummary()
+			}
+		}
+		if rec.RepoPath != "" {
+			info.Repo = filepath.Base(rec.RepoPath)
+		}
+		if rec.Task != nil {
+			info.TaskSummary = rec.Task.summary()
 		}
 		if info.PendingSummary == nil && info.Asks && rec.Question != "" {
 			info.PendingSummary = &pendingSummary{Kind: pendingQuestion, Text: rec.Question, At: rec.UpdatedAt}

@@ -141,6 +141,7 @@ func errorCode(err error) int64 {
 		errors.Is(err, workspace.ErrDuplicateFolder),
 		errors.Is(err, workspace.ErrEmptyName),
 		errors.Is(err, workspace.ErrNotFolder),
+		errors.Is(err, workspace.ErrLastFolder),
 		errors.Is(err, workspace.ErrNotDirectory),
 		errors.Is(err, core.ErrNoFolders),
 		errors.Is(err, core.ErrEmptyKillRequest),

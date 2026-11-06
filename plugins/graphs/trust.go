@@ -30,6 +30,14 @@ type trustedSteps struct {
 	At      time.Time `json:"at"`
 }
 
+type trustedGraphs struct {
+	Graphs []string `json:"graphs"`
+}
+
+type trustedArgs struct {
+	Path string `json:"path"`
+}
+
 type nodeShape struct {
 	ID    string   `json:"id"`
 	Step  bool     `json:"step,omitempty"`
@@ -177,6 +185,31 @@ func (a *app) trustGraph(ctx context.Context, cmd pluginsdk.CommandRun) error {
 	clear(a.untrusted)
 	a.mu.Unlock()
 	return a.kvSet(ctx, repoKey(trustedPrefix, root, g.Name), trustedSteps{Hash: hash, Steps: stepsOf(g), Routing: routingOf(g), At: a.now()})
+}
+
+func (a *app) trustedIn(ctx context.Context, cmd pluginsdk.CommandRun) (trustedGraphs, error) {
+	var args trustedArgs
+	if err := automation.Decode(cmd, &args); err != nil {
+		return trustedGraphs{}, err
+	}
+	dirs := []string{args.Path}
+	root := rootOf(ctx, args.Path)
+	out := trustedGraphs{Graphs: []string{}}
+	for _, f := range listGraphs(dirs, "") {
+		if f.Builtin || f.Error != "" {
+			continue
+		}
+		g, _, err := loadGraph(dirs, "", f.Name)
+		if err != nil {
+			continue
+		}
+		untrusted, _, err := a.trustState(ctx, root, g)
+		logError(err)
+		if !untrusted {
+			out.Graphs = append(out.Graphs, f.Name)
+		}
+	}
+	return out, nil
 }
 
 func (a *app) untrustedGraphs(ctx context.Context, workspace string, dirs []string, graphs []graphFile) map[string]bool {

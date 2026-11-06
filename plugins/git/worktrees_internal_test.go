@@ -42,6 +42,21 @@ func TestSwitchHoldsBusyGateWhileSettingWorktree(t *testing.T) {
 	assert.True(t, s.claim())
 }
 
+func TestRemoteForDisplayDropsCredentials(t *testing.T) {
+	tests := []struct{ name, url, want string }{
+		{"https token", "https://ghp_secret@github.com/a/b.git", "https://github.com/a/b.git"},
+		{"https password", "https://me:pw@github.com/a/b.git", "https://github.com/a/b.git"},
+		{"scp form", "git@github.com:a/b.git", "git@github.com:a/b.git"},
+		{"ssh keeps the login", "ssh://git@github.com/a/b.git", "ssh://git@github.com/a/b.git"},
+		{"local path", "/srv/git/b.git", "/srv/git/b.git"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, remoteForDisplay(tt.url))
+		})
+	}
+}
+
 func fakeCore(t *testing.T, handle func(*jsonrpc2.Request) (any, error)) *pluginsdk.Host {
 	t.Helper()
 	coreSide, pluginSide := net.Pipe()

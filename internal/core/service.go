@@ -129,6 +129,12 @@ func (s *Service) OpenFolders(ctx context.Context, folders []string) (workspace.
 	if err != nil || found {
 		return p, false, err
 	}
+	if len(cleaned) == 1 {
+		p, found, err = s.workspaces.FindByFirstFolder(ctx, cleaned[0])
+		if err != nil || found {
+			return p, false, err
+		}
+	}
 	p, err = s.CreateWorkspace(ctx, filepath.Base(filepath.Clean(folders[0])), cleaned)
 	return p, err == nil, err
 }
@@ -186,8 +192,26 @@ func (s *Service) ImportUIState(ctx context.Context, id string, value json.RawMe
 	return s.workspaces.ImportUIState(ctx, id, value)
 }
 
-func (s *Service) AddRepo(ctx context.Context, id, path string) (workspace.Workspace, error) {
-	p, err := s.workspaces.AddRepo(ctx, id, path)
+func (s *Service) AddRepo(ctx context.Context, id, path string, meta contract.FolderMeta) (workspace.Workspace, error) {
+	p, err := s.workspaces.AddRepo(ctx, id, path, meta)
+	if err != nil {
+		return workspace.Workspace{}, err
+	}
+	s.publishWorkspace(ctx, contract.TopicWorkspaceUpdated, p)
+	return p, nil
+}
+
+func (s *Service) RemoveFolder(ctx context.Context, id, path string) (workspace.Workspace, error) {
+	p, err := s.workspaces.RemoveFolder(ctx, id, path)
+	if err != nil {
+		return workspace.Workspace{}, err
+	}
+	s.publishWorkspace(ctx, contract.TopicWorkspaceUpdated, p)
+	return p, nil
+}
+
+func (s *Service) MarkFolderSeen(ctx context.Context, id, path string) (workspace.Workspace, error) {
+	p, err := s.workspaces.MarkFolderSeen(ctx, id, path)
 	if err != nil {
 		return workspace.Workspace{}, err
 	}

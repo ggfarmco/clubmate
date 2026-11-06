@@ -82,6 +82,8 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 		return nil, a.continueEdge(ctx, cmd)
 	case "graphs.trust":
 		return nil, a.trustGraph(ctx, cmd)
+	case "graphs.trusted":
+		return a.trustedIn(ctx, cmd)
 	}
 	return nil, fmt.Errorf("%w: %q", agentcall.ErrUnknownCommand, cmd.ID)
 }

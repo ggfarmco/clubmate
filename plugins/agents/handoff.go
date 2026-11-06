@@ -36,6 +36,8 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 	finish, afk := a.sessionDefaults(ctx, s.snapshot().ParentSession)
 	a.spawnMu.Lock()
 	defer a.spawnMu.Unlock()
+	a.landMu.Lock()
+	defer a.landMu.Unlock()
 	old := s.snapshot()
 	switch {
 	case turnActive(old):
@@ -46,8 +48,13 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 	if err := a.canSpawnLocked(old.ParentSession); err != nil {
 		return nil, err
 	}
+	if old.Task != nil {
+		finish = old.Finish
+	}
 	first := promptArgs{Text: handoffBrief(s.view(0), args.Note), From: from}
 	a.closeSession(ctx, s, false)
+	a.connectMu.Lock()
+	defer a.connectMu.Unlock()
 	next, err := a.launch(record{
 		Workspace: old.Workspace,
 		Worktree:  old.Worktree,
@@ -66,11 +73,23 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 		TitleSet: old.TitleSet,
 		Finish:   finish,
 		AFK:      afk || old.AFK,
+		RepoPath: old.RepoPath,
+		Task:     old.Task,
+
+		AfkConnected: old.AfkConnected,
+
+		ConnectRequests: s.snapshot().ConnectRequests,
 	}, first, nil)
 	s.mu.Lock()
 	s.rec.HandoffTo = next.snapshot().ID
+	s.rec.ConnectRequests = nil
+	s.rec.Task = nil
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
+	if old.Task != nil {
+		a.saveNow(ctx, next)
+		a.saveNow(ctx, s)
+	}
 	return next, err
 }
 

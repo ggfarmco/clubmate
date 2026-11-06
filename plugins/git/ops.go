@@ -13,6 +13,7 @@ import (
 
 const (
 	mutateTimeout = 10 * time.Minute
+	cloneTimeout  = 30 * time.Minute
 	opPollWait    = time.Second
 	keptOps       = 64
 	opPrefix      = "wt"
@@ -24,16 +25,21 @@ var (
 	errUnknownOp = errors.New("unknown operation")
 )
 
-type opFunc func(ctx context.Context, note func(string)) (string, error)
+type opFunc func(ctx context.Context, report *opReport) (string, error)
 
 type prepareFunc func(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs) (opFunc, error)
+
+type opReport struct {
+	notice string
+	note   string
+}
 
 type operation struct {
 	id        string
 	workspace string
 	done      chan struct{}
 	path      string
-	notice    string
+	report    opReport
 	err       error
 }
 
@@ -64,20 +70,32 @@ func (a *app) startOp(ctx context.Context, c call, prepare prepareFunc) (opStart
 		c.state.release()
 		return opStarted{}, err
 	}
+	return a.runOp(ctx, c, run, mutateTimeout, c.state.release), nil
+}
+
+func (a *app) startClone(ctx context.Context, c call) (opStarted, error) {
+	run, err := prepareClone(ctx, c.h, c.workspaceID, c.args)
+	if err != nil {
+		return opStarted{}, err
+	}
+	return a.runOp(ctx, c, run, cloneTimeout, func() {}), nil
+}
+
+func (a *app) runOp(ctx context.Context, c call, run opFunc, limit time.Duration, release func()) opStarted {
 	o := a.ops.add(c.workspaceID)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mutateTimeout)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), limit)
 		defer cancel()
-		path, err := run(ctx, func(text string) { o.notice = text })
-		c.state.release()
+		path, err := run(ctx, &o.report)
+		release()
 		if c.ui {
-			_, perr := c.h.Publish(ctx, outcomeTopic, opOutcome(c.workspaceID, o.id, o.notice, err))
+			_, perr := c.h.Publish(ctx, outcomeTopic, opOutcome(c.workspaceID, o.id, o.report.notice, err))
 			logError("publish "+outcomeTopic, perr)
 		}
 		o.finish(path, err)
 		a.schedule(c.h, c.workspaceID, c.state, 0)
 	}()
-	return opStarted{ID: o.id}, nil
+	return opStarted{ID: o.id}
 }
 
 func (t *opTable) add(workspaceID string) *operation {
@@ -119,7 +137,7 @@ func (t *opTable) status(ctx context.Context, workspaceID, id string) (opStatus,
 	case <-ctx.Done():
 		return opStatus{}, nil
 	}
-	out := opStatus{Done: true, Path: o.path, Notice: o.notice}
+	out := opStatus{Done: true, Path: o.path, Notice: o.report.notice, Note: o.report.note}
 	if o.err != nil {
 		out.Error = o.err.Error()
 	}

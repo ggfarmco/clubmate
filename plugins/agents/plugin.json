@@ -644,6 +644,116 @@
         }
       },
       {
+        "id": "agents.connect-repo",
+        "title": "Ask to connect repos",
+        "hidden": true,
+        "timeout": 30,
+        "description": "Ask the user to connect repos to the workspace. Raised on the caller's top-level ancestor and stored on its record; it never times out. A path on disk connects at once while that session is AFK. Returns at once {request, status, next, raisedOn, repos}.",
+        "args": {
+          "properties": {
+            "repos": {"type": "array", "description": "Repos: {path or url, reason, landsBy (pr|merge|branch), source}.", "items": {"type": "object", "properties": {
+              "path": {"type": "string"}, "url": {"type": "string"}, "reason": {"type": "string"}, "landsBy": {"type": "string"}, "source": {"type": "string"}
+            }}}
+          },
+          "required": ["repos"]
+        }
+      },
+      {
+        "id": "agents.connect-answer",
+        "title": "Answer a connect request",
+        "hidden": true,
+        "description": "The user's answer to a connect request. A repo left out is skipped. One connect answers every pending request for that repo in the workspace. An agent gets an error; a request already answered gets one too.",
+        "args": {
+          "properties": {
+            "request": {"type": "string", "description": "Request id."},
+            "answers": {"type": "array", "description": "Answers: {path (the repo's path, or its url when it has no path), action (connect|skip|other), otherPath?}.", "items": {"type": "object", "properties": {
+              "path": {"type": "string"}, "action": {"type": "string"}, "otherPath": {"type": "string"}
+            }}}
+          },
+          "required": ["request"]
+        }
+      },
+      {
+        "id": "agents.folder-remove",
+        "title": "Remove a folder from the workspace",
+        "hidden": true,
+        "description": "Remove a folder from the workspace; never touches files. While a session runs, waits or has queued prompts there it removes nothing and returns {removed: false, blockers}.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "The folder's path."}
+          },
+          "required": ["path"]
+        }
+      },
+      {
+        "id": "agents.folder-impact",
+        "title": "What a folder's removal touches",
+        "hidden": true,
+        "description": "The sessions and worktrees tied to a folder of the workspace: {sessions: [{session, title, status, worktree}], worktrees: [{path, branch}]}.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "The folder's path."}
+          },
+          "required": ["path"]
+        }
+      },
+      {
+        "id": "agents.task",
+        "title": "Declare a task across repos",
+        "hidden": true,
+        "description": "Store a task on the calling orchestrator's record, repos sorted by order. A repo child corrects its own repo's landsBy and source this way; the order stays.",
+        "args": {
+          "properties": {
+            "slug": {"type": "string", "description": "The task's name: branch feat/<slug>, worktree .worktrees/<slug>."},
+            "repos": {"type": "array", "description": "Repos: {path, order, landsBy (pr|merge|branch), source}.", "items": {"type": "object", "properties": {
+              "path": {"type": "string"}, "order": {"type": "integer"}, "landsBy": {"type": "string"}, "source": {"type": "string"}
+            }}}
+          },
+          "required": ["slug", "repos"]
+        }
+      },
+      {
+        "id": "agents.task-report",
+        "title": "Report a repo's landing",
+        "hidden": true,
+        "timeout": 30,
+        "description": "A repo child's report on its landing: state ready, failed, onBranch, prOpen or merged. merged holds only if git shows the change in the default branch. Returns {state, note?}.",
+        "args": {
+          "properties": {
+            "state": {"type": "string", "enum": ["ready", "failed", "onBranch", "prOpen", "merged"], "description": "Where the repo stands."},
+            "pr": {"type": "string", "description": "The pull request, as the host names it."},
+            "tail": {"type": "string", "description": "What went wrong, the last lines of it."}
+          },
+          "required": ["state"]
+        }
+      },
+      {
+        "id": "agents.land-answer",
+        "title": "Answer a landing request",
+        "hidden": true,
+        "description": "The user's answer to a Land request: review returns {session, worktree} and leaves the request open, merge prompts the child to land, leave records left, which holds what depends on the repo. An agent gets an error.",
+        "args": {
+          "properties": {
+            "request": {"type": "string", "description": "Request id."},
+            "action": {"type": "string", "enum": ["review", "merge", "leave"], "description": "The answer."}
+          },
+          "required": ["request", "action"]
+        }
+      },
+      {
+        "id": "agents.repo-leave",
+        "title": "Leave a repo unlanded",
+        "hidden": true,
+        "description": "Record left for a repo of a task that hasn't landed: it frees the folder and holds what depends on it. An agent gets an error.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "The orchestrator's session id."},
+            "repo": {"type": "string", "description": "The repo's path."}
+          },
+          "required": ["session", "repo"]
+        }
+      },
+      {
         "id": "agents.open-no",
         "title": "Say no to open items",
         "hidden": true,

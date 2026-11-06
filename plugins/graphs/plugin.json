@@ -113,6 +113,18 @@
         }
       },
       {
+        "id": "graphs.trusted",
+        "title": "Trusted agent graphs",
+        "hidden": true,
+        "description": "List the graphs in .clubmate/graphs/ of a folder, inside the workspace or not, that can run as they are now: their steps are trusted, or they have none. Returns {graphs: [name]}.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "Absolute folder."}
+          },
+          "required": ["path"]
+        }
+      },
+      {
         "id": "graphs.reveal",
         "title": "Open agent graph run",
         "hidden": true,

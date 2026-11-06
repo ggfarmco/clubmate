@@ -55,11 +55,13 @@
         "title": "New worktree",
         "hidden": true,
         "agent": true,
-        "description": "Start creating the worktree <main checkout>/.worktrees/<branch>, then switch to it unless switch is false. Checks out the branch when it exists, else creates it from HEAD of the worktree given as from, default the current worktree. Adds .worktrees/ to .git/info/exclude when the repo does not ignore it. Then copies the files listed in .clubmate/worktree-include and runs .clubmate/setup.sh once the user trusts it; a failing setup.sh removes the worktree and fails the operation. Returns {id}; poll git.worktree-op-status for the outcome. Once it finishes, a call from the app (not an agent or plugin) also publishes git.outcome {workspace, id, message?, confirm?}. Fails at once on an invalid branch, an existing folder, a symlinked .worktrees, or while another git operation runs.",
+        "description": "Start creating the worktree <main checkout>/.worktrees/<branch>, then switch to it unless switch is false. Checks out the branch when it exists, else creates it from HEAD of the worktree given as from, default the current worktree. Adds .worktrees/ to .git/info/exclude when the repo does not ignore it. Then copies the files listed in .clubmate/worktree-include and runs .clubmate/setup.sh once the user trusts it; a failing setup.sh removes the worktree and fails the operation. Returns {id}; poll git.worktree-op-status for the outcome. Once it finishes, a call from the app (not an agent or plugin) also publishes git.outcome {workspace, id, message?, confirm?}. Fails at once on an invalid branch, an existing folder, a symlinked .worktrees, or while another git operation runs. With slug the folder is <main checkout>/.worktrees/<slug>. With base \"default\" a new branch starts from origin/<default> after a fetch; when the fetch fails or that branch isn't there it starts from the local default branch and the operation's note says so.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
-            "branch": {"type": "string", "description": "Branch name, also the folder name under .worktrees/."},
+            "branch": {"type": "string", "description": "Branch name, also the folder name under .worktrees/ unless slug is given."},
+            "slug": {"type": "string", "description": "Folder name under .worktrees/, instead of the branch."},
+            "base": {"type": "string", "enum": ["default"], "description": "default: start a new branch from the repo's default branch instead of a worktree's HEAD. from then only picks the worktree the files in worktree-include come from. Ignored when the branch exists."},
             "from": {"type": "string", "description": "Worktree root, as listed by git.worktrees, whose HEAD a new branch starts from; defaults to the current worktree. Ignored when the branch exists."},
             "switch": {"type": "boolean", "description": "Switch the workspace folder to the new worktree; defaults to true. The path git.worktree-op-status returns is the new worktree either way."}
           },
@@ -67,14 +69,42 @@
         }
       },
       {
+        "id": "git.repo-facts",
+        "title": "Repo facts",
+        "hidden": true,
+        "agent": false,
+        "timeout": 20,
+        "description": "What a local repo is like before it is connected; the path need not be in the workspace. Uses no network and runs nothing the repo's config names, so behind comes from local refs and fetched is false. Returns {name, path, remote, branch, clean, dirty, behind, ahead, defaultBranch, fetched, brings: {graphs, hooks, instructions, skills}, trusted: {hooks, graphs}}. A path that isn't a git repo fails with invalid_params.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "Absolute path of the repo, a worktree of it or a folder inside it."}
+          },
+          "required": ["path"]
+        }
+      },
+      {
+        "id": "git.clone",
+        "title": "Clone repo",
+        "hidden": true,
+        "agent": false,
+        "description": "Start cloning a repo with the user's own git credentials, never prompting. Fails at once when into is not empty. Runs outside the workspace's other git operations, for up to 30 minutes. Returns {id}; poll git.worktree-op-status, whose path is the clone. Once it finishes, a call from the app (not an agent or plugin) also publishes git.outcome {workspace, id, message?, confirm?}.",
+        "args": {
+          "properties": {
+            "url": {"type": "string", "description": "Repository URL or path."},
+            "into": {"type": "string", "description": "Absolute folder to clone into, missing or empty."}
+          },
+          "required": ["url", "into"]
+        }
+      },
+      {
         "id": "git.worktree-op-status",
         "title": "Worktree operation status",
         "hidden": true,
         "agent": true,
-        "description": "Wait up to 1 s for a worktree create or remove started by git.worktree-new or git.worktree-remove. Returns {done, error?, path?, notice?}; path is the new worktree after a successful create, notice a warning worth showing after success.",
+        "description": "Wait up to 1 s for a worktree create or remove started by git.worktree-new or git.worktree-remove, or a clone started by git.clone. Returns {done, error?, path?, notice?, note?}; path is the new worktree or clone after success, notice a warning worth showing after success, note what git.worktree-new fell back to with base.",
         "args": {
           "properties": {
-            "id": {"type": "string", "description": "Operation id returned by git.worktree-new or git.worktree-remove."}
+            "id": {"type": "string", "description": "Operation id returned by git.worktree-new, git.worktree-remove or git.clone."}
           },
           "required": ["id"]
         }

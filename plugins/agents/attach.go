@@ -92,7 +92,7 @@ func (a *app) attachAgent(s *session) (*agentProc, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), attachTimeout)
 	defer cancel()
 	extra := rec.Reads
-	if rec.Night == "" && p.caps.SessionCapabilities.AdditionalDirectories != nil {
+	if rec.Night == "" && rec.RepoPath == "" && p.caps.SessionCapabilities.AdditionalDirectories != nil {
 		if workspace, err := a.host.GetWorkspace(ctx, rec.Workspace); err == nil {
 			_, extra, _ = workRoot(workspace)
 		}

@@ -20,7 +20,8 @@ var (
 
 type folder struct {
 	*gitrepo.Folder
-	root string
+	root   string
+	unseen bool
 }
 
 type head struct {
@@ -139,5 +140,5 @@ func openFolder(ctx context.Context, p pluginsdk.Workspace, i int) (*folder, err
 	if err != nil {
 		return nil, gitError(nil, err)
 	}
-	return &folder{Folder: f, root: p.Folders[i].Root()}, nil
+	return &folder{Folder: f, root: p.Folders[i].Root(), unseen: p.Folders[i].AddedAfk && !p.Folders[i].Seen}, nil
 }

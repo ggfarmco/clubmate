@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/testutil"
+	"clubmate/pkg/contract"
 )
 
 func TestOpenFoldersDedupes(t *testing.T) {
@@ -18,8 +19,8 @@ func TestOpenFoldersDedupes(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, created)
 	link := filepath.Join(t.TempDir(), "link")
-	require.NoError(t, os.Symlink(a, link))
-	same, created, err := svc.OpenFolders(t.Context(), []string{c + "/", link})
+	require.NoError(t, os.Symlink(c, link))
+	same, created, err := svc.OpenFolders(t.Context(), []string{a + "/", link})
 	require.NoError(t, err)
 	assert.False(t, created)
 	assert.Equal(t, p.ID, same.ID)
@@ -31,6 +32,50 @@ func TestOpenFoldersDedupes(t *testing.T) {
 	evs, err := b.Read(t.Context(), "workspace.created", 0, 0)
 	require.NoError(t, err)
 	assert.Len(t, evs, 2)
+}
+
+func TestOpenFoldersFirstFolderFallback(t *testing.T) {
+	svc, b := testutil.NewServiceWithBus(t)
+	first, added := t.TempDir(), t.TempDir()
+	grown, _, err := svc.OpenFolders(t.Context(), []string{first})
+	require.NoError(t, err)
+	_, err = svc.AddRepo(t.Context(), grown.ID, added, contract.FolderMeta{AddedBy: "Fix login"})
+	require.NoError(t, err)
+
+	link := filepath.Join(t.TempDir(), "link")
+	require.NoError(t, os.Symlink(first, link))
+	got, created, err := svc.OpenFolders(t.Context(), []string{link})
+	require.NoError(t, err)
+	assert.False(t, created)
+	assert.Equal(t, grown.ID, got.ID)
+
+	_, created, err = svc.OpenFolders(t.Context(), []string{first, t.TempDir()})
+	require.NoError(t, err)
+	assert.True(t, created, "several folders only match exactly")
+
+	got, created, err = svc.OpenFolders(t.Context(), []string{added})
+	require.NoError(t, err)
+	assert.True(t, created, "a folder that is not first never matches")
+	assert.NotEqual(t, grown.ID, got.ID)
+
+	evs, err := b.Read(t.Context(), "workspace.created", 0, 0)
+	require.NoError(t, err)
+	assert.Len(t, evs, 3)
+}
+
+func TestOpenFoldersExactBeatsFirstFolder(t *testing.T) {
+	svc := testutil.NewService(t)
+	dir := t.TempDir()
+	exact, err := svc.CreateWorkspace(t.Context(), "exact", []string{dir})
+	require.NoError(t, err)
+	grown, err := svc.CreateWorkspace(t.Context(), "grown", []string{dir, t.TempDir()})
+	require.NoError(t, err)
+	require.NoError(t, svc.TouchWorkspace(t.Context(), grown.ID))
+
+	got, created, err := svc.OpenFolders(t.Context(), []string{dir})
+	require.NoError(t, err)
+	assert.False(t, created)
+	assert.Equal(t, exact.ID, got.ID)
 }
 
 func TestHomeWorkspace(t *testing.T) {

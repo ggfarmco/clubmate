@@ -440,7 +440,7 @@ func TestWorkspacesListFoldersAndLegacyRoots(t *testing.T) {
 
 	_, got := f.call(t, token, "workspaces", nil)
 
-	assert.JSONEq(t, `[{"id":"prj_1","name":"demo","folders":[{"path":"/tmp/demo","worktree":"/tmp/demo-wt"}],"roots":["/tmp/demo-wt"]}]`, string(got.Result))
+	assert.JSONEq(t, `[{"id":"prj_1","name":"demo","folders":[{"path":"/tmp/demo","worktree":"/tmp/demo-wt","seen":true}],"roots":["/tmp/demo-wt"]}]`, string(got.Result))
 }
 
 func TestEventsStreamLiveAllowlistedTopics(t *testing.T) {
@@ -732,7 +732,7 @@ func (b *fakeBackend) Workspaces(context.Context) ([]pluginsdk.Workspace, error)
 	if b.workspaces != nil {
 		return b.workspaces, nil
 	}
-	return []pluginsdk.Workspace{{ID: "prj_1", Name: "demo", Folders: []pluginsdk.Folder{{Path: "/tmp/demo", Worktree: "/tmp/demo-wt"}}}}, nil
+	return []pluginsdk.Workspace{{ID: "prj_1", Name: "demo", Folders: []pluginsdk.Folder{{Path: "/tmp/demo", Seen: true, Worktree: "/tmp/demo-wt"}}}}, nil
 }
 
 func (b *fakeBackend) Events(_ context.Context, after int64) ([]pluginsdk.Event, error) {

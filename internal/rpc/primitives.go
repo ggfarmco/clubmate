@@ -28,7 +28,7 @@ var primitives = browserPrimitives(map[string]primitive{
 		method: "workspace.list",
 	},
 	"workspace.open": {
-		cmd: coreCommand("workspace.open", "Open Workspace", "Open the workspace made of exactly these folders in the app, creating it when none matches.", &schema.Object{
+		cmd: coreCommand("workspace.open", "Open Workspace", "Open the workspace made of exactly these folders in the app; a single folder also finds the workspace it comes first in. Creates one when none matches.", &schema.Object{
 			Properties: map[string]schema.Prop{
 				"folders": {Type: "array", Items: &schema.Prop{Type: "string"}, Description: "Absolute paths of existing directories."},
 			},

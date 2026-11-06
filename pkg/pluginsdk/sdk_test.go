@@ -193,6 +193,17 @@ func TestSDKHostStorageAndSessions(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, found)
 
+	first, added := t.TempDir(), t.TempDir()
+	p, err := h.CreateWorkspace(ctx, "demo", []string{first})
+	require.NoError(t, err)
+	p, err = h.AddFolder(ctx, p.ID, added, pluginsdk.FolderMeta{AddedBy: "Fix login", AddedAfk: true})
+	require.NoError(t, err)
+	assert.Equal(t, "Fix login", p.Folders[1].AddedBy)
+	assert.True(t, p.Folders[1].AddedAfk)
+	p, err = h.RemoveFolder(ctx, p.ID, added)
+	require.NoError(t, err)
+	assert.Equal(t, []string{first}, p.Paths())
+
 	sub, err := h.Subscribe(ctx, "*", 0)
 	require.NoError(t, err)
 	assert.NotEmpty(t, sub)

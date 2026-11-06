@@ -8,7 +8,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -16,6 +18,7 @@ const (
 	timeout       = 10 * time.Second
 	waitDelay     = 2 * time.Second
 	branchTimeout = 2 * time.Second
+	originPrefix  = "origin/"
 )
 
 var (
@@ -48,6 +51,33 @@ func RunEnv(ctx context.Context, repo string, env []string, args ...string) ([]b
 	cmd := command(ctx, repo, args...)
 	cmd.Env = append(cmd.Env, env...)
 	return cmd.Output()
+}
+
+func Inert(ctx context.Context, repo string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	cmd := command(ctx, repo, args...)
+	cmd.Env = append(cmd.Env, "GIT_NO_LAZY_FETCH=1")
+	cmd.Env = append(cmd.Env, filterOverrides(ctx, repo)...)
+	return cmd.Output()
+}
+
+func filterOverrides(ctx context.Context, repo string) []string {
+	out, _ := Run(ctx, repo, "config", "--null", "--name-only", "--get-regexp", `^filter\..*\.(clean|smudge|process|required)$`)
+	names := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
+	if len(out) == 0 {
+		return nil
+	}
+	env := make([]string, 0, 2*len(names)+1)
+	env = append(env, "GIT_CONFIG_COUNT="+strconv.Itoa(len(names)))
+	for i, name := range names {
+		value := ""
+		if strings.HasSuffix(name, ".required") {
+			value = "false"
+		}
+		env = append(env, "GIT_CONFIG_KEY_"+strconv.Itoa(i)+"="+name, "GIT_CONFIG_VALUE_"+strconv.Itoa(i)+"="+value)
+	}
+	return env
 }
 
 func RunLimited(ctx context.Context, repo string, limit int, args ...string) ([]byte, bool, error) {
@@ -143,6 +173,31 @@ func DefaultBase(ctx context.Context, repo string) (string, error) {
 		}
 	}
 	return "", ErrNoDefaultBase
+}
+
+func DefaultBranch(ctx context.Context, repo string) (string, error) {
+	base, err := DefaultBase(ctx, repo)
+	return strings.TrimPrefix(base, originPrefix), err
+}
+
+func Fetch(ctx context.Context, repo, remote string) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return unattended(ctx, repo, "-c", "core.hooksPath=/dev/null", "fetch", "--quiet", "--no-auto-maintenance", "--no-recurse-submodules", "--", remote)
+}
+
+func Clone(ctx context.Context, url, into string) error {
+	return unattended(ctx, string(filepath.Separator), "clone", "--quiet", "--", url, into)
+}
+
+func unattended(ctx context.Context, repo string, args ...string) error {
+	cmd := command(ctx, repo, args...)
+	cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
+	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+	if _, err := cmd.Output(); err != nil && !errors.Is(err, exec.ErrWaitDelay) {
+		return err
+	}
+	return nil
 }
 
 func Remotes(ctx context.Context, repo string) ([]string, error) {

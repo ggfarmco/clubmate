@@ -3,6 +3,7 @@ package contract_test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,12 +33,13 @@ func TestWorkspaceJSONRoundTripsFolders(t *testing.T) {
 		{Path: "/a"},
 		{Path: "/b", Worktree: "/b/wt"},
 		{Path: "/c", Worktree: "/c/gone", Missing: true},
+		{Path: "/d", AddedBy: "Fix login", AddedAt: time.Unix(0, 7000).UTC(), AddedAfk: true, Seen: true},
 	}}
 	raw, err := json.Marshal(w)
 	require.NoError(t, err)
 	var got map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(raw, &got))
-	assert.JSONEq(t, `[{"path":"/a"},{"path":"/b","worktree":"/b/wt"},{"path":"/c","worktree":"/c/gone","missing":true}]`, string(got["folders"]))
+	assert.JSONEq(t, `[{"path":"/a","seen":false},{"path":"/b","worktree":"/b/wt","seen":false},{"path":"/c","worktree":"/c/gone","missing":true,"seen":false},{"path":"/d","addedBy":"Fix login","addedAt":"1970-01-01T00:00:00.000007Z","addedAfk":true,"seen":true}]`, string(got["folders"]))
 	assert.NotContains(t, got, "repos")
 	assert.NotContains(t, got, "roots")
 	assert.NotContains(t, got, "missing")

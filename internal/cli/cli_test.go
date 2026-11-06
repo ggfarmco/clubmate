@@ -420,6 +420,22 @@ func TestFolderShorthand(t *testing.T) {
 	assert.EqualError(t, root.Execute(), `unknown command or folder "sesion"`)
 }
 
+func TestRootFolderFindsGrownWorkspace(t *testing.T) {
+	startCore(t)
+	first, added := t.TempDir(), t.TempDir()
+	var p workspace.Workspace
+	require.NoError(t, json.Unmarshal(run(t, "workspace", "create", "demo", "--repo", first, "--json"), &p))
+	run(t, "workspace", "add-folder", p.ID, added)
+	var launched []string
+	root := cli.NewRootWithLauncher(&bytes.Buffer{}, &bytes.Buffer{}, func(_ context.Context, id string) error {
+		launched = append(launched, id)
+		return nil
+	})
+	root.SetArgs([]string{first})
+	require.NoError(t, root.Execute())
+	assert.Equal(t, []string{p.ID}, launched)
+}
+
 func TestWorkspaceCLI(t *testing.T) {
 	startCore(t)
 	dir := t.TempDir()

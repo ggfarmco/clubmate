@@ -41,7 +41,7 @@ func TestWorktreeSelection(t *testing.T) {
 	require.ErrorIs(t, err, rpc.ErrNotFound)
 	var got workspace.Workspace
 	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "workspace.worktree.set", "args": args}, &got))
-	assert.Equal(t, []workspace.Folder{{Path: a}, {Path: b, Worktree: b2}}, got.Folders)
+	assert.Equal(t, []string{"", b2}, []string{got.Folders[0].Worktree, got.Folders[1].Worktree})
 	evs, err := h.Bus.Read(t.Context(), "workspace.updated", 0, 0)
 	require.NoError(t, err)
 	require.NotEmpty(t, evs)

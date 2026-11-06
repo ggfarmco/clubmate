@@ -21,6 +21,7 @@ const (
 	statusClosed  = api.StatusClosed
 
 	pendingQuestion = "question"
+	pendingConnect  = "connect"
 
 	notifyAll        = "all"
 	notifyNeedsInput = "needs-input"
@@ -80,6 +81,11 @@ type record struct {
 	Refused         int       `json:"refused,omitempty"`
 	Reads           []string  `json:"reads,omitempty"`
 	Allow           []string  `json:"allow,omitempty"`
+	RepoPath        string    `json:"repoPath,omitempty"`
+
+	Task            *taskRecord      `json:"task,omitempty"`
+	ConnectRequests []connectRequest `json:"connectRequests,omitempty"`
+	AfkConnected    []string         `json:"afkConnected,omitempty"`
 }
 
 type sessionInfo struct {
@@ -101,6 +107,8 @@ type sessionInfo struct {
 	Reopen          *failureAction  `json:"reopen,omitempty"`
 	ModeLabel       string          `json:"modeLabel,omitempty"`
 	ReviewProgress  *reviewProgress `json:"reviewProgress,omitempty"`
+	Repo            string          `json:"repo,omitempty"`
+	TaskSummary     string          `json:"taskSummary,omitempty"`
 }
 
 type sessionFailure struct {

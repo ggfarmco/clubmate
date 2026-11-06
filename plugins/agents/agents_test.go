@@ -85,11 +85,15 @@ type record struct {
 		Command string            `json:"command"`
 		Args    map[string]string `json:"args"`
 	} `json:"reopen"`
-	ModeLabel string `json:"modeLabel"`
-	Group     string `json:"group"`
-	MayAsk    bool   `json:"mayAsk"`
-	OpenCount int    `json:"openCount"`
-	OpenSince string `json:"openSince"`
+	ModeLabel       string           `json:"modeLabel"`
+	Group           string           `json:"group"`
+	MayAsk          bool             `json:"mayAsk"`
+	OpenCount       int              `json:"openCount"`
+	OpenSince       string           `json:"openSince"`
+	Repo            string           `json:"repo"`
+	RepoPath        string           `json:"repoPath"`
+	Task            *taskRecord      `json:"task"`
+	ConnectRequests []connectRequest `json:"connectRequests"`
 }
 
 type entry struct {
@@ -1860,6 +1864,33 @@ func TestContinueHandsOff(t *testing.T) {
 	assert.Equal(t, fresh.ID, handedOff.HandoffTo)
 	assert.Nil(t, handedOff.Reopen)
 	assert.Nil(t, fresh.Reopen)
+}
+
+func TestHandoffCarriesRepoTaskAndConnectRequests(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{"additionalDirectories": true})
+	workspace, _, second := f.twoFolders(t)
+	third := newRepo(t)
+	parent := f.doneSession(t, workspace)
+	require.NoError(t, f.declareTask(t, workspace, parent, "pause", map[string]any{"path": second, "order": 1, "landsBy": "pr", "source": "the plan"}))
+	res := f.connect(t, workspace, parent, map[string]any{"path": third})
+	var kid child
+	require.NoError(t, f.runFrom(t, workspace, parent, "agents.new", map[string]any{"repo": second, "slug": "pause", "prompt": "hi"}, &kid))
+	f.waitBranchChildDone(t, workspace, kid.Session)
+
+	var handed, carried struct {
+		Session string `json:"session"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.handoff", map[string]any{"session": kid.Session}, &handed))
+	require.NoError(t, f.run(t, workspace, "agents.handoff", map[string]any{"session": parent}, &carried))
+
+	assert.Equal(t, second, f.session(t, workspace, handed.Session).RepoPath)
+	next := f.session(t, workspace, carried.Session)
+	require.NotNil(t, next.Task)
+	require.Len(t, next.ConnectRequests, 1)
+	assert.Empty(t, f.session(t, workspace, parent).ConnectRequests)
+	require.NoError(t, f.answerConnect(t, workspace, res.Request, connectAnswer{"path": third, "action": "connect"}))
+	assert.Empty(t, f.session(t, workspace, carried.Session).ConnectRequests)
 }
 
 func TestHandoff(t *testing.T) {

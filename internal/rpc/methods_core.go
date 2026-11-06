@@ -15,6 +15,7 @@ import (
 	"clubmate/internal/session"
 	"clubmate/internal/sessionhost"
 	"clubmate/internal/workspace"
+	"clubmate/pkg/contract"
 	"clubmate/pkg/id"
 )
 
@@ -62,6 +63,13 @@ type workspaceHomeResult struct {
 }
 
 type addRepoParams struct {
+	ID       string `json:"id"`
+	Path     string `json:"path"`
+	AddedBy  string `json:"addedBy"`
+	AddedAfk bool   `json:"addedAfk"`
+}
+
+type folderParams struct {
 	ID   string `json:"id"`
 	Path string `json:"path"`
 }
@@ -128,7 +136,19 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			if err := requireID(workspacePrefix, p.ID); err != nil {
 				return workspace.Workspace{}, err
 			}
-			return svc.AddRepo(ctx, p.ID, p.Path)
+			return svc.AddRepo(ctx, p.ID, p.Path, contract.FolderMeta{AddedBy: p.AddedBy, AddedAfk: p.AddedAfk})
+		}),
+		"workspace.folder.remove": method(func(ctx context.Context, p folderParams) (workspace.Workspace, error) {
+			if err := requireID(workspacePrefix, p.ID); err != nil {
+				return workspace.Workspace{}, err
+			}
+			return svc.RemoveFolder(ctx, p.ID, p.Path)
+		}),
+		"workspace.folder.seen": method(func(ctx context.Context, p folderParams) (workspace.Workspace, error) {
+			if err := requireID(workspacePrefix, p.ID); err != nil {
+				return workspace.Workspace{}, err
+			}
+			return svc.MarkFolderSeen(ctx, p.ID, p.Path)
 		}),
 		"workspace.delete": method(func(ctx context.Context, p idParams) (empty, error) {
 			if err := requireID(workspacePrefix, p.ID); err != nil {

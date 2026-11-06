@@ -25,7 +25,6 @@ import (
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
-	"clubmate/pkg/contract"
 	"clubmate/pkg/sdui"
 )
 
@@ -122,6 +121,7 @@ type opResult struct {
 	Error  string `json:"error"`
 	Path   string `json:"path"`
 	Notice string `json:"notice"`
+	Note   string `json:"note"`
 }
 
 type sessionEntry struct {
@@ -441,7 +441,8 @@ func TestRemovedWorktreeFallsBack(t *testing.T) {
 	assert.Equal(t, []outcomeEntry{{Workspace: id, Message: "Worktree feature no longer exists — back on main"}}, outcomes(t, h))
 	p, err := h.Svc.GetWorkspace(t.Context(), id)
 	require.NoError(t, err)
-	assert.Equal(t, []contract.Folder{{Path: repo}}, p.Folders)
+	assert.Equal(t, []string{repo}, p.Paths())
+	assert.Empty(t, p.Folders[0].Worktree)
 }
 
 func TestInPlaceSwitchPublishesChanged(t *testing.T) {

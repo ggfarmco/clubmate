@@ -5,12 +5,20 @@ public struct Workspace: Codable, Sendable, Equatable {
         public let path: String
         public let worktree: String?
         public let missing: Bool
+        public let addedBy: String?
+        public let addedAt: Date?
+        public let addedAfk: Bool
+        public let seen: Bool
 
         public init(from decoder: any Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             path = try container.decode(String.self, forKey: .path)
             worktree = try container.decodeIfPresent(String.self, forKey: .worktree)
             missing = try container.decodeIfPresent(Bool.self, forKey: .missing) ?? false
+            addedBy = try container.decodeIfPresent(String.self, forKey: .addedBy)
+            addedAt = try container.decodeIfPresent(Date.self, forKey: .addedAt)
+            addedAfk = try container.decodeIfPresent(Bool.self, forKey: .addedAfk) ?? false
+            seen = try container.decodeIfPresent(Bool.self, forKey: .seen) ?? true
         }
     }
 

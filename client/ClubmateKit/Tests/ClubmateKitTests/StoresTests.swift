@@ -148,12 +148,16 @@ final class StoresTests: XCTestCase {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let workspace = try decoder.decode(Workspace.self, from: Data(#"""
-        {"id":"a","name":"demo","folders":[{"path":"/a"},{"path":"/b","worktree":"/b2"},{"path":"/c","worktree":"/gone","missing":true}],"createdAt":"2026-01-01T00:00:00Z"}
+        {"id":"a","name":"demo","folders":[{"path":"/a"},{"path":"/b","worktree":"/b2"},{"path":"/c","worktree":"/gone","missing":true,"addedBy":"Fix login","addedAt":"2026-01-02T00:00:00Z","addedAfk":true,"seen":false}],"createdAt":"2026-01-01T00:00:00Z"}
         """#.utf8))
 
         XCTAssertEqual(workspace.folders.map(\.path), ["/a", "/b", "/c"])
         XCTAssertEqual(workspace.folders.map(\.worktree), [nil, "/b2", "/gone"])
         XCTAssertEqual(workspace.folders.map(\.missing), [false, false, true])
+        XCTAssertEqual(workspace.folders.map(\.addedBy), [nil, nil, "Fix login"])
+        XCTAssertEqual(workspace.folders.map(\.addedAt), [nil, nil, try Date("2026-01-02T00:00:00Z", strategy: .iso8601)])
+        XCTAssertEqual(workspace.folders.map(\.addedAfk), [false, false, true])
+        XCTAssertEqual(workspace.folders.map(\.seen), [true, true, false])
     }
 
     func testSidebarHiddenPersists() async throws {

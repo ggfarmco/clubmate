@@ -173,7 +173,7 @@ func TestRPCSessionRemoveRunningMapsToSentinel(t *testing.T) {
 
 func TestRPCRejectsMalformedIDs(t *testing.T) {
 	c := startServer(t)
-	for _, m := range []string{"workspace.get", "workspace.delete", "workspace.folder.add", "session.get", "session.kill", "session.remove"} {
+	for _, m := range []string{"workspace.get", "workspace.delete", "workspace.folder.add", "workspace.folder.remove", "workspace.folder.seen", "session.get", "session.kill", "session.remove"} {
 		err := c.Call(t.Context(), m, map[string]string{"id": "../etc"}, nil)
 		assert.ErrorIs(t, err, rpc.ErrInvalidParams, m)
 	}

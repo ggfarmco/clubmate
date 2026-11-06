@@ -84,7 +84,7 @@ func prepareBranchSwitch(ctx context.Context, h *pluginsdk.Host, workspaceID str
 	}
 	if i := slices.IndexFunc(f.Trees, func(t gitrepo.Worktree) bool { return !t.Bare && t.Branch == local }); i >= 0 {
 		t := f.Trees[i]
-		return func(ctx context.Context, _ func(string)) (string, error) {
+		return func(ctx context.Context, _ *opReport) (string, error) {
 			_, err := h.SetWorktree(ctx, workspaceID, f.Repo, f.Selection(t))
 			return t.Path, err
 		}, nil
@@ -97,13 +97,13 @@ func prepareBranchSwitch(ctx context.Context, h *pluginsdk.Host, workspaceID str
 	if track != "" {
 		switchArgs = []string{"switch", "--track", "--", track}
 	}
-	return func(ctx context.Context, note func(string)) (string, error) {
+	return func(ctx context.Context, report *opReport) (string, error) {
 		stderr, err := mutateNotice(ctx, cur.Path, switchArgs...)
 		if err != nil {
 			return "", err
 		}
 		if text := leftBehind(stderr); text != "" {
-			note(text)
+			report.notice = text
 		}
 		logError("switched "+f.root, users.switched(ctx, f.root))
 		return cur.Path, nil

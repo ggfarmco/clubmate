@@ -70,6 +70,14 @@ var (
 		"agents.open-no":        withArgs((*app).openNoCommand),
 		"agents.open-queue":     withArgs((*app).openQueueCommand),
 		"agents.open-convert":   withArgs((*app).openConvertCommand),
+		"agents.connect-repo":   withArgs((*app).connectRepoCommand),
+		"agents.connect-answer": withArgs((*app).connectAnswerCommand),
+		"agents.folder-remove":  withArgs((*app).folderRemoveCommand),
+		"agents.folder-impact":  withArgs((*app).folderImpactCommand),
+		"agents.task":           withArgs((*app).taskCommand),
+		"agents.task-report":    withArgs((*app).taskReportCommand),
+		"agents.land-answer":    withArgs((*app).landAnswerCommand),
+		"agents.repo-leave":     withArgs((*app).repoLeaveCommand),
 	}
 
 	errUnknownCmd    = errors.New("unknown command")
@@ -126,6 +134,9 @@ type newArgs struct {
 	Finish          string         `json:"finish"`
 	CronJob         string         `json:"cronJob"`
 	Trigger         string         `json:"trigger"`
+	Repo            string         `json:"repo"`
+	Slug            string         `json:"slug"`
+	Base            string         `json:"base"`
 	worktree        string
 	review          *reviewSent
 }

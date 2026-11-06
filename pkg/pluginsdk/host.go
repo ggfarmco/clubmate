@@ -15,6 +15,7 @@ import (
 type (
 	Workspace   = contract.Workspace
 	Folder      = contract.Folder
+	FolderMeta  = contract.FolderMeta
 	Session     = contract.TerminalSession
 	ProcessInfo = contract.ProcessInfo
 	ProcessNode = contract.ProcessNode
@@ -60,6 +61,18 @@ func (h *Host) GetWorkspace(ctx context.Context, id string) (Workspace, error) {
 func (h *Host) CreateWorkspace(ctx context.Context, name string, repos []string) (Workspace, error) {
 	var out Workspace
 	err := h.Call(ctx, "workspace.create", createWorkspaceParams{Name: name, Repos: repos}, &out)
+	return out, err
+}
+
+func (h *Host) AddFolder(ctx context.Context, workspaceID, path string, meta FolderMeta) (Workspace, error) {
+	var out Workspace
+	err := h.Call(ctx, "workspace.folder.add", addFolderParams{ID: workspaceID, Path: path, AddedBy: meta.AddedBy, AddedAfk: meta.AddedAfk}, &out)
+	return out, err
+}
+
+func (h *Host) RemoveFolder(ctx context.Context, workspaceID, path string) (Workspace, error) {
+	var out Workspace
+	err := h.Call(ctx, "workspace.folder.remove", folderParams{ID: workspaceID, Path: path}, &out)
 	return out, err
 }
 
@@ -327,6 +340,18 @@ type createWorkspaceParams struct {
 
 type idParams struct {
 	ID string `json:"id"`
+}
+
+type addFolderParams struct {
+	ID       string `json:"id"`
+	Path     string `json:"path"`
+	AddedBy  string `json:"addedBy,omitempty"`
+	AddedAfk bool   `json:"addedAfk,omitempty"`
+}
+
+type folderParams struct {
+	ID   string `json:"id"`
+	Path string `json:"path"`
 }
 
 type worktreeSetParams struct {

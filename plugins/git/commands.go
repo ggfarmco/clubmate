@@ -22,6 +22,8 @@ var (
 		"git.worktree-op-status": opStatusCommand,
 		"git.worktree-sessions":  worktreeSessionsCommand,
 		removePromptCommand:      worktreeRemovePromptCommand,
+		"git.repo-facts":         repoFactsCommand,
+		"git.clone":              cloneCommand,
 	}
 )
 
@@ -43,6 +45,10 @@ type worktreeArgs struct {
 	Force  bool   `json:"force"`
 	From   string `json:"from"`
 	Switch *bool  `json:"switch"`
+	Slug   string `json:"slug"`
+	Base   string `json:"base"`
+	URL    string `json:"url"`
+	Into   string `json:"into"`
 }
 
 type worktreeInfo struct {
@@ -88,6 +94,7 @@ type opStatus struct {
 	Error  string `json:"error,omitempty"`
 	Path   string `json:"path,omitempty"`
 	Notice string `json:"notice,omitempty"`
+	Note   string `json:"note,omitempty"`
 }
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -142,4 +149,12 @@ func worktreeSessionsCommand(ctx context.Context, _ *app, c call) (any, error) {
 
 func worktreeRemovePromptCommand(ctx context.Context, _ *app, c call) (any, error) {
 	return removePrompt(ctx, c.h, c.workspaceID, c.args)
+}
+
+func repoFactsCommand(ctx context.Context, _ *app, c call) (any, error) {
+	return readRepoFacts(ctx, c.h, c.workspaceID, c.args.Path)
+}
+
+func cloneCommand(ctx context.Context, a *app, c call) (any, error) {
+	return a.startClone(ctx, c)
 }

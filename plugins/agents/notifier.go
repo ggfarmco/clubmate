@@ -229,7 +229,7 @@ func (a *app) notifyEnd(s *session, t api.Turn) {
 		kind = notifyStuck
 	case t.Status != statusDone:
 		return
-	case t.Asks:
+	case t.Asks || s.snapshot().connectWaits() || s.snapshot().taskWaits():
 		kind = notifyAsks
 	}
 	rec := s.snapshot()

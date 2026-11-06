@@ -96,18 +96,15 @@ func (k hooks) run(ctx context.Context, dir, script string) (string, error) {
 }
 
 func (k hooks) trust(ctx context.Context, dir, script string, data []byte) error {
-	tree, entries, err := readTree(filepath.Join(dir, hooksDir))
+	key, entries, err := k.trustKey(dir, script, data)
 	if err != nil {
 		return err
 	}
-	sum := sha256.Sum256(data)
-	repo := sha256.Sum256([]byte(gitrepo.Canonical(k.primary)))
-	bound := sha256.Sum256(slices.Concat([]byte(script), []byte{0}, sum[:], tree))
-	key := trustPrefix + hex.EncodeToString(repo[:]) + "/" + hex.EncodeToString(bound[:])
 	var trusted bool
 	if found, err := k.h.StorageGet(ctx, key, &trusted); err != nil || found && trusted {
 		return err
 	}
+	sum := sha256.Sum256(data)
 	args := map[string]string{
 		"repo":     pathTail(k.primary),
 		"worktree": pathTail(dir),
@@ -119,6 +116,35 @@ func (k hooks) trust(ctx context.Context, dir, script string, data []byte) error
 		return err
 	}
 	return k.h.StorageSet(ctx, key, true)
+}
+
+func (k hooks) allTrusted(ctx context.Context, dir string, scripts []string) bool {
+	return !slices.ContainsFunc(scripts, func(name string) bool { return !k.trusted(ctx, dir, filepath.Join(hooksDir, name)) })
+}
+
+func (k hooks) trusted(ctx context.Context, dir, script string) bool {
+	data, err := readAtMost(filepath.Join(dir, script), reviewBytes)
+	if err != nil || len(data) > reviewBytes {
+		return false
+	}
+	key, _, err := k.trustKey(dir, script, data)
+	if err != nil {
+		return false
+	}
+	var trusted bool
+	found, err := k.h.StorageGet(ctx, key, &trusted)
+	return err == nil && found && trusted
+}
+
+func (k hooks) trustKey(dir, script string, data []byte) (string, []hookEntry, error) {
+	tree, entries, err := readTree(filepath.Join(dir, hooksDir))
+	if err != nil {
+		return "", nil, err
+	}
+	sum := sha256.Sum256(data)
+	repo := sha256.Sum256([]byte(gitrepo.Canonical(k.primary)))
+	bound := sha256.Sum256(slices.Concat([]byte(script), []byte{0}, sum[:], tree))
+	return trustPrefix + hex.EncodeToString(repo[:]) + "/" + hex.EncodeToString(bound[:]), entries, nil
 }
 
 func pathTail(path string) string {

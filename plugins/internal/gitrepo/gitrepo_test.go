@@ -1,6 +1,7 @@
 package gitrepo_test
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -180,4 +181,57 @@ func TestSnapshotRefusesSharedScratchParent(t *testing.T) {
 
 	_, _, err := gitrepo.Snapshot(t.Context(), newRepo(t))
 	assert.Error(t, err)
+}
+
+func TestDefaultBranchDropsTheRemote(t *testing.T) {
+	origin := newRepo(t)
+	git(t, origin, "commit", "-q", "--allow-empty", "-m", "init")
+	clone := filepath.Join(t.TempDir(), "clone")
+	git(t, origin, "clone", "-q", origin, clone)
+
+	name, err := gitrepo.DefaultBranch(t.Context(), clone)
+
+	require.NoError(t, err)
+	assert.Equal(t, "main", name)
+}
+
+func TestCloneDisablesTerminalPrompts(t *testing.T) {
+	seen := filepath.Join(t.TempDir(), "seen")
+	fakeGit(t, `echo "$GIT_TERMINAL_PROMPT" > "`+seen+`"`)
+
+	require.NoError(t, gitrepo.Clone(t.Context(), "url", "into"))
+
+	got, err := os.ReadFile(seen)
+	require.NoError(t, err)
+	assert.Equal(t, "0\n", string(got))
+}
+
+func TestCloneTerminatesGitOnCancel(t *testing.T) {
+	dir := t.TempDir()
+	ready, stopped := filepath.Join(dir, "ready"), filepath.Join(dir, "stopped")
+	fakeGit(t, `trap 'touch "`+stopped+`"; exit 1' TERM
+touch "`+ready+`"
+sleep 5 >/dev/null 2>&1 &
+wait`)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- gitrepo.Clone(ctx, "url", "into") }()
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(ready)
+		return err == nil
+	}, 3*time.Second, 10*time.Millisecond)
+
+	cancel()
+
+	assert.Error(t, <-done)
+	assert.FileExists(t, stopped)
+}
+
+func fakeGit(t *testing.T, script string) {
+	t.Helper()
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "git"), "#!/bin/sh\n"+script+"\n")
+	require.NoError(t, os.Chmod(filepath.Join(dir, "git"), 0o700))
+	t.Setenv("PATH", dir+string(filepath.ListSeparator)+os.Getenv("PATH"))
 }

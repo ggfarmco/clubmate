@@ -21,6 +21,8 @@ const (
 	worktreeNewCmd = "git.worktree-new"
 	worktreeOpCmd  = "git.worktree-op-status"
 	worktreesDir   = ".worktrees"
+	baseDefault    = "default"
+	baseNoteTitle  = "Started from the local default branch"
 )
 
 var (
@@ -29,6 +31,10 @@ var (
 	errNotGit     = errors.New("the worktree is not in a git folder of the workspace")
 	errBadBranch  = errors.New("not a valid branch name")
 	errChildLimit = fmt.Errorf("a session may run at most %d child sessions at once", maxChildren)
+	errRepoFolder = errors.New("this repo is not a folder of the workspace; connect it first")
+	errRepoName   = errors.New("a repo child needs a slug or a branch")
+	errRepoOnly   = errors.New("slug and base go with repo")
+	errRepoBase   = errors.New("base is default or empty")
 )
 
 type worktreeNewArgs struct {
@@ -36,6 +42,8 @@ type worktreeNewArgs struct {
 	Branch string `json:"branch"`
 	From   string `json:"from"`
 	Switch bool   `json:"switch"`
+	Slug   string `json:"slug,omitempty"`
+	Base   string `json:"base,omitempty"`
 }
 
 type worktreeOp struct {
@@ -43,6 +51,7 @@ type worktreeOp struct {
 	Done  bool   `json:"done"`
 	Error string `json:"error"`
 	Path  string `json:"path"`
+	Note  string `json:"note"`
 }
 
 func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, from string, args newArgs) (newResult, error) {
@@ -68,7 +77,16 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 	}
 	var plan worktreeNewArgs
 	var ready *setup
-	if args.Branch != "" {
+	switch {
+	case args.Repo != "":
+		if plan, root, err = planRepoWorktree(ctx, p, args); err != nil {
+			return newResult{}, err
+		}
+		rec.RepoPath = plan.Repo
+		ready = newSetup(plan)
+	case args.Slug != "" || args.Base != "":
+		return newResult{}, errRepoOnly
+	case args.Branch != "":
 		if plan, root, err = planWorktree(ctx, p, root, args.Branch); err != nil {
 			return newResult{}, err
 		}
@@ -92,6 +110,9 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 	}
 	if err != nil {
 		return newResult{}, err
+	}
+	if rec.RepoPath != "" {
+		go a.landingChanged()
 	}
 	return newResult{Session: s.rec.ID, Worktree: root, parent: rec.ParentSession}, nil
 }
@@ -184,6 +205,29 @@ func planWorktree(ctx context.Context, p pluginsdk.Workspace, base, branch strin
 	return worktreeNewArgs{}, "", errNotGit
 }
 
+func planRepoWorktree(ctx context.Context, p pluginsdk.Workspace, args newArgs) (worktreeNewArgs, string, error) {
+	repo, ok := folderIn(p, args.Repo)
+	if !ok {
+		return worktreeNewArgs{}, "", fmt.Errorf("%w: %s", errRepoFolder, args.Repo)
+	}
+	if args.Slug == "" && args.Branch == "" {
+		return worktreeNewArgs{}, "", errRepoName
+	}
+	if args.Base != "" && args.Base != baseDefault {
+		return worktreeNewArgs{}, "", fmt.Errorf("%w: %s", errRepoBase, args.Base)
+	}
+	branch := cmp.Or(args.Branch, taskBranchPrefix+args.Slug)
+	if !gitrepo.ValidBranchName(branch) {
+		return worktreeNewArgs{}, "", fmt.Errorf("%w: %s", errBadBranch, branch)
+	}
+	f, err := gitrepo.OpenFolder(ctx, repo)
+	if err != nil {
+		return worktreeNewArgs{}, "", errNotGit
+	}
+	dir := filepath.Join(f.Trees[0].Path, worktreesDir, cmp.Or(args.Slug, branch), f.Rel)
+	return worktreeNewArgs{Repo: repo, Branch: branch, Slug: args.Slug, Base: baseDefault}, dir, nil
+}
+
 func workspaceWorktree(ctx context.Context, p pluginsdk.Workspace, dir string) error {
 	if !filepath.IsAbs(dir) || filepath.Clean(dir) != dir {
 		return errNotGit
@@ -206,20 +250,24 @@ func (a *app) createWorktree(s *session, ready *setup) {
 	defer a.worktreeMu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), worktreeLimit)
 	defer cancel()
-	err := a.newWorktree(ctx, s.snapshot().Workspace, ready.args)
+	note, err := a.newWorktree(ctx, s.snapshot().Workspace, ready.args)
 	if err == nil {
 		a.setFork(ctx, s)
+	}
+	if note != "" && ready.args.Base != "" {
+		s.notice(baseNoteTitle, note)
 	}
 	ready.finish(err)
 }
 
-func (a *app) newWorktree(ctx context.Context, workspaceID string, args worktreeNewArgs) error {
+func (a *app) newWorktree(ctx context.Context, workspaceID string, args worktreeNewArgs) (string, error) {
 	var op worktreeOp
 	if err := a.host.RunCommand(ctx, worktreeNewCmd, workspaceID, args, &op); err != nil {
-		return fmt.Errorf("create worktree %s: %w", args.Branch, err)
+		return "", fmt.Errorf("create worktree %s: %w", args.Branch, err)
 	}
-	if err := a.awaitOp(ctx, workspaceID, op.ID); err != nil {
-		return fmt.Errorf("create worktree %s: %w", args.Branch, err)
+	note, err := a.awaitOp(ctx, workspaceID, op.ID)
+	if err != nil {
+		return "", fmt.Errorf("create worktree %s: %w", args.Branch, err)
 	}
-	return nil
+	return note, nil
 }

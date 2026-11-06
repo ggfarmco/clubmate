@@ -27,10 +27,15 @@ const (
 	terminalsDetail     = "Terminals still in it: "
 	unsavedTitle        = "Worktree %s has %s. Remove it and discard the changes?"
 	missingText         = "Worktree %s no longer exists — back on main"
+	baseDefault         = "default"
+	originRemote        = "origin"
+	invalidSlugText     = "'%s' is not a valid worktree name"
+	staleBaseText       = "Started from the local %s: couldn't update it from origin: %v"
 )
 
 var (
 	errMainCheckout    = errors.New("cannot remove the main checkout")
+	errUnseenFolder    = errors.New("it was connected while you were away and you haven't seen it yet")
 	errFolderCheckout  = errors.New("cannot remove the checkout of the workspace folder")
 	errDirtyWorktree   = errors.New("worktree has uncommitted changes")
 	errRelativePath    = errors.New("path must be absolute")
@@ -119,8 +124,15 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, workspaceID string, args
 	if err := validBranch(ctx, cur.Path, args.Branch); err != nil {
 		return nil, err
 	}
+	name := args.Branch
+	if args.Slug != "" {
+		name = args.Slug
+	}
+	if !gitrepo.ValidBranchName(name) {
+		return nil, fmt.Errorf(invalidSlugText, name)
+	}
 	primary := f.Trees[0]
-	dir, err := worktreeDir(primary.Path, args.Branch)
+	dir, err := worktreeDir(primary.Path, name)
 	if err != nil {
 		return nil, err
 	}
@@ -133,11 +145,18 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, workspaceID string, args
 		base, source = from.Head, from.Path
 	}
 	k := hooks{h: h, workspaceID: workspaceID, primary: primary.Path}
-	add := []string{"worktree", "add", "-b", args.Branch, dir, base}
-	if hasRef(ctx, cur.Path, headsPrefix+args.Branch) {
-		add = []string{"worktree", "add", dir, args.Branch}
-	}
-	return func(ctx context.Context, note func(string)) (string, error) {
+	exists := hasRef(ctx, cur.Path, headsPrefix+args.Branch)
+	return func(ctx context.Context, report *opReport) (string, error) {
+		add := []string{"worktree", "add", dir, args.Branch}
+		if !exists {
+			if args.Base == baseDefault {
+				var err error
+				if base, report.note, err = defaultStart(ctx, cur.Path, f.unseen); err != nil {
+					return "", err
+				}
+			}
+			add = []string{"worktree", "add", "-b", args.Branch, dir, base}
+		}
 		if _, err := mutate(ctx, cur.Path, add...); err != nil {
 			return "", err
 		}
@@ -155,9 +174,7 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, workspaceID string, args
 		if skipped != "" {
 			notes = append(notes, skipped)
 		}
-		if len(notes) > 0 {
-			note(strings.Join(notes, "\n"))
-		}
+		report.notice = strings.Join(notes, "\n")
 		g, err := gitFolder(ctx, h, workspaceID, f.Repo)
 		if err != nil {
 			return "", err
@@ -203,7 +220,7 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 	}
 	k := hooks{h: h, workspaceID: workspaceID, primary: f.Trees[0].Path}
 	users := consumers{h: h, workspaceID: workspaceID}
-	return func(ctx context.Context, note func(string)) (string, error) {
+	return func(ctx context.Context, report *opReport) (string, error) {
 		status, err := run(ctx, t.Path, "status", "--porcelain")
 		if err != nil {
 			return "", err
@@ -227,9 +244,9 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 		}
 		logError("vacate "+t.Path, users.vacating(ctx, t.Path, root))
 		if skipped, err := k.run(ctx, t.Path, teardownScript); err != nil {
-			note(err.Error())
+			report.notice = err.Error()
 		} else if skipped != "" {
-			note(skipped)
+			report.notice = skipped
 		}
 		if _, err := mutate(ctx, f.Checkout.Path, "worktree", "remove", t.Path); err != nil {
 			return "", err
@@ -284,11 +301,35 @@ func fallBack(ctx context.Context, h *pluginsdk.Host, workspaceID, missing strin
 	return err
 }
 
-func worktreeDir(primary, branch string) (string, error) {
+func defaultStart(ctx context.Context, dir string, unseen bool) (string, string, error) {
+	fetchErr := errUnseenFolder
+	if !unseen {
+		fetchErr = gitError(nil, gitrepo.Fetch(ctx, dir, originRemote))
+	}
+	name, err := gitrepo.DefaultBranch(ctx, dir)
+	if err != nil {
+		return "", "", err
+	}
+	remote := remotesPrefix + originRemote + "/" + name
+	if fetchErr == nil && hasRef(ctx, dir, remote) {
+		return remote, "", nil
+	}
+	if fetchErr == nil {
+		fetchErr = fmt.Errorf("%s not found", strings.TrimPrefix(remote, remotesPrefix))
+	}
+	for _, ref := range []string{headsPrefix + name, remote} {
+		if hasRef(ctx, dir, ref) {
+			return ref, fmt.Sprintf(staleBaseText, name, fetchErr), nil
+		}
+	}
+	return "", "", fetchErr
+}
+
+func worktreeDir(primary, name string) (string, error) {
 	base := filepath.Join(primary, worktreesDir)
-	dir := filepath.Join(base, branch)
+	dir := filepath.Join(base, name)
 	cur := base
-	for _, part := range append([]string{""}, strings.Split(branch, "/")...) {
+	for _, part := range append([]string{""}, strings.Split(name, "/")...) {
 		cur = filepath.Join(cur, part)
 		info, err := os.Lstat(cur)
 		if errors.Is(err, fs.ErrNotExist) {
@@ -301,7 +342,7 @@ func worktreeDir(primary, branch string) (string, error) {
 			return "", errSymlinkedFolder
 		}
 		if cur == dir {
-			return "", fmt.Errorf("%s already exists", filepath.Join(worktreesDir, branch))
+			return "", fmt.Errorf("%s already exists", filepath.Join(worktreesDir, name))
 		}
 	}
 	if !gitrepo.Within(gitrepo.Canonical(filepath.Dir(dir)), filepath.Join(gitrepo.Canonical(primary), worktreesDir)) {

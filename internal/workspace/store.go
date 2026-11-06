@@ -26,6 +26,7 @@ var (
 	ErrDuplicateFolder = errors.New("folder already in workspace")
 	ErrEmptyName       = errors.New("workspace name is empty")
 	ErrNotFolder       = errors.New("path is not a folder of this workspace")
+	ErrLastFolder      = errors.New("a workspace keeps at least one folder")
 	ErrNotDirectory    = errors.New("path is not a directory")
 )
 
@@ -33,6 +34,8 @@ const (
 	homeName      = "~"
 	workspaceCols = "id, name, created_at, home, last_opened_at"
 	homeIndex     = `CREATE UNIQUE INDEX IF NOT EXISTS projects_home ON projects(home) WHERE home = 1`
+
+	backfillAddedAt = `UPDATE repos SET added_at = (SELECT created_at FROM projects WHERE projects.id = repos.project_id) WHERE added_at = 0`
 )
 
 const schema = `
@@ -47,6 +50,10 @@ CREATE TABLE IF NOT EXISTS repos(
 	project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
 	position INTEGER,
 	path TEXT,
+	added_by TEXT NOT NULL DEFAULT '',
+	added_at INTEGER NOT NULL DEFAULT 0,
+	added_afk INTEGER NOT NULL DEFAULT 0,
+	seen INTEGER NOT NULL DEFAULT 1,
 	PRIMARY KEY(project_id, path)
 );
 CREATE TABLE IF NOT EXISTS worktrees(
@@ -57,14 +64,19 @@ CREATE TABLE IF NOT EXISTS worktrees(
 	FOREIGN KEY(project_id, repo) REFERENCES repos(project_id, path) ON DELETE CASCADE
 );`
 
-var addedColumns = []struct{ name, def string }{
-	{name: "home", def: "INTEGER NOT NULL DEFAULT 0"},
-	{name: "last_opened_at", def: "INTEGER NOT NULL DEFAULT 0"},
+var addedColumns = []struct{ table, name, def string }{
+	{table: "projects", name: "home", def: "INTEGER NOT NULL DEFAULT 0"},
+	{table: "projects", name: "last_opened_at", def: "INTEGER NOT NULL DEFAULT 0"},
+	{table: "repos", name: "added_by", def: "TEXT NOT NULL DEFAULT ''"},
+	{table: "repos", name: "added_at", def: "INTEGER NOT NULL DEFAULT 0"},
+	{table: "repos", name: "added_afk", def: "INTEGER NOT NULL DEFAULT 0"},
+	{table: "repos", name: "seen", def: "INTEGER NOT NULL DEFAULT 1"},
 }
 
 type (
-	Workspace = contract.Workspace
-	Folder    = contract.Folder
+	Workspace  = contract.Workspace
+	Folder     = contract.Folder
+	FolderMeta = contract.FolderMeta
 )
 
 type Store struct {
@@ -144,9 +156,34 @@ func (s *Store) FindByRepos(ctx context.Context, repos []string) (Workspace, boo
 	if len(want) == 0 {
 		return Workspace{}, false, nil
 	}
+	return s.findByFolders(ctx, func(folders []string) bool {
+		return maps.Equal(pathSet(folders), want)
+	})
+}
+
+func (s *Store) FindByFirstFolder(ctx context.Context, path string) (Workspace, bool, error) {
+	want := CanonicalPath(path)
+	return s.findByFolders(ctx, func(folders []string) bool {
+		return CanonicalPath(folders[0]) == want
+	})
+}
+
+func (s *Store) Rename(ctx context.Context, id, name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ErrEmptyName
+	}
+	return s.exec(ctx, "rename workspace", `UPDATE projects SET name = ? WHERE id = ?`, name, id)
+}
+
+func (s *Store) Touch(ctx context.Context, id string, at time.Time) error {
+	return s.exec(ctx, "touch workspace", `UPDATE projects SET last_opened_at = ? WHERE id = ?`, at.UnixNano(), id)
+}
+
+func (s *Store) findByFolders(ctx context.Context, match func(folders []string) bool) (Workspace, bool, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT r.project_id, r.path FROM repos r JOIN projects p ON p.id = r.project_id
-		 ORDER BY p.last_opened_at DESC, p.created_at DESC, p.rowid DESC`)
+		 ORDER BY p.last_opened_at DESC, p.created_at DESC, p.rowid DESC, r.position`)
 	if err != nil {
 		return Workspace{}, false, fmt.Errorf("find workspace by repos: %w", err)
 	}
@@ -167,7 +204,7 @@ func (s *Store) FindByRepos(ctx context.Context, repos []string) (Workspace, boo
 		return Workspace{}, false, fmt.Errorf("find workspace by repos: %w", err)
 	}
 	for _, id := range order {
-		if !maps.Equal(pathSet(byWorkspace[id]), want) {
+		if !match(byWorkspace[id]) {
 			continue
 		}
 		p, err := s.Get(ctx, id)
@@ -177,18 +214,6 @@ func (s *Store) FindByRepos(ctx context.Context, repos []string) (Workspace, boo
 		return p, true, nil
 	}
 	return Workspace{}, false, nil
-}
-
-func (s *Store) Rename(ctx context.Context, id, name string) error {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return ErrEmptyName
-	}
-	return s.exec(ctx, "rename workspace", `UPDATE projects SET name = ? WHERE id = ?`, name, id)
-}
-
-func (s *Store) Touch(ctx context.Context, id string, at time.Time) error {
-	return s.exec(ctx, "touch workspace", `UPDATE projects SET last_opened_at = ? WHERE id = ?`, at.UnixNano(), id)
 }
 
 func (s *Store) create(ctx context.Context, name string, repos []string, home bool) (Workspace, error) {
@@ -216,7 +241,7 @@ func (s *Store) create(ctx context.Context, name string, repos []string, home bo
 		return Workspace{}, fmt.Errorf("insert workspace: %w", err)
 	}
 	for i, repo := range repos {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO repos(project_id, position, path) VALUES(?, ?, ?)`, p.ID, i, repo); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO repos(project_id, position, path, added_at) VALUES(?, ?, ?, ?)`, p.ID, i, repo, p.CreatedAt.UnixNano()); err != nil {
 			return Workspace{}, fmt.Errorf("insert repo: %w", err)
 		}
 	}
@@ -225,7 +250,7 @@ func (s *Store) create(ctx context.Context, name string, repos []string, home bo
 	}
 	p.Folders = make([]Folder, 0, len(repos))
 	for _, repo := range repos {
-		p.Folders = append(p.Folders, Folder{Path: repo})
+		p.Folders = append(p.Folders, Folder{Path: repo, AddedAt: p.CreatedAt, Seen: true})
 	}
 	return p, nil
 }
@@ -269,7 +294,7 @@ func (s *Store) Get(ctx context.Context, id string) (Workspace, error) {
 	return p, nil
 }
 
-func (s *Store) AddRepo(ctx context.Context, id, path string) (Workspace, error) {
+func (s *Store) AddRepo(ctx context.Context, id, path string, meta FolderMeta) (Workspace, error) {
 	if err := validateRepo(path); err != nil {
 		return Workspace{}, err
 	}
@@ -277,9 +302,9 @@ func (s *Store) AddRepo(ctx context.Context, id, path string) (Workspace, error)
 		return Workspace{}, err
 	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO repos(project_id, position, path)
-		 VALUES(?, (SELECT COALESCE(MAX(position), -1) + 1 FROM repos WHERE project_id = ?), ?)`,
-		id, id, path)
+		`INSERT INTO repos(project_id, position, path, added_by, added_at, added_afk, seen)
+		 VALUES(?, (SELECT COALESCE(MAX(position), -1) + 1 FROM repos WHERE project_id = ?), ?, ?, ?, ?, ?)`,
+		id, id, path, meta.AddedBy, time.Now().UnixNano(), meta.AddedAfk, meta.AddedBy == "")
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return Workspace{}, fmt.Errorf("%w: %s", ErrDuplicateFolder, path)
@@ -289,14 +314,42 @@ func (s *Store) AddRepo(ctx context.Context, id, path string) (Workspace, error)
 	return s.Get(ctx, id)
 }
 
-func (s *Store) SetWorktree(ctx context.Context, id, repo, path string) (Workspace, error) {
-	p, err := s.Get(ctx, id)
-	if err != nil {
+func (s *Store) RemoveFolder(ctx context.Context, id, path string) (Workspace, error) {
+	if err := s.requireFolder(ctx, id, path); err != nil {
 		return Workspace{}, err
 	}
-	if !slices.ContainsFunc(p.Folders, func(f Folder) bool { return f.Path == repo }) {
-		return Workspace{}, ErrNotFolder
+	res, err := s.db.ExecContext(ctx,
+		`DELETE FROM repos WHERE project_id = ? AND path = ?
+		 AND (SELECT COUNT(*) FROM repos WHERE project_id = ?) > 1`,
+		id, path, id)
+	if err != nil {
+		return Workspace{}, fmt.Errorf("remove folder: %w", err)
 	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return Workspace{}, fmt.Errorf("remove folder: %w", err)
+	}
+	if n == 0 {
+		return Workspace{}, ErrLastFolder
+	}
+	return s.Get(ctx, id)
+}
+
+func (s *Store) MarkFolderSeen(ctx context.Context, id, path string) (Workspace, error) {
+	if err := s.requireFolder(ctx, id, path); err != nil {
+		return Workspace{}, err
+	}
+	if _, err := s.db.ExecContext(ctx, `UPDATE repos SET seen = 1 WHERE project_id = ? AND path = ?`, id, path); err != nil {
+		return Workspace{}, fmt.Errorf("mark folder seen: %w", err)
+	}
+	return s.Get(ctx, id)
+}
+
+func (s *Store) SetWorktree(ctx context.Context, id, repo, path string) (Workspace, error) {
+	if err := s.requireFolder(ctx, id, repo); err != nil {
+		return Workspace{}, err
+	}
+	var err error
 	if path == "" || filepath.Clean(path) == repo {
 		_, err = s.db.ExecContext(ctx, `DELETE FROM worktrees WHERE project_id = ? AND repo = ?`, id, repo)
 	} else {
@@ -322,30 +375,20 @@ func migrate(db *sql.DB) error {
 	if _, err := db.Exec(schema); err != nil {
 		return err
 	}
-	rows, err := db.Query(`SELECT name FROM pragma_table_info('projects')`)
-	if err != nil {
-		return err
-	}
-	existing := map[string]bool{}
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			rows.Close()
+	for _, col := range addedColumns {
+		existing, err := hasColumn(db, col.table, col.name)
+		if err != nil {
 			return err
 		}
-		existing[name] = true
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	for _, col := range addedColumns {
-		if existing[col.name] {
+		if existing {
 			continue
 		}
-		if _, err := db.Exec(`ALTER TABLE projects ADD COLUMN ` + col.name + ` ` + col.def); err != nil {
+		if _, err := db.Exec(`ALTER TABLE ` + col.table + ` ADD COLUMN ` + col.name + ` ` + col.def); err != nil {
 			return fmt.Errorf("add column %s: %w", col.name, err)
 		}
+	}
+	if _, err := db.Exec(backfillAddedAt); err != nil {
+		return fmt.Errorf("backfill added_at: %w", err)
 	}
 	if _, err := db.Exec(homeIndex); err != nil {
 		return fmt.Errorf("create home index: %w", err)
@@ -354,6 +397,12 @@ func migrate(db *sql.DB) error {
 		return fmt.Errorf("create ui state table: %w", err)
 	}
 	return nil
+}
+
+func hasColumn(db *sql.DB, table, name string) (bool, error) {
+	var n int
+	err := db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?`, table, name).Scan(&n)
+	return n > 0, err
 }
 
 func (s *Store) exec(ctx context.Context, op, query string, args ...any) error {
@@ -371,25 +420,38 @@ func (s *Store) exec(ctx context.Context, op, query string, args ...any) error {
 	return nil
 }
 
-func (s *Store) repos(ctx context.Context, id string) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT path FROM repos WHERE project_id = ? ORDER BY position`, id)
+func (s *Store) requireFolder(ctx context.Context, id, path string) error {
+	p, err := s.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !slices.ContainsFunc(p.Folders, func(f Folder) bool { return f.Path == path }) {
+		return ErrNotFolder
+	}
+	return nil
+}
+
+func (s *Store) folders(ctx context.Context, id string) ([]Folder, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT path, added_by, added_at, added_afk, seen FROM repos WHERE project_id = ? ORDER BY position`, id)
 	if err != nil {
 		return nil, fmt.Errorf("list repos: %w", err)
 	}
 	defer rows.Close()
-	var out []string
+	var out []Folder
 	for rows.Next() {
-		var path string
-		if err := rows.Scan(&path); err != nil {
+		var f Folder
+		var added int64
+		if err := rows.Scan(&f.Path, &f.AddedBy, &added, &f.AddedAfk, &f.Seen); err != nil {
 			return nil, fmt.Errorf("scan repo: %w", err)
 		}
-		out = append(out, path)
+		f.AddedAt = time.Unix(0, added)
+		out = append(out, f)
 	}
 	return out, rows.Err()
 }
 
 func (s *Store) loadFolders(ctx context.Context, p *Workspace) error {
-	repos, err := s.repos(ctx, p.ID)
+	folders, err := s.folders(ctx, p.ID)
 	if err != nil {
 		return err
 	}
@@ -397,10 +459,11 @@ func (s *Store) loadFolders(ctx context.Context, p *Workspace) error {
 	if err != nil {
 		return err
 	}
-	p.Folders = make([]Folder, 0, len(repos))
-	for _, repo := range repos {
-		path := selected[repo]
-		p.Folders = append(p.Folders, Folder{Path: repo, Worktree: path, Missing: path != "" && !isDir(path)})
+	p.Folders = make([]Folder, 0, len(folders))
+	for _, f := range folders {
+		f.Worktree = selected[f.Path]
+		f.Missing = f.Worktree != "" && !isDir(f.Worktree)
+		p.Folders = append(p.Folders, f)
 	}
 	return nil
 }
