@@ -35,7 +35,7 @@ var (
 	errStartViaClaim  = errors.New("status in_progress is set by backlog.claim")
 	errNotHolder      = errors.New("only the owner, an ancestor of the owner or the user can do this")
 	errNotClaimed     = errors.New("task is not in progress")
-	errForeignStatus  = errors.New("task is claimed by someone else; you may change only its title, description, priority, tags and note")
+	errForeignStatus  = errors.New("task is claimed by someone else; you may change only its title, description, priority, tags, links, attachments and note")
 	errAddStatus      = errors.New("status must be idea, todo or not_now")
 	errReservedOwner  = errors.New("owner user, agent and agt_… are reserved; pass a name unique to you")
 	errNoSession      = errors.New("agents.new returned no session")

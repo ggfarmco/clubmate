@@ -47,7 +47,7 @@
         "title": "List cron jobs",
         "hidden": true,
         "agent": true,
-        "description": "List the workspace's cron jobs without their run history: {jobs: [{id, name, schedule, command, args, enabled, owner?, createdBy?, missed, nextRun, failures?, lastError?}]}. Non-destructive."
+        "description": "List the workspace's cron jobs without their run history: {jobs: [{id, name, workspace, schedule, command, args, enabled, owner?, createdBy?, missed, nextRun, failures?, lastError?, paused?}]}. Non-destructive."
       },
       {
         "id": "cron.show",

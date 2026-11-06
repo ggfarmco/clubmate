@@ -59,12 +59,12 @@ var primitives = browserPrimitives(map[string]primitive{
 		params: withWorkspace,
 	},
 	"report.send": {
-		cmd: coreCommand("report.send", "Send Problem Report", "Send a problem report about Clubmate itself to its developers. The app opens a sheet with the text, your summary, diagnostics, the session's last 3 turns and the files, where the user edits, unchecks and sends it or cancels; returns {sent, id}, or {sent: false, reason} with reason cancelled or timed out (after 10 minutes).", &schema.Object{
+		cmd: coreCommand("report.send", "Send Problem Report", "Send a problem report about Clubmate itself to its developers. The app opens a sheet with the text, your summary, diagnostics, the session's last 3 turns and the files, where the user edits, unchecks and sends it or cancels; returns {sent, id}, or {sent: false, reason} with reason cancelled or timed out (after 10 minutes). Fails with \"no app to show the report\" when no app can show it.", &schema.Object{
 			Properties: map[string]schema.Prop{
 				"text":      {Type: "string", Description: "The user's own words about the problem, up to 20 KiB."},
 				"summary":   {Type: "string", Description: "Your account: what was done, what was seen, the error; up to 20 KiB."},
 				"sessionId": {Type: "string", Description: "Agent session whose last 3 turns go in the report; defaults to yours."},
-				"files":     {Type: "array", Items: &schema.Prop{Type: "string"}, Description: "Absolute paths of regular files to attach, e.g. screenshots; files outside the workspace start unchecked."},
+				"files":     {Type: "array", Items: &schema.Prop{Type: "string"}, Description: "Up to 50 absolute paths of regular files to attach, e.g. screenshots; files outside the workspace start unchecked."},
 			},
 			Required: []string{"text"},
 		}),
@@ -128,7 +128,7 @@ var primitives = browserPrimitives(map[string]primitive{
 		method: "process.tree",
 	},
 	"notify.post": {
-		cmd: coreCommand("notify.post", "Post Notification", "Show a macOS notification for the workspace, e.g. when you need the user's input or finished a long task. Skipped while the user is looking at the session; at most 5 per 10 s per workspace.", &schema.Object{
+		cmd: coreCommand("notify.post", "Post Notification", "Show a notification for the workspace on the Mac (and on paired phones through the workspace's Push to phone trigger), e.g. when you need the user's input or finished a long task. Skipped while the user is looking at the session; at most 5 per 10 s per workspace and 20 in all; more fail with \"too many notifications\".", &schema.Object{
 			Properties: map[string]schema.Prop{
 				"message": {Type: "string", Description: "Notification text, up to 1000 characters (longer is cut)."},
 				"title":   {Type: "string", Description: "Short title, up to 120 characters."},

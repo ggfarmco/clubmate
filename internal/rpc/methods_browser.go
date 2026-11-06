@@ -215,7 +215,7 @@ func browserPrimitives(base map[string]primitive) map[string]primitive {
 			map[string]schema.Prop{"direction": {Type: "string", Description: "Scroll direction.", Enum: []any{"up", "down"}}, "ref": str("Element ref to scroll into view.")}, nil},
 		{"back", "Browser Back", "Go back one page in the tab history.", nil, nil},
 		{"screenshot", "Browser Screenshot", "Save a screenshot of the page to a file and return its path.", nil, nil},
-		{"handoff", "Browser Handoff", "Ask the human to take over the tab, for example to solve a captcha or sign in, and wait until they are done.",
+		{"handoff", "Browser Handoff", "Ask the human to take over the tab, for example to solve a captcha or sign in, and wait until they are done; returns {result: \"done\"}, or {result: \"no-human\"} when nobody comes in time.",
 			map[string]schema.Prop{"reason": str("Why the human is needed, shown in the notification."), "timeout": {Type: "integer", Description: "Seconds to wait, 1-600.", Default: handoffDefaultSeconds}}, []string{"reason"}},
 	}
 	for _, sp := range specs {

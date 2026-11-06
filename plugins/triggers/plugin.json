@@ -46,7 +46,7 @@
         "title": "List triggers",
         "hidden": true,
         "agent": true,
-        "description": "List the workspace's triggers without their run history: {triggers: [{id, name, on, match?, command, args, enabled, limit?, parallel?, owner?, createdBy?, failures?, lastError?}]}. Non-destructive."
+        "description": "List the workspace's triggers without their run history: {triggers: [{id, name, workspace, on, match?, command, args, enabled, limit?, parallel?, owner?, createdBy?, run?, runTitle?, failures?, lastError?, paused?}]}. Non-destructive."
       },
       {
         "id": "triggers.show",
