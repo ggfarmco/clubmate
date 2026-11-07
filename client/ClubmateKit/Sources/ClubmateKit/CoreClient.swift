@@ -12,6 +12,7 @@ public final class CoreClient {
     public var presentHandler: (@MainActor (PresentRequest) async throws -> Bool)?
     public var keyHandler: (@MainActor (KeyRequest) async throws -> [String])?
     public var browserHandler: (@MainActor (BrowserCall) async throws -> JSONValue)?
+    private var pressCaller: String?
 
     var isAlive: Bool { !pumpFinished }
 
@@ -138,7 +139,7 @@ public final class CoreClient {
     }
 
     public func uiEvent(_ event: UIEvent) async throws -> JSONValue {
-        try await connection.call("ui.event", event, timeout: .seconds(8))
+        try await connection.call("ui.event", CalledEvent(event: event, caller: pressCaller), timeout: .seconds(8))
     }
 
     public func pluginList() async throws -> [PluginStatus] {
@@ -175,7 +176,7 @@ public final class CoreClient {
     }
 
     public func commandRun(id: String, workspaceID: String, args: JSONValue = .null) async throws -> JSONValue {
-        try await connection.call("command.run", CommandRunParams(id: id, workspaceId: workspaceID, args: args), timeout: .seconds(8))
+        try await connection.call("command.run", CommandRunParams(id: id, workspaceId: workspaceID, args: args, caller: pressCaller), timeout: .seconds(8))
     }
 
     public func collectDiagnostics(workspaceID: String?, appVersion: String, extra: [String: Data]) async throws -> DiagnosticsResult {
@@ -223,7 +224,11 @@ public final class CoreClient {
         case "ui.key":
             var key: (@MainActor (KeyRequest) async throws -> [String: [String]])?
             if let handler = keyHandler {
-                key = { request in ["routes": try await handler(request)] }
+                key = { [weak self] request in
+                    self?.pressCaller = request.caller
+                    defer { self?.pressCaller = nil }
+                    return ["routes": try await handler(request)]
+                }
             }
             await answerTest(request, key)
             return
@@ -374,6 +379,22 @@ private struct CommandRunParams: Encodable, Sendable {
     let id: String
     let workspaceId: String
     let args: JSONValue
+    let caller: String?
+}
+
+private struct CalledEvent: Encodable, Sendable {
+    let event: UIEvent
+    let caller: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case caller
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try event.encode(to: encoder)
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(caller, forKey: .caller)
+    }
 }
 
 private struct DiagnosticsParams: Encodable, Sendable {

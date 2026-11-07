@@ -254,7 +254,7 @@ func (a *app) uiKeyCmd() *cobra.Command {
 			if len(args) == 0 && focus == "" {
 				return errors.New("give at least one combo or --focus")
 			}
-			params := map[string]any{"keys": args}
+			params := withCaller(map[string]any{"keys": args})
 			if focus != "" {
 				params["focus"] = focus
 			}

@@ -65,11 +65,13 @@ public struct KeyRequest: Codable, Equatable, Sendable {
     public let keys: [String]
     public let focus: String?
     public let workspaceId: String?
+    public let caller: String?
 
-    public init(keys: [String], focus: String?, workspaceId: String?) {
+    public init(keys: [String], focus: String?, workspaceId: String?, caller: String? = nil) {
         self.keys = keys
         self.focus = focus
         self.workspaceId = workspaceId
+        self.caller = caller
     }
 
     public init(from decoder: Decoder) throws {
@@ -77,6 +79,7 @@ public struct KeyRequest: Codable, Equatable, Sendable {
         keys = try c.decodeIfPresent([String].self, forKey: .keys) ?? []
         focus = try c.decodeIfPresent(String.self, forKey: .focus)
         workspaceId = try c.decodeIfPresent(String.self, forKey: .workspaceId)
+        caller = try c.decodeIfPresent(String.self, forKey: .caller)
     }
 }
 

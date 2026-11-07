@@ -78,7 +78,11 @@ func uiEvent(_ context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, e
 	if ev.Action != "say" {
 		return nil, fmt.Errorf("unknown action %q", ev.Action)
 	}
-	return map[string]any{"said": ev.Value, "plugin": h.PluginID()}, nil
+	out := map[string]any{"said": ev.Value, "plugin": h.PluginID()}
+	if ev.Caller != "" {
+		out["caller"] = ev.Caller
+	}
+	return out, nil
 }
 
 func command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {

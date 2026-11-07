@@ -88,6 +88,33 @@ final class SnapshotTests: XCTestCase {
         await client.close()
     }
 
+    func testKeyPressCarriesItsCaller() async throws {
+        let core = try await TestCore.start()
+        self.core = core
+        let client = try await CoreClient.connect(paths: core.paths)
+        try await client.register(handles: ["ui.key"])
+        let workspace = try await client.createWorkspace(name: "demo")
+        let pressed = PressedCallers()
+        let press = {
+            let said = try await client.uiEvent(UIEvent(workspaceId: workspace.id, slot: "echo.main", nodeId: "say", action: "say", value: .string("hi")))
+            let ran = try await client.commandRun(id: "echo.say", workspaceID: workspace.id, args: .object(["text": .string("hi")]))
+            return [said.objectValue?["caller"]?.stringValue, ran.objectValue?["caller"]?.stringValue]
+        }
+        try await waitUntil { (try? await press()) != nil }
+        client.keyHandler = { _ in
+            pressed.callers += try await Task { try await press() }.value
+            return ["monitor"]
+        }
+
+        _ = try await client.call(method: "ui.key", params: .object(["keys": .array([.string("opt+1")]), "caller": .string("agt_1")]))
+        _ = try await client.call(method: "ui.key", params: .object(["keys": .array([.string("opt+1")])]))
+        let after = try await press()
+
+        XCTAssertEqual(pressed.callers, ["agt_1", "agt_1", nil, nil])
+        XCTAssertEqual(after, [nil, nil])
+        await client.close()
+    }
+
     private func element(_ id: String, source: String = "sdui", frame: Rect, parent: String? = nil, idealWidth: Double? = nil, lineHeight: Double? = nil) -> LayoutElement {
         LayoutElement(id: id, source: source, role: "group", label: id, frame: frame, parent: parent, text: nil, idealWidth: idealWidth, lineHeight: lineHeight, menu: nil, flags: [])
     }
@@ -96,4 +123,9 @@ final class SnapshotTests: XCTestCase {
 @MainActor
 private final class AskedSnapshots {
     var requests: [SnapshotRequest] = []
+}
+
+@MainActor
+private final class PressedCallers {
+    var callers: [String?] = []
 }

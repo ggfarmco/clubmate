@@ -2,18 +2,22 @@ package main_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"path/filepath"
 	"slices"
 	"strings"
 	"syscall"
 	"testing"
 
+	"github.com/sourcegraph/jsonrpc2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/cli"
+	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
 	"clubmate/pkg/contract"
 )
@@ -376,6 +380,69 @@ func TestCmUIEventInAnAgentSessionIsNotTheUser(t *testing.T) {
 
 	t.Setenv("CLUBMATE_AGENT_SESSION", "agt_of_another_core")
 	require.NoError(t, press())
+	f.waitStatus(t, workspace, session, "done")
+}
+
+func (f *fixture) testApp(t *testing.T, press func(key string) map[string]any) {
+	t.Helper()
+	serverSide, clientSide := net.Pipe()
+	server := f.h.Srv.ServeConn(context.Background(), jsonrpc2.NewPlainObjectStream(serverSide), rpc.Caller{})
+	handler := jsonrpc2.HandlerWithError(func(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
+		var key struct {
+			Keys   []string `json:"keys"`
+			Caller string   `json:"caller"`
+		}
+		if err := json.Unmarshal(*req.Params, &key); err != nil {
+			return nil, err
+		}
+		for _, k := range key.Keys {
+			event := press(k)
+			if key.Caller != "" {
+				event["caller"] = key.Caller
+			}
+			if err := conn.Call(ctx, "ui.event", event, nil); err != nil {
+				return nil, err
+			}
+		}
+		return map[string]any{"routes": key.Keys}, nil
+	})
+	conn := jsonrpc2.NewConn(context.Background(), jsonrpc2.NewPlainObjectStream(clientSide), jsonrpc2.AsyncHandler(handler))
+	t.Cleanup(func() {
+		conn.Close()
+		server.Close()
+	})
+	require.NoError(t, conn.Call(t.Context(), "client.register", map[string]any{"handles": []string{"ui.key"}}, nil))
+}
+
+func TestCmUIKeyInAnAgentSessionIsNotTheUser(t *testing.T) {
+	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}, {"permission": permissionScript()}}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.testApp(t, func(key string) map[string]any {
+		if key == "f" {
+			return map[string]any{"workspaceId": workspace, "slot": "agents.main", "nodeId": "filter", "action": "filter", "value": "all"}
+		}
+		perms := ofKind(f.transcript(t, workspace, session).Entries, "permission")
+		request := perms[len(perms)-1].ID
+		return map[string]any{"workspaceId": workspace, "slot": "agents.main", "nodeId": session + "/permission/" + request, "action": "permission", "value": map[string]any{"request": request, "option": "allow"}}
+	})
+	f.cmEnv(t, workspace)
+	f.prompt(t, workspace, session, "go")
+	f.waitStatus(t, workspace, session, "waiting")
+	t.Setenv("CLUBMATE_AGENT_SESSION", session)
+
+	require.ErrorContains(t, cm(t, "ui", "key", "opt+1"), "only the user")
+	assert.Equal(t, "waiting", f.session(t, workspace, session).Status)
+	require.NoError(t, cm(t, "ui", "key", "f"))
+
+	t.Setenv("CLUBMATE_AGENT_SESSION", "agt_of_another_core")
+	require.NoError(t, cm(t, "ui", "key", "opt+1"))
+	testutil.Eventually(t, func() bool {
+		return len(ofKind(f.transcript(t, workspace, session).Entries, "permission")) == 2
+	}, wait)
+
+	t.Setenv("CLUBMATE_AGENT_SESSION", "")
+	require.NoError(t, cm(t, "ui", "key", "opt+1"))
 	f.waitStatus(t, workspace, session, "done")
 }
 
