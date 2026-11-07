@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +19,7 @@ type session struct {
 	rec       record
 	log       *eventLog
 	loaded    bool
+	unread    bool
 	used      time.Time
 	deleted   bool
 	changed   func(kind string, save bool)
@@ -60,8 +63,14 @@ func (s *session) loadLocked() {
 	if s.loaded {
 		return
 	}
-	s.loaded = true
-	_ = s.log.replay(s.apply)
+	if s.unread {
+		s.unloadLocked()
+	}
+	s.loaded, s.unread = true, false
+	if err := s.log.replay(s.apply); err != nil {
+		fmt.Fprintln(os.Stderr, "agents: replay log:", err)
+		s.loaded, s.unread = false, true
+	}
 }
 
 func (s *session) actor() string {

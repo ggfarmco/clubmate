@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -284,6 +286,35 @@ func TestRunUnwindsWhenATriggerFails(t *testing.T) {
 	assert.ErrorContains(t, err, "connect reviewer → coder: boom")
 	assert.Equal(t, []string{"agents.new", "agents.new", "triggers.add", "triggers.add", "triggers.delete", "agents.close", "agents.close"}, core.ids())
 	assert.Empty(t, a.runs)
+}
+
+func TestFailedStartLogsCleanupErrors(t *testing.T) {
+	core := &fakeCore{}
+	a := testApp(t, core)
+	a.runCommand = func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error) {
+		switch {
+		case req.ID == "triggers.add" && len(core.calls) == 3:
+			return nil, fmt.Errorf("boom")
+		case req.ID == "triggers.delete" || req.ID == "agents.close":
+			return nil, fmt.Errorf("%s stuck", req.ID)
+		}
+		return core.run(ctx, req)
+	}
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	stderr := os.Stderr
+	os.Stderr = w
+	t.Cleanup(func() { os.Stderr = stderr })
+
+	_, err = a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.run", WorkspaceID: "ws1", Args: json.RawMessage(`{"graph":"review-loop"}`)})
+
+	require.Error(t, err)
+	require.NoError(t, w.Close())
+	logged, err := io.ReadAll(r)
+	require.NoError(t, err)
+	assert.Contains(t, string(logged), "triggers.delete stuck")
+	assert.Contains(t, string(logged), "close session agt_1: agents.close stuck")
+	assert.Contains(t, string(logged), "close session agt_2: agents.close stuck")
 }
 
 func TestListWithoutProjectGraphsOrRuns(t *testing.T) {

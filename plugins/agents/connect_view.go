@@ -56,7 +56,6 @@ const (
 	landReviewLabel   = "Review…"
 	landMergeLabel    = "Merge"
 	landLeaveLabel    = "Leave it unlanded…"
-	landIcon          = "arrow.triangle.branch"
 	repoFolderIcon    = "folder"
 	landHeadNode      = "land"
 	connectHeadNode   = "connect"

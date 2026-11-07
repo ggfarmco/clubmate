@@ -164,6 +164,14 @@ func (s *Server) browserDispatch(ctx context.Context, workspaceID string, call B
 	if err := conn.Call(ctx, handleBrowserCall, call, &out); err != nil {
 		return nil, err
 	}
+	s.trackBrowserURL(key, call.Action, out)
+	return out, nil
+}
+
+func (s *Server) trackBrowserURL(key browserTabKey, action string, out json.RawMessage) {
+	if s.browserGuard == nil {
+		return
+	}
 	var res struct {
 		URL string `json:"url"`
 	}
@@ -171,10 +179,9 @@ func (s *Server) browserDispatch(ctx context.Context, workspaceID string, call B
 	switch {
 	case res.URL != "":
 		s.browserSetURL(key, res.URL)
-	case call.Action != "snapshot" && call.Action != "screenshot" && call.Action != "handoff":
+	case action != "snapshot" && action != "screenshot" && action != "handoff":
 		s.browserSetURL(key, "")
 	}
-	return out, nil
 }
 
 func (s *Server) browserLastURL(key browserTabKey) string {

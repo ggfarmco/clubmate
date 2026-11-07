@@ -27,7 +27,6 @@ const (
 	actRepoCode    = "repoCode"
 	actRepoLeave   = "repoLeave"
 
-	reposIcon      = "folder"
 	landsByIconPR  = "arrow.triangle.pull"
 	landsByIconTop = "arrow.triangle.merge"
 	landsByIconOn  = "arrow.triangle.branch"
@@ -416,6 +415,6 @@ func reposPill(rec record) (sdui.Node, bool) {
 	if failed > 0 {
 		detail, tone = strconv.Itoa(failed)+" failed", "danger"
 	}
-	button := sdui.WithAction(sdui.Button(reposCardID(rec.ID)+"/pill", counted(len(rec.Task.Repos), "repo"), reposIcon), actReposShow)
+	button := sdui.WithAction(sdui.Button(reposCardID(rec.ID)+"/pill", counted(len(rec.Task.Repos), "repo"), repoIcon), actReposShow)
 	return sdui.WithPill(button, detail, tone), true
 }

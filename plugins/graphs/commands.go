@@ -168,15 +168,11 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	r.Starts = a.startCommits(ctx, cmd.WorkspaceID, append(dirs, r.Dir))
 	x := &runner{call: a.runCommand, run: r}
 	if err := x.start(ctx, g); err != nil {
-		cleanup := context.WithoutCancel(ctx)
-		x.unwind(cleanup)
-		x.closeSessions(cleanup)
+		x.abandon(ctx)
 		return nil, err
 	}
 	if err := a.put(ctx, r); err != nil {
-		cleanup := context.WithoutCancel(ctx)
-		x.unwind(cleanup)
-		x.closeSessions(cleanup)
+		x.abandon(ctx)
 		return nil, err
 	}
 	if err := x.kickoff(ctx, g); err != nil {

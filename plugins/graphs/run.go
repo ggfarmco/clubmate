@@ -244,15 +244,24 @@ func (x *runner) unwind(ctx context.Context) []error {
 	return errs
 }
 
-func (x *runner) closeSessions(ctx context.Context) {
+func (x *runner) closeSessions(ctx context.Context) []error {
+	var errs []error
 	for _, n := range x.run.Nodes {
 		if n.Session == "" {
 			continue
 		}
 		req := automation.CommandRequest{ID: "agents.close", WorkspaceID: x.run.Workspace}
 		req.Args, _ = json.Marshal(sessionArgs{Session: n.Session})
-		_, _ = x.call(ctx, req)
+		if _, err := x.call(ctx, req); err != nil {
+			errs = append(errs, fmt.Errorf("close session %s: %w", n.Session, err))
+		}
 	}
+	return errs
+}
+
+func (x *runner) abandon(ctx context.Context) {
+	cleanup := context.WithoutCancel(ctx)
+	logError(errors.Join(append(x.unwind(cleanup), x.closeSessions(cleanup)...)...))
 }
 
 func (x *runner) edgeTrigger(g *Graph, e Edge) (triggerArgs, error) {

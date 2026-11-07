@@ -89,6 +89,7 @@ func TestBrowserForwardsOwnerTabActionArgs(t *testing.T) {
 	require.Len(t, calls, 1)
 	assert.Equal(t, [3]string{browserOwner, "b", "open"}, [3]string{calls[0].Owner, calls[0].Tab, calls[0].Action})
 	assert.JSONEq(t, `{"url":"https://example.com"}`, string(calls[0].Args))
+	assert.Zero(t, rpc.BrowserURLCount(h.Srv))
 }
 
 func TestBrowserOwnerFallsBackToTerminalThenDefault(t *testing.T) {
