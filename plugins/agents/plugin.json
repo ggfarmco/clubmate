@@ -653,7 +653,7 @@
         "hidden": true,
         "agent": true,
         "timeout": 30,
-        "description": "Ask the user to connect every repo a task needs that is no folder of the workspace yet, all at once: path or url, why, how it lands and where you read that. Raised on the caller's top-level ancestor and stored on its record; it never times out, so end your turn and Clubmate prompts that session with the answer. Only the user's answer counts. While that session is AFK a path on disk connects at once, gets a pull request at most in this task, and a url still waits for the user. Returns at once {request, status, next, raisedOn, repos}.",
+        "description": "Ask the user to connect every repo a task needs that is no folder of the workspace yet, all at once: path or url, why, how it lands and where you read that. Raised on the caller's top-level ancestor and stored on its record; it never times out, so end your turn and Clubmate prompts that session with the answer. Only the user's answer counts. While that session is AFK a path on disk connects at once and is asked for a pull request at most in this task, which is not enforced, and a url still waits for the user. Returns at once {request, status, next, raisedOn, repos}.",
         "args": {
           "properties": {
             "repos": {"type": "array", "description": "Repos: {path or url, reason, landsBy (pr|merge|branch), source}.", "items": {"type": "object", "properties": {
