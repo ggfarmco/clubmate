@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"clubmate/pkg/contract"
 	"errors"
 	"os"
 	"path/filepath"
@@ -9,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"clubmate/pkg/contract"
 )
 
 const bundleExt = ".clubmate-session"

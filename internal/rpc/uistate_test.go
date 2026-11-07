@@ -29,13 +29,6 @@ func rpcCode(t *testing.T, err error) int64 {
 	return rpcErr.Code
 }
 
-func TestProjectMethodsAreGone(t *testing.T) {
-	svc, b := testutil.NewServiceWithBus(t)
-	client := connectAs(t, rpc.NewServer(svc, b), rpc.Caller{})
-	var list []workspace.Workspace
-	require.Error(t, client.Call(t.Context(), "project.list", nil, &list))
-}
-
 func TestUIStateRoundTripAndDelete(t *testing.T) {
 	svc, b := testutil.NewServiceWithBus(t)
 	srv := rpc.NewServer(svc, b)

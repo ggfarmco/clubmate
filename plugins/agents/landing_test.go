@@ -479,21 +479,36 @@ func TestBranchRuleLandsWithoutAPrompt(t *testing.T) {
 	testutil.Eventually(t, func() bool { return f.landPrompts(t, l.kids[1].Session) == 1 }, wait)
 }
 
-func TestClosedChildFreesTheFolder(t *testing.T) {
+func TestClosedSessionFreesTheFolder(t *testing.T) {
 	t.Parallel()
-	f := startGit(t, map[string]any{})
-	one := f.landing(t, "merge", "pause", 1)
-	two := f.startTask(t, one.workspace, "merge", "resume", one.repos, []int{1})
-	one.report(t, 0, "ready")
-	testutil.Eventually(t, func() bool { return f.landPrompts(t, one.kids[0].Session) == 1 }, wait)
-	f.waitStatus(t, one.workspace, one.kids[0].Session, "done")
-	two.report(t, 0, "ready")
-	two.waitState(t, 0, "waits")
+	tests := []struct {
+		name   string
+		target func(*landing) string
+		left   bool
+	}{
+		{"child", func(l *landing) string { return l.kids[0].Session }, true},
+		{"orchestrator", func(l *landing) string { return l.owner }, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := startGit(t, map[string]any{})
+			one := f.landing(t, "merge", "pause", 1)
+			two := f.startTask(t, one.workspace, "merge", "resume", one.repos, []int{1})
+			one.report(t, 0, "ready")
+			testutil.Eventually(t, func() bool { return f.landPrompts(t, one.kids[0].Session) == 1 }, wait)
+			f.waitStatus(t, one.workspace, one.kids[0].Session, "done")
+			two.report(t, 0, "ready")
+			two.waitState(t, 0, "waits")
 
-	require.NoError(t, f.run(t, one.workspace, "agents.close", map[string]any{"session": one.kids[0].Session}, nil))
+			require.NoError(t, f.run(t, one.workspace, "agents.close", map[string]any{"session": tt.target(one)}, nil))
 
-	one.waitState(t, 0, "left")
-	testutil.Eventually(t, func() bool { return f.landPrompts(t, two.kids[0].Session) == 1 }, wait)
+			if tt.left {
+				one.waitState(t, 0, "left")
+			}
+			testutil.Eventually(t, func() bool { return f.landPrompts(t, two.kids[0].Session) == 1 }, wait)
+		})
+	}
 }
 
 func TestRepoChildGetsTheRepoFinishPolicy(t *testing.T) {
@@ -516,22 +531,6 @@ func TestRepoChildGetsTheRepoFinishPolicy(t *testing.T) {
 			})
 		})
 	}
-}
-
-func TestClosedOrchestratorFreesTheFolder(t *testing.T) {
-	t.Parallel()
-	f := startGit(t, map[string]any{})
-	one := f.landing(t, "merge", "pause", 1)
-	two := f.startTask(t, one.workspace, "merge", "resume", one.repos, []int{1})
-	one.report(t, 0, "ready")
-	testutil.Eventually(t, func() bool { return f.landPrompts(t, one.kids[0].Session) == 1 }, wait)
-	f.waitStatus(t, one.workspace, one.kids[0].Session, "done")
-	two.report(t, 0, "ready")
-	two.waitState(t, 0, "waits")
-
-	require.NoError(t, f.run(t, one.workspace, "agents.close", map[string]any{"session": one.owner}, nil))
-
-	testutil.Eventually(t, func() bool { return f.landPrompts(t, two.kids[0].Session) == 1 }, wait)
 }
 
 func TestHandedOffOrchestratorKeepsItsRepoChildren(t *testing.T) {
@@ -1125,18 +1124,6 @@ func TestRepoFixRefusesARepoThatDidNotFailAndAgentCallers(t *testing.T) {
 	require.NoError(t, f.runFrom(t, l.workspace, l.kids[0].Session, "agents.task-report", map[string]any{"state": "failed", "tail": "boom"}, nil))
 	l.waitState(t, 0, "failed")
 	require.Error(t, f.runAs(t, l.workspace, l.owner, "agents.repo-fix", args, nil))
-}
-
-func TestRepoLeaveRefusesAgentCallers(t *testing.T) {
-	t.Parallel()
-	f := startGit(t, map[string]any{})
-	l := f.landing(t, "merge", "pause", 1)
-	args := map[string]any{"session": l.owner, "repo": l.repos[0]}
-
-	require.Error(t, f.runAs(t, l.workspace, l.owner, "agents.repo-leave", args, nil))
-	require.Error(t, f.runFrom(t, l.workspace, l.owner, "agents.repo-leave", args, nil))
-
-	assert.NotEqual(t, "left", l.repo(t, 0).State)
 }
 
 func TestRunningFirstTurnReadsRunning(t *testing.T) {

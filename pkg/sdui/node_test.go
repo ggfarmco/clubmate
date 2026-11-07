@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	internalsdui "clubmate/internal/sdui"
-
 	"clubmate/pkg/sdui"
 )
 

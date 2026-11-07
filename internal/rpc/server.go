@@ -123,10 +123,6 @@ func (s *Server) SetShutdown(fn func()) {
 	s.shutdown.Store(&fn)
 }
 
-func Serve(ctx context.Context, l net.Listener, svc *core.Service) error {
-	return NewServer(svc, nil).Serve(ctx, l)
-}
-
 func (s *Server) Serve(ctx context.Context, l net.Listener) error {
 	ctx, cancel := context.WithCancel(ctx)
 	stopListener := context.AfterFunc(ctx, func() { l.Close() })

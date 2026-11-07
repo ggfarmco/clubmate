@@ -1,13 +1,14 @@
 package cli
 
 import (
-	"clubmate/pkg/contract"
 	"fmt"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"clubmate/pkg/contract"
 )
 
 const openCapability = "editor.open"

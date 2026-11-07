@@ -16,8 +16,6 @@ type reviewer interface {
 	reviewInfo(tab int) (reviewInfo, error)
 	reviewEntries(tab int) ([]reviewEntry, error)
 	reviewComments(tab int) ([]reviewComment, error)
-	reviewNext(tab int, dir int) error
-	reviewExcludes(tab int, globs []string) error
 	reviewLayout(tab int, layout string) error
 	reviewClose(tab int) error
 	reviewFocus(tab int) error
@@ -168,17 +166,6 @@ func (c *client) reviewEntries(tab int) ([]reviewEntry, error) {
 
 func (c *client) reviewComments(tab int) ([]reviewComment, error) {
 	return reviewCall[[]reviewComment](c, rpcTimeout, "comments", tab)
-}
-
-func (c *client) reviewNext(tab int, dir int) error {
-	return reviewDo(c, "next_unreviewed", dir, tab)
-}
-
-func (c *client) reviewExcludes(tab int, globs []string) error {
-	if globs == nil {
-		globs = []string{}
-	}
-	return reviewDo(c, "set_excludes", globs, tab)
 }
 
 func (c *client) reviewLayout(tab int, layout string) error {

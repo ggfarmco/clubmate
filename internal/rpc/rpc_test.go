@@ -130,7 +130,7 @@ func TestRPCServeStopsOnContextCancel(t *testing.T) {
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- rpc.Serve(ctx, l, svc) }()
+	go func() { done <- rpc.NewServer(svc, nil).Serve(ctx, l) }()
 	c, err := rpc.Dial(ctx, dirs.CoreSocket())
 	require.NoError(t, err)
 	defer c.Close()
@@ -214,7 +214,7 @@ func TestRPCServeRetriesTransientAcceptErrors(t *testing.T) {
 	l := &flakyListener{Listener: inner, errs: []error{syscall.EMFILE, os.ErrDeadlineExceeded}}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- rpc.Serve(ctx, l, svc) }()
+	go func() { done <- rpc.NewServer(svc, nil).Serve(ctx, l) }()
 	c, err := rpc.Dial(ctx, dirs.CoreSocket())
 	require.NoError(t, err)
 	require.NoError(t, c.Call(t.Context(), "core.ping", struct{}{}, nil))
@@ -230,7 +230,7 @@ func TestRPCServeReturnsOnFatalAcceptError(t *testing.T) {
 	require.NoError(t, err)
 	l := &flakyListener{Listener: inner, errs: []error{errors.New("boom")}}
 	defer inner.Close()
-	assert.ErrorContains(t, rpc.Serve(t.Context(), l, svc), "boom")
+	assert.ErrorContains(t, rpc.NewServer(svc, nil).Serve(t.Context(), l), "boom")
 }
 
 func TestRPCSessionOwnerCannotBeSetByParams(t *testing.T) {

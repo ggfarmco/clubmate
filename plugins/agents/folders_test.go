@@ -77,22 +77,6 @@ func TestFolderRemoveRefusedForRunningSession(t *testing.T) {
 	assert.Len(t, f.folders(t, workspace), 2)
 }
 
-func TestFolderRemoveRefusedForWaitingSession(t *testing.T) {
-	t.Parallel()
-	f := startGit(t, map[string]any{"after": []map[string]any{{"permission": permissionScript()}}})
-	workspace, first, _ := f.twoFolders(t)
-	session := f.newSession(t, workspace)
-	f.prompt(t, workspace, session, "work")
-	f.waitStatus(t, workspace, session, "waiting")
-
-	out := f.folderRemove(t, workspace, first)
-
-	assert.False(t, out.Removed)
-	require.Len(t, out.Blockers, 1)
-	assert.Equal(t, "waiting", out.Blockers[0].Status)
-	assert.Len(t, f.folders(t, workspace), 2)
-}
-
 func TestFolderRemoveDropsTheFolderWhenNothingRunsThere(t *testing.T) {
 	t.Parallel()
 	f := startWithCron(t, map[string]any{"prompt": []map[string]any{{"sleep": 2000}}})

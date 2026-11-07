@@ -88,9 +88,7 @@ func (f *fakeReviewer) lastMeta() reviewMeta {
 	return f.metas[len(f.metas)-1]
 }
 
-func (f *fakeReviewer) reviewNext(int, int) error          { return nil }
-func (f *fakeReviewer) reviewExcludes(int, []string) error { return nil }
-func (f *fakeReviewer) reviewFocus(int) error              { return nil }
+func (f *fakeReviewer) reviewFocus(int) error { return nil }
 
 func (f *fakeReviewer) reviewClose(tab int) error {
 	f.mu.Lock()
