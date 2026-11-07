@@ -206,7 +206,7 @@ func TestFailedRepoRowOpensByItselfForThePhone(t *testing.T) {
 
 func TestRepoRowsFollowTheLandingOrderAndLeaveARunningChildItsOwnLine(t *testing.T) {
 	t.Parallel()
-	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "long", "sleep": 3000}}})
+	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "long", "wait": filepath.Join(t.TempDir(), "hold")}}})
 	l := f.landing(t, "merge", "pause", 1, 2)
 	f.prompt(t, l.workspace, l.kids[1].Session, "long")
 	f.waitStatus(t, l.workspace, l.kids[1].Session, "running")

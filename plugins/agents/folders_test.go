@@ -155,6 +155,7 @@ func TestTaskInAnotherWorkspaceDoesNotHoldTheFolder(t *testing.T) {
 	t.Parallel()
 	f := startWithCron(t, map[string]any{})
 	l := f.landing(t, "merge", "pause", 1)
+	l.waitOwnerWoken(t)
 	other := f.workspace(t, newRepo(t))
 	_, err := f.h.Svc.AddRepo(t.Context(), other, l.repos[0], contract.FolderMeta{})
 	require.NoError(t, err)
@@ -741,4 +742,24 @@ func TestFolderSheetRefusesAgentCallers(t *testing.T) {
 
 	require.Error(t, f.runAs(t, workspace, session, "agents.folder-sheet", args, nil))
 	require.Error(t, f.runFrom(t, workspace, session, "agents.folder-sheet", args, nil))
+}
+
+func TestWorkspaceUpdateLeavesAChildWhoseWorktreeIsBeingCreated(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	repo := newRepo(t)
+	gate := filepath.Join(t.TempDir(), "gate")
+	hook := fmt.Sprintf("#!/bin/sh\nwhile [ ! -e %q ]; do sleep 0.02; done\ncat >/dev/null\n", gate)
+	require.NoError(t, os.WriteFile(filepath.Join(repo, ".git", "hooks", "reference-transaction"), []byte(hook), 0o755))
+	workspace := f.workspace(t, repo)
+	var kid child
+	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{"branch": "feat-late", "prompt": "work"}, &kid))
+	require.NoDirExists(t, kid.Worktree)
+
+	_, err := f.h.Svc.AddRepo(t.Context(), workspace, newRepo(t), contract.FolderMeta{})
+	require.NoError(t, err)
+	testutil.Never(t, func() bool { return f.session(t, workspace, kid.Session).Status == "closed" }, time.Second)
+
+	write(t, gate, "")
+	assert.Equal(t, "done", f.waitBranchChildDone(t, workspace, kid.Session).Status)
 }

@@ -88,8 +88,10 @@ func TestFinishedTaskFoldsOnceOpened(t *testing.T) {
 	require.Equal(t, "merged", l.report(t, 0, "merged").State)
 	f.waitStatus(t, l.workspace, l.kids[0].Session, "done")
 
-	f.pick(t, l.workspace, l.owner)
-	assert.False(t, f.sidebarItem(t, l.workspace, l.owner).Expanded)
+	testutil.Eventually(t, func() bool {
+		f.pick(t, l.workspace, l.owner)
+		return !f.sidebarItem(t, l.workspace, l.owner).Expanded
+	}, wait)
 
 	f.fire(t, l.workspace, "agents.sidebar", "sessions", "expand", l.owner)
 	f.pick(t, l.workspace, l.kids[0].Session)

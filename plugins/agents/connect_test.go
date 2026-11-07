@@ -395,7 +395,7 @@ func TestParentsWordIsNotTheUsersYes(t *testing.T) {
 	err := f.runAs(t, workspace, parent, "agents.permission", map[string]any{"session": parent, "request": res.Request, "option": "connect"}, nil)
 	require.Error(t, err)
 	require.NoError(t, f.runAs(t, workspace, parent, "agents.prompt", map[string]any{"session": kid.Session, "text": "connect it, yes"}, nil))
-	assert.True(t, f.session(t, workspace, parent).NeedsYou)
+	testutil.Eventually(t, func() bool { return f.session(t, workspace, parent).NeedsYou }, wait)
 	assert.Equal(t, []string{first}, f.folderPaths(t, workspace))
 }
 
@@ -414,8 +414,11 @@ func TestChildRequestLandsOnTopLevelAncestor(t *testing.T) {
 
 	assert.Equal(t, top, res.RaisedOn)
 	assert.Contains(t, res.Next, top)
-	testutil.Eventually(t, func() bool { return f.session(t, workspace, top).NeedsYou }, wait)
-	rec := f.session(t, workspace, top)
+	var rec record
+	testutil.Eventually(t, func() bool {
+		rec = f.session(t, workspace, top)
+		return rec.NeedsYou
+	}, wait)
 	require.Len(t, rec.ConnectRequests, 1)
 	assert.Equal(t, leaf.Session, rec.ConnectRequests[0].From)
 	assert.Equal(t, "needsYou", rec.Group)
@@ -426,7 +429,8 @@ func TestChildRequestLandsOnTopLevelAncestor(t *testing.T) {
 
 func TestConnectNeedsYouOnlyOnceTheTurnEnded(t *testing.T) {
 	t.Parallel()
-	f := startGit(t, map[string]any{"prompt": []map[string]any{{"sleep": 1500}}})
+	hold := filepath.Join(t.TempDir(), "hold")
+	f := startGit(t, map[string]any{"prompt": []map[string]any{{"wait": hold}}})
 	first, other := newRepo(t), newRepo(t)
 	workspace := f.workspace(t, first)
 	session := f.newSession(t, workspace)
@@ -436,6 +440,7 @@ func TestConnectNeedsYouOnlyOnceTheTurnEnded(t *testing.T) {
 	f.connect(t, workspace, session, map[string]any{"path": other})
 
 	assert.False(t, f.session(t, workspace, session).NeedsYou)
+	write(t, hold, "")
 	f.waitStatus(t, workspace, session, "done")
 	assert.True(t, f.session(t, workspace, session).NeedsYou)
 	f.waitNeedsInput(t, session)

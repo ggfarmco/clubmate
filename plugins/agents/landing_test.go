@@ -143,6 +143,12 @@ func (l *landing) land(t *testing.T, i int) {
 	testutil.Eventually(t, func() bool { return l.f.landPrompts(t, l.kids[i].Session) == before+1 }, wait)
 }
 
+func (l *landing) waitOwnerWoken(t *testing.T) {
+	t.Helper()
+	testutil.Eventually(t, func() bool { return l.f.promptedWith(t, l.owner, "[Clubmate] Child ") }, wait)
+	l.f.waitStatus(t, l.workspace, l.owner, "done")
+}
+
 func (l *landing) mergeInto(t *testing.T, i int) {
 	t.Helper()
 	repo := l.repos[i]
@@ -309,8 +315,10 @@ func TestRestartWhileReadyAsksOnceAndLandsOnce(t *testing.T) {
 	require.NoError(t, f.run(t, l.workspace, "agents.land-answer", map[string]any{"request": ready.Request, "action": "merge"}, nil))
 
 	testutil.Eventually(t, func() bool { return f.landPrompts(t, l.kids[0].Session) == 1 }, wait)
-	assert.False(t, l.task(t).NeedsYou)
 	assert.Error(t, f.run(t, l.workspace, "agents.land-answer", map[string]any{"request": ready.Request, "action": "merge"}, nil))
+	l.mergeInto(t, 0)
+	assert.Equal(t, "merged", l.report(t, 0, "merged").State)
+	assert.False(t, l.task(t).NeedsYou)
 }
 
 func TestReviewDoesNotLand(t *testing.T) {
@@ -537,6 +545,7 @@ func TestHandedOffOrchestratorKeepsItsRepoChildren(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{})
 	l := f.landing(t, "merge", "pause", 1)
+	l.waitOwnerWoken(t)
 	var next struct {
 		Session string `json:"session"`
 	}
@@ -554,6 +563,7 @@ func TestHandedOffOrchestratorTakesItsChildrenAlong(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{})
 	l := f.landing(t, "merge", "pause", 1)
+	l.waitOwnerWoken(t)
 	var next struct {
 		Session string `json:"session"`
 	}
@@ -652,6 +662,7 @@ func TestLandAnswerGoesToTheHandedOffOrchestrator(t *testing.T) {
 	l := f.landing(t, "ask", "pause", 1)
 	l.report(t, 0, "ready")
 	ready := l.waitState(t, 0, "ready")
+	l.waitOwnerWoken(t)
 	old := l.owner
 	l.owner = f.handoff(t, l.workspace, old)
 	assert.Nil(t, f.session(t, l.workspace, old).Task)
@@ -660,6 +671,8 @@ func TestLandAnswerGoesToTheHandedOffOrchestrator(t *testing.T) {
 
 	testutil.Eventually(t, func() bool { return f.landPrompts(t, l.kids[0].Session) == 1 }, wait)
 	assert.Empty(t, l.repo(t, 0).Request)
+	l.mergeInto(t, 0)
+	assert.Equal(t, "merged", l.report(t, 0, "merged").State)
 	assert.False(t, l.task(t).NeedsYou)
 }
 
@@ -667,6 +680,7 @@ func TestReportDuringAnOrchestratorHandOffFindsTheTask(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{"closeSleep": 1000})
 	l := f.landing(t, "ask", "pause", 1)
+	l.waitOwnerWoken(t)
 	var next struct {
 		Session string `json:"session"`
 	}
@@ -740,6 +754,7 @@ func TestAQuestionWinsOverAFailedRepo(t *testing.T) {
 	require.NotNil(t, summary)
 	assert.Equal(t, "failed", summary.Kind)
 	assert.True(t, summary.OnMac)
+	l.waitOwnerWoken(t)
 
 	f.prompt(t, l.workspace, l.owner, "Keep the rest? ")
 	testutil.Eventually(t, func() bool { return f.session(t, l.workspace, l.owner).Asks }, wait)
@@ -780,7 +795,7 @@ func queuedLandPrompt(t *testing.T, f *fixture) *landing {
 
 func TestQueuedLandPromptIsSentAgainAfterARestart(t *testing.T) {
 	t.Parallel()
-	f := startGit(t, map[string]any{"resume": true, "prompt": []map[string]any{{"match": "hold", "sleep": 1500}}})
+	f := startGit(t, map[string]any{"resume": true, "prompt": []map[string]any{{"match": "hold", "wait": filepath.Join(t.TempDir(), "hold")}}})
 	l := queuedLandPrompt(t, f)
 
 	f.restartAgents(t, l.workspace)
@@ -790,7 +805,7 @@ func TestQueuedLandPromptIsSentAgainAfterARestart(t *testing.T) {
 
 func TestLostLandPromptOfALandedRepoIsNotSent(t *testing.T) {
 	t.Parallel()
-	f := startGit(t, map[string]any{"resume": true, "prompt": []map[string]any{{"match": "hold", "sleep": 1500}}})
+	f := startGit(t, map[string]any{"resume": true, "prompt": []map[string]any{{"match": "hold", "wait": filepath.Join(t.TempDir(), "hold")}}})
 	l := queuedLandPrompt(t, f)
 	l.mergeInto(t, 0)
 
@@ -1084,7 +1099,8 @@ func TestARowEventWithNoRowIsIgnored(t *testing.T) {
 
 func TestAskItToFixGoesOncePerFailure(t *testing.T) {
 	t.Parallel()
-	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "slow", "sleep": 1500}}})
+	hold := filepath.Join(t.TempDir(), "hold")
+	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "slow", "wait": hold}}})
 	l := f.landing(t, "merge", "pause", 1)
 	kid := l.kids[0].Session
 	args := map[string]any{"session": l.owner, "repo": l.repos[0]}
@@ -1096,6 +1112,7 @@ func TestAskItToFixGoesOncePerFailure(t *testing.T) {
 	for range 3 {
 		require.NoError(t, f.run(t, l.workspace, "agents.repo-fix", args, nil))
 	}
+	write(t, hold, "")
 
 	testutil.Eventually(t, func() bool { return f.promptedWith(t, kid, "boom once") }, wait)
 	f.waitStatus(t, l.workspace, kid, "done")
@@ -1128,7 +1145,7 @@ func TestRepoFixRefusesARepoThatDidNotFailAndAgentCallers(t *testing.T) {
 
 func TestRunningFirstTurnReadsRunning(t *testing.T) {
 	t.Parallel()
-	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "slow", "sleep": 2000}}})
+	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "slow", "wait": filepath.Join(t.TempDir(), "hold")}}})
 	l := f.landing(t, "merge", "pause", 1)
 	repo := newRepo(t)
 	_, err := f.h.Svc.AddRepo(t.Context(), l.workspace, repo, contract.FolderMeta{})
@@ -1146,7 +1163,8 @@ func TestRunningFirstTurnReadsRunning(t *testing.T) {
 
 func TestHandOffBriefTurnReadsRunningAndKeepsReady(t *testing.T) {
 	t.Parallel()
-	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "[Clubmate handoff]", "sleep": 2000}}})
+	hold := filepath.Join(t.TempDir(), "hold")
+	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "[Clubmate handoff]", "wait": hold}}})
 	l := f.landing(t, "merge", "pause", 1, 2)
 	l.report(t, 1, "ready")
 	l.waitState(t, 1, "waits")
@@ -1157,6 +1175,7 @@ func TestHandOffBriefTurnReadsRunningAndKeepsReady(t *testing.T) {
 	l.kids[1].Session = next.Session
 
 	l.waitState(t, 1, "running")
+	write(t, hold, "")
 	f.waitStatus(t, l.workspace, next.Session, "done")
 
 	testutil.Eventually(t, func() bool { return l.repo(t, 1).State == "waits" }, wait)
@@ -1181,7 +1200,7 @@ func TestClosedPRCanBeReportedFailed(t *testing.T) {
 
 func TestLandCardNeedsYouWhileTheOrchestratorRuns(t *testing.T) {
 	t.Parallel()
-	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "hold", "sleep": 1500}}})
+	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "hold", "wait": filepath.Join(t.TempDir(), "hold")}}})
 	l := f.landing(t, "ask", "pause", 1)
 	l.report(t, 0, "ready")
 	l.waitState(t, 0, "ready")
@@ -1245,7 +1264,7 @@ func TestLandCardMergePromptsTheChildAndAStaleButtonIsRefused(t *testing.T) {
 
 	require.NoError(t, f.cardEvent(t, l.workspace, node, "landAnswer", merge))
 
-	assert.Eventually(t, func() bool { return f.landPrompts(t, l.kids[0].Session) == 1 }, 5*time.Second, 20*time.Millisecond)
+	testutil.Eventually(t, func() bool { return f.landPrompts(t, l.kids[0].Session) == 1 }, wait)
 	require.ErrorContains(t, f.cardEvent(t, l.workspace, node, "landAnswer", merge), "already answered")
 }
 

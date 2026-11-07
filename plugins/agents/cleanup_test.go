@@ -148,7 +148,7 @@ func TestCleanUpRemovesWhatIsTickedAndTheCountsReconcile(t *testing.T) {
 
 func TestCleanUpNeverListsALiveWorktreeOrOneOpenInCode(t *testing.T) {
 	t.Parallel()
-	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "long", "sleep": 3000}}})
+	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "long", "wait": filepath.Join(t.TempDir(), "hold")}}})
 	repo := newRepo(t)
 	workspace := f.workspace(t, repo)
 	inCode := addWorktree(t, repo, "in-code")

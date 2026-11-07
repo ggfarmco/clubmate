@@ -231,6 +231,14 @@ func (a *app) dropWorkspace(workspaceID string, match func(record) bool, remove 
 	}
 }
 
+func (a *app) worktreeGone(rec record) bool {
+	if s := a.session(rec.ID); s != nil && s.settingUp() {
+		return false
+	}
+	_, err := os.Stat(rec.Worktree)
+	return errors.Is(err, os.ErrNotExist)
+}
+
 func (a *app) claimDrop(id string, want dropState) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()

@@ -210,6 +210,12 @@ func (u *setup) pending() bool {
 	}
 }
 
+func (s *session) settingUp() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.setup.pending()
+}
+
 func (u *setup) failed() bool {
 	if u == nil {
 		return false

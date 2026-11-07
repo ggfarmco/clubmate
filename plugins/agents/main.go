@@ -248,10 +248,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		var p contract.WorkspaceChanged
 		if json.Unmarshal(ev.Payload, &p) == nil {
 			a.kick(p.Workspace)
-			go a.dropWorkspace(p.Workspace, func(rec record) bool {
-				_, err := os.Stat(rec.Worktree)
-				return errors.Is(err, os.ErrNotExist)
-			}, false)
+			go a.dropWorkspace(p.Workspace, a.worktreeGone, false)
 		}
 	}
 }

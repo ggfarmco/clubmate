@@ -186,7 +186,7 @@ func TestArchiveRemovesWhatLandedAndClosesTheSessions(t *testing.T) {
 
 func TestArchiveRefusedWhileAChildRuns(t *testing.T) {
 	t.Parallel()
-	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "long", "sleep": 3000}}})
+	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "long", "wait": filepath.Join(t.TempDir(), "hold")}}})
 	l := f.landing(t, "merge", "pause", 1)
 	l.settle(t)
 	plan := l.plan(t)
@@ -423,7 +423,7 @@ func TestArchiveKeepsAWorktreeOpenInCode(t *testing.T) {
 
 func TestArchiveKeepsAWorktreeASessionOfAnotherWorkspaceHolds(t *testing.T) {
 	t.Parallel()
-	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "long", "sleep": 3000}}})
+	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "long", "wait": filepath.Join(t.TempDir(), "hold")}}})
 	l := f.landing(t, "merge", "pause", 1)
 	l.settle(t)
 	f.runningInTree(t, l.repos[0], l.kids[0].Worktree)
@@ -600,9 +600,10 @@ func TestRepoCardAndRowOfferArchiveOnceEveryChildIsDone(t *testing.T) {
 		return len(cards) == 1 && cards[0].Props["footerAction"] != nil
 	})
 	assert.Equal(t, "All children done · 2 worktrees left behind", cardsOf(done, "repos")[0].Props["footer"])
-	raw, err := json.Marshal(f.h.WaitSlot(t, l.workspace, "agents.sidebar", func(n sdui.Node) bool { return true }))
-	require.NoError(t, err)
-	assert.Contains(t, string(raw), "Archive Task…")
+	f.h.WaitSlot(t, l.workspace, "agents.sidebar", func(n sdui.Node) bool {
+		raw, err := json.Marshal(n)
+		return err == nil && strings.Contains(string(raw), "Archive Task…")
+	})
 }
 
 func TestRestoreBringsBackWhatItCanAndNamesTheRest(t *testing.T) {

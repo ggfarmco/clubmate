@@ -211,7 +211,8 @@ func (f *fixture) waitReady(t *testing.T, timeout time.Duration) {
 	testutil.Eventually(t, func() bool {
 		events, err := f.h.Bus.Read(t.Context(), "agents.ready", 0, 10)
 		require.NoError(t, err)
-		return len(events) > 0
+		starting := slices.ContainsFunc(f.h.Sup.Statuses(), func(s plugin.Status) bool { return s.State != plugin.StateRunning })
+		return len(events) > 0 && !starting
 	}, timeout)
 }
 
