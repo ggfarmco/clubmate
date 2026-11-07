@@ -478,6 +478,14 @@ func TestUserActionsRefuseASessionOfThisCore(t *testing.T) {
 	assert.NoError(t, press("agt_of_another_core"))
 }
 
+func TestUserActionsRefuseACallerTheyCannotCheck(t *testing.T) {
+	e := newEnv(t)
+
+	err := e.h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": e.p, "slot": "backlog.main", "nodeId": "new", "action": "add", "value": map[string]any{"title": "Unchecked"}, "caller": "agt_live"}, nil)
+
+	assert.ErrorContains(t, err, `"add" is the user's`)
+}
+
 func TestStartAgentOptions(t *testing.T) {
 	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))

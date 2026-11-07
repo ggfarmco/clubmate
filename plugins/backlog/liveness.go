@@ -139,3 +139,12 @@ func (s *sessions) session(ctx context.Context, workspaceID, id string) (agentSe
 	a, found := m[id]
 	return a, found
 }
+
+func (s *sessions) maybeSession(ctx context.Context, workspaceID, id string) bool {
+	m, ok := s.lookup(ctx, workspaceID)
+	if !ok {
+		return true
+	}
+	_, found := m[id]
+	return found
+}

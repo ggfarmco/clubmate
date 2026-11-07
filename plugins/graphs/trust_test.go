@@ -17,6 +17,7 @@ import (
 	"clubmate/pkg/pluginsdk"
 	sdk "clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/automation"
 )
 
@@ -280,23 +281,41 @@ func TestTrustConfirmView(t *testing.T) {
 }
 
 func TestTrustConfirmIsTheUsersUnlessTheCallerIsASessionHere(t *testing.T) {
-	tests := map[string]func(context.Context, string) ([]api.Session, error){
-		"another core's session": func(context.Context, string) ([]api.Session, error) { return []api.Session{{ID: "agt_boss"}}, nil },
-		"agents plugin is down":  func(context.Context, string) ([]api.Session, error) { return nil, errors.New("no agents") },
-	}
-	for name, sessions := range tests {
-		t.Run(name, func(t *testing.T) {
-			a, g, spec, dirs := changedGate(t)
-			require.NoError(t, a.trustEvent(t.Context(), pluginsdk.UIEvent{WorkspaceID: "ws1", Action: actTrust}, "gate"))
-			a.shownHash["ws1/gate"] = a.trustFor(t.Context(), "ws1", dirs, g, spec).hash
-			a.sessions = sessions
+	a, g, spec, dirs := changedGate(t)
+	require.NoError(t, a.trustEvent(t.Context(), pluginsdk.UIEvent{WorkspaceID: "ws1", Action: actTrust}, "gate"))
+	a.shownHash["ws1/gate"] = a.trustFor(t.Context(), "ws1", dirs, g, spec).hash
+	a.sessions = func(context.Context, string) ([]api.Session, error) { return []api.Session{{ID: "agt_boss"}}, nil }
 
-			_, err := a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "graph:gate/" + actTrustConfirm, Action: actTrustConfirm, Caller: "agt_of_another_core"})
+	_, err := a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "graph:gate/" + actTrustConfirm, Action: actTrustConfirm, Caller: "agt_of_another_core"})
 
-			require.NoError(t, err)
-			assert.False(t, listed(t, a, "gate").Untrusted)
-		})
+	require.NoError(t, err)
+	assert.False(t, listed(t, a, "gate").Untrusted)
+}
+
+func TestTrustConfirmRefusesACallerItCannotCheck(t *testing.T) {
+	a, g, spec, dirs := changedGate(t)
+	require.NoError(t, a.trustEvent(t.Context(), pluginsdk.UIEvent{WorkspaceID: "ws1", Action: actTrust}, "gate"))
+	a.shownHash["ws1/gate"] = a.trustFor(t.Context(), "ws1", dirs, g, spec).hash
+	a.sessions = func(context.Context, string) ([]api.Session, error) { return nil, errors.New("no agents") }
+
+	_, err := a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "graph:gate/" + actTrustConfirm, Action: actTrustConfirm, Caller: "agt_boss"})
+
+	require.ErrorIs(t, err, agentcall.ErrUnknownCommand)
+	assert.True(t, listed(t, a, "gate").Untrusted)
+}
+
+func TestOtherActionsAskNoOneWhoTheCallerIs(t *testing.T) {
+	a := testApp(t, &fakeCore{})
+	lookups := 0
+	a.sessions = func(context.Context, string) ([]api.Session, error) {
+		lookups++
+		return nil, nil
 	}
+
+	_, err := a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "graph:gate/" + actTrustCancel, Action: actTrustCancel, Caller: "agt_boss"})
+
+	require.NoError(t, err)
+	assert.Zero(t, lookups)
 }
 
 func TestNeverTrustedTagsNothing(t *testing.T) {

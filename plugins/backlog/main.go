@@ -22,6 +22,7 @@ type liveness interface {
 	stale(ctx context.Context, workspaceID, owner string) bool
 	ancestor(ctx context.Context, workspaceID, ancestor, owner string) bool
 	session(ctx context.Context, workspaceID, id string) (agentSession, bool)
+	maybeSession(ctx context.Context, workspaceID, id string) bool
 }
 
 type backlog struct {

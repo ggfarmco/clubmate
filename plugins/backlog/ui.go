@@ -239,7 +239,7 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 	user := pluginsdk.CommandRun{WorkspaceID: ev.WorkspaceID}
 	verb, _ := parseAction(ev.Action)
 	switch {
-	case (ev.Agent || b.fromSession(ctx, ev)) && changesTasks(ev, verb):
+	case changesTasks(ev, verb) && (ev.Agent || b.fromSession(ctx, ev)):
 		return fmt.Errorf("%w: %q is the user's; agents use the backlog commands", errUnknownAction, ev.Action)
 	case ev.NodeID == "new" && ev.Action == "add":
 		var args commandArgs
@@ -397,8 +397,7 @@ func (b *backlog) fromSession(ctx context.Context, ev pluginsdk.UIEvent) bool {
 	if ev.Caller == "" {
 		return false
 	}
-	_, ok := b.live.session(ctx, ev.WorkspaceID, ev.Caller)
-	return ok
+	return b.live.maybeSession(ctx, ev.WorkspaceID, ev.Caller)
 }
 
 func changesTasks(ev pluginsdk.UIEvent, verb string) bool {
