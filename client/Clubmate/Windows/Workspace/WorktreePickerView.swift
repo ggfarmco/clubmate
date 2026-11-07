@@ -360,7 +360,7 @@ private struct WorktreePickerRowView: View {
                     .layoutPriority(1)
                 Spacer(minLength: theme.gutter)
                 Text(hint)
-                    .foregroundStyle(theme.faint)
+                    .foregroundStyle(theme.muted)
                     .lineLimit(1)
                     .truncationMode(.label)
             }
@@ -378,7 +378,7 @@ private struct WorktreePickerRowView: View {
         case .note(_, let text):
             Text(text)
                 .font(theme.uiSmall)
-                .foregroundStyle(theme.faint)
+                .foregroundStyle(theme.muted)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, theme.gutter * 1.5 + 14 + theme.gutter)
