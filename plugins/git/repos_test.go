@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,6 +26,7 @@ type repoFacts struct {
 	Ahead         int         `json:"ahead"`
 	DefaultBranch string      `json:"defaultBranch"`
 	Fetched       bool        `json:"fetched"`
+	LastCommit    time.Time   `json:"lastCommit"`
 	Brings        repoBrings  `json:"brings"`
 	Trusted       repoTrusted `json:"trusted"`
 }
@@ -205,6 +207,8 @@ func TestRepoFactsReadLocalRefsOutsideTheWorkspace(t *testing.T) {
 
 	facts := factsOf(t, h, id, repo)
 
+	assert.WithinDuration(t, time.Now(), facts.LastCommit, time.Minute)
+	facts.LastCommit = time.Time{}
 	assert.Equal(t, repoFacts{
 		Name:          filepath.Base(repo),
 		Path:          repo,

@@ -334,12 +334,10 @@ func findTree(n sdui.Node) (sdui.Node, bool) {
 func shownSessions(items []sdui.TreeItem) []string {
 	var ids []string
 	for _, item := range items {
-		if !strings.HasPrefix(item.ID, groupPrefix) && !strings.HasPrefix(item.ID, hitPrefix) {
+		if !strings.HasPrefix(item.ID, groupPrefix) && !strings.HasPrefix(item.ID, hitPrefix) && !strings.HasPrefix(item.ID, repoPrefix) {
 			ids = append(ids, item.ID)
 		}
-		if item.Expanded {
-			ids = append(ids, shownSessions(item.Children)...)
-		}
+		ids = append(ids, shownSessions(item.Children)...)
 	}
 	return ids
 }
@@ -486,6 +484,9 @@ func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[stri
 		}
 	}
 	item := sessionItem(row, descendantCount(row.Rec.ID, kids, map[string]bool{}), now)
+	if entries := row.Rec.repoEntries(); len(entries) > 0 {
+		return taskParent(item, row, entries, children, kids, collapsed, now, path, oldest)
+	}
 	if len(children) == 0 {
 		return item
 	}

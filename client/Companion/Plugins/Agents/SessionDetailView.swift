@@ -158,6 +158,8 @@ struct SessionDetailView: View {
                             .id(question.id)
                         case .question(let question):
                             QuestionCard(question: question, agentName: session.agentName, subagent: session.parentSession != nil)
+                        case .onMac(let text):
+                            AnswerOnMacRow(text: text)
                         case .open(let card):
                             OpenItemsCard(card: card, count: session.openCount, folded: folded(card), blocked: blocked, draft: Binding(get: { store.openDraft(sessionID) }, set: { store.setOpenDraft($0, session: sessionID) })) {
                                 try await store.laterOpen(sessionID)

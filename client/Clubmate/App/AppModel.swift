@@ -222,6 +222,20 @@ final class AppModel {
         workspaceStore?.workspaces.first { $0.id == id }
     }
 
+    func newFolders(_ id: String) -> [Workspace.Folder] {
+        workspace(id)?.folders.filter { !$0.seen } ?? []
+    }
+
+    func markFoldersSeen(_ id: String) {
+        guard let client = supervisor.client else { return }
+        let folders = newFolders(id)
+        Task {
+            for folder in folders {
+                try? await client.markFolderSeen(id, path: folder.path)
+            }
+        }
+    }
+
     fileprivate func connect() async throws -> CoreClient {
         guard let cli = Bundle.main.resourceURL?.appending(path: "bin/clubmate") else {
             throw ClubmateError.coreStartFailed("bundled clubmate CLI not found")

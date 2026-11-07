@@ -61,11 +61,17 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
     public let children: [SDUITreeItem]
     public let badges: [SDUIHeaderBadge]
     public let changes: SDUIChanges?
+    public let labelIcon: String?
+    public let pinned: Bool
 
     public var id: String { item.id }
 
+    public var shownChildren: [SDUITreeItem] {
+        expanded ? children : children.filter(\.pinned)
+    }
+
     public var visibleItems: [SDUIItem] {
-        [item] + (expanded ? children.flatMap(\.visibleItems) : [])
+        [item] + shownChildren.flatMap(\.visibleItems)
     }
 
     public init?(_ value: JSONValue) {
@@ -82,6 +88,8 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
         children = fields["children"]?.arrayValue?.compactMap(SDUITreeItem.init) ?? []
         badges = fields["badges"]?.arrayValue?.compactMap(SDUIHeaderBadge.init) ?? []
         changes = fields["changes"].flatMap(SDUIChanges.init)
+        labelIcon = fields["labelIcon"]?.stringValue
+        pinned = fields["pinned"]?.boolValue ?? false
     }
 }
 
@@ -106,6 +114,55 @@ public struct SDUIHeaderBadge: Sendable, Equatable {
         self.text = text
         tone = fields["tone"]?.stringValue
         outline = fields["outline"]?.boolValue ?? false
+    }
+}
+
+public struct SDUIReposSegment: Sendable, Equatable {
+    public let text: String
+    public let tone: String?
+
+    public init?(_ json: JSONValue) {
+        guard let fields = json.objectValue, let text = fields["text"]?.stringValue else { return nil }
+        self.text = text
+        tone = fields["tone"]?.stringValue
+    }
+}
+
+public struct SDUIReposRow: Sendable, Equatable, Identifiable {
+    public let id: String
+    public let order: Int
+    public let name: String
+    public let landsBy: String
+    public let landsIcon: String?
+    public let source: String?
+    public let state: String
+    public let tone: String?
+    public let icon: String?
+    public let opens: Bool
+    public let open: Bool
+    public let cursor: Bool
+    public let tail: String?
+    public let note: String?
+    public let actions: String?
+
+    public init?(_ json: JSONValue) {
+        guard let fields = json.objectValue, let id = fields["id"]?.stringValue, let name = fields["name"]?.stringValue,
+              let landsBy = fields["landsBy"]?.stringValue, let state = fields["state"]?.stringValue else { return nil }
+        self.id = id
+        order = fields["order"]?.numberValue.flatMap { Int(exactly: $0) } ?? 0
+        self.name = name
+        self.landsBy = landsBy
+        landsIcon = fields["landsIcon"]?.stringValue
+        source = fields["source"]?.stringValue
+        self.state = state
+        tone = fields["tone"]?.stringValue
+        icon = fields["icon"]?.stringValue
+        opens = fields["opens"]?.boolValue ?? false
+        open = fields["open"]?.boolValue ?? false
+        cursor = fields["cursor"]?.boolValue ?? false
+        tail = fields["tail"]?.stringValue
+        note = fields["note"]?.stringValue
+        actions = fields["actions"]?.stringValue
     }
 }
 
@@ -391,7 +448,19 @@ extension SDUINode {
     }
 
     public var headerButtons: [SDUIChild] {
-        identifiedChildren.filter { $0.node.type != "textField" && $0.id != headerStop?.id }
+        identifiedChildren.filter { $0.node.type != "textField" && $0.id != headerStop?.id && $0.node.bool("pill") != true }
+    }
+
+    public var headerPill: SDUIChild? {
+        identifiedChildren.first { $0.node.bool("pill") == true }
+    }
+
+    public func reposSummary() -> [SDUIReposSegment] {
+        props["summary"]?.arrayValue?.compactMap(SDUIReposSegment.init) ?? []
+    }
+
+    public func reposRows() -> [SDUIReposRow] {
+        props["rows"]?.arrayValue?.compactMap(SDUIReposRow.init) ?? []
     }
 
     public var headerStatusTone: String? {

@@ -112,6 +112,10 @@ public final class CoreClient {
         let _: Workspace = try await connection.call("workspace.folder.add", AddRepoParams(id: id, path: path))
     }
 
+    public func markFolderSeen(_ id: String, path: String) async throws {
+        let _: Workspace = try await connection.call("workspace.folder.seen", AddRepoParams(id: id, path: path))
+    }
+
     public func deleteWorkspace(_ id: String) async throws {
         let _: NoParams = try await connection.call("workspace.delete", IDParams(id: id), timeout: .seconds(60))
     }

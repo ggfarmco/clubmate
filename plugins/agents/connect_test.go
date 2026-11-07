@@ -569,3 +569,18 @@ func TestPendingConnectKeepsTheSessionOpen(t *testing.T) {
 
 	assert.Equal(t, "done", f.session(t, workspace, session).Status)
 }
+
+func TestConnectCardAnswerClosesTheRequest(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	first, ticked, unticked := newRepo(t), newRepo(t), newRepo(t)
+	workspace := f.workspace(t, first)
+	session := f.doneSession(t, workspace)
+	res := f.connect(t, workspace, session, map[string]any{"path": ticked}, map[string]any{"path": unticked})
+	value := map[string]any{"request": res.Request, "answers": []connectAnswer{{"path": ticked, "action": "connect"}, {"path": unticked, "action": "skip"}}}
+
+	require.NoError(t, f.cardEvent(t, workspace, session+"/connect/"+res.Request, "connectAnswer", value))
+
+	assert.Equal(t, []string{first, ticked}, f.folderPaths(t, workspace))
+	assert.Empty(t, f.session(t, workspace, session).ConnectRequests)
+}

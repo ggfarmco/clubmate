@@ -180,6 +180,8 @@ type noticeUpdate struct {
 	SessionUpdate string `json:"sessionUpdate,omitempty"`
 	Title         string `json:"title"`
 	Description   string `json:"description"`
+	Repo          string `json:"repo,omitempty"`
+	Path          string `json:"path,omitempty"`
 }
 
 func (s *session) view(fromTurn int) transcriptView {
@@ -351,8 +353,12 @@ func (s *session) update(params json.RawMessage) {
 }
 
 func (s *session) notice(title, description string) {
+	s.noticeUpdate(noticeUpdate{SessionUpdate: acp.UpdateNotice, Title: title, Description: description})
+}
+
+func (s *session) noticeUpdate(n noticeUpdate) {
 	s.mu.Lock()
-	s.recordLocked(actorClubmate, kindUpdate, noticeUpdate{SessionUpdate: acp.UpdateNotice, Title: title, Description: description})
+	s.recordLocked(actorClubmate, kindUpdate, n)
 	s.mu.Unlock()
 	s.changed(changeUpdate, false)
 }

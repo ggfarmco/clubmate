@@ -217,7 +217,7 @@ struct TreeNodeView: View {
         func visit(_ items: [SDUITreeItem], _ depth: Int) {
             for item in items {
                 rows.append(Row(item: item, depth: depth))
-                if item.expanded { visit(item.children, depth + 1) }
+                visit(item.shownChildren, depth + 1)
             }
         }
         visit(node.treeItems(), 0)
@@ -279,7 +279,7 @@ struct TreeNodeView: View {
     }
 
     private func itemRow(_ row: Row, nested: Bool, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
-        ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, faint: row.item.faint, tone: row.item.tone, detailTone: row.item.detailTone, detailFaint: row.item.detailFaint, depth: row.depth, badges: row.item.badges, changes: row.item.changes, action: action) {
+        ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, faint: row.item.faint, tone: row.item.tone, detailTone: row.item.detailTone, detailFaint: row.item.detailFaint, depth: row.depth, badges: row.item.badges, changes: row.item.changes, labelIcon: row.item.labelIcon, action: action) {
             Disclosure(hasChildren: row.item.hasChildren, expanded: row.item.expanded, reserve: nested) { expanded in
                 dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
             }
@@ -403,6 +403,7 @@ struct ItemRow<Leading: View>: View {
     var depth = 0
     var badges: [SDUIHeaderBadge] = []
     var changes: SDUIChanges?
+    var labelIcon: String?
     let action: () -> Void
     @ViewBuilder let leading: () -> Leading
 
@@ -427,7 +428,12 @@ struct ItemRow<Leading: View>: View {
                         .frame(width: 14)
                 }
             }
-            RowLayout(hasDetail: item.detail != nil, lead: theme.gutter + theme.spacing.m * 2, spacing: theme.spacing.m, keptLabel: keptLabel, keptDetail: keptDetail) {
+            if let labelIcon {
+                Image(systemName: SymbolName.resolve(labelIcon))
+                    .foregroundStyle(theme.muted)
+                    .frame(width: 14)
+            }
+            RowLayout(hasDetail: item.detail != nil, lead: labelIcon == nil ? theme.gutter + theme.spacing.m * 2 : theme.spacing.l, spacing: theme.spacing.m, keptLabel: keptLabel, keptDetail: keptDetail) {
                 Text(item.label)
                     .foregroundStyle(faint ? theme.faint : muted ? theme.muted : theme.foreground)
                     .lineLimit(1)

@@ -52,6 +52,8 @@ type TreeItem struct {
 	Truncate    string        `json:"truncate,omitempty"`
 	Badges      []HeaderBadge `json:"badges,omitempty"`
 	Changes     *Changes      `json:"changes,omitempty"`
+	LabelIcon   string        `json:"labelIcon,omitempty"`
+	Pinned      bool          `json:"pinned,omitempty"`
 }
 
 type Option struct {
@@ -166,6 +168,50 @@ type PermissionCardProps struct {
 	Caption string
 	Options []PermissionOption
 	Outcome string
+}
+
+type ConnectRepoRow struct {
+	Key     string `json:"key"`
+	Name    string `json:"name"`
+	Path    string `json:"path,omitempty"`
+	Remote  string `json:"remote,omitempty"`
+	State   string `json:"state,omitempty"`
+	Warn    bool   `json:"warn,omitempty"`
+	Clone   bool   `json:"clone,omitempty"`
+	Reason  string `json:"reason,omitempty"`
+	LandsBy string `json:"landsBy,omitempty"`
+	Source  string `json:"source,omitempty"`
+	Brings  string `json:"brings,omitempty"`
+	Trust   string `json:"trust,omitempty"`
+	Folded  bool   `json:"folded,omitempty"`
+}
+
+type ConnectEffect struct {
+	Text string `json:"text"`
+	Note string `json:"note,omitempty"`
+}
+
+type ConnectRepoProps struct {
+	Title    string
+	Caption  string
+	Connect  string
+	Effect   string
+	Effects  []ConnectEffect
+	Hint     string
+	Declined string
+	More     string
+	Repos    []ConnectRepoRow
+}
+
+type LandRequestProps struct {
+	Title   string
+	Caption string
+	Name    string
+	Detail  string
+	Rule    string
+	Hint    string
+	Confirm string
+	Options []PermissionOption
 }
 
 type Command struct {
@@ -718,6 +764,18 @@ func Header(title string, p HeaderProps, actions ...Node) Node {
 	return Node{Type: "header", Props: props, Children: actions}
 }
 
+type CrumbProps struct {
+	Parts []string
+	Leaf  string
+	Icon  string
+	Note  string
+}
+
+func Crumb(p CrumbProps, actions ...Node) Node {
+	props := withOptional(withOptional(map[string]any{"parts": p.Parts, "leaf": p.Leaf}, "icon", p.Icon), "note", p.Note)
+	return Node{Type: "crumb", Props: props, Children: actions}
+}
+
 type EmptyProps struct {
 	Title  string
 	Icon   string
@@ -792,12 +850,79 @@ func Sheet(id string, p SheetProps, children ...Node) Node {
 	return Node{Type: "sheet", ID: id, Props: props, Children: children}
 }
 
+type ReposSegment struct {
+	Text string `json:"text"`
+	Tone string `json:"tone,omitempty"`
+}
+
+type ReposRow struct {
+	ID      string `json:"id"`
+	Order   int    `json:"order"`
+	Name    string `json:"name"`
+	LandsBy string `json:"landsBy"`
+	Lands   string `json:"landsIcon,omitempty"`
+	Source  string `json:"source,omitempty"`
+	State   string `json:"state"`
+	Tone    string `json:"tone,omitempty"`
+	Icon    string `json:"icon,omitempty"`
+	Opens   bool   `json:"opens,omitempty"`
+	Open    bool   `json:"open,omitempty"`
+	Cursor  bool   `json:"cursor,omitempty"`
+	Tail    string `json:"tail,omitempty"`
+	Note    string `json:"note,omitempty"`
+	Actions string `json:"actions,omitempty"`
+}
+
+type ReposProps struct {
+	Title      string
+	Summary    []ReposSegment
+	Branch     string
+	BranchNote string
+	Columns    []string
+	Rows       []ReposRow
+	Footer     string
+	Hint       string
+	Collapsed  bool
+	Action     string
+	RowAction  string
+}
+
+func Repos(id string, p ReposProps, actions ...Node) Node {
+	props := map[string]any{"title": p.Title, "summary": nonNil(p.Summary), "columns": nonNil(p.Columns), "rows": nonNil(p.Rows), "action": p.Action, "rowAction": p.RowAction}
+	for _, kv := range [][2]string{{"branch", p.Branch}, {"branchNote", p.BranchNote}, {"footer", p.Footer}, {"hint", p.Hint}} {
+		props = withOptional(props, kv[0], kv[1])
+	}
+	if p.Collapsed {
+		props["collapsed"] = true
+	}
+	return Node{Type: "repos", ID: id, Props: props, Children: actions}
+}
+
 func PermissionCard(id, request string, p PermissionCardProps) Node {
 	props := map[string]any{"request": request, "text": p.Text, "options": nonNil(p.Options)}
 	for _, kv := range [][2]string{{"title", p.Title}, {"command", p.Command}, {"caption", p.Caption}, {"outcome", p.Outcome}} {
 		props = withOptional(props, kv[0], kv[1])
 	}
 	return Node{Type: "permissionCard", ID: id, Props: props}
+}
+
+func ConnectRepoCard(id, request string, p ConnectRepoProps) Node {
+	props := map[string]any{"request": request, "title": p.Title, "connect": p.Connect, "repos": nonNil(p.Repos)}
+	for _, kv := range [][2]string{{"caption", p.Caption}, {"effect", p.Effect}, {"hint", p.Hint}, {"declined", p.Declined}, {"more", p.More}} {
+		props = withOptional(props, kv[0], kv[1])
+	}
+	if len(p.Effects) > 0 {
+		props["effects"] = p.Effects
+	}
+	return Node{Type: "request.connectRepo", ID: id, Props: props}
+}
+
+func LandRequestCard(id, request string, p LandRequestProps) Node {
+	props := map[string]any{"request": request, "title": p.Title, "name": p.Name, "options": nonNil(p.Options)}
+	for _, kv := range [][2]string{{"caption", p.Caption}, {"detail", p.Detail}, {"rule", p.Rule}, {"hint", p.Hint}, {"confirm", p.Confirm}} {
+		props = withOptional(props, kv[0], kv[1])
+	}
+	return Node{Type: "request.land", ID: id, Props: props}
 }
 
 func Composer(id string, p ComposerProps) Node {
@@ -866,6 +991,18 @@ func WithVariant(n Node, variant string) Node {
 
 func WithShortcut(n Node, combo string) Node {
 	return withProp(n, "shortcut", combo)
+}
+
+func WithPill(n Node, detail, tone string) Node {
+	n = withProp(n, "pill", true)
+	if detail == "" {
+		return n
+	}
+	return withProp(withProp(n, "detail", detail), "detailTone", tone)
+}
+
+func WithHints(n Node, hints string) Node {
+	return withProp(n, "hints", hints)
 }
 
 func WithOverflow(n Node) Node {

@@ -18,6 +18,8 @@ final class SessionRowsTests: XCTestCase {
             (AgentSession(id: "d", status: .done, asks: true, pendingSummary: PendingSummary(kind: .question, text: "Add retries?", at: ago(1)), question: "Add retries?"),
              .question, SessionStateLine(lead: "Asks:", text: "Add retries?", tone: .primary)),
             (AgentSession(id: "e", status: .done, asks: true), .question, SessionStateLine(text: "Asking you", tone: .needsYou)),
+            (AgentSession(id: "e2", status: .done, pendingSummary: PendingSummary(kind: .failed, text: "ads failed", onMac: true, at: ago(60)), needsYou: true),
+             .permission, SessionStateLine(text: "ads failed", tone: .needsYou, age: "1 min")),
             (AgentSession(id: "f", status: .running, updatedAt: ago(1), turnStartedAt: ago(240)), .running, SessionStateLine(text: "Running", age: "4 min")),
             (AgentSession(id: "f2", status: .running, turnStartedAt: ago(600), activity: SessionActivity(title: "Editing reserve.go", at: ago(240))), .running, SessionStateLine(text: "Editing reserve.go", age: "4 min")),
             (AgentSession(id: "g", status: .done, childStatus: .running), .running, SessionStateLine(text: "Waiting for subagents")),

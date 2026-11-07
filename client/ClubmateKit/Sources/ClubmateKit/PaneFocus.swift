@@ -10,6 +10,9 @@ public enum FocusedPane: Equatable, Sendable {
     case runstrip(title: Bool)
     case composer(running: Bool, queues: Bool)
     case openItems
+    case connectCard
+    case landCard
+    case keys(String)
     case field
     case terminal
 
@@ -23,6 +26,9 @@ public enum FocusedPane: Equatable, Sendable {
         case .runstrip(let title): title ? "←/→ run · h fold" : "←/→ run"
         case .composer(let running, let queues): queues ? "↩ queue · Esc stop" : running ? "↩ send · Esc stop" : "↩ send"
         case .openItems: "1–4 pick · L later · ⌘↩ send"
+        case .connectCard: "⌥1 connect · space un-tick · ⌥3 don't"
+        case .landCard: "⌥1 review · ⌥2 merge · ⌥3 leave"
+        case .keys(let hints): hints
         case .field: "↩ submit"
         case .terminal: nil
         }

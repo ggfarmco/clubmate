@@ -89,8 +89,19 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 	if old.Task != nil {
 		a.saveNow(ctx, next)
 		a.saveNow(ctx, s)
+		a.moveChildren(ctx, old.ID, next.snapshot().ID)
 	}
 	return next, err
+}
+
+func (a *app) moveChildren(ctx context.Context, from, to string) {
+	for _, kid := range a.children(from) {
+		kid.mu.Lock()
+		kid.rec.ParentSession = to
+		kid.mu.Unlock()
+		kid.changed(changeUpdate, true)
+		a.saveNow(ctx, kid)
+	}
 }
 
 func handoffBrief(v transcriptView, note string) string {

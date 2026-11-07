@@ -31,9 +31,11 @@ public enum SessionState: String, Sendable, CaseIterable {
 }
 
 extension AgentSession {
+    public var answersOnMac: Bool { pendingSummary?.onMac == true }
+
     public var state: SessionState {
         if isClosed { return .closed }
-        if needsYou { return status == .waiting || !pending.isEmpty ? .waitingForYou : .askingYou }
+        if needsYou { return status == .waiting || !pending.isEmpty || answersOnMac ? .waitingForYou : .askingYou }
         if asksParent { return .askingParent }
         if status == .running { return .running }
         if status == .error { return .stopped }
@@ -136,6 +138,7 @@ public enum SessionDock: Sendable, Equatable {
     case permission(PermissionRequest, more: Int)
     case elicitation(Elicitation)
     case question(String)
+    case onMac(String)
     case open(OpenCard)
 }
 
@@ -205,6 +208,8 @@ public struct SessionScreen: Sendable, Equatable {
             dock = .permission(first, more: waiting.count - 1)
         } else if let question = questions.first {
             dock = .elicitation(question)
+        } else if let summary = session?.pendingSummary, summary.onMac == true {
+            dock = .onMac(summary.text)
         } else if let asked {
             dock = .question(asked.question)
         } else if session?.state == .askingYou {

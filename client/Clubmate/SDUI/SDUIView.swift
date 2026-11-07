@@ -302,11 +302,15 @@ struct SDUINodeView: View, Equatable {
         case "card": CardNodeView(node: node)
         case "sheet": SheetNodeView(node: node)
         case "permissionCard": PermissionCardNodeView(node: node)
+        case "request.connectRepo": ConnectRepoCardView(node: node)
+        case "request.land": LandRequestCardView(node: node)
+        case "repos": ReposCardView(node: node)
         case "composer": ComposerNodeView(node: node)
         case "surface": SurfaceHost(sessionID: node.string("sessionId") ?? "")
         case "webview": WebViewHost(key: node.string("key") ?? "", url: node.string("url").flatMap(URL.init(string:)), rev: node.props["rev"]?.numberValue.flatMap { Int(exactly: $0) } ?? 0)
         case "empty": EmptyNodeView(node: node)
         case "header": HeaderNodeView(node: node)
+        case "crumb": CrumbNodeView(node: node)
         case "graph": GraphNodeView(node: node)
         case "flow": FlowNodeView(node: node)
         case "lanes": LanesNodeView(node: node)
@@ -334,9 +338,9 @@ enum SDUIGutter {
         switch node.type {
         case "stack", "split", "scroll", "spacer", "form", "sheet", "card", "keys":
             false
-        case "list", "tree", "table", "header", "empty", "graph", "composer", "surface", "webview":
+        case "list", "tree", "table", "header", "crumb", "empty", "graph", "composer", "surface", "webview":
             false
-        case "transcript", "message", "plan", "toolCard", "permissionCard":
+        case "transcript", "message", "plan", "toolCard", "permissionCard", "request.connectRepo", "request.land", "repos":
             false
         case "button", "folderField", "progress":
             false

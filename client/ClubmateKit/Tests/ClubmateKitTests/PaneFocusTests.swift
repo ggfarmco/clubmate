@@ -25,6 +25,7 @@ final class PaneFocusTests: XCTestCase {
     func testHintsFollowThePaneState() {
         XCTAssertEqual(FocusedPane.tree(field: false).hints, "j/k · ↩ open")
         XCTAssertEqual(FocusedPane.list.hints, "j/k · ↩ open")
+        XCTAssertEqual(FocusedPane.landCard.hints, "⌥1 review · ⌥2 merge · ⌥3 leave")
         XCTAssertEqual(FocusedPane.graph(history: true).hints, "j/k · ↩ open · h history")
         XCTAssertEqual(FocusedPane.graph(history: false).hints, "j/k · ↩ open")
         XCTAssertEqual(FocusedPane.graph(history: true, edges: true).hints, "j/k · ↩ open · tab edge · h history")

@@ -124,11 +124,12 @@ type toolActivity struct {
 }
 
 type pendingSummary struct {
-	Kind string    `json:"kind"`
-	Text string    `json:"text"`
-	Tool string    `json:"tool,omitempty"`
-	Role string    `json:"role,omitempty"`
-	At   time.Time `json:"at"`
+	Kind  string    `json:"kind"`
+	Text  string    `json:"text"`
+	Tool  string    `json:"tool,omitempty"`
+	Role  string    `json:"role,omitempty"`
+	OnMac bool      `json:"onMac,omitempty"`
+	At    time.Time `json:"at"`
 }
 
 type sessionStore interface {

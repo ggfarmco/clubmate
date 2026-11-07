@@ -43,6 +43,7 @@ type repoFacts struct {
 	Ahead         int       `json:"ahead"`
 	DefaultBranch string    `json:"defaultBranch"`
 	Fetched       bool      `json:"fetched"`
+	LastCommit    time.Time `json:"lastCommit,omitzero"`
 	Brings        brought   `json:"brings"`
 	Trusted       repoTrust `json:"trusted"`
 }
@@ -90,12 +91,22 @@ func readRepoFacts(ctx context.Context, h *pluginsdk.Host, workspaceID, path str
 		}
 		out.Behind, out.Ahead = divergence(ctx, top, remotesPrefix+name+"/"+out.DefaultBranch)
 	}
+	out.LastCommit = lastCommit(ctx, top)
 	out.Brings = bringsOf(top, f.Real)
 	out.Trusted = repoTrust{
 		Hooks:  hooks{h: h, workspaceID: workspaceID, primary: f.Trees[0].Path}.allTrusted(ctx, top, out.Brings.Hooks),
 		Graphs: trustedGraphNames(ctx, h, workspaceID, f.Real, out.Brings.Graphs),
 	}
 	return out, nil
+}
+
+func lastCommit(ctx context.Context, top string) time.Time {
+	raw, err := gitrepo.Inert(ctx, top, "log", "-1", "--format=%cI", currentHead, "--")
+	if err != nil {
+		return time.Time{}
+	}
+	at, _ := time.Parse(time.RFC3339, strings.TrimSpace(string(raw)))
+	return at
 }
 
 func prepareClone(_ context.Context, _ *pluginsdk.Host, _ string, args worktreeArgs) (opFunc, error) {

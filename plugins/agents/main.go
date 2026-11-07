@@ -323,6 +323,12 @@ func (a *app) list(workspaceID string) []record {
 func (a *app) infos(workspaceID string) []sessionInfo {
 	recs := a.list(workspaceID)
 	children := childStatuses(recs)
+	kids := map[string][]record{}
+	for _, rec := range recs {
+		if rec.ParentSession != "" {
+			kids[rec.ParentSession] = append(kids[rec.ParentSession], rec)
+		}
+	}
 	out := make([]sessionInfo, 0, len(recs))
 	for _, rec := range recs {
 		info := sessionInfo{record: rec, NotifyEffective: a.effectiveNotify(rec), ChildStatus: children[rec.ID]}
@@ -367,14 +373,14 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		if rec.taskWaits() {
 			info.Pending = append(info.Pending, rec.Task.requests()...)
 			if info.PendingSummary == nil {
-				info.PendingSummary = rec.Task.pendingSummary()
+				info.PendingSummary = rec.taskPending(info.Asks)
 			}
 		}
 		if rec.RepoPath != "" {
 			info.Repo = filepath.Base(rec.RepoPath)
 		}
 		if rec.Task != nil {
-			info.TaskSummary = rec.Task.summary()
+			info.TaskSummary, _ = repoSummary(rec, kids[rec.ID])
 		}
 		if info.PendingSummary == nil && info.Asks && rec.Question != "" {
 			info.PendingSummary = &pendingSummary{Kind: pendingQuestion, Text: rec.Question, At: rec.UpdatedAt}

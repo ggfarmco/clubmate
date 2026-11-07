@@ -5,6 +5,7 @@ struct CardButton: View {
         case plain
         case primary
         case danger
+        case ghost
     }
 
     let label: String
@@ -49,7 +50,7 @@ struct CardButton: View {
         switch tone {
         case .primary: theme.onAccent
         case .danger: theme.danger
-        case .plain: theme.foreground
+        case .plain, .ghost: theme.foreground
         }
     }
 
@@ -58,12 +59,14 @@ struct CardButton: View {
         case .primary: .clear
         case .danger: theme.toneBorder(theme.danger)
         case .plain: theme.borderStrong
+        case .ghost: .clear
         }
     }
 
     private var fill: Color {
         switch tone {
         case .primary: theme.accent.opacity(hovering && !disabled ? 0.85 : 1)
+        case .ghost: hovering && !disabled ? theme.pressed : .clear
         default: hovering && !disabled ? theme.pressed : theme.surface2
         }
     }

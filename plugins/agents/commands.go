@@ -78,6 +78,7 @@ var (
 		"agents.task-report":    withArgs((*app).taskReportCommand),
 		"agents.land-answer":    withArgs((*app).landAnswerCommand),
 		"agents.repo-leave":     withArgs((*app).repoLeaveCommand),
+		"agents.repo-fix":       withArgs((*app).repoFixCommand),
 	}
 
 	errUnknownCmd    = errors.New("unknown command")

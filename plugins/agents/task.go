@@ -49,6 +49,10 @@ type taskRepo struct {
 	TakenTurn  int       `json:"takenTurn,omitempty"`
 	Tip        string    `json:"tip,omitempty"`
 	Base       string    `json:"base,omitempty"`
+	Branch     string    `json:"branch,omitempty"`
+	Into       string    `json:"into,omitempty"`
+	Commits    int       `json:"commits,omitempty"`
+	FixAsked   bool      `json:"fixAsked,omitempty"`
 }
 
 func (a *app) taskCommand(ctx context.Context, cmd pluginsdk.CommandRun, args taskRecord) (any, error) {
@@ -63,7 +67,7 @@ func (a *app) taskCommand(ctx context.Context, cmd pluginsdk.CommandRun, args ta
 	defer a.landMu.Unlock()
 	owner := a.topLevel(caller)
 	if owner == caller {
-		next := args.declared(owner.snapshot().Task)
+		next := args.declared(ctx, owner.snapshot().Task)
 		owner.putTask(next)
 		a.saveNow(ctx, owner)
 		a.reconcileTasks(ctx)
@@ -78,7 +82,7 @@ func (a *app) taskCommand(ctx context.Context, cmd pluginsdk.CommandRun, args ta
 	return next, nil
 }
 
-func (t taskRecord) declared(old *taskRecord) *taskRecord {
+func (t taskRecord) declared(ctx context.Context, old *taskRecord) *taskRecord {
 	next := &taskRecord{Slug: t.Slug, Repos: make([]taskRepo, 0, len(t.Repos))}
 	for _, repo := range t.Repos {
 		r := taskRepo{Name: filepath.Base(repo.Path), State: landWaits}
@@ -88,6 +92,9 @@ func (t taskRecord) declared(old *taskRecord) *taskRecord {
 			}
 		}
 		r.Path, r.Order, r.LandsBy, r.Source = repo.Path, repo.Order, repo.LandsBy, repo.Source
+		if r.Into == "" {
+			r.Into, _ = gitrepo.DefaultBranch(ctx, r.Path)
+		}
 		next.Repos = append(next.Repos, r)
 	}
 	slices.SortStableFunc(next.Repos, func(x, y taskRepo) int { return cmp.Compare(x.Order, y.Order) })

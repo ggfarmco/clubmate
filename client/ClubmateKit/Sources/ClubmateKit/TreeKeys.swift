@@ -106,7 +106,7 @@ public enum TreeCursor {
     private static func rows(_ items: [SDUITreeItem], depth: Int, parent: String?) -> [TreeRow] {
         items.flatMap { item in
             let row = TreeRow(id: item.id, depth: depth, parent: parent, hasChildren: item.hasChildren, expanded: item.expanded)
-            return [row] + (item.expanded ? rows(item.children, depth: depth + 1, parent: item.id) : [])
+            return [row] + rows(item.shownChildren, depth: depth + 1, parent: item.id)
         }
     }
 }

@@ -8,20 +8,21 @@
     "shortcuts": [
       {"keys": "cmd+i", "action": "Show the session's context, or back to the transcript"},
       {"keys": "cmd+r", "action": "Open the session's review in the Code section", "when": "the session opened or received an open review"},
-      {"keys": "opt+1", "action": "Allow the permission request once, or pick the question's 1st option", "when": "a permission request or question is pending"},
-      {"keys": "opt+2", "action": "Always allow… the permission request (asks to confirm), or pick the question's 2nd option", "when": "a permission request or question is pending"},
-      {"keys": "opt+3", "action": "Reject the permission request, or pick the question's 3rd option", "when": "a permission request or question is pending"},
+      {"keys": "opt+1", "action": "Allow the permission request once, pick the question's 1st option, Connect the ticked repos on a connect card, or Review… on a Land card", "when": "a permission request, a question, a connect request or a Land request is pending"},
+      {"keys": "opt+2", "action": "Always allow… the permission request (asks to confirm), pick the question's 2nd option, pick another folder for the focused repo on a connect card, or Merge on a Land card", "when": "a permission request, a question, a connect request or a Land request is pending"},
+      {"keys": "opt+3", "action": "Reject the permission request, pick the question's 3rd option, Don't connect on a connect card, or Leave it unlanded… on a Land card (asks to confirm)", "when": "a permission request, a question, a connect request or a Land request is pending"},
       {"keys": "opt+4", "action": "Pick the question's 4th option", "when": "a question is pending"},
       {"keys": "opt+5", "action": "Pick the question's 5th option", "when": "a question is pending"},
       {"keys": "opt+6", "action": "Pick the question's 6th option", "when": "a question is pending"},
       {"keys": "opt+7", "action": "Pick the question's 7th option", "when": "a question is pending"},
       {"keys": "opt+8", "action": "Pick the question's 8th option", "when": "a question is pending"},
       {"keys": "opt+9", "action": "Pick the question's 9th option", "when": "a question is pending"},
+      {"keys": "space", "action": "Un-tick or tick the focused repo", "when": "a connect card has focus"},
       {"keys": "opt+o", "action": "Open the Open filter: every open item of the workspace, one queue", "when": "in Agents"},
       {"keys": "j", "action": "Next open item", "when": "an open items card or the Open queue has focus"},
-      {"keys": "down", "action": "Next open item", "when": "an open items card or the Open queue has focus"},
+      {"keys": "down", "action": "Next open item, or the next repo on a connect card", "when": "an open items card, the Open queue or a connect card has focus"},
       {"keys": "k", "action": "Previous open item", "when": "an open items card or the Open queue has focus"},
-      {"keys": "up", "action": "Previous open item", "when": "an open items card or the Open queue has focus"},
+      {"keys": "up", "action": "Previous open item, or the previous repo on a connect card", "when": "an open items card, the Open queue or a connect card has focus"},
       {"keys": "1", "action": "Pick the focused decision's 1st option, or tick the 1st offer", "when": "an open items card or the Open queue has focus"},
       {"keys": "2", "action": "Pick the focused decision's 2nd option, or tick the 2nd offer", "when": "an open items card or the Open queue has focus"},
       {"keys": "3", "action": "Pick the focused decision's 3rd option, or tick the 3rd offer", "when": "an open items card or the Open queue has focus"},
@@ -43,11 +44,14 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Start an agent session. Called from an agent session, the new session is its child: it runs in the caller's worktree, starts with the caller's mode, model, effort and advisor, and the caller may answer its permission requests. At most 8 children of one session may be running or waiting at once (\"a session may run at most 8 child sessions at once\"; prompting an idle child counts too). With branch, the session runs in a new worktree <main checkout>/.worktrees/<branch> created in the background from the HEAD of the caller's worktree (or the existing branch checked out), without switching the user's workspace; the agent starts once it exists, and if git fails the session's status is error with git's message. With prompt, sends it as the first turn, marked as coming from the calling agent session. A child with its own branch merges its tested work into the caller's branch in the caller's worktree (only commits when the caller is on the default branch); once merged and clean, Clubmate closes it and removes its worktree and branch. Toward the user, report only the children's questions that need the user's answer; the sidebar shows their status. Answer their permission requests yourself with agents.permission and pass the user's answers with agents.answer, never paraphrased. disallowedTools, systemPrompt, mode and model are accepted only from the voice plugin (anyone else gets \"invalid_params: only the voice plugin may set disallowedTools, systemPrompt, mode or model\"); a session started with them runs without the user's Claude Code settings (no settings files, CLAUDE.md, auto memory, plugins, hooks or output style; MCP only Clubmate's server), is listed in the Agents sidebar's folded \"Service\" group, and a session it starts is not its child but a top-level session of the user. The plugin's night sessions are service sessions too, started by the plugin itself, never through these arguments. afk sets the session's AFK mode from its first prompt, for any caller; finish its finish mode, from the user only. A session a cron job or trigger starts remembers its id (cronJob or trigger, in agents.sessions and on every agents.turn of it), so a trigger can follow it: on agents.turn match {\"cronJob\":\"cj_…\",\"finished\":true}. Returns {session, worktree} at once; wait for it with agents.wait.",
+        "description": "Start an agent session. Called from an agent session, the new session is its child: it runs in the caller's worktree, starts with the caller's mode, model, effort and advisor, and the caller may answer its permission requests. At most 8 children of one session may be running or waiting at once (\"a session may run at most 8 child sessions at once\"; prompting an idle child counts too). With branch, the session runs in a new worktree <main checkout>/.worktrees/<branch> created in the background from the HEAD of the caller's worktree (or the existing branch checked out), without switching the user's workspace; the agent starts once it exists, and if git fails the session's status is error with git's message. With repo, a folder of the workspace, it is that task repo's child, in a worktree of that repo from its default branch: branch feat/<slug> and <repo>/.worktrees/<slug>, unless branch names one. With prompt, sends it as the first turn, marked as coming from the calling agent session. A child with its own branch merges its tested work into the caller's branch in the caller's worktree (only commits when the caller is on the default branch); once merged and clean, Clubmate closes it and removes its worktree and branch. Toward the user, report only the children's questions that need the user's answer; the sidebar shows their status. Answer their permission requests yourself with agents.permission and pass the user's answers with agents.answer, never paraphrased. disallowedTools, systemPrompt, mode and model are accepted only from the voice plugin (anyone else gets \"invalid_params: only the voice plugin may set disallowedTools, systemPrompt, mode or model\"); a session started with them runs without the user's Claude Code settings (no settings files, CLAUDE.md, auto memory, plugins, hooks or output style; MCP only Clubmate's server), is listed in the Agents sidebar's folded \"Service\" group, and a session it starts is not its child but a top-level session of the user. The plugin's night sessions are service sessions too, started by the plugin itself, never through these arguments. afk sets the session's AFK mode from its first prompt, for any caller; finish its finish mode, from the user only. A session a cron job or trigger starts remembers its id (cronJob or trigger, in agents.sessions and on every agents.turn of it), so a trigger can follow it: on agents.turn match {\"cronJob\":\"cj_…\",\"finished\":true}. Returns {session, worktree} at once; wait for it with agents.wait.",
         "args": {
           "properties": {
             "agent": {"type": "string", "enum": ["claude"], "default": "claude", "description": "Agent to run."},
             "branch": {"type": "string", "description": "Branch for a new worktree to run the session in; omit to run in the caller's worktree (or the workspace's first git folder)."},
+            "repo": {"type": "string", "description": "Path of a workspace folder: starts the child of that repo of a task. A repo that is no folder of the workspace is refused; connect it first with agents.connect-repo."},
+            "slug": {"type": "string", "description": "The task's slug, only with repo: branch feat/<slug>, worktree .worktrees/<slug>."},
+            "base": {"type": "string", "enum": ["default"], "description": "Only with repo: start from origin/<default> after a fetch, or the local default branch with a note. It is what repo does anyway."},
             "prompt": {"type": "string", "description": "First prompt; omit to start the session idle."},
             "title": {"type": "string", "description": "Session title; defaults to the first line of the first prompt."},
             "notify": {"type": "string", "enum": ["all", "needs-input", "muted"], "default": "all", "description": "Notification policy of the session: all notifications, only needs-input and permission ones, or none. A session's children are limited by it too."},
@@ -647,8 +651,9 @@
         "id": "agents.connect-repo",
         "title": "Ask to connect repos",
         "hidden": true,
+        "agent": true,
         "timeout": 30,
-        "description": "Ask the user to connect repos to the workspace. Raised on the caller's top-level ancestor and stored on its record; it never times out. A path on disk connects at once while that session is AFK. Returns at once {request, status, next, raisedOn, repos}.",
+        "description": "Ask the user to connect every repo a task needs that is no folder of the workspace yet, all at once: path or url, why, how it lands and where you read that. Raised on the caller's top-level ancestor and stored on its record; it never times out, so end your turn and Clubmate prompts that session with the answer. Only the user's answer counts. While that session is AFK a path on disk connects at once, gets a pull request at most in this task, and a url still waits for the user. Returns at once {request, status, next, raisedOn, repos}.",
         "args": {
           "properties": {
             "repos": {"type": "array", "description": "Repos: {path or url, reason, landsBy (pr|merge|branch), source}.", "items": {"type": "object", "properties": {
@@ -701,7 +706,8 @@
         "id": "agents.task",
         "title": "Declare a task across repos",
         "hidden": true,
-        "description": "Store a task on the calling orchestrator's record, repos sorted by order. A repo child corrects its own repo's landsBy and source this way; the order stays.",
+        "agent": true,
+        "description": "Declare a change across repos on the calling orchestrator's record, repos sorted by order: a repo lands only after the ones with a lower order landed. The rule you pass is your reading of the repo. A repo child corrects its own repo's landsBy and source this way, from the repo's own instructions; the order stays.",
         "args": {
           "properties": {
             "slug": {"type": "string", "description": "The task's name: branch feat/<slug>, worktree .worktrees/<slug>."},
@@ -716,8 +722,9 @@
         "id": "agents.task-report",
         "title": "Report a repo's landing",
         "hidden": true,
+        "agent": true,
         "timeout": 30,
-        "description": "A repo child's report on its landing: state ready, failed, onBranch, prOpen or merged. merged holds only if git shows the change in the default branch. Returns {state, note?}.",
+        "description": "A repo child's report: ready when the work is committed, then what its landing did: merged, prOpen with pr, onBranch, or failed with tail. Clubmate decides when a repo lands; merged holds only if git shows the change in the default branch. Returns {state, note?}.",
         "args": {
           "properties": {
             "state": {"type": "string", "enum": ["ready", "failed", "onBranch", "prOpen", "merged"], "description": "Where the repo stands."},
@@ -745,6 +752,19 @@
         "title": "Leave a repo unlanded",
         "hidden": true,
         "description": "Record left for a repo of a task that hasn't landed: it frees the folder and holds what depends on it. An agent gets an error.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "The orchestrator's session id."},
+            "repo": {"type": "string", "description": "The repo's path."}
+          },
+          "required": ["session", "repo"]
+        }
+      },
+      {
+        "id": "agents.repo-fix",
+        "title": "Ask a repo's child to fix its failure",
+        "hidden": true,
+        "description": "Prompt the child of a failed repo with its failing tail. An agent gets an error.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "The orchestrator's session id."},

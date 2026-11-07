@@ -2,8 +2,10 @@ package main_test
 
 import (
 	"context"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -38,8 +40,9 @@ type landTask struct {
 	NeedsYou       bool     `json:"needsYou"`
 	Pending        []string `json:"pending"`
 	PendingSummary *struct {
-		Kind string `json:"kind"`
-		Text string `json:"text"`
+		Kind  string `json:"kind"`
+		Text  string `json:"text"`
+		OnMac bool   `json:"onMac"`
 	} `json:"pendingSummary"`
 }
 
@@ -546,6 +549,24 @@ func TestHandedOffOrchestratorKeepsItsRepoChildren(t *testing.T) {
 	assert.Equal(t, l.kids[0].Session, l.repo(t, 0).Session)
 }
 
+func TestHandedOffOrchestratorTakesItsChildrenAlong(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	l := f.landing(t, "merge", "pause", 1)
+	var next struct {
+		Session string `json:"session"`
+	}
+	require.NoError(t, f.run(t, l.workspace, "agents.handoff", map[string]any{"session": l.owner}, &next))
+	f.waitStatus(t, l.workspace, next.Session, "done")
+	kid := l.kids[0].Session
+
+	assert.Equal(t, next.Session, f.session(t, l.workspace, kid).ParentSession)
+	f.subscribe(t, l.workspace)
+	parent := f.sidebarItem(t, l.workspace, next.Session)
+	require.Len(t, parent.Children, 1)
+	assert.Equal(t, kid, parent.Children[0].ID)
+}
+
 func TestWakeNamesTheRepo(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{})
@@ -685,6 +706,47 @@ func TestLandTurnWithNoReportFailsAndKeepsTheFolder(t *testing.T) {
 
 	one.waitState(t, 0, "left")
 	testutil.Eventually(t, func() bool { return f.landPrompts(t, two.kids[0].Session) == 1 }, wait)
+}
+
+func TestAFailedLandTurnCanBeAskedToFixAgain(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	l := f.landing(t, "merge", "pause", 1)
+	kid := l.kids[0].Session
+	args := map[string]any{"session": l.owner, "repo": l.repos[0]}
+	require.NoError(t, f.runFrom(t, l.workspace, kid, "agents.task-report", map[string]any{"state": "failed", "tail": "boom once"}, nil))
+	l.waitState(t, 0, "failed")
+	require.NoError(t, f.run(t, l.workspace, "agents.repo-fix", args, nil))
+	testutil.Eventually(t, func() bool { return f.promptedWith(t, kid, "boom once") }, wait)
+	f.waitStatus(t, l.workspace, kid, "done")
+
+	l.land(t, 0)
+	failed := l.waitState(t, 0, "failed")
+	require.Contains(t, failed.Tail, "no report")
+	require.NoError(t, f.run(t, l.workspace, "agents.repo-fix", args, nil))
+
+	testutil.Eventually(t, func() bool { return f.promptedWith(t, kid, "ended with no report") }, wait)
+}
+
+func TestAQuestionWinsOverAFailedRepo(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{"prompt": []map[string]any{{"echo": true}}})
+	l := f.landing(t, "merge", "pause", 1)
+	require.NoError(t, f.runFrom(t, l.workspace, l.kids[0].Session, "agents.task-report", map[string]any{"state": "failed", "tail": "boom"}, nil))
+	l.waitState(t, 0, "failed")
+	testutil.Eventually(t, func() bool { return l.task(t).NeedsYou }, wait)
+	summary := l.task(t).PendingSummary
+	require.NotNil(t, summary)
+	assert.Equal(t, "failed", summary.Kind)
+	assert.True(t, summary.OnMac)
+
+	f.prompt(t, l.workspace, l.owner, "Keep the rest? ")
+	testutil.Eventually(t, func() bool { return f.session(t, l.workspace, l.owner).Asks }, wait)
+
+	summary = l.task(t).PendingSummary
+	require.NotNil(t, summary)
+	assert.Equal(t, "question", summary.Kind)
+	assert.False(t, summary.OnMac)
 }
 
 func TestLateReportAfterALandTurnReleasesTheFolder(t *testing.T) {
@@ -843,6 +905,155 @@ func TestRepoLeaveFreesAFailedRepoAndHoldsItsDependents(t *testing.T) {
 	assert.False(t, l.task(t).NeedsYou)
 }
 
+func (f *fixture) promptedWith(t *testing.T, session, text string) bool {
+	t.Helper()
+	agentSession := f.sessionOf(t, session).AgentSessionID
+	return slices.ContainsFunc(f.calls(t, "session/prompt"), func(c fakeCall) bool {
+		return strings.Contains(string(c.Params), agentSession) && strings.Contains(string(c.Params), text)
+	})
+}
+
+func (l *landing) waitNotFailed(t *testing.T, i int) {
+	t.Helper()
+	testutil.Eventually(t, func() bool { return l.repo(t, i).State != "failed" }, wait)
+}
+
+func TestRepoFixPromptsTheChildWithItsTail(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	l := f.landing(t, "merge", "pause", 1)
+	kid := l.kids[0].Session
+	require.NoError(t, f.runFrom(t, l.workspace, kid, "agents.task-report", map[string]any{"state": "failed", "tail": "--- FAIL: TestScopeOrder"}, nil))
+	l.waitState(t, 0, "failed")
+	require.True(t, l.task(t).NeedsYou)
+
+	require.NoError(t, f.run(t, l.workspace, "agents.repo-fix", map[string]any{"session": l.owner, "repo": l.repos[0]}, nil))
+
+	l.waitNotFailed(t, 0)
+	testutil.Eventually(t, func() bool { return f.promptedWith(t, kid, "--- FAIL: TestScopeOrder") }, wait)
+	assert.False(t, l.task(t).NeedsYou)
+}
+
+func TestRepoFixReachesAChildThatStoppedWithAnError(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "boom", "fail": "no results for tool calls"}, {"match": "no results for tool calls", "fail": "no results for tool calls"}}})
+	l := f.landing(t, "merge", "pause", 1)
+	f.prompt(t, l.workspace, l.kids[0].Session, "boom")
+	l.waitState(t, 0, "failed")
+
+	require.NoError(t, f.run(t, l.workspace, "agents.repo-fix", map[string]any{"session": l.owner, "repo": l.repos[0]}, nil))
+
+	l.waitNotFailed(t, 0)
+}
+
+func TestReturnOnTheFailedRowAsksItsChildToFix(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	l := f.landing(t, "merge", "pause", 1, 2)
+	require.NoError(t, f.runFrom(t, l.workspace, l.kids[1].Session, "agents.task-report", map[string]any{"state": "failed", "tail": "boom at the second repo"}, nil))
+	l.waitState(t, 1, "failed")
+
+	f.h.Event(t, l.workspace, "agents.main", l.owner+"/repos/keys", "reposKey", "return")
+
+	testutil.Eventually(t, func() bool { return f.promptedWith(t, l.kids[1].Session, "boom at the second repo") }, wait)
+}
+
+func agentOrigins(session string) map[string]map[string]any {
+	return map[string]map[string]any{"session": {"caller": session}, "agent": {"agent": true}}
+}
+
+func (f *fixture) eventFrom(t *testing.T, origin map[string]any, workspace, node, action string, value any) error {
+	t.Helper()
+	params := map[string]any{"workspaceId": workspace, "slot": "agents.main", "nodeId": node, "action": action, "value": value}
+	maps.Copy(params, origin)
+	return f.h.Client(t).Call(t.Context(), "ui.event", params, nil)
+}
+
+func TestUserActionsRefuseAgentOrigins(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	l := f.landing(t, "merge", "pause", 1)
+
+	for name, origin := range agentOrigins(l.owner) {
+		for _, action := range []string{"connectAnswer", "landAnswer", "folderRemove", "repoFix", "repoLeave"} {
+			err := f.eventFrom(t, origin, l.workspace, l.owner+"/repos/row/card", action, map[string]any{})
+			assert.ErrorContains(t, err, "only the user presses this", "%s %s", name, action)
+		}
+	}
+}
+
+func TestReturnOnTheFailedRowRefusesAgentOrigins(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	l := f.landing(t, "merge", "pause", 1)
+	require.NoError(t, f.runFrom(t, l.workspace, l.kids[0].Session, "agents.task-report", map[string]any{"state": "failed", "tail": "boom in the repo"}, nil))
+	l.waitState(t, 0, "failed")
+
+	for name, origin := range agentOrigins(l.owner) {
+		err := f.eventFrom(t, origin, l.workspace, l.owner+"/repos/keys", "reposKey", "return")
+		assert.ErrorContains(t, err, "only the user answers a landing request", name)
+	}
+
+	assert.False(t, f.promptedWith(t, l.kids[0].Session, "boom in the repo"))
+	assert.Equal(t, "failed", l.repo(t, 0).State)
+}
+
+func TestARowEventWithNoRowIsIgnored(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	l := f.landing(t, "merge", "pause", 1)
+
+	for _, action := range []string{"repoSession", "repoCode", "repoFix", "repoLeave"} {
+		require.NoError(t, f.cardEvent(t, l.workspace, l.owner, action, nil), action)
+	}
+
+	assert.Equal(t, l.owner, f.session(t, l.workspace, l.owner).ID)
+}
+
+func TestAskItToFixGoesOncePerFailure(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{"prompt": []map[string]any{{"match": "slow", "sleep": 1500}}})
+	l := f.landing(t, "merge", "pause", 1)
+	kid := l.kids[0].Session
+	args := map[string]any{"session": l.owner, "repo": l.repos[0]}
+	f.prompt(t, l.workspace, kid, "slow")
+	f.waitStatus(t, l.workspace, kid, "running")
+	require.NoError(t, f.runFrom(t, l.workspace, kid, "agents.task-report", map[string]any{"state": "failed", "tail": "boom once"}, nil))
+	l.waitState(t, 0, "failed")
+
+	for range 3 {
+		require.NoError(t, f.run(t, l.workspace, "agents.repo-fix", args, nil))
+	}
+
+	testutil.Eventually(t, func() bool { return f.promptedWith(t, kid, "boom once") }, wait)
+	f.waitStatus(t, l.workspace, kid, "done")
+	asked := 0
+	for _, c := range f.calls(t, "session/prompt") {
+		asked += strings.Count(string(c.Params), "boom once")
+	}
+	assert.Equal(t, 1, asked)
+
+	f.prompt(t, l.workspace, kid, "more work")
+	testutil.Eventually(t, func() bool { return l.repo(t, 0).State != "failed" }, wait)
+	f.waitStatus(t, l.workspace, kid, "done")
+	require.NoError(t, f.runFrom(t, l.workspace, kid, "agents.task-report", map[string]any{"state": "failed", "tail": "boom twice"}, nil))
+	l.waitState(t, 0, "failed")
+	require.NoError(t, f.run(t, l.workspace, "agents.repo-fix", args, nil))
+	testutil.Eventually(t, func() bool { return f.promptedWith(t, kid, "boom twice") }, wait)
+}
+
+func TestRepoFixRefusesARepoThatDidNotFailAndAgentCallers(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	l := f.landing(t, "merge", "pause", 1)
+	args := map[string]any{"session": l.owner, "repo": l.repos[0]}
+
+	require.Error(t, f.run(t, l.workspace, "agents.repo-fix", args, nil))
+	require.NoError(t, f.runFrom(t, l.workspace, l.kids[0].Session, "agents.task-report", map[string]any{"state": "failed", "tail": "boom"}, nil))
+	l.waitState(t, 0, "failed")
+	require.Error(t, f.runAs(t, l.workspace, l.owner, "agents.repo-fix", args, nil))
+}
+
 func TestRepoLeaveRefusesAgentCallers(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{})
@@ -956,4 +1167,51 @@ func TestAFKConnectedRepoIsNotFetchedBeforeItIsSeen(t *testing.T) {
 	notices := ofKind(f.transcript(t, workspace, kid.Session).Entries, "notice")
 	require.Len(t, notices, 1)
 	assert.Contains(t, string(notices[0].Notice), "main")
+}
+
+func (f *fixture) cardEvent(t *testing.T, workspace, node, action string, value any) error {
+	t.Helper()
+	return f.h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": workspace, "slot": "agents.main", "nodeId": node, "action": action, "value": value}, nil)
+}
+
+func TestLandCardMergePromptsTheChildAndAStaleButtonIsRefused(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	l := f.landing(t, "ask", "pause", 1)
+	l.report(t, 0, "ready")
+	ready := l.waitState(t, 0, "ready")
+	node := l.owner + "/land/" + ready.Request
+	merge := map[string]any{"request": ready.Request, "action": "merge"}
+
+	require.NoError(t, f.cardEvent(t, l.workspace, node, "landAnswer", merge))
+
+	assert.Eventually(t, func() bool { return f.landPrompts(t, l.kids[0].Session) == 1 }, 5*time.Second, 20*time.Millisecond)
+	require.ErrorContains(t, f.cardEvent(t, l.workspace, node, "landAnswer", merge), "already answered")
+}
+
+func TestLandCardReviewLeavesTheRequestOpen(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	l := f.landing(t, "ask", "pause", 1)
+	l.report(t, 0, "ready")
+	ready := l.waitState(t, 0, "ready")
+
+	err := f.cardEvent(t, l.workspace, l.owner+"/land/"+ready.Request, "landAnswer", map[string]any{"request": ready.Request, "action": "review"})
+
+	require.ErrorContains(t, err, "editor-nvim.diffview")
+	assert.Equal(t, ready.Request, l.repo(t, 0).Request)
+	assert.Zero(t, f.landPrompts(t, l.kids[0].Session))
+}
+
+func TestLandSummaryIsAnsweredOnTheMac(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	l := f.landing(t, "ask", "pause", 1)
+	l.report(t, 0, "ready")
+	l.waitState(t, 0, "ready")
+
+	rec := l.task(t)
+
+	assert.Equal(t, "land", rec.PendingSummary.Kind)
+	assert.True(t, rec.PendingSummary.OnMac)
 }

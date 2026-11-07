@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/acp"
 	"clubmate/plugins/agents/api"
@@ -61,6 +62,7 @@ type screen struct {
 	Anchor       string
 	AnchorRev    int
 	Expanded     map[string]bool
+	Repos        reposScreenData
 	Attachments  []pendingAttachment
 	Queue        []queuedPrompt
 	Composer     string
@@ -74,6 +76,8 @@ type screen struct {
 	Advisor      string
 	Branch       string
 	Parent       string
+	Crumb        *repoCrumb
+	Folders      pluginsdk.Workspace
 	Children     string
 	Row          sessionRow
 	Now          time.Time
@@ -113,6 +117,9 @@ func mainView(sc screen) sdui.Node {
 	rec := sc.View.Session
 	sid := rec.ID
 	children := []sdui.Node{header(sc)}
+	if sc.Crumb != nil {
+		children = []sdui.Node{crumbNode(sid, *sc.Crumb), children[0]}
+	}
 	if sc.Installing {
 		children = append(children, sdui.MutedText(fmt.Sprintf(installingNote, agentLabel(rec.Agent))))
 	}
@@ -271,7 +278,7 @@ func header(sc screen) sdui.Node {
 	} else {
 		var badges []sdui.HeaderBadge
 		if needsYou(rec) {
-			badges = append(badges, sdui.HeaderBadge{Text: waitingBadge, Tone: statusTones[statusWaiting]})
+			badges = append(badges, sdui.HeaderBadge{Text: cmp.Or(landBadge(rec), waitingBadge), Tone: statusTones[statusWaiting]})
 		}
 		if rec.Status == statusError {
 			badges = append(badges, sdui.HeaderBadge{Text: failureOf(rec).Badge, Tone: statusTones[statusError]})
@@ -284,6 +291,12 @@ func header(sc screen) sdui.Node {
 		}
 		if rec.OpenCount > 0 {
 			badges = append(badges, openBadge(rec.OpenCount))
+		}
+		if sc.Crumb != nil && sc.Crumb.Waits != "" {
+			badges = append(badges, sdui.HeaderBadge{Text: sc.Crumb.Waits})
+		}
+		if pill, ok := reposPill(rec); ok {
+			buttons = append(buttons, pill)
 		}
 		top = sdui.Header(cmp.Or(rec.Title, "New session"), sdui.HeaderProps{
 			Icon:   statusIcons[display],
@@ -394,7 +407,7 @@ func composerPlaceholder(sc screen) string {
 
 func asked(sc screen) bool {
 	rec := sc.View.Session
-	if rec.Status == statusDone && rec.Asks {
+	if rec.Status == statusDone && rec.Asks || slices.ContainsFunc(rec.ConnectRequests, connectRequest.waits) {
 		return true
 	}
 	return slices.ContainsFunc(sc.View.Entries, func(en *entry) bool { return en.Kind == entryElicitation && sc.Pending[en.ID] })

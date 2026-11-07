@@ -30,6 +30,9 @@ final class KeyComboTests: XCTestCase {
         XCTAssertTrue(key.matches(keyCode: 15, command: true, control: false, option: false, shift: true))
         XCTAssertFalse(key.matches(keyCode: 15, command: true, control: false, option: false, shift: false))
         XCTAssertTrue(try XCTUnwrap(KeyCombo("p")).bare)
+        XCTAssertTrue(try XCTUnwrap(KeyCombo("opt+up")).movesCaret)
+        XCTAssertFalse(try XCTUnwrap(KeyCombo("ctrl+opt+up")).movesCaret)
+        XCTAssertFalse(try XCTUnwrap(KeyCombo("opt+1")).movesCaret)
     }
 
     func testOnlyCommandReturnPassesTerminals() {

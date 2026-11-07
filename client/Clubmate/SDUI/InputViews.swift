@@ -151,7 +151,7 @@ extension KeyCombo {
     func fires(on event: NSEvent) -> Bool {
         let flags = event.modifierFlags
         guard matches(keyCode: event.keyCode, command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift)) else { return false }
-        if bare, event.window?.firstResponder is NSTextView { return false }
+        if bare || movesCaret, event.window?.firstResponder is NSTextView { return false }
         return NSApp.mainMenu.map { MenuKeys.claims($0, event) } != true
     }
 }

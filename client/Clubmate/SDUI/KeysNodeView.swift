@@ -12,6 +12,8 @@ struct KeysNodeView: View {
     @Environment(\.focusRouter) private var router
     @Environment(\.sduiDispatch) private var dispatch
 
+    private static let repeating: Set<String> = ["up", "down", "j", "k"]
+
     private var combos: [(name: String, combo: KeyCombo)] {
         (node.props["keys"]?.arrayValue ?? []).compactMap { value in
             guard let name = value.stringValue, let combo = KeyCombo(name) else { return nil }
@@ -28,7 +30,7 @@ struct KeysNodeView: View {
             .focused($focused)
             .background(Color.clear.contentShape(Rectangle()).onTapGesture { focused = true })
             .keyMonitor(active: focused, handle: handle)
-            .reportsFocus(.openItems, focused)
+            .reportsFocus(node.string("hints").map(FocusedPane.keys) ?? .openItems, focused)
             .onChange(of: paneFocused, initial: true) { _, value in
                 if value, node.bool("pane") == true, focusOwner == nil || focusOwner == node.id { focused = true }
             }
@@ -39,7 +41,9 @@ struct KeysNodeView: View {
 
     private func handle(_ event: NSEvent) -> Bool {
         guard let key = combos.first(where: { $0.combo.fires(on: event) }) else { return false }
-        dispatch(node, .submit(.string(key.name)))
+        if !event.isARepeat || Self.repeating.contains(key.name) {
+            dispatch(node, .submit(.string(key.name)))
+        }
         return true
     }
 }

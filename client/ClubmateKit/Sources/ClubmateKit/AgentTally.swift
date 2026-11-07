@@ -16,7 +16,7 @@ public struct AgentTally: Sendable, Equatable {
     }
 
     public var needYouLabel: String {
-        guard needYou > 0, runsNeedYou == needYou else { return "\(needYou) need you" }
+        guard needYou > 0, runsNeedYou == needYou else { return needYou == 1 ? "1 needs you" : "\(needYou) need you" }
         return needYou == 1 ? "1 run needs you" : "\(needYou) runs need you"
     }
 }

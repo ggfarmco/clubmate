@@ -125,14 +125,50 @@ func TestPlainChildStaysAsItWasInATwoFolderWorkspace(t *testing.T) {
 	assert.Equal(t, []string{second}, f.additionalDirs(t, kid.Worktree))
 }
 
-func TestRepoArgumentsStayHiddenFromAgents(t *testing.T) {
+func TestTaskRecordsARepoDefaultBranch(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	workspace, _, second := f.twoFolders(t)
+	git(t, second, "branch", "-m", "main", "master")
+	parent := f.doneSession(t, workspace)
+	var task struct {
+		Repos []struct {
+			Into string `json:"into"`
+		} `json:"repos"`
+	}
+
+	require.NoError(t, f.runAs(t, workspace, parent, "agents.task", map[string]any{"slug": "pause", "repos": []map[string]any{{"path": second, "order": 1, "landsBy": "merge", "source": "its CLAUDE.md"}}}, &task))
+
+	require.Len(t, task.Repos, 1)
+	assert.Equal(t, "master", task.Repos[0].Into)
+}
+
+func TestAgentsDriveATaskAndNeverAnswerForTheUser(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{})
 	workspace, _, second := f.twoFolders(t)
 	parent := f.doneSession(t, workspace)
+	third := newRepo(t)
+	var asked struct {
+		Request string `json:"request"`
+	}
 
-	err := f.runAs(t, workspace, parent, "agents.new", map[string]any{"repo": second, "slug": "pause"}, nil)
+	require.NoError(t, f.runAs(t, workspace, parent, "agents.connect-repo", map[string]any{"repos": []map[string]any{{"path": third, "reason": "scope", "landsBy": "pr", "source": "its CLAUDE.md"}}}, &asked))
+	require.NoError(t, f.runAs(t, workspace, parent, "agents.task", map[string]any{"slug": "pause", "repos": []map[string]any{{"path": second, "order": 1, "landsBy": "branch", "source": "no rules"}}}, nil))
+	var kid struct {
+		Session string `json:"session"`
+	}
+	require.NoError(t, f.runAs(t, workspace, parent, "agents.new", map[string]any{"repo": second, "slug": "pause", "prompt": "hi"}, &kid))
+	f.waitBranchChildDone(t, workspace, kid.Session)
+	require.NoError(t, f.runAs(t, workspace, kid.Session, "agents.task-report", map[string]any{"state": "ready"}, nil))
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not allowed in agent calls")
+	for id, args := range map[string]map[string]any{
+		"agents.connect-answer": {"request": asked.Request, "answers": []map[string]any{{"path": third, "action": "connect"}}},
+		"agents.land-answer":    {"request": "lr_1", "action": "merge"},
+		"agents.repo-leave":     {"session": parent, "repo": second},
+		"agents.repo-fix":       {"session": parent, "repo": second},
+		"agents.folder-remove":  {"path": second},
+	} {
+		assert.ErrorContains(t, f.runAs(t, workspace, parent, id, args, nil), "unknown command", id)
+	}
 }

@@ -70,6 +70,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌘↩ | Open the Start agent popover on the task while you own it (↩ in it starts, ⎋ cancels), else open the session or graph run that owns it; on a graph run held at a round cap Continue it, else open the session of the graph node that needs you, else a running step's output (Open ‹Step› output), else the running or start node's session; run the selected graph with its input (↩ in the Input field too); on an untrusted graph Trust… (then Trust in its sheet, where Esc cancels) | backlog, graphs |
 | ⌘↩ | Send review: opens the Send sheet for the review tab current in Neovim, also while Neovim has focus (status bar button "Send review") | editor-nvim |
 | ⌥1 / ⌥2 / ⌥3 | A graph step waiting for approval: Allow once / Always allow… (asks first) / Reject | graphs |
+| ⌥↑ / ⌥↓ | A repo child of a task: the repo before / after it in landing order that has a session, no wrap-around (buttons in the crumb); in a text field they stay caret movement | agents |
 | ⌘. | Stop the graph run (confirmed) | graphs |
 | ⌘N | Ask an agent to write a graph (How graphs work; the app menu's ⌘N does the same anywhere in Graphs), ↩ on a part row asks for a graph that uses that part | graphs |
 | G | Open the graph run that created the trigger | triggers |
@@ -218,6 +219,17 @@ A pending request is docked above the composer.
 
 Outside the Always allow confirm, Esc still stops the turn and does not answer the request. Defined in `ClubmateKit/PermissionKeys.swift` and `SDUI/Agents/PermissionCardView.swift`.
 
+## Repo requests (Agents section or Code chat panel)
+
+A connect request (`Connect a repo?`) or a Land request (`Land ‹repo›?`) is docked above the composer. The card has the keys as soon as it shows, unless you are typing, and until you click the composer; ⌥1–⌥3 work either way.
+
+| Keys | Action |
+|---|---|
+| ⌥1 ⌥2 ⌥3 | Connect card: Connect the ticked repos · other folder for the focused repo · Don't connect |
+| Space | Connect card: un-tick or tick the focused repo; un-ticked repos are skipped |
+| ↑ ↓ | Connect card: move between repos; moving past the third opens the folded ones |
+| ⌥1 ⌥2 ⌥3 | Land card: Review… (opens the repo's diff, never merges) · Merge · Leave it unlanded… (⌥3 again confirms, Esc or ↩ cancels) |
+
 ## Agent questions (Agents section or Code chat panel)
 
 A pending question (AskUserQuestion or an MCP form) is docked above the composer like a permission request.
@@ -229,6 +241,17 @@ A pending question (AskUserQuestion or an MCP form) is docked above the composer
 | ⌘↩ | Send the form (printed on Send), also from an empty composer, when something is answered ([Needs an answer](agents.md#needs-an-answer)); until then it does nothing. A composer with text sends its message instead. Not on a card a pick already answers (one question, no Other), and not while a terminal or Neovim has focus |
 
 ⎋ stays Stop the running turn and answers nothing; Skip has no key. With 2+ questions the rows have no keys: click them, or Tab to a row and press Space. Defined by the `choice` option `shortcut` props and Send's `shortcut` in `plugins/agents/elicit_view.go`, ranked in `SDUI/KeyMonitor.swift` (`KeyClaim`).
+
+## Repos card (Agents section)
+
+Only while the card has focus (a click in it, its header pill), never in the composer.
+
+| Keys | Action |
+|---|---|
+| ↑ ↓, J K | Move between repos |
+| ↩ | On a failed repo: Ask it to fix. On any other: open or fold the row |
+
+Defined by the `keys` scope in `plugins/agents/repos_view.go`, handled in `plugins/agents/repos.go`.
 
 ## Open items (Agents section, card or Open queue)
 

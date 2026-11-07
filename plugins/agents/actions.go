@@ -39,7 +39,11 @@ const (
 	actSend            = "send"
 	actStop            = "stop"
 	actSelectParent    = "selectParent"
+	actSibling         = "sibling"
+	actFolderRemove    = "folderRemove"
 	actPermission      = "permission"
+	actConnectAnswer   = "connectAnswer"
+	actLandAnswer      = "landAnswer"
 	actMode            = "mode"
 	actConfig          = "config"
 	actAttachFile      = "attachFile"
@@ -82,7 +86,7 @@ var (
 	errUserAction    = errors.New("only the user presses this")
 )
 
-var userActions = []string{actSend, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll}
+var userActions = []string{actSend, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actRepoFix, actRepoLeave}
 
 type textValue struct {
 	Text string `json:"text"`
@@ -141,7 +145,7 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	if a.session(ev.Caller) != nil && userAction(ev) {
+	if (ev.Agent || a.session(ev.Caller) != nil) && userAction(ev) {
 		return nil, errUserAction
 	}
 	if ev.Slot == settingsSlot {
@@ -247,6 +251,9 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		}
 		if session, ok := hitSession(id); ok {
 			id = session
+		}
+		if owner, ok := repoOwner(id); ok {
+			id = owner
 		}
 		s, err := a.lookup(ev.WorkspaceID, id)
 		if err != nil {
@@ -368,6 +375,9 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 	if isOpenAction(ev.Action) {
 		return a.openAct(ctx, ev, s, st)
 	}
+	if isReposAction(ev.Action) {
+		return a.reposAct(ctx, ev, s, st, node)
+	}
 	switch ev.Action {
 	case actSend:
 		var v textValue
@@ -389,12 +399,43 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 			return nil
 		}
 		return a.show(ctx, ev, parent)
+	case actSibling:
+		c := a.repoCrumb(s)
+		if c == nil {
+			return nil
+		}
+		target := c.Next
+		if node == siblingPrev {
+			target = c.Prev
+		}
+		if target == "" {
+			return nil
+		}
+		return a.show(ctx, ev, target)
+	case actFolderRemove:
+		path, ok := strings.CutPrefix(node, removeNode)
+		if !ok {
+			return fmt.Errorf("%w: folderRemove on %q", errUnknownAction, ev.NodeID)
+		}
+		return a.removeFolderAction(ctx, ev.WorkspaceID, s, path)
 	case actPermission:
 		var v permissionValue
 		if err := decode(ev.Value, &v); err != nil {
 			return err
 		}
 		return s.answer(v.Request, v.Option)
+	case actConnectAnswer:
+		var v connectAnswerArgs
+		if err := decode(ev.Value, &v); err != nil {
+			return err
+		}
+		return a.answerConnect(ctx, ev.WorkspaceID, v)
+	case actLandAnswer:
+		var v landAnswerArgs
+		if err := decode(ev.Value, &v); err != nil {
+			return err
+		}
+		return a.landAct(ctx, ev.WorkspaceID, v)
 	case actElicitation, actElicitPick, actElicitDecline, actElicitOpen:
 		return a.elicitAct(ev, s, node)
 	case actMode:

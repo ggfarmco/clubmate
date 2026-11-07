@@ -6,6 +6,8 @@ struct WorktreeTitleMenu: View {
     let session: WorkspaceSession
     let workspace: String
     let remote: RemoteStatus?
+    var newFolders = 0
+    var opened: () -> Void = {}
 
     @State private var shown = false
     @Environment(\.theme) private var theme
@@ -23,6 +25,11 @@ struct WorktreeTitleMenu: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .layoutPriority(1)
+                if newFolders > 0 {
+                    Text("+\(newFolders)")
+                        .foregroundStyle(theme.accentInk)
+                        .fixedSize()
+                }
                 if let current = session.worktrees.current {
                     Text("/")
                         .foregroundStyle(theme.faint)
@@ -51,6 +58,9 @@ struct WorktreeTitleMenu: View {
             WorktreeSwitcher(session: session) { shown = false }
         }
         .testPresenter("worktree", $shown)
+        .onChange(of: shown) { _, shown in
+            if shown { opened() }
+        }
     }
 }
 

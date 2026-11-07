@@ -23,6 +23,16 @@ final class TreeKeysTests: XCTestCase {
         XCTAssertEqual(TreeCursor.move(nil, by: 1, in: rows), "a")
     }
 
+    func testFoldedParentKeepsItsPinnedChildren() throws {
+        let tree = try JSONDecoder().decode(JSONValue.self, from: Data("""
+        {"id": "task", "label": "Task", "hasChildren": true, "expanded": false, "children": [{"id": "failed", "label": "auth", "pinned": true}, {"id": "merged", "label": "ads"}]}
+        """.utf8))
+        let item = try XCTUnwrap(SDUITreeItem(tree))
+        XCTAssertEqual(item.shownChildren.map(\.id), ["failed"])
+        XCTAssertEqual(TreeCursor.rows([item]).map(\.id), ["task", "failed"])
+        XCTAssertEqual(item.visibleItems.map(\.id), ["task", "failed"])
+    }
+
     func testTreeCursorResolve() {
         let rows = [
             TreeRow(id: "a", depth: 0, parent: nil, hasChildren: true, expanded: true),

@@ -229,8 +229,8 @@ func TestInstructionsAskToParallelize(t *testing.T) {
 	assert.Contains(t, instructions(t, ""), "`agents_new` with a `branch`")
 }
 
-func TestInstructionsLeaveMultiRepoOutUntilItsToolsShip(t *testing.T) {
-	assert.NotContains(t, instructions(t, ""), "agents_connect_repo")
+func TestInstructionsTeachTasksAcrossRepos(t *testing.T) {
+	assert.Contains(t, instructions(t, ""), "agents_connect_repo")
 }
 
 func TestInstructionsWithoutGuide(t *testing.T) {

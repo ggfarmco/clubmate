@@ -160,6 +160,9 @@ func transcript(sc screen) sdui.Node {
 		}
 		nodes = slices.Insert(nodes, 0, sdui.WithAction(sdui.Button(sid+"/earlier", label, "chevron.up"), actShowEarlier))
 	}
+	if card, ok := reposCard(sc); ok {
+		nodes = append(nodes, card)
+	}
 	n := sdui.Transcript(sid+"/transcript", nodes...)
 	if sc.Anchor != "" {
 		n = sdui.WithAnchorRev(sdui.WithAnchor(n, sc.Anchor), sc.AnchorRev)
@@ -231,7 +234,7 @@ func dockedPermission(sc screen) (sdui.Node, bool) {
 			return permissionCard(sc, en), true
 		}
 	}
-	return sdui.Node{}, false
+	return requestCard(sc)
 }
 
 func turnNumbers(v transcriptView) []int {
@@ -285,7 +288,7 @@ func entryNode(sc screen, en *entry, sha string) builtNode {
 		}
 		return builtNode{node: n, shown: true, cost: nodeCost(n)}
 	}
-	if en.node == nil || en.Kind == entryTool && sc.Expanded[en.ID] || en.Kind == entryOpenItems {
+	if en.node == nil || en.Kind == entryTool && sc.Expanded[en.ID] || en.Kind == entryOpenItems || en.Kind == entryNotice {
 		return build()
 	}
 	key := nodeKey{sid: sc.View.Session.ID, root: sc.View.Session.Worktree, reviewable: sha != "", pending: sc.Pending[en.ID], from: sc.FromTitles[en.From], review: reviewCardKey(sc, en)}
@@ -368,6 +371,9 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 		var n noticeUpdate
 		if json.Unmarshal(en.Notice, &n) != nil || n.Title == "" && n.Description == "" {
 			return sdui.Node{}, false
+		}
+		if n.Repo != "" {
+			return afkRow(sc, en, n), true
 		}
 		return sdui.MutedText(strings.TrimSpace(strings.Join(nonEmpty(n.Title, n.Description), " — "))), true
 	}

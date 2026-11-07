@@ -94,6 +94,7 @@ type sessionUI struct {
 	anchorTurn  int
 	anchorRev   int
 	open        openDraft
+	repos       reposChoice
 
 	context         bool
 	contextSelected string
@@ -270,7 +271,8 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 			main = openQueueView(q)
 		} else if s := a.session(selected); s != nil {
 			sc := a.screen(ctx, workspaceID, s, children[selected])
-			sc.Workspace = workspace.Name
+			sc.Workspace, sc.Folders = workspace.Name, workspace
+			sc.Crumb = a.repoCrumb(s)
 			main, shown = mainView(sc), &sc
 		}
 		if err := a.push(ctx, p, workspaceID, mainSlot, main); err != nil {
@@ -402,7 +404,7 @@ func (a *app) renderCode(ctx context.Context, p *workspaceUI, workspace pluginsd
 		sc = nil
 		if s := a.session(bound); s != nil {
 			v := a.screen(ctx, workspace.ID, s, children[bound])
-			v.Workspace = workspace.Name
+			v.Workspace, v.Folders = workspace.Name, workspace
 			sc = &v
 		}
 	}
@@ -474,6 +476,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 	ctxScreen := a.contextScreen(st, v.Session)
 	current := s.currentTurn()
 	open := s.openCard()
+	kids := a.repoKids(v.Session)
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
 	st.open.prune(open.Items)
@@ -488,6 +491,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 		Anchor:      st.anchor,
 		AnchorRev:   st.anchorRev,
 		Expanded:    maps.Clone(st.expanded),
+		Repos:       reposScreenData{Kids: kids, Choice: st.repos.clone()},
 		Attachments: slices.Clone(st.attachments),
 		Queue:       queue,
 		Composer:    sid + "/composer/" + strconv.Itoa(st.gen),
@@ -652,6 +656,17 @@ func (a *app) selectSession(ctx context.Context, workspaceID, sid string) error 
 		seen[parent] = true
 		open[expandPrefix+parent] = false
 		s = a.session(parent)
+	}
+	if s := a.session(sid); s != nil && s.snapshot().taskFinished() {
+		if err := a.restoreCollapsed(ctx, workspaceID); err != nil {
+			return err
+		}
+		a.uiMu.Lock()
+		once := p.collapsed[finishedKey+sid]
+		a.uiMu.Unlock()
+		if !once {
+			open[finishedKey+sid], open[expandPrefix+sid] = true, true
+		}
 	}
 	return a.setCollapsed(ctx, workspaceID, open)
 }

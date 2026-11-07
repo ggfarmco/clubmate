@@ -193,4 +193,29 @@ final class SessionScreenTests: XCTestCase {
         guard case .openClosed(_, let items) = SessionScreen(entries: [entry], session: AgentSession(id: "s", status: .done)).rows.first else { return XCTFail("no row") }
         XCTAssertEqual(items.summary, "1 answered · 1 declined · 2 in the backlog: #210, #211")
     }
+
+    func testARequestAnsweredOnTheMacDocksAPlainRow() throws {
+        let json = """
+        {"id": "agt_1", "agent": "claude", "workspace": "w", "worktree": "/w", "status": "done", "needsYou": true,
+         "pending": ["cr_1"], "pendingSummary": {"kind": "connect", "text": "Connect 2 repos?", "onMac": true, "at": "2026-11-06T10:00:00Z"}}
+        """
+        let session = try JSONDecoder.clubmate.decode(AgentSession.self, from: Data(json.utf8))
+
+        guard case .onMac(let text) = SessionScreen(entries: [], session: session).dock else { return XCTFail("no row") }
+
+        XCTAssertEqual(text, "Connect 2 repos?")
+    }
+
+    func testAFailedRepoIsAPlainRowAndNoQuestion() throws {
+        let json = """
+        {"id": "agt_1", "agent": "claude", "workspace": "w", "worktree": "/w", "status": "done", "needsYou": true,
+         "pendingSummary": {"kind": "failed", "text": "ads failed", "onMac": true, "at": "2026-11-06T10:00:00Z"}}
+        """
+        let session = try JSONDecoder.clubmate.decode(AgentSession.self, from: Data(json.utf8))
+
+        guard case .onMac(let text) = SessionScreen(entries: [], session: session).dock else { return XCTFail("no row") }
+
+        XCTAssertEqual(text, "ads failed")
+        XCTAssertEqual(session.state, .waitingForYou)
+    }
 }

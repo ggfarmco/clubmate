@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -185,11 +186,19 @@ func (a *app) landAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 	if !a.userWord(cmd) {
 		return nil, errLandUser
 	}
+	res, err := a.answerLand(ctx, cmd.WorkspaceID, args)
+	if err != nil || args.Action != landActionReview {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (a *app) answerLand(ctx context.Context, workspaceID string, args landAnswerArgs) (landReviewResult, error) {
 	a.landMu.Lock()
 	defer a.landMu.Unlock()
-	owner, task, i, ok := a.findLand(cmd.WorkspaceID, args.Request)
+	owner, task, i, ok := a.findLand(workspaceID, args.Request)
 	if !ok {
-		return nil, errLandStale
+		return landReviewResult{}, errLandStale
 	}
 	r := &task.Repos[i]
 	switch args.Action {
@@ -205,12 +214,12 @@ func (a *app) landAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 		r.release()
 		r.State = landLeft
 	default:
-		return nil, fmt.Errorf("%w: %s", errLandAction, args.Action)
+		return landReviewResult{}, fmt.Errorf("%w: %s", errLandAction, args.Action)
 	}
 	owner.putTask(task)
 	a.saveNow(ctx, owner)
 	a.reconcileTasks(ctx)
-	return nil, nil
+	return landReviewResult{}, nil
 }
 
 func (a *app) landingChanged() {
@@ -399,7 +408,8 @@ func (a *app) syncRepo(ctx context.Context, r *taskRepo, child *session) {
 			r.State = landMerged
 			return
 		}
-		r.State, r.For, r.Tail, r.Since = landFailed, "", landNoReportTail, time.Now().UTC()
+		r.setFailed()
+		r.Tail = landNoReportTail
 	case child.currentTurn() > 0:
 		r.State, r.For = landWaits, waitsForReport
 	}
@@ -435,6 +445,20 @@ func (a *app) gate(ctx context.Context, rec record, task *taskRecord, i int, chi
 		return
 	}
 	r.State, r.Request, r.Since = landReady, id.New(landIDPrefix), time.Now().UTC()
+	r.noteLanding(ctx, child.snapshot().Worktree)
+}
+
+func (r *taskRepo) noteLanding(ctx context.Context, worktree string) {
+	r.Into, _ = gitrepo.DefaultBranch(ctx, r.Path)
+	if out, err := gitrepo.Run(ctx, worktree, "symbolic-ref", "-q", "--short", "HEAD"); err == nil {
+		r.Branch = strings.TrimSpace(string(out))
+	}
+	if r.Base == "" || r.Tip == "" {
+		return
+	}
+	if out, err := gitrepo.Run(ctx, worktree, "rev-list", "--count", r.Base+".."+r.Tip); err == nil {
+		r.Commits, _ = strconv.Atoi(strings.TrimSpace(string(out)))
+	}
 }
 
 func (a *app) folderHolder(ownerID, path string) string {
@@ -608,7 +632,11 @@ func (r *taskRepo) fail() {
 		return
 	}
 	r.release()
-	r.State, r.Since = landFailed, time.Now().UTC()
+	r.setFailed()
+}
+
+func (r *taskRepo) setFailed() {
+	r.State, r.For, r.Since, r.FixAsked = landFailed, "", time.Now().UTC(), false
 }
 
 func (r taskRepo) settled() bool {
@@ -687,6 +715,14 @@ func (t taskRecord) requests() []string {
 	return out
 }
 
+func (r record) taskPending(asks bool) *pendingSummary {
+	summary := r.Task.pendingSummary()
+	if asks && summary.Kind == pendingFailed {
+		return nil
+	}
+	return summary
+}
+
 func (t taskRecord) pendingSummary() *pendingSummary {
 	var land, failed []taskRepo
 	for _, r := range t.Repos {
@@ -698,22 +734,9 @@ func (t taskRecord) pendingSummary() *pendingSummary {
 		}
 	}
 	if len(land) > 0 {
-		return &pendingSummary{Kind: pendingLand, Text: countText(land, landOneFormat, landManyFormat), At: oldestSince(land)}
+		return &pendingSummary{Kind: pendingLand, Text: countText(land, landOneFormat, landManyFormat), At: oldestSince(land), OnMac: true}
 	}
-	return &pendingSummary{Kind: pendingFailed, Text: countText(failed, failedOneFormat, failedManyFormat), At: oldestSince(failed)}
-}
-
-func (t taskRecord) summary() string {
-	failed := 0
-	for _, r := range t.Repos {
-		if r.State == landFailed {
-			failed++
-		}
-	}
-	if failed > 0 {
-		return fmt.Sprintf(taskFailedFormat, failed)
-	}
-	return fmt.Sprintf(taskReposFormat, len(t.Repos))
+	return &pendingSummary{Kind: pendingFailed, Text: countText(failed, failedOneFormat, failedManyFormat), At: oldestSince(failed), OnMac: true}
 }
 
 func countText(repos []taskRepo, one, many string) string {

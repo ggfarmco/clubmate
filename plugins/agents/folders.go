@@ -42,24 +42,28 @@ func (a *app) folderRemoveCommand(ctx context.Context, cmd pluginsdk.CommandRun,
 	if !a.userWord(cmd) {
 		return nil, errFolderUser
 	}
-	folder, err := a.workspaceFolder(ctx, cmd.WorkspaceID, args.Path)
+	return a.removeFolder(ctx, cmd.WorkspaceID, args.Path)
+}
+
+func (a *app) removeFolder(ctx context.Context, workspaceID, path string) (folderRemoveResult, error) {
+	folder, err := a.workspaceFolder(ctx, workspaceID, path)
 	if err != nil {
-		return nil, err
+		return folderRemoveResult{}, err
 	}
 	a.spawnMu.Lock()
 	defer a.spawnMu.Unlock()
 	var blockers []folderSession
-	for _, s := range a.sessionsIn(ctx, cmd.WorkspaceID, folder) {
+	for _, s := range a.sessionsIn(ctx, workspaceID, folder) {
 		if s.blocksFolder() {
 			blockers = append(blockers, folderSessionOf(s.snapshot()))
 		}
 	}
-	tasks := a.tasksOn(cmd.WorkspaceID, folder)
+	tasks := a.tasksOn(workspaceID, folder)
 	if len(blockers) > 0 || len(tasks) > 0 {
 		return folderRemoveResult{Blockers: blockers, Tasks: tasks}, nil
 	}
-	if _, err := a.host.RemoveFolder(ctx, cmd.WorkspaceID, folder); err != nil {
-		return nil, err
+	if _, err := a.host.RemoveFolder(ctx, workspaceID, folder); err != nil {
+		return folderRemoveResult{}, err
 	}
 	return folderRemoveResult{Removed: true}, nil
 }

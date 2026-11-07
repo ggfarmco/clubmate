@@ -16,6 +16,7 @@ import (
 
 	"clubmate/pkg/id"
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/acp"
 	"clubmate/plugins/internal/gitrepo"
 )
 
@@ -85,6 +86,7 @@ type connectRepo struct {
 	Source  string          `json:"source,omitempty"`
 	Facts   json.RawMessage `json:"facts,omitempty"`
 	State   string          `json:"state"`
+	Into    string          `json:"into,omitempty"`
 	Folder  string          `json:"folder,omitempty"`
 	Op      string          `json:"op,omitempty"`
 	Note    string          `json:"note,omitempty"`
@@ -157,6 +159,9 @@ func (a *app) connectRepoCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 	rec := owner.snapshot()
 	for i := range repos {
 		w = a.arrive(ctx, w, owner, rec, &repos[i])
+		if repos[i].URL != "" && len(w.Folders) > 0 {
+			repos[i].Into = cloneInto(w.Folders[0].Path, repos[i].Name)
+		}
 	}
 	if len(owner.snapshot().AfkConnected) != len(rec.AfkConnected) {
 		a.saveNow(ctx, owner)
@@ -187,22 +192,26 @@ func (a *app) connectAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun
 	if !a.userWord(cmd) {
 		return nil, errConnectUser
 	}
+	return nil, a.answerConnect(ctx, cmd.WorkspaceID, args)
+}
+
+func (a *app) answerConnect(ctx context.Context, workspaceID string, args connectAnswerArgs) error {
 	answers, err := answersByRepo(args.Answers)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	a.connectMu.Lock()
 	defer a.connectMu.Unlock()
-	owner, req, ok := a.findConnect(cmd.WorkspaceID, args.Request)
+	owner, req, ok := a.findConnect(workspaceID, args.Request)
 	if !ok || !req.waits() {
-		return nil, errConnectStale
+		return errConnectStale
 	}
 	if err := req.check(answers); err != nil {
-		return nil, err
+		return err
 	}
-	w, err := a.host.GetWorkspace(ctx, cmd.WorkspaceID)
+	w, err := a.host.GetWorkspace(ctx, workspaceID)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	title := owner.snapshot().Title
 	for _, repo := range req.Repos {
@@ -219,8 +228,8 @@ func (a *app) connectAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun
 			w = a.connectPath(ctx, w, owner, req.ID, repo, cmp.Or(ans.OtherPath, repo.Path), title)
 		}
 	}
-	a.finishConnects(ctx, cmd.WorkspaceID)
-	return nil, nil
+	a.finishConnects(ctx, workspaceID)
+	return nil
 }
 
 func (a *app) userWord(cmd pluginsdk.CommandRun) bool {
@@ -318,7 +327,7 @@ func (a *app) arrive(ctx context.Context, w pluginsdk.Workspace, owner *session,
 	}
 	repo.State, repo.Folder = repoConnected, repo.Path
 	owner.noteAfkConnected(repo.Path)
-	owner.notice(fmt.Sprintf(connectAFKTitle, repo.Name), repo.Path)
+	owner.noticeUpdate(noticeUpdate{SessionUpdate: acp.UpdateNotice, Title: fmt.Sprintf(connectAFKTitle, repo.Name), Description: repo.Path, Repo: repo.Name, Path: repo.Path})
 	a.repoConnected(w.ID, *repo, repo.Path)
 	return next
 }
@@ -337,7 +346,7 @@ func (a *app) connectPath(ctx context.Context, w pluginsdk.Workspace, owner *ses
 }
 
 func (a *app) queueClone(w pluginsdk.Workspace, repo connectRepo, other string) {
-	into := cmp.Or(other, filepath.Join(filepath.Dir(w.Folders[0].Path), repo.Name))
+	into := cmp.Or(other, cloneInto(w.Folders[0].Path, repo.Name))
 	a.editRepos(w.ID, func(_ connectRequest, r *connectRepo) bool {
 		if r.State != repoPending || r.URL != repo.URL {
 			return false
@@ -346,6 +355,10 @@ func (a *app) queueClone(w pluginsdk.Workspace, repo connectRepo, other string) 
 		return true
 	})
 	a.startCloner(w.ID)
+}
+
+func cloneInto(firstFolder, name string) string {
+	return filepath.Join(filepath.Dir(firstFolder), name)
 }
 
 func (a *app) startCloner(workspaceID string) {
@@ -694,7 +707,7 @@ func (r record) connectSummary() *pendingSummary {
 	if len(repos) == 1 {
 		text = fmt.Sprintf(connectOneFormat, repos[0])
 	}
-	return &pendingSummary{Kind: pendingConnect, Text: text, At: at}
+	return &pendingSummary{Kind: pendingConnect, Text: text, At: at, OnMac: true}
 }
 
 func stateOf(repos []connectRepo) []connectedRepo {

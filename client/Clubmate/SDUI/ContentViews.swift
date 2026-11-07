@@ -222,6 +222,53 @@ struct DiffNodeView: View {
     }
 }
 
+struct CrumbNodeView: View {
+    let node: SDUINode
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: theme.spacing.m) {
+            ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
+                Text(part)
+                    .foregroundStyle(theme.muted)
+                    .truncationMode(.label)
+                    .help(part)
+                Text("/")
+                    .foregroundStyle(theme.faint)
+                    .fixedSize()
+            }
+            if let icon = node.string("icon") {
+                Image(systemName: SymbolName.resolve(icon))
+                    .foregroundStyle(theme.muted)
+            }
+            Text(node.string("leaf") ?? "")
+                .foregroundStyle(theme.foreground)
+                .truncationMode(.label)
+                .layoutPriority(1)
+            Spacer(minLength: theme.spacing.m)
+            if let note = node.string("note") {
+                Text(note)
+                    .foregroundStyle(theme.muted)
+                    .fixedSize()
+            }
+            ForEach(Array(node.children.enumerated()), id: \.offset) { _, child in
+                SDUINodeView(node: child)
+            }
+        }
+        .font(theme.uiSmall)
+        .lineLimit(1)
+        .padding(.horizontal, theme.gutter)
+        .frame(height: theme.control + theme.spacing.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
+    }
+
+    private var parts: [String] {
+        node.props["parts"]?.arrayValue?.compactMap(\.stringValue) ?? []
+    }
+}
+
 struct HeaderNodeView: View {
     let node: SDUINode
 
@@ -385,6 +432,9 @@ struct HeaderNodeView: View {
             if !session { badges }
             Spacer(minLength: 0)
             if session {
+                if let pill = node.headerPill {
+                    HeaderPillView(node: pill.node)
+                }
                 badges
                 stop(compact: !inline)
             }

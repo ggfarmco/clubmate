@@ -123,6 +123,9 @@ public enum AppShortcuts {
         ShortcutGroup(id: "transcript", title: "Agent transcript", shortcuts: [
             Shortcut("transcript.full-diff", ["cmd+d"], "Full diff of the newest edit in nvim"),
         ]),
+        ShortcutGroup(id: "tasks", title: "Multi-repo tasks", shortcuts: [
+            Shortcut("tasks.sibling", ["opt+up", "opt+down"], "Previous, next repo of the task", when: "A repo child of a task, not in a text field"),
+        ]),
         ShortcutGroup(id: "browser", title: "Agent Browser window", shortcuts: [
             Shortcut("browser.done", ["return"], "Done: hand the page back to the agent", when: "During a handoff"),
         ]),

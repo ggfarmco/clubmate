@@ -78,6 +78,13 @@
                 ]
               },
               {"id": "internal", "label": "internal", "icon": "folder", "hasChildren": true, "expanded": false},
+              {
+                "id": "task", "label": "Campaign pause reason", "icon": "exclamationmark.circle", "tone": "warning", "detail": "2 need you", "detailTone": "warning", "hasChildren": true, "expanded": false,
+                "children": [
+                  {"id": "task-auth", "label": "internal-auth", "labelIcon": "folder", "icon": "xmark.circle", "tone": "danger", "detail": "failed", "pinned": true},
+                  {"id": "repo:task:/r/bff", "label": "mobile-bff", "labelIcon": "folder", "icon": "exclamationmark.circle", "tone": "warning", "detail": "connect?", "action": true, "pinned": true}
+                ]
+              },
               {"id": "wt-long", "label": "feat/agents-sidebar-worktree-groups-middle-truncation", "icon": "arrow.triangle.branch", "truncate": "middle"},
               {"id": "wt-detached", "label": "detached · 03a9ff5f", "icon": "arrow.triangle.branch", "faint": true},
               {"id": "readme", "label": "README.md", "icon": "doc.richtext", "badge": "M"},
@@ -112,6 +119,25 @@
               {"path": "/System/Library/Desktop Pictures/.thumbnails/Calibrate 5120x2880.jpg", "rel": "Desktop Pictures/.thumbnails/Calibrate 5120x2880.jpg", "width": 355, "height": 200},
               {"path": "/System/Library/Desktop Pictures/Solid Colors/Teal.png", "rel": "Teal.png"}
             ], "imageLinks": {"/System/Library/Desktop Pictures/.thumbnails/Calibrate 5120x2880.jpg": "/System/Library/Desktop Pictures/.thumbnails/Calibrate 5120x2880.jpg", "Teal.png": "/System/Library/Desktop Pictures/Solid Colors/Teal.png"}}},
+            {"type": "request.connectRepo", "id": "gallery-connect-many", "props": {"request": "cr_gallery", "title": "Connect 4 repos?", "caption": "Claude found folders this workspace doesn't have · asks for all of them at once", "connect": "Connect", "effect": "Each becomes a folder of **ads** and stays. Claude starts a child session in each, on a new branch, with that repo's own CLAUDE.md and memory; a repo's own rules win over the plan.", "hint": "Space un-ticks the focused repo · ↑↓ moves · the card has the keys until you click the composer", "declined": "Un-ticked repos are skipped, not left pending. Don't connect: Claude goes on with ads-management only and says what is missing.", "more": "1 more repos", "repos": [{"key": "/src/ads-snapshot", "name": "ads-snapshot", "path": "~/develop/acme/ads-snapshot", "remote": "github.com/acme/ads-snapshot", "state": "14 behind origin/main", "warn": true, "reason": "The reason needs a column, and it ships first. I'll pull before branching.", "landsBy": "pull request", "source": "from its CLAUDE.md", "brings": "CLAUDE.md · no graphs or hooks"}, {"key": "/src/internal-auth", "name": "internal-auth", "path": "~/develop/acme/internal-auth", "remote": "github.com/acme/internal-auth", "state": "main · clean", "reason": "It issues the scopes; the endpoint needs `campaigns:pause`.", "landsBy": "merge to main", "source": "from its CLAUDE.md", "brings": "CLAUDE.md, 2 skills · 1 graph **scope-lint** · 1 worktree hook", "trust": "steps and the hook stay off until you trust them"}, {"key": "https://github.com/acme/billing.git", "name": "billing", "path": "~/develop/acme/billing", "remote": "github.com/acme/billing", "state": "Clone github.com/acme/billing into ~/develop/acme?", "clone": true, "reason": "Pauses stop invoicing."}, {"key": "/src/ads-api", "name": "ads-api", "path": "~/develop/acme/ads-api", "state": "main · clean", "folded": true}]}},
+            {"type": "request.connectRepo", "id": "gallery-connect-one", "props": {"request": "cr_gallery_one", "title": "Connect a repo?", "caption": "Claude wants a folder this workspace doesn't have", "connect": "Connect", "declined": "Don't connect: Claude goes on with ads-management only and says what is missing.", "effects": [{"text": "Becomes a folder of **ads**", "note": "stays after the task · remove it any time"}, {"text": "Claude starts a child session there", "note": "new branch `feat/campaign-pause-reason` · internal-auth's own CLAUDE.md and memory"}, {"text": "Lands by merge to main", "note": "from its CLAUDE.md · its rules win over the plan"}, {"text": "Brings CLAUDE.md, 2 skills, 1 graph and 1 worktree hook", "note": "graph steps and the hook stay off until you trust them"}], "repos": [{"key": "/src/internal-auth", "name": "internal-auth", "path": "~/develop/acme/internal-auth", "remote": "github.com/acme/internal-auth", "state": "on main · clean · last commit 5 h ago", "reason": "The pause endpoint needs a `campaigns:pause` scope, and internal-auth issues the scopes."}]}},
+            {"type": "request.land", "id": "gallery-land", "props": {"request": "lr_gallery", "title": "Land internal-auth?", "caption": "2 of 3 in order · ask before merging", "name": "internal-auth", "detail": "Merge `feat/campaign-pause-reason` into `main` · 3 commits", "rule": "By its rule: merge to main (its CLAUDE.md). ads-snapshot already landed; ads-management waits for this one.", "hint": "Review opens the diff for this repo; Merge lands it now. The card has the keys until you click the composer. No time limit. Leaving it unlanded holds ads-management too.", "confirm": "Leave internal-auth unlanded? Leaving it unlanded holds ads-management too.", "options": [{"id": "review", "label": "Review…", "kind": "allow_once", "shortcut": "opt+1"}, {"id": "merge", "label": "Merge", "shortcut": "opt+2"}, {"id": "leave", "label": "Leave it unlanded…", "kind": "reject_once", "shortcut": "opt+3"}]}},
+            {"type": "keys", "id": "gallery-repos/keys", "props": {"keys": ["up", "down", "return"], "action": "reposKey", "hints": "↑↓ repo · ↩ ask it to fix"}, "children": [
+              {"type": "repos", "id": "gallery-repos", "props": {"title": "3 repos", "summary": [{"text": "1 merged"}, {"text": "1 failed", "tone": "danger"}, {"text": "1 waits"}], "branch": "feat/campaign-pause-reason", "branchNote": "in each", "columns": ["Repo", "Lands by", "State"], "footer": "Lands in order 1 → 2 → 3 · a repo waits until the ones before it landed", "hint": "↑↓ repo · ↩ ask it to fix", "action": "reposToggle", "rowAction": "reposRow", "rows": [
+                {"id": "a", "order": 1, "name": "ads-snapshot", "landsBy": "pull request", "landsIcon": "arrow.triangle.pull", "source": "its CLAUDE.md", "state": "merged · PR #87", "tone": "success", "icon": "checkmark.circle"},
+                {"id": "b", "order": 2, "name": "internal-auth", "landsBy": "merge to main", "landsIcon": "arrow.triangle.merge", "source": "its CLAUDE.md", "state": "failed", "tone": "danger", "icon": "xmark.circle", "opens": true, "open": true, "cursor": true, "tail": "--- FAIL: TestScopeOrder (0.00s)\n    scopes_test.go:41: All[3] = \"campaigns:pause\", want \"billing:read\"\nFAIL  acme/internal-auth/scopes  0.21s", "note": "Leaving it unlanded holds ads-management too.", "actions": "gallery-repos/b/actions"},
+                {"id": "c", "order": 3, "name": "ads-management", "landsBy": "pull request", "landsIcon": "arrow.triangle.pull", "state": "on its branch · waits for 2", "icon": "circle", "opens": true}
+              ]}, "children": [
+                {"type": "stack", "id": "gallery-repos/b/actions", "props": {"direction": "horizontal"}, "children": [
+                  {"type": "button", "id": "gallery-repos/b/fix", "props": {"label": "Ask it to fix", "variant": "primary", "hint": "return", "action": "repoFix"}},
+                  {"type": "button", "id": "gallery-repos/b/session", "props": {"label": "Open its session", "variant": "secondary", "action": "repoSession"}},
+                  {"type": "button", "id": "gallery-repos/b/code", "props": {"label": "Open in Code", "variant": "ghost", "action": "repoCode"}},
+                  {"type": "spacer"},
+                  {"type": "button", "id": "gallery-repos/b/leave", "props": {"label": "Leave it unlanded…", "variant": "ghost", "action": "repoLeave", "confirm": "Leave internal-auth unlanded?"}}
+                ]}
+              ]}
+            ]},
+            {"type": "repos", "id": "gallery-repos-folded", "props": {"title": "3 repos", "summary": [{"text": "1 merged"}, {"text": "1 ready to land", "tone": "warning"}, {"text": "1 waits"}], "collapsed": true, "action": "reposToggle", "rowAction": "reposRow", "rows": []}},
             {"type": "permissionCard", "id": "gallery-permission", "props": {"request": "permission-1", "text": "Claude wants to run go test ./internal/notify/...", "title": "Run a command?", "command": "go test ./internal/notify/...", "caption": "Claude says: Run the notify tests", "options": [
               {"id": "allow-once", "label": "Allow once", "kind": "allow_once", "shortcut": "opt+1"},
               {"id": "allow-with-updates", "label": "Always allow…", "kind": "allow_always", "shortcut": "opt+2", "rule": "Bash(go test:*)", "scope": "in shop on this Mac", "workspace": "shop"},
@@ -185,6 +211,14 @@
                   "type": "stack",
                   "props": {"direction": "vertical"},
                   "children": [
+                    {
+                      "type": "crumb",
+                      "props": {"parts": ["Agents", "Campaign pause reason"], "leaf": "ads-management", "icon": "folder", "note": "3 of 8"},
+                      "children": [
+                        {"type": "button", "id": "gallery-crumb/prev", "props": {"label": "Previous repo", "icon": "chevron.up", "variant": "ghost", "iconOnly": true, "shortcut": "opt+up"}},
+                        {"type": "button", "id": "gallery-crumb/next", "props": {"label": "Next repo", "icon": "chevron.down", "variant": "ghost", "iconOnly": true, "shortcut": "opt+down", "disabled": true}}
+                      ]
+                    },
                     {
                       "type": "header",
                       "id": "gallery-header",

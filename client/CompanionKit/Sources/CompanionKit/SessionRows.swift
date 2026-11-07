@@ -51,7 +51,7 @@ extension AgentSession {
         if isRun { return pending.contains { $0.hasPrefix(GraphRun.stepRequest) } ? .step : .cap }
         if needsYou {
             if pendingSummary?.kind == .question, pending.contains(where: AgentSession.isQuestion) { return .question }
-            return status == .waiting || !pending.isEmpty ? .permission : .question
+            return status == .waiting || !pending.isEmpty || answersOnMac ? .permission : .question
         }
         if asksParent { return .asksParent }
         if childStatus == .waiting { return .childWaiting }
@@ -86,6 +86,9 @@ extension AgentSession {
         case .cap:
             return SessionStateLine(lead: (pendingSummary?.text ?? SessionState.waitingForYou.label) + " ·", text: "continue or stop")
         case .permission:
+            if let summary = pendingSummary, answersOnMac {
+                return SessionStateLine(text: summary.text, tone: .needsYou, age: age(summary.at))
+            }
             guard let summary = pendingSummary, summary.kind == .permission, !summary.text.isEmpty else {
                 return SessionStateLine(text: SessionState.waitingForYou.label, tone: .needsYou, age: age(updatedAt))
             }

@@ -1550,6 +1550,27 @@ struct QuestionCard: View {
     }
 }
 
+struct AnswerOnMacRow: View {
+    let text: String
+
+    var body: some View {
+        DockCard {
+            HStack(spacing: 12) {
+                DockBadge(symbol: "laptopcomputer")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(text)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(2)
+                    Text("Answer on the Mac")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
 struct AskedRow: View {
     let question: Elicitation
 

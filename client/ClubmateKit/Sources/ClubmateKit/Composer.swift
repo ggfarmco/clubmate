@@ -122,6 +122,7 @@ public final class ComposerModel {
 public final class ComposerDrafts {
     private var models: [String: ComposerModel] = [:]
     private var forms: [String: FormState] = [:]
+    private var connectCards: [String: ConnectCardModel] = [:]
     public private(set) var focused: String?
 
     public init() {}
@@ -153,6 +154,13 @@ public final class ComposerDrafts {
         if let model = models[id] { return model }
         let model = ComposerModel()
         models[id] = model
+        return model
+    }
+
+    public func connectCard(for id: String) -> ConnectCardModel {
+        if let model = connectCards[id] { return model }
+        let model = ConnectCardModel()
+        connectCards[id] = model
         return model
     }
 

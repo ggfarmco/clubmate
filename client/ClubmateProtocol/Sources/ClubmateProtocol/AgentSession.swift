@@ -329,19 +329,24 @@ public struct PendingSummary: Codable, Sendable, Hashable {
     public enum Kind: String, Codable, Sendable {
         case permission
         case question
+        case connect
+        case land
+        case failed
     }
 
     public let kind: Kind
     public let text: String
     public let tool: String?
     public let role: String?
+    public let onMac: Bool?
     public let at: Date
 
-    public init(kind: Kind, text: String, tool: String? = nil, role: String? = nil, at: Date) {
+    public init(kind: Kind, text: String, tool: String? = nil, role: String? = nil, onMac: Bool? = nil, at: Date) {
         self.kind = kind
         self.text = text
         self.tool = tool
         self.role = role
+        self.onMac = onMac
         self.at = at
     }
 
@@ -350,7 +355,7 @@ public struct PendingSummary: Codable, Sendable, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case kind, text, tool, role, at
+        case kind, text, tool, role, onMac, at
     }
 
     public init(from decoder: any Decoder) throws {
@@ -361,6 +366,7 @@ public struct PendingSummary: Codable, Sendable, Hashable {
             text: try c.decodeIfPresent(String.self, forKey: .text) ?? "",
             tool: try c.decodeIfPresent(String.self, forKey: .tool).flatMap { $0.isEmpty ? nil : $0 },
             role: try c.decodeIfPresent(String.self, forKey: .role).flatMap { $0.isEmpty ? nil : $0 },
+            onMac: try c.decodeIfPresent(Bool.self, forKey: .onMac),
             at: at ?? .distantPast
         )
     }
@@ -371,6 +377,7 @@ public struct PendingSummary: Codable, Sendable, Hashable {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         try c.encode(kind, forKey: .kind)
         try c.encode(text, forKey: .text)
+        try c.encodeIfPresent(onMac, forKey: .onMac)
         try c.encodeIfPresent(tool, forKey: .tool)
         try c.encodeIfPresent(role, forKey: .role)
         try c.encode(formatter.string(from: at), forKey: .at)
