@@ -71,7 +71,11 @@ func inertWith(ctx context.Context, repo string, env []string, args ...string) (
 	defer cancel()
 	cmd := command(ctx, repo, append([]string{"-c", "log.showSignature=false"}, args...)...)
 	cmd.Env = append(cmd.Env, "GIT_NO_LAZY_FETCH=1")
-	cmd.Env = append(cmd.Env, filterOverrides(ctx, repo)...)
+	filters, err := filterOverrides(ctx, repo)
+	if err != nil {
+		return nil, err
+	}
+	cmd.Env = append(cmd.Env, filters...)
 	cmd.Env = append(cmd.Env, env...)
 	return cmd.Output()
 }
@@ -79,27 +83,34 @@ func inertWith(ctx context.Context, repo string, env []string, args ...string) (
 func MutateInert(ctx context.Context, repo string, args ...string) ([]byte, error) {
 	cmd := command(ctx, repo, append([]string{"-c", "core.hooksPath=/dev/null"}, args...)...)
 	cmd.Env = append(cmd.Env, "GIT_NO_LAZY_FETCH=1")
-	cmd.Env = append(cmd.Env, overrides(ctx, repo, "^("+filterKey+"|"+hookKey+")$")...)
+	env, err := overrides(ctx, repo, "^("+filterKey+"|"+hookKey+")$")
+	if err != nil {
+		return nil, err
+	}
+	cmd.Env = append(cmd.Env, env...)
 	return cmd.Output()
 }
 
-func filterOverrides(ctx context.Context, repo string) []string {
+func filterOverrides(ctx context.Context, repo string) ([]string, error) {
 	return overrides(ctx, repo, "^"+filterKey+"$")
 }
 
-func overrides(ctx context.Context, repo, keys string) []string {
-	out, _ := Run(ctx, repo, "config", "--null", "--name-only", "--get-regexp", keys)
-	names := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
-	if len(out) == 0 {
-		return nil
+func overrides(ctx context.Context, repo, keys string) ([]string, error) {
+	out, err := Run(ctx, repo, "config", "--null", "--name-only", "--get-regexp", keys)
+	if ee, ok := errors.AsType[*exec.ExitError](err); ok && ee.ExitCode() == 1 {
+		return nil, nil
 	}
+	if err != nil {
+		return nil, err
+	}
+	names := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
 	env := make([]string, 0, 2*len(names)+1)
 	env = append(env, "GIT_CONFIG_COUNT="+strconv.Itoa(len(names)))
 	for i, name := range names {
 		key, value := override(name)
 		env = append(env, "GIT_CONFIG_KEY_"+strconv.Itoa(i)+"="+key, "GIT_CONFIG_VALUE_"+strconv.Itoa(i)+"="+value)
 	}
-	return env
+	return env, nil
 }
 
 func override(name string) (string, string) {

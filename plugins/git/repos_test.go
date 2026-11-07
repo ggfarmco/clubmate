@@ -353,38 +353,66 @@ func TestCloneLeavesTheWorkspaceFree(t *testing.T) {
 }
 
 func TestUnseenAFKFolderRunsNothingOfItsOwnOnCheckoutUntilSeen(t *testing.T) {
-	marks := t.TempDir()
-	hook, configHook, smudge := filepath.Join(marks, "hook"), filepath.Join(marks, "config-hook"), filepath.Join(marks, "smudge")
+	includes := map[string]string{
+		"in the repo's config":   "",
+		"included on the branch": "includeIf.onbranch:feat/**.path",
+		"included in a worktree": "includeIf.gitdir:**/worktrees/**.path",
+	}
+	for name, include := range includes {
+		t.Run(name, func(t *testing.T) {
+			marks := t.TempDir()
+			hook, configHook, smudge := filepath.Join(marks, "hook"), filepath.Join(marks, "config-hook"), filepath.Join(marks, "smudge")
+			repo := committedRepo(t)
+			require.NoError(t, os.WriteFile(filepath.Join(repo, ".gitattributes"), []byte("* filter=own\n"), 0o644))
+			git(t, repo, "add", ".")
+			git(t, repo, "commit", "-qm", "attributes")
+			require.NoError(t, os.MkdirAll(filepath.Join(repo, ".git", "hooks"), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(repo, ".git", "hooks", "post-checkout"), []byte("#!/bin/sh\ntouch "+hook+"\n"), 0o700))
+			config := filepath.Join(repo, ".git", "config")
+			if include != "" {
+				config = filepath.Join(repo, ".git", "own.cfg")
+				git(t, repo, "config", include, "own.cfg")
+			}
+			git(t, repo, "config", "-f", config, "hook.a=b.event", "post-index-change")
+			git(t, repo, "config", "-f", config, "hook.a=b.command", "touch "+configHook+" #")
+			git(t, repo, "config", "-f", config, "filter.own.smudge", "touch "+smudge+"; cat")
+			git(t, repo, "config", "-f", config, "filter.own.required", "true")
+			h, id := open(t, committedRepo(t))
+			_, err := h.Svc.AddRepo(t.Context(), id, repo, contract.FolderMeta{AddedBy: "Fix login", AddedAfk: true})
+			require.NoError(t, err)
+
+			res := awaitOp(t, h, id, "git.worktree-new", map[string]any{"repo": repo, "branch": "feat/pay", "switch": false})
+
+			assert.Empty(t, res.Error)
+			assert.FileExists(t, filepath.Join(res.Path, "a.go"))
+			assert.NoFileExists(t, hook)
+			assert.NoFileExists(t, configHook)
+			assert.NoFileExists(t, smudge)
+
+			_, err = h.Svc.MarkFolderSeen(t.Context(), id, repo)
+			require.NoError(t, err)
+
+			res = awaitOp(t, h, id, "git.worktree-new", map[string]any{"repo": repo, "branch": "feat/more", "switch": false})
+
+			assert.Empty(t, res.Error)
+			assert.FileExists(t, hook)
+			assert.FileExists(t, smudge)
+		})
+	}
+}
+
+func TestUnseenAFKFolderLeavesNoHalfMadeWorktree(t *testing.T) {
 	repo := committedRepo(t)
-	require.NoError(t, os.WriteFile(filepath.Join(repo, ".gitattributes"), []byte("* filter=own\n"), 0o644))
-	git(t, repo, "add", ".")
-	git(t, repo, "commit", "-qm", "attributes")
-	require.NoError(t, os.MkdirAll(filepath.Join(repo, ".git", "hooks"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(repo, ".git", "hooks", "post-checkout"), []byte("#!/bin/sh\ntouch "+hook+"\n"), 0o700))
-	git(t, repo, "config", "hook.a=b.event", "post-checkout")
-	git(t, repo, "config", "hook.a=b.command", "touch "+configHook+" #")
-	git(t, repo, "config", "filter.own.smudge", "touch "+smudge+"; cat")
-	git(t, repo, "config", "filter.own.required", "true")
+	require.NoError(t, os.WriteFile(filepath.Join(repo, ".git", "broken.cfg"), []byte("["), 0o644))
+	git(t, repo, "config", "includeIf.onbranch:feat/**.path", "broken.cfg")
 	h, id := open(t, committedRepo(t))
 	_, err := h.Svc.AddRepo(t.Context(), id, repo, contract.FolderMeta{AddedBy: "Fix login", AddedAfk: true})
 	require.NoError(t, err)
 
 	res := awaitOp(t, h, id, "git.worktree-new", map[string]any{"repo": repo, "branch": "feat/pay", "switch": false})
 
-	assert.Empty(t, res.Error)
-	assert.FileExists(t, filepath.Join(res.Path, "a.go"))
-	assert.NoFileExists(t, hook)
-	assert.NoFileExists(t, configHook)
-	assert.NoFileExists(t, smudge)
-
-	_, err = h.Svc.MarkFolderSeen(t.Context(), id, repo)
-	require.NoError(t, err)
-
-	res = awaitOp(t, h, id, "git.worktree-new", map[string]any{"repo": repo, "branch": "feat/more", "switch": false})
-
-	assert.Empty(t, res.Error)
-	assert.FileExists(t, hook)
-	assert.FileExists(t, smudge)
+	assert.NotEmpty(t, res.Error)
+	assert.NotContains(t, git(t, repo, "worktree", "list"), "feat/pay")
 }
 
 func TestUnseenAFKFolderStartsFromLocalDefaultUntilSeen(t *testing.T) {

@@ -151,7 +151,7 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, workspaceID string, args
 	k := hooks{h: h, workspaceID: workspaceID, primary: primary.Path}
 	exists := hasRef(ctx, cur.Path, headsPrefix+args.Branch)
 	return func(ctx context.Context, report *opReport) (string, error) {
-		add := []string{"worktree", "add", dir, args.Branch}
+		add := []string{dir, args.Branch}
 		if !exists {
 			if args.Base == baseDefault {
 				var err error
@@ -159,13 +159,9 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, workspaceID string, args
 					return "", err
 				}
 			}
-			add = []string{"worktree", "add", "-b", args.Branch, dir, base}
+			add = []string{"-b", args.Branch, dir, base}
 		}
-		create := mutate
-		if f.unseen {
-			create = mutateInert
-		}
-		if _, err := create(ctx, cur.Path, add...); err != nil {
+		if err := addWorktree(ctx, cur.Path, dir, f.unseen, add); err != nil {
 			return "", err
 		}
 		if err := excludeWorktrees(ctx, primary.Path); err != nil {
@@ -402,6 +398,20 @@ func excludeWorktrees(ctx context.Context, top string) error {
 	}
 	_, err = file.WriteString(line)
 	return errors.Join(err, file.Close())
+}
+
+func addWorktree(ctx context.Context, repo, dir string, unseen bool, add []string) error {
+	if !unseen {
+		_, err := mutate(ctx, repo, append([]string{"worktree", "add"}, add...)...)
+		return err
+	}
+	if _, err := mutateInert(ctx, repo, append([]string{"worktree", "add", "--no-checkout"}, add...)...); err != nil {
+		return err
+	}
+	if _, err := mutateInert(ctx, dir, "reset", "--hard"); err != nil {
+		return removeFailed(ctx, repo, dir, err)
+	}
+	return nil
 }
 
 func removeFailed(ctx context.Context, repo, dir string, cause error) error {

@@ -89,6 +89,19 @@ func TestMutateReturnsDespiteOrphanHoldingOutput(t *testing.T) {
 	assert.ErrorIs(t, err, exec.ErrWaitDelay)
 }
 
+func TestMutateInertRunsNothingWithoutItsOverrides(t *testing.T) {
+	repo := newRepo(t)
+	bin, ran := t.TempDir(), filepath.Join(t.TempDir(), "ran")
+	write(t, filepath.Join(bin, "git"), "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = --get-regexp ] && exit 128; done\ntouch "+ran+"\n")
+	require.NoError(t, os.Chmod(filepath.Join(bin, "git"), 0o700))
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	_, err := gitrepo.MutateInert(t.Context(), repo, "status")
+
+	assert.Error(t, err)
+	assert.NoFileExists(t, ran)
+}
+
 func TestRunLimited(t *testing.T) {
 	repo := newRepo(t)
 	big := strings.Repeat("x", 1<<20)
