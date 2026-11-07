@@ -896,22 +896,23 @@ type ReposRow struct {
 }
 
 type ReposProps struct {
-	Title      string
-	Summary    []ReposSegment
-	Branch     string
-	BranchNote string
-	Columns    []string
-	Rows       []ReposRow
-	Footer     string
-	Hint       string
-	Collapsed  bool
-	Action     string
-	RowAction  string
+	Title        string
+	Summary      []ReposSegment
+	Branch       string
+	BranchNote   string
+	Columns      []string
+	Rows         []ReposRow
+	Footer       string
+	FooterAction string
+	Hint         string
+	Collapsed    bool
+	Action       string
+	RowAction    string
 }
 
 func Repos(id string, p ReposProps, actions ...Node) Node {
 	props := map[string]any{"title": p.Title, "summary": nonNil(p.Summary), "columns": nonNil(p.Columns), "rows": nonNil(p.Rows), "action": p.Action, "rowAction": p.RowAction}
-	for _, kv := range [][2]string{{"branch", p.Branch}, {"branchNote", p.BranchNote}, {"footer", p.Footer}, {"hint", p.Hint}} {
+	for _, kv := range [][2]string{{"branch", p.Branch}, {"branchNote", p.BranchNote}, {"footer", p.Footer}, {"footerAction", p.FooterAction}, {"hint", p.Hint}} {
 		props = withOptional(props, kv[0], kv[1])
 	}
 	if p.Collapsed {

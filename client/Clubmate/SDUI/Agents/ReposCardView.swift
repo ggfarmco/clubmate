@@ -285,6 +285,12 @@ struct ReposCardView: View {
                     .foregroundStyle(theme.faint)
                     .fixedSize()
             }
+            if let id = node.string("footerAction"), let bar = node.identifiedChildren.first(where: { $0.id == id }) {
+                SDUINodeView(node: bar.node)
+                    .equatable()
+                    .environment(\.sduiGutter, false)
+                    .fixedSize()
+            }
         }
     }
 }

@@ -33,6 +33,8 @@ const (
 	refsFormat     = "--format=%(refname) %(objectname) %(upstream:track)"
 	mergedFormat   = "--format=%(refname)"
 	parentsFormat  = "--format=%P"
+	remoteFormat   = "--format=%(refname) %(upstream) %(upstream:track)"
+	remoteHead     = "HEAD"
 )
 
 var errNotWorktree = errors.New("not a worktree of this workspace")
@@ -44,6 +46,8 @@ type indexEntry struct {
 	MadeBy     string    `json:"madeBy,omitempty"`
 	Merged     bool      `json:"merged"`
 	RemoteGone bool      `json:"remoteGone"`
+	Locked     bool      `json:"locked,omitempty"`
+	LockWhy    string    `json:"lockWhy,omitempty"`
 	tree       string
 	mapped     string
 	tip        string
@@ -98,6 +102,10 @@ type worktreeState struct {
 	Nested   int    `json:"nested"`
 	Tip      string `json:"tip,omitempty"`
 	Merged   bool   `json:"merged"`
+	Landed   bool   `json:"landed"`
+	Remote   bool   `json:"remote"`
+	Locked   bool   `json:"locked,omitempty"`
+	LockWhy  string `json:"lockWhy,omitempty"`
 	Error    string `json:"error,omitempty"`
 }
 
@@ -220,7 +228,7 @@ func readFolderIndex(ctx context.Context, f *folder, known map[string]bool) (*fo
 		if t.Bare {
 			continue
 		}
-		e := indexEntry{worktreeInfo: worktreeInfo{Repo: f.Repo, Path: t.Path, Branch: t.Branch, Head: heads[t.Head].short, Committed: heads[t.Head].committed, Main: j == 0}, tree: t.Real, mapped: f.Mapped(t), tip: t.Head}
+		e := indexEntry{worktreeInfo: worktreeInfo{Repo: f.Repo, Path: t.Path, Branch: t.Branch, Head: heads[t.Head].short, Committed: heads[t.Head].committed, Main: j == 0 || refs.name != "" && t.Branch == refs.name}, Locked: t.Locked, LockWhy: t.LockWhy, tree: t.Real, mapped: f.Mapped(t), tip: t.Head}
 		if j > 0 {
 			l := refs.landing(t, known)
 			e.Merged, e.RemoteGone, e.landedKey, e.squashable = l.merged, l.remoteGone, l.key, l.squashable
@@ -333,10 +341,12 @@ func settleLanded(s *state) {
 	}
 }
 
-func worktreeStates(ctx context.Context, h *pluginsdk.Host, workspaceID string, paths []string, known map[string]bool) ([]worktreeState, error) {
+func worktreeStates(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs, known map[string]bool) ([]worktreeState, error) {
+	paths := args.Paths
 	out := make([]worktreeState, len(paths))
 	found := make([]gitrepo.Worktree, len(paths))
 	excludes := make([][]string, len(paths))
+	proofs := make([]string, len(paths))
 	for i, path := range paths {
 		out[i] = worktreeState{Path: path, Error: errNotWorktree.Error()}
 	}
@@ -353,11 +363,21 @@ func worktreeStates(ctx context.Context, h *pluginsdk.Host, workspaceID string, 
 		if err != nil {
 			return err
 		}
+		remotes, err := remoteBranches(ctx, f.Checkout.Path)
+		if err != nil {
+			return err
+		}
 		for i, path := range paths {
 			if t, ok := f.Member(path); ok {
 				out[i].Error, found[i], excludes[i] = "", t, exclude
 				out[i].Tip = t.Head
 				out[i].Merged = t.Real != f.Trees[0].Real && refs.landing(t, known).merged
+				out[i].Remote = remotes[t.Branch]
+				out[i].Locked, out[i].LockWhy = t.Locked, t.LockWhy
+				if args.Proof && t.Branch != "" && t.Branch != refs.name {
+					proofs[i] = f.Checkout.Path
+					out[i].Landed = out[i].Merged || refs.mergedTo[t.Branch]
+				}
 			}
 		}
 		return nil
@@ -366,10 +386,59 @@ func worktreeStates(ctx context.Context, h *pluginsdk.Host, workspaceID string, 
 		return nil, err
 	}
 	forEachLimited(len(paths), stateParallel, func(i int) {
-		if out[i].Error == "" {
-			readState(ctx, &out[i], found[i].Path, excludes[i])
+		if out[i].Error != "" {
+			return
+		}
+		readState(ctx, &out[i], found[i].Path, excludes[i])
+		if proofs[i] != "" && !out[i].Landed {
+			out[i].Landed = gitrepo.LandedInert(ctx, proofs[i], out[i].Tip)
 		}
 	})
+	return out, nil
+}
+
+func unpushedWorktrees(ctx context.Context, h *pluginsdk.Host, workspaceID string) ([]string, error) {
+	out := []string{}
+	err := eachFolder(ctx, h, workspaceID, func(f *folder) error {
+		top := f.Checkout.Path
+		args := append([]string{"rev-list", "--branches", "--not", "--remotes"}, defaultExclude(ctx, top)...)
+		raw, err := inert(ctx, top, append(args, "--")...)
+		if err != nil {
+			return err
+		}
+		tips := map[string]bool{}
+		for line := range strings.Lines(string(raw)) {
+			tips[strings.TrimSpace(line)] = true
+		}
+		for _, t := range f.Trees[1:] {
+			if tips[t.Head] {
+				out = append(out, t.Path)
+			}
+		}
+		return nil
+	})
+	return out, err
+}
+
+func remoteBranches(ctx context.Context, top string) (map[string]bool, error) {
+	raw, err := inert(ctx, top, "for-each-ref", remoteFormat, headsPrefix, remotesPrefix)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]bool{}
+	for line := range strings.Lines(string(raw)) {
+		ref, rest, _ := strings.Cut(strings.TrimRight(line, "\n"), " ")
+		upstream, track, _ := strings.Cut(rest, " ")
+		if branch, ok := strings.CutPrefix(ref, headsPrefix); ok {
+			if upstream != "" && track != goneTrack {
+				out[branch] = true
+			}
+			continue
+		}
+		if _, branch, ok := strings.Cut(strings.TrimPrefix(ref, remotesPrefix), "/"); ok && branch != remoteHead {
+			out[branch] = true
+		}
+	}
 	return out, nil
 }
 

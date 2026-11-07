@@ -143,6 +143,13 @@
               ]}
             ]},
             {"type": "repos", "id": "gallery-repos-folded", "props": {"title": "3 repos", "summary": [{"text": "1 merged"}, {"text": "1 ready to land", "tone": "warning"}, {"text": "1 waits"}], "collapsed": true, "action": "reposToggle", "rowAction": "reposRow", "rows": []}},
+            {"type": "repos", "id": "gallery-repos-done", "props": {"title": "1 repo", "summary": [{"text": "1 merged"}], "columns": ["Repo", "Lands by", "State"], "footer": "All children done · 1 worktree left behind", "footerAction": "gallery-repos-done/footer", "action": "reposToggle", "rowAction": "reposRow", "rows": [
+              {"id": "a", "order": 1, "name": "ads-snapshot", "landsBy": "pull request", "landsIcon": "arrow.triangle.pull", "state": "merged · PR #87", "tone": "success", "icon": "checkmark.circle"}
+            ]}, "children": [
+              {"type": "stack", "id": "gallery-repos-done/footer", "props": {"direction": "horizontal"}, "children": [
+                {"type": "button", "id": "gallery-repos-done/archive", "props": {"label": "Archive task…", "variant": "secondary", "action": "archive"}}
+              ]}
+            ]},
             {"type": "permissionCard", "id": "gallery-permission", "props": {"request": "permission-1", "text": "Claude wants to run go test ./internal/notify/...", "title": "Run a command?", "command": "go test ./internal/notify/...", "caption": "Claude says: Run the notify tests", "options": [
               {"id": "allow-once", "label": "Allow once", "kind": "allow_once", "shortcut": "opt+1"},
               {"id": "allow-with-updates", "label": "Always allow…", "kind": "allow_always", "shortcut": "opt+2", "rule": "Bash(go test:*)", "scope": "in shop on this Mac", "workspace": "shop"},

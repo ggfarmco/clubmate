@@ -109,12 +109,36 @@
         "hidden": true,
         "agent": false,
         "timeout": 60,
-        "description": "What removing these worktrees could lose, read with git status in each, at most 8 at a time. Runs nothing the repo's config names. Returns [{path, dirty, unpushed, ignored, orphans, nested, tip, merged, error?}] in the order of paths: dirty counts changed and untracked files, ignored the ignored files, unpushed the commits on no remote and not in the local default branch, orphans the commits on no ref, nested the initialised submodules and repos inside it, whose work the other numbers can't see, tip and merged are read now rather than from the index, error why a path has no numbers.",
+        "description": "What removing these worktrees could lose, read with git status in each, at most 8 at a time. Runs nothing the repo's config names. Returns [{path, dirty, unpushed, ignored, orphans, nested, tip, merged, landed, remote, error?}] in the order of paths: dirty counts changed and untracked files, ignored the ignored files, unpushed the commits on no remote and not in the local default branch, orphans the commits on no ref, nested the initialised submodules and repos inside it, whose work the other numbers can't see, tip and merged are read now rather than from the index, remote whether a remote-tracking branch of that name exists, landed (only with proof) whether the change is in the default branch by ancestry or an exact git merge-tree, locked and lockWhy whether git holds it, error why a path has no numbers.",
         "args": {
           "properties": {
-            "paths": {"type": "array", "items": {"type": "string"}, "description": "Worktree roots, as listed by git.worktree-index."}
+            "paths": {"type": "array", "items": {"type": "string"}, "description": "Worktree roots, as listed by git.worktree-index."},
+            "proof": {"type": "boolean", "description": "Also read landed, which runs more git per path."}
           },
           "required": ["paths"]
+        }
+      },
+      {
+        "id": "git.worktree-unpushed",
+        "title": "Worktrees with unpushed commits",
+        "hidden": true,
+        "agent": false,
+        "timeout": 60,
+        "description": "The linked worktrees whose tip is on no remote and not in the local default branch, as paths. One git rev-list per folder, whatever the number of worktrees, so a sheet can sort hundreds without reading each."
+      },
+      {
+        "id": "git.branch-delete",
+        "title": "Delete a local branch",
+        "hidden": true,
+        "agent": false,
+        "description": "Delete a local branch, for the agents plugin only (Archive, Clean up), with git branch -d rules. Refused when it is the default branch, its tip is not the tip you saw, or a remote branch of that name exists. git branch -d decides; only the exact git merge-tree proof, read right before, goes past it with -D. Never touches a remote branch.",
+        "args": {
+          "properties": {
+            "repo": {"type": "string", "description": "The workspace folder."},
+            "branch": {"type": "string", "description": "The local branch."},
+            "tip": {"type": "string", "description": "The commit you saw on it."}
+          },
+          "required": ["repo", "branch", "tip"]
         }
       },
       {
@@ -135,7 +159,7 @@
         "title": "Worktree sessions",
         "hidden": true,
         "agent": false,
-        "description": "List the workspace's running sessions whose working directory is inside the given worktree, except sessions owned by plugins that handle git.worktree.removing (the editor's own Neovim). Returns [{id, title}].",
+        "description": "List the workspace's running sessions that started inside the given worktree or have a process whose working directory is inside it now, except sessions owned by plugins that handle git.worktree.removing (the editor's own Neovim). Returns [{id, title}].",
         "args": {
           "properties": {
             "path": {"type": "string", "description": "Absolute worktree root."}
@@ -163,7 +187,7 @@
         "hidden": true,
         "agent": true,
         "destructive": true,
-        "description": "Start removing a linked git worktree: runs the git.worktree.removing handlers (the editor stops its Neovim; any refusal is the operation's error) and then the git.worktree.vacating ones (agent sessions close), runs .clubmate/teardown.sh once the user trusts it (a failure is only a notice), runs git worktree remove and, when it was current, switches the folder back to its own checkout. Never removes the main checkout, the checkout of the workspace folder, a worktree with uncommitted changes, or the branch. Fails at once while another git operation runs. Returns {id}; poll git.worktree-op-status for the outcome. Once it finishes, a call from the app (not an agent or plugin) also publishes git.outcome {workspace, id, message?, confirm?}. When a removing handler refused with unsaved buffers and force was not set, confirm asks to retry with force.",
+        "description": "Start removing a linked git worktree: runs the git.worktree.removing handlers (the editor stops its Neovim; any refusal is the operation's error) and then the git.worktree.vacating ones (agent sessions close), runs .clubmate/teardown.sh once the user trusts it (a failure is only a notice), runs git worktree remove and, when it was current, switches the folder back to its own checkout. Never removes the main checkout, a worktree on the default branch, the checkout of the workspace folder, a locked worktree, a worktree with uncommitted changes, or the branch. Fails at once while another git operation runs. Returns {id}; poll git.worktree-op-status for the outcome. Once it finishes, a call from the app (not an agent or plugin) also publishes git.outcome {workspace, id, message?, confirm?}. When a removing handler refused with unsaved buffers and force was not set, confirm asks to retry with force.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},

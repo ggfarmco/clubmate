@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"clubmate/internal/proc"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/gitrepo"
 )
@@ -35,16 +36,22 @@ const (
 )
 
 var (
-	errMainCheckout    = errors.New("cannot remove the main checkout")
-	errUnseenFolder    = errors.New("it was connected while you were away and you haven't seen it yet")
-	errFolderCheckout  = errors.New("cannot remove the checkout of the workspace folder")
-	errDirtyWorktree   = errors.New("worktree has uncommitted changes")
-	errDiscardRefused  = errors.New("only the app discards a worktree's uncommitted changes")
-	errCostGrew        = errors.New("it has more to lose than when you looked")
-	errNestedRepos     = errors.New("it holds submodules or repos Clubmate can't read")
-	errRelativePath    = errors.New("path must be absolute")
-	errSymlinkedFolder = errors.New("worktrees folder must not be a symlink")
-	errNoMissingFolder = errors.New("no git folder holds the missing worktree")
+	errMainCheckout   = errors.New("cannot remove the main checkout")
+	errUnseenFolder   = errors.New("it was connected while you were away and you haven't seen it yet")
+	errFolderCheckout = errors.New("cannot remove the checkout of the workspace folder")
+	errDirtyWorktree  = errors.New("worktree has uncommitted changes")
+	errDiscardRefused = errors.New("only the app discards a worktree's uncommitted changes")
+	errCostGrew       = errors.New("it has more to lose than when you looked")
+	errNestedRepos    = errors.New("it holds submodules or repos Clubmate can't read")
+
+	errLockedWorktree      = errors.New("it is locked")
+	errBranchDeleteRefused = errors.New("only the app deletes a branch")
+	errBranchMoved         = errors.New("it moved since you looked")
+	errBranchOnRemote      = errors.New("it is still on the remote")
+	errDefaultBranch       = errors.New("it is the default branch")
+	errRelativePath        = errors.New("path must be absolute")
+	errSymlinkedFolder     = errors.New("worktrees folder must not be a symlink")
+	errNoMissingFolder     = errors.New("no git folder holds the missing worktree")
 )
 
 func listWorktrees(ctx context.Context, h *pluginsdk.Host, workspaceID string) ([]worktreeInfo, error) {
@@ -110,10 +117,29 @@ func worktreeSessions(ctx context.Context, h *pluginsdk.Host, workspaceID, path 
 	if err != nil {
 		return nil, err
 	}
+	inside, err := movedIn(ctx, h, workspaceID, dir)
+	if err != nil {
+		return nil, err
+	}
 	out := []sessionInfo{}
 	for _, s := range sessions {
-		if s.State == sessionRunning && !vacate[s.Owner] && filepath.IsAbs(s.Cwd) && gitrepo.Within(gitrepo.Canonical(s.Cwd), dir) {
+		started := filepath.IsAbs(s.Cwd) && gitrepo.Within(gitrepo.Canonical(s.Cwd), dir)
+		if s.State == sessionRunning && !vacate[s.Owner] && (started || inside[s.ID]) {
 			out = append(out, sessionInfo{ID: s.ID, Title: s.Title})
+		}
+	}
+	return out, nil
+}
+
+func movedIn(ctx context.Context, h *pluginsdk.Host, workspaceID, dir string) (map[string]bool, error) {
+	nodes, err := h.ProcessTree(ctx, workspaceID, "")
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]bool{}
+	for _, n := range nodes {
+		if cwd, ok := proc.Cwd(n.Process.PID); ok && gitrepo.Within(gitrepo.Canonical(cwd), dir) {
+			out[n.SessionID] = true
 		}
 	}
 	return out, nil
@@ -274,6 +300,42 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 		}
 		return "", err
 	}, nil
+}
+
+func deleteBranch(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs) error {
+	f, err := gitFolder(ctx, h, workspaceID, args.Repo)
+	if err != nil {
+		return err
+	}
+	return deleteBranchIn(ctx, f.Checkout.Path, args.Branch, args.Tip)
+}
+
+func deleteBranchIn(ctx context.Context, top, branch, seen string) error {
+	if !gitrepo.ValidBranchName(branch) {
+		return fmt.Errorf(invalidBranchText, branch)
+	}
+	if name, err := gitrepo.DefaultBranch(ctx, top); err == nil && name == branch {
+		return errDefaultBranch
+	}
+	tip, err := run(ctx, top, "rev-parse", "--verify", headsPrefix+branch)
+	if err != nil {
+		return err
+	}
+	if seen == "" || strings.TrimSpace(string(tip)) != seen {
+		return errBranchMoved
+	}
+	remotes, err := remoteBranches(ctx, top)
+	if err != nil {
+		return err
+	}
+	if remotes[branch] {
+		return errBranchOnRemote
+	}
+	_, err = mutate(ctx, top, "branch", "-d", "--", branch)
+	if err != nil && gitrepo.LandedInert(ctx, top, seen) {
+		_, err = mutate(ctx, top, "branch", "-D", "--", branch)
+	}
+	return err
 }
 
 func fallBack(ctx context.Context, h *pluginsdk.Host, workspaceID, missing string) error {
@@ -462,11 +524,15 @@ func removable(ctx context.Context, h *pluginsdk.Host, workspaceID string, args 
 	if err != nil {
 		return nil, gitrepo.Worktree{}, err
 	}
-	switch t.Real {
-	case f.Trees[0].Real:
+	switch {
+	case f.Primary(f.DefaultName(ctx), t):
 		return nil, gitrepo.Worktree{}, errMainCheckout
-	case f.Checkout.Real:
+	case t.Real == f.Checkout.Real:
 		return nil, gitrepo.Worktree{}, errFolderCheckout
+	case t.Locked && t.LockWhy != "":
+		return nil, gitrepo.Worktree{}, fmt.Errorf("%w: %s", errLockedWorktree, t.LockWhy)
+	case t.Locked:
+		return nil, gitrepo.Worktree{}, errLockedWorktree
 	}
 	return f, t, nil
 }

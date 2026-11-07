@@ -612,6 +612,12 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 	if !rec.closed() {
 		menu = append(menu, sdui.MenuEntry{Action: actClose, Label: "Close Session"})
 	}
+	if canArchive(row) {
+		menu = append(menu, sdui.MenuEntry{Action: actArchive, Label: archiveMenu})
+	}
+	if rec.closed() && ownsTask(rec) {
+		menu = append(menu, sdui.MenuEntry{Action: actRestore, Label: restoreMenu})
+	}
 	menu = append(menu, sdui.MenuEntry{Action: actDelete, Label: "Delete Session", Confirm: confirm})
 	display := displayStatus(rec, row.Children)
 	icon := statusIcons[cmp.Or(closedGlyphs[rec.ClosedStatus], display)]

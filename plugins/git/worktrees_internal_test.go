@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"net"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -79,4 +81,105 @@ func fakeCore(t *testing.T, handle func(*jsonrpc2.Request) (any, error)) *plugin
 		t.Fatal("Init not called")
 		return nil
 	}
+}
+
+func branchRepo(t *testing.T) string {
+	t.Helper()
+	repo := t.TempDir()
+	gitT(t, repo, "init", "-q", "-b", "main")
+	gitT(t, repo, "config", "user.name", "t")
+	gitT(t, repo, "config", "user.email", "t@t")
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "a.go"), []byte("one\n"), 0o600))
+	gitT(t, repo, "add", ".")
+	gitT(t, repo, "commit", "-qm", "one")
+	gitT(t, repo, "checkout", "-q", "-b", "feat")
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "b.go"), []byte("two\n"), 0o600))
+	gitT(t, repo, "add", ".")
+	gitT(t, repo, "commit", "-qm", "two")
+	gitT(t, repo, "checkout", "-q", "main")
+	return repo
+}
+
+func gitT(t *testing.T, repo string, args ...string) string {
+	t.Helper()
+	out, err := exec.Command("git", append([]string{"-C", repo}, args...)...).CombinedOutput()
+	require.NoError(t, err, string(out))
+	return strings.TrimSpace(string(out))
+}
+
+func TestDeleteBranchKeepsWhatGitWouldRefuse(t *testing.T) {
+	t.Parallel()
+	repo := branchRepo(t)
+	tip := gitT(t, repo, "rev-parse", "feat")
+
+	require.Error(t, deleteBranchIn(t.Context(), repo, "feat", tip))
+	require.ErrorIs(t, deleteBranchIn(t.Context(), repo, "feat", "0000"), errBranchMoved)
+	require.ErrorIs(t, deleteBranchIn(t.Context(), repo, "main", gitT(t, repo, "rev-parse", "main")), errDefaultBranch)
+
+	assert.Equal(t, tip, gitT(t, repo, "rev-parse", "feat"))
+}
+
+func TestDeleteBranchKeepsABranchOnTheRemote(t *testing.T) {
+	t.Parallel()
+	repo := branchRepo(t)
+	tip := gitT(t, repo, "rev-parse", "feat")
+	gitT(t, repo, "merge", "-q", "feat")
+	gitT(t, repo, "update-ref", "refs/remotes/origin/feat", tip)
+
+	require.ErrorIs(t, deleteBranchIn(t.Context(), repo, "feat", tip), errBranchOnRemote)
+
+	assert.Equal(t, tip, gitT(t, repo, "rev-parse", "refs/remotes/origin/feat"))
+	assert.Equal(t, tip, gitT(t, repo, "rev-parse", "refs/heads/feat"))
+}
+
+func TestDeleteBranchTakesWhatLanded(t *testing.T) {
+	t.Parallel()
+	tests := map[string]func(t *testing.T, repo string){
+		"merged": func(t *testing.T, repo string) { gitT(t, repo, "merge", "-q", "--no-ff", "-m", "m", "feat") },
+		"squashed": func(t *testing.T, repo string) {
+			gitT(t, repo, "merge", "-q", "--squash", "feat")
+			gitT(t, repo, "commit", "-qm", "s")
+		},
+	}
+	for name, land := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			repo := branchRepo(t)
+			tip := gitT(t, repo, "rev-parse", "feat")
+			land(t, repo)
+
+			require.NoError(t, deleteBranchIn(t.Context(), repo, "feat", tip))
+
+			assert.Empty(t, gitT(t, repo, "branch", "--list", "feat"))
+		})
+	}
+}
+
+func TestDeleteBranchWithoutExactProofStays(t *testing.T) {
+	t.Parallel()
+	repo := branchRepo(t)
+	tip := gitT(t, repo, "rev-parse", "feat")
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "b.go"), []byte("tw o\n"), 0o600))
+	gitT(t, repo, "add", ".")
+	gitT(t, repo, "commit", "-qm", "nearly the same")
+
+	require.Error(t, deleteBranchIn(t.Context(), repo, "feat", tip))
+
+	assert.Equal(t, tip, gitT(t, repo, "rev-parse", "feat"))
+}
+
+func TestDeleteBranchWithNoNetChangeStays(t *testing.T) {
+	t.Parallel()
+	repo := branchRepo(t)
+	gitT(t, repo, "checkout", "-q", "feat")
+	gitT(t, repo, "revert", "--no-edit", "HEAD")
+	gitT(t, repo, "checkout", "-q", "main")
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "later.go"), []byte("later\n"), 0o600))
+	gitT(t, repo, "add", ".")
+	gitT(t, repo, "commit", "-qm", "later")
+	tip := gitT(t, repo, "rev-parse", "feat")
+
+	require.Error(t, deleteBranchIn(t.Context(), repo, "feat", tip))
+
+	assert.Equal(t, tip, gitT(t, repo, "rev-parse", "feat"))
 }

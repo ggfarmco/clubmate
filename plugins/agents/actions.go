@@ -57,6 +57,7 @@ const (
 	actShowAll         = "showAll"
 	actOpenOutput      = "openOutput"
 	actRetry           = "retry"
+	actRestore         = "restore"
 	actContinue        = "continue"
 	actOpenHandoff     = "openHandoff"
 	actSignIn          = "signIn"
@@ -86,7 +87,7 @@ var (
 	errUserAction    = errors.New("only the user presses this")
 )
 
-var userActions = []string{actSend, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave}
+var userActions = []string{actSend, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave, actArchive, actArchiveTick, actArchiveFolder, actArchiveCancel, actArchiveConfirm, actArchiveClose, actRestore, actCleanupTick, actCleanupGroup, actCleanupShow, actCleanupFilter, actCleanupFolder, actCleanupCancel, actCleanupConfirm}
 
 type textValue struct {
 	Text string `json:"text"`
@@ -184,6 +185,12 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 
 func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 	if ev.Slot == sheetSlot {
+		if isArchiveAction(ev.Action) {
+			return a.archiveSheetAct(ev)
+		}
+		if isCleanupAction(ev.Action) {
+			return a.cleanupSheetAct(ev)
+		}
 		return a.folderSheetAct(ev)
 	}
 	if sid, ok := isContextEvent(ev); ok {
@@ -341,6 +348,28 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		}
 		a.closeTree(ctx, s)
 		return nil
+	case actRestore:
+		if _, rest, ok := strings.Cut(ev.NodeID, "/"); ok && rest != "" {
+			break
+		}
+		s, err := a.rowSession(ev)
+		if err != nil {
+			return err
+		}
+		return a.restoreAct(ctx, ev, s)
+	case actArchive:
+		if strings.HasSuffix(ev.NodeID, "/"+reposNode+"/archive") {
+			s, err := a.lookup(ev.WorkspaceID, strings.SplitN(ev.NodeID, "/", 2)[0])
+			if err != nil {
+				return err
+			}
+			return a.openArchiveSheet(ctx, ev.WorkspaceID, s)
+		}
+		s, err := a.rowSession(ev)
+		if err != nil {
+			return err
+		}
+		return a.openArchiveSheet(ctx, ev.WorkspaceID, s)
 	case actNotifyAll, actNotifyNeeds, actNotifyMuted:
 		s, err := a.rowSession(ev)
 		if err != nil {
@@ -535,8 +564,9 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		}
 		return s.stopSubagent(tool)
 	case actRetry:
-		a.resume(s)
-		return nil
+		return a.reopenAct(ctx, ev, s)
+	case actRestore:
+		return a.restoreAct(ctx, ev, s)
 	case actContinue:
 		return a.handoffAndSelect(ctx, ev, s)
 	case actOpenHandoff:

@@ -50,6 +50,8 @@ type gitWorktree struct {
 	MadeBy     string    `json:"madeBy,omitempty"`
 	Merged     bool      `json:"merged"`
 	RemoteGone bool      `json:"remoteGone"`
+	Locked     bool      `json:"locked,omitempty"`
+	LockWhy    string    `json:"lockWhy,omitempty"`
 }
 
 type worktreeRow struct {
@@ -66,6 +68,7 @@ type worktreeRow struct {
 	Detail  string              `json:"detail"`
 	Icon    string              `json:"icon"`
 	Tone    string              `json:"tone,omitempty"`
+	landing taskRepo
 }
 
 type worktreeTask struct {
@@ -127,26 +130,11 @@ type sessionFact struct {
 type taskLink struct {
 	owner record
 	look  repoLook
+	repo  taskRepo
 }
 
 func (a *app) worktreesCommand(ctx context.Context, cmd pluginsdk.CommandRun) (worktreesResult, error) {
-	var index []gitWorktree
-	if err := a.host.RunCommand(ctx, worktreeIndexCmd, cmd.WorkspaceID, struct{}{}, &index); err != nil {
-		return worktreesResult{}, err
-	}
-	w, err := a.host.GetWorkspace(ctx, cmd.WorkspaceID)
-	if err != nil {
-		return worktreesResult{}, err
-	}
-	sessions := a.workspaceSessions(cmd.WorkspaceID)
-	facts := make([]sessionFact, 0, len(sessions))
-	for _, s := range sessions {
-		facts = append(facts, sessionFact{rec: s.snapshot(), live: s.blocksFolder()})
-	}
-	now := time.Now()
-	rows, tasks := joinWorktrees(index, facts, a.codeFolder(ctx, cmd.WorkspaceID), now)
-	folders := worktreeFolders(w, rows, facts, now)
-	return worktreesResult{Folders: folders, Tasks: tasks, Worktrees: rows, Picker: buildPicker(w.Name, folders, rows)}, nil
+	return a.worktreeRows(ctx, cmd.WorkspaceID)
 }
 
 func (a *app) codeFolder(ctx context.Context, workspaceID string) string {
@@ -206,6 +194,7 @@ func (w *worktreeRow) attach(fact *sessionFact, links map[string]taskLink) repoL
 	w.Session = &worktreeSessionRef{ID: rec.ID, Title: rec.Title, Status: rec.Status}
 	if link, ok := links[rec.ID]; ok {
 		w.Task = &worktreeTask{Session: link.owner.ID, Title: link.owner.Title, State: link.look.word}
+		w.landing = link.repo
 		return link.look
 	}
 	look := w.sessionLook(rec)
@@ -259,7 +248,7 @@ func taskLinks(facts []sessionFact, now time.Time) map[string]taskLink {
 		}
 		for _, e := range fact.rec.repoEntries() {
 			if e.repo.Session != "" {
-				links[e.repo.Session] = taskLink{owner: fact.rec, look: lookOf(e, nil, now)}
+				links[e.repo.Session] = taskLink{owner: fact.rec, look: lookOf(e, nil, now), repo: e.repo}
 			}
 		}
 	}

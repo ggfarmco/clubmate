@@ -26,6 +26,8 @@ var (
 		"git.clone":              cloneCommand,
 		"git.worktree-index":     worktreeIndexCommand,
 		"git.worktree-state":     worktreeStateCommand,
+		"git.branch-delete":      branchDeleteCommand,
+		"git.worktree-unpushed":  worktreeUnpushedCommand,
 	}
 )
 
@@ -55,6 +57,8 @@ type worktreeArgs struct {
 	URL     string   `json:"url"`
 	Into    string   `json:"into"`
 	Paths   []string `json:"paths"`
+	Proof   bool     `json:"proof"`
+	Tip     string   `json:"tip"`
 
 	SeenDirty   int `json:"seenDirty"`
 	SeenIgnored int `json:"seenIgnored"`
@@ -200,5 +204,16 @@ func worktreeIndexCommand(ctx context.Context, a *app, c call) (any, error) {
 
 func worktreeStateCommand(ctx context.Context, _ *app, c call) (any, error) {
 	_, known := c.state.indexCopy()
-	return worktreeStates(ctx, c.h, c.workspaceID, c.args.Paths, known)
+	return worktreeStates(ctx, c.h, c.workspaceID, c.args, known)
+}
+
+func worktreeUnpushedCommand(ctx context.Context, _ *app, c call) (any, error) {
+	return unpushedWorktrees(ctx, c.h, c.workspaceID)
+}
+
+func branchDeleteCommand(ctx context.Context, _ *app, c call) (any, error) {
+	if c.via != discardPlugin {
+		return nil, errBranchDeleteRefused
+	}
+	return nil, deleteBranch(ctx, c.h, c.workspaceID, c.args)
 }

@@ -59,6 +59,7 @@ type screen struct {
 	Workspace    string
 	Pending      map[string]bool
 	Window       int
+	RestoreNote  string
 	Anchor       string
 	AnchorRev    int
 	Expanded     map[string]bool
@@ -144,12 +145,15 @@ func mainView(sc screen) sdui.Node {
 		return sdui.VStack(children...)
 	}
 	if rec.closed() {
-		reopen := failureButton(sid, reopenAction(sid, sc.Continue))
+		reopen := failureButton(sid, reopenAction(sid, sc.Continue, ownsTask(rec)))
 		closed := "The session is closed; its transcript stays readable."
 		if rec.AutoClosed {
 			closed = "Closed automatically an hour after it finished; its transcript stays readable."
 		}
 		children = append(children, sdui.HStack(sdui.MutedText(closed), reopen))
+		if sc.RestoreNote != "" {
+			children = append(children, sdui.WithTone(sdui.Text(sc.RestoreNote), "danger"))
+		}
 		return sdui.VStack(children...)
 	}
 	if card, ok := dockedPermission(sc); ok {

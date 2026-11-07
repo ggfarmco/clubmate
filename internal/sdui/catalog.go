@@ -338,7 +338,7 @@ var (
 			required: []string{"title", "rows", "action", "rowAction"},
 			props: map[string]propCheck{
 				"title": isString, "summary": listOf(reposSegmentCheck), "branch": isString, "branchNote": isString, "columns": arrayOf(isString),
-				"rows": listOf(reposRowCheck), "footer": isString, "hint": isString, "collapsed": isBool, "action": actionCheck, "rowAction": actionCheck,
+				"rows": listOf(reposRowCheck), "footer": isString, "footerAction": isString, "hint": isString, "collapsed": isBool, "action": actionCheck, "rowAction": actionCheck,
 			},
 			children:    childRule{min: 0, max: -1, only: []string{"stack"}},
 			interactive: true,

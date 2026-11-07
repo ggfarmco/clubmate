@@ -196,6 +196,7 @@ func (a *app) closeIdle(ctx context.Context, s *session) bool {
 }
 
 func (a *app) closeUnlessBusy(ctx context.Context, s *session, evenAsking bool) bool {
+	a.noteBranch(ctx, s)
 	s.mu.Lock()
 	if s.running || len(s.queue) > 0 || s.rec.Status != statusDone || s.rec.OpenCount > 0 || !evenAsking && s.asksLocked() {
 		s.mu.Unlock()

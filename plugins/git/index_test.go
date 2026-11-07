@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 	"clubmate/pkg/contract"
 )
@@ -29,6 +31,8 @@ type indexEntry struct {
 	MadeBy     string    `json:"madeBy"`
 	Merged     bool      `json:"merged"`
 	RemoteGone bool      `json:"remoteGone"`
+	Locked     bool      `json:"locked"`
+	LockWhy    string    `json:"lockWhy"`
 }
 
 type stateEntry struct {
@@ -41,6 +45,10 @@ type stateEntry struct {
 	Nested   int    `json:"nested"`
 	Tip      string `json:"tip"`
 	Merged   bool   `json:"merged"`
+	Landed   bool   `json:"landed"`
+	Remote   bool   `json:"remote"`
+	Locked   bool   `json:"locked"`
+	LockWhy  string `json:"lockWhy"`
 }
 
 func worktreeIndex(t *testing.T, h *testutil.PluginHarness, id string) map[string]indexEntry {
@@ -426,4 +434,106 @@ func forgeSignature(t *testing.T, dir string) {
 	blob := filepath.Join(t.TempDir(), "commit")
 	write(t, blob, signed)
 	git(t, dir, "reset", "-q", "--hard", git(t, dir, "hash-object", "-t", "commit", "-w", blob))
+}
+
+func TestBranchDeleteIsTheAgentsPluginsAlone(t *testing.T) {
+	repo := cloneOf(t, bareOrigin(t))
+	h, id := open(t, repo)
+
+	err := runCommand(t, h, id, "git.branch-delete", map[string]any{"repo": repo, "branch": "feat", "tip": "x"}, nil)
+
+	require.ErrorContains(t, err, "only the app deletes a branch")
+}
+
+func TestWorktreeStateSaysWhatIsOnTheRemote(t *testing.T) {
+	repo := cloneOf(t, bareOrigin(t))
+	pushed := branchTree(t, repo, "pushed", 1, true)
+	local := branchTree(t, repo, "local", 1, false)
+	h, id := open(t, repo)
+
+	got := worktreeStates(t, h, id, pushed, local)
+
+	assert.True(t, got[0].Remote)
+	assert.False(t, got[1].Remote)
+}
+
+func TestWorktreeStateProvesALandingOnlyWhenAsked(t *testing.T) {
+	repo := cloneOf(t, bareOrigin(t))
+	tree := branchTree(t, repo, "feat", 1, false)
+	git(t, repo, "merge", "-q", "--squash", "feat")
+	git(t, repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "squashed")
+	h, id := open(t, repo)
+
+	assert.False(t, worktreeStates(t, h, id, tree)[0].Landed)
+
+	var proved []stateEntry
+	require.NoError(t, runCommand(t, h, id, "git.worktree-state", map[string]any{"paths": []string{tree}, "proof": true}, &proved))
+	assert.True(t, proved[0].Landed)
+}
+
+func TestWorktreeUnpushedNamesTipsOnNoRemote(t *testing.T) {
+	repo := cloneOf(t, bareOrigin(t))
+	pushed := branchTree(t, repo, "pushed", 1, true)
+	local := branchTree(t, repo, "local", 1, false)
+	fresh := branchTree(t, repo, "fresh", 0, false)
+	h, id := open(t, repo)
+
+	var got []string
+	require.NoError(t, runCommand(t, h, id, "git.worktree-unpushed", nil, &got))
+
+	assert.Equal(t, []string{local}, got)
+	assert.NotContains(t, got, pushed)
+	assert.NotContains(t, got, fresh)
+}
+
+func TestLockedWorktreeReadsLockedAndIsNotRemoved(t *testing.T) {
+	repo := cloneOf(t, bareOrigin(t))
+	tree := branchTree(t, repo, "feat", 0, false)
+	git(t, repo, "worktree", "lock", "--reason", "on a USB drive", tree)
+	h, id := open(t, repo)
+
+	entry := worktreeIndex(t, h, id)["feat"]
+	assert.True(t, entry.Locked)
+	assert.Equal(t, "on a USB drive", entry.LockWhy)
+	state := worktreeStates(t, h, id, tree)[0]
+	assert.True(t, state.Locked)
+	assert.Equal(t, "on a USB drive", state.LockWhy)
+
+	err := runCommand(t, h, id, "git.worktree-remove", map[string]any{"path": tree}, nil)
+
+	require.ErrorContains(t, err, "it is locked: on a USB drive")
+	assert.DirExists(t, tree)
+}
+
+func TestBareLayoutMarksTheDefaultWorktreeMainAndKeepsIt(t *testing.T) {
+	origin := bareOrigin(t)
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	tree, feat := filepath.Join(dir, "main"), filepath.Join(dir, "feat")
+	git(t, origin, "worktree", "add", "-q", tree, "main")
+	git(t, origin, "worktree", "add", "-q", "-b", "feat", feat)
+	h, id := open(t, feat)
+
+	index := worktreeIndex(t, h, id)
+	assert.True(t, index["main"].Main)
+	assert.False(t, index["feat"].Main)
+
+	err = runCommand(t, h, id, "git.worktree-remove", map[string]any{"path": tree}, nil)
+
+	require.ErrorContains(t, err, "main checkout")
+	assert.DirExists(t, tree)
+}
+
+func TestWorktreeSessionsSeesAShellThatMovedIn(t *testing.T) {
+	repo := cloneOf(t, bareOrigin(t))
+	tree := branchTree(t, repo, "feat", 0, false)
+	h, id := open(t, repo)
+	s, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{WorkspaceID: id, Title: "moved", Owner: "terminals", Command: []string{"sh", "-c", "cd '" + tree + "' && exec cat"}, Cwd: repo})
+	require.NoError(t, err)
+
+	testutil.Eventually(t, func() bool {
+		var users []sessionEntry
+		require.NoError(t, runCommand(t, h, id, "git.worktree-sessions", map[string]string{"path": tree}, &users))
+		return slices.Contains(users, sessionEntry{ID: s.ID, Title: s.Title})
+	}, 5*time.Second)
 }

@@ -79,6 +79,7 @@ public struct WorktreeSection: Equatable, Sendable, Identifiable {
     public let shown: Int
     public let more: String
     public let fold: String
+    public let clean: String
 
     init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let id = fields["id"]?.stringValue else { return nil }
@@ -89,6 +90,7 @@ public struct WorktreeSection: Equatable, Sendable, Identifiable {
         shown = fields["shown"]?.numberValue.map(Int.init) ?? 0
         more = fields["more"]?.stringValue ?? ""
         fold = fields["fold"]?.stringValue ?? ""
+        clean = fields["clean"]?.stringValue ?? ""
     }
 }
 
@@ -131,6 +133,7 @@ public struct WorktreeIndex: Equatable, Sendable {
     public let byFolder: Bool
     public let addFolder: String
     public let remove: String
+    public let cleanup: String
     public let searchHint: String
     public let searchStale: Int
 
@@ -145,6 +148,7 @@ public struct WorktreeIndex: Equatable, Sendable {
         byFolder = picker["byFolder"]?.boolValue ?? true
         addFolder = picker["addFolder"]?.stringValue ?? ""
         remove = picker["remove"]?.stringValue ?? ""
+        cleanup = picker["cleanup"]?.stringValue ?? ""
         searchHint = picker["searchHint"]?.stringValue ?? ""
         searchStale = picker["searchStale"]?.numberValue.map(Int.init) ?? 0
     }
@@ -250,6 +254,10 @@ public final class WorktreePickerModel {
     public var scopedFolder: WorktreeFolder? {
         if case .folder(let path) = scope { return folder(path) }
         return nil
+    }
+
+    public func cleanWord(fold id: String) -> String {
+        scopedFolder?.sections.first { $0.id == id }?.clean ?? ""
     }
 
     public var multipleFolders: Bool { (index?.folders.count ?? 0) > 1 }

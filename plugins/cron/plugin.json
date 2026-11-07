@@ -54,10 +54,10 @@
         "title": "Cron jobs in worktrees",
         "hidden": true,
         "agent": false,
-        "description": "The jobs that run in these worktrees: {jobs: [{id, name, enabled}]}. A job runs there when its owner session does, or it is an agents.new job whose repo is one of them. With first the worktrees are those of the workspace's first git folder, where agents.new starts when no repo names one, so every agents.new job with no repo and no owner counts too, whether or not its branch exists.",
+        "description": "The jobs that run in these worktrees: {jobs: [{id, name, enabled, in?}]}, in naming the worktree that holds it. A job runs there when its owner session does, it is an agents.new job whose repo is one of them, or one whose branch is a worktree's branch in that worktree's repo. With first the worktrees are those of the workspace's first git folder, where agents.new starts when no repo names one, so every agents.new job with no repo and no owner counts too, whether or not its branch exists.",
         "args": {
           "properties": {
-            "worktrees": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "branch": {"type": "string"}}}, "description": "Worktree roots with their branches."},
+            "worktrees": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "branch": {"type": "string"}, "repo": {"type": "string"}, "first": {"type": "boolean"}}}, "description": "Worktree roots with their branches; repo is the folder that holds one, first says it is the workspace's first git folder."},
             "first": {"type": "boolean", "description": "These worktrees hold the workspace's first folder."}
           },
           "required": ["worktrees"]

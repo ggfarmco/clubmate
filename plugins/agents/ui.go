@@ -82,6 +82,8 @@ type workspaceUI struct {
 	code       map[string]string
 	codeRead   bool
 	folder     *folderSheet
+	archive    *archiveSheet
+	cleanup    *cleanupSheet
 }
 
 type sessionUI struct {
@@ -96,6 +98,7 @@ type sessionUI struct {
 	anchorRev   int
 	open        openDraft
 	repos       reposChoice
+	restoreNote string
 
 	context         bool
 	contextSelected string
@@ -250,7 +253,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 		return err
 	}
 	if slices.Contains(slots, sheetSlot) {
-		if err := a.push(ctx, p, workspaceID, sheetSlot, a.folderSheetTree(workspaceID, p)); err != nil {
+		if err := a.push(ctx, p, workspaceID, sheetSlot, a.sheetTree(workspaceID, p)); err != nil {
 			return err
 		}
 	}
@@ -498,6 +501,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 		AnchorRev:   st.anchorRev,
 		Expanded:    maps.Clone(st.expanded),
 		Repos:       reposScreenData{Kids: kids, Choice: st.repos.clone()},
+		RestoreNote: st.restoreNote,
 		Attachments: slices.Clone(st.attachments),
 		Queue:       queue,
 		Composer:    sid + "/composer/" + strconv.Itoa(st.gen),

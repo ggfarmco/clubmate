@@ -144,3 +144,145 @@ func TestFetchOutlivesReads(t *testing.T) {
 
 	assert.Equal(t, tip, gitIn(t, clone, "rev-parse", "origin/main"))
 }
+
+func TestLandedIsExact(t *testing.T) {
+	t.Parallel()
+	tests := map[string]func(t *testing.T, repo string) string{
+		"a whitespace-only difference": func(t *testing.T, repo string) string {
+			gitIn(t, repo, "checkout", "-q", "-b", "task")
+			tip := commitAt(t, repo, "b.txt", "if  (x) { y }\n")
+			gitIn(t, repo, "checkout", "-q", "main")
+			commitAt(t, repo, "b.txt", "if (x) { y }\n")
+			return tip
+		},
+		"a tip that is a merge with work of its own": func(t *testing.T, repo string) string {
+			gitIn(t, repo, "checkout", "-q", "-b", "other")
+			picked := commitAt(t, repo, "c.txt", "c\n")
+			gitIn(t, repo, "checkout", "-q", "main")
+			gitIn(t, repo, "checkout", "-q", "-b", "task")
+			shared := commitAt(t, repo, "b.txt", "b\n")
+			gitIn(t, repo, "merge", "-q", "--no-ff", "--no-commit", "other")
+			tip := commitAt(t, repo, "only-here.txt", "the merge's own work\n")
+			gitIn(t, repo, "checkout", "-q", "main")
+			gitIn(t, repo, "cherry-pick", shared)
+			gitIn(t, repo, "cherry-pick", picked)
+			return tip
+		},
+		"a squash the default branch reverted": func(t *testing.T, repo string) string {
+			gitIn(t, repo, "checkout", "-q", "-b", "task")
+			tip := commitAt(t, repo, "b.txt", "b\n")
+			gitIn(t, repo, "checkout", "-q", "main")
+			gitIn(t, repo, "merge", "-q", "--squash", "task")
+			gitIn(t, repo, "commit", "-qm", "squash")
+			gitIn(t, repo, "revert", "--no-edit", "HEAD")
+			return tip
+		},
+		"a conflict": func(t *testing.T, repo string) string {
+			gitIn(t, repo, "checkout", "-q", "-b", "task")
+			tip := commitAt(t, repo, "a.txt", "task\n")
+			gitIn(t, repo, "checkout", "-q", "main")
+			commitAt(t, repo, "a.txt", "main\n")
+			return tip
+		},
+	}
+	for name, build := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			repo := landedRepo(t)
+			tip := build(t, repo)
+
+			landed, err := gitrepo.Landed(t.Context(), repo, tip)
+			require.NoError(t, err)
+			assert.False(t, landed)
+			assert.False(t, gitrepo.LandedInert(t.Context(), repo, tip))
+		})
+	}
+}
+
+func TestLandedRunsNoMergeDriverAndTakesNoProofFromOne(t *testing.T) {
+	t.Parallel()
+	for name, attributes := range map[string]string{".gitattributes": ".gitattributes", "info/attributes": ".git/info/attributes"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			repo := landedRepo(t)
+			ran := filepath.Join(t.TempDir(), "ran")
+			gitIn(t, repo, "config", "merge.evil.driver", "touch "+ran+"; true")
+			require.NoError(t, os.MkdirAll(filepath.Join(repo, ".git", "info"), 0o700))
+			require.NoError(t, os.WriteFile(filepath.Join(repo, attributes), []byte("a.txt merge=evil\n"), 0o600))
+			gitIn(t, repo, "add", ".")
+			gitIn(t, repo, "commit", "-q", "--allow-empty", "-m", "attributes")
+			gitIn(t, repo, "checkout", "-q", "-b", "task")
+			tip := commitAt(t, repo, "a.txt", "task\n")
+			gitIn(t, repo, "checkout", "-q", "main")
+			commitAt(t, repo, "a.txt", "main\n")
+
+			assert.False(t, gitrepo.LandedInert(t.Context(), repo, tip))
+			assert.NoFileExists(t, ran)
+		})
+	}
+}
+
+func TestLandedNeedsANetChange(t *testing.T) {
+	t.Parallel()
+	tests := map[string]func(t *testing.T, repo string) string{
+		"a commit and its revert": func(t *testing.T, repo string) string {
+			commitAt(t, repo, "b.txt", "work\n")
+			gitIn(t, repo, "revert", "--no-edit", "HEAD")
+			return gitIn(t, repo, "rev-parse", "HEAD")
+		},
+		"a file added then deleted": func(t *testing.T, repo string) string {
+			commitAt(t, repo, "b.txt", "work\n")
+			gitIn(t, repo, "rm", "-q", "b.txt")
+			gitIn(t, repo, "commit", "-qm", "gone")
+			return gitIn(t, repo, "rev-parse", "HEAD")
+		},
+		"an empty commit": func(t *testing.T, repo string) string {
+			gitIn(t, repo, "commit", "-q", "--allow-empty", "-m", "empty")
+			return gitIn(t, repo, "rev-parse", "HEAD")
+		},
+	}
+	for name, build := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			repo := landedRepo(t)
+			gitIn(t, repo, "checkout", "-q", "-b", "task")
+			tip := build(t, repo)
+			gitIn(t, repo, "checkout", "-q", "main")
+			commitAt(t, repo, "later.txt", "later\n")
+
+			landed, err := gitrepo.Landed(t.Context(), repo, tip)
+			require.NoError(t, err)
+			assert.False(t, landed)
+			assert.False(t, gitrepo.LandedInert(t.Context(), repo, tip))
+		})
+	}
+}
+
+func TestLandedTakesNoProofFromConfiguredMerges(t *testing.T) {
+	t.Parallel()
+	repo := landedRepo(t)
+	ran := filepath.Join(t.TempDir(), "ran")
+	gitIn(t, repo, "config", "merge.evil.driver", "touch "+ran+"; true")
+	gitIn(t, repo, "config", "merge.default", "evil")
+	gitIn(t, repo, "checkout", "-q", "-b", "task")
+	tip := commitAt(t, repo, "a.txt", "task\n")
+	gitIn(t, repo, "checkout", "-q", "main")
+	commitAt(t, repo, "a.txt", "main\n")
+
+	landed, err := gitrepo.Landed(t.Context(), repo, tip)
+	require.NoError(t, err)
+	assert.False(t, landed)
+	assert.False(t, gitrepo.LandedInert(t.Context(), repo, tip))
+	assert.NoFileExists(t, ran)
+}
+
+func TestLandedTakesNoProofFromAReplaceRef(t *testing.T) {
+	t.Parallel()
+	repo := landedRepo(t)
+	gitIn(t, repo, "checkout", "-q", "-b", "task")
+	tip := commitAt(t, repo, "b.txt", "work\n")
+	gitIn(t, repo, "checkout", "-q", "main")
+	gitIn(t, repo, "replace", tip, gitIn(t, repo, "rev-parse", "main"))
+
+	assert.False(t, gitrepo.LandedInert(t.Context(), repo, tip))
+}

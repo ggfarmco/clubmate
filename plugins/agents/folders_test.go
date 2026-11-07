@@ -527,7 +527,7 @@ func TestFolderSheetSaysWhichWorktreeStayed(t *testing.T) {
 	f := startGit(t, map[string]any{})
 	workspace, first, second := f.twoFolders(t)
 	tree := addWorktree(t, second, "feat-x")
-	git(t, second, "worktree", "lock", tree)
+	f.terminalIn(t, workspace, tree, "Build")
 	f.openSheet(t, workspace, second)
 	f.tick(t, workspace, tree)
 
@@ -539,7 +539,7 @@ func TestFolderSheetSaysWhichWorktreeStayed(t *testing.T) {
 	})
 	assert.Equal(t, []string{first}, f.folderPaths(t, workspace), "the folder goes first")
 	assert.DirExists(t, tree)
-	assert.Contains(t, sheetNodes(sheet, "markdown")[0].Props["text"], "`"+tree+"` stays on disk: cannot remove a locked working tree")
+	assert.Contains(t, sheetNodes(sheet, "markdown")[0].Props["text"], "`"+tree+"` stays on disk: terminal Build is open in it")
 
 	f.h.Event(t, workspace, "agents.sheet", "folderSheet/close", "folderCancel", nil)
 	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool { return n.Type == "empty" })
@@ -554,7 +554,7 @@ func TestFolderSheetOffersNoBoxForAWorktreeWithSubmodules(t *testing.T) {
 
 	sheet := f.openSheet(t, workspace, second)
 
-	assert.Empty(t, sheetNodes(sheet, "checkbox"))
+	assert.Empty(t, sheetNodes(sheet, "toggle"))
 	var words []string
 	for _, n := range sheetNodes(sheet, "text") {
 		words = append(words, fmt.Sprint(n.Props["text"]))
@@ -661,6 +661,19 @@ func TestRemovingAFolderStallsNothingElseAndRefusesItsSessions(t *testing.T) {
 	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool { return n.Type == "empty" })
 	assert.NoDirExists(t, tree)
 	require.NoError(t, f.run(t, there, "agents.new", map[string]any{}, nil))
+}
+
+func TestFolderSheetOffersNoBoxForALockedWorktree(t *testing.T) {
+	t.Parallel()
+	f := startWithCron(t, map[string]any{})
+	workspace, _, second := f.twoFolders(t)
+	tree := addWorktree(t, second, "feat-x")
+	git(t, second, "worktree", "lock", "--reason", "on a USB drive", tree)
+
+	f.openSheet(t, workspace, second)
+
+	sheet := f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool { return strings.Contains(sheetText(n), "on a USB drive") })
+	assert.False(t, slices.ContainsFunc(sheetNodes(sheet, "toggle"), func(b sdui.Node) bool { return b.ID == "folderSheet/tick/"+tree }))
 }
 
 func TestFolderSheetStopsWhenTheCostChanged(t *testing.T) {

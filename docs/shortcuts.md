@@ -70,6 +70,8 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌘↩ | Open the Start agent popover on the task while you own it (↩ in it starts, ⎋ cancels), else open the session or graph run that owns it; on a graph run held at a round cap Continue it, else open the session of the graph node that needs you, else a running step's output (Open ‹Step› output), else the running or start node's session; run the selected graph with its input (↩ in the Input field too); on an untrusted graph Trust… (then Trust in its sheet, where Esc cancels) | backlog, graphs |
 | ⌘↩ | Send review: opens the Send sheet for the review tab current in Neovim, also while Neovim has focus (status bar button "Send review") | editor-nvim |
 | ⌘↩ | Remove the folder, on the Remove folder sheet (⎋ cancels); Close, once the folder left and a worktree stayed | agents |
+| ⌘↩ | Archive the task, on the Archive sheet (⎋ cancels); Close, once something stayed | agents |
+| ⌘↩ | Remove what is ticked, on the Clean up worktrees sheet (⎋ cancels); Close, once something stayed | agents |
 | ⌥1 / ⌥2 / ⌥3 | A graph step waiting for approval: Allow once / Always allow… (asks first) / Reject | graphs |
 | ⌥↑ / ⌥↓ | A repo child of a task: the repo before / after it in landing order that has a session, no wrap-around (buttons in the crumb); in a text field they stay caret movement | agents |
 | ⌘. | Stop the graph run (confirmed) | graphs |
@@ -107,7 +109,7 @@ The title picker adds these to the keys above:
 | → | On a folder or task row: open it |
 | ← | With an empty filter: back to all folders |
 | ↩ | On a "show N" row: show the folded section. On the last row, ↓ onto "N more stale" shows them |
-| ⌘↩ | Folder actions of the highlighted row's folder (Open its session, Reveal in Finder, Remove from ‹workspace›…); ↑ ↓ ↩ inside, Esc back |
+| ⌘↩ | Folder actions of the highlighted row's folder (Open its session, Reveal in Finder, Clean up worktrees…, Remove from ‹workspace›…); ↑ ↓ ↩ inside, Esc back |
 | Esc | Inside a folder or task: back to all folders, else close |
 
 ## Trees (sidebar focused)

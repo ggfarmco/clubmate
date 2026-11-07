@@ -12,11 +12,13 @@ import (
 var ErrNotRepo = errors.New("not a git folder")
 
 type Worktree struct {
-	Path   string
-	Real   string
-	Head   string
-	Branch string
-	Bare   bool
+	Path    string
+	Real    string
+	Head    string
+	Branch  string
+	Bare    bool
+	Locked  bool
+	LockWhy string
 }
 
 type Folder struct {
@@ -46,6 +48,18 @@ func OpenFolder(ctx context.Context, repo string) (*Folder, error) {
 		return nil, err
 	}
 	return &Folder{Repo: repo, Real: resolved, Rel: rel, Trees: trees, Checkout: *checkout}, nil
+}
+
+func (f *Folder) DefaultName(ctx context.Context) string {
+	name, err := DefaultBranch(ctx, f.Checkout.Path)
+	if err != nil {
+		return ""
+	}
+	return name
+}
+
+func (f *Folder) Primary(defaultName string, t Worktree) bool {
+	return t.Real == f.Trees[0].Real || defaultName != "" && t.Branch == defaultName
 }
 
 func (f *Folder) Mapped(t Worktree) string {
@@ -93,6 +107,10 @@ func Worktrees(ctx context.Context, top string) ([]Worktree, error) {
 			t.Branch = strings.TrimPrefix(branch, "refs/heads/")
 		} else if field == "bare" {
 			t.Bare = true
+		} else if field == "locked" {
+			t.Locked = true
+		} else if why, ok := strings.CutPrefix(field, "locked "); ok {
+			t.Locked, t.LockWhy = true, why
 		}
 	}
 	return trees, nil

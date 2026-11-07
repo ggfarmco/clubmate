@@ -66,7 +66,22 @@ func (a *app) deleteTree(ctx context.Context, s *session) error {
 	return walk(s)
 }
 
+func (a *app) noteBranch(ctx context.Context, s *session) {
+	rec := s.snapshot()
+	if rec.closed() || rec.Worktree == "" || rec.restricted() {
+		return
+	}
+	branch, err := gitrepo.Branch(ctx, rec.Worktree)
+	if err != nil {
+		return
+	}
+	s.mu.Lock()
+	s.rec.ClosedBranch = branch
+	s.mu.Unlock()
+}
+
 func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentProc {
+	a.noteBranch(ctx, s)
 	s.mu.Lock()
 	p, agentID, running, rec := s.proc, s.rec.AgentSessionID, s.running, s.rec
 	s.proc = nil

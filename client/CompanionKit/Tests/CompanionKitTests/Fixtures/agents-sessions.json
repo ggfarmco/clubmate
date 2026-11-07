@@ -61,6 +61,7 @@
     "worktree": "/Users/me/src/shop",
     "agent": "claude",
     "agentSessionId": "claude-session-3",
+    "closedBranch": "main",
     "title": "",
     "status": "closed",
     "mode": "default",

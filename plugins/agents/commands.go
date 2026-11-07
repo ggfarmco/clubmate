@@ -76,6 +76,12 @@ var (
 		"agents.folder-impact":  withArgs((*app).folderImpactCommand),
 		"agents.folder-sheet":   withArgs((*app).folderSheetCommand),
 		"agents.worktrees":      typed((*app).worktreesCommand),
+		"agents.archive-plan":   withSession((*app).archivePlanCommand),
+		"agents.archive":        withArgs((*app).archiveCommand),
+		"agents.archive-sheet":  withSession((*app).archiveSheetCommand),
+		"agents.restore":        withSession((*app).restoreCommand),
+		"agents.cleanup-plan":   withArgs((*app).cleanupPlanCommand),
+		"agents.cleanup-sheet":  withArgs((*app).cleanupSheetCommand),
 		"agents.task":           withArgs((*app).taskCommand),
 		"agents.task-report":    withArgs((*app).taskReportCommand),
 		"agents.land-answer":    withArgs((*app).landAnswerCommand),
@@ -539,7 +545,10 @@ func (a *app) deleteCommand(ctx context.Context, _ pluginsdk.CommandRun, s *sess
 	return nil, a.deleteTree(ctx, s)
 }
 
-func (a *app) resumeCommand(_ context.Context, _ pluginsdk.CommandRun, s *session) (any, error) {
+func (a *app) resumeCommand(ctx context.Context, cmd pluginsdk.CommandRun, s *session) (any, error) {
+	if err := a.reopenRefused(ctx, cmd.WorkspaceID, s); err != nil {
+		return nil, err
+	}
 	a.resume(s)
 	return nil, nil
 }

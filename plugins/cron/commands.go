@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -45,6 +44,8 @@ type pauseArgs struct {
 type worktreeRef struct {
 	Path   string `json:"path"`
 	Branch string `json:"branch"`
+	Repo   string `json:"repo"`
+	First  bool   `json:"first"`
 }
 
 type jobsInArgs struct {
@@ -56,6 +57,7 @@ type jobRef struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
 	Enabled bool   `json:"enabled"`
+	In      string `json:"in,omitempty"`
 }
 
 type jobsInResult struct {
@@ -276,33 +278,57 @@ func (a *app) jobsIn(ctx context.Context, cmd pluginsdk.CommandRun) (jobsInResul
 	}
 	out := jobsInResult{Jobs: []jobRef{}}
 	for _, j := range a.registry.InWorkspace(cmd.WorkspaceID) {
-		if args.holds(j, owners) {
-			out.Jobs = append(out.Jobs, jobRef{ID: j.ID, Name: j.Name, Enabled: j.Enabled})
+		if in, ok := args.holder(j, owners); ok {
+			out.Jobs = append(out.Jobs, jobRef{ID: j.ID, Name: j.Name, Enabled: j.Enabled, In: in})
 		}
 	}
 	return out, nil
 }
 
-func (args jobsInArgs) holds(j *Job, owners map[string]string) bool {
-	if worktree, ok := owners[j.Owner]; ok && args.contains(worktree) {
-		return true
+func (args jobsInArgs) holder(j *Job, owners map[string]string) (string, bool) {
+	if worktree, ok := owners[j.Owner]; ok {
+		if in, ok := args.find(worktree); ok {
+			return in, true
+		}
 	}
 	if j.Command != agentNewCommand {
-		return false
+		return "", false
 	}
 	var target struct {
-		Repo string `json:"repo"`
+		Repo   string `json:"repo"`
+		Branch string `json:"branch"`
 	}
 	_ = json.Unmarshal(j.Args, &target)
-	if target.Repo != "" {
-		return args.contains(target.Repo)
+	if in, ok := args.onBranch(target.Repo, target.Branch); ok {
+		return in, true
 	}
-	return args.First && j.Owner == ""
+	if target.Repo != "" {
+		return args.find(target.Repo)
+	}
+	return "", args.First && j.Owner == ""
 }
 
-func (args jobsInArgs) contains(path string) bool {
+func (args jobsInArgs) onBranch(repo, branch string) (string, bool) {
+	if branch == "" {
+		return "", false
+	}
+	for _, w := range args.Worktrees {
+		mine := repo != "" && w.Repo != "" && gitrepo.Canonical(repo) == gitrepo.Canonical(w.Repo)
+		if w.Branch == branch && (mine || repo == "" && w.First) {
+			return w.Path, true
+		}
+	}
+	return "", false
+}
+
+func (args jobsInArgs) find(path string) (string, bool) {
 	path = gitrepo.Canonical(path)
-	return slices.ContainsFunc(args.Worktrees, func(w worktreeRef) bool { return gitrepo.Within(path, gitrepo.Canonical(w.Path)) })
+	for _, w := range args.Worktrees {
+		if gitrepo.Within(path, gitrepo.Canonical(w.Path)) {
+			return w.Path, true
+		}
+	}
+	return "", false
 }
 
 func (a *app) validateTarget(ctx context.Context, command, args string) (json.RawMessage, error) {

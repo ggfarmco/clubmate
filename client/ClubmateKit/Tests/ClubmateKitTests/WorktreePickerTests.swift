@@ -83,6 +83,16 @@ final class WorktreePickerTests: XCTestCase {
         XCTAssertFalse(model.back())
     }
 
+    func testAFolderStaleRowCarriesItsCleanUpWord() async {
+        var stale = section("stale", rows: [0], shown: 0, fold: "show 1").objectValue ?? [:]
+        stale["clean"] = .string("Clean up 1…")
+        let value = payload(folders: [folder("/a", sections: [.object(stale)])], entries: [entry("/a", "x", stale: true)], sections: [section("folders")])
+        let model = await model(value)
+
+        XCTAssertEqual(model.cleanWord(fold: "stale"), "Clean up 1…")
+        XCTAssertEqual(model.cleanWord(fold: "live"), "")
+    }
+
     func testSearchSpansFolderBranchTaskAndSessionWithATaskAsOneRow() async {
         let task = JSONValue.object(["session": .string("t"), "title": .string("Campaign pause"), "slug": .string("pause"), "worktrees": .array([.string("/a/feat"), .string("/b/feat")])])
         let entries = [

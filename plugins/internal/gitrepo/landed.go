@@ -1,8 +1,11 @@
 package gitrepo
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io/fs"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -10,17 +13,23 @@ import (
 const (
 	headsRefPrefix  = "refs/heads/"
 	originRefPrefix = "refs/remotes/origin/"
-	squashDate      = "1000000000 +0000"
 )
 
-var squashDates = []string{"GIT_AUTHOR_DATE=" + squashDate, "GIT_COMMITTER_DATE=" + squashDate}
+var mergePins = []string{
+	"-c", "merge.default=text",
+	"-c", "merge.renormalize=false",
+	"-c", "merge.renames=true",
+	"-c", "merge.directoryRenames=conflict",
+	"-c", "diff.algorithm=myers",
+	"-c", "core.attributesFile=" + os.DevNull,
+}
 
 type runner func(ctx context.Context, repo string, args ...string) ([]byte, error)
 
 func Landed(ctx context.Context, repo, tip string) (bool, error) {
 	var failed error
 	watched := func(ctx context.Context, repo string, args ...string) ([]byte, error) {
-		out, err := runWith(ctx, repo, squashDates, args...)
+		out, err := Run(ctx, repo, args...)
 		if killed(err) {
 			failed = err
 		}
@@ -33,10 +42,7 @@ func Landed(ctx context.Context, repo, tip string) (bool, error) {
 }
 
 func LandedInert(ctx context.Context, repo, tip string) bool {
-	inert := func(ctx context.Context, repo string, args ...string) ([]byte, error) {
-		return inertWith(ctx, repo, squashDates, args...)
-	}
-	return landedWith(ctx, inert, repo, tip)
+	return landedWith(ctx, Inert, repo, tip)
 }
 
 func ForkPoint(ctx context.Context, repo, tip string) string {
@@ -67,35 +73,54 @@ func landedWith(ctx context.Context, git runner, repo, tip string) bool {
 }
 
 func landedIn(ctx context.Context, git runner, repo, tip, base string) bool {
-	if _, err := git(ctx, repo, "merge-base", "--is-ancestor", tip, base); err == nil {
+	plain := func(args ...string) ([]byte, error) {
+		return git(ctx, repo, append([]string{"--no-replace-objects"}, args...)...)
+	}
+	if _, err := plain("merge-base", "--is-ancestor", tip, base); err == nil {
 		return true
 	}
-	if cherryPicked(ctx, git, repo, base, tip) {
-		return true
+	if localMergeAttributes(ctx, git, repo) || !netChange(plain, tip, base) {
+		return false
 	}
-	tree, err := git(ctx, repo, "rev-parse", tip+"^{tree}")
+	empty, err := plain("hash-object", "-t", "tree", os.DevNull)
 	if err != nil {
 		return false
 	}
-	baseTree, err := git(ctx, repo, "rev-parse", base+"^{tree}")
+	merged, err := plain(append(append([]string{"--attr-source=" + strings.TrimSpace(string(empty))}, mergePins...), "merge-tree", "--write-tree", base, tip)...)
 	if err != nil {
 		return false
 	}
-	if string(tree) == string(baseTree) {
-		return true
-	}
-	fork, err := git(ctx, repo, "merge-base", base, tip)
+	baseTree, err := plain("rev-parse", base+"^{tree}")
 	if err != nil {
 		return false
 	}
-	squash, err := git(ctx, repo, "-c", "user.name=clubmate", "-c", "user.email=clubmate@localhost", "commit-tree", strings.TrimSpace(string(tree)), "-p", strings.TrimSpace(string(fork)), "-m", "squash")
-	return err == nil && cherryPicked(ctx, git, repo, base, strings.TrimSpace(string(squash)))
+	result, _, _ := strings.Cut(string(merged), "\n")
+	return result != "" && result == strings.TrimSpace(string(baseTree))
 }
 
-func cherryPicked(ctx context.Context, git runner, repo, base, tip string) bool {
-	out, err := git(ctx, repo, "cherry", base, tip)
-	lines := strings.TrimSpace(string(out))
-	return err == nil && lines != "" && !strings.Contains("\n"+lines, "\n+")
+func netChange(plain func(...string) ([]byte, error), tip, base string) bool {
+	fork, err := plain("merge-base", base, tip)
+	if err != nil {
+		return false
+	}
+	forkTree, err := plain("rev-parse", strings.TrimSpace(string(fork))+"^{tree}")
+	if err != nil {
+		return false
+	}
+	tipTree, err := plain("rev-parse", tip+"^{tree}")
+	return err == nil && string(forkTree) != string(tipTree)
+}
+
+func localMergeAttributes(ctx context.Context, git runner, repo string) bool {
+	path, err := git(ctx, repo, "rev-parse", "--path-format=absolute", "--git-path", "info/attributes")
+	if err != nil {
+		return true
+	}
+	data, err := os.ReadFile(strings.TrimSpace(string(path)))
+	if errors.Is(err, fs.ErrNotExist) {
+		return false
+	}
+	return err != nil || bytes.Contains(data, []byte("merge"))
 }
 
 func killed(err error) bool {

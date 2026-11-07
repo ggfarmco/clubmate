@@ -140,6 +140,10 @@ final class WorkspaceSession {
         run(CommandInvocation(id: "agents.folder-sheet", args: .object(["path": .string(path)])))
     }
 
+    func askToCleanUp(_ folder: String?) {
+        run(CommandInvocation(id: "agents.cleanup-sheet", args: .object(folder.map { ["folder": .string($0)] } ?? [:])))
+    }
+
     func pickWorktree(_ item: PickerItem) {
         Task { await worktrees.pick(item) }
     }

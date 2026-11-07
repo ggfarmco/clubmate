@@ -193,6 +193,10 @@ func reposData(sc screen) (sdui.ReposProps, []sdui.Node) {
 		RowAction:  actReposRow,
 	}
 	var bars []sdui.Node
+	if text, bar, ok := reposArchiveFooter(rec, sc.Repos.Kids); ok {
+		p.Footer, p.FooterAction = text, bar.ID
+		bars = append(bars, bar)
+	}
 	for i, r := range task.Repos {
 		kid := sc.Repos.kid(r)
 		word, tone, icon := repoStateWord(task, i, kid)

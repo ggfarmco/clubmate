@@ -46,6 +46,7 @@ type record struct {
 	Worktree       string `json:"worktree"`
 	Agent          string `json:"agent"`
 	AgentSessionID string `json:"agentSessionId"`
+	ClosedBranch   string `json:"closedBranch,omitempty"`
 	lineage
 	Run             *api.Run  `json:"run,omitempty"`
 	CronJob         string    `json:"cronJob,omitempty"`

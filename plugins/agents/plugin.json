@@ -718,7 +718,81 @@
         "id": "agents.worktrees",
         "title": "Worktrees for the picker",
         "hidden": true,
-        "description": "What the title picker draws, decided here: {folders: [{path, name, addedBy?, addedAt?, addedAfk?, new, worktrees, live, session?, caption?, byline?, summary, filter, rows?, sections?}], tasks: [{session, slug, title, state, live, stale, group, icon, tone?, folders, worktrees}], worktrees: [the git.worktree-index fields + now, live, active?, task?: {session?, title, state}, session?: {id, title, status}, byHand, stale, group, folder, detail, icon, tone?], picker: {placeholder, count?, byFolder, addFolder, remove, searchHint, searchStale, sections: [{id, title, hint?, rows, shown, more?, fold?}]}}. group is now, live, recent, task, other, byHand or stale; worktrees come sorted in that order, newest first; rows are indices into worktrees."
+        "description": "What the title picker draws, decided here: {folders: [{path, name, addedBy?, addedAt?, addedAfk?, new, worktrees, live, session?, caption?, byline?, summary, filter, rows?, sections?}], tasks: [{session, slug, title, state, live, stale, group, icon, tone?, folders, worktrees}], worktrees: [the git.worktree-index fields + now, live, active?, task?: {session?, title, state}, session?: {id, title, status}, byHand, stale, group, folder, detail, icon, tone?], picker: {placeholder, count?, byFolder, addFolder, remove, cleanup?, searchHint, searchStale, sections: [{id, title, hint?, rows, shown, more?, fold?, clean?}]}}. group is now, live, recent, task, other, byHand or stale; worktrees come sorted in that order, newest first; rows are indices into worktrees."
+      },
+      {
+        "id": "agents.archive-plan",
+        "title": "What archiving a task does",
+        "hidden": true,
+        "description": "What Archive task would do, read now, decided here. Only the user. {session, title, workspace, sessions, children, repos: [{name, path, session?, worktree: {action, title, why?, tone?}, branch: {same}, ifRemoved: {same}, anyway, lost?, seen?, closes?, summary, state}], cron: [{id, name, in}], cronUnread?, folders: [{path, name}], blockers, holds}. worktree action is remove, keep or none; branch action is delete, keep or none; ifRemoved is the branch step once Remove it anyway is ticked; anyway says it can be ticked; seen is what agents.archive must send back; blockers and holds refuse it.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "The task's parent session."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.archive",
+        "title": "Archive a task",
+        "hidden": true,
+        "timeout": 600,
+        "description": "Close a task's sessions and remove what choices name. Only the user; refused while a child runs. A worktree goes only when named with the seen of agents.archive-plan, and anyway for one the plan keeps; empty choices is Close sessions only. A worktree that changed is kept. Returns {closed, removed, deleted, kept, paused}.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "The task's parent session."},
+            "choices": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "seen": {"type": "string"}, "anyway": {"type": "boolean"}, "folder": {"type": "boolean"}}}, "description": "Worktrees to remove, and folders to drop (folder true)."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.archive-sheet",
+        "title": "Ask to archive a task",
+        "hidden": true,
+        "description": "Open the Archive sheet over the window. Only the user.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "The task's parent session."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.restore",
+        "title": "Restore a closed session",
+        "hidden": true,
+        "remote": true,
+        "description": "Bring a closed session and its closed children back from Closed, read-write. Only the user. Refused, with the reason, when its folder left the workspace, its worktree is gone or is on another branch than it closed on. A child that can't return stays closed. Returns {restored, stayed: [{session, title, why}]}.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.cleanup-plan",
+        "title": "What Clean up worktrees lists",
+        "hidden": true,
+        "timeout": 300,
+        "description": "The leftovers Clean up lists, grouped by what removing them costs. Only the user. {title, summary, workspace, total, stale, byHand, groups: [{id, title, count, note, tone?, bulk, rows}], rows: [{path, repo, folder, branch, task?, group, state, closes?, closesWords?, locked?, lockWhy?}], folders, cron: [{id, name, in}], cronUnread?}. Group ids: merged, prMerged, gone, idle, risky, byHand; total = stale + byHand and every row is in one group. Live worktrees and any open in Code are never listed. Only merged and prMerged rows are read.",
+        "args": {
+          "properties": {
+            "folder": {"type": "string", "description": "One folder; every folder without it."}
+          }
+        }
+      },
+      {
+        "id": "agents.cleanup-sheet",
+        "title": "Ask to clean up worktrees",
+        "hidden": true,
+        "description": "Open the Clean up worktrees sheet over the window. Only the user.",
+        "args": {
+          "properties": {
+            "folder": {"type": "string", "description": "One folder; every folder without it."}
+          }
+        }
       },
       {
         "id": "agents.task",

@@ -364,7 +364,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			a.uiMu.Lock()
 			_, cannotResume := a.recoveryLocked(rec)
 			a.uiMu.Unlock()
-			reopen := reopenAction(rec.ID, cannotResume)
+			reopen := reopenAction(rec.ID, cannotResume, ownsTask(rec))
 			info.Reopen = &reopen
 		}
 		if rec.connectWaits() {

@@ -212,9 +212,12 @@ func failureActions(sid string, needsAuth, cannotResume bool) []failureAction {
 	return []failureAction{{ID: recoverRetry, Label: "Retry", Icon: "arrow.clockwise", Command: "agents.resume", Args: map[string]string{"session": sid}, action: actRetry}}
 }
 
-func reopenAction(sid string, cannotResume bool) failureAction {
-	if cannotResume {
+func reopenAction(sid string, cannotResume, task bool) failureAction {
+	switch {
+	case cannotResume:
 		return continueAction(sid)
+	case task:
+		return failureAction{ID: recoverReopen, Label: "Restore", Icon: "arrow.clockwise", Command: "agents.restore", Args: map[string]string{"session": sid}, action: actRestore}
 	}
 	return failureAction{ID: recoverReopen, Label: "Reopen", Icon: "arrow.clockwise", Command: "agents.resume", Args: map[string]string{"session": sid}, action: actRetry}
 }

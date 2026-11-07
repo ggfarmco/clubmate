@@ -515,8 +515,7 @@ func TestRemoveWorktree(t *testing.T) {
 	featNvim := surface(first)
 
 	git(t, repo, "worktree", "lock", feat)
-	assert.Contains(t, awaitOp(t, h, id, "git.worktree-remove", map[string]string{"path": feat}).Error, "locked")
-	featNvim = surface(featNvim)
+	require.ErrorContains(t, runCommand(t, h, id, "git.worktree-remove", map[string]string{"path": feat}, nil), "locked")
 	assert.Equal(t, feat, h.GetSession(t, featNvim).Cwd)
 	assert.Equal(t, feat, firstRoot(t, h, id))
 	git(t, repo, "worktree", "unlock", feat)

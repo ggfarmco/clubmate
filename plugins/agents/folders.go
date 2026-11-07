@@ -49,11 +49,18 @@ type folderWorktree struct {
 	Ignored  int    `json:"ignored,omitempty"`
 	Orphans  int    `json:"orphans,omitempty"`
 	Nested   int    `json:"nested,omitempty"`
+	Tip      string `json:"tip,omitempty"`
+	Merged   bool   `json:"merged,omitempty"`
+	Landed   bool   `json:"landed,omitempty"`
+	Remote   bool   `json:"remote,omitempty"`
+	Locked   bool   `json:"locked,omitempty"`
+	LockWhy  string `json:"lockWhy,omitempty"`
 }
 
 type folderJob struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+	In   string `json:"in,omitempty"`
 }
 
 type folderDrop struct {
@@ -93,6 +100,8 @@ type folderImpactResult struct {
 type worktreeRef struct {
 	Path   string `json:"path"`
 	Branch string `json:"branch"`
+	Repo   string `json:"repo,omitempty"`
+	First  bool   `json:"first,omitempty"`
 }
 
 type worktreeState struct {
@@ -102,6 +111,12 @@ type worktreeState struct {
 	Ignored  int    `json:"ignored"`
 	Orphans  int    `json:"orphans"`
 	Nested   int    `json:"nested"`
+	Tip      string `json:"tip"`
+	Merged   bool   `json:"merged"`
+	Landed   bool   `json:"landed"`
+	Remote   bool   `json:"remote"`
+	Locked   bool   `json:"locked"`
+	LockWhy  string `json:"lockWhy"`
 	Error    string `json:"error"`
 }
 
@@ -190,16 +205,22 @@ func (a *app) leavingLocked(worktree string) bool {
 }
 
 func (a *app) leaveFolder(ctx context.Context, w pluginsdk.Workspace, folder string, jobs []folderJob) error {
-	reason := fmt.Sprintf(cronPausedWhy, filepath.Base(folder), w.Name)
-	paused := make([]folderJob, 0, len(jobs))
-	for _, job := range jobs {
-		if err := a.host.RunCommand(ctx, cronPauseCmd, w.ID, map[string]string{"id": job.ID, "reason": reason}, nil); err != nil {
-			return errors.Join(fmt.Errorf("pause %s: %w", job.Name, err), a.resumeJobs(ctx, w.ID, paused))
-		}
-		paused = append(paused, job)
+	if err := a.pauseJobs(ctx, w.ID, fmt.Sprintf(cronPausedWhy, filepath.Base(folder), w.Name), jobs); err != nil {
+		return err
 	}
 	if _, err := a.host.RemoveFolder(ctx, w.ID, folder); err != nil {
-		return errors.Join(err, a.resumeJobs(ctx, w.ID, paused))
+		return errors.Join(err, a.resumeJobs(ctx, w.ID, jobs))
+	}
+	return nil
+}
+
+func (a *app) pauseJobs(ctx context.Context, workspaceID, reason string, jobs []folderJob) error {
+	paused := make([]folderJob, 0, len(jobs))
+	for _, job := range jobs {
+		if err := a.host.RunCommand(ctx, cronPauseCmd, workspaceID, map[string]string{"id": job.ID, "reason": reason}, nil); err != nil {
+			return errors.Join(fmt.Errorf("pause %s: %w", job.Name, err), a.resumeJobs(ctx, workspaceID, paused))
+		}
+		paused = append(paused, job)
 	}
 	return nil
 }
@@ -260,8 +281,9 @@ func (a *app) worktreesOf(ctx context.Context, workspaceID, folder string) []fol
 		return out
 	}
 	sessions := a.allSessions()
+	defaultName := f.DefaultName(ctx)
 	for _, t := range f.Trees[1:] {
-		if t.Bare || t.Real == f.Checkout.Real {
+		if t.Bare || t.Real == f.Checkout.Real || f.Primary(defaultName, t) {
 			continue
 		}
 		wt := folderWorktree{Path: t.Path, Branch: t.Branch}
@@ -278,19 +300,32 @@ func (a *app) worktreesOf(ctx context.Context, workspaceID, folder string) []fol
 }
 
 func (a *app) readWorktrees(ctx context.Context, workspaceID string, worktrees []folderWorktree) {
+	a.stateOf(ctx, workspaceID, worktrees, false)
+}
+
+func (a *app) proveWorktrees(ctx context.Context, workspaceID string, worktrees []folderWorktree) {
+	a.stateOf(ctx, workspaceID, worktrees, true)
+}
+
+func (a *app) stateOf(ctx context.Context, workspaceID string, worktrees []folderWorktree, proof bool) {
 	paths := make([]string, 0, len(worktrees))
 	for _, wt := range worktrees {
 		paths = append(paths, wt.Path)
 	}
 	var states []worktreeState
-	err := a.host.RunCommand(ctx, worktreeStateCmd, workspaceID, map[string][]string{"paths": paths}, &states)
+	err := a.host.RunCommand(ctx, worktreeStateCmd, workspaceID, map[string]any{"paths": paths, "proof": proof}, &states)
 	for i := range worktrees {
 		wt := &worktrees[i]
 		wt.Read, wt.Unread = true, true
 		if err == nil && i < len(states) && states[i].Error == "" {
-			wt.Unread, wt.Dirty, wt.Unpushed, wt.Ignored, wt.Orphans, wt.Nested = false, states[i].Dirty, states[i].Unpushed, states[i].Ignored, states[i].Orphans, states[i].Nested
+			wt.applyState(states[i])
 		}
 	}
+}
+
+func (wt *folderWorktree) applyState(s worktreeState) {
+	wt.Unread, wt.Dirty, wt.Unpushed, wt.Ignored, wt.Orphans, wt.Nested = false, s.Dirty, s.Unpushed, s.Ignored, s.Orphans, s.Nested
+	wt.Tip, wt.Merged, wt.Landed, wt.Remote, wt.Locked, wt.LockWhy = s.Tip, s.Merged, s.Landed, s.Remote, s.Locked, s.LockWhy
 }
 
 func (a *app) folderJobs(ctx context.Context, w pluginsdk.Workspace, folder string) ([]folderJob, error) {
@@ -304,14 +339,17 @@ func (a *app) folderJobs(ctx context.Context, w pluginsdk.Workspace, folder stri
 	} else {
 		trees = []worktreeRef{{Path: folder}}
 	}
-	first := isWorkFolder(ctx, w, folder)
+	return a.jobsIn(ctx, w.ID, trees, isWorkFolder(ctx, w, folder))
+}
+
+func (a *app) jobsIn(ctx context.Context, workspaceID string, trees []worktreeRef, first bool) ([]folderJob, error) {
 	var out struct {
 		Jobs []struct {
 			folderJob
 			Enabled bool `json:"enabled"`
 		} `json:"jobs"`
 	}
-	if err := a.host.RunCommand(ctx, cronJobsInCmd, w.ID, map[string]any{"worktrees": trees, "first": first}, &out); err != nil {
+	if err := a.host.RunCommand(ctx, cronJobsInCmd, workspaceID, map[string]any{"worktrees": trees, "first": first}, &out); err != nil {
 		return nil, err
 	}
 	var jobs []folderJob

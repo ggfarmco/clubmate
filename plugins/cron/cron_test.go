@@ -550,6 +550,52 @@ func TestJobsInFindsJobsByBranchRepoAndOwner(t *testing.T) {
 	assert.Empty(t, names(map[string]any{"worktrees": []map[string]string{{"path": t.TempDir(), "branch": "feat/x"}}}))
 }
 
+func TestJobsInNamesTheWorktreeOfABranchInItsRepo(t *testing.T) {
+	f := newAgentsFixture(t, map[string]any{})
+	repo, tree := t.TempDir(), t.TempDir()
+	require.NoError(t, f.run(t, "cron.add", map[string]any{"name": "nightly", "command": "agents.new", "args": `{"repo":"` + repo + `","branch":"feat/x","prompt":"go"}`, "every": "1h"}, nil))
+	require.NoError(t, f.run(t, "cron.add", map[string]any{"name": "bare", "command": "agents.new", "args": `{"branch":"feat/x","prompt":"go"}`, "every": "1h"}, nil))
+
+	in := func(first bool) map[string]string {
+		t.Helper()
+		var out struct {
+			Jobs []struct {
+				Name string `json:"name"`
+				In   string `json:"in"`
+			} `json:"jobs"`
+		}
+		worktrees := []map[string]any{{"path": tree, "branch": "feat/x", "repo": repo, "first": first}}
+		require.NoError(t, f.run(t, "cron.jobs-in", map[string]any{"worktrees": worktrees}, &out))
+		got := map[string]string{}
+		for _, j := range out.Jobs {
+			got[j.Name] = j.In
+		}
+		return got
+	}
+
+	assert.Equal(t, map[string]string{"nightly": tree}, in(false))
+	assert.Equal(t, map[string]string{"nightly": tree, "bare": tree}, in(true))
+}
+
+func TestJobsInNamesAnOwnedJobByItsBranch(t *testing.T) {
+	f := newAgentsFixture(t, map[string]any{})
+	session := f.newSession(t)
+	tree := t.TempDir()
+	require.NoError(t, f.runAs(t, session, "cron.add", map[string]any{"name": "owned", "command": "agents.new", "args": `{"branch":"feat/x","prompt":"go"}`, "every": "1h"}, nil))
+
+	var out struct {
+		Jobs []struct {
+			Name string `json:"name"`
+			In   string `json:"in"`
+		} `json:"jobs"`
+	}
+	worktrees := []map[string]any{{"path": tree, "branch": "feat/x", "repo": t.TempDir(), "first": true}}
+	require.NoError(t, f.run(t, "cron.jobs-in", map[string]any{"worktrees": worktrees}, &out))
+
+	require.Len(t, out.Jobs, 1)
+	assert.Equal(t, tree, out.Jobs[0].In)
+}
+
 func TestPauseKeepsItsReason(t *testing.T) {
 	f := newFixture(t)
 	var added job

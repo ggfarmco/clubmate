@@ -219,7 +219,7 @@ private struct WorktreePickerContent: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(picker.rows.enumerated()), id: \.element.id) { index, row in
-                            WorktreePickerRowView(row: row, selected: index == picker.selection, terms: picker.terms, session: session, picker: picker)
+                            WorktreePickerRowView(row: row, selected: index == picker.selection, terms: picker.terms, session: session, picker: picker, close: close)
                                 .id(row.id)
                                 .onTapGesture {
                                     guard row.selectable else { return }
@@ -294,6 +294,13 @@ private struct WorktreePickerContent: View {
                 session.chooseWorktreeToRemove()
             }
         }
+        if let cleanup = picker.index?.cleanup, !cleanup.isEmpty {
+            WorktreePickerAction(title: cleanup, icon: "archivebox", wide: wide) {
+                let folder = picker.scopedFolder?.path
+                close()
+                session.askToCleanUp(folder)
+            }
+        }
     }
 
     private func submit() {
@@ -338,6 +345,7 @@ private struct WorktreePickerRowView: View {
     let terms: [String]
     let session: WorkspaceSession
     let picker: WorktreePickerModel
+    let close: () -> Void
 
     @State private var hovering = false
     @Environment(\.theme) private var theme
@@ -375,7 +383,7 @@ private struct WorktreePickerRowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, theme.gutter * 1.5 + 14 + theme.gutter)
                 .frame(height: theme.rowHeight + 2)
-        case .fold(_, let text):
+        case .fold(let id, let text):
             pickable(height: theme.rowHeight + 2) {
                 HStack(spacing: theme.gutter) {
                     Image(systemName: "chevron.right")
@@ -387,6 +395,21 @@ private struct WorktreePickerRowView: View {
                         .foregroundStyle(theme.muted)
                         .lineLimit(1)
                     Spacer(minLength: 0)
+                    let clean = picker.cleanWord(fold: id)
+                    if !clean.isEmpty {
+                        Button {
+                            let folder = picker.scopedFolder?.path
+                            close()
+                            session.askToCleanUp(folder)
+                        } label: {
+                            Text(clean)
+                                .font(theme.uiSmall)
+                                .underline()
+                                .foregroundStyle(theme.text2)
+                                .lineLimit(1)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         case .branch(let branch, let folder):
@@ -672,6 +695,12 @@ private struct WorktreeFolderActions: View {
             close()
             NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: folder.path)])
         })
+        if let cleanup = picker.index?.cleanup, !cleanup.isEmpty {
+            out.append(Item(id: cleanup) { [session, folder, close] in
+                close()
+                session.askToCleanUp(folder.path)
+            })
+        }
         if picker.multipleFolders, let word = picker.index?.remove {
             out.append(Item(id: word, note: "keeps the files", destructive: true) { [session, folder, close] in
                 close()

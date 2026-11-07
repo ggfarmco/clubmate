@@ -121,8 +121,8 @@ func (a *app) openFolderSheet(ctx context.Context, workspaceID, path string) err
 	p := a.workspaceState(workspaceID)
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
-	if p.folder == nil || !p.folder.busy {
-		p.folder = sheet
+	if !p.sheetBusy() {
+		p.folder, p.archive, p.cleanup = sheet, nil, nil
 	}
 	return nil
 }
@@ -234,7 +234,7 @@ func (a *app) removeWithWorktrees(ctx context.Context, workspaceID string, p *wo
 func (s *folderSheet) tickedWorktrees() []folderWorktree {
 	var out []folderWorktree
 	for _, wt := range s.impact.Worktrees {
-		if wt.Read && !wt.Unread && wt.Nested == 0 && s.ticked[wt.Path] {
+		if wt.Read && !wt.Unread && wt.Nested == 0 && !wt.Locked && s.ticked[wt.Path] {
 			out = append(out, wt)
 		}
 	}
@@ -253,13 +253,17 @@ func (a *app) removeSheetWorktrees(ctx context.Context, workspaceID, folder stri
 }
 
 func (a *app) removeSheetWorktree(ctx context.Context, workspaceID, folder string, wt folderWorktree) error {
+	return a.removeSeen(ctx, workspaceID, wt, map[string]any{"repo": folder, "path": wt.Path, "left": true, "discard": wt.Dirty > 0})
+}
+
+func (a *app) removeSeen(ctx context.Context, workspaceID string, wt folderWorktree, args map[string]any) error {
+	if err := a.terminalIn(ctx, wt.Path); err != nil {
+		return err
+	}
 	a.worktreeMu.Lock()
 	defer a.worktreeMu.Unlock()
 	var op worktreeOp
-	args := map[string]any{
-		"repo": folder, "path": wt.Path, "left": true, "discard": wt.Dirty > 0,
-		"seenDirty": wt.Dirty, "seenIgnored": wt.Ignored, "seenOrphans": wt.Orphans,
-	}
+	args["seenDirty"], args["seenIgnored"], args["seenOrphans"] = wt.Dirty, wt.Ignored, wt.Orphans
 	if err := a.host.RunCommand(ctx, worktreeRemoveCmd, workspaceID, args, &op); err != nil {
 		return err
 	}
@@ -282,6 +286,16 @@ func (a *app) folderHoldsOf(workspaceID string, sheet *folderSheet) folderHolds 
 		}
 	}
 	return holds
+}
+
+func (a *app) sheetTree(workspaceID string, p *workspaceUI) sdui.Node {
+	if node, ok := a.cleanupSheetTree(p); ok {
+		return node
+	}
+	if node, ok := a.archiveSheetTree(p); ok {
+		return node
+	}
+	return a.folderSheetTree(workspaceID, p)
 }
 
 func (a *app) folderSheetTree(workspaceID string, p *workspaceUI) sdui.Node {
@@ -529,6 +543,9 @@ func (s *folderSheet) tickRow(wt folderWorktree, only bool) sdui.Node {
 	}
 	if wt.Nested > 0 {
 		return sdui.WithTone(sdui.Text(label+" · "+folderNested), "warning")
+	}
+	if wt.Locked {
+		return sdui.WithTone(sdui.Text(label+" · "+lockedWords(wt)), "warning")
 	}
 	box := sdui.WithAction(sdui.Checkbox(folderTickNode+wt.Path, label, s.ticked[wt.Path]), actFolderTick)
 	lines := []sdui.Node{box}

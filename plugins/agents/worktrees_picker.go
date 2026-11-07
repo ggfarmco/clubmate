@@ -19,6 +19,8 @@ const (
 	pickerWordJoin   = " · "
 	pickerMore       = "%d more · type to find one"
 	pickerShow       = "show %d"
+	pickerCleanAll   = "Clean up worktrees…"
+	pickerCleanSome  = "Clean up %d…"
 	pickerAddFolder  = "Add a folder to %s…"
 	pickerRemove     = "Remove from %s…"
 	pickerFilter     = "Filter %s"
@@ -82,6 +84,7 @@ type pickerSection struct {
 	Shown int    `json:"shown"`
 	More  string `json:"more,omitempty"`
 	Fold  string `json:"fold,omitempty"`
+	Clean string `json:"clean,omitempty"`
 }
 
 type worktreePicker struct {
@@ -90,6 +93,7 @@ type worktreePicker struct {
 	ByFolder    bool            `json:"byFolder"`
 	AddFolder   string          `json:"addFolder"`
 	Remove      string          `json:"remove"`
+	Cleanup     string          `json:"cleanup,omitempty"`
 	SearchHint  string          `json:"searchHint"`
 	SearchStale int             `json:"searchStale"`
 	Sections    []pickerSection `json:"sections"`
@@ -106,6 +110,9 @@ func buildPicker(workspace string, folders []worktreeFolder, rows []worktreeRow)
 	}
 	if len(folders) <= 1 {
 		p.Placeholder = pickerOneFolder
+	}
+	if slices.ContainsFunc(rows, func(w worktreeRow) bool { return w.Stale || w.ByHand }) {
+		p.Cleanup = pickerCleanAll
 	}
 	if !p.ByFolder {
 		p.Count = strings.Join([]string{countWord(len(folders), folderOne, folderMany), countWord(len(rows), worktreeOne, worktreeMany)}, pickerWordJoin)
@@ -165,7 +172,7 @@ func folderSections(folder string, rows []worktreeRow) []pickerSection {
 		listed(groupTask, sectionTask, hintTask, groups[groupTask], pickerTaskShown),
 		listed(groupOther, sectionOther, "", groups[groupOther], pickerOtherShown),
 		folded(groupHand, sectionHand, hintHand, groups[groupHand]),
-		folded(groupStale, sectionStale, hintStale, groups[groupStale]),
+		staleSection(groups[groupStale]),
 	}, func(s pickerSection) bool { return len(s.Rows) == 0 })
 }
 
@@ -188,6 +195,12 @@ func folded(id, title, hint string, rows []int) pickerSection {
 	s := listed(id, title, hint, rows, 0)
 	s.More = ""
 	s.Fold = fmt.Sprintf(pickerShow, len(rows))
+	return s
+}
+
+func staleSection(rows []int) pickerSection {
+	s := folded(groupStale, sectionStale, hintStale, rows)
+	s.Clean = fmt.Sprintf(pickerCleanSome, len(rows))
 	return s
 }
 
