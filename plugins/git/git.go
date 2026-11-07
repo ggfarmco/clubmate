@@ -22,7 +22,14 @@ const (
 )
 
 func mutate(ctx context.Context, repo string, args ...string) ([]byte, error) {
-	out, err := gitrepo.Mutate(ctx, repo, append([]string{literalPathspecs}, args...)...)
+	return mutated(gitrepo.Mutate(ctx, repo, append([]string{literalPathspecs}, args...)...))
+}
+
+func mutateInert(ctx context.Context, repo string, args ...string) ([]byte, error) {
+	return mutated(gitrepo.MutateInert(ctx, repo, append([]string{literalPathspecs}, args...)...))
+}
+
+func mutated(out []byte, err error) ([]byte, error) {
 	if errors.Is(err, exec.ErrWaitDelay) {
 		return out, nil
 	}

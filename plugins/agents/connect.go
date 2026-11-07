@@ -149,9 +149,9 @@ func (a *app) connectRepoCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 	if err != nil {
 		return nil, err
 	}
-	owner := a.topLevel(caller)
 	a.connectMu.Lock()
 	defer a.connectMu.Unlock()
+	owner := a.topLevel(caller)
 	w, err := a.host.GetWorkspace(ctx, cmd.WorkspaceID)
 	if err != nil {
 		return nil, err

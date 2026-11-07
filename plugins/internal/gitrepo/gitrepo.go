@@ -19,6 +19,8 @@ const (
 	waitDelay     = 2 * time.Second
 	branchTimeout = 2 * time.Second
 	originPrefix  = "origin/"
+	filterKey     = `filter\..*\.(clean|smudge|process|required)`
+	hookKey       = `hook\..*\.command`
 )
 
 var (
@@ -62,8 +64,19 @@ func Inert(ctx context.Context, repo string, args ...string) ([]byte, error) {
 	return cmd.Output()
 }
 
+func MutateInert(ctx context.Context, repo string, args ...string) ([]byte, error) {
+	cmd := command(ctx, repo, append([]string{"-c", "core.hooksPath=/dev/null"}, args...)...)
+	cmd.Env = append(cmd.Env, "GIT_NO_LAZY_FETCH=1")
+	cmd.Env = append(cmd.Env, overrides(ctx, repo, "^("+filterKey+"|"+hookKey+")$")...)
+	return cmd.Output()
+}
+
 func filterOverrides(ctx context.Context, repo string) []string {
-	out, _ := Run(ctx, repo, "config", "--null", "--name-only", "--get-regexp", `^filter\..*\.(clean|smudge|process|required)$`)
+	return overrides(ctx, repo, "^"+filterKey+"$")
+}
+
+func overrides(ctx context.Context, repo, keys string) []string {
+	out, _ := Run(ctx, repo, "config", "--null", "--name-only", "--get-regexp", keys)
 	names := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
 	if len(out) == 0 {
 		return nil
@@ -71,13 +84,20 @@ func filterOverrides(ctx context.Context, repo string) []string {
 	env := make([]string, 0, 2*len(names)+1)
 	env = append(env, "GIT_CONFIG_COUNT="+strconv.Itoa(len(names)))
 	for i, name := range names {
-		value := ""
-		if strings.HasSuffix(name, ".required") {
-			value = "false"
-		}
-		env = append(env, "GIT_CONFIG_KEY_"+strconv.Itoa(i)+"="+name, "GIT_CONFIG_VALUE_"+strconv.Itoa(i)+"="+value)
+		key, value := override(name)
+		env = append(env, "GIT_CONFIG_KEY_"+strconv.Itoa(i)+"="+key, "GIT_CONFIG_VALUE_"+strconv.Itoa(i)+"="+value)
 	}
 	return env
+}
+
+func override(name string) (string, string) {
+	if hook, ok := strings.CutSuffix(name, ".command"); ok {
+		return hook + ".enabled", "false"
+	}
+	if strings.HasSuffix(name, ".required") {
+		return name, "false"
+	}
+	return name, ""
 }
 
 func RunLimited(ctx context.Context, repo string, limit int, args ...string) ([]byte, bool, error) {

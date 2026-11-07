@@ -1039,6 +1039,37 @@ func TestSettingsViewFinishDefault(t *testing.T) {
 	assert.Contains(t, view(), `"value":"ask"`)
 }
 
+func TestSettingsRefuseASessionCaller(t *testing.T) {
+	t.Parallel()
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	settings := []struct {
+		command string
+		args    map[string]any
+	}{
+		{"agents.mode", map[string]any{"session": session, "mode": "plan"}},
+		{"agents.config", map[string]any{"session": session, "id": "finish", "value": "merge"}},
+		{"agents.finish-default", map[string]any{"value": "merge"}},
+		{"agents.afk-default", map[string]any{"on": true}},
+	}
+
+	fromCm := func(command string, args, out any) error {
+		return f.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": command, "workspaceId": workspace, "args": args, "caller": session}, out)
+	}
+
+	for _, s := range settings {
+		assert.ErrorContains(t, fromCm(s.command, s.args, nil), "only the user changes this setting", s.command)
+	}
+
+	var finish struct {
+		Value string `json:"value"`
+	}
+	require.NoError(t, fromCm("agents.finish-default", map[string]any{}, &finish))
+	assert.Equal(t, "ask", finish.Value)
+	assert.Equal(t, "ask", f.session(t, workspace, session).Finish)
+}
+
 func TestAFKMode(t *testing.T) {
 	t.Parallel()
 	f := start(t, nil)

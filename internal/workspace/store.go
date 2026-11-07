@@ -304,7 +304,7 @@ func (s *Store) AddRepo(ctx context.Context, id, path string, meta FolderMeta) (
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO repos(project_id, position, path, added_by, added_at, added_afk, seen)
 		 VALUES(?, (SELECT COALESCE(MAX(position), -1) + 1 FROM repos WHERE project_id = ?), ?, ?, ?, ?, ?)`,
-		id, id, path, meta.AddedBy, time.Now().UnixNano(), meta.AddedAfk, meta.AddedBy == "")
+		id, id, path, meta.AddedBy, time.Now().UnixNano(), meta.AddedAfk, !meta.AddedAfk && meta.AddedBy == "")
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return Workspace{}, fmt.Errorf("%w: %s", ErrDuplicateFolder, path)

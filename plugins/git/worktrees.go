@@ -161,7 +161,11 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, workspaceID string, args
 			}
 			add = []string{"worktree", "add", "-b", args.Branch, dir, base}
 		}
-		if _, err := mutate(ctx, cur.Path, add...); err != nil {
+		create := mutate
+		if f.unseen {
+			create = mutateInert
+		}
+		if _, err := create(ctx, cur.Path, add...); err != nil {
 			return "", err
 		}
 		if err := excludeWorktrees(ctx, primary.Path); err != nil {

@@ -92,6 +92,7 @@ var (
 	errBadReview     = errors.New("invalid_params: send-review needs a worktree and at least one comment")
 	errReviewOnly    = errors.New("invalid_params: only the editor-nvim plugin may send a review")
 	errFirstModeUser = errors.New("invalid_params: only the user may set firstMode")
+	errSettingUser   = errors.New("only the user changes this setting")
 )
 
 type commandFunc func(a *app, ctx context.Context, cmd pluginsdk.CommandRun) (any, error)
@@ -341,10 +342,16 @@ func (a *app) permissionCommand(_ context.Context, cmd pluginsdk.CommandRun, arg
 }
 
 func (a *app) modeCommand(ctx context.Context, cmd pluginsdk.CommandRun, args modeArgs) (any, error) {
+	if !a.userWord(cmd) {
+		return nil, errSettingUser
+	}
 	return nil, a.setMode(ctx, cmd.WorkspaceID, args)
 }
 
 func (a *app) configCommand(ctx context.Context, cmd pluginsdk.CommandRun, args configArgs) (any, error) {
+	if !a.userWord(cmd) {
+		return nil, errSettingUser
+	}
 	return nil, a.setConfig(ctx, cmd.WorkspaceID, args)
 }
 
@@ -380,9 +387,12 @@ func (a *app) notifyCommand(_ context.Context, cmd pluginsdk.CommandRun, args no
 	return nil, nil
 }
 
-func (a *app) finishDefaultCommand(ctx context.Context, _ pluginsdk.CommandRun, args finishArgs) (any, error) {
+func (a *app) finishDefaultCommand(ctx context.Context, cmd pluginsdk.CommandRun, args finishArgs) (any, error) {
 	if args.Value == "" {
 		return finishResult{Value: a.finishDefault(ctx)}, nil
+	}
+	if !a.userWord(cmd) {
+		return finishResult{}, errSettingUser
 	}
 	if err := a.setFinishDefault(ctx, args.Value); err != nil {
 		return finishResult{}, err
@@ -403,9 +413,12 @@ func (a *app) afkCommand(_ context.Context, cmd pluginsdk.CommandRun, args afkAr
 	return nil, nil
 }
 
-func (a *app) afkDefaultCommand(ctx context.Context, _ pluginsdk.CommandRun, args afkDefaultArgs) (any, error) {
+func (a *app) afkDefaultCommand(ctx context.Context, cmd pluginsdk.CommandRun, args afkDefaultArgs) (any, error) {
 	if args.On == nil {
 		return afkResult{On: a.afkDefault(ctx)}, nil
+	}
+	if !a.userWord(cmd) {
+		return afkResult{}, errSettingUser
 	}
 	return afkResult{On: *args.On}, a.host.StorageSet(ctx, afkKey, *args.On)
 }

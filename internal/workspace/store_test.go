@@ -72,10 +72,12 @@ func TestFolderRecords(t *testing.T) {
 	require.NoError(t, err)
 	_, err = s.AddRepo(t.Context(), p.ID, c, workspace.FolderMeta{AddedBy: "Fix login", AddedAfk: true})
 	require.NoError(t, err)
+	_, err = s.AddRepo(t.Context(), p.ID, t.TempDir(), workspace.FolderMeta{AddedAfk: true})
+	require.NoError(t, err)
 	got, err := s.Get(t.Context(), p.ID)
 	require.NoError(t, err)
 
-	created, user, agent := got.Folders[0], got.Folders[1], got.Folders[2]
+	created, user, agent, untitled := got.Folders[0], got.Folders[1], got.Folders[2], got.Folders[3]
 	assert.True(t, p.Folders[0].Seen)
 	assert.True(t, p.Folders[0].AddedAt.Equal(p.CreatedAt))
 	assert.True(t, created.Seen)
@@ -87,6 +89,7 @@ func TestFolderRecords(t *testing.T) {
 	assert.Equal(t, "Fix login", agent.AddedBy)
 	assert.True(t, agent.AddedAfk)
 	assert.False(t, agent.Seen)
+	assert.False(t, untitled.Seen)
 }
 
 func TestMarkFolderSeen(t *testing.T) {
