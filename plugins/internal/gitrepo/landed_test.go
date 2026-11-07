@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -80,7 +81,9 @@ func TestLanded(t *testing.T) {
 			gitIn(t, repo, "checkout", "-q", "main")
 			tt.land(t, repo, tip)
 
-			assert.Equal(t, tt.want, gitrepo.Landed(context.Background(), repo, tip))
+			landed, err := gitrepo.Landed(context.Background(), repo, tip)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, landed)
 		})
 	}
 }
@@ -97,9 +100,47 @@ func TestLandedInOriginDefault(t *testing.T) {
 	gitIn(t, clone, "push", "-q", "origin", "task")
 	gitIn(t, origin, "merge", "-q", "--squash", "task")
 	gitIn(t, origin, "commit", "-qm", "squash")
-	assert.False(t, gitrepo.Landed(context.Background(), clone, tip))
+	landed, err := gitrepo.Landed(context.Background(), clone, tip)
+	require.NoError(t, err)
+	assert.False(t, landed)
 
 	gitIn(t, clone, "fetch", "-q", "origin")
 
-	assert.True(t, gitrepo.Landed(context.Background(), clone, tip))
+	landed, err = gitrepo.Landed(context.Background(), clone, tip)
+	require.NoError(t, err)
+	assert.True(t, landed)
+}
+
+func TestRepeatedCheckAddsNoObjects(t *testing.T) {
+	t.Parallel()
+	repo := landedRepo(t)
+	gitIn(t, repo, "checkout", "-q", "-b", "task")
+	tip := commitAt(t, repo, "b.txt", "two\n")
+	gitIn(t, repo, "checkout", "-q", "main")
+	commitAt(t, repo, "else.txt", "else\n")
+	ctx := context.Background()
+	gitrepo.LandedInert(ctx, repo, tip)
+	before := gitIn(t, repo, "count-objects")
+	time.Sleep(1100 * time.Millisecond)
+
+	gitrepo.LandedInert(ctx, repo, tip)
+	_, err := gitrepo.Landed(ctx, repo, tip)
+
+	require.NoError(t, err)
+	assert.Equal(t, before, gitIn(t, repo, "count-objects"))
+}
+
+func TestFetchOutlivesReads(t *testing.T) {
+	t.Parallel()
+	origin := landedRepo(t)
+	clone := filepath.Join(t.TempDir(), "clone")
+	gitIn(t, origin, "clone", "-q", origin, clone)
+	slow := filepath.Join(t.TempDir(), "slow-upload-pack")
+	require.NoError(t, os.WriteFile(slow, []byte("#!/bin/sh\nsleep 11\nexec git upload-pack \"$@\"\n"), 0o700))
+	gitIn(t, clone, "config", "remote.origin.uploadpack", slow)
+	tip := commitAt(t, origin, "b.txt", "two\n")
+
+	require.NoError(t, gitrepo.Fetch(context.Background(), clone, "origin"))
+
+	assert.Equal(t, tip, gitIn(t, clone, "rev-parse", "origin/main"))
 }

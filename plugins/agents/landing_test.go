@@ -2,8 +2,10 @@ package main_test
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -841,6 +843,77 @@ func TestReadyAfterMergedIsIgnored(t *testing.T) {
 func startPRCheck(t *testing.T, every time.Duration) *fixture {
 	t.Helper()
 	return startEnv(t, []string{"CLUBMATE_AGENTS_PR_CHECK=" + every.String()}, map[string]any{}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+}
+
+func TestKilledCheckIsNoFailureAndRunsAgain(t *testing.T) {
+	t.Parallel()
+	gitBin, err := exec.LookPath("git")
+	require.NoError(t, err)
+	dir := t.TempDir()
+	flag := filepath.Join(dir, "kill")
+	write(t, flag, "")
+	script := fmt.Sprintf("#!/bin/sh\ncase \" $* \" in *\" --is-ancestor \"*) [ -f %q ] && kill -9 $$ ;; esac\nexec %q \"$@\"\n", flag, gitBin)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "git"), []byte(script), 0o700))
+	path := "PATH=" + dir + string(os.PathListSeparator) + os.Getenv("PATH")
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_PR_CHECK=200ms", path}, map[string]any{}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	l := f.landing(t, "merge", "pause", 1)
+	l.land(t, 0)
+	f.waitStatus(t, l.workspace, l.kids[0].Session, "done")
+
+	testutil.Never(t, func() bool { return l.repo(t, 0).State == "failed" }, time.Second)
+	require.NoError(t, os.Remove(flag))
+
+	assert.Contains(t, l.waitState(t, 0, "failed").Tail, "no report")
+}
+
+func TestClosedOrchestratorIsNotChecked(t *testing.T) {
+	t.Parallel()
+	f := startPRCheck(t, 200*time.Millisecond)
+	closed := f.landing(t, "merge", "pause", 1)
+	closed.land(t, 0)
+	closed.report(t, 0, "prOpen", "#1")
+	open := f.landing(t, "merge", "resume", 1, 1)
+	for i := range open.repos {
+		open.land(t, i)
+		open.report(t, i, "prOpen", "#2")
+	}
+	require.NoError(t, f.run(t, closed.workspace, "agents.close", map[string]any{"session": closed.owner}, nil))
+	open.mergeInto(t, 0)
+	open.waitState(t, 0, "merged")
+
+	closed.mergeInto(t, 0)
+
+	testutil.Never(t, func() bool { return closed.repo(t, 0).State == "merged" }, time.Second)
+}
+
+func TestSubdirectoryFolderLands(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	repo := newRepo(t)
+	sub := filepath.Join(repo, "ads")
+	require.NoError(t, os.Mkdir(sub, 0o700))
+	write(t, filepath.Join(sub, "a.go"), "ads\n")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "ads")
+	l := f.startTask(t, f.workspace(t, sub), "merge", "pause", []string{sub}, []int{1})
+	l.land(t, 0)
+
+	l.mergeInto(t, 0)
+
+	assert.Equal(t, "merged", l.report(t, 0, "merged").State)
+}
+
+func TestChildCorrectsItsRuleThroughASymlink(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	repo := newRepo(t)
+	link := filepath.Join(t.TempDir(), "link")
+	require.NoError(t, os.Symlink(repo, link))
+	l := f.startTask(t, f.workspace(t, repo), "merge", "pause", []string{link}, []int{1})
+
+	err := f.declareTask(t, l.workspace, l.kids[0].Session, "pause", map[string]any{"path": link, "order": 1, "landsBy": "branch", "source": "its AGENTS.md"})
+
+	require.NoError(t, err)
 }
 
 func TestMergedPRIsSeenWithoutARestart(t *testing.T) {

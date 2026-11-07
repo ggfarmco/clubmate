@@ -16,6 +16,7 @@ import (
 
 const (
 	timeout       = 10 * time.Second
+	fetchTimeout  = 2 * time.Minute
 	waitDelay     = 2 * time.Second
 	branchTimeout = 2 * time.Second
 	originPrefix  = "origin/"
@@ -29,9 +30,15 @@ var (
 )
 
 func Run(ctx context.Context, repo string, args ...string) ([]byte, error) {
+	return runWith(ctx, repo, nil, args...)
+}
+
+func runWith(ctx context.Context, repo string, env []string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	return command(ctx, repo, args...).Output()
+	cmd := command(ctx, repo, args...)
+	cmd.Env = append(cmd.Env, env...)
+	return cmd.Output()
 }
 
 func Mutate(ctx context.Context, repo string, args ...string) ([]byte, error) {
@@ -56,11 +63,16 @@ func RunEnv(ctx context.Context, repo string, env []string, args ...string) ([]b
 }
 
 func Inert(ctx context.Context, repo string, args ...string) ([]byte, error) {
+	return inertWith(ctx, repo, nil, args...)
+}
+
+func inertWith(ctx context.Context, repo string, env []string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	cmd := command(ctx, repo, append([]string{"-c", "log.showSignature=false"}, args...)...)
 	cmd.Env = append(cmd.Env, "GIT_NO_LAZY_FETCH=1")
 	cmd.Env = append(cmd.Env, filterOverrides(ctx, repo)...)
+	cmd.Env = append(cmd.Env, env...)
 	return cmd.Output()
 }
 
@@ -182,13 +194,17 @@ func BranchAt(ctx context.Context, dir string) string {
 }
 
 func DefaultBase(ctx context.Context, repo string) (string, error) {
-	if out, err := Run(ctx, repo, "symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"); err == nil {
+	return defaultBase(ctx, Run, repo)
+}
+
+func defaultBase(ctx context.Context, git runner, repo string) (string, error) {
+	if out, err := git(ctx, repo, "symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"); err == nil {
 		if base := strings.TrimSpace(string(out)); base != "" {
 			return base, nil
 		}
 	}
 	for _, name := range []string{"main", "master"} {
-		if _, err := Run(ctx, repo, "rev-parse", "-q", "--verify", "refs/heads/"+name); err == nil {
+		if _, err := git(ctx, repo, "rev-parse", "-q", "--verify", "refs/heads/"+name); err == nil {
 			return name, nil
 		}
 	}
@@ -201,7 +217,7 @@ func DefaultBranch(ctx context.Context, repo string) (string, error) {
 }
 
 func Fetch(ctx context.Context, repo, remote string) error {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
 	return unattended(ctx, repo, "-c", "core.hooksPath=/dev/null", "fetch", "--quiet", "--no-auto-maintenance", "--no-recurse-submodules", "--", remote)
 }

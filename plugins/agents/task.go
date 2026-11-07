@@ -93,7 +93,7 @@ func (t taskRecord) declared(ctx context.Context, old *taskRecord) *taskRecord {
 		}
 		r.Path, r.Order, r.LandsBy, r.Source = repo.Path, repo.Order, repo.LandsBy, repo.Source
 		if r.Into == "" {
-			r.Into, _ = gitrepo.DefaultBranch(ctx, r.Path)
+			r.Into, _ = gitrepo.DefaultBranch(ctx, repoTop(r.Path))
 		}
 		next.Repos = append(next.Repos, r)
 	}
@@ -124,10 +124,10 @@ func (s *session) correctRule(child record, args taskRecord) (taskRecord, error)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	task := s.rec.Task
-	if task == nil || task.Slug != args.Slug || len(args.Repos) != 1 || child.RepoPath == "" || args.Repos[0].Path != child.RepoPath {
+	if task == nil || task.Slug != args.Slug || len(args.Repos) != 1 || child.RepoPath == "" || gitrepo.Canonical(args.Repos[0].Path) != gitrepo.Canonical(child.RepoPath) {
 		return taskRecord{}, errTaskOwnRepo
 	}
-	i := slices.IndexFunc(task.Repos, func(r taskRepo) bool { return r.Path == child.RepoPath })
+	i := task.repoIndex(child.RepoPath)
 	if i < 0 {
 		return taskRecord{}, errTaskOwnRepo
 	}

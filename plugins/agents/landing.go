@@ -223,10 +223,10 @@ func (a *app) answerLand(ctx context.Context, workspaceID string, args landAnswe
 }
 
 func (a *app) landingChanged() {
-	ctx, cancel := context.WithTimeout(context.Background(), cleanupLimit)
-	defer cancel()
 	a.landMu.Lock()
 	defer a.landMu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), cleanupLimit)
+	defer cancel()
 	a.reconcileTasks(ctx)
 }
 
@@ -251,6 +251,9 @@ func (a *app) landingAtStart() {
 	ctx, cancel := context.WithTimeout(context.Background(), cleanupLimit)
 	defer cancel()
 	for _, rec := range a.taskRecords() {
+		if rec.closed() {
+			continue
+		}
 		var paths []string
 		for _, r := range rec.Task.Repos {
 			if r.State == landPROpen || r.Landing {
@@ -259,7 +262,7 @@ func (a *app) landingAtStart() {
 		}
 		a.fetchSeen(ctx, rec.Workspace, paths)
 	}
-	a.checkAllLanded(ctx)
+	a.checkAllLanded()
 }
 
 func (a *app) prCheckLoop(every time.Duration) {
@@ -280,21 +283,27 @@ func (a *app) checkOpenPRs() {
 	defer cancel()
 	found := false
 	for _, rec := range a.taskRecords() {
-		if paths := rec.Task.openPRs(); len(paths) > 0 && !rec.closed() {
-			a.fetchSeen(ctx, rec.Workspace, paths)
-			found = true
+		if rec.closed() {
+			continue
 		}
+		paths := rec.Task.openPRs()
+		a.fetchSeen(ctx, rec.Workspace, paths)
+		found = found || len(paths) > 0 || slices.ContainsFunc(rec.Task.Repos, func(r taskRepo) bool { return r.Landing })
 	}
 	if found {
-		a.checkAllLanded(ctx)
+		a.checkAllLanded()
 	}
 }
 
-func (a *app) checkAllLanded(ctx context.Context) {
+func (a *app) checkAllLanded() {
 	a.landMu.Lock()
 	defer a.landMu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), cleanupLimit)
+	defer cancel()
 	for _, owner := range a.taskOwners() {
-		a.checkLanded(ctx, owner)
+		if !owner.snapshot().closed() {
+			a.checkLanded(ctx, owner)
+		}
 	}
 	a.reconcileTasks(ctx)
 }
@@ -403,13 +412,7 @@ func (a *app) syncRepo(ctx context.Context, r *taskRepo, child *session) {
 		if kid.Status != statusDone || child.currentTurn() <= r.LandTurn {
 			return
 		}
-		if r.landedNow(ctx, &kid) {
-			r.release()
-			r.State = landMerged
-			return
-		}
-		r.setFailed()
-		r.Tail = landNoReportTail
+		r.settleLandTurn(ctx, &kid)
 	case child.currentTurn() > 0:
 		r.State, r.For = landWaits, waitsForReport
 	}
@@ -448,15 +451,30 @@ func (a *app) gate(ctx context.Context, rec record, task *taskRecord, i int, chi
 	r.noteLanding(ctx, child.snapshot().Worktree)
 }
 
+func (r *taskRepo) settleLandTurn(ctx context.Context, kid *record) {
+	landed, err := r.landCheck(ctx, kid)
+	switch {
+	case landed:
+		r.release()
+		r.State = landMerged
+	case err == nil:
+		r.setFailed()
+		r.Tail = landNoReportTail
+	}
+}
+
 func (r *taskRepo) noteLanding(ctx context.Context, worktree string) {
-	r.Into, _ = gitrepo.DefaultBranch(ctx, r.Path)
-	if out, err := gitrepo.Run(ctx, worktree, "symbolic-ref", "-q", "--short", "HEAD"); err == nil {
+	if into, err := gitrepo.DefaultBranch(ctx, repoTop(r.Path)); err == nil {
+		r.Into = into
+	}
+	top := repoTop(worktree)
+	if out, err := gitrepo.Run(ctx, top, "symbolic-ref", "-q", "--short", "HEAD"); err == nil {
 		r.Branch = strings.TrimSpace(string(out))
 	}
 	if r.Base == "" || r.Tip == "" {
 		return
 	}
-	if out, err := gitrepo.Run(ctx, worktree, "rev-list", "--count", r.Base+".."+r.Tip); err == nil {
+	if out, err := gitrepo.Run(ctx, top, "rev-list", "--count", r.Base+".."+r.Tip); err == nil {
 		r.Commits, _ = strconv.Atoi(strings.TrimSpace(string(out)))
 	}
 }
@@ -612,7 +630,7 @@ func (r *taskRepo) report(ctx context.Context, state string, kid *record) string
 		r.release()
 		r.Finished, r.State = true, landReady
 		if r.Tip = headOf(ctx, kid.Worktree); r.Tip != "" {
-			r.Base = gitrepo.ForkPoint(ctx, r.Path, r.Tip)
+			r.Base = gitrepo.ForkPoint(ctx, repoTop(r.Path), r.Tip)
 		}
 	case landFailed:
 		r.fail()
@@ -630,12 +648,20 @@ func (r *taskRepo) report(ctx context.Context, state string, kid *record) string
 }
 
 func (r *taskRepo) landedNow(ctx context.Context, kid *record) bool {
+	landed, _ := r.landCheck(ctx, kid)
+	return landed
+}
+
+func (r *taskRepo) landCheck(ctx context.Context, kid *record) (bool, error) {
 	if kid != nil {
 		if tip := headOf(ctx, kid.Worktree); tip != "" {
 			r.Tip = tip
 		}
 	}
-	return r.Tip != "" && r.Base != "" && r.Tip != r.Base && gitrepo.Landed(ctx, r.Path, r.Tip)
+	if r.Tip == "" || r.Base == "" || r.Tip == r.Base {
+		return false, ctx.Err()
+	}
+	return gitrepo.Landed(ctx, repoTop(r.Path), r.Tip)
 }
 
 func (r *taskRepo) release() {
@@ -800,14 +826,24 @@ func (s *session) noteAfkConnected(path string) {
 }
 
 func headOf(ctx context.Context, worktree string) string {
-	out, err := gitrepo.Run(ctx, worktree, "rev-parse", "--verify", "HEAD")
+	out, err := gitrepo.Run(ctx, repoTop(worktree), "rev-parse", "--verify", "HEAD")
 	if err != nil {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
 }
 
+func repoTop(dir string) string {
+	if top, ok := gitrepo.RepoRoot(dir); ok {
+		return top
+	}
+	return dir
+}
+
 func (a *app) fetchSeen(ctx context.Context, workspaceID string, paths []string) {
+	if len(paths) == 0 {
+		return
+	}
 	w, err := a.host.GetWorkspace(ctx, workspaceID)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "agents: fetch:", err)
@@ -819,7 +855,7 @@ func (a *app) fetchSeen(ctx context.Context, workspaceID string, paths []string)
 			continue
 		}
 		wg.Go(func() {
-			if err := gitrepo.Fetch(ctx, path, originRemote); err != nil {
+			if err := gitrepo.Fetch(ctx, repoTop(path), originRemote); err != nil {
 				fmt.Fprintln(os.Stderr, "agents: fetch "+filepath.Base(path)+":", err)
 			}
 		})
