@@ -35,7 +35,7 @@ Your task: implement every **a**, **b** and **c** item, in the priority order be
    - If the user picks a step by hand, the panel shows these, and the composer stays off until the loop has started that step:
      - "‹Step› is a step of ‹Graph›";
      - the state of the steps;
-     - Open in Graphs ⌘8 and New chat ⌘N.
+     - Open in Graphs and New chat, with no keys printed. ⌘1…⌘9 follow the user's rail order and ⌘N does nothing in Code, so neither key would be true (decided 7 Nov).
    - Board: `Mac-ChatGraphStep`. `Code-1280` now shows a regular new chat.
 5. **⌥1–3 mean permission answers only.** Chat suggestions use bare 1 2 3 while the composer is empty, or no keys at all.
 
