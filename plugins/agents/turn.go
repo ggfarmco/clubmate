@@ -51,6 +51,9 @@ func (a *app) prompt(workspaceID string, args promptArgs) error {
 	if err := a.saveUploads(s.snapshot().ID, args.Attachments); err != nil {
 		return err
 	}
+	if err := a.refuseLeaving(s.snapshot().Worktree); err != nil {
+		return err
+	}
 	if args.From == "" || s.snapshot().ParentSession != args.From {
 		return a.submit(s, &args)
 	}

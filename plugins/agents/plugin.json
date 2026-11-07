@@ -33,9 +33,9 @@
       {"keys": "b", "action": "To backlog: one task per open item of the session", "when": "an open items card or the Open queue has focus, except a night session's card"},
       {"keys": "delete", "action": "No to the focused item", "when": "an open items card or the Open queue has focus"},
       {"keys": "shift+delete", "action": "No to all of the session's open items", "when": "an open items card or the Open queue has focus"},
-      {"keys": "cmd+return", "action": "Send answers; in the Open queue every answered session's; or send a pending question's form", "when": "an open items card or the Open queue has focus, or a question is pending and the composer is empty"}
+      {"keys": "cmd+return", "action": "Send answers; in the Open queue every answered session's; send a pending question's form; or remove the folder on the Remove folder sheet", "when": "an open items card or the Open queue has focus, a question is pending and the composer is empty, or the Remove folder sheet is open"}
     ],
-    "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25}],
+    "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25, "slots": ["sheet"]}],
     "views": [{"slot": "editor-nvim.sidebar"}, {"slot": "agents.settings"}],
     "commands": [
       {
@@ -682,7 +682,7 @@
         "id": "agents.folder-remove",
         "title": "Remove a folder from the workspace",
         "hidden": true,
-        "description": "Remove a folder from the workspace; never touches files. While a session runs, waits or has queued prompts there it removes nothing and returns {removed: false, blockers}.",
+        "description": "Remove a folder from the workspace; never touches files, and pauses the Cron jobs that run in it. While a session of any workspace runs, waits or has queued prompts there, a task still lands there or it is the last folder it removes nothing and returns {removed: false, blockers, tasks, last}. Otherwise {removed: true, paused: [{id, name}]}; if the removal fails the jobs resume, and if Cron can't be read it removes nothing and fails.",
         "args": {
           "properties": {
             "path": {"type": "string", "description": "The folder's path."}
@@ -694,13 +694,31 @@
         "id": "agents.folder-impact",
         "title": "What a folder's removal touches",
         "hidden": true,
-        "description": "The sessions and worktrees tied to a folder of the workspace: {sessions: [{session, title, status, worktree}], worktrees: [{path, branch}]}.",
+        "description": "What is tied to a folder of the workspace, decided here: {name, workspace, path, sessions: [{session, title, status, worktree}], worktrees: [{path, branch, sessions, read, unread, dirty, unpushed, ignored, orphans, nested}], graphs, hooks, instructions, skills, trustedGraphs, trustedHooks, cronJobs: [{id, name}], cronUnread, blockers, tasks, last}. Only the first 5 worktrees, those with open sessions first, are read (read), and unread says that read failed. cronJobs are the enabled jobs that run there, which pause on removal.",
         "args": {
           "properties": {
             "path": {"type": "string", "description": "The folder's path."}
           },
           "required": ["path"]
         }
+      },
+      {
+        "id": "agents.folder-sheet",
+        "title": "Ask to remove a folder from the workspace",
+        "hidden": true,
+        "description": "Open the Remove folder sheet over the window, in any section. Only the user: an agent gets an error. The sheet says what is tied to the folder and removes it on the user's press.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "The folder's path."}
+          },
+          "required": ["path"]
+        }
+      },
+      {
+        "id": "agents.worktrees",
+        "title": "Worktrees for the picker",
+        "hidden": true,
+        "description": "What the title picker draws, decided here: {folders: [{path, name, addedBy?, addedAt?, addedAfk?, new, worktrees, live, session?, caption?, byline?, summary, filter, rows?, sections?}], tasks: [{session, slug, title, state, live, stale, group, icon, tone?, folders, worktrees}], worktrees: [the git.worktree-index fields + now, live, active?, task?: {session?, title, state}, session?: {id, title, status}, byHand, stale, group, folder, detail, icon, tone?], picker: {placeholder, count?, byFolder, addFolder, remove, searchHint, searchStale, sections: [{id, title, hint?, rows, shown, more?, fold?}]}}. group is now, live, recent, task, other, byHand or stale; worktrees come sorted in that order, newest first; rows are indices into worktrees."
       },
       {
         "id": "agents.task",

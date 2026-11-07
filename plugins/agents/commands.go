@@ -74,6 +74,8 @@ var (
 		"agents.connect-answer": withArgs((*app).connectAnswerCommand),
 		"agents.folder-remove":  withArgs((*app).folderRemoveCommand),
 		"agents.folder-impact":  withArgs((*app).folderImpactCommand),
+		"agents.folder-sheet":   withArgs((*app).folderSheetCommand),
+		"agents.worktrees":      typed((*app).worktreesCommand),
 		"agents.task":           withArgs((*app).taskCommand),
 		"agents.task-report":    withArgs((*app).taskReportCommand),
 		"agents.land-answer":    withArgs((*app).landAnswerCommand),

@@ -69,6 +69,14 @@ struct SheetNodeView: View {
             .frame(height: min(max(bodyHeight, 1), Self.maxBodyHeight))
             if let actions {
                 HStack(spacing: theme.spacing.m) {
+                    if let note = node.string("note") {
+                        Text(note)
+                            .font(theme.uiSmall)
+                            .foregroundStyle(theme.tone(node.string("noteTone")) ?? theme.muted)
+                            .lineLimit(2)
+                            .padding(.leading, theme.gutter)
+                            .layoutPriority(-1)
+                    }
                     Spacer(minLength: 0)
                     ForEach(Array(actions.children.enumerated()), id: \.offset) { _, button in
                         let cancel = button.string("action") == node.string("cancel")

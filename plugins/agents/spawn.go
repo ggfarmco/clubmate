@@ -149,6 +149,9 @@ func (a *app) spawn(rec record, first promptArgs, ready *setup) (*session, error
 	if err := a.canSpawnLocked(rec.ParentSession); err != nil {
 		return nil, err
 	}
+	if a.leavingLocked(rec.Worktree) {
+		return nil, errFolderLeaving
+	}
 	return a.launch(rec, first, ready)
 }
 

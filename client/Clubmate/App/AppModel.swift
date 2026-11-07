@@ -339,8 +339,11 @@ final class AppModel {
         gitChanges?.cancel()
         gitChanges = Task { [weak self] in
             await WorktreeModel.follow(client) { event in
-                guard let worktrees = self?.sessions.existing(event.workspace)?.worktrees else { return }
-                Task { await worktrees.receive(event) }
+                guard let session = self?.sessions.existing(event.workspace) else { return }
+                Task {
+                    await session.worktrees.receive(event)
+                    session.worktreesChanged()
+                }
             }
         }
         usageChanges?.cancel()

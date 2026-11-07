@@ -81,6 +81,7 @@ type workspaceUI struct {
 	focusAfter string
 	code       map[string]string
 	codeRead   bool
+	folder     *folderSheet
 }
 
 type sessionUI struct {
@@ -248,6 +249,11 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	if err := a.restoreCollapsed(ctx, workspaceID); err != nil {
 		return err
 	}
+	if slices.Contains(slots, sheetSlot) {
+		if err := a.push(ctx, p, workspaceID, sheetSlot, a.folderSheetTree(workspaceID, p)); err != nil {
+			return err
+		}
+	}
 	a.uiMu.Lock()
 	collapsed := maps.Clone(p.collapsed)
 	branchOpen := p.branch
@@ -287,9 +293,9 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 
 func (a *app) slots() []string {
 	if a.codePanel {
-		return []string{sidebarSlot, mainSlot, codeSlot}
+		return []string{sidebarSlot, mainSlot, sheetSlot, codeSlot}
 	}
-	return []string{sidebarSlot, mainSlot}
+	return []string{sidebarSlot, mainSlot, sheetSlot}
 }
 
 func (a *app) shownSlots(workspaceID string) []string {
@@ -300,7 +306,7 @@ func (a *app) shownSlots(workspaceID string) []string {
 		return nil
 	}
 	shown := func(id string) bool { return section == "" || section == id || slices.Contains(watched, id) }
-	slots := []string{sidebarSlot}
+	slots := []string{sidebarSlot, sheetSlot}
 	if shown(sectionID) {
 		slots = append(slots, mainSlot)
 	}

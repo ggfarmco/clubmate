@@ -50,6 +50,20 @@
         "description": "List the workspace's cron jobs without their run history: {jobs: [{id, name, workspace, schedule, command, args, enabled, owner?, createdBy?, missed, nextRun, failures?, lastError?, paused?}]}. Non-destructive."
       },
       {
+        "id": "cron.jobs-in",
+        "title": "Cron jobs in worktrees",
+        "hidden": true,
+        "agent": false,
+        "description": "The jobs that run in these worktrees: {jobs: [{id, name, enabled}]}. A job runs there when its owner session does, or it is an agents.new job whose repo is one of them. With first the worktrees are those of the workspace's first git folder, where agents.new starts when no repo names one, so every agents.new job with no repo and no owner counts too, whether or not its branch exists.",
+        "args": {
+          "properties": {
+            "worktrees": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "branch": {"type": "string"}}}, "description": "Worktree roots with their branches."},
+            "first": {"type": "boolean", "description": "These worktrees hold the workspace's first folder."}
+          },
+          "required": ["worktrees"]
+        }
+      },
+      {
         "id": "cron.show",
         "title": "Show cron job",
         "hidden": true,
@@ -92,7 +106,8 @@
         "description": "Stop a cron job from firing until cron.resume. An agent may pause only jobs owned or created by itself or its child sessions, or ones a plugin added (createdBy plugin:<id>). Returns the job. Non-destructive.",
         "args": {
           "properties": {
-            "id": {"type": "string", "description": "Job id (cj_…)."}
+            "id": {"type": "string", "description": "Job id (cj_…)."},
+            "reason": {"type": "string", "description": "Why it is paused, shown with the job."}
           },
           "required": ["id"]
         }

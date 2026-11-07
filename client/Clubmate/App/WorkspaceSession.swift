@@ -9,6 +9,7 @@ enum WorkspaceOverlay: Equatable {
     case palette
     case pickFile
     case picker
+    case worktrees
 }
 
 struct PickerRequest {
@@ -45,6 +46,13 @@ final class WorkspaceSession {
         report: { [weak self] message in self?.banner.show(message) }
     )
 
+    @ObservationIgnored private(set) lazy var worktreePicker = WorktreePickerModel(
+        run: storeRun,
+        branches: { [weak self] in self?.worktrees.branches ?? [] }
+    )
+    @ObservationIgnored private var worktreePickerClosed = Date.distantPast
+    var worktreePillLeading: CGFloat = 0
+
     @ObservationIgnored private(set) lazy var voice = VoiceController(
         run: storeRun,
         source: VoiceCapture(),
@@ -52,6 +60,9 @@ final class WorkspaceSession {
         insert: { [weak self] composer, text in self?.store?.drafts.dictate(composer, text) },
         pointer: { [weak self] in VoicePointer(section: self?.store?.selectedSection ?? "") }
     )
+
+    static let revealCommand = "agents.reveal"
+    private static let pillReopenGuard: TimeInterval = 0.3
 
     init(workspaceID: String, legacyChat: LegacyChat? = nil, workspace: @escaping @MainActor () -> Workspace?) {
         self.workspaceID = workspaceID
@@ -67,6 +78,13 @@ final class WorkspaceSession {
                 guard let index = await ChoicePrompt.ask("New Worktree in", options: groups.map(\.name), action: "Continue") else { return }
                 repo = groups[index].repo
             }
+            guard let branch = await TextPrompt.ask("New Worktree", text: "", action: "Create") else { return }
+            await worktrees.create(branch, repo: repo)
+        }
+    }
+
+    func newWorktree(repo: String) {
+        Task {
             guard let branch = await TextPrompt.ask("New Worktree", text: "", action: "Create") else { return }
             await worktrees.create(branch, repo: repo)
         }
@@ -118,12 +136,62 @@ final class WorkspaceSession {
         Task { await worktrees.remove(repo: tree.repo, path: tree.path) }
     }
 
+    func askToRemoveFolder(_ path: String) {
+        run(CommandInvocation(id: "agents.folder-sheet", args: .object(["path": .string(path)])))
+    }
+
     func pickWorktree(_ item: PickerItem) {
         Task { await worktrees.pick(item) }
     }
 
     func worktreeMenuOpened() {
         Task { await worktrees.menuOpened() }
+        Task { await worktreePicker.load() }
+    }
+
+    func toggleWorktreePicker() {
+        if overlay == .worktrees {
+            closeWorktreePicker()
+        } else if Date.now.timeIntervalSince(worktreePickerClosed) > Self.pillReopenGuard {
+            openWorktreePicker()
+        }
+    }
+
+    func openWorktreePicker() {
+        worktreePicker.reset()
+        overlay = .worktrees
+        Task {
+            await worktrees.menuOpened()
+            worktreePicker.branchesChanged()
+        }
+    }
+
+    func closeWorktreePicker() {
+        worktreePickerClosed = .now
+        close(.worktrees)
+    }
+
+    func openWorktree(_ entry: WorktreeEntry) {
+        Task { await worktrees.open(repo: entry.repo, path: entry.path) }
+    }
+
+    func switchBranch(_ branch: Branch) {
+        Task { await worktrees.switchBranch(branch) }
+    }
+
+    func openSession(_ id: String) {
+        let run = storeRun
+        let banner = banner
+        Task {
+            if case .failure(let failure) = await run(CommandInvocation(id: Self.revealCommand, args: .object(["session": .string(id)]))) {
+                banner.show(failure.message)
+            }
+        }
+    }
+
+    func worktreesChanged() {
+        guard overlay == .worktrees else { return }
+        Task { await worktreePicker.load() }
     }
 
     func pickFile(_ target: @escaping @MainActor (String) -> Void) {

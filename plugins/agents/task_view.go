@@ -2,9 +2,7 @@ package main
 
 import (
 	"cmp"
-	"context"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -49,8 +47,6 @@ const (
 	afkPRAtMost    = "a PR at most, never merges"
 	afkRemoved     = "removed from %s"
 	afkRemove      = "Remove from %s…"
-	afkRemoveAsk   = "Remove %s from %s? Its files stay on disk."
-	removeRefused  = "%s stays in the workspace: %s."
 	removeSessions = "%d sessions work there"
 	removeSession  = "1 session works there"
 	removeTask     = "task %s lands there"
@@ -343,7 +339,7 @@ func afkRow(sc screen, en *entry, n noticeUpdate) sdui.Node {
 	row := []sdui.Node{sdui.Icon(afkIcon), sdui.VStack(title, sdui.MutedText(detail)), sdui.Spacer()}
 	if present && sc.Workspace != "" {
 		button := sdui.WithAction(sdui.Button(rec.ID+"/"+removeNode+n.Path, fmt.Sprintf(afkRemove, sc.Workspace), ""), actFolderRemove)
-		row = append(row, sdui.WithConfirm(sdui.WithVariant(button, sdui.VariantGhost), fmt.Sprintf(afkRemoveAsk, n.Repo, sc.Workspace)))
+		row = append(row, sdui.WithVariant(button, sdui.VariantGhost))
 	}
 	return sdui.Card("", "", sdui.HStack(row...))
 }
@@ -353,30 +349,4 @@ func clockOf(at time.Time) string {
 		return ""
 	}
 	return at.Local().Format("15:04")
-}
-
-func refusalText(repo string, res folderRemoveResult) string {
-	var why []string
-	switch len(res.Blockers) {
-	case 0:
-	case 1:
-		why = append(why, removeSession)
-	default:
-		why = append(why, fmt.Sprintf(removeSessions, len(res.Blockers)))
-	}
-	for _, slug := range res.Tasks {
-		why = append(why, fmt.Sprintf(removeTask, slug))
-	}
-	return fmt.Sprintf(removeRefused, repo, strings.Join(why, ", "))
-}
-
-func (a *app) removeFolderAction(ctx context.Context, workspaceID string, s *session, path string) error {
-	res, err := a.removeFolder(ctx, workspaceID, path)
-	if err != nil {
-		return err
-	}
-	if !res.Removed {
-		s.notice(refusalText(filepath.Base(path), res), "")
-	}
-	return nil
 }

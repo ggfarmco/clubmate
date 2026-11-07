@@ -77,6 +77,7 @@ public enum TerminalsSection {
 }
 
 public enum AgentsSection {
+    public static let sheetSlot = "agents.sheet"
     public static let id = "agents"
     public static let closeCommand = "agents.close"
     public static let stepCommand = "agents.step"

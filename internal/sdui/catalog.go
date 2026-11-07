@@ -301,11 +301,12 @@ var (
 		"card":  {props: map[string]propCheck{"tone": oneOf(badgeTones), "icon": isString, "rows": isBool}, children: childRule{min: 1, max: -1}},
 		"sheet": {
 			required:    []string{"title", "cancel"},
-			props:       map[string]propCheck{"title": isString, "icon": isString, "tone": oneOf(badgeTones), "cancel": actionCheck},
+			props:       map[string]propCheck{"title": isString, "icon": isString, "tone": oneOf(badgeTones), "cancel": actionCheck, "note": isString, "noteTone": oneOf(badgeTones)},
 			children:    childRule{min: 1, max: -1},
 			interactive: true,
 			check:       sheetCheck,
 		},
+		"impact": {required: []string{"rows"}, props: map[string]propCheck{"rows": listOf(impactRowCheck)}, children: childRule{min: 0, max: -1, only: []string{"stack"}}},
 		"request.connectRepo": {
 			required: []string{"request", "title", "connect", "repos"},
 			props: map[string]propCheck{
@@ -780,6 +781,12 @@ func reposRowCheck(c *validator, v any) error {
 		"id": isString, "order": countNumber, "name": isString, "landsBy": isString, "landsIcon": isString, "source": isString,
 		"state": isString, "tone": oneOf(badgeTones), "icon": isString, "opens": isBool, "open": isBool, "cursor": isBool,
 		"tail": isString, "note": isString, "actions": isString,
+	})(c, v)
+}
+
+func impactRowCheck(c *validator, v any) error {
+	return objectCheck([]string{"id", "icon", "title"}, map[string]propCheck{
+		"id": isString, "icon": isString, "tone": oneOf(badgeTones), "title": isString, "count": isString,
 	})(c, v)
 }
 

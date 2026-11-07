@@ -12,6 +12,10 @@ import (
 	"clubmate/plugins/internal/gitrepo"
 )
 
+const RootTopicSuffix = ".root"
+
+var ErrNotFolder = errors.New("not a folder of the workspace")
+
 type Roots struct {
 	current    map[string]string
 	workspaces map[string]pluginsdk.Workspace
@@ -22,6 +26,20 @@ type Target struct {
 	Workspace pluginsdk.Workspace
 	Want      string
 	Switched  bool
+}
+
+type CodeRootArgs struct {
+	Folder string `json:"folder"`
+}
+
+type CodeRoot struct {
+	Folder string `json:"folder"`
+	Root   string `json:"root"`
+}
+
+type RootEvent struct {
+	Workspace string `json:"workspace"`
+	Folder    string `json:"folder"`
 }
 
 func NewRoots() Roots {
@@ -113,6 +131,30 @@ func Resolve(ctx context.Context, h *pluginsdk.Host, workspaceID, path string) (
 		t.Want = p.Folders[folder].Root()
 	}
 	return t, nil
+}
+
+func Want(p pluginsdk.Workspace, folder string) (string, error) {
+	for _, f := range p.Folders {
+		if f.Path == folder {
+			return f.Root(), nil
+		}
+	}
+	return "", fmt.Errorf("%w: %s", ErrNotFolder, folder)
+}
+
+func Describe(p pluginsdk.Workspace, root string) CodeRoot {
+	for _, f := range p.Folders {
+		if f.Root() == root {
+			return CodeRoot{Folder: f.Path, Root: root}
+		}
+	}
+	return CodeRoot{Root: root}
+}
+
+func PublishMoved(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Workspace, root string) error {
+	topic := h.PluginID() + RootTopicSuffix
+	_, err := h.Publish(ctx, topic, RootEvent{Workspace: p.ID, Folder: Describe(p, root).Folder})
+	return err
 }
 
 func changed(prev, p pluginsdk.Workspace) string {

@@ -305,6 +305,7 @@ struct SDUINodeView: View, Equatable {
         case "request.connectRepo": ConnectRepoCardView(node: node)
         case "request.land": LandRequestCardView(node: node)
         case "repos": ReposCardView(node: node)
+        case "impact": ImpactNodeView(node: node)
         case "composer": ComposerNodeView(node: node)
         case "surface": SurfaceHost(sessionID: node.string("sessionId") ?? "")
         case "webview": WebViewHost(key: node.string("key") ?? "", url: node.string("url").flatMap(URL.init(string:)), rev: node.props["rev"]?.numberValue.flatMap { Int(exactly: $0) } ?? 0)

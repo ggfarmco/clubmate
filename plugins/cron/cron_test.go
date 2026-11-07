@@ -499,3 +499,72 @@ func historyRows(t *testing.T, n sdui.Node) []sdui.TableRow {
 	require.NoError(t, json.Unmarshal(raw, &rows))
 	return rows
 }
+
+func TestJobsInFindsJobsByBranchRepoAndOwner(t *testing.T) {
+	f := newAgentsFixture(t, map[string]any{})
+	session := f.newSession(t)
+	var sessions []struct {
+		ID       string `json:"id"`
+		Worktree string `json:"worktree"`
+	}
+	require.NoError(t, f.run(t, "agents.sessions", map[string]any{}, &sessions))
+	require.Len(t, sessions, 1)
+	here := sessions[0].Worktree
+	elsewhere := filepath.Join(filepath.Dir(here), "elsewhere")
+	add := func(name, command, args, owner string) {
+		t.Helper()
+		body := map[string]any{"name": name, "command": command, "args": args, "every": "1h"}
+		if owner != "" {
+			require.NoError(t, f.runAs(t, owner, "cron.add", body, nil))
+			return
+		}
+		require.NoError(t, f.run(t, "cron.add", body, nil))
+	}
+	add("by branch", "agents.new", `{"branch":"feat/x","prompt":"go"}`, "")
+	add("by repo", "agents.new", `{"repo":"`+here+`","slug":"y","prompt":"go"}`, "")
+	add("other repo, same branch", "agents.new", `{"repo":"`+elsewhere+`","branch":"feat/x","prompt":"go"}`, "")
+	add("by owner", "agents.prompt", `{"session":"`+session+`","text":"hi"}`, session)
+	add("main checkout", "agents.new", `{"prompt":"go"}`, "")
+	add("owned branch", "agents.new", `{"branch":"feat/x","prompt":"go"}`, session)
+
+	names := func(args map[string]any) []string {
+		t.Helper()
+		var out struct {
+			Jobs []struct {
+				Name string `json:"name"`
+			} `json:"jobs"`
+		}
+		require.NoError(t, f.run(t, "cron.jobs-in", args, &out))
+		got := []string{}
+		for _, j := range out.Jobs {
+			got = append(got, j.Name)
+		}
+		slices.Sort(got)
+		return got
+	}
+
+	worktrees := []map[string]string{{"path": here, "branch": "feat/x"}}
+	assert.Equal(t, []string{"by owner", "by repo", "owned branch"}, names(map[string]any{"worktrees": worktrees}), "another folder with a same-named branch")
+	assert.Equal(t, []string{"by branch", "by owner", "by repo", "main checkout", "owned branch"}, names(map[string]any{"worktrees": worktrees, "first": true}))
+	assert.Equal(t, []string{"by branch", "main checkout"}, names(map[string]any{"worktrees": []map[string]string{{"path": t.TempDir(), "branch": "other"}}, "first": true}), "whether or not the branch exists")
+	assert.Empty(t, names(map[string]any{"worktrees": []map[string]string{{"path": t.TempDir(), "branch": "feat/x"}}}))
+}
+
+func TestPauseKeepsItsReason(t *testing.T) {
+	f := newFixture(t)
+	var added job
+	require.NoError(t, f.run(t, "cron.add", ping(nil), &added))
+
+	require.NoError(t, f.run(t, "cron.pause", map[string]any{"id": added.ID, "reason": "internal-auth left ads"}, nil))
+
+	var shown struct {
+		Enabled bool `json:"enabled"`
+		Paused  []struct {
+			Reason string `json:"reason"`
+		} `json:"paused"`
+	}
+	require.NoError(t, f.run(t, "cron.show", map[string]any{"id": added.ID}, &shown))
+	assert.False(t, shown.Enabled)
+	require.Len(t, shown.Paused, 1)
+	assert.Equal(t, "internal-auth left ads", shown.Paused[0].Reason)
+}

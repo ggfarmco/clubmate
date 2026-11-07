@@ -255,6 +255,11 @@ func WithAlign(n Node, align string) Node {
 	return withProp(n, "align", align)
 }
 
+func WithID(n Node, id string) Node {
+	n.ID = id
+	return n
+}
+
 func WithGap(n Node, gap int) Node {
 	return withProp(n, "gap", gap)
 }
@@ -839,15 +844,32 @@ func Card(tone, icon string, children ...Node) Node {
 }
 
 type SheetProps struct {
-	Title  string
-	Icon   string
-	Tone   string
-	Cancel string
+	Title    string
+	Icon     string
+	Tone     string
+	Cancel   string
+	Note     string
+	NoteTone string
 }
 
 func Sheet(id string, p SheetProps, children ...Node) Node {
-	props := withOptional(withOptional(map[string]any{"title": p.Title, "cancel": p.Cancel}, "icon", p.Icon), "tone", p.Tone)
+	props := map[string]any{"title": p.Title, "cancel": p.Cancel}
+	for _, kv := range [][2]string{{"icon", p.Icon}, {"tone", p.Tone}, {"note", p.Note}, {"noteTone", p.NoteTone}} {
+		props = withOptional(props, kv[0], kv[1])
+	}
 	return Node{Type: "sheet", ID: id, Props: props, Children: children}
+}
+
+type ImpactRow struct {
+	ID    string `json:"id"`
+	Icon  string `json:"icon"`
+	Tone  string `json:"tone,omitempty"`
+	Title string `json:"title"`
+	Count string `json:"count,omitempty"`
+}
+
+func Impact(id string, rows []ImpactRow, bodies ...Node) Node {
+	return Node{Type: "impact", ID: id, Props: map[string]any{"rows": nonNil(rows)}, Children: bodies}
 }
 
 type ReposSegment struct {

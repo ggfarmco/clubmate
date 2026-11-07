@@ -10,17 +10,14 @@ const (
 	originRefPrefix = "refs/remotes/origin/"
 )
 
+type runner func(ctx context.Context, repo string, args ...string) ([]byte, error)
+
 func Landed(ctx context.Context, repo, tip string) bool {
-	name, err := DefaultBranch(ctx, repo)
-	if err != nil {
-		return false
-	}
-	for _, base := range []string{originRefPrefix + name, headsRefPrefix + name} {
-		if _, err := Run(ctx, repo, "rev-parse", "--verify", "--quiet", base); err == nil && landedIn(ctx, repo, tip, base) {
-			return true
-		}
-	}
-	return false
+	return landedWith(ctx, Run, repo, tip)
+}
+
+func LandedInert(ctx context.Context, repo, tip string) bool {
+	return landedWith(ctx, Inert, repo, tip)
 }
 
 func ForkPoint(ctx context.Context, repo, tip string) string {
@@ -36,34 +33,47 @@ func ForkPoint(ctx context.Context, repo, tip string) string {
 	return ""
 }
 
-func landedIn(ctx context.Context, repo, tip, base string) bool {
-	if _, err := Run(ctx, repo, "merge-base", "--is-ancestor", tip, base); err == nil {
-		return true
-	}
-	if cherryPicked(ctx, repo, base, tip) {
-		return true
-	}
-	tree, err := Run(ctx, repo, "rev-parse", tip+"^{tree}")
+func landedWith(ctx context.Context, git runner, repo, tip string) bool {
+	name, err := DefaultBranch(ctx, repo)
 	if err != nil {
 		return false
 	}
-	baseTree, err := Run(ctx, repo, "rev-parse", base+"^{tree}")
+	for _, base := range []string{originRefPrefix + name, headsRefPrefix + name} {
+		if _, err := git(ctx, repo, "rev-parse", "--verify", "--quiet", base); err == nil && landedIn(ctx, git, repo, tip, base) {
+			return true
+		}
+	}
+	return false
+}
+
+func landedIn(ctx context.Context, git runner, repo, tip, base string) bool {
+	if _, err := git(ctx, repo, "merge-base", "--is-ancestor", tip, base); err == nil {
+		return true
+	}
+	if cherryPicked(ctx, git, repo, base, tip) {
+		return true
+	}
+	tree, err := git(ctx, repo, "rev-parse", tip+"^{tree}")
+	if err != nil {
+		return false
+	}
+	baseTree, err := git(ctx, repo, "rev-parse", base+"^{tree}")
 	if err != nil {
 		return false
 	}
 	if string(tree) == string(baseTree) {
 		return true
 	}
-	fork, err := Run(ctx, repo, "merge-base", base, tip)
+	fork, err := git(ctx, repo, "merge-base", base, tip)
 	if err != nil {
 		return false
 	}
-	squash, err := Run(ctx, repo, "-c", "user.name=clubmate", "-c", "user.email=clubmate@localhost", "commit-tree", strings.TrimSpace(string(tree)), "-p", strings.TrimSpace(string(fork)), "-m", "squash")
-	return err == nil && cherryPicked(ctx, repo, base, strings.TrimSpace(string(squash)))
+	squash, err := git(ctx, repo, "-c", "user.name=clubmate", "-c", "user.email=clubmate@localhost", "commit-tree", strings.TrimSpace(string(tree)), "-p", strings.TrimSpace(string(fork)), "-m", "squash")
+	return err == nil && cherryPicked(ctx, git, repo, base, strings.TrimSpace(string(squash)))
 }
 
-func cherryPicked(ctx context.Context, repo, base, tip string) bool {
-	out, err := Run(ctx, repo, "cherry", base, tip)
+func cherryPicked(ctx context.Context, git runner, repo, base, tip string) bool {
+	out, err := git(ctx, repo, "cherry", base, tip)
 	lines := strings.TrimSpace(string(out))
 	return err == nil && lines != "" && !strings.Contains("\n"+lines, "\n+")
 }

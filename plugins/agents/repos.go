@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/internal/editorroot"
 )
 
 const (
@@ -144,11 +145,18 @@ func (a *app) openRepoInCode(ctx context.Context, workspaceID string, r taskRepo
 	if kid == nil {
 		return errRepoNoChild
 	}
-	args := worktreeSwitchArgs{Repo: r.Path, Path: kid.snapshot().Worktree}
-	if err := a.host.RunCommand(ctx, worktreeSwitch, workspaceID, args, nil); err != nil {
+	if err := a.moveCode(ctx, workspaceID, r.Path, kid.snapshot().Worktree); err != nil {
 		return err
 	}
 	return a.host.Focus(ctx, workspaceID, editorSection, codeSlot)
+}
+
+func (a *app) moveCode(ctx context.Context, workspaceID, folder, worktree string) error {
+	args := worktreeSwitchArgs{Repo: folder, Path: worktree}
+	if err := a.host.RunCommand(ctx, worktreeSwitch, workspaceID, args, nil); err != nil {
+		return err
+	}
+	return a.host.RunCommand(ctx, codeRootCmd, workspaceID, editorroot.CodeRootArgs{Folder: folder}, nil)
 }
 
 func (a *app) showRepos(ctx context.Context, ev pluginsdk.UIEvent, rec record, st *sessionUI, turn int) error {

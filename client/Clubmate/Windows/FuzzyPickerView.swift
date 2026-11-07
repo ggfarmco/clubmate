@@ -141,7 +141,7 @@ extension View {
     }
 }
 
-private struct PickerChrome: ViewModifier {
+struct PickerChrome: ViewModifier {
     @Environment(\.theme) private var theme
 
     func body(content: Content) -> some View {

@@ -88,6 +88,7 @@ func (a *app) runOp(ctx context.Context, c call, run opFunc, limit time.Duration
 		defer cancel()
 		path, err := run(ctx, &o.report)
 		release()
+		<-a.refreshIndex(c.h, c.workspaceID, c.state)
 		if c.ui {
 			_, perr := c.h.Publish(ctx, outcomeTopic, opOutcome(c.workspaceID, o.id, o.report.notice, err))
 			logError("publish "+outcomeTopic, perr)

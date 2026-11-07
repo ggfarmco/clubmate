@@ -542,7 +542,22 @@ func (a *app) taskRecords() []record {
 func (a *app) tasksOn(workspaceID, folder string) []string {
 	var out []string
 	for _, rec := range a.taskRecords() {
-		if i := rec.Task.repoIndex(folder); rec.Workspace == workspaceID && !rec.closed() && i >= 0 && !rec.Task.Repos[i].landed() && rec.Task.Repos[i].State != landLeft {
+		if i := rec.Task.repoIndex(folder); rec.Workspace == workspaceID && !rec.closed() && i >= 0 && rec.Task.Repos[i].unsettled() {
+			out = append(out, rec.Task.Slug)
+		}
+	}
+	return out
+}
+
+func (a *app) tasksHolding(ticked []folderWorktree) []string {
+	dirs := holdDirs(nil, ticked)
+	var out []string
+	for _, rec := range a.taskRecords() {
+		held := !rec.closed() && slices.ContainsFunc(rec.Task.Repos, func(r taskRepo) bool {
+			child := a.session(r.Session)
+			return r.unsettled() && child != nil && child.worksIn(dirs)
+		})
+		if held {
 			out = append(out, rec.Task.Slug)
 		}
 	}
@@ -645,6 +660,10 @@ func (r taskRepo) settled() bool {
 
 func (r taskRepo) landed() bool {
 	return r.State == landMerged || r.State == landOnBranch
+}
+
+func (r taskRepo) unsettled() bool {
+	return !r.landed() && r.State != landLeft
 }
 
 func (r taskRepo) landText(finish string) string {

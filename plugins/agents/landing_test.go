@@ -975,7 +975,7 @@ func TestUserActionsRefuseAgentOrigins(t *testing.T) {
 	l := f.landing(t, "merge", "pause", 1)
 
 	for name, origin := range agentOrigins(l.owner) {
-		for _, action := range []string{"connectAnswer", "landAnswer", "folderRemove", "repoFix", "repoLeave"} {
+		for _, action := range []string{"connectAnswer", "landAnswer", "folderRemove", "folderTick", "folderCancel", "folderConfirm", "repoFix", "repoLeave"} {
 			err := f.eventFrom(t, origin, l.workspace, l.owner+"/repos/row/card", action, map[string]any{})
 			assert.ErrorContains(t, err, "only the user presses this", "%s %s", name, action)
 		}

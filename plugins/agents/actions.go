@@ -86,7 +86,7 @@ var (
 	errUserAction    = errors.New("only the user presses this")
 )
 
-var userActions = []string{actSend, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actRepoFix, actRepoLeave}
+var userActions = []string{actSend, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave}
 
 type textValue struct {
 	Text string `json:"text"`
@@ -183,6 +183,9 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 }
 
 func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
+	if ev.Slot == sheetSlot {
+		return a.folderSheetAct(ev)
+	}
 	if sid, ok := isContextEvent(ev); ok {
 		return a.contextAct(ev, sid)
 	}
@@ -206,8 +209,14 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if err != nil {
 			return err
 		}
-		if _, err := a.lookup(ev.WorkspaceID, id); err != nil {
+		s, err := a.lookup(ev.WorkspaceID, id)
+		if err != nil {
 			return err
+		}
+		if rec := s.snapshot(); rec.RepoPath != "" {
+			if err := a.moveCode(ctx, ev.WorkspaceID, rec.RepoPath, rec.Worktree); err != nil {
+				fmt.Fprintln(os.Stderr, "agents: move code:", err)
+			}
 		}
 		return a.bindCode(ctx, ev.WorkspaceID, id)
 	case actShowBranch, actHideBranch:
@@ -417,7 +426,7 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		if !ok {
 			return fmt.Errorf("%w: folderRemove on %q", errUnknownAction, ev.NodeID)
 		}
-		return a.removeFolderAction(ctx, ev.WorkspaceID, s, path)
+		return a.openFolderSheet(ctx, ev.WorkspaceID, path)
 	case actPermission:
 		var v permissionValue
 		if err := decode(ev.Value, &v); err != nil {

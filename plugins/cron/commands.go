@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/automation"
+	"clubmate/plugins/internal/gitrepo"
 )
 
 const emitCommand = "triggers.emit"
@@ -35,6 +37,31 @@ type listResult struct {
 	Jobs []*Job `json:"jobs"`
 }
 
+type pauseArgs struct {
+	ID     string `json:"id"`
+	Reason string `json:"reason"`
+}
+
+type worktreeRef struct {
+	Path   string `json:"path"`
+	Branch string `json:"branch"`
+}
+
+type jobsInArgs struct {
+	Worktrees []worktreeRef `json:"worktrees"`
+	First     bool          `json:"first"`
+}
+
+type jobRef struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Enabled bool   `json:"enabled"`
+}
+
+type jobsInResult struct {
+	Jobs []jobRef `json:"jobs"`
+}
+
 type agentSession = api.Session
 
 func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -46,6 +73,8 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 	switch cmd.ID {
 	case "cron.list":
 		return a.list(cmd), nil
+	case "cron.jobs-in":
+		return a.jobsIn(ctx, cmd)
 	case "cron.show":
 		return a.registry.Show(cmd)
 	case "cron.new":
@@ -158,13 +187,13 @@ func (a *app) update(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error
 }
 
 func (a *app) pause(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error) {
-	var args automation.IDArgs
+	var args pauseArgs
 	if err := automation.Decode(cmd, &args); err != nil {
 		return nil, err
 	}
 	return a.registry.Mutate(ctx, cmd, args.ID, func(j *Job) error {
 		if j.Enabled {
-			j.Paused = automation.Pause(j.Paused, a.now(), "")
+			j.Paused = automation.Pause(j.Paused, a.now(), args.Reason)
 		}
 		j.Enabled = false
 		return nil
@@ -230,6 +259,50 @@ func (a *app) remove(ctx context.Context, cmd pluginsdk.CommandRun) error {
 	a.registry.Touch(j.Workspace)
 	a.wake()
 	return nil
+}
+
+func (a *app) jobsIn(ctx context.Context, cmd pluginsdk.CommandRun) (jobsInResult, error) {
+	var args jobsInArgs
+	if err := automation.Decode(cmd, &args); err != nil {
+		return jobsInResult{}, err
+	}
+	sessions, err := a.sessions(ctx, cmd.WorkspaceID)
+	if err != nil {
+		return jobsInResult{}, err
+	}
+	owners := make(map[string]string, len(sessions))
+	for _, s := range sessions {
+		owners[s.ID] = s.Worktree
+	}
+	out := jobsInResult{Jobs: []jobRef{}}
+	for _, j := range a.registry.InWorkspace(cmd.WorkspaceID) {
+		if args.holds(j, owners) {
+			out.Jobs = append(out.Jobs, jobRef{ID: j.ID, Name: j.Name, Enabled: j.Enabled})
+		}
+	}
+	return out, nil
+}
+
+func (args jobsInArgs) holds(j *Job, owners map[string]string) bool {
+	if worktree, ok := owners[j.Owner]; ok && args.contains(worktree) {
+		return true
+	}
+	if j.Command != agentNewCommand {
+		return false
+	}
+	var target struct {
+		Repo string `json:"repo"`
+	}
+	_ = json.Unmarshal(j.Args, &target)
+	if target.Repo != "" {
+		return args.contains(target.Repo)
+	}
+	return args.First && j.Owner == ""
+}
+
+func (args jobsInArgs) contains(path string) bool {
+	path = gitrepo.Canonical(path)
+	return slices.ContainsFunc(args.Worktrees, func(w worktreeRef) bool { return gitrepo.Within(path, gitrepo.Canonical(w.Path)) })
 }
 
 func (a *app) validateTarget(ctx context.Context, command, args string) (json.RawMessage, error) {

@@ -27,6 +27,7 @@ struct WorkspaceView: View {
             .testPresenter("palette", palettePresented)
             .filePicker(session)
             .fuzzyPicker(session)
+            .worktreePicker(session) { [actions, session] in actions.addFolder(to: session.workspaceID) }
             .focusedSceneValue(\.workspaceSession, session)
             .onChange(of: session.store?.focusRequest) { _, request in
                 guard let request, !request.slot.isEmpty else { return }

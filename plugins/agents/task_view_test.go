@@ -183,10 +183,10 @@ func TestAFKRow(t *testing.T) {
 	assert.Equal(t, "02:14 · removed from ads", textsOf(gone)[0])
 }
 
-func TestRefusalNamesWhatHoldsTheFolder(t *testing.T) {
+func TestMidOfKeepsBothEndsOfALongBranch(t *testing.T) {
 	t.Parallel()
-	got := refusalText("auth", folderRemoveResult{Blockers: []folderSession{{}, {}}, Tasks: []string{"pause"}})
-	assert.Equal(t, "auth stays in the workspace: 2 sessions work there, task pause lands there.", got)
+	assert.Equal(t, "feat/x", midOf("feat/x", folderBranchWidth))
+	assert.Equal(t, "feat/a…reason", midOf("feat/abcdefghij-reason", 13))
 }
 
 func textsOf(n sdui.Node) []string {
@@ -197,4 +197,43 @@ func textsOf(n sdui.Node) []string {
 		}
 	}
 	return out
+}
+
+func TestFolderSheetView(t *testing.T) {
+	t.Parallel()
+	sheet := &folderSheet{ticked: map[string]bool{}, impact: folderImpactResult{
+		Name: "internal-auth", Workspace: "ads", Path: "/r/auth",
+		Worktrees: []folderWorktree{{Path: "/r/auth/.worktrees/x", Branch: "feat/x`y", Read: true, Dirty: 1, Unpushed: 2}, {Path: "/r/auth/.worktrees/z", Branch: "z", Read: true, Unread: true}, {Path: "/r/auth/.worktrees/w", Branch: "w"}},
+		Graphs:    []string{"scope-lint"}, Hooks: []string{"setup.sh", "teardown.sh"}, Instructions: []string{"CLAUDE.md"}, Skills: []string{"a", "b"},
+		TrustedGraphs: []string{"scope-lint"}, TrustedHooks: true, CronJobs: []folderJob{{ID: "cj_1", Name: "night*ly"}},
+	}}
+	holds := folderHolds{sessions: []folderSession{{Title: "t", Status: statusClosed}}}
+
+	view := sheet.view(holds)
+	require.NoError(t, internalsdui.Validate(sdui.VStack(view)))
+	assert.Equal(t, "Remove internal-auth from ads?", view.Props["title"])
+	assert.Equal(t, folderRefused, view.Props["note"])
+	rows, _ := nodesOf(view, "impact")[0].Props["rows"].([]sdui.ImpactRow)
+	titles := make([]string, 0, len(rows))
+	for _, r := range rows {
+		titles = append(titles, r.Title)
+	}
+	assert.Equal(t, []string{"Sessions", "Worktrees", "Graphs", "Worktree hooks", "Agent instructions", "Kept", "Cron jobs", "Untouched"}, titles)
+	assert.Len(t, nodesOf(view, "toggle"), 1)
+	buttons := nodesOf(view, "button")
+	assert.Equal(t, "Remove from ads", buttons[1].Props["label"])
+	assert.Equal(t, sdui.VariantPrimary, buttons[1].Props["variant"])
+	assert.Equal(t, "cmd+return", buttons[1].Props["shortcut"])
+
+	sheet.ticked["/r/auth/.worktrees/x"] = true
+	buttons = nodesOf(sheet.view(holds), "button")
+	assert.Equal(t, "Remove · lose 1 file", buttons[1].Props["label"])
+	assert.Equal(t, sdui.VariantDanger, buttons[1].Props["variant"])
+
+	held := holds
+	held.blockers = []folderSession{{Title: "Fix auth", Status: statusRunning}}
+	refused := sheet.view(held)
+	assert.Equal(t, "Refused: 1 session works there.", refused.Props["note"])
+	assert.Equal(t, true, nodesOf(refused, "button")[1].Props["disabled"])
+	assert.Contains(t, textsOf(refused), "Fix auth is running")
 }

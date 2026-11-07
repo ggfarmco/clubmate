@@ -12,10 +12,10 @@ func TestShownSlotsWhilePhoneWatches(t *testing.T) {
 	a := &app{uiState: newUIState(), codePanel: true}
 	a.present["p"] = true
 	a.setSection("p", "processes")
-	assert.Equal(t, []string{sidebarSlot}, a.shownSlots("p"))
+	assert.Equal(t, []string{sidebarSlot, sheetSlot}, a.shownSlots("p"))
 
 	a.setWatched("p", []string{sectionID, editorSection})
-	assert.Equal(t, []string{sidebarSlot, mainSlot, codeSlot}, a.shownSlots("p"))
+	assert.Equal(t, []string{sidebarSlot, sheetSlot, mainSlot, codeSlot}, a.shownSlots("p"))
 }
 
 func TestForgetWorkspaceDropsItsRemindersAndRunNeeds(t *testing.T) {

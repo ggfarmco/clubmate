@@ -65,6 +65,11 @@ struct WorkspaceLayout: View {
                         .frame(width: 0, height: 0)
                         .clipped()
                 }
+                if store.isOpen(AgentsSection.sheetSlot) {
+                    SlotPane(store: store, slot: AgentsSection.sheetSlot)
+                        .frame(width: 0, height: 0)
+                        .clipped()
+                }
             }
             .frame(maxHeight: .infinity)
             .clipped()

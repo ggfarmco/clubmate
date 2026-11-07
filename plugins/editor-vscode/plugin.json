@@ -27,6 +27,18 @@
         }
       },
       {
+        "id": "editor-vscode.code-root",
+        "provides": ["editor.code-root"],
+        "title": "Folder Code shows",
+        "hidden": true,
+        "description": "The workspace folder Code shows, and with folder moves Code to it, keeping that folder's selected worktree. Returns {folder, root}; folder is empty when the root is no folder's.",
+        "args": {
+          "properties": {
+            "folder": {"type": "string", "description": "A folder of the workspace, as its path. Empty reads without moving."}
+          }
+        }
+      },
+      {
         "id": "editor-vscode.terminal",
         "title": "Open terminal here",
         "agent": true,

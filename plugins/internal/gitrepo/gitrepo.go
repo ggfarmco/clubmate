@@ -56,7 +56,7 @@ func RunEnv(ctx context.Context, repo string, env []string, args ...string) ([]b
 func Inert(ctx context.Context, repo string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	cmd := command(ctx, repo, args...)
+	cmd := command(ctx, repo, append([]string{"-c", "log.showSignature=false"}, args...)...)
 	cmd.Env = append(cmd.Env, "GIT_NO_LAZY_FETCH=1")
 	cmd.Env = append(cmd.Env, filterOverrides(ctx, repo)...)
 	return cmd.Output()

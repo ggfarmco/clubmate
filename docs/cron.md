@@ -72,7 +72,8 @@ All are agent-visible and none is destructive (the fired command carries its own
 | `cron.list` | The workspace's jobs, without history. |
 | `cron.show {id}` | One job with its history. |
 | `cron.update {id, …}` | Changes the given fields; any schedule field replaces the whole schedule. |
-| `cron.pause {id}`, `cron.resume {id}` | Stops and restarts firing. |
+| `cron.pause {id, reason?}`, `cron.resume {id}` | Stops and restarts firing; a `reason` shows with the job. |
+| `cron.jobs-in {worktrees: [{path, branch}], first?}` | Hidden, for sheets that take worktrees away: the jobs that run there, `{jobs: [{id, name, enabled}]}`. A job runs there when its owner session does, or when it is an `agents.new` job whose `repo` is one of them. `first` says the worktrees are those of the folder `agents.new` starts in when no `repo` names one, the workspace's first git folder, so every `agents.new` job with no `repo` and no owner counts too, with or without a `branch` and whether or not that worktree exists: it would otherwise move to another repo silently. Without `first` such a job counts for no folder, however its `branch` matches. |
 | `cron.run {id}` | Runs it now without changing the schedule; returns the run. |
 | `cron.delete {id}` | Deletes it. |
 

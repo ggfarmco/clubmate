@@ -29,6 +29,23 @@ final class WorktreesTests: XCTestCase {
         await client.close()
     }
 
+    func testFollowReportsCodeMovingToAnotherFolder() async throws {
+        let core = try await TestCore.start()
+        testCore = core
+        let client = try await CoreClient.connect(paths: core.paths)
+        var moved: [String] = []
+        let follower = Task { await WorktreeModel.follow(client) { moved.append($0.topic) } }
+        defer { follower.cancel() }
+
+        try await waitUntil {
+            try? core.cli("bus", "publish", "editor-nvim.root", #"{"workspace":"prj_a"}"#)
+            return !moved.isEmpty
+        }
+
+        XCTAssertEqual(moved.first, "editor-nvim.root")
+        await client.close()
+    }
+
     func testSwitchCallsCommandForTheFolder() async throws {
         let core = FakeGitCore()
         core.trees = ["/r/a", "/r/b"].flatMap { repo in
@@ -41,6 +58,22 @@ final class WorktreesTests: XCTestCase {
 
         XCTAssertEqual(core.calls.map(\.id), ["git.worktrees", "git.worktree-switch", "git.worktrees"])
         XCTAssertEqual(core.calls[1].args, .object(["repo": .string("/r/b"), "path": .string("/r/.worktrees/feat")]))
+    }
+
+    func testPickingACurrentWorktreeOfAnotherFolderMovesCode() async throws {
+        let core = FakeGitCore()
+        core.trees = ["/a", "/b"].map { FakeGitCore.tree(repo: $0, path: $0, main: true, current: true) }
+        core.codeFolder = "/a"
+        let model = makeModel(core)
+        await model.load()
+        XCTAssertEqual(model.current?.repo, "/a")
+        XCTAssertEqual(model.currentFolder, "a")
+
+        await model.open(repo: "/b", path: "/b")
+
+        XCTAssertEqual(core.moves, ["/b"])
+        XCTAssertFalse(core.calls.map(\.id).contains("git.worktree-switch"))
+        XCTAssertEqual(model.currentFolder, "b")
     }
 
     func testLoadRetriesUntilTheGitPluginIsUp() async throws {
@@ -156,8 +189,16 @@ private final class FakeGitCore {
     private(set) var calls: [CommandInvocation] = []
     var trees = [tree(repo: "/r", path: "/r", main: true, current: true), tree(repo: "/r", path: "/r/.worktrees/feat")]
     var failures = 0
+    var codeFolder = ""
+    private(set) var moves: [String] = []
 
     func run(_ invocation: CommandInvocation) async -> Result<JSONValue, ClubmateError> {
+        if invocation.id == WorktreeModel.codeRootCommand {
+            let folder = invocation.args.objectValue?["folder"]?.stringValue
+            if folder != nil { moves.append(folder ?? "") }
+            codeFolder = folder ?? codeFolder
+            return .success(.object(["folder": .string(codeFolder)]))
+        }
         calls.append(invocation)
         let args = invocation.args.objectValue ?? [:]
         switch invocation.id {

@@ -33,6 +33,12 @@ public struct Branch: Equatable, Sendable, Identifiable {
 
     public var id: String { "branch:\(repo)\u{0}\(name)" }
 
+    public init(repo: String, name: String, remote: Bool) {
+        self.repo = repo
+        self.name = name
+        self.remote = remote
+    }
+
     init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let repo = fields["repo"]?.stringValue, let name = fields["name"]?.stringValue else { return nil }
         self.repo = repo
@@ -75,11 +81,13 @@ public final class WorktreeModel {
     public static let removePromptCommand = "git.worktree-remove-prompt"
     public static let branchesCommand = "git.branches"
     public static let branchSwitchCommand = "git.branch-switch"
+    public static let codeRootCommand = "editor.code-root"
     public static let changedTopic = "git.changed"
     public static let outcomeTopic = "git.outcome"
+    static let rootTopics = ["editor-nvim.root", "editor-vscode.root"]
     public static let worktreesSection = "Worktrees"
     public static let branchesSection = "Branches"
-    static let topics = "git.*"
+    static let topics = (["git.*"] + rootTopics).joined(separator: ",")
     static let source = "plugin:git"
     static let maxBranchRows = 200
     public static let defaultRetryDelays: [Duration] = [.milliseconds(250), .milliseconds(500), .seconds(1), .seconds(2), .seconds(4)]
@@ -88,6 +96,7 @@ public final class WorktreeModel {
 
     public private(set) var worktrees: [Worktree] = []
     public private(set) var branches: [Branch] = []
+    public private(set) var codeFolder = ""
 
     @ObservationIgnored private let run: Run
     @ObservationIgnored private let confirm: @MainActor (String, String) async -> Bool
@@ -128,8 +137,15 @@ public final class WorktreeModel {
     }
 
     public var current: Worktree? {
-        guard let first = groups.first else { return nil }
-        return first.trees.first { $0.current } ?? first.trees.first { $0.main }
+        let groups = groups
+        guard let group = groups.first(where: { $0.repo == codeFolder }) ?? groups.first else { return nil }
+        return group.trees.first { $0.current } ?? group.trees.first { $0.main }
+    }
+
+    public var currentFolder: String? {
+        let groups = groups
+        guard groups.count > 1 else { return nil }
+        return current.flatMap { tree in groups.first { $0.repo == tree.repo }?.name }
     }
 
     public func switcherItems(_ query: String) -> [PickerItem] {
@@ -148,9 +164,20 @@ public final class WorktreeModel {
 
     public func pick(_ item: PickerItem) async {
         if let tree = worktree(id: item.id) {
-            return await switchTo(repo: tree.repo, path: tree.path)
+            return await open(repo: tree.repo, path: tree.path)
         }
         guard let branch = branches.first(where: { $0.id == item.id }) else { return }
+        await switchBranch(branch)
+    }
+
+    public func open(repo: String, path: String) async {
+        await switchTo(repo: repo, path: path)
+        guard repo != codeFolder else { return }
+        _ = await run(CommandInvocation(id: Self.codeRootCommand, args: .object(["folder": .string(repo)])))
+        await load()
+    }
+
+    public func switchBranch(_ branch: Branch) async {
         await send(Self.branchSwitchCommand, .object(["repo": .string(branch.repo), "branch": .string(branch.name)]))
     }
 
@@ -230,7 +257,14 @@ public final class WorktreeModel {
     private func fetch() async -> Bool {
         guard case .success(let value) = await run(CommandInvocation(id: Self.listCommand, args: .object([:]))) else { return false }
         worktrees = (value.arrayValue ?? []).compactMap(Worktree.init)
+        await fetchCodeFolder()
         return true
+    }
+
+    private func fetchCodeFolder() async {
+        if case .success(let value) = await run(CommandInvocation(id: Self.codeRootCommand, args: .object([:]))) {
+            codeFolder = value.objectValue?["folder"]?.stringValue ?? ""
+        }
     }
 
     private func send(_ id: String, _ args: JSONValue) async {
@@ -241,7 +275,7 @@ public final class WorktreeModel {
 
     public static func follow(_ client: CoreClient, received: @escaping @MainActor (BusEvent) async -> Void) async {
         guard let events = try? await client.busEvents(pattern: topics) else { return }
-        for await event in events where !event.workspace.isEmpty && [changedTopic, outcomeTopic].contains(event.topic) {
+        for await event in events where !event.workspace.isEmpty && ([changedTopic, outcomeTopic] + rootTopics).contains(event.topic) {
             await received(event)
         }
     }

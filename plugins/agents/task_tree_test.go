@@ -127,7 +127,10 @@ func TestAFKRowRemovesTheFolder(t *testing.T) {
 
 	f.fire(t, workspace, "agents.main", session+"/folderRemove/"+other, "folderRemove", nil)
 
-	assert.Len(t, f.folders(t, workspace), 1)
+	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool { return len(sheetNodes(n, "sheet")) == 1 })
+	assert.Len(t, f.folders(t, workspace), 2)
+	f.fire(t, workspace, "agents.sheet", "folderSheet/remove", "folderConfirm", nil)
+	testutil.Eventually(t, func() bool { return len(f.folders(t, workspace)) == 1 }, wait)
 	testutil.Eventually(t, func() bool { return !containsText(f.slotTree(t, workspace, "agents.main"), "Remove from") }, wait)
 }
 

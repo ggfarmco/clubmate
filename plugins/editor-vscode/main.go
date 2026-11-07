@@ -206,6 +206,12 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, fmt.Errorf("open args: %w", err)
 		}
 		return nil, a.open(ctx, h, cmd.WorkspaceID, args)
+	case "code-root":
+		var args editorroot.CodeRootArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("code-root args: %w", err)
+		}
+		return a.codeRoot(ctx, h, cmd.WorkspaceID, args)
 	case "terminal":
 		root, ok, err := a.active(ctx, h, cmd.WorkspaceID)
 		if !ok || err != nil {

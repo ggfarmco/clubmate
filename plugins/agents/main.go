@@ -53,6 +53,7 @@ type app struct {
 	openWake    chan struct{}
 
 	spawnMu    sync.Mutex
+	leaving    map[string]int
 	worktreeMu sync.Mutex
 	connectMu  sync.Mutex
 	cloners    map[string]bool

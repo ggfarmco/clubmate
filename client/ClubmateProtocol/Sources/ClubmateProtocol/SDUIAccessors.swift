@@ -128,6 +128,23 @@ public struct SDUIReposSegment: Sendable, Equatable {
     }
 }
 
+public struct SDUIImpactRow: Sendable, Equatable, Identifiable {
+    public let id: String
+    public let icon: String
+    public let tone: String?
+    public let title: String
+    public let count: String?
+
+    public init?(_ json: JSONValue) {
+        guard let fields = json.objectValue, let id = fields["id"]?.stringValue, let icon = fields["icon"]?.stringValue, let title = fields["title"]?.stringValue else { return nil }
+        self.id = id
+        self.icon = icon
+        self.title = title
+        tone = fields["tone"]?.stringValue
+        count = fields["count"]?.stringValue
+    }
+}
+
 public struct SDUIReposRow: Sendable, Equatable, Identifiable {
     public let id: String
     public let order: Int
@@ -461,6 +478,10 @@ extension SDUINode {
 
     public func reposRows() -> [SDUIReposRow] {
         props["rows"]?.arrayValue?.compactMap(SDUIReposRow.init) ?? []
+    }
+
+    public func impactRows() -> [SDUIImpactRow] {
+        props["rows"]?.arrayValue?.compactMap(SDUIImpactRow.init) ?? []
     }
 
     public var headerStatusTone: String? {

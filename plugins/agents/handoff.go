@@ -48,6 +48,9 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 	if err := a.canSpawnLocked(old.ParentSession); err != nil {
 		return nil, err
 	}
+	if a.leavingLocked(old.Worktree) {
+		return nil, errFolderLeaving
+	}
 	if old.Task != nil {
 		finish = old.Finish
 	}

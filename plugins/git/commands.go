@@ -24,6 +24,8 @@ var (
 		removePromptCommand:      worktreeRemovePromptCommand,
 		"git.repo-facts":         repoFactsCommand,
 		"git.clone":              cloneCommand,
+		"git.worktree-index":     worktreeIndexCommand,
+		"git.worktree-state":     worktreeStateCommand,
 	}
 )
 
@@ -35,20 +37,28 @@ type call struct {
 	state       *state
 	args        worktreeArgs
 	ui          bool
+	via         string
 }
 
 type worktreeArgs struct {
-	ID     string `json:"id"`
-	Repo   string `json:"repo"`
-	Path   string `json:"path"`
-	Branch string `json:"branch"`
-	Force  bool   `json:"force"`
-	From   string `json:"from"`
-	Switch *bool  `json:"switch"`
-	Slug   string `json:"slug"`
-	Base   string `json:"base"`
-	URL    string `json:"url"`
-	Into   string `json:"into"`
+	ID      string   `json:"id"`
+	Repo    string   `json:"repo"`
+	Path    string   `json:"path"`
+	Branch  string   `json:"branch"`
+	Force   bool     `json:"force"`
+	Discard bool     `json:"discard"`
+	Left    bool     `json:"left"`
+	From    string   `json:"from"`
+	Switch  *bool    `json:"switch"`
+	Slug    string   `json:"slug"`
+	Base    string   `json:"base"`
+	URL     string   `json:"url"`
+	Into    string   `json:"into"`
+	Paths   []string `json:"paths"`
+
+	SeenDirty   int `json:"seenDirty"`
+	SeenIgnored int `json:"seenIgnored"`
+	SeenOrphans int `json:"seenOrphans"`
 }
 
 type worktreeInfo struct {
@@ -106,7 +116,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	if !ok {
 		return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 	}
-	c := call{h: h, workspaceID: cmd.WorkspaceID, state: s, ui: !cmd.Agent && cmd.Via == ""}
+	c := call{h: h, workspaceID: cmd.WorkspaceID, state: s, ui: !cmd.Agent && cmd.Via == "", via: cmd.Via}
 	if len(cmd.Args) > 0 {
 		if err := json.Unmarshal(cmd.Args, &c.args); err != nil {
 			return nil, fmt.Errorf("%s args: %w", cmd.ID, err)
@@ -132,10 +142,25 @@ func branchSwitchCommand(ctx context.Context, a *app, c call) (any, error) {
 }
 
 func worktreeNewCommand(ctx context.Context, a *app, c call) (any, error) {
-	return a.startOp(ctx, c, prepareNew)
+	return a.startOp(ctx, c, func(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs) (opFunc, error) {
+		run, err := prepareNew(ctx, h, workspaceID, args)
+		if err != nil {
+			return nil, err
+		}
+		return func(ctx context.Context, report *opReport) (string, error) {
+			path, err := run(ctx, report)
+			if err == nil {
+				logError("record "+path, a.meta.update(ctx, h, path, func(m *worktreeMeta) { m.MadeBy = c.via }))
+			}
+			return path, err
+		}, nil
+	})
 }
 
 func worktreeRemoveCommand(ctx context.Context, a *app, c call) (any, error) {
+	if err := c.costRefused(); err != nil {
+		return nil, err
+	}
 	return a.startOp(ctx, c, prepareRemove)
 }
 
@@ -148,7 +173,17 @@ func worktreeSessionsCommand(ctx context.Context, _ *app, c call) (any, error) {
 }
 
 func worktreeRemovePromptCommand(ctx context.Context, _ *app, c call) (any, error) {
+	if err := c.costRefused(); err != nil {
+		return nil, err
+	}
 	return removePrompt(ctx, c.h, c.workspaceID, c.args)
+}
+
+func (c call) costRefused() error {
+	if c.args.seesCost() && c.via != discardPlugin {
+		return errDiscardRefused
+	}
+	return nil
 }
 
 func repoFactsCommand(ctx context.Context, _ *app, c call) (any, error) {
@@ -157,4 +192,13 @@ func repoFactsCommand(ctx context.Context, _ *app, c call) (any, error) {
 
 func cloneCommand(ctx context.Context, a *app, c call) (any, error) {
 	return a.startClone(ctx, c)
+}
+
+func worktreeIndexCommand(ctx context.Context, a *app, c call) (any, error) {
+	return a.worktreeIndex(ctx, c)
+}
+
+func worktreeStateCommand(ctx context.Context, _ *app, c call) (any, error) {
+	_, known := c.state.indexCopy()
+	return worktreeStates(ctx, c.h, c.workspaceID, c.args.Paths, known)
 }

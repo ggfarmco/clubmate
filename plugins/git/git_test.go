@@ -25,6 +25,7 @@ import (
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/contract"
 	"clubmate/pkg/sdui"
 )
 
@@ -377,6 +378,7 @@ func TestRemoveWorktreeRefusals(t *testing.T) {
 	_, err := startOp(t, h, id, "git.worktree-remove", map[string]string{"path": repo})
 	assert.ErrorContains(t, err, "cannot remove the main checkout")
 	assert.Equal(t, "worktree has uncommitted changes", awaitOp(t, h, id, "git.worktree-remove", map[string]string{"path": dirty}).Error)
+	assert.ErrorContains(t, runCommand(t, h, id, "git.worktree-remove", map[string]any{"path": dirty, "discard": true}, nil), "only the app discards")
 	assert.DirExists(t, dirty)
 
 	p, err := h.Svc.CreateWorkspace(t.Context(), "feat", []string{feat})
@@ -384,6 +386,113 @@ func TestRemoveWorktreeRefusals(t *testing.T) {
 	_, err = startOp(t, h, p.ID, "git.worktree-remove", map[string]string{"path": feat})
 	assert.ErrorContains(t, err, "cannot remove the checkout of the workspace folder")
 	assert.DirExists(t, feat)
+}
+
+func agentsRemove(t *testing.T, h *testutil.PluginHarness, id string, args map[string]any) opResult {
+	t.Helper()
+	var op struct {
+		ID string `json:"id"`
+	}
+	require.NoError(t, h.PluginCallResult(t, "agents", "command.run", map[string]any{"id": "git.worktree-remove", "workspaceId": id, "args": args}, &op))
+	return waitOp(t, h, id, op.ID)
+}
+
+func TestWorktreeRemoveKeepsAWorktreeThatCostsMoreThanSeen(t *testing.T) {
+	repo := committedRepo(t)
+	write(t, filepath.Join(repo, ".gitignore"), "*.log\n")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "ignore")
+	dirty := branchTree(t, repo, "dirty", 0, false)
+	write(t, filepath.Join(dirty, "x.go"), "one\n")
+	write(t, filepath.Join(dirty, "y.go"), "one\n")
+	ignored := branchTree(t, repo, "ignored", 0, false)
+	write(t, filepath.Join(ignored, "a.log"), "one\n")
+	detached := branchTree(t, repo, "detached", 0, false)
+	git(t, detached, "checkout", "-q", "--detach")
+	write(t, filepath.Join(detached, "x.go"), "one\n")
+	git(t, detached, "add", ".")
+	git(t, detached, "commit", "-qm", "loose")
+	h, id := open(t, repo)
+
+	for _, args := range []map[string]any{
+		{"path": dirty, "discard": true, "seenDirty": 1},
+		{"path": dirty, "discard": true},
+		{"path": ignored, "left": true, "repo": repo},
+		{"path": detached, "left": true, "repo": repo},
+	} {
+		assert.Equal(t, "it has more to lose than when you looked", agentsRemove(t, h, id, args).Error, args)
+	}
+	assert.FileExists(t, filepath.Join(dirty, "y.go"))
+	assert.FileExists(t, filepath.Join(ignored, "a.log"))
+	assert.DirExists(t, detached)
+
+	assert.Empty(t, agentsRemove(t, h, id, map[string]any{"path": dirty, "discard": true, "seenDirty": 2}).Error)
+	assert.Empty(t, agentsRemove(t, h, id, map[string]any{"path": ignored, "left": true, "repo": repo, "seenIgnored": 1}).Error)
+	assert.Empty(t, agentsRemove(t, h, id, map[string]any{"path": detached, "left": true, "repo": repo, "seenOrphans": 1}).Error)
+	assert.NoDirExists(t, dirty)
+	assert.NoDirExists(t, ignored)
+	assert.NoDirExists(t, detached)
+}
+
+func TestWorktreeRemoveReachesAFolderThatLeftTheWorkspace(t *testing.T) {
+	first, second := committedRepo(t), committedRepo(t)
+	tree := branchTree(t, second, "pay", 0, false)
+	h, id := open(t, first)
+	_, err := h.Svc.AddRepo(t.Context(), id, second, contract.FolderMeta{})
+	require.NoError(t, err)
+	_, err = h.Svc.RemoveFolder(t.Context(), id, second)
+	require.NoError(t, err)
+	args := map[string]any{"repo": second, "path": tree, "left": true}
+
+	assert.Empty(t, agentsRemove(t, h, id, args).Error)
+	assert.NoDirExists(t, tree)
+}
+
+func TestLeftAloneIsRefusedToEveryoneButAgents(t *testing.T) {
+	repo := committedRepo(t)
+	tree := branchTree(t, repo, "pay", 0, false)
+	outside := committedRepo(t)
+	h, id := open(t, repo)
+
+	for _, command := range []string{"git.worktree-remove", "git.worktree-remove-prompt"} {
+		for _, args := range []map[string]any{
+			{"repo": repo, "path": tree, "left": true},
+			{"repo": outside, "path": filepath.Join(outside, "x"), "left": true},
+		} {
+			assert.ErrorContains(t, runCommand(t, h, id, command, args, nil), "only the app", command)
+		}
+	}
+	assert.DirExists(t, tree)
+}
+
+func TestWorktreeRemoveKeepsAWorktreeWithSubmodules(t *testing.T) {
+	repo, dir := submoduleTree(t)
+	write(t, filepath.Join(dir, "lib", "untracked.go"), "one\n")
+	write(t, filepath.Join(dir, "top.go"), "one\n")
+	h, id := open(t, repo)
+
+	res := agentsRemove(t, h, id, map[string]any{"path": dir, "discard": true, "seenDirty": 1})
+
+	assert.Equal(t, "it holds submodules or repos Clubmate can't read", res.Error)
+	assert.FileExists(t, filepath.Join(dir, "lib", "untracked.go"))
+}
+
+func TestWorktreeRemoveDoesNotCountWhatTeardownWrites(t *testing.T) {
+	repo := hookRepo(t, map[string]string{"teardown.sh": "echo a > junk.go\necho b > junk.log\n"})
+	write(t, filepath.Join(repo, ".gitignore"), "*.log\n")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "ignore")
+	tree := branchTree(t, repo, "pay", 0, false)
+	h, id := open(t, repo, testutil.EchoPluginDirAs(t, stopEditorManifest, agentsManifest))
+	testutil.Eventually(t, func() bool {
+		return !slices.ContainsFunc(h.Sup.Statuses(), func(s plugin.Status) bool { return s.State != "running" })
+	}, readyWait)
+	newApprover(t, h).answer.Store(true)
+
+	res := agentsRemove(t, h, id, map[string]any{"repo": repo, "path": tree, "left": true})
+
+	assert.Empty(t, res.Error)
+	assert.NoDirExists(t, tree)
 }
 
 func TestRemoveWorktree(t *testing.T) {

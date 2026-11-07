@@ -22,6 +22,7 @@ const (
 	cleanupTimeout      = time.Minute
 	removeCommand       = "git.worktree-remove"
 	removePromptCommand = "git.worktree-remove-prompt"
+	discardPlugin       = "agents"
 	unsavedMarker       = "unsaved buffers: "
 	removeTitle         = "Remove worktree %s? Its branch is kept."
 	terminalsDetail     = "Terminals still in it: "
@@ -38,6 +39,9 @@ var (
 	errUnseenFolder    = errors.New("it was connected while you were away and you haven't seen it yet")
 	errFolderCheckout  = errors.New("cannot remove the checkout of the workspace folder")
 	errDirtyWorktree   = errors.New("worktree has uncommitted changes")
+	errDiscardRefused  = errors.New("only the app discards a worktree's uncommitted changes")
+	errCostGrew        = errors.New("it has more to lose than when you looked")
+	errNestedRepos     = errors.New("it holds submodules or repos Clubmate can't read")
 	errRelativePath    = errors.New("path must be absolute")
 	errSymlinkedFolder = errors.New("worktrees folder must not be a symlink")
 	errNoMissingFolder = errors.New("no git folder holds the missing worktree")
@@ -221,14 +225,17 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 	k := hooks{h: h, workspaceID: workspaceID, primary: f.Trees[0].Path}
 	users := consumers{h: h, workspaceID: workspaceID}
 	return func(ctx context.Context, report *opReport) (string, error) {
+		if err := args.costHolds(ctx, t.Path); err != nil {
+			return "", err
+		}
 		status, err := run(ctx, t.Path, "status", "--porcelain")
 		if err != nil {
 			return "", err
 		}
-		if len(strings.TrimSpace(string(status))) > 0 {
+		if !args.Discard && len(strings.TrimSpace(string(status))) > 0 {
 			return "", errDirtyWorktree
 		}
-		g, err := gitFolder(ctx, h, workspaceID, f.Repo)
+		g, err := removalFolder(ctx, h, workspaceID, args)
 		if err != nil {
 			return "", err
 		}
@@ -243,12 +250,19 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 			return "", forceable(ctx, f, t, args, err)
 		}
 		logError("vacate "+t.Path, users.vacating(ctx, t.Path, root))
+		if err := args.costHolds(ctx, t.Path); err != nil {
+			return "", err
+		}
 		if skipped, err := k.run(ctx, t.Path, teardownScript); err != nil {
 			report.notice = err.Error()
 		} else if skipped != "" {
 			report.notice = skipped
 		}
-		if _, err := mutate(ctx, f.Checkout.Path, "worktree", "remove", t.Path); err != nil {
+		remove := []string{"worktree", "remove", t.Path}
+		if args.seesCost() {
+			remove = append(remove, "--force")
+		}
+		if _, err := mutate(ctx, f.Checkout.Path, remove...); err != nil {
 			return "", err
 		}
 		p, err := h.GetWorkspace(ctx, workspaceID)
@@ -393,8 +407,40 @@ func removeFailed(ctx context.Context, repo, dir string, cause error) error {
 	return errors.Join(cause, err)
 }
 
+func removalFolder(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs) (*folder, error) {
+	if !args.Left {
+		return gitFolder(ctx, h, workspaceID, args.Repo)
+	}
+	f, err := gitrepo.OpenFolder(ctx, args.Repo)
+	if err != nil {
+		return nil, gitError(nil, err)
+	}
+	return &folder{Folder: f, root: args.Repo}, nil
+}
+
+func (args worktreeArgs) seesCost() bool {
+	return args.Discard || args.Left
+}
+
+func (args worktreeArgs) costHolds(ctx context.Context, dir string) error {
+	if !args.seesCost() {
+		return nil
+	}
+	var now worktreeState
+	readState(ctx, &now, dir, nil)
+	switch {
+	case now.Error != "":
+		return errors.New(now.Error)
+	case now.Nested > 0:
+		return errNestedRepos
+	case now.Dirty > args.SeenDirty, now.Ignored > args.SeenIgnored, now.Orphans > args.SeenOrphans:
+		return errCostGrew
+	}
+	return nil
+}
+
 func removable(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs) (*folder, gitrepo.Worktree, error) {
-	f, err := gitFolder(ctx, h, workspaceID, args.Repo)
+	f, err := removalFolder(ctx, h, workspaceID, args)
 	if err != nil {
 		return nil, gitrepo.Worktree{}, err
 	}

@@ -110,12 +110,17 @@ func (h *PluginHarness) Client(t *testing.T) *rpc.Client {
 
 func (h *PluginHarness) PluginCall(t *testing.T, pluginID, method string, params any) error {
 	t.Helper()
+	return h.PluginCallResult(t, pluginID, method, params, nil)
+}
+
+func (h *PluginHarness) PluginCallResult(t *testing.T, pluginID, method string, params, result any) error {
+	t.Helper()
 	serverSide, clientSide := net.Pipe()
 	server := h.Srv.ServeConn(context.Background(), jsonrpc2.NewPlainObjectStream(serverSide), rpc.Caller{PluginID: pluginID})
 	defer server.Close()
 	client := jsonrpc2.NewConn(t.Context(), jsonrpc2.NewPlainObjectStream(clientSide), noopHandler{})
 	defer client.Close()
-	err := client.Call(t.Context(), method, params, nil)
+	err := client.Call(t.Context(), method, params, result)
 	var rpcErr *jsonrpc2.Error
 	if errors.As(err, &rpcErr) {
 		return rpc.NewRemoteError(rpcErr)

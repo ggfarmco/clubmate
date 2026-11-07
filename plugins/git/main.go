@@ -15,6 +15,7 @@ type app struct {
 	mu         sync.Mutex
 	workspaces map[string]*state
 	ops        opTable
+	meta       metaStore
 }
 
 func main() {

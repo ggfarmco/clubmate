@@ -33,6 +33,14 @@ type state struct {
 	busy    bool
 	watch   string
 	missing []string
+
+	selected     map[string]string
+	index        map[string]*folderIndex
+	indexBusy    bool
+	indexWaiters []chan struct{}
+	landed       map[string]bool
+	settleBusy   bool
+	settleAgain  bool
 }
 
 func (a *app) lookup(id string) *state {
@@ -79,6 +87,7 @@ func (a *app) workspaceChanged(ctx context.Context, h *pluginsdk.Host, id string
 	if watching {
 		a.schedule(h, id, s, 0)
 	}
+	a.refreshIndex(h, id, s)
 }
 
 func (a *app) drop(ctx context.Context, h *pluginsdk.Host, id string) {
@@ -91,6 +100,7 @@ func (a *app) drop(ctx context.Context, h *pluginsdk.Host, id string) {
 	}
 	s.mu.Lock()
 	s.dead = true
+	s.index = nil
 	watch := s.watch
 	s.watch = ""
 	s.mu.Unlock()
@@ -143,8 +153,11 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 		gitDirs = append(gitDirs, gitDir, commonDir)
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.repos, s.gitDirs = repos, gitDirs
+	s.mu.Unlock()
+	for _, root := range s.noteSelection(p) {
+		a.recordOpened(ctx, h, root)
+	}
 	return nil
 }
 
@@ -214,6 +227,7 @@ func (a *app) publishHead(ctx context.Context, h *pluginsdk.Host, id string, s *
 	if head {
 		_, err := h.Publish(ctx, changedTopic, changedEvent{Workspace: id})
 		logError("publish "+changedTopic, err)
+		a.refreshIndex(h, id, s)
 	}
 }
 

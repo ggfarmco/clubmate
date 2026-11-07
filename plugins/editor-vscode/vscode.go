@@ -45,7 +45,7 @@ func (a *app) active(ctx context.Context, h *pluginsdk.Host, workspaceID string)
 	if err != nil {
 		return "", false, err
 	}
-	root, _, ok, err := a.selectRoot(p, "")
+	root, _, ok, err := a.selectRoot(ctx, h, p, "")
 	if !ok || err != nil {
 		return "", false, err
 	}
@@ -53,18 +53,51 @@ func (a *app) active(ctx context.Context, h *pluginsdk.Host, workspaceID string)
 	return root, true, nil
 }
 
-func (a *app) selectRoot(p pluginsdk.Workspace, want string) (string, bool, bool, error) {
+func (a *app) selectRoot(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Workspace, want string) (string, bool, bool, error) {
 	existing := editorroot.Existing(p)
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.roots.Select(p, existing, want)
+	root, moved, ok, err := a.roots.Select(p, existing, want)
+	a.mu.Unlock()
+	if ok && err == nil && moved {
+		logError("publish root", editorroot.PublishMoved(ctx, h, p, root))
+	}
+	return root, moved, ok, err
+}
+
+func (a *app) codeRoot(ctx context.Context, h *pluginsdk.Host, workspaceID string, args editorroot.CodeRootArgs) (editorroot.CodeRoot, error) {
+	p, err := h.GetWorkspace(ctx, workspaceID)
+	if err != nil {
+		return editorroot.CodeRoot{}, err
+	}
+	if args.Folder == "" {
+		root, ok := a.current(workspaceID)
+		if existing := editorroot.Existing(p); !ok && len(existing) > 0 {
+			root = existing[0]
+		}
+		return editorroot.Describe(p, root), nil
+	}
+	want, err := editorroot.Want(p, args.Folder)
+	if err != nil {
+		return editorroot.CodeRoot{}, err
+	}
+	root, moved, ok, err := a.selectRoot(ctx, h, p, want)
+	if !ok || err != nil {
+		return editorroot.CodeRoot{}, err
+	}
+	logError("watch "+p.ID, a.heads.Watch(ctx, h, p))
+	if moved {
+		if err := a.show(ctx, h, workspaceID, root, nil); err != nil {
+			return editorroot.CodeRoot{}, err
+		}
+	}
+	return editorroot.Describe(p, root), nil
 }
 
 func (a *app) workspaceUpdated(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Workspace) {
 	if !a.isTracked(p.ID) {
 		return
 	}
-	root, moved, ok, err := a.selectRoot(p, "")
+	root, moved, ok, err := a.selectRoot(ctx, h, p, "")
 	if !ok || err != nil {
 		logError("workspace.updated", err)
 		return
@@ -97,7 +130,7 @@ func (a *app) open(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 	if err != nil {
 		return err
 	}
-	root, _, ok, err := a.selectRoot(t.Workspace, t.Want)
+	root, _, ok, err := a.selectRoot(ctx, h, t.Workspace, t.Want)
 	if !ok || err != nil {
 		return err
 	}
