@@ -105,9 +105,13 @@ public struct SessionNode: Sendable, Equatable, Identifiable {
         for kid in kids[session.id] ?? [] where !seen.contains(kid.id) {
             children.append(build(kid, kids: kids, seen: &seen))
         }
+        let landing = Dictionary(session.taskRows.enumerated().compactMap { index, row in row.session.map { ($0, index) } }, uniquingKeysWith: min)
         return SessionNode(
             session: session,
-            children: children.sorted(by: newerFirst),
+            children: children.sorted { a, b in
+                let (x, y) = (landing[a.id] ?? .max, landing[b.id] ?? .max)
+                return x != y ? x < y : newerFirst(a, b)
+            },
             group: session.group,
             updatedAt: children.map(\.updatedAt).reduce(session.updatedAt, max),
             needsYouAt: (children.map(\.needsYouAt) + [session.needsYouAt]).compactMap { $0 }.min()
@@ -292,12 +296,14 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
     public let entries: [TranscriptEntry]
     public let cursor: String?
     public let delta: Bool
+    public let request: RequestCard?
+    public let repos: ReposCard?
 
     enum CodingKeys: String, CodingKey {
-        case session, modes, configOptions, advisor, usage, turns, entries, cursor, delta
+        case session, modes, configOptions, advisor, usage, turns, entries, cursor, delta, request, repos
     }
 
-    init(session: AgentSession, modes: [AgentMode], configOptions: [AgentConfigOption], advisor: String, usage: AgentUsage?, turns: [AgentTurn], entries: [TranscriptEntry], cursor: String? = nil) {
+    init(session: AgentSession, modes: [AgentMode], configOptions: [AgentConfigOption], advisor: String, usage: AgentUsage?, turns: [AgentTurn], entries: [TranscriptEntry], cursor: String? = nil, request: RequestCard? = nil, repos: ReposCard? = nil) {
         self.session = session
         self.modes = modes
         self.configOptions = configOptions
@@ -307,6 +313,8 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
         self.entries = entries
         self.cursor = cursor
         delta = false
+        self.request = request
+        self.repos = repos
     }
 
     public var lastTurn: Int {
@@ -316,7 +324,7 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
     public func merging(_ newer: AgentTranscript, fromTurn: Int) -> AgentTranscript {
         AgentTranscript(
             session: newer.session, modes: newer.modes, configOptions: newer.configOptions, advisor: newer.advisor, usage: newer.usage, turns: newer.turns,
-            entries: entries.filter { $0.turn < fromTurn } + newer.entries, cursor: newer.cursor
+            entries: entries.filter { $0.turn < fromTurn } + newer.entries, cursor: newer.cursor, request: newer.request, repos: newer.repos
         )
     }
 
@@ -325,7 +333,7 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
         let known = Set(entries.map(\.id))
         return AgentTranscript(
             session: newer.session, modes: newer.modes, configOptions: newer.configOptions, advisor: newer.advisor, usage: newer.usage, turns: newer.turns,
-            entries: newer.entries.isEmpty ? entries : entries.map { changed[$0.id] ?? $0 } + newer.entries.filter { !known.contains($0.id) }, cursor: newer.cursor
+            entries: newer.entries.isEmpty ? entries : entries.map { changed[$0.id] ?? $0 } + newer.entries.filter { !known.contains($0.id) }, cursor: newer.cursor, request: newer.request, repos: newer.repos
         )
     }
 
@@ -340,6 +348,8 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
         entries = (try c.decodeIfPresent([TranscriptEntry].self, forKey: .entries)) ?? []
         cursor = try? c.decodeIfPresent(String.self, forKey: .cursor)
         delta = (try? c.decodeIfPresent(Bool.self, forKey: .delta)) ?? false
+        request = (try? c.decodeIfPresent(JSONValue.self, forKey: .request)).flatMap { $0 }.flatMap(RequestCard.init(node:))
+        repos = (try? c.decodeIfPresent(JSONValue.self, forKey: .repos)).flatMap { $0 }.flatMap(ReposCard.init(node:))
     }
 }
 
@@ -370,7 +380,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     public let imageLinks: [String: String]
 
     enum CodingKeys: String, CodingKey {
-        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction, elicitation, response, completed, stoppable, doc, hidden, docLinks, docCards, images, imageLinks, card, voice, items, overflow, later
+        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, afk, from, compaction, elicitation, response, completed, stoppable, doc, hidden, docLinks, docCards, images, imageLinks, card, voice, items, overflow, later
     }
 
     static let outgoingPrefix = "outgoing/"
@@ -446,7 +456,8 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
             ))
         case .notice:
             let notice = (try? c.decodeIfPresent(JSONValue.self, forKey: .notice)) ?? .null
-            content = .notice(Notice(title: notice["title"]?.stringValue ?? "", description: notice["description"]?.stringValue ?? ""))
+            let afk = try? c.decodeIfPresent(Notice.AFK.self, forKey: .afk)
+            content = .notice(Notice(title: notice["title"]?.stringValue ?? "", description: notice["description"]?.stringValue ?? "", path: notice["path"]?.stringValue, afk: afk))
         case .compaction:
             let state = (try? c.decodeIfPresent(JSONValue.self, forKey: .compaction)) ?? .null
             content = .compaction(Compaction(status: state["status"]?.stringValue ?? "", summary: text, error: state["error"]?.stringValue ?? ""))
@@ -662,8 +673,15 @@ public struct PermissionRequest: Sendable, Equatable {
 }
 
 public struct Notice: Sendable, Equatable {
+    public struct AFK: Decodable, Sendable, Equatable {
+        public let detail: String
+        public var remove: String?
+    }
+
     public let title: String
     public let description: String
+    public var path: String?
+    public var afk: AFK?
 }
 
 public struct Elicitation: Sendable, Equatable {

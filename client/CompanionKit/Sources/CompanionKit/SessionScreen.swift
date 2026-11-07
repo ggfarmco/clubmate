@@ -66,7 +66,9 @@ extension AgentSession {
     }
 
     public var headerDetail: String {
-        parentSession == nil ? worktreeName : "subagent"
+        if let taskBadge { return taskBadge }
+        if let repo { return repo }
+        return parentSession == nil ? worktreeName : "subagent"
     }
 
     public var composerPlaceholder: String {
@@ -139,6 +141,8 @@ public enum SessionDock: Sendable, Equatable {
     case elicitation(Elicitation)
     case question(String)
     case onMac(String)
+    case connect(ConnectCard)
+    case land(LandCard)
     case open(OpenCard)
 }
 
@@ -146,7 +150,7 @@ public struct SessionScreen: Sendable, Equatable {
     public let rows: [TranscriptRow]
     public let dock: SessionDock?
 
-    public init(entries: [TranscriptEntry], session: AgentSession?) {
+    public init(entries: [TranscriptEntry], session: AgentSession?, request: RequestCard? = nil, repos: ReposCard? = nil) {
         let pending = Set(session?.pending ?? [])
         var asked: (index: Int, question: String, drop: Bool)?
         if session?.state == .askingYou, let index = entries.lastIndex(where: { if case .agent = $0.content { true } else { false } }),
@@ -208,7 +212,11 @@ public struct SessionScreen: Sendable, Equatable {
             dock = .permission(first, more: waiting.count - 1)
         } else if let question = questions.first {
             dock = .elicitation(question)
-        } else if let summary = session?.pendingSummary, summary.onMac == true {
+        } else if case .connect(let card) = request {
+            dock = .connect(card)
+        } else if case .land(let card) = request {
+            dock = .land(card)
+        } else if let summary = session?.pendingSummary, summary.onMac == true, summary.kind != .failed || repos == nil {
             dock = .onMac(summary.text)
         } else if let asked {
             dock = .question(asked.question)

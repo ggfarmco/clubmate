@@ -192,6 +192,17 @@ public final class ComputerConnection: CommandRunner {
         }
     }
 
+    public var queues: Bool {
+        switch state {
+        case .offline, .connecting: true
+        case .online, .unauthorized: false
+        }
+    }
+
+    public var queuedLine: String {
+        state == .online ? "\(computer.name) · sending" : "\(computer.name) is offline · queued"
+    }
+
     public nonisolated static func clock(_ date: Date) -> String {
         date.formatted(date: Calendar.current.isDateInToday(date) ? .omitted : .abbreviated, time: .shortened)
     }

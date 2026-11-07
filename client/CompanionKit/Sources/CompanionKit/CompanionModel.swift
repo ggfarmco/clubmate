@@ -7,6 +7,7 @@ public final class CompanionModel {
     public private(set) var computers: [Computer] = []
     public private(set) var connections: [String: ComputerConnection] = [:]
     public var inbox = Inbox()
+    @ObservationIgnored public let queue: ActionQueue
     @ObservationIgnored public var posted: (@MainActor (InboxItem) -> Void)?
     @ObservationIgnored public var withdrawn: (@MainActor ([String]) -> Void)?
     @ObservationIgnored public var received: (@MainActor (String, ConnectionSignal) -> Void)?
@@ -24,9 +25,11 @@ public final class CompanionModel {
     @ObservationIgnored private var lastSignal = ContinuousClock.now
     @ObservationIgnored private var receiving = 0
     @ObservationIgnored private var resolvedAt: [String: Int] = [:]
+    @ObservationIgnored private var retrying: Set<String> = []
     @ObservationIgnored public private(set) var pushToken: PushToken?
 
-    public init(store: ComputerStore, transport: any HTTPTransport, device: DeviceIdentity, policy: HostPolicy = .tailnet, cursors: UserDefaults? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+    public init(store: ComputerStore, transport: any HTTPTransport, device: DeviceIdentity, policy: HostPolicy = .tailnet, cursors: UserDefaults? = nil, queueFile: URL? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+        queue = ActionQueue(file: queueFile)
         self.store = store
         self.transport = transport
         self.device = device
@@ -96,6 +99,7 @@ public final class CompanionModel {
 
     public func remove(_ id: String) throws {
         detach(id)
+        queue.forget(computer: id)
         cursors?.removeObject(forKey: Self.cursorKey(id))
         try store.remove(id)
         computers = store.computers
@@ -139,7 +143,9 @@ public final class CompanionModel {
         let key = computer + "|" + workspace
         if let existing = agents[key] { return existing }
         guard let connection = connections[computer] else { return nil }
-        let store = AgentsStore(workspace: workspace, runner: connection)
+        let store = AgentsStore(workspace: workspace, runner: connection, queue: queue, computer: computer, queues: { [weak connection] in connection?.queues ?? false }, retry: { [weak self, weak connection] in
+            if let self, let connection { self.flushQueue(connection) }
+        })
         agents[key] = store
         return store
     }
@@ -225,6 +231,7 @@ public final class CompanionModel {
             case .event:
                 break
             }
+            flushQueue(connection)
         }
         if case .event(let event) = signal, event.topic == Topic.agentsChanged, event.payload["kind"]?.stringValue == Self.resolvedKind,
            let session = event.payload["session"]?.stringValue {
@@ -252,6 +259,28 @@ public final class CompanionModel {
             store.handle(signal)
         }
         received?(computer, signal)
+    }
+
+    private func flushQueue(_ connection: ComputerConnection) {
+        let computer = connection.computer.id
+        guard queue.isDue(computer: computer) else { return }
+        Task {
+            let touched = await queue.flush(computer: computer, runner: connection, supports: connection.supports)
+            for workspace in touched {
+                await agents(computer: computer, workspace: workspace)?.refreshAll()
+            }
+            retryLater(connection)
+        }
+    }
+
+    private func retryLater(_ connection: ComputerConnection) {
+        let computer = connection.computer.id
+        guard let wait = queue.nextWait(computer: computer), retrying.insert(computer).inserted else { return }
+        Task { [sleep] in
+            try? await sleep(.seconds(wait + 1))
+            retrying.remove(computer)
+            flushQueue(connection)
+        }
     }
 
     private func receive(_ item: InboxItem, seq: Int) async {

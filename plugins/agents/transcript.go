@@ -73,6 +73,8 @@ type transcriptView struct {
 	Entries  []*entry                  `json:"entries"`
 	Cursor   string                    `json:"cursor,omitempty"`
 	Delta    bool                      `json:"delta,omitempty"`
+	Request  *sdui.Node                `json:"request,omitempty"`
+	Repos    *sdui.Node                `json:"repos,omitempty"`
 }
 
 type entry struct {
@@ -91,6 +93,7 @@ type entry struct {
 	Subagent  string                     `json:"subagent,omitempty"`
 	Stoppable bool                       `json:"stoppable,omitempty"`
 	Card      *permissionContent         `json:"card,omitempty"`
+	AFK       *afkCard                   `json:"afk,omitempty"`
 
 	Elicitation *elicitation             `json:"elicitation,omitempty"`
 	Response    *acp.ElicitationResponse `json:"response,omitempty"`

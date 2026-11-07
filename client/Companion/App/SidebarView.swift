@@ -17,6 +17,7 @@ struct SidebarView: View {
         let needs = model.needsYou()
         let selected = navigation.layout == .compact ? nil : selection
         List(selection: Binding(get: { selection }, set: select)) {
+            QueueSection()
             if !needs.isEmpty, navigation.layout != .compact {
                 Section {
                     NeedsYouSummaryRow(count: needs.count)

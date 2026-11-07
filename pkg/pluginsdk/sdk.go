@@ -13,6 +13,7 @@ import (
 
 	"github.com/sourcegraph/jsonrpc2"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pprofdump"
 )
 
@@ -360,7 +361,12 @@ func reply(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request, resu
 		return
 	}
 	var rpcErr *jsonrpc2.Error
-	if !errors.As(err, &rpcErr) {
+	var reasoned *reasonError
+	switch {
+	case errors.As(err, &reasoned):
+		rpcErr = &jsonrpc2.Error{Code: jsonrpc2.CodeInternalError, Message: err.Error()}
+		rpcErr.SetError(contract.ErrorReason{Reason: reasoned.reason})
+	case !errors.As(err, &rpcErr):
 		rpcErr = &jsonrpc2.Error{Code: jsonrpc2.CodeInternalError, Message: err.Error()}
 	}
 	_ = conn.ReplyWithError(ctx, req.ID, rpcErr)

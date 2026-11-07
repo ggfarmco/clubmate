@@ -23,6 +23,8 @@ struct SessionDetailView: View {
     @State private var alwaysAsked: AlwaysAsk?
     @State private var width = 0.0
     @State private var composerFocused = false
+    @State private var reviewing: LandCard?
+    @State private var archiving = false
 
     private static let pairedWidth = 520.0
 
@@ -30,10 +32,12 @@ struct SessionDetailView: View {
         let transcript = store.transcripts[sessionID]
         let entries = store.entries(sessionID)
         let session = store.session(sessionID)
-        let screen = SessionScreen(entries: entries, session: session)
+        let repos = store.repos(sessionID)
+        let screen = SessionScreen(entries: entries, session: session, request: store.request(sessionID), repos: repos)
         let blocked = context.connection.blocked
+        let queued = store.queue?.item(sessionID)
         let answerDocked = switch screen.dock {
-        case .permission, .elicitation: true
+        case .permission, .elicitation, .connect, .land: true
         case .open(let card): !folded(card) || store.openDraft(sessionID).unfolded
         default: false
         }
@@ -50,6 +54,27 @@ struct SessionDetailView: View {
                         }
                     } else {
                         RowView(row: block[0])
+                    }
+                }
+                if let repos {
+                    ReposCardView(card: repos, fold: store.reposFold(sessionID), blocked: blocked) {
+                        var fold = store.reposFold(sessionID)
+                        fold.toggle(repos)
+                        store.setReposFold(fold, session: sessionID)
+                    } toggleRow: { row in
+                        var fold = store.reposFold(sessionID)
+                        fold.toggle(row)
+                        store.setReposFold(fold, session: sessionID)
+                    } run: { action, row in
+                        run(action, row: row)
+                    } archive: {
+                        archiving = true
+                    }
+                    if case .land = screen.dock {
+                        Text("Nothing lands until you say so. The next screen lists the commits and has its own Merge.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 4)
                     }
                 }
                 if session?.status == .error, let line = session?.failure?.line, !line.isEmpty {
@@ -103,6 +128,14 @@ struct SessionDetailView: View {
                 .frame(maxWidth: .infinity)
                 .background(Color(.systemGroupedBackground))
         }
+        .environment(\.folderRemove, blocked == nil && context.connection.supports(TaskCommand.folderRemove) ? FolderRemove { path in
+            do {
+                failure = try await store.removeFolder(path)
+                await context.connection.refreshWorkspaces()
+            } catch {
+                failure = Self.message(error)
+            }
+        } : nil)
         .environment(\.openDoc, docOpener)
         .environment(\.imageStore, context.connection.supports(AgentsStore.imageCommand) ? store : nil)
         .environment(\.imageSession, sessionID)
@@ -135,6 +168,20 @@ struct SessionDetailView: View {
                         Task { await store.loadTranscript(sessionID, incremental: true) }
                     }
                 }
+                ForEach(store.queue?.notes(session: sessionID) ?? []) { note in
+                    QueueNoteRow(note: note) { store.queue?.dismiss(note) }
+                        .padding(.horizontal, 12)
+                        .frame(maxWidth: 820)
+                }
+                if let queued, queued.kind == .archive {
+                    QueuedLine(item: queued, queuedLine: context.connection.queuedLine) {
+                        store.queue?.cancel(queued)
+                    }
+                    .padding(12)
+                    .background(Color.surface1, in: .rect(cornerRadius: 20))
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: 820)
+                }
                 if answeredElsewhere > 0 {
                     AnsweredElsewhereBanner()
                         .transition(.opacity)
@@ -160,6 +207,27 @@ struct SessionDetailView: View {
                             QuestionCard(question: question, agentName: session.agentName, subagent: session.parentSession != nil)
                         case .onMac(let text):
                             AnswerOnMacRow(text: text)
+                        case .connect(let card):
+                            ConnectRepoCard(card: card, blocked: blocked, canQueue: context.connection.queues, queued: queued?.request == card.request ? queued : nil, queuedLine: context.connection.queuedLine, draft: Binding(get: { store.connectDraft(card.request) }, set: { store.setConnectDraft($0, request: card.request) })) { answers in
+                                do {
+                                    if try await store.answerConnect(sessionID, card: card, answers: answers) == .sent { sent += 1 }
+                                } catch AnswerError.alreadyAnswered {
+                                    withAnimation { answeredElsewhere += 1 }
+                                }
+                            } undo: {
+                                if let queued { store.queue?.cancel(queued) }
+                            }
+                            .id(card.request)
+                        case .land(let card):
+                            LandDock(card: card, later: store.landLater.contains(card.request), session: repos?.row(named: card.name)?.session, blocked: blocked) {
+                                reviewing = card
+                            } openSession: { session in
+                                context.navigation.detail = session
+                            } notNow: { later in
+                                withAnimation {
+                                    if later { store.landLater.insert(card.request) } else { store.landLater.remove(card.request) }
+                                }
+                            }
                         case .open(let card):
                             OpenItemsCard(card: card, count: session.openCount, folded: folded(card), blocked: blocked, draft: Binding(get: { store.openDraft(sessionID) }, set: { store.setOpenDraft($0, session: sessionID) })) {
                                 try await store.laterOpen(sessionID)
@@ -235,6 +303,9 @@ struct SessionDetailView: View {
                         Button("No to All", systemImage: "xmark.circle", role: .destructive) { confirmingNo = true }
                             .disabled(blocked != nil)
                     }
+                    if session?.archivable == true, context.connection.supports(TaskCommand.archive) {
+                        Button("Archive Task…", systemImage: "archivebox") { archiving = true }
+                    }
                     if session?.mayAsk == true, session?.isClosed == false, context.connection.supports(OpenCommand.convert) {
                         Button("Turn into Items", systemImage: "checklist") {
                             perform { try await store.convertOpen(sessionID) }
@@ -273,6 +344,8 @@ struct SessionDetailView: View {
         .sheet(isPresented: $showingSettings) {
             SessionSettingsView(store: store, sessionID: sessionID)
         }
+        .sheet(item: $reviewing, content: reviewSheet)
+        .sheet(isPresented: $archiving, content: archiveSheet)
         .stopConfirmation(agentName: session?.agentName, isPresented: $confirmingStop) {
             perform { try await store.cancel(sessionID) }
         }
@@ -290,7 +363,7 @@ struct SessionDetailView: View {
         } message: {
             Text("\(session?.agentName ?? "The agent") is told “none of these” on its next turn.")
         }
-        .alert("Something Went Wrong", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+        .alert("Something Went Wrong", isPresented: failureShown) {
             Button("OK") { failure = nil }
         } message: {
             Text(failure ?? "")
@@ -309,10 +382,52 @@ struct SessionDetailView: View {
         .task(id: sessionID) {
             await docsList?.refresh()
         }
+        .task(id: session?.taskFinished == true) {
+            store.opened(sessionID)
+        }
+        .task(id: planDue, loadPlan)
         .task(id: sessionID) {
             store.watch(sessionID)
             try? await Task.sleep(for: .seconds(31_536_000))
             store.unwatch(sessionID)
+        }
+    }
+
+    private var failureShown: Binding<Bool> {
+        Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })
+    }
+
+    private var planDue: Bool {
+        store.session(sessionID)?.archivable == true && context.connection.state == .online
+    }
+
+    @Sendable private func loadPlan() async {
+        guard planDue else { return }
+        try? await store.loadArchivePlan(sessionID)
+    }
+
+    private func reviewSheet(_ card: LandCard) -> some View {
+        LandReviewSheet(card: card, store: store, blocked: context.connection.blocked) { tip in
+            do {
+                try await store.land(sessionID, card: card, action: LandCard.merge, tip: tip)
+            } catch AnswerError.alreadyAnswered {
+                withAnimation { answeredElsewhere += 1 }
+            }
+        }
+    }
+
+    private func archiveSheet() -> some View {
+        ArchiveSheet(plan: store.archivePlans[sessionID], mac: context.connection.computer.name, unavailable: context.connection.queues) { plan, mode in
+            let (_, kept) = try await store.archive(sessionID, plan: plan, mode: mode)
+            if !kept.isEmpty { failure = kept.joined(separator: "\n") }
+        }
+        .task {
+            guard !context.connection.queues else { return }
+            do {
+                try await store.loadArchivePlan(sessionID)
+            } catch {
+                failure = Self.message(error)
+            }
         }
     }
 
@@ -384,7 +499,7 @@ struct SessionDetailView: View {
         let attached = attachments
         guard !text.isEmpty || !attached.isEmpty else { return }
         let typed = draft
-        let screen = SessionScreen(entries: store.entries(sessionID), session: store.session(sessionID))
+        let screen = SessionScreen(entries: store.entries(sessionID), session: store.session(sessionID), request: store.request(sessionID), repos: store.repos(sessionID))
         var answering: [OpenItem]?
         if answersGoWith(screen), case .open(let card) = screen.dock { answering = card.items }
         sending = true
@@ -415,6 +530,19 @@ struct SessionDetailView: View {
             return
         }
         sent += 1
+    }
+
+    private func run(_ action: ReposCard.Action, row: ReposCard.Row) {
+        switch action.kind {
+        case .session:
+            if let session = row.session { context.navigation.detail = session }
+        case .fix:
+            guard let path = row.path else { return }
+            perform { try await store.repoFix(sessionID, repo: path) }
+        case .leave:
+            guard let path = row.path else { return }
+            perform { try await store.repoLeave(sessionID, repo: path) }
+        }
     }
 
     private func perform(_ work: @escaping @MainActor () async throws -> Void) {
@@ -462,7 +590,9 @@ struct SessionHeader: View {
     static func subtitle(_ session: AgentSession, mac: MacTag?, mode: Bool = false) -> Text {
         let detail = [session.headerDetail, mode ? session.modeLabel ?? "" : ""].filter { !$0.isEmpty }.joined(separator: " · ")
         let open = session.openLabel.map { Text(" · ").foregroundStyle(.secondary) + Text($0).foregroundStyle(Color.warningInk) } ?? Text("")
-        return Text(session.headerState).foregroundStyle(session.state.needsYou ? Color.warning : session.openLabel != nil ? Color.successInk : .secondary)
+        let done = session.openLabel != nil || session.archivable
+        let tint = session.state.needsYou ? Color.warning : done ? Color.successInk : Color.secondary
+        return Text(session.headerState).foregroundStyle(tint)
             + open
             + (mac != nil || !detail.isEmpty ? Text(" · ") + mac.lead(detail) : Text("")).foregroundStyle(.secondary)
     }

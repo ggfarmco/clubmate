@@ -667,13 +667,16 @@
         "id": "agents.connect-answer",
         "title": "Answer a connect request",
         "hidden": true,
-        "description": "The user's answer to a connect request. A repo left out is skipped. One connect answers every pending request for that repo in the workspace. An agent gets an error; a request already answered gets one too.",
+        "remote": true,
+        "description": "The user's answer to a connect request. A repo left out is skipped. One connect answers every pending request for that repo in the workspace. An agent gets an error; a request already answered gets one too, and so does an answer whose seen no longer matches.",
         "args": {
           "properties": {
             "request": {"type": "string", "description": "Request id."},
             "answers": {"type": "array", "description": "Answers: {path (the repo's path, or its url when it has no path), action (connect|skip|other), otherPath?}.", "items": {"type": "object", "properties": {
               "path": {"type": "string"}, "action": {"type": "string"}, "otherPath": {"type": "string"}
-            }}}
+            }}},
+            "seen": {"type": "string", "description": "The seen of the card it answers: refused when the repos still waiting changed."},
+            "key": {"type": "string", "description": "Makes a resend safe: the same key returns the first success."}
           },
           "required": ["request"]
         }
@@ -682,6 +685,7 @@
         "id": "agents.folder-remove",
         "title": "Remove a folder from the workspace",
         "hidden": true,
+        "remote": true,
         "description": "Remove a folder from the workspace; never touches files, and pauses the Cron jobs that run in it. While a session of any workspace runs, waits or has queued prompts there, a task still lands there or it is the last folder it removes nothing and returns {removed: false, blockers, tasks, last}. Otherwise {removed: true, paused: [{id, name}]}; if the removal fails the jobs resume, and if Cron can't be read it removes nothing and fails.",
         "args": {
           "properties": {
@@ -724,7 +728,8 @@
         "id": "agents.archive-plan",
         "title": "What archiving a task does",
         "hidden": true,
-        "description": "What Archive task would do, read now, decided here. Only the user. {session, title, workspace, sessions, children, repos: [{name, path, session?, worktree: {action, title, why?, tone?}, branch: {same}, ifRemoved: {same}, anyway, lost?, seen?, closes?, summary, state}], cron: [{id, name, in}], cronUnread?, folders: [{path, name}], blockers, holds}. worktree action is remove, keep or none; branch action is delete, keep or none; ifRemoved is the branch step once Remove it anyway is ticked; anyway says it can be ticked; seen is what agents.archive must send back; blockers and holds refuse it.",
+        "remote": true,
+        "description": "What Archive task would do, read now, decided here. Only the user. {session, title, workspace, sessions, children, repos: [{name, path, session?, worktree: {action, title, why?, tone?}, branch: {same}, ifRemoved: {same}, anyway, lost?, seen?, closes?, summary, why?, whyTone?, state}], cron: [{id, name, in}], cronUnread?, folders: [{path, name}], blockers, holds, held?, seen}. worktree action is remove, keep or none; branch action is delete, keep or none; ifRemoved is the branch step once Remove it anyway is ticked; anyway says it can be ticked; a repo's seen is what agents.archive must send back; why is the one line a client shows under summary; blockers and holds refuse it, held says so; the plan's seen changes with anything the user decided on.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "The task's parent session."}
@@ -736,12 +741,15 @@
         "id": "agents.archive",
         "title": "Archive a task",
         "hidden": true,
+        "remote": true,
         "timeout": 600,
-        "description": "Close a task's sessions and remove what choices name. Only the user; refused while a child runs. A worktree goes only when named with the seen of agents.archive-plan, and anyway for one the plan keeps; empty choices is Close sessions only. A worktree that changed is kept. Returns {closed, removed, deleted, kept, paused}.",
+        "description": "Close a task's sessions and remove what choices name. Only the user; refused while a child runs. A worktree goes only when named with the seen of agents.archive-plan, and anyway for one the plan keeps; empty choices is Close sessions only. A worktree that changed is kept, a plan that changed since seen refuses it all, and through a plugin anyway and folder are refused. Returns {closed, removed, deleted, kept, paused}.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "The task's parent session."},
-            "choices": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "seen": {"type": "string"}, "anyway": {"type": "boolean"}, "folder": {"type": "boolean"}}}, "description": "Worktrees to remove, and folders to drop (folder true)."}
+            "choices": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "seen": {"type": "string"}, "anyway": {"type": "boolean"}, "folder": {"type": "boolean"}}}, "description": "Worktrees to remove, and folders to drop (folder true)."},
+            "seen": {"type": "string", "description": "The seen of the plan it answers: refused, with nothing done, when the plan changed."},
+            "key": {"type": "string", "description": "Makes a resend safe: the same key returns the first success."}
           },
           "required": ["session"]
         }
@@ -827,14 +835,29 @@
         }
       },
       {
+        "id": "agents.land-commits",
+        "title": "Commits a Land request would land",
+        "hidden": true,
+        "remote": true,
+        "description": "The commits of a waiting Land request up to the branch's live tip, newest first: {commits: [{sha, title}], more, tip, detail}, at most 50, more counting the rest; tip goes back to agents.land-answer. Only the user; an answered request gets the same error as agents.land-answer.",
+        "args": {
+          "properties": {
+            "request": {"type": "string", "description": "Request id."}
+          },
+          "required": ["request"]
+        }
+      },
+      {
         "id": "agents.land-answer",
         "title": "Answer a landing request",
         "hidden": true,
+        "remote": true,
         "description": "The user's answer to a Land request: review returns {session, worktree} and leaves the request open, merge prompts the child to land, leave records left, which holds what depends on the repo. An agent gets an error.",
         "args": {
           "properties": {
             "request": {"type": "string", "description": "Request id."},
-            "action": {"type": "string", "enum": ["review", "merge", "leave"], "description": "The answer."}
+            "action": {"type": "string", "enum": ["review", "merge", "leave"], "description": "The answer."},
+            "tip": {"type": "string", "description": "The tip the user saw: merge is refused when the branch moved."}
           },
           "required": ["request", "action"]
         }
@@ -843,6 +866,7 @@
         "id": "agents.repo-leave",
         "title": "Leave a repo unlanded",
         "hidden": true,
+        "remote": true,
         "description": "Record left for a repo of a task that hasn't landed: it frees the folder and holds what depends on it. An agent gets an error.",
         "args": {
           "properties": {
@@ -856,6 +880,7 @@
         "id": "agents.repo-fix",
         "title": "Ask a repo's child to fix its failure",
         "hidden": true,
+        "remote": true,
         "description": "Prompt the child of a failed repo with its failing tail. An agent gets an error.",
         "args": {
           "properties": {

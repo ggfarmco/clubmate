@@ -5,10 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"sync"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/gitrepo"
@@ -46,10 +49,14 @@ const (
 	archiveSummary    = "Worktree %s · branch %s"
 	archiveHeldRepo   = "%s hasn't finished"
 	archiveFolderKept = "%s stays in %s: %s."
+	archiveOpenOnMac  = "%s — open it on the Mac"
 	restoreStayedLine = "%s stayed closed: %s"
 )
 
 var (
+	errArchiveSeen = errors.New("this task changed since you saw the plan")
+	errArchiveMac  = errors.New("removing a worktree with work in it, or a folder, is done on the Mac")
+	errArchiveBusy = errors.New("this task is being archived")
 	errArchiveUser = errors.New("only the user archives a task")
 	errRestoreUser = errors.New("only the user restores a session")
 	errNoTask      = errors.New("this session has no task to archive")
@@ -76,6 +83,8 @@ type archiveRepo struct {
 	Closes    []string       `json:"closes,omitempty"`
 	Words     string         `json:"closesWords,omitempty"`
 	Summary   string         `json:"summary"`
+	Why       string         `json:"why,omitempty"`
+	WhyTone   string         `json:"whyTone,omitempty"`
 	State     folderWorktree `json:"state"`
 }
 
@@ -96,6 +105,10 @@ type archivePlan struct {
 	Folders    []archiveFolder `json:"folders"`
 	Blockers   []folderSession `json:"blockers"`
 	Holds      []string        `json:"holds"`
+	Held       string          `json:"held,omitempty"`
+	CronLines  []string        `json:"cronLines,omitempty"`
+	CronWarn   string          `json:"cronWarn,omitempty"`
+	Seen       string          `json:"seen"`
 }
 
 type archiveChoice struct {
@@ -108,6 +121,8 @@ type archiveChoice struct {
 type archiveArgs struct {
 	Session string          `json:"session"`
 	Choices []archiveChoice `json:"choices"`
+	Seen    string          `json:"seen"`
+	Key     string          `json:"key"`
 }
 
 type restoreStayed struct {
@@ -126,6 +141,28 @@ type archiveResult struct {
 	Closed int `json:"closed"`
 }
 
+type archiveClaims struct {
+	mu   sync.Mutex
+	held map[string]bool
+}
+
+func (c *archiveClaims) claim(session string) (func(), bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.held[session] {
+		return nil, false
+	}
+	if c.held == nil {
+		c.held = map[string]bool{}
+	}
+	c.held[session] = true
+	return func() {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		delete(c.held, session)
+	}, true
+}
+
 func (a *app) archivePlanCommand(ctx context.Context, cmd pluginsdk.CommandRun, s *session) (any, error) {
 	if !a.userWord(cmd) {
 		return nil, errArchiveUser
@@ -137,11 +174,26 @@ func (a *app) archiveCommand(ctx context.Context, cmd pluginsdk.CommandRun, args
 	if !a.userWord(cmd) {
 		return nil, errArchiveUser
 	}
-	s, err := a.lookup(cmd.WorkspaceID, args.Session)
-	if err != nil {
+	if err := refusedChoices(cmd, args.Choices); err != nil {
 		return nil, err
 	}
-	return a.archive(ctx, cmd.WorkspaceID, s, args.Choices, nil)
+	return a.once(ctx, cmd.WorkspaceID, args.Key, func() (any, error) {
+		s, err := a.lookup(cmd.WorkspaceID, args.Session)
+		if err != nil {
+			return nil, err
+		}
+		return a.archive(ctx, cmd.WorkspaceID, s, args.Choices, args.Seen, nil)
+	})
+}
+
+func refusedChoices(cmd pluginsdk.CommandRun, choices []archiveChoice) error {
+	if cmd.Via == "" {
+		return nil
+	}
+	if slices.ContainsFunc(choices, func(c archiveChoice) bool { return c.Anyway || c.Folder }) {
+		return errArchiveMac
+	}
+	return nil
 }
 
 func (a *app) archivePlan(ctx context.Context, workspaceID string, s *session) (archivePlan, error) {
@@ -206,12 +258,60 @@ func (a *app) archivePlan(ctx context.Context, workspaceID string, s *session) (
 		row.Branch = r.branchStep(wt, row.Worktree.Action == stepRemove)
 	}
 	for i := range plan.Repos {
-		plan.Repos[i].Summary = fmt.Sprintf(archiveSummary, stepWord(plan.Repos[i].Worktree), stepWord(plan.Repos[i].Branch))
+		r := &plan.Repos[i]
+		r.Summary = fmt.Sprintf(archiveSummary, stepWord(r.Worktree), stepWord(r.Branch))
+		r.Why, r.WhyTone = r.whyLine()
 	}
 	jobs, err := a.namedJobs(ctx, workspaceID, trees)
 	plan.Cron, plan.CronUnread = append(plan.Cron, jobs...), err != nil
 	plan.Folders = a.archiveFolders(ctx, w, rec, tree)
+	if held := refusedArchive(plan.Blockers, plan.Holds); held != nil {
+		plan.Held = held.Error()
+	}
+	plan.CronLines = plan.cronLines()
+	if plan.CronUnread {
+		plan.CronWarn = folderCronLost
+	}
+	plan.Seen = plan.digest()
 	return plan, nil
+}
+
+func (p archivePlan) cronLines() []string {
+	var out []string
+	for _, r := range p.Repos {
+		if r.Worktree.Action != stepRemove {
+			continue
+		}
+		for _, job := range jobsOf(p.Cron, r.State.Path) {
+			out = append(out, fmt.Sprintf(archiveCronRuns, job.Name, worktreeLabel(r.Path, r.State)))
+		}
+	}
+	return out
+}
+
+func (r archiveRepo) whyLine() (string, string) {
+	switch {
+	case r.Worktree.Tone != "" && r.Anyway:
+		return fmt.Sprintf(archiveOpenOnMac, r.Worktree.Why), r.Worktree.Tone
+	case r.Worktree.Tone != "":
+		return r.Worktree.Why, r.Worktree.Tone
+	}
+	return cmp.Or(r.Branch.Why, r.Worktree.Why), ""
+}
+
+func (p archivePlan) digest() string {
+	h := fnv.New64a()
+	fmt.Fprintln(h, p.Sessions, p.Holds, p.CronUnread)
+	for _, b := range p.Blockers {
+		fmt.Fprintln(h, b.Session)
+	}
+	for _, job := range p.Cron {
+		fmt.Fprintln(h, job.ID, job.In)
+	}
+	for _, r := range p.Repos {
+		fmt.Fprintln(h, r.Path, r.Seen, r.Worktree.Action, r.Branch.Action, r.Lost)
+	}
+	return strconv.FormatUint(h.Sum64(), 36)
 }
 
 func stepWord(step archiveStep) string {
@@ -350,10 +450,18 @@ func (a *app) archiveFolders(ctx context.Context, w pluginsdk.Workspace, rec rec
 	return out
 }
 
-func (a *app) archive(ctx context.Context, workspaceID string, s *session, choices []archiveChoice, done func(int)) (archiveResult, error) {
+func (a *app) archive(ctx context.Context, workspaceID string, s *session, choices []archiveChoice, seen string, done func(int)) (archiveResult, error) {
+	release, ok := a.archiving.claim(s.snapshot().ID)
+	if !ok {
+		return archiveResult{}, errArchiveBusy
+	}
+	defer release()
 	plan, err := a.archivePlan(ctx, workspaceID, s)
 	if err != nil {
 		return archiveResult{}, err
+	}
+	if seen != "" && seen != plan.Seen {
+		return archiveResult{}, errArchiveSeen
 	}
 	out := archiveResult{removalResult: newRemovalResult(), Closed: plan.Sessions}
 	rows, kept := plan.rows(choices)

@@ -75,6 +75,7 @@ var (
 	errLandUser     = errors.New("only the user answers a landing request")
 	errLandStale    = errors.New("this landing request was already answered")
 	errLandAction   = errors.New("action is review, merge or leave")
+	errLandMoved    = errors.New("this branch changed since you saw it")
 	errNotItsTurn   = errors.New("it isn't this repo's turn to land; report ready and wait for Clubmate's prompt")
 	errRepoSettled  = errors.New("this repo already landed or was left")
 )
@@ -93,6 +94,7 @@ type taskReportResult struct {
 type landAnswerArgs struct {
 	Request string `json:"request"`
 	Action  string `json:"action"`
+	Tip     string `json:"tip"`
 }
 
 type repoLeaveArgs struct {
@@ -209,6 +211,9 @@ func (a *app) answerLand(ctx context.Context, workspaceID string, args landAnswe
 		}
 		return out, nil
 	case landActionMerge:
+		if args.Tip != "" && args.Tip != a.liveTip(ctx, *r) {
+			return landReviewResult{}, errLandMoved
+		}
 		r.Request, r.State, r.LandPrompt, r.Since = "", landRunning, landPromptDue, time.Time{}
 	case landActionLeave:
 		r.release()

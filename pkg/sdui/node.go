@@ -200,6 +200,7 @@ type ConnectRepoProps struct {
 	Hint     string
 	Declined string
 	More     string
+	Seen     string
 	Repos    []ConnectRepoRow
 }
 
@@ -881,6 +882,8 @@ type ReposRow struct {
 	ID      string `json:"id"`
 	Order   int    `json:"order"`
 	Name    string `json:"name"`
+	Path    string `json:"path,omitempty"`
+	Session string `json:"session,omitempty"`
 	LandsBy string `json:"landsBy"`
 	Lands   string `json:"landsIcon,omitempty"`
 	Source  string `json:"source,omitempty"`
@@ -893,6 +896,7 @@ type ReposRow struct {
 	Tail    string `json:"tail,omitempty"`
 	Note    string `json:"note,omitempty"`
 	Actions string `json:"actions,omitempty"`
+	FoldKey string `json:"foldKey,omitempty"`
 }
 
 type ReposProps struct {
@@ -906,13 +910,14 @@ type ReposProps struct {
 	FooterAction string
 	Hint         string
 	Collapsed    bool
+	FoldKey      string
 	Action       string
 	RowAction    string
 }
 
 func Repos(id string, p ReposProps, actions ...Node) Node {
 	props := map[string]any{"title": p.Title, "summary": nonNil(p.Summary), "columns": nonNil(p.Columns), "rows": nonNil(p.Rows), "action": p.Action, "rowAction": p.RowAction}
-	for _, kv := range [][2]string{{"branch", p.Branch}, {"branchNote", p.BranchNote}, {"footer", p.Footer}, {"footerAction", p.FooterAction}, {"hint", p.Hint}} {
+	for _, kv := range [][2]string{{"branch", p.Branch}, {"branchNote", p.BranchNote}, {"footer", p.Footer}, {"footerAction", p.FooterAction}, {"hint", p.Hint}, {"foldKey", p.FoldKey}} {
 		props = withOptional(props, kv[0], kv[1])
 	}
 	if p.Collapsed {
@@ -931,7 +936,7 @@ func PermissionCard(id, request string, p PermissionCardProps) Node {
 
 func ConnectRepoCard(id, request string, p ConnectRepoProps) Node {
 	props := map[string]any{"request": request, "title": p.Title, "connect": p.Connect, "repos": nonNil(p.Repos)}
-	for _, kv := range [][2]string{{"caption", p.Caption}, {"effect", p.Effect}, {"hint", p.Hint}, {"declined", p.Declined}, {"more", p.More}} {
+	for _, kv := range [][2]string{{"caption", p.Caption}, {"effect", p.Effect}, {"hint", p.Hint}, {"declined", p.Declined}, {"more", p.More}, {"seen", p.Seen}} {
 		props = withOptional(props, kv[0], kv[1])
 	}
 	if len(p.Effects) > 0 {

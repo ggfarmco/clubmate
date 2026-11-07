@@ -54,6 +54,7 @@ type PluginError struct {
 	PluginID string
 	Method   string
 	Message  string
+	Reason   string
 }
 
 func NewRemoteError(e *jsonrpc2.Error) *RemoteError {
@@ -107,7 +108,9 @@ func toRPCError(err error) *jsonrpc2.Error {
 	}
 	out := &jsonrpc2.Error{Code: errorCode(err), Message: err.Error()}
 	if pe, ok := errors.AsType[*PluginError](err); ok {
-		out.SetError(contract.PluginErrorData{Plugin: pe.PluginID, Method: pe.Method, Message: pe.Message})
+		out.SetError(contract.PluginErrorData{Plugin: pe.PluginID, Method: pe.Method, Message: pe.Message, Reason: pe.Reason})
+	} else if errors.Is(err, workspace.ErrNotFound) {
+		out.SetError(contract.ErrorReason{Reason: contract.ReasonStale})
 	}
 	return out
 }

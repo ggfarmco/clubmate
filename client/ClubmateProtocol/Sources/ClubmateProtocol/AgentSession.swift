@@ -47,6 +47,12 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let openCount: Int
     public let openSince: Date?
     public let mayAsk: Bool
+    public let repo: String?
+    public let taskRows: [RepoRow]
+    public let taskBadge: String?
+    public let archivable: Bool
+    public let taskFinished: Bool
+    public let requests: [String]
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -57,7 +63,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         childStatus: AgentSessionStatus? = nil, pendingSummary: PendingSummary? = nil, question: String? = nil, turnStartedAt: Date? = nil, needsYou: Bool? = nil,
         needsYouSince: Date? = nil, activity: SessionActivity? = nil, failure: SessionFailure? = nil, reopen: FailureAction? = nil, modeLabel: String? = nil,
         autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false, group: SessionGroup? = nil, active: Bool = false, kind: String? = nil, run: SessionRun? = nil,
-        reviewProgress: ReviewProgress? = nil, openCount: Int = 0, openSince: Date? = nil, mayAsk: Bool = false
+        reviewProgress: ReviewProgress? = nil, openCount: Int = 0, openSince: Date? = nil, mayAsk: Bool = false,
+        repo: String? = nil, taskRows: [RepoRow] = [], taskBadge: String? = nil, archivable: Bool = false, taskFinished: Bool = false, requests: [String] = []
     ) {
         self.id = id
         self.workspace = workspace
@@ -105,6 +112,12 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.openCount = openCount
         self.openSince = openSince
         self.mayAsk = mayAsk
+        self.repo = repo
+        self.taskRows = taskRows
+        self.taskBadge = taskBadge
+        self.archivable = archivable
+        self.taskFinished = taskFinished
+        self.requests = requests
     }
 
     public var isClosed: Bool { status == .closed }
@@ -112,7 +125,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
-        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, active, kind, run, reviewProgress, openCount, openSince, mayAsk
+        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, active, kind, run, reviewProgress, openCount, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests
     }
 
     public init(from decoder: any Decoder) throws {
@@ -168,7 +181,13 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             reviewProgress: try? c.decodeIfPresent(ReviewProgress.self, forKey: .reviewProgress),
             openCount: try c.decodeIfPresent(Int.self, forKey: .openCount) ?? 0,
             openSince: date(.openSince),
-            mayAsk: try flag(.mayAsk)
+            mayAsk: try flag(.mayAsk),
+            repo: try optional(.repo),
+            taskRows: (try? c.decodeIfPresent([RepoRow].self, forKey: .taskRows)) ?? [],
+            taskBadge: try optional(.taskBadge),
+            archivable: try flag(.archivable),
+            taskFinished: try flag(.taskFinished),
+            requests: try c.decodeIfPresent([String].self, forKey: .requests) ?? []
         )
     }
 
@@ -222,7 +241,33 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encode(openCount, forKey: .openCount)
         try c.encodeIfPresent(openSince.map(formatter.string(from:)), forKey: .openSince)
         try c.encode(mayAsk, forKey: .mayAsk)
+        try c.encodeIfPresent(repo, forKey: .repo)
+        try c.encode(taskRows, forKey: .taskRows)
+        try c.encodeIfPresent(taskBadge, forKey: .taskBadge)
+        try c.encode(archivable, forKey: .archivable)
+        try c.encode(taskFinished, forKey: .taskFinished)
+        try c.encode(requests, forKey: .requests)
     }
+}
+
+public struct RepoRow: Codable, Sendable, Hashable, Identifiable {
+    public let name: String
+    public var path: String?
+    public var session: String?
+    public var word: String?
+    public var tone: String?
+    public var connect: Bool?
+
+    public init(name: String, path: String? = nil, session: String? = nil, word: String? = nil, tone: String? = nil, connect: Bool? = nil) {
+        self.name = name
+        self.path = path
+        self.session = session
+        self.word = word
+        self.tone = tone
+        self.connect = connect
+    }
+
+    public var id: String { path ?? name }
 }
 
 public struct ReviewProgress: Codable, Sendable, Hashable {
@@ -339,14 +384,18 @@ public struct PendingSummary: Codable, Sendable, Hashable {
     public let tool: String?
     public let role: String?
     public let onMac: Bool?
+    public let lead: String?
+    public let subject: String?
     public let at: Date
 
-    public init(kind: Kind, text: String, tool: String? = nil, role: String? = nil, onMac: Bool? = nil, at: Date) {
+    public init(kind: Kind, text: String, tool: String? = nil, role: String? = nil, onMac: Bool? = nil, lead: String? = nil, subject: String? = nil, at: Date) {
         self.kind = kind
         self.text = text
         self.tool = tool
         self.role = role
         self.onMac = onMac
+        self.lead = lead
+        self.subject = subject
         self.at = at
     }
 
@@ -355,7 +404,7 @@ public struct PendingSummary: Codable, Sendable, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case kind, text, tool, role, onMac, at
+        case kind, text, tool, role, onMac, lead, subject, at
     }
 
     public init(from decoder: any Decoder) throws {
@@ -367,6 +416,8 @@ public struct PendingSummary: Codable, Sendable, Hashable {
             tool: try c.decodeIfPresent(String.self, forKey: .tool).flatMap { $0.isEmpty ? nil : $0 },
             role: try c.decodeIfPresent(String.self, forKey: .role).flatMap { $0.isEmpty ? nil : $0 },
             onMac: try c.decodeIfPresent(Bool.self, forKey: .onMac),
+            lead: try c.decodeIfPresent(String.self, forKey: .lead).flatMap { $0.isEmpty ? nil : $0 },
+            subject: try c.decodeIfPresent(String.self, forKey: .subject).flatMap { $0.isEmpty ? nil : $0 },
             at: at ?? .distantPast
         )
     }
@@ -378,6 +429,8 @@ public struct PendingSummary: Codable, Sendable, Hashable {
         try c.encode(kind, forKey: .kind)
         try c.encode(text, forKey: .text)
         try c.encodeIfPresent(onMac, forKey: .onMac)
+        try c.encodeIfPresent(lead, forKey: .lead)
+        try c.encodeIfPresent(subject, forKey: .subject)
         try c.encodeIfPresent(tool, forKey: .tool)
         try c.encodeIfPresent(role, forKey: .role)
         try c.encode(formatter.string(from: at), forKey: .at)

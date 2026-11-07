@@ -15,6 +15,7 @@ import (
 	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
 	"clubmate/internal/workspace"
+	"clubmate/pkg/contract"
 )
 
 func TestBroadcastRunsEveryHandler(t *testing.T) {
@@ -57,6 +58,16 @@ func TestCommandRunPluginErrorCarriesPluginMethodAndMessage(t *testing.T) {
 	require.True(t, ok, "%v", err)
 	assert.Equal(t, "plugin beta command.run: unsaved buffers: a.go", remote.Message)
 	assert.JSONEq(t, `{"plugin":"beta","method":"command.run","message":"unsaved buffers: a.go"}`, string(remote.Data))
+}
+
+func TestAnUnknownWorkspaceSaysItIsStale(t *testing.T) {
+	h, _ := startHandlers(t, "")
+
+	err := h.Client(t).Call(t.Context(), "workspace.get", map[string]any{"id": "prj_0000000000000000"}, nil)
+
+	remote, ok := errors.AsType[*rpc.RemoteError](err)
+	require.True(t, ok, "%v", err)
+	assert.Equal(t, contract.ReasonStale, contract.ReasonIn(&remote.Data))
 }
 
 func startHandlers(t *testing.T, betaCanned string) (*testutil.PluginHarness, workspace.Workspace) {

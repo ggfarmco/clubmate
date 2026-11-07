@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -49,12 +51,14 @@ const (
 	connectAFKTitle    = "Connected %s while you were away"
 	connectOneFormat   = "Connect %s?"
 	connectManyFormat  = "Connect %d repos?"
+	connectWants       = "Wants to connect"
 )
 
 var (
 	errNeedsSession  = errors.New("this needs an agent session of Clubmate")
 	errConnectUser   = errors.New("only the user answers a connect request")
 	errConnectStale  = errors.New("this connect request was already answered")
+	errConnectSeen   = errors.New("this connect request changed since you saw it")
 	errConnectRepo   = errors.New("not a repo of this connect request")
 	errConnectAnswer = errors.New("an answer is connect, skip or other, and other needs otherPath")
 	errConnectOther  = errors.New("another folder must be a git repo on disk")
@@ -121,6 +125,8 @@ type connectedRepo struct {
 type connectAnswerArgs struct {
 	Request string       `json:"request"`
 	Answers []repoAnswer `json:"answers"`
+	Seen    string       `json:"seen"`
+	Key     string       `json:"key"`
 }
 
 type repoAnswer struct {
@@ -192,7 +198,9 @@ func (a *app) connectAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun
 	if !a.userWord(cmd) {
 		return nil, errConnectUser
 	}
-	return nil, a.answerConnect(ctx, cmd.WorkspaceID, args)
+	return a.once(ctx, cmd.WorkspaceID, args.Key, func() (any, error) {
+		return nil, a.answerConnect(ctx, cmd.WorkspaceID, args)
+	})
 }
 
 func (a *app) answerConnect(ctx context.Context, workspaceID string, args connectAnswerArgs) error {
@@ -205,6 +213,9 @@ func (a *app) answerConnect(ctx context.Context, workspaceID string, args connec
 	owner, req, ok := a.findConnect(workspaceID, args.Request)
 	if !ok || !req.waits() {
 		return errConnectStale
+	}
+	if args.Seen != "" && args.Seen != req.seen() {
+		return errConnectSeen
 	}
 	if err := req.check(answers); err != nil {
 		return err
@@ -673,6 +684,16 @@ func (r record) connectWaits() bool {
 	return r.turnEnded() && slices.ContainsFunc(r.ConnectRequests, connectRequest.waits)
 }
 
+func (r connectRequest) seen() string {
+	h := fnv.New64a()
+	for _, repo := range r.Repos {
+		if repo.State == repoPending {
+			fmt.Fprintln(h, repo.key(), repo.Note)
+		}
+	}
+	return strconv.FormatUint(h.Sum64(), 36)
+}
+
 func (r connectRequest) waits() bool {
 	return slices.ContainsFunc(r.Repos, func(repo connectRepo) bool { return repo.State == repoPending })
 }
@@ -703,11 +724,11 @@ func (r record) connectSummary() *pendingSummary {
 			}
 		}
 	}
-	text := fmt.Sprintf(connectManyFormat, len(repos))
+	text, subject := fmt.Sprintf(connectManyFormat, len(repos)), counted(len(repos), "repo")
 	if len(repos) == 1 {
-		text = fmt.Sprintf(connectOneFormat, repos[0])
+		text, subject = fmt.Sprintf(connectOneFormat, repos[0]), repos[0]
 	}
-	return &pendingSummary{Kind: pendingConnect, Text: text, At: at, OnMac: true}
+	return &pendingSummary{Kind: pendingConnect, Text: text, Lead: connectWants, Subject: subject, At: at, OnMac: true}
 }
 
 func stateOf(repos []connectRepo) []connectedRepo {

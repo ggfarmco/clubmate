@@ -54,7 +54,11 @@ struct EntryView: View {
         case .elicitation(let question):
             AskedRow(question: question)
         case .notice(let notice):
-            NoticeView(notice: notice)
+            if let afk = notice.afk {
+                AFKNoticeRow(notice: notice, afk: afk)
+            } else {
+                NoticeView(notice: notice)
+            }
         case .compaction(let compaction):
             CompactionView(compaction: compaction)
         case .openItems(let items):

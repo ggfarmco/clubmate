@@ -311,7 +311,7 @@ var (
 			required: []string{"request", "title", "connect", "repos"},
 			props: map[string]propCheck{
 				"request": isString, "title": isString, "caption": isString, "connect": isString, "effect": isString, "effects": listOf(connectEffectCheck),
-				"hint": isString, "declined": isString, "more": isString, "repos": listOf(connectRepoCheck), "dock": isBool, "action": actionCheck,
+				"hint": isString, "declined": isString, "more": isString, "seen": isString, "repos": listOf(connectRepoCheck), "dock": isBool, "action": actionCheck,
 			},
 			children:    noChildren,
 			interactive: true,
@@ -338,7 +338,7 @@ var (
 			required: []string{"title", "rows", "action", "rowAction"},
 			props: map[string]propCheck{
 				"title": isString, "summary": listOf(reposSegmentCheck), "branch": isString, "branchNote": isString, "columns": arrayOf(isString),
-				"rows": listOf(reposRowCheck), "footer": isString, "footerAction": isString, "hint": isString, "collapsed": isBool, "action": actionCheck, "rowAction": actionCheck,
+				"rows": listOf(reposRowCheck), "footer": isString, "footerAction": isString, "hint": isString, "foldKey": isString, "collapsed": isBool, "action": actionCheck, "rowAction": actionCheck,
 			},
 			children:    childRule{min: 0, max: -1, only: []string{"stack"}},
 			interactive: true,
@@ -778,9 +778,9 @@ func reposSegmentCheck(c *validator, v any) error {
 
 func reposRowCheck(c *validator, v any) error {
 	return objectCheck([]string{"id", "order", "name", "landsBy", "state"}, map[string]propCheck{
-		"id": isString, "order": countNumber, "name": isString, "landsBy": isString, "landsIcon": isString, "source": isString,
+		"id": isString, "order": countNumber, "name": isString, "path": isString, "session": isString, "landsBy": isString, "landsIcon": isString, "source": isString,
 		"state": isString, "tone": oneOf(badgeTones), "icon": isString, "opens": isBool, "open": isBool, "cursor": isBool,
-		"tail": isString, "note": isString, "actions": isString,
+		"tail": isString, "note": isString, "actions": isString, "foldKey": isString,
 	})(c, v)
 }
 

@@ -100,7 +100,7 @@ func connectCard(sc screen, req connectRequest) sdui.Node {
 	agent := agentLabel(rec.Agent)
 	repos := slices.DeleteFunc(slices.Clone(req.Repos), func(r connectRepo) bool { return r.State != repoPending })
 	single := len(repos) == 1
-	p := sdui.ConnectRepoProps{Title: fmt.Sprintf(connectTitleMany, len(repos)), Caption: fmt.Sprintf(connectCaptionMany, agent), Connect: connectLabel}
+	p := sdui.ConnectRepoProps{Title: fmt.Sprintf(connectTitleMany, len(repos)), Caption: fmt.Sprintf(connectCaptionMany, agent), Connect: connectLabel, Seen: req.seen()}
 	if single {
 		p.Title, p.Caption = connectTitleOne, fmt.Sprintf(connectCaptionOne, agent)
 	}

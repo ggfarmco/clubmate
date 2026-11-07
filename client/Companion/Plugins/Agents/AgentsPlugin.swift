@@ -102,6 +102,12 @@ struct SessionListView: View {
                     ConnectionBanner(connection: context.connection)
                 }
             }
+            ForEach(store.queue?.notes(computer: context.connection.computer.id) ?? []) { note in
+                Section {
+                    QueueNoteRow(note: note) { store.queue?.dismiss(note) }
+                        .listRowInsets(EdgeInsets())
+                }
+            }
             if store.searching {
                 ForEach(store.searchResults ?? []) { result in
                     SearchResultRow(result: result, session: store.session(result.session))
@@ -145,7 +151,7 @@ struct SessionListView: View {
     @ViewBuilder
     private var sections: some View {
         ForEach(store.groups, id: \.group) { group in
-            let items = group.sessions.flatMap { $0.rows(expanded: store.expanded) }
+            let items = group.sessions.flatMap { $0.rows(expanded: store.expanded, folded: store.foldedTasks) }
             let count = group.sessions.count
             if group.group.folds {
                 let open = unfolded.contains(group.group)
@@ -212,12 +218,14 @@ struct SessionListView: View {
         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
             let nestedBelow = index + 1 < items.count && items[index + 1].depth > 0
             HStack(spacing: 0) {
-                SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants, chevron: item.toggleCount == nil, open: store.openKinds(item.id))
+                if let repo = item.repo {
+                    PendingRepoRow(row: repo)
+                } else {
+                    SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants, chevron: item.toggleCount == nil, open: store.openKinds(item.id), taskRow: item.taskRow)
+                }
                 if let count = item.toggleCount {
                     SubagentToggle(count: count, expanded: item.expanded) {
-                        Motion.disclose {
-                            if item.expanded { store.expanded.remove(item.id) } else { store.expanded.insert(item.id) }
-                        }
+                        Motion.disclose { store.toggleTree(item) }
                     }
                 }
             }
@@ -225,6 +233,7 @@ struct SessionListView: View {
             .listRowSeparator(item.depth > 0 || wide ? .hidden : .automatic, edges: .top)
             .listRowSeparator(nestedBelow || wide ? .hidden : .automatic, edges: .bottom)
             .tag(item.id)
+            .selectionDisabled(item.repo != nil)
             .modifier(SelectedSessionRow(active: wide, selected: context.navigation.detail == item.id))
         }
     }
@@ -295,31 +304,44 @@ struct SessionRow: View {
     var waitingChildren = 0
     var chevron = false
     var open: OpenKinds?
+    var taskRow: RepoRow?
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { timeline in
             HStack(alignment: .top, spacing: 12) {
                 SessionGlyphView(glyph: session.glyph(waitingChildren: waitingChildren), size: depth > 0 ? 24 : 28)
                 VStack(alignment: .leading, spacing: 2) {
-                    if depth > 0 {
+                    if depth > 0, session.repo == nil {
                         Text(session.subagentLabel)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                     HStack(alignment: .top, spacing: 8) {
-                        Text(session.displayTitle)
-                            .font(.body.weight(session.glyph.needsYou ? .semibold : .regular))
-                            .foregroundStyle(session.isClosed ? .secondary : .primary)
-                            .lineLimit(2)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if depth > 0, let repo = session.repo {
+                            RepoName(name: repo, font: .body.weight(session.glyph.needsYou ? .semibold : .regular))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            Text(session.displayTitle)
+                                .font(.body.weight(session.glyph.needsYou ? .semibold : .regular))
+                                .foregroundStyle(session.isClosed ? .secondary : .primary)
+                                .lineLimit(2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                         if session.glyph == .open, let label = session.openLabel {
                             OpenCountChip(text: label)
                                 .frame(height: 22)
                         }
                     }
-                    StateLineText(line: session.stateLine(now: timeline.date, waitingChildren: waitingChildren, open: open))
-                        .font(.subheadline)
-                        .lineLimit(1)
+                    if let word = taskRow?.word {
+                        Text(word)
+                            .font(.subheadline)
+                            .foregroundStyle(taskRow?.tone.toneInk(default: .secondary) ?? .secondary)
+                            .lineLimit(1)
+                    } else {
+                        StateLineText(line: session.stateLine(now: timeline.date, waitingChildren: waitingChildren, open: open))
+                            .font(.subheadline)
+                            .lineLimit(1)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if chevron, session.glyph != .open {
@@ -423,6 +445,7 @@ struct SessionGlyphView: View {
 
     private var symbol: String {
         switch glyph {
+        case .connect: "folder.fill.badge.plus"
         case .permission: "hand.raised.fill"
         case .question: "questionmark.bubble.fill"
         case .step: "dollarsign"
@@ -439,7 +462,7 @@ struct SessionGlyphView: View {
 
     private var foreground: Color {
         switch glyph {
-        case .permission, .question, .step, .cap: Color.onWarning
+        case .connect, .permission, .question, .step, .cap: Color.onWarning
         case .childWaiting: Color.warningInk
         case .asksParent, .running, .review: .accentColor
         case .stopped: Color.dangerInk
@@ -450,7 +473,7 @@ struct SessionGlyphView: View {
 
     private var background: Color {
         switch glyph {
-        case .permission, .question, .step, .cap: Color.warning
+        case .connect, .permission, .question, .step, .cap: Color.warning
         case .childWaiting: Color.warning.opacity(0.18)
         case .asksParent, .running, .review: Color.accentColor.opacity(0.18)
         case .stopped: Color.dangerInk.opacity(0.18)

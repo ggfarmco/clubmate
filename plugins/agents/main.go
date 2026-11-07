@@ -58,6 +58,8 @@ type app struct {
 	connectMu  sync.Mutex
 	cloners    map[string]bool
 	landMu     sync.Mutex
+	onceLocks  onceLocks
+	archiving  archiveClaims
 	declareMu  sync.Mutex
 	nightMu    sync.Mutex
 	stopOnce   sync.Once
@@ -383,6 +385,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		if rec.Task != nil {
 			info.TaskSummary, _ = repoSummary(rec, kids[rec.ID])
 		}
+		info.withTask(kids[rec.ID])
 		if info.PendingSummary == nil && info.Asks && rec.Question != "" {
 			info.PendingSummary = &pendingSummary{Kind: pendingQuestion, Text: rec.Question, At: rec.UpdatedAt}
 		}

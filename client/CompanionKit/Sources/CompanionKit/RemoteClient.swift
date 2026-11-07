@@ -60,12 +60,34 @@ public struct Hello: Codable, Sendable, Equatable {
 }
 
 public struct Workspace: Codable, Sendable, Equatable, Identifiable, Hashable {
+    public struct Folder: Codable, Sendable, Equatable, Hashable {
+        public let path: String
+        public var seen: Bool?
+
+        public init(path: String, seen: Bool? = nil) {
+            self.path = path
+            self.seen = seen
+        }
+    }
+
     public let id: String
     public let name: String
+    public let folders: [Folder]?
 
-    public init(id: String, name: String) {
+    public init(id: String, name: String, folders: [Folder]? = nil) {
         self.id = id
         self.name = name
+        self.folders = folders
+    }
+
+    public var foldersLine: String? {
+        guard let count = folders?.count, count > 1 else { return nil }
+        return "\(count) folders"
+    }
+
+    public var newFolders: String? {
+        guard let count = folders?.count(where: { $0.seen == false }), count > 0 else { return nil }
+        return "+\(count)"
     }
 }
 
@@ -90,6 +112,7 @@ public actor RemoteClient {
     public private(set) var preferredHost: String?
 
     private static let rpcTimeout: TimeInterval = 20
+    private static let archiveTimeout: TimeInterval = 120
     public static let probeTimeout: TimeInterval = 4
     private static let streamIdleTimeout: TimeInterval = 45
     private static let unsentErrors: Set<URLError.Code> = [
@@ -131,7 +154,8 @@ public actor RemoteClient {
 
     public func rpc<T: Decodable & Sendable>(_ method: String, params: JSONValue? = nil, as type: T.Type) async throws -> T? {
         let body = try JSONEncoder().encode(RPCRequest(method: method, params: params))
-        let (data, response, _) = try await exchange(path: "/v1/rpc", method: "POST", body: body, probe: method == "hello")
+        let slow = params?["id"]?.stringValue == TaskCommand.archive
+        let (data, response, _) = try await exchange(path: "/v1/rpc", method: "POST", body: body, probe: method == "hello", timeout: slow ? Self.archiveTimeout : Self.rpcTimeout)
         if response.statusCode == 401 { throw RemoteError.unauthorized }
         guard let envelope = try? JSONDecoder.clubmate.decode(Envelope<T>.self, from: data) else {
             if let failure = (try? JSONDecoder().decode(Envelope<JSONValue>.self, from: data))?.error {
@@ -252,11 +276,11 @@ public actor RemoteClient {
         }
     }
 
-    private func exchange(path: String, method: String, body: Data, probe: Bool = false) async throws -> (Data, HTTPURLResponse, String) {
+    private func exchange(path: String, method: String, body: Data, probe: Bool = false, timeout rpc: TimeInterval = rpcTimeout) async throws -> (Data, HTTPURLResponse, String) {
         var lastError: (any Error)?
         let hosts = orderedHosts()
         for (index, host) in hosts.enumerated() {
-            let timeout = probe && index < hosts.count - 1 ? Self.probeTimeout : Self.rpcTimeout
+            let timeout = probe && index < hosts.count - 1 ? Self.probeTimeout : rpc
             var request = URLRequest(url: try url(host: host, path: path), timeoutInterval: timeout)
             request.httpMethod = method
             request.httpBody = body

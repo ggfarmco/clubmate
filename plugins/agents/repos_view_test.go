@@ -118,6 +118,24 @@ func TestCardIsFoldedUntilARepoFails(t *testing.T) {
 	assert.True(t, p.Rows[0].Open)
 }
 
+func TestCardOpensForALandRequestAndAFoldHoldsUntilTheNextOne(t *testing.T) {
+	t.Parallel()
+	a := repoRow("a", 1, landReady)
+	a.Request = "lr_1"
+	sc := reposScreen(a)
+	assert.False(t, cardProps(t, sc).Collapsed)
+
+	sc.Repos.Choice.toggleCard(*sc.View.Session.Task)
+	assert.True(t, cardProps(t, sc).Collapsed)
+
+	a.Request = "lr_2"
+	a.Since = time.Unix(100, 0)
+	choice := sc.Repos.Choice
+	sc = reposScreen(a)
+	sc.Repos.Choice = choice
+	assert.False(t, cardProps(t, sc).Collapsed)
+}
+
 func TestCursorStartsOnTheFailedRow(t *testing.T) {
 	t.Parallel()
 	sc := reposScreen(repoRow("a", 1, landMerged), repoRow("b", 2, landFailed))

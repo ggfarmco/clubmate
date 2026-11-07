@@ -13,6 +13,7 @@ import (
 	"github.com/sourcegraph/jsonrpc2"
 
 	"clubmate/internal/rpc"
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pprofdump"
 )
 
@@ -215,7 +216,7 @@ func callError(pluginID, method string, err error) error {
 	var rpcErr *jsonrpc2.Error
 	switch {
 	case errors.As(err, &rpcErr):
-		return &rpc.PluginError{PluginID: pluginID, Method: method, Message: rpcErr.Message}
+		return &rpc.PluginError{PluginID: pluginID, Method: method, Message: rpcErr.Message, Reason: contract.ReasonIn(rpcErr.Data)}
 	case errors.Is(err, jsonrpc2.ErrClosed), errors.Is(err, context.DeadlineExceeded):
 		return fmt.Errorf("%w: plugin %s %s: %w", ErrPluginUnavailable, pluginID, method, err)
 	}

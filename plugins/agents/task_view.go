@@ -324,7 +324,18 @@ func siblingButton(id, label, icon, key, target string) sdui.Node {
 
 func afkRow(sc screen, en *entry, n noticeUpdate) sdui.Node {
 	rec := sc.View.Session
+	card := afkContent(sc, en, n)
 	title := sdui.HStack(sdui.Markdown(fmt.Sprintf(afkRowTitle, n.Repo)), sdui.Badge(afkLabel, "neutral"))
+	row := []sdui.Node{sdui.Icon(afkIcon), sdui.VStack(title, sdui.MutedText(card.Detail)), sdui.Spacer()}
+	if card.Remove != "" {
+		button := sdui.WithAction(sdui.Button(rec.ID+"/"+removeNode+n.Path, card.Remove, ""), actFolderRemove)
+		row = append(row, sdui.WithVariant(button, sdui.VariantGhost))
+	}
+	return sdui.Card("", "", sdui.HStack(row...))
+}
+
+func afkContent(sc screen, en *entry, n noticeUpdate) afkCard {
+	rec := sc.View.Session
 	_, present := folderIn(sc.Folders, n.Path)
 	outcome := afkPRAtMost
 	if rec.Task != nil {
@@ -335,13 +346,11 @@ func afkRow(sc screen, en *entry, n noticeUpdate) sdui.Node {
 	if !present && sc.Workspace != "" {
 		outcome = fmt.Sprintf(afkRemoved, sc.Workspace)
 	}
-	detail := strings.Join(nonEmpty(clockOf(en.At), outcome), " · ")
-	row := []sdui.Node{sdui.Icon(afkIcon), sdui.VStack(title, sdui.MutedText(detail)), sdui.Spacer()}
+	card := afkCard{Detail: strings.Join(nonEmpty(clockOf(en.At), outcome), " · ")}
 	if present && sc.Workspace != "" {
-		button := sdui.WithAction(sdui.Button(rec.ID+"/"+removeNode+n.Path, fmt.Sprintf(afkRemove, sc.Workspace), ""), actFolderRemove)
-		row = append(row, sdui.WithVariant(button, sdui.VariantGhost))
+		card.Remove = fmt.Sprintf(afkRemove, sc.Workspace)
 	}
-	return sdui.Card("", "", sdui.HStack(row...))
+	return card
 }
 
 func clockOf(at time.Time) string {

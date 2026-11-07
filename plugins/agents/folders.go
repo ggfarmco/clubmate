@@ -76,6 +76,7 @@ type folderRemoveResult struct {
 	Last     bool            `json:"last,omitempty"`
 	Paused   []folderJob     `json:"paused,omitempty"`
 	Kept     []string        `json:"kept,omitempty"`
+	Held     string          `json:"held,omitempty"`
 }
 
 type folderImpactResult struct {
@@ -137,7 +138,11 @@ func (a *app) removeFolder(ctx context.Context, workspaceID, path string) (folde
 		return folderRemoveResult{}, fmt.Errorf("%w: %s", errNotFolder, path)
 	}
 	jobs, err := a.folderJobs(ctx, w, folder)
-	return a.dropFolder(ctx, w, folder, folderDrop{jobs: jobs, cronErr: err})
+	res, err := a.dropFolder(ctx, w, folder, folderDrop{jobs: jobs, cronErr: err})
+	if !res.Removed && (len(res.Blockers) > 0 || len(res.Tasks) > 0) {
+		res.Held = fmt.Sprintf(folderHeld, holdWords(folderHolds{blockers: res.Blockers, tasks: res.Tasks}))
+	}
+	return res, err
 }
 
 func (a *app) dropFolder(ctx context.Context, w pluginsdk.Workspace, folder string, drop folderDrop) (folderRemoveResult, error) {

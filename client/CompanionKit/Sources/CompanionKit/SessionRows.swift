@@ -3,6 +3,7 @@ import Foundation
 import ClubmateProtocol
 
 public enum SessionGlyph: Sendable, Equatable {
+    case connect
     case permission
     case question
     case step
@@ -17,7 +18,7 @@ public enum SessionGlyph: Sendable, Equatable {
     case closed
 
     public var needsYou: Bool {
-        self == .permission || self == .question || self == .step || self == .cap
+        self == .connect || self == .permission || self == .question || self == .step || self == .cap
     }
 }
 
@@ -50,6 +51,7 @@ extension AgentSession {
         if isClosed { return .closed }
         if isRun { return pending.contains { $0.hasPrefix(GraphRun.stepRequest) } ? .step : .cap }
         if needsYou {
+            if pendingSummary?.kind == .connect { return .connect }
             if pendingSummary?.kind == .question, pending.contains(where: AgentSession.isQuestion) { return .question }
             return status == .waiting || !pending.isEmpty || answersOnMac ? .permission : .question
         }
@@ -78,6 +80,11 @@ extension AgentSession {
     public func stateLine(now: Date, waitingChildren: Int = 0, open: OpenKinds? = nil) -> SessionStateLine {
         let age = { (date: Date) in ShortAge.since(date, now: now) }
         switch glyph(waitingChildren: waitingChildren) {
+        case .connect:
+            guard let summary = pendingSummary, let subject = summary.subject else {
+                return SessionStateLine(text: pendingSummary?.text ?? SessionState.waitingForYou.label, tone: .needsYou, age: pendingSummary.map { age($0.at) })
+            }
+            return SessionStateLine(lead: summary.lead, text: subject, tone: .primary, age: age(summary.at))
         case .step:
             if let role = pendingSummary?.role {
                 return SessionStateLine(lead: "\(role) wants to run", text: pendingSummary?.text ?? "", mono: true, tone: .primary)
@@ -133,16 +140,32 @@ extension SessionNode {
         session.glyph.needsYou || waitingDescendants > 0
     }
 
-    public func rows(expanded: Set<String>) -> [SessionRowItem] {
-        rows(depth: 0, expanded: expanded)
+    public func rows(expanded: Set<String>, folded: Set<String> = []) -> [SessionRowItem] {
+        rows(depth: 0, expanded: expanded, folded: folded, row: nil)
     }
 
-    private func rows(depth: Int, expanded: Set<String>) -> [SessionRowItem] {
-        let open = expanded.contains(id)
-        let shown = open ? children : children.filter(\.needsYouInTree)
-        let nested = shown.flatMap { $0.rows(depth: depth + 1, expanded: expanded) }
-        let hidden = open ? 0 : descendants - shown.reduce(0) { $0 + 1 + $1.descendants }
-        return [SessionRowItem(node: self, depth: depth, expanded: open, hidden: hidden)] + nested
+    var unstarted: [RepoRow] {
+        guard openTask else { return [] }
+        return session.taskRows.filter { row in row.session.map { id in !children.contains { $0.id == id } } ?? true }
+    }
+
+    private func pinned(_ row: RepoRow?) -> Bool {
+        row?.tone == "warning" || row?.tone == "danger"
+    }
+
+    var openTask: Bool {
+        !session.isClosed && !session.taskRows.isEmpty
+    }
+
+    private func rows(depth: Int, expanded: Set<String>, folded: Set<String>, row: RepoRow?) -> [SessionRowItem] {
+        let open = expanded.contains(id) || openTask && !folded.contains(id)
+        let repoRow = { (kid: SessionNode) in session.taskRows.first { $0.session == kid.id } }
+        let shown = open ? children : children.filter { $0.needsYouInTree || pinned(repoRow($0)) }
+        let nested = shown.flatMap { kid in kid.rows(depth: depth + 1, expanded: expanded, folded: folded, row: repoRow(kid)) }
+        let repos = unstarted.filter { open || pinned($0) }.map { SessionRowItem(node: self, depth: depth + 1, expanded: false, hidden: 0, repo: $0) }
+        let total = descendants + unstarted.count
+        let hidden = open ? 0 : total - repos.count - shown.reduce(0) { $0 + 1 + $1.descendants }
+        return [SessionRowItem(node: self, depth: depth, expanded: open, hidden: hidden, taskRow: row)] + nested + repos
     }
 }
 
@@ -151,12 +174,15 @@ public struct SessionRowItem: Sendable, Equatable, Identifiable {
     public let depth: Int
     public let expanded: Bool
     public let hidden: Int
+    public var repo: RepoRow?
+    public var taskRow: RepoRow?
 
-    public var id: String { node.id }
+    public var id: String { repo.map { node.id + "/" + $0.id } ?? node.id }
 
     public var toggleCount: Int? {
-        if node.children.isEmpty { return nil }
-        if expanded { return node.descendants }
+        let total = node.descendants + node.unstarted.count
+        if repo != nil || total == 0 { return nil }
+        if expanded { return total }
         return hidden > 0 ? hidden : nil
     }
 }
@@ -213,7 +239,7 @@ public struct NeedsYouItem: Sendable, Equatable, Identifiable {
             return session.askedQuestion ?? SessionState.askingYou.label
         default:
             guard let text = session.pendingSummary?.text, !text.isEmpty else { return "Waiting for your permission" }
-            return text + "?"
+            return session.answersOnMac ? text : text + "?"
         }
     }
 
@@ -225,6 +251,7 @@ public struct NeedsYouItem: Sendable, Equatable, Identifiable {
         if let command { return "wants to run \(command)" }
         if session.glyph == .cap { return session.pendingSummary.map { "\($0.text) · continue or stop" } ?? "waiting for you" }
         if session.glyph == .question { return session.askedQuestion.map { "asks: \($0)" } ?? "asking you" }
+        if let summary = session.pendingSummary, let lead = summary.lead, let subject = summary.subject { return lead.lowercased() + " " + subject }
         guard let text = session.pendingSummary?.text, !text.isEmpty else { return "waiting for you" }
         return "wants: \(text)"
     }

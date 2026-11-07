@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"clubmate/pkg/sdui"
 )
@@ -51,6 +52,7 @@ var (
 type reposScreenData struct {
 	Kids   map[string]record
 	Choice reposChoice
+	Phone  bool
 }
 
 type reposChoice struct {
@@ -72,7 +74,7 @@ func (c reposChoice) clone() reposChoice {
 }
 
 func (c reposChoice) collapsed(t taskRecord) bool {
-	key := t.failedKey()
+	key := t.cardKey()
 	if c.chosen && c.card == key {
 		return c.folded
 	}
@@ -80,11 +82,11 @@ func (c reposChoice) collapsed(t taskRecord) bool {
 }
 
 func (c *reposChoice) toggleCard(t taskRecord) {
-	c.chosen, c.folded, c.card = true, !c.collapsed(t), t.failedKey()
+	c.chosen, c.folded, c.card = true, !c.collapsed(t), t.cardKey()
 }
 
 func (c *reposChoice) openCard(t taskRecord) {
-	c.chosen, c.folded, c.card = true, false, t.failedKey()
+	c.chosen, c.folded, c.card = true, false, t.cardKey()
 }
 
 func (c reposChoice) rowOpen(r taskRepo) bool {
@@ -109,13 +111,13 @@ func (c reposChoice) current(t taskRecord) int {
 }
 
 func (r taskRepo) foldKey() string {
-	return r.State + "/" + r.Since.String()
+	return r.State + "/" + r.Since.UTC().Format(time.RFC3339Nano)
 }
 
-func (t taskRecord) failedKey() string {
+func (t taskRecord) cardKey() string {
 	var keys []string
 	for _, r := range t.Repos {
-		if r.State == landFailed {
+		if r.State == landFailed || r.Request != "" {
 			keys = append(keys, r.Path+"/"+r.foldKey())
 		}
 	}
@@ -189,6 +191,7 @@ func reposData(sc screen) (sdui.ReposProps, []sdui.Node) {
 		Footer:     task.footer(ranks),
 		Hint:       reposHintOpen,
 		Collapsed:  choice.collapsed(task),
+		FoldKey:    task.cardKey(),
 		Action:     actReposToggle,
 		RowAction:  actReposRow,
 	}
@@ -203,13 +206,13 @@ func reposData(sc screen) (sdui.ReposProps, []sdui.Node) {
 		id := repoRowID(r.Path)
 		rule, source := r.rule()
 		row := sdui.ReposRow{
-			ID: id, Order: ranks[r.Order], Name: r.Name, LandsBy: rule, Lands: landsByIcons[r.LandsBy], Source: source,
-			State: word, Tone: tone, Icon: icon, Cursor: i == cursor, Tail: strings.TrimRight(r.Tail, "\n"),
+			ID: id, Order: ranks[r.Order], Name: r.Name, Path: r.Path, Session: r.Session, LandsBy: rule, Lands: landsByIcons[r.LandsBy], Source: source,
+			State: word, Tone: tone, Icon: icon, Cursor: i == cursor, Tail: strings.TrimRight(r.Tail, "\n"), FoldKey: r.foldKey(),
 		}
 		bar, hasBar := repoBar(rec, task, i, kid, i == cursor)
 		row.Opens = hasBar || row.Tail != ""
 		row.Open = row.Opens && choice.rowOpen(r)
-		if row.Open && hasBar {
+		if hasBar && (row.Open || sc.Repos.Phone) {
 			row.Actions, row.Note = bar.ID, r.holdsNote(task, i)
 			bars = append(bars, bar)
 		}

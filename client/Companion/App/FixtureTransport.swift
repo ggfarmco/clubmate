@@ -203,6 +203,10 @@ actor FixtureServer {
                 transcripts[id] = ["entries": .array(entries)]
             }
         }
+        if TaskFixture.scene != nil, let template = sessions.first {
+            sessions = TaskFixture.sessions(template) { Self.stamp(ago: $0) }
+            transcripts[TaskFixture.owner] = TaskFixture.transcript { kind, id, text in Self.entry(kind, id, text: text) }
+        }
         self.sessions = sessions
         self.transcripts = transcripts
         tasks = (decode("backlog-tasks.json")["tasks"]?.arrayValue ?? []).enumerated().compactMap { index, value in
@@ -252,6 +256,15 @@ actor FixtureServer {
         } : []
     }
 
+    private func settleTask() {
+        guard let index = sessions.firstIndex(where: { $0["id"]?.stringValue == TaskFixture.owner }) else { return }
+        for key in ["pending", "requests", "pendingSummary", "needsYouSince", "taskBadge"] { sessions[index][key] = nil }
+        sessions[index]["needsYou"] = .bool(false)
+        sessions[index]["group"] = .string("done")
+        transcripts[TaskFixture.owner]?["request"] = nil
+        publish("agents.changed", ["workspace": .string(workspace), "session": .string(TaskFixture.owner)])
+    }
+
     func subscribe() -> AsyncThrowingStream<Data, any Error> {
         let (stream, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
         streams += 1
@@ -282,7 +295,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "graphs.show", "graphs.approve", "graphs.continue", "graphs.stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "graphs.show", "graphs.approve", "graphs.continue", "graphs.stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge"))])]))
         case "uiSections":
             return (200, Self.json(["result": uiSections]))
@@ -296,7 +309,7 @@ actor FixtureServer {
             return (200, Self.json(["result": .null]))
         case "workspaces":
             return (200, Self.json(["result": .array(mac.workspaces.map { item in
-                .object(["id": .string(item.id), "name": .string(item.name), "folders": .array([.object(["path": .string("/Users/me/src/" + item.name)])])])
+                .object(["id": .string(item.id), "name": .string(TaskFixture.scene == nil ? item.name : "ads"), "folders": .array(TaskFixture.scene == nil ? [.object(["path": .string("/Users/me/src/" + item.name)])] : TaskFixture.folders)])
             })]))
         case "macs":
             return (200, Self.json(["result": .null]))
@@ -383,6 +396,15 @@ actor FixtureServer {
                 finishPrompt(session, text: text)
             }
             return .null
+        case TaskCommand.landCommits:
+            return TaskFixture.commits
+        case TaskCommand.archivePlan:
+            return TaskFixture.archivePlan
+        case TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.archive, TaskCommand.repoFix, TaskCommand.repoLeave:
+            settleTask()
+            return .null
+        case TaskCommand.folderRemove:
+            return .object(["removed": .bool(true)])
         case "agents.permission":
             answer(session, request: args["request"]?.stringValue ?? "", option: args["option"]?.stringValue ?? "")
             return .null

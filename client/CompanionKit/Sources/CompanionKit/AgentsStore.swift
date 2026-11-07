@@ -41,6 +41,12 @@ public final class AgentsStore {
     private var outgoing: [String: [Outgoing]] = [:]
     private var elicitationDrafts: [String: [String: ElicitationDraft]] = [:]
     private var openDrafts: [String: OpenDraft] = [:]
+    private var connectDrafts: [String: ConnectDraft] = [:]
+    private var reposFolds: [String: ReposFold] = [:]
+    public private(set) var archivePlans: [String: ArchivePlan] = [:]
+    public var landLater: Set<String> = []
+    public private(set) var foldedTasks: Set<String> = []
+    private var foldedOnce: Set<String> = []
 
     public static let followInterval: Duration = .seconds(2)
     public static let imageCommand = "agents.image"
@@ -49,6 +55,10 @@ public final class AgentsStore {
     public static let searchDelay: Duration = .milliseconds(250)
 
     @ObservationIgnored private weak var runner: (any CommandRunner)?
+    @ObservationIgnored public let queue: ActionQueue?
+    @ObservationIgnored private let computer: String
+    @ObservationIgnored private let queues: @MainActor () -> Bool
+    @ObservationIgnored private let retry: @MainActor () -> Void
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
     @ObservationIgnored private var watched: [String: Int] = [:]
     @ObservationIgnored private var followers: [String: Task<Void, Never>] = [:]
@@ -57,9 +67,13 @@ public final class AgentsStore {
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private var watchedRuns: [String: Int] = [:]
 
-    public init(workspace: String, runner: any CommandRunner, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+    public init(workspace: String, runner: any CommandRunner, queue: ActionQueue? = nil, computer: String = "", queues: @escaping @MainActor () -> Bool = { false }, retry: @escaping @MainActor () -> Void = {}, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.workspace = workspace
         self.runner = runner
+        self.queue = queue
+        self.computer = computer
+        self.queues = queues
+        self.retry = retry
         self.sleep = sleep
     }
 
@@ -357,6 +371,155 @@ public final class AgentsStore {
         try await run("agents.elicitation", args)
         setElicitationDraft(ElicitationDraft(), session: session, request: request)
         await refreshSession(session)
+    }
+
+    public func request(_ session: String) -> RequestCard? {
+        guard let card = transcripts[session]?.request, self.session(session)?.requests.contains(card.request) == true else { return nil }
+        return card
+    }
+
+    public func repos(_ session: String) -> ReposCard? {
+        transcripts[session]?.repos
+    }
+
+    public func connectDraft(_ request: String) -> ConnectDraft {
+        connectDrafts[request] ?? ConnectDraft()
+    }
+
+    public func setConnectDraft(_ draft: ConnectDraft, request: String) {
+        connectDrafts[request] = draft
+    }
+
+    public func reposFold(_ session: String) -> ReposFold {
+        reposFolds[session] ?? ReposFold()
+    }
+
+    public func setReposFold(_ fold: ReposFold, session: String) {
+        reposFolds[session] = fold
+    }
+
+    public func answerConnect(_ session: String, card: ConnectCard, answers: [ConnectAnswer]) async throws -> Delivery {
+        let action = QueuedAction(computer: computer, workspace: workspace, session: session, kind: .connect, title: "Connect \(card.subject)", request: card.request, seen: card.seen, answers: answers)
+        if queues(), let queue {
+            queue.enqueue(action)
+            return .queued
+        }
+        if queue?.holdsAttempted(action) == true { return .queued }
+        try await ensureWaiting(session, request: card.request)
+        do {
+            guard try await deliver(action, TaskCommand.connectAnswer, action.connectArgs) != nil else { return .queued }
+        } catch RemoteError.server(ServerReason.answered, _) {
+            await refreshSession(session)
+            throw AnswerError.alreadyAnswered
+        }
+        connectDrafts[card.request] = nil
+        await refreshSession(session)
+        return .sent
+    }
+
+    public func land(_ session: String, card: LandCard, action: String, tip: String? = nil) async throws {
+        guard !queues() else { throw OfflineRefused() }
+        try await ensureWaiting(session, request: card.request)
+        var args: [String: JSONValue] = ["request": .string(card.request), "action": .string(action)]
+        if let tip { args["tip"] = .string(tip) }
+        do {
+            try await run(TaskCommand.landAnswer, args)
+        } catch RemoteError.server(ServerReason.answered, _) {
+            await refreshSession(session)
+            throw AnswerError.alreadyAnswered
+        }
+        await refreshSession(session)
+    }
+
+    public func landCommits(_ request: String) async throws -> LandCommits {
+        guard let runner else { throw RemoteError.badResponse }
+        return try await runner.command(TaskCommand.landCommits, workspace: workspace, args: .object(["request": .string(request)]), as: LandCommits.self)
+    }
+
+    public func repoFix(_ session: String, repo: String) async throws {
+        try await run(TaskCommand.repoFix, ["session": .string(session), "repo": .string(repo)])
+        await refreshSession(session)
+    }
+
+    public func repoLeave(_ session: String, repo: String) async throws {
+        try await run(TaskCommand.repoLeave, ["session": .string(session), "repo": .string(repo)])
+        await refreshSession(session)
+    }
+
+    public func loadArchivePlan(_ session: String) async throws {
+        guard let runner else { return }
+        archivePlans[session] = try await runner.command(TaskCommand.archivePlan, workspace: workspace, args: .object(["session": .string(session)]), as: ArchivePlan.self)
+    }
+
+    public func archive(_ session: String, plan: ArchivePlan, mode: ArchiveMode) async throws -> (Delivery, kept: [String]) {
+        let title = mode == .archive ? "Archive \(plan.title)" : "Close \(plan.title)"
+        let action = QueuedAction(computer: computer, workspace: workspace, session: session, kind: .archive, title: title, seen: plan.seen, choices: mode == .archive ? plan.choices : [])
+        if queues(), let queue {
+            queue.enqueue(action)
+            return (.queued, [])
+        }
+        if queue?.holdsAttempted(action) == true { return (.queued, []) }
+        guard let result = try await deliver(action, TaskCommand.archive, action.archiveArgs) else { return (.queued, []) }
+        archivePlans[session] = nil
+        await refreshSession(session)
+        return (.sent, result["kept"]?.arrayValue?.compactMap(\.stringValue) ?? [])
+    }
+
+    public func removeFolder(_ path: String) async throws -> String? {
+        guard let runner else { return nil }
+        let result = try await runner.command(TaskCommand.folderRemove, workspace: workspace, args: .object(["path": .string(path)]))
+        await refresh()
+        return result["held"]?.stringValue
+    }
+
+    private func deliver(_ action: QueuedAction, _ command: String, _ args: JSONValue) async throws -> JSONValue? {
+        guard let runner else { return .null }
+        do {
+            return try await runner.command(command, workspace: workspace, args: args)
+        } catch let error where Self.outcomeLost(error) && queue != nil {
+            var kept = action
+            kept.attempted = true
+            queue?.enqueue(kept)
+            Task { [sleep, retry] in
+                try? await sleep(Self.retryDelay)
+                retry()
+            }
+            return nil
+        }
+    }
+
+    private static func outcomeLost(_ error: any Error) -> Bool {
+        switch error as? RemoteError {
+        case .unreachable, .http: true
+        default: false
+        }
+    }
+
+    private static let retryDelay: Duration = .seconds(5)
+
+    private func ensureWaiting(_ session: String, request: String) async throws {
+        guard let runner else { return }
+        list.replace(try await runner.command(AgentCommand.sessions, workspace: workspace, args: .object(["session": .string(session)]), as: [AgentSession].self), for: session)
+        guard self.session(session)?.requests.contains(request) == true else {
+            await refreshSession(session)
+            throw AnswerError.alreadyAnswered
+        }
+    }
+
+    public func toggleTree(_ item: SessionRowItem) {
+        if item.expanded {
+            expanded.remove(item.id)
+            foldedTasks.insert(item.id)
+        } else {
+            foldedTasks.remove(item.id)
+            expanded.insert(item.id)
+        }
+    }
+
+    public func opened(_ session: String) {
+        guard self.session(session)?.taskFinished == true, foldedOnce.insert(session).inserted else { return }
+        expanded.remove(session)
+        foldedTasks.insert(session)
     }
 
     public func elicitationDraft(_ session: String, request: String) -> ElicitationDraft {

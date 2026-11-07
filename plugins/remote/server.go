@@ -448,6 +448,12 @@ func toAPIError(err error) apiError {
 		if rpcErr.Code == jsonrpcInvalid {
 			code = codeInvalidParams
 		}
+		if reason := contract.ReasonIn(rpcErr.Data); reason != "" {
+			code = reason
+		}
+		if pe, ok := pluginsdk.PluginErrorOf(err); ok {
+			return apiError{Code: code, Message: pe.Message}
+		}
 		return apiError{Code: code, Message: rpcErr.Message}
 	}
 	return apiError{Code: codeFailed, Message: err.Error()}

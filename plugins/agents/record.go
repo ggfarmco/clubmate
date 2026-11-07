@@ -110,6 +110,11 @@ type sessionInfo struct {
 	ReviewProgress  *reviewProgress `json:"reviewProgress,omitempty"`
 	Repo            string          `json:"repo,omitempty"`
 	TaskSummary     string          `json:"taskSummary,omitempty"`
+	TaskRows        []taskRow       `json:"taskRows,omitempty"`
+	TaskBadge       string          `json:"taskBadge,omitempty"`
+	Archivable      bool            `json:"archivable,omitempty"`
+	TaskFinished    bool            `json:"taskFinished,omitempty"`
+	Requests        []string        `json:"requests,omitempty"`
 }
 
 type sessionFailure struct {
@@ -125,12 +130,14 @@ type toolActivity struct {
 }
 
 type pendingSummary struct {
-	Kind  string    `json:"kind"`
-	Text  string    `json:"text"`
-	Tool  string    `json:"tool,omitempty"`
-	Role  string    `json:"role,omitempty"`
-	OnMac bool      `json:"onMac,omitempty"`
-	At    time.Time `json:"at"`
+	Kind    string    `json:"kind"`
+	Text    string    `json:"text"`
+	Tool    string    `json:"tool,omitempty"`
+	Role    string    `json:"role,omitempty"`
+	OnMac   bool      `json:"onMac,omitempty"`
+	Lead    string    `json:"lead,omitempty"`
+	Subject string    `json:"subject,omitempty"`
+	At      time.Time `json:"at"`
 }
 
 type sessionStore interface {

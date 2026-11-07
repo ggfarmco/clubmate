@@ -179,7 +179,7 @@ func (s *archiveSheet) branchStep(r archiveRepo) archiveStep {
 func (a *app) finishArchive(workspaceID string, sheet *archiveSheet, choices []archiveChoice) {
 	ctx, cancel := context.WithTimeout(context.Background(), folderRemoveTimeout)
 	defer cancel()
-	res, err := a.archive(ctx, workspaceID, sheet.session, choices, nil)
+	res, err := a.archive(ctx, workspaceID, sheet.session, choices, "", nil)
 	p := a.workspaceState(workspaceID)
 	a.uiMu.Lock()
 	switch {
@@ -452,8 +452,12 @@ func stepLines(step archiveStep) []sdui.Node {
 	return []sdui.Node{title, why}
 }
 
+func archivableNow(rec record) bool {
+	return ownsTask(rec) && rec.Task.archivable() && !rec.closed() && !turnActive(rec)
+}
+
 func reposArchiveFooter(rec record, kids map[string]record) (string, sdui.Node, bool) {
-	if !rec.Task.archivable() || rec.closed() || turnActive(rec) || !ownsTask(rec) {
+	if !archivableNow(rec) {
 		return "", sdui.Node{}, false
 	}
 	left := 0

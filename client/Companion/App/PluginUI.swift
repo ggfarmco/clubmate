@@ -71,12 +71,17 @@ struct WorkspaceChrome: ViewModifier {
     let context: PluginContext
     let title: String
 
+    private var presence: String {
+        let workspace = context.navigation.workspace(for: context.connection)
+        return [context.connection.presence, workspace?.foldersLine, workspace?.newFolders].compactMap { $0 }.joined(separator: " · ")
+    }
+
     func body(content: Content) -> some View {
         if context.navigation.layout == .compact {
             content
                 .navigationTitle(title)
-                .navigationSubtitle("\(context.connection.computer.name) · \(context.connection.presence)")
-                .toolbar { MacSubtitle(text: context.model.tag(context.connection.computer.id)?.lead(context.connection.presence)) }
+                .navigationSubtitle("\(context.connection.computer.name) · \(presence)")
+                .toolbar { MacSubtitle(text: context.model.tag(context.connection.computer.id)?.lead(presence)) }
         } else {
             content
                 .navigationTitle(title)

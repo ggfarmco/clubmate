@@ -85,6 +85,7 @@ var (
 		"agents.task":           withArgs((*app).taskCommand),
 		"agents.task-report":    withArgs((*app).taskReportCommand),
 		"agents.land-answer":    withArgs((*app).landAnswerCommand),
+		"agents.land-commits":   withArgs((*app).landCommitsCommand),
 		"agents.repo-leave":     withArgs((*app).repoLeaveCommand),
 		"agents.repo-fix":       withArgs((*app).repoFixCommand),
 	}
@@ -253,7 +254,17 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", errUnknownCmd, cmd.ID)
 	}
-	return run(a, ctx, cmd)
+	out, err := run(a, ctx, cmd)
+	return out, withReason(err)
+}
+
+func withReason(err error) error {
+	for reason, kinds := range refusals {
+		if slices.ContainsFunc(kinds, func(kind error) bool { return errors.Is(err, kind) }) {
+			return pluginsdk.WithReason(reason, err)
+		}
+	}
+	return err
 }
 
 func withArgs[T any](fn func(*app, context.Context, pluginsdk.CommandRun, T) (any, error)) commandFunc {
@@ -457,11 +468,12 @@ func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 	v := s.viewSince(args.FromTurn, since)
 	v.Delta = delta
 	if !cmd.Agent {
-		name := ""
-		if w, err := a.host.GetWorkspace(ctx, cmd.WorkspaceID); err == nil {
-			name = w.Name
+		w, err := a.host.GetWorkspace(ctx, cmd.WorkspaceID)
+		if err != nil {
+			w = pluginsdk.Workspace{}
 		}
-		withPermissionContent(v.Session, v.Entries, name)
+		withPermissionContent(v.Session, v.Entries, w.Name)
+		a.withTaskContent(&v, w)
 	}
 	if args.Last {
 		v = v.lastTurn()

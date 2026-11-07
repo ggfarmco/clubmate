@@ -31,7 +31,7 @@ struct CompanionApp: App {
         let policy = HostPolicy.tailnet
         let transport = URLSessionTransport()
         #endif
-        let model = CompanionModel(store: store, transport: transport, device: device, policy: policy, cursors: .standard)
+        let model = CompanionModel(store: store, transport: transport, device: device, policy: policy, cursors: .standard, queueFile: support.appending(path: "queue.json"))
         let navigation = AppNavigation()
         let notifier = LocalNotifier()
         let voice = VoiceSession(runner: { model.connection($0) }, source: VoiceCapture(), target: { navigation.voiceTarget(model) })
