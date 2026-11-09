@@ -18,7 +18,7 @@ struct TextNodeView: View {
     @Environment(\.theme) private var theme
 
     private var lines: Int? {
-        node.props["lines"]?.numberValue.flatMap { Int(exactly: $0) }.flatMap { $0 >= 2 ? min($0, 50) : nil }
+        node.props["lines"]?.numberValue.flatMap { Int(exactly: $0) }.flatMap { $0 >= 1 ? min($0, 50) : nil }
     }
 
     var body: some View {
@@ -59,6 +59,13 @@ struct TextNodeView: View {
             .font(theme.ui)
             .foregroundStyle(color)
             .help(text)
+        } else if lines == 1 {
+            Text(text)
+                .font(theme.ui)
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .help(text)
         } else if let lines {
             ClampedText(text: text, lines: lines, color: color)
         } else {
@@ -112,6 +119,17 @@ private struct ClampedText: View {
                 .onHover { hovering = $0 }
             }
         }
+    }
+}
+
+struct DividerNodeView: View {
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Rectangle()
+            .fill(theme.border)
+            .frame(height: 1)
+            .frame(maxWidth: .infinity)
     }
 }
 

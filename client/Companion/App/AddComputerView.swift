@@ -24,7 +24,7 @@ struct AddComputerView: View {
                             .font(.title2.bold())
                         Text("In Clubmate on your Mac, open Settings → Devices and choose Pair Device… Both devices must be on the same Tailscale network.")
                             .font(.callout)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                             .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)

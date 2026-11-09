@@ -63,7 +63,7 @@ struct ConnectRepoCard: View {
             ForEach(card.effects ?? []) { effect in
                 Text(PlainMarkdown.attributed([effect.text, effect.note].compactMap { $0 }.joined(separator: " · ")))
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -77,7 +77,7 @@ struct ConnectRepoCard: View {
                     HStack(alignment: .top, spacing: 12) {
                         Image(systemName: draft.unticked.contains(repo.key) ? "circle" : "checkmark.circle.fill")
                             .font(.title3)
-                            .foregroundStyle(draft.unticked.contains(repo.key) ? Color.secondary : Color.accentColor)
+                            .foregroundStyle(draft.unticked.contains(repo.key) ? Color.captionInk : Color.accentColor)
                             .frame(height: 28)
                         VStack(alignment: .leading, spacing: 4) {
                             RepoName(name: repo.name, font: .headline)
@@ -86,13 +86,13 @@ struct ConnectRepoCard: View {
                             if let lands = repo.landsBy {
                                 Text("Lands by \(Text(lands).fontWeight(.semibold))\(repo.source.map { " · " + $0 } ?? "")")
                                     .font(.footnote)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.captionInk)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                             if let brings = repo.brings {
                                 Text(PlainMarkdown.attributed([brings, repo.trust].compactMap { $0 }.joined(separator: " · ")))
                                     .font(.footnote)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.captionInk)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
@@ -108,7 +108,7 @@ struct ConnectRepoCard: View {
                 Button { Motion.disclose { draft.unfolded = true } } label: {
                     Label(more, systemImage: "chevron.down")
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .frame(minHeight: 44)
                         .contentShape(.rect)
                 }
@@ -117,7 +117,7 @@ struct ConnectRepoCard: View {
             if let effect = card.effect {
                 Text(PlainMarkdown.attributed(effect))
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .padding(.top, 4)
             }
         }
@@ -128,14 +128,14 @@ struct ConnectRepoCard: View {
         if let path = repo.path {
             Text(path)
                 .font(.subheadline.monospaced())
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
         if !repo.facts.isEmpty {
             Text(repo.facts)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
                 .lineLimit(2)
         }
         if repo.warn == true, let state = repo.state {
@@ -150,7 +150,7 @@ struct ConnectRepoCard: View {
         if let reason = repo.reason {
             Text(verbatim: "“" + reason + "”")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.leading, 10)
                 .overlay(alignment: .leading) {
@@ -182,16 +182,16 @@ struct ConnectRepoCard: View {
             if !card.single, let declined = card.declined {
                 Text(declined)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             Text(ConnectCard.footnote)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
             if let blocked, !canQueue {
                 Text(blocked)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
             }
         }
         .opacity(blocked == nil || canQueue ? 1 : 0.5)
@@ -218,7 +218,7 @@ struct RepoName: View {
         HStack(spacing: 8) {
             Image(systemName: "folder")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
             Text(name)
                 .font(font)
                 .lineLimit(1)
@@ -235,13 +235,13 @@ struct QueuedLine: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: item.attempted || item.failure != nil ? "exclamationmark.circle" : "clock")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.line(queued: queuedLine))
                     .font(.subheadline.weight(.semibold))
                 Text(item.detail)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -304,7 +304,7 @@ struct LandDock: View {
                 if let blocked {
                     Text(blocked)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                 }
             }
         }
@@ -333,7 +333,7 @@ struct LandReviewSheet: View {
                     if let rule = card.rule {
                         Text(rule)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                     }
                     commitList
                 }
@@ -357,7 +357,7 @@ struct LandReviewSheet: View {
                     if let message = blocked ?? failure {
                         Text(message)
                             .font(.footnote)
-                            .foregroundStyle(failure != nil ? Color.danger : .secondary)
+                            .foregroundStyle(failure != nil ? Color.danger : Color.captionInk)
                     }
                 }
                 .padding()
@@ -394,7 +394,7 @@ struct LandReviewSheet: View {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
                         Text(commit.sha)
                             .font(.footnote.monospaced())
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                         Text(verbatim: commit.title)
                             .font(.subheadline)
                             .lineLimit(2)
@@ -406,7 +406,7 @@ struct LandReviewSheet: View {
                 if let more = commits.more, more > 0 {
                     Text("\(more) more")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
                 }
@@ -465,7 +465,7 @@ struct ReposCardView: View {
             if !fold.collapsed(card), let footer = card.footer {
                 Text(footer)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .padding(.horizontal, 4)
             }
             if let label = card.archive {
@@ -481,7 +481,7 @@ struct ReposCardView: View {
         Button(action: toggleCard) {
             HStack(spacing: 12) {
                 Image(systemName: "folder")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                 Text(card.title)
                     .font(.headline)
                     .foregroundStyle(.primary)
@@ -493,7 +493,7 @@ struct ReposCardView: View {
                 } else if card.ordered {
                     Text("lands in order")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                 }
             }
             .padding(.horizontal, 14)
@@ -505,7 +505,7 @@ struct ReposCardView: View {
 
     private var segments: Text {
         card.summary.enumerated().reduce(Text("")) { line, item in
-            line + Text(item.offset > 0 ? " · " : "").foregroundStyle(.secondary) + Text(item.element.text).foregroundStyle(item.element.tone.toneInk(default: .secondary))
+            line + Text(item.offset > 0 ? " · " : "").foregroundStyle(Color.captionInk) + Text(item.element.text).foregroundStyle(item.element.tone.toneInk(default: Color.captionInk))
         }
     }
 
@@ -515,14 +515,14 @@ struct ReposCardView: View {
                 HStack(spacing: 12) {
                     Text("\(row.order)")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .frame(width: 28, height: 28)
                         .overlay(Circle().strokeBorder(Color(.tertiaryLabel), lineWidth: 1))
                     VStack(alignment: .leading, spacing: 2) {
                         RepoName(name: row.name, font: .body.weight(.semibold))
                         Text(row.state)
                             .font(.subheadline)
-                            .foregroundStyle(row.tone.toneInk(default: .secondary))
+                            .foregroundStyle(row.tone.toneInk(default: Color.captionInk))
                             .lineLimit(1)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -554,7 +554,7 @@ struct ReposCardView: View {
             if let note = row.note {
                 Text(note)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
             }
             ForEach(row.buttons) { action in
                 Group {
@@ -584,7 +584,7 @@ struct ReposCardView: View {
             if let blocked {
                 Text(blocked)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
             }
         }
     }
@@ -622,7 +622,7 @@ struct ArchiveSheet: View {
                     content(plan)
                 } else if unavailable {
                     Text("\(mac) is offline, and this phone hasn't seen what Archive would do. Open this task again when the Mac is back.")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                     PlainCapsule(title: "Cancel", tint: .primary) { dismiss() }
                 } else {
                     ProgressView()
@@ -641,7 +641,7 @@ struct ArchiveSheet: View {
     @ViewBuilder
     private func content(_ plan: ArchivePlan) -> some View {
         Text(plan.lead)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.captionInk)
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(plan.repos.enumerated()), id: \.element.id) { index, repo in
                 if index > 0 { Divider() }
@@ -649,7 +649,7 @@ struct ArchiveSheet: View {
                     RepoName(name: repo.name, font: .headline)
                     Text(repo.summary)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                     if let why = repo.why {
                         Text(why)
                             .font(.subheadline)
@@ -664,7 +664,7 @@ struct ArchiveSheet: View {
         ForEach(plan.cronLines ?? [], id: \.self) { line in
             Label(line, systemImage: "clock")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
         }
         if let warning = plan.cronWarn {
             Label(warning, systemImage: "exclamationmark.triangle")
@@ -673,7 +673,7 @@ struct ArchiveSheet: View {
         }
         Text(plan.rule(mac: mac))
             .font(.footnote)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.captionInk)
         if let message = failure ?? plan.held {
             Text(message)
                 .font(.footnote)
@@ -718,14 +718,14 @@ struct QueueNoteRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "exclamationmark.circle")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
             Text(note.text)
                 .font(.footnote)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button(action: dismiss) {
                 Image(systemName: "xmark")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .frame(width: 44, height: 44)
                     .contentShape(.rect)
             }
@@ -755,7 +755,7 @@ struct AFKNoticeRow: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "folder.badge.plus")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .frame(height: 22)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
@@ -764,14 +764,14 @@ struct AFKNoticeRow: View {
                             .fixedSize(horizontal: false, vertical: true)
                         Text("AFK")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(Color.surface2, in: .capsule)
                     }
                     Text(afk.detail)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                 }
             }
             if let label = afk.remove, let remove, let path = notice.path {
@@ -801,7 +801,7 @@ struct PendingRepoRow: View {
                 RepoName(name: row.name)
                 Text(row.word ?? "")
                     .font(.subheadline)
-                    .foregroundStyle(row.tone.toneInk(default: .secondary))
+                    .foregroundStyle(row.tone.toneInk(default: Color.captionInk))
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -87,6 +87,15 @@ struct SDUIGalleryScreen: View {
         {"type": "text", "props": {"text": "Paused"}}]},
       {"type": "select", "id": "missed", "props": {"value": "run", "action": "missed", "options": [{"value": "run", "label": "Run once"}, {"value": "skip", "label": "Skip"}]}},
       {"type": "folderField", "id": "roots", "props": {"label": "Roots", "values": ["~/develop/clubmate", "~/develop/norimori/ggfarmco/clubmate-notes/superpowers"]}},
+      {"type": "stack", "id": "rules", "props": {"direction": "vertical"}, "children": [
+        {"type": "divider"},
+        {"type": "text", "props": {"lines": 1, "text": "lines 1: Workspace is set only by the Always allow path. Say so in a comment, or the next reader will set it for Allow once too."}},
+        {"type": "stack", "props": {"direction": "horizontal"}, "children": [
+          {"type": "text", "props": {"text": "node.go:23", "style": "muted"}},
+          {"type": "text", "props": {"lines": 1, "text": "Workspace is set only by the Always allow path. Say so in a comment."}},
+          {"type": "spacer"},
+          {"type": "text", "props": {"text": "open", "style": "muted"}}]},
+        {"type": "divider"}]},
       {"type": "text", "props": {"lines": 2, "text": "Review the open pull requests in this repository, summarise what each one changes, flag anything that touches the release scripts or the signing setup, and post the summary to the team channel before 10:00 so the morning stand-up can go through it."}},
       {"type": "diff", "props": {"text": "--- a/cart.go\\n+++ b/cart.go\\n@@ -1,6 +1,6 @@\\n package cart\\n \\n-func Total(items []Item) int {\\n-\\ttotal := 0; for _, it := range items { total += it.Price }\\n+func Total(items []Item) int {\\n+\\ttotal := cartTotal(items)\\n \\treturn total\\n }\\n"}},
       {"type": "plan", "props": {"entries": [{"content": "Extract cartTotal", "status": "completed"}, {"content": "Add a test", "status": "in_progress"}, {"content": "Run the tests", "status": "pending"}]}},

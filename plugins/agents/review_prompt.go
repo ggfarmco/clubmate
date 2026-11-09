@@ -153,7 +153,7 @@ func reviewCard(sc screen, en *entry) sdui.Node {
 		if !ok {
 			g.glyph, g.tone = "○", "neutral"
 		}
-		row := sdui.HStack(sdui.WithTone(sdui.Text(g.glyph), g.tone), sdui.MutedText(commentPlace(c, false)), sdui.Text(firstLine(c.Text)), sdui.Spacer(), sdui.MutedText(commentState(states[c.ID], sc.View.Session.Status)))
+		row := sdui.HStack(sdui.WithTone(sdui.Text(g.glyph), g.tone), sdui.MutedText(commentPlace(c, false)), sdui.WithLines(sdui.Text(firstLine(c.Text)), 1), sdui.Spacer(), sdui.MutedText(commentState(states[c.ID], sc.View.Session.Status)))
 		row.ID = fmt.Sprintf("%s/review/%s/c%d", sid, en.ID, c.ID)
 		children = append(children, row)
 	}

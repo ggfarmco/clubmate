@@ -89,17 +89,17 @@ struct UserBubble: View {
             if fromAgent {
                 Label("From another agent", systemImage: "sparkles")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
             }
             if omitted > 0 {
                 Label(omitted == 1 ? "1 image" : "\(omitted) images", systemImage: "photo.on.rectangle")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
             }
             ForEach(Array(files.enumerated()), id: \.offset) { _, name in
                 Label(name, systemImage: "doc")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -154,7 +154,7 @@ struct VoicePromptRow: View {
                         .truncationMode(.tail)
                     Image(systemName: "chevron.right")
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .rotationEffect(.degrees(expanded ? 90 : 0))
                 }
                 .padding(.horizontal, 14)
@@ -169,7 +169,7 @@ struct VoicePromptRow: View {
                 ScrollView {
                     Text(prompt.json)
                         .font(.footnote.monospaced())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(12)
@@ -208,7 +208,7 @@ private struct UserText: View {
                 } label: {
                     Text(expanded ? "Show less" : long.lines > LongMessage.previewLines ? "Show all \(long.lines) lines" : "Show all")
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .frame(minHeight: 32)
                         .contentShape(.rect)
                 }
@@ -283,7 +283,7 @@ private struct MentionedDocs: View {
                         .rotationEffect(.degrees(expanded ? 90 : 0))
                 }
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
                 .padding(.horizontal, 14)
                 .frame(minHeight: 44)
                 .background(Color.surface2, in: .capsule)
@@ -328,13 +328,13 @@ private struct DocCardButton: View {
                             .truncationMode(.middle)
                     }
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
                 Image(systemName: "arrow.up.forward.square")
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
             }
             .padding(12)
             .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
@@ -405,7 +405,7 @@ struct MarkdownView: View {
                     }
                 case .quote(let text):
                     Text(inline(text))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .padding(.leading, 12)
                         .overlay(alignment: .leading) {
                             Capsule().fill(.quaternary).frame(width: 3)
@@ -447,7 +447,7 @@ private struct MarkdownTable: View {
                     ForEach(Array(header.enumerated()), id: \.offset) { column, text in
                         cell(text, column)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                             .gridColumnAlignment(alignment(column))
                     }
                 }
@@ -585,7 +585,7 @@ struct ThoughtView: View {
                     Text(title)
                 }
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
                 .frame(minHeight: 32)
                 .contentShape(.rect)
             }
@@ -593,7 +593,7 @@ struct ThoughtView: View {
             if expanded {
                 Text(text)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -612,7 +612,7 @@ struct CompactionView: View {
     var body: some View {
         let label = Label(compaction.title, systemImage: "arrow.down.right.and.arrow.up.left")
             .font(.callout)
-            .foregroundStyle(compaction.status == "failed" ? .red : .secondary)
+            .foregroundStyle(compaction.status == "failed" ? .red : Color.captionInk)
         if detail.isEmpty {
             label
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -637,7 +637,7 @@ struct CompactionView: View {
                 if expanded {
                     Text(detail)
                         .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -690,7 +690,7 @@ struct ToolLine: View {
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: tool.kind.symbol)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .frame(width: 20)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(tool.displayTitle)
@@ -701,7 +701,7 @@ struct ToolLine: View {
                             TimelineView(.periodic(from: .now, by: 30)) { timeline in
                                 Text(stopping ? "Stopping…" : tool.runningLine(now: timeline.date))
                                     .font(.footnote)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.captionInk)
                                     .lineLimit(1)
                             }
                         }
@@ -791,7 +791,7 @@ struct ToolGroupRow: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(group.title)
                 .font(.footnote)
-                .foregroundStyle(group.failed ? Color.danger : .secondary)
+                .foregroundStyle(group.failed ? Color.danger : Color.captionInk)
             ForEach(expanded ? group.calls : Array(group.calls.prefix(Self.listed)), id: \.id) { call in
                 line(call, link: true)
             }
@@ -830,7 +830,7 @@ struct ToolGroupRow: View {
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: group.symbol)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .frame(width: 22)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(group.title)
@@ -847,7 +847,7 @@ struct ToolGroupRow: View {
                                 }
                             }
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                         }
                     }
                     Spacer(minLength: 6)
@@ -902,11 +902,11 @@ struct ToolStatusIcon: View {
         case .pending, .inProgress:
             ProgressView().controlSize(.small)
         case .completed:
-            Image(systemName: "checkmark").foregroundStyle(.secondary).font(.caption.weight(.bold))
+            Image(systemName: "checkmark").foregroundStyle(Color.captionInk).font(.caption.weight(.bold))
         case .failed:
             Image(systemName: "xmark").foregroundStyle(Color.danger).font(.caption.weight(.bold))
         case .cancelled:
-            Image(systemName: "slash.circle").foregroundStyle(.secondary).font(.caption)
+            Image(systemName: "slash.circle").foregroundStyle(Color.captionInk).font(.caption)
         case .other:
             EmptyView()
         }
@@ -942,13 +942,13 @@ private struct MarkdownCodeBlock: View {
             HStack(spacing: 0) {
                 Text(language)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(1)
                 Spacer(minLength: 8)
                 Button(action: copy) {
                     Image(systemName: copied ? "checkmark" : "doc.on.doc")
                         .font(.footnote)
-                        .foregroundStyle(copied ? Color.successInk : Color.secondary)
+                        .foregroundStyle(copied ? Color.successInk : Color.captionInk)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
@@ -996,7 +996,7 @@ struct DiffView: View {
         VStack(alignment: .leading, spacing: 0) {
             Label(fileName, systemImage: "doc")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
             ScrollView(.horizontal, showsIndicators: false) {
@@ -1034,7 +1034,7 @@ struct DiffView: View {
         case .added: Color.success
         case .removed: Color.danger
         case .hunk: .accentColor
-        case .context: .secondary
+        case .context: Color.captionInk
         }
     }
 }
@@ -1049,7 +1049,7 @@ struct PlanCard: View {
             HStack {
                 Text("Plan · \(fold.done) of \(fold.total)")
                     .monospacedDigit()
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                 Spacer()
                 if fold.folds {
                     Button(showingDone ? "Hide done" : "Show done") {
@@ -1070,7 +1070,7 @@ struct PlanCard: View {
                         .frame(width: 20)
                     Text(item.content)
                         .fontWeight(item.status == .inProgress ? .semibold : .regular)
-                        .foregroundStyle(item.status == .inProgress ? .primary : .secondary)
+                        .foregroundStyle(item.status == .inProgress ? .primary : Color.captionInk)
                 }
             }
         }
@@ -1089,7 +1089,7 @@ struct PlanCard: View {
 
     private func color(_ status: PlanStatus) -> Color {
         switch status {
-        case .completed: .secondary
+        case .completed: Color.captionInk
         case .inProgress: .accentColor
         case .pending: Color(.tertiaryLabel)
         }
@@ -1109,7 +1109,7 @@ struct AnsweredRow: View {
             Image(systemName: request.allowed ? "checkmark" : request.outcome == nil ? "clock" : "xmark")
         }
         .font(.footnote)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Color.captionInk)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -1190,7 +1190,7 @@ struct PermissionCard: View {
                 if let caption = caption {
                     Text(caption)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .lineLimit(2)
                 }
                 Group {
@@ -1301,11 +1301,11 @@ struct PermissionCard: View {
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .frame(width: 44, height: 44)
                     .contentShape(.rect)
             }
-            .tint(.secondary)
+            .tint(Color.captionInk)
             .accessibilityLabel("More Answers")
             .disabled(!answerable)
         }
@@ -1430,16 +1430,16 @@ struct ChoiceRow: View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             if let symbol {
                 Image(systemName: symbol)
-                    .foregroundStyle(symbol == "circle" ? Color.secondary : Color.accentColor)
+                    .foregroundStyle(symbol == "circle" ? Color.captionInk : Color.accentColor)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.headline)
-                    .foregroundStyle(muted ? Color.secondary : Color.primary)
+                    .foregroundStyle(muted ? Color.captionInk : Color.primary)
                 if let detail, !detail.isEmpty {
                     Text(detail)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                 }
             }
             Spacer(minLength: 0)
@@ -1468,13 +1468,13 @@ struct AlwaysAllowSheet: View {
                 .font(.title3.weight(.semibold))
             Text(scope)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
                 .fixedSize(horizontal: false, vertical: true)
             if !option.guessed, let rule = option.rule {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Rule it stores")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                     CodeBlock(text: rule, lines: 4)
                 }
             } else {
@@ -1485,7 +1485,7 @@ struct AlwaysAllowSheet: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Likely rule, read from that label")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                         CodeBlock(text: rule, lines: 4)
                     }
                 }
@@ -1547,7 +1547,7 @@ struct QuestionCard: View {
                 }
                 Text(subagent ? "Paused until you answer. Your reply resumes the subagent." : "Paused until you answer.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
             }
         }
         .accessibilityElement(children: .combine)
@@ -1567,7 +1567,7 @@ struct AnswerOnMacRow: View {
                         .lineLimit(2)
                     Text("Answer on the Mac")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                 }
             }
         }
@@ -1587,7 +1587,7 @@ struct AskedRow: View {
             Image(systemName: question.response?.action == "accept" ? "checkmark" : question.response == nil ? "clock" : "xmark")
         }
         .font(.footnote)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Color.captionInk)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -1621,7 +1621,7 @@ struct ElicitationCard: View {
                 if paged {
                     Text(Markdown.inline(question.request.message))
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .lineLimit(2)
                 } else {
                     Text(Markdown.inline(question.request.message))
@@ -1644,7 +1644,7 @@ struct ElicitationCard: View {
                 if let blocked {
                     Text(blocked)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .lineLimit(2)
                 }
                 if let failure {
@@ -1689,7 +1689,7 @@ struct ElicitationCard: View {
     private var stepper: some View {
         let label = Text("\(page + 1) of \(questions.count)")
             .font(.footnote)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.captionInk)
             .fixedSize()
         return ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
@@ -1727,7 +1727,7 @@ struct ElicitationCard: View {
                     } else if field.key != single?.key, !field.title.isEmpty || !field.description.isEmpty {
                         Text(heading(field))
                             .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                     }
                     input(field, single: field.key == single?.key)
                     if let other = item.other {
@@ -1888,7 +1888,7 @@ struct NoticeView: View {
                     .multilineTextAlignment(.center)
             }
         }
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Color.captionInk)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
     }

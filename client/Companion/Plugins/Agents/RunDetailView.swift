@@ -24,7 +24,7 @@ struct RunDetailView: View {
                     if !run.inputLine.isEmpty {
                         Text(run.inputLine)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                             .lineLimit(2)
                             .padding(.horizontal, 4)
                     }
@@ -33,7 +33,7 @@ struct RunDetailView: View {
                     }
                     Text(Self.stepNote)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .padding(.horizontal, 4)
                 }
             }
@@ -174,8 +174,8 @@ struct RunDetailView: View {
         let state = run?.headerState(needsYou: needsYou) ?? (needsYou ? SessionState.waitingForYou.label : "")
         let mac = context.model.tag(context.connection.computer.id)
         let workspace = context.navigation.workspace(for: context.connection)?.name ?? ""
-        return Text(state).foregroundStyle(needsYou ? Color.warning : .secondary)
-            + (mac != nil || !workspace.isEmpty ? Text(" · ") + mac.lead(workspace) : Text("")).foregroundStyle(.secondary)
+        return Text(state).foregroundStyle(needsYou ? Color.warning : Color.captionInk)
+            + (mac != nil || !workspace.isEmpty ? Text(" · ") + mac.lead(workspace) : Text("")).foregroundStyle(Color.captionInk)
     }
 }
 
@@ -207,7 +207,7 @@ struct RunNodeRow: View {
                     .lineLimit(1)
                 Text(line.detail)
                     .font(line.step ? .subheadline.monospaced() : .subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -220,7 +220,7 @@ struct RunNodeRow: View {
                 if let time = line.time {
                     Text(time)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .monospacedDigit()
                 }
             }
@@ -245,7 +245,7 @@ struct RunNodeBadge: View {
             if line.step {
                 Text("$")
                     .font(.system(size: size * 0.55, weight: .bold, design: .rounded))
-                    .foregroundStyle(waiting ? Color.onWarning : .secondary)
+                    .foregroundStyle(waiting ? Color.onWarning : Color.captionInk)
                     .frame(width: size, height: size)
                     .background(waiting ? Color.warning : Color(.tertiarySystemFill), in: .rect(cornerRadius: size * 0.22))
             } else {
@@ -277,7 +277,7 @@ extension RunNodeLine.Tone {
         case .warning: Color.warningInk
         case .danger: Color.dangerInk
         case .accent: .accentColor
-        case .secondary: .secondary
+        case .secondary: Color.captionInk
         }
     }
 }
@@ -311,7 +311,7 @@ struct RunRequestCard: View {
                     .background(Color(.systemGroupedBackground), in: .rect(cornerRadius: 16))
                     Text(blocked ?? place)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .lineLimit(2)
                     VStack(spacing: 10) {
                         PrimaryCapsule(title: "Allow once") { pick("once") { try await approve("once") } }
@@ -330,7 +330,7 @@ struct RunRequestCard: View {
                     if let blocked {
                         Text(blocked)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                     }
                     VStack(spacing: 10) {
                         PrimaryCapsule(title: "Continue") { pick("continue") { try await proceed(edge) } }
@@ -395,7 +395,7 @@ struct RunRequestCard: View {
                     .lineLimit(2)
                 Text(detail)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(1)
             }
         }
@@ -404,7 +404,7 @@ struct RunRequestCard: View {
     private func caption(_ text: String) -> some View {
         Text(text)
             .font(.footnote)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.captionInk)
             .frame(maxWidth: .infinity)
             .multilineTextAlignment(.center)
     }
@@ -467,12 +467,12 @@ struct RunAlwaysAllowSheet: View {
                 .font(.title3.weight(.semibold))
             Text(Markdown.inline("\(role) and every step with this exact command will run in the main checkout without asking, on this Mac, until you remove the rule from `.claude/settings.local.json`."))
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
                 .fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Rule it stores")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                 CommandText(text: rule)
                     .background(Color(.systemGroupedBackground), in: .rect(cornerRadius: 16))
             }

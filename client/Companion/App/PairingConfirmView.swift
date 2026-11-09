@@ -25,7 +25,7 @@ struct PairingConfirmView: View {
                              ? "This phone is already paired with \(review.existing?.name ?? review.link.computerName). Pairing again replaces its access token."
                              : "Only continue if you just asked Clubmate on this Mac for a pairing code.")
                             .font(.callout)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                             .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
@@ -53,9 +53,9 @@ struct PairingConfirmView: View {
                         HStack {
                             Text(host).font(.callout.monospaced()).strikethrough()
                             Spacer()
-                            Text("Removed").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                            Text("Removed").font(.caption.weight(.semibold)).foregroundStyle(Color.captionInk)
                         }
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                     }
                 } header: {
                     Text("Addresses")

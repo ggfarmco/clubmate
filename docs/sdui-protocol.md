@@ -62,13 +62,14 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 | split | direction* (`vertical`\|`horizontal`) | 2-4 | no |
 | scroll | fit (bool) | exactly 1 | no |
 | spacer | none | none | no |
+| divider | none | none | no |
 | tabs | items* (item[]), selected* (string), action | none | yes |
 | list | items* (item[]), selected (string), action | none | yes |
 | tree | items* (tree item[]), selected (string), action | none | yes |
 | crumb | parts* (string[], muted, each followed by `/`), leaf* (string), icon (string, before the leaf), note (string, at the right, e.g. "2 of 8") | up to 2 `button` | no |
 | table | columns* (column[], at most 32), rows* (row[], at most 1000), selected (string, row id), sort (sort), action | none | yes |
 | sparkline | values* (number[], at most 900), max* (number > 0), height (number 8…200) | none | no |
-| text | text* (string), style (`body`\|`muted`\|`title`\|`strong`\|`mono`\|`block`), lines (int 2…50), tone (`neutral`\|`accent`\|`success`\|`warning`\|`danger`), short (string) | none | no |
+| text | text* (string), style (`body`\|`muted`\|`title`\|`strong`\|`mono`\|`block`), lines (int 1…50), tone (`neutral`\|`accent`\|`success`\|`warning`\|`danger`), short (string) | none | no |
 | badge | text* (string), tone (`neutral`\|`accent`\|`success`\|`warning`\|`danger`), outline (bool) | none | no |
 | icon | name* (string), tone (`neutral`\|`accent`\|`success`\|`warning`\|`danger`) | none | no |
 | diff | text* (string, unified diff) | none | no |
@@ -156,7 +157,7 @@ Agent chat nodes (the `agents` section):
 
 `button.overflow: true` puts a `header` button in the header's "…" menu even when the bar has room (a rare or destructive action, e.g. Delete of a trigger a graph run owns, with its warning as `confirm`); its shortcut keeps working. Outside a `header` it has no effect.
 
-`text.lines` clamps the text to that many lines; when it is cut, the client draws a "Show all" / "Show less" link under it and the full text is the tooltip, so the plugin sends the whole text (a prompt in a card). `text.tone` and `icon.tone` draw the text or glyph in the tone's ink (`neutral` = the normal colour): a status glyph, or a line that needs attention ("Missed" in warning ink) without a badge.
+`text.lines` clamps the text to that many lines; when it is cut, the client draws a "Show all" / "Show less" link under it and the full text is the tooltip, so the plugin sends the whole text (a prompt in a card). `lines: 1` cuts the text to one line with "…" and no link (the full text is the tooltip on the Mac), and in a row it gives way to its neighbours like a `short` text: the comment text of a review card row. `divider` is a hairline in the border colour across its parent, inset like text: the rules between the comments of the Send review sheet. `text.tone` and `icon.tone` draw the text or glyph in the tone's ink (`neutral` = the normal colour): a status glyph, or a line that needs attention ("Missed" in warning ink) without a badge.
 
 `button.copy`: the client puts that text on the clipboard instead of sending the event (after `confirm`, when set); the shortcut does the same.
 

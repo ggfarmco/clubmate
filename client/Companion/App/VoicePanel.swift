@@ -38,7 +38,7 @@ struct VoicePanel: View {
             if let plan = voice.state?.plan, !plan.isEmpty {
                 Text(plan)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(3)
             }
             if phase == .sending {
@@ -75,9 +75,9 @@ struct VoicePanel: View {
     private var header: some View {
         HStack(spacing: 8) {
             Image(systemName: voice.active ? "mic.fill" : "mic")
-                .foregroundStyle(voice.active ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                .foregroundStyle(voice.active ? AnyShapeStyle(.tint) : AnyShapeStyle(Color.captionInk))
             Text("\(voice.title) · \(voice.status)")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
                 .lineLimit(1)
             Spacer(minLength: 8)
             Button {
@@ -85,7 +85,7 @@ struct VoicePanel: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .frame(width: 30, height: 30)
                     .background(Color.surface2, in: .circle)
                     .frame(width: 44, height: 44)
@@ -117,7 +117,7 @@ struct VoicePanel: View {
                 LevelMeter(levels: voice.levels)
                 Text(voice.hint)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(1)
             }
         }
@@ -192,7 +192,7 @@ private struct VoiceResultLabel: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             configuration.icon
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
             configuration.title
         }
     }

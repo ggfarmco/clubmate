@@ -73,7 +73,7 @@ struct SessionDetailView: View {
                     if case .land = screen.dock {
                         Text("Nothing lands until you say so. The next screen lists the commits and has its own Merge.")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                             .padding(.horizontal, 4)
                     }
                 }
@@ -99,7 +99,7 @@ struct SessionDetailView: View {
                 if session?.status == .running {
                     HStack(spacing: 8) {
                         ProgressView()
-                        Text("Working…").foregroundStyle(.secondary)
+                        Text("Working…").foregroundStyle(Color.captionInk)
                     }
                     .font(.callout)
                     .id("working")
@@ -588,14 +588,14 @@ struct SessionHeader: View {
 
     static func subtitle(_ session: AgentSession, mac: MacTag?, mode: Bool = false, now: Date) -> Text {
         let detail = [session.headerDetail, mode ? session.modeLabel ?? "" : ""].filter { !$0.isEmpty }.joined(separator: " · ")
-        let activity = session.headerActivity(now: now).map { Text(" · " + $0).foregroundStyle(.secondary) } ?? Text("")
-        let open = session.openLabel.map { Text(" · ").foregroundStyle(.secondary) + Text($0).foregroundStyle(Color.warningInk) } ?? Text("")
+        let activity = session.headerActivity(now: now).map { Text(" · " + $0).foregroundStyle(Color.captionInk) } ?? Text("")
+        let open = session.openLabel.map { Text(" · ").foregroundStyle(Color.captionInk) + Text($0).foregroundStyle(Color.warningInk) } ?? Text("")
         let done = session.openLabel != nil || session.archivable
-        let tint = session.state.needsYou ? Color.warning : done ? Color.successInk : Color.secondary
+        let tint = session.state.needsYou ? Color.warning : done ? Color.successInk : Color.captionInk
         return Text(session.headerState).foregroundStyle(tint)
             + activity
             + open
-            + (mac != nil || !detail.isEmpty ? Text(" · ") + mac.lead(detail) : Text("")).foregroundStyle(.secondary)
+            + (mac != nil || !detail.isEmpty ? Text(" · ") + mac.lead(detail) : Text("")).foregroundStyle(Color.captionInk)
     }
 }
 
@@ -622,12 +622,12 @@ struct FailureActionsView: View {
             ForEach(onMac, id: \.self) { line in
                 Label(line, systemImage: "desktopcomputer")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
             }
             if let blocked, !buttons.isEmpty {
                 Text(blocked)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(2)
             }
         }
@@ -650,7 +650,7 @@ struct ReviewedActionView: View {
             if let blocked {
                 Text(blocked)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(2)
             }
         }
@@ -667,11 +667,11 @@ struct StartedByCard: View {
             HStack(spacing: 12) {
                 Image(systemName: "chevron.left")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Started by")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                     Text(parent.displayTitle)
                         .lineLimit(1)
                 }
@@ -693,7 +693,7 @@ struct AnsweredElsewhereBanner: View {
     var body: some View {
         Label("Already answered", systemImage: "checkmark.circle")
             .font(.footnote)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.captionInk)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .glassEffect(in: .capsule)
@@ -714,7 +714,7 @@ struct DocOpenedBanner: View {
                     Image(systemName: "doc.richtext")
                 }
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
                 .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
                 .contentShape(.rect)
             }
@@ -744,7 +744,7 @@ struct RefreshFailedBanner: View {
                 Image(systemName: "exclamationmark.triangle")
             }
             .font(.footnote)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.captionInk)
             Spacer(minLength: 0)
             Button("Retry", action: retry)
                 .font(.footnote.weight(.semibold))
@@ -791,7 +791,7 @@ struct ComposerView: View {
         let auto = session?.autoClosed == true
         return Label(short ? (auto ? "Auto-closed" : "Closed") : (auto ? "Closed automatically" : "This session is closed"), systemImage: "archivebox")
             .font(.callout)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.captionInk)
             .lineLimit(1)
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
@@ -873,7 +873,7 @@ struct ComposerView: View {
                     if let caption = blocked ?? sizeCaption ?? session?.composerCaption(stopInHeader: wide) {
                         Text(caption)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                             .lineLimit(1)
                             .padding(.leading, 4)
                     }

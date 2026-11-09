@@ -214,7 +214,7 @@ struct FolderFieldNode: View {
             ForEach(values, id: \.self) { path in
                 Label(path, systemImage: "folder")
                     .font(.footnote.monospaced())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }

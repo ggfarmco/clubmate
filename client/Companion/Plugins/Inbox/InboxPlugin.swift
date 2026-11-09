@@ -153,23 +153,23 @@ struct InboxRow: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(item.heading)
                         .font(.body.weight(waiting ? .semibold : .regular))
-                        .foregroundStyle(muted ? .secondary : .primary)
+                        .foregroundStyle(muted ? Color.captionInk : .primary)
                         .lineLimit(1)
                     Spacer(minLength: 8)
                     TimelineView(.periodic(from: .now, by: 30)) { timeline in
                         Text(item.age(now: timeline.date))
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                     }
                 }
                 summary
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(2)
                 if !place.isEmpty {
                     Text(place)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .lineLimit(1)
                 }
             }
@@ -220,7 +220,7 @@ struct InboxGlyph: View {
 
     private var ink: Color {
         if waiting { return .onWarning }
-        return kind == .stuck ? .dangerInk : .secondary
+        return kind == .stuck ? .dangerInk : Color.captionInk
     }
 
     private var fill: Color {
@@ -238,14 +238,14 @@ struct InboxDetailView: View {
             VStack(alignment: .leading, spacing: 14) {
                 Label(item.kind.label, systemImage: item.kind.symbol)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                 Text(item.displayTitle)
                     .font(.title2.bold())
                 Text(item.message)
                     .textSelection(.enabled)
                 Text([workspace, item.date.formatted(date: .abbreviated, time: .shortened)].compactMap { $0 }.joined(separator: " · "))
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
             }
             .padding()
             .frame(maxWidth: 720, alignment: .leading)

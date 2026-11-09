@@ -273,6 +273,10 @@ func Spacer() Node {
 	return Node{Type: "spacer"}
 }
 
+func Divider() Node {
+	return Node{Type: "divider"}
+}
+
 func Split(direction string, children ...Node) Node {
 	return Node{Type: "split", Props: map[string]any{"direction": direction}, Children: children}
 }

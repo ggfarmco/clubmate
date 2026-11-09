@@ -12,11 +12,11 @@ struct TextNode: View {
     private var text: String { node.string("text") ?? "" }
 
     private var lines: Int? {
-        node.props["lines"]?.numberValue.flatMap { Int(exactly: $0) }.flatMap { $0 >= 2 ? min($0, 50) : nil }
+        node.props["lines"]?.numberValue.flatMap { Int(exactly: $0) }.flatMap { $0 >= 1 ? min($0, 50) : nil }
     }
 
     private var clamped: Bool {
-        guard let lines else { return false }
+        guard let lines, lines > 1 else { return false }
         return text.split(whereSeparator: \.isNewline).count > lines || text.count > lines * 45
     }
 
@@ -30,7 +30,7 @@ struct TextNode: View {
     }
 
     private var color: Color {
-        SDUITone.ink(node.string("tone")) ?? (node.string("style") == "muted" ? .secondary : .primary)
+        SDUITone.ink(node.string("tone")) ?? (node.string("style") == "muted" ? Color.captionInk : .primary)
     }
 
     var body: some View {
@@ -39,6 +39,7 @@ struct TextNode: View {
                 .font(font)
                 .foregroundStyle(color)
                 .lineLimit(expanded ? nil : lines)
+                .truncationMode(.tail)
                 .textSelection(.enabled)
                 .padding(node.string("style") == "block" ? 10 : 0)
                 .frame(maxWidth: node.string("style") == "block" ? .infinity : nil, alignment: .leading)
@@ -51,6 +52,15 @@ struct TextNode: View {
         }
         .frame(maxWidth: inset > 0 ? .infinity : nil, alignment: .leading)
         .padding(.horizontal, inset)
+    }
+}
+
+struct DividerNode: View {
+    @Environment(\.sduiInset) private var inset
+
+    var body: some View {
+        Divider()
+            .padding(.horizontal, inset)
     }
 }
 
@@ -73,7 +83,7 @@ struct BadgeView: View {
             .lineLimit(1)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .foregroundStyle(SDUITone.ink(tone) ?? .secondary)
+            .foregroundStyle(SDUITone.ink(tone) ?? Color.captionInk)
             .background(SDUITone.fill(tone)?.opacity(0.15) ?? Color.surface2, in: .capsule)
             .fixedSize()
     }
@@ -84,7 +94,7 @@ struct IconNode: View {
 
     var body: some View {
         Image(systemName: node.string("name") ?? "questionmark")
-            .foregroundStyle(SDUITone.ink(node.string("tone")) ?? .secondary)
+            .foregroundStyle(SDUITone.ink(node.string("tone")) ?? Color.captionInk)
     }
 }
 
@@ -262,7 +272,7 @@ struct HeaderNode: View {
                 if let icon = node.string("icon") {
                     Image(systemName: icon)
                         .font(.title3)
-                        .foregroundStyle(SDUITone.ink(node.headerStatusTone) ?? .secondary)
+                        .foregroundStyle(SDUITone.ink(node.headerStatusTone) ?? Color.captionInk)
                 }
                 title
                 Spacer(minLength: 4)
@@ -278,14 +288,14 @@ struct HeaderNode: View {
                             .frame(width: 44, height: 44)
                             .contentShape(.rect)
                     }
-                    .tint(.secondary)
+                    .tint(Color.captionInk)
                     .accessibilityLabel("More Actions")
                 }
             }
             if !line.isEmpty {
                 Text(line)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -300,7 +310,7 @@ struct HeaderNode: View {
             if let meta = node.string("meta"), !meta.isEmpty {
                 Text(meta)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
             }
             if let error = node.string("error"), !error.isEmpty, form != nil {
                 Text(error)
@@ -394,7 +404,7 @@ struct EmptyNode: View {
                 if let hint = node.string("hint"), !hint.isEmpty {
                     Text(hint)
                         .font(.footnote.monospaced())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                 }
             }
         } actions: {

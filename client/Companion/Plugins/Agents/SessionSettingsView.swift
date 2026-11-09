@@ -66,7 +66,7 @@ struct SessionSettingsView: View {
                         Section("Usage") {
                             LabeledContent("Context") {
                                 Text("\(usage.percent)% · \(usage.tokensLabel)")
-                                    .foregroundStyle(usage.nearlyFull ? Color.warningInk : .secondary)
+                                    .foregroundStyle(usage.nearlyFull ? Color.warningInk : Color.captionInk)
                             }
                             if let cost = usage.costLabel {
                                 LabeledContent("Cost", value: cost)

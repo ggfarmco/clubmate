@@ -23,7 +23,7 @@ struct OpenHeaderChip: View {
     var body: some View {
         Text(text)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.captionInk)
             .lineLimit(1)
             .fixedSize()
             .padding(.horizontal, 9)
@@ -39,7 +39,7 @@ struct OpenNumber: View {
     var body: some View {
         Text("\(number)")
             .font(.caption.weight(.semibold))
-            .foregroundStyle(done ? Color.successInk : .secondary)
+            .foregroundStyle(done ? Color.successInk : Color.captionInk)
             .frame(width: 22, height: 22)
             .background(done ? Color.success.opacity(0.14) : .clear, in: .circle)
             .overlay(Circle().strokeBorder(done ? Color.success.opacity(0.55) : Color(.separator), lineWidth: 1.5))
@@ -52,7 +52,7 @@ struct OpenClosedRow: View {
     var body: some View {
         Label(items.summary, systemImage: "checkmark")
             .font(.footnote)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.captionInk)
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -193,7 +193,7 @@ struct OpenItemsCard: View {
                         Divider()
                         Text(overflow)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                             .padding(.horizontal, 16)
                     }
@@ -259,7 +259,7 @@ struct OpenItemsCard: View {
                 OpenHeaderChip(text: section.chip)
                 Text(draft.summary(section) ?? section.folded)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 RowChevron(always: true)
@@ -296,7 +296,7 @@ struct OpenItemsCard: View {
             if let blocked {
                 Text(blocked)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(2)
             }
             if let failure {
@@ -369,7 +369,7 @@ struct OpenQueueView: View {
                         Text("Open").font(.headline)
                         Text(subtitle(pass))
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                             .lineLimit(1)
                     }
                     .accessibilityElement(children: .combine)
@@ -441,7 +441,7 @@ struct OpenQueueView: View {
     private func progress(_ pass: OpenPass) -> some View {
         let label = Text("\(pass.position + 1) of \(pass.steps.count)")
             .font(.footnote)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.captionInk)
             .fixedSize()
         let count = answered(pass)
         return HStack(spacing: 10) {
@@ -462,7 +462,7 @@ struct OpenQueueView: View {
             if count > 0 {
                 Text("\(count) answered")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .fixedSize()
             }
         }
@@ -477,7 +477,7 @@ struct OpenQueueView: View {
                     OpenHeaderChip(text: item.kind == .decision ? item.header : "Next")
                     Text([step.title, item.at.map { ShortAge.since($0, now: timeline.date) }].compactMap { $0 }.joined(separator: " · "))
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .lineLimit(1)
                 }
                 Text(Markdown.inline(item.kind == .decision ? item.question : item.label))
@@ -490,7 +490,7 @@ struct OpenQueueView: View {
                             .frame(width: 2)
                         Text(Markdown.inline(item.quote))
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .fixedSize(horizontal: false, vertical: true)
@@ -521,7 +521,7 @@ struct OpenQueueView: View {
             }
             Text(context.connection.blocked ?? "Answers go to each session when you finish · Send now in •••")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
         }

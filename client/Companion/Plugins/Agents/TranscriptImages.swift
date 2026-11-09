@@ -93,7 +93,7 @@ private struct ImageTile: View {
                     .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Color(.separator), lineWidth: 1 / displayScale) }
                 Text(image.ref.name)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .frame(width: width, alignment: .leading)
@@ -139,7 +139,7 @@ private struct ImageMissing: View {
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
         }
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Color.captionInk)
         .padding(8)
     }
 }

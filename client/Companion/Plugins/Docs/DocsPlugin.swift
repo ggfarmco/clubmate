@@ -137,7 +137,7 @@ struct DocRow: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: doc.symbol)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
                 .frame(width: 28, height: 28)
                 .background(Color(.tertiarySystemFill), in: .circle)
             VStack(alignment: .leading, spacing: 2) {
@@ -155,7 +155,7 @@ struct DocRow: View {
                     }
                 }
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
                 .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

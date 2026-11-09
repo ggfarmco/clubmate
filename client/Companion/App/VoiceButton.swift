@@ -70,7 +70,7 @@ struct VoiceButton: View {
         Button { if !enabled { hint += 1 } } label: {
             Image(systemName: enabled ? (voice.active ? "mic.fill" : "mic") : "mic.slash")
                 .font(size < Self.floating ? .body.weight(.semibold) : .title3.weight(.semibold))
-                .foregroundStyle(voice.active ? Color.onAccent : enabled ? Color.primary : Color.secondary)
+                .foregroundStyle(voice.active ? Color.onAccent : enabled ? Color.primary : Color.captionInk)
                 .frame(width: size, height: size)
                 .background {
                     if voice.active {
@@ -96,7 +96,7 @@ struct VoiceButton: View {
             if hint > 0 {
                 Text("Mac offline")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .padding(.horizontal, 12)
                     .frame(minHeight: 32)
                     .glassEffect(.regular, in: .capsule)

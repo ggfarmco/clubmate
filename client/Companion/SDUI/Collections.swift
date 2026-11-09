@@ -125,18 +125,18 @@ struct ItemLabel: View {
         HStack(spacing: 12) {
             if let icon = item.icon, !icon.isEmpty {
                 Image(systemName: icon)
-                    .foregroundStyle(SDUITone.ink(item.tone) ?? .secondary)
+                    .foregroundStyle(SDUITone.ink(item.tone) ?? Color.captionInk)
                     .frame(width: 28)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.label)
                     .lineLimit(2)
                     .truncationMode(item.truncate.mode)
-                    .foregroundStyle(faint ? .tertiary : muted ? .secondary : .primary)
+                    .foregroundStyle(faint ? AnyShapeStyle(.tertiary) : AnyShapeStyle(muted ? Color.captionInk : .primary))
                 if let detail = item.detail, !detail.isEmpty {
                     Text(detail)
                         .font(.footnote)
-                        .foregroundStyle(SDUITone.ink(detailTone) ?? .secondary)
+                        .foregroundStyle(SDUITone.ink(detailTone) ?? Color.captionInk)
                         .lineLimit(1)
                 }
             }
@@ -308,7 +308,7 @@ struct TreeNode: View {
             } label: {
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .rotationEffect(.degrees(item.expanded ? 90 : 0))
                     .frame(width: 32, height: 44)
                     .contentShape(.rect)
@@ -383,7 +383,7 @@ struct TableNode: View {
                 .font(.footnote.weight(.semibold))
                 .frame(minHeight: 32)
         }
-        .tint(.secondary)
+        .tint(Color.captionInk)
     }
 
     private func groupRow(_ row: SDUITableRow) -> some View {
@@ -399,7 +399,7 @@ struct TableNode: View {
                 Spacer(minLength: 0)
             }
             .font(.footnote.weight(.semibold))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.captionInk)
             .textCase(nil)
             .padding(.leading, CGFloat(row.depth) * 12)
             .frame(minHeight: 36)
@@ -417,7 +417,7 @@ struct TableNode: View {
                 } label: {
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .rotationEffect(.degrees(row.expanded ? 90 : 0))
                         .frame(width: 28, height: 44)
                         .contentShape(.rect)
@@ -502,7 +502,7 @@ private struct TableCellView: View {
                     .monospacedDigit()
                     .lineLimit(1)
                     .truncationMode(column.truncate.mode)
-                    .foregroundStyle(cell.bar == nil ? SDUITone.ink(cell.tone) ?? .secondary : .secondary)
+                    .foregroundStyle(cell.bar == nil ? SDUITone.ink(cell.tone) ?? Color.captionInk : Color.captionInk)
             }
         }
         .font(.footnote)

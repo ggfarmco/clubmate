@@ -46,14 +46,14 @@ struct RequestBannerView: View {
                         .lineLimit(1)
                     item.mac.lead(item.bannerDetail)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if let more = banner.moreText {
                     Text(more)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .fixedSize()
                 }
                 RowChevron(always: true)

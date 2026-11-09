@@ -269,7 +269,7 @@ func sendSheetView(r *review) sdui.Node {
 		if !ok {
 			g = commentGlyphs[""]
 		}
-		children = append(children, sdui.VStack(
+		children = append(children, sdui.Divider(), sdui.VStack(
 			sdui.HStack(sdui.WithTone(sdui.Text(g[0]), g[1]), sdui.MutedText(fmt.Sprintf("%s · %s:%d", cmp.Or(c.Type, "comment"), c.File, c.LineStart))),
 			sdui.Text(c.Text),
 		))

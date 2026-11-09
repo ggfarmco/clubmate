@@ -76,7 +76,7 @@ struct DrawnRunsSummary: View {
     private func heading(_ count: Int?) -> some View {
         Text(count.map { "\(title) · \($0)" } ?? title)
             .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.captionInk)
     }
 
     private func legend(_ statuses: [String]) -> some View {
@@ -90,14 +90,14 @@ struct DrawnRunsSummary: View {
                     } icon: {
                         Image(systemName: entry.symbol)
                             .imageScale(entry.status == "ignored" ? .small : .medium)
-                            .foregroundStyle(SDUITone.ink(entry.tone) ?? .secondary)
+                            .foregroundStyle(SDUITone.ink(entry.tone) ?? Color.captionInk)
                     }
                     .labelStyle(.titleAndIcon)
                 }
             }
         }
         .font(.footnote)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Color.captionInk)
         .lineLimit(1)
     }
 }
@@ -119,14 +119,14 @@ private struct PlaceholderBox: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Image(systemName: symbol)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                 if let detail {
                     Text(detail)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                 }
             }
             Spacer(minLength: 0)

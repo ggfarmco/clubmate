@@ -162,7 +162,7 @@ struct ToolCardGroup: View {
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "square.stack.3d.up")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .frame(width: 22)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("\(cards.count) actions")
@@ -170,7 +170,7 @@ struct ToolCardGroup: View {
                         if !expanded {
                             Text((running ?? cards.last?.node)?.string("title") ?? "")
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.captionInk)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                         }
@@ -242,13 +242,13 @@ struct ToolCardLine: View {
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: kind.symbol)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .frame(width: 20)
                     Text(node.string("title") ?? "")
                         .font(kind == .execute ? .callout.monospaced() : .callout)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                        .foregroundStyle(status == .failed ? Color.danger : status == .cancelled ? .secondary : .primary)
+                        .foregroundStyle(status == .failed ? Color.danger : status == .cancelled ? Color.captionInk : .primary)
                     Spacer(minLength: 6)
                     if format == "diff" {
                         ChangeCounts(changes: SDUIDiff.changes(text))
@@ -274,7 +274,7 @@ struct ToolCardLine: View {
                 if node.bool("truncated") == true {
                     Text("Output truncated")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                 }
                 if !actions.isEmpty {
                     FlowLayout(spacing: 8) {
@@ -346,11 +346,11 @@ struct PermissionCardNode: View {
                         } label: {
                             Image(systemName: "ellipsis")
                                 .font(.body.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.captionInk)
                                 .frame(width: 44, height: 44)
                                 .contentShape(.rect)
                         }
-                        .tint(.secondary)
+                        .tint(Color.captionInk)
                         .accessibilityLabel("More Answers")
                     }
                 }
@@ -360,13 +360,13 @@ struct PermissionCardNode: View {
                 if let caption = node.string("caption"), !caption.isEmpty {
                     Text(caption)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .lineLimit(2)
                 }
                 if let outcome {
                     Label(outcome == "cancelled" ? "Cancelled" : options.first { $0.id == outcome }?.label ?? outcome, systemImage: outcome == "cancelled" ? "xmark" : "checkmark")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                 } else {
                     VStack(spacing: 10) {
                         if let first = buttons.first {
@@ -429,7 +429,7 @@ struct ComposerNode: View {
                 Button(action: send) {
                     Image(systemName: "arrow.up")
                         .font(.body.weight(.bold))
-                        .foregroundStyle(empty || node.bool("docked") == true ? Color.secondary : Color.onAccent)
+                        .foregroundStyle(empty || node.bool("docked") == true ? Color.captionInk : Color.onAccent)
                         .frame(width: 44, height: 44)
                         .background(empty || node.bool("docked") == true ? Color.surface2 : Color.accentColor, in: .circle)
                 }
@@ -440,7 +440,7 @@ struct ComposerNode: View {
             if running, node.bool("steers") != true {
                 Text("Sends after the current turn")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
             }
         }
         .padding(.horizontal, inset)

@@ -32,7 +32,7 @@ struct MacSubtitle: ToolbarContent {
             ToolbarItem(placement: .largeSubtitle) {
                 text
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -52,7 +52,7 @@ struct MacSectionHeader: View {
             Button(action: open) {
                 HStack(spacing: 8) {
                     Image(systemName: tag.glyph)
-                        .foregroundStyle(tinted ? tag.color : .secondary)
+                        .foregroundStyle(tinted ? tag.color : Color.captionInk)
                     if inline {
                         ViewThatFits(in: .horizontal) {
                             inlineName(tag.name, connection.presence)
@@ -133,7 +133,7 @@ struct MacDetailsView: View {
                                     .foregroundStyle(.tint)
                             } else {
                                 Text(others.filter { $0.macColour == colour }.map(\.name).joined(separator: ", "))
-                                    .foregroundStyle(Color.secondary)
+                                    .foregroundStyle(Color.captionInk)
                                     .lineLimit(1)
                                     .truncationMode(.tail)
                             }

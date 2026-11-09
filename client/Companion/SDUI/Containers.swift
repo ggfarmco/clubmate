@@ -17,11 +17,24 @@ struct StackNode: View {
         return first
     }
 
+    private var row: some View {
+        HStack(alignment: .center, spacing: gap ?? 8) {
+            ForEach(node.identifiedChildren) { child in
+                if child.node.type == "spacer" {
+                    Spacer(minLength: 0)
+                } else {
+                    SDUINodeView(node: child.node, context: context)
+                        .layoutPriority(child.node.props["lines"]?.numberValue == 1 ? -1 : 0)
+                }
+            }
+        }
+    }
+
     var body: some View {
         if let key = propertyKey {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Text(key.string("text") ?? "")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(1)
                 Spacer(minLength: 8)
                 ForEach(node.identifiedChildren.dropFirst()) { child in
@@ -29,17 +42,15 @@ struct StackNode: View {
                 }
             }
         } else if node.string("direction") == "horizontal" {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: gap ?? 8) {
-                    ForEach(node.identifiedChildren) { child in
-                        if child.node.type == "spacer" {
-                            Spacer(minLength: 0)
-                        } else {
-                            SDUINodeView(node: child.node, context: context)
-                        }
+            Group {
+                if node.children.contains(where: { $0.props["lines"]?.numberValue == 1 }) {
+                    row
+                } else {
+                    ViewThatFits(in: .horizontal) {
+                        row
+                        FlowLayout(spacing: gap ?? 8) { SDUIChildren(node: node, context: context) }
                     }
                 }
-                FlowLayout(spacing: gap ?? 8) { SDUIChildren(node: node, context: context) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .environment(\.sduiInset, 0)
@@ -145,7 +156,7 @@ struct CardNode: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             if let icon = node.string("icon") {
                 Image(systemName: icon)
-                    .foregroundStyle(SDUITone.ink(node.string("tone")) ?? .secondary)
+                    .foregroundStyle(SDUITone.ink(node.string("tone")) ?? Color.captionInk)
             }
             VStack(alignment: .leading, spacing: 10) { SDUIChildren(node: node, context: context) }
                 .frame(maxWidth: .infinity, alignment: .leading)

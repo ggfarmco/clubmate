@@ -288,12 +288,12 @@ struct SubagentToggle: View {
                     .rotationEffect(.degrees(expanded ? 90 : 0))
             }
             .font(.subheadline)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.captionInk)
             .frame(minWidth: 44, minHeight: 44)
             .contentShape(.rect)
         }
         .buttonStyle(.borderless)
-        .tint(.secondary)
+        .tint(Color.captionInk)
         .accessibilityLabel(expanded ? "Hide \(count) subagents" : "Show \(count) subagents")
     }
 }
@@ -313,7 +313,7 @@ struct SessionRow: View {
                     if depth > 0, session.repo == nil {
                         Text(session.subagentLabel)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                     }
                     HStack(alignment: .top, spacing: 8) {
                         if depth > 0, let repo = session.repo {
@@ -322,7 +322,7 @@ struct SessionRow: View {
                         } else {
                             Text(session.displayTitle)
                                 .font(.body.weight(session.glyph.needsYou ? .semibold : .regular))
-                                .foregroundStyle(session.isClosed ? .secondary : .primary)
+                                .foregroundStyle(session.isClosed ? Color.captionInk : .primary)
                                 .lineLimit(2)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -334,7 +334,7 @@ struct SessionRow: View {
                     if let word = taskRow?.word {
                         Text(word)
                             .font(.subheadline)
-                            .foregroundStyle(taskRow?.tone.toneInk(default: .secondary) ?? .secondary)
+                            .foregroundStyle(taskRow?.tone.toneInk(default: Color.captionInk) ?? Color.captionInk)
                             .lineLimit(1)
                     } else {
                         StateLineText(line: session.stateLine(now: timeline.date, waitingChildren: waitingChildren))
@@ -367,7 +367,7 @@ struct SearchResultRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(result.displayTitle)
                         .font(.body.weight(session?.glyph.needsYou == true ? .semibold : .regular))
-                        .foregroundStyle(result.status == .closed ? .secondary : .primary)
+                        .foregroundStyle(result.status == .closed ? Color.captionInk : .primary)
                         .lineLimit(2)
                     StateLineText(line: session?.stateLine(now: timeline.date) ?? result.stateLine(now: timeline.date))
                         .font(.subheadline)
@@ -380,7 +380,7 @@ struct SearchResultRow: View {
                                 .lineLimit(2)
                         }
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .padding(.top, 4)
                     }
                 }
@@ -406,7 +406,7 @@ struct StateLineText: View {
                 .lineLimit(1)
             if let age = line.age {
                 Text(" · " + age)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(1)
                     .fixedSize()
             }
@@ -416,7 +416,7 @@ struct StateLineText: View {
     private var color: Color {
         switch line.tone {
         case .primary: .primary
-        case .secondary: .secondary
+        case .secondary: Color.captionInk
         case .faint: Color(.tertiaryLabel)
         case .needsYou: Color.warningInk
         case .danger: Color.dangerInk
@@ -432,7 +432,7 @@ struct SessionGlyphView: View {
     var body: some View {
         Image(systemName: symbol)
             .font(.system(size: size * 0.5, weight: .semibold))
-            .foregroundStyle(muted ? .secondary : foreground)
+            .foregroundStyle(muted ? Color.captionInk : foreground)
             .frame(width: size, height: size)
             .background(muted ? Color(.tertiarySystemFill) : background, in: shape)
             .accessibilityHidden(true)
@@ -466,7 +466,7 @@ struct SessionGlyphView: View {
         case .asksParent, .running, .review: .accentColor
         case .stopped: Color.dangerInk
         case .open: Color.successInk
-        case .done, .closed: .secondary
+        case .done, .closed: Color.captionInk
         }
     }
 
@@ -507,7 +507,7 @@ struct ConnectionBanner: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(connection.state.label)
                     if let detail = connection.offlineDetail {
-                        Text(detail).font(.footnote).foregroundStyle(.secondary)
+                        Text(detail).font(.footnote).foregroundStyle(Color.captionInk)
                     }
                 }
             } icon: {

@@ -57,6 +57,7 @@ func TestReviewCardRendersStates(t *testing.T) {
 	assert.Contains(t, got, "Workspace is set only by the Always allow path.")
 	assert.Contains(t, got, "Also: Keep it short.")
 	assert.Equal(t, []string{"resolved", "open"}, cardStates(n))
+	assert.Equal(t, 1, n.Children[1].Children[2].Props["lines"])
 	head := n.Children[0]
 	assert.Equal(t, []string{"spacer", "button"}, []string{head.Children[len(head.Children)-2].Type, head.Children[len(head.Children)-1].Type})
 	open := buttonByID(t, n, "agt_1/"+openReviewNode+"/prompt-1")

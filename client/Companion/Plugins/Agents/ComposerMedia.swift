@@ -60,7 +60,7 @@ struct FileChip: View {
         HStack(spacing: 8) {
             Image(systemName: "doc")
                 .font(.title3)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
             VStack(alignment: .leading, spacing: 2) {
                 Text(name)
                     .font(.footnote.weight(.medium))
@@ -68,11 +68,11 @@ struct FileChip: View {
                     .truncationMode(.middle)
                 Text(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
             }
             Button("Remove", systemImage: "xmark.circle.fill", action: remove)
                 .labelStyle(.iconOnly)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
         }
         .padding(.horizontal, 10)
         .frame(maxWidth: 180, minHeight: 56, maxHeight: 56)

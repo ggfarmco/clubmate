@@ -250,7 +250,7 @@ struct TaskRow: View {
                     .lineLimit(2)
                 Text(subtitle)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -273,7 +273,7 @@ struct TaskStatusIcon: View {
     var body: some View {
         Image(systemName: symbol)
             .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(status == .inProgress ? Color.accentColor : .secondary)
+            .foregroundStyle(status == .inProgress ? Color.accentColor : Color.captionInk)
             .frame(width: 28, height: 28)
             .background(status == .inProgress ? Color.accentColor.opacity(0.18) : Color(.tertiarySystemFill), in: .circle)
             .accessibilityLabel(status.label)
@@ -293,7 +293,7 @@ struct PriorityTag: View {
 
     var text: Text {
         guard let glyph = priority.glyph else { return Text("") }
-        return Text(glyph + " ").foregroundStyle(.secondary)
+        return Text(glyph + " ").foregroundStyle(Color.captionInk)
     }
 
     var body: some View {
@@ -370,7 +370,7 @@ struct TaskDetailView: View {
                 HStack(spacing: 8) {
                     Label(task.status.label, systemImage: task.status.symbol)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                     PriorityTag(priority: task.priority)
                 }
                 Text(task.title)
@@ -379,7 +379,7 @@ struct TaskDetailView: View {
                 if task.status == .inProgress, let owner = BacklogPlugin.owner(task, context: context) {
                     Label("In progress by \(([owner] + [detail?.task?.ownerState].compactMap { $0 }).joined(separator: " · "))", systemImage: "person.crop.circle")
                         .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                 }
                 if let last = detail?.task?.lastOwner, task.status != .inProgress || task.claimedBy != last.session {
                     lastOwner(last)
@@ -439,7 +439,7 @@ struct TaskDetailView: View {
                 }
                 Text(footer(task))
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
             }
             .padding()
             .frame(maxWidth: 720, alignment: .leading)
@@ -496,7 +496,7 @@ struct TaskDetailView: View {
                     if primary.action == .start, let summary = primary.summary, !summary.isEmpty {
                         Text("Passes the \(summary)")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                     }
                     HStack(spacing: 10) {
                         if task.status == .inProgress {
@@ -559,7 +559,7 @@ struct TaskDetailView: View {
             Image(systemName: "clock.arrow.circlepath")
         }
         .font(.callout)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Color.captionInk)
         if let session = last.session {
             Button { openSession(session) } label: {
                 HStack {
@@ -633,7 +633,7 @@ struct TaskSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("\(title) · \(count)")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
                 .padding(.bottom, 6)
             VStack(alignment: .leading, spacing: 0) {
                 content()
@@ -654,7 +654,7 @@ struct TaskRefRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: symbol)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
                 .frame(width: 20)
             if stacked {
                 VStack(alignment: .leading, spacing: 2) {
@@ -662,7 +662,7 @@ struct TaskRefRow: View {
                         .lineLimit(2)
                     Text(detail)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -674,7 +674,7 @@ struct TaskRefRow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text(detail)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(1)
                     .fixedSize()
             }
@@ -691,7 +691,7 @@ struct OwnerRow: View {
     let event: BacklogOwnerEvent
 
     static func detail(_ event: BacklogOwnerEvent) -> Text {
-        let what = Text(event.what).foregroundStyle(event.danger ? Color.dangerInk : .secondary)
+        let what = Text(event.what).foregroundStyle(event.danger ? Color.dangerInk : Color.captionInk)
         guard let at = event.at else { return what }
         return Text("\(what) · \(time(at))")
     }
@@ -703,14 +703,14 @@ struct OwnerRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: event.danger ? "xmark.circle" : event.session == nil ? "person" : "sparkles")
-                .foregroundStyle(event.danger ? Color.dangerInk : .secondary)
+                .foregroundStyle(event.danger ? Color.dangerInk : Color.captionInk)
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.who)
                     .lineLimit(1)
                 Self.detail(event)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

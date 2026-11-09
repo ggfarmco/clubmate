@@ -39,7 +39,7 @@ struct SidebarView: View {
                         ForEach(model.offlineMacNames(needs), id: \.self) { name in
                             Text("\(name) is offline — answer when it's back.")
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.captionInk)
                         }
                     }
                 }
@@ -116,13 +116,13 @@ struct NeedsYouRow: View {
                             .lineLimit(1)
                         item.mac.lead(item.subtitle)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.captionInk)
                             .lineLimit(1)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     Text(ShortAge.since(item.at, now: timeline.date))
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.captionInk)
                     RowChevron()
                 }
                 .frame(minHeight: 44)
@@ -238,7 +238,7 @@ struct WorkspaceRow: View {
                     }
                 }
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.captionInk)
                 .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -267,7 +267,7 @@ struct PluginRow: View {
             if badge > 0 {
                 Text(plugin.id == InboxPluginInfo.id && navigation.layout == .compact ? "\(badge) unread" : "\(badge)")
                     .monospacedDigit()
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.captionInk)
                     .lineLimit(1)
                     .fixedSize()
             }
@@ -285,7 +285,7 @@ struct RowIcon: View {
     var body: some View {
         Image(systemName: systemImage)
             .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(tint ?? .secondary)
+            .foregroundStyle(tint ?? Color.captionInk)
             .frame(width: 28, height: 28)
             .background(Color(.tertiarySystemFill), in: .circle)
     }
@@ -422,11 +422,11 @@ struct StatusRow: View {
                 } icon: {
                     Image(systemName: "wifi.slash")
                 }
-                .foregroundStyle(Color.secondary)
+                .foregroundStyle(Color.captionInk)
             }
         case .connecting, .online:
             Label {
-                Text("Connecting…").foregroundStyle(.secondary)
+                Text("Connecting…").foregroundStyle(Color.captionInk)
             } icon: {
                 ProgressView()
             }

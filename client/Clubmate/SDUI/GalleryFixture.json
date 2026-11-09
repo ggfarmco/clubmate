@@ -304,6 +304,14 @@
                     {"type": "text", "props": {"text": "muted: secondary information", "style": "muted"}},
                     {"type": "text", "props": {"text": "mono: go test ./...", "style": "mono"}},
                     {"type": "text", "props": {"text": "warning tone: Sun, Nov 1 · 03:00 — not run: Clubmate was closed or the Mac asleep", "tone": "warning"}},
+                    {"type": "divider"},
+                    {"type": "stack", "props": {"direction": "horizontal"}, "children": [
+                      {"type": "text", "props": {"text": "●", "tone": "warning"}},
+                      {"type": "text", "props": {"text": "pkg/sdui/node.go:23", "style": "muted"}},
+                      {"type": "text", "props": {"lines": 1, "text": "lines 1: Workspace is set only by the Always allow path. Say so in a comment, or the next reader will set it for Allow once too."}},
+                      {"type": "spacer"},
+                      {"type": "text", "props": {"text": "open", "style": "muted"}}]},
+                    {"type": "divider"},
                     {"type": "text", "props": {"lines": 3, "text": "Review the diff Coder left in the worktree. Run go test ./... and go vet ./... first; if anything fails, report the failing package and the first error and stop there.\nOtherwise read every changed file, check the error handling, the names and that each new branch has a test.\nList what you would change, most important first, one line each.\nEnd with APPROVE or REQUEST CHANGES on its own line."}},
                     {
                       "type": "stack",

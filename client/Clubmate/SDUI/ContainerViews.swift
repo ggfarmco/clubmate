@@ -64,7 +64,7 @@ struct StackNodeView: View {
                     } else {
                         SDUINodeView(node: child.node)
                             .equatable()
-                            .layoutPriority(child.node.string("short") == nil ? 0 : -1)
+                            .layoutPriority(child.node.string("short") == nil && child.node.props["lines"]?.numberValue != 1 ? 0 : -1)
                     }
                 }
             }

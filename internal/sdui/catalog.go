@@ -116,6 +116,7 @@ var (
 	nonNegative    = number(func(n float64) bool { return n >= 0 }, "a non-negative number")
 	positive       = number(func(n float64) bool { return n > 0 }, "a positive number")
 	linesNumber    = number(func(n float64) bool { return n >= minLines && n <= maxLines && n == math.Trunc(n) }, fmt.Sprintf("an integer within %d…%d", minLines, maxLines))
+	textLines      = number(func(n float64) bool { return n >= 1 && n <= maxLines && n == math.Trunc(n) }, fmt.Sprintf("an integer within 1…%d", maxLines))
 	countNumber    = number(func(n float64) bool { return n >= 0 && n == math.Trunc(n) }, "a non-negative integer")
 	priorityNumber = number(func(n float64) bool { return n >= 0 && n <= maxTableColumns && n == math.Trunc(n) }, fmt.Sprintf("an integer within 0…%d", maxTableColumns))
 	depthNumber    = number(func(n float64) bool { return n >= 0 && n <= maxDepth && n == math.Trunc(n) }, fmt.Sprintf("an integer within 0…%d", maxDepth))
@@ -176,10 +177,11 @@ var (
 	sparkHeight = number(func(n float64) bool { return n >= minSparkHeight && n <= maxSparkHeight }, fmt.Sprintf("a number within %d…%d", minSparkHeight, maxSparkHeight))
 
 	catalog = map[string]spec{
-		"stack":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions), "align": oneOf(alignments), "gap": nonNegative}, children: anyChildren},
-		"split":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions)}, children: childRule{min: 2, max: 4}},
-		"scroll": {props: map[string]propCheck{"fit": isBool}, children: childRule{min: 1, max: 1}},
-		"spacer": {children: noChildren},
+		"stack":   {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions), "align": oneOf(alignments), "gap": nonNegative}, children: anyChildren},
+		"split":   {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions)}, children: childRule{min: 2, max: 4}},
+		"scroll":  {props: map[string]propCheck{"fit": isBool}, children: childRule{min: 1, max: 1}},
+		"spacer":  {children: noChildren},
+		"divider": {children: noChildren},
 		"tabs": {
 			required:    []string{"items", "selected"},
 			props:       map[string]propCheck{"items": listOf(itemCheck), "selected": isString, "action": actionCheck},
@@ -216,7 +218,7 @@ var (
 			props:    map[string]propCheck{"values": sparkValues, "max": positive, "height": sparkHeight},
 			children: noChildren,
 		},
-		"text":     {required: []string{"text"}, props: map[string]propCheck{"text": isString, "style": oneOf(textStyles), "lines": linesNumber, "tone": oneOf(badgeTones), "short": isString}, children: noChildren},
+		"text":     {required: []string{"text"}, props: map[string]propCheck{"text": isString, "style": oneOf(textStyles), "lines": textLines, "tone": oneOf(badgeTones), "short": isString}, children: noChildren},
 		"badge":    {required: []string{"text"}, props: map[string]propCheck{"text": isString, "tone": oneOf(badgeTones), "outline": isBool}, children: noChildren},
 		"icon":     {required: []string{"name"}, props: map[string]propCheck{"name": isString, "tone": oneOf(badgeTones)}, children: noChildren},
 		"diff":     {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
