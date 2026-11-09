@@ -326,7 +326,7 @@ func (s *archiveSheet) lost() string {
 	for _, r := range s.plan.Repos {
 		if s.removes(r) {
 			all.Dirty += r.State.Dirty
-			all.Ignored += r.State.Ignored
+			all.Secrets = append(all.Secrets, r.State.Secrets...)
 			all.Orphans += r.State.Orphans
 		}
 	}

@@ -124,7 +124,7 @@
         "hidden": true,
         "agent": false,
         "timeout": 60,
-        "description": "What removing these worktrees could lose, read with git status in each, at most 8 at a time. Runs nothing the repo's config names. Returns [{path, dirty, unpushed, ignored, orphans, nested, tip, merged, landed, remote, locked?, lockWhy?, error?}] in the order of paths: dirty counts changed and untracked files, ignored the ignored files, unpushed the commits on no remote and not in the local default branch, orphans the commits on no ref, nested the initialised submodules and repos inside it, whose work the other numbers can't see, tip and merged are read now rather than from the index, remote whether a remote-tracking branch of that name exists, landed (only with proof) whether the change is in the default branch by ancestry or an exact git merge-tree, locked and lockWhy whether git holds it, error why a path has no numbers.",
+        "description": "What removing these worktrees could lose, read with git status in each, at most 8 at a time. Runs nothing the repo's config names. Returns [{path, dirty, unpushed, ignored, secrets?, orphans, nested, tip, merged, landed, remote, locked?, lockWhy?, error?}] in the order of paths: dirty counts changed and untracked files, ignored the ignored files, secrets the secret-looking ignored files (.env, .env.*, *.pem, *.key, .npmrc, .netrc) not inside an ignored folder, relative to the worktree, unpushed the commits on no remote and not in the local default branch, orphans the commits on no ref, nested the initialised submodules and repos inside it, whose work the other numbers can't see, tip and merged are read now rather than from the index, remote whether a remote-tracking branch of that name exists, landed (only with proof) whether the change is in the default branch by ancestry or an exact git merge-tree, locked and lockWhy whether git holds it, error why a path has no numbers.",
         "args": {
           "properties": {
             "paths": {"type": "array", "items": {"type": "string"}, "description": "Worktree roots, as listed by git.worktree-index."},
@@ -210,8 +210,8 @@
             "force": {"type": "boolean", "description": "Passed to git.worktree.removing handlers: the editor stops the worktree's Neovim even with unsaved buffers, discarding their changes."},
             "discard": {"type": "boolean", "description": "Only the agents plugin, for the user's tick on the Remove folder sheet: remove the worktree with its uncommitted changes. Anyone else gets an error."},
             "left": {"type": "boolean", "description": "Only the agents plugin: repo has just left the workspace, so it is opened directly. Anyone else gets an error."},
-            "seenDirty": {"type": "integer", "description": "With discard or left: the changed and untracked files the user saw. More than these, or than seenIgnored or seenOrphans, or any submodule or repo inside it, before teardown keeps the worktree and fails the operation."},
-            "seenIgnored": {"type": "integer", "description": "With discard or left: the ignored files the user saw."},
+            "seenDirty": {"type": "integer", "description": "With discard or left: the changed and untracked files the user saw. More than these, or than seenSecrets or seenOrphans, or any submodule or repo inside it, before teardown keeps the worktree and fails the operation."},
+            "seenSecrets": {"type": "integer", "description": "With discard or left: the secret-looking ignored files the user saw (secrets on git.worktree-state). Other ignored files don't count."},
             "seenOrphans": {"type": "integer", "description": "With discard or left: the commits on no ref the user saw."}
           },
           "required": ["path"]

@@ -320,11 +320,11 @@ func TestFolderSheetNamesWhatIsLost(t *testing.T) {
 	t.Parallel()
 	f := startWithCron(t, map[string]any{})
 	workspace, _, second := f.twoFolders(t)
-	require.NoError(t, os.WriteFile(filepath.Join(second, ".gitignore"), []byte("*.log\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(second, ".gitignore"), []byte("*.log\n.env\n"), 0o600))
 	commitAll(t, second)
 	ignored := addWorktree(t, second, "feat-x")
 	detached := addWorktree(t, second, "feat-y")
-	for _, name := range []string{"a.log", "b.log"} {
+	for _, name := range []string{"a.log", ".env"} {
 		require.NoError(t, os.WriteFile(filepath.Join(ignored, name), []byte("n"), 0o600))
 	}
 	git(t, detached, "checkout", "-q", "--detach")
@@ -341,14 +341,14 @@ func TestFolderSheetNamesWhatIsLost(t *testing.T) {
 		return strings.Contains(label, "commit")
 	})
 	remove := sheetNodes(sheet, "button")[1]
-	assert.Equal(t, "Remove · lose 1 file, 2 ignored files and 1 commit", remove.Props["label"])
+	assert.Equal(t, "Remove · lose 1 file, .env and 1 commit", remove.Props["label"])
 	assert.Equal(t, sdui.VariantDanger, remove.Props["variant"])
 	assert.Empty(t, sheetNodes(sheet, "sheet")[0].Props["note"], "the button needs the room")
 	var words []string
 	for _, n := range sheetNodes(sheet, "text") {
 		words = append(words, fmt.Sprint(n.Props["text"]))
 	}
-	assert.Contains(t, words, "loses 2 ignored files")
+	assert.Contains(t, words, "loses .env")
 	assert.Contains(t, words, "loses 1 file and 1 detached commit")
 }
 
@@ -387,16 +387,16 @@ func (f *fixture) jobEnabled(t *testing.T, workspace, job string) bool {
 	return shown.Enabled
 }
 
-func TestFolderRemoveRefusedForASessionInAnotherWorkspace(t *testing.T) {
+func TestFolderRemoveLetsASessionInAnotherWorkspaceBe(t *testing.T) {
 	t.Parallel()
-	f := startGit(t, map[string]any{"prompt": []map[string]any{{"sleep": 3000}}})
+	f := startWithCron(t, map[string]any{"prompt": []map[string]any{{"sleep": 3000}}})
 	workspace, _, second := f.twoFolders(t)
 	f.runningIn(t, addWorktree(t, second, "feat-x"))
 
 	out := f.folderRemove(t, workspace, second)
 
-	assert.False(t, out.Removed)
-	assert.Len(t, out.Blockers, 1)
+	assert.True(t, out.Removed)
+	assert.Empty(t, out.Blockers)
 }
 
 func TestFolderSheetHoldsATickedWorktreeBeyondTheFolder(t *testing.T) {

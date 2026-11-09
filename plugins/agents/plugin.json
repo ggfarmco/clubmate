@@ -686,7 +686,7 @@
         "title": "Remove a folder from the workspace",
         "hidden": true,
         "remote": true,
-        "description": "Remove a folder from the workspace; never touches files, and pauses the Cron jobs that run in it. While a session of any workspace runs, waits or has queued prompts there, a task still lands there or it is the last folder it removes nothing and returns {removed: false, blockers, tasks, last}. Otherwise {removed: true, paused: [{id, name}]}; if the removal fails the jobs resume, and if Cron can't be read it removes nothing and fails.",
+        "description": "Remove a folder from the workspace; never touches files, and pauses the Cron jobs that run in it. While a session of this workspace runs, waits or has queued prompts there, a task still lands there or it is the last folder it removes nothing and returns {removed: false, blockers, tasks, last}. Otherwise {removed: true, paused: [{id, name}]}; if the removal fails the jobs resume, and if Cron can't be read it removes nothing and fails.",
         "args": {
           "properties": {
             "path": {"type": "string", "description": "The folder's path."}
@@ -698,7 +698,7 @@
         "id": "agents.folder-impact",
         "title": "What a folder's removal touches",
         "hidden": true,
-        "description": "What is tied to a folder of the workspace, decided here: {name, workspace, path, sessions: [{session, title, status, worktree}], worktrees: [{path, branch, sessions, read, unread, dirty, unpushed, ignored, orphans, nested}], graphs, hooks, instructions, skills, trustedGraphs, trustedHooks, cronJobs: [{id, name}], cronUnread, blockers, tasks, last}. Only the first 5 worktrees, those with open sessions first, are read (read), and unread says that read failed. cronJobs are the enabled jobs that run there, which pause on removal.",
+        "description": "What is tied to a folder of the workspace, decided here: {name, workspace, path, sessions: [{session, title, status, worktree}], worktrees: [{path, branch, sessions, read, unread, dirty, unpushed, ignored, secrets, orphans, nested}], graphs, hooks, instructions, skills, trustedGraphs, trustedHooks, cronJobs: [{id, name}], cronUnread, blockers, tasks, last}. Only the first 5 worktrees, those with open sessions first, are read (read), and unread says that read failed. cronJobs are the enabled jobs that run there, which pause on removal.",
         "args": {
           "properties": {
             "path": {"type": "string", "description": "The folder's path."}

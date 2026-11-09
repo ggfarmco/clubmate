@@ -63,7 +63,7 @@ type worktreeArgs struct {
 	Dates   bool     `json:"dates"`
 
 	SeenDirty   int `json:"seenDirty"`
-	SeenIgnored int `json:"seenIgnored"`
+	SeenSecrets int `json:"seenSecrets"`
 	SeenOrphans int `json:"seenOrphans"`
 }
 

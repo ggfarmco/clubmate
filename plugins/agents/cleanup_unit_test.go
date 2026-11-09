@@ -56,7 +56,8 @@ func TestCleanupPreTicksOnlyWhatCostsNothing(t *testing.T) {
 		{"merged and free", cleanupRow{Group: cleanupMerged, State: free}, true},
 		{"proved PR", cleanupRow{Group: cleanupPRMerged, State: free}, true},
 		{"not read yet", cleanupRow{Group: cleanupMerged}, false},
-		{"ignored files", cleanupRow{Group: cleanupMerged, State: folderWorktree{Read: true, Landed: true, Ignored: 1}}, false},
+		{"ignored files", cleanupRow{Group: cleanupMerged, State: folderWorktree{Read: true, Landed: true, Ignored: 1}}, true},
+		{"a secret file", cleanupRow{Group: cleanupMerged, State: folderWorktree{Read: true, Landed: true, Ignored: 1, Secrets: []string{".env.local"}}}, false},
 		{"an open session", cleanupRow{Group: cleanupMerged, Closes: []string{"agt_1"}, State: free}, false},
 		{"no proof", cleanupRow{Group: cleanupGone, State: free}, false},
 		{"idle", cleanupRow{Group: cleanupIdle, State: free}, false},
@@ -101,4 +102,15 @@ func TestPickerOffersCleanUpOnlyWithSomethingToClean(t *testing.T) {
 	assert.Equal(t, "Clean up worktrees…", buildPicker("ads", folders, rows).Cleanup)
 	assert.Empty(t, buildPicker("ads", folders, []worktreeRow{{gitWorktree: gitWorktree{Repo: "/r"}, Group: groupOther}}).Cleanup)
 	assert.Equal(t, "Clean up 1…", folderSections("/r", rows)[0].Clean)
+}
+
+func TestArchiveRemovesIgnoredFilesButKeepsSecrets(t *testing.T) {
+	t.Parallel()
+	built, _ := treeStep(folderWorktree{Read: true, Remote: true, Ignored: 40}, false, false, nil)
+	kept, anyway := treeStep(folderWorktree{Read: true, Remote: true, Ignored: 40, Secrets: []string{"api/.env.local"}}, false, false, nil)
+
+	assert.Equal(t, stepRemove, built.Action)
+	assert.Equal(t, stepKeep, kept.Action)
+	assert.Equal(t, ".env.local would be lost", kept.Why)
+	assert.True(t, anyway)
 }

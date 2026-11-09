@@ -36,19 +36,20 @@ type indexEntry struct {
 }
 
 type stateEntry struct {
-	Path     string `json:"path"`
-	Dirty    int    `json:"dirty"`
-	Unpushed int    `json:"unpushed"`
-	Error    string `json:"error"`
-	Ignored  int    `json:"ignored"`
-	Orphans  int    `json:"orphans"`
-	Nested   int    `json:"nested"`
-	Tip      string `json:"tip"`
-	Merged   bool   `json:"merged"`
-	Landed   bool   `json:"landed"`
-	Remote   bool   `json:"remote"`
-	Locked   bool   `json:"locked"`
-	LockWhy  string `json:"lockWhy"`
+	Path     string   `json:"path"`
+	Dirty    int      `json:"dirty"`
+	Unpushed int      `json:"unpushed"`
+	Error    string   `json:"error"`
+	Ignored  int      `json:"ignored"`
+	Secrets  []string `json:"secrets"`
+	Orphans  int      `json:"orphans"`
+	Nested   int      `json:"nested"`
+	Tip      string   `json:"tip"`
+	Merged   bool     `json:"merged"`
+	Landed   bool     `json:"landed"`
+	Remote   bool     `json:"remote"`
+	Locked   bool     `json:"locked"`
+	LockWhy  string   `json:"lockWhy"`
 }
 
 func worktreeIndex(t *testing.T, h *testutil.PluginHarness, id string) map[string]indexEntry {
@@ -351,6 +352,23 @@ func TestWorktreeStateCountsIgnoredFilesApart(t *testing.T) {
 
 	assert.Equal(t, 1, got.Dirty)
 	assert.Equal(t, 3, got.Ignored)
+}
+
+func TestWorktreeStateNamesSecretsOutsideIgnoredFolders(t *testing.T) {
+	repo := committedRepo(t)
+	write(t, filepath.Join(repo, ".gitignore"), ".env*\n*.pem\nnode_modules/\n")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "ignore")
+	dir := branchTree(t, repo, "pay", 0, false)
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "node_modules", "tls"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "api"), 0o755))
+	write(t, filepath.Join(dir, "node_modules", "tls", "test.pem"), "one\n")
+	write(t, filepath.Join(dir, "node_modules", "tls", ".npmrc"), "one\n")
+	write(t, filepath.Join(dir, ".env.local"), "one\n")
+	write(t, filepath.Join(dir, "api", "server.pem"), "one\n")
+	h, id := open(t, repo)
+
+	assert.ElementsMatch(t, []string{".env.local", "api/server.pem"}, worktreeStates(t, h, id, dir)[0].Secrets)
 }
 
 func TestWorktreeStateCountsCommitsOnNoRef(t *testing.T) {

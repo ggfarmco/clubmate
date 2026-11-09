@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -233,22 +234,25 @@ func TestCleanUpKeepsTheBranchOfALandedWorktreeMadeByHand(t *testing.T) {
 	assert.True(t, hasBranch(t, repo, "by-hand"))
 }
 
-func TestCleanUpLeavesIgnoredFilesUntickedUntilTheGroupIsTicked(t *testing.T) {
+func TestCleanUpTicksIgnoredFilesButNotSecrets(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{})
 	repo := newRepo(t)
 	workspace := f.workspace(t, repo)
-	tree := f.mergedTree(t, workspace, repo, "feat-a")
-	write(t, filepath.Join(tree, ".git-ignored-here"), "x\n")
-	write(t, filepath.Join(repo, ".git", "info", "exclude"), ".git-ignored-here\n")
+	write(t, filepath.Join(repo, ".git", "info", "exclude"), "node_modules/\n.env*\n")
+	built := f.mergedTree(t, workspace, repo, "feat-a")
+	require.NoError(t, os.MkdirAll(filepath.Join(built, "node_modules", "tls"), 0o755))
+	write(t, filepath.Join(built, "node_modules", "tls", "test.pem"), "x\n")
+	secret := f.mergedTree(t, workspace, repo, "feat-b")
+	write(t, filepath.Join(secret, ".env.local"), "x\n")
 	f.openCleanup(t, workspace)
-	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool {
-		return strings.Contains(sheetText(n), "1 worktree hold ignored files")
-	})
+	sheet := f.waitButton(t, workspace, "Remove 1")
+	assert.Contains(t, sheetText(sheet), "keeps .env.local")
+	assert.Contains(t, sheetText(sheet), "1 worktree with secret files, not ticked")
 
 	f.cleanupPress(t, workspace, "cleanupGroup", "cleanupSheet/group/merged", true)
 
-	f.waitButton(t, workspace, "Remove 1 · lose 1 ignored file")
+	f.waitButton(t, workspace, "Remove 2 · lose .env.local")
 }
 
 func TestCleanUpKeepsAWorktreeThatBecameDirtyAfterItWasRead(t *testing.T) {

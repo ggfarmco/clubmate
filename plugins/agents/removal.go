@@ -87,7 +87,7 @@ func (a *app) removeOne(ctx context.Context, workspaceID string, row removalRow,
 func (a *app) removeTree(ctx context.Context, workspaceID string, row removalRow) error {
 	now := []folderWorktree{row.tree}
 	a.proveWorktrees(ctx, workspaceID, now)
-	if now[0] != row.tree {
+	if !now[0].same(row.tree) {
 		return errRowChanged
 	}
 	roots, err := a.codeRoots(ctx)
@@ -212,7 +212,7 @@ func keptWhy(err error) string {
 
 func tipSeen(wt folderWorktree) string {
 	return strings.Join([]string{
-		wt.Tip, strconv.Itoa(wt.Dirty), strconv.Itoa(wt.Ignored), strconv.Itoa(wt.Orphans), strconv.Itoa(wt.Nested),
+		wt.Tip, strconv.Itoa(wt.Dirty), strings.Join(wt.Secrets, ":"), strconv.Itoa(wt.Orphans), strconv.Itoa(wt.Nested),
 		strconv.FormatBool(wt.Merged), strconv.FormatBool(wt.Landed), strconv.FormatBool(wt.Remote), strconv.FormatBool(wt.Locked),
 	}, "/")
 }

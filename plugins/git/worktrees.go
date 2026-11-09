@@ -559,7 +559,7 @@ func (args worktreeArgs) costHolds(ctx context.Context, dir string) error {
 		return errors.New(now.Error)
 	case now.Nested > 0:
 		return errNestedRepos
-	case now.Dirty > args.SeenDirty, now.Ignored > args.SeenIgnored, now.Orphans > args.SeenOrphans:
+	case now.Dirty > args.SeenDirty, len(now.Secrets) > args.SeenSecrets, now.Orphans > args.SeenOrphans:
 		return errCostGrew
 	}
 	return nil

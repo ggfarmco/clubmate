@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -217,7 +218,7 @@ func (a *app) removeWithWorktrees(ctx context.Context, workspaceID string, p *wo
 	a.uiMu.Unlock()
 	now := slices.Clone(shown)
 	a.readWorktrees(ctx, workspaceID, now)
-	if !slices.Equal(now, shown) {
+	if !slices.EqualFunc(now, shown, folderWorktree.same) {
 		return folderRemoveResult{}, errCostChanged
 	}
 	w, err := a.host.GetWorkspace(ctx, workspaceID)
@@ -263,7 +264,7 @@ func (a *app) removeSeen(ctx context.Context, workspaceID string, wt folderWorkt
 	a.worktreeMu.Lock()
 	defer a.worktreeMu.Unlock()
 	var op worktreeOp
-	args["seenDirty"], args["seenIgnored"], args["seenOrphans"] = wt.Dirty, wt.Ignored, wt.Orphans
+	args["seenDirty"], args["seenSecrets"], args["seenOrphans"] = wt.Dirty, len(wt.Secrets), wt.Orphans
 	if err := a.host.RunCommand(ctx, worktreeRemoveCmd, workspaceID, args, &op); err != nil {
 		return err
 	}
@@ -276,7 +277,7 @@ func (a *app) folderHoldsOf(workspaceID string, sheet *folderSheet) folderHolds 
 	path := sheet.impact.Path
 	ticked := sheet.tickedWorktrees()
 	a.uiMu.Unlock()
-	holds := folderHolds{blockers: a.blockersIn(holdDirs(sheet.dirs, ticked)), tasks: a.taskHolds(workspaceID, path, ticked)}
+	holds := folderHolds{blockers: a.folderBlockers(workspaceID, sheet.dirs, ticked), tasks: a.taskHolds(workspaceID, path, ticked)}
 	for _, s := range a.sessionsIn(workspaceID, sheet.dirs) {
 		holds.sessions = append(holds.sessions, folderSessionOf(s.snapshot()))
 	}
@@ -393,7 +394,7 @@ func (s *folderSheet) lost() string {
 	var all folderWorktree
 	for _, wt := range s.tickedWorktrees() {
 		all.Dirty += wt.Dirty
-		all.Ignored += wt.Ignored
+		all.Secrets = append(all.Secrets, wt.Secrets...)
 		all.Orphans += wt.Orphans
 	}
 	return lostWords(all, lostCommit)
@@ -404,13 +405,23 @@ func lostWords(wt folderWorktree, commit string) string {
 	if wt.Dirty > 0 {
 		parts = append(parts, counted(wt.Dirty, "file"))
 	}
-	if wt.Ignored > 0 {
-		parts = append(parts, counted(wt.Ignored, "ignored file"))
+	if words := secretWords(wt.Secrets); words != "" {
+		parts = append(parts, words)
 	}
 	if wt.Orphans > 0 {
 		parts = append(parts, counted(wt.Orphans, commit))
 	}
 	return listWords(parts, func(part string) string { return part })
+}
+
+func secretWords(secrets []string) string {
+	switch len(secrets) {
+	case 0:
+		return ""
+	case 1:
+		return path.Base(secrets[0])
+	}
+	return counted(len(secrets), "secret file")
 }
 
 func (s *folderSheet) rows(h folderHolds) ([]sdui.ImpactRow, []sdui.Node) {

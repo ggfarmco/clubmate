@@ -49,7 +49,8 @@ const (
 	cleanupShowMore    = "Show %d more · %d left"
 	cleanupWillLose    = "%s will be lost"
 	cleanupStays       = "%s · branch stays"
-	cleanupHeldIgnored = "%s hold ignored files, not ticked"
+	cleanupHeldSecrets = "%s with secret files, not ticked"
+	cleanupKeeps       = "keeps %s"
 	cleanupHeldOpen    = "%s with an open session, tick one at a time"
 	cleanupUnread      = "reading…"
 	cleanupEmpty       = "Nothing to clean up: no merged, idle or hand-made worktree is left."
@@ -433,7 +434,7 @@ func (s *cleanupSheet) groupNode(g cleanupGroup, rows []cleanupRow) sdui.Node {
 	}
 	lines := []sdui.Node{sdui.WithGap(sdui.HStack(head...), cleanupRowGap)}
 	if held := s.heldBack(rows); held > 0 {
-		lines = append(lines, sdui.MutedText(fmt.Sprintf(cleanupHeldIgnored, counted(held, "worktree"))))
+		lines = append(lines, sdui.MutedText(fmt.Sprintf(cleanupHeldSecrets, counted(held, "worktree"))))
 	}
 	if open := countOpen(rows); open > 0 {
 		lines = append(lines, sdui.WithTone(sdui.Text(fmt.Sprintf(cleanupHeldOpen, counted(open, "worktree"))), "warning"))
@@ -481,7 +482,7 @@ func (s *cleanupSheet) allTicked(rows []cleanupRow) bool {
 func (s *cleanupSheet) heldBack(rows []cleanupRow) int {
 	n := 0
 	for _, r := range rows {
-		if r.tickable() && !s.ticked[r.Path] && !s.chosen[r.Path] && r.State.Ignored > 0 {
+		if r.tickable() && !s.ticked[r.Path] && !s.chosen[r.Path] && len(r.State.Secrets) > 0 {
 			n++
 		}
 	}
@@ -522,6 +523,8 @@ func (s *cleanupSheet) rowWord(r cleanupRow) (string, string) {
 		return r.Words, "warning"
 	case lost != "" && s.ticked[r.Path]:
 		return fmt.Sprintf(cleanupWillLose, lost), "danger"
+	case lost != "" && wt.Dirty == 0 && wt.Orphans == 0:
+		return fmt.Sprintf(cleanupKeeps, lost), ""
 	case lost != "":
 		return lost, ""
 	case wt.Unpushed > 0 && wt.Branch != "":
@@ -583,7 +586,7 @@ func (s *cleanupSheet) lost() string {
 	var all folderWorktree
 	for _, r := range s.chosenRows() {
 		all.Dirty += r.tree.Dirty
-		all.Ignored += r.tree.Ignored
+		all.Secrets = append(all.Secrets, r.tree.Secrets...)
 		all.Orphans += r.tree.Orphans
 	}
 	return lostWords(all, lostCommit)

@@ -399,7 +399,7 @@ func agentsRemove(t *testing.T, h *testutil.PluginHarness, id string, args map[s
 
 func TestWorktreeRemoveKeepsAWorktreeThatCostsMoreThanSeen(t *testing.T) {
 	repo := committedRepo(t)
-	write(t, filepath.Join(repo, ".gitignore"), "*.log\n")
+	write(t, filepath.Join(repo, ".gitignore"), "*.log\n.env\n")
 	git(t, repo, "add", ".")
 	git(t, repo, "commit", "-qm", "ignore")
 	dirty := branchTree(t, repo, "dirty", 0, false)
@@ -407,6 +407,7 @@ func TestWorktreeRemoveKeepsAWorktreeThatCostsMoreThanSeen(t *testing.T) {
 	write(t, filepath.Join(dirty, "y.go"), "one\n")
 	ignored := branchTree(t, repo, "ignored", 0, false)
 	write(t, filepath.Join(ignored, "a.log"), "one\n")
+	write(t, filepath.Join(ignored, ".env"), "one\n")
 	detached := branchTree(t, repo, "detached", 0, false)
 	git(t, detached, "checkout", "-q", "--detach")
 	write(t, filepath.Join(detached, "x.go"), "one\n")
@@ -423,11 +424,11 @@ func TestWorktreeRemoveKeepsAWorktreeThatCostsMoreThanSeen(t *testing.T) {
 		assert.Equal(t, "it has more to lose than when you looked", agentsRemove(t, h, id, args).Error, args)
 	}
 	assert.FileExists(t, filepath.Join(dirty, "y.go"))
-	assert.FileExists(t, filepath.Join(ignored, "a.log"))
+	assert.FileExists(t, filepath.Join(ignored, ".env"))
 	assert.DirExists(t, detached)
 
 	assert.Empty(t, agentsRemove(t, h, id, map[string]any{"path": dirty, "discard": true, "seenDirty": 2}).Error)
-	assert.Empty(t, agentsRemove(t, h, id, map[string]any{"path": ignored, "left": true, "repo": repo, "seenIgnored": 1}).Error)
+	assert.Empty(t, agentsRemove(t, h, id, map[string]any{"path": ignored, "left": true, "repo": repo, "seenSecrets": 1}).Error)
 	assert.Empty(t, agentsRemove(t, h, id, map[string]any{"path": detached, "left": true, "repo": repo, "seenOrphans": 1}).Error)
 	assert.NoDirExists(t, dirty)
 	assert.NoDirExists(t, ignored)

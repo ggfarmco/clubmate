@@ -41,6 +41,8 @@ const (
 
 var errNotWorktree = errors.New("not a worktree of this workspace")
 
+var secretNames = []string{".env", ".env.*", "*.pem", "*.key", ".npmrc", ".netrc"}
+
 type indexEntry struct {
 	worktreeInfo
 	Created    time.Time `json:"created,omitzero"`
@@ -98,19 +100,20 @@ type metaStore struct {
 }
 
 type worktreeState struct {
-	Path     string `json:"path"`
-	Dirty    int    `json:"dirty"`
-	Unpushed int    `json:"unpushed"`
-	Ignored  int    `json:"ignored"`
-	Orphans  int    `json:"orphans"`
-	Nested   int    `json:"nested"`
-	Tip      string `json:"tip,omitempty"`
-	Merged   bool   `json:"merged"`
-	Landed   bool   `json:"landed"`
-	Remote   bool   `json:"remote"`
-	Locked   bool   `json:"locked,omitempty"`
-	LockWhy  string `json:"lockWhy,omitempty"`
-	Error    string `json:"error,omitempty"`
+	Path     string   `json:"path"`
+	Dirty    int      `json:"dirty"`
+	Unpushed int      `json:"unpushed"`
+	Ignored  int      `json:"ignored"`
+	Secrets  []string `json:"secrets,omitempty"`
+	Orphans  int      `json:"orphans"`
+	Nested   int      `json:"nested"`
+	Tip      string   `json:"tip,omitempty"`
+	Merged   bool     `json:"merged"`
+	Landed   bool     `json:"landed"`
+	Remote   bool     `json:"remote"`
+	Locked   bool     `json:"locked,omitempty"`
+	LockWhy  string   `json:"lockWhy,omitempty"`
+	Error    string   `json:"error,omitempty"`
 }
 
 func (a *app) worktreeIndex(ctx context.Context, c call) ([]indexEntry, error) {
@@ -484,6 +487,10 @@ func readState(ctx context.Context, out *worktreeState, dir string, exclude []st
 			out.Dirty++
 		}
 	}
+	if out.Secrets, err = secretFiles(ctx, dir); err != nil {
+		out.Error = err.Error()
+		return
+	}
 	submodules, err := initialisedSubmodules(ctx, dir)
 	if err != nil {
 		out.Error = err.Error()
@@ -498,6 +505,27 @@ func readState(ctx context.Context, out *worktreeState, dir string, exclude []st
 	if out.Orphans, err = countRevs(ctx, dir, "rev-list", "--count", currentHead, "--not", "--branches", "--tags", "--remotes"); err != nil {
 		out.Error = err.Error()
 	}
+}
+
+func secretFiles(ctx context.Context, dir string) ([]string, error) {
+	raw, err := inert(ctx, dir, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory")
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for entry := range strings.SplitSeq(string(raw), "\x00") {
+		if entry != "" && !strings.HasSuffix(entry, "/") && isSecret(filepath.Base(entry)) {
+			out = append(out, entry)
+		}
+	}
+	return out, nil
+}
+
+func isSecret(name string) bool {
+	return slices.ContainsFunc(secretNames, func(pattern string) bool {
+		ok, _ := filepath.Match(pattern, name)
+		return ok
+	})
 }
 
 func initialisedSubmodules(ctx context.Context, dir string) (int, error) {

@@ -39,22 +39,23 @@ type folderSession struct {
 }
 
 type folderWorktree struct {
-	Path     string `json:"path"`
-	Branch   string `json:"branch"`
-	Sessions int    `json:"sessions,omitempty"`
-	Read     bool   `json:"read,omitempty"`
-	Unread   bool   `json:"unread,omitempty"`
-	Dirty    int    `json:"dirty,omitempty"`
-	Unpushed int    `json:"unpushed,omitempty"`
-	Ignored  int    `json:"ignored,omitempty"`
-	Orphans  int    `json:"orphans,omitempty"`
-	Nested   int    `json:"nested,omitempty"`
-	Tip      string `json:"tip,omitempty"`
-	Merged   bool   `json:"merged,omitempty"`
-	Landed   bool   `json:"landed,omitempty"`
-	Remote   bool   `json:"remote,omitempty"`
-	Locked   bool   `json:"locked,omitempty"`
-	LockWhy  string `json:"lockWhy,omitempty"`
+	Path     string   `json:"path"`
+	Branch   string   `json:"branch"`
+	Sessions int      `json:"sessions,omitempty"`
+	Read     bool     `json:"read,omitempty"`
+	Unread   bool     `json:"unread,omitempty"`
+	Dirty    int      `json:"dirty,omitempty"`
+	Unpushed int      `json:"unpushed,omitempty"`
+	Ignored  int      `json:"ignored,omitempty"`
+	Secrets  []string `json:"secrets,omitempty"`
+	Orphans  int      `json:"orphans,omitempty"`
+	Nested   int      `json:"nested,omitempty"`
+	Tip      string   `json:"tip,omitempty"`
+	Merged   bool     `json:"merged,omitempty"`
+	Landed   bool     `json:"landed,omitempty"`
+	Remote   bool     `json:"remote,omitempty"`
+	Locked   bool     `json:"locked,omitempty"`
+	LockWhy  string   `json:"lockWhy,omitempty"`
 }
 
 type folderJob struct {
@@ -106,19 +107,20 @@ type worktreeRef struct {
 }
 
 type worktreeState struct {
-	Path     string `json:"path"`
-	Dirty    int    `json:"dirty"`
-	Unpushed int    `json:"unpushed"`
-	Ignored  int    `json:"ignored"`
-	Orphans  int    `json:"orphans"`
-	Nested   int    `json:"nested"`
-	Tip      string `json:"tip"`
-	Merged   bool   `json:"merged"`
-	Landed   bool   `json:"landed"`
-	Remote   bool   `json:"remote"`
-	Locked   bool   `json:"locked"`
-	LockWhy  string `json:"lockWhy"`
-	Error    string `json:"error"`
+	Path     string   `json:"path"`
+	Dirty    int      `json:"dirty"`
+	Unpushed int      `json:"unpushed"`
+	Ignored  int      `json:"ignored"`
+	Secrets  []string `json:"secrets"`
+	Orphans  int      `json:"orphans"`
+	Nested   int      `json:"nested"`
+	Tip      string   `json:"tip"`
+	Merged   bool     `json:"merged"`
+	Landed   bool     `json:"landed"`
+	Remote   bool     `json:"remote"`
+	Locked   bool     `json:"locked"`
+	LockWhy  string   `json:"lockWhy"`
+	Error    string   `json:"error"`
 }
 
 func (a *app) folderRemoveCommand(ctx context.Context, cmd pluginsdk.CommandRun, args pathArgs) (any, error) {
@@ -163,8 +165,9 @@ func (a *app) dropFolder(ctx context.Context, w pluginsdk.Workspace, folder stri
 func (a *app) claimFolder(ctx context.Context, w pluginsdk.Workspace, folder string, ticked []folderWorktree) ([]string, folderRemoveResult) {
 	a.spawnMu.Lock()
 	defer a.spawnMu.Unlock()
-	dirs := holdDirs(folderDirs(ctx, folder), ticked)
-	blockers := a.blockersIn(dirs)
+	own := folderDirs(ctx, folder)
+	dirs := holdDirs(own, ticked)
+	blockers := a.folderBlockers(w.ID, own, ticked)
 	tasks := a.taskHolds(w.ID, folder, ticked)
 	last := len(w.Paths()) == 1
 	if len(blockers) > 0 || len(tasks) > 0 || last {
@@ -265,7 +268,7 @@ func (a *app) folderImpact(ctx context.Context, workspaceID, path string) (folde
 	for _, s := range a.sessionsIn(workspaceID, dirs) {
 		out.Sessions = append(out.Sessions, folderSessionOf(s.snapshot()))
 	}
-	out.Blockers = append(out.Blockers, a.blockersIn(dirs)...)
+	out.Blockers = append(out.Blockers, a.folderBlockers(workspaceID, dirs, nil)...)
 	out.Tasks = append(out.Tasks, a.tasksOn(workspaceID, folder)...)
 	out.Worktrees = a.worktreesOf(ctx, workspaceID, folder)
 	var facts repoFacts
@@ -333,9 +336,15 @@ func (a *app) stateOf(ctx context.Context, workspaceID string, worktrees []folde
 	}
 }
 
+func (wt folderWorktree) same(other folderWorktree) bool {
+	return tipSeen(wt) == tipSeen(other) && wt.Path == other.Path && wt.Branch == other.Branch && wt.Sessions == other.Sessions &&
+		wt.Read == other.Read && wt.Unread == other.Unread && wt.Unpushed == other.Unpushed && wt.LockWhy == other.LockWhy
+}
+
 func (wt *folderWorktree) applyState(s worktreeState) {
 	wt.Unread, wt.Dirty, wt.Unpushed, wt.Ignored, wt.Orphans, wt.Nested = false, s.Dirty, s.Unpushed, s.Ignored, s.Orphans, s.Nested
 	wt.Tip, wt.Merged, wt.Landed, wt.Remote, wt.Locked, wt.LockWhy = s.Tip, s.Merged, s.Landed, s.Remote, s.Locked, s.LockWhy
+	wt.Secrets = s.Secrets
 }
 
 func (a *app) folderJobs(ctx context.Context, w pluginsdk.Workspace, folder string) ([]folderJob, error) {
@@ -393,9 +402,20 @@ func (a *app) workspaceFolder(ctx context.Context, workspaceID, path string) (st
 }
 
 func (a *app) blockersIn(dirs []string) []folderSession {
+	return a.blockers(func(s *session) bool { return s.worksIn(dirs) })
+}
+
+func (a *app) folderBlockers(workspaceID string, dirs []string, ticked []folderWorktree) []folderSession {
+	trees := holdDirs(nil, ticked)
+	return a.blockers(func(s *session) bool {
+		return s.worksIn(trees) || s.snapshot().Workspace == workspaceID && s.worksIn(dirs)
+	})
+}
+
+func (a *app) blockers(holds func(*session) bool) []folderSession {
 	var recs []record
 	for _, s := range a.allSessions() {
-		if s.worksIn(dirs) && s.blocksFolder() {
+		if holds(s) && s.blocksFolder() {
 			recs = append(recs, s.snapshot())
 		}
 	}
