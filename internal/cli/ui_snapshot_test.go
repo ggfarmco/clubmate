@@ -39,3 +39,28 @@ func TestUISnapshotParams(t *testing.T) {
 	assert.Contains(t, out, "/tmp/out/w7.png")
 	assert.Contains(t, out, "0 problems")
 }
+
+func TestUIPointerParams(t *testing.T) {
+	startCore(t)
+	nc, err := net.Dial("unix", filepath.Join(os.Getenv("CLUBMATE_RUNTIME_DIR"), "core.sock"))
+	require.NoError(t, err)
+	seen := make(chan map[string]any, 2)
+	handler := jsonrpc2.HandlerWithError(func(_ context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
+		var p map[string]any
+		require.NoError(t, json.Unmarshal(*req.Params, &p))
+		seen <- p
+		return map[string]any{"window": "window", "point": []float64{1, 2}}, nil
+	})
+	conn := jsonrpc2.NewConn(context.Background(), jsonrpc2.NewPlainObjectStream(nc), jsonrpc2.AsyncHandler(handler))
+	t.Cleanup(func() { conn.Close() })
+	require.NoError(t, conn.Call(t.Context(), "client.register", map[string]any{"handles": []string{"ui.pointer"}}, nil))
+	t.Chdir(t.TempDir())
+
+	run(t, "ui", "click", "tasks#1", "--at", "3,4.5", "--count", "2", "--keys", "cmd")
+	assert.Equal(t, map[string]any{"action": "click", "node": "tasks#1", "at": []any{3.0, 4.5}, "count": 2.0, "keys": "cmd"}, <-seen)
+
+	run(t, "ui", "drop", "attach", "notes.txt")
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"action": "drop", "node": "attach", "file": filepath.Join(wd, "notes.txt")}, <-seen)
+}

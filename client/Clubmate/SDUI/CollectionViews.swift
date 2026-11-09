@@ -413,6 +413,11 @@ struct ItemRow<Leading: View>: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
+        row
+            .testRow(item.id, label: item.label, selected: selected, hovered: hovering)
+    }
+
+    private var row: some View {
         HStack(spacing: theme.spacing.m) {
             leading()
             if let icon = item.icon, !icon.isEmpty {

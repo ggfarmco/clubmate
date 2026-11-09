@@ -119,8 +119,9 @@ func TestTestAppCallRejects(t *testing.T) {
 		{"../x", "workspace.list", `invalid instance name "../x"`},
 		{"gone", "workspace.list", "instance gone is not running"},
 		{"demo", "ui.snapshot", "out must be inside"},
+		{"demo", "ui.pointer", "file must be inside"},
 	} {
-		err := c.Call(t.Context(), "testapp.call", map[string]any{"instance": tc.instance, "method": tc.method, "params": map[string]any{"out": "/etc/x"}}, nil)
+		err := c.Call(t.Context(), "testapp.call", map[string]any{"instance": tc.instance, "method": tc.method, "params": map[string]any{"out": "/etc/x", "action": "drop", "node": "n", "file": "/etc/passwd"}}, nil)
 		require.Error(t, err, tc.instance)
 		assert.Contains(t, err.Error(), tc.want)
 	}

@@ -25,7 +25,7 @@ const (
 
 var (
 	testAppName    = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
-	testAppMethods = []string{"command.list", "command.run", "workspace.list", "ui.event", "ui.get", "ui.key", "ui.present", "ui.snapshot", "workspace.open"}
+	testAppMethods = []string{"command.list", "command.run", "workspace.list", "ui.event", "ui.get", "ui.key", "ui.pointer", "ui.present", "ui.snapshot", "workspace.open"}
 )
 
 type testAppCallParams struct {
@@ -97,23 +97,35 @@ func (s *Server) testAppParams(p testAppCallParams) (map[string]json.RawMessage,
 		params["agent"] = json.RawMessage("true")
 	case handleUISnapshot:
 		dir := filepath.Join(s.testAppRoot, testAppPrefix+p.Instance)
-		out := filepath.Join(dir, "snapshots")
-		if raw, ok := params["out"]; ok {
-			if err := json.Unmarshal(raw, &out); err != nil {
-				return nil, invalidParams("params.out: want string")
-			}
-			out = filepath.Clean(out)
-			if !strings.HasPrefix(out, dir+string(filepath.Separator)) {
-				return nil, invalidParams(fmt.Sprintf("out must be inside %s", dir))
-			}
+		if _, ok := params["out"]; !ok {
+			params["out"], _ = json.Marshal(filepath.Join(dir, "snapshots"))
 		}
-		encoded, err := json.Marshal(out)
-		if err != nil {
+		if err := insideInstance(params, "out", dir); err != nil {
 			return nil, err
 		}
-		params["out"] = encoded
+	case handleUIPointer:
+		if err := insideInstance(params, "file", filepath.Join(s.testAppRoot, testAppPrefix+p.Instance)); err != nil {
+			return nil, err
+		}
 	}
 	return params, nil
+}
+
+func insideInstance(params map[string]json.RawMessage, key, dir string) error {
+	raw, ok := params[key]
+	if !ok {
+		return nil
+	}
+	var path string
+	if err := json.Unmarshal(raw, &path); err != nil {
+		return invalidParams(fmt.Sprintf("params.%s: want string", key))
+	}
+	path = filepath.Clean(path)
+	if !strings.HasPrefix(path, dir+string(filepath.Separator)) {
+		return invalidParams(fmt.Sprintf("%s must be inside %s", key, dir))
+	}
+	params[key], _ = json.Marshal(path)
+	return nil
 }
 
 func (s *Server) testAppList(ctx context.Context, _ empty) ([]testAppInstance, error) {

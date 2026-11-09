@@ -52,6 +52,14 @@ func TestKeyForwardedToTestClient(t *testing.T) {
 	assert.JSONEq(t, `{"keys":["opt+return"]}`, string(<-seen))
 }
 
+func TestPointerForwardedToTestClient(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t)
+	seen := newTestApp(t, h, "ui.pointer")
+	require.NoError(t, h.Client(t).Call(t.Context(), "ui.pointer", map[string]any{"action": "click", "node": "send"}, nil))
+	assert.JSONEq(t, `{"action":"click","node":"send"}`, string(<-seen))
+}
+
 func TestSnapshotWithoutTestClient(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t)

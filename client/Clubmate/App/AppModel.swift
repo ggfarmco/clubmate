@@ -253,6 +253,7 @@ final class AppModel {
             client.snapshotHandler = { try await TestHarness.shared.snapshot($0) }
             client.presentHandler = { try TestHarness.shared.present($0) }
             client.keyHandler = { try await TestHarness.shared.key($0) }
+            client.pointerHandler = { try await TestHarness.shared.pointer($0) }
         }
         do {
             let commands = try await client.commandList()

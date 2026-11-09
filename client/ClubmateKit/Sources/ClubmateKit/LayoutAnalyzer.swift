@@ -9,6 +9,7 @@ public enum LayoutAnalyzer {
         let byID = Dictionary(grouping: elements, by: \.id)
         let siblings = Dictionary(grouping: elements.filter { $0.source == "sdui" && $0.parent != nil }) { $0.parent ?? "" }
         return elements.map { element in
+            guard element.source != "row" else { return element }
             var flags = Set<String>()
             let f = element.frame
             if f.x < bounds.x - tolerance || f.y < bounds.y - tolerance || f.maxX > bounds.maxX + tolerance || f.maxY > bounds.maxY + tolerance {

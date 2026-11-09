@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -29,7 +30,7 @@ type uiEventOptions struct {
 
 func (a *app) uiCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "ui", Short: "Inspect and drive plugin UI"}
-	cmd.AddCommand(a.uiSectionsCmd(), a.uiDumpCmd(), a.uiEventCmd(), a.uiSnapshotCmd(), a.uiPresentCmd(), a.uiKeyCmd())
+	cmd.AddCommand(a.uiSectionsCmd(), a.uiDumpCmd(), a.uiEventCmd(), a.uiSnapshotCmd(), a.uiPresentCmd(), a.uiKeyCmd(), a.uiPointerCmd("click"), a.uiPointerCmd("hover"), a.uiPointerCmd("drag"), a.uiPointerCmd("menu"), a.uiPointerCmd("drop"))
 	return cmd
 }
 
@@ -163,11 +164,14 @@ func propValue(v any) string {
 
 type snapshotResult struct {
 	Windows []struct {
-		ID     int    `json:"id"`
-		Kind   string `json:"kind"`
-		Title  string `json:"title"`
-		PNG    string `json:"png,omitempty"`
-		Layout string `json:"layout"`
+		ID        int    `json:"id"`
+		Kind      string `json:"kind"`
+		Title     string `json:"title"`
+		PNG       string `json:"png,omitempty"`
+		Layout    string `json:"layout"`
+		Key       bool   `json:"key,omitempty"`
+		Focus     string `json:"focus,omitempty"`
+		Responder string `json:"responder,omitempty"`
 	} `json:"windows"`
 	Summary string `json:"summary"`
 }
@@ -206,6 +210,9 @@ func (a *app) uiSnapshotCmd() *cobra.Command {
 			return a.render(res, func(w io.Writer) {
 				for _, win := range res.Windows {
 					fmt.Fprintf(w, "%s %q\n", win.Kind, win.Title)
+					if win.Key {
+						fmt.Fprintf(w, "  key    focus %s (%s)\n", cmp.Or(win.Focus, "-"), cmp.Or(win.Responder, "none"))
+					}
 					if win.PNG != "" {
 						fmt.Fprintf(w, "  png    %s\n", win.PNG)
 					}
@@ -266,6 +273,78 @@ func (a *app) uiKeyCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&workspaceID, "workspace", "", "workspace id")
 	cmd.Flags().StringVar(&focus, "focus", "", "focus this node (an id from the snapshot layout) first")
+	return cmd
+}
+
+var pointerUsage = map[string][2]string{
+	"click": {"click <node>", "Click a node in a test-mode app (--at x,y from its top left, --count 2 for a double click)"},
+	"hover": {"hover <node>", "Move the pointer over a node in a test-mode app"},
+	"drag":  {"drag <from node> <to node>", "Press on one node, move to another and release, in one window of a test-mode app"},
+	"menu":  {"menu <node> [item]", "Open the menu a click (or --context: a right click) on a node shows and pick an item (path a > b); without item list it"},
+	"drop":  {"drop <node> <file>", "Drop a file on a node in a test-mode app as if dragged from Finder"},
+}
+
+func (a *app) uiPointerCmd(action string) *cobra.Command {
+	var (
+		workspaceID, at, keys string
+		count                 int
+		context               bool
+	)
+	args := map[string]cobra.PositionalArgs{"drag": cobra.ExactArgs(2), "menu": cobra.RangeArgs(1, 2), "drop": cobra.ExactArgs(2)}[action]
+	if args == nil {
+		args = cobra.ExactArgs(1)
+	}
+	cmd := &cobra.Command{
+		Use:   pointerUsage[action][0],
+		Short: pointerUsage[action][1],
+		Args:  args,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			params := withCaller(map[string]any{"action": action, "node": args[0]})
+			switch {
+			case action == "drag":
+				params["to"] = args[1]
+			case action == "menu" && len(args) == 2:
+				params["item"] = args[1]
+			case action == "drop":
+				file, err := filepath.Abs(args[1])
+				if err != nil {
+					return err
+				}
+				params["file"] = file
+			}
+			if at != "" {
+				x, y, ok := strings.Cut(at, ",")
+				px, errX := strconv.ParseFloat(x, 64)
+				py, errY := strconv.ParseFloat(y, 64)
+				if !ok || errX != nil || errY != nil {
+					return fmt.Errorf("invalid --at %q, want x,y like 12,4", at)
+				}
+				params["at"] = []float64{px, py}
+			}
+			if count > 1 {
+				params["count"] = count
+			}
+			if keys != "" {
+				params["keys"] = keys
+			}
+			if context {
+				params["context"] = true
+			}
+			if workspaceID != "" {
+				params["workspaceId"] = workspaceID
+			}
+			return a.callAndPrint(cmd.Context(), "ui.pointer", params)
+		},
+	}
+	cmd.Flags().StringVar(&workspaceID, "workspace", "", "workspace id")
+	cmd.Flags().StringVar(&at, "at", "", "point in the node, x,y in points from its top left (default: its centre)")
+	cmd.Flags().StringVar(&keys, "keys", "", "modifiers held down, e.g. cmd or shift+opt")
+	switch action {
+	case "click":
+		cmd.Flags().IntVar(&count, "count", 1, "clicks, 2 for a double click")
+	case "menu":
+		cmd.Flags().BoolVar(&context, "context", false, "open the node's context menu (right click)")
+	}
 	return cmd
 }
 

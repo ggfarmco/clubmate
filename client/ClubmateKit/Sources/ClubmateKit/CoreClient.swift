@@ -11,6 +11,7 @@ public final class CoreClient {
     public var snapshotHandler: (@MainActor (SnapshotRequest) async throws -> SnapshotResult)?
     public var presentHandler: (@MainActor (PresentRequest) async throws -> Bool)?
     public var keyHandler: (@MainActor (KeyRequest) async throws -> [String])?
+    public var pointerHandler: (@MainActor (PointerRequest) async throws -> PointerResult)?
     public var browserHandler: (@MainActor (BrowserCall) async throws -> JSONValue)?
     private var pressCaller: String?
 
@@ -231,6 +232,17 @@ public final class CoreClient {
                 }
             }
             await answerTest(request, key)
+            return
+        case "ui.pointer":
+            var pointer: (@MainActor (PointerRequest) async throws -> PointerResult)?
+            if let handler = pointerHandler {
+                pointer = { [weak self] request in
+                    self?.pressCaller = request.caller
+                    defer { self?.pressCaller = nil }
+                    return try await handler(request)
+                }
+            }
+            await answerTest(request, pointer)
             return
         case "browser.call":
             await answerTest(request, browserHandler)

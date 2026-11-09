@@ -112,3 +112,8 @@ companion-ui-test:
 	status=$$?; xcrun simctl shutdown $$udid; exit $$status
 
 .PHONY: build run-core test lint push-relay push-relay-linux ghostty app app-release run-app protocol-test kit-test nvim-distro nvim-test bundle-smoke gallery-smoke companion-kit-test companion companion-ui-test
+
+mac-ui-test:
+	mkdir -p build/mac-ui
+	go build -o build/mac-ui/fakeagent ./plugins/agents/internal/fakeagent
+	CLUBMATE_TEST_APP="$(CURDIR)/build/DerivedData/Build/Products/Debug/Clubmate Dev.app" go test -count=1 -p 1 -timeout 40m -v ./internal/macui/ $(if $(RUN),-run '$(RUN)')

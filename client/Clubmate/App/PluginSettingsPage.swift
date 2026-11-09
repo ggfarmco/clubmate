@@ -424,7 +424,7 @@ struct PaneFontRows: View {
 
     var body: some View {
         SettingsRow(title: title) {
-            FontFamilyPicker(selection: family, inherited: settings.interfaceFontFamily)
+            FontFamilyPicker(selection: family, inherited: settings.interfaceFontFamily, probe: "font.\(key)")
         }
         SettingsRow(title: "\(title) size") {
             HStack(spacing: 10) {
@@ -454,6 +454,7 @@ struct PaneFontRows: View {
 struct FontFamilyPicker: View {
     @Binding var selection: String?
     let inherited: String?
+    let probe: String
 
     var body: some View {
         Menu {
@@ -480,6 +481,7 @@ struct FontFamilyPicker: View {
             Text(title)
         }
         .fixedSize()
+        .testNode(probe, role: "menu")
     }
 
     private var title: String {

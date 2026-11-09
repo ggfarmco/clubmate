@@ -13,10 +13,12 @@ final class TestHarness {
     private var presenters: [String: (Bool) -> Void] = [:]
     var voiceKeys: (@MainActor (NSEvent) -> Bool)?
     private var sized = Set<Int>()
+    private var entered: [NSTrackingArea] = []
     private var timer: Timer?
 
     func start() {
         NSApp.setActivationPolicy(.accessory)
+        TestKeyWindow.install()
         timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in
             MainActor.assumeIsolated { TestHarness.shared.conceal() }
         }
@@ -93,32 +95,31 @@ final class TestHarness {
             guard let combo = KeyCombo(key) else { throw TestModeError("unknown key \(key); use [cmd+][ctrl+][opt+][shift+]<a-z, 0-9, punctuation, return, tab, space, delete, esc, up, down, left, right>") }
             return combo
         }
-        let formSheet = NSApp.windows.first { $0.isVisible && $0.sheetParent != nil && $0.identifier == FormSheetHost.windowID }
-        guard let window = try request.focus.map(focus) ?? formSheet ?? NSApp.promptWindow else { throw TestModeError("no window to send keys to") }
+        TestKeyWindow.announce()
+        var window = try request.focus.map(focus)
         var routes: [String] = []
         for combo in combos {
-            if NSApp.modalWindow != nil || NSApp.windows.contains(where: { $0.isVisible && $0.sheetParent != nil && $0.identifier != FormSheetHost.windowID }) {
-                throw TestModeError("a sheet or alert is open; keys are never sent to approvals")
+            TestKeyWindow.sync()
+            if request.focus == nil || window?.isVisible != true { window = TestKeyWindow.current }
+            guard let window else { throw TestModeError("no window to send keys to") }
+            if let guarded = guardedWindow(), !(combo.bare && !combo.shift && combo.keyCode == 53) {
+                throw TestModeError("\(guarded) is open; keys other than esc are never sent to it")
             }
             let overTerminal = window.firstResponder is TerminalSurfaceView
-            var flags: NSEvent.ModifierFlags = []
-            if combo.command { flags.insert(.command) }
-            if combo.control { flags.insert(.control) }
-            if combo.option { flags.insert(.option) }
-            if combo.shift { flags.insert(.shift) }
-            let event = { (type: NSEvent.EventType) in
-                NSEvent.keyEvent(with: type, location: .zero, modifierFlags: flags, timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil, characters: combo.characters, charactersIgnoringModifiers: combo.charactersIgnoringModifiers, isARepeat: false, keyCode: combo.keyCode)
-            }
-            guard let down = event(.keyDown), let up = event(.keyUp) else { throw TestModeError("cannot build a key event") }
+            guard let down = keyEvent(.keyDown, combo, window), let up = keyEvent(.keyUp, combo, window) else { throw TestModeError("cannot build a key event") }
             if let voiceKeys, voiceKeys(down) {
                 _ = voiceKeys(up)
                 routes.append("voice")
             } else if monitors.allObjects.contains(where: { $0.deliver(down) }) {
                 routes.append(overTerminal ? "monitor over terminal" : "monitor")
+            } else if combo.command || combo.control, overTerminal, let title = menuKey(down, targeted: true) {
+                routes.append("menu \(title) over terminal")
             } else if overTerminal {
-                throw TestModeError("a terminal has focus and no key monitor took \(combo.label); keys are never sent to terminals")
+                throw TestModeError("a terminal has focus and neither a key monitor nor an app command took \(combo.label); keys are never sent to terminals")
             } else if combo.command, window.performKeyEquivalent(with: down) {
                 routes.append("shortcut")
+            } else if combo.command || combo.control, let title = menuKey(down) {
+                routes.append("menu \(title)")
             } else {
                 window.sendEvent(down)
                 window.sendEvent(up)
@@ -127,6 +128,231 @@ final class TestHarness {
             try await Task.sleep(for: .milliseconds(50))
         }
         return routes
+    }
+
+    private func keyEvent(_ type: NSEvent.EventType, _ combo: KeyCombo, _ window: NSWindow) -> NSEvent? {
+        var flags: NSEvent.ModifierFlags = []
+        if combo.command { flags.insert(.command) }
+        if combo.control { flags.insert(.control) }
+        if combo.option { flags.insert(.option) }
+        if combo.shift { flags.insert(.shift) }
+        if (123...126).contains(combo.keyCode) { flags.formUnion([.function, .numericPad]) }
+        return NSEvent.keyEvent(with: type, location: .zero, modifierFlags: flags, timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil, characters: combo.characters, charactersIgnoringModifiers: combo.charactersIgnoringModifiers, isARepeat: false, keyCode: combo.keyCode)
+    }
+
+    private func menuKey(_ event: NSEvent, targeted: Bool = false) -> String? {
+        NSApp.mainMenu?.items.compactMap(\.submenu).forEach(TestMenus.prepare)
+        if targeted, NSApp.mainMenu.flatMap({ matching(event, in: $0) })?.target == nil { return nil }
+        var title: String?
+        let observer = NotificationCenter.default.addObserver(forName: NSMenu.didSendActionNotification, object: nil, queue: nil) { note in
+            title = (note.userInfo?["MenuItem"] as? NSMenuItem)?.title
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        guard let menu = NSApp.mainMenu, menu.performKeyEquivalent(with: event) else { return nil }
+        if let title { return title }
+        return matching(event, in: menu).map { "\($0.title) (\($0.isEnabled ? "enabled" : "disabled"), not sent)" } ?? "item"
+    }
+
+    private func matching(_ event: NSEvent, in menu: NSMenu) -> NSMenuItem? {
+        let flags = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        for item in menu.items {
+            if let found = item.submenu.flatMap({ matching(event, in: $0) }) { return found }
+            if !item.keyEquivalent.isEmpty, item.keyEquivalent.lowercased() == event.charactersIgnoringModifiers?.lowercased(), item.keyEquivalentModifierMask.intersection([.command, .control, .option, .shift]) == flags { return item }
+        }
+        return nil
+    }
+
+    private func guardedWindow() -> String? {
+        if NSApp.modalWindow != nil { return "a modal window" }
+        for window in NSApp.windows where window.isVisible && window.sheetParent != nil {
+            if window.identifier == ReportSheet.windowID { return "the problem report sheet" }
+            if String(describing: type(of: window)).contains("Alert") { return "an alert" }
+        }
+        return nil
+    }
+
+    func pointer(_ request: PointerRequest) async throws -> PointerResult {
+        TestKeyWindow.announce()
+        if let guarded = guardedWindow() { throw TestModeError("\(guarded) is open; the pointer never touches it") }
+        let (window, point) = try locate(request.node, at: request.at)
+        let flags = try modifiers(request.keys)
+        let hit = window.contentView?.superview?.hitTest(window.contentView!.superview!.convert(point, from: nil))
+        let view = hit.map { String(describing: type(of: $0)).prefix { $0 != "<" } }.map(String.init)
+        let result = { (menu: [LayoutMenuItem]?) in PointerResult(window: self.kind(window), point: [point.x, point.y], view: view, menu: menu) }
+        switch request.action {
+        case "hover":
+            move(to: point, in: window, flags: flags)
+            try await settle()
+            return result(nil)
+        case "click":
+            TestKeyWindow.request(window)
+            move(to: point, in: window, flags: flags)
+            for count in 1...max(1, request.count ?? 1) {
+                post(.leftMouseDown, at: point, in: window, flags: flags, clicks: count)
+                post(.leftMouseUp, at: point, in: window, flags: flags, clicks: count)
+            }
+            TestMenus.opened = nil
+            try await settle()
+            return result(TestMenus.opened)
+        case "menu":
+            TestKeyWindow.request(window)
+            TestMenus.opened = nil
+            TestMenus.picked = false
+            TestMenus.choice = request.item.map { $0.split(separator: ">").map { $0.trimmingCharacters(in: .whitespaces) } }
+            defer { TestMenus.choice = nil }
+            move(to: point, in: window, flags: flags)
+            post(request.context == true ? .rightMouseDown : .leftMouseDown, at: point, in: window, flags: flags)
+            post(request.context == true ? .rightMouseUp : .leftMouseUp, at: point, in: window, flags: flags)
+            try await settle()
+            if TestMenus.opened == nil, request.context == true, let hit, let event = mouseEvent(.rightMouseDown, at: point, in: window, flags: flags) {
+                var owner: NSView? = hit
+                while let candidate = owner, candidate.menu(for: event) == nil { owner = candidate.superview }
+                if let menu = owner?.menu(for: event) { _ = TestMenus.shown(menu) }
+            }
+            guard let opened = TestMenus.opened else { throw TestModeError("no menu opened at \(request.node)\(request.context == true ? "" : "; for a context menu pass --context")") }
+            if let item = request.item, !TestMenus.picked { throw TestModeError("no enabled item \(item) in the menu at \(request.node)") }
+            try await settle()
+            return result(opened)
+        case "drag":
+            guard let to = request.to else { throw TestModeError("drag needs a target node") }
+            let (target, end) = try locate(to, at: nil)
+            guard target === window else { throw TestModeError("drag stays inside one window") }
+            TestKeyWindow.request(window)
+            move(to: point, in: window, flags: flags)
+            post(.leftMouseDown, at: point, in: window, flags: flags)
+            for step in 1...10 {
+                let t = Double(step) / 10
+                post(.leftMouseDragged, at: NSPoint(x: point.x + (end.x - point.x) * t, y: point.y + (end.y - point.y) * t), in: window, flags: flags)
+            }
+            post(.leftMouseUp, at: end, in: window, flags: flags)
+            try await settle()
+            return result(nil)
+        case "drop":
+            guard let file = request.file else { throw TestModeError("drop needs a file") }
+            let url = URL(filePath: file)
+            guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else { throw TestModeError("no file \(file)") }
+            try drop([url], at: point, in: window)
+            try await settle()
+            return result(nil)
+        default:
+            throw TestModeError("unknown pointer action \(request.action); use click, hover, drag, menu or drop")
+        }
+    }
+
+    private func move(to point: NSPoint, in window: NSWindow, flags: NSEvent.ModifierFlags) {
+        var under: [(NSTrackingArea, NSView)] = []
+        func walk(_ view: NSView) {
+            guard !view.isHiddenOrHasHiddenAncestor else { return }
+            for area in view.trackingAreas {
+                let rect = area.options.contains(.inVisibleRect) ? view.visibleRect : area.rect
+                if view.convert(rect, to: nil).contains(point) { under.append((area, view)) }
+            }
+            view.subviews.forEach(walk)
+        }
+        window.contentView?.superview.map(walk)
+        let event = { (type: NSEvent.EventType, area: NSTrackingArea) in
+            NSEvent.enterExitEvent(with: type, location: point, modifierFlags: flags, timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil, eventNumber: 0, trackingNumber: Int(bitPattern: Unmanaged.passUnretained(area).toOpaque()), userData: nil)
+        }
+        for area in entered where !under.contains(where: { $0.0 === area }) {
+            if let owner = area.owner as? NSResponder, let exit = event(.mouseExited, area) { owner.mouseExited(with: exit) }
+        }
+        for (area, _) in under {
+            guard let owner = area.owner as? NSResponder else { continue }
+            if area.options.contains(.mouseEnteredAndExited), !entered.contains(where: { $0 === area }), let enter = event(.mouseEntered, area) { owner.mouseEntered(with: enter) }
+            if area.options.contains(.mouseMoved), let moved = mouseEvent(.mouseMoved, at: point, in: window, flags: flags) { owner.mouseMoved(with: moved) }
+        }
+        entered = under.map(\.0)
+    }
+
+    private func settle() async throws {
+        try await Task.sleep(for: .milliseconds(150))
+        TestKeyWindow.sync()
+    }
+
+    private func locate(_ id: String, at offset: [Double]?) throws -> (NSWindow, NSPoint) {
+        let matches = probes.allObjects.filter { $0.nodeID == id && $0.window?.isVisible == true && !$0.isHiddenOrHasHiddenAncestor && $0.bounds.width > 0 && $0.bounds.height > 0 }
+        let key = matches.filter { $0.window === TestKeyWindow.current }
+        guard let probe = (key.isEmpty ? matches : key).first, let window = probe.window else {
+            throw TestModeError("no node \(id) on screen; use an id from the snapshot layout")
+        }
+        if (key.isEmpty ? matches : key).count > 1 { throw TestModeError("\((key.isEmpty ? matches : key).count) nodes have id \(id); use a unique id or a parent with --at") }
+        if let offset, offset.count != 2 { throw TestModeError("--at is x,y in points from the node's top left") }
+        let local = offset.map { NSPoint(x: $0[0], y: probe.isFlipped ? $0[1] : probe.bounds.height - $0[1]) } ?? NSPoint(x: probe.bounds.midX, y: probe.bounds.midY)
+        let point = probe.convert(local, to: nil)
+        guard let content = window.contentView, content.convert(content.bounds, to: nil).contains(point) else {
+            throw TestModeError("node \(id) is outside its window at that point; scroll it into view first")
+        }
+        return (window, point)
+    }
+
+    private func modifiers(_ keys: String?) throws -> NSEvent.ModifierFlags {
+        var flags: NSEvent.ModifierFlags = []
+        for part in (keys ?? "").split(separator: "+") {
+            switch part {
+            case "cmd": flags.insert(.command)
+            case "ctrl": flags.insert(.control)
+            case "opt": flags.insert(.option)
+            case "shift": flags.insert(.shift)
+            default: throw TestModeError("unknown modifier \(part); use cmd, ctrl, opt, shift joined with +")
+            }
+        }
+        return flags
+    }
+
+    private func mouseEvent(_ type: NSEvent.EventType, at point: NSPoint, in window: NSWindow, flags: NSEvent.ModifierFlags, clicks: Int = 1) -> NSEvent? {
+        let pressed = [.leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp, .leftMouseDragged].contains(type)
+        return NSEvent.mouseEvent(with: type, location: point, modifierFlags: flags, timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: pressed ? clicks : 0, pressure: type == .leftMouseDown || type == .rightMouseDown || type == .leftMouseDragged ? 1 : 0)
+    }
+
+    private func post(_ type: NSEvent.EventType, at point: NSPoint, in window: NSWindow, flags: NSEvent.ModifierFlags, clicks: Int = 1) {
+        guard let event = mouseEvent(type, at: point, in: window, flags: flags, clicks: clicks) else { return }
+        NSApp.postEvent(event, atStart: false)
+    }
+
+    private func drop(_ urls: [URL], at point: NSPoint, in window: NSWindow) throws {
+        let info = TestDraggingInfo(window: window, location: point, urls: urls)
+        defer { info.release() }
+        let names = urls.map(\.lastPathComponent).joined(separator: ", ")
+        let targets = Self.dropTargets(in: window.contentView?.superview, at: point)
+        for target in targets {
+            guard let entered = Self.dragging(target, "draggingEntered:", info, as: UInt.self), entered != 0 else { continue }
+            guard (Self.dragging(target, "draggingUpdated:", info, as: UInt.self) ?? entered) != 0 else {
+                _ = Self.dragging(target, "draggingExited:", info, as: Void.self)
+                throw TestModeError("the drop target refused \(names)")
+            }
+            guard Self.dragging(target, "prepareForDragOperation:", info, as: Bool.self) ?? true,
+                  Self.dragging(target, "performDragOperation:", info, as: Bool.self) == true else {
+                throw TestModeError("the drop target did not take \(names)")
+            }
+            _ = Self.dragging(target, "concludeDragOperation:", info, as: Void.self)
+            return
+        }
+        throw TestModeError("nothing at that point takes \(names)")
+    }
+
+    private static func dropTargets(in root: NSView?, at point: NSPoint) -> [NSView] {
+        var found: [NSView] = []
+        func walk(_ view: NSView) {
+            if !view.isHiddenOrHasHiddenAncestor, !view.registeredDraggedTypes.isEmpty, view.convert(view.bounds, to: nil).contains(point) { found.append(view) }
+            view.subviews.forEach(walk)
+        }
+        root.map(walk)
+        return found.sorted { $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height }
+    }
+
+    private static func dragging<T>(_ target: NSObject, _ name: String, _ info: NSDraggingInfo, as: T.Type) -> T? {
+        let selector = NSSelectorFromString(name)
+        guard target.responds(to: selector), let method = class_getInstanceMethod(type(of: target), selector) else { return nil }
+        let implementation = method_getImplementation(method)
+        switch T.self {
+        case is UInt.Type:
+            return unsafeBitCast(implementation, to: (@convention(c) (AnyObject, Selector, NSDraggingInfo) -> UInt).self)(target, selector, info) as? T
+        case is Bool.Type:
+            return unsafeBitCast(implementation, to: (@convention(c) (AnyObject, Selector, NSDraggingInfo) -> Bool).self)(target, selector, info) as? T
+        default:
+            unsafeBitCast(implementation, to: (@convention(c) (AnyObject, Selector, NSDraggingInfo) -> Void).self)(target, selector, info)
+            return () as? T
+        }
     }
 
     private func focus(_ id: String) throws -> NSWindow {
@@ -172,12 +398,23 @@ final class TestHarness {
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             try encoder.encode(elements).write(to: layout)
             layouts.append((title: title, elements: elements))
-            windows.append(SnapshotWindow(id: id, kind: kind(window), title: title, frame: Rect(window.frame), png: png, layout: layout.path(percentEncoded: false)))
+            let key = window === TestKeyWindow.current
+            let responder = key ? window.firstResponder as? NSView : nil
+            windows.append(SnapshotWindow(id: id, kind: kind(window), title: title, frame: Rect(window.frame), png: png, layout: layout.path(percentEncoded: false), key: key ? true : nil, focus: responder.flatMap { focused($0, in: window) }, responder: responder.map { String(String(describing: type(of: $0)).prefix { $0 != "<" }) }))
         }
         return SnapshotResult(windows: windows, summary: LayoutAnalyzer.summary(layouts))
     }
 
-    private func conceal() {
+    private func focused(_ responder: NSView, in window: NSWindow) -> String? {
+        guard responder !== window.contentView, responder !== window.contentView?.superview else { return nil }
+        let frame = responder.convert(responder.bounds, to: nil)
+        return probes.allObjects
+            .filter { $0.window === window && !$0.isHiddenOrHasHiddenAncestor && $0.convert($0.bounds, to: nil).insetBy(dx: -1, dy: -1).contains(frame) }
+            .min { $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height }?.nodeID
+    }
+
+    func conceal() {
+        TestKeyWindow.sync()
         for window in NSApp.windows where window.alphaValue != 0 || !window.ignoresMouseEvents {
             window.alphaValue = 0
             window.ignoresMouseEvents = true
@@ -221,7 +458,7 @@ final class TestHarness {
         }
         var out: [LayoutElement] = []
         for probe in probes.allObjects where probe.window === window && !probe.isHiddenOrHasHiddenAncestor {
-            out.append(LayoutElement(id: probe.nodeID, source: "sdui", role: probe.role, label: probe.label, frame: flip(probe.convert(probe.bounds, to: nil)), parent: probe.parent, text: nil, idealWidth: probe.idealWidth, lineHeight: probe.lineHeight, menu: probe.menuItems, flags: []))
+            out.append(LayoutElement(id: probe.nodeID, source: probe.source, role: probe.role, label: probe.label, frame: flip(probe.convert(probe.bounds, to: nil)), parent: probe.parent, text: nil, idealWidth: probe.idealWidth, lineHeight: probe.lineHeight, menu: probe.menuItems, flags: []))
         }
         for terminal in WindowImage.terminals(in: root) {
             out.append(LayoutElement(id: "terminal-\(terminal.sessionID)", source: "terminal", role: "terminal", label: terminal.sessionID, frame: flip(terminal.convert(terminal.bounds, to: nil)), parent: nil, text: terminal.viewportText(), idealWidth: nil, lineHeight: nil, menu: nil, flags: []))
@@ -245,6 +482,7 @@ extension Rect {
 
 final class TestProbeNSView: NSView {
     var nodeID = ""
+    var source = "sdui"
     var role = ""
     var label = ""
     var parent: String?
@@ -257,6 +495,7 @@ final class TestProbeNSView: NSView {
 
 struct TestProbe: NSViewRepresentable {
     let nodeID: String
+    var source = "sdui"
     let role: String
     let label: String
     let parent: String?
@@ -272,6 +511,7 @@ struct TestProbe: NSViewRepresentable {
 
     func updateNSView(_ view: TestProbeNSView, context: Context) {
         view.nodeID = nodeID
+        view.source = source
         view.role = role
         view.label = label
         view.parent = parent
@@ -335,6 +575,20 @@ struct SDUIProbe: ViewModifier {
     }
 }
 
+struct RowProbe: ViewModifier {
+    let id: String
+    let label: String
+    let selected: Bool
+    let focused: Bool
+    let hovered: Bool
+
+    @Environment(\.sduiParent) private var parent
+
+    func body(content: Content) -> some View {
+        content.background(TestProbe(nodeID: "\(parent ?? "")#\(id)", source: "row", role: (["row"] + (selected ? ["selected"] : []) + (focused ? ["focused"] : []) + (hovered ? ["hovered"] : [])).joined(separator: " "), label: label, parent: parent, idealWidth: nil, menu: nil))
+    }
+}
+
 struct NativeMenuProbe: ViewModifier {
     let id: String
     let items: () -> [LayoutMenuItem]
@@ -351,6 +605,24 @@ extension View {
     func testMenu(_ id: String, _ items: @autoclosure @escaping () -> [LayoutMenuItem]) -> some View {
         if TestMode.current {
             modifier(NativeMenuProbe(id: id, items: items))
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
+    func testRow(_ id: String, label: String, selected: Bool, focused: Bool = false, hovered: Bool = false) -> some View {
+        if TestMode.current {
+            modifier(RowProbe(id: id, label: label, selected: selected, focused: focused, hovered: hovered))
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
+    func testNode(_ id: String, role: String) -> some View {
+        if TestMode.current {
+            background(TestProbe(nodeID: id, role: role, label: id, parent: nil, idealWidth: nil, menu: nil))
         } else {
             self
         }

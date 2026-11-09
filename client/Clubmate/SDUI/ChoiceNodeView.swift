@@ -73,7 +73,7 @@ struct ChoiceNodeView: View {
     }
 
     private var foldedRow: some View {
-        ChoicePressable(radius: theme.radius.m, press: open) {
+        ChoicePressable(radius: theme.radius.m, probe: "question", press: open) {
             HStack(spacing: theme.spacing.m) {
                 badges
                 Text(node.string("summary") ?? question ?? "")
@@ -118,10 +118,10 @@ struct ChoiceNodeView: View {
             }
             VStack(alignment: .leading, spacing: 1) {
                 ForEach(options) { option in
-                    ChoiceRow(label: option.label, description: option.description, shortcut: option.shortcut, hint: option.hint, radio: radio, on: picked.contains(option.value), inline: !narrow, cursor: keysFocused && node.string("cursor") == option.value, tabStop: !serverOpens) { pick(option.value) }
+                    ChoiceRow(probe: option.value, label: option.label, description: option.description, shortcut: option.shortcut, hint: option.hint, radio: radio, on: picked.contains(option.value), inline: !narrow, cursor: keysFocused && node.string("cursor") == option.value, tabStop: !serverOpens) { pick(option.value) }
                 }
                 if let other {
-                    ChoiceRow(label: other.label, description: nil, shortcut: other.shortcut, hint: other.hint, radio: radio, on: otherOn, inline: !narrow, tabStop: !serverOpens, press: toggleOther)
+                    ChoiceRow(probe: "other", label: other.label, description: nil, shortcut: other.shortcut, hint: other.hint, radio: radio, on: otherOn, inline: !narrow, tabStop: !serverOpens, press: toggleOther)
                     if otherOn { otherField(other) }
                 }
             }
@@ -270,6 +270,7 @@ struct ChoiceNodeView: View {
 }
 
 private struct ChoiceRow: View {
+    let probe: String
     let label: String
     let description: String?
     let shortcut: String?
@@ -288,7 +289,7 @@ private struct ChoiceRow: View {
     private var combo: KeyCombo? { shortcut.flatMap(KeyCombo.init) }
 
     var body: some View {
-        ChoicePressable(radius: theme.radius.s, fill: on ? theme.selected : nil, combo: combo, tabStop: tabStop, press: press) {
+        ChoicePressable(radius: theme.radius.s, fill: on ? theme.selected : nil, combo: combo, tabStop: tabStop, probe: probe, press: press) {
             HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
                 ChoiceMark(radio: radio, on: on)
                     .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 }
@@ -376,6 +377,7 @@ private struct ChoicePressable<Label: View>: View {
     var fill: Color?
     var combo: KeyCombo?
     var tabStop = true
+    var probe = ""
     let press: () -> Void
     @ViewBuilder let label: () -> Label
 
@@ -414,5 +416,6 @@ private struct ChoicePressable<Label: View>: View {
             press()
             return true
         }
+        .testRow(probe, label: probe, selected: fill != nil, focused: keyboardFocus, hovered: hovering)
     }
 }

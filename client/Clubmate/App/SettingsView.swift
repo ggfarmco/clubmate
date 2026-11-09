@@ -111,7 +111,7 @@ private struct GeneralSettings: View {
         Form {
             Section("Appearance") {
                 SettingsRow(title: "Interface font", detail: interfaceFontDetail) {
-                    FontFamilyPicker(selection: interfaceFamily, inherited: nil)
+                    FontFamilyPicker(selection: interfaceFamily, inherited: nil, probe: "font.interface")
                 }
                 SettingsStepper(title: "Interface font size", detail: "⌘+ in a pane sets that plugin's own size.", value: $settings.interfaceFontSize, range: AppSettings.interfaceFontRange)
                 SettingsRow(title: "Sidebar side") {

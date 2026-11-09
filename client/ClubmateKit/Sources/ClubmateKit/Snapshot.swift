@@ -83,16 +83,60 @@ public struct KeyRequest: Codable, Equatable, Sendable {
     }
 }
 
+public struct PointerRequest: Codable, Equatable, Sendable {
+    public let action: String
+    public let node: String
+    public let at: [Double]?
+    public let count: Int?
+    public let to: String?
+    public let keys: String?
+    public let context: Bool?
+    public let item: String?
+    public let file: String?
+    public let workspaceId: String?
+    public let caller: String?
+
+    public init(action: String, node: String, at: [Double]? = nil, count: Int? = nil, to: String? = nil, keys: String? = nil, context: Bool? = nil, item: String? = nil, file: String? = nil, workspaceId: String? = nil, caller: String? = nil) {
+        self.action = action
+        self.node = node
+        self.at = at
+        self.count = count
+        self.to = to
+        self.keys = keys
+        self.context = context
+        self.item = item
+        self.file = file
+        self.workspaceId = workspaceId
+        self.caller = caller
+    }
+}
+
+public struct PointerResult: Codable, Equatable, Sendable {
+    public let window: String
+    public let point: [Double]
+    public let view: String?
+    public let menu: [LayoutMenuItem]?
+
+    public init(window: String, point: [Double], view: String?, menu: [LayoutMenuItem]? = nil) {
+        self.window = window
+        self.point = point
+        self.view = view
+        self.menu = menu
+    }
+}
+
 public struct LayoutMenuItem: Codable, Equatable, Sendable {
     public let title: String
     public let enabled: Bool
     public let destructive: Bool
+    public let checked: Bool?
     public let children: [LayoutMenuItem]?
 
-    public init(title: String, enabled: Bool = true, destructive: Bool = false, children: [LayoutMenuItem]? = nil) {
+    public init(title: String, enabled: Bool = true, destructive: Bool = false, checked: Bool? = nil, children: [LayoutMenuItem]? = nil) {
         self.title = title
         self.enabled = enabled
         self.destructive = destructive
+        self.checked = checked
         self.children = children
     }
 }
@@ -132,14 +176,20 @@ public struct SnapshotWindow: Codable, Equatable, Sendable {
     public let frame: Rect
     public let png: String?
     public let layout: String
+    public let key: Bool?
+    public let focus: String?
+    public let responder: String?
 
-    public init(id: Int, kind: String, title: String, frame: Rect, png: String?, layout: String) {
+    public init(id: Int, kind: String, title: String, frame: Rect, png: String?, layout: String, key: Bool? = nil, focus: String? = nil, responder: String? = nil) {
         self.id = id
         self.kind = kind
         self.title = title
         self.frame = frame
         self.png = png
         self.layout = layout
+        self.key = key
+        self.focus = focus
+        self.responder = responder
     }
 }
 
