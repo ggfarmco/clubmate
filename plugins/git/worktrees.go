@@ -33,6 +33,8 @@ const (
 	originRemote        = "origin"
 	invalidSlugText     = "'%s' is not a valid worktree name"
 	staleBaseText       = "Started from the local %s: couldn't update it from origin: %v"
+	notMergedText       = "is not fully merged"
+	noSectionText       = "no such section"
 )
 
 var (
@@ -331,11 +333,25 @@ func deleteBranchIn(ctx context.Context, top, branch, seen string) error {
 	if remotes[branch] {
 		return errBranchOnRemote
 	}
-	_, err = mutate(ctx, top, "branch", "-d", "--", branch)
-	if err != nil && gitrepo.LandedInert(ctx, top, seen) {
-		_, err = mutate(ctx, top, "branch", "-D", "--", branch)
+	_, err = mutateInert(ctx, top, "branch", "-d", "--", branch)
+	if err != nil && strings.Contains(err.Error(), notMergedText) && gitrepo.LandedInert(ctx, top, seen) {
+		return forceDeleteBranch(ctx, top, branch, seen)
 	}
 	return err
+}
+
+func forceDeleteBranch(ctx context.Context, top, branch, seen string) error {
+	if _, err := mutateInert(ctx, top, "update-ref", "-d", headsPrefix+branch, seen); err != nil {
+		if tip, terr := run(ctx, top, "rev-parse", "--verify", headsPrefix+branch); terr == nil && strings.TrimSpace(string(tip)) != seen {
+			return errBranchMoved
+		}
+		return err
+	}
+	_, err := mutateInert(ctx, top, "config", "--remove-section", "branch."+branch)
+	if err != nil && !strings.Contains(err.Error(), noSectionText) {
+		return err
+	}
+	return nil
 }
 
 func fallBack(ctx context.Context, h *pluginsdk.Host, workspaceID, missing string) error {

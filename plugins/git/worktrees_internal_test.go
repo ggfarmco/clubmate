@@ -147,12 +147,33 @@ func TestDeleteBranchTakesWhatLanded(t *testing.T) {
 			repo := branchRepo(t)
 			tip := gitT(t, repo, "rev-parse", "feat")
 			land(t, repo)
+			hooks, marker := t.TempDir(), filepath.Join(t.TempDir(), "ran")
+			hook := "#!/bin/sh\ntouch " + marker + "\n"
+			require.NoError(t, os.WriteFile(filepath.Join(hooks, "reference-transaction"), []byte(hook), 0o755))
+			gitT(t, repo, "config", "core.hooksPath", hooks)
+			gitT(t, repo, "config", "branch.feat.remote", "origin")
 
 			require.NoError(t, deleteBranchIn(t.Context(), repo, "feat", tip))
 
 			assert.Empty(t, gitT(t, repo, "branch", "--list", "feat"))
+			assert.NoFileExists(t, marker)
+			assert.NotContains(t, gitT(t, repo, "config", "list", "--local", "--name-only"), "branch.feat.")
 		})
 	}
+}
+
+func TestDeleteBranchKeepsALandedBranchMovedOrInUse(t *testing.T) {
+	t.Parallel()
+	repo := branchRepo(t)
+	tip := gitT(t, repo, "rev-parse", "feat")
+	gitT(t, repo, "merge", "-q", "--squash", "feat")
+	gitT(t, repo, "commit", "-qm", "s")
+
+	require.ErrorIs(t, forceDeleteBranch(t.Context(), repo, "feat", gitT(t, repo, "rev-parse", "main")), errBranchMoved)
+	gitT(t, repo, "worktree", "add", "-q", filepath.Join(t.TempDir(), "feat"), "feat")
+	require.Error(t, deleteBranchIn(t.Context(), repo, "feat", tip))
+
+	assert.Equal(t, tip, gitT(t, repo, "rev-parse", "feat"))
 }
 
 func TestDeleteBranchWithoutExactProofStays(t *testing.T) {
