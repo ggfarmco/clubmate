@@ -132,6 +132,10 @@ func (h *Host) RunCommand(ctx context.Context, id, workspaceID string, args any,
 	return h.Call(ctx, "command.run", runCommandParams{ID: id, WorkspaceID: workspaceID, Args: args}, out)
 }
 
+func (h *Host) RunCommandFor(ctx context.Context, caller, id, workspaceID string, args any, out any) error {
+	return h.Call(ctx, "command.run", runCommandParams{ID: id, WorkspaceID: workspaceID, Args: args, Caller: caller}, out)
+}
+
 func (h *Host) Broadcast(ctx context.Context, topic, workspaceID string, args any) error {
 	return h.Call(ctx, "command.broadcast", broadcastParams{Topic: topic, WorkspaceID: workspaceID, Args: args}, nil)
 }
@@ -379,6 +383,7 @@ type runCommandParams struct {
 	ID          string `json:"id"`
 	WorkspaceID string `json:"workspaceId"`
 	Args        any    `json:"args"`
+	Caller      string `json:"caller,omitempty"`
 }
 
 type broadcastParams struct {

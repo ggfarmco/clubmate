@@ -520,6 +520,24 @@ func TestStartAgentOptions(t *testing.T) {
 	assert.False(t, e.echoed("agents.new", "Fails on CI."))
 }
 
+func TestPlainCmFromASessionCannotStartOrTakeBack(t *testing.T) {
+	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
+	todo := e.add("Todo", nil)
+	claimed := e.add("Claimed", nil)
+	e.must(e.agent("agt_child", "backlog.claim", map[string]any{"id": claimed.ID}))
+
+	_, err := e.run("backlog.start", "agt_live", false, map[string]any{"id": todo.ID, "mode": "bypassPermissions"})
+	assert.ErrorContains(t, err, "unknown command")
+	_, err = e.run("backlog.takeback", "agt_live", false, map[string]any{"id": claimed.ID})
+	assert.ErrorContains(t, err, "unknown command")
+
+	assert.Equal(t, "agt_child", e.must(e.user("backlog.get", map[string]any{"id": claimed.ID})).ClaimedBy)
+	assert.False(t, e.echoed("agents.new", "Todo"))
+
+	e.must(e.run("backlog.start", "agt_of_another_workspace", false, map[string]any{"id": todo.ID}))
+	assert.True(t, e.echoed("agents.new", `"caller":"agt_of_another_workspace"`))
+}
+
 func TestTakeBack(t *testing.T) {
 	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))

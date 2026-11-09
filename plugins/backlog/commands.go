@@ -161,12 +161,18 @@ func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.
 	case "backlog.done":
 		return b.doneCmd(ctx, cmd, args)
 	case "backlog.start":
-		session, err := b.startAgent(ctx, cmd.WorkspaceID, args.ID, args.startOptions)
+		if err := b.notUser(ctx, cmd); err != nil {
+			return nil, err
+		}
+		session, err := b.startAgent(ctx, cmd.WorkspaceID, cmd.Caller, args.ID, args.startOptions)
 		if err != nil {
 			return nil, err
 		}
 		return startResult{Session: session}, nil
 	case "backlog.takeback":
+		if err := b.notUser(ctx, cmd); err != nil {
+			return nil, err
+		}
 		if err := b.takeBack(ctx, cmd.WorkspaceID, args.ID); err != nil {
 			return nil, err
 		}
@@ -175,6 +181,13 @@ func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.
 		return nil, b.h.FocusField(ctx, cmd.WorkspaceID, sectionID)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
+}
+
+func (b *backlog) notUser(ctx context.Context, cmd pluginsdk.CommandRun) error {
+	if cmd.Agent || b.fromSession(ctx, cmd.WorkspaceID, cmd.Caller) {
+		return fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
+	}
+	return nil
 }
 
 func (b *backlog) getCmd(ctx context.Context, cmd pluginsdk.CommandRun, args commandArgs) (any, error) {
@@ -425,7 +438,7 @@ func (b *backlog) takeBack(ctx context.Context, workspaceID string, id int) erro
 	return nil
 }
 
-func (b *backlog) startAgent(ctx context.Context, workspaceID string, id int, opts startOptions) (string, error) {
+func (b *backlog) startAgent(ctx context.Context, workspaceID, caller string, id int, opts startOptions) (string, error) {
 	if err := opts.check(); err != nil {
 		return "", err
 	}
@@ -452,7 +465,7 @@ func (b *backlog) startAgent(ctx context.Context, workspaceID string, id int, op
 		args["branch"] = branchFor(&t)
 	}
 	var res startResult
-	if err := b.h.RunCommand(ctx, "agents.new", workspaceID, args, &res); err != nil {
+	if err := b.h.RunCommandFor(ctx, caller, "agents.new", workspaceID, args, &res); err != nil {
 		return "", err
 	}
 	if res.Session == "" {

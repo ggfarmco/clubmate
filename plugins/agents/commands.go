@@ -15,6 +15,7 @@ import (
 const (
 	remotePlugin  = "remote"
 	voicePlugin   = "voice"
+	backlogPlugin = "backlog"
 	cronPlugin    = "cron"
 	editorPlugin  = "editor-nvim"
 	triggerPlugin = "triggers"
@@ -302,10 +303,10 @@ func (a *app) newCommand(ctx context.Context, cmd pluginsdk.CommandRun, args new
 	if args.CronJob != "" && cmd.Via != cronPlugin || args.Trigger != "" && cmd.Via != triggerPlugin {
 		return nil, errOriginOnly
 	}
-	if args.Finish != "" && cmd.Agent {
+	if args.Finish != "" && !a.userWord(cmd) {
 		return nil, errFinishUser
 	}
-	if args.FirstMode != "" && cmd.Agent {
+	if args.FirstMode != "" && !a.userWord(cmd) && (cmd.Via != backlogPlugin || a.session(cmd.Caller) != nil) {
 		return nil, errFirstModeUser
 	}
 	res, err := a.newSession(ctx, a.host, cmd.WorkspaceID, origin(cmd), args)

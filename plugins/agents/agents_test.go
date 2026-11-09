@@ -2554,12 +2554,17 @@ func TestNewSessionFirstModeFromUser(t *testing.T) {
 	})
 	workspace := f.workspace(t, newRepo(t))
 	args := map[string]any{"firstMode": "plan"}
+	relayed := map[string]any{"id": "agents.new", "workspaceId": workspace, "args": args}
 
 	assert.ErrorContains(t, f.runAs(t, workspace, "", "agents.new", args, nil), "only the user may set firstMode")
+	assert.ErrorContains(t, f.h.PluginCall(t, "graphs", "command.run", relayed), "only the user may set firstMode")
 	var out struct {
 		Session string `json:"session"`
 	}
-	require.NoError(t, f.run(t, workspace, "agents.new", args, &out))
+	require.NoError(t, f.h.PluginCallResult(t, "backlog", "command.run", relayed, &out))
+	plainCm := map[string]any{"id": "agents.new", "workspaceId": workspace, "args": args, "caller": out.Session}
+	assert.ErrorContains(t, f.h.Client(t).Call(t.Context(), "command.run", plainCm, nil), "only the user may set firstMode")
+	assert.ErrorContains(t, f.h.PluginCall(t, "backlog", "command.run", plainCm), "only the user may set firstMode")
 
 	got := f.waitCall(t, "session/set_mode", func(fakeCall) bool { return true })
 	assert.Contains(t, string(got.Params), `"modeId":"plan"`)
@@ -3107,6 +3112,9 @@ func TestCronStartedSessionCarriesFlagsAndOrigin(t *testing.T) {
 	var merging child
 	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{"finish": "merge"}, &merging))
 	assert.Equal(t, "merge", f.session(t, workspace, merging.Session).Finish)
+	plainCm := map[string]any{"id": "agents.new", "workspaceId": workspace, "args": map[string]any{"finish": "merge"}, "caller": merging.Session}
+	assert.ErrorContains(t, f.h.Client(t).Call(t.Context(), "command.run", plainCm, nil), "only the user may set finish")
+	assert.ErrorContains(t, f.h.PluginCall(t, "graphs", "command.run", map[string]any{"id": "agents.new", "workspaceId": workspace, "args": map[string]any{"finish": "merge"}}), "only the user may set finish")
 
 	var job struct {
 		ID string `json:"id"`

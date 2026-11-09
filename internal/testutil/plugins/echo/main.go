@@ -88,7 +88,7 @@ func uiEvent(_ context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, e
 func command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
 	canned := canned()
 	if cmd.ID != h.PluginID()+".say" && !canned.EchoAll {
-		if _, err := h.Publish(ctx, "echo.command", map[string]any{"plugin": h.PluginID(), "id": cmd.ID, "args": cmd.Args}); err != nil {
+		if _, err := h.Publish(ctx, "echo.command", map[string]any{"plugin": h.PluginID(), "id": cmd.ID, "args": cmd.Args, "caller": cmd.Caller}); err != nil {
 			return nil, err
 		}
 		select {

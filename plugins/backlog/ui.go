@@ -240,7 +240,7 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 	user := pluginsdk.CommandRun{WorkspaceID: ev.WorkspaceID}
 	verb, _ := parseAction(ev.Action)
 	switch {
-	case changesTasks(ev, verb) && (ev.Agent || b.fromSession(ctx, ev)):
+	case changesTasks(ev, verb) && (ev.Agent || b.fromSession(ctx, ev.WorkspaceID, ev.Caller)):
 		return fmt.Errorf("%w: %q is the user's; agents use the backlog commands", errUnknownAction, ev.Action)
 	case ev.NodeID == "new" && ev.Action == "add":
 		var args commandArgs
@@ -345,7 +345,7 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 				return fmt.Errorf("start value: %w", err)
 			}
 		}
-		if _, err := b.startAgent(ctx, ev.WorkspaceID, b.selected(w), opts); err != nil {
+		if _, err := b.startAgent(ctx, ev.WorkspaceID, ev.Caller, b.selected(w), opts); err != nil {
 			return err
 		}
 		b.mu.Lock()
@@ -398,11 +398,11 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 
 var taskVerbs = []string{actStart, actTakeBack, "release", "done", "status", "priority", "delete", actDrop, actUnlink, actDetach}
 
-func (b *backlog) fromSession(ctx context.Context, ev pluginsdk.UIEvent) bool {
-	if ev.Caller == "" {
+func (b *backlog) fromSession(ctx context.Context, workspaceID, caller string) bool {
+	if caller == "" {
 		return false
 	}
-	return b.live.maybeSession(ctx, ev.WorkspaceID, ev.Caller)
+	return b.live.maybeSession(ctx, workspaceID, caller)
 }
 
 func changesTasks(ev pluginsdk.UIEvent, verb string) bool {
@@ -431,7 +431,7 @@ func (b *backlog) taskAction(ctx context.Context, workspaceID string, w *workspa
 	verb, value := parseAction(action)
 	switch verb {
 	case actStart:
-		_, err = b.startAgent(ctx, workspaceID, id, startOptions{})
+		_, err = b.startAgent(ctx, workspaceID, "", id, startOptions{})
 	case actTakeBack:
 		err = b.takeBack(ctx, workspaceID, id)
 	case "release":
