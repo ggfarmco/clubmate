@@ -20,7 +20,6 @@ import (
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/testutil"
 	"clubmate/internal/workspace"
-	"clubmate/pkg/sdui"
 )
 
 func serveAt(t *testing.T, srv *rpc.Server, socket string) {
@@ -152,13 +151,12 @@ func TestTestAppList(t *testing.T) {
 
 func TestAgentUIEventRefusesConfirmedAction(t *testing.T) {
 	h := testutil.NewHarness(t)
-	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"sections":[{"id":"alpha","title":"Alpha"}]}`)))
+	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"sections":[{"id":"alpha","title":"Alpha","slots":["popup"]}]}`)))
 	testutil.Eventually(t, func() bool {
 		st := h.Sup.Statuses()
 		return len(st) == 1 && st[0].State == plugin.StateRunning
 	}, 5*time.Second)
 	p := h.CreateWorkspace(t, "demo")
-	h.WaitSlot(t, p.ID, "alpha.main", func(n sdui.Node) bool { return n.Type == "text" })
 	tree := map[string]any{"type": "stack", "props": map[string]any{"direction": "vertical"}, "children": []any{
 		map[string]any{"type": "list", "id": "files", "props": map[string]any{"items": []any{
 			map[string]any{"id": "a.go", "label": "a.go", "menu": []any{map[string]any{"action": "discard", "label": "Discard", "confirm": "Discard a.go?"}}},
@@ -168,9 +166,9 @@ func TestAgentUIEventRefusesConfirmedAction(t *testing.T) {
 			map[string]any{"type": "button", "id": "go", "props": map[string]any{"label": "Save", "confirm": "Overwrite?"}},
 		}},
 	}}
-	require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"workspaceId": p.ID, "slot": "alpha.main", "tree": tree}))
+	require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"workspaceId": p.ID, "slot": "alpha.popup", "tree": tree}))
 	for _, tc := range []struct{ node, action string }{{"files", "discard"}, {"ghost", "discard"}, {"kill", "kill"}, {"edit", "save"}} {
-		err := h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": p.ID, "slot": "alpha.main", "nodeId": tc.node, "action": tc.action, "value": "a.go", "agent": true}, nil)
+		err := h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": p.ID, "slot": "alpha.popup", "nodeId": tc.node, "action": tc.action, "value": "a.go", "agent": true}, nil)
 		require.Error(t, err, tc.node)
 		assert.Contains(t, err.Error(), fmt.Sprintf("action %q needs the user's confirmation", tc.action))
 	}
