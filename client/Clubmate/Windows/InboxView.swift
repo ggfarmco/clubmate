@@ -8,6 +8,7 @@ struct InboxView: View {
     @Environment(WindowRouter.self) private var windows
     @Environment(\.theme) private var theme
     @State private var kind: NotificationKind?
+    @State private var contentHeight: CGFloat?
 
     private static let width: CGFloat = 380
     private static let height: CGFloat = 480
@@ -55,7 +56,9 @@ struct InboxView: View {
                     }
                     .environment(\.sduiParent, "inbox")
                 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
+            .frame(idealHeight: contentHeight)
             if notifications.systemOff {
                 Divider()
                 footer(notifications)
@@ -63,6 +66,7 @@ struct InboxView: View {
         }
         .frame(width: Self.width)
         .frame(maxHeight: Self.height)
+        .fixedSize(horizontal: false, vertical: true)
         .background(PopoverAppearance(dark: theme.isDark))
     }
 

@@ -36,7 +36,7 @@ struct SidebarPane: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        ResizablePane(side: side, saved: store.sidebarWidth.map { CGFloat($0) } ?? 248, range: 200...320) { [store] width in
+        ResizablePane(id: slot + "/resize", side: side, saved: store.sidebarWidth.map { CGFloat($0) } ?? 248, range: 200...320) { [store] width in
             store.sidebarWidth = width
         } content: {
             SlotPane(store: store, slot: slot)
@@ -68,7 +68,7 @@ struct CodeColumn: View {
             }
             .frame(maxHeight: .infinity)
         } else {
-            ResizablePane(side: .right, saved: width, range: Self.minWidth...max(Self.minWidth, limit), commit: commit) {
+            ResizablePane(id: slot + "/resize", side: .right, saved: width, range: Self.minWidth...max(Self.minWidth, limit), commit: commit) {
                 pane
             }
         }
@@ -81,6 +81,7 @@ struct CodeColumn: View {
 }
 
 private struct ResizablePane<Content: View>: View {
+    let id: String
     let side: SidebarSide
     let saved: CGFloat
     let range: ClosedRange<CGFloat>
@@ -114,6 +115,7 @@ private struct ResizablePane<Content: View>: View {
                     .contentShape(Rectangle())
                     .onHover(perform: hover)
                     .gesture(resize)
+                    .testNode(id, role: "divider")
             }
             .zIndex(1)
     }

@@ -19,6 +19,8 @@ func TestInboxGraphPinOpensTheRun(t *testing.T) {
 	dir := filepath.Join(in.repo, ".clubmate", "graphs")
 	require.NoError(t, os.MkdirAll(dir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "cap.json"), []byte(capGraph), 0o600))
+	in.cm("ui", "present", "inbox")
+	in.eventually("the inbox is open", func() bool { return in.snapshot().kind("popover") != nil })
 	var run struct {
 		ID string `json:"id"`
 	}
@@ -32,7 +34,6 @@ func TestInboxGraphPinOpensTheRun(t *testing.T) {
 		return len(shown.Held) > 0
 	})
 
-	in.cm("ui", "present", "inbox")
 	pin := "inbox.pinned#" + run.ID + "/cap-0"
 	in.eventually("the run's cap is pinned in the inbox", func() bool {
 		p := in.snapshot().kind("popover")

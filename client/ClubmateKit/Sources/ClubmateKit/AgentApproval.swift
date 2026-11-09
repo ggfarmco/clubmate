@@ -16,8 +16,9 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
     public let plugin: Bool?
     public let timeoutMs: Int?
     public let session: ConfirmSession?
+    public let from: ConfirmSession?
 
-    public init(title: String, workspaceName: String, command: String, args: JSONValue, body: String? = nil, plugin: Bool? = nil, timeoutMs: Int? = nil, session: ConfirmSession? = nil) {
+    public init(title: String, workspaceName: String, command: String, args: JSONValue, body: String? = nil, plugin: Bool? = nil, timeoutMs: Int? = nil, session: ConfirmSession? = nil, from: ConfirmSession? = nil) {
         self.title = title
         self.workspaceName = workspaceName
         self.command = command
@@ -26,6 +27,7 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
         self.plugin = plugin
         self.timeoutMs = timeoutMs
         self.session = session
+        self.from = from
     }
 
     public var deadline: Duration? {
@@ -44,6 +46,9 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
             let title = session.title.isEmpty ? "untitled" : Self.capped(session.title)
             let place = session.workspaceName.isEmpty ? "" : " in \(Self.capped(session.workspaceName))"
             lines.append("Session: \(title) (\(Self.capped(session.id)))\(place)")
+        }
+        if let from {
+            lines.append(from.title.isEmpty ? "From: \(Self.capped(from.id))" : "From: \(Self.capped(from.title)) (\(Self.capped(from.id)))")
         }
         return lines.joined(separator: "\n")
     }

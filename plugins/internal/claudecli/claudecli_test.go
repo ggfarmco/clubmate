@@ -56,3 +56,26 @@ func TestFindSkipsHomePathsWithoutHome(t *testing.T) {
 		assert.True(t, filepath.IsAbs(path), path)
 	}
 }
+
+func TestAskStartsNoClaudeInTestMode(t *testing.T) {
+	dir := t.TempDir()
+	ran := filepath.Join(dir, "ran")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "claude"), []byte(fmt.Sprintf("#!/bin/sh\n: > %q\necho summary\n", ran)), 0o755))
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("CLUBMATE_TEST_MODE", "1")
+
+	for flavor, offline := range map[string]bool{"dev": true, "release": false} {
+		t.Setenv("CLUBMATE_FLAVOR", flavor)
+		os.Remove(ran)
+
+		_, err := Ask(t.Context(), Haiku, "system", "input")
+
+		if offline {
+			assert.ErrorIs(t, err, ErrMissing, flavor)
+			assert.NoFileExists(t, ran, flavor)
+			continue
+		}
+		require.NoError(t, err, flavor)
+		assert.FileExists(t, ran, flavor)
+	}
+}

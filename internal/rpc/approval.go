@@ -22,8 +22,10 @@ const (
 	approvalMaxValue  = 200
 	approvalMaxBody   = 64 << 10
 	approvalMaxInt    = 1 << 53
+	callerLookup      = 2 * time.Second
 
-	callUIConfirm = "ui.confirm"
+	callUIConfirm     = "ui.confirm"
+	cmdAgentsSessions = "agents.sessions"
 )
 
 var (
@@ -44,6 +46,7 @@ type confirmParams struct {
 	Plugin        bool            `json:"plugin,omitempty"`
 	TimeoutMs     int64           `json:"timeoutMs"`
 	Session       *confirmSession `json:"session,omitempty"`
+	From          *confirmSession `json:"from,omitempty"`
 }
 
 type confirmSession struct {
@@ -117,7 +120,7 @@ func (s *Server) workspaceName(ctx context.Context, workspaceID string) (string,
 	return p.Name, nil
 }
 
-func (s *Server) approve(ctx context.Context, c Command, workspaceID, sessionKey string, raw json.RawMessage) (json.RawMessage, error) {
+func (s *Server) approve(ctx context.Context, c Command, workspaceID, sessionKey, caller string, raw json.RawMessage) (json.RawMessage, error) {
 	name, err := s.workspaceName(ctx, workspaceID)
 	if err != nil {
 		return nil, err
@@ -126,7 +129,7 @@ func (s *Server) approve(ctx context.Context, c Command, workspaceID, sessionKey
 	if err != nil {
 		return nil, err
 	}
-	params := confirmParams{Title: c.Title, WorkspaceName: name, Command: c.ID, Args: args, Session: s.targetSession(ctx, sessionKey, args)}
+	params := confirmParams{Title: c.Title, WorkspaceName: name, Command: c.ID, Args: args, Session: s.targetSession(ctx, sessionKey, args), From: s.callerSession(ctx, workspaceID, caller)}
 	if err := s.confirm(ctx, workspaceID, params); err != nil {
 		return nil, err
 	}
@@ -172,6 +175,25 @@ func (s *Server) targetSession(ctx context.Context, key string, args json.RawMes
 	if p, err := s.svc.GetWorkspace(ctx, sess.WorkspaceID); err == nil {
 		out.WorkspaceName = p.Name
 	}
+	return out
+}
+
+func (s *Server) callerSession(ctx context.Context, workspaceID, caller string) *confirmSession {
+	if caller == "" {
+		return nil
+	}
+	out := &confirmSession{ID: caller}
+	ctx, cancel := context.WithTimeout(ctx, callerLookup)
+	defer cancel()
+	raw, err := s.runPluginCommand(ctx, cmdAgentsSessions, workspaceID, map[string]string{"session": caller})
+	var list []struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+	}
+	if err != nil || json.Unmarshal(raw, &list) != nil || len(list) == 0 || list[0].ID != caller {
+		return out
+	}
+	out.Title, _, _ = strings.Cut(list[0].Title, "\n")
 	return out
 }
 

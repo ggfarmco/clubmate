@@ -47,7 +47,7 @@ final class TestHarness {
 
     private static var approvalPathsFixture: ConfirmRequest {
         let repo = "/Users/anna/develop/norimori/ggfarmco/clubmate/.worktrees/spike/multi-repo-shots/build/multi-repo-check/repos/ads-management"
-        return ConfirmRequest(title: "Remove worktree", workspaceName: "ads", command: "git.worktree-remove", args: .object(["repo": .string(repo), "path": .string(repo + "/.worktrees/feat/pause-reason-api")]), session: ConfirmSession(id: "agt_0123456789abcdef", title: "Land pause reasons", workspaceName: "ads"))
+        return ConfirmRequest(title: "Remove worktree", workspaceName: "ads", command: "git.worktree-remove", args: .object(["repo": .string(repo), "path": .string(repo + "/.worktrees/feat/pause-reason-api")]), session: ConfirmSession(id: "agt_0123456789abcdef", title: "Land pause reasons", workspaceName: "ads"), from: ConfirmSession(id: "agt_fedcba9876543210", title: "Multi-repo landing", workspaceName: ""))
     }
 
     static func reportFixture(over: Bool) -> ReportRequest {

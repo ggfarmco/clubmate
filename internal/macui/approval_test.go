@@ -73,6 +73,7 @@ func TestApprovalAlertAndReportSheetKeys(t *testing.T) {
 		var alert *window
 		in.eventually("the approval alert is the key window", func() bool { alert = in.alert(); return alert != nil })
 		assert.Contains(t, alert.node("alert.facts").Label, "feat-multi-repo-landing")
+		assert.Regexp(t, `\nFrom: Remove the worktree \(agt_[0-9a-f]+\)$`, alert.node("alert.detail").Label)
 		assert.Equal(t, "text", alert.node("alert.facts").Role)
 		in.key("esc")
 		in.eventually("esc denies and the report sheet is key again", func() bool { return in.snapshot().key().node("report.text") != nil })

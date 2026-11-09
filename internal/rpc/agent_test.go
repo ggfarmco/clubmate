@@ -12,7 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/plugin"
 	"clubmate/internal/rpc"
+	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 	"clubmate/internal/workspace"
@@ -26,11 +28,18 @@ type confirmRequest struct {
 	Body          string          `json:"body"`
 	Plugin        bool            `json:"plugin"`
 	TimeoutMs     int64           `json:"timeoutMs"`
-	Session       *struct {
-		ID            string `json:"id"`
-		Title         string `json:"title"`
-		WorkspaceName string `json:"workspaceName"`
-	} `json:"session"`
+	Session       *confirmSession `json:"session"`
+	From          *confirmSession `json:"from"`
+}
+
+type confirmSession struct {
+	ID            string `json:"id"`
+	Title         string `json:"title"`
+	WorkspaceName string `json:"workspaceName"`
+}
+
+type callerRouter struct {
+	rpc.Router
 }
 
 type approver struct {
@@ -274,6 +283,59 @@ func TestAgentSendNeedsApproval(t *testing.T) {
 	assert.Equal(t, [3]string{s.ID, "Build", "demo"}, [3]string{asked.Session.ID, asked.Session.Title, asked.Session.WorkspaceName})
 	a.reply <- false
 	require.ErrorIs(t, <-done, rpc.ErrDenied)
+}
+
+func (r callerRouter) Resolve(id string) (rpc.Command, bool) {
+	if id == "agents.sessions" {
+		return rpc.Command{CommandDef: rpc.CommandDef{ID: id}, Plugin: "agents"}, true
+	}
+	return r.Router.Resolve(id)
+}
+
+func (r callerRouter) Command(ctx context.Context, c rpc.Command, run json.RawMessage) (json.RawMessage, error) {
+	if c.ID != "agents.sessions" {
+		return r.Router.Command(ctx, c, run)
+	}
+	var p struct {
+		Args struct {
+			Session string `json:"session"`
+		} `json:"args"`
+	}
+	if err := json.Unmarshal(run, &p); err != nil || p.Args.Session != "agt_child" {
+		return json.RawMessage(`[]`), err
+	}
+	return json.RawMessage(`[{"id":"agt_child","title":"Land pause reasons\nand the rest"}]`), nil
+}
+
+func TestApprovalNamesTheCallingSession(t *testing.T) {
+	h := testutil.NewHarness(t)
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
+	require.NoError(t, err)
+	h.Start(t)
+	h.Srv.SetUI(h.Store, internalsdui.NewSections(nil), callerRouter{Router: plugin.NewRouter(h.Sup)})
+	s, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{WorkspaceID: p.ID, Title: "Build", Command: []string{"sh", "-c", "exec cat"}})
+	require.NoError(t, err)
+	a := newApprover(t, h)
+	c := h.Client(t)
+	tests := []struct {
+		caller string
+		want   *confirmSession
+	}{
+		{caller: "agt_child", want: &confirmSession{ID: "agt_child", Title: "Land pause reasons"}},
+		{caller: "agt_unknown", want: &confirmSession{ID: "agt_unknown"}},
+		{caller: ""},
+	}
+	for _, tt := range tests {
+		done := make(chan error, 1)
+		go func() {
+			done <- c.Call(t.Context(), "command.run", map[string]any{"id": "session.send", "agent": true, "caller": tt.caller, "args": map[string]any{"id": s.ID, "text": "hi"}}, nil)
+		}()
+		asked := <-a.asked
+		assert.Equal(t, tt.want, asked.From, tt.caller)
+		assert.Equal(t, "Build", asked.Session.Title)
+		a.reply <- false
+		require.ErrorIs(t, <-done, rpc.ErrDenied)
+	}
 }
 
 func TestAppScopeCommandRunsWithoutWorkspace(t *testing.T) {

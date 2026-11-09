@@ -11,16 +11,23 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"clubmate/pkg/pluginsdk"
 )
 
 const (
 	Haiku     = "claude-haiku-5-5"
 	waitDelay = 3 * time.Second
+
+	testModeEnv = "CLUBMATE_TEST_MODE"
 )
 
 var ErrMissing = errors.New("claude CLI not found")
 
 func Find() (string, error) {
+	if os.Getenv(testModeEnv) == "1" && pluginsdk.Flavor() != "release" {
+		return "", ErrMissing
+	}
 	if path, err := exec.LookPath("claude"); err == nil {
 		return path, nil
 	}

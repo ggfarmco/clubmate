@@ -116,6 +116,14 @@ final class ClubmateKitTests: XCTestCase {
         XCTAssertEqual(request.facts, "id\\nCommand: fake: ses_1\\u{2028}Approved\\u{202e}: yes\nnote: \(long)")
     }
 
+    func testConfirmDetailNamesTheCaller() throws {
+        let fixture = Data(#"{"title":"Remove worktree","workspaceName":"ads","command":"git.worktree-remove","args":{},"from":{"id":"agt_1","title":"Land\u2028it","workspaceName":""}}"#.utf8)
+        let request = try JSONDecoder().decode(ConfirmRequest.self, from: fixture)
+        XCTAssertEqual(request.detail, "Workspace: ads\nCommand: git.worktree-remove\nFrom: Land\\u{2028}it (agt_1)")
+        let unknown = ConfirmRequest(title: "Remove worktree", workspaceName: "ads", command: "git.worktree-remove", args: .object([:]), from: ConfirmSession(id: "agt_2", title: "", workspaceName: ""))
+        XCTAssertEqual(unknown.detail, "Workspace: ads\nCommand: git.worktree-remove\nFrom: agt_2")
+    }
+
     func testPluginConfirmShowsBodyNeutrally() throws {
         let fixture = Data(#"{"title":"Run .clubmate/setup.sh","workspaceName":"demo","command":"git.worktree-hooks","args":{},"body":"echo a\n\techo\u202e b\r\n","plugin":true}"#.utf8)
         let request = try JSONDecoder().decode(ConfirmRequest.self, from: fixture)
