@@ -26,6 +26,17 @@ stuck() {
   exit 1
 }
 
+killed() {
+  trap - TERM HUP INT
+  local at="before tagging"
+  [[ -n "${TAGGED:-}" ]] && at="after pushing v$VERSION; check the release run and the tag by hand"
+  [[ -n "${RUN:-}" ]] && at="while watching release run $RUN; check it and the v$VERSION tag by hand"
+  stuck "ship.sh got SIG$1 $at"
+}
+trap 'killed TERM' TERM
+trap 'killed HUP' HUP
+trap 'killed INT' INT
+
 run_of() {
   local id=""
   for _ in $(seq 30); do
@@ -45,6 +56,7 @@ git fetch -q --tags origin
 git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null && stuck "tag v$VERSION already exists; not tagging"
 git tag "v$VERSION" "$SHA" || stuck "tagging failed"
 git push -q origin "v$VERSION" || stuck "tag push failed"
+TAGGED=1
 
 RUN="$(run_of --workflow release.yml --branch "v$VERSION" --commit "$SHA")"
 [[ -n "$RUN" ]] || stuck "no release run for v$VERSION"
