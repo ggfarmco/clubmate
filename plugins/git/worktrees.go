@@ -40,6 +40,7 @@ const (
 var (
 	errMainCheckout   = errors.New("cannot remove the main checkout")
 	errUnseenFolder   = errors.New("it was connected while you were away and you haven't seen it yet")
+	errLookFirst      = fmt.Errorf("%w: open the title picker to look at it first", errUnseenFolder)
 	errFolderCheckout = errors.New("cannot remove the checkout of the workspace folder")
 	errDirtyWorktree  = errors.New("worktree has uncommitted changes")
 	errDiscardRefused = errors.New("only the app discards a worktree's uncommitted changes")
@@ -573,6 +574,8 @@ func removable(ctx context.Context, h *pluginsdk.Host, workspaceID string, args 
 		return nil, gitrepo.Worktree{}, fmt.Errorf("%w: %s", errLockedWorktree, t.LockWhy)
 	case t.Locked:
 		return nil, gitrepo.Worktree{}, errLockedWorktree
+	case f.unseen && !args.seesCost():
+		return nil, gitrepo.Worktree{}, errLookFirst
 	}
 	return f, t, nil
 }

@@ -63,6 +63,9 @@ func prepareBranchSwitch(ctx context.Context, h *pluginsdk.Host, workspaceID str
 	if err != nil {
 		return nil, err
 	}
+	if f.unseen {
+		return nil, errLookFirst
+	}
 	cur := f.currentTree()
 	if err := validBranch(ctx, cur.Path, args.Branch); err != nil {
 		return nil, err

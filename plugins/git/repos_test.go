@@ -445,3 +445,29 @@ func TestUnseenAFKFolderStartsFromLocalDefaultUntilSeen(t *testing.T) {
 	assert.Equal(t, upstream, git(t, res.Path, "rev-parse", "HEAD"))
 	assert.FileExists(t, marker)
 }
+
+func TestUnseenAFKFolderRefusesSwitchAndPlainRemoveUntilSeen(t *testing.T) {
+	repo := committedRepo(t)
+	git(t, repo, "branch", "feat")
+	wt := filepath.Join(repo, ".worktrees", "wt")
+	git(t, repo, "worktree", "add", "-q", "-b", "wt", wt)
+	h, id := open(t, committedRepo(t))
+	_, err := h.Svc.AddRepo(t.Context(), id, repo, contract.FolderMeta{AddedBy: "Fix login", AddedAfk: true})
+	require.NoError(t, err)
+
+	_, err = startOp(t, h, id, "git.branch-switch", map[string]string{"repo": repo, "branch": "feat"})
+	assert.ErrorContains(t, err, "look at it first")
+	assert.ErrorContains(t, runCommand(t, h, id, "git.worktree-remove-prompt", map[string]string{"repo": repo, "path": wt}, nil), "look at it first")
+	_, err = startOp(t, h, id, "git.worktree-remove", map[string]string{"repo": repo, "path": wt})
+	assert.ErrorContains(t, err, "look at it first")
+	assert.Equal(t, "main", git(t, repo, "branch", "--show-current"))
+	assert.DirExists(t, wt)
+
+	_, err = h.Svc.MarkFolderSeen(t.Context(), id, repo)
+	require.NoError(t, err)
+
+	require.Empty(t, awaitOp(t, h, id, "git.branch-switch", map[string]string{"repo": repo, "branch": "feat"}).Error)
+	assert.Equal(t, "feat", git(t, repo, "branch", "--show-current"))
+	require.Empty(t, awaitOp(t, h, id, "git.worktree-remove", map[string]string{"repo": repo, "path": wt}).Error)
+	assert.NoDirExists(t, wt)
+}
