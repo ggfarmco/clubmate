@@ -38,7 +38,7 @@ var kinds = []scheduleKind{
 
 var helpFacts = [][2]string{
 	{"Can do", "start an agent · prompt a session (skipped while it is busy) · run a graph · emit an event · any command an agent may run; a destructive one asks you first"},
-	{"Missed runs", "while Clubmate was closed or the Mac asleep, a late run follows When missed: run once when back, or skip it"},
+	{"Missed runs", "while Clubmate was closed or the Mac asleep, the job's When missed decides: run once when back, or skip it"},
 	{"Owner", "an agent's job is deleted with its session unless it was added with owner none; failures go to the owner, else to the inbox"},
 	{"Worktree", "a job that starts an agent can give it a new worktree, else it works in the owner's worktree or the main checkout"},
 	{"Overlap", "a run never starts while the previous one runs; that run is skipped, not queued"},

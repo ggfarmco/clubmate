@@ -117,7 +117,9 @@ struct RunstripNodeView: View {
             line.addLine(to: CGPoint(x: nx, y: y + 9 * k))
             context.stroke(line, with: .color(theme.foreground), lineWidth: 1.25 * k)
             context.draw(Text("now").font(theme.uiSmall).foregroundStyle(theme.text2), at: CGPoint(x: nx, y: y - 11 * k), anchor: .bottom)
-            context.draw(Text(format.string(from: now)).font(theme.uiSmall.monospacedDigit()).foregroundStyle(theme.muted), at: CGPoint(x: nx, y: y + 13 * k), anchor: .top)
+            let stamp = context.resolve(Text(format.string(from: now)).font(theme.uiSmall.monospacedDigit()).foregroundStyle(theme.muted))
+            let half = stamp.measure(in: size).width / 2
+            context.draw(stamp, at: CGPoint(x: min(max(nx, half), size.width - half), y: y + 13 * k), anchor: .top)
             labels.append(nx)
         }
         if let next = strip.next {

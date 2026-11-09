@@ -17,7 +17,7 @@ struct TableNodeView: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        let all = node.columns()
+        let all = node.columns().map { $0.scaled(Double(theme.uiSize / 12)) }
         let columns = SDUIColumn.visible(all, width: Double(width - 2 * theme.gutter), gutter: Double(theme.gutter)).map { (index: $0, column: all[$0]) }
         let rows = node.tableRows()
         let tree = rows.contains { $0.hasChildren || $0.depth > 0 }

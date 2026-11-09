@@ -277,6 +277,10 @@ public struct SDUIColumn: Sendable, Equatable, Identifiable {
         )
     }
 
+    public func scaled(_ factor: Double) -> SDUIColumn {
+        SDUIColumn(id: id, title: title, align: align, width: width.map { $0 * factor }, truncate: truncate, priority: priority)
+    }
+
     public static func visible(_ columns: [SDUIColumn], width: Double, gutter: Double) -> [Int] {
         var shown = Array(columns.indices)
         guard width > 0 else { return shown }
