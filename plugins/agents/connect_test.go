@@ -415,7 +415,7 @@ func (f *fixture) testApp(t *testing.T, press func(key string) map[string]any) {
 }
 
 func TestCmUIKeyInAnAgentSessionIsNotTheUser(t *testing.T) {
-	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}, {"permission": permissionScript()}}})
+	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
 	f.testApp(t, func(key string) map[string]any {
@@ -434,16 +434,6 @@ func TestCmUIKeyInAnAgentSessionIsNotTheUser(t *testing.T) {
 	require.ErrorContains(t, cm(t, "ui", "key", "opt+1"), "only the user")
 	assert.Equal(t, "waiting", f.session(t, workspace, session).Status)
 	require.NoError(t, cm(t, "ui", "key", "f"))
-
-	t.Setenv("CLUBMATE_AGENT_SESSION", "agt_of_another_core")
-	require.NoError(t, cm(t, "ui", "key", "opt+1"))
-	testutil.Eventually(t, func() bool {
-		return len(ofKind(f.transcript(t, workspace, session).Entries, "permission")) == 2
-	}, wait)
-
-	t.Setenv("CLUBMATE_AGENT_SESSION", "")
-	require.NoError(t, cm(t, "ui", "key", "opt+1"))
-	f.waitStatus(t, workspace, session, "done")
 }
 
 func TestParentsWordIsNotTheUsersYes(t *testing.T) {

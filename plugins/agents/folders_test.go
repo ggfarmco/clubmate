@@ -751,6 +751,7 @@ func TestWorkspaceUpdateLeavesAChildWhoseWorktreeIsBeingCreated(t *testing.T) {
 	gate := filepath.Join(t.TempDir(), "gate")
 	hook := fmt.Sprintf("#!/bin/sh\nwhile [ ! -e %q ]; do sleep 0.02; done\ncat >/dev/null\n", gate)
 	require.NoError(t, os.WriteFile(filepath.Join(repo, ".git", "hooks", "reference-transaction"), []byte(hook), 0o755))
+	t.Cleanup(func() { _ = os.WriteFile(gate, nil, 0o600) })
 	workspace := f.workspace(t, repo)
 	var kid child
 	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{"branch": "feat-late", "prompt": "work"}, &kid))

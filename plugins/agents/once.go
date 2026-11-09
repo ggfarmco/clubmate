@@ -10,11 +10,13 @@ import (
 	"time"
 
 	"clubmate/pkg/contract"
+	"clubmate/pkg/pluginsdk"
 )
 
 const (
-	onceKey  = "once/"
-	onceKeep = 7 * 24 * time.Hour
+	onceKey   = "once/"
+	onceKeep  = 7 * 24 * time.Hour
+	oncePrune = time.Hour
 )
 
 var (
@@ -33,36 +35,61 @@ type onceRecord struct {
 	Result json.RawMessage `json:"result,omitempty"`
 }
 
-type onceLocks struct {
-	mu   sync.Mutex
-	keys map[string]*sync.Mutex
+type onceLock struct {
+	sync.Mutex
+	refs int
 }
 
-func (l *onceLocks) of(key string) *sync.Mutex {
+type onceLocks struct {
+	mu     sync.Mutex
+	keys   map[string]*onceLock
+	pruned time.Time
+}
+
+func (l *onceLocks) lock(key string) func() {
+	l.mu.Lock()
+	if l.keys == nil {
+		l.keys = map[string]*onceLock{}
+	}
+	k := l.keys[key]
+	if k == nil {
+		k = &onceLock{}
+		l.keys[key] = k
+	}
+	k.refs++
+	l.mu.Unlock()
+	k.Lock()
+	return func() {
+		k.Unlock()
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		if k.refs--; k.refs == 0 {
+			delete(l.keys, key)
+		}
+	}
+}
+
+func (l *onceLocks) pruneDue(now time.Time) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.keys == nil {
-		l.keys = map[string]*sync.Mutex{}
+	if now.Sub(l.pruned) < oncePrune {
+		return false
 	}
-	if l.keys[key] == nil {
-		l.keys[key] = &sync.Mutex{}
-	}
-	return l.keys[key]
+	l.pruned = now
+	return true
 }
 
-func (a *app) once(ctx context.Context, workspaceID, key string, run func() (any, error)) (any, error) {
+func (a *app) once(ctx context.Context, cmd pluginsdk.CommandRun, key string, run func() (any, error)) (any, error) {
 	if key == "" {
 		return run()
 	}
-	return a.onceLocks.run(ctx, a.host, workspaceID, key, time.Now(), run)
+	return a.onceLocks.run(ctx, a.host, cmd.WorkspaceID, cmd.ID, key, time.Now(), run)
 }
 
-func (l *onceLocks) run(ctx context.Context, kv sessionStore, workspaceID, key string, now time.Time, run func() (any, error)) (any, error) {
-	sum := sha256.Sum256([]byte(key))
+func (l *onceLocks) run(ctx context.Context, kv sessionStore, workspaceID, command, key string, now time.Time, run func() (any, error)) (any, error) {
+	sum := sha256.Sum256([]byte(command + "\x00" + key))
 	stored := onceKey + workspaceID + "/" + hex.EncodeToString(sum[:])
-	lock := l.of(stored)
-	lock.Lock()
-	defer lock.Unlock()
+	defer l.lock(stored)()
 	var rec onceRecord
 	found, err := kv.StorageGet(ctx, stored, &rec)
 	if err != nil {
@@ -88,7 +115,9 @@ func (l *onceLocks) run(ctx context.Context, kv sessionStore, workspaceID, key s
 	if err := kv.StorageSet(ctx, stored, onceRecord{At: now, Done: true, Result: result}); err != nil {
 		return nil, err
 	}
-	pruneOnce(ctx, kv, now)
+	if l.pruneDue(now) {
+		pruneOnce(ctx, kv, now)
+	}
 	return out, nil
 }
 

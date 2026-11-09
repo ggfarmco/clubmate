@@ -53,9 +53,9 @@ func TestOnceReturnsTheFirstResultAcrossARestart(t *testing.T) {
 		return map[string]int{"closed": 3}, nil
 	}
 
-	_, err := new(onceLocks).run(t.Context(), kv, "ws", "k", now, run)
+	_, err := new(onceLocks).run(t.Context(), kv, "ws", "agents.archive", "k", now, run)
 	require.NoError(t, err)
-	again, err := new(onceLocks).run(t.Context(), kv, "ws", "k", now.Add(time.Hour), run)
+	again, err := new(onceLocks).run(t.Context(), kv, "ws", "agents.archive", "k", now.Add(time.Hour), run)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, runs)
@@ -67,7 +67,7 @@ func TestOnceForgetsAfterItsWindowAndNeverKeepsAFailure(t *testing.T) {
 	kv := memStore{}
 	now := time.Now()
 	boom := errors.New("refused")
-	_, err := new(onceLocks).run(t.Context(), kv, "ws", "k", now, func() (any, error) { return nil, boom })
+	_, err := new(onceLocks).run(t.Context(), kv, "ws", "agents.archive", "k", now, func() (any, error) { return nil, boom })
 	require.ErrorIs(t, err, boom)
 
 	runs := 0
@@ -76,7 +76,7 @@ func TestOnceForgetsAfterItsWindowAndNeverKeepsAFailure(t *testing.T) {
 		return nil, nil
 	}
 	for _, at := range []time.Time{now, now.Add(onceKeep)} {
-		_, err = new(onceLocks).run(t.Context(), kv, "ws", "k", at, run)
+		_, err = new(onceLocks).run(t.Context(), kv, "ws", "agents.archive", "k", at, run)
 		require.NoError(t, err)
 	}
 
@@ -89,15 +89,55 @@ func TestOnceSaysSoWhenTheFirstTryWasCutOff(t *testing.T) {
 	now := time.Now()
 	killed := false
 	locks := new(onceLocks)
-	_, _ = locks.run(t.Context(), storeThatDies{memStore: kv}, "ws", "k", now, func() (any, error) {
+	_, _ = locks.run(t.Context(), storeThatDies{memStore: kv}, "ws", "agents.archive", "k", now, func() (any, error) {
 		killed = true
 		return nil, nil
 	})
 	require.True(t, killed)
 
-	_, err := new(onceLocks).run(t.Context(), kv, "ws", "k", now, func() (any, error) { return nil, nil })
+	_, err := new(onceLocks).run(t.Context(), kv, "ws", "agents.archive", "k", now, func() (any, error) { return nil, nil })
 
 	require.ErrorIs(t, err, errOnceCutOff)
+}
+
+func TestOnceKeysAreOwnedByTheirCommand(t *testing.T) {
+	t.Parallel()
+	kv := memStore{}
+	locks := new(onceLocks)
+	now := time.Now()
+	runs := 0
+	run := func() (any, error) {
+		runs++
+		return nil, nil
+	}
+
+	for _, command := range []string{"agents.archive", "agents.connect-answer"} {
+		_, err := locks.run(t.Context(), kv, "ws", command, "k", now, run)
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, 2, runs)
+	assert.Empty(t, locks.keys, "a finished call keeps no lock")
+}
+
+func TestOncePrunesOldRecordsAtMostHourly(t *testing.T) {
+	t.Parallel()
+	kv := memStore{}
+	locks := new(onceLocks)
+	now := time.Now()
+	stale := onceKey + "ws/stale"
+	run := func() (any, error) { return nil, nil }
+	_, err := locks.run(t.Context(), kv, "ws", "agents.archive", "a", now, run)
+	require.NoError(t, err)
+	require.NoError(t, kv.StorageSet(t.Context(), stale, onceRecord{At: now.Add(-onceKeep)}))
+
+	_, err = locks.run(t.Context(), kv, "ws", "agents.archive", "b", now.Add(oncePrune/2), run)
+	require.NoError(t, err)
+	assert.Contains(t, kv, stale)
+
+	_, err = locks.run(t.Context(), kv, "ws", "agents.archive", "c", now.Add(oncePrune), run)
+	require.NoError(t, err)
+	assert.NotContains(t, kv, stale)
 }
 
 func TestOneArchiveAtATimePerTask(t *testing.T) {

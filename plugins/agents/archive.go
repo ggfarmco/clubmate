@@ -177,7 +177,7 @@ func (a *app) archiveCommand(ctx context.Context, cmd pluginsdk.CommandRun, args
 	if err := refusedChoices(cmd, args.Choices); err != nil {
 		return nil, err
 	}
-	return a.once(ctx, cmd.WorkspaceID, args.Key, func() (any, error) {
+	return a.once(ctx, cmd, args.Key, func() (any, error) {
 		s, err := a.lookup(cmd.WorkspaceID, args.Session)
 		if err != nil {
 			return nil, err

@@ -198,7 +198,7 @@ func (a *app) connectAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun
 	if !a.userWord(cmd) {
 		return nil, errConnectUser
 	}
-	return a.once(ctx, cmd.WorkspaceID, args.Key, func() (any, error) {
+	return a.once(ctx, cmd, args.Key, func() (any, error) {
 		return nil, a.answerConnect(ctx, cmd.WorkspaceID, args)
 	})
 }
