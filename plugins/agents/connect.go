@@ -49,7 +49,6 @@ const (
 	connectOutcomeHead = "[Clubmate] The user answered your request to connect repos:"
 	connectChildHead   = "[Clubmate] The user answered the request of child %q (%s) to connect repos:"
 	connectAFKTitle    = "Connected %s while you were away"
-	connectInsideTitle = "Connected %s, inside %s"
 	connectOneFormat   = "Connect %s?"
 	connectManyFormat  = "Connect %d repos?"
 	connectWants       = "Wants to connect"
@@ -332,14 +331,10 @@ func (a *app) arrive(ctx context.Context, w pluginsdk.Workspace, owner *session,
 	if repo.Path == "" {
 		return w
 	}
-	title := fmt.Sprintf(connectAFKTitle, repo.Name)
 	if !rec.AFK {
-		around, ok := folderAround(w, repo.Path)
-		if !ok {
-			return w
-		}
-		title = fmt.Sprintf(connectInsideTitle, repo.Name, filepath.Base(around))
+		return w
 	}
+	title := fmt.Sprintf(connectAFKTitle, repo.Name)
 	next, err := a.host.AddFolder(ctx, w.ID, repo.Path, pluginsdk.FolderMeta{AddedBy: rec.Title, AddedAfk: rec.AFK})
 	if err != nil {
 		repo.Note = err.Error()
@@ -785,26 +780,6 @@ func folderIn(w pluginsdk.Workspace, path string) (string, bool) {
 	target := gitrepo.Canonical(filepath.Clean(path))
 	for _, folder := range w.Paths() {
 		if gitrepo.Canonical(folder) == target {
-			return folder, true
-		}
-	}
-	return "", false
-}
-
-func folderAround(w pluginsdk.Workspace, path string) (string, bool) {
-	if info, err := os.Lstat(filepath.Join(path, ".git")); err != nil || !info.IsDir() {
-		return "", false
-	}
-	path = filepath.Clean(path)
-	target := gitrepo.Canonical(path)
-	for _, folder := range w.Paths() {
-		dir := gitrepo.Canonical(folder)
-		if target == dir || !gitrepo.Within(target, dir) {
-			continue
-		}
-		asked, err1 := filepath.Rel(folder, path)
-		real, err2 := filepath.Rel(dir, target)
-		if err1 == nil && err2 == nil && asked == real {
 			return folder, true
 		}
 	}

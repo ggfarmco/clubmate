@@ -222,7 +222,7 @@ The sheet opens by itself once per folder, the first time the workspace's window
 
 A file shows once, under the deepest folder that holds it: with `kufar` and `kufar/ads-management` both folders, search and the docs list read `ads-management/main.go`, not `kufar/ads-management/main.go`. Code's file tree is Neovim's, of the one folder Code shows, so with `kufar` shown it still lists `ads-management/` as a directory.
 
-An agent connecting a repo inside one of the workspace's folders (`agents.connect-repo` with a path under `kufar`) gets it at once, with no card: the folder records the session as `addedBy`, a notice "Connected ads-management, inside kufar" goes into its transcript, and hooks and graph steps stay off until you trust them, as for any connected repo. A repo outside every folder still asks, and so does one whose `.git` is a file pointing elsewhere (a worktree, a linked git dir), since its config lives outside the folder, or one reached through a symlink below the folder. While the orchestrator is AFK the AFK rule applies instead.
+An agent connecting a repo inside one of the workspace's folders (`agents.connect-repo` with a path under `kufar`) still gets the card, like any repo the workspace doesn't have: the agent can write inside that folder, so a `.git` it made there could carry config that runs commands, and only your yes or the Add repos sheet adds it. While the orchestrator is AFK the AFK rule applies instead.
 
 ## Review progress
 

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -274,35 +273,20 @@ func TestAFKConnectsPathOnDiskAtOnce(t *testing.T) {
 	assert.Contains(t, string(notices[len(notices)-1].Notice), filepath.Base(other))
 }
 
-func TestRepoInsideAFolderConnectsWithoutACard(t *testing.T) {
+func TestRepoInsideAFolderStillNeedsACard(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{})
 	parent, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
-	inside, outside := repoIn(t, parent, "api"), newRepo(t)
+	inside := repoIn(t, parent, "api")
 	workspace := f.workspace(t, parent)
 	session := f.doneSession(t, workspace)
 
 	res := f.connect(t, workspace, session, map[string]any{"path": inside})
 
-	assert.Equal(t, "connected", res.Status)
-	folders := f.folders(t, workspace)
-	require.Len(t, folders, 2)
-	assert.Equal(t, inside, folders[1].Path)
-	assert.Equal(t, "done", folders[1].AddedBy)
-	assert.False(t, folders[1].AddedAfk)
-	assert.False(t, f.session(t, workspace, session).NeedsYou)
-	notices := ofKind(f.transcript(t, workspace, session).Entries, "notice")
-	require.NotEmpty(t, notices)
-	assert.Contains(t, string(notices[len(notices)-1].Notice), "inside "+filepath.Base(parent))
-
-	assert.Equal(t, "pending", f.connect(t, workspace, session, map[string]any{"path": outside}).Status)
-	linked := filepath.Join(parent, "linked")
-	git(t, outside, "worktree", "add", "-q", linked)
-	assert.Equal(t, "pending", f.connect(t, workspace, session, map[string]any{"path": linked}).Status)
-	repoIn(t, parent, "inner/web")
-	require.NoError(t, os.Symlink(filepath.Join(parent, "inner"), filepath.Join(parent, "via")))
-	assert.Equal(t, "pending", f.connect(t, workspace, session, map[string]any{"path": filepath.Join(parent, "via", "web")}).Status)
+	assert.Equal(t, "pending", res.Status)
+	assert.Equal(t, []string{parent}, f.folderPaths(t, workspace))
+	assert.True(t, f.session(t, workspace, session).NeedsYou)
 }
 
 func TestAFKLeavesAURLWaiting(t *testing.T) {
