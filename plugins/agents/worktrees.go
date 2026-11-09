@@ -336,7 +336,7 @@ func rowsHolding(byPath map[string][]int, worktree string) []int {
 		if rows, ok := byPath[dir]; ok {
 			return rows
 		}
-		if dir == filepath.Dir(dir) {
+		if dir == filepath.Dir(dir) || filepath.Base(dir) == worktreesDir {
 			return nil
 		}
 	}

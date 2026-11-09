@@ -101,7 +101,7 @@
         "title": "Worktree index",
         "hidden": true,
         "agent": false,
-        "description": "Every worktree of every git folder of the workspace, cheap and local: no network and no git status. Same order as git.worktrees. Returns [{repo, path, branch, head, committed, main, current, created?, lastOpened?, madeBy?, merged, remoteGone}]: created is when the worktree was made, lastOpened when it last became or stopped being the selection, madeBy the plugin that created it, merged whether the branch's own commits are proven to be in the default branch, remoteGone whether its upstream is gone. Answers from a per-folder cache and refreshes it in the background; only a folder not read yet waits for one batch of git."
+        "description": "Every worktree of every git folder of the workspace, cheap and local: no network and no git status. Same order as git.worktrees. Returns [{repo, path, branch, head, committed, main, current, created?, lastOpened?, madeBy?, merged, remoteGone, locked?, lockWhy?}]: created is when the worktree was made, lastOpened when it last became or stopped being the selection, madeBy the plugin that created it, merged whether the branch's own commits are proven to be in the default branch, remoteGone whether its upstream is gone, locked and lockWhy whether git holds it and why. Answers from a per-folder cache and refreshes it in the background; only a folder not read yet waits for one batch of git."
       },
       {
         "id": "git.worktree-state",

@@ -160,6 +160,20 @@ func TestJoinWorktreesDropsAClosedTaskWithNothingLeft(t *testing.T) {
 	assert.Empty(t, tasks)
 }
 
+func TestJoinWorktreesLeavesAGoneWorktreeOffTheMainCheckout(t *testing.T) {
+	t.Parallel()
+	index := []gitWorktree{{Repo: "/r", Path: "/r", Main: true}}
+	facts := []sessionFact{
+		{rec: record{ID: "boss", Status: statusClosed, Task: &taskRecord{Slug: "pause", Repos: []taskRepo{{Path: "/r", Session: "kid"}}}}},
+		{rec: record{ID: "kid", Worktree: "/r/.worktrees/gone", Status: statusClosed}},
+	}
+
+	rows, tasks := joinWorktrees(index, facts, "", time.Now())
+
+	assert.Nil(t, rows[0].Session)
+	assert.Empty(t, tasks)
+}
+
 func TestJoinWorktreesOrdersLiveFirstAndStaleLast(t *testing.T) {
 	t.Parallel()
 	now := time.Now()

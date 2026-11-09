@@ -256,12 +256,14 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 		if err := args.costHolds(ctx, t.Path); err != nil {
 			return "", err
 		}
-		status, err := run(ctx, t.Path, "status", "--porcelain")
-		if err != nil {
-			return "", err
-		}
-		if !args.Discard && len(strings.TrimSpace(string(status))) > 0 {
-			return "", errDirtyWorktree
+		if !args.Discard {
+			status, err := run(ctx, t.Path, "status", "--porcelain")
+			if err != nil {
+				return "", err
+			}
+			if len(strings.TrimSpace(string(status))) > 0 {
+				return "", errDirtyWorktree
+			}
 		}
 		g, err := removalFolder(ctx, h, workspaceID, args)
 		if err != nil {

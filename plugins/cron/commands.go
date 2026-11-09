@@ -46,6 +46,8 @@ type worktreeRef struct {
 	Branch string `json:"branch"`
 	Repo   string `json:"repo"`
 	First  bool   `json:"first"`
+	real   string
+	inRepo string
 }
 
 type jobsInArgs struct {
@@ -268,6 +270,12 @@ func (a *app) jobsIn(ctx context.Context, cmd pluginsdk.CommandRun) (jobsInResul
 	if err := automation.Decode(cmd, &args); err != nil {
 		return jobsInResult{}, err
 	}
+	for i, w := range args.Worktrees {
+		args.Worktrees[i].real = gitrepo.Canonical(w.Path)
+		if w.Repo != "" {
+			args.Worktrees[i].inRepo = gitrepo.Canonical(w.Repo)
+		}
+	}
 	sessions, err := a.sessions(ctx, cmd.WorkspaceID)
 	if err != nil {
 		return jobsInResult{}, err
@@ -312,8 +320,11 @@ func (args jobsInArgs) onBranch(repo, branch string) (string, bool) {
 	if branch == "" {
 		return "", false
 	}
+	if repo != "" {
+		repo = gitrepo.Canonical(repo)
+	}
 	for _, w := range args.Worktrees {
-		mine := repo != "" && w.Repo != "" && gitrepo.Canonical(repo) == gitrepo.Canonical(w.Repo)
+		mine := repo != "" && w.inRepo != "" && repo == w.inRepo
 		if w.Branch == branch && (mine || repo == "" && w.First) {
 			return w.Path, true
 		}
@@ -324,7 +335,7 @@ func (args jobsInArgs) onBranch(repo, branch string) (string, bool) {
 func (args jobsInArgs) find(path string) (string, bool) {
 	path = gitrepo.Canonical(path)
 	for _, w := range args.Worktrees {
-		if gitrepo.Within(path, gitrepo.Canonical(w.Path)) {
+		if gitrepo.Within(path, w.real) {
 			return w.Path, true
 		}
 	}

@@ -285,15 +285,20 @@ func (a *app) worktreesOf(ctx context.Context, workspaceID, folder string) []fol
 	if err != nil {
 		return out
 	}
-	sessions := a.allSessions()
+	var open []string
+	for _, s := range a.allSessions() {
+		if rec := s.snapshot(); !rec.closed() {
+			open = append(open, gitrepo.Canonical(rec.Worktree))
+		}
+	}
 	defaultName := f.DefaultName(ctx)
 	for _, t := range f.Trees[1:] {
 		if t.Bare || t.Real == f.Checkout.Real || f.Primary(defaultName, t) {
 			continue
 		}
 		wt := folderWorktree{Path: t.Path, Branch: t.Branch}
-		for _, s := range sessions {
-			if rec := s.snapshot(); !rec.closed() && gitrepo.Within(gitrepo.Canonical(rec.Worktree), t.Real) {
+		for _, path := range open {
+			if gitrepo.Within(path, t.Real) {
 				wt.Sessions++
 			}
 		}
