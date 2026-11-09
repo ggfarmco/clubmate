@@ -45,6 +45,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let run: SessionRun?
     public let reviewProgress: ReviewProgress?
     public let openCount: Int
+    public let openDecisions: Int
+    public let openOffers: Int
     public let openSince: Date?
     public let mayAsk: Bool
     public let repo: String?
@@ -63,7 +65,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         childStatus: AgentSessionStatus? = nil, pendingSummary: PendingSummary? = nil, question: String? = nil, turnStartedAt: Date? = nil, needsYou: Bool? = nil,
         needsYouSince: Date? = nil, activity: SessionActivity? = nil, failure: SessionFailure? = nil, reopen: FailureAction? = nil, modeLabel: String? = nil,
         autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false, group: SessionGroup? = nil, active: Bool = false, kind: String? = nil, run: SessionRun? = nil,
-        reviewProgress: ReviewProgress? = nil, openCount: Int = 0, openSince: Date? = nil, mayAsk: Bool = false,
+        reviewProgress: ReviewProgress? = nil, openCount: Int = 0, openDecisions: Int = 0, openOffers: Int = 0, openSince: Date? = nil, mayAsk: Bool = false,
         repo: String? = nil, taskRows: [RepoRow] = [], taskBadge: String? = nil, archivable: Bool = false, taskFinished: Bool = false, requests: [String] = []
     ) {
         self.id = id
@@ -110,6 +112,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.run = run
         self.reviewProgress = reviewProgress
         self.openCount = openCount
+        self.openDecisions = openDecisions
+        self.openOffers = openOffers
         self.openSince = openSince
         self.mayAsk = mayAsk
         self.repo = repo
@@ -125,7 +129,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
-        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, active, kind, run, reviewProgress, openCount, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests
+        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, active, kind, run, reviewProgress, openCount, openDecisions, openOffers, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests
     }
 
     public init(from decoder: any Decoder) throws {
@@ -180,6 +184,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             run: try? c.decodeIfPresent(SessionRun.self, forKey: .run),
             reviewProgress: try? c.decodeIfPresent(ReviewProgress.self, forKey: .reviewProgress),
             openCount: try c.decodeIfPresent(Int.self, forKey: .openCount) ?? 0,
+            openDecisions: try c.decodeIfPresent(Int.self, forKey: .openDecisions) ?? 0,
+            openOffers: try c.decodeIfPresent(Int.self, forKey: .openOffers) ?? 0,
             openSince: date(.openSince),
             mayAsk: try flag(.mayAsk),
             repo: try optional(.repo),
@@ -239,6 +245,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encodeIfPresent(run, forKey: .run)
         try c.encodeIfPresent(reviewProgress, forKey: .reviewProgress)
         try c.encode(openCount, forKey: .openCount)
+        try c.encode(openDecisions, forKey: .openDecisions)
+        try c.encode(openOffers, forKey: .openOffers)
         try c.encodeIfPresent(openSince.map(formatter.string(from:)), forKey: .openSince)
         try c.encode(mayAsk, forKey: .mayAsk)
         try c.encodeIfPresent(repo, forKey: .repo)

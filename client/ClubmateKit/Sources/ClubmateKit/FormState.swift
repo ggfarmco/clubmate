@@ -9,6 +9,7 @@ public final class FormState {
     public var values: [String: JSONValue] = [:]
     public var openChoice: String?
     public var needsAny: [String] = []
+    public var questions: [String] = []
     public private(set) var submissions = 0
     public private(set) var save = UIFormSave()
     @ObservationIgnored public var autosave = false
@@ -48,6 +49,11 @@ public final class FormState {
         case .array(let items)?: !items.isEmpty
         default: true
         }
+    }
+
+    public func question(after id: String) -> String? {
+        guard let index = questions.firstIndex(of: id) else { return nil }
+        return questions[(index + 1)...].first { !Self.holds(values[$0]) }
     }
 
     public func touch(_ id: String) {

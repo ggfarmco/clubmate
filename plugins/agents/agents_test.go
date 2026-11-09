@@ -89,6 +89,8 @@ type record struct {
 	Group           string           `json:"group"`
 	MayAsk          bool             `json:"mayAsk"`
 	OpenCount       int              `json:"openCount"`
+	OpenDecisions   int              `json:"openDecisions"`
+	OpenOffers      int              `json:"openOffers"`
 	OpenSince       string           `json:"openSince"`
 	Repo            string           `json:"repo"`
 	RepoPath        string           `json:"repoPath"`

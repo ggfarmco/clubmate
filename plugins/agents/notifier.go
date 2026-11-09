@@ -241,7 +241,7 @@ func (a *app) notifyEnd(s *session, t api.Turn) {
 	if rec.ParentSession != "" || rec.restricted() || rec.Run != nil && kind != notifyAsks || kind == notifyDone && a.runningChildren(rec.ID) > 0 {
 		return
 	}
-	a.notes.ended(ending{workspace: rec.Workspace, session: rec.ID, title: rec.Title, kind: kind, policy: a.effectiveNotify(rec), open: rec.OpenCount, quiet: kind == notifyDone && rec.OpenCount == 0 && s.askedInTurn()})
+	a.notes.ended(ending{workspace: rec.Workspace, session: rec.ID, title: rec.Title, kind: kind, policy: a.effectiveNotify(rec), open: rec.OpenCount, quiet: kind == notifyDone && (rec.OpenCount > 0 || s.askedInTurn())})
 }
 
 func (e ending) allowed() bool {

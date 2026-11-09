@@ -77,7 +77,7 @@ extension AgentSession {
         waitingChildren > 0 && !glyph.needsYou ? .childWaiting : glyph
     }
 
-    public func stateLine(now: Date, waitingChildren: Int = 0, open: OpenKinds? = nil) -> SessionStateLine {
+    public func stateLine(now: Date, waitingChildren: Int = 0) -> SessionStateLine {
         let age = { (date: Date) in ShortAge.since(date, now: now) }
         switch glyph(waitingChildren: waitingChildren) {
         case .connect:
@@ -119,7 +119,7 @@ extension AgentSession {
         case .stopped:
             return SessionStateLine(text: stopped.word, tone: .danger)
         case .open:
-            return SessionStateLine(text: [SessionState.done.label, open?.text ?? openLabel ?? ""].joined(separator: " · "))
+            return SessionStateLine(text: [SessionState.done.label, openKinds?.text ?? openLabel ?? ""].joined(separator: " · "))
         case .review:
             return SessionStateLine(text: reviewProgress?.text ?? SessionState.review.label, age: age(updatedAt))
         case .done:

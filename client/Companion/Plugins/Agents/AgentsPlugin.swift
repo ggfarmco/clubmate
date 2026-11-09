@@ -221,7 +221,7 @@ struct SessionListView: View {
                 if let repo = item.repo {
                     PendingRepoRow(row: repo)
                 } else {
-                    SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants, chevron: item.toggleCount == nil, open: store.openKinds(item.id), taskRow: item.taskRow)
+                    SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants, chevron: item.toggleCount == nil, taskRow: item.taskRow)
                 }
                 if let count = item.toggleCount {
                     SubagentToggle(count: count, expanded: item.expanded) {
@@ -303,7 +303,6 @@ struct SessionRow: View {
     var depth = 0
     var waitingChildren = 0
     var chevron = false
-    var open: OpenKinds?
     var taskRow: RepoRow?
 
     var body: some View {
@@ -338,7 +337,7 @@ struct SessionRow: View {
                             .foregroundStyle(taskRow?.tone.toneInk(default: .secondary) ?? .secondary)
                             .lineLimit(1)
                     } else {
-                        StateLineText(line: session.stateLine(now: timeline.date, waitingChildren: waitingChildren, open: open))
+                        StateLineText(line: session.stateLine(now: timeline.date, waitingChildren: waitingChildren))
                             .font(.subheadline)
                             .lineLimit(1)
                     }

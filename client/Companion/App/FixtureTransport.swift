@@ -186,7 +186,7 @@ actor FixtureServer {
                 var record = Self.session(template, id: id, title: title, status: "done", ago: ago)
                 let open = items.count
                 if open > 0 {
-                    record["openCount"] = .number(Double(open))
+                    Self.countOpen(&record, items.map(JSONValue.object))
                     record["openSince"] = Self.stamp(ago: ago)
                 } else if id == "agt_0000000000000023" {
                     record["mayAsk"] = .bool(true)
@@ -795,8 +795,8 @@ actor FixtureServer {
                 return .object(edited)
             })
         }
-        let left = openEntries(session).count { $0["state"] == .string("open") }
-        update(session) { $0["openCount"] = left > 0 ? .number(Double(left)) : nil; if left == 0 { $0["openSince"] = nil } }
+        let left = openEntries(session).filter { $0["state"] == .string("open") }
+        update(session) { Self.countOpen(&$0, left); if left.isEmpty { $0["openSince"] = nil } }
     }
 
     private func answerOpen(_ session: String, _ args: JSONValue) {
@@ -1116,6 +1116,14 @@ actor FixtureServer {
         ]),
         ("agt_0000000000000023", "Tidy the notifier", 7_200, "Done. If you want, I can also split the file.", []),
     ]
+
+    private static func countOpen(_ record: inout [String: JSONValue], _ items: [JSONValue]) {
+        let count = { (n: Int) in n > 0 ? JSONValue.number(Double(n)) : nil }
+        let offers = items.count { $0["kind"] == .string("offer") }
+        record["openCount"] = count(items.count)
+        record["openDecisions"] = count(items.count - offers)
+        record["openOffers"] = count(offers)
+    }
 
     private static func openDecision(_ id: String, _ header: String, _ question: String, _ quote: String, _ options: [(String, String)]) -> [String: JSONValue] {
         ["id": .string(id), "kind": .string("decision"), "header": .string(header), "question": .string(question), "quote": .string(quote), "state": .string("open"),

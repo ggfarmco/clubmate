@@ -102,6 +102,7 @@ func TestOpenItemsLeaveTheSessionDoneAndSurviveARestart(t *testing.T) {
 	assert.Equal(t, "done", rec.Status)
 	assert.False(t, rec.NeedsYou)
 	assert.Equal(t, 2, rec.OpenCount)
+	assert.Equal(t, [2]int{1, 1}, [2]int{rec.OpenDecisions, rec.OpenOffers})
 	assert.Equal(t, "open", rec.Group)
 	assert.NotEmpty(t, rec.OpenSince)
 

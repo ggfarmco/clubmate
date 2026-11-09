@@ -45,6 +45,9 @@ final class SessionRowsTests: XCTestCase {
         XCTAssertNil(AgentSession(id: "w", status: .waiting, pending: ["permission-1"], openCount: 5).openLabel)
         XCTAssertEqual(AgentSession(id: "i", status: .error).headerState, "Stopped · error")
         XCTAssertEqual(AgentSession(id: "i2", status: .error, failure: Self.exit1).headerState, "Stopped · exit 1")
+        XCTAssertEqual(AgentSession(id: "r", status: .running, turnStartedAt: ago(900)).headerActivity(now: now), "15 min")
+        XCTAssertEqual(AgentSession(id: "r2", status: .running, activity: SessionActivity(title: "next check 19:12", at: ago(60))).headerActivity(now: now), "next check 19:12")
+        XCTAssertNil(AgentSession(id: "w2", status: .waiting, turnStartedAt: ago(900)).headerActivity(now: now))
     }
 
     func testReviewOnlyOutranksDone() {

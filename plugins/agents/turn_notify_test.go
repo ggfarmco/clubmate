@@ -73,7 +73,7 @@ func TestNextTurnOrQuestionReplacesAHeldEnd(t *testing.T) {
 	assert.Equal(t, "question", f.notes(t)[0].Kind)
 }
 
-func TestFinishAfterAQuestionIsQuiet(t *testing.T) {
+func TestFinishAfterAQuestionOrWithOpenItemsIsQuiet(t *testing.T) {
 	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "ask", "elicitation": askScript(false)}, {"echo": true}}})
 	workspace := f.workspace(t, newRepo(t))
@@ -108,6 +108,10 @@ func TestFinishAfterAQuestionIsQuiet(t *testing.T) {
 
 	f.prompt(t, workspace, session, "go")
 	assert.Equal(t, []bool{true, false}, quiet(2))
+
+	f.postItems(t, workspace, session, offer("add a screen"))
+	f.prompt(t, workspace, session, "go on")
+	assert.Equal(t, []bool{true, false, true}, quiet(3))
 }
 
 func TestChildTurnEndPostsNothing(t *testing.T) {

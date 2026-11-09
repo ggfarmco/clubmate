@@ -109,9 +109,13 @@ public struct OpenKinds: Sendable, Equatable {
     public let decisions: Int
     public let offers: Int
 
+    public init(decisions: Int, offers: Int) {
+        self.decisions = decisions
+        self.offers = offers
+    }
+
     public init(_ items: [OpenItem]) {
-        decisions = items.count { $0.kind == .decision }
-        offers = items.count { $0.kind == .offer }
+        self.init(decisions: items.count { $0.kind == .decision }, offers: items.count { $0.kind == .offer })
     }
 
     public var text: String {

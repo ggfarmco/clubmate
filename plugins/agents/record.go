@@ -66,6 +66,8 @@ type record struct {
 	Reminding       bool      `json:"reminding,omitempty"`
 	MayAsk          bool      `json:"mayAsk,omitempty"`
 	OpenCount       int       `json:"openCount,omitempty"`
+	OpenDecisions   int       `json:"openDecisions,omitempty"`
+	OpenOffers      int       `json:"openOffers,omitempty"`
 	OpenSince       time.Time `json:"openSince,omitzero"`
 	CreatedAt       time.Time `json:"createdAt"`
 	UpdatedAt       time.Time `json:"updatedAt"`

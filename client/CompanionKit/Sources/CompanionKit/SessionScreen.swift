@@ -61,8 +61,18 @@ extension AgentSession {
         state == .stopped ? stopped.badge : state.label
     }
 
+    public func headerActivity(now: Date) -> String? {
+        guard state == .running else { return nil }
+        if let activity, !activity.title.isEmpty { return activity.title }
+        return turnStartedAt.map { ShortAge.since($0, now: now) }
+    }
+
     public var openLabel: String? {
         openCount > 0 && status == .done && !needsYou ? "\(openCount) open" : nil
+    }
+
+    public var openKinds: OpenKinds? {
+        openDecisions + openOffers > 0 ? OpenKinds(decisions: openDecisions, offers: openOffers) : nil
     }
 
     public var headerDetail: String {

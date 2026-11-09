@@ -35,6 +35,10 @@ struct RootView: View {
                 navigation.needsYouList = false
             }
         }
+        .onChange(of: shownAgents, initial: true) { old, new in
+            if let old, old.store != new?.store { model.agents(computer: old.store.computer, workspace: old.store.workspace)?.show(nil) }
+            if let new { model.agents(computer: new.store.computer, workspace: new.store.workspace)?.show(new.detail) }
+        }
         .sheet(isPresented: $navigation.showingAddComputer, onDismiss: navigation.pairingSheetDismissed) {
             AddComputerView()
                 .onAppear { navigation.pairingSheetAppeared() }
@@ -85,6 +89,12 @@ struct RootView: View {
         }
     }
 
+    private var shownAgents: ShownAgents? {
+        guard let item = navigation.sidebar, item.plugin == AgentsPluginInfo.id, let connection = model.connection(item.computer), let workspace = navigation.workspace(for: connection) else { return nil }
+        let visible = navigation.layout != .compact || navigation.preferredColumn == .detail
+        return ShownAgents(store: ShownAgents.Store(computer: item.computer, workspace: workspace.id), detail: visible ? navigation.detail : nil)
+    }
+
     private var context: PluginContext? {
         guard let item = navigation.sidebar, let connection = model.connection(item.computer) else { return nil }
         return PluginContext(model: model, connection: connection, navigation: navigation)
@@ -98,6 +108,16 @@ struct RootView: View {
         navigation.sidebar = SidebarItem(computer: computer.id, plugin: AgentsPluginInfo.id)
         navigation.preferredColumn = .content
     }
+}
+
+struct ShownAgents: Equatable {
+    struct Store: Equatable {
+        let computer: String
+        let workspace: String
+    }
+
+    let store: Store
+    let detail: String?
 }
 
 struct PairingOverlay: View {

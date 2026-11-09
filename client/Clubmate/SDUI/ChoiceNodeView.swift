@@ -236,6 +236,7 @@ struct ChoiceNodeView: View {
         }
         commit()
         if let form {
+            if radio, accordion, !picksAtOnce, !serverOpens, let id = node.id, let next = form.question(after: id) { form.openChoice = next }
             if picksAtOnce { dispatch(node, .submit(.object(form.values))) }
         } else {
             dispatch(node, .submit(value ?? .null))

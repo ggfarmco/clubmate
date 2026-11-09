@@ -18,6 +18,16 @@ final class FormStateTests: XCTestCase {
         XCTAssertEqual(form.submissions, 1)
     }
 
+    func testAPickMovesOnToTheNextUnansweredQuestion() {
+        let form = FormState()
+        form.questions = ["q1", "q2", "q3"]
+        form.values = ["q1": .string("a"), "q2": .string("b")]
+        XCTAssertEqual(form.question(after: "q1"), "q3")
+        form.values["q3"] = .array([.string("c")])
+        XCTAssertNil(form.question(after: "q1"))
+        XCTAssertNil(form.question(after: "other"))
+    }
+
     func testAFormWithoutNeedsAnySubmitsEmpty() {
         let form = FormState()
         XCTAssertFalse(form.unanswered)

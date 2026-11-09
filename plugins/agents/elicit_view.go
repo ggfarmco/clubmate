@@ -24,6 +24,8 @@ const (
 	cardTone          = "warning"
 	questionGap       = 10
 	elicitSendKey     = "cmd+return"
+	skipHint          = "Skip answers “none of these” and ends the turn"
+	skipHintShort     = "Skip ends the turn"
 )
 
 func elicitationCard(sc screen, en *entry) sdui.Node {
@@ -46,7 +48,7 @@ func elicitationCard(sc screen, en *entry) sdui.Node {
 		submit = sdui.WithShortcut(submit, elicitSendKey)
 	}
 	skip := sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/decline", "Skip", ""), actElicitDecline), "ghost")
-	children = append(children, sdui.HStack(submit, skip))
+	children = append(children, sdui.HStack(submit, skip, sdui.WithShort(sdui.MutedText(skipHint), skipHintShort)))
 	form := sdui.WithAction(sdui.Form(id, sdui.Card(cardTone, "questionmark.bubble.fill", children...)), actElicitation)
 	if el.NeedsAnswer {
 		form = sdui.WithNeedsAny(form, fieldIDs(id, el.Fields))

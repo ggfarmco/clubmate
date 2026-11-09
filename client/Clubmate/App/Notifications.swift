@@ -96,7 +96,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     private func posted(_ event: BusEvent) async {
         hub.inbox.record(seq: Int64(event.seq))
         changed()
-        if let note = HubNotification.posted(event.payload) { await post(note) }
+        if let note = HubNotification.posted(event.payload) { await post(note, quiet: NotifyPosted(event.payload)?.quiet == true) }
     }
 
     private func agentsChanged(_ event: BusEvent) async {
@@ -221,9 +221,9 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    private func post(_ note: HubNotification) async {
+    private func post(_ note: HubNotification, quiet: Bool) async {
         guard accept(note, policy: await policy(note)) else { return }
-        await deliver(note)
+        await deliver(note, quiet: quiet)
     }
 
     private func policy(_ note: HubNotification) async -> NotificationPolicy {
@@ -238,7 +238,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         return banner
     }
 
-    private func deliver(_ note: HubNotification) async {
+    private func deliver(_ note: HubNotification, quiet: Bool = false) async {
         guard !TestMode.current else { return }
         let center = UNUserNotificationCenter.current()
         let status = await Self.status(center)
@@ -258,7 +258,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         content.title = note.headline(workspaceName: workspaceName(note.workspace))
         content.subtitle = note.subtitle
         content.body = note.message
-        content.sound = .default
+        content.sound = quiet ? nil : .default
         content.threadIdentifier = note.session ?? note.workspace
         if let icon = Self.icon(note.kind) { content.attachments = [icon] }
         var info = [Self.workspaceKey: note.workspace]

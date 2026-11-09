@@ -324,6 +324,23 @@ final class TranscriptRefreshTests: XCTestCase {
         store.unwatch("shown")
     }
 
+    func testShownDetailIsTheOnlyWatchedSession() {
+        let store = AgentsStore(workspace: "w", runner: SlowRunner())
+        let opened = { (session: String) in
+            BusEvent(seq: 1, topic: "docs.opened", payload: .object(["workspace": .string("w"), "session": .string(session), "path": .string("/r/\(session).md")]))
+        }
+        store.show("a")
+        store.show("a")
+        store.show("b")
+        store.handle(.event(opened("a")))
+        store.handle(.event(opened("b")))
+        XCTAssertEqual(store.openedDocs, ["b": "/r/b.md"])
+        store.dismissOpenedDoc("b")
+        store.show(AgentsPluginInfo.openQueue)
+        store.handle(.event(opened("b")))
+        XCTAssertEqual(store.openedDocs, [:])
+    }
+
     func testChangeSendsTheCursorAndMergesTheDeltaByEntry() async throws {
         let first = #"{"session":{"id":"s","status":"running"},"cursor":"e.2","entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"},{"kind":"agent","id":"a1","turn":1,"text":"part"}]}"#
         let delta = #"{"session":{"id":"s","status":"running"},"cursor":"e.4","delta":true,"entries":[{"kind":"agent","id":"a1","turn":1,"text":"partial answer"},{"kind":"tool","id":"t1","turn":1}]}"#
@@ -503,7 +520,7 @@ final class ElicitationDraftTests: XCTestCase {
         XCTAssertEqual(card.items[0].options.map(\.description), ["First", "Second"])
         XCTAssertTrue(card.items[0].multiSelect)
         XCTAssertEqual(wire.queue.map(\.session), [session.id])
-        XCTAssertEqual(OpenKinds(wire.queue[0].items).text, "2 decisions, 1 offer")
+        XCTAssertEqual(session.stateLine(now: .now).text, "Done · 2 decisions, 1 offer")
     }
 
     func testOpenCardKeepsTheReportsNumbersAndFoldsOffersIntoOneSection() throws {

@@ -69,6 +69,18 @@ public enum UIForm {
         return ids
     }
 
+    public static func questionIDs(in form: SDUINode) -> [String] {
+        var ids: [String] = []
+        func visit(_ children: [SDUINode]) {
+            for child in children where child.type != "form" {
+                if child.type == "choice", child.string("text") != nil, let id = child.id { ids.append(id) }
+                visit(child.children)
+            }
+        }
+        visit(form.children)
+        return ids
+    }
+
     public static func collect(_ values: [String: JSONValue], in form: SDUINode) -> JSONValue {
         let ids = fieldIDs(in: form)
         return .object(values.filter { ids.contains($0.key) })

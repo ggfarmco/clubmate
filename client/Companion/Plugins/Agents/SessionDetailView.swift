@@ -276,10 +276,12 @@ struct SessionDetailView: View {
             if let session {
                 if stopInHeader {
                     ToolbarItem(placement: .largeSubtitle) {
-                        SessionHeader.subtitle(session, mac: context.model.tag(context.connection.computer.id), mode: true)
-                            .font(.subheadline)
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        TimelineView(.periodic(from: .now, by: 30)) { timeline in
+                            SessionHeader.subtitle(session, mac: context.model.tag(context.connection.computer.id), mode: true, now: timeline.date)
+                                .font(.subheadline)
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
                 } else {
                     ToolbarItem(placement: .principal) {
@@ -386,11 +388,6 @@ struct SessionDetailView: View {
             store.opened(sessionID)
         }
         .task(id: planDue, loadPlan)
-        .task(id: sessionID) {
-            store.watch(sessionID)
-            try? await Task.sleep(for: .seconds(31_536_000))
-            store.unwatch(sessionID)
-        }
     }
 
     private var failureShown: Binding<Bool> {
@@ -579,20 +576,24 @@ struct SessionHeader: View {
             Text(session.displayTitle)
                 .font(.headline)
                 .lineLimit(1)
-            Self.subtitle(session, mac: mac)
-                .font(.footnote)
-                .lineLimit(1)
+            TimelineView(.periodic(from: .now, by: 30)) { timeline in
+                Self.subtitle(session, mac: mac, now: timeline.date)
+                    .font(.footnote)
+                    .lineLimit(1)
+            }
         }
         .frame(maxWidth: 260)
         .accessibilityElement(children: .combine)
     }
 
-    static func subtitle(_ session: AgentSession, mac: MacTag?, mode: Bool = false) -> Text {
+    static func subtitle(_ session: AgentSession, mac: MacTag?, mode: Bool = false, now: Date) -> Text {
         let detail = [session.headerDetail, mode ? session.modeLabel ?? "" : ""].filter { !$0.isEmpty }.joined(separator: " · ")
+        let activity = session.headerActivity(now: now).map { Text(" · " + $0).foregroundStyle(.secondary) } ?? Text("")
         let open = session.openLabel.map { Text(" · ").foregroundStyle(.secondary) + Text($0).foregroundStyle(Color.warningInk) } ?? Text("")
         let done = session.openLabel != nil || session.archivable
         let tint = session.state.needsYou ? Color.warning : done ? Color.successInk : Color.secondary
         return Text(session.headerState).foregroundStyle(tint)
+            + activity
             + open
             + (mac != nil || !detail.isEmpty ? Text(" · ") + mac.lead(detail) : Text("")).foregroundStyle(.secondary)
     }

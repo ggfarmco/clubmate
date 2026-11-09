@@ -301,13 +301,17 @@ func (s *session) editItem(id string, edit func(*openItem)) {
 
 func (s *session) countOpen() {
 	var since time.Time
+	offers := 0
 	items := s.openItemsLocked()
 	for _, it := range items {
 		if since.IsZero() || it.At.Before(since) {
 			since = it.At
 		}
+		if it.Kind == itemOffer {
+			offers++
+		}
 	}
-	s.rec.OpenCount, s.rec.OpenSince = len(items), since
+	s.rec.OpenCount, s.rec.OpenDecisions, s.rec.OpenOffers, s.rec.OpenSince = len(items), len(items)-offers, offers, since
 }
 
 func (ans openAnswer) text(it openItem) (string, error) {

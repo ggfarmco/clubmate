@@ -61,6 +61,7 @@ public final class AgentsStore {
     @ObservationIgnored private let retry: @MainActor () -> Void
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
     @ObservationIgnored private var watched: [String: Int] = [:]
+    @ObservationIgnored public private(set) var shown: String?
     @ObservationIgnored private var followers: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var inflight: Set<String> = []
     @ObservationIgnored private var again: Set<String> = []
@@ -178,7 +179,7 @@ public final class AgentsStore {
             self.error = Self.message(error)
         }
         loaded = true
-        await loadOpenQueue()
+        if shown == AgentsPluginInfo.openQueue { await loadOpenQueue() }
     }
 
     public var searching: Bool {
@@ -212,6 +213,18 @@ public final class AgentsStore {
             searchResults = []
             searchError = Self.message(error)
         }
+    }
+
+    public func show(_ detail: String?) {
+        guard detail != shown else { return }
+        if let shown, Self.follows(shown) { unwatch(shown) }
+        shown = detail
+        if let detail, Self.follows(detail) { watch(detail) }
+        if detail == AgentsPluginInfo.openQueue { Task { await loadOpenQueue() } }
+    }
+
+    private static func follows(_ detail: String) -> Bool {
+        AgentsPluginInfo.isSession(detail) && !GraphRun.isRun(detail)
     }
 
     public func watch(_ session: String) {
@@ -546,10 +559,6 @@ public final class AgentsStore {
     private func setOpenQueue(_ queue: [OpenQueueEntry]) {
         if openQueue != queue { openQueue = queue }
         openPass?.update(queue)
-    }
-
-    public func openKinds(_ session: String) -> OpenKinds? {
-        openQueue.first { $0.session == session }.map { OpenKinds($0.items) }
     }
 
     public func beginOpenPass() {

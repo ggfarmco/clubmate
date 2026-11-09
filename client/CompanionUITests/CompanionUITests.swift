@@ -496,6 +496,24 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(wait(for: card.buttons["Next"], "isEnabled == true"))
     }
 
+    func testReopenedSessionStillRefreshesItsTranscript() {
+        let app = launch(open: "agents/agt_0000000000000004", ["-questionFixture", "YES", "-questionSingle", "YES"])
+        let card = app.otherElements["elicitation-card"]
+        XCTAssertTrue(option("30 minutes", in: card).waitForExistence(timeout: 10))
+        for _ in 0..<2 {
+            app.navigationBars.buttons.firstMatch.tap()
+            let row = app.staticTexts["Add stock reservation expiry"]
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            row.tap()
+        }
+        let thirty = option("30 minutes", in: card)
+        XCTAssertTrue(thirty.waitForExistence(timeout: 5))
+        XCTAssertTrue(wait(for: thirty, "isEnabled == true"))
+        thirty.tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH '30 minutes'")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'No longer pending'")).firstMatch.exists)
+    }
+
     func testOpenCardSendsItsPicksAndKeepsTheRestOpen() {
         let app = launch(open: "agents/agt_0000000000000021", ["-openFixture", "YES"])
         let card = app.otherElements["open-card"]
