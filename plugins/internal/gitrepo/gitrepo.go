@@ -205,17 +205,17 @@ func BranchAt(ctx context.Context, dir string) string {
 }
 
 func DefaultBase(ctx context.Context, repo string) (string, error) {
-	return defaultBase(ctx, Run, repo)
+	return defaultBase(ctx, runWith, repo)
 }
 
 func defaultBase(ctx context.Context, git runner, repo string) (string, error) {
-	if out, err := git(ctx, repo, "symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"); err == nil {
+	if out, err := git(ctx, repo, nil, "symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"); err == nil {
 		if base := strings.TrimSpace(string(out)); base != "" {
 			return base, nil
 		}
 	}
 	for _, name := range []string{"main", "master"} {
-		if _, err := git(ctx, repo, "rev-parse", "-q", "--verify", "refs/heads/"+name); err == nil {
+		if _, err := git(ctx, repo, nil, "rev-parse", "-q", "--verify", "refs/heads/"+name); err == nil {
 			return name, nil
 		}
 	}

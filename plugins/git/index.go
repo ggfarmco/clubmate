@@ -24,7 +24,9 @@ const (
 	stateParallel  = 8
 	landedParallel = 4
 	landedTimeout  = time.Minute
+	storeTimeout   = 10 * time.Second
 	metaPrefix     = "worktrees/"
+	landedPrefix   = "landed/"
 	gitLink        = ".git"
 	ignoredMark    = "!! "
 	gitlinkMode    = "160000 "
@@ -58,14 +60,16 @@ type indexEntry struct {
 type folderIndex struct {
 	top     string
 	key     string
+	store   string
 	entries []indexEntry
 	built   time.Time
 }
 
 type landedCheck struct {
-	top string
-	tip string
-	key string
+	top   string
+	tip   string
+	key   string
+	store string
 }
 
 type repoRefs struct {
@@ -178,7 +182,7 @@ func (a *app) indexLoop(h *pluginsdk.Host, id string, s *state) {
 		for _, done := range waiters {
 			close(done)
 		}
-		startSettle(s)
+		startSettle(h, s)
 	}
 }
 
@@ -200,8 +204,12 @@ func rebuildIndex(ctx context.Context, h *pluginsdk.Host, id string, s *state) {
 			continue
 		}
 		var idx *folderIndex
+		var verdicts map[string]bool
 		if err == nil {
-			idx, err = readFolderIndex(ctx, f, known)
+			verdicts, err = storedVerdicts(ctx, h, f, known)
+		}
+		if err == nil {
+			idx, err = readFolderIndex(ctx, f, verdicts)
 		}
 		if err != nil {
 			logError("index "+wf.Path, err)
@@ -211,6 +219,15 @@ func rebuildIndex(ctx context.Context, h *pluginsdk.Host, id string, s *state) {
 		next[wf.Path] = idx
 	}
 	s.putIndex(next)
+}
+
+func storedVerdicts(ctx context.Context, h *pluginsdk.Host, f *folder, known map[string]bool) (map[string]bool, error) {
+	verdicts := map[string]bool{}
+	if _, err := h.StorageGet(ctx, landedPrefix+f.Trees[0].Real, &verdicts); err != nil {
+		return nil, err
+	}
+	maps.Copy(verdicts, known)
+	return verdicts, nil
 }
 
 func readFolderIndex(ctx context.Context, f *folder, known map[string]bool) (*folderIndex, error) {
@@ -223,7 +240,7 @@ func readFolderIndex(ctx context.Context, f *folder, known map[string]bool) (*fo
 	if err != nil {
 		return nil, err
 	}
-	idx := &folderIndex{top: top, key: metaPrefix + f.Trees[0].Real, built: time.Now()}
+	idx := &folderIndex{top: top, key: metaPrefix + f.Trees[0].Real, store: landedPrefix + f.Trees[0].Real, built: time.Now()}
 	for j, t := range f.Trees {
 		if t.Bare {
 			continue
@@ -313,7 +330,7 @@ func readRefs(ctx context.Context, top string, trees []gitrepo.Worktree) (repoRe
 	return out, nil
 }
 
-func startSettle(s *state) {
+func startSettle(h *pluginsdk.Host, s *state) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.settleBusy {
@@ -321,10 +338,10 @@ func startSettle(s *state) {
 		return
 	}
 	s.settleBusy = true
-	go settleLanded(s)
+	go settleLanded(h, s)
 }
 
-func settleLanded(s *state) {
+func settleLanded(h *pluginsdk.Host, s *state) {
 	for {
 		checks := s.landedChecks()
 		forEachLimited(len(checks), landedParallel, func(i int) {
@@ -335,6 +352,15 @@ func settleLanded(s *state) {
 				s.putLanded(checks[i].key, verdict)
 			}
 		})
+		stores := map[string]bool{}
+		for _, c := range checks {
+			stores[c.store] = true
+		}
+		for store, verdicts := range s.landedVerdicts(stores) {
+			ctx, cancel := context.WithTimeout(context.Background(), storeTimeout)
+			logError("store "+store, h.StorageSet(ctx, store, verdicts))
+			cancel()
+		}
 		if s.settleDone() {
 			return
 		}
@@ -597,10 +623,16 @@ func (s *state) putIndex(next map[string]*folderIndex) {
 		return
 	}
 	s.index = next
+	if s.landed == nil {
+		s.landed = map[string]bool{}
+	}
 	used := map[string]bool{}
 	for _, idx := range next {
 		for _, e := range idx.entries {
 			used[e.landedKey] = true
+			if _, ok := s.landed[e.landedKey]; !ok && e.landedKey != "" && !e.squashable {
+				s.landed[e.landedKey] = e.Merged
+			}
 		}
 	}
 	maps.DeleteFunc(s.landed, func(key string, _ bool) bool { return !used[key] })
@@ -615,9 +647,28 @@ func (s *state) landedChecks() []landedCheck {
 		for _, e := range idx.entries {
 			if e.squashable && !seen[e.landedKey] {
 				seen[e.landedKey] = true
-				out = append(out, landedCheck{top: idx.top, tip: e.tip, key: e.landedKey})
+				out = append(out, landedCheck{top: idx.top, tip: e.tip, key: e.landedKey, store: idx.store})
 			}
 		}
+	}
+	return out
+}
+
+func (s *state) landedVerdicts(stores map[string]bool) map[string]map[string]bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := map[string]map[string]bool{}
+	for _, idx := range s.index {
+		if !stores[idx.store] {
+			continue
+		}
+		verdicts := map[string]bool{}
+		for _, e := range idx.entries {
+			if e.landedKey != "" && !e.squashable {
+				verdicts[e.landedKey] = e.Merged
+			}
+		}
+		out[idx.store] = verdicts
 	}
 	return out
 }

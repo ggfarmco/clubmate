@@ -149,6 +149,34 @@ func TestWorktreeIndexTellsMergedGoneAndSquashed(t *testing.T) {
 	}
 }
 
+func TestSquashVerdictOutlivesAPluginRestart(t *testing.T) {
+	real, err := exec.LookPath("git")
+	require.NoError(t, err)
+	shim := t.TempDir()
+	armed, probed := filepath.Join(shim, "armed"), filepath.Join(shim, "probed")
+	script := "#!/bin/sh\ncase \" $* \" in *\" merge-tree \"*) [ -f " + armed + " ] && touch " + probed + ";; esac\nexec " + real + " \"$@\"\n"
+	require.NoError(t, os.WriteFile(filepath.Join(shim, "git"), []byte(script), 0o700))
+	t.Setenv("PATH", shim+string(os.PathListSeparator)+os.Getenv("PATH"))
+	repo := cloneOf(t, bareOrigin(t))
+	squashed := branchTree(t, repo, "squashed", 2, true)
+	git(t, repo, "merge", "-q", "--squash", "squashed")
+	git(t, repo, "commit", "-qm", "squash")
+	dropRemoteBranch(t, repo, "squashed")
+	h, id := open(t, repo)
+	testutil.Eventually(t, func() bool { return worktreeIndex(t, h, id)["squashed"].Merged }, readyWait)
+	write(t, armed, "")
+	before := h.Sup.PIDs()
+	require.NoError(t, h.Sup.Restart("git"))
+	testutil.Eventually(t, func() bool {
+		after := h.Sup.PIDs()
+		return len(after) == 1 && !slices.Equal(after, before) && runCommand(t, h, id, "git.worktree-index", nil, nil) == nil
+	}, readyWait)
+
+	assert.True(t, worktreeIndex(t, h, id)["squashed"].Merged)
+	assert.True(t, worktreeStates(t, h, id, squashed)[0].Merged)
+	assert.NoFileExists(t, probed, "a restart re-ran the squash check")
+}
+
 func TestWorktreeStateRereadsTipAndMerged(t *testing.T) {
 	repo := cloneOf(t, bareOrigin(t))
 	dir := branchTree(t, repo, "pay", 1, false)

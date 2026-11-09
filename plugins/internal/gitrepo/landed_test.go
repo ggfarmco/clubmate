@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -111,7 +110,7 @@ func TestLandedInOriginDefault(t *testing.T) {
 	assert.True(t, landed)
 }
 
-func TestRepeatedCheckAddsNoObjects(t *testing.T) {
+func TestCheckAddsNoObjects(t *testing.T) {
 	t.Parallel()
 	repo := landedRepo(t)
 	gitIn(t, repo, "checkout", "-q", "-b", "task")
@@ -119,14 +118,13 @@ func TestRepeatedCheckAddsNoObjects(t *testing.T) {
 	gitIn(t, repo, "checkout", "-q", "main")
 	commitAt(t, repo, "else.txt", "else\n")
 	ctx := context.Background()
-	gitrepo.LandedInert(ctx, repo, tip)
 	before := gitIn(t, repo, "count-objects")
-	time.Sleep(1100 * time.Millisecond)
 
-	gitrepo.LandedInert(ctx, repo, tip)
-	_, err := gitrepo.Landed(ctx, repo, tip)
+	assert.False(t, gitrepo.LandedInert(ctx, repo, tip))
+	landed, err := gitrepo.Landed(ctx, repo, tip)
 
 	require.NoError(t, err)
+	assert.False(t, landed)
 	assert.Equal(t, before, gitIn(t, repo, "count-objects"))
 }
 
