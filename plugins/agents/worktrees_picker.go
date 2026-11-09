@@ -17,7 +17,7 @@ const (
 
 	pickerCounted    = "%s · %d"
 	pickerWordJoin   = " · "
-	pickerMore       = "%d more · type to find one"
+	pickerMore       = "show %d more"
 	pickerShow       = "show %d"
 	pickerCleanAll   = "Clean up worktrees…"
 	pickerCleanSome  = "Clean up %d…"
@@ -82,7 +82,6 @@ type pickerSection struct {
 	Hint  string `json:"hint,omitempty"`
 	Rows  []int  `json:"rows,omitempty"`
 	Shown int    `json:"shown"`
-	More  string `json:"more,omitempty"`
 	Fold  string `json:"fold,omitempty"`
 	Clean string `json:"clean,omitempty"`
 }
@@ -193,14 +192,13 @@ func appendSection(out []pickerSection, s pickerSection) []pickerSection {
 func listed(id, title, hint string, rows []int, shown int) pickerSection {
 	s := pickerSection{ID: id, Title: fmt.Sprintf(pickerCounted, title, len(rows)), Hint: hint, Rows: rows, Shown: min(shown, len(rows))}
 	if left := len(rows) - s.Shown; left > 0 {
-		s.More = fmt.Sprintf(pickerMore, left)
+		s.Fold = fmt.Sprintf(pickerMore, left)
 	}
 	return s
 }
 
 func folded(id, title, hint string, rows []int) pickerSection {
 	s := listed(id, title, hint, rows, 0)
-	s.More = ""
 	s.Fold = fmt.Sprintf(pickerShow, len(rows))
 	return s
 }

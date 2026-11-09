@@ -255,11 +255,10 @@ func TestBuildPickerCapsAboveTwentyWorktrees(t *testing.T) {
 	assert.Equal(t, []int{0}, home[1].Rows, "the row Code shows sits in its folder's Recent")
 	task := home[2]
 	assert.Equal(t, pickerTaskShown, task.Shown)
-	assert.Equal(t, "3 more · type to find one", task.More)
+	assert.Equal(t, "show 3 more", task.Fold)
 	hand := home[3]
 	assert.Zero(t, hand.Shown)
 	assert.Equal(t, "show 3", hand.Fold)
-	assert.Empty(t, hand.More)
 }
 
 func TestJoinWorktreesNowIsTheRowOfTheFolderCodeShows(t *testing.T) {

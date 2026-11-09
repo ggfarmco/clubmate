@@ -16,10 +16,10 @@ final class WorktreePickerTests: XCTestCase {
         return .object(fields)
     }
 
-    private func section(_ id: String, rows: [Int] = [], shown: Int? = nil, more: String = "", fold: String = "") -> JSONValue {
+    private func section(_ id: String, rows: [Int] = [], shown: Int? = nil, fold: String = "") -> JSONValue {
         .object([
             "id": .string(id), "title": .string(id), "rows": .array(rows.map { .number(Double($0)) }),
-            "shown": .number(Double(shown ?? rows.count)), "more": .string(more), "fold": .string(fold),
+            "shown": .number(Double(shown ?? rows.count)), "fold": .string(fold),
         ])
     }
 
@@ -56,20 +56,25 @@ final class WorktreePickerTests: XCTestCase {
     }
 
     func testHomeThenFolderThenBack() async {
-        let sections = [section("stale", rows: [1], shown: 0, fold: "show 1"), section("task", rows: [0], shown: 0, more: "1 more · type to find one")]
+        let sections = [section("stale", rows: [1], shown: 0, fold: "show 1"), section("task", rows: [0], shown: 0, fold: "show 1 more")]
         let value = payload(folders: [folder("/a", sections: sections), folder("/b")], entries: [entry("/a", "x"), entry("/a", "old", stale: true)], sections: [section("folders")])
         let model = await model(value)
         XCTAssertEqual(ids(model), ["section:folders", "folder:/a", "folder:/b"])
         XCTAssertTrue(model.opensForward)
 
         _ = model.activate()
-        XCTAssertEqual(ids(model), ["section:stale", "fold:stale", "section:task", "note:task"])
+        XCTAssertEqual(ids(model), ["section:stale", "fold:stale", "section:task", "fold:task"])
         XCTAssertEqual(model.placeholder, "Filter /a")
         XCTAssertEqual(model.caption, "2")
 
         _ = model.activate()
-        XCTAssertEqual(ids(model), ["section:stale", "worktree:/a/old", "section:task", "note:task"])
+        XCTAssertEqual(ids(model), ["section:stale", "worktree:/a/old", "section:task", "fold:task"])
         XCTAssertEqual(model.selectedRow?.id, "worktree:/a/old")
+
+        model.move(1)
+        _ = model.activate()
+        XCTAssertEqual(ids(model), ["section:stale", "worktree:/a/old", "section:task", "worktree:/a/x"])
+        XCTAssertEqual(model.selectedRow?.id, "worktree:/a/x")
 
         XCTAssertTrue(model.back())
         XCTAssertFalse(model.inside)

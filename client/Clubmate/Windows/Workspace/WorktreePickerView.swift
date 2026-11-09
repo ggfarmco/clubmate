@@ -381,14 +381,6 @@ private struct WorktreePickerRowView: View {
             pickable(height: theme.rowHeight2 + 6) { taskRow(task) }
         case .folder(let folder):
             pickable(height: theme.rowHeight + 2) { folderRow(folder) }
-        case .note(_, let text):
-            Text(text)
-                .font(theme.uiSmall)
-                .foregroundStyle(theme.muted)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, theme.gutter * 1.5 + 14 + theme.gutter)
-                .frame(height: theme.rowHeight + 2)
         case .fold(let id, let text):
             pickable(height: theme.rowHeight + 2) {
                 HStack(spacing: theme.gutter) {

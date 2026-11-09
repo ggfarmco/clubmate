@@ -77,7 +77,6 @@ public struct WorktreeSection: Equatable, Sendable, Identifiable {
     public let hint: String
     public let rows: [Int]
     public let shown: Int
-    public let more: String
     public let fold: String
     public let clean: String
 
@@ -88,7 +87,6 @@ public struct WorktreeSection: Equatable, Sendable, Identifiable {
         hint = fields["hint"]?.stringValue ?? ""
         rows = fields["rows"]?.arrayValue?.compactMap(\.numberValue).map(Int.init) ?? []
         shown = fields["shown"]?.numberValue.map(Int.init) ?? 0
-        more = fields["more"]?.stringValue ?? ""
         fold = fields["fold"]?.stringValue ?? ""
         clean = fields["clean"]?.stringValue ?? ""
     }
@@ -175,7 +173,6 @@ public enum WorktreePickerRow: Equatable, Sendable, Identifiable {
     case worktree(WorktreeEntry, Style)
     case task(WorktreeTaskRow)
     case folder(WorktreeFolder)
-    case note(id: String, text: String)
     case fold(id: String, text: String)
     case branch(Branch, folder: String)
 
@@ -193,7 +190,6 @@ public enum WorktreePickerRow: Equatable, Sendable, Identifiable {
         case .worktree(let entry, _): entry.id
         case .task(let task): task.id
         case .folder(let folder): folder.id
-        case .note(let id, _): "note:\(id)"
         case .fold(let id, _): "fold:\(id)"
         case .branch(let branch, _): branch.id
         }
@@ -201,7 +197,7 @@ public enum WorktreePickerRow: Equatable, Sendable, Identifiable {
 
     public var selectable: Bool {
         switch self {
-        case .section, .folderHeader, .note: false
+        case .section, .folderHeader: false
         default: true
         }
     }
@@ -443,7 +439,6 @@ public final class WorktreePickerModel {
         let shown = open ? section.rows.count : section.shown
         out += section.rows.prefix(shown).filter(index.entries.indices.contains).map { .worktree(index.entries[$0], style) }
         if !open, !section.fold.isEmpty { out.append(.fold(id: section.id, text: section.fold)) }
-        if !section.more.isEmpty { out.append(.note(id: section.id, text: section.more)) }
         return out
     }
 
