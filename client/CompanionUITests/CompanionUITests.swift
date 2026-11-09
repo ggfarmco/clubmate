@@ -131,6 +131,17 @@ final class CompanionUITests: XCTestCase {
         wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: running)], timeout: 5)
     }
 
+    func testStartSheetPromptKeepsAGapBeforeEdit() {
+        let app = launch(open: "backlog/9")
+        let start = app.buttons["Start agent"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10))
+        start.tap()
+        let value = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'the title'")).firstMatch
+        XCTAssertTrue(value.waitForExistence(timeout: 5))
+        let edit = app.buttons.matching(identifier: "Edit").allElementsBoundByIndex.first { abs($0.frame.midY - value.frame.midY) < 20 }
+        XCTAssertGreaterThanOrEqual((edit?.frame.minX ?? 0) - value.frame.maxX, 8)
+    }
+
     func testBacklogOpensFromTheWorkspaceNotTheMac() {
         let app = launch(open: "sidebar")
         XCTAssertTrue(app.navigationBars["Macs"].waitForExistence(timeout: 10))
@@ -228,6 +239,20 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Reject"].exists)
         app.typeKey("1", modifierFlags: .option)
         XCTAssertTrue(wait(for: app.buttons["Reject"], "exists == false"))
+    }
+
+    func testOptionKeysAnswerARunStep() {
+        let step = launch(open: "agents/gr_0000000000000004", ["-runs", "YES", "-workspace", "prj_00000000000000f2"])
+        let reject = step.buttons["Reject"]
+        XCTAssertTrue(reject.waitForExistence(timeout: 10))
+        XCTAssertTrue(wait(for: reject, "isEnabled == true"))
+        sleep(1)
+        step.typeKey("2", modifierFlags: .option)
+        XCTAssertTrue(step.buttons["Always allow"].waitForExistence(timeout: 5))
+        step.swipeDown(velocity: .fast)
+        XCTAssertTrue(wait(for: step.buttons["Always allow"], "exists == false"))
+        step.typeKey("1", modifierFlags: .option)
+        XCTAssertTrue(wait(for: reject, "exists == false"))
     }
 
     func testRotatingKeepsTheOpenSession() {
@@ -382,6 +407,16 @@ final class CompanionUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["This session is closed"].exists)
     }
 
+    func testReopenTakesAClosedSessionOutOfClosed() {
+        let app = launch(open: "agents/agt_0000000000000003", ["-reopenAction", "resume"])
+        let reopen = app.buttons["Reopen"]
+        XCTAssertTrue(reopen.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.textViews["composer"].exists)
+        reopen.tap()
+        XCTAssertTrue(app.textViews["composer"].waitForExistence(timeout: 5))
+        XCTAssertFalse(reopen.exists)
+    }
+
     func testQuestionCardPagesItsQuestionsAndSendsEveryAnswer() {
         let app = launch(open: "agents/agt_0000000000000004", ["-questionFixture", "YES"])
         let card = app.otherElements["elicitation-card"]
@@ -404,6 +439,20 @@ final class CompanionUITests: XCTestCase {
         card.buttons["Send"].tap()
         let answer = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '30 minutes · Log it'")).firstMatch
         XCTAssertTrue(answer.waitForExistence(timeout: 5))
+    }
+
+    func testPickingTheOnlyQuestionsOptionCarriesTheOtherNote() {
+        let app = launch(open: "agents/agt_0000000000000004", ["-questionFixture", "YES", "-questionSingle", "YES"])
+        let card = app.otherElements["elicitation-card"]
+        let other = option("Other…", in: card)
+        XCTAssertTrue(other.waitForExistence(timeout: 10))
+        XCTAssertTrue(wait(for: other, "isEnabled == true"))
+        other.tap()
+        let note = card.textFields.firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        note.typeText("cache")
+        option("30 minutes", in: card).tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS '30 minutes · cache'")).firstMatch.waitForExistence(timeout: 5))
     }
 
     func testQuestionCardSendWaitsForAnAnswer() {
@@ -459,6 +508,32 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(card.staticTexts["3 open"].waitForExistence(timeout: 5))
     }
 
+    func testNoToAllOnTheOpenCardAsksThenClosesTheItems() {
+        let app = launch(open: "agents/agt_0000000000000021", ["-openFixture", "YES"])
+        let card = app.otherElements["open-card"]
+        XCTAssertTrue(card.staticTexts["5 open"].waitForExistence(timeout: 10))
+        let no = card.buttons["No to All"]
+        XCTAssertTrue(wait(for: no, "isEnabled == true"))
+        no.tap()
+        let confirm = app.sheets.buttons["No to All"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.tap()
+        XCTAssertTrue(wait(for: card, "exists == false"))
+    }
+
+    func testSelectedBacklogAndMoreRowsAreTintedNotFilledOnIPad() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "selection shows only in the iPad columns")
+        XCUIDevice.shared.appearance = .light
+        for (target, title) in [("backlog/7", "Retry the charge step on 502"), ("more/cron", "Cron")] {
+            let app = launch(open: target)
+            let row = app.cells.containing(NSPredicate(format: "label CONTAINS %@", title)).firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
+            sleep(2)
+            let point = CGPoint(x: row.frame.minX + 8, y: row.frame.midY)
+            XCTAssertGreaterThan(brightness(at: point, in: app.screenshot()), 0.7, target)
+        }
+    }
+
     func testAnswerAllPassesEveryItemThenSendsToEachSession() {
         let app = launch(open: "agents", ["-openFixture", "YES"])
         let all = app.buttons["Answer all"]
@@ -507,6 +582,15 @@ final class CompanionUITests: XCTestCase {
         for _ in 0..<5 where !(element.exists && element.isHittable) {
             app.swipeUp()
         }
+    }
+
+    private func brightness(at point: CGPoint, in shot: XCUIScreenshot) -> CGFloat {
+        guard let image = shot.image.cgImage else { return 0 }
+        let scale = CGFloat(image.width) / shot.image.size.width
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = CGContext(data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        context?.draw(image, in: CGRect(x: -point.x * scale, y: point.y * scale + 1 - CGFloat(image.height), width: CGFloat(image.width), height: CGFloat(image.height)))
+        return CGFloat(Int(pixel[0]) + Int(pixel[1]) + Int(pixel[2])) / (3 * 255)
     }
 
     private func wait(for element: XCUIElement, _ predicate: String) -> Bool {

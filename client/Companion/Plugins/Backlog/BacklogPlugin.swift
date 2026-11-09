@@ -159,6 +159,7 @@ struct TaskListView: View {
         ForEach(tasks) { task in
             TaskRow(task: task, owner: BacklogPlugin.owner(task, context: context))
                 .tag(String(task.id))
+                .selectedRow(context.navigation.layout != .compact && context.navigation.detail == String(task.id))
                 .swipeActions(edge: .trailing) {
                     if task.status != .done {
                         Button("Done", systemImage: "checkmark") { perform { try await store.done(task.id) } }
@@ -762,7 +763,7 @@ struct StartAgentView: View {
                         .lineLimit(6...16)
                         .accessibilityIdentifier("startPrompt")
                 } else {
-                    HStack {
+                    HStack(spacing: 12) {
                         LabeledContent("Prompt", value: summary.flatMap { $0.isEmpty ? nil : $0 } ?? "the title")
                         Button("Edit") { editingPrompt = true }
                             .buttonStyle(.borderless)

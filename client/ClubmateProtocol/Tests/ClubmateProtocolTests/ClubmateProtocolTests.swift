@@ -79,6 +79,10 @@ final class ClubmateProtocolTests: XCTestCase {
         XCTAssertEqual(links.map(\.1), ["/w/docs/plan.md#goals", "/w/my plan.md", nil, "image:/w/shots/a b.png"])
     }
 
+    func testInlineKeepsReturnArrowsAsText() {
+        XCTAssertEqual(String(Markdown.inline("⌘↩ sends, ↩\u{FE0F} stays, `↪`").characters), "⌘↩\u{FE0E} sends, ↩\u{FE0F} stays, ↪\u{FE0E}")
+    }
+
     func testMessageDocCardsDecodeWithTheirKindWords() throws {
         let json = #"{"type":"message","props":{"role":"agent","text":"x","docCards":[{"path":"/w/docs/plan.md","kind":"markdown","title":"Plan","rel":"docs/plan.md"},{"path":"/w/flow.mmd","kind":"mermaid","title":"flow","rel":"flow.mmd"},{"path":"/tmp/r.html","kind":"artifact","title":"Report","rel":"/tmp/r.html","presented":true},{"kind":"markdown"}]}}"#
         let node = try JSONDecoder().decode(SDUINode.self, from: Data(json.utf8))

@@ -122,6 +122,7 @@ struct OpenItemsCard: View {
     @Binding var draft: OpenDraft
     let later: @MainActor () async throws -> Void
     let send: @MainActor () async throws -> Void
+    let no: () -> Void
     @State private var sending = false
     @State private var failure: String?
     @State private var contentHeight: CGFloat = 0
@@ -276,12 +277,21 @@ struct OpenItemsCard: View {
 
     private var actions: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                PlainCapsule(title: "Later", tint: .primary) { run(later) }
-                    .frame(maxWidth: 110)
-                    .answering(blocked == nil && !sending, enabled: blocked == nil)
-                PrimaryCapsule(title: "Send answers") { run(send) }
-                    .answering(answerable, enabled: answerable)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) {
+                    noButton
+                        .frame(maxWidth: 96)
+                    laterButton
+                        .frame(maxWidth: 96)
+                    sendButton
+                }
+                VStack(spacing: 10) {
+                    HStack(spacing: 10) {
+                        noButton
+                        laterButton
+                    }
+                    sendButton
+                }
             }
             if let blocked {
                 Text(blocked)
@@ -295,6 +305,21 @@ struct OpenItemsCard: View {
                     .foregroundStyle(Color.danger)
             }
         }
+    }
+
+    private var noButton: some View {
+        PlainCapsule(title: "No to All", tint: Color.danger, action: no)
+            .answering(blocked == nil && !sending, enabled: blocked == nil)
+    }
+
+    private var laterButton: some View {
+        PlainCapsule(title: "Later", tint: .primary) { run(later) }
+            .answering(blocked == nil && !sending, enabled: blocked == nil)
+    }
+
+    private var sendButton: some View {
+        PrimaryCapsule(title: "Send answers") { run(send) }
+            .answering(answerable, enabled: answerable)
     }
 
     private func run(_ work: @escaping @MainActor () async throws -> Void) {

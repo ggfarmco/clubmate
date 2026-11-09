@@ -115,6 +115,7 @@ public enum Markdown {
 
     public static func inline(_ text: String, docLinks: [String: String], imageLinks: [String: String] = [:]) -> AttributedString {
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        let text = text.replacing(/([↩↪])(?![\x{FE0E}\x{FE0F}])/) { "\($0.1)\u{FE0E}" }
         var content = (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
         var linked: [(Range<AttributedString.Index>, URL?)] = []
         for run in content.runs {

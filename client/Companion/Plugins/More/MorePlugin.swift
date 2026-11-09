@@ -78,13 +78,15 @@ private struct MoreSectionsList: View {
             }
             Section {
                 ForEach(sections, id: \.id) { section in
+                    let selected = context.navigation.layout != .compact && context.navigation.detail == section.id
                     HStack(spacing: 12) {
-                        RowIcon(systemImage: section.icon)
+                        RowIcon(systemImage: section.icon, tint: selected ? .accentColor : nil)
                         Text(section.title)
                             .lineLimit(1)
                     }
                     .frame(minHeight: 44)
                     .tag(section.id)
+                    .selectedRow(selected)
                 }
             }
         }

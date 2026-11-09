@@ -165,6 +165,9 @@ actor FixtureServer {
             Self.voiceEntry("voice-1", heard: "Ответь агенту в checkout: да, добавь ретраи к шагу оплаты и покрой это тестом"),
             Self.entry("agent", "agent-v1", text: "Sent to «Explain the checkout flow»."),
         ])]
+        if UserDefaults.standard.string(forKey: "reopenAction") == "resume", let index = sessions.firstIndex(where: { $0["id"] == .string("agt_0000000000000003") }) {
+            sessions[index]["reopen"] = .object(["id": .string("reopen"), "label": .string("Reopen"), "icon": .string("arrow.clockwise"), "command": .string("agents.resume"), "args": .object(["session": .string("agt_0000000000000003")])])
+        }
         if UserDefaults.standard.bool(forKey: "questionFixture"), sessions.count > 3 {
             sessions[3]["status"] = .string("waiting")
             sessions[3]["activity"] = nil
@@ -1075,20 +1078,21 @@ actor FixtureServer {
             "mode": .string("form"),
             "message": .string("Please answer the following questions."),
             "needsAnswer": .bool(true),
-            "fields": .array([
+            "fields": .array(([
                 .object(["key": .string("question_0"), "type": .string("choice"), "title": .string("Hold"), "description": .string("How long should a reservation hold stock?"), "options": .array([
                     option("10 minutes", "Same as the checkout timeout"),
                     option("30 minutes", "Covers slow payment pages"),
                     option("24 hours", "For saved carts"),
                 ])]),
                 other("question_0_custom"),
+            ] as [JSONValue]) + (UserDefaults.standard.bool(forKey: "questionSingle") ? [] : [
                 .object(["key": .string("question_1"), "type": .string("multi"), "title": .string("Expiry"), "description": .string("What should happen when a reservation expires?"), "options": .array([
                     option("Email the shopper", "One reminder with a link back to the cart"),
                     option("Count it", "A metric for how many carts expire"),
                     option("Restock at once", "No grace period before the stock returns"),
                 ])]),
                 other("question_1_custom"),
-            ]),
+            ])),
         ])])
     }
 

@@ -234,6 +234,8 @@ struct SessionDetailView: View {
                             } send: {
                                 try await store.answerOpen(sessionID, items: card.items)
                                 sent += 1
+                            } no: {
+                                confirmingNo = true
                             }
                         }
                     }
@@ -300,8 +302,6 @@ struct SessionDetailView: View {
                             perform { try await store.backlogOpen(sessionID) }
                         }
                         .disabled(blocked != nil)
-                        Button("No to All", systemImage: "xmark.circle", role: .destructive) { confirmingNo = true }
-                            .disabled(blocked != nil)
                     }
                     if session?.archivable == true, context.connection.supports(TaskCommand.archive) {
                         Button("Archive Task…", systemImage: "archivebox") { archiving = true }
