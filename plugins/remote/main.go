@@ -36,6 +36,17 @@ var (
 	errUnknownCommand = errors.New("unknown command")
 	errNoPairHost     = errors.New("pairing needs a Tailscale address")
 	errBadPort        = errors.New("port must be between 1 and 65535")
+
+	userOnly = map[string]bool{
+		"remote.enable":           true,
+		"remote.set-port":         true,
+		"remote.pair":             true,
+		"remote.cancel-pair":      true,
+		"remote.revoke":           true,
+		"remote.set-push-relay":   true,
+		"remote.report-upload":    true,
+		"remote.set-report-inbox": true,
+	}
 )
 
 type app struct {
@@ -178,6 +189,9 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 }
 
 func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
+	if userOnly[cmd.ID] && (cmd.Agent || cmd.Caller != "") {
+		return nil, fmt.Errorf("%w: %s", errUnknownCommand, cmd.ID)
+	}
 	select {
 	case <-a.ready:
 	case <-ctx.Done():

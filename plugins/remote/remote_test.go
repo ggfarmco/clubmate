@@ -339,6 +339,33 @@ func TestSetIdentityColour(t *testing.T) {
 	}
 }
 
+func TestSessionCallerCannotPairOrChangeAccess(t *testing.T) {
+	f := newFixture(t)
+	a := &app{ready: make(chan struct{}), srv: f.srv, ident: f.srv.identity}
+	close(a.ready)
+	f.pair(t, "phone")
+	f.srv.pairing.issue()
+	args := json.RawMessage(`{"enabled":true,"port":1234,"device":"phone","url":"https://relay.example","token":"cmr_x","path":"/nope.zip"}`)
+	ids := []string{"remote.enable", "remote.set-port", "remote.pair", "remote.cancel-pair", "remote.revoke", "remote.set-push-relay", "remote.report-upload", "remote.set-report-inbox"}
+
+	for _, id := range ids {
+		for _, cmd := range []pluginsdk.CommandRun{{ID: id, Args: args, Caller: "agt_1"}, {ID: id, Args: args, Agent: true}} {
+			_, err := a.command(t.Context(), nil, cmd)
+			assert.ErrorIs(t, err, errUnknownCommand, "%s agent=%v caller=%q", id, cmd.Agent, cmd.Caller)
+		}
+	}
+	untouched := len(f.srv.devices.list())
+	active := f.srv.pairing.active
+	_, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "remote.revoke", Args: args})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, untouched)
+	assert.True(t, active)
+	assert.False(t, a.enabled)
+	assert.False(t, f.srv.relay.configured())
+	assert.Empty(t, f.srv.devices.list())
+}
+
 func TestMacsReplaceTheDevicesListAndDriveTheTitleDot(t *testing.T) {
 	f := newFixture(t)
 	a := &app{srv: f.srv, ident: f.srv.identity, titleBar: true}
