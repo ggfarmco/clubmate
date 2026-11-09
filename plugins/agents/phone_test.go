@@ -225,6 +225,7 @@ func TestArchiveFromAStalePlanDoesNothing(t *testing.T) {
 	f := startGit(t, map[string]any{})
 	l := f.landing(t, "merge", "pause", 1)
 	l.settle(t)
+	l.waitOwnerWoken(t)
 	assert.True(t, f.phoneSession(t, l.workspace, l.owner).Archivable)
 	assert.True(t, f.phoneSession(t, l.workspace, l.owner).TaskFinished)
 	raw := map[string]any{}
