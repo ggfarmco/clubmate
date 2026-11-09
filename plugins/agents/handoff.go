@@ -54,6 +54,10 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 	if old.Task != nil {
 		finish = old.Finish
 	}
+	afkBy := old.AFKBy
+	if afk {
+		afkBy = ""
+	}
 	first := promptArgs{Text: handoffBrief(s.view(0), args.Note), From: from}
 	a.closeSession(ctx, s, false)
 	a.connectMu.Lock()
@@ -76,6 +80,7 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 		TitleSet: old.TitleSet,
 		Finish:   finish,
 		AFK:      afk || old.AFK,
+		AFKBy:    afkBy,
 		RepoPath: old.RepoPath,
 		Task:     old.Task,
 

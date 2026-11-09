@@ -90,7 +90,7 @@ func (a *app) setConfig(ctx context.Context, workspaceID string, args configArgs
 		if !known {
 			return fmt.Errorf("%w: %s=%s", errUnknownValue, afkID, args.Value)
 		}
-		a.setAFK(s, on)
+		a.setAFK(ctx, s, on, "")
 		return nil
 	}
 	s.mu.Lock()
@@ -267,17 +267,26 @@ func (a *app) afkDefault(ctx context.Context) bool {
 	return on
 }
 
-func (a *app) setAFK(s *session, on bool) {
+func (a *app) setAFK(ctx context.Context, s *session, on bool, by string) {
 	var tell []*session
 	if on {
 		tell = slices.DeleteFunc(a.subtree(s), func(t *session) bool { return a.effectiveAFK(t.snapshot()) })
 	}
 	s.mu.Lock()
+	switch {
+	case !on:
+		s.rec.AFKBy = ""
+	case by == "" || !s.rec.AFK:
+		s.rec.AFKBy = by
+	}
 	s.rec.AFK = on
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
 	for _, t := range tell {
 		go a.steerText(t, afkText)
+	}
+	if on && by == "" {
+		a.connectWaitingAway(ctx, s)
 	}
 }
 

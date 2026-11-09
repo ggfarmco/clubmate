@@ -331,22 +331,54 @@ func (a *app) arrive(ctx context.Context, w pluginsdk.Workspace, owner *session,
 	if repo.Path == "" {
 		return w
 	}
-	if !rec.AFK {
+	if !rec.userAFK() {
 		return w
 	}
+	return a.connectAway(ctx, w, owner, rec, repo)
+}
+
+func (a *app) connectAway(ctx context.Context, w pluginsdk.Workspace, owner *session, rec record, repo *connectRepo) pluginsdk.Workspace {
 	title := fmt.Sprintf(connectAFKTitle, repo.Name)
-	next, err := a.host.AddFolder(ctx, w.ID, repo.Path, pluginsdk.FolderMeta{AddedBy: rec.Title, AddedAfk: rec.AFK})
+	next, err := a.host.AddFolder(ctx, w.ID, repo.Path, pluginsdk.FolderMeta{AddedBy: rec.Title, AddedAfk: true})
 	if err != nil {
 		repo.Note = err.Error()
 		return w
 	}
 	repo.State, repo.Folder = repoConnected, repo.Path
-	if rec.AFK {
-		owner.noteAfkConnected(repo.Path)
-	}
+	owner.noteAfkConnected(repo.Path)
 	owner.noticeUpdate(noticeUpdate{SessionUpdate: acp.UpdateNotice, Title: title, Description: repo.Path, Repo: repo.Name, Path: repo.Path})
 	a.repoConnected(w.ID, *repo, repo.Path)
 	return next
+}
+
+func (a *app) connectWaitingAway(ctx context.Context, s *session) {
+	a.connectMu.Lock()
+	defer a.connectMu.Unlock()
+	rec := s.snapshot()
+	if !rec.userAFK() || !slices.ContainsFunc(rec.ConnectRequests, connectRequest.waits) {
+		return
+	}
+	w, err := a.host.GetWorkspace(ctx, rec.Workspace)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "agents: connect while away:", err)
+		return
+	}
+	for _, req := range rec.ConnectRequests {
+		for _, repo := range req.Repos {
+			if repo.State != repoPending || repo.Path == "" {
+				continue
+			}
+			if folder, ok := folderIn(w, repo.Path); ok {
+				a.repoConnected(w.ID, repo, folder)
+				continue
+			}
+			if w = a.connectAway(ctx, w, s, rec, &repo); repo.State != repoConnected {
+				setRepo(s, req.ID, repo, repoPending, repo.Note)
+			}
+		}
+	}
+	a.saveNow(ctx, s)
+	a.finishConnects(ctx, rec.Workspace)
 }
 
 func (a *app) connectPath(ctx context.Context, w pluginsdk.Workspace, owner *session, request string, repo connectRepo, folder, title string) pluginsdk.Workspace {
@@ -684,6 +716,10 @@ func (r connectRepo) outcome() string {
 		line += " (" + r.Note + ")"
 	}
 	return line
+}
+
+func (r record) userAFK() bool {
+	return r.AFK && r.AFKBy == ""
 }
 
 func (r record) connectWaits() bool {

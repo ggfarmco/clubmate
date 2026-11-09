@@ -57,6 +57,7 @@ type record struct {
 	Mode            string    `json:"mode"`
 	Finish          string    `json:"finish,omitempty"`
 	AFK             bool      `json:"afk,omitempty"`
+	AFKBy           string    `json:"afkBy,omitempty"`
 	Suspended       bool      `json:"suspended,omitempty"`
 	AutoClosed      bool      `json:"autoClosed,omitempty"`
 	ClosedStatus    string    `json:"closedStatus,omitempty"`

@@ -418,7 +418,7 @@ func (a *app) finishDefaultCommand(ctx context.Context, cmd pluginsdk.CommandRun
 	return finishResult(args), nil
 }
 
-func (a *app) afkCommand(_ context.Context, cmd pluginsdk.CommandRun, args afkArgs) (any, error) {
+func (a *app) afkCommand(ctx context.Context, cmd pluginsdk.CommandRun, args afkArgs) (any, error) {
 	args.Session = cmp.Or(args.Session, cmd.Caller)
 	s, err := a.lookup(cmd.WorkspaceID, args.Session)
 	if err != nil {
@@ -427,7 +427,11 @@ func (a *app) afkCommand(_ context.Context, cmd pluginsdk.CommandRun, args afkAr
 	if a.bySession(cmd) && args.Session != cmd.Caller && !a.descendantOf(args.Session, cmd.Caller) {
 		return nil, errNotDescendant
 	}
-	a.setAFK(s, args.On)
+	var by string
+	if a.bySession(cmd) {
+		by = origin(cmd)
+	}
+	a.setAFK(ctx, s, args.On, by)
 	return nil, nil
 }
 

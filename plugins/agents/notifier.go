@@ -225,11 +225,13 @@ func (n *notifier) post(ctx context.Context, req notifyPost) {
 func (a *app) notifyEnd(s *session, t api.Turn) {
 	kind := notifyDone
 	switch {
+	case t.Status != statusError && t.Status != statusDone:
+		return
+	case s.snapshot().connectWaits() || s.snapshot().taskWaits():
+		kind = notifyAsks
 	case t.Status == statusError:
 		kind = notifyStuck
-	case t.Status != statusDone:
-		return
-	case t.Asks || s.snapshot().connectWaits() || s.snapshot().taskWaits():
+	case t.Asks:
 		kind = notifyAsks
 	}
 	rec := s.snapshot()

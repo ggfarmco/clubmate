@@ -309,6 +309,54 @@ func TestAFKLeavesAURLWaiting(t *testing.T) {
 	assert.Equal(t, "ads", rec.ConnectRequests[0].Repos[0].Name)
 }
 
+func TestAFKAnAgentTurnedOnStillAsks(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	first, other := newRepo(t), newRepo(t)
+	workspace := f.workspace(t, first)
+	session := f.doneSession(t, workspace)
+	require.NoError(t, f.runFrom(t, workspace, session, "agents.afk", map[string]any{"on": true}, nil))
+
+	res := f.connect(t, workspace, session, map[string]any{"path": other})
+
+	assert.Equal(t, "pending", res.Status)
+	assert.Equal(t, []string{first}, f.folderPaths(t, workspace))
+	assert.True(t, f.session(t, workspace, session).NeedsYou)
+}
+
+func TestTurningAFKOnConnectsWhatWaits(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	first, other := newRepo(t), newRepo(t)
+	workspace := f.workspace(t, first)
+	session := f.doneSession(t, workspace)
+	f.connect(t, workspace, session, map[string]any{"path": other})
+
+	require.NoError(t, f.run(t, workspace, "agents.afk", map[string]any{"session": session, "on": true}, nil))
+
+	folders := f.folders(t, workspace)
+	require.Len(t, folders, 2)
+	assert.True(t, folders[1].AddedAfk)
+	assert.Contains(t, f.waitPromptWith(t, "[Clubmate] The user answered"), other+": connected")
+	rec := f.session(t, workspace, session)
+	assert.Empty(t, rec.ConnectRequests)
+	assert.False(t, rec.NeedsYou)
+}
+
+func TestErroredSessionWithAConnectNeedsInput(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{"prompt": []map[string]any{{"fail": "Internal error: max_output_tokens", "errorKind": "max_output_tokens"}}})
+	first, other := newRepo(t), newRepo(t)
+	workspace := f.workspace(t, first)
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "boom")
+	f.waitStatus(t, workspace, session, "error")
+
+	f.connect(t, workspace, session, map[string]any{"path": other})
+
+	f.waitNeedsInput(t, session)
+}
+
 func TestConnectAnswerRefusesAgentCallers(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{})

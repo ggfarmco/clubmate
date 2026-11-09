@@ -104,6 +104,9 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 	if args.AFK != nil {
 		rec.AFK = *args.AFK
 	}
+	if rec.AFK && args.AFK != nil && from != "" {
+		rec.AFKBy = from
+	}
 	s, err := a.spawn(rec, promptArgs{Text: args.Prompt, From: from, Review: args.review}, ready)
 	if ready != nil && s != nil {
 		go a.createWorktree(s, ready)

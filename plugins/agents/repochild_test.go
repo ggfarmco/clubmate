@@ -58,6 +58,20 @@ func TestRepoChildTakesAGivenBranch(t *testing.T) {
 	assert.Equal(t, "team/pause", git(t, kid.Worktree, "rev-parse", "--abbrev-ref", "HEAD"))
 }
 
+func TestRepoChildBranchNamesTheFolderWithoutASlug(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	workspace, _, second := f.twoFolders(t)
+	parent := f.doneSession(t, workspace)
+
+	var kid child
+	require.NoError(t, f.runFrom(t, workspace, parent, "agents.new", map[string]any{"repo": second, "branch": "team/pause", "prompt": "hi"}, &kid))
+
+	assert.Equal(t, filepath.Join(second, ".worktrees", "team", "pause"), kid.Worktree)
+	f.waitBranchChildDone(t, workspace, kid.Session)
+	assert.Equal(t, "team/pause", git(t, kid.Worktree, "rev-parse", "--abbrev-ref", "HEAD"))
+}
+
 func TestRepoChildOutsideTheWorkspaceIsRefused(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{})
