@@ -615,7 +615,7 @@ func TestRepoChildIsNotCleanedUpAfterAMerge(t *testing.T) {
 	repo := newRepo(t)
 	git(t, repo, "checkout", "-q", "-b", "feature")
 	workspace := f.workspace(t, repo)
-	parent := f.doneSession(t, workspace)
+	parent := f.taskParent(t, workspace, repo)
 	var kid child
 	require.NoError(t, f.runFrom(t, workspace, parent, "agents.new", map[string]any{"repo": repo, "slug": "pause", "prompt": "hi"}, &kid))
 	f.waitBranchChildDone(t, workspace, kid.Session)

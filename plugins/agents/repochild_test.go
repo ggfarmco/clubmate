@@ -28,7 +28,7 @@ func TestRepoChildRunsInItsSlugWorktreeWithNoOtherFolders(t *testing.T) {
 	write(t, filepath.Join(second, "b.go"), "unrelated\n")
 	git(t, second, "add", ".")
 	git(t, second, "commit", "-qm", "unrelated")
-	parent := f.doneSession(t, workspace)
+	parent := f.taskParent(t, workspace, second)
 
 	var kid child
 	require.NoError(t, f.runFrom(t, workspace, parent, "agents.new", map[string]any{"repo": second, "slug": "pause", "prompt": "hi"}, &kid))
@@ -48,7 +48,7 @@ func TestRepoChildTakesAGivenBranch(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{})
 	workspace, _, second := f.twoFolders(t)
-	parent := f.doneSession(t, workspace)
+	parent := f.taskParent(t, workspace, second)
 
 	var kid child
 	require.NoError(t, f.runFrom(t, workspace, parent, "agents.new", map[string]any{"repo": second, "slug": "pause", "branch": "team/pause", "prompt": "hi"}, &kid))
@@ -62,7 +62,7 @@ func TestRepoChildBranchNamesTheFolderWithoutASlug(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{})
 	workspace, _, second := f.twoFolders(t)
-	parent := f.doneSession(t, workspace)
+	parent := f.taskParent(t, workspace, second)
 
 	var kid child
 	require.NoError(t, f.runFrom(t, workspace, parent, "agents.new", map[string]any{"repo": second, "branch": "team/pause", "prompt": "hi"}, &kid))
@@ -113,7 +113,7 @@ func TestRepoChildTellsWhenTheFetchFailed(t *testing.T) {
 	f := startGit(t, map[string]any{})
 	workspace, _, second := f.twoFolders(t)
 	git(t, second, "remote", "add", "origin", filepath.Join(t.TempDir(), "gone"))
-	parent := f.doneSession(t, workspace)
+	parent := f.taskParent(t, workspace, second)
 
 	var kid child
 	require.NoError(t, f.runFrom(t, workspace, parent, "agents.new", map[string]any{"repo": second, "slug": "pause", "prompt": "hi"}, &kid))

@@ -120,7 +120,7 @@ func TestFolderImpactListsSessionsAndWorktrees(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{})
 	workspace, first, second := f.twoFolders(t)
-	parent := f.doneSession(t, workspace)
+	parent := f.taskParent(t, workspace, second)
 	var kid child
 	require.NoError(t, f.runFrom(t, workspace, parent, "agents.new", map[string]any{"repo": second, "slug": "pause", "prompt": "hi"}, &kid))
 	f.waitBranchChildDone(t, workspace, kid.Session)

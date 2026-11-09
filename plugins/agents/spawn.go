@@ -33,8 +33,9 @@ var (
 	errChildLimit = fmt.Errorf("a session may run at most %d child sessions at once", maxChildren)
 	errRepoFolder = errors.New("this repo is not a folder of the workspace; connect it first")
 	errRepoName   = errors.New("a repo child needs a slug or a branch")
-	errRepoOnly   = errors.New("slug and base go with repo")
+	errRepoOnly   = errors.New("slug and base go with repo: pass repo, the workspace folder this child works in, after declaring it in your task with agents_task")
 	errRepoBase   = errors.New("base is default or empty")
+	errRepoTask   = errors.New("this repo is not in your task: declare it with agents_task first (slug, repos with path, order, landsBy and source), then start its child")
 )
 
 type worktreeNewArgs struct {
@@ -70,8 +71,9 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 	if args.Run != "" {
 		rec.Run = &api.Run{ID: args.Run, Title: args.RunTitle, After: args.RunAfter}
 	}
+	var prec record
 	if parent, err := a.lookup(workspaceID, from); err == nil {
-		if prec := parent.snapshot(); !prec.restricted() {
+		if prec = parent.snapshot(); !prec.restricted() {
 			rec.ParentSession, rec.Advisor, root = prec.ID, a.sessionAdvisor(ctx, prec), prec.Worktree
 		}
 	}
@@ -81,6 +83,9 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 	case args.Repo != "":
 		if plan, root, err = planRepoWorktree(ctx, p, args); err != nil {
 			return newResult{}, err
+		}
+		if rec.ParentSession != "" && !a.taskHas(prec, plan.Repo) {
+			return newResult{}, errRepoTask
 		}
 		rec.RepoPath = plan.Repo
 		ready = newSetup(plan)

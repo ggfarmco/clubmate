@@ -42,6 +42,7 @@ type step struct {
 	Stderr     string          `json:"stderr"`
 	Child      bool            `json:"child"`
 	Shell      string          `json:"shell"`
+	Run        string          `json:"run"`
 	Wait       string          `json:"wait"`
 	Exit       *int            `json:"exit"`
 	Sleep      int             `json:"sleep"`
@@ -79,6 +80,13 @@ type agent struct {
 	sessions  atomic.Int64
 	cancelled atomic.Bool
 	turns     atomic.Int64
+	placesMu  sync.Mutex
+	places    map[string]place
+}
+
+type place struct {
+	cwd string
+	env map[string]string
 }
 
 func main() {
@@ -161,9 +169,15 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 			}
 		}
 		id := cmp.Or(os.Getenv("FAKEAGENT_SESSION_ID"), "fake-"+strconv.Itoa(os.Getpid())+"-"+strconv.FormatInt(a.sessions.Add(1), 10))
+		var start acp.NewSessionRequest
+		_ = json.Unmarshal(params, &start)
+		a.remember(id, start.Cwd, start.Meta)
 		go a.announce(id)
 		return acp.NewSessionResponse{SessionID: id, Modes: a.script.Modes, ConfigOptions: a.script.Configs}, nil
 	case acp.MethodSessionResume:
+		var resume acp.ResumeSessionRequest
+		_ = json.Unmarshal(params, &resume)
+		a.remember(req.SessionID, resume.Cwd, resume.Meta)
 		go a.announce(req.SessionID)
 		return acp.ResumeSessionResponse{Modes: a.script.Modes, ConfigOptions: a.script.Configs}, nil
 	case acp.MethodSessionPrompt:
@@ -221,6 +235,33 @@ func (a *agent) setConfig(id string, value any) []acp.SessionConfigOption {
 		}
 	}
 	return out
+}
+
+func (a *agent) remember(session, cwd string, meta *acp.SessionMeta) {
+	p := place{cwd: cwd}
+	if meta != nil {
+		p.env = meta.ClaudeCode.Options.Env
+	}
+	a.placesMu.Lock()
+	defer a.placesMu.Unlock()
+	if a.places == nil {
+		a.places = map[string]place{}
+	}
+	a.places[session] = p
+}
+
+func (a *agent) runIn(session, script string) {
+	a.placesMu.Lock()
+	p := a.places[session]
+	a.placesMu.Unlock()
+	cmd := exec.Command("/bin/sh", "-c", script)
+	cmd.Dir = p.cwd
+	cmd.Env = os.Environ()
+	for k, v := range p.env {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
+	out, err := cmd.CombinedOutput()
+	a.record("run", map[string]any{"output": string(out), "error": fmt.Sprint(err)})
 }
 
 func (a *agent) announce(session string) {
@@ -297,6 +338,8 @@ func (a *agent) run(ctx context.Context, prompt acp.PromptRequest, steps []step)
 				a.record("shell", cmd.Process.Pid)
 				go cmd.Wait()
 			}
+		case s.Run != "":
+			a.runIn(session, s.Run)
 		case s.Wait != "":
 			a.waitFile(s.Wait)
 		case s.Exit != nil:

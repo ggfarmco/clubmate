@@ -26,6 +26,13 @@ func (f *fixture) declareTask(t *testing.T, workspace, caller string, slug strin
 	return f.runFrom(t, workspace, caller, "agents.task", map[string]any{"slug": slug, "repos": repos}, nil)
 }
 
+func (f *fixture) taskParent(t *testing.T, workspace, repo string) string {
+	t.Helper()
+	parent := f.doneSession(t, workspace)
+	require.NoError(t, f.declareTask(t, workspace, parent, "pause", map[string]any{"path": repo, "order": 1, "landsBy": "branch", "source": "s"}))
+	return parent
+}
+
 func TestTaskKeepsOrderAcrossRestart(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{})
@@ -99,4 +106,20 @@ func TestRepoChildCorrectsOnlyItsOwnRule(t *testing.T) {
 		{Path: first, Order: 1, LandsBy: "merge", Source: "the plan"},
 		{Path: second, Order: 2, LandsBy: "pr", Source: "its CLAUDE.md"},
 	}, got.Repos)
+}
+
+func TestAgentStartsARepoChildOnlyForARepoOfItsTask(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	workspace, first, second := f.twoFolders(t)
+	parent := f.doneSession(t, workspace)
+	args := map[string]any{"repo": second, "slug": "pause"}
+
+	err := f.runFrom(t, workspace, parent, "agents.new", args, nil)
+	require.ErrorContains(t, err, "agents_task")
+	require.NoError(t, f.declareTask(t, workspace, parent, "pause", map[string]any{"path": first, "order": 1, "landsBy": "pr", "source": "s"}))
+	require.ErrorContains(t, f.runFrom(t, workspace, parent, "agents.new", args, nil), "agents_task")
+	require.NoError(t, f.declareTask(t, workspace, parent, "pause", map[string]any{"path": second, "order": 1, "landsBy": "pr", "source": "s"}))
+
+	require.NoError(t, f.runFrom(t, workspace, parent, "agents.new", args, nil))
 }

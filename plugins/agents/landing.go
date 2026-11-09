@@ -777,6 +777,15 @@ func (t taskRecord) repoIndex(path string) int {
 	return slices.IndexFunc(t.Repos, func(r taskRepo) bool { return gitrepo.Canonical(r.Path) == target })
 }
 
+func (a *app) taskHas(rec record, path string) bool {
+	for r := range a.ancestry(rec) {
+		if r.Task != nil {
+			return r.Task.repoIndex(path) >= 0
+		}
+	}
+	return false
+}
+
 func (t taskRecord) heldBy(i int) string {
 	for _, r := range t.Repos {
 		if r.Order >= t.Repos[i].Order || r.landed() {
