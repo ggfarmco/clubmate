@@ -22,6 +22,7 @@ import (
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 	"clubmate/internal/workspace"
+	"clubmate/pkg/sdui"
 )
 
 func TestDiagnosticsBundle(t *testing.T) {
@@ -124,4 +125,20 @@ func readZip(t *testing.T, path string) map[string]string {
 		out[f.Name] = string(data)
 	}
 	return out
+}
+
+func TestDiagnosticsRedactWebviewQuery(t *testing.T) {
+	h := testutil.NewHarness(t)
+	rpc.WithDirs(h.Dirs)(h.Srv)
+	h.Start(t)
+	ws := h.CreateWorkspace(t, "demo")
+	_, err := h.Store.Render(t.Context(), ws.ID, "main", "editor-vscode", sdui.WebView("code", "http://127.0.0.1:4000/?tkn=SECRET123&folder=%2Fx#frag", 0))
+	require.NoError(t, err)
+
+	var res diagnostics.Result
+	require.NoError(t, h.Client(t).Call(t.Context(), "diagnostics.collect", map[string]any{"workspaceId": ws.ID}, &res))
+	dump := readZip(t, res.Path)["ui/"+ws.ID+".json"]
+	assert.Contains(t, dump, "http://127.0.0.1:4000/")
+	assert.NotContains(t, dump, "SECRET123")
+	assert.NotContains(t, dump, "frag")
 }

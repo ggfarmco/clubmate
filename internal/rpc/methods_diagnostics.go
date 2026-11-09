@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"slices"
 	"time"
 
 	"clubmate/internal/buildinfo"
 	"clubmate/internal/diagnostics"
+	"clubmate/internal/sdui"
 	"clubmate/internal/session"
 	"clubmate/internal/workspace"
+	sdk "clubmate/pkg/sdui"
 )
 
 const diagnosticsExtraMax = 10 << 20
@@ -127,7 +130,7 @@ func (s *Server) diagnosticsEntries(ctx context.Context, p diagnosticsParams, no
 		open = []string{p.WorkspaceID}
 	}
 	for _, id := range open {
-		if err := add("ui/"+id+".json", nonNil(u.store.Get(id))); err != nil {
+		if err := add("ui/"+id+".json", redactWebviews(u.store.Get(id))); err != nil {
 			return nil, err
 		}
 	}
@@ -156,4 +159,36 @@ func (s *Server) diagnosticsSessions(ctx context.Context) ([]diagnosticsSession,
 		out = append(out, diagnosticsSession{ID: x.ID, Workspace: x.WorkspaceID, Title: x.Title, Owner: x.Owner, Cwd: x.Cwd, State: x.State, ExitCode: x.ExitCode, Created: x.StartedAt})
 	}
 	return out, nil
+}
+
+func redactWebviews(views []sdui.SlotView) []sdui.SlotView {
+	out := make([]sdui.SlotView, 0, len(views))
+	for _, v := range views {
+		var n sdk.Node
+		err := json.Unmarshal(v.Tree, &n)
+		if err == nil {
+			redactNode(&n)
+			v.Tree, err = json.Marshal(n)
+		}
+		if err != nil {
+			v.Tree = nil
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+func redactNode(n *sdk.Node) {
+	if raw, ok := n.Props["url"].(string); ok && n.Type == "webview" {
+		u, err := url.Parse(raw)
+		if err != nil {
+			delete(n.Props, "url")
+		} else {
+			u.RawQuery, u.Fragment, u.RawFragment = "", "", ""
+			n.Props["url"] = u.String()
+		}
+	}
+	for i := range n.Children {
+		redactNode(&n.Children[i])
+	}
 }

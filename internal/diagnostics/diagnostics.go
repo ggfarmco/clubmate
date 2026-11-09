@@ -269,7 +269,7 @@ func describe(name string) string {
 	case name == "sessions.json":
 		return "sessions without output"
 	case strings.HasPrefix(name, "ui/"):
-		return "UI slots of a workspace"
+		return "UI slots of a workspace, web view addresses without their query"
 	case name == SettingsName:
 		return "app settings, secrets redacted"
 	case name == WindowName:
