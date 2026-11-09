@@ -120,7 +120,7 @@ func serve(args []string) error {
 	if err != nil {
 		return err
 	}
-	reports, err := openStore(cfg.reports, reportQuota)
+	reports, err := openStore(cfg.reports, reportQuota, anonReportQuota)
 	if err != nil {
 		return err
 	}

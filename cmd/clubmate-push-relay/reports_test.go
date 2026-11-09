@@ -147,6 +147,10 @@ func TestReportRefusals(t *testing.T) {
 			f.writeBans(t, "ip 198.51.100.7\n")
 			return f.send(t, reportRequest{remote: "198.51.100.7:4000"}).Code
 		}, http.StatusForbidden},
+		{"banned ip range", func(t *testing.T, f *reportFixture) int {
+			f.writeBans(t, "ip 2001:db8::/48\n")
+			return f.send(t, reportRequest{remote: "[2001:db8:0:5::1]:4000"}).Code
+		}, http.StatusForbidden},
 		{"too big", func(t *testing.T, f *reportFixture) int {
 			return f.send(t, reportRequest{body: make([]byte, report.MaxBundle+1)}).Code
 		}, http.StatusRequestEntityTooLarge},
@@ -205,6 +209,11 @@ func TestReportRefusals(t *testing.T) {
 			f.relay.reports.quota = 1 << 10
 			return f.send(t, reportRequest{body: reportZip(t, `{"text":"big"}`, 2<<10)}).Code
 		}, http.StatusInsufficientStorage},
+		{"trusted report past the anonymous share", func(t *testing.T, f *reportFixture) int {
+			f.relay.reports.anonQuota = 1 << 10
+			require.Equal(t, http.StatusInsufficientStorage, f.send(t, reportRequest{body: reportZip(t, `{"text":"big"}`, 2<<10)}).Code)
+			return f.send(t, reportRequest{body: reportZip(t, `{"text":"big"}`, 2<<10), bearer: f.studio}).Code
+		}, http.StatusCreated},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -305,7 +314,7 @@ func TestReportLeavesTheConnectionAliveAfterTheBody(t *testing.T) {
 
 func TestStoreListFailsOnUnreadableMeta(t *testing.T) {
 	dir := t.TempDir()
-	s, err := openStore(dir, reportQuota)
+	s, err := openStore(dir, reportQuota, anonReportQuota)
 	require.NoError(t, err)
 	st, err := s.add(report.Stored{Received: time.Unix(1_800_000_000, 0).UTC()}, []byte("b"))
 	require.NoError(t, err)
@@ -319,34 +328,36 @@ func TestStoreListFailsOnUnreadableMeta(t *testing.T) {
 func TestStoreReopenAndExpire(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Unix(1_800_000_000, 0).UTC()
-	s, err := openStore(dir, reportQuota)
+	s, err := openStore(dir, reportQuota, anonReportQuota)
 	require.NoError(t, err)
 	old, err := s.add(report.Stored{Received: now.Add(-31 * 24 * time.Hour), Report: report.Meta{Text: "old"}}, []byte("old bundle"))
 	require.NoError(t, err)
-	fresh, err := s.add(report.Stored{Received: now, Report: report.Meta{Text: "fresh"}}, []byte("fresh"))
+	fresh, err := s.add(report.Stored{Received: now, Trusted: true, Mac: "studio", Report: report.Meta{Text: "fresh"}}, []byte("fresh"))
 	require.NoError(t, err)
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "unrelated"), 0o700))
 	oldSize, freshSize := diskSize(t, dir, old.ID), diskSize(t, dir, fresh.ID)
 
-	reopened, err := openStore(dir, reportQuota)
+	reopened, err := openStore(dir, reportQuota, anonReportQuota)
 	require.NoError(t, err)
 	before, err := reopened.list("", 100)
 	require.NoError(t, err)
-	usedBefore := reopened.used
+	usedBefore, anonBefore := reopened.used, reopened.anonUsed
 	require.NoError(t, reopened.sweep(now))
 
 	assert.Equal(t, oldSize+freshSize, usedBefore)
+	assert.Equal(t, oldSize, anonBefore)
 	assert.Equal(t, []report.Stored{old, fresh}, before)
 	after, err := reopened.list("", 100)
 	require.NoError(t, err)
 	assert.Equal(t, []report.Stored{fresh}, after)
 	assert.Equal(t, freshSize, reopened.used)
+	assert.Zero(t, reopened.anonUsed)
 	assert.NoDirExists(t, filepath.Join(dir, old.ID))
 	assert.DirExists(t, filepath.Join(dir, "unrelated"))
 }
 
 func TestStorePagesInInsertionOrder(t *testing.T) {
-	s, err := openStore(t.TempDir(), reportQuota)
+	s, err := openStore(t.TempDir(), reportQuota, anonReportQuota)
 	require.NoError(t, err)
 	now := time.Unix(1_800_000_000, 0).UTC()
 	var ids []string
@@ -387,6 +398,17 @@ func TestLimiterRefusesNewKeysWhenFull(t *testing.T) {
 	assert.True(t, l.allow("a"))
 }
 
+func TestLimiterDropsRefilledBucketsWhenFull(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	l := newLimiter(1, 2, func() time.Time { return now })
+	l.max = 1
+	l.allow("a")
+	now = now.Add(reclaimEvery)
+
+	assert.True(t, l.allow("b"))
+	assert.Equal(t, []string{"b"}, slices.Collect(maps.Keys(l.buckets)))
+}
+
 func newReportFixture(t *testing.T) *reportFixture {
 	t.Helper()
 	dir := t.TempDir()
@@ -403,7 +425,7 @@ func newReportFixture(t *testing.T) *reportFixture {
 	bansPath := filepath.Join(dir, "bans")
 	b, err := loadBans(bansPath)
 	require.NoError(t, err)
-	store, err := openStore(filepath.Join(dir, "reports"), reportQuota)
+	store, err := openStore(filepath.Join(dir, "reports"), reportQuota, anonReportQuota)
 	require.NoError(t, err)
 	f := &reportFixture{now: time.Unix(1_800_000_000, 0).UTC(), key: newKey(t, 0), studio: studio, admin: admin, bans: bansPath, logs: &bytes.Buffer{}}
 	clock := func() time.Time { return f.now }

@@ -72,7 +72,7 @@ Checks, cheapest first; the first that fails answers:
 | key banned | `403` |
 | trusted Mac: 30 an hour; anonymous key: 3 an hour and 10 a day, all anonymous reports together 200 a day | `429` |
 | `report.json` missing or invalid, or its fields over 64 KiB; an entry the dev Mac would refuse to unpack (`pkg/report.CheckEntries`: a name with a control character or invalid UTF-8, a path component over 255 bytes or a name over 1000 bytes, `../` or absolute, a first component `stored.json` or `.handled` in any case, not a regular file or folder, over 10 000 entries, an entry declared over 25 MiB, all declared over 100 MiB) | `400` |
-| storage over the 2 GiB quota | `507` |
+| storage over the 2 GiB quota, or an anonymous report past the 1.5 GiB anonymous share | `507` |
 
 A signature is recorded as seen only after the bans and limits have passed, so a report refused with `403`/`429` can be sent again with the same signature. The IP bucket (anonymous only) is charged before the body is read and stays charged when a later check refuses the request. The key and all-anonymous buckets are charged together only when all of them allow it, so a request refused by one takes no token from the others.
 
@@ -82,9 +82,9 @@ The 2 min cap applies to trusted Macs too: a full 25 MiB report needs about 213 
 
 Success is `201 {"id": "rpt_…"}`; nothing else about stored reports ever goes back to a sender. Every report logs one line, `report <id> <mac name | key <8 hex>> <ip> <bytes>`, never the content.
 
-The client IP is the last `X-Forwarded-For` hop when the connection comes from a loopback or private address (the exe.dev proxy), otherwise the connection's own address, so a client that talks to the relay directly can't pick its IP with a header. For the IP limit and the one-upload-per-IP rule, an IPv6 address counts as its /64; IP bans match the exact address. Trusted Macs skip the IP limit and the one-upload-per-IP rule: they authenticate with their token, are limited per Mac name (30 an hour) and have their own 2 upload slots.
+The client IP is the last `X-Forwarded-For` hop when the connection comes from a loopback or private address (the exe.dev proxy), otherwise the connection's own address, so a client that talks to the relay directly can't pick its IP with a header. For the IP limit and the one-upload-per-IP rule, an IPv6 address counts as its /64; an IP ban matches its exact address or CIDR range. Trusted Macs skip the IP limit and the one-upload-per-IP rule: they authenticate with their token, are limited per Mac name (30 an hour) and have their own 2 upload slots.
 
-Limits are token buckets; a bucket idle for 24 h is dropped. Each limiter and the seen-signature set hold at most 100 000 entries; past that, a new key, IP or signature gets `429` until old entries expire.
+Limits are token buckets; a bucket idle for 24 h is dropped. Each limiter and the seen-signature set hold at most 100 000 entries. When a limiter is full, a new key or IP drops the buckets that have refilled to their burst (at most once a minute) and gets `429` only if none had; a new signature past 100 000 gets `429` until old ones expire (10 min).
 
 ### Private API (admin token only)
 
@@ -113,13 +113,14 @@ The bans file is re-read when its modification time or size changes. One ban per
 ```
 key cecc1507         # hex prefix of the public key (the 8-hex `key` in the listing) or the full key
 ip 203.0.113.5       # exact client address
+ip 2001:db8::/48     # a CIDR range
 ```
 
 A line that doesn't parse keeps the previous bans in force and logs `reload bans: …`.
 
 ### Storage
 
-One directory per report, `<reports>/<id>/bundle.zip` + `meta.json`, both written to temp names and renamed. At start, an `rpt_…` directory without a valid `meta.json` is an interrupted write and is removed; nothing else in the directory is touched. The relay keeps only an index (id, time, size) in memory and reads `meta.json` from disk when listing. The total size on disk (`bundle.zip` plus `meta.json`) is capped at 2 GiB: above it new reports get `507` and pushes keep working. Reports nobody fetched are deleted 30 days after they arrived — checked on every report and once an hour.
+One directory per report, `<reports>/<id>/bundle.zip` + `meta.json`, both written to temp names and renamed. At start, an `rpt_…` directory without a valid `meta.json` is an interrupted write and is removed; nothing else in the directory is touched. The relay keeps only an index (id, time, size) in memory and reads `meta.json` from disk when listing. The total size on disk (`bundle.zip` plus `meta.json`) is capped at 2 GiB, of which anonymous reports may use at most 1.5 GiB, so the last 0.5 GiB stays free for trusted Macs: a report that would cross its class's cap gets `507` and pushes keep working. Reports nobody fetched are deleted 30 days after they arrived — checked on every report and once an hour.
 
 ## Deploy on exe.dev
 

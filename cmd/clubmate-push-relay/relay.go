@@ -65,8 +65,9 @@ type limiter struct {
 	max   int
 	now   func() time.Time
 
-	mu      sync.Mutex
-	buckets map[string]*bucket
+	mu        sync.Mutex
+	buckets   map[string]*bucket
+	reclaimed time.Time
 }
 
 type bucket struct {
@@ -180,7 +181,7 @@ func (l *limiter) bucket(key string) (*bucket, bool) {
 	now := l.now()
 	b, ok := l.buckets[key]
 	if !ok {
-		if len(l.buckets) >= l.max {
+		if len(l.buckets) >= l.max && !l.reclaim(now) {
 			return nil, false
 		}
 		b = &bucket{tokens: l.burst, at: now}
@@ -189,6 +190,19 @@ func (l *limiter) bucket(key string) (*bucket, bool) {
 	b.tokens = min(l.burst, b.tokens+now.Sub(b.at).Seconds()*l.rate)
 	b.at = now
 	return b, true
+}
+
+func (l *limiter) reclaim(now time.Time) bool {
+	if now.Sub(l.reclaimed) < reclaimEvery {
+		return false
+	}
+	l.reclaimed = now
+	for key, b := range l.buckets {
+		if b.tokens+now.Sub(b.at).Seconds()*l.rate >= l.burst {
+			delete(l.buckets, key)
+		}
+	}
+	return len(l.buckets) < l.max
 }
 
 func bearer(req *http.Request) string {

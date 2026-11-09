@@ -24,6 +24,7 @@ const (
 	maxListed     = 100
 	maxMetaJSON   = 64 << 10
 	maxTracked    = 100_000
+	reclaimEvery  = time.Minute
 	replayWindow  = 10 * time.Minute
 	idleBucket    = 24 * time.Hour
 	minTransfer   = 10 * time.Second

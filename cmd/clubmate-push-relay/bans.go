@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-var errBadBanRow = errors.New("want key <hex prefix> or ip <address>")
+var errBadBanRow = errors.New("want key <hex prefix> or ip <address or cidr>")
 
 type bans struct {
 	path string
@@ -23,7 +23,7 @@ type bans struct {
 	modTime time.Time
 	size    int64
 	keys    []string
-	ips     []netip.Addr
+	ips     []netip.Prefix
 }
 
 func loadBans(path string) (*bans, error) {
@@ -68,10 +68,10 @@ func (b *bans) key(hexKey string) bool {
 func (b *bans) ip(addr netip.Addr) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return slices.Contains(b.ips, addr)
+	return slices.ContainsFunc(b.ips, func(p netip.Prefix) bool { return p.Contains(addr) })
 }
 
-func readBans(path string) ([]string, []netip.Addr, error) {
+func readBans(path string) ([]string, []netip.Prefix, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, nil, err
@@ -79,7 +79,7 @@ func readBans(path string) ([]string, []netip.Addr, error) {
 	defer f.Close()
 	var (
 		keys []string
-		ips  []netip.Addr
+		ips  []netip.Prefix
 	)
 	sc := bufio.NewScanner(f)
 	for n := 1; sc.Scan(); n++ {
@@ -99,14 +99,27 @@ func readBans(path string) ([]string, []netip.Addr, error) {
 			}
 			keys = append(keys, prefix)
 		case "ip":
-			addr, err := netip.ParseAddr(fields[1])
+			prefix, err := parseBanIP(fields[1])
 			if err != nil {
 				return nil, nil, fmt.Errorf("%s:%d: %w", path, n, errBadBanRow)
 			}
-			ips = append(ips, addr.Unmap())
+			ips = append(ips, prefix)
 		default:
 			return nil, nil, fmt.Errorf("%s:%d: %w", path, n, errBadBanRow)
 		}
 	}
 	return keys, ips, sc.Err()
+}
+
+func parseBanIP(s string) (netip.Prefix, error) {
+	if strings.Contains(s, "/") {
+		p, err := netip.ParsePrefix(s)
+		return p.Masked(), err
+	}
+	addr, err := netip.ParseAddr(s)
+	if err != nil {
+		return netip.Prefix{}, err
+	}
+	addr = addr.Unmap()
+	return netip.PrefixFrom(addr, addr.BitLen()), nil
 }

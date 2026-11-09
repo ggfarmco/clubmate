@@ -18,13 +18,14 @@ import (
 )
 
 const (
-	reportQuota = 2 << 30
-	reportTTL   = 30 * 24 * time.Hour
-	metaFile    = "meta.json"
-	bundleFile  = "bundle.zip"
-	idPrefix    = "rpt_"
-	maxIDTries  = 5
-	maxIDSuffix = 0xffffff
+	reportQuota     = 2 << 30
+	anonReportQuota = 3 << 29
+	reportTTL       = 30 * 24 * time.Hour
+	metaFile        = "meta.json"
+	bundleFile      = "bundle.zip"
+	idPrefix        = "rpt_"
+	maxIDTries      = 5
+	maxIDSuffix     = 0xffffff
 )
 
 var (
@@ -33,22 +34,25 @@ var (
 )
 
 type store struct {
-	dir   string
-	quota int64
+	dir       string
+	quota     int64
+	anonQuota int64
 
-	mu      sync.Mutex
-	used    int64
-	last    string
-	entries []entry
+	mu       sync.Mutex
+	used     int64
+	anonUsed int64
+	last     string
+	entries  []entry
 }
 
 type entry struct {
 	id       string
 	received time.Time
 	size     int64
+	trusted  bool
 }
 
-func openStore(dir string, quota int64) (*store, error) {
+func openStore(dir string, quota, anonQuota int64) (*store, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
@@ -56,7 +60,7 @@ func openStore(dir string, quota int64) (*store, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &store{dir: dir, quota: quota}
+	s := &store{dir: dir, quota: quota, anonQuota: anonQuota}
 	for _, d := range dirents {
 		if !d.IsDir() || !strings.HasPrefix(d.Name(), idPrefix) {
 			continue
@@ -68,8 +72,7 @@ func openStore(dir string, quota int64) (*store, error) {
 			}
 			continue
 		}
-		s.entries = append(s.entries, e)
-		s.used += e.size
+		s.track(e)
 	}
 	slices.SortFunc(s.entries, func(a, b entry) int { return strings.Compare(a.id, b.id) })
 	if n := len(s.entries); n > 0 {
@@ -91,7 +94,7 @@ func (s *store) add(st report.Stored, bundle []byte) (report.Stored, error) {
 		return report.Stored{}, err
 	}
 	size := st.Bytes + int64(len(meta))
-	if s.used+size > s.quota {
+	if s.used+size > s.quota || !st.Trusted && s.anonUsed+size > s.anonQuota {
 		return report.Stored{}, errQuota
 	}
 	dir, err := s.mkdir(&st)
@@ -112,8 +115,7 @@ func (s *store) add(st report.Stored, bundle []byte) (report.Stored, error) {
 		_ = os.RemoveAll(dir)
 		return report.Stored{}, err
 	}
-	s.entries = append(s.entries, entry{id: st.ID, received: st.Received, size: size})
-	s.used += size
+	s.track(entry{id: st.ID, received: st.Received, size: size, trusted: st.Trusted})
 	s.last = st.ID
 	return st, nil
 }
@@ -213,7 +215,18 @@ func (s *store) removeAt(i int) error {
 	}
 	s.entries = slices.Delete(s.entries, i, i+1)
 	s.used -= e.size
+	if !e.trusted {
+		s.anonUsed -= e.size
+	}
 	return nil
+}
+
+func (s *store) track(e entry) {
+	s.entries = append(s.entries, e)
+	s.used += e.size
+	if !e.trusted {
+		s.anonUsed += e.size
+	}
 }
 
 func (s *store) read(id string) (entry, bool) {
@@ -229,7 +242,7 @@ func (s *store) read(id string) (entry, bool) {
 	if err != nil {
 		return entry{}, false
 	}
-	return entry{id: id, received: st.Received, size: bundleInfo.Size() + metaInfo.Size()}, true
+	return entry{id: id, received: st.Received, size: bundleInfo.Size() + metaInfo.Size(), trusted: st.Trusted}, true
 }
 
 func (s *store) meta(id string) (report.Stored, error) {
