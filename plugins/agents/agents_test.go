@@ -23,6 +23,7 @@ import (
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/contract"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
 )
@@ -65,6 +66,7 @@ type record struct {
 	} `json:"pendingSummary"`
 	Suspended       bool     `json:"suspended"`
 	AutoClosed      bool     `json:"autoClosed"`
+	CleanupOnSeen   bool     `json:"cleanupOnSeen"`
 	ClosedStatus    string   `json:"closedStatus"`
 	Service         bool     `json:"service"`
 	Review          bool     `json:"review"`
@@ -2845,6 +2847,49 @@ func TestMergedChildCleanupFailureNotice(t *testing.T) {
 	testutil.Eventually(t, func() bool { return len(ofKind(f.transcript(t, workspace, kid.Session).Entries, "notice")) == 1 }, wait)
 	assert.Contains(t, f.logText(t, kid.Session), "unsaved buffers: b.go")
 	assert.DirExists(t, kid.Worktree)
+}
+
+func TestMergedChildInAnUnseenFolderIsCleanedUpOnceSeen(t *testing.T) {
+	t.Parallel()
+	for _, closed := range []bool{false, true} {
+		t.Run(strconv.FormatBool(closed), func(t *testing.T) {
+			t.Parallel()
+			mergedChildInAnUnseenFolder(t, closed)
+		})
+	}
+}
+
+func mergedChildInAnUnseenFolder(t *testing.T, closed bool) {
+	f := start(t, nil, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"), testutil.EchoPluginDirAs(t, stopManifest))
+	home := t.TempDir()
+	repo := newRepo(t)
+	git(t, repo, "checkout", "-qb", "feat")
+	workspace := f.workspace(t, home)
+	_, err := f.h.Svc.AddRepo(t.Context(), workspace, repo, contract.FolderMeta{AddedBy: "Fix login", AddedAfk: true})
+	require.NoError(t, err)
+	_, err = f.h.Svc.RemoveFolder(t.Context(), workspace, home)
+	require.NoError(t, err)
+	parent := f.newSession(t, workspace)
+	kid := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "plan"})
+
+	mergeChild(t, f, repo, workspace, parent, kid)
+
+	f.waitStatus(t, workspace, kid.Session, "done")
+	testutil.Never(t, func() bool { return f.session(t, workspace, kid.Session).Status == "closed" }, time.Second)
+	assert.True(t, f.sessionOf(t, kid.Session).CleanupOnSeen)
+	assert.DirExists(t, kid.Worktree)
+	if closed {
+		f.close(t, workspace, kid.Session)
+	}
+
+	_, err = f.h.Svc.MarkFolderSeen(t.Context(), workspace, repo)
+	require.NoError(t, err)
+
+	f.waitStatus(t, workspace, kid.Session, "closed")
+	testutil.Eventually(t, func() bool {
+		_, err := os.Stat(kid.Worktree)
+		return errors.Is(err, os.ErrNotExist) && git(t, repo, "branch", "--list", "c1") == ""
+	}, wait)
 }
 
 func TestOrchestratorPolicyAfterFirstChild(t *testing.T) {

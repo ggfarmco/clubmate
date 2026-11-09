@@ -114,6 +114,32 @@ func TestAddedReposComeAfterTheParentInSheetOrder(t *testing.T) {
 	assert.Empty(t, f.addRepos(t, workspace).Picker.AddRepos)
 }
 
+func TestAnAddedRepoIsADisabledTickedBox(t *testing.T) {
+	f := startGit(t, map[string]any{})
+	parent, older, newer := reposParent(t)
+	workspace := f.workspace(t, parent)
+	f.waitReposSheet(t, workspace)
+	f.h.Event(t, workspace, "agents.sheet", "reposSheet/tick/"+newer, "addReposTick", true)
+	f.h.Event(t, workspace, "agents.sheet", "reposSheet/add", "addReposConfirm", nil)
+	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool { return n.Type == "empty" })
+
+	require.NoError(t, f.run(t, workspace, "agents.repos-sheet", map[string]any{"path": parent}, nil))
+	boxes := map[string]sdui.Node{}
+	for _, n := range sheetNodes(f.waitReposSheet(t, workspace), "toggle") {
+		boxes[n.ID] = n
+	}
+	assert.Equal(t, map[string]any{"value": true, "label": "newer", "style": "checkbox", "disabled": true}, boxes["reposSheet/tick/"+newer].Props)
+	assert.Nil(t, boxes["reposSheet/tick/"+older].Props["disabled"])
+	assert.Nil(t, boxes["reposSheet/all"].Props["disabled"])
+
+	f.h.Event(t, workspace, "agents.sheet", "reposSheet/filter", "addReposFilter", "newer")
+
+	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool {
+		toggles := sheetNodes(n, "toggle")
+		return len(toggles) == 2 && toggles[0].Props["disabled"] == true && toggles[0].Props["value"] == true
+	})
+}
+
 func TestAWorkspaceOfReposIsOfferedNothing(t *testing.T) {
 	f := startGit(t, map[string]any{})
 	workspace := f.workspace(t, newRepo(t))

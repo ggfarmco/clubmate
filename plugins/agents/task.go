@@ -20,6 +20,7 @@ var (
 	errTaskEmpty    = errors.New("a task needs at least one repo")
 	errTaskOwnRepo  = errors.New("a child corrects only the rule of its own repo in the orchestrator's task")
 	errTaskRepoPath = errors.New("a task's repo needs an absolute path")
+	errTaskLanding  = errors.New("a repo that is landing stays in the task until it lands or the user leaves it")
 )
 
 type taskRecord struct {
@@ -67,7 +68,11 @@ func (a *app) taskCommand(ctx context.Context, cmd pluginsdk.CommandRun, args ta
 	defer a.landMu.Unlock()
 	owner := a.topLevel(caller)
 	if owner == caller {
-		next := args.declared(ctx, owner.snapshot().Task)
+		old := owner.snapshot().Task
+		if err := args.keepsLanding(old); err != nil {
+			return nil, err
+		}
+		next := args.declared(ctx, old)
 		owner.putTask(next)
 		a.saveNow(ctx, owner)
 		a.reconcileTasks(ctx)
@@ -99,6 +104,18 @@ func (t taskRecord) declared(ctx context.Context, old *taskRecord) *taskRecord {
 	}
 	slices.SortStableFunc(next.Repos, func(x, y taskRepo) int { return cmp.Compare(x.Order, y.Order) })
 	return next
+}
+
+func (t taskRecord) keepsLanding(old *taskRecord) error {
+	if old == nil {
+		return nil
+	}
+	for _, r := range old.Repos {
+		if r.Landing && t.repoIndex(r.Path) < 0 {
+			return fmt.Errorf("%w: %s", errTaskLanding, r.Name)
+		}
+	}
+	return nil
 }
 
 func (t taskRecord) validate() error {

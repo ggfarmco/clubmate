@@ -556,9 +556,12 @@ struct ToggleNodeView: View {
     @Environment(FormState.self) private var form: FormState?
     @Environment(\.theme) private var theme
 
+    private var disabled: Bool { node.bool("disabled") == true }
+
     var body: some View {
         control
             .tint(theme.accent)
+            .disabled(disabled)
             .onChange(of: node.bool("value"), initial: true) { _, value in
                 isOn = node.id.flatMap { form?.draft($0)?.boolValue } ?? value ?? false
             }
@@ -574,7 +577,7 @@ struct ToggleNodeView: View {
             Toggle(isOn: Binding(get: { isOn }, set: change)) {
                 Text(label)
                     .font(theme.ui)
-                    .foregroundStyle(theme.text2)
+                    .foregroundStyle(disabled ? theme.muted : theme.text2)
                     .lineLimit(1)
             }
             .toggleStyle(.checkbox)

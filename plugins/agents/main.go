@@ -58,6 +58,7 @@ type app struct {
 	connectMu  sync.Mutex
 	cloners    map[string]bool
 	landMu     sync.Mutex
+	landWork   coalesced
 	onceLocks  onceLocks
 	archiving  archiveClaims
 	declareMu  sync.Mutex
@@ -250,6 +251,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 			a.kick(p.Workspace)
 			go a.dropWorkspace(p.Workspace, a.worktreeGone, false)
 			go a.offerRepos(p.Workspace)
+			go a.cleanupOnSeen(p.Workspace)
 		}
 	}
 }

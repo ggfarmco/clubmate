@@ -398,12 +398,16 @@ func fallBack(ctx context.Context, h *pluginsdk.Host, workspaceID, missing strin
 
 func defaultStart(ctx context.Context, dir string, unseen bool) (string, string, error) {
 	fetchErr := errUnseenFolder
-	if !unseen {
+	local := !unseen && !hasOrigin(ctx, dir)
+	if !unseen && !local {
 		fetchErr = gitError(nil, gitrepo.Fetch(ctx, dir, originRemote))
 	}
 	name, err := gitrepo.DefaultBranch(ctx, dir)
 	if err != nil {
 		return "", "", err
+	}
+	if local && hasRef(ctx, dir, headsPrefix+name) {
+		return headsPrefix + name, "", nil
 	}
 	remote := remotesPrefix + originRemote + "/" + name
 	if fetchErr == nil && hasRef(ctx, dir, remote) {
@@ -418,6 +422,11 @@ func defaultStart(ctx context.Context, dir string, unseen bool) (string, string,
 		}
 	}
 	return "", "", fetchErr
+}
+
+func hasOrigin(ctx context.Context, dir string) bool {
+	remotes, err := gitrepo.Remotes(ctx, dir)
+	return err != nil || slices.Contains(remotes, originRemote)
 }
 
 func worktreeDir(primary, name string) (string, error) {

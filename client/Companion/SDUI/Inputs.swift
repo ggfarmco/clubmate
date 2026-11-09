@@ -242,6 +242,7 @@ struct ToggleNode: View {
             .labelsHidden()
             .tint(.accentColor)
             .fixedSize()
+            .disabled(node.bool("disabled") == true)
             .accessibilityIdentifier(node.id ?? "toggle")
             .onChange(of: node.bool("value"), initial: true) { _, value in
                 isOn = value ?? false

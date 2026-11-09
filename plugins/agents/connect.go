@@ -13,13 +13,13 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"clubmate/pkg/id"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/acp"
 	"clubmate/plugins/internal/gitrepo"
+	"clubmate/plugins/internal/parallel"
 )
 
 const (
@@ -29,6 +29,7 @@ const (
 	connectIDPrefix  = "cr"
 	connectTextRunes = 500
 	cloneLimit       = 30 * time.Minute
+	askedParallel    = 8
 
 	repoPending   = "pending"
 	repoCloning   = "cloning"
@@ -284,11 +285,7 @@ func (a *app) askedRepos(ctx context.Context, workspaceID string, asks []connect
 	}
 	out := make([]connectRepo, len(asks))
 	errs := make([]error, len(asks))
-	var wg sync.WaitGroup
-	for i, ask := range asks {
-		wg.Go(func() { out[i], errs[i] = a.askedRepo(ctx, workspaceID, ask) })
-	}
-	wg.Wait()
+	parallel.ForEach(len(asks), askedParallel, func(i int) { out[i], errs[i] = a.askedRepo(ctx, workspaceID, asks[i]) })
 	return out, errors.Join(errs...)
 }
 

@@ -50,6 +50,7 @@ func TestValidate(t *testing.T) {
 		{"choice bad style", sdui.Choice("c", sdui.ChoiceProps{Style: "dropdown"}), false},
 		{"choice other without id", sdui.Node{Type: "choice", ID: "c", Props: map[string]any{"style": "check", "options": []any{}, "other": map[string]any{"label": "Other…"}}}, false},
 		{"toggle bad style", sdui.Node{Type: "toggle", ID: "t", Props: map[string]any{"value": true, "style": "radio"}}, false},
+		{"disabled checkbox", sdui.WithDisabled(sdui.Checkbox("t", "ads", true)), true},
 		{"progress", sdui.Progress("p", 4, 15, "success"), true},
 		{"progress negative", sdui.Progress("p", -1, 15, ""), false},
 		{"tree item badges and changes", sdui.Tree("t", []sdui.TreeItem{{ID: "a", Label: "a.go", Badges: []sdui.HeaderBadge{{Text: "new", Tone: "success"}, {Text: "1", Tone: "warning"}}, Changes: &sdui.Changes{Added: 10}, Menu: []sdui.MenuEntry{{Action: "toggleReviewed", Label: "Mark reviewed", Key: "r"}}}}, ""), true},

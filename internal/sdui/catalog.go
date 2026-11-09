@@ -244,7 +244,7 @@ var (
 			children:    noChildren,
 			interactive: true,
 		},
-		"toggle": {required: []string{"value"}, props: map[string]propCheck{"value": isBool, "action": actionCheck, "label": isString, "style": oneOf(toggleStyles)}, children: noChildren, interactive: true},
+		"toggle": {required: []string{"value"}, props: map[string]propCheck{"value": isBool, "action": actionCheck, "label": isString, "style": oneOf(toggleStyles), "disabled": isBool}, children: noChildren, interactive: true},
 		"progress": {
 			required: []string{"value", "total"},
 			props:    map[string]propCheck{"value": countNumber, "total": countNumber, "tone": oneOf(badgeTones)},

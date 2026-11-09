@@ -265,6 +265,19 @@ func TestTwoTasksOnOneFolderTheSecondWaitsThenProceeds(t *testing.T) {
 	testutil.Eventually(t, func() bool { return f.landPrompts(t, two.kids[0].Session) == 1 }, wait)
 }
 
+func TestRedeclaredTaskKeepsARepoThatIsLanding(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	l := f.landing(t, "merge", "pause", 1)
+	l.report(t, 0, "ready")
+	testutil.Eventually(t, func() bool { return f.landPrompts(t, l.kids[0].Session) == 1 }, wait)
+
+	err := f.declareTask(t, l.workspace, l.owner, "pause", map[string]any{"path": newRepo(t), "order": 1, "landsBy": "merge", "source": "the plan"})
+
+	require.ErrorContains(t, err, "landing")
+	assert.Equal(t, l.kids[0].Session, l.repo(t, 0).Session)
+}
+
 func TestFolderLockSurvivesRestart(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{"resume": true})
@@ -539,6 +552,16 @@ func TestRepoChildGetsTheRepoFinishPolicy(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestRepoChildIsAskedToCorrectTheDeclaredRule(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	f.landing(t, "merge", "pause", 1)
+
+	f.waitCall(t, "session/prompt", func(c fakeCall) bool {
+		return strings.Contains(string(c.Params), "declared that this repo lands by merge to main,")
+	})
 }
 
 func TestHandedOffOrchestratorKeepsItsRepoChildren(t *testing.T) {

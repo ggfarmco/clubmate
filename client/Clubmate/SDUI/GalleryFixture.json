@@ -21,7 +21,8 @@
           "children": [
             {"type": "progress", "id": "rv-progress", "props": {"value": 4, "total": 15}},
             {"type": "text", "props": {"text": "4 / 15 reviewed"}},
-            {"type": "toggle", "id": "rv-tests", "props": {"value": false, "label": "tests 3", "style": "checkbox"}}
+            {"type": "toggle", "id": "rv-tests", "props": {"value": false, "label": "tests 3", "style": "checkbox"}},
+            {"type": "toggle", "id": "rv-added", "props": {"value": true, "label": "already added", "style": "checkbox", "disabled": true}}
           ]
         },
         {"type": "keys", "id": "gallery-open", "props": {"keys": ["j", "k"]}, "children": [

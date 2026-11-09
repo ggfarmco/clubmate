@@ -693,6 +693,12 @@ private struct WorktreeFolderActions: View {
             close()
             NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: folder.path)])
         })
+        if let add = picker.index?.addRepos.first(where: { $0.folder == folder.path }) {
+            out.append(Item(id: add.title) { [session, close] in
+                close()
+                session.askToAddRepos(add.folder)
+            })
+        }
         if let cleanup = picker.index?.cleanup, !cleanup.isEmpty {
             out.append(Item(id: cleanup) { [session, folder, close] in
                 close()

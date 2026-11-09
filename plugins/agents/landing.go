@@ -228,11 +228,53 @@ func (a *app) answerLand(ctx context.Context, workspaceID string, args landAnswe
 }
 
 func (a *app) landingChanged() {
-	a.landMu.Lock()
-	defer a.landMu.Unlock()
-	ctx, cancel := context.WithTimeout(context.Background(), cleanupLimit)
-	defer cancel()
-	a.reconcileTasks(ctx)
+	a.landWork.run(func() {
+		a.landMu.Lock()
+		defer a.landMu.Unlock()
+		ctx, cancel := context.WithTimeout(context.Background(), cleanupLimit)
+		defer cancel()
+		a.reconcileTasks(ctx)
+	})
+}
+
+type coalesced struct {
+	mu      sync.Mutex
+	running bool
+	dirty   bool
+}
+
+func (c *coalesced) run(work func()) {
+	if !c.enter() {
+		return
+	}
+	for {
+		work()
+		if !c.again() {
+			return
+		}
+	}
+}
+
+func (c *coalesced) enter() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.running {
+		c.dirty = true
+		return false
+	}
+	c.running = true
+	return true
+}
+
+func (c *coalesced) again() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.dirty {
+		c.dirty = false
+		return true
+	}
+	c.running = false
+	return false
 }
 
 func (a *app) requeueLandPrompts() {

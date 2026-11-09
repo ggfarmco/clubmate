@@ -110,7 +110,7 @@ The title picker adds these to the keys above:
 | → | On a folder or task row: open it |
 | ← | With an empty filter: back to all folders |
 | ↩ | On a "show N" or "show N more" row: show the whole section (a click does the same). On the last row, ↓ onto "N more stale" shows them |
-| ⌘↩ | Folder actions of the highlighted row's folder (Open its session, Reveal in Finder, Clean up worktrees…, Remove from ‹workspace›…); ↑ ↓ ↩ inside, Esc back |
+| ⌘↩ | Folder actions of the highlighted row's folder (Open its session, Reveal in Finder, Add repos from ‹folder›… on a folder that isn't a repo and holds some, Clean up worktrees…, Remove from ‹workspace›…); ↑ ↓ ↩ inside, Esc back |
 | Esc | Inside a folder or task: back to all folders, else close |
 
 ## Trees (sidebar focused)

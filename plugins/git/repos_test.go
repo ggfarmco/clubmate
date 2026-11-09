@@ -105,6 +105,20 @@ func TestNewWorktreeFailedFetchFallsBackToLocalDefault(t *testing.T) {
 	assert.Equal(t, tip, git(t, res.Path, "rev-parse", "HEAD"))
 }
 
+func TestNewWorktreeWithoutARemoteStartsFromLocalDefaultQuietly(t *testing.T) {
+	repo := committedRepo(t)
+	tip := git(t, repo, "rev-parse", "HEAD")
+	git(t, repo, "switch", "-q", "-c", "unrelated")
+	git(t, repo, "commit", "-q", "--allow-empty", "-m", "user's work")
+	h, id := open(t, repo)
+
+	res := awaitOp(t, h, id, "git.worktree-new", map[string]any{"branch": "feat/pay", "base": "default", "switch": false})
+
+	assert.Empty(t, res.Error)
+	assert.Empty(t, res.Note)
+	assert.Equal(t, tip, git(t, res.Path, "rev-parse", "HEAD"))
+}
+
 func TestNewWorktreeBaseLeavesExistingBranchAlone(t *testing.T) {
 	repo := cloneOf(t, bareOrigin(t))
 	git(t, repo, "branch", "feat/pay")

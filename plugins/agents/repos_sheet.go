@@ -374,7 +374,10 @@ func (s *reposSheet) listNode() sdui.Node {
 	rows := s.visible()
 	open := slices.DeleteFunc(slices.Clone(rows), s.isAdded)
 	all := len(open) > 0 && !slices.ContainsFunc(open, func(r foundRepo) bool { return !s.ticked[r.Path] })
-	box := sdui.WithAction(sdui.Checkbox(reposSheetID+"/all", fmt.Sprintf(reposHead, len(rows)), all), actAddReposAll)
+	box := sdui.WithAction(sdui.Checkbox(reposSheetID+"/all", fmt.Sprintf(reposHead, len(rows)), all || len(open) == 0), actAddReposAll)
+	if len(open) == 0 {
+		box = sdui.WithDisabled(box)
+	}
 	head := sdui.WithGap(sdui.HStack(box, sdui.Spacer(), sdui.MutedText(reposOrder)), reposRowGap)
 	lines := []sdui.Node{head}
 	now := time.Now()
@@ -389,7 +392,8 @@ func (s *reposSheet) listNode() sdui.Node {
 
 func (s *reposSheet) rowNode(r foundRepo, now time.Time) sdui.Node {
 	if s.isAdded(r) {
-		return sdui.WithGap(sdui.HStack(sdui.MutedText(r.Name), sdui.Spacer(), sdui.MutedText(fmt.Sprintf(reposInWorkspace, s.workspace))), reposRowGap)
+		box := sdui.WithDisabled(sdui.Checkbox(reposTickNode+r.Path, r.Name, true))
+		return sdui.WithGap(sdui.HStack(box, sdui.Spacer(), sdui.MutedText(fmt.Sprintf(reposInWorkspace, s.workspace))), reposRowGap)
 	}
 	when := reposNoDate
 	if !r.LastCommit.IsZero() {
