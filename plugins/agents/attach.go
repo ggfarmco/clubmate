@@ -230,7 +230,7 @@ func (a *app) applyConfigs(ctx context.Context, s *session, configs []acp.Sessio
 			continue
 		}
 		value := valueOf(o.ID)
-		if value == "" || value == o.Current() {
+		if _, live := s.settings(); value == "" || value == live[o.ID] {
 			continue
 		}
 		if !o.Valid(value) {

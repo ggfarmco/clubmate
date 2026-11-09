@@ -611,10 +611,7 @@ func (a *app) finishConnects(ctx context.Context, workspaceID string) {
 }
 
 func (a *app) saveNow(ctx context.Context, s *session) {
-	rec := s.snapshot()
-	if err := a.host.StorageSet(ctx, sessionStorageKey(rec), rec); err != nil {
-		fmt.Fprintln(os.Stderr, "agents: save session:", err)
-	}
+	a.notes.persist(ctx, s)
 	s.changed(changeStatus, true)
 }
 

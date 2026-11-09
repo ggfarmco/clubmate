@@ -149,10 +149,20 @@ type fixture struct {
 }
 
 func TestMain(m *testing.M) {
-	os.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+	dir, err := os.MkdirTemp("", "agents-git")
+	if err != nil {
+		panic(err)
+	}
+	config := filepath.Join(dir, "gitconfig")
+	if err := os.WriteFile(config, []byte("[maintenance]\n\tauto = false\n"), 0o600); err != nil {
+		panic(err)
+	}
+	os.Setenv("GIT_CONFIG_GLOBAL", config)
 	os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	os.Setenv("SHELL", "/bin/sh")
-	os.Exit(m.Run())
+	code := m.Run()
+	os.RemoveAll(dir)
+	os.Exit(code)
 }
 
 func git(t *testing.T, repo string, args ...string) string {

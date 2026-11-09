@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -218,12 +219,13 @@ func TestAnswerToARunningSessionIsQueuedNotSteered(t *testing.T) {
 
 func TestItemTheQueuedAnswerCoversIsNotPostedAgain(t *testing.T) {
 	t.Parallel()
-	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "long", "sleep": 1000}, {"echo": true}}})
+	hold := filepath.Join(t.TempDir(), "hold")
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "long", "wait": hold}, {"echo": true}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.doneSession(t, workspace)
 	f.postItems(t, workspace, session, offer("drop the branch"))
 	f.prompt(t, workspace, session, "long")
-	f.waitStatus(t, workspace, session, "running")
+	f.waitPrompt(t, "long")
 	require.NoError(t, f.run(t, workspace, "agents.open-answer", map[string]any{"session": session, "offers": []string{"oi-1"}}, nil))
 
 	posted := f.postItems(t, workspace, session, offer("Drop the branch"), offer("write the docs"))
@@ -231,6 +233,7 @@ func TestItemTheQueuedAnswerCoversIsNotPostedAgain(t *testing.T) {
 	assert.ElementsMatch(t, []string{"oi-1", "oi-2"}, posted.Items)
 	assert.Equal(t, 1, f.session(t, workspace, session).OpenCount)
 
+	write(t, hold, "")
 	f.waitPrompt(t, "Answers: do: drop the branch")
 	f.waitStatus(t, workspace, session, "done")
 
@@ -242,12 +245,12 @@ func TestItemTheQueuedAnswerCoversIsNotPostedAgain(t *testing.T) {
 
 func TestItemDeclinedInARunningTurnIsNotPostedAgain(t *testing.T) {
 	t.Parallel()
-	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "long", "sleep": 1000}}})
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "long", "wait": filepath.Join(t.TempDir(), "hold")}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.doneSession(t, workspace)
 	f.postItems(t, workspace, session, decision("Lists"))
 	f.prompt(t, workspace, session, "long")
-	f.waitStatus(t, workspace, session, "running")
+	f.waitPrompt(t, "long")
 	require.NoError(t, f.run(t, workspace, "agents.open-no", map[string]any{"session": session}, nil))
 
 	posted := f.postItems(t, workspace, session, decision("Lists"))

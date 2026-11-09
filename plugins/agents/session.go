@@ -16,6 +16,7 @@ type session struct {
 	attachMu  sync.Mutex
 	changesMu sync.Mutex
 	openMu    sync.Mutex
+	saveMu    sync.Mutex
 	rec       record
 	log       *eventLog
 	loaded    bool

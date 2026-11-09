@@ -292,7 +292,9 @@ func TestRelayedGoneTokenIsDropped(t *testing.T) {
 	assert.Equal(t, "phone 410 Unregistered, token dropped", res.Summary)
 	require.Len(t, relay.requests(), 1)
 	assert.Empty(t, f.srv.devices.list()[0].PushToken)
-	assert.NotContains(t, f.kv.get(deviceKey("phone")), "aa01")
+	var stored device
+	require.NoError(t, json.Unmarshal([]byte(f.kv.get(deviceKey("phone"))), &stored))
+	assert.Empty(t, stored.PushToken)
 }
 
 func TestRelayErrorKeepsTokensAndGoesOn(t *testing.T) {

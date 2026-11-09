@@ -353,6 +353,8 @@ func endPost(held []ending) (notifyPost, bool) {
 }
 
 func (n *notifier) persist(ctx context.Context, s *session) {
+	s.saveMu.Lock()
+	defer s.saveMu.Unlock()
 	s.mu.Lock()
 	rec, deleted := s.rec, s.deleted
 	s.mu.Unlock()
