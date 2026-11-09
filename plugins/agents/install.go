@@ -23,7 +23,7 @@ import (
 const (
 	agentClaude     = "claude"
 	claudePackage   = "@agentclientprotocol/claude-agent-acp"
-	claudeVersion   = "0.99.1"
+	claudeVersion   = "0.102.0"
 	claudeBin       = "claude-agent-acp"
 	claudeDir       = "claude-acp"
 	minNodeMajor    = 22
