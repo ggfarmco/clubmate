@@ -54,7 +54,7 @@ func TestNodeOfStoppedRunClosesItself(t *testing.T) {
 	const after = 300 * time.Millisecond
 	repo := newRepo(t)
 	require.NoError(t, os.MkdirAll(filepath.Join(repo, ".clubmate", "graphs"), 0o755))
-	write(t, filepath.Join(repo, ".clubmate", "graphs", "solo.json"), `{"title":"Solo","nodes":[{"id":"one","role":"One","start":true,"prompt":"done"}]}`)
+	write(t, filepath.Join(repo, ".clubmate", "graphs", "solo.json"), `{"title":"Solo","nodes":[{"id":"one","role":"One","start":true,"prompt":"done"},{"id":"two","role":"Two","prompt":"done"}],"edges":[{"from":"one","to":"two","on":"error"}]}`)
 	f := startEnv(t, []string{"CLUBMATE_AGENTS_CLOSE_AFTER=" + after.String()}, map[string]any{"prompt": []map[string]any{{"echo": true}}},
 		testutil.BuildPluginDir(t, "clubmate/plugins/cron", "plugins/cron/plugin.json"),
 		testutil.BuildPluginDir(t, "clubmate/plugins/triggers", "plugins/triggers/plugin.json"),
@@ -75,8 +75,10 @@ func TestNodeOfStoppedRunClosesItself(t *testing.T) {
 	require.NoError(t, f.run(t, workspace, "graphs.stop", map[string]any{"id": stopped.ID}, nil))
 
 	assert.True(t, f.waitStatus(t, workspace, stopped.Nodes[0].Session, "closed").AutoClosed)
+	assert.True(t, f.waitStatus(t, workspace, stopped.Nodes[1].Session, "closed").AutoClosed)
 	time.Sleep(3 * after)
 	assert.Equal(t, "done", f.session(t, workspace, running.Nodes[0].Session).Status)
+	assert.Equal(t, "idle", f.session(t, workspace, running.Nodes[1].Session).Status)
 }
 
 func closeActor(t *testing.T, lines []map[string]json.RawMessage) string {

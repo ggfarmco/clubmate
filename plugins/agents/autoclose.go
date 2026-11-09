@@ -50,11 +50,11 @@ func (a *app) closeDone(after time.Duration) {
 	owners := map[string]map[string]bool{}
 	stopped := map[string]map[string]bool{}
 	for _, root := range roots {
+		rec := root.snapshot()
 		tree := a.subtree(root)
-		if slices.ContainsFunc(tree, func(s *session) bool { return !s.settled(after) }) {
+		if slices.ContainsFunc(tree, func(s *session) bool { return !s.settled(after, s == root && rec.Run != nil) }) {
 			continue
 		}
-		rec := root.snapshot()
 		workspace := rec.Workspace
 		if rec.Run != nil {
 			if _, ok := stopped[workspace]; !ok {
@@ -72,7 +72,7 @@ func (a *app) closeDone(after time.Duration) {
 		}
 		for _, s := range tree {
 			if !s.snapshot().closed() {
-				a.closeUnlessBusy(ctx, s, s != root)
+				a.closeUnlessBusy(ctx, s, s != root, s == root && rec.Run != nil)
 			}
 		}
 	}
@@ -111,8 +111,8 @@ func (a *app) stoppedRuns(ctx context.Context, workspace string) map[string]bool
 	return stopped
 }
 
-func (s *session) settled(after time.Duration) bool {
+func (s *session) settled(after time.Duration, idleOK bool) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.rec.closed() || s.rec.Status == statusDone && !s.rec.Review && s.rec.OpenCount == 0 && !s.rec.connectWaits() && !s.rec.taskOpen() && s.idleLocked(after) && (s.rec.ParentSession != "" || !s.asksLocked())
+	return s.rec.closed() || (s.rec.Status == statusDone || idleOK && s.rec.Status == statusIdle) && !s.rec.Review && s.rec.OpenCount == 0 && !s.rec.connectWaits() && !s.rec.taskOpen() && s.idleLocked(after) && (s.rec.ParentSession != "" || !s.asksLocked())
 }

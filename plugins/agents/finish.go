@@ -192,13 +192,13 @@ func (a *app) othersIn(id, root string) bool {
 }
 
 func (a *app) closeIdle(ctx context.Context, s *session) bool {
-	return a.closeUnlessBusy(ctx, s, false)
+	return a.closeUnlessBusy(ctx, s, false, false)
 }
 
-func (a *app) closeUnlessBusy(ctx context.Context, s *session, evenAsking bool) bool {
+func (a *app) closeUnlessBusy(ctx context.Context, s *session, evenAsking, idleOK bool) bool {
 	a.noteBranch(ctx, s)
 	s.mu.Lock()
-	if s.running || len(s.queue) > 0 || s.rec.Status != statusDone || s.rec.OpenCount > 0 || !evenAsking && s.asksLocked() {
+	if s.running || len(s.queue) > 0 || s.rec.Status != statusDone && !(idleOK && s.rec.Status == statusIdle) || s.rec.OpenCount > 0 || !evenAsking && s.asksLocked() {
 		s.mu.Unlock()
 		return false
 	}
