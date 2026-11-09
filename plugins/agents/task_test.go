@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -122,4 +123,21 @@ func TestAgentStartsARepoChildOnlyForARepoOfItsTask(t *testing.T) {
 	require.NoError(t, f.declareTask(t, workspace, parent, "pause", map[string]any{"path": second, "order": 1, "landsBy": "pr", "source": "s"}))
 
 	require.NoError(t, f.runFrom(t, workspace, parent, "agents.new", args, nil))
+}
+
+func TestTaskDeclaredInATurnSteersTheOrchestratorRules(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{"steering": true, "prompt": []map[string]any{{"sleep": 3000}}})
+	workspace, first, second := f.twoFolders(t)
+	parent := f.newSession(t, workspace)
+	f.prompt(t, workspace, parent, "one")
+	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
+
+	require.NoError(t, f.declareTask(t, workspace, parent, "pause", map[string]any{"path": first, "order": 1, "landsBy": "merge", "source": "s"}))
+	require.NoError(t, f.declareTask(t, workspace, parent, "pause", map[string]any{"path": first, "order": 1, "landsBy": "merge", "source": "s"}, map[string]any{"path": second, "order": 2, "landsBy": "merge", "source": "s"}))
+
+	steered := f.waitCall(t, "_session/steering", func(c fakeCall) bool { return strings.HasPrefix(promptText(t, c), "[Clubmate orchestrator of a task]") })
+	assert.Contains(t, promptText(t, steered), "finish mode")
+	f.waitStatus(t, workspace, parent, "done")
+	assert.Len(t, f.calls(t, "_session/steering"), 1)
 }

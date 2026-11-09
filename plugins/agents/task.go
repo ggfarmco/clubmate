@@ -76,6 +76,9 @@ func (a *app) taskCommand(ctx context.Context, cmd pluginsdk.CommandRun, args ta
 		owner.putTask(next)
 		a.saveNow(ctx, owner)
 		a.reconcileTasks(ctx)
+		if old == nil {
+			go a.steerText(owner, orchestratorTaskText)
+		}
 		return next, nil
 	}
 	next, err := owner.correctRule(caller.snapshot(), args)

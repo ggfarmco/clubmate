@@ -110,10 +110,14 @@ task_of() { run agents.sessions "{\"session\":\"$1\"}" | jq -c '.[0]'; }
 settled() { jq -e '.task.repos | length == 2 and all(.state | IN("merged","onBranch","prOpen","failed","left"))' >/dev/null <<<"$1"; }
 
 wait_settled() {
-  local owner="$1" deadline=$((SECONDS + LIMIT)) row=""
+  local owner="$1" deadline=$((SECONDS + LIMIT)) row="" quiet=0
   while ((SECONDS < deadline)); do
     row="$(task_of "$owner")"
-    settled "$row" && { echo "$row"; return; }
+    if settled "$row" && jq -e '.status != "running"' >/dev/null <<<"$row"; then
+      ((++quiet >= 2)) && { echo "$row"; return; }
+    else
+      quiet=0
+    fi
     if jq -e '.needsYou and (.pendingSummary.kind // "") != "land"' >/dev/null <<<"$row"; then
       echo "the orchestrator needs you: $(jq -c '.pendingSummary' <<<"$row")" >&2
     fi
