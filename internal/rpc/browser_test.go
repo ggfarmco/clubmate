@@ -72,7 +72,7 @@ func TestBrowserWithoutAppFailsFast(t *testing.T) {
 	w := h.CreateWorkspace(t, "demo")
 	h.Start(t)
 	_, err := browserRun(t, h.Client(t), w.ID, "browser.open", nil, map[string]any{"url": "https://example.com"})
-	assert.ErrorContains(t, err, "Clubmate app is not running")
+	assert.ErrorContains(t, err, "the Clubmate app is not running")
 }
 
 func TestBrowserForwardsOwnerTabActionArgs(t *testing.T) {
@@ -178,7 +178,7 @@ func TestBrowserHandoffNeverNotifiesWhenItCannotProceed(t *testing.T) {
 	c := h.Client(t)
 	args := map[string]any{"reason": "captcha"}
 	_, err := browserRun(t, c, w.ID, "browser.handoff", nil, args)
-	assert.ErrorContains(t, err, "Clubmate app is not running")
+	assert.ErrorContains(t, err, "the Clubmate app is not running")
 	assert.Empty(t, notifyEvents(t, h))
 
 	app := newBrowserApp(t, h, `{}`)

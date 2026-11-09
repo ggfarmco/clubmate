@@ -158,7 +158,7 @@ func (d *docs) open(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comman
 		return nil, err
 	}
 	session := cmp.Or(args.Session, cmd.Caller)
-	allow := workspaceScope(ctx, ws, d.uploads)
+	allow := d.scope(ctx, h, ws)
 	path, anchor := splitAnchor(args.Path)
 	abs, src, err := load(d.absolute(ctx, h, ws, session, path), allow)
 	if err != nil {
@@ -191,7 +191,7 @@ func (d *docs) present(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Com
 	}
 	session := cmp.Or(args.Session, cmd.Caller)
 	path, _ := splitAnchor(args.Path)
-	abs, _, err := load(d.absolute(ctx, h, ws, session, path), workspaceScope(ctx, ws, d.uploads))
+	abs, _, err := load(d.absolute(ctx, h, ws, session, path), d.scope(ctx, h, ws))
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +206,7 @@ func (d *docs) read(ctx context.Context, h *pluginsdk.Host, workspaceID, path st
 	if err != nil {
 		return nil, err
 	}
-	allow := workspaceScope(ctx, ws, d.uploads)
+	allow := d.scope(ctx, h, ws)
 	abs, src, err := load(d.absolute(ctx, h, ws, "", path), allow)
 	if err != nil {
 		return nil, err

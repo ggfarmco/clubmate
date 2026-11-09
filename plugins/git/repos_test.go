@@ -413,6 +413,7 @@ func TestUnseenAFKFolderLeavesNoHalfMadeWorktree(t *testing.T) {
 
 	assert.NotEmpty(t, res.Error)
 	assert.NotContains(t, git(t, repo, "worktree", "list"), "feat/pay")
+	assert.Empty(t, git(t, repo, "branch", "--list", "feat/pay"))
 }
 
 func TestUnseenAFKFolderStartsFromLocalDefaultUntilSeen(t *testing.T) {

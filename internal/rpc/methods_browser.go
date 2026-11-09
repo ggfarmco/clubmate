@@ -29,7 +29,7 @@ type browserTabKey struct {
 	tab   string
 }
 
-var errNoBrowserApp = errors.New("Clubmate app is not running")
+var errNoBrowserApp = errors.New("the Clubmate app is not running")
 
 type BrowserCall struct {
 	Owner   string          `json:"owner"`

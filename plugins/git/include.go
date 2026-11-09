@@ -10,11 +10,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"clubmate/plugins/internal/gitrepo"
 )
 
 const includeList = ".clubmate/worktree-include"
+
+var errNotInRepo = errors.New("not a regular file in the repo")
 
 func copyIncluded(src, dst string) error {
 	data, err := os.ReadFile(filepath.Join(dst, includeList))
@@ -51,22 +54,26 @@ func copyFile(src, dst, rel string) error {
 	if err != nil {
 		return err
 	}
-	if !info.Mode().IsRegular() || !gitrepo.Within(gitrepo.Canonical(from), gitrepo.Canonical(src)) {
-		return errors.New("not a regular file in the repo")
+	if !info.Mode().IsRegular() {
+		return errNotInRepo
 	}
 	to := filepath.Join(dst, rel)
 	if !gitrepo.Within(gitrepo.Canonical(filepath.Dir(to)), gitrepo.Canonical(dst)) {
 		return errors.New("target folder leaves the worktree")
 	}
-	if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
-		return err
-	}
-	in, err := os.Open(from)
+	in, err := openInRepo(src, from)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-	out, err := os.OpenFile(to, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm())
+	opened, err := in.Stat()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
+		return err
+	}
+	out, err := os.OpenFile(to, os.O_WRONLY|os.O_CREATE|os.O_EXCL, opened.Mode().Perm())
 	if errors.Is(err, fs.ErrExist) {
 		return nil
 	}
@@ -75,4 +82,38 @@ func copyFile(src, dst, rel string) error {
 	}
 	_, err = io.Copy(out, in)
 	return errors.Join(err, out.Close())
+}
+
+func openInRepo(src, from string) (*os.File, error) {
+	in, err := os.OpenFile(from, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if errors.Is(err, syscall.ELOOP) {
+		return nil, errNotInRepo
+	}
+	if err != nil {
+		return nil, err
+	}
+	opened, err := in.Stat()
+	if err == nil && !opened.Mode().IsRegular() {
+		err = errNotInRepo
+	}
+	if err == nil {
+		err = sameFileInRepo(src, from, opened)
+	}
+	if err != nil {
+		in.Close()
+		return nil, err
+	}
+	return in, nil
+}
+
+func sameFileInRepo(src, from string, opened fs.FileInfo) error {
+	canonical := gitrepo.Canonical(from)
+	if !gitrepo.Within(canonical, gitrepo.Canonical(src)) {
+		return errNotInRepo
+	}
+	there, err := os.Lstat(canonical)
+	if err != nil || !os.SameFile(there, opened) {
+		return errNotInRepo
+	}
+	return nil
 }

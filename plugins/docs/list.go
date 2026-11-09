@@ -65,7 +65,7 @@ func (d *docs) list(ctx context.Context, h *pluginsdk.Host, workspaceID string, 
 		}
 		logError("agents.docs", err)
 	}
-	l := newLister(ws, workspaceScope(ctx, ws, d.uploads))
+	l := newLister(ws, d.scope(ctx, h, ws))
 	for _, doc := range written.Docs {
 		if !l.add(doc.Path, "", true) {
 			return l.res, nil

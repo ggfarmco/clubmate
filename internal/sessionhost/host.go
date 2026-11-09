@@ -567,6 +567,10 @@ func listen(sock string) (net.Listener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listen %s: %w", tmp, err)
 	}
+	if err := os.Chmod(tmp, 0o600); err != nil {
+		ln.Close()
+		return nil, fmt.Errorf("chmod socket: %w", err)
+	}
 	if err := os.Rename(tmp, sock); err != nil {
 		ln.Close()
 		return nil, fmt.Errorf("publish socket: %w", err)

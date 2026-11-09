@@ -64,6 +64,14 @@ func TestMetaHasProto(t *testing.T) {
 	assert.Contains(t, string(data), `"proto":1`)
 }
 
+func TestSessionSocketIsPrivate(t *testing.T) {
+	cfg := testConfig(t, "sh", "-c", "exec cat")
+	startHost(t, cfg)
+	info, err := os.Stat(cfg.Socket)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+}
+
 func TestMetaRecordsOutputAndBell(t *testing.T) {
 	cfg := testConfig(t, "sh", "-c", `printf '\033]0;title\007'; sleep 2; printf 'done\007'; exec cat`)
 	startHost(t, cfg)

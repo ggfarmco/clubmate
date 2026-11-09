@@ -770,13 +770,16 @@ func hookRepo(t *testing.T, files map[string]string) string {
 func TestWorktreeSetupHook(t *testing.T) {
 	repo := hookRepo(t, map[string]string{
 		"setup.sh":         "cat .env > setup-ran # \u202enur\r\n",
-		"worktree-include": "# secrets\n.env\nconf/local.env\nmissing\nlink\n../escape\n",
+		"worktree-include": "# secrets\n.env\nconf/local.env\nmissing\nlink\nout/secret\n../escape\n",
 		"a\n──── fake":     "──── .clubmate/setup.sh\n",
 	})
 	write(t, filepath.Join(repo, ".env"), "SECRET=1\n")
 	require.NoError(t, os.MkdirAll(filepath.Join(repo, "conf"), 0o755))
 	write(t, filepath.Join(repo, "conf", "local.env"), "LOCAL=1\n")
 	require.NoError(t, os.Symlink(filepath.Join(repo, ".env"), filepath.Join(repo, "link")))
+	outside := t.TempDir()
+	write(t, filepath.Join(outside, "secret"), "OUT=1\n")
+	require.NoError(t, os.Symlink(outside, filepath.Join(repo, "out")))
 	h, id := open(t, repo)
 	a := newApprover(t, h)
 	create := func(branch string) (opResult, string) {
@@ -790,6 +793,8 @@ func TestWorktreeSetupHook(t *testing.T) {
 	assert.Contains(t, res.Notice, "Skipped .clubmate/setup.sh: denied by user")
 	assert.Contains(t, res.Notice, `"../escape" is not a path inside the repo`)
 	assert.Contains(t, res.Notice, "link: not a regular file")
+	assert.Contains(t, res.Notice, "out/secret: not a regular file in the repo")
+	assert.NoFileExists(t, filepath.Join(denied, "out", "secret"))
 	assert.NoFileExists(t, filepath.Join(denied, "setup-ran"))
 	assert.FileExists(t, filepath.Join(denied, "conf", "local.env"))
 	assert.NoFileExists(t, filepath.Join(denied, "link"))
@@ -797,7 +802,7 @@ func TestWorktreeSetupHook(t *testing.T) {
 	forged := `\u{2500}\u{2500}\u{2500}\u{2500}`
 	body := "──── .clubmate/setup.sh\ncat .env > setup-ran # \\u{202e}nur\\u{d}\n" +
 		"\n──── .clubmate/a\\u{a}" + forged + " fake\n" + forged + " .clubmate/setup.sh\n" +
-		"\n──── .clubmate/worktree-include\n# secrets\n.env\nconf/local.env\nmissing\nlink\n../escape\n"
+		"\n──── .clubmate/worktree-include\n# secrets\n.env\nconf/local.env\nmissing\nlink\nout/secret\n../escape\n"
 	assert.Equal(t, confirmRequest{Title: "Run .clubmate/setup.sh", Args: asked.Args, Body: body, Plugin: true}, *asked)
 	assert.Equal(t, "all of .clubmate/ (3 entries, shown below)", asked.Args["trusts"])
 	assert.True(t, strings.HasPrefix(asked.Args["worktree"], "…"))

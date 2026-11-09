@@ -2,7 +2,7 @@
 
 Agents doing web research use a browser built into the Clubmate app instead of fetching pages themselves. It is WebKit (`WKWebView`) in a window that is never shown, so sites see a real Safari-like browser. The user only sees it when an agent hands a page over (a captcha, a sign-in).
 
-The app must be running: without it every browser tool fails at once with `Clubmate app is not running`.
+The app must be running: without it every browser tool fails at once with `the Clubmate app is not running`.
 
 ## Tools
 

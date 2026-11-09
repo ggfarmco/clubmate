@@ -20,9 +20,10 @@ func TestScope(t *testing.T) {
 	write(t, filepath.Join(repo, "a.md"), "# A")
 	write(t, filepath.Join(linked, "b.md"), "# B")
 	write(t, filepath.Join(uploads, "agt_a", "x", "c.md"), "# C")
+	write(t, filepath.Join(uploads, "agt_b", "x", "d.md"), "# D")
 	write(t, filepath.Join(repo, ".env"), "SECRET=1")
 	write(t, filepath.Join(repo, "big.md"), string(make([]byte, maxDoc+1)))
-	allow := testScope(t, repo, uploads)
+	allow := testScope(t, repo, filepath.Join(uploads, "agt_a"))
 
 	tests := []struct {
 		name string
@@ -32,6 +33,7 @@ func TestScope(t *testing.T) {
 		{"folder", filepath.Join(repo, "a.md"), ""},
 		{"linked worktree", filepath.Join(linked, "b.md"), ""},
 		{"uploads", filepath.Join(uploads, "agt_a", "x", "c.md"), ""},
+		{"another session's upload", filepath.Join(uploads, "agt_b", "x", "d.md"), "not in workspace"},
 		{"outside", "/etc/x.md", "not in workspace"},
 		{"not a document", filepath.Join(repo, ".env"), "not a document"},
 		{"too large", filepath.Join(repo, "big.md"), "too large"},
@@ -56,12 +58,12 @@ func TestScopeSymlinkOut(t *testing.T) {
 	write(t, filepath.Join(outside, "config.md"), "# secret")
 	require.NoError(t, os.Symlink(outside, filepath.Join(repo, "docs")))
 
-	_, _, err := load(filepath.Join(repo, "docs", "config.md"), testScope(t, repo, ""))
+	_, _, err := load(filepath.Join(repo, "docs", "config.md"), testScope(t, repo))
 
 	assert.EqualError(t, err, "not in workspace")
 }
 
-func testScope(t *testing.T, repo, uploads string) func(string) bool {
+func testScope(t *testing.T, repo string, uploads ...string) func(string) bool {
 	t.Helper()
 	trees, err := gitrepo.Worktrees(t.Context(), repo)
 	require.NoError(t, err)

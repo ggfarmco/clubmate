@@ -9,7 +9,9 @@ import (
 	"clubmate/pkg/contract"
 	"clubmate/pkg/docext"
 	"clubmate/pkg/docrender"
+	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/gitrepo"
 )
 
@@ -22,14 +24,14 @@ var (
 	errNotFound       = errors.New("not found")
 )
 
-func allowed(ws contract.Workspace, worktrees map[string][]gitrepo.Worktree, uploads string) func(string) bool {
+func allowed(ws contract.Workspace, worktrees map[string][]gitrepo.Worktree, uploads []string) func(string) bool {
 	var roots []string
 	for _, f := range ws.Folders {
 		roots = append(roots, gitrepo.Canonical(f.Path), gitrepo.Canonical(f.Root()))
 		roots = append(roots, mapped(gitrepo.Canonical(f.Path), worktrees[f.Path])...)
 	}
-	if uploads != "" {
-		roots = append(roots, gitrepo.Canonical(uploads))
+	for _, dir := range uploads {
+		roots = append(roots, gitrepo.Canonical(dir))
 	}
 	return func(path string) bool {
 		path = gitrepo.Canonical(filepath.Clean(path))
@@ -81,7 +83,29 @@ func render(src []byte, path string, allow func(string) bool) (docrender.Doc, st
 	return docrender.Render(src, docrender.Options{Path: path, Allowed: allow}), sdui.DocumentMarkdown
 }
 
-func workspaceScope(ctx context.Context, ws contract.Workspace, uploads string) func(string) bool {
+func (d *docs) scope(ctx context.Context, h *pluginsdk.Host, ws contract.Workspace) func(string) bool {
+	return workspaceScope(ctx, ws, d.sessionUploads(ctx, h, ws.ID))
+}
+
+func (d *docs) sessionUploads(ctx context.Context, h *pluginsdk.Host, workspaceID string) []string {
+	if d.uploads == "" {
+		return nil
+	}
+	sessions, err := agentcall.Sessions(ctx, h, workspaceID)
+	if err != nil {
+		logError("upload scope "+workspaceID, err)
+		return nil
+	}
+	dirs := make([]string, 0, len(sessions))
+	for _, s := range sessions {
+		if s.ID != "" && filepath.Base(s.ID) == s.ID {
+			dirs = append(dirs, filepath.Join(d.uploads, s.ID))
+		}
+	}
+	return dirs
+}
+
+func workspaceScope(ctx context.Context, ws contract.Workspace, uploads []string) func(string) bool {
 	trees := make(map[string][]gitrepo.Worktree, len(ws.Folders))
 	for _, f := range ws.Folders {
 		top, ok := gitrepo.RepoRoot(gitrepo.Canonical(f.Path))

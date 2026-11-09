@@ -93,7 +93,7 @@ func (d *docs) openDoc(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEv
 	if err != nil {
 		return err
 	}
-	allow := workspaceScope(ctx, ws, d.uploads)
+	allow := d.scope(ctx, h, ws)
 	abs, src, err := load(path, allow)
 	if err != nil && !errors.Is(err, errNotFound) {
 		return err
@@ -121,7 +121,7 @@ func (d *docs) openFile(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIE
 	if err != nil {
 		return err
 	}
-	if !workspaceScope(ctx, ws, d.uploads)(path) {
+	if !d.scope(ctx, h, ws)(path) {
 		return errNotInWorkspace
 	}
 	return h.RunCommand(ctx, "editor.open", ev.WorkspaceID, map[string]string{"path": path}, nil)
@@ -132,7 +132,7 @@ func (d *docs) back(ctx context.Context, h *pluginsdk.Host, workspaceID string) 
 	if err != nil {
 		return err
 	}
-	allow := workspaceScope(ctx, ws, d.uploads)
+	allow := d.scope(ctx, h, ws)
 	s := d.space(workspaceID)
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -178,7 +178,7 @@ func (d *docs) flush(workspaceID string) {
 		logError("flush "+workspaceID, err)
 		return
 	}
-	allow := workspaceScope(ctx, ws, d.uploads)
+	allow := d.scope(ctx, d.h, ws)
 	for _, path := range paths {
 		st, ok := s.docs[path]
 		if !ok {

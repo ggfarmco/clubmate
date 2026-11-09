@@ -179,7 +179,7 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, workspaceID string, args
 	k := hooks{h: h, workspaceID: workspaceID, primary: primary.Path}
 	exists := hasRef(ctx, cur.Path, headsPrefix+args.Branch)
 	return func(ctx context.Context, report *opReport) (string, error) {
-		add := []string{dir, args.Branch}
+		add, made := []string{dir, args.Branch}, ""
 		if !exists {
 			if args.Base == baseDefault {
 				var err error
@@ -187,9 +187,9 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, workspaceID string, args
 					return "", err
 				}
 			}
-			add = []string{"-b", args.Branch, dir, base}
+			add, made = []string{"-b", args.Branch, dir, base}, args.Branch
 		}
-		if err := addWorktree(ctx, cur.Path, dir, f.unseen, add); err != nil {
+		if err := addWorktree(ctx, cur.Path, dir, f.unseen, made, add); err != nil {
 			return "", err
 		}
 		if err := excludeWorktrees(ctx, primary.Path); err != nil {
@@ -480,7 +480,7 @@ func excludeWorktrees(ctx context.Context, top string) error {
 	return errors.Join(err, file.Close())
 }
 
-func addWorktree(ctx context.Context, repo, dir string, unseen bool, add []string) error {
+func addWorktree(ctx context.Context, repo, dir string, unseen bool, made string, add []string) error {
 	if !unseen {
 		_, err := mutate(ctx, repo, append([]string{"worktree", "add"}, add...)...)
 		return err
@@ -488,17 +488,39 @@ func addWorktree(ctx context.Context, repo, dir string, unseen bool, add []strin
 	if _, err := mutateInert(ctx, repo, append([]string{"worktree", "add", "--no-checkout"}, add...)...); err != nil {
 		return err
 	}
+	tip := madeTip(ctx, repo, made)
 	if _, err := mutateInert(ctx, dir, "reset", "--hard"); err != nil {
-		return removeFailed(ctx, repo, dir, err)
+		err = removeFailed(ctx, repo, dir, err)
+		if tip == "" {
+			return err
+		}
+		return errors.Join(err, dropMadeBranch(ctx, repo, made, tip))
 	}
 	return nil
+}
+
+func madeTip(ctx context.Context, repo, made string) string {
+	if made == "" {
+		return ""
+	}
+	out, err := run(ctx, repo, "rev-parse", "--verify", headsPrefix+made)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func removeFailed(ctx context.Context, repo, dir string, cause error) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 	defer cancel()
-	_, err := mutate(ctx, repo, "worktree", "remove", "--force", dir)
+	_, err := mutateInert(ctx, repo, "worktree", "remove", "--force", dir)
 	return errors.Join(cause, err)
+}
+
+func dropMadeBranch(ctx context.Context, repo, branch, tip string) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+	defer cancel()
+	return forceDeleteBranch(ctx, repo, branch, tip)
 }
 
 func removalFolder(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs) (*folder, error) {
