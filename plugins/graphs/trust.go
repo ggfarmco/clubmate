@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
-	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/automation"
 	"clubmate/plugins/internal/gitrepo"
 )
@@ -155,8 +154,8 @@ func sameStep(x, y Node) bool {
 }
 
 func (a *app) trustGraph(ctx context.Context, cmd pluginsdk.CommandRun) error {
-	if cmd.Agent {
-		return fmt.Errorf("%w: %q", agentcall.ErrUnknownCommand, cmd.ID)
+	if err := a.notUser(ctx, cmd); err != nil {
+		return err
 	}
 	var args trustArgs
 	if err := automation.Decode(cmd, &args); err != nil {

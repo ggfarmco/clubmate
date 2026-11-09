@@ -397,7 +397,7 @@ func (a *app) notifyCommand(_ context.Context, cmd pluginsdk.CommandRun, args no
 	if err != nil {
 		return nil, err
 	}
-	if cmd.Agent && args.Session != cmd.Caller && !a.descendantOf(args.Session, cmd.Caller) {
+	if a.bySession(cmd) && args.Session != cmd.Caller && !a.descendantOf(args.Session, cmd.Caller) {
 		return nil, errNotDescendant
 	}
 	a.setNotify(s, args.Policy)
@@ -423,7 +423,7 @@ func (a *app) afkCommand(_ context.Context, cmd pluginsdk.CommandRun, args afkAr
 	if err != nil {
 		return nil, err
 	}
-	if cmd.Agent && args.Session != cmd.Caller && !a.descendantOf(args.Session, cmd.Caller) {
+	if a.bySession(cmd) && args.Session != cmd.Caller && !a.descendantOf(args.Session, cmd.Caller) {
 		return nil, errNotDescendant
 	}
 	a.setAFK(s, args.On)
@@ -517,7 +517,7 @@ func (a *app) handoffCommand(ctx context.Context, cmd pluginsdk.CommandRun, args
 	if err != nil {
 		return nil, err
 	}
-	if cmd.Agent && !a.descendantOf(args.Session, cmd.Caller) {
+	if a.bySession(cmd) && !a.descendantOf(args.Session, cmd.Caller) {
 		return nil, errNotDescendant
 	}
 	next, err := a.handoff(ctx, s, args, origin(cmd))
@@ -533,7 +533,7 @@ func (a *app) handoffCommand(ctx context.Context, cmd pluginsdk.CommandRun, args
 }
 
 func (a *app) cancelCommand(_ context.Context, cmd pluginsdk.CommandRun, s *session) (any, error) {
-	if cmd.Agent && !a.descendantOf(s.snapshot().ID, cmd.Caller) {
+	if a.bySession(cmd) && !a.descendantOf(s.snapshot().ID, cmd.Caller) {
 		return nil, errNotDescendant
 	}
 	a.cancel(s)
@@ -596,6 +596,10 @@ func (n newArgs) restricted() bool {
 
 func asUser(cmd pluginsdk.CommandRun) bool {
 	return !cmd.Agent && (cmd.Via == remotePlugin || cmd.Via == voicePlugin)
+}
+
+func (a *app) bySession(cmd pluginsdk.CommandRun) bool {
+	return cmd.Agent || a.session(cmd.Caller) != nil
 }
 
 func origin(cmd pluginsdk.CommandRun) string {

@@ -291,8 +291,8 @@ func (a *app) notify(ctx context.Context, workspace, run, title, message string)
 }
 
 func (a *app) continueEdge(ctx context.Context, cmd pluginsdk.CommandRun) error {
-	if cmd.Agent {
-		return fmt.Errorf("%w: %q", agentcall.ErrUnknownCommand, cmd.ID)
+	if err := a.notUser(ctx, cmd); err != nil {
+		return err
 	}
 	var args continueArgs
 	if err := automation.Decode(cmd, &args); err != nil {
@@ -328,8 +328,8 @@ func (a *app) continueEdge(ctx context.Context, cmd pluginsdk.CommandRun) error 
 }
 
 func (a *app) approveStep(ctx context.Context, cmd pluginsdk.CommandRun) error {
-	if cmd.Agent {
-		return fmt.Errorf("%w: %q", agentcall.ErrUnknownCommand, cmd.ID)
+	if err := a.notUser(ctx, cmd); err != nil {
+		return err
 	}
 	var args approveArgs
 	if err := automation.Decode(cmd, &args); err != nil {

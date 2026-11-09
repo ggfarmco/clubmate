@@ -1079,6 +1079,7 @@ func TestAFKMode(t *testing.T) {
 	parent, other := f.newSession(t, workspace), f.newSession(t, workspace)
 	assert.True(t, f.session(t, workspace, parent).AFK)
 	assert.ErrorContains(t, f.runAs(t, workspace, other, "agents.afk", map[string]any{"session": parent, "on": false}, nil), "the session was not started by this agent")
+	assert.ErrorContains(t, f.runFrom(t, workspace, other, "agents.afk", map[string]any{"session": parent, "on": false}, nil), "the session was not started by this agent")
 
 	away := f.newChild(t, workspace, parent, map[string]any{"prompt": "while away"}).Session
 	f.waitStatus(t, workspace, away, "done")
@@ -2474,6 +2475,8 @@ func TestPermissionScope(t *testing.T) {
 
 	assert.ErrorContains(t, f.runAs(t, workspace, parent, "agents.permission", map[string]any{"session": parent, "request": "permission-1", "option": "allow"}, nil), "the session was not started by this agent")
 	assert.ErrorContains(t, f.runAs(t, workspace, parent, "agents.cancel", map[string]any{"session": other}, nil), "the session was not started by this agent")
+	assert.ErrorContains(t, f.runFrom(t, workspace, parent, "agents.cancel", map[string]any{"session": other}, nil), "the session was not started by this agent")
+	assert.ErrorContains(t, f.runFrom(t, workspace, parent, "agents.handoff", map[string]any{"session": other}, nil), "the session was not started by this agent")
 	assert.ErrorContains(t, f.runAs(t, workspace, "", "agents.cancel", map[string]any{"session": kid}, nil), "the session was not started by this agent")
 	assert.ErrorContains(t, answer(parent, other), "the session was not started by this agent")
 	assert.ErrorContains(t, answer("", kid), "the session was not started by this agent")
@@ -2699,6 +2702,7 @@ func TestNotifyPolicy(t *testing.T) {
 
 	assert.Equal(t, map[string][2]string{parent: {"", "all"}, kid: {"needs-input", "needs-input"}}, policies())
 	assert.ErrorContains(t, f.runAs(t, workspace, kid, "agents.notify", map[string]any{"session": parent, "policy": "muted"}, nil), "the session was not started by this agent")
+	assert.ErrorContains(t, f.runFrom(t, workspace, kid, "agents.notify", map[string]any{"session": parent, "policy": "muted"}, nil), "the session was not started by this agent")
 	require.NoError(t, f.runAs(t, workspace, parent, "agents.notify", map[string]any{"session": parent, "policy": "muted"}, nil))
 	assert.Equal(t, map[string][2]string{parent: {"muted", "muted"}, kid: {"needs-input", "muted"}}, policies())
 

@@ -46,6 +46,7 @@ var (
 	errNotDecision  = errors.New("not a decision of this session")
 	errNotOffer     = errors.New("not an offer of this session")
 	errNoAnswer     = errors.New("pick an option or pass other")
+	errOpenUser     = errors.New("only the user answers open items")
 	errOneOption    = errors.New("a decision without multiSelect takes one option")
 	errOpenEmpty    = errors.New("nothing to send")
 )
@@ -177,6 +178,9 @@ func (a *app) openItemsCommand(ctx context.Context, cmd pluginsdk.CommandRun, ar
 }
 
 func (a *app) openAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun, args openAnswerArgs) (any, error) {
+	if !a.userWord(cmd) {
+		return nil, errOpenUser
+	}
 	s, err := a.lookup(cmd.WorkspaceID, args.Session)
 	if err != nil {
 		return nil, err
@@ -208,6 +212,9 @@ func (a *app) answerOpen(ctx context.Context, s *session, workspaceID string, ar
 }
 
 func (a *app) openLaterCommand(_ context.Context, cmd pluginsdk.CommandRun, args sessionArgs) (any, error) {
+	if !a.userWord(cmd) {
+		return nil, errOpenUser
+	}
 	s, err := a.lookup(cmd.WorkspaceID, args.Session)
 	if err != nil {
 		return nil, err
@@ -219,6 +226,9 @@ func (a *app) openLaterCommand(_ context.Context, cmd pluginsdk.CommandRun, args
 }
 
 func (a *app) openBacklogCommand(ctx context.Context, cmd pluginsdk.CommandRun, args openPickArgs) (any, error) {
+	if !a.userWord(cmd) {
+		return nil, errOpenUser
+	}
 	s, err := a.lookup(cmd.WorkspaceID, args.Session)
 	if err != nil {
 		return nil, err
@@ -234,6 +244,9 @@ func (a *app) openBacklogCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 }
 
 func (a *app) openNoCommand(_ context.Context, cmd pluginsdk.CommandRun, args openPickArgs) (any, error) {
+	if !a.userWord(cmd) {
+		return nil, errOpenUser
+	}
 	s, err := a.lookup(cmd.WorkspaceID, args.Session)
 	if err != nil {
 		return nil, err
@@ -272,6 +285,9 @@ func (a *app) openQueue(workspaceID string) []openQueueEntry {
 }
 
 func (a *app) openConvertCommand(_ context.Context, cmd pluginsdk.CommandRun, args sessionArgs) (any, error) {
+	if !a.userWord(cmd) {
+		return nil, errOpenUser
+	}
 	return nil, a.prompt(cmd.WorkspaceID, promptArgs{Session: args.Session, Text: convertText, Queued: true})
 }
 

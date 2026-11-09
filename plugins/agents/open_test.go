@@ -129,6 +129,25 @@ func TestAgentPostsItemsForItsOwnSessionOnly(t *testing.T) {
 	assert.Equal(t, 1, f.session(t, workspace, session).OpenCount)
 }
 
+func TestOnlyTheUserAnswersOpenItems(t *testing.T) {
+	t.Parallel()
+	f := start(t, echoScript)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.doneSession(t, workspace)
+	f.postItems(t, workspace, session, decision("Lists"), offer("a"))
+
+	for command, args := range map[string]map[string]any{
+		"agents.open-answer":  {"session": session, "offers": []string{"oi-2"}},
+		"agents.open-no":      {"session": session, "items": []string{"oi-1"}},
+		"agents.open-later":   {"session": session},
+		"agents.open-backlog": {"session": session, "items": []string{"oi-1"}},
+		"agents.open-convert": {"session": session},
+	} {
+		assert.ErrorContains(t, f.runFrom(t, workspace, session, command, args, nil), "only the user answers open items", command)
+	}
+	assert.Equal(t, 2, f.session(t, workspace, session).OpenCount)
+}
+
 func TestItemsOverTheLimitGoToTheBacklog(t *testing.T) {
 	t.Parallel()
 	f := start(t, echoScript, backlogDir(t))

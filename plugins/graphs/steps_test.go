@@ -22,6 +22,7 @@ import (
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/automation"
 )
 
@@ -518,6 +519,18 @@ func TestStepSec_F2_ApproveNotAgentVisible(t *testing.T) {
 	a, _, _, r := approvalApp(t, "default")
 	_, err = a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.approve", WorkspaceID: "ws1", Agent: true, Caller: "agt_boss", Args: json.RawMessage(`{"id":"` + r.ID + `","node":"tests","decision":"once"}`)})
 	assert.Error(t, err)
+}
+
+func TestUserCommandsRefuseASessionCaller(t *testing.T) {
+	for _, id := range []string{"graphs.approve", "graphs.continue", "graphs.trust"} {
+		t.Run(id, func(t *testing.T) {
+			a, _, _, r := approvalApp(t, "default")
+
+			_, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: id, WorkspaceID: "ws1", Caller: "agt_1", Args: json.RawMessage(`{"id":"` + r.ID + `","node":"tests","decision":"always","edge":0,"graph":"gate"}`)})
+
+			require.ErrorIs(t, err, agentcall.ErrUnknownCommand)
+		})
+	}
 }
 
 func TestCommandStepRunsAsCaller(t *testing.T) {
