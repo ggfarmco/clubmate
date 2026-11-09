@@ -115,6 +115,8 @@ func TestBuiltinWithStepsNeedsTrustPerRepo(t *testing.T) {
 	a.workspace = func(context.Context, string) (pluginsdk.Workspace, error) {
 		return pluginsdk.Workspace{ID: "ws1", Folders: []pluginsdk.Folder{{Path: repoA}}}, nil
 	}
+	require.NoError(t, os.MkdirAll(filepath.Join(repoA, "scripts", "graph"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(repoA, "scripts", "graph", "squash.sh"), nil, 0o755))
 	assert.ErrorContains(t, agentRun(t, a, "review-gate"), "untrusted")
 	assert.True(t, listed(t, a, "review-gate").Untrusted)
 	require.NoError(t, trustGraph(t, a, "review-gate"))
@@ -122,6 +124,11 @@ func TestBuiltinWithStepsNeedsTrustPerRepo(t *testing.T) {
 	assert.False(t, listed(t, a, "review-gate").Untrusted)
 	caller = repoB
 	assert.ErrorContains(t, agentRun(t, a, "review-gate"), "untrusted")
+	a.workspace = func(context.Context, string) (pluginsdk.Workspace, error) {
+		return pluginsdk.Workspace{ID: "ws1", Folders: []pluginsdk.Folder{{Path: repoB}}}, nil
+	}
+	require.NoError(t, trustGraph(t, a, "review-gate"))
+	assert.ErrorContains(t, agentRun(t, a, "review-gate"), "step Squash into main runs scripts/graph/squash.sh, which "+repoB+" doesn't have")
 }
 
 func TestUserGraphRunsAndIsTrustedInTheCallersRepo(t *testing.T) {

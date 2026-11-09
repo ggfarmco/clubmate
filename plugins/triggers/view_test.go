@@ -36,7 +36,7 @@ func TestGraphTriggersGroupUnderTheirRun(t *testing.T) {
 	assert.Equal(t, "Coder done → Reviewer", items[2].Children[0].Label)
 
 	shape := &graphShape{
-		Nodes: []shapeNode{{ID: "coder", Session: "agt_1", Start: true}, {ID: "reviewer", Session: "agt_2"}},
+		Nodes: []shapeNode{{ID: "coder", Session: "agt_1", Start: true}, {ID: "reviewer", Session: "agt_2", End: []string{"approved"}}},
 		Edges: []shapeEdge{{From: "coder", To: "reviewer", On: "done", Trigger: "tr_1"}, {From: "reviewer", To: "coder", On: "outcome", Outcome: "changes"}},
 	}
 	view := mainView(edge, []*Trigger{edge, fails, mine}, titles, shape, automation.Open{}, automation.RunsView{})
@@ -64,8 +64,9 @@ func TestGraphTriggersGroupUnderTheirRun(t *testing.T) {
 		{From: "agt_1", Out: "error", To: "agt_2", State: sdui.EdgeDim, Ref: "tr_3", Tooltip: "Coder fails → Reviewer"},
 		{From: "agt_2", Out: "changes", To: "agt_1", State: sdui.EdgeNever, Tooltip: "changes → Coder · the graph passes it on itself"},
 		{From: "start:coder", To: "agt_1", State: sdui.EdgeDim},
+		{From: "agt_2", Out: "approved", To: "end", State: sdui.EdgeNever, Tooltip: "approved ends the run"},
 	}, edges)
-	assert.Equal(t, []sdui.FlowMarker{{ID: "start:coder", Kind: sdui.MarkerStart}}, flow.Props["markers"])
+	assert.Equal(t, []sdui.FlowMarker{{ID: "start:coder", Kind: sdui.MarkerStart}, {ID: "end", Kind: sdui.MarkerEnd}}, flow.Props["markers"])
 
 	own := mainView(mine, []*Trigger{mine}, nil, nil, automation.Open{}, automation.RunsView{}).Children[0]
 	assert.Equal(t, "tr_2/delete", childIDs(own)[2])

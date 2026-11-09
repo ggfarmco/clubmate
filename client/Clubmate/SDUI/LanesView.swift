@@ -417,6 +417,9 @@ private struct LaneMoveDot: View {
         Group {
             if move.current {
                 FlowGlyph(actor: actor, size: size)
+            } else if move.pending {
+                FlowGlyph(icon: "circle.dashed", tone: nil, attention: false, pending: true, size: size * 6 / 7)
+                    .background(Circle().fill(theme.background))
             } else if move.tone == "danger" {
                 FlowGlyph(icon: "xmark.circle", tone: move.tone, attention: false, pending: false, size: size * 6 / 7)
                     .background(Circle().fill(theme.background))

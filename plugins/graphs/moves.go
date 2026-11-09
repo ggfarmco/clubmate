@@ -17,6 +17,7 @@ type Move struct {
 	At      time.Time `json:"at"`
 	Turn    int       `json:"turn,omitempty"`
 	Open    bool      `json:"open,omitempty"`
+	Failed  bool      `json:"failed,omitempty"`
 	Step    *StepMove `json:"step,omitempty"`
 	Held    bool      `json:"held,omitempty"`
 	Ended   time.Time `json:"ended,omitzero"`
@@ -56,6 +57,7 @@ func (r *Run) endTurn(p api.Turn, now time.Time) int {
 		r.Moves = append(r.Moves, Move{Node: n.ID, Cause: -1, Edge: -1, User: true, At: now, Turn: p.Turn})
 		i = len(r.Moves) - 1
 	}
+	r.Moves[i].Failed = p.Status == "error"
 	if r.Spec == nil {
 		return i
 	}

@@ -18,7 +18,7 @@ import (
 func TestDoneTreeClosesItselfUnlessItAsksOrOwnsJobs(t *testing.T) {
 	t.Parallel()
 	const after = 300 * time.Millisecond
-	f := startEnv(t, []string{"CLUBMATE_AGENTS_CLOSE_AFTER=" + after.String()}, map[string]any{"prompt": []map[string]any{{"echo": true}}},
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_CLOSE_AFTER=" + after.String()}, map[string]any{"resume": true, "prompt": []map[string]any{{"echo": true}}},
 		testutil.BuildPluginDir(t, "clubmate/plugins/cron", "plugins/cron/plugin.json"),
 		testutil.BuildPluginDir(t, "clubmate/plugins/triggers", "plugins/triggers/plugin.json"))
 	workspace := f.workspace(t, newRepo(t))
@@ -42,6 +42,10 @@ func TestDoneTreeClosesItselfUnlessItAsksOrOwnsJobs(t *testing.T) {
 	time.Sleep(3 * after)
 	assert.Equal(t, "done", f.session(t, workspace, asking).Status)
 	assert.Equal(t, "running", f.session(t, workspace, scheduled).Status)
+
+	require.NoError(t, f.run(t, workspace, "agents.resume", map[string]any{"session": kid}, nil))
+	f.prompt(t, workspace, kid, "two")
+	assert.True(t, f.waitStatus(t, workspace, kid, "closed").AutoClosed)
 
 	require.NoError(t, f.run(t, workspace, "agents.resume", map[string]any{"session": root}, nil))
 	resumed := f.session(t, workspace, root)
@@ -67,15 +71,20 @@ func TestNodeOfStoppedRunClosesItself(t *testing.T) {
 		} `json:"nodes"`
 	}
 	testutil.Eventually(t, func() bool { return f.run(t, workspace, "graphs.list", map[string]any{}, nil) == nil }, restartWait)
-	var stopped, running run
+	var stopped, deleted, running run
 	require.NoError(t, f.run(t, workspace, "graphs.run", map[string]any{"graph": "solo"}, &stopped))
+	require.NoError(t, f.run(t, workspace, "graphs.run", map[string]any{"graph": "solo"}, &deleted))
 	require.NoError(t, f.run(t, workspace, "graphs.run", map[string]any{"graph": "solo"}, &running))
 	f.waitStatus(t, workspace, running.Nodes[0].Session, "done")
 	f.waitStatus(t, workspace, stopped.Nodes[0].Session, "done")
+	f.waitStatus(t, workspace, deleted.Nodes[0].Session, "done")
 	require.NoError(t, f.run(t, workspace, "graphs.stop", map[string]any{"id": stopped.ID}, nil))
+	require.NoError(t, f.run(t, workspace, "graphs.delete", map[string]any{"id": deleted.ID}, nil))
 
 	assert.True(t, f.waitStatus(t, workspace, stopped.Nodes[0].Session, "closed").AutoClosed)
 	assert.True(t, f.waitStatus(t, workspace, stopped.Nodes[1].Session, "closed").AutoClosed)
+	assert.True(t, f.waitStatus(t, workspace, deleted.Nodes[0].Session, "closed").AutoClosed)
+	assert.True(t, f.waitStatus(t, workspace, deleted.Nodes[1].Session, "closed").AutoClosed)
 	time.Sleep(3 * after)
 	assert.Equal(t, "done", f.session(t, workspace, running.Nodes[0].Session).Status)
 	assert.Equal(t, "idle", f.session(t, workspace, running.Nodes[1].Session).Status)

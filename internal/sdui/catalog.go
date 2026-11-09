@@ -168,7 +168,7 @@ var (
 	graphMove  = objectCheck([]string{"node", "cause", "tooltip"}, map[string]propCheck{
 		"node": nonEmptyString, "cause": causeNumber, "label": isString, "tooltip": isString, "out": isString,
 		"current": isBool, "user": isBool, "last": isBool, "end": nonEmptyString,
-		"bar": nonEmptyString, "tone": oneOf(badgeTones), "round": countNumber,
+		"bar": nonEmptyString, "tone": oneOf(badgeTones), "round": countNumber, "pending": isBool,
 	})
 
 	sparkValues = maxLen(maxSparkValues, sparkBudget(arrayOf(anyNumber)))
@@ -350,6 +350,7 @@ var (
 				"edges":   maxLen(maxGraphEdges, listOf(graphEdge)),
 				"moves":   maxLen(maxGraphMoves, listOf(graphMove)),
 				"reached": isBool,
+				"static":  isBool,
 			},
 			children:    childRule{min: 0, max: 3},
 			interactive: true,

@@ -57,11 +57,11 @@ struct GraphNodeView: View {
                 zoomBar(zoom: zoom, fit: fit)
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal) {
-                        FlowDiagram(flow: flow, frame: frame, cursor: focused ? cursor : nil, edgeCursor: focused ? edgeCursor : nil, hovered: hovered) { card in
+                        FlowDiagram(flow: flow, frame: frame, cursor: focused ? cursor : nil, edgeCursor: focused ? edgeCursor : nil, hovered: hovered, opens: !graph.isStatic) { card in
                             focused = true
                             edgeCursor = nil
                             cursor = card
-                            dispatch(node, .named("open", .string(card)))
+                            if !graph.isStatic { dispatch(node, .named("open", .string(card))) }
                         } openEdge: { edge in
                             focused = true
                             edgeCursor = edge
@@ -112,8 +112,8 @@ struct GraphNodeView: View {
             .focusable()
             .focusEffectDisabled()
             .focused($focused)
-            .keyMonitor(active: focused) { handle($0, flow: flow, history: !graph.moves.isEmpty, order: frame.order, edges: edges, zoom: zoom) }
-            .reportsFocus(.graph(history: !graph.moves.isEmpty, edges: !edges.isEmpty, output: flow.cards.contains { $0.isStep && $0.id == cursor }), focused)
+            .keyMonitor(active: focused) { handle($0, flow: flow, history: !graph.moves.isEmpty, opens: !graph.isStatic, order: frame.order, edges: edges, zoom: zoom) }
+            .reportsFocus(.graph(history: !graph.moves.isEmpty, edges: !edges.isEmpty, output: flow.cards.contains { $0.isStep && $0.id == cursor }, opens: !graph.isStatic), focused)
             .onChange(of: paneFocused) { _, value in
                 if value, focusOwner == nil || focusOwner == node.id { focused = true }
             }
@@ -142,8 +142,11 @@ struct GraphNodeView: View {
         }
     }
 
-    private func handle(_ event: NSEvent, flow: SDUIFlow, history: Bool, order: [String], edges: [Int], zoom: CGFloat) -> Bool {
+    private func handle(_ event: NSEvent, flow: SDUIFlow, history: Bool, opens: Bool, order: [String], edges: [Int], zoom: CGFloat) -> Bool {
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
+        if !opens, edgeCursor == nil, event.keyCode == 36 || event.keyCode == 76 {
+            return true
+        }
         if FlowKeys.handle(event, flow: flow, order: order, edges: edges, cursor: &cursor, edgeCursor: &edgeCursor, send: { dispatch(node, $0) }) {
             return true
         }

@@ -144,6 +144,7 @@ func TestGraphViewRunsWithInput(t *testing.T) {
 	diagram := view.Children[1]
 	assert.Equal(t, "graph:pr-walkthrough/graph", diagram.ID)
 	assert.NotContains(t, diagram.Props, "moves")
+	assert.Equal(t, true, diagram.Props["static"])
 	nodes, ok := diagram.Props["nodes"].([]sdk.GraphNode)
 	require.True(t, ok)
 	assert.Equal(t, sdk.GraphNode{ID: "slicer", Label: "Slicer", Start: true, Kind: sdk.KindAgent, Outs: []sdk.GraphOut{{ID: "step", Label: "step", State: "plain"}, {ID: "complete", Label: "complete", State: "plain"}}}, nodes[0])
@@ -313,6 +314,13 @@ func showNodes(t *testing.T, a *app, r *Run) map[string]shownNode {
 		nodes[n.ID] = n
 	}
 	return nodes
+}
+
+func TestShowCarriesOutcomesAndEnd(t *testing.T) {
+	a, _, _, r := stepApp(t)
+	nodes := showNodes(t, a, r)
+	assert.Equal(t, []string{"approved", "changes"}, nodes["reviewer"].Outcomes)
+	assert.Equal(t, []string{"done"}, nodes["merge"].End)
 }
 
 func TestStepSec_A1_ShowCarriesAudit(t *testing.T) {

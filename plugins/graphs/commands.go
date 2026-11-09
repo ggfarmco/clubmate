@@ -46,6 +46,8 @@ type shownNode struct {
 	Title      string       `json:"title,omitempty"`
 	Status     string       `json:"status"`
 	Command    string       `json:"command,omitempty"`
+	Outcomes   []string     `json:"outcomes,omitempty"`
+	End        []string     `json:"end,omitempty"`
 	Outcome    string       `json:"outcome,omitempty"`
 	DurationMs int64        `json:"durationMs,omitempty"`
 	StartedAt  *time.Time   `json:"startedAt,omitempty"`
@@ -153,11 +155,17 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	if err != nil {
 		return nil, err
 	}
-	switch untrusted, _, err := a.trustState(ctx, rootOf(ctx, trustDir(dirs, args.Graph)), g); {
+	root := rootOf(ctx, trustDir(dirs, args.Graph))
+	switch untrusted, _, err := a.trustState(ctx, root, g); {
 	case err != nil:
 		return nil, err
 	case untrusted:
 		return nil, fmt.Errorf(errUntrusted, args.Graph)
+	}
+	if from != fromProject {
+		if err := missingScript(root(), g); err != nil {
+			return nil, err
+		}
 	}
 	r, err := newRun(g, cmd.WorkspaceID, args.Input, cmd.Agent, caller, a.now())
 	if err != nil {
@@ -206,13 +214,19 @@ func (a *app) show(ctx context.Context, cmd pluginsdk.CommandRun) (shownRun, err
 	pending := maps.Clone(a.pending)
 	a.mu.Unlock()
 	for _, n := range r.Nodes {
+		shown := shownNode{RunNode: n}
+		var node *Node
+		if spec != nil {
+			node = spec.node(n.ID)
+		}
+		if node != nil {
+			shown.Outcomes, shown.End = node.Outcomes, node.End
+		}
 		if n.Step {
 			last := r.lastStep(n.ID)
-			shown := shownNode{RunNode: n, Status: stepStatus(last), Last: last}
-			if spec != nil {
-				if node := spec.node(n.ID); node != nil {
-					shown.Command = cmpCommand(node)
-				}
+			shown.Status, shown.Last = stepStatus(last), last
+			if node != nil {
+				shown.Command = cmpCommand(node)
 			}
 			if p, ok := pending[r.ID+"/"+n.ID]; ok {
 				shown.Pending = pendingOf(p)
@@ -221,7 +235,7 @@ func (a *app) show(ctx context.Context, cmd pluginsdk.CommandRun) (shownRun, err
 			continue
 		}
 		s := sessions[n.Session]
-		shown := shownNode{RunNode: n, Title: s.Title, Status: nodeStatus(s, sessions != nil)}
+		shown.Title, shown.Status = s.Title, nodeStatus(s, sessions != nil)
 		outcome, spent, open := r.agentMoves(n.ID)
 		shown.DurationMs = spent.Milliseconds()
 		switch shown.Status {

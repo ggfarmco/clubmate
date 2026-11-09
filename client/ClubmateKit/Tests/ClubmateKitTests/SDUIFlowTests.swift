@@ -33,14 +33,29 @@ final class SDUIFlowTests: XCTestCase {
         XCTAssertEqual(flow.edges[1].ref, "trg_1")
     }
 
+    func testLeadGapWidensOnlyTheFirstColumnsGap() throws {
+        let flow = SDUIFlow(
+            cards: [SDUIFlow.Card(id: "check", label: "Check", state: "", outs: [SDUIFlow.Out(id: "failed", label: "failed", state: .last)])],
+            markers: [SDUIFlow.Marker(id: "when", kind: .schedule, label: "once at 2026-11-07 05:28"), SDUIFlow.Marker(id: "inbox", kind: .inbox)],
+            edges: [SDUIFlow.Edge(from: "when", out: nil, to: "check", state: .taken), SDUIFlow.Edge(from: "check", out: "failed", to: "inbox", state: .last)]
+        )
+        let m = GraphMetrics(markerGap: 36, leadGap: 80)
+        let layout = GraphLayout(flow: flow, metrics: m, markers: ["when": CGSize(width: 28, height: m.headHeight), "inbox": CGSize(width: 80, height: m.headHeight)])
+        let when = try XCTUnwrap(layout.markers["when"]), check = try XCTUnwrap(layout.cards["check"]), inbox = try XCTUnwrap(layout.markers["inbox"])
+        XCTAssertEqual(check.minX - when.maxX, 80)
+        XCTAssertEqual(inbox.minX - check.maxX, 36)
+    }
+
     func testGraphStepCardDecodesAndReservesItsStrip() throws {
         let graph = try XCTUnwrap(node("""
         {"type": "graph", "id": "g", "props": {
           "nodes": [{"id": "tests", "label": "Tests", "state": "running", "kind": "check", "command": "make test", "since": "2026-11-03T16:40:00Z", "timeout": 600, "tag": "changed", "outs": [{"id": "fail", "label": "fail", "state": "taken"}]},
                     {"id": "coder", "label": "Coder", "state": "done", "kind": "agent", "outs": []}],
-          "edges": [{"from": "tests", "out": "fail", "to": "coder", "state": "held", "label": "×2/2 · waits for you"}]
+          "edges": [{"from": "tests", "out": "fail", "to": "coder", "state": "held", "label": "×2/2 · waits for you"}],
+          "moves": [{"node": "tests", "cause": -1, "tooltip": "move 1"}, {"node": "coder", "cause": 0, "out": "fail", "tooltip": "move 2", "pending": true}]
         }}
         """).graph())
+        XCTAssertEqual(graph.lanes.moves.map(\.pending), [false, true])
         let tests = graph.nodes[0]
         XCTAssertEqual([tests.kind, tests.command, tests.tag], ["check", "make test", "changed"])
         XCTAssertEqual(tests.since, ISO8601DateFormatter().date(from: "2026-11-03T16:40:00Z"))

@@ -435,6 +435,7 @@ type GraphMove struct {
 	Bar     string `json:"bar,omitempty"`
 	Tone    string `json:"tone,omitempty"`
 	Round   int    `json:"round,omitempty"`
+	Pending bool   `json:"pending,omitempty"`
 }
 
 type GraphProps struct {
@@ -442,6 +443,7 @@ type GraphProps struct {
 	Edges   []GraphEdge
 	Moves   []GraphMove
 	Reached bool
+	Static  bool
 }
 
 func Graph(id string, p GraphProps, children ...Node) Node {
@@ -456,6 +458,9 @@ func Graph(id string, p GraphProps, children ...Node) Node {
 	}
 	if p.Reached {
 		props["reached"] = true
+	}
+	if p.Static {
+		props["static"] = true
 	}
 	return Node{Type: "graph", ID: id, Props: props, Children: children}
 }

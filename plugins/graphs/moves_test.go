@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
 )
 
@@ -60,6 +61,24 @@ func TestUserTurnIsAMove(t *testing.T) {
 	r.endTurn(api.Turn{Session: "agt_reviewer", Turn: 3, Status: "done"}, now)
 
 	assert.Equal(t, Move{Node: "reviewer", User: true, Cause: -1, Edge: -1, At: now, Turn: 3}, r.Moves[1])
+}
+
+func TestHistoryMarksFailedAndNeverRunMoves(t *testing.T) {
+	r := movesRun(t, reviewLoop())
+	now := time.Now()
+
+	r.endTurn(api.Turn{Session: "agt_coder", Turn: 1, Status: "error"}, now)
+	r.endTurn(api.Turn{Session: "agt_coder", Turn: 2, Status: "done"}, now)
+	r.stop(reasonStopped, now)
+
+	moves := graphMoves(r, r.lastEdges(), r.endMove(), nil)
+	require.Len(t, moves, 3)
+	assert.Equal(t, []string{sdui.VariantDanger, "", ""}, []string{moves[0].Tone, moves[1].Tone, moves[2].Tone})
+	assert.Equal(t, []bool{false, false, true}, []bool{moves[0].Pending, moves[1].Pending, moves[2].Pending})
+
+	moves = graphMoves(r, r.lastEdges(), r.endMove(), map[string]bool{"reviewer": true})
+	assert.True(t, moves[2].Current)
+	assert.False(t, moves[2].Pending)
 }
 
 func TestBusyTargetGetsSecondOpenMove(t *testing.T) {

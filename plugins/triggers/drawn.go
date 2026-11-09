@@ -150,6 +150,19 @@ func graphFlow(t *Trigger, triggers []*Trigger, titles map[string]string, shape 
 			markers = append(markers, sdui.FlowMarker{ID: id, Kind: sdui.MarkerStart})
 			flowEdges = append(flowEdges, sdui.FlowEdge{From: id, To: nodes[n.ID], State: sdui.EdgeDim})
 		}
+		for _, n := range shape.Nodes {
+			i, ok := index[nodes[n.ID]]
+			if !ok || len(n.End) == 0 {
+				continue
+			}
+			if !slices.ContainsFunc(markers, func(m sdui.FlowMarker) bool { return m.Kind == sdui.MarkerEnd }) {
+				markers = append(markers, sdui.FlowMarker{ID: endMarker, Kind: sdui.MarkerEnd})
+			}
+			for _, o := range n.End {
+				out(i, o)
+				flowEdges = append(flowEdges, sdui.FlowEdge{From: nodes[n.ID], Out: o, To: endMarker, State: sdui.EdgeNever, Tooltip: o + " ends the run"})
+			}
+		}
 	}
 	if len(cards) > maxCards || len(flowEdges) > maxEdges || len(markers) > maxCards {
 		return sdui.Node{}, false

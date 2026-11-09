@@ -154,7 +154,17 @@ func TestFinishedMovesGetSummaries(t *testing.T) {
 	assert.Equal(t, "$ make test\nexit 1\n\nFAIL x", inputs[1])
 	assert.Equal(t, "summary 1", run.Moves[coder].Summary)
 	assert.Equal(t, "did it", run.Moves[coder].Reply)
-	assert.Equal(t, "summary 2", outputPanel(run, "tests", tests, nil, false).Children[1].Props["text"])
+	assert.Equal(t, "summary 2", outputPanel(run, "tests", tests, nil, false, time.Time{}).Children[1].Props["text"])
+}
+
+func TestRunningStepPanelHeadShowsElapsed(t *testing.T) {
+	_, _, _, r := stepApp(t)
+	start := time.Date(2026, 11, 9, 10, 0, 0, 0, time.UTC)
+	r.Moves = append(r.Moves, Move{Node: "tests", Cause: -1, Edge: -1, At: start, Open: true, Step: &StepMove{Status: stepRunning, StartedAt: start}})
+
+	head := outputPanel(r, "tests", len(r.Moves)-1, nil, false, start.Add(72*time.Second)).Children[0]
+
+	assert.Equal(t, "running · 1 min 12 s", head.Children[1].Props["text"])
 }
 
 func TestExitCodeNamesOutcome(t *testing.T) {

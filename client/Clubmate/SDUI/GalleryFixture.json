@@ -426,10 +426,23 @@
                         {"from": "reviewer", "out": "changes", "to": "coder", "state": "never"}
                       ],
                       "moves": [
-                        {"node": "coder", "cause": -1, "tooltip": "move 1 · Coder · 10:02"},
-                        {"node": "reviewer", "cause": 0, "out": "done", "tooltip": "move 2 · Reviewer · 10:05", "last": true, "end": "approved"}
+                        {"node": "coder", "cause": -1, "tooltip": "move 1 · Coder · 10:01", "tone": "danger"},
+                        {"node": "coder", "cause": -1, "label": "you", "user": true, "tooltip": "move 2 · Coder · 10:02"},
+                        {"node": "reviewer", "cause": 1, "out": "done", "tooltip": "move 3 · Reviewer · 10:05", "pending": true},
+                        {"node": "reviewer", "cause": 1, "out": "done", "tooltip": "move 4 · Reviewer · 10:06", "last": true, "end": "approved"}
                       ],
                       "reached": true
+                    }},
+                    {"type": "graph", "id": "gallery-graph-definition", "props": {
+                      "nodes": [
+                        {"id": "coder", "label": "Coder", "state": "", "start": true, "kind": "agent", "outs": [{"id": "done", "label": "done", "state": "plain"}]},
+                        {"id": "reviewer", "label": "Reviewer", "state": "", "kind": "agent", "outs": [{"id": "changes", "label": "changes", "state": "plain"}, {"id": "approved", "label": "approved", "state": "plain", "end": true}]}
+                      ],
+                      "edges": [
+                        {"from": "coder", "out": "done", "to": "reviewer", "state": "plain", "tooltip": "when Coder is done → prompt Reviewer"},
+                        {"from": "reviewer", "out": "changes", "to": "coder", "state": "plain", "tooltip": "when Reviewer reports changes → prompt Coder"}
+                      ],
+                      "static": true
                     }},
                     {"type": "flow", "id": "gallery-flow", "props": {"cards": [{"id": "check", "label": "Check CI status", "state": "GitHub · branch main", "icon": "powerplug", "tooltip": "Run the check-ci command", "outs": [{"id": "ok", "label": "ok", "count": 19, "state": "taken"}, {"id": "failed", "label": "failed", "count": 1, "state": "last"}]}], "markers": [{"id": "when", "kind": "schedule", "label": "every 2 min"}, {"id": "runs", "kind": "runs"}, {"id": "inbox", "kind": "inbox", "label": "Inbox"}], "edges": [{"from": "when", "to": "check", "state": "taken"}, {"from": "check", "out": "ok", "to": "runs", "state": "taken"}, {"from": "check", "out": "failed", "to": "inbox", "state": "last", "ref": "trg_gallery", "tooltip": "failed runs post to the inbox", "label": "failed"}]}},
                     {"type": "flow", "id": "gallery-flow-ghost", "props": {"cards": [{"id": "action", "label": "What it does", "state": "a prompt or a command", "ghost": true, "outs": [{"id": "ok", "label": "ok", "state": "ghost"}, {"id": "failed", "label": "failed", "state": "ghost"}]}], "markers": [{"id": "when", "kind": "schedule", "label": "on a schedule"}, {"id": "inbox", "kind": "inbox", "label": "Inbox"}], "edges": [{"from": "when", "to": "action", "state": "ghost"}, {"from": "action", "out": "failed", "to": "inbox", "state": "ghost"}]}},

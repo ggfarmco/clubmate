@@ -9,8 +9,10 @@ public struct GraphMetrics: Sendable, Equatable {
     public var nodeGap: CGFloat
     public var trackGap: CGFloat
     public var markerGap: CGFloat
+    public var leadGap: CGFloat?
 
-    public init(cardWidth: CGFloat = 210, headHeight: CGFloat = 52, rowHeight: CGFloat = 26, layerGap: CGFloat = 120, nodeGap: CGFloat = 24, trackGap: CGFloat = 12, markerGap: CGFloat = 48) {
+    public init(cardWidth: CGFloat = 210, headHeight: CGFloat = 52, rowHeight: CGFloat = 26, layerGap: CGFloat = 120, nodeGap: CGFloat = 24, trackGap: CGFloat = 12, markerGap: CGFloat = 48, leadGap: CGFloat? = nil) {
+        self.leadGap = leadGap
         self.cardWidth = cardWidth
         self.headHeight = headHeight
         self.rowHeight = rowHeight
@@ -107,7 +109,7 @@ public struct GraphLayout: Sendable {
         }
         let widths = stacks.map { $0.map { extent(items[$0]).width }.max() ?? 0 }
         let carded = stacks.map { $0.contains { items[$0].isCard } }
-        let gaps = (0..<max(columns - 1, 0)).map { carded[$0] && carded[$0 + 1] ? m.layerGap : m.markerGap }
+        let gaps = (0..<max(columns - 1, 0)).map { carded[$0] && carded[$0 + 1] ? m.layerGap : $0 == 0 ? m.leadGap ?? m.markerGap : m.markerGap }
         var lefts: [CGFloat] = []
         var x = m.layerGap / 2
         for l in 0..<columns {

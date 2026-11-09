@@ -31,7 +31,7 @@ struct FlowFrame {
             }
         }
         for marker in flow.markers where marker.kind == .schedule {
-            metrics.markerGap = max(metrics.markerGap, width(marker.label ?? marker.kind.rawValue) / 2 - 14 * k + 7 * k)
+            metrics.leadGap = max(metrics.leadGap ?? metrics.markerGap, width(marker.label ?? marker.kind.rawValue) / 2 - 14 * k + 7 * k)
         }
         self.metrics = metrics
         let sizes = flow.markers.map { ($0.id, FlowMarkerView.size($0, theme: theme, metrics: metrics)) }
@@ -111,6 +111,7 @@ struct FlowDiagram: View {
     let cursor: String?
     let edgeCursor: Int?
     let hovered: FlowHop?
+    var opens = true
     let open: (String) -> Void
     let openEdge: (Int) -> Void
 
@@ -151,7 +152,7 @@ struct FlowDiagram: View {
                 }
             }
             ForEach(cards, id: \.card.id) { slot in
-                FlowCardView(card: slot.card, metrics: frame.metrics, focused: edgeCursor == nil && cursor == slot.card.id, lit: hovered?.node == slot.card.id ? hovered?.out : nil) {
+                FlowCardView(card: slot.card, metrics: frame.metrics, focused: edgeCursor == nil && cursor == slot.card.id, lit: hovered?.node == slot.card.id ? hovered?.out : nil, opens: opens) {
                     open(slot.card.id)
                 }
                 .frame(width: slot.rect.width, height: slot.rect.height)
@@ -514,6 +515,7 @@ struct FlowCardView: View {
     let metrics: GraphMetrics
     let focused: Bool
     let lit: String?
+    var opens = true
     let open: () -> Void
 
     @State private var hovering = false
@@ -593,7 +595,7 @@ struct FlowCardView: View {
                 Spacer(minLength: 0)
             }
             .background(shape.fill(fill))
-            .background(shape.fill(hovering ? theme.hover : .clear))
+            .background(shape.fill(hovering && opens ? theme.hover : .clear))
             .overlay(alignment: .leading) {
                 if card.isStep {
                     rule.frame(width: 2.5 * k).clipShape(UnevenRoundedRectangle(topLeadingRadius: 3 * k, bottomLeadingRadius: 3 * k))

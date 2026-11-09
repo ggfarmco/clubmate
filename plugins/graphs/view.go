@@ -191,7 +191,7 @@ func definitionDiagram(id string, r *Run, changed []string) sdui.Node {
 		}
 		edges = append(edges, edge)
 	}
-	return sdui.Graph(id+graphSuffix, sdui.GraphProps{Nodes: nodes, Edges: edges})
+	return sdui.Graph(id+graphSuffix, sdui.GraphProps{Nodes: nodes, Edges: edges, Static: true})
 }
 
 func mainView(r *Run, sessions map[string]api.Session, x runExtras) sdui.Node {
@@ -221,7 +221,7 @@ func mainView(r *Run, sessions map[string]api.Session, x runExtras) sdui.Node {
 	switch node, move := r.shownMove(x.selected); {
 	case move < 0:
 	case r.Moves[move].Step != nil:
-		children = append(children, outputPanel(r, node, move, x.live, x.summarizing))
+		children = append(children, outputPanel(r, node, move, x.live, x.summarizing, x.now))
 	default:
 		children = append(children, agentPanel(r, node, move, x.summarizing))
 	}
@@ -407,7 +407,7 @@ func runDiagram(r *Run, sessions map[string]api.Session, children ...sdui.Node) 
 		}
 		edges = append(edges, edge)
 	}
-	return sdui.Graph(r.ID+graphSuffix, sdui.GraphProps{Nodes: nodes, Edges: edges, Moves: graphMoves(r, last, end), Reached: end >= 0}, children...)
+	return sdui.Graph(r.ID+graphSuffix, sdui.GraphProps{Nodes: nodes, Edges: edges, Moves: graphMoves(r, last, end, liveNodes(r, sessions)), Reached: end >= 0}, children...)
 }
 
 func graphNode(r *Run, n RunNode, sessions map[string]api.Session, end int, last, counts []int) sdui.GraphNode {
@@ -514,7 +514,17 @@ func graphOuts(r *Run, node string, end int, last, counts []int) []sdui.GraphOut
 	return outs
 }
 
-func graphMoves(r *Run, last []int, end int) []sdui.GraphMove {
+func liveNodes(r *Run, sessions map[string]api.Session) map[string]bool {
+	live := map[string]bool{}
+	for _, n := range r.Nodes {
+		if st := sessions[n.Session].Status; st == "running" || st == "waiting" {
+			live[n.ID] = true
+		}
+	}
+	return live
+}
+
+func graphMoves(r *Run, last []int, end int, live map[string]bool) []sdui.GraphMove {
 	running := r.Status == statusRunning
 	final := -1
 	for i, m := range r.Moves {
@@ -528,7 +538,7 @@ func graphMoves(r *Run, last []int, end int) []sdui.GraphMove {
 			Node:    m.Node,
 			Cause:   m.Cause,
 			Tooltip: fmt.Sprintf("move %d · %s · %s", i+1, roleOf(r, m.Node), m.At.Local().Format(clockLayout)),
-			Current: m.Open && running,
+			Current: m.Open && (running || live[m.Node] && r.oldestOpen(m.Node) == i),
 			User:    m.User,
 		}
 		if m.User {
@@ -541,8 +551,13 @@ func graphMoves(r *Run, last []int, end int) []sdui.GraphMove {
 		if i == end {
 			g.End = m.End
 		}
-		if m.Step != nil {
+		switch {
+		case m.Step != nil:
 			g.Bar, g.Tone = stepBar(m.Step), statusTone(stepGlyph(stepStatus(m.Step)))
+		case m.Failed:
+			g.Tone = sdui.VariantDanger
+		case m.Open && !g.Current && m.End == "" && len(m.Fired) == 0:
+			g.Pending = true
 		}
 		moves = append(moves, g)
 	}

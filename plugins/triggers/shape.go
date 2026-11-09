@@ -11,6 +11,7 @@ const (
 	graphsShow   = "graphs.show"
 	shapeTimeout = 10 * time.Second
 	onOutcome    = "outcome"
+	endMarker    = "end"
 )
 
 type graphShape struct {
@@ -19,11 +20,12 @@ type graphShape struct {
 }
 
 type shapeNode struct {
-	ID      string `json:"id"`
-	Role    string `json:"role"`
-	Start   bool   `json:"start,omitempty"`
-	Step    bool   `json:"step,omitempty"`
-	Session string `json:"session"`
+	ID      string   `json:"id"`
+	Role    string   `json:"role"`
+	Start   bool     `json:"start,omitempty"`
+	Step    bool     `json:"step,omitempty"`
+	Session string   `json:"session"`
+	End     []string `json:"end,omitempty"`
 }
 
 type shapeEdge struct {

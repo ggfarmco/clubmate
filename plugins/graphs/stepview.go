@@ -34,6 +34,7 @@ type runExtras struct {
 	selected    pick
 	live        *liveOutput
 	summarizing bool
+	now         time.Time
 }
 
 type pick struct {
@@ -207,7 +208,7 @@ func agentPanel(r *Run, node string, move int, summarizing bool) sdui.Node {
 	return sdui.Card("", statusIcon("done"), append([]sdui.Node{head, text, sdui.HStack(open)}, notes...)...)
 }
 
-func outputPanel(r *Run, node string, move int, live *liveOutput, summarizing bool) sdui.Node {
+func outputPanel(r *Run, node string, move int, live *liveOutput, summarizing bool, now time.Time) sdui.Node {
 	st := r.Moves[move].Step
 	role := roleOf(r, node)
 	var meta []string
@@ -215,6 +216,8 @@ func outputPanel(r *Run, node string, move int, live *liveOutput, summarizing bo
 		meta = append(meta, "round "+strconv.Itoa(at))
 	}
 	switch {
+	case st.Status == stepRunning && !st.StartedAt.IsZero() && now.After(st.StartedAt):
+		meta = append(meta, stepRunning+" · "+humanDuration(now.Sub(st.StartedAt)))
 	case st.Status == stepRunning:
 		meta = append(meta, stepRunning)
 	case st.Outcome == onError:
@@ -292,7 +295,7 @@ func stepGlyph(status string) string {
 
 func (a *app) extras(r *Run) runExtras {
 	a.mu.Lock()
-	x := runExtras{pending: map[string]*pendingInfo{}, selected: a.stepSel[r.ID]}
+	x := runExtras{pending: map[string]*pendingInfo{}, selected: a.stepSel[r.ID], now: a.now()}
 	for k, p := range a.pending {
 		if node, ok := strings.CutPrefix(k, r.ID+"/"); ok {
 			x.pending[node] = pendingOf(p)

@@ -40,7 +40,7 @@ func (a *app) closeDone(after time.Duration) {
 	a.mu.Lock()
 	var roots []*session
 	for id, s := range a.sessions {
-		if rec := s.snapshot(); a.dropped[id] == 0 && rec.ParentSession == "" && !rec.restricted() && !rec.closed() {
+		if rec := s.snapshot(); a.dropped[id] == 0 && a.orphanLocked(rec) && !rec.restricted() && !rec.closed() {
 			roots = append(roots, s)
 		}
 	}
@@ -48,7 +48,7 @@ func (a *app) closeDone(after time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), cleanupLimit)
 	defer cancel()
 	owners := map[string]map[string]bool{}
-	stopped := map[string]map[string]bool{}
+	running := map[string]map[string]bool{}
 	for _, root := range roots {
 		rec := root.snapshot()
 		tree := a.subtree(root)
@@ -57,10 +57,10 @@ func (a *app) closeDone(after time.Duration) {
 		}
 		workspace := rec.Workspace
 		if rec.Run != nil {
-			if _, ok := stopped[workspace]; !ok {
-				stopped[workspace] = a.stoppedRuns(ctx, workspace)
+			if _, ok := running[workspace]; !ok {
+				running[workspace] = a.runningRuns(ctx, workspace)
 			}
-			if !stopped[workspace][rec.Run.ID] {
+			if live := running[workspace]; live == nil || live[rec.Run.ID] {
 				continue
 			}
 		}
@@ -72,7 +72,7 @@ func (a *app) closeDone(after time.Duration) {
 		}
 		for _, s := range tree {
 			if !s.snapshot().closed() {
-				a.closeUnlessBusy(ctx, s, s != root, s == root && rec.Run != nil)
+				a.closeUnlessBusy(ctx, s, s != root || rec.ParentSession != "", s == root && rec.Run != nil)
 			}
 		}
 	}
@@ -95,20 +95,28 @@ func (a *app) jobOwners(ctx context.Context, workspace string) map[string]bool {
 	return owned
 }
 
-func (a *app) stoppedRuns(ctx context.Context, workspace string) map[string]bool {
+func (a *app) orphanLocked(rec record) bool {
+	if rec.ParentSession == "" {
+		return true
+	}
+	parent, ok := a.sessions[rec.ParentSession]
+	return !ok || parent.snapshot().closed()
+}
+
+func (a *app) runningRuns(ctx context.Context, workspace string) map[string]bool {
 	var list struct {
 		Runs []listedRun `json:"runs"`
 	}
 	if a.host.RunCommand(ctx, "graphs.list", workspace, struct{}{}, &list) != nil {
 		return nil
 	}
-	stopped := map[string]bool{}
+	running := map[string]bool{}
 	for _, r := range list.Runs {
-		if r.Status == "stopped" {
-			stopped[r.ID] = true
+		if r.Status != "stopped" {
+			running[r.ID] = true
 		}
 	}
-	return stopped
+	return running
 }
 
 func (s *session) settled(after time.Duration, idleOK bool) bool {

@@ -6,8 +6,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +22,7 @@ const (
 	trustPrefix   = "trust/"
 	trustedPrefix = "trusted/"
 	errUntrusted  = "untrusted: %s has shell steps you haven't trusted (graphs.trust)"
+	errNoScript   = "%s: step %s runs %s, which %s doesn't have: copy the graph to .clubmate/graphs/%s.json and change that step"
 )
 
 type trustedSteps struct {
@@ -145,6 +148,19 @@ func (a *app) trustState(ctx context.Context, root func() string, g *Graph) (boo
 		changed = append(changed, "edges")
 	}
 	return true, changed, nil
+}
+
+func missingScript(root string, g *Graph) error {
+	for _, n := range g.Nodes {
+		fields := strings.Fields(n.Run)
+		if len(fields) == 0 || !strings.Contains(fields[0], "/") || filepath.IsAbs(fields[0]) {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(root, fields[0])); err != nil {
+			return fmt.Errorf(errNoScript, g.Name, n.Role, fields[0], root, g.Name)
+		}
+	}
+	return nil
 }
 
 func sameStep(x, y Node) bool {

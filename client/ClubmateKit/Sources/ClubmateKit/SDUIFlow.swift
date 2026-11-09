@@ -216,8 +216,10 @@ public struct SDUILanes: Sendable, Equatable {
         public let bar: String?
         public let round: Int
         public let time: String?
+        public let pending: Bool
 
-        public init(actor: String, cause: Int = -1, label: String? = nil, tooltip: String = "", out: String? = nil, current: Bool = false, user: Bool = false, last: Bool = false, end: String? = nil, tone: String? = nil, ref: String? = nil, bar: String? = nil, round: Int = 0, time: String? = nil) {
+        public init(actor: String, cause: Int = -1, label: String? = nil, tooltip: String = "", out: String? = nil, current: Bool = false, user: Bool = false, last: Bool = false, end: String? = nil, tone: String? = nil, ref: String? = nil, bar: String? = nil, round: Int = 0, time: String? = nil, pending: Bool = false) {
+            self.pending = pending
             self.bar = bar
             self.round = round
             self.time = time

@@ -21,8 +21,10 @@ public struct SDUIGraph: Sendable, Equatable {
         public let bar: String?
         public let tone: String?
         public let round: Int
+        public let pending: Bool
 
-        public init(node: String, cause: Int = -1, label: String? = nil, tooltip: String = "", out: String? = nil, current: Bool = false, user: Bool = false, last: Bool = false, end: String? = nil, bar: String? = nil, tone: String? = nil, round: Int = 0) {
+        public init(node: String, cause: Int = -1, label: String? = nil, tooltip: String = "", out: String? = nil, current: Bool = false, user: Bool = false, last: Bool = false, end: String? = nil, bar: String? = nil, tone: String? = nil, round: Int = 0, pending: Bool = false) {
+            self.pending = pending
             self.bar = bar
             self.tone = tone
             self.round = round
@@ -51,7 +53,8 @@ public struct SDUIGraph: Sendable, Equatable {
                 end: fields["end"]?.stringValue,
                 bar: fields["bar"]?.stringValue,
                 tone: fields["tone"]?.stringValue,
-                round: SDUIFlow.int(fields["round"]) ?? 0
+                round: SDUIFlow.int(fields["round"]) ?? 0,
+                pending: fields["pending"]?.boolValue ?? false
             )
         }
     }
@@ -60,8 +63,10 @@ public struct SDUIGraph: Sendable, Equatable {
     public let edges: [Edge]
     public let moves: [Move]
     public let reached: Bool
+    public let isStatic: Bool
 
-    public init(nodes: [Node], edges: [Edge], moves: [Move] = [], reached: Bool = false) {
+    public init(nodes: [Node], edges: [Edge], moves: [Move] = [], reached: Bool = false, isStatic: Bool = false) {
+        self.isStatic = isStatic
         self.nodes = nodes
         self.edges = edges
         self.moves = moves
@@ -76,7 +81,7 @@ public struct SDUIGraph: Sendable, Equatable {
         let actors = nodes.map { SDUILanes.Actor(id: $0.id, label: $0.label, icon: $0.icon, tone: $0.tone, attention: $0.attention, pending: $0.pending) }
         return SDUILanes(actors: actors, moves: moves.enumerated().map { index, move in
             let end = move.end.map { end in nodes.first { $0.id == move.node }?.outs.first { $0.id == end }?.label ?? end }
-            return SDUILanes.Move(actor: move.node, cause: move.cause, label: move.label, tooltip: move.tooltip, out: move.out, current: move.current, user: move.user, last: move.last, end: end, tone: move.tone, ref: String(index), bar: move.bar, round: move.round)
+            return SDUILanes.Move(actor: move.node, cause: move.cause, label: move.label, tooltip: move.tooltip, out: move.out, current: move.current, user: move.user, last: move.last, end: end, tone: move.tone, ref: String(index), bar: move.bar, round: move.round, pending: move.pending)
         }, title: "History", collapsed: true)
     }
 }
@@ -89,7 +94,8 @@ extension SDUINode {
             nodes: nodes.compactMap(SDUIGraph.Node.init),
             edges: props["edges"]?.arrayValue?.compactMap(SDUIGraph.Edge.init) ?? [],
             moves: moves.enumerated().map { SDUIGraph.Move($0.element, index: $0.offset) },
-            reached: bool("reached") ?? false
+            reached: bool("reached") ?? false,
+            isStatic: bool("static") ?? false
         )
     }
 }
