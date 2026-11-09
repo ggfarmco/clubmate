@@ -82,6 +82,7 @@ struct WorktreeTitleMenu: View {
         .buttonStyle(.plain)
         .fixedSize()
         .help(title)
+        .testNode("worktree.pill", role: "button", label: title)
         .testPresenter("worktree", shown)
         .onChange(of: shown.wrappedValue) { _, shown in
             guard shown else { return }

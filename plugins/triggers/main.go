@@ -238,6 +238,7 @@ func (a *app) selectTrigger(ctx context.Context, workspace, id string) error {
 	if err := a.host.StorageSet(ctx, automation.SelectedKey(workspace), id); err != nil {
 		return err
 	}
+	a.unfoldGroupOf(workspace, id)
 	a.registry.Invalidate(workspace)
 	a.registry.Flush(ctx)
 	return nil
@@ -325,6 +326,14 @@ func (a *app) fold(workspace, id string, collapsed bool) {
 		a.collapsed[workspace] = map[string]bool{}
 	}
 	a.collapsed[workspace][id] = collapsed
+}
+
+func (a *app) unfoldGroupOf(workspace, id string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if t, ok := a.triggers[id]; ok && t.Run != "" {
+		delete(a.collapsed[workspace], groupPrefix+t.Run)
+	}
 }
 
 func (a *app) folds(workspace string) map[string]bool {

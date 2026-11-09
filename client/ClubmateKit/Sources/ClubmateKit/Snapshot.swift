@@ -93,10 +93,11 @@ public struct PointerRequest: Codable, Equatable, Sendable {
     public let context: Bool?
     public let item: String?
     public let file: String?
+    public let dy: Double?
     public let workspaceId: String?
     public let caller: String?
 
-    public init(action: String, node: String, at: [Double]? = nil, count: Int? = nil, to: String? = nil, keys: String? = nil, context: Bool? = nil, item: String? = nil, file: String? = nil, workspaceId: String? = nil, caller: String? = nil) {
+    public init(action: String, node: String, at: [Double]? = nil, count: Int? = nil, to: String? = nil, keys: String? = nil, context: Bool? = nil, item: String? = nil, file: String? = nil, dy: Double? = nil, workspaceId: String? = nil, caller: String? = nil) {
         self.action = action
         self.node = node
         self.at = at
@@ -106,6 +107,7 @@ public struct PointerRequest: Codable, Equatable, Sendable {
         self.context = context
         self.item = item
         self.file = file
+        self.dy = dy
         self.workspaceId = workspaceId
         self.caller = caller
     }

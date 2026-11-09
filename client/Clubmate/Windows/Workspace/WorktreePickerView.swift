@@ -53,6 +53,7 @@ private struct WorktreePickerPanel: View {
         }
         .frame(width: width)
         .modifier(PickerChrome())
+        .testNode("worktrees", role: "picker")
         .overlay(alignment: .topLeading) {
             if let folder = picker.actionsFolder {
                 WorktreeFolderActions(session: session, picker: picker, folder: folder, close: close)
@@ -61,6 +62,7 @@ private struct WorktreePickerPanel: View {
             }
         }
         .onClickOutside { [session] in session.closeWorktreePicker() }
+        .environment(\.sduiParent, "worktrees")
         .padding(.leading, min(pill, max(WorktreePickerMetrics.margin, window.width - width - WorktreePickerMetrics.margin)))
     }
 
@@ -151,6 +153,7 @@ private struct WorktreePickerContent: View {
             list
             theme.border.frame(height: 1)
             footer
+                .environment(\.sduiParent, "worktrees.actions")
         }
         .keyMonitor(active: picker.actionsFolder == nil, handle: handleKey)
     }
@@ -173,7 +176,7 @@ private struct WorktreePickerContent: View {
             }
             field
             if let folder = picker.scopedFolder, let target = picker.actionsTarget(), target.path == folder.path {
-                WorktreeMoreButton { picker.actionsFolder = folder }
+                WorktreeMoreButton(probe: "worktrees.more") { picker.actionsFolder = folder }
             }
         }
         .padding(theme.gutter)
@@ -376,13 +379,13 @@ private struct WorktreePickerRowView: View {
         case .folderHeader(let folder):
             folderHeader(folder)
         case .worktree(let entry, let style):
-            pickable(height: theme.rowHeight + 2) { worktree(entry, style) }
+            pickable(height: theme.rowHeight + 2, label: entry.name) { worktree(entry, style) }
         case .task(let task):
-            pickable(height: theme.rowHeight2 + 6) { taskRow(task) }
+            pickable(height: theme.rowHeight2 + 6, label: task.title) { taskRow(task) }
         case .folder(let folder):
-            pickable(height: theme.rowHeight + 2) { folderRow(folder) }
+            pickable(height: theme.rowHeight + 2, label: folder.name) { folderRow(folder) }
         case .fold(let id, let text):
-            pickable(height: theme.rowHeight + 2) {
+            pickable(height: theme.rowHeight + 2, label: text) {
                 HStack(spacing: theme.gutter) {
                     Image(systemName: "chevron.right")
                         .font(theme.uiSmall)
@@ -411,7 +414,7 @@ private struct WorktreePickerRowView: View {
                 }
             }
         case .branch(let branch, let folder):
-            pickable(height: theme.rowHeight + 2) {
+            pickable(height: theme.rowHeight + 2, label: branch.name) {
                 HStack(spacing: theme.gutter) {
                     glyph("arrow.triangle.branch", tone: "")
                     label(folder: folder, name: branch.name, faint: true)
@@ -426,7 +429,7 @@ private struct WorktreePickerRowView: View {
         }
     }
 
-    private func pickable(height: CGFloat, @ViewBuilder content: () -> some View) -> some View {
+    private func pickable(height: CGFloat, label: String, @ViewBuilder content: () -> some View) -> some View {
         content()
             .font(theme.ui)
             .padding(.horizontal, theme.gutter * 1.5)
@@ -437,6 +440,7 @@ private struct WorktreePickerRowView: View {
             }
             .contentShape(Rectangle())
             .onHover { hovering = $0 }
+            .testRow(row.id, label: label, selected: selected, hovered: hovering)
     }
 
     private func worktree(_ entry: WorktreeEntry, _ style: WorktreePickerRow.Style) -> some View {
@@ -525,7 +529,7 @@ private struct WorktreePickerRowView: View {
                     .foregroundStyle(theme.muted)
                     .lineLimit(1)
                     .truncationMode(.label)
-                WorktreeMoreButton { picker.actionsFolder = folder }
+                WorktreeMoreButton(probe: "worktrees.more:\(folder.path)") { picker.actionsFolder = folder }
             }
             .frame(height: theme.rowHeight + 6, alignment: .bottom)
             if !folder.byline.isEmpty {
@@ -612,6 +616,7 @@ private struct WorktreeNewChip: View {
 }
 
 private struct WorktreeMoreButton: View {
+    let probe: String
     let action: () -> Void
 
     @State private var hovering = false
@@ -629,6 +634,7 @@ private struct WorktreeMoreButton: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .help("Folder actions (⌘↩)")
+        .testNode(probe, role: "button")
     }
 }
 
@@ -662,6 +668,7 @@ private struct WorktreePickerAction: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        .testRow(title, label: title, selected: false, hovered: hovering)
     }
 }
 
@@ -741,8 +748,10 @@ private struct WorktreeFolderActions: View {
                 }
                 .buttonStyle(.plain)
                 .onHover { if $0 { selection = index } }
+                .testRow(item.id, label: item.id, selected: index == selection)
             }
         }
+        .environment(\.sduiParent, "worktrees.folder")
         .padding(.vertical, theme.spacing.s)
         .modifier(PickerChrome())
         .keyMonitor(active: true, handle: { handleKey($0, items) })

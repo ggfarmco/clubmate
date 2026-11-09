@@ -277,7 +277,7 @@ final class AppModel {
     }
 
     private func approve(_ request: ConfirmRequest, _ expiry: ConfirmExpiry) async -> Bool {
-        if TestMode.current { return false }
+        if TestMode.current, !TestHarness.approvals { return false }
         let window = windows.attentionWindow.map { onboarding.show || $0.attachedSheet?.identifier == ReportSheet.windowID ? $0.attachedSheet ?? $0 : $0 }
         let attention = NSApp.requestUserAttention(.criticalRequest)
         defer { NSApp.cancelUserAttentionRequest(attention) }

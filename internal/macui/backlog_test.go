@@ -51,3 +51,16 @@ func TestBacklogStartPopoverAndDrop(t *testing.T) {
 		in.eventually("the agent starts", func() bool { return len(in.sessions()) == 1 })
 	})
 }
+
+func TestBacklogTagChipsKeepTheSelectionWhenUnfolded(t *testing.T) {
+	in := start(t, "macui-tags", "")
+	in.cm("command", "run", "backlog.add", "title=Tagged", "status=todo", "tags=a,b,c,d,e,f,g,h")
+	in.focusSection("backlog", "backlog.sidebar")
+	in.eventually("the tags fold after six", func() bool { return in.snapshot().main().has("tags#more") })
+	in.pointer("click", "tags#tag:b")
+	in.eventually("the clicked tag is selected", func() bool { return in.selected("tags#tag:b") })
+	in.pointer("click", "tags#more")
+	in.eventually("the tags unfold", func() bool { return in.snapshot().main().has("tags#tag:h") })
+	assert.True(t, in.selected("tags#tag:b"))
+	assert.False(t, in.selected("tags#less"))
+}

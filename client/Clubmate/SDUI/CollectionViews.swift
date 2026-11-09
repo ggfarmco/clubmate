@@ -119,6 +119,7 @@ struct TabButton: View {
         .accessibilityLabel([item.label, item.badge].compactMap { $0 }.joined(separator: " "))
         .accessibilityAddTraits(selected ? .isSelected : [])
         .onHover { hovering = $0 }
+        .testRow(item.id, label: item.label, selected: selected, focused: keyboardFocus && focused, hovered: hovering)
     }
 
     private var fill: Color {

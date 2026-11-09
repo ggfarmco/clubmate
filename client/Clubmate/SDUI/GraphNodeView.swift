@@ -137,6 +137,7 @@ struct GraphNodeView: View {
                 .font(theme.uiSmall.monospacedDigit())
                 .foregroundStyle(theme.muted)
                 .padding(.horizontal, theme.spacing.s)
+                .testNode("\(id)/zoom", role: "zoom", label: "\(Int((zoom * 100).rounded()))%")
             GraphZoomButton(label: "+", help: "Zoom in  +") { views.zoom(id, steps: 1, from: zoom) }
             GraphZoomButton(label: "Fit", help: "Fit to width  0") { views.fit(id) }
         }

@@ -28,6 +28,7 @@ struct InboxView: View {
                             switch pin {
                             case .permission(let alert):
                                 row(
+                                    id: alert.id,
                                     kind: alert.kind,
                                     title: alert.title,
                                     message: alert.body,
@@ -39,6 +40,7 @@ struct InboxView: View {
                                 entryRow(entry, notifications)
                             }
                         }
+                        .environment(\.sduiParent, "inbox.pinned")
                         Divider()
                         caption("History")
                     }
@@ -51,6 +53,7 @@ struct InboxView: View {
                     ForEach(history) { entry in
                         entryRow(entry, notifications)
                     }
+                    .environment(\.sduiParent, "inbox")
                 }
             }
             if notifications.systemOff {
@@ -108,6 +111,7 @@ struct InboxView: View {
 
     private func entryRow(_ entry: InboxEntry, _ notifications: Notifications) -> some View {
         row(
+            id: entry.id,
             kind: entry.note.kind,
             title: entry.note.what,
             message: entry.note.message,
@@ -117,7 +121,7 @@ struct InboxView: View {
         ) { open { notifications.open(entry) } }
     }
 
-    private func row(kind: NotificationKind, title: String, message: String, source: String, date: Date?, unread: Bool, action: @escaping () -> Void) -> some View {
+    private func row(id: String, kind: NotificationKind, title: String, message: String, source: String, date: Date?, unread: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(alignment: .top, spacing: theme.gutter) {
                 Image(systemName: kind.symbol)
@@ -163,6 +167,7 @@ struct InboxView: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(unread ? "Unread, " : "")\(kind.label): \(title). \(message). \(source)")
+        .testRow(id, label: title, selected: unread)
     }
 
     private func footer(_ notifications: Notifications) -> some View {

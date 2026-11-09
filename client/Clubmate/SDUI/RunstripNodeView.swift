@@ -61,12 +61,13 @@ struct RunstripNodeView: View {
             Canvas { context, size in
                 draw(&context, strip: strip, size: size, k: k, inset: inset)
             }
-            ForEach(Array(strip.runs.enumerated()), id: \.offset) { _, run in
+            ForEach(Array(strip.runs.enumerated()), id: \.offset) { index, run in
                 RunDot(run: run, selected: run.ref != nil && run.ref == strip.selected, k: k) {
                     guard let ref = run.ref else { return }
                     focused = true
                     dispatch(node, .select(ref))
                 }
+                .testRow(String(index), label: run.tooltip ?? run.status.rawValue, selected: run.ref != nil && run.ref == strip.selected, focused: focused)
                 .position(x: strip.x(run.at, width: width, inset: inset), y: axisY(k))
             }
         }

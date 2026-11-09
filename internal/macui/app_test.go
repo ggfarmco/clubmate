@@ -259,6 +259,45 @@ func (w *window) label(role, label string) *element {
 	return w.find(func(e element) bool { return e.Role == role && e.Label == label })
 }
 
+type sduiNode struct {
+	ID       string         `json:"id"`
+	Type     string         `json:"type"`
+	Props    map[string]any `json:"props"`
+	Children []sduiNode     `json:"children"`
+}
+
+func (in *instance) sdui(id string) *sduiNode {
+	in.t.Helper()
+	var slots []struct {
+		Tree sduiNode `json:"tree"`
+	}
+	in.json(&slots, "ui", "dump", "--workspace", in.workspace)
+	for _, s := range slots {
+		if n := s.Tree.find(id); n != nil {
+			return n
+		}
+	}
+	return nil
+}
+
+func (n *sduiNode) find(id string) *sduiNode {
+	if n.ID == id {
+		return n
+	}
+	for i := range n.Children {
+		if f := n.Children[i].find(id); f != nil {
+			return f
+		}
+	}
+	return nil
+}
+
+func (in *instance) selected(id string) bool {
+	in.t.Helper()
+	e := in.snapshot().main().node(id)
+	return e != nil && slices.Contains(strings.Fields(e.Role), "selected")
+}
+
 func (in *instance) eventually(what string, ok func() bool) {
 	in.t.Helper()
 	deadline := time.Now().Add(15 * time.Second)

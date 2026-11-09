@@ -197,6 +197,7 @@ struct ReportSheet: View {
                 .padding(.vertical, theme.spacing.s)
                 .frame(height: theme.rowHeight * 3)
                 .fieldChrome(focused: focus == field)
+                .testNode(field == .text ? "report.text" : "report.summary", role: "editor")
         }
     }
 

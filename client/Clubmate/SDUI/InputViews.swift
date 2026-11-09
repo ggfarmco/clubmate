@@ -218,6 +218,9 @@ enum Confirmation {
         alert.messageText = message
         alert.informativeText = detail
         alert.accessoryView = accessory(facts: facts, body: body, font: font)
+        if TestMode.current, let view = alert.window.contentView {
+            TestHarness.shared.probe("alert.detail", role: "text", label: detail, filling: view)
+        }
         let buttons = (cancelFirst ? [cancel, action] : [action, cancel]).map { alert.addButton(withTitle: $0) }
         let (confirm, dismiss) = cancelFirst ? (buttons[1], buttons[0]) : (buttons[0], buttons[1])
         let confirmed: NSApplication.ModalResponse = cancelFirst ? .alertSecondButtonReturn : .alertFirstButtonReturn
@@ -253,7 +256,7 @@ enum Confirmation {
             label.textColor = .secondaryLabelColor
             label.isSelectable = false
             label.preferredMaxLayoutWidth = bodySize.width
-            label.frame.size = NSSize(width: bodySize.width, height: label.fittingSize.height)
+            label.frame.size = NSSize(width: bodySize.width, height: neededHeight(label, width: bodySize.width))
             return label
         }()
         let scroll = body.map { bodyView($0, font: font) }
@@ -268,8 +271,16 @@ enum Confirmation {
         if let label {
             label.frame.origin = NSPoint(x: 0, y: height - label.frame.height)
             container.addSubview(label)
+            if TestMode.current {
+                TestHarness.shared.probe("alert.facts", role: neededHeight(label, width: label.frame.width) > label.frame.height ? "text clipped" : "text", label: facts, filling: label)
+                TestHarness.shared.probe("alert.accessory", role: "stack", label: "", filling: container)
+            }
         }
         return container
+    }
+
+    private static func neededHeight(_ label: NSTextField, width: CGFloat) -> CGFloat {
+        (label.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: .greatestFiniteMagnitude)).height ?? label.fittingSize.height).rounded(.up)
     }
 
     private static let factsGap: CGFloat = 10
@@ -329,6 +340,7 @@ enum TextPrompt {
         field.frame = NSRect(x: 0, y: 0, width: 260, height: 22)
         alert.accessoryView = field
         alert.window.initialFirstResponder = field
+        alert.testProbe()
         let response: NSApplication.ModalResponse
         if let window = NSApp.promptWindow {
             response = await alert.beginSheetModal(for: window)
@@ -355,6 +367,7 @@ enum ChoicePrompt {
         if options.indices.contains(selected) { popup.selectItem(at: selected) }
         alert.accessoryView = popup
         alert.window.initialFirstResponder = popup
+        alert.testProbe(options)
         let response: NSApplication.ModalResponse
         if let window = NSApp.promptWindow {
             response = await alert.beginSheetModal(for: window)

@@ -117,6 +117,7 @@ struct FlowDiagram: View {
 
     @State private var pointer: (edge: Int, at: CGPoint)?
     @Environment(\.theme) private var theme
+    @Environment(\.sduiParent) private var probeParent
 
     private struct Slot {
         let card: SDUIFlow.Card
@@ -156,6 +157,7 @@ struct FlowDiagram: View {
                     open(slot.card.id)
                 }
                 .frame(width: slot.rect.width, height: slot.rect.height)
+                .testRow("card/\(slot.card.id)", label: slot.card.label, selected: edgeCursor == nil && cursor == slot.card.id)
                 .id(slot.card.id)
                 .position(x: slot.rect.midX, y: slot.rect.midY)
             }
@@ -165,8 +167,18 @@ struct FlowDiagram: View {
             .allowsHitTesting(false)
             if let tip, let text = flow.edges[tip.edge].tooltip {
                 FlowTooltip(text: text, opens: flow.edges[tip.edge].ref != nil, k: frame.k)
+                    .testNode("\(probeParent ?? "")/tooltip", role: "tooltip", label: text)
                     .offset(x: max(0, min(tip.at.x + 10 * frame.k, frame.width - 260 * frame.k)), y: tip.at.y > frame.height - 60 * frame.k ? tip.at.y - 48 * frame.k : tip.at.y + 14 * frame.k)
                     .allowsHitTesting(false)
+            }
+            if TestMode.current {
+                ForEach(frame.layout.routes.filter { flow.edges.indices.contains($0.edge) && flow.edges[$0.edge].pointable }, id: \.edge) { route in
+                    Color.clear
+                        .frame(width: 6 * k, height: 6 * k)
+                        .testRow("edge/\(route.edge)", label: flow.edges[route.edge].tooltip ?? "", selected: edgeCursor == route.edge, hovered: pointer?.edge == route.edge)
+                        .position(x: route.middle.x + frame.origin.x, y: route.middle.y + frame.origin.y)
+                        .allowsHitTesting(false)
+                }
             }
         }
         .frame(width: frame.width, height: frame.height, alignment: .topLeading)

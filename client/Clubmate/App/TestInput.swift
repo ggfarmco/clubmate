@@ -87,6 +87,7 @@ enum TestKeyWindow {
 
 extension NSWindow {
     var isPopover: Bool { String(describing: type(of: self)).contains("Popover") }
+    var isAlert: Bool { String(describing: type(of: self)).contains("Alert") }
 
     @objc func test_isKeyWindow() -> Bool {
         MainActor.assumeIsolated { TestKeyWindow.current === self }
@@ -232,3 +233,63 @@ final class TestDraggingInfo: NSObject, NSDraggingInfo {
     }
 }
 
+
+@MainActor
+enum TestScroll {
+    private static var installed = false
+    private static var next: Int64 = 0x7E57_0000
+    private static var pending: [Int64: (window: NSWindow, point: NSPoint)] = [:]
+    private static var resolving = false
+
+    static func event(at point: NSPoint, in window: NSWindow, dy: Double, flags: NSEvent.ModifierFlags) -> NSEvent? {
+        install()
+        guard let cg = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: Int32(dy.rounded()), wheel2: 0, wheel3: 0) else { return nil }
+        cg.flags = CGEventFlags(rawValue: UInt64(flags.rawValue))
+        next += 1
+        cg.setIntegerValueField(.eventSourceUserData, value: next)
+        pending[next] = (window, point)
+        return NSEvent(cgEvent: cg)
+    }
+
+    static func done() {
+        pending.removeAll()
+    }
+
+    static func target(_ event: NSEvent) -> (window: NSWindow, point: NSPoint)? {
+        guard !pending.isEmpty, !resolving, event.type == .scrollWheel else { return nil }
+        resolving = true
+        defer { resolving = false }
+        return event.cgEvent.flatMap { pending[$0.getIntegerValueField(.eventSourceUserData)] }
+    }
+
+    private static func install() {
+        guard !installed else { return }
+        installed = true
+        for (original, replacement) in [(#selector(getter: NSEvent.window), #selector(NSEvent.test_window)), (#selector(getter: NSEvent.windowNumber), #selector(NSEvent.test_windowNumber)), (#selector(getter: NSEvent.locationInWindow), #selector(NSEvent.test_locationInWindow))] {
+            guard let a = class_getInstanceMethod(NSEvent.self, original), let b = class_getInstanceMethod(NSEvent.self, replacement) else {
+                fatalError("test input: cannot swizzle \(original)")
+            }
+            method_exchangeImplementations(a, b)
+        }
+    }
+}
+
+extension NSEvent {
+    private var scrollTarget: (window: NSWindow, point: NSPoint)? {
+        guard Thread.isMainThread else { return nil }
+        nonisolated(unsafe) let event = self
+        return MainActor.assumeIsolated { TestScroll.target(event) }
+    }
+
+    @objc func test_window() -> NSWindow? {
+        scrollTarget?.window ?? test_window()
+    }
+
+    @objc func test_windowNumber() -> Int {
+        scrollTarget?.window.windowNumber ?? test_windowNumber()
+    }
+
+    @objc func test_locationInWindow() -> NSPoint {
+        scrollTarget?.point ?? test_locationInWindow()
+    }
+}

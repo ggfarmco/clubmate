@@ -590,6 +590,7 @@ private struct ConnectRepoRow: View {
         .overlay(alignment: .leading) {
             if cursor { theme.accent.frame(width: 2) }
         }
+        .testRow(repo.key, label: repo.name, selected: ticked, focused: cursor)
     }
 
     private var checkbox: some View {

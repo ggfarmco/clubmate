@@ -260,10 +260,12 @@ struct LanesView: View {
                             if move.bar != nil {
                                 let from = barStart(index), to = barEnd(index, width: width)
                                 LaneMoveBar(move: move, length: to - from, height: 10 * k, focused: cursor == index) { openMove(index) }
+                                    .testRow(String(index), label: move.tooltip, selected: cursor == index)
                                     .id(index)
                                     .position(x: (from + to) / 2, y: laneY(row))
                             } else {
                                 LaneMoveDot(actor: actors[row], move: move, size: 14 * k, focused: cursor == index) { openMove(index) }
+                                    .testRow(String(index), label: move.tooltip, selected: cursor == index)
                                     .id(index)
                                     .position(x: moveX(index), y: laneY(row))
                             }

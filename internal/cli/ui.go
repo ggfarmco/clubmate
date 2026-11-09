@@ -30,7 +30,7 @@ type uiEventOptions struct {
 
 func (a *app) uiCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "ui", Short: "Inspect and drive plugin UI"}
-	cmd.AddCommand(a.uiSectionsCmd(), a.uiDumpCmd(), a.uiEventCmd(), a.uiSnapshotCmd(), a.uiPresentCmd(), a.uiKeyCmd(), a.uiPointerCmd("click"), a.uiPointerCmd("hover"), a.uiPointerCmd("drag"), a.uiPointerCmd("menu"), a.uiPointerCmd("drop"))
+	cmd.AddCommand(a.uiSectionsCmd(), a.uiDumpCmd(), a.uiEventCmd(), a.uiSnapshotCmd(), a.uiPresentCmd(), a.uiKeyCmd(), a.uiPointerCmd("click"), a.uiPointerCmd("hover"), a.uiPointerCmd("drag"), a.uiPointerCmd("menu"), a.uiPointerCmd("scroll"), a.uiPointerCmd("drop"))
 	return cmd
 }
 
@@ -277,17 +277,19 @@ func (a *app) uiKeyCmd() *cobra.Command {
 }
 
 var pointerUsage = map[string][2]string{
-	"click": {"click <node>", "Click a node in a test-mode app (--at x,y from its top left, --count 2 for a double click)"},
-	"hover": {"hover <node>", "Move the pointer over a node in a test-mode app"},
-	"drag":  {"drag <from node> <to node>", "Press on one node, move to another and release, in one window of a test-mode app"},
-	"menu":  {"menu <node> [item]", "Open the menu a click (or --context: a right click) on a node shows and pick an item (path a > b); without item list it"},
-	"drop":  {"drop <node> <file>", "Drop a file on a node in a test-mode app as if dragged from Finder"},
+	"click":  {"click <node>", "Click a node in a test-mode app (--at x,y from its top left, --count 2 for a double click)"},
+	"hover":  {"hover <node>", "Move the pointer over a node in a test-mode app"},
+	"drag":   {"drag <from node> <to node>", "Press on one node, move to another and release, in one window of a test-mode app"},
+	"menu":   {"menu <node> [item]", "Open the menu a click (or --context: a right click) on a node shows and pick an item (path a > b); without item list it"},
+	"scroll": {"scroll <node>", "Turn the scroll wheel over a node in a test-mode app (--dy lines, negative scrolls up; --keys cmd for ⌘+wheel)"},
+	"drop":   {"drop <node> <file>", "Drop a file on a node in a test-mode app as if dragged from Finder"},
 }
 
 func (a *app) uiPointerCmd(action string) *cobra.Command {
 	var (
 		workspaceID, at, keys string
 		count                 int
+		dy                    float64
 		context               bool
 	)
 	args := map[string]cobra.PositionalArgs{"drag": cobra.ExactArgs(2), "menu": cobra.RangeArgs(1, 2), "drop": cobra.ExactArgs(2)}[action]
@@ -324,6 +326,9 @@ func (a *app) uiPointerCmd(action string) *cobra.Command {
 			if count > 1 {
 				params["count"] = count
 			}
+			if dy != 0 {
+				params["dy"] = dy
+			}
 			if keys != "" {
 				params["keys"] = keys
 			}
@@ -344,6 +349,8 @@ func (a *app) uiPointerCmd(action string) *cobra.Command {
 		cmd.Flags().IntVar(&count, "count", 1, "clicks, 2 for a double click")
 	case "menu":
 		cmd.Flags().BoolVar(&context, "context", false, "open the node's context menu (right click)")
+	case "scroll":
+		cmd.Flags().Float64Var(&dy, "dy", 0, "wheel lines, positive scrolls down, negative up")
 	}
 	return cmd
 }

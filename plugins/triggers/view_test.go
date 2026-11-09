@@ -74,6 +74,19 @@ func TestGraphTriggersGroupUnderTheirRun(t *testing.T) {
 	shortcuttest.RequireDeclared(t, view)
 }
 
+func TestSelectingAGraphTriggerUnfoldsItsRun(t *testing.T) {
+	a := newApp()
+	a.triggers["tr_1"] = &Trigger{ID: "tr_1", Workspace: "ws1", Run: "gr_1"}
+	a.triggers["tr_2"] = &Trigger{ID: "tr_2", Workspace: "ws1"}
+	a.fold("ws1", "graph:gr_1", true)
+	a.fold("ws1", "graph:gr_2", true)
+
+	a.unfoldGroupOf("ws1", "tr_2")
+	assert.Equal(t, map[string]bool{"graph:gr_1": true, "graph:gr_2": true}, a.folds("ws1"))
+	a.unfoldGroupOf("ws1", "tr_1")
+	assert.Equal(t, map[string]bool{"graph:gr_2": true}, a.folds("ws1"))
+}
+
 func TestUserTriggerDrawsItsLastChainAndRunsAsLanes(t *testing.T) {
 	at := time.Date(2026, 11, 3, 2, 36, 0, 0, time.UTC)
 	chain := &automation.Chain{Session: "agt_9", Title: "Nightly tidy", Status: "done", CronJob: "cj_1", CronName: "Nightly tidy"}
