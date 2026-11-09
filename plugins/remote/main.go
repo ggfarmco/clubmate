@@ -22,6 +22,7 @@ import (
 
 const (
 	listenEnv    = "CLUBMATE_REMOTE_LISTEN"
+	testModeEnv  = "CLUBMATE_TEST_MODE"
 	defaultPort  = 47621
 	rescanEvery  = 30 * time.Second
 	pushTimeout  = time.Minute
@@ -102,6 +103,7 @@ type deviceView struct {
 	PairedAt  time.Time `json:"pairedAt"`
 	LastSeen  time.Time `json:"lastSeen"`
 	Connected bool      `json:"connected"`
+	Push      bool      `json:"push"`
 	Macs      []macInfo `json:"macs"`
 }
 
@@ -541,7 +543,7 @@ func (a *app) devices() []deviceView {
 	list := a.srv.devices.list()
 	out := make([]deviceView, 0, len(list))
 	for _, d := range list {
-		out = append(out, deviceView{ID: d.ID, Name: d.Name, Model: d.Model, PairedAt: wireTime(d.PairedAt), LastSeen: wireTime(d.LastSeen), Connected: a.srv.hub.connected(d.ID), Macs: nonNil(d.Macs)})
+		out = append(out, deviceView{ID: d.ID, Name: d.Name, Model: d.Model, PairedAt: wireTime(d.PairedAt), LastSeen: wireTime(d.LastSeen), Connected: a.srv.hub.connected(d.ID), Push: d.PushToken != "", Macs: nonNil(d.Macs)})
 	}
 	return out
 }

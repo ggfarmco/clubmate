@@ -54,14 +54,30 @@ struct SDUINodeView: View {
     var body: some View {
         if let kind = SDUIKind(rawValue: node.type) {
             content(kind)
+        } else if MacOnlyCaption.types.contains(node.type), node.children.isEmpty {
+            macOnly
         } else if MacOnlyCaption.types.contains(node.type) {
-            if let title = node.string("title"), ["runstrip", "lanes"].contains(node.type), !title.isEmpty {
-                DrawnRunsSummary(node: node, title: title)
-            } else if !MacOnlyCaption.ghostOnly(node) {
-                MacOnlyCaption(type: node.type)
+            VStack(alignment: .leading, spacing: 12) {
+                macOnly
+                SDUIChildren(node: node, context: context)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             SDUIPlaceholder(type: node.type)
+        }
+    }
+
+    @ViewBuilder
+    private var macOnly: some View {
+        if let title = node.string("title"), ["runstrip", "lanes"].contains(node.type), !title.isEmpty {
+            DrawnRunsSummary(node: node, title: title)
+        } else if node.type == "graph", node.props["nodes"]?.arrayValue?.isEmpty == false {
+            VStack(alignment: .leading, spacing: 8) {
+                MacOnlyCaption(type: node.type)
+                GraphNodeList(node: node, context: context)
+            }
+        } else if !MacOnlyCaption.ghostOnly(node) {
+            MacOnlyCaption(type: node.type)
         }
     }
 

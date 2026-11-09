@@ -87,7 +87,7 @@
         "title": "Paired devices",
         "hidden": true,
         "scope": "app",
-        "description": "Paired devices, newest first: [{id, name, model, pairedAt, lastSeen, connected, macs: [{name, colour}]}]; macs are the other Macs that device has paired."
+        "description": "Paired devices, newest first: [{id, name, model, pairedAt, lastSeen, connected, push, macs: [{name, colour}]}]; push is true once the device sent a push token; macs are the other Macs that device has paired."
       },
       {
         "id": "remote.revoke",

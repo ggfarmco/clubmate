@@ -284,7 +284,7 @@ public final class CompanionModel {
     }
 
     private func receive(_ item: InboxItem, seq: Int) async {
-        let allowed = await policy(item).allows(item.kind)
+        let allowed = item.always ? true : await policy(item).allows(item.kind)
         guard inbox.add(item) else { return }
         let resolved = (item.session.flatMap { resolvedAt[Self.resolvedKey(item.computerID, $0, item.kind)] } ?? 0) > seq
         if !allowed || resolved {

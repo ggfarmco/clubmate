@@ -38,6 +38,49 @@ struct MacOnlyCaption: View {
     }
 }
 
+struct GraphNodeList: View {
+    let node: SDUINode
+    let context: SDUIContext
+    @Environment(\.sduiInset) private var inset
+
+    var body: some View {
+        let cards = (node.props["nodes"]?.arrayValue ?? []).compactMap { card in card["id"]?.stringValue.map { (id: $0, card: card) } }
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(cards.enumerated()), id: \.element.id) { index, entry in
+                if index > 0 { Divider().padding(.leading, 16) }
+                Button {
+                    context.run { await $0.fire(node, .named("open", .string(entry.id))) }
+                } label: {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(entry.card["label"]?.stringValue ?? entry.id)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            if let state = entry.card["state"]?.stringValue, !state.isEmpty {
+                                Text(state)
+                                    .font(.footnote)
+                                    .foregroundStyle(SDUITone.ink(entry.card["tone"]?.stringValue) ?? .secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        RowChevron(always: true)
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 50)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .background(Color.surface1, in: .rect(cornerRadius: 20))
+        .padding(.horizontal, inset)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("sdui.graph.nodes")
+    }
+}
+
 struct DrawnRunsSummary: View {
     let node: SDUINode
     let title: String

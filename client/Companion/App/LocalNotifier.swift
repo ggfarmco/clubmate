@@ -14,6 +14,9 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
     override init() {
         super.init()
         center.delegate = self
+        #if DEBUG
+        DebugLaunch.dumpDelivered()
+        #endif
     }
 
     func attach(model: CompanionModel, navigation: AppNavigation) {

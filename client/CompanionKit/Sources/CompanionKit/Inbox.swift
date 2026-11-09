@@ -14,9 +14,10 @@ public struct InboxItem: Sendable, Equatable, Identifiable, Hashable {
     public let viaAgent: Bool
     public let pushed: Bool
     public let quiet: Bool
+    public let always: Bool
     public let date: Date
 
-    public init(notificationID: String, computerID: String, workspace: String, session: String? = nil, collapse: String? = nil, title: String = "", message: String, kind: NotificationKind = .info, viaAgent: Bool = false, pushed: Bool = false, quiet: Bool = false, date: Date) {
+    public init(notificationID: String, computerID: String, workspace: String, session: String? = nil, collapse: String? = nil, title: String = "", message: String, kind: NotificationKind = .info, viaAgent: Bool = false, pushed: Bool = false, quiet: Bool = false, always: Bool = false, date: Date) {
         self.notificationID = notificationID
         self.computerID = computerID
         self.workspace = workspace
@@ -28,6 +29,7 @@ public struct InboxItem: Sendable, Equatable, Identifiable, Hashable {
         self.viaAgent = viaAgent
         self.pushed = pushed
         self.quiet = quiet
+        self.always = always
         self.date = date
     }
 
@@ -49,6 +51,7 @@ public struct InboxItem: Sendable, Equatable, Identifiable, Hashable {
             viaAgent: posted.viaAgent,
             pushed: posted.pushed,
             quiet: posted.quiet,
+            always: posted.always,
             date: posted.date ?? received
         )
     }

@@ -82,6 +82,7 @@ type notifyPost struct {
 	Message     string `json:"message"`
 	Kind        string `json:"kind"`
 	Quiet       bool   `json:"quiet,omitempty"`
+	Always      bool   `json:"always,omitempty"`
 }
 
 type change struct {

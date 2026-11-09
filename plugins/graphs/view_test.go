@@ -14,6 +14,7 @@ import (
 	"clubmate/pkg/pluginsdk"
 	sdk "clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/automation"
 	"clubmate/plugins/internal/shortcuttest"
 )
@@ -225,11 +226,12 @@ func TestFinishedTurnPreviewsBeforeOpening(t *testing.T) {
 	event(actOpenMove, "1")
 	event(actOpen, `"coder"`)
 	panel := agentPanel(r, "coder", 0, false)
-	_, err := a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "gr_1/" + actOpenTurn, Action: actOpenTurn})
+	opened, err := a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "gr_1/" + actOpenTurn, Action: actOpenTurn})
 	require.NoError(t, err)
 	event(actOpen, `"fixer"`)
 
 	assert.Equal(t, []any{"ws1", "agt_2", 3, "ws1", "agt_1", 1, "ws1", "agt_3", 0}, got)
+	assert.Equal(t, agentcall.Open("agt_1", 1), opened)
 	assert.Equal(t, "Fixed the flaky test.", panel.Children[1].Props["text"])
 }
 

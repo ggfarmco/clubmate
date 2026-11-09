@@ -82,12 +82,12 @@ All hidden and never remote; all but `remote.push` are app-scoped (`"scope": "ap
 | `remote.set-title-bar-colour` | `{enabled}` | status |
 | `remote.pair` | – | `{link, code, expiresAt}` (RFC 3339); enables remote access; fails without issuing a code when there is no address to listen on (e.g. Tailscale is down) |
 | `remote.cancel-pair` | – | `null` |
-| `remote.devices` | – | `[{id, name, model, pairedAt, lastSeen, connected, macs: [{name, colour}]}]`, newest first |
+| `remote.devices` | – | `[{id, name, model, pairedAt, lastSeen, connected, push, macs: [{name, colour}]}]`, newest first; `push` once the device sent a push token |
 | `remote.revoke` | `{device}` | `null`; destructive, confirm "Revoke this device's access to Clubmate?" |
 | `remote.push` | `{notification}` or `{message, title?, session?}` | `{summary, devices?: [{device, name, outcome}]}`; workspace-scoped, agent-visible; see [Real push](#real-push) |
-| `remote.set-push-relay` | `{url, token}` | status; stores the [push relay](push-relay.md)'s `url` (must be `https://`) and this Mac's relay `token` in plugin storage (`pushRelayURL`, `pushRelayToken`); an empty `url` clears both. On start the plugin deletes the old `apnsKey`, `apnsKeyID`, `apnsTeamID` keys |
+| `remote.set-push-relay` | `{url, token}` | status; stores the [push relay](push-relay.md)'s `url` (must be `https://`; `http://` to a loopback address only with `CLUBMATE_TEST_MODE=1`) and this Mac's relay `token` in plugin storage (`pushRelayURL`, `pushRelayToken`); an empty `url` clears both. On start the plugin deletes the old `apnsKey`, `apnsKeyID`, `apnsTeamID` keys |
 | `remote.report-upload` | `{path}` (absolute path of the report zip) | `{id}`; timeout 150 s (the HTTP request 2 min); see [Problem reports](#problem-reports) |
-| `remote.set-report-inbox` | `{url, token}` | `null`; dev Mac only: stores the relay `url` (must be `https://`) and an admin `token` (`reportInboxURL`, `reportInboxToken`); an empty `url` clears both. Resets `reportInboxAfter` |
+| `remote.set-report-inbox` | `{url, token}` | `null`; dev Mac only: stores the relay `url` (must be `https://`; `http://` to a loopback address only with `CLUBMATE_TEST_MODE=1`, which `plugins/remote/relay_e2e_test.go` uses against a local `clubmate-push-relay`) and an admin `token` (`reportInboxURL`, `reportInboxToken`); an empty `url` clears both. Resets `reportInboxAfter` |
 | `remote.reports-fetch` | – | `{reports: [{id, received, trusted, mac?, key, path, text, summary, warning}], rejected: [{id, error}]}`; agent-visible (`remote_reports_fetch`); timeout 600 s (each HTTP request 2 min; a run cut short keeps what it already unpacked and the next run goes on from `reportInboxAfter`); see [Fetching on the dev Mac](#fetching-on-the-dev-mac) |
 | `remote.reports-done` | `{ids}` | `null`; agent-visible (`remote_reports_done`); marks the local reports handled, an unknown id is an error |
 
@@ -163,6 +163,15 @@ Setup (user):
 4. Deploy the [push relay](push-relay.md#deploy-on-exedev) with that key, then [add each Mac](push-relay.md#adding-a-mac): `token add <mac name>` on the relay host, `clubmate command run remote.set-push-relay url=https://<vm>.exe.xyz token=cmr_…` on the Mac; `remote.status` shows `push: true`.
 
 Without a relay the background refresh fallback above is the only way alerts reach a phone that has been in the pocket for a while.
+
+## End-to-end tests against a real core
+
+`make companion-e2e` runs the Companion in the simulator against a real Clubmate core over loopback, no Tailscale and no Mac app:
+- `scripts/companion-e2e/run.sh <simulator> <device type> [test]` starts a headless `bin/clubmate-core` with its own state under `build/companion-e2e/<simulator>/` (runtime dir in `/tmp`, the socket path must stay short), `CLUBMATE_REMOTE_LISTEN=127.0.0.1:<free port>`, `CLUBMATE_TEST_MODE=1`, `CLUBMATE_SHELL_ENV=0`, and the fake agent (`CLUBMATE_AGENTS_COMMAND`) driven by `scripts/companion-e2e/fakeagent.json`, whose steps match on prompt text (`E2E stream`, `E2E push`, …). A fake `claude` on `PATH` stands in for Haiku, and `HOME` is a folder of its own, so your Claude settings and your own graphs stay out. The scratch repo carries `scripts/companion-e2e/graph.json` as the trusted graph `e2e` (a coder turn, then a step that waits for approval). It erases and boots the simulator (the name must start with `cm-e2e`), runs the `CompanionE2E` scheme (target `client/CompanionE2ETests`, not in the `Companion` scheme, so `make companion-ui-test` never needs a core) and stops everything. `--hold` instead of a test starts it all and waits, for poking at it by hand.
+- The tests drive the Mac side through `scripts/companion-e2e/helper`, an HTTP server on loopback (`E2E_HELPER` in the test runner): `POST /run` is `command.run` over `core.sock` (with `caller`/`agent` when a test needs an agent's call), `POST /rpc` any core method, `PUT`/`DELETE /mac-open` holds a `ui.subscribe` like an open Mac window so `agents.main` renders and a test can answer as the user there, `POST /signal/<name>` creates the file a fake agent `wait` step waits on, `GET /agent-log` is the fake agent's log, `POST /repo/<name>` makes a scratch git repo, `POST /commit` commits a file in a worktree and `POST /write` writes one (a night session's sandbox).
+- Pushes: the Mac's push relay is the helper (`remote.set-push-relay url=http://127.0.0.1:<port>`; a loopback `http://` relay or report inbox is accepted only with `CLUBMATE_TEST_MODE=1`). It records each push (`GET /pushes`, with its `collapseID`) and hands its payload to `xcrun simctl push`, which has no collapse id, so tests assert the collapse id at the relay and what the phone shows through `-deliveredDump <path>` (Debug only), a JSON file of `UNUserNotificationCenter.deliveredNotifications` the app rewrites every 300 ms while it runs. A fresh simulator gets its APNs token from `sandbox.push.apple.com` within about a minute; with no network to it the APNs test skips.
+- The first launch pairs with `remote.pair` and taps Allow on the notification prompt; later launches reuse the pairing.
+- The iPad half runs only `HardwareKeyboardTests` on `cm-e2e-ipad`.
 
 ## Testing on a real iPhone
 

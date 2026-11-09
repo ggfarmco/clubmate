@@ -121,6 +121,7 @@ type notifyPayload struct {
 	Message   string `json:"message"`
 	Kind      string `json:"kind"`
 	Quiet     bool   `json:"quiet"`
+	Always    bool   `json:"always"`
 	TS        string `json:"ts"`
 }
 
@@ -258,7 +259,7 @@ func (s *server) held(ctx context.Context, workspace string, enabled bool, n not
 	case s.stale(n.TS):
 		return summaryStale
 	}
-	if policy := s.policy(ctx, workspace, n.Session); !allows(policy, n.Kind) {
+	if policy := s.policy(ctx, workspace, n.Session); !n.Always && !allows(policy, n.Kind) {
 		if policy == policyMuted {
 			return summaryMuted
 		}

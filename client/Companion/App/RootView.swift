@@ -8,6 +8,8 @@ struct RootView: View {
     @Environment(PairingFlow.self) private var pairing
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var width = 0.0
+    @State private var sectionUI: WorkspaceUI?
+    private static let sectionOwner = "root.section"
 
     var body: some View {
         @Bindable var navigation = navigation
@@ -38,6 +40,11 @@ struct RootView: View {
         .onChange(of: shownAgents, initial: true) { old, new in
             if let old, old.store != new?.store { model.agents(computer: old.store.computer, workspace: old.store.workspace)?.show(nil) }
             if let new { model.agents(computer: new.store.computer, workspace: new.store.workspace)?.show(new.detail) }
+        }
+        .onChange(of: shownSection, initial: true) { _, shown in
+            sectionUI?.hide(owner: Self.sectionOwner)
+            sectionUI = shown.flatMap { model.connection($0.computer)?.workspaceUI($0.workspace) }
+            if let shown { sectionUI?.show([shown.section + ".sidebar", shown.section + ".main"], owner: Self.sectionOwner) }
         }
         .sheet(isPresented: $navigation.showingAddComputer, onDismiss: navigation.pairingSheetDismissed) {
             AddComputerView()
@@ -95,6 +102,12 @@ struct RootView: View {
         return ShownAgents(store: ShownAgents.Store(computer: item.computer, workspace: workspace.id), detail: visible ? navigation.detail : nil)
     }
 
+    private var shownSection: ShownSection? {
+        guard let item = navigation.sidebar, item.plugin == MorePluginInfo.id, let section = navigation.detail, let connection = model.connection(item.computer),
+              let workspace = navigation.workspace(for: connection), navigation.layout != .compact || navigation.preferredColumn == .detail else { return nil }
+        return ShownSection(computer: item.computer, workspace: workspace.id, section: section)
+    }
+
     private var context: PluginContext? {
         guard let item = navigation.sidebar, let connection = model.connection(item.computer) else { return nil }
         return PluginContext(model: model, connection: connection, navigation: navigation)
@@ -118,6 +131,12 @@ struct ShownAgents: Equatable {
 
     let store: Store
     let detail: String?
+}
+
+struct ShownSection: Equatable {
+    let computer: String
+    let workspace: String
+    let section: String
 }
 
 struct PairingOverlay: View {

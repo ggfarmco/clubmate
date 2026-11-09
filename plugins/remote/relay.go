@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/netip"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -173,8 +175,13 @@ func (c *relayClient) send(ctx context.Context, env, deviceToken string, p relay
 
 func httpsBase(raw string) (string, bool) {
 	u, err := url.Parse(raw)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {
+	if err != nil || !(u.Scheme == "https" || u.Scheme == "http" && loopbackTestRelay(u.Hostname())) || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {
 		return "", false
 	}
 	return strings.TrimSuffix(u.String(), "/"), true
+}
+
+func loopbackTestRelay(host string) bool {
+	ip, err := netip.ParseAddr(host)
+	return os.Getenv(testModeEnv) == "1" && err == nil && ip.IsLoopback()
 }

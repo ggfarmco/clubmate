@@ -185,6 +185,8 @@ Input fields are uncontrolled: `value`/`values` on `textField`, `folderField`, `
 
 The Companion (`client/Companion/SDUI`) draws the same trees with iOS controls and sends the same events (§ ui.event contract). Where it differs from the Mac:
 
+- An event whose result is `{"open": {"session": "agt_…", "turn": N}}` opens that session in Agents. Plugins return it from links that reveal a session on the Mac with `agents.reveal` (a trigger run's Open session, a graph turn panel's Open ‹Role› and its header's open, a cron job's Show session), since the reveal only moves the Mac; the Mac ignores the result.
+- A section's `sidebar` and `main` slots are watched while the navigation shows the section (`RootView`), not from the screen's appear and disappear, which a pushed detail breaks.
 - `split`: panes stack vertically on compact width; a horizontal split is side by side on regular width (iPad).
 - `toggle` with `style: "checkbox"` is a small checkbox followed by its `label` (a click on the label toggles too; `disabled` dims it, label in muted ink, and takes no click); a `switch` draws `label` before the switch. `progress` is a 4pt rounded bar that fills the width it is given (at least 40pt), `value`/`total` of it filled in `tone` (`total` 0 draws it empty).
 - `stack` horizontal wraps its children when they don't fit on the phone; the Mac draws it as one row, so a plugin keeps such rows short (or splits them into rows) for narrow panes. A vertical `stack` or `form` outside a `scroll` that holds nothing scrolling (`scroll`, `split`, `list`, `tree`, `table`, `transcript`, a `fill` `document`) scrolls itself.
@@ -196,7 +198,7 @@ The Companion (`client/Companion/SDUI`) draws the same trees with iOS controls a
 - `button.shortcut` is ignored; `confirm` is an alert. A `button`'s `form` child (a Mac popover) is not drawn: the button sends its own event. `textField.drop` is ignored.
 - `folderField` shows its folders read-only with "Choose folders on the Mac".
 - `sheet` is not presented: the phone shows "sheet isn't supported on the phone" in its place, like an unknown type.
-- `surface` shows "Terminal — open it on the Mac"; `graph`, `flow`, `lanes` and `runstrip` one faint line "Drawn on the Mac" (a `flow` of only ghost cards nothing; a `runstrip` or `lanes` with a `title` puts its `<title> · <count>` above that line, a `runstrip` with its legend); `webview` and any other unknown type shows "<type> isn't supported on the phone".
+- `surface` shows "Terminal — open it on the Mac"; `graph`, `flow`, `lanes` and `runstrip` one faint line "Drawn on the Mac" (a `flow` of only ghost cards nothing; a `runstrip` or `lanes` with a `title` puts its `<title> · <count>` above that line, a `runstrip` with its legend; a `graph` lists its nodes under that line, label and state in its tone, and a tap sends the same `open` with the node id as a click on the Mac card), followed by the node's children (a graph run's approval card and its step or turn panel); `webview` and any other unknown type shows "<type> isn't supported on the phone".
 - `transcript`: adjacent `toolCard`s (except `failed` and `standalone`) fold into one "N actions" row. `message.from` shows as "From another agent". `composer` is a field and Send only: no modes, pickers, attach, `/` commands or `@` files.
 
 ## Slots

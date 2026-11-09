@@ -80,3 +80,27 @@ targets:
         TEST_TARGET_NAME: Companion
     dependencies:
       - target: Companion
+
+  CompanionE2ETests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: CompanionE2ETests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.clubmate.companion.e2etests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Companion
+    dependencies:
+      - target: Companion
+
+schemes:
+  CompanionE2E:
+    build:
+      targets:
+        Companion: all
+        CompanionE2ETests: [test]
+    test:
+      config: Debug
+      targets:
+        - CompanionE2ETests

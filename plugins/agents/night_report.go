@@ -110,7 +110,7 @@ func (a *app) reportNight(ctx context.Context, date, workspace string, host *ses
 	ctx, cancel := context.WithTimeout(ctx, selfTimeout)
 	defer cancel()
 	a.refreshSettings(ctx)
-	note := notifyPost{WorkspaceID: workspace, Title: nightTitle, Message: res.message(stop), Kind: notifyDone}
+	note := notifyPost{WorkspaceID: workspace, Title: nightTitle, Message: res.message(stop), Kind: notifyDone, Always: true}
 	if stop != nil && !res.landed() {
 		a.notes.post(ctx, note)
 		return

@@ -49,6 +49,7 @@ Each agent session of the Agents section has a notification policy: **All** (def
 - The Agents sidebar shows a policy other than All at the start of the session's row detail: `Muted · …` or `Input only · …` (the applied one, so children of a muted session show `Muted` too).
 - The phone companion applies the same policy: a held-back notification is added to its inbox as read and gets no local notification.
 - `remote.push`, which the workspace's push trigger calls for a paired phone (see [real push](remote.md#real-push)), applies the same policy on the Mac: a held-back notification is not pushed and the trigger run's result says `held: session muted` or `held: session needs-input only`.
+- A post a plugin marks `always` (`notify.post` from a plugin; an agent's or the CLI's `always` is dropped) skips the policy on the Mac, the push and the phone: the agents plugin's Night review names its muted Improve session so a tap opens it, and is still the night's one notification.
 - Notifications about terminals and editor sessions are not affected.
 
 ## Inbox

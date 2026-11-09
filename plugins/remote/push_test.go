@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -99,6 +100,7 @@ func TestPushFollowsTheSessionPolicy(t *testing.T) {
 		{"muted", "permission", "held: session muted"},
 		{"needs-input", "done", "held: session needs-input only"},
 		{"needs-input", "question", "phone 200"},
+		{"muted", "done always", "phone 200"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.policy+" "+tt.kind, func(t *testing.T) {
@@ -107,7 +109,8 @@ func TestPushFollowsTheSessionPolicy(t *testing.T) {
 			f.setPushToken(t, f.pairNamed(t, "phone"), "aa01", apns.EnvProduction)
 			f.backend.sessions = json.RawMessage(`[{"id":"agt_1","notifyEffective":"` + tt.policy + `"}]`)
 
-			res := f.pushNotification(t, `{"id":"ntf_1","session":"agt_1","message":"m","kind":"`+tt.kind+`"}`)
+			kind, always := strings.CutSuffix(tt.kind, " always")
+			res := f.pushNotification(t, `{"id":"ntf_1","session":"agt_1","message":"m","kind":"`+kind+`","always":`+strconv.FormatBool(always)+`}`)
 
 			assert.Equal(t, tt.summary, res.Summary)
 			assert.Equal(t, tt.summary == "phone 200", len(relay.requests()) == 1)
@@ -352,6 +355,16 @@ func TestSetPushRelay(t *testing.T) {
 	require.NoError(t, f.srv.relay.configure(t.Context(), "", relayToken))
 	assert.False(t, f.srv.relay.configured())
 	assert.Equal(t, `""`, f.kv.get(pushRelayTokenKey))
+}
+
+func TestSetPushRelayTakesLoopbackHTTPInTestModeOnly(t *testing.T) {
+	f := newFixture(t)
+
+	assert.ErrorIs(t, f.srv.relay.configure(t.Context(), "http://127.0.0.1:8000", relayToken), errRelayNotHTTPS)
+	t.Setenv(testModeEnv, "1")
+	assert.ErrorIs(t, f.srv.relay.configure(t.Context(), "http://relay.example:8000", relayToken), errRelayNotHTTPS)
+	require.NoError(t, f.srv.relay.configure(t.Context(), "http://127.0.0.1:8000", relayToken))
+	assert.Equal(t, `"http://127.0.0.1:8000"`, f.kv.get(pushRelayURLKey))
 }
 
 func (f *fixture) withRelay(t *testing.T) *fakeRelay {

@@ -63,6 +63,7 @@ public struct NotifyPosted: Sendable, Equatable {
     public let viaAgent: Bool
     public let pushed: Bool
     public let quiet: Bool
+    public let always: Bool
     public let date: Date?
 
     public init?(_ payload: JSONValue) {
@@ -79,6 +80,7 @@ public struct NotifyPosted: Sendable, Equatable {
         viaAgent = payload["agent"] == .bool(true)
         pushed = payload["pushed"] == .bool(true)
         quiet = payload["quiet"] == .bool(true)
+        always = payload["always"] == .bool(true)
         date = nonEmpty("ts").flatMap(Date.parseRFC3339)
     }
 }

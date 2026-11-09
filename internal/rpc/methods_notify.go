@@ -33,6 +33,7 @@ type notifyParams struct {
 	Message     string `json:"message"`
 	Kind        string `json:"kind"`
 	Quiet       bool   `json:"quiet"`
+	Always      bool   `json:"always"`
 }
 
 type notifyPayload struct {
@@ -46,6 +47,7 @@ type notifyPayload struct {
 	Kind      string `json:"kind"`
 	Agent     bool   `json:"agent,omitempty"`
 	Quiet     bool   `json:"quiet,omitempty"`
+	Always    bool   `json:"always,omitempty"`
 	TS        string `json:"ts"`
 }
 
@@ -115,6 +117,7 @@ func (s *Server) notifyPayload(ctx context.Context, p notifyParams) (notifyPaylo
 		Kind:      kind,
 		Agent:     isAgentCall(ctx),
 		Quiet:     p.Quiet,
+		Always:    p.Always && CallerFrom(ctx).IsPlugin() && !isAgentCall(ctx),
 		TS:        time.Now().UTC().Format(notifyTimeLayout),
 	}, nil
 }

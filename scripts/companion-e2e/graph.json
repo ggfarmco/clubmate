@@ -1,0 +1,12 @@
+{
+  "title": "E2E graph",
+  "description": "A coder turn, then a step that waits for approval.",
+  "maxTurns": 4,
+  "nodes": [
+    {"id": "coder", "role": "Coder", "start": true, "prompt": "E2E graph coder: {{input}}"},
+    {"id": "tick", "role": "Tick", "run": "echo ticked", "end": ["done"]}
+  ],
+  "edges": [
+    {"from": "coder", "to": "tick", "on": "done"}
+  ]
+}

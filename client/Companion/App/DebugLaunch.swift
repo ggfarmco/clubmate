@@ -1,6 +1,7 @@
 #if DEBUG
 import Foundation
 import UIKit
+import UserNotifications
 
 import CompanionKit
 
@@ -8,6 +9,26 @@ import CompanionKit
 enum DebugLaunch {
     static var gallery: String? {
         UserDefaults.standard.string(forKey: "sdui-gallery")
+    }
+
+    static func dumpDelivered() {
+        guard let path = UserDefaults.standard.string(forKey: "deliveredDump") else { return }
+        Task { @MainActor in
+            while true {
+                let rows = await UNUserNotificationCenter.current().deliveredNotifications().map { note -> [String: Any] in
+                    let content = note.request.content
+                    let info = content.userInfo.reduce(into: [String: String]()) { out, entry in
+                        if let key = entry.key as? String, let value = entry.value as? String { out[key] = value }
+                    }
+                    return ["identifier": note.request.identifier, "push": note.request.trigger is UNPushNotificationTrigger, "title": content.title, "subtitle": content.subtitle, "body": content.body, "userInfo": info]
+                }
+                let dump: [String: Any] = ["written": Date.now.timeIntervalSince1970, "active": UIApplication.shared.applicationState == .active, "notifications": rows]
+                if let data = try? JSONSerialization.data(withJSONObject: dump) {
+                    try? data.write(to: URL(filePath: path), options: .atomic)
+                }
+                try? await Task.sleep(for: .milliseconds(300))
+            }
+        }
     }
 
     static func forgetMacs(_ file: URL) {

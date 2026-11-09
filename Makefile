@@ -111,7 +111,14 @@ companion-ui-test:
 	xcodebuild test -project Companion.xcodeproj -scheme Companion -destination id=$$udid -parallel-testing-enabled NO -configuration Debug -derivedDataPath ../build/CompanionDerivedData CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual; \
 	status=$$?; xcrun simctl shutdown $$udid; exit $$status
 
-.PHONY: build run-core test lint push-relay push-relay-linux ghostty app app-release run-app protocol-test kit-test nvim-distro nvim-test bundle-smoke gallery-smoke companion-kit-test companion companion-ui-test
+COMPANION_E2E_SIM ?= cm-e2e
+COMPANION_E2E_IPAD_TYPE ?= iPad Pro 11-inch (M5)
+
+companion-e2e: build
+	scripts/companion-e2e/run.sh $(COMPANION_E2E_SIM) "$(COMPANION_SIM_TYPE)" && \
+	scripts/companion-e2e/run.sh $(COMPANION_E2E_SIM)-ipad "$(COMPANION_E2E_IPAD_TYPE)" CompanionE2ETests/HardwareKeyboardTests
+
+.PHONY: build run-core test lint push-relay push-relay-linux ghostty app app-release run-app protocol-test kit-test nvim-distro nvim-test bundle-smoke gallery-smoke companion-kit-test companion companion-ui-test companion-e2e mac-ui-test
 
 mac-ui-test:
 	mkdir -p build/mac-ui

@@ -1,0 +1,46 @@
+{
+  "resume": true,
+  "modes": {"currentModeId": "default", "availableModes": [{"id": "auto", "name": "Auto"}, {"id": "default", "name": "Manual"}]},
+  "prompt": [
+    {"match": "E2E stream", "update": {"sessionUpdate": "tool_call", "toolCallId": "s1", "title": "Tick one", "kind": "read", "status": "completed"}},
+    {"match": "E2E stream", "wait": "__SIGNALS__/stream-1"},
+    {"match": "E2E stream", "update": {"sessionUpdate": "tool_call", "toolCallId": "s2", "title": "Tick two", "kind": "read", "status": "completed"}},
+    {"match": "E2E stream", "wait": "__SIGNALS__/stream-2"},
+    {"match": "E2E stream", "elicitation": {"mode": "form", "toolCallId": "ask-stream", "message": "Which store?", "requestedSchema": {"type": "object", "properties": {
+      "question_0": {"type": "string", "title": "Which store?", "oneOf": [{"const": "Postgres", "title": "Postgres", "description": "Relational"}, {"const": "Redis", "title": "Redis", "description": "In memory"}]}
+    }}}},
+    {"match": "E2E stream", "update": {"sessionUpdate": "tool_call", "toolCallId": "s3", "title": "After the answer", "kind": "read", "status": "completed"}},
+
+    {"match": "E2E live", "update": {"sessionUpdate": "tool_call", "toolCallId": "l1", "title": "Live one", "kind": "read", "status": "completed"}},
+    {"match": "E2E live", "wait": "__SIGNALS__/live-1"},
+    {"match": "E2E live", "update": {"sessionUpdate": "tool_call", "toolCallId": "l2", "title": "Live two", "kind": "read", "status": "completed"}},
+    {"match": "E2E live", "wait": "__SIGNALS__/live-2"},
+
+    {"match": "E2E two questions", "elicitation": {"mode": "form", "toolCallId": "ask-two", "message": "Two questions", "requestedSchema": {"type": "object", "properties": {
+      "question_0": {"type": "string", "title": "Which store?", "oneOf": [{"const": "Postgres", "title": "Postgres", "description": "Relational"}, {"const": "Redis", "title": "Redis", "description": "In memory"}]},
+      "question_1": {"type": "string", "title": "Which cache?", "oneOf": [{"const": "Memcached", "title": "Memcached", "description": "Plain"}, {"const": "None", "title": "None", "description": "No cache"}]}
+    }}}},
+    {"match": "E2E two questions", "update": {"sessionUpdate": "tool_call", "toolCallId": "t1", "title": "Got both answers", "kind": "read", "status": "completed"}},
+
+    {"match": "E2E number", "elicitation": {"mode": "form", "message": "How many workers?", "requestedSchema": {"type": "object", "properties": {
+      "workers": {"type": "integer", "title": "Workers", "description": "Between 1 and 16"}
+    }, "required": ["workers"]}}},
+    {"match": "E2E number", "update": {"sessionUpdate": "tool_call", "toolCallId": "n1", "title": "Got the number", "kind": "read", "status": "completed"}},
+
+    {"match": "E2E push", "elicitation": {"mode": "form", "toolCallId": "ask-push", "message": "Ship it?", "requestedSchema": {"type": "object", "properties": {
+      "question_0": {"type": "string", "title": "Ship it?", "oneOf": [{"const": "Yes", "title": "Yes", "description": "Ship now"}, {"const": "No", "title": "No", "description": "Wait"}]}
+    }}}},
+    {"match": "E2E push", "update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Shipped."}}},
+
+    {"match": "Child \"E2E kid", "elicitation": {"mode": "form", "toolCallId": "ask-parent", "message": "Merge the kid?", "requestedSchema": {"type": "object", "properties": {
+      "question_0": {"type": "string", "title": "Merge the kid?", "oneOf": [{"const": "Yes", "title": "Yes", "description": "Merge"}, {"const": "No", "title": "No", "description": "Leave it"}]}
+    }}}},
+
+    {"match": "E2E permission", "permission": {"toolCall": {"toolCallId": "p1", "title": "Run make first", "kind": "execute", "status": "pending"}, "options": [{"optionId": "allow", "name": "Allow once", "kind": "allow_once"}, {"optionId": "always", "name": "Always allow", "kind": "allow_always"}, {"optionId": "reject", "name": "Reject", "kind": "reject_once"}]}},
+    {"match": "E2E permission", "permission": {"toolCall": {"toolCallId": "p2", "title": "Run make second", "kind": "execute", "status": "pending"}, "options": [{"optionId": "allow", "name": "Allow once", "kind": "allow_once"}, {"optionId": "always", "name": "Always allow", "kind": "allow_always"}, {"optionId": "reject", "name": "Reject", "kind": "reject_once"}]}},
+
+    {"match": "digest/ holds", "wait": "__SIGNALS__/improve-gate"},
+
+    {"echo": true}
+  ]
+}

@@ -61,6 +61,7 @@ func TestRemoteThroughCore(t *testing.T) {
 	require.NoError(t, c.Call(t.Context(), "ui.presence", struct{}{}, &present))
 	replayed := frame(t, stream)
 	require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"workspaceId": p.ID, "slot": "alpha.main", "tree": map[string]any{"type": "empty", "props": map[string]any{"text": "hi"}}}))
+	rpcCall(t, base, paired.Token, "pushToken", pushTokenRequest{Token: "aa01", Environment: "production"}, new(json.RawMessage))
 	var devices []deviceView
 	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "remote.devices", "workspaceId": ""}, &devices))
 
@@ -73,6 +74,7 @@ func TestRemoteThroughCore(t *testing.T) {
 	assert.Equal(t, map[string]any{"said": "hi", "plugin": "alpha"}, echoed)
 	require.Len(t, devices, 1)
 	assert.True(t, devices[0].Connected)
+	assert.True(t, devices[0].Push)
 	assert.True(t, strings.HasPrefix(pr.Link, "clubmate://pair?v=1&c="+pr.Code+"&h=127.0.0.1&p="))
 }
 

@@ -199,7 +199,7 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 			return nil, nil
 		}
 		if ev.Action == automation.ActReveal {
-			return nil, a.revealOwner(ctx, ev.WorkspaceID, target)
+			return a.revealOwner(ctx, ev.WorkspaceID, target)
 		}
 		id = target
 	case sidebarSlot:
@@ -299,7 +299,7 @@ func (a *app) setMissed(ctx context.Context, ev pluginsdk.UIEvent, id string) er
 	return err
 }
 
-func (a *app) revealOwner(ctx context.Context, workspace, id string) error {
+func (a *app) revealOwner(ctx context.Context, workspace, id string) (any, error) {
 	a.mu.Lock()
 	var owner string
 	if j, ok := a.jobs[id]; ok && j.Workspace == workspace {
@@ -307,9 +307,12 @@ func (a *app) revealOwner(ctx context.Context, workspace, id string) error {
 	}
 	a.mu.Unlock()
 	if owner == "" {
-		return fmt.Errorf("job %q has no owner session", id)
+		return nil, fmt.Errorf("job %q has no owner session", id)
 	}
-	return agentcall.Reveal(ctx, a.host, workspace, owner)
+	if err := agentcall.Reveal(ctx, a.host, workspace, owner); err != nil {
+		return nil, err
+	}
+	return agentcall.Open(owner, 0), nil
 }
 
 func (a *app) renderWorkspace(ctx context.Context, workspace string) error {

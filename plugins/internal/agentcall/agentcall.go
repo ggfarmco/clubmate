@@ -19,6 +19,15 @@ var (
 	ErrNoAskSession   = errors.New("agents.new returned no session")
 )
 
+type Opened struct {
+	Open OpenSession `json:"open"`
+}
+
+type OpenSession struct {
+	Session string `json:"session"`
+	Turn    int    `json:"turn,omitempty"`
+}
+
 type target struct {
 	ID     string         `json:"id"`
 	Title  string         `json:"title"`
@@ -40,6 +49,10 @@ func Reveal(ctx context.Context, h *pluginsdk.Host, workspace, session string) e
 		return fmt.Errorf("reveal agent session %s: %w", session, err)
 	}
 	return nil
+}
+
+func Open(session string, turn int) Opened {
+	return Opened{Open: OpenSession{Session: session, Turn: turn}}
 }
 
 func RevealTurn(ctx context.Context, h *pluginsdk.Host, workspace, session string, turn int) error {

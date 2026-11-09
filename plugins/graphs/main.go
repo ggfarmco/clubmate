@@ -298,7 +298,7 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	cmd := pluginsdk.CommandRun{WorkspaceID: ev.WorkspaceID}
 	switch ev.Action {
 	case actOpen:
-		return nil, a.openAttention(ctx, ev.WorkspaceID, id)
+		return a.openAttention(ctx, ev.WorkspaceID, id)
 	case actApprove:
 		return nil, a.approveFromSection(ctx, ev, id)
 	case actContinue:
@@ -309,7 +309,7 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 		a.mu.Unlock()
 		return nil, a.fullOutput(ctx, ev.WorkspaceID, id, node)
 	case actOpenTurn:
-		return nil, a.openShownTurn(ctx, ev.WorkspaceID, id)
+		return a.openShownTurn(ctx, ev.WorkspaceID, id)
 	case actStepOutput:
 		return nil, a.stepOutput(ctx, ev.WorkspaceID, id)
 	case "select":
@@ -394,7 +394,7 @@ func (a *app) fold(workspace, id string, collapsed bool) {
 	a.collapsed[workspace][id] = collapsed
 }
 
-func (a *app) openAttention(ctx context.Context, workspace, id string) error {
+func (a *app) openAttention(ctx context.Context, workspace, id string) (any, error) {
 	a.mu.Lock()
 	r := a.runs[id]
 	if r != nil && r.Workspace == workspace {
@@ -404,13 +404,16 @@ func (a *app) openAttention(ctx context.Context, workspace, id string) error {
 	}
 	a.mu.Unlock()
 	if r == nil {
-		return unknownRun(id)
+		return nil, unknownRun(id)
 	}
 	n, _ := attentionNode(r, a.sessionMap(ctx, workspace))
 	if n == nil {
-		return fmt.Errorf("graph run %q has no open session", id)
+		return nil, fmt.Errorf("graph run %q has no open session", id)
 	}
-	return a.revealTurn(ctx, workspace, n.Session, 0)
+	if err := a.revealTurn(ctx, workspace, n.Session, 0); err != nil {
+		return nil, err
+	}
+	return agentcall.Open(n.Session, 0), nil
 }
 
 func (a *app) openGraph(ctx context.Context, ev pluginsdk.UIEvent, id string) error {
@@ -495,19 +498,22 @@ func (a *app) previewTurn(ctx context.Context, workspace string, r *Run, node st
 	return true
 }
 
-func (a *app) openShownTurn(ctx context.Context, workspace, runID string) error {
+func (a *app) openShownTurn(ctx context.Context, workspace, runID string) (any, error) {
 	r, err := a.lookup(workspace, runID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	a.mu.Lock()
 	node, move := r.shownMove(a.stepSel[runID])
 	a.mu.Unlock()
 	n := r.node(node)
 	if move < 0 || n == nil || n.Step || n.Session == "" {
-		return fmt.Errorf("graph run %q shows no agent turn", runID)
+		return nil, fmt.Errorf("graph run %q shows no agent turn", runID)
 	}
-	return a.revealTurn(ctx, workspace, n.Session, r.Moves[move].Turn)
+	if err := a.revealTurn(ctx, workspace, n.Session, r.Moves[move].Turn); err != nil {
+		return nil, err
+	}
+	return agentcall.Open(n.Session, r.Moves[move].Turn), nil
 }
 
 func (a *app) selectTrigger(ctx context.Context, workspace, trigger string) error {

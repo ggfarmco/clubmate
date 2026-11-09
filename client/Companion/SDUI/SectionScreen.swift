@@ -8,7 +8,6 @@ struct SectionScreen: View {
     @Environment(AppNavigation.self) private var navigation
     @Environment(CompanionModel.self) private var model
     @State private var ui: WorkspaceUI
-    @State private var owner = UUID()
     @State private var path: [String] = []
     @State private var error: String?
 
@@ -51,8 +50,6 @@ struct SectionScreen: View {
             if navigation.detail == section, !sections.contains(where: { $0.id == section }) { navigation.detail = nil }
         }
         .task(id: ui.view(main) != nil && ui.view(sidebar) != nil) { await openItem(sidebar: sidebar, main: main) }
-        .onAppear { ui.show([sidebar, main], owner: owner) }
-        .onDisappear { ui.hide(owner: owner) }
     }
 
     private func openItem(sidebar: String, main: String) async {
@@ -82,7 +79,11 @@ struct SectionScreen: View {
         if let view = ui.view(slot) {
             SDUINodeView(node: view.tree, context: SDUIContext(slot: slot, send: { nodeId, action, value in
                 do {
-                    _ = try await ui.send(slot: slot, nodeId: nodeId, action: action, value: value)
+                    let result = try await ui.send(slot: slot, nodeId: nodeId, action: action, value: value)
+                    if let session = result["open"]?["session"]?.stringValue {
+                        navigation.workspaces[connection.computer.id] = ui.workspace
+                        navigation.open(computer: connection.computer.id, plugin: AgentsPluginInfo.id, detail: session)
+                    }
                 } catch {
                     self.error = (error as? RemoteError)?.message ?? error.localizedDescription
                 }
