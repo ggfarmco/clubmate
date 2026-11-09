@@ -98,7 +98,7 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(browse.waitForExistence(timeout: 10))
         browse.tap()
         let file = app.cells.matching(NSPredicate(format: "identifier BEGINSWITH 'crash-logs.zip'")).firstMatch
-        XCTAssertTrue(file.waitForExistence(timeout: 10))
+        XCTAssertTrue(file.waitForExistence(timeout: 10), "no crash-logs.zip in Files: run make companion-ui-test, which seeds it on its own simulator")
         file.tap()
         if app.buttons["Open"].waitForExistence(timeout: 2) { app.buttons["Open"].tap() }
         XCTAssertTrue(app.staticTexts["crash-logs.zip"].waitForExistence(timeout: 10))
@@ -309,8 +309,10 @@ final class CompanionUITests: XCTestCase {
         add(screenshot(app, "doc-top"))
         let link = app.webViews.links["payments overview"]
         XCTAssertTrue(link.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.webViews.staticTexts["Updated while you were reading."].waitForExistence(timeout: 10))
         link.tap()
         XCTAssertTrue(app.navigationBars["Payments overview"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.webViews.links["checkout retries"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.webViews.staticTexts["Updated while you were reading."].waitForExistence(timeout: 10))
         add(screenshot(app, "doc-linked-updated"))
         app.navigationBars.buttons["Back"].tap()

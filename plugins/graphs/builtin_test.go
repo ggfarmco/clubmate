@@ -41,12 +41,14 @@ func TestBuiltinGraphsWiring(t *testing.T) {
 			steps: []string{
 				"tidy agent branch= end=[nothing]",
 				"tests run=make test in=main timeout=1h0m0s end=[]",
+				"phone run=scripts/graph/companion-ui.sh in=main timeout=1h0m0s end=[]",
 				"push run=git push origin main in=main timeout=10m0s end=[]",
 				"ship run=scripts/graph/ship-next.sh in=main timeout=2h0m0s end=[done]",
 			},
 			edges: []string{
 				"tidy outcome:changed -> tests ×0",
-				"tests done: -> push ×0",
+				"tests done: -> phone ×0",
+				"phone done: -> push ×0",
 				"push done: -> ship ×0",
 			},
 		},

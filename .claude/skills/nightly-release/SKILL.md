@@ -5,7 +5,7 @@ description: Use when asked to cut a release by hand or from an agent session â€
 
 # Nightly release
 
-The nightly release runs as steps of the Clubmate repo's `nightly` graph instead (`.clubmate/graphs/nightly.json`, [docs](../../../docs/agent-graphs.md#nightly)): after Tidy reports `changed`, `make test` and `git push origin main` run in the main checkout, then `scripts/graph/ship-next.sh` picks the version as in step 2, refuses when a `v*` tag already points at `HEAD`, and runs `ship.sh` in the foreground, so the step lasts until publish or failure. This skill is for releases cut by hand.
+The nightly release runs as steps of the Clubmate repo's `nightly` graph instead (`.clubmate/graphs/nightly.json`, [docs](../../../docs/agent-graphs.md#nightly)): after Tidy reports `changed`, `make test`, `scripts/graph/companion-ui.sh` (the Companion UI tests, which gate the push) and `git push origin main` run in the main checkout, then `scripts/graph/ship-next.sh` picks the version as in step 2, refuses when a `v*` tag already points at `HEAD`, and runs `ship.sh` in the foreground, so the step lasts until publish or failure. This skill is for releases cut by hand.
 
 Nobody may be watching. First call `agents_afk on=true` for yourself. Never ask the user; what needs them goes to the backlog tagged `needs-you` and `release`, plus a `notify_post` of kind `stuck`.
 
