@@ -211,6 +211,28 @@ func TestCleanUpTurnsRedOnlyOneAtATime(t *testing.T) {
 	assert.Contains(t, sheetText(sheet), "1 file will be lost")
 }
 
+func TestCleanUpKeepsTheBranchOfALandedWorktreeMadeByHand(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, map[string]any{})
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	hand := addWorktree(t, repo, "by-hand")
+	commitIn(t, hand, "hand.go")
+	git(t, repo, "-c", "user.name=t", "-c", "user.email=t@t", "merge", "-q", "--no-ff", "-m", "land", "by-hand")
+	f.openCleanup(t, workspace)
+	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool {
+		return slices.ContainsFunc(sheetNodes(n, "toggle"), func(b sdui.Node) bool { return b.ID == "cleanupSheet/tick/"+hand })
+	})
+
+	f.cleanupPress(t, workspace, "cleanupTick", "cleanupSheet/tick/"+hand, true)
+	f.waitButton(t, workspace, "Remove 1")
+	f.cleanupPress(t, workspace, "cleanupConfirm", "cleanupSheet/remove", nil)
+
+	f.h.WaitSlot(t, workspace, "agents.sheet", noSheet)
+	assert.NoDirExists(t, hand)
+	assert.True(t, hasBranch(t, repo, "by-hand"))
+}
+
 func TestCleanUpLeavesIgnoredFilesUntickedUntilTheGroupIsTicked(t *testing.T) {
 	t.Parallel()
 	f := startGit(t, map[string]any{})

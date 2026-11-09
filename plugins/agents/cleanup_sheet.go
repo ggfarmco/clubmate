@@ -110,7 +110,7 @@ func (a *app) openCleanupSheet(ctx context.Context, workspaceID, folder string) 
 }
 
 func (s *cleanupSheet) wanted() []string {
-	out := slices.DeleteFunc(s.plan.preTicked(), func(path string) bool { return !s.visible(s.plan.Rows[rowIndex(s.plan.Rows, path)]) })
+	out := slices.DeleteFunc(s.plan.preTicked(), func(path string) bool { return !s.visible(s.plan.Rows[s.plan.index[path]]) })
 	for _, g := range s.plan.Groups {
 		rows := s.visibleRows(g)
 		for _, r := range rows[:min(s.shown[g.ID]+s.firstShown(g), len(rows))] {
@@ -123,7 +123,7 @@ func (s *cleanupSheet) wanted() []string {
 func (s *cleanupSheet) visibleRows(g cleanupGroup) []cleanupRow {
 	var rows []cleanupRow
 	for _, path := range g.Rows {
-		if r := s.plan.Rows[rowIndex(s.plan.Rows, path)]; s.visible(r) {
+		if r := s.plan.Rows[s.plan.index[path]]; s.visible(r) {
 			rows = append(rows, r)
 		}
 	}
@@ -131,10 +131,13 @@ func (s *cleanupSheet) visibleRows(g cleanupGroup) []cleanupRow {
 }
 
 func (a *app) queueRead(workspaceID string, sheet *cleanupSheet, paths []string) {
+	queued := make(map[string]bool, len(sheet.queue))
+	for _, path := range sheet.queue {
+		queued[path] = true
+	}
 	for _, path := range paths {
-		i := rowIndex(sheet.plan.Rows, path)
-		if i >= 0 && !sheet.plan.Rows[i].State.Read && !slices.Contains(sheet.queue, path) {
-			sheet.queue = append(sheet.queue, path)
+		if r, ok := sheet.plan.row(path); ok && !r.State.Read && !queued[path] {
+			sheet.queue, queued[path] = append(sheet.queue, path), true
 		}
 	}
 	if len(sheet.queue) > 0 && !sheet.reading {
@@ -153,7 +156,7 @@ func (a *app) readSheet(workspaceID string, sheet *cleanupSheet) {
 		batch := sheet.queue[:min(len(sheet.queue), cleanupBatch)]
 		sheet.queue = sheet.queue[len(batch):]
 		sheet.inflight = len(batch)
-		rows := slices.Clone(sheet.plan.Rows)
+		trees := sheet.plan.trees(batch)
 		if len(batch) == 0 {
 			sheet.reading = false
 			a.uiMu.Unlock()
@@ -161,10 +164,10 @@ func (a *app) readSheet(workspaceID string, sheet *cleanupSheet) {
 		}
 		a.uiMu.Unlock()
 		ctx, cancel := context.WithTimeout(context.Background(), cleanupRead)
-		read := a.readPaths(ctx, workspaceID, rows, batch)
+		a.proveWorktrees(ctx, workspaceID, trees)
 		cancel()
 		a.uiMu.Lock()
-		sheet.apply(read)
+		sheet.apply(trees)
 		sheet.inflight = 0
 		a.queueWanted(workspaceID, sheet)
 		a.uiMu.Unlock()
@@ -173,18 +176,13 @@ func (a *app) readSheet(workspaceID string, sheet *cleanupSheet) {
 }
 
 func (s *cleanupSheet) apply(read []folderWorktree) {
-	for _, wt := range read {
-		if i := rowIndex(s.plan.Rows, wt.Path); i >= 0 {
-			s.plan.Rows[i].State = wt
-		}
-	}
+	s.plan.setStates(read)
 	s.plan.regroup()
 	for _, wt := range read {
-		i := rowIndex(s.plan.Rows, wt.Path)
-		if i < 0 {
+		r, ok := s.plan.row(wt.Path)
+		if !ok {
 			continue
 		}
-		r := s.plan.Rows[i]
 		switch {
 		case !r.tickable():
 			delete(s.ticked, r.Path)
@@ -261,8 +259,7 @@ func (s *cleanupSheet) tickRow(ev pluginsdk.UIEvent) error {
 	if err := decode(ev.Value, &on); err != nil {
 		return err
 	}
-	i := rowIndex(s.plan.Rows, path)
-	if i >= 0 && s.plan.Rows[i].tickable() {
+	if r, ok := s.plan.row(path); ok && r.tickable() {
 		s.ticked[path], s.chosen[path] = on, true
 	}
 	return nil
@@ -282,7 +279,7 @@ func (s *cleanupSheet) tickGroup(ev pluginsdk.UIEvent) error {
 			continue
 		}
 		for _, path := range g.Rows {
-			if r := s.plan.Rows[rowIndex(s.plan.Rows, path)]; r.tickable() && len(r.Closes) == 0 {
+			if r := s.plan.Rows[s.plan.index[path]]; r.tickable() && len(r.Closes) == 0 {
 				s.ticked[path], s.chosen[path] = on, true
 			}
 		}
@@ -558,8 +555,8 @@ func (s *cleanupSheet) cronLine() string {
 }
 
 func (s *cleanupSheet) jobPlace(job folderJob) string {
-	if i := rowIndex(s.plan.Rows, job.In); i >= 0 {
-		return s.plan.Rows[i].label()
+	if r, ok := s.plan.row(job.In); ok {
+		return r.label()
 	}
 	return job.In
 }

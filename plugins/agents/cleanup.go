@@ -94,6 +94,7 @@ type cleanupPlan struct {
 	Folders    []string       `json:"folders"`
 	Cron       []folderJob    `json:"cron"`
 	CronUnread bool           `json:"cronUnread,omitempty"`
+	index      map[string]int
 }
 
 type cleanupArgs struct {
@@ -108,7 +109,7 @@ func (a *app) cleanupPlanCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 	if err != nil {
 		return nil, err
 	}
-	a.proveRows(ctx, cmd.WorkspaceID, plan.Rows, plan.preTicked())
+	a.proveRows(ctx, cmd.WorkspaceID, &plan, plan.preTicked())
 	plan.regroup()
 	return plan, nil
 }
@@ -135,6 +136,10 @@ func (a *app) cleanupPlan(ctx context.Context, workspaceID, folder string) (clea
 	if err := a.host.RunCommand(ctx, worktreeUnpushedCmd, workspaceID, struct{}{}, &unpushed); err != nil {
 		return cleanupPlan{}, err
 	}
+	notPushed := make(map[string]bool, len(unpushed))
+	for _, path := range unpushed {
+		notPushed[path] = true
+	}
 	plan := cleanupPlan{Title: fmt.Sprintf(cleanupTitleAll, w.Name), Workspace: w.Name, Rows: []cleanupRow{}, Folders: w.Paths(), Cron: []folderJob{}}
 	var refs []worktreeRef
 	firsts := map[string]bool{}
@@ -149,7 +154,7 @@ func (a *app) cleanupPlan(ctx context.Context, workspaceID, folder string) (clea
 		c := cleanupRow{
 			Path: row.Path, Repo: row.Repo, Folder: row.Folder, Branch: row.Branch, Merged: row.Merged, Gone: row.RemoteGone,
 			ByHand: row.ByHand, Stale: row.Stale, Report: row.landing.State == landMerged, Land: row.landing, State: wt,
-			Pushed: !slices.Contains(unpushed, row.Path), Locked: row.Locked, Why: row.LockWhy,
+			Pushed: !notPushed[row.Path], Locked: row.Locked, Why: row.LockWhy,
 		}
 		if open := a.openIn(row.Path); len(open) > 0 {
 			c.Words = closesWords(open)
@@ -218,29 +223,38 @@ func (a *app) worktreeRows(ctx context.Context, workspaceID string) (worktreesRe
 	return worktreesResult{Folders: folders, Tasks: tasks, Worktrees: rows, Picker: buildPicker(w.Name, folders, rows)}, nil
 }
 
-func (a *app) proveRows(ctx context.Context, workspaceID string, rows []cleanupRow, paths []string) {
+func (a *app) proveRows(ctx context.Context, workspaceID string, p *cleanupPlan, paths []string) {
 	for chunk := range slices.Chunk(paths, cleanupBatch) {
-		for _, read := range a.readPaths(ctx, workspaceID, rows, chunk) {
-			if i := rowIndex(rows, read.Path); i >= 0 {
-				rows[i].State = read
-			}
-		}
+		trees := p.trees(chunk)
+		a.proveWorktrees(ctx, workspaceID, trees)
+		p.setStates(trees)
 	}
 }
 
-func (a *app) readPaths(ctx context.Context, workspaceID string, rows []cleanupRow, paths []string) []folderWorktree {
+func (p *cleanupPlan) row(path string) (*cleanupRow, bool) {
+	i, ok := p.index[path]
+	if !ok {
+		return nil, false
+	}
+	return &p.Rows[i], true
+}
+
+func (p *cleanupPlan) trees(paths []string) []folderWorktree {
 	trees := make([]folderWorktree, 0, len(paths))
 	for _, path := range paths {
-		if i := rowIndex(rows, path); i >= 0 {
-			trees = append(trees, folderWorktree{Path: rows[i].Path, Branch: rows[i].Branch})
+		if r, ok := p.row(path); ok {
+			trees = append(trees, folderWorktree{Path: r.Path, Branch: r.Branch})
 		}
 	}
-	a.proveWorktrees(ctx, workspaceID, trees)
 	return trees
 }
 
-func rowIndex(rows []cleanupRow, path string) int {
-	return slices.IndexFunc(rows, func(r cleanupRow) bool { return r.Path == path })
+func (p *cleanupPlan) setStates(read []folderWorktree) {
+	for _, wt := range read {
+		if r, ok := p.row(wt.Path); ok {
+			r.State = wt
+		}
+	}
 }
 
 func (p *cleanupPlan) preTicked() []string {
@@ -277,16 +291,17 @@ func (r cleanupRow) group() string {
 func (p *cleanupPlan) regroup() {
 	p.Groups = make([]cleanupGroup, 0, len(cleanupDefs))
 	p.Total, p.Stale, p.ByHand = len(p.Rows), 0, 0
+	p.index = make(map[string]int, len(p.Rows))
 	defer func() { p.Summary = p.countWords("") }()
+	byGroup := map[string][]string{}
+	for i := range p.Rows {
+		r := &p.Rows[i]
+		r.Group = r.group()
+		byGroup[r.Group] = append(byGroup[r.Group], r.Path)
+		p.index[r.Path] = i
+	}
 	for _, def := range cleanupDefs {
-		group := cleanupGroup{ID: def.id, Title: def.title, Note: def.note, Tone: def.tone, Bulk: def.bulk, Rows: []string{}}
-		for i := range p.Rows {
-			r := &p.Rows[i]
-			r.Group = r.group()
-			if r.Group == def.id {
-				group.Rows = append(group.Rows, r.Path)
-			}
-		}
+		group := cleanupGroup{ID: def.id, Title: def.title, Note: def.note, Tone: def.tone, Bulk: def.bulk, Rows: byGroup[def.id]}
 		group.Count = len(group.Rows)
 		if group.Count > 0 {
 			p.Groups = append(p.Groups, group)
@@ -326,7 +341,7 @@ func (r cleanupRow) preTick() bool {
 }
 
 func (r cleanupRow) branchGoes() bool {
-	return r.Land.branchStep(r.State, true).Action == stepDelete
+	return (r.Group == cleanupMerged || r.Group == cleanupPRMerged) && r.Land.branchStep(r.State, true).Action == stepDelete
 }
 
 func (r cleanupRow) removal(jobs []folderJob) removalRow {
