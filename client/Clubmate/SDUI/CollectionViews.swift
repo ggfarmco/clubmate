@@ -35,8 +35,8 @@ struct TabsNodeView: View {
         }
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, theme.spacing.s)
-        .onChange(of: node.string("selected"), initial: true) { _, value in
-            selected = value ?? ""
+        .onChange(of: node, initial: true) { _, value in
+            selected = value.string("selected") ?? ""
         }
     }
 

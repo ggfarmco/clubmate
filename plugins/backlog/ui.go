@@ -42,6 +42,7 @@ type workspaceUI struct {
 	editing    int
 	prompt     int
 	tagFilter  string
+	tagsOpen   bool
 }
 
 type fieldError struct {
@@ -141,7 +142,7 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 	if w.tagFilter != "" && tagCounts(tasks)[w.tagFilter] == 0 {
 		w.tagFilter = ""
 	}
-	selected, collapsed, rev, fieldRev, fieldErr, editing, prompt, filter := w.selected, maps.Clone(w.collapsed), w.formRev, w.fieldRev, w.fieldError, w.editing, w.prompt, w.tagFilter
+	selected, collapsed, rev, fieldRev, fieldErr, editing, prompt, filter, tagsOpen := w.selected, maps.Clone(w.collapsed), w.formRev, w.fieldRev, w.fieldError, w.editing, w.prompt, w.tagFilter, w.tagsOpen
 	b.mu.Unlock()
 	var current *Task
 	byID := make(map[int]Task, len(tasks))
@@ -156,7 +157,7 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 		selectedID = strconv.Itoa(current.ID)
 	}
 	owners := b.ownerLabels(ctx, workspaceID, current)
-	if err := b.push(ctx, w, workspaceID, sidebarSlot, sidebarView(tasks, selectedID, collapsed, rev, filter)); err != nil {
+	if err := b.push(ctx, w, workspaceID, sidebarSlot, sidebarView(tasks, selectedID, collapsed, rev, filter, tagsOpen)); err != nil {
 		return err
 	}
 	var errs map[string]string
@@ -300,9 +301,13 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		}
 		b.mu.Lock()
 		defer b.mu.Unlock()
-		w.tagFilter, _ = strings.CutPrefix(item, tagPrefix)
-		if item == tagAll {
+		switch item {
+		case tagMore, tagLess:
+			w.tagsOpen = item == tagMore
+		case tagAll:
 			w.tagFilter = ""
+		default:
+			w.tagFilter, _ = strings.CutPrefix(item, tagPrefix)
 		}
 		return nil
 	case ev.Slot == mainSlot && ev.NodeID == attachField && ev.Action == actDrop:

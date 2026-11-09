@@ -34,7 +34,7 @@ func TestSidebarGroupsByStatus(t *testing.T) {
 		{ID: 1, Title: "Plan", Status: statusTodo, Priority: priorityNormal},
 		{ID: 2, Title: "Shipped", Status: statusDone, Priority: priorityNormal},
 	}
-	tree, ok := findNode(sidebarView(tasks, "", map[string]bool{statusDone: true}, 0, ""), "tasks")
+	tree, ok := findNode(sidebarView(tasks, "", map[string]bool{statusDone: true}, 0, "", false), "tasks")
 	require.True(t, ok)
 	groups := tree.Props["items"].([]sdui.TreeItem)
 	require.Len(t, groups, 3)
@@ -59,7 +59,7 @@ func TestSidebarFiltersByTag(t *testing.T) {
 		{ID: 3, Title: "Plain", Status: statusIdea, Priority: priorityNormal},
 		{ID: 4, Title: "Shipped", Status: statusDone, Priority: priorityNormal, Tags: []string{"phone", "old"}},
 	}
-	side := sidebarView(tasks, "", nil, 0, "audio")
+	side := sidebarView(tasks, "", nil, 0, "audio", false)
 	tabs, ok := findNode(side, "tags")
 	require.True(t, ok)
 	assert.Equal(t, []sdui.Item{{ID: "all", Label: "All", Badge: "4"}, {ID: "tag:phone", Label: "phone", Badge: "2"}, {ID: "tag:audio", Label: "audio", Badge: "1"}}, tabs.Props["items"])
@@ -71,8 +71,26 @@ func TestSidebarFiltersByTag(t *testing.T) {
 	require.Len(t, groups[0].Children, 1)
 	assert.Equal(t, "1", groups[0].Children[0].ID)
 
-	_, ok = findNode(sidebarView(tasks[2:], "", nil, 0, ""), "tags")
+	_, ok = findNode(sidebarView(tasks[2:], "", nil, 0, "", false), "tags")
 	assert.False(t, ok)
+}
+
+func TestSidebarFoldsTags(t *testing.T) {
+	tasks := []Task{
+		{ID: 1, Status: statusTodo, Tags: []string{"a", "b", "c", "d", "e", "f", "g", "h"}},
+		{ID: 2, Status: statusTodo, Tags: []string{"a", "b", "c", "d", "e", "f"}},
+	}
+	ids := func(open bool) []string {
+		tabs, ok := findNode(sidebarView(tasks, "", nil, 0, "h", open), "tags")
+		require.True(t, ok)
+		var out []string
+		for _, it := range tabs.Props["items"].([]sdui.Item) {
+			out = append(out, it.ID+" "+it.Label)
+		}
+		return out
+	}
+	assert.Equal(t, []string{"all All", "tag:a a", "tag:b b", "tag:c c", "tag:d d", "tag:e e", "tag:f f", "tag:h h", "more show 1 more"}, ids(false))
+	assert.Equal(t, []string{"all All", "tag:a a", "tag:b b", "tag:c c", "tag:d d", "tag:e e", "tag:f f", "tag:g g", "tag:h h", "less show less"}, ids(true))
 }
 
 func TestMainOmitsStatusWhileInProgress(t *testing.T) {

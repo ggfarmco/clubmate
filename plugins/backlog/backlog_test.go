@@ -320,6 +320,18 @@ func TestTags(t *testing.T) {
 	assert.Equal(t, []string{"ui", "mac"}, e.must(e.user("backlog.get", map[string]any{"id": 1})).Tags)
 }
 
+func TestShowMoreTagsKeepsFilter(t *testing.T) {
+	e := newEnv(t)
+	e.add("Many", map[string]any{"tags": []string{"a", "b", "c", "d", "e", "f", "g"}})
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
+	e.h.Event(t, e.p, "backlog.sidebar", "tags", "filter", "tag:b")
+	e.h.Event(t, e.p, "backlog.sidebar", "tags", "filter", "more")
+	e.h.WaitSlot(t, e.p, "backlog.sidebar", func(n sdui.Node) bool {
+		raw, err := json.Marshal(n)
+		return err == nil && strings.Contains(string(raw), `"id":"less"`) && strings.Contains(string(raw), `"selected":"tag:b"`)
+	})
+}
+
 func TestEmptyTitleIsAFieldError(t *testing.T) {
 	e := newEnv(t)
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))

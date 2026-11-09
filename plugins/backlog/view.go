@@ -25,6 +25,9 @@ const (
 	tagsField     = "tagsText"
 	tagAll        = "all"
 	tagPrefix     = "tag:"
+	tagMore       = "more"
+	tagLess       = "less"
+	shownTags     = 6
 	actFilter     = "filter"
 	noTasks       = "No tasks yet — add one on the left"
 	formLines     = 8
@@ -138,12 +141,25 @@ func tagCounts(tasks []Task) map[string]int {
 	return counts
 }
 
-func tagTabs(tasks []Task, counts map[string]int, filter string) sdui.Node {
+func tagTabs(tasks []Task, counts map[string]int, filter string, open bool) sdui.Node {
 	items := []sdui.Item{{ID: tagAll, Label: "All", Badge: strconv.Itoa(len(tasks))}}
 	tags := slices.Collect(maps.Keys(counts))
 	slices.SortFunc(tags, func(a, b string) int { return cmp.Or(cmp.Compare(counts[b], counts[a]), cmp.Compare(a, b)) })
-	for _, tag := range tags {
+	shown := tags
+	if !open && len(tags) > shownTags {
+		shown = tags[:shownTags]
+		if filter != "" && !slices.Contains(shown, filter) {
+			shown = append(slices.Clone(shown), filter)
+		}
+	}
+	for _, tag := range shown {
 		items = append(items, sdui.Item{ID: tagPrefix + tag, Label: tag, Badge: strconv.Itoa(counts[tag])})
+	}
+	switch {
+	case len(shown) < len(tags):
+		items = append(items, sdui.Item{ID: tagMore, Label: fmt.Sprintf("show %d more", len(tags)-len(shown))})
+	case len(tags) > shownTags:
+		items = append(items, sdui.Item{ID: tagLess, Label: "show less"})
 	}
 	selected := tagAll
 	if filter != "" {
@@ -152,16 +168,16 @@ func tagTabs(tasks []Task, counts map[string]int, filter string) sdui.Node {
 	return sdui.WithAction(sdui.Tabs(tagsNode, items, selected), actFilter)
 }
 
-func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formRev int, filter string) sdui.Node {
+func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formRev int, filter string, tagsOpen bool) sdui.Node {
 	add := sdui.WithAction(sdui.Form("new", sdui.TextField("title", "", "New task…"), sdui.Button("add", "Add", "plus")), "add")
 	form := sdui.VStack(add)
 	form.ID = fmt.Sprintf("new-%d", formRev)
 	if len(tasks) == 0 {
 		return sdui.VStack(form, sdui.Empty("No tasks yet"))
 	}
-	top := []sdui.Node{form}
+	var list []sdui.Node
 	if counts := tagCounts(tasks); len(counts) > 0 {
-		top = append(top, tagTabs(tasks, counts, filter))
+		list = append(list, tagTabs(tasks, counts, filter, tagsOpen))
 	}
 	byStatus := map[string][]sdui.TreeItem{}
 	for _, t := range tasks {
@@ -188,7 +204,7 @@ func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formR
 		}
 		groups = append(groups, g)
 	}
-	return sdui.VStack(append(top, sdui.Scroll(sdui.Tree("tasks", groups, selected)))...)
+	return sdui.VStack(form, sdui.Scroll(sdui.VStack(append(list, sdui.Tree("tasks", groups, selected))...)))
 }
 
 func taskItem(t Task) sdui.TreeItem {
