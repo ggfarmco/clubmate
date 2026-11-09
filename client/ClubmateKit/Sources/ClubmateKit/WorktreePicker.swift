@@ -123,6 +123,19 @@ public struct WorktreeFolder: Equatable, Sendable, Identifiable {
     }
 }
 
+public struct WorktreeAddRepos: Equatable, Sendable, Identifiable {
+    public let folder: String
+    public let title: String
+
+    public var id: String { folder }
+
+    init?(_ value: JSONValue) {
+        guard let fields = value.objectValue, let folder = fields["folder"]?.stringValue, let title = fields["title"]?.stringValue else { return nil }
+        self.folder = folder
+        self.title = title
+    }
+}
+
 public struct WorktreeIndex: Equatable, Sendable {
     public let folders: [WorktreeFolder]
     public let tasks: [WorktreeTaskRow]
@@ -132,6 +145,7 @@ public struct WorktreeIndex: Equatable, Sendable {
     public let count: String
     public let byFolder: Bool
     public let addFolder: String
+    public let addRepos: [WorktreeAddRepos]
     public let remove: String
     public let cleanup: String
     public let searchHint: String
@@ -147,6 +161,7 @@ public struct WorktreeIndex: Equatable, Sendable {
         count = picker["count"]?.stringValue ?? ""
         byFolder = picker["byFolder"]?.boolValue ?? true
         addFolder = picker["addFolder"]?.stringValue ?? ""
+        addRepos = picker["addRepos"]?.arrayValue?.compactMap(WorktreeAddRepos.init) ?? []
         remove = picker["remove"]?.stringValue ?? ""
         cleanup = picker["cleanup"]?.stringValue ?? ""
         searchHint = picker["searchHint"]?.stringValue ?? ""

@@ -72,6 +72,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌘↩ | Remove the folder, on the Remove folder sheet (⎋ cancels); Close, once the folder left and a worktree stayed | agents |
 | ⌘↩ | Archive the task, on the Archive sheet (⎋ cancels); Close, once something stayed | agents |
 | ⌘↩ | Remove what is ticked, on the Clean up worktrees sheet (⎋ cancels); Close, once something stayed | agents |
+| ⌘↩ | Add the ticked repos, on the Add repos sheet (⎋ cancels) | agents |
 | ⌥1 / ⌥2 / ⌥3 | A graph step waiting for approval: Allow once / Always allow… (asks first) / Reject | graphs |
 | ⌥↑ / ⌥↓ | A repo child of a task: the repo before / after it in landing order that has a session, no wrap-around (buttons in the crumb); in a text field they stay caret movement | agents |
 | ⌘. | Stop the graph run (confirmed) | graphs |

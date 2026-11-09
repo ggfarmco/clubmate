@@ -104,7 +104,7 @@ func (a *app) openCleanupSheet(ctx context.Context, workspaceID, folder string) 
 	if p.sheetBusy() {
 		return nil
 	}
-	p.folder, p.archive, p.cleanup = nil, nil, sheet
+	p.folder, p.archive, p.cleanup, p.repos = nil, nil, sheet, nil
 	a.queueRead(workspaceID, sheet, sheet.wanted())
 	return nil
 }

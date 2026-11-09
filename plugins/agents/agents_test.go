@@ -175,6 +175,15 @@ func newRepo(t *testing.T) string {
 	return repo
 }
 
+func repoIn(t *testing.T, parent, rel string) string {
+	t.Helper()
+	repo := filepath.Join(parent, rel)
+	require.NoError(t, os.MkdirAll(repo, 0o700))
+	git(t, repo, "init", "-q", "-b", "main")
+	git(t, repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init")
+	return repo
+}
+
 func write(t *testing.T, path, content string) {
 	t.Helper()
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))

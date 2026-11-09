@@ -134,7 +134,12 @@ type taskLink struct {
 }
 
 func (a *app) worktreesCommand(ctx context.Context, cmd pluginsdk.CommandRun) (worktreesResult, error) {
-	return a.worktreeRows(ctx, cmd.WorkspaceID)
+	res, err := a.worktreeRows(ctx, cmd.WorkspaceID)
+	if err != nil {
+		return res, err
+	}
+	res.Picker.AddRepos = append(res.Picker.AddRepos, a.addReposActions(ctx, cmd.WorkspaceID, res.Folders)...)
+	return res, nil
 }
 
 func (a *app) codeFolder(ctx context.Context, workspaceID string) string {

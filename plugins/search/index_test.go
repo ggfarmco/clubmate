@@ -170,3 +170,18 @@ func TestSearchFollowsWorktree(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{filepath.Join(wt, "a.txt")}, absPaths())
 }
+
+func TestSearchListsAFileUnderTheDeepestFolder(t *testing.T) {
+	parent := filepath.Join(tempDir(t), "kufar")
+	write(t, parent, "top.md", "")
+	write(t, parent, "api/main.go", "")
+	git(t, filepath.Join(parent, "api"), "init", "-q")
+	write(t, parent, "web/w.go", "")
+	write(t, parent, "web/ui/u.go", "")
+	git(t, filepath.Join(parent, "web"), "init", "-q")
+	h, id := start(t, parent, filepath.Join(parent, "api"), filepath.Join(parent, "web", "ui"))
+
+	got := searchFiles(t, h, id, map[string]any{"query": "", "limit": 200})
+
+	assert.ElementsMatch(t, []string{"kufar/top.md", "kufar/web/w.go", "api/main.go", "ui/u.go"}, paths(got))
+}

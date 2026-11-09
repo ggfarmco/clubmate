@@ -122,7 +122,7 @@ func (a *app) openFolderSheet(ctx context.Context, workspaceID, path string) err
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
 	if !p.sheetBusy() {
-		p.folder, p.archive, p.cleanup = sheet, nil, nil
+		p.folder, p.archive, p.cleanup, p.repos = sheet, nil, nil, nil
 	}
 	return nil
 }
@@ -289,6 +289,9 @@ func (a *app) folderHoldsOf(workspaceID string, sheet *folderSheet) folderHolds 
 }
 
 func (a *app) sheetTree(workspaceID string, p *workspaceUI) sdui.Node {
+	if node, ok := a.reposSheetTree(p); ok {
+		return node
+	}
 	if node, ok := a.cleanupSheetTree(p); ok {
 		return node
 	}

@@ -75,7 +75,7 @@ func (d *docs) list(ctx context.Context, h *pluginsdk.Host, workspaceID string, 
 		return l.res, nil
 	}
 	roots := ws.Roots()
-	files, err := d.index.Files(ctx, roots)
+	files, err := d.index.Files(ctx, roots, ws.Paths()...)
 	if err != nil {
 		return listResult{}, err
 	}

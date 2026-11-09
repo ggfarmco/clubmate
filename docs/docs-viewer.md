@@ -19,7 +19,7 @@ The `docs` plugin (`plugins/docs`) shows a Markdown or mermaid file rendered, or
 
 `docs.list` decides which docs a list shows and in what order; the Mac picker and the phone show it as returned.
 
-- First the docs agent sessions wrote (`agents.docs`, see [agents](agents.md#docs-in-the-transcript)), newest first, with `agent: true`. Then, without `session`, every other doc of each folder's selected worktree that git does not ignore (`git ls-files -co --exclude-standard`; a folder outside git is walked, skipping dot dirs, `node_modules` and the home dir's children, like `search.files`), sorted by `rel`.
+- First the docs agent sessions wrote (`agents.docs`, see [agents](agents.md#docs-in-the-transcript)), newest first, with `agent: true`. Then, without `session`, every other doc of each folder's selected worktree that git does not ignore (`git ls-files -co --exclude-standard`; a folder outside git is walked, skipping dot dirs, `node_modules` and the home dir's children, like `search.files`; a file inside another folder of the workspace is listed under that one only), sorted by `rel`.
 - With `session`: only that session's docs. The home workspace lists only agents' docs.
 - Only files that exist, are docs (`pkg/docext`) and are in scope (§ Scope) are listed, each once; a doc an agent wrote and deleted is gone.
 - `path` is absolute with symlinks resolved; `rel` is relative to its folder (selected worktree, else the folder's path), prefixed with the folder's name when the workspace has several (like `search.files`), else the absolute path (uploads, another worktree outside the folder); `kind` is `markdown` or `artifact`; `modified` is the file's mtime in RFC 3339 (UTC, seconds).

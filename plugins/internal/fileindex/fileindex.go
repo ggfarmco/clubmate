@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -20,7 +21,8 @@ const (
 )
 
 type Index struct {
-	Home string
+	Home  string
+	owned map[string]bool
 }
 
 type root struct {
@@ -39,10 +41,13 @@ func New() Index {
 	return Index{Home: home}
 }
 
-func (x Index) Files(ctx context.Context, folders []string) ([]string, error) {
+func (x Index) Files(ctx context.Context, folders []string, claimed ...string) ([]string, error) {
 	var out []string
 	seen := map[string]bool{}
-	for _, r := range newRoots(folders) {
+	roots := newRoots(folders)
+	x.owned = ownedDirs(roots, claimed)
+	for _, r := range roots {
+		inner := x.inside(r.resolved)
 		var listed []string
 		var err error
 		if x.isRepo(r.resolved) {
@@ -55,7 +60,7 @@ func (x Index) Files(ctx context.Context, folders []string) ([]string, error) {
 		}
 		for _, path := range listed {
 			file := r.resolved + "/" + strings.TrimPrefix(path, join(r.label, ""))
-			if seen[file] {
+			if seen[file] || slices.ContainsFunc(inner, func(dir string) bool { return within(dir, file) }) {
 				continue
 			}
 			seen[file] = true
@@ -154,7 +159,7 @@ func (x Index) walk(ctx context.Context, root, prefix string, out *[]string) err
 		if path == root {
 			return nil
 		}
-		if name := d.Name(); name == "node_modules" || strings.HasPrefix(name, ".") || guarded && filepath.Dir(path) == x.Home {
+		if name := d.Name(); name == "node_modules" || strings.HasPrefix(name, ".") || guarded && filepath.Dir(path) == x.Home || x.owned[path] {
 			return filepath.SkipDir
 		}
 		if !x.isRepo(path) {
@@ -200,6 +205,29 @@ func newRoots(folders []string) []root {
 			continue
 		}
 		out = append(out, root{resolved: resolved, label: label})
+	}
+	return out
+}
+
+func ownedDirs(roots []root, claimed []string) map[string]bool {
+	out := map[string]bool{}
+	for _, r := range roots {
+		out[r.resolved] = true
+	}
+	for _, dir := range claimed {
+		if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+			out[resolved] = true
+		}
+	}
+	return out
+}
+
+func (x Index) inside(root string) []string {
+	var out []string
+	for dir := range x.owned {
+		if dir != root && within(root, dir) {
+			out = append(out, dir)
+		}
 	}
 	return out
 }

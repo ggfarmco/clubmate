@@ -165,6 +165,18 @@ final class WorktreePickerTests: XCTestCase {
         XCTAssertTrue(old.unavailable)
     }
 
+    func testAddReposComeFromThePlugin() async {
+        var value = payload(folders: [folder("/kufar")], entries: [], byFolder: true)
+        if case .object(var fields) = value, case .object(var picker) = fields["picker"] {
+            picker["addRepos"] = .array([.object(["folder": .string("/kufar"), "title": .string("Add repos from kufar…")]), .object(["title": .string("no folder")])])
+            fields["picker"] = .object(picker)
+            value = .object(fields)
+        }
+        let model = await model(value)
+        XCTAssertEqual(model.index?.addRepos.map(\.title), ["Add repos from kufar…"])
+        XCTAssertEqual(model.index?.addRepos.first?.folder, "/kufar")
+    }
+
     func testReloadKeepsTheSelection() async {
         var names = ["a", "b"]
         let build = { [self] in payload(folders: [folder("/r", rows: Array(names.indices)), folder("/s")], entries: names.map { entry("/r", $0) }, byFolder: true) }

@@ -719,10 +719,22 @@
         }
       },
       {
+        "id": "agents.repos-sheet",
+        "title": "Ask which repos inside a folder to add",
+        "hidden": true,
+        "description": "Open the Add repos sheet over the window, in any section, for a workspace folder that isn't a git repo: the repos git.repos-in finds in it, newest commit first, with boxes. Only the user: an agent gets an error. The ticked ones become folders of the workspace, after the ones it has, on the user's press.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "The folder's path."}
+          },
+          "required": ["path"]
+        }
+      },
+      {
         "id": "agents.worktrees",
         "title": "Worktrees for the picker",
         "hidden": true,
-        "description": "What the title picker draws, decided here: {folders: [{path, name, addedBy?, addedAt?, addedAfk?, new, worktrees, live, session?, caption?, byline?, summary, filter, rows?, sections?}], tasks: [{session, slug, title, state, live, stale, group, icon, tone?, folders, worktrees}], worktrees: [the git.worktree-index fields + now, live, active?, task?: {session?, title, state}, session?: {id, title, status}, byHand, stale, group, folder, detail, icon, tone?], picker: {placeholder, count?, byFolder, addFolder, remove, cleanup?, searchHint, searchStale, sections: [{id, title, hint?, rows, shown, more?, fold?, clean?}]}}. group is now, live, recent, task, other, byHand or stale; worktrees come sorted in that order, newest first; rows are indices into worktrees."
+        "description": "What the title picker draws, decided here: {folders: [{path, name, addedBy?, addedAt?, addedAfk?, new, worktrees, live, session?, caption?, byline?, summary, filter, rows?, sections?}], tasks: [{session, slug, title, state, live, stale, group, icon, tone?, folders, worktrees}], worktrees: [the git.worktree-index fields + now, live, active?, task?: {session?, title, state}, session?: {id, title, status}, byHand, stale, group, folder, detail, icon, tone?], picker: {placeholder, count?, byFolder, addFolder, addRepos: [{folder, title}], remove, cleanup?, searchHint, searchStale, sections: [{id, title, hint?, rows, shown, more?, fold?, clean?}]}}. group is now, live, recent, task, other, byHand or stale; worktrees come sorted in that order, newest first; rows are indices into worktrees. addRepos has one entry per folder that isn't a git repo and holds a repo, two levels down, that isn't a folder of the workspace yet."
       },
       {
         "id": "agents.archive-plan",

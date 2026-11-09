@@ -28,6 +28,7 @@ var (
 		"git.worktree-state":     worktreeStateCommand,
 		"git.branch-delete":      branchDeleteCommand,
 		"git.worktree-unpushed":  worktreeUnpushedCommand,
+		"git.repos-in":           reposInCommand,
 	}
 )
 
@@ -59,6 +60,7 @@ type worktreeArgs struct {
 	Paths   []string `json:"paths"`
 	Proof   bool     `json:"proof"`
 	Tip     string   `json:"tip"`
+	Dates   bool     `json:"dates"`
 
 	SeenDirty   int `json:"seenDirty"`
 	SeenIgnored int `json:"seenIgnored"`

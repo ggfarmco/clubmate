@@ -67,6 +67,7 @@ type listing struct {
 type workspace struct {
 	mu       sync.Mutex
 	folders  []string
+	claimed  []string
 	list     *listing
 	builtAt  int64
 	building chan struct{}
@@ -177,7 +178,7 @@ func (a *app) listing(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Worksp
 			ws.mu.Unlock()
 			return nil, err
 		}
-		ws.folders, ws.list = roots, nil
+		ws.folders, ws.claimed, ws.list = roots, p.Paths(), nil
 	}
 	list, done := ws.list, a.revalidate(ctx, ws)
 	ws.mu.Unlock()
@@ -206,13 +207,13 @@ func (a *app) revalidate(ctx context.Context, ws *workspace) <-chan struct{} {
 	}
 	done := make(chan struct{})
 	ws.building = done
-	go a.build(context.WithoutCancel(ctx), ws, ws.folders, gen, done)
+	go a.build(context.WithoutCancel(ctx), ws, ws.folders, ws.claimed, gen, done)
 	return done
 }
 
-func (a *app) build(ctx context.Context, ws *workspace, folders []string, gen int64, done chan struct{}) {
+func (a *app) build(ctx context.Context, ws *workspace, folders, claimed []string, gen int64, done chan struct{}) {
 	defer close(done)
-	paths, err := a.idx.Files(ctx, folders)
+	paths, err := a.idx.Files(ctx, folders, claimed...)
 	logError("index", err)
 	var list *listing
 	if err == nil {

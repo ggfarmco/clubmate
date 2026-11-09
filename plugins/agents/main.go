@@ -249,6 +249,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		if json.Unmarshal(ev.Payload, &p) == nil {
 			a.kick(p.Workspace)
 			go a.dropWorkspace(p.Workspace, a.worktreeGone, false)
+			go a.offerRepos(p.Workspace)
 		}
 	}
 }

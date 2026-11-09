@@ -191,6 +191,9 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if isCleanupAction(ev.Action) {
 			return a.cleanupSheetAct(ev)
 		}
+		if isAddReposAction(ev.Action) {
+			return a.reposSheetAct(ev)
+		}
 		return a.folderSheetAct(ev)
 	}
 	if sid, ok := isContextEvent(ev); ok {

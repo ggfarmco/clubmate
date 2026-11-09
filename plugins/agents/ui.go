@@ -42,6 +42,7 @@ type uiState struct {
 	uiMu           sync.Mutex
 	ui             map[string]*workspaceUI
 	goneWorkspaces map[string]bool
+	reposChecked   map[string]bool
 	auth           map[string]authCommand
 	signIns        map[string]string
 	nodeProblem    string
@@ -84,6 +85,7 @@ type workspaceUI struct {
 	folder     *folderSheet
 	archive    *archiveSheet
 	cleanup    *cleanupSheet
+	repos      *reposSheet
 }
 
 type sessionUI struct {
@@ -108,7 +110,7 @@ type sessionUI struct {
 
 func newUIState() uiState {
 	return uiState{
-		ui: map[string]*workspaceUI{}, goneWorkspaces: map[string]bool{}, auth: map[string]authCommand{}, signIns: map[string]string{},
+		ui: map[string]*workspaceUI{}, goneWorkspaces: map[string]bool{}, reposChecked: map[string]bool{}, auth: map[string]authCommand{}, signIns: map[string]string{},
 		resumable: map[string]bool{}, steers: map[string]bool{}, noResume: map[string]bool{}, advisors: map[string]string{},
 		present: map[string]bool{}, sections: map[string]string{}, watched: map[string][]string{}, editorFiles: map[string]editorFile{},
 	}
@@ -341,6 +343,9 @@ func (a *app) presenceEvent(ctx context.Context, ev pluginsdk.Event) {
 	case "ui.opened", "ui.idle":
 		if err := a.setPresent(ctx, p.Workspace, ev.Topic == "ui.opened"); err != nil {
 			fmt.Fprintln(os.Stderr, "agents: presence:", err)
+		}
+		if ev.Topic == "ui.opened" {
+			go a.offerRepos(p.Workspace)
 		}
 	case "ui.section":
 		a.setSection(p.Workspace, p.Section)

@@ -288,6 +288,12 @@ private struct WorktreePickerContent: View {
             close()
             addFolder()
         }
+        ForEach(picker.index?.addRepos ?? []) { add in
+            WorktreePickerAction(title: add.title, icon: "plus.rectangle.on.folder", wide: wide) {
+                close()
+                session.askToAddRepos(add.folder)
+            }
+        }
         if !session.worktrees.linked.isEmpty {
             WorktreePickerAction(title: "Remove worktree…", icon: "trash", wide: wide) {
                 close()

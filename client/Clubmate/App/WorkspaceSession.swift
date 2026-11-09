@@ -140,6 +140,10 @@ final class WorkspaceSession {
         run(CommandInvocation(id: "agents.folder-sheet", args: .object(["path": .string(path)])))
     }
 
+    func askToAddRepos(_ folder: String) {
+        run(CommandInvocation(id: "agents.repos-sheet", args: .object(["path": .string(folder)])))
+    }
+
     func askToCleanUp(_ folder: String?) {
         run(CommandInvocation(id: "agents.cleanup-sheet", args: .object(folder.map { ["folder": .string($0)] } ?? [:])))
     }

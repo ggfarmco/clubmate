@@ -82,6 +82,7 @@ var (
 		"agents.restore":        withSession((*app).restoreCommand),
 		"agents.cleanup-plan":   withArgs((*app).cleanupPlanCommand),
 		"agents.cleanup-sheet":  withArgs((*app).cleanupSheetCommand),
+		"agents.repos-sheet":    withArgs((*app).reposSheetCommand),
 		"agents.task":           withArgs((*app).taskCommand),
 		"agents.task-report":    withArgs((*app).taskReportCommand),
 		"agents.land-answer":    withArgs((*app).landAnswerCommand),

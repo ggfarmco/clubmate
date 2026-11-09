@@ -81,7 +81,7 @@ func (a *app) openArchiveSheet(ctx context.Context, workspaceID string, s *sessi
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
 	if !p.sheetBusy() {
-		p.folder, p.archive, p.cleanup = nil, sheet, nil
+		p.folder, p.archive, p.cleanup, p.repos = nil, sheet, nil, nil
 	}
 	return nil
 }
@@ -95,7 +95,7 @@ func isArchiveAction(action string) bool {
 }
 
 func (p *workspaceUI) sheetBusy() bool {
-	return p.folder != nil && p.folder.busy || p.archive != nil && p.archive.busy || p.cleanup != nil && p.cleanup.busy
+	return p.folder != nil && p.folder.busy || p.archive != nil && p.archive.busy || p.cleanup != nil && p.cleanup.busy || p.repos != nil && p.repos.busy
 }
 
 func (a *app) archiveSheetAct(ev pluginsdk.UIEvent) error {

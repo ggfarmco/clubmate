@@ -87,16 +87,22 @@ type pickerSection struct {
 	Clean string `json:"clean,omitempty"`
 }
 
+type pickerAddRepos struct {
+	Folder string `json:"folder"`
+	Title  string `json:"title"`
+}
+
 type worktreePicker struct {
-	Placeholder string          `json:"placeholder"`
-	Count       string          `json:"count,omitempty"`
-	ByFolder    bool            `json:"byFolder"`
-	AddFolder   string          `json:"addFolder"`
-	Remove      string          `json:"remove"`
-	Cleanup     string          `json:"cleanup,omitempty"`
-	SearchHint  string          `json:"searchHint"`
-	SearchStale int             `json:"searchStale"`
-	Sections    []pickerSection `json:"sections"`
+	Placeholder string           `json:"placeholder"`
+	Count       string           `json:"count,omitempty"`
+	ByFolder    bool             `json:"byFolder"`
+	AddFolder   string           `json:"addFolder"`
+	AddRepos    []pickerAddRepos `json:"addRepos"`
+	Remove      string           `json:"remove"`
+	Cleanup     string           `json:"cleanup,omitempty"`
+	SearchHint  string           `json:"searchHint"`
+	SearchStale int              `json:"searchStale"`
+	Sections    []pickerSection  `json:"sections"`
 }
 
 func buildPicker(workspace string, folders []worktreeFolder, rows []worktreeRow) worktreePicker {
@@ -104,6 +110,7 @@ func buildPicker(workspace string, folders []worktreeFolder, rows []worktreeRow)
 		Placeholder: pickerManyFolder,
 		ByFolder:    len(rows) <= pickerSearchAbove,
 		AddFolder:   fmt.Sprintf(pickerAddFolder, workspace),
+		AddRepos:    []pickerAddRepos{},
 		Remove:      fmt.Sprintf(pickerRemove, workspace),
 		SearchHint:  pickerSearchHint,
 		SearchStale: pickerSearchStale,

@@ -83,6 +83,21 @@
         }
       },
       {
+        "id": "git.repos-in",
+        "title": "Repos in a folder",
+        "hidden": true,
+        "agent": false,
+        "timeout": 20,
+        "description": "The git repos inside a folder that isn't one, for adding them as folders of the workspace; the path need not be in the workspace. Looks two levels down, skipping hidden directories and node_modules, and doesn't look inside a repo it found. The walk stops after 3 s with what it found and partial set. With dates, each repo's last commit is read with git log, which runs nothing the repo's config names, for at most 10 s, and repos come newest commit first, undated ones last by name; without, by name. Returns {path, repo, repos: [{path, name, lastCommit?}], partial}: repo is true, and repos empty, when the path is a git repo or inside one; name is the repo's path below the folder.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "Absolute path of the folder."},
+            "dates": {"type": "boolean", "description": "Read each repo's last commit and sort by it."}
+          },
+          "required": ["path"]
+        }
+      },
+      {
         "id": "git.clone",
         "title": "Clone repo",
         "hidden": true,
