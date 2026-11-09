@@ -50,6 +50,7 @@ type app struct {
 	reviewDBDelay    time.Duration
 	switchRoot       func(ctx context.Context, r *review)
 	nrev             string
+	readComments     commentReader
 	sheetSeq         int64
 }
 
@@ -73,6 +74,7 @@ func main() {
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.reviewStatusHint = func(workspaceID string) { a.refreshStatus(h, workspaceID) }
 	a.nrev = filepath.Join(pluginsdk.ResourcesDir(), "tools", "nrev")
+	a.readComments = nrevComments(a.nrev)
 	a.switchRoot = func(ctx context.Context, r *review) {
 		if _, err := a.target(ctx, h, r.Workspace, r.Root); err != nil {
 			logError("review switch", err)

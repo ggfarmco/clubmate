@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -26,6 +27,7 @@ const (
 	categoryGen   = "generated"
 	reviewDB      = "review.db"
 	reviewDBDelay = 150 * time.Millisecond
+	nrevTimeout   = 2 * time.Second
 )
 
 var (
@@ -34,6 +36,20 @@ var (
 )
 
 type reviewKey struct{ Worktree, Base, Head string }
+
+type commentReader func(worktree string) ([]reviewComment, error)
+
+type nrevComment struct {
+	ID        int64  `json:"id"`
+	File      string `json:"file"`
+	Side      string `json:"side"`
+	LineStart int    `json:"line_start"`
+	LineEnd   int    `json:"line_end"`
+	Type      string `json:"type"`
+	Text      string `json:"text"`
+	Status    string `json:"status"`
+	LineText  string `json:"line_text"`
+}
 
 type review struct {
 	ID             string
@@ -56,6 +72,7 @@ type review struct {
 	metaSent       *reviewMeta
 	seq            int
 	nv             reviewer
+	readComments   commentReader
 }
 
 type reviewHost interface {
@@ -92,15 +109,42 @@ func reviewID(k reviewKey) string {
 	return fmt.Sprintf("rv_%x", sum[:reviewIDBytes])
 }
 
-func newReview(ws, root string, key reviewKey, tab int, nv reviewer) *review {
+func newReview(ws, root string, key reviewKey, tab int, nv reviewer, read commentReader) *review {
 	return &review{
-		ID:        reviewID(key),
-		Workspace: ws,
-		Key:       key,
-		Root:      root,
-		Tab:       tab,
-		Filters:   reviewFilters{Code: reviewFilter{Shown: true}, Reviewed: reviewFilter{Shown: true}},
-		nv:        nv,
+		ID:           reviewID(key),
+		Workspace:    ws,
+		Key:          key,
+		Root:         root,
+		Tab:          tab,
+		Filters:      reviewFilters{Code: reviewFilter{Shown: true}, Reviewed: reviewFilter{Shown: true}},
+		nv:           nv,
+		readComments: read,
+	}
+}
+
+func nrevComments(nrev string) commentReader {
+	return func(worktree string) ([]reviewComment, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), nrevTimeout)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, nrev, "list", "--json", "--status", "all")
+		cmd.Dir = worktree
+		out, err := cmd.Output()
+		if err != nil {
+			var exit *exec.ExitError
+			if errors.As(err, &exit) && len(exit.Stderr) > 0 {
+				return nil, fmt.Errorf("nrev list: %w: %s", err, strings.TrimSpace(string(exit.Stderr)))
+			}
+			return nil, fmt.Errorf("nrev list: %w", err)
+		}
+		var rows []nrevComment
+		if err := json.Unmarshal(out, &rows); err != nil {
+			return nil, fmt.Errorf("nrev list: %w", err)
+		}
+		list := make([]reviewComment, len(rows))
+		for i, c := range rows {
+			list[i] = reviewComment(c)
+		}
+		return list, nil
 	}
 }
 
@@ -174,7 +218,7 @@ func (r *review) refresh(comments bool) error {
 	}
 	r.Entries = entries
 	if comments {
-		list, err := r.nv.reviewComments(r.Tab)
+		list, err := r.readComments(r.Key.Worktree)
 		if err != nil {
 			return err
 		}

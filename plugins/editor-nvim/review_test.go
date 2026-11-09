@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -32,6 +33,7 @@ type fakeReviewer struct {
 	tabs     []reviewTab
 	tab      int
 	reads    int
+	readErr  error
 	closed   []int
 }
 
@@ -75,11 +77,11 @@ func (f *fakeReviewer) reviewEntries(int) ([]reviewEntry, error) {
 	return slices.Clone(f.entries), nil
 }
 
-func (f *fakeReviewer) reviewComments(int) ([]reviewComment, error) {
+func (f *fakeReviewer) readComments(string) ([]reviewComment, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.reads++
-	return slices.Clone(f.comments), nil
+	return slices.Clone(f.comments), f.readErr
 }
 
 func (f *fakeReviewer) lastMeta() reviewMeta {
@@ -187,12 +189,12 @@ func (f *fakeHost) last() reviewPayload {
 }
 
 func newTestApp() *app {
-	return &app{reviews: map[string]*review{}, reviewSel: map[string]string{}, reviewLayouts: map[string]string{}, reviewPublished: map[string]reviewPayload{}, reviewWatched: map[*client]bool{}}
+	return &app{reviews: map[string]*review{}, reviewSel: map[string]string{}, reviewLayouts: map[string]string{}, reviewPublished: map[string]reviewPayload{}, reviewWatched: map[*client]bool{}, readComments: func(string) ([]reviewComment, error) { return nil, nil }}
 }
 
 func openTestReview(t *testing.T, a *app, h *fakeHost, nv *fakeReviewer) *review {
 	t.Helper()
-	r := newReview("ws", "/repo", reviewKey{Worktree: "/repo", Base: "main"}, 1, nv)
+	r := newReview("ws", "/repo", reviewKey{Worktree: "/repo", Base: "main"}, 1, nv, nv.readComments)
 	r.Info, _ = nv.reviewInfo(1)
 	require.NoError(t, r.refresh(true))
 	a.reviewMu.Lock()
@@ -223,27 +225,28 @@ func TestReviewFollowsNvimEvents(t *testing.T) {
 	assert.Equal(t, 0, h.last().Open)
 }
 
-func TestReviewRereadsLostCommentsOnReopenAndSend(t *testing.T) {
+func TestReviewKeepsCommentsWhenNrevFails(t *testing.T) {
 	a, h := newTestApp(), &fakeHost{}
-	open := []reviewComment{{ID: 1, Status: "open"}}
-	nv := &fakeReviewer{comments: open}
-	req := openReviewReq{Key: reviewKey{Worktree: "/repo", Base: "main"}, BaseRev: "main"}
-	r, err := a.startReview(t.Context(), h, "ws", "/repo", nv, req)
-	require.NoError(t, err)
-	lose := func() {
-		nv.comments = nil
-		a.syncReviews(t.Context(), h, "ws")
-		require.Equal(t, 0, h.last().Open)
-		nv.comments = open
-	}
-	lose()
-	_, err = a.startReview(t.Context(), h, "ws", "/repo", nv, req)
-	require.NoError(t, err)
+	nv := &fakeReviewer{comments: []reviewComment{{ID: 1, Status: "open"}}}
+	openTestReview(t, a, h, nv)
+	nv.comments, nv.readErr = nil, errors.New("nrev list: exit status 1")
+	a.syncReviews(t.Context(), h, "ws")
 	assert.Equal(t, 1, h.last().Open)
-	lose()
-	require.NoError(t, a.sendAt(t.Context(), h, "ws", "/repo", r.Tab))
-	assert.NotNil(t, r.Sheet)
-	assert.Equal(t, 1, h.last().Open)
+}
+
+func TestNrevCommentsReadsTheWorktree(t *testing.T) {
+	dir := t.TempDir()
+	nrev := filepath.Join(dir, "nrev")
+	script := `#!/bin/sh
+[ "$PWD" = "` + dir + `" ] || { echo "wrong dir $PWD" >&2; exit 1; }
+echo '[{"id":4,"file":"a.go","side":"right","line_start":3,"line_end":5,"type":"note","text":"Why?","status":"open","line_text":"x := 1","rev":"abc"}]'
+`
+	require.NoError(t, os.WriteFile(nrev, []byte(script), 0o755))
+	list, err := nrevComments(nrev)(dir)
+	require.NoError(t, err)
+	assert.Equal(t, []reviewComment{{ID: 4, File: "a.go", Side: "right", LineStart: 3, LineEnd: 5, Type: "note", Text: "Why?", Status: "open", LineText: "x := 1"}}, list)
+	_, err = nrevComments(nrev)(t.TempDir())
+	assert.ErrorContains(t, err, "wrong dir")
 }
 
 func TestReviewClosedClearsBus(t *testing.T) {

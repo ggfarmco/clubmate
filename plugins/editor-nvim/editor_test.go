@@ -34,7 +34,6 @@ const (
   end,
   info = function() return { labels = { left = "main", right = "Working tree" }, editable = true } end,
   entries = function() return { { path = "a.go", status = "M", kind = "modified", category = "code", additions = 1, deletions = 0, reviewed = false, stale = false, comments = 0 } } end,
-  comments = function() return { { id = 1, file = "a.go", side = "new", line_start = 1, line_end = 1, type = "issue", text = "x", status = "open", line_text = "line" } } end,
   filters = function() return { code = { shown = true, count = 1 }, tests = { shown = false, count = 0 }, generated = { shown = false, count = 0 }, reviewed = { shown = true, count = 0 } } end,
   set_meta = function(tab, meta) vim.g.dv_meta = vim.json.encode(meta) end,
   subscribe = function() end,
@@ -428,6 +427,13 @@ func TestDiffviewMissingShowsOpenFailed(t *testing.T) {
 }
 
 func TestReviewCommandOpensMergeBaseForTheCaller(t *testing.T) {
+	tools := filepath.Join(t.TempDir(), "tools")
+	require.NoError(t, os.Mkdir(tools, 0o700))
+	nrev := `#!/bin/sh
+echo '[{"id":1,"file":"a.go","side":"new","line_start":1,"line_end":1,"type":"issue","text":"x","status":"open","line_text":"line"}]'
+`
+	require.NoError(t, os.WriteFile(filepath.Join(tools, "nrev"), []byte(nrev), 0o700))
+	t.Setenv("CLUBMATE_RESOURCES", filepath.Dir(tools))
 	e, wt := startWorktreeEditor(t, setup{initLua: stubDiffview, plugins: []string{fakeAgentsWith(t, "")}})
 	waitAgents(t, e)
 	fork := strings.TrimSpace(gitIn(t, e.top, "rev-parse", "HEAD"))

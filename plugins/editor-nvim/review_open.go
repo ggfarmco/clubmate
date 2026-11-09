@@ -246,7 +246,7 @@ func (a *app) openReviewLocked(ctx context.Context, h reviewHost, ws, root strin
 }
 
 func (a *app) trackReviewLocked(ctx context.Context, h reviewHost, ws, root string, key reviewKey, tab int, nv reviewer) *review {
-	r := newReview(ws, root, key, tab, nv)
+	r := newReview(ws, root, key, tab, nv, a.readComments)
 	var err error
 	if r.Info, err = nv.reviewInfo(tab); err != nil {
 		logError("review info", err)

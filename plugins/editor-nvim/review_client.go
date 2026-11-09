@@ -15,7 +15,6 @@ type reviewer interface {
 	reviewOpen(o reviewOpenArgs) (int, error)
 	reviewInfo(tab int) (reviewInfo, error)
 	reviewEntries(tab int) ([]reviewEntry, error)
-	reviewComments(tab int) ([]reviewComment, error)
 	reviewLayout(tab int, layout string) error
 	reviewClose(tab int) error
 	reviewFocus(tab int) error
@@ -162,10 +161,6 @@ func (c *client) reviewInfo(tab int) (reviewInfo, error) {
 
 func (c *client) reviewEntries(tab int) ([]reviewEntry, error) {
 	return reviewCall[[]reviewEntry](c, rpcTimeout, "entries", tab)
-}
-
-func (c *client) reviewComments(tab int) ([]reviewComment, error) {
-	return reviewCall[[]reviewComment](c, rpcTimeout, "comments", tab)
 }
 
 func (c *client) reviewLayout(tab int, layout string) error {
