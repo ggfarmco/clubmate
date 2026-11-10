@@ -253,6 +253,9 @@ func (s *Server) call(ctx context.Context, p callParams) (any, error) {
 		}
 		delete(p.Arguments, workspaceArg)
 	}
+	if s.Workspace != "" && workspace != "" && workspace != s.Workspace {
+		return failure(fmt.Errorf("workspace %s is not this session's workspace (%s); agents act only in their own workspace", workspace, s.Workspace)), nil
+	}
 	if workspace == "" {
 		workspace = s.Workspace
 	}
@@ -414,7 +417,7 @@ func inputSchema(args *schema.Object) map[string]any {
 		}
 		required = args.Required
 	}
-	props[workspaceArg] = schema.Prop{Type: "string", Description: "Workspace id. Defaults to $CLUBMATE_WORKSPACE_ID, else the most recently opened workspace; ignored by tools that don't act on a workspace."}
+	props[workspaceArg] = schema.Prop{Type: "string", Description: "Workspace id. Defaults to $CLUBMATE_WORKSPACE_ID, else the most recently opened workspace; ignored by tools that don't act on a workspace. When $CLUBMATE_WORKSPACE_ID is set, any other workspace is refused: agents act only in their own workspace."}
 	out := map[string]any{"type": "object", "properties": props}
 	if len(required) > 0 {
 		out["required"] = required

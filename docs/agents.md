@@ -392,7 +392,7 @@ Design (not built): continuing the agent's own conversation instead of a brief. 
 Its `initialize` instructions end with "Working in Clubmate" (`internal/mcp/clubmate.md`, embedded in the binary): split a task, run independent parts as child sessions with `agents_new` and a branch, collect them with `agents_wait`, and use `cron_add` and `triggers_add` instead of polling. Every MCP client that connects gets it, in any project.
 
 - Tools are named after the command or capability with `.` and `-` replaced by `_` (`editor_open`, `workspace_list`, `terminal_close`). A plugin command that provides a capability appears under the capability's name only.
-- Every tool takes an optional `workspace` id. It defaults to `$CLUBMATE_WORKSPACE_ID`, then the most recently opened workspace.
+- Every tool takes an optional `workspace` id. It defaults to `$CLUBMATE_WORKSPACE_ID`, then the most recently opened workspace. With `$CLUBMATE_WORKSPACE_ID` set, any other workspace is refused ("workspace … is not this session's workspace (…); agents act only in their own workspace"): an agent acts only in its own workspace.
 - If Clubmate isn't running, the tools still list the core primitives, and calls fail with "Clubmate isn't running". The server never starts Clubmate itself.
 
 To connect Claude Code, use **Settings → Agents → Connect Claude Code**. It runs:

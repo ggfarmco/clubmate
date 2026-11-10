@@ -148,7 +148,7 @@ func names(r reply) []string {
 
 func TestMCPHandshakeAndTools(t *testing.T) {
 	dial, workspace := startCore(t)
-	p := start(t, dial, "prj_0123456789abcdef")
+	p := start(t, dial, workspace)
 	init := p.call(t, 1, "initialize", map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "test", "version": "1"}})
 	assert.Equal(t, "2025-06-18", init.Result.ProtocolVersion)
 	p.send(t, nil, "notifications/initialized", nil)
@@ -181,6 +181,16 @@ func TestToolCallForwardsCaller(t *testing.T) {
 	res := withCaller.call(t, 1, "tools/call", map[string]any{"name": "editor_open", "arguments": args})
 	require.False(t, res.Result.IsError, res.Result.Content)
 	assert.JSONEq(t, `{"plugin":"alpha","args":{"path":"/x.go"},"caller":"agt_x"}`, res.Result.Content[0].Text)
+}
+
+func TestToolCallRefusesOtherWorkspace(t *testing.T) {
+	dial, workspace := startCore(t)
+	p := start(t, dial, workspace)
+	foreign := p.call(t, 1, "tools/call", map[string]any{"name": "editor_open", "arguments": map[string]any{"path": "/x.go", "workspace": "prj_0123456789abcdef"}})
+	assert.True(t, foreign.Result.IsError)
+	assert.Contains(t, foreign.Result.Content[0].Text, "is not this session's workspace")
+	own := p.call(t, 2, "tools/call", map[string]any{"name": "editor_open", "arguments": map[string]any{"path": "/x.go", "workspace": workspace}})
+	assert.False(t, own.Result.IsError, own.Result.Content)
 }
 
 func TestMCPDestructiveDenied(t *testing.T) {

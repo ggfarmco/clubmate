@@ -270,7 +270,7 @@ func TestAgentSendNeedsApproval(t *testing.T) {
 	require.NoError(t, err)
 	c := h.Client(t)
 	send := func() error {
-		return c.Call(t.Context(), "command.run", map[string]any{"id": "session.send", "agent": true, "args": map[string]any{"id": s.ID, "text": "hi"}}, nil)
+		return c.Call(t.Context(), "command.run", map[string]any{"id": "session.send", "workspaceId": p.ID, "agent": true, "args": map[string]any{"id": s.ID, "text": "hi"}}, nil)
 	}
 	err = send()
 	require.ErrorIs(t, err, rpc.ErrDenied)
@@ -283,6 +283,23 @@ func TestAgentSendNeedsApproval(t *testing.T) {
 	assert.Equal(t, [3]string{s.ID, "Build", "demo"}, [3]string{asked.Session.ID, asked.Session.Title, asked.Session.WorkspaceName})
 	a.reply <- false
 	require.ErrorIs(t, <-done, rpc.ErrDenied)
+}
+
+func TestAgentReadsOnlyItsWorkspaceSessions(t *testing.T) {
+	h := testutil.NewHarness(t)
+	own, err := h.Svc.CreateWorkspace(t.Context(), "own", nil)
+	require.NoError(t, err)
+	other, err := h.Svc.CreateWorkspace(t.Context(), "other", nil)
+	require.NoError(t, err)
+	h.Start(t)
+	s, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{WorkspaceID: other.ID, Title: "Build", Command: []string{"sh", "-c", "exec cat"}})
+	require.NoError(t, err)
+	c := h.Client(t)
+	read := func(workspaceID string) error {
+		return c.Call(t.Context(), "command.run", map[string]any{"id": "session.read", "workspaceId": workspaceID, "agent": true, "args": map[string]any{"id": s.ID}}, nil)
+	}
+	assert.ErrorIs(t, read(own.ID), rpc.ErrDenied)
+	assert.NoError(t, read(other.ID))
 }
 
 func (r callerRouter) Resolve(id string) (rpc.Command, bool) {
@@ -328,7 +345,7 @@ func TestApprovalNamesTheCallingSession(t *testing.T) {
 	for _, tt := range tests {
 		done := make(chan error, 1)
 		go func() {
-			done <- c.Call(t.Context(), "command.run", map[string]any{"id": "session.send", "agent": true, "caller": tt.caller, "args": map[string]any{"id": s.ID, "text": "hi"}}, nil)
+			done <- c.Call(t.Context(), "command.run", map[string]any{"id": "session.send", "workspaceId": p.ID, "agent": true, "caller": tt.caller, "args": map[string]any{"id": s.ID, "text": "hi"}}, nil)
 		}()
 		asked := <-a.asked
 		assert.Equal(t, tt.want, asked.From, tt.caller)

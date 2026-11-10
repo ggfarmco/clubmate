@@ -365,6 +365,9 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 		if scope, err = prim.scope(ctx, s.svc, p.WorkspaceID, p.Args); err != nil {
 			return nil, err
 		}
+		if p.Agent && scope != p.WorkspaceID {
+			return nil, fmt.Errorf("%w: the session is not in workspace %q; agents act only in their own workspace", ErrDenied, p.WorkspaceID)
+		}
 	}
 	if p.Agent && c.Destructive {
 		if p.Args, err = s.approve(ctx, c, scope, sessionArg(isPrimitive), p.Caller, p.Args); err != nil {

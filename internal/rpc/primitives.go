@@ -122,6 +122,7 @@ var primitives = browserPrimitives(map[string]primitive{
 		}),
 		method: "session.read",
 		params: passArgs,
+		scope:  sessionWorkspace,
 	},
 	"process.tree": {
 		cmd:    coreCommand("process.tree", "Process Tree", "List the processes of every session and of processes plugins register (e.g. agents), flagging orphans and duplicates.", nil),

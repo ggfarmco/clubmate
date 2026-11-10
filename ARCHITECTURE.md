@@ -43,7 +43,7 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 | `kv` | Plugin storage (`plugins.db`). Each plugin also has a private state dir, `plugin-data/<id>`. |
 | `cli` | The `clubmate`/`cm` commands: open, command, bus, notify, session, process, ui snapshot, diagnostics, debug, mcp. |
 | `sessionhost` | The PTY host inside `clubmate-session`: scrollback, terminal state kept for the next attach, bell, open-file limit. |
-| `mcp` | `clubmate mcp`: exposes agent-visible commands as MCP tools, scoped to `$CLUBMATE_WORKSPACE_ID`. |
+| `mcp` | `clubmate mcp`: exposes agent-visible commands as MCP tools, scoped to `$CLUBMATE_WORKSPACE_ID` (another `workspace` is refused; the core denies agent `session.read/send/kill` on a session of another workspace). |
 | `notify` | `notify.post`: validates, rate-limits (per workspace and global) and publishes `notify.posted`. |
 | `shellenv` | Resolves the login-shell environment once, so GUI-launched processes get your `PATH`. |
 | `diagnostics` | `diagnostics.collect`: the zip behind Help → Collect Diagnostics. |
