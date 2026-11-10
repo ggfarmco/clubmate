@@ -43,6 +43,15 @@ func (e shapeEdge) out() string {
 	return e.On
 }
 
+func (s graphShape) reporter(node string) string {
+	for _, n := range s.Nodes {
+		if n.ID == node && !n.Step {
+			return n.Session
+		}
+	}
+	return ""
+}
+
 func (a *app) shape(workspace string, t *Trigger) *graphShape {
 	if t == nil || t.Run == "" || a.host == nil {
 		return nil

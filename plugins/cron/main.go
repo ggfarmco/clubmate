@@ -62,7 +62,7 @@ func newApp() *app {
 		sentReminders: map[string][]reminder{},
 		ready:         make(chan struct{}),
 		poke:          make(chan struct{}, 1),
-		now:           time.Now,
+		now:           wallNow,
 	}
 	a.runCommand = a.callCommand
 	a.sessions = a.agentSessions
@@ -387,4 +387,8 @@ func (a *app) wake() {
 	case a.poke <- struct{}{}:
 	default:
 	}
+}
+
+func wallNow() time.Time {
+	return time.Now().Round(0)
 }

@@ -75,12 +75,13 @@ func parseSchedule(cronExpr, timezone, every, at, in string, now time.Time) (Sch
 		if d <= 0 {
 			return Schedule{}, fmt.Errorf("in %q: must be positive", in)
 		}
-		s.At = now.Add(d)
+		s.At = now.Round(0).Add(d)
 	}
 	return s, nil
 }
 
 func (s Schedule) Next(after time.Time) (time.Time, bool) {
+	after = after.Round(0)
 	switch {
 	case s.OneShot():
 		if after.Before(s.At) {
@@ -102,7 +103,7 @@ func (s Schedule) Next(after time.Time) (time.Time, bool) {
 		if err != nil {
 			return time.Time{}, false
 		}
-		next := spec.Next(after.In(loc))
+		next := nextOnWall(spec, after.In(loc))
 		return next, !next.IsZero()
 	}
 }
@@ -155,4 +156,35 @@ func dailyTime(expr string) (int, int, bool) {
 		return 0, 0, false
 	}
 	return hh, mm, true
+}
+
+func nextOnWall(spec cron.Schedule, after time.Time) time.Time {
+	wall := spec.Next(wallClock(after))
+	if wall.IsZero() {
+		return time.Time{}
+	}
+	var first, skipped time.Time
+	for _, probe := range []time.Duration{-24 * time.Hour, 0, 24 * time.Hour} {
+		_, offset := wall.Add(probe).In(after.Location()).Zone()
+		t := wall.Add(-time.Duration(offset) * time.Second).In(after.Location())
+		switch {
+		case !wallClock(t).Equal(wall):
+			if start, _ := t.ZoneBounds(); start.After(after) && start.After(skipped) {
+				skipped = start
+			}
+		case t.After(after) && (first.IsZero() || t.Before(first)):
+			first = t
+		}
+	}
+	if first.IsZero() {
+		first = skipped
+	}
+	if first.IsZero() {
+		return spec.Next(after)
+	}
+	return first
+}
+
+func wallClock(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC)
 }

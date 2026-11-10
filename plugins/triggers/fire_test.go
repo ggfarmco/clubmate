@@ -133,6 +133,70 @@ func TestBusySkipRefiresWhenTargetTurnEnds(t *testing.T) {
 	assert.Equal(t, Run{At: h[1].At, Topic: "event.ping", Seq: 1, Status: automation.StatusOK, Result: "{}", Target: "agt_o"}, h[1])
 }
 
+func TestBusyHoldFiresWhenTargetTurnEndedBeforeTheHold(t *testing.T) {
+	var sent []automation.CommandRequest
+	a, _ := testApp(t, func(_ context.Context, req automation.CommandRequest) (json.RawMessage, error) {
+		sent = append(sent, req)
+		return json.RawMessage(`{}`), nil
+	})
+	a.triggers["tr_1"].Command = automation.PromptCommand
+	a.triggers["tr_1"].Args = json.RawMessage(`{"session":"agt_o","text":"{{payload.n}}"}`)
+	calls := 0
+	a.sessions = func(context.Context, string) ([]api.Session, error) {
+		calls++
+		if calls == 1 {
+			return []api.Session{{ID: "agt_o", Status: "running"}}, nil
+		}
+		return []api.Session{{ID: "agt_o", Status: "done"}}, nil
+	}
+
+	a.dispatch(t.Context(), ping(1))
+	a.runs.Wait()
+
+	require.Len(t, sent, 1)
+	assert.Empty(t, a.held)
+	h := a.triggers["tr_1"].History
+	require.Len(t, h, 2)
+	assert.Equal(t, automation.ReasonBusy, h[0].Reason)
+	assert.Equal(t, automation.StatusOK, h[1].Status)
+}
+
+func TestOnlyTheNodeSessionEmitsItsGraphOutcome(t *testing.T) {
+	a, _ := testApp(t, func(_ context.Context, req automation.CommandRequest) (json.RawMessage, error) {
+		if req.ID != graphsShow || string(req.Args) != `{"id":"gr_1"}` {
+			return nil, errors.New("unknown run")
+		}
+		return json.RawMessage(`{"nodes":[{"id":"coder","session":"agt_1"},{"id":"tests","step":true,"session":""}]}`), nil
+	})
+	tests := []struct {
+		name   string
+		cmd    pluginsdk.CommandRun
+		event  string
+		wantOK bool
+	}{
+		{"node session", pluginsdk.CommandRun{Agent: true, Caller: "agt_1"}, "graph.gr_1.coder", true},
+		{"the user", pluginsdk.CommandRun{}, "graph.gr_1.tests", true},
+		{"other event", pluginsdk.CommandRun{Agent: true, Caller: "agt_2"}, "deploy.done", true},
+		{"other session", pluginsdk.CommandRun{Agent: true, Caller: "agt_2"}, "graph.gr_1.coder", false},
+		{"step outcome", pluginsdk.CommandRun{Agent: true, Caller: "agt_1"}, "graph.gr_1.tests", false},
+		{"agent without session", pluginsdk.CommandRun{Agent: true}, "graph.gr_1.coder", false},
+		{"plain cm from a session", pluginsdk.CommandRun{Caller: "agt_2"}, "graph.gr_1.tests", false},
+		{"unknown run", pluginsdk.CommandRun{Agent: true, Caller: "agt_1"}, "graph.gr_2.coder", false},
+		{"nested name", pluginsdk.CommandRun{Agent: true, Caller: "agt_1"}, "graph.gr_1.coder.x", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.cmd.WorkspaceID = "ws1"
+			err := a.checkGraphReport(t.Context(), tt.cmd, tt.event)
+			if tt.wantOK {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorContains(t, err, "only the session of agent node")
+		})
+	}
+}
+
 func TestBusEventFiresOnlyOnEventsFromTheTopicsOwner(t *testing.T) {
 	var sent []automation.CommandRequest
 	a, _ := testApp(t, func(_ context.Context, req automation.CommandRequest) (json.RawMessage, error) {

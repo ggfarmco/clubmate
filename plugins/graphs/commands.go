@@ -264,34 +264,42 @@ func (a *app) stopRun(ctx context.Context, cmd pluginsdk.CommandRun, forget bool
 	if err := a.authorize(ctx, cmd, r); err != nil {
 		return nil, err
 	}
-	if r.Status == statusRunning {
-		x := &runner{call: a.runCommand, run: r}
-		if err := errors.Join(x.unwind(ctx)...); err != nil {
-			return nil, err
-		}
-	}
-	defer a.cancelSteps(context.WithoutCancel(ctx), r.ID)
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	live, ok := a.runs[r.ID]
 	if !ok {
+		a.mu.Unlock()
 		return nil, unknownRun(r.ID)
 	}
-	if forget {
-		delete(a.runs, r.ID)
-		delete(a.stepSel, r.ID)
-		a.touch(r.Workspace)
-		removeOutput(r.ID)
-		return nil, a.store.Remove(ctx, live)
-	}
+	var saveErr error
 	if live.Status == statusRunning {
 		live.stop(reasonStopped, a.now())
 		a.touch(r.Workspace)
-		if err := a.store.Save(ctx, live); err != nil {
-			return nil, err
-		}
+		saveErr = a.store.Save(ctx, live)
 	}
-	return publicRun(live), nil
+	stopped := cloneRun(live)
+	a.mu.Unlock()
+	a.cancelSteps(context.WithoutCancel(ctx), r.ID)
+	x := &runner{call: a.runCommand, run: stopped}
+	if err := errors.Join(x.unwind(ctx)...); err != nil {
+		return nil, fmt.Errorf(errTriggersLeft, r.ID, err)
+	}
+	if saveErr != nil {
+		return nil, saveErr
+	}
+	if !forget {
+		return publicRun(stopped), nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	live, ok = a.runs[r.ID]
+	if !ok {
+		return nil, nil
+	}
+	delete(a.runs, r.ID)
+	delete(a.stepSel, r.ID)
+	a.touch(r.Workspace)
+	removeOutput(r.ID)
+	return nil, a.store.Remove(ctx, live)
 }
 
 func (a *app) put(ctx context.Context, r *Run) error {

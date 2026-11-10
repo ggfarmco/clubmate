@@ -629,14 +629,14 @@ func TestBypassStillHonoursDeny(t *testing.T) {
 	assert.Equal(t, "denied by rule Bash(make:*)", stepMoves(a, r.ID, "tests")[0].Step.Reason)
 }
 
-func blockedStep(t *testing.T) (*app, *fakeProc, *Run) {
+func blockedStep(t *testing.T) (*app, *fakeCore, *Run) {
 	t.Helper()
-	a, _, p, r := stepApp(t)
+	a, core, p, r := stepApp(t)
 	p.block = true
 	a.spawn = func(f func()) { go f() }
 	turnDone(t, a, "agt_1", 1)
 	require.Eventually(t, func() bool { return p.ran() == 1 }, time.Second, 5*time.Millisecond)
-	return a, p, r
+	return a, core, r
 }
 
 func TestStopCancelsRunningStep(t *testing.T) {
@@ -647,6 +647,33 @@ func TestStopCancelsRunningStep(t *testing.T) {
 		m := stepMoves(a, r.ID, "tests")
 		return len(m) == 1 && m[0].Step.Reason == reasonStopped
 	}, time.Second, 5*time.Millisecond)
+}
+
+func TestStopCancelsStepsWhenTriggersAreLeft(t *testing.T) {
+	a, core, r := blockedStep(t)
+	core.mu.Lock()
+	core.errs = map[string]error{"triggers.delete": errors.New("triggers down")}
+	core.mu.Unlock()
+	stop := func(id string) error {
+		_, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: id, WorkspaceID: "ws1", Args: json.RawMessage(`{"id":"` + r.ID + `"}`)})
+		return err
+	}
+
+	assert.ErrorContains(t, stop("graphs.stop"), "triggers down")
+	assert.Eventually(t, func() bool {
+		m := stepMoves(a, r.ID, "tests")
+		return len(m) == 1 && m[0].Step.Reason == reasonStopped
+	}, time.Second, 5*time.Millisecond)
+	assert.ErrorContains(t, stop("graphs.delete"), "edge triggers are left")
+	a.mu.Lock()
+	assert.Equal(t, statusStopped, a.runs[r.ID].Status)
+	a.mu.Unlock()
+
+	core.mu.Lock()
+	core.errs = nil
+	core.mu.Unlock()
+	require.NoError(t, stop("graphs.delete"))
+	assert.NotContains(t, a.runs, r.ID)
 }
 
 func TestStopClosesQueuedStepMoves(t *testing.T) {
@@ -887,17 +914,29 @@ func TestStepSec_C8_WorktreeAllowRuleIsIgnored(t *testing.T) {
 }
 
 func TestAlwaysAllowGoesToMainCheckout(t *testing.T) {
-	a, _, r, main, wt := splitApp(t, "default")
+	a, p, r, main, _ := splitApp(t, "default")
+	a.runs[r.ID].Spec.node("tests").In = inMain
 	turnDone(t, a, "agt_1", 1)
 	require.NoError(t, approve(t, a, r, "tests", "always"))
-	assert.NoFileExists(t, filepath.Join(wt, ".claude", "settings.local.json"))
 	data, err := os.ReadFile(filepath.Join(main, ".claude", "settings.local.json"))
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "Bash(make test)")
+	turnDone(t, a, "agt_1", 2)
+	assert.Equal(t, 2, p.ran())
+}
+
+func TestAlwaysAllowRefusedOutsideMainCheckout(t *testing.T) {
+	a, p, r, main, _ := splitApp(t, "default")
+	turnDone(t, a, "agt_1", 1)
+	assert.ErrorContains(t, approve(t, a, r, "tests", "always"), "not the main checkout")
+	assert.NoFileExists(t, filepath.Join(main, ".claude", "settings.local.json"))
+	require.NoError(t, approve(t, a, r, "tests", "once"))
+	assert.Equal(t, 1, p.ran())
 }
 
 func TestFailedAlwaysAllowKeepsStepApprovable(t *testing.T) {
 	a, p, r, main, _ := splitApp(t, "default")
+	a.runs[r.ID].Spec.node("tests").In = inMain
 	turnDone(t, a, "agt_1", 1)
 	require.NoError(t, os.MkdirAll(filepath.Join(main, ".claude"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(main, ".claude", "settings.local.json"), []byte("{"), 0o644))
@@ -923,7 +962,7 @@ func TestStepSec_C9_UnknownFolderTrustsNoProjectRules(t *testing.T) {
 	turnDone(t, a, "agt_1", 1)
 	assert.Zero(t, p.ran())
 	assert.Equal(t, stepWaiting, stepMoves(a, r.ID, "tests")[0].Step.Status)
-	assert.ErrorContains(t, approve(t, a, r, "tests", "always"), "no main checkout")
+	assert.ErrorContains(t, approve(t, a, r, "tests", "always"), "not the main checkout")
 }
 
 func TestBypassAsksOnCompoundCommandWithDeny(t *testing.T) {

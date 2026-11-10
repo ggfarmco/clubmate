@@ -88,7 +88,7 @@ func rounds(n int) string {
 
 func pendingOf(p pendingStep) *pendingInfo {
 	info := &pendingInfo{Command: p.spec.Shell, Dir: p.spec.Dir, Main: p.spec.Main}
-	if info.Main != "" && !strings.ContainsAny(info.Command, "*()") {
+	if p.spec.inMain() && !strings.ContainsAny(info.Command, "*()") {
 		info.Rule = bashTool + "(" + info.Command + ")"
 	}
 	return info

@@ -406,6 +406,18 @@ func (e env) echoed(id, text string) bool {
 	})
 }
 
+func (e env) count(id string) int {
+	events, err := e.h.Bus.Read(e.t.Context(), "echo.command", 0, 100)
+	require.NoError(e.t, err)
+	n := 0
+	for _, ev := range events {
+		if strings.Contains(string(ev.Payload), `"id":"`+id+`"`) {
+			n++
+		}
+	}
+	return n
+}
+
 func (e env) owners(id int) []string {
 	var out []string
 	for _, m := range e.must(e.user("backlog.get", map[string]any{"id": id})).Owners {
@@ -477,6 +489,24 @@ func TestStartAgentHandsTheTaskToASession(t *testing.T) {
 	assert.Equal(t, "in_progress", got.Status)
 	assert.Equal(t, "agt_new", got.ClaimedBy)
 	assert.Equal(t, []string{"user created", "agt_new started"}, e.owners(tk.ID))
+}
+
+func TestDoubleStartAgentStartsOneSession(t *testing.T) {
+	e := newEnv(t, testutil.EchoPluginDirAs(t, strings.Replace(agentsManifest, `"echoResults"`, `"echoDelays":{"agents.new":500},"echoResults"`, 1)))
+	tk := e.add("Work", nil)
+	errs := make([]error, 2)
+	var wg sync.WaitGroup
+	for i := range errs {
+		wg.Go(func() { _, errs[i] = e.user("backlog.start", map[string]any{"id": tk.ID}) })
+	}
+	wg.Wait()
+
+	assert.Equal(t, 1, e.count("agents.new"))
+	failed := slices.IndexFunc(errs, func(err error) bool { return err != nil })
+	require.GreaterOrEqual(t, failed, 0)
+	assert.ErrorContains(t, errs[failed], "already getting an agent")
+	e.must(e.user("backlog.start", map[string]any{"id": tk.ID}))
+	assert.Equal(t, 2, e.count("agents.new"))
 }
 
 func TestUserActionsRefuseASessionOfThisCore(t *testing.T) {

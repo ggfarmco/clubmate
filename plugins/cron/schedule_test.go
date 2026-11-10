@@ -62,6 +62,49 @@ func TestScheduleNext(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestScheduleTimesHaveNoMonotonicReading(t *testing.T) {
+	now := time.Now()
+	every, err := parseSchedule("", "", "15m", "", "", now)
+	require.NoError(t, err)
+	next, ok := every.Next(now)
+	require.True(t, ok)
+	in, err := parseSchedule("", "", "", "", "30m", now)
+	require.NoError(t, err)
+	assert.NotContains(t, next.String(), "m=")
+	assert.NotContains(t, in.At.String(), "m=")
+}
+
+func TestScheduleNextAcrossDST(t *testing.T) {
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	require.NoError(t, err)
+	tests := []struct {
+		name  string
+		cron  string
+		start time.Time
+		want  []string
+	}{
+		{"daily on the spring night", "0 2 * * *", time.Date(2026, 3, 27, 12, 0, 0, 0, berlin), []string{"03-28 02:00 CET", "03-29 03:00 CEST", "03-30 02:00 CEST"}},
+		{"daily on the autumn night", "0 2 * * *", time.Date(2026, 10, 24, 12, 0, 0, 0, berlin), []string{"10-25 02:00 CEST", "10-26 02:00 CET", "10-27 02:00 CET"}},
+		{"half-hourly on the spring night", "*/30 * * * *", time.Date(2026, 3, 29, 1, 15, 0, 0, berlin), []string{"03-29 01:30 CET", "03-29 03:00 CEST", "03-29 03:30 CEST"}},
+		{"half-hourly on the autumn night", "*/30 * * * *", time.Date(2026, 10, 25, 1, 45, 0, 0, berlin), []string{"10-25 02:00 CEST", "10-25 02:30 CEST", "10-25 03:00 CET", "10-25 03:30 CET"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, err := parseSchedule(tt.cron, "Europe/Berlin", "", "", "", tt.start)
+			require.NoError(t, err)
+			var got []string
+			at := tt.start
+			for range tt.want {
+				next, ok := s.Next(at)
+				require.True(t, ok)
+				got = append(got, next.Format("01-02 15:04 MST"))
+				at = next.Add(5 * time.Second)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestDescribe(t *testing.T) {
 	now := time.Date(2026, 10, 30, 10, 0, 0, 0, time.UTC)
 	tests := []struct {

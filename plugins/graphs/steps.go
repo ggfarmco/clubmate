@@ -225,8 +225,7 @@ func (a *app) approval(ctx context.Context, r *Run, n *Node, spec stepSpec) (str
 	if n.Command != "" {
 		return allowedCommand, false, nil
 	}
-	project := spec.Main != "" && filepath.Clean(spec.Dir) == filepath.Clean(spec.Main)
-	rules := loadRules(a.managedPath, a.home, spec.Dir, project)
+	rules := loadRules(a.managedPath, a.home, spec.Dir, spec.inMain())
 	mode := rules.DefaultMode
 	if r.Agent && r.Caller != "" {
 		sessions, err := a.sessions(ctx, r.Workspace)
@@ -355,9 +354,9 @@ func (a *app) approveStep(ctx context.Context, cmd pluginsdk.CommandRun) error {
 		a.mu.Unlock()
 		return fmt.Errorf("node %s is not waiting", args.Node)
 	}
-	if args.Decision == "always" && p.spec.Main == "" {
+	if args.Decision == "always" && !p.spec.inMain() {
 		a.mu.Unlock()
-		return fmt.Errorf("always: no main checkout for %s; allow it once instead", p.spec.Dir)
+		return fmt.Errorf("always: %s is not the main checkout, where the rule would count; allow it once instead", p.spec.Dir)
 	}
 	delete(a.pending, key)
 	n := r.Spec.node(args.Node)

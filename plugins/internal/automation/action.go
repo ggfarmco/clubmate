@@ -144,8 +144,12 @@ func BusyTarget(sessions []api.Session, act Action) (string, bool) {
 	if json.Unmarshal(act.Args, &target) != nil {
 		return "", false
 	}
-	s, ok := agentcall.Find(sessions, target.Session)
-	return target.Session, ok && !s.Reminding && (s.Status == sessionRunning || s.Status == sessionWaiting)
+	return target.Session, SessionBusy(sessions, target.Session)
+}
+
+func SessionBusy(sessions []api.Session, id string) bool {
+	s, ok := agentcall.Find(sessions, id)
+	return ok && !s.Reminding && (s.Status == sessionRunning || s.Status == sessionWaiting)
 }
 
 func Allowed(cmd pluginsdk.CommandRun, act Action, parents map[string]string) bool {

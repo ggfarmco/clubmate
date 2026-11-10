@@ -12,8 +12,9 @@ import (
 )
 
 type store struct {
-	h   *pluginsdk.Host
-	mus sync.Map
+	h        *pluginsdk.Host
+	mus      sync.Map
+	starting sync.Map
 }
 
 func taskPrefix(workspaceID string) string {
@@ -50,6 +51,23 @@ func (s *store) load(ctx context.Context, workspaceID string, id int) (Task, err
 func (s *store) get(ctx context.Context, workspaceID string, id int) (Task, error) {
 	defer s.lock(workspaceID)()
 	return s.load(ctx, workspaceID, id)
+}
+
+func (s *store) reserve(ctx context.Context, workspaceID string, id int, check func(*Task) error) (Task, func(), error) {
+	defer s.lock(workspaceID)()
+	key := taskKey(workspaceID, id)
+	if _, busy := s.starting.Load(key); busy {
+		return Task{}, nil, fmt.Errorf("task #%d is already getting an agent", id)
+	}
+	t, err := s.load(ctx, workspaceID, id)
+	if err != nil {
+		return Task{}, nil, err
+	}
+	if err := check(&t); err != nil {
+		return Task{}, nil, err
+	}
+	s.starting.Store(key, struct{}{})
+	return t, func() { s.starting.Delete(key) }, nil
 }
 
 func (s *store) list(ctx context.Context, workspaceID string) ([]Task, error) {

@@ -16,13 +16,14 @@ import (
 )
 
 const (
-	runPrefix     = "run/"
-	runIDPrefix   = "gr"
-	statusRunning = "running"
-	statusStopped = "stopped"
-	eventPrefix   = "event."
-	graphTopic    = "graph."
-	maxInput      = 16 << 10
+	runPrefix       = "run/"
+	runIDPrefix     = "gr"
+	statusRunning   = "running"
+	statusStopped   = "stopped"
+	eventPrefix     = "event."
+	graphTopic      = "graph."
+	maxInput        = 16 << 10
+	errTriggersLeft = "run %s is stopped and its steps are cancelled, but edge triggers are left (stop it again to retry, or delete them in Triggers): %w"
 )
 
 var errInputPlaceholder = errors.New("input: must not contain {{")

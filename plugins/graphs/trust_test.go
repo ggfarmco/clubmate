@@ -215,6 +215,34 @@ func TestStepSec_T6_RewiredGraphNeedsTrust(t *testing.T) {
 	assert.ErrorContains(t, agentRun(t, a, "gate"), "untrusted")
 }
 
+func TestLimitsChangeNeedsTrust(t *testing.T) {
+	data, err := os.ReadFile("testdata/.clubmate/graphs/gate.json")
+	require.NoError(t, err)
+	tests := []struct {
+		name, from, to string
+		changed        []string
+	}{
+		{"maxTurns", `"maxTurns": 12`, `"maxTurns": 99`, []string{"limits"}},
+		{"maxSteps", `"maxTurns": 12`, `"maxTurns": 12, "maxSteps": 500`, []string{"limits"}},
+		{"branch of a step's node", `"id": "coder",`, `"id": "coder", "branch": "main",`, []string{"limits"}},
+		{"afk of a step's node", `"afk": true, `, ``, []string{"limits"}},
+		{"branch of another agent node", `"id": "reviewer",`, `"id": "reviewer", "branch": "main",`, []string{"limits"}},
+		{"afk of another agent node", `"id": "reviewer",`, `"id": "reviewer", "afk": true,`, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a, path := graphHome(t, "gate", string(data))
+			require.NoError(t, trustGraph(t, a, "gate"))
+			edited := strings.Replace(string(data), tt.from, tt.to, 1)
+			require.NotEqual(t, string(data), edited)
+			require.NoError(t, os.WriteFile(path, []byte(edited), 0o644))
+			g := listed(t, a, "gate")
+			assert.Equal(t, tt.changed != nil, g.Untrusted)
+			assert.Equal(t, tt.changed, g.Changed)
+		})
+	}
+}
+
 func TestTrustRefusesAnotherVersion(t *testing.T) {
 	data, err := os.ReadFile("testdata/.clubmate/graphs/gate.json")
 	require.NoError(t, err)

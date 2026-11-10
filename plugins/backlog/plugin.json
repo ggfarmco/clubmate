@@ -820,7 +820,7 @@
         "remote": true,
         "title": "Start agent on backlog task",
         "hidden": true,
-        "description": "The user's Start agent: start an agent session on the task (agents.new with the title, description, links and attachments as the prompt) and hand the task to it. Allowed on idea and todo tasks, tasks you own and tasks whose owner session ended. Without the optional args it starts Claude in the workspace's first git folder in the worktree's last used mode, as the phone does. Not for agents.",
+        "description": "The user's Start agent: start an agent session on the task (agents.new with the title, description, links and attachments as the prompt) and hand the task to it. Allowed on idea and todo tasks, tasks you own and tasks whose owner session ended; refused while another Start of the same task is still starting its session. Without the optional args it starts Claude in the workspace's first git folder in the worktree's last used mode, as the phone does. Not for agents.",
         "args": {
           "properties": {
             "id": {

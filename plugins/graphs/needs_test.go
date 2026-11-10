@@ -45,7 +45,7 @@ func TestShowPendingApproval(t *testing.T) {
 	for _, n := range out.(shownRun).Nodes {
 		if n.ID == "tests" {
 			require.NotNil(t, n.Pending)
-			assert.Equal(t, pendingInfo{Command: "make test", Dir: "/wt/coder", Main: "/repo", Rule: "Bash(make test)"}, *n.Pending)
+			assert.Equal(t, pendingInfo{Command: "make test", Dir: "/wt/coder", Main: "/repo"}, *n.Pending)
 			return
 		}
 	}

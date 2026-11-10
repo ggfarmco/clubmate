@@ -20,6 +20,8 @@ import (
 
 const (
 	trustPrefix   = "trust/"
+	changedEdges  = "edges"
+	changedLimits = "limits"
 	trustedPrefix = "trusted/"
 	errUntrusted  = "untrusted: %s has shell steps you haven't trusted (graphs.trust)"
 	errNoScript   = "%s: step %s runs %s, which %s doesn't have: copy the graph to .clubmate/graphs/%s.json and change that step"
@@ -29,6 +31,7 @@ type trustedSteps struct {
 	Hash    string    `json:"hash"`
 	Steps   []Node    `json:"steps"`
 	Routing string    `json:"routing"`
+	Limits  string    `json:"limits,omitempty"`
 	At      time.Time `json:"at"`
 }
 
@@ -45,6 +48,18 @@ type nodeShape struct {
 	Step  bool     `json:"step,omitempty"`
 	Start bool     `json:"start,omitempty"`
 	End   []string `json:"end,omitempty"`
+}
+
+type limitsShape struct {
+	MaxTurns int         `json:"maxTurns,omitempty"`
+	MaxSteps int         `json:"maxSteps,omitempty"`
+	Nodes    []nodePlace `json:"nodes,omitempty"`
+}
+
+type nodePlace struct {
+	ID     string `json:"id"`
+	Branch string `json:"branch,omitempty"`
+	Afk    bool   `json:"afk,omitempty"`
 }
 
 type trustArgs struct {
@@ -78,13 +93,35 @@ func routingOf(g *Graph) string {
 	return string(data)
 }
 
+func limitsOf(g *Graph) string {
+	in := map[string]bool{}
+	for _, n := range g.Nodes {
+		if n.step() {
+			in[n.In] = true
+		}
+	}
+	shape := limitsShape{MaxTurns: g.MaxTurns, MaxSteps: g.MaxSteps}
+	for _, n := range g.Nodes {
+		if n.step() {
+			continue
+		}
+		p := nodePlace{ID: n.ID, Branch: n.Branch, Afk: in[n.ID] && n.Afk}
+		if p != (nodePlace{ID: n.ID}) {
+			shape.Nodes = append(shape.Nodes, p)
+		}
+	}
+	data, _ := json.Marshal(shape)
+	return string(data)
+}
+
 func stepsHash(g *Graph) string {
 	steps := stepsOf(g)
 	if len(steps) == 0 {
 		return ""
 	}
 	data, _ := json.Marshal(steps)
-	sum := sha256.Sum256(append(data, routingOf(g)...))
+	data = append(append(data, routingOf(g)...), limitsOf(g)...)
+	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
 }
 
@@ -145,7 +182,10 @@ func (a *app) trustState(ctx context.Context, root func() string, g *Graph) (boo
 		}
 	}
 	if last.Routing != "" && last.Routing != routingOf(g) {
-		changed = append(changed, "edges")
+		changed = append(changed, changedEdges)
+	}
+	if last.Hash != "" && last.Limits != limitsOf(g) {
+		changed = append(changed, changedLimits)
 	}
 	return true, changed, nil
 }
@@ -199,7 +239,7 @@ func (a *app) trustGraph(ctx context.Context, cmd pluginsdk.CommandRun) error {
 	a.mu.Lock()
 	clear(a.untrusted)
 	a.mu.Unlock()
-	return a.kvSet(ctx, repoKey(trustedPrefix, root, g.Name), trustedSteps{Hash: hash, Steps: stepsOf(g), Routing: routingOf(g), At: a.now()})
+	return a.kvSet(ctx, repoKey(trustedPrefix, root, g.Name), trustedSteps{Hash: hash, Steps: stepsOf(g), Routing: routingOf(g), Limits: limitsOf(g), At: a.now()})
 }
 
 func (a *app) trustedIn(ctx context.Context, cmd pluginsdk.CommandRun) (trustedGraphs, error) {

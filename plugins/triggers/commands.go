@@ -14,7 +14,10 @@ import (
 	"clubmate/plugins/internal/automation"
 )
 
-const cronPlugin = "cron"
+const (
+	cronPlugin     = "cron"
+	errNotReporter = "invalid_params: emit %s: only the session of agent node %q of graph run %q reports its outcome"
+)
 
 var (
 	errNoName   = errors.New("name is required")
@@ -261,6 +264,9 @@ func (a *app) emit(ctx context.Context, cmd pluginsdk.CommandRun) (emitResult, e
 	if args.CronJob != "" && cmd.Via != cronPlugin {
 		return emitResult{}, errCronOnly
 	}
+	if err := a.checkGraphReport(ctx, cmd, args.Name); err != nil {
+		return emitResult{}, err
+	}
 	payload := map[string]any{}
 	if strings.TrimSpace(args.Payload) != "" {
 		if err := json.Unmarshal([]byte(args.Payload), &payload); err != nil {
@@ -285,6 +291,24 @@ func (a *app) emit(ctx context.Context, cmd pluginsdk.CommandRun) (emitResult, e
 		return emitResult{}, fmt.Errorf("emit %s: %w", topic, err)
 	}
 	return emitResult{Topic: ev.Topic, Seq: ev.Seq}, nil
+}
+
+func (a *app) checkGraphReport(ctx context.Context, cmd pluginsdk.CommandRun, name string) error {
+	rest, ok := strings.CutPrefix(name, graphName)
+	if !ok || !cmd.Agent && cmd.Caller == "" {
+		return nil
+	}
+	run, node, _ := strings.Cut(rest, ".")
+	if cmd.Caller != "" && run != "" && node != "" && !strings.Contains(node, ".") {
+		req := automation.CommandRequest{ID: graphsShow, WorkspaceID: cmd.WorkspaceID}
+		req.Args, _ = json.Marshal(automation.IDArgs{ID: run})
+		raw, err := a.runCommand(ctx, req)
+		var s graphShape
+		if err == nil && json.Unmarshal(raw, &s) == nil && s.reporter(node) == cmd.Caller {
+			return nil
+		}
+	}
+	return fmt.Errorf(errNotReporter, name, node, run)
 }
 
 func (a *app) validateTarget(ctx context.Context, command, args string) (json.RawMessage, error) {

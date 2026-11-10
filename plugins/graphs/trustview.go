@@ -104,8 +104,12 @@ func changedCard(spec *Graph, tv trustView) (sdui.Node, bool) {
 	var rows []sdui.Node
 	steps := 0
 	for _, id := range tv.changed {
-		if id == "edges" {
+		switch id {
+		case changedEdges:
 			rows = append(rows, sdui.MutedText("Edges · the routing changed: an edge or an end was added, removed or rewired"))
+			continue
+		case changedLimits:
+			rows = append(rows, sdui.MutedText("Limits · maxTurns, maxSteps, an agent node's branch or the afk of a node a step runs in changed, or the trust predates Clubmate checking them"))
 			continue
 		}
 		steps++

@@ -31,6 +31,8 @@ Give exactly one of:
 
 A one-shot job (`at`, `in`) deletes itself when it runs; a skipped run (see below) keeps it and tries again on the next check.
 
+Times are wall-clock times. `every` and `in` don't stop while the Mac sleeps: a run due during sleep is late when the Mac wakes, and `missed` decides whether it still runs. A `cron` expression fires once per wall-clock time it names in its zone, also on the nights the clocks change. A time the spring change skips fires when the clock jumps: in `Europe/Berlin`, `0 2 * * *` runs at 03:00 that night, and `*/30 * * * *` runs at 03:00 instead of 02:00 and 02:30. A time the autumn change repeats fires on its first pass only: `0 2 * * *` runs at 02:00 summer time, and a job that runs several times an hour skips the repeated hour.
+
 ## Firing
 
 The plugin checks its jobs at least every 30 s and calls `command.run` with `agent: true`, so a job can only do what an agent may: a destructive command asks for your approval in the app when it fires. A job with an owner runs as that session, and only while the session is open. A job without an owner runs with no caller (an `agents.new` then starts a top-level session). A recurring job never runs twice at once.

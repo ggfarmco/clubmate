@@ -26,7 +26,8 @@ const (
 	statusField  = "status"
 	byAgent      = "agent"
 	manualTopic  = "run now"
-	graphPrefix  = emitPrefix + "graph."
+	graphName    = "graph."
+	graphPrefix  = emitPrefix + graphName
 	pluginSource = "plugin:"
 	coreSource   = "core"
 	agentSource  = "agent"

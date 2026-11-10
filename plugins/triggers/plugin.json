@@ -125,7 +125,7 @@
         "title": "Emit event",
         "hidden": true,
         "agent": true,
-        "description": "Publish the bus event event.<name> in this workspace, with payload plus workspace set to this workspace and by set to your agent session; an owned trigger whose args use placeholders ignores events emitted by sessions other than its owner and the owner's descendants; triggers listening on it fire. Schedule it with cron.add to run triggers on a timer. Returns {topic, seq}. Non-destructive.",
+        "description": "Publish the bus event event.<name> in this workspace, with payload plus workspace set to this workspace and by set to your agent session; an owned trigger whose args use placeholders ignores events emitted by sessions other than its owner and the owner's descendants; triggers listening on it fire. A name under graph. is refused unless it is graph.<run>.<node> of the agent node your session is. Schedule it with cron.add to run triggers on a timer. Returns {topic, seq}. Non-destructive.",
         "args": {
           "properties": {
             "name": {"type": "string", "description": "Event name: lowercase dot-separated words, e.g. nightly or build.done; the topic is event.<name>."},

@@ -393,6 +393,7 @@ func TestStepCardProps(t *testing.T) {
 
 func TestApprovalCard(t *testing.T) {
 	a, _, _, r := approvalApp(t, "default")
+	a.runs[r.ID].Spec.node("tests").In = inMain
 	turnDone(t, a, "agt_1", 1)
 	view := runView(t, a, r.ID)
 	assert.Equal(t, []sdk.HeaderBadge{{Text: "waiting for you", Tone: "warning"}}, view.Children[0].Props["badges"])

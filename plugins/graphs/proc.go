@@ -69,6 +69,10 @@ type stepOutput struct {
 	partial bool
 }
 
+func (s stepSpec) inMain() bool {
+	return s.Main != "" && filepath.Clean(s.Dir) == filepath.Clean(s.Main)
+}
+
 func (r shellRunner) Run(ctx context.Context, s stepSpec, started func(pid int)) stepResult {
 	begin := time.Now()
 	out, err := openOutput(s.OutPath)

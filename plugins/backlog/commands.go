@@ -442,13 +442,13 @@ func (b *backlog) startAgent(ctx context.Context, workspaceID, caller string, id
 	if err := opts.check(); err != nil {
 		return "", err
 	}
-	t, err := b.store.get(ctx, workspaceID, id)
+	t, release, err := b.store.reserve(ctx, workspaceID, id, func(t *Task) error {
+		return startable(ctx, b.live, workspaceID, t)
+	})
 	if err != nil {
 		return "", err
 	}
-	if err := startable(ctx, b.live, workspaceID, &t); err != nil {
-		return "", err
-	}
+	defer release()
 	linked, err := b.linked(ctx, workspaceID, t)
 	if err != nil {
 		return "", err

@@ -40,8 +40,23 @@ type heldEvent struct {
 	ev      pluginsdk.Event
 }
 
+type admitFunc func(t *Trigger, ev pluginsdk.Event, refire bool)
+
 func (a *app) dispatch(ctx context.Context, ev pluginsdk.Event) {
 	payload := decodePayload(ev.Payload)
+	a.admitAll(ctx, func(admit admitFunc) {
+		for id, h := range a.releaseLocked(ev.Topic, payload) {
+			a.rehold(id, h, admit)
+		}
+		for _, t := range a.triggers {
+			if t.Enabled && matches(t, ev.Topic, payload) {
+				admit(t, ev, false)
+			}
+		}
+	})
+}
+
+func (a *app) admitAll(ctx context.Context, pick func(admitFunc)) {
 	now := a.now()
 	var runs []pendingRun
 	var tripped []*Trigger
@@ -65,30 +80,58 @@ func (a *app) dispatch(ctx context.Context, ev pluginsdk.Event) {
 		logError(a.put(ctx, updated))
 	}
 	a.mu.Lock()
-	for id, h := range a.releaseLocked(ev.Topic, payload) {
-		t, ok := a.triggers[id]
-		switch {
-		case !ok || !t.Enabled:
-		case a.inFlight[id] > 0:
-			a.held[id] = h
-		default:
-			admit(t, h.ev, true)
-		}
-	}
-	for _, t := range a.triggers {
-		if t.Enabled && matches(t, ev.Topic, payload) {
-			admit(t, ev, false)
-		}
-	}
+	pick(admit)
 	a.mu.Unlock()
 	ctx = context.WithoutCancel(ctx)
 	for _, r := range runs {
-		a.runs.Go(func() { logError(a.settle(ctx, r.trigger.ID, a.fire(ctx, r.trigger, r.ev), r.refire)) })
+		a.runs.Go(func() { a.run(ctx, r) })
 	}
 	for _, t := range tripped {
 		a.notify(ctx, t)
 	}
 	a.registry.Flush(ctx)
+}
+
+func (a *app) run(ctx context.Context, p pendingRun) {
+	r := a.fire(ctx, p.trigger, p.ev)
+	logError(a.settle(ctx, p.trigger.ID, r, p.refire))
+	if r.Reason == automation.ReasonBusy {
+		a.recheckHold(ctx, p.trigger)
+	}
+}
+
+func (a *app) rehold(id string, h heldEvent, admit admitFunc) {
+	t, ok := a.triggers[id]
+	switch {
+	case !ok || !t.Enabled:
+	case a.inFlight[id] > 0:
+		a.held[id] = h
+	default:
+		admit(t, h.ev, true)
+	}
+}
+
+func (a *app) recheckHold(ctx context.Context, t *Trigger) {
+	a.mu.Lock()
+	h, ok := a.held[t.ID]
+	a.mu.Unlock()
+	if !ok {
+		return
+	}
+	sessions, err := a.sessions(ctx, t.Workspace)
+	if err != nil {
+		logError(err)
+		return
+	}
+	if automation.SessionBusy(sessions, h.session) {
+		return
+	}
+	a.admitAll(ctx, func(admit admitFunc) {
+		if cur, ok := a.held[t.ID]; ok && cur.same(h) {
+			delete(a.held, t.ID)
+			a.rehold(t.ID, h, admit)
+		}
+	})
 }
 
 func (a *app) releaseLocked(topic string, payload any) map[string]heldEvent {
@@ -159,6 +202,10 @@ func (a *app) fire(ctx context.Context, t *Trigger, ev pluginsdk.Event) Run {
 		return r
 	}
 	return x.Execute(ctx, act, r)
+}
+
+func (h heldEvent) same(o heldEvent) bool {
+	return h.session == o.session && h.ev.Topic == o.ev.Topic && h.ev.Seq == o.ev.Seq
 }
 
 func foreign(t *Trigger, ev pluginsdk.Event, sessions []api.Session) bool {
