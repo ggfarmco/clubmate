@@ -35,7 +35,7 @@ func newWatchdog() watchdog {
 
 func (a *app) continueCutOff(cut []*session) {
 	for _, s := range cut {
-		a.submitIdle(s, promptArgs{Text: cutOffText})
+		a.runIdle(s, promptArgs{Text: cutOffText}, (*session).requeueLocked)
 	}
 }
 
@@ -208,13 +208,17 @@ func childName(rec record) string {
 }
 
 func (a *app) submitIdle(s *session, args promptArgs) bool {
+	return a.runIdle(s, args, (*session).enqueueLocked)
+}
+
+func (a *app) runIdle(s *session, args promptArgs, add func(*session, promptArgs)) bool {
 	s.mu.Lock()
 	s.loadLocked()
 	if s.running || s.deleted || s.rec.closed() {
 		s.mu.Unlock()
 		return false
 	}
-	s.enqueueLocked(args)
+	add(s, args)
 	a.runQueuedLocked(s)
 	return true
 }

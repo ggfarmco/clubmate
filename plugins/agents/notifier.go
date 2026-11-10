@@ -358,6 +358,7 @@ func (n *notifier) persist(ctx context.Context, s *session) {
 	defer s.saveMu.Unlock()
 	s.mu.Lock()
 	rec, deleted := s.rec, s.deleted
+	rec.Queue = storedQueue(s.queue)
 	s.mu.Unlock()
 	var err error
 	if deleted {

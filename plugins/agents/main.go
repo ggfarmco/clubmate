@@ -129,7 +129,12 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		if stale {
 			rec.Status = statusIdle
 		}
+		queue := rec.Queue
+		rec.Queue = nil
 		s := a.addSession(rec, false, nil)
+		if !rec.closed() {
+			s.restoreQueue(queue)
+		}
 		if stale {
 			a.notes.mark(s, changeStatus, true)
 			if rec.Night == "" {

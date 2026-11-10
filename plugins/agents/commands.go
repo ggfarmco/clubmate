@@ -176,6 +176,7 @@ type promptArgs struct {
 	Review      *reviewSent  `json:"-"`
 	Queued      bool         `json:"-"`
 	Answered    []string     `json:"-"`
+	Land        bool         `json:"-"`
 }
 
 type attachment struct {

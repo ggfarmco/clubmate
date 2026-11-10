@@ -24,6 +24,7 @@ type script struct {
 	Linger                bool                      `json:"linger"`
 	Embedded              bool                      `json:"embedded"`
 	CloseSleep            int                       `json:"closeSleep"`
+	NewSleep              int                       `json:"newSleep"`
 	AdditionalDirectories bool                      `json:"additionalDirectories"`
 	Steering              bool                      `json:"steering"`
 	Idle                  bool                      `json:"idle"`
@@ -168,6 +169,7 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 				return nil, &acp.Error{Code: acp.CodeAuthRequired, Message: "Authentication required"}
 			}
 		}
+		time.Sleep(time.Duration(a.script.NewSleep) * time.Millisecond)
 		id := cmp.Or(os.Getenv("FAKEAGENT_SESSION_ID"), "fake-"+strconv.Itoa(os.Getpid())+"-"+strconv.FormatInt(a.sessions.Add(1), 10))
 		var start acp.NewSessionRequest
 		_ = json.Unmarshal(params, &start)

@@ -39,6 +39,7 @@ type runState struct {
 	perms           map[string]*pendingPermission
 	queue           []queuedPrompt
 	queueSeq        int
+	epoch           int
 	superseded      map[string]bool
 	asked           bool
 }
@@ -86,7 +87,7 @@ func (a *app) submit(s *session, args *promptArgs) error {
 	case s.running:
 		s.enqueueLocked(*args)
 		s.mu.Unlock()
-		s.changed(changeUpdate, false)
+		s.changed(changeUpdate, true)
 		a.wakeWaiters()
 		return nil
 	}
@@ -103,10 +104,10 @@ func (a *app) runQueuedLocked(s *session) {
 		s.mu.Unlock()
 		return
 	}
-	turn := s.beginTurnLocked()
+	turn, epoch := s.beginTurnLocked()
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
-	go a.runTurn(s, turn, next)
+	go a.runTurn(s, turn, epoch, next)
 }
 
 func (a *app) cancel(s *session) {
@@ -183,23 +184,28 @@ func (a *app) steer(s *session, p *agentProc, rec record, args promptArgs) bool 
 	return true
 }
 
-func (a *app) runTurn(s *session, turn int, args promptArgs) {
+func (a *app) runTurn(s *session, turn, epoch int, args promptArgs) {
 	for turn > 0 {
-		turn, args = a.playTurn(s, turn, args)
+		turn, epoch, args = a.playTurn(s, turn, epoch, args)
 	}
 }
 
-func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) {
+func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, promptArgs) {
 	p, err := a.attach(s)
 	if err != nil {
 		s.mu.Lock()
-		s.requeueLocked(args)
+		stale := s.epoch != epoch
+		if !stale {
+			s.requeueLocked(args)
+		}
 		s.mu.Unlock()
-		a.fail(s, err.Error())
-		return 0, promptArgs{}
+		if !stale {
+			a.fail(s, err.Error())
+		}
+		return 0, 0, promptArgs{}
 	}
-	if a.abandon(s, args) {
-		return 0, promptArgs{}
+	if a.abandon(s, epoch, args) {
+		return 0, 0, promptArgs{}
 	}
 	rec := s.snapshot()
 	ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)
@@ -210,7 +216,7 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 	}
 	s.mu.Lock()
 	deleted := s.deleted
-	if !deleted {
+	if !deleted && s.epoch == epoch {
 		s.recordLocked(actorClubmate, kindCheckpoint, checkpointPayload{Turn: turn, Sha: sha})
 	}
 	s.mu.Unlock()
@@ -220,10 +226,10 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 		if err := dropCheckpoints(ctx, rec); err != nil {
 			fmt.Fprintln(os.Stderr, "agents: delete checkpoints:", err)
 		}
-		return 0, promptArgs{}
+		return 0, 0, promptArgs{}
 	}
-	if a.abandon(s, args) {
-		return 0, promptArgs{}
+	if a.abandon(s, epoch, args) {
+		return 0, 0, promptArgs{}
 	}
 	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities)}
 	fromTitle := a.senderTitle(args.From)
@@ -248,13 +254,16 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 	if s.supersededOnly(err) {
 		err, res = nil, acp.PromptResponse{StopReason: acp.StopEndTurn}
 	}
-	if retry, ok := a.retryTurn(s, rec, err); ok {
+	if retry, ok := a.retryTurn(s, rec, epoch, err); ok {
 		res = acp.PromptResponse{}
 		err = p.conn.Call(context.Background(), acp.MethodSessionPrompt, retry, &res)
 	}
 	if errors.Is(err, acp.ErrClosed) {
 		go p.stop()
-		return 0, promptArgs{}
+		return 0, 0, promptArgs{}
+	}
+	if !s.current(epoch) {
+		return 0, 0, promptArgs{}
 	}
 	status := ""
 	if err != nil {
@@ -267,6 +276,10 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 	commits := a.attributeTurn(rec, turn, sha, args.Text)
 	a.pruneBackground(s)
 	s.mu.Lock()
+	if s.epoch != epoch {
+		s.mu.Unlock()
+		return 0, 0, promptArgs{}
+	}
 	s.log.flush()
 	if len(commits) > 0 {
 		s.recordLocked(actorClubmate, kindCommits, commitsPayload{Turn: turn, Commits: commits})
@@ -274,7 +287,7 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 	s.running = false
 	edited := s.edited
 	var next promptArgs
-	nextTurn, finished := 0, false
+	nextTurn, nextEpoch, finished := 0, 0, false
 	switch {
 	case s.rec.closed():
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
@@ -284,7 +297,7 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 	case !s.cancelRequested && res.StopReason != acp.StopCancelled && len(s.queue) > 0:
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
 		next, _ = s.dequeueLocked()
-		nextTurn = s.beginTurnLocked()
+		nextTurn, nextEpoch = s.beginTurnLocked()
 	default:
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
 		switch {
@@ -321,10 +334,10 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 		a.cleanupChild(s)
 		a.closeVanishedChildren(s)
 	}
-	return nextTurn, next
+	return nextTurn, nextEpoch, next
 }
 
-func (a *app) retryTurn(s *session, rec record, err error) (acp.PromptRequest, bool) {
+func (a *app) retryTurn(s *session, rec record, epoch int, err error) (acp.PromptRequest, bool) {
 	rpcErr, ok := errors.AsType[*acp.Error](err)
 	if !ok || rpcErr.Code != acp.CodeInternal || rec.Night != "" {
 		return acp.PromptRequest{}, false
@@ -337,7 +350,7 @@ func (a *app) retryTurn(s *session, rec record, err error) (acp.PromptRequest, b
 	time.Sleep(retryDelay)
 	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: []acp.ContentBlock{{Type: "text", Text: fmt.Sprintf(retryFormat, reason)}}}
 	s.mu.Lock()
-	ok = !s.cancelRequested && !s.rec.closed() && !s.deleted
+	ok = s.epoch == epoch && !s.cancelRequested && !s.rec.closed() && !s.deleted
 	if ok {
 		s.recordLocked(actorClubmate, kindPrompt, promptPayload{PromptRequest: req, Steered: true})
 	}
@@ -348,9 +361,12 @@ func (a *app) retryTurn(s *session, rec record, err error) (acp.PromptRequest, b
 	return req, ok
 }
 
-func (a *app) abandon(s *session, args promptArgs) bool {
+func (a *app) abandon(s *session, epoch int, args promptArgs) bool {
 	s.mu.Lock()
 	switch {
+	case s.epoch != epoch:
+		s.mu.Unlock()
+		return true
 	case s.deleted || s.rec.closed():
 		s.running = false
 		s.mu.Unlock()
@@ -382,7 +398,8 @@ func (a *app) checktime(rec record) {
 	}
 }
 
-func (s *session) beginTurnLocked() int {
+func (s *session) beginTurnLocked() (int, int) {
+	s.epoch++
 	s.running = true
 	s.cycle = false
 	s.cancelRequested = false
@@ -394,7 +411,13 @@ func (s *session) beginTurnLocked() int {
 	if s.began != nil {
 		s.began(s.rec.ID)
 	}
-	return s.turn
+	return s.turn, s.epoch
+}
+
+func (s *session) current(epoch int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.epoch == epoch
 }
 
 func (s *session) supersedeLocked() {

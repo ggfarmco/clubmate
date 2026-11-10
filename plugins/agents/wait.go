@@ -155,12 +155,17 @@ func (s *session) takeUserPrompts() *waitMessage {
 		taken = true
 		return true
 	})
+	msg := waitMessage{Text: strings.Join(texts, "\n\n"), Attachments: attachments}
+	if taken {
+		blocks := promptBlocks(promptArgs{Text: msg.Text, Attachments: attachments}, s.rec.Worktree, acp.PromptCapabilities{})
+		s.recordLocked(actorUser, kindPrompt, promptPayload{PromptRequest: acp.PromptRequest{SessionID: s.rec.AgentSessionID, Prompt: blocks}, Steered: true})
+	}
 	s.mu.Unlock()
 	if !taken {
 		return nil
 	}
-	s.changed(changeUpdate, false)
-	return &waitMessage{Text: strings.Join(texts, "\n\n"), Attachments: attachments}
+	s.changed(changeUpdate, true)
+	return &msg
 }
 
 func (s *session) asks() bool {

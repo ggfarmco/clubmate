@@ -171,16 +171,29 @@ func (l *eventLog) appendLocked(e envelope) {
 			fmt.Fprintln(os.Stderr, "agents: log dir:", err)
 			return
 		}
-		f, err := os.OpenFile(l.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+		f, err := os.OpenFile(l.path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o600)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "agents: open log:", err)
 			return
 		}
 		l.file = f
+		if torn(f) {
+			line = append([]byte{'\n'}, line...)
+		}
 	}
 	if _, err := l.file.Write(append(line, '\n')); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: write log:", err)
 	}
+}
+
+func torn(f *os.File) bool {
+	info, err := f.Stat()
+	if err != nil || info.Size() == 0 {
+		return false
+	}
+	last := make([]byte, 1)
+	_, err = f.ReadAt(last, info.Size()-1)
+	return err == nil && last[0] != '\n'
 }
 
 func (l *eventLog) close() {

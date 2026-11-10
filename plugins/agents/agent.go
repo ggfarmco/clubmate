@@ -263,21 +263,29 @@ func (p *agentProc) Request(ctx context.Context, id, method string, params json.
 	return acp.RequestPermissionResponse{Outcome: s.requestPermission(ctx, id, params)}, nil
 }
 
-func (p *agentProc) register(agentSessionID string, s *session) {
+func (p *agentProc) register(agentSessionID string, s *session) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.sessions[agentSessionID] = s
-	s.mu.Lock()
-	s.proc = p
-	s.rec.Suspended = false
-	s.mu.Unlock()
 	pending := p.orphans[agentSessionID]
 	delete(p.orphans, agentSessionID)
+	s.mu.Lock()
+	gone := s.deleted || s.rec.closed()
+	if !gone {
+		s.proc = p
+		s.rec.AgentSessionID = agentSessionID
+		s.rec.Suspended = false
+	}
+	s.mu.Unlock()
+	if gone {
+		return false
+	}
+	p.sessions[agentSessionID] = s
 	for _, params := range pending {
 		for _, adopted := range p.adoptLocked(s, params) {
 			s.update(adopted)
 		}
 	}
+	return true
 }
 
 func (p *agentProc) unregister(agentSessionID string) int {

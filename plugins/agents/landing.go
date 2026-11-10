@@ -561,7 +561,7 @@ func (a *app) sendLandPrompts(ctx context.Context, owner *session, finish string
 		r.LandPrompt, r.LandTurn = landPromptSent, kid.currentTurn()
 		owner.putTask(task.clone())
 		a.saveNow(ctx, owner)
-		if err := a.submit(kid, &promptArgs{Text: r.landText(finish)}); err != nil {
+		if err := a.submit(kid, &promptArgs{Text: r.landText(finish), Land: true}); err != nil {
 			fmt.Fprintln(os.Stderr, "agents: land prompt:", err)
 			r.LandPrompt = landPromptDue
 			owner.putTask(task.clone())

@@ -7,13 +7,14 @@ import (
 )
 
 type queuedPrompt struct {
-	ID          string
-	Text        string
-	Attachments []attachment
-	From        string
-	Voice       bool
-	Review      *reviewSent
-	Answered    []string
+	ID          string       `json:"id"`
+	Text        string       `json:"text,omitempty"`
+	Attachments []attachment `json:"attachments,omitempty"`
+	From        string       `json:"from,omitempty"`
+	Voice       bool         `json:"voice,omitempty"`
+	Review      *reviewSent  `json:"review,omitempty"`
+	Answered    []string     `json:"answered,omitempty"`
+	Land        bool         `json:"-"`
 }
 
 func (s *session) enqueueLocked(args promptArgs) {
@@ -29,8 +30,26 @@ func (s *session) requeueLocked(args promptArgs) {
 
 func (s *session) unqueue(id string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.queue = slices.DeleteFunc(s.queue, func(q queuedPrompt) bool { return q.ID == id })
+	s.mu.Unlock()
+	s.changed(changeUpdate, true)
+}
+
+func storedQueue(queue []queuedPrompt) []queuedPrompt {
+	return slices.DeleteFunc(slices.Clone(queue), func(q queuedPrompt) bool {
+		return q.Land || slices.ContainsFunc(q.Attachments, func(a attachment) bool { return a.Data != "" })
+	})
+}
+
+func (s *session) restoreQueue(queue []queuedPrompt) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.queue = queue
+	for _, q := range queue {
+		if n, err := strconv.Atoi(strings.TrimPrefix(q.ID, "q")); err == nil {
+			s.queueSeq = max(s.queueSeq, n)
+		}
+	}
 }
 
 func (s *session) queued() []queuedPrompt {
@@ -41,7 +60,7 @@ func (s *session) queued() []queuedPrompt {
 
 func (s *session) queuedLocked(args promptArgs) queuedPrompt {
 	s.queueSeq++
-	return queuedPrompt{ID: "q" + strconv.Itoa(s.queueSeq), Text: args.Text, Attachments: args.Attachments, From: args.From, Voice: args.Voice, Review: args.Review, Answered: args.Answered}
+	return queuedPrompt{ID: "q" + strconv.Itoa(s.queueSeq), Text: args.Text, Attachments: args.Attachments, From: args.From, Voice: args.Voice, Review: args.Review, Answered: args.Answered, Land: args.Land}
 }
 
 func (s *session) dequeueLocked() (promptArgs, bool) {

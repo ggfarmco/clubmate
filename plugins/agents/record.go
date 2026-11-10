@@ -94,6 +94,7 @@ type record struct {
 	Task            *taskRecord      `json:"task,omitempty"`
 	ConnectRequests []connectRequest `json:"connectRequests,omitempty"`
 	AfkConnected    []string         `json:"afkConnected,omitempty"`
+	Queue           []queuedPrompt   `json:"queue,omitempty"`
 }
 
 type sessionInfo struct {

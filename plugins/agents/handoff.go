@@ -98,8 +98,8 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 	if old.Task != nil {
 		a.saveNow(ctx, next)
 		a.saveNow(ctx, s)
-		a.moveChildren(ctx, old.ID, next.snapshot().ID)
 	}
+	a.moveChildren(ctx, old.ID, next.snapshot().ID)
 	return next, err
 }
 

@@ -940,7 +940,7 @@ func TestFailedAttachKeepsPrompt(t *testing.T) {
 	starts := f.calls(t, "start")
 	require.Len(t, starts, 1)
 	require.NoError(t, syscall.Kill(starts[0].PID, syscall.SIGKILL))
-	f.waitStatus(t, workspace, session, "error")
+	f.waitAgentExited(t, workspace)
 
 	f.prompt(t, workspace, session, "two")
 
@@ -1195,7 +1195,7 @@ func TestPermissionAfterAgentRestart(t *testing.T) {
 	starts := f.calls(t, "start")
 	require.Len(t, starts, 1)
 	require.NoError(t, syscall.Kill(starts[0].PID, syscall.SIGKILL))
-	f.waitStatus(t, workspace, session, "error")
+	f.waitAgentExited(t, workspace)
 
 	f.prompt(t, workspace, session, "two")
 	f.waitStatus(t, workspace, session, "waiting")
@@ -2207,10 +2207,21 @@ func TestAgentProcessRegistered(t *testing.T) {
 	assert.Equal(t, root{ID: got.ID, Label: "Claude · " + filepath.Base(repo), Owner: "agents", PID: starts[0].PID}, got)
 
 	require.NoError(t, f.h.Client(t).Call(t.Context(), "process.kill", map[string]any{"sessionId": got.ID, "pids": []int{got.PID}}, nil))
-	f.waitStatus(t, workspace, session, "error")
-	left := roots()
-	require.Len(t, left, 1)
-	assert.True(t, left[0].Ended)
+	f.waitAgentExited(t, workspace)
+	assert.Len(t, roots(), 1)
+	assert.Equal(t, "idle", f.session(t, workspace, session).Status)
+}
+
+func (f *fixture) waitAgentExited(t *testing.T, workspace string) {
+	t.Helper()
+	type root struct {
+		Ended bool `json:"ended"`
+	}
+	testutil.Eventually(t, func() bool {
+		var roots []root
+		require.NoError(t, f.h.Client(t).Call(t.Context(), "process.roots", map[string]string{"workspaceId": workspace}, &roots))
+		return len(roots) > 0 && !slices.ContainsFunc(roots, func(r root) bool { return !r.Ended })
+	}, wait)
 }
 
 type child struct {
@@ -3053,6 +3064,7 @@ func TestWaitReturnsQueuedUserMessage(t *testing.T) {
 	require.NotNil(t, got.Message)
 	assert.Equal(t, "stop", got.Message.Text)
 	f.waitStatus(t, workspace, parent, "done")
+	assert.Contains(t, entryTexts(ofKind(f.transcript(t, workspace, parent).Entries, "user")), "stop")
 	assert.False(t, slices.ContainsFunc(f.calls(t, "session/prompt"), func(c fakeCall) bool { return promptText(t, c) == "stop" }))
 }
 

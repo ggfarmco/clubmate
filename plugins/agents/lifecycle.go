@@ -86,6 +86,7 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentP
 	p, agentID, running, rec := s.proc, s.rec.AgentSessionID, s.running, s.rec
 	s.proc = nil
 	s.running = false
+	s.epoch++
 	s.dropBackgroundLocked()
 	s.queue = nil
 	s.cancelPermissionsLocked()

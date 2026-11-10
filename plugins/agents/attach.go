@@ -128,9 +128,11 @@ func (a *app) attachAgent(s *session) (*agentProc, error) {
 		a.release(p)
 		return nil, fmt.Errorf("session/new: bad response %s", raw)
 	}
-	p.register(res.SessionID, s)
+	if !p.register(res.SessionID, s) {
+		a.dropAttached(p, res.SessionID)
+		return nil, errClosed
+	}
 	s.mu.Lock()
-	s.rec.AgentSessionID = res.SessionID
 	if s.rec.Status == statusError {
 		s.setStatusLocked(statusIdle, "")
 	}
@@ -173,7 +175,10 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 		return fmt.Errorf("session/resume: %w", err)
 	}
 	a.setNoResume(rec.ID, false)
-	p.register(rec.AgentSessionID, s)
+	if !p.register(rec.AgentSessionID, s) {
+		a.dropAttached(p, rec.AgentSessionID)
+		return errClosed
+	}
 	s.mu.Lock()
 	s.recordLocked(s.actor(), kindResume, raw)
 	if s.rec.Status == statusError {
@@ -195,6 +200,15 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 		a.applyConfigs(ctx, s, res.ConfigOptions, withStart([]startConfig{{category: acp.CategoryModel, value: rec.pinnedModel()}}, func(id string) string { return values[id] }))
 	}
 	return nil
+}
+
+func (a *app) dropAttached(p *agentProc, agentID string) {
+	if p.caps.SessionCapabilities.Close != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+		_ = p.conn.Call(ctx, acp.MethodSessionClose, acp.SessionRequest{SessionID: agentID}, nil)
+		cancel()
+	}
+	a.release(p)
 }
 
 func (a *app) detach(s *session, p *agentProc, agentID string) {

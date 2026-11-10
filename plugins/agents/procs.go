@@ -114,7 +114,6 @@ func (a *app) registerProc(ctx context.Context, p *agentProc, workspace string) 
 
 func (a *app) procExited(p *agentProc, reason string) {
 	a.groups.remove(p.pgid)
-	a.unregisterProc(p)
 	a.mu.Lock()
 	delete(a.live, p)
 	a.dropSlotsLocked(p)
@@ -127,6 +126,12 @@ func (a *app) procExited(p *agentProc, reason string) {
 		}
 		running := s.running
 		s.proc = nil
+		if !s.busyLocked() && len(s.perms) == 0 {
+			s.mu.Unlock()
+			s.changed(changeUpdate, false)
+			continue
+		}
+		s.epoch++
 		s.dropBackgroundLocked()
 		s.cancelPermissionsLocked()
 		quiet := p.quiet.Load() || s.rec.closed()
@@ -147,6 +152,7 @@ func (a *app) procExited(p *agentProc, reason string) {
 			a.notifyEnd(s, ended)
 		}
 	}
+	a.unregisterProc(p)
 }
 
 func (a *app) unregisterProc(p *agentProc) {
