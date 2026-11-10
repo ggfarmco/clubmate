@@ -1181,7 +1181,7 @@ struct PermissionCard: View {
                     Button { showingAll = true } label: {
                         Label("Hidden: \(hidden) · Show all", systemImage: "eye")
                             .font(.footnote.weight(.semibold))
-                            .foregroundStyle(Color.warning)
+                            .foregroundStyle(Color.warningInk)
                             .frame(minHeight: 44)
                             .contentShape(.rect)
                     }
@@ -1537,7 +1537,7 @@ struct QuestionCard: View {
                     DockBadge(symbol: "questionmark.bubble.fill")
                     Text("\(agentName) is asking")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.warning)
+                        .foregroundStyle(Color.warningInk)
                 }
                 if !question.isEmpty {
                     Text(Markdown.inline(question))
@@ -1612,7 +1612,7 @@ struct ElicitationCard: View {
                     DockBadge(symbol: question.isURL ? "person.badge.key.fill" : "questionmark.bubble.fill")
                     Text(question.isURL ? "\(agentName) needs you to sign in" : "\(agentName) is asking")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.warning)
+                        .foregroundStyle(Color.warningInk)
                     if paged {
                         Spacer(minLength: 0)
                         stepper

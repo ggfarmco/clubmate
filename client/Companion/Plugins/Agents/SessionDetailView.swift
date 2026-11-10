@@ -591,7 +591,7 @@ struct SessionHeader: View {
         let activity = session.headerActivity(now: now).map { Text(" · " + $0).foregroundStyle(Color.captionInk) } ?? Text("")
         let open = session.openLabel.map { Text(" · ").foregroundStyle(Color.captionInk) + Text($0).foregroundStyle(Color.warningInk) } ?? Text("")
         let done = session.openLabel != nil || session.archivable
-        let tint = session.state.needsYou ? Color.warning : done ? Color.successInk : Color.captionInk
+        let tint = session.state.needsYou ? Color.warningInk : done ? Color.successInk : Color.captionInk
         return Text(session.headerState).foregroundStyle(tint)
             + activity
             + open

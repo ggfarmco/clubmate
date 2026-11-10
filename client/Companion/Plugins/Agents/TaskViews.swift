@@ -23,7 +23,7 @@ struct ConnectRepoCard: View {
                     DockBadge(symbol: "folder.badge.plus")
                     Text(card.title)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.warning)
+                        .foregroundStyle(Color.warningInk)
                 }
                 ScrollView {
                     Group {

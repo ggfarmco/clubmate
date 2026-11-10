@@ -174,7 +174,7 @@ struct RunDetailView: View {
         let state = run?.headerState(needsYou: needsYou) ?? (needsYou ? SessionState.waitingForYou.label : "")
         let mac = context.model.tag(context.connection.computer.id)
         let workspace = context.navigation.workspace(for: context.connection)?.name ?? ""
-        return Text(state).foregroundStyle(needsYou ? Color.warning : Color.captionInk)
+        return Text(state).foregroundStyle(needsYou ? Color.warningInk : Color.captionInk)
             + (mac != nil || !workspace.isEmpty ? Text(" · ") + mac.lead(workspace) : Text("")).foregroundStyle(Color.captionInk)
     }
 }
