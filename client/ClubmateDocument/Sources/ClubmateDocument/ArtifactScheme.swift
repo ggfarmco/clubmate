@@ -12,13 +12,14 @@ final class ArtifactScheme: NSObject, WKURLSchemeHandler {
 
     func serve(path: String, html: String) -> URL {
         origin = UUID().uuidString.lowercased()
-        self.path = path
         self.html = Data(html.utf8)
         var components = URLComponents()
         components.scheme = Self.name
         components.host = origin
-        components.path = path
-        return components.url!
+        components.path = path.hasPrefix("/") ? path : "/" + path
+        let url = components.url ?? URL(fileURLWithPath: "/")
+        self.path = url.path
+        return url
     }
 
     func owns(_ url: URL) -> Bool {

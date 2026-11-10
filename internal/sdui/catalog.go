@@ -228,6 +228,7 @@ var (
 			props:       map[string]propCheck{"html": isString, "path": isString, "rev": countNumber, "size": oneOf(documentSizes), "anchor": isString, "kind": oneOf(documentKinds)},
 			children:    noChildren,
 			interactive: true,
+			check:       documentCheck,
 		},
 		"button": {
 			required:    []string{"label"},
@@ -622,6 +623,14 @@ func sheetCheck(c *validator, n sdui.Node) error {
 	cancel, _ := n.Props["cancel"].(string)
 	if !hasButton(n.Children, cancel) {
 		return fmt.Errorf("cancel %q is not the action of a button in the sheet", cancel)
+	}
+	return nil
+}
+
+func documentCheck(_ *validator, n sdui.Node) error {
+	path, _ := n.Props["path"].(string)
+	if n.Props["kind"] == sdui.DocumentArtifact && path != "" && !strings.HasPrefix(path, "/") {
+		return fmt.Errorf("an artifact's path %q must be absolute", path)
 	}
 	return nil
 }

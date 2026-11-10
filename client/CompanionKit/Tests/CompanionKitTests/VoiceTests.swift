@@ -205,6 +205,25 @@ final class VoiceTests: XCTestCase {
         XCTAssertFalse(voice.active)
     }
 
+    func testCancelThenQuickRestartCancelsTheFirstUtterance() async throws {
+        let mac = VoiceMac()
+        mac.started = ["vu_1", "vu_2"]
+        mac.states = [#"{"utterance":"vu_2","phase":"listening","rev":1}"#]
+        mac.held = ["voice.start"]
+        let voice = mac.session()
+        voice.begin()
+        try await waitUntil { mac.ids.contains("voice.start") }
+        voice.cancel()
+        voice.begin()
+        mac.release("voice.start")
+        try await waitUntil { voice.state?.utterance == "vu_2" }
+        let cancels = mac.calls.filter { $0.id == "voice.cancel" }.map { $0.args?["utterance"]?.stringValue }
+        XCTAssertEqual(cancels, ["vu_1"])
+        voice.finish()
+        try await waitUntil { mac.calls.contains { $0.id == "voice.end" } }
+        XCTAssertEqual(mac.calls.last { $0.id == "voice.end" }?.args?["utterance"]?.stringValue, "vu_2")
+    }
+
     func testPointerFromPhoneScreen() {
         XCTAssertEqual(VoiceTarget.phone(computer: "m", workspace: "w", plugin: "agents", detail: "agt_1").pointer, VoicePointer(device: "phone", section: "agents", selection: .init(session: "agt_1")))
         XCTAssertEqual(VoiceTarget.phone(computer: "m", workspace: "w", plugin: "backlog", detail: "12").pointer, VoicePointer(device: "phone", section: "backlog", selection: .init(task: 12)))
@@ -243,6 +262,7 @@ private final class VoiceMac: CommandRunner {
     var states: [String] = [#"{"utterance":"vu_1","phase":"listening","rev":1}"#]
     var failing: Set<String> = []
     var held: Set<String> = []
+    var started: [String] = []
     var clock: TimeInterval = 0
     private var gates: [String: CheckedContinuation<Void, Never>] = [:]
 
@@ -267,7 +287,7 @@ private final class VoiceMac: CommandRunner {
         if held.contains(id) { await withCheckedContinuation { gates[id] = $0 } }
         switch id {
         case "voice.start":
-            return .object(["utterance": .string("vu_1")])
+            return .object(["utterance": .string(started.isEmpty ? "vu_1" : started.removeFirst())])
         case "voice.audio":
             return .object(["partial": .string("при")])
         case "voice.end":

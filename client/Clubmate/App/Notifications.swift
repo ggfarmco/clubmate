@@ -20,6 +20,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
 
     @ObservationIgnored private var notifier = AgentNotifier()
     @ObservationIgnored private var lists: [String: AgentSessionList] = [:]
+    @ObservationIgnored private let fetches = Coalescer<String, [AgentSession]?>()
     @ObservationIgnored private var listener: Task<Void, Never>?
     @ObservationIgnored private var checks: Task<Void, Never>?
     @ObservationIgnored private var saving: Task<Void, Never>?
@@ -163,6 +164,10 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func sessions(_ workspace: String) async -> [AgentSession]? {
+        await fetches.run(workspace) { [weak self] in await self?.fetch(workspace) }
+    }
+
+    private func fetch(_ workspace: String) async -> [AgentSession]? {
         guard case .success(let reply) = await run(workspace, CommandInvocation(id: AgentCommand.sessions, args: (lists[workspace] ?? AgentSessionList()).args)) else { return nil }
         var list = lists[workspace] ?? AgentSessionList()
         guard (try? list.apply(reply)) != nil else { return nil }

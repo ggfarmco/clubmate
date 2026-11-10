@@ -45,6 +45,7 @@ public final class WorkspaceUIStore {
     @ObservationIgnored private var gate: CheckedContinuation<Void, Never>?
     @ObservationIgnored private var starting = false
     @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var epoch = 0
     @ObservationIgnored private var revs: [String: Int64] = [:]
     @ObservationIgnored private var cells: [String: SlotCell] = [:]
     @ObservationIgnored private var listener: Task<Void, Never>?
@@ -216,11 +217,20 @@ public final class WorkspaceUIStore {
         do {
             try await reconnect(using: client)
         } catch {
-            await heal(generation)
+            let generation = generation
+            Task { [weak self] in await self?.heal(generation) }
         }
     }
 
+    private static let firstRetry: Duration = .seconds(1)
+    private static let longestRetry: Duration = .seconds(30)
+
     public func stop() async {
+        epoch += 1
+        await settle()
+    }
+
+    private func settle() async {
         let subscription = self.subscription
         halt()
         if let subscription { await discard(subscription) }
@@ -382,12 +392,20 @@ public final class WorkspaceUIStore {
     private func heal(_ generation: Int) async {
         let client = self.client
         guard generation == self.generation, client.isAlive else { return }
-        await stop()
-        guard generation + 1 == self.generation, client === self.client else { return }
-        do {
-            try await start()
-        } catch {
-            failure = describe(error)
+        epoch += 1
+        let epoch = epoch
+        await settle()
+        var delay = Self.firstRetry
+        while epoch == self.epoch, client === self.client, client.isAlive {
+            do {
+                try await start()
+                return
+            } catch {
+                guard epoch == self.epoch else { return }
+                failure = describe(error)
+            }
+            try? await Task.sleep(for: delay)
+            delay = min(delay * 2, Self.longestRetry)
         }
     }
 

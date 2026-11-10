@@ -268,6 +268,39 @@ final class ClubmateKitTests: XCTestCase {
         await connection.close()
     }
 
+    func testACoreThatStopsReadingTimesTheCallOutAndDropsTheConnection() async throws {
+        let base = try TestCore.makeTempDir()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let paths = ClubmatePaths(state: base.appending(path: "state"), runtime: base.appending(path: "run"))
+        for dir in [paths.runtime, paths.sessionsSocketDir] {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        }
+        let server = try listen(at: paths.coreSocket.path(percentEncoded: false))
+        defer { close(server) }
+        let connection = try await RPCConnection.connect(paths: paths)
+        let large = JSONValue.object(["text": .string(String(repeating: "x", count: 4 << 20))])
+        let timedOut = expectation(description: "the call timed out")
+        let dropped = expectation(description: "the connection closed")
+        Task {
+            do {
+                let _: JSONValue = try await connection.call("core.ping", large, timeout: .milliseconds(200))
+            } catch ClubmateError.timeout {
+                timedOut.fulfill()
+            }
+        }
+        Task {
+            for await _ in connection.notifications {}
+            dropped.fulfill()
+        }
+        await fulfillment(of: [timedOut, dropped], timeout: 5)
+        do {
+            let _: JSONValue = try await connection.call("core.ping", JSONValue.object([:]))
+            XCTFail("a call went out on a dropped connection")
+        } catch {
+            XCTAssertEqual(error as? ClubmateError, .notRunning)
+        }
+    }
+
     func testLauncherStartsCore() async throws {
         let core = try TestCore.prepare()
         self.core = core

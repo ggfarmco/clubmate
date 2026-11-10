@@ -329,6 +329,22 @@ final class TaskCardsTests: XCTestCase {
         XCTAssertEqual(queue.notes(session: "s").map(\.text), ["Archive Pause ran; some of it stayed:\nads stays on disk"])
     }
 
+    func testAnActionThatNeverLeftThePhoneStaysUndoable() async throws {
+        let queue = ActionQueue(file: nil)
+        let plan: ArchivePlan = try decoded(planJSON)
+        let offline = TaskRunner(failure: RemoteError.notSent("Could not connect to the server."))
+        let store = AgentsStore(workspace: "w", runner: offline, queue: queue, computer: "m", sleep: { _ in })
+
+        let delivery = try await store.archive("s", plan: plan, mode: .archive).0
+        XCTAssertEqual(delivery, .queued)
+        XCTAssertEqual(queue.items.first?.canUndo, true)
+
+        _ = await queue.flush(computer: "m", runner: offline, supports: { _ in true })
+        let item = try XCTUnwrap(queue.items.first)
+        XCTAssertTrue(item.canUndo)
+        XCTAssertEqual(item.line(queued: "Queued"), "Queued")
+    }
+
     func testAnUnknownOutcomeReadsAsUnknown() async throws {
         let queue = ActionQueue(file: nil)
         queue.enqueue(QueuedAction(computer: "m", workspace: "w", session: "s", kind: .archive, title: "Archive Pause"))

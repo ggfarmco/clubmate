@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import Synchronization
 
 @_exported import ClubmateProtocol
 
@@ -50,6 +51,7 @@ public actor RPCConnection {
     public nonisolated let requests: AsyncStream<RPCRequest>
 
     private let fd: Int32
+    private let writer: SocketWriter
     private let notify: AsyncStream<RPCNotification>.Continuation
     private let request: AsyncStream<RPCRequest>.Continuation
     private var nextID = 1
@@ -59,6 +61,7 @@ public actor RPCConnection {
 
     private init(fd: Int32) {
         self.fd = fd
+        writer = SocketWriter(fd: fd)
         (notifications, notify) = AsyncStream.makeStream(of: RPCNotification.self)
         (requests, request) = AsyncStream.makeStream(of: RPCRequest.self)
     }
@@ -89,10 +92,9 @@ public actor RPCConnection {
                 guard (try? await Task.sleep(for: timeout)) != nil else { return }
                 expire(id)
             }
-            do {
-                try write(line)
-            } catch {
-                resolve(id)?.resume(throwing: error)
+            writer.write(line, within: timeout) { error in
+                guard let error else { return }
+                Task { await self.fail(id, error) }
             }
         }
         do {
@@ -106,15 +108,17 @@ public actor RPCConnection {
         guard !closed else { throw ClubmateError.notRunning }
         var line = try JSONEncoder().encode(Reply(id: id, result: result))
         line.append(0x0A)
-        try write(line)
+        writer.write(line, within: Self.replyTimeout) { _ in }
     }
 
     public func replyError(id: Int, code: Int, message: String) throws {
         guard !closed else { throw ClubmateError.notRunning }
         var line = try JSONEncoder().encode(ErrorReply(id: id, error: .init(code: code, message: message)))
         line.append(0x0A)
-        try write(line)
+        writer.write(line, within: Self.replyTimeout) { _ in }
     }
+
+    static let replyTimeout: Duration = .seconds(10)
 
     public func close() {
         guard !closed else { return }
@@ -163,6 +167,10 @@ public actor RPCConnection {
         resolve(id)?.resume(throwing: ClubmateError.timeout)
     }
 
+    private func fail(_ id: Int, _ error: any Error) {
+        resolve(id)?.resume(throwing: error)
+    }
+
     private func finish() {
         closed = true
         let waiting = pending
@@ -174,22 +182,7 @@ public actor RPCConnection {
         }
         notify.finish()
         request.finish()
-        Darwin.close(fd)
-    }
-
-    private func write(_ data: Data) throws {
-        try data.withUnsafeBytes { raw in
-            guard let base = raw.baseAddress else { return }
-            var offset = 0
-            while offset < raw.count {
-                let n = Darwin.write(fd, base + offset, raw.count - offset)
-                if n < 0 {
-                    if errno == EINTR { continue }
-                    throw ClubmateError.notRunning
-                }
-                offset += n
-            }
-        }
+        writer.close()
     }
 
     private static func openSocket(_ path: String) throws -> Int32 {
@@ -218,6 +211,73 @@ public actor RPCConnection {
             throw ClubmateError.protocolError("connect \(path): \(String(cString: strerror(code)))")
         }
         return fd
+    }
+}
+
+private final class SocketWriter: Sendable {
+    private let fd: Int32
+    private let queue = DispatchQueue(label: "clubmate.rpc.writer")
+
+    init(fd: Int32) {
+        self.fd = fd
+    }
+
+    func write(_ data: Data, within timeout: Duration, done: @escaping @Sendable ((any Error)?) -> Void) {
+        queue.async { [fd] in
+            let watch = WriteWatch()
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout / .seconds(1)) {
+                if watch.expire() { shutdown(fd, SHUT_RDWR) }
+            }
+            let sent = Self.writeAll(fd, data)
+            let expired = watch.finish()
+            if !sent, !expired { shutdown(fd, SHUT_RDWR) }
+            done(expired ? ClubmateError.timeout : sent ? nil : ClubmateError.notRunning)
+        }
+    }
+
+    func close() {
+        queue.async { [fd] in _ = Darwin.close(fd) }
+    }
+
+    private static func writeAll(_ fd: Int32, _ data: Data) -> Bool {
+        data.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress else { return true }
+            var offset = 0
+            while offset < raw.count {
+                let n = Darwin.write(fd, base + offset, raw.count - offset)
+                if n < 0 {
+                    if errno == EINTR { continue }
+                    return false
+                }
+                offset += n
+            }
+            return true
+        }
+    }
+}
+
+private final class WriteWatch: Sendable {
+    private enum Phase {
+        case writing
+        case written
+        case expired
+    }
+
+    private let phase = Mutex(Phase.writing)
+
+    func expire() -> Bool {
+        phase.withLock { phase in
+            guard phase == .writing else { return false }
+            phase = .expired
+            return true
+        }
+    }
+
+    func finish() -> Bool {
+        phase.withLock { phase in
+            defer { if phase == .writing { phase = .written } }
+            return phase == .expired
+        }
     }
 }
 

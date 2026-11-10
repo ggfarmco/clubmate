@@ -16,6 +16,11 @@ public final class WorkspaceUI {
     @ObservationIgnored private var sectionsStream: String?
     @ObservationIgnored private var stale: Set<String> = []
     @ObservationIgnored private var syncing: Task<Void, Never>?
+    @ObservationIgnored private var waiting: Task<Void, Never>?
+    @ObservationIgnored private var backoff = WorkspaceUI.firstRetry
+
+    static let firstRetry: Duration = .seconds(1)
+    static let longestRetry: Duration = .seconds(30)
 
     public init(connection: ComputerConnection, workspace: String) {
         self.connection = connection
@@ -61,17 +66,31 @@ public final class WorkspaceUI {
     }
 
     private func sync() {
+        waiting?.cancel()
+        waiting = nil
         guard syncing == nil else { return }
         syncing = Task { [weak self] in
-            await self?.drain()
+            let failed = await self?.drain()
             self?.syncing = nil
+            if let failed { self?.retry(failed) }
         }
     }
 
-    private func drain() async {
+    private func retry(_ stream: String) {
+        guard let sleep = connection?.sleep else { return }
+        let delay = backoff
+        backoff = min(backoff * 2, Self.longestRetry)
+        waiting = Task { [weak self] in
+            guard (try? await sleep(delay)) != nil, !Task.isCancelled, let self, connection?.streamID == stream else { return }
+            waiting = nil
+            sync()
+        }
+    }
+
+    private func drain() async -> String? {
         while let connection, connection.supportsUI, let stream = connection.streamID {
             let target = desired
-            if sentStream == stream, sent == target, sectionsStream == stream { return }
+            if sentStream == stream, sent == target, sectionsStream == stream { return nil }
             do {
                 if sectionsStream != stream {
                     sectionsStream = stream
@@ -86,18 +105,24 @@ public final class WorkspaceUI {
                 try await connection.uiWatch(stream: stream, workspace: workspace, slots: target.sorted())
                 let fetch = target.subtracting(previous)
                 if !fetch.isEmpty {
-                    let found = try await connection.uiGet(workspace: workspace, slots: fetch.sorted())
-                    for view in found where view.workspaceId == workspace {
+                    let found = try await connection.uiGet(workspace: workspace, slots: fetch.sorted()).filter { $0.workspaceId == workspace }
+                    for view in found {
                         receive(view)
+                    }
+                    for slot in fetch.subtracting(found.map(\.slot)) {
+                        views[slot] = nil
+                        stale.remove(slot)
                     }
                 }
                 sent = target
                 sentStream = stream
                 failure = nil
+                backoff = Self.firstRetry
             } catch {
                 failure = (error as? RemoteError)?.message ?? error.localizedDescription
-                return
+                return stream
             }
         }
+        return nil
     }
 }

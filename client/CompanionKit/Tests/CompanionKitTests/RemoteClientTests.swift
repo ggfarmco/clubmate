@@ -27,6 +27,18 @@ final class RemoteClientTests: XCTestCase {
         XCTAssertEqual(transport.requests.map(\.timeoutInterval), [RemoteClient.probeTimeout, RemoteClient.probeTimeout, 20, 20])
     }
 
+    func testARequestNoHostCouldHaveGotIsNotSent() async throws {
+        let refused = FakeTransport(reply: { _ in throw URLError(.cannotConnectToHost) })
+        let offline = RemoteClient(hosts: ["100.64.0.1", "100.64.0.2"], port: 47621, token: "t", transport: refused)
+        await XCTAssertThrowsAsync(try await offline.command("agents.archive", workspace: "w"), RemoteError.notSent(URLError(.cannotConnectToHost).localizedDescription))
+
+        let mixed = FakeTransport(reply: { request in
+            throw URLError(request.url?.host() == "100.64.0.1" ? .timedOut : .cannotConnectToHost)
+        })
+        let lost = RemoteClient(hosts: ["100.64.0.1", "100.64.0.2"], port: 47621, token: "t", transport: mixed)
+        await XCTAssertThrowsAsync(try await lost.command("agents.archive", workspace: "w"), RemoteError.unreachable(URLError(.cannotConnectToHost).localizedDescription))
+    }
+
     func testMapsStatusesToErrors() async throws {
         let transport = FakeTransport(reply: { request in
             FakeTransport.rpc(request) == "hello"

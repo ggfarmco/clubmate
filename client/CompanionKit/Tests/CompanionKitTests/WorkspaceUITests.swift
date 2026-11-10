@@ -56,6 +56,26 @@ final class WorkspaceUITests: XCTestCase {
         server.connection.stop()
     }
 
+    func testAFailedWatchIsRetried() async throws {
+        let server = try UIServer()
+        server.failWatches(2)
+        let ui = try await server.started(["cron.main"])
+        XCTAssertNil(ui.failure)
+        XCTAssertEqual(server.watches.map(\.slots), [["cron.main"]])
+        server.connection.stop()
+    }
+
+    func testASlotGoneAfterAReconnectLosesItsTree() async throws {
+        let server = try UIServer()
+        let ui = try await server.started(["cron.main"])
+
+        server.remove("cron.main")
+        server.drop()
+
+        try await waitUntil { server.watches.last?.stream == "s2" && ui.view("cron.main") == nil }
+        server.connection.stop()
+    }
+
     func testPluginChangeRefetchesTheSections() async throws {
         let server = try UIServer()
         let ui = try await server.started(["cron.main"])
@@ -106,13 +126,16 @@ private final class UIServer {
     private let eventLog = Recorder<JSONValue>()
     private let streams = Recorder<AsyncThrowingStream<Data, any Error>.Continuation>()
     private let disabled = Recorder<String>()
+    private let removed = Recorder<String>()
+    private let failing = Recorder<Bool>()
+    private let failed = Recorder<Bool>()
     let connection: ComputerConnection
 
     init() throws {
         let fixture = try JSONDecoder().decode(JSONValue.self, from: fixture("sdui"))
         let sections = fixture["sections"] ?? .array([])
         let views = fixture["views"]?.objectValue ?? [:]
-        let (watches, gets, events, streams, disabled) = (watchLog, getLog, eventLog, streams, disabled)
+        let (watches, gets, events, streams, disabled, removed, failing, failed) = (watchLog, getLog, eventLog, streams, disabled, removed, failing, failed)
         let hello = #"{"computer":{"id":"mac1","name":"Mac Studio"},"version":"0.0.21","commands":[],"topics":[],"ui":true}"#
         let transport = FakeTransport(reply: { request in
             let body = (try? JSONDecoder().decode(JSONValue.self, from: request.httpBody ?? Data())) ?? .null
@@ -125,12 +148,17 @@ private final class UIServer {
                 let on = sections.arrayValue?.filter { !off.contains($0["id"]?.stringValue ?? "") } ?? []
                 return (try JSONEncoder().encode(JSONValue.object(["result": .array(on)])), 200)
             case "uiWatch":
+                if failing.values.count > failed.values.count {
+                    failed.add(true)
+                    return (Data(), 503)
+                }
                 watches.add(Watch(stream: params["stream"]?.stringValue ?? "", slots: params["slots"]?.arrayValue?.compactMap(\.stringValue) ?? []))
                 return (FakeTransport.result("null"), 200)
             case "uiGet":
                 let slots = params["slots"]?.arrayValue?.compactMap(\.stringValue) ?? []
                 gets.add(slots)
-                let found = slots.compactMap { slot in
+                let gone = Set(removed.values)
+                let found = slots.filter { !gone.contains($0) }.compactMap { slot in
                     views[slot].map { JSONValue.object(["workspaceId": params["workspace"] ?? .null, "slot": .string(slot), "owner": .string("p"), "rev": .number(1), "tree": $0]) }
                 }
                 return (try JSONEncoder().encode(JSONValue.object(["result": .array(found)])), 200)
@@ -162,6 +190,14 @@ private final class UIServer {
 
     func push(_ slot: String, rev: Int, tree: String, workspace: String = "w") {
         streams.values.last?.yield(Data("event: ui\ndata: {\"workspace\":\"\(workspace)\",\"slot\":\"\(slot)\",\"rev\":\(rev),\"tree\":\(tree)}\n\n".utf8))
+    }
+
+    func failWatches(_ count: Int) {
+        for _ in 0..<count { failing.add(true) }
+    }
+
+    func remove(_ slot: String) {
+        removed.add(slot)
     }
 
     func disable(_ plugin: String) {

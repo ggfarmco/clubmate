@@ -51,7 +51,7 @@ public final class ComputerConnection: CommandRunner {
     @ObservationIgnored public private(set) var streamID: String?
 
     @ObservationIgnored public private(set) var client: RemoteClient
-    @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
+    @ObservationIgnored let sleep: @Sendable (Duration) async throws -> Void
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var listeners: [UUID: @MainActor (ConnectionSignal) -> Void] = [:]
     @ObservationIgnored private var interfaces: [String: WeakInterface] = [:]

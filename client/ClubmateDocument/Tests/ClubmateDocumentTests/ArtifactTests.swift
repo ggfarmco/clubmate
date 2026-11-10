@@ -19,6 +19,13 @@ final class ArtifactTests: XCTestCase {
         try await page.webView.callAsyncJavaScript(script, contentWorld: .page)
     }
 
+    func testARelativePathIsServedFromTheRoot() {
+        let scheme = ArtifactScheme()
+        let url = scheme.serve(path: "out/report.html", html: "<p>a</p>")
+        XCTAssertEqual(url.path, "/out/report.html")
+        XCTAssertTrue(scheme.isPage(url))
+    }
+
     func testArtifactRunsScript() async throws {
         let page = await open("<html><head><script>document.title = 'ran ' + (1 + 1)</script></head><body></body></html>")
         let title = try await run(page, "return document.title") as? String

@@ -53,8 +53,11 @@ public final class AgentsStore {
     public static let reviewedCommand = "agents.reviewed"
     public static let searchCommand = "agents.search"
     public static let searchDelay: Duration = .milliseconds(250)
+    public static let imageLimit = 48
+    public static let imageBytes = 48 << 20
 
     @ObservationIgnored private weak var runner: (any CommandRunner)?
+    @ObservationIgnored private var imageOrder: [String] = []
     @ObservationIgnored public let queue: ActionQueue?
     @ObservationIgnored private let computer: String
     @ObservationIgnored private let queues: @MainActor () -> Bool
@@ -143,10 +146,39 @@ public final class AgentsStore {
         images[key] = .loading
         do {
             let reply = try await runner.command(Self.imageCommand, workspace: workspace, args: .object(["session": .string(session), "path": .string(path)]))
-            images[key] = reply["data"]?.stringValue.flatMap { Data(base64Encoded: $0) }.map(TranscriptImage.loaded) ?? .missing
+            guard images[key] == .loading else { return }
+            guard let data = reply["data"]?.stringValue.flatMap({ Data(base64Encoded: $0) }) else {
+                images[key] = .missing
+                return
+            }
+            images[key] = .loaded(data)
+            keepImage(key)
         } catch {
+            guard images[key] == .loading else { return }
             images[key] = .missing
         }
+    }
+
+    private func keepImage(_ key: String) {
+        imageOrder.append(key)
+        var bytes = imageOrder.reduce(0) { total, key in
+            guard case .loaded(let data) = images[key] else { return total }
+            return total + data.count
+        }
+        while imageOrder.count > 1, imageOrder.count > Self.imageLimit || bytes > Self.imageBytes {
+            let oldest = imageOrder.removeFirst()
+            if case .loaded(let data) = images[oldest] { bytes -= data.count }
+            images[oldest] = nil
+        }
+    }
+
+    private func forget(_ session: String) {
+        let prefix = session + "|"
+        images = images.filter { !$0.key.hasPrefix(prefix) }
+        imageOrder.removeAll { $0.hasPrefix(prefix) }
+        guard self.session(session)?.needsYou != true else { return }
+        transcripts[session] = nil
+        transcriptErrors[session] = nil
     }
 
     public func dismissOpenedDoc(_ session: String) {
@@ -241,6 +273,7 @@ public final class AgentsStore {
         }
         watched[session] = nil
         followers.removeValue(forKey: session)?.cancel()
+        forget(session)
     }
 
     public func watchRun(_ id: String) {
@@ -489,9 +522,9 @@ public final class AgentsStore {
         guard let runner else { return .null }
         do {
             return try await runner.command(command, workspace: workspace, args: args)
-        } catch let error where Self.outcomeLost(error) && queue != nil {
+        } catch let error where Self.keeps(error) && queue != nil {
             var kept = action
-            kept.attempted = true
+            kept.attempted = Self.outcomeLost(error)
             queue?.enqueue(kept)
             Task { [sleep, retry] in
                 try? await sleep(Self.retryDelay)
@@ -499,6 +532,11 @@ public final class AgentsStore {
             }
             return nil
         }
+    }
+
+    private static func keeps(_ error: any Error) -> Bool {
+        if case .notSent = error as? RemoteError { return true }
+        return outcomeLost(error)
     }
 
     private static func outcomeLost(_ error: any Error) -> Bool {

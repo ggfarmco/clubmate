@@ -253,7 +253,6 @@ public final class VoiceSession {
         let target = target
         let pending = active || !(state?.phase.finished ?? true)
         generation += 1
-        let cancelled = generation
         active = false
         holding = false
         accepting = false
@@ -261,7 +260,7 @@ public final class VoiceSession {
         buffered = Data()
         enqueue {
             await self.stopCapture()
-            guard pending, let target, let id = id ?? (self.generation == cancelled ? self.utterance : nil) else { return }
+            guard pending, let target, let id else { return }
             _ = try? await self.runner(target.computer)?.command("voice.cancel", workspace: target.workspace, args: .object(["utterance": .string(id)]))
         }
     }
@@ -357,8 +356,12 @@ public final class VoiceSession {
         switch await call(target, "voice.start", args) {
         case .success(let value):
             guard let id = value["utterance"]?.stringValue else { return await fail("voice.start returned no utterance") }
+            guard generation == self.generation else {
+                _ = await call(target, "voice.cancel", ["utterance": .string(id)])
+                return
+            }
             utterance = id
-            if generation == self.generation { await refresh(id) }
+            await refresh(id)
         case .failure(let failure):
             await fail(failure.message)
         }

@@ -256,6 +256,10 @@ final class ImageRunner: CommandRunner {
     var data: String?
 
     func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
+        if id == AgentCommand.sessions { return .array([]) }
+        if id == AgentCommand.transcript {
+            return try JSONDecoder().decode(JSONValue.self, from: Data(#"{"session":{"id":"s","status":"done"},"entries":[]}"#.utf8))
+        }
         calls += 1
         guard let data else { throw RemoteError.server(code: "error", message: "no such image") }
         return .object(["mimeType": .string("image/png"), "data": .string(data)])
@@ -276,6 +280,34 @@ final class TranscriptImageTests: XCTestCase {
         XCTAssertEqual(runner.calls, 2)
         await store.loadImage("/w/a.png", entry: "later", in: "s")
         XCTAssertEqual(runner.calls, 3)
+    }
+
+    func testClosingASessionDropsItsImagesAndTranscript() async throws {
+        let runner = ImageRunner()
+        runner.data = Data("png".utf8).base64EncodedString()
+        let store = AgentsStore(workspace: "w", runner: runner)
+        store.watch("s")
+        try await waitUntil { store.transcripts["s"] != nil }
+        await store.loadImage("/w/a.png", entry: "e", in: "s")
+        await store.loadImage("/w/a.png", entry: "e", in: "t")
+
+        store.unwatch("s")
+
+        XCTAssertNil(store.transcripts["s"])
+        XCTAssertNil(store.image("/w/a.png", entry: "e", in: "s"))
+        XCTAssertEqual(store.image("/w/a.png", entry: "e", in: "t"), .loaded(Data("png".utf8)))
+    }
+
+    func testOnlyTheNewestImagesStayLoaded() async {
+        let runner = ImageRunner()
+        runner.data = Data("png".utf8).base64EncodedString()
+        let store = AgentsStore(workspace: "w", runner: runner)
+        for index in 0...AgentsStore.imageLimit {
+            await store.loadImage("/w/\(index).png", entry: "e", in: "s")
+        }
+        XCTAssertNil(store.image("/w/0.png", entry: "e", in: "s"))
+        XCTAssertEqual(store.image("/w/1.png", entry: "e", in: "s"), .loaded(Data("png".utf8)))
+        XCTAssertEqual(store.image("/w/\(AgentsStore.imageLimit).png", entry: "e", in: "s"), .loaded(Data("png".utf8)))
     }
 }
 

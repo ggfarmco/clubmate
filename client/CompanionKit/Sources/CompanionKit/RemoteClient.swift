@@ -6,6 +6,7 @@ public enum RemoteError: Error, Equatable, Sendable {
     case server(code: String, message: String)
     case http(Int)
     case unreachable(String)
+    case notSent(String)
     case badResponse
     case hostNotAllowed
 
@@ -15,7 +16,7 @@ public enum RemoteError: Error, Equatable, Sendable {
         case .pairingFailed(let message): message.isEmpty ? "Pairing failed. Ask Clubmate for a new code." : message
         case .server(_, let message): message
         case .http(let status): "The Mac answered with HTTP \(status)."
-        case .unreachable(let message): message
+        case .unreachable(let message), .notSent(let message): message
         case .badResponse: "The Mac sent a response this app doesn't understand."
         case .hostNotAllowed: "None of this Mac's addresses is on your Tailscale network."
         }
@@ -281,6 +282,7 @@ public actor RemoteClient {
 
     private func exchange(path: String, method: String, body: Data, probe: Bool = false, timeout rpc: TimeInterval = rpcTimeout) async throws -> (Data, HTTPURLResponse, String) {
         var lastError: (any Error)?
+        var reached = false
         let hosts = orderedHosts()
         for (index, host) in hosts.enumerated() {
             let timeout = probe && index < hosts.count - 1 ? Self.probeTimeout : rpc
@@ -295,10 +297,11 @@ public actor RemoteClient {
                 return (data, response, host)
             } catch {
                 lastError = error
+                if !Self.unsent(error) { reached = true }
                 guard canFallBack(error, probe: probe) else { throw Self.mapped(error) }
             }
         }
-        throw Self.mapped(lastError ?? RemoteError.hostNotAllowed)
+        throw Self.mapped(lastError ?? RemoteError.hostNotAllowed, reached: reached)
     }
 
     private func orderedHosts() -> [String] {
@@ -325,10 +328,15 @@ public actor RemoteClient {
         return url
     }
 
-    private static func mapped(_ error: any Error) -> any Error {
+    private static func unsent(_ error: any Error) -> Bool {
+        (error as? URLError).map { unsentErrors.contains($0.code) } ?? false
+    }
+
+    private static func mapped(_ error: any Error, reached: Bool = true) -> any Error {
         if error is RemoteError || error is CancellationError { return error }
         if let url = error as? URLError {
             if url.code == .cancelled { return CancellationError() }
+            if !reached, unsent(url) { return RemoteError.notSent(url.localizedDescription) }
             return RemoteError.unreachable(url.localizedDescription)
         }
         return error

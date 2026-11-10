@@ -177,6 +177,16 @@ public final class ActionQueue {
 
     private func send(_ id: String, runner: any CommandRunner) async throws -> Bool {
         guard let item = current(id) else { return false }
+        do {
+            return try await deliver(item, runner: runner)
+        } catch RemoteError.notSent(let message) {
+            if !item.attempted { markAttempted(id, false) }
+            throw RemoteError.notSent(message)
+        }
+    }
+
+    private func deliver(_ item: QueuedAction, runner: any CommandRunner) async throws -> Bool {
+        let id = item.id
         switch item.kind {
         case .connect:
             if !item.attempted {
@@ -212,9 +222,9 @@ public final class ActionQueue {
         persist()
     }
 
-    private func markAttempted(_ id: String) {
+    private func markAttempted(_ id: String, _ attempted: Bool = true) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
-        items[index].attempted = true
+        items[index].attempted = attempted
         persist()
     }
 

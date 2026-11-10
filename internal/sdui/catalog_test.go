@@ -114,6 +114,7 @@ func TestValidate(t *testing.T) {
 		{"document without html", sdui.Node{Type: "document", ID: "d", Props: map[string]any{"path": "/r/a.md"}}, false},
 		{"document bad size", sdui.Document("d", sdui.DocumentProps{HTML: "x", Size: "big"}), false},
 		{"document artifact", sdui.Document("d", sdui.DocumentProps{HTML: "<html></html>", Kind: sdui.DocumentArtifact}), true},
+		{"document artifact with a relative path", sdui.Document("d", sdui.DocumentProps{HTML: "<html></html>", Path: "out/report.html", Kind: sdui.DocumentArtifact}), false},
 		{"document bad kind", sdui.Document("d", sdui.DocumentProps{HTML: "x", Kind: "x"}), false},
 		{"document negative rev", sdui.Document("d", sdui.DocumentProps{HTML: "x", Rev: -1}), false},
 		{"document without id", sdui.Document("", sdui.DocumentProps{HTML: "x"}), false},
