@@ -97,7 +97,7 @@ func TestUserTriggerDrawsItsLastChainAndRunsAsLanes(t *testing.T) {
 			{At: at, Topic: "event.tidy.done", Status: automation.StatusError, Reason: "CI is red on main", Chain: chain},
 		}}
 
-	view := mainView(release, []*Trigger{release}, map[string]string{"agt_9": "Nightly tidy"}, nil, automation.Open{Runs: true}, automation.RunsView{})
+	view := mainView(release, []*Trigger{release}, map[string]string{"agt_9": "Nightly tidy"}, nil, automation.Open{}, automation.RunsView{})
 	require.NoError(t, isdui.Validate(view))
 	assert.Contains(t, texts(view), "last time · cron Nightly tidy started the session that emitted it")
 	flow := find(view, "flow")

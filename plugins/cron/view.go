@@ -102,9 +102,7 @@ func mainView(j *Job, jobs []*Job, titles, statuses map[string]string, open auto
 	if !picked {
 		marked = Run{}
 	}
-	body = append(body, runStrip(j, j.History, marked, titles, now))
-	body = append(body, automation.RunsRows(j.ID, j.History, table, open.Runs)...)
-	body = append(body, sdui.Form(runJSONFormID, automation.RunJSONRows(j.ID, run, picked, open.RunJSON)...))
+	body = append(body, runStrip(j, j.History, marked, titles, now), table, sdui.Form(runJSONFormID, automation.RunJSONRows(j.ID, run, picked, open.RunJSON)...))
 	return sdui.VStack(header, sdui.Scroll(sdui.VStack(body...)))
 }
 
