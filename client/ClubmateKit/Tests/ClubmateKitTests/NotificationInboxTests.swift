@@ -133,6 +133,24 @@ final class NotificationInboxTests: XCTestCase {
         XCTAssertEqual(waiting.alerts.map(\.id), ["agt_1/p1"])
     }
 
+    func testWaitingHoldsBackOnlyTheSessionOnScreen() {
+        var hub = NotificationHub()
+        let front = HubFocus(appActive: true, workspace: "w", sidebar: SDUINode(type: "list", props: ["selected": .string("agt_1")]))
+        let shown: (AgentSession) -> Bool = { front.shows(workspace: $0.workspace, session: $0.id) }
+        var sessions = (1...3).map { AgentSession(id: "agt_\($0)", workspace: "w", agent: "claude", title: "", status: .waiting, pending: ["p\($0)"]) }
+        hub.waiting.update(workspace: "w", session: nil, sessions: sessions, shown: shown)
+        XCTAssertEqual(hub.waiting.alerts.map(\.id), ["agt_2/p2", "agt_3/p3"])
+        XCTAssertEqual(hub.bellCount, 2)
+
+        hub.waiting.update(workspace: "w", session: "agt_1", sessions: [sessions[0]], shown: shown)
+        XCTAssertEqual(hub.waiting.alerts.map(\.id), ["agt_2/p2", "agt_3/p3"])
+
+        sessions[1] = AgentSession(id: "agt_2", workspace: "w", agent: "claude", title: "", status: .waiting, pending: ["p2", "p4"])
+        let looking = HubFocus(appActive: true, workspace: "w", sidebar: SDUINode(type: "list", props: ["selected": .string("agt_2")]))
+        hub.waiting.update(workspace: "w", session: nil, sessions: sessions, shown: { looking.shows(workspace: $0.workspace, session: $0.id) })
+        XCTAssertEqual(hub.waiting.alerts.map(\.id), ["agt_1/p1", "agt_2/p2", "agt_2/p4", "agt_3/p3"])
+    }
+
     func testRestoresAfterRestartAndReplaysMissedQuietly() throws {
         let url = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).appending(path: "notifications.json")
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }

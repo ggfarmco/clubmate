@@ -114,8 +114,12 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
 
     func focusChanged() {
         var next = hub
-        next.focused(focus())
-        guard next.inbox != hub.inbox else { return }
+        let current = focus()
+        next.focused(current)
+        for (workspace, list) in lists {
+            next.waiting.update(workspace: workspace, session: nil, sessions: list.sessions, shown: { current.shows(workspace: $0.workspace, session: $0.id) })
+        }
+        guard next.inbox != hub.inbox || next.waiting != hub.waiting else { return }
         hub = next
         changed()
     }
@@ -168,6 +172,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
 
     private func agentDeleted(_ workspace: String, _ session: String) {
         hub.waiting.remove(workspace: workspace, session: session)
+        lists[workspace]?.replace([], for: session)
         withdraw(hub.handleResolved(workspace: workspace, session: session, sessions: []))
     }
 
@@ -209,10 +214,9 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         guard let all = await sessions(workspace) else { return }
         agents[workspace] = AgentTally(all)
         withdraw(hub.handleResolved(workspace: workspace, session: session, sessions: all))
-        guard !focus().shows(workspace: workspace, session: session) || hub.waiting.has(workspace: workspace, session: session) else { return }
         let sessions = all.filter { session == nil || $0.id == session }
-        hub.waiting.update(workspace: workspace, session: session, sessions: sessions)
         let current = focus()
+        hub.waiting.update(workspace: workspace, session: session, sessions: sessions, shown: { current.shows(workspace: $0.workspace, session: $0.id) })
         for alert in notifier.pending(sessions, shown: { current.shows(workspace: $0.workspace, session: $0.id) }) where !notifier.isPosted(alert) {
             let note = HubNotification(alert)
             guard accept(note, policy: sessions.first { $0.id == alert.session }?.notifyEffective ?? .all) else { continue }

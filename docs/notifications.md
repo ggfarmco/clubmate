@@ -36,7 +36,7 @@ Agents reach the same thing through MCP as the `notify_post` tool (`notify.post`
 - Agent sessions have a notification policy; see [Per-session policy](#per-session-policy).
 - Every notification is unseen and unhandled unless its session was on screen when it arrived (then it is listed as handled).
   - Seen: the switcher (⌃⌘W) shows each workspace's unseen count next to it and on its button for the other workspaces of a window, and the Dock icon shows the total. A workspace's notifications become seen when its window becomes key with the app active.
-  - Handled: the bell counts what is unhandled plus the waiting agent permission requests (each request once). A notification becomes handled when you click it (in the inbox or the banner), with Mark All Read, or when its session is on screen (for one without a session, when its workspace is in front).
+  - Handled: the bell counts what is unhandled plus the waiting agent permission requests pinned in "Waiting for you" (each request once). A notification becomes handled when you click it (in the inbox or the banner), with Mark All Read, or when its session is on screen (for one without a session, when its workspace is in front).
 
 ## Per-session policy
 
@@ -56,7 +56,7 @@ Each agent session of the Agents section has a notification policy: **All** (def
 
 The bell in the window's title bar, next to the workspace switcher, or ⇧⌘I opens the inbox. It works whether or not macOS notifications are allowed.
 
-- **Waiting for you**, pinned at the top: agent permission requests and questions until they are answered (or the session is deleted, or the workspace is closed; their history entries and delivered macOS notifications go too), and unhandled `needs-input` notifications. A window becoming key does not unpin them.
+- **Waiting for you**, pinned at the top: agent permission requests and questions until they are answered (or the session is deleted, or the workspace is closed; their history entries and delivered macOS notifications go too), and unhandled `needs-input` notifications. A request is held back only while you are looking at its session (the session is on screen, as for banners above) and pins as soon as you look away; other sessions of the workspace in front pin and count on the bell as usual. Once pinned, looking at the session or a window becoming key does not unpin it.
 - **History**, newest first, across all workspaces: kind icon, title, two lines of the message, the source (workspace · session · "via agent"), how long ago (kept current while the inbox is open), and a dot when unhandled. A menu filters by kind. Notifications skipped because you were looking at the session are listed as read.
 - Clicking a row brings up its workspace and session and marks it handled (a pinned permission marks its history entry); opening the inbox marks nothing.
 - The history keeps the last 200 notifications from the last 7 days, with their read state, in `notifications.json` in Clubmate's state directory. It remembers the last bus event it saw, so after a restart it picks up notifications posted while the app was closed (listed unhandled, without a banner; so is anything older than 30 s). If that event is no longer on the bus (a new bus database), it starts from new events; if the core cannot be asked, it keeps the remembered event and resumes from it. Writes of the file are ordered, so a save still in flight at quit cannot overwrite the final one. Entries it cannot read are skipped, not the whole file.

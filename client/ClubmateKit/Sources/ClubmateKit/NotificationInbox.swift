@@ -168,9 +168,11 @@ public struct AgentWaiting: Sendable, Equatable {
         alerts.contains { Self.scope($0, workspace, session) }
     }
 
-    public mutating func update(workspace: String, session: String?, sessions: [AgentSession]) {
+    public mutating func update(workspace: String, session: String?, sessions: [AgentSession], shown: (AgentSession) -> Bool = { _ in false }) {
+        let pinned = Set(alerts.filter { Self.scope($0, workspace, session) }.map(\.session))
         alerts.removeAll { Self.scope($0, workspace, session) }
-        alerts += AgentNotifier.requests(sessions.filter { $0.workspace == workspace && (session == nil || $0.id == session) })
+        alerts += AgentNotifier.requests(sessions.filter { $0.workspace == workspace && (session == nil || $0.id == session) && (pinned.contains($0.id) || !shown($0)) })
+        alerts.sort { ($0.workspace, $0.id) < ($1.workspace, $1.id) }
     }
 
     public mutating func remove(workspace: String, session: String) {
