@@ -196,7 +196,7 @@ func runStrip(j *Job, history []Run, selected Run, titles map[string]string, now
 			Ref:     automation.RunID(r),
 		})
 	}
-	p := sdui.RunstripProps{Runs: runs, Now: now, Title: "Runs", Count: len(history)}
+	p := sdui.RunstripProps{Runs: runs, Now: now, Title: "Runs", Collapsed: true, Count: len(history)}
 	if j.Enabled {
 		p.Next = j.NextRun
 	}

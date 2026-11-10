@@ -447,7 +447,7 @@ func runLanes(t *Trigger, cause, effect sdui.LaneActor, out string, titles map[s
 	if last >= 0 {
 		moves[last].Last = true
 	}
-	return sdui.Lanes(t.ID+lanesSuffix, sdui.LanesProps{Actors: actors, Moves: moves, Title: "Runs", Count: len(t.History)})
+	return sdui.Lanes(t.ID+lanesSuffix, sdui.LanesProps{Actors: actors, Moves: moves, Title: "Runs", Collapsed: true, Count: len(t.History)})
 }
 
 func hopOut(r Run) string {

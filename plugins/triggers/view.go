@@ -123,12 +123,13 @@ func mainView(t *Trigger, triggers []*Trigger, titles map[string]string, shape *
 	}
 	event := []sdui.Column{{ID: "event", Title: "Event", Priority: 1}}
 	table, run, picked := automation.RunsTable(t.History, time.Local, event, cells, link, runs)
+	runJSON := sdui.Form(runJSONFormID, automation.RunJSONRows(t.ID, run, picked, open.RunJSON)...)
 	if drawn {
+		lanes.Children = []sdui.Node{table, runJSON}
 		body = append(body, automation.Properties(rows...), lanes)
 	} else {
-		body = append(body, automation.Properties(append(rows, automation.Property("Runs", automation.RunCounts(t.History), ""))...))
+		body = append(body, automation.Properties(append(rows, automation.Property("Runs", automation.RunCounts(t.History), ""))...), table, runJSON)
 	}
-	body = append(body, table, sdui.Form(runJSONFormID, automation.RunJSONRows(t.ID, run, picked, open.RunJSON)...))
 	return sdui.VStack(header, sdui.Scroll(sdui.VStack(body...)))
 }
 

@@ -20,8 +20,18 @@ struct LanesNodeView: View {
     var body: some View {
         let lanes = node.lanes() ?? SDUILanes(actors: [], moves: [])
         let open = lanes.title == nil || views.state.historyOpen(id, default: !lanes.collapsed)
-        let refs = lanes.moves.indices.filter { lanes.moves[$0].ref != nil }
         VStack(alignment: .leading, spacing: theme.spacing.s) {
+            fold(lanes, open: open)
+            if open {
+                SDUIChildren(node: node)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private func fold(_ lanes: SDUILanes, open: Bool) -> some View {
+        let refs = lanes.moves.indices.filter { lanes.moves[$0].ref != nil }
+        return VStack(alignment: .leading, spacing: theme.spacing.s) {
             if let title = lanes.title {
                 LanesRow(title: title, moves: lanes.moves.count, count: lanes.count, open: open) { views.toggleHistory(id, default: !lanes.collapsed) }
             }
@@ -31,6 +41,7 @@ struct LanesNodeView: View {
                 }
             }
         }
+        .padding(.horizontal, theme.gutter)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .focusable()
         .focusEffectDisabled()

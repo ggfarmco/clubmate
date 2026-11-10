@@ -340,7 +340,7 @@ enum SDUIGutter {
         switch node.type {
         case "stack", "split", "scroll", "spacer", "form", "sheet", "card", "keys":
             false
-        case "list", "tree", "table", "header", "crumb", "empty", "graph", "composer", "surface", "webview":
+        case "list", "tree", "table", "header", "crumb", "empty", "graph", "lanes", "runstrip", "composer", "surface", "webview":
             false
         case "transcript", "message", "plan", "toolCard", "permissionCard", "request.connectRepo", "request.land", "repos":
             false

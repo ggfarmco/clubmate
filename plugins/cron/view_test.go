@@ -50,6 +50,9 @@ func TestMainHistoryNewestFirst(t *testing.T) {
 	assert.Equal(t, sdui.VariantPrimary, view.Children[0].Children[0].Props["variant"])
 	assert.Contains(t, texts(view), "none while paused")
 	assert.Contains(t, texts(view), "paused by you, Oct 30")
+	strip := nodesWithType(view, "runstrip")[0]
+	assert.Equal(t, true, strip.Props["collapsed"])
+	assert.Equal(t, []string{"table", "form"}, []string{strip.Children[0].Type, strip.Children[1].Type})
 	rows := tableRows(t, view)
 	require.Len(t, rows, 3)
 	assert.Equal(t, []sdui.Cell{{Text: "Oct 30 09:02:00"}, {Text: "failed", Tone: "danger"}, {Text: "boom", Action: actShowLog, Label: "Show log"}}, rows[0].Cells)

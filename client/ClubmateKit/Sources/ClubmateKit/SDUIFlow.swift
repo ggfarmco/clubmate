@@ -296,15 +296,17 @@ public struct SDUIRunstrip: Sendable, Equatable {
     public let paused: [Span]
     public let selected: String?
     public let title: String?
+    public let collapsed: Bool
     public let count: Int?
 
-    public init(runs: [Run], now: Date? = nil, next: Date? = nil, paused: [Span] = [], selected: String? = nil, title: String? = nil, count: Int? = nil) {
+    public init(runs: [Run], now: Date? = nil, next: Date? = nil, paused: [Span] = [], selected: String? = nil, title: String? = nil, collapsed: Bool = false, count: Int? = nil) {
         self.runs = runs.sorted { $0.at < $1.at }
         self.now = now
         self.next = next
         self.paused = paused
         self.selected = selected
         self.title = title
+        self.collapsed = collapsed
         self.count = count
     }
 
@@ -403,6 +405,7 @@ extension SDUINode {
             } ?? [],
             selected: string("selected").flatMap { $0.isEmpty ? nil : $0 },
             title: string("title").flatMap { $0.isEmpty ? nil : $0 },
+            collapsed: bool("collapsed") == true,
             count: SDUIFlow.int(props["count"]).flatMap { $0 >= 0 ? $0 : nil }
         )
     }

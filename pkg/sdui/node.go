@@ -611,13 +611,14 @@ type PausedSpan struct {
 }
 
 type RunstripProps struct {
-	Runs     []StripRun
-	Now      time.Time
-	Next     time.Time
-	Paused   []PausedSpan
-	Selected string
-	Title    string
-	Count    int
+	Runs      []StripRun
+	Now       time.Time
+	Next      time.Time
+	Paused    []PausedSpan
+	Selected  string
+	Title     string
+	Collapsed bool
+	Count     int
 }
 
 func Runstrip(id string, p RunstripProps) Node {
@@ -631,6 +632,9 @@ func Runstrip(id string, p RunstripProps) Node {
 		props["paused"] = p.Paused
 	}
 	props = withOptional(props, "title", p.Title)
+	if p.Collapsed {
+		props["collapsed"] = true
+	}
 	if p.Count > 0 {
 		props["count"] = p.Count
 	}

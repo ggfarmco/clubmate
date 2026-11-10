@@ -109,6 +109,8 @@ func TestUserTriggerDrawsItsLastChainAndRunsAsLanes(t *testing.T) {
 	assert.Equal(t, []string{"effect", "danger"}, []string{cards[1].ID, cards[1].Tone})
 
 	lanes := find(view, "lanes")
+	assert.Equal(t, true, lanes.Props["collapsed"])
+	assert.Equal(t, []string{"table", "form"}, []string{lanes.Children[0].Type, lanes.Children[1].Type})
 	moves, ok := lanes.Props["moves"].([]sdui.LaneMove)
 	require.True(t, ok)
 	require.Len(t, moves, 4)

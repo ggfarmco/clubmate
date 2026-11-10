@@ -27,13 +27,19 @@ func TestDrawnTriggerLanesKeys(t *testing.T) {
 	in.focusSection("triggers", "triggers.sidebar")
 	in.pointer("click", "triggers#"+added.ID)
 	lanes := added.ID + "/lanes#"
-	in.eventually("the lanes draw three runs", func() bool { return in.snapshot().main().has(lanes + "5") })
+	in.eventually("Runs starts folded, the table with it", func() bool {
+		w := in.snapshot().main()
+		return w.has(added.ID+"/lanes") && !w.has(lanes+"5") && !w.has("history")
+	})
+	in.pointer("click", added.ID+"/lanes", "--at", "30,10")
+	in.eventually("one click unfolds the lanes and the table", func() bool {
+		w := in.snapshot().main()
+		return w.has(lanes+"5") && w.has("history")
+	})
 
-	assert.False(t, in.snapshot().main().has("history"), "the runs table starts folded")
 	in.pointer("click", added.ID+"/runJson")
 	in.pointer("click", lanes+"1")
 	in.eventually("the clicked dot has the cursor", func() bool { return hasRole(in.snapshot().main().node(lanes+"1"), "selected") })
-	in.eventually("opening a run unfolds the runs table", func() bool { return in.snapshot().main().has("history") })
 	shows := func(move string) func() bool {
 		return func() bool {
 			w := in.snapshot().main()
@@ -74,17 +80,23 @@ func TestDrawnCronRunstrip(t *testing.T) {
 	app.focusSection("cron", "cron.sidebar")
 	alpha, beta := jobs[0]+"/strip", jobs[1]+"/strip"
 	app.pointer("click", "jobs#"+jobs[0])
-	app.eventually("Alpha's strip draws its runs", func() bool { return app.snapshot().main().has(alpha + "#2") })
+	app.eventually("Runs starts folded, the table with it", func() bool {
+		w := app.snapshot().main()
+		return w.has(alpha) && !w.has(alpha+"#2") && !w.has("history")
+	})
+	app.pointer("click", alpha, "--at", "30,10")
+	app.eventually("one click unfolds the strip and the table", func() bool {
+		w := app.snapshot().main()
+		return w.has(alpha+"#2") && w.has("history")
+	})
 
 	t.Run("click a run, then left and right", func(t *testing.T) {
 		in := app.at(t)
 		selected := func(run string) func() bool {
 			return func() bool { return hasRole(in.snapshot().main().node(alpha+"#"+run), "selected") }
 		}
-		assert.False(t, in.snapshot().main().has("history"), "the runs table starts folded")
 		in.pointer("click", alpha+"#1")
 		in.eventually("the clicked run is selected", selected("1"))
-		in.eventually("selecting a run unfolds the runs table", func() bool { return in.snapshot().main().has("history") })
 		assert.True(t, hasRole(in.snapshot().main().node(alpha+"#1"), "focused"), "the strip takes the keys")
 		assert.Equal(t, []string{"monitor"}, in.key("left"))
 		in.eventually("left selects the older run", selected("0"))
@@ -93,12 +105,15 @@ func TestDrawnCronRunstrip(t *testing.T) {
 	})
 	t.Run("each job keeps its own fold", func(t *testing.T) {
 		in := app.at(t)
-		in.pointer("click", alpha, "--at", "30,10")
-		in.eventually("Alpha's runs fold", func() bool { w := in.snapshot().main(); return w.has(alpha) && !w.has(alpha+"#0") })
 		in.pointer("click", "jobs#"+jobs[1])
-		in.eventually("Beta's runs stay open", func() bool { return in.snapshot().main().has(beta + "#0") })
+		in.eventually("Beta's runs start folded", func() bool { w := in.snapshot().main(); return w.has(beta) && !w.has(beta+"#0") })
 		in.pointer("click", "jobs#"+jobs[0])
-		in.eventually("Alpha comes back folded", func() bool { w := in.snapshot().main(); return w.has(alpha) && !w.has(alpha+"#0") })
+		in.eventually("Alpha comes back open", func() bool { return in.snapshot().main().has(alpha + "#0") })
+		in.pointer("click", alpha, "--at", "30,10")
+		in.eventually("Alpha's runs and table fold", func() bool {
+			w := in.snapshot().main()
+			return w.has(alpha) && !w.has(alpha+"#0") && !w.has("history")
+		})
 	})
 }
 

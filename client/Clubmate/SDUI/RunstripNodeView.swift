@@ -18,11 +18,21 @@ struct RunstripNodeView: View {
 
     var body: some View {
         let strip = node.runstrip() ?? SDUIRunstrip(runs: [])
-        let open = strip.title == nil || views.state.historyOpen(id, default: true)
+        let open = strip.title == nil || views.state.historyOpen(id, default: !strip.collapsed)
+        VStack(alignment: .leading, spacing: theme.spacing.s) {
+            fold(strip, open: open)
+            if open {
+                SDUIChildren(node: node)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private func fold(_ strip: SDUIRunstrip, open: Bool) -> some View {
         VStack(alignment: .leading, spacing: theme.spacing.s) {
             if let title = strip.title {
                 LanesRow(title: title, moves: strip.runs.count, count: strip.count ?? strip.runs.count, open: open) {
-                    views.toggleHistory(id, default: true)
+                    views.toggleHistory(id, default: !strip.collapsed)
                 } trailing: {
                     RunLegend(legend: strip.legend)
                 }
@@ -31,6 +41,7 @@ struct RunstripNodeView: View {
                 axis(strip)
             }
         }
+        .padding(.horizontal, theme.gutter)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .focusable()
         .focusEffectDisabled()
@@ -38,7 +49,7 @@ struct RunstripNodeView: View {
         .keyMonitor(active: focused) { event in
             guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
             if event.characters == "h", strip.title != nil {
-                views.toggleHistory(id, default: true)
+                views.toggleHistory(id, default: !strip.collapsed)
                 return true
             }
             guard open, event.keyCode == 123 || event.keyCode == 124 else { return false }

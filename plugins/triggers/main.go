@@ -258,13 +258,6 @@ func (a *app) drawnEvent(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if err := a.runRows.Handle(ctx, a.host, ev); err != nil {
 			return err
 		}
-		var selected string
-		if _, err := a.host.StorageGet(ctx, automation.SelectedKey(ev.WorkspaceID), &selected); err != nil {
-			return err
-		}
-		if err := automation.Show(ctx, a.host, automation.ActRuns, ev.WorkspaceID, selected); err != nil {
-			return err
-		}
 		a.registry.Invalidate(ev.WorkspaceID)
 		a.registry.Flush(ctx)
 		return nil
