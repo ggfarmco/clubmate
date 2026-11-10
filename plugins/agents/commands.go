@@ -95,7 +95,7 @@ var (
 	errUnknownCmd    = errors.New("unknown command")
 	errRelativeRoot  = errors.New("stop-root: path must be absolute")
 	errNotDescendant = errors.New("the session was not started by this agent")
-	errVoiceOnly     = errors.New("invalid_params: only the voice plugin may set disallowedTools, systemPrompt, mode or model")
+	errVoiceOnly     = errors.New("invalid_params: only the voice plugin may set disallowedTools, systemPrompt or mode")
 	errOriginOnly    = errors.New("invalid_params: only the cron plugin may set cronJob and only the triggers plugin may set trigger")
 	errFinishUser    = errors.New("invalid_params: only the user may set finish")
 	errBadReview     = errors.New("invalid_params: send-review needs a worktree and at least one comment")
@@ -597,7 +597,7 @@ func (a *app) stepCommand(ctx context.Context, cmd pluginsdk.CommandRun, args st
 }
 
 func (n newArgs) restricted() bool {
-	return len(n.DisallowedTools) > 0 || n.SystemPrompt != "" || n.Mode != "" || n.Model != ""
+	return len(n.DisallowedTools) > 0 || n.SystemPrompt != "" || n.Mode != ""
 }
 
 func asUser(cmd pluginsdk.CommandRun) bool {

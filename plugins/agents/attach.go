@@ -8,12 +8,19 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 
 	"clubmate/plugins/agents/acp"
 )
 
 var (
 	errNoResume = errors.New("the agent cannot resume this session")
+)
+
+const (
+	modelMissing  = "Model %s is not available"
+	modelNoChoice = "The agent offers no model choice; the session runs on its default model."
+	modelChoices  = "The session runs on its current model. Models offered: %s."
 )
 
 func (a *app) attachInBackground(s *session) {
@@ -125,7 +132,8 @@ func (a *app) attachAgent(s *session) (*agentProc, error) {
 	s.changed(changeStatus, true)
 	mode, value := a.startSettings(ctx, rec)
 	a.applyMode(ctx, s, res.Modes, cmp.Or(rec.StartMode, rec.FirstMode, mode))
-	a.applyConfigs(ctx, s, res.ConfigOptions, withModel(res.ConfigOptions, rec.StartModel, value))
+	failed := a.applyConfigs(ctx, s, res.ConfigOptions, withModel(res.ConfigOptions, rec.StartModel, value))
+	reportModel(s, res.ConfigOptions, rec.StartModel, failed)
 	return p, nil
 }
 
@@ -175,7 +183,7 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 		if rec.Night == "" {
 			a.applyMode(ctx, s, res.Modes, cmp.Or(rec.StartMode, mode))
 		}
-		a.applyConfigs(ctx, s, res.ConfigOptions, withModel(res.ConfigOptions, rec.StartModel, func(id string) string { return values[id] }))
+		a.applyConfigs(ctx, s, res.ConfigOptions, withModel(res.ConfigOptions, rec.pinnedModel(), func(id string) string { return values[id] }))
 	}
 	return nil
 }
@@ -223,7 +231,8 @@ func (a *app) applyMode(ctx context.Context, s *session, modes *acp.SessionModeS
 	}
 }
 
-func (a *app) applyConfigs(ctx context.Context, s *session, configs []acp.SessionConfigOption, valueOf func(id string) string) {
+func (a *app) applyConfigs(ctx context.Context, s *session, configs []acp.SessionConfigOption, valueOf func(id string) string) []string {
+	var failed []string
 	for i := 0; i < len(configs); i++ {
 		o := configs[i]
 		if !pickable(o) {
@@ -234,16 +243,36 @@ func (a *app) applyConfigs(ctx context.Context, s *session, configs []acp.Sessio
 			continue
 		}
 		if !o.Valid(value) {
+			failed = append(failed, o.ID)
 			continue
 		}
 		next, err := a.sendConfig(ctx, s, o, value)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "agents: restore config:", err)
+			failed = append(failed, o.ID)
 			continue
 		}
 		if next != nil {
 			configs = next
 		}
+	}
+	return failed
+}
+
+func reportModel(s *session, configs []acp.SessionConfigOption, model string, failed []string) {
+	if model == "" {
+		return
+	}
+	i := slices.IndexFunc(configs, func(o acp.SessionConfigOption) bool { return o.Category == acp.CategoryModel })
+	switch {
+	case i < 0:
+		s.notice(fmt.Sprintf(modelMissing, model), modelNoChoice)
+	case slices.Contains(failed, configs[i].ID):
+		var offered []string
+		for _, c := range configs[i].Choices() {
+			offered = append(offered, c.Value)
+		}
+		s.notice(fmt.Sprintf(modelMissing, model), fmt.Sprintf(modelChoices, strings.Join(offered, ", ")))
 	}
 }
 

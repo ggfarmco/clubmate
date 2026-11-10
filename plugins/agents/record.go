@@ -199,7 +199,14 @@ func (r record) closed() bool {
 }
 
 func (r record) restricted() bool {
-	return len(r.DisallowedTools) > 0 || r.SystemPrompt != "" || r.StartMode != "" || r.StartModel != "" || r.Night != ""
+	return len(r.DisallowedTools) > 0 || r.SystemPrompt != "" || r.StartMode != "" || r.Night != ""
+}
+
+func (r record) pinnedModel() string {
+	if !r.restricted() {
+		return ""
+	}
+	return r.StartModel
 }
 
 func titleOf(text string) string {

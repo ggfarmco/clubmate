@@ -2542,8 +2542,8 @@ func TestNewSessionOptionsOnlyFromPlugin(t *testing.T) {
 	args := map[string]any{"disallowedTools": []string{"Bash"}, "mode": "bypassPermissions", "model": "sonnet"}
 	params := map[string]any{"id": "agents.new", "workspaceId": workspace, "args": args}
 
-	assert.ErrorContains(t, f.runAs(t, workspace, "", "agents.new", args, nil), "only the voice plugin may set disallowedTools, systemPrompt, mode or model")
-	assert.ErrorContains(t, f.h.PluginCall(t, "remote", "command.run", params), "only the voice plugin may set disallowedTools, systemPrompt, mode or model")
+	assert.ErrorContains(t, f.runAs(t, workspace, "", "agents.new", args, nil), "only the voice plugin may set disallowedTools, systemPrompt or mode")
+	assert.ErrorContains(t, f.h.PluginCall(t, "remote", "command.run", params), "only the voice plugin may set disallowedTools, systemPrompt or mode")
 	require.NoError(t, f.h.PluginCall(t, "voice", "command.run", params))
 
 	voice := listedIDs(t, f, workspace)[0]
@@ -2559,6 +2559,64 @@ func TestNewSessionOptionsOnlyFromPlugin(t *testing.T) {
 	f.waitStatus(t, workspace, kid, "done")
 	assert.Len(t, f.calls(t, "session/set_mode"), 1)
 	assert.NotContains(t, string(f.calls(t, "session/new")[1].Params), "settingSources")
+}
+
+func TestAgentChildWithModelIsOrdinary(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{
+		"resume": true,
+		"configs": []map[string]any{
+			{"id": "model", "name": "Model", "category": "model", "type": "select", "currentValue": "default", "options": []map[string]string{{"value": "default", "name": "Default"}, {"value": "sonnet", "name": "Sonnet"}}},
+		},
+	})
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	f.prompt(t, workspace, parent, "orchestrate")
+	f.waitStatus(t, workspace, parent, "done")
+
+	kid := f.newChild(t, workspace, parent, map[string]any{"model": "sonnet", "prompt": "review"}).Session
+
+	got := f.waitStatus(t, workspace, kid, "done")
+	assert.Equal(t, parent, got.ParentSession)
+	assert.False(t, got.Service)
+	pinned := func(c fakeCall) bool {
+		return string(c.Params) == `{"sessionId":"`+got.AgentSessionID+`","configId":"model","value":"sonnet"}`
+	}
+	f.waitCall(t, "session/set_config_option", pinned)
+	assert.NotContains(t, string(f.calls(t, "session/new")[1].Params), "settingSources")
+
+	require.NoError(t, f.run(t, workspace, "agents.config", map[string]any{"session": kid, "id": "model", "value": "default"}, nil))
+	f.restartPlugin(t, workspace)
+	require.NoError(t, f.run(t, workspace, "agents.resume", map[string]any{"session": kid}, nil))
+	f.prompt(t, workspace, kid, "again")
+	f.waitStatus(t, workspace, kid, "done")
+	assert.Len(t, slices.DeleteFunc(f.calls(t, "session/set_config_option"), func(c fakeCall) bool { return !pinned(c) }), 1)
+}
+
+func TestNewSessionModelNotOffered(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{
+		"configs": []map[string]any{
+			{"id": "model", "name": "Model", "category": "model", "type": "select", "currentValue": "default", "options": []map[string]string{{"value": "default", "name": "Default"}, {"value": "sonnet", "name": "Sonnet"}}},
+		},
+	})
+	workspace := f.workspace(t, newRepo(t))
+	var out struct {
+		Session string `json:"session"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{"model": "fable", "prompt": "go"}, &out))
+
+	f.waitStatus(t, workspace, out.Session, "done")
+	notices := ofKind(f.transcript(t, workspace, out.Session).Entries, "notice")
+	require.Len(t, notices, 1)
+	var n struct {
+		Title       string `json:"title"`
+		Description string `json:"description"`
+	}
+	require.NoError(t, json.Unmarshal(notices[0].Notice, &n))
+	assert.Equal(t, "Model fable is not available", n.Title)
+	assert.Contains(t, n.Description, "Models offered: default, sonnet.")
+	assert.Empty(t, f.calls(t, "session/set_config_option"))
 }
 
 func TestNewSessionFirstModeFromUser(t *testing.T) {
