@@ -1,36 +1,50 @@
 package wire
 
-import (
-	"slices"
-	"sync"
-)
+import "sync"
 
 type Ring struct {
 	mu   sync.Mutex
 	size int
 	buf  []byte
+	head int
 }
 
 func NewRing(size int) *Ring {
-	return &Ring{size: size}
+	return &Ring{size: max(size, 0)}
 }
 
 func (r *Ring) Write(p []byte) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	n := len(p)
+	if r.size == 0 {
+		return n, nil
+	}
+	if r.buf == nil {
+		r.buf = make([]byte, 0, r.size)
+	}
 	if len(p) >= r.size {
 		r.buf = append(r.buf[:0], p[len(p)-r.size:]...)
-		return len(p), nil
+		r.head = 0
+		return n, nil
 	}
-	r.buf = append(r.buf, p...)
-	if over := len(r.buf) - r.size; over > 0 {
-		r.buf = append(r.buf[:0], r.buf[over:]...)
+	if fill := min(r.size-len(r.buf), len(p)); fill > 0 {
+		r.buf = append(r.buf, p[:fill]...)
+		p = p[fill:]
 	}
-	return len(p), nil
+	if len(p) == 0 {
+		return n, nil
+	}
+	copied := copy(r.buf[r.head:], p)
+	copy(r.buf, p[copied:])
+	r.head = (r.head + len(p)) % r.size
+	return n, nil
 }
 
 func (r *Ring) Bytes() []byte {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return slices.Clone(r.buf)
+	out := make([]byte, 0, len(r.buf))
+	out = append(out, r.buf[r.head:]...)
+	return append(out, r.buf[:r.head]...)
 }

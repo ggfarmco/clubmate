@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/paths"
 	"clubmate/internal/proc"
 	"clubmate/internal/session"
 	"clubmate/internal/sessionhost"
@@ -24,7 +25,8 @@ func TestSessionSendRead(t *testing.T) {
 	dirs, bin := testutil.ShortDirs(t), testutil.BuildBinary(t, "clubmate/cmd/clubmate-session")
 	m := session.NewManager(dirs, bin)
 	s := spawn(t, m, "sh", "-c", "exec cat")
-	require.NoError(t, m.Send(t.Context(), s.ID, "hello", true))
+	_, err := m.Send(t.Context(), s.ID, "hello", true)
+	require.NoError(t, err)
 	testutil.Eventually(t, func() bool {
 		snap, err := m.Read(t.Context(), s.ID, 0, false)
 		return err == nil && strings.Contains(snap.Text, "hello\nhello")
@@ -42,7 +44,8 @@ func TestSessionSendDeliversEveryEnterWithBigRing(t *testing.T) {
 	}, 5*time.Second)
 	const sends = 30
 	for range sends {
-		require.NoError(t, m.Send(t.Context(), s.ID, "a", true))
+		_, err := m.Send(t.Context(), s.ID, "a", true)
+		require.NoError(t, err)
 	}
 	testutil.Eventually(t, func() bool {
 		data, _ := os.ReadFile(file)
@@ -106,6 +109,43 @@ func TestSessionReadOldHost(t *testing.T) {
 	m := session.NewManager(dirs, "", session.WithSnapshotTimeout(100*time.Millisecond))
 	_, err = m.Read(t.Context(), sid, 0, false)
 	assert.ErrorIs(t, err, session.ErrNoSnapshot)
+}
+
+func fakeHost(t *testing.T, dirs paths.Dirs, serve func(net.Conn)) string {
+	t.Helper()
+	sid := id.New(session.IDPrefix)
+	require.NoError(t, sessionhost.WriteMeta(dirs.SessionMeta(sid), sessionhost.Meta{ID: sid, HostPID: os.Getpid()}))
+	ln, err := net.Listen("unix", dirs.SessionSocket(sid))
+	require.NoError(t, err)
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			t.Cleanup(func() { conn.Close() })
+			go serve(conn)
+		}
+	}()
+	return sid
+}
+
+func TestSessionSendQueuedWhileHostBusy(t *testing.T) {
+	dirs := testutil.ShortDirs(t)
+	sid := fakeHost(t, dirs, func(conn net.Conn) { io.Copy(io.Discard, conn) })
+	m := session.NewManager(dirs, "", session.WithSendTimeouts(time.Second, 100*time.Millisecond))
+	res, err := m.Send(t.Context(), sid, "hello", false)
+	require.NoError(t, err)
+	assert.True(t, res.Queued)
+}
+
+func TestSessionSendGivesUpWhenHostStopsReading(t *testing.T) {
+	dirs := testutil.ShortDirs(t)
+	sid := fakeHost(t, dirs, func(net.Conn) {})
+	m := session.NewManager(dirs, "", session.WithSendTimeouts(200*time.Millisecond, 100*time.Millisecond))
+	_, err := m.Send(t.Context(), sid, strings.Repeat("x", 8<<20), false)
+	assert.ErrorIs(t, err, session.ErrSessionBusy)
 }
 
 func TestPlainOutputIsBounded(t *testing.T) {

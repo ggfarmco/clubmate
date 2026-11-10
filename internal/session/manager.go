@@ -70,6 +70,8 @@ type Manager struct {
 	hostBin         string
 	pathDir         string
 	snapshotTimeout time.Duration
+	sendTimeout     time.Duration
+	drainTimeout    time.Duration
 
 	metaMu sync.Mutex
 	metas  map[string]cachedMeta
@@ -98,7 +100,7 @@ func WithPathDir(dir string) Option {
 }
 
 func NewManager(dirs paths.Dirs, hostBin string, opts ...Option) *Manager {
-	m := &Manager{dirs: dirs, hostBin: hostBin, snapshotTimeout: snapshotTimeout, metas: map[string]cachedMeta{}}
+	m := &Manager{dirs: dirs, hostBin: hostBin, snapshotTimeout: snapshotTimeout, sendTimeout: sendTimeout, drainTimeout: drainTimeout, metas: map[string]cachedMeta{}}
 	for _, opt := range opts {
 		opt(m)
 	}

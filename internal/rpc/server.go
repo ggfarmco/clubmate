@@ -36,32 +36,34 @@ type handlerFunc func(ctx context.Context, params *json.RawMessage) (any, error)
 type empty struct{}
 
 type Server struct {
-	svc            *core.Service
-	bus            *bus.Bus
-	kv             *kv.Store
-	dirs           *paths.Dirs
-	started        time.Time
-	methods        map[string]handlerFunc
-	pluginList     atomic.Pointer[func() any]
-	pluginRestart  atomic.Pointer[func(id string) error]
-	pluginControl  atomic.Pointer[PluginControl]
-	ui             atomic.Pointer[uiState]
-	presence       presence
-	uiStateMu      sync.Mutex
-	logger         *slog.Logger
-	shutdown       atomic.Pointer[func()]
-	clientsMu      sync.Mutex
-	clients        map[*jsonrpc2.Conn]*client
-	clientSeq      uint64
-	notifyLimit    *notify.Limiter
-	testAppRoot    string
-	browserGuard   func(context.Context, BrowserGuardInput) error
-	browserResolve hostResolver
-	browserURLs    map[browserTabKey]string
-	browserURLsMu  sync.Mutex
-	writeTimeout   time.Duration
-	fsOverflow     int
-	reportTimeout  time.Duration
+	svc               *core.Service
+	bus               *bus.Bus
+	kv                *kv.Store
+	dirs              *paths.Dirs
+	started           time.Time
+	methods           map[string]handlerFunc
+	pluginList        atomic.Pointer[func() any]
+	pluginRestart     atomic.Pointer[func(id string) error]
+	pluginControl     atomic.Pointer[PluginControl]
+	ui                atomic.Pointer[uiState]
+	presence          presence
+	uiStateMu         sync.Mutex
+	logger            *slog.Logger
+	shutdown          atomic.Pointer[func()]
+	clientsMu         sync.Mutex
+	clients           map[*jsonrpc2.Conn]*client
+	clientSeq         uint64
+	notifyLimit       *notify.Limiter
+	pluginNotifyLimit *notify.Limiter
+	callers           callerWorkspaces
+	testAppRoot       string
+	browserGuard      func(context.Context, BrowserGuardInput) error
+	browserResolve    hostResolver
+	browserURLs       map[browserTabKey]string
+	browserURLsMu     sync.Mutex
+	writeTimeout      time.Duration
+	fsOverflow        int
+	reportTimeout     time.Duration
 }
 
 type boundedConn struct {
@@ -98,7 +100,7 @@ func WithWriteTimeout(d time.Duration) ServerOption {
 }
 
 func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
-	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]*client{}, started: time.Now(), logger: slog.New(slog.DiscardHandler), notifyLimit: notify.NewLimiter(notifyRateMax, notifyRateTotal, notifyRateWindow), testAppRoot: "/tmp", writeTimeout: clientWriteTimeout, fsOverflow: fswatch.OverflowOver, reportTimeout: reportTimeout, browserResolve: systemResolver}
+	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]*client{}, started: time.Now(), logger: slog.New(slog.DiscardHandler), notifyLimit: notify.NewLimiter(notifyRateMax, notifyRateTotal, notifyRateWindow), pluginNotifyLimit: notify.NewLimiter(notifyRateMax, notifyRateTotal, notifyRateWindow), testAppRoot: "/tmp", writeTimeout: clientWriteTimeout, fsOverflow: fswatch.OverflowOver, reportTimeout: reportTimeout, browserResolve: systemResolver}
 	s.browserGuard = s.guardBrowserURL
 	for _, opt := range opts {
 		opt(s)

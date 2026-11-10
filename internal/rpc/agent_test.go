@@ -80,6 +80,15 @@ func TestAgentArgsExactKeys(t *testing.T) {
 	}
 }
 
+func TestAgentArgsRejectedWithoutSchema(t *testing.T) {
+	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","agent":true}`)
+	c := h.Client(t)
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "workspaceId": p.ID, "agent": true, "args": map[string]any{}}, nil))
+	err := c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "workspaceId": p.ID, "agent": true, "args": map[string]any{"path": "a"}}, nil)
+	require.ErrorIs(t, err, rpc.ErrInvalidParams)
+	assert.ErrorContains(t, err, "args.path: not allowed in agent calls")
+}
+
 func TestCapabilityNamedLikePrimitive(t *testing.T) {
 	h, _ := startAlpha(t, `{"id":"alpha.say","title":"Say","provides":["workspace.list"]}`)
 	var caps struct {
@@ -302,6 +311,40 @@ func TestAgentReadsOnlyItsWorkspaceSessions(t *testing.T) {
 	assert.NoError(t, read(other.ID))
 }
 
+func TestAgentListsOnlyItsWorkspace(t *testing.T) {
+	h := testutil.NewHarness(t)
+	own, err := h.Svc.CreateWorkspace(t.Context(), "own", nil)
+	require.NoError(t, err)
+	other, err := h.Svc.CreateWorkspace(t.Context(), "other", nil)
+	require.NoError(t, err)
+	h.Start(t)
+	var mine string
+	for _, ws := range []string{own.ID, other.ID} {
+		s, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{WorkspaceID: ws, Command: []string{"sh", "-c", "exec cat"}})
+		require.NoError(t, err)
+		if ws == own.ID {
+			mine = s.ID
+		}
+	}
+	c := h.Client(t)
+	var sessions []session.Session
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "session.list", "workspaceId": own.ID, "agent": true}, &sessions))
+	require.Len(t, sessions, 1)
+	assert.Equal(t, mine, sessions[0].ID)
+	var nodes []struct {
+		SessionID string `json:"sessionId"`
+	}
+	testutil.Eventually(t, func() bool {
+		return c.Call(t.Context(), "command.run", map[string]any{"id": "process.tree", "workspaceId": own.ID, "agent": true}, &nodes) == nil && len(nodes) > 0
+	}, 5*time.Second)
+	for _, n := range nodes {
+		assert.Equal(t, mine, n.SessionID)
+	}
+	assert.ErrorIs(t, c.Call(t.Context(), "command.run", map[string]any{"id": "session.list", "workspaceId": "", "agent": true}, nil), rpc.ErrInvalidParams)
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "session.list", "workspaceId": own.ID}, &sessions))
+	assert.Len(t, sessions, 2, "a user call still sees every workspace")
+}
+
 func (r callerRouter) Resolve(id string) (rpc.Command, bool) {
 	if id == "agents.sessions" {
 		return rpc.Command{CommandDef: rpc.CommandDef{ID: id}, Plugin: "agents"}, true
@@ -339,7 +382,6 @@ func TestApprovalNamesTheCallingSession(t *testing.T) {
 		want   *confirmSession
 	}{
 		{caller: "agt_child", want: &confirmSession{ID: "agt_child", Title: "Land pause reasons"}},
-		{caller: "agt_unknown", want: &confirmSession{ID: "agt_unknown"}},
 		{caller: ""},
 	}
 	for _, tt := range tests {
@@ -353,6 +395,21 @@ func TestApprovalNamesTheCallingSession(t *testing.T) {
 		a.reply <- false
 		require.ErrorIs(t, <-done, rpc.ErrDenied)
 	}
+}
+
+func TestAgentCallerMustBeInTheWorkspace(t *testing.T) {
+	h := testutil.NewHarness(t)
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
+	require.NoError(t, err)
+	h.Start(t)
+	h.Srv.SetUI(h.Store, internalsdui.NewSections(nil), callerRouter{Router: plugin.NewRouter(h.Sup)})
+	c := h.Client(t)
+	list := func(caller string, agent bool) error {
+		return c.Call(t.Context(), "command.run", map[string]any{"id": "session.list", "workspaceId": p.ID, "agent": agent, "caller": caller}, nil)
+	}
+	assert.NoError(t, list("agt_child", true))
+	assert.ErrorIs(t, list("agt_elsewhere", true), rpc.ErrDenied)
+	assert.NoError(t, list("agt_elsewhere", false), "a user-level call is not checked")
 }
 
 func TestAppScopeCommandRunsWithoutWorkspace(t *testing.T) {

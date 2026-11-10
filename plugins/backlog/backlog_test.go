@@ -645,9 +645,9 @@ func TestPhoneStartsAndTakesBack(t *testing.T) {
 	assert.Contains(t, got.Primary.Start.Prompt, "Builds on #1.")
 	assert.Equal(t, "The session owns #1 until it ends or you take it back.", got.Primary.Start.Owns)
 	assert.Contains(t, got.DescriptionHTML, `href="clubmate-doc:/task/1"`)
-	assert.Nil(t, e.must(e.agent("agt_a", "backlog.get", map[string]any{"id": tk.ID})).Primary)
+	assert.Nil(t, e.must(e.agent("agt_live", "backlog.get", map[string]any{"id": tk.ID})).Primary)
 
-	_, err := e.agent("agt_a", "backlog.start", map[string]any{"id": tk.ID})
+	_, err := e.agent("agt_live", "backlog.start", map[string]any{"id": tk.ID})
 	assert.Error(t, err)
 	var started struct {
 		Session string `json:"session"`

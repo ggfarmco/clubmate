@@ -17,7 +17,10 @@ import (
 	"clubmate/internal/buildinfo"
 )
 
-const maxSocketPath = 103
+const (
+	maxSocketPath = 103
+	LogRotateSize = 10 << 20
+)
 
 var (
 	ErrSocketPathTooLong  = errors.New("socket path too long")
@@ -130,6 +133,15 @@ func PrivateDB(path string) error {
 		}
 	}
 	return nil
+}
+
+func OpenLog(path string) (*os.File, error) {
+	if info, err := os.Stat(path); err == nil && info.Size() > LogRotateSize {
+		if err := os.Rename(path, path+".1"); err != nil {
+			return nil, fmt.Errorf("rotate %s: %w", path, err)
+		}
+	}
+	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
 }
 
 func (d Dirs) DB() string {

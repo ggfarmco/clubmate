@@ -41,6 +41,9 @@ const (
 	termAfter              = 2 * time.Second
 	killAfter              = 5 * time.Second
 	crashKillGrace         = 500 * time.Millisecond
+	defaultPingEvery       = 15 * time.Second
+	defaultPingTimeout     = 5 * time.Second
+	defaultPingMisses      = 3
 
 	pluginIDEnv   = "CLUBMATE_PLUGIN_ID"
 	runtimeDirEnv = "CLUBMATE_PLUGIN_RUNTIME_DIR"
@@ -57,6 +60,7 @@ var (
 	errConnClosed = errors.New("plugin connection closed")
 	errRestart    = errors.New("plugin restart requested")
 	errNotStarted = errors.New("plugin supervisor not running")
+	errNoPong     = errors.New("plugin stopped answering plugin.ping")
 
 	ErrPluginDisabled = rpc.ErrPluginDisabled
 )
@@ -87,6 +91,9 @@ type Supervisor struct {
 	backoffMax  time.Duration
 	crashLimit  int
 	crashWindow time.Duration
+	pingEvery   time.Duration
+	pingTimeout time.Duration
+	pingMisses  int
 	onStop      func(id string)
 	resourceDir string
 	env         []string
@@ -148,6 +155,10 @@ func WithCrashLimit(n int, window time.Duration) SupervisorOption {
 	return func(s *Supervisor) { s.crashLimit, s.crashWindow = n, window }
 }
 
+func WithLiveness(every, timeout time.Duration, misses int) SupervisorOption {
+	return func(s *Supervisor) { s.pingEvery, s.pingTimeout, s.pingMisses = every, timeout, misses }
+}
+
 func WithOnStop(fn func(id string)) SupervisorOption {
 	return func(s *Supervisor) { s.onStop = fn }
 }
@@ -177,6 +188,9 @@ func NewSupervisor(srv *rpc.Server, dirs paths.Dirs, logger *slog.Logger, opts .
 		backoffMax:  defaultBackoffMax,
 		crashLimit:  defaultCrashLimit,
 		crashWindow: defaultCrashWindow,
+		pingEvery:   defaultPingEvery,
+		pingTimeout: defaultPingTimeout,
+		pingMisses:  defaultPingMisses,
 		plugins:     map[string]*instance{},
 		enabled:     Manifest.DefaultEnabled,
 	}
@@ -396,7 +410,7 @@ func (s *Supervisor) attempt(ctx context.Context, m Manifest, restart <-chan str
 }
 
 func (s *Supervisor) spawn(m Manifest) (*process, error) {
-	logFile, err := os.OpenFile(s.dirs.PluginLog(m.ID), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+	logFile, err := paths.OpenLog(s.dirs.PluginLog(m.ID))
 	if err != nil {
 		return nil, fmt.Errorf("open plugin log: %w", err)
 	}
@@ -451,6 +465,10 @@ func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process, restart 
 	})
 	s.logger.Info("plugin running", "id", m.ID, "pid", p.cmd.Process.Pid)
 	s.changed(m.ID, true)
+	pingCtx, stopPing := context.WithCancel(ctx)
+	defer stopPing()
+	silent := make(chan struct{})
+	go s.ping(pingCtx, m.ID, p.conn, silent)
 	select {
 	case <-ctx.Done():
 		s.shutdown(m.ID, p)
@@ -467,6 +485,35 @@ func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process, restart 
 		return p.abort(errExited)
 	case <-p.conn.DisconnectNotify():
 		return p.abort(errConnClosed)
+	case <-silent:
+		s.logger.Warn("plugin not answering, killing it", "id", m.ID, "pid", p.cmd.Process.Pid, "missed", s.pingMisses)
+		p.abort(errNoPong)
+		return errNoPong
+	}
+}
+
+func (s *Supervisor) ping(ctx context.Context, id string, conn *jsonrpc2.Conn, silent chan<- struct{}) {
+	t := time.NewTicker(s.pingEvery)
+	defer t.Stop()
+	missed := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		callCtx, cancel := context.WithTimeout(ctx, s.pingTimeout)
+		callConn(callCtx, conn, id, "plugin.ping", json.RawMessage("{}"))
+		timedOut := errors.Is(callCtx.Err(), context.DeadlineExceeded)
+		cancel()
+		if !timedOut {
+			missed = 0
+			continue
+		}
+		if missed++; missed >= s.pingMisses {
+			close(silent)
+			return
+		}
 	}
 }
 

@@ -15,7 +15,7 @@ cm notify [--title T] [--kind K] [--workspace W] [--session S] [--quiet] <messag
 - `--kind` is one of `needs-input`, `permission`, `question`, `done`, `stuck`, `info` (default `info`). Any other kind is an error.
 - The message is cut to 1000 characters and the title to 120 (cut, not rejected). Several words are joined with spaces. `-` reads the message from stdin, so hooks can pipe into it.
 - It prints the notification id and exits 0 once the core accepted it. It never waits for the app; if the app isn't running the notification is dropped.
-- At most 5 notifications per 10 seconds per workspace and 20 in all; extra ones fail with `too many notifications`.
+- At most 5 notifications per 10 seconds per workspace and 20 in all; extra ones fail with `too many notifications`. Plugins posting for themselves (the agents plugin's permission, question and turn-end posts) have a budget of the same size of their own, so agents, hooks and `cm notify` using up theirs never hold back a permission request.
 - `--quiet` is for hooks: it prints nothing and exits 0 when Clubmate isn't running, no workspace resolves, the message is empty or the rate limit hits. Other errors (an unknown kind) still fail.
 
 Agents reach the same thing through MCP as the `notify_post` tool (`notify.post`, non-destructive): `message`, optional `title`, `kind` and `session`.

@@ -162,3 +162,24 @@ func TestVerifyPeerAcceptsSameUID(t *testing.T) {
 	defer c.Close()
 	assert.NoError(t, paths.VerifyPeer(c.(*net.UnixConn)))
 }
+
+func TestOpenLogRotatesOnlyPastTheCap(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "core.log")
+	write := func(data []byte) {
+		f, err := paths.OpenLog(path)
+		require.NoError(t, err)
+		_, err = f.Write(data)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+	}
+	big := make([]byte, paths.LogRotateSize+1)
+	write(big)
+	write([]byte("a"))
+	write([]byte("b"))
+	got, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "ab", string(got))
+	old, err := os.Stat(path + ".1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(len(big)), old.Size())
+}

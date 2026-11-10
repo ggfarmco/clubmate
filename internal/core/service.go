@@ -295,7 +295,7 @@ func (s *Service) GetSession(ctx context.Context, id string) (session.Session, e
 	return s.sessions.Get(ctx, id)
 }
 
-func (s *Service) SendSession(ctx context.Context, id, text string, enter bool) error {
+func (s *Service) SendSession(ctx context.Context, id, text string, enter bool) (session.SendResult, error) {
 	return s.sessions.Send(ctx, id, text, enter)
 }
 

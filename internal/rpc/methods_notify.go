@@ -70,7 +70,11 @@ func (s *Server) notifyPost(ctx context.Context, p notifyParams) (notifyResult, 
 	if err != nil {
 		return notifyResult{}, err
 	}
-	if !s.notifyLimit.Allow(p.WorkspaceID, time.Now()) {
+	limit := s.notifyLimit
+	if CallerFrom(ctx).IsPlugin() && !isAgentCall(ctx) {
+		limit = s.pluginNotifyLimit
+	}
+	if !limit.Allow(p.WorkspaceID, time.Now()) {
 		return notifyResult{}, fmt.Errorf("%w: too many notifications (at most %d per %s per workspace, %d in all)", ErrRateLimited, notifyRateMax, notifyRateWindow, notifyRateTotal)
 	}
 	raw, err := json.Marshal(payload)

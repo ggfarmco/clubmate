@@ -9,29 +9,17 @@ import (
 	"clubmate/internal/testutil"
 )
 
-func TestSessionAnAgentStartsElsewhereNeverGetsUserAFK(t *testing.T) {
+func TestAgentStartsNoSessionElsewhereAndNamelessGetsNoAFK(t *testing.T) {
 	t.Parallel()
 	f := start(t, nil)
 	home, other := f.workspace(t, newRepo(t)), f.workspace(t, newRepo(t))
 	require.NoError(t, f.run(t, home, "agents.afk-default", map[string]any{"on": true}, nil))
 	caller := f.newSession(t, home)
 
-	plain := f.session(t, other, f.newChild(t, other, caller, map[string]any{}).Session)
-	assert.Empty(t, plain.ParentSession)
-	assert.False(t, plain.AFK)
-	assert.Equal(t, caller, plain.StartedBy)
-	afk := f.session(t, other, f.newChild(t, other, caller, map[string]any{"afk": true}).Session)
-	assert.Equal(t, caller, afk.AFKBy)
+	assert.ErrorContains(t, f.runAs(t, other, caller, "agents.new", map[string]any{}, nil), "agents act only in their own workspace")
 	nameless := f.session(t, home, f.newChild(t, home, "", map[string]any{}).Session)
 	assert.False(t, nameless.AFK)
 	assert.Equal(t, "unknown", nameless.StartedBy)
-
-	for range 6 {
-		f.newChild(t, other, caller, map[string]any{})
-	}
-	assert.ErrorContains(t, f.runAs(t, other, caller, "agents.new", map[string]any{}, nil), "at most 8 sessions open outside its own tree")
-	f.close(t, other, plain.ID)
-	f.newChild(t, other, caller, map[string]any{})
 }
 
 func TestCronSessionGetsUserAFKOnlyFromTheUsersJob(t *testing.T) {

@@ -18,50 +18,92 @@ const (
 
 	enterDelay      = 50 * time.Millisecond
 	drainTimeout    = 2 * time.Second
+	queuedDrain     = time.Minute
+	sendTimeout     = 10 * time.Second
 	snapshotTimeout = 2 * time.Second
 )
 
 var (
-	ErrNotRunning = errors.New("session is not running")
-	ErrNoSnapshot = errors.New("session host cannot be read; restart the session")
+	ErrNotRunning  = errors.New("session is not running")
+	ErrNoSnapshot  = errors.New("session host cannot be read; restart the session")
+	ErrSessionBusy = errors.New("session busy: its program is not reading input; part of the text may have been typed")
 )
+
+type SendResult struct {
+	Queued bool `json:"queued,omitempty"`
+}
 
 type Snapshot struct {
 	Text      string `json:"text"`
 	AltScreen bool   `json:"altScreen"`
 }
 
-func (m *Manager) Send(ctx context.Context, sid, text string, enter bool) error {
+func (m *Manager) Send(ctx context.Context, sid, text string, enter bool) (SendResult, error) {
 	conn, err := m.dial(ctx, sid)
 	if err != nil {
-		return err
+		return SendResult{}, err
 	}
-	defer conn.Close()
-	if err := writeInput(conn, []byte(text)); err != nil {
-		return err
+	if err := m.writeAll(ctx, conn, []byte(text), enter); err != nil {
+		conn.Close()
+		return SendResult{}, fmt.Errorf("session %s: %w", sid, err)
 	}
-	if enter {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(enterDelay):
-		}
-		if err := writeInput(conn, []byte("\r")); err != nil {
-			return err
-		}
-	}
-	return finishInput(conn)
+	return m.finishInput(conn)
 }
 
-func finishInput(conn net.Conn) error {
+func (m *Manager) writeAll(ctx context.Context, conn net.Conn, text []byte, enter bool) error {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		deadline = time.Now().Add(m.sendTimeout)
+	}
+	conn.SetWriteDeadline(deadline)
+	stop := context.AfterFunc(ctx, func() { conn.SetWriteDeadline(time.Now()) })
+	defer stop()
+	if err := writeInput(conn, text); err != nil {
+		return sendFailed(ctx, err)
+	}
+	if !enter {
+		return nil
+	}
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("%w; the text was typed without Enter", ctx.Err())
+	case <-time.After(enterDelay):
+	}
+	if err := writeInput(conn, []byte("\r")); err != nil {
+		return sendFailed(ctx, err)
+	}
+	return nil
+}
+
+func sendFailed(ctx context.Context, err error) error {
+	if ne, ok := errors.AsType[net.Error](err); !ok || !ne.Timeout() {
+		return err
+	}
+	if ctx.Err() != nil {
+		return fmt.Errorf("%w; part of the text may have been typed", ctx.Err())
+	}
+	return ErrSessionBusy
+}
+
+func (m *Manager) finishInput(conn net.Conn) (SendResult, error) {
 	if uc, ok := conn.(*net.UnixConn); ok {
 		if err := uc.CloseWrite(); err != nil {
-			return fmt.Errorf("send input: %w", err)
+			conn.Close()
+			return SendResult{}, fmt.Errorf("send input: %w", err)
 		}
 	}
-	conn.SetReadDeadline(time.Now().Add(drainTimeout))
+	conn.SetReadDeadline(time.Now().Add(m.drainTimeout))
 	_, err := io.Copy(io.Discard, conn)
-	return err
+	if ne, ok := errors.AsType[net.Error](err); ok && ne.Timeout() {
+		go func() {
+			defer conn.Close()
+			conn.SetReadDeadline(time.Now().Add(queuedDrain))
+			io.Copy(io.Discard, conn)
+		}()
+		return SendResult{Queued: true}, nil
+	}
+	conn.Close()
+	return SendResult{}, err
 }
 
 func (m *Manager) Read(ctx context.Context, sid string, n int, raw bool) (Snapshot, error) {

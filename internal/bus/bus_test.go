@@ -180,3 +180,30 @@ func recv(t *testing.T, sub *bus.Subscription) bus.Event {
 		return bus.Event{}
 	}
 }
+
+func TestPruneKeepsNewestRowsAndCursorsWithinCeiling(t *testing.T) {
+	b, err := bus.Open(filepath.Join(t.TempDir(), "bus.db"), bus.WithRetention(time.Hour, 2))
+	require.NoError(t, err)
+	t.Cleanup(func() { b.Close() })
+	var seqs []int64
+	for range 6 {
+		e, err := b.Publish(t.Context(), "demo.x", "core", nil)
+		require.NoError(t, err)
+		seqs = append(seqs, e.Seq)
+	}
+	oldest := func() int64 {
+		seq, err := b.Oldest(t.Context())
+		require.NoError(t, err)
+		return seq
+	}
+	require.NoError(t, b.SetCursor(t.Context(), "slow", seqs[1]))
+	_, err = b.Prune(t.Context(), time.Now().Add(24*time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, seqs[1], oldest(), "a stored cursor keeps its events")
+	_, err = b.Prune(t.Context(), time.Now().Add(100*24*time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, seqs[4], oldest(), "past the ceiling only the newest rows stay")
+	got, err := b.Read(t.Context(), "demo.x", 0, 0)
+	require.NoError(t, err)
+	assert.Len(t, got, 2)
+}

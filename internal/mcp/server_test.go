@@ -248,3 +248,44 @@ func TestInstructionsWithoutGuide(t *testing.T) {
 	assert.Equal(t, instructions(t, ""), instructions(t, missing))
 	assert.NotContains(t, instructions(t, missing), "Neovim")
 }
+
+type blockingCore struct {
+	cancelled chan struct{}
+}
+
+func (c blockingCore) Call(ctx context.Context, method string, _, result any) error {
+	switch method {
+	case "command.list":
+		return json.Unmarshal([]byte(`[{"id":"alpha.wait","title":"Wait","agent":true,"plugin":"alpha"}]`), result)
+	case "command.capabilities":
+		return nil
+	}
+	<-ctx.Done()
+	close(c.cancelled)
+	return ctx.Err()
+}
+
+func (blockingCore) Close() error {
+	return nil
+}
+
+func TestToolCallStopsWhenCancelled(t *testing.T) {
+	for name, stop := range map[string]func(t *testing.T, p *peer){
+		"cancelled notification": func(t *testing.T, p *peer) {
+			p.send(t, nil, "notifications/cancelled", map[string]any{"requestId": 7, "reason": "user interrupted"})
+		},
+		"stdin closed": func(_ *testing.T, p *peer) { p.in.Close() },
+	} {
+		t.Run(name, func(t *testing.T) {
+			core := blockingCore{cancelled: make(chan struct{})}
+			p := start(t, func(context.Context) (mcp.Core, error) { return core, nil }, "ws_1")
+			p.send(t, 7, "tools/call", map[string]any{"name": "alpha_wait", "arguments": map[string]any{}})
+			stop(t, p)
+			select {
+			case <-core.cancelled:
+			case <-time.After(5 * time.Second):
+				t.Fatal("tool call kept running")
+			}
+		})
+	}
+}

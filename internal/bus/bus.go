@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -44,6 +45,7 @@ CREATE TABLE IF NOT EXISTS events(
 	time INTEGER NOT NULL,
 	payload TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS events_topic_seq ON events(topic, seq);
 CREATE TABLE IF NOT EXISTS cursors(
 	consumer TEXT PRIMARY KEY,
 	seq INTEGER NOT NULL
@@ -52,8 +54,11 @@ CREATE TABLE IF NOT EXISTS cursors(
 type Event = contract.Event
 
 type Bus struct {
-	db *sql.DB
-	wg sync.WaitGroup
+	db         *sql.DB
+	wg         sync.WaitGroup
+	retainAge  time.Duration
+	retainRows int
+	stopPrune  context.CancelFunc
 
 	mu     sync.Mutex
 	last   int64
@@ -61,7 +66,7 @@ type Bus struct {
 	closed bool
 }
 
-func Open(path string) (*Bus, error) {
+func Open(path string, opts ...Option) (*Bus, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return nil, fmt.Errorf("resolve bus db path: %w", err)
@@ -85,7 +90,15 @@ func Open(path string) (*Bus, error) {
 		db.Close()
 		return nil, fmt.Errorf("read last seq: %w", err)
 	}
-	return &Bus{db: db, last: last, subs: map[*Subscription]struct{}{}}, nil
+	b := &Bus{db: db, last: last, subs: map[*Subscription]struct{}{}, retainAge: defaultRetainAge, retainRows: defaultRetainRows}
+	for _, opt := range opts {
+		opt(b)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	b.stopPrune = cancel
+	b.wg.Add(1)
+	go b.pruneLoop(ctx)
+	return b, nil
 }
 
 func (b *Bus) Close() error {
@@ -95,6 +108,7 @@ func (b *Bus) Close() error {
 		s.endLocked(errClosed)
 	}
 	b.mu.Unlock()
+	b.stopPrune()
 	b.wg.Wait()
 	return b.db.Close()
 }
@@ -163,13 +177,7 @@ func (b *Bus) Cursor(ctx context.Context, consumer string) (int64, error) {
 }
 
 func (b *Bus) readRange(ctx context.Context, pattern string, after, upto int64, limit int) ([]Event, error) {
-	globs := strings.Split(pattern, listSep)
-	args := []any{after, upto}
-	for _, g := range globs {
-		args = append(args, g)
-	}
-	args = append(args, limit)
-	query := `SELECT seq, topic, source, time, payload FROM events WHERE seq > ? AND seq <= ? AND (` + strings.Repeat("topic GLOB ? OR ", len(globs)-1) + `topic GLOB ?) ORDER BY seq LIMIT ?`
+	query, args := readQuery(pattern, after, upto, limit)
 	rows, err := b.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("read events: %w", err)
@@ -192,6 +200,42 @@ func (b *Bus) readRange(ctx context.Context, pattern string, after, upto int64, 
 		return nil, fmt.Errorf("read events: %w", err)
 	}
 	return events, nil
+}
+
+func readQuery(pattern string, after, upto int64, limit int) (string, []any) {
+	const (
+		columns  = `SELECT seq, topic, source, time, payload FROM events WHERE `
+		seqRange = `seq > ? AND seq <= ?`
+		ordered  = ` ORDER BY seq LIMIT ?`
+	)
+	if pattern == wildcard {
+		return columns + seqRange + ordered, []any{after, upto, limit}
+	}
+	topics := strings.Split(pattern, listSep)
+	if slices.ContainsFunc(topics, func(p string) bool { return strings.HasSuffix(p, prefixMark) }) {
+		terms := make([]string, len(topics))
+		args := []any{after, upto}
+		for i, p := range topics {
+			if prefix, ok := strings.CutSuffix(p, prefixMark); ok {
+				terms[i] = `(+topic > ? AND +topic < ?)`
+				args = append(args, prefix+".", prefix+"/")
+				continue
+			}
+			terms[i] = `+topic = ?`
+			args = append(args, p)
+		}
+		return columns + seqRange + ` AND (` + strings.Join(terms, " OR ") + `)` + ordered, append(args, limit)
+	}
+	parts := make([]string, len(topics))
+	var args []any
+	for i, topic := range topics {
+		parts[i] = `SELECT * FROM (` + columns + `topic = ? AND ` + seqRange + ordered + `)`
+		args = append(args, topic, after, upto, limit)
+	}
+	if len(parts) == 1 {
+		return parts[0], args
+	}
+	return `SELECT * FROM (` + strings.Join(parts, ` UNION ALL `) + `)` + ` ORDER BY seq LIMIT ?`, append(args, limit)
 }
 
 func normalizePayload(payload json.RawMessage) (json.RawMessage, error) {

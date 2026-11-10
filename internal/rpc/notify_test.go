@@ -3,6 +3,7 @@ package rpc_test
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -11,6 +12,8 @@ import (
 
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
+	"clubmate/internal/testutil"
+	"clubmate/internal/workspace"
 )
 
 func TestNotifyPostValidatesAndPublishes(t *testing.T) {
@@ -68,4 +71,17 @@ func TestNotifyPostRateLimitsPerWorkspaceAndInAll(t *testing.T) {
 		}
 	}
 	assert.ErrorIs(t, post(createWorkspace(t, c).ID), rpc.ErrRateLimited)
+}
+
+func TestNotifyPostPluginHasItsOwnBudget(t *testing.T) {
+	srv, _ := testutil.NewRPCServer(t)
+	cli := connectAs(t, srv, rpc.Caller{})
+	agents := connectAs(t, srv, rpc.Caller{PluginID: "agents", PID: os.Getpid()})
+	var ws workspace.Workspace
+	require.NoError(t, cli.Call(t.Context(), "workspace.create", map[string]any{"name": "demo"}, &ws))
+	for range 5 {
+		require.NoError(t, cli.Call(t.Context(), "notify.post", map[string]any{"workspaceId": ws.ID, "message": "hi"}, nil))
+	}
+	require.ErrorContains(t, cli.Call(t.Context(), "notify.post", map[string]any{"workspaceId": ws.ID, "message": "hi"}, nil), "too many notifications")
+	assert.NoError(t, agents.Call(t.Context(), "notify.post", map[string]any{"workspaceId": ws.ID, "message": "may I?", "kind": "permission"}, nil))
 }

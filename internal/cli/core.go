@@ -187,7 +187,7 @@ func spawnCore(dirs paths.Dirs) error {
 	if err := os.MkdirAll(dirs.State, 0o700); err != nil {
 		return fmt.Errorf("create state dir: %w", err)
 	}
-	logFile, err := os.OpenFile(dirs.CoreLog(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	logFile, err := paths.OpenLog(dirs.CoreLog())
 	if err != nil {
 		return fmt.Errorf("open core log: %w", err)
 	}

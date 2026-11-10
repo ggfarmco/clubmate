@@ -104,6 +104,12 @@ func command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (
 		}
 		return nil, fmt.Errorf("unknown command %q", cmd.ID)
 	}
+	var lookup struct {
+		Session string `json:"session"`
+	}
+	if cmd.ID == "agents.sessions" && json.Unmarshal(cmd.Args, &lookup) == nil && lookup.Session != "" {
+		return []map[string]string{{"id": lookup.Session}}, nil
+	}
 	out := map[string]any{"plugin": h.PluginID(), "args": cmd.Args}
 	if cmd.Caller != "" {
 		out["caller"] = cmd.Caller

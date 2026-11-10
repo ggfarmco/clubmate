@@ -18,6 +18,7 @@ type primitive struct {
 	cmd            Command
 	method         string
 	needsWorkspace bool
+	agentScoped    bool
 	params         func(workspaceID string, args json.RawMessage) (json.RawMessage, error)
 	scope          func(ctx context.Context, svc *core.Service, workspaceID string, args json.RawMessage) (string, error)
 }
@@ -73,8 +74,9 @@ var primitives = browserPrimitives(map[string]primitive{
 		params:         withWorkspace,
 	},
 	"session.list": {
-		cmd:    coreCommand("session.list", "List Sessions", "List the terminal and plugin sessions of all workspaces.", nil),
-		method: "session.list",
+		cmd:         coreCommand("session.list", "List Sessions", "List the terminal and plugin sessions of the workspace.", nil),
+		method:      "session.list",
+		agentScoped: true,
 	},
 	"session.create": {
 		cmd: coreCommand("session.create", "Create Session", "Start a login-shell session in the workspace.", &schema.Object{
@@ -99,7 +101,7 @@ var primitives = browserPrimitives(map[string]primitive{
 		scope:  sessionWorkspace,
 	},
 	"session.send": {
-		cmd: destructive(coreCommand("session.send", "Send to Session", "Type text into a session, optionally pressing Enter. Agents need the user's approval; send long input in chunks.", &schema.Object{
+		cmd: destructive(coreCommand("session.send", "Send to Session", "Type text into a session, optionally pressing Enter. Agents need the user's approval; send long input in chunks. {queued: true} means the program is not reading input yet: the text is accepted and will be typed, so don't send it again.", &schema.Object{
 			Properties: map[string]schema.Prop{
 				"id":    {Type: "string", Description: "Session id."},
 				"text":  {Type: "string", Description: "Text to type."},
@@ -125,8 +127,9 @@ var primitives = browserPrimitives(map[string]primitive{
 		scope:  sessionWorkspace,
 	},
 	"process.tree": {
-		cmd:    coreCommand("process.tree", "Process Tree", "List the processes of every session and of processes plugins register (e.g. agents), flagging orphans and duplicates.", nil),
-		method: "process.tree",
+		cmd:         coreCommand("process.tree", "Process Tree", "List the processes of the workspace's sessions and of processes plugins register for it (e.g. agents), flagging orphans and duplicates.", nil),
+		method:      "process.tree",
+		agentScoped: true,
 	},
 	"notify.post": {
 		cmd: coreCommand("notify.post", "Post Notification", "Show a notification for the workspace on the Mac (and on paired phones through the workspace's Push to phone trigger), e.g. when you need the user's input or finished a long task. Skipped while the user is looking at the session; at most 5 per 10 s per workspace and 20 in all; more fail with \"too many notifications\".", &schema.Object{

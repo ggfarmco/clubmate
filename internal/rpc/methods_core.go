@@ -219,11 +219,11 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			}
 			return empty{}, svc.KillSession(ctx, p.ID)
 		}),
-		"session.send": method(func(ctx context.Context, p sessionSendParams) (empty, error) {
+		"session.send": method(func(ctx context.Context, p sessionSendParams) (session.SendResult, error) {
 			if err := requireID(session.IDPrefix, p.ID); err != nil {
-				return empty{}, err
+				return session.SendResult{}, err
 			}
-			return empty{}, svc.SendSession(ctx, p.ID, p.Text, p.Enter)
+			return svc.SendSession(ctx, p.ID, p.Text, p.Enter)
 		}),
 		"session.read": method(func(ctx context.Context, p sessionReadParams) (session.Snapshot, error) {
 			if err := requireID(session.IDPrefix, p.ID); err != nil {

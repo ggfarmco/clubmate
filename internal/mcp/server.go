@@ -31,6 +31,8 @@ const (
 
 	workspaceArg = "workspace"
 
+	methodCancelled = "notifications/cancelled"
+
 	baseInstructions = "Tools drive the Clubmate app: workspaces, sessions (terminals), the editor and plugin actions. Destructive tools wait for the user's approval in the app."
 )
 
@@ -69,6 +71,17 @@ type Server struct {
 
 	listMu sync.Mutex
 	served []byte
+
+	inflightMu sync.Mutex
+	inflight   map[string]*inflightCall
+}
+
+type inflightCall struct {
+	cancel context.CancelFunc
+}
+
+type cancelledParams struct {
+	RequestID json.RawMessage `json:"requestId"`
 }
 
 type request struct {
@@ -143,13 +156,15 @@ func (s *Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
 	}
 	defer watcher.Wait()
 	defer stopWatch()
+	reqCtx, cancelAll := context.WithCancel(ctx)
 	var handlers sync.WaitGroup
 	defer handlers.Wait()
+	defer cancelAll()
 	r := bufio.NewReader(in)
 	for {
 		line, err := r.ReadBytes('\n')
 		if line = bytes.TrimSpace(line); len(line) > 0 {
-			handlers.Go(func() { s.handle(ctx, line) })
+			s.accept(reqCtx, &handlers, line)
 		}
 		if errors.Is(err, io.EOF) {
 			return nil
@@ -160,16 +175,69 @@ func (s *Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
 	}
 }
 
-func (s *Server) handle(ctx context.Context, line []byte) {
+func (s *Server) accept(ctx context.Context, handlers *sync.WaitGroup, line []byte) {
 	var req request
 	if err := json.Unmarshal(line, &req); err != nil {
 		s.reply(json.RawMessage("null"), nil, &protocolError{Code: codeParse, Message: "parse error"})
 		return
 	}
-	isRequest := len(req.ID) > 0 && string(req.ID) != "null"
-	if !isRequest {
+	if req.Method == methodCancelled {
+		var p cancelledParams
+		if json.Unmarshal(req.Params, &p) == nil {
+			s.cancelRequest(p.RequestID)
+		}
 		return
 	}
+	if len(req.ID) == 0 || string(req.ID) == "null" {
+		return
+	}
+	key := requestKey(req.ID)
+	ctx, cancel := context.WithCancel(ctx)
+	c := s.track(key, cancel)
+	handlers.Go(func() {
+		defer s.untrack(key, c)
+		defer cancel()
+		s.handle(ctx, req)
+	})
+}
+
+func (s *Server) track(key string, cancel context.CancelFunc) *inflightCall {
+	c := &inflightCall{cancel: cancel}
+	s.inflightMu.Lock()
+	defer s.inflightMu.Unlock()
+	if s.inflight == nil {
+		s.inflight = map[string]*inflightCall{}
+	}
+	s.inflight[key] = c
+	return c
+}
+
+func (s *Server) untrack(key string, c *inflightCall) {
+	s.inflightMu.Lock()
+	defer s.inflightMu.Unlock()
+	if s.inflight[key] == c {
+		delete(s.inflight, key)
+	}
+}
+
+func (s *Server) cancelRequest(id json.RawMessage) {
+	s.inflightMu.Lock()
+	c := s.inflight[requestKey(id)]
+	s.inflightMu.Unlock()
+	if c != nil {
+		c.cancel()
+	}
+}
+
+func requestKey(id json.RawMessage) string {
+	var buf bytes.Buffer
+	if json.Compact(&buf, id) != nil {
+		return string(id)
+	}
+	return buf.String()
+}
+
+func (s *Server) handle(ctx context.Context, req request) {
 	if req.Method == "" && (req.Result != nil || req.Error != nil) {
 		return
 	}
@@ -178,6 +246,9 @@ func (s *Server) handle(ctx context.Context, line []byte) {
 		return
 	}
 	result, err := s.dispatch(ctx, req)
+	if ctx.Err() != nil {
+		return
+	}
 	var perr *protocolError
 	if errors.As(err, &perr) {
 		s.reply(req.ID, nil, perr)

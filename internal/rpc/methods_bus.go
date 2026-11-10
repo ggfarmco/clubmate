@@ -49,6 +49,11 @@ type seqResult struct {
 	Seq int64 `json:"seq"`
 }
 
+type headResult struct {
+	Seq    int64 `json:"seq"`
+	Oldest int64 `json:"oldest"`
+}
+
 type busEventParams struct {
 	Subscription string    `json:"subscription"`
 	Event        bus.Event `json:"event"`
@@ -69,8 +74,9 @@ func (s *Server) busMethods() map[string]handlerFunc {
 			events, err := b.Read(ctx, p.Pattern, p.After, p.Limit)
 			return nonNil(events), err
 		}),
-		"bus.head": method(func(context.Context, empty) (seqResult, error) {
-			return seqResult{Seq: b.Head()}, nil
+		"bus.head": method(func(ctx context.Context, _ empty) (headResult, error) {
+			oldest, err := b.Oldest(ctx)
+			return headResult{Seq: b.Head(), Oldest: oldest}, err
 		}),
 		"bus.subscribe": method(func(ctx context.Context, p subscribeParams) (subscriptionParams, error) {
 			sub, err := b.Subscribe(p.Pattern, p.After)

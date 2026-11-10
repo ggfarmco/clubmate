@@ -342,6 +342,9 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 	if p.Agent && !c.Agent {
 		return nil, fmt.Errorf("%w: %q", errUnknownCommand, p.ID)
 	}
+	if p.Agent && prim.agentScoped {
+		prim.needsWorkspace, prim.params = true, withWorkspace
+	}
 	needsWorkspace := prim.needsWorkspace
 	if !isPrimitive {
 		needsWorkspace = c.Scope != sdui.ScopeApp
@@ -356,7 +359,10 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 	if err := schema.Validate(c.Args, p.Args); err != nil {
 		return nil, invalidParams(err.Error())
 	}
-	if p.Agent && (isPrimitive || c.Args != nil) {
+	if p.Agent {
+		if err := s.requireCallerIn(ctx, p.Caller, p.WorkspaceID); err != nil {
+			return nil, err
+		}
 		if p.Args, err = exactArgs(c, p.Args); err != nil {
 			return nil, err
 		}

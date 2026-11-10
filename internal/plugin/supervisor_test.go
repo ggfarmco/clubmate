@@ -142,6 +142,22 @@ func TestStopDoesNotHangOnWedgedPlugin(t *testing.T) {
 	assert.False(t, testutil.Alive(pid))
 }
 
+func TestSupervisorRestartsPluginThatStopsAnsweringPing(t *testing.T) {
+	h := testutil.NewHarness(t, plugin.WithLiveness(50*time.Millisecond, 50*time.Millisecond, 3), plugin.WithBackoff(10*time.Millisecond, 10*time.Millisecond))
+	h.Start(t, testutil.EchoPluginDir(t))
+	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "running" }, 5*time.Second)
+	time.Sleep(300 * time.Millisecond)
+	require.Zero(t, h.Sup.Statuses()[0].Restarts, "a plugin that answers is left alone")
+	pid := h.Sup.PIDs()[0]
+	require.NoError(t, syscall.Kill(pid, syscall.SIGSTOP))
+	testutil.Eventually(t, func() bool {
+		st := h.Sup.Statuses()[0]
+		return st.Restarts == 1 && st.State == "running" && st.PID != pid
+	}, 5*time.Second)
+	assert.Contains(t, h.Sup.Statuses()[0].LastError, "plugin.ping")
+	assert.False(t, testutil.Alive(pid))
+}
+
 func TestRestartReplacesRunningPlugin(t *testing.T) {
 	h := testutil.NewHarness(t)
 	p := h.CreateWorkspace(t, "demo")

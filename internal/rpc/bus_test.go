@@ -185,3 +185,13 @@ func connectAs(t *testing.T, srv *rpc.Server, caller rpc.Caller) *jsonrpc2.Conn 
 func ignoreRequest(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) (any, error) {
 	return nil, nil
 }
+
+func TestRPCBusHeadNamesOldestKept(t *testing.T) {
+	c := startServer(t)
+	var first, last bus.Event
+	require.NoError(t, c.Call(t.Context(), "bus.publish", map[string]any{"topic": "demo.a"}, &first))
+	require.NoError(t, c.Call(t.Context(), "bus.publish", map[string]any{"topic": "demo.b"}, &last))
+	var head map[string]int64
+	require.NoError(t, c.Call(t.Context(), "bus.head", nil, &head))
+	assert.Equal(t, map[string]int64{"seq": last.Seq, "oldest": first.Seq}, head)
+}
