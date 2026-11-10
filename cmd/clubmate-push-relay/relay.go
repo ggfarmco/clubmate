@@ -31,6 +31,7 @@ var (
 
 type relay struct {
 	tokens  *tokens
+	devices *bindings
 	apns    sender
 	limiter *limiter
 	log     *log.Logger
@@ -82,6 +83,7 @@ func newLimiter(rate, burst float64, now func() time.Time) *limiter {
 func (r *relay) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/push", r.push)
+	mux.HandleFunc("PUT /v1/devices", r.putDevices)
 	mux.HandleFunc("POST /v1/reports", r.postReport)
 	mux.HandleFunc("GET /v1/reports", r.adminOnly(r.listReports))
 	mux.HandleFunc("GET /v1/reports/{id}/bundle", r.adminOnly(r.reportBundle))
@@ -112,6 +114,11 @@ func (r *relay) push(w http.ResponseWriter, req *http.Request) {
 	}
 	if err := p.validate(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if !r.devices.allowed(mac, p.Token) {
+		r.log.Printf("push %s %s refused: device not registered", mac, p.Type)
+		http.Error(w, errDeviceNotBound.Error(), http.StatusForbidden)
 		return
 	}
 	reply, err := r.apns.Send(req.Context(), p.Environment, p.Token, apns.Push{

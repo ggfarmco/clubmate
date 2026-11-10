@@ -1,11 +1,13 @@
 import AppKit
 import Foundation
+import Network
 import WebKit
 
 @MainActor
 public final class BrowserTab: NSObject {
     public let webView: WKWebView
     private let navigationTimeout: Duration
+    private let allowsLocal: Bool
     private var pending: WKNavigation?
     private var starts = 0
     private var status = 0
@@ -13,17 +15,22 @@ public final class BrowserTab: NSObject {
     private var provisional = false
     private var nextRef = 0
 
-    public init(configuration: WKWebViewConfiguration, userAgent: String, navigationTimeout: Duration = .seconds(30)) {
+    public init(configuration: WKWebViewConfiguration, userAgent: String, navigationTimeout: Duration = .seconds(30), allowsLocal: Bool = false) {
         webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 1280, height: 900), configuration: configuration)
         webView.customUserAgent = userAgent
         self.navigationTimeout = navigationTimeout
+        self.allowsLocal = allowsLocal
         super.init()
         webView.navigationDelegate = self
         webView.uiDelegate = self
     }
 
     public func open(_ url: URL) async -> PageSummary {
-        await navigate { pending = webView.load(URLRequest(url: url)) }
+        guard loadable(url) else {
+            status = 0
+            return await summary()
+        }
+        return await navigate { pending = webView.load(URLRequest(url: url)) }
     }
 
     public func back() async -> PageSummary {
@@ -147,9 +154,33 @@ public final class BrowserTab: NSObject {
         }
     }
 
-    private static func loadable(_ url: URL?) -> Bool {
+    private func loadable(_ url: URL?) -> Bool {
         guard let url else { return false }
-        return ["http", "https"].contains(url.scheme?.lowercased()) || url.absoluteString == "about:blank"
+        if url.absoluteString == "about:blank" { return true }
+        return ["http", "https"].contains(url.scheme?.lowercased()) && (allowsLocal || !Self.localHost(url))
+    }
+
+    static func localHost(_ url: URL) -> Bool {
+        guard var host = url.host(percentEncoded: false)?.lowercased() else { return false }
+        host = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        if host.hasSuffix(".") { host.removeLast() }
+        if host == "localhost" || host.hasSuffix(".localhost") || host == "local" || host.hasSuffix(".local") { return true }
+        if let v4 = IPv4Address(host) { return localIPv4(v4) }
+        if let v6 = IPv6Address(host) {
+            if let v4 = v6.asIPv4 { return localIPv4(v4) }
+            let b = [UInt8](v6.rawValue)
+            return b.dropLast().allSatisfy { $0 == 0 } && b[15] <= 1 || b[0] & 0xfe == 0xfc || b[0] == 0xfe && b[1] & 0xc0 == 0x80 || b[0] == 0xff
+        }
+        return false
+    }
+
+    private static func localIPv4(_ address: IPv4Address) -> Bool {
+        let b = [UInt8](address.rawValue)
+        return b[0] == 0 || b[0] == 10 || b[0] == 127 || b[0] >= 224
+            || b[0] == 100 && b[1] & 0xc0 == 64
+            || b[0] == 169 && b[1] == 254
+            || b[0] == 172 && b[1] & 0xf0 == 16
+            || b[0] == 192 && b[1] == 168
     }
 
     private func finished(_ navigation: WKNavigation?) {
@@ -167,7 +198,7 @@ extension BrowserTab: WKNavigationDelegate {
 
     public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
         if navigationAction.targetFrame?.isMainFrame == false { return .allow }
-        return Self.loadable(navigationAction.request.url) ? .allow : .cancel
+        return loadable(navigationAction.request.url) ? .allow : .cancel
     }
 
     public func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse) async -> WKNavigationResponsePolicy {
@@ -202,7 +233,7 @@ extension BrowserTab: WKNavigationDelegate {
 
 extension BrowserTab: WKUIDelegate {
     public func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        if Self.loadable(navigationAction.request.url) { webView.load(navigationAction.request) }
+        if loadable(navigationAction.request.url) { webView.load(navigationAction.request) }
         return nil
     }
 }

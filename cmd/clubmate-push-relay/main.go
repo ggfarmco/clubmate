@@ -24,7 +24,7 @@ const (
 )
 
 var (
-	errUsage    = errors.New("usage: clubmate-push-relay [-listen addr -key file -key-id id -team-id id -tokens file -admins file -bans file -reports dir] | token add|rm <name> -tokens file | token ls -tokens file | admin add|rm <name> -admins file | admin ls -admins file")
+	errUsage    = errors.New("usage: clubmate-push-relay [-listen addr -key file -key-id id -team-id id -tokens file -admins file -bans file -reports dir -devices file] | token add|rm <name> -tokens file | token ls -tokens file | admin add|rm <name> -admins file | admin ls -admins file")
 	errNoKey    = errors.New("-key is required")
 	errNoKeyID  = errors.New("-key-id is required unless the key file is named AuthKey_<KEYID>.p8")
 	errNoTeamID = errors.New("-team-id is required")
@@ -56,6 +56,7 @@ type config struct {
 	admins  string
 	bans    string
 	reports string
+	devices string
 }
 
 type tokenFile struct {
@@ -96,6 +97,7 @@ func serve(args []string) error {
 	fs.StringVar(&cfg.admins, "admins", env("PUSH_RELAY_ADMINS", ""), "admin tokens file for the reports API (PUSH_RELAY_ADMINS)")
 	fs.StringVar(&cfg.bans, "bans", env("PUSH_RELAY_BANS", ""), "banned report keys and IPs (PUSH_RELAY_BANS)")
 	fs.StringVar(&cfg.reports, "reports", env("PUSH_RELAY_REPORTS", "reports"), "problem reports directory (PUSH_RELAY_REPORTS)")
+	fs.StringVar(&cfg.devices, "devices", env("PUSH_RELAY_DEVICES", ""), "device tokens each Mac registered, unset keeps them in memory (PUSH_RELAY_DEVICES)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -124,9 +126,17 @@ func serve(args []string) error {
 	if err != nil {
 		return err
 	}
+	devices, err := loadBindings(cfg.devices)
+	if err != nil {
+		return err
+	}
 	logger := log.New(os.Stderr, "", 0)
+	if cfg.devices == "" {
+		logger.Printf("no -devices file: registered device tokens are lost on restart")
+	}
 	r := &relay{
 		tokens:     toks,
+		devices:    devices,
 		apns:       client,
 		limiter:    newLimiter(pushRate, pushBurst, time.Now),
 		log:        logger,

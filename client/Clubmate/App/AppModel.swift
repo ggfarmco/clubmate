@@ -84,7 +84,9 @@ final class AppModel {
         if let agentBrowser { return agentBrowser }
         let browser = AgentBrowser(
             host: browserHost,
-            dataStore: WKWebsiteDataStore(forIdentifier: BrowserWindowHost.dataStoreID(flavor: ClubmatePaths.resolve().flavor)),
+            dataStore: { workspace in
+                WKWebsiteDataStore(forIdentifier: AgentBrowser.dataStoreID(base: BrowserWindowHost.dataStoreID(flavor: ClubmatePaths.resolve().flavor), workspace: workspace))
+            },
             userAgent: BrowserWindowHost.userAgent(),
             screenshots: FileManager.default.temporaryDirectory.appending(path: "clubmate-browser")
         )

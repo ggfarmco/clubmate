@@ -183,6 +183,7 @@ func (s *server) pair(w http.ResponseWriter, r *http.Request) {
 	}
 	s.hub.revoke(req.Device.ID)
 	s.changed()
+	s.relayDevicesChanged(r.Context())
 	writeJSON(w, http.StatusOK, pairResponse{Token: token, Computer: s.identity.get()})
 }
 
@@ -192,6 +193,7 @@ func (s *server) revoke(ctx context.Context, id string) error {
 	}
 	s.hub.revoke(id)
 	s.changed()
+	s.relayDevicesChanged(ctx)
 	return nil
 }
 

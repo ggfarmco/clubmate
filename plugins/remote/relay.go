@@ -22,6 +22,8 @@ const (
 	pushRelayURLKey   = "pushRelayURL"
 	pushRelayTokenKey = "pushRelayToken"
 	pushRelayPath     = "/v1/push"
+	relayDevicesPath  = "/v1/devices"
+	relaySyncTimeout  = 5 * time.Second
 	relayTimeout      = 30 * time.Second
 	relayMaxReply     = 64 << 10
 )
@@ -32,16 +34,18 @@ var (
 	errRelayNotHTTPS = errors.New("push relay url must be https://<host>[:port]")
 	errNoRelayToken  = errors.New("push relay token is required")
 	errRelayUnset    = errors.New("no push relay configured")
+	errRelayUnbound  = errors.New("push relay: device not registered for this Mac")
 )
 
 type relayClient struct {
 	kv     kvStore
 	client *http.Client
 
-	mu        sync.Mutex
-	url       string
-	token     string
-	reportURL string
+	mu         sync.Mutex
+	url        string
+	token      string
+	reportURL  string
+	registered string
 }
 
 type relayPush struct {
@@ -49,6 +53,10 @@ type relayPush struct {
 	collapseID   string
 	notification string
 	payload      json.RawMessage
+}
+
+type relayDevices struct {
+	Tokens []string `json:"tokens"`
 }
 
 type relayRequest struct {
@@ -78,7 +86,7 @@ func (c *relayClient) load(ctx context.Context) error {
 		return err
 	}
 	c.mu.Lock()
-	c.url, c.token = u, token
+	c.url, c.token, c.registered = u, token, ""
 	c.mu.Unlock()
 	for _, k := range legacyAPNSKeys {
 		if err := c.kv.StorageDelete(ctx, k); err != nil {
@@ -109,8 +117,54 @@ func (c *relayClient) configure(ctx context.Context, rawURL, token string) error
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.url, c.token = rawURL, token
+	c.url, c.token, c.registered = rawURL, token, ""
 	return nil
+}
+
+func (c *relayClient) register(ctx context.Context, deviceTokens []string) error {
+	c.mu.Lock()
+	base, token, done := c.url, c.token, c.registered
+	c.mu.Unlock()
+	if base == "" {
+		return errRelayUnset
+	}
+	body, err := json.Marshal(relayDevices{Tokens: deviceTokens})
+	if err != nil {
+		return err
+	}
+	key := base + "\n" + string(body)
+	if key == done {
+		return nil
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, base+relayDevicesPath, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	res, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(res.Body, relayMaxReply))
+	switch res.StatusCode {
+	case http.StatusOK, http.StatusNoContent, http.StatusNotFound, http.StatusMethodNotAllowed:
+	default:
+		return fmt.Errorf("push relay devices: %d %s", res.StatusCode, strings.TrimSpace(string(raw)))
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.url == base && c.token == token {
+		c.registered = key
+	}
+	return nil
+}
+
+func (c *relayClient) forgetRegistration() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.registered = ""
 }
 
 func (c *relayClient) configured() bool {
@@ -162,6 +216,9 @@ func (c *relayClient) send(ctx context.Context, env, deviceToken string, p relay
 	raw, err := io.ReadAll(io.LimitReader(res.Body, relayMaxReply))
 	if err != nil {
 		return apns.Reply{}, err
+	}
+	if res.StatusCode == http.StatusForbidden {
+		return apns.Reply{}, fmt.Errorf("%w: %s", errRelayUnbound, strings.TrimSpace(string(raw)))
 	}
 	if res.StatusCode != http.StatusOK {
 		return apns.Reply{}, fmt.Errorf("push relay: %d %s", res.StatusCode, strings.TrimSpace(string(raw)))

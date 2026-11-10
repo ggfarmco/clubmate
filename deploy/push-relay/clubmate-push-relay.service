@@ -13,6 +13,7 @@ Environment=PUSH_RELAY_TOKENS=/home/REPLACE_ME_USER/push-relay/tokens
 Environment=PUSH_RELAY_ADMINS=/home/REPLACE_ME_USER/push-relay/admins
 Environment=PUSH_RELAY_BANS=/home/REPLACE_ME_USER/push-relay/bans
 Environment=PUSH_RELAY_REPORTS=/home/REPLACE_ME_USER/push-relay/reports
+Environment=PUSH_RELAY_DEVICES=/home/REPLACE_ME_USER/push-relay/state/devices.json
 ExecStart=/home/REPLACE_ME_USER/push-relay/clubmate-push-relay
 Restart=always
 RestartSec=2
@@ -22,7 +23,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/REPLACE_ME_USER/push-relay/reports
+ReadWritePaths=/home/REPLACE_ME_USER/push-relay/reports /home/REPLACE_ME_USER/push-relay/state
 UMask=0077
 
 [Install]

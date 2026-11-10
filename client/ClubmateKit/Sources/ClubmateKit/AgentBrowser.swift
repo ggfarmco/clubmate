@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import WebKit
 
@@ -16,10 +17,12 @@ public final class AgentBrowser {
     private typealias Call = Pending<Result<JSONValue, Error>>
 
     private let host: BrowserHost
-    private let dataStore: WKWebsiteDataStore
+    private let dataStore: @MainActor (String) -> WKWebsiteDataStore
     private let userAgent: String
     private let screenshots: URL
     private let navigationTimeout: Duration
+    private let allowsLocal: Bool
+    private var stores: [String: WKWebsiteDataStore] = [:]
     private var tabs: [String: BrowserTab] = [:]
     private var chains: [String: (id: Int, task: Task<Void, Never>)] = [:]
     private var calls: [Int: Call] = [:]
@@ -27,17 +30,19 @@ public final class AgentBrowser {
     private var activeHandoff: HandoffTicket?
     private var handoffQueue: [HandoffTicket] = []
 
-    public init(host: BrowserHost, dataStore: WKWebsiteDataStore, userAgent: String, screenshots: URL, navigationTimeout: Duration = .seconds(30)) {
+    public init(host: BrowserHost, dataStore: @escaping @MainActor (String) -> WKWebsiteDataStore, userAgent: String, screenshots: URL, navigationTimeout: Duration = .seconds(30), allowsLocal: Bool = false) {
         self.host = host
         self.dataStore = dataStore
         self.userAgent = userAgent
         self.screenshots = screenshots
         self.navigationTimeout = navigationTimeout
+        self.allowsLocal = allowsLocal
     }
 
     public func handle(_ call: BrowserCall) async throws -> JSONValue {
         let deadline = ContinuousClock.now + .seconds(call.timeout ?? 300)
         let step = try Step(call)
+        guard let workspace = call.workspace, !workspace.isEmpty else { throw BrowserError(message: "the core sent no workspace; restart Clubmate") }
         let key = call.key
         nextID += 1
         let id = nextID
@@ -49,7 +54,7 @@ public final class AgentBrowser {
             await previous?.value
             if !pending.resolved {
                 do {
-                    pending.resolve(.success(try await self.perform(step, key: key, call: pending, deadline: deadline)))
+                    pending.resolve(.success(try await self.perform(step, key: key, workspace: workspace, call: pending, deadline: deadline)))
                 } catch {
                     pending.resolve(.failure(error))
                 }
@@ -93,12 +98,19 @@ public final class AgentBrowser {
         }
     }
 
+    public static func dataStoreID(base: UUID, workspace: String) -> UUID {
+        var bytes = Array(SHA256.hash(data: Data((base.uuidString + "/" + workspace).utf8)).prefix(16))
+        bytes[6] = bytes[6] & 0x0f | 0x50
+        bytes[8] = bytes[8] & 0x3f | 0x80
+        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
+    }
+
     public static func safariUserAgent(version: String) -> String {
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/\(version) Safari/605.1.15"
     }
 
-    private func perform(_ step: Step, key: String, call: Call, deadline: ContinuousClock.Instant) async throws -> JSONValue {
-        let tab = tab(for: key)
+    private func perform(_ step: Step, key: String, workspace: String, call: Call, deadline: ContinuousClock.Instant) async throws -> JSONValue {
+        let tab = tab(for: key, workspace: workspace)
         switch step {
         case .open(let url):
             return try JSONValue.encoding(await tab.open(url))
@@ -182,14 +194,21 @@ public final class AgentBrowser {
         if let active = activeHandoff, matches(active) { endHandoff(active, done: false) }
     }
 
-    private func tab(for key: String) -> BrowserTab {
+    private func tab(for key: String, workspace: String) -> BrowserTab {
         if let tab = tabs[key] { return tab }
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = dataStore
-        let tab = BrowserTab(configuration: configuration, userAgent: userAgent, navigationTimeout: navigationTimeout)
+        configuration.websiteDataStore = store(for: workspace)
+        let tab = BrowserTab(configuration: configuration, userAgent: userAgent, navigationTimeout: navigationTimeout, allowsLocal: allowsLocal)
         tabs[key] = tab
         host.attach(tab.webView)
         return tab
+    }
+
+    private func store(for workspace: String) -> WKWebsiteDataStore {
+        if let store = stores[workspace] { return store }
+        let store = dataStore(workspace)
+        stores[workspace] = store
+        return store
     }
 
     private static func handoffResult(_ done: Bool) -> JSONValue {

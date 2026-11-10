@@ -5,15 +5,17 @@ public enum BrowserAction: String, Decodable, Sendable {
 }
 
 public struct BrowserCall: Decodable, Sendable {
+    public let workspace: String?
     public let owner: String
     public let tab: String
     public let action: BrowserAction
     public let args: JSONValue
     public let timeout: Int?
 
-    public var key: String { owner + "/" + tab }
+    public var key: String { owner + "/" + tab + (workspace.map { "@" + $0 } ?? "") }
 
-    public init(owner: String, tab: String, action: BrowserAction, args: JSONValue = .object([:]), timeout: Int? = nil) {
+    public init(workspace: String? = nil, owner: String, tab: String, action: BrowserAction, args: JSONValue = .object([:]), timeout: Int? = nil) {
+        self.workspace = workspace
         self.owner = owner
         self.tab = tab
         self.action = action

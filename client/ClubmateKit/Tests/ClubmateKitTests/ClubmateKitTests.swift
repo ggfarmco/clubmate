@@ -222,7 +222,7 @@ final class ClubmateKitTests: XCTestCase {
             approvals.asked.append(request)
             return approvals.answer
         }
-        let kill = JSONValue.object(["id": .string("session.kill"), "agent": .bool(true), "args": .object(["id": .string(id)])])
+        let kill = JSONValue.object(["id": .string("session.kill"), "workspaceId": .string(workspace.id), "agent": .bool(true), "args": .object(["id": .string(id)])])
         do {
             _ = try await client.call(method: "command.run", params: kill)
             XCTFail("kill ran without approval")

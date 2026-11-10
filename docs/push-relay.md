@@ -18,6 +18,7 @@ Flags, each with an environment fallback:
 | `-admins` | `PUSH_RELAY_ADMINS` | – | admin tokens file for the reports API; unset → the private API answers `401` to everyone |
 | `-bans` | `PUSH_RELAY_BANS` | – | banned report keys and IPs; unset or missing → no bans |
 | `-reports` | `PUSH_RELAY_REPORTS` | `reports` | directory the reports are stored in (created `700`) |
+| `-devices` | `PUSH_RELAY_DEVICES` | – | JSON file of the device tokens each Mac registered (see [Device binding](#device-binding)); unset → kept in memory only, lost on restart |
 
 APNs topic is fixed: `com.clubmate.companion`. JWTs (ES256) are reused for 50 minutes.
 
@@ -43,6 +44,7 @@ The token itself is never stored on the relay; lose it and `token rm` + `token a
 
 - `401`: missing or unknown token (compared as sha256 hashes in constant time).
 - `429`: more than 10 pushes a second per Mac (bursts up to 50).
+- `403` `device token not registered for this Mac`: the Mac has registered its devices and this device token is not one of them (see [Device binding](#device-binding)). Logged as `push <mac name> <type> refused: device not registered`; APNs is not called.
 - `400`: device token not hex or longer than 200 characters, `environment` not `development`/`production`, `type` not `alert`/`background`, `collapseID` longer than 64 bytes, `payload` not a JSON object or larger than 4096 bytes, or a body over 16 KiB.
 - `200` `{"status": <APNs HTTP status>, "reason": "<APNs reason>"}` whenever APNs answered, also when it refused the push (e.g. `{"status": 410, "reason": "Unregistered"}`).
 - `502`: APNs could not be reached.
@@ -50,6 +52,19 @@ The token itself is never stored on the relay; lose it and `token rm` + `token a
 `environment` picks `api.sandbox.push.apple.com` or `api.push.apple.com`; `apns-priority` comes from `type` (alert 10, background 5). `GET /healthz` → `200`.
 
 Every push logs one line, `push <mac name> <type> <APNs status> <reason>`, never the payload.
+
+`PUT /v1/devices`, `Authorization: Bearer <mac token>`, `{"tokens": ["<hex device token>", …]}`: replaces the set of device tokens this Mac may push to. At most 32 tokens, each hex and at most 200 characters (`400` otherwise); `401` and `429` as for a push (the same bucket); `500` when the file can't be written (the old set stays); `204` on success. Logs `devices <mac name> <count>`.
+
+### Device binding
+
+Without it, any Mac token could push to any device token, and a phone that removed a Mac still got that Mac's pushes. Now:
+
+- A Mac that has never called `PUT /v1/devices` (a Mac from before 10 Nov 2026) may push to any device token, as before. Old Macs and old phones keep working until they update.
+- Once a Mac has registered a set, even an empty one, a push to a device token outside it gets `403`. There is no way back to the open mode for that Mac name short of deleting its entry from the devices file.
+- A current Mac sends its full set after a pair, a `pushToken` from a phone (an empty one when the phone removes that Mac, see [Remote § Real push](remote.md#real-push)), a revoke, and before a push when the set changed. A `403` makes it register again and retry once, so a relay that lost its file (or runs without `-devices`) catches up on the next push.
+- The file stores the sha256 of each device token (lower-case hex), not the token, keyed by Mac name: `{"<mac name>": ["<sha256 hex>", …]}`, written to a temp file and renamed. `token rm` leaves the Mac's entry; a Mac added again under the same name registers its set on its first push.
+
+What it does not stop: the registration is authenticated by the Mac token alone. Whoever holds a Mac's relay token (a copied state dir) can register any device token for it and push there. Unpairing on the phone stops an honest Mac; against a leaked token the fix is still `token rm` on the relay. A phone-side proof (the phone, not the Mac, authorising each binding) is a backlog item.
 
 ## Problem reports
 
@@ -127,7 +142,7 @@ One directory per report, `<reports>/<id>/bundle.zip` + `meta.json`, both writte
 exe.dev VMs are x86_64 Ubuntu 24.04 with systemd. A new VM's HTTPS proxy `https://<vm>.exe.xyz` (Let's Encrypt `*.exe.xyz` certificate) forwards to port 8000 (`ssh exe.dev share port <vm> 8000` sets it), so the relay itself serves plain HTTP on `0.0.0.0:8000`. The proxy is private (exe.dev login) until `ssh exe.dev share set-public <vm>`; Macs need it public, the relay checks their tokens itself.
 
 1. Create the VM: `ssh exe.dev new --name=<vm>`.
-2. From the repo: `scripts/deploy-push-relay.sh <vm>.exe.xyz`. It cross-builds a static linux/amd64 binary, copies it to `~/push-relay/` with `deploy/push-relay/clubmate-push-relay.service` (its `REPLACE_ME_USER` set to the VM login), creates empty `~/push-relay/tokens`, `admins` and `bans` (mode 600) and `~/push-relay/reports/` (mode 700) if missing, installs and enables the unit and restarts it once `~/push-relay/relay.env` exists. Run it again for every update; it never touches the key, `relay.env`, the tokens, the bans or the stored reports.
+2. From the repo: `scripts/deploy-push-relay.sh <vm>.exe.xyz`. It cross-builds a static linux/amd64 binary, copies it to `~/push-relay/` with `deploy/push-relay/clubmate-push-relay.service` (its `REPLACE_ME_USER` set to the VM login), creates empty `~/push-relay/tokens`, `admins` and `bans` (mode 600) and `~/push-relay/reports/` and `~/push-relay/state/` (mode 700) if missing, installs and enables the unit and restarts it once `~/push-relay/relay.env` exists. Run it again for every update; it never touches the key, `relay.env`, the tokens, the bans, the stored reports or the device bindings.
 3. Copy the key and write `relay.env` without either passing through a terminal:
 
    ```bash
@@ -139,7 +154,7 @@ exe.dev VMs are x86_64 Ubuntu 24.04 with systemd. A new VM's HTTPS proxy `https:
 
 4. Check: `curl -fsS https://<vm>.exe.xyz/healthz`.
 
-The unit sets `PUSH_RELAY_LISTEN=0.0.0.0:8000`, `PUSH_RELAY_TOKENS`, `PUSH_RELAY_ADMINS`, `PUSH_RELAY_BANS` and `PUSH_RELAY_REPORTS` to the files above, runs as the VM login with `NoNewPrivileges`, a read-only home except `~/push-relay/reports` (`ReadWritePaths=`) and `Restart=always`.
+The unit sets `PUSH_RELAY_LISTEN=0.0.0.0:8000`, `PUSH_RELAY_TOKENS`, `PUSH_RELAY_ADMINS`, `PUSH_RELAY_BANS`, `PUSH_RELAY_REPORTS` and `PUSH_RELAY_DEVICES` (`~/push-relay/state/devices.json`) to the files above, runs as the VM login with `NoNewPrivileges`, a read-only home except `~/push-relay/reports` and `~/push-relay/state` (`ReadWritePaths=`) and `Restart=always`.
 
 An admin token for the dev Mac: `ssh <vm>.exe.xyz '~/push-relay/clubmate-push-relay admin add <name> -admins ~/push-relay/admins'`.
 

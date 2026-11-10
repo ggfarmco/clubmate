@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -22,10 +23,13 @@ import (
 const relayToken = "cmr_test"
 
 type fakeRelay struct {
-	reply string
+	reply   string
+	devices int
+	refuse  int
 
-	mu   sync.Mutex
-	reqs []relayCall
+	mu         sync.Mutex
+	reqs       []relayCall
+	registered [][]string
 }
 
 type relayCall struct {
@@ -69,6 +73,48 @@ func TestPushGoesToTokensWithoutAnOpenStream(t *testing.T) {
 			"kind":      "permission",
 		},
 	}, reqs[0].body)
+}
+
+func TestRelayKnowsWhichDevicesThisMacPushesTo(t *testing.T) {
+	f := newFixture(t)
+	relay := f.withRelay(t)
+	a, b := f.pairNamed(t, "phone-a"), f.pairNamed(t, "phone-b")
+	f.setPushToken(t, a, "AA01", apns.EnvProduction)
+	f.setPushToken(t, b, "bb02", apns.EnvProduction)
+	f.setPushToken(t, b, "", "")
+	f.setPushToken(t, b, "bb03", apns.EnvProduction)
+	require.NoError(t, f.srv.revoke(t.Context(), "phone-a"))
+
+	assert.Equal(t, [][]string{{}, {"aa01"}, {"aa01", "bb02"}, {"aa01"}, {"aa01", "bb03"}, {"bb03"}}, relay.registrations())
+	f.pushNotification(t, `{"id":"ntf_1","message":"m","kind":"done"}`)
+	assert.Len(t, relay.registrations(), 6)
+}
+
+func TestPushRefusedForAnUnregisteredDeviceRegistersAgainAndRetriesOnce(t *testing.T) {
+	f := newFixture(t)
+	relay := f.withRelay(t)
+	f.setPushToken(t, f.pairNamed(t, "phone"), "aa01", apns.EnvProduction)
+	relay.refuse = 1
+
+	res := f.pushNotification(t, `{"id":"ntf_1","message":"m","kind":"done"}`)
+
+	assert.Equal(t, "phone 200", res.Summary)
+	assert.Len(t, relay.requests(), 2)
+	assert.Equal(t, []string{"aa01"}, relay.registrations()[len(relay.registrations())-1])
+	assert.Len(t, relay.registrations(), 3)
+	assert.Empty(t, f.notifyPosts())
+}
+
+func TestPushWorksWithARelayWithoutDeviceRegistration(t *testing.T) {
+	f := newFixture(t)
+	relay := f.withRelay(t)
+	relay.devices = http.StatusNotFound
+	f.setPushToken(t, f.pairNamed(t, "phone"), "aa01", apns.EnvProduction)
+
+	res := f.pushNotification(t, `{"id":"ntf_1","message":"m","kind":"done"}`)
+
+	assert.Equal(t, "phone 200", res.Summary)
+	assert.Empty(t, f.notifyPosts())
 }
 
 func TestReplayMarksWhatWasPushedToThatDevice(t *testing.T) {
@@ -406,17 +452,39 @@ func (f *fixture) setPushToken(t *testing.T, token, push, env string) {
 
 func (r *fakeRelay) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	raw, _ := io.ReadAll(req.Body)
+	if req.URL.Path == relayDevicesPath {
+		var d relayDevices
+		_ = json.Unmarshal(raw, &d)
+		r.mu.Lock()
+		r.registered = append(r.registered, d.Tokens)
+		status := cmp.Or(r.devices, http.StatusNoContent)
+		r.mu.Unlock()
+		w.WriteHeader(status)
+		return
+	}
 	var body map[string]any
 	_ = json.Unmarshal(raw, &body)
 	r.mu.Lock()
 	r.reqs = append(r.reqs, relayCall{path: req.URL.Path, auth: req.Header.Get("Authorization"), body: body})
 	reply := r.reply
+	refuse := r.refuse > 0
+	r.refuse = max(0, r.refuse-1)
 	r.mu.Unlock()
+	if refuse {
+		http.Error(w, "device token not registered for this Mac", http.StatusForbidden)
+		return
+	}
 	if reply == "" {
 		http.Error(w, "too many pushes", http.StatusTooManyRequests)
 		return
 	}
 	_, _ = io.WriteString(w, reply)
+}
+
+func (r *fakeRelay) registrations() [][]string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.registered
 }
 
 func (r *fakeRelay) requests() []relayCall {

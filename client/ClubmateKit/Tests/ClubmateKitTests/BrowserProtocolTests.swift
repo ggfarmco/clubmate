@@ -15,9 +15,9 @@ final class BrowserProtocolTests: XCTestCase {
     }
 
     func testDecodesCallAndKey() throws {
-        let json = #"{"owner":"agt_1","tab":"main","action":"open","args":{"url":"https://x"}}"#
+        let json = #"{"workspace":"ws_1","owner":"agt_1","tab":"main","action":"open","args":{"url":"https://x"}}"#
         let call = try JSONDecoder().decode(BrowserCall.self, from: Data(json.utf8))
-        XCTAssertEqual(call.key, "agt_1/main")
+        XCTAssertEqual(call.key, "agt_1/main@ws_1")
         XCTAssertEqual(call.action, .open)
         XCTAssertEqual(call.args.objectValue?["url"]?.stringValue, "https://x")
         XCTAssertNil(call.timeout)
@@ -49,7 +49,7 @@ final class BrowserProtocolTests: XCTestCase {
         }
         let reply = try await run("browser.snapshot")
         XCTAssertEqual(reply.objectValue?["ok"], .bool(true))
-        XCTAssertEqual(reply.objectValue?["key"]?.stringValue, "default/main")
+        XCTAssertEqual(reply.objectValue?["key"]?.stringValue, "default/main@" + workspace.id)
         do {
             _ = try await run("browser.back")
             XCTFail("expected error")

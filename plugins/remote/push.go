@@ -193,7 +193,35 @@ func (s *server) pushToken(ctx context.Context, d device, p pushTokenRequest) (p
 	if err := s.devices.setPush(ctx, d.ID, p.Token, p.Environment); err != nil {
 		return pushTokenResult{}, err
 	}
+	s.relayDevicesChanged(ctx)
 	return pushTokenResult{Push: s.relay.configured()}, nil
+}
+
+func (s *server) relayDevicesChanged(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, relaySyncTimeout)
+	defer cancel()
+	if err := s.syncRelayDevices(ctx); err != nil {
+		logf("register devices with the push relay: %v", err)
+	}
+}
+
+func (s *server) syncRelayDevices(ctx context.Context) error {
+	if !s.relay.configured() {
+		return nil
+	}
+	return s.relay.register(ctx, s.devices.pushTokens())
+}
+
+func (s *server) sendPush(ctx context.Context, d device, p relayPush) (apns.Reply, error) {
+	reply, err := s.relay.send(ctx, d.PushEnvironment, d.PushToken, p)
+	if !errors.Is(err, errRelayUnbound) {
+		return reply, err
+	}
+	s.relay.forgetRegistration()
+	if err := s.syncRelayDevices(ctx); err != nil {
+		return apns.Reply{}, err
+	}
+	return s.relay.send(ctx, d.PushEnvironment, d.PushToken, p)
 }
 
 func (s *server) push(ctx context.Context, ev pluginsdk.Event) {
@@ -314,6 +342,9 @@ func (s *server) pushResolved(ctx context.Context, ev pluginsdk.Event) {
 
 func (s *server) pushAll(ctx context.Context, p relayPush) []devicePush {
 	var out []devicePush
+	if err := s.syncRelayDevices(ctx); err != nil {
+		logf("register devices with the push relay: %v", err)
+	}
 	for _, d := range s.devices.list() {
 		if d.PushToken == "" {
 			continue
@@ -325,7 +356,7 @@ func (s *server) pushAll(ctx context.Context, p relayPush) []devicePush {
 			continue
 		}
 		s.pushed.add(d.ID, p.notification)
-		reply, err := s.relay.send(ctx, d.PushEnvironment, d.PushToken, p)
+		reply, err := s.sendPush(ctx, d, p)
 		if err != nil || reply.Status != http.StatusOK {
 			s.pushed.forget(d.ID, p.notification)
 		}

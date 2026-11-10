@@ -18,7 +18,7 @@ final class AgentBrowserTests: XCTestCase {
         hosts = []
     }
 
-    func testTabsPerKeyShareCookies() async throws {
+    func testCookiesAreSharedOnlyWithinAWorkspace() async throws {
         let server = try await serve { path, headers in
             path == "/set"
                 ? FixtureResponse(headers: ["Set-Cookie": "k=v; Path=/"], body: "<title>set</title>")
@@ -27,16 +27,33 @@ final class AgentBrowserTests: XCTestCase {
         let host = FakeHost()
         let browser = makeBrowser(host)
         _ = try await browser.handle(open("agt_1", server.url("/set")))
-        let page = try await browser.handle(open("agt_2", server.url("/echo")))
-        XCTAssertTrue(page["title"]?.stringValue?.contains("k=v") == true, "\(page)")
-        XCTAssertEqual(host.attached.count, 2)
+        let same = try await browser.handle(open("agt_2", server.url("/echo")))
+        let other = try await browser.handle(open("agt_2", server.url("/echo"), workspace: "w2"))
+        XCTAssertTrue(same["title"]?.stringValue?.contains("k=v") == true, "\(same)")
+        XCTAssertEqual(other["title"]?.stringValue, "none")
+        XCTAssertEqual(host.attached.count, 3)
+        do {
+            _ = try await browser.handle(BrowserCall(owner: "agt_1", tab: "main", action: .snapshot))
+            XCTFail("call without a workspace ran")
+        } catch let error as BrowserError {
+            XCTAssertTrue(error.message.contains("no workspace"), error.message)
+        }
+    }
+
+    func testDataStoreIDIsStablePerWorkspace() {
+        let base = UUID(uuidString: "67AF17A3-1824-46B4-B244-FB138FC9C4A7")!
+        let a = AgentBrowser.dataStoreID(base: base, workspace: "ws_a")
+        XCTAssertEqual(a, AgentBrowser.dataStoreID(base: base, workspace: "ws_a"))
+        XCTAssertNotEqual(a, AgentBrowser.dataStoreID(base: base, workspace: "ws_b"))
+        XCTAssertNotEqual(a, base)
+        XCTAssertEqual(Array(a.uuidString)[14], "5")
     }
 
     func testCallsOnOneTabRunInOrder() async throws {
         let server = try await serve { _, _ in FixtureResponse(body: "<title>slow</title>", delay: .milliseconds(500)) }
         let browser = makeBrowser(FakeHost())
         let opening = Task.immediate { try await browser.handle(self.open("agt_1", server.url("/slow"))) }
-        let snapshot = try await browser.handle(BrowserCall(owner: "agt_1", tab: "main", action: .snapshot))
+        let snapshot = try await browser.handle(BrowserCall(workspace: "w1", owner: "agt_1", tab: "main", action: .snapshot))
         _ = try await opening.value
         XCTAssertTrue(snapshot["url"]?.stringValue?.hasSuffix("/slow") == true, "\(snapshot)")
     }
@@ -48,7 +65,7 @@ final class AgentBrowserTests: XCTestCase {
         _ = try await browser.handle(open("agt_1", server.url("/p"), tab: "b"))
         let started = ContinuousClock.now
         let hanging = Task.immediate { try await browser.handle(self.open("agt_1", server.url("/hang"))) }
-        let queued = Task.immediate { try await browser.handle(BrowserCall(owner: "agt_1", tab: "main", action: .snapshot)) }
+        let queued = Task.immediate { try await browser.handle(BrowserCall(workspace: "w1", owner: "agt_1", tab: "main", action: .snapshot)) }
         try await Task.sleep(for: .milliseconds(300))
         browser.close(owner: "agt_1")
         for call in [hanging, queued] {
@@ -141,19 +158,20 @@ final class AgentBrowserTests: XCTestCase {
         hosts.append(host)
         return AgentBrowser(
             host: host,
-            dataStore: .nonPersistent(),
+            dataStore: { _ in .nonPersistent() },
             userAgent: "ClubmateTests",
             screenshots: FileManager.default.temporaryDirectory.appending(path: "AgentBrowserTests"),
-            navigationTimeout: .seconds(10)
+            navigationTimeout: .seconds(10),
+            allowsLocal: true
         )
     }
 
-    private func open(_ owner: String, _ url: URL, tab: String = "main") -> BrowserCall {
-        BrowserCall(owner: owner, tab: tab, action: .open, args: .object(["url": .string(url.absoluteString)]))
+    private func open(_ owner: String, _ url: URL, tab: String = "main", workspace: String = "w1") -> BrowserCall {
+        BrowserCall(workspace: workspace, owner: owner, tab: tab, action: .open, args: .object(["url": .string(url.absoluteString)]))
     }
 
     private func handoff(_ owner: String, timeout: Int) -> BrowserCall {
-        BrowserCall(owner: owner, tab: "main", action: .handoff, args: .object(["reason": .string("captcha")]), timeout: timeout)
+        BrowserCall(workspace: "w1", owner: owner, tab: "main", action: .handoff, args: .object(["reason": .string("captcha")]), timeout: timeout)
     }
 }
 

@@ -98,6 +98,9 @@ public final class CompanionModel {
     }
 
     public func remove(_ id: String) throws {
+        if let connection = connections[id] {
+            Task { await connection.sendPushToken(PushToken(token: "", environment: "")) }
+        }
         detach(id)
         queue.forget(computer: id)
         cursors?.removeObject(forKey: Self.cursorKey(id))

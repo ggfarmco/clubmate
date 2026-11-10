@@ -29,7 +29,7 @@ final class PushTests: XCTestCase {
         XCTAssertNil(DeliveredNotice.resolved(["aps": ["content-available": 1]], from: delivered))
     }
 
-    func testTokenGoesToEveryMacAfterHelloAndWhenItChangesAndAnOlderMacStaysOnline() async throws {
+    func testTokenGoesToEveryMacAfterHelloAndWhenItChangesAndAnOlderMacStaysOnlineAndIsClearedOnRemove() async throws {
         let file = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).appending(path: "computers.json")
         let store = ComputerStore(file: file, vault: MemoryTokenVault())
         try store.save(Computer(id: "mac1", name: "Mac", hosts: ["100.64.0.1"], port: 1), token: "t")
@@ -64,5 +64,8 @@ final class PushTests: XCTestCase {
         try await waitUntil { sent("100.64.0.1") == ["aa/development", "bb/development", "bb/development"] && model.connection("mac1")?.state == .online }
         try model.remove("mac1")
         try model.remove("mac2")
+        try await waitUntil { sent("100.64.0.1").last == "/" && sent("100.64.0.2").last == "/" }
+        let cleared = transport.requests.last { $0.url?.host() == "100.64.0.1" && FakeTransport.rpc($0) == "pushToken" }
+        XCTAssertEqual(cleared?.value(forHTTPHeaderField: "Authorization"), "Bearer t")
     }
 }

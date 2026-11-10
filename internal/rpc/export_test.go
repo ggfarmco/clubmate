@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"net/netip"
 	"time"
 )
 
@@ -9,10 +10,12 @@ func SetBrowserGuard(s *Server, g func(context.Context, BrowserGuardInput) error
 	s.browserGuard = g
 }
 
-func BrowserURLCount(s *Server) int {
-	s.browserURLsMu.Lock()
-	defer s.browserURLsMu.Unlock()
-	return len(s.browserURLs)
+func SetBrowserResolver(s *Server, r func(context.Context, string) ([]netip.Addr, error)) {
+	s.browserResolve = r
+}
+
+func CheckBrowserURL(ctx context.Context, r func(context.Context, string) ([]netip.Addr, error), raw string) error {
+	return checkBrowserURL(ctx, r, raw)
 }
 
 func SetFSOverflow(s *Server, n int) {

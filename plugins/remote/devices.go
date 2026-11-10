@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 )
@@ -199,6 +200,19 @@ func (s *deviceStore) dropPush(ctx context.Context, token string) error {
 		}
 		return d.PushToken, d.PushEnvironment
 	})
+}
+
+func (s *deviceStore) pushTokens() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]string, 0, len(s.devices))
+	for _, d := range s.devices {
+		if d.PushToken != "" {
+			out = append(out, strings.ToLower(d.PushToken))
+		}
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
 }
 
 func (s *deviceStore) usedColours() []string {

@@ -3,7 +3,9 @@ package rpc_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
+	"net/netip"
 	"sync"
 	"testing"
 
@@ -67,6 +69,10 @@ func browserRun(t *testing.T, c *rpc.Client, workspaceID, id string, extra map[s
 	return out, err
 }
 
+func publicResolver(context.Context, string) ([]netip.Addr, error) {
+	return []netip.Addr{netip.MustParseAddr("93.184.215.14")}, nil
+}
+
 func TestBrowserWithoutAppFailsFast(t *testing.T) {
 	h := testutil.NewHarness(t)
 	w := h.CreateWorkspace(t, "demo")
@@ -79,6 +85,7 @@ func TestBrowserForwardsOwnerTabActionArgs(t *testing.T) {
 	h := testutil.NewHarness(t)
 	w := h.CreateWorkspace(t, "demo")
 	h.Start(t)
+	rpc.SetBrowserResolver(h.Srv, publicResolver)
 	app := newBrowserApp(t, h, `{"url":"https://example.com/","status":200,"title":"Ex","blocked":false}`)
 	out, err := browserRun(t, h.Client(t), w.ID, "browser.open", map[string]any{"caller": browserOwner}, map[string]any{"url": "https://example.com", "tab": "b"})
 	require.NoError(t, err)
@@ -87,9 +94,85 @@ func TestBrowserForwardsOwnerTabActionArgs(t *testing.T) {
 	assert.JSONEq(t, app.reply, string(out))
 	calls := app.got()
 	require.Len(t, calls, 1)
-	assert.Equal(t, [3]string{browserOwner, "b", "open"}, [3]string{calls[0].Owner, calls[0].Tab, calls[0].Action})
+	assert.Equal(t, [4]string{w.ID, browserOwner, "b", "open"}, [4]string{calls[0].Workspace, calls[0].Owner, calls[0].Tab, calls[0].Action})
 	assert.JSONEq(t, `{"url":"https://example.com"}`, string(calls[0].Args))
-	assert.Zero(t, rpc.BrowserURLCount(h.Srv))
+}
+
+func TestBrowserURLGuard(t *testing.T) {
+	resolve := func(_ context.Context, host string) ([]netip.Addr, error) {
+		switch host {
+		case "public.test":
+			return []netip.Addr{netip.MustParseAddr("93.184.215.14")}, nil
+		case "rebound.test":
+			return []netip.Addr{netip.MustParseAddr("93.184.215.14"), netip.MustParseAddr("10.0.0.5")}, nil
+		}
+		return nil, errors.New("no such host")
+	}
+	tests := []struct {
+		url     string
+		allowed bool
+	}{
+		{"https://public.test/a", true},
+		{"https://93.184.215.14/", true},
+		{"https://[2606:2800:220:1::]/", true},
+		{"https://rebound.test/", false},
+		{"https://unknown.test/", false},
+		{"http://localhost:3000/", false},
+		{"http://LOCALHOST./", false},
+		{"http://app.localhost/", false},
+		{"http://printer.local/", false},
+		{"http://127.0.0.1:8080/", false},
+		{"http://127.1/", false},
+		{"http://2130706433/", false},
+		{"http://0x7f.0.0.1/", false},
+		{"http://0177.0.0.1/", false},
+		{"http://%31%32%37.0.0.1/", false},
+		{"http://1.2.3.4.5/", false},
+		{"https://user@127.0.0.1/", false},
+		{"http://0.0.0.0/", false},
+		{"http://[::]/", false},
+		{"http://[::1]/", false},
+		{"http://[::ffff:127.0.0.1]/", false},
+		{"http://[fe80::1%25en0]/", false},
+		{"http://[fd7a:115c:a1e0::1]/", false},
+		{"http://10.1.2.3/", false},
+		{"http://172.16.0.1/", false},
+		{"http://192.168.1.1/", false},
+		{"http://100.100.100.100/", false},
+		{"http://169.254.169.254/", false},
+		{"file:///etc/passwd", false},
+		{"javascript:alert(1)", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.url, func(t *testing.T) {
+			err := rpc.CheckBrowserURL(t.Context(), resolve, tt.url)
+			if tt.allowed {
+				assert.NoError(t, err)
+				return
+			}
+			assert.Error(t, err)
+		})
+	}
+}
+
+func TestBrowserRefusesLocalPagesBeforeAndAfterTheApp(t *testing.T) {
+	h := testutil.NewHarness(t)
+	w := h.CreateWorkspace(t, "demo")
+	h.Start(t)
+	rpc.SetBrowserResolver(h.Srv, publicResolver)
+	app := newBrowserApp(t, h, `{"url":"http://127.0.0.1:3000/admin","status":200,"title":"Admin"}`)
+	c := h.Client(t)
+	extra := map[string]any{"caller": browserOwner}
+	_, err := browserRun(t, c, w.ID, "browser.open", extra, map[string]any{"url": "http://127.0.0.1:3000/"})
+	assert.ErrorContains(t, err, "local and private network addresses are refused")
+	assert.Empty(t, app.got())
+
+	out, err := browserRun(t, c, w.ID, "browser.open", extra, map[string]any{"url": "https://public.test/redirect"})
+	assert.ErrorContains(t, err, "local and private network addresses are refused")
+	assert.Nil(t, out)
+	_, err = browserRun(t, c, w.ID, "browser.snapshot", extra, nil)
+	assert.ErrorContains(t, err, "local and private network addresses are refused")
+	assert.Len(t, app.got(), 1)
 }
 
 func TestBrowserOwnerFallsBackToTerminalThenDefault(t *testing.T) {
@@ -126,9 +209,10 @@ func TestBrowserGuardSeesActionAndLastURL(t *testing.T) {
 	require.NoError(t, err)
 	_, err = browserRun(t, c, w.ID, "browser.click", extra, map[string]any{"ref": "e1"})
 	require.NoError(t, err)
-	require.Len(t, seen, 2)
+	require.Len(t, seen, 3)
 	assert.Equal(t, [3]string{browserOwner, "open", "https://a.test/"}, [3]string{seen[0].Session, seen[0].Action, seen[0].URL})
-	assert.Equal(t, [3]string{browserOwner, "click", "https://a.test/after"}, [3]string{seen[1].Session, seen[1].Action, seen[1].URL})
+	assert.Equal(t, [3]string{browserOwner, "open", "https://a.test/after"}, [3]string{seen[1].Session, seen[1].Action, seen[1].URL})
+	assert.Equal(t, [3]string{browserOwner, "click", "https://a.test/after"}, [3]string{seen[2].Session, seen[2].Action, seen[2].URL})
 
 	deny = assert.AnError
 	_, err = browserRun(t, c, w.ID, "browser.click", extra, map[string]any{"ref": "e2"})

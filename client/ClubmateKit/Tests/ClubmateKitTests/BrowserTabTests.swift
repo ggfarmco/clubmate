@@ -25,6 +25,22 @@ final class BrowserTabTests: XCTestCase {
         XCTAssertFalse(page.blocked)
     }
 
+    func testRefusesLocalAndPrivateHosts() async throws {
+        let server = try await serve(["/p": FixtureResponse(body: "<title>P</title>")])
+        let page = await makeTab(allowsLocal: false).open(server.url("/p"))
+        XCTAssertEqual(page.status, 0)
+        XCTAssertNotEqual(page.title, "P")
+        let local = ["http://localhost:3000/", "http://app.localhost/", "http://printer.local./", "http://127.0.0.1/", "http://10.0.0.1/", "http://172.31.0.1/",
+                     "http://192.168.0.1/", "http://100.64.0.1/", "http://169.254.169.254/", "http://0.0.0.0/", "http://[::1]/", "http://[::]/",
+                     "http://[fe80::1]/", "http://[fd7a:115c:a1e0::1]/", "http://[::ffff:127.0.0.1]/"]
+        for url in local {
+            XCTAssertTrue(BrowserTab.localHost(URL(string: url)!), url)
+        }
+        for url in ["https://example.com/", "https://93.184.215.14/", "https://[2606:2800:220:1::]/", "https://172.32.0.1/"] {
+            XCTAssertFalse(BrowserTab.localHost(URL(string: url)!), url)
+        }
+    }
+
     func testOpenFlagsBlockPage() async throws {
         let server = try await serve(["/b": FixtureResponse(status: 403, body: "<title>Zugriff verweigert / Access denied</title>")])
         let page = await makeTab().open(server.url("/b"))
@@ -223,10 +239,10 @@ final class BrowserTabTests: XCTestCase {
         return server
     }
 
-    private func makeTab(timeout: Duration = .seconds(10)) -> BrowserTab {
+    private func makeTab(timeout: Duration = .seconds(10), allowsLocal: Bool = true) -> BrowserTab {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
-        return BrowserTab(configuration: configuration, userAgent: "ClubmateTests", navigationTimeout: timeout)
+        return BrowserTab(configuration: configuration, userAgent: "ClubmateTests", navigationTimeout: timeout, allowsLocal: allowsLocal)
     }
 
     private func ref(in text: String, for item: String) -> String? {

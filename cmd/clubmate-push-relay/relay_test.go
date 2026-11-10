@@ -33,6 +33,7 @@ type fixture struct {
 	studio    string
 	logs      *bytes.Buffer
 	limiter   *limiter
+	devices   string
 }
 
 type fakeAPNS struct {
@@ -158,6 +159,53 @@ func TestTokensFileIsReReadWhenItChanges(t *testing.T) {
 	assert.Equal(t, []string{"air"}, names)
 }
 
+func TestPushGoesOnlyToRegisteredDevicesOnceTheMacRegistered(t *testing.T) {
+	f := newFixture(t)
+	push := func(token string) int {
+		status, _ := f.post(t, f.studio, strings.Replace(validPush, `"aa01"`, `"`+token+`"`, 1))
+		return status
+	}
+	assert.Equal(t, http.StatusOK, push("aa01"))
+
+	status, _ := f.do(t, http.MethodPut, "/v1/devices", f.studio, `{"tokens":["BB02"]}`)
+	require.Equal(t, http.StatusNoContent, status)
+	assert.Equal(t, http.StatusForbidden, push("aa01"))
+	assert.Equal(t, http.StatusOK, push("bb02"))
+	assert.Len(t, f.apns.requests(), 2)
+	raw, err := os.ReadFile(f.devices)
+	require.NoError(t, err)
+	assert.NotContains(t, strings.ToLower(string(raw)), "bb02")
+	reloaded, err := loadBindings(f.devices)
+	require.NoError(t, err)
+	assert.Equal(t, [2]bool{false, true}, [2]bool{reloaded.allowed("studio", "aa01"), reloaded.allowed("studio", "bb02")})
+	assert.True(t, reloaded.allowed("mini", "aa01"))
+
+	status, _ = f.do(t, http.MethodPut, "/v1/devices", f.studio, `{"tokens":[]}`)
+	require.Equal(t, http.StatusNoContent, status)
+	assert.Equal(t, http.StatusForbidden, push("bb02"))
+}
+
+func TestPutDevicesChecksTheMacAndTheTokens(t *testing.T) {
+	f := newFixture(t)
+	many, _ := json.Marshal(devicesRequest{Tokens: strings.Fields(strings.Repeat("aa ", maxDevicesPerMac+1))})
+	tests := []struct {
+		name, token, body string
+		want              int
+	}{
+		{"no token", "", `{"tokens":["aa01"]}`, http.StatusUnauthorized},
+		{"not hex", f.studio, `{"tokens":["zz"]}`, http.StatusBadRequest},
+		{"too many", f.studio, string(many), http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status, _ := f.do(t, http.MethodPut, "/v1/devices", tt.token, tt.body)
+			assert.Equal(t, tt.want, status)
+		})
+	}
+	status, _ := f.post(t, f.studio, validPush)
+	assert.Equal(t, http.StatusOK, status)
+}
+
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "tokens")
@@ -173,6 +221,9 @@ func newFixture(t *testing.T) *fixture {
 	client := apns.NewClient(key, "ABC123", "TEAM")
 	client.Hosts = map[string]string{apns.EnvDevelopment: apnsServer.URL + "/dev", apns.EnvProduction: apnsServer.URL + "/prod"}
 	now := time.Unix(1_800_000_000, 0)
+	devicesPath := filepath.Join(t.TempDir(), "devices.json")
+	devices, err := loadBindings(devicesPath)
+	require.NoError(t, err)
 	f := &fixture{
 		apns:      fake,
 		closeAPNS: apnsServer.Close,
@@ -180,8 +231,9 @@ func newFixture(t *testing.T) *fixture {
 		studio:    studio,
 		logs:      &bytes.Buffer{},
 		limiter:   newLimiter(pushRate, pushBurst, func() time.Time { return now }),
+		devices:   devicesPath,
 	}
-	r := &relay{tokens: toks, apns: client, limiter: f.limiter, log: log.New(f.logs, "", 0)}
+	r := &relay{tokens: toks, devices: devices, apns: client, limiter: f.limiter, log: log.New(f.logs, "", 0)}
 	ts := httptest.NewServer(r.handler())
 	t.Cleanup(ts.Close)
 	f.url = ts.URL
@@ -190,7 +242,12 @@ func newFixture(t *testing.T) *fixture {
 
 func (f *fixture) post(t *testing.T, token, body string) (int, string) {
 	t.Helper()
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, f.url+"/v1/push", strings.NewReader(body))
+	return f.do(t, http.MethodPost, "/v1/push", token, body)
+}
+
+func (f *fixture) do(t *testing.T, method, path, token, body string) (int, string) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), method, f.url+path, strings.NewReader(body))
 	require.NoError(t, err)
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)

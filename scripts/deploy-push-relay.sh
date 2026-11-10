@@ -24,8 +24,8 @@ chmod 755 ~/push-relay/clubmate-push-relay.new
 mv -f ~/push-relay/clubmate-push-relay.new ~/push-relay/clubmate-push-relay
 touch ~/push-relay/tokens ~/push-relay/admins ~/push-relay/bans
 chmod 600 ~/push-relay/tokens ~/push-relay/admins ~/push-relay/bans
-mkdir -p ~/push-relay/reports
-chmod 700 ~/push-relay/reports
+mkdir -p ~/push-relay/reports ~/push-relay/state
+chmod 700 ~/push-relay/reports ~/push-relay/state
 sudo install -m 644 -o root -g root /tmp/clubmate-push-relay.service /etc/systemd/system/clubmate-push-relay.service
 rm -f /tmp/clubmate-push-relay.service
 sudo systemctl daemon-reload
