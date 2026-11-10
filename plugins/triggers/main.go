@@ -53,14 +53,14 @@ func main() {
 
 func newApp() *app {
 	a := &app{
-		triggers:  map[string]*Trigger{},
-		inFlight:  map[string]int{},
-		expanded:  map[string]map[string]bool{},
-		held:      map[string]heldEvent{},
-		fired:     map[string][]time.Time{},
-		shapes:    map[string]*graphShape{},
-		ready:     make(chan struct{}),
-		now:       time.Now,
+		triggers: map[string]*Trigger{},
+		inFlight: map[string]int{},
+		expanded: map[string]map[string]bool{},
+		held:     map[string]heldEvent{},
+		fired:    map[string][]time.Time{},
+		shapes:   map[string]*graphShape{},
+		ready:    make(chan struct{}),
+		now:      time.Now,
 	}
 	a.runCommand = a.callCommand
 	a.sessions = a.agentSessions
@@ -256,6 +256,13 @@ func (a *app) drawnEvent(ctx context.Context, ev pluginsdk.UIEvent) error {
 	case ev.Action == actOpenMove:
 		ev.Action = "select"
 		if err := a.runRows.Handle(ctx, a.host, ev); err != nil {
+			return err
+		}
+		var selected string
+		if _, err := a.host.StorageGet(ctx, automation.SelectedKey(ev.WorkspaceID), &selected); err != nil {
+			return err
+		}
+		if err := automation.Show(ctx, a.host, automation.ActRuns, ev.WorkspaceID, selected); err != nil {
 			return err
 		}
 		a.registry.Invalidate(ev.WorkspaceID)

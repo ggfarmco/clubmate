@@ -182,6 +182,11 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 			if err := a.runRows.Handle(ctx, a.host, ev); err != nil {
 				return nil, err
 			}
+			if strip && ev.Action == "select" {
+				if err := a.showRuns(ctx, ev.WorkspaceID); err != nil {
+					return nil, err
+				}
+			}
 			a.registry.Invalidate(ev.WorkspaceID)
 			a.registry.Flush(ctx)
 			return nil, nil
@@ -281,6 +286,14 @@ func (a *app) showLog(ctx context.Context, ev pluginsdk.UIEvent) error {
 	a.registry.Invalidate(ev.WorkspaceID)
 	a.registry.Flush(ctx)
 	return nil
+}
+
+func (a *app) showRuns(ctx context.Context, workspace string) error {
+	var job string
+	if _, err := a.host.StorageGet(ctx, automation.SelectedKey(workspace), &job); err != nil {
+		return err
+	}
+	return automation.Show(ctx, a.host, automation.ActRuns, workspace, job)
 }
 
 func (a *app) setMissed(ctx context.Context, ev pluginsdk.UIEvent, id string) error {

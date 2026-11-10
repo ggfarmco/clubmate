@@ -29,9 +29,11 @@ func TestDrawnTriggerLanesKeys(t *testing.T) {
 	lanes := added.ID + "/lanes#"
 	in.eventually("the lanes draw three runs", func() bool { return in.snapshot().main().has(lanes + "5") })
 
+	assert.False(t, in.snapshot().main().has("history"), "the runs table starts folded")
 	in.pointer("click", added.ID+"/runJson")
 	in.pointer("click", lanes+"1")
 	in.eventually("the clicked dot has the cursor", func() bool { return hasRole(in.snapshot().main().node(lanes+"1"), "selected") })
+	in.eventually("opening a run unfolds the runs table", func() bool { return in.snapshot().main().has("history") })
 	shows := func(move string) func() bool {
 		return func() bool {
 			w := in.snapshot().main()
@@ -79,8 +81,10 @@ func TestDrawnCronRunstrip(t *testing.T) {
 		selected := func(run string) func() bool {
 			return func() bool { return hasRole(in.snapshot().main().node(alpha+"#"+run), "selected") }
 		}
+		assert.False(t, in.snapshot().main().has("history"), "the runs table starts folded")
 		in.pointer("click", alpha+"#1")
 		in.eventually("the clicked run is selected", selected("1"))
+		in.eventually("selecting a run unfolds the runs table", func() bool { return in.snapshot().main().has("history") })
 		assert.True(t, hasRole(in.snapshot().main().node(alpha+"#1"), "focused"), "the strip takes the keys")
 		assert.Equal(t, []string{"monitor"}, in.key("left"))
 		in.eventually("left selects the older run", selected("0"))

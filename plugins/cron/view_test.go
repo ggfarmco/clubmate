@@ -42,8 +42,12 @@ func TestMainHistoryNewestFirst(t *testing.T) {
 		{At: at, Status: automation.StatusOK, Result: `{"session":"agt_2"}`},
 		{At: at.Add(2 * time.Minute), Status: automation.StatusError, Reason: "boom"},
 	}}
-	view := mainView(j, nil, map[string]string{"agt_1": "Orchestrator", "agt_2": "Child"}, nil, automation.Open{}, automation.RunsView{}, draft{}, at)
+	folded := mainView(j, nil, map[string]string{"agt_1": "Orchestrator", "agt_2": "Child"}, nil, automation.Open{}, automation.RunsView{}, draft{}, at)
+	assert.Empty(t, nodesWithType(folded, "table"))
+	assert.Equal(t, "Show 3 runs", buttonLabel(folded, "cj_a/runTable"))
+	view := mainView(j, nil, map[string]string{"agt_1": "Orchestrator", "agt_2": "Child"}, nil, automation.Open{Runs: true}, automation.RunsView{}, draft{}, at)
 	require.NoError(t, isdui.Validate(view))
+	assert.Equal(t, "Hide runs", buttonLabel(view, "cj_a/runTable"))
 	assert.Contains(t, texts(view), "Orchestrator")
 	assert.Equal(t, "header", view.Children[0].Type)
 	assert.Equal(t, []string{"cj_a/resume", "cj_a/run", "cj_a/edit", "cj_a/duplicate", "cj_a/reveal", "cj_a/delete"}, childIDs(view.Children[0]))
@@ -150,6 +154,16 @@ func TestDoesIsDrawnAndRunsSitOnAStrip(t *testing.T) {
 	assert.Equal(t, automation.RunID(runs[0]), strip.Props["selected"])
 	assert.NotContains(t, strip.Props, "next")
 	assert.Equal(t, []sdui.PausedSpan{{From: now.Add(-2 * time.Minute)}}, strip.Props["paused"])
+}
+
+func buttonLabel(n sdui.Node, id string) string {
+	for _, b := range nodesWithType(n, "button") {
+		if b.ID == id {
+			label, _ := b.Props["label"].(string)
+			return label
+		}
+	}
+	return ""
 }
 
 func nodesWithType(n sdui.Node, typ string) []sdui.Node {

@@ -16,6 +16,8 @@ import (
 
 const (
 	ActRunJSON   = "runJson"
+	ActRuns      = "runTable"
+	RunsFormID   = "runsToggle"
 	HistoryID    = "history"
 	whenLayout   = "Jan 2 15:04:05"
 	clockLayout  = "15:04"
@@ -90,6 +92,18 @@ func RunJSONRows(id string, selected Run, picked, open bool) []sdui.Node {
 		rows = append(rows, sdui.WithLines(sdui.MutedText(runJSON(selected)), runJSONLines))
 	}
 	return rows
+}
+
+func RunsRows(id string, history []Run, table sdui.Node, open bool) []sdui.Node {
+	toggle := DetailAction{Action: ActRuns, Label: "Show " + strconv.Itoa(len(history)) + " runs", Icon: "chevron.right", Variant: sdui.VariantGhost}
+	if len(history) == 1 {
+		toggle.Label = "Show the run"
+	}
+	if !open {
+		return []sdui.Node{sdui.Form(RunsFormID, sdui.HStack(ActionNode(id, toggle)))}
+	}
+	toggle.Label, toggle.Icon = "Hide runs", "chevron.down"
+	return []sdui.Node{sdui.Form(RunsFormID, sdui.HStack(ActionNode(id, toggle))), table}
 }
 
 func RunCounts(history []Run) string {

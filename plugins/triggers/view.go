@@ -128,7 +128,8 @@ func mainView(t *Trigger, triggers []*Trigger, titles map[string]string, shape *
 	} else {
 		body = append(body, automation.Properties(append(rows, automation.Property("Runs", automation.RunCounts(t.History), ""))...))
 	}
-	body = append(body, table, sdui.Form(runJSONFormID, automation.RunJSONRows(t.ID, run, picked, open.RunJSON)...))
+	body = append(body, automation.RunsRows(t.ID, t.History, table, open.Runs)...)
+	body = append(body, sdui.Form(runJSONFormID, automation.RunJSONRows(t.ID, run, picked, open.RunJSON)...))
 	return sdui.VStack(header, sdui.Scroll(sdui.VStack(body...)))
 }
 

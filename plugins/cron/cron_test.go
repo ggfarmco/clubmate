@@ -457,6 +457,23 @@ func TestRunsGroupAndShowTheSelectedRunAsJSON(t *testing.T) {
 	for range 3 {
 		require.NoError(t, f.run(t, "cron.run", map[string]any{"id": added.ID}, nil))
 	}
+	var ref string
+	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool {
+		strips := nodesWithID(n, added.ID+"/strip")
+		if len(strips) != 1 {
+			return false
+		}
+		raw, err := json.Marshal(strips[0].Props["runs"])
+		require.NoError(t, err)
+		var runs []sdui.StripRun
+		require.NoError(t, json.Unmarshal(raw, &runs))
+		if len(runs) != 3 {
+			return false
+		}
+		ref = runs[0].Ref
+		return historyRows(t, n) == nil
+	})
+	f.h.Event(t, f.workspace, "cron.main", added.ID+"/strip", "select", ref)
 	var group sdui.TableRow
 	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool {
 		rows := historyRows(t, n)

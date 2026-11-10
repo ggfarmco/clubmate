@@ -44,6 +44,7 @@ type Open struct {
 	JSON    bool
 	Edit    bool
 	RunJSON bool
+	Runs    bool
 }
 
 func ActionNode(id string, a DetailAction) sdui.Node {
