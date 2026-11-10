@@ -81,6 +81,11 @@ struct SwitcherGridView: View {
                     RoundedRectangle(cornerRadius: 6)
                         .stroke(highlighted ? theme.accent : theme.border, lineWidth: highlighted ? 2 : 1)
                 )
+                .overlay(alignment: .topTrailing) {
+                    if let workspace {
+                        closeButton(workspace, highlighted: highlighted)
+                    }
+                }
             HStack(spacing: theme.spacing.m) {
                 if let workspace, workspace == windows.window(windowID)?.active {
                     Circle().fill(theme.accent).frame(width: 6, height: 6)
@@ -101,6 +106,28 @@ struct SwitcherGridView: View {
         .accessibilityLabel(workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open folder…")
         .accessibilityAddTraits(workspace != nil && workspace == windows.window(windowID)?.active ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { choose(index) }
+        .accessibilityActions {
+            if let workspace {
+                Button("Close workspace") { close(workspace) }
+            }
+        }
+        .testNode("switcher#\(workspace ?? "open")", role: "button", label: workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open folder…")
+    }
+
+    private func closeButton(_ workspace: String, highlighted: Bool) -> some View {
+        Button { close(workspace) } label: {
+            Image(systemName: "xmark")
+                .font(theme.uiSmall.weight(.semibold))
+                .foregroundStyle(highlighted ? theme.text2 : theme.muted)
+                .frame(width: theme.rowHeight, height: theme.rowHeight)
+                .background(Circle().fill(theme.surface3))
+                .overlay(Circle().stroke(theme.borderStrong, lineWidth: 1))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help("Close workspace ⌫")
+        .padding(theme.spacing.s)
+        .testNode("switcher.close#\(workspace)", role: "button", label: "Close workspace")
     }
 
     @ViewBuilder private func preview(_ workspace: String?) -> some View {
@@ -149,7 +176,13 @@ struct SwitcherGridView: View {
             choose(current)
         case .dismiss:
             windows.hideSwitcher()
+        case .close:
+            if workspaces.indices.contains(current) { close(workspaces[current]) }
         }
+    }
+
+    private func close(_ workspace: String) {
+        windows.closeWorkspace(workspace, in: windowID)
     }
 
     private func choose(_ index: Int) {
@@ -182,6 +215,7 @@ enum SwitcherKey {
     case arrow(SwitcherGrid.Arrow)
     case choose
     case dismiss
+    case close
 }
 
 private struct SwitcherKeys: NSViewRepresentable {
@@ -240,6 +274,7 @@ final class SwitcherKeyView: NSView {
         case #selector(NSResponder.moveDown(_:)): handle?(.arrow(.down))
         case #selector(NSResponder.insertNewline(_:)): handle?(.choose)
         case #selector(NSResponder.cancelOperation(_:)): handle?(.dismiss)
+        case #selector(NSResponder.deleteBackward(_:)), #selector(NSResponder.deleteForward(_:)): handle?(.close)
         default: break
         }
     }

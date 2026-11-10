@@ -100,6 +100,7 @@ Pickers are the fuzzy lists for worktrees: the worktree switcher in the window t
 | ↑ ↓ (arrows in the switcher grid) | Move the selection |
 | ⌃J ⌃N / ⌃K ⌃P | Move the selection down / up (text fields) |
 | h j k l | Move left / down / up / right (switcher grid) |
+| ⌫ | Close the highlighted workspace (switcher grid), like the × at a tile's top right; it stays in Open Recent |
 | ↩, ⌃L | Run, open, or choose |
 | Esc | Close |
 
