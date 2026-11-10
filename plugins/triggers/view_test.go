@@ -24,7 +24,7 @@ func TestGraphTriggersGroupUnderTheirRun(t *testing.T) {
 		Command: automation.PromptCommand, Args: json.RawMessage(`{"session":"agt_2","text":"Fix it."}`)}
 	mine := &Trigger{ID: "tr_2", Name: "Nightly", Enabled: true, On: "event.nightly", Command: automation.PromptCommand}
 
-	side := sidebarView([]*Trigger{edge, mine}, "tr_1", map[string]bool{"graph:gr_1": true}, titles)
+	side := sidebarView([]*Trigger{edge, mine}, "tr_2", nil, titles)
 	require.NoError(t, isdui.Validate(side))
 	items, ok := side.Props["items"].([]sdui.TreeItem)
 	require.True(t, ok)
@@ -34,6 +34,8 @@ func TestGraphTriggersGroupUnderTheirRun(t *testing.T) {
 	assert.False(t, items[2].Expanded)
 	assert.True(t, items[2].Action)
 	assert.Equal(t, "Coder done → Reviewer", items[2].Children[0].Label)
+	assert.True(t, sidebarView([]*Trigger{edge, mine}, "tr_1", nil, titles).Props["items"].([]sdui.TreeItem)[2].Expanded)
+	assert.False(t, sidebarView([]*Trigger{edge, mine}, "tr_1", map[string]bool{"graph:gr_1": false}, titles).Props["items"].([]sdui.TreeItem)[2].Expanded)
 
 	shape := &graphShape{
 		Nodes: []shapeNode{{ID: "coder", Session: "agt_1", Start: true}, {ID: "reviewer", Session: "agt_2", End: []string{"approved"}}},
@@ -79,12 +81,11 @@ func TestSelectingAGraphTriggerUnfoldsItsRun(t *testing.T) {
 	a.triggers["tr_1"] = &Trigger{ID: "tr_1", Workspace: "ws1", Run: "gr_1"}
 	a.triggers["tr_2"] = &Trigger{ID: "tr_2", Workspace: "ws1"}
 	a.fold("ws1", "graph:gr_1", true)
-	a.fold("ws1", "graph:gr_2", true)
 
 	a.unfoldGroupOf("ws1", "tr_2")
-	assert.Equal(t, map[string]bool{"graph:gr_1": true, "graph:gr_2": true}, a.folds("ws1"))
+	assert.Equal(t, map[string]bool{"graph:gr_1": false}, a.folds("ws1"))
 	a.unfoldGroupOf("ws1", "tr_1")
-	assert.Equal(t, map[string]bool{"graph:gr_2": true}, a.folds("ws1"))
+	assert.Equal(t, map[string]bool{"graph:gr_1": true}, a.folds("ws1"))
 }
 
 func TestUserTriggerDrawsItsLastChainAndRunsAsLanes(t *testing.T) {

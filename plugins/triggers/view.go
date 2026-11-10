@@ -27,7 +27,7 @@ const (
 	runJSONFormID  = "runJson"
 )
 
-func sidebarView(triggers []*Trigger, selected string, collapsed map[string]bool, titles map[string]string) sdui.Node {
+func sidebarView(triggers []*Trigger, selected string, expanded map[string]bool, titles map[string]string) sdui.Node {
 	items := []sdui.TreeItem{automation.HelpItem("How triggers work")}
 	var groups []sdui.TreeItem
 	index := map[string]int{}
@@ -43,11 +43,17 @@ func sidebarView(triggers []*Trigger, selected string, collapsed map[string]bool
 			i = len(groups)
 			index[t.Run] = i
 			id := groupPrefix + t.Run
-			groups = append(groups, sdui.TreeItem{ID: id, Label: runName(t), Icon: graphIcon, Muted: true, Action: true, HasChildren: true, Expanded: !collapsed[id]})
+			groups = append(groups, sdui.TreeItem{ID: id, Label: runName(t), Icon: graphIcon, Muted: true, Action: true, HasChildren: true})
 		}
 		groups[i].Children = append(groups[i].Children, item)
+		if t.ID == selected {
+			groups[i].Expanded = true
+		}
 	}
 	for i := range groups {
+		if open, ok := expanded[groups[i].ID]; ok {
+			groups[i].Expanded = open
+		}
 		groups[i].Label = "from graph " + groups[i].Label
 		groups[i].Detail = strconv.Itoa(len(groups[i].Children))
 	}

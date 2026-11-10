@@ -152,6 +152,13 @@ func TestDrawnGraphRun(t *testing.T) {
 		}
 		done, changes := named("Coder done → Reviewer"), named("Reviewer says changes → Coder")
 		in.focusSection("triggers", "triggers.sidebar")
+		in.pointer("click", "triggers#help")
+		in.eventually("the graph run group starts folded", func() bool {
+			w := in.snapshot().main()
+			return w.has("triggers#graph:"+run.ID) && !w.has("triggers#"+done)
+		})
+		in.pointer("click", "triggers#graph:"+run.ID, "--at", "14,10")
+		in.eventually("the graph run group unfolds", func() bool { return in.snapshot().main().has("triggers#" + done) })
 		in.pointer("click", "triggers#"+done)
 		var edge string
 		in.eventually("the flow draws the edge to the changes trigger", func() bool {

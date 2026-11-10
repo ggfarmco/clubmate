@@ -26,7 +26,7 @@ type app struct {
 	mu         sync.Mutex
 	triggers   map[string]*Trigger
 	inFlight   map[string]int
-	collapsed  map[string]map[string]bool
+	expanded   map[string]map[string]bool
 	held       map[string]heldEvent
 	fired      map[string][]time.Time
 	shapes     map[string]*graphShape
@@ -55,7 +55,7 @@ func newApp() *app {
 	a := &app{
 		triggers:  map[string]*Trigger{},
 		inFlight:  map[string]int{},
-		collapsed: map[string]map[string]bool{},
+		expanded:  map[string]map[string]bool{},
 		held:      map[string]heldEvent{},
 		fired:     map[string][]time.Time{},
 		shapes:    map[string]*graphShape{},
@@ -325,24 +325,27 @@ func (a *app) askFromRow(ctx context.Context, ev pluginsdk.UIEvent) error {
 func (a *app) fold(workspace, id string, collapsed bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.collapsed[workspace] == nil {
-		a.collapsed[workspace] = map[string]bool{}
+	if a.expanded[workspace] == nil {
+		a.expanded[workspace] = map[string]bool{}
 	}
-	a.collapsed[workspace][id] = collapsed
+	a.expanded[workspace][id] = !collapsed
 }
 
 func (a *app) unfoldGroupOf(workspace, id string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if t, ok := a.triggers[id]; ok && t.Run != "" {
-		delete(a.collapsed[workspace], groupPrefix+t.Run)
+		if a.expanded[workspace] == nil {
+			a.expanded[workspace] = map[string]bool{}
+		}
+		a.expanded[workspace][groupPrefix+t.Run] = true
 	}
 }
 
 func (a *app) folds(workspace string) map[string]bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return maps.Clone(a.collapsed[workspace])
+	return maps.Clone(a.expanded[workspace])
 }
 
 func (a *app) runNow(ctx context.Context, workspace, id string) error {
