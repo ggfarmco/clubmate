@@ -279,6 +279,26 @@ func TestEndOutcomeFinishesRun(t *testing.T) {
 	assert.Equal(t, []string{"triggers.delete", "triggers.delete", "triggers.delete"}, core.ids())
 }
 
+func TestOwnerlessAgentRunMayDeleteItsTriggers(t *testing.T) {
+	core := &fakeCore{}
+	a := testApp(t, core)
+	require.NoError(t, trustGraph(t, a, "review-loop"))
+	out, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.run", WorkspaceID: "ws1", Agent: true, Args: json.RawMessage(`{"graph":"review-loop"}`)})
+	require.NoError(t, err)
+	r, ok := out.(*Run)
+	require.True(t, ok)
+	core.calls = nil
+
+	_, err = a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.stop", WorkspaceID: "ws1", Args: json.RawMessage(`{"id":"` + r.ID + `"}`)})
+	require.NoError(t, err)
+
+	deletes := slices.DeleteFunc(slices.Clone(core.calls), func(req automation.CommandRequest) bool { return req.ID != "triggers.delete" })
+	require.Len(t, deletes, 3)
+	for _, req := range deletes {
+		assert.True(t, automation.Allowed(pluginsdk.CommandRun{Agent: req.Agent, Caller: req.Caller}, automation.Action{Workspace: "ws1"}, nil))
+	}
+}
+
 func TestRunUnwindsWhenATriggerFails(t *testing.T) {
 	core := &fakeCore{}
 	a := testApp(t, core)

@@ -223,7 +223,7 @@ func (x *runner) repoint(ctx context.Context) []error {
 		}
 		args, err := x.edgeTrigger(x.run.Spec, e)
 		if err == nil {
-			err = x.do(ctx, "triggers.update", updateArgs{ID: x.run.Edges[i].Trigger, Match: args.Match, Args: args.Args}, nil)
+			err = x.own(ctx, "triggers.update", updateArgs{ID: x.run.Edges[i].Trigger, Match: args.Match, Args: args.Args})
 		}
 		if err != nil {
 			errs = append(errs, fmt.Errorf("re-point %s → %s: %w", e.From, e.To, err))
@@ -238,7 +238,7 @@ func (x *runner) unwind(ctx context.Context) []error {
 		if e.Trigger == "" {
 			continue
 		}
-		if err := x.do(ctx, "triggers.delete", automation.IDArgs{ID: e.Trigger}, nil); err != nil && !isUnknownTrigger(err) {
+		if err := x.own(ctx, "triggers.delete", automation.IDArgs{ID: e.Trigger}); err != nil && !isUnknownTrigger(err) {
 			errs = append(errs, fmt.Errorf("delete trigger %s: %w", e.Trigger, err))
 		}
 	}
@@ -417,6 +417,15 @@ func (x *runner) do(ctx context.Context, command string, args, out any) error {
 		return nil
 	}
 	return json.Unmarshal(res, out)
+}
+
+func (x *runner) own(ctx context.Context, command string, args any) error {
+	raw, err := json.Marshal(args)
+	if err != nil {
+		return err
+	}
+	_, err = x.call(ctx, automation.CommandRequest{ID: command, WorkspaceID: x.run.Workspace, Args: raw})
+	return err
 }
 
 func (r *Run) StorageKey() (workspace, id string) {
