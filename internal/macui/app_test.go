@@ -26,12 +26,13 @@ type instance struct {
 }
 
 type element struct {
-	ID     string     `json:"id"`
-	Role   string     `json:"role"`
-	Label  string     `json:"label"`
-	Parent string     `json:"parent"`
-	Frame  rect       `json:"frame"`
-	Menu   []menuItem `json:"menu"`
+	ID      string     `json:"id"`
+	Role    string     `json:"role"`
+	Label   string     `json:"label"`
+	Parent  string     `json:"parent"`
+	Frame   rect       `json:"frame"`
+	Visible *rect      `json:"visible"`
+	Menu    []menuItem `json:"menu"`
 }
 
 type rect struct {

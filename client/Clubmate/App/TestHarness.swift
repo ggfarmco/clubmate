@@ -489,7 +489,11 @@ final class TestHarness {
         }
         var out: [LayoutElement] = []
         for probe in probes.allObjects where probe.window === window && !probe.isHiddenOrHasHiddenAncestor {
-            out.append(LayoutElement(id: probe.nodeID, source: probe.source, role: probe.role, label: probe.label, frame: flip(probe.convert(probe.bounds, to: nil)), parent: probe.parent, text: nil, idealWidth: probe.idealWidth, lineHeight: probe.lineHeight, menu: probe.menuItems, flags: []))
+            let bounds = probe.convert(probe.bounds, to: nil)
+            let frame = flip(bounds)
+            let shown = bounds.intersection(probe.convert(probe.visibleRect, to: nil))
+            let visible = flip(shown.isNull ? NSRect(origin: bounds.origin, size: .zero) : shown)
+            out.append(LayoutElement(id: probe.nodeID, source: probe.source, role: probe.role, label: probe.label, frame: frame, parent: probe.parent, text: nil, idealWidth: probe.idealWidth, lineHeight: probe.lineHeight, menu: probe.menuItems, flags: [], visible: visible == frame ? nil : visible))
         }
         for terminal in WindowImage.terminals(in: root) {
             out.append(LayoutElement(id: "terminal-\(terminal.sessionID)", source: "terminal", role: "terminal", label: terminal.sessionID, frame: flip(terminal.convert(terminal.bounds, to: nil)), parent: nil, text: terminal.viewportText(), idealWidth: nil, lineHeight: nil, menu: nil, flags: []))

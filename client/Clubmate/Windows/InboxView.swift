@@ -59,6 +59,8 @@ struct InboxView: View {
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
             .frame(idealHeight: contentHeight)
+            .clipped()
+            .testNode("inbox.list", role: "list")
             if notifications.systemOff {
                 Divider()
                 footer(notifications)

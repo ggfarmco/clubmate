@@ -1,11 +1,13 @@
 package macui_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -75,5 +77,57 @@ func TestInboxGraphPinOpensTheRun(t *testing.T) {
 	in.eventually("Graphs opens on that run", func() bool {
 		s := in.snapshot()
 		return s.kind("popover") == nil && in.selected("runs#"+run.ID)
+	})
+}
+
+func TestInboxClipsALongListToThePopover(t *testing.T) {
+	in := start(t, "macui-inbox-long", "")
+	for i := range 12 {
+		deadline := time.Now().Add(30 * time.Second)
+		for {
+			out, err := in.run("notify", "--title", fmt.Sprintf("Note %d", i), fmt.Sprintf("Message %d", i))
+			if err == nil {
+				break
+			}
+			require.Contains(t, string(out), "too many notifications")
+			require.True(t, time.Now().Before(deadline), "note %d is still rate limited", i)
+			time.Sleep(time.Second)
+		}
+	}
+	in.cm("ui", "present", "inbox")
+	in.eventually("the inbox shows a full list", func() bool {
+		p := in.snapshot().kind("popover")
+		return p != nil && p.label("row", "Note 4") != nil
+	})
+
+	shown := func() (*window, float64) {
+		p := in.snapshot().kind("popover")
+		list := p.node("inbox.list")
+		require.NotNil(t, list)
+		bottom := list.Frame.Y + list.Frame.Height
+		require.LessOrEqual(t, bottom-list.Frame.X, 480.0, "the popover keeps its 480pt cap")
+		for _, e := range p.elements {
+			if e.Role != "row" || e.Frame.Y >= bottom || e.Frame.Y+e.Frame.Height <= list.Frame.Y {
+				continue
+			}
+			drawn := e.Frame
+			if e.Visible != nil {
+				drawn = *e.Visible
+			}
+			require.GreaterOrEqual(t, drawn.Y, list.Frame.Y, "%s is drawn over the header", e.Label)
+			require.LessOrEqual(t, drawn.Y+drawn.Height, bottom, "%s is drawn past the list's bottom edge", e.Label)
+		}
+		return p, bottom
+	}
+	shown()
+	in.eventually("the oldest note scrolls into the list", func() bool {
+		p, bottom := shown()
+		if last := p.label("row", "Note 0"); last != nil && last.Frame.Y+last.Frame.Height <= bottom {
+			return true
+		}
+		row := p.find(func(e element) bool { return e.Role == "row" && e.Frame.Y >= 0 && e.Frame.Y+e.Frame.Height < bottom })
+		require.NotNil(t, row)
+		in.pointer("scroll", row.ID, "--dy=20")
+		return false
 	})
 }
