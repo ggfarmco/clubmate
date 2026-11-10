@@ -353,7 +353,7 @@ Defaults of the bundled nvim distribution (`nvim-distro/`). Keys in normal mode 
 | Git | ,gs (normal, visual) | Stage hunk, stage the selected lines | `lua/clubmate/plugins/git.lua` |
 | Git | ,lg / ,lf | LazyGit, LazyGit history of the file (needs `lazygit` on PATH) | `lua/clubmate/keymaps.lua` |
 | Diff | ,dv | Diffview of the working tree | `lua/clubmate/plugins/git.lua` |
-| Diff | ,dm / ,dM | Diff against the merge base with `main`, with a picked branch | `lua/clubmate/plugins/git.lua` |
+| Diff | ,dm / ,dM | Diff against the merge base with `main`, with a picked branch (recently committed first) | `lua/clubmate/plugins/git.lua` |
 | Diff | ,dh / ,dq | File history, close Diffview | `lua/clubmate/plugins/git.lua` |
 | Diff | q / e (Diffview) | Close, edit the file; `s` stage, `r` mark reviewed in the file panel | `lua/clubmate/plugins/git.lua` |
 | Diff | zc / zt / zg / zr (Diffview file panel) | Show or hide code files, test files, generated files, reviewed files (`h` still folds a folder) | diffview.nvim `config.lua` |

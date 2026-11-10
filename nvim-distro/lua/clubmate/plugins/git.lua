@@ -119,6 +119,15 @@ return {
           Snacks.picker.git_branches({
             all = true,
             title = "Diff base",
+            cmd_args = { "--sort=-committerdate" },
+            on_show = function(picker)
+              for i, item in ipairs(picker:items()) do
+                if item.branch and not item.current then
+                  picker.list:view(i)
+                  return
+                end
+              end
+            end,
             confirm = function(picker, item)
               picker:close()
               if item and item.branch then

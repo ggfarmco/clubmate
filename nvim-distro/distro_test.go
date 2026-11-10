@@ -531,6 +531,45 @@ return out`, &bars))
 	assert.Contains(t, open("HEAD")[0], " main "+git("rev-parse", "--short", "HEAD")+" · ")
 }
 
+func TestDiffBasePickerListsRecentBranchesFirst(t *testing.T) {
+	v := startDistro(t, opts{})
+	repo := t.TempDir()
+	commit := func(date string, args ...string) {
+		cmd := exec.Command("git", append([]string{"-C", repo, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_COMMITTER_DATE="+date, "GIT_AUTHOR_DATE="+date)
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	commit("2026-01-01T00:00:00", "init", "-q", "-b", "main")
+	commit("2026-01-01T00:00:00", "commit", "-q", "--allow-empty", "-m", "old")
+	commit("2026-01-01T00:00:00", "branch", "a-old")
+	commit("2026-02-01T00:00:00", "commit", "-q", "--allow-empty", "-m", "mid")
+	commit("2026-02-01T00:00:00", "branch", "z-mid")
+	commit("2026-03-01T00:00:00", "commit", "-q", "--allow-empty", "-m", "new")
+
+	require.NoError(t, v.Command("cd "+repo))
+	_, err := v.Input(",dM")
+	require.NoError(t, err)
+
+	var got struct {
+		Branches []string
+		Cursor   string
+	}
+	testutil.Eventually(t, func() bool {
+		require.NoError(t, v.ExecLua(`
+local picker = Snacks.picker.get({ source = "git_branches" })[1]
+if not picker then return { Branches = {}, Cursor = "" } end
+local cur = picker:current()
+return {
+  Branches = vim.tbl_map(function(item) return item.branch end, picker:items()),
+  Cursor = cur and cur.branch or "",
+}`, &got))
+		return len(got.Branches) == 3 && got.Cursor != ""
+	}, 10*time.Second)
+	assert.Equal(t, []string{"main", "z-mid", "a-old"}, got.Branches)
+	assert.Equal(t, "z-mid", got.Cursor)
+}
+
 func TestDiffviewHostAPIVersion(t *testing.T) {
 	v := startDistro(t, opts{})
 	repo := t.TempDir()
