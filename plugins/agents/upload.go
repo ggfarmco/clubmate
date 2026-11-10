@@ -42,3 +42,7 @@ func (a *app) saveUploads(session string, atts []attachment) error {
 	}
 	return nil
 }
+
+func (a *app) dropUploads(session string) error {
+	return os.RemoveAll(filepath.Join(a.stateDir, uploadsDir, session))
+}

@@ -359,6 +359,13 @@ func (s *session) notice(title, description string) {
 	s.noticeUpdate(noticeUpdate{SessionUpdate: acp.UpdateNotice, Title: title, Description: description})
 }
 
+func (s *session) setStartNotice(text string) {
+	s.mu.Lock()
+	s.rec.StartNotice = text
+	s.mu.Unlock()
+	s.changed(changeUpdate, true)
+}
+
 func (s *session) noticeUpdate(n noticeUpdate) {
 	s.mu.Lock()
 	s.recordLocked(actorClubmate, kindUpdate, n)

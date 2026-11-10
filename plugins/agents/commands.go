@@ -143,15 +143,18 @@ type newArgs struct {
 	Mode            string         `json:"mode"`
 	FirstMode       string         `json:"firstMode"`
 	Model           string         `json:"model"`
+	Effort          string         `json:"effort"`
 	AFK             *bool          `json:"afk"`
 	Finish          string         `json:"finish"`
 	CronJob         string         `json:"cronJob"`
 	Trigger         string         `json:"trigger"`
+	JobBy           string         `json:"jobBy"`
 	Repo            string         `json:"repo"`
 	Slug            string         `json:"slug"`
 	Base            string         `json:"base"`
 	worktree        string
 	review          *reviewSent
+	via             string
 }
 
 type newResult struct {
@@ -309,6 +312,7 @@ func (a *app) newCommand(ctx context.Context, cmd pluginsdk.CommandRun, args new
 	if args.FirstMode != "" && !a.userWord(cmd) && (cmd.Via != backlogPlugin || a.session(cmd.Caller) != nil) {
 		return nil, errFirstModeUser
 	}
+	args.via = cmd.Via
 	res, err := a.newSession(ctx, a.host, cmd.WorkspaceID, origin(cmd), args)
 	if err != nil {
 		return nil, err

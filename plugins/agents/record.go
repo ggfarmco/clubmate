@@ -58,6 +58,7 @@ type record struct {
 	Finish          string    `json:"finish,omitempty"`
 	AFK             bool      `json:"afk,omitempty"`
 	AFKBy           string    `json:"afkBy,omitempty"`
+	StartedBy       string    `json:"startedBy,omitempty"`
 	Suspended       bool      `json:"suspended,omitempty"`
 	AutoClosed      bool      `json:"autoClosed,omitempty"`
 	CleanupOnSeen   bool      `json:"cleanupOnSeen,omitempty"`
@@ -81,6 +82,8 @@ type record struct {
 	StartMode       string    `json:"startMode,omitempty"`
 	FirstMode       string    `json:"firstMode,omitempty"`
 	StartModel      string    `json:"startModel,omitempty"`
+	StartEffort     string    `json:"startEffort,omitempty"`
+	StartNotice     string    `json:"startNotice,omitempty"`
 	Night           string    `json:"night,omitempty"`
 	NightSealed     bool      `json:"nightSealed,omitempty"`
 	Refused         int       `json:"refused,omitempty"`

@@ -56,6 +56,9 @@ type record struct {
 	Mode           string   `json:"mode"`
 	Finish         string   `json:"finish"`
 	AFK            bool     `json:"afk"`
+	AFKBy          string   `json:"afkBy"`
+	StartedBy      string   `json:"startedBy"`
+	StartNotice    string   `json:"startNotice"`
 	CronJob        string   `json:"cronJob"`
 	Error          string   `json:"error"`
 	Pending        []string `json:"pending"`
@@ -2593,20 +2596,22 @@ func TestAgentChildWithModelIsOrdinary(t *testing.T) {
 	assert.Len(t, slices.DeleteFunc(f.calls(t, "session/set_config_option"), func(c fakeCall) bool { return !pinned(c) }), 1)
 }
 
-func TestNewSessionModelNotOffered(t *testing.T) {
+func TestNewSessionModelNotOfferedEffortSet(t *testing.T) {
 	t.Parallel()
 	f := start(t, map[string]any{
 		"configs": []map[string]any{
 			{"id": "model", "name": "Model", "category": "model", "type": "select", "currentValue": "default", "options": []map[string]string{{"value": "default", "name": "Default"}, {"value": "sonnet", "name": "Sonnet"}}},
+			{"id": "effort", "name": "Effort", "category": "thought_level", "type": "select", "currentValue": "default", "options": []map[string]string{{"value": "default", "name": "Default"}, {"value": "high", "name": "High"}}},
 		},
 	})
 	workspace := f.workspace(t, newRepo(t))
 	var out struct {
 		Session string `json:"session"`
 	}
-	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{"model": "fable", "prompt": "go"}, &out))
+	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{"model": "fable", "effort": "high", "prompt": "go"}, &out))
 
-	f.waitStatus(t, workspace, out.Session, "done")
+	got := f.waitStatus(t, workspace, out.Session, "done")
+	assert.Equal(t, "Model fable is not available. The session runs on its current model. Models offered: default, sonnet.", got.StartNotice)
 	notices := ofKind(f.transcript(t, workspace, out.Session).Entries, "notice")
 	require.Len(t, notices, 1)
 	var n struct {
@@ -2616,7 +2621,9 @@ func TestNewSessionModelNotOffered(t *testing.T) {
 	require.NoError(t, json.Unmarshal(notices[0].Notice, &n))
 	assert.Equal(t, "Model fable is not available", n.Title)
 	assert.Contains(t, n.Description, "Models offered: default, sonnet.")
-	assert.Empty(t, f.calls(t, "session/set_config_option"))
+	sets := f.calls(t, "session/set_config_option")
+	require.Len(t, sets, 1)
+	assert.Contains(t, string(sets[0].Params), `"configId":"effort","value":"high"`)
 }
 
 func TestNewSessionFirstModeFromUser(t *testing.T) {

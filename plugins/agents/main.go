@@ -43,6 +43,7 @@ type app struct {
 	usage     usageTracker
 	branches  branchCache
 	texts     textIndex
+	found     searchCache
 	watchdog  watchdog
 	reviews   *reviewBoard
 	self      *selfStore
@@ -191,6 +192,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	}
 	go a.suspendIdleLoop(envDelay(suspendAfterEnv, suspendAfter))
 	go a.closeDoneLoop(envDelay(closeAfterEnv, closeAfter))
+	go a.deleteOldLoop(envDelay(deleteAfterEnv, deleteAfter))
 	go a.prCheckLoop(envDelay(prCheckEnv, prCheckEvery))
 	go a.ageOpenLoop(envDelay(openAfterEnv, openAfter))
 	go a.continueCutOff(cut)
@@ -209,7 +211,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 	case gitChangedTopic:
 		var p gitChanged
 		if json.Unmarshal(ev.Payload, &p) == nil {
-			a.branches.reset()
+			a.branches.reset(p.Workspace)
 			a.kick(p.Workspace)
 		}
 	case editorFileTopic:

@@ -18,10 +18,18 @@ var (
 )
 
 const (
-	modelMissing  = "Model %s is not available"
-	modelNoChoice = "The agent offers no model choice; the session runs on its default model."
-	modelChoices  = "The session runs on its current model. Models offered: %s."
+	startMissing  = "%s %s is not available"
+	startNoChoice = "The agent offers no %s choice; the session runs on its default %s."
+	startChoices  = "The session runs on its current %s. %s offered: %s."
 )
+
+type startConfig struct {
+	category string
+	name     string
+	noun     string
+	offered  string
+	value    string
+}
 
 func (a *app) attachInBackground(s *session) {
 	if _, err := a.attach(s); err != nil {
@@ -132,8 +140,9 @@ func (a *app) attachAgent(s *session) (*agentProc, error) {
 	s.changed(changeStatus, true)
 	mode, value := a.startSettings(ctx, rec)
 	a.applyMode(ctx, s, res.Modes, cmp.Or(rec.StartMode, rec.FirstMode, mode))
-	failed := a.applyConfigs(ctx, s, res.ConfigOptions, withModel(res.ConfigOptions, rec.StartModel, value))
-	reportModel(s, res.ConfigOptions, rec.StartModel, failed)
+	starts := startConfigs(rec)
+	configs, failed := a.applyConfigs(ctx, s, res.ConfigOptions, withStart(starts, value))
+	reportStart(s, configs, starts, failed)
 	return p, nil
 }
 
@@ -183,7 +192,7 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 		if rec.Night == "" {
 			a.applyMode(ctx, s, res.Modes, cmp.Or(rec.StartMode, mode))
 		}
-		a.applyConfigs(ctx, s, res.ConfigOptions, withModel(res.ConfigOptions, rec.pinnedModel(), func(id string) string { return values[id] }))
+		a.applyConfigs(ctx, s, res.ConfigOptions, withStart([]startConfig{{category: acp.CategoryModel, value: rec.pinnedModel()}}, func(id string) string { return values[id] }))
 	}
 	return nil
 }
@@ -231,14 +240,14 @@ func (a *app) applyMode(ctx context.Context, s *session, modes *acp.SessionModeS
 	}
 }
 
-func (a *app) applyConfigs(ctx context.Context, s *session, configs []acp.SessionConfigOption, valueOf func(id string) string) []string {
+func (a *app) applyConfigs(ctx context.Context, s *session, configs []acp.SessionConfigOption, valueOf func(o acp.SessionConfigOption) string) ([]acp.SessionConfigOption, []string) {
 	var failed []string
 	for i := 0; i < len(configs); i++ {
 		o := configs[i]
 		if !pickable(o) {
 			continue
 		}
-		value := valueOf(o.ID)
+		value := valueOf(o)
 		if _, live := s.settings(); value == "" || value == live[o.ID] {
 			continue
 		}
@@ -256,35 +265,55 @@ func (a *app) applyConfigs(ctx context.Context, s *session, configs []acp.Sessio
 			configs = next
 		}
 	}
-	return failed
+	return configs, failed
 }
 
-func reportModel(s *session, configs []acp.SessionConfigOption, model string, failed []string) {
-	if model == "" {
-		return
-	}
-	i := slices.IndexFunc(configs, func(o acp.SessionConfigOption) bool { return o.Category == acp.CategoryModel })
-	switch {
-	case i < 0:
-		s.notice(fmt.Sprintf(modelMissing, model), modelNoChoice)
-	case slices.Contains(failed, configs[i].ID):
-		var offered []string
-		for _, c := range configs[i].Choices() {
-			offered = append(offered, c.Value)
-		}
-		s.notice(fmt.Sprintf(modelMissing, model), fmt.Sprintf(modelChoices, strings.Join(offered, ", ")))
+func startConfigs(rec record) []startConfig {
+	return []startConfig{
+		{category: acp.CategoryModel, name: "Model", noun: "model", offered: "Models", value: rec.StartModel},
+		{category: acp.CategoryThoughtLevel, name: "Effort", noun: "effort", offered: "Effort levels", value: rec.StartEffort},
 	}
 }
 
-func withModel(configs []acp.SessionConfigOption, model string, valueOf func(id string) string) func(id string) string {
-	i := slices.IndexFunc(configs, func(o acp.SessionConfigOption) bool { return o.Category == acp.CategoryModel })
-	if model == "" || i < 0 {
-		return valueOf
-	}
-	return func(id string) string {
-		if id == configs[i].ID {
-			return model
+func (c startConfig) of(o acp.SessionConfigOption) bool {
+	return o.Category == c.category
+}
+
+func reportStart(s *session, configs []acp.SessionConfigOption, starts []startConfig, failed []string) {
+	var notes []string
+	for _, c := range starts {
+		if c.value == "" {
+			continue
 		}
-		return valueOf(id)
+		var why string
+		switch i := slices.IndexFunc(configs, c.of); {
+		case i < 0:
+			why = fmt.Sprintf(startNoChoice, c.noun, c.noun)
+		case slices.Contains(failed, configs[i].ID):
+			var offered []string
+			for _, choice := range configs[i].Choices() {
+				offered = append(offered, choice.Value)
+			}
+			why = fmt.Sprintf(startChoices, c.noun, c.offered, strings.Join(offered, ", "))
+		default:
+			continue
+		}
+		title := fmt.Sprintf(startMissing, c.name, c.value)
+		s.notice(title, why)
+		notes = append(notes, title+". "+why)
+	}
+	if len(notes) > 0 {
+		s.setStartNotice(strings.Join(notes, " "))
+	}
+}
+
+func withStart(starts []startConfig, valueOf func(id string) string) func(o acp.SessionConfigOption) string {
+	return func(o acp.SessionConfigOption) string {
+		for _, c := range starts {
+			if c.value != "" && c.of(o) {
+				return c.value
+			}
+		}
+		return valueOf(o.ID)
 	}
 }

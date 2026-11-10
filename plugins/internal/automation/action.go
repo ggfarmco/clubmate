@@ -17,6 +17,7 @@ const (
 	PromptCommand       = "agents.prompt"
 	OriginCronJob       = "cronJob"
 	OriginTrigger       = "trigger"
+	JobByField          = "jobBy"
 	OwnerNone           = "none"
 	PluginCreatorPrefix = "plugin:"
 	nobody              = "nobody — failures go to the inbox"
@@ -133,6 +134,9 @@ func (x Executor) withOrigin(act Action) (json.RawMessage, error) {
 		}
 	}
 	fields[x.Origin], _ = json.Marshal(act.ID)
+	if act.Command == agentNew {
+		fields[JobByField], _ = json.Marshal(act.CreatedBy)
+	}
 	return json.Marshal(fields)
 }
 

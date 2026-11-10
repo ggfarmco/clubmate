@@ -97,7 +97,7 @@ Each run keeps what led to its event as `chain`: `session` (and its `title`) for
 
 ## Owner
 
-A trigger added by an agent belongs to that agent session by default (`owner: "self"`) and is deleted when the session is closed or deleted. `owner: "none"` makes it outlive the session. Triggers added by the user, the CLI or a plugin have no owner.
+A trigger added by an agent belongs to that agent session by default (`owner: "self"`) and is deleted when the session is closed or deleted. `owner: "none"` makes it outlive the session. Triggers added by the user, the CLI or a plugin have no owner. As with cron, a session a trigger with `owner: "none"` starts gets your AFK default only when you or a plugin made the trigger (`jobBy`).
 
 An agent may update, pause, resume and delete only triggers owned or created by itself or by its child sessions, and any trigger a plugin added (`createdBy: plugin:<id>`), so you can change such a rule by asking any session; an agent call without an agent session may not change any. The Triggers section acts for you, so it can change any trigger.
 

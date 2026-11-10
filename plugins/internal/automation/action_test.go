@@ -40,8 +40,8 @@ func TestExecuteNamesOriginOfNewSessions(t *testing.T) {
 		got = append(got, string(req.Args))
 		return nil, nil
 	}}
-	x.Execute(t.Context(), Action{ID: "cj_1", Command: agentNew, Args: json.RawMessage(`{"prompt":"tidy"}`)}, Run{})
-	x.Execute(t.Context(), Action{ID: "cj_1", Command: agentNew}, Run{})
+	x.Execute(t.Context(), Action{ID: "cj_1", Command: agentNew, CreatedBy: "agt_a", Args: json.RawMessage(`{"prompt":"tidy","jobBy":""}`)}, Run{})
+	x.Execute(t.Context(), Action{ID: "cj_1", Command: agentNew, Args: json.RawMessage(`{"jobBy":"agt_a"}`)}, Run{})
 	x.Execute(t.Context(), Action{ID: "cj_1", Command: PromptCommand, Args: json.RawMessage(`{"session":"agt_1"}`)}, Run{})
-	assert.Equal(t, []string{`{"cronJob":"cj_1","prompt":"tidy"}`, `{"cronJob":"cj_1"}`, `{"session":"agt_1"}`}, got)
+	assert.Equal(t, []string{`{"cronJob":"cj_1","jobBy":"agt_a","prompt":"tidy"}`, `{"cronJob":"cj_1","jobBy":""}`, `{"session":"agt_1"}`}, got)
 }

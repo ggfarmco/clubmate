@@ -20,12 +20,12 @@ type gitChanged struct {
 
 type branchCache struct {
 	mu    sync.Mutex
-	names map[string]string
+	names map[string]map[string]string
 }
 
-func (c *branchCache) name(ctx context.Context, root string) string {
+func (c *branchCache) name(ctx context.Context, workspace, root string) string {
 	c.mu.Lock()
-	name, ok := c.names[root]
+	name, ok := c.names[workspace][root]
 	c.mu.Unlock()
 	if ok {
 		return name
@@ -36,9 +36,12 @@ func (c *branchCache) name(ctx context.Context, root string) string {
 	name, _ = gitrepo.Branch(ctx, root)
 	c.mu.Lock()
 	if c.names == nil {
-		c.names = map[string]string{}
+		c.names = map[string]map[string]string{}
 	}
-	c.names[root] = name
+	if c.names[workspace] == nil {
+		c.names[workspace] = map[string]string{}
+	}
+	c.names[workspace][root] = name
 	c.mu.Unlock()
 	return name
 }
@@ -54,8 +57,8 @@ func branchLabel(name string) string {
 	return name
 }
 
-func (c *branchCache) reset() {
+func (c *branchCache) reset(workspace string) {
 	c.mu.Lock()
-	c.names = nil
+	delete(c.names, workspace)
 	c.mu.Unlock()
 }

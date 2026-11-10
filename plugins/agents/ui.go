@@ -448,7 +448,7 @@ func (a *app) editorFile(workspaceID, root string) string {
 func (a *app) sessionRow(ctx context.Context, rec record, children string) sessionRow {
 	var branch string
 	if rec.Night == "" {
-		branch = a.branches.name(ctx, rec.Worktree)
+		branch = a.branches.name(ctx, rec.Workspace, rec.Worktree)
 	}
 	row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children, Branch: branchLabel(branch), Detached: detachedBranch(branch), Review: a.reviews.progress(rec.ID)}
 	if s := a.session(rec.ID); s != nil {

@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"clubmate/pkg/id"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/automation"
 	"clubmate/plugins/internal/gitrepo"
 )
 
@@ -31,6 +33,7 @@ var (
 	errNotGit     = errors.New("the worktree is not in a git folder of the workspace")
 	errBadBranch  = errors.New("not a valid branch name")
 	errChildLimit = fmt.Errorf("a session may run at most %d child sessions at once", maxChildren)
+	errAwayLimit  = fmt.Errorf("an agent may keep at most %d sessions open outside its own tree", maxChildren)
 	errRepoFolder = errors.New("this repo is not a folder of the workspace; connect it first")
 	errRepoName   = errors.New("a repo child needs a slug or a branch")
 	errRepoOnly   = errors.New("slug and base go with repo: pass repo, the workspace folder this child works in, after declaring it in your task with agents_task")
@@ -67,7 +70,7 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 	if args.Finish != "" && !validFinish(args.Finish) {
 		return newResult{}, fmt.Errorf("%w: %s=%s", errUnknownValue, finishID, args.Finish)
 	}
-	rec := record{Workspace: workspaceID, Agent: agent, Title: titleOf(args.Title), TitleSet: args.Title != "", Notify: storedNotify(args.Notify), DisallowedTools: args.DisallowedTools, SystemPrompt: args.SystemPrompt, StartMode: args.Mode, FirstMode: args.FirstMode, StartModel: args.Model, CronJob: args.CronJob, Trigger: args.Trigger}
+	rec := record{Workspace: workspaceID, Agent: agent, Title: titleOf(args.Title), TitleSet: args.Title != "", Notify: storedNotify(args.Notify), DisallowedTools: args.DisallowedTools, SystemPrompt: args.SystemPrompt, StartMode: args.Mode, FirstMode: args.FirstMode, StartModel: args.Model, StartEffort: args.Effort, CronJob: args.CronJob, Trigger: args.Trigger}
 	if args.Run != "" {
 		rec.Run = &api.Run{ID: args.Run, Title: args.RunTitle, After: args.RunAfter}
 	}
@@ -104,13 +107,16 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 		root = args.worktree
 	}
 	rec.Worktree = root
-	rec.Finish, rec.AFK = a.sessionDefaults(ctx, rec.ParentSession)
+	if prec.ID == "" {
+		rec.StartedBy = a.agentStarter(from, args)
+	}
+	rec.Finish, rec.AFK = a.sessionDefaults(ctx, cmp.Or(rec.ParentSession, rec.StartedBy))
 	rec.Finish = cmp.Or(args.Finish, rec.Finish)
 	if args.AFK != nil {
 		rec.AFK = *args.AFK
 	}
 	if rec.AFK && args.AFK != nil && from != "" {
-		rec.AFKBy = from
+		rec.AFKBy = cmp.Or(rec.StartedBy, from)
 	}
 	s, err := a.spawn(rec, promptArgs{Text: args.Prompt, From: from, Review: args.review}, ready)
 	if ready != nil && s != nil {
@@ -123,6 +129,24 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 		go a.landingChanged()
 	}
 	return newResult{Session: s.rec.ID, Worktree: root, parent: rec.ParentSession}, nil
+}
+
+func (a *app) agentStarter(from string, args newArgs) string {
+	switch {
+	case from == "":
+		return ""
+	case from != unknownCaller:
+		if a.session(from) != nil {
+			return from
+		}
+	case args.CronJob != "" || args.Trigger != "":
+		if args.JobBy != "" && !strings.HasPrefix(args.JobBy, automation.PluginCreatorPrefix) {
+			return args.JobBy
+		}
+	case args.via == "":
+		return unknownCaller
+	}
+	return ""
 }
 
 func workspaceRoot(ctx context.Context, h *pluginsdk.Host, workspaceID string) (pluginsdk.Workspace, string, error) {
@@ -156,6 +180,9 @@ func (a *app) spawn(rec record, first promptArgs, ready *setup) (*session, error
 	defer a.spawnMu.Unlock()
 	if err := a.canSpawnLocked(rec.ParentSession); err != nil {
 		return nil, err
+	}
+	if rec.StartedBy != "" && a.openStartedBy(rec.StartedBy) >= maxChildren {
+		return nil, errAwayLimit
 	}
 	if a.leavingLocked(rec.Worktree) {
 		return nil, errFolderLeaving

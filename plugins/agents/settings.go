@@ -253,10 +253,10 @@ func (a *app) setFinish(s *session, value string) error {
 	return nil
 }
 
-func (a *app) sessionDefaults(ctx context.Context, parent string) (string, bool) {
+func (a *app) sessionDefaults(ctx context.Context, owner string) (string, bool) {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
-	return a.finishDefault(ctx), parent == "" && a.afkDefault(ctx)
+	return a.finishDefault(ctx), owner == "" && a.afkDefault(ctx)
 }
 
 func (a *app) afkDefault(ctx context.Context) bool {

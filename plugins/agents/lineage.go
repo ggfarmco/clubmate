@@ -57,6 +57,16 @@ func (a *app) runningChildren(id string) int {
 	return n
 }
 
+func (a *app) openStartedBy(starter string) int {
+	n := 0
+	for _, s := range a.allSessions() {
+		if rec := s.snapshot(); rec.StartedBy == starter && !rec.closed() {
+			n++
+		}
+	}
+	return n
+}
+
 func (a *app) descendantOf(id, ancestor string) bool {
 	s := a.session(id)
 	if s == nil || id == ancestor {

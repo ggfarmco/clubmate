@@ -134,3 +134,20 @@ func TestSidebarShowsSearchResultsInPlaceOfTheTree(t *testing.T) {
 	none := sidebarView(rows, "", nil, now, "/r/a", false, "", sidebarSearch{query: "zzz"}, 0)
 	assert.Equal(t, fmt.Sprintf(noMatches, "zzz"), nodesOf(none, "empty")[0].Props["text"])
 }
+
+func TestSearchReusesResultsUntilTheIndexChanges(t *testing.T) {
+	t.Parallel()
+	a := searchApp(t, record{ID: "agt_1", Workspace: "w", Title: "One"})
+	appendLog(t, a, "agt_1", promptLine(t, 1, "refund"))
+	first := a.search("w", "refund")
+	require.Len(t, first, 1)
+	assert.Same(t, &first[0], &a.search("w", "refund")[0])
+
+	appendLog(t, a, "agt_1", promptLine(t, 2, "refund again"))
+	grown := a.search("w", "refund")
+	assert.NotSame(t, &first[0], &grown[0])
+	assert.Len(t, grown[0].Hits, 2)
+
+	a.texts.forget(logPath(a.stateDir, "agt_1"))
+	assert.NotContains(t, a.texts.logs, logPath(a.stateDir, "agt_1"))
+}

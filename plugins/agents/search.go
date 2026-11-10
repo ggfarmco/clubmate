@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"cmp"
+	"encoding/binary"
 	"encoding/json"
+	"hash/fnv"
 	"io"
 	"os"
 	"regexp"
@@ -23,6 +25,7 @@ const (
 	hitReply  = "reply"
 
 	maxSearchResults = 50
+	maxCachedSearch  = 32
 	maxSessionHits   = 3
 	snippetBefore    = 12
 	snippetRunes     = 120
@@ -60,6 +63,18 @@ type searchResult struct {
 type textIndex struct {
 	mu   sync.Mutex
 	logs map[string]*indexedLog
+	rev  uint64
+}
+
+type searchKey struct {
+	query string
+	recs  uint64
+	rev   uint64
+}
+
+type searchCache struct {
+	mu  sync.Mutex
+	out map[searchKey][]searchResult
 }
 
 type indexedLog struct {
@@ -86,14 +101,23 @@ func (a *app) searchIn(recs []record, query string) []searchResult {
 	if query == "" {
 		return []searchResult{}
 	}
+	paths := make([]string, len(recs))
+	for i, rec := range recs {
+		paths[i] = logPath(a.stateDir, rec.ID)
+	}
+	texts, rev := a.texts.all(paths)
+	key := searchKey{query: query, recs: recsHash(recs), rev: rev}
+	if out, ok := a.found.get(key); ok {
+		return out
+	}
 	needle := strings.ToLower(query)
 	out := []searchResult{}
-	for _, rec := range recs {
+	for i, rec := range recs {
 		var hits []searchHit
 		if snippet, ok := match(rec.Title, needle); ok {
 			hits = append(hits, searchHit{Kind: hitTitle, Snippet: snippet})
 		}
-		for _, t := range a.texts.of(logPath(a.stateDir, rec.ID)) {
+		for _, t := range texts[i] {
 			if len(hits) == maxSessionHits {
 				break
 			}
@@ -109,7 +133,39 @@ func (a *app) searchIn(recs []record, query string) []searchResult {
 	slices.SortStableFunc(out, func(x, y searchResult) int {
 		return cmp.Or(boolInt(y.Hits[0].Kind == hitTitle)-boolInt(x.Hits[0].Kind == hitTitle), y.UpdatedAt.Compare(x.UpdatedAt))
 	})
-	return out[:min(len(out), maxSearchResults)]
+	out = out[:min(len(out), maxSearchResults)]
+	a.found.put(key, out)
+	return out
+}
+
+func recsHash(recs []record) uint64 {
+	h := fnv.New64a()
+	var stamp [8]byte
+	for _, rec := range recs {
+		for _, s := range []string{rec.ID, rec.Title, rec.Status, rec.Worktree, rec.ParentSession} {
+			h.Write([]byte(s))
+			h.Write([]byte{0})
+		}
+		binary.LittleEndian.PutUint64(stamp[:], uint64(rec.UpdatedAt.UnixNano()))
+		h.Write(stamp[:])
+	}
+	return h.Sum64()
+}
+
+func (c *searchCache) get(key searchKey) ([]searchResult, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out, ok := c.out[key]
+	return out, ok
+}
+
+func (c *searchCache) put(key searchKey, out []searchResult) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.out == nil || len(c.out) >= maxCachedSearch {
+		c.out = map[searchKey][]searchResult{}
+	}
+	c.out[key] = out
 }
 
 func (x *textIndex) warm(stateDir string, recs []record) {
@@ -121,46 +177,76 @@ func (x *textIndex) warm(stateDir string, recs []record) {
 func (x *textIndex) of(path string) []indexedText {
 	x.mu.Lock()
 	defer x.mu.Unlock()
+	return x.ofLocked(path)
+}
+
+func (x *textIndex) all(paths []string) ([][]indexedText, uint64) {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	out := make([][]indexedText, len(paths))
+	for i, path := range paths {
+		out[i] = x.ofLocked(path)
+	}
+	return out, x.rev
+}
+
+func (x *textIndex) ofLocked(path string) []indexedText {
 	if x.logs == nil {
 		x.logs = map[string]*indexedLog{}
 	}
-	l := x.logs[path]
-	if l == nil {
+	l, existed := x.logs[path]
+	if !existed {
 		l = &indexedLog{}
 		x.logs[path] = l
 	}
-	if err := l.extend(path); err != nil {
+	changed, err := l.extend(path)
+	if err != nil {
 		delete(x.logs, path)
+		if existed {
+			x.rev++
+		}
 		return nil
+	}
+	if changed {
+		x.rev++
 	}
 	return l.texts
 }
 
-func (l *indexedLog) extend(path string) error {
+func (x *textIndex) forget(path string) {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	if _, ok := x.logs[path]; ok {
+		delete(x.logs, path)
+		x.rev++
+	}
+}
+
+func (l *indexedLog) extend(path string) (bool, error) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if info.Size() == l.offset {
-		return nil
+		return false, nil
 	}
 	if info.Size() < l.offset {
 		*l = indexedLog{}
 	}
 	f, err := os.Open(path)
 	if err != nil {
-		return err
+		return true, err
 	}
 	defer f.Close()
 	if _, err := f.Seek(l.offset, io.SeekStart); err != nil {
-		return err
+		return true, err
 	}
 	r := bufio.NewReader(f)
 	for {
 		line, err := r.ReadBytes('\n')
 		if err != nil {
 			l.finish()
-			return nil
+			return true, nil
 		}
 		l.offset += int64(len(line))
 		l.add(line)
