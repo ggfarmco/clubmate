@@ -100,9 +100,11 @@ type prompt struct {
 }
 
 type removeArgs struct {
-	Repo  string `json:"repo"`
-	Path  string `json:"path"`
-	Force bool   `json:"force,omitempty"`
+	Repo        string `json:"repo"`
+	Path        string `json:"path"`
+	Force       bool   `json:"force,omitempty"`
+	SeenSecrets int    `json:"seenSecrets,omitempty"`
+	SeenOrphans int    `json:"seenOrphans,omitempty"`
 }
 
 type opStatus struct {
@@ -166,6 +168,9 @@ func worktreeNewCommand(ctx context.Context, a *app, c call) (any, error) {
 func worktreeRemoveCommand(ctx context.Context, a *app, c call) (any, error) {
 	if err := c.costRefused(); err != nil {
 		return nil, err
+	}
+	if !c.args.seesCost() && !c.ui && (c.args.SeenSecrets > 0 || c.args.SeenOrphans > 0) {
+		return nil, errSeenRefused
 	}
 	return a.startOp(ctx, c, prepareRemove)
 }

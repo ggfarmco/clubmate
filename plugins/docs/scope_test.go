@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,6 +24,7 @@ func TestScope(t *testing.T) {
 	write(t, filepath.Join(uploads, "agt_b", "x", "d.md"), "# D")
 	write(t, filepath.Join(repo, ".env"), "SECRET=1")
 	write(t, filepath.Join(repo, "big.md"), string(make([]byte, maxDoc+1)))
+	require.NoError(t, syscall.Mkfifo(filepath.Join(repo, "pipe.md"), 0o600))
 	allow := testScope(t, repo, filepath.Join(uploads, "agt_a"))
 
 	tests := []struct {
@@ -37,6 +39,7 @@ func TestScope(t *testing.T) {
 		{"outside", "/etc/x.md", "not in workspace"},
 		{"not a document", filepath.Join(repo, ".env"), "not a document"},
 		{"too large", filepath.Join(repo, "big.md"), "too large"},
+		{"fifo", filepath.Join(repo, "pipe.md"), "not a document"},
 		{"missing", filepath.Join(repo, "gone.md"), "not found"},
 	}
 	for _, tt := range tests {

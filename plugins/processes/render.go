@@ -28,6 +28,10 @@ func (a *app) tick(ctx context.Context, h *pluginsdk.Host) {
 	if len(ids) == 0 {
 		return
 	}
+	steps := a.stepsDue(slices.ContainsFunc(ids, a.visible))
+	if steps == 0 {
+		return
+	}
 	nodes, err := h.ProcessTree(ctx, "", "")
 	if err != nil {
 		logError("process tree", err)
@@ -42,7 +46,7 @@ func (a *app) tick(ctx context.Context, h *pluginsdk.Host) {
 	logError("core processes", err)
 	a.setCore(core)
 	a.renderMu.Lock()
-	a.hist.record(sessions, nodes, core, ids, time.Now())
+	a.hist.recordSteps(steps, sessions, nodes, core, ids, time.Now())
 	a.renderMu.Unlock()
 	byWorkspace := splitByWorkspace(sessions, nodes)
 	for _, id := range ids {
@@ -53,6 +57,16 @@ func (a *app) tick(ctx context.Context, h *pluginsdk.Host) {
 		withSessions, withNodes := withCore(id, p.sessions, p.nodes, core)
 		logError("render "+id, a.show(ctx, h, id, withSessions, withNodes))
 	}
+}
+
+func (a *app) stepsDue(shown bool) int {
+	a.skipped++
+	if !shown && a.skipped < hiddenSteps {
+		return 0
+	}
+	steps := a.skipped
+	a.skipped = 0
+	return steps
 }
 
 func (a *app) coreNodes() []pluginsdk.ProcessNode {

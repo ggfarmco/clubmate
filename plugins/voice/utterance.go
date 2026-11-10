@@ -214,12 +214,16 @@ func (v *voice) cancel(workspace, uid string) error {
 	}
 	v.mu.Lock()
 	recognizing := u.recognizing()
+	turn := u.state.Phase == phaseThinking || u.state.Phase == phaseConfirm
 	v.mu.Unlock()
 	if !v.update(u, func(s *State) { s.Phase = phaseCancelled }) {
 		return nil
 	}
 	if recognizing {
 		v.recognizer().Cancel(uid)
+	}
+	if turn {
+		v.stopTurn(u)
 	}
 	return nil
 }
@@ -323,7 +327,7 @@ func (v *voice) logUtterance(u *utterance, heard string, final time.Duration) {
 		u.state.Utterance, u.where.Device, u.audioBytes, float64(u.audioBytes)/bytesPerSecond, float64(u.peak)/32768, len([]rune(heard)), final.Milliseconds())
 }
 
-func (v *voice) fail(u *utterance, err error) {
+func (v *voice) fail(u *utterance, err error) bool {
 	msg := err.Error()
 	switch {
 	case errors.Is(err, errRecognizerStopped):
@@ -334,12 +338,14 @@ func (v *voice) fail(u *utterance, err error) {
 	v.mu.Lock()
 	recognizing := u.recognizing()
 	v.mu.Unlock()
-	if v.update(u, func(s *State) {
+	failed := v.update(u, func(s *State) {
 		s.Phase = phaseError
 		s.Error = msg
-	}) && recognizing && !errors.Is(err, errRecognizerStopped) {
+	})
+	if failed && recognizing && !errors.Is(err, errRecognizerStopped) {
 		v.recognizer().Cancel(u.state.Utterance)
 	}
+	return failed
 }
 
 func (v *voice) update(u *utterance, change func(*State)) bool {

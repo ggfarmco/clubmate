@@ -179,7 +179,7 @@ func selectedKey(workspaceID string) string {
 }
 
 func autoKillKey(workspaceID string) string {
-	return "autokill/" + workspaceID
+	return autoKillPrefix + workspaceID
 }
 
 func sortKey(workspaceID string) string {

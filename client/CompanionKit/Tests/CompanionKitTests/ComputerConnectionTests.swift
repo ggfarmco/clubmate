@@ -39,6 +39,20 @@ final class ComputerConnectionTests: XCTestCase {
         connection.stop()
     }
 
+    func testResetMovesTheCursorWithoutAnEvent() async throws {
+        let transport = FakeTransport(reply: { request in
+            (FakeTransport.result(FakeTransport.rpc(request) == "workspaces" ? workspacesJSON : helloJSON), 200)
+        }, stream: { _ in (200, AsyncThrowingStream { $0.yield(Data(": connected\n\nevent: reset\ndata: {\"seq\":42}\n\n".utf8)) }) })
+        let connection = ComputerConnection(computer: computer, token: "t", transport: transport, lastEventID: 3, sleep: { _ in })
+        let signals = Recorder<ConnectionSignal>()
+        connection.observe { signals.add($0) }
+        connection.start()
+
+        try await waitUntil { connection.lastEventID == 42 }
+        XCTAssertEqual(signals.values, [.online])
+        connection.stop()
+    }
+
     func testOnlineWaitsForTheEventStream() async throws {
         let held = Recorder<AsyncThrowingStream<Data, any Error>.Continuation>()
         let transport = FakeTransport(reply: { request in

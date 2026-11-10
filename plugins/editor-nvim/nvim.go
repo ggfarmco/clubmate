@@ -26,6 +26,7 @@ const (
 var (
 	errRPCTimeout    = errors.New("nvim rpc timed out")
 	errNvimBlocked   = errors.New("Neovim is waiting for input — press Enter in the editor")
+	errNvimQueued    = errors.New("Neovim started waiting for input — press Enter in the editor; this request runs after that")
 	errDisconnected  = errors.New("nvim disconnected")
 	errSocketTimeout = errors.New("nvim socket not accepting connections")
 	errSocketTooLong = errors.New("nvim socket path too long")
@@ -193,6 +194,9 @@ func (c *client) call(fn func(*nvim.Nvim) error) error {
 }
 
 func (c *client) callWithin(timeout time.Duration, fn func(*nvim.Nvim) error) error {
+	if c.blocked() {
+		return errNvimBlocked
+	}
 	errc := make(chan error, 1)
 	go func() { errc <- fn(c.v) }()
 	timer := time.NewTimer(timeout)
@@ -204,7 +208,7 @@ func (c *client) callWithin(timeout time.Duration, fn func(*nvim.Nvim) error) er
 		return errDisconnected
 	case <-timer.C:
 		if c.blocked() {
-			return errNvimBlocked
+			return errNvimQueued
 		}
 		return errRPCTimeout
 	}

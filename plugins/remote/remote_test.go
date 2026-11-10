@@ -512,6 +512,31 @@ func TestEventsCursorAheadOfBusStartsLive(t *testing.T) {
 	assert.True(t, strings.HasPrefix(frame(t, r), "id: 4\n"))
 }
 
+func TestEventsStaleCursorGetsResetInsteadOfReplay(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		age   time.Duration
+		first string
+	}{
+		{"recent gap replays", resumeMaxAge - time.Hour, "id: 1\n"},
+		{"old gap resets", resumeMaxAge + time.Hour, "event: reset\ndata: {\"seq\":2}"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			at := f.clock.Now().Add(-tt.age)
+			f.backend.events = []pluginsdk.Event{
+				{Seq: 1, Topic: "agents.changed", Time: at, Payload: json.RawMessage(`{}`)},
+				{Seq: 2, Topic: "notify.posted", Time: at, Payload: json.RawMessage(`{}`)},
+			}
+			_, r := f.openEvents(t, f.pair(t, "phone"), "0")
+
+			assert.Equal(t, ": connected", frame(t, r))
+			streamID(t, r)
+			assert.True(t, strings.HasPrefix(frame(t, r), tt.first))
+		})
+	}
+}
+
 func TestEventsBurstPastBufferCatchesUpWithoutDropping(t *testing.T) {
 	f := newFixture(t)
 	f.backend.headEntered, f.backend.headRelease = make(chan struct{}), make(chan struct{})
@@ -589,6 +614,21 @@ func TestParseTailscaleKeepsTailnetIPs(t *testing.T) {
 
 	assert.Equal(t, "mac.tail1.ts.net", got.dns)
 	assert.Equal(t, []netip.Addr{netip.MustParseAddr("100.101.1.2"), netip.MustParseAddr("fd7a:115c:a1e0::5")}, got.ips)
+}
+
+func TestTailscaleCLIWithoutAddressesListensNowhere(t *testing.T) {
+	a := &app{}
+	tailnet := []netip.Addr{netip.MustParseAddr("100.101.1.2")}
+	a.setTailscale(tailscaleSelf{installed: true, ips: tailnet})
+	a.setTailscale(tailscaleSelf{installed: true, failed: true})
+	ips, err := a.scanAddrs()
+	require.NoError(t, err)
+	assert.Equal(t, tailnet, ips, "a lookup that timed out keeps the last addresses")
+
+	a.setTailscale(tailscaleSelf{installed: true})
+	ips, err = a.scanAddrs()
+	require.NoError(t, err)
+	assert.Empty(t, ips)
 }
 
 func newFixture(t *testing.T) *fixture {

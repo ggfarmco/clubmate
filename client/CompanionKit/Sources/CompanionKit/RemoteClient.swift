@@ -96,6 +96,7 @@ public enum EventStreamItem: Sendable, Equatable {
     case event(BusEvent)
     case stream(String)
     case ui(SlotView)
+    case reset(Int)
 }
 
 public struct PairResult: Sendable, Equatable {
@@ -262,6 +263,8 @@ public actor RemoteClient {
                                 if let frame = try? decoder.decode(StreamFrame.self, from: data) { continuation.yield(.stream(frame.id)) }
                             case "ui":
                                 if let frame = try? decoder.decode(UIFrame.self, from: data) { continuation.yield(.ui(frame.view)) }
+                            case "reset":
+                                if let frame = try? decoder.decode(ResetFrame.self, from: data) { continuation.yield(.reset(frame.seq)) }
                             default:
                                 break
                             }
@@ -354,6 +357,10 @@ private struct PairReply: Decodable {
 
 private struct StreamFrame: Decodable {
     let id: String
+}
+
+private struct ResetFrame: Decodable {
+    let seq: Int
 }
 
 private struct UIFrame: Decodable {

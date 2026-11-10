@@ -258,10 +258,12 @@ func TestBlockedNvimTimesOut(t *testing.T) {
 		return m.Blocking
 	}, 5*time.Second)
 	start := time.Now()
-	require.ErrorContains(t, e.open(t, path, 2), "Neovim is waiting for input")
+	require.ErrorContains(t, e.open(t, e.file(t, "b.go"), 1), "Neovim is waiting for input")
 	assert.Less(t, time.Since(start), blockedBudget)
 	_, err = v.Input("<CR>")
 	require.NoError(t, err)
+	time.Sleep(300 * time.Millisecond)
+	assert.Equal(t, path, eval[string](t, v, "expand('%:p')"), "the refused open must not run once Neovim is free")
 	require.NoError(t, e.open(t, path, 2))
 }
 
@@ -567,6 +569,17 @@ func TestStopRootRefusesUnsaved(t *testing.T) {
 	require.NoError(t, run("editor-nvim.stop-root", map[string]any{"root": wt, "force": true}))
 	testutil.Eventually(t, func() bool { return slices.Equal([]string{e.sessionID}, e.running(t)) }, 5*time.Second)
 	assert.Equal(t, pid, eval[int](t, dial(t, e.sock), "getpid()"))
+}
+
+func TestStopRootRefusesUnsavedBufferOfAnotherEditor(t *testing.T) {
+	e, wt := startWorktreeEditor(t, setup{})
+	v := dial(t, e.sock)
+	require.NoError(t, v.Command("edit "+filepath.Join(wt, "a.go")))
+	require.NoError(t, v.Command("normal! ix"))
+
+	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.stop-root", "workspaceId": e.workspaceID, "args": map[string]any{"root": wt}}, nil)
+
+	require.ErrorContains(t, err, "unsaved buffers: .worktrees/feat/a.go")
 }
 
 func TestUnsavedListsModifiedBuffersWithoutStopping(t *testing.T) {

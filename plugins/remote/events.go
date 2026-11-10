@@ -23,6 +23,8 @@ const (
 	sseWriteTimeout = 30 * time.Second
 	lastEventHeader = "Last-Event-ID"
 	afterQuery      = "after"
+	resumeMaxEvents = 100_000
+	resumeMaxAge    = 12 * time.Hour
 
 	pluginChangedTopic = "plugin.changed"
 )
@@ -34,6 +36,10 @@ var (
 
 	errBadCursor = errors.New("invalid Last-Event-ID or after")
 )
+
+type resetFrame struct {
+	Seq int64 `json:"seq"`
+}
 
 type hub struct {
 	changed func()
@@ -189,7 +195,15 @@ func (s *server) events(w http.ResponseWriter, r *http.Request, d device) {
 		if err != nil {
 			return
 		}
-		if after <= head {
+		switch stale, err := s.staleResume(r.Context(), head, after); {
+		case err != nil:
+			return
+		case stale:
+			if !s.send(rc, w, resetSSEFrame(head)) {
+				return
+			}
+			seen = head
+		case after <= head:
 			if seen, err = s.backfill(r.Context(), rc, w, d.ID, after); err != nil {
 				return
 			}
@@ -266,6 +280,25 @@ func (s *server) backfill(ctx context.Context, rc *http.ResponseController, w io
 			return after, nil
 		}
 	}
+}
+
+func (s *server) staleResume(ctx context.Context, head, after int64) (bool, error) {
+	if after > head {
+		return false, nil
+	}
+	if head-after > resumeMaxEvents {
+		return true, nil
+	}
+	page, err := s.backend.Events(ctx, after)
+	if err != nil || len(page) == 0 || page[0].Time.IsZero() {
+		return false, err
+	}
+	return s.now().Sub(page[0].Time) > resumeMaxAge, nil
+}
+
+func resetSSEFrame(head int64) string {
+	data, _ := json.Marshal(resetFrame{Seq: head})
+	return "event: reset\ndata: " + string(data) + "\n\n"
 }
 
 func (s *server) send(rc *http.ResponseController, w io.Writer, frame string) bool {

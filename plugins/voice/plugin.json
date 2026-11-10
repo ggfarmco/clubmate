@@ -60,7 +60,7 @@
         "title": "Cancel voice input",
         "hidden": true,
         "remote": true,
-        "description": "Cancel an utterance at any phase; a pending confirmation is declined.",
+        "description": "Cancel an utterance at any phase; a pending confirmation is declined, and while the Voice session works on it (thinking or confirm) its turn is cancelled.",
         "args": {
           "properties": {
             "utterance": {"type": "string", "description": "Utterance id (vu_…)."}
@@ -116,7 +116,7 @@
         "hidden": true,
         "agent": true,
         "timeout": 120,
-        "description": "Voice session only: answer another agent session as the user. Give text for a plain answer, request with answers for a question (elicitation), or request with option for a permission request. Allowing a permission goes straight through only for the request in the utterance's context.session; allow_always, or allowing any other request, waits for the user's confirmation first. Non-destructive.",
+        "description": "Voice session only: answer another agent session as the user. Give text for a plain answer, request with answers for a question (elicitation), or request with option for a permission request. Allowing a permission goes straight through only for the request in the utterance's context.session and only when heard asks to allow (allow, approve, разреши, одобри, позволь, with no не, don't, deny, запрети or отклони); every other allow, and allow_always, waits for the user's confirmation first. Fails with \"the utterance is over\" once the utterance was cancelled, timed out or finished. Non-destructive.",
         "args": {
           "properties": {
             "utterance": {"type": "string", "description": "Utterance id (vu_…) from the prompt."},

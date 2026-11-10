@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"clubmate/pkg/contract"
 	"clubmate/pkg/docext"
@@ -59,17 +61,35 @@ func load(path string, allow func(string) bool) (string, []byte, error) {
 	if err != nil {
 		return abs, nil, err
 	}
-	if info.IsDir() {
+	if !info.Mode().IsRegular() {
+		return abs, nil, errNotDocument
+	}
+	f, err := os.OpenFile(abs, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if errors.Is(err, os.ErrNotExist) {
+		return abs, nil, errNotFound
+	}
+	if err != nil {
+		return abs, nil, err
+	}
+	defer f.Close()
+	info, err = f.Stat()
+	if err != nil {
+		return abs, nil, err
+	}
+	if !info.Mode().IsRegular() {
 		return abs, nil, errNotDocument
 	}
 	if info.Size() > maxDoc {
 		return abs, nil, errTooLarge
 	}
-	src, err := os.ReadFile(abs)
-	if errors.Is(err, os.ErrNotExist) {
-		return abs, nil, errNotFound
+	src, err := io.ReadAll(io.LimitReader(f, maxDoc+1))
+	if err != nil {
+		return abs, nil, err
 	}
-	return abs, src, err
+	if len(src) > maxDoc {
+		return abs, nil, errTooLarge
+	}
+	return abs, src, nil
 }
 
 func viewable(path string) bool {

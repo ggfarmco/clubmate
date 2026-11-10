@@ -22,6 +22,8 @@ const (
 	refreshInterval = time.Second
 	deletedTTL      = time.Minute
 	autoKillEvery   = 10 * time.Second
+	hiddenSteps     = 10
+	autoKillPrefix  = "autokill/"
 	bytesPerKiB     = 1024
 )
 
@@ -37,6 +39,7 @@ type app struct {
 	sections    map[string]string
 	watched     map[string]bool
 	deleted     map[string]time.Time
+	skipped     int
 }
 
 func main() {
@@ -86,6 +89,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		a.loadSection(ctx, h, id)
 		a.renderLogged(ctx, h, id)
 	}
+	a.loadAutoKill(ctx, h)
 	go every(ctx, refreshInterval, func() { a.tick(ctx, h) })
 	go every(ctx, autoKillEvery, func() { a.autoKill(ctx, h) })
 	return nil

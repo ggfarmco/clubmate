@@ -31,7 +31,7 @@ The `docs` plugin (`plugins/docs`) shows a Markdown or mermaid file rendered, or
 
 ## Scope
 
-A path is allowed when, symlinks resolved, it is inside one of the workspace's folders (its path or selected worktree), the same folder in any other worktree of its repo (`git worktree list`), or the uploads dir of one of the workspace's agent sessions (`<state>/plugin-data/agents/uploads/<session>`, sessions as `agents.sessions` lists them; another workspace's upload is out of scope). Anything else is `not in workspace`, including a symlink inside a repo that points out of it. Only `.md`, `.markdown`, `.mmd`, `.html` and `.htm` open (`not a document`, also for a directory; the rule is `pkg/docext`); a file over 4 MiB is `too large`. Git-ignored files are allowed. Links and images inside a doc go through the same check: an out-of-scope link shows as plain text, an image as its alt text.
+A path is allowed when, symlinks resolved, it is inside one of the workspace's folders (its path or selected worktree), the same folder in any other worktree of its repo (`git worktree list`), or the uploads dir of one of the workspace's agent sessions (`<state>/plugin-data/agents/uploads/<session>`, sessions as `agents.sessions` lists them; another workspace's upload is out of scope). Anything else is `not in workspace`, including a symlink inside a repo that points out of it. Only `.md`, `.markdown`, `.mmd`, `.html` and `.htm` open (`not a document`, also for a directory, a FIFO, a socket or a device, which are never read; the rule is `pkg/docext`); a file over 4 MiB is `too large`. Git-ignored files are allowed. Links and images inside a doc go through the same check: an out-of-scope link shows as plain text, an image as its alt text.
 
 ## Links
 

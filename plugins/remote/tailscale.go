@@ -23,8 +23,10 @@ type tailscaleStatus struct {
 }
 
 type tailscaleSelf struct {
-	dns string
-	ips []netip.Addr
+	dns       string
+	ips       []netip.Addr
+	installed bool
+	failed    bool
 }
 
 func lookupTailscale(ctx context.Context) tailscaleSelf {
@@ -37,10 +39,12 @@ func lookupTailscale(ctx context.Context) tailscaleSelf {
 	ctx, cancel := context.WithTimeout(ctx, tailscaleTimeout)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, bin, "status", "--json").Output()
-	if err != nil {
-		return tailscaleSelf{}
+	if err != nil && ctx.Err() != nil {
+		return tailscaleSelf{installed: true, failed: true}
 	}
-	return parseTailscale(out)
+	self := parseTailscale(out)
+	self.installed = true
+	return self
 }
 
 func parseTailscale(raw []byte) tailscaleSelf {

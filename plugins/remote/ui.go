@@ -104,9 +104,12 @@ func (s *server) uiGet(ctx context.Context, p uiGetRequest) ([]pluginsdk.SlotVie
 	return out, nil
 }
 
-func (s *server) uiEvent(ctx context.Context, p uiEventRequest) (json.RawMessage, error) {
+func (s *server) uiEvent(ctx context.Context, d device, p uiEventRequest) (json.RawMessage, error) {
 	if p.Workspace == "" {
 		return nil, &apiError{Code: codeInvalidParams, Message: "workspace is required"}
+	}
+	if !s.hub.watchedBy(d.ID, p.Workspace, p.Slot) {
+		return nil, &apiError{Code: codeNotAllowed, Message: "this device isn't showing " + p.Slot + "; open it again"}
 	}
 	out, err := s.backend.UIEvent(ctx, pluginsdk.UIEvent{WorkspaceID: p.Workspace, Slot: p.Slot, NodeID: p.NodeID, Action: p.Action, Value: p.Value})
 	if err != nil {
@@ -270,6 +273,17 @@ func (h *hub) wants(ws string) (watched, presence bool) {
 		}
 	}
 	return watched, presence
+}
+
+func (h *hub) watchedBy(device, ws, slot string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for st := range h.streams {
+		if st.device == device && watches(st.watch[ws], slot) {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *hub) sections(ws string) []string {

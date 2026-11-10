@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"sync"
 
 	"clubmate/internal/proc"
 	"clubmate/pkg/pluginsdk"
@@ -13,7 +14,43 @@ const (
 	sessionHostComm = "clubmate-session"
 )
 
-var coreSampler = proc.NewSampler()
+var (
+	coreSampler = proc.NewSampler()
+	coreArgs    = newArgvCache(proc.ReadArgs)
+)
+
+type argvKey struct {
+	pid   int
+	start int64
+}
+
+type argvCache struct {
+	mu   sync.Mutex
+	read func(int) []string
+	args map[argvKey][]string
+}
+
+func newArgvCache(read func(int) []string) *argvCache {
+	return &argvCache{read: read, args: map[argvKey][]string{}}
+}
+
+func (c *argvCache) fill(procs []pluginsdk.ProcessInfo) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	kept := make(map[argvKey][]string, len(procs))
+	for i := range procs {
+		key := argvKey{pid: procs[i].PID, start: procs[i].StartTime.UnixNano()}
+		args, ok := c.args[key]
+		if !ok {
+			args = c.read(procs[i].PID)
+		}
+		if args != nil {
+			kept[key] = args
+		}
+		procs[i].Args = args
+	}
+	c.args = kept
+}
 
 func coreGroup(workspaceID string) group {
 	return group{ID: coreID, WorkspaceID: workspaceID, Title: coreTitle, Owner: coreID}
@@ -33,9 +70,9 @@ func scanCore(tracked []pluginsdk.ProcessNode) ([]pluginsdk.ProcessNode, error) 
 		return nil, nil
 	}
 	sampled := coreSampler.Sample(members)
+	coreArgs.fill(sampled)
 	nodes := make([]pluginsdk.ProcessNode, 0, len(sampled))
 	for _, p := range sampled {
-		p.Args = proc.ReadArgs(p.PID)
 		nodes = append(nodes, pluginsdk.ProcessNode{Process: p, SessionID: coreID})
 	}
 	return nodes, nil

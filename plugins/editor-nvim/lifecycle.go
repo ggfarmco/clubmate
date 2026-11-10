@@ -146,6 +146,15 @@ func (a *app) restart(ctx context.Context, h *pluginsdk.Host, cur *editor, all, 
 }
 
 func (a *app) stopRoot(ctx context.Context, h *pluginsdk.Host, workspaceID, root string, force bool) error {
+	if !force {
+		names, err := a.unsaved(workspaceID, root)
+		if err != nil {
+			return err
+		}
+		if len(names) > 0 {
+			return fmt.Errorf("%w: %s", errUnsaved, strings.Join(names, ", "))
+		}
+	}
 	sessions, err := h.ListSessions(ctx, workspaceID, true)
 	if err != nil {
 		return err
@@ -224,7 +233,7 @@ func (a *app) unsaved(workspaceID, root string) ([]string, error) {
 				continue
 			}
 			file := gitrepo.Canonical(name)
-			if gitrepo.Within(file, dir) && (own == dir || !gitrepo.Within(file, own)) {
+			if gitrepo.Within(file, dir) && (own == dir || !gitrepo.Within(file, own) || !gitrepo.Within(own, dir)) {
 				inside = append(inside, name)
 			}
 		}

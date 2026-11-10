@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -27,6 +28,18 @@ func TestAutoKillToggle(t *testing.T) {
 		events, err := h.Bus.Read(t.Context(), "processes.killed", 0, 10)
 		return err == nil && len(events) == 1 && strings.Contains(string(events[0].Payload), p.ID)
 	}, 5*time.Second, 50*time.Millisecond)
+}
+
+func TestAutoKillSweepsAStoredWorkspaceNobodyOpened(t *testing.T) {
+	t.Setenv("SHELL", "/bin/sh")
+	h := testutil.NewHarness(t)
+	p := h.CreateWorkspace(t, "demo")
+	require.NoError(t, h.KV.Set(t.Context(), "processes", "autokill/"+p.ID, json.RawMessage("true")))
+	orphan := testutil.StartOrphanSession(t, h.Svc, p.ID)
+
+	h.Start(t, testutil.BuildPluginDir(t, "clubmate/plugins/processes", "plugins/processes/plugin.json"))
+
+	testutil.Eventually(t, func() bool { return !testutil.Alive(orphan) }, 15*time.Second)
 }
 
 func TestMainRendersOnlyWhileVisible(t *testing.T) {

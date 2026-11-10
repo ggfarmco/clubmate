@@ -187,7 +187,7 @@
         "title": "Worktree remove prompt",
         "hidden": true,
         "agent": false,
-        "description": "The question the app asks before removing a linked worktree: refuses the main checkout and the folder's own checkout like git.worktree-remove, and lists the running terminals inside it as git.worktree-sessions does. Returns {title, detail?, command, args}; on approval the app runs command with args.",
+        "description": "The question the app asks before removing a linked worktree: refuses the main checkout and the folder's own checkout like git.worktree-remove, and lists the running terminals inside it as git.worktree-sessions does, and the secret-looking ignored files no other worktree holds identically and the commits on no ref that removal would lose. Returns {title, detail?, command, args}; args carry seenSecrets and seenOrphans for what it listed; on approval the app runs command with args.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
@@ -202,7 +202,7 @@
         "hidden": true,
         "agent": true,
         "destructive": true,
-        "description": "Start removing a linked git worktree: runs the git.worktree.removing handlers (the editor stops its Neovim; any refusal is the operation's error) and then the git.worktree.vacating ones (agent sessions close), runs .clubmate/teardown.sh once the user trusts it (a failure is only a notice), runs git worktree remove and, when it was current, switches the folder back to its own checkout. Never removes the main checkout, a worktree on the default branch, the checkout of the workspace folder, a locked worktree, a worktree with uncommitted changes, or the branch. Fails at once while another git operation runs. Returns {id}; poll git.worktree-op-status for the outcome. Once it finishes, a call from the app (not an agent or plugin) also publishes git.outcome {workspace, id, message?, confirm?}. When a removing handler refused with unsaved buffers and force was not set, confirm asks to retry with force.",
+        "description": "Start removing a linked git worktree: runs the git.worktree.removing handlers (the editor stops its Neovim; any refusal is the operation's error) and then the git.worktree.vacating ones (agent sessions close), runs .clubmate/teardown.sh once the user trusts it (a failure is only a notice), runs git worktree remove and, when it was current, switches the folder back to its own checkout. Never removes the main checkout, a worktree on the default branch, the checkout of the workspace folder, a locked worktree, a worktree with uncommitted changes, or the branch. Without discard or left it also refuses, before and after the handlers ran, a worktree holding more secret-looking ignored files that no other worktree holds identically, or more commits on no ref, than seenSecrets and seenOrphans. Fails at once while another git operation runs. Returns {id}; poll git.worktree-op-status for the outcome. Once it finishes, a call from the app (not an agent or plugin) also publishes git.outcome {workspace, id, message?, confirm?}. When a removing handler refused with unsaved buffers and force was not set, confirm asks to retry with force.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
@@ -211,8 +211,8 @@
             "discard": {"type": "boolean", "description": "Only the agents plugin, for the user's tick on the Remove folder sheet: remove the worktree with its uncommitted changes. Anyone else gets an error."},
             "left": {"type": "boolean", "description": "Only the agents plugin: repo has just left the workspace, so it is opened directly. Anyone else gets an error."},
             "seenDirty": {"type": "integer", "description": "With discard or left: the changed and untracked files the user saw. More than these, or than seenSecrets or seenOrphans, or any submodule or repo inside it, before teardown keeps the worktree and fails the operation."},
-            "seenSecrets": {"type": "integer", "description": "With discard or left: the secret-looking ignored files the user saw (secrets on git.worktree-state). Other ignored files don't count."},
-            "seenOrphans": {"type": "integer", "description": "With discard or left: the commits on no ref the user saw."}
+            "seenSecrets": {"type": "integer", "description": "The secret-looking ignored files the user saw: with discard or left, secrets on git.worktree-state; without, the ones git.worktree-remove-prompt listed, and only the app may pass it then. Other ignored files don't count."},
+            "seenOrphans": {"type": "integer", "description": "The commits on no ref the user saw; without discard or left only the app may pass it."}
           },
           "required": ["path"]
         }

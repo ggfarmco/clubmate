@@ -265,6 +265,8 @@ public final class ComputerConnection: CommandRunner {
                         }
                     case .ui(let view):
                         interfaces[view.workspaceId]?.value?.receive(view)
+                    case .reset(let seq):
+                        lastEventID = seq
                     }
                 }
                 if Task.isCancelled { return }

@@ -3,7 +3,9 @@ package main
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +24,7 @@ const (
 	voiceModel       = "sonnet"
 	notifyMuted      = "muted"
 	sessionKeyPrefix = "voice.session."
+	promptKeyPrefix  = "voice.prompt."
 	toolPrefix       = "mcp__clubmate__"
 	corePlugin       = "core"
 	terminalInput    = "session.send"
@@ -29,6 +32,7 @@ const (
 	allowPrefix      = "allow"
 	turnTimeout      = 90 * time.Second
 	confirmTimeout   = 60 * time.Second
+	cancelTimeout    = 10 * time.Second
 
 	msgNoAnswer     = "the assistant did not answer"
 	resultCancelled = "cancelled"
@@ -51,6 +55,9 @@ var (
 	answerCommands = []string{"agents.answer", "agents.permission", "agents.elicitation"}
 	pluginOnlyArgs = []string{"disallowedTools", "systemPrompt", "mode"}
 	toolName       = strings.NewReplacer(".", "_", "-", "_")
+	allowStems     = []string{"allow", "approve", "разреш", "одобр", "позвол"}
+	denyWords      = []string{"не", "нет", "нельзя", "без", "no", "not", "never", "don't", "dont", "won't", "wouldn't", "can't", "cannot"}
+	denyStems      = []string{"запре", "отклон", "откаж", "deny", "denied", "reject", "disallow", "forbid", "block"}
 
 	//go:embed prompt.md
 	systemPrompt string
@@ -194,10 +201,16 @@ func (v *voice) answer(ctx context.Context, cmd pluginsdk.CommandRun, args answe
 	if err != nil {
 		return err
 	}
+	if err := v.live(u); err != nil {
+		return err
+	}
 	switch {
 	case args.Request != "" && args.Option != "":
 		p := permissionArgs{Session: args.Session, Request: args.Request, Option: args.Option}
 		if err := v.confirmPermission(ctx, u, p); err != nil {
+			return err
+		}
+		if err := v.live(u); err != nil {
 			return err
 		}
 		return v.h.RunCommand(ctx, "agents.permission", cmd.WorkspaceID, p, nil)
@@ -303,11 +316,14 @@ func (v *voice) voiceSession(ctx context.Context, workspace, stale string) (stri
 	v.sessionMu.Lock()
 	defer v.sessionMu.Unlock()
 	key := sessionKeyPrefix + workspace
-	var sid string
+	var sid, version string
 	if _, err := v.h.StorageGet(ctx, key, &sid); err != nil {
 		return "", err
 	}
-	if sid != "" && sid != stale {
+	if _, err := v.h.StorageGet(ctx, promptKeyPrefix+workspace, &version); err != nil {
+		return "", err
+	}
+	if sid != "" && sid != stale && version == promptVersion() {
 		var sessions []voiceSessionInfo
 		if err := v.h.RunCommand(ctx, "agents.sessions", workspace, struct{}{}, &sessions); err != nil {
 			return "", err
@@ -332,7 +348,15 @@ func (v *voice) voiceSession(ctx context.Context, workspace, stale string) (stri
 	if err := v.h.RunCommand(ctx, "agents.new", workspace, args, &res); err != nil {
 		return "", fmt.Errorf("start the voice session: %w", err)
 	}
-	return res.Session, v.h.StorageSet(ctx, key, res.Session)
+	if err := v.h.StorageSet(ctx, key, res.Session); err != nil {
+		return "", err
+	}
+	return res.Session, v.h.StorageSet(ctx, promptKeyPrefix+workspace, promptVersion())
+}
+
+func promptVersion() string {
+	sum := sha256.Sum256([]byte(systemPrompt))
+	return hex.EncodeToString(sum[:8])
 }
 
 func (v *voice) dangerousTools(ctx context.Context) ([]string, error) {
@@ -397,7 +421,7 @@ func (v *voice) confirmPermission(ctx context.Context, u *utterance, p permissio
 		switch kind := e.Options[i].Kind; {
 		case kind == allowAlways:
 			title = "Always allow: "
-		case !strings.HasPrefix(kind, allowPrefix) || v.inContext(u, p):
+		case !strings.HasPrefix(kind, allowPrefix) || v.heardAllow(u, p):
 			return nil
 		}
 		raw, err := json.Marshal(p)
@@ -409,11 +433,49 @@ func (v *voice) confirmPermission(ctx context.Context, u *utterance, p permissio
 	return fmt.Errorf("%w: %s", errUnknownPermission, p.Request)
 }
 
-func (v *voice) inContext(u *utterance, p permissionArgs) bool {
+func (v *voice) heardAllow(u *utterance, p permissionArgs) bool {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	s := u.where.Session
-	return s != nil && s.ID == p.Session && s.Permission != nil && s.Permission.Request == p.Request
+	return s != nil && s.ID == p.Session && s.Permission != nil && s.Permission.Request == p.Request && asksToAllow(u.state.Heard)
+}
+
+func asksToAllow(heard string) bool {
+	words := strings.FieldsFunc(strings.ToLower(strings.ReplaceAll(heard, "’", "'")), func(r rune) bool {
+		return !isWordRune(r) && r != '\''
+	})
+	stem := func(stems []string) bool {
+		return slices.ContainsFunc(words, func(w string) bool {
+			return slices.ContainsFunc(stems, func(s string) bool { return strings.HasPrefix(w, s) })
+		})
+	}
+	deny := slices.ContainsFunc(words, func(w string) bool { return slices.Contains(denyWords, w) })
+	return stem(allowStems) && !deny && !stem(denyStems)
+}
+
+func (v *voice) live(u *utterance) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if u.terminal() {
+		return errUtteranceOver
+	}
+	return nil
+}
+
+func (v *voice) stopTurn(u *utterance) {
+	v.mu.Lock()
+	sid := u.state.Session
+	shared := false
+	for _, o := range v.utterances {
+		shared = shared || o != u && !o.terminal() && o.state.Session == sid
+	}
+	v.mu.Unlock()
+	if sid == "" || shared {
+		return
+	}
+	ctx, cancel := context.WithTimeout(v.ctx, cancelTimeout)
+	defer cancel()
+	logError("cancel the voice turn", v.h.RunCommand(ctx, "agents.cancel", u.workspace, map[string]string{"session": sid}, nil))
 }
 
 func (v *voice) confirm(ctx context.Context, u *utterance, c Confirm) error {
@@ -495,7 +557,9 @@ func (v *voice) turnExpired(u *utterance) {
 		v.armTurn(u)
 		return
 	}
-	v.fail(u, errors.New(msgNoAnswer))
+	if v.fail(u, errors.New(msgNoAnswer)) {
+		v.stopTurn(u)
+	}
 }
 
 func (v *voice) caller(cmd pluginsdk.CommandRun, uid string) (*utterance, error) {

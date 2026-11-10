@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -26,6 +27,10 @@ const (
 	discardPlugin       = "agents"
 	unsavedMarker       = "unsaved buffers: "
 	removeTitle         = "Remove worktree %s? Its branch is kept."
+	removeDetachedTitle = "Remove worktree %s?"
+	lostSecretsDetail   = "Deletes ignored "
+	lostOrphansDetail   = "Loses %d %s on no branch."
+	maxCompared         = 1 << 20
 	terminalsDetail     = "Terminals still in it: "
 	unsavedTitle        = "Worktree %s has %s. Remove it and discard the changes?"
 	missingText         = "Worktree %s no longer exists — back on main"
@@ -46,6 +51,8 @@ var (
 	errDiscardRefused = errors.New("only the app discards a worktree's uncommitted changes")
 	errCostGrew       = errors.New("it has more to lose than when you looked")
 	errNestedRepos    = errors.New("it holds submodules or repos Clubmate can't read")
+	errLosesWork      = errors.New("removing it would lose")
+	errSeenRefused    = errors.New("only the app removes a worktree it would lose files or commits with")
 
 	errLockedWorktree      = errors.New("it is locked")
 	errBranchDeleteRefused = errors.New("only the app deletes a branch")
@@ -235,14 +242,24 @@ func removePrompt(ctx context.Context, h *pluginsdk.Host, workspaceID string, ar
 	if err != nil {
 		return prompt{}, err
 	}
-	out := prompt{Title: fmt.Sprintf(removeTitle, f.treeName(ctx, t)), Command: removeCommand, Args: removeArgs{Repo: f.Repo, Path: t.Path}}
+	lost, err := readLoss(ctx, f, t)
+	if err != nil {
+		return prompt{}, err
+	}
+	title := removeTitle
+	if t.Branch == "" {
+		title = removeDetachedTitle
+	}
+	out := prompt{Title: fmt.Sprintf(title, f.treeName(ctx, t)), Command: removeCommand, Args: removeArgs{Repo: f.Repo, Path: t.Path, SeenSecrets: len(lost.secrets), SeenOrphans: lost.orphans}}
+	var detail []string
 	if len(sessions) > 0 {
 		titles := make([]string, 0, len(sessions))
 		for _, s := range sessions {
 			titles = append(titles, s.Title)
 		}
-		out.Detail = terminalsDetail + strings.Join(titles, ", ")
+		detail = append(detail, terminalsDetail+strings.Join(titles, ", "))
 	}
+	out.Detail = strings.Join(append(detail, lost.lines()...), "\n")
 	return out, nil
 }
 
@@ -254,7 +271,7 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 	k := hooks{h: h, workspaceID: workspaceID, primary: f.Trees[0].Path}
 	users := consumers{h: h, workspaceID: workspaceID}
 	return func(ctx context.Context, report *opReport) (string, error) {
-		if err := args.costHolds(ctx, t.Path); err != nil {
+		if err := args.keeps(ctx, f, t); err != nil {
 			return "", err
 		}
 		if !args.Discard {
@@ -281,7 +298,7 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 			return "", forceable(ctx, f, t, args, err)
 		}
 		logError("vacate "+t.Path, users.vacating(ctx, t.Path, root))
-		if err := args.costHolds(ctx, t.Path); err != nil {
+		if err := args.keeps(ctx, f, t); err != nil {
 			return "", err
 		}
 		if skipped, err := k.run(ctx, t.Path, teardownScript); err != nil {
@@ -548,10 +565,21 @@ func (args worktreeArgs) seesCost() bool {
 	return args.Discard || args.Left
 }
 
-func (args worktreeArgs) costHolds(ctx context.Context, dir string) error {
-	if !args.seesCost() {
-		return nil
+func (args worktreeArgs) keeps(ctx context.Context, f *folder, t gitrepo.Worktree) error {
+	if args.seesCost() {
+		return args.costHolds(ctx, t.Path)
 	}
+	lost, err := readLoss(ctx, f, t)
+	if err != nil {
+		return err
+	}
+	if len(lost.secrets) > args.SeenSecrets || lost.orphans > args.SeenOrphans {
+		return fmt.Errorf("%w %s; remove it from the app, which asks first", errLosesWork, lost)
+	}
+	return nil
+}
+
+func (args worktreeArgs) costHolds(ctx context.Context, dir string) error {
 	var now worktreeState
 	readState(ctx, &now, dir, nil)
 	switch {
@@ -595,5 +623,80 @@ func forceable(ctx context.Context, f *folder, t gitrepo.Worktree, args worktree
 		return err
 	}
 	title := fmt.Sprintf(unsavedTitle, f.treeName(ctx, t), unsavedMarker+rest)
-	return &confirmError{err: err, prompt: prompt{Title: title, Command: removeCommand, Args: removeArgs{Repo: f.Repo, Path: t.Path, Force: true}}}
+	return &confirmError{err: err, prompt: prompt{Title: title, Command: removeCommand, Args: removeArgs{Repo: f.Repo, Path: t.Path, Force: true, SeenSecrets: args.SeenSecrets, SeenOrphans: args.SeenOrphans}}}
+}
+
+type worktreeLoss struct {
+	secrets []string
+	orphans int
+}
+
+func readLoss(ctx context.Context, f *folder, t gitrepo.Worktree) (worktreeLoss, error) {
+	secrets, err := secretFiles(ctx, t.Path)
+	if err != nil {
+		return worktreeLoss{}, err
+	}
+	orphans, err := countRevs(ctx, t.Path, "rev-list", "--count", currentHead, "--not", "--branches", "--tags", "--remotes")
+	if err != nil {
+		return worktreeLoss{}, err
+	}
+	out := worktreeLoss{orphans: orphans}
+	for _, rel := range secrets {
+		if !f.keptElsewhere(t, rel) {
+			out.secrets = append(out.secrets, rel)
+		}
+	}
+	return out, nil
+}
+
+func (f *folder) keptElsewhere(t gitrepo.Worktree, rel string) bool {
+	return slices.ContainsFunc(f.Trees, func(o gitrepo.Worktree) bool {
+		return o.Path != t.Path && sameContent(filepath.Join(o.Path, rel), filepath.Join(t.Path, rel))
+	})
+}
+
+func sameContent(a, b string) bool {
+	ia, err := os.Lstat(a)
+	if err != nil || !ia.Mode().IsRegular() || ia.Size() > maxCompared {
+		return false
+	}
+	ib, err := os.Lstat(b)
+	if err != nil || !ib.Mode().IsRegular() || ib.Size() != ia.Size() {
+		return false
+	}
+	da, err := os.ReadFile(a)
+	if err != nil {
+		return false
+	}
+	db, err := os.ReadFile(b)
+	return err == nil && bytes.Equal(da, db)
+}
+
+func (l worktreeLoss) lines() []string {
+	var out []string
+	if len(l.secrets) > 0 {
+		out = append(out, lostSecretsDetail+strings.Join(l.secrets, ", ")+".")
+	}
+	if l.orphans > 0 {
+		out = append(out, fmt.Sprintf(lostOrphansDetail, l.orphans, plural(l.orphans, "commit", "commits")))
+	}
+	return out
+}
+
+func (l worktreeLoss) String() string {
+	var parts []string
+	if len(l.secrets) > 0 {
+		parts = append(parts, "ignored "+strings.Join(l.secrets, ", "))
+	}
+	if l.orphans > 0 {
+		parts = append(parts, fmt.Sprintf("%d %s on no branch", l.orphans, plural(l.orphans, "commit", "commits")))
+	}
+	return strings.Join(parts, " and ")
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }

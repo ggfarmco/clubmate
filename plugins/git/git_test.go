@@ -435,6 +435,39 @@ func TestWorktreeRemoveKeepsAWorktreeThatCostsMoreThanSeen(t *testing.T) {
 	assert.NoDirExists(t, detached)
 }
 
+func TestPlainWorktreeRemoveKeepsSecretsAndOrphansUntilTheAppAsks(t *testing.T) {
+	repo := committedRepo(t)
+	write(t, filepath.Join(repo, ".gitignore"), ".env\n")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "ignore")
+	write(t, filepath.Join(repo, ".env"), "shared\n")
+	copied := branchTree(t, repo, "copied", 0, false)
+	write(t, filepath.Join(copied, ".env"), "shared\n")
+	own := branchTree(t, repo, "own", 0, false)
+	write(t, filepath.Join(own, ".env"), "own\n")
+	detached := branchTree(t, repo, "detached", 0, false)
+	git(t, detached, "checkout", "-q", "--detach")
+	write(t, filepath.Join(detached, "x.go"), "one\n")
+	git(t, detached, "add", ".")
+	git(t, detached, "commit", "-qm", "loose")
+	h, id := open(t, repo)
+
+	assert.Equal(t, "removing it would lose ignored .env; remove it from the app, which asks first", awaitOp(t, h, id, "git.worktree-remove", map[string]string{"path": own}).Error)
+	assert.Equal(t, "removing it would lose 1 commit on no branch; remove it from the app, which asks first", awaitOp(t, h, id, "git.worktree-remove", map[string]string{"path": detached}).Error)
+	assert.FileExists(t, filepath.Join(own, ".env"))
+	assert.DirExists(t, detached)
+
+	var prompt promptEntry
+	require.NoError(t, runCommand(t, h, id, "git.worktree-remove-prompt", map[string]string{"path": detached}, &prompt))
+	assert.Equal(t, fmt.Sprintf("Remove worktree %s?", git(t, detached, "rev-parse", "--short", "HEAD")), prompt.Title)
+	assert.Equal(t, "Loses 1 commit on no branch.", prompt.Detail)
+	assert.ErrorContains(t, h.PluginCallResult(t, "agents", "command.run", map[string]any{"id": "git.worktree-remove", "workspaceId": id, "args": prompt.Args}, nil), "only the app removes")
+	assert.Equal(t, opResult{Done: true}, awaitOp(t, h, id, "git.worktree-remove", prompt.Args))
+	assert.Equal(t, opResult{Done: true}, awaitOp(t, h, id, "git.worktree-remove", map[string]string{"path": copied}))
+	assert.NoDirExists(t, detached)
+	assert.NoDirExists(t, copied)
+}
+
 func TestWorktreeRemoveReachesAFolderThatLeftTheWorkspace(t *testing.T) {
 	first, second := committedRepo(t), committedRepo(t)
 	tree := branchTree(t, second, "pay", 0, false)

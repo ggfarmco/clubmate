@@ -273,7 +273,7 @@ func (s *server) call(ctx context.Context, d device, req rpcRequest) (any, error
 		if err := decodeParams(req.Params, &p); err != nil {
 			return nil, err
 		}
-		return s.uiEvent(ctx, p)
+		return s.uiEvent(ctx, d, p)
 	case "uiWatch":
 		var p uiWatchRequest
 		if err := decodeParams(req.Params, &p); err != nil {

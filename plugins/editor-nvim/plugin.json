@@ -137,7 +137,7 @@
         "hidden": true,
         "agent": false,
         "handles": ["git.worktree.removing"],
-        "description": "Stop the workspace's Neovim whose root is the given path and keep it from starting there again until editor-nvim.release-root. Fails like restart while it has unsaved buffers, unless force is true. Only marks the root when no such Neovim exists.",
+        "description": "Stop the workspace's Neovim whose root is the given path and keep it from starting there again until editor-nvim.release-root. Fails like restart while it, or any other Neovim of the workspace, has unsaved buffers of files inside that root, unless force is true. Only marks the root when no such Neovim exists.",
         "args": {
           "properties": {
             "root": {"type": "string", "description": "Absolute root path of the Neovim, as listed in the workspace roots."},

@@ -108,14 +108,30 @@ func TestCoalescesSlowStream(t *testing.T) {
 	assert.Equal(t, []pluginsdk.SlotView{view("cron.main", 3), view("docs.popup", 2)}, q.take())
 }
 
-func TestUIEventRoutes(t *testing.T) {
+func TestUIEventRoutesOnlySlotsTheDeviceWatches(t *testing.T) {
 	f := newFixture(t)
-	token := f.pair(t, "phone")
+	token, other := f.pair(t, "phone"), f.pair(t, "ipad")
+	f.watchStream(t, token, "prj_1", "cron.main", popupPattern)
+	event := func(token, slot string) reply {
+		_, got := f.call(t, token, "uiEvent", map[string]any{"workspace": "prj_1", "slot": slot, "nodeId": "jobs", "action": "select", "value": "j1"})
+		return got
+	}
 
-	_, got := f.call(t, token, "uiEvent", map[string]any{"workspace": "prj_1", "slot": "cron.main", "nodeId": "jobs", "action": "select", "value": "j1"})
+	assert.JSONEq(t, `{"ok":true}`, string(event(token, "cron.main").Result))
+	assert.JSONEq(t, `{"ok":true}`, string(event(token, "docs.popup").Result))
+	for _, refused := range []reply{event(token, "graphs.main"), event(other, "cron.main")} {
+		require.NotNil(t, refused.Error)
+		assert.Equal(t, codeNotAllowed, refused.Error.Code)
+	}
+	assert.Equal(t, []string{"cron.main", "docs.popup"}, slotsOf(f.backend.uiEvents))
+}
 
-	assert.JSONEq(t, `{"ok":true}`, string(got.Result))
-	assert.Equal(t, []pluginsdk.UIEvent{{WorkspaceID: "prj_1", Slot: "cron.main", NodeID: "jobs", Action: "select", Value: json.RawMessage(`"j1"`)}}, f.backend.uiEvents)
+func slotsOf(events []pluginsdk.UIEvent) []string {
+	out := make([]string, 0, len(events))
+	for _, ev := range events {
+		out = append(out, ev.Slot)
+	}
+	return out
 }
 
 func TestUISectionsAndGetAreFiltered(t *testing.T) {

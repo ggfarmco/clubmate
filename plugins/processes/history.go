@@ -44,6 +44,7 @@ type ring struct {
 type history struct {
 	series map[seriesKey]*series
 	tree   subtreeScratch
+	steps  int
 }
 
 type subtreeScratch struct {
@@ -63,6 +64,11 @@ func newHistory() *history {
 }
 
 func (h *history) record(sessions []group, nodes, core []pluginsdk.ProcessNode, workspaces []string, now time.Time) {
+	h.recordSteps(1, sessions, nodes, core, workspaces, now)
+}
+
+func (h *history) recordSteps(steps int, sessions []group, nodes, core []pluginsdk.ProcessNode, workspaces []string, now time.Time) {
+	h.steps = max(steps, 1)
 	type total struct{ cpu, mb float64 }
 	h.recordSubtrees(now, nodes, core)
 	workspaceOf := sessionWorkspaces(sessions)
@@ -161,8 +167,10 @@ func (h *history) push(key seriesKey, cpu, memMB float64, now time.Time) {
 		s = &series{}
 		h.series[key] = s
 	}
-	s.cpu.push(math.Round(cpu))
-	s.mem.push(math.Round(memMB*10) / 10)
+	for range max(h.steps, 1) {
+		s.cpu.push(math.Round(cpu))
+		s.mem.push(math.Round(memMB*10) / 10)
+	}
 	s.seen = now
 }
 

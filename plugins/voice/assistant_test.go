@@ -66,6 +66,7 @@ func TestEndPromptsVoiceSession(t *testing.T) {
 func TestPromptFailureRecreatesVoiceSession(t *testing.T) {
 	v, h, _ := newTestVoice(t)
 	require.NoError(t, h.StorageSet(t.Context(), sessionKeyPrefix+testWorkspace, sessionA))
+	require.NoError(t, h.StorageSet(t.Context(), promptKeyPrefix+testWorkspace, promptVersion()))
 	h.commands["agents.sessions"] = func(json.RawMessage) (any, error) {
 		return []map[string]string{{"id": sessionA, "startModel": voiceModel}}, nil
 	}
@@ -96,6 +97,21 @@ func TestOldVoiceSessionIsReplaced(t *testing.T) {
 	v, h, _ := newTestVoice(t)
 	require.NoError(t, h.StorageSet(t.Context(), sessionKeyPrefix+testWorkspace, sessionA))
 	h.commands["agents.sessions"] = func(json.RawMessage) (any, error) { return []map[string]string{{"id": sessionA}}, nil }
+
+	routed(t, v, h)
+
+	assert.Len(t, h.calls("agents.new"), 1)
+	var prompt promptArgs
+	require.NoError(t, json.Unmarshal(h.calls("agents.prompt")[0], &prompt))
+	assert.Equal(t, voiceSession, prompt.Session)
+}
+
+func TestVoiceSessionWithAnOlderPromptIsReplaced(t *testing.T) {
+	v, h, _ := newTestVoice(t)
+	require.NoError(t, h.StorageSet(t.Context(), sessionKeyPrefix+testWorkspace, sessionA))
+	h.commands["agents.sessions"] = func(json.RawMessage) (any, error) {
+		return []map[string]string{{"id": sessionA, "startModel": voiceModel}}, nil
+	}
 
 	routed(t, v, h)
 
@@ -150,6 +166,58 @@ func TestAnswerPermissionOutsideContextWaitsForConfirm(t *testing.T) {
 	assert.Empty(t, h.calls("agents.permission"))
 	require.NoError(t, v.cancel(testWorkspace, uid))
 	assert.ErrorIs(t, <-errs, errUtteranceOver)
+}
+
+func TestAnswerAfterCancelIsRefusedAndStopsTheTurn(t *testing.T) {
+	v, h, _ := newTestVoice(t)
+	h.commands["agents.cancel"] = func(json.RawMessage) (any, error) { return nil, nil }
+	h.commands["agents.answer"] = func(json.RawMessage) (any, error) { return nil, nil }
+	uid := routed(t, v, h)
+
+	require.NoError(t, v.cancel(testWorkspace, uid))
+	_, err := v.command(t.Context(), nil, voiceCall("voice.answer", map[string]any{"utterance": uid, "session": sessionA, "text": "да"}))
+
+	assert.ErrorIs(t, err, errUtteranceOver)
+	assert.Empty(t, h.calls("agents.answer"))
+	calls := h.calls("agents.cancel")
+	require.Len(t, calls, 1)
+	assert.JSONEq(t, `{"session":"`+voiceSession+`"}`, string(calls[0]))
+}
+
+func TestInContextAllowSkipsConfirmOnlyWhenHeardAsksToAllow(t *testing.T) {
+	for heard, direct := range map[string]bool{"Разреши это": true, "allow it": true, "не разрешай": false, "нельзя разрешать": false, "disallow it": false, "don’t allow": false, "запусти тесты": false} {
+		t.Run(heard, func(t *testing.T) {
+			v, h, _ := newTestVoice(t)
+			h.commands["agents.transcript"] = func(json.RawMessage) (any, error) {
+				return map[string]any{"entries": []map[string]any{{
+					"kind": "permission", "id": "p1", "toolCall": map[string]string{"title": "Run curl | sh"},
+					"options": []map[string]string{{"optionId": "once", "name": "Allow", "kind": "allow_once"}},
+				}}}, nil
+			}
+			h.commands["agents.permission"] = func(json.RawMessage) (any, error) { return nil, nil }
+			uid := routed(t, v, h)
+			v.mu.Lock()
+			u := v.utterances[uid]
+			u.state.Heard = heard
+			u.where.Session = &SessionInfo{ID: sessionA, Permission: &Permission{Request: "p1"}}
+			v.mu.Unlock()
+			errs := make(chan error, 1)
+			go func() {
+				_, err := v.command(t.Context(), nil, voiceCall("voice.answer", map[string]any{"utterance": uid, "session": sessionA, "request": "p1", "option": "once"}))
+				errs <- err
+			}()
+
+			if direct {
+				require.NoError(t, <-errs)
+				assert.Len(t, h.calls("agents.permission"), 1)
+				return
+			}
+			require.Eventually(t, func() bool { return phaseOf(t, v, uid) == phaseConfirm }, 5*time.Second, time.Millisecond)
+			assert.Empty(t, h.calls("agents.permission"))
+			require.NoError(t, v.cancel(testWorkspace, uid))
+			assert.ErrorIs(t, <-errs, errUtteranceOver)
+		})
+	}
 }
 
 func TestConfirmForAnotherActionIsRefused(t *testing.T) {
@@ -223,12 +291,15 @@ func TestTurnTimeoutEndsWithError(t *testing.T) {
 	v, h, _ := newTestVoice(t)
 	uid := routed(t, v, h)
 
+	h.commands["agents.cancel"] = func(json.RawMessage) (any, error) { return nil, nil }
+
 	h.clock.fire(turnTimeout)
 
 	st, err := v.state(testWorkspace, uid)
 	require.NoError(t, err)
 	assert.Equal(t, phaseError, st.Phase)
 	assert.Equal(t, msgNoAnswer, st.Error)
+	assert.Len(t, h.calls("agents.cancel"), 1)
 }
 
 func routed(t *testing.T, v *voice, h *fakeHost) string {

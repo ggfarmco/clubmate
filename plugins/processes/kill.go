@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 
 	"clubmate/pkg/pluginsdk"
 )
@@ -32,6 +33,22 @@ func killOrphans(ctx context.Context, h *pluginsdk.Host, workspaceID, sessionID 
 		return nil, nil
 	}
 	return h.KillProcesses(ctx, pluginsdk.KillRequest{WorkspaceID: workspaceID, SessionID: sessionID, OrphansOnly: true})
+}
+
+func (a *app) loadAutoKill(ctx context.Context, h *pluginsdk.Host) {
+	keys, err := h.StorageList(ctx, autoKillPrefix)
+	if err != nil {
+		logError("list "+autoKillPrefix, err)
+		return
+	}
+	for _, key := range keys {
+		id := strings.TrimPrefix(key, autoKillPrefix)
+		if _, err := h.GetWorkspace(ctx, id); err != nil {
+			continue
+		}
+		_, err := a.state(ctx, h, id)
+		logError("load "+key, err)
+	}
 }
 
 func (a *app) autoKill(ctx context.Context, h *pluginsdk.Host) {

@@ -72,6 +72,7 @@ type app struct {
 	port     int
 	dns      string
 	tsIPs    []netip.Addr
+	tsCLI    bool
 	sub      string
 	lastSeq  int64
 }
@@ -490,17 +491,23 @@ func (a *app) refreshTailscale(ctx context.Context) {
 	if a.ln.override != "" {
 		return
 	}
-	self := lookupTailscale(ctx)
+	a.setTailscale(lookupTailscale(ctx))
+}
+
+func (a *app) setTailscale(self tailscaleSelf) {
 	a.mu.Lock()
-	a.dns, a.tsIPs = self.dns, self.ips
-	a.mu.Unlock()
+	defer a.mu.Unlock()
+	a.tsCLI = self.installed
+	if !self.failed {
+		a.dns, a.tsIPs = self.dns, self.ips
+	}
 }
 
 func (a *app) scanAddrs() ([]netip.Addr, error) {
 	a.mu.Lock()
-	ips := slices.Clone(a.tsIPs)
+	ips, cli := slices.Clone(a.tsIPs), a.tsCLI
 	a.mu.Unlock()
-	if len(ips) > 0 {
+	if len(ips) > 0 || cli {
 		return ips, nil
 	}
 	return utunAddrs()
