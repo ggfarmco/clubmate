@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sourcegraph/jsonrpc2"
@@ -375,12 +376,25 @@ func (a *app) approveStep(ctx context.Context, cmd pluginsdk.CommandRun) error {
 			return errors.New("run is stopped")
 		}
 		if err := addAllowRule(p.spec.Main, n.Run); err != nil {
+			a.restorePending(ctx, args.ID, args.Node, key, p)
 			return err
 		}
 	}
 	a.setAllowed(ctx, args.ID, p.move, allowedYou, p.spec)
 	a.execStep(ctx, args.ID, args.Node, p.move, p.spec)
 	return nil
+}
+
+func (a *app) restorePending(ctx context.Context, runID, node, key string, p pendingStep) {
+	a.mu.Lock()
+	r := a.runs[runID]
+	if r != nil && r.Status == statusRunning {
+		a.pending[key] = p
+		a.mu.Unlock()
+		return
+	}
+	a.mu.Unlock()
+	a.stepDone(ctx, runID, node, p.move, stepResult{ExitCode: exitUnknown, Reason: reasonStopped})
 }
 
 func (a *app) execStep(ctx context.Context, runID, node string, move int, spec stepSpec) {
@@ -410,6 +424,7 @@ func (a *app) execStep(ctx context.Context, runID, node string, move int, spec s
 			res = a.proc.Run(pctx, spec, func(p int) {
 				pid = p
 				a.register(base, snapshot.Workspace, p, stepLabel+key)
+				a.stepStarted(base, runID, move, p)
 			})
 			if pid != 0 {
 				a.unregister(base, pid)
@@ -464,9 +479,8 @@ func (a *app) recoverSteps(ctx context.Context) func(context.Context) {
 	a.mu.Lock()
 	var owed []delivery
 	var stopped []*Run
-	workspaces := map[string]bool{}
+	var leftovers []leftover
 	for _, r := range a.runs {
-		workspaces[r.Workspace] = true
 		var lost []int
 		for i, m := range r.Moves {
 			if m.Step != nil && m.Step.Status != stepFinished {
@@ -475,6 +489,9 @@ func (a *app) recoverSteps(ctx context.Context) func(context.Context) {
 		}
 		for _, i := range lost {
 			m := &r.Moves[i]
+			if m.Step.PID != 0 {
+				leftovers = append(leftovers, leftover{pid: m.Step.PID, start: m.Step.ProcStart})
+			}
 			m.Open = false
 			m.Step.Status, m.Step.Outcome, m.Step.Reason, m.Step.EndedAt = stepFinished, onError, reasonInterrupted, now
 		}
@@ -503,9 +520,11 @@ func (a *app) recoverSteps(ctx context.Context) func(context.Context) {
 		}
 	}
 	a.mu.Unlock()
-	for ws := range workspaces {
-		a.killLeftovers(ctx, ws)
+	var wg sync.WaitGroup
+	for _, l := range leftovers {
+		wg.Go(func() { killGroup(l, a.grace) })
 	}
+	wg.Wait()
 	return func(ctx context.Context) {
 		for _, r := range stopped {
 			a.finish(ctx, r)
@@ -533,36 +552,19 @@ func (r *Run) closeQueued(reason string, now time.Time, held bool) bool {
 	return closed
 }
 
-func (a *app) killLeftovers(ctx context.Context, workspace string) {
-	roots, err := a.roots(ctx, workspace)
+func (a *app) stepStarted(ctx context.Context, runID string, move, pid int) {
+	start, err := a.procStart(pid)
 	if err != nil {
-		logError(err)
 		return
 	}
-	var pids []int
-	for _, p := range roots {
-		if !p.Ended && strings.HasPrefix(p.Label, stepLabel) {
-			pids = append(pids, p.PID)
-		}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	r := a.runs[runID]
+	if r == nil || move >= len(r.Moves) || r.Moves[move].Step == nil {
+		return
 	}
-	if len(pids) > 0 {
-		logError(a.kill(ctx, pluginsdk.KillRequest{PIDs: pids, WorkspaceID: workspace}))
-	}
-}
-
-func (a *app) processRoots(ctx context.Context, workspace string) ([]pluginsdk.ProcessRoot, error) {
-	if a.host == nil {
-		return nil, nil
-	}
-	return a.host.ProcessRoots(ctx, workspace)
-}
-
-func (a *app) killProcesses(ctx context.Context, req pluginsdk.KillRequest) error {
-	if a.host == nil {
-		return nil
-	}
-	_, err := a.host.KillProcesses(ctx, req)
-	return err
+	r.Moves[move].Step.PID, r.Moves[move].Step.ProcStart = pid, start
+	logError(a.store.Save(ctx, r))
 }
 
 func (a *app) registerProcess(ctx context.Context, workspace string, pid int, label string) {

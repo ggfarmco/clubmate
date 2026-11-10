@@ -99,6 +99,7 @@ func testApp(t *testing.T, core *fakeCore) *app {
 	a.managedPath = filepath.Join(a.home, "managed.json")
 	a.render = func(context.Context, string) error { return nil }
 	a.background = func(f func()) { f() }
+	a.procStart = func(int) (time.Time, error) { return time.Time{}, os.ErrNotExist }
 	a.sessions = func(context.Context, string) ([]api.Session, error) {
 		return []api.Session{{ID: "agt_boss", Worktree: "testdata"}}, nil
 	}
@@ -242,16 +243,24 @@ func TestHandoffRepointsEdges(t *testing.T) {
 func TestRunStopsAtTurnBudget(t *testing.T) {
 	core := &fakeCore{}
 	a := testApp(t, core)
+	a.spawn = func(f func()) { f() }
 	r := runGraph(t, a)
 	core.calls = nil
 
 	for range r.MaxTurns {
-		a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_2"}, agentsSource)
+		a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_2", Status: "done"}, agentsSource)
 	}
 
 	assert.Equal(t, statusStopped, a.runs[r.ID].Status)
 	assert.Equal(t, "turn budget of 12 reached", a.runs[r.ID].Reason)
-	assert.Equal(t, []string{"triggers.delete", "triggers.delete", "triggers.delete"}, core.ids())
+	assert.Equal(t, []string{"triggers.delete", "triggers.delete", "triggers.delete"}, slices.DeleteFunc(core.ids(), func(id string) bool { return id == "agents.transcript" }))
+}
+
+func TestWaitingTurnSkipsTurnBudget(t *testing.T) {
+	a := testApp(t, &fakeCore{})
+	r := runGraph(t, a)
+	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_2", Status: "waiting"}, agentsSource)
+	assert.Zero(t, a.runs[r.ID].Turns)
 }
 
 func TestEndOutcomeFinishesRun(t *testing.T) {

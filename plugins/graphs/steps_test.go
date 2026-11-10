@@ -677,14 +677,6 @@ func TestRestartMarksOpenStepInterrupted(t *testing.T) {
 	live.fire(0, 0, a.now())
 	live.Moves[len(live.Moves)-1].Step = &StepMove{Status: stepRunning, Command: "make test"}
 	live.fire(0, 0, a.now())
-	var killed []int
-	a.roots = func(context.Context, string) ([]pluginsdk.ProcessRoot, error) {
-		return []pluginsdk.ProcessRoot{{PID: 42, Label: stepLabel + r.ID + "/tests"}, {PID: 7, Label: "nvim"}, {PID: 9, Label: stepLabel + "x", Ended: true}}, nil
-	}
-	a.kill = func(_ context.Context, req pluginsdk.KillRequest) error {
-		killed = append(killed, req.PIDs...)
-		return nil
-	}
 	a.recoverSteps(t.Context())
 	moves := stepMoves(a, r.ID, "tests")
 	require.Len(t, moves, 2)
@@ -695,7 +687,6 @@ func TestRestartMarksOpenStepInterrupted(t *testing.T) {
 	}
 	assert.Equal(t, statusStopped, live.Status)
 	assert.Equal(t, "Tests error · interrupted", live.Reason)
-	assert.Equal(t, []int{42}, killed)
 }
 
 func TestRestartDeliversOwedEdgesAfterReady(t *testing.T) {
@@ -903,6 +894,16 @@ func TestAlwaysAllowGoesToMainCheckout(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(main, ".claude", "settings.local.json"))
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "Bash(make test)")
+}
+
+func TestFailedAlwaysAllowKeepsStepApprovable(t *testing.T) {
+	a, p, r, main, _ := splitApp(t, "default")
+	turnDone(t, a, "agt_1", 1)
+	require.NoError(t, os.MkdirAll(filepath.Join(main, ".claude"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(main, ".claude", "settings.local.json"), []byte("{"), 0o644))
+	assert.ErrorContains(t, approve(t, a, r, "tests", "always"), "parse")
+	require.NoError(t, approve(t, a, r, "tests", "once"))
+	assert.Equal(t, 1, p.ran())
 }
 
 func TestBypassAsksOnQuotedCommandWithDeny(t *testing.T) {

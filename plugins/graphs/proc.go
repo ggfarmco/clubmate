@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 	"unicode/utf8"
+
+	"clubmate/internal/proc"
 )
 
 const (
@@ -23,6 +25,7 @@ const (
 	cutNotice   = "\n… cut at 1 MB\n"
 	exitUnknown = -1
 	escapeReach = 1024
+	killPoll    = 50 * time.Millisecond
 )
 
 const reasonTimedOut = "timed out"
@@ -100,6 +103,34 @@ func (r shellRunner) Run(ctx context.Context, s stepSpec, started func(pid int))
 		reason = signalReason(cmd.ProcessState)
 	}
 	return stepResult{ExitCode: exitCode(cmd, werr), Reason: reason, Tail: out.tailText(), Lines: out.lineCount(), Duration: time.Since(begin)}
+}
+
+type leftover struct {
+	pid   int
+	start time.Time
+}
+
+func killGroup(l leftover, grace time.Duration) {
+	if l.pid <= 1 || l.pid == os.Getpid() {
+		return
+	}
+	if start, err := proc.StartTime(l.pid); err != nil || !start.Equal(l.start) {
+		return
+	}
+	if syscall.Kill(-l.pid, syscall.SIGTERM) != nil {
+		return
+	}
+	deadline := time.Now().Add(grace)
+	for time.Now().Before(deadline) {
+		if syscall.Kill(-l.pid, 0) != nil {
+			return
+		}
+		time.Sleep(killPoll)
+	}
+	if start, err := proc.StartTime(l.pid); err == nil && !start.Equal(l.start) {
+		return
+	}
+	_ = syscall.Kill(-l.pid, syscall.SIGKILL)
 }
 
 func (r shellRunner) kill(pid int, done <-chan error) error {

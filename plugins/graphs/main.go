@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"clubmate/internal/proc"
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
@@ -75,8 +76,8 @@ type app struct {
 	kvGet       func(ctx context.Context, key string, out any) (bool, error)
 	kvSet       func(ctx context.Context, key string, v any) error
 	cancels     map[string]context.CancelFunc
-	roots       func(ctx context.Context, workspace string) ([]pluginsdk.ProcessRoot, error)
-	kill        func(ctx context.Context, req pluginsdk.KillRequest) error
+	grace       time.Duration
+	procStart   func(pid int) (time.Time, error)
 	register    func(ctx context.Context, workspace string, pid int, label string)
 	unregister  func(ctx context.Context, pid int)
 	home        string
@@ -122,7 +123,9 @@ func newApp() *app {
 	a.render = a.renderWorkspace
 	a.choose = a.storeSelected
 	a.revealTurn = a.revealSession
-	a.proc = shellRunner{grace: 5 * time.Second}
+	a.grace = 5 * time.Second
+	a.procStart = proc.StartTime
+	a.proc = shellRunner{grace: a.grace}
 	a.pending = map[string]pendingStep{}
 	a.stepSel = map[string]pick{}
 	a.trusting = map[string]string{}
@@ -135,8 +138,6 @@ func newApp() *app {
 	a.kvGet = a.storageGet
 	a.kvSet = a.storageSet
 	a.cancels = map[string]context.CancelFunc{}
-	a.roots = a.processRoots
-	a.kill = a.killProcesses
 	a.register = a.registerProcess
 	a.unregister = a.unregisterProcess
 	a.home, _ = os.UserHomeDir()
@@ -564,7 +565,9 @@ func (a *app) countTurn(ctx context.Context, p api.Turn, source string) {
 			continue
 		}
 		before := len(r.Moves)
-		r.Turns++
+		if turnOver(p) {
+			r.Turns++
+		}
 		if i := r.endTurn(p, a.now()); i >= 0 {
 			r.Moves[i].Reply = clip(p.Reply, replyKeep)
 			ended = append(ended, closed{r.ID, i})

@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/proc"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
 )
@@ -100,4 +103,38 @@ func TestRedTeam_StepLoopStops(t *testing.T) {
 	assert.Equal(t, reasonStopped, moves[5].Step.Reason)
 	assert.Nil(t, moves[5].Step.ExitCode)
 	assert.Equal(t, "step budget of 5 reached", a.runs[r.ID].Reason)
+}
+
+func TestRestartKillsLeftoverStepGroup(t *testing.T) {
+	a, _, r, dir := redTeam(t, "", "sleep 300 & echo $! > child.pid\nwait\n")
+	a.spawn = func(f func()) { go f() }
+	a.procStart = proc.StartTime
+	turnDone(t, a, "agt_1", 1)
+	var child int
+	var saved []byte
+	require.Eventually(t, func() bool {
+		data, _ := os.ReadFile(filepath.Join(dir, "child.pid"))
+		child, _ = strconv.Atoi(strings.TrimSpace(string(data)))
+		m := stepMoves(a, r.ID, "tests")
+		if child == 0 || len(m) != 1 || m[0].Step.PID == 0 {
+			return false
+		}
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		var err error
+		saved, err = json.Marshal(a.runs[r.ID])
+		return err == nil
+	}, 5*time.Second, 10*time.Millisecond)
+	var loaded Run
+	require.NoError(t, json.Unmarshal(saved, &loaded))
+	t.Cleanup(func() {
+		_ = syscall.Kill(child, syscall.SIGKILL)
+		_ = syscall.Kill(-stepMoves(a, r.ID, "tests")[0].Step.PID, syscall.SIGKILL)
+	})
+	b := testApp(t, &fakeCore{})
+	b.grace = 200 * time.Millisecond
+	b.runs[r.ID] = &loaded
+	b.recoverSteps(t.Context())
+	assert.Eventually(t, func() bool { return syscall.Kill(child, 0) != nil }, 2*time.Second, 10*time.Millisecond)
+	assert.Eventually(t, func() bool { return stepMoves(a, r.ID, "tests")[0].Step.Status == stepFinished }, 2*time.Second, 10*time.Millisecond)
 }

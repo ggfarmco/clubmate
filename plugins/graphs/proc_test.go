@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -120,4 +121,25 @@ func TestShellRunnerBackgroundChildDoesNotHang(t *testing.T) {
 func TestShellRunnerCountsEveryLine(t *testing.T) {
 	res, _ := runShell(t, `seq 1 5000; printf end`, 5*time.Second)
 	assert.Equal(t, 5001, res.Lines)
+}
+
+func TestKillGroupSparesReusedPID(t *testing.T) {
+	cmd := exec.Command("sleep", "300")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	require.NoError(t, cmd.Start())
+	exited := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(exited)
+	}()
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		<-exited
+	})
+	killGroup(leftover{pid: cmd.Process.Pid, start: time.Unix(1, 0)}, 100*time.Millisecond)
+	select {
+	case <-exited:
+		t.Fatal("killed a process whose start time differs")
+	case <-time.After(200 * time.Millisecond):
+	}
 }
