@@ -142,7 +142,13 @@ func tagCounts(tasks []Task) map[string]int {
 }
 
 func tagTabs(tasks []Task, counts map[string]int, filter string, open bool) sdui.Node {
-	items := []sdui.Item{{ID: tagAll, Label: "All", Badge: strconv.Itoa(len(tasks))}}
+	notDone := 0
+	for _, t := range tasks {
+		if t.Status != statusDone {
+			notDone++
+		}
+	}
+	items := []sdui.Item{{ID: tagAll, Label: "All", Badge: strconv.Itoa(notDone)}}
 	tags := slices.Collect(maps.Keys(counts))
 	slices.SortFunc(tags, func(a, b string) int { return cmp.Or(cmp.Compare(counts[b], counts[a]), cmp.Compare(a, b)) })
 	shown := tags
