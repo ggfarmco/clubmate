@@ -406,6 +406,7 @@ func TestApprovalCard(t *testing.T) {
 		{ID: "always", Label: "Always allow…", Kind: "allow_always", Shortcut: "opt+2", Rule: "Bash(make test)", Scope: "in the main checkout (/repo)"},
 		{ID: "reject", Label: "Reject", Kind: "reject_once", Shortcut: "opt+3"},
 	}, card.Props["options"])
+	assert.Equal(t, []string{"in /repo · the main checkout · not in the allow list · Reject ends the step with error · rejected"}, texts(graphChildren(view)[0].Children[1]))
 	require.NoError(t, a.approveFromSection(t.Context(), pluginsdk.UIEvent{WorkspaceID: "ws1", Action: actApprove, Value: json.RawMessage(`{"request":"tests","option":"reject"}`)}, r.ID))
 	assert.Equal(t, reasonRejected, stepMoves(a, r.ID, "tests")[0].Step.Reason)
 }
@@ -500,4 +501,16 @@ func TestHelpPageCountsYourGraphsPerPart(t *testing.T) {
 func TestAskPromptNamesThePart(t *testing.T) {
 	assert.Contains(t, askPrompt("maxFires"), "that uses a round cap (maxFires).")
 	assert.NotContains(t, askPrompt(""), "that uses")
+}
+
+func TestHomeShort(t *testing.T) {
+	tests := []struct{ path, home, want string }{
+		{"/Users/me/src/wt", "/Users/me", "~/src/wt"},
+		{"/Users/me", "/Users/me/", "~"},
+		{"/Users/meow/src", "/Users/me", "/Users/meow/src"},
+		{"/Users/me/src", "", "/Users/me/src"},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, homeShort(tt.path, tt.home), tt.path)
+	}
 }

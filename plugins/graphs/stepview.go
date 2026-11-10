@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -35,6 +36,7 @@ type runExtras struct {
 	live        *liveOutput
 	summarizing bool
 	now         time.Time
+	home        string
 }
 
 type pick struct {
@@ -97,7 +99,7 @@ func capCard(r *Run, n *runNeed) sdui.Node {
 	return sdui.Card("warning", "exclamationmark.circle", sdui.WithTone(sdui.Text(text), "warning"))
 }
 
-func approvalCard(r *Run, n *runNeed, p *pendingInfo) sdui.Node {
+func approvalCard(r *Run, n *runNeed, p *pendingInfo, home string) sdui.Node {
 	role := roleOf(r, n.Node)
 	options := []sdui.PermissionOption{{ID: optOnce, Label: "Allow once", Kind: "allow_once", Shortcut: "opt+1"}}
 	if p != nil && p.Rule != "" {
@@ -113,7 +115,7 @@ func approvalCard(r *Run, n *runNeed, p *pendingInfo) sdui.Node {
 	}), actApprove)
 	where := "Reject ends the step with error · rejected"
 	if p != nil && p.Dir != "" {
-		where = "in " + p.Dir + " · not in the allow list · " + where
+		where = "in " + homeShort(p.Dir, home) + mainSuffix(p) + " · not in the allow list · " + where
 	}
 	return sdui.VStack(card, sdui.MutedText(where))
 }
@@ -295,7 +297,7 @@ func stepGlyph(status string) string {
 
 func (a *app) extras(r *Run) runExtras {
 	a.mu.Lock()
-	x := runExtras{pending: map[string]*pendingInfo{}, selected: a.stepSel[r.ID], now: a.now()}
+	x := runExtras{pending: map[string]*pendingInfo{}, selected: a.stepSel[r.ID], now: a.now(), home: a.home}
 	for k, p := range a.pending {
 		if node, ok := strings.CutPrefix(k, r.ID+"/"); ok {
 			x.pending[node] = pendingOf(p)
@@ -392,4 +394,21 @@ func needDetail(r *Run, n *runNeed) string {
 	}
 	limit := r.Spec.Edges[n.Edge].MaxFires + r.Extra[n.Edge]
 	return fmt.Sprintf("%d of %d", limit, limit)
+}
+
+func mainSuffix(p *pendingInfo) string {
+	if p.Main != "" && filepath.Clean(p.Dir) == filepath.Clean(p.Main) {
+		return " · the main checkout"
+	}
+	return ""
+}
+
+func homeShort(path, home string) string {
+	if home == "" {
+		return path
+	}
+	if rest, ok := strings.CutPrefix(path, filepath.Clean(home)); ok && (rest == "" || strings.HasPrefix(rest, "/")) {
+		return "~" + rest
+	}
+	return path
 }

@@ -397,3 +397,28 @@ func TestRepoRootIsTheMainCheckout(t *testing.T) {
 	assert.Equal(t, repo, repoRoot(t.Context(), feat))
 	assert.Equal(t, dir, repoRoot(t.Context(), dir))
 }
+
+func TestChangedCardShowsLimitDiff(t *testing.T) {
+	spec := func(turns int, branch string) *Graph {
+		return &Graph{MaxTurns: turns, Nodes: []Node{{ID: "coder", Role: "Coder", Branch: branch}, {ID: "tests", Role: "Tests", Run: "make test", In: "coder"}}}
+	}
+	was := spec(12, "")
+	tests := []struct {
+		name   string
+		limits string
+		want   []string
+	}{
+		{"changed", limitsOf(was), []string{"limits · the rest is the same", "Limits · maxTurns", "− 12", "+ 40", "Coder · branch", "− none", "+ graph/{{run}}"}},
+		{"no field differs", limitsOf(spec(40, "graph/{{run}}")), []string{"limits · the rest is the same", "Limits · the agent nodes' order changed"}},
+		{"trusted before limits", "", []string{"limits · the rest is the same", "Limits · trusted before Clubmate checked maxTurns, maxSteps, branches and afk"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tv := trustView{changed: []string{changedLimits}, last: &trustedSteps{Steps: stepsOf(was), Limits: tt.limits}}
+			card, ok := changedCard(spec(40, "graph/{{run}}"), tv)
+			require.True(t, ok)
+			got := texts(card)
+			assert.Equal(t, tt.want, got[1:len(got)-1])
+		})
+	}
+}

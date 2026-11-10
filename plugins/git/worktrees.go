@@ -27,7 +27,7 @@ const (
 	discardPlugin       = "agents"
 	unsavedMarker       = "unsaved buffers: "
 	removeTitle         = "Remove worktree %s? Its branch is kept."
-	removeDetachedTitle = "Remove worktree %s?"
+	removeDetachedTitle = "Remove detached worktree %s?"
 	lostSecretsDetail   = "Deletes ignored "
 	lostOrphansDetail   = "Loses %d %s on no branch."
 	maxCompared         = 1 << 20

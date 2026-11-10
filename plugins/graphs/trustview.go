@@ -52,6 +52,72 @@ func stepDiff(was, now Node) []fieldChange {
 	return out
 }
 
+func limitRows(spec *Graph, trusted string) []sdui.Node {
+	var was limitsShape
+	if trusted == "" || json.Unmarshal([]byte(trusted), &was) != nil {
+		return []sdui.Node{sdui.MutedText("Limits · trusted before Clubmate checked maxTurns, maxSteps, branches and afk")}
+	}
+	var now limitsShape
+	_ = json.Unmarshal([]byte(limitsOf(spec)), &now)
+	var rows []sdui.Node
+	for _, c := range limitsDiff(spec, was, now) {
+		rows = append(rows, sdui.MutedText(c.field), sdui.WithTone(sdui.MonoText("− "+c.was), "danger"), sdui.WithTone(sdui.MonoText("+ "+c.now), "success"))
+	}
+	if len(rows) == 0 {
+		return []sdui.Node{sdui.MutedText("Limits · the agent nodes' order changed")}
+	}
+	return rows
+}
+
+func limitsDiff(spec *Graph, was, now limitsShape) []fieldChange {
+	var out []fieldChange
+	add := func(field, x, y string) {
+		if x != y {
+			out = append(out, fieldChange{field: field, was: x, now: y})
+		}
+	}
+	add("Limits · maxTurns", limitText(was.MaxTurns, defaultMaxTurns), limitText(now.MaxTurns, defaultMaxTurns))
+	add("Limits · maxSteps", limitText(was.MaxSteps, defaultMaxSteps), limitText(now.MaxSteps, defaultMaxSteps))
+	ids := make([]string, 0, len(now.Nodes)+len(was.Nodes))
+	for _, p := range slices.Concat(now.Nodes, was.Nodes) {
+		if !slices.Contains(ids, p.ID) {
+			ids = append(ids, p.ID)
+		}
+	}
+	for _, id := range ids {
+		x, y := placeOf(was, id), placeOf(now, id)
+		label := id
+		if n := spec.node(id); n != nil {
+			label = n.label()
+		}
+		add(label+" · branch", cmp.Or(x.Branch, "none"), cmp.Or(y.Branch, "none"))
+		add(label+" · afk", onOff(x.Afk), onOff(y.Afk))
+	}
+	return out
+}
+
+func placeOf(s limitsShape, id string) nodePlace {
+	i := slices.IndexFunc(s.Nodes, func(p nodePlace) bool { return p.ID == id })
+	if i < 0 {
+		return nodePlace{ID: id}
+	}
+	return s.Nodes[i]
+}
+
+func limitText(n, fallback int) string {
+	if n == 0 {
+		return strconv.Itoa(fallback) + " (default)"
+	}
+	return strconv.Itoa(n)
+}
+
+func onOff(b bool) string {
+	if b {
+		return "on"
+	}
+	return "off"
+}
+
 func commandLine(n *Node) string {
 	if n.Run != "" {
 		return n.Run
@@ -109,7 +175,7 @@ func changedCard(spec *Graph, tv trustView) (sdui.Node, bool) {
 			rows = append(rows, sdui.MutedText("Edges · the routing changed: an edge or an end was added, removed or rewired"))
 			continue
 		case changedLimits:
-			rows = append(rows, sdui.MutedText("Limits · maxTurns, maxSteps, an agent node's branch or the afk of a node a step runs in changed, or the trust predates Clubmate checking them"))
+			rows = append(rows, limitRows(spec, tv.last.Limits)...)
 			continue
 		}
 		steps++
@@ -123,11 +189,20 @@ func changedCard(spec *Graph, tv trustView) (sdui.Node, bool) {
 			rows = append(rows, sdui.MutedText(n.label()+" · "+c.field), sdui.WithTone(sdui.MonoText("− "+c.was), "danger"), sdui.WithTone(sdui.MonoText("+ "+c.now), "success"))
 		}
 	}
-	what := strconv.Itoa(steps) + " steps"
-	if steps == 1 {
-		what = "1 step"
+	var what []string
+	switch {
+	case steps == 1:
+		what = append(what, "1 step")
+	case steps > 1:
+		what = append(what, strconv.Itoa(steps)+" steps")
 	}
-	head := sdui.HStack(sdui.Text("What changed since you trusted it"), sdui.MutedText(what+" · the rest is the same"))
+	if slices.Contains(tv.changed, changedEdges) {
+		what = append(what, "routing")
+	}
+	if slices.Contains(tv.changed, changedLimits) {
+		what = append(what, "limits")
+	}
+	head := sdui.HStack(sdui.Text("What changed since you trusted it"), sdui.MutedText(strings.Join(what, ", ")+" · the rest is the same"))
 	foot := sdui.MutedText("Steps run in the run's folder with your shell environment. A command outside the allow list still asks before it runs.")
 	return sdui.Card("", "terminal", append(append([]sdui.Node{head}, rows...), foot)...), true
 }

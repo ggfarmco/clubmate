@@ -216,7 +216,7 @@ func mainView(r *Run, sessions map[string]api.Session, x runExtras) sdui.Node {
 	case need.Kind == needCap:
 		children = append(children, capCard(r, need))
 	default:
-		children = append(children, approvalCard(r, need, x.pending[need.Node]))
+		children = append(children, approvalCard(r, need, x.pending[need.Node], x.home))
 	}
 	switch node, move := r.shownMove(x.selected); {
 	case move < 0:

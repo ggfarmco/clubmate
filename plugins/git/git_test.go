@@ -459,7 +459,7 @@ func TestPlainWorktreeRemoveKeepsSecretsAndOrphansUntilTheAppAsks(t *testing.T) 
 
 	var prompt promptEntry
 	require.NoError(t, runCommand(t, h, id, "git.worktree-remove-prompt", map[string]string{"path": detached}, &prompt))
-	assert.Equal(t, fmt.Sprintf("Remove worktree %s?", git(t, detached, "rev-parse", "--short", "HEAD")), prompt.Title)
+	assert.Equal(t, fmt.Sprintf("Remove detached worktree %s?", git(t, detached, "rev-parse", "--short", "HEAD")), prompt.Title)
 	assert.Equal(t, "Loses 1 commit on no branch.", prompt.Detail)
 	assert.ErrorContains(t, h.PluginCallResult(t, "agents", "command.run", map[string]any{"id": "git.worktree-remove", "workspaceId": id, "args": prompt.Args}, nil), "only the app removes")
 	assert.Equal(t, opResult{Done: true}, awaitOp(t, h, id, "git.worktree-remove", prompt.Args))
