@@ -48,7 +48,7 @@ type app struct {
 	flushing    bool
 	drafts      map[string]draft
 	starting    map[string]string
-	collapsed   map[string]map[string]bool
+	expanded    map[string]map[string]bool
 	lastSeq     atomic.Int64
 	subs        map[string]string
 	store       automation.Storage[*Run]
@@ -111,7 +111,7 @@ func newApp() *app {
 		dirty:     map[string]bool{},
 		drafts:    map[string]draft{},
 		starting:  map[string]string{},
-		collapsed: map[string]map[string]bool{},
+		expanded:  map[string]map[string]bool{},
 		subs:      map[string]string{},
 		ready:     make(chan struct{}),
 		now:       time.Now,
@@ -381,6 +381,7 @@ func (a *app) storeSelected(ctx context.Context, workspace, id string) error {
 	if err := a.host.StorageSet(ctx, selectedPrefix+workspace, id); err != nil {
 		return err
 	}
+	a.unfoldRunsFor(workspace, id)
 	a.invalidate(workspace)
 	a.flush(ctx)
 	return nil
@@ -389,10 +390,17 @@ func (a *app) storeSelected(ctx context.Context, workspace, id string) error {
 func (a *app) fold(workspace, id string, collapsed bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.collapsed[workspace] == nil {
-		a.collapsed[workspace] = map[string]bool{}
+	if a.expanded[workspace] == nil {
+		a.expanded[workspace] = map[string]bool{}
 	}
-	a.collapsed[workspace][id] = collapsed
+	a.expanded[workspace][id] = !collapsed
+}
+
+func (a *app) unfoldRunsFor(workspace, id string) {
+	if id == automation.HelpID || strings.HasPrefix(id, graphPrefix) {
+		return
+	}
+	a.fold(workspace, groupRuns, false)
 }
 
 func (a *app) openAttention(ctx context.Context, workspace, id string) (any, error) {
@@ -891,9 +899,9 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	}
 	selected = pickSelected(selected, graphs, runs)
 	a.mu.Lock()
-	d, starting, collapsed := a.drafts[workspace], a.starting[workspace], maps.Clone(a.collapsed[workspace])
+	d, starting, expanded := a.drafts[workspace], a.starting[workspace], maps.Clone(a.expanded[workspace])
 	a.mu.Unlock()
-	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(graphs, a.untrustedGraphs(ctx, workspace, dirs, graphs), runs, selected, statuses, collapsed)); err != nil {
+	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(graphs, a.untrustedGraphs(ctx, workspace, dirs, graphs), runs, selected, statuses, expanded)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
 	var main sdui.Node

@@ -110,12 +110,18 @@ func TestSidebarListsGraphsAboveRuns(t *testing.T) {
 	}
 	runs := []*Run{{ID: "gr_1", Title: "Review loop", Status: statusStopped, StartedAt: time.Now()}}
 
-	groups, ok := sidebarView(graphs, nil, runs, "gr_1", nil, map[string]bool{groupRuns: true}).Props["items"].([]sdk.TreeItem)
+	groups, ok := sidebarView(graphs, nil, runs, "graph:review-loop", nil, nil).Props["items"].([]sdk.TreeItem)
 	require.True(t, ok)
 	assert.Equal(t, automation.HelpID, groups[0].ID)
 	groups = groups[1:]
 	assert.Equal(t, []string{"Graphs", "3", "Runs", "1"}, []string{groups[0].Label, groups[0].Detail, groups[1].Label, groups[1].Detail})
 	assert.Equal(t, []bool{true, false}, []bool{groups[0].Expanded, groups[1].Expanded})
+	runsOpen := func(selected string, expanded map[string]bool) bool {
+		return sidebarView(graphs, nil, runs, selected, nil, expanded).Props["items"].([]sdk.TreeItem)[2].Expanded
+	}
+	assert.True(t, runsOpen("gr_1", nil))
+	assert.False(t, runsOpen("gr_1", map[string]bool{groupRuns: false}))
+	assert.True(t, runsOpen("graph:review-loop", map[string]bool{groupRuns: true}))
 	assert.Equal(t, []bool{true, true}, []bool{groups[0].Action, groups[1].Action})
 	items := groups[0].Children
 	assert.Equal(t, []string{"graph:broken", "invalid", "danger"}, []string{items[0].ID, items[0].Detail, items[0].Tone})
@@ -513,4 +519,14 @@ func TestHomeShort(t *testing.T) {
 	for _, tt := range tests {
 		assert.Equal(t, tt.want, homeShort(tt.path, tt.home), tt.path)
 	}
+}
+
+func TestSelectingARunUnfoldsRuns(t *testing.T) {
+	a := testApp(t, &fakeCore{})
+	a.fold("ws1", groupRuns, true)
+
+	a.unfoldRunsFor("ws1", "graph:review-loop")
+	assert.Equal(t, map[string]bool{groupRuns: false}, a.expanded["ws1"])
+	a.unfoldRunsFor("ws1", "gr_1")
+	assert.Equal(t, map[string]bool{groupRuns: true}, a.expanded["ws1"])
 }

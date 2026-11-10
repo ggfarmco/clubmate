@@ -39,14 +39,14 @@ const (
 
 var liveOrder = []string{"waiting", "running", "error"}
 
-func sidebarView(graphs []graphFile, untrusted map[string]bool, runs []*Run, selected string, sessions map[string]api.Session, collapsed map[string]bool) sdui.Node {
+func sidebarView(graphs []graphFile, untrusted map[string]bool, runs []*Run, selected string, sessions map[string]api.Session, expanded map[string]bool) sdui.Node {
 	groups := []sdui.TreeItem{automation.HelpItem("How graphs work")}
 	if len(graphs) > 0 {
 		items := make([]sdui.TreeItem, 0, len(graphs))
 		for _, g := range graphs {
 			items = append(items, graphItem(g, untrusted[g.Name]))
 		}
-		groups = append(groups, group(groupGraphs, "Graphs", items, collapsed))
+		groups = append(groups, group(groupGraphs, "Graphs", items, true, expanded))
 	}
 	if len(runs) > 0 {
 		items := make([]sdui.TreeItem, 0, len(runs))
@@ -65,13 +65,16 @@ func sidebarView(graphs []graphFile, untrusted map[string]bool, runs []*Run, sel
 				Menu:   runMenu(r),
 			})
 		}
-		groups = append(groups, group(groupRuns, "Runs", items, collapsed))
+		groups = append(groups, group(groupRuns, "Runs", items, slices.ContainsFunc(runs, func(r *Run) bool { return r.ID == selected }), expanded))
 	}
 	return sdui.Tree(listID, groups, selected)
 }
 
-func group(id, label string, items []sdui.TreeItem, collapsed map[string]bool) sdui.TreeItem {
-	return sdui.TreeItem{ID: id, Label: label, Detail: strconv.Itoa(len(items)), Muted: true, Action: true, HasChildren: true, Expanded: !collapsed[id], Children: items}
+func group(id, label string, items []sdui.TreeItem, open bool, expanded map[string]bool) sdui.TreeItem {
+	if v, ok := expanded[id]; ok {
+		open = v
+	}
+	return sdui.TreeItem{ID: id, Label: label, Detail: strconv.Itoa(len(items)), Muted: true, Action: true, HasChildren: true, Expanded: open, Children: items}
 }
 
 func graphItem(g graphFile, untrusted bool) sdui.TreeItem {

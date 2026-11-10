@@ -368,6 +368,7 @@ func (a *app) reveal(ctx context.Context, cmd pluginsdk.CommandRun) error {
 	if err := a.host.StorageSet(ctx, selectedPrefix+cmd.WorkspaceID, args.ID); err != nil {
 		return err
 	}
+	a.unfoldRunsFor(cmd.WorkspaceID, args.ID)
 	a.invalidate(cmd.WorkspaceID)
 	a.flush(ctx)
 	return a.host.Focus(ctx, cmd.WorkspaceID, sectionID, mainSlot)
