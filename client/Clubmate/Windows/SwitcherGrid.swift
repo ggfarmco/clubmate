@@ -11,6 +11,7 @@ struct SwitcherGridView: View {
     @Environment(WorkspaceActions.self) private var actions
     @Environment(\.theme) private var theme
     @State private var highlight: Int?
+    @State private var hovered: Int?
 
     static let tile = CGSize(width: 240, height: 150)
     private static let spacing: CGFloat = 16
@@ -82,7 +83,7 @@ struct SwitcherGridView: View {
                         .stroke(highlighted ? theme.accent : theme.border, lineWidth: highlighted ? 2 : 1)
                 )
                 .overlay(alignment: .topTrailing) {
-                    if let workspace {
+                    if let workspace, highlighted || hovered == index {
                         closeButton(workspace, highlighted: highlighted)
                     }
                 }
@@ -101,6 +102,13 @@ struct SwitcherGridView: View {
         }
         .frame(width: Self.tile.width, alignment: .leading)
         .contentShape(Rectangle())
+        .onHover { inside in
+            if inside {
+                hovered = index
+            } else if hovered == index {
+                hovered = nil
+            }
+        }
         .onTapGesture { choose(index) }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open folder…")

@@ -30,6 +30,13 @@ func TestSwitcherClosesAWorkspaceByItsCrossAndByDelete(t *testing.T) {
 		w := in.snapshot().main()
 		return w.has("switcher#"+in.workspace) && w.has("switcher#"+opened.ID) && strings.Contains(w.Responder, "SwitcherKeyView")
 	})
+	w := in.snapshot().main()
+	require.True(t, w.has("switcher.close#"+opened.ID), "the highlighted tile shows its cross at rest")
+	require.False(t, w.has("switcher.close#"+in.workspace), "a tile neither highlighted nor hovered hides its cross")
+	in.pointer("hover", "switcher#"+in.workspace)
+	in.eventually("hovering a tile shows its cross", func() bool {
+		return in.snapshot().main().has("switcher.close#" + in.workspace)
+	})
 	in.pointer("click", "switcher.close#"+in.workspace)
 	in.eventually("the other workspace's cross closes it and the switcher stays", func() bool {
 		w := in.snapshot().main()
