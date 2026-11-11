@@ -211,17 +211,12 @@ return {
           view = {
             ["q"] = "<cmd>DiffviewClose<cr>",
             ["e"] = require("diffview.actions").goto_file_edit,
-            ["a"] = false,
-            ["dd"] = false,
-            ["@"] = false,
           },
           file_panel = {
             ["q"] = "<cmd>DiffviewClose<cr>",
             ["e"] = require("diffview.actions").goto_file_edit,
             ["s"] = require("diffview.actions").toggle_stage_entry,
             ["r"] = require("diffview.actions").toggle_reviewed_entry,
-            ["A"] = function() end,
-            ["@"] = function() end,
           },
           file_history_panel = {
             ["q"] = "<cmd>DiffviewClose<cr>",
