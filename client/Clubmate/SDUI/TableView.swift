@@ -286,7 +286,9 @@ private struct BarShape: Shape {
     let fraction: Double
 
     func path(in rect: CGRect) -> Path {
-        Capsule().path(in: CGRect(x: rect.minX, y: rect.minY, width: rect.width * fraction, height: rect.height))
+        let width = rect.width * fraction
+        guard width >= 3 else { return Path() }
+        return Capsule().path(in: CGRect(x: rect.minX, y: rect.minY, width: width, height: rect.height))
     }
 }
 
