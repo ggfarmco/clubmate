@@ -107,14 +107,14 @@ func main() {
 
 func newApp() *app {
 	a := &app{
-		runs:      map[string]*Run{},
-		dirty:     map[string]bool{},
-		drafts:    map[string]draft{},
-		starting:  map[string]string{},
-		expanded:  map[string]map[string]bool{},
-		subs:      map[string]string{},
-		ready:     make(chan struct{}),
-		now:       time.Now,
+		runs:     map[string]*Run{},
+		dirty:    map[string]bool{},
+		drafts:   map[string]draft{},
+		starting: map[string]string{},
+		expanded: map[string]map[string]bool{},
+		subs:     map[string]string{},
+		ready:    make(chan struct{}),
+		now:      time.Now,
 	}
 	a.runCommand = a.callCommand
 	a.sessions = a.agentSessions

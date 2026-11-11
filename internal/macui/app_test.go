@@ -2,7 +2,6 @@ package macui_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -358,11 +357,4 @@ func focusedSession(w *window) string {
 		return m[1]
 	}
 	return ""
-}
-
-func describe(w *window) string {
-	if w == nil {
-		return "no window"
-	}
-	return fmt.Sprintf("%s %q focus=%s responder=%s", w.Kind, w.Title, w.Focus, w.Responder)
 }
