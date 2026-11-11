@@ -357,6 +357,7 @@ Defaults of the bundled nvim distribution (`nvim-distro/`). Keys in normal mode 
 | Diff | ,dh / ,dq | File history, close Diffview | `lua/clubmate/plugins/git.lua` |
 | Diff | q / e (Diffview) | Close, edit the file; `s` stage, `r` mark reviewed in the file panel | `lua/clubmate/plugins/git.lua` |
 | Diff | zc / zt / zg / zr (Diffview file panel) | Show or hide code files, test files, generated files, reviewed files (`h` still folds a folder) | diffview.nvim `config.lua` |
+| Diff | t (Diffview file panel) | Show folders nested (where each file sits) or one folder per parent directory (the default); holds for the nvim session | diffview.nvim `config.lua` |
 | Diff | ]f / [f (Diffview diff panes and file panel) | Open the next, previous file to review (skips hidden files) | diffview.nvim `config.lua` |
 | Diff | ,b (Diffview) | Show or hide the review panel; in the narrow (inline) layout it opens as a drawer floating over the diff's left edge | diffview.nvim `config.lua` |
 | Diff | Esc (review drawer) | Close the drawer | diffview.nvim `config.lua` |
