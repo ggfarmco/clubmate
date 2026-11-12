@@ -49,7 +49,7 @@ SOFTWARE.
 
 The `clubmate`, `clubmate-core` and `clubmate-session` binaries and the bundled plugins are built with Go and link these modules.
 
-### Go standard library go1.27.0
+### Go standard library go1.27.4
 
 #### LICENSE
 

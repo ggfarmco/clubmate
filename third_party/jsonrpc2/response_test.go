@@ -25,7 +25,7 @@ func TestResponseMarshalJSON_Notif(t *testing.T) {
 		{ID: jsonrpc2.ID{Num: 1}}:                   true,
 		{ID: jsonrpc2.ID{Str: "", IsString: true}}:  true,
 		{ID: jsonrpc2.ID{Str: "a", IsString: true}}: true,
-		{Notif: true}: false,
+		{Notif: true}:                               false,
 	}
 	for r, wantIDKey := range tests {
 		b, err := json.Marshal(r)

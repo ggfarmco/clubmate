@@ -2,7 +2,7 @@ module clubmate
 
 go 1.27.0
 
-toolchain go1.27.3
+toolchain go1.27.4
 
 require (
 	github.com/alecthomas/chroma/v2 v2.27.0
