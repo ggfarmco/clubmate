@@ -18,11 +18,14 @@ public enum TerminalDrop {
     }
 
     public static func quote(_ word: String) -> String {
-        if !word.isEmpty, word.allSatisfy(isSafe) { return word }
+        if !word.isEmpty, word.unicodeScalars.allSatisfy(isSafe) { return word }
         return "'" + word.replacingOccurrences(of: "'", with: #"'"'"'"#) + "'"
     }
 
-    private static func isSafe(_ character: Character) -> Bool {
-        character.isLetter || character.isNumber || "_@%+=:,./-".contains(character)
+    private static func isSafe(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar {
+        case "a"..."z", "A"..."Z", "0"..."9", "_", "@", "%", "+", "=", ":", ",", ".", "/", "-": true
+        default: false
+        }
     }
 }
