@@ -76,3 +76,17 @@ func TestAgentEnvAppendsTools(t *testing.T) {
 	t.Setenv("PATH", "/a:"+tools+":/b")
 	assert.Contains(t, agentEnv(""), "PATH=/a:/b:"+tools)
 }
+
+func TestChromeFollowsClaudeCodeDefault(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", dir)
+	assert.False(t, chromeByDefault())
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".claude.json"), []byte(`{"claudeInChromeDefaultEnabled":true}`), 0o600))
+	assert.True(t, chromeByDefault())
+}
+
+func TestChromeOnlyForUnrestrictedSessions(t *testing.T) {
+	assert.Equal(t, map[string]*string{"chrome": nil}, sessionMeta(record{ID: "a"}, "", selfParts{}, true).ClaudeCode.Options.ExtraArgs)
+	assert.Nil(t, sessionMeta(record{ID: "a", SystemPrompt: "serve"}, "", selfParts{}, true).ClaudeCode.Options.ExtraArgs)
+	assert.Nil(t, sessionMeta(record{ID: "a"}, "", selfParts{}, false).ClaudeCode.Options.ExtraArgs)
+}

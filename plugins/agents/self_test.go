@@ -15,29 +15,29 @@ import (
 )
 
 func TestSessionMetaAppendsSelfAfterHint(t *testing.T) {
-	m := sessionMeta(record{ID: "a"}, "", selfParts{Prompt: "be brief", PluginDir: "/s"})
+	m := sessionMeta(record{ID: "a"}, "", selfParts{Prompt: "be brief", PluginDir: "/s"}, false)
 	assert.Equal(t, askUserText+"\n\nbe brief", m.SystemPrompt.Append)
 	assert.Equal(t, []acp.ClaudeCodePlugin{{Type: "local", Path: "/s"}}, m.ClaudeCode.Options.Plugins)
 }
 
 func TestSessionMetaChildGetsSelfAfterOpenItems(t *testing.T) {
-	m := sessionMeta(record{ID: "a", ParentSession: "p"}, "", selfParts{Prompt: "be brief"})
+	m := sessionMeta(record{ID: "a", ParentSession: "p"}, "", selfParts{Prompt: "be brief"}, false)
 	assert.Equal(t, openItemsText+"\n\nbe brief", m.SystemPrompt.Append)
 }
 
 func TestSessionMetaChildWithoutSelfGetsOpenItems(t *testing.T) {
-	m := sessionMeta(record{ID: "a", ParentSession: "p"}, "", selfParts{})
+	m := sessionMeta(record{ID: "a", ParentSession: "p"}, "", selfParts{}, false)
 	assert.Equal(t, openItemsText, m.SystemPrompt.Append)
 }
 
 func TestSessionMetaServiceIgnoresSelf(t *testing.T) {
-	m := sessionMeta(record{ID: "a", SystemPrompt: "serve"}, "", selfParts{Prompt: "be brief", PluginDir: "/s"})
+	m := sessionMeta(record{ID: "a", SystemPrompt: "serve"}, "", selfParts{Prompt: "be brief", PluginDir: "/s"}, false)
 	assert.Equal(t, "serve", m.SystemPrompt.Append)
 	assert.Empty(t, m.ClaudeCode.Options.Plugins)
 }
 
 func TestSelfDoesNotRestrict(t *testing.T) {
-	m := sessionMeta(record{ID: "a"}, "", selfParts{Prompt: "be brief"})
+	m := sessionMeta(record{ID: "a"}, "", selfParts{Prompt: "be brief"}, false)
 	assert.Nil(t, m.ClaudeCode.Options.SettingSources)
 	assert.False(t, m.ClaudeCode.Options.StrictMcpConfig)
 }

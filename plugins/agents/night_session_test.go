@@ -9,7 +9,7 @@ import (
 )
 
 func TestNightMetaIsConfined(t *testing.T) {
-	m := sessionMeta(record{ID: "n", Night: nightSleep, SystemPrompt: "x", Allow: []string{"Edit(//d/**)"}}, "", selfParts{Prompt: "self"})
+	m := sessionMeta(record{ID: "n", Night: nightSleep, SystemPrompt: "x", Allow: []string{"Edit(//d/**)"}}, "", selfParts{Prompt: "self"}, false)
 	o := m.ClaudeCode.Options
 	assert.Equal(t, []string{"Read", "Grep", "Glob", "Edit", "Write"}, o.Tools)
 	assert.Equal(t, 60, o.MaxTurns)

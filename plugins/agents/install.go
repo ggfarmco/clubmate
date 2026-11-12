@@ -25,6 +25,7 @@ const (
 	claudePackage   = "@agentclientprotocol/claude-agent-acp"
 	claudeVersion   = "0.102.0"
 	claudeBin       = "claude-agent-acp"
+	chromeFlag      = "chrome"
 	claudeDir       = "claude-acp"
 	minNodeMajor    = 22
 	commandEnv      = "CLUBMATE_AGENTS_COMMAND"
@@ -251,6 +252,25 @@ func clubmateMCP(workspace string) []acp.McpServer {
 	return []acp.McpServer{{Name: mcpName, Command: cli, Args: []string{"mcp"}, Env: []acp.EnvVariable{{Name: contract.WorkspaceEnv, Value: workspace}}}}
 }
 
+func chromeByDefault() bool {
+	dir := os.Getenv("CLAUDE_CONFIG_DIR")
+	if dir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return false
+		}
+		dir = home
+	}
+	data, err := os.ReadFile(filepath.Join(dir, ".claude.json"))
+	if err != nil {
+		return false
+	}
+	var cfg struct {
+		On bool `json:"claudeInChromeDefaultEnabled"`
+	}
+	return json.Unmarshal(data, &cfg) == nil && cfg.On
+}
+
 func registered(ctx context.Context, root string) bool {
 	claude, err := exec.LookPath("claude")
 	if err != nil {
@@ -268,8 +288,11 @@ func registered(ctx context.Context, root string) bool {
 	return cmd.Run() == nil
 }
 
-func sessionMeta(rec record, advisor string, self selfParts) *acp.SessionMeta {
+func sessionMeta(rec record, advisor string, self selfParts, chrome bool) *acp.SessionMeta {
 	opts := acp.ClaudeCodeOptions{Env: map[string]string{agentSessionEnv: rec.ID}, DisallowedTools: rec.DisallowedTools}
+	if chrome && !rec.restricted() {
+		opts.ExtraArgs = map[string]*string{chromeFlag: nil}
+	}
 	if advisor != "" {
 		opts.Settings = &acp.ClaudeCodeSettings{AdvisorModel: advisor}
 	}

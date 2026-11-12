@@ -234,6 +234,7 @@ type ClaudeCodeOptions struct {
 	Plugins         []ClaudeCodePlugin  `json:"plugins,omitempty"`
 	Tools           []string            `json:"tools,omitempty"`
 	MaxTurns        int                 `json:"maxTurns,omitempty"`
+	ExtraArgs       map[string]*string  `json:"extraArgs,omitempty"`
 }
 
 type ClaudeCodePlugin struct {
