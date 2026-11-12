@@ -54,7 +54,7 @@
             "base": {"type": "string", "enum": ["default"], "description": "Only with repo: start from origin/<default> after a fetch, or the local default branch with a note. It is what repo does anyway."},
             "prompt": {"type": "string", "description": "First prompt; omit to start the session idle."},
             "title": {"type": "string", "description": "Session title; defaults to the first line of the first prompt."},
-            "notify": {"type": "string", "enum": ["all", "needs-input", "muted"], "default": "all", "description": "Notification policy of the session: all notifications, only needs-input and permission ones, or none. A session's children are limited by it too."},
+            "notify": {"type": "string", "enum": ["all", "needs-input", "muted"], "default": "all", "description": "Notification policy of the session: all notifications, only needs-input, permission and question ones, or none. A session's children are limited by it too."},
             "run": {"type": "string", "description": "Id of the agent graph run (gr_…) the session is a node of; the Graphs plugin sets it. The Agents sidebar lists the run's sessions under one run row, each labelled without the \"<run title> · \" prefix of its title."},
             "runTitle": {"type": "string", "description": "Title of that run, shown on the run row."},
             "runAfter": {
@@ -375,7 +375,7 @@
         "title": "Close agent session",
         "hidden": true,
         "remote": true,
-        "description": "Close the session; the agent process stops when no open sessions remain in its worktree. The transcript stays readable.",
+        "description": "Close the session and its child sessions; the agent process stops when no open sessions remain in its worktree. The transcript stays readable.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."}
@@ -736,7 +736,7 @@
         "id": "agents.worktrees",
         "title": "Worktrees for the picker",
         "hidden": true,
-        "description": "What the title picker draws, decided here: {folders: [{path, name, addedBy?, addedAt?, addedAfk?, new, worktrees, live, session?, caption?, byline?, summary, filter, rows?, sections?}], tasks: [{session, slug, title, state, live, stale, group, icon, tone?, folders, worktrees}], worktrees: [the git.worktree-index fields + now, live, active?, task?: {session?, title, state}, session?: {id, title, status}, byHand, stale, group, folder, detail, icon, tone?], picker: {placeholder, count?, byFolder, addFolder, addRepos: [{folder, title}], remove, cleanup?, searchHint, searchStale, sections: [{id, title, hint?, rows, shown, more?, fold?, clean?}]}}. group is now, live, recent, task, other, byHand or stale; worktrees come sorted in that order, newest first; rows are indices into worktrees. addRepos has one entry per folder that isn't a git repo and holds a repo, two levels down, that isn't a folder of the workspace yet."
+        "description": "What the title picker draws, decided here: {folders: [{path, name, addedBy?, addedAt?, addedAfk?, new, worktrees, live, session?, caption?, byline?, summary, filter, rows?, sections?}], tasks: [{session, slug, title, state, live, stale, group, icon, tone?, folders, worktrees}], worktrees: [the git.worktree-index fields + now, live, active?, task?: {session?, title, state}, session?: {id, title, status}, byHand, stale, group, folder, detail, icon, tone?], picker: {placeholder, count?, byFolder, addFolder, addRepos: [{folder, title}], remove, cleanup?, searchHint, searchStale, sections: [{id, title, hint?, rows, shown, fold?, clean?}]}}. group is now, live, recent, task, other, byHand or stale; worktrees come sorted in that order, newest first; rows are indices into worktrees. addRepos has one entry per folder that isn't a git repo and holds a repo, two levels down, that isn't a folder of the workspace yet."
       },
       {
         "id": "agents.archive-plan",
@@ -977,7 +977,7 @@
         "title": "Start a night session (tests)",
         "hidden": true,
         "agent": false,
-        "description": "Start a confined night session in a sandbox directory. Only for tests: refused unless CLUBMATE_AGENTS_NIGHT_TEST=1. Returns {session}.",
+        "description": "Start a confined night session in a sandbox directory. Only for tests: refused unless CLUBMATE_AGENTS_NIGHT_TEST=1. Returns {session, worktree}.",
         "args": {
           "properties": {
             "dir": {"type": "string", "description": "Absolute sandbox directory."},
@@ -1013,7 +1013,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, parentSession?, advisor?, fork?, run?: {id, title, after?: [{role, on, outcome?}]}, title, titleSet?, status, mode, finish?, createdAt, updatedAt, closed, error?, pending?, pendingSummary?: {kind, text, tool?, at}, turnStartedAt?, asks, question?, needsYou}]. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; question is that question. needsYou is true when the session waits for the user: a permission or question is pending, or a top-level session asks; a child session's asks and its pending questions are for the session that started it (asksParent, while that session is open), only its permissions need the user; every client shows exactly these as needing you. pendingSummary says what the session waits for: kind permission (text the pending command or tool title, tool its ACP kind) or question (text the question). parentSession is the agent session that started it with agents.new; run is the agent graph run it is a node of. status is running, waiting (a permission or a question is pending; pending lists the request ids), done, idle, error or closed. Non-destructive.",
+        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, parentSession?, advisor?, fork?, run?: {id, title, after?: [{role, on, outcome?}]}, title, titleSet?, status, mode, finish?, createdAt, updatedAt, error?, pending?, pendingSummary?: {kind, text, tool?, at}, turnStartedAt?, asks, question?, needsYou, needsYouSince?, childStatus?, notify?, notifyEffective, startNotice?, cronJob?, trigger?}]. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; question is that question. needsYou is true when the session waits for the user: a permission or question is pending, or a top-level session asks; a child session's asks and its pending questions are for the session that started it (asksParent, while that session is open), only its permissions need the user; every client shows exactly these as needing you. pendingSummary says what the session waits for: kind permission (text the pending command or tool title, tool its ACP kind) or question (text the question). parentSession is the agent session that started it with agents.new; run is the agent graph run it is a node of. status is running, waiting (a permission or a question is pending; pending lists the request ids), done, idle, error or closed. Non-destructive.",
         "args": {
           "properties": {
             "session": {
