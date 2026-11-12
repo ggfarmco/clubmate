@@ -143,7 +143,7 @@ jobs:
 
       - name: Install zig
         if: steps.ghostty-cache.outputs.cache-hit != 'true'
-        run: brew install zig@0.16
+        run: brew install "$(sed -n 's/^ZIG_FORMULA="\(.*\)"$/\1/p' scripts/build-ghostty.sh)"
 
       - name: Install Metal toolchain
         if: steps.ghostty-cache.outputs.cache-hit != 'true'

@@ -3,8 +3,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 GHOSTTY_REPO="https://github.com/ghostty-org/ghostty"
-GHOSTTY_REV="683d8db643b95cf229bfb5fe9fab9ae677920343"
-ZIG_FORMULA="zig@0.16"
+GHOSTTY_REV="83fb95624b0439ee660c2679b43b38c8b63769cd"
+ZIG_FORMULA="zig"
+ZIG_VERSION="0.17."
 SRC_DIR="build/ghostty-src"
 XCFRAMEWORK_DIR="client/GhosttyKit.xcframework"
 RESOURCES_DIR="client/Clubmate/Resources"
@@ -24,6 +25,10 @@ fi
 ZIG="$(brew --prefix "$ZIG_FORMULA" 2>/dev/null || true)/bin/zig"
 if [[ ! -x "$ZIG" ]]; then
   echo "error: $ZIG_FORMULA not installed (brew install $ZIG_FORMULA)" >&2
+  exit 1
+fi
+if [[ "$("$ZIG" version)" != "$ZIG_VERSION"* ]]; then
+  echo "error: ghostty $GHOSTTY_REV needs zig ${ZIG_VERSION}x, $ZIG is $("$ZIG" version)" >&2
   exit 1
 fi
 

@@ -5,7 +5,11 @@ import GhosttyKit
 import ClubmateKit
 
 enum GhosttyConfigReader {
-    static let defaults = "theme = dark:Clubmate,light:Clubmate Light"
+    static let defaults = """
+        theme = dark:Clubmate,light:Clubmate Light
+        copy-on-select = clipboard
+        middle-click-action = clipboard-paste
+        """
 
     static var systemConfig: URL? {
         systemSources.first { FileManager.default.fileExists(atPath: $0.path(percentEncoded: false)) }

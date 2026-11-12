@@ -35,7 +35,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⌘J | Switch Popup Focus: while a popup (e.g. a doc) is open, go from it back to where focus was and back again. The panel over the workspace hides on the way out, keeping its doc, Back stack and zoom, and shows again on the way in; a popped-out popup window stays open and only focus moves between it and the workspace window. `docs.open` while the panel is hidden shows it again. A menu key, so it also works from a terminal or nvim (shadows any ⌘J mapping there) | `ClubmateApp.swift`, `PopupPanel.swift`, `PopupWindow.swift` (`ClubmateKit/PopupKeys.swift`) |
 | ⇧⌘O | Pop the popup out into its own window; later popups of that workspace open there until it is closed | `PopupPanel.swift` |
 
-Inside terminals, Ghostty's own bindings apply, except ⌘W, which is unbound so the app gets it (`GhosttyApp.swift`).
+Inside terminals, Ghostty's own bindings apply, except ⌘W, which is unbound so the app gets it (`GhosttyApp.swift`). Selecting text copies it to the system clipboard and a middle click pastes the clipboard, as before Ghostty 1.4: Clubmate defaults to `copy-on-select = clipboard` and `middle-click-action = clipboard-paste` (Ghostty 1.4 turned copy-on-select off on macOS, and its `primary` copies nothing here because Clubmate has no selection clipboard); both keys in Clubmate's own `ghostty.conf` override them (`GhosttyConfigReader.swift`).
 ⇧⌘I, ⇧⌘D and ⌘J are app menu keys, so they shadow any mapping of them in terminals (Ghostty's default ⇧⌘D split) and nvim.
 
 ## First-launch editor sheet
