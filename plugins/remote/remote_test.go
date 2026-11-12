@@ -626,10 +626,12 @@ func TestTailscaleAppBinaryRunsAsCLI(t *testing.T) {
 	assert.Equal(t, tailscaleSelf{installed: true, ips: []netip.Addr{netip.MustParseAddr("100.101.1.2")}}, got)
 }
 
-func TestTailscaleOutputThatIsNotJSONCountsAsFailedLookup(t *testing.T) {
-	bin := fakeTailscale(t, `echo 'The Tailscale GUI failed to start'`)
+func TestTailscaleOutputThatIsNotJSON(t *testing.T) {
+	keepsLast := fakeTailscale(t, `echo 'The Tailscale GUI failed to start'`)
+	assert.Equal(t, tailscaleSelf{installed: true, failed: true}, runTailscale(context.Background(), keepsLast))
 
-	assert.Equal(t, tailscaleSelf{installed: true, failed: true}, runTailscale(context.Background(), bin))
+	exitsWithError := fakeTailscale(t, `echo 'failed to connect to local Tailscale service'; exit 1`)
+	assert.Equal(t, tailscaleSelf{installed: true}, runTailscale(context.Background(), exitsWithError), "an error exit means no addresses, never the last ones")
 }
 
 func fakeTailscale(t *testing.T, script string) string {

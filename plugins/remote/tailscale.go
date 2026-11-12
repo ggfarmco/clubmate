@@ -52,7 +52,7 @@ func runTailscale(ctx context.Context, bin string) tailscaleSelf {
 	if !ok {
 		line, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
 		logf("tailscale status --json: %s", line)
-		return tailscaleSelf{installed: true, failed: true}
+		return tailscaleSelf{installed: true, failed: err == nil}
 	}
 	self.installed = true
 	return self
