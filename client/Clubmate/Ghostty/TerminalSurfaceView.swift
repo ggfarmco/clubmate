@@ -2,6 +2,8 @@ import AppKit
 
 import GhosttyKit
 
+import ClubmateKit
+
 final class TerminalSurfaceView: NSView {
     let sessionID: String
     var onClose: (() -> Void)?
@@ -22,6 +24,7 @@ final class TerminalSurfaceView: NSView {
         self.sessionID = sessionID
         super.init(frame: .zero)
         wantsLayer = true
+        registerForDraggedTypes(Self.dropTypes)
         observe()
     }
 
@@ -477,6 +480,28 @@ extension TerminalSurfaceView {
     private static func printable(_ text: String) -> String {
         guard let scalar = text.unicodeScalars.first else { return "" }
         return scalar.value < 0x20 || (0xF700...0xF8FF).contains(scalar.value) ? "" : text
+    }
+}
+
+extension TerminalSurfaceView {
+    static let dropTypes: [NSPasteboard.PasteboardType] = [.fileURL, .string]
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        let types = sender.draggingPasteboard.types ?? []
+        return surface != nil && types.contains(where: Self.dropTypes.contains) ? .copy : []
+    }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        let items = (sender.draggingPasteboard.pasteboardItems ?? []).compactMap { item -> TerminalDropItem? in
+            if let plist = item.propertyList(forType: .fileURL),
+               let url = NSURL(pasteboardPropertyList: plist, ofType: .fileURL) as URL?, url.isFileURL {
+                return .file(url.path(percentEncoded: false))
+            }
+            return item.string(forType: .string).map(TerminalDropItem.text)
+        }
+        guard let surface, let text = TerminalDrop.text(items) else { return false }
+        text.withCString { ghostty_surface_paste_text(surface, $0, UInt(text.utf8.count)) }
+        return true
     }
 }
 

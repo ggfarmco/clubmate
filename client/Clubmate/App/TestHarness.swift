@@ -375,6 +375,7 @@ final class TestHarness {
         let selector = NSSelectorFromString(name)
         guard target.responds(to: selector), let method = class_getInstanceMethod(type(of: target), selector) else { return nil }
         let implementation = method_getImplementation(method)
+        if let base = class_getInstanceMethod(NSView.self, selector), method_getImplementation(base) == implementation { return nil }
         switch T.self {
         case is UInt.Type:
             return unsafeBitCast(implementation, to: (@convention(c) (AnyObject, Selector, NSDraggingInfo) -> UInt).self)(target, selector, info) as? T
