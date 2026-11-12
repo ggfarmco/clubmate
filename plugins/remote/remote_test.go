@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -610,10 +612,31 @@ func TestTailnetAddrs(t *testing.T) {
 }
 
 func TestParseTailscaleKeepsTailnetIPs(t *testing.T) {
-	got := parseTailscale([]byte(`{"Self":{"DNSName":"mac.tail1.ts.net.","TailscaleIPs":["fd7a:115c:a1e0::5","100.101.1.2","192.168.1.5"]}}`))
+	got, _ := parseTailscale([]byte(`{"Self":{"DNSName":"mac.tail1.ts.net.","TailscaleIPs":["fd7a:115c:a1e0::5","100.101.1.2","192.168.1.5"]}}`))
 
 	assert.Equal(t, "mac.tail1.ts.net", got.dns)
 	assert.Equal(t, []netip.Addr{netip.MustParseAddr("100.101.1.2"), netip.MustParseAddr("fd7a:115c:a1e0::5")}, got.ips)
+}
+
+func TestTailscaleAppBinaryRunsAsCLI(t *testing.T) {
+	bin := fakeTailscale(t, `[ "$TAILSCALE_BE_CLI" = 1 ] && echo '{"Self":{"TailscaleIPs":["100.101.1.2"]}}' || echo 'The Tailscale GUI failed to start'`)
+
+	got := runTailscale(context.Background(), bin)
+
+	assert.Equal(t, tailscaleSelf{installed: true, ips: []netip.Addr{netip.MustParseAddr("100.101.1.2")}}, got)
+}
+
+func TestTailscaleOutputThatIsNotJSONCountsAsFailedLookup(t *testing.T) {
+	bin := fakeTailscale(t, `echo 'The Tailscale GUI failed to start'`)
+
+	assert.Equal(t, tailscaleSelf{installed: true, failed: true}, runTailscale(context.Background(), bin))
+}
+
+func fakeTailscale(t *testing.T, script string) string {
+	t.Helper()
+	bin := filepath.Join(t.TempDir(), "Tailscale")
+	require.NoError(t, os.WriteFile(bin, []byte("#!/bin/sh\n"+script+"\n"), 0o755))
+	return bin
 }
 
 func TestTailscaleCLIWithoutAddressesListensNowhere(t *testing.T) {

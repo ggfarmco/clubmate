@@ -36,21 +36,32 @@ func lookupTailscale(ctx context.Context) tailscaleSelf {
 			return tailscaleSelf{}
 		}
 	}
+	return runTailscale(ctx, bin)
+}
+
+func runTailscale(ctx context.Context, bin string) tailscaleSelf {
 	ctx, cancel := context.WithTimeout(ctx, tailscaleTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, bin, "status", "--json").Output()
+	cmd := exec.CommandContext(ctx, bin, "status", "--json")
+	cmd.Env = append(os.Environ(), "TAILSCALE_BE_CLI=1")
+	out, err := cmd.Output()
 	if err != nil && ctx.Err() != nil {
 		return tailscaleSelf{installed: true, failed: true}
 	}
-	self := parseTailscale(out)
+	self, ok := parseTailscale(out)
+	if !ok {
+		line, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
+		logf("tailscale status --json: %s", line)
+		return tailscaleSelf{installed: true, failed: true}
+	}
 	self.installed = true
 	return self
 }
 
-func parseTailscale(raw []byte) tailscaleSelf {
+func parseTailscale(raw []byte) (tailscaleSelf, bool) {
 	var st tailscaleStatus
 	if json.Unmarshal(raw, &st) != nil {
-		return tailscaleSelf{}
+		return tailscaleSelf{}, false
 	}
 	ips := make([]netip.Addr, 0, len(st.Self.TailscaleIPs))
 	for _, s := range st.Self.TailscaleIPs {
@@ -58,7 +69,7 @@ func parseTailscale(raw []byte) tailscaleSelf {
 			ips = append(ips, ip)
 		}
 	}
-	return tailscaleSelf{dns: strings.TrimSuffix(st.Self.DNSName, "."), ips: filterTailnet(ips)}
+	return tailscaleSelf{dns: strings.TrimSuffix(st.Self.DNSName, "."), ips: filterTailnet(ips)}, true
 }
 
 func computerName(ctx context.Context) string {
