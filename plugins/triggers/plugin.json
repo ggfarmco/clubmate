@@ -53,7 +53,7 @@
         "title": "Show trigger",
         "hidden": true,
         "agent": true,
-        "description": "Show one trigger with its last 100 runs: history [{at, topic, seq, status, reason?, result?, chain?}] (chain: the session, cron job or trigger that led to the event) and paused [{from, to?, reason?}], status ok, error or skipped (busy, no app, previous run still running, owner gone, owner unknown, emitted by another agent session; skips are not failures). Non-destructive.",
+        "description": "Show one trigger with its last 100 runs: history [{at, topic, seq, status, reason?, result?, target?, chain?}] (target: the session an agents.prompt run prompted; chain: the session, cron job or trigger that led to the event) and paused [{from, to?, reason?}], status ok, error or skipped (busy, no app, previous run still running, owner gone, owner unknown, emitted by another agent session; skips are not failures). Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Trigger id (tr_…)."}

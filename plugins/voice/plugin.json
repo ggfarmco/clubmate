@@ -22,7 +22,7 @@
         "hidden": true,
         "remote": true,
         "timeout": 10,
-        "description": "Feed audio to an utterance: 16 kHz mono PCM s16le, base64, 320 ms chunks recommended, at most 64 KiB raw per call. Returns the partial text heard so far. After 60 s of audio the rest is cut and the utterance ends itself. Fails with unknown utterance once it ended or was cancelled.",
+        "description": "Feed audio to an utterance: 16 kHz mono PCM s16le, base64, 320 ms chunks recommended, at most 64 KiB raw per call. Returns the partial text heard so far. After 60 s of audio the rest is dropped; the utterance still waits for voice.end. Fails with unknown utterance once it ended or was cancelled.",
         "args": {
           "properties": {
             "utterance": {"type": "string", "description": "Utterance id (vu_…)."},
@@ -73,7 +73,7 @@
         "title": "Voice input state",
         "hidden": true,
         "remote": true,
-        "description": "Current state of an utterance: {utterance, mode, phase, partial?, heard?, text?, plan?, result?, error?, confirm?: {title, command, args}, session?, rev}. phase is loading, listening, sending, thinking, confirm, done, error or cancelled. A dictation goes listening, thinking (tidying), done with text.",
+        "description": "Current state of an utterance: {utterance, mode, phase, partial?, heard?, text?, sendAt?, plan?, result?, error?, confirm?: {id, title, command, args}, session?, rev}. phase is loading, listening, sending, thinking, confirm, done, error or cancelled. sendAt is when a sending utterance goes out (RFC 3339). A dictation goes listening, thinking (tidying), done with text.",
         "args": {
           "properties": {
             "utterance": {"type": "string", "description": "Utterance id (vu_…)."}
@@ -116,7 +116,7 @@
         "hidden": true,
         "agent": true,
         "timeout": 120,
-        "description": "Voice session only: answer another agent session as the user. Give text for a plain answer, request with answers for a question (elicitation), or request with option for a permission request. Allowing a permission goes straight through only for the request in the utterance's context.session and only when heard asks to allow (allow, approve, разреши, одобри, позволь, with no не, don't, deny, запрети or отклони); every other allow, and allow_always, waits for the user's confirmation first. Fails with \"the utterance is over\" once the utterance was cancelled, timed out or finished. Non-destructive.",
+        "description": "Voice session only: answer another agent session as the user. Give text for a plain answer, request with answers for a question (elicitation), or request with option for a permission request. Allowing a permission goes straight through only for the request in the utterance's context.session and only when heard asks to allow (allow, approve, разреши, одобри, позволь, with no negation or refusal word such as не, нет, no, not, don't, deny, reject, block, запрети, отклони or откажи); every other allow, and allow_always, waits for the user's confirmation first. Fails with \"the utterance is over\" once the utterance was cancelled, timed out or finished. Non-destructive.",
         "args": {
           "properties": {
             "utterance": {"type": "string", "description": "Utterance id (vu_…) from the prompt."},

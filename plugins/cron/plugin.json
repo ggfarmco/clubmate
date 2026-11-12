@@ -68,7 +68,7 @@
         "title": "Show cron job",
         "hidden": true,
         "agent": true,
-        "description": "Show one cron job with its last 100 runs: history [{at, status, reason?, result?}] and paused [{from, to?, reason?}], status ok, error or skipped (busy, no app, missed, previous run still running, owner gone, owner unknown; skips are not failures). Non-destructive.",
+        "description": "Show one cron job with its last 100 runs: history [{at, status, reason?, result?, target?}] (target: the session an agents.prompt run prompted) and paused [{from, to?, reason?}], status ok, error or skipped (busy, no app, missed, previous run still running, owner gone, owner unknown; skips are not failures). Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Job id (cj_…)."}
@@ -130,7 +130,7 @@
         "title": "Run cron job now",
         "hidden": true,
         "agent": true,
-        "description": "Run a cron job's command now, without changing its schedule; the run is added to its history. Returns the run: {at, status, reason?, result?}, status ok, error or skipped. An agent may run only jobs owned or created by itself or its child sessions, or ones a plugin added (createdBy plugin:<id>). Non-destructive.",
+        "description": "Run a cron job's command now, without changing its schedule; the run is added to its history. Returns the run: {at, status, reason?, result?, target?}, status ok, error or skipped. An agent may run only jobs owned or created by itself or its child sessions, or ones a plugin added (createdBy plugin:<id>). Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Job id (cj_…)."}

@@ -1,6 +1,6 @@
 # Triggers
 
-The `triggers` plugin calls an agent-visible command when a bus event arrives: a trigger is "on event X (with payload Y), call command Z" in one workspace. It is the event-driven sibling of [cron](cron.md); the two compose through `triggers.emit`, which cron can schedule. [Agent graphs](agent-graphs.md) are built from triggers: each edge of a run is one. Agents manage triggers through MCP (`triggers.*` tools); you can do the same from the CLI. The Triggers section shows the workspace's triggers and their runs; it is for watching and managing, and its How triggers work page asks an agent to add one.
+The `triggers` plugin calls an agent-visible command when a bus event arrives: a trigger is "on event X (with payload Y), call command Z" in one workspace. It is the event-driven sibling of [cron](cron.md); the two compose through `triggers.emit`, which cron can schedule. [Agent graphs](agent-graphs.md) are built from triggers: each edge of a run is one. Agents manage triggers through MCP (`triggers_*` tools); you can do the same from the CLI. The Triggers section shows the workspace's triggers and their runs; it is for watching and managing, and its How triggers work page asks an agent to add one.
 
 ## Trigger
 
@@ -19,7 +19,7 @@ The `triggers` plugin calls an agent-visible command when a bus event arrives: a
 | `createdBy` | The agent session that added it; `plugin:<id>` when a plugin added it on its own (e.g. `plugin:remote`); empty when added by the user or the CLI, and for a graph's edge the run's starter (a session, or empty for you). |
 | `run`, `runTitle` | The graph run that made the trigger for one of its edges and that run's title; empty for other triggers. Only the Graphs plugin can set them; `triggers.add` drops them from any other caller, so an agent can't pass its trigger off as a graph's. The Triggers section groups and labels a run's triggers by them. |
 | `failures`, `lastError` | Errors in a row and the last error message. |
-| `history` | The last 100 runs: `{at, topic, seq, status, reason?, result?, chain?}`, `topic` and `seq` of the event, `status` `ok`, `error` or `skipped`; `result` is the command's raw result cut to 200 characters; `chain` is what led to the event (see [Chain](#chain)). Only `triggers.show` returns it. |
+| `history` | The last 100 runs: `{at, topic, seq, status, reason?, result?, target?, chain?}`, `topic` and `seq` of the event, `status` `ok`, `error` or `skipped`; `result` is the command's raw result cut to 200 characters; `target` is the session an `agents.prompt` run prompted; `chain` is what led to the event (see [Chain](#chain)). Only `triggers.show` returns it. |
 | `paused` | When it was paused, as for a [cron job](cron.md#job). |
 
 ## Filter

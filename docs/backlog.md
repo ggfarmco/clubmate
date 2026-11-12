@@ -50,7 +50,7 @@ Every task keeps its owner history, `owners` in `backlog_get`: moves `{owner, ti
 - External agent (for example Claude Code connected with `clubmate mcp` in a terminal): pass `owner`, a name unique to you such as your session id; `user`, `agent` and names starting with `agt_` are rejected. Its claims never go stale.
 - You (UI, palette, `cm command run` without `--agent` outside an agent session): the owner is `user`.
 
-Release is allowed to the owner, an ancestor agent session of the owner (an orchestrator closing its children's tasks) and the user. Done is allowed to them too, and to anyone when the task is unclaimed or its claim is stale. A stale claim is taken over with claim. A task claimed by someone else can only get a new title, description, priority or note from other agents, not a new status.
+Release is allowed to the owner, an ancestor agent session of the owner (an orchestrator closing its children's tasks) and the user. Done is allowed to them too, and to anyone when the task is unclaimed or its claim is stale. A stale claim is taken over with claim. A task claimed by someone else can only get a new title, description, priority, tags, links, attachments or note from other agents, not a new status.
 
 ## Stale claims
 

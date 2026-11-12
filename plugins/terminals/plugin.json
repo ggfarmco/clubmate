@@ -37,7 +37,7 @@
         "title": "Terminal busy",
         "hidden": true,
         "agent": true,
-        "description": "Report whether a terminal session is running a process besides its shell.",
+        "description": "Report whether a terminal session is running a process besides its shell: {busy, process}, process the name of its newest one, empty when not busy.",
         "args": {
           "properties": {
             "sessionId": {"type": "string", "description": "Session to check; an unknown or exited one is not busy."}

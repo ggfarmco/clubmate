@@ -1,6 +1,6 @@
 # Cron
 
-The `cron` plugin calls an agent-visible command on a schedule: a job is "call command X with args Y on schedule Z" in one workspace. Agents manage jobs through MCP (`cron.*` tools); you can do the same from the CLI. The Cron section shows the workspace's jobs and their runs; it is for watching and managing, and its How cron works page asks an agent to add one.
+The `cron` plugin calls an agent-visible command on a schedule: a job is "call command X with args Y on schedule Z" in one workspace. Agents manage jobs through MCP (`cron_*` tools); you can do the same from the CLI. The Cron section shows the workspace's jobs and their runs; it is for watching and managing, and its How cron works page asks an agent to add one.
 
 ## Job
 
@@ -17,7 +17,7 @@ The `cron` plugin calls an agent-visible command on a schedule: a job is "call c
 | `missed` | `once` or `skip` (see [Missed runs](#missed-runs)). |
 | `nextRun` | When it fires next. |
 | `failures`, `lastError` | Errors in a row and the last error message. |
-| `history` | The last 100 runs: `{at, status, reason?, result?}`, `status` `ok`, `error` or `skipped`; `result` is the command's raw result cut to 200 characters. Only `cron.show` returns it. |
+| `history` | The last 100 runs: `{at, status, reason?, result?, target?}`, `status` `ok`, `error` or `skipped`; `result` is the command's raw result cut to 200 characters; `target` is the session an `agents.prompt` run prompted. Only `cron.show` returns it. |
 | `paused` | When it was paused: `[{from, to?, reason?}]`, `to` empty while still paused, `reason` empty when you or an agent paused it, else the error that paused it. Spans that ended before the oldest kept run are dropped. |
 
 ## Schedules
@@ -66,7 +66,7 @@ An agent may update, pause, resume, run and delete only jobs owned or created by
 
 ## Commands
 
-All are agent-visible and none is destructive (the fired command carries its own approval).
+All but the hidden `cron.jobs-in` are agent-visible and none is destructive (the fired command carries its own approval).
 
 | Command | Does |
 |---|---|
