@@ -12,6 +12,7 @@ import (
 
 	"clubmate/internal/paths"
 	"clubmate/pkg/contract"
+	"clubmate/plugins/agents/api"
 )
 
 func TestInstallRetriesAfterInterruptedNpm(t *testing.T) {
@@ -89,4 +90,17 @@ func TestChromeOnlyForUnrestrictedSessions(t *testing.T) {
 	assert.Equal(t, map[string]*string{"chrome": nil}, sessionMeta(record{ID: "a"}, "", selfParts{}, true).ClaudeCode.Options.ExtraArgs)
 	assert.Nil(t, sessionMeta(record{ID: "a", SystemPrompt: "serve"}, "", selfParts{}, true).ClaudeCode.Options.ExtraArgs)
 	assert.Nil(t, sessionMeta(record{ID: "a"}, "", selfParts{}, false).ClaudeCode.Options.ExtraArgs)
+}
+
+func TestChromeOnlyForSessionsTheUserStarted(t *testing.T) {
+	a := &app{registry: newRegistry()}
+	a.sessions["mine"] = newSession(record{ID: "mine"}, nil, true, nil)
+	a.sessions["cron"] = newSession(record{ID: "cron", CronJob: "cj"}, nil, true, nil)
+
+	assert.True(t, a.userStarted(record{ID: "c", lineage: lineage{ParentSession: "mine"}}))
+	assert.False(t, a.userStarted(record{ID: "c", lineage: lineage{ParentSession: "cron"}}))
+	assert.False(t, a.userStarted(record{ID: "c", lineage: lineage{ParentSession: "gone"}}))
+	assert.False(t, a.userStarted(record{ID: "t", Trigger: "tr"}))
+	assert.False(t, a.userStarted(record{ID: "s", StartedBy: "agt_x"}))
+	assert.False(t, a.userStarted(record{ID: "g", Run: &api.Run{ID: "r"}}))
 }

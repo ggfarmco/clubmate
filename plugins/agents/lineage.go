@@ -80,6 +80,16 @@ func (a *app) descendantOf(id, ancestor string) bool {
 	return false
 }
 
+func (a *app) userStarted(rec record) bool {
+	for r := range a.ancestry(rec) {
+		if r.CronJob != "" || r.Trigger != "" || r.StartedBy != "" || r.Run != nil {
+			return false
+		}
+		rec = r
+	}
+	return rec.ParentSession == ""
+}
+
 func (a *app) ancestry(rec record) iter.Seq[record] {
 	return func(yield func(record) bool) {
 		seen := map[string]bool{}
