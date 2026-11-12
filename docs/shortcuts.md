@@ -130,7 +130,7 @@ The title picker adds these to the keys above:
 
 `g` waits for the next key; a key that is not listed is swallowed. Defined in `ClubmateKit/TreeKeys.swift`.
 
-## Sidebar lists (Terminals, Processes, Cron; list focused)
+## Sidebar lists (Terminals, Processes; list focused)
 
 A click on a row, or focus moving to the sidebar, focuses the list.
 
@@ -359,11 +359,20 @@ Defaults of the bundled nvim distribution (`nvim-distro/`). Keys in normal mode 
 | Diff | zc / zt / zg / zr (Diffview file panel) | Show or hide code files, test files, generated files, reviewed files (`h` still folds a folder) | diffview.nvim `config.lua` |
 | Diff | t (Diffview file panel) | Show folders nested (where each file sits) or one folder per parent directory (the default); holds for the nvim session | diffview.nvim `config.lua` |
 | Diff | ]f / [f (Diffview diff panes and file panel) | Open the next, previous file to review (skips hidden files) | diffview.nvim `config.lua` |
+| Diff | ⇥ / ⇧⇥, [F / ]F (Diffview diff panes and file panel) | Open the diff of the next / previous file, the first / last file | diffview.nvim `config.lua` |
+| Diff | gf / ⌃w ⌃f / ⌃w gf (Diffview diff panes and file panel) | Open the file in the previous tab, in a split, in a new tab | diffview.nvim `config.lua` |
+| Diff | ,e / g⌃x / g? (Diffview) | Focus the file panel, cycle the layout, show the key help (`q` or Esc closes it) | diffview.nvim `config.lua` |
+| Diff | j / ↓, k / ↑, ↩ / o / l (Diffview file panel) | Move the cursor; open the entry's diff | diffview.nvim `config.lua` |
+| Diff | - / S / U / X (Diffview file panel) | Stage or unstage the entry (as `s`; `-` is not the file tree toggle here), stage all, unstage all, restore the entry to the left side | diffview.nvim `config.lua` |
+| Diff | i / f / R / L (Diffview file panel) | Switch between list and tree, flatten single-child folders, refresh the list, open the commit log | diffview.nvim `config.lua` |
+| Diff | zo / za / zR / zM, ⌃b / ⌃f (Diffview file panel) | Open, toggle a folder, open all, close all folders; scroll the diff up / down | diffview.nvim `config.lua` |
+| Diff | [x / ]x, ,co / ,ct / ,cb / ,ca, dx (Diffview diff panes, a file with conflicts) | Previous / next conflict; choose ours / theirs / base / all, delete the conflict; ,cO ,cT ,cB ,cA dX do it for the whole file (file panel too). In a Diffview diff pane `,cb` is this, not `go build` | diffview.nvim `config.lua` |
+| Diff | g! / y / L / X (Diffview file history panel) | Log options, copy the commit hash, show the commit, restore the file from the entry | diffview.nvim `config.lua` |
 | Diff | ,b (Diffview) | Show or hide the review panel; in the narrow (inline) layout it opens as a drawer floating over the diff's left edge | diffview.nvim `config.lua` |
-| Diff | Esc (review drawer) | Close the drawer | diffview.nvim `config.lua` |
+| Diff | Esc (review drawer) | Close the drawer | diffview.nvim `scene/views/diff/file_panel.lua` |
 | Diff | gS (Diffview review panel) | Send review: the app opens the Send sheet (as ⌘↩ in the app) | diffview.nvim `config.lua` |
-| Diff | click, ↩ (review panel header and footer) | A click on a file or folder row opens or folds it; on a filter checkbox, Send, Copy or a comment it does what the item says (a comment: jump to it); ↩ in the header and footer windows does the same as a click. In the narrow strip in the tabline a click on ‹ › opens the previous / next file, on ☰ the drawer | diffview.nvim `config.lua` |
-| Diff | ⌃w j / ⌃w k (review panel file tree) | From the file tree ⌃w j enters the footer and ⌃w k the header; focus stays there (cursorline on) so ↩ works on comment rows and checkboxes; ⌃w k / ⌃w j go back to the tree and do nothing at the panel's edges; ⌃w w still cycles past them | diffview.nvim `config.lua` |
+| Diff | click, ↩ (review panel header and footer) | A click on a file or folder row opens or folds it; on a filter checkbox, Send, Copy or a comment it does what the item says (a comment: jump to it); ↩ in the header and footer windows does the same as a click. In the narrow strip in the tabline a click on ‹ › opens the previous / next file, on ☰ the drawer | diffview.nvim `scene/views/diff/file_panel.lua` |
+| Diff | ⌃w j / ⌃w k (review panel file tree) | From the file tree ⌃w j enters the footer and ⌃w k the header; focus stays there (cursorline on) so ↩ works on comment rows and checkboxes; ⌃w k / ⌃w j go back to the tree and do nothing at the panel's edges; ⌃w w still cycles past them | diffview.nvim `scene/views/diff/file_panel.lua` |
 | Review | ,rc (normal, visual) / ,rl | Add a review comment (straight to its text, no type to pick: it is saved as a note), list comments | diffview.nvim `nrev` |
 | Review | ]a / [a | Next, previous review comment | diffview.nvim `nrev` |
 | Review | ,rx / ,rd / ,re | Resolve or reopen, delete, export comments to the clipboard | diffview.nvim `nrev` |
