@@ -59,6 +59,17 @@ func TestApprovalAlertAndReportSheetKeys(t *testing.T) {
 		assert.Equal(t, []string{"alert"}, in.key("esc"))
 		in.eventually("esc denies", func() bool { return in.alert() == nil })
 	})
+	t.Run("the alert closes when the agent's call is gone", func(t *testing.T) {
+		in := in.at(t)
+		worktree := filepath.Join(in.repo, ".worktrees", "feat-multi-repo-landing")
+		call := in.command("command", "run", "--agent", "git.worktree-remove", "repo="+in.repo, "path="+worktree)
+		require.NoError(t, call.Start())
+		in.eventually("the approval alert is the key window", func() bool { return in.alert() != nil })
+		require.NoError(t, call.Process.Kill())
+		_ = call.Wait()
+		in.eventually("the alert closes", func() bool { return in.alert() == nil })
+		assert.DirExists(t, worktree)
+	})
 	t.Run("esc cancels the report with the text box focused", func(t *testing.T) {
 		in := in.at(t)
 		reply := in.sendReport()

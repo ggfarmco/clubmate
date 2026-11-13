@@ -148,10 +148,14 @@ func cleanEnv() []string {
 	})
 }
 
-func (in *instance) run(args ...string) ([]byte, error) {
+func (in *instance) command(args ...string) *exec.Cmd {
 	cmd := exec.Command(in.cli, args...)
 	cmd.Env = append(cleanEnv(), "CLUBMATE_STATE_DIR="+in.dir+"/state", "CLUBMATE_RUNTIME_DIR="+in.dir+"/run", "CLUBMATE_WORKSPACE_ID="+in.workspace)
-	return cmd.CombinedOutput()
+	return cmd
+}
+
+func (in *instance) run(args ...string) ([]byte, error) {
+	return in.command(args...).CombinedOutput()
 }
 
 func (in *instance) cm(args ...string) string {

@@ -3,6 +3,7 @@ package rpc
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +26,7 @@ const (
 	callerLookup      = 2 * time.Second
 
 	callUIConfirm     = "ui.confirm"
+	notifyConfirmGone = "ui.confirm.cancelled"
 	cmdAgentsSessions = "agents.sessions"
 )
 
@@ -38,6 +40,7 @@ var (
 type deniedError string
 
 type confirmParams struct {
+	ID            string          `json:"id"`
 	Title         string          `json:"title"`
 	WorkspaceName string          `json:"workspaceName"`
 	Command       string          `json:"command"`
@@ -53,6 +56,10 @@ type confirmSession struct {
 	ID            string `json:"id"`
 	Title         string `json:"title"`
 	WorkspaceName string `json:"workspaceName"`
+}
+
+type confirmIDParams struct {
+	ID string `json:"id"`
 }
 
 type confirmResult struct {
@@ -144,9 +151,13 @@ func (s *Server) confirm(ctx context.Context, workspaceID string, params confirm
 	defer release()
 	ctx, cancel := context.WithTimeout(ctx, approvalTimeout)
 	defer cancel()
+	params.ID = rand.Text()
 	params.TimeoutMs = approvalTimeout.Milliseconds()
 	var res confirmResult
 	if err := conn.Call(ctx, callUIConfirm, params, &res); err != nil {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			_ = conn.Notify(context.WithoutCancel(ctx), notifyConfirmGone, confirmIDParams{ID: params.ID})
+		}
 		if errors.Is(err, context.DeadlineExceeded) {
 			return errApprovalTimeout
 		}

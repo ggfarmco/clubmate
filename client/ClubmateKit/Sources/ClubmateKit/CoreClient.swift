@@ -14,6 +14,8 @@ public final class CoreClient {
     public var pointerHandler: (@MainActor (PointerRequest) async throws -> PointerResult)?
     public var browserHandler: (@MainActor (BrowserCall) async throws -> JSONValue)?
     private var pressCaller: String?
+    private var confirms: [String: ConfirmExpiry] = [:]
+    private var withdrawnEarly: Set<String> = []
 
     var isAlive: Bool { !pumpFinished }
 
@@ -261,8 +263,14 @@ public final class CoreClient {
             try? await connection.replyError(id: request.id, code: -32602, message: "invalid ui.confirm params")
             return
         }
+        let expiry = ConfirmExpiry()
+        if let id = confirm.id {
+            if withdrawnEarly.remove(id) != nil { expiry.expire(ConfirmRequest.withdrawn) }
+            confirms[id] = expiry
+        }
         let handler = confirmHandler
-        let reply = await ConfirmRequest.answer(confirm) { await handler?($0, $1) ?? false }
+        let reply = await ConfirmRequest.answer(confirm, expiry: expiry) { await handler?($0, $1) ?? false }
+        if let id = confirm.id { confirms[id] = nil }
         try? await connection.reply(id: request.id, result: reply)
     }
 
@@ -298,6 +306,9 @@ public final class CoreClient {
 
     private func broadcast(_ notification: RPCNotification) {
         if notification.method == "core.stopping" { stoppedIntentionally = true }
+        if notification.method == "ui.confirm.cancelled", let id = notification.params.objectValue?["id"]?.stringValue {
+            if let expiry = confirms[id] { expiry.expire(ConfirmRequest.withdrawn) } else { withdrawnEarly.insert(id) }
+        }
         for continuation in subscribers.values {
             continuation.yield(notification)
         }

@@ -231,7 +231,31 @@ final class ClubmateKitTests: XCTestCase {
         }
         approvals.answer = true
         _ = try await client.call(method: "command.run", params: kill)
-        XCTAssertEqual(approvals.asked, Array(repeating: ConfirmRequest(title: "Kill Session", workspaceName: "demo", command: "session.kill", args: .object(["id": .string(id)]), timeoutMs: 60000, session: ConfirmSession(id: id, title: "", workspaceName: "demo")), count: 2))
+        XCTAssertEqual(approvals.asked, approvals.asked.map { ConfirmRequest(title: "Kill Session", workspaceName: "demo", command: "session.kill", args: .object(["id": .string(id)]), timeoutMs: 60000, session: ConfirmSession(id: id, title: "", workspaceName: "demo"), id: $0.id) })
+        XCTAssertEqual(Set(approvals.asked.compactMap(\.id)).count, 2)
+        await client.close()
+    }
+
+    func testCallerGoneWithdrawsApproval() async throws {
+        let client = try await startCore()
+        let workspace = try await client.createWorkspace(name: "demo")
+        try core?.cli("session", "create", "--workspace", workspace.id, "--", "/bin/sleep", "60")
+        let sessions = try await client.call(method: "session.list")
+        guard let id = sessions.arrayValue?.first?.objectValue?["id"]?.stringValue, let paths = core?.paths else { throw TestFailure(description: "no session") }
+        try await client.register(handles: ["ui.confirm"])
+        let approvals = Approvals()
+        client.confirmHandler = { request, expiry in
+            approvals.asked.append(request)
+            await withCheckedContinuation { continuation in expiry.onExpire { continuation.resume() } }
+            approvals.closed = true
+            return true
+        }
+        let caller = try await CoreClient.connect(paths: paths)
+        let kill = JSONValue.object(["id": .string("session.kill"), "workspaceId": .string(workspace.id), "agent": .bool(true), "args": .object(["id": .string(id)])])
+        Task { _ = try? await caller.call(method: "command.run", params: kill, timeout: .seconds(60)) }
+        try await waitUntil { !approvals.asked.isEmpty }
+        await caller.close()
+        try await waitUntil { approvals.closed }
         await client.close()
     }
 
@@ -414,4 +438,5 @@ final class ClubmateKitTests: XCTestCase {
 private final class Approvals {
     var asked: [ConfirmRequest] = []
     var answer = false
+    var closed = false
 }

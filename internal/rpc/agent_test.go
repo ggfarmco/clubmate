@@ -21,6 +21,7 @@ import (
 )
 
 type confirmRequest struct {
+	ID            string          `json:"id"`
 	Title         string          `json:"title"`
 	WorkspaceName string          `json:"workspaceName"`
 	Command       string          `json:"command"`
@@ -43,9 +44,10 @@ type callerRouter struct {
 }
 
 type approver struct {
-	conn  *jsonrpc2.Conn
-	asked chan confirmRequest
-	reply chan bool
+	conn      *jsonrpc2.Conn
+	asked     chan confirmRequest
+	reply     chan bool
+	withdrawn chan string
 }
 
 func TestAgentCannotReachHidden(t *testing.T) {
@@ -127,6 +129,28 @@ func TestApproverDisconnectDenies(t *testing.T) {
 	close(a.reply)
 }
 
+func TestCallerGoneWithdrawsApproval(t *testing.T) {
+	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","agent":true,"destructive":true}`)
+	a := newApprover(t, h)
+	h.Client(t)
+	c, err := rpc.Dial(t.Context(), h.Dirs.CoreSocket())
+	require.NoError(t, err)
+	t.Cleanup(func() { c.Close() })
+	go func() {
+		_ = c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "workspaceId": p.ID, "agent": true}, nil)
+	}()
+	asked := <-a.asked
+	require.NotEmpty(t, asked.ID)
+	require.NoError(t, c.Close())
+	select {
+	case id := <-a.withdrawn:
+		assert.Equal(t, asked.ID, id)
+	case <-time.After(5 * time.Second):
+		t.Fatal("approval not withdrawn")
+	}
+	close(a.reply)
+}
+
 func TestDestructiveNeedsApproval(t *testing.T) {
 	h, p := startAlpha(t, `{"id":"alpha.say","title":"Drop Everything","agent":true,"destructive":true,"args":{"properties":{"n":{"type":"integer"}}}}`)
 	c := h.Client(t)
@@ -147,7 +171,8 @@ func TestDestructiveNeedsApproval(t *testing.T) {
 			defer close(done)
 			out, err = run()
 		}()
-		assert.Equal(t, confirmRequest{Title: "Drop Everything", WorkspaceName: "demo", Command: "alpha.say", Args: json.RawMessage(`{"n":1}`), TimeoutMs: 60000}, <-a.asked)
+		asked := <-a.asked
+		assert.Equal(t, confirmRequest{ID: asked.ID, Title: "Drop Everything", WorkspaceName: "demo", Command: "alpha.say", Args: json.RawMessage(`{"n":1}`), TimeoutMs: 60000}, asked)
 		a.reply <- approved
 		<-done
 		if approved {
@@ -249,8 +274,18 @@ func newApprover(t *testing.T, h *testutil.PluginHarness) *approver {
 	t.Helper()
 	serverSide, clientSide := net.Pipe()
 	server := h.Srv.ServeConn(context.Background(), jsonrpc2.NewPlainObjectStream(serverSide), rpc.Caller{})
-	a := &approver{asked: make(chan confirmRequest, 4), reply: make(chan bool)}
+	a := &approver{asked: make(chan confirmRequest, 4), reply: make(chan bool), withdrawn: make(chan string, 4)}
 	handler := jsonrpc2.HandlerWithError(func(_ context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
+		if req.Method == "ui.confirm.cancelled" {
+			var p struct {
+				ID string `json:"id"`
+			}
+			if err := json.Unmarshal(*req.Params, &p); err != nil {
+				return nil, err
+			}
+			a.withdrawn <- p.ID
+			return nil, nil
+		}
 		if req.Method != "ui.confirm" {
 			return nil, nil
 		}
@@ -436,7 +471,7 @@ func TestPluginApprove(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- approve("alpha.run", "echo hi\n") }()
 	asked := <-a.asked
-	assert.Equal(t, confirmRequest{Title: "Run setup", WorkspaceName: "demo", Command: "alpha.run", Args: asked.Args, Body: "echo hi\n", Plugin: true, TimeoutMs: 60000}, asked)
+	assert.Equal(t, confirmRequest{ID: asked.ID, Title: "Run setup", WorkspaceName: "demo", Command: "alpha.run", Args: asked.Args, Body: "echo hi\n", Plugin: true, TimeoutMs: 60000}, asked)
 	assert.JSONEq(t, `{"sha256":"abc"}`, string(asked.Args))
 	a.reply <- true
 	require.NoError(t, <-done)

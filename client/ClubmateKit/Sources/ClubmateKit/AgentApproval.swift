@@ -6,6 +6,7 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
     static let fieldLimit = 10
     static let tooLong = "args too long to display"
     static let timedOut = "approval timed out"
+    static let withdrawn = "approval withdrawn"
     static let margin = 5000
 
     public let title: String
@@ -17,8 +18,9 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
     public let timeoutMs: Int?
     public let session: ConfirmSession?
     public let from: ConfirmSession?
+    public let id: String?
 
-    public init(title: String, workspaceName: String, command: String, args: JSONValue, body: String? = nil, plugin: Bool? = nil, timeoutMs: Int? = nil, session: ConfirmSession? = nil, from: ConfirmSession? = nil) {
+    public init(title: String, workspaceName: String, command: String, args: JSONValue, body: String? = nil, plugin: Bool? = nil, timeoutMs: Int? = nil, session: ConfirmSession? = nil, from: ConfirmSession? = nil, id: String? = nil) {
         self.title = title
         self.workspaceName = workspaceName
         self.command = command
@@ -28,6 +30,7 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
         self.timeoutMs = timeoutMs
         self.session = session
         self.from = from
+        self.id = id
     }
 
     public var deadline: Duration? {
@@ -75,9 +78,10 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
     }
 
     @MainActor
-    public static func answer(_ request: ConfirmRequest, ask: @MainActor (ConfirmRequest, ConfirmExpiry) async -> Bool) async -> ConfirmReply {
+    public static func answer(_ request: ConfirmRequest, expiry: ConfirmExpiry? = nil, ask: @MainActor (ConfirmRequest, ConfirmExpiry) async -> Bool) async -> ConfirmReply {
         guard request.fitsDisplay else { return ConfirmReply(approved: false, reason: tooLong) }
-        let expiry = ConfirmExpiry()
+        let expiry = expiry ?? ConfirmExpiry()
+        if expiry.expired { return ConfirmReply(approved: false, reason: expiry.reason) }
         let timer = request.deadline.map { deadline in
             Task { @MainActor in
                 guard (try? await Task.sleep(for: deadline)) != nil else { return }
@@ -86,7 +90,7 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
         }
         defer { timer?.cancel() }
         let approved = await ask(request, expiry)
-        if expiry.expired { return ConfirmReply(approved: false, reason: timedOut) }
+        if expiry.expired { return ConfirmReply(approved: false, reason: expiry.reason) }
         return ConfirmReply(approved: approved, reason: nil)
     }
 
@@ -132,6 +136,7 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
 @MainActor
 public final class ConfirmExpiry {
     public private(set) var expired = false
+    private(set) var reason = ConfirmRequest.timedOut
     private var actions: [@MainActor () -> Void] = []
 
     public init() {}
@@ -141,9 +146,10 @@ public final class ConfirmExpiry {
         actions.append(action)
     }
 
-    func expire() {
+    func expire(_ reason: String = ConfirmRequest.timedOut) {
         guard !expired else { return }
         expired = true
+        self.reason = reason
         let pending = actions
         actions = []
         pending.forEach { $0() }
