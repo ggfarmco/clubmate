@@ -46,6 +46,7 @@ run-core: build
 test:
 	go test -race $$(go list ./... | grep -v /dist/)
 	cd third_party/jsonrpc2 && go test ./...
+	scripts/release/ship-test.sh
 
 lint:
 	go vet ./...
