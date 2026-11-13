@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"os"
 	"regexp"
 	"slices"
@@ -37,6 +38,7 @@ const (
 	notifyBusEvent     = "bus.event"
 	notifyBusClosed    = "bus.closed"
 	relistDelay        = 250 * time.Millisecond
+	relistJitter       = 250 * time.Millisecond
 	redialDelay        = 5 * time.Second
 
 	baseInstructions = "Tools drive the Clubmate app: workspaces, sessions (terminals), the editor and plugin actions. Destructive tools wait for the user's approval in the app."
@@ -86,6 +88,8 @@ type Server struct {
 
 	inflightMu sync.Mutex
 	inflight   map[string]*inflightCall
+
+	unsubscribed bool
 }
 
 type inflightCall struct {
@@ -416,8 +420,13 @@ func (s *Server) follow(ctx context.Context, tick <-chan time.Time) bool {
 	)
 	if ev, ok := core.(events); ok {
 		if err := subscribe(ctx, core); err != nil {
+			if !s.unsubscribed && ctx.Err() == nil {
+				s.logf("follow %s: %v; checking the tools every %s", pluginChangedTopic, err, redialDelay)
+			}
+			s.unsubscribed = true
 			return false
 		}
+		s.unsubscribed = false
 		notes, done, dropped = ev.Notifications(), ev.Done(), ev.Dropped
 	}
 	s.check(ctx)
@@ -434,7 +443,7 @@ func (s *Server) follow(ctx context.Context, tick <-chan time.Time) bool {
 			case n.Method == notifyBusClosed:
 				return true
 			case n.Method == notifyBusEvent && relist == nil:
-				relist = time.After(relistDelay)
+				relist = relistAfter()
 			}
 		case <-relist:
 			relist = nil
@@ -445,10 +454,14 @@ func (s *Server) follow(ctx context.Context, tick <-chan time.Time) bool {
 		if dropped != nil && dropped() != lost {
 			lost = dropped()
 			if relist == nil {
-				relist = time.After(relistDelay)
+				relist = relistAfter()
 			}
 		}
 	}
+}
+
+func relistAfter() <-chan time.Time {
+	return time.After(relistDelay + rand.N(relistJitter))
 }
 
 func subscribe(ctx context.Context, core Core) error {

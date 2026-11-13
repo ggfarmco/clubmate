@@ -8,9 +8,9 @@ import ClubmateKit
 
 extension AppModel {
     func report(_ request: ReportRequest, _ expiry: ConfirmExpiry) async -> ReportReply {
-        guard await reports.turn(expiry) else { return .unanswered(request, reason: ReportReply.timedOut) }
+        guard await reports.turn(expiry) else { return .unanswered(request, reason: expiry.reason) }
         defer { reports.done() }
-        guard !expiry.expired else { return .unanswered(request, reason: ReportReply.timedOut) }
+        guard !expiry.expired else { return .unanswered(request, reason: expiry.reason) }
         guard let window = windows.reportWindow(request.workspaceId) else { return .unanswered(request, reason: ReportReply.noWindow) }
         let attention = TestMode.current ? nil : NSApp.requestUserAttention(.criticalRequest)
         defer { attention.map(NSApp.cancelUserAttentionRequest) }
@@ -18,7 +18,7 @@ extension AppModel {
         let extra = Diagnostics.appExtras(window: host, screenshot: true)
         let reply = await reports.present(request, extra: extra, in: window, host: host, expiry: expiry)
         if expiry.expired {
-            let message = "The problem report waited too long and closed. Nothing was sent."
+            let message = expiry.reason == ReportReply.withdrawn ? "The agent stopped waiting for the problem report, so it closed. Nothing was sent." : "The problem report waited too long and closed. Nothing was sent."
             if let banner = sessions.existing(request.workspaceId)?.banner { banner.show(message) } else { AppAlert.warning(message) }
         }
         return reply

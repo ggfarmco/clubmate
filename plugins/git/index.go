@@ -66,7 +66,16 @@ type folderIndex struct {
 	store   string
 	entries []indexEntry
 	built   time.Time
+	walk    *mergeWalk
 }
+
+type mergeWalk struct {
+	tips   []string
+	since  int64
+	landed map[string]bool
+}
+
+type boundGit func(context.Context, ...string) ([]byte, error)
 
 type landedCheck struct {
 	top   string
@@ -82,6 +91,7 @@ type repoRefs struct {
 	tips     []string
 	mergedTo map[string]bool
 	landed   map[string]bool
+	walk     *mergeWalk
 }
 
 type branchLanding struct {
@@ -213,7 +223,7 @@ func rebuildIndex(ctx context.Context, h *pluginsdk.Host, id string, s *state) {
 			verdicts, err = storedVerdicts(ctx, h, f, known)
 		}
 		if err == nil {
-			idx, err = readFolderIndex(ctx, f, verdicts)
+			idx, err = readFolderIndex(ctx, f, verdicts, prior[wf.Path])
 		}
 		if err != nil {
 			logError("index "+wf.Path, err)
@@ -234,17 +244,25 @@ func storedVerdicts(ctx context.Context, h *pluginsdk.Host, f *folder, known map
 	return verdicts, nil
 }
 
-func readFolderIndex(ctx context.Context, f *folder, known map[string]bool) (*folderIndex, error) {
+func readFolderIndex(ctx context.Context, f *folder, known map[string]bool, prior *folderIndex) (*folderIndex, error) {
 	top := f.Checkout.Path
-	heads, err := f.headsWith(ctx, inert)
+	git, err := inertAt(ctx, top)
 	if err != nil {
 		return nil, err
 	}
-	refs, err := readRefs(ctx, top, f.Trees)
+	heads, err := f.headsWith(ctx, git)
 	if err != nil {
 		return nil, err
 	}
-	idx := &folderIndex{top: top, key: metaPrefix + f.Trees[0].Real, store: landedPrefix + f.Trees[0].Real, built: time.Now()}
+	var cached *mergeWalk
+	if prior != nil {
+		cached = prior.walk
+	}
+	refs, err := readRefs(ctx, top, git, f.Trees, cached)
+	if err != nil {
+		return nil, err
+	}
+	idx := &folderIndex{top: top, key: metaPrefix + f.Trees[0].Real, store: landedPrefix + f.Trees[0].Real, built: time.Now(), walk: refs.walk}
 	for j, t := range f.Trees {
 		if t.Bare {
 			continue
@@ -281,7 +299,7 @@ func (r repoRefs) landing(t gitrepo.Worktree, known map[string]bool) branchLandi
 	return out
 }
 
-func readRefs(ctx context.Context, top string, trees []gitrepo.Worktree) (repoRefs, error) {
+func readRefs(ctx context.Context, top string, git boundGit, trees []gitrepo.Worktree, cached *mergeWalk) (repoRefs, error) {
 	out := repoRefs{gone: map[string]bool{}, mergedTo: map[string]bool{}, landed: map[string]bool{}}
 	name, err := gitrepo.DefaultBranch(ctx, top)
 	if err != nil && !errors.Is(err, gitrepo.ErrNoDefaultBase) {
@@ -289,7 +307,7 @@ func readRefs(ctx context.Context, top string, trees []gitrepo.Worktree) (repoRe
 	}
 	out.name = name
 	remote := remotesPrefix + originRemote + "/" + name
-	raw, err := inert(ctx, top, "for-each-ref", refsFormat, headsPrefix, remote)
+	raw, err := git(ctx, "for-each-ref", refsFormat, headsPrefix, remote)
 	if err != nil {
 		return repoRefs{}, err
 	}
@@ -311,7 +329,7 @@ func readRefs(ctx context.Context, top string, trees []gitrepo.Worktree) (repoRe
 	for _, base := range out.bases {
 		args = append(args, "--merged="+base)
 	}
-	raw, err = inert(ctx, top, append(args, headsPrefix)...)
+	raw, err = git(ctx, append(args, headsPrefix)...)
 	if err != nil {
 		return repoRefs{}, err
 	}
@@ -330,7 +348,11 @@ func readRefs(ctx context.Context, top string, trees []gitrepo.Worktree) (repoRe
 	if oldest == math.MaxInt64 {
 		return out, nil
 	}
-	raw, err = inert(ctx, top, append(append([]string{"log", "--first-parent", "--merges", "--max-age=" + strconv.FormatInt(oldest, 10), parentsFormat}, out.bases...), "--")...)
+	if cached != nil && slices.Equal(cached.tips, out.tips) && cached.since <= oldest {
+		out.landed, out.walk = cached.landed, cached
+		return out, nil
+	}
+	raw, err = git(ctx, append(append([]string{"log", "--first-parent", "--merges", "--max-age=" + strconv.FormatInt(oldest, 10), parentsFormat}, out.tips...), "--")...)
 	if err != nil {
 		return repoRefs{}, err
 	}
@@ -340,6 +362,7 @@ func readRefs(ctx context.Context, top string, trees []gitrepo.Worktree) (repoRe
 			out.landed[parent] = true
 		}
 	}
+	out.walk = &mergeWalk{tips: out.tips, since: oldest, landed: out.landed}
 	return out, nil
 }
 
@@ -398,7 +421,11 @@ func worktreeStates(ctx context.Context, h *pluginsdk.Host, workspaceID string, 
 			return nil
 		}
 		exclude := defaultExclude(ctx, f.Checkout.Path)
-		refs, err := readRefs(ctx, f.Checkout.Path, f.Trees)
+		git, err := inertAt(ctx, f.Checkout.Path)
+		if err != nil {
+			return err
+		}
+		refs, err := readRefs(ctx, f.Checkout.Path, git, f.Trees, nil)
 		if err != nil {
 			return err
 		}

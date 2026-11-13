@@ -467,6 +467,19 @@ func TestReviewRestoresSentAfterReopen(t *testing.T) {
 	assert.Equal(t, 3, h.last().Sent)
 }
 
+func TestReviewReopenSkipsStateOlderThan30Days(t *testing.T) {
+	a, h := newTestApp(), &fakeHost{}
+	nv := &fakeReviewer{}
+	key := reviewKey{Worktree: "/repo", Base: "main", Head: "feat"}
+	r, err := a.openReviewLocked(t.Context(), h, "ws", "/repo", nv, openReviewReq{Key: key, BaseRev: "main"})
+	require.NoError(t, err)
+	a.applyReviewEvent(t.Context(), h, "ws", "/repo", nvimEvent{Event: "review", Kind: "closed", Tab: r.Tab})
+	require.NoError(t, h.StorageSet(t.Context(), reviewStorePrefix+r.ID, reviewState{Opener: "agt_1", Sent: 3, At: time.Now().Add(-31 * 24 * time.Hour)}))
+	again, err := a.openReviewLocked(t.Context(), h, "ws", "/repo", nv, openReviewReq{Key: key, BaseRev: "main"})
+	require.NoError(t, err)
+	assert.Equal(t, []any{"", 0}, []any{again.Opener, again.Sent})
+}
+
 func TestPruneReviewsDropsStaleAndGone(t *testing.T) {
 	a, h := newTestApp(), &fakeHost{}
 	now := time.Now()

@@ -333,7 +333,7 @@ func (a *app) restoreReview(ctx context.Context, h reviewHost, r *review) {
 	if err != nil {
 		logError("restore review", err)
 	}
-	if !ok {
+	if !ok || !st.At.IsZero() && time.Since(st.At) > reviewStateTTL {
 		return
 	}
 	r.Opener, r.OpenerTitle, r.Recipient, r.RecipientTitle, r.Sent = st.Opener, st.OpenerTitle, st.Recipient, st.RecipientTitle, st.Sent

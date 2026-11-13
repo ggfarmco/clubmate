@@ -2,12 +2,16 @@ package mcp_test
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -309,10 +313,12 @@ func TestToolListFollowsPluginChanged(t *testing.T) {
 }
 
 type eventCore struct {
-	lists    atomic.Int32
-	commands atomic.Value
-	notes    chan rpc.Notification
-	done     chan struct{}
+	lists        atomic.Int32
+	commands     atomic.Value
+	notes        chan rpc.Notification
+	done         chan struct{}
+	dropped      atomic.Int64
+	subscribeErr error
 }
 
 func (c *eventCore) Call(_ context.Context, method string, _, result any) error {
@@ -320,7 +326,9 @@ func (c *eventCore) Call(_ context.Context, method string, _, result any) error 
 	case "command.list":
 		c.lists.Add(1)
 		return json.Unmarshal([]byte(c.commands.Load().(string)), result)
-	case "bus.head", "bus.subscribe", "command.capabilities":
+	case "bus.subscribe":
+		return c.subscribeErr
+	case "bus.head", "command.capabilities":
 		return nil
 	}
 	return fmt.Errorf("unexpected %s", method)
@@ -338,8 +346,25 @@ func (c *eventCore) Done() <-chan struct{} {
 	return c.done
 }
 
-func (*eventCore) Dropped() int64 {
-	return 0
+func (c *eventCore) Dropped() int64 {
+	return c.dropped.Load()
+}
+
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 func TestToolListRelistsOnlyOnPluginChanged(t *testing.T) {
@@ -359,6 +384,39 @@ func TestToolListRelistsOnlyOnPluginChanged(t *testing.T) {
 		assert.Equal(t, "notifications/tools/list_changed", p.recv(t).Method)
 		time.Sleep(10 * time.Second)
 		assert.EqualValues(t, 2, core.lists.Load())
+	})
+}
+
+func TestToolListRelistsOnThePollAndAfterDroppedEvents(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		core := &eventCore{notes: make(chan rpc.Notification, 8)}
+		core.commands.Store(`[{"id":"alpha.one","title":"One","agent":true,"plugin":"alpha"}]`)
+		p := startServer(t, &mcp.Server{Dial: func(context.Context) (mcp.Core, error) { return core, nil }, Version: "test", Log: io.Discard, Poll: time.Minute})
+		synctest.Wait()
+		p.call(t, 1, "tools/list", nil)
+
+		core.commands.Store(`[{"id":"alpha.two","title":"Two","agent":true,"plugin":"alpha"}]`)
+		time.Sleep(59 * time.Second)
+		assert.EqualValues(t, 1, core.lists.Load())
+		assert.Equal(t, "notifications/tools/list_changed", p.recv(t).Method)
+
+		core.commands.Store(`[{"id":"alpha.three","title":"Three","agent":true,"plugin":"alpha"}]`)
+		core.dropped.Add(1)
+		core.notes <- rpc.Notification{Method: "ui.updated"}
+		assert.Equal(t, "notifications/tools/list_changed", p.recv(t).Method)
+		assert.EqualValues(t, 3, core.lists.Load())
+	})
+}
+
+func TestFailedSubscribeIsLoggedOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		core := &eventCore{notes: make(chan rpc.Notification), subscribeErr: errors.New("bus gone")}
+		core.commands.Store(`[{"id":"alpha.one","title":"One","agent":true,"plugin":"alpha"}]`)
+		log := &syncBuffer{}
+		startServer(t, &mcp.Server{Dial: func(context.Context) (mcp.Core, error) { return core, nil }, Version: "test", Log: log, Poll: time.Minute})
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		assert.Equal(t, 1, strings.Count(log.String(), "follow plugin.changed: bus gone"))
 	})
 }
 

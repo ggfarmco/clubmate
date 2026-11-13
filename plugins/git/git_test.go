@@ -772,6 +772,9 @@ func newApprover(t *testing.T, h *testutil.PluginHarness) *approver {
 	server := h.Srv.ServeConn(context.Background(), jsonrpc2.NewPlainObjectStream(serverSide), rpc.Caller{})
 	a := &approver{}
 	handler := jsonrpc2.HandlerWithError(func(_ context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
+		if req.Method != "ui.confirm" {
+			return nil, nil
+		}
 		var p confirmRequest
 		if err := json.Unmarshal(*req.Params, &p); err != nil {
 			return nil, err

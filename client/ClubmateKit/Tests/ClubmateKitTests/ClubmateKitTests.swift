@@ -210,6 +210,28 @@ final class ClubmateKitTests: XCTestCase {
         XCTAssertEqual(reply, ReportReply(send: false, text: "it broke", summary: "", files: [], extra: [:], appVersion: "", reason: "timed out"))
     }
 
+    func testWithdrawnReportClosesUnsent() async throws {
+        let base = try TestCore.makeTempDir()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let paths = ClubmatePaths(state: base.appending(path: "state"), runtime: base.appending(path: "run"))
+        for dir in [paths.runtime, paths.sessionsSocketDir] {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        }
+        let server = try listen(at: paths.coreSocket.path(percentEncoded: false))
+        defer { close(server) }
+        let client = CoreClient(connection: try await RPCConnection.connect(paths: paths))
+        client.reportHandler = { request, expiry in
+            await withCheckedContinuation { continuation in expiry.onExpire { continuation.resume() } }
+            return ReportReply(send: true, text: request.text, summary: "", files: [], extra: [:], appVersion: "1")
+        }
+        let lines = #"{"jsonrpc":"2.0","id":7,"method":"ui.report","params":{"id":"rpt_a","text":"it broke","timeoutMs":600000,"maxBytes":26214400,"maxText":20480}}"# + "\n" + #"{"jsonrpc":"2.0","method":"ui.report.cancelled","params":{"id":"rpt_a"}}"#
+        let line = try await Task.detached { try Self.exchange(server, lines) }.value
+        let reply = try JSONDecoder().decode(JSONValue.self, from: Data(line.utf8))
+        XCTAssertEqual(reply["result"]?["send"], .bool(false))
+        XCTAssertEqual(reply["result"]?["reason"], .string("withdrawn"))
+        await client.close()
+    }
+
     func testAgentApprovalRoundTrip() async throws {
         let client = try await startCore()
         let workspace = try await client.createWorkspace(name: "demo")

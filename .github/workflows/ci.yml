@@ -43,6 +43,9 @@ jobs:
       - name: Go tests
         run: go test -race -timeout 30m ./...
 
+      - name: Ship script test
+        run: scripts/release/ship-test.sh
+
       - name: Save Go cache
         if: github.event_name == 'push'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9

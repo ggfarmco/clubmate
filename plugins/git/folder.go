@@ -108,10 +108,10 @@ func (f *folder) treeName(ctx context.Context, t gitrepo.Worktree) string {
 }
 
 func (f *folder) heads(ctx context.Context) (map[string]head, error) {
-	return f.headsWith(ctx, run)
+	return f.headsWith(ctx, func(ctx context.Context, args ...string) ([]byte, error) { return run(ctx, f.Checkout.Path, args...) })
 }
 
-func (f *folder) headsWith(ctx context.Context, git func(context.Context, string, ...string) ([]byte, error)) (map[string]head, error) {
+func (f *folder) headsWith(ctx context.Context, git boundGit) (map[string]head, error) {
 	heads := map[string]head{}
 	var shas []string
 	for _, t := range f.Trees {
@@ -123,7 +123,7 @@ func (f *folder) headsWith(ctx context.Context, git func(context.Context, string
 		return heads, nil
 	}
 	args := append(append([]string{"show", "-s", "--format=%H %h %cI"}, shas...), "--")
-	out, err := git(ctx, f.Checkout.Path, args...)
+	out, err := git(ctx, args...)
 	if err != nil {
 		return nil, err
 	}

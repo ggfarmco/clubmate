@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +39,7 @@ const (
 	reportUploadSeconds  = 120
 	reportMaxFiles       = 50
 	reportDirPrefix      = "report-"
+	notifyReportGone     = "ui.report.cancelled"
 
 	cmdAgentsTranscript = "agents.transcript"
 	cmdRemoteStatus     = "remote.status"
@@ -61,6 +63,7 @@ type reportSendResult struct {
 }
 
 type reportParams struct {
+	ID            string       `json:"id"`
 	WorkspaceID   string       `json:"workspaceId"`
 	WorkspaceName string       `json:"workspaceName"`
 	RelayHost     string       `json:"relayHost"`
@@ -176,11 +179,14 @@ func (s *Server) reportSend(ctx context.Context, p reportSendParams) (reportSend
 		}
 	}
 	timeout := s.reportTimeout
-	params := reportParams{WorkspaceID: p.WorkspaceID, WorkspaceName: ws.Name, RelayHost: host, Text: p.Text, Summary: p.Summary, SessionTitle: title, TimeoutMs: timeout.Milliseconds(), MaxBytes: report.MaxBundle, MaxText: report.MaxText, Files: b.files}
+	params := reportParams{ID: rand.Text(), WorkspaceID: p.WorkspaceID, WorkspaceName: ws.Name, RelayHost: host, Text: p.Text, Summary: p.Summary, SessionTitle: title, TimeoutMs: timeout.Milliseconds(), MaxBytes: report.MaxBundle, MaxText: report.MaxText, Files: b.files}
 	callCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var ans reportAnswer
 	if err := conn.Call(callCtx, handleUIReport, params, &ans); err != nil {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			_ = conn.Notify(context.WithoutCancel(ctx), notifyReportGone, confirmIDParams{ID: params.ID})
+		}
 		if errors.Is(err, context.DeadlineExceeded) {
 			return reportSendResult{Reason: reportReasonTimeout}, nil
 		}

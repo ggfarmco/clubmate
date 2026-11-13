@@ -45,8 +45,9 @@ public struct ReportRequest: Decodable, Sendable, Equatable {
     public let maxBytes: Int
     public let maxText: Int
     public let files: [File]
+    public let id: String?
 
-    public init(workspaceId: String, workspaceName: String, relayHost: String, text: String, summary: String = "", sessionTitle: String = "", timeoutMs: Int? = nil, maxBytes: Int, maxText: Int, files: [File]) {
+    public init(workspaceId: String, workspaceName: String, relayHost: String, text: String, summary: String = "", sessionTitle: String = "", timeoutMs: Int? = nil, maxBytes: Int, maxText: Int, files: [File], id: String? = nil) {
         self.workspaceId = workspaceId
         self.workspaceName = workspaceName
         self.relayHost = relayHost
@@ -57,6 +58,7 @@ public struct ReportRequest: Decodable, Sendable, Equatable {
         self.maxBytes = maxBytes
         self.maxText = maxText
         self.files = files
+        self.id = id
     }
 
     public init(from decoder: any Decoder) throws {
@@ -71,10 +73,11 @@ public struct ReportRequest: Decodable, Sendable, Equatable {
         maxBytes = try container.decode(Int.self, forKey: .maxBytes)
         maxText = try container.decode(Int.self, forKey: .maxText)
         files = try container.decodeIfPresent([File].self, forKey: .files) ?? []
+        id = try container.decodeIfPresent(String.self, forKey: .id)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case workspaceId, workspaceName, relayHost, text, summary, sessionTitle, timeoutMs, maxBytes, maxText, files
+        case workspaceId, workspaceName, relayHost, text, summary, sessionTitle, timeoutMs, maxBytes, maxText, files, id
     }
 
     public var deadline: Duration? {
@@ -101,23 +104,25 @@ public struct ReportRequest: Decodable, Sendable, Equatable {
     }
 
     @MainActor
-    public static func answer(_ request: ReportRequest, ask: @MainActor (ReportRequest, ConfirmExpiry) async -> ReportReply) async -> ReportReply {
-        let expiry = ConfirmExpiry()
+    public static func answer(_ request: ReportRequest, expiry: ConfirmExpiry? = nil, ask: @MainActor (ReportRequest, ConfirmExpiry) async -> ReportReply) async -> ReportReply {
+        let expiry = expiry ?? ConfirmExpiry()
+        if expiry.expired { return .unanswered(request, reason: expiry.reason) }
         let timer = request.deadline.map { deadline in
             Task { @MainActor in
                 guard (try? await Task.sleep(for: deadline)) != nil else { return }
-                expiry.expire()
+                expiry.expire(ReportReply.timedOut)
             }
         }
         defer { timer?.cancel() }
         let reply = await ask(request, expiry)
-        return expiry.expired ? .unanswered(request, reason: ReportReply.timedOut) : reply
+        return expiry.expired ? .unanswered(request, reason: expiry.reason) : reply
     }
 }
 
 public struct ReportReply: Encodable, Sendable, Equatable {
     public static let timedOut = "timed out"
     public static let noWindow = "no window"
+    public static let withdrawn = "withdrawn"
 
     public let send: Bool
     public let text: String

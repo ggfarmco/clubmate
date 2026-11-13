@@ -70,6 +70,19 @@ func TestApprovalAlertAndReportSheetKeys(t *testing.T) {
 		in.eventually("the alert closes", func() bool { return in.alert() == nil })
 		assert.DirExists(t, worktree)
 	})
+	t.Run("the report sheet closes when the agent's call is gone", func(t *testing.T) {
+		in := in.at(t)
+		call := in.command("command", "run", "report.send", "text=Broken")
+		require.NoError(t, call.Start())
+		in.eventually("the report sheet is the key window", func() bool { return in.snapshot().key().node("report.text") != nil })
+		require.NoError(t, call.Process.Kill())
+		_ = call.Wait()
+		in.eventually("the sheet closes with a banner", func() bool {
+			snap := in.snapshot()
+			banner := snap.main().node("banner")
+			return snap.key().node("report.text") == nil && banner != nil && strings.HasPrefix(banner.Label, "The agent stopped waiting")
+		})
+	})
 	t.Run("esc cancels the report with the text box focused", func(t *testing.T) {
 		in := in.at(t)
 		reply := in.sendReport()

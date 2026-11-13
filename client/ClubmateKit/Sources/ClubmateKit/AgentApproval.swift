@@ -136,7 +136,7 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
 @MainActor
 public final class ConfirmExpiry {
     public private(set) var expired = false
-    private(set) var reason = ConfirmRequest.timedOut
+    public private(set) var reason = ConfirmRequest.timedOut
     private var actions: [@MainActor () -> Void] = []
 
     public init() {}
@@ -153,6 +153,42 @@ public final class ConfirmExpiry {
         let pending = actions
         actions = []
         pending.forEach { $0() }
+    }
+}
+
+@MainActor
+struct Withdrawals {
+    static let earlyCap = 32
+    static let earlyAge: Duration = .seconds(30)
+
+    private var open: [String: (expiry: ConfirmExpiry, reason: String)] = [:]
+    private var early: [(id: String, at: ContinuousClock.Instant)] = []
+
+    mutating func track(_ id: String?, reason: String, now: ContinuousClock.Instant = .now) -> ConfirmExpiry {
+        let expiry = ConfirmExpiry()
+        guard let id else { return expiry }
+        prune(now)
+        if let index = early.firstIndex(where: { $0.id == id }) {
+            early.remove(at: index)
+            expiry.expire(reason)
+        }
+        open[id] = (expiry, reason)
+        return expiry
+    }
+
+    mutating func finish(_ id: String?) {
+        if let id { open[id] = nil }
+    }
+
+    mutating func withdraw(_ id: String, now: ContinuousClock.Instant = .now) {
+        if let entry = open[id] { return entry.expiry.expire(entry.reason) }
+        prune(now)
+        early.append((id, now))
+        if early.count > Self.earlyCap { early.removeFirst(early.count - Self.earlyCap) }
+    }
+
+    private mutating func prune(_ now: ContinuousClock.Instant) {
+        early.removeAll { now - $0.at > Self.earlyAge }
     }
 }
 

@@ -54,6 +54,17 @@ func inert(ctx context.Context, repo string, args ...string) ([]byte, error) {
 	return out, gitError(out, err)
 }
 
+func inertAt(ctx context.Context, repo string) (boundGit, error) {
+	git, err := gitrepo.InertRunner(ctx, repo)
+	if err != nil {
+		return nil, gitError(nil, err)
+	}
+	return func(ctx context.Context, args ...string) ([]byte, error) {
+		out, err := git(ctx, append([]string{literalPathspecs}, args...)...)
+		return out, gitError(out, err)
+	}, nil
+}
+
 func hasRef(ctx context.Context, dir, ref string) bool {
 	_, err := gitrepo.Run(ctx, dir, "rev-parse", "-q", "--verify", ref+"^{commit}")
 	return err == nil

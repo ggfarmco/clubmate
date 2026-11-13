@@ -615,7 +615,10 @@ func (f *fixture) holdConfirms(t *testing.T) *heldConfirm {
 	serverSide, clientSide := net.Pipe()
 	server := f.h.Srv.ServeConn(context.Background(), jsonrpc2.NewPlainObjectStream(serverSide), rpc.Caller{})
 	held := &heldConfirm{asked: make(chan struct{}, 8), release: make(chan struct{})}
-	handler := jsonrpc2.HandlerWithError(func(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) (any, error) {
+	handler := jsonrpc2.HandlerWithError(func(_ context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
+		if req.Method != "ui.confirm" {
+			return nil, nil
+		}
 		held.asked <- struct{}{}
 		<-held.release
 		return map[string]bool{"approved": true}, nil

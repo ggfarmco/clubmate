@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -35,7 +36,7 @@ func batchProcesses(t *testing.T, worktrees int) int {
 
 	f, err := gitrepo.OpenFolder(t.Context(), repo)
 	require.NoError(t, err)
-	idx, err := readFolderIndex(t.Context(), &folder{Folder: f, root: repo}, nil)
+	idx, err := readFolderIndex(t.Context(), &folder{Folder: f, root: repo}, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, idx.entries, worktrees+1)
 
@@ -73,7 +74,7 @@ func TestIndexMergeWalkStopsAtOldestMergedTip(t *testing.T) {
 
 	f, err := gitrepo.OpenFolder(t.Context(), repo)
 	require.NoError(t, err)
-	idx, err := readFolderIndex(t.Context(), &folder{Folder: f, root: repo}, nil)
+	idx, err := readFolderIndex(t.Context(), &folder{Folder: f, root: repo}, nil, nil)
 	require.NoError(t, err)
 	merged := map[string]bool{}
 	for _, e := range idx.entries {
@@ -82,4 +83,40 @@ func TestIndexMergeWalkStopsAtOldestMergedTip(t *testing.T) {
 
 	assert.True(t, merged["fresh"])
 	assert.False(t, merged["skewed"], "a merge dated before the oldest merged tip is past the walk and reads unmerged")
+}
+
+func TestIndexReusesTheMergeWalkUntilMainMoves(t *testing.T) {
+	repo := t.TempDir()
+	commit := func(dir string, args ...string) {
+		t.Helper()
+		gitIn(t, dir, append([]string{"-c", "user.name=t", "-c", "user.email=t@t"}, args...)...)
+	}
+	gitIn(t, repo, "init", "-q", "-b", "main")
+	commit(repo, "commit", "-q", "--allow-empty", "-m", "init")
+	feat := filepath.Join(repo, ".worktrees", "feat")
+	gitIn(t, repo, "worktree", "add", "-q", "-b", "done", filepath.Join(repo, ".worktrees", "done"))
+	gitIn(t, repo, "worktree", "add", "-q", "-b", "feat", feat)
+	commit(feat, "commit", "-q", "--allow-empty", "-m", "feat")
+	read := func(prior *folderIndex) (*folderIndex, bool, string) {
+		t.Helper()
+		trace := filepath.Join(t.TempDir(), "trace")
+		t.Setenv("GIT_TRACE", trace)
+		f, err := gitrepo.OpenFolder(t.Context(), repo)
+		require.NoError(t, err)
+		idx, err := readFolderIndex(t.Context(), &folder{Folder: f, root: repo}, nil, prior)
+		require.NoError(t, err)
+		raw, err := os.ReadFile(trace)
+		require.NoError(t, err)
+		i := slices.IndexFunc(idx.entries, func(e indexEntry) bool { return e.Branch == "feat" })
+		require.GreaterOrEqual(t, i, 0)
+		return idx, idx.entries[i].Merged, string(raw)
+	}
+
+	first, _, _ := read(nil)
+	again, merged, trace := read(first)
+	assert.NotContains(t, trace, "built-in: git log")
+	assert.False(t, merged)
+	commit(repo, "merge", "-q", "--no-ff", "-m", "land feat", "feat")
+	_, merged, _ = read(again)
+	assert.True(t, merged)
 }

@@ -66,16 +66,29 @@ func Inert(ctx context.Context, repo string, args ...string) ([]byte, error) {
 	return inertWith(ctx, repo, nil, args...)
 }
 
-func inertWith(ctx context.Context, repo string, env []string, args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	cmd := command(ctx, repo, append([]string{"-c", "log.showSignature=false"}, args...)...)
-	cmd.Env = append(cmd.Env, "GIT_NO_LAZY_FETCH=1")
+func InertRunner(ctx context.Context, repo string) (func(context.Context, ...string) ([]byte, error), error) {
 	filters, err := filterOverrides(ctx, repo)
 	if err != nil {
 		return nil, err
 	}
-	cmd.Env = append(cmd.Env, filters...)
+	return func(ctx context.Context, args ...string) ([]byte, error) {
+		return inertRun(ctx, repo, filters, args...)
+	}, nil
+}
+
+func inertWith(ctx context.Context, repo string, env []string, args ...string) ([]byte, error) {
+	filters, err := filterOverrides(ctx, repo)
+	if err != nil {
+		return nil, err
+	}
+	return inertRun(ctx, repo, append(filters, env...), args...)
+}
+
+func inertRun(ctx context.Context, repo string, env []string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	cmd := command(ctx, repo, append([]string{"-c", "log.showSignature=false"}, args...)...)
+	cmd.Env = append(cmd.Env, "GIT_NO_LAZY_FETCH=1")
 	cmd.Env = append(cmd.Env, env...)
 	return cmd.Output()
 }

@@ -28,6 +28,7 @@ import (
 const reportCaller = "agt_0123456789abcdef"
 
 type reportRequest struct {
+	ID            string              `json:"id"`
 	WorkspaceID   string              `json:"workspaceId"`
 	WorkspaceName string              `json:"workspaceName"`
 	RelayHost     string              `json:"relayHost"`
@@ -51,8 +52,9 @@ type reportFileRequest struct {
 }
 
 type reportApp struct {
-	asked chan reportRequest
-	reply chan any
+	asked     chan reportRequest
+	reply     chan any
+	withdrawn chan string
 }
 
 type reportRouter struct {
@@ -90,11 +92,24 @@ func newReportApp(t *testing.T, h *testutil.PluginHarness) *reportApp {
 	t.Helper()
 	serverSide, clientSide := net.Pipe()
 	server := h.Srv.ServeConn(context.Background(), jsonrpc2.NewPlainObjectStream(serverSide), rpc.Caller{})
-	a := &reportApp{asked: make(chan reportRequest, 1), reply: make(chan any)}
+	a := &reportApp{asked: make(chan reportRequest, 1), reply: make(chan any), withdrawn: make(chan string, 1)}
 	done := make(chan struct{})
 	handler := jsonrpc2.HandlerWithError(func(_ context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
-		if req.Method == "ui.confirm" {
+		switch req.Method {
+		case "ui.confirm":
 			return map[string]bool{"approved": true}, nil
+		case "ui.report.cancelled":
+			var p struct {
+				ID string `json:"id"`
+			}
+			if err := json.Unmarshal(*req.Params, &p); err != nil {
+				return nil, err
+			}
+			a.withdrawn <- p.ID
+			return nil, nil
+		case "ui.report":
+		default:
+			return nil, nil
 		}
 		var p reportRequest
 		if err := json.Unmarshal(*req.Params, &p); err != nil {
@@ -268,6 +283,27 @@ func TestReportSendTimesOut(t *testing.T) {
 
 	assert.JSONEq(t, `{"sent":false,"reason":"timed out"}`, string(<-res))
 	assert.Empty(t, f.leftovers(t))
+}
+
+func TestReportCallerGoneWithdrawsSheet(t *testing.T) {
+	f := newReportFixture(t)
+	f.h.Client(t)
+	c, err := rpc.Dial(t.Context(), f.h.Dirs.CoreSocket())
+	require.NoError(t, err)
+	t.Cleanup(func() { c.Close() })
+	go func() {
+		_ = c.Call(t.Context(), "command.run", map[string]any{"id": "report.send", "workspaceId": f.ws.ID, "agent": true, "caller": reportCaller, "args": map[string]any{"text": "broken"}}, nil)
+	}()
+	asked := <-f.app.asked
+	require.NotEmpty(t, asked.ID)
+	require.NoError(t, c.Close())
+	select {
+	case id := <-f.app.withdrawn:
+		assert.Equal(t, asked.ID, id)
+	case <-time.After(5 * time.Second):
+		t.Fatal("report not withdrawn")
+	}
+	testutil.Eventually(t, func() bool { return len(f.leftovers(t)) == 0 }, 5*time.Second)
 }
 
 func TestReportFileOutsideWorkspace(t *testing.T) {

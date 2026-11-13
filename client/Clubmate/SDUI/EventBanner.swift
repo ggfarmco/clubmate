@@ -60,6 +60,7 @@ struct BannerLabel: View {
             .background(theme.toneBg(theme.danger))
             .background(theme.background)
             .overlay(alignment: edge) { theme.border.frame(height: 1) }
+            .testNode("banner", role: "banner", label: text)
     }
 }
 
