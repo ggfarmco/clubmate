@@ -157,6 +157,26 @@ func (f *fakeHost) StorageSet(_ context.Context, key string, v any) error {
 	return err
 }
 
+func (f *fakeHost) StorageList(_ context.Context, prefix string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var keys []string
+	for k := range f.store {
+		if strings.HasPrefix(k, prefix) {
+			keys = append(keys, k)
+		}
+	}
+	slices.Sort(keys)
+	return keys, nil
+}
+
+func (f *fakeHost) StorageDelete(_ context.Context, key string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.store, key)
+	return nil
+}
+
 func (f *fakeHost) Render(_ context.Context, ws, slot string, n sdui.Node) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -445,6 +465,31 @@ func TestReviewRestoresSentAfterReopen(t *testing.T) {
 	assert.NotSame(t, r, again)
 	assert.Equal(t, []any{"agt_1", "Coder", "agt_1", 3}, []any{again.Opener, again.OpenerTitle, again.Recipient, again.Sent})
 	assert.Equal(t, 3, h.last().Sent)
+}
+
+func TestPruneReviewsDropsStaleAndGone(t *testing.T) {
+	a, h := newTestApp(), &fakeHost{}
+	now := time.Now()
+	live := t.TempDir()
+	put := func(id string, st reviewState) {
+		require.NoError(t, h.StorageSet(t.Context(), reviewStorePrefix+id, st))
+	}
+	put("stale", reviewState{Worktree: live, Sent: 1, At: now.Add(-31 * 24 * time.Hour)})
+	put("gone", reviewState{Worktree: filepath.Join(live, "removed"), Sent: 1, At: now})
+	put("fresh", reviewState{Worktree: live, Sent: 2, At: now.Add(-29 * 24 * time.Hour)})
+	put("legacy", reviewState{Sent: 3})
+	a.pruneReviews(t.Context(), h, now)
+	keys, err := h.StorageList(t.Context(), reviewStorePrefix)
+	require.NoError(t, err)
+	assert.Equal(t, []string{reviewStorePrefix + "fresh", reviewStorePrefix + "legacy"}, keys)
+	var legacy reviewState
+	_, err = h.StorageGet(t.Context(), reviewStorePrefix+"legacy", &legacy)
+	require.NoError(t, err)
+	assert.Equal(t, []any{3, true}, []any{legacy.Sent, legacy.At.Equal(now)})
+	a.pruneReviews(t.Context(), h, now.Add(31*24*time.Hour))
+	keys, err = h.StorageList(t.Context(), reviewStorePrefix)
+	require.NoError(t, err)
+	assert.Empty(t, keys)
 }
 
 func TestReviewDBChangesCoalesce(t *testing.T) {

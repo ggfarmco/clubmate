@@ -114,6 +114,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	for _, id := range slices.Compact(workspaces) {
 		go a.ensureLogged(ctx, h, id)
 	}
+	go a.pruneReviews(ctx, h, time.Now())
 	return nil
 }
 

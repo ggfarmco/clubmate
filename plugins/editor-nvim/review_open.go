@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -19,6 +21,7 @@ import (
 const (
 	defaultReviewBase = "main"
 	reviewStorePrefix = "review/"
+	reviewStateTTL    = 30 * 24 * time.Hour
 )
 
 var (
@@ -51,11 +54,20 @@ type openReviewReq struct {
 }
 
 type reviewState struct {
-	Opener         string `json:"opener,omitempty"`
-	OpenerTitle    string `json:"openerTitle,omitempty"`
-	Recipient      string `json:"recipient,omitempty"`
-	RecipientTitle string `json:"recipientTitle,omitempty"`
-	Sent           int    `json:"sent,omitempty"`
+	Opener         string    `json:"opener,omitempty"`
+	OpenerTitle    string    `json:"openerTitle,omitempty"`
+	Recipient      string    `json:"recipient,omitempty"`
+	RecipientTitle string    `json:"recipientTitle,omitempty"`
+	Sent           int       `json:"sent,omitempty"`
+	Worktree       string    `json:"worktree,omitempty"`
+	At             time.Time `json:"at,omitzero"`
+}
+
+type reviewStateStore interface {
+	StorageList(ctx context.Context, prefix string) ([]string, error)
+	StorageGet(ctx context.Context, key string, out any) (bool, error)
+	StorageSet(ctx context.Context, key string, v any) error
+	StorageDelete(ctx context.Context, key string) error
 }
 
 type agentSession struct {
@@ -328,10 +340,49 @@ func (a *app) restoreReview(ctx context.Context, h reviewHost, r *review) {
 }
 
 func (a *app) persistReview(ctx context.Context, h reviewHost, r *review) {
-	st := reviewState{Opener: r.Opener, OpenerTitle: r.OpenerTitle, Recipient: r.Recipient, RecipientTitle: r.RecipientTitle, Sent: r.Sent}
+	st := reviewState{Opener: r.Opener, OpenerTitle: r.OpenerTitle, Recipient: r.Recipient, RecipientTitle: r.RecipientTitle, Sent: r.Sent, Worktree: r.Key.Worktree, At: time.Now()}
 	if err := h.StorageSet(ctx, reviewStorePrefix+r.ID, st); err != nil {
 		logError("persist review", err)
 	}
+}
+
+func (a *app) pruneReviews(ctx context.Context, h reviewStateStore, now time.Time) {
+	keys, err := h.StorageList(ctx, reviewStorePrefix)
+	if err != nil {
+		logError("prune reviews", err)
+		return
+	}
+	for _, key := range keys {
+		var st reviewState
+		ok, err := h.StorageGet(ctx, key, &st)
+		if err != nil {
+			logError("prune reviews", err)
+		}
+		if !ok {
+			continue
+		}
+		if st.At.IsZero() {
+			st.At = now
+			if err := h.StorageSet(ctx, key, st); err != nil {
+				logError("prune reviews", err)
+			}
+			continue
+		}
+		if now.Sub(st.At) <= reviewStateTTL && !worktreeGone(st.Worktree) {
+			continue
+		}
+		if err := h.StorageDelete(ctx, key); err != nil {
+			logError("prune reviews", err)
+		}
+	}
+}
+
+func worktreeGone(path string) bool {
+	if path == "" {
+		return false
+	}
+	_, err := os.Stat(path)
+	return errors.Is(err, fs.ErrNotExist)
 }
 
 func (a *app) watchReviewer(h reviewHost, nv reviewer) {
