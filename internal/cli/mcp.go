@@ -15,7 +15,7 @@ import (
 	"clubmate/pkg/contract"
 )
 
-const mcpPoll = 5 * time.Second
+const mcpPoll = time.Minute
 
 func (a *app) mcpCmd() *cobra.Command {
 	return &cobra.Command{

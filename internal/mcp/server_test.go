@@ -8,7 +8,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -21,6 +23,7 @@ import (
 
 type reply struct {
 	ID     json.RawMessage `json:"id"`
+	Method string          `json:"method"`
 	Result struct {
 		ProtocolVersion string `json:"protocolVersion"`
 		Instructions    string `json:"instructions"`
@@ -53,6 +56,12 @@ func manifest(id, commands string) string {
 
 func startCore(t *testing.T) (func(ctx context.Context) (mcp.Core, error), string) {
 	t.Helper()
+	_, dial, workspace := startHarness(t)
+	return dial, workspace
+}
+
+func startHarness(t *testing.T) (*testutil.PluginHarness, func(ctx context.Context) (mcp.Core, error), string) {
+	t.Helper()
 	t.Setenv("CLUBMATE_WORKSPACE_ID", "")
 	h := testutil.NewHarness(t)
 	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
@@ -66,7 +75,7 @@ func startCore(t *testing.T) (func(ctx context.Context) (mcp.Core, error), strin
 		return len(st) == 2 && st[0].State == "running" && st[1].State == "running"
 	}, 5*time.Second)
 	h.Client(t)
-	return func(ctx context.Context) (mcp.Core, error) { return rpc.Dial(ctx, h.Dirs.CoreSocket()) }, p.ID
+	return h, func(ctx context.Context) (mcp.Core, error) { return rpc.Dial(ctx, h.Dirs.CoreSocket()) }, p.ID
 }
 
 func noCore(context.Context) (mcp.Core, error) {
@@ -288,4 +297,94 @@ func TestToolCallStopsWhenCancelled(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestToolListFollowsPluginChanged(t *testing.T) {
+	h, dial, workspace := startHarness(t)
+	p := startServer(t, &mcp.Server{Dial: dial, Version: "test", Workspace: workspace, Log: io.Discard, Poll: time.Hour})
+	require.Contains(t, names(p.call(t, 1, "tools/list", nil)), "terminals_close")
+	require.NoError(t, h.Control.SetEnabled(t.Context(), "terminals", false))
+	assert.Equal(t, "notifications/tools/list_changed", p.recv(t).Method)
+	assert.NotContains(t, names(p.call(t, 2, "tools/list", nil)), "terminals_close")
+}
+
+type eventCore struct {
+	lists    atomic.Int32
+	commands atomic.Value
+	notes    chan rpc.Notification
+	done     chan struct{}
+}
+
+func (c *eventCore) Call(_ context.Context, method string, _, result any) error {
+	switch method {
+	case "command.list":
+		c.lists.Add(1)
+		return json.Unmarshal([]byte(c.commands.Load().(string)), result)
+	case "bus.head", "bus.subscribe", "command.capabilities":
+		return nil
+	}
+	return fmt.Errorf("unexpected %s", method)
+}
+
+func (*eventCore) Close() error {
+	return nil
+}
+
+func (c *eventCore) Notifications() <-chan rpc.Notification {
+	return c.notes
+}
+
+func (c *eventCore) Done() <-chan struct{} {
+	return c.done
+}
+
+func (*eventCore) Dropped() int64 {
+	return 0
+}
+
+func TestToolListRelistsOnlyOnPluginChanged(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		core := &eventCore{notes: make(chan rpc.Notification, 8)}
+		core.commands.Store(`[{"id":"alpha.one","title":"One","agent":true,"plugin":"alpha"}]`)
+		p := startServer(t, &mcp.Server{Dial: func(context.Context) (mcp.Core, error) { return core, nil }, Version: "test", Log: io.Discard, Poll: time.Minute})
+		synctest.Wait()
+		p.call(t, 1, "tools/list", nil)
+		time.Sleep(10 * time.Second)
+		assert.EqualValues(t, 1, core.lists.Load())
+
+		core.commands.Store(`[{"id":"alpha.one","title":"One","agent":true,"plugin":"alpha"},{"id":"alpha.two","title":"Two","agent":true,"plugin":"alpha"}]`)
+		for range 3 {
+			core.notes <- rpc.Notification{Method: "bus.event"}
+		}
+		assert.Equal(t, "notifications/tools/list_changed", p.recv(t).Method)
+		time.Sleep(10 * time.Second)
+		assert.EqualValues(t, 2, core.lists.Load())
+	})
+}
+
+func TestToolListFollowsCoreGoingAndComing(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		core := &eventCore{notes: make(chan rpc.Notification), done: make(chan struct{})}
+		core.commands.Store(`[{"id":"alpha.one","title":"One","agent":true,"plugin":"alpha"}]`)
+		var down atomic.Bool
+		dial := func(context.Context) (mcp.Core, error) {
+			if down.Load() {
+				return nil, mcp.ErrNoCore
+			}
+			return core, nil
+		}
+		p := startServer(t, &mcp.Server{Dial: dial, Version: "test", Log: io.Discard, Poll: time.Minute})
+		synctest.Wait()
+		require.Contains(t, names(p.call(t, 1, "tools/list", nil)), "alpha_one")
+
+		down.Store(true)
+		close(core.done)
+		assert.Equal(t, "notifications/tools/list_changed", p.recv(t).Method)
+		assert.NotContains(t, names(p.call(t, 2, "tools/list", nil)), "alpha_one")
+
+		core.done = make(chan struct{})
+		down.Store(false)
+		assert.Equal(t, "notifications/tools/list_changed", p.recv(t).Method)
+		assert.Contains(t, names(p.call(t, 3, "tools/list", nil)), "alpha_one")
+	})
 }

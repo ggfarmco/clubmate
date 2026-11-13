@@ -33,6 +33,12 @@ const (
 
 	methodCancelled = "notifications/cancelled"
 
+	pluginChangedTopic = "plugin.changed"
+	notifyBusEvent     = "bus.event"
+	notifyBusClosed    = "bus.closed"
+	relistDelay        = 250 * time.Millisecond
+	redialDelay        = 5 * time.Second
+
 	baseInstructions = "Tools drive the Clubmate app: workspaces, sessions (terminals), the editor and plugin actions. Destructive tools wait for the user's approval in the app."
 )
 
@@ -54,6 +60,12 @@ var (
 type Core interface {
 	Call(ctx context.Context, method string, params, result any) error
 	Close() error
+}
+
+type events interface {
+	Notifications() <-chan rpc.Notification
+	Done() <-chan struct{}
+	Dropped() int64
 }
 
 type Server struct {
@@ -380,25 +392,89 @@ func (s *Server) watch(ctx context.Context) {
 	tick := time.NewTicker(s.Poll)
 	defer tick.Stop()
 	for {
+		if !s.follow(ctx, tick.C) && ctx.Err() == nil {
+			s.check(ctx)
+		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-tick.C:
+		case <-time.After(redialDelay):
 		}
-		s.listMu.Lock()
-		served := s.served
-		s.listMu.Unlock()
-		if served == nil {
-			continue
+	}
+}
+
+func (s *Server) follow(ctx context.Context, tick <-chan time.Time) bool {
+	core, err := s.Dial(ctx)
+	if err != nil {
+		return false
+	}
+	defer core.Close()
+	var (
+		notes   <-chan rpc.Notification
+		done    <-chan struct{}
+		dropped func() int64
+	)
+	if ev, ok := core.(events); ok {
+		if err := subscribe(ctx, core); err != nil {
+			return false
 		}
-		tools, err := s.tools(ctx)
-		if err != nil {
-			continue
+		notes, done, dropped = ev.Notifications(), ev.Done(), ev.Dropped
+	}
+	s.check(ctx)
+	var relist <-chan time.Time
+	var lost int64
+	for {
+		select {
+		case <-ctx.Done():
+			return true
+		case <-done:
+			return true
+		case n := <-notes:
+			switch {
+			case n.Method == notifyBusClosed:
+				return true
+			case n.Method == notifyBusEvent && relist == nil:
+				relist = time.After(relistDelay)
+			}
+		case <-relist:
+			relist = nil
+			s.check(ctx)
+		case <-tick:
+			s.check(ctx)
 		}
-		if sig, _ := json.Marshal(tools); !bytes.Equal(sig, served) {
-			s.remember(tools)
-			s.write(notification{JSONRPC: "2.0", Method: "notifications/tools/list_changed"})
+		if dropped != nil && dropped() != lost {
+			lost = dropped()
+			if relist == nil {
+				relist = time.After(relistDelay)
+			}
 		}
+	}
+}
+
+func subscribe(ctx context.Context, core Core) error {
+	var head struct {
+		Seq int64 `json:"seq"`
+	}
+	if err := core.Call(ctx, "bus.head", struct{}{}, &head); err != nil {
+		return err
+	}
+	return core.Call(ctx, "bus.subscribe", map[string]any{"pattern": pluginChangedTopic, "after": head.Seq}, nil)
+}
+
+func (s *Server) check(ctx context.Context) {
+	s.listMu.Lock()
+	served := s.served
+	s.listMu.Unlock()
+	if served == nil {
+		return
+	}
+	tools, err := s.tools(ctx)
+	if err != nil {
+		return
+	}
+	if sig, _ := json.Marshal(tools); !bytes.Equal(sig, served) {
+		s.remember(tools)
+		s.write(notification{JSONRPC: "2.0", Method: "notifications/tools/list_changed"})
 	}
 }
 
