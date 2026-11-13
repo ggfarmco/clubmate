@@ -64,3 +64,40 @@ func TestBacklogTagChipsKeepTheSelectionWhenUnfolded(t *testing.T) {
 	assert.True(t, in.selected("tags#tag:b"))
 	assert.False(t, in.selected("tags#less"))
 }
+
+func TestBacklogSearch(t *testing.T) {
+	in := start(t, "macui-bsearch", "")
+	in.cm("command", "run", "backlog.add", "title=Fix the mic", "status=todo")
+	in.cm("command", "run", "backlog.add", "title=Other", "status=todo")
+	in.cm("command", "run", "backlog.add", "title=Old mic", "status=todo")
+	in.cm("command", "run", "backlog.done", "id=3")
+	in.focusSection("backlog", "backlog.sidebar")
+	in.eventually("the tasks are listed", func() bool { return in.snapshot().main().has("tasks#2") })
+	keyFocus := func() string {
+		if w := in.snapshot().key(); w != nil {
+			return w.Focus
+		}
+		return ""
+	}
+
+	in.pointer("click", "search")
+	in.key("m", "i", "c")
+	in.eventually("only the matches show, done included", func() bool {
+		w := in.snapshot().main()
+		return w.has("tasks#1") && w.has("tasks#3") && !w.has("tasks#2")
+	})
+	in.pointer("click", "tasks#group:todo")
+	in.key("cmd+n")
+	in.eventually("cmd+n focuses New task, not the search", func() bool { return keyFocus() == "title" })
+
+	in.pointer("click", "search")
+	in.key("cmd+a", "delete")
+	in.eventually("a cleared search lists every task", func() bool { return in.snapshot().main().has("tasks#2") })
+	assert.True(t, in.snapshot().main().has("tasks#1"), "a header click during the search left Todo open")
+	assert.False(t, in.snapshot().main().has("tasks#3"), "Done folds again")
+
+	in.pointer("click", "tasks#2")
+	in.focusSection("backlog", "backlog.sidebar")
+	in.key("g", "c")
+	in.eventually("gc in the tree focuses the search", func() bool { return keyFocus() == "search" })
+}

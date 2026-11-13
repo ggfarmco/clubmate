@@ -123,7 +123,7 @@ The title picker adds these to the keys above:
 | h / ← | Collapse the item, or go to its parent |
 | ↩ | Select a leaf item, or expand / collapse an item with children |
 | o | Same as ↩, but an item with children gets selected instead |
-| gc | Focus the sidebar's text field, when it has one |
+| gc | Focus the sidebar's text field, when it has one (Agents and Backlog: the search field) |
 | < / > | Previous / next chip of the sidebar's filter row, when it has one (Agents: All · Needs you · Open · Running) |
 | Esc | Back to the main pane |
 | ⌃L (sidebar on the left), ⌃H (sidebar on the right) | Back to the main pane |

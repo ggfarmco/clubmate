@@ -293,6 +293,24 @@ func TestAddFromSidebar(t *testing.T) {
 	assert.Equal(t, "agt_a", got.ClaimedBy)
 }
 
+func TestListQuery(t *testing.T) {
+	e := newEnv(t)
+	mic := e.add("Mic", nil)
+	e.add("Other", nil)
+	e.must(e.user("backlog.done", map[string]any{"id": mic.ID}))
+	list := func(args map[string]any) []task {
+		var res struct {
+			Tasks []task `json:"tasks"`
+		}
+		require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "backlog.list", "workspaceId": e.p, "args": args}, &res))
+		return res.Tasks
+	}
+	got := list(map[string]any{"query": "MIC"})
+	require.Len(t, got, 1)
+	assert.Equal(t, mic.ID, got[0].ID)
+	assert.Empty(t, list(map[string]any{"query": "mic", "status": "open"}))
+}
+
 func TestTags(t *testing.T) {
 	e := newEnv(t)
 	voice := e.add("Mic", map[string]any{"tags": []string{" Voice ", "#phone", "voice"}})

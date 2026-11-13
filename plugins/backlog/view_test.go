@@ -34,7 +34,7 @@ func TestSidebarGroupsByStatus(t *testing.T) {
 		{ID: 1, Title: "Plan", Status: statusTodo, Priority: priorityNormal},
 		{ID: 2, Title: "Shipped", Status: statusDone, Priority: priorityNormal},
 	}
-	tree, ok := findNode(sidebarView(tasks, "", map[string]bool{statusDone: true}, 0, "", false), "tasks")
+	tree, ok := findNode(sidebarView(tasks, "", map[string]bool{statusDone: true}, 0, "", "", false), "tasks")
 	require.True(t, ok)
 	groups := tree.Props["items"].([]sdui.TreeItem)
 	require.Len(t, groups, 3)
@@ -59,7 +59,7 @@ func TestSidebarFiltersByTag(t *testing.T) {
 		{ID: 3, Title: "Plain", Status: statusIdea, Priority: priorityNormal},
 		{ID: 4, Title: "Shipped", Status: statusDone, Priority: priorityNormal, Tags: []string{"phone", "old"}},
 	}
-	side := sidebarView(tasks, "", nil, 0, "audio", false)
+	side := sidebarView(tasks, "", nil, 0, "audio", "", false)
 	tabs, ok := findNode(side, "tags")
 	require.True(t, ok)
 	assert.Equal(t, []sdui.Item{{ID: "all", Label: "All", Badge: "3"}, {ID: "tag:phone", Label: "phone", Badge: "2"}, {ID: "tag:audio", Label: "audio", Badge: "1"}}, tabs.Props["items"])
@@ -71,8 +71,37 @@ func TestSidebarFiltersByTag(t *testing.T) {
 	require.Len(t, groups[0].Children, 1)
 	assert.Equal(t, "1", groups[0].Children[0].ID)
 
-	_, ok = findNode(sidebarView(tasks[2:], "", nil, 0, "", false), "tags")
+	_, ok = findNode(sidebarView(tasks[2:], "", nil, 0, "", "", false), "tags")
 	assert.False(t, ok)
+}
+
+func TestSidebarSearch(t *testing.T) {
+	tasks := []Task{
+		{ID: 1, Title: "Mic", Status: statusTodo, Tags: []string{"audio"}},
+		{ID: 2, Title: "Push", Status: statusDone, Note: "fixed the MIC gain", Tags: []string{"audio"}},
+		{ID: 3, Title: "Plain mic", Status: statusIdea},
+		{ID: 12, Title: "Other", Status: statusTodo},
+	}
+	collapsed := map[string]bool{statusDone: true}
+	tree, ok := findNode(sidebarView(tasks, "", collapsed, 0, "audio", "mic", false), "tasks")
+	require.True(t, ok)
+	groups := tree.Props["items"].([]sdui.TreeItem)
+	require.Len(t, groups, 2)
+	assert.Equal(t, "1", groups[0].Children[0].ID)
+	assert.Equal(t, "group:done", groups[1].ID)
+	assert.True(t, groups[1].Expanded)
+	assert.False(t, groups[1].Action)
+	assert.Equal(t, "2", groups[1].Children[0].ID)
+
+	tree, ok = findNode(sidebarView(tasks, "", collapsed, 0, "", "#12", false), "tasks")
+	require.True(t, ok)
+	assert.Equal(t, "12", tree.Props["items"].([]sdui.TreeItem)[0].Children[0].ID)
+
+	side := sidebarView(tasks, "", collapsed, 0, "", "nothing", false)
+	_, ok = findNode(side, "tasks")
+	assert.False(t, ok)
+	_, ok = findNode(side, searchNode)
+	assert.True(t, ok)
 }
 
 func TestSidebarFoldsTags(t *testing.T) {
@@ -81,7 +110,7 @@ func TestSidebarFoldsTags(t *testing.T) {
 		{ID: 2, Status: statusTodo, Tags: []string{"a", "b", "c", "d", "e", "f"}},
 	}
 	ids := func(open bool) []string {
-		tabs, ok := findNode(sidebarView(tasks, "", nil, 0, "h", open), "tags")
+		tabs, ok := findNode(sidebarView(tasks, "", nil, 0, "h", "", open), "tags")
 		require.True(t, ok)
 		var out []string
 		for _, it := range tabs.Props["items"].([]sdui.Item) {

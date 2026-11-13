@@ -29,6 +29,9 @@ const (
 	tagLess       = "less"
 	shownTags     = 6
 	actFilter     = "filter"
+	searchNode    = "search"
+	newTitleNode  = "title"
+	actSearch     = "search"
 	noTasks       = "No tasks yet — add one on the left"
 	formLines     = 8
 	actReveal     = "reveal"
@@ -174,20 +177,21 @@ func tagTabs(tasks []Task, counts map[string]int, filter string, open bool) sdui
 	return sdui.WithAction(sdui.Tabs(tagsNode, items, selected), actFilter)
 }
 
-func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formRev int, filter string, tagsOpen bool) sdui.Node {
-	add := sdui.WithAction(sdui.Form("new", sdui.TextField("title", "", "New task…"), sdui.Button("add", "Add", "plus")), "add")
+func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formRev int, filter, query string, tagsOpen bool) sdui.Node {
+	add := sdui.WithAction(sdui.Form("new", sdui.TextField(newTitleNode, "", "New task…"), sdui.Button("add", "Add", "plus")), "add")
 	form := sdui.VStack(add)
 	form.ID = fmt.Sprintf("new-%d", formRev)
 	if len(tasks) == 0 {
 		return sdui.VStack(form, sdui.Empty("No tasks yet"))
 	}
+	search := sdui.WithAction(sdui.WithLive(sdui.TextField(searchNode, query, "Search tasks")), actSearch)
 	var list []sdui.Node
 	if counts := tagCounts(tasks); len(counts) > 0 {
 		list = append(list, tagTabs(tasks, counts, filter, tagsOpen))
 	}
 	byStatus := map[string][]sdui.TreeItem{}
 	for _, t := range tasks {
-		if filter == "" || slices.Contains(t.Tags, filter) {
+		if (filter == "" || slices.Contains(t.Tags, filter)) && matches(t, query) {
 			byStatus[t.Status] = append(byStatus[t.Status], taskItem(t))
 		}
 	}
@@ -202,15 +206,20 @@ func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formR
 			Label:       fmt.Sprintf("%s · %d", statusLabels[status], len(rows)),
 			Icon:        statusIcons[status],
 			HasChildren: true,
-			Expanded:    !collapsed[status],
-			Action:      true,
+			Expanded:    query != "" || !collapsed[status],
+			Action:      query == "",
 		}
 		if g.Expanded {
 			g.Children = rows
 		}
 		groups = append(groups, g)
 	}
-	return sdui.VStack(form, sdui.Scroll(sdui.VStack(append(list, sdui.Tree("tasks", groups, selected))...)))
+	if len(groups) == 0 {
+		list = append(list, sdui.Empty("No tasks match"))
+	} else {
+		list = append(list, sdui.Tree("tasks", groups, selected))
+	}
+	return sdui.VStack(form, search, sdui.Scroll(sdui.VStack(list...)))
 }
 
 func taskItem(t Task) sdui.TreeItem {
@@ -463,7 +472,7 @@ func ownerLanes(t *Task, owners map[string]owner) sdui.Node {
 }
 
 func emptyView(rev int) sdui.Node {
-	add := sdui.WithAction(sdui.Form("new", sdui.HStack(sdui.TextField("title", "", "New task…"), sdui.WithVariant(sdui.Button("add", "Add", "plus"), sdui.VariantPrimary))), "add")
+	add := sdui.WithAction(sdui.Form("new", sdui.HStack(sdui.TextField(newTitleNode, "", "New task…"), sdui.WithVariant(sdui.Button("add", "Add", "plus"), sdui.VariantPrimary))), "add")
 	empty := sdui.EmptyState(emptyText, sdui.EmptyProps{Title: "Nothing in the backlog", Icon: "checklist", Center: true})
 	empty.Children = []sdui.Node{add, lifecycle()}
 	view := sdui.VStack(empty)

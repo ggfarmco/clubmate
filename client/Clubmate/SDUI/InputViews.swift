@@ -467,8 +467,9 @@ struct TextFieldNodeView: View {
             .focused($focused)
             .reportsFocus(.field, focused, slot: sidebarSlot.map { $0 + SidebarField.suffix })
             .onChange(of: router?.pending, initial: true) {
-                guard let sidebarSlot, router?.take(sidebarSlot + SidebarField.suffix) == true else { return }
-                focused = true
+                guard let sidebarSlot else { return }
+                if router?.take(sidebarSlot + SidebarField.suffix) == true { focused = true }
+                if let id = node.id, router?.pending?.node != nil, router?.take(sidebarSlot, node: id) == true { focused = true }
             }
             .textFieldStyle(.plain)
             .font(theme.ui)

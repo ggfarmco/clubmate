@@ -110,6 +110,7 @@ type commandArgs struct {
 	Links       *[]Link       `json:"links"`
 	Attachments *[]Attachment `json:"attachments"`
 	Tag         string        `json:"tag"`
+	Query       string        `json:"query"`
 	Note        *string       `json:"note"`
 	Owner       string        `json:"owner"`
 	keepClaim   bool
@@ -178,7 +179,7 @@ func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.
 		}
 		return b.store.get(ctx, cmd.WorkspaceID, args.ID)
 	case "backlog.new":
-		return nil, b.h.FocusField(ctx, cmd.WorkspaceID, sectionID)
+		return nil, b.h.FocusNode(ctx, cmd.WorkspaceID, sectionID, sidebarSlot, newTitleNode)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
@@ -246,10 +247,13 @@ func (b *backlog) linked(ctx context.Context, workspaceID string, t Task) (map[i
 
 func (b *backlog) listCmd(ctx context.Context, workspaceID string, args commandArgs) (any, error) {
 	filter := statusOpen
+	if strings.TrimSpace(args.Query) != "" {
+		filter = ""
+	}
 	if args.Status != nil && *args.Status != "" {
 		filter = *args.Status
 	}
-	if filter != statusOpen && !validStatus(filter) {
+	if filter != "" && filter != statusOpen && !validStatus(filter) {
 		return nil, errBadStatus
 	}
 	all, err := b.store.list(ctx, workspaceID)
@@ -259,10 +263,10 @@ func (b *backlog) listCmd(ctx context.Context, workspaceID string, args commandA
 	tag := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(args.Tag), "#"))
 	tasks := make([]Task, 0, len(all))
 	for _, t := range all {
-		if tag != "" && !slices.Contains(t.Tags, tag) {
+		if tag != "" && !slices.Contains(t.Tags, tag) || !matches(t, args.Query) {
 			continue
 		}
-		if filter == t.Status || filter == statusOpen && (t.Status == statusIdea || t.Status == statusTodo || t.Status == statusInProgress) {
+		if filter == "" || filter == t.Status || filter == statusOpen && (t.Status == statusIdea || t.Status == statusTodo || t.Status == statusInProgress) {
 			t.Owners = nil
 			tasks = append(tasks, t)
 		}

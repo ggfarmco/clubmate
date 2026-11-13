@@ -42,6 +42,7 @@ type workspaceUI struct {
 	editing    int
 	prompt     int
 	tagFilter  string
+	query      string
 	tagsOpen   bool
 }
 
@@ -142,7 +143,7 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 	if w.tagFilter != "" && tagCounts(tasks)[w.tagFilter] == 0 {
 		w.tagFilter = ""
 	}
-	selected, collapsed, rev, fieldRev, fieldErr, editing, prompt, filter, tagsOpen := w.selected, maps.Clone(w.collapsed), w.formRev, w.fieldRev, w.fieldError, w.editing, w.prompt, w.tagFilter, w.tagsOpen
+	selected, collapsed, rev, fieldRev, fieldErr, editing, prompt, filter, query, tagsOpen := w.selected, maps.Clone(w.collapsed), w.formRev, w.fieldRev, w.fieldError, w.editing, w.prompt, w.tagFilter, w.query, w.tagsOpen
 	b.mu.Unlock()
 	var current *Task
 	byID := make(map[int]Task, len(tasks))
@@ -157,7 +158,7 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 		selectedID = strconv.Itoa(current.ID)
 	}
 	owners := b.ownerLabels(ctx, workspaceID, current)
-	if err := b.push(ctx, w, workspaceID, sidebarSlot, sidebarView(tasks, selectedID, collapsed, rev, filter, tagsOpen)); err != nil {
+	if err := b.push(ctx, w, workspaceID, sidebarSlot, sidebarView(tasks, selectedID, collapsed, rev, filter, query, tagsOpen)); err != nil {
 		return err
 	}
 	var errs map[string]string
@@ -294,6 +295,15 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return nil
 		}
 		return err
+	case ev.NodeID == searchNode && ev.Action == actSearch:
+		var query string
+		if err := json.Unmarshal(ev.Value, &query); err != nil {
+			return fmt.Errorf("search value: %w", err)
+		}
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		w.query = strings.TrimSpace(query)
+		return nil
 	case ev.NodeID == tagsNode && ev.Action == actFilter:
 		var item string
 		if err := json.Unmarshal(ev.Value, &item); err != nil {
@@ -376,11 +386,11 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		return fmt.Errorf("%s value: %w", ev.Action, err)
 	}
 	if status, ok := strings.CutPrefix(item, groupPrefix); ok {
-		if ev.Action == "expand" || ev.Action == "collapse" {
-			b.mu.Lock()
+		b.mu.Lock()
+		if w.query == "" && (ev.Action == "expand" || ev.Action == "collapse") {
 			w.collapsed[status] = ev.Action == "collapse"
-			b.mu.Unlock()
 		}
+		b.mu.Unlock()
 		return nil
 	}
 	id, err := strconv.Atoi(item)

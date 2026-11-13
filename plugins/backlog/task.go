@@ -355,3 +355,19 @@ func parseAttachment(text string) Attachment {
 	}
 	return Attachment{Kind: attachFile, Ref: ref}
 }
+
+func matches(t Task, query string) bool {
+	query = strings.ToLower(strings.TrimSpace(query))
+	if query == "" {
+		return true
+	}
+	if id, err := strconv.Atoi(strings.TrimPrefix(query, "#")); err == nil && id == t.ID {
+		return true
+	}
+	for _, field := range append([]string{t.Title, t.Description, t.Note}, t.Tags...) {
+		if strings.Contains(strings.ToLower(field), query) {
+			return true
+		}
+	}
+	return false
+}

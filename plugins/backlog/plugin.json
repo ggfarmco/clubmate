@@ -56,6 +56,10 @@
             "tag": {
               "type": "string",
               "description": "Only tasks with this tag."
+            },
+            "query": {
+              "type": "string",
+              "description": "Only tasks whose title, description, note or tags contain this text (any case), or whose number it is (12 or #12). Without status it searches every status, done and not_now included."
             }
           }
         },
