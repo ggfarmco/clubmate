@@ -26,3 +26,18 @@ func TestRingWrapsLikeATail(t *testing.T) {
 		assert.Equal(t, string(all[max(0, len(all)-7):]), string(r.Bytes()), i)
 	}
 }
+
+func TestRingReplayStartsAtALineOnceOverflowed(t *testing.T) {
+	for _, tc := range []struct {
+		size     int
+		in, want string
+	}{
+		{16, "one\ntwo\nthree", "one\ntwo\nthree"},
+		{8, "one\ntwo\nthree", "three"},
+		{4, "\x1b_Gbase64", ""},
+	} {
+		r := wire.NewRing(tc.size)
+		_, _ = r.Write([]byte(tc.in))
+		assert.Equal(t, tc.want, string(r.Replay()), tc.in)
+	}
+}

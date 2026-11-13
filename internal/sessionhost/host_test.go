@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -237,6 +238,59 @@ func TestResizeReportsInBandWhenChildAsks(t *testing.T) {
 	c.waitOutput(t, "got \x1b[48;40;100;0;0\r\n")
 }
 
+func TestSlowClientStaysAttachedUnderFloodAndInterrupts(t *testing.T) {
+	cfg := testConfig(t, "sh", "-c", `trap 'echo after-int' INT; yes; exec cat`)
+	startHost(t, cfg)
+	conn, err := net.Dial("unix", cfg.Socket)
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+	var slow atomic.Bool
+	slow.Store(true)
+	seen, lost := make(chan struct{}), make(chan error, 1)
+	go func() {
+		r := throttled{conn: conn, slow: &slow}
+		var tail []byte
+		for {
+			f, err := wire.ReadFrame(r)
+			if err != nil {
+				lost <- err
+				return
+			}
+			tail = append(tail[max(0, len(tail)-16):], f.Payload...)
+			if bytes.Contains(tail, []byte("after-int")) {
+				close(seen)
+				return
+			}
+		}
+	}()
+	select {
+	case err := <-lost:
+		require.FailNow(t, "slow client dropped", err.Error())
+	case <-time.After(time.Second):
+	}
+	require.NoError(t, wire.WriteFrame(conn, wire.Frame{Type: wire.FrameData, Payload: []byte{3}}))
+	slow.Store(false)
+	select {
+	case <-seen:
+	case err := <-lost:
+		require.FailNow(t, "slow client dropped", err.Error())
+	case <-time.After(waitTimeout):
+		require.FailNow(t, "^C did not stop the flood")
+	}
+}
+
+func TestFrozenClientDroppedAfterStall(t *testing.T) {
+	cfg := testConfig(t, "yes")
+	cfg.StallTimeout = 200 * time.Millisecond
+	startHost(t, cfg)
+	conn, err := net.Dial("unix", cfg.Socket)
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+	testutil.Eventually(t, func() bool {
+		return wire.WriteFrame(conn, wire.Frame{Type: wire.FrameData}) != nil
+	}, waitTimeout)
+}
+
 func TestSessionHostExit(t *testing.T) {
 	cfg := testConfig(t, "sh", "-c", `read x; exit 7`)
 	done := startHost(t, cfg)
@@ -355,6 +409,19 @@ func (c *testClient) waitExit(t *testing.T) int {
 		require.FailNow(t, "no exit frame")
 		return 0
 	}
+}
+
+type throttled struct {
+	conn net.Conn
+	slow *atomic.Bool
+}
+
+func (r throttled) Read(p []byte) (int, error) {
+	if r.slow.Load() {
+		time.Sleep(5 * time.Millisecond)
+		p = p[:min(len(p), 16<<10)]
+	}
+	return r.conn.Read(p)
 }
 
 func (c *testClient) readLoop() {

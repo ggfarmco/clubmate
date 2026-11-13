@@ -194,6 +194,12 @@ public final class WindowLayout {
 
 @MainActor
 public enum SurfaceDeckPolicy {
+    public static let remountAfter: TimeInterval = 2
+
+    public static func shouldRemount(shown: Bool, sessionAlive: Bool, mountedFor: TimeInterval) -> Bool {
+        shown && sessionAlive && mountedFor >= remountAfter
+    }
+
     public static func shouldCloseDeck(workspace: String, layout: WindowLayout) -> Bool {
         !layout.windows.contains { $0.workspaces.contains(workspace) }
     }

@@ -14,6 +14,7 @@ final class SurfaceDeck {
     @ObservationIgnored private var views: [String: TerminalSurfaceView] = [:]
     @ObservationIgnored private var selected: String?
     @ObservationIgnored private var slots: [String: String] = [:]
+    @ObservationIgnored private var mountedAt: [String: Date] = [:]
     @ObservationIgnored private var closed = false
 
     init() {
@@ -45,10 +46,32 @@ final class SurfaceDeck {
 
     func surfaceClosed(_ sessionID: String) {
         slots[sessionID] = nil
+        unmount(sessionID)
+        if selected == sessionID { selected = nil }
+    }
+
+    private func childExited(_ sessionID: String, closing: Bool) {
+        let mountedFor = mountedAt[sessionID].map { Date().timeIntervalSince($0) } ?? 0
+        let alive = FileManager.default.fileExists(atPath: ClubmatePaths.resolve().sessionSocket(sessionID).path(percentEncoded: false))
+        guard !closed, SurfaceDeckPolicy.shouldRemount(shown: selected == sessionID, sessionAlive: alive, mountedFor: mountedFor) else {
+            if closing {
+                surfaceClosed(sessionID)
+            } else if !closed, alive, selected != sessionID {
+                unmount(sessionID)
+            }
+            return
+        }
+        ghosttyLog.notice("remounting terminal \(sessionID, privacy: .public): attach ended while the session lives")
+        unmount(sessionID)
+        mount(sessionID)
+        apply()
+    }
+
+    private func unmount(_ sessionID: String) {
+        mountedAt[sessionID] = nil
         guard let view = views.removeValue(forKey: sessionID) else { return }
         view.destroy()
         view.removeFromSuperview()
-        if selected == sessionID { selected = nil }
     }
 
     func closeAll() {
@@ -60,13 +83,15 @@ final class SurfaceDeck {
 
     private func mount(_ sessionID: String) {
         let view = TerminalSurfaceView(sessionID: sessionID)
-        view.onClose = { [weak self] in self?.surfaceClosed(sessionID) }
+        view.onClose = { [weak self] in self?.childExited(sessionID, closing: true) }
+        view.onChildExited = { [weak self] in self?.childExited(sessionID, closing: false) }
         view.onFocus = { [weak self] focused in self?.panes?.report(.terminal, from: "terminal:" + sessionID, slot: self?.slots[sessionID], focused: focused) }
         view.frame = container.bounds
         view.autoresizingMask = [.width, .height]
         view.setVisible(false)
         container.addSubview(view)
         views[sessionID] = view
+        mountedAt[sessionID] = Date()
     }
 
     private func apply() {

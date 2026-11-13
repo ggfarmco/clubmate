@@ -31,6 +31,16 @@ enum GhosttyCallbacks {
             else { return true }
             stash(clone)
             return true
+        case GHOSTTY_ACTION_SHOW_CHILD_EXITED:
+            guard target.tag == GHOSTTY_TARGET_SURFACE,
+                  let surface = target.target.surface,
+                  let userdata = ghostty_surface_userdata(surface)
+            else { return false }
+            let view = Unmanaged<TerminalSurfaceView>.fromOpaque(userdata).takeUnretainedValue()
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { view.childExited() }
+            }
+            return false
         default:
             return false
         }

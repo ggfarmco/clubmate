@@ -12,18 +12,19 @@ import (
 const Protocol = 1
 
 type Config struct {
-	ID          string   `json:"id"`
-	WorkspaceID string   `json:"workspaceId"`
-	Title       string   `json:"title"`
-	Owner       string   `json:"owner"`
-	Command     []string `json:"command"`
-	Cwd         string   `json:"cwd"`
-	Env         []string `json:"env"`
-	UnsetEnv    []string `json:"unsetEnv"`
-	PathAppend  []string `json:"pathAppend"`
-	Socket      string   `json:"socket"`
-	MetaPath    string   `json:"metaPath"`
-	Scrollback  int      `json:"scrollback"`
+	ID           string        `json:"id"`
+	WorkspaceID  string        `json:"workspaceId"`
+	Title        string        `json:"title"`
+	Owner        string        `json:"owner"`
+	Command      []string      `json:"command"`
+	Cwd          string        `json:"cwd"`
+	Env          []string      `json:"env"`
+	UnsetEnv     []string      `json:"unsetEnv"`
+	PathAppend   []string      `json:"pathAppend"`
+	Socket       string        `json:"socket"`
+	MetaPath     string        `json:"metaPath"`
+	Scrollback   int           `json:"scrollback"`
+	StallTimeout time.Duration `json:"stallTimeout,omitempty"`
 }
 
 type Meta struct {

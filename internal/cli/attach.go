@@ -23,15 +23,21 @@ import (
 )
 
 const (
-	stdinChunk    = 32 * 1024
-	lookupTimeout = 2 * time.Second
+	stdinChunk     = 32 * 1024
+	lookupTimeout  = 2 * time.Second
+	reconnectDelay = 50 * time.Millisecond
 )
 
-var ErrInvalidSessionID = errors.New("invalid session id")
+var (
+	ErrInvalidSessionID = errors.New("invalid session id")
+	errConnectionLost   = errors.New("connection lost")
+)
 
 type frameWriter struct {
-	mu   sync.Mutex
-	conn net.Conn
+	writeMu sync.Mutex
+	mu      sync.Mutex
+	conn    net.Conn
+	closed  bool
 }
 
 func (a *app) attachCmd() *cobra.Command {
@@ -104,17 +110,14 @@ func stream(ctx context.Context, sid string, stdin *os.File, stdout io.Writer) (
 	if err := dirs.CheckRuntime(); err != nil {
 		return 1, fmt.Errorf("attach %s: %w", sid, err)
 	}
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, "unix", dirs.SessionSocket(sid))
+	socket := dirs.SessionSocket(sid)
+	conn, err := dialSession(ctx, socket)
 	if err != nil {
 		return 1, fmt.Errorf("attach %s: %w", sid, err)
 	}
-	defer conn.Close()
-	if err := verifyPeer(conn); err != nil {
-		return 1, fmt.Errorf("attach %s: %w", sid, err)
-	}
-
-	closeOnCancel := context.AfterFunc(ctx, func() { conn.Close() })
+	fw := &frameWriter{conn: conn}
+	defer fw.close()
+	closeOnCancel := context.AfterFunc(ctx, fw.close)
 	defer closeOnCancel()
 
 	fd := int(stdin.Fd())
@@ -127,7 +130,6 @@ func stream(ctx context.Context, sid string, stdin *os.File, stdout io.Writer) (
 		defer term.Restore(fd, state)
 	}
 
-	fw := &frameWriter{conn: conn}
 	winch := make(chan os.Signal, 1)
 	signal.Notify(winch, syscall.SIGWINCH)
 	defer signal.Stop(winch)
@@ -152,7 +154,42 @@ func stream(ctx context.Context, sid string, stdin *os.File, stdout io.Writer) (
 	}
 	go fw.forwardStdin(stdin)
 
-	return readLoop(conn, stdout)
+	for {
+		code, err := readLoop(conn, stdout)
+		if !errors.Is(err, errConnectionLost) {
+			return code, err
+		}
+		next, derr := redial(ctx, socket)
+		if derr != nil || !fw.swap(next) {
+			return code, err
+		}
+		conn = next
+		if isTTY {
+			fw.sendSize(fd)
+		}
+	}
+}
+
+func dialSession(ctx context.Context, socket string) (net.Conn, error) {
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, "unix", socket)
+	if err != nil {
+		return nil, err
+	}
+	if err := verifyPeer(conn); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return conn, nil
+}
+
+func redial(ctx context.Context, socket string) (net.Conn, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(reconnectDelay):
+	}
+	return dialSession(ctx, socket)
 }
 
 func verifyPeer(conn net.Conn) error {
@@ -167,7 +204,7 @@ func readLoop(conn net.Conn, stdout io.Writer) (int, error) {
 	for {
 		f, err := wire.ReadFrame(conn)
 		if err != nil {
-			return 1, fmt.Errorf("connection lost: %w", err)
+			return 1, fmt.Errorf("%w: %w", errConnectionLost, err)
 		}
 		switch f.Type {
 		case wire.FrameData:
@@ -185,9 +222,31 @@ func readLoop(conn net.Conn, stdout io.Writer) (int, error) {
 }
 
 func (w *frameWriter) write(f wire.Frame) error {
+	w.writeMu.Lock()
+	defer w.writeMu.Unlock()
+	w.mu.Lock()
+	conn := w.conn
+	w.mu.Unlock()
+	return wire.WriteFrame(conn, f)
+}
+
+func (w *frameWriter) swap(conn net.Conn) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return wire.WriteFrame(w.conn, f)
+	w.conn.Close()
+	if w.closed {
+		conn.Close()
+		return false
+	}
+	w.conn = conn
+	return true
+}
+
+func (w *frameWriter) close() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.closed = true
+	w.conn.Close()
 }
 
 func (w *frameWriter) sendSize(fd int) {
@@ -203,9 +262,7 @@ func (w *frameWriter) forwardStdin(stdin io.Reader) {
 	for {
 		n, err := stdin.Read(buf)
 		if n > 0 {
-			if werr := w.write(wire.Frame{Type: wire.FrameData, Payload: append([]byte(nil), buf[:n]...)}); werr != nil {
-				return
-			}
+			_ = w.write(wire.Frame{Type: wire.FrameData, Payload: append([]byte(nil), buf[:n]...)})
 		}
 		if err != nil {
 			return

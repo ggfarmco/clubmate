@@ -7,6 +7,7 @@ import ClubmateKit
 final class TerminalSurfaceView: NSView {
     let sessionID: String
     var onClose: (() -> Void)?
+    var onChildExited: (() -> Void)?
     var onFocus: ((Bool) -> Void)?
 
     nonisolated(unsafe) private(set) var surface: ghostty_surface_t?
@@ -46,6 +47,7 @@ final class TerminalSurfaceView: NSView {
         guard !destroyed else { return }
         destroyed = true
         onClose = nil
+        onChildExited = nil
         onFocus?(false)
         onFocus = nil
         observers.forEach {
@@ -61,6 +63,11 @@ final class TerminalSurfaceView: NSView {
     func childClosed() {
         guard surface != nil else { return }
         onClose?()
+    }
+
+    func childExited() {
+        guard surface != nil else { return }
+        onChildExited?()
     }
 
     func setVisible(_ visible: Bool) {

@@ -1,12 +1,16 @@
 package wire
 
-import "sync"
+import (
+	"bytes"
+	"sync"
+)
 
 type Ring struct {
-	mu   sync.Mutex
-	size int
-	buf  []byte
-	head int
+	mu      sync.Mutex
+	size    int
+	buf     []byte
+	head    int
+	dropped bool
 }
 
 func NewRing(size int) *Ring {
@@ -24,6 +28,7 @@ func (r *Ring) Write(p []byte) (int, error) {
 		r.buf = make([]byte, 0, r.size)
 	}
 	if len(p) >= r.size {
+		r.dropped = r.dropped || len(p) > r.size || len(r.buf) > 0
 		r.buf = append(r.buf[:0], p[len(p)-r.size:]...)
 		r.head = 0
 		return n, nil
@@ -35,6 +40,7 @@ func (r *Ring) Write(p []byte) (int, error) {
 	if len(p) == 0 {
 		return n, nil
 	}
+	r.dropped = true
 	copied := copy(r.buf[r.head:], p)
 	copy(r.buf, p[copied:])
 	r.head = (r.head + len(p)) % r.size
@@ -44,6 +50,24 @@ func (r *Ring) Write(p []byte) (int, error) {
 func (r *Ring) Bytes() []byte {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	return r.bytesLocked()
+}
+
+func (r *Ring) Replay() []byte {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := r.bytesLocked()
+	if !r.dropped {
+		return out
+	}
+	i := bytes.IndexByte(out, '\n')
+	if i < 0 {
+		return nil
+	}
+	return out[i+1:]
+}
+
+func (r *Ring) bytesLocked() []byte {
 	out := make([]byte, 0, len(r.buf))
 	out = append(out, r.buf[r.head:]...)
 	return append(out, r.buf[:r.head]...)

@@ -33,6 +33,7 @@ import (
 	"clubmate/internal/session"
 	"clubmate/internal/sessionhost"
 	"clubmate/internal/testutil"
+	"clubmate/internal/wire"
 	"clubmate/internal/workspace"
 	"clubmate/pkg/sdui"
 )
@@ -135,6 +136,83 @@ func TestAttachToExitedSessionReportsExitCode(t *testing.T) {
 	require.ErrorAs(t, root.Execute(), &exit)
 	assert.Equal(t, 3, exit.Code)
 	assert.Equal(t, "session "+sid+" exited (code 3)\n", stderr.String())
+}
+
+func TestAttachReconnectsWhileSessionLives(t *testing.T) {
+	sid, ln := fakeSessionHost(t)
+	go func() {
+		first, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		wire.WriteFrame(first, wire.Frame{Type: wire.FrameData, Payload: []byte("one ")})
+		first.Close()
+		second, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		wire.WriteFrame(second, wire.Frame{Type: wire.FrameData, Payload: []byte("two")})
+		wire.WriteFrame(second, wire.Frame{Type: wire.FrameExit, Payload: wire.ExitPayload(0)})
+		second.Close()
+	}()
+	assert.Equal(t, "one two", string(run(t, "attach", sid)))
+}
+
+func TestAttachGivesUpWhenSessionIsGone(t *testing.T) {
+	sid, ln := fakeSessionHost(t)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		ln.Close()
+		conn.Close()
+	}()
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRoot(&stdout, &stderr)
+	root.SetArgs([]string{"attach", sid})
+	assert.ErrorContains(t, root.Execute(), "connection lost")
+}
+
+func TestAttachExitsOnSIGHUPWhileInputIsStuck(t *testing.T) {
+	sid, ln := fakeSessionHost(t)
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		conn, err := ln.Accept()
+		if err == nil {
+			accepted <- conn
+		}
+	}()
+	cmd := exec.Command(testutil.BuildBinary(t, "clubmate/cmd/clubmate"), "attach", sid)
+	stdin, err := cmd.StdinPipe()
+	require.NoError(t, err)
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() { _ = cmd.Process.Kill() })
+	conn := <-accepted
+	t.Cleanup(func() { conn.Close() })
+	go stdin.Write(bytes.Repeat([]byte("x"), 1<<20))
+	time.Sleep(500 * time.Millisecond)
+	require.NoError(t, cmd.Process.Signal(syscall.SIGHUP))
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case err := <-done:
+		assert.NoError(t, err)
+	case <-time.After(3 * time.Second):
+		assert.Fail(t, "attach hung after SIGHUP")
+	}
+}
+
+func fakeSessionHost(t *testing.T) (string, net.Listener) {
+	t.Helper()
+	dirs := testutil.ShortDirs(t)
+	t.Setenv("CLUBMATE_STATE_DIR", dirs.State)
+	t.Setenv("CLUBMATE_RUNTIME_DIR", dirs.Runtime)
+	sid := session.IDPrefix + "_0123456789abcdef"
+	ln, err := net.Listen("unix", dirs.SessionSocket(sid))
+	require.NoError(t, err)
+	t.Cleanup(func() { ln.Close() })
+	return sid, ln
 }
 
 func TestAttachExitsQuietlyOnSIGHUP(t *testing.T) {

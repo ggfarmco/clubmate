@@ -33,6 +33,7 @@ const (
 	initialRows       = 24
 	exitFlushTimeout  = 2 * time.Second
 	repaintTimeout    = 500 * time.Millisecond
+	stallTimeout      = 5 * time.Second
 	defaultTerm       = "TERM=xterm-256color"
 	sessionMarker     = "CLUBMATE_SESSION_ID="
 	workspaceMarker   = contract.WorkspaceEnv + "="
@@ -52,7 +53,9 @@ type host struct {
 	queries    chan struct{}
 	reports    chan struct{}
 	output     chan struct{}
+	drained    chan struct{}
 	maxPending int
+	stall      time.Duration
 	mu         sync.Mutex
 	clients    map[*client]struct{}
 	exit       *wire.Frame
@@ -73,6 +76,9 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	if cfg.Scrollback <= 0 {
 		cfg.Scrollback = defaultScrollback
+	}
+	if cfg.StallTimeout <= 0 {
+		cfg.StallTimeout = stallTimeout
 	}
 	cmd := exec.Command(cfg.Command[0], cfg.Command[1:]...)
 	cmd.Dir = cfg.Cwd
@@ -116,8 +122,10 @@ func Run(ctx context.Context, cfg Config) error {
 		pgid:       meta.PGID,
 		ring:       wire.NewRing(cfg.Scrollback),
 		maxPending: max(maxPendingBytes, 2*cfg.Scrollback),
+		stall:      cfg.StallTimeout,
 		clients:    map[*client]struct{}{},
 		output:     make(chan struct{}, 1),
+		drained:    make(chan struct{}, 1),
 		queries:    make(chan struct{}, 1),
 		reports:    make(chan struct{}, 1),
 	}
@@ -225,7 +233,7 @@ func (h *host) add(conn net.Conn) {
 		c.pending = h.term.prelude()
 		c.repaint = true
 	} else {
-		c.pending = h.ring.Bytes()
+		c.pending = h.ring.Replay()
 	}
 	c.wake <- struct{}{}
 	if h.exit != nil {
@@ -244,11 +252,48 @@ func (h *host) pump() {
 		n, err := h.ptmx.Read(buf)
 		if n > 0 {
 			h.broadcast(buf[:n])
+			h.waitDrain()
 		}
 		if err != nil {
 			return
 		}
 	}
+}
+
+func (h *host) waitDrain() {
+	var timer *time.Timer
+	for {
+		h.mu.Lock()
+		full := len(h.fullLocked()) > 0
+		h.mu.Unlock()
+		if !full {
+			return
+		}
+		if timer == nil {
+			timer = time.NewTimer(h.stall)
+			defer timer.Stop()
+		}
+		select {
+		case <-h.drained:
+		case <-timer.C:
+			h.mu.Lock()
+			for _, c := range h.fullLocked() {
+				h.dropLocked(c)
+			}
+			h.mu.Unlock()
+			return
+		}
+	}
+}
+
+func (h *host) fullLocked() []*client {
+	var full []*client
+	for c := range h.clients {
+		if len(c.pending) > h.maxPending {
+			full = append(full, c)
+		}
+	}
+	return full
 }
 
 func (h *host) broadcast(p []byte) {
@@ -277,10 +322,6 @@ func (h *host) broadcast(p []byte) {
 	default:
 	}
 	for c := range h.clients {
-		if len(c.pending)+len(p) > h.maxPending {
-			h.dropLocked(c)
-			continue
-		}
 		c.pending = append(c.pending, p...)
 		select {
 		case c.wake <- struct{}{}:
@@ -312,6 +353,7 @@ func (h *host) writeLoop(c *client) {
 		data, exit, snapshot := c.pending, h.exit, c.snapshot
 		c.pending = nil
 		h.mu.Unlock()
+		h.signalDrained()
 		if err := writeData(c.conn, data); err != nil {
 			h.drop(c)
 			return
@@ -508,6 +550,14 @@ func (h *host) dropLocked(c *client) {
 	delete(h.clients, c)
 	close(c.wake)
 	c.conn.Close()
+	h.signalDrained()
+}
+
+func (h *host) signalDrained() {
+	select {
+	case h.drained <- struct{}{}:
+	default:
+	}
 }
 
 func writeData(w io.Writer, data []byte) error {

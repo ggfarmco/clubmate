@@ -114,4 +114,11 @@ final class WindowLayoutTests: XCTestCase {
         layout.closeWindow(w)
         XCTAssertTrue(SurfaceDeckPolicy.shouldCloseDeck(workspace: "b", layout: layout))
     }
+
+    func testDeckRemountsOnlyAShownLiveSessionThatHeldUp() {
+        XCTAssertTrue(SurfaceDeckPolicy.shouldRemount(shown: true, sessionAlive: true, mountedFor: 5))
+        XCTAssertFalse(SurfaceDeckPolicy.shouldRemount(shown: true, sessionAlive: false, mountedFor: 5))
+        XCTAssertFalse(SurfaceDeckPolicy.shouldRemount(shown: false, sessionAlive: true, mountedFor: 5))
+        XCTAssertFalse(SurfaceDeckPolicy.shouldRemount(shown: true, sessionAlive: true, mountedFor: 0.3))
+    }
 }
