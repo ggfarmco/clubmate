@@ -481,6 +481,47 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS '30 minutes · cache'")).firstMatch.waitForExistence(timeout: 5))
     }
 
+    func testLongQuestionCardShowsItAllAndKeepsSendInView() {
+        let app = launch(open: "agents/agt_0000000000000004", ["-questionFixture", "YES", "-questionSingle", "YES", "-questionLong", "YES"])
+        let card = app.otherElements["elicitation-card"]
+        let question = card.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'reserve.go'")).firstMatch
+        XCTAssertTrue(question.waitForExistence(timeout: 10))
+        XCTAssertGreaterThan(question.frame.height, 160)
+        let composer = app.textViews["composer"]
+        composer.tap()
+        XCTAssertTrue(wait(for: composer, "hasKeyboardFocus == true"))
+        typeOther("Thirty minutes for card payments, but hold bank transfers for a full day", in: card)
+        XCTAssertTrue(card.buttons["Send"].isHittable)
+        let region = card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+        for _ in 0..<6 where question.frame.minY < card.frame.minY {
+            region.press(forDuration: 0.05, thenDragTo: region.withOffset(CGVector(dx: 0, dy: 150)))
+        }
+        XCTAssertGreaterThan(question.frame.minY, card.frame.minY)
+        XCTAssertTrue(card.buttons["Send"].isHittable)
+        card.buttons["Send"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'hold bank transfers'")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(wait(for: composer, "isHittable == true"))
+        XCTAssertFalse(composer.value(forKey: "hasKeyboardFocus") as? Bool ?? true)
+    }
+
+    func testLongPagedQuestionKeepsItsOtherFieldAndNextInView() {
+        let app = launch(open: "agents/agt_0000000000000004", ["-questionFixture", "YES", "-questionLong", "YES"])
+        let card = app.otherElements["elicitation-card"]
+        XCTAssertTrue(card.staticTexts["1 of 2"].waitForExistence(timeout: 10))
+        typeOther("Thirty minutes for cards, a day for bank transfers", in: card)
+        XCTAssertTrue(card.buttons["Next"].isHittable)
+        XCTAssertFalse(app.textViews["composer"].exists && app.textViews["composer"].isHittable)
+    }
+
+    func testLongOpenItemsOtherFieldKeepsSendAnswersInView() {
+        let app = launch(open: "agents/agt_0000000000000024", ["-openFixture", "YES", "-openStress", "YES"])
+        let card = app.otherElements["open-card"]
+        XCTAssertTrue(card.staticTexts["7 open"].waitForExistence(timeout: 10))
+        typeOther("Back off, but only on cellular, and log every retry", in: card)
+        XCTAssertTrue(card.buttons["Send answers"].isHittable)
+        XCTAssertFalse(app.textViews["composer"].exists && app.textViews["composer"].isHittable)
+    }
+
     func testQuestionCardSendWaitsForAnAnswer() {
         let app = launch(open: "agents/agt_0000000000000004", ["-questionFixture", "YES"])
         let card = app.otherElements["elicitation-card"]
@@ -606,6 +647,21 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Open"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Rework the Send review sheet"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Send answers"].exists)
+    }
+
+    private func typeOther(_ text: String, in card: XCUIElement) {
+        let other = option("Other…", in: card)
+        XCTAssertTrue(other.waitForExistence(timeout: 5))
+        for _ in 0..<4 where !other.isHittable {
+            card.swipeUp()
+        }
+        XCTAssertTrue(wait(for: other, "isEnabled == true"))
+        other.tap()
+        let field = card.textFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertTrue(wait(for: field, "hasKeyboardFocus == true"))
+        field.typeText(text)
+        XCTAssertTrue(wait(for: field, "isHittable == true"))
     }
 
     private func option(_ title: String, in card: XCUIElement) -> XCUIElement {

@@ -152,13 +152,13 @@ struct OpenItemsCard: View {
     let folded: Bool
     let blocked: String?
     @Binding var draft: OpenDraft
+    var focused: FocusState<String?>.Binding
     let later: @MainActor () async throws -> Void
     let send: @MainActor () async throws -> Void
     let no: () -> Void
     @State private var sending = false
     @State private var failure: String?
     @State private var contentHeight: CGFloat = 0
-    @FocusState private var focused: String?
 
     var body: some View {
         DockCard(neutral: true) {
@@ -234,10 +234,14 @@ struct OpenItemsCard: View {
                 }
                 .frame(maxHeight: contentHeight)
                 .scrollBounceBehavior(.basedOnSize)
-                .task(id: focused) {
-                    guard let focused else { return }
+                .task(id: focused.wrappedValue) {
+                    guard let item = focused.wrappedValue else { return }
                     try? await Task.sleep(for: .milliseconds(350))
-                    withAnimation { proxy.scrollTo(Self.otherAnchor(focused), anchor: .bottom) }
+                    withAnimation { proxy.scrollTo(Self.otherAnchor(item), anchor: .bottom) }
+                }
+                .onChange(of: draft.others) {
+                    guard let item = focused.wrappedValue else { return }
+                    proxy.scrollTo(Self.otherAnchor(item), anchor: .bottom)
                 }
             }
             Divider()
@@ -267,7 +271,7 @@ struct OpenItemsCard: View {
                 .fixedSize(horizontal: false, vertical: true)
             switch section {
             case .decision(let item):
-                OpenChoices(item: item, draft: $draft, focused: $focused)
+                OpenChoices(item: item, draft: $draft, focused: focused)
                 Color.clear
                     .frame(height: 0)
                     .id(Self.otherAnchor(item.id))

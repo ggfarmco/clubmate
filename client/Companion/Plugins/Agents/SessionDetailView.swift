@@ -8,6 +8,8 @@ struct SessionDetailView: View {
     let store: AgentsStore
     let sessionID: String
     @Environment(AppNavigation.self) private var navigation
+    @Environment(VoiceSession.self) private var voice
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var draft = ""
     @State private var attachments: [ComposerAttachment] = []
     @State private var sending = false
@@ -22,6 +24,7 @@ struct SessionDetailView: View {
     @State private var alwaysAsked: AlwaysAsk?
     @State private var width = 0.0
     @State private var composerFocused = false
+    @FocusState private var cardField: String?
     @State private var reviewing: LandCard?
     @State private var archiving = false
 
@@ -35,6 +38,8 @@ struct SessionDetailView: View {
         let screen = SessionScreen(entries: entries, session: session, request: store.request(sessionID), repos: repos)
         let blocked = context.connection.blocked
         let queued = store.queue?.item(sessionID)
+        let cardTyping = typingInCard(screen)
+        let keySend: (() -> Void)? = cardTyping ? nil : { send() }
         let answerDocked = switch screen.dock {
         case .permission, .elicitation, .connect, .land: true
         case .open(let card): !closing && (!folded(card) || store.openDraft(sessionID).unfolded)
@@ -120,12 +125,14 @@ struct SessionDetailView: View {
             }
         } : nil)
         .safeAreaInset(edge: .top, spacing: 0) {
-            RequestBannerHost()
-                .padding(.horizontal)
-                .padding(.vertical, 6)
-                .frame(maxWidth: 820)
-                .frame(maxWidth: .infinity)
-                .background(Color(.systemGroupedBackground))
+            if !(answerDocked && verticalSizeClass == .compact) {
+                RequestBannerHost()
+                    .padding(.horizontal)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: 820)
+                    .frame(maxWidth: .infinity)
+                    .background(Color(.systemGroupedBackground))
+            }
         }
         .environment(\.folderRemove, blocked == nil && context.connection.supports(TaskCommand.folderRemove) ? FolderRemove { path in
             do {
@@ -158,7 +165,10 @@ struct SessionDetailView: View {
                 ContentUnavailableView("No Messages Yet", systemImage: "text.bubble", description: Text("Send the first prompt below."))
             }
         }
-        .simultaneousGesture(TapGesture().onEnded { if composerFocused { composerFocused = false } })
+        .simultaneousGesture(TapGesture().onEnded {
+            if composerFocused { composerFocused = false }
+            if cardField != nil { cardField = nil }
+        })
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 10) {
                 docBanner
@@ -198,7 +208,7 @@ struct SessionDetailView: View {
                             }
                             .id(request.id)
                         case .elicitation(let question):
-                            ElicitationCard(question: question, agentName: session.agentName, blocked: blocked, draft: Binding(get: { store.elicitationDraft(sessionID, request: question.id) }, set: { store.setElicitationDraft($0, session: sessionID, request: question.id) })) { action, answers in
+                            ElicitationCard(question: question, agentName: session.agentName, blocked: blocked, draft: Binding(get: { store.elicitationDraft(sessionID, request: question.id) }, set: { store.setElicitationDraft($0, session: sessionID, request: question.id) }), focused: $cardField) { action, answers in
                                 try await store.respond(sessionID, request: question.id, action: action, answers: answers)
                             }
                             .id(question.id)
@@ -233,7 +243,7 @@ struct SessionDetailView: View {
                                     withAnimation { store.undoNoOpen(sessionID) }
                                 }
                             } else {
-                                OpenItemsCard(card: card, count: session.openCount, folded: folded(card), blocked: blocked, draft: Binding(get: { store.openDraft(sessionID) }, set: { store.setOpenDraft($0, session: sessionID) })) {
+                                OpenItemsCard(card: card, count: session.openCount, folded: folded(card), blocked: blocked, draft: Binding(get: { store.openDraft(sessionID) }, set: { store.setOpenDraft($0, session: sessionID) }), focused: $cardField) {
                                     try await store.laterOpen(sessionID)
                                 } send: {
                                     try await store.answerOpen(sessionID, items: card.items)
@@ -251,26 +261,7 @@ struct SessionDetailView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 if let session {
-                    ComposerView(
-                        draft: $draft,
-                        dictation: sessionID,
-                        attachments: $attachments,
-                        focused: $composerFocused,
-                        session: session,
-                        enabled: blocked == nil,
-                        blocked: answerDocked || !failureButtons.isEmpty || reviewable ? nil : blocked,
-                        sending: sending,
-                        wide: stopInHeader,
-                        hint: answersGoWith(screen) ? "Your answers go with it" : nil,
-                        reopen: { action in
-                            perform {
-                                if let next = try await store.recover(sessionID, with: action) {
-                                    context.navigation.detail = next
-                                }
-                            }
-                        },
-                        send: send
-                    )
+                    composer(session, screen: screen, blocked: blocked, answerDocked: answerDocked, hidden: cardTyping)
                 }
             }
             .animation(.snappy, value: screen.dock)
@@ -373,9 +364,12 @@ struct SessionDetailView: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: sent)
         .sessionKeys(enabled: context.connection.state == .online, pending: store.pendingPermission(sessionID), answer: { request, option in
             perform { try await answer(request: request.id, option: option) }
-        }, confirmAlways: { alwaysAsked = AlwaysAsk(option: $0) }, send: send)
+        }, confirmAlways: { alwaysAsked = AlwaysAsk(option: $0) }, send: keySend)
         .onChange(of: entries.count) { _, _ in
             withAnimation { position.scrollTo(edge: .bottom) }
+        }
+        .onChange(of: cardDock(screen)) {
+            cardField = nil
         }
         .task(id: screen.dock) {
             try? await Task.sleep(for: .milliseconds(150))
@@ -493,6 +487,45 @@ struct SessionDetailView: View {
     private func answersGoWith(_ screen: SessionScreen) -> Bool {
         guard attachments.isEmpty, !closing, case .open(let card) = screen.dock else { return false }
         return !store.openDraft(sessionID).answered(card.items).isEmpty
+    }
+
+    private func composer(_ session: AgentSession, screen: SessionScreen, blocked: String?, answerDocked: Bool, hidden: Bool) -> some View {
+        ComposerView(
+            draft: $draft,
+            dictation: sessionID,
+            attachments: $attachments,
+            focused: $composerFocused,
+            session: session,
+            enabled: blocked == nil,
+            blocked: answerDocked || !failureButtons.isEmpty || reviewable ? nil : blocked,
+            sending: sending,
+            wide: stopInHeader,
+            hint: answersGoWith(screen) ? "Your answers go with it" : nil,
+            reopen: { action in
+                perform {
+                    if let next = try await store.recover(sessionID, with: action) {
+                        context.navigation.detail = next
+                    }
+                }
+            },
+            send: send
+        )
+        .frame(height: hidden ? 0 : nil, alignment: .top)
+        .opacity(hidden ? 0 : 1)
+        .disabled(hidden)
+        .accessibilityHidden(hidden)
+    }
+
+    private func typingInCard(_ screen: SessionScreen) -> Bool {
+        cardField != nil && !voice.active && cardDock(screen) != nil
+    }
+
+    private func cardDock(_ screen: SessionScreen) -> String? {
+        switch screen.dock {
+        case .elicitation(let question): question.id
+        case .open(let card) where !closing && (!folded(card) || store.openDraft(sessionID).unfolded): "open"
+        default: nil
+        }
     }
 
     private func send() {

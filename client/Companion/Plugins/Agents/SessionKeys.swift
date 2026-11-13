@@ -23,7 +23,7 @@ extension FocusedValues {
 }
 
 extension View {
-    func sessionKeys(enabled: Bool, pending: PermissionRequest?, answer: @escaping (PermissionRequest, String) -> Void, confirmAlways: @escaping (String) -> Void, send: @escaping () -> Void) -> some View {
+    func sessionKeys(enabled: Bool, pending: PermissionRequest?, answer: @escaping (PermissionRequest, String) -> Void, confirmAlways: @escaping (String) -> Void, send: (() -> Void)?) -> some View {
         modifier(SessionKeysModifier(enabled: enabled, pending: pending, answer: answer, confirmAlways: confirmAlways, send: send))
     }
 }
@@ -33,13 +33,13 @@ struct SessionKeysModifier: ViewModifier {
     let pending: PermissionRequest?
     let answer: (PermissionRequest, String) -> Void
     let confirmAlways: (String) -> Void
-    let send: () -> Void
+    let send: (() -> Void)?
     @State private var answered: String?
     @State private var armed: String?
 
     func body(content: Content) -> some View {
         content
-            .focusedSceneValue(\.sessionKeys, SessionKeyActions(enabled: enabled, answers: answers, send: KeyedAction(label: "Send", run: send)))
+            .focusedSceneValue(\.sessionKeys, SessionKeyActions(enabled: enabled, answers: answers, send: send.map { KeyedAction(label: "Send", run: $0) }))
             .task(id: pending?.id) {
                 armed = nil
                 try? await Task.sleep(for: .milliseconds(600))

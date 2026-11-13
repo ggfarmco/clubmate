@@ -1529,6 +1529,7 @@ struct QuestionCard: View {
     let question: String
     let agentName: String
     let subagent: Bool
+    @State private var height: CGFloat = 0
 
     var body: some View {
         DockCard {
@@ -1540,10 +1541,15 @@ struct QuestionCard: View {
                         .foregroundStyle(Color.warningInk)
                 }
                 if !question.isEmpty {
-                    Text(Markdown.inline(question))
-                        .font(.title3.weight(.semibold))
-                        .lineLimit(4)
-                        .fixedSize(horizontal: false, vertical: true)
+                    ScrollView {
+                        Text(Markdown.inline(question))
+                            .font(.title3.weight(.semibold))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+                    }
+                    .frame(maxHeight: height)
+                    .scrollBounceBehavior(.basedOnSize)
                 }
                 Text(subagent ? "Paused until you answer. Your reply resumes the subagent." : "Paused until you answer.")
                     .font(.footnote)
@@ -1597,48 +1603,45 @@ struct ElicitationCard: View {
     let agentName: String
     let blocked: String?
     @Binding var draft: ElicitationDraft
+    var focused: FocusState<String?>.Binding
     let send: @MainActor (String, [Elicitation.Answer]) async throws -> Void
     @State private var sending = false
     @State private var failure: String?
-    @State private var fieldsHeight: CGFloat = 0
+    @State private var bodyHeight: CGFloat = 0
     @State private var armedPage: Int?
-    @FocusState private var focused: String?
     @Environment(\.openURL) private var openURL
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     var body: some View {
         DockCard {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) {
-                    DockBadge(symbol: question.isURL ? "person.badge.key.fill" : "questionmark.bubble.fill")
-                    Text(question.isURL ? "\(agentName) needs you to sign in" : "\(agentName) is asking")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.warningInk)
-                    if paged {
-                        Spacer(minLength: 0)
-                        stepper
-                    }
+                if !(verticalSizeClass == .compact && focused.wrappedValue != nil) {
+                    header
                 }
-                if paged {
-                    Text(Markdown.inline(question.request.message))
-                        .font(.footnote)
-                        .foregroundStyle(Color.captionInk)
-                        .lineLimit(2)
-                } else {
-                    Text(Markdown.inline(question.request.message))
-                        .font(.title3.weight(.semibold))
-                        .lineLimit(4)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if question.isURL {
-                    link
-                } else {
+                ScrollViewReader { proxy in
                     ScrollView {
-                        fields
-                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fieldsHeight = $0 }
+                        VStack(alignment: .leading, spacing: 12) {
+                            message
+                            if question.isURL {
+                                link
+                            } else {
+                                fields
+                            }
+                        }
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bodyHeight = $0 }
                     }
-                    .frame(maxHeight: fieldsHeight)
+                    .frame(maxHeight: bodyHeight)
                     .scrollBounceBehavior(.basedOnSize)
                     .id(page)
+                    .task(id: focused.wrappedValue) {
+                        guard let field = focused.wrappedValue else { return }
+                        try? await Task.sleep(for: .milliseconds(350))
+                        withAnimation { proxy.scrollTo(field, anchor: .bottom) }
+                    }
+                    .onChange(of: draft.texts) {
+                        guard let field = focused.wrappedValue else { return }
+                        proxy.scrollTo(field, anchor: .bottom)
+                    }
                 }
                 actions
                 if let blocked {
@@ -1659,6 +1662,19 @@ struct ElicitationCard: View {
         .task {
             try? await Task.sleep(for: .milliseconds(600))
             armedPage = page
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            DockBadge(symbol: question.isURL ? "person.badge.key.fill" : "questionmark.bubble.fill")
+            Text(question.isURL ? "\(agentName) needs you to sign in" : "\(agentName) is asking")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.warningInk)
+            if paged {
+                Spacer(minLength: 0)
+                stepper
+            }
         }
     }
 
@@ -1703,6 +1719,20 @@ struct ElicitationCard: View {
                 label
             }
             label
+        }
+    }
+
+    @ViewBuilder
+    private var message: some View {
+        if paged {
+            Text(Markdown.inline(question.request.message))
+                .font(.footnote)
+                .foregroundStyle(Color.captionInk)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            Text(Markdown.inline(question.request.message))
+                .font(.title3.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -1768,10 +1798,11 @@ struct ElicitationCard: View {
             TextField(field.type == "text" ? (field.description.isEmpty ? field.label : field.description) : field.label, text: Binding(get: { draft.texts[field.key] ?? "" }, set: { draft.texts[field.key] = $0 }), axis: .vertical)
                 .lineLimit(1...4)
                 .keyboardType(field.type == "text" ? .default : .decimalPad)
-                .focused($focused, equals: field.key)
+                .focused(focused, equals: field.key)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(Color.surface2, in: .rect(cornerRadius: 14))
+                .id(field.key)
         }
     }
 
@@ -1780,7 +1811,7 @@ struct ElicitationCard: View {
         let open = draft.opened.contains(other.key)
         Button {
             draft.toggleOther(other)
-            focused = open ? nil : other.key
+            focused.wrappedValue = open ? nil : other.key
         } label: {
             ChoiceRow(title: "Other…", symbol: symbol(field, selected: open, single: single), selected: open, muted: true)
         }
@@ -1848,6 +1879,7 @@ struct ElicitationCard: View {
     }
 
     private func turn(to target: Int) {
+        focused.wrappedValue = nil
         draft.page = target
         Task {
             try? await Task.sleep(for: .milliseconds(600))

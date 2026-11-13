@@ -1071,21 +1071,32 @@ actor FixtureServer {
     }
 
     private static func questionEntry() -> JSONValue {
+        let long = UserDefaults.standard.bool(forKey: "questionLong")
         let note = JSONValue.string("Type your own answer, or add a note to the option you chose above (optional).")
         let other: (String) -> JSONValue = { .object(["key": .string($0), "type": .string("text"), "title": .string("Other"), "description": note]) }
         let option: (String, String) -> JSONValue = { .object(["value": .string($0), "label": .string($0), "description": .string($1)]) }
+        let single = UserDefaults.standard.bool(forKey: "questionSingle")
+        let message = long && single ? "`reserve.go` holds stock with no end date, so a cart that is never paid keeps its items out of the shop for good. The expiry job I am adding needs one number before it can run: how long should a reservation hold stock before the job hands it back? The checkout page times out after ten minutes today, the payment provider allows up to thirty, and saved carts were promised to last a day in the spring release notes, so each choice breaks one of those promises." : "Please answer the following questions."
+        let hold: [JSONValue] = long ? [
+            option("10 minutes", "Same as the checkout timeout, so a shopper who leaves the payment page loses the items at the same moment the page gives up on them"),
+            option("30 minutes", "Covers slow payment pages and the provider's own thirty minute window for bank confirmations, at the cost of stock sitting idle longer"),
+            option("2 hours", "Long enough for a shopper who switches devices, short enough that a busy sale does not run dry on abandoned carts"),
+            option("24 hours", "For saved carts, as the spring release notes promised; popular items could look sold out for a day during a sale"),
+            option("Until the cart is emptied", "No expiry at all, which is today's behaviour; the job only reports how much stock is held, and someone releases it by hand"),
+        ] : [
+            option("10 minutes", "Same as the checkout timeout"),
+            option("30 minutes", "Covers slow payment pages"),
+            option("24 hours", "For saved carts"),
+        ]
+        let holdQuestion = long ? "How long should a reservation hold stock before the expiry job hands it back to the shop, given that the checkout page, the payment provider and the saved carts each promise something different?" : "How long should a reservation hold stock?"
         return .object(["kind": .string("elicitation"), "id": .string("elicitation-1"), "turn": .number(1), "elicitation": .object([
             "mode": .string("form"),
-            "message": .string("Please answer the following questions."),
+            "message": .string(message),
             "needsAnswer": .bool(true),
             "fields": .array(([
-                .object(["key": .string("question_0"), "type": .string("choice"), "title": .string("Hold"), "description": .string("How long should a reservation hold stock?"), "options": .array([
-                    option("10 minutes", "Same as the checkout timeout"),
-                    option("30 minutes", "Covers slow payment pages"),
-                    option("24 hours", "For saved carts"),
-                ])]),
+                .object(["key": .string("question_0"), "type": .string("choice"), "title": .string("Hold"), "description": .string(holdQuestion), "options": .array(hold)]),
                 other("question_0_custom"),
-            ] as [JSONValue]) + (UserDefaults.standard.bool(forKey: "questionSingle") ? [] : [
+            ] as [JSONValue]) + (single ? [] : [
                 .object(["key": .string("question_1"), "type": .string("multi"), "title": .string("Expiry"), "description": .string("What should happen when a reservation expires?"), "options": .array([
                     option("Email the shopper", "One reminder with a link back to the cart"),
                     option("Count it", "A metric for how many carts expire"),
