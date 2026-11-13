@@ -277,9 +277,9 @@ public final class ComputerConnection: CommandRunner {
                 revoke()
                 return
             } catch {
-                if Task.isCancelled || error is CancellationError { return }
+                if Task.isCancelled { return }
                 streamID = nil
-                state = .offline((error as? RemoteError)?.message ?? error.localizedDescription)
+                state = .offline(error is CancellationError ? nil : (error as? RemoteError)?.message ?? error.localizedDescription)
             }
             let delay = Self.backoff[min(failures, Self.backoff.count - 1)]
             failures += 1

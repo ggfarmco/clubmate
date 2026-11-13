@@ -189,7 +189,7 @@ The simulator covers loopback only. On a device, check:
 5. **First request**: iOS shows the Local Network prompt on the first connection (never in the simulator); allow it. The Macs list shows the Mac online, and `remote.devices` shows the phone `connected: true`.
 6. **Agents**: open a session, send a prompt, answer a permission request from the phone.
 7. **Revoke live**: with a transcript open, revoke the phone on the Mac. The open transcript and the list switch to "Access Revoked" within a few seconds.
-8. **Reconnects**: put the Mac to sleep and wake it; switch the phone between Wi-Fi and cellular. The app reconnects (backoff up to 30 s) and replays missed events.
+8. **Reconnects**: put the Mac to sleep and wake it; switch the phone between Wi-Fi and cellular. The app reconnects (backoff up to 30 s) and replays missed events; a request cancelled by anything other than the app itself counts as a failed try, so the app keeps retrying.
 9. **Notifications**: allow notifications, switch to another app, make an agent ask for permission within ~30 s; a notification appears and opens the session when tapped.
 10. **MagicDNS off**: pairing still works via the IP hosts in the link.
 11. **Background refresh**: put the app in the background for over a minute (stream gone), make an agent ask for permission, then pause in Xcode and run the `_simulateLaunchForTaskWithIdentifier` command above; the notification appears. Also: Control Center pulled over the app shows a banner for a new notification.

@@ -173,6 +173,29 @@ final class ComputerConnectionTests: XCTestCase {
         XCTAssertEqual(Array(delays.values.prefix(4)), [.seconds(1), .seconds(2), .seconds(5), .seconds(10)])
     }
 
+    func testRequestsTheSystemCancelsAreRetried() async throws {
+        let hellos = Recorder<Int>()
+        let streams = Recorder<Int>()
+        let transport = FakeTransport(reply: { request in
+            if FakeTransport.rpc(request) == "workspaces" { return (FakeTransport.result(workspacesJSON), 200) }
+            hellos.add(1)
+            if hellos.values.count == 1 { throw URLError(.cancelled) }
+            return (FakeTransport.result(helloJSON), 200)
+        }, stream: { _ in
+            streams.add(1)
+            return (200, AsyncThrowingStream {
+                $0.yield(Data(": connected\n\n".utf8))
+                if streams.values.count == 1 { $0.finish(throwing: URLError(.cancelled)) }
+            })
+        })
+        let delays = Recorder<Duration>()
+        let connection = ComputerConnection(computer: computer, token: "t", transport: transport, sleep: { delays.add($0) })
+        connection.start()
+        try await waitUntil { streams.values.count == 2 && connection.state == .online }
+        XCTAssertEqual(delays.values, [.seconds(1), .seconds(1)])
+        connection.stop()
+    }
+
     func testUnauthorizedStopsReconnecting() async throws {
         let transport = FakeTransport(reply: { _ in (Data(), 401) })
         let delays = Recorder<Duration>()
@@ -210,3 +233,4 @@ final class ComputerConnectionTests: XCTestCase {
         XCTAssertEqual(connection.workspaces, [])
     }
 }
+
