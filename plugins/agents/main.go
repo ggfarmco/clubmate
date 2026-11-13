@@ -162,7 +162,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if _, err := h.Subscribe(ctx, editorFileTopic, ready.Seq); err != nil {
 		return err
 	}
-	reviewsAfter, err := a.reviews.load(ctx, h)
+	reviewsAfter, err := a.loadReviews(ctx, h)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "agents: load reviews:", err)
 	}

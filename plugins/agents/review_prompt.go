@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"maps"
+	"os"
 	"slices"
 	"strings"
 
@@ -14,6 +17,7 @@ const (
 	reviewCardPrefix = openReviewNode + "/"
 	commentOpen      = "open"
 	commentWorking   = "working"
+	kindReviewClosed = "review/closed"
 )
 
 var reviewGlyphs = map[string]struct{ glyph, tone string }{
@@ -45,6 +49,11 @@ type sendReviewArgs struct {
 	Comments []reviewComment `json:"comments"`
 	Note     string          `json:"note"`
 	Nrev     string          `json:"nrev"`
+}
+
+type reviewClosed struct {
+	ID     string           `json:"id"`
+	States map[int64]string `json:"states"`
 }
 
 type sendReviewResult struct {
@@ -200,4 +209,49 @@ func (a *app) cardReview(s *session, node string) string {
 		return ""
 	}
 	return v.Entries[i].Review.ID
+}
+
+func (s *session) freezeReviews(closed map[string]map[int64]string) {
+	held := map[string]bool{}
+	if err := s.log.replay(func(e envelope) {
+		var p promptPayload
+		if e.Kind == kindPrompt && json.Unmarshal(e.Payload, &p) == nil && p.Review != nil {
+			held[p.Review.ID] = true
+		}
+	}); err != nil {
+		fmt.Fprintln(os.Stderr, "agents: read reviews:", err)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.deleted {
+		return
+	}
+	for _, id := range slices.Sorted(maps.Keys(closed)) {
+		if !held[id] {
+			continue
+		}
+		raw, err := json.Marshal(reviewClosed{ID: id, States: closed[id]})
+		if err != nil {
+			continue
+		}
+		at := s.rec.UpdatedAt
+		e := s.envelope(actorClubmate, kindReviewClosed, raw)
+		s.rec.UpdatedAt = at
+		s.log.write(e)
+		if s.loaded {
+			s.apply(e)
+		}
+	}
+}
+
+func (s *session) applyReviewClosed(e envelope) {
+	var p reviewClosed
+	if json.Unmarshal(e.Payload, &p) != nil || p.ID == "" {
+		return
+	}
+	if s.reviewStates == nil {
+		s.reviewStates = map[string]map[int64]string{}
+	}
+	s.reviewStates[p.ID] = p.States
 }

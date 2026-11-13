@@ -54,8 +54,9 @@ type transcriptState struct {
 	senders  []string
 	at       time.Time
 
-	presented map[int][]presentedDoc
-	ended     map[int]bool
+	presented    map[int][]presentedDoc
+	ended        map[int]bool
+	reviewStates map[string]map[int64]string
 
 	subagents map[string]*subagent
 
@@ -75,6 +76,8 @@ type transcriptView struct {
 	Delta    bool                      `json:"delta,omitempty"`
 	Request  *sdui.Node                `json:"request,omitempty"`
 	Repos    *sdui.Node                `json:"repos,omitempty"`
+
+	ReviewStates map[string]map[int64]string `json:"-"`
 }
 
 type entry struct {
@@ -195,7 +198,7 @@ func (s *session) viewSince(fromTurn int, since int64) transcriptView {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.loadLocked()
-	v := transcriptView{Session: s.rec, Modes: slices.Clone(s.modes), Configs: slices.Clone(s.configs), Usage: s.usage, Commands: slices.Clone(s.commands), Turns: slices.Clone(s.turns)}
+	v := transcriptView{Session: s.rec, Modes: slices.Clone(s.modes), Configs: slices.Clone(s.configs), Usage: s.usage, Commands: slices.Clone(s.commands), Turns: slices.Clone(s.turns), ReviewStates: maps.Clone(s.reviewStates)}
 	marked := s.markedLocked()
 	numbers := openNumbers(s.opens)
 	for _, en := range s.entries {
@@ -469,6 +472,8 @@ func (s *session) apply(e envelope) {
 		s.applyOpenItems(e)
 	case kindOpenChanged:
 		s.applyOpenChanged(e)
+	case kindReviewClosed:
+		s.applyReviewClosed(e)
 	}
 }
 

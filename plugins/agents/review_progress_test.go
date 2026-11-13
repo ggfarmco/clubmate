@@ -104,7 +104,7 @@ func TestReviewBoardSurvivesRestart(t *testing.T) {
 	assert.Equal(t, int64(42), seq)
 	assert.Equal(t, b.progress("agt_1"), restarted.progress("agt_1"))
 	assert.Nil(t, restarted.progress("agt_2"))
-	states, open := restarted.cards()
+	states, open := restarted.cards(nil)
 	assert.Equal(t, map[string]map[int64]string{"rv_3": {4: "resolved"}}, states)
 	assert.Equal(t, map[string]bool{"rv_1": true, "rv_2": true}, open)
 
@@ -120,7 +120,55 @@ func TestEditorRestartClosesReviews(t *testing.T) {
 	reviewEvent(t, b, reviewPayload{WorkspaceID: "ws2", ID: "rv_2", Opener: "agt_3", Total: 1})
 	assert.Equal(t, map[string][]string{"ws": {"agt_1", "agt_2"}, "ws2": {"agt_3"}}, b.closeAll())
 	assert.Nil(t, b.progress("agt_1"))
-	states, open := b.cards()
+	states, open := b.cards(nil)
 	assert.Equal(t, map[string]map[int64]string{"rv_1": {4: "resolved"}}, states)
 	assert.Empty(t, open)
+}
+
+func reviewApp(t *testing.T) *app {
+	t.Helper()
+	a := searchApp(t, record{ID: "agt_1", Workspace: "ws"}, record{ID: "agt_2", Workspace: "ws", Worktree: "/repo"}, record{ID: "agt_3", Workspace: "ws", Worktree: "/repo"})
+	a.reviews = newReviewBoard()
+	for _, id := range []string{"agt_1", "agt_2"} {
+		appendLog(t, a, id, logLine(t, kindPrompt, 1, promptPayload{Review: &reviewSent{ID: "rv_1", Comments: sentComments()}}))
+	}
+	return a
+}
+
+func TestClosedReviewCardKeepsItsStates(t *testing.T) {
+	t.Parallel()
+	a := reviewApp(t)
+	p := reviewPayload{WorkspaceID: "ws", ID: "rv_1", Worktree: "/repo", Recipient: "agt_1", Comments: []reviewPayloadComment{{ID: 4, Status: "resolved"}, {ID: 7, Status: "open"}}}
+	reviewEvent(t, a.reviews, p)
+	assert.False(t, a.freezeClosedReviews(nil, true))
+	assert.Empty(t, a.session("agt_1").view(0).ReviewStates)
+
+	p.Closed = true
+	reviewEvent(t, a.reviews, p)
+	require.True(t, a.freezeClosedReviews([]*session{a.session("agt_1")}, false))
+	want := map[string]map[int64]string{"rv_1": {4: "resolved", 7: "open"}}
+	board, _ := a.reviews.cards(nil)
+	assert.Empty(t, board)
+	assert.Equal(t, want, a.session("agt_1").view(0).ReviewStates)
+	assert.Equal(t, want, a.session("agt_2").view(0).ReviewStates)
+	assert.Empty(t, a.session("agt_3").view(0).ReviewStates)
+
+	restarted := newSession(record{ID: "agt_1"}, newEventLog(logPath(a.stateDir, "agt_1")), false, func(string, bool) {})
+	states, _ := a.reviews.cards(restarted.view(0).ReviewStates)
+	assert.Equal(t, want, states)
+}
+
+func TestLegacyReviewStatesMoveIntoTheLog(t *testing.T) {
+	t.Parallel()
+	a := reviewApp(t)
+	kv := memStore{}
+	require.NoError(t, kv.StorageSet(t.Context(), reviewBoardKey, savedBoard{Seq: 9, States: map[string]map[int64]string{"rv_1": {4: "resolved"}, "rv_9": {1: "open"}}}))
+	seq, err := a.loadReviews(t.Context(), kv)
+	require.NoError(t, err)
+	assert.Equal(t, int64(9), seq)
+	assert.Equal(t, map[string]map[int64]string{"rv_1": {4: "resolved"}}, a.session("agt_1").view(0).ReviewStates)
+	var saved savedBoard
+	_, err = kv.StorageGet(t.Context(), reviewBoardKey, &saved)
+	require.NoError(t, err)
+	assert.Equal(t, savedBoard{Seq: 9}, saved)
 }

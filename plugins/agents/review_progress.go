@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -59,11 +60,12 @@ type reviewProgress struct {
 }
 
 type reviewBoard struct {
-	mu     sync.Mutex
-	open   map[string]reviewPayload
-	seq    map[string]int
-	states map[string]map[int64]string
-	next   int
+	mu       sync.Mutex
+	open     map[string]reviewPayload
+	seq      map[string]int
+	states   map[string]map[int64]string
+	closedIn map[string]string
+	next     int
 }
 
 type reviewShowArgs struct {
@@ -71,7 +73,7 @@ type reviewShowArgs struct {
 }
 
 func newReviewBoard() *reviewBoard {
-	return &reviewBoard{open: map[string]reviewPayload{}, seq: map[string]int{}, states: map[string]map[int64]string{}}
+	return &reviewBoard{open: map[string]reviewPayload{}, seq: map[string]int{}, states: map[string]map[int64]string{}, closedIn: map[string]string{}}
 }
 
 func (b *reviewBoard) apply(raw json.RawMessage) (string, []string, bool) {
@@ -92,6 +94,7 @@ func (b *reviewBoard) apply(raw json.RawMessage) (string, []string, bool) {
 		b.states[p.ID] = states
 	}
 	if p.Closed {
+		b.closedIn[p.ID] = cmp.Or(p.Worktree, last.Worktree)
 		delete(b.open, p.ID)
 		delete(b.seq, p.ID)
 		return p.WorkspaceID, people, true
@@ -106,6 +109,7 @@ func (b *reviewBoard) closeAll() map[string][]string {
 	defer b.mu.Unlock()
 	people := map[string][]string{}
 	for _, p := range b.open {
+		b.closedIn[p.ID] = p.Worktree
 		for _, id := range []string{p.Opener, p.Recipient} {
 			if id != "" && !slices.Contains(people[p.WorkspaceID], id) {
 				people[p.WorkspaceID] = append(people[p.WorkspaceID], id)
@@ -131,6 +135,24 @@ func (b *reviewBoard) save(ctx context.Context, kv sessionStore, seq int64) erro
 	return kv.StorageSet(ctx, reviewBoardKey, json.RawMessage(raw))
 }
 
+func (b *reviewBoard) takeClosed() (map[string]map[int64]string, map[string]bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	closed, worktrees := map[string]map[int64]string{}, map[string]bool{}
+	for id, states := range b.states {
+		if _, ok := b.open[id]; ok {
+			continue
+		}
+		closed[id] = states
+		if wt := b.closedIn[id]; wt != "" {
+			worktrees[wt] = true
+		}
+		delete(b.states, id)
+	}
+	clear(b.closedIn)
+	return closed, worktrees
+}
+
 func (b *reviewBoard) load(ctx context.Context, kv sessionStore) (int64, error) {
 	var saved savedBoard
 	if found, err := kv.StorageGet(ctx, reviewBoardKey, &saved); err != nil || !found {
@@ -146,16 +168,44 @@ func (b *reviewBoard) load(ctx context.Context, kv sessionStore) (int64, error) 
 	return saved.Seq, nil
 }
 
+func (a *app) loadReviews(ctx context.Context, kv sessionStore) (int64, error) {
+	seq, err := a.reviews.load(ctx, kv)
+	if err != nil || !a.freezeClosedReviews(nil, true) {
+		return seq, err
+	}
+	return seq, a.reviews.save(ctx, kv, seq)
+}
+
+func (a *app) freezeClosedReviews(people []*session, everyone bool) bool {
+	closed, worktrees := a.reviews.takeClosed()
+	if len(closed) == 0 {
+		return false
+	}
+	for _, s := range a.allSessions() {
+		if everyone || slices.Contains(people, s) || worktrees[s.snapshot().Worktree] {
+			s.freezeReviews(closed)
+		}
+	}
+	return true
+}
+
 func (a *app) reviewsChanged(ctx context.Context, seq int64, people map[string][]string) {
+	var sessions []*session
+	for _, ids := range people {
+		for _, id := range ids {
+			if s := a.session(id); s != nil {
+				sessions = append(sessions, s)
+			}
+		}
+	}
+	a.freezeClosedReviews(sessions, false)
 	if err := a.reviews.save(ctx, a.host, seq); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: save reviews:", err)
 	}
-	for ws, ids := range people {
-		for _, id := range ids {
-			if s := a.session(id); s != nil {
-				a.notes.mark(s, changeReview, false)
-			}
-		}
+	for _, s := range sessions {
+		a.notes.mark(s, changeReview, false)
+	}
+	for ws := range people {
 		a.kick(ws)
 	}
 }
@@ -187,10 +237,12 @@ func shortProgress(reviewed, total, open int) string {
 	return fmt.Sprintf("%d/%d · %d", reviewed, total, open)
 }
 
-func (b *reviewBoard) cards() (map[string]map[int64]string, map[string]bool) {
+func (b *reviewBoard) cards(frozen map[string]map[int64]string) (map[string]map[int64]string, map[string]bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	states := maps.Clone(b.states)
+	states := make(map[string]map[int64]string, len(frozen)+len(b.states))
+	maps.Copy(states, frozen)
+	maps.Copy(states, b.states)
 	open := make(map[string]bool, len(b.open))
 	for id := range b.open {
 		open[id] = true

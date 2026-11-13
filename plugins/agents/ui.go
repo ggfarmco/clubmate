@@ -532,7 +532,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 		Open:        open,
 		OpenDraft:   st.open.clone(),
 	}
-	sc.ReviewStates, sc.ReviewsOpen = a.reviews.cards()
+	sc.ReviewStates, sc.ReviewsOpen = a.reviews.cards(v.ReviewStates)
 	return sc
 }
 
