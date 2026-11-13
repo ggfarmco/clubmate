@@ -217,6 +217,26 @@ final class BrowserTabTests: XCTestCase {
         XCTAssertNotNil(ref(in: text, for: #"button "Los""#), String(text.suffix(300)))
     }
 
+    func testSnapshotOverTheCapStartsAtScrollPosition() async throws {
+        let paragraphs = (1...3000).map { "<p>Absatz-\($0)- mit etwas Fülltext</p>" + ($0 == 2900 ? #"<button onclick="document.title='unten'">Unten</button>"# : "") }
+        let header = #"<header>Kopf<button style="position: fixed; top: 0; right: 0">Menü</button></header>"#
+        let server = try await serve(["/a": FixtureResponse(body: "<title>L</title>" + header + paragraphs.joined())])
+        let tab = makeTab()
+        _ = await tab.open(server.url("/a"))
+        let first = try await tab.snapshot().text
+        XCTAssertTrue(first.contains("Absatz-1-"), String(first.prefix(300)))
+        XCTAssertFalse(first.contains("Absatz-2900-"), String(first.suffix(300)))
+        _ = try await tab.webView.evaluateJavaScript("document.querySelectorAll('button')[1].scrollIntoView({ block: 'start' }); 0")
+        let second = try await tab.snapshot().text
+        XCTAssertTrue(second.hasPrefix("… content above the scroll position left out"), String(second.prefix(300)))
+        XCTAssertFalse(second.contains("Absatz-1-"), String(second.prefix(300)))
+        XCTAssertTrue(second.contains("Absatz-2950-"), String(second.prefix(300)))
+        XCTAssertNotNil(ref(in: second, for: #"button "Menü""#), String(second.prefix(300)))
+        let button = try XCTUnwrap(ref(in: second, for: #"button "Unten""#), String(second.prefix(300)))
+        let page = try await tab.click(ref: button)
+        XCTAssertEqual(page.title, "unten")
+    }
+
     func testUnresponsivePageFailsAction() async throws {
         let server = try await serve(["/a": FixtureResponse(body: #"<button onclick="const end = Date.now() + 6000; while (Date.now() < end) {}">Warten</button>"#)])
         let tab = makeTab(timeout: .seconds(3))

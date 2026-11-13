@@ -18,6 +18,7 @@ enum BrowserScript {
     static let snapshot = #"""
     const limit = 40000
     const tail = '… truncated, scroll and snapshot again'
+    const head = '… content above the scroll position left out, scroll up and snapshot again'
     const roles = new Set(['button', 'link', 'checkbox', 'radio', 'tab', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'switch', 'combobox', 'textbox', 'searchbox', 'option', 'slider', 'spinbutton'])
     const skipped = new Set(['script', 'style', 'noscript', 'template', 'head', 'svg', 'iframe', 'object', 'canvas'])
     const blockLimit = 4000
@@ -27,6 +28,8 @@ enum BrowserScript {
     let size = 0
     let full = false
     let buffer = ''
+    let fromView = false
+    let cut = false
     let counter = next
     const clean = s => (s || '').replace(/[\s\u0085]+/g, ' ').trim()
     const quote = (s, max = 200) => JSON.stringify(clean(s).slice(0, max))
@@ -109,6 +112,14 @@ enum BrowserScript {
     const walk = el => {
         if (full || skipped.has(el.localName)) return
         if (el.getAttribute('aria-hidden') === 'true' || !el.checkVisibility()) return
+        if (fromView) {
+            const rect = el.getBoundingClientRect()
+            if (rect.height > 0 && rect.bottom < 0) {
+                cut = true
+                for (const child of el.children) walk(child)
+                return
+            }
+        }
         const style = getComputedStyle(el)
         const shown = style.visibility === 'visible'
         const role = roleOf(el)
@@ -134,9 +145,20 @@ enum BrowserScript {
         }
         if (block) flush()
     }
-    if (document.body) walk(document.body)
-    flush()
-    return JSON.stringify({ text: lines.join('\n') + (full ? '\n' + tail : ''), next: counter })
+    const collect = () => {
+        lines.length = 0
+        size = fromView ? head.length + 1 : 0
+        full = false
+        buffer = ''
+        if (document.body) walk(document.body)
+        flush()
+    }
+    collect()
+    if (full) {
+        fromView = true
+        collect()
+    }
+    return JSON.stringify({ text: (cut ? head + '\n' : '') + lines.join('\n') + (full ? '\n' + tail : ''), next: counter })
     """#
 
     private static let prelude = #"""
