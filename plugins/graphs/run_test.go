@@ -200,6 +200,70 @@ func TestRunIsListedWhileItsNodesStart(t *testing.T) {
 	assert.Equal(t, [2]string{r.ID, statusRunning}, [2]string{listed[0].ID, listed[0].Status})
 }
 
+func TestStopWhileNodesStartAbandonsTheRun(t *testing.T) {
+	core := &fakeCore{}
+	a := testApp(t, core)
+	require.NoError(t, trustGraph(t, a, "review-loop"))
+	var shown shownRun
+	var stopped any
+	var once sync.Once
+	var news int
+	core.on = map[string]func(){"agents.new": func() {
+		if news++; news < 2 {
+			return
+		}
+		once.Do(func() {
+			out, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.list", WorkspaceID: "ws1"})
+			require.NoError(t, err)
+			id := json.RawMessage(`{"id":"` + out.(listResult).Runs[0].ID + `"}`)
+			out, err = a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.show", WorkspaceID: "ws1", Args: id})
+			require.NoError(t, err)
+			shown = out.(shownRun)
+			stopped, err = a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.stop", WorkspaceID: "ws1", Args: id})
+			require.NoError(t, err)
+		})
+	}}
+
+	_, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.run", WorkspaceID: "ws1", Args: json.RawMessage(`{"graph":"review-loop","input":"x"}`)})
+
+	require.ErrorContains(t, err, "was stopped while its nodes started")
+	assert.Equal(t, 1, shown.Number)
+	assert.Equal(t, [2]string{"agt_1", ""}, [2]string{shown.Nodes[0].Session, shown.Nodes[1].Session})
+	assert.Equal(t, "starting", shown.Nodes[1].Status)
+	assert.Equal(t, statusStopped, stopped.(*Run).Status)
+	assert.NotContains(t, core.ids(), "agents.prompt")
+	assert.Contains(t, core.ids(), "agents.close")
+	out, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.list", WorkspaceID: "ws1"})
+	require.NoError(t, err)
+	assert.Empty(t, out.(listResult).Runs)
+}
+
+func TestStopDuringKickoffPromptsNoFurtherStartNode(t *testing.T) {
+	core := &fakeCore{}
+	a := testApp(t, core)
+	dir := filepath.Join(a.home, graphsDir)
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "pair.json"), []byte(`{"nodes":[{"id":"a","role":"A","start":true,"prompt":"a"},{"id":"b","role":"B","start":true,"prompt":"b"}],"edges":[]}`), 0o644))
+	var once sync.Once
+	core.on = map[string]func(){"agents.prompt": func() {
+		once.Do(func() {
+			out, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.list", WorkspaceID: "ws1"})
+			require.NoError(t, err)
+			_, err = a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.stop", WorkspaceID: "ws1", Args: json.RawMessage(`{"id":"` + out.(listResult).Runs[0].ID + `"}`)})
+			require.NoError(t, err)
+		})
+	}}
+
+	_, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.run", WorkspaceID: "ws1", Args: json.RawMessage(`{"graph":"pair"}`)})
+
+	require.ErrorContains(t, err, "was stopped while its nodes started")
+	assert.Len(t, slices.DeleteFunc(core.ids(), func(id string) bool { return id != "agents.prompt" }), 1)
+	out, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.list", WorkspaceID: "ws1"})
+	require.NoError(t, err)
+	require.Len(t, out.(listResult).Runs, 1)
+	assert.Equal(t, statusStopped, out.(listResult).Runs[0].Status)
+}
+
 func TestRunCreatesNoSessionOrTriggerForSteps(t *testing.T) {
 	core := &fakeCore{}
 	a := testApp(t, core)

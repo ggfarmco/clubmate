@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -368,6 +369,8 @@ func reply(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request, resu
 		rpcErr.SetError(contract.ErrorReason{Reason: reasoned.reason})
 	case !errors.As(err, &rpcErr):
 		rpcErr = &jsonrpc2.Error{Code: jsonrpc2.CodeInternalError, Message: err.Error()}
+	case err != error(rpcErr):
+		rpcErr = &jsonrpc2.Error{Code: rpcErr.Code, Message: strings.Replace(err.Error(), rpcErr.Error(), rpcErr.Message, 1), Data: rpcErr.Data}
 	}
 	_ = conn.ReplyWithError(ctx, req.ID, rpcErr)
 }

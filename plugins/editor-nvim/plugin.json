@@ -180,6 +180,7 @@
         "title": "Release worktree Neovim",
         "hidden": true,
         "agent": false,
+        "timeout": 60,
         "handles": ["git.worktree.released"],
         "description": "End a stop-root: Neovim may start in the given root again, and starts now when it is still the workspace's current root.",
         "args": {

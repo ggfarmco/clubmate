@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/editorroot"
@@ -21,6 +22,7 @@ import (
 const (
 	lightMaxSize = 5 * 1024 * 1024
 	binarySniff  = 8000
+	rootBudget   = 55 * time.Second
 )
 
 var (
@@ -127,6 +129,8 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err != nil {
 			return nil, err
 		}
+		ctx, cancel := context.WithTimeout(ctx, rootBudget)
+		defer cancel()
 		return nil, a.stopRoot(ctx, h, cmd.WorkspaceID, args.Root, args.Force)
 	case "unsaved":
 		args, err := decodeRoot(name, cmd.Args, errUnsavedRoot)
@@ -145,6 +149,8 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err != nil {
 			return nil, err
 		}
+		ctx, cancel := context.WithTimeout(ctx, rootBudget)
+		defer cancel()
 		return nil, a.releaseRoot(ctx, h, cmd.WorkspaceID, args.Root)
 	case "import-config":
 		return a.importConfig(ctx, h, cmd.WorkspaceID)

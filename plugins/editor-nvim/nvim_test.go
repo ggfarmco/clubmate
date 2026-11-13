@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -18,6 +19,7 @@ import (
 	"clubmate/internal/testutil"
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/internal/editorroot"
 )
 
 func TestOwnedSocketAcceptsDistroArgv(t *testing.T) {
@@ -46,10 +48,29 @@ func TestStopRootOutlastsAStartingNeovim(t *testing.T) {
 	raw, err := os.ReadFile("plugin.json")
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(raw, &m))
-	i := slices.IndexFunc(m.Contributes.Commands, func(c command) bool { return c.ID == "editor-nvim.stop-root" })
-	require.GreaterOrEqual(t, i, 0)
 	connect := socketWait + startupWait + rpcTimeout
-	assert.GreaterOrEqual(t, time.Duration(m.Contributes.Commands[i].Timeout)*time.Second, 2*connect+2*rpcTimeout)
+	assert.GreaterOrEqual(t, rootBudget, 2*connect+2*rpcTimeout)
+	for _, id := range []string{"editor-nvim.stop-root", "editor-nvim.release-root"} {
+		i := slices.IndexFunc(m.Contributes.Commands, func(c command) bool { return c.ID == id })
+		require.GreaterOrEqual(t, i, 0, id)
+		assert.GreaterOrEqual(t, time.Duration(m.Contributes.Commands[i].Timeout)*time.Second, rootBudget+5*time.Second, id)
+	}
+}
+
+func TestStopRootGivesUpWhileTheEditorIsBusy(t *testing.T) {
+	a := &app{editors: map[editorKey]*editor{}, roots: editorroot.NewRoots(), stopping: map[editorKey]bool{}}
+	e := a.editorAt("ws", "/repo/wt")
+	e.life.Lock()
+	defer e.life.Unlock()
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	defer cancel()
+
+	err := a.stopEditor(ctx, nil, e, []string{"s1"}, true)
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.ErrorIs(t, err, errEditorBusy)
+	assert.False(t, a.isStopping("ws", "/repo/wt"))
+	assert.Same(t, e, a.lookup("ws", "/repo/wt"))
 }
 
 func TestDialWaitsUntilSocketListens(t *testing.T) {

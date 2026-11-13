@@ -21,6 +21,7 @@ var (
 	errUnsavedUnknown = fmt.Errorf("%w: unknown (nvim not responding)", errUnsaved)
 	errDeleted        = errors.New("workspace deleted")
 	errStopping       = errors.New("the worktree is being removed")
+	errEditorBusy     = errors.New("the editor is busy, try again")
 	errUnsavedSwitch  = errors.New("Save or discard unsaved changes first")
 )
 
@@ -77,7 +78,9 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 }
 
 func (a *app) show(ctx context.Context, h *pluginsdk.Host, e *editor) error {
-	e.life.Lock()
+	if err := e.life.LockCtx(ctx); err != nil {
+		return err
+	}
 	defer e.life.Unlock()
 	if !a.isCurrent(e) {
 		return nil
@@ -167,6 +170,9 @@ func (a *app) stopRoot(ctx context.Context, h *pluginsdk.Host, workspaceID, root
 	}
 	e := a.lookup(workspaceID, root)
 	if e == nil && len(kill) == 0 {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("%w: %w", errEditorBusy, err)
+		}
 		a.setStopping(workspaceID, root, true)
 		return nil
 	}
@@ -175,14 +181,23 @@ func (a *app) stopRoot(ctx context.Context, h *pluginsdk.Host, workspaceID, root
 			return nil
 		}
 	}
-	e.life.Lock()
+	return a.stopEditor(ctx, h, e, kill, force)
+}
+
+func (a *app) stopEditor(ctx context.Context, h *pluginsdk.Host, e *editor, kill []string, force bool) error {
+	if err := e.life.LockCtx(ctx); err != nil {
+		return fmt.Errorf("%w: %w", errEditorBusy, err)
+	}
 	defer e.life.Unlock()
 	if !force {
 		if err := a.checkUnsaved(ctx, h, []*editor{e}, map[*editor]bool{e: len(kill) > 0}); err != nil {
 			return err
 		}
 	}
-	a.setStopping(workspaceID, root, true)
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("%w: %w", errEditorBusy, err)
+	}
+	a.setStopping(e.id, e.root, true)
 	if c := e.reset(); c != nil {
 		c.close()
 	}

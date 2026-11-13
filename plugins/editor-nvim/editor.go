@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -16,7 +17,7 @@ type editorKey struct {
 type editor struct {
 	id       string
 	root     string
-	life     sync.Mutex
+	life     lifeLock
 	renderMu sync.Mutex
 	mu       sync.Mutex
 	session  string
@@ -39,7 +40,7 @@ func (a *app) editorLocked(workspaceID, root string) *editor {
 	key := editorKey{workspace: workspaceID, root: root}
 	e, ok := a.editors[key]
 	if !ok {
-		e = &editor{id: workspaceID, root: root}
+		e = &editor{id: workspaceID, root: root, life: make(lifeLock, 1)}
 		a.editors[key] = e
 	}
 	return e
@@ -243,5 +244,27 @@ func lockAll(editors []*editor) func() {
 		for _, e := range editors {
 			e.life.Unlock()
 		}
+	}
+}
+
+type lifeLock chan struct{}
+
+func (l lifeLock) Lock() {
+	l <- struct{}{}
+}
+
+func (l lifeLock) Unlock() {
+	<-l
+}
+
+func (l lifeLock) LockCtx(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	select {
+	case l <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }

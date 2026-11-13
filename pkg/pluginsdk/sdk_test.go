@@ -3,6 +3,7 @@ package pluginsdk_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"path/filepath"
 	"strconv"
@@ -79,6 +80,19 @@ func TestSDKDispatchesRequests(t *testing.T) {
 	var got map[string]string
 	require.NoError(t, conn.Call(t.Context(), "ui.event", map[string]any{"action": "click", "value": 7}, &got))
 	assert.Equal(t, map[string]string{"action": "click", "value": "7"}, got)
+}
+
+func TestSDKReplyKeepsHandlerPrefixOfWrappedRPCError(t *testing.T) {
+	inner := &jsonrpc2.Error{Code: contract.CodePluginError, Message: "the session is closed"}
+	inner.SetError(map[string]string{"plugin": "agents"})
+	conn := startPlugin(t, pluginsdk.Plugin{
+		Command: func(context.Context, *pluginsdk.Host, pluginsdk.CommandRun) (any, error) {
+			return nil, fmt.Errorf("start node: %w", inner)
+		},
+	}, nil)
+	var rpcErr *jsonrpc2.Error
+	require.ErrorAs(t, conn.Call(t.Context(), "command.run", map[string]any{"id": "x.run"}, nil), &rpcErr)
+	assert.Equal(t, jsonrpc2.Error{Code: inner.Code, Message: "start node: the session is closed", Data: inner.Data}, *rpcErr)
 }
 
 func TestSDKDeliversBusEventWithSubscription(t *testing.T) {

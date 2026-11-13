@@ -174,7 +174,7 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	r.Builtin, r.User = from == fromBuiltin, from == fromUser
 	r.Dir = graphDir(dirs, args.Graph)
 	r.Starts = a.startCommits(ctx, cmd.WorkspaceID, append(dirs, r.Dir))
-	x := &runner{call: a.runCommand, run: r}
+	x := &runner{call: a.runCommand, run: r, started: a.nodeStarted(r.ID), live: a.running(r)}
 	a.launch(r)
 	defer a.launched(r.ID)
 	if err := x.start(ctx, g); err != nil {
@@ -185,7 +185,9 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 		x.abandon(ctx)
 		return nil, err
 	}
-	if err := x.kickoff(ctx, g); err != nil {
+	if err := x.kickoff(ctx, g); errors.Is(err, errRunStopped) {
+		return nil, fmt.Errorf(errStoppedStarting, r.ID)
+	} else if err != nil {
 		a.mu.Lock()
 		r.stop(fmt.Sprintf(reasonKickoff, err), a.now())
 		a.touch(r.Workspace)
@@ -204,7 +206,7 @@ func (a *app) show(ctx context.Context, cmd pluginsdk.CommandRun) (shownRun, err
 	if err := automation.Decode(cmd, &args); err != nil {
 		return shownRun{}, err
 	}
-	r, err := a.lookup(cmd.WorkspaceID, args.ID)
+	r, err := a.find(cmd.WorkspaceID, args.ID, true)
 	if err != nil {
 		return shownRun{}, err
 	}
@@ -238,6 +240,9 @@ func (a *app) show(ctx context.Context, cmd pluginsdk.CommandRun) (shownRun, err
 		}
 		s := sessions[n.Session]
 		shown.Title, shown.Status = s.Title, nodeStatus(s, sessions != nil)
+		if n.Session == "" {
+			shown.Status = "starting"
+		}
 		outcome, spent, open := r.agentMoves(n.ID)
 		shown.DurationMs = spent.Milliseconds()
 		switch shown.Status {
@@ -259,7 +264,7 @@ func (a *app) stopRun(ctx context.Context, cmd pluginsdk.CommandRun, forget bool
 	if err := automation.Decode(cmd, &args); err != nil {
 		return nil, err
 	}
-	r, err := a.lookup(cmd.WorkspaceID, args.ID)
+	r, err := a.find(cmd.WorkspaceID, args.ID, true)
 	if err != nil {
 		return nil, err
 	}
@@ -269,8 +274,8 @@ func (a *app) stopRun(ctx context.Context, cmd pluginsdk.CommandRun, forget bool
 	a.mu.Lock()
 	live, ok := a.runs[r.ID]
 	if !ok {
-		a.mu.Unlock()
-		return nil, unknownRun(r.ID)
+		defer a.mu.Unlock()
+		return a.stopLaunching(r.ID, forget)
 	}
 	var saveErr error
 	if live.Status == statusRunning {
@@ -307,7 +312,40 @@ func (a *app) stopRun(ctx context.Context, cmd pluginsdk.CommandRun, forget bool
 func (a *app) launch(r *Run) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	r.Number = a.nextNumber(r)
 	a.launching[r.ID] = cloneRun(r)
+}
+
+func (a *app) nodeStarted(id string) func(int, string) {
+	return func(node int, session string) {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		if l, ok := a.launching[id]; ok {
+			l.Nodes[node].Session = session
+		}
+	}
+}
+
+func (a *app) running(r *Run) func() bool {
+	return func() bool {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		return r.Status == statusRunning
+	}
+}
+
+func (a *app) stopLaunching(id string, forget bool) (*Run, error) {
+	l, ok := a.launching[id]
+	if !ok {
+		return nil, unknownRun(id)
+	}
+	if l.Status == statusRunning {
+		l.stop(reasonStopped, a.now())
+	}
+	if forget {
+		return nil, nil
+	}
+	return publicRun(l), nil
 }
 
 func (a *app) launched(id string) {
@@ -319,6 +357,9 @@ func (a *app) launched(id string) {
 func (a *app) put(ctx context.Context, r *Run) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if l, ok := a.launching[r.ID]; ok && l.Status == statusStopped {
+		return fmt.Errorf(errStoppedStarting, r.ID)
+	}
 	if r.Number == 0 {
 		r.Number = a.nextNumber(r)
 	}
@@ -332,7 +373,7 @@ func (a *app) put(ctx context.Context, r *Run) error {
 
 func (a *app) nextNumber(r *Run) int {
 	n := 0
-	for _, o := range a.runs {
+	for _, o := range slices.Concat(slices.Collect(maps.Values(a.runs)), slices.Collect(maps.Values(a.launching))) {
 		if o.Workspace == r.Workspace && o.Graph == r.Graph {
 			n = max(n, o.Number)
 		}
@@ -352,9 +393,16 @@ func (a *app) numberRuns(ctx context.Context) {
 }
 
 func (a *app) lookup(workspace, id string) (*Run, error) {
+	return a.find(workspace, id, false)
+}
+
+func (a *app) find(workspace, id string, launching bool) (*Run, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	r, ok := a.runs[id]
+	if !ok && launching {
+		r, ok = a.launching[id]
+	}
 	if !ok || r.Workspace != workspace {
 		return nil, unknownRun(id)
 	}

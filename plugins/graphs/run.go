@@ -16,17 +16,21 @@ import (
 )
 
 const (
-	runPrefix       = "run/"
-	runIDPrefix     = "gr"
-	statusRunning   = "running"
-	statusStopped   = "stopped"
-	eventPrefix     = "event."
-	graphTopic      = "graph."
-	maxInput        = 16 << 10
-	errTriggersLeft = "run %s is stopped and its steps are cancelled, but edge triggers are left (stop it again to retry, or delete them in Triggers): %w"
+	runPrefix          = "run/"
+	runIDPrefix        = "gr"
+	statusRunning      = "running"
+	statusStopped      = "stopped"
+	eventPrefix        = "event."
+	graphTopic         = "graph."
+	maxInput           = 16 << 10
+	errTriggersLeft    = "run %s is stopped and its steps are cancelled, but edge triggers are left (stop it again to retry, or delete them in Triggers): %w"
+	errStoppedStarting = "run %s was stopped while its nodes started"
 )
 
-var errInputPlaceholder = errors.New("input: must not contain {{")
+var (
+	errInputPlaceholder = errors.New("input: must not contain {{")
+	errRunStopped       = errors.New("run stopped")
+)
 
 type Run struct {
 	ID        string      `json:"id"`
@@ -124,8 +128,10 @@ type sessionArgs struct {
 }
 
 type runner struct {
-	call func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error)
-	run  *Run
+	call    func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error)
+	run     *Run
+	started func(node int, session string)
+	live    func() bool
 }
 
 func newRun(g *Graph, workspace, input string, agent bool, caller string, now time.Time) (*Run, error) {
@@ -181,6 +187,9 @@ func (x *runner) start(ctx context.Context, g *Graph) error {
 			return fmt.Errorf("start node %s: %w", n.ID, err)
 		}
 		x.run.Nodes[i].Session = out.Session
+		if x.started != nil {
+			x.started(i, out.Session)
+		}
 	}
 	for i, e := range g.Edges {
 		if g.owned(e) {
@@ -207,6 +216,9 @@ func (x *runner) kickoff(ctx context.Context, g *Graph) error {
 		text := x.brief(&n)
 		if x.run.Input != "" && !strings.Contains(n.Prompt, "{{input}}") {
 			text += "\n\nTask:\n" + x.run.Input
+		}
+		if x.live != nil && !x.live() {
+			return errRunStopped
 		}
 		if err := x.do(ctx, "agents.prompt", promptArgs{Session: x.run.Nodes[i].Session, Text: text}, nil); err != nil {
 			return fmt.Errorf("prompt node %s: %w", n.ID, err)
