@@ -92,21 +92,6 @@ func RunJSONRows(id string, selected Run, picked, open bool) []sdui.Node {
 	return rows
 }
 
-func RunCounts(history []Run) string {
-	counts := map[string]int{}
-	for _, r := range history {
-		label, _ := StatusLabel(r)
-		counts[label]++
-	}
-	var parts []string
-	for _, label := range []string{LabelOK, LabelFailed, LabelMissed, LabelSkipped} {
-		if n := counts[label]; n > 0 {
-			parts = append(parts, label+" "+strconv.Itoa(n))
-		}
-	}
-	return strings.Join(parts, " · ")
-}
-
 func runJSON(r Run) string {
 	out := struct {
 		Run

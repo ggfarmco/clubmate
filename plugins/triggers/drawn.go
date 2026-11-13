@@ -465,13 +465,18 @@ func hopOut(r Run) string {
 func drawnRuns(t *Trigger, triggers []*Trigger, titles map[string]string, shape *graphShape, loc *time.Location) (caption string, flow sdui.Node, lanes sdui.Node, ok bool) {
 	if t.Run != "" {
 		e, found := graphEdge(t)
-		flow, drawn := graphFlow(t, triggers, titles, shape)
-		if !found || !drawn {
-			return "", sdui.Node{}, sdui.Node{}, false
+		if !found {
+			prefix := t.RunTitle + " · "
+			cause := sdui.LaneActor{Label: strings.TrimPrefix(causeLabel(t, titles), prefix), Icon: causeIcon(t)}
+			effect := sdui.LaneActor{Label: strings.TrimPrefix(effectLabel(t, titles), prefix), Icon: agentIcon}
+			return "", sdui.Node{}, runLanes(t, cause, effect, "", titles, loc), false
 		}
-		caption = "In graph " + runName(t) + " — this trigger is one of its edges"
 		lanes = runLanes(t, sdui.LaneActor{Label: role(t, e.from, titles), Icon: agentIcon}, sdui.LaneActor{Label: role(t, e.to, titles), Icon: agentIcon}, e.out, titles, loc)
-		return caption, flow, lanes, true
+		flow, drawn := graphFlow(t, triggers, titles, shape)
+		if !drawn {
+			return "", sdui.Node{}, lanes, false
+		}
+		return "In graph " + runName(t) + " — this trigger is one of its edges", flow, lanes, true
 	}
 	caption, flow = chainFlow(t, titles, loc)
 	cause := sdui.LaneActor{Label: causeLabel(t, titles), Icon: causeIcon(t)}

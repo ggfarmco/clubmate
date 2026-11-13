@@ -123,6 +123,22 @@ func TestUserTriggerDrawsItsLastChainAndRunsAsLanes(t *testing.T) {
 	assert.Equal(t, []string{actOpenSession, ""}, []string{rows[0].Cells[3].Action, rows[1].Cells[3].Action})
 }
 
+func TestUndrawnGraphTriggerFoldsItsRunsUnderLanes(t *testing.T) {
+	at := time.Date(2026, 11, 3, 2, 36, 0, 0, time.UTC)
+	step := &Trigger{ID: "tr_7", Name: "Review loop: on event", Enabled: true, Run: "gr_1", RunTitle: "Review loop",
+		On: "event.review", Command: automation.PromptCommand, Args: json.RawMessage(`{"session":"agt_2","text":"Go"}`),
+		History: []Run{{At: at, Topic: "event.review", Status: automation.StatusOK}, {At: at.Add(time.Minute), Topic: "event.review", Status: automation.StatusError, Reason: "boom"}}}
+
+	view := mainView(step, []*Trigger{step}, map[string]string{"agt_2": "Review loop · Reviewer"}, nil, automation.Open{}, automation.RunsView{})
+	require.NoError(t, isdui.Validate(view))
+	assert.Empty(t, find(view, "flow").Type)
+	lanes := find(view, "lanes")
+	assert.Equal(t, true, lanes.Props["collapsed"])
+	assert.Equal(t, 2, lanes.Props["count"])
+	assert.Equal(t, []string{"table", "form"}, []string{lanes.Children[0].Type, lanes.Children[1].Type})
+	assert.Equal(t, "Reviewer", lanes.Props["actors"].([]sdui.LaneActor)[1].Label)
+}
+
 func TestNoTriggersShowGhostFlow(t *testing.T) {
 	view := mainView(nil, nil, nil, nil, automation.Open{}, automation.RunsView{})
 	require.NoError(t, isdui.Validate(view))
