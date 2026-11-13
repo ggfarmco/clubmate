@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -33,7 +34,7 @@ const (
 	modulesDir     = "modules"
 	goneTrack      = "[gone]"
 	refsFormat     = "--format=%(refname) %(objectname) %(upstream:track)"
-	mergedFormat   = "--format=%(refname)"
+	mergedFormat   = "--format=%(refname) %(committerdate:unix)"
 	parentsFormat  = "--format=%P"
 	remoteFormat   = "--format=%(refname) %(upstream) %(upstream:track)"
 	remoteHead     = "HEAD"
@@ -314,13 +315,22 @@ func readRefs(ctx context.Context, top string, trees []gitrepo.Worktree) (repoRe
 	if err != nil {
 		return repoRefs{}, err
 	}
+	committed := map[string]string{}
 	for line := range strings.Lines(string(raw)) {
-		out.mergedTo[strings.TrimPrefix(strings.TrimSpace(line), headsPrefix)] = true
+		ref, date, _ := strings.Cut(strings.TrimSpace(line), " ")
+		branch := strings.TrimPrefix(ref, headsPrefix)
+		out.mergedTo[branch], committed[branch] = true, date
 	}
-	if !slices.ContainsFunc(trees[1:], func(t gitrepo.Worktree) bool { return out.mergedTo[t.Branch] }) {
+	oldest := int64(math.MaxInt64)
+	for _, t := range trees[1:] {
+		if date, err := strconv.ParseInt(committed[t.Branch], 10, 64); out.mergedTo[t.Branch] && err == nil {
+			oldest = min(oldest, date)
+		}
+	}
+	if oldest == math.MaxInt64 {
 		return out, nil
 	}
-	raw, err = inert(ctx, top, append(append([]string{"log", "--first-parent", "--merges", parentsFormat}, out.bases...), "--")...)
+	raw, err = inert(ctx, top, append(append([]string{"log", "--first-parent", "--merges", "--max-age=" + strconv.FormatInt(oldest, 10), parentsFormat}, out.bases...), "--")...)
 	if err != nil {
 		return repoRefs{}, err
 	}
