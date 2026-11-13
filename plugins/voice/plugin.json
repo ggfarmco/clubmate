@@ -116,7 +116,7 @@
         "hidden": true,
         "agent": true,
         "timeout": 120,
-        "description": "Voice session only: answer another agent session as the user. Give text for a plain answer, request with answers for a question (elicitation), or request with option for a permission request. Allowing a permission goes straight through only for the request in the utterance's context.session and only when heard asks to allow (allow, approve, разреши, одобри, позволь, with no negation or refusal word such as не, нет, no, not, don't, deny, reject, block, запрети, отклони or откажи); every other allow, and allow_always, waits for the user's confirmation first. Fails with \"the utterance is over\" once the utterance was cancelled, timed out or finished. Non-destructive.",
+        "description": "Voice session only: answer another agent session as the user. Give text for a plain answer, request with answers for a question (elicitation), or request with option for a permission request. Allowing a permission goes straight through only for the request in the utterance's context.session and only when heard asks to allow (allow, approve, разреши, одобри, позволь, with no negation or refusal word such as не, нет, no, not, don't, deny, reject, block, запрети, отклони or откажи); every other allow, and allow_always, waits up to 60 s for the user's confirmation first; a decline or no answer fails with \"the user declined\". Fails with \"the utterance is over\" once the utterance was cancelled, timed out or finished. Non-destructive.",
         "args": {
           "properties": {
             "utterance": {"type": "string", "description": "Utterance id (vu_…) from the prompt."},
@@ -146,7 +146,7 @@
         "hidden": true,
         "agent": true,
         "timeout": 120,
-        "description": "Voice session only: run a dangerous Clubmate command for the user: a destructive agent-visible command or terminal input (session.send). It waits until the user confirms on the device they spoke from (at most 60 s); a decline fails with \"the user declined\". Other commands fail with \"not dangerous\": call them directly as MCP tools. Answers to sessions go through voice.answer instead. Returns the command's result.",
+        "description": "Voice session only: run a dangerous Clubmate command for the user: a destructive agent-visible command or terminal input (session.send). It waits until the user confirms on the device they spoke from (at most 60 s); a decline, or no answer within 60 s, fails with \"the user declined\". Other commands fail with \"not dangerous\": call them directly as MCP tools. Answers to sessions go through voice.answer instead. Returns the command's result.",
         "args": {
           "properties": {
             "utterance": {"type": "string", "description": "Utterance id (vu_…) from the prompt."},

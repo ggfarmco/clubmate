@@ -42,7 +42,7 @@
         "id": "editor-vscode.terminal",
         "title": "Open terminal here",
         "agent": true,
-        "description": "Open a new terminal in the current root: the selected worktree of the first workspace folder that exists, else home."
+        "description": "Open a new terminal in the root VS Code shows (at first the selected worktree of the first workspace folder that exists, else home)."
       },
       {
         "id": "editor-vscode.restart",
@@ -71,7 +71,7 @@
         "hidden": true,
         "agent": true,
         "scope": "app",
-        "description": "Install every extension of the desktop VS Code (code --list-extensions) that the VS Code in Clubmate doesn't have yet, from the Marketplace, one by one; returns {installed, skipped, failed: [{id, error}]} once done and reloads the VS Code section if anything was installed. Fails when the VS Code server isn't downloaded yet or an import is already running. Settings → VS Code shows the progress and the result.",
+        "description": "Install every extension of the desktop VS Code (code --list-extensions) that the VS Code in Clubmate doesn't have yet, from the Marketplace, one by one; returns {installed, skipped, failed: [{id, error}]} once done and reloads the VS Code section if anything was installed. Fails when VS Code isn't installed, the VS Code server isn't downloaded yet, an import is already running or listing extensions fails. Settings → VS Code shows the progress and the result.",
         "result": {
           "properties": {
             "installed": {"type": "array", "items": {"type": "string"}, "description": "Extension ids installed now."},

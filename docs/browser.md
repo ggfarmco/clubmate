@@ -13,9 +13,9 @@ Agents call them over MCP as `mcp__clubmate__browser_*`, or as commands `browser
 | `browser_open` | `url` (https; see below) | `{url, status, title, blocked}` once the page loaded |
 | `browser_snapshot` | | `{url, title, text}`: the page as text, see below |
 | `browser_click` | `ref` | page summary like `browser_open` |
-| `browser_type` | `ref`, `text`, `submit?` (press Enter after) | page summary |
+| `browser_type` | `ref`, `text` (replaces the field's text), `submit?` (submit its form after, or press Enter without a form) | page summary |
 | `browser_select` | `ref`, `option` (label or value of a `<select>` option) | page summary |
-| `browser_press` | `key`: `Enter`, `Escape`, `Tab`, `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`, `Backspace` | page summary |
+| `browser_press` | `key`: `Enter`, `Escape`, `Tab`, `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`, `Backspace` (sent to the focused element: Enter submits or clicks, Tab moves focus, the rest only reach the page's key handlers) | page summary |
 | `browser_scroll` | `direction` (`up`, `down`) or `ref` (scroll it into view) | page summary |
 | `browser_back` | | page summary |
 | `browser_screenshot` | | `{path}`: a PNG of the viewport in `$TMPDIR/clubmate-browser/` |
