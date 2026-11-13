@@ -20,6 +20,9 @@ type forkedPayload struct {
 }
 
 func main() {
+	if d, err := time.ParseDuration(os.Getenv("ECHO_START_DELAY")); err == nil {
+		time.Sleep(d)
+	}
 	if os.Getenv("ECHO_CRASH") == "1" {
 		os.Exit(3)
 	}

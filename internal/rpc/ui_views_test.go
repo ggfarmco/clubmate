@@ -212,18 +212,20 @@ func TestWorkspaceDeleteDropsSlots(t *testing.T) {
 func TestHiddenCommandListed(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"commands":[{"id":"alpha.secret","title":"Secret","hidden":true},{"id":"alpha.open","title":"Open"}]}`)))
+	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == plugin.StateRunning }, 5*time.Second)
 	assert.ElementsMatch(t, []rpc.Command{
-		{CommandDef: rpc.CommandDef{ID: "alpha.secret", Title: "Secret", Hidden: true}, Plugin: "alpha"},
-		{CommandDef: rpc.CommandDef{ID: "alpha.open", Title: "Open"}, Plugin: "alpha"},
+		{CommandDef: rpc.CommandDef{ID: "alpha.secret", Title: "Secret", Hidden: true}, Plugin: "alpha", Running: true},
+		{CommandDef: rpc.CommandDef{ID: "alpha.open", Title: "Open"}, Plugin: "alpha", Running: true},
 	}, pluginCommands(t, h))
 }
 
 func TestCommandConfirmListed(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"commands":[{"id":"alpha.drop","title":"Drop","confirm":"Sure?"},{"id":"alpha.open","title":"Open"}]}`)))
+	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == plugin.StateRunning }, 5*time.Second)
 	assert.ElementsMatch(t, []rpc.Command{
-		{CommandDef: rpc.CommandDef{ID: "alpha.drop", Title: "Drop", Confirm: "Sure?"}, Plugin: "alpha"},
-		{CommandDef: rpc.CommandDef{ID: "alpha.open", Title: "Open"}, Plugin: "alpha"},
+		{CommandDef: rpc.CommandDef{ID: "alpha.drop", Title: "Drop", Confirm: "Sure?"}, Plugin: "alpha", Running: true},
+		{CommandDef: rpc.CommandDef{ID: "alpha.open", Title: "Open"}, Plugin: "alpha", Running: true},
 	}, pluginCommands(t, h))
 }
 

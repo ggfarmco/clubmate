@@ -114,6 +114,7 @@ type Supervisor struct {
 	plugins map[string]*instance
 	order   []string
 	gen     uint64
+	moved   chan struct{}
 }
 
 type instance struct {
@@ -197,6 +198,7 @@ func NewSupervisor(srv *rpc.Server, dirs paths.Dirs, logger *slog.Logger, opts .
 		pingTimeout: defaultPingTimeout,
 		pingMisses:  defaultPingMisses,
 		plugins:     map[string]*instance{},
+		moved:       make(chan struct{}),
 		enabled:     Manifest.DefaultEnabled,
 	}
 	s.hurryCtx, s.hurry = context.WithCancel(context.Background())
@@ -222,7 +224,7 @@ func (s *Supervisor) Start(ctx context.Context, manifests []Manifest) {
 			s.launch(inst)
 		}
 	}
-	s.gen++
+	s.bumpLocked()
 	s.mu.Unlock()
 }
 
@@ -263,14 +265,14 @@ func (s *Supervisor) SetEnabled(ctx context.Context, id string, enabled bool) er
 		default:
 		}
 		s.launch(inst)
-		s.gen++
+		s.bumpLocked()
 		s.mu.Unlock()
 		s.changed(id, false)
 		return nil
 	}
 	inst.status.Enabled = false
 	stop, done := inst.stop, inst.done
-	s.gen++
+	s.bumpLocked()
 	s.mu.Unlock()
 	stop()
 	select {
@@ -329,6 +331,36 @@ func (s *Supervisor) Conn(id string) (*jsonrpc2.Conn, bool) {
 		return nil, false
 	}
 	return inst.conn, true
+}
+
+func (s *Supervisor) awaitConn(ctx context.Context, id string, timeout time.Duration) (*jsonrpc2.Conn, bool) {
+	wait := time.NewTimer(timeout)
+	defer wait.Stop()
+	for {
+		s.mu.Lock()
+		inst, ok := s.plugins[id]
+		switch {
+		case !ok:
+			s.mu.Unlock()
+			return nil, false
+		case inst.status.State == StateRunning && inst.conn != nil:
+			conn := inst.conn
+			s.mu.Unlock()
+			return conn, true
+		case inst.status.State != StateStarting:
+			s.mu.Unlock()
+			return nil, false
+		}
+		moved := s.moved
+		s.mu.Unlock()
+		select {
+		case <-moved:
+		case <-wait.C:
+			return nil, false
+		case <-ctx.Done():
+			return nil, false
+		}
+	}
 }
 
 func (s *Supervisor) Statuses() []Status {
@@ -587,7 +619,7 @@ func (s *Supervisor) shutdown(id string, p *process) {
 
 func (s *Supervisor) settle(ctx context.Context, id string, cause error) (time.Duration, bool) {
 	s.mu.Lock()
-	s.gen++
+	s.bumpLocked()
 	inst := s.plugins[id]
 	inst.conn = nil
 	inst.status.PID = 0
@@ -646,8 +678,14 @@ func (s *Supervisor) backoff(crashes int) time.Duration {
 func (s *Supervisor) update(id string, fn func(inst *instance)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.gen++
+	s.bumpLocked()
 	fn(s.plugins[id])
+}
+
+func (s *Supervisor) bumpLocked() {
+	s.gen++
+	close(s.moved)
+	s.moved = make(chan struct{})
 }
 
 func (s *Supervisor) generation() uint64 {

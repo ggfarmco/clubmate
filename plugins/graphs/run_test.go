@@ -35,6 +35,7 @@ type fakeCore struct {
 	worktrees string
 	errs      map[string]error
 	block     map[string]bool
+	on        map[string]func()
 }
 
 func (f *fakeCore) run(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error) {
@@ -44,8 +45,11 @@ func (f *fakeCore) run(ctx context.Context, req automation.CommandRequest) (json
 	if !block && err == nil && req.ID != "git.worktrees" {
 		f.next++
 	}
-	next := f.next
+	next, on := f.next, f.on[req.ID]
 	f.mu.Unlock()
+	if on != nil {
+		on()
+	}
 	if block {
 		<-ctx.Done()
 		return nil, ctx.Err()
@@ -178,6 +182,22 @@ func TestRunInstantiatesGraph(t *testing.T) {
 	assert.Contains(t, toReviewer.Text, "Its last reply (possibly cut; the whole transcript is in the clubmate tool agents_transcript {\"session\":\"agt_1\"}):\n\n{{payload.reply}}")
 	assert.Equal(t, "agt_1", kickoff.Session)
 	assert.Contains(t, kickoff.Text, "Task: add a flag")
+}
+
+func TestRunIsListedWhileItsNodesStart(t *testing.T) {
+	core := &fakeCore{}
+	a := testApp(t, core)
+	var listed []runRow
+	core.on = map[string]func(){"agents.new": func() {
+		out, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.list", WorkspaceID: "ws1"})
+		require.NoError(t, err)
+		listed = out.(listResult).Runs
+	}}
+
+	r := runGraph(t, a)
+
+	require.Len(t, listed, 1)
+	assert.Equal(t, [2]string{r.ID, statusRunning}, [2]string{listed[0].ID, listed[0].Status})
 }
 
 func TestRunCreatesNoSessionOrTriggerForSteps(t *testing.T) {

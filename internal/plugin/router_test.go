@@ -179,6 +179,34 @@ func TestCommandTimeoutOutlivesRouteTimeout(t *testing.T) {
 	assert.Equal(t, map[string]bool{"ok": true}, out)
 }
 
+func TestCallWaitsForStartingPlugin(t *testing.T) {
+	t.Setenv("ECHO_START_DELAY", "300ms")
+	h := testutil.NewHarness(t)
+	p := h.CreateWorkspace(t, "demo")
+	h.Start(t, testutil.EchoPluginDir(t))
+	c := h.Client(t)
+
+	var out map[string]any
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "workspaceId": p.ID, "args": map[string]any{"text": "hi"}}, &out))
+
+	assert.Equal(t, "echo", out["plugin"])
+}
+
+func TestCallToPluginDyingAtStartFailsAtOnce(t *testing.T) {
+	t.Setenv("ECHO_START_DELAY", "300ms")
+	t.Setenv("ECHO_CRASH", "1")
+	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute, time.Minute))
+	p := h.CreateWorkspace(t, "demo")
+	h.Start(t, testutil.EchoPluginDir(t))
+	c := h.Client(t)
+
+	started := time.Now()
+	err := c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "workspaceId": p.ID, "args": map[string]any{"text": "hi"}}, nil)
+
+	assert.ErrorIs(t, err, rpc.ErrPluginUnavailable)
+	assert.Less(t, time.Since(started), 4*time.Second)
+}
+
 type noopHandler struct{}
 
 func (noopHandler) Handle(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) {}

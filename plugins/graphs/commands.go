@@ -122,7 +122,7 @@ func (a *app) list(ctx context.Context, cmd pluginsdk.CommandRun) (listResult, e
 			}
 		}
 	}
-	for _, r := range a.workspaceRuns(cmd.WorkspaceID) {
+	for _, r := range a.workspaceRuns(cmd.WorkspaceID, true) {
 		res.Runs = append(res.Runs, runRow{
 			ID:        r.ID,
 			Graph:     r.Graph,
@@ -175,6 +175,8 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	r.Dir = graphDir(dirs, args.Graph)
 	r.Starts = a.startCommits(ctx, cmd.WorkspaceID, append(dirs, r.Dir))
 	x := &runner{call: a.runCommand, run: r}
+	a.launch(r)
+	defer a.launched(r.ID)
 	if err := x.start(ctx, g); err != nil {
 		x.abandon(ctx)
 		return nil, err
@@ -300,6 +302,18 @@ func (a *app) stopRun(ctx context.Context, cmd pluginsdk.CommandRun, forget bool
 	a.touch(r.Workspace)
 	removeOutput(r.ID)
 	return nil, a.store.Remove(ctx, live)
+}
+
+func (a *app) launch(r *Run) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.launching[r.ID] = cloneRun(r)
+}
+
+func (a *app) launched(id string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	delete(a.launching, id)
 }
 
 func (a *app) put(ctx context.Context, r *Run) error {

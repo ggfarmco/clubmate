@@ -137,6 +137,7 @@
         "title": "Stop worktree Neovim",
         "hidden": true,
         "agent": false,
+        "timeout": 60,
         "handles": ["git.worktree.removing"],
         "description": "Stop the workspace's Neovim whose root is the given path and keep it from starting there again until editor-nvim.release-root. Fails like restart while it, or any other Neovim of the workspace, has unsaved buffers of files inside that root, unless force is true. Only marks the root when no such Neovim exists.",
         "args": {

@@ -145,11 +145,11 @@ func (s *Server) browserDispatch(ctx context.Context, workspaceID string, call B
 		_ = json.Unmarshal(call.Args, &a)
 		in.URL = a.URL
 	}
-	if err := s.browserGuard(ctx, in); err != nil {
-		return nil, err
-	}
 	conn, err := s.clientFor(handleBrowserCall, workspaceID)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.browserGuard(ctx, in); err != nil {
 		return nil, err
 	}
 	timeout := browserCallTimeout

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,6 +31,25 @@ func TestOwnedSocketAcceptsDistroArgv(t *testing.T) {
 	}
 	_, ok := ownedSocket(pluginsdk.Session{State: contract.SessionStateRunning, Cwd: "/repo", Command: []string{"nvim", "-u", sock}}, "p1", "/repo")
 	assert.False(t, ok)
+}
+
+func TestStopRootOutlastsAStartingNeovim(t *testing.T) {
+	type command struct {
+		ID      string `json:"id"`
+		Timeout int    `json:"timeout"`
+	}
+	var m struct {
+		Contributes struct {
+			Commands []command `json:"commands"`
+		} `json:"contributes"`
+	}
+	raw, err := os.ReadFile("plugin.json")
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(raw, &m))
+	i := slices.IndexFunc(m.Contributes.Commands, func(c command) bool { return c.ID == "editor-nvim.stop-root" })
+	require.GreaterOrEqual(t, i, 0)
+	connect := socketWait + startupWait + rpcTimeout
+	assert.GreaterOrEqual(t, time.Duration(m.Contributes.Commands[i].Timeout)*time.Second, 2*connect+2*rpcTimeout)
 }
 
 func TestDialWaitsUntilSocketListens(t *testing.T) {

@@ -181,7 +181,7 @@ func command(st Status, c rpc.CommandDef) rpc.Command {
 }
 
 func (r *Router) call(ctx context.Context, pluginID, method string, params json.RawMessage, timeout time.Duration) (json.RawMessage, error) {
-	conn, ok := r.sup.Conn(pluginID)
+	conn, ok := r.sup.awaitConn(ctx, pluginID, timeout)
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrPluginUnavailable, pluginID)
 	}
@@ -191,7 +191,7 @@ func (r *Router) call(ctx context.Context, pluginID, method string, params json.
 }
 
 func (r *Router) route(ctx context.Context, pluginID, method string, params json.RawMessage, timeout time.Duration) (json.RawMessage, error) {
-	conn, ok := r.sup.Conn(pluginID)
+	conn, ok := r.sup.awaitConn(ctx, pluginID, timeout)
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrPluginUnavailable, pluginID)
 	}

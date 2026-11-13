@@ -48,6 +48,7 @@ type app struct {
 	flushing    bool
 	drafts      map[string]draft
 	starting    map[string]string
+	launching   map[string]*Run
 	expanded    map[string]map[string]bool
 	lastSeq     atomic.Int64
 	subs        map[string]string
@@ -107,14 +108,15 @@ func main() {
 
 func newApp() *app {
 	a := &app{
-		runs:     map[string]*Run{},
-		dirty:    map[string]bool{},
-		drafts:   map[string]draft{},
-		starting: map[string]string{},
-		expanded: map[string]map[string]bool{},
-		subs:     map[string]string{},
-		ready:    make(chan struct{}),
-		now:      time.Now,
+		runs:      map[string]*Run{},
+		dirty:     map[string]bool{},
+		drafts:    map[string]draft{},
+		starting:  map[string]string{},
+		launching: map[string]*Run{},
+		expanded:  map[string]map[string]bool{},
+		subs:      map[string]string{},
+		ready:     make(chan struct{}),
+		now:       time.Now,
 	}
 	a.runCommand = a.callCommand
 	a.sessions = a.agentSessions
@@ -892,7 +894,7 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	dirs, err := a.graphDirs(ctx, workspace, false, "")
 	logError(err)
 	graphs := listGraphs(dirs, a.home)
-	runs := a.workspaceRuns(workspace)
+	runs := a.workspaceRuns(workspace, false)
 	var statuses map[string]api.Session
 	if len(runs) > 0 {
 		statuses = a.sessionMap(ctx, workspace)
@@ -956,12 +958,17 @@ func (a *app) sessionMap(ctx context.Context, workspace string) map[string]api.S
 	return m
 }
 
-func (a *app) workspaceRuns(workspace string) []*Run {
+func (a *app) workspaceRuns(workspace string, launching bool) []*Run {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	var runs []*Run
 	for _, r := range a.runs {
 		if r.Workspace == workspace {
+			runs = append(runs, cloneRun(r))
+		}
+	}
+	for id, r := range a.launching {
+		if _, put := a.runs[id]; launching && !put && r.Workspace == workspace {
 			runs = append(runs, cloneRun(r))
 		}
 	}
