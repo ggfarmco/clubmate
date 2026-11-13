@@ -114,6 +114,38 @@ struct OpenOfferChoice: View {
     }
 }
 
+struct OpenClosingLine: View {
+    let count: Int
+    let agentName: String
+    let undo: () -> Void
+
+    var body: some View {
+        DockCard(neutral: true) {
+            HStack(spacing: 12) {
+                SessionGlyphView(glyph: .open)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(count == 1 ? "Closed 1 item" : "Closed \(count) items")
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                    Text("\(agentName) hears “none of these” next turn")
+                        .font(.footnote)
+                        .foregroundStyle(Color.captionInk)
+                        .lineLimit(2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Button("Undo", action: undo)
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 44)
+                    .contentShape(.rect)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 6)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("open-closing")
+    }
+}
+
 struct OpenItemsCard: View {
     let card: OpenCard
     let count: Int

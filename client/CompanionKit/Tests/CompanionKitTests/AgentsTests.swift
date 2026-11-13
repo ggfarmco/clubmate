@@ -586,6 +586,29 @@ final class ElicitationDraftTests: XCTestCase {
         XCTAssertTrue(store.openDraft("s").isEmpty)
     }
 
+    func testNoToAllClosesTheItemsOnceTheUndoWindowEnds() async throws {
+        let runner = ScriptedRunner(replies: [#"{"session":{"id":"s","status":"done"},"entries":[]}"#])
+        let store = AgentsStore(workspace: "w", runner: runner, sleep: { _ in })
+        store.noOpenSoon("s") { XCTFail("\($0)") }
+        XCTAssertEqual(store.closingOpen, ["s"])
+        for _ in 0..<100 where !store.closingOpen.isEmpty { await Task.yield() }
+        XCTAssertEqual(runner.sessionArgs.first, .object(["session": .string("s")]))
+        XCTAssertTrue(store.closingOpen.isEmpty)
+    }
+
+    func testUndoKeepsTheItemsOpenAndAMessageClosesThemFirst() async throws {
+        let runner = ScriptedRunner(replies: [#"{"session":{"id":"s","status":"done"},"entries":[]}"#])
+        let store = AgentsStore(workspace: "w", runner: runner, sleep: { _ in try await Task.sleep(for: .seconds(60)) })
+        store.noOpenSoon("s") { XCTFail("\($0)") }
+        store.undoNoOpen("s")
+        XCTAssertTrue(store.closingOpen.isEmpty)
+        XCTAssertTrue(runner.sessionArgs.isEmpty)
+        store.noOpenSoon("s") { XCTFail("\($0)") }
+        try await store.flushNoOpen("s")
+        XCTAssertEqual(runner.sessionArgs.first, .object(["session": .string("s")]))
+        XCTAssertTrue(store.closingOpen.isEmpty)
+    }
+
     func testOpenPassSkipsFiledItemsAndDropsOnesAnsweredElsewhere() throws {
         let entry = { (session: String, ids: [String]) in
             #"{"session":"\#(session)","title":"\#(session)","items":[\#(ids.map { #"{"id":"\#($0)","kind":"offer","label":"\#($0)","state":"open"}"# }.joined(separator: ","))]}"#

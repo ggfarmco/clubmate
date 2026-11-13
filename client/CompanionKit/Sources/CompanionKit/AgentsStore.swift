@@ -45,6 +45,7 @@ public final class AgentsStore {
     private var reposFolds: [String: ReposFold] = [:]
     public private(set) var archivePlans: [String: ArchivePlan] = [:]
     public var landLater: Set<String> = []
+    public private(set) var closingOpen: Set<String> = []
     public private(set) var foldedTasks: Set<String> = []
     private var foldedOnce: Set<String> = []
 
@@ -54,6 +55,7 @@ public final class AgentsStore {
     public static let searchCommand = "agents.search"
     public static let searchDelay: Duration = .milliseconds(250)
     public static let imageLimit = 48
+    public static let openNoUndo: Duration = .seconds(5)
     public static let imageBytes = 48 << 20
 
     @ObservationIgnored private weak var runner: (any CommandRunner)?
@@ -70,6 +72,7 @@ public final class AgentsStore {
     @ObservationIgnored private var again: Set<String> = []
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private var watchedRuns: [String: Int] = [:]
+    @ObservationIgnored private var closings: [String: Task<Void, Never>] = [:]
 
     public init(workspace: String, runner: any CommandRunner, queue: ActionQueue? = nil, computer: String = "", queues: @escaping @MainActor () -> Bool = { false }, retry: @escaping @MainActor () -> Void = {}, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.workspace = workspace
@@ -641,6 +644,32 @@ public final class AgentsStore {
 
     public func noOpen(_ session: String, items: [OpenItem] = []) async throws {
         try await close(OpenCommand.no, session, items)
+    }
+
+    public func noOpenSoon(_ session: String, failed: @escaping @MainActor (any Error) -> Void) {
+        guard closings[session] == nil else { return }
+        closingOpen.insert(session)
+        closings[session] = Task { [weak self, sleep = self.sleep] in
+            do { try await sleep(Self.openNoUndo) } catch { return }
+            guard let self, self.closings.removeValue(forKey: session) != nil else { return }
+            do { try await self.commitNo(session) } catch { failed(error) }
+        }
+    }
+
+    public func undoNoOpen(_ session: String) {
+        closings.removeValue(forKey: session)?.cancel()
+        closingOpen.remove(session)
+    }
+
+    public func flushNoOpen(_ session: String) async throws {
+        guard let task = closings.removeValue(forKey: session) else { return }
+        task.cancel()
+        try await commitNo(session)
+    }
+
+    private func commitNo(_ session: String) async throws {
+        defer { closingOpen.remove(session) }
+        try await noOpen(session)
     }
 
     public func convertOpen(_ session: String) async throws {

@@ -18,7 +18,6 @@ struct SessionDetailView: View {
     @State private var confirmingClose = false
     @State private var confirmingStop = false
     @State private var confirmingHeaderStop = false
-    @State private var confirmingNo = false
     @State private var showingSettings = false
     @State private var alwaysAsked: AlwaysAsk?
     @State private var width = 0.0
@@ -38,7 +37,7 @@ struct SessionDetailView: View {
         let queued = store.queue?.item(sessionID)
         let answerDocked = switch screen.dock {
         case .permission, .elicitation, .connect, .land: true
-        case .open(let card): !folded(card) || store.openDraft(sessionID).unfolded
+        case .open(let card): !closing && (!folded(card) || store.openDraft(sessionID).unfolded)
         default: false
         }
         ScrollView {
@@ -229,13 +228,21 @@ struct SessionDetailView: View {
                                 }
                             }
                         case .open(let card):
-                            OpenItemsCard(card: card, count: session.openCount, folded: folded(card), blocked: blocked, draft: Binding(get: { store.openDraft(sessionID) }, set: { store.setOpenDraft($0, session: sessionID) })) {
-                                try await store.laterOpen(sessionID)
-                            } send: {
-                                try await store.answerOpen(sessionID, items: card.items)
-                                sent += 1
-                            } no: {
-                                confirmingNo = true
+                            if closing {
+                                OpenClosingLine(count: session.openCount, agentName: session.agentName) {
+                                    withAnimation { store.undoNoOpen(sessionID) }
+                                }
+                            } else {
+                                OpenItemsCard(card: card, count: session.openCount, folded: folded(card), blocked: blocked, draft: Binding(get: { store.openDraft(sessionID) }, set: { store.setOpenDraft($0, session: sessionID) })) {
+                                    try await store.laterOpen(sessionID)
+                                } send: {
+                                    try await store.answerOpen(sessionID, items: card.items)
+                                    sent += 1
+                                } no: {
+                                    withAnimation {
+                                        store.noOpenSoon(sessionID) { failure = Self.message($0) }
+                                    }
+                                }
                             }
                         }
                     }
@@ -358,13 +365,6 @@ struct SessionDetailView: View {
         } message: {
             Text("The agent stops when no other session uses its worktree. The transcript stays readable.")
         }
-        .confirmationDialog("Say no to all \(session?.openCount ?? 0)?", isPresented: $confirmingNo, titleVisibility: .visible) {
-            Button("No to All", role: .destructive) {
-                perform { try await store.noOpen(sessionID) }
-            }
-        } message: {
-            Text("\(session?.agentName ?? "The agent") is told “none of these” on its next turn.")
-        }
         .alert("Something Went Wrong", isPresented: failureShown) {
             Button("OK") { failure = nil }
         } message: {
@@ -486,8 +486,12 @@ struct SessionDetailView: View {
         card.later || store.session(sessionID)?.isTurnActive == true
     }
 
+    private var closing: Bool {
+        store.closingOpen.contains(sessionID)
+    }
+
     private func answersGoWith(_ screen: SessionScreen) -> Bool {
-        guard attachments.isEmpty, case .open(let card) = screen.dock else { return false }
+        guard attachments.isEmpty, !closing, case .open(let card) = screen.dock else { return false }
         return !store.openDraft(sessionID).answered(card.items).isEmpty
     }
 
@@ -504,6 +508,7 @@ struct SessionDetailView: View {
         attachments = []
         Task {
             do {
+                try await store.flushNoOpen(sessionID)
                 if let answering {
                     try await store.answerOpen(sessionID, items: answering, note: text)
                 } else {

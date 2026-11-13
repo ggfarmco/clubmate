@@ -528,17 +528,21 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(card.staticTexts["3 open"].waitForExistence(timeout: 5))
     }
 
-    func testNoToAllOnTheOpenCardAsksThenClosesTheItems() {
+    func testNoToAllOnTheOpenCardClosesInOneTapWithUndo() {
         let app = launch(open: "agents/agt_0000000000000021", ["-openFixture", "YES"])
         let card = app.otherElements["open-card"]
         XCTAssertTrue(card.staticTexts["5 open"].waitForExistence(timeout: 10))
         let no = card.buttons["No to All"]
         XCTAssertTrue(wait(for: no, "isEnabled == true"))
         no.tap()
-        let confirm = app.sheets.buttons["No to All"].firstMatch
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
-        confirm.tap()
-        XCTAssertTrue(wait(for: card, "exists == false"))
+        let closing = app.otherElements["open-closing"]
+        XCTAssertTrue(closing.staticTexts["Closed 5 items"].waitForExistence(timeout: 5))
+        closing.buttons["Undo"].tap()
+        XCTAssertTrue(card.staticTexts["5 open"].waitForExistence(timeout: 5))
+        no.tap()
+        XCTAssertTrue(closing.waitForExistence(timeout: 5))
+        XCTAssertTrue(closing.waitForNonExistence(timeout: 10))
+        XCTAssertFalse(card.exists)
     }
 
     func testSelectedBacklogAndMoreRowsAreTintedNotFilledOnIPad() throws {
