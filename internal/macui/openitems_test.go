@@ -83,6 +83,10 @@ func TestOpenItemsCardPointer(t *testing.T) {
 		in.pointer("click", a+"/open/oi-1#other", "--at", "100,34")
 		in.key("h", "i", "space", "j", "k")
 		in.eventually("j and k land in the field", func() bool { return in.otherText(a+"/open/oi-1") == "hi jk" })
+		oneLine := in.snapshot().main().node(a + "/open/oi-1").Frame.Height
+		in.key("opt+return", "x")
+		in.eventually("a line break in Other becomes a space", func() bool { return in.otherText(a+"/open/oi-1") == "hi jk x" })
+		assert.Equal(t, oneLine, in.snapshot().main().node(a+"/open/oi-1").Frame.Height, "the field shows no second line")
 		assert.True(t, in.cursorOn(a+"/open/oi-1")())
 		assert.True(t, strings.Contains(in.snapshot().key().Responder, "FieldEditor"))
 	})

@@ -11,6 +11,11 @@ struct ChoiceNodeView: View {
     private static let numberSize: CGFloat = 18
     private static let accentBar: CGFloat = 2
     private static let quoteBar: CGFloat = 2
+    private static let otherLines = 6
+
+    private static func oneLine(_ text: String) -> String {
+        text.replacing(#/\R+/#, with: " ")
+    }
 
     @State private var picked: [String] = []
     @State private var otherOn = false
@@ -60,6 +65,9 @@ struct ChoiceNodeView: View {
             transcriptReveal?.show(id)
         }
         .onChange(of: options, initial: true) { restore() }
+        .onChange(of: otherText) { _, text in
+            if text.contains(where: \.isNewline) { otherText = Self.oneLine(text) }
+        }
         .onChange(of: other, initial: true) { old, new in
             guard let new, !otherFocused else { return }
             if new.on { otherOn = true }
@@ -167,16 +175,23 @@ struct ChoiceNodeView: View {
 
     private func otherField(_ other: SDUIChoiceOther) -> some View {
         let prompt = Text(other.placeholder ?? "").foregroundStyle(theme.muted)
-        return TextField("", text: Binding(get: { otherText }, set: { typed($0, in: other) }), prompt: prompt)
+        return TextField("", text: Binding(get: { otherText }, set: { typed($0, in: other) }), prompt: prompt, axis: .vertical)
+            .lineLimit(1...Self.otherLines)
             .focused($otherFocused)
             .textFieldStyle(.plain)
             .font(theme.ui)
             .foregroundStyle(theme.foreground)
+            .clipped()
             .padding(.horizontal, theme.spacing.m)
-            .frame(minWidth: 0, maxWidth: .infinity, minHeight: theme.control)
+            .padding(.vertical, theme.spacing.xs)
+            .frame(minWidth: 0, maxWidth: .infinity, minHeight: theme.control, alignment: .leading)
             .fieldChrome(focused: otherFocused)
             .padding(.top, theme.spacing.xs)
             .id(other.id)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { old, new in
+                guard otherFocused, new > old else { return }
+                Task { @MainActor in scroll?.scrollTo(other.id) }
+            }
             .onSubmit {
                 form?.submit()
                 keysRefocus?.take()
@@ -212,7 +227,7 @@ struct ChoiceNodeView: View {
     private func store() {
         guard let form, let id = node.id else { return }
         form.values[id] = value
-        if let other { form.values[other.id] = otherOn ? .string(otherText) : nil }
+        if let other { form.values[other.id] = otherOn ? .string(Self.oneLine(otherText)) : nil }
     }
 
     private func commit() {
@@ -254,7 +269,7 @@ struct ChoiceNodeView: View {
     private func typed(_ text: String, in other: SDUIChoiceOther) {
         otherText = text
         guard otherOn else { return }
-        form?.values[other.id] = .string(text)
+        store()
         form?.touch(other.id)
         form?.edited(after: FormState.typingDelay)
     }

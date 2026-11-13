@@ -22,6 +22,7 @@ const (
 	otherLabel        = "Other…"
 	otherPlaceholder  = "Your answer"
 	cardTone          = "warning"
+	textLines         = 4
 	questionGap       = 10
 	elicitSendKey     = "cmd+return"
 	skipHint          = "Skip answers “none of these” and ends the turn"
@@ -104,7 +105,7 @@ func elicitationOutcome(en *entry) string {
 	}
 	var parts []string
 	for _, f := range el.Fields {
-		if text := answerText(f, resp.Content[f.Key]); text != "" {
+		if text := strings.Join(strings.Fields(answerText(f, resp.Content[f.Key])), " "); text != "" {
 			parts = append(parts, text)
 		}
 	}
@@ -230,9 +231,12 @@ func optionKey(keys bool, i int) string {
 
 func fieldRow(fid string, f elicitField) sdui.Node {
 	var value sdui.Node
-	if f.Type == fieldBoolean {
+	switch f.Type {
+	case fieldBoolean:
 		value = sdui.Toggle(fid, false)
-	} else {
+	case fieldText:
+		value = sdui.WithLines(sdui.TextField(fid, "", f.Description), textLines)
+	default:
 		value = sdui.TextField(fid, "", f.Description)
 	}
 	if f.Type != fieldText && f.Description != "" {

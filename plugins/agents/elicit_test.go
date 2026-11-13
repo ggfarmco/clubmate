@@ -203,3 +203,36 @@ func TestElicitationRemoteDecline(t *testing.T) {
 	assert.JSONEq(t, `{"action":"decline"}`, string(got.Params))
 	f.waitResolved(t, api.Changed{Workspace: workspace, Session: session, Kind: api.ChangeResolved, Request: request, RequestKind: api.RequestElicitation})
 }
+
+func TestElicitationFreeTextFieldWraps(t *testing.T) {
+	t.Parallel()
+	script := map[string]any{
+		"mode":    "form",
+		"message": "Details?",
+		"requestedSchema": map[string]any{"type": "object", "properties": map[string]any{
+			"reason": map[string]any{"type": "string", "title": "Reason", "description": "Why"},
+			"count":  map[string]any{"type": "integer", "title": "Count", "description": "How many"},
+		}},
+	}
+	f := start(t, map[string]any{"prompt": []map[string]any{{"elicitation": script}}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "go")
+
+	fields := cardsOf(elicitationForm(t, f, workspace), "textField")
+	require.Len(t, fields, 2)
+	lines := map[any]any{}
+	for _, field := range fields {
+		lines[field.Props["placeholder"]] = field.Props["lines"]
+	}
+	assert.Equal(t, map[any]any{"Why": float64(4), "How many": nil}, lines)
+
+	form := elicitationForm(t, f, workspace)
+	reason := fields[slices.IndexFunc(fields, func(n sdui.Node) bool { return n.Props["placeholder"] == "Why" })].ID
+	f.h.Event(t, workspace, "agents.main", form.ID, "elicitation", map[string]any{reason: "too noisy\n\nat night"})
+	got := f.waitCall(t, "elicitation_response", func(fakeCall) bool { return true })
+	assert.Contains(t, string(got.Params), `"reason":"too noisy\n\nat night"`)
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
+		return strings.Contains(string(rawTree(t, n)), `"too noisy at night · Details?"`)
+	})
+}
