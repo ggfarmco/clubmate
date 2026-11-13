@@ -177,7 +177,7 @@ func run(logger *slog.Logger) error {
 		defer close(loopDone)
 		svc.RefreshLoop(ctx, refreshEvery)
 	}()
-	go trimLogs(ctx, logger, logPaths(dirs, manifests))
+	go trimLogs(ctx, logger, func() []string { return logPaths(dirs, manifests) })
 
 	sup.Start(ctx, manifests)
 	logger.Info("clubmate-core listening", "socket", dirs.CoreSocket(), "version", buildinfo.String(), "plugins", len(manifests))
@@ -194,10 +194,10 @@ func logPaths(dirs paths.Dirs, manifests []plugin.Manifest) []string {
 	for _, m := range manifests {
 		out = append(out, dirs.PluginLog(m.ID))
 	}
-	return out
+	return append(out, dirs.SessionLogs()...)
 }
 
-func trimLogs(ctx context.Context, logger *slog.Logger, logs []string) {
+func trimLogs(ctx context.Context, logger *slog.Logger, logs func() []string) {
 	t := time.NewTicker(logTrimEvery)
 	defer t.Stop()
 	for {
@@ -206,7 +206,7 @@ func trimLogs(ctx context.Context, logger *slog.Logger, logs []string) {
 			return
 		case <-t.C:
 		}
-		for _, path := range logs {
+		for _, path := range logs() {
 			if err := paths.TrimLog(path); err != nil {
 				logger.Warn("trim log", "path", path, "err", err)
 			}

@@ -45,6 +45,7 @@ const (
 	defaultPingTimeout     = 5 * time.Second
 	defaultPingMisses      = 3
 	stuckStrikes           = 3
+	defaultStuckSilence    = time.Minute
 
 	pluginIDEnv   = "CLUBMATE_PLUGIN_ID"
 	runtimeDirEnv = "CLUBMATE_PLUGIN_RUNTIME_DIR"
@@ -96,6 +97,7 @@ type Supervisor struct {
 	pingEvery   time.Duration
 	pingTimeout time.Duration
 	pingMisses  int
+	silence     time.Duration
 	onStop      func(id string)
 	resourceDir string
 	env         []string
@@ -128,6 +130,9 @@ type instance struct {
 	stuck      chan struct{}
 	strikes    int
 	lastStrike time.Time
+	struckBy   map[string]bool
+	timeouts   int
+	lastReply  time.Time
 }
 
 type process struct {
@@ -165,6 +170,10 @@ func WithLiveness(every, timeout time.Duration, misses int) SupervisorOption {
 	return func(s *Supervisor) { s.pingEvery, s.pingTimeout, s.pingMisses = every, timeout, misses }
 }
 
+func WithStuckSilence(d time.Duration) SupervisorOption {
+	return func(s *Supervisor) { s.silence = d }
+}
+
 func WithOnStop(fn func(id string)) SupervisorOption {
 	return func(s *Supervisor) { s.onStop = fn }
 }
@@ -197,6 +206,7 @@ func NewSupervisor(srv *rpc.Server, dirs paths.Dirs, logger *slog.Logger, opts .
 		pingEvery:   defaultPingEvery,
 		pingTimeout: defaultPingTimeout,
 		pingMisses:  defaultPingMisses,
+		silence:     defaultStuckSilence,
 		plugins:     map[string]*instance{},
 		moved:       make(chan struct{}),
 		enabled:     Manifest.DefaultEnabled,
@@ -333,32 +343,29 @@ func (s *Supervisor) Conn(id string) (*jsonrpc2.Conn, bool) {
 	return inst.conn, true
 }
 
-func (s *Supervisor) awaitConn(ctx context.Context, id string, timeout time.Duration) (*jsonrpc2.Conn, bool) {
-	wait := time.NewTimer(timeout)
-	defer wait.Stop()
+func (s *Supervisor) awaitConn(ctx context.Context, id string) (conn *jsonrpc2.Conn, waited, ok bool) {
 	for {
 		s.mu.Lock()
 		inst, ok := s.plugins[id]
 		switch {
 		case !ok:
 			s.mu.Unlock()
-			return nil, false
+			return nil, waited, false
 		case inst.status.State == StateRunning && inst.conn != nil:
 			conn := inst.conn
 			s.mu.Unlock()
-			return conn, true
+			return conn, waited, true
 		case inst.status.State != StateStarting:
 			s.mu.Unlock()
-			return nil, false
+			return nil, waited, false
 		}
 		moved := s.moved
 		s.mu.Unlock()
+		waited = true
 		select {
 		case <-moved:
-		case <-wait.C:
-			return nil, false
 		case <-ctx.Done():
-			return nil, false
+			return nil, waited, false
 		}
 	}
 }
@@ -500,7 +507,7 @@ func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process, restart 
 	s.update(m.ID, func(inst *instance) {
 		inst.status.State = StateRunning
 		inst.conn = p.conn
-		inst.stuck, inst.strikes, inst.lastStrike = stuck, 0, time.Time{}
+		inst.stuck, inst.strikes, inst.timeouts, inst.lastStrike, inst.struckBy, inst.lastReply = stuck, 0, 0, time.Time{}, nil, time.Now()
 	})
 	s.logger.Info("plugin running", "id", m.ID, "pid", p.cmd.Process.Pid)
 	s.changed(m.ID, true)
@@ -535,22 +542,42 @@ func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process, restart 
 	}
 }
 
-func (s *Supervisor) routed(id string, conn *jsonrpc2.Conn, started time.Time, timedOut bool) {
+func (s *Supervisor) replied(id string, conn *jsonrpc2.Conn) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if inst, ok := s.plugins[id]; ok && inst.conn == conn {
+		inst.strikes, inst.timeouts, inst.lastStrike, inst.struckBy = 0, 0, time.Time{}, nil
+	}
+}
+
+func (s *Supervisor) answered(id string, conn *jsonrpc2.Conn) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if inst, ok := s.plugins[id]; ok && inst.conn == conn {
+		inst.lastReply = time.Now()
+	}
+}
+
+func (s *Supervisor) timedOut(id string, conn *jsonrpc2.Conn, started time.Time, caller string, agent bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	inst, ok := s.plugins[id]
-	switch {
-	case !ok || inst.conn != conn:
-		return
-	case !timedOut:
-		inst.strikes, inst.lastStrike = 0, time.Time{}
-		return
-	case started.Before(inst.lastStrike):
+	if !ok || inst.conn != conn || started.Before(inst.lastStrike) {
 		return
 	}
-	inst.strikes++
+	inst.timeouts++
 	inst.lastStrike = time.Now()
-	if inst.strikes >= stuckStrikes && inst.stuck != nil {
+	if !agent || !inst.struckBy[caller] {
+		inst.strikes++
+	}
+	if agent {
+		if inst.struckBy == nil {
+			inst.struckBy = map[string]bool{}
+		}
+		inst.struckBy[caller] = true
+	}
+	silent := inst.timeouts >= stuckStrikes && time.Since(inst.lastReply) >= s.silence
+	if (inst.strikes >= stuckStrikes || silent) && inst.stuck != nil {
 		close(inst.stuck)
 		inst.stuck = nil
 	}

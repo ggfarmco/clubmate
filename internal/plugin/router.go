@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -181,35 +182,78 @@ func command(st Status, c rpc.CommandDef) rpc.Command {
 }
 
 func (r *Router) call(ctx context.Context, pluginID, method string, params json.RawMessage, timeout time.Duration) (json.RawMessage, error) {
-	conn, ok := r.sup.awaitConn(ctx, pluginID, timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	conn, _, ok := r.sup.awaitConn(ctx, pluginID)
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrPluginUnavailable, pluginID)
 	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 	return callConn(ctx, conn, pluginID, method, params)
 }
 
 func (r *Router) route(ctx context.Context, pluginID, method string, params json.RawMessage, timeout time.Duration) (json.RawMessage, error) {
-	conn, ok := r.sup.awaitConn(ctx, pluginID, timeout)
-	if !ok {
-		return nil, fmt.Errorf("%w: %s", ErrPluginUnavailable, pluginID)
-	}
+	started := time.Now()
 	callCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	started := time.Now()
-	out, err := callConn(callCtx, conn, pluginID, method, params)
+	conn, waited, ok := r.sup.awaitConn(callCtx, pluginID)
+	if !ok {
+		if errors.Is(callCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
+			r.logTimeout(ctx, pluginID, method, params, started, waited)
+		}
+		return nil, fmt.Errorf("%w: %s", ErrPluginUnavailable, pluginID)
+	}
+	sent := time.Now()
+	deadline, _ := callCtx.Deadline()
+	late, stopLate := context.WithDeadline(context.WithoutCancel(ctx), deadline.Add(r.sup.silence))
+	out, err := callLate(callCtx, late, conn, pluginID, method, params, func(replied bool) {
+		stopLate()
+		if replied {
+			r.sup.answered(pluginID, conn)
+		}
+	})
 	var pluginErr *rpc.PluginError
 	switch {
 	case err == nil || errors.As(err, &pluginErr):
-		r.sup.routed(pluginID, conn, started, false)
+		r.sup.replied(pluginID, conn)
 	case errors.Is(callCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil:
-		r.sup.routed(pluginID, conn, started, true)
+		caller, agent := r.logTimeout(ctx, pluginID, method, params, started, waited)
+		if !waited {
+			r.sup.timedOut(pluginID, conn, sent, caller, agent)
+		}
 	}
 	return out, err
 }
 
+func (r *Router) logTimeout(ctx context.Context, pluginID, method string, params json.RawMessage, started time.Time, waited bool) (string, bool) {
+	name, caller, agent := routedBy(ctx, method, params)
+	r.sup.logger.Warn("plugin call timed out", "plugin", pluginID, "command", name, "caller", caller, "after", time.Since(started).Round(time.Millisecond), "waitedForStart", waited)
+	return caller, agent
+}
+
+func routedBy(ctx context.Context, method string, params json.RawMessage) (name, caller string, agent bool) {
+	name, caller = method, rpc.CallerFrom(ctx).String()
+	if method != "command.run" {
+		return name, caller, false
+	}
+	var run struct {
+		ID     string `json:"id"`
+		Agent  bool   `json:"agent"`
+		Caller string `json:"caller"`
+	}
+	if json.Unmarshal(params, &run) != nil {
+		return name, caller, false
+	}
+	if !run.Agent {
+		return run.ID, caller, false
+	}
+	return run.ID, "agent:" + cmp.Or(run.Caller, "unknown"), true
+}
+
 func callConn(ctx context.Context, conn *jsonrpc2.Conn, pluginID, method string, params json.RawMessage) (json.RawMessage, error) {
+	return callLate(ctx, ctx, conn, pluginID, method, params, func(bool) {})
+}
+
+func callLate(ctx, late context.Context, conn *jsonrpc2.Conn, pluginID, method string, params json.RawMessage, done func(replied bool)) (json.RawMessage, error) {
 	type reply struct {
 		out json.RawMessage
 		err error
@@ -217,7 +261,9 @@ func callConn(ctx context.Context, conn *jsonrpc2.Conn, pluginID, method string,
 	replies := make(chan reply, 1)
 	go func() {
 		var out json.RawMessage
-		err := conn.Call(ctx, method, params, &out)
+		err := conn.Call(late, method, params, &out)
+		var rpcErr *jsonrpc2.Error
+		done(err == nil || errors.As(err, &rpcErr))
 		replies <- reply{out: out, err: err}
 	}()
 	select {

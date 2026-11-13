@@ -202,3 +202,12 @@ func TestTrimLogKeepsWritersAppending(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(len(big)), old.Size())
 }
+
+func TestSessionLogsListsOnlyLiveLogs(t *testing.T) {
+	dirs := paths.Dirs{State: t.TempDir()}
+	require.NoError(t, os.MkdirAll(dirs.SessionsDir(), 0o700))
+	for _, p := range []string{dirs.SessionLog("a"), dirs.SessionLog("a") + ".1", dirs.SessionMeta("a")} {
+		require.NoError(t, os.WriteFile(p, nil, 0o600))
+	}
+	assert.Equal(t, []string{dirs.SessionLog("a")}, dirs.SessionLogs())
+}

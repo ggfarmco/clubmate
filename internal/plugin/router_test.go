@@ -268,11 +268,11 @@ func TestDebugPprofReachesPlugin(t *testing.T) {
 
 const stuckManifest = `{"id":"stuck","name":"Stuck","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"stuck.wait","title":"Wait","timeout":1},{"id":"stuck.ok","title":"Ok"}]},"echoResults":{"stuck.wait":{},"stuck.ok":{}},"echoDelays":{"stuck.wait":60000}}`
 
-func startStuck(t *testing.T, opts ...plugin.SupervisorOption) (*testutil.PluginHarness, func(id string) error) {
+func startStuck(t *testing.T, manifest string, opts ...plugin.SupervisorOption) (*testutil.PluginHarness, func(id string) error) {
 	h := testutil.NewHarness(t, append([]plugin.SupervisorOption{plugin.WithBackoff(10*time.Millisecond, 10*time.Millisecond)}, opts...)...)
 	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
-	h.Start(t, testutil.EchoPluginDirAs(t, stuckManifest))
+	h.Start(t, testutil.EchoPluginDirAs(t, manifest))
 	testutil.Eventually(t, func() bool { _, ok := h.Sup.Conn("stuck"); return ok }, 5*time.Second)
 	c := h.Client(t)
 	return h, func(id string) error {
@@ -281,7 +281,7 @@ func startStuck(t *testing.T, opts ...plugin.SupervisorOption) (*testutil.Plugin
 }
 
 func TestRouteTimeoutsInARowRestartPluginWithoutFailingIt(t *testing.T) {
-	h, run := startStuck(t, plugin.WithCrashLimit(1, time.Minute))
+	h, run := startStuck(t, stuckManifest, plugin.WithCrashLimit(1, time.Minute))
 	pid := h.Sup.PIDs()[0]
 	for range 3 {
 		require.Error(t, run("stuck.wait"))
@@ -295,7 +295,7 @@ func TestRouteTimeoutsInARowRestartPluginWithoutFailingIt(t *testing.T) {
 }
 
 func TestOverlappingTimeoutsAndRepliesKeepPluginRunning(t *testing.T) {
-	h, run := startStuck(t)
+	h, run := startStuck(t, stuckManifest)
 	var wg sync.WaitGroup
 	for range 3 {
 		wg.Go(func() { assert.Error(t, run("stuck.wait")) })
@@ -307,4 +307,58 @@ func TestOverlappingTimeoutsAndRepliesKeepPluginRunning(t *testing.T) {
 	require.Error(t, run("stuck.wait"))
 	time.Sleep(200 * time.Millisecond)
 	assert.Zero(t, h.Sup.Statuses()[0].Restarts)
+}
+
+const lagManifest = `{"id":"stuck","name":"Lag","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"stuck.wait","title":"Wait","timeout":1}]},"echoResults":{"stuck.wait":{}},"echoDelays":{"stuck.wait":1500}}`
+
+func agentWaits(t *testing.T, h *testutil.PluginHarness) func(caller string) {
+	r := plugin.NewRouter(h.Sup)
+	c, ok := r.Resolve("stuck.wait")
+	require.True(t, ok)
+	return func(caller string) {
+		_, err := r.Command(t.Context(), c, json.RawMessage(fmt.Sprintf(`{"id":"stuck.wait","agent":true,"caller":%q}`, caller)))
+		require.Error(t, err)
+	}
+}
+
+func TestOneAgentCannotRestartSlowButAlivePlugin(t *testing.T) {
+	h, _ := startStuck(t, lagManifest, plugin.WithStuckSilence(2*time.Second))
+	wait := agentWaits(t, h)
+	pid := h.Sup.PIDs()[0]
+
+	for range 3 {
+		wait("agt_a")
+	}
+	time.Sleep(200 * time.Millisecond)
+	assert.Equal(t, []int{pid}, h.Sup.PIDs())
+
+	wait("agt_b")
+	wait("agt_c")
+	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].Restarts == 1 }, 5*time.Second)
+	assert.False(t, testutil.Alive(pid))
+}
+
+func TestOneAgentRestartsSilentPlugin(t *testing.T) {
+	h, _ := startStuck(t, stuckManifest, plugin.WithStuckSilence(2*time.Second))
+	wait := agentWaits(t, h)
+	pid := h.Sup.PIDs()[0]
+
+	for range 3 {
+		wait("agt_a")
+	}
+
+	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].Restarts == 1 }, 5*time.Second)
+	assert.False(t, testutil.Alive(pid))
+}
+
+func TestWaitForStartAndCallShareOneTimeout(t *testing.T) {
+	t.Setenv("ECHO_START_DELAY", "600ms")
+	h := testutil.NewHarness(t)
+	p := h.CreateWorkspace(t, "demo")
+	c := h.Client(t)
+	h.Start(t, testutil.EchoPluginDirAs(t, `{"id":"late","name":"Late","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"late.wait","title":"Wait","timeout":1}]},"echoResults":{"late.wait":{}},"echoDelays":{"late.wait":900}}`))
+
+	err := c.Call(t.Context(), "command.run", map[string]any{"id": "late.wait", "workspaceId": p.ID}, nil)
+
+	assert.ErrorIs(t, err, rpc.ErrPluginUnavailable)
 }

@@ -183,10 +183,12 @@ func TestManagerRemove(t *testing.T) {
 		got, _ := m.Get(t.Context(), s.ID)
 		return got.State == session.StateExited
 	}, 3*time.Second)
+	require.NoError(t, os.WriteFile(dirs.SessionLog(s.ID)+".1", nil, 0o600))
 	require.NoError(t, m.Remove(t.Context(), s.ID))
 	_, err := m.Get(t.Context(), s.ID)
 	assert.ErrorIs(t, err, session.ErrNotFound)
 	assert.NoFileExists(t, dirs.SessionLog(s.ID))
+	assert.NoFileExists(t, dirs.SessionLog(s.ID)+".1")
 }
 
 func TestManagerCreateFailsWhenHostDies(t *testing.T) {

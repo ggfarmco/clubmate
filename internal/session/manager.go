@@ -221,7 +221,7 @@ func (m *Manager) Remove(ctx context.Context, sid string) error {
 	if s.State == StateRunning {
 		return fmt.Errorf("session %s: %w", sid, ErrRunning)
 	}
-	for _, p := range []string{m.dirs.SessionMeta(sid), m.dirs.SessionLog(sid)} {
+	for _, p := range []string{m.dirs.SessionMeta(sid), m.dirs.SessionLog(sid), m.dirs.SessionLog(sid) + ".1"} {
 		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("remove %s: %w", p, err)
 		}

@@ -212,6 +212,11 @@ func (d Dirs) SessionLog(id string) string {
 	return filepath.Join(d.SessionsDir(), id+".log")
 }
 
+func (d Dirs) SessionLogs() []string {
+	logs, _ := filepath.Glob(filepath.Join(d.SessionsDir(), "*.log"))
+	return logs
+}
+
 func (d Dirs) PluginsDir() string {
 	return filepath.Join(d.State, "plugins")
 }
