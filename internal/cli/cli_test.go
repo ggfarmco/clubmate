@@ -158,6 +158,30 @@ func TestAttachReconnectsWhileSessionLives(t *testing.T) {
 	assert.Equal(t, "one two", string(run(t, "attach", sid)))
 }
 
+func TestAttachSkipsTheReplayItAlreadyShowed(t *testing.T) {
+	sid, ln := fakeSessionHost(t)
+	offset := func(t wire.FrameType, off uint64) wire.Frame {
+		return wire.Frame{Type: t, Payload: wire.OffsetPayload(off)}
+	}
+	data := func(s string) wire.Frame { return wire.Frame{Type: wire.FrameData, Payload: []byte(s)} }
+	go func() {
+		for _, frames := range [][]wire.Frame{
+			{offset(wire.FrameReplay, 0), data("one "), offset(wire.FrameMark, 4), data("tw")},
+			{offset(wire.FrameReplay, 2), data("e two"), data(" three"), offset(wire.FrameMark, 13), {Type: wire.FrameExit, Payload: wire.ExitPayload(0)}},
+		} {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			for _, f := range frames {
+				wire.WriteFrame(conn, f)
+			}
+			conn.Close()
+		}
+	}()
+	assert.Equal(t, "one two three", string(run(t, "attach", sid)))
+}
+
 func TestAttachGivesUpWhenSessionIsGone(t *testing.T) {
 	sid, ln := fakeSessionHost(t)
 	go func() {

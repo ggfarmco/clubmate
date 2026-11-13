@@ -35,6 +35,8 @@ func TestRingReplayStartsAtALineOnceOverflowed(t *testing.T) {
 		{16, "one\ntwo\nthree", "one\ntwo\nthree"},
 		{8, "one\ntwo\nthree", "three"},
 		{4, "\x1b_Gbase64", ""},
+		{8, "abc\rprogress\rdone", "\rdone"},
+		{8, "aaaaaaaa1%\r2%\r", "\r2%\r"},
 	} {
 		r := wire.NewRing(tc.size)
 		_, _ = r.Write([]byte(tc.in))

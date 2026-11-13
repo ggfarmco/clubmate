@@ -185,7 +185,7 @@ public actor RPCConnection {
         writer.close()
     }
 
-    private static func openSocket(_ path: String) throws -> Int32 {
+    static func openSocket(_ path: String) throws -> Int32 {
         var addr = sockaddr_un()
         let capacity = MemoryLayout.size(ofValue: addr.sun_path)
         let bytes = Array(path.utf8)

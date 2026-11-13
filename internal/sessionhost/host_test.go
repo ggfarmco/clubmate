@@ -240,6 +240,7 @@ func TestResizeReportsInBandWhenChildAsks(t *testing.T) {
 
 func TestSlowClientStaysAttachedUnderFloodAndInterrupts(t *testing.T) {
 	cfg := testConfig(t, "sh", "-c", `trap 'echo after-int' INT; yes; exec cat`)
+	cfg.StallTimeout = 500 * time.Millisecond
 	startHost(t, cfg)
 	conn, err := net.Dial("unix", cfg.Socket)
 	require.NoError(t, err)
@@ -266,7 +267,7 @@ func TestSlowClientStaysAttachedUnderFloodAndInterrupts(t *testing.T) {
 	select {
 	case err := <-lost:
 		require.FailNow(t, "slow client dropped", err.Error())
-	case <-time.After(time.Second):
+	case <-time.After(2 * time.Second):
 	}
 	require.NoError(t, wire.WriteFrame(conn, wire.Frame{Type: wire.FrameData, Payload: []byte{3}}))
 	slow.Store(false)
@@ -277,6 +278,28 @@ func TestSlowClientStaysAttachedUnderFloodAndInterrupts(t *testing.T) {
 	case <-time.After(waitTimeout):
 		require.FailNow(t, "^C did not stop the flood")
 	}
+}
+
+func TestReattachAnnouncesWhereTheReplayStarts(t *testing.T) {
+	cfg := testConfig(t, "sh", "-c", `printf 'one\ntwo\nthree'; exec cat`)
+	cfg.Scrollback = 8
+	startHost(t, cfg)
+	dial(t, cfg.Socket).waitOutput(t, "three")
+	conn, err := net.Dial("unix", cfg.Socket)
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+	conn.SetReadDeadline(time.Now().Add(waitTimeout))
+	var got []wire.Frame
+	for len(got) < 3 {
+		f, err := wire.ReadFrame(conn)
+		require.NoError(t, err)
+		got = append(got, f)
+	}
+	assert.Equal(t, []wire.Frame{
+		{Type: wire.FrameReplay, Payload: wire.OffsetPayload(10)},
+		{Type: wire.FrameData, Payload: []byte("three")},
+		{Type: wire.FrameMark, Payload: wire.OffsetPayload(15)},
+	}, got)
 }
 
 func TestFrozenClientDroppedAfterStall(t *testing.T) {
@@ -418,7 +441,7 @@ type throttled struct {
 
 func (r throttled) Read(p []byte) (int, error) {
 	if r.slow.Load() {
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 		p = p[:min(len(p), 16<<10)]
 	}
 	return r.conn.Read(p)

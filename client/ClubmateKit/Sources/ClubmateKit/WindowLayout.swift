@@ -200,6 +200,12 @@ public enum SurfaceDeckPolicy {
         shown && sessionAlive && mountedFor >= remountAfter
     }
 
+    public nonisolated static func sessionListening(at socket: URL) -> Bool {
+        guard let fd = try? RPCConnection.openSocket(socket.path(percentEncoded: false)) else { return false }
+        Darwin.close(fd)
+        return true
+    }
+
     public static func shouldCloseDeck(workspace: String, layout: WindowLayout) -> Bool {
         !layout.windows.contains { $0.workspaces.contains(workspace) }
     }

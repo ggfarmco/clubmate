@@ -33,6 +33,12 @@ var (
 	errConnectionLost   = errors.New("connection lost")
 )
 
+type cursor struct {
+	seen  uint64
+	pos   uint64
+	known bool
+}
+
 type frameWriter struct {
 	writeMu sync.Mutex
 	mu      sync.Mutex
@@ -154,8 +160,9 @@ func stream(ctx context.Context, sid string, stdin *os.File, stdout io.Writer) (
 	}
 	go fw.forwardStdin(stdin)
 
+	var cur cursor
 	for {
-		code, err := readLoop(conn, stdout)
+		code, err := readLoop(conn, stdout, &cur)
 		if !errors.Is(err, errConnectionLost) {
 			return code, err
 		}
@@ -200,7 +207,8 @@ func verifyPeer(conn net.Conn) error {
 	return paths.VerifyPeer(uc)
 }
 
-func readLoop(conn net.Conn, stdout io.Writer) (int, error) {
+func readLoop(conn net.Conn, stdout io.Writer, cur *cursor) (int, error) {
+	cur.known = false
 	for {
 		f, err := wire.ReadFrame(conn)
 		if err != nil {
@@ -208,8 +216,17 @@ func readLoop(conn net.Conn, stdout io.Writer) (int, error) {
 		}
 		switch f.Type {
 		case wire.FrameData:
-			if _, err := stdout.Write(f.Payload); err != nil {
+			if _, err := stdout.Write(cur.fresh(f.Payload)); err != nil {
 				return 1, err
+			}
+		case wire.FrameReplay, wire.FrameMark:
+			off, err := wire.ParseOffset(f.Payload)
+			if err != nil {
+				return 1, err
+			}
+			cur.pos, cur.known = off, true
+			if f.Type == wire.FrameMark {
+				cur.seen = off
 			}
 		case wire.FrameExit:
 			code, err := wire.ParseExit(f.Payload)
@@ -219,6 +236,19 @@ func readLoop(conn net.Conn, stdout io.Writer) (int, error) {
 			return code, nil
 		}
 	}
+}
+
+func (c *cursor) fresh(p []byte) []byte {
+	if !c.known {
+		return p
+	}
+	skip := 0
+	if c.seen > c.pos {
+		skip = int(min(c.seen-c.pos, uint64(len(p))))
+	}
+	c.pos += uint64(len(p))
+	c.seen = max(c.seen, c.pos)
+	return p[skip:]
 }
 
 func (w *frameWriter) write(f wire.Frame) error {

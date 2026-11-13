@@ -115,6 +115,29 @@ final class WindowLayoutTests: XCTestCase {
         XCTAssertTrue(SurfaceDeckPolicy.shouldCloseDeck(workspace: "b", layout: layout))
     }
 
+    func testSessionCountsAsListeningOnlyWhileItsSocketAccepts() throws {
+        let path = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString.prefix(8)).sock")
+        defer { try? FileManager.default.removeItem(at: path) }
+        XCTAssertFalse(SurfaceDeckPolicy.sessionListening(at: path))
+        let fd = try listen(at: path.path(percentEncoded: false))
+        XCTAssertTrue(SurfaceDeckPolicy.sessionListening(at: path))
+        Darwin.close(fd)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: path.path(percentEncoded: false)))
+        XCTAssertFalse(SurfaceDeckPolicy.sessionListening(at: path))
+    }
+
+    private func listen(at path: String) throws -> Int32 {
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutableBytes(of: &addr.sun_path) { $0.copyBytes(from: Array(path.utf8)) }
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        let bound = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        }
+        guard fd >= 0, bound == 0, Darwin.listen(fd, 1) == 0 else { throw POSIXError(.EADDRINUSE) }
+        return fd
+    }
+
     func testDeckRemountsOnlyAShownLiveSessionThatHeldUp() {
         XCTAssertTrue(SurfaceDeckPolicy.shouldRemount(shown: true, sessionAlive: true, mountedFor: 5))
         XCTAssertFalse(SurfaceDeckPolicy.shouldRemount(shown: true, sessionAlive: false, mountedFor: 5))

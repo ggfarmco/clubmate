@@ -10,6 +10,7 @@ type Ring struct {
 	size    int
 	buf     []byte
 	head    int
+	total   uint64
 	dropped bool
 }
 
@@ -21,6 +22,7 @@ func (r *Ring) Write(p []byte) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	n := len(p)
+	r.total += uint64(n)
 	if r.size == 0 {
 		return n, nil
 	}
@@ -60,11 +62,19 @@ func (r *Ring) Replay() []byte {
 	if !r.dropped {
 		return out
 	}
-	i := bytes.IndexByte(out, '\n')
-	if i < 0 {
-		return nil
+	if i := bytes.IndexByte(out, '\n'); i >= 0 {
+		return out[i+1:]
 	}
-	return out[i+1:]
+	if i := bytes.LastIndexByte(bytes.TrimRight(out, "\r"), '\r'); i >= 0 {
+		return out[i:]
+	}
+	return nil
+}
+
+func (r *Ring) Written() uint64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.total
 }
 
 func (r *Ring) bytesLocked() []byte {

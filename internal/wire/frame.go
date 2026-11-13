@@ -14,6 +14,8 @@ const (
 	FrameResize
 	FrameExit
 	FrameSnapshot
+	FrameReplay
+	FrameMark
 )
 
 const (
@@ -85,4 +87,15 @@ func ParseExit(p []byte) (int, error) {
 		return 0, ErrBadPayload
 	}
 	return int(int32(binary.BigEndian.Uint32(p))), nil
+}
+
+func OffsetPayload(off uint64) []byte {
+	return binary.BigEndian.AppendUint64(nil, off)
+}
+
+func ParseOffset(p []byte) (uint64, error) {
+	if len(p) != 8 {
+		return 0, ErrBadPayload
+	}
+	return binary.BigEndian.Uint64(p), nil
 }

@@ -52,7 +52,7 @@ final class SurfaceDeck {
 
     private func childExited(_ sessionID: String, closing: Bool) {
         let mountedFor = mountedAt[sessionID].map { Date().timeIntervalSince($0) } ?? 0
-        let alive = FileManager.default.fileExists(atPath: ClubmatePaths.resolve().sessionSocket(sessionID).path(percentEncoded: false))
+        let alive = SurfaceDeckPolicy.sessionListening(at: ClubmatePaths.resolve().sessionSocket(sessionID))
         guard !closed, SurfaceDeckPolicy.shouldRemount(shown: selected == sessionID, sessionAlive: alive, mountedFor: mountedFor) else {
             if closing {
                 surfaceClosed(sessionID)
@@ -62,9 +62,10 @@ final class SurfaceDeck {
             return
         }
         ghosttyLog.notice("remounting terminal \(sessionID, privacy: .public): attach ended while the session lives")
+        let hadFocus = views[sessionID].map { $0.window?.firstResponder === $0 } ?? false
         unmount(sessionID)
         mount(sessionID)
-        apply()
+        apply(focus: hadFocus)
     }
 
     private func unmount(_ sessionID: String) {
@@ -94,12 +95,12 @@ final class SurfaceDeck {
         mountedAt[sessionID] = Date()
     }
 
-    private func apply() {
+    private func apply(focus: Bool = true) {
         let onScreen = container.window != nil
         for (id, view) in views {
             view.setVisible(onScreen && id == selected)
         }
-        if onScreen, let selected { views[selected]?.focus() }
+        if focus, onScreen, let selected { views[selected]?.focus() }
     }
 }
 

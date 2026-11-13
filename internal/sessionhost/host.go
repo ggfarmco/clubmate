@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -25,7 +24,7 @@ import (
 const (
 	defaultScrollback = 256 << 10
 	maxPendingBytes   = 4 << 20
-	maxFramePayload   = 1 << 20
+	writeChunk        = 32 << 10
 	readBufSize       = 32 << 10
 	persistEvery      = time.Second
 	outputGrain       = 10 * time.Second
@@ -63,11 +62,13 @@ type host struct {
 }
 
 type client struct {
-	conn     net.Conn
-	wake     chan struct{}
-	pending  []byte
-	repaint  bool
-	snapshot *wire.Frame
+	conn       net.Conn
+	wake       chan struct{}
+	pending    []byte
+	replay     *wire.Frame
+	repaint    bool
+	snapshot   *wire.Frame
+	progressAt time.Time
 }
 
 func Run(ctx context.Context, cfg Config) error {
@@ -227,13 +228,15 @@ func (h *host) acceptLoop(ln net.Listener) {
 }
 
 func (h *host) add(conn net.Conn) {
-	c := &client{conn: conn, wake: make(chan struct{}, 1)}
+	c := &client{conn: conn, wake: make(chan struct{}, 1), progressAt: time.Now()}
 	h.mu.Lock()
 	if h.term.alt && h.exit == nil {
 		c.pending = h.term.prelude()
 		c.repaint = true
 	} else {
 		c.pending = h.ring.Replay()
+		from := h.ring.Written() - uint64(len(c.pending))
+		c.replay = &wire.Frame{Type: wire.FrameReplay, Payload: wire.OffsetPayload(from)}
 	}
 	c.wake <- struct{}{}
 	if h.exit != nil {
@@ -261,28 +264,28 @@ func (h *host) pump() {
 }
 
 func (h *host) waitDrain() {
-	var timer *time.Timer
 	for {
 		h.mu.Lock()
-		full := len(h.fullLocked()) > 0
+		wait, full := h.stall, false
+		now := time.Now()
+		for _, c := range h.fullLocked() {
+			left := h.stall - now.Sub(c.progressAt)
+			if left <= 0 {
+				h.dropLocked(c)
+				continue
+			}
+			wait, full = min(wait, left), true
+		}
 		h.mu.Unlock()
 		if !full {
 			return
 		}
-		if timer == nil {
-			timer = time.NewTimer(h.stall)
-			defer timer.Stop()
-		}
+		timer := time.NewTimer(wait)
 		select {
 		case <-h.drained:
 		case <-timer.C:
-			h.mu.Lock()
-			for _, c := range h.fullLocked() {
-				h.dropLocked(c)
-			}
-			h.mu.Unlock()
-			return
 		}
+		timer.Stop()
 	}
 }
 
@@ -322,6 +325,9 @@ func (h *host) broadcast(p []byte) {
 	default:
 	}
 	for c := range h.clients {
+		if len(c.pending) == 0 {
+			c.progressAt = h.outputAt
+		}
 		c.pending = append(c.pending, p...)
 		select {
 		case c.wake <- struct{}{}:
@@ -350,13 +356,26 @@ func (h *host) writeLoop(c *client) {
 	for {
 		_, open := <-c.wake
 		h.mu.Lock()
-		data, exit, snapshot := c.pending, h.exit, c.snapshot
-		c.pending = nil
+		data, exit, snapshot, replay := c.pending, h.exit, c.snapshot, c.replay
+		mark := wire.Frame{Type: wire.FrameMark, Payload: wire.OffsetPayload(h.ring.Written())}
+		c.pending, c.replay, c.progressAt = nil, nil, time.Now()
 		h.mu.Unlock()
 		h.signalDrained()
-		if err := writeData(c.conn, data); err != nil {
+		if replay != nil {
+			if err := wire.WriteFrame(c.conn, *replay); err != nil {
+				h.drop(c)
+				return
+			}
+		}
+		if err := h.writeData(c, data); err != nil {
 			h.drop(c)
 			return
+		}
+		if len(data) > 0 && snapshot == nil {
+			if err := wire.WriteFrame(c.conn, mark); err != nil {
+				h.drop(c)
+				return
+			}
 		}
 		if snapshot != nil {
 			wire.WriteFrame(c.conn, *snapshot)
@@ -553,6 +572,13 @@ func (h *host) dropLocked(c *client) {
 	h.signalDrained()
 }
 
+func (h *host) progressed(c *client) {
+	h.mu.Lock()
+	c.progressAt = time.Now()
+	h.mu.Unlock()
+	h.signalDrained()
+}
+
 func (h *host) signalDrained() {
 	select {
 	case h.drained <- struct{}{}:
@@ -560,11 +586,12 @@ func (h *host) signalDrained() {
 	}
 }
 
-func writeData(w io.Writer, data []byte) error {
-	for chunk := range slices.Chunk(data, maxFramePayload) {
-		if err := wire.WriteFrame(w, wire.Frame{Type: wire.FrameData, Payload: chunk}); err != nil {
+func (h *host) writeData(c *client, data []byte) error {
+	for chunk := range slices.Chunk(data, writeChunk) {
+		if err := wire.WriteFrame(c.conn, wire.Frame{Type: wire.FrameData, Payload: chunk}); err != nil {
 			return err
 		}
+		h.progressed(c)
 	}
 	return nil
 }
