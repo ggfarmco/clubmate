@@ -101,6 +101,7 @@ type sessionUI struct {
 	open        openDraft
 	repos       reposChoice
 	restoreNote string
+	reviewBase  string
 
 	context         bool
 	contextSelected string
@@ -481,7 +482,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 	queue := s.queued()
 	pending := s.pendingIDs()
 	detached := s.detached()
-	changes := s.hasChanges()
+	changes, bases := s.hasChanges()
 	sid := v.Session.ID
 	st := a.sessionState(workspaceID, sid)
 	parent, fromTitles := a.relatives(v)
@@ -517,6 +518,8 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 		NodeProblem: a.nodeProblem,
 		Installing:  a.installing && detached && !v.Session.closed(),
 		Changes:     changes,
+		ReviewBases: bases,
+		ReviewBase:  st.reviewBase,
 		Advisor:     advisor,
 		Branch:      row.Branch,
 		Parent:      parent,

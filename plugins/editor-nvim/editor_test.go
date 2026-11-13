@@ -421,6 +421,26 @@ func TestDiffviewSwitchesWorktree(t *testing.T) {
 	assert.Equal(t, 0, eval[int](t, dial(t, e.sock), "exists('g:dv_log')"))
 }
 
+func TestDiffviewOpensBranchMergeBase(t *testing.T) {
+	e, wt := startWorktreeEditor(t, setup{initLua: stubDiffview})
+	fork := strings.TrimSpace(gitIn(t, e.top, "rev-parse", "HEAD"))
+	base := strings.TrimSpace(gitIn(t, e.top, "rev-parse", "--abbrev-ref", "HEAD"))
+	require.NoError(t, os.WriteFile(filepath.Join(wt, "b.go"), []byte("b\n"), 0o600))
+	gitIn(t, wt, "add", ".")
+	gitIn(t, wt, "commit", "-qm", "b")
+	e.run(t, "diffview", map[string]any{"cwd": wt, "base": base}, nil)
+	feat := e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
+		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
+	})
+	v := dial(t, listenSocket(e.h.GetSession(t, feat.Props["sessionId"].(string))))
+	testutil.Eventually(t, func() bool { return len(eval[[]string](t, v, "get(g:, 'dv_log', [])")) == 1 }, 5*time.Second)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal([]byte(eval[[]string](t, v, "g:dv_log")[0]), &got))
+	assert.Equal(t, []any{fork, map[string]any{"left": base}, base}, []any{got["base"], got["labels"], got["host"].(map[string]any)["base"]})
+	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diffview", "workspaceId": e.workspaceID, "args": map[string]any{"cwd": wt, "rev": fork, "base": base}}, nil)
+	require.ErrorContains(t, err, "pass a commit sha as rev or a branch as base")
+}
+
 func TestDiffviewMissingShowsOpenFailed(t *testing.T) {
 	e := startEditor(t)
 	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diffview", "workspaceId": e.workspaceID, "args": map[string]any{"cwd": e.repo, "rev": "abcdef0"}}, nil)

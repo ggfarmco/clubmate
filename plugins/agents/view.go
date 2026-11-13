@@ -74,6 +74,8 @@ type screen struct {
 	NodeProblem  string
 	Installing   bool
 	Changes      bool
+	ReviewBases  []string
+	ReviewBase   string
 	Advisor      string
 	Branch       string
 	Parent       string
@@ -263,7 +265,7 @@ func header(sc screen) sdui.Node {
 		buttons = append(buttons, b)
 	}
 	if sc.Changes {
-		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/review", "Review changes", "doc.text.magnifyingglass"), actReview))
+		buttons = append(buttons, reviewButton(sid, sc.ReviewBases, sc.ReviewBase))
 	}
 	if display == statusReview {
 		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/"+reviewedNode, reviewedLabel, "checkmark"), actReviewed))

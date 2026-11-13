@@ -30,6 +30,7 @@ var (
 	errUnknownCommand = errors.New("unknown command")
 	errDiffviewCwd    = errors.New("diffview: cwd must be absolute")
 	errDiffviewRev    = errors.New("diffview: rev must be a commit sha")
+	errDiffviewBase   = errors.New("diffview: pass a commit sha as rev or a branch as base")
 	errStopRoot       = errors.New("stop-root: root must be absolute")
 	errChecktimeRoot  = errors.New("checktime: root must be absolute")
 	errUnsavedRoot    = errors.New("unsaved: root must be absolute")
@@ -47,6 +48,7 @@ type openArgs struct {
 type diffviewArgs struct {
 	Cwd     string `json:"cwd"`
 	Rev     string `json:"rev"`
+	Base    string `json:"base"`
 	Session string `json:"session"`
 	Turn    int    `json:"turn"`
 }
@@ -202,7 +204,10 @@ func (a *app) diffview(ctx context.Context, h *pluginsdk.Host, workspaceID strin
 	if !filepath.IsAbs(args.Cwd) {
 		return errDiffviewCwd
 	}
-	if !shaPattern.MatchString(args.Rev) {
+	if (args.Rev == "") == (args.Base == "") || (args.Base != "" && !revPattern.MatchString(args.Base)) {
+		return errDiffviewBase
+	}
+	if args.Rev != "" && !shaPattern.MatchString(args.Rev) {
 		return errDiffviewRev
 	}
 	cwd := filepath.Clean(args.Cwd)
@@ -210,7 +215,13 @@ func (a *app) diffview(ctx context.Context, h *pluginsdk.Host, workspaceID strin
 		cwd = gitrepo.Canonical(top)
 	}
 	req := openReviewReq{Key: reviewKey{Worktree: cwd, Base: args.Rev}, BaseRev: args.Rev}
-	if args.Turn > 0 {
+	if args.Base != "" {
+		rev, left, err := reviewBase(ctx, cwd, args.Base, "")
+		if err != nil {
+			return err
+		}
+		req = openReviewReq{Key: reviewKey{Worktree: cwd, Base: args.Base}, BaseRev: rev, Left: left}
+	} else if args.Turn > 0 {
 		req.Left = fmt.Sprintf("Before turn %d", args.Turn)
 	}
 	if args.Session != "" {

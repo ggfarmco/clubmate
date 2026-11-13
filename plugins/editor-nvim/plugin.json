@@ -99,15 +99,16 @@
         "title": "Open Diffview",
         "hidden": true,
         "agent": false,
-        "description": "Open a review of the working tree of the git worktree containing cwd (uncommitted and untracked files included) against rev in that worktree's Neovim, switching the workspace folder to it when it is not the selected one, and show it in the Code section. With turn the left side reads Before turn <turn>; session becomes the review's opener. Reuses an open review of the same worktree and rev. When the diffview host API is missing, Neovim's error shows as the open failed badge and the command fails.",
+        "description": "Open a review of the working tree of the git worktree containing cwd (uncommitted and untracked files included) against rev, or against base's merge-base with HEAD, in that worktree's Neovim, switching the workspace folder to it when it is not the selected one, and show it in the Code section. With turn the left side reads Before turn <turn>; session becomes the review's opener. Reuses an open review of the same worktree and rev or base. When the diffview host API is missing, Neovim's error shows as the open failed badge and the command fails.",
         "args": {
           "properties": {
             "cwd": {"type": "string", "description": "Absolute path of the worktree root."},
-            "rev": {"type": "string", "description": "Commit sha, 7 to 40 lowercase hex digits."},
+            "rev": {"type": "string", "description": "Commit sha, 7 to 40 lowercase hex digits. Pass rev or base, not both."},
+            "base": {"type": "string", "description": "Branch compared from its merge-base with HEAD; the left side reads <base> merge-base <sha>."},
             "session": {"type": "string", "description": "Agent session whose turn is reviewed; it becomes the review's opener."},
             "turn": {"type": "integer", "description": "Turn number of that session; the left side is labelled Before turn <turn>."}
           },
-          "required": ["cwd", "rev"]
+          "required": ["cwd"]
         }
       },
       {

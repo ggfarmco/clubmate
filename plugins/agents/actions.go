@@ -135,9 +135,10 @@ type selection struct {
 
 type diffviewArgs struct {
 	Cwd     string `json:"cwd"`
-	Rev     string `json:"rev"`
+	Rev     string `json:"rev,omitempty"`
+	Base    string `json:"base,omitempty"`
 	Session string `json:"session"`
-	Turn    int    `json:"turn"`
+	Turn    int    `json:"turn,omitempty"`
 }
 
 func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
@@ -531,9 +532,12 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		}
 		return a.host.RunCommand(ctx, docsOpenCmd, ev.WorkspaceID, docsOpenArgs{Path: path, Session: sid}, nil)
 	case actReview:
-		var v turnValue
+		var v reviewValue
 		if err := decode(ev.Value, &v); err != nil {
 			return err
+		}
+		if v.Turn == 0 {
+			return a.reviewAgainst(ctx, ev.WorkspaceID, s, st, v.Base)
 		}
 		return a.review(ctx, ev.WorkspaceID, s, v.Turn)
 	case actShowEarlier:

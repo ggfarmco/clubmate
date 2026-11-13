@@ -1308,10 +1308,16 @@ func cardsOf(n sdui.Node, typ string) []sdui.Node {
 
 func echoed(t *testing.T, f *fixture, command string) json.RawMessage {
 	t.Helper()
-	var args json.RawMessage
+	return echoedN(t, f, command, 1)[0]
+}
+
+func echoedN(t *testing.T, f *fixture, command string, n int) []json.RawMessage {
+	t.Helper()
+	var args []json.RawMessage
 	testutil.Eventually(t, func() bool {
 		events, err := f.h.Bus.Read(t.Context(), "echo.command", 0, 100)
 		require.NoError(t, err)
+		args = nil
 		for _, e := range events {
 			var p struct {
 				ID   string          `json:"id"`
@@ -1319,11 +1325,10 @@ func echoed(t *testing.T, f *fixture, command string) json.RawMessage {
 			}
 			require.NoError(t, json.Unmarshal(e.Payload, &p))
 			if p.ID == command {
-				args = p.Args
-				return true
+				args = append(args, p.Args)
 			}
 		}
-		return false
+		return len(args) >= n
 	}, wait)
 	return args
 }
@@ -1364,6 +1369,36 @@ func TestReviewActionUsesCheckpoint(t *testing.T) {
 	f.h.Event(t, workspace, "agents.main", session+"/review", "review", nil)
 
 	assert.JSONEq(t, `{"cwd":"`+repo+`","rev":"`+sha+`","session":"`+session+`","turn":1}`, string(echoed(t, f, "editor-nvim.diffview")))
+}
+
+func TestReviewPopoverComparesWithChosenBranch(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	git(t, repo, "branch", "release")
+	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}}, testutil.EchoPluginDirAs(t, diffviewManifest))
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "change it")
+	f.waitStatus(t, workspace, session, "done")
+	write(t, filepath.Join(repo, "new.txt"), "x\n")
+	f.h.Event(t, workspace, "agents.sidebar", session, "select", session)
+	main := f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(cardsOf(n, "select")) == 1 })
+	assert.Equal(t, []any{map[string]any{"value": "", "label": "Session start · before turn 1"}, map[string]any{"value": "release", "label": "release"}}, cardsOf(main, "select")[0].Props["options"])
+
+	f.h.Event(t, workspace, "agents.main", session+"/review/form", "review", map[string]any{"reviewBase": "release"})
+	f.h.Event(t, workspace, "agents.main", session+"/review", "review", nil)
+
+	want := `{"cwd":"` + repo + `","base":"release","session":"` + session + `"}`
+	got := echoedN(t, f, "editor-nvim.diffview", 2)
+	assert.JSONEq(t, want, string(got[0]))
+	assert.JSONEq(t, want, string(got[1]))
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
+		sel := cardsOf(n, "select")
+		return len(sel) == 1 && sel[0].Props["value"] == "release"
+	})
+
+	f.h.Event(t, workspace, "agents.main", session+"/review/form", "review", map[string]any{"reviewBase": "gone"})
+	assert.Contains(t, string(echoedN(t, f, "editor-nvim.diffview", 3)[2]), `"rev":"`)
 }
 
 func TestReviewButtonFollowsWorktreeChanges(t *testing.T) {
