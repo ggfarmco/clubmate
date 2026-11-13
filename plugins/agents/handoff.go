@@ -33,7 +33,7 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 	if s.snapshot().Night != "" {
 		return nil, errNightHandoff
 	}
-	finish, afk := a.sessionDefaults(ctx, cmp.Or(s.snapshot().ParentSession, s.snapshot().StartedBy))
+	finish, _ := a.sessionDefaults(ctx, cmp.Or(s.snapshot().ParentSession, s.snapshot().StartedBy))
 	a.spawnMu.Lock()
 	defer a.spawnMu.Unlock()
 	a.landMu.Lock()
@@ -53,10 +53,6 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 	}
 	if old.Task != nil {
 		finish = old.Finish
-	}
-	afkBy := old.AFKBy
-	if afk {
-		afkBy = ""
 	}
 	first := promptArgs{Text: handoffBrief(s.view(0), args.Note), From: from}
 	a.closeSession(ctx, s, false)
@@ -79,8 +75,8 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 		Title:    old.Title,
 		TitleSet: old.TitleSet,
 		Finish:   finish,
-		AFK:      afk || old.AFK,
-		AFKBy:    afkBy,
+		AFK:      old.AFK,
+		AFKBy:    old.AFKBy,
 		RepoPath: old.RepoPath,
 		Task:     old.Task,
 

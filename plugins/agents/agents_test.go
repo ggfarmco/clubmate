@@ -1982,6 +1982,32 @@ func TestHandoff(t *testing.T) {
 	assert.Contains(t, promptText(t, sent), "Last reply (turn 1):\nhalf done")
 }
 
+func TestHandoffKeepsAFK(t *testing.T) {
+	t.Parallel()
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	require.NoError(t, f.run(t, workspace, "agents.afk-default", map[string]any{"on": true}, nil))
+	off, on := f.newSession(t, workspace), f.newSession(t, workspace)
+	require.NoError(t, f.run(t, workspace, "agents.afk", map[string]any{"session": off, "on": false}, nil))
+	require.NoError(t, f.runAs(t, workspace, on, "agents.afk", map[string]any{"on": false}, nil))
+	require.NoError(t, f.runAs(t, workspace, on, "agents.afk", map[string]any{"on": true}, nil))
+
+	for _, tt := range []struct {
+		session string
+		afk     bool
+		afkBy   string
+	}{{off, false, ""}, {on, true, on}} {
+		f.waitStatus(t, workspace, tt.session, "idle")
+		var out struct {
+			Session string `json:"session"`
+		}
+		require.NoError(t, f.run(t, workspace, "agents.handoff", map[string]any{"session": tt.session}, &out))
+		next := f.session(t, workspace, out.Session)
+		assert.Equal(t, tt.afk, next.AFK)
+		assert.Equal(t, tt.afkBy, next.AFKBy)
+	}
+}
+
 func TestExportImportContinuesInAnotherClone(t *testing.T) {
 	t.Parallel()
 	reply := map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "half done"}}}
