@@ -319,10 +319,7 @@ end
 
 function M.load()
   local c = M.tokens()
-  local background = c.dark and "dark" or "light"
-  if vim.o.background ~= background then
-    vim.o.background = background
-  end
+  vim.o.background = c.dark and "dark" or "light"
   vim.o.termguicolors = true
   if not syntax(c) then
     set(M.chrome(vim.g.clubmate_theme))
@@ -357,7 +354,7 @@ function M.apply(t)
     return
   end
   vim.g.clubmate_theme = t
-  if vim.g.colors_name == "clubmate" then
+  if vim.g.colors_name == nil or vim.g.colors_name == "clubmate" then
     vim.cmd.colorscheme("clubmate")
   end
 end

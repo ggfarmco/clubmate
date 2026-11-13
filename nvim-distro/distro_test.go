@@ -2,6 +2,7 @@ package distro_test
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -17,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/creack/pty"
 	"github.com/neovim/go-client/nvim"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,11 +74,11 @@ func resources(t *testing.T) string {
 	return res
 }
 
-func startDistro(t *testing.T, o opts) *nvim.Nvim {
+func distroEnv(t *testing.T, o opts) (res, distro, home string, env []string) {
 	t.Helper()
-	res := resources(t)
-	home := t.TempDir()
-	distro := filepath.Join(res, "nvim-distro")
+	res = resources(t)
+	home = t.TempDir()
+	distro = filepath.Join(res, "nvim-distro")
 	if o.LongPath {
 		distro = copyDistro(t, distro, longDir(t))
 	}
@@ -89,7 +91,7 @@ func startDistro(t *testing.T, o opts) *nvim.Nvim {
 		script = strings.NewReplacer("@NAME@", name, "@HOME@", home).Replace(script)
 		require.NoError(t, os.WriteFile(filepath.Join(shims, name), []byte(script), 0o755))
 	}
-	env := []string{
+	env = []string{
 		"HOME=" + home,
 		"NVIM_APPNAME=clubmate-test",
 		"PATH=" + strings.Join([]string{shims, filepath.Join(res, "tools"), "/usr/bin", "/bin"}, ":"),
@@ -111,6 +113,21 @@ func startDistro(t *testing.T, o opts) *nvim.Nvim {
 		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
 		require.NoError(t, os.WriteFile(p, []byte(content), 0o644))
 	}
+	return res, distro, home, env
+}
+
+func waitReady(t *testing.T, v *nvim.Nvim) {
+	t.Helper()
+	testutil.Eventually(t, func() bool {
+		var ready int
+		require.NoError(t, v.Eval("v:vim_did_enter && get(g:, 'clubmate_ready', v:false)", &ready))
+		return ready == 1
+	}, 15*time.Second)
+}
+
+func startDistro(t *testing.T, o opts) *nvim.Nvim {
+	t.Helper()
+	res, distro, home, env := distroEnv(t, o)
 	v, err := nvim.NewChildProcess(
 		nvim.ChildProcessCommand(filepath.Join(res, "nvim", "bin", "nvim")),
 		nvim.ChildProcessArgs("--embed", "-u", filepath.Join(distro, "init.lua")),
@@ -122,11 +139,7 @@ func startDistro(t *testing.T, o opts) *nvim.Nvim {
 	t.Cleanup(func() { _ = v.Close() })
 	require.NoError(t, v.RegisterHandler("redraw", func(...[]any) {}))
 	require.NoError(t, v.AttachUI(120, 40, map[string]any{"ext_linegrid": true}))
-	testutil.Eventually(t, func() bool {
-		var ready int
-		require.NoError(t, v.Eval("v:vim_did_enter && get(g:, 'clubmate_ready', v:false)", &ready))
-		return ready == 1
-	}, 15*time.Second)
+	waitReady(t, v)
 	return v
 }
 
@@ -875,6 +888,79 @@ func TestNoThemeFileFallsBack(t *testing.T) {
 	assert.Equal(t, "clubmate", colorsName(t, v))
 	assert.Equal(t, "#1f1f28", hl(t, v, "Normal").Bg)
 	assert.Empty(t, errorsOf(t, v))
+}
+
+func startDistroTTY(t *testing.T, o opts) (*nvim.Nvim, *os.File) {
+	t.Helper()
+	res, distro, home, env := distroEnv(t, o)
+	dir, err := os.MkdirTemp("", "nv")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	sock := filepath.Join(dir, "s")
+	cmd := exec.Command(filepath.Join(res, "nvim", "bin", "nvim"), "-u", filepath.Join(distro, "init.lua"), "--listen", sock)
+	cmd.Env = append(env, "TERM=xterm-256color")
+	cmd.Dir = home
+	tty, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 40, Cols: 120})
+	require.NoError(t, err)
+	exited := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(exited)
+	}()
+	t.Cleanup(func() {
+		select {
+		case <-exited:
+		case <-time.After(5 * time.Second):
+			_ = cmd.Process.Kill()
+			<-exited
+		}
+		_ = tty.Close()
+	})
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := tty.Read(buf)
+			if err != nil {
+				return
+			}
+			if bytes.Contains(buf[:n], []byte("\x1b[5n")) {
+				_, _ = tty.Write([]byte("\x1b[0n"))
+			}
+		}
+	}()
+	var v *nvim.Nvim
+	testutil.Eventually(t, func() bool {
+		v, err = nvim.Dial(sock)
+		return err == nil
+	}, 15*time.Second)
+	t.Cleanup(func() {
+		_ = v.ExecLua(`vim.schedule(function() vim.cmd("qa!") end)`, nil)
+		_ = v.Close()
+	})
+	waitReady(t, v)
+	return v, tty
+}
+
+func TestTerminalBackgroundReportKeepsTheme(t *testing.T) {
+	v, tty := startDistroTTY(t, opts{ThemeFile: writeTheme(t, clubmateTheme)})
+	require.NoError(t, v.ExecLua(`vim.api.nvim_create_autocmd("TermResponse", { callback = function() vim.g.seen_bg = true end })`, nil))
+	_, err := tty.Write([]byte("\x1b]11;rgb:f6f6/f1f1/e6e6\x1b\\"))
+	require.NoError(t, err)
+	testutil.Eventually(t, func() bool {
+		var seen bool
+		require.NoError(t, v.Eval("get(g:, 'seen_bg', v:false)", &seen))
+		return seen
+	}, 5*time.Second)
+	assert.Equal(t, "clubmate", colorsName(t, v))
+	assert.Equal(t, clubmateTheme.Background, hl(t, v, "Normal").Bg)
+}
+
+func TestApplyAfterBackgroundOverride(t *testing.T) {
+	v := startDistro(t, opts{ThemeFile: writeTheme(t, clubmateTheme)})
+	require.NoError(t, v.Command("set background=light"))
+	require.NoError(t, v.ExecLua(`require("clubmate.theme").apply(...)`, nil, lightOwlTheme))
+	assert.Equal(t, "clubmate", colorsName(t, v))
+	assert.Equal(t, lightOwlTheme.Background, hl(t, v, "Normal").Bg)
 }
 
 func waitMode(t *testing.T, v *nvim.Nvim, want string) {
