@@ -18,12 +18,18 @@ const (
 	askFormat    = "[Clubmate] Child %q (%s) asks you, not the user: %q (agents_elicitation request %s). Answer it yourself; ask the user only when the decision is theirs."
 )
 
+type waitReg struct {
+	caller string
+	ids    []string
+}
+
 type watchdog struct {
 	mu      sync.Mutex
 	last    map[string]string
 	seen    map[string]string
 	pending map[string]map[string]string
-	waits   map[string]map[string]int
+	waits   map[string][]*waitReg
+	handing map[string]bool
 	timers  map[string]*time.Timer
 	delay   time.Duration
 
@@ -32,12 +38,12 @@ type watchdog struct {
 }
 
 func newWatchdog() watchdog {
-	return watchdog{last: map[string]string{}, seen: map[string]string{}, pending: map[string]map[string]string{}, waits: map[string]map[string]int{}, timers: map[string]*time.Timer{}, delay: envDelay(wakeDelayEnv, wakeDelay), retries: map[string]int{}, retryTimers: map[string]*time.Timer{}}
+	return watchdog{last: map[string]string{}, seen: map[string]string{}, pending: map[string]map[string]string{}, waits: map[string][]*waitReg{}, handing: map[string]bool{}, timers: map[string]*time.Timer{}, delay: envDelay(wakeDelayEnv, wakeDelay), retries: map[string]int{}, retryTimers: map[string]*time.Timer{}}
 }
 
-func (a *app) continueCutOff(cut []*session) {
-	for _, s := range cut {
-		a.runIdle(s, promptArgs{Text: cutOffText}, (*session).requeueLocked)
+func (a *app) continueCutOff(cut map[*session]string) {
+	for s, text := range cut {
+		a.runIdle(s, promptArgs{Text: text}, (*session).requeueLocked)
 	}
 }
 
@@ -77,21 +83,14 @@ func (a *app) watchWait(caller string, ids []string) func() {
 		return func() {}
 	}
 	w := &a.watchdog
+	reg := &waitReg{caller: caller, ids: ids}
 	w.mu.Lock()
-	if w.waits[caller] == nil {
-		w.waits[caller] = map[string]int{}
-	}
-	for _, id := range ids {
-		w.waits[caller][id]++
-	}
+	w.waits[caller] = append(w.waits[caller], reg)
 	w.mu.Unlock()
 	return func() {
 		w.mu.Lock()
-		for _, id := range ids {
-			if w.waits[caller][id]--; w.waits[caller][id] == 0 {
-				delete(w.waits[caller], id)
-			}
-		}
+		caller := reg.caller
+		w.waits[caller] = slices.DeleteFunc(w.waits[caller], func(r *waitReg) bool { return r == reg })
 		if len(w.waits[caller]) == 0 {
 			delete(w.waits, caller)
 		}
@@ -101,6 +100,35 @@ func (a *app) watchWait(caller string, ids []string) func() {
 			a.scheduleWake(caller)
 		}
 	}
+}
+
+func (w *watchdog) waitingLocked(caller, id string) bool {
+	return slices.ContainsFunc(w.waits[caller], func(r *waitReg) bool { return slices.Contains(r.ids, id) })
+}
+
+func (a *app) beginHandoff(from string) {
+	w := &a.watchdog
+	w.mu.Lock()
+	w.handing[from] = true
+	w.mu.Unlock()
+}
+
+func (a *app) endHandoff(from, to string) {
+	w := &a.watchdog
+	w.mu.Lock()
+	delete(w.handing, from)
+	for _, reg := range w.waits[from] {
+		reg.caller = to
+	}
+	w.waits[to] = append(w.waits[to], w.waits[from]...)
+	delete(w.waits, from)
+	if len(w.waits[to]) == 0 {
+		delete(w.waits, to)
+	}
+	taken := w.pending[from]
+	delete(w.pending, from)
+	w.mu.Unlock()
+	a.giveWakes(to, taken)
 }
 
 func (a *app) observed(caller string, out []waitResult) {
@@ -147,8 +175,13 @@ func (a *app) flushWake(id string) {
 	}
 	rec, _, running := parent.progress()
 	switch {
+	case rec.closed() && rec.HandoffTo != "":
+		a.giveWakes(rec.HandoffTo, a.takeWakes(id))
+		return
 	case rec.closed():
-		a.dropWakes(id)
+		if !a.handingOff(id) {
+			a.dropWakes(id)
+		}
 		return
 	case running || busy(rec.Status):
 		return
@@ -156,7 +189,7 @@ func (a *app) flushWake(id string) {
 	w.mu.Lock()
 	taken := map[string]string{}
 	for kid, key := range w.pending[id] {
-		if w.waits[id][kid] == 0 {
+		if !w.waitingLocked(id, kid) {
 			taken[kid] = key
 			w.seen[kid] = key
 			delete(w.pending[id], kid)
@@ -220,6 +253,13 @@ func (a *app) giveWakes(id string, wakes map[string]string) {
 	}
 	w.mu.Unlock()
 	a.scheduleWake(id)
+}
+
+func (a *app) handingOff(id string) bool {
+	w := &a.watchdog
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.handing[id]
 }
 
 func (a *app) dropWakes(id string) {

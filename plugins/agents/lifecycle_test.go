@@ -181,3 +181,82 @@ func TestDequeuedPromptIsNotSentAgainAfterRestart(t *testing.T) {
 	f.waitStatus(t, workspace, session, "done")
 	assert.Len(t, f.promptsTo(t, agentID, "follow up"), 1)
 }
+
+func TestPromptCutByAgentExitBeforeSendIsQueued(t *testing.T) {
+	t.Parallel()
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_SEND_HOLD=2s"}, map[string]any{"resume": true})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "first")
+	agentID := f.waitStatus(t, workspace, session, "done").AgentSessionID
+	pid := f.calls(t, "session/prompt")[0].PID
+	f.prompt(t, workspace, session, "second")
+	testutil.Eventually(t, func() bool { return len(f.transcript(t, workspace, session).Turns) == 2 }, wait)
+
+	require.NoError(t, syscall.Kill(pid, syscall.SIGKILL))
+	f.waitStatus(t, workspace, session, "error")
+	f.prompt(t, workspace, session, "third")
+
+	f.waitStatus(t, workspace, session, "done")
+	assert.Equal(t, []string{"second\n\nthird"}, f.promptsTo(t, agentID, "second"))
+}
+
+func TestPromptCutByRestartBeforeSendIsSentOnce(t *testing.T) {
+	t.Parallel()
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_SEND_HOLD=2s"}, map[string]any{"resume": true})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "first")
+	agentID := f.waitStatus(t, workspace, session, "done").AgentSessionID
+	f.prompt(t, workspace, session, "second")
+	testutil.Eventually(t, func() bool { return len(f.transcript(t, workspace, session).Turns) == 2 }, wait)
+
+	f.restartPlugin(t, workspace)
+
+	f.waitStatus(t, workspace, session, "done")
+	assert.Equal(t, []string{"second"}, f.promptsTo(t, agentID, "second"))
+	assert.Empty(t, f.promptsTo(t, agentID, cutOffText))
+}
+
+func TestLongQueuedTextSurvivesRestart(t *testing.T) {
+	t.Parallel()
+	f := start(t, longTurn)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "long")
+	agentID := f.agentID(t, workspace, session)
+	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
+	big := strings.Repeat("x", 300<<10)
+	f.prompt(t, workspace, session, big)
+	testutil.Eventually(t, func() bool {
+		raw, _, err := f.h.KV.Get(t.Context(), "agents", "session/"+workspace+"/"+session)
+		require.NoError(t, err)
+		return strings.Contains(string(raw), `"queueSpilled":true`)
+	}, wait)
+
+	f.restartPlugin(t, workspace)
+
+	f.waitStatus(t, workspace, session, "done")
+	assert.Len(t, f.promptsTo(t, agentID, big), 1)
+}
+
+func TestPromptHeldAtShutdownIsSentAfterRestart(t *testing.T) {
+	t.Parallel()
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_SEND_HOLD=1s"}, map[string]any{"resume": true, "linger": true})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "first")
+	agentID := f.waitStatus(t, workspace, session, "done").AgentSessionID
+	f.prompt(t, workspace, session, "second")
+	testutil.Eventually(t, func() bool { return len(f.transcript(t, workspace, session).Turns) == 2 }, wait)
+	pids := f.h.Sup.PIDs()
+
+	require.NoError(t, f.h.Sup.Restart("agents"))
+	testutil.Eventually(t, func() bool {
+		now := f.h.Sup.PIDs()
+		return len(now) == 1 && now[0] != pids[0] && f.run(t, workspace, "agents.sessions", map[string]any{}, nil) == nil
+	}, restartWait)
+
+	testutil.Eventually(t, func() bool { return len(f.promptsTo(t, agentID, "second")) > 0 }, wait)
+	assert.Equal(t, []string{"second"}, f.promptsTo(t, agentID, "second"))
+}

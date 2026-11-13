@@ -55,7 +55,7 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 		finish = old.Finish
 	}
 	first := promptArgs{Text: handoffBrief(s.view(0), args.Note), From: from}
-	wakes := a.takeWakes(old.ID)
+	a.beginHandoff(old.ID)
 	a.closeSession(ctx, s, false)
 	a.connectMu.Lock()
 	defer a.connectMu.Unlock()
@@ -97,8 +97,7 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 		a.saveNow(ctx, s)
 	}
 	a.moveChildren(ctx, old.ID, next.snapshot().ID)
-	a.giveWakes(next.snapshot().ID, a.takeWakes(old.ID))
-	a.giveWakes(next.snapshot().ID, wakes)
+	a.endHandoff(old.ID, next.snapshot().ID)
 	return next, err
 }
 

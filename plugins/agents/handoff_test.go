@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -78,4 +79,28 @@ func buttonIDs(n sdui.Node, action string) []string {
 		}
 	}
 	return out
+}
+
+func TestLateChildWakeFollowsHandoff(t *testing.T) {
+	t.Parallel()
+	a := &app{registry: newRegistry(), watchdog: newWatchdog()}
+	a.watchdog.delay = time.Hour
+	a.sessions["old"] = newSession(record{ID: "old", Status: statusClosed, lineage: lineage{HandoffTo: "new"}}, nil, true, func(string, bool) {})
+	a.watchdog.pending["old"] = map[string]string{"kid": "1/done"}
+
+	a.flushWake("old")
+
+	assert.Equal(t, map[string]map[string]string{"new": {"kid": "1/done"}}, a.watchdog.pending)
+}
+
+func TestHandoffMovesOpenWaits(t *testing.T) {
+	t.Parallel()
+	a := &app{watchdog: newWatchdog()}
+	release := a.watchWait("old", []string{"kid"})
+
+	a.endHandoff("old", "new")
+
+	assert.True(t, a.watchdog.waitingLocked("new", "kid"))
+	release()
+	assert.Empty(t, a.watchdog.waits)
 }

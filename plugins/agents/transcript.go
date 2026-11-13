@@ -153,6 +153,7 @@ type promptPayload struct {
 	Steered   bool        `json:"steered,omitempty"`
 	Voice     bool        `json:"voice,omitempty"`
 	Review    *reviewSent `json:"review,omitempty"`
+	Sent      string      `json:"sent,omitempty"`
 }
 
 type permissionPayload struct {

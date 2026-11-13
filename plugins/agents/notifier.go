@@ -46,6 +46,7 @@ var (
 
 type notifier struct {
 	host  *pluginsdk.Host
+	dir   string
 	mu    sync.Mutex
 	order []change
 	seen  map[change]bool
@@ -94,8 +95,8 @@ type change struct {
 	requestKind string
 }
 
-func newNotifier(h *pluginsdk.Host) *notifier {
-	n := &notifier{host: h, seen: map[change]bool{}, saves: map[*session]bool{}, endq: newEndQueue(envDelay(endHoldEnv, endHold)), wake: make(chan struct{}, 1), hold: envDelay(saveHoldEnv, 0)}
+func newNotifier(h *pluginsdk.Host, stateDir string) *notifier {
+	n := &notifier{host: h, dir: stateDir, seen: map[change]bool{}, saves: map[*session]bool{}, endq: newEndQueue(envDelay(endHoldEnv, endHold)), wake: make(chan struct{}, 1), hold: envDelay(saveHoldEnv, 0)}
 	go n.run()
 	return n
 }
@@ -363,15 +364,28 @@ func (n *notifier) persist(ctx context.Context, s *session) {
 	defer s.saveMu.Unlock()
 	s.mu.Lock()
 	rec, deleted := s.rec, s.deleted
-	rec.Queue = storedQueue(s.queue)
+	rec.Queue = s.storedQueueLocked()
 	s.mu.Unlock()
-	var err error
 	if deleted {
-		err = n.host.StorageDelete(ctx, sessionStorageKey(rec))
-	} else {
-		err = n.host.StorageSet(ctx, sessionStorageKey(rec), rec)
+		if err := n.host.StorageDelete(ctx, sessionStorageKey(rec)); err != nil {
+			fmt.Fprintln(os.Stderr, "agents: save session:", err)
+		}
+		return
 	}
+	spilled, err := spillQueue(n.dir, rec.ID, rec.Queue)
 	if err != nil {
+		fmt.Fprintln(os.Stderr, "agents: spill queue:", err)
+	}
+	if spilled {
+		rec.Queue, rec.QueueSpilled = nil, true
+	}
+	if err := n.host.StorageSet(ctx, sessionStorageKey(rec), rec); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: save session:", err)
+		return
+	}
+	if !spilled {
+		if err := dropSpilledQueue(n.dir, rec.ID); err != nil {
+			fmt.Fprintln(os.Stderr, "agents: drop spilled queue:", err)
+		}
 	}
 }

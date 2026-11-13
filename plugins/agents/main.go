@@ -35,6 +35,7 @@ var (
 type app struct {
 	host      *pluginsdk.Host
 	stateDir  string
+	sendHold  time.Duration
 	loaded    chan struct{}
 	quit      chan struct{}
 	notes     *notifier
@@ -107,7 +108,8 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if a.stateDir == "" {
 		return errNoStateDir
 	}
-	a.notes = newNotifier(h)
+	a.notes = newNotifier(h, a.stateDir)
+	a.sendHold = envDelay(sendHoldEnv, 0)
 	a.groups = newGroups(a.stateDir)
 	a.groups.reap(orphanMarkers())
 	a.self = newSelfStore(a.stateDir)
@@ -123,22 +125,32 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	var cut []*session
+	cut := map[*session]string{}
 	for _, rec := range recs {
 		stale := rec.Status == statusRunning || rec.Status == statusWaiting
 		if stale {
 			rec.Status = statusIdle
 		}
-		queue := rec.Queue
-		rec.Queue = nil
+		queue, spilled := rec.Queue, rec.QueueSpilled
+		rec.Queue, rec.QueueSpilled = nil, false
 		s := a.addSession(rec, false, nil)
+		unsent := false
 		if !rec.closed() {
+			if spilled {
+				if queue, err = readSpilledQueue(a.stateDir, rec.ID); err != nil {
+					fmt.Fprintln(os.Stderr, "agents: read spilled queue:", err)
+				}
+			}
+			queue, unsent = restoredQueue(a.stateDir, rec.ID, queue)
 			s.restoreQueue(queue)
 		}
 		if stale {
 			a.notes.mark(s, changeStatus, true)
 			if rec.Night == "" {
-				cut = append(cut, s)
+				cut[s] = cutOffText
+				if unsent {
+					cut[s] = ""
+				}
 			}
 		}
 	}

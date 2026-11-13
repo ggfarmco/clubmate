@@ -95,6 +95,7 @@ type record struct {
 	ConnectRequests []connectRequest `json:"connectRequests,omitempty"`
 	AfkConnected    []string         `json:"afkConnected,omitempty"`
 	Queue           []queuedPrompt   `json:"queue,omitempty"`
+	QueueSpilled    bool             `json:"queueSpilled,omitempty"`
 }
 
 type sessionInfo struct {

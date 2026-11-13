@@ -1,9 +1,20 @@
 package main
 
 import (
+	"bytes"
+	"crypto/rand"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+)
+
+const (
+	queueSpillBytes = 64 << 10
+	queueSpillName  = "queue.json"
 )
 
 type queuedPrompt struct {
@@ -14,6 +25,7 @@ type queuedPrompt struct {
 	Voice       bool         `json:"voice,omitempty"`
 	Review      *reviewSent  `json:"review,omitempty"`
 	Answered    []string     `json:"answered,omitempty"`
+	Sending     bool         `json:"sending,omitempty"`
 	Land        bool         `json:"-"`
 }
 
@@ -75,6 +87,7 @@ func (s *session) queuedLocked(args promptArgs) queuedPrompt {
 }
 
 func (s *session) dequeueLocked() (promptArgs, bool) {
+	s.requeueSendingLocked()
 	if len(s.queue) == 0 {
 		return promptArgs{}, false
 	}
@@ -98,5 +111,88 @@ func (s *session) dequeueLocked() (promptArgs, bool) {
 		args.Answered = append(args.Answered, q.Answered...)
 	}
 	args.Text = strings.Join(texts, "\n\n")
+	sending := s.queuedLocked(args)
+	sending.ID, sending.Sending = rand.Text(), true
+	sending.Land = !slices.ContainsFunc(parts, func(q queuedPrompt) bool { return !q.Land })
+	s.sending = &sending
 	return args, true
+}
+
+func (s *session) requeueSendingLocked() {
+	q := s.sending
+	s.sending = nil
+	if q == nil || strings.TrimSpace(q.Text) == "" && len(q.Attachments) == 0 {
+		return
+	}
+	q.Sending = false
+	s.queue = slices.Insert(s.queue, 0, *q)
+}
+
+func (s *session) storedQueueLocked() []queuedPrompt {
+	if s.sending == nil {
+		return storedQueue(s.queue)
+	}
+	return storedQueue(append([]queuedPrompt{*s.sending}, s.queue...))
+}
+
+func restoredQueue(stateDir, session string, queue []queuedPrompt) ([]queuedPrompt, bool) {
+	if len(queue) == 0 || !queue[0].Sending {
+		return queue, false
+	}
+	if sentInLog(logPath(stateDir, session), queue[0].ID) {
+		return queue[1:], false
+	}
+	queue[0].Sending = false
+	return queue, true
+}
+
+func sentInLog(path, token string) bool {
+	sent := false
+	err := newEventLog(path).replay(func(e envelope) {
+		if sent || e.Kind != kindPrompt || !bytes.Contains(e.Payload, []byte(token)) {
+			return
+		}
+		var p promptPayload
+		sent = json.Unmarshal(e.Payload, &p) == nil && p.Sent == token
+	})
+	return sent && err == nil
+}
+
+func queueSpillPath(stateDir, session string) string {
+	return filepath.Join(stateDir, uploadsDir, session, queueSpillName)
+}
+
+func spillQueue(stateDir, session string, queue []queuedPrompt) (bool, error) {
+	path := queueSpillPath(stateDir, session)
+	raw, err := json.Marshal(queue)
+	if err != nil || len(raw) <= queueSpillBytes {
+		return false, err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return false, err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
+		return false, err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func dropSpilledQueue(stateDir, session string) error {
+	if err := os.Remove(queueSpillPath(stateDir, session)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+func readSpilledQueue(stateDir, session string) ([]queuedPrompt, error) {
+	raw, err := os.ReadFile(queueSpillPath(stateDir, session))
+	if err != nil {
+		return nil, err
+	}
+	var queue []queuedPrompt
+	return queue, json.Unmarshal(raw, &queue)
 }

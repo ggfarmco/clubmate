@@ -22,6 +22,7 @@ const (
 	embedLimit   = 1 << 20
 	imageOmitted = "[An image was attached, but this agent does not accept images.]"
 	retryDelay   = 3 * time.Second
+	sendHoldEnv  = "CLUBMATE_AGENTS_SEND_HOLD"
 	retryNotice  = "The turn failed; retrying once"
 	retryFormat  = "[Clubmate] Your previous reply ended with an error (%s). Continue the task from where you stopped."
 	fromFormat   = "[From Clubmate agent session \"%s\" (%s), not from the user]\n\n"
@@ -38,9 +39,9 @@ type runState struct {
 	started         time.Time
 	perms           map[string]*pendingPermission
 	queue           []queuedPrompt
+	sending         *queuedPrompt
 	queueSeq        int
 	epoch           int
-	cutEpoch        int
 	superseded      map[string]bool
 	asked           bool
 }
@@ -197,7 +198,7 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 		s.mu.Lock()
 		stale := s.epoch != epoch
 		if !stale {
-			s.requeueLocked(args)
+			s.requeueSendingLocked()
 		}
 		s.mu.Unlock()
 		if !stale {
@@ -205,7 +206,7 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 		}
 		return 0, 0, promptArgs{}
 	}
-	if a.abandon(s, epoch, args) {
+	if a.abandon(s, epoch) {
 		return 0, 0, promptArgs{}
 	}
 	rec := s.snapshot()
@@ -229,30 +230,43 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 		}
 		return 0, 0, promptArgs{}
 	}
-	if a.abandon(s, epoch, args) {
+	if a.abandon(s, epoch) {
 		return 0, 0, promptArgs{}
 	}
-	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities)}
+	blocks := promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities)
+	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: slices.Clone(blocks)}
 	fromTitle := a.senderTitle(args.From)
-	s.mu.Lock()
-	s.recordLocked(promptActor(args.From), kindPrompt, promptPayload{PromptRequest: req, From: args.From, FromTitle: fromTitle, Voice: args.Voice, Review: args.Review})
-	s.mu.Unlock()
-	s.changed(changeUpdate, true)
 	ctx, cancel = context.WithTimeout(context.Background(), callTimeout)
 	req.Prompt = append(slices.Clip(req.Prompt), a.policies(ctx, rec)...)
 	cancel()
 	if args.From != "" {
 		req.Prompt[0].Text = fromPrefix(args.From, fromTitle) + req.Prompt[0].Text
 	}
-	s.mu.Lock()
-	if none := s.takeNoneLocked(); none != "" {
-		req.Prompt = slices.Insert(slices.Clip(req.Prompt), 0, acp.ContentBlock{Type: "text", Text: none})
-	}
-	s.mu.Unlock()
-	req.Prompt = sendable(req.Prompt)
 	ctx, cancel = context.WithTimeout(context.Background(), callTimeout)
 	a.saveNow(ctx, s)
 	cancel()
+	time.Sleep(a.sendHold)
+	s.mu.Lock()
+	if a.stopping() {
+		s.mu.Unlock()
+		return 0, 0, promptArgs{}
+	}
+	if s.epoch != epoch || s.deleted || s.rec.closed() || s.cancelRequested {
+		s.mu.Unlock()
+		a.abandon(s, epoch)
+		return 0, 0, promptArgs{}
+	}
+	if none := s.takeNoneLocked(); none != "" {
+		req.Prompt = slices.Insert(slices.Clip(req.Prompt), 0, acp.ContentBlock{Type: "text", Text: none})
+	}
+	sent := ""
+	if s.sending != nil {
+		sent, s.sending = s.sending.ID, nil
+	}
+	s.recordLocked(promptActor(args.From), kindPrompt, promptPayload{PromptRequest: acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: blocks}, From: args.From, FromTitle: fromTitle, Voice: args.Voice, Review: args.Review, Sent: sent})
+	s.mu.Unlock()
+	s.changed(changeUpdate, true)
+	req.Prompt = sendable(req.Prompt)
 	var res acp.PromptResponse
 	err = p.conn.Call(context.Background(), acp.MethodSessionPrompt, req, &res)
 	if s.supersededOnly(err) {
@@ -365,18 +379,11 @@ func (a *app) retryTurn(s *session, rec record, epoch int, err error) (acp.Promp
 	return req, ok
 }
 
-func (a *app) abandon(s *session, epoch int, args promptArgs) bool {
+func (a *app) abandon(s *session, epoch int) bool {
 	s.mu.Lock()
 	switch {
 	case s.epoch != epoch:
-		cut := epoch == s.cutEpoch && !s.deleted && !s.rec.closed()
-		if cut {
-			s.requeueLocked(args)
-		}
 		s.mu.Unlock()
-		if cut {
-			s.changed(changeUpdate, true)
-		}
 		return true
 	case s.deleted || s.rec.closed():
 		s.running = false
@@ -384,7 +391,7 @@ func (a *app) abandon(s *session, epoch int, args promptArgs) bool {
 		return true
 	case s.cancelRequested:
 		s.running = false
-		s.requeueLocked(args)
+		s.requeueSendingLocked()
 		s.recordLocked(actorUser, kindTurnEnd, turnEndPayload{StopReason: acp.StopCancelled})
 		if s.rec.Status == statusWaiting {
 			s.prior = statusDone
@@ -410,8 +417,8 @@ func (a *app) checktime(rec record) {
 }
 
 func (s *session) cutTurnLocked() {
-	s.cutEpoch = s.epoch
 	s.epoch++
+	s.requeueSendingLocked()
 }
 
 func (s *session) beginTurnLocked() (int, int) {
@@ -428,6 +435,15 @@ func (s *session) beginTurnLocked() (int, int) {
 		s.began(s.rec.ID)
 	}
 	return s.turn, s.epoch
+}
+
+func (a *app) stopping() bool {
+	select {
+	case <-a.quit:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *session) current(epoch int) bool {

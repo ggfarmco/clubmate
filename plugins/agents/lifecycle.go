@@ -87,9 +87,8 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentP
 	s.proc = nil
 	s.running = false
 	s.epoch++
-	s.cutEpoch = 0
 	s.dropBackgroundLocked()
-	s.queue = nil
+	s.queue, s.sending = nil, nil
 	s.cancelPermissionsLocked()
 	if !s.rec.closed() {
 		s.recordLocked(actorUser, kindClose, acp.SessionRequest{SessionID: agentID})
