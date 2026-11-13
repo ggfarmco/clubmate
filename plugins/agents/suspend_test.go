@@ -27,9 +27,16 @@ func suspendedSession(t *testing.T, script map[string]any) (*fixture, string, st
 	session := f.newSession(t, workspace)
 	f.prompt(t, workspace, session, "one")
 	f.waitStatus(t, workspace, session, "done")
-	pid := f.calls(t, "start")[0].PID
+	pid := lastStart(t, f)
 	testutil.Eventually(t, func() bool { return errors.Is(syscall.Kill(-pid, 0), syscall.ESRCH) }, wait)
 	return f, workspace, session
+}
+
+func lastStart(t *testing.T, f *fixture) int {
+	t.Helper()
+	starts := f.calls(t, "start")
+	require.NotEmpty(t, starts)
+	return starts[len(starts)-1].PID
 }
 
 func TestIdleSessionSuspendsAndResumesOnPrompt(t *testing.T) {
@@ -128,7 +135,7 @@ func TestIdleSessionKeepsAgent(t *testing.T) {
 
 			time.Sleep(4 * suspendAfter)
 
-			assert.NoError(t, syscall.Kill(-f.calls(t, "start")[0].PID, 0))
+			assert.NoError(t, syscall.Kill(-lastStart(t, f), 0))
 			assert.False(t, f.session(t, workspace, session).Suspended)
 		})
 	}

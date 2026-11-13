@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -303,12 +304,18 @@ func (f *fixture) session(t *testing.T, workspace, session string) record {
 
 func (f *fixture) waitStatus(t *testing.T, workspace, session, status string) record {
 	t.Helper()
-	var got record
-	testutil.Eventually(t, func() bool {
-		got = f.session(t, workspace, session)
+	var last atomic.Pointer[record]
+	reached := assert.Eventually(t, func() bool {
+		got := f.session(t, workspace, session)
+		last.Store(&got)
 		return got.Status == status
-	}, wait)
-	return got
+	}, wait, 20*time.Millisecond)
+	got := last.Load()
+	if got == nil {
+		got = &record{}
+	}
+	require.True(t, reached, "session %s is %q, want %q (error %q, start notice %q)", session, got.Status, status, got.Error, got.StartNotice)
+	return *got
 }
 
 func (f *fixture) waitBranchChildDone(t *testing.T, workspace, session string) record {

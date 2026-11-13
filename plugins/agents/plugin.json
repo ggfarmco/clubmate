@@ -700,6 +700,7 @@
         "id": "agents.folder-impact",
         "title": "What a folder's removal touches",
         "hidden": true,
+        "timeout": 30,
         "description": "What is tied to a folder of the workspace, decided here: {name, workspace, path, sessions: [{session, title, status, worktree}], worktrees: [{path, branch, sessions, read, unread, dirty, unpushed, ignored, secrets, orphans, nested}], graphs, hooks, instructions, skills, trustedGraphs, trustedHooks, cronJobs: [{id, name}], cronUnread, blockers, tasks, last}. Only the first 5 worktrees, those with open sessions first, are read (read), and unread says that read failed. cronJobs are the enabled jobs that run there, which pause on removal.",
         "args": {
           "properties": {
@@ -712,6 +713,7 @@
         "id": "agents.folder-sheet",
         "title": "Ask to remove a folder from the workspace",
         "hidden": true,
+        "timeout": 30,
         "description": "Open the Remove folder sheet over the window, in any section. Only the user: an agent gets an error. The sheet says what is tied to the folder and removes it on the user's press.",
         "args": {
           "properties": {

@@ -125,10 +125,6 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentP
 
 func (a *app) deleteSession(ctx context.Context, s *session, remote bool) error {
 	a.closeSession(ctx, s, remote)
-	a.mu.Lock()
-	delete(a.sessions, s.rec.ID)
-	delete(a.dropped, s.rec.ID)
-	a.mu.Unlock()
 	s.mu.Lock()
 	s.deleted = true
 	rec := s.rec
@@ -136,6 +132,10 @@ func (a *app) deleteSession(ctx context.Context, s *session, remote bool) error 
 	s.mu.Unlock()
 	a.texts.forget(logPath(a.stateDir, rec.ID))
 	err = errors.Join(err, a.dropUploads(rec.ID))
+	a.mu.Lock()
+	delete(a.sessions, rec.ID)
+	delete(a.dropped, rec.ID)
+	a.mu.Unlock()
 	a.notes.mark(s, changeDeleted, true)
 	a.forgetSession(ctx, rec.Workspace, rec.ID)
 	a.kick(rec.Workspace)
