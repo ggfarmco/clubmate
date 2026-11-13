@@ -40,6 +40,7 @@ type runState struct {
 	queue           []queuedPrompt
 	queueSeq        int
 	epoch           int
+	cutEpoch        int
 	superseded      map[string]bool
 	asked           bool
 }
@@ -249,6 +250,9 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	}
 	s.mu.Unlock()
 	req.Prompt = sendable(req.Prompt)
+	ctx, cancel = context.WithTimeout(context.Background(), callTimeout)
+	a.saveNow(ctx, s)
+	cancel()
 	var res acp.PromptResponse
 	err = p.conn.Call(context.Background(), acp.MethodSessionPrompt, req, &res)
 	if s.supersededOnly(err) {
@@ -365,7 +369,14 @@ func (a *app) abandon(s *session, epoch int, args promptArgs) bool {
 	s.mu.Lock()
 	switch {
 	case s.epoch != epoch:
+		cut := epoch == s.cutEpoch && !s.deleted && !s.rec.closed()
+		if cut {
+			s.requeueLocked(args)
+		}
 		s.mu.Unlock()
+		if cut {
+			s.changed(changeUpdate, true)
+		}
 		return true
 	case s.deleted || s.rec.closed():
 		s.running = false
@@ -396,6 +407,11 @@ func (a *app) checktime(rec record) {
 	if err := a.host.RunCommand(ctx, checktimeCmd, rec.Workspace, map[string]string{"root": rec.Worktree}, nil); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: checktime:", err)
 	}
+}
+
+func (s *session) cutTurnLocked() {
+	s.cutEpoch = s.epoch
+	s.epoch++
 }
 
 func (s *session) beginTurnLocked() (int, int) {
@@ -490,7 +506,7 @@ func promptBlocks(args promptArgs, root string, caps acp.PromptCapabilities) []a
 		switch att.Kind {
 		case "image":
 			if caps.Image {
-				blocks = append(blocks, acp.ContentBlock{Type: "image", Data: att.Data, MimeType: att.MimeType})
+				blocks = append(blocks, acp.ContentBlock{Type: "image", Data: imageData(att), MimeType: att.MimeType})
 				continue
 			}
 			blocks = append(blocks, acp.ContentBlock{Type: "text", Text: imageOmitted})

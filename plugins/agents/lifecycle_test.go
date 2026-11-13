@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"strings"
 	"syscall"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/testutil"
+	"clubmate/plugins/agents/acp"
 	"clubmate/plugins/agents/api"
 )
 
@@ -111,22 +113,35 @@ func TestQueuedPromptSurvivesRestart(t *testing.T) {
 	assert.True(t, strings.HasSuffix(got[0], "\n\nfollow up"), got[0])
 }
 
-func TestQueuedImageLeavesRecordSaved(t *testing.T) {
+func TestQueuedImageSurvivesRestart(t *testing.T) {
 	t.Parallel()
-	f := start(t, longTurn)
+	f := start(t, map[string]any{"resume": true, "image": true, "prompt": []map[string]any{{"match": "long", "sleep": 5000}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
 	f.prompt(t, workspace, session, "long")
+	agentID := f.agentID(t, workspace, session)
 	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
-	image := map[string]any{"kind": "image", "mimeType": "image/png", "data": base64.StdEncoding.EncodeToString(make([]byte, 300<<10))}
+	data := base64.StdEncoding.EncodeToString(make([]byte, 300<<10))
+	image := map[string]any{"kind": "image", "mimeType": "image/png", "data": data}
 	require.NoError(t, f.run(t, workspace, "agents.prompt", map[string]any{"session": session, "text": "see this", "attachments": []any{image}}, nil))
-	f.prompt(t, workspace, session, "follow up")
-
 	testutil.Eventually(t, func() bool {
 		raw, _, err := f.h.KV.Get(t.Context(), "agents", "session/"+workspace+"/"+session)
 		require.NoError(t, err)
-		return strings.Contains(string(raw), "follow up")
+		return strings.Contains(string(raw), "see this")
 	}, wait)
+
+	f.restartPlugin(t, workspace)
+
+	f.waitStatus(t, workspace, session, "done")
+	var sent []acp.ContentBlock
+	for _, c := range f.calls(t, "session/prompt") {
+		var p acp.PromptRequest
+		require.NoError(t, json.Unmarshal(c.Params, &p))
+		if p.SessionID == agentID && strings.Contains(promptText(t, c), "see this") {
+			sent = append(sent, p.Prompt...)
+		}
+	}
+	assert.Contains(t, sent, acp.ContentBlock{Type: "image", Data: data, MimeType: "image/png"})
 }
 
 func turnStatuses(turns []api.Turn) []string {
@@ -143,4 +158,26 @@ func entryTexts(entries []entry) []string {
 		out = append(out, en.Text)
 	}
 	return out
+}
+
+func TestDequeuedPromptIsNotSentAgainAfterRestart(t *testing.T) {
+	t.Parallel()
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_SAVE_HOLD=2s"}, map[string]any{"resume": true, "prompt": []map[string]any{{"match": "long", "sleep": 5000}, {"match": "follow up", "sleep": 5000}}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "long")
+	agentID := f.agentID(t, workspace, session)
+	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
+	f.prompt(t, workspace, session, "follow up")
+	testutil.Eventually(t, func() bool {
+		raw, _, err := f.h.KV.Get(t.Context(), "agents", "session/"+workspace+"/"+session)
+		require.NoError(t, err)
+		return strings.Contains(string(raw), "follow up")
+	}, wait)
+	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return promptText(t, c) == "follow up" })
+
+	f.restartPlugin(t, workspace)
+
+	f.waitStatus(t, workspace, session, "done")
+	assert.Len(t, f.promptsTo(t, agentID, "follow up"), 1)
 }

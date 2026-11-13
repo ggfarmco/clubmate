@@ -23,6 +23,7 @@ type script struct {
 	Resume                bool                      `json:"resume"`
 	Linger                bool                      `json:"linger"`
 	Embedded              bool                      `json:"embedded"`
+	Image                 bool                      `json:"image"`
 	CloseSleep            int                       `json:"closeSleep"`
 	NewSleep              int                       `json:"newSleep"`
 	AdditionalDirectories bool                      `json:"additionalDirectories"`
@@ -148,7 +149,7 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 	_ = json.Unmarshal(params, &req)
 	switch method {
 	case acp.MethodInitialize:
-		caps := acp.AgentCapabilities{PromptCapabilities: acp.PromptCapabilities{EmbeddedContext: a.script.Embedded}, SessionCapabilities: acp.SessionCapabilities{Close: &acp.Capability{}, Delete: &acp.Capability{}}}
+		caps := acp.AgentCapabilities{PromptCapabilities: acp.PromptCapabilities{EmbeddedContext: a.script.Embedded, Image: a.script.Image}, SessionCapabilities: acp.SessionCapabilities{Close: &acp.Capability{}, Delete: &acp.Capability{}}}
 		if a.script.Resume {
 			caps.SessionCapabilities.Resume = &acp.Capability{}
 		}

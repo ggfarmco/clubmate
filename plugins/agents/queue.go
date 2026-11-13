@@ -36,9 +36,20 @@ func (s *session) unqueue(id string) {
 }
 
 func storedQueue(queue []queuedPrompt) []queuedPrompt {
-	return slices.DeleteFunc(slices.Clone(queue), func(q queuedPrompt) bool {
-		return q.Land || slices.ContainsFunc(q.Attachments, func(a attachment) bool { return a.Data != "" })
-	})
+	out := make([]queuedPrompt, 0, len(queue))
+	for _, q := range queue {
+		if q.Land || slices.ContainsFunc(q.Attachments, func(a attachment) bool { return a.Data != "" && a.Path == "" }) {
+			continue
+		}
+		q.Attachments = slices.Clone(q.Attachments)
+		for i := range q.Attachments {
+			if q.Attachments[i].Path != "" {
+				q.Attachments[i].Data = ""
+			}
+		}
+		out = append(out, q)
+	}
+	return out
 }
 
 func (s *session) restoreQueue(queue []queuedPrompt) {

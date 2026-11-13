@@ -88,6 +88,9 @@ func (a *app) wait(ctx context.Context, workspaceID, caller string, args waitArg
 			first = out
 		}
 		msg := self.takeUserPrompts()
+		if msg != nil {
+			a.saveNow(ctx, self)
+		}
 		if expired || moved(first, out) || msg != nil {
 			a.observed(caller, out)
 			return waitOutput{Sessions: out, Message: msg}, nil

@@ -131,7 +131,7 @@ func (a *app) procExited(p *agentProc, reason string) {
 			s.changed(changeUpdate, false)
 			continue
 		}
-		s.epoch++
+		s.cutTurnLocked()
 		s.dropBackgroundLocked()
 		s.cancelPermissionsLocked()
 		quiet := p.quiet.Load() || s.rec.closed()

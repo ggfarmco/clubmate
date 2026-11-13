@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	wakeDelay   = time.Second
-	cutOffText  = "[Clubmate] Your turn was cut off by a restart; continue from where you stopped."
-	childFormat = "[Clubmate] Child %q (%s) is %s."
-	askFormat   = "[Clubmate] Child %q (%s) asks you, not the user: %q (agents_elicitation request %s). Answer it yourself; ask the user only when the decision is theirs."
+	wakeDelay    = time.Second
+	wakeDelayEnv = "CLUBMATE_AGENTS_WAKE_DELAY"
+	cutOffText   = "[Clubmate] Your turn was cut off by a restart; continue from where you stopped."
+	childFormat  = "[Clubmate] Child %q (%s) is %s."
+	askFormat    = "[Clubmate] Child %q (%s) asks you, not the user: %q (agents_elicitation request %s). Answer it yourself; ask the user only when the decision is theirs."
 )
 
 type watchdog struct {
@@ -24,13 +25,14 @@ type watchdog struct {
 	pending map[string]map[string]string
 	waits   map[string]map[string]int
 	timers  map[string]*time.Timer
+	delay   time.Duration
 
 	retries     map[string]int
 	retryTimers map[string]*time.Timer
 }
 
 func newWatchdog() watchdog {
-	return watchdog{last: map[string]string{}, seen: map[string]string{}, pending: map[string]map[string]string{}, waits: map[string]map[string]int{}, timers: map[string]*time.Timer{}, retries: map[string]int{}, retryTimers: map[string]*time.Timer{}}
+	return watchdog{last: map[string]string{}, seen: map[string]string{}, pending: map[string]map[string]string{}, waits: map[string]map[string]int{}, timers: map[string]*time.Timer{}, delay: envDelay(wakeDelayEnv, wakeDelay), retries: map[string]int{}, retryTimers: map[string]*time.Timer{}}
 }
 
 func (a *app) continueCutOff(cut []*session) {
@@ -124,7 +126,7 @@ func (a *app) scheduleWake(id string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.timers[id] == nil {
-		w.timers[id] = time.AfterFunc(wakeDelay, func() { a.flushWake(id) })
+		w.timers[id] = time.AfterFunc(w.delay, func() { a.flushWake(id) })
 	}
 }
 
@@ -191,6 +193,33 @@ func (a *app) flushWake(id string) {
 		}
 	}
 	w.mu.Unlock()
+}
+
+func (a *app) takeWakes(id string) map[string]string {
+	w := &a.watchdog
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	taken := w.pending[id]
+	delete(w.pending, id)
+	return taken
+}
+
+func (a *app) giveWakes(id string, wakes map[string]string) {
+	if len(wakes) == 0 {
+		return
+	}
+	w := &a.watchdog
+	w.mu.Lock()
+	if w.pending[id] == nil {
+		w.pending[id] = map[string]string{}
+	}
+	for kid, key := range wakes {
+		if _, newer := w.pending[id][kid]; !newer {
+			w.pending[id][kid] = key
+		}
+	}
+	w.mu.Unlock()
+	a.scheduleWake(id)
 }
 
 func (a *app) dropWakes(id string) {

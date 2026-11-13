@@ -32,6 +32,7 @@ const (
 	endPostWindow = 10 * time.Second
 	endHold       = 5 * time.Second
 	endHoldEnv    = "CLUBMATE_AGENTS_END_HOLD"
+	saveHoldEnv   = "CLUBMATE_AGENTS_SAVE_HOLD"
 
 	doneOpenFormat   = "Done · %d open"
 	listedOpenFormat = "%s · %d open"
@@ -55,6 +56,7 @@ type notifier struct {
 	endq  endQueue
 	timer *time.Timer
 	wake  chan struct{}
+	hold  time.Duration
 }
 
 type ending struct {
@@ -93,7 +95,7 @@ type change struct {
 }
 
 func newNotifier(h *pluginsdk.Host) *notifier {
-	n := &notifier{host: h, seen: map[change]bool{}, saves: map[*session]bool{}, endq: newEndQueue(envDelay(endHoldEnv, endHold)), wake: make(chan struct{}, 1)}
+	n := &notifier{host: h, seen: map[change]bool{}, saves: map[*session]bool{}, endq: newEndQueue(envDelay(endHoldEnv, endHold)), wake: make(chan struct{}, 1), hold: envDelay(saveHoldEnv, 0)}
 	go n.run()
 	return n
 }
@@ -161,6 +163,9 @@ func (n *notifier) run() {
 		order, saves, turns, asks, ends := n.order, n.saves, n.turns, n.asks, n.ends
 		n.order, n.seen, n.saves, n.turns, n.asks, n.ends = nil, map[change]bool{}, map[*session]bool{}, nil, nil, nil
 		n.mu.Unlock()
+		if len(saves) > 0 {
+			time.Sleep(n.hold)
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 		for s := range saves {
 			n.persist(ctx, s)

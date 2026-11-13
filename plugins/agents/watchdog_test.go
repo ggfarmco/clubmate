@@ -155,3 +155,23 @@ func TestChildSignInStaysWithUser(t *testing.T) {
 	assert.False(t, waiting.AsksParent)
 	assert.True(t, waiting.NeedsYou)
 }
+
+func TestWakePendingAtHandoffReachesNewSession(t *testing.T) {
+	t.Parallel()
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_WAKE_DELAY=3s"}, map[string]any{})
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	f.prompt(t, workspace, parent, "plan")
+	f.waitStatus(t, workspace, parent, "done")
+	kid := f.newChild(t, workspace, parent, map[string]any{"title": "Kid", "prompt": "work"}).Session
+	f.waitStatus(t, workspace, kid, "done")
+
+	var next struct {
+		Session string `json:"session"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.handoff", map[string]any{"session": parent}, &next))
+
+	nextID := f.agentID(t, workspace, next.Session)
+	testutil.Eventually(t, func() bool { return len(f.promptsTo(t, nextID, "[Clubmate] Child")) > 0 }, wait)
+	assert.Equal(t, []string{`[Clubmate] Child "Kid" (` + kid + ") is done."}, f.promptsTo(t, nextID, "[Clubmate] Child"))
+}
