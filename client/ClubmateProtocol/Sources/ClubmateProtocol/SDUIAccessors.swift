@@ -490,7 +490,7 @@ extension SDUINode {
 
     public var headerStatusTone: String? {
         switch string("status") {
-        case "running", "childrenRunning", "review": "accent"
+        case "running", "childrenRunning", "review", "asksParent": "accent"
         case "waiting", "asks", "childrenWaiting": "warning"
         case "error": "danger"
         default: nil

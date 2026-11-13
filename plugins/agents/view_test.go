@@ -1138,3 +1138,32 @@ func TestNeedsAnswer(t *testing.T) {
 		})
 	}
 }
+
+func TestHeaderValidatesForEveryDisplayStatus(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		rec      record
+		children string
+	}{
+		{rec: record{Status: statusRunning}},
+		{rec: record{Status: statusWaiting}},
+		{rec: record{Status: statusDone, Asks: true}},
+		{rec: record{Status: statusWaiting, AsksParent: true, lineage: lineage{ParentSession: "agt_p"}}},
+		{rec: record{Status: statusDone, Review: true}},
+		{rec: record{Status: statusDone}},
+		{rec: record{Status: statusIdle}},
+		{rec: record{Status: statusError}},
+		{rec: record{Status: statusClosed}},
+		{rec: record{Status: statusDone}, children: statusRunning},
+		{rec: record{Status: statusDone}, children: statusWaiting},
+	}
+	seen := map[string]bool{}
+	for _, c := range cases {
+		c.rec.ID = "agt_1"
+		display := displayStatus(c.rec, c.children)
+		seen[display] = true
+		tree := header(screen{View: transcriptView{Session: c.rec}, Children: c.children, Now: time.Now()})
+		require.NoError(t, internalsdui.Validate(tree), display)
+	}
+	assert.Len(t, seen, len(statusIcons))
+}

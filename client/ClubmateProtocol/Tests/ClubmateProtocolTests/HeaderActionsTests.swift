@@ -47,4 +47,10 @@ final class HeaderActionsTests: XCTestCase {
         XCTAssertEqual(header.headerOverflow().more.map(\.id), ["remove"])
         XCTAssertEqual(header.headerStatusTone, "accent")
     }
+
+    func testAChildAskingItsParentTakesTheAccentTone() {
+        let header = SDUINode(type: "header", props: ["title": .string("Kid"), "status": .string("asksParent")], children: [])
+
+        XCTAssertEqual(header.headerStatusTone, "accent")
+    }
 }
