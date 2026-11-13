@@ -6,6 +6,7 @@ struct RootView: View {
     @Environment(CompanionModel.self) private var model
     @Environment(AppNavigation.self) private var navigation
     @Environment(PairingFlow.self) private var pairing
+    @Environment(VoiceSession.self) private var voice
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var width = 0.0
     @State private var sectionUI: WorkspaceUI?
@@ -23,8 +24,10 @@ struct RootView: View {
             detail
         }
         .navigationSplitViewStyle(.balanced)
-        .contentMargins(.bottom, navigation.floatingMic(model) ? VoiceButton.floating + 16 : 0, for: .scrollContent)
+        .contentMargins(.bottom, navigation.floatingMic(model, listening: voice.active) ? VoiceButton.floating + 16 : 0, for: .scrollContent)
         .overlay { VoiceOverlay() }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in navigation.typing = true }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in navigation.typing = false }
         .onGeometryChange(for: Double.self) { $0.size.width } action: { width = $0 }
         .onChange(of: CompanionLayout(width: width, compactClass: sizeClass == .compact), initial: true) { _, layout in navigation.layout = layout }
         .onChange(of: navigation.layout) { _, _ in navigation.arrange() }

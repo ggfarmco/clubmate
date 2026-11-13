@@ -372,6 +372,7 @@ struct OpenQueueView: View {
     let context: PluginContext
     let store: AgentsStore
     @Environment(AppNavigation.self) private var navigation
+    @Environment(VoiceSession.self) private var voice
     @State private var sending = false
     @State private var failure: String?
     @State private var turned = Date.distantPast
@@ -455,7 +456,7 @@ struct OpenQueueView: View {
             .frame(maxWidth: .infinity)
         }
         .id(step.id)
-        .contentMargins(.bottom, navigation.floatingMic(context.model) ? VoiceButton.floating + 8 : 0, for: .scrollContent)
+        .contentMargins(.bottom, navigation.floatingMic(context.model, listening: voice.active) ? VoiceButton.floating + 8 : 0, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
         .background(Color(.systemGroupedBackground))
         .safeAreaInset(edge: .bottom) {

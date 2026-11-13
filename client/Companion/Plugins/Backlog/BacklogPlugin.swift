@@ -20,7 +20,7 @@ struct BacklogPlugin: CompanionPluginUI {
         if context.connection.state == .unauthorized {
             return AnyView(ConnectionUnavailableView(connection: context.connection))
         }
-        guard let selection, let store = Self.store(context) else {
+        guard let selection, let store = Self.store(context, newTask: selection == BacklogPluginInfo.newTask) else {
             return AnyView(ContentUnavailableView("No Task Selected", systemImage: "checklist", description: Text("Pick a task to read it, start it or mark it done.")))
         }
         if selection == BacklogPluginInfo.newTask {
@@ -38,13 +38,17 @@ struct BacklogPlugin: CompanionPluginUI {
     }
 
     @MainActor
-    static func store(_ context: PluginContext) -> BacklogStore? {
-        guard let workspace = context.navigation.workspace(for: context.connection) else { return nil }
-        return context.model.backlog(computer: context.connection.computer.id, workspace: workspace.id)
+    static func store(_ context: PluginContext, newTask: Bool = false) -> BacklogStore? {
+        let shown = context.navigation.workspace(for: context.connection)?.id
+        guard let workspace = newTask ? context.navigation.newTaskWorkspaces[context.connection.computer.id] ?? shown : shown else { return nil }
+        return context.model.backlog(computer: context.connection.computer.id, workspace: workspace)
     }
 
     @MainActor
     static func startNew(_ context: PluginContext) {
+        if let workspace = context.navigation.workspace(for: context.connection) {
+            context.navigation.newTaskWorkspaces[context.connection.computer.id] = workspace.id
+        }
         context.navigation.detail = BacklogPluginInfo.newTask
         context.navigation.preferredColumn = .detail
     }
@@ -337,7 +341,7 @@ struct TaskDetailView: View {
                     }
                     .sheet(isPresented: $editing) {
                         NavigationStack {
-                            TaskEditorView(store: store, task: task) { _ in editing = false }
+                            TaskEditorView(store: store, connection: context.connection, task: task) { _ in editing = false }
                         }
                     }
                     .sheet(isPresented: $starting) {
@@ -821,7 +825,7 @@ struct NewTaskView: View {
     let store: BacklogStore
 
     var body: some View {
-        TaskEditorView(store: store, task: nil) { id in
+        TaskEditorView(store: store, connection: context.connection, task: nil) { id in
             context.navigation.detail = id.map(String.init)
         }
     }
@@ -829,32 +833,49 @@ struct NewTaskView: View {
 
 struct TaskEditorView: View {
     let store: BacklogStore
+    let connection: ComputerConnection
     let task: BacklogTask?
     let finished: (Int?) -> Void
-    @State private var draft: BacklogDraft
+    @State private var edited: BacklogDraft
     @State private var saving = false
     @State private var failure: String?
     @FocusState private var titleFocused: Bool
 
-    init(store: BacklogStore, task: BacklogTask?, finished: @escaping (Int?) -> Void) {
+    init(store: BacklogStore, connection: ComputerConnection, task: BacklogTask?, finished: @escaping (Int?) -> Void) {
         self.store = store
+        self.connection = connection
         self.task = task
         self.finished = finished
-        _draft = State(initialValue: task.map(BacklogDraft.init) ?? BacklogDraft())
+        _edited = State(initialValue: task.map(BacklogDraft.init) ?? BacklogDraft())
+    }
+
+    private var draft: Binding<BacklogDraft> {
+        task == nil ? Binding(get: { store.newDraft }, set: { store.newDraft = $0 }) : $edited
+    }
+
+    private var action: String {
+        task == nil ? "add" : "save"
     }
 
     var body: some View {
+        let blocked = connection.blocked(action)
         Form {
             Section {
-                TextField("Title", text: $draft.title)
+                TextField("Title", text: draft.title)
                     .focused($titleFocused)
                     .submitLabel(.next)
                     .accessibilityIdentifier("taskTitle")
-                TextField("Description (Markdown)", text: $draft.description, axis: .vertical)
+                TextField("Description (Markdown)", text: draft.description, axis: .vertical)
                     .lineLimit(4...14)
+            } footer: {
+                if let blocked {
+                    Text(blocked)
+                        .foregroundStyle(Color.captionInk)
+                        .accessibilityIdentifier("taskBlocked")
+                }
             }
             Section {
-                Picker("Priority", selection: $draft.priority) {
+                Picker("Priority", selection: draft.priority) {
                     ForEach(BacklogPriority.allCases) { priority in
                         Text(priority.label).tag(priority)
                     }
@@ -863,7 +884,7 @@ struct TaskEditorView: View {
                 if task?.status == .inProgress {
                     LabeledContent("Status", value: BacklogStatus.inProgress.label)
                 } else {
-                    Picker("Status", selection: $draft.status) {
+                    Picker("Status", selection: draft.status) {
                         ForEach(task == nil ? BacklogStatus.addable : BacklogStatus.moveTargets + [.done]) { status in
                             Label(status.label, systemImage: status.symbol).tag(status)
                         }
@@ -888,11 +909,11 @@ struct TaskEditorView: View {
                     ProgressView()
                 } else {
                     Button(task == nil ? "Add" : "Save") { save() }
-                        .disabled(!draft.isValid)
+                        .disabled(!draft.wrappedValue.isValid || blocked != nil)
                 }
             }
         }
-        .onAppear { if task == nil { titleFocused = true } }
+        .onAppear { if task == nil, store.newDraft.title.isEmpty { titleFocused = true } }
         .actionFailure($failure)
     }
 
@@ -901,13 +922,13 @@ struct TaskEditorView: View {
         Task {
             do {
                 if let task {
-                    try await store.update(task.id, draft.changes(from: task))
+                    try await store.update(task.id, edited.changes(from: task))
                     finished(task.id)
                 } else {
-                    finished(try await store.add(draft)?.id)
+                    finished(try await store.addNew()?.id)
                 }
             } catch {
-                failure = (error as? RemoteError)?.message ?? error.localizedDescription
+                failure = connection.failure(error, action: action)
             }
             saving = false
         }

@@ -11,7 +11,7 @@ struct VoiceOverlay: View {
     static let panelWidth: CGFloat = 480
 
     var body: some View {
-        let target = navigation.floatingMic(model) ? navigation.voiceTarget(model) : nil
+        let target = navigation.floatingMic(model, listening: voice.active) ? navigation.voiceTarget(model) : nil
         GeometryReader { proxy in
             let frame = proxy.frame(in: .global)
             let column = navigation.layout == .compact ? frame : navigation.voiceDock.map { $0.intersection(frame) } ?? frame
@@ -187,8 +187,8 @@ private struct VoicePressStyle: ButtonStyle {
 }
 
 extension AppNavigation {
-    func floatingMic(_ model: CompanionModel) -> Bool {
-        !searching && !screenHasMic(model) && voiceTarget(model) != nil
+    func floatingMic(_ model: CompanionModel, listening: Bool) -> Bool {
+        (listening || !typing) && !searching && !screenHasMic(model) && voiceTarget(model) != nil
     }
 
     private func screenHasMic(_ model: CompanionModel) -> Bool {

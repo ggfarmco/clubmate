@@ -58,6 +58,23 @@ final class BacklogTests: XCTestCase {
         XCTAssertEqual(runner.calls.first?.args, .object(["id": .number(4), "agent": .string("claude"), "where": .string("worktree")]))
     }
 
+    func testNewDraftStaysUntilTheTaskIsAdded() async throws {
+        let runner = BacklogRunner()
+        let store = BacklogStore(workspace: "w", runner: runner)
+        store.newDraft.title = "Ship it"
+        runner.failure = .notSent("offline")
+        do {
+            try await store.addNew()
+            XCTFail("added offline")
+        } catch {}
+        XCTAssertEqual(store.newDraft.title, "Ship it")
+        runner.failure = nil
+        try await store.addNew()
+        XCTAssertEqual(store.newDraft, BacklogDraft())
+        XCTAssertEqual(runner.calls.map(\.id).prefix(2), ["backlog.add", "backlog.add"])
+        XCTAssertEqual(runner.calls[1].args?["title"], .string("Ship it"))
+    }
+
     func testDraftSendsOnlyChangedFieldsAndNeverInProgress() {
         let task = BacklogTask(id: 7, title: "Retry", description: "x", status: .inProgress, priority: .high)
         var draft = BacklogDraft(task)
@@ -73,9 +90,11 @@ final class BacklogTests: XCTestCase {
 @MainActor
 final class BacklogRunner: CommandRunner {
     private(set) var calls: [(id: String, args: JSONValue?)] = []
+    var failure: RemoteError?
 
     func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
         calls.append((id, args))
+        if let failure { throw failure }
         let all = try JSONDecoder().decode(JSONValue.self, from: fixture("backlog-tasks"))["tasks"]?.arrayValue ?? []
         let status = args?["status"]?.stringValue ?? "open"
         let open: Set<String> = ["idea", "todo", "in_progress"]

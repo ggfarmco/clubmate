@@ -10,6 +10,7 @@ public final class BacklogStore {
     public private(set) var tasks: [BacklogTask] = []
     public private(set) var loaded = false
     public private(set) var error: String?
+    public var newDraft = BacklogDraft()
 
     @ObservationIgnored private weak var runner: (any CommandRunner)?
     @ObservationIgnored private var inflight = false
@@ -63,8 +64,9 @@ public final class BacklogStore {
     }
 
     @discardableResult
-    public func add(_ draft: BacklogDraft) async throws -> BacklogTask? {
-        let task = try await run(BacklogCommand.add, draft.addArgs())
+    public func addNew() async throws -> BacklogTask? {
+        let task = try await run(BacklogCommand.add, newDraft.addArgs())
+        newDraft = BacklogDraft()
         await refresh()
         return task
     }

@@ -29,6 +29,7 @@ final class AppNavigation {
     var macDetails: String?
     var needsYouList = false
     var workspaces: [String: String] = [:]
+    var newTaskWorkspaces: [String: String] = [:]
     var showingAddComputer = false
     @ObservationIgnored private(set) var pairingSheetUp = false
     @ObservationIgnored private var pairedUnderSheet: String?
@@ -36,6 +37,7 @@ final class AppNavigation {
     var sectionItem: String?
     private(set) var voiceDocks: [VoiceDockFrame] = []
     var searching = false
+    var typing = false
     var preferredColumn: NavigationSplitViewColumn = .sidebar
     var layout: CompanionLayout = .compact
     var visibility: NavigationSplitViewVisibility

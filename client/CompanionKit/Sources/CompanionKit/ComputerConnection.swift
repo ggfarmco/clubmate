@@ -197,12 +197,29 @@ public final class ComputerConnection: CommandRunner {
     }
 
     public var blocked: String? {
-        let offline = "Can't answer — \(computer.name) is offline"
+        blocked("answer")
+    }
+
+    public func blocked(_ action: String) -> String? {
         switch state {
-        case .online: return nil
-        case .unauthorized: return "Can't answer — access revoked"
-        case .offline, .connecting: return lastSeen.map { offline + " · as of " + Self.clock($0) } ?? offline
+        case .online: nil
+        case .unauthorized: "Can't \(action) — access revoked"
+        case .offline, .connecting: offline(action)
         }
+    }
+
+    public func failure(_ error: any Error, action: String) -> String {
+        switch error as? RemoteError {
+        case .notSent?: offline(action)
+        case .unreachable?: "\(computer.name) stopped answering — it may have gone through, check before trying again"
+        case let remote?: remote.message
+        case nil: error.localizedDescription
+        }
+    }
+
+    private func offline(_ action: String) -> String {
+        let line = "Can't \(action) — \(computer.name) is offline"
+        return lastSeen.map { line + " · as of " + Self.clock($0) } ?? line
     }
 
     public var queues: Bool {

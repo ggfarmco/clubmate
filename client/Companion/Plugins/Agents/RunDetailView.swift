@@ -7,6 +7,7 @@ struct RunDetailView: View {
     let store: AgentsStore
     let runID: String
     @Environment(AppNavigation.self) private var navigation
+    @Environment(VoiceSession.self) private var voice
     @State private var confirmingStop = false
     @State private var failure: String?
     @State private var position = ScrollPosition(edge: .top)
@@ -43,7 +44,7 @@ struct RunDetailView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollPosition($position)
-        .contentMargins(.bottom, navigation.floatingMic(context.model) && request == nil ? VoiceButton.floating + 16 : 0, for: .scrollContent)
+        .contentMargins(.bottom, navigation.floatingMic(context.model, listening: voice.active) && request == nil ? VoiceButton.floating + 16 : 0, for: .scrollContent)
         .scrollEdgeEffectStyle(.soft, for: .top)
         .background(Color(.systemGroupedBackground))
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -85,7 +86,7 @@ struct RunDetailView: View {
                 }
             }
             .animation(.snappy, value: request)
-            .padding(.bottom, navigation.floatingMic(context.model) && request != nil ? VoiceButton.floating + 8 : 0)
+            .padding(.bottom, navigation.floatingMic(context.model, listening: voice.active) && request != nil ? VoiceButton.floating + 8 : 0)
         }
         .navigationTitle(title(run, entry))
         .toolbarTitleDisplayMode(wide ? .inlineLarge : .inline)

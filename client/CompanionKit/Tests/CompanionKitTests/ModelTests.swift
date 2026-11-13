@@ -200,10 +200,10 @@ final class ModelTests: XCTestCase {
     }
 
     @MainActor
-    func testComputerStoreKeepsLastSeenAcrossLaunches() throws {
+    func testComputerStoreKeepsLastSeenAcrossLaunches() async throws {
         let file = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).appending(path: "computers.json")
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data(#"[{"id":"m","name":"Mac","hosts":["h"],"port":1,"pairedAt":"2026-10-31T10:00:00Z"}]"#.utf8).write(to: file)
+        try Data(#"[{"id":"m","name":"Mac","hosts":["100.64.0.1"],"port":1,"pairedAt":"2026-10-31T10:00:00Z"}]"#.utf8).write(to: file)
         let vault = MemoryTokenVault()
         let store = ComputerStore(file: file, vault: vault)
         XCTAssertEqual(store.computers.map(\.id), ["m"])
@@ -215,10 +215,17 @@ final class ModelTests: XCTestCase {
         try store.seen("m", at: seen.addingTimeInterval(ComputerStore.seenEvery - 1))
         XCTAssertEqual(ComputerStore(file: file, vault: vault).computers[0].lastSeen, seen)
 
-        let connection = ComputerConnection(computer: ComputerStore(file: file, vault: vault).computers[0], token: "t", transport: FakeTransport())
+        let connection = ComputerConnection(computer: ComputerStore(file: file, vault: vault).computers[0], token: "t", transport: FakeTransport(reply: { _ in throw URLError(.notConnectedToInternet) }))
         XCTAssertEqual(connection.presence, "offline since " + ComputerConnection.clock(seen))
         XCTAssertEqual(connection.shortPresence, "offline")
         XCTAssertEqual(connection.blocked, "Can't answer — Mac is offline · as of " + ComputerConnection.clock(seen))
+        XCTAssertEqual(connection.blocked("add"), "Can't add — Mac is offline · as of " + ComputerConnection.clock(seen))
+        do {
+            _ = try await connection.command("backlog.add", workspace: "w", args: nil)
+            XCTFail("sent offline")
+        } catch {
+            XCTAssertEqual(connection.failure(error, action: "add"), connection.blocked("add"))
+        }
     }
 
     @MainActor

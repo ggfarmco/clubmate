@@ -142,6 +142,30 @@ final class CompanionUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual((edit?.frame.minX ?? 0) - value.frame.maxX, 8)
     }
 
+    func testFloatingMicStepsAsideWhileTypingATask() {
+        let app = launch(open: "backlog/new")
+        XCTAssertTrue(app.textFields["taskTitle"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Talk to Clubmate"].exists)
+        app.navigationBars["New Task"].buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["Talk to Clubmate"].waitForExistence(timeout: 5))
+    }
+
+    func testNewTaskDraftSurvivesLeavingTheForm() {
+        let app = launch(open: "backlog")
+        let new = app.buttons["New Task"]
+        XCTAssertTrue(new.waitForExistence(timeout: 10))
+        new.tap()
+        let title = app.textFields["taskTitle"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.typeText("Kept while away")
+        app.navigationBars["New Task"].buttons.firstMatch.tap()
+        XCTAssertTrue(new.waitForExistence(timeout: 5))
+        new.tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        XCTAssertEqual(title.value as? String, "Kept while away")
+    }
+
     func testBacklogOpensFromTheWorkspaceNotTheMac() {
         let app = launch(open: "sidebar")
         XCTAssertTrue(app.navigationBars["Macs"].waitForExistence(timeout: 10))
