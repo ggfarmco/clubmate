@@ -604,11 +604,15 @@ func (s *Supervisor) settle(ctx context.Context, id string, cause error) (time.D
 		return 0, true
 	}
 	now := time.Now()
-	inst.crashes = append(slices.DeleteFunc(inst.crashes, func(t time.Time) bool { return now.Sub(t) >= s.crashWindow }), now)
+	inst.crashes = slices.DeleteFunc(inst.crashes, func(t time.Time) bool { return now.Sub(t) >= s.crashWindow })
+	stuck := errors.Is(cause, errStuck)
+	if !stuck {
+		inst.crashes = append(inst.crashes, now)
+	}
 	inst.status.Restarts++
 	inst.status.LastError = cause.Error()
-	recent, restarts := len(inst.crashes), inst.status.Restarts
-	if recent >= s.crashLimit {
+	recent, restarts := max(len(inst.crashes), 1), inst.status.Restarts
+	if !stuck && recent >= s.crashLimit {
 		inst.status.State = StateFailed
 		s.mu.Unlock()
 		s.logger.Error("plugin failed, giving up", "id", id, "err", cause, "restarts", restarts)

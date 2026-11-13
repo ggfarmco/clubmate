@@ -240,8 +240,8 @@ func TestDebugPprofReachesPlugin(t *testing.T) {
 
 const stuckManifest = `{"id":"stuck","name":"Stuck","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"stuck.wait","title":"Wait","timeout":1},{"id":"stuck.ok","title":"Ok"}]},"echoResults":{"stuck.wait":{},"stuck.ok":{}},"echoDelays":{"stuck.wait":60000}}`
 
-func startStuck(t *testing.T) (*testutil.PluginHarness, func(id string) error) {
-	h := testutil.NewHarness(t, plugin.WithBackoff(10*time.Millisecond, 10*time.Millisecond))
+func startStuck(t *testing.T, opts ...plugin.SupervisorOption) (*testutil.PluginHarness, func(id string) error) {
+	h := testutil.NewHarness(t, append([]plugin.SupervisorOption{plugin.WithBackoff(10*time.Millisecond, 10*time.Millisecond)}, opts...)...)
 	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	h.Start(t, testutil.EchoPluginDirAs(t, stuckManifest))
@@ -252,8 +252,8 @@ func startStuck(t *testing.T) (*testutil.PluginHarness, func(id string) error) {
 	}
 }
 
-func TestRouteTimeoutsInARowRestartPlugin(t *testing.T) {
-	h, run := startStuck(t)
+func TestRouteTimeoutsInARowRestartPluginWithoutFailingIt(t *testing.T) {
+	h, run := startStuck(t, plugin.WithCrashLimit(1, time.Minute))
 	pid := h.Sup.PIDs()[0]
 	for range 3 {
 		require.Error(t, run("stuck.wait"))
