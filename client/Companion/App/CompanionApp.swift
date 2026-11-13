@@ -1,4 +1,5 @@
 import BackgroundTasks
+import Network
 import SwiftUI
 import UIKit
 
@@ -108,6 +109,11 @@ struct CompanionApp: App {
                 #if DEBUG
                 await DebugLaunch.apply(model: model, navigation: navigation, pairing: pairing, voice: voice)
                 #endif
+            }
+            .task {
+                for await path in NWPathMonitor().dropFirst() where path.status == .satisfied {
+                    model.networkReturned()
+                }
             }
     }
 }

@@ -27,6 +27,21 @@ final class RemoteClientTests: XCTestCase {
         XCTAssertEqual(transport.requests.map(\.timeoutInterval), [RemoteClient.probeTimeout, RemoteClient.probeTimeout, 20, 20])
     }
 
+    func testALostConnectionOnThePreferredHostReconnectsElsewhereButNeverResendsACommand() async throws {
+        let transport = FakeTransport(reply: { request in
+            if request.url?.host() == "mac.tail.ts.net" { throw URLError(.networkConnectionLost) }
+            return (FakeTransport.result(helloJSON), 200)
+        }, stream: { request in
+            if request.url?.host() == "100.64.0.2" { throw POSIXError(.ECONNRESET) }
+            return (200, AsyncThrowingStream { $0.finish() })
+        })
+        let client = RemoteClient(hosts: ["mac.tail.ts.net", "100.64.0.2"], port: 47621, token: "t", transport: transport, preferredHost: "mac.tail.ts.net")
+        await XCTAssertThrowsAsync(try await client.command("agents.prompt", workspace: "w"), RemoteError.unreachable(URLError(.networkConnectionLost).localizedDescription))
+        _ = try await client.hello()
+        _ = try await client.events(after: nil)
+        XCTAssertEqual(transport.requests.map { $0.url?.host() }, ["mac.tail.ts.net", "mac.tail.ts.net", "100.64.0.2", "100.64.0.2", "mac.tail.ts.net"])
+    }
+
     func testARequestNoHostCouldHaveGotIsNotSent() async throws {
         let refused = FakeTransport(reply: { _ in throw URLError(.cannotConnectToHost) })
         let offline = RemoteClient(hosts: ["100.64.0.1", "100.64.0.2"], port: 47621, token: "t", transport: refused)

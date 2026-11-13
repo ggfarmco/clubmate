@@ -40,6 +40,7 @@ public final class ComputerConnection: CommandRunner {
     public static let voiceSettings = "voice.settings"
     public static let voiceSettingsTopic = "voice.settings-changed"
     public static let backoff: [Duration] = [1, 2, 5, 10, 30].map { .seconds($0) }
+    public static let pingInterval: Duration = .seconds(15)
 
     public private(set) var computer: Computer
     public private(set) var state: State = .offline(nil)
@@ -52,15 +53,18 @@ public final class ComputerConnection: CommandRunner {
 
     @ObservationIgnored public private(set) var client: RemoteClient
     @ObservationIgnored let sleep: @Sendable (Duration) async throws -> Void
+    @ObservationIgnored let now: @Sendable () -> ContinuousClock.Instant
+    @ObservationIgnored private var heardAt: ContinuousClock.Instant?
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var listeners: [UUID: @MainActor (ConnectionSignal) -> Void] = [:]
     @ObservationIgnored private var interfaces: [String: WeakInterface] = [:]
 
-    public init(computer: Computer, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, lastEventID: Int? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+    public init(computer: Computer, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, lastEventID: Int? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }) {
         self.computer = computer
         self.lastEventID = lastEventID
         lastSeen = computer.lastSeen
         self.sleep = sleep
+        self.now = now
         client = RemoteClient(hosts: computer.hosts, port: computer.port, token: token, transport: transport, policy: policy)
         if token == nil { state = .unauthorized }
     }
@@ -78,10 +82,19 @@ public final class ComputerConnection: CommandRunner {
     }
 
     public func reconnectNow() {
-        guard state != .online, state != .unauthorized else { return }
+        guard state != .unauthorized else { return }
+        if state == .online {
+            guard let heardAt, now() - heardAt > Self.pingInterval * 2 else { return }
+            streamID = nil
+        }
         task?.cancel()
         task = nil
         start()
+    }
+
+    public func networkReturned() {
+        guard task != nil else { return }
+        reconnectNow()
     }
 
     @discardableResult
@@ -233,10 +246,13 @@ public final class ComputerConnection: CommandRunner {
                     if Task.isCancelled { return }
                     failures = 0
                     lastSeen = .now
+                    heardAt = now()
                     switch item {
                     case .alive:
                         state = .online
                         emit(.online)
+                    case .ping:
+                        break
                     case .event(let event):
                         lastEventID = event.seq
                         if event.topic == Topic.pluginChanged {

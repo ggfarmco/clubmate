@@ -59,6 +59,19 @@ final class Recorder<Value: Sendable>: Sendable {
     }
 }
 
+final class TestClock: Sendable {
+    private let start = ContinuousClock.now
+    private let offset = Mutex<Duration>(.zero)
+
+    func advance(_ by: Duration) {
+        offset.withLock { $0 += by }
+    }
+
+    var now: @Sendable () -> ContinuousClock.Instant {
+        { [self] in start + offset.withLock { $0 } }
+    }
+}
+
 let helloJSON = #"{"computer":{"id":"mac1","name":"Mac Studio"},"version":"0.0.13","commands":["agents.sessions","agents.transcript","agents.prompt"],"topics":["agents.changed","notify.posted"]}"#
 let workspacesJSON = #"[{"id":"prj_00000000000000f1","name":"shop","folders":[{"path":"/Users/me/src/shop"}]}]"#
 

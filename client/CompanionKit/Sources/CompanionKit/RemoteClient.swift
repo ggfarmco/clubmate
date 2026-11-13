@@ -94,6 +94,7 @@ public struct Workspace: Codable, Sendable, Equatable, Identifiable, Hashable {
 
 public enum EventStreamItem: Sendable, Equatable {
     case alive
+    case ping
     case event(BusEvent)
     case stream(String)
     case ui(SlotView)
@@ -121,6 +122,7 @@ public actor RemoteClient {
         .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed, .notConnectedToInternet,
         .appTransportSecurityRequiresSecureConnection, .secureConnectionFailed, .badURL,
     ]
+    private static let lostErrors: Set<POSIXErrorCode> = [.ECONNRESET, .ECONNABORTED, .ENOTCONN, .ENETDOWN, .ENETUNREACH, .EHOSTUNREACH, .EPIPE]
 
     public init(hosts: [String], port: Int, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, preferredHost: String? = nil) {
         self.hosts = policy.filter(hosts)
@@ -238,7 +240,7 @@ public actor RemoteClient {
                 break
             } catch {
                 lastError = error
-                guard canFallBack(error) else { throw Self.mapped(error) }
+                guard canFallBack(error, probe: false) || Self.lost(error) else { throw Self.mapped(error) }
             }
         }
         guard let response, let chunks else { throw Self.mapped(lastError ?? RemoteError.hostNotAllowed) }
@@ -251,11 +253,16 @@ public actor RemoteClient {
                 var alive = false
                 do {
                     for try await chunk in chunks {
-                        if !alive, !chunk.isEmpty {
-                            alive = true
-                            continuation.yield(.alive)
+                        let events = parser.feed(chunk)
+                        if !chunk.isEmpty {
+                            if !alive {
+                                alive = true
+                                continuation.yield(.alive)
+                            } else if events.isEmpty, chunk.first == UInt8(ascii: ":") {
+                                continuation.yield(.ping)
+                            }
                         }
-                        for event in parser.feed(chunk) {
+                        for event in events {
                             let data = Data(event.data.utf8)
                             switch event.event {
                             case "bus":
@@ -309,7 +316,8 @@ public actor RemoteClient {
         return [preferredHost] + hosts.filter { $0 != preferredHost }
     }
 
-    private func canFallBack(_ error: any Error, probe: Bool = false) -> Bool {
+    private func canFallBack(_ error: any Error, probe: Bool) -> Bool {
+        if probe, Self.lost(error) { return true }
         guard let code = (error as? URLError)?.code else { return false }
         return Self.unsentErrors.contains(code) || (code == .timedOut && (probe || preferredHost == nil))
     }
@@ -326,6 +334,11 @@ public actor RemoteClient {
         components.path = path
         guard let url = components.url, url.host(percentEncoded: false) == host, url.port == port, url.user == nil else { throw RemoteError.hostNotAllowed }
         return url
+    }
+
+    private static func lost(_ error: any Error) -> Bool {
+        if (error as? URLError)?.code == .networkConnectionLost { return true }
+        return (error as? POSIXError).map { lostErrors.contains($0.code) } ?? false
     }
 
     private static func unsent(_ error: any Error) -> Bool {

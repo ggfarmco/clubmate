@@ -196,6 +196,65 @@ final class ComputerConnectionTests: XCTestCase {
         connection.stop()
     }
 
+    func testNetworkReturningCutsTheBackoffShortButLeavesAStoppedConnectionAlone() async throws {
+        let hellos = Recorder<Int>()
+        let transport = FakeTransport(reply: { request in
+            if FakeTransport.rpc(request) == "workspaces" { return (FakeTransport.result(workspacesJSON), 200) }
+            hellos.add(1)
+            if hellos.values.count == 1 { throw URLError(.cannotConnectToHost) }
+            return (FakeTransport.result(helloJSON), 200)
+        }, stream: { _ in (200, AsyncThrowingStream { $0.yield(Data(": connected\n\n".utf8)) }) })
+        let connection = ComputerConnection(computer: computer, token: "t", transport: transport, sleep: { _ in try await Task.sleep(for: .seconds(60)) })
+        connection.start()
+        try await waitUntil { connection.state == .offline(URLError(.cannotConnectToHost).localizedDescription) }
+
+        connection.networkReturned()
+
+        try await waitUntil { connection.state == .online }
+        connection.stop()
+        let sent = transport.requests.count
+        connection.networkReturned()
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(transport.requests.count, sent)
+        XCTAssertEqual(connection.state, .offline(nil))
+    }
+
+    func testReconnectNowRestartsAStreamThatWentQuiet() async throws {
+        let held = Recorder<AsyncThrowingStream<Data, any Error>.Continuation>()
+        let transport = FakeTransport(reply: { request in
+            (FakeTransport.result(FakeTransport.rpc(request) == "workspaces" ? workspacesJSON : helloJSON), 200)
+        }, stream: { _ in
+            (200, AsyncThrowingStream {
+                $0.yield(Data(": connected\n\n".utf8))
+                held.add($0)
+            })
+        })
+        let clock = TestClock()
+        let connection = ComputerConnection(computer: computer, token: "t", transport: transport, sleep: { _ in }, now: clock.now)
+        let signals = Recorder<ConnectionSignal>()
+        connection.observe { signals.add($0) }
+        connection.start()
+        try await waitUntil { connection.state == .online && held.values.count == 1 }
+
+        clock.advance(.seconds(25))
+        let seen = connection.lastSeen
+        held.values[0].yield(Data(": ping\n\n".utf8))
+        try await waitUntil { connection.lastSeen != seen }
+        XCTAssertEqual(signals.values, [.online])
+        clock.advance(.seconds(25))
+        connection.reconnectNow()
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(held.values.count, 1)
+
+        clock.advance(.seconds(10))
+        connection.reconnectNow()
+
+        XCTAssertEqual(connection.state, .online)
+        try await waitUntil { held.values.count == 2 && signals.values.count == 2 }
+        XCTAssertEqual(signals.values, [.online, .online])
+        connection.stop()
+    }
+
     func testUnauthorizedStopsReconnecting() async throws {
         let transport = FakeTransport(reply: { _ in (Data(), 401) })
         let delays = Recorder<Duration>()

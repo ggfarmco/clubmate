@@ -54,6 +54,12 @@ public final class CompanionModel {
         }
     }
 
+    public func networkReturned() {
+        for connection in connections.values {
+            connection.networkReturned()
+        }
+    }
+
     public func disconnectAll() {
         for connection in connections.values {
             connection.stop()
