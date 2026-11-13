@@ -71,7 +71,7 @@ func (r *Router) Providers(capability string) rpc.CapabilityProviders {
 }
 
 func (r *Router) UIEvent(ctx context.Context, pluginID string, ev json.RawMessage) (json.RawMessage, error) {
-	return r.call(ctx, pluginID, "ui.event", ev, routeTimeout)
+	return r.route(ctx, pluginID, "ui.event", ev, routeTimeout)
 }
 
 func (r *Router) Command(ctx context.Context, c rpc.Command, run json.RawMessage) (json.RawMessage, error) {
@@ -79,7 +79,7 @@ func (r *Router) Command(ctx context.Context, c rpc.Command, run json.RawMessage
 	if c.Timeout > 0 {
 		timeout = time.Duration(c.Timeout) * time.Second
 	}
-	return r.call(ctx, c.Plugin, "command.run", run, timeout)
+	return r.route(ctx, c.Plugin, "command.run", run, timeout)
 }
 
 func (r *Router) Pprof(ctx context.Context, pluginID string, params json.RawMessage, timeout time.Duration) (json.RawMessage, error) {
@@ -188,6 +188,25 @@ func (r *Router) call(ctx context.Context, pluginID, method string, params json.
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	return callConn(ctx, conn, pluginID, method, params)
+}
+
+func (r *Router) route(ctx context.Context, pluginID, method string, params json.RawMessage, timeout time.Duration) (json.RawMessage, error) {
+	conn, ok := r.sup.Conn(pluginID)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrPluginUnavailable, pluginID)
+	}
+	callCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	started := time.Now()
+	out, err := callConn(callCtx, conn, pluginID, method, params)
+	var pluginErr *rpc.PluginError
+	switch {
+	case err == nil || errors.As(err, &pluginErr):
+		r.sup.routed(pluginID, conn, started, false)
+	case errors.Is(callCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil:
+		r.sup.routed(pluginID, conn, started, true)
+	}
+	return out, err
 }
 
 func callConn(ctx context.Context, conn *jsonrpc2.Conn, pluginID, method string, params json.RawMessage) (json.RawMessage, error) {

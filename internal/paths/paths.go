@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -142,6 +143,33 @@ func OpenLog(path string) (*os.File, error) {
 		}
 	}
 	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+}
+
+func TrimLog(path string) error {
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) || err == nil && info.Size() <= LogRotateSize {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	src, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+	dst, err := os.OpenFile(path+".1", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(dst, src); err != nil {
+		dst.Close()
+		return fmt.Errorf("copy %s: %w", path, err)
+	}
+	if err := dst.Close(); err != nil {
+		return err
+	}
+	return os.Truncate(path, 0)
 }
 
 func (d Dirs) DB() string {

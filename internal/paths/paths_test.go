@@ -183,3 +183,22 @@ func TestOpenLogRotatesOnlyPastTheCap(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(len(big)), old.Size())
 }
+
+func TestTrimLogKeepsWritersAppending(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "core.log")
+	f, err := paths.OpenLog(path)
+	require.NoError(t, err)
+	defer f.Close()
+	big := make([]byte, paths.LogRotateSize+1)
+	_, err = f.Write(big)
+	require.NoError(t, err)
+	require.NoError(t, paths.TrimLog(path))
+	_, err = f.Write([]byte("after"))
+	require.NoError(t, err)
+	got, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "after", string(got))
+	old, err := os.Stat(path + ".1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(len(big)), old.Size())
+}

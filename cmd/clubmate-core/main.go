@@ -36,6 +36,7 @@ const (
 	refreshEvery      = 2 * time.Second
 	snapshotTTL       = 1500 * time.Millisecond
 	pluginStopTimeout = 15 * time.Second
+	logTrimEvery      = time.Minute
 )
 
 const usage = `usage: clubmate-core [-version]
@@ -176,6 +177,7 @@ func run(logger *slog.Logger) error {
 		defer close(loopDone)
 		svc.RefreshLoop(ctx, refreshEvery)
 	}()
+	go trimLogs(ctx, logger, logPaths(dirs, manifests))
 
 	sup.Start(ctx, manifests)
 	logger.Info("clubmate-core listening", "socket", dirs.CoreSocket(), "version", buildinfo.String(), "plugins", len(manifests))
@@ -185,6 +187,31 @@ func run(logger *slog.Logger) error {
 	<-loopDone
 	logger.Info("clubmate-core stopped")
 	return serveErr
+}
+
+func logPaths(dirs paths.Dirs, manifests []plugin.Manifest) []string {
+	out := []string{dirs.CoreLog()}
+	for _, m := range manifests {
+		out = append(out, dirs.PluginLog(m.ID))
+	}
+	return out
+}
+
+func trimLogs(ctx context.Context, logger *slog.Logger, logs []string) {
+	t := time.NewTicker(logTrimEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		for _, path := range logs {
+			if err := paths.TrimLog(path); err != nil {
+				logger.Warn("trim log", "path", path, "err", err)
+			}
+		}
+	}
 }
 
 func onboardingAllowed() bool {

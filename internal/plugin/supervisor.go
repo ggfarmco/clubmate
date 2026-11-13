@@ -44,6 +44,7 @@ const (
 	defaultPingEvery       = 15 * time.Second
 	defaultPingTimeout     = 5 * time.Second
 	defaultPingMisses      = 3
+	stuckStrikes           = 3
 
 	pluginIDEnv   = "CLUBMATE_PLUGIN_ID"
 	runtimeDirEnv = "CLUBMATE_PLUGIN_RUNTIME_DIR"
@@ -61,6 +62,7 @@ var (
 	errRestart    = errors.New("plugin restart requested")
 	errNotStarted = errors.New("plugin supervisor not running")
 	errNoPong     = errors.New("plugin stopped answering plugin.ping")
+	errStuck      = errors.New("plugin stopped answering commands")
 
 	ErrPluginDisabled = rpc.ErrPluginDisabled
 )
@@ -115,13 +117,16 @@ type Supervisor struct {
 }
 
 type instance struct {
-	status   Status
-	manifest Manifest
-	conn     *jsonrpc2.Conn
-	crashes  []time.Time
-	restart  chan struct{}
-	stop     context.CancelFunc
-	done     chan struct{}
+	status     Status
+	manifest   Manifest
+	conn       *jsonrpc2.Conn
+	crashes    []time.Time
+	restart    chan struct{}
+	stop       context.CancelFunc
+	done       chan struct{}
+	stuck      chan struct{}
+	strikes    int
+	lastStrike time.Time
 }
 
 type process struct {
@@ -459,9 +464,11 @@ func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process, restart 
 		}
 		return p.abort(err)
 	}
+	stuck := make(chan struct{})
 	s.update(m.ID, func(inst *instance) {
 		inst.status.State = StateRunning
 		inst.conn = p.conn
+		inst.stuck, inst.strikes, inst.lastStrike = stuck, 0, time.Time{}
 	})
 	s.logger.Info("plugin running", "id", m.ID, "pid", p.cmd.Process.Pid)
 	s.changed(m.ID, true)
@@ -489,6 +496,31 @@ func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process, restart 
 		s.logger.Warn("plugin not answering, killing it", "id", m.ID, "pid", p.cmd.Process.Pid, "missed", s.pingMisses)
 		p.abort(errNoPong)
 		return errNoPong
+	case <-stuck:
+		s.logger.Warn("plugin not answering commands, killing it", "id", m.ID, "pid", p.cmd.Process.Pid, "timeouts", stuckStrikes)
+		p.abort(errStuck)
+		return errStuck
+	}
+}
+
+func (s *Supervisor) routed(id string, conn *jsonrpc2.Conn, started time.Time, timedOut bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	inst, ok := s.plugins[id]
+	switch {
+	case !ok || inst.conn != conn:
+		return
+	case !timedOut:
+		inst.strikes, inst.lastStrike = 0, time.Time{}
+		return
+	case started.Before(inst.lastStrike):
+		return
+	}
+	inst.strikes++
+	inst.lastStrike = time.Now()
+	if inst.strikes >= stuckStrikes && inst.stuck != nil {
+		close(inst.stuck)
+		inst.stuck = nil
 	}
 }
 

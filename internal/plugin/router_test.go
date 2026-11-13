@@ -7,6 +7,7 @@ import (
 	"net"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -235,4 +236,47 @@ func TestDebugPprofReachesPlugin(t *testing.T) {
 	require.NoError(t, h.Client(t).Call(t.Context(), "debug.pprof", map[string]any{"plugin": "echo", "profile": "goroutine", "debug": 1}, &res))
 	assert.Contains(t, string(res.Data), "clubmate/pkg/pluginsdk.")
 	assert.NotContains(t, string(res.Data), "clubmate/internal/rpc.")
+}
+
+const stuckManifest = `{"id":"stuck","name":"Stuck","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"stuck.wait","title":"Wait","timeout":1},{"id":"stuck.ok","title":"Ok"}]},"echoResults":{"stuck.wait":{},"stuck.ok":{}},"echoDelays":{"stuck.wait":60000}}`
+
+func startStuck(t *testing.T) (*testutil.PluginHarness, func(id string) error) {
+	h := testutil.NewHarness(t, plugin.WithBackoff(10*time.Millisecond, 10*time.Millisecond))
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
+	require.NoError(t, err)
+	h.Start(t, testutil.EchoPluginDirAs(t, stuckManifest))
+	testutil.Eventually(t, func() bool { _, ok := h.Sup.Conn("stuck"); return ok }, 5*time.Second)
+	c := h.Client(t)
+	return h, func(id string) error {
+		return c.Call(t.Context(), "command.run", map[string]any{"id": id, "workspaceId": p.ID}, nil)
+	}
+}
+
+func TestRouteTimeoutsInARowRestartPlugin(t *testing.T) {
+	h, run := startStuck(t)
+	pid := h.Sup.PIDs()[0]
+	for range 3 {
+		require.Error(t, run("stuck.wait"))
+	}
+	testutil.Eventually(t, func() bool {
+		st := h.Sup.Statuses()[0]
+		return st.Restarts == 1 && st.State == plugin.StateRunning && st.PID != pid
+	}, 5*time.Second)
+	assert.Contains(t, h.Sup.Statuses()[0].LastError, "commands")
+	assert.False(t, testutil.Alive(pid))
+}
+
+func TestOverlappingTimeoutsAndRepliesKeepPluginRunning(t *testing.T) {
+	h, run := startStuck(t)
+	var wg sync.WaitGroup
+	for range 3 {
+		wg.Go(func() { assert.Error(t, run("stuck.wait")) })
+	}
+	wg.Wait()
+	require.Error(t, run("stuck.wait"))
+	require.NoError(t, run("stuck.ok"))
+	require.Error(t, run("stuck.wait"))
+	require.Error(t, run("stuck.wait"))
+	time.Sleep(200 * time.Millisecond)
+	assert.Zero(t, h.Sup.Statuses()[0].Restarts)
 }
