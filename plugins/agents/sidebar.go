@@ -189,7 +189,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	buckets := map[string]*bucket{}
 	for _, row := range roots {
 		switch {
-		case row.Rec.closed() && row.Rec.ParentSession == "":
+		case row.Rec.closed():
 			closed = append(closed, row)
 			continue
 		case row.Rec.restricted():

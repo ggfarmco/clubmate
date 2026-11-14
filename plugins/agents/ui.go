@@ -693,7 +693,7 @@ func (a *app) runScope(rec record) string {
 	switch {
 	case a.session(rec.ParentSession) != nil:
 		return rec.ParentSession
-	case rec.closed() && rec.ParentSession == "":
+	case rec.closed():
 		return closedKey
 	case rec.restricted() && rec.ParentSession == "":
 		return serviceKey

@@ -56,6 +56,7 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 		{Rec: record{ID: "agt_2", Worktree: "/r/b", Agent: agentClaude, Title: "Auth", Status: statusDone, UpdatedAt: now.Add(-12 * time.Minute)}, Notify: notifyMuted, Branch: "feat/auth"},
 		{Rec: record{ID: "agt_3", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, UpdatedAt: now}},
 		{Rec: record{ID: "agt_4", Worktree: "/r/b", Agent: agentClaude, Title: "Docs", Status: statusDone, Asks: true, UpdatedAt: now}},
+		{Rec: record{ID: "agt_5", Worktree: "/r/c", lineage: lineage{ParentSession: "agt_gone"}, Agent: agentClaude, Status: statusClosed, UpdatedAt: now}},
 	}
 	tree := sidebarView(rows, "agt_2", nil, now, "/r/a", false, "", sidebarSearch{}, 0)
 	require.NoError(t, internalsdui.Validate(tree))
@@ -63,7 +64,7 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 	groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
 	require.Len(t, groups, 3)
 	assert.Equal(t, []string{"detached · 03a9ff5f", "feat/auth", "Closed"}, []string{groups[0].Label, groups[1].Label, groups[2].Label})
-	assert.Equal(t, "1", groups[2].Detail)
+	assert.Equal(t, "2", groups[2].Detail)
 	assert.Equal(t, []bool{true, false}, []bool{groups[0].Faint, groups[1].Faint})
 	assert.Empty(t, groups[1].Detail)
 	assert.Equal(t, []string{"middle", "middle"}, []string{groups[0].Truncate, groups[1].Truncate})
