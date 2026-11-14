@@ -16,10 +16,3 @@ func reviewView(rs []*review) sdui.Node {
 func textStyled(text, style string) sdui.Node {
 	return sdui.Node{Type: "text", Props: map[string]any{"text": text, "style": style}}
 }
-
-func plural(n int, one, many string) string {
-	if n == 1 {
-		return one
-	}
-	return many
-}

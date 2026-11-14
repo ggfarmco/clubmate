@@ -3,11 +3,11 @@ package main
 import (
 	"cmp"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/automation"
+	"clubmate/plugins/internal/plural"
 )
 
 const (
@@ -70,7 +70,7 @@ func mainView(j *Job, jobs []*Job, titles, statuses map[string]string, open auto
 	badges := automation.StateBadges(j.Enabled, j.History)
 	missed, last := missedRuns(j.History)
 	if missed > 0 {
-		badges = append(badges, sdui.HeaderBadge{Text: plural(missed, "missed 1 run", "missed %d runs"), Tone: "warning"})
+		badges = append(badges, sdui.HeaderBadge{Text: plural.Count(missed, "missed 1 run", "missed %d runs"), Tone: "warning"})
 	}
 	header := sdui.Header(j.Name, sdui.HeaderProps{Icon: headerIcon(j), Badges: badges}, actions...)
 	loc := jobLocation(j)
@@ -206,13 +206,6 @@ func jobMenu(j *Job) []sdui.MenuEntry {
 		{Action: actDuplicate, Label: "Duplicate"},
 		{Action: automation.ActDelete, Label: "Delete", Confirm: "Delete cron job “" + j.Name + "”?"},
 	}
-}
-
-func plural(n int, one, many string) string {
-	if n == 1 {
-		return one
-	}
-	return fmt.Sprintf(many, n)
 }
 
 func jobLocation(j *Job) *time.Location {

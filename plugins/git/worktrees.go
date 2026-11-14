@@ -16,6 +16,7 @@ import (
 	"clubmate/internal/proc"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/gitrepo"
+	"clubmate/plugins/internal/plural"
 )
 
 const (
@@ -678,7 +679,7 @@ func (l worktreeLoss) lines() []string {
 		out = append(out, lostSecretsDetail+strings.Join(l.secrets, ", ")+".")
 	}
 	if l.orphans > 0 {
-		out = append(out, fmt.Sprintf(lostOrphansDetail, l.orphans, plural(l.orphans, "commit", "commits")))
+		out = append(out, fmt.Sprintf(lostOrphansDetail, l.orphans, plural.Word(l.orphans, "commit", "commits")))
 	}
 	return out
 }
@@ -689,14 +690,7 @@ func (l worktreeLoss) String() string {
 		parts = append(parts, "ignored "+strings.Join(l.secrets, ", "))
 	}
 	if l.orphans > 0 {
-		parts = append(parts, fmt.Sprintf("%d %s on no branch", l.orphans, plural(l.orphans, "commit", "commits")))
+		parts = append(parts, fmt.Sprintf("%d %s on no branch", l.orphans, plural.Word(l.orphans, "commit", "commits")))
 	}
 	return strings.Join(parts, " and ")
-}
-
-func plural(n int, one, many string) string {
-	if n == 1 {
-		return one
-	}
-	return many
 }

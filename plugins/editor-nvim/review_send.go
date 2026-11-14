@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/internal/plural"
 )
 
 const (
@@ -279,7 +280,7 @@ func sendSheetView(r *review) sdui.Node {
 		sdui.MutedText("Resolved comments stay as notes and aren't sent. Files "+recipientAgent+" changes again turn ● here."),
 		sdui.HStack(
 			sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/cancel", "Cancel", ""), "cancel"), sdui.VariantSecondary),
-			sdui.WithShortcut(sdui.WithVariant(sdui.Button(id+"/send", fmt.Sprintf("Send %d %s", len(open), plural(len(open), "comment", "comments")), "bubble.left"), sdui.VariantPrimary), "cmd+return"),
+			sdui.WithShortcut(sdui.WithVariant(sdui.Button(id+"/send", fmt.Sprintf("Send %d %s", len(open), plural.Word(len(open), "comment", "comments")), "bubble.left"), sdui.VariantPrimary), "cmd+return"),
 		),
 	)
 	form := sdui.WithAction(sdui.Form(id, children...), "sendReview")

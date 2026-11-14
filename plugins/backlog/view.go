@@ -14,6 +14,7 @@ import (
 	"clubmate/pkg/docrender"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/plural"
 )
 
 const (
@@ -741,7 +742,7 @@ func startSummary(t *Task) string {
 		parts = append(parts, "description")
 	}
 	if n := len(t.Links); n > 0 {
-		parts = append(parts, plural(n, "1 link", "%d links"))
+		parts = append(parts, plural.Count(n, "1 link", "%d links"))
 	}
 	if n := len(t.Attachments); n > 0 {
 		kind := t.Attachments[0].Kind
@@ -749,16 +750,9 @@ func startSummary(t *Task) string {
 		if slices.ContainsFunc(t.Attachments, func(a Attachment) bool { return a.Kind != kind }) {
 			words = [2]string{"1 attachment", "%d attachments"}
 		}
-		parts = append(parts, plural(n, words[0], words[1]))
+		parts = append(parts, plural.Count(n, words[0], words[1]))
 	}
 	return strings.Join(parts, ", ")
-}
-
-func plural(n int, one, many string) string {
-	if n == 1 {
-		return one
-	}
-	return fmt.Sprintf(many, n)
 }
 
 func clip(s string, n int) string {
