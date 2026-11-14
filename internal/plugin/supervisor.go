@@ -133,6 +133,7 @@ type instance struct {
 	struckBy   map[string]bool
 	timeouts   int
 	lastReply  time.Time
+	runFrom    time.Time
 }
 
 type process struct {
@@ -507,7 +508,7 @@ func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process, restart 
 	s.update(m.ID, func(inst *instance) {
 		inst.status.State = StateRunning
 		inst.conn = p.conn
-		inst.stuck, inst.strikes, inst.timeouts, inst.lastStrike, inst.struckBy, inst.lastReply = stuck, 0, 0, time.Time{}, nil, time.Now()
+		inst.stuck, inst.strikes, inst.timeouts, inst.lastStrike, inst.struckBy, inst.lastReply, inst.runFrom = stuck, 0, 0, time.Time{}, nil, time.Now(), time.Time{}
 	})
 	s.logger.Info("plugin running", "id", m.ID, "pid", p.cmd.Process.Pid)
 	s.changed(m.ID, true)
@@ -546,7 +547,7 @@ func (s *Supervisor) replied(id string, conn *jsonrpc2.Conn) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if inst, ok := s.plugins[id]; ok && inst.conn == conn {
-		inst.strikes, inst.timeouts, inst.lastStrike, inst.struckBy = 0, 0, time.Time{}, nil
+		inst.strikes, inst.timeouts, inst.lastStrike, inst.struckBy, inst.runFrom = 0, 0, time.Time{}, nil, time.Time{}
 	}
 }
 
@@ -565,6 +566,9 @@ func (s *Supervisor) timedOut(id string, conn *jsonrpc2.Conn, started time.Time,
 	if !ok || inst.conn != conn || started.Before(inst.lastStrike) {
 		return
 	}
+	if inst.timeouts == 0 {
+		inst.runFrom = started
+	}
 	inst.timeouts++
 	inst.lastStrike = time.Now()
 	if !agent || !inst.struckBy[caller] {
@@ -576,11 +580,18 @@ func (s *Supervisor) timedOut(id string, conn *jsonrpc2.Conn, started time.Time,
 		}
 		inst.struckBy[caller] = true
 	}
-	silent := inst.timeouts >= stuckStrikes && time.Since(inst.lastReply) >= s.silence
+	silent := inst.timeouts >= stuckStrikes && time.Since(later(inst.lastReply, inst.runFrom)) >= s.silence
 	if (inst.strikes >= stuckStrikes || silent) && inst.stuck != nil {
 		close(inst.stuck)
 		inst.stuck = nil
 	}
+}
+
+func later(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
 }
 
 func (s *Supervisor) ping(ctx context.Context, id string, conn *jsonrpc2.Conn, silent chan<- struct{}) {

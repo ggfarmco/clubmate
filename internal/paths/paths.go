@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -136,7 +137,11 @@ func PrivateDB(path string) error {
 	return nil
 }
 
+var logMu sync.Mutex
+
 func OpenLog(path string) (*os.File, error) {
+	logMu.Lock()
+	defer logMu.Unlock()
 	if info, err := os.Stat(path); err == nil && info.Size() > LogRotateSize {
 		if err := os.Rename(path, path+".1"); err != nil {
 			return nil, fmt.Errorf("rotate %s: %w", path, err)
@@ -146,6 +151,8 @@ func OpenLog(path string) (*os.File, error) {
 }
 
 func TrimLog(path string) error {
+	logMu.Lock()
+	defer logMu.Unlock()
 	info, err := os.Stat(path)
 	if errors.Is(err, os.ErrNotExist) || err == nil && info.Size() <= LogRotateSize {
 		return nil
@@ -158,15 +165,22 @@ func TrimLog(path string) error {
 		return err
 	}
 	defer src.Close()
-	dst, err := os.OpenFile(path+".1", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	tmp := path + ".1.tmp"
+	dst, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
 	if _, err := io.Copy(dst, src); err != nil {
 		dst.Close()
+		os.Remove(tmp)
 		return fmt.Errorf("copy %s: %w", path, err)
 	}
 	if err := dst.Close(); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, path+".1"); err != nil {
+		os.Remove(tmp)
 		return err
 	}
 	return os.Truncate(path, 0)

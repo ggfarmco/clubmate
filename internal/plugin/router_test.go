@@ -351,6 +351,21 @@ func TestOneAgentRestartsSilentPlugin(t *testing.T) {
 	assert.False(t, testutil.Alive(pid))
 }
 
+func TestOneAgentCannotRestartIdleSlowPlugin(t *testing.T) {
+	manifest := strings.Replace(lagManifest, `"stuck.wait":1500`, `"stuck.wait":3400`, 1)
+	h, _ := startStuck(t, manifest, plugin.WithStuckSilence(3800*time.Millisecond))
+	wait := agentWaits(t, h)
+	pid := h.Sup.PIDs()[0]
+	time.Sleep(1200 * time.Millisecond)
+
+	for range 3 {
+		wait("agt_a")
+	}
+	time.Sleep(200 * time.Millisecond)
+
+	assert.Equal(t, []int{pid}, h.Sup.PIDs())
+}
+
 func TestWaitForStartAndCallShareOneTimeout(t *testing.T) {
 	t.Setenv("ECHO_START_DELAY", "600ms")
 	h := testutil.NewHarness(t)

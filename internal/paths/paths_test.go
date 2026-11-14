@@ -201,6 +201,7 @@ func TestTrimLogKeepsWritersAppending(t *testing.T) {
 	old, err := os.Stat(path + ".1")
 	require.NoError(t, err)
 	assert.Equal(t, int64(len(big)), old.Size())
+	assert.NoFileExists(t, path+".1.tmp")
 }
 
 func TestSessionLogsListsOnlyLiveLogs(t *testing.T) {
