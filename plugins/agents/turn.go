@@ -161,7 +161,7 @@ func (a *app) steerText(s *session, text string) {
 }
 
 func (a *app) steer(s *session, p *agentProc, rec record, args promptArgs) bool {
-	blocks := promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities)
+	blocks := promptBlocks(a.withImages(rec.ID, args), rec.Worktree, p.caps.PromptCapabilities)
 	req := acp.NewSteerRequest(rec.AgentSessionID, slices.Clone(blocks))
 	fromTitle := a.senderTitle(args.From)
 	if args.From != "" {
@@ -233,7 +233,7 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	if a.abandon(s, epoch) {
 		return 0, 0, promptArgs{}
 	}
-	blocks := promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities)
+	blocks := promptBlocks(a.withImages(rec.ID, args), rec.Worktree, p.caps.PromptCapabilities)
 	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: slices.Clone(blocks)}
 	fromTitle := a.senderTitle(args.From)
 	ctx, cancel = context.WithTimeout(context.Background(), callTimeout)
@@ -522,7 +522,7 @@ func promptBlocks(args promptArgs, root string, caps acp.PromptCapabilities) []a
 		switch att.Kind {
 		case "image":
 			if caps.Image {
-				blocks = append(blocks, acp.ContentBlock{Type: "image", Data: imageData(att), MimeType: att.MimeType})
+				blocks = append(blocks, acp.ContentBlock{Type: "image", Data: att.Data, MimeType: att.MimeType})
 				continue
 			}
 			blocks = append(blocks, acp.ContentBlock{Type: "text", Text: imageOmitted})

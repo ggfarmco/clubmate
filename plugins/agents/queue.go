@@ -189,10 +189,14 @@ func dropSpilledQueue(stateDir, session string) error {
 }
 
 func readSpilledQueue(stateDir, session string) ([]queuedPrompt, error) {
-	raw, err := os.ReadFile(queueSpillPath(stateDir, session))
-	if err != nil {
-		return nil, err
-	}
+	path := queueSpillPath(stateDir, session)
+	raw, err := os.ReadFile(path)
 	var queue []queuedPrompt
-	return queue, json.Unmarshal(raw, &queue)
+	if err == nil {
+		err = json.Unmarshal(raw, &queue)
+	}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		err = errors.Join(err, os.Rename(path, path+".bad"))
+	}
+	return queue, err
 }

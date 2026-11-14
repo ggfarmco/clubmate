@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -212,13 +213,26 @@ func (a *app) cardReview(s *session, node string) string {
 }
 
 func (s *session) freezeReviews(closed map[string]map[int64]string) {
+	ids := make([][]byte, 0, len(closed))
+	for id := range closed {
+		ids = append(ids, []byte(id))
+	}
 	held := map[string]bool{}
-	if err := s.log.replay(func(e envelope) {
+	if err := s.log.scan(func(line []byte) bool {
+		return slices.ContainsFunc(ids, func(id []byte) bool { return bytes.Contains(line, id) })
+	}, func(e envelope) {
 		var p promptPayload
 		if e.Kind == kindPrompt && json.Unmarshal(e.Payload, &p) == nil && p.Review != nil {
 			held[p.Review.ID] = true
 		}
 	}); err != nil {
+		fmt.Fprintln(os.Stderr, "agents: read reviews:", err)
+		return
+	}
+	if len(held) == 0 {
+		return
+	}
+	if err := s.log.replay(func(envelope) {}); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: read reviews:", err)
 		return
 	}

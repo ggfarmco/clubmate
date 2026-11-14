@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -46,6 +47,7 @@ var (
 
 type notifier struct {
 	host  *pluginsdk.Host
+	kv    sessionStore
 	dir   string
 	mu    sync.Mutex
 	order []change
@@ -96,7 +98,7 @@ type change struct {
 }
 
 func newNotifier(h *pluginsdk.Host, stateDir string) *notifier {
-	n := &notifier{host: h, dir: stateDir, seen: map[change]bool{}, saves: map[*session]bool{}, endq: newEndQueue(envDelay(endHoldEnv, endHold)), wake: make(chan struct{}, 1), hold: envDelay(saveHoldEnv, 0)}
+	n := &notifier{host: h, kv: h, dir: stateDir, seen: map[change]bool{}, saves: map[*session]bool{}, endq: newEndQueue(envDelay(endHoldEnv, endHold)), wake: make(chan struct{}, 1), hold: envDelay(saveHoldEnv, 0)}
 	go n.run()
 	return n
 }
@@ -367,8 +369,11 @@ func (n *notifier) persist(ctx context.Context, s *session) {
 	rec.Queue = s.storedQueueLocked()
 	s.mu.Unlock()
 	if deleted {
-		if err := n.host.StorageDelete(ctx, sessionStorageKey(rec)); err != nil {
+		if err := n.kv.StorageDelete(ctx, sessionStorageKey(rec)); err != nil {
 			fmt.Fprintln(os.Stderr, "agents: save session:", err)
+		}
+		if err := os.RemoveAll(filepath.Join(n.dir, uploadsDir, rec.ID)); err != nil {
+			fmt.Fprintln(os.Stderr, "agents: drop uploads:", err)
 		}
 		return
 	}
@@ -379,7 +384,7 @@ func (n *notifier) persist(ctx context.Context, s *session) {
 	if spilled {
 		rec.Queue, rec.QueueSpilled = nil, true
 	}
-	if err := n.host.StorageSet(ctx, sessionStorageKey(rec), rec); err != nil {
+	if err := n.kv.StorageSet(ctx, sessionStorageKey(rec), rec); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: save session:", err)
 		return
 	}

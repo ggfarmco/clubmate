@@ -222,6 +222,10 @@ func (l *eventLog) remove() error {
 }
 
 func (l *eventLog) replay(fn func(envelope)) error {
+	return l.scan(nil, fn)
+}
+
+func (l *eventLog) scan(keep func([]byte) bool, fn func(envelope)) error {
 	f, err := os.Open(l.path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -233,7 +237,7 @@ func (l *eventLog) replay(fn func(envelope)) error {
 	r := bufio.NewReader(f)
 	for {
 		line, err := r.ReadBytes('\n')
-		if len(line) > 0 {
+		if len(line) > 0 && (keep == nil || keep(line)) {
 			var e envelope
 			if json.Unmarshal(line, &e) == nil {
 				l.mu.Lock()

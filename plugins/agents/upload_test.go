@@ -45,3 +45,51 @@ func TestPromptBlocksLinksBinaryFile(t *testing.T) {
 	assert.Equal(t, acp.ContentBlock{Type: "resource_link", URI: "file://" + filepath.Join(dir, "a.zip"), Name: "a.zip"}, blocks[1])
 	assert.Equal(t, "resource", blocks[2].Type)
 }
+
+func TestQueuedImageIsReadOnlyFromTheSessionUploads(t *testing.T) {
+	t.Parallel()
+	a := &app{stateDir: t.TempDir()}
+	inside := filepath.Join(a.stateDir, uploadsDir, "agt_1", "x", imageName)
+	outside := filepath.Join(t.TempDir(), "secret")
+	link := filepath.Join(a.stateDir, uploadsDir, "agt_1", "x", "link")
+	require.NoError(t, os.MkdirAll(filepath.Dir(inside), 0o700))
+	require.NoError(t, os.WriteFile(inside, []byte("img"), 0o600))
+	require.NoError(t, os.WriteFile(outside, []byte("key"), 0o600))
+	require.NoError(t, os.Symlink(outside, link))
+	args := promptArgs{Attachments: []attachment{{Kind: "image", Path: inside}, {Kind: "image", Path: outside}, {Kind: "image", Path: link}}}
+
+	got := a.withImages("agt_1", args)
+
+	assert.Equal(t, []string{base64.StdEncoding.EncodeToString([]byte("img")), "", ""}, []string{got.Attachments[0].Data, got.Attachments[1].Data, got.Attachments[2].Data})
+	assert.Empty(t, args.Attachments[0].Data)
+}
+
+func TestUnreadableSpilledQueueIsKeptAside(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := queueSpillPath(dir, "agt_1")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, []byte("{broken"), 0o600))
+
+	_, err := readSpilledQueue(dir, "agt_1")
+	require.Error(t, err)
+	require.NoError(t, dropSpilledQueue(dir, "agt_1"))
+
+	got, err := os.ReadFile(path + ".bad")
+	require.NoError(t, err)
+	assert.Equal(t, "{broken", string(got))
+}
+
+func TestSaveOfADeletedSessionDropsItsSpilledQueue(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	n := &notifier{kv: memStore{}, dir: dir}
+	s := newSession(record{ID: "agt_1"}, newEventLog(logPath(dir, "agt_1")), false, func(string, bool) {})
+	s.deleted = true
+	require.NoError(t, os.MkdirAll(filepath.Dir(queueSpillPath(dir, "agt_1")), 0o700))
+	require.NoError(t, os.WriteFile(queueSpillPath(dir, "agt_1"), []byte("[]"), 0o600))
+
+	n.persist(t.Context(), s)
+
+	assert.NoDirExists(t, filepath.Join(dir, uploadsDir, "agt_1"))
+}

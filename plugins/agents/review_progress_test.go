@@ -172,3 +172,20 @@ func TestLegacyReviewStatesMoveIntoTheLog(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, savedBoard{Seq: 9}, saved)
 }
+
+func TestClosedReviewLineContinuesTheLogSeq(t *testing.T) {
+	t.Parallel()
+	a := reviewApp(t)
+	for _, id := range []string{"agt_1", "agt_3"} {
+		appendLog(t, a, id, `{"seq":50,"kind":"update","payload":{}}`+"\n")
+	}
+	reviewEvent(t, a.reviews, reviewPayload{WorkspaceID: "ws", ID: "rv_1", Recipient: "agt_1", Closed: true, Comments: []reviewPayloadComment{{ID: 4, Status: "resolved"}}})
+
+	require.True(t, a.freezeClosedReviews(nil, true))
+	assert.Zero(t, a.session("agt_3").log.seq)
+
+	var last envelope
+	require.NoError(t, newEventLog(logPath(a.stateDir, "agt_1")).replay(func(e envelope) { last = e }))
+	assert.Equal(t, kindReviewClosed, last.Kind)
+	assert.Equal(t, int64(51), last.Seq)
+}
