@@ -108,16 +108,6 @@ struct MarkdownNode: View {
     }
 }
 
-struct DiffNode: View {
-    let node: SDUINode
-    @Environment(\.sduiInset) private var inset
-
-    var body: some View {
-        SDUIDiff(text: node.string("text") ?? "")
-            .padding(.horizontal, inset)
-    }
-}
-
 struct SDUIDiff: View {
     let text: String
     var limit = 12

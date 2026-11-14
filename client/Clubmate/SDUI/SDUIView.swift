@@ -284,10 +284,8 @@ struct SDUINodeView: View, Equatable {
         case "icon": IconNodeView(node: node)
         case "markdown": MarkdownNodeView(node: node)
         case "document": DocumentNodeView(node: node)
-        case "diff": DiffNodeView(node: node)
         case "button": ButtonNodeView(node: node)
         case "textField": TextFieldNodeView(node: node)
-        case "folderField": FolderFieldNodeView(node: node)
         case "toggle": ToggleNodeView(node: node)
         case "progress": ProgressNodeView(node: node)
         case "select": SelectNodeView(node: node)
@@ -344,7 +342,7 @@ enum SDUIGutter {
             false
         case "transcript", "message", "plan", "toolCard", "permissionCard", "request.connectRepo", "request.land", "repos":
             false
-        case "button", "folderField", "progress":
+        case "button", "progress":
             false
         case "document":
             node.string("size") == "fit"

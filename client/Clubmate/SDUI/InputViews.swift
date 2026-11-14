@@ -380,64 +380,6 @@ enum ChoicePrompt {
     }
 }
 
-struct FolderFieldNodeView: View {
-    let node: SDUINode
-
-    @State private var paths: [String] = []
-    @State private var hovering = false
-    @Environment(\.sduiDispatch) private var dispatch
-    @Environment(FormState.self) private var form: FormState?
-    @Environment(\.theme) private var theme
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: theme.spacing.xs) {
-            Button(action: pick) {
-                HStack(spacing: theme.spacing.m) {
-                    Image(systemName: "folder")
-                    Text(node.string("label") ?? "")
-                }
-                .font(theme.ui)
-                .foregroundStyle(theme.foreground)
-                .padding(.horizontal, theme.gutter)
-                .frame(height: theme.rowHeight)
-                .background(RoundedRectangle(cornerRadius: theme.radius.s).fill(hovering ? theme.hover : .clear))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .onHover { hovering = $0 }
-            ForEach(paths, id: \.self) { path in
-                Text((path as NSString).abbreviatingWithTildeInPath)
-                    .font(theme.monoSmall)
-                    .foregroundStyle(theme.muted)
-                    .lineLimit(1)
-                    .truncationMode(.label)
-                    .padding(.horizontal, theme.gutter * 2)
-            }
-        }
-        .onChange(of: node.values(), initial: true) { _, values in
-            paths = values
-        }
-        .onChange(of: paths, initial: true) { _, value in
-            guard let id = node.id else { return }
-            form?.values[id] = .array(value.map(JSONValue.string))
-        }
-    }
-
-    private func pick() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = true
-        panel.showsHiddenFiles = true
-        panel.prompt = "Choose"
-        guard !TestMode.current, panel.runModal() == .OK else { return }
-        paths = panel.urls.map(\.path)
-        if let id = node.id { form?.values[id] = .array(paths.map(JSONValue.string)) }
-        form?.edited()
-        if form == nil || node.string("action") != nil { dispatch(node, .pick(paths)) }
-    }
-}
-
 struct TextFieldNodeView: View {
     let node: SDUINode
 

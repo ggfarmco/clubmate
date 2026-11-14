@@ -221,7 +221,6 @@ var (
 		"text":     {required: []string{"text"}, props: map[string]propCheck{"text": isString, "style": oneOf(textStyles), "lines": textLines, "tone": oneOf(badgeTones), "short": isString}, children: noChildren},
 		"badge":    {required: []string{"text"}, props: map[string]propCheck{"text": isString, "tone": oneOf(badgeTones), "outline": isBool}, children: noChildren},
 		"icon":     {required: []string{"name"}, props: map[string]propCheck{"name": isString, "tone": oneOf(badgeTones)}, children: noChildren},
-		"diff":     {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
 		"markdown": {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
 		"document": {
 			required:    []string{"html"},
@@ -238,12 +237,6 @@ var (
 		},
 		"textField": {
 			props:       map[string]propCheck{"value": isString, "placeholder": isString, "lines": linesNumber, "error": isString, "action": actionCheck, "live": isBool, "drop": isBool},
-			children:    noChildren,
-			interactive: true,
-		},
-		"folderField": {
-			required:    []string{"label"},
-			props:       map[string]propCheck{"label": isString, "values": listOf(isString), "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},

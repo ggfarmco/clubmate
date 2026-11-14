@@ -86,7 +86,6 @@ struct SDUIGalleryScreen: View {
         {"type": "toggle", "id": "paused", "props": {"value": false, "action": "pause"}},
         {"type": "text", "props": {"text": "Paused"}}]},
       {"type": "select", "id": "missed", "props": {"value": "run", "action": "missed", "options": [{"value": "run", "label": "Run once"}, {"value": "skip", "label": "Skip"}]}},
-      {"type": "folderField", "id": "roots", "props": {"label": "Roots", "values": ["~/develop/clubmate", "~/develop/norimori/ggfarmco/clubmate-notes/superpowers"]}},
       {"type": "stack", "id": "rules", "props": {"direction": "vertical"}, "children": [
         {"type": "divider"},
         {"type": "text", "props": {"lines": 1, "text": "lines 1: Workspace is set only by the Always allow path. Say so in a comment, or the next reader will set it for Allow once too."}},
@@ -97,7 +96,6 @@ struct SDUIGalleryScreen: View {
           {"type": "text", "props": {"text": "open", "style": "muted"}}]},
         {"type": "divider"}]},
       {"type": "text", "props": {"lines": 2, "text": "Review the open pull requests in this repository, summarise what each one changes, flag anything that touches the release scripts or the signing setup, and post the summary to the team channel before 10:00 so the morning stand-up can go through it."}},
-      {"type": "diff", "props": {"text": "--- a/cart.go\\n+++ b/cart.go\\n@@ -1,6 +1,6 @@\\n package cart\\n \\n-func Total(items []Item) int {\\n-\\ttotal := 0; for _, it := range items { total += it.Price }\\n+func Total(items []Item) int {\\n+\\ttotal := cartTotal(items)\\n \\treturn total\\n }\\n"}},
       {"type": "plan", "props": {"entries": [{"content": "Extract cartTotal", "status": "completed"}, {"content": "Add a test", "status": "in_progress"}, {"content": "Run the tests", "status": "pending"}]}},
       {"type": "toolCard", "id": "tc-edit", "props": {"kind": "edit", "title": "Edit cart.go", "status": "completed", "body": {"format": "diff", "text": "--- a/cart.go\\n+++ b/cart.go\\n@@ -2,1 +2,1 @@\\n-total := 0\\n+total := cartTotal(items)\\n"}}},
       {"type": "toolCard", "id": "tc-failed", "props": {"kind": "execute", "title": "go vet ./...", "status": "failed", "body": {"format": "terminal", "text": "exit status 1"}}},

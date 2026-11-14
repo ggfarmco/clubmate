@@ -355,10 +355,6 @@ func Icon(name string) Node {
 	return Node{Type: "icon", Props: map[string]any{"name": name}}
 }
 
-func Diff(text string) Node {
-	return Node{Type: "diff", Props: map[string]any{"text": text}}
-}
-
 func Markdown(text string) Node {
 	return Node{Type: "markdown", Props: map[string]any{"text": text}}
 }
@@ -648,10 +644,6 @@ func Button(id, label, icon string) Node {
 func TextField(id, value, placeholder string) Node {
 	props := withOptional(map[string]any{}, "value", value)
 	return Node{Type: "textField", ID: id, Props: withOptional(props, "placeholder", placeholder)}
-}
-
-func FolderField(id, label string, values []string) Node {
-	return Node{Type: "folderField", ID: id, Props: map[string]any{"label": label, "values": nonNil(values)}}
 }
 
 func Toggle(id string, value bool) Node {

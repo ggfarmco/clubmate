@@ -37,8 +37,8 @@ struct SDUIContext {
 }
 
 enum SDUIKind: String {
-    case stack, split, scroll, spacer, divider, tabs, list, tree, table, sparkline, progress, text, badge, icon, markdown, document, diff
-    case button, textField, folderField, toggle, select, form, surface, header, empty, card
+    case stack, split, scroll, spacer, divider, tabs, list, tree, table, sparkline, progress, text, badge, icon, markdown, document
+    case button, textField, toggle, select, form, surface, header, empty, card
     case transcript, message, plan, toolCard, permissionCard, composer
 }
 
@@ -99,7 +99,6 @@ struct SDUINodeView: View {
         case .badge: BadgeNode(node: node)
         case .icon: IconNode(node: node)
         case .markdown: MarkdownNode(node: node)
-        case .diff: DiffNode(node: node)
         case .document: DocumentNode(node: node, context: context)
         case .sparkline: SparklineNode(node: node)
         case .progress: ProgressNode(node: node)
@@ -108,7 +107,6 @@ struct SDUINodeView: View {
         case .surface: SurfacePlaceholder()
         case .button: ButtonNode(node: node, context: context)
         case .textField: TextFieldNode(node: node, context: context)
-        case .folderField: FolderFieldNode(node: node)
         case .toggle: ToggleNode(node: node, context: context)
         case .select: SelectNode(node: node, context: context)
         case .transcript: TranscriptNode(node: node, context: context)

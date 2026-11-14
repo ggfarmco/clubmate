@@ -412,8 +412,6 @@ final class StoresTests: XCTestCase {
             (node("select", "s"), .change("v"), "select", .string("v")),
             (node("form", "f"), .submit(.object(["name": .string("x")])), "submit", .object(["name": .string("x")])),
             (node("form", "f", action: "create"), .submit(.object([:])), "create", .object([:])),
-            (node("folderField", "repos"), .pick(["/a"]), "pick", .array([.string("/a")])),
-            (node("folderField", "repos", action: "add"), .pick(["/a"]), "add", .array([.string("/a")])),
             (node("table", "procs", action: "focus"), .sort(column: "cpu", desc: true), "sort", .object(["column": .string("cpu"), "desc": .bool(true)])),
         ]
         for (node, trigger, action, value) in rows {
@@ -422,19 +420,17 @@ final class StoresTests: XCTestCase {
         }
     }
 
-    func testFolderFieldInForm() {
+    func testFormCollectsOnlyItsOwnFields() {
         let form = SDUINode(type: "form", id: "f", children: [
             SDUINode(type: "textField", id: "name"),
-            SDUINode(type: "folderField", id: "repos", props: ["label": .string("Add")]),
-            SDUINode(type: "form", id: "inner", children: [SDUINode(type: "folderField", id: "nested")]),
+            SDUINode(type: "form", id: "inner", children: [SDUINode(type: "textField", id: "nested")]),
         ])
         let values: [String: JSONValue] = [
             "name": .string("demo"),
-            "repos": UIAction.Trigger.pick(["/a", "/b"]).value,
-            "nested": .array([]),
+            "nested": .string("x"),
             "gone": .string("x"),
         ]
-        XCTAssertEqual(UIForm.collect(values, in: form), .object(["name": .string("demo"), "repos": .array([.string("/a"), .string("/b")])]))
+        XCTAssertEqual(UIForm.collect(values, in: form), .object(["name": .string("demo")]))
     }
 
     func testChoiceAndItsOtherFieldInForm() {

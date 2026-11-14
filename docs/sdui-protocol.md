@@ -13,7 +13,7 @@ Plugins render trees of nodes into slots; clients draw them and send events back
 - `props`: only the listed props are accepted; unknown props are rejected. `*` marks required props.
 - `children`: count limited per type.
 
-Interactive types (`tabs list tree table document button textField folderField toggle choice select form keys toolCard sheet permissionCard request.connectRepo request.land repos composer graph flow lanes runstrip`) require an `id`. All but `document`, `toolCard`, `sheet`, `composer`, `graph`, `flow`, `lanes` and `runstrip` accept an optional `action` prop (`repos` requires it): a string of 1-64 chars matching `^[a-z][a-zA-Z0-9.-]*$` (camelCase allowed, e.g. `showEarlier`). It overrides the default action name sent in `ui.event`. Action names inside props (`menu`, card `actions`) follow the same rule.
+Interactive types (`tabs list tree table document button textField toggle choice select form keys toolCard sheet permissionCard request.connectRepo request.land repos composer graph flow lanes runstrip`) require an `id`. All but `document`, `toolCard`, `sheet`, `composer`, `graph`, `flow`, `lanes` and `runstrip` accept an optional `action` prop (`repos` requires it): a string of 1-64 chars matching `^[a-z][a-zA-Z0-9.-]*$` (camelCase allowed, e.g. `showEarlier`). It overrides the default action name sent in `ui.event`. Action names inside props (`menu`, card `actions`) follow the same rule.
 
 ## Item shapes
 
@@ -32,7 +32,7 @@ Interactive types (`tabs list tree table document button textField folderField t
 - spark (`table` cell): `{values*, max*}`: at most 900 numbers, `max` > 0. Values are clamped to 0…`max` and drawn as a 60×16pt line. The Go helpers `sdui.Sparkline`, `sdui.SparklineSized` and `sdui.NewSpark` clamp them before sending.
 - attachment (`message`, `composer`): `{id, kind*, path*, startLine, endLine}`: `kind` is `file`, `selection` (with the 1-based line range) or `image` (an image the prompt carried; the agents plugin sends `path` `image`); `path` is shown as given (relative to the worktree when inside it); `id` names a composer attachment for `detach` (non-empty and unique within the list when set).
 - plan entry (`plan`): `{content*, status*}`, `status` `pending`\|`in_progress`\|`completed`.
-- tool body (`toolCard` `body`): `{format*, text*}`: `format` `diff` (unified diff, drawn like `diff`), `text` (plain) or `terminal` (monospaced command and output).
+- tool body (`toolCard` `body`): `{format*, text*}`: `format` `diff` (unified diff), `text` (plain) or `terminal` (monospaced command and output).
 - card action (`toolCard` `actions`): `{action*, label*, icon, value}`: `value` is a string, number, bool or an object of those.
 - repos segment (`repos` `summary`): `{text*, tone}`, the header's words, joined with ` · `.
 - impact row (`impact` `rows`): `{id*, icon*, tone, title*, count}`: `icon` in `tone`'s ink, `title` strong with a muted `· count` after it.
@@ -72,12 +72,10 @@ Interactive types (`tabs list tree table document button textField folderField t
 | text | text* (string), style (`body`\|`muted`\|`title`\|`strong`\|`mono`\|`block`), lines (int 1…50), tone (`neutral`\|`accent`\|`success`\|`warning`\|`danger`), short (string) | none | no |
 | badge | text* (string), tone (`neutral`\|`accent`\|`success`\|`warning`\|`danger`), outline (bool) | none | no |
 | icon | name* (string), tone (`neutral`\|`accent`\|`success`\|`warning`\|`danger`) | none | no |
-| diff | text* (string, unified diff) | none | no |
 | markdown | text* (string) | none | no |
 | document | html* (string, a `pkg/docrender` fragment), path (string), rev (int ≥ 0), size (`fill`\|`fit`, default `fill`), anchor (string, an element id), kind (`markdown`\|`artifact`, default `markdown`) | none | yes |
 | button | label* (string), icon (string), confirm (string), variant (`primary`\|`secondary`\|`ghost`\|`danger`), disabled (bool), shortcut (key combo), hint (key combo), loading (string), iconOnly (bool), copy (string), overflow (bool), withForm (bool), pill (bool), detail (string), detailTone (`neutral`\|`accent`\|`success`\|`warning`\|`danger`), action | 0-1: `form` (a popover) | yes |
 | textField | value (string), placeholder (string), lines (int 2…50: multi-line, grows up to `lines` rows), error (string), live (bool), drop (bool), action | none | yes |
-| folderField | label* (string), values (string[]), action | none | yes |
 | toggle | value* (bool), label (string), style (`switch`\|`checkbox`, default `switch`), disabled (bool), action | none | yes |
 | choice | style* (`radio`\|`check`), options* (choice option[]), other (choice other), title (string), text (string), quote (string), note (string), summary (string), cursor (string), openAction (action), number (int ≥ 0), open (bool), action | none | yes |
 | keys | keys* (string[]), pane (bool), hints (string), action | exactly 1 | yes |
@@ -179,7 +177,7 @@ Inside a `form`, a horizontal `stack` whose first child is a muted `text` is a p
 
 `empty` fills its pane, top-left in the content column: an optional `icon` and `title`, the `text` (one sentence), an optional `hint` in monospace (a path or command) and its children in order: a `button`, the action that fills the pane, a `form` (the field that fills it, e.g. Backlog's New task row), a `flow` of ghost cards, the shape of what the section holds (Triggers), and a `stack` of further rows (Backlog's lifecycle: disabled status chips Idea → Todo → In progress → Done). A flow whose cards are all ghosts does not take the pane's focus. With `center: true` it is a column at most 560pt wide, centred, text centred, placed a little below the top (a section with nothing in it, as Backlog's).
 
-Input fields are uncontrolled: `value`/`values` on `textField`, `folderField`, `toggle` and `select` are initial values. The client keeps what the user entered while the node keeps its identity. A changed `value` in a later render replaces it, but re-rendering an unchanged one does not. To reset a form (e.g. after a successful submit), the plugin renders it with a new node `id`. The client then discards the form's field state and starts again from the props. Actions are routed by `action`, not by `id`, so rotating ids (e.g. `create-<n>`) does not change event handling.
+Input fields are uncontrolled: `value` on `textField`, `toggle` and `select` is an initial value. The client keeps what the user entered while the node keeps its identity. A changed `value` in a later render replaces it, but re-rendering an unchanged one does not. To reset a form (e.g. after a successful submit), the plugin renders it with a new node `id`. The client then discards the form's field state and starts again from the props. Actions are routed by `action`, not by `id`, so rotating ids (e.g. `create-<n>`) does not change event handling.
 
 ## Phone
 
@@ -196,7 +194,6 @@ The Companion (`client/Companion/SDUI`) draws the same trees with iOS controls a
 - `form`: consecutive fields and property rows are grouped like a Settings form. `header.field` is an always-editable title field.
 - `header`: up to three buttons on a wrapping action bar, the rest (and `overflow` ones) in a "…" menu.
 - `button.shortcut` is ignored; `confirm` is an alert. A `button`'s `form` child (a Mac popover) is not drawn: the button sends its own event. `textField.drop` is ignored.
-- `folderField` shows its folders read-only with "Choose folders on the Mac".
 - `sheet` is not presented: the phone shows "sheet isn't supported on the phone" in its place, like an unknown type.
 - `surface` shows "Terminal — open it on the Mac"; `graph`, `flow`, `lanes` and `runstrip` one faint line "Drawn on the Mac" (a `flow` of only ghost cards nothing; a `runstrip` or `lanes` with a `title` puts its `<title> · <count>` above that line, a `runstrip` with its legend; a `graph` lists its nodes under that line, label and state in its tone, and a tap sends the same `open` with the node id as a click on the Mac card), followed by the node's children (a graph run's approval card and its step or turn panel); `webview` and any other unknown type shows "<type> isn't supported on the phone".
 - `transcript`: adjacent `toolCard`s (except `failed` and `standalone`) fold into one "N actions" row. `message.from` shows as "From another agent". `composer` is a field and Send only: no modes, pickers, attach, `/` commands or `@` files.
@@ -640,7 +637,6 @@ A plugin's `session.create` (`pluginsdk.Host.CreateSession`) also takes `env`, e
 | textField with `drop` | drop files, or pick one with `@` | `"drop"` | string[] of absolute paths |
 | toggle | change | `props.action ?? "toggle"` | bool |
 | select | change | `props.action ?? "select"` | option value |
-| folderField | pick folders | `props.action ?? "pick"` | string[] of absolute paths |
 | form | submit | `props.action ?? "submit"` | object `{fieldNodeId: value}` |
 | form with `autosave` | a field edited | `props.action ?? "submit"` | object `{fieldNodeId: value}` |
 | list / tree | choose a menu entry | entry `action` | item id |
@@ -677,7 +673,7 @@ The plugin gets the event with `agent: true` when the caller said it is an agent
 
 ## Forms
 
-A `form` collects the values of the `textField`, `folderField`, `toggle`, `select` and `choice` nodes (with a `choice`'s `other` field) and the title of a `header` with `field` among its descendants (nested forms collect their own fields), keyed by the field node `id`. The value is the field's current text, bool, option value (a `radio` `choice` with nothing picked has none) or string[] (`folderField`: chosen paths, `check` `choice`: picked option values); fields that disappear from the tree are dropped.
+A `form` collects the values of the `textField`, `toggle`, `select` and `choice` nodes (with a `choice`'s `other` field) and the title of a `header` with `field` among its descendants (nested forms collect their own fields), keyed by the field node `id`. The value is the field's current text, bool, option value (a `radio` `choice` with nothing picked has none) or string[] (`check` `choice`: picked option values); fields that disappear from the tree are dropped.
 
 - A `button` without an `action` prop inside a form submits the form: the form sends `props.action ?? "submit"` with the collected object as `value` and the form's `id` as `nodeId`.
 - Return in a `textField` without an `action` prop submits the form the same way.
@@ -685,4 +681,4 @@ A `form` collects the values of the `textField`, `folderField`, `toggle`, `selec
 - Fields without an `action` prop inside a form are silent: they only update the collected values.
 - A field or button with its own `action` prop sends its own event per the contract above (fields still update the collected values); it does not submit the form.
 - A button with its own `action` and `withForm: true` sends its own event too, but with the form's collected object as `value` instead of `null` (nodeId and action stay the button's); it does not submit the form. A `choice` with its own `action` in a form sends that action on every pick with the form's collected object as `value`, the pick already in it. The agents plugin's question uses it, so a pick carries the note typed in Other.
-- With `autosave: true` the form also submits itself when the user edits a field: 600 ms after the last keystroke in a `textField` or when it loses focus with unsent edits, at once on a `select`, `toggle` or `folderField` change, and when the form leaves the tree with unsent edits. A submit (button, Return) sends at once and drops the pending one. Values a render sets do not count as edits. While a `textField` in an autosave form has focus, a changed `value` from the plugin does not replace the text (the field is the source of truth while the user types; its next save carries its text). The plugin answers each submit like a normal one; a form without `autosave` behaves as before. From the first edit until the last submit is answered, the form's submit buttons (buttons without an `action` prop) draw `Saving…` like a `loading` verb but keep their clicks and shortcut, so an explicit save still goes through.
+- With `autosave: true` the form also submits itself when the user edits a field: 600 ms after the last keystroke in a `textField` or when it loses focus with unsent edits, at once on a `select` or `toggle` change, and when the form leaves the tree with unsent edits. A submit (button, Return) sends at once and drops the pending one. Values a render sets do not count as edits. While a `textField` in an autosave form has focus, a changed `value` from the plugin does not replace the text (the field is the source of truth while the user types; its next save carries its text). The plugin answers each submit like a normal one; a form without `autosave` behaves as before. From the first edit until the last submit is answered, the form's submit buttons (buttons without an `action` prop) draw `Saving…` like a `loading` verb but keep their clicks and shortcut, so an explicit save still goes through.

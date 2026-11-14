@@ -9,7 +9,6 @@ public enum UIAction {
         case submit(JSONValue)
         case toggle(Bool)
         case change(String)
-        case pick([String])
         case sort(column: String, desc: Bool)
         case named(String, JSONValue)
         case permission(request: String, option: String)
@@ -21,7 +20,6 @@ public enum UIAction {
             case .submit(let submitted): submitted
             case .toggle(let on): .bool(on)
             case .change(let option): .string(option)
-            case .pick(let paths): .array(paths.map(JSONValue.string))
             case .sort(let column, let desc): SDUISort(column: column, desc: desc).value
             case .named(_, let value): value
             case .permission(let request, let option): .object(["request": .string(request), "option": .string(option)])
@@ -43,7 +41,6 @@ public enum UIAction {
         case .collapse: action = "collapse"
         case .submit: action = custom ?? "submit"
         case .toggle: action = custom ?? "toggle"
-        case .pick: action = custom ?? "pick"
         case .sort: action = "sort"
         case .named(let name, _): action = name
         case .permission: action = custom ?? "permission"
@@ -53,7 +50,7 @@ public enum UIAction {
 }
 
 public enum UIForm {
-    public static let fieldTypes: Set<String> = ["textField", "folderField", "toggle", "select", "choice"]
+    public static let fieldTypes: Set<String> = ["textField", "toggle", "select", "choice"]
 
     public static func fieldIDs(in form: SDUINode) -> Set<String> {
         var ids: Set<String> = []

@@ -232,8 +232,6 @@ func gateNode(kind string, node, props map[string]any, form string, gated map[st
 		gated["select"] = true
 	case "toggle":
 		gated["toggle"] = true
-	case "folderField":
-		gated["pick"] = true
 	case "textField":
 		gated["submit"] = true
 	}

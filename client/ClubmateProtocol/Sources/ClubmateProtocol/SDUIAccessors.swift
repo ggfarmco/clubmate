@@ -546,14 +546,6 @@ extension SDUINode {
         props["height"]?.numberValue.flatMap { $0 > 0 ? $0 : nil }
     }
 
-    public func values() -> [String] {
-        props["values"]?.arrayValue?.compactMap(\.stringValue) ?? []
-    }
-
-    public func diffText() -> String? {
-        type == "diff" ? string("text") : nil
-    }
-
     public func confirmation() -> String? {
         string("confirm").flatMap { $0.isEmpty ? nil : $0 }
     }

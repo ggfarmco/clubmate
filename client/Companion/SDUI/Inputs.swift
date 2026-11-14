@@ -202,35 +202,6 @@ struct TextFieldNode: View {
     }
 }
 
-struct FolderFieldNode: View {
-    let node: SDUINode
-    @Environment(\.sduiForm) private var form
-    @Environment(\.sduiInset) private var inset
-
-    var body: some View {
-        let values = node.values()
-        VStack(alignment: .leading, spacing: 4) {
-            Text(node.string("label") ?? "")
-            ForEach(values, id: \.self) { path in
-                Label(path, systemImage: "folder")
-                    .font(.footnote.monospaced())
-                    .foregroundStyle(Color.captionInk)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            Text("Choose folders on the Mac")
-                .font(.footnote)
-                .foregroundStyle(.tertiary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, inset)
-        .onChange(of: values, initial: true) { _, paths in
-            guard let id = node.id else { return }
-            form?.values[id] = .array(paths.map(JSONValue.string))
-        }
-    }
-}
-
 struct ToggleNode: View {
     let node: SDUINode
     let context: SDUIContext
