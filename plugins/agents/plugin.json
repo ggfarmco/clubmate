@@ -33,9 +33,13 @@
       {"keys": "b", "action": "To backlog: one task per open item of the session", "when": "an open items card or the Open queue has focus, except a night session's card"},
       {"keys": "delete", "action": "No to the focused item", "when": "an open items card or the Open queue has focus"},
       {"keys": "shift+delete", "action": "No to all of the session's open items", "when": "an open items card or the Open queue has focus"},
-      {"keys": "cmd+return", "action": "Send answers; in the Open queue every answered session's; send a pending question's form; or remove the folder on the Remove folder sheet", "when": "an open items card or the Open queue has focus, a question is pending and the composer is empty, or the Remove folder sheet is open"}
+      {"keys": "cmd+return", "action": "Send answers; in the Open queue every answered session's; send a pending question's form; or remove the folder on the Remove folder sheet", "when": "an open items card or the Open queue has focus, a question is pending and the composer is empty, or the Remove folder sheet is open; add or save the gate on the New gate or Edit gate sheet"},
+      {"keys": "cmd+n", "action": "New land gate: opens the New gate sheet", "when": "in Gates"},
+      {"keys": "p", "action": "Pause or resume the land gate", "when": "a gate is open in Gates"},
+      {"keys": "e", "action": "Edit the land gate's rounds or pause it", "when": "a gate is open in Gates"},
+      {"keys": "cmd+delete", "action": "Delete the land gate (confirmed)", "when": "a gate is open in Gates"}
     ],
-    "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25, "slots": ["sheet"]}],
+    "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25, "slots": ["sheet"]}, {"id": "agents.gates", "title": "Gates", "icon": "checkmark.shield", "order": 38}],
     "views": [{"slot": "editor-nvim.sidebar"}, {"slot": "agents.settings"}],
     "commands": [
       {
@@ -897,7 +901,26 @@
         "title": "List land gates",
         "hidden": true,
         "agent": true,
-        "description": "The land gates: {gates: [{id, repo, kind, rounds, paused, createdAt}]}. A repo with a gate lands only after a fresh Fable review approves the diff (git.land)."
+        "description": "The land gates: every gate for the user, only the ones on this workspace's git folders for an agent: {gates: [{id, repo, kind, rounds, paused, createdAt, name, state, last?, landings?}]}. state is needs-you (a landing waits for your Land anyway or Stop), paused, reviewing (a review of a landing in this workspace runs) or active; last is the newest verdict {gate, outcome, by, lander?, title?, into, source?, round?, reviewer?, findings?, deferred?, at} with by reviewer, docs (docs only, not reviewed) or user (the user's Land anyway); last and landings count only this workspace's landings; landings are the ones under review or waiting for the user {lander, title?, into, source?, state, round, reviewer?, findings?, since?}. A repo with a gate lands only after a fresh Fable review approves the diff (git.land)."
+      },
+      {
+        "id": "agents.gate-verdicts",
+        "title": "List a land gate's verdicts",
+        "hidden": true,
+        "agent": true,
+        "description": "A land gate's verdict history for this workspace's landings, newest first, and the ones it holds right now: {landings, verdicts}, in the shapes of agents.gates' landings and last. Keeps the last 100 verdicts per gate.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Gate id (gt_…)."},
+            "limit": {"type": "integer", "description": "Most verdicts to return, 1–100; default 50."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "agents.gates.new",
+        "title": "New land gate",
+        "description": "Open the New gate sheet: pick a folder of this workspace, the kind and the rounds. Only the user."
       },
       {
         "id": "agents.gate-add",

@@ -97,6 +97,7 @@ type gateConfig struct {
 }
 
 type gateFor struct {
+	Gate   string `json:"gate,omitempty"`
 	Lander string `json:"lander"`
 	Into   string `json:"into"`
 	Source string `json:"source,omitempty"`
@@ -107,6 +108,8 @@ type gateFor struct {
 }
 
 type landReview struct {
+	Gate     string    `json:"gate,omitempty"`
+	Last     string    `json:"last,omitempty"`
 	Into     string    `json:"into"`
 	Source   string    `json:"source,omitempty"`
 	Repo     string    `json:"repo"`
@@ -123,7 +126,7 @@ type landReview struct {
 }
 
 type gatesResult struct {
-	Gates []gateConfig `json:"gates"`
+	Gates []gateRow `json:"gates"`
 }
 
 type gateAddArgs struct {
@@ -189,7 +192,37 @@ func (a *app) gates(ctx context.Context) ([]gateConfig, error) {
 	if _, err := a.host.StorageGet(ctx, gatesKey, &out); err != nil {
 		return nil, err
 	}
+	a.keepGates(out)
 	return out, nil
+}
+
+func (a *app) saveGates(ctx context.Context, gates []gateConfig) error {
+	if err := a.host.StorageSet(ctx, gatesKey, gates); err != nil {
+		return err
+	}
+	a.keepGates(gates)
+	return nil
+}
+
+func (a *app) keepGates(gates []gateConfig) {
+	live := map[string]bool{}
+	for _, g := range gates {
+		live[g.ID] = !g.Paused
+	}
+	a.liveGates.Store(&live)
+}
+
+func (a *app) gateLive(id string) bool {
+	live := a.liveGates.Load()
+	if live == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)
+		defer cancel()
+		if _, err := a.gates(ctx); err != nil {
+			return false
+		}
+		live = a.liveGates.Load()
+	}
+	return (*live)[id]
 }
 
 func (a *app) gateFor(ctx context.Context, worktree string) *gateConfig {
@@ -241,43 +274,65 @@ func (a *app) gatedMeta(ctx context.Context, rec record) *acp.SessionMeta {
 	return meta
 }
 
-func (a *app) gatesCommand(ctx context.Context, _ pluginsdk.CommandRun, _ struct{}) (any, error) {
-	gates, err := a.gates(ctx)
-	if gates == nil {
-		gates = []gateConfig{}
+func (a *app) gatesCommand(ctx context.Context, cmd pluginsdk.CommandRun, _ struct{}) (any, error) {
+	gates, _, err := a.workspaceGates(ctx, cmd.WorkspaceID)
+	if a.userWord(cmd) {
+		gates, err = a.gates(ctx)
 	}
-	return gatesResult{Gates: gates}, err
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]gateRow, 0, len(gates))
+	for _, g := range gates {
+		rows = append(rows, a.gateRow(ctx, cmd.WorkspaceID, g))
+	}
+	return gatesResult{Gates: rows}, nil
 }
 
 func (a *app) gateAddCommand(ctx context.Context, cmd pluginsdk.CommandRun, args gateAddArgs) (any, error) {
 	if !a.userWord(cmd) {
 		return nil, errGateUser
 	}
+	g, err := a.addGate(ctx, args)
+	if err == nil {
+		a.gatesChanged()
+	}
+	return g, err
+}
+
+func (a *app) addGate(ctx context.Context, args gateAddArgs) (gateConfig, error) {
 	if args.Kind != "" && args.Kind != gateKindReview {
-		return nil, errGateKind
+		return gateConfig{}, errGateKind
 	}
 	if args.Rounds < 0 {
-		return nil, errGateRounds
+		return gateConfig{}, errGateRounds
 	}
 	primary := primaryOf(ctx, args.Repo)
 	if primary == "" {
-		return nil, errNotGit
+		return gateConfig{}, errNotGit
 	}
 	a.gateMu.Lock()
 	defer a.gateMu.Unlock()
 	gates, err := a.gates(ctx)
 	if err != nil {
-		return nil, err
+		return gateConfig{}, err
 	}
-	if slices.ContainsFunc(gates, func(g gateConfig) bool { return g.Repo == primary }) {
-		return nil, errGateExists
+	if i := slices.IndexFunc(gates, func(g gateConfig) bool { return g.Repo == primary }); i >= 0 {
+		return gateConfig{}, fmt.Errorf("%w (%s)", errGateExists, gates[i].ID)
 	}
 	g := gateConfig{ID: id.New(gateIDPrefix), Repo: primary, Kind: gateKindReview, Rounds: cmp.Or(args.Rounds, gateRoundsDefault), CreatedAt: time.Now().UTC()}
-	return g, a.host.StorageSet(ctx, gatesKey, append(gates, g))
+	return g, a.saveGates(ctx, append(gates, g))
 }
 
 func (a *app) gateUpdateCommand(ctx context.Context, cmd pluginsdk.CommandRun, args gateUpdateArgs) (any, error) {
-	return a.changeGate(ctx, cmd, args.ID, func(gates []gateConfig, i int) ([]gateConfig, error) {
+	if !a.userWord(cmd) {
+		return nil, errGateUser
+	}
+	return nil, a.updateGate(ctx, args)
+}
+
+func (a *app) updateGate(ctx context.Context, args gateUpdateArgs) error {
+	return a.changeGate(ctx, args.ID, func(gates []gateConfig, i int) ([]gateConfig, error) {
 		if args.Rounds != nil {
 			if *args.Rounds < 1 {
 				return nil, errGateRounds
@@ -292,29 +347,41 @@ func (a *app) gateUpdateCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 }
 
 func (a *app) gateDeleteCommand(ctx context.Context, cmd pluginsdk.CommandRun, args gateIDArgs) (any, error) {
-	return a.changeGate(ctx, cmd, args.ID, func(gates []gateConfig, i int) ([]gateConfig, error) {
-		return slices.Delete(gates, i, i+1), nil
-	})
-}
-
-func (a *app) changeGate(ctx context.Context, cmd pluginsdk.CommandRun, gateID string, change func([]gateConfig, int) ([]gateConfig, error)) (any, error) {
 	if !a.userWord(cmd) {
 		return nil, errGateUser
 	}
+	return nil, a.deleteGate(ctx, args.ID)
+}
+
+func (a *app) deleteGate(ctx context.Context, gateID string) error {
+	err := a.changeGate(ctx, gateID, func(gates []gateConfig, i int) ([]gateConfig, error) {
+		return slices.Delete(gates, i, i+1), nil
+	})
+	if err != nil {
+		return err
+	}
+	return a.host.StorageDelete(ctx, gateHistoryKey+gateID)
+}
+
+func (a *app) changeGate(ctx context.Context, gateID string, change func([]gateConfig, int) ([]gateConfig, error)) error {
 	a.gateMu.Lock()
 	defer a.gateMu.Unlock()
 	gates, err := a.gates(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	i := slices.IndexFunc(gates, func(g gateConfig) bool { return g.ID == gateID })
 	if i < 0 {
-		return nil, errGateUnknown
+		return errGateUnknown
 	}
 	if gates, err = change(gates, i); err != nil {
-		return nil, err
+		return err
 	}
-	return nil, a.host.StorageSet(ctx, gatesKey, gates)
+	if err := a.saveGates(ctx, gates); err != nil {
+		return err
+	}
+	a.gatesChanged()
+	return nil
 }
 
 func (a *app) landGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, args landGateArgs) (any, error) {
@@ -335,7 +402,11 @@ func (a *app) landGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 	}
 	if docsOnly(ctx, args.Target, args.Old, args.Tree) {
 		v := landgate.Verdict{Old: args.Old, Tree: args.Tree, Outcome: gateApproved, By: landgate.ByDocs, At: time.Now().UTC()}
-		return landGateResult{State: gateApproved}, a.writeVerdict(ctx, v)
+		if err := a.writeVerdict(ctx, v); err != nil {
+			return nil, err
+		}
+		a.logGateVerdict(ctx, gateVerdict{Gate: g.ID, Workspace: cmd.WorkspaceID, Outcome: gateApproved, By: landgate.ByDocs, Lander: args.Session, Title: a.titleOf(args.Session), Into: args.Into, Source: args.Source, At: v.At})
+		return landGateResult{State: gateApproved}, nil
 	}
 	lander, err := a.lookup(cmd.WorkspaceID, args.Session)
 	if err != nil {
@@ -348,7 +419,7 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 	a.gateMu.Lock()
 	defer a.gateMu.Unlock()
 	st := lander.landReview(args.Into, args.Source)
-	st.Repo, st.Cap = args.Target, g.Rounds
+	st.Repo, st.Cap, st.Gate = args.Target, g.Rounds, g.ID
 	if st.Request != "" {
 		return landGateResult{State: gateUser, Text: fmt.Sprintf(gateWaitsUserText, st.Rounds)}, nil
 	}
@@ -367,7 +438,7 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 		}
 		return landGateResult{State: gatePending, Reviewer: st.Reviewer, Text: fmt.Sprintf(gateBusyText, st.Reviewer)}, nil
 	}
-	gf := &gateFor{Lander: lander.snapshot().ID, Into: args.Into, Source: args.Source, Old: args.Old, Tree: args.Tree}
+	gf := &gateFor{Gate: g.ID, Lander: lander.snapshot().ID, Into: args.Into, Source: args.Source, Old: args.Old, Tree: args.Tree}
 	if alive && st.Tree != "" {
 		text := fmt.Sprintf(gateDeltaFormat, st.Tree, args.Tree, args.Old, args.Tree, args.Tree)
 		if st.Old != args.Old {
@@ -394,9 +465,10 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 		st.Reviewer = res.Session
 		a.kick(workspaceID)
 	}
-	st.Old, st.Tree = args.Old, args.Tree
+	st.Old, st.Tree, st.Last = args.Old, args.Tree, ""
 	lander.putLandReview(st)
 	a.saveNow(ctx, lander)
+	a.gatesChanged()
 	return landGateResult{State: gatePending, Reviewer: st.Reviewer, Text: fmt.Sprintf(gatePendingText, st.Reviewer)}, nil
 }
 
@@ -503,10 +575,16 @@ func (a *app) landVerdictCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 	reviewer.setGateFor(&gf)
 	a.saveNow(ctx, reviewer)
 	lander := a.session(gf.Lander)
+	st := landReview{Into: gf.Into, Source: gf.Source}
+	if lander != nil {
+		st = lander.landReview(gf.Into, gf.Source)
+	}
+	logged := gateVerdict{Gate: cmp.Or(gf.Gate, st.Gate), Outcome: args.Outcome, By: landgate.ByReviewer, Lander: gf.Lander, Title: a.titleOf(gf.Lander), Into: gf.Into, Source: gf.Source, Round: st.Rounds + 1, Reviewer: rec.ID, Findings: args.Findings, Deferred: args.Deferred, At: v.At}
+	a.logGateVerdict(ctx, logged)
 	if lander == nil || lander.snapshot().closed() {
 		return nil, nil
 	}
-	st := lander.landReview(gf.Into, gf.Source)
+	st.Last = args.Outcome
 	text := fmt.Sprintf(gateApprovedText, st.subject(), rec.ID)
 	if args.Outcome == gateChanges {
 		st.Rounds++
@@ -547,6 +625,7 @@ func (a *app) gateTurnEnded(s *session, nudge bool) {
 	}
 	a.gateMu.Unlock()
 	a.saveNow(ctx, s)
+	a.gatesChanged()
 	if lander != nil && !lander.snapshot().closed() {
 		a.saveNow(ctx, lander)
 		logError("land review missing", a.submit(lander, &promptArgs{Text: fmt.Sprintf(gateNoVerdictText, subject)}))
@@ -574,6 +653,7 @@ func (a *app) landDoneCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 	if reviewer != nil {
 		a.closeIdle(ctx, reviewer)
 	}
+	a.gatesChanged()
 	return nil, nil
 }
 
@@ -593,6 +673,8 @@ func (a *app) answerGate(ctx context.Context, workspaceID string, args landAnswe
 			return err
 		}
 		text = fmt.Sprintf(gateUserLandText, st.subject())
+		a.logGateVerdict(ctx, gateVerdict{Gate: st.Gate, Outcome: gateApproved, By: landgate.ByUser, Lander: lander.snapshot().ID, Title: lander.snapshot().Title, Into: st.Into, Source: st.Source, Round: st.Rounds, At: v.At})
+		st.Last = gateApproved
 	case landActionLeave:
 		text = fmt.Sprintf(gateUserStopText, st.subject())
 	default:
@@ -603,6 +685,7 @@ func (a *app) answerGate(ctx context.Context, workspaceID string, args landAnswe
 	lander.putLandReview(st)
 	a.gateMu.Unlock()
 	a.saveNow(ctx, lander)
+	a.gatesChanged()
 	return a.submit(lander, &promptArgs{Text: text})
 }
 

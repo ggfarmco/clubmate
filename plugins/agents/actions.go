@@ -181,7 +181,13 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 }
 
 func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
+	if ev.Slot == gatesSidebarSlot || ev.Slot == gatesMainSlot {
+		return a.gatesAct(ctx, ev)
+	}
 	if ev.Slot == sheetSlot {
+		if isGateSheetAction(ev.Action) {
+			return a.gateSheetAct(ctx, ev)
+		}
 		if isArchiveAction(ev.Action) {
 			return a.archiveSheetAct(ev)
 		}
@@ -388,7 +394,7 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 }
 
 func userAction(ev pluginsdk.UIEvent) bool {
-	return ev.Slot == settingsSlot || isOpenAction(ev.Action) || slices.Contains(userActions, ev.Action)
+	return ev.Slot == settingsSlot || ev.Slot == gatesSidebarSlot || ev.Slot == gatesMainSlot || isGateSheetAction(ev.Action) || isOpenAction(ev.Action) || slices.Contains(userActions, ev.Action)
 }
 
 func itemID(ev pluginsdk.UIEvent) (string, error) {

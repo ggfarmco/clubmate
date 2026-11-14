@@ -28,6 +28,12 @@ public enum SectionHosting {
         return SectionTarget(section: host, tab: "\(id).sidebar", slot: mapped)
     }
 
+    public static func section(ofSlot slot: String, in ids: [String]) -> String? {
+        let known = ids.filter { slot.hasPrefix("\($0).") }.max { $0.count < $1.count }
+        guard let section = known ?? slot.split(separator: ".", maxSplits: 1).first.map(String.init), !section.isEmpty else { return nil }
+        return section
+    }
+
     private static func host(of section: SectionInfo, in sections: [SectionInfo]) -> String? {
         guard let host = section.host, host != section.id, sections.contains(where: { $0.id == host && $0.host == nil }) else { return nil }
         return host

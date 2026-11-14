@@ -246,6 +246,9 @@ func header(sc screen) sdui.Node {
 	if needsYou(rec) || rec.Status == statusError || reviewRow(row) {
 		activity = ""
 	}
+	if word, _ := rowGateChip(row); word != "" {
+		activity = word
+	}
 	meta := nonEmpty(afkDetail(rec), notifyLabels[row.Notify], activity)
 	fill, full := usageParts(sc.View.Usage)
 	if !full {

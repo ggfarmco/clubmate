@@ -91,6 +91,8 @@ var (
 		"agents.repo-leave":     withArgs((*app).repoLeaveCommand),
 		"agents.repo-fix":       withArgs((*app).repoFixCommand),
 		"agents.gates":          withArgs((*app).gatesCommand),
+		"agents.gates.new":      withArgs((*app).gatesNewCommand),
+		"agents.gate-verdicts":  withArgs((*app).gateVerdictsCommand),
 		"agents.gate-add":       withArgs((*app).gateAddCommand),
 		"agents.gate-update":    withArgs((*app).gateUpdateCommand),
 		"agents.gate-delete":    withArgs((*app).gateDeleteCommand),

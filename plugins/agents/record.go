@@ -126,6 +126,7 @@ type sessionInfo struct {
 	Archivable      bool            `json:"archivable,omitempty"`
 	TaskFinished    bool            `json:"taskFinished,omitempty"`
 	Requests        []string        `json:"requests,omitempty"`
+	Gate            string          `json:"gate,omitempty"`
 }
 
 type sessionFailure struct {

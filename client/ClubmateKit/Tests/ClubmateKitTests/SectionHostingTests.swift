@@ -8,6 +8,14 @@ final class SectionHostingTests: XCTestCase {
         try JSONDecoder().decode([SectionInfo].self, from: Data(json.utf8))
     }
 
+    func testSlotBelongsToTheLongestKnownSectionId() {
+        let ids = ["agents", "agents.gates", "terminals"]
+
+        XCTAssertEqual(SectionHosting.section(ofSlot: "agents.gates.main", in: ids), "agents.gates")
+        XCTAssertEqual(SectionHosting.section(ofSlot: "agents.sidebar.field", in: ids), "agents")
+        XCTAssertEqual(SectionHosting.section(ofSlot: "echo.main", in: ids), "echo")
+    }
+
     func testHostedSectionResolvesToItsHostTab() throws {
         let all = try sections(#"""
         [{"id":"editor-nvim","title":"Code","icon":"","order":10,"scope":"workspace","plugin":"editor-nvim"},

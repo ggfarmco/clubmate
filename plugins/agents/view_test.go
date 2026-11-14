@@ -749,6 +749,7 @@ func TestHeaderMetaRepeatsTheSidebarDetail(t *testing.T) {
 		{"children", record{Status: statusDone, AFK: true}, sessionRow{}, statusRunning, "AFK · Waiting for child sessions"},
 		{"running", record{Status: statusRunning}, sessionRow{Notify: notifyMuted, Started: now.Add(-15 * time.Minute), Activity: "go test ./..."}, "", "Muted · 15 min · go test ./..."},
 		{"badged", record{Status: statusWaiting}, sessionRow{}, "", nil},
+		{"gated", record{Status: statusDone}, sessionRow{Gate: gateChanges}, "", "changes"},
 	} {
 		tc.rec.ID, tc.rec.Worktree, tc.rec.Agent = "agt_p", "/r/a", agentClaude
 		tree := mainView(screen{View: transcriptView{Session: tc.rec}, Row: tc.row, Now: now, Children: tc.children, Composer: "agt_p/composer/0"})

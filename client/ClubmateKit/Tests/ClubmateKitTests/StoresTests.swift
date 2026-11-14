@@ -261,10 +261,10 @@ final class StoresTests: XCTestCase {
         try await store.start()
         store.selectedSection = "echo"
         store.rememberFocus("echo.main")
-        store.rememberFocus("terminals.sidebar")
+        store.rememberFocus("terminals.sidebar.field")
 
         store.selectedSection = "terminals"
-        XCTAssertEqual(store.focusRequest?.slot, "terminals.sidebar")
+        XCTAssertEqual(store.focusRequest?.slot, "terminals.sidebar.field")
 
         store.toggleSidebar()
         store.selectedSection = "echo"

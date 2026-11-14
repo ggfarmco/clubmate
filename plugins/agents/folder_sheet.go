@@ -290,6 +290,9 @@ func (a *app) folderHoldsOf(workspaceID string, sheet *folderSheet) folderHolds 
 }
 
 func (a *app) sheetTree(workspaceID string, p *workspaceUI) sdui.Node {
+	if node, ok := a.gateSheetTree(p); ok {
+		return node
+	}
 	if node, ok := a.reposSheetTree(p); ok {
 		return node
 	}

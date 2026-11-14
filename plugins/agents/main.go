@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -61,6 +62,9 @@ type app struct {
 	cloners    map[string]bool
 	landMu     sync.Mutex
 	gateMu     sync.Mutex
+	gateLogMu  sync.Mutex
+	liveGates  atomic.Pointer[map[string]bool]
+	gateRepos  sync.Map
 	landWork   coalesced
 	onceLocks  onceLocks
 	archiving  archiveClaims
@@ -374,6 +378,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		}
 		info.ReviewProgress = a.reviews.progress(rec.ID)
 		info.NeedsYou = needsYou(info.record)
+		info.Gate = a.gateState(info.record)
 		info.Service = rec.restricted()
 		if rec.Status == statusError {
 			failure := failureOf(rec)

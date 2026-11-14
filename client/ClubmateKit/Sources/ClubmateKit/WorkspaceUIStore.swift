@@ -347,8 +347,8 @@ public final class WorkspaceUIStore {
     }
 
     public func rememberFocus(_ slot: String) {
-        guard let section = slot.split(separator: ".", maxSplits: 1).first, !section.isEmpty else { return }
-        focusedSlots[String(section)] = slot
+        guard let section = SectionHosting.section(ofSlot: slot, in: sections.map(\.id)) else { return }
+        focusedSlots[section] = slot
     }
 
     private func refocus(_ section: String) {

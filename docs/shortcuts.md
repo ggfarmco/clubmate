@@ -8,7 +8,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 
 | Keys | Action | Where defined |
 |---|---|---|
-| ⌘N | New (terminal or item in the current section; in Backlog it focuses the new task field, in Triggers and Cron it starts an agent session that asks you for a trigger or a cron job and adds it, in Graphs one that asks you for a graph and writes its file) | `ClubmateApp.swift` |
+| ⌘N | New (terminal or item in the current section; in Backlog it focuses the new task field, in Triggers and Cron it starts an agent session that asks you for a trigger or a cron job and adds it, in Graphs one that asks you for a graph and writes its file, in Gates it opens the New gate sheet) | `ClubmateApp.swift` |
 | ⇧⌘N | New Home Terminal | `ClubmateApp.swift` |
 | ⌘O | Open Folder… | `ClubmateApp.swift` |
 | ⇧⌘D | Open Doc…: fuzzy picker over `docs.list` (agent-written docs first), ↩ opens the doc in the popup | `ClubmateApp.swift` |
@@ -17,7 +17,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⌘K | Command Palette | `ClubmateApp.swift` |
 | ⌘B, ⌃⌘S | Toggle Sidebar; in Neovim, Toggle Chat: the right column with the agent chat panel (per window) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
 | ⌘= (⌘+), ⌘-, ⌘0 | Font size up, down, reset where focus is: in a terminal or nvim (or with nothing focused) the terminal font for all terminals; in the agent chat (composer) the chat font, shared by every chat; in another pane (e.g. the Backlog sidebar) that plugin's font, both its sidebar and its main pane. The terminal font is Settings → Terminals → Font size, the chat font Settings → Agents → Chat font size and a plugin's font its own Settings page → Font size; a plugin follows Settings → General → Interface font size until zoomed or set there, ⌘0 puts it back (General → Plugin fonts resets them all); sizes are kept across restarts. While the popup shows a doc and has focus it zooms the doc instead, see below | `ClubmateApp.swift`, `WorkspaceLayout.swift`, `WorkspacePanes.swift` (`ClubmateKit/PaneFocus.swift`, `AppSettings.swift`) |
-| ⌘1…⌘9 | Switch to the Nth section in the rail, in your order (drag icons to reorder; right-click the rail to reset) | `ClubmateApp.swift` |
+| ⌘1…⌘9 | Switch to the Nth section in the rail, in your order (drag icons to reorder; right-click the rail to reset); Gates comes last by default, after Graphs, so it gets ⌘9 only while the rail holds nine sections or fewer | `ClubmateApp.swift` |
 | ⌃⌘→, ⌃⌘← | Next, previous workspace | `ClubmateApp.swift` |
 | ⌃⌘↓, ⌃⌘↑ | In Agents: next, previous session, the row below or above the selected one among the rows the sidebar shows (filter, search and folded groups apply), wrapping around; focus goes to its prompt (`agents.step`) | `ClubmateApp.swift`, `ClubmateKit/CommandInvocation.swift` (`AgentsSection`), `plugins/agents/sidebar.go` (`stepSession`) |
 | ⌃⌘W | Workspace switcher grid | `ClubmateApp.swift` |
@@ -73,6 +73,11 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌘↩ | Archive the task, on the Archive sheet (⎋ cancels); Close, once something stayed | agents |
 | ⌘↩ | Remove what is ticked, on the Clean up worktrees sheet (⎋ cancels); Close, once something stayed | agents |
 | ⌘↩ | Add the ticked repos, on the Add repos sheet (⎋ cancels) | agents |
+| ⌘↩ | Add gate on the New gate sheet, Save on the Edit gate sheet (⎋ cancels) | agents |
+| ⌘N | New land gate: opens the New gate sheet (Gates' How gates work page; the app menu's ⌘N does the same anywhere in Gates) | agents |
+| P | Pause or resume the land gate open in Gates | agents |
+| E | Edit the land gate open in Gates: its rounds and whether it is paused | agents |
+| ⌘⌫ | Delete the land gate open in Gates (confirmed; its verdict history goes too) | agents |
 | ⌥1 / ⌥2 / ⌥3 | A graph step waiting for approval: Allow once / Always allow… (asks first) / Reject | graphs |
 | ⌥↑ / ⌥↓ | A repo child of a task: the repo before / after it in landing order that has a session, no wrap-around (buttons in the crumb); in a text field they stay caret movement | agents |
 | ⌘. | Stop the graph run (confirmed) | graphs |

@@ -75,6 +75,7 @@ type record struct {
 	Service         bool     `json:"service"`
 	Review          bool     `json:"review"`
 	NeedsYou        bool     `json:"needsYou"`
+	Gate            string   `json:"gate"`
 	AsksParent      bool     `json:"asksParent"`
 	ChildStatus     string   `json:"childStatus"`
 	DisallowedTools []string `json:"disallowedTools"`

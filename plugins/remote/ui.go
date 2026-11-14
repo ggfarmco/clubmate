@@ -292,8 +292,8 @@ func (h *hub) sections(ws string) []string {
 	out := []string{}
 	for st := range h.streams {
 		for _, slot := range st.watch[ws] {
-			if section, _, ok := strings.Cut(slot, "."); ok && !strings.HasSuffix(slot, popupSuffix) {
-				out = append(out, section)
+			if i := strings.LastIndex(slot, "."); i > 0 && !strings.HasSuffix(slot, popupSuffix) {
+				out = append(out, slot[:i])
 			}
 		}
 	}

@@ -86,6 +86,9 @@ type workspaceUI struct {
 	archive    *archiveSheet
 	cleanup    *cleanupSheet
 	repos      *reposSheet
+	gate       string
+	gatePick   string
+	gateSheet  *gateDraft
 }
 
 type sessionUI struct {
@@ -291,6 +294,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 			return err
 		}
 	}
+	logError("render gates", a.renderGates(ctx, p, workspace, slots))
 	if !slices.Contains(slots, codeSlot) {
 		return nil
 	}
@@ -299,9 +303,9 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 
 func (a *app) slots() []string {
 	if a.codePanel {
-		return []string{sidebarSlot, mainSlot, sheetSlot, codeSlot}
+		return []string{sidebarSlot, mainSlot, sheetSlot, gatesSidebarSlot, gatesMainSlot, codeSlot}
 	}
-	return []string{sidebarSlot, mainSlot, sheetSlot}
+	return []string{sidebarSlot, mainSlot, sheetSlot, gatesSidebarSlot, gatesMainSlot}
 }
 
 func (a *app) shownSlots(workspaceID string) []string {
@@ -315,6 +319,9 @@ func (a *app) shownSlots(workspaceID string) []string {
 	slots := []string{sidebarSlot, sheetSlot}
 	if shown(sectionID) {
 		slots = append(slots, mainSlot)
+	}
+	if shown(gatesSection) {
+		slots = append(slots, gatesSidebarSlot, gatesMainSlot)
 	}
 	if a.codePanel && shown(editorSection) {
 		slots = append(slots, codeSlot)
@@ -451,7 +458,7 @@ func (a *app) sessionRow(ctx context.Context, rec record, children string) sessi
 	if rec.Night == "" {
 		branch = a.branches.name(ctx, rec.Workspace, rec.Worktree)
 	}
-	row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children, Branch: branchLabel(branch), Detached: detachedBranch(branch), Review: a.reviews.progress(rec.ID)}
+	row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children, Branch: branchLabel(branch), Detached: detachedBranch(branch), Review: a.reviews.progress(rec.ID), Gate: a.gateState(rec)}
 	if s := a.session(rec.ID); s != nil {
 		row.Asking = s.asking()
 		row.Started = s.turnStart()

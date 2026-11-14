@@ -117,6 +117,7 @@ type sessionRow struct {
 	Review   *reviewProgress
 	RunNeed  *runNeed
 	Open     int
+	Gate     string
 }
 
 type sidebarSearch struct {
@@ -636,16 +637,28 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 	if mayAsk {
 		act = mayAskDetail
 	}
+	var detailTone string
+	if word, tone := rowGateChip(row); word != "" {
+		act, detailTone, mayAsk = word, tone, false
+	}
 	return sdui.TreeItem{
 		ID:          rec.ID,
 		Label:       cmp.Or(rec.Title, "New session"),
 		Detail:      strings.Join(nonEmpty(afkDetail(rec), notifyLabels[row.Notify], act), " · "),
+		DetailTone:  detailTone,
 		DetailFaint: mayAsk,
 		Icon:        icon,
 		Tone:        statusTones[display],
 		Menu:        menu,
 		Badges:      badges,
 	}
+}
+
+func rowGateChip(row sessionRow) (string, string) {
+	if turnActive(row.Rec) || needsYou(row.Rec) || row.Rec.Status == statusError {
+		return "", ""
+	}
+	return gateChip(row.Gate)
 }
 
 func reviewRow(row sessionRow) bool {
