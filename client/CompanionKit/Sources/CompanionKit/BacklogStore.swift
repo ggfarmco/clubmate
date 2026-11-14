@@ -7,28 +7,46 @@ public final class BacklogStore {
     public static let doneLimit = 50
 
     public let workspace: String
-    public private(set) var tasks: [BacklogTask] = []
+    public let queue: ActionQueue
+    private var fetchedTasks: [BacklogTask] = []
+    private var settling: [Landed] = []
     public private(set) var loaded = false
     public private(set) var error: String?
     public private(set) var syncedAt: Date?
     public private(set) var fetched = false
     public var newDraft = BacklogDraft()
+    public var arrival: Arrival?
+
+    public struct Arrival: Equatable, Sendable {
+        public let task: Int
+        public let session: String
+    }
 
     @ObservationIgnored private weak var runner: (any CommandRunner)?
     @ObservationIgnored private let cache: ListCache
     @ObservationIgnored private let key: ListCache.Key
+    @ObservationIgnored private let computer: String
+    @ObservationIgnored private let queues: @MainActor () -> Bool
+    @ObservationIgnored private let retry: @MainActor () -> Void
+    @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
     @ObservationIgnored private let saves = SaveThrottle()
     @ObservationIgnored private var raw: JSONValue = .array([])
     @ObservationIgnored private var inflight = false
     @ObservationIgnored private var again = false
 
-    public init(workspace: String, runner: any CommandRunner, cache: ListCache = ListCache(dir: nil), computer: String = "") {
+    public init(workspace: String, runner: any CommandRunner, queue: ActionQueue = ActionQueue(file: nil), cache: ListCache = ListCache(dir: nil), computer: String = "", queues: @escaping @MainActor () -> Bool = { false }, retry: @escaping @MainActor () -> Void = {}, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.workspace = workspace
         self.runner = runner
+        self.queue = queue
         self.cache = cache
+        self.computer = computer
+        self.queues = queues
+        self.retry = retry
+        self.sleep = sleep
         key = ListCache.Key(computer: computer, workspace: workspace, collection: "backlog")
         if let saved = cache.load(key, as: Snapshot.self), let tasks = try? saved.tasks.decode([BacklogTask].self) {
-            self.tasks = tasks
+            fetchedTasks = tasks
+            raw = saved.tasks
             syncedAt = saved.at
             loaded = true
         }
@@ -36,6 +54,43 @@ public final class BacklogStore {
 
     public func ageLine(now: Date = .now) -> String? {
         ListCache.ageLine(syncedAt: syncedAt, error: error, empty: tasks.isEmpty, now: now)
+    }
+
+    public var tasks: [BacklogTask] {
+        let edits = writes.filter { $0.command == BacklogCommand.update }
+        guard !edits.isEmpty else { return fetchedTasks }
+        return fetchedTasks.map { task in
+            let mine = edits.filter { $0.target == Self.target(task.id) }
+            guard !mine.isEmpty, let base = raw.arrayValue?.first(where: { $0["id"]?.numberValue == Double(task.id) }) else { return task }
+            let merged = mine.reduce(base) { $0.overlaid($1.args) }
+            return (try? merged.decode(BacklogTask.self)) ?? task
+        }
+    }
+
+    public var outbox: [QueuedAction] {
+        queue.items.filter { $0.computer == computer && $0.workspace == workspace && $0.kind == .command && $0.command.hasPrefix(Self.prefix) }
+    }
+
+    public func queued(_ id: Int) -> [QueuedAction] {
+        outbox.filter { $0.target == Self.target(id) }
+    }
+
+    public func landed(_ landed: Landed) {
+        guard landed.item.workspace == workspace, landed.item.command.hasPrefix(Self.prefix) else { return }
+        settling.append(landed)
+        if landed.item.command == BacklogCommand.start, let id = landed.item.args?["id"]?.numberValue, let session = landed.result["session"]?.stringValue {
+            arrival = Arrival(task: Int(id), session: session)
+        }
+    }
+
+    private static let prefix = "backlog."
+
+    private var writes: [QueuedAction] {
+        outbox.filter { $0.failure == nil } + settling.map(\.item)
+    }
+
+    static func target(_ id: Int) -> String {
+        "task/\(id)"
     }
 
     public var groups: [(status: BacklogStatus, tasks: [BacklogTask])] {
@@ -94,15 +149,18 @@ public final class BacklogStore {
 
     @discardableResult
     public func addNew() async throws -> BacklogTask? {
-        let task = try await run(BacklogCommand.add, newDraft.addArgs())
+        let draft = newDraft
+        let result = try await submit(BacklogCommand.add, draft.addArgs(), target: "add/" + UUID().uuidString, title: "Add “\(draft.trimmedTitle)”", text: draft.typed)
         newDraft = BacklogDraft()
+        guard let result else { return nil }
         await refresh()
-        return task
+        return try? result.decode(BacklogTask.self)
     }
 
     public func update(_ id: Int, _ changes: [String: JSONValue]) async throws {
         guard !changes.isEmpty else { return }
-        try await mutate(BacklogCommand.update, id, changes)
+        let typed = ["title", "description"].compactMap { changes[$0]?.stringValue }.joined(separator: "\n\n")
+        try await mutate(BacklogCommand.update, id, changes, title: "Edit #\(id)", text: typed.isEmpty ? nil : typed)
     }
 
     public func move(_ id: Int, to status: BacklogStatus) async throws {
@@ -110,48 +168,60 @@ public final class BacklogStore {
     }
 
     public func claim(_ id: Int) async throws {
-        try await mutate(BacklogCommand.claim, id)
+        try await mutate(BacklogCommand.claim, id, title: "Start #\(id)")
     }
 
     @discardableResult
     public func start(_ id: Int, agent: String? = nil, mode: String? = nil, where place: String? = nil, prompt: String? = nil) async throws -> String? {
-        var args: [String: JSONValue] = ["id": .number(Double(id))]
+        var args: [String: JSONValue] = [:]
         for (key, value) in [("agent", agent), ("mode", mode), ("where", place), ("prompt", prompt)] {
             if let value, !value.isEmpty { args[key] = .string(value) }
         }
-        let result = try await runner?.command(BacklogCommand.start, workspace: workspace, args: .object(args))
-        await refresh()
+        let result = try await mutate(BacklogCommand.start, id, args, title: "Start an agent on #\(id)", text: prompt.flatMap { $0.isEmpty ? nil : $0 })
         return result?["session"]?.stringValue
     }
 
     public func takeBack(_ id: Int) async throws {
-        try await mutate(BacklogCommand.takeBack, id)
+        try await mutate(BacklogCommand.takeBack, id, title: "Take back #\(id)")
     }
 
     public func release(_ id: Int) async throws {
-        try await mutate(BacklogCommand.release, id)
+        try await mutate(BacklogCommand.release, id, title: "Release #\(id)")
     }
 
     public func done(_ id: Int) async throws {
-        try await mutate(BacklogCommand.done, id)
-    }
-
-    private func mutate(_ command: String, _ id: Int, _ args: [String: JSONValue] = [:]) async throws {
-        var args = args
-        args["id"] = .number(Double(id))
-        try await run(command, .object(args))
-        await refresh()
+        try await mutate(BacklogCommand.done, id, title: "Mark #\(id) done")
     }
 
     @discardableResult
-    private func run(_ command: String, _ args: JSONValue) async throws -> BacklogTask? {
+    private func mutate(_ command: String, _ id: Int, _ args: [String: JSONValue] = [:], title: String, text: String? = nil) async throws -> JSONValue? {
+        var args = args
+        args["id"] = .number(Double(id))
+        let result = try await submit(command, .object(args), target: Self.target(id), title: title, text: text)
+        if result != nil { await refresh() }
+        return result
+    }
+
+    private func submit(_ command: String, _ args: JSONValue, target: String, title: String, text: String?) async throws -> JSONValue? {
         guard let runner else { return nil }
-        let result = try await runner.command(command, workspace: workspace, args: args)
-        return try? result.decode(BacklogTask.self)
+        let item = QueuedAction(computer: computer, workspace: workspace, command: command, args: args, target: target, title: title, text: text)
+        let offline = queues()
+        guard let result = try await queue.submit(item, runner: runner, queues: offline) else {
+            if !offline {
+                Task { [sleep, retry] in
+                    try? await sleep(ActionQueue.retryDelay)
+                    retry()
+                }
+            }
+            return nil
+        }
+        settling.append(Landed(item: item, result: result, at: .now))
+        return result
     }
 
     private func load() async {
         guard let runner else { return }
+        let started = Date.now
         do {
             var raw: [JSONValue] = []
             for (status, limit) in [("open", 0), (BacklogStatus.notNow.rawValue, 0), (BacklogStatus.done.rawValue, Self.doneLimit)] {
@@ -160,8 +230,9 @@ public final class BacklogStore {
                 guard let tasks = try await runner.command(BacklogCommand.list, workspace: workspace, args: .object(args))["tasks"]?.arrayValue else { throw RemoteError.badResponse }
                 raw += tasks
             }
-            tasks = try JSONValue.array(raw).decode([BacklogTask].self)
+            fetchedTasks = try JSONValue.array(raw).decode([BacklogTask].self)
             self.raw = .array(raw)
+            settling.removeAll { $0.at <= started }
             error = nil
             fetched = true
             syncedAt = .now

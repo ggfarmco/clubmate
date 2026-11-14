@@ -12,6 +12,7 @@ public enum AgentCommand {
     public static let sessions = "agents.sessions"
     public static let transcript = "agents.transcript"
     public static let prompt = "agents.prompt"
+    public static let new = "agents.new"
 }
 
 public enum BacklogCommand {

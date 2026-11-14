@@ -23,7 +23,7 @@ const (
 	codeNotFound          = -32004
 	codeNotTracked        = -32010
 	codeSessionRunning    = -32011
-	codePluginUnavailable = -32012
+	codePluginUnavailable = contract.CodePluginUnavailable
 	codePluginError       = contract.CodePluginError
 	codeDenied            = -32014
 	codeRateLimited       = -32015
@@ -38,6 +38,7 @@ var (
 	ErrMethodNotFound    = errors.New("method not found")
 	ErrPluginUnavailable = errors.New("plugin unavailable")
 	ErrPluginDisabled    = errors.New("plugin disabled")
+	ErrOutcomeUnknown    = errors.New("outcome unknown")
 	ErrPluginError       = errors.New("plugin error")
 	ErrUnknownPlugin     = errors.New("unknown plugin")
 	ErrDenied            = errors.New("denied")
@@ -93,6 +94,26 @@ func (e *RemoteError) Is(target error) bool {
 	return false
 }
 
+type outcomeUnknown struct {
+	err error
+}
+
+func OutcomeUnknown(err error) error {
+	return outcomeUnknown{err: err}
+}
+
+func (e outcomeUnknown) Error() string {
+	return e.err.Error()
+}
+
+func (e outcomeUnknown) Unwrap() error {
+	return e.err
+}
+
+func (e outcomeUnknown) Is(target error) bool {
+	return target == ErrOutcomeUnknown
+}
+
 func (e *PluginError) Error() string {
 	return "plugin " + e.PluginID + " " + e.Method + ": " + e.Message
 }
@@ -111,6 +132,8 @@ func toRPCError(err error) *jsonrpc2.Error {
 		out.SetError(contract.PluginErrorData{Plugin: pe.PluginID, Method: pe.Method, Message: pe.Message, Reason: pe.Reason})
 	} else if errors.Is(err, workspace.ErrNotFound) {
 		out.SetError(contract.ErrorReason{Reason: contract.ReasonStale})
+	} else if errors.Is(err, ErrOutcomeUnknown) {
+		out.SetError(contract.ErrorReason{Reason: contract.ReasonUnknown})
 	}
 	return out
 }

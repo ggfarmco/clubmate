@@ -2,7 +2,10 @@ package contract
 
 import "encoding/json"
 
-const CodePluginError = -32013
+const (
+	CodePluginUnavailable = -32012
+	CodePluginError       = -32013
+)
 
 const (
 	ReasonStale    = "stale"

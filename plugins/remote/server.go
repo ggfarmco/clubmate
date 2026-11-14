@@ -35,6 +35,7 @@ const (
 	codeNotAllowed    = "not_allowed"
 	codeInvalidParams = "invalid_params"
 	codeFailed        = "failed"
+	codeRefused       = "refused"
 )
 
 var errStreamClosed = errors.New("stream closed")
@@ -46,6 +47,7 @@ type server struct {
 	hub      *hub
 	identity *identity
 	relay    *relayClient
+	requests *requestLog
 	changed  func()
 	watching func(contract.RemoteWatching)
 	ping     time.Duration
@@ -107,6 +109,7 @@ type commandRequest struct {
 	ID        string          `json:"id"`
 	Workspace string          `json:"workspace"`
 	Args      json.RawMessage `json:"args"`
+	RequestID string          `json:"requestId"`
 }
 
 type macsRequest struct {
@@ -127,6 +130,7 @@ type helloResult struct {
 	Commands []string `json:"commands"`
 	Topics   []string `json:"topics"`
 	UI       bool     `json:"ui"`
+	Requests bool     `json:"requests"`
 }
 
 type workspaceInfo struct {
@@ -293,7 +297,7 @@ func (s *server) hello(ctx context.Context) (helloResult, error) {
 	if err != nil {
 		return helloResult{}, err
 	}
-	return helloResult{Computer: s.identity.get(), Version: version, Commands: cmds, Topics: slices.Clone(forwardedTopics), UI: true}, nil
+	return helloResult{Computer: s.identity.get(), Version: version, Commands: cmds, Topics: slices.Clone(forwardedTopics), UI: true, Requests: true}, nil
 }
 
 func (s *server) workspaces(ctx context.Context) ([]workspaceInfo, error) {
@@ -320,6 +324,18 @@ func (s *server) command(ctx context.Context, p commandRequest) (json.RawMessage
 	if !slices.Contains(cmds, p.ID) {
 		return nil, &apiError{Code: codeNotAllowed, Message: "command is not available remotely: " + p.ID}
 	}
+	if p.RequestID == "" {
+		return s.run(ctx, p)
+	}
+	if !validRequestID(p.RequestID) {
+		return nil, &apiError{Code: codeInvalidParams, Message: "requestId must be at most 64 letters, digits, '-' or '_'"}
+	}
+	return s.requests.do(ctx, p.RequestID, func(ctx context.Context) (json.RawMessage, error) {
+		return s.run(ctx, p)
+	})
+}
+
+func (s *server) run(ctx context.Context, p commandRequest) (json.RawMessage, error) {
 	out, err := s.backend.Run(ctx, p.ID, p.Workspace, p.Args)
 	if err != nil {
 		return nil, err
@@ -452,6 +468,8 @@ func toAPIError(err error) apiError {
 		}
 		if reason := contract.ReasonIn(rpcErr.Data); reason != "" {
 			code = reason
+		} else if pluginRefusal(err) {
+			code = codeRefused
 		}
 		if pe, ok := pluginsdk.PluginErrorOf(err); ok {
 			return apiError{Code: code, Message: pe.Message}

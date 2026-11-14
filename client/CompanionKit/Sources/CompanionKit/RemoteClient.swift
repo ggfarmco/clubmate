@@ -41,13 +41,15 @@ public struct Hello: Codable, Sendable, Equatable {
     public let commands: [String]
     public let topics: [String]
     public let ui: Bool
+    public let requests: Bool
 
-    public init(computer: ComputerInfo, version: String, commands: [String], topics: [String], ui: Bool = false) {
+    public init(computer: ComputerInfo, version: String, commands: [String], topics: [String], ui: Bool = false, requests: Bool = false) {
         self.computer = computer
         self.version = version
         self.commands = commands
         self.topics = topics
         self.ui = ui
+        self.requests = requests
     }
 
     public init(from decoder: any Decoder) throws {
@@ -57,6 +59,7 @@ public struct Hello: Codable, Sendable, Equatable {
         commands = try c.decode([String].self, forKey: .commands)
         topics = try c.decode([String].self, forKey: .topics)
         ui = try c.decodeIfPresent(Bool.self, forKey: .ui) ?? false
+        requests = try c.decodeIfPresent(Bool.self, forKey: .requests) ?? false
     }
 }
 
@@ -193,8 +196,8 @@ public actor RemoteClient {
         try await rpc("setIdentityColour", params: .object(["colour": .string(colour)])).decode(IdentityReply.self).computer
     }
 
-    public func command(_ id: String, workspace: String?, args: JSONValue? = nil) async throws -> JSONValue {
-        try await rpc("command", params: Self.commandParams(id, workspace: workspace, args: args))
+    public func command(_ id: String, workspace: String?, args: JSONValue? = nil, requestId: String? = nil) async throws -> JSONValue {
+        try await rpc("command", params: Self.commandParams(id, workspace: workspace, args: args, requestId: requestId))
     }
 
     public func command<T: Decodable & Sendable>(_ id: String, workspace: String?, args: JSONValue? = nil, as type: T.Type) async throws -> T {
@@ -219,10 +222,11 @@ public actor RemoteClient {
         try await rpc("uiEvent", params: .object(["workspace": .string(workspace), "slot": .string(slot), "nodeId": .string(nodeId), "action": .string(action), "value": value ?? .null]))
     }
 
-    private static func commandParams(_ id: String, workspace: String?, args: JSONValue?) -> JSONValue {
+    private static func commandParams(_ id: String, workspace: String?, args: JSONValue?, requestId: String? = nil) -> JSONValue {
         var params: [String: JSONValue] = ["id": .string(id)]
         if let workspace { params["workspace"] = .string(workspace) }
         if let args { params["args"] = args }
+        if let requestId { params["requestId"] = .string(requestId) }
         return .object(params)
     }
 

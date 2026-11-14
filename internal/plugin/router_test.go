@@ -3,6 +3,7 @@ package plugin_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"runtime"
@@ -20,6 +21,7 @@ import (
 	"clubmate/internal/rpc"
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/contract"
 )
 
 type subscription struct {
@@ -107,6 +109,7 @@ func TestRoutingToStoppedPluginIsUnavailable(t *testing.T) {
 	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "backoff" }, 5*time.Second)
 	err = c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "workspaceId": p.ID, "args": map[string]any{"text": "hi"}}, nil)
 	assert.ErrorIs(t, err, rpc.ErrPluginUnavailable)
+	assert.Empty(t, reasonOf(err), "never reached the plugin, so it didn't run")
 	var cmds []rpc.Command
 	require.NoError(t, c.Call(t.Context(), "command.list", struct{}{}, &cmds))
 	for _, cmd := range cmds {
@@ -400,4 +403,14 @@ func TestWaitForStartAndCallShareOneTimeout(t *testing.T) {
 	err := c.Call(t.Context(), "command.run", map[string]any{"id": "late.wait", "workspaceId": p.ID}, nil)
 
 	assert.ErrorIs(t, err, rpc.ErrPluginUnavailable)
+	assert.Equal(t, contract.ReasonUnknown, reasonOf(err), "the plugin had it when the call timed out")
+}
+
+func reasonOf(err error) string {
+	remote, ok := errors.AsType[*rpc.RemoteError](err)
+	if !ok || remote.Data == nil {
+		return ""
+	}
+	data := json.RawMessage(remote.Data)
+	return contract.ReasonIn(&data)
 }

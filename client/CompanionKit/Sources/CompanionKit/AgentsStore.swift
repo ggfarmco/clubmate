@@ -40,6 +40,7 @@ public final class AgentsStore {
     public private(set) var runErrors: [String: String] = [:]
     public private(set) var openQueue: [OpenQueueEntry] = []
     public private(set) var openPass: OpenPass?
+    public var arrived: String?
     private var outgoing: [String: [Outgoing]] = [:]
     private var elicitationDrafts: [String: [String: ElicitationDraft]] = [:]
     private var openDrafts: [String: OpenDraft] = [:]
@@ -77,6 +78,7 @@ public final class AgentsStore {
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private var watchedRuns: [String: Int] = [:]
     @ObservationIgnored private var closings: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored private var promptKnown: [String: Set<String>] = [:]
 
     public init(workspace: String, runner: any CommandRunner, queue: ActionQueue? = nil, computer: String = "", cache: ListCache = ListCache(dir: nil), queues: @escaping @MainActor () -> Bool = { false }, retry: @escaping @MainActor () -> Void = {}, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.workspace = workspace
@@ -127,7 +129,35 @@ public final class AgentsStore {
     }
 
     public func entries(_ session: String) -> [TranscriptEntry] {
-        (transcripts[session]?.entries ?? []) + (outgoing[session] ?? []).map(\.entry)
+        (transcripts[session]?.entries ?? []) + (outgoing[session] ?? []).map(\.entry) + queuedPrompts(session)
+    }
+
+    private func queuedPrompts(_ session: String) -> [TranscriptEntry] {
+        writes.filter { $0.command == AgentCommand.prompt && $0.session == session }.map { TranscriptEntry(outgoing: $0.text ?? "", images: [], entryID: $0.id) }
+    }
+
+    public var pendingCreates: [QueuedAction] {
+        writes.filter { $0.command == AgentCommand.new }
+    }
+
+    private var writes: [QueuedAction] {
+        queue?.writes(computer: computer, workspace: workspace) ?? []
+    }
+
+    public func landed(_ landed: Landed) {
+        let item = landed.item
+        guard item.workspace == workspace else { return }
+        switch item.command {
+        case AgentCommand.new:
+            guard let id = landed.result["session"]?.stringValue else { return }
+            if let text = item.text { echo(text, images: [], in: id, sent: true) }
+            arrived = id
+        case AgentCommand.prompt:
+            echo(item.text ?? "", images: [], in: item.session, sent: true, known: promptKnown.removeValue(forKey: item.id))
+            reconcile(item.session)
+        default:
+            break
+        }
     }
 
     public func pendingPermission(_ session: String) -> PermissionRequest? {
@@ -335,17 +365,17 @@ public final class AgentsStore {
     }
 
     public func approve(run id: String, node: String, decision: String) async throws {
-        try await run(GraphCommand.approve, ["id": .string(id), "node": .string(node), "decision": .string(decision)])
+        try await submit(GraphCommand.approve, ["id": .string(id), "node": .string(node), "decision": .string(decision)], target: "run/" + id, title: "Answer \(node)")
         await refreshRun(id)
     }
 
     public func continueRun(_ id: String, edge: Int) async throws {
-        try await run(GraphCommand.continue, ["id": .string(id), "edge": .number(Double(edge))])
+        try await submit(GraphCommand.continue, ["id": .string(id), "edge": .number(Double(edge))], target: "run/" + id, title: "Continue the run")
         await refreshRun(id)
     }
 
     public func stopRun(_ id: String) async throws {
-        try await run(GraphCommand.stop, ["id": .string(id)])
+        try await submit(GraphCommand.stop, ["id": .string(id)], target: "run/" + id, title: "Stop the run")
         await refreshRun(id)
     }
 
@@ -399,15 +429,24 @@ public final class AgentsStore {
     }
 
     public func send(_ text: String, attachments: [ComposerAttachment] = [], to session: String) async throws {
-        let images = attachments.flatMap(\.images)
         let prompt = ComposerAttachment.promptText(text, attachments)
         var args: [String: JSONValue] = ["session": .string(session), "text": .string(prompt)]
-        if !attachments.isEmpty {
-            args["attachments"] = .array(attachments.flatMap(\.payload))
+        if attachments.isEmpty {
+            let item = QueuedAction(computer: computer, workspace: workspace, command: AgentCommand.prompt, args: .object(args), target: QueuedAction.sessionTarget + session, title: Self.sendTitle(prompt), text: prompt)
+            let known = Set((transcripts[session]?.entries ?? []).map(\.id))
+            promptKnown[item.id] = known
+            if try await submit(item) != nil {
+                promptKnown[item.id] = nil
+                echo(prompt, images: [], in: session, sent: true, known: known)
+            }
+            await refreshSession(session)
+            return
         }
-        let echo = self.echo(prompt, images: images, files: attachments.compactMap(\.fileName), in: session)
+        guard !queues() else { throw OfflineRefused("Sending attachments") }
+        args["attachments"] = .array(attachments.flatMap(\.payload))
+        let echo = self.echo(prompt, images: attachments.flatMap(\.images), files: attachments.compactMap(\.fileName), in: session)
         do {
-            try await run("agents.prompt", args)
+            _ = try await runner?.command(AgentCommand.prompt, workspace: workspace, args: .object(args), requestId: UUID().uuidString)
         } catch {
             outgoing[session]?.removeAll { $0.entry.id == echo }
             throw error
@@ -418,22 +457,34 @@ public final class AgentsStore {
         await refreshSession(session)
     }
 
+    static func sendTitle(_ prompt: String) -> String {
+        "Send " + quoted(prompt)
+    }
+
+    static func quoted(_ text: String) -> String {
+        let line = text.split(whereSeparator: \.isNewline).first.map(String.init) ?? text
+        return "“\(line.count > 40 ? line.prefix(40) + "…" : line)”"
+    }
+
     public func cancel(_ session: String) async throws {
-        try await run("agents.cancel", ["session": .string(session)])
+        try await submit("agents.cancel", ["session": .string(session)], target: QueuedAction.sessionTarget + session, title: "Stop the turn")
         await refreshSession(session)
     }
 
     public func stopSubagent(_ subagent: String, in session: String) async throws {
-        try await run("agents.stop-subagent", ["session": .string(session), "subagent": .string(subagent)])
+        try await submit("agents.stop-subagent", ["session": .string(session), "subagent": .string(subagent)], target: QueuedAction.sessionTarget + session, title: "Stop the subagent")
         await refreshSession(session)
     }
 
     public func answer(_ session: String, request: String, option: String) async throws {
         guard let runner else { return }
-        list.replace(try await runner.command(AgentCommand.sessions, workspace: workspace, args: .object(["session": .string(session)]), as: [AgentSession].self), for: session)
+        let online = !queues()
+        if online {
+            list.replace(try await runner.command(AgentCommand.sessions, workspace: workspace, args: .object(["session": .string(session)]), as: [AgentSession].self), for: session)
+        }
         do {
-            guard self.session(session)?.pending.contains(request) == true else { throw AnswerError.alreadyAnswered }
-            try await run("agents.permission", ["session": .string(session), "request": .string(request), "option": .string(option)])
+            guard !online || self.session(session)?.pending.contains(request) == true else { throw AnswerError.alreadyAnswered }
+            try await submit("agents.permission", ["session": .string(session), "request": .string(request), "option": .string(option)], target: "request/" + request, title: "Answer the permission request")
         } catch RemoteError.server(_, let message) where message.contains(AnswerError.unknownRequest) {
             await refreshSession(session)
             throw AnswerError.alreadyAnswered
@@ -449,7 +500,7 @@ public final class AgentsStore {
         if !answers.isEmpty {
             args["answers"] = .array(answers.map { .object(["key": .string($0.key), "value": .string($0.value)]) })
         }
-        try await run("agents.elicitation", args)
+        try await submit("agents.elicitation", args, target: "request/" + request, title: "Answer the question", text: answers.map(\.value).joined(separator: "\n").nilIfEmpty)
         setElicitationDraft(ElicitationDraft(), session: session, request: request)
         await refreshSession(session)
     }
@@ -504,7 +555,7 @@ public final class AgentsStore {
         var args: [String: JSONValue] = ["request": .string(card.request), "action": .string(action)]
         if let tip { args["tip"] = .string(tip) }
         do {
-            try await run(TaskCommand.landAnswer, args)
+            try await submit(TaskCommand.landAnswer, args, target: "request/" + card.request, title: "Merge", keeps: false)
         } catch RemoteError.server(ServerReason.answered, _) {
             await refreshSession(session)
             throw AnswerError.alreadyAnswered
@@ -518,12 +569,12 @@ public final class AgentsStore {
     }
 
     public func repoFix(_ session: String, repo: String) async throws {
-        try await run(TaskCommand.repoFix, ["session": .string(session), "repo": .string(repo)])
+        try await submit(TaskCommand.repoFix, ["session": .string(session), "repo": .string(repo)], target: QueuedAction.sessionTarget + session, title: "Fix \(repo)", keeps: false)
         await refreshSession(session)
     }
 
     public func repoLeave(_ session: String, repo: String) async throws {
-        try await run(TaskCommand.repoLeave, ["session": .string(session), "repo": .string(repo)])
+        try await submit(TaskCommand.repoLeave, ["session": .string(session), "repo": .string(repo)], target: QueuedAction.sessionTarget + session, title: "Leave \(repo) unlanded", keeps: false)
         await refreshSession(session)
     }
 
@@ -547,26 +598,48 @@ public final class AgentsStore {
     }
 
     public func removeFolder(_ path: String) async throws -> String? {
-        guard let runner else { return nil }
-        let result = try await runner.command(TaskCommand.folderRemove, workspace: workspace, args: .object(["path": .string(path)]))
+        let result = try await submit(TaskCommand.folderRemove, ["path": .string(path)], target: "folder/" + path, title: "Remove \(URL(filePath: path).lastPathComponent)", keeps: false)
         await refresh()
-        return result["held"]?.stringValue
+        return result?["held"]?.stringValue
     }
 
     private func deliver(_ action: QueuedAction, _ command: String, _ args: JSONValue) async throws -> JSONValue? {
         guard let runner else { return .null }
         do {
-            return try await runner.command(command, workspace: workspace, args: args)
+            return try await runner.command(command, workspace: workspace, args: args, requestId: action.id)
         } catch let error where Self.keeps(error) && queue != nil {
             var kept = action
             kept.attempted = Self.outcomeLost(error)
+            kept.deduped = runner.dedupes
             queue?.enqueue(kept)
-            Task { [sleep, retry] in
-                try? await sleep(Self.retryDelay)
-                retry()
-            }
+            scheduleRetry()
             return nil
         }
+    }
+
+    private func scheduleRetry() {
+        Task { [sleep, retry] in
+            try? await sleep(ActionQueue.retryDelay)
+            retry()
+        }
+    }
+
+    @discardableResult
+    private func submit(_ command: String, _ args: [String: JSONValue], target: String, title: String, text: String? = nil, keeps: Bool = true) async throws -> JSONValue? {
+        try await submit(QueuedAction(computer: computer, workspace: workspace, command: command, args: .object(args), target: target, title: title, text: text), keeps: keeps)
+    }
+
+    @discardableResult
+    private func submit(_ item: QueuedAction, keeps: Bool = true) async throws -> JSONValue? {
+        guard let runner else { return nil }
+        guard let queue else { return try await runner.command(item.command, workspace: workspace, args: item.sendArgs, requestId: item.id) }
+        let offline = queues()
+        if !keeps, offline { throw OfflineRefused(item.title) }
+        guard let result = try await queue.submit(item, runner: runner, queues: offline, keeps: keeps) else {
+            if !offline { scheduleRetry() }
+            return nil
+        }
+        return result
     }
 
     private static func keeps(_ error: any Error) -> Bool {
@@ -575,13 +648,8 @@ public final class AgentsStore {
     }
 
     private static func outcomeLost(_ error: any Error) -> Bool {
-        switch error as? RemoteError {
-        case .unreachable, .http: true
-        default: false
-        }
+        ActionQueue.outcomeLost(error)
     }
-
-    private static let retryDelay: Duration = .seconds(5)
 
     private func ensureWaiting(_ session: String, request: String) async throws {
         guard let runner else { return }
@@ -656,14 +724,14 @@ public final class AgentsStore {
 
     public func answerOpen(_ session: String, items: [OpenItem], note: String = "") async throws {
         var draft = openDraft(session)
-        try await run(OpenCommand.answer, draft.reply(session: session, items: items, note: note))
+        try await submit(OpenCommand.answer, draft.reply(session: session, items: items, note: note), target: QueuedAction.sessionTarget + session, title: "Answer open items", text: note.nilIfEmpty)
         draft.clear(items)
         setOpenDraft(draft, session: session)
         await afterOpen(session)
     }
 
     public func laterOpen(_ session: String) async throws {
-        try await run(OpenCommand.later, ["session": .string(session)])
+        try await submit(OpenCommand.later, ["session": .string(session)], target: QueuedAction.sessionTarget + session, title: "Open items later")
         var draft = openDraft(session)
         draft.unfolded = false
         setOpenDraft(draft, session: session)
@@ -705,7 +773,7 @@ public final class AgentsStore {
     }
 
     public func convertOpen(_ session: String) async throws {
-        try await run(OpenCommand.convert, ["session": .string(session)])
+        try await submit(OpenCommand.convert, ["session": .string(session)], target: QueuedAction.sessionTarget + session, title: "Open items to a task")
         await afterOpen(session)
     }
 
@@ -726,7 +794,7 @@ public final class AgentsStore {
     private func close(_ command: String, _ session: String, _ items: [OpenItem]) async throws {
         var args: [String: JSONValue] = ["session": .string(session)]
         if !items.isEmpty { args["items"] = .array(items.map { .string($0.id) }) }
-        try await run(command, args)
+        try await submit(command, args, target: QueuedAction.sessionTarget + session, title: command == OpenCommand.no ? "Close open items" : "Open items to the backlog")
         var draft = openDraft(session)
         if items.isEmpty { draft = OpenDraft() } else { draft.clear(items) }
         setOpenDraft(draft, session: session)
@@ -739,61 +807,56 @@ public final class AgentsStore {
     }
 
     public func setMode(_ session: String, mode: String) async throws {
-        try await run("agents.mode", ["session": .string(session), "mode": .string(mode)])
+        try await submit("agents.mode", ["session": .string(session), "mode": .string(mode)], target: QueuedAction.sessionTarget + session, title: "Change the mode")
         await refreshSession(session)
     }
 
     public func setConfig(_ session: String, id: String, value: String) async throws {
-        try await run("agents.config", ["session": .string(session), "id": .string(id), "value": .string(value)])
+        try await submit("agents.config", ["session": .string(session), "id": .string(id), "value": .string(value)], target: QueuedAction.sessionTarget + session, title: "Change a setting")
         await refreshSession(session)
     }
 
     public func setNotify(_ session: String, policy: NotificationPolicy) async throws {
-        try await run("agents.notify", ["session": .string(session), "policy": .string(policy.rawValue)])
+        try await submit("agents.notify", ["session": .string(session), "policy": .string(policy.rawValue)], target: QueuedAction.sessionTarget + session, title: "Change notifications")
         await refreshSession(session)
     }
 
     public func close(_ session: String) async throws {
-        try await run("agents.close", ["session": .string(session)])
+        try await submit("agents.close", ["session": .string(session)], target: QueuedAction.sessionTarget + session, title: "Close the session")
         await refreshSession(session)
     }
 
     public func reviewed(_ session: String) async throws {
-        try await run(Self.reviewedCommand, ["session": .string(session)])
+        try await submit(Self.reviewedCommand, ["session": .string(session)], target: QueuedAction.sessionTarget + session, title: "Mark reviewed")
         await refreshSession(session)
     }
 
     public func recover(_ session: String, with action: FailureAction) async throws -> String? {
-        guard let runner, let command = action.command else { return nil }
-        let result = try await runner.command(command, workspace: workspace, args: .object((action.args ?? [:]).mapValues(JSONValue.string)))
+        guard let command = action.command else { return nil }
+        let result = try await submit(command, (action.args ?? [:]).mapValues(JSONValue.string), target: QueuedAction.sessionTarget + session, title: action.label)
         await refreshSession(session)
-        return result["session"]?.stringValue.flatMap { $0 == session ? nil : $0 }
+        return result?["session"]?.stringValue.flatMap { $0 == session ? nil : $0 }
     }
 
     public func create(_ text: String, attachments: [ComposerAttachment] = []) async throws -> String? {
-        guard let runner else { return nil }
+        if !attachments.isEmpty, queues() { throw OfflineRefused("Sending attachments") }
         let prompt = attachments.isEmpty ? text : ""
-        let result = try await runner.command("agents.new", workspace: workspace, args: .object(prompt.isEmpty ? [:] : ["prompt": .string(prompt)]))
-        guard let id = result["session"]?.stringValue, !attachments.isEmpty else {
-            if let id = result["session"]?.stringValue, !prompt.isEmpty {
+        let result = try await submit(AgentCommand.new, prompt.isEmpty ? [:] : ["prompt": .string(prompt)], target: "new/" + UUID().uuidString, title: prompt.isEmpty ? "New session" : "New session " + Self.quoted(prompt), text: prompt.nilIfEmpty, keeps: attachments.isEmpty)
+        guard let id = result?["session"]?.stringValue, !attachments.isEmpty else {
+            if let id = result?["session"]?.stringValue, !prompt.isEmpty {
                 echo(prompt, images: [], in: id, sent: true)
             }
             await refresh()
-            return result["session"]?.stringValue
+            return result?["session"]?.stringValue
         }
         try await send(text, attachments: attachments, to: id)
         return id
     }
 
-    private func run(_ command: String, _ args: [String: JSONValue]) async throws {
-        guard let runner else { return }
-        _ = try await runner.command(command, workspace: workspace, args: .object(args))
-    }
-
     @discardableResult
-    private func echo(_ text: String, images: [Data], files: [String] = [], in session: String, sent: Bool = false) -> String {
+    private func echo(_ text: String, images: [Data], files: [String] = [], in session: String, sent: Bool = false, known: Set<String>? = nil) -> String {
         let entry = TranscriptEntry(outgoing: text, images: images, files: files)
-        let known = Set((transcripts[session]?.entries ?? []).map(\.id))
+        let known = known ?? Set((transcripts[session]?.entries ?? []).map(\.id))
         outgoing[session, default: []].append(Outgoing(entry: entry, text: text, known: known, sent: sent))
         return entry.id
     }

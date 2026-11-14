@@ -58,21 +58,16 @@ final class BacklogTests: XCTestCase {
         XCTAssertEqual(runner.calls.first?.args, .object(["id": .number(4), "agent": .string("claude"), "where": .string("worktree")]))
     }
 
-    func testNewDraftStaysUntilTheTaskIsAdded() async throws {
+    func testANewTaskOfflineWaitsAsAPendingRow() async throws {
         let runner = BacklogRunner()
-        let store = BacklogStore(workspace: "w", runner: runner)
+        let store = BacklogStore(workspace: "w", runner: runner, queue: ActionQueue(file: nil), computer: "m", queues: { true })
         store.newDraft.title = "Ship it"
-        runner.failure = .notSent("offline")
-        do {
-            try await store.addNew()
-            XCTFail("added offline")
-        } catch {}
-        XCTAssertEqual(store.newDraft.title, "Ship it")
-        runner.failure = nil
+
         try await store.addNew()
+
         XCTAssertEqual(store.newDraft, BacklogDraft())
-        XCTAssertEqual(runner.calls.map(\.id).prefix(2), ["backlog.add", "backlog.add"])
-        XCTAssertEqual(runner.calls[1].args?["title"], .string("Ship it"))
+        XCTAssertEqual(store.outbox.map(\.text), ["Ship it"])
+        XCTAssertFalse(runner.calls.contains { $0.id == BacklogCommand.add })
     }
 
     func testDraftSendsOnlyChangedFieldsAndNeverInProgress() {

@@ -8,10 +8,18 @@ public enum ConnectionSignal: Sendable, Equatable {
 
 public protocol CommandRunner: AnyObject {
     @MainActor func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue
+    @MainActor func command(_ id: String, workspace: String?, args: JSONValue?, requestId: String?) async throws -> JSONValue
     @MainActor func command<T: Decodable & Sendable>(_ id: String, workspace: String?, args: JSONValue?, as type: T.Type) async throws -> T
+    @MainActor var dedupes: Bool { get }
 }
 
 extension CommandRunner {
+    @MainActor public func command(_ id: String, workspace: String?, args: JSONValue?, requestId: String?) async throws -> JSONValue {
+        try await command(id, workspace: workspace, args: args)
+    }
+
+    @MainActor public var dedupes: Bool { false }
+
     @MainActor public func command<T: Decodable & Sendable>(_ id: String, workspace: String?, args: JSONValue?, as type: T.Type) async throws -> T {
         try await command(id, workspace: workspace, args: args).decode(type)
     }
@@ -139,6 +147,14 @@ public final class ComputerConnection: CommandRunner {
         try await authorized { try await $0.command(id, workspace: workspace, args: args) }
     }
 
+    public func command(_ id: String, workspace: String?, args: JSONValue?, requestId: String?) async throws -> JSONValue {
+        try await authorized { try await $0.command(id, workspace: workspace, args: args, requestId: requestId) }
+    }
+
+    public var dedupes: Bool {
+        hello?.requests ?? false
+    }
+
     public func command<T: Decodable & Sendable>(_ id: String, workspace: String?, args: JSONValue?, as type: T.Type) async throws -> T {
         try await authorized { try await $0.command(id, workspace: workspace, args: args, as: type) }
     }
@@ -249,6 +265,14 @@ public final class ComputerConnection: CommandRunner {
         case .offline, .connecting: true
         case .online, .unauthorized: false
         }
+    }
+
+    public var canWrite: Bool {
+        state != .unauthorized
+    }
+
+    public var queueNote: String? {
+        queues ? "\(computer.name) is offline · this goes out when it's back" : nil
     }
 
     public var queuedLine: String {

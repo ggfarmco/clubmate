@@ -361,6 +361,10 @@ public struct BacklogDraft: Sendable, Equatable {
         title.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    var typed: String {
+        [trimmedTitle, description].filter { !$0.isEmpty }.joined(separator: "\n\n")
+    }
+
     public var isValid: Bool {
         !trimmedTitle.isEmpty && !trimmedTitle.contains(where: \.isNewline)
     }

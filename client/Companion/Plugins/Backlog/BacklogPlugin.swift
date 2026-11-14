@@ -83,7 +83,7 @@ struct BacklogListView: View {
             WorkspaceMenu(context: context)
             ToolbarItem(placement: .primaryAction) {
                 Button("New Task", systemImage: "plus") { BacklogPlugin.startNew(context) }
-                    .disabled(workspace == nil || context.connection.state != .online)
+                    .disabled(workspace == nil || !context.connection.canWrite)
             }
         }
     }
@@ -107,6 +107,13 @@ struct TaskListView: View {
                 }
             }
             ListAgeSection { store.ageLine(now: $0) }
+            if !store.outbox.isEmpty {
+                Section("Queued") {
+                    ForEach(store.outbox) { item in
+                        QueuedLine(item: item, queuedLine: context.connection.queuedLine) { store.queue.cancel(item) }
+                    }
+                }
+            }
             ForEach(store.groups, id: \.status) { group in
                 if BacklogStatus.folded.contains(group.status) {
                     Section(isExpanded: Binding(get: { expanded.contains(group.status) }, set: { open in
@@ -152,7 +159,7 @@ struct TaskListView: View {
                 } actions: {
                     Button("New Task", systemImage: "plus") { BacklogPlugin.startNew(context) }
                         .buttonStyle(.glassProminent)
-                        .disabled(context.connection.state != .online)
+                        .disabled(!context.connection.canWrite)
                 }
             }
         }
@@ -162,7 +169,7 @@ struct TaskListView: View {
 
     private func rows(_ tasks: [BacklogTask]) -> some View {
         ForEach(tasks) { task in
-            TaskRow(task: task, owner: BacklogPlugin.owner(task, context: context))
+            TaskRow(task: task, owner: BacklogPlugin.owner(task, context: context), queued: store.queued(task.id).contains { $0.failure == nil })
                 .tag(String(task.id))
                 .selectedRow(context.navigation.layout != .compact && context.navigation.detail == String(task.id))
                 .swipeActions(edge: .trailing) {
@@ -246,6 +253,7 @@ struct TaskActions: View {
 struct TaskRow: View {
     let task: BacklogTask
     let owner: String?
+    var queued = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -268,7 +276,7 @@ struct TaskRow: View {
 
     private var subtitle: String {
         let detail = task.status == .inProgress ? owner ?? task.noteLine : task.noteLine
-        return ([task.number] + [detail].compactMap { $0 }).joined(separator: " · ")
+        return ((queued ? ["Queued"] : []) + [task.number] + [detail].compactMap { $0 }).joined(separator: " · ")
     }
 }
 
@@ -340,13 +348,13 @@ struct TaskDetailView: View {
                     .toolbar {
                         ToolbarItem(placement: .primaryAction) {
                             Button("Edit") { editing = true }
-                                .disabled(context.connection.state != .online || detail?.fresh != true)
+                                .disabled(!context.connection.canWrite || detail?.fresh != true)
                         }
                         ToolbarItem(placement: .primaryAction) {
                             Menu("More", systemImage: "ellipsis") {
                                 TaskActions(task: task, store: store, agentStart: context.connection.supports(BacklogCommand.start), failure: $failure)
                             }
-                            .disabled(context.connection.state != .online)
+                            .disabled(!context.connection.canWrite)
                         }
                     }
                     .sheet(isPresented: $editing) {
@@ -384,6 +392,11 @@ struct TaskDetailView: View {
         let full = detail?.task ?? task
         return ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                ForEach(store.queued(taskID)) { queued in
+                    QueuedLine(item: queued, queuedLine: context.connection.queuedLine) { store.queue.cancel(queued) }
+                        .padding(12)
+                        .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12))
+                }
                 HStack(spacing: 8) {
                     Label(task.status.label, systemImage: task.status.symbol)
                         .font(.subheadline.weight(.semibold))
@@ -482,6 +495,11 @@ struct TaskDetailView: View {
             guard !Task.isCancelled else { return }
             detail = TaskDetail(task: full ?? detail?.task, fresh: full != nil || detail?.fresh == true, failed: full == nil)
         }
+        .onChange(of: store.arrival) { _, arrival in
+            guard let arrival, arrival.task == taskID, !starting, !editing else { return }
+            store.arrival = nil
+            openSession(arrival.session)
+        }
     }
 
     private func follow(_ link: DocumentLink) {
@@ -519,7 +537,6 @@ struct TaskDetailView: View {
 
     @ViewBuilder
     private func buttons(_ task: BacklogTask) -> some View {
-        let online = context.connection.state == .online
         Group {
             if let primary = detail?.task?.primary, [.todo, .idea, .inProgress].contains(task.status) {
                 VStack(alignment: .leading, spacing: 8) {
@@ -547,7 +564,7 @@ struct TaskDetailView: View {
                 legacyButtons(task)
             }
         }
-        .disabled(!online)
+        .disabled(!context.connection.canWrite)
     }
 
     @ViewBuilder
@@ -885,7 +902,7 @@ struct TaskEditorView: View {
     }
 
     var body: some View {
-        let blocked = connection.blocked(action)
+        let blocked = connection.queues ? connection.queueNote : connection.blocked(action)
         Form {
             Section {
                 TextField("Title", text: draft.title)
@@ -936,7 +953,7 @@ struct TaskEditorView: View {
                     ProgressView()
                 } else {
                     Button(task == nil ? "Add" : "Save") { save() }
-                        .disabled(!draft.wrappedValue.isValid || blocked != nil)
+                        .disabled(!draft.wrappedValue.isValid || !connection.canWrite)
                 }
             }
         }

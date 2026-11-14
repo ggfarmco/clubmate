@@ -172,6 +172,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		hub:      newHub(a.changed),
 		identity: a.ident,
 		relay:    relay,
+		requests: newRequestLog(h, time.Now),
 		changed:  a.changed,
 		watching: a.watching,
 		ping:     pingInterval,
@@ -187,6 +188,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	}
 	close(a.ready)
 	go a.rescanLoop(ctx)
+	go a.srv.requests.pruneLoop(ctx)
 	go a.seedPushTriggers(ctx)
 	return nil
 }

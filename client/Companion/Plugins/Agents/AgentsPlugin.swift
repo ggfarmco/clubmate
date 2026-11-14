@@ -80,7 +80,7 @@ struct AgentsListView: View {
             WorkspaceMenu(context: context)
             ToolbarItem(placement: .primaryAction) {
                 Button("New Session", systemImage: "square.and.pencil") { AgentsPlugin.startNew(context) }
-                    .disabled(workspace == nil || context.connection.state != .online)
+                    .disabled(workspace == nil || !context.connection.canWrite)
             }
         }
     }
@@ -107,6 +107,13 @@ struct SessionListView: View {
                 Section {
                     QueueNoteRow(note: note) { store.queue?.dismiss(note) }
                         .listRowInsets(EdgeInsets())
+                }
+            }
+            if !store.pendingCreates.isEmpty {
+                Section("Starting") {
+                    ForEach(store.pendingCreates) { item in
+                        QueuedLine(item: item, queuedLine: context.connection.queuedLine) { store.queue?.cancel(item) }
+                    }
                 }
             }
             if store.searching {
@@ -142,11 +149,17 @@ struct SessionListView: View {
                 } actions: {
                     Button("New Session", systemImage: "square.and.pencil") { AgentsPlugin.startNew(context) }
                         .buttonStyle(.glassProminent)
-                        .disabled(context.connection.state != .online)
+                        .disabled(!context.connection.canWrite)
                 }
             }
         }
         .refreshable { await store.refresh() }
+        .onChange(of: store.arrived) { _, arrived in
+            guard let arrived else { return }
+            store.arrived = nil
+            context.navigation.detail = arrived
+            context.navigation.preferredColumn = .detail
+        }
     }
 
     @ViewBuilder
@@ -589,7 +602,7 @@ struct NewSessionView: View {
                     attachments: $attachments,
                     focused: $composerFocused,
                     session: nil,
-                    enabled: context.connection.state == .online,
+                    enabled: context.connection.canWrite,
                     sending: sending,
                     send: send
                 )
@@ -613,6 +626,10 @@ struct NewSessionView: View {
             do {
                 if let id = try await store.create(text, attachments: attached) {
                     context.navigation.detail = id
+                } else {
+                    draft = ""
+                    attachments = []
+                    context.navigation.detail = nil
                 }
             } catch {
                 failure = (error as? RemoteError)?.message ?? error.localizedDescription

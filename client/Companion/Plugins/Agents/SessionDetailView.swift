@@ -182,7 +182,7 @@ struct SessionDetailView: View {
                         .padding(.horizontal, 12)
                         .frame(maxWidth: 820)
                 }
-                if let queued, queued.kind == .archive {
+                if let queued, queued.kind != .connect {
                     QueuedLine(item: queued, queuedLine: context.connection.queuedLine) {
                         store.queue?.cancel(queued)
                     }
@@ -496,8 +496,8 @@ struct SessionDetailView: View {
             attachments: $attachments,
             focused: $composerFocused,
             session: session,
-            enabled: blocked == nil,
-            blocked: answerDocked || !failureButtons.isEmpty || reviewable ? nil : blocked,
+            enabled: blocked == nil || context.connection.queues,
+            blocked: answerDocked || !failureButtons.isEmpty || reviewable ? nil : context.connection.queueNote ?? blocked,
             sending: sending,
             wide: stopInHeader,
             hint: answersGoWith(screen) ? "Your answers go with it" : nil,

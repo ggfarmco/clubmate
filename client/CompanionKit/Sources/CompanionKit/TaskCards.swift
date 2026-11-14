@@ -366,10 +366,14 @@ public enum Delivery: Sendable, Equatable {
 }
 
 public struct OfflineRefused: Error, Equatable, LocalizedError {
-    public init() {}
+    public let action: String
+
+    public init(_ action: String = "Merge") {
+        self.action = action
+    }
 
     public var errorDescription: String? {
-        "Merge needs the Mac online"
+        "\(action) needs the Mac online"
     }
 }
 

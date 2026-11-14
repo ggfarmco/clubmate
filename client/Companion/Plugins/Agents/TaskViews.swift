@@ -237,12 +237,25 @@ struct QueuedLine: View {
             Image(systemName: item.attempted || item.failure != nil ? "exclamationmark.circle" : "clock")
                 .foregroundStyle(Color.captionInk)
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.line(queued: queuedLine))
+                Text(waiting && item.kind == .command ? item.line(queued: item.title) : item.line(queued: queuedLine))
                     .font(.subheadline.weight(.semibold))
-                Text(item.detail)
-                    .font(.footnote)
-                    .foregroundStyle(Color.captionInk)
-                    .lineLimit(2)
+                Group {
+                    if waiting {
+                        Text("\(item.kind == .command ? queuedLine : item.title) · ") + Text(item.at, format: .relative(presentation: .named))
+                    } else {
+                        Text(item.detail)
+                    }
+                }
+                .font(.footnote)
+                .foregroundStyle(Color.captionInk)
+                .lineLimit(2)
+                if item.failure != nil, let text = item.text {
+                    Text(text)
+                        .font(.footnote)
+                        .lineLimit(6)
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("queuedText")
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if item.canUndo || item.canDismiss {
@@ -253,6 +266,10 @@ struct QueuedLine: View {
             }
         }
         .accessibilityElement(children: .contain)
+    }
+
+    private var waiting: Bool {
+        item.failure == nil && !item.mayHaveRun
     }
 }
 

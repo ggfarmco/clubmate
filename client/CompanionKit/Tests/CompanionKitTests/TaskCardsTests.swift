@@ -127,6 +127,29 @@ final class TaskCardsTests: XCTestCase {
         XCTAssertFalse(runner.commands.contains(TaskCommand.landAnswer))
     }
 
+    func testAMergeThatLosesTheLinkFailsAndNeverQueues() async throws {
+        let runner = TaskRunner(requests: ["lr_1"], failure: RemoteError.notSent("gone"))
+        let queue = ActionQueue(file: nil)
+        let store = AgentsStore(workspace: "w", runner: runner, queue: queue, computer: "m")
+
+        await XCTAssertThrowsAsync(try await store.land("s", card: try landCard(), action: LandCard.merge), RemoteError.notSent("gone"))
+
+        XCTAssertTrue(queue.items.isEmpty)
+    }
+
+    func testAMergeInFlightIsNeverSavedForTheNextLaunch() async throws {
+        let file = tempFile()
+        let runner = TaskRunner(requests: ["lr_1"])
+        var saved: [QueuedAction]?
+        runner.during = { saved = ActionQueue(file: file).items }
+        let store = AgentsStore(workspace: "w", runner: runner, queue: ActionQueue(file: file), computer: "m")
+
+        try await store.land("s", card: try landCard(), action: LandCard.merge)
+
+        XCTAssertEqual(saved, [])
+        XCTAssertEqual(runner.commands, [TaskCommand.landAnswer])
+    }
+
     func testConnectAndArchiveQueueSurviveARestartAndGoOutOnReconnect() async throws {
         let file = tempFile()
         let offline = TaskRunner()

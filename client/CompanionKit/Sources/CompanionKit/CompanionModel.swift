@@ -42,6 +42,11 @@ public final class CompanionModel {
         for computer in computers {
             attach(computer)
         }
+        queue.onLanded = { [weak self] landed in
+            let key = landed.item.computer + "|" + landed.item.workspace
+            self?.backlogs[key]?.landed(landed)
+            self?.agents[key]?.landed(landed)
+        }
     }
 
     public func start() {
@@ -176,7 +181,9 @@ public final class CompanionModel {
         let key = computer + "|" + workspace
         if let existing = backlogs[key] { return existing }
         guard let connection = connections[computer] else { return nil }
-        let store = BacklogStore(workspace: workspace, runner: connection, cache: lists, computer: computer)
+        let store = BacklogStore(workspace: workspace, runner: connection, queue: queue, cache: lists, computer: computer, queues: { [weak connection] in connection?.queues ?? false }, retry: { [weak self, weak connection] in
+            if let self, let connection { self.flushQueue(connection) }
+        })
         backlogs[key] = store
         return store
     }
@@ -278,9 +285,10 @@ public final class CompanionModel {
         let computer = connection.computer.id
         guard queue.isDue(computer: computer) else { return }
         Task {
-            let touched = await queue.flush(computer: computer, runner: connection, supports: connection.supports)
-            for workspace in touched {
+            let flushed = await queue.flush(computer: computer, runner: connection, supports: connection.supports)
+            for workspace in flushed.touched {
                 await agents(computer: computer, workspace: workspace)?.refreshAll()
+                await backlogs[computer + "|" + workspace]?.refresh()
             }
             retryLater(connection)
         }

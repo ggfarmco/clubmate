@@ -385,8 +385,8 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
 
     static let outgoingPrefix = "outgoing/"
 
-    init(outgoing text: String, images: [Data], files: [String] = []) {
-        entryID = UUID().uuidString
+    init(outgoing text: String, images: [Data], files: [String] = [], entryID: String = UUID().uuidString) {
+        self.entryID = entryID
         id = Self.outgoingPrefix + entryID
         turn = 0
         at = nil

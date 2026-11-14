@@ -29,6 +29,8 @@ import (
 	"clubmate/pkg/pluginsdk"
 )
 
+var errValueTooLarge = errors.New("value too large")
+
 type fixture struct {
 	ts          *httptest.Server
 	relayServer *httptest.Server
@@ -65,6 +67,10 @@ type fakeBackend struct {
 	workspaces  []pluginsdk.Workspace
 	addFails    int
 	adds        int
+	reply       json.RawMessage
+	runErr      error
+	runEntered  chan struct{}
+	runRelease  chan struct{}
 }
 
 type runCall struct {
@@ -74,6 +80,7 @@ type runCall struct {
 
 type memKV struct {
 	mu      sync.Mutex
+	limit   int
 	data    map[string][]byte
 	fail    error
 	entered chan struct{}
@@ -417,7 +424,7 @@ func TestCommandRunsOnlyRemoteCommands(t *testing.T) {
 	_, ok := f.call(t, token, "command", map[string]any{"id": "agents.sessions", "workspace": "prj_1", "args": map[string]any{"x": 1}})
 	_, denied := f.call(t, token, "command", map[string]any{"id": "agents.delete", "workspace": "prj_1"})
 
-	assert.JSONEq(t, `{"computer":{"id":"cmp","name":"Mac","colour":""},"version":"1.2.3","commands":["agents.sessions"],"topics":["agents.changed","backlog.changed","docs.changed","docs.opened","notify.posted","plugin.changed","remote.identity","voice.changed","voice.settings-changed"],"ui":true}`, string(hello.Result))
+	assert.JSONEq(t, `{"computer":{"id":"cmp","name":"Mac","colour":""},"version":"1.2.3","commands":["agents.sessions"],"topics":["agents.changed","backlog.changed","docs.changed","docs.opened","notify.posted","plugin.changed","remote.identity","voice.changed","voice.settings-changed"],"ui":true,"requests":true}`, string(hello.Result))
 	assert.JSONEq(t, `{"ran":"agents.sessions"}`, string(ok.Result))
 	assert.Equal(t, []runCall{{id: "agents.sessions", workspace: "prj_1", args: `{"x":1}`}}, f.backend.calls())
 	assert.Equal(t, codeNotAllowed, denied.Error.Code)
@@ -666,6 +673,7 @@ func newFixture(t *testing.T) *fixture {
 		hub:      newHub(func() {}),
 		identity: &identity{kv: f.kv, publish: f.topics.add, comp: computer{ID: "cmp", Name: "Mac"}},
 		relay:    newRelayClient(f.kv, http.DefaultClient),
+		requests: newRequestLog(f.kv, f.clock.Now),
 		changed:  func() {},
 		watching: f.watched.add,
 		ping:     time.Hour,
@@ -802,10 +810,28 @@ func (b *fakeBackend) Commands(context.Context) ([]commandInfo, error) {
 	return []commandInfo{{ID: "agents.sessions", Remote: true, Running: true}, {ID: "agents.delete", Running: true}, {ID: "agents.stopped", Remote: true}}, nil
 }
 
-func (b *fakeBackend) Run(_ context.Context, id, workspace string, args json.RawMessage) (json.RawMessage, error) {
+func (b *fakeBackend) Run(ctx context.Context, id, workspace string, args json.RawMessage) (json.RawMessage, error) {
+	b.mu.Lock()
+	entered, release := b.runEntered, b.runRelease
+	b.runEntered, b.runRelease = nil, nil
+	b.mu.Unlock()
+	if entered != nil {
+		close(entered)
+		<-release
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.runs = append(b.runs, runCall{id: id, workspace: workspace, args: string(args)})
+	if err := b.runErr; err != nil {
+		b.runErr = nil
+		return nil, err
+	}
+	if b.reply != nil {
+		return b.reply, nil
+	}
 	if id == triggersAddCommand {
 		b.adds++
 		if b.addFails > 0 {
@@ -910,6 +936,10 @@ func (m *memKV) StorageSet(_ context.Context, key string, v any) error {
 		return err
 	}
 	m.mu.Lock()
+	if m.limit > 0 && len(raw) > m.limit {
+		m.mu.Unlock()
+		return errValueTooLarge
+	}
 	fail, entered, release := m.fail, m.entered, m.release
 	m.entered, m.release = nil, nil
 	m.mu.Unlock()
@@ -947,6 +977,19 @@ func (m *memKV) StorageList(_ context.Context, prefix string) ([]string, error) 
 	}
 	slices.Sort(keys)
 	return keys, nil
+}
+
+func (b *fakeBackend) holdNextRun() (entered, release chan struct{}) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.runEntered, b.runRelease = make(chan struct{}), make(chan struct{})
+	return b.runEntered, b.runRelease
+}
+
+func (b *fakeBackend) failNextRun(err error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.runErr = err
 }
 
 func (m *memKV) holdNextSet() (entered, release chan struct{}) {
