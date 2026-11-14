@@ -61,6 +61,7 @@ func TestAgentExitKeepsIdleSessionState(t *testing.T) {
 
 	f.prompt(t, workspace, crashing, "crash")
 	f.waitStatus(t, workspace, crashing, "error")
+	testutil.Eventually(t, func() bool { return len(f.turns(t, idle)) > 0 && len(f.turns(t, crashing)) > 0 }, wait)
 
 	got := f.session(t, workspace, idle)
 	assert.Equal(t, "done", got.Status)
