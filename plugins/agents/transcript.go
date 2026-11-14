@@ -154,6 +154,7 @@ type promptPayload struct {
 	Voice     bool        `json:"voice,omitempty"`
 	Review    *reviewSent `json:"review,omitempty"`
 	Sent      string      `json:"sent,omitempty"`
+	Queued    []string    `json:"queued,omitempty"`
 }
 
 type permissionPayload struct {

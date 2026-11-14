@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 )
 
@@ -26,6 +25,7 @@ type queuedPrompt struct {
 	Review      *reviewSent  `json:"review,omitempty"`
 	Answered    []string     `json:"answered,omitempty"`
 	Sending     bool         `json:"sending,omitempty"`
+	Parts       []string     `json:"-"`
 	Land        bool         `json:"-"`
 }
 
@@ -68,11 +68,6 @@ func (s *session) restoreQueue(queue []queuedPrompt) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.queue = queue
-	for _, q := range queue {
-		if n, err := strconv.Atoi(strings.TrimPrefix(q.ID, "q")); err == nil {
-			s.queueSeq = max(s.queueSeq, n)
-		}
-	}
 }
 
 func (s *session) queued() []queuedPrompt {
@@ -82,8 +77,7 @@ func (s *session) queued() []queuedPrompt {
 }
 
 func (s *session) queuedLocked(args promptArgs) queuedPrompt {
-	s.queueSeq++
-	return queuedPrompt{ID: "q" + strconv.Itoa(s.queueSeq), Text: args.Text, Attachments: args.Attachments, From: args.From, Voice: args.Voice, Review: args.Review, Answered: args.Answered, Land: args.Land}
+	return queuedPrompt{ID: rand.Text(), Text: args.Text, Attachments: args.Attachments, From: args.From, Voice: args.Voice, Review: args.Review, Answered: args.Answered, Land: args.Land}
 }
 
 func (s *session) dequeueLocked() (promptArgs, bool) {
@@ -102,8 +96,10 @@ func (s *session) dequeueLocked() (promptArgs, bool) {
 	parts := s.queue[:n]
 	s.queue = slices.Clone(s.queue[n:])
 	args := promptArgs{From: from, Voice: voice, Review: parts[0].Review}
-	var texts []string
+	var texts, ids []string
 	for _, q := range parts {
+		ids = append(ids, q.ID)
+		ids = append(ids, q.Parts...)
 		if strings.TrimSpace(q.Text) != "" {
 			texts = append(texts, q.Text)
 		}
@@ -112,7 +108,7 @@ func (s *session) dequeueLocked() (promptArgs, bool) {
 	}
 	args.Text = strings.Join(texts, "\n\n")
 	sending := s.queuedLocked(args)
-	sending.ID, sending.Sending = rand.Text(), true
+	sending.Sending, sending.Parts = true, ids
 	sending.Land = !slices.ContainsFunc(parts, func(q queuedPrompt) bool { return !q.Land })
 	s.sending = &sending
 	return args, true
@@ -128,6 +124,14 @@ func (s *session) requeueSendingLocked() {
 	s.queue = slices.Insert(s.queue, 0, *q)
 }
 
+func (s *session) recordSentLocked(p promptPayload) {
+	if q := s.sending; q != nil {
+		p.Sent, p.Queued = q.ID, q.Parts
+		s.sending = nil
+	}
+	s.recordLocked(promptActor(p.From), kindPrompt, p)
+}
+
 func (s *session) storedQueueLocked() []queuedPrompt {
 	if s.sending == nil {
 		return storedQueue(s.queue)
@@ -136,26 +140,42 @@ func (s *session) storedQueueLocked() []queuedPrompt {
 }
 
 func restoredQueue(stateDir, session string, queue []queuedPrompt) ([]queuedPrompt, bool) {
-	if len(queue) == 0 || !queue[0].Sending {
+	if len(queue) == 0 {
 		return queue, false
 	}
-	if sentInLog(logPath(stateDir, session), queue[0].ID) {
-		return queue[1:], false
+	sent := sentInLog(logPath(stateDir, session), queue)
+	first := queue[0]
+	queue = slices.DeleteFunc(queue, func(q queuedPrompt) bool { return sent[q.ID] })
+	unsent := first.Sending && !sent[first.ID]
+	if unsent {
+		queue[0].Sending = false
 	}
-	queue[0].Sending = false
-	return queue, true
+	return queue, unsent
 }
 
-func sentInLog(path, token string) bool {
-	sent := false
-	err := newEventLog(path).replay(func(e envelope) {
-		if sent || e.Kind != kindPrompt || !bytes.Contains(e.Payload, []byte(token)) {
+func sentInLog(path string, queue []queuedPrompt) map[string]bool {
+	ids := make([][]byte, 0, len(queue))
+	for _, q := range queue {
+		ids = append(ids, []byte(q.ID))
+	}
+	sent := map[string]bool{}
+	err := newEventLog(path).scan(func(line []byte) bool {
+		return slices.ContainsFunc(ids, func(id []byte) bool { return bytes.Contains(line, id) })
+	}, func(e envelope) {
+		var p promptPayload
+		if e.Kind != kindPrompt || json.Unmarshal(e.Payload, &p) != nil {
 			return
 		}
-		var p promptPayload
-		sent = json.Unmarshal(e.Payload, &p) == nil && p.Sent == token
+		sent[p.Sent] = true
+		for _, id := range p.Queued {
+			sent[id] = true
+		}
 	})
-	return sent && err == nil
+	if err != nil {
+		return nil
+	}
+	delete(sent, "")
+	return sent
 }
 
 func queueSpillPath(stateDir, session string) string {

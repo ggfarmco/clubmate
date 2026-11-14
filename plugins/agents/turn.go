@@ -40,7 +40,6 @@ type runState struct {
 	perms           map[string]*pendingPermission
 	queue           []queuedPrompt
 	sending         *queuedPrompt
-	queueSeq        int
 	epoch           int
 	superseded      map[string]bool
 	asked           bool
@@ -259,11 +258,7 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	if none := s.takeNoneLocked(); none != "" {
 		req.Prompt = slices.Insert(slices.Clip(req.Prompt), 0, acp.ContentBlock{Type: "text", Text: none})
 	}
-	sent := ""
-	if s.sending != nil {
-		sent, s.sending = s.sending.ID, nil
-	}
-	s.recordLocked(promptActor(args.From), kindPrompt, promptPayload{PromptRequest: acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: blocks}, From: args.From, FromTitle: fromTitle, Voice: args.Voice, Review: args.Review, Sent: sent})
+	s.recordSentLocked(promptPayload{PromptRequest: acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: blocks}, From: args.From, FromTitle: fromTitle, Voice: args.Voice, Review: args.Review})
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
 	req.Prompt = sendable(req.Prompt)
