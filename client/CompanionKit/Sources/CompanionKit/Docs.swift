@@ -127,6 +127,10 @@ public struct DocEntry: Decodable, Equatable, Sendable, Identifiable {
     }
 }
 
+extension DocEntry: SyncedItem {
+    public static let field = "docs"
+}
+
 public struct DocsList: Decodable, Sendable {
     public let docs: [DocEntry]
     public let truncated: Bool
@@ -151,7 +155,7 @@ public struct DocsList: Decodable, Sendable {
 public final class DocsListStore {
     public let workspace: String
     public let session: String?
-    public private(set) var docs: [DocEntry] = []
+    private var list = SyncedList<DocEntry>()
     public private(set) var truncated = false
     public private(set) var loaded = false
     public private(set) var error: String?
@@ -161,7 +165,6 @@ public final class DocsListStore {
     @ObservationIgnored private let cache: ListCache
     @ObservationIgnored private let key: ListCache.Key
     @ObservationIgnored private var etag: String?
-    @ObservationIgnored private var raw: JSONValue?
     @ObservationIgnored private let saves = SaveThrottle()
     @ObservationIgnored private var inflight = false
     @ObservationIgnored private var again = false
@@ -172,14 +175,17 @@ public final class DocsListStore {
         self.runner = runner
         self.cache = cache
         key = ListCache.Key(computer: computer, workspace: workspace, collection: "docs", scope: session ?? "")
-        if let saved = cache.load(key, as: Snapshot.self), let list = try? saved.list.decode(DocsList.self) {
-            docs = list.docs
-            truncated = list.truncated
-            etag = list.etag
-            raw = saved.list
+        if let saved = cache.load(key, as: Snapshot.self), let rows = saved.list["docs"]?.arrayValue, let list = try? SyncedList<DocEntry>(rows: rows, cursor: saved.list["cursor"]?.stringValue) {
+            self.list = list
+            truncated = saved.list["truncated"]?.boolValue ?? false
+            etag = saved.list["etag"]?.stringValue
             syncedAt = saved.at
             loaded = true
         }
+    }
+
+    public var docs: [DocEntry] {
+        list.items
     }
 
     public func ageLine(now: Date = .now) -> String? {
@@ -221,22 +227,30 @@ public final class DocsListStore {
     private func load() async {
         guard let runner else { return }
         do {
-            var args: [String: JSONValue] = [:]
+            var args: [String: JSONValue] = ["since": .string(list.cursor ?? "")]
             if let session { args["session"] = .string(session) }
             if let etag { args["ifNoneMatch"] = .string(etag) }
-            let reply = try await runner.command(DocsCommand.list, workspace: workspace, args: args.isEmpty ? nil : .object(args))
-            let list = try reply.decode(DocsList.self)
-            if !list.unchanged {
-                docs = list.docs
-                truncated = list.truncated
-                etag = list.etag
-                raw = reply
+            let reply = try await runner.command(DocsCommand.list, workspace: workspace, args: .object(args))
+            if SyncedList<DocEntry>.synced(reply) {
+                try list.apply(reply)
+                truncated = reply["truncated"]?.boolValue ?? false
+                etag = nil
+            } else {
+                let legacy = try reply.decode(DocsList.self)
+                if !legacy.unchanged {
+                    try list.replace(reply["docs"]?.arrayValue ?? [])
+                    truncated = legacy.truncated
+                    etag = legacy.etag
+                }
             }
             syncedAt = .now
             error = nil
             saves.request { [weak self] in
-                guard let self, let raw = self.raw, let at = self.syncedAt else { return }
-                self.cache.save(Snapshot(list: raw, at: at), self.key)
+                guard let self, let at = self.syncedAt else { return }
+                var saved: [String: JSONValue] = ["docs": .array(self.list.rows), "truncated": .bool(self.truncated)]
+                if let cursor = self.list.cursor { saved["cursor"] = .string(cursor) }
+                if let etag = self.etag { saved["etag"] = .string(etag) }
+                self.cache.save(Snapshot(list: .object(saved), at: at), self.key)
             }
         } catch {
             self.error = (error as? RemoteError)?.message ?? error.localizedDescription

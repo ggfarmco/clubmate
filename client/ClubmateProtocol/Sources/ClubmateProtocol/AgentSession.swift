@@ -55,6 +55,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let archivable: Bool
     public let taskFinished: Bool
     public let requests: [String]
+    public let turns: Int
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -66,7 +67,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         needsYouSince: Date? = nil, activity: SessionActivity? = nil, failure: SessionFailure? = nil, reopen: FailureAction? = nil, modeLabel: String? = nil,
         autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false, group: SessionGroup? = nil, active: Bool = false, kind: String? = nil, run: SessionRun? = nil,
         reviewProgress: ReviewProgress? = nil, openCount: Int = 0, openDecisions: Int = 0, openOffers: Int = 0, openSince: Date? = nil, mayAsk: Bool = false,
-        repo: String? = nil, taskRows: [RepoRow] = [], taskBadge: String? = nil, archivable: Bool = false, taskFinished: Bool = false, requests: [String] = []
+        repo: String? = nil, taskRows: [RepoRow] = [], taskBadge: String? = nil, archivable: Bool = false, taskFinished: Bool = false, requests: [String] = [], turns: Int = 0
     ) {
         self.id = id
         self.workspace = workspace
@@ -122,6 +123,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.archivable = archivable
         self.taskFinished = taskFinished
         self.requests = requests
+        self.turns = turns
     }
 
     public var isClosed: Bool { status == .closed }
@@ -129,7 +131,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
-        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, active, kind, run, reviewProgress, openCount, openDecisions, openOffers, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests
+        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, active, kind, run, reviewProgress, openCount, openDecisions, openOffers, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests, turns
     }
 
     public init(from decoder: any Decoder) throws {
@@ -193,7 +195,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             taskBadge: try optional(.taskBadge),
             archivable: try flag(.archivable),
             taskFinished: try flag(.taskFinished),
-            requests: try c.decodeIfPresent([String].self, forKey: .requests) ?? []
+            requests: try c.decodeIfPresent([String].self, forKey: .requests) ?? [],
+            turns: try c.decodeIfPresent(Int.self, forKey: .turns) ?? 0
         )
     }
 
@@ -255,6 +258,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encode(archivable, forKey: .archivable)
         try c.encode(taskFinished, forKey: .taskFinished)
         try c.encode(requests, forKey: .requests)
+        try c.encode(turns, forKey: .turns)
     }
 }
 

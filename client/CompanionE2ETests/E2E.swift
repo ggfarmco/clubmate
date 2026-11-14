@@ -51,6 +51,19 @@ struct Mac: Sendable {
         _ = try request("POST", "rpc", ["method": "workspace.folder.add", "params": ["id": try workspace(), "path": path]])
     }
 
+    func freezeCore() throws {
+        _ = try request("POST", "core/stop", nil)
+    }
+
+    func thawCore() throws {
+        _ = try request("POST", "core/cont", nil)
+    }
+
+    func tasks(titled title: String) throws -> Int {
+        let tasks = (try run("backlog.list", ["since": ""]) as? [String: Any])?["tasks"] as? [[String: Any]] ?? []
+        return tasks.filter { $0["title"] as? String == title }.count
+    }
+
     func setRemote(_ enabled: Bool) throws {
         _ = try run("remote.enable", ["enabled": enabled])
     }

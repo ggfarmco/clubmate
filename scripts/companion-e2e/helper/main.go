@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"clubmate/internal/rpc"
@@ -28,6 +29,7 @@ type helper struct {
 	sim       string
 	bundle    string
 	repos     string
+	corePID   int
 
 	mu       sync.Mutex
 	pushes   []push
@@ -61,10 +63,12 @@ func main() {
 	flag.StringVar(&h.sim, "sim", "", "simulator udid pushes go to")
 	flag.StringVar(&h.bundle, "bundle", "com.clubmate.companion", "app bundle id")
 	flag.StringVar(&h.repos, "repos", "", "directory new scratch repos go in")
+	flag.IntVar(&h.corePID, "core-pid", 0, "core process, frozen and thawed by /core/{stop,cont}")
 	flag.Parse()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /rpc", h.rpc)
+	mux.HandleFunc("POST /core/{signal}", h.core)
 	mux.HandleFunc("POST /run", h.run)
 	mux.HandleFunc("POST /signal/{name}", h.signal)
 	mux.HandleFunc("GET /agent-log", h.log)
@@ -292,4 +296,13 @@ func reply(w http.ResponseWriter, result json.RawMessage, err error) {
 		body = map[string]any{"error": err.Error()}
 	}
 	_ = json.NewEncoder(w).Encode(body)
+}
+
+func (h *helper) core(w http.ResponseWriter, r *http.Request) {
+	sig := map[string]syscall.Signal{"stop": syscall.SIGSTOP, "cont": syscall.SIGCONT}[r.PathValue("signal")]
+	if sig == 0 || h.corePID == 0 {
+		reply(w, nil, fmt.Errorf("no core pid or unknown signal %q", r.PathValue("signal")))
+		return
+	}
+	reply(w, nil, syscall.Kill(h.corePID, sig))
 }

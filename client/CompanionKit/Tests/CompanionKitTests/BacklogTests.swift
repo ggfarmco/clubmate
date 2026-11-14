@@ -25,11 +25,36 @@ final class BacklogTests: XCTestCase {
         store.handle(.event(BusEvent(seq: 3, topic: "backlog.changed", payload: .object(["workspace": .string("w"), "id": .number(9)]))))
         try await waitUntil { store.loaded }
         XCTAssertEqual(runner.calls.map(\.args), [
-            .object(["status": .string("open"), "slim": .bool(true)]),
+            .object(["since": .string(""), "slim": .bool(true)]),
             .object(["status": .string("not_now"), "slim": .bool(true)]),
             .object(["status": .string("done"), "limit": .number(50), "slim": .bool(true)]),
         ])
         XCTAssertEqual(store.tasks.map(\.id), [7, 9, 4, 11, 3, 2])
+    }
+
+    func testAWriteReplysCursorNeverBecomesSince() async throws {
+        let runner = SyncRunner([
+            BacklogCommand.list: [#"{"tasks":[{"id":7,"title":"Old","status":"todo"}],"removed":[],"order":[7],"cursor":"e.3","delta":false}"#, #"{"tasks":[],"removed":[],"cursor":"e.9","delta":true}"#],
+            BacklogCommand.update: [#"{"id":7,"title":"Mine","status":"todo","cursor":"e.9"}"#],
+        ])
+        let store = BacklogStore(workspace: "w", runner: runner)
+        await store.refresh()
+        try await store.update(7, ["title": .string("Mine")])
+        XCTAssertEqual(runner.args(BacklogCommand.update).first?["seen"], .string("e.3"))
+        XCTAssertEqual(runner.args(BacklogCommand.list).map { $0["since"] }, [.string(""), .string("e.3")])
+    }
+
+    func testStaleRefusalPullsDeltaAndKeepsDraft() async throws {
+        let runner = SyncRunner([
+            BacklogCommand.list: [#"{"tasks":[{"id":7,"title":"Old","status":"todo"}],"removed":[],"order":[7],"cursor":"e.3","delta":false}"#, #"{"tasks":[{"id":7,"title":"Theirs","status":"todo"}],"removed":[],"cursor":"e.5","delta":true}"#],
+            BacklogCommand.update: ["stale"],
+        ])
+        let store = BacklogStore(workspace: "w", runner: runner)
+        await store.refresh()
+        try await store.update(7, ["title": .string("Mine")])
+        XCTAssertEqual(store.task(7)?.title, "Theirs")
+        XCTAssertEqual(store.queued(7).map(\.failure), [QueuedAction.changedOnMac])
+        XCTAssertEqual(store.queued(7).map(\.text), ["Mine"])
     }
 
     func testDecodesPrimaryLinksAndAttachmentsFromGet() throws {
@@ -98,5 +123,27 @@ final class BacklogRunner: CommandRunner {
             return status == "open" ? open.contains(value) : value == status
         }
         return .object(["tasks": .array(tasks)])
+    }
+}
+
+@MainActor
+final class SyncRunner: CommandRunner {
+    private var replies: [String: [String]]
+    private(set) var calls: [(id: String, args: JSONValue)] = []
+
+    init(_ replies: [String: [String]]) {
+        self.replies = replies
+    }
+
+    func args(_ id: String) -> [JSONValue] {
+        calls.filter { $0.id == id }.map(\.args)
+    }
+
+    func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
+        calls.append((id, args ?? .null))
+        guard let reply = replies[id]?.first else { return .null }
+        replies[id]?.removeFirst()
+        if reply == ServerReason.stale { throw RemoteError.server(code: ServerReason.stale, message: "#7 changed") }
+        return try JSONDecoder().decode(JSONValue.self, from: Data(reply.utf8))
     }
 }

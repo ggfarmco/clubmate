@@ -82,6 +82,9 @@ actor FixtureServer {
     private var others: [[String: JSONValue]] = []
     private var transcripts: [String: [String: JSONValue]] = [:]
     private var tasks: [[String: JSONValue]] = []
+    private var taskSeq = 1
+    private var taskRevs: [JSONValue: Int] = [:]
+    private var renamed = false
     private var docs: [String: JSONValue] = [:]
     private var docsList: [JSONValue] = []
     private var sessionDocs: [String: [String]] = [:]
@@ -327,6 +330,14 @@ actor FixtureServer {
             return (200, Self.json(["result": .object(["mimeType": .string("image/png"), "data": .string(image.base64EncodedString())])]))
         case "command" where params["id"]?.stringValue == "docs.read":
             return (200, Self.json(read(params["args"]?["path"]?.stringValue ?? "")))
+        case "command" where params["id"]?.stringValue == "backlog.update" && UserDefaults.standard.bool(forKey: "staleEdit"):
+            if let index = tasks.firstIndex(where: { $0["id"] == params["args"]?["id"] }) {
+                tasks[index]["title"] = .string((tasks[index]["title"]?.stringValue ?? "") + " (renamed on the Mac)")
+                bump(tasks[index]["id"])
+            }
+            return (200, Self.json(["error": .object(["code": .string("stale"), "message": .string("task changed")])]))
+        case "command" where staleSeen(params["args"] ?? .null):
+            return (200, Self.json(["error": .object(["code": .string("stale"), "message": .string("task changed")])]))
         case "command" where (UserDefaults.standard.string(forKey: "failCommands") ?? "").split(separator: ",").contains(Substring(params["id"]?.stringValue ?? "")):
             return (200, Self.json(["error": .object(["code": .string("internal"), "message": .string("context deadline exceeded")])]))
         case "command":
@@ -496,6 +507,17 @@ actor FixtureServer {
             guard let session = args["session"]?.stringValue else { return .object(["docs": .array(docsList), "truncated": .bool(false)]) }
             let paths = Set(sessionDocs[session] ?? [])
             return .object(["docs": .array(docsList.filter { paths.contains($0["path"]?.stringValue ?? "") }), "truncated": .bool(false)])
+        case "backlog.list" where args["since"] != nil && workspace == self.workspace:
+            let since = Int(args["since"]?.stringValue?.split(separator: ".").last ?? "") ?? -1
+            let delta = since >= 0
+            let rows = tasks.filter { $0["status"] != .string("archived") && (!delta || (taskRevs[$0["id"] ?? .null] ?? 0) > since) }.map { task in
+                var task = task
+                for key in ["descriptionHtml", "ownerState", "lastOwner", "history", "description"] { task[key] = nil }
+                return JSONValue.object(task)
+            }
+            var reply: [String: JSONValue] = ["tasks": .array(rows), "removed": .array([]), "cursor": .string("fx.\(taskSeq)"), "delta": .bool(delta)]
+            reply["order"] = .array(tasks.filter { $0["status"] != .string("archived") }.compactMap { $0["id"] })
+            return .object(reply)
         case "backlog.list":
             guard workspace == self.workspace else { return .object(["tasks": .array([])]) }
             let status = args["status"]?.stringValue ?? "open"
@@ -516,6 +538,7 @@ actor FixtureServer {
             var task: [String: JSONValue] = ["id": .number(id), "title": args["title"] ?? .string(""), "status": args["status"] ?? .string("todo"), "priority": args["priority"] ?? .string("normal"), "createdBy": .string("user"), "createdAt": Self.stamp(ago: 0), "updatedAt": Self.stamp(ago: 0)]
             if let description = args["description"] { task["description"] = description }
             tasks.insert(task, at: 0)
+            bump(task["id"])
             publish("backlog.changed", ["workspace": .string(self.workspace), "id": .number(id), "kind": .string("added")])
             return .object(task)
         case "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.takeback":
@@ -728,8 +751,19 @@ actor FixtureServer {
         }
         task["updatedAt"] = Self.stamp(ago: 0)
         tasks[index] = task
+        bump(task["id"])
         publish("backlog.changed", ["workspace": .string(workspace), "id": task["id"] ?? .null, "kind": .string("updated")])
         return .object(task)
+    }
+
+    private func staleSeen(_ args: JSONValue) -> Bool {
+        guard let seen = args["seen"]?.stringValue, let seq = Int(seen.split(separator: ".").last ?? ""), let id = args["id"] else { return false }
+        return (taskRevs[id] ?? 0) > seq
+    }
+
+    private func bump(_ id: JSONValue?) {
+        taskSeq += 1
+        taskRevs[id ?? .null] = taskSeq
     }
 
     private func finishPrompt(_ session: String, text: String) {
@@ -946,6 +980,17 @@ actor FixtureServer {
             Task {
                 try? await Task.sleep(for: .seconds(3))
                 publish("docs.opened", ["workspace": .string(workspace), "session": session, "path": .string("/Users/me/src/shop/docs/checkout-retries.md")])
+            }
+        }
+        let renameAfter = UserDefaults.standard.double(forKey: "renameAfter")
+        if renameAfter > 0, !renamed {
+            renamed = true
+            Task {
+                try? await Task.sleep(for: .seconds(renameAfter))
+                guard let index = tasks.firstIndex(where: { $0["id"] == .number(9) }) else { return }
+                tasks[index]["title"] = .string((tasks[index]["title"]?.stringValue ?? "") + " (renamed on the Mac)")
+                bump(tasks[index]["id"])
+                publish("backlog.changed", ["workspace": .string(workspace), "id": .number(9), "kind": .string("updated")])
             }
         }
         let asking = sessions.count > 1 ? sessions[1]["id"] ?? .null : .null

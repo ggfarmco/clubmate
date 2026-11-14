@@ -49,6 +49,20 @@ final class ActionQueueTests: XCTestCase {
         XCTAssertEqual(queue.items.map(\.id), [refused.id])
     }
 
+    func testALandedReplyCursorMovesLaterSeenUpNeverDown() async throws {
+        let queue = ActionQueue(file: nil)
+        var first = Self.update(7, title: "A")
+        var older = Self.update(7, title: "B")
+        var newer = Self.update(7, title: "C")
+        (first.seen, older.seen, newer.seen) = ("e.3", "e.3", "e.20")
+        for item in [first, older, newer] { queue.enqueue(item) }
+        let runner = OutboxRunner(reply: .object(["cursor": .string("e.11")]))
+
+        _ = await queue.flush(computer: "m", runner: runner, supports: { _ in true })
+
+        XCTAssertEqual(runner.sent.map { $0.args?["seen"] }, [.string("e.3"), .string("e.11"), .string("e.20")])
+    }
+
     func testBacklogUpdateShowsOverlayUntilLoaded() async throws {
         let queue = ActionQueue(file: nil)
         let runner = BacklogRunner()
@@ -141,10 +155,12 @@ final class PromptRunner: CommandRunner {
 
 final class OutboxRunner: CommandRunner {
     var failures: [any Error]
+    let reply: JSONValue
     private(set) var sent: [(id: String, args: JSONValue?, requestId: String?)] = []
 
-    init(failures: [any Error] = []) {
+    init(failures: [any Error] = [], reply: JSONValue = .object([:])) {
         self.failures = failures
+        self.reply = reply
     }
 
     var dedupes: Bool { true }
@@ -157,6 +173,6 @@ final class OutboxRunner: CommandRunner {
         if id == BacklogCommand.list { return .object(["tasks": .array([])]) }
         sent.append((id, args, requestId))
         if !failures.isEmpty { throw failures.removeFirst() }
-        return .object([:])
+        return reply
     }
 }

@@ -878,8 +878,9 @@ struct NewTaskView: View {
 struct TaskEditorView: View {
     let store: BacklogStore
     let connection: ComputerConnection
-    let task: BacklogTask?
     let finished: (Int?) -> Void
+    @State private var task: BacklogTask?
+    @State private var seen: String?
     @State private var edited: BacklogDraft
     @State private var saving = false
     @State private var failure: String?
@@ -888,8 +889,9 @@ struct TaskEditorView: View {
     init(store: BacklogStore, connection: ComputerConnection, task: BacklogTask?, finished: @escaping (Int?) -> Void) {
         self.store = store
         self.connection = connection
-        self.task = task
         self.finished = finished
+        _task = State(initialValue: task)
+        _seen = State(initialValue: task.flatMap { store.seen($0.id) })
         _edited = State(initialValue: task.map(BacklogDraft.init) ?? BacklogDraft())
     }
 
@@ -966,7 +968,7 @@ struct TaskEditorView: View {
         Task {
             do {
                 if let task {
-                    try await store.update(task.id, edited.changes(from: task))
+                    try await store.update(task.id, edited.changes(from: task), seen: seen)
                     finished(task.id)
                 } else {
                     finished(try await store.addNew()?.id)

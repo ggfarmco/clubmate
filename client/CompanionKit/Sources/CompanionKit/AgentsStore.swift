@@ -113,7 +113,7 @@ public final class AgentsStore {
     }
 
     public var sessions: [AgentSession] {
-        list.sessions
+        list.items
     }
 
     public var groups: [(group: SessionGroup, sessions: [SessionNode])] {
@@ -264,7 +264,7 @@ public final class AgentsStore {
         guard let runner else { return }
         do {
             let reply = try await runner.command(AgentCommand.sessions, workspace: workspace, args: list.args)
-            try list.apply(reply)
+            if let rows = reply.arrayValue { try list.replace(rows) } else { try list.apply(reply) }
             error = nil
             fetched = true
             syncedAt = .now
@@ -467,20 +467,42 @@ public final class AgentsStore {
     }
 
     public func cancel(_ session: String) async throws {
-        try await submit("agents.cancel", ["session": .string(session)], target: QueuedAction.sessionTarget + session, title: "Stop the turn")
-        await refreshSession(session)
+        var args: [String: JSONValue] = ["session": .string(session)]
+        if let turn = currentTurn(session) { args["turn"] = .number(Double(turn)) }
+        try await stopping(session) { try await self.submit("agents.cancel", args, target: QueuedAction.sessionTarget + session, title: "Stop the turn") }
     }
 
     public func stopSubagent(_ subagent: String, in session: String) async throws {
-        try await submit("agents.stop-subagent", ["session": .string(session), "subagent": .string(subagent)], target: QueuedAction.sessionTarget + session, title: "Stop the subagent")
+        var args: [String: JSONValue] = ["session": .string(session), "subagent": .string(subagent)]
+        if let turn = entries(session).last(where: { $0.entryID == subagent && $0.turn > 0 })?.turn { args["turn"] = .number(Double(turn)) }
+        try await stopping(session) { try await self.submit("agents.stop-subagent", args, target: QueuedAction.sessionTarget + session, title: "Stop the subagent") }
+    }
+
+    private func stopping(_ session: String, _ send: () async throws -> JSONValue?) async throws {
+        do {
+            _ = try await send()
+        } catch RemoteError.server(let code, let message) where code == ServerReason.stale {
+            await refreshSession(session)
+            throw RemoteError.server(code: code, message: message)
+        }
         await refreshSession(session)
+    }
+
+    private func sessionRows(_ session: String) async throws -> [JSONValue] {
+        guard let runner, let rows = try await runner.command(AgentCommand.sessions, workspace: workspace, args: .object(["session": .string(session)])).arrayValue else { throw RemoteError.badResponse }
+        return rows
+    }
+
+    func currentTurn(_ session: String) -> Int? {
+        let turn = max(self.session(session)?.turns ?? 0, transcripts[session]?.entries.map(\.turn).max() ?? 0)
+        return turn > 0 ? turn : nil
     }
 
     public func answer(_ session: String, request: String, option: String) async throws {
         guard let runner else { return }
         let online = !queues()
         if online {
-            list.replace(try await runner.command(AgentCommand.sessions, workspace: workspace, args: .object(["session": .string(session)]), as: [AgentSession].self), for: session)
+            try list.replace(try await sessionRows(session), for: session)
         }
         do {
             guard !online || self.session(session)?.pending.contains(request) == true else { throw AnswerError.alreadyAnswered }
@@ -653,7 +675,7 @@ public final class AgentsStore {
 
     private func ensureWaiting(_ session: String, request: String) async throws {
         guard let runner else { return }
-        list.replace(try await runner.command(AgentCommand.sessions, workspace: workspace, args: .object(["session": .string(session)]), as: [AgentSession].self), for: session)
+        try list.replace(try await sessionRows(session), for: session)
         guard self.session(session)?.requests.contains(request) == true else {
             await refreshSession(session)
             throw AnswerError.alreadyAnswered

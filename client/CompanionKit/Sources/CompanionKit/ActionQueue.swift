@@ -57,6 +57,7 @@ public struct QueuedAction: Codable, Sendable, Equatable, Identifiable {
 
     public static let sessionTarget = "session/"
     static let checkOnMac = "Check it on the Mac"
+    public static let changedOnMac = "Changed on the Mac"
 
     public var requestId: String { id }
 
@@ -165,6 +166,9 @@ public final class ActionQueue {
         } catch RemoteError.notSent {
             markAttempted(id, false)
             return nil
+        } catch RemoteError.server(let code, _) where code == ServerReason.stale && item.seen != nil {
+            refuse(id, QueuedAction.changedOnMac)
+            return nil
         } catch RemoteError.server(let code, let message) where runner.dedupes && !ServerReason.final(code) {
             backOff(id, message)
             return nil
@@ -256,7 +260,7 @@ public final class ActionQueue {
                     onLanded?(landed)
                 }
             } catch RemoteError.server(let code, let message) where ServerReason.drops(code) && item.kind == .command {
-                refuse(item.id, code == ServerReason.unknown ? QueuedAction.checkOnMac : message)
+                refuse(item.id, code == ServerReason.unknown ? QueuedAction.checkOnMac : code == ServerReason.stale && item.seen != nil ? QueuedAction.changedOnMac : message)
                 out.touched.insert(item.workspace)
             } catch RemoteError.server(let code, let message) where ServerReason.drops(code) {
                 drop(item.id, note: Self.staleNote(item, code: code, message))
@@ -323,6 +327,11 @@ public final class ActionQueue {
     private func land(_ id: String, _ result: JSONValue) -> Landed? {
         guard let item = current(id) else { return nil }
         items.removeAll { $0.id == id }
+        if item.seen != nil, let cursor = result["cursor"]?.stringValue {
+            for i in items.indices where items[i].seen != nil && !items[i].attempted && items[i].computer == item.computer && items[i].workspace == item.workspace && items[i].target == item.target {
+                items[i].seen = SyncCursor.newer(items[i].seen, current: cursor)
+            }
+        }
         persist()
         return Landed(item: item, result: result, at: now())
     }

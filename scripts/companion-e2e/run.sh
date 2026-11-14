@@ -70,7 +70,7 @@ xcrun simctl erase "$UDID" && xcrun simctl boot "$UDID" && xcrun simctl bootstat
 xcrun simctl spawn "$UDID" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true
 
 "$OUT/bin/e2e-helper" -addr "127.0.0.1:$HELPER_PORT" -socket "$RUN/core.sock" -workspace "$WORKSPACE" \
-  -signals "$OUT/signals" -repos "$OUT/repos" -agent-log "$OUT/fakeagent.log" -sim "$UDID" > "$OUT/helper.log" 2>&1 &
+  -signals "$OUT/signals" -repos "$OUT/repos" -core-pid "$CORE" -agent-log "$OUT/fakeagent.log" -sim "$UDID" > "$OUT/helper.log" 2>&1 &
 HELPER=$!
 
 if [[ "$ONLY" == "--hold" ]]; then

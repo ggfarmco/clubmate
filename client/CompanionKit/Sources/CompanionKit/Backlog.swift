@@ -384,3 +384,7 @@ public struct BacklogDraft: Sendable, Equatable {
         return args
     }
 }
+
+extension BacklogTask: SyncedItem {
+    public static let field = "tasks"
+}

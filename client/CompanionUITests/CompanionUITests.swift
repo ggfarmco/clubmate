@@ -142,6 +142,42 @@ final class CompanionUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual((edit?.frame.minX ?? 0) - value.frame.maxX, 8)
     }
 
+    func testAStaleEditShowsTheMacsVersionAndKeepsTheText() {
+        let app = launch(open: "backlog/9", ["-staleEdit", "YES"])
+        let edit = app.buttons["Edit"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 10))
+        edit.tap()
+        let title = app.textFields["taskTitle"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText(" fast")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(app.staticTexts["Changed on the Mac"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Cart badge shows stale count after checkout (renamed on the Mac)"].exists)
+        XCTAssertTrue(app.staticTexts["queuedText"].firstMatch.label.contains(" fast"))
+        add(screenshot(app, "stale-edit"))
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "(renamed on the Mac)")).firstMatch.waitForExistence(timeout: 5))
+        add(screenshot(app, "backlog-after-delta"))
+        app.buttons["Dismiss"].firstMatch.tap()
+        XCTAssertTrue(wait(for: app.staticTexts["Changed on the Mac"], "exists == false"))
+    }
+
+    func testAnEditKeepsTheSeqItStartedOnWhenTheMacChangesTheTask() {
+        let app = launch(open: "backlog/9", ["-renameAfter", "10"])
+        let edit = app.buttons["Edit"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 10))
+        edit.tap()
+        let title = app.textFields["taskTitle"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText(" fast")
+        sleep(10)
+        app.buttons["Save"].tap()
+        XCTAssertTrue(app.staticTexts["Changed on the Mac"].waitForExistence(timeout: 10))
+        app.buttons["Dismiss"].firstMatch.tap()
+    }
+
     func testFloatingMicStepsAsideWhileTypingATask() {
         let app = launch(open: "backlog/new")
         XCTAssertTrue(app.textFields["taskTitle"].waitForExistence(timeout: 10))

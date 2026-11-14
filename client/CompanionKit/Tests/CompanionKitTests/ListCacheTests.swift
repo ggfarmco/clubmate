@@ -40,7 +40,7 @@ final class ListCacheTests: XCTestCase {
         let store = DocsListStore(workspace: "w", session: nil, runner: runner, cache: cache, computer: "m")
         XCTAssertEqual(store.docs.map(\.rel), ["a.md"])
         await store.refresh()
-        XCTAssertEqual(runner.sessionArgs, [.null, .object(["ifNoneMatch": .string("e1")])])
+        XCTAssertEqual(runner.sessionArgs, [.object(["since": .string("")]), .object(["since": .string(""), "ifNoneMatch": .string("e1")])])
         XCTAssertEqual(store.docs.map(\.rel), ["a.md"])
         XCTAssertTrue(store.truncated)
     }
@@ -96,7 +96,7 @@ final class ListCacheTests: XCTestCase {
         let online = FakeTransport(reply: { request in
             switch FakeTransport.rpc(request) {
             case "workspaces": (FakeTransport.result(workspacesJSON), 200)
-            case BacklogCommand.list: (FakeTransport.result(String(decoding: request.httpBody ?? Data(), as: UTF8.self).contains(#""open""#) ? #"{"tasks":[{"id":7,"title":"Retry","status":"todo"}]}"# : #"{"tasks":[]}"#), 200)
+            case BacklogCommand.list: (FakeTransport.result(!String(decoding: request.httpBody ?? Data(), as: UTF8.self).contains(#""status""#) ? #"{"tasks":[{"id":7,"title":"Retry","status":"todo"}]}"# : #"{"tasks":[]}"#), 200)
             case AgentCommand.sessions: (FakeTransport.result(#"{"sessions":[{"id":"a","status":"waiting"}],"removed":[],"cursor":"e.1"}"#), 200)
             default: (FakeTransport.result(helloJSON), 200)
             }

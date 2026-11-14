@@ -191,6 +191,22 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(store.sessions[1].status, .running)
     }
 
+    func testStopSendsItsTurnAndAStaleOneRefreshesTheSession() async throws {
+        let runner = ScriptedRunner(replies: [], sessions: [
+            #"{"sessions":[{"id":"b","status":"running","turns":4}],"removed":[],"cursor":"e.3"}"#,
+            ServerReason.stale,
+            #"{"sessions":[{"id":"b","status":"idle","turns":4}],"removed":[],"cursor":"e.4","delta":true}"#,
+        ])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.refresh()
+        do {
+            try await store.cancel("b")
+            XCTFail("a stop for an ended turn is refused")
+        } catch {}
+        XCTAssertEqual(runner.sessionArgs[1], .object(["session": .string("b"), "turn": .number(4)]))
+        XCTAssertEqual(store.session("b")?.status, .idle)
+    }
+
     func testACancelledCallerDoesNotLoseTheSessions() async throws {
         let runner = SlowSessionsRunner()
         let store = AgentsStore(workspace: "prj_00000000000000f1", runner: runner)
@@ -699,7 +715,10 @@ final class ScriptedRunner: CommandRunner {
     func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
         guard id == "agents.transcript" else {
             sessionArgs.append(args ?? .null)
-            return sessions.isEmpty ? .array([]) : try JSONDecoder().decode(JSONValue.self, from: Data(sessions.removeFirst().utf8))
+            guard !sessions.isEmpty else { return .array([]) }
+            let reply = sessions.removeFirst()
+            if reply == ServerReason.stale { throw RemoteError.server(code: reply, message: "turn 4 is over") }
+            return try JSONDecoder().decode(JSONValue.self, from: Data(reply.utf8))
         }
         self.args.append(args ?? .null)
         return try JSONDecoder().decode(JSONValue.self, from: Data(replies.removeFirst().utf8))

@@ -118,7 +118,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         let current = focus()
         next.focused(current)
         for (workspace, list) in lists {
-            next.waiting.update(workspace: workspace, session: nil, sessions: list.sessions, shown: { current.shows(workspace: $0.workspace, session: $0.id) })
+            next.waiting.update(workspace: workspace, session: nil, sessions: list.items, shown: { current.shows(workspace: $0.workspace, session: $0.id) })
         }
         guard next.inbox != hub.inbox || next.waiting != hub.waiting else { return }
         hub = next
@@ -172,12 +172,12 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         var list = lists[workspace] ?? AgentSessionList()
         guard (try? list.apply(reply)) != nil else { return nil }
         lists[workspace] = list
-        return list.sessions
+        return list.items
     }
 
     private func agentDeleted(_ workspace: String, _ session: String) {
         hub.waiting.remove(workspace: workspace, session: session)
-        lists[workspace]?.replace([], for: session)
+        try? lists[workspace]?.replace([], for: session)
         withdraw(hub.handleResolved(workspace: workspace, session: session, sessions: []))
     }
 

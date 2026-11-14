@@ -8,7 +8,7 @@ public final class BacklogStore {
 
     public let workspace: String
     public let queue: ActionQueue
-    private var fetchedTasks: [BacklogTask] = []
+    private var list = SyncedList<BacklogTask>()
     private var settling: [Landed] = []
     public private(set) var loaded = false
     public private(set) var error: String?
@@ -30,7 +30,7 @@ public final class BacklogStore {
     @ObservationIgnored private let retry: @MainActor () -> Void
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
     @ObservationIgnored private let saves = SaveThrottle()
-    @ObservationIgnored private var raw: JSONValue = .array([])
+    @ObservationIgnored private var legacy = false
     @ObservationIgnored private var inflight = false
     @ObservationIgnored private var again = false
 
@@ -44,9 +44,8 @@ public final class BacklogStore {
         self.retry = retry
         self.sleep = sleep
         key = ListCache.Key(computer: computer, workspace: workspace, collection: "backlog")
-        if let saved = cache.load(key, as: Snapshot.self), let tasks = try? saved.tasks.decode([BacklogTask].self) {
-            fetchedTasks = tasks
-            raw = saved.tasks
+        if let saved = cache.load(key, as: Snapshot.self), let list = try? SyncedList<BacklogTask>(rows: saved.tasks.arrayValue ?? [], cursor: saved.cursor) {
+            self.list = list
             syncedAt = saved.at
             loaded = true
         }
@@ -58,10 +57,10 @@ public final class BacklogStore {
 
     public var tasks: [BacklogTask] {
         let edits = writes.filter { $0.command == BacklogCommand.update }
-        guard !edits.isEmpty else { return fetchedTasks }
-        return fetchedTasks.map { task in
+        guard !edits.isEmpty else { return list.items }
+        return list.items.map { task in
             let mine = edits.filter { $0.target == Self.target(task.id) }
-            guard !mine.isEmpty, let base = raw.arrayValue?.first(where: { $0["id"]?.numberValue == Double(task.id) }) else { return task }
+            guard !mine.isEmpty, let base = list.row(task.id) else { return task }
             let merged = mine.reduce(base) { $0.overlaid($1.args) }
             return (try? merged.decode(BacklogTask.self)) ?? task
         }
@@ -94,7 +93,12 @@ public final class BacklogStore {
     }
 
     public var groups: [(status: BacklogStatus, tasks: [BacklogTask])] {
-        BacklogTask.grouped(tasks)
+        BacklogTask.grouped(tasks).map { ($0.status, $0.status == .done ? Array($0.tasks.prefix(Self.doneLimit)) : $0.tasks) }
+    }
+
+    public func seen(_ id: Int) -> String? {
+        let mine = settling.last { $0.item.target == Self.target(id) }?.result["cursor"]?.stringValue
+        return SyncCursor.newer(mine, current: list.cursor)
     }
 
     public var inProgressCount: Int {
@@ -108,6 +112,7 @@ public final class BacklogStore {
     public func handle(_ signal: ConnectionSignal) {
         switch signal {
         case .online:
+            legacy = false
             Task { await refresh() }
         case .event(let event) where event.topic == Topic.backlogChanged:
             let target = event.payload["workspace"]?.stringValue ?? event.workspace
@@ -157,10 +162,10 @@ public final class BacklogStore {
         return try? result.decode(BacklogTask.self)
     }
 
-    public func update(_ id: Int, _ changes: [String: JSONValue]) async throws {
+    public func update(_ id: Int, _ changes: [String: JSONValue], seen: String? = nil) async throws {
         guard !changes.isEmpty else { return }
         let typed = ["title", "description"].compactMap { changes[$0]?.stringValue }.joined(separator: "\n\n")
-        try await mutate(BacklogCommand.update, id, changes, title: "Edit #\(id)", text: typed.isEmpty ? nil : typed)
+        try await mutate(BacklogCommand.update, id, changes, title: "Edit #\(id)", text: typed.isEmpty ? nil : typed, seen: seen)
     }
 
     public func move(_ id: Int, to status: BacklogStatus) async throws {
@@ -194,19 +199,23 @@ public final class BacklogStore {
     }
 
     @discardableResult
-    private func mutate(_ command: String, _ id: Int, _ args: [String: JSONValue] = [:], title: String, text: String? = nil) async throws -> JSONValue? {
+    private func mutate(_ command: String, _ id: Int, _ args: [String: JSONValue] = [:], title: String, text: String? = nil, seen: String? = nil) async throws -> JSONValue? {
         var args = args
         args["id"] = .number(Double(id))
-        let result = try await submit(command, .object(args), target: Self.target(id), title: title, text: text)
+        let result = try await submit(command, .object(args), target: Self.target(id), title: title, text: text, seen: seen ?? self.seen(id))
         if result != nil { await refresh() }
         return result
     }
 
-    private func submit(_ command: String, _ args: JSONValue, target: String, title: String, text: String?) async throws -> JSONValue? {
+    private func submit(_ command: String, _ args: JSONValue, target: String, title: String, text: String?, seen: String? = nil) async throws -> JSONValue? {
         guard let runner else { return nil }
-        let item = QueuedAction(computer: computer, workspace: workspace, command: command, args: args, target: target, title: title, text: text)
+        let item = QueuedAction(computer: computer, workspace: workspace, command: command, args: args, target: target, title: title, text: text, seen: seen)
         let offline = queues()
         guard let result = try await queue.submit(item, runner: runner, queues: offline) else {
+            if queue.items.contains(where: { $0.id == item.id && $0.failure != nil }) {
+                await refresh()
+                return nil
+            }
             if !offline {
                 Task { [sleep, retry] in
                     try? await sleep(ActionQueue.retryDelay)
@@ -223,22 +232,37 @@ public final class BacklogStore {
         guard let runner else { return }
         let started = Date.now
         do {
-            var raw: [JSONValue] = []
-            for (status, limit) in [("open", 0), (BacklogStatus.notNow.rawValue, 0), (BacklogStatus.done.rawValue, Self.doneLimit)] {
-                var args: [String: JSONValue] = ["status": .string(status), "slim": .bool(true)]
-                if limit > 0 { args["limit"] = .number(Double(limit)) }
-                guard let tasks = try await runner.command(BacklogCommand.list, workspace: workspace, args: .object(args))["tasks"]?.arrayValue else { throw RemoteError.badResponse }
-                raw += tasks
+            var open: [JSONValue]?
+            if !legacy {
+                let reply = try await runner.command(BacklogCommand.list, workspace: workspace, args: .object(["since": .string(list.cursor ?? ""), "slim": .bool(true)]))
+                if SyncedList<BacklogTask>.synced(reply) {
+                    try list.apply(reply)
+                } else {
+                    legacy = true
+                    open = reply["tasks"]?.arrayValue
+                }
             }
-            fetchedTasks = try JSONValue.array(raw).decode([BacklogTask].self)
-            self.raw = .array(raw)
+            if legacy {
+                var raw: [JSONValue] = []
+                for (status, limit) in [("open", 0), (BacklogStatus.notNow.rawValue, 0), (BacklogStatus.done.rawValue, Self.doneLimit)] {
+                    if status == "open", let open {
+                        raw += open
+                        continue
+                    }
+                    var args: [String: JSONValue] = ["status": .string(status), "slim": .bool(true)]
+                    if limit > 0 { args["limit"] = .number(Double(limit)) }
+                    guard let tasks = try await runner.command(BacklogCommand.list, workspace: workspace, args: .object(args))["tasks"]?.arrayValue else { throw RemoteError.badResponse }
+                    raw += tasks
+                }
+                try list.replace(raw)
+            }
             settling.removeAll { $0.at <= started }
             error = nil
             fetched = true
             syncedAt = .now
             saves.request { [weak self] in
                 guard let self, let at = self.syncedAt else { return }
-                self.cache.save(Snapshot(tasks: self.raw, at: at), self.key)
+                self.cache.save(Snapshot(tasks: .array(self.list.rows), cursor: self.list.cursor, at: at), self.key)
             }
         } catch {
             self.error = (error as? RemoteError)?.message ?? error.localizedDescription
@@ -248,6 +272,7 @@ public final class BacklogStore {
 
     private struct Snapshot: Codable {
         let tasks: JSONValue
+        var cursor: String?
         let at: Date
     }
 }
