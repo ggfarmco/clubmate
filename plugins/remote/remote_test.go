@@ -15,6 +15,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/testutil"
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 )
@@ -210,7 +212,7 @@ func TestRevokeDuringAFailedRepairStaysRevoked(t *testing.T) {
 	<-entered
 	revoked := make(chan error)
 	go func() { revoked <- f.srv.devices.revoke(t.Context(), "phone") }()
-	time.Sleep(20 * time.Millisecond)
+	testutil.Eventually(t, func() bool { return parkedOnMutex(".(*deviceStore).revoke(") }, time.Second)
 
 	close(release)
 	<-paired
@@ -230,7 +232,7 @@ func TestRevokeDuringLastSeenSaveStaysRevoked(t *testing.T) {
 	<-entered
 	revoked := make(chan error)
 	go func() { revoked <- f.srv.devices.revoke(t.Context(), "phone") }()
-	time.Sleep(20 * time.Millisecond)
+	testutil.Eventually(t, func() bool { return parkedOnMutex(".(*deviceStore).revoke(") }, time.Second)
 
 	close(release)
 	require.NoError(t, <-revoked)
@@ -977,6 +979,17 @@ func (m *memKV) StorageList(_ context.Context, prefix string) ([]string, error) 
 	}
 	slices.Sort(keys)
 	return keys, nil
+}
+
+func parkedOnMutex(frame string) bool {
+	buf := make([]byte, 1<<20)
+	buf = buf[:runtime.Stack(buf, true)]
+	for g := range strings.SplitSeq(string(buf), "\n\n") {
+		if strings.Contains(g, "[sync.Mutex.Lock") && strings.Contains(g, frame) {
+			return true
+		}
+	}
+	return false
 }
 
 func (b *fakeBackend) holdNextRun() (entered, release chan struct{}) {

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/proc"
+	"clubmate/internal/testutil"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
 )
@@ -112,7 +113,7 @@ func TestRestartKillsLeftoverStepGroup(t *testing.T) {
 	turnDone(t, a, "agt_1", 1)
 	var child int
 	var saved []byte
-	require.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		data, _ := os.ReadFile(filepath.Join(dir, "child.pid"))
 		child, _ = strconv.Atoi(strings.TrimSpace(string(data)))
 		m := stepMoves(a, r.ID, "tests")
@@ -124,7 +125,7 @@ func TestRestartKillsLeftoverStepGroup(t *testing.T) {
 		var err error
 		saved, err = json.Marshal(a.runs[r.ID])
 		return err == nil
-	}, 5*time.Second, 10*time.Millisecond)
+	}, 5*time.Second)
 	var loaded Run
 	require.NoError(t, json.Unmarshal(saved, &loaded))
 	t.Cleanup(func() {
@@ -135,6 +136,6 @@ func TestRestartKillsLeftoverStepGroup(t *testing.T) {
 	b.grace = 200 * time.Millisecond
 	b.runs[r.ID] = &loaded
 	b.recoverSteps(t.Context())
-	assert.Eventually(t, func() bool { return syscall.Kill(child, 0) != nil }, 2*time.Second, 10*time.Millisecond)
-	assert.Eventually(t, func() bool { return stepMoves(a, r.ID, "tests")[0].Step.Status == stepFinished }, 2*time.Second, 10*time.Millisecond)
+	testutil.Eventually(t, func() bool { return syscall.Kill(child, 0) != nil }, 2*time.Second)
+	testutil.Eventually(t, func() bool { return stepMoves(a, r.ID, "tests")[0].Step.Status == stepFinished }, 2*time.Second)
 }

@@ -55,10 +55,10 @@ func TestDiagnosticsBundle(t *testing.T) {
 	var s session.Session
 	require.NoError(t, c.Call(t.Context(), "session.create", map[string]any{"workspaceId": p.ID, "command": []string{"sh", "-c", "echo secret-output; exec cat"}}, &s))
 
-	require.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		var snap session.Snapshot
 		return c.Call(t.Context(), "session.read", map[string]any{"id": s.ID}, &snap) == nil && strings.Contains(snap.Text, "secret-output")
-	}, 5*time.Second, 20*time.Millisecond)
+	}, 5*time.Second)
 
 	var res diagnostics.Result
 	require.NoError(t, c.Call(t.Context(), "diagnostics.collect", map[string]any{"extra": map[string][]byte{"settings.json": []byte(`{"a":1}`), "logs/app.log": []byte("transcript appear")}}, &res))

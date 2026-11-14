@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/bus"
+	"clubmate/internal/testutil"
 )
 
 func TestPublishReadAndCursor(t *testing.T) {
@@ -116,7 +117,7 @@ func TestFullBackfillBufferDoesNotDropOnGoingLive(t *testing.T) {
 	sub, err := b.Subscribe("*", 0)
 	require.NoError(t, err)
 	t.Cleanup(sub.Close)
-	time.Sleep(100 * time.Millisecond)
+	testutil.Eventually(t, func() bool { return len(sub.C()) == 200 }, 2*time.Second)
 	for range 100 {
 		_, err := b.Publish(t.Context(), "t.x", "x", nil)
 		require.NoError(t, err)
@@ -153,7 +154,7 @@ func TestSlowSubscriberIsDroppedWithoutBlocking(t *testing.T) {
 	}()
 	select {
 	case <-done:
-	case <-time.After(10 * time.Second):
+	case <-time.After(testutil.Timeout(10 * time.Second)):
 		t.Fatal("publisher blocked by slow subscriber")
 	}
 	for range sub.C() {
@@ -175,7 +176,7 @@ func recv(t *testing.T, sub *bus.Subscription) bus.Event {
 	case e, ok := <-sub.C():
 		require.True(t, ok, "subscription closed: %v", sub.Err())
 		return e
-	case <-time.After(2 * time.Second):
+	case <-time.After(testutil.Timeout(2 * time.Second)):
 		t.Fatal("no event within 2s")
 		return bus.Event{}
 	}

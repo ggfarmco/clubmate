@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/testutil"
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
@@ -292,7 +293,7 @@ func (c *fakeCore) connect(t *testing.T) *pluginsdk.Host {
 	select {
 	case h := <-ready:
 		return h
-	case <-time.After(3 * time.Second):
+	case <-time.After(testutil.Timeout(3 * time.Second)):
 		t.Fatal("Init not called")
 		return nil
 	}

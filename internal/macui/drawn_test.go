@@ -22,7 +22,8 @@ func TestDrawnTriggerLanesKeys(t *testing.T) {
 	in.json(&added, "command", "run", "triggers.add", "name=Ping", "on=event.ping", "command=agents.sessions")
 	for range 3 {
 		in.cm("command", "run", "triggers.emit", "name=ping")
-		time.Sleep(1100 * time.Millisecond)
+		second := time.Now().Unix()
+		in.eventually("the clock moves to the next second", func() bool { return time.Now().Unix() > second })
 	}
 	in.focusSection("triggers", "triggers.sidebar")
 	in.pointer("click", "triggers#"+added.ID)
@@ -72,7 +73,8 @@ func TestDrawnCronRunstrip(t *testing.T) {
 		for _, id := range jobs {
 			app.cm("command", "run", "cron.run", "id="+id)
 		}
-		time.Sleep(1100 * time.Millisecond)
+		second := time.Now().Unix()
+		app.eventually("the clock moves to the next second", func() bool { return time.Now().Unix() > second })
 	}
 	for _, id := range jobs {
 		app.cm("command", "run", "cron.pause", "id="+id)

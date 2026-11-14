@@ -627,9 +627,7 @@ func TestRepoChildIsNotCleanedUpAfterAMerge(t *testing.T) {
 	f.prompt(t, workspace, kid.Session, "again")
 	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.Contains(string(c.Params), "again") })
 	f.waitStatus(t, workspace, kid.Session, "done")
-	time.Sleep(time.Second)
-
-	assert.Equal(t, "done", f.session(t, workspace, kid.Session).Status)
+	testutil.Never(t, func() bool { return f.session(t, workspace, kid.Session).Status != "done" }, time.Second)
 	assert.DirExists(t, kid.Worktree)
 }
 
@@ -717,7 +715,7 @@ func TestReportDuringAnOrchestratorHandOffFindsTheTask(t *testing.T) {
 		case err := <-handed:
 			require.NoError(t, err)
 			done = true
-		case <-time.After(50 * time.Millisecond):
+		case <-time.After(testutil.Timeout(50 * time.Millisecond)):
 			require.NoError(t, f.runFrom(t, l.workspace, l.kids[0].Session, "agents.task-report", map[string]any{"state": "ready"}, nil))
 		}
 	}

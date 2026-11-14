@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/testutil"
 	"clubmate/pkg/apns"
 	"clubmate/pkg/pluginsdk"
 )
@@ -326,8 +327,7 @@ func TestNotifyPostedNoLongerPushesByItself(t *testing.T) {
 
 	a.busEvent(t.Context(), nil, "", notifyEvent(`{"id":"ntf_1","message":"m","kind":"done"}`))
 
-	time.Sleep(50 * time.Millisecond)
-	assert.Empty(t, relay.requests())
+	testutil.Never(t, func() bool { return len(relay.requests()) > 0 }, 250*time.Millisecond)
 }
 
 func TestRelayedGoneTokenIsDropped(t *testing.T) {

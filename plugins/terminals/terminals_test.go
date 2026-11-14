@@ -94,7 +94,7 @@ func TestNewTerminalFocusesMainSlot(t *testing.T) {
 	c := h.Client(t)
 	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": p.ID}, nil))
 	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "workspaceId": p.ID}, nil))
-	deadline := time.After(2 * time.Second)
+	deadline := time.After(testutil.Timeout(2 * time.Second))
 	for {
 		select {
 		case n := <-c.Notifications():

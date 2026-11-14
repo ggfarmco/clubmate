@@ -46,7 +46,7 @@ func TestSDKInitCanCallCoreBeforeAndAfterReplying(t *testing.T) {
 	select {
 	case ps := <-inited:
 		assert.Empty(t, ps)
-	case <-time.After(3 * time.Second):
+	case <-time.After(testutil.Timeout(3 * time.Second)):
 		t.Fatal("Init did not reach the core")
 	}
 }
@@ -106,7 +106,7 @@ func TestSDKDeliversBusEventWithSubscription(t *testing.T) {
 	select {
 	case v := <-got:
 		assert.Equal(t, "sub_x:a.b", v)
-	case <-time.After(3 * time.Second):
+	case <-time.After(testutil.Timeout(3 * time.Second)):
 		t.Fatal("no bus event")
 	}
 }
@@ -124,7 +124,7 @@ func TestSDKDeliversUIUpdated(t *testing.T) {
 	case ev := <-got:
 		assert.Equal(t, "sub_x", ev.Subscription)
 		assert.Equal(t, pluginsdk.SlotView{WorkspaceID: "prj_1", Slot: "cron.main", Owner: "cron", Rev: 3, Tree: json.RawMessage(`{"type":"empty"}`)}, ev.View)
-	case <-time.After(3 * time.Second):
+	case <-time.After(testutil.Timeout(3 * time.Second)):
 		t.Fatal("no ui.updated")
 	}
 }
@@ -138,7 +138,7 @@ func TestSDKDeliversFSChanged(t *testing.T) {
 	select {
 	case ev := <-got:
 		assert.Equal(t, pluginsdk.FSChange{Watch: "sub_w", WorkspaceID: "prj_x", Paths: []string{"/r/a"}, Overflow: true}, ev)
-	case <-time.After(3 * time.Second):
+	case <-time.After(testutil.Timeout(3 * time.Second)):
 		t.Fatal("no fs change")
 	}
 }
@@ -154,13 +154,13 @@ func TestSDKShutdownEndsRun(t *testing.T) {
 	assert.JSONEq(t, `{}`, string(res))
 	select {
 	case <-shut:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testutil.Timeout(3 * time.Second)):
 		t.Fatal("Shutdown not called")
 	}
 	select {
 	case err := <-done:
 		assert.NoError(t, err)
-	case <-time.After(3 * time.Second):
+	case <-time.After(testutil.Timeout(3 * time.Second)):
 		t.Fatal("Run did not return")
 	}
 }
@@ -187,7 +187,7 @@ func TestSDKHostStorageAndSessions(t *testing.T) {
 	var h *pluginsdk.Host
 	select {
 	case h = <-ready:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testutil.Timeout(3 * time.Second)):
 		t.Fatal("Init not called")
 	}
 	ctx := t.Context()
@@ -267,7 +267,7 @@ func TestSDKDeliversBusClosed(t *testing.T) {
 	select {
 	case v := <-got:
 		assert.Equal(t, "sub_x:slow", v)
-	case <-time.After(3 * time.Second):
+	case <-time.After(testutil.Timeout(3 * time.Second)):
 		t.Fatal("no bus.closed")
 	}
 }
@@ -293,7 +293,7 @@ func TestSDKBusEventsAreOrderedAndMayCallCore(t *testing.T) {
 		case seq := <-seqs:
 			assert.Greater(t, seq, last)
 			last = seq
-		case <-time.After(5 * time.Second):
+		case <-time.After(testutil.Timeout(5 * time.Second)):
 			t.Fatal("bus events stalled")
 		}
 	}
@@ -315,7 +315,7 @@ func startWithCore(t *testing.T, p pluginsdk.Plugin) *pluginsdk.Host {
 	select {
 	case h := <-ready:
 		return h
-	case <-time.After(3 * time.Second):
+	case <-time.After(testutil.Timeout(3 * time.Second)):
 		t.Fatal("Init not called")
 		return nil
 	}

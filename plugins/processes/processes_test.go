@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
@@ -24,10 +24,9 @@ func TestAutoKillToggle(t *testing.T) {
 	h.WaitSlot(t, p.ID, "processes.main", func(n sdui.Node) bool { return n.Type == "stack" })
 	h.Event(t, p.ID, "processes.main", "autokill", "autokill", true)
 	testutil.Eventually(t, func() bool { return !testutil.Alive(orphan) }, 12*time.Second)
-	require.Eventually(t, func() bool {
-		events, err := h.Bus.Read(t.Context(), "processes.killed", 0, 10)
-		return err == nil && len(events) == 1 && strings.Contains(string(events[0].Payload), p.ID)
-	}, 5*time.Second, 50*time.Millisecond)
+	testutil.WaitEvents(t, h.Bus, "processes.killed", func(events []bus.Event) bool {
+		return len(events) == 1 && strings.Contains(string(events[0].Payload), p.ID)
+	})
 }
 
 func TestAutoKillSweepsAStoredWorkspaceNobodyOpened(t *testing.T) {
@@ -63,11 +62,15 @@ func TestMainRendersOnlyWhileVisible(t *testing.T) {
 	}
 	h.WaitSlot(t, p.ID, "processes.main", func(n sdui.Node) bool { return n.Type == "stack" })
 	section("terminals")
-	time.Sleep(1500 * time.Millisecond)
+	last, changed := rev(), time.Now()
+	require.True(t, testutil.Poll(func() bool {
+		if r := rev(); r != last {
+			last, changed = r, time.Now()
+		}
+		return time.Since(changed) > 2*time.Second
+	}, 10*time.Second), "processes.main kept rendering after it was hidden")
 	hidden, sidebar := rev(), slotRev("processes.sidebar")
-	time.Sleep(2500 * time.Millisecond)
-	assert.Equal(t, hidden, rev())
-	assert.Equal(t, sidebar, slotRev("processes.sidebar"))
+	testutil.Never(t, func() bool { return rev() != hidden || slotRev("processes.sidebar") != sidebar }, 2500*time.Millisecond)
 	section("processes")
 	testutil.Eventually(t, func() bool { return rev() > hidden+1 }, 5*time.Second)
 }
@@ -82,10 +85,11 @@ func TestInitRendersOnlyOpenWorkspaces(t *testing.T) {
 		events, err := h.Bus.Read(t.Context(), "processes.ready", 0, 1)
 		return err == nil && len(events) == 1
 	}, 5*time.Second)
-	time.Sleep(time.Second)
-	var views []internalsdui.SlotView
-	require.NoError(t, c.Call(t.Context(), "ui.get", map[string]string{"workspaceId": p.ID}, &views))
-	assert.Empty(t, views)
+	testutil.Never(t, func() bool {
+		var views []internalsdui.SlotView
+		require.NoError(t, c.Call(t.Context(), "ui.get", map[string]string{"workspaceId": p.ID}, &views))
+		return len(views) > 0
+	}, 1500*time.Millisecond)
 	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": p.ID}, nil))
 	h.WaitSlot(t, p.ID, "processes.main", func(n sdui.Node) bool { return n.Type == "stack" })
 }

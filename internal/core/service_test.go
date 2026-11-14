@@ -163,7 +163,7 @@ func TestRefreshLoopStopsOnCancel(t *testing.T) {
 	cancel()
 	select {
 	case <-done:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testutil.Timeout(2 * time.Second)):
 		t.Fatal("RefreshLoop did not stop")
 	}
 }

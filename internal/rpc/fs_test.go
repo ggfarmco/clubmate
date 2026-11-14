@@ -48,7 +48,7 @@ func watchRepo(t *testing.T, configure ...func(*rpc.Server)) (*rpc.Client, strin
 
 func awaitFS(t *testing.T, c *rpc.Client, cond func(fsChanged) bool) fsChanged {
 	t.Helper()
-	deadline := time.After(10 * time.Second)
+	deadline := time.After(testutil.Timeout(10 * time.Second))
 	for {
 		select {
 		case n := <-c.Notifications():
@@ -87,7 +87,7 @@ func TestFSWatchNotifies(t *testing.T) {
 	select {
 	case n := <-c.Notifications():
 		assert.Failf(t, "unexpected notification", "%s %s", n.Method, n.Params)
-	case <-time.After(time.Second):
+	case <-time.After(testutil.Timeout(time.Second)):
 	}
 }
 

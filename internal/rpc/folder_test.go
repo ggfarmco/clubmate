@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
 	"clubmate/internal/workspace"
@@ -39,8 +40,7 @@ func TestFolderMethods(t *testing.T) {
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 	assert.ErrorContains(t, err, workspace.ErrLastFolder.Error())
 
-	evs, err := h.Bus.Read(t.Context(), "workspace.updated", 0, 0)
-	require.NoError(t, err)
+	evs := testutil.WaitEvents(t, h.Bus, "workspace.updated", func(e []bus.Event) bool { return len(e) >= 3 })
 	assert.Len(t, evs, 3)
 }
 

@@ -1,12 +1,15 @@
 package testutil
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net"
+	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,6 +32,7 @@ import (
 const (
 	harnessStopTimeout = 15 * time.Second
 	harnessWait        = 5 * time.Second
+	pluginLogTail      = 16 << 10
 )
 
 type PluginHarness struct {
@@ -41,6 +45,7 @@ type PluginHarness struct {
 	Control *plugin.Control
 	Dirs    paths.Dirs
 	client  *rpc.Client
+	logs    syncBuffer
 }
 
 type noopHandler struct{}
@@ -63,7 +68,7 @@ func NewHarness(t *testing.T, opts ...plugin.SupervisorOption) *PluginHarness {
 	h.KV = store
 	h.Srv = rpc.NewServer(h.Svc, h.Bus, rpc.WithKV(store))
 	opts = append([]plugin.SupervisorOption{plugin.WithOnStop(h.Store.ClearOwner), plugin.WithBus(h.Bus), plugin.WithEnabled(func(m plugin.Manifest) bool { return h.Control.StartEnabled(m) })}, opts...)
-	h.Sup = plugin.NewSupervisor(h.Srv, h.Dirs, slog.New(slog.DiscardHandler), opts...)
+	h.Sup = plugin.NewSupervisor(h.Srv, h.Dirs, slog.New(slog.NewTextHandler(&h.logs, nil)), opts...)
 	h.Srv.SetPluginRestart(h.Sup.Restart)
 	return h
 }
@@ -85,6 +90,7 @@ func (h *PluginHarness) Start(t *testing.T, searchPath ...string) {
 		defer cancel()
 		h.Sup.Stop(ctx)
 	})
+	t.Cleanup(func() { h.reportFailure(t) })
 }
 
 func (h *PluginHarness) Client(t *testing.T) *rpc.Client {
@@ -159,7 +165,7 @@ func (h *PluginHarness) WaitSlotWithin(t *testing.T, workspaceID, slot string, t
 			}
 		}
 		return false
-	}, timeout, 20*time.Millisecond)
+	}, Timeout(timeout), pollEvery)
 	return found
 }
 
@@ -183,7 +189,44 @@ func (h *PluginHarness) WaitSessionGone(t *testing.T, id string) {
 	require.Eventually(t, func() bool {
 		_, err := h.Svc.GetSession(t.Context(), id)
 		return errors.Is(err, session.ErrNotFound)
-	}, harnessWait, 20*time.Millisecond)
+	}, Timeout(harnessWait), pollEvery)
+}
+
+func (h *PluginHarness) reportFailure(t *testing.T) {
+	if !t.Failed() {
+		return
+	}
+	t.Logf("supervisor log:\n%s", h.logs.String())
+	for _, st := range h.Sup.Statuses() {
+		t.Logf("plugin %s: state %s, restarts %d, last error %q", st.ID, st.State, st.Restarts, st.LastError)
+		if data, err := os.ReadFile(h.Dirs.PluginLog(st.ID)); err == nil {
+			t.Logf("plugin %s log:\n%s", st.ID, tail(data, pluginLogTail))
+		}
+	}
+}
+
+func tail(data []byte, n int) []byte {
+	if len(data) <= n {
+		return data
+	}
+	return data[len(data)-n:]
+}
+
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 func (noopHandler) Handle(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) {}

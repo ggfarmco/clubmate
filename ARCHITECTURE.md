@@ -113,6 +113,7 @@ The JSON-RPC transport is a fork of `github.com/sourcegraph/jsonrpc2` in `third_
   - `scripts/vendor-nvim-distro.sh` builds `Contents/Resources/nvim-distro`: the plugins pinned in `scripts/nvim-distro.lock` (checksummed tarballs), treesitter parsers compiled with the vendored tree-sitter CLI and clang, blink.cmp's prebuilt fuzzy dylib, and `tools/nrev` built from the diffview fork. `bundle-app.sh` signs every added Mach-O, then runs `TestBundledAppSmoke` against the built app and fails the build if nvim starts with any error, missing plugin or parser, network call or write into the bundle.
 - **Test:**
   - `go test -race ./...`;
+  - `make test-stress BASE=<sha>` reruns the tests changed since `BASE` (default: merge-base with main) 10 times under `-race` with no deadline scaling and two busy-loop CPU hogs; CI runs it as the `stress` job;
   - `make lint`;
   - `make kit-test`;
   - `make mac-ui-test` (`internal/macui` against the Debug app);

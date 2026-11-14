@@ -70,7 +70,7 @@ func storeHost(t *testing.T) (*pluginsdk.Host, *kv.Store) {
 	select {
 	case h := <-ready:
 		return h, store
-	case <-time.After(3 * time.Second):
+	case <-time.After(testutil.Timeout(3 * time.Second)):
 		t.Fatal("Init not called")
 		return nil, nil
 	}

@@ -467,11 +467,14 @@ func TestBlinkUsesRust(t *testing.T) {
 		return impl == "rust"
 	}, 10*time.Second)
 	if blocked() {
-		for i := 0; i < 20 && blocked(); i++ {
+		testutil.Poll(func() bool {
+			if !blocked() {
+				return true
+			}
 			_, err := v.Input("<CR>")
 			require.NoError(t, err)
-			time.Sleep(50 * time.Millisecond)
-		}
+			return false
+		}, time.Second)
 		require.Fail(t, "nvim blocked on a prompt", "%q", errorsOf(t, v))
 	}
 	var loaded bool
@@ -1030,7 +1033,7 @@ func TestDocOpenOnlyForDocs(t *testing.T) {
 		select {
 		case ev := <-got:
 			assert.Equal(t, "docOpen "+filepath.Join(dir, name), ev)
-		case <-time.After(5 * time.Second):
+		case <-time.After(testutil.Timeout(5 * time.Second)):
 			t.Fatal("no docOpen notification")
 		}
 	}

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -29,7 +31,7 @@ func TestSupervisorStartsPluginThatCallsCore(t *testing.T) {
 	select {
 	case ev := <-sub.C():
 		assert.Equal(t, "plugin:echo", ev.Source)
-	case <-time.After(5 * time.Second):
+	case <-time.After(testutil.Timeout(5 * time.Second)):
 		t.Fatal("echo plugin never reported ready")
 	}
 	require.Len(t, h.Sup.Statuses(), 1)
@@ -55,7 +57,7 @@ func TestSupervisorGivesUpOnCrashLoop(t *testing.T) {
 	for range 5 {
 		select {
 		case <-sub.C():
-		case <-time.After(5 * time.Second):
+		case <-time.After(testutil.Timeout(5 * time.Second)):
 			t.Fatal("no plugin.changed after a crash")
 		}
 	}
@@ -101,7 +103,7 @@ func TestSupervisorKillsLeftoverProcessGroupWhenPluginExits(t *testing.T) {
 	select {
 	case ev := <-sub.C():
 		require.NoError(t, json.Unmarshal(ev.Payload, &forked))
-	case <-time.After(5 * time.Second):
+	case <-time.After(testutil.Timeout(5 * time.Second)):
 		t.Fatal("echo plugin never forked")
 	}
 	t.Cleanup(func() { _ = syscall.Kill(forked.PID, syscall.SIGKILL) })
@@ -118,12 +120,15 @@ func TestStopDoesNotHangOnWedgedPlugin(t *testing.T) {
 	h.Start(t, testutil.EchoPluginDir(t))
 	select {
 	case <-sub.C():
-	case <-time.After(5 * time.Second):
+	case <-time.After(testutil.Timeout(5 * time.Second)):
 		t.Fatal("echo plugin never reported ready")
 	}
 	require.Len(t, h.Sup.PIDs(), 1)
 	pid := h.Sup.PIDs()[0]
-	time.Sleep(500 * time.Millisecond)
+	testutil.Eventually(t, func() bool {
+		out, _ := exec.Command("ps", "-o", "stat=", "-p", strconv.Itoa(pid)).Output()
+		return strings.HasPrefix(strings.TrimSpace(string(out)), "T")
+	}, 5*time.Second)
 	for i := range 40 {
 		h.CreateWorkspace(t, fmt.Sprintf("%d-%s", i, strings.Repeat("x", 4000)))
 	}
@@ -136,7 +141,7 @@ func TestStopDoesNotHangOnWedgedPlugin(t *testing.T) {
 	}()
 	select {
 	case <-stopped:
-	case <-time.After(15 * time.Second):
+	case <-time.After(testutil.Timeout(15 * time.Second)):
 		t.Fatal("Stop hung on wedged plugin")
 	}
 	assert.False(t, testutil.Alive(pid))
@@ -146,8 +151,7 @@ func TestSupervisorRestartsPluginThatStopsAnsweringPing(t *testing.T) {
 	h := testutil.NewHarness(t, plugin.WithLiveness(50*time.Millisecond, 50*time.Millisecond, 3), plugin.WithBackoff(10*time.Millisecond, 10*time.Millisecond))
 	h.Start(t, testutil.EchoPluginDir(t))
 	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "running" }, 5*time.Second)
-	time.Sleep(300 * time.Millisecond)
-	require.Zero(t, h.Sup.Statuses()[0].Restarts, "a plugin that answers is left alone")
+	testutil.Never(t, func() bool { return h.Sup.Statuses()[0].Restarts != 0 }, 300*time.Millisecond)
 	pid := h.Sup.PIDs()[0]
 	require.NoError(t, syscall.Kill(pid, syscall.SIGSTOP))
 	testutil.Eventually(t, func() bool {

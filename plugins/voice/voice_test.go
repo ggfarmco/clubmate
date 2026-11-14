@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/testutil"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/claudecli"
@@ -225,10 +226,10 @@ func TestRecognizerCrashEndsUtterance(t *testing.T) {
 	_, err := v.audio(testWorkspace, audioArgs{Utterance: uid, PCM: []byte("die")})
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		st, err := v.state(testWorkspace, uid)
 		return err == nil && st.Phase == phaseError && st.Error == msgRecognizerStopped
-	}, 5*time.Second, 10*time.Millisecond)
+	}, 5*time.Second)
 	next := start(t, v)
 	_, err = v.audio(testWorkspace, audioArgs{Utterance: next, PCM: make([]byte, 320)})
 	require.NoError(t, err)
@@ -250,14 +251,14 @@ func TestIdleRecognizerUnloadsAndRespawnsOnNextUtterance(t *testing.T) {
 	proc.mu.Unlock()
 	require.NotNil(t, first)
 
-	require.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		return errors.Is(first.cmd.Process.Signal(syscall.Signal(0)), os.ErrProcessDone)
-	}, 5*time.Second, 10*time.Millisecond)
+	}, 5*time.Second)
 	assert.False(t, proc.Ready())
-	require.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		st, err := v.state(testWorkspace, abandoned)
 		return err == nil && st.Phase == phaseError
-	}, 5*time.Second, 10*time.Millisecond)
+	}, 5*time.Second)
 
 	next := start(t, v)
 	feed(t, v, next, 320)
@@ -293,7 +294,7 @@ func TestSettingsTurnVoiceOnSwitchModelAndOff(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, settings{Enabled: true, Model: small}, got.settings)
 	assert.Equal(t, []string{"nemotron", "whisper-turbo"}, spawned)
-	assert.Eventually(t, func() bool { return !nemotron.Ready() }, 5*time.Second, 10*time.Millisecond)
+	testutil.Eventually(t, func() bool { return !nemotron.Ready() }, 5*time.Second)
 
 	off := false
 	_, err = v.setSettings(t.Context(), settingsArgs{Enabled: &off})

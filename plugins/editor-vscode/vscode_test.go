@@ -182,7 +182,7 @@ func drain(c *rpc.Client) {
 }
 
 func nextFocus(c *rpc.Client, wait time.Duration) (rpc.Notification, bool) {
-	deadline := time.After(wait)
+	deadline := time.After(testutil.Timeout(wait))
 	for {
 		select {
 		case n := <-c.Notifications():

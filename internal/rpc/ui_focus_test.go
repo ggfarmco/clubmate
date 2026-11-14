@@ -118,7 +118,7 @@ func TestUIFocusDeclaredExtraSlot(t *testing.T) {
 }
 
 func nextFocus(c *rpc.Client, wait time.Duration) (rpc.Notification, bool) {
-	deadline := time.After(wait)
+	deadline := time.After(testutil.Timeout(wait))
 	for {
 		select {
 		case n := <-c.Notifications():
@@ -159,7 +159,7 @@ func TestWorkspaceOpenCountsRegisteredClients(t *testing.T) {
 	select {
 	case n := <-listener.Notifications():
 		t.Fatalf("unexpected notification %s", n.Method)
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(testutil.Timeout(100 * time.Millisecond)):
 	}
 	err = listener.Call(t.Context(), "client.register", map[string]any{"handles": []string{"x"}}, nil)
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
@@ -170,7 +170,7 @@ func TestWorkspaceOpenCountsRegisteredClients(t *testing.T) {
 	case n := <-listener.Notifications():
 		assert.Equal(t, "workspace.show", n.Method)
 		assert.JSONEq(t, fmt.Sprintf(`{"id":%q}`, p.ID), string(n.Params))
-	case <-time.After(2 * time.Second):
+	case <-time.After(testutil.Timeout(2 * time.Second)):
 		t.Fatal("no workspace.open notification")
 	}
 	err = caller.Call(t.Context(), "workspace.show", map[string]string{"id": "prj_0123456789abcdef"}, &res)

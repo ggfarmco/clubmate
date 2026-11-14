@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/testutil"
 )
 
@@ -26,11 +27,9 @@ func TestUsageMergesRateLimitReportsAndSurvivesRestart(t *testing.T) {
 	session := f.newSession(t, workspace)
 	f.prompt(t, workspace, session, "hi")
 	f.waitStatus(t, workspace, session, "done")
-	testutil.Eventually(t, func() bool {
-		events, err := f.h.Bus.Read(t.Context(), "agents.usage", 0, 10)
-		require.NoError(t, err)
+	testutil.WaitEvents(t, f.h.Bus, "agents.usage", func(events []bus.Event) bool {
 		return len(events) > 0 && strings.Contains(string(events[len(events)-1].Payload), "allowed_warning")
-	}, wait)
+	})
 
 	f.restartPlugin(t, workspace)
 

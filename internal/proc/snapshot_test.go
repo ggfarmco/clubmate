@@ -11,7 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/proc"
+	"clubmate/internal/testutil"
 )
+
+const deltaSampleGap = 300 * time.Millisecond
 
 func TestSnapshotAndReadEnvOfChild(t *testing.T) {
 	cmd := exec.Command(os.Args[0], "-test.run=^TestHelperBusy$")
@@ -21,15 +24,22 @@ func TestSnapshotAndReadEnvOfChild(t *testing.T) {
 	pid := cmd.Process.Pid
 	_, err := proc.Snapshot()
 	require.NoError(t, err)
-	time.Sleep(300 * time.Millisecond)
-	snap, err := proc.Snapshot()
-	require.NoError(t, err)
+	primed := time.Now()
+	var snap []proc.Process
+	var p proc.Process
+	testutil.Eventually(t, func() bool {
+		var ok bool
+		snap, err = proc.Snapshot()
+		if err != nil {
+			return false
+		}
+		p, ok = findPID(snap, pid)
+		return ok && p.CPU > 0 && time.Since(primed) > deltaSampleGap
+	}, 3*time.Second)
 	self, ok := findPID(snap, os.Getpid())
 	require.True(t, ok)
 	assert.Equal(t, os.Getppid(), self.PPID)
 	assert.Positive(t, self.RSSKiB)
-	p, ok := findPID(snap, pid)
-	require.True(t, ok)
 	assert.Positive(t, p.RSSKiB)
 	assert.Positive(t, p.CPU)
 	assert.Less(t, p.CPU, 200.0)

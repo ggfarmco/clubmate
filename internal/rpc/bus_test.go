@@ -60,7 +60,7 @@ func TestRPCBusUnsubscribeStopsDelivery(t *testing.T) {
 	select {
 	case n := <-c.Notifications():
 		assert.Failf(t, "unexpected notification", "%s %s", n.Method, n.Params)
-	case <-time.After(300 * time.Millisecond):
+	case <-time.After(testutil.Timeout(300 * time.Millisecond)):
 	}
 }
 
@@ -104,11 +104,10 @@ func TestRPCClientThatStopsReadingIsDisconnected(t *testing.T) {
 		_, err := b.Publish(t.Context(), "demo.big", "test", payload)
 		require.NoError(t, err)
 	}
-	time.Sleep(time.Second)
-	require.NoError(t, nc.SetReadDeadline(time.Now().Add(2*time.Second)))
+	testutil.Eventually(t, func() bool { return !strings.Contains(goroutines(), "rpc.forwardBus") }, 2*time.Second)
+	require.NoError(t, nc.SetReadDeadline(time.Now().Add(testutil.Timeout(2*time.Second))))
 	_, err = io.Copy(io.Discard, nc)
 	require.NoError(t, err)
-	testutil.Eventually(t, func() bool { return !strings.Contains(goroutines(), "rpc.forwardBus") }, 2*time.Second)
 }
 
 func TestRPCReentrantCallsDoNotDeadlock(t *testing.T) {
@@ -167,7 +166,7 @@ func recvNotification(t *testing.T, c *rpc.Client) rpc.Notification {
 	select {
 	case n := <-c.Notifications():
 		return n
-	case <-time.After(2 * time.Second):
+	case <-time.After(testutil.Timeout(2 * time.Second)):
 		require.FailNow(t, "no notification within 2s")
 		return rpc.Notification{}
 	}

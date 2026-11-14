@@ -145,7 +145,7 @@ func TestCallerGoneWithdrawsApproval(t *testing.T) {
 	select {
 	case id := <-a.withdrawn:
 		assert.Equal(t, asked.ID, id)
-	case <-time.After(5 * time.Second):
+	case <-time.After(testutil.Timeout(5 * time.Second)):
 		t.Fatal("approval not withdrawn")
 	}
 	close(a.reply)

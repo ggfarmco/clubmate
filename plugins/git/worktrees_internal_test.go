@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/testutil"
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -77,7 +78,7 @@ func fakeCore(t *testing.T, handle func(*jsonrpc2.Request) (any, error)) *plugin
 	select {
 	case h := <-ready:
 		return h
-	case <-time.After(3 * time.Second):
+	case <-time.After(testutil.Timeout(3 * time.Second)):
 		t.Fatal("Init not called")
 		return nil
 	}

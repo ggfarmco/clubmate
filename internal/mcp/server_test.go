@@ -137,7 +137,7 @@ func (p *peer) recv(t *testing.T) reply {
 		var r reply
 		require.NoError(t, json.Unmarshal(line, &r), string(line))
 		return r
-	case <-time.After(10 * time.Second):
+	case <-time.After(testutil.Timeout(10 * time.Second)):
 		t.Fatal("no reply")
 		return reply{}
 	}
@@ -296,7 +296,7 @@ func TestToolCallStopsWhenCancelled(t *testing.T) {
 			stop(t, p)
 			select {
 			case <-core.cancelled:
-			case <-time.After(5 * time.Second):
+			case <-time.After(testutil.Timeout(5 * time.Second)):
 				t.Fatal("tool call kept running")
 			}
 		})

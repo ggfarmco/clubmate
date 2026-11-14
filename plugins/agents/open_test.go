@@ -108,7 +108,8 @@ func TestOpenItemsLeaveTheSessionDoneAndSurviveARestart(t *testing.T) {
 
 	f.restartPlugin(t, workspace)
 
-	assert.Equal(t, 2, f.session(t, workspace, session).OpenCount)
+	restored := f.waitRecord(t, workspace, session, "listed after the restart", func(r record) bool { return r.ID != "" })
+	assert.Equal(t, 2, restored.OpenCount, "open count restored from the stored record")
 	items := f.openEntry(t, workspace, session).Items
 	require.Len(t, items, 2)
 	assert.Equal(t, openItem{ID: "oi-1", Kind: "decision", State: "open", Number: 1, Question: "Which Lists?"}, items[0])
@@ -440,8 +441,7 @@ func TestOpenItemsHoldOffAutoClose(t *testing.T) {
 	f.prompt(t, workspace, session, "done")
 	f.waitStatus(t, workspace, session, "done")
 
-	time.Sleep(3 * after)
-	assert.Equal(t, "done", f.session(t, workspace, session).Status)
+	testutil.Never(t, func() bool { return f.session(t, workspace, session).Status != "done" }, 3*after)
 
 	require.NoError(t, f.run(t, workspace, "agents.open-no", map[string]any{"session": session}, nil))
 	f.waitStatus(t, workspace, session, "closed")

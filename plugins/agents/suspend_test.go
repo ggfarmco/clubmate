@@ -105,8 +105,7 @@ func TestBackgroundShellDelaysSuspend(t *testing.T) {
 	f.prompt(t, workspace, session, "one")
 	f.waitStatus(t, workspace, session, "done")
 
-	time.Sleep(4 * suspendAfter)
-	require.False(t, f.session(t, workspace, session).Suspended)
+	testutil.Never(t, func() bool { return f.session(t, workspace, session).Suspended }, 4*suspendAfter)
 	var shell int
 	require.NoError(t, json.Unmarshal(f.calls(t, "shell")[0].Params, &shell))
 	require.NoError(t, syscall.Kill(shell, syscall.SIGKILL))
@@ -133,10 +132,9 @@ func TestIdleSessionKeepsAgent(t *testing.T) {
 			f.prompt(t, workspace, session, "one")
 			f.waitStatus(t, workspace, session, tt.status)
 
-			time.Sleep(4 * suspendAfter)
-
-			assert.NoError(t, syscall.Kill(-lastStart(t, f), 0))
-			assert.False(t, f.session(t, workspace, session).Suspended)
+			testutil.Never(t, func() bool {
+				return syscall.Kill(-lastStart(t, f), 0) != nil || f.session(t, workspace, session).Suspended
+			}, 4*suspendAfter)
 		})
 	}
 }

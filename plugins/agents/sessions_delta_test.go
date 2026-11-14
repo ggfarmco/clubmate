@@ -5,8 +5,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"clubmate/internal/testutil"
 )
 
 type sessionsPage struct {
@@ -35,7 +33,7 @@ func TestSessionsSinceReturnsOnlyChangedAndRemovedSessions(t *testing.T) {
 	muted := f.newSession(t, workspace)
 	deleted := f.newSession(t, workspace)
 	for _, id := range []string{kept, muted, deleted} {
-		testutil.Eventually(t, func() bool { return f.session(t, workspace, id).AgentSessionID != "" }, wait)
+		f.waitStarted(t, workspace, id)
 	}
 	page := func(since string) sessionsPage {
 		var p sessionsPage

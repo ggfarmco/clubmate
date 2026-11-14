@@ -53,7 +53,7 @@ func TestProcessRegister(t *testing.T) {
 	assert.Equal(t, []int{child.Process.Pid}, killed.Killed)
 	select {
 	case <-exited:
-	case <-time.After(5 * time.Second):
+	case <-time.After(testutil.Timeout(5 * time.Second)):
 		require.FailNow(t, "registered child survived kill")
 	}
 

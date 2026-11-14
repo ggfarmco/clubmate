@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/testutil"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/automation"
@@ -494,14 +495,14 @@ func TestCommandAnswersBeforeRender(t *testing.T) {
 	select {
 	case err := <-done:
 		require.NoError(t, err)
-	case <-time.After(time.Second):
+	case <-time.After(testutil.Timeout(time.Second)):
 		t.Fatal("graphs.list waited for the render")
 	}
 	close(release)
 	select {
 	case ws := <-rendered:
 		assert.Equal(t, "ws1", ws)
-	case <-time.After(time.Second):
+	case <-time.After(testutil.Timeout(time.Second)):
 		t.Fatal("ws1 was never rendered")
 	}
 }

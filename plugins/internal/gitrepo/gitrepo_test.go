@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/testutil"
 	"clubmate/plugins/internal/gitrepo"
 )
 
@@ -166,8 +167,9 @@ func TestValidBranchName(t *testing.T) {
 }
 
 func TestSnapshotPrunesScratchOfDeadProcesses(t *testing.T) {
-	t.Setenv("TMPDIR", t.TempDir())
-	parent := filepath.Join(os.TempDir(), "clubmate-cp")
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+	parent := filepath.Join(tmp, "clubmate-cp")
 	dead := exec.Command("/usr/bin/true")
 	require.NoError(t, dead.Run())
 	stale := filepath.Join(parent, strconv.Itoa(dead.ProcessState.Pid())+"-1")
@@ -188,9 +190,11 @@ func TestSnapshotPrunesScratchOfDeadProcesses(t *testing.T) {
 }
 
 func TestSnapshotRefusesSharedScratchParent(t *testing.T) {
-	t.Setenv("TMPDIR", t.TempDir())
-	require.NoError(t, os.Mkdir(filepath.Join(os.TempDir(), "clubmate-cp"), 0o777))
-	require.NoError(t, os.Chmod(filepath.Join(os.TempDir(), "clubmate-cp"), 0o777))
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+	shared := filepath.Join(tmp, "clubmate-cp")
+	require.NoError(t, os.Mkdir(shared, 0o777))
+	require.NoError(t, os.Chmod(shared, 0o777))
 
 	_, _, err := gitrepo.Snapshot(t.Context(), newRepo(t))
 	assert.Error(t, err)
@@ -230,10 +234,10 @@ wait`)
 	defer cancel()
 	done := make(chan error, 1)
 	go func() { done <- gitrepo.Clone(ctx, "url", "into") }()
-	require.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		_, err := os.Stat(ready)
 		return err == nil
-	}, 3*time.Second, 10*time.Millisecond)
+	}, 3*time.Second)
 
 	cancel()
 

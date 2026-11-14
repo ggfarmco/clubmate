@@ -19,6 +19,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/testutil"
 )
 
 type memPorts struct{ port int }
@@ -168,13 +170,13 @@ func TestStartKillsOrphanAndKeepsPort(t *testing.T) {
 	require.NoError(t, err)
 	pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		c, err := net.Dial("tcp", net.JoinHostPort(vscodeHost, strconv.Itoa(port)))
 		if err != nil {
 			return false
 		}
 		return c.Close() == nil
-	}, 5*time.Second, 20*time.Millisecond)
+	}, 5*time.Second)
 
 	s := newVSCodeServer(state, "code", kv)
 	t.Cleanup(s.Stop)

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/testutil"
 )
 
@@ -18,14 +19,21 @@ type notePost struct {
 
 func (f *fixture) notes(t *testing.T) []notePost {
 	t.Helper()
-	events, err := f.h.Bus.Read(t.Context(), "notify.posted", 0, 100)
-	require.NoError(t, err)
+	return f.waitNotes(t, func([]notePost) bool { return true })
+}
+
+func (f *fixture) waitNotes(t *testing.T, cond func([]notePost) bool) []notePost {
+	t.Helper()
 	var out []notePost
-	for _, e := range events {
-		var p notePost
-		require.NoError(t, json.Unmarshal(e.Payload, &p))
-		out = append(out, p)
-	}
+	testutil.WaitEvents(t, f.h.Bus, "notify.posted", func(events []bus.Event) bool {
+		out = out[:0]
+		for _, e := range events {
+			var p notePost
+			require.NoError(t, json.Unmarshal(e.Payload, &p))
+			out = append(out, p)
+		}
+		return cond(out)
+	})
 	return out
 }
 
@@ -48,7 +56,7 @@ func TestTurnEndPostsNotification(t *testing.T) {
 
 			f.prompt(t, workspace, session, tc.text)
 
-			testutil.Eventually(t, func() bool { return len(f.notes(t)) > 0 }, wait)
+			f.waitNotes(t, func(n []notePost) bool { return len(n) > 0 })
 			testutil.Never(t, func() bool { return len(f.notes(t)) > 1 }, 300*time.Millisecond)
 			assert.Equal(t, []notePost{{workspace, session, f.session(t, workspace, session).Title, tc.message, tc.kind}}, f.notes(t))
 		})
@@ -68,7 +76,7 @@ func TestNextTurnOrQuestionReplacesAHeldEnd(t *testing.T) {
 	f.prompt(t, workspace, session, "third")
 	f.waitStatus(t, workspace, session, "waiting")
 
-	testutil.Eventually(t, func() bool { return len(f.notes(t)) > 0 }, wait)
+	f.waitNotes(t, func(n []notePost) bool { return len(n) > 0 })
 	testutil.Never(t, func() bool { return len(f.notes(t)) > 1 }, 3500*time.Millisecond)
 	assert.Equal(t, "question", f.notes(t)[0].Kind)
 }
@@ -80,9 +88,7 @@ func TestFinishAfterAQuestionOrWithOpenItemsIsQuiet(t *testing.T) {
 	session := f.newSession(t, workspace)
 	quiet := func(n int) []bool {
 		var got []bool
-		testutil.Eventually(t, func() bool {
-			events, err := f.h.Bus.Read(t.Context(), "notify.posted", 0, 100)
-			require.NoError(t, err)
+		testutil.WaitEvents(t, f.h.Bus, "notify.posted", func(events []bus.Event) bool {
 			got = got[:0]
 			for _, e := range events {
 				var p struct {
@@ -95,7 +101,7 @@ func TestFinishAfterAQuestionOrWithOpenItemsIsQuiet(t *testing.T) {
 				}
 			}
 			return len(got) == n
-		}, wait)
+		})
 		return got
 	}
 
@@ -151,7 +157,7 @@ func TestDoneWaitsForChildren(t *testing.T) {
 	f.waitStatus(t, workspace, parent, "done")
 	testutil.Never(t, func() bool { return len(f.notes(t)) > 0 }, 500*time.Millisecond)
 	f.waitStatus(t, workspace, kid, "done")
-	testutil.Eventually(t, func() bool {
-		return slices.ContainsFunc(f.notes(t), func(p notePost) bool { return p.Session == parent && p.Kind == "done" })
-	}, wait)
+	f.waitNotes(t, func(n []notePost) bool {
+		return slices.ContainsFunc(n, func(p notePost) bool { return p.Session == parent && p.Kind == "done" })
+	})
 }

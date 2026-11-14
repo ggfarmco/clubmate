@@ -116,13 +116,11 @@ func (f *fixture) agentsPID(t *testing.T) int {
 
 func (f *fixture) waitNeedsInput(t *testing.T, session string) {
 	t.Helper()
-	testutil.Eventually(t, func() bool {
-		events, err := f.h.Bus.Read(t.Context(), "notify.posted", 0, 100)
-		require.NoError(t, err)
+	testutil.WaitEvents(t, f.h.Bus, "notify.posted", func(events []contract.Event) bool {
 		return slices.ContainsFunc(events, func(e contract.Event) bool {
 			return strings.Contains(string(e.Payload), session) && strings.Contains(string(e.Payload), "needs-input")
 		})
-	}, wait)
+	})
 }
 
 func (f *fixture) waitPromptWith(t *testing.T, want ...string) string {

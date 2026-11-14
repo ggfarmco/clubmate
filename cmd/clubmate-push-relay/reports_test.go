@@ -16,6 +16,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/testutil"
 	"clubmate/pkg/report"
 )
 
@@ -298,8 +300,15 @@ func TestReportLeavesTheConnectionAliveAfterTheBody(t *testing.T) {
 
 	f.relay.reports.mu.Lock()
 	require.NoError(t, upload.Write(conn))
-	time.Sleep(4 * f.relay.grace)
+	parked := func() bool {
+		buf := make([]byte, 1<<20)
+		return strings.Contains(string(buf[:runtime.Stack(buf, true)]), "clubmate-push-relay.(*store).")
+	}
+	reached := testutil.Poll(parked, 5*time.Second)
+	stayed := reached && !testutil.Poll(func() bool { return !parked() }, 2*f.relay.grace)
 	f.relay.reports.mu.Unlock()
+	require.True(t, reached, "the upload never waited on the store")
+	require.True(t, stayed, "the upload passed the held store lock")
 	first, err := http.ReadResponse(responses, upload)
 	require.NoError(t, err)
 	require.NoError(t, first.Body.Close())

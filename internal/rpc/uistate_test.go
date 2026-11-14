@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/kv"
 	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
@@ -49,12 +50,11 @@ func TestUIStateRoundTripAndDelete(t *testing.T) {
 	}
 	require.NoError(t, plug.Call(t.Context(), "ui.state.section", map[string]any{"workspaceId": p.ID}, &section))
 	assert.Equal(t, "terminals", section.Section)
-	events, err := b.Read(t.Context(), "ui.section", 0, 10)
-	require.NoError(t, err)
+	events := testutil.WaitEvents(t, b, "ui.section", func(e []bus.Event) bool { return len(e) > 0 })
 	require.Len(t, events, 1)
 	assert.JSONEq(t, `{"workspace":"`+p.ID+`","section":"terminals"}`, string(events[0].Payload))
 
-	err = plug.Call(t.Context(), "ui.state.set", map[string]any{"workspaceId": p.ID, "state": map[string]any{}}, nil)
+	err := plug.Call(t.Context(), "ui.state.set", map[string]any{"workspaceId": p.ID, "state": map[string]any{}}, nil)
 	assert.EqualValues(t, -32602, rpcCode(t, err))
 
 	for name, state := range map[string]any{
@@ -97,8 +97,7 @@ func TestUIStatePatchMergesConcurrentKeys(t *testing.T) {
 	var got uiStateResult
 	require.NoError(t, client.Call(t.Context(), "ui.state.get", map[string]any{"workspaceId": p.ID}, &got))
 	assert.Equal(t, want, got.State)
-	events, err := b.Read(t.Context(), "ui.section", 0, 10)
-	require.NoError(t, err)
+	events := testutil.WaitEvents(t, b, "ui.section", func(e []bus.Event) bool { return len(e) > 0 })
 	require.Len(t, events, 1)
 	assert.JSONEq(t, `{"workspace":"`+p.ID+`","section":"terminals"}`, string(events[0].Payload))
 

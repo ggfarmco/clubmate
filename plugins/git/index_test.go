@@ -165,6 +165,13 @@ func TestSquashVerdictOutlivesAPluginRestart(t *testing.T) {
 	dropRemoteBranch(t, repo, "squashed")
 	h, id := open(t, repo)
 	testutil.Eventually(t, func() bool { return worktreeIndex(t, h, id)["squashed"].Merged }, readyWait)
+	testutil.Eventually(t, func() bool {
+		keys, err := h.KV.List(t.Context(), "git", "landed/")
+		return err == nil && slices.ContainsFunc(keys, func(key string) bool {
+			raw, _, err := h.KV.Get(t.Context(), "git", key)
+			return err == nil && strings.Contains(string(raw), "true")
+		})
+	}, readyWait)
 	write(t, armed, "")
 	before := h.Sup.PIDs()
 	require.NoError(t, h.Sup.Restart("git"))

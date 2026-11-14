@@ -277,7 +277,7 @@ func TestRPCShutdownIsCLIOnlyAndNotifiesClients(t *testing.T) {
 	select {
 	case <-stopped:
 		t.Fatal("shutdown ran for a plugin caller")
-	case <-time.After(300 * time.Millisecond):
+	case <-time.After(testutil.Timeout(300 * time.Millisecond)):
 	}
 
 	coreSide, peerSide := net.Pipe()
@@ -294,7 +294,7 @@ func TestRPCShutdownIsCLIOnlyAndNotifiesClients(t *testing.T) {
 	select {
 	case method := <-notes:
 		assert.Equal(t, "core.stopping", method)
-	case <-time.After(2 * time.Second):
+	case <-time.After(testutil.Timeout(2 * time.Second)):
 		t.Fatal("no core.stopping notification")
 	}
 	testutil.Eventually(t, func() bool {

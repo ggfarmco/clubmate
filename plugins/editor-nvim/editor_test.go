@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
@@ -262,8 +263,11 @@ func TestBlockedNvimTimesOut(t *testing.T) {
 	assert.Less(t, time.Since(start), blockedBudget)
 	_, err = v.Input("<CR>")
 	require.NoError(t, err)
-	time.Sleep(300 * time.Millisecond)
-	assert.Equal(t, path, eval[string](t, v, "expand('%:p')"), "the refused open must not run once Neovim is free")
+	testutil.Eventually(t, func() bool {
+		m, err := v.Mode()
+		return err == nil && !m.Blocking
+	}, 5*time.Second)
+	testutil.Never(t, func() bool { return eval[string](t, v, "expand('%:p')") != path }, 400*time.Millisecond)
 	require.NoError(t, e.open(t, path, 2))
 }
 
@@ -487,12 +491,11 @@ echo '[{"id":1,"file":"a.go","side":"new","line_start":1,"line_end":1,"type":"is
 	var meta map[string]any
 	require.NoError(t, json.Unmarshal([]byte(eval[string](t, v, "g:dv_meta")), &meta))
 	assert.Equal(t, map[string]any{"subtitle": "Claude · Coder", "base": "main", "changes": "feat · working tree", "recipient": "a new session", "sent": 0.0}, meta)
-	events, err := e.h.Bus.Read(t.Context(), "editor-nvim.review", 0, 10)
-	require.NoError(t, err)
-	require.NotEmpty(t, events)
-	var p map[string]any
-	require.NoError(t, json.Unmarshal(events[len(events)-1].Payload, &p))
-	assert.Equal(t, map[string]any{"workspaceId": e.workspaceID, "id": res.ID, "worktree": wt, "base": base, "head": "", "opener": "agt_1", "recipient": "", "reviewed": 0.0, "total": 1.0, "open": 1.0, "sent": 0.0, "closed": false, "comments": []any{map[string]any{"id": 1.0, "status": "open"}}}, p)
+	want := map[string]any{"workspaceId": e.workspaceID, "id": res.ID, "worktree": wt, "base": base, "head": "", "opener": "agt_1", "recipient": "", "reviewed": 0.0, "total": 1.0, "open": 1.0, "sent": 0.0, "closed": false, "comments": []any{map[string]any{"id": 1.0, "status": "open"}}}
+	testutil.WaitEvents(t, e.h.Bus, "editor-nvim.review", func(events []bus.Event) bool {
+		var p map[string]any
+		return len(events) > 0 && json.Unmarshal(events[len(events)-1].Payload, &p) == nil && assert.ObjectsAreEqual(want, p)
+	})
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": e.workspaceID, "slot": reviewSlot, "nodeId": "review", "action": "layout", "value": "inline"}, nil))
 	testutil.Eventually(t, func() bool { return eval[string](t, v, "get(g:, 'dv_layout', '')") == "inline" }, 5*time.Second)
 	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool {
@@ -888,7 +891,7 @@ func drain(c *rpc.Client) {
 }
 
 func nextFocus(c *rpc.Client, wait time.Duration) (rpc.Notification, bool) {
-	deadline := time.After(wait)
+	deadline := time.After(testutil.Timeout(wait))
 	for {
 		select {
 		case n := <-c.Notifications():
@@ -1066,7 +1069,7 @@ func TestImportStartsAgentSession(t *testing.T) {
 	c := e.h.Client(t)
 	drain(c)
 	e.run(t, "import-config", nil, nil)
-	calls := agentCalls(t, e)
+	calls := agentCalls(t, e, 1)
 	require.Len(t, calls, 1)
 	assert.Equal(t, "Import nvim config", calls[0].Title)
 	assert.Contains(t, calls[0].Prompt, filepath.Join(home, ".config", "nvim"))
@@ -1091,7 +1094,7 @@ func TestImportRefused(t *testing.T) {
 	require.NoError(t, os.RemoveAll(filepath.Join(home, ".config", "nvim")))
 	err = e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.import-config", "workspaceId": e.workspaceID}, nil)
 	assert.ErrorContains(t, err, "no ~/.config/nvim to import")
-	assert.Empty(t, agentCalls(t, e))
+	testutil.Never(t, func() bool { return len(agentCalls(t, e, 0)) > 0 }, 250*time.Millisecond)
 }
 
 func TestImportOfferedOnce(t *testing.T) {
@@ -1114,17 +1117,16 @@ func TestImportEventStartsSession(t *testing.T) {
 	importHome(t)
 	distroWith(t, `package.loaded["clubmate.import"] = { offer = function() vim.schedule(function() vim.rpcnotify(require("clubmate").chan, "clubmate", { event = "import" }) end) end }`)
 	e := startEditorIn(t, setup{plugins: []string{fakeAgents(t)}})
-	testutil.Eventually(t, func() bool { return len(agentCalls(t, e)) == 1 }, 5*time.Second)
+	require.Len(t, agentCalls(t, e, 1), 1)
 }
 
 func TestDocOpenEventCallsDocsOpen(t *testing.T) {
 	e := startEditorIn(t, setup{plugins: []string{fakeDocs(t)}})
 	v := dial(t, e.sock)
 	require.NoError(t, v.ExecLua(`vim.rpcnotify(require("clubmate").chan, "clubmate", { event = "docOpen", file = "/r/a.md" })`, nil))
-	testutil.Eventually(t, func() bool {
-		calls := echoCalls[docsOpen](t, e, "docs.open")
-		return len(calls) == 1 && calls[0].Path == "/r/a.md"
-	}, 5*time.Second)
+	calls := echoCalls[docsOpen](t, e, "docs.open", 1)
+	require.Len(t, calls, 1)
+	assert.Equal(t, "/r/a.md", calls[0].Path)
 }
 
 func TestDocOpenFailureShowsInStatus(t *testing.T) {
@@ -1197,25 +1199,27 @@ func fakeAgentsWith(t *testing.T, worktree string) string {
 	return testutil.EchoPluginDirAs(t, `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"agents","title":"Agents","icon":"sparkles","order":25}],"commands":[{"id":"agents.sessions","title":"Sessions","hidden":true,"agent":true}]},"echoResults":{"agents.sessions":`+string(sessions)+`}}`)
 }
 
-func agentCalls(t *testing.T, e *editor) []agentsNew {
+func agentCalls(t *testing.T, e *editor, n int) []agentsNew {
 	t.Helper()
-	return echoCalls[agentsNew](t, e, "agents.new")
+	return echoCalls[agentsNew](t, e, "agents.new", n)
 }
 
-func echoCalls[T any](t *testing.T, e *editor, id string) []T {
+func echoCalls[T any](t *testing.T, e *editor, id string, n int) []T {
 	t.Helper()
-	events, err := e.h.Bus.Read(t.Context(), "echo.command", 0, 100)
-	require.NoError(t, err)
 	var out []T
-	for _, ev := range events {
-		var call struct {
-			ID   string `json:"id"`
-			Args T      `json:"args"`
+	testutil.WaitEvents(t, e.h.Bus, "echo.command", func(events []bus.Event) bool {
+		out = nil
+		for _, ev := range events {
+			var call struct {
+				ID   string `json:"id"`
+				Args T      `json:"args"`
+			}
+			require.NoError(t, json.Unmarshal(ev.Payload, &call))
+			if call.ID == id {
+				out = append(out, call.Args)
+			}
 		}
-		require.NoError(t, json.Unmarshal(ev.Payload, &call))
-		if call.ID == id {
-			out = append(out, call.Args)
-		}
-	}
+		return len(out) >= n
+	})
 	return out
 }

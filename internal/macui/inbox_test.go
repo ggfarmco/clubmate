@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/testutil"
 )
 
 const capGraph = `{"title": "Cap", "nodes": [
@@ -83,16 +85,15 @@ func TestInboxGraphPinOpensTheRun(t *testing.T) {
 func TestInboxClipsALongListToThePopover(t *testing.T) {
 	in := start(t, "macui-inbox-long", "")
 	for i := range 12 {
-		deadline := time.Now().Add(30 * time.Second)
-		for {
+		posted := testutil.Poll(func() bool {
 			out, err := in.run("notify", "--title", fmt.Sprintf("Note %d", i), fmt.Sprintf("Message %d", i))
 			if err == nil {
-				break
+				return true
 			}
 			require.Contains(t, string(out), "too many notifications")
-			require.True(t, time.Now().Before(deadline), "note %d is still rate limited", i)
-			time.Sleep(time.Second)
-		}
+			return false
+		}, 30*time.Second)
+		require.True(t, posted, "note %d is still rate limited", i)
 	}
 	in.cm("ui", "present", "inbox")
 	in.eventually("the inbox shows a full list", func() bool {

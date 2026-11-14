@@ -84,9 +84,7 @@ func TestOldTurnEndLeavesNewTurnRunning(t *testing.T) {
 	f.waitStatus(t, workspace, session, "idle")
 	f.prompt(t, workspace, session, "late")
 	testutil.Eventually(t, func() bool { return len(f.calls(t, "prompt_end")) >= 2 }, wait)
-	time.Sleep(500 * time.Millisecond)
-
-	assert.Equal(t, "running", f.session(t, workspace, session).Status)
+	testutil.Never(t, func() bool { return f.session(t, workspace, session).Status != "running" }, 500*time.Millisecond)
 	f.waitStatus(t, workspace, session, "done")
 }
 

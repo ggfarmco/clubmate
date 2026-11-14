@@ -215,14 +215,16 @@ func TestAttachExitsOnSIGHUPWhileInputIsStuck(t *testing.T) {
 	conn := <-accepted
 	t.Cleanup(func() { conn.Close() })
 	go stdin.Write(bytes.Repeat([]byte("x"), 1<<20))
-	time.Sleep(500 * time.Millisecond)
+	require.NoError(t, conn.SetReadDeadline(time.Now().Add(testutil.Timeout(5*time.Second))))
+	_, err = io.ReadFull(conn, make([]byte, 64<<10))
+	require.NoError(t, err)
 	require.NoError(t, cmd.Process.Signal(syscall.SIGHUP))
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
 	select {
 	case err := <-done:
 		assert.NoError(t, err)
-	case <-time.After(3 * time.Second):
+	case <-time.After(testutil.Timeout(3 * time.Second)):
 		assert.Fail(t, "attach hung after SIGHUP")
 	}
 }
@@ -319,7 +321,7 @@ func TestBusReadFollowPagesBacklogBeyondLimit(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- root.ExecuteContext(ctx) }()
 	testutil.Eventually(t, func() bool { return strings.Count(stdout.String(), "\n") >= 300 }, 3*time.Second)
-	time.Sleep(100 * time.Millisecond)
+	testutil.Never(t, func() bool { return strings.Count(stdout.String(), "\n") > 300 }, 100*time.Millisecond)
 	cancel()
 	require.NoError(t, <-done)
 	var seqs []int64
@@ -496,7 +498,7 @@ func TestWorkspaceOpenLaunchesAppOnlyWithoutClients(t *testing.T) {
 	select {
 	case n := <-client.Notifications():
 		assert.Equal(t, "workspace.show", n.Method)
-	case <-time.After(2 * time.Second):
+	case <-time.After(testutil.Timeout(2 * time.Second)):
 		t.Fatal("no workspace.open notification")
 	}
 }
@@ -570,7 +572,7 @@ func TestWorkspaceCLI(t *testing.T) {
 	case n := <-client.Notifications():
 		assert.Equal(t, "workspace.show", n.Method)
 		assert.JSONEq(t, `{"id":"`+id+`"}`, string(n.Params))
-	case <-time.After(2 * time.Second):
+	case <-time.After(testutil.Timeout(2 * time.Second)):
 		t.Fatal("no workspace.open notification")
 	}
 	var list []workspace.Workspace

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -223,7 +224,7 @@ func nextView(t *testing.T, c *rpc.Client, sid string) internalsdui.SlotView {
 		require.NoError(t, json.Unmarshal(n.Params, &u))
 		require.Equal(t, sid, u.Subscription)
 		return u.View
-	case <-time.After(5 * time.Second):
+	case <-time.After(testutil.Timeout(5 * time.Second)):
 		t.Fatal("no ui.updated notification")
 		return internalsdui.SlotView{}
 	}
@@ -308,8 +309,7 @@ func TestOverlappingTimeoutsAndRepliesKeepPluginRunning(t *testing.T) {
 	require.NoError(t, run("stuck.ok"))
 	require.Error(t, run("stuck.wait"))
 	require.Error(t, run("stuck.wait"))
-	time.Sleep(200 * time.Millisecond)
-	assert.Zero(t, h.Sup.Statuses()[0].Restarts)
+	testutil.Never(t, func() bool { return h.Sup.Statuses()[0].Restarts != 0 }, 200*time.Millisecond)
 }
 
 const lagManifest = `{"id":"stuck","name":"Lag","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"stuck.wait","title":"Wait","timeout":1}]},"echoResults":{"stuck.wait":{}},"echoDelays":{"stuck.wait":1500}}`
@@ -321,9 +321,7 @@ func TestLateRepliesKeepSlowPluginRunning(t *testing.T) {
 	for range 3 {
 		require.Error(t, run("stuck.wait"))
 	}
-	time.Sleep(200 * time.Millisecond)
-
-	assert.Equal(t, []int{pid}, h.Sup.PIDs())
+	testutil.Never(t, func() bool { return !slices.Equal([]int{pid}, h.Sup.PIDs()) }, 200*time.Millisecond)
 }
 
 func TestLateReplyToOlderCallKeepsNewerStrikes(t *testing.T) {
@@ -356,8 +354,7 @@ func TestAgentTimeoutsCountOncePerSession(t *testing.T) {
 	for range 3 {
 		wait("agt_a")
 	}
-	time.Sleep(200 * time.Millisecond)
-	assert.Equal(t, []int{pid}, h.Sup.PIDs())
+	testutil.Never(t, func() bool { return !slices.Equal([]int{pid}, h.Sup.PIDs()) }, 200*time.Millisecond)
 
 	wait("agt_b")
 	wait("agt_c")
@@ -383,14 +380,12 @@ func TestOneAgentCannotRestartIdleSlowPlugin(t *testing.T) {
 	h, _ := startStuck(t, manifest, plugin.WithStuckSilence(3800*time.Millisecond))
 	wait := agentWaits(t, h)
 	pid := h.Sup.PIDs()[0]
-	time.Sleep(1200 * time.Millisecond)
+	testutil.Never(t, func() bool { return !slices.Equal([]int{pid}, h.Sup.PIDs()) }, 1200*time.Millisecond)
 
 	for range 3 {
 		wait("agt_a")
 	}
-	time.Sleep(200 * time.Millisecond)
-
-	assert.Equal(t, []int{pid}, h.Sup.PIDs())
+	testutil.Never(t, func() bool { return !slices.Equal([]int{pid}, h.Sup.PIDs()) }, 200*time.Millisecond)
 }
 
 func TestWaitForStartAndCallShareOneTimeout(t *testing.T) {
@@ -398,7 +393,7 @@ func TestWaitForStartAndCallShareOneTimeout(t *testing.T) {
 	h := testutil.NewHarness(t)
 	p := h.CreateWorkspace(t, "demo")
 	c := h.Client(t)
-	h.Start(t, testutil.EchoPluginDirAs(t, `{"id":"late","name":"Late","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"late.wait","title":"Wait","timeout":1}]},"echoResults":{"late.wait":{}},"echoDelays":{"late.wait":900}}`))
+	h.Start(t, testutil.EchoPluginDirAs(t, `{"id":"late","name":"Late","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"late.wait","title":"Wait","timeout":3}]},"echoResults":{"late.wait":{}},"echoDelays":{"late.wait":2900}}`))
 
 	err := c.Call(t.Context(), "command.run", map[string]any{"id": "late.wait", "workspaceId": p.ID}, nil)
 

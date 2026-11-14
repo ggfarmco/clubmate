@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	internalsdui "clubmate/internal/sdui"
+	"clubmate/internal/testutil"
 	"clubmate/pkg/sdui"
 )
 
@@ -199,7 +200,7 @@ func recvAll(t *testing.T, sub *internalsdui.Subscription) []internalsdui.SlotVi
 		views, ok := sub.Take()
 		require.True(t, ok, "subscription closed")
 		return views
-	case <-time.After(2 * time.Second):
+	case <-time.After(testutil.Timeout(2 * time.Second)):
 		t.Fatal("no view within 2s")
 		return nil
 	}

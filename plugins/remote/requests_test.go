@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/testutil"
 	"clubmate/pkg/contract"
 )
 
@@ -49,7 +50,7 @@ func TestConcurrentRepeatWaits(t *testing.T) {
 	case <-secondDone:
 		close(release)
 		t.Fatal("the repeat answered before the first run finished")
-	case <-time.After(50 * time.Millisecond):
+	case <-time.After(testutil.Timeout(50 * time.Millisecond)):
 	}
 	close(release)
 
@@ -84,7 +85,7 @@ func TestDroppedRequestStillCompletes(t *testing.T) {
 	<-seen
 	close(release)
 
-	require.Eventually(t, func() bool { return strings.Contains(f.kv.get(requestKey("r1")), `"done"`) }, 2*time.Second, 5*time.Millisecond)
+	testutil.Eventually(t, func() bool { return strings.Contains(f.kv.get(requestKey("r1")), `"done"`) }, 2*time.Second)
 	_, again := f.call(t, token, "command", commandWithID("r1"))
 
 	assert.Nil(t, again.Error)

@@ -2,7 +2,6 @@ package main_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -34,7 +33,9 @@ func TestNetworkErrorRetriedInOrchestration(t *testing.T) {
 			kidID := f.agentID(t, workspace, kid)
 
 			testutil.Eventually(t, func() bool { return len(f.promptsTo(t, parentID, "[Clubmate] Child")) > 0 }, wait)
-			time.Sleep(quiet)
+			testutil.Never(t, func() bool {
+				return len(f.promptsTo(t, parentID, "[Clubmate] Child")) > 1 || len(f.promptsTo(t, kidID, "")) > tt.prompts
+			}, quiet)
 
 			assert.Equal(t, []string{`[Clubmate] Child "Kid" (` + kid + ") is " + tt.wake + "."}, f.promptsTo(t, parentID, "[Clubmate] Child"))
 			assert.Len(t, f.promptsTo(t, kidID, ""), tt.prompts)

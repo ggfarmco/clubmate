@@ -13,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/testutil"
 )
 
 const fakeClaudeEnv = "VOICE_FAKE_CLAUDE"
@@ -158,7 +160,7 @@ func waitDone(t *testing.T, v *voice, uid string) State {
 	v.mu.Unlock()
 	select {
 	case <-u.done:
-	case <-time.After(5 * time.Second):
+	case <-time.After(testutil.Timeout(5 * time.Second)):
 		require.Fail(t, "utterance did not end")
 	}
 	st, err := v.state(testWorkspace, uid)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -136,7 +137,7 @@ func TestHelperSleep(t *testing.T) {
 	if os.Getenv("CLUBMATE_HELPER_SLEEP") == "" {
 		t.Skip()
 	}
-	time.Sleep(30 * time.Second)
+	_, _ = io.Copy(io.Discard, os.Stdin)
 }
 
 func TestSessionHostResize(t *testing.T) {
@@ -267,7 +268,7 @@ func TestSlowClientStaysAttachedUnderFloodAndInterrupts(t *testing.T) {
 	select {
 	case err := <-lost:
 		require.FailNow(t, "slow client dropped", err.Error())
-	case <-time.After(2 * time.Second):
+	case <-time.After(testutil.Timeout(2 * time.Second)):
 	}
 	require.NoError(t, wire.WriteFrame(conn, wire.Frame{Type: wire.FrameData, Payload: []byte{3}}))
 	slow.Store(false)
@@ -275,7 +276,7 @@ func TestSlowClientStaysAttachedUnderFloodAndInterrupts(t *testing.T) {
 	case <-seen:
 	case err := <-lost:
 		require.FailNow(t, "slow client dropped", err.Error())
-	case <-time.After(waitTimeout):
+	case <-time.After(testutil.Timeout(waitTimeout)):
 		require.FailNow(t, "^C did not stop the flood")
 	}
 }
@@ -428,7 +429,7 @@ func (c *testClient) waitExit(t *testing.T) int {
 	select {
 	case code := <-c.exit:
 		return code
-	case <-time.After(waitTimeout):
+	case <-time.After(testutil.Timeout(waitTimeout)):
 		require.FailNow(t, "no exit frame")
 		return 0
 	}

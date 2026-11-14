@@ -31,6 +31,5 @@ func TestOldClosedSessionsAreDeletedWithTheirFiles(t *testing.T) {
 	testutil.Eventually(t, func() bool { return f.session(t, workspace, old).ID == "" }, wait)
 	assert.NoDirExists(t, filepath.Join(state, "uploads", old))
 	assert.NoFileExists(t, filepath.Join(state, "sessions", old+".jsonl"))
-	time.Sleep(2 * after)
-	assert.Equal(t, "closed", f.session(t, workspace, held).Status)
+	testutil.Never(t, func() bool { return f.session(t, workspace, held).Status != "closed" }, 2*after)
 }

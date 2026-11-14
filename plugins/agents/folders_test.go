@@ -654,7 +654,7 @@ func TestRemovingAFolderStallsNothingElseAndRefusesItsSessions(t *testing.T) {
 	select {
 	case err := <-done:
 		require.NoError(t, err)
-	case <-time.After(5 * time.Second):
+	case <-time.After(testutil.Timeout(5 * time.Second)):
 		t.Fatal("a session elsewhere waited for the removal")
 	}
 	require.ErrorContains(t, f.run(t, there, "agents.new", map[string]any{}, nil), "being removed")

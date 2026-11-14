@@ -93,13 +93,13 @@ func TestDialWaitsUntilSocketListens(t *testing.T) {
 	select {
 	case err := <-dialed:
 		require.Failf(t, "dial returned before listen", "%v", err)
-	case <-time.After(4 * socketPoll):
+	case <-time.After(testutil.Timeout(4 * socketPoll)):
 	}
 	require.NoError(t, unix.Listen(fd, 1))
 	select {
 	case err := <-dialed:
 		require.NoError(t, err)
-	case <-time.After(socketWait):
+	case <-time.After(testutil.Timeout(socketWait)):
 		require.Fail(t, "dial did not finish after listen")
 	}
 }
@@ -132,7 +132,7 @@ func TestConnectWaitsForStartupBeforeAUIAttaches(t *testing.T) {
 	select {
 	case <-connected:
 		require.Fail(t, "connect returned before nvim sourced its init")
-	case <-time.After(10 * socketPoll):
+	case <-time.After(testutil.Timeout(10 * socketPoll)):
 	}
 
 	ui, err := dial(t.Context(), sock)
@@ -143,7 +143,7 @@ func TestConnectWaitsForStartupBeforeAUIAttaches(t *testing.T) {
 	var c *client
 	select {
 	case c = <-connected:
-	case <-time.After(socketWait):
+	case <-time.After(testutil.Timeout(socketWait)):
 	}
 	require.NotNil(t, c, "connect did not return after a UI attached")
 	t.Cleanup(c.close)

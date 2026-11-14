@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/testutil"
 	"clubmate/pkg/contract"
 )
@@ -29,8 +30,7 @@ func TestOpenFoldersDedupes(t *testing.T) {
 	assert.True(t, created)
 	assert.Equal(t, "link", other.Name)
 	assert.NotEqual(t, p.ID, other.ID)
-	evs, err := b.Read(t.Context(), "workspace.created", 0, 0)
-	require.NoError(t, err)
+	evs := testutil.WaitEvents(t, b, "workspace.created", func(e []bus.Event) bool { return len(e) >= 2 })
 	assert.Len(t, evs, 2)
 }
 
@@ -58,8 +58,7 @@ func TestOpenFoldersFirstFolderFallback(t *testing.T) {
 	assert.True(t, created, "a folder that is not first never matches")
 	assert.NotEqual(t, grown.ID, got.ID)
 
-	evs, err := b.Read(t.Context(), "workspace.created", 0, 0)
-	require.NoError(t, err)
+	evs := testutil.WaitEvents(t, b, "workspace.created", func(e []bus.Event) bool { return len(e) >= 3 })
 	assert.Len(t, evs, 3)
 }
 

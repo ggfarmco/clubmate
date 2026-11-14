@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/paths"
+	"clubmate/internal/testutil"
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
@@ -635,7 +636,7 @@ func blockedStep(t *testing.T) (*app, *fakeCore, *Run) {
 	p.block = true
 	a.spawn = func(f func()) { go f() }
 	turnDone(t, a, "agt_1", 1)
-	require.Eventually(t, func() bool { return p.ran() == 1 }, time.Second, 5*time.Millisecond)
+	testutil.Eventually(t, func() bool { return p.ran() == 1 }, time.Second)
 	return a, core, r
 }
 
@@ -643,10 +644,10 @@ func TestStopCancelsRunningStep(t *testing.T) {
 	a, _, r := blockedStep(t)
 	_, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.stop", WorkspaceID: "ws1", Args: json.RawMessage(`{"id":"` + r.ID + `"}`)})
 	require.NoError(t, err)
-	assert.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		m := stepMoves(a, r.ID, "tests")
 		return len(m) == 1 && m[0].Step.Reason == reasonStopped
-	}, time.Second, 5*time.Millisecond)
+	}, time.Second)
 }
 
 func TestStopCancelsStepsWhenTriggersAreLeft(t *testing.T) {
@@ -660,10 +661,10 @@ func TestStopCancelsStepsWhenTriggersAreLeft(t *testing.T) {
 	}
 
 	assert.ErrorContains(t, stop("graphs.stop"), "triggers down")
-	assert.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		m := stepMoves(a, r.ID, "tests")
 		return len(m) == 1 && m[0].Step.Reason == reasonStopped
-	}, time.Second, 5*time.Millisecond)
+	}, time.Second)
 	assert.ErrorContains(t, stop("graphs.delete"), "edge triggers are left")
 	a.mu.Lock()
 	assert.Equal(t, statusStopped, a.runs[r.ID].Status)
@@ -681,21 +682,21 @@ func TestStopClosesQueuedStepMoves(t *testing.T) {
 	turnDone(t, a, "agt_1", 2)
 	_, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.stop", WorkspaceID: "ws1", Args: json.RawMessage(`{"id":"` + r.ID + `"}`)})
 	require.NoError(t, err)
-	assert.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		m := stepMoves(a, r.ID, "tests")
 		return len(m) == 2 && !m[1].Open && m[1].Step.Outcome == onError && m[1].Step.Reason == reasonStopped
-	}, time.Second, 5*time.Millisecond)
+	}, time.Second)
 }
 
 func TestWorkspaceDeleteKillsSteps(t *testing.T) {
 	a, _, _ := blockedStep(t)
 	a.workspaces = func(context.Context) ([]pluginsdk.Workspace, error) { return nil, nil }
 	a.dropWorkspace(t.Context(), "ws1")
-	assert.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		a.mu.Lock()
 		defer a.mu.Unlock()
 		return len(a.cancels) == 0
-	}, time.Second, 5*time.Millisecond)
+	}, time.Second)
 }
 
 func TestRestartMarksOpenStepInterrupted(t *testing.T) {

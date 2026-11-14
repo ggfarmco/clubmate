@@ -75,7 +75,7 @@ func TestChildDoneWakesSuspendedParent(t *testing.T) {
 
 	f.waitCall(t, "session/resume", func(fakeCall) bool { return true })
 	testutil.Eventually(t, func() bool { return len(f.promptsTo(t, parentID, "[Clubmate] Child")) > 0 }, wait)
-	time.Sleep(quiet)
+	testutil.Never(t, func() bool { return len(f.promptsTo(t, parentID, "[Clubmate] Child")) > 1 }, quiet)
 	assert.Equal(t, []string{`[Clubmate] Child "Kid" (` + kid + ") is done."}, f.promptsTo(t, parentID, "[Clubmate] Child"))
 }
 
@@ -95,7 +95,7 @@ func TestChildrenDoneWakeParentOnce(t *testing.T) {
 	f.waitStatus(t, workspace, second, "done")
 
 	testutil.Eventually(t, func() bool { return len(f.promptsTo(t, parentID, "[Clubmate] Child")) > 0 }, wait)
-	time.Sleep(quiet)
+	testutil.Never(t, func() bool { return len(f.promptsTo(t, parentID, "[Clubmate] Child")) > 1 }, quiet)
 	got := f.promptsTo(t, parentID, "[Clubmate] Child")
 	require.Len(t, got, 1)
 	assert.Contains(t, got[0], `Child "One" (`+first+") is done.")
@@ -112,8 +112,7 @@ func TestParentWaitingOnChildIsNotWoken(t *testing.T) {
 
 	assert.Equal(t, "done", f.wait(t, workspace, parent, kid)[0].Status)
 
-	time.Sleep(quiet)
-	assert.Empty(t, f.promptsTo(t, parentID, "[Clubmate] Child"))
+	testutil.Never(t, func() bool { return len(f.promptsTo(t, parentID, "[Clubmate] Child")) > 0 }, quiet)
 }
 
 func TestChildQuestionGoesToParent(t *testing.T) {
@@ -131,9 +130,11 @@ func TestChildQuestionGoesToParent(t *testing.T) {
 	testutil.Eventually(t, func() bool { return len(f.promptsTo(t, parentID, "[Clubmate] Child")) > 0 }, wait)
 	assert.Contains(t, f.promptsTo(t, parentID, "[Clubmate] Child")[0], `Child "Kid" (`+kid+`) asks you, not the user: "Which store?" (agents_elicitation request `+asking.Pending[0]+")")
 	assert.NotEqual(t, "waiting", f.session(t, workspace, parent).ChildStatus)
-	events, err := f.h.Bus.Read(t.Context(), "notify.posted", 0, 100)
-	require.NoError(t, err)
-	assert.False(t, slices.ContainsFunc(events, func(e bus.Event) bool { return strings.Contains(string(e.Payload), kid) }))
+	testutil.Never(t, func() bool {
+		events, err := f.h.Bus.Read(t.Context(), "notify.posted", 0, 100)
+		require.NoError(t, err)
+		return slices.ContainsFunc(events, func(e bus.Event) bool { return strings.Contains(string(e.Payload), kid) })
+	}, 500*time.Millisecond)
 
 	answer := map[string]any{"session": kid, "request": asking.Pending[0], "action": "accept", "answers": []map[string]any{{"key": "question_0", "value": "Redis"}}}
 	require.NoError(t, f.runAs(t, workspace, parent, "agents.elicitation", answer, nil))

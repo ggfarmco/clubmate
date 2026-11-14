@@ -15,6 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/testutil"
 )
 
 func runShell(t *testing.T, shell string, timeout time.Duration) (stepResult, string) {
@@ -56,7 +58,7 @@ func TestShellRunnerTimeoutKillsGroup(t *testing.T) {
 	require.NoError(t, err)
 	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 	require.NoError(t, err)
-	assert.Eventually(t, func() bool { return errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) }, 5*time.Second, 20*time.Millisecond)
+	testutil.Eventually(t, func() bool { return errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) }, 5*time.Second)
 }
 
 func TestShellRunnerCapsAndCleansOutput(t *testing.T) {
@@ -115,7 +117,7 @@ func TestShellRunnerBackgroundChildDoesNotHang(t *testing.T) {
 	require.NoError(t, err)
 	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 	require.NoError(t, err)
-	assert.Eventually(t, func() bool { return errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) }, 5*time.Second, 20*time.Millisecond)
+	testutil.Eventually(t, func() bool { return errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) }, 5*time.Second)
 }
 
 func TestShellRunnerCountsEveryLine(t *testing.T) {
@@ -140,6 +142,6 @@ func TestKillGroupSparesReusedPID(t *testing.T) {
 	select {
 	case <-exited:
 		t.Fatal("killed a process whose start time differs")
-	case <-time.After(200 * time.Millisecond):
+	case <-time.After(testutil.Timeout(200 * time.Millisecond)):
 	}
 }

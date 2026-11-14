@@ -47,9 +47,18 @@ test:
 	go test -race $$(go list ./... | grep -v /dist/)
 	cd third_party/jsonrpc2 && go test ./...
 	scripts/release/ship-test.sh
+	$(MAKE) lint-tests
 
-lint:
+BASE ?= $(shell git merge-base HEAD main)
+
+test-stress:
+	scripts/test-stress.sh $(BASE)
+
+lint: lint-tests
 	go vet ./...
+
+lint-tests:
+	go run ./tools/testlint $$(go list ./... | grep -v /dist/)
 
 push-relay:
 	go build -o bin/clubmate-push-relay ./cmd/clubmate-push-relay
@@ -119,7 +128,7 @@ companion-e2e: build
 	scripts/companion-e2e/run.sh $(COMPANION_E2E_SIM) "$(COMPANION_SIM_TYPE)" && \
 	scripts/companion-e2e/run.sh $(COMPANION_E2E_SIM)-ipad "$(COMPANION_E2E_IPAD_TYPE)" CompanionE2ETests/HardwareKeyboardTests
 
-.PHONY: build run-core test lint push-relay push-relay-linux ghostty app app-release run-app protocol-test kit-test nvim-distro nvim-test bundle-smoke gallery-smoke companion-kit-test companion companion-ui-test companion-e2e mac-ui-test
+.PHONY: build run-core test test-stress lint lint-tests push-relay push-relay-linux ghostty app app-release run-app protocol-test kit-test nvim-distro nvim-test bundle-smoke gallery-smoke companion-kit-test companion companion-ui-test companion-e2e mac-ui-test
 
 mac-ui-test:
 	mkdir -p build/mac-ui

@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/testutil"
 )
 
 func gitIn(t *testing.T, dir string, env []string, args ...string) string {
@@ -124,8 +126,7 @@ func TestWorktreePicker(t *testing.T) {
 		open(in)
 		in.pointer("click", "worktree.pill")
 		in.eventually("the picker closes", closed(in))
-		time.Sleep(500 * time.Millisecond)
-		assert.True(t, closed(in)(), "the same click must not reopen it")
+		testutil.Never(t, func() bool { return !closed(in)() }, 500*time.Millisecond)
 	})
 	t.Run("the folder ⋯ lists its actions", func(t *testing.T) {
 		in := app.at(t)
@@ -363,9 +364,9 @@ func TestConnectCardAndComposer(t *testing.T) {
 		in.focusIn(session)
 		in.connect(session, in.newRepo("conn-c"), in.newRepo("conn-d"))
 		in.eventually("the card shows", func() bool { return len(cardRows(in, "conn-c", "conn-d")) == 2 })
-		time.Sleep(500 * time.Millisecond)
-		assert.Equal(t, session, focusedSession(in.snapshot().key()))
-		assert.Zero(t, roles(cardRows(in, "conn-c", "conn-d"), "focused"))
+		testutil.Never(t, func() bool {
+			return focusedSession(in.snapshot().key()) != session || roles(cardRows(in, "conn-c", "conn-d"), "focused") != 0
+		}, 500*time.Millisecond)
 		in.key("space", "m", "o", "r", "e", "return")
 		sent(in, session, "draft more")
 		assert.Equal(t, 2, roles(cardRows(in, "conn-c", "conn-d"), "selected"))

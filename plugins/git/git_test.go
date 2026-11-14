@@ -90,21 +90,23 @@ func waitReady(t *testing.T, h *testutil.PluginHarness) {
 	}, readyWait)
 }
 
-func commandArgs(t *testing.T, h *testutil.PluginHarness, command string) []json.RawMessage {
+func commandArgs(t *testing.T, h *testutil.PluginHarness, command string, n int) []json.RawMessage {
 	t.Helper()
-	events, err := h.Bus.Read(t.Context(), "echo.command", 0, 1000)
-	require.NoError(t, err)
 	var out []json.RawMessage
-	for _, ev := range events {
-		var call struct {
-			ID   string          `json:"id"`
-			Args json.RawMessage `json:"args"`
+	testutil.WaitEvents(t, h.Bus, "echo.command", func(events []bus.Event) bool {
+		out = nil
+		for _, ev := range events {
+			var call struct {
+				ID   string          `json:"id"`
+				Args json.RawMessage `json:"args"`
+			}
+			require.NoError(t, json.Unmarshal(ev.Payload, &call))
+			if call.ID == command {
+				out = append(out, call.Args)
+			}
 		}
-		require.NoError(t, json.Unmarshal(ev.Payload, &call))
-		if call.ID == command {
-			out = append(out, call.Args)
-		}
-	}
+		return len(out) >= n
+	})
 	return out
 }
 
@@ -189,36 +191,40 @@ func awaitOp(t *testing.T, h *testutil.PluginHarness, id, command string, args a
 
 func waitOp(t *testing.T, h *testutil.PluginHarness, id, op string) opResult {
 	t.Helper()
-	deadline := time.Now().Add(150 * time.Second)
-	for {
-		var res opResult
+	var res opResult
+	require.True(t, testutil.Poll(func() bool {
+		res = opResult{}
 		require.NoError(t, runCommand(t, h, id, "git.worktree-op-status", map[string]string{"id": op}, &res))
-		if res.Done {
-			return res
-		}
-		require.True(t, time.Now().Before(deadline), "operation %s did not finish", op)
-		time.Sleep(20 * time.Millisecond)
-	}
+		return res.Done
+	}, 150*time.Second), "operation %s did not finish", op)
+	return res
 }
 
-func outcomes(t *testing.T, h *testutil.PluginHarness) []outcomeEntry {
+func outcomesUntil(t *testing.T, h *testutil.PluginHarness, done func([]outcomeEntry) bool) []outcomeEntry {
 	t.Helper()
-	events, err := h.Bus.Read(t.Context(), "git.outcome", 0, 1000)
-	require.NoError(t, err)
-	out := make([]outcomeEntry, 0, len(events))
-	for _, ev := range events {
-		var o outcomeEntry
-		require.NoError(t, json.Unmarshal(ev.Payload, &o))
-		out = append(out, o)
-	}
+	var out []outcomeEntry
+	testutil.WaitEvents(t, h.Bus, "git.outcome", func(events []bus.Event) bool {
+		out = make([]outcomeEntry, 0, len(events))
+		for _, ev := range events {
+			var o outcomeEntry
+			require.NoError(t, json.Unmarshal(ev.Payload, &o))
+			out = append(out, o)
+		}
+		return done(out)
+	})
 	return out
+}
+
+func outcomes(t *testing.T, h *testutil.PluginHarness, n int) []outcomeEntry {
+	t.Helper()
+	return outcomesUntil(t, h, func(o []outcomeEntry) bool { return len(o) >= n })
 }
 
 func outcomeOf(t *testing.T, h *testutil.PluginHarness, op string) outcomeEntry {
 	t.Helper()
-	i := slices.IndexFunc(outcomes(t, h), func(o outcomeEntry) bool { return o.ID == op })
-	require.GreaterOrEqual(t, i, 0, "no git.outcome for %s", op)
-	return outcomes(t, h)[i]
+	byOp := func(o outcomeEntry) bool { return o.ID == op }
+	got := outcomesUntil(t, h, func(o []outcomeEntry) bool { return slices.ContainsFunc(o, byOp) })
+	return got[slices.IndexFunc(got, byOp)]
 }
 
 func TestWorktreeList(t *testing.T) {
@@ -288,7 +294,8 @@ func TestNewWorktreeWithoutSwitch(t *testing.T) {
 	}
 	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "git.worktree-new", "workspaceId": id, "agent": true, "args": map[string]any{"branch": "agent", "switch": false}}, &started))
 	assert.Empty(t, waitOp(t, h, id, started.ID).Error)
-	assert.Len(t, outcomes(t, h), 1)
+	assert.Len(t, outcomes(t, h, 1), 1)
+	testutil.Never(t, func() bool { return len(outcomes(t, h, 0)) > 1 }, 250*time.Millisecond)
 }
 
 func TestNewWorktreeFromOtherWorktree(t *testing.T) {
@@ -556,11 +563,11 @@ func TestRemoveWorktree(t *testing.T) {
 
 	assert.Equal(t, opResult{Done: true}, awaitOp(t, h, id, "git.worktree-remove", map[string]string{"path": feat}))
 	assert.NoDirExists(t, feat)
-	events, err := h.Bus.Read(t.Context(), "echo.command", 0, 100)
-	require.NoError(t, err)
-	assert.True(t, slices.ContainsFunc(events, func(e bus.Event) bool {
-		return strings.Contains(string(e.Payload), `"agents.stop-root"`) && strings.Contains(string(e.Payload), `"path":"`+feat+`"`)
-	}))
+	testutil.WaitEvents(t, h.Bus, "echo.command", func(events []bus.Event) bool {
+		return slices.ContainsFunc(events, func(e bus.Event) bool {
+			return strings.Contains(string(e.Payload), `"agents.stop-root"`) && strings.Contains(string(e.Payload), `"path":"`+feat+`"`)
+		})
+	})
 	assert.Equal(t, repo, firstRoot(t, h, id))
 	git(t, repo, "rev-parse", "--verify", "-q", "feat")
 	testutil.Eventually(t, func() bool {
@@ -579,8 +586,7 @@ func TestRemovedWorktreeFallsBack(t *testing.T) {
 
 	require.NoError(t, os.RemoveAll(feat))
 
-	testutil.Eventually(t, func() bool { return len(outcomes(t, h)) > 0 }, 10*time.Second)
-	assert.Equal(t, []outcomeEntry{{Workspace: id, Message: "Worktree feature no longer exists — back on main"}}, outcomes(t, h))
+	assert.Equal(t, []outcomeEntry{{Workspace: id, Message: "Worktree feature no longer exists — back on main"}}, outcomes(t, h, 1))
 	p, err := h.Svc.GetWorkspace(t.Context(), id)
 	require.NoError(t, err)
 	assert.Equal(t, []string{repo}, p.Paths())
@@ -606,7 +612,7 @@ func TestInPlaceSwitchPublishesChanged(t *testing.T) {
 			require.NoError(t, json.Unmarshal(ev.Payload, &payload))
 			assert.Equal(t, id, payload.Workspace)
 			return
-		case <-time.After(time.Second):
+		case <-time.After(testutil.Timeout(time.Second)):
 		}
 	}
 }
@@ -706,7 +712,7 @@ func TestBranchSwitch(t *testing.T) {
 
 	require.Empty(t, awaitOp(t, h, id, "git.branch-switch", map[string]string{"branch": "feat"}).Error)
 	assert.Equal(t, "feat", git(t, repo, "branch", "--show-current"))
-	assert.JSONEq(t, fmt.Sprintf(`{"root":%q}`, repo), string(commandArgs(t, h, "editor-nvim.checktime")[0]))
+	assert.JSONEq(t, fmt.Sprintf(`{"root":%q}`, repo), string(commandArgs(t, h, "editor-nvim.checktime", 1)[0]))
 
 	write(t, filepath.Join(repo, "a.go"), "dirty\n")
 	assert.Contains(t, awaitOp(t, h, id, "git.branch-switch", map[string]string{"branch": "main"}).Error, "would be overwritten by checkout")
@@ -926,7 +932,9 @@ func TestWorktreeRemoveRefusalStopsBeforeVacating(t *testing.T) {
 	assert.Equal(t, opResult{Done: true, Error: "unsaved buffers: a.go"}, waitOp(t, h, id, op))
 	assert.Equal(t, outcomeEntry{Workspace: id, ID: op, Message: "unsaved buffers: a.go"}, outcomeOf(t, h, op))
 	assert.DirExists(t, feat)
-	assert.JSONEq(t, fmt.Sprintf(`{"path":%q,"root":%q,"force":true}`, feat, feat), string(commandArgs(t, h, "editor-nvim.stop-root")[1]))
-	assert.Empty(t, commandArgs(t, h, "agents.stop-root"))
-	assert.Len(t, commandArgs(t, h, "editor-nvim.release-root"), 2)
+	assert.JSONEq(t, fmt.Sprintf(`{"path":%q,"root":%q,"force":true}`, feat, feat), string(commandArgs(t, h, "editor-nvim.stop-root", 2)[1]))
+	assert.Len(t, commandArgs(t, h, "editor-nvim.release-root", 2), 2)
+	testutil.Never(t, func() bool {
+		return len(commandArgs(t, h, "agents.stop-root", 0)) > 0 || len(commandArgs(t, h, "editor-nvim.release-root", 0)) > 2
+	}, 250*time.Millisecond)
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
@@ -37,8 +38,7 @@ func TestNotifyPostValidatesAndPublishes(t *testing.T) {
 		ID string `json:"id"`
 	}
 	require.NoError(t, c.Call(t.Context(), "notify.post", map[string]any{"workspaceId": other.ID, "session": s.ID, "collapse": s.ID, "quiet": true, "always": true, "title": "Claude", "message": strings.Repeat("x", 1500)}, &res))
-	events, err := b.Read(t.Context(), "notify.posted", 0, 10)
-	require.NoError(t, err)
+	events := testutil.WaitEvents(t, b, "notify.posted", func(e []bus.Event) bool { return len(e) > 0 })
 	require.Len(t, events, 1)
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(events[0].Payload, &got))

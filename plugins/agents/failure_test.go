@@ -3,10 +3,11 @@ package main_test
 import (
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/testutil"
 )
 
 func TestLimitFailureEndsTurnWithTitle(t *testing.T) {
@@ -51,7 +52,7 @@ func TestTypedFailureInOrchestration(t *testing.T) {
 			kidID := f.agentID(t, workspace, kid)
 
 			f.waitStatus(t, workspace, kid, tt.status)
-			time.Sleep(quiet)
+			testutil.Never(t, func() bool { return len(f.promptsTo(t, kidID, "")) > tt.prompts }, quiet)
 
 			assert.Len(t, f.promptsTo(t, kidID, ""), tt.prompts)
 			assert.Len(t, f.promptsTo(t, kidID, "Your turn ended with an error"), tt.prompts-1)

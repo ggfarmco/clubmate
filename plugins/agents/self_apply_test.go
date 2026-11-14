@@ -719,7 +719,7 @@ func TestDeclareAndApplyIgnoreTheUsersGitConfig(t *testing.T) {
 		require.NoError(t, os.Chmod(filepath.Join(hooks, hook), 0o700))
 	}
 	global := filepath.Join(t.TempDir(), "gitconfig")
-	write(t, global, "[core]\n\thooksPath = "+hooks+"\n[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = /usr/bin/false\n")
+	write(t, global, "[maintenance]\n\tauto = false\n[core]\n\thooksPath = "+hooks+"\n[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = /usr/bin/false\n")
 	x, box := selfWithSandbox(t)
 	t.Setenv("GIT_CONFIG_GLOBAL", global)
 

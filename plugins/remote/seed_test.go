@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/testutil"
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -58,7 +59,7 @@ func TestWorkspaceCreatedSeeds(t *testing.T) {
 
 	f.app(t).busEvent(t.Context(), nil, "", pluginsdk.Event{Topic: workspaceCreatedTopic, Payload: json.RawMessage(`{"workspace":"prj_2","info":{"id":"prj_2"}}`)})
 
-	assert.Eventually(t, func() bool { return f.kv.get(pushTriggerKey+"prj_2") == `"tr_1"` }, time.Second, time.Millisecond)
+	testutil.Eventually(t, func() bool { return f.kv.get(pushTriggerKey+"prj_2") == `"tr_1"` }, time.Second)
 	assert.Equal(t, "prj_2", f.triggerAdds()[0].workspace)
 }
 

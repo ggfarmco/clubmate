@@ -8,11 +8,13 @@ import (
 	"net/netip"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/sourcegraph/jsonrpc2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
 )
@@ -220,10 +222,17 @@ func TestBrowserGuardSeesActionAndLastURL(t *testing.T) {
 	assert.Len(t, app.got(), 2)
 }
 
-func notifyEvents(t *testing.T, h *testutil.PluginHarness) []map[string]any {
+func noNotify(t *testing.T, h *testutil.PluginHarness) {
 	t.Helper()
-	events, err := h.Bus.Read(t.Context(), "notify.posted", 0, 10)
-	require.NoError(t, err)
+	testutil.Never(t, func() bool {
+		events, err := h.Bus.Read(t.Context(), "notify.posted", 0, 1)
+		return err != nil || len(events) > 0
+	}, 200*time.Millisecond)
+}
+
+func notifyEvents(t *testing.T, h *testutil.PluginHarness, n int) []map[string]any {
+	t.Helper()
+	events := testutil.WaitEvents(t, h.Bus, "notify.posted", func(e []bus.Event) bool { return len(e) >= n })
 	out := make([]map[string]any, len(events))
 	for i, e := range events {
 		require.NoError(t, json.Unmarshal(e.Payload, &out[i]))
@@ -240,7 +249,7 @@ func TestBrowserHandoffNotifiesThenWaits(t *testing.T) {
 	out, err := browserRun(t, c, w.ID, "browser.handoff", map[string]any{"caller": browserOwner}, map[string]any{"reason": "captcha"})
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"result":"done"}`, string(out))
-	got := notifyEvents(t, h)
+	got := notifyEvents(t, h, 1)
 	require.Len(t, got, 1)
 	assert.Equal(t, [4]any{"needs-input", "captcha", "Browser needs you", browserOwner}, [4]any{got[0]["kind"], got[0]["message"], got[0]["title"], got[0]["session"]})
 	calls := app.got()
@@ -249,7 +258,7 @@ func TestBrowserHandoffNotifiesThenWaits(t *testing.T) {
 
 	_, err = browserRun(t, c, w.ID, "browser.handoff", map[string]any{"terminal": "ses_0123456789abcdef"}, map[string]any{"reason": "login"})
 	require.NoError(t, err)
-	got = notifyEvents(t, h)
+	got = notifyEvents(t, h, 2)
 	require.Len(t, got, 2)
 	assert.Equal(t, [2]any{"login", nil}, [2]any{got[1]["message"], got[1]["session"]})
 	assert.Len(t, app.got(), 2)
@@ -263,12 +272,12 @@ func TestBrowserHandoffNeverNotifiesWhenItCannotProceed(t *testing.T) {
 	args := map[string]any{"reason": "captcha"}
 	_, err := browserRun(t, c, w.ID, "browser.handoff", nil, args)
 	assert.ErrorContains(t, err, "the Clubmate app is not running")
-	assert.Empty(t, notifyEvents(t, h))
+	noNotify(t, h)
 
 	app := newBrowserApp(t, h, `{}`)
 	rpc.SetBrowserGuard(h.Srv, func(context.Context, rpc.BrowserGuardInput) error { return assert.AnError })
 	_, err = browserRun(t, c, w.ID, "browser.handoff", nil, args)
 	assert.ErrorContains(t, err, assert.AnError.Error())
-	assert.Empty(t, notifyEvents(t, h))
+	noNotify(t, h)
 	assert.Empty(t, app.got())
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/testutil"
 	"clubmate/plugins/agents/acp"
 )
 
@@ -63,7 +64,7 @@ func TestPartsWaitForAnApply(t *testing.T) {
 	select {
 	case <-done:
 		t.Fatal("read the self during an apply")
-	case <-time.After(50 * time.Millisecond):
+	case <-time.After(testutil.Timeout(50 * time.Millisecond)):
 	}
 	x.mu.Unlock()
 	<-done
@@ -107,7 +108,7 @@ func TestGlobalGitConfigDoesNotReachTheSelf(t *testing.T) {
 	marker := filepath.Join(hooks, "ran")
 	require.NoError(t, os.WriteFile(filepath.Join(hooks, "post-commit"), []byte("#!/bin/sh\ntouch '"+marker+"'\n"), 0o700))
 	global := filepath.Join(t.TempDir(), "gitconfig")
-	write(t, global, "[core]\n\thooksPath = "+hooks+"\n\texcludesFile = "+filepath.Join(hooks, "ignore")+"\n")
+	write(t, global, "[maintenance]\n\tauto = false\n[core]\n\thooksPath = "+hooks+"\n\texcludesFile = "+filepath.Join(hooks, "ignore")+"\n")
 	write(t, filepath.Join(hooks, "ignore"), "skills/\n")
 	t.Setenv("GIT_CONFIG_GLOBAL", global)
 

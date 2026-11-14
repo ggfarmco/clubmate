@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/testutil"
 )
 
 const removeScript = `{"prompt": [{"match": "Remove", "run": "\"%s\" command run --agent git.worktree-remove repo=\"$PWD\" path=\"$PWD/.worktrees/feat-multi-repo-landing\""}]}`
@@ -38,7 +40,7 @@ func cancelled(t *testing.T, reply <-chan string) {
 	select {
 	case out := <-reply:
 		assert.JSONEq(t, `{"sent": false, "reason": "cancelled"}`, out)
-	case <-time.After(15 * time.Second):
+	case <-time.After(testutil.Timeout(15 * time.Second)):
 		t.Fatal("report.send did not return")
 	}
 }

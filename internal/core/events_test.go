@@ -28,14 +28,14 @@ func TestCoreEventsForWorkspaceAndSessionLifecycle(t *testing.T) {
 		return len(evs) == 1
 	}, 3*time.Second)
 	require.NoError(t, svc.CheckTransitions(t.Context()))
-	exited, _ := b.Read(t.Context(), "session.exited", 0, 0)
+	exited := testutil.WaitEvents(t, b, "session.exited", func(e []bus.Event) bool { return len(e) > 0 })
 	require.Len(t, exited, 1)
 	assert.JSONEq(t, `{"id":"`+s.ID+`","workspace":"`+p.ID+`","owner":"","state":"exited","exitCode":4}`, string(exited[0].Payload))
 	_, err = svc.AddRepo(t.Context(), p.ID, t.TempDir(), contract.FolderMeta{})
 	require.NoError(t, err)
 	require.NoError(t, svc.RemoveSession(t.Context(), s.ID))
 	require.NoError(t, svc.DeleteWorkspace(t.Context(), p.ID))
-	all, _ := b.Read(t.Context(), "*", 0, 0)
+	all := testutil.WaitEvents(t, b, "*", func(e []bus.Event) bool { return len(e) >= 6 })
 	assert.Equal(t, []string{"workspace.created", "session.created", "session.exited", "workspace.updated", "session.removed", "workspace.deleted"}, topics(all))
 }
 
@@ -46,8 +46,7 @@ func TestKillSessionPublishesKilled(t *testing.T) {
 	s, err := svc.CreateSession(t.Context(), session.CreateRequest{WorkspaceID: p.ID, Command: []string{"sh", "-c", "exec cat"}})
 	require.NoError(t, err)
 	require.NoError(t, svc.KillSession(t.Context(), s.ID))
-	killed, err := b.Read(t.Context(), "session.killed", 0, 0)
-	require.NoError(t, err)
+	killed := testutil.WaitEvents(t, b, "session.killed", func(e []bus.Event) bool { return len(e) > 0 })
 	require.Len(t, killed, 1)
 	assert.JSONEq(t, `{"id":"`+s.ID+`"}`, string(killed[0].Payload))
 }
@@ -75,8 +74,7 @@ func TestEventSurvivesCancelledRequest(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	require.NoError(t, svc.RemoveSession(ctx, s.ID))
-	removed, err := b.Read(t.Context(), "session.removed", 0, 0)
-	require.NoError(t, err)
+	removed := testutil.WaitEvents(t, b, "session.removed", func(e []bus.Event) bool { return len(e) > 0 })
 	assert.Len(t, removed, 1)
 }
 
@@ -101,8 +99,7 @@ func TestFastExitAfterBaselinePublishesOnce(t *testing.T) {
 	}, 3*time.Second)
 	require.NoError(t, svc.CheckTransitions(t.Context()))
 	require.NoError(t, svc.CheckTransitions(t.Context()))
-	exited, err := b.Read(t.Context(), "session.exited", 0, 0)
-	require.NoError(t, err)
+	exited := testutil.WaitEvents(t, b, "session.exited", func(e []bus.Event) bool { return len(e) > 0 })
 	require.Len(t, exited, 1)
 	assert.JSONEq(t, `{"id":"`+s.ID+`","workspace":"`+p.ID+`","owner":"","state":"exited","exitCode":2}`, string(exited[0].Payload))
 }

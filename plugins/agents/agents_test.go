@@ -4,13 +4,13 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -243,9 +243,8 @@ func (f *fixture) waitReady(t *testing.T, timeout time.Duration) {
 	t.Helper()
 	testutil.Eventually(t, func() bool {
 		events, err := f.h.Bus.Read(t.Context(), "agents.ready", 0, 10)
-		require.NoError(t, err)
 		starting := slices.ContainsFunc(f.h.Sup.Statuses(), func(s plugin.Status) bool { return s.State != plugin.StateRunning })
-		return len(events) > 0 && !starting
+		return err == nil && len(events) > 0 && !starting
 	}, timeout)
 }
 
@@ -310,18 +309,30 @@ func (f *fixture) session(t *testing.T, workspace, session string) record {
 
 func (f *fixture) waitStatus(t *testing.T, workspace, session, status string) record {
 	t.Helper()
-	var last atomic.Pointer[record]
-	reached := assert.Eventually(t, func() bool {
-		got := f.session(t, workspace, session)
-		last.Store(&got)
-		return got.Status == status
-	}, wait, 20*time.Millisecond)
-	got := last.Load()
-	if got == nil {
-		got = &record{}
-	}
-	require.True(t, reached, "session %s is %q, want %q (error %q, start notice %q)", session, got.Status, status, got.Error, got.StartNotice)
-	return *got
+	return f.waitRecord(t, workspace, session, "status "+status, func(r record) bool { return r.Status == status })
+}
+
+func (f *fixture) waitRecord(t *testing.T, workspace, session, want string, cond func(record) bool) record {
+	t.Helper()
+	var got record
+	reached := testutil.Poll(func() bool {
+		got = f.session(t, workspace, session)
+		return cond(got)
+	}, wait)
+	require.True(t, reached, "session %s never reached %s: status %q, pending %v, error %q, start notice %q", session, want, got.Status, got.Pending, got.Error, got.StartNotice)
+	return got
+}
+
+func (f *fixture) waitStarted(t *testing.T, workspace, session string) {
+	t.Helper()
+	f.waitRecord(t, workspace, session, "an agent session", func(r record) bool { return r.AgentSessionID != "" })
+	path := filepath.Join(f.h.Dirs.PluginState("agents"), "sessions", session+".jsonl")
+	var data []byte
+	logged := testutil.Poll(func() bool {
+		data, _ = os.ReadFile(path)
+		return strings.Contains(string(data), `"kind":"session/new"`)
+	}, wait)
+	require.True(t, logged, "%s never logged session/new; last read:\n%s", path, data)
 }
 
 func (f *fixture) waitBranchChildDone(t *testing.T, workspace, session string) record {
@@ -527,20 +538,16 @@ func TestPromptStreamsAndLogs(t *testing.T) {
 	assert.Equal(t, `"user"`, actors[`"session/prompt"`])
 	assert.Equal(t, `"agent:claude"`, actors[`"session/update"`])
 
-	changed, err := f.h.Bus.Read(t.Context(), "agents.changed", 0, 1000)
-	require.NoError(t, err)
-	require.NotEmpty(t, changed)
+	changed := testutil.WaitEvents(t, f.h.Bus, "agents.changed", func(e []bus.Event) bool { return len(e) > 0 })
 	for _, e := range changed {
 		assert.Contains(t, string(e.Payload), `"session":"`+session+`"`)
 		assert.Less(t, len(e.Payload), 1024)
 	}
-	testutil.Eventually(t, func() bool {
-		events, err := f.h.Bus.Read(t.Context(), "echo.command", 0, 100)
-		require.NoError(t, err)
+	testutil.WaitEvents(t, f.h.Bus, "echo.command", func(events []bus.Event) bool {
 		return slices.ContainsFunc(events, func(e bus.Event) bool {
 			return strings.Contains(string(e.Payload), `"editor-nvim.checktime"`) && strings.Contains(string(e.Payload), repo)
 		})
-	}, wait)
+	})
 }
 
 func TestStoppedTranscriptClosesOpenToolsWithoutRawOutputAndCompactDropsImages(t *testing.T) {
@@ -605,13 +612,12 @@ func TestReaderNeverBlocks(t *testing.T) {
 	for range 5 {
 		began := time.Now()
 		f.session(t, workspace, session)
-		assert.Less(t, time.Since(began), time.Second)
+		assert.Less(t, time.Since(began), testutil.Timeout(time.Second))
 	}
 	f.waitStatus(t, workspace, session, "done")
 
 	assert.Len(t, updates(t, f.logLines(t, session), "tool_call"), 5000)
-	changed, err := f.h.Bus.Read(t.Context(), "agents.changed", 0, 10000)
-	require.NoError(t, err)
+	changed := testutil.WaitEvents(t, f.h.Bus, "agents.changed", func(e []bus.Event) bool { return len(e) > 0 })
 	assert.Less(t, len(changed), 10)
 	for _, e := range changed {
 		assert.NotContains(t, string(e.Payload), `"kind":"update"`)
@@ -671,11 +677,9 @@ func TestAnsweredPermissionPublishesResolved(t *testing.T) {
 	f.waitStatus(t, workspace, session, "waiting")
 	perms := ofKind(f.transcript(t, workspace, session).Entries, "permission")
 	require.Len(t, perms, 1)
-	testutil.Eventually(t, func() bool {
-		events, err := f.h.Bus.Read(t.Context(), "notify.posted", 0, 100)
-		require.NoError(t, err)
+	testutil.WaitEvents(t, f.h.Bus, "notify.posted", func(events []bus.Event) bool {
 		return len(events) > 0
-	}, wait)
+	})
 	f.answerPermission(t, workspace, session, perms[0].ID)
 
 	f.waitResolved(t, api.Changed{Workspace: workspace, Session: session, Kind: api.ChangeResolved, Request: perms[0].ID, RequestKind: api.RequestPermission})
@@ -691,13 +695,13 @@ func TestPendingRequestsPostNotifications(t *testing.T) {
 	f.waitStatus(t, workspace, session, "waiting")
 	perms := ofKind(f.transcript(t, workspace, session).Entries, "permission")
 	require.Len(t, perms, 1)
-	testutil.Eventually(t, func() bool {
-		events, err := f.h.Bus.Read(t.Context(), "notify.posted", 0, 100)
-		require.NoError(t, err)
+	testutil.WaitEvents(t, f.h.Bus, "notify.posted", func(events []bus.Event) bool {
 		return len(events) == 1
-	}, wait)
+	})
 	f.answerPermission(t, workspace, session, perms[0].ID)
-	f.waitStatus(t, workspace, session, "waiting")
+	f.waitRecord(t, workspace, session, "the question pending", func(r record) bool {
+		return r.Status == "waiting" && len(r.Pending) == 1 && r.Pending[0] != perms[0].ID
+	})
 
 	title := f.session(t, workspace, session).Title
 	type posted struct {
@@ -708,9 +712,7 @@ func TestPendingRequestsPostNotifications(t *testing.T) {
 		{workspace, session, session, title, "Has a question", "question"},
 	}
 	var got []posted
-	testutil.Eventually(t, func() bool {
-		events, err := f.h.Bus.Read(t.Context(), "notify.posted", 0, 100)
-		require.NoError(t, err)
+	testutil.WaitEvents(t, f.h.Bus, "notify.posted", func(events []bus.Event) bool {
 		got = got[:0]
 		for _, e := range events {
 			var p posted
@@ -718,22 +720,20 @@ func TestPendingRequestsPostNotifications(t *testing.T) {
 			got = append(got, p)
 		}
 		return len(got) == len(want)
-	}, wait)
+	})
 	assert.Equal(t, want, got)
 }
 
 func (f *fixture) waitResolved(t *testing.T, want api.Changed) {
 	t.Helper()
-	testutil.Eventually(t, func() bool {
-		events, err := f.h.Bus.Read(t.Context(), api.TopicChanged, 0, 1000)
-		require.NoError(t, err)
+	testutil.WaitEvents(t, f.h.Bus, api.TopicChanged, func(events []bus.Event) bool {
 		return slices.ContainsFunc(events, func(e bus.Event) bool {
 			var got api.Changed
 			err := json.Unmarshal(e.Payload, &got)
 			got.Status = ""
 			return err == nil && got == want
 		})
-	}, wait)
+	})
 }
 
 func TestCancelAnswersPendingPermission(t *testing.T) {
@@ -969,20 +969,22 @@ func TestUnpromptedSessionStartsFreshAfterRestart(t *testing.T) {
 
 func TestFailedAttachKeepsPrompt(t *testing.T) {
 	t.Parallel()
-	f := start(t, map[string]any{})
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "one", "sleep": 120000}}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
 	f.prompt(t, workspace, session, "one")
-	f.waitStatus(t, workspace, session, "done")
+	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return promptText(t, c) == "one" })
 	starts := f.calls(t, "start")
 	require.Len(t, starts, 1)
 	require.NoError(t, syscall.Kill(starts[0].PID, syscall.SIGKILL))
-	f.waitAgentExited(t, workspace)
+	f.waitStatus(t, workspace, session, "error")
 
 	f.prompt(t, workspace, session, "two")
 
 	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "unqueue")) == 1 })
-	assert.Equal(t, "the agent cannot resume this session", f.waitStatus(t, workspace, session, "error").Error)
+	f.waitRecord(t, workspace, session, "the resume error", func(r record) bool {
+		return r.Status == "error" && r.Error == "the agent cannot resume this session"
+	})
 }
 
 func TestModeAndCommands(t *testing.T) {
@@ -1211,10 +1213,10 @@ func TestDeleteDuringTurn(t *testing.T) {
 	f.waitCall(t, "prompt_end", func(fakeCall) bool { return true })
 
 	path := filepath.Join(f.h.Dirs.PluginState("agents"), "sessions", session+".jsonl")
-	require.Never(t, func() bool {
+	testutil.Never(t, func() bool {
 		_, err := os.Stat(path)
 		return err == nil
-	}, 500*time.Millisecond, 20*time.Millisecond)
+	}, 500*time.Millisecond)
 	assert.Empty(t, git(t, repo, "for-each-ref", "refs/clubmate/cp/"+session+"/"))
 }
 
@@ -1227,12 +1229,10 @@ func TestPermissionAfterAgentRestart(t *testing.T) {
 	f.waitStatus(t, workspace, session, "waiting")
 	first := ofKind(f.transcript(t, workspace, session).Entries, "permission")
 	require.Len(t, first, 1)
-	f.answerPermission(t, workspace, session, first[0].ID)
-	f.waitStatus(t, workspace, session, "done")
 	starts := f.calls(t, "start")
 	require.Len(t, starts, 1)
 	require.NoError(t, syscall.Kill(starts[0].PID, syscall.SIGKILL))
-	f.waitAgentExited(t, workspace)
+	f.waitStatus(t, workspace, session, "error")
 
 	f.prompt(t, workspace, session, "two")
 	f.waitStatus(t, workspace, session, "waiting")
@@ -1351,9 +1351,7 @@ func echoed(t *testing.T, f *fixture, command string) json.RawMessage {
 func echoedN(t *testing.T, f *fixture, command string, n int) []json.RawMessage {
 	t.Helper()
 	var args []json.RawMessage
-	testutil.Eventually(t, func() bool {
-		events, err := f.h.Bus.Read(t.Context(), "echo.command", 0, 100)
-		require.NoError(t, err)
+	testutil.WaitEvents(t, f.h.Bus, "echo.command", func(events []bus.Event) bool {
 		args = nil
 		for _, e := range events {
 			var p struct {
@@ -1366,7 +1364,7 @@ func echoedN(t *testing.T, f *fixture, command string, n int) []json.RawMessage 
 			}
 		}
 		return len(args) >= n
-	}, wait)
+	})
 	return args
 }
 
@@ -1639,7 +1637,7 @@ func TestRevealTurnAnchorsTranscript(t *testing.T) {
 	session := f.newSession(t, workspace)
 	for i, text := range []string{"one", "two"} {
 		f.prompt(t, workspace, session, text)
-		testutil.Eventually(t, func() bool { return len(f.turns(t, session)) == i+1 }, wait)
+		f.waitTurns(t, session, func(turns []api.Turn) bool { return len(turns) == i+1 })
 	}
 	entries := f.transcript(t, workspace, session).Entries
 	second := entries[slices.IndexFunc(entries, func(e entry) bool { return e.Kind == "user" && e.Turn == 2 })]
@@ -1665,7 +1663,7 @@ func TestRevealSameTurnAgainBumpsAnchorRev(t *testing.T) {
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
 	f.prompt(t, workspace, session, "one")
-	testutil.Eventually(t, func() bool { return len(f.turns(t, session)) == 1 }, wait)
+	f.waitTurns(t, session, func(turns []api.Turn) bool { return len(turns) == 1 })
 	rev := func() any {
 		require.NoError(t, f.run(t, workspace, "agents.reveal", map[string]any{"session": session, "turn": 1}, nil))
 		n := f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(cardsOf(n, "transcript")) == 1 })
@@ -1680,7 +1678,7 @@ func TestRevealSameTurnAgainBumpsAnchorRev(t *testing.T) {
 
 func waitFocus(t *testing.T, c *rpc.Client, section, slot, node string) {
 	t.Helper()
-	deadline := time.After(wait)
+	deadline := time.After(testutil.Timeout(wait))
 	for {
 		select {
 		case n := <-c.Notifications():
@@ -1799,16 +1797,15 @@ func TestCloseCancelsSignIn(t *testing.T) {
 	terminals, err := f.h.Svc.ListSessions(t.Context(), session.ListFilter{WorkspaceID: workspace, Owner: "agents"})
 	require.NoError(t, err)
 	assert.Empty(t, terminals)
-	for range 10 {
-		time.Sleep(50 * time.Millisecond)
+	testutil.Never(t, func() bool {
 		require.NoError(t, f.h.Svc.CheckTransitions(t.Context()))
-		require.Equal(t, "closed", f.session(t, workspace, id).Status)
-	}
-	changed, err := f.h.Bus.Read(t.Context(), "agents.changed", 0, 1000)
-	require.NoError(t, err)
-	assert.True(t, slices.ContainsFunc(changed, func(e bus.Event) bool {
-		return strings.Contains(string(e.Payload), `"kind":"status"`) && strings.Contains(string(e.Payload), `"status":"closed"`)
-	}))
+		return f.session(t, workspace, id).Status != "closed"
+	}, 500*time.Millisecond)
+	testutil.WaitEvents(t, f.h.Bus, "agents.changed", func(changed []bus.Event) bool {
+		return slices.ContainsFunc(changed, func(e bus.Event) bool {
+			return strings.Contains(string(e.Payload), `"kind":"status"`) && strings.Contains(string(e.Payload), `"status":"closed"`)
+		})
+	})
 }
 
 func TestSidebarClosedMoreRowExpandsUntilFolded(t *testing.T) {
@@ -1866,6 +1863,25 @@ func (f *fixture) rev(t *testing.T, workspace, slot string) int64 {
 	return 0
 }
 
+func (f *fixture) settledRevs(t *testing.T, workspace string, slots ...string) map[string]int64 {
+	t.Helper()
+	revs := func() map[string]int64 {
+		out := map[string]int64{}
+		for _, slot := range slots {
+			out[slot] = f.rev(t, workspace, slot)
+		}
+		return out
+	}
+	var got map[string]int64
+	require.True(t, testutil.Poll(func() bool {
+		before := revs()
+		time.Sleep(300 * time.Millisecond)
+		got = revs()
+		return maps.Equal(before, got)
+	}, wait), "slots %v kept rendering: %v", slots, got)
+	return got
+}
+
 func TestBackgroundSessionKeepsMainUnrendered(t *testing.T) {
 	t.Parallel()
 	steps := []map[string]any{}
@@ -1881,15 +1897,14 @@ func TestBackgroundSessionKeepsMainUnrendered(t *testing.T) {
 	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
 		return len(cardsOf(n, "composer")) == 1 && strings.HasPrefix(cardsOf(n, "composer")[0].ID, open+"/")
 	})
-	time.Sleep(300 * time.Millisecond)
-	main, sidebar := f.rev(t, workspace, "agents.main"), f.rev(t, workspace, "agents.sidebar")
+	before := f.settledRevs(t, workspace, "agents.main", "agents.sidebar")
 
 	f.prompt(t, workspace, background, "go")
 	f.waitStatus(t, workspace, background, "done")
-	time.Sleep(300 * time.Millisecond)
+	after := f.settledRevs(t, workspace, "agents.main", "agents.sidebar")
 
-	assert.Equal(t, main, f.rev(t, workspace, "agents.main"))
-	assert.Greater(t, f.rev(t, workspace, "agents.sidebar"), sidebar)
+	assert.Equal(t, before["agents.main"], after["agents.main"])
+	assert.Greater(t, after["agents.sidebar"], before["agents.sidebar"])
 }
 
 func TestHiddenSlotsStayUnrendered(t *testing.T) {
@@ -1921,19 +1936,15 @@ func TestHiddenSlotsStayUnrendered(t *testing.T) {
 		} else {
 			require.NoError(t, c.Call(t.Context(), "ui.state.patch", map[string]any{"workspaceId": workspace, "key": "section", "value": section}, nil))
 		}
-		time.Sleep(300 * time.Millisecond)
-		before := map[string]int64{}
-		for _, slot := range slots {
-			before[slot] = f.rev(t, workspace, slot)
-		}
+		before := f.settledRevs(t, workspace, slots...)
 		began := time.Now()
 		f.prompt(t, workspace, session, "go")
 		f.waitStatus(t, workspace, session, "done")
 		took := time.Since(began)
-		time.Sleep(300 * time.Millisecond)
+		after := f.settledRevs(t, workspace, slots...)
 		renders[section] = map[string]int64{}
 		for _, slot := range slots {
-			renders[section][slot] = f.rev(t, workspace, slot) - before[slot]
+			renders[section][slot] = after[slot] - before[slot]
 		}
 		t.Logf("section %s, turn %s: renders %v, agents.main %d bytes", section, took.Round(time.Millisecond), renders[section], f.treeBytes(t, workspace, "agents.main"))
 	}
@@ -3178,7 +3189,7 @@ func TestWaitImmediateWhenIdle(t *testing.T) {
 	began := time.Now()
 	got := f.wait(t, workspace, "", session)
 
-	assert.Less(t, time.Since(began), time.Second)
+	assert.Less(t, time.Since(began), testutil.Timeout(time.Second))
 	assert.Equal(t, "done", got[0].Status)
 }
 
@@ -3228,15 +3239,13 @@ func TestAsksUser(t *testing.T) {
 		Reply     string `json:"reply"`
 	}
 	var last turnEvent
-	testutil.Eventually(t, func() bool {
-		events, err := f.h.Bus.Read(t.Context(), "agents.turn", 0, 100)
-		require.NoError(t, err)
+	testutil.WaitEvents(t, f.h.Bus, "agents.turn", func(events []bus.Event) bool {
 		if len(events) == 0 {
 			return false
 		}
 		require.NoError(t, json.Unmarshal(events[len(events)-1].Payload, &last))
 		return true
-	}, wait)
+	})
 	assert.Equal(t, turnEvent{Workspace: workspace, Session: session, Status: "done", Asks: true, Reply: "Ship it?"}, last)
 
 	testutil.Eventually(t, func() bool {
@@ -3306,16 +3315,23 @@ func TestRunningSessionCarriesTurnsButNoToolActivity(t *testing.T) {
 
 func (f *fixture) turns(t *testing.T, session string) []api.Turn {
 	t.Helper()
-	events, err := f.h.Bus.Read(t.Context(), api.TopicTurn, 0, 1000)
-	require.NoError(t, err)
+	return f.waitTurns(t, session, func([]api.Turn) bool { return true })
+}
+
+func (f *fixture) waitTurns(t *testing.T, session string, cond func([]api.Turn) bool) []api.Turn {
+	t.Helper()
 	var out []api.Turn
-	for _, e := range events {
-		var turn api.Turn
-		require.NoError(t, json.Unmarshal(e.Payload, &turn))
-		if turn.Session == session {
-			out = append(out, turn)
+	testutil.WaitEvents(t, f.h.Bus, api.TopicTurn, func(events []bus.Event) bool {
+		out = out[:0]
+		for _, e := range events {
+			var turn api.Turn
+			require.NoError(t, json.Unmarshal(e.Payload, &turn))
+			if turn.Session == session {
+				out = append(out, turn)
+			}
 		}
-	}
+		return cond(out)
+	})
 	return out
 }
 
@@ -3326,7 +3342,7 @@ func TestTurnEventCarriesTurnNumber(t *testing.T) {
 
 	for i, text := range []string{"one", "two"} {
 		f.prompt(t, workspace, session, text)
-		testutil.Eventually(t, func() bool { return len(f.turns(t, session)) == i+1 }, wait)
+		f.waitTurns(t, session, func(turns []api.Turn) bool { return len(turns) == i+1 })
 	}
 
 	var got []int
@@ -3368,8 +3384,8 @@ func TestCronStartedSessionCarriesFlagsAndOrigin(t *testing.T) {
 
 	assert.True(t, started.AFK)
 	assert.Contains(t, string(f.calls(t, "session/prompt")[0].Params), "[Clubmate AFK mode]")
-	testutil.Eventually(t, func() bool { return len(f.turns(t, started.ID)) > 0 }, wait)
-	assert.Equal(t, api.Turn{Workspace: workspace, Session: started.ID, Turn: 1, Status: "done", Finished: true, CronJob: job.ID}, f.turns(t, started.ID)[0])
+	turns := f.waitTurns(t, started.ID, func(turns []api.Turn) bool { return len(turns) > 0 })
+	assert.Equal(t, api.Turn{Workspace: workspace, Session: started.ID, Turn: 1, Status: "done", Finished: true, CronJob: job.ID}, turns[0])
 }
 
 func TestTurnFinishedOnlyWithoutActiveChildren(t *testing.T) {
@@ -3381,9 +3397,8 @@ func TestTurnFinishedOnlyWithoutActiveChildren(t *testing.T) {
 	f.prompt(t, workspace, parent, "quick")
 	f.waitStatus(t, workspace, kid, "done")
 
-	testutil.Eventually(t, func() bool { return len(f.turns(t, parent)) >= 2 }, wait)
 	finished := []bool{}
-	for _, turn := range f.turns(t, parent) {
+	for _, turn := range f.waitTurns(t, parent, func(turns []api.Turn) bool { return len(turns) >= 2 }) {
 		finished = append(finished, turn.Finished)
 	}
 	assert.Equal(t, []bool{false, true}, finished[:2])

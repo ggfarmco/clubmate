@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/testutil"
 )
 
 type instance struct {
@@ -304,7 +306,7 @@ func (in *instance) selected(id string) bool {
 
 func (in *instance) eventually(what string, ok func() bool) {
 	in.t.Helper()
-	deadline := time.Now().Add(15 * time.Second)
+	deadline := time.Now().Add(testutil.Timeout(15 * time.Second))
 	for !ok() {
 		if time.Now().After(deadline) {
 			in.t.Fatalf("timed out waiting until %s", what)

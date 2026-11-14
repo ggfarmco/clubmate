@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/testutil"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 )
@@ -542,6 +543,6 @@ func TestReviewDBChangesCoalesce(t *testing.T) {
 		a.scheduleReviewDB(h, "ws")
 	}
 	assert.Equal(t, base, reads())
-	require.Eventually(t, func() bool { return reads() == base+1 }, time.Second, 5*time.Millisecond)
-	assert.Never(t, func() bool { return reads() > base+1 }, 150*time.Millisecond, 10*time.Millisecond)
+	testutil.Eventually(t, func() bool { return reads() == base+1 }, time.Second)
+	testutil.Never(t, func() bool { return reads() > base+1 }, 250*time.Millisecond)
 }

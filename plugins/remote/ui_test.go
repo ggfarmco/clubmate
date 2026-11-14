@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/testutil"
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 )
@@ -60,7 +61,7 @@ func TestWatchingSections(t *testing.T) {
 	f.watch(t, token, id, "prj_1", "agents.sidebar", "cron.main")
 	res.Body.Close()
 
-	assert.Eventually(t, func() bool { return len(f.watched.all()) == 2 }, time.Second, 10*time.Millisecond)
+	testutil.Eventually(t, func() bool { return len(f.watched.all()) == 2 }, time.Second)
 	assert.Equal(t, []contract.RemoteWatching{
 		{Workspace: "prj_1", Sections: []string{"agents", "cron"}},
 		{Workspace: "prj_1", Sections: []string{}},
@@ -85,7 +86,7 @@ func TestSharedSubscription(t *testing.T) {
 	r := f.watchStream(t, second, "prj_1", "cron.main")
 
 	res.Body.Close()
-	assert.Eventually(t, func() bool { return f.srv.hub.streamCount() == 1 }, time.Second, 10*time.Millisecond)
+	testutil.Eventually(t, func() bool { return f.srv.hub.streamCount() == 1 }, time.Second)
 	f.srv.uiUpdated(view("cron.main", 1))
 	assert.Contains(t, frame(t, r), `"slot":"cron.main"`)
 	subs, unsubs := f.backend.uiCalls()
@@ -93,10 +94,10 @@ func TestSharedSubscription(t *testing.T) {
 	assert.Empty(t, unsubs)
 
 	f.srv.hub.revoke("ipad")
-	assert.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		_, unsubs := f.backend.uiCalls()
 		return len(unsubs) == 1
-	}, time.Second, 10*time.Millisecond)
+	}, time.Second)
 }
 
 func TestCoalescesSlowStream(t *testing.T) {

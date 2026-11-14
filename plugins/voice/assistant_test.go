@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/testutil"
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -85,12 +86,12 @@ func TestPromptFailureRecreatesVoiceSession(t *testing.T) {
 	require.NoError(t, err)
 	h.clock.fire(sendDelay)
 
-	require.Eventually(t, func() bool { return len(h.calls("agents.prompt")) == 2 }, 5*time.Second, time.Millisecond)
+	testutil.Eventually(t, func() bool { return len(h.calls("agents.prompt")) == 2 }, 5*time.Second)
 	assert.Len(t, h.calls("agents.new"), 1)
-	require.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		st, err := v.state(testWorkspace, uid)
 		return err == nil && st.Session == voiceSession && st.Phase == phaseThinking
-	}, 5*time.Second, time.Millisecond)
+	}, 5*time.Second)
 }
 
 func TestOldVoiceSessionIsReplaced(t *testing.T) {
@@ -162,7 +163,7 @@ func TestAnswerPermissionOutsideContextWaitsForConfirm(t *testing.T) {
 		errs <- err
 	}()
 
-	require.Eventually(t, func() bool { return phaseOf(t, v, uid) == phaseConfirm }, 5*time.Second, time.Millisecond)
+	testutil.Eventually(t, func() bool { return phaseOf(t, v, uid) == phaseConfirm }, 5*time.Second)
 	assert.Empty(t, h.calls("agents.permission"))
 	require.NoError(t, v.cancel(testWorkspace, uid))
 	assert.ErrorIs(t, <-errs, errUtteranceOver)
@@ -212,7 +213,7 @@ func TestInContextAllowSkipsConfirmOnlyWhenHeardAsksToAllow(t *testing.T) {
 				assert.Len(t, h.calls("agents.permission"), 1)
 				return
 			}
-			require.Eventually(t, func() bool { return phaseOf(t, v, uid) == phaseConfirm }, 5*time.Second, time.Millisecond)
+			testutil.Eventually(t, func() bool { return phaseOf(t, v, uid) == phaseConfirm }, 5*time.Second)
 			assert.Empty(t, h.calls("agents.permission"))
 			require.NoError(t, v.cancel(testWorkspace, uid))
 			assert.ErrorIs(t, <-errs, errUtteranceOver)
@@ -229,7 +230,7 @@ func TestConfirmForAnotherActionIsRefused(t *testing.T) {
 		_, err := v.command(t.Context(), nil, voiceCall("voice.run", map[string]any{"utterance": uid, "command": "git.worktree-remove", "args": `{"path":"/tmp/wt"}`, "summary": "удалить worktree"}))
 		errs <- err
 	}()
-	require.Eventually(t, func() bool { return phaseOf(t, v, uid) == phaseConfirm }, 5*time.Second, time.Millisecond)
+	testutil.Eventually(t, func() bool { return phaseOf(t, v, uid) == phaseConfirm }, 5*time.Second)
 
 	_, err := v.command(t.Context(), nil, pluginsdk.CommandRun{ID: "voice.confirm", WorkspaceID: testWorkspace, Args: raw(t, map[string]any{"utterance": uid, "approve": true, "confirm": 2})})
 	require.ErrorIs(t, err, errConfirmChanged)
@@ -263,7 +264,7 @@ func TestRunDangerousWaitsForConfirm(t *testing.T) {
 				_, err := v.command(t.Context(), nil, voiceCall("voice.run", map[string]any{"utterance": uid, "command": "git.worktree-remove", "args": `{"path":"/tmp/wt"}`, "summary": "удалить worktree"}))
 				errs <- err
 			}()
-			require.Eventually(t, func() bool { return phaseOf(t, v, uid) == phaseConfirm }, 5*time.Second, time.Millisecond)
+			testutil.Eventually(t, func() bool { return phaseOf(t, v, uid) == phaseConfirm }, 5*time.Second)
 			st, err := v.state(testWorkspace, uid)
 			require.NoError(t, err)
 			assert.Equal(t, &Confirm{ID: 1, Title: "удалить worktree", Command: "git.worktree-remove", Args: json.RawMessage(`{"path":"/tmp/wt"}`)}, st.Confirm)
@@ -310,7 +311,7 @@ func routed(t *testing.T, v *voice, h *fakeHost) string {
 	_, err := v.end(t.Context(), testWorkspace, uid)
 	require.NoError(t, err)
 	h.clock.fire(sendDelay)
-	require.Eventually(t, func() bool { return len(h.calls("agents.prompt")) > prompts }, 5*time.Second, time.Millisecond)
+	testutil.Eventually(t, func() bool { return len(h.calls("agents.prompt")) > prompts }, 5*time.Second)
 	return uid
 }
 

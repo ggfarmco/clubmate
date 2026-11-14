@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/plugin"
 	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
@@ -24,8 +25,7 @@ func TestBroadcastRunsEveryHandler(t *testing.T) {
 
 	require.NoError(t, h.Client(t).Call(t.Context(), "command.broadcast", map[string]any{"topic": "x.removing", "workspaceId": p.ID, "args": args}, nil))
 
-	events, err := h.Bus.Read(t.Context(), "echo.command", 0, 100)
-	require.NoError(t, err)
+	events := testutil.WaitEvents(t, h.Bus, "echo.command", func(e []bus.Event) bool { return len(e) >= 2 })
 	var ran []string
 	for _, ev := range events {
 		var call struct {

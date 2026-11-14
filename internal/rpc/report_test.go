@@ -300,7 +300,7 @@ func TestReportCallerGoneWithdrawsSheet(t *testing.T) {
 	select {
 	case id := <-f.app.withdrawn:
 		assert.Equal(t, asked.ID, id)
-	case <-time.After(5 * time.Second):
+	case <-time.After(testutil.Timeout(5 * time.Second)):
 		t.Fatal("report not withdrawn")
 	}
 	testutil.Eventually(t, func() bool { return len(f.leftovers(t)) == 0 }, 5*time.Second)

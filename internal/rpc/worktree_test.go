@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
@@ -42,9 +43,7 @@ func TestWorktreeSelection(t *testing.T) {
 	var got workspace.Workspace
 	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "workspace.worktree.set", "args": args}, &got))
 	assert.Equal(t, []string{"", b2}, []string{got.Folders[0].Worktree, got.Folders[1].Worktree})
-	evs, err := h.Bus.Read(t.Context(), "workspace.updated", 0, 0)
-	require.NoError(t, err)
-	require.NotEmpty(t, evs)
+	evs := testutil.WaitEvents(t, h.Bus, "workspace.updated", func(e []bus.Event) bool { return len(e) > 0 })
 	var payload contract.WorkspaceChanged
 	require.NoError(t, json.Unmarshal(evs[len(evs)-1].Payload, &payload))
 	assert.Equal(t, []string{a, b2}, payload.Info.Roots())

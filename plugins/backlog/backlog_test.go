@@ -79,15 +79,12 @@ const agentsManifest = `{"id":"agents","name":"Agents","version":"0.1.0","protoc
 func newEnv(t *testing.T, extra ...string) env {
 	dirs := append([]string{testutil.BuildPluginDir(t, "clubmate/plugins/backlog", "plugins/backlog/plugin.json")}, extra...)
 	h := testutil.NewPluginHarness(t, dirs...)
-	require.Eventually(t, func() bool {
-		events, err := h.Bus.Read(t.Context(), "backlog.ready", 0, 1)
-		return err == nil && len(events) == 1
-	}, 10*time.Second, 20*time.Millisecond)
+	testutil.WaitEvents(t, h.Bus, "backlog.ready", func(events []bus.Event) bool { return len(events) > 0 })
 	e := env{h: h, p: h.CreateWorkspace(t, "demo").ID, t: t}
 	if len(extra) > 0 {
-		require.Eventually(t, func() bool {
+		testutil.Eventually(t, func() bool {
 			return h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "agents.sessions", "workspaceId": e.p, "args": map[string]any{}}, nil) == nil
-		}, 10*time.Second, 20*time.Millisecond)
+		}, 10*time.Second)
 	}
 	return e
 }
@@ -400,13 +397,7 @@ func TestShowSessionRevealsTheClaimer(t *testing.T) {
 
 	e.h.Event(t, e.p, "backlog.main", "open", "reveal", nil)
 
-	require.Eventually(t, func() bool {
-		events, err := e.h.Bus.Read(t.Context(), "echo.command", 0, 100)
-		require.NoError(t, err)
-		return slices.ContainsFunc(events, func(ev bus.Event) bool {
-			return strings.Contains(string(ev.Payload), `"id":"agents.reveal"`) && strings.Contains(string(ev.Payload), `"session":"agt_live"`)
-		})
-	}, 10*time.Second, 20*time.Millisecond)
+	e.waitEchoed("agents.reveal", `"session":"agt_live"`)
 }
 
 func TestDescriptionRendersAsDocument(t *testing.T) {
@@ -437,17 +428,13 @@ func (e env) slotHas(slot, text string) {
 	})
 }
 
-func (e env) echoed(id, text string) bool {
-	events, err := e.h.Bus.Read(e.t.Context(), "echo.command", 0, 100)
-	require.NoError(e.t, err)
+func echoedIn(events []bus.Event, id, text string) bool {
 	return slices.ContainsFunc(events, func(ev bus.Event) bool {
 		return strings.Contains(string(ev.Payload), `"id":"`+id+`"`) && strings.Contains(string(ev.Payload), text)
 	})
 }
 
-func (e env) count(id string) int {
-	events, err := e.h.Bus.Read(e.t.Context(), "echo.command", 0, 100)
-	require.NoError(e.t, err)
+func countIn(events []bus.Event, id string) int {
 	n := 0
 	for _, ev := range events {
 		if strings.Contains(string(ev.Payload), `"id":"`+id+`"`) {
@@ -455,6 +442,33 @@ func (e env) count(id string) int {
 		}
 	}
 	return n
+}
+
+func (e env) waitEchoed(id string, texts ...string) {
+	e.t.Helper()
+	testutil.WaitEvents(e.t, e.h.Bus, "echo.command", func(events []bus.Event) bool {
+		return !slices.ContainsFunc(texts, func(text string) bool { return !echoedIn(events, id, text) })
+	})
+}
+
+func (e env) neverEcho(cond func([]bus.Event) bool) {
+	e.t.Helper()
+	testutil.Never(e.t, func() bool {
+		events, err := e.h.Bus.Read(e.t.Context(), "echo.command", 0, 1000)
+		require.NoError(e.t, err)
+		return cond(events)
+	}, 300*time.Millisecond)
+}
+
+func (e env) neverEchoed(id, text string) {
+	e.t.Helper()
+	e.neverEcho(func(events []bus.Event) bool { return echoedIn(events, id, text) })
+}
+
+func (e env) echoedTimes(id string, n int) {
+	e.t.Helper()
+	testutil.WaitEvents(e.t, e.h.Bus, "echo.command", func(events []bus.Event) bool { return countIn(events, id) >= n })
+	e.neverEcho(func(events []bus.Event) bool { return countIn(events, id) != n })
 }
 
 func (e env) owners(id int) []string {
@@ -486,9 +500,9 @@ func TestLinksStaySymmetric(t *testing.T) {
 
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
 	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "delete", strconv.Itoa(c.ID))
-	require.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		return len(e.must(e.user("backlog.get", map[string]any{"id": a.ID})).Links) == 0
-	}, 10*time.Second, 20*time.Millisecond)
+	}, 10*time.Second)
 }
 
 func TestAttachmentsValidated(t *testing.T) {
@@ -521,9 +535,7 @@ func TestStartAgentHandsTheTaskToASession(t *testing.T) {
 
 	e.h.Event(t, e.p, "backlog.main", "start", "start", nil)
 
-	require.Eventually(t, func() bool {
-		return e.echoed("agents.new", `Builds on #1.`) && e.echoed("agents.new", `blocked by #1 Record missed runs (todo)`) && e.echoed("agents.new", `file design/check/fix-list.md`)
-	}, 10*time.Second, 20*time.Millisecond)
+	e.waitEchoed("agents.new", `Builds on #1.`, `blocked by #1 Record missed runs (todo)`, `file design/check/fix-list.md`)
 	got := e.must(e.user("backlog.get", map[string]any{"id": tk.ID}))
 	assert.Equal(t, "in_progress", got.Status)
 	assert.Equal(t, "agt_new", got.ClaimedBy)
@@ -540,12 +552,12 @@ func TestDoubleStartAgentStartsOneSession(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.Equal(t, 1, e.count("agents.new"))
+	e.echoedTimes("agents.new", 1)
 	failed := slices.IndexFunc(errs, func(err error) bool { return err != nil })
 	require.GreaterOrEqual(t, failed, 0)
 	assert.ErrorContains(t, errs[failed], "already getting an agent")
 	e.must(e.user("backlog.start", map[string]any{"id": tk.ID}))
-	assert.Equal(t, 2, e.count("agents.new"))
+	e.echoedTimes("agents.new", 2)
 }
 
 func TestUserActionsRefuseASessionOfThisCore(t *testing.T) {
@@ -583,10 +595,8 @@ func TestStartAgentOptions(t *testing.T) {
 	e.slotHas("backlog.main", `"id":"prompt"`)
 	e.h.Event(t, e.p, "backlog.main", "start-1", "start", map[string]any{"agent": "claude", "mode": "plan", "where": "worktree", "prompt": "Only the CI part."})
 
-	require.Eventually(t, func() bool {
-		return e.echoed("agents.new", `"firstMode":"plan"`) && e.echoed("agents.new", `"branch":"backlog/1-fix-the-flaky-switcher-test"`) && e.echoed("agents.new", `Only the CI part.\n\nYou own backlog task #1.`)
-	}, 10*time.Second, 20*time.Millisecond)
-	assert.False(t, e.echoed("agents.new", "Fails on CI."))
+	e.waitEchoed("agents.new", `"firstMode":"plan"`, `"branch":"backlog/1-fix-the-flaky-switcher-test"`, `Only the CI part.\n\nYou own backlog task #1.`)
+	e.neverEchoed("agents.new", "Fails on CI.")
 }
 
 func TestPlainCmFromASessionCannotStartOrTakeBack(t *testing.T) {
@@ -601,10 +611,10 @@ func TestPlainCmFromASessionCannotStartOrTakeBack(t *testing.T) {
 	assert.ErrorContains(t, err, "unknown command")
 
 	assert.Equal(t, "agt_child", e.must(e.user("backlog.get", map[string]any{"id": claimed.ID})).ClaimedBy)
-	assert.False(t, e.echoed("agents.new", "Todo"))
+	e.neverEchoed("agents.new", "Todo")
 
 	e.must(e.run("backlog.start", "agt_of_another_workspace", false, map[string]any{"id": todo.ID}))
-	assert.True(t, e.echoed("agents.new", `"caller":"agt_of_another_workspace"`))
+	e.waitEchoed("agents.new", `"caller":"agt_of_another_workspace"`)
 }
 
 func TestTakeBack(t *testing.T) {
@@ -623,7 +633,7 @@ func TestTakeBack(t *testing.T) {
 	assert.Equal(t, []string{"user created", "agt_live claimed", "user taken back"}, e.owners(tk.ID))
 
 	e.h.Event(t, e.p, "backlog.main", "owners", "openMove", "agt_live")
-	require.Eventually(t, func() bool { return e.echoed("agents.reveal", `"session":"agt_live"`) }, 10*time.Second, 20*time.Millisecond)
+	e.waitEchoed("agents.reveal", `"session":"agt_live"`)
 }
 
 func TestAgentUIEventsDontChangeTasks(t *testing.T) {
@@ -663,7 +673,7 @@ func TestAgentUIEventsDontChangeTasks(t *testing.T) {
 	assert.Equal(t, "normal", got.Priority)
 	assert.Len(t, got.Links, 1)
 	assert.Len(t, got.Attachments, 1)
-	assert.False(t, e.echoed("agents.new", "Work"))
+	e.neverEchoed("agents.new", "Work")
 	var list struct {
 		Tasks []task `json:"tasks"`
 	}
@@ -715,9 +725,9 @@ func TestClosedSessionHandsTheTaskBack(t *testing.T) {
 	_, err := e.h.Bus.Publish(t.Context(), "agents.changed", "test", json.RawMessage(`{"workspace":"`+e.p+`","session":"agt_gone","kind":"status","status":"closed"}`))
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		return e.must(e.user("backlog.get", map[string]any{"id": tk.ID})).Status == "todo"
-	}, 10*time.Second, 20*time.Millisecond)
+	}, 10*time.Second)
 	assert.Equal(t, []string{"user created", "agt_gone claimed", "user stopped"}, e.owners(tk.ID))
 }
 
@@ -731,26 +741,26 @@ func TestFailedSessionLeavesItsExitCode(t *testing.T) {
 	}
 
 	publish("error")
-	require.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		owners := e.must(e.user("backlog.get", map[string]any{"id": tk.ID})).Owners
 		return owners[len(owners)-1].Failure == "exit 1"
-	}, 10*time.Second, 20*time.Millisecond)
+	}, 10*time.Second)
 	assert.Equal(t, "failed · exit 1", e.must(e.user("backlog.get", map[string]any{"id": tk.ID})).OwnerState)
 	publish("running")
-	require.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		owners := e.must(e.user("backlog.get", map[string]any{"id": tk.ID})).Owners
 		return owners[len(owners)-1].Failure == ""
-	}, 10*time.Second, 20*time.Millisecond)
+	}, 10*time.Second)
 	publish("error")
-	require.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		owners := e.must(e.user("backlog.get", map[string]any{"id": tk.ID})).Owners
 		return owners[len(owners)-1].Failure == "exit 1"
-	}, 10*time.Second, 20*time.Millisecond)
+	}, 10*time.Second)
 	publish("closed")
 
-	require.Eventually(t, func() bool {
+	testutil.Eventually(t, func() bool {
 		return e.must(e.user("backlog.get", map[string]any{"id": tk.ID})).Status == "todo"
-	}, 10*time.Second, 20*time.Millisecond)
+	}, 10*time.Second)
 	got := e.must(e.user("backlog.get", map[string]any{"id": tk.ID}))
 	want := ownerLine{Who: "agt_failed", What: "stopped · exit 1", Tone: "danger", Session: "agt_failed"}
 	assert.Equal(t, want, got.LastOwner)

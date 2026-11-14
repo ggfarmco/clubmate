@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/plugin"
 	"clubmate/internal/rpc"
 	internalsdui "clubmate/internal/sdui"
@@ -147,8 +148,7 @@ func TestPresenceEvents(t *testing.T) {
 	}
 	require.NoError(t, c.Call(t.Context(), "ui.presence", struct{}{}, &present))
 	assert.Empty(t, present)
-	events, err := h.Bus.Read(t.Context(), "ui.*", 0, 0)
-	require.NoError(t, err)
+	events := testutil.WaitEvents(t, h.Bus, "ui.*", func(e []bus.Event) bool { return len(e) >= 2 })
 	require.Len(t, events, 2)
 	assert.Equal(t, "ui.opened", events[0].Topic)
 	assert.Equal(t, "ui.idle", events[1].Topic)
@@ -167,11 +167,8 @@ func TestSubscribeWithoutPresence(t *testing.T) {
 	var present []string
 	require.NoError(t, c.Call(t.Context(), "ui.presence", struct{}{}, &present))
 	require.NoError(t, c.Call(t.Context(), "ui.unsubscribe", map[string]string{"subscription": sub.Subscription}, nil))
-	events, err := h.Bus.Read(t.Context(), "ui.*", 0, 0)
-	require.NoError(t, err)
-
 	assert.Empty(t, present)
-	assert.Empty(t, events)
+	noUIEvents(t, h)
 }
 
 func TestWorkspaceTouchOrdersList(t *testing.T) {
@@ -285,9 +282,15 @@ func TestAppScopeSlots(t *testing.T) {
 	require.NoError(t, c.Call(t.Context(), "ui.presence", struct{}{}, &present))
 	assert.Empty(t, present)
 	require.NoError(t, c.Call(t.Context(), "ui.unsubscribe", map[string]string{"subscription": sub.Subscription}, nil))
-	events, err := h.Bus.Read(t.Context(), "ui.*", 0, 0)
-	require.NoError(t, err)
-	assert.Empty(t, events)
+	noUIEvents(t, h)
+}
+
+func noUIEvents(t *testing.T, h *testutil.PluginHarness) {
+	t.Helper()
+	testutil.Never(t, func() bool {
+		events, err := h.Bus.Read(t.Context(), "ui.*", 0, 1)
+		return err != nil || len(events) > 0
+	}, 200*time.Millisecond)
 }
 
 func TestDeltaSubscriberGetsRefsAgainstLastSentTree(t *testing.T) {

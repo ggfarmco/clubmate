@@ -39,9 +39,11 @@ func TestDoneTreeClosesItselfUnlessItAsksOrOwnsJobs(t *testing.T) {
 	assert.True(t, f.waitStatus(t, workspace, kid, "closed").AutoClosed)
 	assert.True(t, f.waitStatus(t, workspace, askingKid, "closed").AutoClosed)
 	assert.Equal(t, "clubmate", closeActor(t, f.logLines(t, root)))
-	time.Sleep(3 * after)
-	assert.Equal(t, "done", f.session(t, workspace, asking).Status)
-	assert.Equal(t, "running", f.session(t, workspace, scheduled).Status)
+	f.waitStatus(t, workspace, asking, "done")
+	f.waitStatus(t, workspace, scheduled, "running")
+	testutil.Never(t, func() bool {
+		return f.session(t, workspace, asking).Status != "done" || f.session(t, workspace, scheduled).Status != "running"
+	}, 3*after)
 
 	require.NoError(t, f.run(t, workspace, "agents.resume", map[string]any{"session": kid}, nil))
 	f.prompt(t, workspace, kid, "two")
@@ -85,9 +87,10 @@ func TestNodeOfStoppedRunClosesItself(t *testing.T) {
 	assert.True(t, f.waitStatus(t, workspace, stopped.Nodes[1].Session, "closed").AutoClosed)
 	assert.True(t, f.waitStatus(t, workspace, deleted.Nodes[0].Session, "closed").AutoClosed)
 	assert.True(t, f.waitStatus(t, workspace, deleted.Nodes[1].Session, "closed").AutoClosed)
-	time.Sleep(3 * after)
-	assert.Equal(t, "done", f.session(t, workspace, running.Nodes[0].Session).Status)
-	assert.Equal(t, "idle", f.session(t, workspace, running.Nodes[1].Session).Status)
+	f.waitStatus(t, workspace, running.Nodes[1].Session, "idle")
+	testutil.Never(t, func() bool {
+		return f.session(t, workspace, running.Nodes[0].Session).Status != "done" || f.session(t, workspace, running.Nodes[1].Session).Status != "idle"
+	}, 3*after)
 }
 
 func closeActor(t *testing.T, lines []map[string]json.RawMessage) string {
@@ -128,8 +131,7 @@ func TestChangedAskSessionWaitsForReviewBeforeClosing(t *testing.T) {
 	assert.True(t, f.session(t, workspace, review).Review)
 	f.h.Event(t, workspace, "agents.sidebar", review, "select", review)
 	f.h.WaitSlot(t, workspace, "agents.main", reviewed)
-	time.Sleep(after)
-	assert.Equal(t, "done", f.session(t, workspace, review).Status)
+	testutil.Never(t, func() bool { return f.session(t, workspace, review).Status != "done" }, after)
 
 	require.NoError(t, f.run(t, workspace, "agents.reviewed", map[string]any{"session": review}, nil))
 	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return !reviewed(n) })

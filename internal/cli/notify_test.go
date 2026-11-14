@@ -23,11 +23,9 @@ type posted struct {
 	Kind      string `json:"kind"`
 }
 
-func lastPosted(t *testing.T, b *bus.Bus) posted {
+func lastPosted(t *testing.T, b *bus.Bus, n int) posted {
 	t.Helper()
-	events, err := b.Read(t.Context(), "notify.posted", 0, 100)
-	require.NoError(t, err)
-	require.NotEmpty(t, events)
+	events := testutil.WaitEvents(t, b, "notify.posted", func(e []bus.Event) bool { return len(e) >= n })
 	var p posted
 	require.NoError(t, json.Unmarshal(events[len(events)-1].Payload, &p))
 	return p
@@ -49,14 +47,14 @@ func TestNotifyResolvesWorkspaceAndSession(t *testing.T) {
 	t.Setenv("CLUBMATE_SESSION_ID", sid)
 
 	run(t, "notify", "--kind", "done", "Build", "finished")
-	assert.Equal(t, posted{Workspace: here, Session: sid, Message: "Build finished", Kind: "done"}, lastPosted(t, b))
+	assert.Equal(t, posted{Workspace: here, Session: sid, Message: "Build finished", Kind: "done"}, lastPosted(t, b, 1))
 
 	run(t, "notify", "--workspace", there, "--title", "CI", "red")
-	assert.Equal(t, posted{Workspace: there, Title: "CI", Message: "red", Kind: "info"}, lastPosted(t, b))
+	assert.Equal(t, posted{Workspace: there, Title: "CI", Message: "red", Kind: "info"}, lastPosted(t, b, 2))
 
 	t.Setenv("CLUBMATE_AGENT_SESSION", "agt_0123456789abcdef")
 	run(t, "notify", "--kind", "done", "Finished")
-	assert.Equal(t, posted{Workspace: here, Session: "agt_0123456789abcdef", Message: "Finished", Kind: "done"}, lastPosted(t, b))
+	assert.Equal(t, posted{Workspace: here, Session: "agt_0123456789abcdef", Message: "Finished", Kind: "done"}, lastPosted(t, b, 3))
 
 	t.Setenv("CLUBMATE_WORKSPACE_ID", "")
 	var stdout, stderr bytes.Buffer
@@ -73,7 +71,7 @@ func TestNotifyReadsStdinAndTruncates(t *testing.T) {
 	root.SetIn(strings.NewReader(strings.Repeat("я", 1500) + "\n"))
 	root.SetArgs([]string{"notify", "--kind", "needs-input", "--title", strings.Repeat("t", 200), "-"})
 	require.NoError(t, root.Execute(), stderr.String())
-	got := lastPosted(t, b)
+	got := lastPosted(t, b, 1)
 	assert.Len(t, []rune(got.Message), 1000)
 	assert.Len(t, []rune(got.Title), 120)
 	assert.True(t, strings.HasPrefix(got.Message, "яя"))

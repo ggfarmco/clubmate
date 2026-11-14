@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/testutil"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/automation"
 )
@@ -260,7 +261,7 @@ func TestAgentsCallDoesNotBlockScheduler(t *testing.T) {
 	}()
 	select {
 	case <-ticked:
-	case <-time.After(5 * time.Second):
+	case <-time.After(testutil.Timeout(5 * time.Second)):
 		t.Fatal("tick blocked behind agents.sessions")
 	}
 	close(release)

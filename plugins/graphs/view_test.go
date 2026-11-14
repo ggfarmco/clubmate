@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/sdui"
+	"clubmate/internal/testutil"
 	"clubmate/pkg/pluginsdk"
 	sdk "clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
@@ -392,7 +393,7 @@ func TestStepCardProps(t *testing.T) {
 	assert.Zero(t, nodes["tests"].Timeout)
 	p.block = true
 	go func() { _ = approve(t, a, r, "tests", "once") }()
-	require.Eventually(t, func() bool { return diagramNodes(t, a, r.ID)["tests"].Timeout == 600 }, 5*time.Second, 10*time.Millisecond)
+	testutil.Eventually(t, func() bool { return diagramNodes(t, a, r.ID)["tests"].Timeout == 600 }, 5*time.Second)
 	_, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.stop", WorkspaceID: "ws1", Args: json.RawMessage(`{"id":"` + r.ID + `"}`)})
 	require.NoError(t, err)
 }
