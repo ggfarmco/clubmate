@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Gates · in Agents (all directions)</title>
+<!--HEAD-->
+</head><body><div class="page">
+
+<div class="cap-board"><b>Shared · the verdict next to the landing session.</b> Same in A, B and C. The tree row of a landing session carries the gate state as its detail, a field the agents plugin sends (<span class="note">review… · changes · approved; only needs you is a badge</span>); the reviewer sits under its lander. In the transcript, each round is one card; the round in progress is a strip above the composer.</div>
+
+<div class="cm th-mate" style="width: 1280px; height: 800px; overflow: hidden; position: relative">
+<div class="win">
+{{tb:feat/notify-limit}}
+<div class="body" style="grid-template-columns: 40px 280px minmax(0, 1fr)">
+{{rail:agents}}
+<aside class="side" aria-label="Agent sessions">
+<div class="phead"><span class="ttl">Agents</span><span style="flex: 1"></span><button class="btn ico sm gh" aria-label="New session ⌘N">{{i:plus}}</button></div>
+<div style="display: flex; gap: 4px; padding: 8px 8px 4px; flex: none"><button class="badge" style="border: 0; background: var(--prs); color: var(--fg)">All 6</button><button class="badge wa" style="border: 0">Needs you 1</button><button class="badge" style="border: 0">Running 2</button></div>
+<div style="display: flex; flex-direction: column; padding: 0 4px">
+<div class="row sel">{{i:sparkle}}<span class="l">Rate-limit notifications</span><span class="d cap wa-i">review…</span></div>
+<div class="row" style="padding-left: 26px">{{i:shield mut}}<span class="l t2">Review · Fable</span><span class="d cap">round 2 · 3m</span></div>
+<div class="row">{{i:sparkle}}<span class="l">Review panel in diffview</span><span class="vchip badge wa">needs you</span></div>
+<div class="row">{{i:sparkle}}<span class="l">Migrate agents storage</span><span class="d cap wa-i">changes</span></div>
+<div class="row">{{i:sparkle}}<span class="l">Plugin strikes after late replies</span><span class="d cap ok-i">approved</span></div>
+<div class="row">{{i:sparkle}}<span class="l">Fix flaky switcher test</span><span class="d cap">idle</span></div>
+<div class="row" style="margin-top: 6px">{{i12:right mut}}<span class="l">Closed</span><span class="d cap">144</span></div>
+</div>
+</aside>
+<main class="main">
+<div style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--bd); flex: none; min-width: 0">{{i:sparkle}}<h1 class="ttl ell" style="margin: 0">Rate-limit notifications</h1><span style="flex: 1"></span><span class="badge wa">landing held by gate</span></div>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 16px 12px">
+<div style="display: flex; flex-direction: column; gap: 10px; max-width: 860px">
+<div class="rep"><p>Tests pass. Landing <code>feat/notify-limit</code> into <code>main</code>.</p></div>
+<div class="row mut" style="padding-left: 0">{{i:pending wa-i}}<span><code>git_land</code> → review pending: Review · Fable</span></div>
+<section class="qcard" aria-label="Gate round 1">
+<div class="qhd">{{i:warn wa-i}}<span class="b">Gate · round 1 · changes</span><span class="mut cap ell" style="flex: 1">clubmate gate · Fable review · 2 findings · 1 deferred → #571</span><button class="btn sm gh">{{i12:out}}Open review</button>{{i12:down mut}}</div>
+<div class="qitem"><div class="find">{{i12:x er-i}}<span><code>plugins/agents/notify.go:212</code> <span class="t2">— the limit resets on every restart</span></span></div><div class="find">{{i12:x er-i}}<span><code>plugins/agents/notify_test.go:88</code> <span class="t2">— sleeps 1 s instead of driving the clock</span></span></div></div>
+</section>
+<div class="rep"><p>Fixed both: the window is persisted with the queue, and the test uses the fake clock. Calling <code>git_land</code> again.</p></div>
+<div style="display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 8px 0 12px; border-radius: 6px; background: var(--wa-bg); border: 1px solid var(--wa-bd)">{{i:pending wa-i}}<span class="wa-i b">Gate · round 2 of 2</span><span class="wa-i ell" style="flex: 1">Fable is reviewing the delta since round 1 · 3 min</span><button class="btn sm">Open review</button></div>
+</div>
+</div>
+<div style="padding: 0 16px 12px; flex: none"><div class="card" style="max-width: 860px; display: flex; flex-direction: column"><span class="faint" style="padding: 8px 12px 0; min-height: 40px">Message Claude…</span><div style="display: flex; align-items: center; gap: 4px; padding: 2px 6px 6px"><button class="btn sm gh">Claude · Ask before edits{{i12:down}}</button><span style="flex: 1"></span><button class="btn sm">Send<span class="kbd">⌘⏎</span></button></div></div></div>
+</main>
+</div>
+<footer class="sb"><span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span><span>6 sessions · 1 needs you · 1 held by a gate</span><span style="flex: 1"></span><span>⌘K</span></footer>
+</div>
+</div>
+
+<div class="cap-board"><b>Shared · needs you after 2 rounds, 640 · Mate light.</b> The existing <code>request.land</code> node as it renders today (title, name, detail, rule, hint, options), like MR-Merge: no new node, so the phone shows it too. "Land anyway" records a verdict by you; "Stop" tells the agent to stop. <span class="note">Not primary: landing over open findings is the risky choice.</span></div>
+
+<div class="cm th-matelight" style="width: 640px; height: 800px; overflow: hidden">
+<div class="win">
+{{tb:feat/review-panel}}
+<div class="body" style="grid-template-columns: 40px minmax(0, 1fr)">
+{{rail:agents}}
+<main class="main">
+<div class="crumb">{{i12:left mut}}<span class="mut cap">Agents</span><span class="faint">/</span><span class="cap">Review panel in diffview</span></div>
+<div style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--bd); flex: none; min-width: 0">{{i:sparkle}}<h1 class="ttl ell" style="margin: 0; flex: 0 1 auto">Review panel in diffview</h1><span style="flex: 1"></span><span class="badge wa">needs you</span></div>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 16px 12px">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<section class="qcard" aria-label="Gate round 1"><div class="qhd">{{i:warn wa-i}}<span class="b">Gate · round 1 · changes</span><span class="mut cap ell" style="flex: 1">3 findings</span>{{i12:right mut}}</div></section>
+<section class="qcard" aria-label="Gate round 2"><div class="qhd">{{i:warn wa-i}}<span class="b">Gate · round 2 · changes</span><span class="mut cap ell" style="flex: 1">1 finding</span>{{i12:right mut}}</div></section>
+<section class="card" aria-label="Land without another review" style="padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; border-color: var(--wa-bd); background: color-mix(in srgb, var(--wa) 7%, var(--bg))">
+<div style="display: flex; align-items: center; gap: 8px">{{i:shield wa-i}}<span class="b">Land without another review?</span><span class="mut cap ell">round 2 of 2 · changes</span></div>
+<span style="display: flex; align-items: center; gap: 8px">{{i:folder}}<span class="h">diffview.nvim</span></span>
+<span class="t2">Merge <code>feat/review-panel</code> into <code>main</code> · 1 finding still open: <code>panel.lua:144</code> the comment list is rebuilt on every BufEnter</span>
+<span class="mut cap">By its gate: Fable review, 2 rounds of changes, then you decide.</span>
+<div class="abar"><button class="btn">Land anyway<span class="kbd">⌥1</span></button><span style="flex: 1"></span><button class="btn gh">Stop…<span class="kbd">⌥2</span></button></div>
+<span class="mut cap">Land anyway lands it as reviewed by you. Stop tells the agent to stop; the branch stays. The findings are in the round cards above.</span>
+</section>
+</div>
+</div>
+<div style="padding: 0 16px 12px; flex: none"><div class="card" style="display: flex; flex-direction: column"><span class="faint" style="padding: 8px 12px 0; min-height: 40px">Message Claude…</span><div style="display: flex; align-items: center; gap: 4px; padding: 2px 6px 6px"><span style="flex: 1"></span><button class="btn sm">Send<span class="kbd">⌘⏎</span></button></div></div></div>
+</main>
+</div>
+<footer class="sb"><span>1 needs you</span><span style="flex: 1"></span><span>⌥1 land anyway · ⌥2 stop</span></footer>
+</div>
+</div>
+
+</div></body></html>

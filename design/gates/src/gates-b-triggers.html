@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Gates · B · inside Triggers</title>
+<!--HEAD-->
+</head><body><div class="page">
+
+<div class="cap-board"><b>B · Gates live inside Triggers.</b> No new rail item. A "Land gates" group sits at the top of the Triggers tree, one row per repo. The detail is edited in place, like Cron's "When missed" field; history is a run strip plus the table Triggers already has. <span class="note">⌘N in Triggers asks: New trigger (an agent adds it) or New gate (you fill it, board B2).</span></div>
+
+<div class="cm th-mate" style="width: 1280px; height: 800px; overflow: hidden; position: relative">
+<div class="win">
+{{tb:main}}
+<div class="body" style="grid-template-columns: 40px 268px minmax(0, 1fr)">
+{{rail:triggers}}
+<aside class="side" aria-label="Triggers">
+<div class="phead"><span class="ttl">Triggers</span><span style="flex: 1"></span><button class="btn ico sm gh" aria-label="New ⌘N">{{i:plus}}</button></div>
+<div style="display: flex; flex-direction: column; padding: 6px 4px; gap: 1px">
+<div class="row">{{i:help mut}}<span class="l t2">How triggers and gates work</span></div>
+<div class="row" style="margin-top: 6px">{{i12:down mut}}{{i:shield mut}}<span class="l">Land gates</span><span class="d cap">3</span></div>
+<div class="row" style="padding-left: 26px">{{i:shieldok ok-i}}<span class="l">clubmate</span><span class="d cap ok-i">approved</span></div>
+<div class="row sel" style="padding-left: 26px">{{i:shield wa-i}}<span class="l">diffview.nvim</span><span class="d cap wa-i">changes</span></div>
+<div class="row" style="padding-left: 26px">{{i:shield mut}}<span class="l mut">roots</span><span class="d cap">paused</span></div>
+<div class="row" style="margin-top: 6px">{{i:bolt mut}}<span class="l">Release after the nightly tidy</span><span class="d cap">2h</span></div>
+<div class="row">{{i:bolt mut}}<span class="l">Notify when CI fails on main</span><span class="d cap">1d</span></div>
+<div class="row">{{i:bolt er-i}}<span class="l">Wake the reviewer on turn end</span><span class="d cap er-i">failed</span></div>
+<div class="row" style="margin-top: 6px">{{i12:right mut}}<span class="l mut">from graph Review loop</span><span class="d cap">3</span></div>
+<div class="row">{{i12:right mut}}<span class="l mut">from graph Nightly</span><span class="d cap">5</span></div>
+</div>
+</aside>
+<main class="main">
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 20px 28px 14px; border-bottom: 1px solid var(--bd); flex: none">
+<div style="display: flex; align-items: center; gap: 10px; min-width: 0">
+{{i16:shield t2}}
+<h1 class="h ell" style="margin: 0">diffview.nvim</h1><span class="mut cap">land gate</span>
+<span class="badge">active</span><span class="badge wa">last: changes</span>
+</div>
+<div class="abar" style="padding-left: 26px"><button class="btn">{{i:pause}}Pause<span class="kbd">P</span></button><span style="flex: 1"></span><button class="btn gh">{{i:trash}}Delete<span class="kbd">⌘⌫</span></button></div>
+</div>
+<div style="flex: 1; min-height: 0; overflow: hidden; padding: 16px 28px 0; display: flex; flex-direction: column; gap: 12px">
+<div class="props" style="grid-template-columns: 104px minmax(0, 1fr); max-width: 760px">
+<span class="k">When</span><div class="v t2"><span>a session lands into <code>main</code> of diffview.nvim, or a child merges into its parent's branch there</span></div>
+<span class="k">Does</span><div class="v"><span>Fable review</span><span class="mut">fresh session, read-only · its verdict holds the landing</span></div>
+<span class="k">Rounds</span><div class="v"><button class="field" style="width: 210px; justify-content: space-between">2 rounds, then ask me{{i12:down mut}}</button></div>
+<span class="k">Docs only</span><div class="v t2"><span>changes only in <code>.md</code> files land without a review</span></div>
+<span class="k">Owner</span><div class="v t2">you — agents can't change or delete it</div>
+</div>
+<div class="shd">{{i12:shield}}<span>Verdicts</span><span class="n">·</span><span class="n">last 24 hours</span><span style="flex: 1"></span><span class="mut cap"><span class="ok-i">● approved 3</span> · <span class="wa-i">▲ changes 2</span> · ○ docs 1</span></div>
+<div class="ln" style="width: 900px; height: 44px">
+<svg style="position: absolute; left: 0; top: 0; width: 900px; height: 44px" aria-hidden="true"><line x1="0" y1="16" x2="900" y2="16" stroke="var(--bd)" stroke-width="1"/>
+<circle cx="120" cy="16" r="4.5" fill="var(--ok-i)"/><circle cx="300" cy="16" r="4.5" fill="none" stroke="var(--t3)" stroke-width="1.4"/><circle cx="520" cy="16" r="4.5" fill="var(--ok-i)"/><circle cx="690" cy="16" r="4.5" fill="var(--wa-i)"/><circle cx="790" cy="16" r="4.5" fill="var(--wa-i)"/><circle cx="790" cy="16" r="8" fill="none" stroke="var(--ac)" stroke-width="1.4"/><circle cx="840" cy="16" r="4.5" fill="var(--ok-i)"/></svg>
+<span class="lnt" style="left: 100px; top: 28px">16:00</span><span class="lnt" style="left: 330px; top: 28px">20:00</span><span class="lnt" style="left: 560px; top: 28px">08:00</span><span class="lnt" style="left: 800px; top: 28px">12:00</span>
+</div>
+<div class="tbl">
+<div class="tr th" style="grid-template-columns: 110px 110px minmax(0, 1fr) 110px"><span>When</span><span>Verdict</span><span>Landing</span><span></span></div>
+<div class="tr" style="grid-template-columns: 110px 110px minmax(0, 1fr) 110px"><span>Nov 14 12:58</span><span class="ok-i">approved</span><span>Panel keeps comment order <span class="mut">→ main</span></span><span class="mut" style="text-align: right">Open review</span></div>
+<div class="tr sel" style="grid-template-columns: 110px 110px minmax(0, 1fr) 110px"><span>Nov 14 11:40</span><span class="wa-i">changes</span><span>Review panel in diffview <span class="mut">→ main · round 2 of 2</span></span><span class="mut" style="text-align: right">Open review</span></div>
+<div class="tr" style="grid-template-columns: 110px 110px minmax(0, 1fr) 110px"><span>Nov 14 10:05</span><span class="wa-i">changes</span><span>Review panel in diffview <span class="mut">→ main · round 1</span></span><span class="mut" style="text-align: right">Open review</span></div>
+</div>
+<div class="pcard" style="max-width: 860px">
+<div style="display: flex; align-items: center; gap: 8px">{{i:warn wa-i}}<span class="b">Round 2 of 2 · changes · waits for you</span><span style="flex: 1"></span><button class="btn sm gh">{{i12:arrow}}Go to the landing</button></div>
+<div class="find">{{i12:x er-i}}<span><code>lua/diffview/clubmate/panel.lua:144</code> <span class="t2">— the comment list is rebuilt on every BufEnter, so a pending edit is lost</span></span></div>
+</div>
+</div>
+</main>
+</div>
+<footer class="sb">
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span>
+<span>3 gates · 9 triggers · 1 failed</span>
+<span style="flex: 1"></span>
+<span>⌘N new · P pause · ⌘K</span>
+</footer>
+</div>
+</div>
+
+<div class="cap-board"><b>B2 · New gate, 640 · Mate light.</b> Filled in the detail pane, not a sheet: same rows as the gate's detail, Repo opens a menu of the workspace's folders. <span class="note">After Add the pane is the gate's detail; Repo and Does become plain text.</span></div>
+
+<div class="cm th-matelight" style="width: 640px; height: 800px; overflow: hidden; position: relative">
+<div class="win">
+{{tb:main}}
+<div class="body" style="grid-template-columns: 40px minmax(0, 1fr)">
+{{rail:triggers}}
+<main class="main">
+<div class="crumb">{{i12:left mut}}<span class="mut cap">Triggers</span><span class="faint">/</span><span class="cap">New land gate</span></div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 12px; border-bottom: 1px solid var(--bd); flex: none">
+<div style="display: flex; align-items: center; gap: 10px">{{i16:shield t2}}<h1 class="h" style="margin: 0">New land gate</h1></div>
+<div class="abar" style="padding-left: 26px"><button class="btn pri">Add gate<span class="kbd">⌘↩</span></button><button class="btn gh">Cancel<span class="kbd">⎋</span></button></div>
+</div>
+<div style="padding: 16px; display: flex; flex-direction: column; gap: 12px; position: relative">
+<div class="props" style="grid-template-columns: 84px minmax(0, 1fr)">
+<span class="k">Repo</span><div class="v"><button class="field foc" style="width: 300px; justify-content: space-between"><span style="display: flex; align-items: center; gap: 6px">{{i:folder}}diffview.nvim</span>{{i12:down mut}}</button></div>
+<span class="k">When</span><div class="v t2"><span>it lands into <code>main</code>, or a child merges into its parent's branch</span></div>
+<span class="k">Does</span><div class="v"><button class="field" style="width: 300px; justify-content: space-between">Fable review{{i12:down mut}}</button></div>
+<span class="k">Rounds</span><div class="v"><button class="field" style="width: 300px; justify-content: space-between">2 rounds, then ask me{{i12:down mut}}</button></div>
+<span class="k">Docs only</span><div class="v t2">land without a review</div>
+</div>
+<div class="menu" style="left: 116px; top: 44px; width: 320px">
+<div class="pick" style="color: var(--t4)">{{i:folder}}<span>clubmate</span><span class="cap">has a Fable gate</span></div>
+<div class="pick on">{{i:check}}<span>diffview.nvim</span><span class="cap mut">main</span></div>
+<div class="pick">{{i:folder}}<span>clubmate-notes</span><span class="cap mut">main</span></div>
+<div class="pick">{{i:folder}}<span>roots</span><span class="cap mut">master</span></div>
+</div>
+<div class="pcard" style="margin-top: 90px"><span class="mut cap">Gates are yours: agents see them (and their verdicts) but can't add, change or delete one.</span></div>
+</div>
+</main>
+</div>
+<footer class="sb"><span>3 gates · 9 triggers</span><span style="flex: 1"></span><span>⌘↩ add · ⎋ cancel</span></footer>
+</div>
+</div>
+
+</div></body></html>

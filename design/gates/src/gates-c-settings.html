@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Gates · C · Settings per repo</title>
+<!--HEAD-->
+</head><body><div class="page">
+
+<div class="cap-board"><b>C · Gates are a per-repo setting.</b> Settings → Agents → Land gates. Every folder of every workspace is a row, so the repo is never typed or picked: a switch turns its Fable review gate on (the first time it adds the gate; after that it pauses and resumes). No add form, no new section. <span class="note">History opens as a sheet (board C2); live verdicts show in Agents (shared board).</span></div>
+
+<div class="sx th-matelight" style="width: 640px; height: 640px; background: #FFFFFF; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden">
+<header style="padding: 10px 14px 8px; border-bottom: 1px solid #E2E2E4; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; height: 16px"><div style="display: flex; gap: 8px"><i style="width: 12px; height: 12px; border-radius: 6px; background: #FF5F57; display: block"></i><i style="width: 12px; height: 12px; border-radius: 6px; background: #FEBC2E; display: block"></i><i style="width: 12px; height: 12px; border-radius: 6px; background: #28C840; display: block"></i></div><span style="flex: 1; text-align: center; margin-right: 52px; font-weight: 600">Agents</span></div>
+<nav style="display: flex; justify-content: center; gap: 4px">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 62px; padding: 5px 0 4px; border-radius: 8px; color: #6E6E73"><span style="font-size: 16px">⚙︎</span><span style="font-size: 11px">General</span></div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 62px; padding: 5px 0 4px; border-radius: 8px; color: #6E6E73"><span style="font-size: 16px">⧉</span><span style="font-size: 11px">Plugins</span></div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 62px; padding: 5px 0 4px; border-radius: 8px; background: #E9E9EB; color: #1D1D1F"><span style="font-size: 16px">✦</span><span style="font-size: 11px">Agents</span></div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 62px; padding: 5px 0 4px; border-radius: 8px; color: #6E6E73"><span style="font-size: 16px">◉</span><span style="font-size: 11px">Voice</span></div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 62px; padding: 5px 0 4px; border-radius: 8px; color: #6E6E73"><span style="font-size: 16px">⇄</span><span style="font-size: 11px">Remote</span></div>
+</nav>
+</header>
+<div style="padding: 18px 24px; display: flex; flex-direction: column; gap: 16px; overflow: hidden">
+<section><h3>Land gates</h3>
+<div class="grp" style="padding: 2px 14px 4px">
+<div class="gtbl">
+<div class="hd"></div><div class="hd">Repo</div><div class="hd">Kind</div><div class="hd">Rounds</div><div class="hd">Last verdict</div>
+<div><span class="sw on"></span></div><div style="flex-direction: column; align-items: flex-start; justify-content: center"><span>clubmate</span><span class="sub mono">~/develop/…/clubmate</span></div><div><span>Fable review</span></div><div><span class="pop">2 ▾</span></div><div style="gap: 6px"><span class="ok">approved</span><span class="lnk">History…</span></div>
+<div><span class="sw on"></span></div><div style="flex-direction: column; align-items: flex-start; justify-content: center"><span>diffview.nvim</span><span class="sub mono">~/develop/…/diffview.nvim</span></div><div><span>Fable review</span></div><div><span class="pop">2 ▾</span></div><div style="gap: 6px"><span class="wa">needs you</span><span class="lnk">History…</span></div>
+<div><span class="sw"></span></div><div style="flex-direction: column; align-items: flex-start; justify-content: center"><span>roots</span><span class="sub mono">~/develop/…/roots</span></div><div><span class="mut">Fable review</span></div><div><span class="pop" style="opacity: .5">2 ▾</span></div><div><span class="mut">paused · 3 earlier</span></div>
+<div><span class="sw"></span></div><div style="flex-direction: column; align-items: flex-start; justify-content: center"><span class="mut">clubmate-notes</span><span class="sub mono">~/develop/…/clubmate-notes</span></div><div><span class="mut">—</span></div><div><span class="mut">—</span></div><div><span class="mut">no gate</span></div>
+<div><span class="sw"></span></div><div style="flex-direction: column; align-items: flex-start; justify-content: center"><span class="mut">mate-site</span><span class="sub">other workspace</span></div><div><span class="mut">—</span></div><div><span class="mut">—</span></div><div><span class="mut">no gate</span></div>
+</div>
+</div>
+<div class="hint">A gate holds landings into the repo's default branch and children's merges into their parent's branch. Changes only in <span class="mono">.md</span> files land without a review. Only you change these; agents can read them.</div>
+</section>
+<div class="grp" style="padding: 8px 14px"><span class="sub">Right-click a repo with a gate: <b>History…</b> · <b>Delete gate…</b> (asks first; its verdicts go with it). The switch only pauses.</span></div>
+</div>
+</div>
+
+<div class="cap-board"><b>C2 · History… for diffview.nvim.</b> A sheet over Settings: the verdicts, newest first; a row opens its findings, and the review session (closed) opens in Agents.</div>
+
+<div class="sx th-matelight" style="width: 640px; height: 520px; background: #F0F0F2; position: relative; overflow: hidden">
+<div style="position: absolute; left: 40px; top: 0; width: 560px; background: #FFFFFF; border: 1px solid #D4D4D8; border-top: 0; border-radius: 0 0 12px 12px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; gap: 8px"><span style="font-weight: 600">diffview.nvim · verdicts</span><span class="sub">last 7 days · 3 approved · 2 changes · 1 docs</span></div>
+<div class="grp" style="padding: 4px 0">
+<div class="r" style="min-height: 34px"><span class="mono sub" style="width: 86px">Nov 14 12:58</span><span class="ok" style="width: 76px">approved</span><span style="flex: 1">Panel keeps comment order</span><span class="lnk">Review ↗</span></div>
+<div style="height: 1px; background: #E2E2E4; margin: 0 14px"></div>
+<div class="r" style="min-height: 34px; background: #E8F0FD"><span class="mono sub" style="width: 86px">Nov 14 11:40</span><span class="wa" style="width: 76px">changes</span><span style="flex: 1">Review panel in diffview · round 2 of 2</span><span class="lnk">Review ↗</span></div>
+<div class="r" style="flex-direction: column; align-items: stretch; gap: 4px; padding-top: 0; background: #E8F0FD"><span><span class="er">✕</span> <span class="mono" style="font-size: 11.5px">lua/diffview/clubmate/panel.lua:144</span> — the comment list is rebuilt on every BufEnter, so a pending edit is lost</span><span class="sub">Waiting for you in “Review panel in diffview”: land anyway or stop.</span></div>
+<div style="height: 1px; background: #E2E2E4; margin: 0 14px"></div>
+<div class="r" style="min-height: 34px"><span class="mono sub" style="width: 86px">Nov 14 10:05</span><span class="wa" style="width: 76px">changes</span><span style="flex: 1">Review panel in diffview · round 1</span><span class="lnk">Review ↗</span></div>
+<div style="height: 1px; background: #E2E2E4; margin: 0 14px"></div>
+<div class="r" style="min-height: 34px"><span class="mono sub" style="width: 86px">Nov 13 21:12</span><span class="mut" style="width: 76px">docs only</span><span style="flex: 1">README: the review panel</span><span></span></div>
+</div>
+<div style="display: flex; justify-content: flex-end"><button class="btn">Done</button></div>
+</div>
+</div>
+
+</div></body></html>

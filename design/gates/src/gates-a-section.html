@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Gates · A · own section</title>
+<!--HEAD-->
+</head><body><div class="page">
+
+<div class="cap-board"><b>A · Gates is its own section.</b> A new rail item next to Triggers. List of gates on the left (one row per repo), detail with verdicts on the right. <span class="note">Add with ⌘N → sheet (board A2).</span></div>
+
+<div class="cm th-mate" style="width: 1280px; height: 800px; overflow: hidden; position: relative">
+<div class="win">
+{{tb:main}}
+<div class="body" style="grid-template-columns: 40px 248px minmax(0, 1fr)">
+{{rail:gates+gates}}
+<aside class="side" aria-label="Gates">
+<div class="phead"><span class="ttl">Gates</span><span style="flex: 1"></span><button class="btn ico sm gh" aria-label="New gate ⌘N">{{i:plus}}</button></div>
+<div style="display: flex; flex-direction: column; padding: 6px 4px; gap: 1px">
+<div class="row">{{i:help mut}}<span class="l t2">How gates work</span></div>
+<div class="row sel" style="margin-top: 6px">{{i:shieldok ok-i}}<span class="l">clubmate</span><span class="d cap ok-i">approved · 12m</span></div>
+<div class="row">{{i:shield wa-i}}<span class="l">diffview.nvim</span><span class="d cap wa-i">changes · 1h</span></div>
+<div class="row">{{i:shield mut}}<span class="l mut">roots</span><span class="d cap">paused</span></div>
+</div>
+</aside>
+<main class="main">
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 20px 28px 14px; border-bottom: 1px solid var(--bd); flex: none">
+<div style="display: flex; align-items: center; gap: 10px; min-width: 0">
+{{i16:shield t2}}
+<h1 class="h ell" style="margin: 0">clubmate</h1>
+<span class="badge">active</span><span class="badge ok">last: approved</span><span class="badge wa">1 reviewing</span>
+</div>
+<div class="abar" style="padding-left: 26px"><button class="btn">{{i:pause}}Pause<span class="kbd">P</span></button><button class="btn gh">{{i:edit}}Edit<span class="kbd">E</span></button><span style="flex: 1"></span><button class="btn gh">{{i:trash}}Delete<span class="kbd">⌘⌫</span></button></div>
+</div>
+<div style="flex: 1; min-height: 0; overflow: hidden; padding: 16px 28px 0; display: flex; flex-direction: column; gap: 12px">
+<div class="props" style="grid-template-columns: 104px minmax(0, 1fr); max-width: 760px">
+<span class="k">Repo</span><div class="v">{{i:folder mut}}<span>clubmate</span><code class="mut ell">~/develop/norimori/ggfarmco/clubmate</code></div>
+<span class="k">Guards</span><div class="v t2">landings into <code>main</code> · a child's merge into its parent's branch</div>
+<span class="k">Kind</span><div class="v"><span>Fable review</span><span class="mut">a fresh Fable session reads the diff, read-only</span></div>
+<span class="k">Rounds</span><div class="v"><span>2</span><span class="mut">rounds of changes, then you decide</span></div>
+<span class="k">Docs only</span><div class="v t2">a change only in <code>.md</code> files lands without a review</div>
+</div>
+<div class="shd">{{i12:shield}}<span>Verdicts</span><span class="n">·</span><span class="n">last 7 days</span><span style="flex: 1"></span><span class="mut cap"><span class="ok-i">✓ approved 9</span> · <span class="wa-i">▲ changes 3</span> · ◌ docs 4 · you 1</span></div>
+<div class="tbl">
+<div class="tr th" style="grid-template-columns: 110px 120px minmax(0, 1fr) 150px 110px"><span>When</span><span>Verdict</span><span>Landing</span><span>Into</span><span></span></div>
+<div class="tr" style="grid-template-columns: 110px 120px minmax(0, 1fr) 150px 110px"><span>Nov 14 12:52</span><span class="wa-i" style="display: flex; align-items: center; gap: 6px">{{i12:pending}}reviewing</span><span>Migrate agents storage</span><span class="t2">feat/storage</span><span class="mut" style="text-align: right">Open review</span></div>
+<div class="tr" style="grid-template-columns: 110px 120px minmax(0, 1fr) 150px 110px"><span>Nov 14 12:40</span><span class="ok-i" style="display: flex; align-items: center; gap: 6px">{{i12:check}}approved</span><span>Rate-limit notifications <span class="mut">· round 2</span></span><span class="t2">main</span><span class="mut" style="text-align: right">Open review</span></div>
+<div class="tr sel" style="grid-template-columns: 110px 120px minmax(0, 1fr) 150px 110px"><span>Nov 14 12:21</span><span class="wa-i" style="display: flex; align-items: center; gap: 6px">{{i12:warn}}changes</span><span>Rate-limit notifications <span class="mut">· round 1 · 2 findings</span></span><span class="t2">main</span><span class="mut" style="text-align: right">Open review</span></div>
+<div class="tr" style="grid-template-columns: 110px 120px minmax(0, 1fr) 150px 110px"><span>Nov 14 11:02</span><span class="mut" style="display: flex; align-items: center; gap: 6px">{{i12:doc}}docs only</span><span class="t2">Gates UI brief</span><span class="t2">main</span><span></span></div>
+<div class="tr" style="grid-template-columns: 110px 120px minmax(0, 1fr) 150px 110px"><span>Nov 14 10:30</span><span style="display: flex; align-items: center; gap: 6px">{{i12:user}}you: land</span><span>Bump ghostty to 1.4 <span class="mut">· after 2 rounds</span></span><span class="t2">main</span><span class="mut" style="text-align: right">Open review</span></div>
+<div class="tr" style="grid-template-columns: 110px 120px minmax(0, 1fr) 150px 110px"><span>Nov 13 22:14</span><span class="ok-i" style="display: flex; align-items: center; gap: 6px">{{i12:check}}approved</span><span>Plugin strikes after late replies</span><span class="t2">main</span><span class="mut" style="text-align: right">Open review</span></div>
+</div>
+<div class="pcard" style="max-width: 860px">
+<div style="display: flex; align-items: center; gap: 8px">{{i:warn wa-i}}<span class="b">Round 1 · changes</span><span class="mut cap ell" style="flex: 1">Review · Fable (closed) · feat/notify-limit at 3f2a91c → main at f47fb9e</span><button class="btn sm gh">{{i12:out}}Open review</button></div>
+<div class="find">{{i12:x er-i}}<span><code>plugins/agents/notify.go:212</code> <span class="t2">— the limit resets on every restart, so a burst after a relaunch is never limited</span></span></div>
+<div class="find">{{i12:x er-i}}<span><code>plugins/agents/notify_test.go:88</code> <span class="t2">— the test sleeps 1 s instead of driving the clock; flaky under load</span></span></div>
+<span class="mut cap">1 deferred nit → backlog #571 · fixed in round 2, approved 12:40</span>
+</div>
+</div>
+</main>
+</div>
+<footer class="sb">
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span>
+<span>3 gates · 1 paused · 1 reviewing</span>
+<span style="flex: 1"></span>
+<span>⌘N new · P pause · E edit · ⌘K</span>
+</footer>
+</div>
+</div>
+
+<div class="cap-board"><b>A2 · New gate (⌘N), 640 · Mate light.</b> A sheet over the section. Repo is a picker over the workspace's folders; a folder that already has a Fable review gate is marked. <span class="note">Edit (E) opens the same sheet with Repo and Kind locked: only Rounds and Paused change.</span></div>
+
+<div class="cm th-matelight" style="width: 640px; height: 800px; overflow: hidden; position: relative">
+<div class="win">
+{{tb:main}}
+<div class="body" style="grid-template-columns: 40px minmax(0, 1fr)">
+{{rail:gates+gates}}
+<main class="main">
+<div class="crumb">{{i12:left mut}}<span class="mut cap">Gates</span><span class="faint">/</span><span class="cap">clubmate</span></div>
+<div style="padding: 16px; display: flex; flex-direction: column; gap: 8px; opacity: .55">
+<div style="display: flex; align-items: center; gap: 10px">{{i16:shield t2}}<h1 class="h" style="margin: 0">clubmate</h1><span class="badge">active</span></div>
+<div class="props" style="grid-template-columns: 90px minmax(0, 1fr)"><span class="k">Kind</span><div class="v">Fable review</div><span class="k">Rounds</span><div class="v">2</div></div>
+</div>
+</main>
+</div>
+<footer class="sb"><span>3 gates · 1 paused</span><span style="flex: 1"></span><span>⌘N new</span></footer>
+</div>
+<div class="scrim"></div>
+<section class="sheet" aria-label="New gate" style="left: 70px; top: 70px; width: 500px">
+<div style="display: flex; align-items: center; gap: 8px; padding: 14px 16px 10px">{{i16:shield}}<span class="h">New gate</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 4px 16px 14px">
+<div class="frow"><span class="k">Repo</span>
+<div style="display: flex; flex-direction: column; gap: 6px; min-width: 0">
+<div class="field foc">{{i:search mut}}<span class="phd" style="flex: 1">Find a folder…</span><span class="kbd">↑↓</span></div>
+<div class="card" style="padding: 4px; background: var(--s2)">
+<div class="pick" style="color: var(--t4)">{{i:folder}}<span>clubmate</span><span class="cap">has a Fable gate</span></div>
+<div class="pick on">{{i:folder}}<span>diffview.nvim <span class="mut cap">~/develop/…/diffview.nvim</span></span><span class="cap mut">main</span></div>
+<div class="pick">{{i:folder}}<span>clubmate-notes <span class="mut cap">~/develop/…/clubmate-notes</span></span><span class="cap mut">main</span></div>
+<div class="pick">{{i:folder}}<span>roots <span class="mut cap">~/develop/…/roots</span></span><span class="cap mut">master</span></div>
+</div>
+<span class="mut cap">The workspace's folders. A gate holds the repo, so its worktrees are covered too.</span>
+</div></div>
+<div class="frow"><span class="k">Kind</span><div style="display: flex; flex-direction: column; gap: 4px"><button class="field" style="justify-content: space-between; width: 240px">Fable review{{i12:down mut}}</button><span class="mut cap">Command, graph, check: later.</span></div></div>
+<div class="frow"><span class="k">Rounds</span><div style="display: flex; align-items: center; gap: 10px"><span class="stepper"><span>−</span><span class="b">2</span><span>+</span></span><span class="mut cap">rounds of changes, then you decide</span></div></div>
+<div class="frow"><span class="k">Docs only</span><span class="t2" style="line-height: 24px">lands without a review (<code>.md</code> only)</span></div>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--bd)"><span class="mut cap" style="flex: 1">Only you add, change or delete gates.</span><button class="btn gh">Cancel<span class="kbd">⎋</span></button><button class="btn pri">Add gate<span class="kbd">⌘↩</span></button></div>
+</section>
+</div>
+
+</div></body></html>
