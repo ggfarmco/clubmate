@@ -57,6 +57,77 @@ final class BacklogTests: XCTestCase {
         XCTAssertEqual(store.queued(7).map(\.text), ["Mine"])
     }
 
+    func testSendAgainWaitsForAPullAfterTheRefusalAndSendsOnce() async throws {
+        let seven = #"{"tasks":[{"id":7,"title":"Theirs again","status":"todo"}],"removed":[],"cursor":"e.7","delta":true}"#
+        let runner = SyncRunner([
+            BacklogCommand.list: [#"{"tasks":[{"id":7,"title":"Old","status":"todo"}],"removed":[],"order":[7],"cursor":"e.3","delta":false}"#, #"{"tasks":[{"id":7,"title":"Theirs","status":"todo"}],"removed":[],"cursor":"e.5","delta":true}"#, seven, seven, seven],
+            BacklogCommand.update: ["stale", #"{"id":7,"title":"Mine","status":"todo","cursor":"e.8"}"#],
+        ])
+        let store = BacklogStore(workspace: "w", runner: runner)
+        await store.refresh()
+        let result = try await store.update(7, ["title": .string("Mine")])
+        let refused = try XCTUnwrap(result)
+        runner.holdList = true
+        let pull = Task { await store.refresh() }
+        try await waitUntil { runner.holding }
+        let first = Task { try await store.sendAgain(refused) }
+        let second = Task { try await store.sendAgain(refused) }
+        await Task.yield()
+        XCTAssertEqual(runner.args(BacklogCommand.update).count, 1)
+        runner.release()
+        await pull.value
+        try await first.value
+        try await second.value
+        XCTAssertEqual(runner.args(BacklogCommand.update).map { $0["seen"] }, [.string("e.3"), .string("e.7")])
+        XCTAssertEqual(runner.requestIds(BacklogCommand.update).first, refused.requestId)
+        XCTAssertNotEqual(runner.requestIds(BacklogCommand.update).last, refused.requestId)
+        XCTAssertEqual(store.queued(7), [])
+    }
+
+    func testSendAgainPutsTheLineBackWhenItFailsAndSkipsADismissedOne() async throws {
+        let runner = SyncRunner([
+            BacklogCommand.list: [#"{"tasks":[{"id":7,"title":"Old","status":"todo"}],"removed":[],"order":[7],"cursor":"e.3","delta":false}"#] + Array(repeating: #"{"tasks":[],"removed":[],"cursor":"e.3","delta":true}"#, count: 3),
+            BacklogCommand.update: ["stale", "failed"],
+        ])
+        let store = BacklogStore(workspace: "w", runner: runner)
+        await store.refresh()
+        let result = try await store.update(7, ["title": .string("Mine")])
+        let refused = try XCTUnwrap(result)
+        do {
+            try await store.sendAgain(refused)
+            XCTFail("expected the send to fail")
+        } catch {}
+        XCTAssertEqual(store.queued(7).map(\.id), [refused.id])
+        store.queue.cancel(refused)
+        try await store.sendAgain(refused)
+        XCTAssertEqual(runner.args(BacklogCommand.update).count, 2)
+    }
+
+    func testRebaseKeepsMyEditsTakesTheMacsOthersAndNamesConflicts() {
+        let base = BacklogTask(id: 7, title: "Old", description: "d", status: .todo, priority: .normal)
+        let mac = BacklogTask(id: 7, title: "Theirs", description: "d2", status: .todo, priority: .normal)
+        var mine = BacklogDraft(base)
+        mine.title = "Mine"
+        mine.priority = .high
+        let rebased = mine.rebased(from: base, onto: mac)
+        XCTAssertEqual(rebased.draft, BacklogDraft(title: "Mine", description: "d2", priority: .high, status: .todo))
+        XCTAssertEqual(rebased.conflicts, [BacklogConflict(field: "Title", mac: "Theirs")])
+    }
+
+    func testRebaseNeverSendsAStatusOverAClaimTheEditorNoLongerShows() {
+        let base = BacklogTask(id: 7, title: "Old", status: .todo)
+        var mine = BacklogDraft(base)
+        mine.status = .notNow
+        let rebased = mine.rebased(from: base, onto: BacklogTask(id: 7, title: "Old", status: .inProgress))
+        XCTAssertEqual(rebased.draft.changes(from: BacklogTask(id: 7, title: "Old", status: .inProgress)), [:])
+        XCTAssertEqual(rebased.conflicts, [BacklogConflict(field: "Status", mac: "In progress")])
+    }
+
+    func testARefusedEditWithoutTextSaysWhatItChanged() {
+        let item = QueuedAction(computer: "c", workspace: "w", command: BacklogCommand.update, args: .object(["id": .number(7), "priority": .string("high"), "status": .string("not_now")]), target: "task/7", title: "Edit #7")
+        XCTAssertEqual(item.change, "Priority → High · Status → Not now")
+    }
+
     func testDecodesPrimaryLinksAndAttachmentsFromGet() throws {
         let json = #"{"id": 3, "title": "t", "status": "in_progress", "links": [{"kind": "blocked_by", "task": 8, "title": "Record", "status": "done"}], "attachments": [{"kind": "file", "ref": "a.md", "path": "/r/a.md", "opens": "doc"}, {"kind": "url", "ref": "https://x.y", "opens": "teleport"}], "primary": {"action": "reveal", "label": "Open Coder", "session": "agt_1"}}"#
         let task = try JSONDecoder().decode(BacklogTask.self, from: Data(json.utf8))
@@ -130,6 +201,18 @@ final class BacklogRunner: CommandRunner {
 final class SyncRunner: CommandRunner {
     private var replies: [String: [String]]
     private(set) var calls: [(id: String, args: JSONValue)] = []
+    private var requests: [(id: String, request: String?)] = []
+    var holdList = false
+    private var held: CheckedContinuation<Void, Never>?
+
+    var holding: Bool {
+        held != nil
+    }
+
+    func release() {
+        held?.resume()
+        held = nil
+    }
 
     init(_ replies: [String: [String]]) {
         self.replies = replies
@@ -139,11 +222,25 @@ final class SyncRunner: CommandRunner {
         calls.filter { $0.id == id }.map(\.args)
     }
 
+    func requestIds(_ id: String) -> [String?] {
+        requests.filter { $0.id == id }.map(\.request)
+    }
+
+    func command(_ id: String, workspace: String?, args: JSONValue?, requestId: String?) async throws -> JSONValue {
+        requests.append((id, requestId))
+        return try await command(id, workspace: workspace, args: args)
+    }
+
     func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
         calls.append((id, args ?? .null))
+        if id == BacklogCommand.list, holdList {
+            holdList = false
+            await withCheckedContinuation { held = $0 }
+        }
         guard let reply = replies[id]?.first else { return .null }
         replies[id]?.removeFirst()
         if reply == ServerReason.stale { throw RemoteError.server(code: ServerReason.stale, message: "#7 changed") }
+        if reply == "failed" { throw RemoteError.server(code: "failed", message: "boom") }
         return try JSONDecoder().decode(JSONValue.self, from: Data(reply.utf8))
     }
 }

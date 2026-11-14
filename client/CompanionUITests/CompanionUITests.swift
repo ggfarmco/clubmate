@@ -144,27 +144,51 @@ final class CompanionUITests: XCTestCase {
 
     func testAStaleEditShowsTheMacsVersionAndKeepsTheText() {
         let app = launch(open: "backlog/9", ["-staleEdit", "YES"])
-        let edit = app.buttons["Edit"]
-        XCTAssertTrue(edit.waitForExistence(timeout: 10))
-        edit.tap()
-        let title = app.textFields["taskTitle"]
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.tap()
-        title.typeText(" fast")
-        app.buttons["Save"].tap()
-        XCTAssertTrue(app.staticTexts["Changed on the Mac"].waitForExistence(timeout: 10))
+        let title = refusedEdit(app) { app.buttons["Low"].tap() }
         XCTAssertTrue(app.staticTexts["Cart badge shows stale count after checkout (renamed on the Mac)"].exists)
+        XCTAssertTrue((title.value as? String)?.contains(" fast") == true)
+        add(screenshot(app, "stale-edit-editor"))
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.staticTexts["queuedText"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["queuedText"].firstMatch.label.contains(" fast"))
+        XCTAssertEqual(app.staticTexts["queuedChange"].firstMatch.label, "Priority → Low")
         add(screenshot(app, "stale-edit"))
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "(renamed on the Mac)")).firstMatch.waitForExistence(timeout: 5))
         add(screenshot(app, "backlog-after-delta"))
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Macs"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Send again"].firstMatch.exists)
+        add(screenshot(app, "macs-queued"))
         app.buttons["Dismiss"].firstMatch.tap()
         XCTAssertTrue(wait(for: app.staticTexts["Changed on the Mac"], "exists == false"))
     }
 
-    func testAnEditKeepsTheSeqItStartedOnWhenTheMacChangesTheTask() {
+    func testSavingAgainInTheEditorLandsOnTheMacsNewVersion() {
         let app = launch(open: "backlog/9", ["-renameAfter", "10"])
+        _ = refusedEdit(app, waiting: 10)
+        app.buttons["Save"].tap()
+        XCTAssertTrue(landed(app).waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Changed on the Mac"].exists)
+    }
+
+    func testSendAgainLandsARefusedEdit() {
+        let app = launch(open: "backlog/9", ["-renameAfter", "10"])
+        _ = refusedEdit(app, waiting: 10)
+        app.buttons["Cancel"].tap()
+        let again = app.buttons["Send again"].firstMatch
+        XCTAssertTrue(again.waitForExistence(timeout: 5))
+        add(screenshot(app, "send-again"))
+        again.tap()
+        XCTAssertTrue(landed(app).waitForExistence(timeout: 10))
+        XCTAssertTrue(wait(for: app.staticTexts["Changed on the Mac"], "exists == false"))
+    }
+
+    private func landed(_ app: XCUIApplication) -> XCUIElement {
+        app.staticTexts.matching(NSPredicate(format: "label CONTAINS ' fast' AND NOT label CONTAINS 'renamed'")).firstMatch
+    }
+
+    private func refusedEdit(_ app: XCUIApplication, waiting: UInt32 = 0, also: () -> Void = {}) -> XCUIElement {
         let edit = app.buttons["Edit"]
         XCTAssertTrue(edit.waitForExistence(timeout: 10))
         edit.tap()
@@ -172,10 +196,12 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         title.tap()
         title.typeText(" fast")
-        sleep(10)
+        also()
+        sleep(waiting)
         app.buttons["Save"].tap()
         XCTAssertTrue(app.staticTexts["Changed on the Mac"].waitForExistence(timeout: 10))
-        app.buttons["Dismiss"].firstMatch.tap()
+        XCTAssertTrue(title.exists)
+        return title
     }
 
     func testFloatingMicStepsAsideWhileTypingATask() {

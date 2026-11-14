@@ -33,6 +33,7 @@ public final class BacklogStore {
     @ObservationIgnored private var legacy = false
     @ObservationIgnored private var inflight = false
     @ObservationIgnored private var again = false
+    @ObservationIgnored private var waiters: [CheckedContinuation<Void, Never>] = []
 
     public init(workspace: String, runner: any CommandRunner, queue: ActionQueue = ActionQueue(file: nil), cache: ListCache = ListCache(dir: nil), computer: String = "", queues: @escaping @MainActor () -> Bool = { false }, retry: @escaping @MainActor () -> Void = {}, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.workspace = workspace
@@ -126,14 +127,18 @@ public final class BacklogStore {
     public func refresh() async {
         guard !inflight else {
             again = true
+            await withCheckedContinuation { waiters.append($0) }
             return
         }
         inflight = true
-        defer { inflight = false }
         repeat {
             again = false
             await load()
         } while again
+        inflight = false
+        let done = waiters
+        waiters = []
+        done.forEach { $0.resume() }
     }
 
     public func get(_ id: Int) async throws -> BacklogTask? {
@@ -162,10 +167,40 @@ public final class BacklogStore {
         return try? result.decode(BacklogTask.self)
     }
 
-    public func update(_ id: Int, _ changes: [String: JSONValue], seen: String? = nil) async throws {
-        guard !changes.isEmpty else { return }
+    @discardableResult
+    public func update(_ id: Int, _ changes: [String: JSONValue], seen: String? = nil, replacing: QueuedAction? = nil) async throws -> QueuedAction? {
+        guard !changes.isEmpty else {
+            if let replacing { queue.cancel(replacing) }
+            return nil
+        }
         let typed = ["title", "description"].compactMap { changes[$0]?.stringValue }.joined(separator: "\n\n")
-        try await mutate(BacklogCommand.update, id, changes, title: "Edit #\(id)", text: typed.isEmpty ? nil : typed, seen: seen)
+        let item = try await replace(replacing) {
+            try await mutate(BacklogCommand.update, id, changes, title: "Edit #\(id)", text: typed.isEmpty ? nil : typed, seen: seen).item
+        }
+        return queue.items.first { $0.id == item.id && $0.canResend }
+    }
+
+    public func sendAgain(_ item: QueuedAction) async throws {
+        guard item.canResend, let id = item.args?["id"]?.numberValue else { return }
+        if !queues() { await refresh() }
+        guard let live = queue.items.first(where: { $0.id == item.id && $0.canResend }) else { return }
+        let resent = QueuedAction(computer: live.computer, workspace: live.workspace, command: live.command, args: live.args ?? .object([:]), target: live.target, title: live.title, text: live.text, seen: seen(Int(id)) ?? live.seen)
+        guard let result = try await replace(live, { try await submit(resent) }) else { return }
+        if live.command == BacklogCommand.start, let session = result["session"]?.stringValue {
+            arrival = Arrival(task: Int(id), session: session)
+        }
+        await refresh()
+    }
+
+    private func replace<T>(_ old: QueuedAction?, _ body: () async throws -> T) async throws -> T {
+        let removed = runner == nil ? nil : old.flatMap { old in queue.items.first { $0.id == old.id && $0.canDismiss } }
+        if let removed { queue.cancel(removed) }
+        do {
+            return try await body()
+        } catch {
+            if let removed { queue.enqueue(removed) }
+            throw error
+        }
     }
 
     public func move(_ id: Int, to status: BacklogStatus) async throws {
@@ -182,7 +217,7 @@ public final class BacklogStore {
         for (key, value) in [("agent", agent), ("mode", mode), ("where", place), ("prompt", prompt)] {
             if let value, !value.isEmpty { args[key] = .string(value) }
         }
-        let result = try await mutate(BacklogCommand.start, id, args, title: "Start an agent on #\(id)", text: prompt.flatMap { $0.isEmpty ? nil : $0 })
+        let result = try await mutate(BacklogCommand.start, id, args, title: "Start an agent on #\(id)", text: prompt.flatMap { $0.isEmpty ? nil : $0 }).result
         return result?["session"]?.stringValue
     }
 
@@ -199,17 +234,21 @@ public final class BacklogStore {
     }
 
     @discardableResult
-    private func mutate(_ command: String, _ id: Int, _ args: [String: JSONValue] = [:], title: String, text: String? = nil, seen: String? = nil) async throws -> JSONValue? {
+    private func mutate(_ command: String, _ id: Int, _ args: [String: JSONValue] = [:], title: String, text: String? = nil, seen: String? = nil) async throws -> (item: QueuedAction, result: JSONValue?) {
         var args = args
         args["id"] = .number(Double(id))
-        let result = try await submit(command, .object(args), target: Self.target(id), title: title, text: text, seen: seen ?? self.seen(id))
+        let item = QueuedAction(computer: computer, workspace: workspace, command: command, args: .object(args), target: Self.target(id), title: title, text: text, seen: seen ?? self.seen(id))
+        let result = try await submit(item)
         if result != nil { await refresh() }
-        return result
+        return (item, result)
     }
 
-    private func submit(_ command: String, _ args: JSONValue, target: String, title: String, text: String?, seen: String? = nil) async throws -> JSONValue? {
+    private func submit(_ command: String, _ args: JSONValue, target: String, title: String, text: String?) async throws -> JSONValue? {
+        try await submit(QueuedAction(computer: computer, workspace: workspace, command: command, args: args, target: target, title: title, text: text))
+    }
+
+    private func submit(_ item: QueuedAction) async throws -> JSONValue? {
         guard let runner else { return nil }
-        let item = QueuedAction(computer: computer, workspace: workspace, command: command, args: args, target: target, title: title, text: text, seen: seen)
         let offline = queues()
         guard let result = try await queue.submit(item, runner: runner, queues: offline) else {
             if queue.items.contains(where: { $0.id == item.id && $0.failure != nil }) {

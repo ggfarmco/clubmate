@@ -383,6 +383,51 @@ public struct BacklogDraft: Sendable, Equatable {
         if status != task.status, status != .inProgress, status != .other { args["status"] = .string(status.rawValue) }
         return args
     }
+
+    public func rebased(from base: BacklogTask, onto mac: BacklogTask) -> (draft: BacklogDraft, conflicts: [BacklogConflict]) {
+        var draft = self
+        var conflicts: [BacklogConflict] = []
+        func merge<T: Equatable>(_ field: WritableKeyPath<BacklogDraft, T>, _ label: String, mine: T, old: T, theirs: T, shown: String) {
+            if mine == old {
+                draft[keyPath: field] = theirs
+            } else if theirs != old, mine != theirs {
+                conflicts.append(BacklogConflict(field: label, mac: shown))
+            }
+        }
+        merge(\.title, "Title", mine: trimmedTitle, old: base.title, theirs: mac.title, shown: mac.title)
+        merge(\.description, "Description", mine: description, old: base.description, theirs: mac.description, shown: mac.description)
+        merge(\.priority, "Priority", mine: priority, old: base.priority, theirs: mac.priority, shown: mac.priority.label)
+        merge(\.status, "Status", mine: status, old: base.status, theirs: mac.status, shown: mac.status.label)
+        if mac.status == .inProgress { draft.status = mac.status }
+        return (draft, conflicts)
+    }
+}
+
+public struct BacklogConflict: Sendable, Equatable, Identifiable {
+    public let field: String
+    public let mac: String
+
+    public init(field: String, mac: String) {
+        self.field = field
+        self.mac = mac
+    }
+
+    public var id: String { field }
+}
+
+extension QueuedAction {
+    public var canResend: Bool {
+        failure == Self.changedOnMac && command.hasPrefix("backlog.")
+    }
+
+    public var change: String? {
+        guard command == BacklogCommand.update, let args = args?.objectValue else { return nil }
+        let parts = [
+            args["priority"]?.stringValue.flatMap(BacklogPriority.init(rawValue:)).map { "Priority → \($0.label)" },
+            args["status"]?.stringValue.flatMap(BacklogStatus.init(rawValue:)).map { "Status → \($0.label)" },
+        ].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
 }
 
 extension BacklogTask: SyncedItem {

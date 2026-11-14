@@ -12,12 +12,13 @@ struct SidebarView: View {
     @Environment(CompanionModel.self) private var model
     @Environment(AppNavigation.self) private var navigation
     @State private var removing: Computer?
+    @State private var queueFailure: String?
 
     var body: some View {
         let needs = model.needsYou()
         let selected = navigation.layout == .compact ? nil : selection
         List(selection: Binding(get: { selection }, set: select)) {
-            QueueSection()
+            QueueSection(failure: $queueFailure)
             if !needs.isEmpty, navigation.layout != .compact {
                 Section {
                     NeedsYouSummaryRow(count: needs.count)
@@ -51,6 +52,7 @@ struct SidebarView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .actionFailure($queueFailure)
         .navigationTitle("Macs")
         .overlay {
             if model.computers.isEmpty {

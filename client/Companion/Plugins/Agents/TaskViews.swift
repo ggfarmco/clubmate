@@ -230,6 +230,7 @@ struct RepoName: View {
 struct QueuedLine: View {
     let item: QueuedAction
     let queuedLine: String
+    var sendAgain: (() -> Void)? = nil
     let remove: () -> Void
 
     var body: some View {
@@ -249,6 +250,11 @@ struct QueuedLine: View {
                 .font(.footnote)
                 .foregroundStyle(Color.captionInk)
                 .lineLimit(2)
+                if item.failure != nil, let change = item.change {
+                    Text(change)
+                        .font(.footnote)
+                        .accessibilityIdentifier("queuedChange")
+                }
                 if item.failure != nil, let text = item.text {
                     Text(text)
                         .font(.footnote)
@@ -256,9 +262,20 @@ struct QueuedLine: View {
                         .textSelection(.enabled)
                         .accessibilityIdentifier("queuedText")
                 }
+                if let resend {
+                    HStack(spacing: 20) {
+                        Button("Send again", action: resend)
+                            .font(.subheadline.weight(.semibold))
+                        Button("Dismiss", action: remove)
+                            .font(.subheadline)
+                            .tint(Color.captionInk)
+                    }
+                    .buttonStyle(.borderless)
+                    .frame(minHeight: 44)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            if item.canUndo || item.canDismiss {
+            if resend == nil, item.canUndo || item.canDismiss {
                 Button(item.canUndo ? "Undo" : "Dismiss", action: remove)
                     .font(.subheadline.weight(.semibold))
                     .frame(minHeight: 44)
@@ -270,6 +287,10 @@ struct QueuedLine: View {
 
     private var waiting: Bool {
         item.failure == nil && !item.mayHaveRun
+    }
+
+    private var resend: (() -> Void)? {
+        item.canResend ? sendAgain : nil
     }
 }
 
@@ -831,13 +852,14 @@ struct PendingRepoRow: View {
 
 struct QueueSection: View {
     @Environment(CompanionModel.self) private var model
+    @Binding var failure: String?
 
     var body: some View {
         let queue = model.queue
         if !queue.items.isEmpty || !queue.notes.isEmpty {
             Section("Queued") {
                 ForEach(queue.items) { item in
-                    QueuedLine(item: item, queuedLine: model.connection(item.computer)?.queuedLine ?? "Queued") {
+                    QueuedLine(item: item, queuedLine: model.connection(item.computer)?.queuedLine ?? "Queued", sendAgain: sendAgain(item)) {
                         queue.cancel(item)
                     }
                 }
@@ -847,5 +869,10 @@ struct QueueSection: View {
                 }
             }
         }
+    }
+
+    private func sendAgain(_ item: QueuedAction) -> (() -> Void)? {
+        guard item.canResend, let store = model.backlog(computer: item.computer, workspace: item.workspace) else { return nil }
+        return { attempt($failure) { try await store.sendAgain(item) } }
     }
 }

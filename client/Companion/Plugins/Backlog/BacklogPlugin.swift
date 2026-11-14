@@ -110,7 +110,7 @@ struct TaskListView: View {
             if !store.outbox.isEmpty {
                 Section("Queued") {
                     ForEach(store.outbox) { item in
-                        QueuedLine(item: item, queuedLine: context.connection.queuedLine) { store.queue.cancel(item) }
+                        QueuedLine(item: item, queuedLine: context.connection.queuedLine, sendAgain: { attempt($failure) { try await store.sendAgain(item) } }) { store.queue.cancel(item) }
                     }
                 }
             }
@@ -393,7 +393,7 @@ struct TaskDetailView: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 ForEach(store.queued(taskID)) { queued in
-                    QueuedLine(item: queued, queuedLine: context.connection.queuedLine) { store.queue.cancel(queued) }
+                    QueuedLine(item: queued, queuedLine: context.connection.queuedLine, sendAgain: { attempt($failure) { try await store.sendAgain(queued) } }) { store.queue.cancel(queued) }
                         .padding(12)
                         .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12))
                 }
@@ -884,6 +884,9 @@ struct TaskEditorView: View {
     @State private var edited: BacklogDraft
     @State private var saving = false
     @State private var failure: String?
+    @State private var refused: QueuedAction?
+    @State private var conflicts: [BacklogConflict] = []
+    @State private var rebased = false
     @FocusState private var titleFocused: Bool
 
     init(store: BacklogStore, connection: ComputerConnection, task: BacklogTask?, finished: @escaping (Int?) -> Void) {
@@ -906,6 +909,26 @@ struct TaskEditorView: View {
     var body: some View {
         let blocked = connection.queues ? connection.queueNote : connection.blocked(action)
         Form {
+            if refused != nil {
+                Section {
+                    ForEach(conflicts) { conflict in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(conflict.field) on the Mac")
+                                .font(.footnote)
+                                .foregroundStyle(Color.captionInk)
+                            Text(conflict.mac)
+                                .lineLimit(4)
+                                .textSelection(.enabled)
+                        }
+                    }
+                } header: {
+                    Label("Changed on the Mac", systemImage: "exclamationmark.circle")
+                        .textCase(nil)
+                        .accessibilityIdentifier("taskChanged")
+                } footer: {
+                    Text(rebased ? "Fields you didn't edit now show the Mac's version. Save sends your edits." : "Save sends only the fields you edited, over the Mac's version.")
+                }
+            }
             Section {
                 TextField("Title", text: draft.title)
                     .focused($titleFocused)
@@ -968,8 +991,11 @@ struct TaskEditorView: View {
         Task {
             do {
                 if let task {
-                    try await store.update(task.id, edited.changes(from: task), seen: seen)
-                    finished(task.id)
+                    if let refusal = try await store.update(task.id, edited.changes(from: task), seen: seen, replacing: refused) {
+                        await rebase(task, refusal)
+                    } else {
+                        finished(task.id)
+                    }
                 } else {
                     finished(try await store.addNew()?.id)
                 }
@@ -977,6 +1003,19 @@ struct TaskEditorView: View {
                 failure = connection.failure(error, action: action)
             }
             saving = false
+        }
+    }
+
+    private func rebase(_ base: BacklogTask, _ refusal: QueuedAction) async {
+        refused = refusal
+        seen = store.seen(base.id)
+        guard let mac = try? await store.get(base.id) else { return }
+        let merged = edited.rebased(from: base, onto: mac)
+        Motion.disclose {
+            edited = merged.draft
+            conflicts = merged.conflicts
+            task = mac
+            rebased = true
         }
     }
 }
