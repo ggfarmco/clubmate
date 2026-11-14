@@ -23,5 +23,5 @@ CI runs on a 3-core macOS runner under `-race`, about 3× slower than a dev Mac.
   - `filepath.Join(os.TempDir(), "lit")` and `os.TempDir() + "lit"`.
 
   It does not see sleeps or deadlines inside func literals, calls through function values, `time.NewTimer`, `time.Since` bounds, interface-typed buses, or `"/tmp/…"` literals (#586).
-- `make test-stress BASE=<sha>` reruns the new or edited `Test` functions 10× under `-race`, with CPU hogs and `TEST_TIMEOUT_SCALE=1`. CI's `stress` job does the same for every push and PR (advisory until #590 calibrates it). A test that fails there would flake on CI.
-- To reproduce a timing flake locally, run `TEST_TIMEOUT_SCALE=1 GOMAXPROCS=3 go test -race -p 3 -count=N` with a dozen `yes >/dev/null` running, and kill them afterwards.
+- `make test-stress BASE=<sha>` reruns the new or edited `Test` functions up to 10× under `-race`, with CPU hogs and `TEST_TIMEOUT_SCALE=1`. Packages run fewest selected tests first, each in an equal share of what is left of the 900 s budget: one run to time it, then as many more (up to 10 in all) as fit the share, so time one package leaves goes to the rest. CI's `stress` job does the same for every push and PR (advisory until #590 calibrates it). A test that fails there would flake on CI.
+- To reproduce a timing flake locally, run `TEST_TIMEOUT_SCALE=1 GOMAXPROCS=3 go test -race -p 3 -count=N` with a dozen `yes >/dev/null` running, and kill them afterwards. Run the test in the foreground: a job a script starts with `&` has SIGINT ignored, so a test that sends ^C to a pty fails.

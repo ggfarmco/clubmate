@@ -105,7 +105,7 @@ jobs:
 
   stress:
     runs-on: xcode-27
-    timeout-minutes: 25
+    timeout-minutes: 40
     continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -138,12 +138,13 @@ jobs:
         run: sysctl -n hw.ncpu hw.memsize
 
       - name: Stress changed tests
+        timeout-minutes: 30
         env:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: scripts/test-stress.sh "$BASE"
 
       - name: Save Go cache
-        if: github.event_name == 'push'
+        if: ${{ !cancelled() && github.event_name == 'push' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           key: go-stress-${{ hashFiles('go.mod', 'go.sum') }}-${{ github.sha }}

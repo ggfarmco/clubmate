@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -74,7 +75,9 @@ func changed(repo, base string) ([]pkgTests, error) {
 		slices.Sort(tests)
 		pkgs = append(pkgs, pkgTests{dir: dir, tests: slices.Compact(tests)})
 	}
-	slices.SortFunc(pkgs, func(a, b pkgTests) int { return strings.Compare(a.dir, b.dir) })
+	slices.SortFunc(pkgs, func(a, b pkgTests) int {
+		return cmp.Or(cmp.Compare(len(a.tests), len(b.tests)), strings.Compare(a.dir, b.dir))
+	})
 	return pkgs, nil
 }
 

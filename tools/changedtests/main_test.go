@@ -41,7 +41,7 @@ func TestChangedPicksOnlyNewOrEditedTestsAcrossRenames(t *testing.T) {
 	write("sub/s_test.go", "package sub\n\nimport \"testing\"\n\nfunc TestSub(t *testing.T) {}\n")
 	base := commit()
 
-	write("a/a_test.go", "package a\n\nimport (\n\t\"fmt\"\n\t\"testing\"\n)\n\nfunc TestOne(t *testing.T) { fmt.Println() }\n\nfunc TestTwo(t *testing.T) {}\n")
+	write("a/a_test.go", "package a\n\nimport (\n\t\"fmt\"\n\t\"testing\"\n)\n\nfunc TestOne(t *testing.T) { fmt.Println() }\n\nfunc TestTwo(t *testing.T) { fmt.Println() }\n")
 	require.NoError(t, os.Remove(filepath.Join(repo, "b/b_test.go")))
 	write("b/bee_test.go", "package b\n\nimport \"testing\"\n\nfunc helper() int { return 2 }\n\nfunc TestThree(t *testing.T) { helper() }\n\nfunc TestFour(t *testing.T) {}\n\nfunc TestFive(t *testing.T) {}\n")
 	write("sub/s_test.go", "package sub\n\nimport \"testing\"\n\nfunc TestSub(t *testing.T) { t.Log() }\n")
@@ -50,7 +50,7 @@ func TestChangedPicksOnlyNewOrEditedTestsAcrossRenames(t *testing.T) {
 	got, err := changed(repo, base)
 	require.NoError(t, err)
 	require.Equal(t, []pkgTests{
-		{dir: "a", tests: []string{"TestOne"}},
 		{dir: "b", tests: []string{"TestFive"}},
+		{dir: "a", tests: []string{"TestOne", "TestTwo"}},
 	}, got)
 }

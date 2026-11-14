@@ -29,7 +29,10 @@ import (
 	"clubmate/internal/wire"
 )
 
-const waitTimeout = 3 * time.Second
+const (
+	waitTimeout  = 3 * time.Second
+	slowReadRate = 512 << 10
+)
 
 var (
 	bgPID  = regexp.MustCompile(`bg:(\d+)\r?\n`)
@@ -241,7 +244,7 @@ func TestResizeReportsInBandWhenChildAsks(t *testing.T) {
 
 func TestSlowClientStaysAttachedUnderFloodAndInterrupts(t *testing.T) {
 	cfg := testConfig(t, "sh", "-c", `trap 'echo after-int' INT; yes; exec cat`)
-	cfg.StallTimeout = 500 * time.Millisecond
+	cfg.StallTimeout = time.Second
 	startHost(t, cfg)
 	conn, err := net.Dial("unix", cfg.Socket)
 	require.NoError(t, err)
@@ -250,7 +253,7 @@ func TestSlowClientStaysAttachedUnderFloodAndInterrupts(t *testing.T) {
 	slow.Store(true)
 	seen, lost := make(chan struct{}), make(chan error, 1)
 	go func() {
-		r := throttled{conn: conn, slow: &slow}
+		r := &throttled{conn: conn, slow: &slow}
 		var tail []byte
 		for {
 			f, err := wire.ReadFrame(r)
@@ -436,16 +439,23 @@ func (c *testClient) waitExit(t *testing.T) int {
 }
 
 type throttled struct {
-	conn net.Conn
-	slow *atomic.Bool
+	conn  net.Conn
+	slow  *atomic.Bool
+	start time.Time
+	read  int
 }
 
-func (r throttled) Read(p []byte) (int, error) {
-	if r.slow.Load() {
-		time.Sleep(20 * time.Millisecond)
-		p = p[:min(len(p), 16<<10)]
+func (r *throttled) Read(p []byte) (int, error) {
+	if !r.slow.Load() {
+		return r.conn.Read(p)
 	}
-	return r.conn.Read(p)
+	if r.start.IsZero() {
+		r.start = time.Now()
+	}
+	time.Sleep(time.Until(r.start.Add(time.Duration(r.read) * time.Second / slowReadRate)))
+	n, err := r.conn.Read(p[:min(len(p), 8<<10)])
+	r.read += n
+	return n, err
 }
 
 func (c *testClient) readLoop() {
