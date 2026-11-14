@@ -63,10 +63,6 @@ func newHistory() *history {
 	return &history{series: map[seriesKey]*series{}, tree: subtreeScratch{heads: map[link]int{}}}
 }
 
-func (h *history) record(sessions []group, nodes, core []pluginsdk.ProcessNode, workspaces []string, now time.Time) {
-	h.recordSteps(1, sessions, nodes, core, workspaces, now)
-}
-
 func (h *history) recordSteps(steps int, sessions []group, nodes, core []pluginsdk.ProcessNode, workspaces []string, now time.Time) {
 	h.steps = max(steps, 1)
 	type total struct{ cpu, mb float64 }

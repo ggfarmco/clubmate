@@ -75,7 +75,7 @@ func (s *Server) uiStateMethods() map[string]handlerFunc {
 			return empty{}, s.patchUIState(ctx, p.WorkspaceID, p.Key, p.Value)
 		}),
 		"ui.state.section": method(func(ctx context.Context, p uiStateGetParams) (uiSectionResult, error) {
-			if err := s.checkUIStateWorkspace(ctx, p.WorkspaceID); err != nil {
+			if err := s.requireWorkspace(ctx, p.WorkspaceID); err != nil {
 				return uiSectionResult{}, err
 			}
 			section, err := s.savedSection(ctx, p.WorkspaceID)
@@ -183,15 +183,7 @@ func (s *Server) checkUIStateClient(ctx context.Context, workspaceID string) err
 	if CallerFrom(ctx).IsPlugin() {
 		return &jsonrpc2.Error{Code: codeInvalidParams, Message: "ui state requires a client caller"}
 	}
-	return s.checkUIStateWorkspace(ctx, workspaceID)
-}
-
-func (s *Server) checkUIStateWorkspace(ctx context.Context, workspaceID string) error {
-	if err := requireID(workspacePrefix, workspaceID); err != nil {
-		return err
-	}
-	_, err := s.svc.GetWorkspace(ctx, workspaceID)
-	return err
+	return s.requireWorkspace(ctx, workspaceID)
 }
 
 func (s *Server) migrateUIStateKey(ctx context.Context, workspaceID string) error {

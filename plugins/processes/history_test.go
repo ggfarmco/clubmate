@@ -9,6 +9,10 @@ import (
 	"clubmate/pkg/pluginsdk"
 )
 
+func (h *history) record(sessions []group, nodes, core []pluginsdk.ProcessNode, workspaces []string, now time.Time) {
+	h.recordSteps(1, sessions, nodes, core, workspaces, now)
+}
+
 func TestHistoryRing(t *testing.T) {
 	now := time.Now()
 	h := newHistory()

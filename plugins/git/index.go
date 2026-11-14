@@ -12,11 +12,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/gitrepo"
+	"clubmate/plugins/internal/parallel"
 )
 
 const (
@@ -380,7 +380,7 @@ func startSettle(h *pluginsdk.Host, s *state) {
 func settleLanded(h *pluginsdk.Host, s *state) {
 	for {
 		checks := s.landedChecks()
-		forEachLimited(len(checks), landedParallel, func(i int) {
+		parallel.ForEach(len(checks), landedParallel, func(i int) {
 			ctx, cancel := context.WithTimeout(context.Background(), landedTimeout)
 			defer cancel()
 			verdict := gitrepo.LandedInert(ctx, checks[i].top, checks[i].tip)
@@ -451,7 +451,7 @@ func worktreeStates(ctx context.Context, h *pluginsdk.Host, workspaceID string, 
 	if err != nil {
 		return nil, err
 	}
-	forEachLimited(len(paths), stateParallel, func(i int) {
+	parallel.ForEach(len(paths), stateParallel, func(i int) {
 		if out[i].Error != "" {
 			return
 		}
@@ -781,21 +781,4 @@ func (s *state) takeIndexWaiters() []chan struct{} {
 	s.indexWaiters = nil
 	s.indexBusy = len(waiters) > 0
 	return waiters
-}
-
-func forEachLimited(n, limit int, fn func(int)) {
-	var next atomic.Int64
-	var wg sync.WaitGroup
-	for range min(n, limit) {
-		wg.Go(func() {
-			for {
-				i := int(next.Add(1)) - 1
-				if i >= n {
-					return
-				}
-				fn(i)
-			}
-		})
-	}
-	wg.Wait()
 }

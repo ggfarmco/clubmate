@@ -168,7 +168,7 @@ func (s *session) linkDocs(turn int) {
 	}
 	for _, m := range messages {
 		slices.SortStableFunc(m.cards, func(x, y sdui.DocCard) int {
-			return cmp.Compare(boolRank(y.Presented), boolRank(x.Presented))
+			return cmp.Compare(boolInt(y.Presented), boolInt(x.Presented))
 		})
 		cards := m.cards[:min(len(m.cards), maxDocCards)]
 		if len(cards) == 0 {
@@ -186,13 +186,6 @@ func presentCard(c sdui.DocCard, presented []presentedDoc) sdui.DocCard {
 		c.Presented, c.Title = true, cmp.Or(presented[i].Title, c.Title)
 	}
 	return c
-}
-
-func boolRank(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
 }
 
 type refs struct {

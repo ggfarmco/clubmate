@@ -145,15 +145,15 @@ func mainView(m viewModel) (sdui.Node, int) {
 	}
 	children = append(children, totalsView(m))
 	if len(rows) == 0 && m.filter != "" {
-		children = append(children, withID(sdui.Empty(fmt.Sprintf("No processes match “%s”.", m.filter)), "no-match"))
+		children = append(children, sdui.WithID(sdui.Empty(fmt.Sprintf("No processes match “%s”.", m.filter)), "no-match"))
 	} else {
 		table := sdui.WithAction(sdui.Table(tableID, tableColumns(depth), rows, selectedID, m.sort), selectPID)
-		children = append(children, withID(sdui.Scroll(table), "table-scroll"))
+		children = append(children, sdui.WithID(sdui.Scroll(table), "table-scroll"))
 	}
 	if strip, ok := actionStrip(shown); ok {
 		children = append(children, strip)
 	}
-	return withID(sdui.VStack(children...), "main"), depth
+	return sdui.WithID(sdui.VStack(children...), "main"), depth
 }
 
 func headerView(m viewModel) sdui.Node {
@@ -181,11 +181,11 @@ func headerView(m viewModel) sdui.Node {
 	}
 	options := sdui.WithIconOnly(sdui.WithVariant(sdui.Button(optionsID, optionsLabel, "slider.horizontal.3"), sdui.VariantGhost))
 	filter := sdui.WithAction(sdui.WithLive(sdui.TextField(filterID, m.filter, "Filter")), filterAction)
-	return withID(sdui.Header(title, sdui.HeaderProps{Meta: meta}, filter, kill, options), "header")
+	return sdui.WithID(sdui.Header(title, sdui.HeaderProps{Meta: meta}, filter, kill, options), "header")
 }
 
 func optionsView(m viewModel) sdui.Node {
-	return withID(sdui.HStack(
+	return sdui.WithID(sdui.HStack(
 		sdui.WithAction(sdui.Toggle(autoKill, m.auto), autoKill),
 		sdui.Text("Auto-kill orphans"),
 		sdui.MutedText(fmt.Sprintf("every %d s", int(autoKillEvery/time.Second))),
@@ -207,7 +207,7 @@ func totalsView(m viewModel) sdui.Node {
 	cpuPeak, _ := peakAvg(cpuHist)
 	memPeak, memAvg := peakAvg(memHist)
 	mem := formatMB(float64(rss) / kibPerMiB)
-	return withID(sdui.HStack(
+	return sdui.WithID(sdui.HStack(
 		sdui.VStack(sdui.MutedText("CPU"), totalReading(strconv.FormatFloat(cpu, 'f', 1, 64)+"%", fmt.Sprintf("peak %.0f%%", cpuPeak))),
 		sdui.SparklineSized("total-cpu", cpuHist, cpuScale(cpuHist), stripHeight),
 		sdui.VStack(sdui.MutedText("Memory"), totalReading(mem, avgNote(mem, formatMB(memAvg)))),
@@ -250,7 +250,7 @@ func actionStrip(m viewModel) (sdui.Node, bool) {
 	if n.SessionID == coreID {
 		kill = sdui.WithDisabled(kill)
 	}
-	return withID(sdui.HStack(
+	return sdui.WithID(sdui.HStack(
 		sdui.VStack(titleText(strconv.Itoa(p.PID)+"  "+middle(shortCommand(n), cellRunes)), sdui.MutedText(strings.Join(facts, " · "))),
 		copyCommand,
 		reveal,
@@ -672,9 +672,4 @@ func formatMB(mb float64) string {
 
 func validSort(s sdui.Sort) bool {
 	return slices.Contains(columnIDs, s.Column)
-}
-
-func withID(n sdui.Node, id string) sdui.Node {
-	n.ID = id
-	return n
 }

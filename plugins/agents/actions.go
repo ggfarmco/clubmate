@@ -122,10 +122,6 @@ type idValue struct {
 	ID string `json:"id"`
 }
 
-type turnValue struct {
-	Turn int `json:"turn"`
-}
-
 type selection struct {
 	Path      string `json:"path"`
 	StartLine int    `json:"startLine"`
