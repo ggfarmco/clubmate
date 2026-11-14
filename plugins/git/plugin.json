@@ -197,6 +197,23 @@
         }
       },
       {
+        "id": "git.land",
+        "title": "Land a change",
+        "hidden": true,
+        "agent": true,
+        "timeout": 300,
+        "description": "Land a change as one commit. mode branch (default): squash the branch checked out at path into into (default: the repo's default branch, or your parent session's branch when the finish text names it), commit it with message, then remove that worktree (never the main checkout) and force-delete the branch. mode index: commit what is staged in path, which must have into checked out (sessions working on main itself). In a repo with a land gate (agents.gates), an agent's landing first needs a fresh Fable review of exactly this change: with no verdict it starts one and fails with \"review pending: <session>\" (end your turn; Clubmate prompts you with the verdict, then call git.land again); changes fails with the findings; after the gate's rounds of changes it waits for the user. A moved target needs a new review. Fails on conflicts (rebase first), on staged changes in the target worktree, or when the target moved meanwhile. Returns {commit, into, source, removed, note}.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "The worktree holding the change: the branch's worktree, or for mode index the worktree with the staged change."},
+            "message": {"type": "string", "description": "The commit message (conventional commit)."},
+            "into": {"type": "string", "description": "The branch to land into; default the repo's default branch."},
+            "mode": {"type": "string", "enum": ["branch", "index"], "description": "branch (default) squashes the worktree's branch; index commits the staged change on the target itself."}
+          },
+          "required": ["path", "message"]
+        }
+      },
+      {
         "id": "git.worktree-remove",
         "title": "Remove worktree",
         "hidden": true,

@@ -135,6 +135,9 @@ func (a *app) landCommitsCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 	if !a.userWord(cmd) {
 		return nil, errLandUser
 	}
+	if out, ok, err := a.gateCommits(ctx, cmd.WorkspaceID, args.Request); ok || err != nil {
+		return out, err
+	}
 	a.landMu.Lock()
 	_, task, i, ok := a.findLand(cmd.WorkspaceID, args.Request)
 	a.landMu.Unlock()

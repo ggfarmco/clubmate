@@ -29,6 +29,7 @@ var (
 		"git.branch-delete":      branchDeleteCommand,
 		"git.worktree-unpushed":  worktreeUnpushedCommand,
 		"git.repos-in":           reposInCommand,
+		"git.land":               landCommand,
 	}
 )
 
@@ -41,6 +42,8 @@ type call struct {
 	args        worktreeArgs
 	ui          bool
 	via         string
+	agent       bool
+	caller      string
 }
 
 type worktreeArgs struct {
@@ -61,6 +64,8 @@ type worktreeArgs struct {
 	Proof   bool     `json:"proof"`
 	Tip     string   `json:"tip"`
 	Dates   bool     `json:"dates"`
+	Message string   `json:"message"`
+	Mode    string   `json:"mode"`
 
 	SeenDirty   int `json:"seenDirty"`
 	SeenSecrets int `json:"seenSecrets"`
@@ -124,7 +129,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	if !ok {
 		return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 	}
-	c := call{h: h, workspaceID: cmd.WorkspaceID, state: s, ui: !cmd.Agent && cmd.Via == "", via: cmd.Via}
+	c := call{h: h, workspaceID: cmd.WorkspaceID, state: s, ui: !cmd.Agent && cmd.Via == "", via: cmd.Via, agent: cmd.Agent || cmd.Caller != "", caller: cmd.Caller}
 	if len(cmd.Args) > 0 {
 		if err := json.Unmarshal(cmd.Args, &c.args); err != nil {
 			return nil, fmt.Errorf("%s args: %w", cmd.ID, err)

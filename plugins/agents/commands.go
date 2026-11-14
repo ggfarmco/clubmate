@@ -90,6 +90,13 @@ var (
 		"agents.land-commits":   withArgs((*app).landCommitsCommand),
 		"agents.repo-leave":     withArgs((*app).repoLeaveCommand),
 		"agents.repo-fix":       withArgs((*app).repoFixCommand),
+		"agents.gates":          withArgs((*app).gatesCommand),
+		"agents.gate-add":       withArgs((*app).gateAddCommand),
+		"agents.gate-update":    withArgs((*app).gateUpdateCommand),
+		"agents.gate-delete":    withArgs((*app).gateDeleteCommand),
+		"agents.land-gate":      withArgs((*app).landGateCommand),
+		"agents.land-done":      withArgs((*app).landDoneCommand),
+		"agents.land-verdict":   withArgs((*app).landVerdictCommand),
 	}
 
 	errUnknownCmd    = errors.New("unknown command")
@@ -155,6 +162,8 @@ type newArgs struct {
 	worktree        string
 	review          *reviewSent
 	via             string
+	gate            *gateFor
+	startedBy       string
 }
 
 type newResult struct {

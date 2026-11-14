@@ -287,6 +287,7 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	}
 	a.endSnapshot(s, rec, turn, sha)
 	commits := a.attributeTurn(rec, turn, sha, args.Text)
+	a.logUngatedMain(rec, commits)
 	a.pruneBackground(s)
 	s.mu.Lock()
 	if s.epoch != epoch {
@@ -342,8 +343,12 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	if edited && rec.Night == "" {
 		a.checktime(rec)
 	}
+	if !finished && (err != nil || cancelled) {
+		a.gateTurnEnded(s, false)
+	}
 	if finished {
 		a.markReview(s)
+		a.gateTurnEnded(s, true)
 		a.cleanupChild(s)
 		a.closeVanishedChildren(s)
 	}

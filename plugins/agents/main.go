@@ -60,6 +60,7 @@ type app struct {
 	connectMu  sync.Mutex
 	cloners    map[string]bool
 	landMu     sync.Mutex
+	gateMu     sync.Mutex
 	landWork   coalesced
 	onceLocks  onceLocks
 	archiving  archiveClaims
@@ -113,6 +114,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.groups = newGroups(a.stateDir)
 	a.groups.reap(orphanMarkers())
 	a.self = newSelfStore(a.stateDir)
+	installHooks(a.stateDir)
 	var sections []sectionRef
 	if err := h.Call(ctx, "ui.sections", nil, &sections); err != nil {
 		return err
@@ -396,6 +398,12 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			info.Pending = append(info.Pending, rec.Task.requests()...)
 			if info.PendingSummary == nil {
 				info.PendingSummary = rec.taskPending(info.Asks)
+			}
+		}
+		if rec.gateWaits() {
+			info.Pending = append(info.Pending, rec.gateRequests()...)
+			if info.PendingSummary == nil {
+				info.PendingSummary = rec.gatePending()
 			}
 		}
 		if rec.RepoPath != "" {

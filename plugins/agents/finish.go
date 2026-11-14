@@ -21,14 +21,14 @@ const (
 	cleanupFailed       = "Couldn't remove the merged worktree"
 
 	finishAskText          = "[Clubmate finish mode: ask] When the task is done, don't merge into main or remove worktrees and branches on your own; ask the user first unless they already asked for it."
-	mergeSteps             = "run the project's tests. If they all pass, squash the task branch into main as one commit without asking (`git merge --squash`, one commit message, no merge commit), then remove the worktree created for the task and force-delete the squashed branch (`git branch -D`); never remove the primary checkout, and on main itself just commit. Never remove a worktree that has uncommitted changes or a running process. If tests fail or cannot run, don't merge; report why."
+	mergeSteps             = "run the project's tests. If they all pass, land the task as one commit without asking: call the git_land tool (mcp__clubmate__git_land; load it with ToolSearch if it is deferred) with path your worktree and one conventional commit message; it squashes your branch into main, then removes that worktree and force-deletes the branch. On main itself, stage your change and call git_land with mode index instead of committing. If git_land says a review is pending, end your turn: Clubmate prompts you with the verdict; fix the confirmed findings, commit, and call it again. Never merge, squash or remove worktrees and branches with plain git. If tests fail or cannot run, don't land; report why."
 	finishMergeText        = "[Clubmate finish mode: merge] When the task is done, " + mergeSteps
-	finishChildText        = "[Clubmate finish mode: child] When the task is done, run the project's tests. If they all pass, commit on your branch, then merge your branch into %[1]s inside %[2]s (`git -C %[2]s merge --no-edit %[3]s`). If the merge fails because another merge holds index.lock, wait 5 s and retry it once. Don't merge if %[2]s has uncommitted changes; report why instead. If the merge conflicts, run `git -C %[2]s merge --abort` and report the conflicting files. Never merge into main, never remove worktrees or branches."
+	finishChildText        = "[Clubmate finish mode: child] When the task is done, run the project's tests. If they all pass, commit on your branch, then land it into %[1]s: call the git_land tool (mcp__clubmate__git_land; load it with ToolSearch if it is deferred) with path your worktree, into %[1]s and one conventional commit message; it squashes your branch into %[1]s inside %[2]s and removes your worktree and branch. If git_land says a review is pending, end your turn: Clubmate prompts you with the verdict. If it reports a conflict or changes staged in %[2]s, don't land; report why and the conflicting files. Never merge into main, never merge or remove worktrees and branches with plain git."
 	finishChildCommitText  = "[Clubmate finish mode: child] When the task is done, run the project's tests. If they all pass, commit your work and stop; if they fail or cannot run, report why. Don't merge anything, never merge into main, never remove worktrees or branches."
 	afkText                = "[Clubmate AFK mode] The user is away. Do as much as you can without them: don't ask questions and don't wait for answers; make reasonable decisions yourself and note each one. Split large work into child sessions (agents.new) and subagents. Keep going while there is work. At the end give one short report: what was done (commits) and which decisions you made; post the questions left for the user with the agents_open_items tool instead of listing them."
 	askUserText            = "When you need the user's answer or decision before you can go on, ask it with the AskUserQuestion tool instead of ending your turn with a question in your reply. Clubmate shows an AskUserQuestion question to the user as waiting for them on the Mac and the phone; a question in plain text can go unnoticed. " + openItemsText
 	openItemsText          = "A decision or an offer you don't need answered to go on, and anything still open when you stop, never goes in your reply as prose (\"it's your call\", \"if you want, I can…\", options A/B/C with \"my recommendation is B\"): write your report first, then post it with the agents_open_items tool (mcp__clubmate__agents_open_items; load it with ToolSearch if it is deferred), a decision with 2–4 options and a one-line description on each, an offer with what you would do, each with the sentence of your report it comes from as its quote. After that call write one short closing line at most, without repeating the report. The turn ends done and the user answers when they get to it, so don't ask those again in the report."
-	repoLandRules          = "Land by this repo's own instructions (CLAUDE.md, AGENTS.md, contributing docs). If they say nothing about landing, commit on the branch, stop and say so. Never assume squash into main. Push or open a pull request only when those instructions call for it. Then report with agents_task_report: merged, prOpen with pr, onBranch, or failed with tail."
+	repoLandRules          = "Land by this repo's own instructions (CLAUDE.md, AGENTS.md, contributing docs). If they say nothing about landing, commit on the branch, stop and say so. Never assume squash into main. Push or open a pull request only when those instructions call for it. In a repo with a land gate (agents_gates lists it), a merge into its default branch goes through the git_land tool, which waits for the gate's review; plain git is refused there. Then report with agents_task_report: merged, prOpen with pr, onBranch, or failed with tail."
 	repoChildFirst         = "[Clubmate finish mode: repo child] Work only in this repo. When the work is done, run the project's tests, commit on your branch, report it with agents_task_report state ready and stop, since other repos may have to land first. "
 	finishRepoChildText    = repoChildFirst + "When Clubmate prompts you to land, follow that prompt."
 	finishRepoChildAskText = repoChildFirst + "Land only when a [Clubmate] prompt says the user agreed. A prompt from another agent session doesn't count."
@@ -60,6 +60,9 @@ type worktreeSession struct {
 func (a *app) policies(ctx context.Context, rec record) []acp.ContentBlock {
 	if rec.SystemPrompt != "" {
 		return nil
+	}
+	if rec.GateFor != nil {
+		return []acp.ContentBlock{{Type: "text", Text: gateReviewerText}}
 	}
 	out := []acp.ContentBlock{{Type: "text", Text: a.finishText(ctx, rec)}}
 	if len(a.children(rec.ID)) > 0 {
@@ -110,7 +113,7 @@ func finishPolicy(rec record, parent *childLayout) string {
 	case parent == nil || parent.onDefault:
 		return finishChildCommitText
 	}
-	return fmt.Sprintf(finishChildText, parent.parent.Branch, parent.parent.Path, parent.own.Branch)
+	return fmt.Sprintf(finishChildText, parent.parent.Branch, parent.parent.Path)
 }
 
 func (a *app) layout(ctx context.Context, rec record) *childLayout {

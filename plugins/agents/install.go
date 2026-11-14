@@ -18,6 +18,7 @@ import (
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/acp"
+	"clubmate/plugins/internal/landgate"
 )
 
 const (
@@ -67,7 +68,7 @@ var droppedEnv = []string{apiKeyEnv, contract.WorkspaceEnv, "CLUBMATE_PLUGIN_ID"
 func agentEnv(workspace string) []string {
 	out := paths.StripDefaults(slices.DeleteFunc(os.Environ(), func(kv string) bool {
 		name, _, _ := strings.Cut(kv, "=")
-		return slices.Contains(droppedEnv, name)
+		return slices.Contains(droppedEnv, name) || slices.Contains(landgate.Inherited, name)
 	}))
 	if workspace != "" {
 		out = append(out, contract.WorkspaceEnv+"="+workspace)

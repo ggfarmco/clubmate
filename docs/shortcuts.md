@@ -244,6 +244,7 @@ A connect request (`Connect a repo?`) or a Land request (`Land ‹repo›?`) is 
 | Space | Connect card: un-tick or tick the focused repo; un-ticked repos are skipped |
 | ↑ ↓ | Connect card: move between repos; moving past the third opens the folded ones |
 | ⌥1 ⌥2 ⌥3 | Land card: Review… (opens the repo's diff, never merges) · Merge · Leave it unlanded… (⌥3 again confirms, Esc or ↩ cancels) |
+| ⌥1 ⌥2 | Land review card ("Land ‹branch› without another review?"): Land anyway · Stop |
 
 ## Agent questions (Agents section or Code chat panel)
 

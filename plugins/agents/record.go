@@ -90,9 +90,11 @@ type record struct {
 	Reads           []string  `json:"reads,omitempty"`
 	Allow           []string  `json:"allow,omitempty"`
 	RepoPath        string    `json:"repoPath,omitempty"`
+	GateFor         *gateFor  `json:"gateFor,omitempty"`
 
 	Task            *taskRecord      `json:"task,omitempty"`
 	ConnectRequests []connectRequest `json:"connectRequests,omitempty"`
+	LandReviews     []landReview     `json:"landReviews,omitempty"`
 	AfkConnected    []string         `json:"afkConnected,omitempty"`
 	Queue           []queuedPrompt   `json:"queue,omitempty"`
 	QueueSpilled    bool             `json:"queueSpilled,omitempty"`
@@ -204,7 +206,7 @@ func (r record) closed() bool {
 }
 
 func (r record) restricted() bool {
-	return len(r.DisallowedTools) > 0 || r.SystemPrompt != "" || r.StartMode != "" || r.Night != ""
+	return len(r.DisallowedTools) > 0 && r.GateFor == nil || r.SystemPrompt != "" || r.StartMode != "" || r.Night != ""
 }
 
 func (r record) pinnedModel() string {

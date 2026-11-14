@@ -690,7 +690,7 @@ func displayStatus(rec record, children string) string {
 }
 
 func needsYou(rec record) bool {
-	return rec.Status == statusWaiting && !rec.AsksParent || rec.Status == statusDone && rec.Asks && rec.ParentSession == "" && rec.Night == "" || rec.connectWaits() || rec.taskWaits()
+	return rec.Status == statusWaiting && !rec.AsksParent || rec.Status == statusDone && rec.Asks && rec.ParentSession == "" && rec.Night == "" || rec.connectWaits() || rec.taskWaits() || rec.gateWaits()
 }
 
 func activity(row sessionRow, now time.Time) string {

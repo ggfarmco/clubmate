@@ -893,6 +893,97 @@
         }
       },
       {
+        "id": "agents.gates",
+        "title": "List land gates",
+        "hidden": true,
+        "agent": true,
+        "description": "The land gates: {gates: [{id, repo, kind, rounds, paused, createdAt}]}. A repo with a gate lands only after a fresh Fable review approves the diff (git.land)."
+      },
+      {
+        "id": "agents.gate-add",
+        "title": "Add a land gate",
+        "hidden": true,
+        "description": "Gate a repo's landings: git.land into its default branch, or into a parent session's branch, waits for a read-only Fable review of the diff, and agent sessions in it get a git hook that refuses those ref updates without an approved verdict. One gate per repo. Returns the gate. Only the user; an agent gets an error.",
+        "args": {
+          "properties": {
+            "repo": {"type": "string", "description": "A path in the repo; the gate holds for all its worktrees."},
+            "kind": {"type": "string", "enum": ["fable-review"], "description": "The gate; fable-review is the only one."},
+            "rounds": {"type": "integer", "description": "Rounds of changes before a landing needs the user; default 2."}
+          },
+          "required": ["repo"]
+        }
+      },
+      {
+        "id": "agents.gate-update",
+        "title": "Change a land gate",
+        "hidden": true,
+        "description": "Pause or resume a land gate, or change its rounds. Only the user; an agent gets an error.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Gate id (gt_…)."},
+            "paused": {"type": "boolean", "description": "A paused gate gates nothing."},
+            "rounds": {"type": "integer", "description": "Rounds of changes before a landing needs the user."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "agents.gate-delete",
+        "title": "Delete a land gate",
+        "hidden": true,
+        "destructive": true,
+        "description": "Remove a land gate. Only the user; an agent gets an error.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Gate id (gt_…)."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "agents.land-gate",
+        "title": "Check a landing against its gate",
+        "hidden": true,
+        "description": "Only the git plugin, from git.land: {state: approved | pending | changes | user, reviewer?, text?, findings?, deferred?} for landing tree on top of old. With no verdict it starts (or re-prompts) the land reviewer.",
+        "args": {
+          "properties": {
+            "session": {"type": "string"}, "target": {"type": "string"}, "worktree": {"type": "string"}, "into": {"type": "string"},
+            "source": {"type": "string"}, "head": {"type": "string"}, "old": {"type": "string"}, "tree": {"type": "string"}
+          },
+          "required": ["target", "into", "old", "tree"]
+        }
+      },
+      {
+        "id": "agents.land-done",
+        "title": "Record a landing",
+        "hidden": true,
+        "description": "Only the git plugin, after git.land committed: records the landed commit on its verdict and closes the land reviewer.",
+        "args": {
+          "properties": {
+            "session": {"type": "string"}, "into": {"type": "string"}, "source": {"type": "string"},
+            "old": {"type": "string"}, "tree": {"type": "string"}, "commit": {"type": "string"}
+          },
+          "required": ["old", "tree", "commit"]
+        }
+      },
+      {
+        "id": "agents.land-verdict",
+        "title": "Give a land review verdict",
+        "hidden": true,
+        "agent": true,
+        "timeout": 30,
+        "description": "Only a land reviewer session: the verdict on the change it was asked to review. approved lets git.land land it; changes (confirmed correctness bugs only, each finding \"file:line — what breaks\") sends the findings to the lander. Nits and suggestions go to deferred; they never block.",
+        "args": {
+          "properties": {
+            "tree": {"type": "string", "description": "The tree sha your latest review prompt names; a verdict for any other tree is refused."},
+            "outcome": {"type": "string", "enum": ["approved", "changes"], "description": "The verdict."},
+            "findings": {"type": "array", "items": {"type": "string"}, "description": "Confirmed bugs, \"file:line — what breaks\"; required with changes."},
+            "deferred": {"type": "array", "items": {"type": "string"}, "description": "Nits and suggestions that don't block."}
+          },
+          "required": ["tree", "outcome"]
+        }
+      },
+      {
         "id": "agents.repo-fix",
         "title": "Ask a repo's child to fix its failure",
         "hidden": true,

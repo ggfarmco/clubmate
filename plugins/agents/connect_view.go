@@ -86,6 +86,9 @@ func requestCard(sc screen) (sdui.Node, bool) {
 	if i := slices.IndexFunc(rec.ConnectRequests, connectRequest.waits); i >= 0 {
 		return connectCard(sc, rec.ConnectRequests[i]), true
 	}
+	if i := slices.IndexFunc(rec.LandReviews, func(st landReview) bool { return st.Request != "" }); i >= 0 {
+		return gateCard(rec, rec.LandReviews[i]), true
+	}
 	if rec.Task == nil {
 		return sdui.Node{}, false
 	}

@@ -78,7 +78,12 @@ type record struct {
 	AsksParent      bool     `json:"asksParent"`
 	ChildStatus     string   `json:"childStatus"`
 	DisallowedTools []string `json:"disallowedTools"`
-	Failure         *struct {
+	StartModel      string   `json:"startModel"`
+	GateFor         *struct {
+		Lander string `json:"lander"`
+		Tree   string `json:"tree"`
+	} `json:"gateFor"`
+	Failure *struct {
 		Badge   string `json:"badge"`
 		Actions []struct {
 			ID      string            `json:"id"`
@@ -2902,8 +2907,9 @@ func TestChildPolicyNamesParentBranch(t *testing.T) {
 		id := f.waitBranchChildDone(t, workspace, session).AgentSessionID
 		return string(f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.Contains(string(c.Params), id) }).Params)
 	}
-	assert.Contains(t, sent(own), "merge your branch into feat inside "+repo+" (`git -C "+repo+" merge --no-edit c1`)")
-	assert.NotContains(t, sent(shared), "merge your branch")
+	assert.Contains(t, sent(own), "land it into feat: call the git_land tool")
+	assert.Contains(t, sent(own), "squashes your branch into feat inside "+repo)
+	assert.NotContains(t, sent(shared), "land it into")
 	assert.Contains(t, sent(shared), "[Clubmate finish mode: child]")
 }
 
@@ -2918,7 +2924,7 @@ func TestChildOfDefaultBranchOnlyCommits(t *testing.T) {
 	id := f.waitBranchChildDone(t, workspace, kid).AgentSessionID
 	sent := string(f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.Contains(string(c.Params), id) }).Params)
 	assert.Contains(t, sent, "commit your work and stop")
-	assert.NotContains(t, sent, "merge your branch")
+	assert.NotContains(t, sent, "land it into")
 }
 
 func TestMergedChildCleanedUp(t *testing.T) {

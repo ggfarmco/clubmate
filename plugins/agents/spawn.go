@@ -71,6 +71,9 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 		return newResult{}, fmt.Errorf("%w: %s=%s", errUnknownValue, finishID, args.Finish)
 	}
 	rec := record{Workspace: workspaceID, Agent: agent, Title: titleOf(args.Title), TitleSet: args.Title != "", Notify: storedNotify(args.Notify), DisallowedTools: args.DisallowedTools, SystemPrompt: args.SystemPrompt, StartMode: args.Mode, FirstMode: args.FirstMode, StartModel: args.Model, StartEffort: args.Effort, CronJob: args.CronJob, Trigger: args.Trigger}
+	if args.gate != nil {
+		rec.GateFor, rec.DisallowedTools = args.gate, gateReviewerDenied
+	}
 	if args.Run != "" {
 		rec.Run = &api.Run{ID: args.Run, Title: args.RunTitle, After: args.RunAfter}
 	}
@@ -108,7 +111,7 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 	}
 	rec.Worktree = root
 	if prec.ID == "" {
-		rec.StartedBy = a.agentStarter(from, args)
+		rec.StartedBy = cmp.Or(args.startedBy, a.agentStarter(from, args))
 	}
 	rec.Finish, rec.AFK = a.sessionDefaults(ctx, cmp.Or(rec.ParentSession, rec.StartedBy))
 	rec.Finish = cmp.Or(args.Finish, rec.Finish)
