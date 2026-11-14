@@ -311,6 +311,30 @@ func TestOverlappingTimeoutsAndRepliesKeepPluginRunning(t *testing.T) {
 
 const lagManifest = `{"id":"stuck","name":"Lag","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"stuck.wait","title":"Wait","timeout":1}]},"echoResults":{"stuck.wait":{}},"echoDelays":{"stuck.wait":1500}}`
 
+func TestLateRepliesKeepSlowPluginRunning(t *testing.T) {
+	h, run := startStuck(t, lagManifest)
+	pid := h.Sup.PIDs()[0]
+
+	for range 3 {
+		require.Error(t, run("stuck.wait"))
+	}
+	time.Sleep(200 * time.Millisecond)
+
+	assert.Equal(t, []int{pid}, h.Sup.PIDs())
+}
+
+func TestLateReplyToOlderCallKeepsNewerStrikes(t *testing.T) {
+	h, run := startStuck(t, `{"id":"stuck","name":"Stuck","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"stuck.slow","title":"Slow","timeout":1},{"id":"stuck.wait","title":"Wait","timeout":1}]},"echoResults":{"stuck.slow":{},"stuck.wait":{}},"echoDelays":{"stuck.slow":2500,"stuck.wait":60000}}`)
+	pid := h.Sup.PIDs()[0]
+
+	require.Error(t, run("stuck.slow"))
+	require.Error(t, run("stuck.wait"))
+	require.Error(t, run("stuck.wait"))
+
+	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].Restarts == 1 }, 5*time.Second)
+	assert.False(t, testutil.Alive(pid))
+}
+
 func agentWaits(t *testing.T, h *testutil.PluginHarness) func(caller string) {
 	r := plugin.NewRouter(h.Sup)
 	c, ok := r.Resolve("stuck.wait")
@@ -321,8 +345,8 @@ func agentWaits(t *testing.T, h *testutil.PluginHarness) func(caller string) {
 	}
 }
 
-func TestOneAgentCannotRestartSlowButAlivePlugin(t *testing.T) {
-	h, _ := startStuck(t, lagManifest, plugin.WithStuckSilence(2*time.Second))
+func TestAgentTimeoutsCountOncePerSession(t *testing.T) {
+	h, _ := startStuck(t, stuckManifest, plugin.WithStuckSilence(time.Minute))
 	wait := agentWaits(t, h)
 	pid := h.Sup.PIDs()[0]
 

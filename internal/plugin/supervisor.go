@@ -130,6 +130,7 @@ type instance struct {
 	stuck      chan struct{}
 	strikes    int
 	lastStrike time.Time
+	struckSent time.Time
 	struckBy   map[string]bool
 	timeouts   int
 	lastReply  time.Time
@@ -508,7 +509,8 @@ func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process, restart 
 	s.update(m.ID, func(inst *instance) {
 		inst.status.State = StateRunning
 		inst.conn = p.conn
-		inst.stuck, inst.strikes, inst.timeouts, inst.lastStrike, inst.struckBy, inst.lastReply, inst.runFrom = stuck, 0, 0, time.Time{}, nil, time.Now(), time.Time{}
+		inst.stuck, inst.lastReply = stuck, time.Now()
+		inst.clearStrikes()
 	})
 	s.logger.Info("plugin running", "id", m.ID, "pid", p.cmd.Process.Pid)
 	s.changed(m.ID, true)
@@ -547,16 +549,25 @@ func (s *Supervisor) replied(id string, conn *jsonrpc2.Conn) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if inst, ok := s.plugins[id]; ok && inst.conn == conn {
-		inst.strikes, inst.timeouts, inst.lastStrike, inst.struckBy, inst.runFrom = 0, 0, time.Time{}, nil, time.Time{}
+		inst.clearStrikes()
 	}
 }
 
-func (s *Supervisor) answered(id string, conn *jsonrpc2.Conn) {
+func (s *Supervisor) answered(id string, conn *jsonrpc2.Conn, sent time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if inst, ok := s.plugins[id]; ok && inst.conn == conn {
-		inst.lastReply = time.Now()
+	inst, ok := s.plugins[id]
+	if !ok || inst.conn != conn {
+		return
 	}
+	inst.lastReply = time.Now()
+	if !sent.Before(inst.struckSent) {
+		inst.clearStrikes()
+	}
+}
+
+func (inst *instance) clearStrikes() {
+	inst.strikes, inst.timeouts, inst.lastStrike, inst.struckSent, inst.struckBy, inst.runFrom = 0, 0, time.Time{}, time.Time{}, nil, time.Time{}
 }
 
 func (s *Supervisor) timedOut(id string, conn *jsonrpc2.Conn, started time.Time, caller string, agent bool) {
@@ -570,7 +581,7 @@ func (s *Supervisor) timedOut(id string, conn *jsonrpc2.Conn, started time.Time,
 		inst.runFrom = started
 	}
 	inst.timeouts++
-	inst.lastStrike = time.Now()
+	inst.lastStrike, inst.struckSent = time.Now(), started
 	if !agent || !inst.struckBy[caller] {
 		inst.strikes++
 	}

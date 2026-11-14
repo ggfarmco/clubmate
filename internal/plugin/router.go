@@ -208,7 +208,7 @@ func (r *Router) route(ctx context.Context, pluginID, method string, params json
 	out, err := callLate(callCtx, late, conn, pluginID, method, params, func(replied bool) {
 		stopLate()
 		if replied {
-			r.sup.answered(pluginID, conn)
+			r.sup.answered(pluginID, conn, sent)
 		}
 	})
 	var pluginErr *rpc.PluginError
