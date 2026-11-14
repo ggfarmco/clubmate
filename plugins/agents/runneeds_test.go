@@ -30,10 +30,10 @@ func TestRunNeedsOnlyFromGraphs(t *testing.T) {
 	assert.Equal(t, pendingSummary{Kind: entryPermission, Text: "make test", Tool: toolExecute, Role: "Tests", At: time.Unix(100, 0)}, *got.PendingSummary)
 	assert.Equal(t, api.Run{ID: "gr_1", Title: "Review gate", Number: 4}, *got.Run)
 
-	full := a.sessionRevs.page("ws", infos, "")
+	full := a.sessionsPage(t.Context(), "ws", infos, "")
 	_, err = a.runNeedsCommand(t.Context(), pluginsdk.CommandRun{ID: "agents.run-needs", WorkspaceID: "ws", Via: graphsPlugin}, runNeedsArgs{})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"gr_1"}, a.sessionRevs.page("ws", a.infos("ws"), full.Cursor).Removed)
+	assert.Equal(t, []string{"gr_1"}, a.sessionsPage(t.Context(), "ws", a.infos("ws"), full.Cursor).Removed)
 }
 
 func TestRunNeedChangesResolveWhatLeft(t *testing.T) {

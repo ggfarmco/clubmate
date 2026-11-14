@@ -48,7 +48,7 @@ var (
 		"agents.export":         withArgs((*app).exportCommand),
 		"agents.import":         withArgs((*app).importCommand),
 		"agents.handoff":        withArgs((*app).handoffCommand),
-		"agents.cancel":         withSession((*app).cancelCommand),
+		"agents.cancel":         withArgs((*app).cancelCommand),
 		"agents.stop-subagent":  withArgs((*app).stopSubagentCommand),
 		"agents.close":          withSession((*app).closeCommand),
 		"agents.delete":         withSession((*app).deleteCommand),
@@ -136,6 +136,12 @@ type stepArgs struct {
 type subagentArgs struct {
 	Session  string `json:"session"`
 	Subagent string `json:"subagent"`
+	Turn     int    `json:"turn"`
+}
+
+type cancelArgs struct {
+	Session string `json:"session"`
+	Turn    int    `json:"turn"`
 }
 
 type newArgs struct {
@@ -390,12 +396,12 @@ func (a *app) configCommand(ctx context.Context, cmd pluginsdk.CommandRun, args 
 	return nil, a.setConfig(ctx, cmd.WorkspaceID, args)
 }
 
-func (a *app) sessionsCommand(_ context.Context, cmd pluginsdk.CommandRun, args sessionsArgs) (any, error) {
+func (a *app) sessionsCommand(ctx context.Context, cmd pluginsdk.CommandRun, args sessionsArgs) (any, error) {
 	infos := a.infos(cmd.WorkspaceID)
 	if args.Since == nil {
 		return onlySession(visibleInfos(cmd, infos), args.Session), nil
 	}
-	page := a.sessionRevs.page(cmd.WorkspaceID, infos, *args.Since)
+	page := a.sessionsPage(ctx, cmd.WorkspaceID, infos, *args.Since)
 	page.Sessions = onlySession(visibleInfos(cmd, page.Sessions), args.Session)
 	if args.Session != "" {
 		page.Removed = slices.DeleteFunc(page.Removed, func(id string) bool { return id != args.Session })
@@ -554,9 +560,16 @@ func (a *app) handoffCommand(ctx context.Context, cmd pluginsdk.CommandRun, args
 	return handoffResult{Session: next.snapshot().ID}, nil
 }
 
-func (a *app) cancelCommand(_ context.Context, cmd pluginsdk.CommandRun, s *session) (any, error) {
+func (a *app) cancelCommand(_ context.Context, cmd pluginsdk.CommandRun, args cancelArgs) (any, error) {
+	s, err := a.lookup(cmd.WorkspaceID, args.Session)
+	if err != nil {
+		return nil, err
+	}
 	if a.bySession(cmd) && !a.descendantOf(s.snapshot().ID, cmd.Caller) {
 		return nil, errNotDescendant
+	}
+	if args.Turn != 0 && !s.turnActive(args.Turn) {
+		return nil, fmt.Errorf("%w: turn %d is over", errTurnChanged, args.Turn)
 	}
 	a.cancel(s)
 	return nil, nil
@@ -567,7 +580,7 @@ func (a *app) stopSubagentCommand(_ context.Context, cmd pluginsdk.CommandRun, a
 	if err != nil {
 		return nil, err
 	}
-	return nil, s.stopSubagent(args.Subagent)
+	return nil, s.stopSubagent(args.Subagent, args.Turn)
 }
 
 func (a *app) closeCommand(ctx context.Context, _ pluginsdk.CommandRun, s *session) (any, error) {

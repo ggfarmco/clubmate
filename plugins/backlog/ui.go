@@ -253,7 +253,7 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return err
 		}
 		b.mu.Lock()
-		w.selected = res.(Task).ID
+		w.selected = res.(taskReply).ID
 		w.formRev++
 		b.mu.Unlock()
 		return nil
@@ -355,7 +355,7 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 				return fmt.Errorf("start value: %w", err)
 			}
 		}
-		if _, err := b.startAgent(ctx, ev.WorkspaceID, ev.Caller, b.selected(w), opts); err != nil {
+		if _, err := b.startAgent(ctx, ev.WorkspaceID, ev.Caller, b.selected(w), "", opts); err != nil {
 			return err
 		}
 		b.mu.Lock()
@@ -441,9 +441,9 @@ func (b *backlog) taskAction(ctx context.Context, workspaceID string, w *workspa
 	verb, value := parseAction(action)
 	switch verb {
 	case actStart:
-		_, err = b.startAgent(ctx, workspaceID, "", id, startOptions{})
+		_, err = b.startAgent(ctx, workspaceID, "", id, "", startOptions{})
 	case actTakeBack:
-		err = b.takeBack(ctx, workspaceID, id)
+		_, err = b.takeBack(ctx, workspaceID, id, "")
 	case "release":
 		_, err = b.releaseCmd(ctx, user, args)
 	case "done":

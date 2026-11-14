@@ -97,6 +97,12 @@ type taskView struct {
 
 type startResult struct {
 	Session string `json:"session"`
+	Cursor  string `json:"cursor,omitempty"`
+}
+
+type taskReply struct {
+	Task
+	Cursor string `json:"cursor"`
 }
 
 type commandArgs struct {
@@ -114,6 +120,8 @@ type commandArgs struct {
 	Note        *string       `json:"note"`
 	Owner       string        `json:"owner"`
 	Slim        bool          `json:"slim"`
+	Since       *string       `json:"since"`
+	Seen        string        `json:"seen"`
 	keepClaim   bool
 	startOptions
 }
@@ -166,19 +174,12 @@ func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.
 		if err := b.notUser(ctx, cmd); err != nil {
 			return nil, err
 		}
-		session, err := b.startAgent(ctx, cmd.WorkspaceID, cmd.Caller, args.ID, args.startOptions)
-		if err != nil {
-			return nil, err
-		}
-		return startResult{Session: session}, nil
+		return b.startAgent(ctx, cmd.WorkspaceID, cmd.Caller, args.ID, args.Seen, args.startOptions)
 	case "backlog.takeback":
 		if err := b.notUser(ctx, cmd); err != nil {
 			return nil, err
 		}
-		if err := b.takeBack(ctx, cmd.WorkspaceID, args.ID); err != nil {
-			return nil, err
-		}
-		return b.store.get(ctx, cmd.WorkspaceID, args.ID)
+		return b.takeBack(ctx, cmd.WorkspaceID, args.ID, args.Seen)
 	case "backlog.new":
 		return nil, b.h.FocusNode(ctx, cmd.WorkspaceID, sectionID, sidebarSlot, newTitleNode)
 	}
@@ -247,6 +248,16 @@ func (b *backlog) linked(ctx context.Context, workspaceID string, t Task) (map[i
 }
 
 func (b *backlog) listCmd(ctx context.Context, workspaceID string, args commandArgs) (any, error) {
+	if args.Since != nil {
+		p, err := b.store.since(ctx, workspaceID, *args.Since)
+		for i := range p.Tasks {
+			p.Tasks[i].Owners = nil
+			if args.Slim {
+				p.Tasks[i].Description = ""
+			}
+		}
+		return p, err
+	}
 	filter := statusOpen
 	if strings.TrimSpace(args.Query) != "" {
 		filter = ""
@@ -311,17 +322,17 @@ func (b *backlog) addCmd(ctx context.Context, cmd pluginsdk.CommandRun, args com
 	if err := applyLists(&t, args); err != nil {
 		return nil, err
 	}
-	t, err = b.store.add(ctx, cmd.WorkspaceID, t)
+	t, cursor, err := b.store.add(ctx, cmd.WorkspaceID, t)
 	if err != nil {
 		return nil, err
 	}
 	b.changed(ctx, cmd.WorkspaceID, t.ID, kindAdded)
-	return t, nil
+	return taskReply{Task: t, Cursor: cursor}, nil
 }
 
 func (b *backlog) updateCmd(ctx context.Context, cmd pluginsdk.CommandRun, args commandArgs) (any, error) {
 	self, isAgent := creatorOf(cmd)
-	t, err := b.store.mutate(ctx, cmd.WorkspaceID, args.ID, func(t *Task) error {
+	t, cursor, err := b.store.mutate(ctx, cmd.WorkspaceID, args.ID, args.Seen, func(t *Task) error {
 		if args.Title != nil {
 			title, err := cleanTitle(*args.Title)
 			if err != nil {
@@ -369,7 +380,7 @@ func (b *backlog) updateCmd(ctx context.Context, cmd pluginsdk.CommandRun, args 
 		return nil, err
 	}
 	b.changed(ctx, cmd.WorkspaceID, t.ID, kindUpdated)
-	return t, nil
+	return taskReply{Task: t, Cursor: cursor}, nil
 }
 
 func (b *backlog) claimCmd(ctx context.Context, cmd pluginsdk.CommandRun, args commandArgs) (any, error) {
@@ -377,11 +388,15 @@ func (b *backlog) claimCmd(ctx context.Context, cmd pluginsdk.CommandRun, args c
 	if err != nil {
 		return nil, err
 	}
-	return b.claim(ctx, cmd.WorkspaceID, args.ID, b.ownerMove(ctx, cmd.WorkspaceID, who.Owner, whyClaimed), nil)
+	t, cursor, err := b.claim(ctx, cmd.WorkspaceID, args.ID, args.Seen, b.ownerMove(ctx, cmd.WorkspaceID, who.Owner, whyClaimed), nil)
+	if err != nil {
+		return nil, err
+	}
+	return taskReply{Task: t, Cursor: cursor}, nil
 }
 
-func (b *backlog) claim(ctx context.Context, workspaceID string, id int, mv OwnerMove, check func(*Task) error) (Task, error) {
-	t, err := b.store.mutate(ctx, workspaceID, id, func(t *Task) error {
+func (b *backlog) claim(ctx context.Context, workspaceID string, id int, seen string, mv OwnerMove, check func(*Task) error) (Task, string, error) {
+	t, cursor, err := b.store.mutate(ctx, workspaceID, id, seen, func(t *Task) error {
 		if check != nil {
 			if err := check(t); err != nil {
 				return err
@@ -408,10 +423,10 @@ func (b *backlog) claim(ctx context.Context, workspaceID string, id int, mv Owne
 		return nil
 	})
 	if err != nil {
-		return Task{}, err
+		return Task{}, "", err
 	}
 	b.changed(ctx, workspaceID, t.ID, kindClaimed)
-	return t, nil
+	return t, cursor, nil
 }
 
 func (b *backlog) ownerMove(ctx context.Context, workspaceID, owner, why string) OwnerMove {
@@ -428,8 +443,8 @@ func (b *backlog) ownerMove(ctx context.Context, workspaceID, owner, why string)
 	return mv
 }
 
-func (b *backlog) takeBack(ctx context.Context, workspaceID string, id int) error {
-	t, err := b.store.mutate(ctx, workspaceID, id, func(t *Task) error {
+func (b *backlog) takeBack(ctx context.Context, workspaceID string, id int, seen string) (taskReply, error) {
+	t, cursor, err := b.store.mutate(ctx, workspaceID, id, seen, func(t *Task) error {
 		if t.Status != statusInProgress || t.ClaimedBy == userOwner {
 			return fmt.Errorf("task #%d is not owned by someone else", t.ID)
 		}
@@ -440,26 +455,26 @@ func (b *backlog) takeBack(ctx context.Context, workspaceID string, id int) erro
 		return nil
 	})
 	if err != nil {
-		return err
+		return taskReply{}, err
 	}
 	b.changed(ctx, workspaceID, t.ID, kindClaimed)
-	return nil
+	return taskReply{Task: t, Cursor: cursor}, nil
 }
 
-func (b *backlog) startAgent(ctx context.Context, workspaceID, caller string, id int, opts startOptions) (string, error) {
+func (b *backlog) startAgent(ctx context.Context, workspaceID, caller string, id int, seen string, opts startOptions) (startResult, error) {
 	if err := opts.check(); err != nil {
-		return "", err
+		return startResult{}, err
 	}
-	t, release, err := b.store.reserve(ctx, workspaceID, id, func(t *Task) error {
+	t, release, err := b.store.reserve(ctx, workspaceID, id, seen, func(t *Task) error {
 		return startable(ctx, b.live, workspaceID, t)
 	})
 	if err != nil {
-		return "", err
+		return startResult{}, err
 	}
 	defer release()
 	linked, err := b.linked(ctx, workspaceID, t)
 	if err != nil {
-		return "", err
+		return startResult{}, err
 	}
 	body := startBody(t, linked)
 	if p := strings.TrimSpace(opts.Prompt); p != "" {
@@ -474,16 +489,16 @@ func (b *backlog) startAgent(ctx context.Context, workspaceID, caller string, id
 	}
 	var res startResult
 	if err := b.h.RunCommandFor(ctx, caller, "agents.new", workspaceID, args, &res); err != nil {
-		return "", err
+		return startResult{}, err
 	}
 	if res.Session == "" {
-		return "", errNoSession
+		return startResult{}, errNoSession
 	}
 	b.live.invalidate(workspaceID)
-	_, err = b.claim(ctx, workspaceID, id, OwnerMove{Owner: res.Session, Title: t.Title, Why: whyStarted}, func(t *Task) error {
+	_, cursor, err := b.claim(ctx, workspaceID, id, "", OwnerMove{Owner: res.Session, Title: t.Title, Why: whyStarted}, func(t *Task) error {
 		return startable(ctx, b.live, workspaceID, t)
 	})
-	return res.Session, err
+	return startResult{Session: res.Session, Cursor: cursor}, err
 }
 
 func startable(ctx context.Context, live liveness, workspaceID string, t *Task) error {
@@ -506,7 +521,7 @@ func (b *backlog) sessionStopped(ctx context.Context, workspaceID, session strin
 		if t.Status != statusInProgress || t.ClaimedBy != session {
 			continue
 		}
-		_, err := b.store.mutate(ctx, workspaceID, t.ID, func(t *Task) error {
+		_, _, err := b.store.mutate(ctx, workspaceID, t.ID, "", func(t *Task) error {
 			if t.Status != statusInProgress || t.ClaimedBy != session {
 				return nil
 			}
@@ -542,7 +557,7 @@ func (b *backlog) sessionStatus(ctx context.Context, workspaceID, session, statu
 		if claimFailure(t) == failure {
 			continue
 		}
-		_, err := b.store.mutate(ctx, workspaceID, t.ID, func(t *Task) error {
+		_, _, err := b.store.mutate(ctx, workspaceID, t.ID, "", func(t *Task) error {
 			if t.Status != statusInProgress || t.ClaimedBy != session {
 				return nil
 			}
@@ -567,7 +582,7 @@ func (b *backlog) releaseCmd(ctx context.Context, cmd pluginsdk.CommandRun, args
 	if err != nil {
 		return nil, err
 	}
-	t, err := b.store.mutate(ctx, cmd.WorkspaceID, args.ID, func(t *Task) error {
+	t, cursor, err := b.store.mutate(ctx, cmd.WorkspaceID, args.ID, args.Seen, func(t *Task) error {
 		if t.Status != statusInProgress {
 			return fmt.Errorf("task #%d is %s: %w", t.ID, t.Status, errNotClaimed)
 		}
@@ -586,7 +601,7 @@ func (b *backlog) releaseCmd(ctx context.Context, cmd pluginsdk.CommandRun, args
 		return nil, err
 	}
 	b.changed(ctx, cmd.WorkspaceID, t.ID, kindReleased)
-	return t, nil
+	return taskReply{Task: t, Cursor: cursor}, nil
 }
 
 func (b *backlog) doneCmd(ctx context.Context, cmd pluginsdk.CommandRun, args commandArgs) (any, error) {
@@ -594,7 +609,7 @@ func (b *backlog) doneCmd(ctx context.Context, cmd pluginsdk.CommandRun, args co
 	if err != nil {
 		return nil, err
 	}
-	t, err := b.store.mutate(ctx, cmd.WorkspaceID, args.ID, func(t *Task) error {
+	t, cursor, err := b.store.mutate(ctx, cmd.WorkspaceID, args.ID, args.Seen, func(t *Task) error {
 		if t.Status == statusInProgress && !b.mayFinish(ctx, cmd.WorkspaceID, who, t) && !b.live.stale(ctx, cmd.WorkspaceID, t.ClaimedBy) {
 			return fmt.Errorf("task #%d is in progress by %s: %w", t.ID, t.ClaimedBy, errNotHolder)
 		}
@@ -611,7 +626,7 @@ func (b *backlog) doneCmd(ctx context.Context, cmd pluginsdk.CommandRun, args co
 		return nil, err
 	}
 	b.changed(ctx, cmd.WorkspaceID, t.ID, kindDone)
-	return t, nil
+	return taskReply{Task: t, Cursor: cursor}, nil
 }
 
 func releaseClaim(t *Task, why string) {

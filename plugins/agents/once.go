@@ -20,11 +20,12 @@ const (
 )
 
 var (
-	errOnceCutOff = errors.New("the first try was cut off, so its outcome is unknown")
+	errOnceCutOff  = errors.New("the first try was cut off, so its outcome is unknown")
+	errTurnChanged = errors.New("the session's turn changed since you saw it")
 
 	refusals = map[string][]error{
 		contract.ReasonAnswered: {errConnectStale, errLandStale},
-		contract.ReasonStale:    {errConnectSeen, errArchiveSeen, errArchiveHeld, errNoTask, errNoSession},
+		contract.ReasonStale:    {errConnectSeen, errArchiveSeen, errArchiveHeld, errNoTask, errNoSession, errTurnChanged},
 		contract.ReasonUnknown:  {errOnceCutOff},
 	}
 )

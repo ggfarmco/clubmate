@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/bus"
+	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/contract"
 	"clubmate/pkg/sdui"
 )
 
@@ -778,4 +780,82 @@ func TestLinksFromTheForm(t *testing.T) {
 	e.h.Event(t, e.p, "backlog.main", "doc", "openDoc", "/task/1")
 	e.slotHas("backlog.main", `"title":"Dep"`)
 	assert.Equal(t, "blocked_by", e.must(e.user("backlog.get", map[string]any{"id": dep.ID})).Links[0].Kind)
+}
+
+type listPage struct {
+	Tasks   []task `json:"tasks"`
+	Removed []int  `json:"removed"`
+	Order   []int  `json:"order"`
+	Cursor  string `json:"cursor"`
+	Delta   bool   `json:"delta"`
+}
+
+func (e env) since(cursor string) listPage {
+	var p listPage
+	require.NoError(e.t, e.h.Client(e.t).Call(e.t.Context(), "command.run", map[string]any{"id": "backlog.list", "workspaceId": e.p, "args": map[string]any{"since": cursor}}, &p))
+	return p
+}
+
+func (p listPage) ids() []int {
+	out := []int{}
+	for _, tk := range p.Tasks {
+		out = append(out, tk.ID)
+	}
+	return out
+}
+
+func TestListSinceReturnsOnlyChanged(t *testing.T) {
+	e := newEnv(t)
+	low := e.add("low", map[string]any{"priority": "low"})
+	high := e.add("high", map[string]any{"priority": "high"})
+	shipped := e.add("shipped", nil)
+	e.must(e.user("backlog.done", map[string]any{"id": shipped.ID}))
+	full := e.since("")
+	assert.False(t, full.Delta)
+	assert.ElementsMatch(t, []int{low.ID, high.ID, shipped.ID}, full.ids())
+
+	assert.Equal(t, []int{high.ID, low.ID, shipped.ID}, full.Order)
+	e.must(e.agent("agt_a", "backlog.update", map[string]any{"id": high.ID, "note": "n"}))
+	noted := e.since(full.Cursor)
+	assert.Equal(t, []any{true, []int{high.ID}, []int(nil)}, []any{noted.Delta, noted.ids(), noted.Order})
+
+	e.must(e.agent("agt_a", "backlog.update", map[string]any{"id": low.ID, "priority": "high"}))
+
+	changed := e.since(noted.Cursor)
+	assert.Equal(t, []any{[]int{low.ID}, []int{low.ID, high.ID, shipped.ID}}, []any{changed.ids(), changed.Order})
+	assert.Empty(t, e.since(changed.Cursor).ids())
+}
+
+func TestWriteRefusedWhenTargetChanged(t *testing.T) {
+	e := newEnv(t)
+	tk := e.add("seven", nil)
+	seen := e.since("").Cursor
+	e.must(e.agent("agt_a", "backlog.update", map[string]any{"id": tk.ID, "note": "agent"}))
+
+	_, err := e.user("backlog.update", map[string]any{"id": tk.ID, "note": "phone", "seen": seen})
+
+	var remote *rpc.RemoteError
+	require.ErrorAs(t, err, &remote)
+	assert.Equal(t, contract.ReasonStale, contract.ReasonIn(&remote.Data), remote.Message)
+	assert.Equal(t, "agent", e.must(e.user("backlog.get", map[string]any{"id": tk.ID})).Note)
+}
+
+func TestWriteAcceptedWhenOtherTaskChanged(t *testing.T) {
+	e := newEnv(t)
+	seven, nine := e.add("seven", nil), e.add("nine", nil)
+	seen := e.since("").Cursor
+	e.must(e.agent("agt_a", "backlog.update", map[string]any{"id": seven.ID, "note": "agent"}))
+
+	e.must(e.user("backlog.done", map[string]any{"id": nine.ID, "seen": seen}))
+}
+
+func TestNextWriteWithTheReplyCursorIsAccepted(t *testing.T) {
+	e := newEnv(t)
+	tk := e.add("nine", nil)
+	var first struct {
+		Cursor string `json:"cursor"`
+	}
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "backlog.update", "workspaceId": e.p, "args": map[string]any{"id": tk.ID, "note": "one", "seen": e.since("").Cursor}}, &first))
+
+	e.must(e.user("backlog.update", map[string]any{"id": tk.ID, "note": "two", "seen": first.Cursor}))
 }

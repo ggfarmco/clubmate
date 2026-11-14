@@ -39,6 +39,7 @@ type subagent struct {
 	nextID  int
 	dirty   bool
 	cancel  bool
+	turn    int
 }
 
 func (s *session) applySubagent(turn int, agentSession string, payload json.RawMessage) {
@@ -83,7 +84,7 @@ func (s *session) announceSubagent(parent *subagent, turn int, payload json.RawM
 	}
 	sub := s.subagents[u.SessionID]
 	if sub == nil {
-		sub = &subagent{id: u.SessionID, parent: parent, index: map[string]int{}}
+		sub = &subagent{id: u.SessionID, parent: parent, index: map[string]int{}, turn: turn}
 		if parent == nil {
 			sub.entry = s.upsert(entryTool, u.SessionID, turn)
 		} else {
@@ -152,11 +153,15 @@ func (s *session) refreshLocked(en *entry) {
 	}
 }
 
-func (s *session) stopSubagent(id string) error {
+func (s *session) stopSubagent(id string, turn int) error {
 	s.mu.Lock()
 	sub, p := s.subagents[id], s.proc
 	stoppable := sub != nil && sub.cancel && sub.working()
+	over := turn != 0 && (sub == nil || sub.turn != turn || !sub.working())
 	s.mu.Unlock()
+	if over {
+		return fmt.Errorf("%w: subagent %q of turn %d is over", errTurnChanged, id, turn)
+	}
 	if !stoppable || p == nil {
 		return fmt.Errorf("%w: subagent %q", errNotStoppable, id)
 	}

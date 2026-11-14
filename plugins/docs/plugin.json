@@ -77,7 +77,8 @@
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Agent session whose docs to list; omit for the whole workspace."},
-            "ifNoneMatch": {"type": "string", "description": "The etag of an earlier result: when the list is the same, the reply is only {unchanged: true, etag}."}
+            "ifNoneMatch": {"type": "string", "description": "The etag of an earlier result: when the list is the same, the reply is only {unchanged: true, etag}."},
+            "since": {"type": "string", "description": "Returns {docs, removed, order?, cursor, delta, truncated} instead of the list (ifNoneMatch is then ignored). Pass \"\" for every doc and a cursor; pass an earlier result's cursor for only the docs that changed since then (delta true), the paths removed since then and order (every path in list order) when the order changed."}
           }
         },
         "result": {
@@ -98,6 +99,10 @@
             },
             "truncated": {"type": "boolean", "description": "More docs exist than were returned."},
             "etag": {"type": "string", "description": "Hash of docs and truncated; pass it back as ifNoneMatch."},
+            "removed": {"type": "array", "items": {"type": "string"}, "description": "With since: paths no longer listed after the cursor."},
+            "order": {"type": "array", "items": {"type": "string"}, "description": "With since and delta: every path in list order, only when the order changed after the cursor."},
+            "cursor": {"type": "string", "description": "With since: pass it as since next time."},
+            "delta": {"type": "boolean", "description": "With since: true when docs holds only what changed after the cursor."},
             "unchanged": {"type": "boolean", "description": "True when ifNoneMatch matched; docs and truncated are then absent."}
           }
         }

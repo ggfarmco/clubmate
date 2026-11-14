@@ -188,7 +188,8 @@
         "description": "Cancel the running turn of a session this agent started (a child or deeper descendant, never itself) and answer its pending permission requests with cancelled. Queued prompts stay queued.",
         "args": {
           "properties": {
-            "session": {"type": "string", "description": "Session id."}
+            "session": {"type": "string", "description": "Session id."},
+            "turn": {"type": "integer", "description": "The turn number the caller saw (the session's turns); unless that turn is still running or the agent woke itself after it the call is refused with reason stale and nothing stops. Omit for no check."}
           },
           "required": ["session"]
         }
@@ -203,7 +204,8 @@
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},
-            "subagent": {"type": "string", "description": "Subagent id: the transcript tool entry id of the subagent card."}
+            "subagent": {"type": "string", "description": "Subagent id: the transcript tool entry id of the subagent card."},
+            "turn": {"type": "integer", "description": "The turn the caller saw the subagent in; unless the subagent was started in that turn and still works the call is refused with reason stale and nothing stops. Omit for no check."}
           },
           "required": ["session", "subagent"]
         }
@@ -1138,7 +1140,7 @@
             },
             "since": {
               "type": "string",
-              "description": "Returns {sessions, removed, cursor, delta?} instead of the list. Pass \"\" for every session and a cursor; pass an earlier result's cursor for only the sessions that changed since then (delta true) and the ids of the ones removed since then. A cursor from before the plugin restarted is ignored and every session comes back without delta."
+              "description": "Returns {sessions, removed, cursor, delta?} instead of the list. Pass \"\" for every session and a cursor; pass an earlier result's cursor for only the sessions that changed since then (delta true) and the ids of the ones removed since then. The counter survives restarts; a cursor from another epoch or older than the 256 removals kept is ignored and every session comes back without delta."
             }
           }
         }

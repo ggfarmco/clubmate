@@ -36,6 +36,10 @@
         "description": "List this workspace's backlog tasks ordered by priority, then oldest first (done: newest first). Workflow: list status todo, pick the first, claim it, record progress with backlog.update note, finish with backlog.done and a note naming the commit, or backlog.release when you give up. Tasks you find yourself go in as idea; use todo only when the user asked for the task to be done.",
         "args": {
           "properties": {
+            "since": {
+              "type": "string",
+              "description": "Phone sync, not for agents: a cursor from an earlier reply, or empty for the first sync; pair with slim. With since, status, tag, query and limit are ignored: the reply covers every status and adds removed, order, cursor and delta."
+            },
             "status": {
               "type": "string",
               "enum": [
@@ -69,6 +73,24 @@
         },
         "result": {
           "properties": {
+            "removed": {
+              "type": "array",
+              "items": {"type": "integer"},
+              "description": "With since: numbers of tasks deleted after the cursor."
+            },
+            "order": {
+              "type": "array",
+              "items": {"type": "integer"},
+              "description": "With since: every task number in list order (open by priority, then done newest first); on a delta only when the order changed after the cursor."
+            },
+            "cursor": {
+              "type": "string",
+              "description": "With since: pass it as since next time, and as seen on writes."
+            },
+            "delta": {
+              "type": "boolean",
+              "description": "With since: true when tasks holds only what changed after the cursor; false when it is the whole backlog."
+            },
             "tasks": {
               "type": "array",
               "description": "Tasks in order.",
@@ -428,6 +450,10 @@
         },
         "result": {
           "properties": {
+            "cursor": {
+              "type": "string",
+              "description": "Cursor right after this write: pass it as seen for the next write to the same task."
+            },
             "id": {
               "type": "integer",
               "description": "Task number."
@@ -577,6 +603,10 @@
         "description": "Change a task's title, description, priority, tags, links, attachments, note or status. Cannot set in_progress (use backlog.claim); moving a task out of in_progress drops its claim. Agents may not change the status of a task claimed by someone else. Delete is not available; use not_now.",
         "args": {
           "properties": {
+            "seen": {
+              "type": "string",
+              "description": "The cursor of the list this write was made on (the phone sends it). Refused with reason stale when this task changed after it; omit for no check."
+            },
             "id": {
               "type": "integer",
               "description": "Task number, as in #12."
@@ -683,6 +713,10 @@
         },
         "result": {
           "properties": {
+            "cursor": {
+              "type": "string",
+              "description": "Cursor right after this write: pass it as seen for the next write to the same task."
+            },
             "id": {
               "type": "integer",
               "description": "Task number."
@@ -831,6 +865,10 @@
         "description": "The user's Start agent: start an agent session on the task (agents.new with the title, description, links and attachments as the prompt) and hand the task to it. Allowed on idea and todo tasks, tasks you own and tasks whose owner session ended; refused while another Start of the same task is still starting its session. Without the optional args it starts Claude in the workspace's first git folder in the worktree's last used mode, as the phone does. Not for agents.",
         "args": {
           "properties": {
+            "seen": {
+              "type": "string",
+              "description": "The cursor of the list this write was made on (the phone sends it). Refused with reason stale when this task changed after it; omit for no check."
+            },
             "id": {
               "type": "integer",
               "description": "Task number, as in #12."
@@ -861,6 +899,10 @@
         },
         "result": {
           "properties": {
+            "cursor": {
+              "type": "string",
+              "description": "Cursor right after this write: pass it as seen for the next write to the same task."
+            },
             "session": {
               "type": "string",
               "description": "The new agent session that owns the task."
@@ -876,6 +918,10 @@
         "description": "The user's Take back: the user becomes the owner of an in-progress task owned by someone else; the task stays in progress. Not for agents.",
         "args": {
           "properties": {
+            "seen": {
+              "type": "string",
+              "description": "The cursor of the list this write was made on (the phone sends it). Refused with reason stale when this task changed after it; omit for no check."
+            },
             "id": {
               "type": "integer",
               "description": "Task number, as in #12."
@@ -895,6 +941,10 @@
         "description": "Take a todo or idea task and mark it in progress under your name. Fails with who holds it when someone else has it; then pick another task. Claiming a task you already hold succeeds. A claim by a closed or deleted agent session is taken over.",
         "args": {
           "properties": {
+            "seen": {
+              "type": "string",
+              "description": "The cursor of the list this write was made on (the phone sends it). Refused with reason stale when this task changed after it; omit for no check."
+            },
             "id": {
               "type": "integer",
               "description": "Task number, as in #12."
@@ -910,6 +960,10 @@
         },
         "result": {
           "properties": {
+            "cursor": {
+              "type": "string",
+              "description": "Cursor right after this write: pass it as seen for the next write to the same task."
+            },
             "id": {
               "type": "integer",
               "description": "Task number."
@@ -1059,6 +1113,10 @@
         "description": "Give up an in-progress task: it returns to the status it had before the claim. Allowed for the owner, an ancestor agent session of the owner and the user.",
         "args": {
           "properties": {
+            "seen": {
+              "type": "string",
+              "description": "The cursor of the list this write was made on (the phone sends it). Refused with reason stale when this task changed after it; omit for no check."
+            },
             "id": {
               "type": "integer",
               "description": "Task number, as in #12."
@@ -1078,6 +1136,10 @@
         },
         "result": {
           "properties": {
+            "cursor": {
+              "type": "string",
+              "description": "Cursor right after this write: pass it as seen for the next write to the same task."
+            },
             "id": {
               "type": "integer",
               "description": "Task number."
@@ -1227,6 +1289,10 @@
         "description": "Mark a task done, with a note saying how (e.g. the commit). Call it before you finish. Allowed for the owner, an ancestor agent session of the owner, the user, or anyone when the task is unclaimed or its claim is stale.",
         "args": {
           "properties": {
+            "seen": {
+              "type": "string",
+              "description": "The cursor of the list this write was made on (the phone sends it). Refused with reason stale when this task changed after it; omit for no check."
+            },
             "id": {
               "type": "integer",
               "description": "Task number, as in #12."
@@ -1246,6 +1312,10 @@
         },
         "result": {
           "properties": {
+            "cursor": {
+              "type": "string",
+              "description": "Cursor right after this write: pass it as seen for the next write to the same task."
+            },
             "id": {
               "type": "integer",
               "description": "Task number."

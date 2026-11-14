@@ -754,6 +754,30 @@ func TestCancelAnswersPendingPermission(t *testing.T) {
 	assert.Equal(t, "cancelled", tr.Turns[0].StopReason)
 }
 
+func TestCancelForEndedTurnIsStale(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript(), "match": "ask"}}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	stale := func(turn int) {
+		t.Helper()
+		var remote *rpc.RemoteError
+		require.ErrorAs(t, f.run(t, workspace, "agents.cancel", map[string]any{"session": session, "turn": turn}, nil), &remote)
+		assert.Equal(t, contract.ReasonStale, contract.ReasonIn(&remote.Data), remote.Message)
+	}
+	f.prompt(t, workspace, session, "hello")
+	f.waitStatus(t, workspace, session, "done")
+	stale(1)
+	f.prompt(t, workspace, session, "ask")
+	f.waitStatus(t, workspace, session, "waiting")
+
+	stale(1)
+
+	assert.Equal(t, "waiting", f.session(t, workspace, session).Status)
+	require.NoError(t, f.run(t, workspace, "agents.cancel", map[string]any{"session": session, "turn": 2}, nil))
+	f.waitStatus(t, workspace, session, "done")
+}
+
 func TestAgentCrash(t *testing.T) {
 	t.Parallel()
 	f := start(t, map[string]any{"prompt": []map[string]any{

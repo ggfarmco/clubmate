@@ -19,11 +19,15 @@ import (
 	"clubmate/plugins/internal/gitrepo"
 )
 
-const maxListed = 2000
+const (
+	maxListed = 2000
+	orderKey  = "#order"
+)
 
 type listArgs struct {
-	Session     string `json:"session,omitempty"`
-	IfNoneMatch string `json:"ifNoneMatch,omitempty"`
+	Session     string  `json:"session,omitempty"`
+	IfNoneMatch string  `json:"ifNoneMatch,omitempty"`
+	Since       *string `json:"since,omitempty"`
 }
 
 type listItem struct {
@@ -38,6 +42,15 @@ type listResult struct {
 	Docs      []listItem `json:"docs"`
 	Truncated bool       `json:"truncated"`
 	Etag      string     `json:"etag"`
+}
+
+type sinceResult struct {
+	Docs      []listItem `json:"docs"`
+	Removed   []string   `json:"removed"`
+	Order     []string   `json:"order,omitempty"`
+	Cursor    string     `json:"cursor"`
+	Delta     bool       `json:"delta"`
+	Truncated bool       `json:"truncated"`
 }
 
 type unchangedResult struct {
@@ -68,6 +81,9 @@ func (d *docs) listCmd(ctx context.Context, h *pluginsdk.Host, workspaceID strin
 	if err != nil {
 		return nil, err
 	}
+	if args.Since != nil {
+		return d.since(ctx, workspaceID, args.Session, res, *args.Since), nil
+	}
 	sum := fnv.New64a()
 	if err := json.NewEncoder(sum).Encode(res); err != nil {
 		return nil, err
@@ -77,6 +93,40 @@ func (d *docs) listCmd(ctx context.Context, h *pluginsdk.Host, workspaceID strin
 		return unchangedResult{Unchanged: true, Etag: res.Etag}, nil
 	}
 	return res, nil
+}
+
+func (d *docs) since(ctx context.Context, workspaceID, session string, res listResult, cursor string) sinceResult {
+	revs, name := &d.revs, docsTracker(workspaceID)
+	if session != "" {
+		revs, name = &d.scoped, name+"/"+session
+	}
+	items := make(map[string]any, len(res.Docs)+1)
+	order := make([]string, 0, len(res.Docs))
+	for _, doc := range res.Docs {
+		items[doc.Path] = doc
+		order = append(order, doc.Path)
+	}
+	items[orderKey] = order
+	v, err := revs.Observe(ctx, name, items, cursor)
+	logError("docs delta", err)
+	out := sinceResult{Docs: res.Docs, Removed: []string{}, Cursor: v.Cursor, Truncated: res.Truncated}
+	if v.Full {
+		return out
+	}
+	out.Delta = true
+	out.Docs = slices.DeleteFunc(res.Docs, func(doc listItem) bool {
+		_, found := slices.BinarySearch(v.Changed, doc.Path)
+		return !found
+	})
+	out.Removed = append(out.Removed, v.Removed...)
+	if _, found := slices.BinarySearch(v.Changed, orderKey); found {
+		out.Order = order
+	}
+	return out
+}
+
+func docsTracker(workspaceID string) string {
+	return "docs/" + workspaceID
 }
 
 func (d *docs) list(ctx context.Context, h *pluginsdk.Host, workspaceID string, args listArgs) (listResult, error) {

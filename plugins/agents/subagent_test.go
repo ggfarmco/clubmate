@@ -7,7 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/contract"
 	"clubmate/pkg/sdui"
 )
 
@@ -118,6 +120,25 @@ func TestStopSubagentCommandCancelsTheStoppableSubagent(t *testing.T) {
 	}, wait)
 
 	require.NoError(t, f.run(t, workspace, "agents.stop-subagent", map[string]any{"session": session, "subagent": "sub-1"}, nil))
+
+	got := f.waitCall(t, "session/cancel", func(fakeCall) bool { return true })
+	assert.JSONEq(t, `{"sessionId":"sub-1"}`, string(got.Params))
+}
+
+func TestStopSubagentWithTurnReachesABackgroundSubagent(t *testing.T) {
+	t.Parallel()
+	cancellable := announce("sub-1", "run tests", "", map[string]any{"state": "running"})
+	cancellable["capabilities"] = map[string]any{"cancel": map[string]any{}}
+	f := start(t, map[string]any{"prompt": []map[string]any{subagentStep("", cancellable)}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "go")
+	f.waitStatus(t, workspace, session, "done")
+
+	var remote *rpc.RemoteError
+	require.ErrorAs(t, f.run(t, workspace, "agents.stop-subagent", map[string]any{"session": session, "subagent": "sub-1", "turn": 2}, nil), &remote)
+	assert.Equal(t, contract.ReasonStale, contract.ReasonIn(&remote.Data), remote.Message)
+	require.NoError(t, f.run(t, workspace, "agents.stop-subagent", map[string]any{"session": session, "subagent": "sub-1", "turn": 1}, nil))
 
 	got := f.waitCall(t, "session/cancel", func(fakeCall) bool { return true })
 	assert.JSONEq(t, `{"sessionId":"sub-1"}`, string(got.Params))

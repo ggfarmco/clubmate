@@ -8,7 +8,7 @@ The `docs` plugin (`plugins/docs`) shows a Markdown or mermaid file rendered, or
 |---|---|---|---|---|
 | `docs.open` | `{path, session?}` (`path` may end in `#anchor`) | yes (MCP `docs_open`) | no | `{path}`; shows the doc in the workspace's popup and focuses it |
 | `docs.read` | `{path}` | no | yes | `{path, title, html, rev, kind}` |
-| `docs.list` | `{session?, ifNoneMatch?}` | no | yes | `{docs: [{path, rel, kind, modified, agent}], truncated, etag}`, or `{unchanged: true, etag}`; see § Docs list |
+| `docs.list` | `{session?, ifNoneMatch?, since?}` | no | yes | `{docs: [{path, rel, kind, modified, agent}], truncated, etag}`, or `{unchanged: true, etag}`, or with `since` `{docs, removed, order?, cursor, delta, truncated}`; see § Docs list |
 | `docs.close` | none | no | no | renders the popup `empty` |
 
 - A relative `path` in `docs.open` is resolved against the worktree of `session` (default the calling agent session, from `agents.sessions` field `worktree`), else the selected worktree of the workspace's first folder. In `docs.read` it is resolved against that folder.
@@ -25,6 +25,7 @@ The `docs` plugin (`plugins/docs`) shows a Markdown or mermaid file rendered, or
 - `path` is absolute with symlinks resolved; `rel` is relative to its folder (selected worktree, else the folder's path), prefixed with the folder's name when the workspace has several (like `search.files`), else the absolute path (uploads, another worktree outside the folder); `kind` is `markdown` or `artifact`; `modified` is the file's mtime in RFC 3339 (UTC, seconds).
 - At most 2000 docs; `truncated` is true when more exist.
 - `etag` is a hash of `docs` and `truncated`. A call with `ifNoneMatch` equal to the list's etag gets only `{unchanged: true, etag}`; the phone sends the etag of the list it keeps, so an unchanged list costs a few bytes.
+- `since` returns `{docs, removed, order?, cursor, delta, truncated}` instead (`ifNoneMatch` is then ignored): `since=""` gives every doc and a `cursor`; an earlier `cursor` gives only the docs whose row changed after it (`delta: true`), the `removed` paths, and `order` (every path in list order) only when the order changed. Each call hashes every row against the last call's (`plugins/internal/delta`), so a doc's `modified` changing makes it changed. The workspace list's counter lives in the plugin's storage (`delta/docs/<workspace>/…`, one key per doc, so the first call after an upgrade writes up to 2000 keys) and survives restarts; a list with `session` keeps its own counter in memory, so after a restart its first `since` call gives everything. A cursor from another epoch, above the head or older than the 256 removals kept gives everything again without `delta`.
 
 ## From nvim
 

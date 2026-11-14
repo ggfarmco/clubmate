@@ -12,6 +12,7 @@ import (
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/agentcall"
+	"clubmate/plugins/internal/delta"
 	"clubmate/plugins/internal/fileindex"
 )
 
@@ -28,6 +29,8 @@ type docs struct {
 	index   fileindex.Index
 	mu      sync.Mutex
 	spaces  map[string]*space
+	revs    delta.Observed
+	scoped  delta.Observed
 }
 
 type openArgs struct {
@@ -91,6 +94,7 @@ func main() {
 
 func (d *docs) init(ctx context.Context, h *pluginsdk.Host) error {
 	d.h = h
+	d.revs.Store = h
 	ready, err := h.Publish(ctx, h.PluginID()+".ready", nil)
 	if err != nil {
 		return err
@@ -140,6 +144,7 @@ func (d *docs) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plu
 		logError(ev.Topic, err)
 		return
 	}
+	logError("forget docs "+p.Workspace, d.revs.Forget(ctx, docsTracker(p.Workspace)))
 	d.mu.Lock()
 	s := d.spaces[p.Workspace]
 	delete(d.spaces, p.Workspace)

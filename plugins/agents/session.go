@@ -169,6 +169,13 @@ func (s *session) turnsSoFar() int {
 	return s.turn
 }
 
+func (s *session) turnActive(turn int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadLocked()
+	return s.turn == turn && s.workingLocked()
+}
+
 func (s *session) currentTurn() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()

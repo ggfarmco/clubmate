@@ -6,7 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/contract"
 )
 
 func backgroundCall(task string) map[string]any {
@@ -80,5 +82,29 @@ func TestCancelStopsWaitingForBackgroundTask(t *testing.T) {
 	require.Equal(t, "running", endedTurn(t, f, workspace, session).Status)
 
 	require.NoError(t, f.run(t, workspace, "agents.cancel", map[string]any{"session": session}, nil))
+	f.waitStatus(t, workspace, session, "done")
+}
+
+func TestCancelWithTurnStopsTheSelfWokenCycleNotTheWait(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{
+		"prompt": []map[string]any{backgroundCall("b1"), {"shell": "sleep 30; :"}},
+		"after": []map[string]any{
+			{"sleep": 4000},
+			{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "CI is green"}}},
+			{"sleep": 30000},
+		},
+	})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "watch CI")
+	require.Equal(t, "running", endedTurn(t, f, workspace, session).Status)
+
+	var remote *rpc.RemoteError
+	require.ErrorAs(t, f.run(t, workspace, "agents.cancel", map[string]any{"session": session, "turn": 1}, nil), &remote)
+	assert.Equal(t, contract.ReasonStale, contract.ReasonIn(&remote.Data), remote.Message)
+	testutil.Eventually(t, func() bool { return len(ofKind(f.transcript(t, workspace, session).Entries, "agent")) == 1 }, wait)
+
+	require.NoError(t, f.run(t, workspace, "agents.cancel", map[string]any{"session": session, "turn": 1}, nil))
 	f.waitStatus(t, workspace, session, "done")
 }

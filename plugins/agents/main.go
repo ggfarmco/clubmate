@@ -17,6 +17,7 @@ import (
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/delta"
 )
 
 const (
@@ -50,7 +51,7 @@ type app struct {
 	reviews   *reviewBoard
 	self      *selfStore
 
-	sessionRevs sessionRevs
+	sessionRevs delta.Observed
 	runNeeds    runNeeds
 	reminders   reminders
 	openWake    chan struct{}
@@ -109,6 +110,7 @@ func newRegistry() registry {
 
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.host = h
+	a.sessionRevs.Store = h
 	a.stateDir = pluginsdk.StateDir()
 	if a.stateDir == "" {
 		return errNoStateDir
@@ -268,6 +270,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		var p contract.WorkspaceDeleted
 		if json.Unmarshal(ev.Payload, &p) == nil {
 			a.forgetWorkspace(p.Workspace)
+			logError("forget sessions", a.sessionRevs.Forget(ctx, sessionsTracker(p.Workspace)))
 			go a.dropWorkspace(p.Workspace, nil, true)
 		}
 	case contract.TopicWorkspaceUpdated:

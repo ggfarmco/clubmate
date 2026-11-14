@@ -89,6 +89,30 @@ func TestListIfNoneMatch(t *testing.T) {
 	assert.Equal(t, []string{"a.md"}, rels(got))
 }
 
+func TestDocsSinceReturnsOnlyChanged(t *testing.T) {
+	e := newEnv(t)
+	a := e.doc("a.md", "")
+	b := e.doc("b.md", "")
+	since := func(cursor string) sinceResult {
+		res, err := e.run(pluginsdk.CommandRun{ID: "docs.list", Args: e.args(map[string]any{"since": cursor})})
+		require.NoError(t, err)
+		got, ok := res.(sinceResult)
+		require.True(t, ok)
+		return got
+	}
+	full := since("")
+	assert.Equal(t, []any{false, []string{"a.md", "b.md"}}, []any{full.Delta, rels(listResult{Docs: full.Docs})})
+
+	later := time.Now().Add(time.Hour)
+	require.NoError(t, os.Chtimes(a, later, later))
+	touched := since(full.Cursor)
+	assert.Equal(t, []any{true, []string{"a.md"}, []string{}, []string(nil)}, []any{touched.Delta, rels(listResult{Docs: touched.Docs}), touched.Removed, touched.Order})
+
+	require.NoError(t, os.Remove(b))
+	gone := since(touched.Cursor)
+	assert.Equal(t, []any{[]listItem{}, []string{b}, []string{a}}, []any{gone.Docs, gone.Removed, gone.Order})
+}
+
 func TestListSessionOnly(t *testing.T) {
 	e := newEnv(t)
 	e.doc("other.md", "")

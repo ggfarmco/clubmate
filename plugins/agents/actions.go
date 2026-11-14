@@ -571,7 +571,7 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		if !ok {
 			return fmt.Errorf("%w: stopSubagent on %q", errUnknownAction, ev.NodeID)
 		}
-		return s.stopSubagent(tool)
+		return s.stopSubagent(tool, 0)
 	case actRetry:
 		return a.reopenAct(ctx, ev, s)
 	case actRestore:
