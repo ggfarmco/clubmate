@@ -174,7 +174,7 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	r.Builtin, r.User = from == fromBuiltin, from == fromUser
 	r.Dir = graphDir(dirs, args.Graph)
 	r.Starts = a.startCommits(ctx, cmd.WorkspaceID, append(dirs, r.Dir))
-	x := &runner{call: a.runCommand, run: r, started: a.nodeStarted(r.ID), live: a.running(r)}
+	x := &runner{call: a.runCommand, run: r, started: a.nodeStarted(r.ID), live: a.running(r), stopped: a.stoppedLaunching(r.ID)}
 	a.launch(r)
 	defer a.launched(r.ID)
 	if err := x.start(ctx, g); err != nil {
@@ -323,6 +323,15 @@ func (a *app) nodeStarted(id string) func(int, string) {
 		if l, ok := a.launching[id]; ok {
 			l.Nodes[node].Session = session
 		}
+	}
+}
+
+func (a *app) stoppedLaunching(id string) func() bool {
+	return func() bool {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		l, ok := a.launching[id]
+		return ok && l.Status == statusStopped
 	}
 }
 

@@ -353,27 +353,33 @@ func (a *app) pruneReviews(ctx context.Context, h reviewStateStore, now time.Tim
 		return
 	}
 	for _, key := range keys {
-		var st reviewState
-		ok, err := h.StorageGet(ctx, key, &st)
-		if err != nil {
+		a.pruneReview(ctx, h, key, now)
+	}
+}
+
+func (a *app) pruneReview(ctx context.Context, h reviewStateStore, key string, now time.Time) {
+	a.reviewMu.Lock()
+	defer a.reviewMu.Unlock()
+	var st reviewState
+	ok, err := h.StorageGet(ctx, key, &st)
+	if err != nil {
+		logError("prune reviews", err)
+	}
+	if !ok {
+		return
+	}
+	if st.At.IsZero() {
+		st.At = now
+		if err := h.StorageSet(ctx, key, st); err != nil {
 			logError("prune reviews", err)
 		}
-		if !ok {
-			continue
-		}
-		if st.At.IsZero() {
-			st.At = now
-			if err := h.StorageSet(ctx, key, st); err != nil {
-				logError("prune reviews", err)
-			}
-			continue
-		}
-		if now.Sub(st.At) <= reviewStateTTL && !worktreeGone(st.Worktree) {
-			continue
-		}
-		if err := h.StorageDelete(ctx, key); err != nil {
-			logError("prune reviews", err)
-		}
+		return
+	}
+	if now.Sub(st.At) <= reviewStateTTL && !worktreeGone(st.Worktree) {
+		return
+	}
+	if err := h.StorageDelete(ctx, key); err != nil {
+		logError("prune reviews", err)
 	}
 }
 

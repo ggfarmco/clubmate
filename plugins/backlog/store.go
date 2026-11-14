@@ -7,14 +7,21 @@ import (
 	"slices"
 	"sync"
 	"time"
-
-	"clubmate/pkg/pluginsdk"
 )
 
+type storage interface {
+	StorageList(ctx context.Context, prefix string) ([]string, error)
+	StorageGet(ctx context.Context, key string, out any) (bool, error)
+	StorageSet(ctx context.Context, key string, v any) error
+	StorageDelete(ctx context.Context, key string) error
+	StorageDeletePrefix(ctx context.Context, prefix string) error
+}
+
 type store struct {
-	h        *pluginsdk.Host
+	h        storage
 	mus      sync.Map
 	starting sync.Map
+	cached   sync.Map
 }
 
 func taskPrefix(workspaceID string) string {
@@ -34,6 +41,12 @@ func (s *store) lock(workspaceID string) func() {
 	m := mu.(*sync.Mutex)
 	m.Lock()
 	return m.Unlock
+}
+
+func (s *store) write(workspaceID string) func() {
+	unlock := s.lock(workspaceID)
+	s.cached.Delete(workspaceID)
+	return unlock
 }
 
 func (s *store) load(ctx context.Context, workspaceID string, id int) (Task, error) {
@@ -72,6 +85,23 @@ func (s *store) reserve(ctx context.Context, workspaceID string, id int, check f
 
 func (s *store) list(ctx context.Context, workspaceID string) ([]Task, error) {
 	defer s.lock(workspaceID)()
+	return s.listLocked(ctx, workspaceID)
+}
+
+func (s *store) snapshot(ctx context.Context, workspaceID string) ([]Task, error) {
+	defer s.lock(workspaceID)()
+	if tasks, ok := s.cached.Load(workspaceID); ok {
+		return tasks.([]Task), nil
+	}
+	tasks, err := s.listLocked(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	s.cached.Store(workspaceID, tasks)
+	return tasks, nil
+}
+
+func (s *store) listLocked(ctx context.Context, workspaceID string) ([]Task, error) {
 	keys, err := s.h.StorageList(ctx, taskPrefix(workspaceID))
 	if err != nil {
 		return nil, err
@@ -92,7 +122,7 @@ func (s *store) list(ctx context.Context, workspaceID string) ([]Task, error) {
 }
 
 func (s *store) add(ctx context.Context, workspaceID string, t Task) (Task, error) {
-	defer s.lock(workspaceID)()
+	defer s.write(workspaceID)()
 	var seq int
 	if _, err := s.h.StorageGet(ctx, seqKey(workspaceID), &seq); err != nil {
 		return Task{}, err
@@ -115,7 +145,7 @@ func (s *store) add(ctx context.Context, workspaceID string, t Task) (Task, erro
 }
 
 func (s *store) mutate(ctx context.Context, workspaceID string, id int, fn func(*Task) error) (Task, error) {
-	defer s.lock(workspaceID)()
+	defer s.write(workspaceID)()
 	t, err := s.load(ctx, workspaceID, id)
 	if err != nil {
 		return Task{}, err
@@ -135,7 +165,7 @@ func (s *store) mutate(ctx context.Context, workspaceID string, id int, fn func(
 }
 
 func (s *store) remove(ctx context.Context, workspaceID string, id int) error {
-	defer s.lock(workspaceID)()
+	defer s.write(workspaceID)()
 	t, err := s.load(ctx, workspaceID, id)
 	if err != nil {
 		return err
@@ -187,6 +217,6 @@ func (s *store) syncLinks(ctx context.Context, workspaceID string, id int, old, 
 }
 
 func (s *store) dropWorkspace(ctx context.Context, workspaceID string) error {
-	defer s.lock(workspaceID)()
+	defer s.write(workspaceID)()
 	return errors.Join(s.h.StorageDeletePrefix(ctx, taskPrefix(workspaceID)), s.h.StorageDelete(ctx, seqKey(workspaceID)))
 }

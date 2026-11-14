@@ -505,6 +505,28 @@ func TestPruneReviewsDropsStaleAndGone(t *testing.T) {
 	assert.Empty(t, keys)
 }
 
+type lockProbeStore struct {
+	*fakeHost
+	a        *app
+	unlocked int
+}
+
+func (s *lockProbeStore) StorageGet(ctx context.Context, key string, out any) (bool, error) {
+	if s.a.reviewMu.TryLock() {
+		s.unlocked++
+		s.a.reviewMu.Unlock()
+	}
+	return s.fakeHost.StorageGet(ctx, key, out)
+}
+
+func TestPruneReviewsHoldsTheReviewLock(t *testing.T) {
+	a, h := newTestApp(), &fakeHost{}
+	require.NoError(t, h.StorageSet(t.Context(), reviewStorePrefix+"legacy", reviewState{Sent: 1}))
+	probe := &lockProbeStore{fakeHost: h, a: a}
+	a.pruneReviews(t.Context(), probe, time.Now())
+	assert.Equal(t, 0, probe.unlocked)
+}
+
 func TestReviewDBChangesCoalesce(t *testing.T) {
 	a, h := newTestApp(), &fakeHost{}
 	a.reviewDBDelay = 50 * time.Millisecond

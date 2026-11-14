@@ -135,7 +135,7 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 	w := b.workspace(workspaceID)
 	w.render.Lock()
 	defer w.render.Unlock()
-	tasks, err := b.store.list(ctx, workspaceID)
+	tasks, err := b.store.snapshot(ctx, workspaceID)
 	if err != nil {
 		return err
 	}

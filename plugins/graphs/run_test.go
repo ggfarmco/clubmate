@@ -238,6 +238,31 @@ func TestStopWhileNodesStartAbandonsTheRun(t *testing.T) {
 	assert.Empty(t, out.(listResult).Runs)
 }
 
+func TestStopWhileNodesStartCreatesNoFurtherSessionOrTrigger(t *testing.T) {
+	core := &fakeCore{}
+	a := testApp(t, core)
+	dir := filepath.Join(a.home, graphsDir)
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "trio.json"), []byte(`{"nodes":[{"id":"a","role":"A","start":true,"prompt":"a"},{"id":"b","role":"B","prompt":"b"},{"id":"c","role":"C","prompt":"c"}],"edges":[{"from":"a","to":"b","on":"done"},{"from":"b","to":"c","on":"done"}]}`), 0o644))
+	require.NoError(t, trustGraph(t, a, "trio"))
+	var once sync.Once
+	core.on = map[string]func(){"agents.new": func() {
+		once.Do(func() {
+			out, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.list", WorkspaceID: "ws1"})
+			require.NoError(t, err)
+			_, err = a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.stop", WorkspaceID: "ws1", Args: json.RawMessage(`{"id":"` + out.(listResult).Runs[0].ID + `"}`)})
+			require.NoError(t, err)
+		})
+	}}
+
+	_, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.run", WorkspaceID: "ws1", Args: json.RawMessage(`{"graph":"trio"}`)})
+
+	require.ErrorContains(t, err, "was stopped while its nodes started")
+	assert.Len(t, slices.DeleteFunc(core.ids(), func(id string) bool { return id != "agents.new" }), 1)
+	assert.NotContains(t, core.ids(), "triggers.add")
+	assert.Contains(t, core.ids(), "agents.close")
+}
+
 func TestStopDuringKickoffPromptsNoFurtherStartNode(t *testing.T) {
 	core := &fakeCore{}
 	a := testApp(t, core)

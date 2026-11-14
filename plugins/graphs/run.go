@@ -132,6 +132,7 @@ type runner struct {
 	run     *Run
 	started func(node int, session string)
 	live    func() bool
+	stopped func() bool
 }
 
 func newRun(g *Graph, workspace, input string, agent bool, caller string, now time.Time) (*Run, error) {
@@ -181,6 +182,9 @@ func (x *runner) start(ctx context.Context, g *Graph) error {
 		if n.step() {
 			continue
 		}
+		if x.stopped != nil && x.stopped() {
+			return fmt.Errorf(errStoppedStarting, x.run.ID)
+		}
 		args := newArgs{Title: x.run.Title + " · " + n.label(), Branch: x.render(n.Branch), Afk: n.Afk, Run: x.run.ID, RunTitle: cmp.Or(x.run.Title, x.run.Graph), RunAfter: g.after(n.ID)}
 		var out newResult
 		if err := x.do(ctx, "agents.new", args, &out); err != nil {
@@ -194,6 +198,9 @@ func (x *runner) start(ctx context.Context, g *Graph) error {
 	for i, e := range g.Edges {
 		if g.owned(e) {
 			continue
+		}
+		if x.stopped != nil && x.stopped() {
+			return fmt.Errorf(errStoppedStarting, x.run.ID)
 		}
 		args, err := x.edgeTrigger(g, e)
 		if err != nil {
