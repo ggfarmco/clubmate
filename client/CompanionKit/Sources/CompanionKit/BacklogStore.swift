@@ -10,15 +10,32 @@ public final class BacklogStore {
     public private(set) var tasks: [BacklogTask] = []
     public private(set) var loaded = false
     public private(set) var error: String?
+    public private(set) var syncedAt: Date?
+    public private(set) var fetched = false
     public var newDraft = BacklogDraft()
 
     @ObservationIgnored private weak var runner: (any CommandRunner)?
+    @ObservationIgnored private let cache: ListCache
+    @ObservationIgnored private let key: ListCache.Key
+    @ObservationIgnored private let saves = SaveThrottle()
+    @ObservationIgnored private var raw: JSONValue = .array([])
     @ObservationIgnored private var inflight = false
     @ObservationIgnored private var again = false
 
-    public init(workspace: String, runner: any CommandRunner) {
+    public init(workspace: String, runner: any CommandRunner, cache: ListCache = ListCache(dir: nil), computer: String = "") {
         self.workspace = workspace
         self.runner = runner
+        self.cache = cache
+        key = ListCache.Key(computer: computer, workspace: workspace, collection: "backlog")
+        if let saved = cache.load(key, as: Snapshot.self), let tasks = try? saved.tasks.decode([BacklogTask].self) {
+            self.tasks = tasks
+            syncedAt = saved.at
+            loaded = true
+        }
+    }
+
+    public func ageLine(now: Date = .now) -> String? {
+        ListCache.ageLine(syncedAt: syncedAt, error: error, empty: tasks.isEmpty, now: now)
     }
 
     public var groups: [(status: BacklogStatus, tasks: [BacklogTask])] {
@@ -60,7 +77,19 @@ public final class BacklogStore {
     }
 
     public func get(_ id: Int) async throws -> BacklogTask? {
-        try await run(BacklogCommand.get, .object(["id": .number(Double(id))]))
+        guard let runner else { return nil }
+        let result = try await runner.command(BacklogCommand.get, workspace: workspace, args: .object(["id": .number(Double(id))]))
+        guard let task = try? result.decode(BacklogTask.self) else { return nil }
+        cache.save(result, taskKey(id))
+        return task
+    }
+
+    public func saved(_ id: Int) -> BacklogTask? {
+        cache.load(taskKey(id), as: JSONValue.self).flatMap { try? $0.decode(BacklogTask.self) }
+    }
+
+    private func taskKey(_ id: Int) -> ListCache.Key {
+        ListCache.Key(computer: key.computer, workspace: workspace, collection: "task", scope: String(id))
     }
 
     @discardableResult
@@ -124,21 +153,30 @@ public final class BacklogStore {
     private func load() async {
         guard let runner else { return }
         do {
-            var all: [BacklogTask] = []
+            var raw: [JSONValue] = []
             for (status, limit) in [("open", 0), (BacklogStatus.notNow.rawValue, 0), (BacklogStatus.done.rawValue, Self.doneLimit)] {
-                var args: [String: JSONValue] = ["status": .string(status)]
+                var args: [String: JSONValue] = ["status": .string(status), "slim": .bool(true)]
                 if limit > 0 { args["limit"] = .number(Double(limit)) }
-                all += try await runner.command(BacklogCommand.list, workspace: workspace, args: .object(args)).decode(TaskList.self).tasks
+                guard let tasks = try await runner.command(BacklogCommand.list, workspace: workspace, args: .object(args))["tasks"]?.arrayValue else { throw RemoteError.badResponse }
+                raw += tasks
             }
-            tasks = all
+            tasks = try JSONValue.array(raw).decode([BacklogTask].self)
+            self.raw = .array(raw)
             error = nil
+            fetched = true
+            syncedAt = .now
+            saves.request { [weak self] in
+                guard let self, let at = self.syncedAt else { return }
+                self.cache.save(Snapshot(tasks: self.raw, at: at), self.key)
+            }
         } catch {
             self.error = (error as? RemoteError)?.message ?? error.localizedDescription
         }
         loaded = true
     }
 
-    private struct TaskList: Decodable {
-        let tasks: [BacklogTask]
+    private struct Snapshot: Codable {
+        let tasks: JSONValue
+        let at: Date
     }
 }

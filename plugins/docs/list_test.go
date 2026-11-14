@@ -63,7 +63,30 @@ func TestListCappedAndHomeOnlyAgentDocs(t *testing.T) {
 	assert.Equal(t, []string{"d1999.md", "d0000.md"}, rels(got)[:2])
 
 	e.core.ws.Home = true
-	assert.Equal(t, listResult{Docs: []listItem{{Path: filepath.Join(e.dir, "d1999.md"), Rel: "d1999.md", Kind: "markdown", Modified: got.Docs[0].Modified, Agent: true}}}, e.list(""))
+	home := e.list("")
+	assert.Equal(t, []listItem{{Path: filepath.Join(e.dir, "d1999.md"), Rel: "d1999.md", Kind: "markdown", Modified: got.Docs[0].Modified, Agent: true}}, home.Docs)
+	assert.False(t, home.Truncated)
+}
+
+func TestListIfNoneMatch(t *testing.T) {
+	e := newEnv(t)
+	a := e.doc("a.md", "")
+	first := e.list("")
+	require.NotEmpty(t, first.Etag)
+	again := func() any {
+		res, err := e.run(pluginsdk.CommandRun{ID: "docs.list", Args: e.args(map[string]any{"ifNoneMatch": first.Etag})})
+		require.NoError(t, err)
+		return res
+	}
+
+	assert.Equal(t, unchangedResult{Unchanged: true, Etag: first.Etag}, again())
+
+	later := time.Now().Add(time.Hour)
+	require.NoError(t, os.Chtimes(a, later, later))
+	got, ok := again().(listResult)
+	require.True(t, ok)
+	assert.NotEqual(t, first.Etag, got.Etag)
+	assert.Equal(t, []string{"a.md"}, rels(got))
 }
 
 func TestListSessionOnly(t *testing.T) {

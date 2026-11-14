@@ -130,15 +130,19 @@ public struct DocEntry: Decodable, Equatable, Sendable, Identifiable {
 public struct DocsList: Decodable, Sendable {
     public let docs: [DocEntry]
     public let truncated: Bool
+    public let etag: String?
+    public let unchanged: Bool
 
     private enum CodingKeys: String, CodingKey {
-        case docs, truncated
+        case docs, truncated, etag, unchanged
     }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         docs = try c.decodeIfPresent([DocEntry].self, forKey: .docs) ?? []
         truncated = try c.decodeIfPresent(Bool.self, forKey: .truncated) ?? false
+        etag = try c.decodeIfPresent(String.self, forKey: .etag)
+        unchanged = try c.decodeIfPresent(Bool.self, forKey: .unchanged) ?? false
     }
 }
 
@@ -151,15 +155,35 @@ public final class DocsListStore {
     public private(set) var truncated = false
     public private(set) var loaded = false
     public private(set) var error: String?
+    public private(set) var syncedAt: Date?
 
     @ObservationIgnored private weak var runner: (any CommandRunner)?
+    @ObservationIgnored private let cache: ListCache
+    @ObservationIgnored private let key: ListCache.Key
+    @ObservationIgnored private var etag: String?
+    @ObservationIgnored private var raw: JSONValue?
+    @ObservationIgnored private let saves = SaveThrottle()
     @ObservationIgnored private var inflight = false
     @ObservationIgnored private var again = false
 
-    public init(workspace: String, session: String?, runner: any CommandRunner) {
+    public init(workspace: String, session: String?, runner: any CommandRunner, cache: ListCache = ListCache(dir: nil), computer: String = "") {
         self.workspace = workspace
         self.session = session
         self.runner = runner
+        self.cache = cache
+        key = ListCache.Key(computer: computer, workspace: workspace, collection: "docs", scope: session ?? "")
+        if let saved = cache.load(key, as: Snapshot.self), let list = try? saved.list.decode(DocsList.self) {
+            docs = list.docs
+            truncated = list.truncated
+            etag = list.etag
+            raw = saved.list
+            syncedAt = saved.at
+            loaded = true
+        }
+    }
+
+    public func ageLine(now: Date = .now) -> String? {
+        ListCache.ageLine(syncedAt: syncedAt, error: error, empty: docs.isEmpty, now: now)
     }
 
     public func matching(_ query: String) -> [DocEntry] {
@@ -197,13 +221,31 @@ public final class DocsListStore {
     private func load() async {
         guard let runner else { return }
         do {
-            let list = try await runner.command(DocsCommand.list, workspace: workspace, args: session.map { .object(["session": .string($0)]) }).decode(DocsList.self)
-            docs = list.docs
-            truncated = list.truncated
+            var args: [String: JSONValue] = [:]
+            if let session { args["session"] = .string(session) }
+            if let etag { args["ifNoneMatch"] = .string(etag) }
+            let reply = try await runner.command(DocsCommand.list, workspace: workspace, args: args.isEmpty ? nil : .object(args))
+            let list = try reply.decode(DocsList.self)
+            if !list.unchanged {
+                docs = list.docs
+                truncated = list.truncated
+                etag = list.etag
+                raw = reply
+            }
+            syncedAt = .now
             error = nil
+            saves.request { [weak self] in
+                guard let self, let raw = self.raw, let at = self.syncedAt else { return }
+                self.cache.save(Snapshot(list: raw, at: at), self.key)
+            }
         } catch {
             self.error = (error as? RemoteError)?.message ?? error.localizedDescription
         }
         loaded = true
+    }
+
+    private struct Snapshot: Codable {
+        let list: JSONValue
+        let at: Date
     }
 }

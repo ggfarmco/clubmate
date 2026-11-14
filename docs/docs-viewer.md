@@ -8,7 +8,7 @@ The `docs` plugin (`plugins/docs`) shows a Markdown or mermaid file rendered, or
 |---|---|---|---|---|
 | `docs.open` | `{path, session?}` (`path` may end in `#anchor`) | yes (MCP `docs_open`) | no | `{path}`; shows the doc in the workspace's popup and focuses it |
 | `docs.read` | `{path}` | no | yes | `{path, title, html, rev, kind}` |
-| `docs.list` | `{session?}` | no | yes | `{docs: [{path, rel, kind, modified, agent}], truncated}`, see § Docs list |
+| `docs.list` | `{session?, ifNoneMatch?}` | no | yes | `{docs: [{path, rel, kind, modified, agent}], truncated, etag}`, or `{unchanged: true, etag}`; see § Docs list |
 | `docs.close` | none | no | no | renders the popup `empty` |
 
 - A relative `path` in `docs.open` is resolved against the worktree of `session` (default the calling agent session, from `agents.sessions` field `worktree`), else the selected worktree of the workspace's first folder. In `docs.read` it is resolved against that folder.
@@ -24,6 +24,7 @@ The `docs` plugin (`plugins/docs`) shows a Markdown or mermaid file rendered, or
 - Only files that exist, are docs (`pkg/docext`) and are in scope (§ Scope) are listed, each once; a doc an agent wrote and deleted is gone.
 - `path` is absolute with symlinks resolved; `rel` is relative to its folder (selected worktree, else the folder's path), prefixed with the folder's name when the workspace has several (like `search.files`), else the absolute path (uploads, another worktree outside the folder); `kind` is `markdown` or `artifact`; `modified` is the file's mtime in RFC 3339 (UTC, seconds).
 - At most 2000 docs; `truncated` is true when more exist.
+- `etag` is a hash of `docs` and `truncated`. A call with `ifNoneMatch` equal to the list's etag gets only `{unchanged: true, etag}`; the phone sends the etag of the list it keeps, so an unchanged list costs a few bytes.
 
 ## From nvim
 

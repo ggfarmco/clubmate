@@ -8,6 +8,7 @@ public final class CompanionModel {
     public private(set) var connections: [String: ComputerConnection] = [:]
     public var inbox = Inbox()
     @ObservationIgnored public let queue: ActionQueue
+    @ObservationIgnored public let lists: ListCache
     @ObservationIgnored public var posted: (@MainActor (InboxItem) -> Void)?
     @ObservationIgnored public var withdrawn: (@MainActor ([String]) -> Void)?
     @ObservationIgnored public var received: (@MainActor (String, ConnectionSignal) -> Void)?
@@ -28,8 +29,9 @@ public final class CompanionModel {
     @ObservationIgnored private var retrying: Set<String> = []
     @ObservationIgnored public private(set) var pushToken: PushToken?
 
-    public init(store: ComputerStore, transport: any HTTPTransport, device: DeviceIdentity, policy: HostPolicy = .tailnet, cursors: UserDefaults? = nil, queueFile: URL? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+    public init(store: ComputerStore, transport: any HTTPTransport, device: DeviceIdentity, policy: HostPolicy = .tailnet, cursors: UserDefaults? = nil, queueFile: URL? = nil, listsDir: URL? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         queue = ActionQueue(file: queueFile)
+        lists = ListCache(dir: listsDir)
         self.store = store
         self.transport = transport
         self.device = device
@@ -109,6 +111,7 @@ public final class CompanionModel {
         }
         detach(id)
         queue.forget(computer: id)
+        lists.forget(computer: id)
         cursors?.removeObject(forKey: Self.cursorKey(id))
         try store.remove(id)
         computers = store.computers
@@ -152,7 +155,7 @@ public final class CompanionModel {
         let key = computer + "|" + workspace
         if let existing = agents[key] { return existing }
         guard let connection = connections[computer] else { return nil }
-        let store = AgentsStore(workspace: workspace, runner: connection, queue: queue, computer: computer, queues: { [weak connection] in connection?.queues ?? false }, retry: { [weak self, weak connection] in
+        let store = AgentsStore(workspace: workspace, runner: connection, queue: queue, computer: computer, cache: lists, queues: { [weak connection] in connection?.queues ?? false }, retry: { [weak self, weak connection] in
             if let self, let connection { self.flushQueue(connection) }
         })
         agents[key] = store
@@ -164,7 +167,7 @@ public final class CompanionModel {
         let offline = Set(known.filter { $0.state != .online }.map(\.computer.id))
         return NeedsYouItem.collect(known.flatMap { connection in
             connection.workspaces.compactMap { workspace in
-                agents(computer: connection.computer.id, workspace: workspace.id).map { (connection.computer.id, tag(connection.computer.id), workspace, $0.sessions) }
+                agents(computer: connection.computer.id, workspace: workspace.id).map { (connection.computer.id, tag(connection.computer.id), workspace, $0.fetched ? $0.sessions : []) }
             }
         }, offline: offline)
     }
@@ -173,7 +176,7 @@ public final class CompanionModel {
         let key = computer + "|" + workspace
         if let existing = backlogs[key] { return existing }
         guard let connection = connections[computer] else { return nil }
-        let store = BacklogStore(workspace: workspace, runner: connection)
+        let store = BacklogStore(workspace: workspace, runner: connection, cache: lists, computer: computer)
         backlogs[key] = store
         return store
     }
@@ -182,14 +185,15 @@ public final class CompanionModel {
         let key = computer + "|" + workspace + "|" + (session ?? "")
         if let existing = docsLists[key] { return existing }
         guard let connection = connections[computer] else { return nil }
-        let store = DocsListStore(workspace: workspace, session: session, runner: connection)
+        let store = DocsListStore(workspace: workspace, session: session, runner: connection, cache: lists, computer: computer)
         docsLists[key] = store
         return store
     }
 
     private func attach(_ computer: Computer) {
         let saved = cursors?.object(forKey: Self.cursorKey(computer.id)) as? Int
-        let connection = ComputerConnection(computer: computer, token: store.token(for: computer.id), transport: transport, policy: policy, lastEventID: saved, sleep: sleep)
+        lists.allow(computer: computer.id)
+        let connection = ComputerConnection(computer: computer, token: store.token(for: computer.id), transport: transport, policy: policy, lastEventID: saved, cache: lists, sleep: sleep)
         connections[computer.id] = connection
         observers[computer.id] = connection.observe { [weak self] signal in
             self?.route(signal, from: computer.id)

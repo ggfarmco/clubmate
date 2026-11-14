@@ -311,6 +311,25 @@ func TestListQuery(t *testing.T) {
 	assert.Empty(t, list(map[string]any{"query": "mic", "status": "open"}))
 }
 
+func TestListSlimDropsDescription(t *testing.T) {
+	e := newEnv(t)
+	mic := e.add("Mic", map[string]any{"description": "body"})
+	e.must(e.user("backlog.update", map[string]any{"id": mic.ID, "note": "n"}))
+	list := func(args map[string]any) map[string]any {
+		var res struct {
+			Tasks []map[string]any `json:"tasks"`
+		}
+		require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "backlog.list", "workspaceId": e.p, "args": args}, &res))
+		require.Len(t, res.Tasks, 1)
+		return res.Tasks[0]
+	}
+	slim := list(map[string]any{"slim": true})
+	assert.Equal(t, "Mic", slim["title"])
+	assert.NotContains(t, slim, "description")
+	assert.Equal(t, "n", slim["note"])
+	assert.Equal(t, "body", list(map[string]any{})["description"])
+}
+
 func TestTags(t *testing.T) {
 	e := newEnv(t)
 	voice := e.add("Mic", map[string]any{"tags": []string{" Voice ", "#phone", "voice"}})

@@ -327,6 +327,8 @@ actor FixtureServer {
             return (200, Self.json(["result": .object(["mimeType": .string("image/png"), "data": .string(image.base64EncodedString())])]))
         case "command" where params["id"]?.stringValue == "docs.read":
             return (200, Self.json(read(params["args"]?["path"]?.stringValue ?? "")))
+        case "command" where (UserDefaults.standard.string(forKey: "failCommands") ?? "").split(separator: ",").contains(Substring(params["id"]?.stringValue ?? "")):
+            return (200, Self.json(["error": .object(["code": .string("internal"), "message": .string("context deadline exceeded")])]))
         case "command":
             return (200, Self.json(["result": command(params["id"]?.stringValue ?? "", workspace: params["workspace"]?.stringValue ?? "", args: params["args"] ?? .null)]))
         default:
@@ -504,7 +506,7 @@ actor FixtureServer {
             if case .number(let limit) = args["limit"] ?? .null { list = Array(list.prefix(Int(limit))) }
             return .object(["tasks": .array(list.map { task in
                 var task = task
-                for key in ["descriptionHtml", "ownerState", "lastOwner", "history"] { task[key] = nil }
+                for key in ["descriptionHtml", "ownerState", "lastOwner", "history"] + (args["slim"]?.boolValue == true ? ["description"] : []) { task[key] = nil }
                 return .object(task)
             })])
         case "backlog.get":

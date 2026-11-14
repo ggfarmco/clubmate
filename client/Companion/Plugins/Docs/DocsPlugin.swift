@@ -76,6 +76,7 @@ private struct DocsListContent: View {
                     ConnectionBanner(connection: context.connection)
                 }
             }
+            ListAgeSection { store.ageLine(now: $0) }
             if !agent.isEmpty {
                 Section {
                     rows(agent)

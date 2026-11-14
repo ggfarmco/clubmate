@@ -192,7 +192,7 @@ struct WorkspaceRow: View {
     @Environment(AppNavigation.self) private var navigation
 
     var body: some View {
-        let activity = WorkspaceActivity(store.sessions)
+        let activity = WorkspaceActivity(store.fetched ? store.sessions : [])
         Group {
             if navigation.layout == .compact {
                 twoLines(activity)
@@ -203,7 +203,7 @@ struct WorkspaceRow: View {
         .listRowDensity()
         .opacity(connection.state == .online ? 1 : 0.5)
         .task(id: connection.state == .online) {
-            if connection.state == .online && !store.loaded { await store.refresh() }
+            if connection.state == .online && !store.fetched { await store.refresh() }
         }
     }
 
@@ -233,7 +233,7 @@ struct WorkspaceRow: View {
                 Group {
                     if connection.state != .online {
                         Text(activity.offlineText(asOf: connection.lastSeen))
-                    } else if store.loaded {
+                    } else if store.fetched {
                         activityText(activity)
                     }
                 }

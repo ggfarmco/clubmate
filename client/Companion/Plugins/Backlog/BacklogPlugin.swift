@@ -106,6 +106,7 @@ struct TaskListView: View {
                     ConnectionBanner(connection: context.connection)
                 }
             }
+            ListAgeSection { store.ageLine(now: $0) }
             ForEach(store.groups, id: \.status) { group in
                 if BacklogStatus.folded.contains(group.status) {
                     Section(isExpanded: Binding(get: { expanded.contains(group.status) }, set: { open in
@@ -310,6 +311,14 @@ struct PriorityTag: View {
 
 private struct TaskDetail: Equatable {
     let task: BacklogTask?
+    var fresh = false
+    var failed = false
+}
+
+private struct TaskFetch: Equatable {
+    let task: BacklogTask
+    let online: Bool
+    let retry: Int
 }
 
 struct TaskDetailView: View {
@@ -320,6 +329,7 @@ struct TaskDetailView: View {
     @State private var starting = false
     @State private var failure: String?
     @State private var detail: TaskDetail?
+    @State private var retries = 0
     @Environment(\.colorScheme) private var scheme
     @Environment(\.openURL) private var openURL
 
@@ -330,7 +340,7 @@ struct TaskDetailView: View {
                     .toolbar {
                         ToolbarItem(placement: .primaryAction) {
                             Button("Edit") { editing = true }
-                                .disabled(context.connection.state != .online)
+                                .disabled(context.connection.state != .online || detail?.fresh != true)
                         }
                         ToolbarItem(placement: .primaryAction) {
                             Menu("More", systemImage: "ellipsis") {
@@ -341,7 +351,7 @@ struct TaskDetailView: View {
                     }
                     .sheet(isPresented: $editing) {
                         NavigationStack {
-                            TaskEditorView(store: store, connection: context.connection, task: task) { _ in editing = false }
+                            TaskEditorView(store: store, connection: context.connection, task: detail?.task ?? task) { _ in editing = false }
                         }
                     }
                     .sheet(isPresented: $starting) {
@@ -357,8 +367,10 @@ struct TaskDetailView: View {
                             .presentationDetents([.medium, .large])
                         }
                     }
-            } else if store.loaded {
+            } else if store.fetched {
                 ContentUnavailableView("Task Not Found", systemImage: "checklist", description: Text("It was deleted or moved out of this workspace."))
+            } else if let error = store.error {
+                ContentUnavailableView("Task Unavailable", systemImage: "checklist", description: Text(error))
             } else {
                 ProgressView()
             }
@@ -369,7 +381,8 @@ struct TaskDetailView: View {
     }
 
     private func content(_ task: BacklogTask) -> some View {
-        ScrollView {
+        let full = detail?.task ?? task
+        return ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 8) {
                     Label(task.status.label, systemImage: task.status.symbol)
@@ -397,13 +410,24 @@ struct TaskDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12))
                 }
-                if !task.description.isEmpty, let detail {
-                    if let html = detail.task?.descriptionHtml {
+                if !full.description.isEmpty, detail != nil {
+                    if let html = full.descriptionHtml {
                         DocumentWebView(content: DocumentContent(path: "", html: html, rev: html.hashValue), theme: .system(dark: scheme == .dark), size: .fit, onLink: follow)
                     } else {
-                        MarkdownView(text: task.description)
+                        MarkdownView(text: full.description)
                             .textSelection(.enabled)
                     }
+                } else if detail?.failed == true, detail?.task == nil {
+                    HStack {
+                        Text("Couldn't load the description")
+                            .foregroundStyle(Color.captionInk)
+                        Spacer()
+                        Button("Retry") { retries += 1 }
+                            .buttonStyle(.borderless)
+                            .disabled(context.connection.state != .online)
+                    }
+                    .font(.footnote)
+                    .accessibilityIdentifier("taskBodyFailed")
                 }
                 if let full = detail?.task, !full.links.isEmpty {
                     TaskSection(title: "Links", count: full.links.count) {
@@ -450,10 +474,13 @@ struct TaskDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .refreshable { await store.refresh() }
-        .task(id: task) {
+        .task(id: TaskFetch(task: task, online: context.connection.state == .online, retry: retries)) {
+            if detail == nil, let saved = store.saved(task.id) {
+                detail = TaskDetail(task: saved)
+            }
             let full = try? await store.get(task.id)
             guard !Task.isCancelled else { return }
-            detail = TaskDetail(task: full)
+            detail = TaskDetail(task: full ?? detail?.task, fresh: full != nil || detail?.fresh == true, failed: full == nil)
         }
     }
 

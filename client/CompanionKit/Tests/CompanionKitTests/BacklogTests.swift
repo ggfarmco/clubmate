@@ -25,9 +25,9 @@ final class BacklogTests: XCTestCase {
         store.handle(.event(BusEvent(seq: 3, topic: "backlog.changed", payload: .object(["workspace": .string("w"), "id": .number(9)]))))
         try await waitUntil { store.loaded }
         XCTAssertEqual(runner.calls.map(\.args), [
-            .object(["status": .string("open")]),
-            .object(["status": .string("not_now")]),
-            .object(["status": .string("done"), "limit": .number(50)]),
+            .object(["status": .string("open"), "slim": .bool(true)]),
+            .object(["status": .string("not_now"), "slim": .bool(true)]),
+            .object(["status": .string("done"), "limit": .number(50), "slim": .bool(true)]),
         ])
         XCTAssertEqual(store.tasks.map(\.id), [7, 9, 4, 11, 3, 2])
     }

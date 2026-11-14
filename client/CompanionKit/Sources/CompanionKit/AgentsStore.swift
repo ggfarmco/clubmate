@@ -25,6 +25,8 @@ public final class AgentsStore {
     public private(set) var transcripts: [String: AgentTranscript] = [:]
     public private(set) var loaded = false
     public private(set) var error: String?
+    public private(set) var syncedAt: Date?
+    public private(set) var fetched = false
     public private(set) var transcriptErrors: [String: String] = [:]
     public private(set) var openedDocs: [String: String] = [:]
     public var expanded: Set<String> = []
@@ -62,6 +64,8 @@ public final class AgentsStore {
     @ObservationIgnored private var imageOrder: [String] = []
     @ObservationIgnored public let queue: ActionQueue?
     @ObservationIgnored private let computer: String
+    @ObservationIgnored private let cache: ListCache
+    @ObservationIgnored private let saves = SaveThrottle()
     @ObservationIgnored private let queues: @MainActor () -> Bool
     @ObservationIgnored private let retry: @MainActor () -> Void
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
@@ -74,14 +78,36 @@ public final class AgentsStore {
     @ObservationIgnored private var watchedRuns: [String: Int] = [:]
     @ObservationIgnored private var closings: [String: Task<Void, Never>] = [:]
 
-    public init(workspace: String, runner: any CommandRunner, queue: ActionQueue? = nil, computer: String = "", queues: @escaping @MainActor () -> Bool = { false }, retry: @escaping @MainActor () -> Void = {}, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+    public init(workspace: String, runner: any CommandRunner, queue: ActionQueue? = nil, computer: String = "", cache: ListCache = ListCache(dir: nil), queues: @escaping @MainActor () -> Bool = { false }, retry: @escaping @MainActor () -> Void = {}, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.workspace = workspace
         self.runner = runner
         self.queue = queue
         self.computer = computer
+        self.cache = cache
         self.queues = queues
         self.retry = retry
         self.sleep = sleep
+        if let saved = cache.load(cacheKey, as: Snapshot.self), saved.build == Snapshot.build {
+            list = saved.list
+            syncedAt = saved.at
+            loaded = true
+        }
+    }
+
+    public func ageLine(now: Date = .now) -> String? {
+        ListCache.ageLine(syncedAt: syncedAt, error: error, empty: sessions.isEmpty, now: now)
+    }
+
+    private var cacheKey: ListCache.Key {
+        ListCache.Key(computer: computer, workspace: workspace, collection: "sessions")
+    }
+
+    private struct Snapshot: Codable {
+        static let build = [Bundle.main.infoDictionary?["CFBundleShortVersionString"], Bundle.main.infoDictionary?["CFBundleVersion"]].compactMap { $0 as? String }.joined(separator: "+")
+
+        var build = Self.build
+        let list: AgentSessionList
+        let at: Date
     }
 
     public var sessions: [AgentSession] {
@@ -93,7 +119,7 @@ public final class AgentsStore {
     }
 
     public var needsInputCount: Int {
-        sessions.count(where: \.needsYou)
+        fetched ? sessions.count(where: \.needsYou) : 0
     }
 
     public func session(_ id: String) -> AgentSession? {
@@ -210,6 +236,12 @@ public final class AgentsStore {
             let reply = try await runner.command(AgentCommand.sessions, workspace: workspace, args: list.args)
             try list.apply(reply)
             error = nil
+            fetched = true
+            syncedAt = .now
+            saves.request { [weak self] in
+                guard let self, let at = self.syncedAt else { return }
+                self.cache.save(Snapshot(list: self.list, at: at), self.cacheKey)
+            }
         } catch {
             self.error = Self.message(error)
         }

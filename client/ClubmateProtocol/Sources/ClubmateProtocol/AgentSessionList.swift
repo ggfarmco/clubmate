@@ -1,6 +1,6 @@
 import Foundation
 
-public struct AgentSessionList: Sendable, Equatable {
+public struct AgentSessionList: Codable, Sendable, Equatable {
     public private(set) var sessions: [AgentSession] = []
     public private(set) var cursor: String?
 

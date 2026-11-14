@@ -113,6 +113,7 @@ type commandArgs struct {
 	Query       string        `json:"query"`
 	Note        *string       `json:"note"`
 	Owner       string        `json:"owner"`
+	Slim        bool          `json:"slim"`
 	keepClaim   bool
 	startOptions
 }
@@ -268,6 +269,9 @@ func (b *backlog) listCmd(ctx context.Context, workspaceID string, args commandA
 		}
 		if filter == "" || filter == t.Status || filter == statusOpen && (t.Status == statusIdea || t.Status == statusTodo || t.Status == statusInProgress) {
 			t.Owners = nil
+			if args.Slim {
+				t.Description = ""
+			}
 			tasks = append(tasks, t)
 		}
 	}

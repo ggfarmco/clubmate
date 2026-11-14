@@ -60,6 +60,10 @@
             "query": {
               "type": "string",
               "description": "Only tasks whose title, description, note or tags contain this text (any case), or whose number it is (12 or #12). Without status it searches every status, done and not_now included."
+            },
+            "slim": {
+              "type": "boolean",
+              "description": "Leave out description (the phone's list; backlog.get returns the whole task)."
             }
           }
         },

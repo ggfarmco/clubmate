@@ -124,7 +124,7 @@ func (d *docs) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Com
 		if err := decode(cmd.Args, &args); err != nil {
 			return nil, err
 		}
-		return d.list(ctx, h, cmd.WorkspaceID, args)
+		return d.listCmd(ctx, h, cmd.WorkspaceID, args)
 	case "docs.close":
 		return nil, d.close(ctx, h, cmd.WorkspaceID)
 	}

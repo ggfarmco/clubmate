@@ -35,7 +35,7 @@ struct InboxPlugin: CompanionPluginUI {
     @MainActor
     static func sections(_ context: PluginContext) -> InboxSections {
         context.model.inbox.sections(computer: context.connection.computer.id) { item in
-            guard let session = item.session, let store = store(context, item), store.loaded else { return nil }
+            guard let session = item.session, let store = store(context, item), store.fetched else { return nil }
             return store.session(session)?.needsYou == true
         }
     }
@@ -73,7 +73,7 @@ struct InboxListView: View {
         }
         .task(id: workspaces) {
             for workspace in workspaces {
-                guard let store = context.model.agents(computer: context.connection.computer.id, workspace: workspace), !store.loaded else { continue }
+                guard let store = context.model.agents(computer: context.connection.computer.id, workspace: workspace), !store.fetched else { continue }
                 await store.refresh()
             }
         }

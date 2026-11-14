@@ -102,6 +102,7 @@ struct SessionListView: View {
                     ConnectionBanner(connection: context.connection)
                 }
             }
+            ListAgeSection { store.ageLine(now: $0) }
             ForEach(store.queue?.notes(computer: context.connection.computer.id) ?? []) { note in
                 Section {
                     QueueNoteRow(note: note) { store.queue?.dismiss(note) }
@@ -515,6 +516,25 @@ struct ConnectionBanner: View {
             }
         }
         .disabled(connection.state == .connecting)
+    }
+}
+
+struct ListAgeSection: View {
+    let line: (Date) -> String?
+    @State private var now = Date.now
+
+    var body: some View {
+        Group {
+            if let text = line(now) {
+                Section {
+                    Label(text, systemImage: "clock.arrow.circlepath")
+                        .font(.footnote)
+                        .foregroundStyle(Color.captionInk)
+                        .accessibilityIdentifier("listAge")
+                }
+            }
+        }
+        .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { now = $0 }
     }
 }
 

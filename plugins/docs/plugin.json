@@ -76,7 +76,8 @@
         "description": "List the workspace's docs (.md, .markdown, .mmd, .html, .htm): the ones agent sessions wrote first, newest first, then every other one git does not ignore, by rel; at most 2000. With session, only that session's docs; the home workspace lists only agents' docs. Only files that exist and are in the workspace's scope.",
         "args": {
           "properties": {
-            "session": {"type": "string", "description": "Agent session whose docs to list; omit for the whole workspace."}
+            "session": {"type": "string", "description": "Agent session whose docs to list; omit for the whole workspace."},
+            "ifNoneMatch": {"type": "string", "description": "The etag of an earlier result: when the list is the same, the reply is only {unchanged: true, etag}."}
           }
         },
         "result": {
@@ -95,7 +96,9 @@
                 }
               }
             },
-            "truncated": {"type": "boolean", "description": "More docs exist than were returned."}
+            "truncated": {"type": "boolean", "description": "More docs exist than were returned."},
+            "etag": {"type": "string", "description": "Hash of docs and truncated; pass it back as ifNoneMatch."},
+            "unchanged": {"type": "boolean", "description": "True when ifNoneMatch matched; docs and truncated are then absent."}
           }
         }
       },

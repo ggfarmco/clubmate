@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 	"slices"
@@ -19,7 +22,8 @@ import (
 const maxListed = 2000
 
 type listArgs struct {
-	Session string `json:"session,omitempty"`
+	Session     string `json:"session,omitempty"`
+	IfNoneMatch string `json:"ifNoneMatch,omitempty"`
 }
 
 type listItem struct {
@@ -33,6 +37,12 @@ type listItem struct {
 type listResult struct {
 	Docs      []listItem `json:"docs"`
 	Truncated bool       `json:"truncated"`
+	Etag      string     `json:"etag"`
+}
+
+type unchangedResult struct {
+	Unchanged bool   `json:"unchanged"`
+	Etag      string `json:"etag"`
 }
 
 type agentDocs struct {
@@ -51,6 +61,22 @@ type lister struct {
 	roots []listRoot
 	seen  map[string]bool
 	res   listResult
+}
+
+func (d *docs) listCmd(ctx context.Context, h *pluginsdk.Host, workspaceID string, args listArgs) (any, error) {
+	res, err := d.list(ctx, h, workspaceID, listArgs{Session: args.Session})
+	if err != nil {
+		return nil, err
+	}
+	sum := fnv.New64a()
+	if err := json.NewEncoder(sum).Encode(res); err != nil {
+		return nil, err
+	}
+	res.Etag = fmt.Sprintf("%016x", sum.Sum64())
+	if args.IfNoneMatch == res.Etag {
+		return unchangedResult{Unchanged: true, Etag: res.Etag}, nil
+	}
+	return res, nil
 }
 
 func (d *docs) list(ctx context.Context, h *pluginsdk.Host, workspaceID string, args listArgs) (listResult, error) {

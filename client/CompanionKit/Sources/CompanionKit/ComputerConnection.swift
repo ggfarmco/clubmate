@@ -58,15 +58,36 @@ public final class ComputerConnection: CommandRunner {
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var listeners: [UUID: @MainActor (ConnectionSignal) -> Void] = [:]
     @ObservationIgnored private var interfaces: [String: WeakInterface] = [:]
+    @ObservationIgnored private let cache: ListCache
 
-    public init(computer: Computer, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, lastEventID: Int? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }) {
+    public init(computer: Computer, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, lastEventID: Int? = nil, cache: ListCache = ListCache(dir: nil), sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }) {
         self.computer = computer
         self.lastEventID = lastEventID
         lastSeen = computer.lastSeen
+        self.cache = cache
         self.sleep = sleep
         self.now = now
         client = RemoteClient(hosts: computer.hosts, port: computer.port, token: token, transport: transport, policy: policy)
-        if token == nil { state = .unauthorized }
+        if token == nil {
+            state = .unauthorized
+        } else if let saved = cache.load(savedKey, as: Saved.self) {
+            hello = saved.hello
+            workspaces = saved.workspaces
+        }
+    }
+
+    private struct Saved: Codable {
+        let hello: Hello
+        let workspaces: [Workspace]
+    }
+
+    private var savedKey: ListCache.Key {
+        ListCache.Key(computer: computer.id, workspace: "", collection: "connection")
+    }
+
+    private func save() {
+        guard let hello else { return }
+        cache.save(Saved(hello: hello, workspaces: workspaces), savedKey)
     }
 
     public func start() {
@@ -111,6 +132,7 @@ public final class ComputerConnection: CommandRunner {
     public func refreshWorkspaces() async {
         guard let list = try? await client.workspaces() else { return }
         workspaces = list
+        save()
     }
 
     public func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
@@ -256,6 +278,7 @@ public final class ComputerConnection: CommandRunner {
                 if Task.isCancelled { return }
                 self.hello = hello
                 workspaces = list
+                save()
                 identify(hello.computer)
                 await loadVoiceSettings()
                 if Task.isCancelled { return }
@@ -280,6 +303,7 @@ public final class ComputerConnection: CommandRunner {
                         if event.topic == Topic.pluginChanged, let fresh = try? await client.hello() {
                             if Task.isCancelled { return }
                             self.hello = fresh
+                            save()
                             identify(fresh.computer)
                             await loadVoiceSettings()
                             if Task.isCancelled { return }
