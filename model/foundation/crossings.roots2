@@ -1,0 +1,15 @@
+use foundation/go, foundation/json, foundation/sqlite
+
+crossing Go.string <-> Json.string: lossless
+crossing Go.bool <-> Json.boolean: lossless
+crossing Go.int64 -> Json.number: lossy "a reader that holds numbers as doubles loses digits above 2^53"
+crossing Json.number -> Go.int64: partial "a fraction or a value beyond 64 bits is refused"
+crossing Go.time <-> Json.string as rfc3339: lossless
+crossing Go.raw_json <-> Json.object: lossless
+
+crossing Go.string <-> Sqlite.text: lossless
+crossing Go.int64 <-> Sqlite.integer: lossless
+crossing Go.bool <-> Sqlite.flag: lossless
+crossing Go.time -> Sqlite.integer as unix_nanos: lossy "the zone is not kept"
+crossing Sqlite.integer as unix_nanos -> Go.time: lossless
+crossing Go.raw_json <-> Sqlite.text as json: lossless

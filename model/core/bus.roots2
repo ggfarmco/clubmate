@@ -1,0 +1,124 @@
+module Bus "the durable event log in bus.db: who may publish, cursors and live subscriptions" {
+  core {
+    code at "internal/bus", "internal/rpc/methods_bus.go", "internal/rpc/subscriptions.go"
+    tests at "internal/bus/bus_test.go", "internal/bus/topic_test.go", "internal/rpc/bus_test.go"
+    docs at "docs/sdui-protocol.md" section "Bus topics"
+
+    value CursorKey {
+      plugin: PluginId, optional
+      consumer: Consumer
+    }
+
+    value CursorAt { seq: Seq }
+    value Subscribed { subscription: SubscriptionId }
+
+    record Cursor "how far a reader says it has read" {
+      id: CursorKey, key
+      seq: Seq
+    }
+
+    record Subscription "a connection's wish to get every later event of a pattern" {
+      id: SubscriptionId, key
+      conn: ConnId
+      pattern: Pattern
+    }
+
+    log events "bus.db" carries Workspaces.workspace.created, Workspaces.workspace.updated, Workspaces.workspace.deleted, Plugins.plugin.changed {
+      partial: plugins and every other connection append events of their own topics through `publish`; the model names the core's own
+      on failure: drop
+      inherited: an event of the core that cannot be stored is logged and lost (internal/core/service.go:478-480)
+      open: every record is stored as {seq, topic, source, time, payload} with the next seq, and `workspace` repeats the payload's top-level `workspace` when it is a text (bus.go:130-138); the source of the core's own events is `core` (service.go:25). A log has no line for the record around its event
+      open: the log is pruned when the core starts and every hour: an event goes once it is 30 days old and not among the newest 10 000, but never the newest one, and none from the lowest cursor on unless it is older than 90 days (internal/bus/retention.go:13-17, :36-73). No line removes records from a log, and an issued number is an identifier that no rule can order, so "the newest 10 000" and "from seq N on" cannot be written
+      open: a subscription first gets the stored events of its pattern after its `after`, then every new one, each as a `bus.event` notification on its connection; one that has 256 events waiting is ended and told `bus.closed` with "slow subscriber dropped" (internal/bus/subscribe.go:9, :76-80, methods_bus.go:125-142). A log delivers to listeners outside the system and has no line for a listener that is dropped
+    }
+
+    method publish by client, plugin {
+      open: a payload that is neither a JSON object nor null, or is over 64 KiB once compacted, is refused `invalid` (bus.go:25, :241-258); the record is appended with source `plugin:<id>` for a plugin and `cli` for any other connection (internal/rpc/caller.go:34-39), and the answer is the whole record. An `emit` names a declared event, a document cannot be looked into and no expression joins texts, so no line here appends it
+      takes {
+        topic: Topic
+        payload: Document, optional
+      }
+    }
+
+    method read by client, plugin {
+      partial: the answer: the stored events of the pattern after `after`, oldest first, at most 1000 and 100 unless a limit is sent (bus.go:26-27, :144-152); bus.head, which any connection may ask too and which answers the newest and the oldest stored seq (internal/rpc/methods_bus.go:77-80)
+      takes {
+        pattern: Pattern
+        after: Seq, default 0
+      }
+      change nothing
+    }
+
+    method cursor_set by client, plugin {
+      takes {
+        consumer: Consumer
+        seq: Seq
+      }
+      let id = CursorKey(plugin = caller.plugin, consumer = consumer)   // @ internal/rpc/methods_bus.go:118-123
+      if a Cursor of id exists {
+        let known = Cursor of id
+        set known.seq = seq
+      } else {
+        create cursor: Cursor { id = id; seq = seq }
+      }
+    }
+
+    method cursor_get by client, plugin {
+      takes {
+        consumer: Consumer
+      }
+      returns CursorAt
+      let id = CursorKey(plugin = caller.plugin, consumer = consumer)
+      return seq = if a Cursor of id exists then (Cursor of id).seq else 0   // @ internal/bus/bus.go:167-177
+    }
+
+    method subscribe by client, plugin {
+      takes {
+        pattern: Pattern
+        after: Seq, default 0
+      }
+      returns Subscribed
+      create s: Subscription { id = new SubscriptionId; conn = caller.conn; pattern = pattern }   // @ internal/rpc/subscriptions.go:49-66
+      return subscription = s.id
+    }
+
+    method unsubscribe by client, plugin {
+      takes {
+        subscription: SubscriptionId
+      }
+      reject not_found unless a Subscription of subscription exists and (Subscription of subscription).conn = caller.conn   // @ internal/rpc/subscriptions.go:68-79, internal/rpc/errors.go:147
+      remove Subscription of subscription
+    }
+
+    method forget "a connection ended" {
+      takes {
+        conn: ConnId
+      }
+      for each s in Subscription where conn = conn { remove Subscription of s.id }   // @ internal/rpc/subscriptions.go:81-91
+    }
+
+    policy fresh_start {
+      whenever Core starts {
+        for each s in Subscription { remove Subscription of s.id }
+      }
+    }
+
+    call "bus.publish" -> publish
+    call "bus.read" -> read
+    call "bus.cursor.set" -> cursor_set
+    call "bus.cursor.get" -> cursor_get
+    call "bus.subscribe" -> subscribe
+    call "bus.unsubscribe" -> unsubscribe
+
+    table cursors stores Cursor {
+      id: CursorKey, key
+      seq: Seq
+    }
+
+    memory subscriptions stores Subscription {
+      id: SubscriptionId, key
+      conn: ConnId
+      pattern: Pattern
+    }
+  }
+}

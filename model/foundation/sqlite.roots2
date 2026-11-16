@@ -1,0 +1,11 @@
+medium Sqlite "the core's three SQLite files: clubmate.db, bus.db, plugins.db" {
+  scalar integer: integer "64 bits, signed"
+  scalar text: text
+  scalar flag: boolean "an INTEGER holding 0 or 1"
+
+  encoding unix_nanos of integer: "nanoseconds since 1970-01-01T00:00:00Z"
+  encoding json of text: "a JSON document as text"
+  encoding name of text: "the variant's name as the model writes it"
+  variants: text as name
+  absent: null
+}

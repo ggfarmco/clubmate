@@ -1,0 +1,11 @@
+medium Go "what values are in the core's memory" {
+  scalar int64: integer "64 bits, signed"
+  scalar string: text
+  scalar bool: boolean
+  scalar time: instant "to the nanosecond, with a zone"
+  scalar raw_json: document
+
+  encoding name of string: "the variant's name as the model writes it"
+  variants: string as name
+  absent: null
+}

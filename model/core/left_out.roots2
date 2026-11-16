@@ -1,0 +1,19 @@
+module Sessions "terminal session hosts: one clubmate-session process per terminal, which outlives the core" {
+  partial: all of it. session.create, list, get, kill, send, read and remove; the events session.created, session.exited, session.killed and session.removed; every 2 seconds the core looks at the hosts and publishes session.exited for one that stopped running (internal/session, internal/core/service.go:272-364, :445-459, cmd/clubmate-core/main.go:36)
+}
+
+module Processes "process trees per session and per root a plugin registers, orphans and kills" {
+  partial: all of it. process.tree, kill, register, unregister and roots; a plugin's roots end with its connection (internal/proc, internal/core/roots.go, internal/rpc/methods_process.go)
+}
+
+module Ui "the trees plugins render into slots, and the events clients send back" {
+  partial: all of it. ui.sections, get, subscribe, unsubscribe, presence, focus, render, event, approve and ui.state.*; a tree of more than 5000 nodes or deeper than 32 is refused; a stopped plugin's slots are cleared (internal/sdui, internal/rpc/methods_ui.go, internal/rpc/methods_uistate.go)
+}
+
+module Notify "notifications: notify.post publishes notify.posted" {
+  partial: all of it. At most 5 posts in 10 seconds for a workspace and 20 in all, counted apart for plugins; a message is cut at 1000 characters and a title at 120 (internal/notify/notify.go, internal/rpc/methods_notify.go:18-20, :62-92)
+}
+
+module Unread "method families of the core this model's writer did not read" {
+  unstated: fs.*, browser.*, report.*, diagnostics.*, debug.* and testapp.*, known here only by their place in internal/rpc/server.go:108-122
+}

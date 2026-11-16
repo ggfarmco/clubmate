@@ -1,0 +1,282 @@
+module Workspaces "workspaces, their folders and the worktree each folder shows, in clubmate.db" {
+  core {
+    code at "internal/workspace/store.go", "internal/core/service.go", "internal/rpc/methods_core.go"
+    tests at "internal/workspace/store_test.go", "internal/core/service_test.go"
+    docs at "docs/sdui-protocol.md" section "Bus topics"
+
+    value FolderKey {
+      workspace: WorkspaceId
+      path: FolderPath
+    }
+
+    value Opened {
+      id: WorkspaceId
+      created: Flag
+      clients: Count
+    }
+
+    record Workspace {
+      partial: the UI state clients keep for a workspace, which goes with it (ui.state.*, internal/rpc/methods_uistate.go, table ui_state); the `info` field of workspace.created and workspace.updated, which is the whole workspace as `get` answers it (pkg/contract/event.go:31-34)
+      id: WorkspaceId, key
+      name: Name
+      home: Flag, default no
+      inherited: at most one workspace is the home one; a unique index keeps it (store.go:36) and `home` below is its only writer
+      created_at: Time
+      last_opened_at: Time, optional
+      folders: list of FolderPath
+      decided by agent: the folders in the order they were added stand in this list, beside the Folder records; the code keeps a `position` on each repos row, always one above the highest (store.go:306)
+    }
+
+    record Folder "one folder of a workspace" {
+      id: FolderKey, key
+      owner: WorkspaceId = id.workspace
+      added_by: Text, optional
+      added_at: Time
+      added_afk: Flag, default no
+      seen: Flag, default yes
+      worktree: FolderPath, optional
+      missing: Flag = unstated "a worktree is selected and is no longer a directory (store.go:465)"
+    }
+
+    event workspace.created { workspace: WorkspaceId }
+    event workspace.updated {
+      open: docs/sdui-protocol.md § Bus topics names three causes: a folder added, a rename, a worktree chosen. The code also publishes it when a folder is removed or marked seen and when a check finds a chosen worktree gone (internal/core/service.go:204-240); the model follows the code
+      workspace: WorkspaceId
+    }
+    event workspace.deleted { workspace: WorkspaceId }
+
+    port Disk "the file system of this Mac" {
+      kind_of(path: FolderPath): directory | other
+      home(): at(dir: FolderPath) | unknown
+      resolved(path: FolderPath): at(real: FolderPath)
+    }
+
+    port Hosts "the terminal session hosts and process trees of a workspace, which this model leaves out" {
+      end_all(workspace: WorkspaceId): ended | still_running, not undone
+      inherited: every process of the workspace's sessions gets SIGTERM and, 3 seconds later, SIGKILL; a session that still runs 5 seconds after that is `still_running`; the ended sessions are removed (service.go:23-27, :246-264, :483-504)
+    }
+
+    block need_dir(path: FolderPath) {
+      ask Disk.kind_of(path) unbounded, once {
+        directory { change nothing }
+        other { reject invalid }   // @ internal/workspace/store.go:513-526
+      }
+    }
+
+    block add(w: Workspace, path: FolderPath) {
+      let key = FolderKey(workspace = w.id, path = path)
+      reject invalid if a Folder of key exists   // @ internal/workspace/store.go:229-231
+      create folder: Folder { id = key; added_at = now }
+      add path to w.folders
+    }
+
+    method create by client, plugin {
+      takes {
+        name: Name
+        repos: list of FolderPath
+      }
+      returns Workspace
+      for each r in repos { do need_dir(r) }
+      create w: Workspace { id = new WorkspaceId; name = name; created_at = now; folders = () }
+      for each r in repos { do add(w, r) }
+      emit workspace.created(workspace = w.id)   // @ internal/core/service.go:112-119
+    }
+
+    method open by client, plugin {
+      takes {
+        folders: list of FolderPath, at least 1
+        name: Name = unstated "the last element of the first path as it was sent (service.go:138)"
+      }
+      returns Opened
+      open: each path is first resolved through links and cleaned and repeated paths are dropped (store.go:109-129, service.go:122); of several workspaces that match, the most recently opened wins (store.go:186). No expression walks a list while calling a port to build another list, or sorts downwards, so here the paths are taken as sent and any match is taken
+      let same = first(w in Workspace: count(w.folders) = count(folders) and all(f in folders: f in w.folders))   // @ internal/workspace/store.go:154-162
+      let leading = first(w in Workspace: count(folders) = 1 and count(w.folders) > 0 and all(f in folders: f = first(p in w.folders: yes)))   // @ internal/workspace/store.go:164-169
+      if same != none {
+        ask Clients.show(same.id) { done(n) { return id = same.id, created = no, clients = n } }
+      } else {
+        if leading != none {
+          ask Clients.show(leading.id) { done(n) { return id = leading.id, created = no, clients = n } }
+        } else {
+          for each f in folders { do need_dir(f) }
+          create w: Workspace { id = new WorkspaceId; name = name; created_at = now; folders = () }
+          for each f in folders { do add(w, f) }
+          emit workspace.created(workspace = w.id)
+          ask Clients.show(w.id) { done(n) { return id = w.id, created = yes, clients = n } }
+        }
+      }
+    }
+
+    method home by client, plugin {
+      returns Opened
+      let known = first(w in Workspace: w.home)   // @ internal/workspace/store.go:139-152
+      if known != none {
+        ask Clients.show(known.id) { done(n) { return id = known.id, created = no, clients = n } }
+      } else {
+        ask Disk.home() unbounded, once {
+          at(dir) {
+            do need_dir(dir)
+            create w: Workspace { id = new WorkspaceId; name = "~"; home = yes; created_at = now; folders = () }
+            do add(w, dir)
+            emit workspace.created(workspace = w.id)
+            ask Clients.show(w.id) { done(n) { return id = w.id, created = yes, clients = n } }
+          }
+          unknown { reject internal }   // @ internal/core/service.go:143-146
+        }
+      }
+    }
+
+    method get by client, plugin {
+      partial: the answer also carries each folder's record in place of its path; workspace.list, which any connection may ask too and which answers every workspace so, the most recently opened first (methods_core.go:125-134, store.go:258-281)
+      takes {
+        workspace: Workspace
+      }
+      returns Workspace
+    }
+
+    method rename by client, plugin {
+      takes {
+        workspace: Workspace
+        name: Name
+      }
+      returns Workspace
+      set workspace.name = name   // @ internal/workspace/store.go:171-177
+      emit workspace.updated(workspace = workspace.id)
+    }
+
+    method touch by client, plugin {
+      takes {
+        workspace: Workspace
+      }
+      set workspace.last_opened_at = now   // @ internal/workspace/store.go:179-181
+      never emit workspace.updated
+    }
+
+    method add_folder by client, plugin {
+      partial: the answer, which is the workspace as `get` answers it (methods_core.go:135-140); a `returns` needs the workspace as an input, and then an unknown workspace would be refused before a path that is no directory, which the code does the other way round
+      takes {
+        id: WorkspaceId
+        path: FolderPath
+        addedBy: Text, optional
+        addedAfk: Flag, default no
+      }
+      do need_dir(path)
+      reject not_found unless a Workspace of id exists   // @ internal/workspace/store.go:298-303
+      let key = FolderKey(workspace = id, path = path)
+      reject invalid if a Folder of key exists   // @ internal/workspace/store.go:309-311
+      create folder: Folder { id = key; added_by = addedBy; added_at = now; added_afk = addedAfk; seen = not addedAfk and addedBy = none }   // @ internal/workspace/store.go:307
+      add path to (Workspace of id).folders
+      emit workspace.updated(workspace = id)
+    }
+
+    method remove_folder by client, plugin {
+      takes {
+        workspace: Workspace
+        path: FolderPath
+      }
+      returns Workspace
+      let key = FolderKey(workspace = workspace.id, path = path)
+      reject invalid unless a Folder of key exists
+      reject invalid if count(workspace.folders) = 1   // @ internal/workspace/store.go:321-334
+      remove Folder of key
+      remove path from workspace.folders
+      emit workspace.updated(workspace = workspace.id)
+    }
+
+    method mark_seen by client, plugin {
+      takes {
+        workspace: Workspace
+        path: FolderPath
+      }
+      returns Workspace
+      let key = FolderKey(workspace = workspace.id, path = path)
+      reject invalid unless a Folder of key exists
+      set (Folder of key).seen = yes   // @ internal/workspace/store.go:338-346
+      emit workspace.updated(workspace = workspace.id)
+    }
+
+    method set_worktree by client, plugin {
+      takes {
+        workspace: Workspace
+        repo: FolderPath
+        path: FolderPath, optional
+      }
+      returns Workspace
+      let key = FolderKey(workspace = workspace.id, path = repo)
+      reject invalid unless a Folder of key exists
+      let folder = Folder of key
+      if path = none or path = repo {   // @ internal/workspace/store.go:353-363
+        open: an empty path clears the selection as an absent one does (store.go:353); a path only names something, and no written text is compared with such a value
+        set folder.worktree = none
+      } else {
+        do need_dir(path)
+        set folder.worktree = path
+      }
+      emit workspace.updated(workspace = workspace.id)
+    }
+
+    method check_worktrees by client, plugin {
+      takes {
+        workspace: Workspace
+      }
+      returns Workspace
+      emit workspace.updated(workspace = workspace.id) if any(f in Folder where owner = workspace.id: f.missing)   // @ internal/core/service.go:231-240
+      never set workspace.folders
+    }
+
+    method delete by client, plugin {
+      takes {
+        workspace: Workspace
+      }
+      ask Hosts.end_all(workspace.id) unbounded, once {
+        ended { change nothing }
+        still_running { reject session_running }   // @ internal/core/service.go:499-500, internal/rpc/errors.go:164
+      }
+      let gone = workspace.id
+      for each f in Folder where owner = gone { remove Folder of f.id }
+      remove Workspace of gone
+      emit workspace.deleted(workspace = gone)   // @ internal/core/service.go:265-269
+    }
+
+    method require "is there such a workspace" {
+      takes {
+        workspace: Workspace
+      }
+      change nothing
+    }
+
+    call "workspace.create" -> create
+    call "workspace.open" -> open
+    call "workspace.home" -> home
+    call "workspace.get" -> get { workspace from body "id" }
+    call "workspace.rename" -> rename { workspace from body "id" }
+    call "workspace.touch" -> touch { workspace from body "id" }
+    call "workspace.folder.add" -> add_folder
+    call "workspace.folder.remove" -> remove_folder { workspace from body "id" }
+    call "workspace.folder.seen" -> mark_seen { workspace from body "id" }
+    call "workspace.worktree.set" -> set_worktree { workspace from body "id" }
+    call "workspace.worktree.check" -> check_worktrees { workspace from body "id" }
+    call "workspace.delete" -> delete { workspace from body "id" }
+
+    table projects stores Workspace {
+      id: WorkspaceId, key
+      name: Name
+      home: Flag
+      created_at: Time
+      last_opened_at: Time, optional
+    }
+
+    table repo_order "the path and position columns of table repos" stores Workspace.folders {
+      project_id: WorkspaceId, key
+      path: FolderPath, key
+    }
+
+    table repos "the other columns of table repos, and table worktrees" stores Folder {
+      id: FolderKey, key
+      added_by: Text, optional
+      added_at: Time
+      added_afk: Flag
+      seen: Flag
+      worktree: FolderPath, optional
+    }
+  }
+}

@@ -1,0 +1,11 @@
+medium Json "JSON-RPC 2.0 params, results and bus payloads" {
+  scalar number: float "no width of its own; many readers hold a double"
+  scalar string: text
+  scalar boolean: boolean
+  scalar object: document
+
+  encoding rfc3339 of string: "an instant with its offset, RFC 3339"
+  encoding name of string: "the variant's name as the model writes it"
+  variants: string as name
+  absent: omitted
+}

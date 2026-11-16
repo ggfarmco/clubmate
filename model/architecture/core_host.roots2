@@ -1,0 +1,29 @@
+architecture core_host "one core process that owns state and carries calls, plugin processes it starts, clients on its socket" {
+  layer core
+  layer plugins
+  layer clients
+
+  may use: plugins -> core
+  may use: clients -> core
+
+  kind value in core is value
+  kind record in core is entity
+  kind event in core is event
+  kind port in core is port
+  kind method in core is action
+  kind policy in core is reaction
+  kind call in core is entry
+  kind table in core is store
+  kind memory in core is store
+  kind log in core is stream
+  kind hub is process
+
+  relation hosts: from hub to module
+  relation runs: from hub to policy
+  relation calls: from outside to method
+  relation listens: from outside to log
+
+  rule own_storage: a table is used only by its own module
+
+  freedom internals in every kind "private names, algorithms, locks and data structures inside one element"
+}

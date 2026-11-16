@@ -1,0 +1,103 @@
+type PluginId "a plugin's id from its manifest": identifier {
+  open: an id matches ^[a-z][a-z0-9-]{1,31}$ and is none of core, session, workspace, process, ui, diagnostics (internal/plugin/manifest.go:29, :34); a type has bounds on length and nothing else
+  in Go: string
+  in Json: string
+  in Sqlite: text
+}
+
+type StorageKey "a key of a plugin's storage": identifier {
+  open: the bound is 256 bytes and a key holds no NUL (internal/kv/kv.go:140-145); a bound counts characters
+  in Go: string
+  in Json: string
+  in Sqlite: text
+  at least 1
+  at most 256
+}
+
+type WorkspaceId "identifies a workspace: prj_ and 16 hex digits": identifier {
+  open: the form is ^prj_[0-9a-f]{16}$, or 8 digits in ids made by old versions (pkg/id/id.go:9-11); a type has bounds on length and nothing else, so here only the length refuses an id as `invalid`
+  in Go: string
+  in Json: string
+  in Sqlite: text
+  at least 12
+  at most 20
+}
+
+type FolderPath "the path of a folder on this Mac": identifier {
+  in Go: string
+  in Json: string
+  in Sqlite: text
+}
+
+type Name "a workspace's name" {
+  open: a name is trimmed of blanks before it is judged and stored (internal/workspace/store.go:172, :220); no expression trims a text, so here a name of blanks only is accepted
+  in Go: string
+  in Json: string
+  in Sqlite: text
+  at least 1
+}
+
+type Count "how many" {
+  in Go: int64
+  in Json: number
+  inherited: counts stay far below 2^53
+  in Sqlite: integer
+  at least 0
+}
+
+type ConnId "identifies one connection to the core, for as long as it lasts": identifier {
+  in Go: string
+  in Json: unstated "never sent: it is the connection a call arrives on"
+  at least 1
+}
+
+type Topic "a bus topic" {
+  open: a topic matches ^[a-z0-9][a-z0-9_-]*(\.[a-z0-9_-]+)*$ (internal/bus/topic.go:15); a type has bounds on length and nothing else
+  in Go: string
+  in Json: string
+  in Sqlite: text
+  at least 1
+  at most 200
+}
+
+type Pattern "which topics a reader wants" {
+  open: `*`, or topics separated by commas, each a topic or a topic followed by `.*` for everything under it (topic.go:21-57); a type has bounds on length and nothing else
+  in Go: string
+  in Json: string
+  at least 1
+}
+
+type Seq "the number of an event in the log; the first is 1" {
+  in Go: int64
+  in Json: number
+  inherited: seqs stay far below 2^53
+  in Sqlite: integer
+}
+
+type Consumer "the name a reader keeps its cursor under": identifier {
+  in Go: string
+  in Json: string
+  in Sqlite: text
+  at least 1
+}
+
+type SubscriptionId "identifies a live subscription: sub_ and 16 hex digits": identifier {
+  in Go: string
+  in Json: string
+}
+
+value Route "what the core passes to a plugin": command_run | ui_event
+
+value Payload "the args of a call as they were sent, if any were" {
+  args: Document, optional
+}
+
+type CommandId "a command's id: <plugin>.<noun>[.<verb>], or one of the core's own": identifier {
+  in Go: string
+  in Json: string
+}
+
+type SessionRef "the agent session a caller says it is: agt_ and 16 hex digits": identifier {
+  in Go: string
+  in Json: string
+}

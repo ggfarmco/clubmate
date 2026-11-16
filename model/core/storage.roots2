@@ -1,0 +1,68 @@
+module Storage "each plugin's own keys and JSON values in plugins.db" {
+  core {
+    code at "internal/kv/kv.go", "internal/rpc/methods_storage.go"
+    tests at "internal/kv/kv_test.go"
+
+    value EntryKey {
+      plugin: PluginId
+      key: StorageKey
+    }
+
+    value Found {
+      found: Flag
+      value: Document, optional
+    }
+
+    record Entry {
+      partial: rows under the plugin `core` are the core's own choices, which no plugin can reach since `core` is no plugin's id (internal/plugin/control.go:16-18, internal/plugin/manifest.go:34); storage.deletePrefix and storage.list, which remove and name a plugin's keys that begin with a text (kv.go:110-138): no expression reads the start of a text
+      id: EntryKey, key
+      value: Document
+    }
+
+    method get by client, plugin {
+      takes {
+        key: StorageKey
+      }
+      returns Found
+      reject invalid if caller.plugin = none   // @ internal/rpc/methods_storage.go:83-87
+      let id = EntryKey(plugin = caller.plugin, key = key)
+      return found = yes, value = (Entry of id).value if an Entry of id exists
+      return found = no unless an Entry of id exists   // @ internal/rpc/methods_storage.go:46-49
+    }
+
+    method set by client, plugin {
+      open: a value over 256 KiB is refused `invalid` (kv.go:20, :86-88); a document has no size here
+      takes {
+        key: StorageKey
+        value: Document
+      }
+      reject invalid if caller.plugin = none
+      inherited: only a plugin has storage and its keys are its own: the plugin's id comes from its pipe, never from the call (methods_storage.go:83-92); a client that asks gets `invalid`, not `forbidden`
+      let id = EntryKey(plugin = caller.plugin, key = key)
+      if an Entry of id exists {
+        let old = Entry of id
+        set old.value = value   // @ internal/kv/kv.go:92-93
+      } else {
+        create entry: Entry { id = id; value = value }
+      }
+    }
+
+    method delete by client, plugin {
+      takes {
+        key: StorageKey
+      }
+      reject invalid if caller.plugin = none
+      let id = EntryKey(plugin = caller.plugin, key = key)
+      remove Entry of id if an Entry of id exists   // @ internal/kv/kv.go:100-108
+    }
+
+    call "storage.get" -> get
+    call "storage.set" -> set
+    call "storage.delete" -> delete
+
+    table kv stores Entry {
+      id: EntryKey, key
+      value: Document
+    }
+  }
+}
