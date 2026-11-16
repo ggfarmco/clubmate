@@ -22,6 +22,8 @@ const (
 	gateHelpID       = "help"
 	gateVerdictsID   = "gateVerdicts"
 	gateFindingsID   = "gateFindings"
+	gateLiveID       = "gateLive"
+	gateLiveNote     = "Findings show here when it decides; the lander gets them in its transcript."
 	gateSheetID      = "gateSheet"
 	gateRoundsMax    = 5
 	gateWeek         = 7 * 24 * time.Hour
@@ -70,6 +72,7 @@ var gateHelpFacts = [][2]string{
 
 type gateScreen struct {
 	Row      gateRow
+	Lines    map[string]string
 	Repo     gateRepo
 	History  []gateVerdict
 	Picked   string
@@ -237,7 +240,9 @@ func gateMain(sc gateScreen) sdui.Node {
 		{ID: "into", Title: "Into", Width: 120, Truncate: "middle", Priority: 1},
 	}
 	body = append(body, sdui.MutedText(weekLine(sc.History, sc.Now)), sdui.WithAction(sdui.Table(gateVerdictsID, columns, rows, picked, sdui.Sort{}), "select"))
-	if card, ok := findingsCard(sc, picked); ok {
+	if card, ok := liveCard(sc, picked); ok {
+		body = append(body, card)
+	} else if card, ok := findingsCard(sc, picked); ok {
 		body = append(body, card)
 	}
 	return sdui.VStack(header, sdui.Scroll(sdui.VStack(body...)))
@@ -371,7 +376,8 @@ func findingsCard(sc gateScreen, picked string) (sdui.Node, bool) {
 		return sdui.Node{}, false
 	}
 	v := sc.History[i]
-	if len(v.Findings) == 0 && len(v.Deferred) == 0 {
+	open := v.Reviewer != "" && sc.Sessions[v.Reviewer]
+	if len(v.Findings) == 0 && len(v.Deferred) == 0 && !open {
 		return sdui.Node{}, false
 	}
 	look := verdictLook(v)
@@ -386,7 +392,43 @@ func findingsCard(sc gateScreen, picked string) (sdui.Node, bool) {
 	if len(v.Deferred) > 0 {
 		lines = append(lines, sdui.MutedText("Deferred: "+strings.Join(v.Deferred, " · ")))
 	}
+	if open {
+		lines = append(lines, sdui.HStack(sdui.Spacer(), gateCardButton(v.Reviewer, actGateReview, landingOpenReview, landingOpenKey)))
+	}
 	return sdui.WithID(sdui.Card("neutral", look.Icon, lines...), gateFindingsID), true
+}
+
+func liveCard(sc gateScreen, picked string) (sdui.Node, bool) {
+	i := slices.IndexFunc(sc.Row.Landings, func(l gateLanding) bool {
+		return l.State == gateStateReview && (picked == "" || gateRowID(l.Since, l.Reviewer) == picked)
+	})
+	if i < 0 {
+		return sdui.Node{}, false
+	}
+	l := sc.Row.Landings[i]
+	title := fmt.Sprintf(reviewRoundLabel, max(l.Round, 1))
+	title = strings.TrimSuffix(title, " review") + " · " + gateStateReview
+	subject := landReview{Into: l.Into, Source: l.Source}.subject() + " · " + elapsed(sc.Now.Sub(l.Since))
+	lines := []sdui.Node{sdui.Text(title), sdui.MutedText(subject)}
+	if line := sc.Lines[l.Reviewer]; line != "" {
+		lines = append(lines, sdui.Text(line))
+	}
+	lines = append(lines, sdui.MutedText(gateLiveNote))
+	var buttons []sdui.Node
+	if sc.Sessions[l.Reviewer] {
+		buttons = append(buttons, gateCardButton(l.Reviewer, actGateReview, landingOpenReview, landingOpenKey))
+	}
+	if sc.Sessions[l.Lander] {
+		buttons = append(buttons, gateCardButton(l.Lander, actGateLanding, "Open landing", ""))
+	}
+	if len(buttons) > 0 {
+		lines = append(lines, sdui.WithGap(sdui.HStack(append([]sdui.Node{sdui.Spacer()}, buttons...)...), openGap))
+	}
+	return sdui.WithID(sdui.Card("accent", landingIcon, lines...), gateLiveID), true
+}
+
+func gateCardButton(sid, action, label, key string) sdui.Node {
+	return automation.ActionNode(sid, automation.DetailAction{Action: action, Label: label, Variant: sdui.VariantSecondary, Shortcut: key})
 }
 
 func gateSheetView(d gateDraft) sdui.Node {
@@ -461,16 +503,4 @@ func roundOptions(current int) []sdui.Option {
 		out = append(out, sdui.Option{Value: strconv.Itoa(n), Label: strconv.Itoa(n)})
 	}
 	return out
-}
-
-func gateChip(state string) (string, string) {
-	switch state {
-	case gateStateReview:
-		return "review…", "warning"
-	case gateChanges:
-		return gateChanges, "warning"
-	case gateApproved:
-		return gateApproved, "success"
-	}
-	return "", ""
 }

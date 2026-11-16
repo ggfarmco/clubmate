@@ -93,6 +93,7 @@ type workspaceUI struct {
 	gateSheet  *gateDraft
 	dock       string
 	back       string
+	reviewFrom reviewTrail
 }
 
 type sessionUI struct {
@@ -260,10 +261,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	for i := range graphs.runs {
 		runRows[graphs.runs[i].ID] = &graphs.runs[i]
 	}
-	nest := reviewerNesting(recs, func(lander string, st landReview) bool {
-		_, ok := a.reviewing(lander, st)
-		return ok
-	})
+	nest := reviewNests(recs)
 	for _, rec := range recs {
 		row := a.sessionRow(ctx, rec, children[rec.ID])
 		row.CloseAsk = a.closeAsk(rec, kids).Message
@@ -322,6 +320,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 		} else if s := a.session(selected); s != nil {
 			sc := a.screen(ctx, workspaceID, s, children[selected])
 			sc.Workspace, sc.Folders = workspace.Name, workspace
+			sc.Back = a.reviewCrumb(ctx, workspaceID, sc.View.Session, sc.GateReview)
 			sc.Crumb = a.repoCrumb(s)
 			main, shown = mainView(sc), &sc
 		}
@@ -493,7 +492,7 @@ func (a *app) sessionRow(ctx context.Context, rec record, children string) sessi
 	if rec.Night == "" {
 		branch = a.branches.name(ctx, rec.Workspace, rec.Worktree)
 	}
-	row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children, Branch: branchLabel(branch), Detached: detachedBranch(branch), Review: a.reviews.progress(rec.ID), Gate: a.gateState(rec)}
+	row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children, Branch: branchLabel(branch), Detached: detachedBranch(branch), Review: a.reviews.progress(rec.ID), Landing: a.landing(rec)}
 	if s := a.session(rec.ID); s != nil {
 		row.Asking = s.asking()
 		row.Started = s.turnStart()
@@ -539,6 +538,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 	pinned := a.pinnedStrip(v.Session)
 	asides := a.optionAsides(v.Session)
 	open.Asides = asides
+	gateReview := a.reviewHead(ctx, v.Session)
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
 	st.open.prune(open.Items)
@@ -583,6 +583,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 		Prefills:    prefills,
 		Pinned:      pinned,
 		Asides:      asides,
+		GateReview:  gateReview,
 	}
 	sc.ReviewStates, sc.ReviewsOpen = a.reviews.cards(v.ReviewStates)
 	return sc
@@ -691,7 +692,7 @@ func (a *app) resolveSelected(ctx context.Context, workspaceID string, recs []re
 		back := p.back
 		a.uiMu.Unlock()
 		resolved = ""
-		if i := slices.IndexFunc(recs, func(r record) bool { return !r.restricted() }); i >= 0 {
+		if i := slices.IndexFunc(recs, func(r record) bool { return !r.restricted() && r.GateFor == nil }); i >= 0 {
 			resolved = recs[i].ID
 		}
 		if pageID(selected) && slices.ContainsFunc(recs, func(r record) bool { return r.ID == back }) {
@@ -711,6 +712,9 @@ func (a *app) selectSession(ctx context.Context, workspaceID, sid string) error 
 	p := a.workspaceState(workspaceID)
 	a.uiMu.Lock()
 	p.restored, p.selected = true, sid
+	if p.reviewFrom.Reviewer != sid {
+		p.reviewFrom = reviewTrail{}
+	}
 	a.uiMu.Unlock()
 	if err := a.host.StorageSet(ctx, selectedKey+workspaceID, sid); err != nil {
 		return err

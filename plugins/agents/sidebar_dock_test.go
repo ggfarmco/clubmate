@@ -117,22 +117,6 @@ func TestSearchUnfoldsDockMatch(t *testing.T) {
 	assert.Equal(t, []string{"graph:nightly"}, ids(dock[i].Rows))
 }
 
-func TestReviewerRowUnderLander(t *testing.T) {
-	t.Parallel()
-	now := time.Now()
-	rows := []sessionRow{
-		{Rec: record{ID: "agt_l", Worktree: "/r/a", Title: "Fix login", Status: statusIdle, UpdatedAt: now}},
-		{Rec: record{ID: "agt_rev", Worktree: "/r/a", Title: "Review fix", Status: statusIdle, UpdatedAt: now}, Nest: &reviewerNest{Lander: "agt_l", Round: gateRound{Round: 2, Label: "Round 2 review", Verdict: "changes"}}},
-	}
-	tree := sidebarView(rows, "", map[string]bool{expandPrefix + "agt_l": false}, now, "/r/a", false, filterAll, sidebarSearch{}, 0, plusDock())
-	require.NoError(t, internalsdui.Validate(tree))
-	items := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
-	assert.Equal(t, []string{"agt_l"}, ids(items))
-	reviewer := findItem(items[0].Children, "agt_rev")
-	require.NotNil(t, reviewer)
-	assert.Equal(t, []string{"Round 2 review", "changes"}, []string{reviewer.Label, reviewer.Detail})
-}
-
 func ids(items []sdui.TreeItem) []string {
 	out := make([]string, 0, len(items))
 	for _, item := range items {

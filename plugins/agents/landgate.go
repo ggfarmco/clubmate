@@ -460,6 +460,9 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 			return landGateResult{}, err
 		}
 	} else {
+		if alive {
+			a.closeReviewer(ctx, reviewer)
+		}
 		cwd := cmp.Or(args.Worktree, args.Target)
 		res, err := a.newSession(ctx, a.host, workspaceID, "", newArgs{
 			Title:     "Land review · " + st.subject(),
@@ -656,13 +659,14 @@ func (a *app) landDoneCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 		return nil, nil
 	}
 	a.gateMu.Lock()
-	st := lander.landReview(args.Into, args.Source)
-	reviewer := a.session(st.Reviewer)
 	lander.dropLandReview(args.Into, args.Source)
 	a.gateMu.Unlock()
 	a.saveNow(ctx, lander)
-	if reviewer != nil {
-		a.closeIdle(ctx, reviewer)
+	id := lander.snapshot().ID
+	for _, s := range a.workspaceSessions(lander.snapshot().Workspace) {
+		if gf := s.snapshot().GateFor; gf != nil && gf.Lander == id && gf.Into == args.Into && gf.Source == args.Source {
+			a.closeReviewer(ctx, s)
+		}
 	}
 	a.gatesChanged()
 	return nil, nil

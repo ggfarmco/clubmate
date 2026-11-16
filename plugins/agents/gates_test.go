@@ -62,8 +62,14 @@ func TestGateKeepsVerdictHistoryAndSaysTheLandingState(t *testing.T) {
 	assert.Equal(t, "reviewing", g.f.session(t, g.workspace, g.lander).Gate)
 	assert.Equal(t, "reviewing", g.f.gates(t, g.workspace)[0].State)
 	first := g.reviewer(t).ID
+	assert.True(t, g.f.session(t, g.workspace, first).Hidden)
+	landing := g.f.session(t, g.workspace, g.lander).Landing
+	require.NotNil(t, landing)
+	assert.Equal(t, []any{"review…", "accent", 1, first}, []any{landing.Words, landing.Tone, landing.Round, landing.Reviewer})
 	g.verdict(t, "changes", "b.go:1 — breaks")
 	assert.Equal(t, "changes", g.f.session(t, g.workspace, g.lander).Gate)
+	landing = g.f.session(t, g.workspace, g.lander).Landing
+	assert.Equal(t, []any{"1 change", "plain", 1}, []any{landing.Words, landing.Tone, landing.Round})
 	require.NoError(t, g.f.run(t, g.workspace, "agents.gate-update", map[string]any{"id": gate.ID, "paused": true}, nil))
 	assert.Empty(t, g.f.session(t, g.workspace, g.lander).Gate)
 	require.NoError(t, g.f.run(t, g.workspace, "agents.gate-update", map[string]any{"id": gate.ID, "paused": false}, nil))

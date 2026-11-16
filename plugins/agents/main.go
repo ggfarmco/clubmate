@@ -381,16 +381,19 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 	recs := a.list(workspaceID)
 	children := childStatuses(recs)
 	kids := kidsOf(recs)
-	nest := reviewerNesting(recs, func(lander string, st landReview) bool {
-		_, ok := a.reviewing(lander, st)
-		return ok
-	})
+	nest := reviewNests(recs)
 	out := make([]sessionInfo, 0, len(recs))
 	for _, rec := range recs {
 		info := sessionInfo{record: rec, NotifyEffective: a.effectiveNotify(rec), ChildStatus: children[rec.ID]}
 		if n, ok := nest[rec.ID]; ok {
 			round := n.Round
-			info.NestUnder, info.GateRound = n.Lander, &round
+			info.GateRound, info.Hidden = &round, !n.Shown
+			if n.Tracked {
+				info.NestUnder = n.Lander
+			}
+			if n.Shown && n.Open {
+				info.RowUnder = n.Lander
+			}
 		}
 		if s := a.session(rec.ID); s != nil {
 			info.Pending = s.pending()
@@ -414,6 +417,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		}
 		info.NeedsYou = needsYou(info.record)
 		info.Gate = a.gateState(info.record)
+		info.Landing = a.landing(info.record)
 		info.Service = rec.restricted()
 		info.Aside = asideViewOf(rec)
 		info.CanAside = a.canAside(rec)

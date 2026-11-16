@@ -81,6 +81,8 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | E | Edit the land gate open in Agents: its rounds and whether it is paused | agents |
 | ⌘⌫ | Delete the land gate open in Agents (confirmed; its verdict history goes too) | agents |
 | ⌥1 / ⌥2 / ⌥3 | A graph step waiting for approval: Allow once / Always allow… (asks first) / Reject | agents |
+| ⌥R | Open review: the land review of this landing. On a lander's page (second header line while its landing is gated) the latest round's reviewer; on a land gate's page the reviewer of the live card or of the selected verdict | agents |
+| ⌘[ | Back from a reviewer's page to where it was opened from (the lander, or the land gate's page) | agents |
 | ⌥↑ / ⌥↓ | A repo child of a task: the repo before / after it in landing order that has a session, no wrap-around (buttons in the crumb); in a text field they stay caret movement | agents |
 | ⌘. | Stop the graph run open in Agents (confirmed) | agents |
 | ⌘N | Ask an agent to write a graph (on How graphs work in Agents; also + on the docked Graphs row and New graph… in ⌘K), ↩ on a part row asks for a graph that uses that part | agents |

@@ -96,6 +96,11 @@
               {"id": "agt-run", "label": "Мобильное приложение для управления агентами", "icon": "circle.dotted", "tone": "accent", "detail": "4 min · Read view.go"},
               {"id": "agt-wait", "label": "Cron плагин для MCP", "icon": "exclamationmark.circle.fill", "tone": "warning", "detail": "Waiting for permission · go test"},
               {"id": "agt-done", "label": "Отказ от надстроек nvim", "icon": "checkmark.circle", "tone": "success", "detail": "just now"},
+              {"id": "agt-landing", "label": "Keep-awake plugin (Amphetamine)", "icon": "checkmark.circle", "detail": "3 changes", "detailTone": "plain", "hasChildren": true, "expanded": true, "children": [
+                {"id": "agt-asks", "label": "Round 1 review", "icon": "shield", "tone": "warning", "detail": "asks you", "detailTone": "warning"}
+              ]},
+              {"id": "agt-reviewing", "label": "Gate graph instead of a fixed guard", "icon": "play.circle", "tone": "accent", "detail": "review…", "detailTone": "accent"},
+              {"id": "agt-approved", "label": "Wiki plugin for docs", "icon": "checkmark.circle", "detail": "approved", "detailTone": "success"},
               {"id": "agt-closed", "label": "Нагрев Mac и производительность приложения", "icon": "archivebox", "detail": "7 h ago"},
               {"id": "agt-more", "label": "Show 25 more · 27 left", "faint": true, "action": true},
               {"id": "agt-service", "label": "Service", "icon": "gearshape.2", "detail": "1", "detailTone": "warning"}

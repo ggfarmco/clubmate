@@ -585,7 +585,7 @@ struct ItemRow<Leading: View>: View {
                 if let detail = item.detail {
                     Text(detail)
                         .font(theme.uiSmall)
-                        .foregroundStyle(detailFaint ? theme.faint : theme.tone(detailTone ?? tone) ?? theme.muted)
+                        .foregroundStyle(detailInk)
                         .lineLimit(1)
                         .truncationMode(.label)
                         .help(detail)
@@ -625,6 +625,12 @@ struct ItemRow<Leading: View>: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: action)
         .onHover { hovering = $0 }
+    }
+
+    private var detailInk: Color {
+        if detailFaint { return theme.faint }
+        if detailTone == "plain" { return theme.text2 }
+        return theme.tone(detailTone ?? tone) ?? theme.muted
     }
 
     private var keptDetail: CGFloat { theme.uiSize * 6 }

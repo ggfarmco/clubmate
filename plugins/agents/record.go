@@ -137,6 +137,9 @@ type sessionInfo struct {
 	ShareLabel      string             `json:"shareLabel,omitempty"`
 	NestUnder       string             `json:"nestUnder,omitempty"`
 	GateRound       *gateRound         `json:"gateRound,omitempty"`
+	Hidden          bool               `json:"hidden,omitempty"`
+	RowUnder        string             `json:"rowUnder,omitempty"`
+	Landing         *landingView       `json:"landing,omitempty"`
 	ShareWords      map[string]string  `json:"shareWords,omitempty"`
 	ShareDetail     string             `json:"shareDetail,omitempty"`
 	Aside           *asideView         `json:"aside,omitempty"`

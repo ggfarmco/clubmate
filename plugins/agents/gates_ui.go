@@ -78,7 +78,13 @@ func (a *app) gateMainView(ctx context.Context, workspace string, rows []gateRow
 	for _, s := range a.workspaceSessions(workspace) {
 		sessions[s.snapshot().ID] = true
 	}
-	return gateMain(gateScreen{Row: r, Repo: repo, History: history, Picked: picked, Sessions: sessions, Now: now, Loc: time.Local})
+	lines := map[string]string{}
+	for _, l := range r.Landings {
+		if s := a.session(l.Reviewer); s != nil && l.State == gateStateReview {
+			lines[l.Reviewer] = s.latestLine()
+		}
+	}
+	return gateMain(gateScreen{Row: r, Repo: repo, History: history, Picked: picked, Sessions: sessions, Lines: lines, Now: now, Loc: time.Local})
 }
 
 func (a *app) gateSheetTree(p *workspaceUI) (sdui.Node, bool) {
@@ -180,11 +186,27 @@ func (a *app) gatesAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 		a.uiMu.Unlock()
 		return nil
 	case actGateReview, actGateLanding:
-		var row string
-		if err := json.Unmarshal(ev.Value, &row); err != nil {
-			return fmt.Errorf("%s value: %w", ev.Action, err)
+		sid := target
+		if !fromButton {
+			var row string
+			if err := json.Unmarshal(ev.Value, &row); err != nil {
+				return fmt.Errorf("%s value: %w", ev.Action, err)
+			}
+			sid = gateRowSession(row)
 		}
-		return a.openGateSession(ctx, ev.WorkspaceID, gateRowSession(row))
+		if ev.Action == actGateReview {
+			a.uiMu.Lock()
+			from := p.selected
+			if !strings.HasPrefix(from, gatePrefix) {
+				from = ""
+				if p.gate != "" {
+					from = gatePrefix + p.gate
+				}
+			}
+			a.uiMu.Unlock()
+			return a.openReviewer(ctx, ev.WorkspaceID, sid, from)
+		}
+		return a.openGateSession(ctx, ev.WorkspaceID, sid)
 	}
 	return nil
 }

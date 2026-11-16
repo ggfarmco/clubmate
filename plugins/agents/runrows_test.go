@@ -67,19 +67,6 @@ func TestDockRowAttention(t *testing.T) {
 	assert.Equal(t, []any{"1 to trust", true}, []any{rows[2].Detail, rows[2].Attention})
 }
 
-func TestReviewerNestsUnderLander(t *testing.T) {
-	t.Parallel()
-	lander := record{ID: "agt_l", LandReviews: []landReview{{Gate: "lg_1", Reviewer: "agt_rev", Rounds: 0}}}
-	reviewing := func(string, landReview) bool { return true }
-	got := reviewerNesting([]record{lander}, reviewing)
-	assert.Equal(t, reviewerNest{Lander: "agt_l", Round: gateRound{Round: 1, Label: "Round 1 review", Verdict: "reviewing"}}, got["agt_rev"])
-
-	lander.LandReviews[0].Rounds, lander.LandReviews[0].Last = 2, gateChanges
-	got = reviewerNesting([]record{lander}, func(string, landReview) bool { return false })
-	assert.Len(t, got, 1)
-	assert.Equal(t, gateRound{Round: 2, Label: "Round 2 review", Verdict: "changes"}, got["agt_rev"].Round)
-}
-
 func TestRunRowGroupAndStatus(t *testing.T) {
 	t.Parallel()
 	open := map[string]sessionInfo{"agt_c": {record: record{ID: "agt_c", Status: statusIdle}}}
@@ -99,11 +86,4 @@ func TestRunRowGroupAndStatus(t *testing.T) {
 		got := runRow(tt.run, tt.infos)
 		assert.Equal(t, []string{tt.group, tt.stat}, []string{got.Group, got.Status}, got.State)
 	}
-}
-
-func TestReviewerWithoutVerdictIsRoundOne(t *testing.T) {
-	t.Parallel()
-	lander := record{ID: "agt_l", LandReviews: []landReview{{Gate: "lg_1", Reviewer: "agt_rev"}}}
-	got := reviewerNesting([]record{lander}, func(string, landReview) bool { return false })
-	assert.Equal(t, "Round 1 review", got["agt_rev"].Round.Label)
 }

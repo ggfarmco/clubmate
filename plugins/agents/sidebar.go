@@ -123,7 +123,7 @@ type sessionRow struct {
 	RunRow    *api.RunRow
 	Nest      *reviewerNest
 	Open      int
-	Gate      string
+	Landing   *landingView
 	AsideAsks bool
 	Group     string
 	Until     int64
@@ -218,8 +218,14 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	var roots []sessionRow
 	for _, row := range rows {
 		parent := row.Rec.ParentSession
-		if row.Nest != nil && open[row.Nest.Lander] {
-			parent = row.Nest.Lander
+		if n := row.Nest; n != nil {
+			if !n.Shown {
+				continue
+			}
+			parent = ""
+			if open[n.Lander] {
+				parent = n.Lander
+			}
 		}
 		if parent != "" && byID[parent] {
 			kids[parent] = append(kids[parent], row)
@@ -256,7 +262,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		}
 		return sdui.VStack(nodes...)
 	}
-	if len(rows) == 0 {
+	if !slices.ContainsFunc(rows, func(row sessionRow) bool { return row.Nest == nil || row.Nest.Shown }) {
 		return dockOnly(top, sdui.Empty(noSessions))
 	}
 	field := sdui.WithAction(sdui.WithLive(sdui.TextField(searchNode, search.query, "Search sessions")), actSearch)
@@ -651,7 +657,7 @@ func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[stri
 	}
 	item := sessionItem(row, descendantCount(row.Rec.ID, kids, map[string]bool{}), now)
 	if row.Nest != nil {
-		item.Label, item.Detail = row.Nest.Round.Label, row.Nest.Round.Verdict
+		item = reviewItem(item, *row.Nest)
 	}
 	if row.Rec.isAside() {
 		return asideItem(item, row.Rec)
@@ -800,7 +806,7 @@ func subtreeAsideAsks(id string, kids map[string][]sessionRow, seen map[string]b
 		if seen[kid.Rec.ID] {
 			continue
 		}
-		if kid.Rec.isAside() && needsYou(kid.Rec) || subtreeAsideAsks(kid.Rec.ID, kids, seen) {
+		if (kid.Rec.isAside() || kid.Rec.GateFor != nil) && needsYou(kid.Rec) || subtreeAsideAsks(kid.Rec.ID, kids, seen) {
 			return true
 		}
 	}
@@ -882,10 +888,11 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 }
 
 func rowGateChip(row sessionRow) (string, string) {
-	if turnActive(row.Rec) || needsYou(row.Rec) || row.Rec.Status == statusError {
+	l := row.Landing
+	if l == nil || l.Asking || needsYou(row.Rec) || row.Rec.Status == statusError {
 		return "", ""
 	}
-	return gateChip(row.Gate)
+	return l.Words, l.Tone
 }
 
 func reviewRow(row sessionRow) bool {

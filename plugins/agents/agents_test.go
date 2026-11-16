@@ -68,14 +68,24 @@ type record struct {
 		Kind string `json:"kind"`
 		Text string `json:"text"`
 	} `json:"pendingSummary"`
-	Suspended       bool     `json:"suspended"`
-	AutoClosed      bool     `json:"autoClosed"`
-	CleanupOnSeen   bool     `json:"cleanupOnSeen"`
-	ClosedStatus    string   `json:"closedStatus"`
-	Service         bool     `json:"service"`
-	Review          bool     `json:"review"`
-	NeedsYou        bool     `json:"needsYou"`
-	Gate            string   `json:"gate"`
+	Suspended     bool   `json:"suspended"`
+	AutoClosed    bool   `json:"autoClosed"`
+	CleanupOnSeen bool   `json:"cleanupOnSeen"`
+	ClosedStatus  string `json:"closedStatus"`
+	Service       bool   `json:"service"`
+	Review        bool   `json:"review"`
+	NeedsYou      bool   `json:"needsYou"`
+	Gate          string `json:"gate"`
+	Hidden        bool   `json:"hidden"`
+	RowUnder      string `json:"rowUnder"`
+	Landing       *struct {
+		Round    int    `json:"round"`
+		Of       int    `json:"of"`
+		Verdict  string `json:"verdict"`
+		Words    string `json:"words"`
+		Tone     string `json:"tone"`
+		Reviewer string `json:"reviewer"`
+	} `json:"landing"`
 	AsksParent      bool     `json:"asksParent"`
 	ChildStatus     string   `json:"childStatus"`
 	DisallowedTools []string `json:"disallowedTools"`
@@ -83,6 +93,7 @@ type record struct {
 	GateFor         *struct {
 		Lander string `json:"lander"`
 		Tree   string `json:"tree"`
+		Done   bool   `json:"done"`
 	} `json:"gateFor"`
 	Failure *struct {
 		Badge   string `json:"badge"`

@@ -114,16 +114,6 @@ func TestGateEditSheetLocksRepoAndKind(t *testing.T) {
 	assert.Equal(t, true, nodesOf(sheet, "toggle")[0].Props["value"])
 }
 
-func TestSessionRowShowsTheGateStateOnlyWhileIdle(t *testing.T) {
-	t.Parallel()
-	now := time.Now()
-	idle := sessionItem(sessionRow{Rec: record{ID: "agt_1", Status: statusIdle, UpdatedAt: now}, Gate: gateChanges}, 0, now)
-	running := sessionItem(sessionRow{Rec: record{ID: "agt_2", Status: statusRunning, UpdatedAt: now}, Gate: gateChanges}, 0, now)
-
-	assert.Equal(t, []string{"changes", "warning"}, []string{idle.Detail, idle.DetailTone})
-	assert.NotContains(t, running.Detail, "changes")
-}
-
 func saveButton(t *testing.T, n sdui.Node) sdui.Node {
 	t.Helper()
 	for _, b := range nodesOf(n, "button") {

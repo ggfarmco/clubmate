@@ -349,7 +349,11 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		p := a.workspaceState(ev.WorkspaceID)
 		a.uiMu.Lock()
 		back := p.back
+		trail, selected := p.reviewFrom, p.selected
 		a.uiMu.Unlock()
+		if s := a.session(selected); s != nil && s.snapshot().GateFor != nil {
+			back = reviewBack(s.snapshot(), trail)
+		}
 		if back == "" {
 			return nil
 		}
@@ -492,6 +496,12 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		return nil
 	case actOpenReview:
 		return a.openReview(ctx, ev.WorkspaceID, sid, a.cardReview(s, node))
+	case actLandReview:
+		l := a.landing(s.snapshot())
+		if l == nil || l.Reviewer == "" {
+			return nil
+		}
+		return a.openReviewer(ctx, ev.WorkspaceID, l.Reviewer, sid)
 	case actSelectParent:
 		parent := s.snapshot().ParentSession
 		if a.session(parent) == nil {

@@ -97,6 +97,8 @@ type screen struct {
 	Prefills     map[string]map[int]elicitPrefill
 	Pinned       *sdui.Node
 	Asides       optionAsides
+	GateReview   *reviewHead
+	Back         string
 }
 
 type codePanel struct {
@@ -124,10 +126,14 @@ type advisorChoice struct {
 func mainView(sc screen) sdui.Node {
 	rec := sc.View.Session
 	sid := rec.ID
-	children := []sdui.Node{header(sc)}
+	var children []sdui.Node
 	if sc.Crumb != nil {
-		children = []sdui.Node{crumbNode(sid, *sc.Crumb), children[0]}
+		children = append(children, crumbNode(sid, *sc.Crumb))
 	}
+	if sc.Back != "" {
+		children = append(children, backBar(sc.Back))
+	}
+	children = append(children, header(sc))
 	if sc.Installing {
 		children = append(children, sdui.MutedText(fmt.Sprintf(installingNote, agentLabel(rec.Agent))))
 	}
@@ -254,10 +260,12 @@ func header(sc screen) sdui.Node {
 	if needsYou(rec) || rec.Status == statusError || reviewRow(row) {
 		activity = ""
 	}
-	if word, _ := rowGateChip(row); word != "" {
-		activity = word
+	notify := notifyLabels[row.Notify]
+	var head []string
+	if h := sc.GateReview; h != nil {
+		notify, head = "", h.meta()
 	}
-	meta := nonEmpty(afkDetail(rec), notifyLabels[row.Notify], activity)
+	meta := append(head, nonEmpty(afkDetail(rec), notify, activity)...)
 	fill, full := usageParts(sc.View.Usage)
 	if !full {
 		meta = append(meta, nonEmpty(fill)...)
@@ -295,8 +303,16 @@ func header(sc screen) sdui.Node {
 		top = sdui.HStack(append(row, sc.Code.New)...)
 	} else {
 		var badges []sdui.HeaderBadge
+		title := cmp.Or(rec.Title, "New session")
+		asks := waitingBadge
+		if h := sc.GateReview; h != nil {
+			title, asks = h.Round.Label, reviewAsksYou
+			if h.Badge != "" {
+				badges = append(badges, sdui.HeaderBadge{Text: h.Badge, Tone: h.Tone})
+			}
+		}
 		if needsYou(rec) {
-			badges = append(badges, sdui.HeaderBadge{Text: cmp.Or(landBadge(rec), waitingBadge), Tone: statusTones[statusWaiting]})
+			badges = append(badges, sdui.HeaderBadge{Text: cmp.Or(landBadge(rec), asks), Tone: statusTones[statusWaiting]})
 		}
 		if rec.Status == statusError {
 			badges = append(badges, sdui.HeaderBadge{Text: failureOf(rec).Badge, Tone: statusTones[statusError]})
@@ -316,7 +332,7 @@ func header(sc screen) sdui.Node {
 		if pill, ok := reposPill(rec); ok {
 			buttons = append(buttons, pill)
 		}
-		top = sdui.Header(cmp.Or(rec.Title, "New session"), sdui.HeaderProps{
+		top = sdui.Header(title, sdui.HeaderProps{
 			Icon:   statusIcons[display],
 			Meta:   strings.Join(meta, " · "),
 			Badges: badges,
@@ -327,6 +343,9 @@ func header(sc screen) sdui.Node {
 		}, buttons...)
 	}
 	children := []sdui.Node{top}
+	if l := sc.Row.Landing; l != nil && sc.Code == nil {
+		children = append(children, landingLine(sid, *l))
+	}
 	if rec.Status != statusError {
 		return sdui.VStack(children...)
 	}

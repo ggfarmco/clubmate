@@ -27,8 +27,12 @@ type gateRound struct {
 }
 
 type reviewerNest struct {
-	Lander string
-	Round  gateRound
+	Lander  string
+	Round   gateRound
+	Tracked bool
+	Asks    bool
+	Shown   bool
+	Open    bool
 }
 
 func dockRows(service []sessionInfo, gates gateCount, defs []graphs.Definition) []api.DockRow {
@@ -59,23 +63,4 @@ func dockRows(service []sessionInfo, gates gateCount, defs []graphs.Definition) 
 	}
 	graph.PhoneDetail = graph.Detail
 	return []api.DockRow{svc, gate, graph}
-}
-
-func reviewerNesting(recs []record, reviewing func(lander string, st landReview) bool) map[string]reviewerNest {
-	out := map[string]reviewerNest{}
-	for _, rec := range recs {
-		for _, st := range rec.LandReviews {
-			if st.Reviewer == "" {
-				continue
-			}
-			round := gateRound{Round: st.Rounds, Verdict: st.Last}
-			if reviewing(rec.ID, st) {
-				round.Round, round.Verdict = st.Rounds+1, gateStateReview
-			}
-			round.Round = max(round.Round, 1)
-			round.Label = "Round " + strconv.Itoa(round.Round) + " review"
-			out[st.Reviewer] = reviewerNest{Lander: rec.ID, Round: round}
-		}
-	}
-	return out
 }

@@ -76,40 +76,47 @@ func graphsSlot(slot string) bool {
 }
 
 type graphState struct {
-	runs  []api.RunRow
-	dock  []api.DockRow
-	defs  []graphs.Definition
-	gates []gateConfig
+	runs     []api.RunRow
+	dock     []api.DockRow
+	defs     []graphs.Definition
+	gates    []gateConfig
+	landings map[string]int
 }
 
 func (a *app) graphState(ctx context.Context, workspace string, infos []sessionInfo) graphState {
 	byID := make(map[string]sessionInfo, len(infos))
 	var service []sessionInfo
+	count := gateCount{}
 	for _, info := range infos {
 		byID[info.ID] = info
 		if info.Service && !info.closed() {
 			service = append(service, info)
 		}
+		if info.GateFor != nil && info.NeedsYou && !info.closed() {
+			count.Asking++
+		}
 	}
 	gates, _, err := a.workspaceGates(ctx, workspace)
 	logError("land gates", err)
-	count := gateCount{Gated: len(gates)}
+	count.Gated = len(gates)
+	landings := map[string]int{}
 	for _, g := range gates {
 		for _, l := range a.gateLandings(workspace, g.ID) {
+			landings[g.ID]++
 			if l.State == gateStateNeedsMe {
 				count.Asking++
 			}
 		}
 	}
 	defs := a.graphs.Definitions(ctx, workspace)
-	return graphState{runs: runRows(a.graphs.Runs(workspace), byID), dock: dockRows(service, count, defs), defs: defs, gates: gates}
+	return graphState{runs: runRows(a.graphs.Runs(workspace), byID), dock: dockRows(service, count, defs), defs: defs, gates: gates, landings: landings}
 }
 
 func (st graphState) plus(open string) sidebarPlus {
 	plus := sidebarPlus{runs: st.runs, dock: st.dock, open: open}
 	plus.gates = append(plus.gates, sdui.TreeItem{ID: dockGateHelp, Label: "How land gates work", Icon: "info.circle", Open: openGate})
 	for _, g := range st.gates {
-		plus.gates = append(plus.gates, sdui.TreeItem{ID: gatePrefix + g.ID, Label: gateName(g), Icon: gatesIcon, Open: openGate, Menu: gateRemoveMenu(gateName(g))})
+		plus.gates = append(plus.gates, sdui.TreeItem{ID: gatePrefix + g.ID, Label: gateName(g), Icon: gatesIcon, Detail: landingCount(st.landings[g.ID]), DetailTone: tonePlain, Open: openGate, Menu: gateRemoveMenu(gateName(g))})
 	}
 	plus.graphs = append(plus.graphs, sdui.TreeItem{ID: dockGraphHelp, Label: "How graphs work", Icon: "info.circle", Open: openGraph})
 	for _, d := range st.defs {

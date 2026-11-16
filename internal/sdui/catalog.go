@@ -78,6 +78,7 @@ var (
 
 	reservedKeys = []string{"esc", "return", "tab"}
 	badgeTones   = []string{"neutral", "accent", "success", "warning", "danger"}
+	detailTones  = append(slices.Clone(badgeTones), "plain")
 
 	itemFields = map[string]propCheck{
 		"id": uniqueItemID, "label": isString, "detail": isString, "icon": isString, "badge": isString, "menu": listOf(menuEntryCheck),
@@ -923,7 +924,7 @@ func treeItemCheck(c *validator, v any) error {
 	}
 	fields := map[string]propCheck{
 		"muted": isBool, "faint": isBool, "action": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck),
-		"badges": listOf(headerBadgeCheck), "changes": changesCheck, "detailTone": oneOf(badgeTones), "detailFaint": isBool,
+		"badges": listOf(headerBadgeCheck), "changes": changesCheck, "detailTone": oneOf(detailTones), "detailFaint": isBool,
 		"labelIcon": isString, "pinned": isBool, "open": oneOf(treeOpens),
 	}
 	for k, f := range itemFields {

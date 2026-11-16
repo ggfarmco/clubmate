@@ -24,8 +24,12 @@ type gateSetup struct {
 
 func startGate(t *testing.T) gateSetup {
 	t.Helper()
-	never := filepath.Join(t.TempDir(), "never")
-	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "Clubmate land review", "wait": never}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	return startGateWith(t, map[string]any{"match": "Clubmate land review", "wait": filepath.Join(t.TempDir(), "never")})
+}
+
+func startGateWith(t *testing.T, review map[string]any) gateSetup {
+	t.Helper()
+	f := start(t, map[string]any{"prompt": []map[string]any{review}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
 	repo := newRepo(t)
 	workspace := f.workspace(t, repo)
 	require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": repo}, nil))
@@ -236,4 +240,17 @@ func TestChangesRoundsCapOnUnchangedTreeWaitsForUser(t *testing.T) {
 	lander := g.f.session(t, g.workspace, g.lander)
 	assert.True(t, lander.NeedsYou)
 	assert.Len(t, lander.Pending, 1)
+}
+
+func TestNewRoundClosesTheSupersededReviewer(t *testing.T) {
+	t.Parallel()
+	g := startGateWith(t, map[string]any{"match": "Clubmate land review", "fail": "boom"})
+	require.Error(t, g.land(t))
+	first := g.reviewer(t).ID
+	testutil.Eventually(t, func() bool { return g.f.session(t, g.workspace, first).GateFor.Done }, wait)
+
+	require.ErrorContains(t, g.land(t), "review pending")
+
+	g.f.waitStatus(t, g.workspace, first, "closed")
+	assert.NotEqual(t, first, g.f.session(t, g.workspace, g.lander).Landing.Reviewer)
 }
