@@ -29,11 +29,12 @@ type OpenSession struct {
 }
 
 type target struct {
-	ID     string         `json:"id"`
-	Title  string         `json:"title"`
-	Plugin string         `json:"plugin"`
-	Agent  bool           `json:"agent"`
-	Args   *schema.Object `json:"args"`
+	ID      string         `json:"id"`
+	Aliases []string       `json:"aliases"`
+	Title   string         `json:"title"`
+	Plugin  string         `json:"plugin"`
+	Agent   bool           `json:"agent"`
+	Args    *schema.Object `json:"args"`
 }
 
 func Sessions(ctx context.Context, h *pluginsdk.Host, workspace string) ([]api.Session, error) {
@@ -105,38 +106,41 @@ func CommandTitles(ctx context.Context, h *pluginsdk.Host) (map[string]string, e
 	return titles, nil
 }
 
-func ValidateTarget(ctx context.Context, h *pluginsdk.Host, command, args string) (json.RawMessage, error) {
+func ValidateTarget(ctx context.Context, h *pluginsdk.Host, command, args string) (string, json.RawMessage, error) {
 	var cmds []target
 	if err := h.Call(ctx, "command.list", struct{}{}, &cmds); err != nil {
-		return nil, fmt.Errorf("list commands: %w", err)
+		return "", nil, fmt.Errorf("list commands: %w", err)
 	}
 	i := slices.IndexFunc(cmds, func(c target) bool { return c.ID == command })
 	if i < 0 {
-		return nil, fmt.Errorf("%w %q", ErrUnknownCommand, command)
+		i = slices.IndexFunc(cmds, func(c target) bool { return slices.Contains(c.Aliases, command) })
+	}
+	if i < 0 {
+		return "", nil, fmt.Errorf("%w %q", ErrUnknownCommand, command)
 	}
 	if !cmds[i].Agent {
-		return nil, fmt.Errorf("command %q is not agent-visible", command)
+		return "", nil, fmt.Errorf("command %q is not agent-visible", command)
 	}
 	fields := map[string]json.RawMessage{}
 	if err := json.Unmarshal([]byte(args), &fields); err != nil {
-		return nil, fmt.Errorf("args: invalid JSON object: %w", err)
+		return "", nil, fmt.Errorf("args: invalid JSON object: %w", err)
 	}
 	if fields == nil {
 		fields = map[string]json.RawMessage{}
 	}
 	raw, err := json.Marshal(fields)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	if err := schema.Validate(cmds[i].Args, raw); err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	if cmds[i].Plugin == corePlugin || cmds[i].Args != nil {
 		if path := schema.Undeclared(cmds[i].Args, fields); path != "" {
-			return nil, fmt.Errorf("%s: not allowed in agent calls", path)
+			return "", nil, fmt.Errorf("%s: not allowed in agent calls", path)
 		}
 	}
-	return raw, nil
+	return cmds[i].ID, raw, nil
 }
 
 func Ask(ctx context.Context, h *pluginsdk.Host, workspace, title, prompt string) error {

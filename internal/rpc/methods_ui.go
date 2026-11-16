@@ -52,6 +52,7 @@ type CommandDef struct {
 	Destructive bool           `json:"destructive"`
 	Provides    []string       `json:"provides,omitempty"`
 	Handles     []string       `json:"handles,omitempty"`
+	Aliases     []string       `json:"aliases,omitempty"`
 	Timeout     int            `json:"timeout,omitempty"`
 }
 

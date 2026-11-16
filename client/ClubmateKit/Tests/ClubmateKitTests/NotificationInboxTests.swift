@@ -64,7 +64,8 @@ final class NotificationInboxTests: XCTestCase {
         XCTAssertFalse(hub.receive(HubNotification(id: "n1", workspace: "w", session: "gr_1", message: "x", kind: .permission, date: now), focus: away, now: now))
         XCTAssertEqual(hub.pinned.map(\.id), ["gr_1/cap-1"])
         let reveal = try XCTUnwrap(NotificationHub.reveal(workspace: "w", session: "gr_1", owner: AgentNotifier.section))
-        XCTAssertEqual(reveal.section, "graphs")
+        XCTAssertEqual(reveal.section, "agents")
+        XCTAssertEqual(reveal.event?.value, .string("run:gr_1"))
         XCTAssertEqual(reveal.event, GraphRun.selectEvent(workspace: "w", run: "gr_1"))
     }
 

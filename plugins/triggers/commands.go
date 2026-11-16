@@ -118,7 +118,7 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Trigger, erro
 	if err != nil {
 		return nil, err
 	}
-	targetArgs, err := a.validateTarget(ctx, args.Command, cmp.Or(args.Args, "{}"))
+	command, targetArgs, err := a.validateTarget(ctx, args.Command, cmp.Or(args.Args, "{}"))
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +134,7 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Trigger, erro
 		Workspace: cmd.WorkspaceID,
 		On:        args.On,
 		Match:     match,
-		Command:   args.Command,
+		Command:   command,
 		Args:      targetArgs,
 		Enabled:   true,
 		CreatedBy: caller,
@@ -197,8 +197,7 @@ func (a *app) update(ctx context.Context, cmd pluginsdk.CommandRun) (*Trigger, e
 			t.Match = match
 		}
 		if args.Command != "" || args.Args != "" {
-			command := cmp.Or(args.Command, t.Command)
-			raw, err := a.validateTarget(ctx, command, cmp.Or(args.Args, string(t.Args), "{}"))
+			command, raw, err := a.validateTarget(ctx, cmp.Or(args.Command, t.Command), cmp.Or(args.Args, string(t.Args), "{}"))
 			if err != nil {
 				return err
 			}
@@ -311,9 +310,9 @@ func (a *app) checkGraphReport(ctx context.Context, cmd pluginsdk.CommandRun, na
 	return fmt.Errorf(errNotReporter, name, node, run)
 }
 
-func (a *app) validateTarget(ctx context.Context, command, args string) (json.RawMessage, error) {
+func (a *app) validateTarget(ctx context.Context, command, args string) (string, json.RawMessage, error) {
 	if strings.HasPrefix(command, "triggers.") || strings.HasPrefix(command, "cron.") {
-		return nil, fmt.Errorf("command %q cannot be run by a trigger", command)
+		return "", nil, fmt.Errorf("command %q cannot be run by a trigger", command)
 	}
 	return agentcall.ValidateTarget(ctx, a.host, command, args)
 }

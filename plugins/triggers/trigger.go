@@ -10,7 +10,7 @@ import (
 const (
 	triggerPrefix = "trigger/"
 	idPrefix      = "tr"
-	graphsPlugin  = "graphs"
+	graphsPlugin  = "agents"
 )
 
 type Run = automation.Run

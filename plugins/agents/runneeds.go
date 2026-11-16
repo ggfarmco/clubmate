@@ -6,36 +6,17 @@ import (
 	"os"
 	"slices"
 	"sync"
-	"time"
 
-	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
 )
 
 const (
-	graphsPlugin = "graphs"
-	kindRun      = "run"
-	needStep     = "step"
-	toolExecute  = "execute"
+	kindRun     = "run"
+	needStep    = "step"
+	toolExecute = "execute"
 )
 
-type runNeed struct {
-	Run     string    `json:"run"`
-	Title   string    `json:"title"`
-	Number  int       `json:"number,omitempty"`
-	Kind    string    `json:"kind"`
-	Request string    `json:"request"`
-	Node    string    `json:"node"`
-	Role    string    `json:"role,omitempty"`
-	Edge    int       `json:"edge,omitempty"`
-	Text    string    `json:"text"`
-	Command string    `json:"command,omitempty"`
-	Since   time.Time `json:"since"`
-}
-
-type runNeedsArgs struct {
-	Runs []runNeed `json:"runs"`
-}
+type runNeed = api.RunNeed
 
 type runNeeds struct {
 	mu   sync.Mutex
@@ -67,12 +48,9 @@ func (n *runNeeds) byRun(workspace string) map[string]runNeed {
 	return out
 }
 
-func (a *app) runNeedsCommand(ctx context.Context, cmd pluginsdk.CommandRun, args runNeedsArgs) (any, error) {
-	if cmd.Agent || cmd.Via != graphsPlugin {
-		return nil, fmt.Errorf("%w: %s", errUnknownCmd, cmd.ID)
-	}
-	prev := a.runNeeds.set(cmd.WorkspaceID, args.Runs)
-	for _, c := range runNeedChanges(cmd.WorkspaceID, prev, args.Runs) {
+func (a *app) setRunNeeds(ctx context.Context, workspace string, needs []runNeed) {
+	prev := a.runNeeds.set(workspace, needs)
+	for _, c := range runNeedChanges(workspace, prev, needs) {
 		if a.host == nil {
 			break
 		}
@@ -81,9 +59,8 @@ func (a *app) runNeedsCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 		}
 	}
 	if a.host != nil {
-		a.workspaceState(cmd.WorkspaceID).throttle.kick()
+		a.workspaceState(workspace).throttle.kick()
 	}
-	return nil, nil
 }
 
 func runNeedChanges(workspace string, prev, next []runNeed) []api.Changed {

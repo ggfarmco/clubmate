@@ -70,7 +70,7 @@ func startHarness(t *testing.T) (*testutil.PluginHarness, func(ctx context.Conte
 	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	h.Start(t, testutil.EchoPluginDirAs(t,
-		manifest("alpha", `{"id":"alpha.say","title":"Open","agent":true,"provides":["editor.open"],"args":{"properties":{"path":{"type":"string"}}}},{"id":"alpha.secret","title":"Secret","hidden":true},{"id":"alpha.ws","title":"Ws","agent":true,"args":{"properties":{"workspace":{"type":"string"}}}}`),
+		manifest("alpha", `{"id":"alpha.say","title":"Open","agent":true,"provides":["editor.open"],"aliases":["graphs.open"],"args":{"properties":{"path":{"type":"string"}}}},{"id":"alpha.secret","title":"Secret","hidden":true},{"id":"alpha.ws","title":"Ws","agent":true,"args":{"properties":{"workspace":{"type":"string"}}}}`),
 		manifest("terminals", `{"id":"terminals.close","title":"Close Terminal","agent":true,"destructive":true,"args":{"properties":{"sessionId":{"type":"string"}}}}`),
 	))
 	testutil.Eventually(t, func() bool {
@@ -184,6 +184,15 @@ func TestMCPHandshakeAndTools(t *testing.T) {
 	require.Len(t, res.Result.Content, 1)
 	assert.Equal(t, "text", res.Result.Content[0].Type)
 	assert.Contains(t, res.Result.Content[0].Text, `"name":"demo"`)
+}
+
+func TestMCPAliasHiddenButCallable(t *testing.T) {
+	dial, workspace := startCore(t)
+	p := start(t, dial, workspace)
+	assert.NotContains(t, names(p.call(t, 1, "tools/list", nil)), "graphs_open")
+	res := p.call(t, 2, "tools/call", map[string]any{"name": "graphs_open", "arguments": map[string]any{"path": "/x.go"}})
+	require.False(t, res.Result.IsError, res.Result.Content)
+	assert.JSONEq(t, `{"plugin":"alpha","args":{"path":"/x.go"}}`, res.Result.Content[0].Text)
 }
 
 func TestToolCallForwardsCaller(t *testing.T) {

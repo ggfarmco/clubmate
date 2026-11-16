@@ -80,7 +80,7 @@ func TestGateDetailListsLiveLandingsFirstAndLinksOnlySessionsHere(t *testing.T) 
 	assert.Equal(t, sc.Picked, table.Props["selected"])
 	card := nodesOf(tree, "card")
 	require.Len(t, card, 1)
-	assert.Equal(t, "warning", card[0].Props["tone"])
+	assert.Equal(t, "neutral", card[0].Props["tone"])
 	assert.Contains(t, textsOf(card[0]), "· notify.go:212 — resets on restart")
 	assert.Contains(t, textsOf(card[0]), "Deferred: rename the knob")
 }

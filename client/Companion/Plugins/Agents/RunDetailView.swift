@@ -120,6 +120,18 @@ struct RunDetailView: View {
                     if run?.running == true {
                         Button("Stop Run…", systemImage: "stop.circle", role: .destructive) { confirmingStop = true }
                             .disabled(context.connection.blocked != nil)
+                    } else if run != nil, context.connection.supports(GraphCommand.rerun) {
+                        Button("Run again with this input", systemImage: "arrow.clockwise.circle") {
+                            Task {
+                                do {
+                                    context.navigation.detail = try await store.rerun(runID)
+                                } catch {
+                                    failure = (error as? RemoteError)?.message ?? error.localizedDescription
+                                }
+                            }
+                        }
+                        .disabled(context.connection.blocked != nil)
+                        Text("Remove run… is on the Mac")
                     }
                 }
             }

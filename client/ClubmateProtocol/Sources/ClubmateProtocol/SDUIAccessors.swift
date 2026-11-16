@@ -44,7 +44,7 @@ public struct SDUIMenuEntry: Sendable, Equatable, Identifiable {
         self.action = action
         self.label = label
         confirm = fields["confirm"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
-        key = fields["key"]?.stringValue.flatMap { $0.count == 1 ? $0 : nil }
+        key = fields["key"]?.stringValue.flatMap { $0.count == 1 || $0 == "cmd+delete" ? $0 : nil }
     }
 }
 
@@ -63,6 +63,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
     public let changes: SDUIChanges?
     public let labelIcon: String?
     public let pinned: Bool
+    public let open: String?
 
     public var id: String { item.id }
 
@@ -90,6 +91,41 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
         changes = fields["changes"].flatMap(SDUIChanges.init)
         labelIcon = fields["labelIcon"]?.stringValue
         pinned = fields["pinned"]?.boolValue ?? false
+        open = fields["open"]?.stringValue
+    }
+}
+
+public struct SDUITreeDock: Sendable, Equatable, Identifiable {
+    public struct Add: Sendable, Equatable {
+        public let action: String
+        public let label: String
+    }
+
+    public let id: String
+    public let label: String
+    public let icon: String?
+    public let detail: String?
+    public let attention: Bool
+    public let expanded: Bool
+    public let rows: [SDUITreeItem]
+    public let add: Add?
+    public let cap: Int
+
+    public init?(_ value: JSONValue) {
+        guard let fields = value.objectValue, let id = fields["id"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
+        self.id = id
+        self.label = label
+        icon = fields["icon"]?.stringValue
+        detail = fields["detail"]?.stringValue
+        attention = fields["attention"]?.boolValue ?? false
+        expanded = fields["expanded"]?.boolValue ?? false
+        rows = fields["rows"]?.arrayValue?.compactMap(SDUITreeItem.init) ?? []
+        if let add = fields["add"]?.objectValue, let action = add["action"]?.stringValue, let label = add["label"]?.stringValue {
+            self.add = Add(action: action, label: label)
+        } else {
+            add = nil
+        }
+        cap = max(1, Int(fields["cap"]?.numberValue ?? 6))
     }
 }
 
@@ -458,6 +494,10 @@ extension SDUINode {
 
     public func treeItems() -> [SDUITreeItem] {
         props["items"]?.arrayValue?.compactMap(SDUITreeItem.init) ?? []
+    }
+
+    public func treeDock() -> [SDUITreeDock] {
+        props["dock"]?.arrayValue?.compactMap(SDUITreeDock.init) ?? []
     }
 
     public func headerBadges() -> [SDUIHeaderBadge] {

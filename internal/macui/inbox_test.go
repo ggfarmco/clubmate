@@ -60,13 +60,13 @@ func TestInboxGraphPinOpensTheRun(t *testing.T) {
 	var run struct {
 		ID string `json:"id"`
 	}
-	in.json(&run, "command", "run", "graphs.run", "graph=cap", "input=go")
+	in.json(&run, "command", "run", "agents.graph-run", "graph=cap", "input=go")
 	require.NotEmpty(t, run.ID)
 	in.eventually("the edge back to the coder is held", func() bool {
 		var shown struct {
 			Held []any `json:"held"`
 		}
-		in.json(&shown, "command", "run", "graphs.show", "id="+run.ID)
+		in.json(&shown, "command", "run", "agents.graph-show", "id="+run.ID)
 		return len(shown.Held) > 0
 	})
 
@@ -76,9 +76,9 @@ func TestInboxGraphPinOpensTheRun(t *testing.T) {
 		return p != nil && p.node(pin) != nil && strings.HasPrefix(p.node(pin).Label, "Question · Tests → Coder")
 	})
 	in.pointer("click", pin)
-	in.eventually("Graphs opens on that run", func() bool {
+	in.eventually("Agents opens on that run", func() bool {
 		s := in.snapshot()
-		return s.kind("popover") == nil && in.selected("runs#"+run.ID)
+		return s.kind("popover") == nil && in.selected("sessions#run:"+run.ID)
 	})
 }
 

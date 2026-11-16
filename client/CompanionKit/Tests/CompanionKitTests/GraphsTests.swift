@@ -6,6 +6,83 @@ import CompanionKit
 final class GraphsTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
+    private func runPage() throws -> (rows: [JSONValue], runs: [AgentRunRow], dock: [AgentDockRow]) {
+        let json = #"""
+        {"sessions":[{"id":"agt_c","workspace":"ws","title":"Review gate · Coder","status":"idle","run":{"id":"gr_1","title":"Review gate"}},
+                     {"id":"agt_x","workspace":"ws","title":"Solo","status":"done"},
+                     {"id":"gr_1","kind":"run","workspace":"ws","title":"Review gate","status":"waiting","needsYou":true,"run":{"id":"gr_1","title":"Review gate","number":4}}],
+         "runs":[{"id":"gr_1","graph":"review-gate","title":"Review gate","number":4,"state":"running","detail":"turn 2","sessions":["agt_c"],"home":"group","group":"running","status":"running"},
+                 {"id":"gr_9","graph":"nightly","title":"Nightly","state":"emptied","detail":"no sessions","sessions":[],"home":"closed","group":"closed","status":"closed"}],
+         "dock":[{"id":"service","label":"Service","icon":"gearshape.2","detail":"asks you","phoneDetail":"1 asks","attention":true},
+                 {"id":"gates","label":"Land gates","icon":"checkmark.shield","detail":"1 asking","phoneDetail":"1 asking"},
+                 {"id":"graphs","label":"Graphs","icon":"point.3.connected.trianglepath.dotted","detail":"1 to trust","phoneDetail":"1 to trust","attention":true}]}
+        """#
+        let page = try JSONDecoder().decode(JSONValue.self, from: Data(json.utf8))
+        return (page["sessions"]?.arrayValue ?? [], try page["runs"]!.decode([AgentRunRow].self), try page["dock"]!.decode([AgentDockRow].self))
+    }
+
+    func testRunRowsNestNodeSessions() throws {
+        let page = try runPage()
+        let sessions = RunRows.sessions(page.rows, runs: page.runs)
+        let groups = AgentSession.grouped(sessions)
+        let run = try XCTUnwrap(groups.flatMap(\.sessions).first { $0.id == "gr_1" })
+        XCTAssertEqual(run.children.map(\.id), ["agt_c"])
+        XCTAssertEqual(run.session.displayTitle, "Review gate · #4")
+        XCTAssertEqual(sessions.filter { $0.id == "gr_1" }.count, 1)
+    }
+
+    func testDockRowsEndTheListPlain() throws {
+        let rows = RunRows.endRows(try runPage().dock)
+        XCTAssertEqual(rows.map(\.label), ["Land gates", "Graphs"])
+        XCTAssertEqual(rows.map(\.detail), ["1 asking", "1 to trust"])
+        let order = SessionGroup.allCases
+        XCTAssertLessThan(try XCTUnwrap(order.firstIndex(of: .closed)), try XCTUnwrap(order.firstIndex(of: .service)))
+    }
+
+    func testRunRowKeepsThePluginsNeedsYouEntry() throws {
+        let json = #"""
+        [{"id":"gr_step","kind":"run","workspace":"ws","title":"Review gate","status":"waiting","run":{"id":"gr_step","title":"Review gate","number":4},"pending":["step-squash"],"pendingSummary":{"kind":"permission","tool":"execute","role":"Squash into main","text":"git merge --squash fix","at":"2027-01-15T08:00:00Z"},"needsYou":true,"needsYouSince":"2027-01-15T08:00:00Z","group":"needsYou"}]
+        """#
+        let rows = try JSONDecoder().decode([JSONValue].self, from: Data(json.utf8))
+        let runs = try JSONDecoder().decode([AgentRunRow].self, from: Data(#"[{"id":"gr_step","graph":"review-gate","title":"Review gate","number":4,"state":"asks","detail":"asks you","needsYou":true,"request":"step-squash","sessions":[],"home":"group"}]"#.utf8))
+        let session = try XCTUnwrap(RunRows.sessions(rows, runs: runs).first { $0.id == "gr_step" })
+        XCTAssertEqual(session.stateLine(now: now).lead, "Squash into main wants to run")
+    }
+
+    func testRunRowRendersThePluginsFields() throws {
+        let runs = try JSONDecoder().decode([AgentRunRow].self, from: Data(#"[{"id":"gr_2","graph":"g","title":"Gate","state":"failed","detail":"failed","sessions":["agt_x"],"home":"group","group":"done","status":"error"}]"#.utf8))
+        let rows = try JSONDecoder().decode([JSONValue].self, from: Data(#"[{"id":"agt_x","workspace":"ws","status":"done"}]"#.utf8))
+        let run = try XCTUnwrap(RunRows.sessions(rows, runs: runs).first { $0.id == "gr_2" })
+        XCTAssertEqual(run.group, .idle)
+        XCTAssertEqual(run.status, .error)
+        XCTAssertEqual(run.stateLine(now: now).text, "failed")
+    }
+
+    func testReviewerNestsUnderItsLander() throws {
+        let rows = try JSONDecoder().decode([JSONValue].self, from: Data(#"""
+        [{"id":"agt_l","workspace":"ws","title":"Fix login","status":"idle"},
+         {"id":"agt_r","workspace":"ws","title":"Review fix","status":"idle","nestUnder":"agt_l","gateRound":{"round":2,"label":"Round 2 review","verdict":"changes"}}]
+        """#.utf8))
+        let sessions = RunRows.sessions(rows, runs: [])
+        let lander = try XCTUnwrap(AgentSession.grouped(sessions).flatMap(\.sessions).first { $0.id == "agt_l" })
+        XCTAssertEqual(lander.children.map(\.session.displayTitle), ["Round 2 review"])
+        XCTAssertEqual(lander.children.first?.session.stateLine(now: now).text, "changes")
+    }
+
+    func testEmptiedRunOpensRunScreen() throws {
+        let page = try runPage()
+        let emptied = try XCTUnwrap(RunRows.sessions(page.rows, runs: page.runs).first { $0.id == "gr_9" })
+        XCTAssertTrue(GraphRun.isRun(emptied.id))
+        XCTAssertEqual(AgentSession.grouped([emptied]).first?.group, .closed)
+    }
+
+    func testGraphCommandFallsBackOnOldMac() {
+        let old = Hello(computer: ComputerInfo(id: "m", name: "M"), version: "1", commands: ["graphs.show"], topics: [])
+        let new = Hello(computer: ComputerInfo(id: "m", name: "M"), version: "1", commands: ["agents.graph-show", "graphs.show"], topics: [])
+        XCTAssertEqual(GraphCommand.id(GraphCommand.show, supports: old.commands.contains), "graphs.show")
+        XCTAssertEqual(GraphCommand.id(GraphCommand.show, supports: new.commands.contains), "agents.graph-show")
+    }
+
     func testRunEntriesNeedYouAsRunRows() throws {
         let json = #"""
         [{"id":"gr_step","kind":"run","workspace":"ws","title":"Review gate","status":"waiting","run":{"id":"gr_step","title":"Review gate","number":4},"pending":["step-squash"],"pendingSummary":{"kind":"permission","tool":"execute","role":"Squash into main","text":"git merge --squash fix","at":"2027-01-15T08:00:00Z"},"needsYou":true,"needsYouSince":"2027-01-15T08:00:00Z","group":"needsYou"},

@@ -8,7 +8,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 
 | Keys | Action | Where defined |
 |---|---|---|
-| ⌘N | New (terminal or item in the current section; in Backlog it focuses the new task field, in Triggers and Cron it starts an agent session that asks you for a trigger or a cron job and adds it, in Graphs one that asks you for a graph and writes its file, in Gates it opens the New gate sheet) | `ClubmateApp.swift` |
+| ⌘N | New (terminal or item in the current section; in Backlog it focuses the new task field, in Triggers and Cron it starts an agent session that asks you for a trigger or a cron job and adds it) | `ClubmateApp.swift` |
 | ⇧⌘N | New Home Terminal | `ClubmateApp.swift` |
 | ⌘O | Open Folder… | `ClubmateApp.swift` |
 | ⇧⌘D | Open Doc…: fuzzy picker over `docs.list` (agent-written docs first), ↩ opens the doc in the popup | `ClubmateApp.swift` |
@@ -17,7 +17,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⌘K | Command Palette | `ClubmateApp.swift` |
 | ⌘B, ⌃⌘S | Toggle Sidebar; in Neovim, Toggle Chat: the right column with the agent chat panel (per window) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
 | ⌘= (⌘+), ⌘-, ⌘0 | Font size up, down, reset where focus is: in a terminal or nvim (or with nothing focused) the terminal font for all terminals; in the agent chat (composer) the chat font, shared by every chat; in another pane (e.g. the Backlog sidebar) that plugin's font, both its sidebar and its main pane. The terminal font is Settings → Terminals → Font size, the chat font Settings → Agents → Chat font size and a plugin's font its own Settings page → Font size; a plugin follows Settings → General → Interface font size until zoomed or set there, ⌘0 puts it back (General → Plugin fonts resets them all); sizes are kept across restarts. While the popup shows a doc and has focus it zooms the doc instead, see below | `ClubmateApp.swift`, `WorkspaceLayout.swift`, `WorkspacePanes.swift` (`ClubmateKit/PaneFocus.swift`, `AppSettings.swift`) |
-| ⌘1…⌘9 | Switch to the Nth section in the rail, in your order (drag icons to reorder; right-click the rail to reset); Gates comes last by default, after Graphs, so it gets ⌘9 only while the rail holds nine sections or fewer | `ClubmateApp.swift` |
+| ⌘1…⌘9 | Switch to the Nth section in the rail, in your order (drag icons to reorder; right-click the rail to reset). Graphs and Land gates are not in the rail: they are docked at the bottom of the Agents sidebar (see § Trees), so ⌘8 and ⌘9 go to the sections after them | `ClubmateApp.swift` |
 | ⌃⌘→, ⌃⌘← | Next, previous workspace | `ClubmateApp.swift` |
 | ⌃⌘↓, ⌃⌘↑ | In Agents: next, previous session, the row below or above the selected one among the rows the sidebar shows (filter, search and folded groups apply), wrapping around; focus goes to its prompt (`agents.step`) | `ClubmateApp.swift`, `ClubmateKit/CommandInvocation.swift` (`AgentsSection`), `plugins/agents/sidebar.go` (`stepSession`) |
 | ⌃⌘W | Workspace switcher grid | `ClubmateApp.swift` |
@@ -66,22 +66,23 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 |---|---|---|
 | ⌘R | Run the cron job or trigger now | cron, triggers |
 | P | Pause or resume the job or trigger | cron, triggers |
-| ⌘⌫ | Delete the job, trigger or task, or remove the graph run (confirmed) | cron, triggers, backlog, graphs |
-| ⌘↩ | Open the Start agent popover on the task while you own it (↩ in it starts, ⎋ cancels), else open the session or graph run that owns it; on a graph run held at a round cap Continue it, else open the session of the graph node that needs you, else a running step's output (Open ‹Step› output), else the running or start node's session; run the selected graph with its input (↩ in the Input field too); on an untrusted graph Trust… (then Trust in its sheet, where Esc cancels) | backlog, graphs |
+| ⌘⌫ | Delete the job, trigger or task, or Remove run… on an ended run's page in Agents (confirmed) | cron, triggers, backlog, agents |
+| ⌘[ | Back from a run, graph or land gate page in the Agents main pane to the session you came from | agents |
+| ⌘↩ | Open the Start agent popover on the task while you own it (↩ in it starts, ⎋ cancels), else open the session or graph run that owns it; on a graph run held at a round cap Continue it, else open the session of the graph node that needs you, else a running step's output (Open ‹Step› output), else the running or start node's session; run the graph of a definition page with its input (↩ in the Input field too); on an untrusted graph Trust… (then Trust in its sheet, where Esc cancels) | backlog, agents |
 | ⌘↩ | Send review: opens the Send sheet for the review tab current in Neovim, also while Neovim has focus (status bar button "Send review") | editor-nvim |
 | ⌘↩ | Remove the folder, on the Remove folder sheet (⎋ cancels); Close, once the folder left and a worktree stayed | agents |
 | ⌘↩ | Archive the task, on the Archive sheet (⎋ cancels); Close, once something stayed | agents |
 | ⌘↩ | Remove what is ticked, on the Clean up worktrees sheet (⎋ cancels); Close, once something stayed | agents |
 | ⌘↩ | Add the ticked repos, on the Add repos sheet (⎋ cancels) | agents |
 | ⌘↩ | Add gate on the New gate sheet, Save on the Edit gate sheet (⎋ cancels) | agents |
-| ⌘N | New land gate: opens the New gate sheet (Gates' How gates work page; the app menu's ⌘N does the same anywhere in Gates) | agents |
-| P | Pause or resume the land gate open in Gates | agents |
-| E | Edit the land gate open in Gates: its rounds and whether it is paused | agents |
-| ⌘⌫ | Delete the land gate open in Gates (confirmed; its verdict history goes too) | agents |
-| ⌥1 / ⌥2 / ⌥3 | A graph step waiting for approval: Allow once / Always allow… (asks first) / Reject | graphs |
+| ⌘N | New land gate: opens the New gate sheet (on How land gates work in Agents; also + on the docked Land gates row and New land gate… in ⌘K) | agents |
+| P | Pause or resume the land gate open in Agents | agents |
+| E | Edit the land gate open in Agents: its rounds and whether it is paused | agents |
+| ⌘⌫ | Delete the land gate open in Agents (confirmed; its verdict history goes too) | agents |
+| ⌥1 / ⌥2 / ⌥3 | A graph step waiting for approval: Allow once / Always allow… (asks first) / Reject | agents |
 | ⌥↑ / ⌥↓ | A repo child of a task: the repo before / after it in landing order that has a session, no wrap-around (buttons in the crumb); in a text field they stay caret movement | agents |
-| ⌘. | Stop the graph run (confirmed) | graphs |
-| ⌘N | Ask an agent to write a graph (How graphs work; the app menu's ⌘N does the same anywhere in Graphs), ↩ on a part row asks for a graph that uses that part | graphs |
+| ⌘. | Stop the graph run open in Agents (confirmed) | agents |
+| ⌘N | Ask an agent to write a graph (on How graphs work in Agents; also + on the docked Graphs row and New graph… in ⌘K), ↩ on a part row asks for a graph that uses that part | agents |
 | G | Open the graph run that created the trigger | triggers |
 | ⌘N | Ask an agent to add a trigger (How triggers work; the app menu's ⌘N does the same anywhere in Triggers), ↩ on an event row asks for a trigger on that event | triggers |
 | D | Mark the task done | backlog |
@@ -123,14 +124,15 @@ The title picker adds these to the keys above:
 
 | Keys | Action |
 |---|---|
-| j / ↓, k / ↑ | Move the cursor |
-| l / → | Expand the item, or step into it |
-| h / ← | Collapse the item, or go to its parent |
-| ↩ | Select a leaf item, or expand / collapse an item with children |
+| j / ↓, k / ↑ | Move the cursor; j past the last tree row steps onto the first docked row (Agents: Service), k from there back into the tree |
+| l / → | Expand the item, or step into it; on a docked row, unfold it upward |
+| h / ← | Collapse the item, or go to its parent; on a docked row, fold it |
+| ↩ | On a row that opens a page (a session, a run, a graph, a land gate): select it and focus the main pane, without folding; else select a leaf item, or expand / collapse an item with children (a docked row unfolds or folds) |
 | o | Same as ↩, but an item with children gets selected instead |
+| ⌘⌫ | Remove the row under the cursor, always asking first: in Agents a session (Delete Session), an ended run (Remove run…) or a land gate (Delete land gate…); the row's menu entry with `key: cmd+delete`. On the iPad the same key in a plugin tree (Graphs, Land gates) asks the same way |
 | gc | Focus the sidebar's text field, when it has one (Agents and Backlog: the search field) |
 | < / > | Previous / next chip of the sidebar's filter row, when it has one (Agents: All · Needs you · Open · Running) |
-| Esc | Back to the main pane |
+| Esc | Fold the open docked row (also from a row inside it); elsewhere back to the main pane |
 | ⌃L (sidebar on the left), ⌃H (sidebar on the right) | Back to the main pane |
 
 `g` waits for the next key; a key that is not listed is swallowed. Defined in `ClubmateKit/TreeKeys.swift`.
@@ -160,9 +162,9 @@ A click on a row, or focus moving to the main pane, focuses the table; the selec
 
 Keys with ⌘, ⌃, ⌥ or ⇧ pass through (⇧K stays the plugin's Kill). Defined in `SDUI/TableView.swift`, rows in `ClubmateKit/TableKeys.swift`.
 
-## Graph diagram (Graphs main pane focused)
+## Graph diagram (Agents main pane, a run or graph page)
 
-Focus moving to the Graphs main pane focuses the diagram of the run or graph; the focused card gets an accent ring (the node that needs you first, else the first card).
+Focus moving to the Agents main pane on a run or graph page focuses the diagram of the run or graph; the focused card gets an accent ring (the node that needs you first, else the first card).
 
 | Keys | Action |
 |---|---|

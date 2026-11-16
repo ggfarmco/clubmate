@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"slices"
+
+	"clubmate/plugins/agents/api"
 )
 
 type sessionsPage struct {
@@ -10,6 +12,8 @@ type sessionsPage struct {
 	Removed  []string      `json:"removed"`
 	Cursor   string        `json:"cursor"`
 	Delta    bool          `json:"delta,omitempty"`
+	Runs     []api.RunRow  `json:"runs"`
+	Dock     []api.DockRow `json:"dock"`
 }
 
 func (a *app) sessionsPage(ctx context.Context, workspaceID string, infos []sessionInfo, since string) sessionsPage {

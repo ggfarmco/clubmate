@@ -22,6 +22,7 @@ import (
 	"clubmate/internal/kv"
 	"clubmate/internal/paths"
 	"clubmate/internal/plugin"
+	"clubmate/internal/pluginmigrate"
 	"clubmate/internal/proc"
 	"clubmate/internal/rpc"
 	"clubmate/internal/sdui"
@@ -122,6 +123,9 @@ func run(logger *slog.Logger) error {
 		return fmt.Errorf("open plugin storage: %w", err)
 	}
 	defer pluginKV.Close()
+	if err := pluginmigrate.Graphs(context.Background(), pluginKV, dirs); err != nil {
+		logger.Error("move graphs storage into agents", "err", err)
+	}
 
 	listener, err := listen(dirs.CoreSocket())
 	if err != nil {

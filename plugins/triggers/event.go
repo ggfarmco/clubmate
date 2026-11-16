@@ -53,7 +53,7 @@ func checkPattern(on string) error {
 func fromOwner(ev pluginsdk.Event) bool {
 	owner, _, _ := strings.Cut(ev.Topic, ".")
 	switch {
-	case strings.HasPrefix(ev.Topic, graphPrefix) && ev.Source == pluginSource+"graphs":
+	case strings.HasPrefix(ev.Topic, graphPrefix) && ev.Source == pluginSource+graphsPlugin:
 		return true
 	case owner+"." == emitPrefix:
 		return ev.Source == pluginSource+"triggers"

@@ -8,9 +8,9 @@
     "shortcuts": [
       {"keys": "cmd+i", "action": "Show the session's context, or back to the transcript"},
       {"keys": "cmd+r", "action": "Open the session's review in the Code section", "when": "the session opened or received an open review"},
-      {"keys": "opt+1", "action": "Allow the permission request once, pick the question's 1st option, Connect the ticked repos on a connect card, or Review… on a Land card", "when": "a permission request, a question, a connect request or a Land request is pending"},
-      {"keys": "opt+2", "action": "Always allow… the permission request (asks to confirm), pick the question's 2nd option, pick another folder for the focused repo on a connect card, or Merge on a Land card", "when": "a permission request, a question, a connect request or a Land request is pending"},
-      {"keys": "opt+3", "action": "Reject the permission request, pick the question's 3rd option, Don't connect on a connect card, or Leave it unlanded… on a Land card (asks to confirm)", "when": "a permission request, a question, a connect request or a Land request is pending"},
+      {"keys": "opt+1", "action": "Allow the permission request once, pick the question's 1st option, Connect the ticked repos on a connect card, or Review… on a Land card; in Graphs, allow a waiting step once", "when": "a permission request, a question, a connect request, a Land request or a graph step is pending"},
+      {"keys": "opt+2", "action": "Always allow… the permission request (asks to confirm), pick the question's 2nd option, pick another folder for the focused repo on a connect card, or Merge on a Land card; in Graphs, always allow a waiting step's command (asks first)", "when": "a permission request, a question, a connect request, a Land request or a graph step is pending"},
+      {"keys": "opt+3", "action": "Reject the permission request, pick the question's 3rd option, Don't connect on a connect card, or Leave it unlanded… on a Land card (asks to confirm); in Graphs, reject a waiting step", "when": "a permission request, a question, a connect request, a Land request or a graph step is pending"},
       {"keys": "opt+4", "action": "Pick the question's 4th option", "when": "a question is pending"},
       {"keys": "opt+5", "action": "Pick the question's 5th option", "when": "a question is pending"},
       {"keys": "opt+6", "action": "Pick the question's 6th option", "when": "a question is pending"},
@@ -33,13 +33,14 @@
       {"keys": "b", "action": "To backlog: one task per open item of the session", "when": "an open items card or the Open queue has focus, except a night session's card"},
       {"keys": "delete", "action": "No to the focused item", "when": "an open items card or the Open queue has focus"},
       {"keys": "shift+delete", "action": "No to all of the session's open items", "when": "an open items card or the Open queue has focus"},
-      {"keys": "cmd+return", "action": "Send answers; in the Open queue every answered session's; send a pending question's form; or remove the folder on the Remove folder sheet", "when": "an open items card or the Open queue has focus, a question is pending and the composer is empty, or the Remove folder sheet is open; add or save the gate on the New gate or Edit gate sheet"},
-      {"keys": "cmd+n", "action": "New land gate: opens the New gate sheet", "when": "in Gates"},
+      {"keys": "cmd+return", "action": "Send answers; in the Open queue every answered session's; send a pending question's form; or remove the folder on the Remove folder sheet; in Graphs, trust an untrusted graph (Trust… then Trust), continue an edge held at its round cap, else open the session of the step that needs you (else the running or start step), or on a graph run it with its input", "when": "an open items card or the Open queue has focus, a question is pending and the composer is empty, or the Remove folder sheet is open; add or save the gate on the New gate or Edit gate sheet; a graph or a run is open in Graphs"},
+      {"keys": "cmd+n", "action": "New land gate: opens the New gate sheet; in Graphs, ask an agent to write a graph", "when": "in Gates or Graphs"},
       {"keys": "p", "action": "Pause or resume the land gate", "when": "a gate is open in Gates"},
       {"keys": "e", "action": "Edit the land gate's rounds or pause it", "when": "a gate is open in Gates"},
-      {"keys": "cmd+delete", "action": "Delete the land gate (confirmed)", "when": "a gate is open in Gates"}
+      {"keys": "cmd+delete", "action": "Delete the land gate (confirmed), or remove the finished run (confirmed)", "when": "a gate is open in Gates, or a finished run in Graphs"},
+      {"keys": "cmd+.", "action": "Stop the run (confirmed)", "when": "a running run is open in Graphs"}
     ],
-    "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25, "slots": ["sheet"]}, {"id": "agents.gates", "title": "Gates", "icon": "checkmark.shield", "order": 38}],
+    "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25, "slots": ["sheet"]}, {"id": "agents.graphs", "title": "Graphs", "icon": "point.3.connected.trianglepath.dotted", "order": 37, "rail": false}, {"id": "agents.gates", "title": "Land gates", "icon": "checkmark.shield", "order": 38, "rail": false}],
     "views": [{"slot": "editor-nvim.sidebar"}, {"slot": "agents.settings"}],
     "commands": [
       {
@@ -523,20 +524,6 @@
         }
       },
       {
-        "id": "agents.run-needs",
-        "title": "Set graph runs that need you",
-        "hidden": true,
-        "description": "The graphs plugin's list of this workspace's graph runs that need you (a step waiting for approval, an edge past its round cap); agents.sessions lists each as a run entry. Only the graphs plugin may call it.",
-        "args": {
-          "properties": {
-            "runs": {"type": "array", "description": "Runs that need you: {run, title, kind (step|cap), request, node, edge?, text, command?, since}.", "items": {"type": "object", "properties": {
-              "run": {"type": "string"}, "title": {"type": "string"}, "kind": {"type": "string"}, "request": {"type": "string"}, "node": {"type": "string"},
-              "edge": {"type": "integer"}, "text": {"type": "string"}, "command": {"type": "string"}, "since": {"type": "string"}
-            }}}
-          }
-        }
-      },
-      {
         "id": "agents.reminders",
         "title": "Set sessions' pending reminders",
         "hidden": true,
@@ -965,7 +952,7 @@
       },
       {
         "id": "agents.gates.new",
-        "title": "New land gate",
+        "title": "New land gate…",
         "description": "Open the New gate sheet: pick a folder of this workspace, the kind and the rounds. Only the user."
       },
       {
@@ -1175,7 +1162,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, parentSession?, advisor?, fork?, run?: {id, title, after?: [{role, on, outcome?}]}, title, titleSet?, status, mode, finish?, afk?, afkBy?, startedBy?, createdAt, updatedAt, error?, pending?, pendingSummary?: {kind, text, tool?, at}, turnStartedAt?, asks, question?, needsYou, needsYouSince?, childStatus?, notify?, notifyEffective, startNotice?, cronJob?, trigger?}]. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; question is that question. needsYou is true when the session waits for the user: a permission or question is pending, a top-level session asks, a connect request waits after its turn ended, or a Land request or failed repo of its task waits; a child session's asks and its pending questions are for the session that started it (asksParent, while that session is open), only its permissions need the user; every client shows exactly these as needing you. pendingSummary says what the session waits for: kind permission (text the pending command or tool title, tool its ACP kind) or question (text the question), connect or land (pending then also lists those request ids). parentSession is the agent session that started it with agents.new; run is the agent graph run it is a node of. status is running, waiting (a permission or a question is pending; pending lists the request ids), done, idle, error or closed. Non-destructive.",
+        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, parentSession?, advisor?, fork?, run?: {id, title, after?: [{role, on, outcome?}]}, title, titleSet?, status, mode, finish?, afk?, afkBy?, startedBy?, createdAt, updatedAt, error?, pending?, pendingSummary?: {kind, text, tool?, at}, turnStartedAt?, asks, question?, needsYou, needsYouSince?, childStatus?, notify?, notifyEffective, startNotice?, cronJob?, trigger?}]. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; question is that question. needsYou is true when the session waits for the user: a permission or question is pending, a top-level session asks, a connect request waits after its turn ended, or a Land request or failed repo of its task waits; a child session's asks and its pending questions are for the session that started it (asksParent, while that session is open), only its permissions need the user; every client shows exactly these as needing you. pendingSummary says what the session waits for: kind permission (text the pending command or tool title, tool its ACP kind) or question (text the question), connect or land (pending then also lists those request ids). parentSession is the agent session that started it with agents.new; run is the agent graph run it is a node of; nestUnder is the lander a land gate reviewer session is drawn under, with gateRound {round, label (\"Round N review\"), verdict}. With since, the reply also has runs (every graph run of the workspace, also in a delta: {id, graph, title, number?, worktree, state running|asks|ended|stopped|failed|emptied, detail, needsYou?, request?, pointer? (the node whose session needs you), sessions, home group|closed, group, status}) and dock (Service, Land gates, Graphs: {id service|gates|graphs, label, icon, detail, phoneDetail, attention?}); clients draw both as sent. status is running, waiting (a permission or a question is pending; pending lists the request ids), done, idle, error or closed. Non-destructive.",
         "args": {
           "properties": {
             "session": {
@@ -1321,6 +1308,173 @@
               }
             }
           }
+        }
+      },
+      {
+        "id": "agents.graph-new",
+        "aliases": ["graphs.new"],
+        "title": "New graph…",
+        "description": "Start an agent session that asks you what roles and hand-offs the graph should have, then writes its file without running it, and show it in Agents."
+      },
+      {
+        "id": "agents.graph-list",
+        "aliases": ["graphs.list"],
+        "title": "List agent graphs",
+        "hidden": true,
+        "agent": true,
+        "description": "List the agent graphs in .clubmate/graphs/*.json of your worktree (else of the current worktree of each workspace folder; a repo's main checkout is not looked in from another worktree), the user's own graphs in ~/.clubmate/graphs/*.json shown in every workspace (user: true), the graphs built into Clubmate (builtin: true; a project file replaces a user or built-in graph of the same name, a user graph a built-in one) and this workspace's graph runs: {graphs: [{name, title?, description?, path, nodes, builtin?, user?, untrusted?, hash?, changed?, trusted?, error?}], runs: [{id, graph, title, status, reason?, turns, maxTurns, startedAt}]}. A graph whose file is invalid has error set. Non-destructive."
+      },
+      {
+        "id": "agents.graph-run",
+        "aliases": ["graphs.run"],
+        "title": "Run agent graph",
+        "hidden": true,
+        "agent": true,
+        "description": "Start a run of the agent graph .clubmate/graphs/<graph>.json, else of ~/.clubmate/graphs/<graph>.json, else of the built-in graph <graph> (see agents.graph-list): one idle agent session per agent node (your child sessions when you call it), one trigger per edge between agent nodes without maxFires (an edge with maxFires, like every edge of a step, is run by Clubmate itself: owned, no trigger); steps (nodes with run or command) are run by Clubmate itself after the edges into them and route by exit code, and a graph with steps fails untrusted until the user trusts it, then the start nodes get their prompt with input. The run stops itself when a node reports an outcome listed in its end, after the graph's maxTurns turns (default 20) or maxSteps steps (default 50), or when your session closes; agents.graph-stop stops it earlier. Sessions stay open after a run stops. Returns the run: {id, graph, title, number, builtin?, user?, status, reason?, turns, maxTurns, maxSteps, steps?, startedAt, nodes: [{id, role, start?, step?, session}], edges: [{from, to, on, outcome?, owned?, trigger?}]}. Watch nodes with agents.wait on their sessions and the run with agents.graph-show; agents.graph-delete removes a run from the list. Non-destructive.",
+        "args": {
+          "properties": {
+            "graph": {"type": "string", "description": "Graph name: the file name in .clubmate/graphs/ without .json, e.g. review-loop."},
+            "input": {"type": "string", "description": "Task for the run, filled into {{input}} of the node prompts or appended to the start nodes' prompt; at most 16 KiB, must not contain {{."}
+          },
+          "required": ["graph"]
+        }
+      },
+      {
+        "id": "agents.graph-show",
+        "aliases": ["graphs.show"],
+        "title": "Show agent graph run",
+        "hidden": true,
+        "remote": true,
+        "agent": true,
+        "description": "Show one graph run with each node's session title and live status (agent nodes: running, waiting, done, idle, error, closed, gone, starting while the run's nodes start, or unknown when the session list failed; steps: not started, the step's status, or its outcome once finished): {id, graph, title, number, status, reason?, input?, turns, maxTurns, startedAt, stoppedAt?, nodes: [{id, role, start?, step?, session, title?, status, command?, outcomes?, end?, outcome?, durationMs?, startedAt?, last?, pending?}], edges: [{from, to, on, outcome?, trigger}]}. Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Run id (gr_…)."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "agents.graph-stop",
+        "aliases": ["graphs.stop"],
+        "title": "Stop agent graph run",
+        "hidden": true,
+        "remote": true,
+        "agent": true,
+        "description": "Stop a graph run: mark it stopped, cancel its running steps, then delete its edge triggers so no node prompts another; a trigger that can't be deleted fails the call naming it, and stopping again retries. Running turns go on and the sessions stay open; cancel their turns with agents.cancel. An agent may stop only runs started by itself or its child sessions. Returns the run. Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Run id (gr_…)."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "agents.graph-approve",
+        "aliases": ["graphs.approve"],
+        "title": "Answer a graph step's approval",
+        "hidden": true,
+        "remote": true,
+        "description": "Answer a step of a graph run that waits for your approval: once runs it now, always (only for a step that runs in the main checkout) also adds the exact command as a Bash allow rule to the main checkout's .claude/settings.local.json, reject ends the step with error · rejected. Not for agents.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Run id (gr_…)."},
+            "node": {"type": "string", "description": "Id of the waiting step node."},
+            "decision": {"type": "string", "enum": ["once", "always", "reject"], "description": "once, always or reject."}
+          },
+          "required": ["id", "node", "decision"]
+        }
+      },
+      {
+        "id": "agents.graph-continue",
+        "aliases": ["graphs.continue"],
+        "title": "Continue a graph edge past its limit",
+        "hidden": true,
+        "remote": true,
+        "description": "A graph edge with maxFires that reached its limit holds its next firing and the run waits for you; continue delivers that firing and allows the edge one more round. Not for agents.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Run id (gr_…)."},
+            "edge": {"type": "integer", "description": "Index of the held edge in the graph's edges."}
+          },
+          "required": ["id", "edge"]
+        }
+      },
+      {
+        "id": "agents.graph-trust",
+        "aliases": ["graphs.trust"],
+        "title": "Trust a graph's shell steps",
+        "hidden": true,
+        "description": "Trust the steps of a project, user or built-in graph as they are now: agents.graph-run refuses a graph whose steps (run, command, args, in, timeout, exits), routing or limits (maxTurns, maxSteps, agent nodes' branch, afk of a node a step runs in) changed since you last trusted them. Not for agents.",
+        "args": {
+          "properties": {
+            "graph": {"type": "string", "description": "Graph name."},
+            "hash": {"type": "string", "description": "The graph's hash as agents.graph-list showed it; trust is refused if the file changed since."}
+          },
+          "required": ["graph"]
+        }
+      },
+      {
+        "id": "agents.graph-trusted",
+        "aliases": ["graphs.trusted"],
+        "title": "Trusted agent graphs",
+        "hidden": true,
+        "description": "List the graphs in .clubmate/graphs/ of a folder, inside the workspace or not, that can run as they are now: their steps are trusted, or they have none. Returns {graphs: [name]}.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "Absolute folder."}
+          },
+          "required": ["path"]
+        }
+      },
+      {
+        "id": "agents.graph-reveal",
+        "aliases": ["graphs.reveal"],
+        "title": "Open agent graph run",
+        "hidden": true,
+        "description": "Select the run in the Graphs section and focus its detail; Triggers calls it for Open graph on a trigger a run created.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Run id (gr_…)."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "agents.graph-start",
+        "title": "Run graph…",
+        "description": "Unfold Graphs at the bottom of the Agents sidebar with the cursor in it, to pick a graph and run it from its page."
+      },
+      {
+        "id": "agents.gates-open",
+        "title": "Open land gates",
+        "description": "Unfold Land gates at the bottom of the Agents sidebar with the cursor in it."
+      },
+      {
+        "id": "agents.graph-rerun",
+        "title": "Run graph again with this input",
+        "hidden": true,
+        "remote": true,
+        "description": "Start a new run of a run's graph with its stored input, in the worktree of its first node session (else the folder the run started in); refused while the run is still running. Returns the new run like agents.graph-run.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Run id (gr_…) to run again."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "agents.graph-delete",
+        "aliases": ["graphs.delete"],
+        "title": "Remove agent graph run",
+        "hidden": true,
+        "agent": true,
+        "description": "Stop a graph run like agents.graph-stop and remove it from the list; a run whose triggers can't be deleted stays listed and the call fails. The sessions stay open. An agent may remove only runs started by itself or its child sessions. Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Run id (gr_…)."}
+          },
+          "required": ["id"]
         }
       }
     ]

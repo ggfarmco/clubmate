@@ -143,6 +143,9 @@ func (a *app) resolveCommand(ctx context.Context, id string) (rpc.Command, error
 	if c, ok := find(id); ok {
 		return c, nil
 	}
+	if i := slices.IndexFunc(list, func(c rpc.Command) bool { return slices.Contains(c.Aliases, id) }); i >= 0 {
+		return list[i], nil
+	}
 	if c, ok := find(caps.Capabilities[id]); ok {
 		return c, nil
 	}

@@ -100,8 +100,8 @@ EOF
     sleep 2
   done
   mkdir -p "$TREE/.clubmate/graphs"
-  cp "$TREE/plugins/graphs/testdata/.clubmate/graphs/review-loop.json" "$TREE/.clubmate/graphs/"
-  cm --json command run graphs.run graph=review-loop input="fix the flaky switcher test" > "$DIR/raw/graph-run.json" || return 1
+  cp "$TREE/plugins/agents/graphs/testdata/.clubmate/graphs/review-loop.json" "$TREE/.clubmate/graphs/"
+  cm --json command run agents.graph-run graph=review-loop input="fix the flaky switcher test" > "$DIR/raw/graph-run.json" || return 1
   REVIEWER="$(json_field '.nodes[] | select(.id == "reviewer") | .session' < "$DIR/raw/graph-run.json")"
   GRAPH_TRIGGER="$(json_field '.edges[0].trigger' < "$DIR/raw/graph-run.json")"
   sleep 3
@@ -195,7 +195,7 @@ pass_dark() {
     snap x-Triggers-1280
   fi
   if wanted Graphs-1280; then
-    focus graphs
+    focus agents.graphs
     snap Graphs-1280
   fi
   if wanted Processes-1280; then
@@ -233,7 +233,7 @@ pass_light() {
     snap Triggers-640 640x800
   fi
   if wanted Graphs-640; then
-    focus graphs
+    focus agents.graphs
     snap Graphs-640 640x800
   fi
   if wanted Processes-640; then

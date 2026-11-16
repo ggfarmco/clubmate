@@ -111,7 +111,7 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	targetArgs, err := a.validateTarget(ctx, args.Command, cmp.Or(args.Args, "{}"))
+	command, targetArgs, err := a.validateTarget(ctx, args.Command, cmp.Or(args.Args, "{}"))
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error) {
 		Name:      args.Name,
 		Workspace: cmd.WorkspaceID,
 		Schedule:  s,
-		Command:   args.Command,
+		Command:   command,
 		Args:      targetArgs,
 		Enabled:   true,
 		CreatedBy: caller,
@@ -172,8 +172,7 @@ func (a *app) update(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error
 			j.Missed = args.Missed
 		}
 		if args.Command != "" || args.Args != "" {
-			command := cmp.Or(args.Command, j.Command)
-			raw, err := a.validateTarget(ctx, command, cmp.Or(args.Args, string(j.Args), "{}"))
+			command, raw, err := a.validateTarget(ctx, cmp.Or(args.Command, j.Command), cmp.Or(args.Args, string(j.Args), "{}"))
 			if err != nil {
 				return err
 			}
@@ -342,9 +341,9 @@ func (args jobsInArgs) find(path string) (string, bool) {
 	return "", false
 }
 
-func (a *app) validateTarget(ctx context.Context, command, args string) (json.RawMessage, error) {
+func (a *app) validateTarget(ctx context.Context, command, args string) (string, json.RawMessage, error) {
 	if strings.HasPrefix(command, "cron.") || strings.HasPrefix(command, "triggers.") && command != emitCommand {
-		return nil, fmt.Errorf("command %q cannot be scheduled", command)
+		return "", nil, fmt.Errorf("command %q cannot be scheduled", command)
 	}
 	return agentcall.ValidateTarget(ctx, a.host, command, args)
 }

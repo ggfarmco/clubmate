@@ -29,6 +29,7 @@ var (
 	idPattern   = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}$`)
 	slotPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 	nounPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*(\.[a-z][a-z0-9]*(-[a-z0-9]+)*)?$`)
+	aliasPrefix = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}\.`)
 	fixedSlots  = []string{"sidebar", "main", "status", "settings"}
 
 	reservedIDs = []string{"core", "session", "workspace", "process", "ui", "diagnostics"}
@@ -185,6 +186,9 @@ func (m Manifest) validate() error {
 			return invalid(m.Dir, "command %q timeout %d, want 1..%d seconds", c.ID, c.Timeout, maxCommandTimeout)
 		}
 	}
+	if err := m.validateAliases(commandIDs); err != nil {
+		return err
+	}
 	for _, v := range m.Contributes.Views {
 		if _, ok := sdui.SlotSection(v.Slot); ok {
 			continue
@@ -194,6 +198,23 @@ func (m Manifest) validate() error {
 		}
 	}
 	return m.validateShortcuts()
+}
+
+func (m Manifest) validateAliases(commandIDs []string) error {
+	seen := map[string]bool{}
+	for _, c := range m.Contributes.Commands {
+		for _, alias := range c.Aliases {
+			prefix := aliasPrefix.FindString(alias)
+			if prefix == "" || !nounPattern.MatchString(alias[len(prefix):]) {
+				return invalid(m.Dir, "command %q alias %q must be <plugin>.<noun>[.<verb>] in kebab-case", c.ID, alias)
+			}
+			if seen[alias] || slices.Contains(commandIDs, alias) {
+				return invalid(m.Dir, "command %q alias %q is not unique", c.ID, alias)
+			}
+			seen[alias] = true
+		}
+	}
+	return nil
 }
 
 func (m Manifest) validateShortcuts() error {

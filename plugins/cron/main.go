@@ -100,6 +100,10 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.mu.Lock()
 	for _, j := range jobs {
 		a.jobs[j.ID] = j
+		if to, ok := automation.RenameCommand(j.Command); ok {
+			j.Command = to
+			logError(st.Save(ctx, j))
+		}
 	}
 	a.mu.Unlock()
 	ready, err := h.Publish(ctx, h.PluginID()+".ready", nil)

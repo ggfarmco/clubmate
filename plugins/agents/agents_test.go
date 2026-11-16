@@ -225,6 +225,11 @@ func start(t *testing.T, script map[string]any, dirs ...string) *fixture {
 
 func startEnv(t *testing.T, env []string, script map[string]any, dirs ...string) *fixture {
 	t.Helper()
+	return startSeeded(t, env, script, nil, dirs...)
+}
+
+func startSeeded(t *testing.T, env []string, script map[string]any, seed func(h *testutil.PluginHarness), dirs ...string) *fixture {
+	t.Helper()
 	raw, err := json.Marshal(script)
 	require.NoError(t, err)
 	scriptPath := filepath.Join(t.TempDir(), "script.json")
@@ -239,6 +244,9 @@ func startEnv(t *testing.T, env []string, script map[string]any, dirs ...string)
 	harnesses <- struct{}{}
 	t.Cleanup(func() { <-harnesses })
 	f.h = testutil.NewHarness(t, plugin.WithEnv(env...))
+	if seed != nil {
+		seed(f.h)
+	}
 	f.h.Start(t, append([]string{testutil.BuildPluginDir(t, "clubmate/plugins/agents", "plugins/agents/plugin.json")}, dirs...)...)
 	f.waitReady(t, restartWait)
 	return f
@@ -1610,7 +1618,7 @@ func TestRevealOpensTheGraphRunRow(t *testing.T) {
 	workspace := f.workspace(t, newRepo(t))
 	var out struct{ Session, Worktree string }
 	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{"title": "Loop · Coder", "run": "gr_1", "runTitle": "Loop"}, &out))
-	row := "wt:run:" + out.Worktree + "/gr_1"
+	row := "run:gr_1"
 	runRow := func(n sdui.Node) (sdui.TreeItem, bool) {
 		trees := cardsOf(n, "tree")
 		if len(trees) == 0 {
@@ -2802,9 +2810,7 @@ func TestNewSessionFromVoiceNotSelected(t *testing.T) {
 		if len(trees) == 0 {
 			return false
 		}
-		raw, err := json.Marshal(trees[0].Props["items"])
-		require.NoError(t, err)
-		return strings.Contains(string(raw), `"label":"Service"`) && trees[0].Props["selected"] == first
+		return serviceDocked(t, trees[0]) && trees[0].Props["selected"] == first
 	})
 	assert.True(t, f.session(t, workspace, voice).Service)
 
@@ -2830,10 +2836,8 @@ func TestVoiceSessionNeverSelectedByFallback(t *testing.T) {
 		if len(trees) == 0 {
 			return false
 		}
-		raw, err := json.Marshal(trees[0].Props["items"])
-		require.NoError(t, err)
 		_, selected := trees[0].Props["selected"]
-		return strings.Contains(string(raw), `"label":"Service"`) && !selected
+		return serviceDocked(t, trees[0]) && !selected
 	})
 }
 
@@ -3407,4 +3411,13 @@ func TestTurnFinishedOnlyWithoutActiveChildren(t *testing.T) {
 		finished = append(finished, turn.Finished)
 	}
 	assert.Equal(t, []bool{false, true}, finished[:2])
+}
+
+func serviceDocked(t *testing.T, tree sdui.Node) bool {
+	t.Helper()
+	raw, err := json.Marshal(tree.Props["dock"])
+	require.NoError(t, err)
+	var dock []sdui.TreeDock
+	require.NoError(t, json.Unmarshal(raw, &dock))
+	return len(dock) > 0 && dock[0].ID == "service" && len(dock[0].Rows) == 1
 }

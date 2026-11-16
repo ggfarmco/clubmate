@@ -77,7 +77,7 @@ final class TreeKeysTests: XCTestCase {
             (123, false, .collapse),
             (36, false, .open),
             (31, false, .activate),
-            (53, false, .focusMain),
+            (53, false, .escape),
         ]
         for (keyCode, control, action) in rows {
             for side in SidebarSide.allCases {
@@ -151,6 +151,59 @@ final class TreeKeysTests: XCTestCase {
          {"id":"alpha.stage","title":"Stage","plugin":"alpha","hidden":false}]
         """#.utf8))
         XCTAssertEqual(commands.map(\.confirm), ["Discard changes?", ""])
+    }
+
+    private func docked() -> [TreeRow] {
+        let run: JSONValue = .object(["id": .string("run:gr_1"), "label": .string("Review gate"), "open": .string("run"), "hasChildren": .bool(true), "expanded": .bool(true), "children": .array([item("agt_c")])])
+        let tree = SDUINode(type: "tree", props: [
+            "items": .array([item("wt", expanded: true, children: [run])]),
+            "dock": .array([
+                .object(["id": .string("gates"), "label": .string("Land gates"), "rows": .array([item("gate-help")]), "cap": .number(6)]),
+                .object(["id": .string("graphs"), "label": .string("Graphs"), "expanded": .bool(true), "cap": .number(6), "rows": .array([item("graph:nightly")])]),
+            ]),
+        ])
+        return TreeCursor.rows(tree.treeItems(), dock: tree.treeDock())
+    }
+
+    func testJStepsIntoDock() {
+        let rows = docked()
+        XCTAssertEqual(rows.map(\.id), ["wt", "run:gr_1", "agt_c", "gates", "graphs", "graph:nightly"])
+        XCTAssertEqual(TreeCursor.resolve(.move(1), cursor: "agt_c", in: rows), .cursor("gates"))
+    }
+
+    func testKStepsBackFromDock() {
+        XCTAssertEqual(TreeCursor.resolve(.move(-1), cursor: "gates", in: docked()), .cursor("agt_c"))
+    }
+
+    func testReturnOnOpenRowSelects() {
+        XCTAssertEqual(TreeCursor.resolve(.open, cursor: "run:gr_1", in: docked()), .openPage("run:gr_1"))
+    }
+
+    func testEscFoldsOpenDockRow() {
+        let rows = docked()
+        XCTAssertEqual(TreeKeys.action(keyCode: 53, control: false, command: false, side: .left), .escape)
+        XCTAssertEqual(TreeCursor.resolve(.escape, cursor: "graphs", in: rows), .collapse("graphs"))
+        XCTAssertEqual(TreeCursor.resolve(.escape, cursor: "graph:nightly", in: rows), .collapse("graphs"))
+        XCTAssertEqual(TreeCursor.resolve(.escape, cursor: "agt_c", in: rows), .focusMain)
+        XCTAssertEqual(TreeCursor.resolve(.open, cursor: "gates", in: rows), .expand("gates"))
+    }
+
+    func testCmdDeleteRemovesTheCursorRow() throws {
+        XCTAssertEqual(TreeKeys.action(keyCode: 51, control: false, command: true, side: .left), .remove)
+        XCTAssertNil(TreeKeys.action(keyCode: 51, control: false, command: true, side: .left, option: true))
+        XCTAssertEqual(TreeCursor.resolve(.remove, cursor: "agt_c", in: docked()), .remove("agt_c"))
+        let entry = try XCTUnwrap(SDUIMenuEntry(.object(["action": .string("delete"), "label": .string("Delete Session"), "key": .string("cmd+delete")])))
+        XCTAssertEqual(entry.key, "cmd+delete")
+    }
+
+    func testMenuEntryKeys() {
+        XCTAssertEqual(MenuEntryKey("cmd+delete"), .commandDelete)
+        XCTAssertEqual(MenuEntryKey("c"), .plain("c"))
+        XCTAssertNil(MenuEntryKey(nil))
+    }
+
+    func testReturnOnFolderRowStillFolds() {
+        XCTAssertEqual(TreeCursor.resolve(.open, cursor: "wt", in: docked()), .collapse("wt"))
     }
 }
 

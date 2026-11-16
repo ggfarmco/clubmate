@@ -28,6 +28,9 @@ struct AgentsPlugin: CompanionPluginUI {
         if selection == AgentsPluginInfo.openQueue {
             return AnyView(OpenQueueView(context: context, store: store))
         }
+        if selection.hasPrefix(AgentsPluginInfo.id + "."), let workspace = context.navigation.workspace(for: context.connection) {
+            return AnyView(SectionScreen(connection: context.connection, workspace: workspace.id, section: selection).id("\(workspace.id)/\(selection)"))
+        }
         if GraphRun.isRun(selection) {
             return AnyView(RunDetailView(context: context, store: store, runID: selection).id(selection))
         }
@@ -213,6 +216,25 @@ struct SessionListView: View {
                         Spacer()
                         Text("\(count)")
                     }
+                }
+            }
+        }
+        if !store.endRows.isEmpty {
+            Section {
+                ForEach(store.endRows) { row in
+                    HStack(spacing: 12) {
+                        Image(systemName: row.icon)
+                            .foregroundStyle(Color.captionInk)
+                            .frame(width: 24)
+                        Text(row.label)
+                        Spacer()
+                        Text(row.detail)
+                            .font(.footnote)
+                            .foregroundStyle(Color.captionInk)
+                    }
+                    .listRowDensity()
+                    .tag(row.section)
+                    .modifier(SelectedSessionRow(active: wide, selected: context.navigation.detail == row.section))
                 }
             }
         }

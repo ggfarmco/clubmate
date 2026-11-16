@@ -130,7 +130,7 @@ func TestDrawnGraphRun(t *testing.T) {
 	}}})
 	require.NoError(t, err)
 	app := start(t, "macui-drawn-graph", string(script))
-	graph, err := os.ReadFile(filepath.Join(root, "plugins", "graphs", "testdata", ".clubmate", "graphs", "review-loop.json"))
+	graph, err := os.ReadFile(filepath.Join(root, "plugins", "agents", "graphs", "testdata", ".clubmate", "graphs", "review-loop.json"))
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(filepath.Join(app.repo, ".clubmate", "graphs"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(app.repo, ".clubmate", "graphs", "review-loop.json"), graph, 0o600))
@@ -145,9 +145,9 @@ func TestDrawnGraphRun(t *testing.T) {
 			Session string `json:"session"`
 		} `json:"nodes"`
 	}
-	app.json(&run, "command", "run", "graphs.run", "graph=review-loop", "input=add a readme")
+	app.json(&run, "command", "run", "agents.graph-run", "graph=review-loop", "input=add a readme")
 	app.eventually("the coder and the reviewer end their turns", func() bool {
-		app.json(&run, "command", "run", "graphs.show", "id="+run.ID)
+		app.json(&run, "command", "run", "agents.graph-show", "id="+run.ID)
 		return len(run.Moves) == 2 && run.Moves[1].Ended != ""
 	})
 	require.Equal(t, "running", run.Status)
@@ -215,8 +215,8 @@ func TestDrawnGraphRun(t *testing.T) {
 		return n.ID == "coder"
 	})].Session
 	openRun := func(in *instance) {
-		in.focusSection("graphs", "graphs.sidebar")
-		in.pointer("click", "runs#"+run.ID)
+		in.focusSection("agents", "agents.sidebar")
+		in.pointer("click", "sessions#run:"+run.ID)
 		in.eventually("the run's diagram shows", func() bool { return in.snapshot().main().has(diagram + "#card/coder") })
 	}
 

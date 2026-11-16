@@ -50,7 +50,7 @@ boards_for() {
     plugins/backlog/view*.go) echo Backlog-1280 Backlog-640 ;;
     plugins/cron/view*.go) echo Cron-1280 ;;
     plugins/triggers/view*.go) echo Triggers-640 x-Triggers-1280 ;;
-    plugins/graphs/view*.go) echo Graphs-1280 Graphs-640 Mac-ChatGraphStep ;;
+    plugins/agents/graphs/view*.go) echo Graphs-1280 Graphs-640 Mac-ChatGraphStep ;;
     plugins/processes/view*.go) echo Processes-1280 Processes-640 ;;
     plugins/editor-nvim/view*.go) echo Code-1280 Code-640 ;;
     plugins/remote/view*.go) echo Mac-Settings-Remote x-Title-Dot-1280 ;;

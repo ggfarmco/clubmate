@@ -43,6 +43,7 @@ type call struct {
 	ui          bool
 	via         string
 	agent       bool
+	agentCall   bool
 	caller      string
 }
 
@@ -129,7 +130,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	if !ok {
 		return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 	}
-	c := call{h: h, workspaceID: cmd.WorkspaceID, state: s, ui: !cmd.Agent && cmd.Via == "", via: cmd.Via, agent: cmd.Agent || cmd.Caller != "", caller: cmd.Caller}
+	c := call{h: h, workspaceID: cmd.WorkspaceID, state: s, ui: !cmd.Agent && cmd.Via == "", via: cmd.Via, agent: cmd.Agent || cmd.Caller != "", agentCall: cmd.Agent, caller: cmd.Caller}
 	if len(cmd.Args) > 0 {
 		if err := json.Unmarshal(cmd.Args, &c.args); err != nil {
 			return nil, fmt.Errorf("%s args: %w", cmd.ID, err)
@@ -196,7 +197,7 @@ func worktreeRemovePromptCommand(ctx context.Context, _ *app, c call) (any, erro
 }
 
 func (c call) costRefused() error {
-	if c.args.seesCost() && c.via != discardPlugin {
+	if c.args.seesCost() && (c.via != discardPlugin || c.agentCall) {
 		return errDiscardRefused
 	}
 	return nil
@@ -224,7 +225,7 @@ func worktreeUnpushedCommand(ctx context.Context, _ *app, c call) (any, error) {
 }
 
 func branchDeleteCommand(ctx context.Context, _ *app, c call) (any, error) {
-	if c.via != discardPlugin {
+	if c.via != discardPlugin || c.agentCall {
 		return nil, errBranchDeleteRefused
 	}
 	return nil, deleteBranch(ctx, c.h, c.workspaceID, c.args)

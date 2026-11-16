@@ -130,6 +130,8 @@ type sessionInfo struct {
 	Gate            string             `json:"gate,omitempty"`
 	LimitShare      map[string]float64 `json:"limitShare,omitempty"`
 	ShareLabel      string             `json:"shareLabel,omitempty"`
+	NestUnder       string             `json:"nestUnder,omitempty"`
+	GateRound       *gateRound         `json:"gateRound,omitempty"`
 }
 
 type sessionFailure struct {

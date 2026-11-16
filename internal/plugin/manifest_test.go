@@ -237,3 +237,31 @@ func keyLabel(combo string) string {
 	}
 	return b.String() + label
 }
+
+func TestManifestAliases(t *testing.T) {
+	tests := []struct {
+		name    string
+		aliases string
+		ok      bool
+	}{
+		{name: "valid", aliases: `[{"id":"beta.graph-run","title":"Run","aliases":["graphs.run"]}]`, ok: true},
+		{name: "own command id", aliases: `[{"id":"beta.graph-run","title":"Run","aliases":["beta.graph-list"]},{"id":"beta.graph-list","title":"List"}]`},
+		{name: "repeated", aliases: `[{"id":"beta.graph-run","title":"Run","aliases":["graphs.run"]},{"id":"beta.graph-list","title":"List","aliases":["graphs.run"]}]`},
+		{name: "no noun", aliases: `[{"id":"beta.graph-run","title":"Run","aliases":["graphs"]}]`},
+		{name: "upper case", aliases: `[{"id":"beta.graph-run","title":"Run","aliases":["Graphs.Run"]}]`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
+			writeManifest(t, dir, `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"commands":`+tt.aliases+`}}`)
+			m, err := plugin.Load(dir)
+			if !tt.ok {
+				assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, []string{"graphs.run"}, m.Contributes.Commands[0].Aliases)
+		})
+	}
+}

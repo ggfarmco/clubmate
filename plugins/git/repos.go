@@ -22,7 +22,7 @@ const (
 	graphExt       = ".json"
 	skillsFolder   = ".claude/skills"
 	skillFile      = "SKILL.md"
-	trustedCommand = "graphs.trusted"
+	trustedCommand = "agents.graph-trusted"
 	trustedTimeout = 2 * time.Second
 	upstreamRef    = "@{upstream}"
 )

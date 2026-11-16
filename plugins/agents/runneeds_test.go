@@ -8,21 +8,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	internalsdui "clubmate/internal/sdui"
-	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
 )
 
-func TestRunNeedsOnlyFromGraphs(t *testing.T) {
+func TestRunNeedsListedAsRunEntries(t *testing.T) {
 	t.Parallel()
 	a := &app{registry: newRegistry(), uiState: newUIState()}
-	need := runNeedsArgs{Runs: []runNeed{{Run: "gr_1", Title: "Review gate", Number: 4, Kind: needStep, Request: "step-tests", Node: "tests", Role: "Tests", Text: "Tests wants to run make test", Command: "make test", Since: time.Unix(100, 0)}}}
-	for _, cmd := range []pluginsdk.CommandRun{{ID: "agents.run-needs", WorkspaceID: "ws", Via: graphsPlugin, Agent: true}, {ID: "agents.run-needs", WorkspaceID: "ws", Via: "remote"}} {
-		_, err := a.runNeedsCommand(t.Context(), cmd, need)
-		assert.ErrorIs(t, err, errUnknownCmd)
-	}
-	_, err := a.runNeedsCommand(t.Context(), pluginsdk.CommandRun{ID: "agents.run-needs", WorkspaceID: "ws", Via: graphsPlugin}, need)
-	require.NoError(t, err)
+	need := []runNeed{{Run: "gr_1", Title: "Review gate", Number: 4, Kind: needStep, Request: "step-tests", Node: "tests", Role: "Tests", Text: "Tests wants to run make test", Command: "make test", Since: time.Unix(100, 0)}}
+	a.setRunNeeds(t.Context(), "ws", need)
 	infos := a.infos("ws")
 	require.Len(t, infos, 1)
 	got := infos[0]
@@ -31,8 +25,7 @@ func TestRunNeedsOnlyFromGraphs(t *testing.T) {
 	assert.Equal(t, api.Run{ID: "gr_1", Title: "Review gate", Number: 4}, *got.Run)
 
 	full := a.sessionsPage(t.Context(), "ws", infos, "")
-	_, err = a.runNeedsCommand(t.Context(), pluginsdk.CommandRun{ID: "agents.run-needs", WorkspaceID: "ws", Via: graphsPlugin}, runNeedsArgs{})
-	require.NoError(t, err)
+	a.setRunNeeds(t.Context(), "ws", nil)
 	assert.Equal(t, []string{"gr_1"}, a.sessionsPage(t.Context(), "ws", a.infos("ws"), full.Cursor).Removed)
 }
 
@@ -56,7 +49,7 @@ func TestSidebarRunNeedsYou(t *testing.T) {
 		{Rec: record{ID: "agt_r", Worktree: "/r/a", Run: run, Title: "Review gate · Reviewer", Status: statusIdle, CreatedAt: now, UpdatedAt: now}, RunNeed: need},
 		{Rec: record{ID: "agt_x", Worktree: "/r/a", Title: "Solo", Status: statusDone, UpdatedAt: now}},
 	}
-	tree := sidebarView(rows, "", map[string]bool{runGroupKey("/r/a", "gr_1"): true}, now, "/r/a", false, filterNeeds, sidebarSearch{}, 0)
+	tree := sidebarView(rows, "", map[string]bool{expandPrefix + runPrefix + "gr_1": false}, now, "/r/a", false, filterNeeds, sidebarSearch{}, 0, sidebarPlus{})
 	require.NoError(t, internalsdui.Validate(tree))
 	tabs := nodesOf(tree, "tabs")[0].Props["items"].([]sdui.Item)
 	assert.Equal(t, "1", tabs[1].Badge)

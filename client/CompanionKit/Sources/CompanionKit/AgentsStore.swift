@@ -21,7 +21,14 @@ public enum TranscriptImage: Sendable, Equatable {
 @Observable
 public final class AgentsStore {
     public let workspace: String
-    private var list = AgentSessionList()
+    private var list = AgentSessionList() {
+        didSet { listed = RunRows.sessions(list.rows, runs: runRows) }
+    }
+    private var runRows: [AgentRunRow]? {
+        didSet { listed = RunRows.sessions(list.rows, runs: runRows) }
+    }
+    private var listed: [AgentSession] = []
+    public private(set) var dock: [AgentDockRow] = []
     public private(set) var transcripts: [String: AgentTranscript] = [:]
     public private(set) var loaded = false
     public private(set) var error: String?
@@ -114,7 +121,11 @@ public final class AgentsStore {
     }
 
     public var sessions: [AgentSession] {
-        list.items
+        listed
+    }
+
+    public var endRows: [RunEndRow] {
+        RunRows.endRows(dock)
     }
 
     public var groups: [(group: SessionGroup, sessions: [SessionNode])] {
@@ -271,6 +282,10 @@ public final class AgentsStore {
         guard let runner else { return }
         do {
             let reply = try await runner.command(AgentCommand.sessions, workspace: workspace, args: list.args)
+            if reply.arrayValue == nil {
+                runRows = try reply["runs"].flatMap { $0 == .null ? nil : try $0.decode([AgentRunRow].self) }
+                dock = try reply["dock"].flatMap { $0 == .null ? nil : try $0.decode([AgentDockRow].self) } ?? []
+            }
             if let rows = reply.arrayValue { try list.replace(rows) } else { try list.apply(reply) }
             error = nil
             fetched = true
@@ -361,7 +376,7 @@ public final class AgentsStore {
         await coalesced("run/" + id) { [weak self] in
             guard let self, let runner else { return }
             do {
-                let run = try await runner.command(GraphCommand.show, workspace: workspace, args: .object(["id": .string(id)]), as: GraphRun.self)
+                let run = try await runner.command(GraphCommand.id(GraphCommand.show, supports: runner.supports), workspace: workspace, args: .object(["id": .string(id)]), as: GraphRun.self)
                 if runs[id] != run { runs[id] = run }
                 runErrors[id] = nil
             } catch {
@@ -372,18 +387,30 @@ public final class AgentsStore {
     }
 
     public func approve(run id: String, node: String, decision: String) async throws {
-        try await submit(GraphCommand.approve, ["id": .string(id), "node": .string(node), "decision": .string(decision)], target: "run/" + id, title: "Answer \(node)")
+        try await submit(graphCommand(GraphCommand.approve), ["id": .string(id), "node": .string(node), "decision": .string(decision)], target: "run/" + id, title: "Answer \(node)")
         await refreshRun(id)
     }
 
     public func continueRun(_ id: String, edge: Int) async throws {
-        try await submit(GraphCommand.continue, ["id": .string(id), "edge": .number(Double(edge))], target: "run/" + id, title: "Continue the run")
+        try await submit(graphCommand(GraphCommand.continue), ["id": .string(id), "edge": .number(Double(edge))], target: "run/" + id, title: "Continue the run")
         await refreshRun(id)
     }
 
+    public func rerun(_ id: String) async throws -> String {
+        guard let runner else { throw RemoteError.badResponse }
+        let reply = try await runner.command(GraphCommand.rerun, workspace: workspace, args: .object(["id": .string(id)]))
+        guard let run = reply["id"]?.stringValue else { throw RemoteError.badResponse }
+        await refresh()
+        return run
+    }
+
     public func stopRun(_ id: String) async throws {
-        try await submit(GraphCommand.stop, ["id": .string(id)], target: "run/" + id, title: "Stop the run")
+        try await submit(graphCommand(GraphCommand.stop), ["id": .string(id)], target: "run/" + id, title: "Stop the run")
         await refreshRun(id)
+    }
+
+    private func graphCommand(_ command: String) -> String {
+        GraphCommand.id(command, supports: { runner?.supports($0) ?? false })
     }
 
     private func refreshRun(_ id: String) async {

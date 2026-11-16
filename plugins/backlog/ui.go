@@ -359,7 +359,7 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return fmt.Errorf("%s value: %w", ev.Action, err)
 		}
 		if run, ok := strings.CutPrefix(ref, runRef); ok {
-			return b.h.RunCommand(ctx, "graphs.reveal", ev.WorkspaceID, map[string]string{"id": run}, nil)
+			return b.h.RunCommand(ctx, "agents.graph-reveal", ev.WorkspaceID, map[string]string{"id": run}, nil)
 		}
 		return b.openOwner(ctx, ev.WorkspaceID, ref)
 	case ev.Slot == mainSlot && ev.Action == actStart:
@@ -591,7 +591,7 @@ func (b *backlog) openOwner(ctx context.Context, workspaceID, owner string) erro
 		return fmt.Errorf("%q is not an agent session", owner)
 	}
 	if s, ok := b.live.session(ctx, workspaceID, owner); ok && s.Run != nil {
-		return b.h.RunCommand(ctx, "graphs.reveal", workspaceID, map[string]string{"id": s.Run.ID}, nil)
+		return b.h.RunCommand(ctx, "agents.graph-reveal", workspaceID, map[string]string{"id": s.Run.ID}, nil)
 	}
 	return agentcall.Reveal(ctx, b.h, workspaceID, owner)
 }

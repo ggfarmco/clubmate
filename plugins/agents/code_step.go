@@ -12,8 +12,6 @@ import (
 
 const (
 	actOpenGraphs = "openGraphs"
-	graphsSection = "graphs"
-	graphsMain    = "graphs.main"
 	stepNote      = "It starts on its own when the graph reaches it. You can write here once it has run."
 	stepNoteAfter = "It starts on its own when %s, and gets %s result. You can write here once it has run."
 
@@ -21,7 +19,7 @@ const (
 	onError    = "error"
 	onAsks     = "asks"
 	onOutcome  = "outcome"
-	openGraphs = "Open in Graphs"
+	openGraphs = "Open run"
 	newChat    = "New chat"
 )
 

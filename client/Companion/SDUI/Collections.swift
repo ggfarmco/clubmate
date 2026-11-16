@@ -272,8 +272,19 @@ struct TreeNode: View {
         items.flatMap { [Row(item: $0, depth: depth)] + ($0.expanded ? rows($0.children, depth: depth + 1) : []) }
     }
 
+    private static func docked(_ node: SDUINode) -> [SDUITreeItem] {
+        (node.props["dock"]?.arrayValue ?? []).compactMap { section in
+            guard var fields = section.objectValue else { return nil }
+            let rows = fields.removeValue(forKey: "rows")?.arrayValue ?? []
+            fields.removeValue(forKey: "attention")
+            fields["children"] = .array(rows)
+            fields["hasChildren"] = .bool(!rows.isEmpty)
+            return SDUITreeItem(.object(fields))
+        }
+    }
+
     var body: some View {
-        let rows = Self.rows(node.treeItems())
+        let rows = Self.rows(node.treeItems() + Self.docked(node))
         let gutter = rows.contains { $0.item.hasChildren }
         let byID = Dictionary(rows.map { ($0.item.id, $0) }, uniquingKeysWith: { first, _ in first })
         RowGroup(ids: rows.map(\.item.id), selected: selected) { id in
@@ -293,6 +304,15 @@ struct TreeNode: View {
             }
         }
         .menuConfirm($choice, node: node, context: context)
+        .background {
+            Button("Remove") {
+                guard let selected, let entry = byID[selected]?.item.item.menu.first(where: { $0.key == "cmd+delete" }) else { return }
+                choice = MenuChoice(entry: entry, item: selected)
+            }
+            .keyboardShortcut(.delete, modifiers: .command)
+            .opacity(0)
+            .accessibilityHidden(true)
+        }
         .onChange(of: node.string("selected"), initial: true) { _, value in
             selected = value
         }

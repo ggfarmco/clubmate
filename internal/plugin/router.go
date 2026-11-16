@@ -40,6 +40,7 @@ type routeTable struct {
 	gen          uint64
 	commands     []rpc.Command
 	byID         map[string]rpc.Command
+	aliases      map[string]rpc.Command
 	capabilities map[string]rpc.Command
 }
 
@@ -96,6 +97,9 @@ func (r *Router) Resolve(id string) (rpc.Command, bool) {
 	if c, ok := t.byID[id]; ok {
 		return c, true
 	}
+	if c, ok := t.aliases[id]; ok {
+		return c, true
+	}
 	c, ok := t.capabilities[id]
 	return c, ok
 }
@@ -117,7 +121,7 @@ func (r *Router) routes() *routeTable {
 	if r.table != nil && r.table.gen == gen {
 		return r.table
 	}
-	t := &routeTable{gen: gen, byID: map[string]rpc.Command{}, capabilities: r.capabilities()}
+	t := &routeTable{gen: gen, byID: map[string]rpc.Command{}, aliases: map[string]rpc.Command{}, capabilities: r.capabilities()}
 	for _, st := range r.sup.Statuses() {
 		if !st.Enabled {
 			continue
@@ -127,6 +131,15 @@ func (r *Router) routes() *routeTable {
 			t.commands = append(t.commands, cmd)
 			if _, dup := t.byID[cmd.ID]; !dup {
 				t.byID[cmd.ID] = cmd
+			}
+		}
+	}
+	for _, c := range t.commands {
+		for _, alias := range c.Aliases {
+			_, real := t.byID[alias]
+			_, dup := t.aliases[alias]
+			if !real && !dup {
+				t.aliases[alias] = c
 			}
 		}
 	}

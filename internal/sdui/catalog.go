@@ -42,7 +42,7 @@ const (
 
 var (
 	actionPattern   = regexp.MustCompile(`^[a-z][a-zA-Z0-9.-]*$`)
-	menuKeyPattern  = regexp.MustCompile("^[a-z0-9]$")
+	menuKeyPattern  = regexp.MustCompile(`^([a-z0-9]|cmd\+delete)$`)
 	shortcutPattern = regexp.MustCompile("^((cmd|ctrl|opt|shift)\\+){0,4}(return|tab|space|delete|esc|left|right|down|up|[a-z0-9=\\-\\[\\]';\\\\,/.`])$")
 )
 
@@ -196,7 +196,7 @@ var (
 		},
 		"tree": {
 			required:    []string{"items"},
-			props:       map[string]propCheck{"items": listOf(treeItemCheck), "selected": isString, "action": actionCheck},
+			props:       map[string]propCheck{"items": listOf(treeItemCheck), "selected": isString, "action": actionCheck, "dock": listOf(treeDockCheck)},
 			children:    noChildren,
 			interactive: true,
 		},
@@ -815,7 +815,7 @@ func menuEntryCheck(c *validator, v any) error {
 func menuKeyCheck(_ *validator, v any) error {
 	s, ok := v.(string)
 	if !ok || !menuKeyPattern.MatchString(s) {
-		return fmt.Errorf("must be one lowercase letter or digit")
+		return fmt.Errorf("must be one lowercase letter or digit, or cmd+delete")
 	}
 	return nil
 }
@@ -886,6 +886,28 @@ func isScalar(v any) bool {
 	return false
 }
 
+var (
+	treeOpens    = []string{"session", "run", "graph", "gate"}
+	treeAddCheck = objectCheck([]string{"action", "label"}, map[string]propCheck{"action": isString, "label": isString})
+	treeDockRows = objectCheck([]string{"id", "label"}, map[string]propCheck{
+		"id": isString, "label": isString, "icon": isString, "detail": isString, "attention": isBool, "expanded": isBool,
+		"rows": listOf(treeItemCheck), "add": treeAddCheck, "cap": countNumber,
+	})
+)
+
+func treeDockCheck(c *validator, v any) error {
+	if err := treeDockRows(c, v); err != nil {
+		return err
+	}
+	m, _ := v.(map[string]any)
+	if rows, _ := m["rows"].([]any); len(rows) > 0 {
+		if n, _ := m["cap"].(float64); n < 1 {
+			return errors.New("cap must be at least 1 when the dock row has rows")
+		}
+	}
+	return nil
+}
+
 func treeItemCheck(c *validator, v any) error {
 	c.depth++
 	defer func() { c.depth-- }()
@@ -895,7 +917,7 @@ func treeItemCheck(c *validator, v any) error {
 	fields := map[string]propCheck{
 		"muted": isBool, "faint": isBool, "action": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck),
 		"badges": listOf(headerBadgeCheck), "changes": changesCheck, "detailTone": oneOf(badgeTones), "detailFaint": isBool,
-		"labelIcon": isString, "pinned": isBool,
+		"labelIcon": isString, "pinned": isBool, "open": oneOf(treeOpens),
 	}
 	for k, f := range itemFields {
 		fields[k] = f

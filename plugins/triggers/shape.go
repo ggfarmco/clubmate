@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	graphsShow   = "graphs.show"
+	graphsShow   = "agents.graph-show"
 	shapeTimeout = 10 * time.Second
 	onOutcome    = "outcome"
 	endMarker    = "end"

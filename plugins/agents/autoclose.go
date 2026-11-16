@@ -15,11 +15,6 @@ type ownedJob struct {
 	Owner string `json:"owner"`
 }
 
-type listedRun struct {
-	ID     string `json:"id"`
-	Status string `json:"status"`
-}
-
 func (a *app) closeDoneLoop(after time.Duration) {
 	if after <= 0 {
 		return
@@ -58,7 +53,7 @@ func (a *app) closeDone(after time.Duration) {
 		workspace := rec.Workspace
 		if rec.Run != nil {
 			if _, ok := running[workspace]; !ok {
-				running[workspace] = a.runningRuns(ctx, workspace)
+				running[workspace] = a.runningRuns(workspace)
 			}
 			if live := running[workspace]; live == nil || live[rec.Run.ID] {
 				continue
@@ -103,20 +98,8 @@ func (a *app) orphanLocked(rec record) bool {
 	return !ok || parent.snapshot().closed()
 }
 
-func (a *app) runningRuns(ctx context.Context, workspace string) map[string]bool {
-	var list struct {
-		Runs []listedRun `json:"runs"`
-	}
-	if a.host.RunCommand(ctx, "graphs.list", workspace, struct{}{}, &list) != nil {
-		return nil
-	}
-	running := map[string]bool{}
-	for _, r := range list.Runs {
-		if r.Status != "stopped" {
-			running[r.ID] = true
-		}
-	}
-	return running
+func (a *app) runningRuns(workspace string) map[string]bool {
+	return a.graphs.Running(workspace)
 }
 
 func (s *session) settled(after time.Duration, idleOK bool) bool {

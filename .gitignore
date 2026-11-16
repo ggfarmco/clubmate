@@ -36,7 +36,6 @@ __pycache__/
 /plugins/editor-nvim/editor-nvim
 /plugins/editor-vscode/editor-vscode
 /plugins/git/git
-/plugins/graphs/graphs
 /plugins/processes/processes
 /plugins/remote/remote
 /plugins/search/search

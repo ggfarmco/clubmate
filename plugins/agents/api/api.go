@@ -1,6 +1,10 @@
 package api
 
-import "clubmate/pkg/id"
+import (
+	"time"
+
+	"clubmate/pkg/id"
+)
 
 const (
 	IDPrefix = "agt"
@@ -54,6 +58,46 @@ type Run struct {
 	Title  string     `json:"title"`
 	Number int        `json:"number,omitempty"`
 	After  []RunAfter `json:"after,omitempty"`
+}
+
+type RunNeed struct {
+	Run     string    `json:"run"`
+	Title   string    `json:"title"`
+	Number  int       `json:"number,omitempty"`
+	Kind    string    `json:"kind"`
+	Request string    `json:"request"`
+	Node    string    `json:"node"`
+	Role    string    `json:"role,omitempty"`
+	Edge    int       `json:"edge,omitempty"`
+	Text    string    `json:"text"`
+	Command string    `json:"command,omitempty"`
+	Since   time.Time `json:"since"`
+}
+
+type RunRow struct {
+	ID       string   `json:"id"`
+	Graph    string   `json:"graph"`
+	Title    string   `json:"title"`
+	Number   int      `json:"number,omitempty"`
+	Worktree string   `json:"worktree,omitempty"`
+	State    string   `json:"state"`
+	Detail   string   `json:"detail"`
+	NeedsYou bool     `json:"needsYou,omitempty"`
+	Request  string   `json:"request,omitempty"`
+	Pointer  string   `json:"pointer,omitempty"`
+	Sessions []string `json:"sessions"`
+	Home     string   `json:"home"`
+	Group    string   `json:"group"`
+	Status   string   `json:"status"`
+}
+
+type DockRow struct {
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	Icon        string `json:"icon"`
+	Detail      string `json:"detail"`
+	PhoneDetail string `json:"phoneDetail"`
+	Attention   bool   `json:"attention,omitempty"`
 }
 
 type RunAfter struct {

@@ -84,3 +84,23 @@ func TestKVValidation(t *testing.T) {
 	big := json.RawMessage(`"` + strings.Repeat("x", 256<<10) + `"`)
 	assert.ErrorIs(t, s.Set(ctx, "a", "k", big), kv.ErrValueTooLarge)
 }
+
+func TestMovePluginKeepsExistingTarget(t *testing.T) {
+	s := openKV(t)
+	require.NoError(t, s.Set(t.Context(), "graphs", "run/w/gr_1", json.RawMessage(`{"id":"gr_1"}`)))
+	require.NoError(t, s.Set(t.Context(), "graphs", "trust/abc", json.RawMessage(`"old"`)))
+	require.NoError(t, s.Set(t.Context(), "agents", "graph/trust/abc", json.RawMessage(`"keep"`)))
+	n, err := s.MovePlugin(t.Context(), "graphs", "agents", "graph/", func(_ string, v json.RawMessage) json.RawMessage { return v })
+	require.NoError(t, err)
+	assert.Equal(t, 2, n)
+	run, found, err := s.Get(t.Context(), "agents", "graph/run/w/gr_1")
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.JSONEq(t, `{"id":"gr_1"}`, string(run))
+	trust, _, err := s.Get(t.Context(), "agents", "graph/trust/abc")
+	require.NoError(t, err)
+	assert.JSONEq(t, `"keep"`, string(trust))
+	left, err := s.List(t.Context(), "graphs", "")
+	require.NoError(t, err)
+	assert.Empty(t, left)
+}

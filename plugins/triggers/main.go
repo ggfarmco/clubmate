@@ -96,6 +96,10 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.mu.Lock()
 	for _, t := range triggers {
 		a.triggers[t.ID] = t
+		if to, ok := automation.RenameCommand(t.Command); ok {
+			t.Command = to
+			logError(st.Save(ctx, t))
+		}
 	}
 	a.mu.Unlock()
 	ready, err := h.Publish(ctx, h.PluginID()+".ready", nil)
@@ -376,7 +380,7 @@ func (a *app) openGraph(ctx context.Context, workspace, id string) error {
 	if run == "" {
 		return fmt.Errorf("trigger %q was not created by a graph", id)
 	}
-	if err := a.host.RunCommand(ctx, "graphs.reveal", workspace, automation.IDArgs{ID: run}, nil); err != nil {
+	if err := a.host.RunCommand(ctx, "agents.graph-reveal", workspace, automation.IDArgs{ID: run}, nil); err != nil {
 		return fmt.Errorf("open graph run %s: %w", run, err)
 	}
 	return nil

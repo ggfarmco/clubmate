@@ -38,12 +38,12 @@ final class AutomationTests: E2ETestCase {
     }
 
     func testAGraphRunsAgentTurnShowsItsSummaryAndOpensTheSession() throws {
-        let run = try XCTUnwrap((try mac.run("graphs.run", ["graph": "e2e", "input": "summary"]) as? [String: Any])?["id"] as? String)
+        let run = try XCTUnwrap((try mac.run("agents.graph-run", ["graph": "e2e", "input": "summary"]) as? [String: Any])?["id"] as? String)
         eventually("the coder's turn to be summarized", timeout: 30) {
-            let show = try mac.run("graphs.show", ["id": run])
+            let show = try mac.run("agents.graph-show", ["id": run])
             return String(decoding: try JSONSerialization.data(withJSONObject: show), as: UTF8.self).contains("ticked twice")
         }
-        let app = try launch(open: "more/graphs/\(run)")
+        let app = try launch(open: "more/agents.graphs/\(run)")
         let coder = app.otherElements["sdui.graph.nodes"].buttons.matching(NSPredicate(format: "label BEGINSWITH 'Coder'")).firstMatch
         XCTAssertTrue(coder.waitForExistence(timeout: 15))
         coder.tap()
@@ -54,6 +54,30 @@ final class AutomationTests: E2ETestCase {
         XCTAssertTrue(open.exists)
         open.tap()
         XCTAssertTrue(text(app, containing: "E2E graph coder").waitForExistence(timeout: 10), "Open Coder didn't open the coder's session")
-        _ = try mac.run("graphs.stop", ["id": run])
+        _ = try mac.run("agents.graph-stop", ["id": run])
+    }
+
+    func testRunAgainWithThisInput() throws {
+        let run = try XCTUnwrap((try mac.run("agents.graph-run", ["graph": "e2e", "input": "again"]) as? [String: Any])?["id"] as? String)
+        _ = try mac.run("agents.graph-stop", ["id": run])
+        let ids = {
+            (((try self.mac.run("agents.graph-list") as? [String: Any])?["runs"] as? [[String: Any]]) ?? []).compactMap { $0["id"] as? String }
+        }
+        let before = Set(try ids())
+        let app = try launch(open: "agents/\(run)")
+        let more = app.navigationBars.buttons["More"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 15))
+        more.tap()
+        let again = app.buttons["Run again with this input"].firstMatch
+        XCTAssertTrue(again.waitForExistence(timeout: 10))
+        again.tap()
+        var fresh = ""
+        eventually("a new run of the same graph and input", timeout: 30) {
+            fresh = try ids().first { !before.contains($0) } ?? ""
+            return !fresh.isEmpty
+        }
+        let shown = try XCTUnwrap(try mac.run("agents.graph-show", ["id": fresh]) as? [String: Any])
+        XCTAssertEqual(shown["input"] as? String, "again")
+        _ = try mac.run("agents.graph-stop", ["id": fresh])
     }
 }

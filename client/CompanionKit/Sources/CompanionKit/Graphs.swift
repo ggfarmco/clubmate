@@ -3,10 +3,17 @@ import Foundation
 import ClubmateProtocol
 
 public enum GraphCommand {
-    public static let show = "graphs.show"
-    public static let approve = "graphs.approve"
-    public static let `continue` = "graphs.continue"
-    public static let stop = "graphs.stop"
+    public static let show = "agents.graph-show"
+    public static let approve = "agents.graph-approve"
+    public static let `continue` = "agents.graph-continue"
+    public static let stop = "agents.graph-stop"
+    public static let rerun = "agents.graph-rerun"
+
+    private static let before = [show: "graphs.show", approve: "graphs.approve", `continue`: "graphs.continue", stop: "graphs.stop"]
+
+    public static func id(_ command: String, supports: (String) -> Bool) -> String {
+        supports(command) ? command : before[command] ?? command
+    }
 }
 
 public struct GraphRun: Decodable, Sendable, Equatable, Identifiable {
@@ -209,5 +216,92 @@ extension AgentSession {
 
     public var isRun: Bool {
         kind == Self.runKind
+    }
+}
+
+public struct AgentRunRow: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public let graph: String
+    public let title: String
+    public let number: Int?
+    public let worktree: String?
+    public let state: String
+    public let detail: String
+    public let needsYou: Bool?
+    public let request: String?
+    public let pointer: String?
+    public let sessions: [String]
+    public let home: String
+    public let group: String?
+    public let status: String?
+}
+
+public struct AgentDockRow: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public let label: String
+    public let icon: String
+    public let detail: String
+    public let phoneDetail: String
+    public let attention: Bool?
+}
+
+public struct RunEndRow: Sendable, Equatable, Identifiable {
+    public let id: String
+    public let label: String
+    public let icon: String
+    public let detail: String
+    public let section: String
+}
+
+public enum RunRows {
+    private static let sections = ["gates": "agents.gates", "graphs": "agents.graphs"]
+
+    public static func sessions(_ rows: [JSONValue], runs: [AgentRunRow]?) -> [AgentSession] {
+        guard let runs else { return rows.compactMap { try? $0.decode(AgentSession.self) } }
+        let ids = Set(runs.map(\.id))
+        let listed = Set(rows.compactMap { $0["id"]?.stringValue })
+        var out: [AgentSession] = []
+        var workspace = ""
+        var entries: [String: AgentSession] = [:]
+        for row in rows {
+            guard case .object(var fields) = row else { continue }
+            if fields["kind"]?.stringValue == "run" {
+                if let id = fields["id"]?.stringValue, let entry = try? row.decode(AgentSession.self) { entries[id] = entry }
+                continue
+            }
+            workspace = fields["workspace"]?.stringValue ?? workspace
+            if let run = fields["run"]?["id"]?.stringValue, ids.contains(run), fields["parentSession"]?.stringValue.map(listed.contains) != true {
+                fields["parentSession"] = .string(run)
+            }
+            if let lander = fields["nestUnder"]?.stringValue, listed.contains(lander), let round = fields["gateRound"] {
+                fields["parentSession"] = .string(lander)
+                if let label = round["label"]?.stringValue { fields["title"] = .string(label) }
+                if let verdict = round["verdict"]?.stringValue { fields["rowDetail"] = .string(verdict) }
+            }
+            if let session = try? JSONValue.object(fields).decode(AgentSession.self) { out.append(session) }
+        }
+        for run in runs {
+            if let entry = entries[run.id] {
+                out.append(entry)
+            } else if let session = try? session(run, workspace: workspace) {
+                out.append(session)
+            }
+        }
+        return out
+    }
+
+    public static func endRows(_ dock: [AgentDockRow]) -> [RunEndRow] {
+        dock.compactMap { row in sections[row.id].map { RunEndRow(id: row.id, label: row.label, icon: row.icon, detail: row.phoneDetail, section: $0) } }
+    }
+
+    private static func session(_ run: AgentRunRow, workspace: String) throws -> AgentSession {
+        var fields: [String: JSONValue] = [
+            "id": .string(run.id), "kind": .string("run"), "workspace": .string(workspace), "title": .string(run.title),
+            "status": .string(run.status ?? ""), "group": .string(run.group ?? ""), "needsYou": .bool(run.needsYou == true), "rowDetail": .string(run.detail),
+            "run": .object(["id": .string(run.id), "title": .string(run.title), "number": run.number.map { .number(Double($0)) } ?? .null]),
+        ]
+        if let worktree = run.worktree { fields["worktree"] = .string(worktree) }
+        if let request = run.request { fields["pending"] = .array([.string(request)]) }
+        return try JSONValue.object(fields).decode(AgentSession.self)
     }
 }

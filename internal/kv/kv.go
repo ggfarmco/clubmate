@@ -137,6 +137,65 @@ func (s *Store) List(ctx context.Context, plugin, prefix string) ([]string, erro
 	return keys, nil
 }
 
+func (s *Store) MovePlugin(ctx context.Context, from, to, prefix string, rewrite func(key string, v json.RawMessage) json.RawMessage) (int, error) {
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("move kv: %w", err)
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+		return 0, fmt.Errorf("move kv: %w", err)
+	}
+	n, err := moveRows(ctx, conn, from, to, prefix, rewrite)
+	if err != nil {
+		_, _ = conn.ExecContext(context.WithoutCancel(ctx), `ROLLBACK`)
+		return 0, err
+	}
+	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+		_, _ = conn.ExecContext(context.WithoutCancel(ctx), `ROLLBACK`)
+		return 0, fmt.Errorf("move kv: %w", err)
+	}
+	return n, nil
+}
+
+func moveRows(ctx context.Context, conn *sql.Conn, from, to, prefix string, rewrite func(string, json.RawMessage) json.RawMessage) (int, error) {
+	rows, err := conn.QueryContext(ctx, `SELECT key, value FROM kv WHERE plugin = ? ORDER BY key`, from)
+	if err != nil {
+		return 0, fmt.Errorf("move kv: %w", err)
+	}
+	type row struct{ key, value string }
+	var all []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.key, &r.value); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("move kv: %w", err)
+		}
+		all = append(all, r)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("move kv: %w", err)
+	}
+	for _, r := range all {
+		key := prefix + r.key
+		if err := validateKey(key); err != nil {
+			return 0, fmt.Errorf("move kv %q: %w", r.key, err)
+		}
+		value := rewrite(r.key, json.RawMessage(r.value))
+		if !json.Valid(value) {
+			return 0, fmt.Errorf("move kv %q: %w", r.key, ErrInvalidValue)
+		}
+		if _, err := conn.ExecContext(ctx, `INSERT OR IGNORE INTO kv(plugin, key, value) VALUES(?, ?, ?)`, to, key, string(value)); err != nil {
+			return 0, fmt.Errorf("move kv: %w", err)
+		}
+	}
+	if _, err := conn.ExecContext(ctx, `DELETE FROM kv WHERE plugin = ?`, from); err != nil {
+		return 0, fmt.Errorf("move kv: %w", err)
+	}
+	return len(all), nil
+}
+
 func validateKey(key string) error {
 	if key == "" || len(key) > maxKeyBytes || strings.ContainsRune(key, 0) {
 		return ErrInvalidKey

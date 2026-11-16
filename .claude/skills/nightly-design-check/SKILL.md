@@ -88,15 +88,15 @@ The edge message says which path led here (nothing to capture, capture failed, n
 
 ## By hand
 
-From the main checkout, `graphs_run {"graph": "design-check"}` (input `all` for every board) runs the graph with you as the caller; its node questions come to you. Without the graph, the same order in `MAIN`, with `DESIGN_CHECK_RUN=manual-<date>` exported: `capture.sh --plan` (`--dry-run` shows what a capture would do), `capture.sh`, the Judge and Fixer sections yourself, `tests.sh` when something landed (red → `revert.sh`), the Report section, `cleanup.sh` (`--dry-run` first). `DESIGN_CHECK_REV=<rev>` captures another revision, e.g. a branch, in the same way.
+From the main checkout, `agents_graph_run {"graph": "design-check"}` (input `all` for every board) runs the graph with you as the caller; its node questions come to you. Without the graph, the same order in `MAIN`, with `DESIGN_CHECK_RUN=manual-<date>` exported: `capture.sh --plan` (`--dry-run` shows what a capture would do), `capture.sh`, the Judge and Fixer sections yourself, `tests.sh` when something landed (red → `revert.sh`), the Report section, `cleanup.sh` (`--dry-run` first). `DESIGN_CHECK_REV=<rev>` captures another revision, e.g. a branch, in the same way.
 
 ## Cron job
 
 Lives in the cron plugin, not in git; recreate it if it is gone:
 
 ```
-cron_add name="Nightly design check" command=graphs.run cron="0 5 * * *" owner=none missed=once
+cron_add name="Nightly design check" command=agents.graph-run cron="0 5 * * *" owner=none missed=once
   args={"graph":"design-check"}
 ```
 
-05:00 runs after the tidy (03:30), so the two don't build at once. The steps need `Bash(scripts/design/capture.sh)`, `Bash(scripts/design/tests.sh)`, `Bash(scripts/design/revert.sh)` and `Bash(scripts/design/cleanup.sh)` in the main checkout's `.claude/settings.local.json` (or bypass mode), and the graph needs `graphs.trust {"graph":"design-check"}` after every change to its steps or wiring.
+05:00 runs after the tidy (03:30), so the two don't build at once. The steps need `Bash(scripts/design/capture.sh)`, `Bash(scripts/design/tests.sh)`, `Bash(scripts/design/revert.sh)` and `Bash(scripts/design/cleanup.sh)` in the main checkout's `.claude/settings.local.json` (or bypass mode), and the graph needs `agents.graph-trust {"graph":"design-check"}` after every change to its steps or wiring.

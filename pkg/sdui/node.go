@@ -54,6 +54,24 @@ type TreeItem struct {
 	Changes     *Changes      `json:"changes,omitempty"`
 	LabelIcon   string        `json:"labelIcon,omitempty"`
 	Pinned      bool          `json:"pinned,omitempty"`
+	Open        string        `json:"open,omitempty"`
+}
+
+type TreeDock struct {
+	ID        string     `json:"id"`
+	Label     string     `json:"label"`
+	Icon      string     `json:"icon,omitempty"`
+	Detail    string     `json:"detail,omitempty"`
+	Attention bool       `json:"attention,omitempty"`
+	Expanded  bool       `json:"expanded,omitempty"`
+	Rows      []TreeItem `json:"rows,omitempty"`
+	Add       *TreeAdd   `json:"add,omitempty"`
+	Cap       int        `json:"cap,omitempty"`
+}
+
+type TreeAdd struct {
+	Action string `json:"action"`
+	Label  string `json:"label"`
 }
 
 type Option struct {
@@ -299,6 +317,13 @@ func List(id string, items []Item, selected string) Node {
 
 func Tree(id string, items []TreeItem, selected string) Node {
 	return Node{Type: "tree", ID: id, Props: withOptional(map[string]any{"items": nonNil(items)}, "selected", selected)}
+}
+
+func WithTreeDock(n Node, dock []TreeDock) Node {
+	if len(dock) > 0 {
+		n.Props["dock"] = dock
+	}
+	return n
 }
 
 func Table(id string, columns []Column, rows []TableRow, selected string, sort Sort) Node {

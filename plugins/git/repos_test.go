@@ -13,7 +13,7 @@ import (
 	"clubmate/pkg/contract"
 )
 
-const graphsManifest = `{"id":"graphs","name":"Graphs","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"graphs.trusted","title":"Trusted Graphs","hidden":true}]},"echoResults":{"graphs.trusted":{"graphs":["ship"]}}}`
+const graphsManifest = `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"agents.graph-trusted","title":"Trusted Graphs","hidden":true}]},"echoResults":{"agents.graph-trusted":{"graphs":["ship"]}}}`
 
 type repoFacts struct {
 	Name          string      `json:"name"`

@@ -406,6 +406,7 @@ func (s *server) remoteCommands(ctx context.Context) ([]string, error) {
 	for _, c := range all {
 		if c.Remote && c.Running {
 			out = append(out, c.ID)
+			out = append(out, c.Aliases...)
 		}
 	}
 	s.cacheMu.Lock()

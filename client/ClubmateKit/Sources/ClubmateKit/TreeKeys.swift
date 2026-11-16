@@ -4,19 +4,26 @@ public struct TreeRow: Equatable, Sendable {
     public let parent: String?
     public let hasChildren: Bool
     public let expanded: Bool
+    public let opens: Bool
+    public let docked: Bool
 
-    public init(id: String, depth: Int, parent: String?, hasChildren: Bool, expanded: Bool) {
+    public init(id: String, depth: Int, parent: String?, hasChildren: Bool, expanded: Bool, opens: Bool = false, docked: Bool = false) {
         self.id = id
         self.depth = depth
         self.parent = parent
         self.hasChildren = hasChildren
         self.expanded = expanded
+        self.opens = opens
+        self.docked = docked
     }
 }
 
 public enum TreeCursor {
-    public static func rows(_ items: [SDUITreeItem]) -> [TreeRow] {
-        rows(items, depth: 0, parent: nil)
+    public static func rows(_ items: [SDUITreeItem], dock: [SDUITreeDock] = []) -> [TreeRow] {
+        rows(items, depth: 0, parent: nil) + dock.flatMap { section in
+            [TreeRow(id: section.id, depth: 0, parent: nil, hasChildren: true, expanded: section.expanded, docked: true)]
+                + (section.expanded ? rows(section.rows, depth: 1, parent: section.id) : [])
+        }
     }
 
     public static func move(_ id: String?, by delta: Int, in rows: [TreeRow]) -> String? {
@@ -46,8 +53,17 @@ public enum TreeCursor {
         case .open:
             guard let index else { return nil }
             let row = rows[index]
+            if row.opens { return .openPage(row.id) }
             guard row.hasChildren else { return .select(row.id) }
             return row.expanded ? .collapse(row.id) : .expand(row.id)
+        case .remove:
+            return index.map { .remove(rows[$0].id) }
+        case .escape:
+            guard let index else { return .focusMain }
+            let row = rows[index]
+            if row.docked { return row.expanded ? .collapse(row.id) : .focusMain }
+            if let parent = row.parent, rows.contains(where: { $0.id == parent && $0.docked }) { return .collapse(parent) }
+            return .focusMain
         case .expand:
             guard let index, rows[index].hasChildren else { return nil }
             let row = rows[index]
@@ -105,7 +121,7 @@ public enum TreeCursor {
 
     private static func rows(_ items: [SDUITreeItem], depth: Int, parent: String?) -> [TreeRow] {
         items.flatMap { item in
-            let row = TreeRow(id: item.id, depth: depth, parent: parent, hasChildren: item.hasChildren, expanded: item.expanded)
+            let row = TreeRow(id: item.id, depth: depth, parent: parent, hasChildren: item.hasChildren, expanded: item.expanded, opens: item.open != nil)
             return [row] + rows(item.shownChildren, depth: depth + 1, parent: item.id)
         }
     }
@@ -118,6 +134,8 @@ public enum TreeKeyAction: Equatable, Sendable {
     case expand
     case collapse
     case focusMain
+    case escape
+    case remove
     case cycleTabs(Int)
 }
 
@@ -126,6 +144,8 @@ public enum TreeCommand: Equatable, Sendable {
     case select(String)
     case expand(String)
     case collapse(String)
+    case openPage(String)
+    case remove(String)
     case focusMain
     case cycleTabs(Int)
 }
@@ -149,8 +169,8 @@ public enum TreeChord: Equatable, Sendable {
 }
 
 public enum TreeKeys {
-    public static func action(keyCode: UInt16, control: Bool, command: Bool, side: SidebarSide, shift: Bool = false) -> TreeKeyAction? {
-        guard !command else { return nil }
+    public static func action(keyCode: UInt16, control: Bool, command: Bool, side: SidebarSide, shift: Bool = false, option: Bool = false) -> TreeKeyAction? {
+        if command { return keyCode == 51 && !control && !shift && !option ? .remove : nil }
         switch keyCode {
         case 43: return shift ? .cycleTabs(-1) : nil
         case 47: return shift ? .cycleTabs(1) : nil
@@ -162,8 +182,24 @@ public enum TreeKeys {
         case 123: return .collapse
         case 36: return .open
         case 31: return .activate
-        case 53: return .focusMain
+        case 53: return .escape
         default: return nil
+        }
+    }
+}
+
+public enum MenuEntryKey: Equatable, Sendable {
+    case plain(Character)
+    case commandDelete
+
+    public init?(_ key: String?) {
+        guard let key else { return nil }
+        if key == "cmd+delete" {
+            self = .commandDelete
+        } else if key.count == 1, let first = key.first {
+            self = .plain(first)
+        } else {
+            return nil
         }
     }
 }

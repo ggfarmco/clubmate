@@ -51,18 +51,34 @@ func (a *app) renderGates(ctx context.Context, p *workspaceUI, w pluginsdk.Works
 	if !slices.Contains(slots, gatesMainSlot) {
 		return nil
 	}
-	main := gatesHelp(rows)
-	if i >= 0 {
-		r := rows[i]
-		repo := repos[slices.IndexFunc(repos, func(x gateRepo) bool { return x.Primary == r.Repo })]
-		history := a.gateHistory(ctx, w.ID, r.ID)
-		sessions := map[string]bool{}
-		for _, s := range a.workspaceSessions(w.ID) {
-			sessions[s.snapshot().ID] = true
-		}
-		main = gateMain(gateScreen{Row: r, Repo: repo, History: history, Picked: picked, Sessions: sessions, Now: now, Loc: time.Local})
+	return a.push(ctx, p, w.ID, gatesMainSlot, a.gateMainView(ctx, w.ID, rows, repos, selected, picked, now))
+}
+
+func (a *app) gatePage(ctx context.Context, workspace, gateID, picked string) (sdui.Node, error) {
+	gates, repos, err := a.workspaceGates(ctx, workspace)
+	if err != nil {
+		return sdui.Node{}, err
 	}
-	return a.push(ctx, p, w.ID, gatesMainSlot, main)
+	var rows []gateRow
+	for _, g := range gates {
+		rows = append(rows, a.gateRow(ctx, workspace, g))
+	}
+	return a.gateMainView(ctx, workspace, rows, repos, gateID, picked, time.Now()), nil
+}
+
+func (a *app) gateMainView(ctx context.Context, workspace string, rows []gateRow, repos []gateRepo, selected, picked string, now time.Time) sdui.Node {
+	i := slices.IndexFunc(rows, func(r gateRow) bool { return r.ID == selected })
+	if i < 0 {
+		return gatesHelp(rows)
+	}
+	r := rows[i]
+	repo := repos[slices.IndexFunc(repos, func(x gateRepo) bool { return x.Primary == r.Repo })]
+	history := a.gateHistory(ctx, workspace, r.ID)
+	sessions := map[string]bool{}
+	for _, s := range a.workspaceSessions(workspace) {
+		sessions[s.snapshot().ID] = true
+	}
+	return gateMain(gateScreen{Row: r, Repo: repo, History: history, Picked: picked, Sessions: sessions, Now: now, Loc: time.Local})
 }
 
 func (a *app) gateSheetTree(p *workspaceUI) (sdui.Node, bool) {

@@ -74,3 +74,10 @@ func TestCommandRunCoercesKeyValues(t *testing.T) {
 		assert.ErrorContains(t, root.Execute(), `unknown arg "zz" for `+id)
 	}
 }
+
+func TestResolveCommandAlias(t *testing.T) {
+	startEcho(t, `{"id":"alpha.say","title":"Say","aliases":["graphs.say"],"args":{"properties":{"n":{"type":"integer"}}}}`)
+	var out echoed
+	require.NoError(t, json.Unmarshal(run(t, "command", "run", "graphs.say", "n=3"), &out))
+	assert.Equal(t, echoed{Plugin: "alpha", Args: map[string]any{"n": 3.0}}, out)
+}

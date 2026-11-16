@@ -27,7 +27,7 @@ final class HardwareKeyboardTests: E2ETestCase {
 
     func testOptionKeysAnswerARealRunsStep() throws {
         for (key, outcome) in [("1", "done"), ("3", "error")] {
-            let run = try XCTUnwrap((try mac.run("graphs.run", ["graph": "e2e", "input": "key \(key)"]) as? [String: Any])?["id"] as? String)
+            let run = try XCTUnwrap((try mac.run("agents.graph-run", ["graph": "e2e", "input": "key \(key)"]) as? [String: Any])?["id"] as? String)
             eventually("the step to wait for approval", timeout: 30) { try stepStatus(run) == "waiting" }
             let app = try launch(open: "agents/\(run)")
             let reject = app.buttons["Reject"]
@@ -44,7 +44,7 @@ final class HardwareKeyboardTests: E2ETestCase {
     }
 
     private func stepStatus(_ run: String) throws -> String? {
-        let nodes = (try mac.run("graphs.show", ["id": run]) as? [String: Any])?["nodes"] as? [[String: Any]] ?? []
+        let nodes = (try mac.run("agents.graph-show", ["id": run]) as? [String: Any])?["nodes"] as? [[String: Any]] ?? []
         return nodes.first { $0["id"] as? String == "tick" }?["status"] as? String
     }
 }

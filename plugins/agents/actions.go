@@ -88,7 +88,7 @@ var (
 	errUserAction    = errors.New("only the user presses this")
 )
 
-var userActions = []string{actSend, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave, actArchive, actArchiveTick, actArchiveFolder, actArchiveCancel, actArchiveConfirm, actArchiveClose, actRestore, actCleanupTick, actCleanupGroup, actCleanupShow, actCleanupFilter, actCleanupFolder, actCleanupCancel, actCleanupConfirm}
+var userActions = []string{actSend, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave, actArchive, actArchiveTick, actArchiveFolder, actArchiveCancel, actArchiveConfirm, actArchiveClose, actRestore, actCleanupTick, actCleanupGroup, actCleanupShow, actCleanupFilter, actCleanupFolder, actCleanupCancel, actCleanupConfirm, actRemoveRun, actGateDelete, actNewGate, actNewGraph}
 
 type textValue struct {
 	Text string `json:"text"`
@@ -144,6 +144,14 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+	if graphsSlot(ev.Slot) {
+		return a.graphs.UIEvent(ctx, ev)
+	}
+	if ev.Slot == mainSlot && ev.Action != actBack {
+		if selected, ok := a.shownPage(ev.WorkspaceID); ok {
+			return a.pageEvent(ctx, ev, selected)
+		}
+	}
 	if (ev.Agent || a.session(ev.Caller) != nil) && userAction(ev) {
 		return nil, errUserAction
 	}
@@ -164,8 +172,6 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 		err = a.focusComposer(ctx, ev.WorkspaceID, sid)
 	case ev.Action == actCodeNew:
 		err = h.Focus(ctx, ev.WorkspaceID, editorSection, codeSlot)
-	case ev.Action == actOpenGraphs:
-		err = h.Focus(ctx, ev.WorkspaceID, graphsSection, graphsMain)
 	case ev.Action == actShowBranch:
 		err = h.FocusField(ctx, ev.WorkspaceID, sectionID)
 	}
@@ -217,6 +223,14 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		}
 		return a.bindCode(ctx, ev.WorkspaceID, res.Session)
 	case actOpenGraphs:
+		sid, _, _ := strings.Cut(ev.NodeID, "/")
+		s, err := a.lookup(ev.WorkspaceID, sid)
+		if err != nil {
+			return err
+		}
+		if run := s.snapshot().Run; run != nil {
+			return a.showRun(ctx, ev.WorkspaceID, run.ID)
+		}
 		return nil
 	case actCodeSelect:
 		id, err := itemID(ev)
@@ -272,6 +286,9 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if strings.HasPrefix(id, groupPrefix) {
 			return nil
 		}
+		if pageID(id) {
+			return a.selectPage(ctx, ev.WorkspaceID, id)
+		}
 		if session, ok := hitSession(id); ok {
 			id = session
 		}
@@ -326,15 +343,50 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		return a.openKey(ctx, ev)
 	case actOpenSendAll:
 		return a.sendAllOpen(ctx, ev.WorkspaceID)
+	case actBack:
+		p := a.workspaceState(ev.WorkspaceID)
+		a.uiMu.Lock()
+		back := p.back
+		a.uiMu.Unlock()
+		if back == "" {
+			return nil
+		}
+		return a.selectSession(ctx, ev.WorkspaceID, back)
+	case actRemoveRun:
+		id, err := itemID(ev)
+		if err != nil {
+			return err
+		}
+		args, err := json.Marshal(map[string]string{"id": runOf(id)})
+		if err != nil {
+			return err
+		}
+		_, err = a.graphs.Command(ctx, pluginsdk.CommandRun{ID: graphCommandPrefix + "delete", WorkspaceID: ev.WorkspaceID, Args: args})
+		return err
+	case actGateDelete:
+		id, err := itemID(ev)
+		if err != nil {
+			return err
+		}
+		return a.deleteGate(ctx, strings.TrimPrefix(id, gatePrefix))
+	case actNewGate:
+		return a.openGateSheet(ctx, ev.WorkspaceID, "")
+	case actNewGraph:
+		_, err := a.graphs.Command(ctx, pluginsdk.CommandRun{ID: graphCommandPrefix + "new", WorkspaceID: ev.WorkspaceID})
+		return err
 	case actExpand, actCollapse:
 		id, err := itemID(ev)
 		if err != nil {
 			return err
 		}
-		key := expandPrefix + id
-		if wt, ok := strings.CutPrefix(id, groupPrefix); ok {
-			key = wt
+		if slices.Contains([]string{dockService, dockGates, dockGraphs}, id) {
+			p := a.workspaceState(ev.WorkspaceID)
+			a.uiMu.Lock()
+			p.dock = openDock(p.dock, id, ev.Action == actExpand)
+			a.uiMu.Unlock()
+			return nil
 		}
+		key := foldKey(id)
 		if key == closedKey && ev.Action == actCollapse {
 			p := a.workspaceState(ev.WorkspaceID)
 			a.uiMu.Lock()

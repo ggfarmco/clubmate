@@ -179,7 +179,7 @@ struct ListNodeView: View {
             guard let id = TreeCursor.move(selected, by: delta, in: rows) else { return true }
             if id != selected { select(id) }
             scroll?.scrollTo(id)
-        case .open, .focusMain:
+        case .open, .focusMain, .escape:
             router?.requestMain(from: sidebarSlot ?? dispatch.slot)
         default:
             return false
@@ -195,6 +195,7 @@ struct TreeNodeView: View {
     @State private var cursor: String?
     @State private var activated: String?
     @State private var leader = false
+    @State private var ownScroll: ScrollViewProxy?
     @FocusState private var focused: Bool
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.scrollProxy) private var scroll
@@ -225,10 +226,49 @@ struct TreeNodeView: View {
         return rows
     }
 
+    private var dock: [SDUITreeDock] { node.treeDock() }
+
+    private var scroller: ScrollViewProxy? { scroll ?? ownScroll }
+
     var body: some View {
+        if dock.isEmpty {
+            keyed(stack)
+        } else {
+            keyed(VStack(spacing: 0) {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        stack
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            .onAppear { ownScroll = proxy }
+                    }
+                    .clipped()
+                    .environment(\.scrollProxy, proxy)
+                }
+                .overlay(alignment: .bottom) { TreeDockFade() }
+                TreeDockView(dock: dock, selected: selected, cursor: focused ? cursor : nil, active: focused) { id in
+                    cursor = id
+                    focused = true
+                    toggleDock(id)
+                } add: { section in
+                    if let add = section.add { dispatch(node, .named(add.action, .string(section.id))) }
+                } open: { id in
+                    cursor = id
+                    focused = true
+                    select(id)
+                }
+            })
+        }
+    }
+
+    private func toggleDock(_ id: String) {
+        guard let section = dock.first(where: { $0.id == id }) else { return }
+        dispatch(node, section.expanded ? .collapse(id) : .expand(id))
+    }
+
+    private var stack: some View {
         let rows = rows
         let nested = node.treeItems().contains(where: \.hasChildren)
-        LazyVStack(alignment: .leading, spacing: 0) {
+        return LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(rows) { row in
                 itemRow(row, nested: nested, selected: row.id == selected, cursor: focused && row.id == cursor) {
                     cursor = row.id
@@ -240,19 +280,23 @@ struct TreeNodeView: View {
         }
         .disclosureAnimation(Set(rows.filter(\.item.expanded).map(\.id)))
         .overlay(alignment: .top) {
-            if scroll != nil {
+            if scroller != nil {
                 let tree = TreeCursor.rows(node.treeItems())
                 StickyHeaders(rows: tree, limit: Self.stickyLimit) { id in
                     if let row = rows.first(where: { $0.id == id }) {
                         itemRow(row, nested: nested, selected: false, cursor: false) {
                             if let target = TreeCursor.stickyTarget(id, in: tree, limit: Self.stickyLimit) {
-                                scroll?.scrollTo(target, anchor: .top)
+                                scroller?.scrollTo(target, anchor: .top)
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    private func keyed(_ content: some View) -> some View {
+        content
         .focusable()
         .focusEffectDisabled()
         .focused($focused)
@@ -264,18 +308,18 @@ struct TreeNodeView: View {
         .onChange(of: node.string("selected"), initial: true) { _, value in
             guard value != selected else { return }
             selected = value
-            if let value { scroll?.scrollTo(value, anchor: .center) }
+            if let value { scroller?.scrollTo(value, anchor: .center) }
         }
         .onChange(of: router?.pending, initial: true) {
             guard let sidebarSlot, router?.take(sidebarSlot) == true else { return }
             cursor = selected ?? rows.first?.id
             focused = true
         }
-        .onChange(of: rows.map(\.id)) { old, new in
+        .onChange(of: TreeCursor.rows(node.treeItems(), dock: dock).map(\.id)) { old, new in
             defer { activated = nil }
             guard let id = TreeCursor.settle(cursor, activated: cursor == activated, from: old, to: new) else { return }
             cursor = id
-            scroll?.scrollTo(id)
+            scroller?.scrollTo(id)
         }
     }
 
@@ -289,7 +333,7 @@ struct TreeNodeView: View {
     }
 
     private func select(_ id: String) {
-        let item = rows.first(where: { $0.id == id })?.item
+        let item = rows.first(where: { $0.id == id })?.item ?? dock.flatMap(\.rows).first(where: { $0.id == id })
         if item?.action != true { selected = id } else if item?.hasChildren == false { activated = id }
         dispatch(node, .select(id))
     }
@@ -308,13 +352,20 @@ struct TreeNodeView: View {
             return true
         }
         if plain, let key = event.charactersIgnoringModifiers, menuKey(key) { return true }
-        let rows = TreeCursor.rows(node.treeItems())
-        guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side, shift: flags.contains(.shift)) else { return false }
+        let rows = TreeCursor.rows(node.treeItems(), dock: dock)
+        guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side, shift: flags.contains(.shift), option: flags.contains(.option)) else { return false }
         switch TreeCursor.resolve(action, cursor: cursor, in: rows) {
         case .cursor(let id):
-            if let target = TreeCursor.scrollTarget(id, from: cursor, in: rows, limit: Self.stickyLimit) { scroll?.scrollTo(target) }
+            if !dock.contains(where: { $0.id == id }), !dock.flatMap(\.rows).contains(where: { $0.id == id }), let target = TreeCursor.scrollTarget(id, from: cursor, in: rows, limit: Self.stickyLimit) { scroller?.scrollTo(target) }
             cursor = id
         case .select(let id): select(id)
+        case .openPage(let id):
+            select(id)
+            router?.requestMain(from: sidebarSlot ?? dispatch.slot)
+        case .remove(let id):
+            let item = treeItem(id)
+            guard let entry = item?.item.menu.first(where: { $0.key == Self.removeKey }) else { return false }
+            dispatch.choose(entry, item: id, in: node)
         case .expand(let id): dispatch(node, .expand(id))
         case .collapse(let id): dispatch(node, .collapse(id))
         case .focusMain: router?.requestMain(from: sidebarSlot ?? dispatch.slot)
@@ -322,6 +373,12 @@ struct TreeNodeView: View {
         case nil: break
         }
         return true
+    }
+
+    private static let removeKey = "cmd+delete"
+
+    private func treeItem(_ id: String) -> SDUITreeItem? {
+        rows.first(where: { $0.id == id })?.item ?? dock.flatMap(\.rows).first(where: { $0.id == id })
     }
 
     private func menuKey(_ key: String) -> Bool {
@@ -415,7 +472,7 @@ struct ItemRow<Leading: View>: View {
 
     var body: some View {
         row
-            .testRow(item.id, label: item.label, selected: selected, hovered: hovering)
+            .testRow(item.id, label: item.label, selected: selected, focused: cursor, hovered: hovering)
     }
 
     private var row: some View {
@@ -546,10 +603,14 @@ private struct ItemMenu: ViewModifier {
             content.contextMenu {
                 ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                     if entry.confirm != nil, index > 0 { Divider() }
-                    if let key = entry.key.flatMap(\.first) {
+                    switch MenuEntryKey(entry.key) {
+                    case .plain(let key):
                         Button(entry.label, role: entry.confirm != nil ? .destructive : nil) { choose(entry) }
                             .keyboardShortcut(KeyEquivalent(key), modifiers: [])
-                    } else {
+                    case .commandDelete:
+                        Button(entry.label, role: entry.confirm != nil ? .destructive : nil) { choose(entry) }
+                            .keyboardShortcut(.delete, modifiers: .command)
+                    case nil:
                         Button(entry.label, role: entry.confirm != nil ? .destructive : nil) { choose(entry) }
                     }
                 }

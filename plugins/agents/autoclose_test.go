@@ -63,8 +63,7 @@ func TestNodeOfStoppedRunClosesItself(t *testing.T) {
 	write(t, filepath.Join(repo, ".clubmate", "graphs", "solo.json"), `{"title":"Solo","nodes":[{"id":"one","role":"One","start":true,"prompt":"done"},{"id":"two","role":"Two","prompt":"done"}],"edges":[{"from":"one","to":"two","on":"error"}]}`)
 	f := startEnv(t, []string{"CLUBMATE_AGENTS_CLOSE_AFTER=" + after.String()}, map[string]any{"prompt": []map[string]any{{"echo": true}}},
 		testutil.BuildPluginDir(t, "clubmate/plugins/cron", "plugins/cron/plugin.json"),
-		testutil.BuildPluginDir(t, "clubmate/plugins/triggers", "plugins/triggers/plugin.json"),
-		testutil.BuildPluginDir(t, "clubmate/plugins/graphs", "plugins/graphs/plugin.json"))
+		testutil.BuildPluginDir(t, "clubmate/plugins/triggers", "plugins/triggers/plugin.json"))
 	workspace := f.workspace(t, repo)
 	type run struct {
 		ID    string `json:"id"`
@@ -72,16 +71,16 @@ func TestNodeOfStoppedRunClosesItself(t *testing.T) {
 			Session string `json:"session"`
 		} `json:"nodes"`
 	}
-	testutil.Eventually(t, func() bool { return f.run(t, workspace, "graphs.list", map[string]any{}, nil) == nil }, restartWait)
+	testutil.Eventually(t, func() bool { return f.run(t, workspace, "agents.graph-list", map[string]any{}, nil) == nil }, restartWait)
 	var stopped, deleted, running run
-	require.NoError(t, f.run(t, workspace, "graphs.run", map[string]any{"graph": "solo"}, &stopped))
-	require.NoError(t, f.run(t, workspace, "graphs.run", map[string]any{"graph": "solo"}, &deleted))
-	require.NoError(t, f.run(t, workspace, "graphs.run", map[string]any{"graph": "solo"}, &running))
+	require.NoError(t, f.run(t, workspace, "agents.graph-run", map[string]any{"graph": "solo"}, &stopped))
+	require.NoError(t, f.run(t, workspace, "agents.graph-run", map[string]any{"graph": "solo"}, &deleted))
+	require.NoError(t, f.run(t, workspace, "agents.graph-run", map[string]any{"graph": "solo"}, &running))
 	f.waitStatus(t, workspace, running.Nodes[0].Session, "done")
 	f.waitStatus(t, workspace, stopped.Nodes[0].Session, "done")
 	f.waitStatus(t, workspace, deleted.Nodes[0].Session, "done")
-	require.NoError(t, f.run(t, workspace, "graphs.stop", map[string]any{"id": stopped.ID}, nil))
-	require.NoError(t, f.run(t, workspace, "graphs.delete", map[string]any{"id": deleted.ID}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.graph-stop", map[string]any{"id": stopped.ID}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.graph-delete", map[string]any{"id": deleted.ID}, nil))
 
 	assert.True(t, f.waitStatus(t, workspace, stopped.Nodes[0].Session, "closed").AutoClosed)
 	assert.True(t, f.waitStatus(t, workspace, stopped.Nodes[1].Session, "closed").AutoClosed)

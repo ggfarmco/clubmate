@@ -117,8 +117,70 @@ type sessionRow struct {
 	Since    time.Time
 	Review   *reviewProgress
 	RunNeed  *runNeed
+	RunRow   *api.RunRow
+	Nest     *reviewerNest
 	Open     int
 	Gate     string
+}
+
+type sidebarPlus struct {
+	runs   []api.RunRow
+	dock   []api.DockRow
+	gates  []sdui.TreeItem
+	graphs []sdui.TreeItem
+	open   string
+}
+
+const (
+	sessionsTree  = "sessions"
+	removeKey     = "cmd+delete"
+	actRemoveRun  = "removeRun"
+	openRun       = "run"
+	actNewGate    = "newGate"
+	actNewGraph   = "newGraph"
+	dockGateHelp  = "gate-help"
+	dockGraphHelp = "graph-help"
+	dockCap       = 6
+)
+
+func runMenu(r api.RunRow) []sdui.MenuEntry {
+	if r.State == runRunning || r.State == runAsks {
+		return nil
+	}
+	return []sdui.MenuEntry{{Action: actRemoveRun, Label: "Remove run…", Confirm: "Remove graph run “" + cmp.Or(r.Title, graphRun) + "” from the list? Its sessions stay.", Key: removeKey}}
+}
+
+func gateRemoveMenu(name string) []sdui.MenuEntry {
+	return []sdui.MenuEntry{{Action: actGateDelete, Label: "Delete land gate…", Confirm: gateDeleteConfirm(name, ""), Key: removeKey}}
+}
+
+func openDock(current, id string, expand bool) string {
+	if expand {
+		return id
+	}
+	if current == id {
+		return ""
+	}
+	return current
+}
+
+func (plus sidebarPlus) treeDock(service []sdui.TreeItem, query string) []sdui.TreeDock {
+	rows := map[string][]sdui.TreeItem{dockService: service, dockGates: plus.gates, dockGraphs: plus.graphs}
+	add := map[string]*sdui.TreeAdd{dockGates: {Action: actNewGate, Label: "New land gate…"}, dockGraphs: {Action: actNewGraph, Label: "New graph…"}}
+	out := make([]sdui.TreeDock, 0, len(plus.dock))
+	matched := false
+	for _, d := range plus.dock {
+		section := sdui.TreeDock{ID: d.ID, Label: d.Label, Icon: d.Icon, Detail: d.Detail, Attention: d.Attention, Rows: rows[d.ID], Add: add[d.ID], Cap: dockCap, Expanded: d.ID == plus.open}
+		if query != "" {
+			section.Rows = slices.DeleteFunc(slices.Clone(section.Rows), func(item sdui.TreeItem) bool {
+				return !strings.Contains(strings.ToLower(item.Label), strings.ToLower(query))
+			})
+			section.Expanded = len(section.Rows) > 0 && !matched
+			matched = matched || section.Expanded
+		}
+		out = append(out, section)
+	}
+	return out
 }
 
 type sidebarSearch struct {
@@ -132,7 +194,7 @@ type notifyChoice struct {
 	label  string
 }
 
-func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, now time.Time, home string, branchOpen bool, filter string, search sidebarSearch, closedExtra int) sdui.Node {
+func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, now time.Time, home string, branchOpen bool, filter string, search sidebarSearch, closedExtra int, plus sidebarPlus) sdui.Node {
 	top := sdui.HStack(sdui.WithAction(sdui.Button("new", "New", "plus"), actNew), sdui.WithAction(sdui.Button("branch", "New in worktree…", "arrow.triangle.branch"), actShowBranch))
 	if branchOpen {
 		top = sdui.WithAction(sdui.Form(actNewBranch,
@@ -140,31 +202,69 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 			sdui.HStack(sdui.Button("start", "Start", "arrow.triangle.branch"), sdui.WithAction(sdui.Button("cancel", "Cancel", "xmark"), actHideBranch)),
 		), actNewBranch)
 	}
-	if len(rows) == 0 {
-		return sdui.VStack(top, sdui.Empty(noSessions))
-	}
-	field := sdui.WithAction(sdui.WithLive(sdui.TextField(searchNode, search.query, "Search sessions")), actSearch)
-	if search.query != "" {
-		return sdui.VStack(top, field, searchResults(search, selected, now))
-	}
 	byID := make(map[string]bool, len(rows))
+	open := make(map[string]bool, len(rows))
 	for _, row := range rows {
 		byID[row.Rec.ID] = true
+		open[row.Rec.ID] = !row.Rec.closed()
 	}
 	kids := map[string][]sessionRow{}
 	var roots []sessionRow
 	for _, row := range rows {
-		if parent := row.Rec.ParentSession; parent != "" && byID[parent] {
+		parent := row.Rec.ParentSession
+		if row.Nest != nil && open[row.Nest.Lander] {
+			parent = row.Nest.Lander
+		}
+		if parent != "" && byID[parent] {
 			kids[parent] = append(kids[parent], row)
 			continue
 		}
 		roots = append(roots, row)
 	}
+	var serviceRows []sessionRow
+	for _, row := range roots {
+		if row.Rec.restricted() && !row.Rec.closed() {
+			serviceRows = append(serviceRows, row)
+		}
+	}
+	docked := func(tree sdui.Node) sdui.Node {
+		service := runItems(serviceRows, serviceKey, kids, collapsed, now, map[string]bool{}, map[string]time.Time{})
+		if search.query != "" {
+			service = slices.DeleteFunc(service, func(item sdui.TreeItem) bool {
+				return slices.ContainsFunc(search.results, func(r searchResult) bool { return r.Session == item.ID })
+			})
+		}
+		return sdui.WithTreeDock(tree, plus.treeDock(service, search.query))
+	}
+	emptied := plus.emptiedRuns()
+	dockOnly := func(nodes ...sdui.Node) sdui.Node {
+		var groups []sdui.TreeItem
+		if len(emptied) > 0 {
+			folded, ok := collapsed[closedKey]
+			group := groupItem(closedKey, "Closed", statusIcons[statusClosed], emptied, ok && !folded)
+			group.Detail = strconv.Itoa(len(emptied))
+			groups = append(groups, group)
+		}
+		if len(plus.dock) > 0 || len(groups) > 0 {
+			nodes = append(nodes, docked(sdui.Tree(sessionsTree, groups, selected)))
+		}
+		return sdui.VStack(nodes...)
+	}
+	if len(rows) == 0 {
+		return dockOnly(top, sdui.Empty(noSessions))
+	}
+	field := sdui.WithAction(sdui.WithLive(sdui.TextField(searchNode, search.query, "Search sessions")), actSearch)
+	if search.query != "" {
+		results := searchResults(search, selected, now)
+		if results.Type != "tree" {
+			return dockOnly(top, field, results)
+		}
+		return sdui.VStack(top, field, docked(results))
+	}
 	oldest := map[string]time.Time{}
 	for _, row := range roots {
 		oldestNeed(row, kids, oldest, map[string]bool{})
 	}
-	landers := reviewLanders(rows, roots)
 	filter = cmp.Or(filter, filterAll)
 	runs := map[string][]string{}
 	for i, row := range roots {
@@ -180,7 +280,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	}
 	if len(roots) == 0 {
 		all := sdui.WithAction(sdui.Button("filterAll", "Show all", ""), actFilterAll)
-		return sdui.VStack(top, field, tabs, sdui.EmptyState(filterEmpty[filter], sdui.EmptyProps{Action: &all}))
+		return dockOnly(top, field, tabs, sdui.EmptyState(filterEmpty[filter], sdui.EmptyProps{Action: &all}))
 	}
 	type bucket struct {
 		label    string
@@ -188,7 +288,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		open     []sessionRow
 	}
 	var order []string
-	var closed, service []sessionRow
+	var closed []sessionRow
 	buckets := map[string]*bucket{}
 	for _, row := range roots {
 		switch {
@@ -196,17 +296,12 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 			closed = append(closed, row)
 			continue
 		case row.Rec.restricted():
-			service = append(service, row)
 			continue
 		}
-		at := row
-		if lander, ok := landers[row.Rec.ID]; ok {
-			at = lander
-		}
-		wt := at.Rec.Worktree
+		wt := row.Rec.Worktree
 		b, ok := buckets[wt]
 		if !ok {
-			b = &bucket{label: cmp.Or(at.Branch, filepath.Base(wt)), detached: at.Detached}
+			b = &bucket{label: cmp.Or(row.Branch, filepath.Base(wt)), detached: row.Detached}
 			buckets[wt] = b
 			order = append(order, wt)
 		}
@@ -215,7 +310,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	var groups []sdui.TreeItem
 	for _, wt := range order {
 		b := buckets[wt]
-		children := runItems(afterLanders(b.open, landers), wt, kids, collapsed, now, map[string]bool{}, oldest)
+		children := runItems(b.open, wt, kids, collapsed, now, map[string]bool{}, oldest)
 		if len(order) == 1 && wt == home {
 			groups = children
 			break
@@ -225,72 +320,52 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		group.Faint = b.detached
 		groups = append(groups, group)
 	}
-	if len(closed) > 0 {
+	if len(closed) > 0 || len(emptied) > 0 {
 		folded, ok := collapsed[closedKey]
-		group := groupItem(closedKey, "Closed", statusIcons[statusClosed], closedItems(closed, selected, closedShown+closedExtra, kids, collapsed, now, oldest), ok && !folded)
-		group.Detail = strconv.Itoa(len(closed))
+		items := closedItems(closed, selected, closedShown+closedExtra, kids, collapsed, now, oldest)
+		group := groupItem(closedKey, "Closed", statusIcons[statusClosed], append(items, emptied...), ok && !folded)
+		group.Detail = strconv.Itoa(len(closed) + len(emptied))
 		groups = append(groups, group)
 	}
-	if len(service) > 0 {
-		folded, ok := collapsed[serviceKey]
-		items := runItems(service, serviceKey, kids, collapsed, now, map[string]bool{}, oldest)
-		needs := anyNeeds(service, oldest)
-		group := groupItem(serviceKey, "Service", serviceIcon, items, ok && !folded || needs)
-		group.Detail = strconv.Itoa(len(service))
-		if needs {
-			group.DetailTone = statusTones[statusWaiting]
-		}
-		groups = append(groups, group)
-	}
-	return sdui.VStack(top, field, tabs, sdui.Tree("sessions", groups, selected))
+	uniqueRunIDs(groups, map[string]int{})
+	return sdui.VStack(top, field, tabs, docked(sdui.Tree(sessionsTree, groups, selected)))
 }
 
-func reviewLanders(rows, roots []sessionRow) map[string]sessionRow {
-	byID := make(map[string]sessionRow, len(rows))
-	for _, row := range rows {
-		byID[row.Rec.ID] = row
-	}
-	out := map[string]sessionRow{}
-	for _, row := range roots {
-		if row.Rec.GateFor == nil {
-			continue
+func (plus sidebarPlus) emptiedRuns() []sdui.TreeItem {
+	var out []sdui.TreeItem
+	for _, r := range plus.runs {
+		if len(r.Sessions) == 0 {
+			out = append(out, sdui.TreeItem{ID: runPrefix + r.ID, Label: cmp.Or(r.Title, graphRun), Icon: graphIcon, Detail: r.Detail, Faint: true, Open: openRun, Menu: runMenu(r)})
 		}
-		lander, ok := byID[row.Rec.GateFor.Lander]
-		for range rows {
-			parent, found := byID[lander.Rec.ParentSession]
-			if !ok || !found {
-				break
+	}
+	return out
+}
+
+func uniqueRunIDs(items []sdui.TreeItem, seen map[string]int) {
+	for i := range items {
+		if strings.HasPrefix(items[i].ID, runPrefix) {
+			seen[items[i].ID]++
+			if n := seen[items[i].ID]; n > 1 {
+				items[i].ID += "@" + strconv.Itoa(n)
 			}
-			lander = parent
 		}
-		if ok && !lander.Rec.closed() && !lander.Rec.restricted() {
-			out[row.Rec.ID] = lander
-		}
+		uniqueRunIDs(items[i].Children, seen)
 	}
-	return out
 }
 
-func afterLanders(rows []sessionRow, landers map[string]sessionRow) []sessionRow {
-	shown := make(map[string]bool, len(rows))
-	for _, row := range rows {
-		shown[row.Rec.ID] = true
+func foldKey(id string) string {
+	if wt, ok := strings.CutPrefix(id, groupPrefix); ok {
+		return wt
 	}
-	following := map[string][]sessionRow{}
-	moved := map[string]bool{}
-	for _, row := range rows {
-		if lander, ok := landers[row.Rec.ID]; ok && shown[lander.Rec.ID] {
-			following[lander.Rec.ID] = append(following[lander.Rec.ID], row)
-			moved[row.Rec.ID] = true
-		}
+	if strings.HasPrefix(id, runPrefix) {
+		return expandPrefix + runPrefix + runOf(id)
 	}
-	out := make([]sessionRow, 0, len(rows))
-	for _, row := range rows {
-		if !moved[row.Rec.ID] {
-			out = append(out, row)
-			out = append(out, following[row.Rec.ID]...)
-		}
-	}
-	return out
+	return expandPrefix + id
+}
+
+func runOf(id string) string {
+	run, _, _ := strings.Cut(strings.TrimPrefix(id, runPrefix), "@")
+	return run
 }
 
 func closedItems(rows []sessionRow, selected string, limit int, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, oldest map[string]time.Time) []sdui.TreeItem {
@@ -389,7 +464,7 @@ func findTree(n sdui.Node) (sdui.Node, bool) {
 func shownSessions(items []sdui.TreeItem) []string {
 	var ids []string
 	for _, item := range items {
-		if !strings.HasPrefix(item.ID, groupPrefix) && !strings.HasPrefix(item.ID, hitPrefix) && !strings.HasPrefix(item.ID, repoPrefix) {
+		if !strings.HasPrefix(item.ID, groupPrefix) && !strings.HasPrefix(item.ID, hitPrefix) && !strings.HasPrefix(item.ID, repoPrefix) && !strings.HasPrefix(item.ID, runPrefix) {
 			ids = append(ids, item.ID)
 		}
 		ids = append(ids, shownSessions(item.Children)...)
@@ -539,6 +614,9 @@ func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[stri
 		}
 	}
 	item := sessionItem(row, descendantCount(row.Rec.ID, kids, map[string]bool{}), now)
+	if row.Nest != nil {
+		item.Label, item.Detail = row.Nest.Round.Label, row.Nest.Round.Verdict
+	}
 	if entries := row.Rec.repoEntries(); len(entries) > 0 {
 		return taskParent(item, row, entries, children, kids, collapsed, now, path, oldest)
 	}
@@ -589,19 +667,25 @@ func runItems(rows []sessionRow, scope string, kids map[string][]sessionRow, col
 			item.Label = nodeLabel(row.Rec)
 			nodes = append(nodes, item)
 		}
-		key := runGroupKey(scope, e.run.ID)
-		run := groupItem(key, cmp.Or(e.run.Title, graphRun), graphIcon, nodes, !collapsed[key] || anyNeeds(e.rows, oldest))
+		folded, ok := collapsed[expandPrefix+runPrefix+e.run.ID]
+		run := sdui.TreeItem{ID: runPrefix + e.run.ID, Label: cmp.Or(e.run.Title, graphRun), Icon: graphIcon, HasChildren: true, Open: openRun}
+		run.Expanded = !(ok && folded) || anyNeeds(e.rows, oldest)
+		if run.Expanded {
+			run.Children = nodes
+		}
 		run.Detail = runActivity(e.rows, now)
-		if n := e.rows[0].RunNeed; n != nil {
+		if rr := e.rows[0].RunRow; rr != nil {
+			run.Detail = rr.Detail
+			run.Menu = runMenu(*rr)
+			if rr.NeedsYou {
+				run.Tone = statusTones[statusWaiting]
+			}
+		} else if n := e.rows[0].RunNeed; n != nil {
 			run.Detail, run.Tone = n.Text, statusTones[statusWaiting]
 		}
 		items = append(items, run)
 	}
 	return items
-}
-
-func runGroupKey(scope, run string) string {
-	return runPrefix + scope + "/" + run
 }
 
 func nodeLabel(rec record) string {
@@ -673,7 +757,7 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 	if rec.closed() && ownsTask(rec) {
 		menu = append(menu, sdui.MenuEntry{Action: actRestore, Label: restoreMenu})
 	}
-	menu = append(menu, sdui.MenuEntry{Action: actDelete, Label: "Delete Session", Confirm: confirm})
+	menu = append(menu, sdui.MenuEntry{Action: actDelete, Label: "Delete Session", Confirm: confirm, Key: removeKey})
 	display := displayStatus(rec, row.Children)
 	icon := statusIcons[cmp.Or(closedGlyphs[rec.ClosedStatus], display)]
 	if reviewRow(row) {

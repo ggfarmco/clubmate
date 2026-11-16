@@ -1,0 +1,498 @@
+package graphs
+
+import (
+	"cmp"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
+	"clubmate/pkg/id"
+	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/automation"
+)
+
+const (
+	storePrefix        = "graph/"
+	runPrefix          = storePrefix + "run/"
+	runIDPrefix        = "gr"
+	statusRunning      = "running"
+	statusStopped      = "stopped"
+	eventPrefix        = "event."
+	graphTopic         = "graph."
+	maxInput           = 16 << 10
+	errTriggersLeft    = "run %s is stopped and its steps are cancelled, but edge triggers are left (stop it again to retry, or delete them in Triggers): %w"
+	errStoppedStarting = "run %s was stopped while its nodes started"
+)
+
+var (
+	errInputPlaceholder = errors.New("input: must not contain {{")
+	errRunStopped       = errors.New("run stopped")
+)
+
+type Run struct {
+	ID        string      `json:"id"`
+	Graph     string      `json:"graph"`
+	Title     string      `json:"title"`
+	Number    int         `json:"number,omitempty"`
+	Workspace string      `json:"workspace"`
+	Input     string      `json:"input,omitempty"`
+	Builtin   bool        `json:"builtin,omitempty"`
+	User      bool        `json:"user,omitempty"`
+	Dir       string      `json:"dir,omitempty"`
+	Agent     bool        `json:"agent,omitempty"`
+	Caller    string      `json:"caller,omitempty"`
+	Status    string      `json:"status"`
+	Reason    string      `json:"reason,omitempty"`
+	MaxTurns  int         `json:"maxTurns"`
+	Turns     int         `json:"turns"`
+	MaxSteps  int         `json:"maxSteps,omitempty"`
+	Steps     int         `json:"steps,omitempty"`
+	StartedAt time.Time   `json:"startedAt"`
+	StoppedAt *time.Time  `json:"stoppedAt,omitempty"`
+	Nodes     []RunNode   `json:"nodes"`
+	Edges     []RunEdge   `json:"edges"`
+	Moves     []Move      `json:"moves,omitempty"`
+	Held      []HeldEdge  `json:"held,omitempty"`
+	Extra     map[int]int `json:"extra,omitempty"`
+	Starts    []Start     `json:"starts,omitempty"`
+	Spec      *Graph      `json:"spec,omitempty"`
+}
+
+type Start struct {
+	Dir    string `json:"dir"`
+	Commit string `json:"commit"`
+}
+
+type RunNode struct {
+	ID        string `json:"id"`
+	Role      string `json:"role"`
+	Start     bool   `json:"start,omitempty"`
+	Step      bool   `json:"step,omitempty"`
+	Session   string `json:"session"`
+	HandedOff bool   `json:"handedOff,omitempty"`
+}
+
+type RunEdge struct {
+	From    string `json:"from"`
+	To      string `json:"to"`
+	On      string `json:"on"`
+	Outcome string `json:"outcome,omitempty"`
+	Owned   bool   `json:"owned,omitempty"`
+	Trigger string `json:"trigger,omitempty"`
+}
+
+type newArgs struct {
+	Title    string         `json:"title"`
+	Branch   string         `json:"branch,omitempty"`
+	Afk      bool           `json:"afk,omitempty"`
+	Run      string         `json:"run"`
+	RunTitle string         `json:"runTitle"`
+	RunAfter []api.RunAfter `json:"runAfter,omitempty"`
+}
+
+type newResult struct {
+	Session string `json:"session"`
+}
+
+type promptArgs struct {
+	Session string `json:"session"`
+	Text    string `json:"text"`
+}
+
+type triggerArgs struct {
+	Name     string `json:"name"`
+	On       string `json:"on"`
+	Match    string `json:"match"`
+	Command  string `json:"command"`
+	Args     string `json:"args"`
+	Owner    string `json:"owner"`
+	Run      string `json:"run"`
+	RunTitle string `json:"runTitle"`
+}
+
+type updateArgs struct {
+	ID    string `json:"id"`
+	Match string `json:"match"`
+	Args  string `json:"args"`
+}
+
+type triggerResult struct {
+	ID string `json:"id"`
+}
+
+type sessionArgs struct {
+	Session string `json:"session"`
+}
+
+type runner struct {
+	call    func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error)
+	run     *Run
+	started func(node int, session string)
+	live    func() bool
+	stopped func() bool
+}
+
+func newRun(g *Graph, workspace, input string, agent bool, caller string, now time.Time) (*Run, error) {
+	if strings.Contains(input, "{{") {
+		return nil, errInputPlaceholder
+	}
+	if len(input) > maxInput {
+		return nil, fmt.Errorf("input: at most %d KiB", maxInput>>10)
+	}
+	r := &Run{
+		ID:        id.New(runIDPrefix),
+		Graph:     g.Name,
+		Title:     graphTitle(g),
+		Workspace: workspace,
+		Input:     input,
+		Agent:     agent,
+		Caller:    caller,
+		Status:    statusRunning,
+		MaxTurns:  g.maxTurns(),
+		MaxSteps:  g.maxSteps(),
+		StartedAt: now,
+		Spec:      g,
+	}
+	shape := runShape(g)
+	r.Nodes, r.Edges = shape.Nodes, shape.Edges
+	for _, n := range r.Nodes {
+		if n.Start {
+			r.startMove(n.ID, now)
+		}
+	}
+	return r, nil
+}
+
+func runShape(g *Graph) *Run {
+	r := &Run{Graph: g.Name, Title: graphTitle(g), Spec: g}
+	for _, n := range g.Nodes {
+		r.Nodes = append(r.Nodes, RunNode{ID: n.ID, Role: n.label(), Start: n.Start, Step: n.step()})
+	}
+	for _, e := range g.Edges {
+		r.Edges = append(r.Edges, RunEdge{From: e.From, To: e.To, On: e.On, Outcome: e.Outcome, Owned: g.owned(e)})
+	}
+	return r
+}
+
+func (x *runner) start(ctx context.Context, g *Graph) error {
+	for i, n := range g.Nodes {
+		if n.step() {
+			continue
+		}
+		if x.stopped != nil && x.stopped() {
+			return fmt.Errorf(errStoppedStarting, x.run.ID)
+		}
+		args := newArgs{Title: x.run.Title + " · " + n.label(), Branch: x.render(n.Branch), Afk: n.Afk, Run: x.run.ID, RunTitle: cmp.Or(x.run.Title, x.run.Graph), RunAfter: g.after(n.ID)}
+		var out newResult
+		if err := x.do(ctx, "agents.new", args, &out); err != nil {
+			return fmt.Errorf("start node %s: %w", n.ID, err)
+		}
+		x.run.Nodes[i].Session = out.Session
+		if x.started != nil {
+			x.started(i, out.Session)
+		}
+	}
+	for i, e := range g.Edges {
+		if g.owned(e) {
+			continue
+		}
+		if x.stopped != nil && x.stopped() {
+			return fmt.Errorf(errStoppedStarting, x.run.ID)
+		}
+		args, err := x.edgeTrigger(g, e)
+		if err != nil {
+			return err
+		}
+		var out triggerResult
+		if err := x.do(ctx, "triggers.add", args, &out); err != nil {
+			return fmt.Errorf("connect %s → %s: %w", e.From, e.To, err)
+		}
+		x.run.Edges[i].Trigger = out.ID
+	}
+	return nil
+}
+
+func (x *runner) kickoff(ctx context.Context, g *Graph) error {
+	for i, n := range g.Nodes {
+		if !n.Start {
+			continue
+		}
+		text := x.brief(&n)
+		if x.run.Input != "" && !strings.Contains(n.Prompt, "{{input}}") {
+			text += "\n\nTask:\n" + x.run.Input
+		}
+		if x.live != nil && !x.live() {
+			return errRunStopped
+		}
+		if err := x.do(ctx, "agents.prompt", promptArgs{Session: x.run.Nodes[i].Session, Text: text}, nil); err != nil {
+			return fmt.Errorf("prompt node %s: %w", n.ID, err)
+		}
+	}
+	return nil
+}
+
+func (x *runner) repoint(ctx context.Context) []error {
+	var errs []error
+	for i, e := range x.run.Spec.Edges {
+		if x.run.Spec.owned(e) {
+			continue
+		}
+		args, err := x.edgeTrigger(x.run.Spec, e)
+		if err == nil {
+			err = x.own(ctx, "triggers.update", updateArgs{ID: x.run.Edges[i].Trigger, Match: args.Match, Args: args.Args})
+		}
+		if err != nil {
+			errs = append(errs, fmt.Errorf("re-point %s → %s: %w", e.From, e.To, err))
+		}
+	}
+	return errs
+}
+
+func (x *runner) unwind(ctx context.Context) []error {
+	var errs []error
+	for _, e := range x.run.Edges {
+		if e.Trigger == "" {
+			continue
+		}
+		if err := x.own(ctx, "triggers.delete", automation.IDArgs{ID: e.Trigger}); err != nil && !isUnknownTrigger(err) {
+			errs = append(errs, fmt.Errorf("delete trigger %s: %w", e.Trigger, err))
+		}
+	}
+	return errs
+}
+
+func (x *runner) closeSessions(ctx context.Context) []error {
+	var errs []error
+	for _, n := range x.run.Nodes {
+		if n.Session == "" {
+			continue
+		}
+		req := automation.CommandRequest{ID: "agents.close", WorkspaceID: x.run.Workspace}
+		req.Args, _ = json.Marshal(sessionArgs{Session: n.Session})
+		if _, err := x.call(ctx, req); err != nil {
+			errs = append(errs, fmt.Errorf("close session %s: %w", n.Session, err))
+		}
+	}
+	return errs
+}
+
+func (x *runner) abandon(ctx context.Context) {
+	cleanup := context.WithoutCancel(ctx)
+	logError(errors.Join(append(x.unwind(cleanup), x.closeSessions(cleanup)...)...))
+}
+
+func (x *runner) edgeTrigger(g *Graph, e Edge) (triggerArgs, error) {
+	from, to := x.run.node(e.From), x.run.node(e.To)
+	on, match := api.TopicTurn, map[string]any{"session": from.Session}
+	switch e.On {
+	case onDone:
+		match["status"] = "done"
+		if g.hasEdge(e.From, onAsks) {
+			match["asks"] = false
+		}
+	case onAsks:
+		match["status"], match["asks"] = "done", true
+	case onError:
+		match["status"] = "error"
+	case onOutcome:
+		on = eventPrefix + x.run.outcomeEvent(e.From)
+		match = map[string]any{"by": from.Session, "outcome": e.Outcome}
+	}
+	text := x.render(e.Text)
+	if text == "" {
+		text = x.defaultEdgeText(from, e)
+	}
+	text = x.wrap(g, e.To, text)
+	matchText, err := json.Marshal(match)
+	if err != nil {
+		return triggerArgs{}, err
+	}
+	argsText, err := json.Marshal(promptArgs{Session: to.Session, Text: text})
+	if err != nil {
+		return triggerArgs{}, err
+	}
+	return triggerArgs{
+		Name:     fmt.Sprintf("%s: %s %s → %s", cmp.Or(x.run.Title, x.run.Graph), cmp.Or(from.Role, from.ID), edgeVerb(e), cmp.Or(to.Role, to.ID)),
+		On:       on,
+		Match:    string(matchText),
+		Command:  "agents.prompt",
+		Args:     string(argsText),
+		Owner:    "self",
+		Run:      x.run.ID,
+		RunTitle: cmp.Or(x.run.Title, x.run.Graph),
+	}, nil
+}
+
+func (g *Graph) after(id string) []api.RunAfter {
+	var out []api.RunAfter
+	for _, e := range g.Edges {
+		if from := g.node(e.From); e.To == id && from != nil {
+			out = append(out, api.RunAfter{Role: from.label(), On: e.On, Outcome: e.Outcome})
+		}
+	}
+	return out
+}
+
+func edgeVerb(e Edge) string {
+	switch e.On {
+	case onAsks:
+		return "asks"
+	case onError:
+		return "fails"
+	case onOutcome:
+		return "says " + e.Outcome
+	default:
+		return "done"
+	}
+}
+
+func (x *runner) brief(n *Node) string {
+	var b strings.Builder
+	b.WriteString(x.header(n))
+	b.WriteString("\n\n")
+	b.WriteString(x.render(n.Prompt))
+	var peers []string
+	for _, rn := range x.run.Nodes {
+		switch {
+		case rn.ID == n.ID:
+		case rn.Step:
+			peers = append(peers, fmt.Sprintf("%s (%s) is a step Clubmate runs", rn.ID, rn.Role))
+		default:
+			peers = append(peers, fmt.Sprintf("%s (%s) is session %s", rn.ID, rn.Role, rn.Session))
+		}
+	}
+	if len(peers) > 0 {
+		b.WriteString("\n\nOther nodes of this run: " + strings.Join(peers, "; ") + ". Clubmate passes your results on along the graph's edges; read another node's work with the clubmate tool agents_transcript.")
+	}
+	b.WriteString("\n\nYour reply goes to the next node of the graph, not to a person: do not end it with a question unless you need the answer to go on.")
+	if len(n.Outcomes) > 0 {
+		payloads := make([]string, 0, len(n.Outcomes))
+		for _, o := range n.Outcomes {
+			payloads = append(payloads, strconv.Quote(`{"outcome":`+strconv.Quote(o)+`}`))
+		}
+		fmt.Fprintf(&b, "\n\nWhen you finish, report the outcome before ending your turn: call the clubmate tool triggers_emit with name %q and payload one of %s.",
+			x.run.outcomeEvent(n.ID), strings.Join(payloads, ", "))
+		if len(n.End) > 0 {
+			fmt.Fprintf(&b, " Reporting %s ends the run.", strings.Join(n.End, " or "))
+		}
+	}
+	return b.String()
+}
+
+func (x *runner) header(n *Node) string {
+	return fmt.Sprintf("[Agent graph %s, run %s: you are node %s (%s)]", x.run.Graph, x.run.ID, n.ID, n.label())
+}
+
+func (x *runner) defaultEdgeText(from *RunNode, e Edge) string {
+	who := fmt.Sprintf("%s (%s, session %s)", from.ID, from.Role, from.Session)
+	transcript := fmt.Sprintf("the clubmate tool agents_transcript {\"session\":%q}", from.Session)
+	if e.On == onOutcome {
+		return who + " reported outcome " + e.Outcome + ". Read its last reply with " + transcript + " and act on it."
+	}
+	reply := "Its last reply (possibly cut; the whole transcript is in " + transcript + "):\n\n{{payload.reply}}"
+	switch e.On {
+	case onError:
+		return who + " stopped with an error. " + reply
+	case onAsks:
+		return who + " asks a question. Answer it with agents_prompt to that session if you can. " + reply
+	}
+	return who + " finished its turn. Act on it. " + reply
+}
+
+func (x *runner) render(s string) string {
+	return placeholderRe.ReplaceAllStringFunc(s, func(m string) string {
+		name := placeholderRe.FindStringSubmatch(m)[1]
+		switch name {
+		case "input":
+			return x.run.Input
+		case "run":
+			return x.run.ID
+		case "graph":
+			return x.run.Graph
+		}
+		if id, ok := strings.CutPrefix(name, "node."); ok {
+			if n := x.run.node(id); n != nil {
+				return n.Session
+			}
+		}
+		return m
+	})
+}
+
+func (x *runner) do(ctx context.Context, command string, args, out any) error {
+	raw, err := json.Marshal(args)
+	if err != nil {
+		return err
+	}
+	req := automation.CommandRequest{ID: command, WorkspaceID: x.run.Workspace, Args: raw, Agent: x.run.Agent, Caller: x.run.Caller}
+	res, err := x.call(ctx, req)
+	if err != nil {
+		return err
+	}
+	if out == nil {
+		return nil
+	}
+	return json.Unmarshal(res, out)
+}
+
+func (x *runner) own(ctx context.Context, command string, args any) error {
+	raw, err := json.Marshal(args)
+	if err != nil {
+		return err
+	}
+	_, err = x.call(ctx, automation.CommandRequest{ID: command, WorkspaceID: x.run.Workspace, Args: raw})
+	return err
+}
+
+func (r *Run) StorageKey() (workspace, id string) {
+	return r.Workspace, r.ID
+}
+
+func (r *Run) node(id string) *RunNode {
+	for i := range r.Nodes {
+		if r.Nodes[i].ID == id {
+			return &r.Nodes[i]
+		}
+	}
+	return nil
+}
+
+func (r *Run) outcomeEvent(node string) string {
+	return graphTopic + r.ID + "." + node
+}
+
+func parseOutcomeTopic(topic string) (run, node string, ok bool) {
+	rest, ok := strings.CutPrefix(topic, eventPrefix+graphTopic)
+	if !ok {
+		return "", "", false
+	}
+	return strings.Cut(rest, ".")
+}
+
+func (r *Run) nodeBySession(session string) *RunNode {
+	for i := range r.Nodes {
+		if r.Nodes[i].Session == session {
+			return &r.Nodes[i]
+		}
+	}
+	return nil
+}
+
+func (r *Run) stop(reason string, now time.Time) {
+	r.Status, r.Reason, r.StoppedAt, r.Held = statusStopped, reason, &now, nil
+}
+
+func graphTitle(g *Graph) string {
+	if g.Title != "" {
+		return g.Title
+	}
+	return g.Name
+}
+
+func isUnknownTrigger(err error) bool {
+	return strings.Contains(err.Error(), "unknown trigger")
+}

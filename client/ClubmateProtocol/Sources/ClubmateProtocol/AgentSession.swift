@@ -56,6 +56,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let taskFinished: Bool
     public let requests: [String]
     public let turns: Int
+    public let rowDetail: String?
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -67,7 +68,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         needsYouSince: Date? = nil, activity: SessionActivity? = nil, failure: SessionFailure? = nil, reopen: FailureAction? = nil, modeLabel: String? = nil,
         autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false, group: SessionGroup? = nil, active: Bool = false, kind: String? = nil, run: SessionRun? = nil,
         reviewProgress: ReviewProgress? = nil, openCount: Int = 0, openDecisions: Int = 0, openOffers: Int = 0, openSince: Date? = nil, mayAsk: Bool = false,
-        repo: String? = nil, taskRows: [RepoRow] = [], taskBadge: String? = nil, archivable: Bool = false, taskFinished: Bool = false, requests: [String] = [], turns: Int = 0
+        repo: String? = nil, taskRows: [RepoRow] = [], taskBadge: String? = nil, archivable: Bool = false, taskFinished: Bool = false, requests: [String] = [], turns: Int = 0, rowDetail: String? = nil
     ) {
         self.id = id
         self.workspace = workspace
@@ -122,6 +123,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.taskBadge = taskBadge
         self.archivable = archivable
         self.taskFinished = taskFinished
+        self.rowDetail = rowDetail
         self.requests = requests
         self.turns = turns
     }
@@ -131,7 +133,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
-        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, active, kind, run, reviewProgress, openCount, openDecisions, openOffers, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests, turns
+        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, active, kind, run, reviewProgress, openCount, openDecisions, openOffers, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests, turns, rowDetail
     }
 
     public init(from decoder: any Decoder) throws {
@@ -196,7 +198,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             archivable: try flag(.archivable),
             taskFinished: try flag(.taskFinished),
             requests: try c.decodeIfPresent([String].self, forKey: .requests) ?? [],
-            turns: try c.decodeIfPresent(Int.self, forKey: .turns) ?? 0
+            turns: try c.decodeIfPresent(Int.self, forKey: .turns) ?? 0,
+            rowDetail: try optional(.rowDetail)
         )
     }
 
@@ -257,6 +260,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encodeIfPresent(taskBadge, forKey: .taskBadge)
         try c.encode(archivable, forKey: .archivable)
         try c.encode(taskFinished, forKey: .taskFinished)
+        try c.encodeIfPresent(rowDetail, forKey: .rowDetail)
         try c.encode(requests, forKey: .requests)
         try c.encode(turns, forKey: .turns)
     }

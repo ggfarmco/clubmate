@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"clubmate/internal/paths"
 )
@@ -26,6 +27,8 @@ func SearchPath(coreExe string, dirs paths.Dirs) []string {
 	}
 	return []string{filepath.Join(filepath.Dir(coreExe), "plugins"), dirs.PluginsDir()}
 }
+
+var retiredIDs = []string{"graphs"}
 
 func Discover(searchPath []string) ([]Manifest, []error) {
 	var (
@@ -50,6 +53,9 @@ func Discover(searchPath []string) ([]Manifest, []error) {
 			m, err := Load(dir)
 			if err != nil {
 				errs = append(errs, err)
+				continue
+			}
+			if slices.Contains(retiredIDs, m.ID) {
 				continue
 			}
 			if first, ok := seen[m.ID]; ok {

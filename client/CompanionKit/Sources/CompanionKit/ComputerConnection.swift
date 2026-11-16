@@ -14,9 +14,12 @@ public protocol CommandRunner: AnyObject {
     @MainActor var reports: Bool { get }
     @MainActor var macName: String { get }
     @MainActor func report(text: String, mac: Bool, files: [(name: String, data: Data)], requestId: String) async throws -> String
+    @MainActor func supports(_ command: String) -> Bool
 }
 
 extension CommandRunner {
+    @MainActor public func supports(_ command: String) -> Bool { true }
+
     @MainActor public func command(_ id: String, workspace: String?, args: JSONValue?, requestId: String?) async throws -> JSONValue {
         try await command(id, workspace: workspace, args: args)
     }

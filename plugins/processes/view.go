@@ -62,7 +62,6 @@ var (
 		"editor-nvim": "chevron.left.forwardslash.chevron.right",
 		"cron":        "clock",
 		"triggers":    "bolt",
-		"graphs":      "point.3.connected.trianglepath.dotted",
 	}
 )
 

@@ -60,7 +60,7 @@ for _ in $(seq 1 100); do cm command run remote.status >/dev/null 2>&1 && cm com
 cp scripts/companion-e2e/graph.json "$OUT/repo/.clubmate/graphs/e2e.json" || exit 1
 git -C "$OUT/repo" init -q -b main && git -C "$OUT/repo" add -A && git -C "$OUT/repo" -c user.name=e2e -c user.email=e2e@example.com commit -q -m init || exit 1
 WORKSPACE="$(cm --json workspace create e2e --repo "$OUT/repo" | python3 -c 'import json, sys; print(json.load(sys.stdin)["id"])')" || exit 1
-cm command run graphs.trust graph=e2e >/dev/null || exit 1
+cm command run agents.graph-trust graph=e2e >/dev/null || exit 1
 cm command run remote.set-push-relay url="http://127.0.0.1:$HELPER_PORT" token=e2e >/dev/null || exit 1
 
 UDID="$(xcrun simctl list devices | grep " $SIM (" | grep -oE '[0-9A-F-]{36}' | head -1)"

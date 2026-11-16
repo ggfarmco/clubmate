@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"encoding/json"
 	"maps"
 	"testing"
 	"time"
@@ -44,6 +45,27 @@ func newFixture(t *testing.T) *fixture {
 		return f.run(t, "triggers.list", map[string]any{}, nil) == nil && f.run(t, "cron.list", map[string]any{}, nil) == nil
 	}, wait)
 	return f
+}
+
+func TestTriggerRenamesStoredGraphCommand(t *testing.T) {
+	t.Setenv("SHELL", "/bin/sh")
+	h := testutil.NewHarness(t)
+	workspace := h.CreateWorkspace(t, "demo").ID
+	id := "tr_0123456789abcdef"
+	raw, err := json.Marshal(map[string]any{"id": id, "name": "after tidy", "workspace": workspace, "on": "event.tidy.done", "command": "graphs.run", "args": json.RawMessage(`{"graph":"nightly"}`), "enabled": true})
+	require.NoError(t, err)
+	key := "trigger/" + workspace + "/" + id
+	require.NoError(t, h.KV.Set(t.Context(), "triggers", key, raw))
+	h.Start(t, testutil.BuildPluginDir(t, "clubmate/plugins/triggers", "plugins/triggers/plugin.json"))
+	f := &fixture{h: h, workspace: workspace}
+	var shown struct {
+		Command string `json:"command"`
+	}
+	testutil.Eventually(t, func() bool { return f.run(t, "triggers.show", map[string]any{"id": id}, &shown) == nil }, wait)
+	assert.Equal(t, "agents.graph-run", shown.Command)
+	stored, _, err := h.KV.Get(t.Context(), "triggers", key)
+	require.NoError(t, err)
+	assert.Contains(t, string(stored), `"command":"agents.graph-run"`)
 }
 
 func (f *fixture) run(t *testing.T, command string, args, out any) error {

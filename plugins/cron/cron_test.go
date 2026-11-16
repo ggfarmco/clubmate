@@ -204,6 +204,29 @@ func TestLegacyShortIDLoads(t *testing.T) {
 	assert.Empty(t, f.list(t))
 }
 
+func TestCronRenamesStoredGraphCommand(t *testing.T) {
+	t.Setenv("SHELL", "/bin/sh")
+	h := testutil.NewHarness(t)
+	workspace := h.CreateWorkspace(t, "demo").ID
+	id := "cj_0123456789abcdef"
+	raw, err := json.Marshal(map[string]any{
+		"id": id, "name": "nightly", "workspace": workspace, "command": "graphs.run",
+		"args": json.RawMessage(`{"graph":"nightly"}`), "enabled": true, "missed": "skip",
+		"schedule": map[string]string{"every": "24h"}, "nextRun": time.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+	key := "job/" + workspace + "/" + id
+	require.NoError(t, h.KV.Set(t.Context(), "cron", key, raw))
+	h.Start(t, cronDir(t))
+	f := ready(t, &fixture{h: h, workspace: workspace})
+	var shown job
+	require.NoError(t, f.run(t, "cron.show", map[string]any{"id": id}, &shown))
+	assert.Equal(t, "agents.graph-run", shown.Command)
+	stored, _, err := h.KV.Get(t.Context(), "cron", key)
+	require.NoError(t, err)
+	assert.Contains(t, string(stored), `"command":"agents.graph-run"`)
+}
+
 func TestSectionFollowsUIActions(t *testing.T) {
 	f := newFixture(t)
 	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return n.Type == "tree" && jobItem(n) == nil })
@@ -239,6 +262,14 @@ func TestAddRejectsInvalidTarget(t *testing.T) {
 		})
 	}
 	assert.Empty(t, f.list(t))
+}
+
+func TestAddStoresAliasAsItsCommand(t *testing.T) {
+	h := testutil.NewPluginHarness(t, cronDir(t), testutil.EchoPluginDirAs(t, `{"id":"alpha","name":"alpha","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"alpha.say","title":"Say","agent":true,"aliases":["graphs.say"]}]}}`))
+	f := ready(t, &fixture{h: h, workspace: h.CreateWorkspace(t, "demo").ID})
+	var added job
+	require.NoError(t, f.run(t, "cron.add", ping(map[string]any{"command": "graphs.say", "args": "{}"}), &added))
+	assert.Equal(t, "alpha.say", added.Command)
 }
 
 func TestAgentCannotManageForeignJob(t *testing.T) {

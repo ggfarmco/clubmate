@@ -386,7 +386,7 @@ func findingsCard(sc gateScreen, picked string) (sdui.Node, bool) {
 	if len(v.Deferred) > 0 {
 		lines = append(lines, sdui.MutedText("Deferred: "+strings.Join(v.Deferred, " · ")))
 	}
-	return sdui.WithID(sdui.Card(cmp.Or(look.Tone, "neutral"), look.Icon, lines...), gateFindingsID), true
+	return sdui.WithID(sdui.Card("neutral", look.Icon, lines...), gateFindingsID), true
 }
 
 func gateSheetView(d gateDraft) sdui.Node {

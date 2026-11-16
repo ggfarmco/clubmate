@@ -276,7 +276,12 @@ struct SDUINodeView: View, Equatable {
         case "scroll": ScrollNodeView(node: node)
         case "tabs": TabsNodeView(node: node)
         case "list": OwnScroll { ListNodeView(node: node) }
-        case "tree": OwnScroll { TreeNodeView(node: node) }
+        case "tree":
+            if node.treeDock().isEmpty {
+                OwnScroll { TreeNodeView(node: node) }
+            } else {
+                TreeNodeView(node: node)
+            }
         case "table": TableNodeView(node: node)
         case "sparkline": SparklineNodeView(node: node)
         case "text": TextNodeView(node: node)

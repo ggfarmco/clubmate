@@ -75,15 +75,16 @@ public struct AgentNotifier: Sendable {
 public enum GraphRun {
     public static let prefix = "gr_"
     public static let capPrefix = "cap-"
-    public static let section = "graphs"
-    public static let sidebarSlot = "graphs.sidebar"
-    public static let runsNode = "runs"
+    public static let section = AgentNotifier.section
+    public static let sidebarSlot = AgentNotifier.sidebarSlot
+    public static let runsNode = AgentNotifier.sessionsNode
+    public static let rowPrefix = "run:"
 
     public static func matches(_ id: String) -> Bool {
         id.hasPrefix(prefix)
     }
 
     public static func selectEvent(workspace: String, run: String) -> UIEvent {
-        UIEvent(workspaceId: workspace, slot: sidebarSlot, nodeId: runsNode, action: "select", value: .string(run))
+        UIEvent(workspaceId: workspace, slot: sidebarSlot, nodeId: runsNode, action: "select", value: .string(rowPrefix + run))
     }
 }

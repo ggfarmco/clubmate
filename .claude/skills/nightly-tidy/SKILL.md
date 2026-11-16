@@ -59,10 +59,10 @@ Plus one deep dive over the whole repo, by weekday: Mon security, Tue performanc
 Lives in the cron plugin, not in git; recreate it if it is gone:
 
 ```
-cron_add name="Nightly tidy" command=graphs.run cron="30 3 * * *" owner=none missed=once
+cron_add name="Nightly tidy" command=agents.graph-run cron="30 3 * * *" owner=none missed=once
   args={"graph":"nightly"}
 ```
 
-The repo's `nightly` graph (`.clubmate/graphs/nightly.json`, trusted with `graphs.trust`; [docs](../../../docs/agent-graphs.md#nightly)) starts this skill as its AFK Tidy node. Its steps run in the main checkout with no caller, so they need `Bash(make test)`, `Bash(scripts/graph/companion-ui.sh)`, `Bash(scripts/graph/mac-ui.sh)`, `Bash(git push origin main)` and `Bash(scripts/graph/ship-next.sh)` in the main checkout's `.claude/settings.local.json`; without them each step waits for an approval nobody gives. A core restart while Ship runs kills `ship.sh` (the step ends `error · interrupted`); a kill between the tag push and the publish leaves the tag, so check `gh release list` against `git tag` after one.
+The repo's `nightly` graph (`.clubmate/graphs/nightly.json`, trusted with `agents.graph-trust`; [docs](../../../docs/agent-graphs.md#nightly)) starts this skill as its AFK Tidy node. Its steps run in the main checkout with no caller, so they need `Bash(make test)`, `Bash(scripts/graph/companion-ui.sh)`, `Bash(scripts/graph/mac-ui.sh)`, `Bash(git push origin main)` and `Bash(scripts/graph/ship-next.sh)` in the main checkout's `.claude/settings.local.json`; without them each step waits for an approval nobody gives. A core restart while Ship runs kills `ship.sh` (the step ends `error · interrupted`); a kill between the tag push and the publish leaves the tag, so check `gh release list` against `git tag` after one.
 
 `missed: once` runs it after a night the Mac slept, possibly while the user works; step 5's checks are what keep that safe.

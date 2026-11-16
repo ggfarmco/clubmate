@@ -60,7 +60,6 @@ var (
 		"agents.step":           withArgs((*app).stepCommand),
 		"agents.reviewed":       withSession((*app).reviewedCommand),
 		"agents.send-review":    withArgs((*app).sendReviewCommand),
-		"agents.run-needs":      withArgs((*app).runNeedsCommand),
 		"agents.reminders":      withArgs((*app).remindersCommand),
 		"agents.night-spawn":    withArgs((*app).nightSpawnCommand),
 		"agents.night-run":      (*app).nightRunCommand,
@@ -95,6 +94,8 @@ var (
 		"agents.repo-fix":       withArgs((*app).repoFixCommand),
 		"agents.gates":          withArgs((*app).gatesCommand),
 		"agents.gates.new":      withArgs((*app).gatesNewCommand),
+		"agents.graph-start":    withArgs(openDockCommand(dockGraphs)),
+		"agents.gates-open":     withArgs(openDockCommand(dockGates)),
 		"agents.gate-verdicts":  withArgs((*app).gateVerdictsCommand),
 		"agents.gate-add":       withArgs((*app).gateAddCommand),
 		"agents.gate-update":    withArgs((*app).gateUpdateCommand),
@@ -277,6 +278,9 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+	if graphCommand(cmd.ID) {
+		return a.graphs.Command(ctx, cmd)
+	}
 	run, ok := commandTable[cmd.ID]
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", errUnknownCmd, cmd.ID)
@@ -405,7 +409,9 @@ func (a *app) sessionsCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 	if args.Since == nil {
 		return onlySession(visibleInfos(cmd, infos), args.Session), nil
 	}
+	st := a.graphState(ctx, cmd.WorkspaceID, infos)
 	page := a.sessionsPage(ctx, cmd.WorkspaceID, infos, *args.Since)
+	page.Runs, page.Dock = st.runs, st.dock
 	page.Sessions = onlySession(visibleInfos(cmd, page.Sessions), args.Session)
 	if args.Session != "" {
 		page.Removed = slices.DeleteFunc(page.Removed, func(id string) bool { return id != args.Session })

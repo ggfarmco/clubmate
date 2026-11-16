@@ -74,6 +74,7 @@ type fakeBackend struct {
 	runEntered  chan struct{}
 	runRelease  chan struct{}
 	reports     []submitReport
+	commands    []commandInfo
 }
 
 type runCall struct {
@@ -431,6 +432,22 @@ func TestCommandRunsOnlyRemoteCommands(t *testing.T) {
 	assert.JSONEq(t, `{"ran":"agents.sessions"}`, string(ok.Result))
 	assert.Equal(t, []runCall{{id: "agents.sessions", workspace: "prj_1", args: `{"x":1}`}}, f.backend.calls())
 	assert.Equal(t, codeNotAllowed, denied.Error.Code)
+}
+
+func TestRemoteHelloListsAliases(t *testing.T) {
+	f := newFixture(t)
+	f.backend.commands = []commandInfo{{ID: "agents.graph-show", Aliases: []string{"graphs.show"}, Remote: true, Running: true}}
+	token := f.pair(t, "phone")
+
+	_, hello := f.call(t, token, "hello", nil)
+	_, old := f.call(t, token, "command", map[string]any{"id": "graphs.show", "workspace": "prj_1"})
+
+	var got struct {
+		Commands []string `json:"commands"`
+	}
+	require.NoError(t, json.Unmarshal(hello.Result, &got))
+	assert.Equal(t, []string{"agents.graph-show", "graphs.show"}, got.Commands)
+	assert.Nil(t, old.Error)
 }
 
 func TestCommandListIsCachedUntilAPluginChanges(t *testing.T) {
@@ -809,7 +826,11 @@ func ipNet(s string) *net.IPNet {
 func (b *fakeBackend) Commands(context.Context) ([]commandInfo, error) {
 	b.mu.Lock()
 	b.lists++
+	commands := b.commands
 	b.mu.Unlock()
+	if commands != nil {
+		return commands, nil
+	}
 	return []commandInfo{{ID: "agents.sessions", Remote: true, Running: true}, {ID: "agents.delete", Running: true}, {ID: "agents.stopped", Remote: true}}, nil
 }
 

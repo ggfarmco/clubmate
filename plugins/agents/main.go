@@ -17,6 +17,7 @@ import (
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/agents/graphs"
 	"clubmate/plugins/internal/delta"
 )
 
@@ -53,6 +54,9 @@ type app struct {
 
 	sessionRevs delta.Observed
 	runNeeds    runNeeds
+	graphs      *graphs.Engine
+	runSigsMu   sync.Mutex
+	runSigs     map[string]map[string]string
 	reminders   reminders
 	limitJobs   limitJobs
 	openWake    chan struct{}
@@ -98,7 +102,7 @@ type sectionRef struct {
 func main() {
 	a := &app{loaded: make(chan struct{}), quit: make(chan struct{}), openWake: make(chan struct{}, 1), watchdog: newWatchdog(), reviews: newReviewBoard(), registry: newRegistry(), uiState: newUIState()}
 	signal.Notify(make(chan os.Signal, 1), syscall.SIGTERM)
-	err := pluginsdk.Run(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
+	err := pluginsdk.Run(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, BusClosed: a.busClosed, Shutdown: a.shutdown})
 	a.stopAll()
 	if err != nil {
 		os.Exit(1)
@@ -121,6 +125,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.groups = newGroups(a.stateDir)
 	a.groups.reap(orphanMarkers())
 	a.self = newSelfStore(a.stateDir)
+	a.graphs = a.newGraphs(h)
 	installHooks(a.stateDir)
 	var sections []sectionRef
 	if err := h.Call(ctx, "ui.sections", nil, &sections); err != nil {
@@ -227,10 +232,15 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	go a.ensureSelf(context.WithoutCancel(ctx))
 	go a.nightLoop()
 	a.renderAll(ctx)
+	go a.startGraphs(ctx, ready.Seq)
 	return nil
 }
 
-func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev pluginsdk.Event) {
+func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, sub string, ev pluginsdk.Event) {
+	if a.graphs.Owns(sub) {
+		a.graphs.BusEvent(ctx, sub, ev)
+		return
+	}
 	switch ev.Topic {
 	case "session.exited":
 		a.signInExited(ctx, ev)
@@ -285,6 +295,14 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 			go a.cleanupOnSeen(p.Workspace)
 		}
 	}
+}
+
+func (a *app) busClosed(ctx context.Context, _ *pluginsdk.Host, sub string, err error) {
+	if a.graphs.Owns(sub) {
+		a.graphs.BusClosed(ctx, sub, err)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "agents: bus subscription %s closed: %v\n", sub, err)
 }
 
 func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
@@ -363,9 +381,17 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			kids[rec.ParentSession] = append(kids[rec.ParentSession], rec)
 		}
 	}
+	nest := reviewerNesting(recs, func(lander string, st landReview) bool {
+		_, ok := a.reviewing(lander, st)
+		return ok
+	})
 	out := make([]sessionInfo, 0, len(recs))
 	for _, rec := range recs {
 		info := sessionInfo{record: rec, NotifyEffective: a.effectiveNotify(rec), ChildStatus: children[rec.ID]}
+		if n, ok := nest[rec.ID]; ok {
+			round := n.Round
+			info.NestUnder, info.GateRound = n.Lander, &round
+		}
 		if s := a.session(rec.ID); s != nil {
 			info.Pending = s.pending()
 			info.Asks = s.asks()

@@ -47,7 +47,7 @@ func sessionsOf(t *testing.T, tree sdui.Node) []sdui.TreeItem {
 func TestTaskTreeNamesReposInLandingOrder(t *testing.T) {
 	t.Parallel()
 	now := time.Now()
-	items := sessionsOf(t, sidebarView(taskRows(now), "", nil, now, "/r/a", false, "", sidebarSearch{}, 0))
+	items := sessionsOf(t, sidebarView(taskRows(now), "", nil, now, "/r/a", false, "", sidebarSearch{}, 0, sidebarPlus{}))
 	require.Len(t, items, 1)
 	parent := items[0]
 	assert.Equal(t, "4 need you", parent.Detail)
@@ -86,7 +86,7 @@ func TestConnectRowIsNeutralWhileTheTurnRuns(t *testing.T) {
 	rows := []sessionRow{{Rec: record{ID: "agt_o", Worktree: "/r/a", Status: statusRunning, ConnectRequests: []connectRequest{
 		{ID: "cr_1", Repos: []connectRepo{{Path: "/r/new", Name: "new-repo", State: repoPending}}},
 	}}}}
-	items := sessionsOf(t, sidebarView(rows, "", nil, time.Now(), "/r/a", false, "", sidebarSearch{}, 0))
+	items := sessionsOf(t, sidebarView(rows, "", nil, time.Now(), "/r/a", false, "", sidebarSearch{}, 0, sidebarPlus{}))
 	require.Len(t, items[0].Children, 1)
 	assert.Equal(t, wordConnect, items[0].Children[0].Detail)
 	assert.Empty(t, items[0].Children[0].Tone)
@@ -128,7 +128,7 @@ func TestFoldedTaskKeepsPinnedChildren(t *testing.T) {
 	t.Parallel()
 	now := time.Now()
 	collapsed := map[string]bool{expandPrefix + "agt_o": true}
-	items := sessionsOf(t, sidebarView(taskRows(now), "", collapsed, now, "/r/a", false, "", sidebarSearch{}, 0))
+	items := sessionsOf(t, sidebarView(taskRows(now), "", collapsed, now, "/r/a", false, "", sidebarSearch{}, 0, sidebarPlus{}))
 	parent := items[0]
 	assert.False(t, parent.Expanded)
 	var labels []string
@@ -143,7 +143,7 @@ func TestStepSkipsRowsWithNoSession(t *testing.T) {
 	t.Parallel()
 	now := time.Now()
 	collapsed := map[string]bool{expandPrefix + "agt_o": true}
-	raw, err := json.Marshal(sidebarView(taskRows(now), "agt_d", collapsed, now, "/r/a", false, "", sidebarSearch{}, 0))
+	raw, err := json.Marshal(sidebarView(taskRows(now), "agt_d", collapsed, now, "/r/a", false, "", sidebarSearch{}, 0, sidebarPlus{}))
 	require.NoError(t, err)
 	assert.Equal(t, "agt_o", stepSession(raw, 1))
 	assert.Equal(t, "agt_b", stepSession(raw, -1))

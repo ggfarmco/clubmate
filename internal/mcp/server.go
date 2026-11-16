@@ -132,6 +132,7 @@ type tool struct {
 	InputSchema map[string]any `json:"inputSchema"`
 	Annotations annotations    `json:"annotations"`
 	target      string
+	alias       bool
 }
 
 type annotations struct {
@@ -376,13 +377,18 @@ func (s *Server) call(ctx context.Context, p callParams) (any, error) {
 func (s *Server) tools(ctx context.Context) ([]tool, error) {
 	core, err := s.Dial(ctx)
 	if errors.Is(err, ErrNoCore) {
-		return build(rpc.PrimitiveCommands(), nil, s.logf), nil
+		return listed(build(rpc.PrimitiveCommands(), nil, s.logf)), nil
 	}
 	if err != nil {
 		return nil, err
 	}
 	defer core.Close()
-	return list(ctx, core, s.logf)
+	tools, err := list(ctx, core, s.logf)
+	return listed(tools), err
+}
+
+func listed(tools []tool) []tool {
+	return slices.DeleteFunc(tools, func(t tool) bool { return t.alias })
 }
 
 func (s *Server) remember(tools []tool) {
@@ -548,6 +554,21 @@ func build(cmds []rpc.Command, caps map[string]string, logf func(string, ...any)
 	for _, name := range names {
 		if c, ok := byID[caps[name]]; ok && c.Agent {
 			add(name, c)
+		}
+	}
+	for _, c := range cmds {
+		if !c.Agent {
+			continue
+		}
+		for _, alias := range c.Aliases {
+			name := toolName.Replace(alias)
+			if _, ok := seen[name]; ok || !validName.MatchString(name) {
+				continue
+			}
+			seen[name] = alias
+			t := newTool(c.ID, c)
+			t.Name, t.alias = name, true
+			out = append(out, t)
 		}
 	}
 	return out

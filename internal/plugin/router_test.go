@@ -410,3 +410,21 @@ func reasonOf(err error) string {
 	data := json.RawMessage(remote.Data)
 	return contract.ReasonIn(&data)
 }
+
+func TestResolveAlias(t *testing.T) {
+	h := testutil.NewHarness(t)
+	runner := func(id, command string, aliases ...string) string {
+		raw, err := json.Marshal(aliases)
+		require.NoError(t, err)
+		return fmt.Sprintf(`{"id":%q,"name":%q,"version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":%q,"title":"Run","aliases":%s}]}}`, id, id, command, raw)
+	}
+	h.Start(t, testutil.EchoPluginDirAs(t, runner("alpha", "alpha.graph-run", "graphs.list", "older.run"), runner("older", "older.run")))
+	router := plugin.NewRouter(h.Sup)
+	resolved := func(id string) [2]string {
+		c, ok := router.Resolve(id)
+		require.True(t, ok, id)
+		return [2]string{c.ID, c.Plugin}
+	}
+	assert.Equal(t, [2]string{"alpha.graph-run", "alpha"}, resolved("graphs.list"))
+	assert.Equal(t, [2]string{"older.run", "older"}, resolved("older.run"))
+}

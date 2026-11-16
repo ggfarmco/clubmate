@@ -312,7 +312,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "graphs.show", "graphs.approve", "graphs.continue", "graphs.stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "agents.graph-show", "agents.graph-approve", "agents.graph-continue", "agents.graph-stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed"), .string("awake.changed")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge")), "reports": .bool(true)])]))
         case "report":
             return (200, Self.json(["result": .object(["id": .string("r-fixture")])]))
@@ -369,15 +369,15 @@ actor FixtureServer {
         switch id {
         case "agents.sessions":
             return .array((workspace == self.workspace ? sessions : others).map(JSONValue.object) + (workspace == self.workspace ? [] : runEntries))
-        case "graphs.show":
+        case "agents.graph-show":
             return shownRun(args["id"]?.stringValue ?? "")
-        case "graphs.approve":
+        case "agents.graph-approve":
             resolveRun(args["id"]?.stringValue ?? "", answer: args["decision"]?.stringValue ?? "once")
             return .null
-        case "graphs.continue":
+        case "agents.graph-continue":
             resolveRun(args["id"]?.stringValue ?? "", answer: "continue")
             return .null
-        case "graphs.stop":
+        case "agents.graph-stop":
             resolveRun(args["id"]?.stringValue ?? "", answer: "stop")
             return .null
         case "agents.transcript":

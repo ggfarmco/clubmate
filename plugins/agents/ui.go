@@ -17,6 +17,7 @@ import (
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/agents/api"
 	"clubmate/plugins/agents/internal/claudectx"
 	"clubmate/plugins/internal/gitrepo"
 )
@@ -89,6 +90,8 @@ type workspaceUI struct {
 	gate       string
 	gatePick   string
 	gateSheet  *gateDraft
+	dock       string
+	back       string
 }
 
 type sessionUI struct {
@@ -246,11 +249,26 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	}
 	rows := make([]sessionRow, 0, len(recs))
 	needs := a.runNeeds.byRun(workspaceID)
+	graphs := a.graphState(ctx, workspaceID, a.infos(workspaceID))
+	runRows := make(map[string]*api.RunRow, len(graphs.runs))
+	for i := range graphs.runs {
+		runRows[graphs.runs[i].ID] = &graphs.runs[i]
+	}
+	nest := reviewerNesting(recs, func(lander string, st landReview) bool {
+		_, ok := a.reviewing(lander, st)
+		return ok
+	})
 	for _, rec := range recs {
 		row := a.sessionRow(ctx, rec, children[rec.ID])
 		row.CloseAsk = closeBusy(rec, kids).Message
 		if n, ok := needs[runID(rec)]; ok {
 			row.RunNeed = &n
+		}
+		if rec.Run != nil {
+			row.RunRow = runRows[rec.Run.ID]
+		}
+		if n, ok := nest[rec.ID]; ok {
+			row.Nest = &n
 		}
 		rows = append(rows, row)
 		if turnActive(rec) {
@@ -271,12 +289,13 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	filter := p.filter
 	search := sidebarSearch{query: p.query}
 	closedExtra := p.closed
+	dock := p.dock
 	a.uiMu.Unlock()
 	if search.query != "" {
 		search.results = a.search(workspaceID, search.query)
 	}
 	home, _, _ := workRoot(workspace)
-	if err := a.push(ctx, p, workspaceID, sidebarSlot, sidebarView(rows, selected, collapsed, time.Now(), home, branchOpen, filter, search, closedExtra)); err != nil {
+	if err := a.push(ctx, p, workspaceID, sidebarSlot, sidebarView(rows, selected, collapsed, time.Now(), home, branchOpen, filter, search, closedExtra, graphs.plus(dock))); err != nil {
 		return err
 	}
 	var shown *screen
@@ -286,6 +305,11 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 			q := a.openQueueScreen(workspaceID, rows, selected)
 			q.Now = time.Now()
 			main = openQueueView(q)
+		} else if pageID(selected) {
+			a.uiMu.Lock()
+			back := p.back
+			a.uiMu.Unlock()
+			main = a.pageView(ctx, workspaceID, selected, back)
 		} else if s := a.session(selected); s != nil {
 			sc := a.screen(ctx, workspaceID, s, children[selected])
 			sc.Workspace, sc.Folders = workspace.Name, workspace
@@ -644,10 +668,16 @@ func (a *app) resolveSelected(ctx context.Context, workspaceID string, recs []re
 		}
 	}
 	resolved := selected
-	if !slices.ContainsFunc(recs, func(r record) bool { return r.ID == selected }) {
+	if (!pageID(selected) || a.deadPage(ctx, workspaceID, selected)) && !slices.ContainsFunc(recs, func(r record) bool { return r.ID == selected }) {
+		a.uiMu.Lock()
+		back := p.back
+		a.uiMu.Unlock()
 		resolved = ""
 		if i := slices.IndexFunc(recs, func(r record) bool { return !r.restricted() }); i >= 0 {
 			resolved = recs[i].ID
+		}
+		if pageID(selected) && slices.ContainsFunc(recs, func(r record) bool { return r.ID == back }) {
+			resolved = back
 		}
 	}
 	a.uiMu.Lock()
@@ -672,11 +702,13 @@ func (a *app) selectSession(ctx context.Context, workspaceID, sid string) error 
 	for s := a.session(sid); s != nil; {
 		rec := s.snapshot()
 		if rec.Run != nil {
-			open[runGroupKey(a.runScope(rec), rec.Run.ID)] = false
+			open[expandPrefix+runPrefix+rec.Run.ID] = false
 		}
 		parent := rec.ParentSession
 		if parent == "" && rec.restricted() && !rec.closed() {
-			open[serviceKey] = false
+			a.uiMu.Lock()
+			p.dock = dockService
+			a.uiMu.Unlock()
 		}
 		if parent == "" || seen[parent] {
 			break
@@ -697,18 +729,6 @@ func (a *app) selectSession(ctx context.Context, workspaceID, sid string) error 
 		}
 	}
 	return a.setCollapsed(ctx, workspaceID, open)
-}
-
-func (a *app) runScope(rec record) string {
-	switch {
-	case a.session(rec.ParentSession) != nil:
-		return rec.ParentSession
-	case rec.closed():
-		return closedKey
-	case rec.restricted() && rec.ParentSession == "":
-		return serviceKey
-	}
-	return rec.Worktree
 }
 
 func (a *app) reveal(ctx context.Context, workspaceID, sid string) error {

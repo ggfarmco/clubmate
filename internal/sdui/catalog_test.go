@@ -396,3 +396,14 @@ func TestSheetNode(t *testing.T) {
 	assert.ErrorContains(t, internalsdui.Validate(sdui.VStack(sheet("close"))), `cancel "close" is not the action of a button`)
 	assert.ErrorContains(t, internalsdui.Validate(sdui.VStack(sdui.VStack(sheet("cancel")))), "child of the slot's root")
 }
+
+func TestTreeDockValidates(t *testing.T) {
+	dock := func(cap int, open string) sdui.Node {
+		items := []sdui.TreeItem{{ID: "run:gr_1", Label: "Review gate", Open: open}}
+		rows := []sdui.TreeItem{{ID: "graph:nightly", Label: "nightly", Open: "graph"}}
+		return sdui.WithTreeDock(sdui.Tree("t", items, ""), []sdui.TreeDock{{ID: "graphs", Label: "Graphs", Rows: rows, Cap: cap, Add: &sdui.TreeAdd{Action: "newGraph", Label: "New graph…"}}})
+	}
+	assert.NoError(t, internalsdui.Validate(dock(6, "run")))
+	assert.ErrorIs(t, internalsdui.Validate(dock(6, "x")), internalsdui.ErrInvalidTree)
+	assert.ErrorIs(t, internalsdui.Validate(dock(0, "run")), internalsdui.ErrInvalidTree)
+}
