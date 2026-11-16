@@ -9,7 +9,7 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
         var size: DocumentSize
     }
 
-    let webView: WKWebView
+    let webView: DocumentWKWebView
     let kind: DocumentKind
     var onLink: (DocumentLink) -> Void = { _ in }
     var onHeight: (CGFloat) -> Void = { _ in }
@@ -45,7 +45,7 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
             configuration.ignoresViewportScaleLimits = true
             #endif
         }
-        webView = WKWebView(frame: .zero, configuration: configuration)
+        webView = DocumentWKWebView(frame: .zero, configuration: configuration)
         super.init()
         switch kind {
         case .markdown:
@@ -75,6 +75,8 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
         wanted = Request(content: content, theme: theme, size: size)
         #if os(iOS)
         webView.scrollView.isScrollEnabled = size == .fill
+        #else
+        webView.passesVerticalScroll = size == .fit
         #endif
         guard work == nil else { return }
         work = Task { await drain() }

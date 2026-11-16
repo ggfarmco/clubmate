@@ -3,6 +3,7 @@ package macui_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -63,6 +64,25 @@ func TestBacklogTagChipsKeepTheSelectionWhenUnfolded(t *testing.T) {
 	in.eventually("the tags unfold", func() bool { return in.snapshot().main().has("tags#tag:h") })
 	assert.True(t, in.selected("tags#tag:b"))
 	assert.False(t, in.selected("tags#less"))
+}
+
+func TestBacklogWheelOverDescriptionScrollsTheTask(t *testing.T) {
+	in := start(t, "macui-bdesc", "")
+	in.cm("command", "run", "backlog.add", "title=Long", "status=todo", "description="+strings.Repeat("A line of the description.\n\n", 20))
+	in.focusSection("backlog", "backlog.sidebar")
+	in.eventually("the task is listed", func() bool { return in.snapshot().main().has("tasks#1") })
+	in.pointer("click", "tasks#1")
+	var doc *element
+	in.eventually("the description shows", func() bool {
+		doc = in.snapshot().main().node("doc")
+		return doc != nil && doc.Frame.Height > 300
+	})
+	top := doc.Frame.Y
+	in.eventually("a wheel over the description scrolls the task", func() bool {
+		in.pointer("scroll", "doc", "--dy=10")
+		d := in.snapshot().main().node("doc")
+		return d != nil && d.Frame.Y < top
+	})
 }
 
 func TestBacklogSearch(t *testing.T) {
