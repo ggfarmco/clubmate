@@ -37,6 +37,10 @@ struct BacklogPlugin: CompanionPluginUI {
         0
     }
 
+    func listHasMic(connection: ComputerConnection) -> Bool {
+        true
+    }
+
     @MainActor
     static func store(_ context: PluginContext, newTask: Bool = false) -> BacklogStore? {
         let shown = context.navigation.workspace(for: context.connection)?.id
@@ -107,50 +111,26 @@ struct TaskListView: View {
                 }
             }
             ListAgeSection { store.ageLine(now: $0) }
-            if !store.outbox.isEmpty {
-                Section("Queued") {
-                    ForEach(store.outbox) { item in
-                        QueuedLine(item: item, queuedLine: context.connection.queuedLine, sendAgain: { attempt($failure) { try await store.sendAgain(item) } }) { store.queue.cancel(item) }
-                    }
-                }
-            }
-            ForEach(store.groups, id: \.status) { group in
-                if BacklogStatus.folded.contains(group.status) {
-                    Section(isExpanded: Binding(get: { expanded.contains(group.status) }, set: { open in
-                        if open { expanded.insert(group.status) } else { expanded.remove(group.status) }
-                    })) {
-                        rows(group.tasks)
-                    } header: {
-                        Button {
-                            Motion.disclose { toggle(group.status) }
-                        } label: {
-                            HStack {
-                                Text("\(group.status.label) · \(group.tasks.count)")
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .rotationEffect(.degrees(expanded.contains(group.status) ? 90 : 0))
-                            }
-                            .contentShape(.rect)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                } else {
-                    Section {
-                        rows(group.tasks)
-                    } header: {
-                        HStack {
-                            Text(group.status.label)
-                            Spacer()
-                            Text("\(group.tasks.count)")
-                        }
-                    }
-                }
+            if let search = store.search {
+                found(search)
+            } else {
+                everything
             }
         }
         .listStyle(.insetGrouped)
+        .searchBar(text: Bindable(store).searchQuery, prompt: "Search, or a #number")
+        .onSubmit(of: .search) {
+            guard let pinned = store.search?.pinned else { return }
+            context.navigation.detail = String(pinned.id)
+            context.navigation.preferredColumn = .detail
+        }
         .overlay {
             if !store.loaded {
                 ProgressView()
+            } else if let search = store.search {
+                if search.isEmpty {
+                    ContentUnavailableView.search(text: store.searchQuery)
+                }
             } else if store.tasks.isEmpty {
                 ContentUnavailableView {
                     Label("No Tasks", systemImage: "checklist")
@@ -167,11 +147,87 @@ struct TaskListView: View {
         .actionFailure($failure)
     }
 
-    private func rows(_ tasks: [BacklogTask]) -> some View {
+    @ViewBuilder
+    private func found(_ search: BacklogSearch) -> some View {
+        if let pinned = search.pinned, let label = search.label {
+            Section {
+                rows([pinned], pinned: true)
+            } header: {
+                Text(label)
+            } footer: {
+                Text("Return opens \(pinned.number)")
+                    .foregroundStyle(Color.captionInk)
+            }
+        }
+        if let missing = search.missing {
+            Section {
+                Text(missing)
+                    .foregroundStyle(Color.captionInk)
+                    .listRowDensity()
+            }
+        }
+        ForEach(search.groups, id: \.status) { group in
+            Section {
+                rows(group.tasks)
+            } header: {
+                HStack {
+                    Text(group.status.label)
+                    Spacer()
+                    Text("\(group.tasks.count)")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var everything: some View {
+        if !store.outbox.isEmpty {
+            Section("Queued") {
+                ForEach(store.outbox) { item in
+                    QueuedLine(item: item, queuedLine: context.connection.queuedLine, sendAgain: { attempt($failure) { try await store.sendAgain(item) } }) { store.queue.cancel(item) }
+                }
+            }
+        }
+        ForEach(store.groups, id: \.status) { group in
+            if BacklogStatus.folded.contains(group.status) {
+                Section(isExpanded: Binding(get: { expanded.contains(group.status) }, set: { open in
+                    if open { expanded.insert(group.status) } else { expanded.remove(group.status) }
+                })) {
+                    rows(group.tasks)
+                } header: {
+                    Button {
+                        Motion.disclose { toggle(group.status) }
+                    } label: {
+                        HStack {
+                            Text("\(group.status.label) · \(group.tasks.count)")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .rotationEffect(.degrees(expanded.contains(group.status) ? 90 : 0))
+                        }
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else {
+                Section {
+                    rows(group.tasks)
+                } header: {
+                    HStack {
+                        Text(group.status.label)
+                        Spacer()
+                        Text("\(group.tasks.count)")
+                    }
+                }
+            }
+        }
+    }
+
+    private func rows(_ tasks: [BacklogTask], pinned: Bool = false) -> some View {
         ForEach(tasks) { task in
-            TaskRow(task: task, owner: BacklogPlugin.owner(task, context: context), queued: store.queued(task.id).contains { $0.failure == nil })
+            TaskRow(task: task, owner: BacklogPlugin.owner(task, context: context), queued: store.queued(task.id).contains { $0.failure == nil }, pinned: pinned)
                 .tag(String(task.id))
-                .selectedRow(context.navigation.layout != .compact && context.navigation.detail == String(task.id))
+                .modifier(PinnedRing(on: pinned, selected: selected(task)))
+                .selectedRow(selected(task))
                 .swipeActions(edge: .trailing) {
                     if task.status != .done {
                         Button("Done", systemImage: "checkmark") { perform { try await store.done(task.id) } }
@@ -190,6 +246,10 @@ struct TaskListView: View {
                     TaskActions(task: task, store: store, agentStart: agentStart, failure: $failure)
                 }
         }
+    }
+
+    private func selected(_ task: BacklogTask) -> Bool {
+        context.navigation.layout != .compact && context.navigation.detail == String(task.id)
     }
 
     private var agentStart: Bool {
@@ -254,6 +314,7 @@ struct TaskRow: View {
     let task: BacklogTask
     let owner: String?
     var queued = false
+    var pinned = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -276,7 +337,23 @@ struct TaskRow: View {
 
     private var subtitle: String {
         let detail = task.status == .inProgress ? owner ?? task.noteLine : task.noteLine
-        return ((queued ? ["Queued"] : []) + [task.number] + [detail].compactMap { $0 }).joined(separator: " · ")
+        let tail = pinned ? [task.status.label, task.tags.isEmpty ? detail : task.tags.joined(separator: ", ")] : [detail]
+        return ((queued ? ["Queued"] : []) + [task.number] + tail.compactMap { $0 }).joined(separator: " · ")
+    }
+}
+
+private struct PinnedRing: ViewModifier {
+    let on: Bool
+    let selected: Bool
+
+    func body(content: Content) -> some View {
+        if on {
+            content.listRowBackground((selected ? Color.selectedRow : Color(.secondarySystemGroupedBackground)).overlay {
+                RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(Color.accentColor, lineWidth: 1.5)
+            })
+        } else {
+            content
+        }
     }
 }
 

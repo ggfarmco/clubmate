@@ -125,13 +125,24 @@ struct VoiceButton: View {
 }
 
 private struct VoiceDock: ViewModifier {
+    let active: Bool
+
     @Environment(AppNavigation.self) private var navigation
     @State private var id = UUID()
+    @State private var frame: CGRect?
 
     func body(content: Content) -> some View {
         content
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
-                navigation.dock(id, at: frame)
+                self.frame = frame
+                if active { navigation.dock(id, at: frame) }
+            }
+            .onChange(of: active) { _, active in
+                if active, let frame {
+                    navigation.dock(id, at: frame)
+                } else {
+                    navigation.undock(id)
+                }
             }
             .onDisappear {
                 navigation.undock(id)
@@ -158,7 +169,7 @@ struct SearchBar: ViewModifier {
                     if navigation.voiceTarget(model) != nil {
                         ToolbarItem(placement: .bottomBar) {
                             ComposerMic()
-                                .voiceDock()
+                                .voiceDock(active: navigation.preferredColumn != .detail)
                         }
                         .sharedBackgroundVisibility(.hidden)
                     }
@@ -172,8 +183,8 @@ struct SearchBar: ViewModifier {
 }
 
 extension View {
-    func voiceDock() -> some View {
-        modifier(VoiceDock())
+    func voiceDock(active: Bool = true) -> some View {
+        modifier(VoiceDock(active: active))
     }
 }
 

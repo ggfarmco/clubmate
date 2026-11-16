@@ -308,8 +308,9 @@ Defined by the `keys` scope in `plugins/agents/open_view.go`, handled in `plugin
 | ⌘F | In an open doc sheet: the system find bar (WebKit's find interaction; also the Find button in the doc's toolbar) |
 | ⌥↩, Esc | In the voice panel's confirmation of a dangerous action (any screen): Yes, No. ⌥↩ is ignored for the first 0.6 s, like a tap on Yes |
 | Esc | In the voice panel while an utterance waits its 1 s before going to the assistant (any screen): Cancel |
+| ↩ | In the Backlog search field (iPhone too), with a number that pins a task: open that task; typing never opens it |
 
-Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/Agents/SessionKeys.swift`, key mapping in CompanionKit `PermissionRequest.keyed`, the run card's in `RunRequestCard` (`client/Companion/Plugins/Agents/RunDetailView.swift`); the voice keys in `client/Companion/App/VoicePanel.swift`.
+Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/Agents/SessionKeys.swift`, key mapping in CompanionKit `PermissionRequest.keyed`, the run card's in `RunRequestCard` (`client/Companion/Plugins/Agents/RunDetailView.swift`); the voice keys in `client/Companion/App/VoicePanel.swift`; the Backlog search's ↩ in `TaskListView` (`client/Companion/Plugins/Backlog/BacklogPlugin.swift`).
 
 ## Review (Code section, a review tab current in Neovim)
 

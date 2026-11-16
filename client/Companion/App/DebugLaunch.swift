@@ -123,7 +123,11 @@ enum DebugLaunch {
         navigation.sectionItem = parts.count > 2 ? parts[2] : nil
         navigation.open(computer: computer.id, plugin: parts[0], detail: parts.count > 1 ? parts[1] : nil)
         if let query = defaults.string(forKey: "search"), let connection = model.connection(computer.id), let workspace = navigation.workspace(for: connection) {
-            model.agents(computer: computer.id, workspace: workspace.id)?.searchQuery = query
+            if parts[0] == BacklogPluginInfo.id {
+                model.backlog(computer: computer.id, workspace: workspace.id)?.searchQuery = query
+            } else {
+                model.agents(computer: computer.id, workspace: workspace.id)?.searchQuery = query
+            }
         }
     }
 }

@@ -15,6 +15,7 @@ public final class BacklogStore {
     public private(set) var syncedAt: Date?
     public private(set) var fetched = false
     public var newDraft = BacklogDraft()
+    public var searchQuery = ""
     public var arrival: Arrival?
 
     public struct Arrival: Equatable, Sendable {
@@ -95,6 +96,10 @@ public final class BacklogStore {
 
     public var groups: [(status: BacklogStatus, tasks: [BacklogTask])] {
         BacklogTask.grouped(tasks).map { ($0.status, $0.status == .done ? Array($0.tasks.prefix(Self.doneLimit)) : $0.tasks) }
+    }
+
+    public var search: BacklogSearch? {
+        searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : BacklogSearch(searchQuery, tasks: tasks)
     }
 
     public func seen(_ id: Int) -> String? {

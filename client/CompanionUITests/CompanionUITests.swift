@@ -228,6 +228,26 @@ final class CompanionUITests: XCTestCase {
         XCTAssertEqual(title.value as? String, "Kept while away")
     }
 
+    func testANumberPinsItsTaskAndReturnOpensIt() {
+        let app = launch(open: "backlog", ["-search", "4"])
+        XCTAssertTrue(app.staticTexts["Return opens #4"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Bump Go to 1.26")).firstMatch.exists)
+        XCTAssertFalse(app.buttons["Start agent"].exists)
+        let search = app.searchFields["Search, or a #number"]
+        search.tap()
+        search.typeText("\n")
+        XCTAssertTrue(app.buttons["Start agent"].waitForExistence(timeout: 5))
+    }
+
+    func testTheFloatingMicStaysClearOfTheBackButtonOnATask() {
+        let app = launch(open: "backlog/4")
+        let mic = app.buttons["Talk to Clubmate"]
+        XCTAssertTrue(mic.waitForExistence(timeout: 10))
+        XCTAssertGreaterThan(mic.frame.minY, app.windows.firstMatch.frame.midY)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.searchFields["Search, or a #number"].waitForExistence(timeout: 5))
+    }
+
     func testBacklogOpensFromTheWorkspaceNotTheMac() {
         let app = launch(open: "sidebar")
         XCTAssertTrue(app.navigationBars["Macs"].waitForExistence(timeout: 10))

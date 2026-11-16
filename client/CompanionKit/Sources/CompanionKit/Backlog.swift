@@ -257,6 +257,7 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
     public let claimedBy: String?
     public let claimedAt: Date?
     public let note: String
+    public let tags: [String]
     public let createdBy: String
     public let createdAt: Date?
     public let updatedAt: Date?
@@ -267,7 +268,7 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
     public let lastOwner: BacklogOwnerEvent?
     public let history: [BacklogOwnerEvent]
 
-    public init(id: Int, title: String, description: String = "", descriptionHtml: String? = nil, status: BacklogStatus, priority: BacklogPriority = .normal, claimedBy: String? = nil, claimedAt: Date? = nil, note: String = "", createdBy: String = "user", createdAt: Date? = nil, updatedAt: Date? = nil, links: [BacklogLink] = [], attachments: [BacklogAttachment] = [], primary: BacklogPrimary? = nil, ownerState: String? = nil, lastOwner: BacklogOwnerEvent? = nil, history: [BacklogOwnerEvent] = []) {
+    public init(id: Int, title: String, description: String = "", descriptionHtml: String? = nil, status: BacklogStatus, priority: BacklogPriority = .normal, claimedBy: String? = nil, claimedAt: Date? = nil, note: String = "", tags: [String] = [], createdBy: String = "user", createdAt: Date? = nil, updatedAt: Date? = nil, links: [BacklogLink] = [], attachments: [BacklogAttachment] = [], primary: BacklogPrimary? = nil, ownerState: String? = nil, lastOwner: BacklogOwnerEvent? = nil, history: [BacklogOwnerEvent] = []) {
         self.id = id
         self.title = title
         self.description = description
@@ -277,6 +278,7 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
         self.claimedBy = claimedBy
         self.claimedAt = claimedAt
         self.note = note
+        self.tags = tags
         self.createdBy = createdBy
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -289,7 +291,7 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, description, descriptionHtml, status, priority, claimedBy, claimedAt, note, createdBy, createdAt, updatedAt, links, attachments, primary, ownerState, lastOwner, history
+        case id, title, description, descriptionHtml, status, priority, claimedBy, claimedAt, note, tags, createdBy, createdAt, updatedAt, links, attachments, primary, ownerState, lastOwner, history
     }
 
     public init(from decoder: any Decoder) throws {
@@ -307,6 +309,7 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
             claimedBy: owner.isEmpty ? nil : owner,
             claimedAt: date(.claimedAt),
             note: try text(.note),
+            tags: try c.decodeIfPresent([String].self, forKey: .tags) ?? [],
             createdBy: try text(.createdBy),
             createdAt: date(.createdAt),
             updatedAt: date(.updatedAt),
@@ -331,12 +334,56 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
         claimedBy == "user"
     }
 
+    public func matches(_ query: String) -> Bool {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if query.isEmpty || BacklogSearch.number(query) == id { return true }
+        return ([title, description, note] + tags).contains { $0.lowercased().contains(query) }
+    }
+
     public static func grouped(_ tasks: [BacklogTask]) -> [(status: BacklogStatus, tasks: [BacklogTask])] {
         let buckets = Dictionary(grouping: tasks, by: \.status)
         return (BacklogStatus.groupOrder + [.other]).compactMap { status in
             guard let list = buckets[status], !list.isEmpty else { return nil }
             return (status, list)
         }
+    }
+}
+
+public struct BacklogSearch: Sendable, Equatable {
+    public let number: Int?
+    public let pinned: BacklogTask?
+    public let last: Int?
+    public let matches: [BacklogTask]
+
+    public init(_ query: String, tasks: [BacklogTask]) {
+        let number = Self.number(query).flatMap { $0 > 0 ? $0 : nil }
+        let pinned = number.flatMap { number in tasks.first { $0.id == number } }
+        self.number = number
+        self.pinned = pinned
+        last = tasks.map(\.id).max()
+        matches = tasks.filter { $0.id != pinned?.id && $0.matches(query) }
+    }
+
+    public static func number(_ query: String) -> Int? {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return Int(query.hasPrefix("#") ? String(query.dropFirst()) : query)
+    }
+
+    public var groups: [(status: BacklogStatus, tasks: [BacklogTask])] {
+        BacklogTask.grouped(matches)
+    }
+
+    public var label: String? {
+        pinned.map { "Task \($0.number)" }
+    }
+
+    public var missing: String? {
+        guard let number, pinned == nil else { return nil }
+        return "No task #\(number)" + (last.map { " · last is #\($0)" } ?? "")
+    }
+
+    public var isEmpty: Bool {
+        pinned == nil && missing == nil && matches.isEmpty
     }
 }
 
