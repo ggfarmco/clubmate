@@ -410,7 +410,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		}
 		info.ReviewProgress = a.reviews.progress(rec.ID)
 		if share := a.usage.sessionShare(rec.ID); len(share) > 0 {
-			info.LimitShare, info.ShareLabel = share, shareLabel(share)
+			info.LimitShare, info.ShareLabel, info.ShareWords, info.ShareDetail = share, shareLabel(share), shareWords(share), shareDetail(share)
 		}
 		info.NeedsYou = needsYou(info.record)
 		info.Gate = a.gateState(info.record)

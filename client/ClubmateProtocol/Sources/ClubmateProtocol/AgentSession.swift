@@ -57,6 +57,10 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let requests: [String]
     public let turns: Int
     public let rowDetail: String?
+    public let limitShare: [String: Double]
+    public let shareLabel: String?
+    public let shareWords: [String: String]
+    public let shareDetail: String?
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -68,7 +72,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         needsYouSince: Date? = nil, activity: SessionActivity? = nil, failure: SessionFailure? = nil, reopen: FailureAction? = nil, modeLabel: String? = nil,
         autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false, group: SessionGroup? = nil, active: Bool = false, kind: String? = nil, run: SessionRun? = nil,
         reviewProgress: ReviewProgress? = nil, openCount: Int = 0, openDecisions: Int = 0, openOffers: Int = 0, openSince: Date? = nil, mayAsk: Bool = false,
-        repo: String? = nil, taskRows: [RepoRow] = [], taskBadge: String? = nil, archivable: Bool = false, taskFinished: Bool = false, requests: [String] = [], turns: Int = 0, rowDetail: String? = nil
+        repo: String? = nil, taskRows: [RepoRow] = [], taskBadge: String? = nil, archivable: Bool = false, taskFinished: Bool = false, requests: [String] = [], turns: Int = 0, rowDetail: String? = nil,
+        limitShare: [String: Double] = [:], shareLabel: String? = nil, shareWords: [String: String] = [:], shareDetail: String? = nil
     ) {
         self.id = id
         self.workspace = workspace
@@ -126,6 +131,10 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.rowDetail = rowDetail
         self.requests = requests
         self.turns = turns
+        self.limitShare = limitShare
+        self.shareLabel = shareLabel
+        self.shareWords = shareWords
+        self.shareDetail = shareDetail
     }
 
     public var isClosed: Bool { status == .closed }
@@ -134,6 +143,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
         case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, active, kind, run, reviewProgress, openCount, openDecisions, openOffers, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests, turns, rowDetail
+        case limitShare, shareLabel, shareWords, shareDetail
     }
 
     public init(from decoder: any Decoder) throws {
@@ -199,7 +209,11 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             taskFinished: try flag(.taskFinished),
             requests: try c.decodeIfPresent([String].self, forKey: .requests) ?? [],
             turns: try c.decodeIfPresent(Int.self, forKey: .turns) ?? 0,
-            rowDetail: try optional(.rowDetail)
+            rowDetail: try optional(.rowDetail),
+            limitShare: (try? c.decodeIfPresent([String: Double].self, forKey: .limitShare)) ?? [:],
+            shareLabel: try optional(.shareLabel),
+            shareWords: (try? c.decodeIfPresent([String: String].self, forKey: .shareWords)) ?? [:],
+            shareDetail: try optional(.shareDetail)
         )
     }
 
@@ -263,6 +277,10 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encodeIfPresent(rowDetail, forKey: .rowDetail)
         try c.encode(requests, forKey: .requests)
         try c.encode(turns, forKey: .turns)
+        if !limitShare.isEmpty { try c.encode(limitShare, forKey: .limitShare) }
+        try c.encodeIfPresent(shareLabel, forKey: .shareLabel)
+        if !shareWords.isEmpty { try c.encode(shareWords, forKey: .shareWords) }
+        try c.encodeIfPresent(shareDetail, forKey: .shareDetail)
     }
 }
 

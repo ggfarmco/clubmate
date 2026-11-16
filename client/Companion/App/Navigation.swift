@@ -36,6 +36,7 @@ final class AppNavigation {
     var macDetails: String?
     var connectionSheet: ConnectionSheet?
     var reportSheet: ReportSheet?
+    var usageSheet: UsageSheet?
     var needsYouList = false
     var workspaces: [String: String] = [:]
     var newTaskWorkspaces: [String: String] = [:]

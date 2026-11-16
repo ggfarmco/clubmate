@@ -49,16 +49,27 @@ struct WorkspaceTabs: View {
     let context: PluginContext
 
     var body: some View {
-        let tabs = context.navigation.layout == .compact ? CompanionPlugins.inWorkspace(context.connection) : []
-        if tabs.count > 1 {
+        let compact = context.navigation.layout == .compact
+        let tabs = compact ? CompanionPlugins.inWorkspace(context.connection) : []
+        let usage = context.navigation.layout != .wide && context.showsUsage
+        if tabs.count > 1 || usage {
             Section {
             } header: {
-                Picker("Section", selection: context.section) {
-                    ForEach(tabs, id: \.id) { plugin in
-                        Text(plugin.title).tag(plugin.id)
+                VStack(spacing: 8) {
+                    if usage {
+                        UsageHeaderLine(computer: context.connection.computer.id)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .textCase(nil)
+                    }
+                    if tabs.count > 1 {
+                        Picker("Section", selection: context.section) {
+                            ForEach(tabs, id: \.id) { plugin in
+                                Text(plugin.title).tag(plugin.id)
+                            }
+                        }
+                        .pickerStyle(.segmented)
                     }
                 }
-                .pickerStyle(.segmented)
                 .padding(.bottom, 8)
                 .listRowInsets(EdgeInsets())
             }
@@ -97,6 +108,10 @@ extension View {
 }
 
 extension PluginContext {
+    @MainActor var showsUsage: Bool {
+        model.claudeAccounts.line(for: connection.computer.id, now: .now) != nil
+    }
+
     @MainActor var section: Binding<String> {
         Binding(get: { navigation.sidebar?.plugin ?? "" }, set: { id in
             navigation.sidebar = SidebarItem(computer: connection.computer.id, plugin: id)

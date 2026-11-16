@@ -21,6 +21,7 @@ struct SessionDetailView: View {
     @State private var confirmingStop = false
     @State private var confirmingHeaderStop = false
     @State private var showingSettings = false
+    @State private var showingInfo = false
     @State private var alwaysAsked: AlwaysAsk?
     @State private var width = 0.0
     @State private var composerFocused = false
@@ -332,6 +333,10 @@ struct SessionDetailView: View {
                     if session?.isClosed == false && context.connection.supports("agents.config") {
                         Button("Session Settings", systemImage: "slider.horizontal.3") { showingSettings = true }
                     }
+                    if session != nil {
+                        Button("Session Info", systemImage: "info.circle") { showingInfo = true }
+                            .accessibilityIdentifier("session.info.open")
+                    }
                     Button("Refresh", systemImage: "arrow.clockwise") {
                         Task { await store.loadTranscript(sessionID) }
                     }
@@ -343,6 +348,11 @@ struct SessionDetailView: View {
         }
         .sheet(isPresented: $showingSettings) {
             SessionSettingsView(store: store, sessionID: sessionID)
+        }
+        .sheet(isPresented: $showingInfo) {
+            if let session = store.session(sessionID) {
+                SessionInfoView(session: session, context: store.transcripts[sessionID]?.usage.map { "\($0.percent)%" } ?? "—", computerID: context.connection.computer.id)
+            }
         }
         .sheet(item: $reviewing, content: reviewSheet)
         .sheet(isPresented: $archiving, content: archiveSheet)
@@ -625,7 +635,7 @@ struct SessionHeader: View {
     }
 
     static func subtitle(_ session: AgentSession, mac: MacTag?, mode: Bool = false, now: Date) -> Text {
-        let detail = [session.headerDetail, mode ? session.modeLabel ?? "" : ""].filter { !$0.isEmpty }.joined(separator: " · ")
+        let detail = [session.headerDetail, (mode ? session.shareDetail : session.shareLabel) ?? "", mode ? session.modeLabel ?? "" : ""].filter { !$0.isEmpty }.joined(separator: " · ")
         let activity = session.headerActivity(now: now).map { Text(" · " + $0).foregroundStyle(Color.captionInk) } ?? Text("")
         let open = session.openLabel.map { Text(" · ").foregroundStyle(Color.captionInk) + Text($0).foregroundStyle(Color.warningInk) } ?? Text("")
         let done = session.openLabel != nil || session.archivable

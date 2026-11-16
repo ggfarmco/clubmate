@@ -63,6 +63,9 @@ struct RootView: View {
         .sheet(item: Binding(get: { navigation.connectionSheet == nil ? navigation.reportSheet : nil }, set: { navigation.reportSheet = $0 })) { sheet in
             ReportView(sheet: sheet)
         }
+        .sheet(item: $navigation.usageSheet) { sheet in
+            ClaudeUsageView(computerID: sheet.computer)
+        }
         .fullScreenCover(item: $navigation.doc) { doc in
             DocumentSheet(doc: doc)
         }

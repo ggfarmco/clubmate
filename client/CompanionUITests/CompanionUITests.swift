@@ -795,6 +795,32 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(state.label.contains("Awake · 1 agent"), state.label)
     }
 
+    func testUsageLineOpensClaudeUsageAndSessionInfoShowsTheShares() {
+        let app = launch(open: "sidebar", ["-usage", "normal", "-macs", "3"])
+        XCTAssertTrue(app.staticTexts["MacBook Pro"].waitForExistence(timeout: 20))
+        app.staticTexts["shop"].firstMatch.tap()
+        let line = app.buttons["usage.header"]
+        XCTAssertTrue(line.waitForExistence(timeout: 10))
+        XCTAssertTrue(wait(for: line, "label CONTAINS 'alex@acme · 5h 42% · 7d 81%'"), line.label)
+        add(screenshot(app, "usage-header-accounts"))
+        line.tap()
+        XCTAssertTrue(app.staticTexts["Your other Macs"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["alex@home.example"].exists)
+        add(screenshot(app, "claude-usage"))
+        app.buttons["Close"].tap()
+        XCTAssertTrue(wait(for: app.staticTexts["Your other Macs"], "exists == false"))
+        app.staticTexts["Refactor the cart total into its own function"].firstMatch.tap()
+        let more = app.navigationBars.buttons["More"]
+        XCTAssertTrue(more.waitForExistence(timeout: 10))
+        add(screenshot(app, "session-subtitle"))
+        more.tap()
+        app.buttons["session.info.open"].tap()
+        XCTAssertTrue(app.staticTexts["Share of 5-hour window"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["≈6%"].exists)
+        XCTAssertTrue(app.staticTexts["alex@acme.example"].exists)
+        add(screenshot(app, "session-info"))
+    }
+
     func testReportQueuesWhileOfflineAndListsFiles() {
         let app = launch(open: "report", ["-offline", "4"])
         let text = app.descendants(matching: .any)["report.text"]

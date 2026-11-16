@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -54,6 +55,7 @@ type usageAlert struct {
 
 type usageState struct {
 	Account   string                 `json:"account,omitempty"`
+	Email     string                 `json:"accountEmail,omitempty"`
 	Windows   map[string]usageWindow `json:"windows"`
 	Alert     *usageAlert            `json:"alert,omitempty"`
 	UpdatedAt int64                  `json:"updatedAt,omitempty"`
@@ -63,14 +65,16 @@ type claudeConfig struct {
 	OAuthAccount struct {
 		AccountUUID      string `json:"accountUuid"`
 		OrganizationUUID string `json:"organizationUuid"`
+		EmailAddress     string `json:"emailAddress"`
 	} `json:"oauthAccount"`
 }
 
 type accountCache struct {
-	path string
-	mod  time.Time
-	size int64
-	id   string
+	path  string
+	mod   time.Time
+	size  int64
+	id    string
+	email string
 }
 
 type rateLimitWindow struct {
@@ -176,34 +180,34 @@ func alertOf(windows map[string]usageWindow) *usageAlert {
 	return nil
 }
 
-func (u *usageTracker) accountLocked() string {
+func (u *usageTracker) accountLocked() (string, string) {
 	path := filepath.Join(os.Getenv("CLAUDE_CONFIG_DIR"), ".claude.json")
 	if os.Getenv("CLAUDE_CONFIG_DIR") == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return ""
+			return "", ""
 		}
 		path = filepath.Join(home, ".claude.json")
 	}
 	info, err := os.Stat(path)
 	if err != nil {
-		return ""
+		return "", ""
 	}
 	if c := u.account; c.path == path && c.mod.Equal(info.ModTime()) && c.size == info.Size() {
-		return c.id
+		return c.id, c.email
 	}
 	u.account = accountCache{path: path, mod: info.ModTime(), size: info.Size()}
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return ""
+		return "", ""
 	}
 	var cfg claudeConfig
 	if json.Unmarshal(raw, &cfg) != nil || cfg.OAuthAccount.AccountUUID == "" {
-		return ""
+		return "", ""
 	}
 	sum := sha256.Sum256([]byte(cfg.OAuthAccount.AccountUUID + ":" + cfg.OAuthAccount.OrganizationUUID))
-	u.account.id = hex.EncodeToString(sum[:8])
-	return u.account.id
+	u.account.id, u.account.email = hex.EncodeToString(sum[:8]), cfg.OAuthAccount.EmailAddress
+	return u.account.id, u.account.email
 }
 
 func (u *usageTracker) observe(agentSession, session string, update json.RawMessage) {
@@ -230,12 +234,12 @@ func (u *usageTracker) observe(agentSession, session string, update json.RawMess
 	now := time.Now()
 	u.mu.Lock()
 	if len(windows) > 0 {
-		if account := u.accountLocked(); account != "" && account != u.state.Account {
-			if u.state.Account != "" {
+		if account, email := u.accountLocked(); account != "" {
+			if account != u.state.Account && u.state.Account != "" {
 				u.state.Windows = nil
 				u.share.Windows = nil
 			}
-			u.state.Account = account
+			u.state.Account, u.state.Email = account, email
 		}
 		if u.state.Windows == nil {
 			u.state.Windows = map[string]usageWindow{}
@@ -350,7 +354,9 @@ func (s *shareState) of(session string, now time.Time) map[string]float64 {
 	out := map[string]float64{}
 	for name, w := range s.Windows {
 		if spent := w.Sessions[session]; spent > 0 && w.Total > 0 && w.Last > w.Base && now.Unix() < w.ResetsAt {
-			out[name] = math.Round((w.Last-w.Base)*1000*spent/w.Total) / 10
+			if v := math.Round((w.Last-w.Base)*1000*spent/w.Total) / 10; v > 0 {
+				out[name] = v
+			}
 		}
 	}
 	return out
@@ -433,6 +439,20 @@ func shareAmount(v float64) string {
 		return "<1%"
 	}
 	return "≈" + strconv.Itoa(int(math.Round(v))) + "%"
+}
+
+func shareWords(share map[string]float64) map[string]string {
+	out := map[string]string{}
+	for _, name := range usageWindows {
+		if word := shareAmount(share[name]); word != "" {
+			out[name] = word
+		}
+	}
+	return out
+}
+
+func shareDetail(share map[string]float64) string {
+	return strings.Join(shareParts(share), " · ")
 }
 
 func shareLabel(share map[string]float64) string {

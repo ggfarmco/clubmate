@@ -104,6 +104,15 @@ enum DebugLaunch {
             }
             return
         }
+        if target == "usage" {
+            for _ in 0..<50 where model.connection(computer.id)?.usage == nil {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            navigation.open(computer: computer.id, plugin: AgentsPluginInfo.id)
+            try? await Task.sleep(for: .seconds(1))
+            navigation.usageSheet = UsageSheet(computer: computer.id)
+            return
+        }
         let parts = target.split(separator: "/", maxSplits: 2).map(String.init)
         if let workspace = defaults.string(forKey: "workspace") {
             navigation.workspaces[computer.id] = workspace

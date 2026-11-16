@@ -128,6 +128,12 @@ public final class CompanionModel {
         sendMacs(excluding: nil)
     }
 
+    public var claudeAccounts: ClaudeAccounts {
+        ClaudeAccounts(connections.values.compactMap { connection in
+            connection.usage.map { UsageReport(computer: connection.computer.id, mac: connection.computer.name, usage: $0) }
+        })
+    }
+
     public var namesMacs: Bool {
         computers.count > 1
     }

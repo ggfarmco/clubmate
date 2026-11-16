@@ -20,6 +20,8 @@ Talk to Claude Design through the Claude in Chrome extension; the canvas and its
 5. **After the pick.** Export the chosen boards to `features/<slug>/` (`.dc.html` via `Artifact read`, `boards.html`: the chosen boards as one self-contained page built like step 3, `rules.md`), rejected ones to `features/<slug>/rounds/`. The feature canvas is done after that; nothing goes back to the shared canvas.
 6. **Language changes.** A feature that adds or changes a component, token or pattern updates the language boards on the shared canvas and `.claude/skills/clubmate-ui/references/design-language.md` (or `companion.md`) as a separate, named step.
 
+`features/<slug>/` holds the agreed design of one feature and is its source of truth: the final boards (PNG renders and the `.dc.html` rules board) and a `rules.md` with the decisions, states, tables and handoff written out. Build the feature from that copy, not from a brief folder.
+
 ## Reaching the project from Claude Code
 
 The `Artifact` tool reads and writes the project. The interactive `claude` has it; agent sessions in Clubmate (Agent SDK) get it only with `CLAUDE_CODE_ARTIFACT=1`, e.g. `"env": {"CLAUDE_CODE_ARTIFACT": "1"}` in `.claude/settings.local.json`. The flag is undocumented and read from the checkout's own settings, so a worktree needs its own copy.

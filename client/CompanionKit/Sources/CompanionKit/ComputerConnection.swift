@@ -64,6 +64,8 @@ public final class ComputerConnection: CommandRunner {
     public static let awakeState = "awake.state"
     public static let awakeSet = "awake.set"
     public static let awakeTopic = "awake.changed"
+    public static let usageCommand = "agents.usage"
+    public static let usageTopic = "agents.usage"
     public static let backoff: [Duration] = [1, 2, 5, 10, 30].map { .seconds($0) }
     public static let pingInterval: Duration = .seconds(15)
 
@@ -75,6 +77,7 @@ public final class ComputerConnection: CommandRunner {
     public private(set) var lastSeen: Date?
     public private(set) var voiceEnabled: Bool?
     public private(set) var awake: AwakeState?
+    public private(set) var usage: ClaudeUsage?
     public private(set) var log = ConnectionLog()
     public private(set) var events = EventLog()
     @ObservationIgnored public internal(set) var background = false
@@ -413,6 +416,7 @@ public final class ComputerConnection: CommandRunner {
                 identify(hello.computer)
                 await loadVoiceSettings()
                 await loadAwake()
+                await loadUsage()
                 if Task.isCancelled { return }
                 step = .events
                 for try await item in try await client.events(after: lastEventID, trace: trace) {
@@ -443,6 +447,7 @@ public final class ComputerConnection: CommandRunner {
                             identify(fresh.computer)
                             await loadVoiceSettings()
                             await loadAwake()
+                            await loadUsage()
                             if Task.isCancelled { return }
                         }
                         if event.topic == Self.voiceSettingsTopic {
@@ -450,6 +455,9 @@ public final class ComputerConnection: CommandRunner {
                         }
                         if event.topic == Self.awakeTopic, supports(Self.awakeState), let state = try? event.payload.decode(AwakeState.self) {
                             awake = state
+                        }
+                        if event.topic == Self.usageTopic, supports(Self.usageCommand), let state = try? event.payload.decode(ClaudeUsage.self) {
+                            usage = state
                         }
                         if event.topic == Self.identityTopic, let info = try? event.payload["computer"]?.decode(ComputerInfo.self) {
                             identify(info)
@@ -516,6 +524,15 @@ public final class ComputerConnection: CommandRunner {
         awake = state
     }
 
+    private func loadUsage() async {
+        guard supports(Self.usageCommand) else {
+            usage = nil
+            return
+        }
+        guard let state = try? await client.command(Self.usageCommand, workspace: nil, as: ClaudeUsage.self), !Task.isCancelled else { return }
+        usage = state
+    }
+
     public func setAwake(_ on: Bool, minutes: Int = 0) async throws {
         var args: [String: JSONValue] = ["on": .bool(on)]
         if on, minutes > 0 { args["minutes"] = .number(Double(minutes)) }
@@ -529,6 +546,7 @@ public final class ComputerConnection: CommandRunner {
         hello = nil
         voiceEnabled = nil
         awake = nil
+        usage = nil
         workspaces = []
         task?.cancel()
         task = nil

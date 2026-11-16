@@ -89,14 +89,20 @@ func TestSessionShareSplitsLimitGrowthByCostAndSurvivesRestart(t *testing.T) {
 		})
 	})
 	var rows []struct {
-		ID         string             `json:"id"`
-		LimitShare map[string]float64 `json:"limitShare"`
-		ShareLabel string             `json:"shareLabel"`
+		ID          string             `json:"id"`
+		LimitShare  map[string]float64 `json:"limitShare"`
+		ShareLabel  string             `json:"shareLabel"`
+		ShareWords  map[string]string  `json:"shareWords"`
+		ShareDetail string             `json:"shareDetail"`
 	}
 	require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &rows))
 	labels := map[string]string{}
 	for _, r := range rows {
 		labels[r.ID] = r.ShareLabel
+		if r.ID == second {
+			assert.Equal(t, map[string]string{"five_hour": "≈6%", "seven_day": "≈3%"}, r.ShareWords)
+			assert.Equal(t, "≈6% of 5h · ≈3% of 7d", r.ShareDetail)
+		}
 	}
 	assert.Equal(t, map[string]string{first: "≈2% of 5h", second: "≈6% of 5h"}, labels)
 
@@ -116,7 +122,7 @@ func TestUsageNamesTheAccountAndAlertsAndStartsOverOnAnotherAccount(t *testing.T
 	t.Parallel()
 	config := t.TempDir()
 	signIn := func(account string) {
-		raw := `{"oauthAccount":{"accountUuid":"` + account + `","organizationUuid":"org"}}`
+		raw := `{"oauthAccount":{"accountUuid":"` + account + `","organizationUuid":"org","emailAddress":"` + account + `@acme.example"}}`
 		require.NoError(t, os.WriteFile(filepath.Join(config, ".claude.json"), []byte(raw), 0o600))
 	}
 	rate := func(match string, windows map[string]any) map[string]any {
@@ -133,6 +139,7 @@ func TestUsageNamesTheAccountAndAlertsAndStartsOverOnAnotherAccount(t *testing.T
 	}})
 	type usage struct {
 		Account string                    `json:"account"`
+		Email   string                    `json:"accountEmail"`
 		Windows map[string]map[string]any `json:"windows"`
 		Alert   *struct {
 			Window string `json:"window"`
@@ -149,6 +156,7 @@ func TestUsageNamesTheAccountAndAlertsAndStartsOverOnAnotherAccount(t *testing.T
 	var before usage
 	require.NoError(t, f.run(t, "", "agents.usage", nil, &before))
 	assert.NotEmpty(t, before.Account)
+	assert.Equal(t, "alice@acme.example", before.Email)
 	require.NotNil(t, before.Alert)
 	assert.Equal(t, "seven_day", before.Alert.Window)
 	assert.Equal(t, "rejected", before.Alert.Status)
@@ -160,6 +168,7 @@ func TestUsageNamesTheAccountAndAlertsAndStartsOverOnAnotherAccount(t *testing.T
 	var after usage
 	require.NoError(t, f.run(t, "", "agents.usage", nil, &after))
 	assert.NotEqual(t, before.Account, after.Account)
+	assert.Equal(t, "bob@acme.example", after.Email)
 	assert.NotContains(t, after.Windows, "seven_day")
 	assert.Nil(t, after.Alert)
 }

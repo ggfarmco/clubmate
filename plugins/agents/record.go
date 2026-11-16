@@ -132,6 +132,8 @@ type sessionInfo struct {
 	ShareLabel      string             `json:"shareLabel,omitempty"`
 	NestUnder       string             `json:"nestUnder,omitempty"`
 	GateRound       *gateRound         `json:"gateRound,omitempty"`
+	ShareWords      map[string]string  `json:"shareWords,omitempty"`
+	ShareDetail     string             `json:"shareDetail,omitempty"`
 }
 
 type sessionFailure struct {
