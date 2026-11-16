@@ -397,6 +397,9 @@ func (a *app) landGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 		case gateApproved:
 			return landGateResult{State: gateApproved}, nil
 		case gateChanges:
+			if a.roundsUsed(cmd.WorkspaceID, args, *g) {
+				break
+			}
 			return landGateResult{State: gateChanges, Reviewer: v.Reviewer, Findings: v.Findings, Deferred: v.Deferred, Text: fmt.Sprintf(gateChangesResult, bullets(v.Findings))}, nil
 		}
 	}
@@ -413,6 +416,14 @@ func (a *app) landGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 		return nil, errGateNoLander
 	}
 	return a.reviewLanding(ctx, cmd.WorkspaceID, lander, *g, args)
+}
+
+func (a *app) roundsUsed(workspaceID string, args landGateArgs, g gateConfig) bool {
+	lander, err := a.lookup(workspaceID, args.Session)
+	if err != nil {
+		return false
+	}
+	return lander.landReview(args.Into, args.Source).Rounds >= g.Rounds
 }
 
 func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *session, g gateConfig, args landGateArgs) (landGateResult, error) {

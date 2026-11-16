@@ -219,3 +219,18 @@ func TestVerdictBindsToTheReviewedTree(t *testing.T) {
 	assert.NotEqual(t, reviewed, g.reviewer(t).GateFor.Tree)
 	assert.Empty(t, git(t, g.repo, "ls-tree", "main", "c.go"))
 }
+
+func TestChangesRoundsCapOnUnchangedTreeWaitsForUser(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	require.ErrorContains(t, g.land(t), "review pending")
+	g.verdict(t, "changes", "b.go:1 — breaks")
+	g.commit(t, "d.go", "fix\n")
+	require.ErrorContains(t, g.land(t), "review pending")
+	g.verdict(t, "changes", "d.go:1 — still breaks")
+
+	require.ErrorContains(t, g.land(t), "waits for the user")
+	lander := g.f.session(t, g.workspace, g.lander)
+	assert.True(t, lander.NeedsYou)
+	assert.Len(t, lander.Pending, 1)
+}

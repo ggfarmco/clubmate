@@ -46,12 +46,16 @@ synced() {
 	git merge-base --is-ancestor "$1" "$2" 2>/dev/null && git merge-base --is-ancestor "$2" "$up" 2>/dev/null
 }
 
+protected() {
+	printf '%s\n' "$input" | awk -v p="$CLUBMATE_LAND_PROTECT" 'BEGIN { n = split(p, a, " "); for (i = 1; i <= n; i++) m[tolower(a[i])] = a[i] } NF >= 3 { k = tolower($3); if (k in m) { $3 = m[k]; print } }'
+}
+
 gate() {
 	[ "$1" = prepared ] && gated || return 0
+	refs=$(protected) || { refuse "$CLUBMATE_LAND_PROTECT"; return 1; }
 	status=0
 	while read -r old new ref; do
 		[ -n "$ref" ] || continue
-		case " $CLUBMATE_LAND_PROTECT " in *" $ref "*) ;; *) continue ;; esac
 		case $new in *[!0]*) ;; *) refuse "$ref"; status=1; continue ;; esac
 		case $new in ref:*) refuse "$ref"; status=1; continue ;; esac
 		case $old in *[!0]*) ;; *) old=$(git rev-parse -q --verify "$ref" 2>/dev/null || printf '%s' "$old") ;; esac
@@ -61,24 +65,24 @@ gate() {
 		refuse "$ref"
 		status=1
 	done <<EOF
-$input
+$refs
 EOF
 	return $status
 }
 
 push_gate() {
 	gated || return 0
+	refs=$(protected) || { refuse "$CLUBMATE_LAND_PROTECT on $1"; return 1; }
 	status=0
 	while read -r lref lsha rref rsha; do
 		[ -n "$rref" ] || continue
-		case " $CLUBMATE_LAND_PROTECT " in *" $rref "*) ;; *) continue ;; esac
 		case $lsha in *[!0]*) ;; *) refuse "$rref on $1"; status=1; continue ;; esac
 		git merge-base --is-ancestor "$lsha" "$rref" 2>/dev/null && continue
 		approved "$rsha" "$lsha" && continue
 		refuse "$rref on $1"
 		status=1
 	done <<EOF
-$input
+$refs
 EOF
 	return $status
 }

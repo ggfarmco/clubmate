@@ -215,3 +215,48 @@ func TestPushingTheProtectedBranchItselfPasses(t *testing.T) {
 
 	assert.Equal(t, g.run(repo, baseEnv(), "rev-parse", "main"), g.run(origin, baseEnv(), "rev-parse", "main"))
 }
+
+func TestProtectedRefMatchesIgnoringCase(t *testing.T) {
+	for name, move := range map[string][]string{
+		"update-ref":   {"update-ref", "refs/heads/MAIN", "feat"},
+		"branch force": {"branch", "-f", "MAIN", "feat"},
+		"push to self": {"push", "-q", ".", "feat:MAIN"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			g := newGitEnv(t)
+			repo := g.repo()
+			g.run(repo, baseEnv(), "update-ref", "refs/heads/feat", g.run(repo, baseEnv(), "commit-tree", "-p", "main", "-m", "feat", "main^{tree}"))
+			env := g.agent(filepath.Join(repo, ".git"))
+			before := g.run(repo, env, "rev-parse", "main")
+
+			out, err := g.git(repo, env, move...)
+
+			require.Error(t, err)
+			assert.Contains(t, out, "git_land")
+			assert.Equal(t, before, g.run(repo, env, "rev-parse", "main"))
+		})
+	}
+}
+
+func TestFailingAwkRefusesProtectedUpdate(t *testing.T) {
+	g := newGitEnv(t)
+	repo := g.repo()
+	g.run(repo, baseEnv(), "update-ref", "refs/heads/feat", g.run(repo, baseEnv(), "commit-tree", "-p", "main", "-m", "feat", "main^{tree}"))
+	g.run(repo, baseEnv(), "checkout", "-q", "feat")
+	bin := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(bin, "awk"), []byte("#!/bin/sh\nexit 1\n"), 0o755))
+	env := g.agent(filepath.Join(repo, ".git"))
+	for i, kv := range env {
+		if path, ok := strings.CutPrefix(kv, "PATH="); ok {
+			env[i] = "PATH=" + bin + string(os.PathListSeparator) + path
+		}
+	}
+	before := g.run(repo, env, "rev-parse", "main")
+
+	for _, move := range [][]string{{"update-ref", "refs/heads/main", "feat"}, {"update-ref", "-d", "refs/heads/main"}} {
+		out, err := g.git(repo, env, move...)
+		require.Error(t, err, move)
+		assert.Contains(t, out, "git_land")
+	}
+	assert.Equal(t, before, g.run(repo, env, "rev-parse", "main"))
+}

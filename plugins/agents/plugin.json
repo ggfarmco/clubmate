@@ -903,7 +903,7 @@
         "title": "List land gates",
         "hidden": true,
         "agent": true,
-        "description": "The land gates: every gate for the user, only the ones on this workspace's git folders for an agent: {gates: [{id, repo, kind, rounds, paused, createdAt, name, state, last?, landings?}]}. state is needs-you (a landing waits for your Land anyway or Stop), paused, reviewing (a review of a landing in this workspace runs) or active; last is the newest verdict {gate, outcome, by, lander?, title?, into, source?, round?, reviewer?, findings?, deferred?, at} with by reviewer, docs (docs only, not reviewed) or user (the user's Land anyway); last and landings count only this workspace's landings; landings are the ones under review or waiting for the user {lander, title?, into, source?, state, round, reviewer?, findings?, since?}. A repo with a gate lands only after a fresh Fable review approves the diff (git.land)."
+        "description": "The land gates: every gate for the user, only the ones on this workspace's git folders for an agent: {gates: [{id, repo, kind, rounds, paused, createdAt, name, state, last?, landings?}]}. state is needs-you (a landing waits for your Land anyway or Stop), paused, reviewing (a review of a landing in this workspace runs) or active; last is the newest verdict {gate, outcome, by, lander?, title?, into, source?, round?, reviewer?, findings?, deferred?, at} with by reviewer, docs (docs only, not reviewed) or user (the user's Land anyway); last and landings count only this workspace's landings; landings are the ones under review or waiting for the user {lander, title?, into, source?, state, round, reviewer?, findings?, since?}. A repo with a gate lands only after a fresh Fable review approves the diff (git.land). History: agents.gate-verdicts {id}."
       },
       {
         "id": "agents.gate-verdicts",
@@ -928,7 +928,7 @@
         "id": "agents.gate-add",
         "title": "Add a land gate",
         "hidden": true,
-        "description": "Gate a repo's landings: git.land into its default branch, or into a parent session's branch, waits for a read-only Fable review of the diff, and agent sessions in it get a git hook that refuses those ref updates without an approved verdict. One gate per repo. Returns the gate. Only the user; an agent gets an error.",
+        "description": "Gate a repo's landings: every agent git.land in the repo, whatever its target branch, waits for a read-only Fable review of the diff, and agent sessions in it get a git hook that refuses updates of its default branch, or of a parent session's branch, without an approved verdict. One gate per repo. Returns the gate. Only the user; an agent gets an error.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "A path in the repo; the gate holds for all its worktrees."},
@@ -1140,7 +1140,7 @@
             },
             "since": {
               "type": "string",
-              "description": "Returns {sessions, removed, cursor, delta?} instead of the list. Pass \"\" for every session and a cursor; pass an earlier result's cursor for only the sessions that changed since then (delta true) and the ids of the ones removed since then. The counter survives restarts; a cursor from another epoch or older than the 256 removals kept is ignored and every session comes back without delta."
+              "description": "Returns {sessions, removed, cursor, delta?} instead of the list. Pass \"\" for every session and a cursor; pass an earlier result's cursor for only the sessions that changed since then (delta true) and the ids of the ones removed since then. The counter survives restarts; a cursor from another epoch or older than the 256 removals kept is ignored and every session comes back without delta. With session the cursor covers only that session: it moves past changes to the sessions left out, so never reuse it for the whole list."
             }
           }
         }
