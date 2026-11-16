@@ -88,6 +88,7 @@ public final class ComputerConnection: CommandRunner {
     @ObservationIgnored let now: @Sendable () -> ContinuousClock.Instant
     @ObservationIgnored private var heardAt: ContinuousClock.Instant?
     @ObservationIgnored private var task: Task<Void, Never>?
+    @ObservationIgnored private var pending: PendingAttempt?
     @ObservationIgnored private var listeners: [UUID: @MainActor (ConnectionSignal) -> Void] = [:]
     @ObservationIgnored private var interfaces: [String: WeakInterface] = [:]
     @ObservationIgnored private let cache: ListCache
@@ -168,12 +169,23 @@ public final class ComputerConnection: CommandRunner {
         }
     }
 
-    private func record(_ step: ConnectionAttempt.Step, started: ContinuousClock.Instant, trace: HostTrace, error: String? = nil, lived: ContinuousClock.Instant? = nil) {
+    private func record(_ step: ConnectionAttempt.Step, started: ContinuousClock.Instant, trace: HostTrace, error: String? = nil, lived: ContinuousClock.Instant? = nil, cancelled: Bool = false) {
+        pending = nil
         let elapsed = now() - started
         let milliseconds = Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000)
         let livedFor = lived.map { Int((now() - $0).components.seconds) }
-        log.record(ConnectionAttempt(at: .now, step: step, ok: error == nil, milliseconds: milliseconds, error: error, tries: trace.values, background: background, lived: livedFor))
+        log.record(ConnectionAttempt(at: .now, step: step, ok: error == nil, milliseconds: milliseconds, error: error, tries: trace.values, background: background, lived: livedFor, cancelled: cancelled))
         cache.save(log, logKey)
+    }
+
+    private func advance(to step: ConnectionAttempt.Step) {
+        guard !Task.isCancelled else { return }
+        pending?.step = step
+    }
+
+    private func abandon(_ why: String) {
+        guard let pending else { return }
+        record(pending.step, started: pending.started, trace: pending.trace, error: why, cancelled: true)
     }
 
     private func save() {
@@ -188,6 +200,7 @@ public final class ComputerConnection: CommandRunner {
     }
 
     public func stop() {
+        abandon("the app stopped it")
         task?.cancel()
         task = nil
         streamID = nil
@@ -201,6 +214,7 @@ public final class ComputerConnection: CommandRunner {
             guard let heardAt, now() - heardAt > Self.pingInterval * 2 else { return }
             streamID = nil
         }
+        abandon("the app restarted it")
         task?.cancel()
         task = nil
         start()
@@ -405,9 +419,11 @@ public final class ComputerConnection: CommandRunner {
             let trace = HostTrace()
             var step = ConnectionAttempt.Step.hello
             var connectedAt: ContinuousClock.Instant?
+            pending = PendingAttempt(started: started, step: step, trace: trace)
             do {
                 let hello = try await client.hello(trace: trace)
                 step = .workspaces
+                advance(to: step)
                 let list = try await client.workspaces(trace: trace)
                 if Task.isCancelled { return }
                 self.hello = hello
@@ -419,6 +435,7 @@ public final class ComputerConnection: CommandRunner {
                 await loadUsage()
                 if Task.isCancelled { return }
                 step = .events
+                advance(to: step)
                 for try await item in try await client.events(after: lastEventID, trace: trace) {
                     if Task.isCancelled { return }
                     failures = 0
@@ -548,6 +565,7 @@ public final class ComputerConnection: CommandRunner {
         awake = nil
         usage = nil
         workspaces = []
+        pending = nil
         task?.cancel()
         task = nil
     }
@@ -557,6 +575,12 @@ public final class ComputerConnection: CommandRunner {
             listener(signal)
         }
     }
+}
+
+private struct PendingAttempt {
+    let started: ContinuousClock.Instant
+    var step: ConnectionAttempt.Step
+    let trace: HostTrace
 }
 
 private struct WeakInterface {

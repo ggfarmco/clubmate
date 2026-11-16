@@ -53,8 +53,9 @@ public struct ConnectionAttempt: Codable, Sendable, Equatable, Identifiable {
     public var repeats: Int
     public var background: Bool
     public var lived: Int?
+    public var cancelled: Bool?
 
-    public init(id: UUID = UUID(), at: Date, step: Step, ok: Bool, milliseconds: Int, error: String? = nil, tries: [HostTry] = [], streak: Int = 0, background: Bool = false, lived: Int? = nil) {
+    public init(id: UUID = UUID(), at: Date, step: Step, ok: Bool, milliseconds: Int, error: String? = nil, tries: [HostTry] = [], streak: Int = 0, background: Bool = false, lived: Int? = nil, cancelled: Bool = false) {
         self.id = id
         self.at = at
         last = at
@@ -67,6 +68,7 @@ public struct ConnectionAttempt: Codable, Sendable, Equatable, Identifiable {
         repeats = 1
         self.background = background
         self.lived = lived
+        self.cancelled = cancelled ? true : nil
     }
 
     public var host: String? {
@@ -75,12 +77,13 @@ public struct ConnectionAttempt: Codable, Sendable, Equatable, Identifiable {
 
     public var title: String {
         if ok { return "Connected" }
+        if cancelled == true { return "Cancelled at " + step.rawValue }
         if step == .events, let lived { return "Lost after " + Self.span(lived) }
         return "Failed at " + step.rawValue
     }
 
     func repeats(_ other: ConnectionAttempt) -> Bool {
-        ok == other.ok && step == other.step && error == other.error && background == other.background && (lived == nil) == (other.lived == nil)
+        ok == other.ok && cancelled == other.cancelled && step == other.step && error == other.error && background == other.background && (lived == nil) == (other.lived == nil)
             && tries.map { [$0.host, $0.outcome] } == other.tries.map { [$0.host, $0.outcome] }
     }
 
@@ -149,7 +152,7 @@ public struct ConnectionLog: Codable, Sendable, Equatable {
 
     public mutating func record(_ attempt: ConnectionAttempt) {
         var attempt = attempt
-        attempt.streak = attempt.ok ? 0 : streak + 1
+        attempt.streak = attempt.ok ? 0 : attempt.cancelled == true ? streak : streak + 1
         if var previous = attempts.last, previous.repeats(attempt) {
             previous.last = attempt.at
             previous.milliseconds = attempt.milliseconds

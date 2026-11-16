@@ -68,6 +68,44 @@ final class ConnectionLogTests: XCTestCase {
         connection.stop()
     }
 
+    func testAnAttemptTheAppCancelsBeforeItConnectsIsLoggedWithItsStepAndAge() async throws {
+        let clock = TestClock()
+        let transport = FakeTransport(reply: { _ in
+            try await Task.sleep(for: .seconds(3600))
+            return (Data(), 500)
+        })
+        let connection = ComputerConnection(computer: Computer(id: "mac1", name: "Mac", hosts: ["100.64.0.1"], port: 47621), token: "t", transport: transport, now: clock.now)
+        connection.start()
+        try await waitUntil { transport.requests.count == 1 }
+        clock.advance(.seconds(12))
+        connection.reconnectNow()
+        try await waitUntil { transport.requests.count == 2 }
+        clock.advance(.seconds(3))
+        connection.stop()
+
+        let attempts = connection.log.attempts
+        XCTAssertEqual(attempts.map(\.title), ["Cancelled at hello", "Cancelled at hello"])
+        XCTAssertEqual(attempts.map(\.error), ["the app restarted it", "the app stopped it"])
+        XCTAssertEqual(attempts.map(\.milliseconds), [12000, 3000])
+        XCTAssertEqual(connection.log.streak, 0)
+    }
+
+    func testARevokeMidAttemptLeavesNothingForALaterStopToLog() async throws {
+        let transport = FakeTransport(reply: { request in
+            guard FakeTransport.rpc(request) == "hello" else { return (Data(), 401) }
+            try await Task.sleep(for: .seconds(3600))
+            return (Data(), 500)
+        })
+        let connection = ComputerConnection(computer: Computer(id: "mac1", name: "Mac", hosts: ["100.64.0.1"], port: 47621), token: "t", transport: transport)
+        connection.start()
+        try await waitUntil { transport.requests.count == 1 }
+        _ = try? await connection.command("agents.sessions", workspace: nil, args: nil)
+        XCTAssertEqual(connection.state, .unauthorized)
+        connection.stop()
+
+        XCTAssertEqual(connection.log.attempts, [])
+    }
+
     func testRepeatedFailuresFoldIntoOneEntryAndTheRingKeepsTheNewest() {
         var log = ConnectionLog()
         let failure = ConnectionAttempt(at: .now, step: .hello, ok: false, milliseconds: 4000, error: "URLError -1001", tries: [HostTry(host: "100.64.0.1", milliseconds: 4000, outcome: "URLError -1001", ok: false)])
