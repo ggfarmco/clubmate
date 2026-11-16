@@ -45,6 +45,8 @@ func TestSetGroupsLiftsParentsToTheMostUrgentChildGroup(t *testing.T) {
 		info("asking", "", statusWaiting, true, true),
 		info("loop-a", "loop-b", statusClosed, false, false),
 		info("loop-b", "loop-a", statusClosed, false, false),
+		info("lander", "", statusDone, false, false),
+		{record: record{ID: "reviewer", Status: statusRunning, GateFor: &gateFor{Lander: "lander", Old: "a", Tree: "b"}}},
 	}
 	setGroups(infos)
 	got := map[string]string{}
@@ -59,6 +61,7 @@ func TestSetGroupsLiftsParentsToTheMostUrgentChildGroup(t *testing.T) {
 		"root": "needsYou", "kid": "needsYou", "grandkid": "done", "orphan": "done",
 		"archived": "closed", "leftover": "done", "closing": "running", "busy": "running",
 		"voice": "service", "helper": "running", "asking": "needsYou", "loop-a": "closed", "loop-b": "closed",
+		"lander": "running", "reviewer": "running",
 	}, got)
-	assert.Equal(t, []string{"kid", "busy", "helper"}, active)
+	assert.Equal(t, []string{"kid", "busy", "helper", "reviewer"}, active)
 }

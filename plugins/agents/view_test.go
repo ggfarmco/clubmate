@@ -734,9 +734,14 @@ func TestChildStatusesAggregateActiveDescendants(t *testing.T) {
 		{ID: "agt_r", Status: statusRunning, lineage: lineage{ParentSession: "agt_q"}},
 		{ID: "agt_x", Status: statusError},
 		{ID: "agt_y", Status: statusRunning, lineage: lineage{ParentSession: "agt_x"}},
+		{ID: "agt_o", Status: statusDone},
+		{ID: "agt_l", Status: statusDone, lineage: lineage{ParentSession: "agt_o"}},
+		{ID: "agt_rv", Status: statusRunning, GateFor: &gateFor{Lander: "agt_l", Old: "a", Tree: "b"}},
+		{ID: "agt_v", Status: statusDone},
+		{ID: "agt_rd", Status: statusRunning, GateFor: &gateFor{Lander: "agt_v", Old: "a", Tree: "b", Done: true}},
 	}
 
-	assert.Equal(t, map[string]string{"agt_p": statusWaiting, "agt_c": statusRunning}, childStatuses(recs))
+	assert.Equal(t, map[string]string{"agt_p": statusWaiting, "agt_c": statusRunning, "agt_o": statusRunning, "agt_l": statusRunning}, childStatuses(recs))
 }
 
 func TestCloseBusyAsksWhileATurnRuns(t *testing.T) {

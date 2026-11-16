@@ -36,7 +36,7 @@ func setGroups(infos []sessionInfo) {
 	}
 	kids := map[int][]int{}
 	for i, info := range infos {
-		if p, ok := index[info.ParentSession]; ok && p != i {
+		if p, ok := index[statusParent(info.record)]; ok && p != i {
 			kids[p] = append(kids[p], i)
 		}
 	}

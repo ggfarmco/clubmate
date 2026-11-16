@@ -108,7 +108,24 @@ func (a *app) ancestry(rec record) iter.Seq[record] {
 }
 
 func (a *app) finished(t api.Turn) bool {
-	return t.Status == statusDone && activeDescendant(t.Session, kidsOf(a.list(t.Workspace)), map[string]bool{}) == ""
+	return t.Status == statusDone && activeDescendant(t.Session, statusKids(a.list(t.Workspace)), map[string]bool{}) == ""
+}
+
+func statusParent(rec record) string {
+	if gf := rec.GateFor; rec.ParentSession == "" && gf != nil && !gf.Done && gf.Old != "" {
+		return gf.Lander
+	}
+	return rec.ParentSession
+}
+
+func statusKids(recs []record) map[string][]record {
+	kids := map[string][]record{}
+	for _, rec := range recs {
+		if p := statusParent(rec); p != "" {
+			kids[p] = append(kids[p], rec)
+		}
+	}
+	return kids
 }
 
 func kidsOf(recs []record) map[string][]record {
@@ -122,7 +139,7 @@ func kidsOf(recs []record) map[string][]record {
 }
 
 func childStatuses(recs []record) map[string]string {
-	kids := kidsOf(recs)
+	kids := statusKids(recs)
 	out := map[string]string{}
 	for _, rec := range recs {
 		if rec.Status != statusDone && rec.Status != statusIdle || needsYou(rec) {
