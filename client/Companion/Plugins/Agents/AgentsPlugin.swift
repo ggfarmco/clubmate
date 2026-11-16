@@ -116,6 +116,7 @@ struct SessionListView: View {
                 Section("Starting") {
                     ForEach(store.pendingCreates) { item in
                         QueuedLine(item: item, queuedLine: context.connection.queuedLine) { store.queue?.cancel(item) }
+                            .selectionDisabled()
                     }
                 }
             }

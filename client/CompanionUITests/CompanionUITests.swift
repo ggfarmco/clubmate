@@ -866,6 +866,26 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(wait(for: undo, "exists == false"))
     }
 
+    func testASentReportNoteNamesItsIDAndOpensNoSession() {
+        let app = launch(open: "report")
+        let text = app.descendants(matching: .any)["report.text"]
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        text.tap()
+        text.typeText("Lost the connection")
+        app.buttons["report.send"].tap()
+        let sent = app.staticTexts["Problem report sent"].firstMatch
+        XCTAssertTrue(sent.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["r-fixture"].exists)
+        XCTAssertFalse(app.staticTexts["Queued"].exists)
+        add(screenshot(app, "report-sent-macs"))
+        app.staticTexts["shop"].tap()
+        XCTAssertTrue(sent.waitForExistence(timeout: 10))
+        sent.tap()
+        let opened = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true"), object: app.navigationBars["Session"])
+        XCTAssertEqual(XCTWaiter().wait(for: [opened], timeout: 3), .timedOut)
+        add(screenshot(app, "report-sent-agents"))
+    }
+
     func testReportOpensOverTheConnectionSheetAndCancelKeepsIt() {
         let app = launch(open: "connection")
         let run = app.buttons["connection.run"]

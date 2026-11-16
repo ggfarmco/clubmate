@@ -762,12 +762,27 @@ struct QueueNoteRow: View {
     let dismiss: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "exclamationmark.circle")
-                .foregroundStyle(Color.captionInk)
-            Text(note.text)
-                .font(.footnote)
+        HStack(alignment: note.detail == nil ? .top : .center, spacing: 10) {
+            Image(systemName: note.done == true ? "checkmark.circle" : "exclamationmark.circle")
+                .foregroundStyle(note.done == true ? Color.successInk : Color.captionInk)
+            if let detail = note.detail {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(note.text)
+                        .font(.subheadline.weight(.semibold))
+                    Text(detail)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(Color.captionInk)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
+                .padding(.vertical, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text(note.text)
+                    .font(.footnote)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             Button(action: dismiss) {
                 Image(systemName: "xmark")
                     .font(.footnote.weight(.semibold))
@@ -780,6 +795,7 @@ struct QueueNoteRow: View {
         }
         .padding(.leading, 12)
         .background(Color.surface1, in: .rect(cornerRadius: 20))
+        .selectionDisabled()
     }
 }
 
@@ -866,13 +882,17 @@ struct QueueSection: View {
     var body: some View {
         let queue = model.queue
         if !queue.items.isEmpty || !queue.notes.isEmpty {
-            Section("Queued") {
-                ForEach(queue.items) { item in
-                    QueuedLine(item: item, queuedLine: model.connection(item.computer)?.queuedLine ?? "Queued", sendAgain: sendAgain(item), report: report(item)) {
-                        queue.cancel(item)
+            if !queue.items.isEmpty {
+                Section("Queued") {
+                    ForEach(queue.items) { item in
+                        QueuedLine(item: item, queuedLine: model.connection(item.computer)?.queuedLine ?? "Queued", sendAgain: sendAgain(item), report: report(item)) {
+                            queue.cancel(item)
+                        }
                     }
                 }
-                ForEach(queue.notes) { note in
+            }
+            ForEach(queue.notes) { note in
+                Section {
                     QueueNoteRow(note: note) { queue.dismiss(note) }
                         .listRowInsets(EdgeInsets())
                 }

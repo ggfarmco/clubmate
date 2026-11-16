@@ -115,6 +115,8 @@ public struct QueueNote: Codable, Sendable, Equatable, Identifiable {
     public let computer: String
     public let session: String
     public let text: String
+    public var detail: String?
+    public var done: Bool?
     public var at = Date.now
 }
 
@@ -423,7 +425,7 @@ public final class ActionQueue {
             markAttempted(id, deduped: runner.dedupes)
             emit("sending", id: id)
             let report = try await runner.report(text: item.text ?? "", mac: item.reportMac ?? false, files: files, requestId: id)
-            drop(id, note: "\(item.title) sent · \(report)", event: Self.landed)
+            drop(id, note: "\(item.title) sent", detail: report, done: true, event: Self.landed)
             return (false, nil)
         }
         return (true, nil)
@@ -482,11 +484,11 @@ public final class ActionQueue {
         persist()
     }
 
-    private func drop(_ id: String, note: String?, event: String) {
+    private func drop(_ id: String, note: String?, detail: String? = nil, done: Bool? = nil, event: String) {
         guard let item = current(id) else { return }
         emit(event, item)
         items.removeAll { $0.id == id }
-        if let note { notes.append(QueueNote(computer: item.computer, session: item.session, text: note)) }
+        if let note { notes.append(QueueNote(computer: item.computer, session: item.session, text: note, detail: detail, done: done)) }
         persist()
     }
 

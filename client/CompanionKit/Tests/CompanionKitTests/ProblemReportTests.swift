@@ -43,7 +43,8 @@ final class ProblemReportTests: XCTestCase {
         XCTAssertEqual(runner.sent.first?.files.map(\.name), ["phone/events.log"])
         XCTAssertEqual(runner.sent.first?.files.map(\.data), [Data("state online".utf8)])
         XCTAssertTrue(relaunched.items.isEmpty)
-        XCTAssertEqual(relaunched.notes.map(\.text), ["Problem report sent · r-1"])
+        XCTAssertEqual(relaunched.notes.map(\.text), ["Problem report sent"])
+        XCTAssertEqual(relaunched.notes.map(\.detail), ["r-1"])
         XCTAssertFalse(FileManager.default.fileExists(atPath: folder(item.id).path))
     }
 
