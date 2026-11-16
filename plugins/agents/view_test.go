@@ -81,6 +81,25 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 	assert.Equal(t, []string{actNotifyNeeds, actNotifyMuted, actClose, actDelete}, menuActions(a[0].Menu))
 }
 
+func TestSidebarLandReviewSitsUnderItsLandersGroup(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	rows := []sessionRow{
+		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Parent", Status: statusRunning}, Branch: "main"},
+		{Rec: record{ID: "agt_2", Worktree: "/r/b", Agent: agentClaude, Title: "Other", Status: statusRunning}, Branch: "feat/other"},
+		{Rec: record{ID: "agt_3", Worktree: "/r/c", lineage: lineage{ParentSession: "agt_1"}, Agent: agentClaude, Title: "Child", Status: statusDone}, Branch: "fix/child"},
+		{Rec: record{ID: "agt_4", Worktree: "/r/c", GateFor: &gateFor{Lander: "agt_3"}, Agent: agentClaude, Title: "Land review · fix/child", Status: statusRunning}, Branch: "fix/child"},
+		{Rec: record{ID: "agt_5", Worktree: "/r/d", Agent: agentClaude, Title: "Gone", Status: statusClosed}, Branch: "fix/gone"},
+		{Rec: record{ID: "agt_6", Worktree: "/r/d", GateFor: &gateFor{Lander: "agt_5"}, Agent: agentClaude, Title: "Land review · fix/gone", Status: statusRunning}, Branch: "fix/gone"},
+	}
+	groups := nodesOf(sidebarView(rows, "", nil, now, "/r/a", false, "", sidebarSearch{}, 0), "tree")[0].Props["items"].([]sdui.TreeItem)
+
+	require.Len(t, groups, 4)
+	assert.Equal(t, []string{"main", "feat/other", "fix/gone", "Closed"}, []string{groups[0].Label, groups[1].Label, groups[2].Label, groups[3].Label})
+	assert.Equal(t, []string{"agt_1", "agt_4"}, []string{groups[0].Children[0].ID, groups[0].Children[1].ID})
+	assert.Equal(t, "agt_6", groups[2].Children[0].ID)
+}
+
 func menuActions(menu []sdui.MenuEntry) []string {
 	out := make([]string, len(menu))
 	for i, m := range menu {

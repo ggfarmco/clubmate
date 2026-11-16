@@ -164,6 +164,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	for _, row := range roots {
 		oldestNeed(row, kids, oldest, map[string]bool{})
 	}
+	landers := reviewLanders(rows, roots)
 	filter = cmp.Or(filter, filterAll)
 	runs := map[string][]string{}
 	for i, row := range roots {
@@ -198,10 +199,14 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 			service = append(service, row)
 			continue
 		}
-		wt := row.Rec.Worktree
+		at := row
+		if lander, ok := landers[row.Rec.ID]; ok {
+			at = lander
+		}
+		wt := at.Rec.Worktree
 		b, ok := buckets[wt]
 		if !ok {
-			b = &bucket{label: cmp.Or(row.Branch, filepath.Base(wt)), detached: row.Detached}
+			b = &bucket{label: cmp.Or(at.Branch, filepath.Base(wt)), detached: at.Detached}
 			buckets[wt] = b
 			order = append(order, wt)
 		}
@@ -210,7 +215,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	var groups []sdui.TreeItem
 	for _, wt := range order {
 		b := buckets[wt]
-		children := runItems(b.open, wt, kids, collapsed, now, map[string]bool{}, oldest)
+		children := runItems(afterLanders(b.open, landers), wt, kids, collapsed, now, map[string]bool{}, oldest)
 		if len(order) == 1 && wt == home {
 			groups = children
 			break
@@ -238,6 +243,54 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		groups = append(groups, group)
 	}
 	return sdui.VStack(top, field, tabs, sdui.Tree("sessions", groups, selected))
+}
+
+func reviewLanders(rows, roots []sessionRow) map[string]sessionRow {
+	byID := make(map[string]sessionRow, len(rows))
+	for _, row := range rows {
+		byID[row.Rec.ID] = row
+	}
+	out := map[string]sessionRow{}
+	for _, row := range roots {
+		if row.Rec.GateFor == nil {
+			continue
+		}
+		lander, ok := byID[row.Rec.GateFor.Lander]
+		for range rows {
+			parent, found := byID[lander.Rec.ParentSession]
+			if !ok || !found {
+				break
+			}
+			lander = parent
+		}
+		if ok && !lander.Rec.closed() && !lander.Rec.restricted() {
+			out[row.Rec.ID] = lander
+		}
+	}
+	return out
+}
+
+func afterLanders(rows []sessionRow, landers map[string]sessionRow) []sessionRow {
+	shown := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		shown[row.Rec.ID] = true
+	}
+	following := map[string][]sessionRow{}
+	moved := map[string]bool{}
+	for _, row := range rows {
+		if lander, ok := landers[row.Rec.ID]; ok && shown[lander.Rec.ID] {
+			following[lander.Rec.ID] = append(following[lander.Rec.ID], row)
+			moved[row.Rec.ID] = true
+		}
+	}
+	out := make([]sessionRow, 0, len(rows))
+	for _, row := range rows {
+		if !moved[row.Rec.ID] {
+			out = append(out, row)
+			out = append(out, following[row.Rec.ID]...)
+		}
+	}
+	return out
 }
 
 func closedItems(rows []sessionRow, selected string, limit int, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, oldest map[string]time.Time) []sdui.TreeItem {
