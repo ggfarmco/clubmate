@@ -54,6 +54,7 @@ type app struct {
 	sessionRevs delta.Observed
 	runNeeds    runNeeds
 	reminders   reminders
+	limitJobs   limitJobs
 	openWake    chan struct{}
 
 	spawnMu    sync.Mutex
@@ -163,6 +164,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		}
 	}
 	go a.texts.warm(a.stateDir, recs)
+	go a.reconcileLimitWaits()
 	ready, err := h.Publish(ctx, h.PluginID()+".ready", nil)
 	if err != nil {
 		return err
@@ -388,7 +390,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			a.uiMu.Lock()
 			needsAuth, cannotResume := a.recoveryLocked(rec)
 			a.uiMu.Unlock()
-			failure.Actions = failureActions(rec.ID, needsAuth, cannotResume)
+			failure.Actions = failureActions(rec.ID, needsAuth, cannotResume, rec.LimitWait != nil && !rec.LimitWait.Fired)
 			info.Failure = &failure
 		}
 		if rec.closed() && rec.HandoffTo == "" {

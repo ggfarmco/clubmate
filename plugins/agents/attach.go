@@ -47,6 +47,9 @@ func (a *app) fail(s *session, text string) {
 	s.running = false
 	s.recordLocked(actorClubmate, kindError, turnEndPayload{Error: text})
 	s.setStatusLocked(statusError, text)
+	if w := s.rec.LimitWait; w != nil && w.Fired {
+		s.rec.LimitWait = nil
+	}
 	ended := s.turnLocked()
 	s.mu.Unlock()
 	s.turned(ended)
@@ -58,11 +61,19 @@ func (a *app) fail(s *session, text string) {
 
 func (a *app) resume(s *session) {
 	s.mu.Lock()
+	s.loadLocked()
 	if s.rec.closed() {
 		s.setStatusLocked(statusIdle, "")
 	}
-	id := s.rec.ID
+	id, reason := s.rec.ID, ""
+	if s.rec.Status == statusError && !s.running {
+		reason = s.failedTurn
+	}
 	s.mu.Unlock()
+	if reason != "" {
+		a.submitIdle(s, promptArgs{Text: fmt.Sprintf(netRetryText, reason)})
+		return
+	}
 	a.mu.Lock()
 	if a.dropped[id] == dropClosed {
 		delete(a.dropped, id)

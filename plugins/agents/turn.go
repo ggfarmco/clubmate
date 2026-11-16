@@ -336,6 +336,7 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	} else {
 		a.resetNetRetry(rec.ID)
 	}
+	a.settleLimitWait(s, err, closed || cancelled)
 	if finished && !cancelled {
 		a.notifyEnd(s, ended)
 	}
@@ -430,6 +431,9 @@ func (s *session) beginTurnLocked() (int, int) {
 	s.turn++
 	s.superseded = nil
 	s.asked = false
+	if w := s.rec.LimitWait; w != nil && !w.Fired {
+		s.rec.LimitWait = nil
+	}
 	s.settleLocked()
 	if s.began != nil {
 		s.began(s.rec.ID)

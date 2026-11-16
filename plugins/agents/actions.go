@@ -57,6 +57,7 @@ const (
 	actShowAll         = "showAll"
 	actOpenOutput      = "openOutput"
 	actRetry           = "retry"
+	actLimitCancel     = "limitCancel"
 	actRestore         = "restore"
 	actContinue        = "continue"
 	actOpenHandoff     = "openHandoff"
@@ -574,6 +575,9 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		return s.stopSubagent(tool, 0)
 	case actRetry:
 		return a.reopenAct(ctx, ev, s)
+	case actLimitCancel:
+		a.cancelLimitWait(s)
+		return nil
 	case actRestore:
 		return a.restoreAct(ctx, ev, s)
 	case actContinue:

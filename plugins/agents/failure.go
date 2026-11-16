@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -28,10 +29,11 @@ const (
 	internalErrorPrefix = "Internal error: "
 	newSessionHint      = "Start a new session or hand this one off to continue."
 
-	recoverSignIn   = "signin"
-	recoverRetry    = "retry"
-	recoverContinue = "continue"
-	recoverReopen   = "reopen"
+	recoverSignIn     = "signin"
+	recoverRetry      = "retry"
+	recoverContinue   = "continue"
+	recoverReopen     = "reopen"
+	recoverCancelWait = "cancelWait"
 )
 
 type (
@@ -183,6 +185,10 @@ func failureWord(text string) string {
 }
 
 func failureOf(rec record) sessionFailure {
+	if w := rec.LimitWait; w != nil && !w.Fired {
+		word := limitBadge(w)
+		return sessionFailure{Word: word, Badge: statusLabels[statusError] + " · " + word, Line: fmt.Sprintf(limitLine, w.At.Local().Format(limitLayout))}
+	}
 	word := failureWord(rec.Error)
 	return sessionFailure{
 		Word:  cmp.Or(word, statusLabels[statusError]),
@@ -202,8 +208,13 @@ func failureLine(agent, text string) string {
 	return cmp.Or(line, agent+" stopped with an error.")
 }
 
-func failureActions(sid string, needsAuth, cannotResume bool) []failureAction {
+func failureActions(sid string, needsAuth, cannotResume, limited bool) []failureAction {
 	switch {
+	case limited && !needsAuth && !cannotResume:
+		return []failureAction{
+			{ID: recoverRetry, Label: "Continue now", Icon: "arrow.clockwise", Command: "agents.resume", Args: map[string]string{"session": sid}, action: actRetry},
+			{ID: recoverCancelWait, Label: "Don't continue", Icon: "xmark", Command: limitCancelCmd, Args: map[string]string{"session": sid}, action: actLimitCancel},
+		}
 	case needsAuth:
 		return []failureAction{{ID: recoverSignIn, Label: "Sign in", Icon: "person.badge.key", action: actSignIn}}
 	case cannotResume:

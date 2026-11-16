@@ -92,6 +92,11 @@ type record struct {
 			Args    map[string]string `json:"args"`
 		} `json:"actions"`
 	} `json:"failure"`
+	LimitWait *struct {
+		At    string `json:"at"`
+		Job   string `json:"job"`
+		Fired bool   `json:"fired"`
+	} `json:"limitWait"`
 	Reopen *struct {
 		ID      string            `json:"id"`
 		Command string            `json:"command"`

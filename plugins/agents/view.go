@@ -322,7 +322,7 @@ func header(sc screen) sdui.Node {
 		return sdui.VStack(children...)
 	}
 	problem := []sdui.Node{sdui.MutedText(failureOf(rec).Line)}
-	for _, act := range failureActions(sid, sc.NeedsAuth, sc.Continue) {
+	for _, act := range failureActions(sid, sc.NeedsAuth, sc.Continue, rec.LimitWait != nil && !rec.LimitWait.Fired) {
 		problem = append(problem, failureButton(sid, act))
 	}
 	return sdui.VStack(append(children, sdui.HStack(problem...))...)

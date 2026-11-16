@@ -451,7 +451,32 @@
         "title": "Resume agent session",
         "hidden": true,
         "remote": true,
-        "description": "Reattach a session whose agent process is gone (session/resume); fails when the agent cannot resume. Runs in the background.",
+        "description": "Reattach a session whose agent process is gone (session/resume); fails when the agent cannot resume. A session whose last turn failed is sent a continue prompt instead. Runs in the background.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.limit-resume",
+        "title": "Continue sessions after the usage limit",
+        "hidden": true,
+        "agent": true,
+        "description": "The agents plugin schedules it as a one-shot cron job at a usage-limit reset: it sends a continue prompt to every session of the workspace that the limit stopped and whose wait is due. Sessions not due are left alone, so calling it early does nothing. Returns {continued}. Non-destructive.",
+        "args": {
+          "properties": {
+            "at": {"type": "string", "description": "The reset time the job was scheduled for (RFC 3339)."}
+          }
+        }
+      },
+      {
+        "id": "agents.limit-cancel",
+        "title": "Don't continue after the usage limit",
+        "hidden": true,
+        "remote": true,
+        "description": "Drop a session's wait for the usage-limit reset; it stays in error until prompted.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."}

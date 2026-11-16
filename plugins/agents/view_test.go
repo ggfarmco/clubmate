@@ -987,7 +987,7 @@ func TestFailedSessionOffersTheMacButtonsAsActions(t *testing.T) {
 		require.NoError(t, internalsdui.Validate(main))
 		require.True(t, slices.ContainsFunc(nodesOf(main, "button"), func(b sdui.Node) bool { return b.ID == "agt_1/"+tc.id }), tc.id)
 
-		acts := failureActions(rec.ID, tc.needsAuth, tc.cannotResume)
+		acts := failureActions(rec.ID, tc.needsAuth, tc.cannotResume, false)
 		require.Len(t, acts, 1, tc.id)
 		assert.Equal(t, []string{tc.id, tc.label, tc.command}, []string{acts[0].ID, acts[0].Label, acts[0].Command}, tc.id)
 		if tc.command != "" {

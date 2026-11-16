@@ -54,6 +54,8 @@ var (
 		"agents.busy":           withSession((*app).busyCommand),
 		"agents.delete":         withSession((*app).deleteCommand),
 		"agents.resume":         withSession((*app).resumeCommand),
+		"agents.limit-resume":   withArgs((*app).limitResumeCommand),
+		"agents.limit-cancel":   withSession((*app).limitCancelCommand),
 		"agents.reveal":         withArgs((*app).revealCommand),
 		"agents.step":           withArgs((*app).stepCommand),
 		"agents.reviewed":       withSession((*app).reviewedCommand),

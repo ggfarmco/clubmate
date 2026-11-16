@@ -39,20 +39,21 @@ var (
 )
 
 type transcriptState struct {
-	entries  []*entry
-	index    map[string]int
-	commands []acp.AvailableCommand
-	modes    []acp.SessionMode
-	configs  []acp.SessionConfigOption
-	usage    *acp.UsageUpdate
-	turns    []turnInfo
-	turn     int
-	nextID   int
-	rev      int64
-	edited   bool
-	prompted bool
-	senders  []string
-	at       time.Time
+	failedTurn string
+	entries    []*entry
+	index      map[string]int
+	commands   []acp.AvailableCommand
+	modes      []acp.SessionMode
+	configs    []acp.SessionConfigOption
+	usage      *acp.UsageUpdate
+	turns      []turnInfo
+	turn       int
+	nextID     int
+	rev        int64
+	edited     bool
+	prompted   bool
+	senders    []string
+	at         time.Time
 
 	presented    map[int][]presentedDoc
 	ended        map[int]bool
@@ -424,6 +425,7 @@ func (s *session) apply(e envelope) {
 			s.turnInfo(p.Turn).Commits = p.Commits
 		}
 	case kindPrompt:
+		s.failedTurn = ""
 		s.applyPrompt(e)
 	case kindTurnEnd:
 		s.changesFresh = false
@@ -435,6 +437,7 @@ func (s *session) apply(e envelope) {
 		var p turnEndPayload
 		if json.Unmarshal(e.Payload, &p) == nil {
 			s.turnInfo(e.Turn).StopReason = p.StopReason
+			s.failedTurn = strings.TrimPrefix(acpErrorRe.ReplaceAllString(firstLine(p.Error), ""), internalErrorPrefix)
 		}
 	case kindPresented:
 		var p presentedDoc
@@ -443,6 +446,7 @@ func (s *session) apply(e envelope) {
 		}
 	case kindError:
 		s.changesFresh = false
+		s.failedTurn = ""
 	case kindCancel:
 		s.cancelTools(e.Turn)
 	case kindPermission:
