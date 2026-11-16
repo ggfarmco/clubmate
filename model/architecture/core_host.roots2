@@ -1,4 +1,5 @@
-architecture core_host "one core process that owns state and carries calls, plugin processes it starts, clients on its socket" {
+architecture core_host "one core process that owns state and carries calls, plugin processes it"
+    "starts, clients on its socket" {
   layer core
   layer plugins
   layer clients
@@ -26,5 +27,6 @@ architecture core_host "one core process that owns state and carries calls, plug
 
   rule own_storage: a table is used only by its own module
 
-  freedom internals in every kind "private names, algorithms, locks and data structures inside one element"
+  freedom internals in every kind "private names, algorithms, locks and data structures inside one"
+    "element"
 }

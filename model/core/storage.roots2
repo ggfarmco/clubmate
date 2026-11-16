@@ -14,7 +14,11 @@ module Storage "each plugin's own keys and JSON values in plugins.db" {
     }
 
     record Entry {
-      partial: rows under the plugin `core` are the core's own choices, which no plugin can reach since `core` is no plugin's id (internal/plugin/control.go:16-18, internal/plugin/manifest.go:34); storage.deletePrefix and storage.list, which remove and name a plugin's keys that begin with a text (kv.go:110-138): no expression reads the start of a text
+      partial: rows under the plugin `core` are the core's own choices, which no plugin can reach
+        since `core` is no plugin's id (internal/plugin/control.go:16-18,
+        internal/plugin/manifest.go:34); storage.deletePrefix and storage.list, which remove and
+        name a plugin's keys that begin with a text (kv.go:110-138): no expression reads the start
+        of a text
       id: EntryKey, key
       value: Document
     }
@@ -31,13 +35,16 @@ module Storage "each plugin's own keys and JSON values in plugins.db" {
     }
 
     method set by client, plugin {
-      open: a value over 256 KiB is refused `invalid` (kv.go:20, :86-88); a document has no size here
+      open: a value over 256 KiB is refused `invalid` (kv.go:20, :86-88); a document has no size
+        here
       takes {
         key: StorageKey
         value: Document
       }
       reject invalid if caller.plugin = none
-      inherited: only a plugin has storage and its keys are its own: the plugin's id comes from its pipe, never from the call (methods_storage.go:83-92); a client that asks gets `invalid`, not `forbidden`
+      inherited: only a plugin has storage and its keys are its own: the plugin's id comes from its
+        pipe, never from the call (methods_storage.go:83-92); a client that asks gets `invalid`, not
+        `forbidden`
       let id = EntryKey(plugin = caller.plugin, key = key)
       if an Entry of id exists {
         let old = Entry of id

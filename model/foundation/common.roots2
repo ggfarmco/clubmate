@@ -16,7 +16,8 @@ type Time "an instant" {
   in Go: time
   in Json: string as rfc3339
   in Sqlite: integer as unix_nanos
-  inherited: the databases keep nanoseconds since 1970 and no zone; every reader takes the instant as UTC or local time itself
+  inherited: the databases keep nanoseconds since 1970 and no zone; every reader takes the instant
+    as UTC or local time itself
 }
 
 type Document "a JSON document the model does not look inside" {

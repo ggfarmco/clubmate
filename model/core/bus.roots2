@@ -23,17 +23,37 @@ module Bus "the durable event log in bus.db: who may publish, cursors and live s
       pattern: Pattern
     }
 
-    log events "bus.db" carries Workspaces.workspace.created, Workspaces.workspace.updated, Workspaces.workspace.deleted, Plugins.plugin.changed, Sessions.session.created, Sessions.session.exited, Sessions.session.killed, Sessions.session.removed, Ui.ui.opened, Ui.ui.idle, Ui.ui.section, Notify.notify.posted {
-      partial: plugins and every other connection append events of their own topics through `publish`; the model names the core's own
+    log events "bus.db" carries Workspaces.workspace.created, Workspaces.workspace.updated,
+        Workspaces.workspace.deleted, Plugins.plugin.changed, Sessions.session.created,
+        Sessions.session.exited, Sessions.session.killed, Sessions.session.removed, Ui.ui.opened,
+        Ui.ui.idle, Ui.ui.section, Notify.notify.posted {
+      partial: plugins and every other connection append events of their own topics through
+        `publish`; the model names the core's own
       on failure: drop
-      inherited: an event of the core that cannot be stored is logged and lost (internal/core/service.go:482-484)
-      open: every record is stored as {seq, topic, source, time, payload} with the next seq, and `workspace` repeats the payload's top-level `workspace` when it is a text (bus.go:130-138); the source of the core's own events is `core` (service.go:26). A log has no line for the record around its event
-      open: the log is pruned when the core starts and every hour: an event goes once it is 30 days old and not among the newest 10 000, but never the newest one, and none from the lowest cursor on unless it is older than 90 days (internal/bus/retention.go:13-17, :36-73). No line removes records from a log, and an issued number is an identifier that no rule can order, so "the newest 10 000" and "from seq N on" cannot be written
-      open: a subscription first gets the stored events of its pattern after its `after`, then every new one, each as a `bus.event` notification on its connection; one that has 256 events waiting is ended and told `bus.closed` with "slow subscriber dropped" (internal/bus/subscribe.go:9, :76-80, methods_bus.go:125-142). A log delivers to listeners outside the system and has no line for a listener that is dropped
+      inherited: an event of the core that cannot be stored is logged and lost
+        (internal/core/service.go:482-484)
+      open: every record is stored as {seq, topic, source, time, payload} with the next seq, and
+        `workspace` repeats the payload's top-level `workspace` when it is a text (bus.go:130-138);
+        the source of the core's own events is `core` (service.go:26). A log has no line for the
+        record around its event
+      open: the log is pruned when the core starts and every hour: an event goes once it is 30 days
+        old and not among the newest 10 000, but never the newest one, and none from the lowest
+        cursor on unless it is older than 90 days (internal/bus/retention.go:13-17, :36-73). No line
+        removes records from a log, and an issued number is an identifier that no rule can order, so
+        "the newest 10 000" and "from seq N on" cannot be written
+      open: a subscription first gets the stored events of its pattern after its `after`, then every
+        new one, each as a `bus.event` notification on its connection; one that has 256 events
+        waiting is ended and told `bus.closed` with "slow subscriber dropped"
+        (internal/bus/subscribe.go:9, :76-80, methods_bus.go:125-142). A log delivers to listeners
+        outside the system and has no line for a listener that is dropped
     }
 
     method publish by client, plugin {
-      open: a payload that is neither a JSON object nor null, or is over 64 KiB once compacted, is refused `invalid` (bus.go:25, :241-258); the record is appended with source `plugin:<id>` for a plugin and `cli` for any other connection (internal/rpc/caller.go:34-39), and the answer is the whole record. An `emit` names a declared event, a document cannot be looked into and no expression joins texts, so no line here appends it
+      open: a payload that is neither a JSON object nor null, or is over 64 KiB once compacted, is
+        refused `invalid` (bus.go:25, :241-258); the record is appended with source `plugin:<id>`
+        for a plugin and `cli` for any other connection (internal/rpc/caller.go:34-39), and the
+        answer is the whole record. An `emit` names a declared event, a document cannot be looked
+        into and no expression joins texts, so no line here appends it
       takes {
         topic: Topic
         payload: Document, optional
@@ -41,7 +61,10 @@ module Bus "the durable event log in bus.db: who may publish, cursors and live s
     }
 
     method read by client, plugin {
-      partial: the answer: the stored events of the pattern after `after`, oldest first, at most 1000 and 100 unless a limit is sent (bus.go:26-27, :144-152); bus.head, which any connection may ask too and which answers the newest and the oldest stored seq (internal/rpc/methods_bus.go:77-80)
+      partial: the answer: the stored events of the pattern after `after`, oldest first, at most
+        1000 and 100 unless a limit is sent (bus.go:26-27, :144-152); bus.head, which any connection
+        may ask too and which answers the newest and the oldest stored seq
+        (internal/rpc/methods_bus.go:77-80)
       takes {
         pattern: Pattern
         after: Seq, default 0
@@ -54,7 +77,8 @@ module Bus "the durable event log in bus.db: who may publish, cursors and live s
         consumer: Consumer
         seq: Seq
       }
-      let id = CursorKey(plugin = caller.plugin, consumer = consumer)   // @ internal/rpc/methods_bus.go:118-123
+      // @ internal/rpc/methods_bus.go:118-123
+      let id = CursorKey(plugin = caller.plugin, consumer = consumer)
       if a Cursor of id exists {
         let known = Cursor of id
         set known.seq = seq
@@ -69,7 +93,8 @@ module Bus "the durable event log in bus.db: who may publish, cursors and live s
       }
       returns CursorAt
       let id = CursorKey(plugin = caller.plugin, consumer = consumer)
-      return seq = if a Cursor of id exists then (Cursor of id).seq else 0   // @ internal/bus/bus.go:167-177
+      // @ internal/bus/bus.go:167-177
+      return seq = if a Cursor of id exists then (Cursor of id).seq else 0
     }
 
     method subscribe by client, plugin {
@@ -78,7 +103,8 @@ module Bus "the durable event log in bus.db: who may publish, cursors and live s
         after: Seq, default 0
       }
       returns Subscribed
-      create s: Subscription { id = new SubscriptionId; conn = caller.conn; pattern = pattern }   // @ internal/rpc/subscriptions.go:49-66
+      // @ internal/rpc/subscriptions.go:49-66
+      create s: Subscription { id = new SubscriptionId; conn = caller.conn; pattern = pattern }
       return subscription = s.id
     }
 
@@ -86,7 +112,9 @@ module Bus "the durable event log in bus.db: who may publish, cursors and live s
       takes {
         subscription: SubscriptionId
       }
-      reject not_found unless a Subscription of subscription exists and (Subscription of subscription).conn = caller.conn   // @ internal/rpc/subscriptions.go:68-79, internal/rpc/errors.go:147
+      // @ internal/rpc/subscriptions.go:68-79, internal/rpc/errors.go:147
+      reject not_found unless a Subscription of subscription exists
+        and (Subscription of subscription).conn = caller.conn
       remove Subscription of subscription
     }
 
@@ -94,7 +122,8 @@ module Bus "the durable event log in bus.db: who may publish, cursors and live s
       takes {
         conn: ConnId
       }
-      for each s in Subscription where conn = conn { remove Subscription of s.id }   // @ internal/rpc/subscriptions.go:81-91
+      // @ internal/rpc/subscriptions.go:81-91
+      for each s in Subscription where conn = conn { remove Subscription of s.id }
     }
 
     policy fresh_start {

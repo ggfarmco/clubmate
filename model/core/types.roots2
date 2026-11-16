@@ -1,12 +1,14 @@
 type PluginId "a plugin's id from its manifest": identifier {
-  open: an id matches ^[a-z][a-z0-9-]{1,31}$ and is none of core, session, workspace, process, ui, diagnostics (internal/plugin/manifest.go:29, :34); a type has bounds on length and nothing else
+  open: an id matches ^[a-z][a-z0-9-]{1,31}$ and is none of core, session, workspace, process, ui,
+    diagnostics (internal/plugin/manifest.go:29, :34); a type has bounds on length and nothing else
   in Go: string
   in Json: string
   in Sqlite: text
 }
 
 type StorageKey "a key of a plugin's storage": identifier {
-  open: the bound is 256 bytes and a key holds no NUL (internal/kv/kv.go:140-145); a bound counts characters
+  open: the bound is 256 bytes and a key holds no NUL (internal/kv/kv.go:140-145); a bound counts
+    characters
   in Go: string
   in Json: string
   in Sqlite: text
@@ -15,7 +17,8 @@ type StorageKey "a key of a plugin's storage": identifier {
 }
 
 type WorkspaceId "identifies a workspace: prj_ and 16 hex digits": identifier {
-  open: the form is ^prj_[0-9a-f]{16}$, or 8 digits in ids made by old versions (pkg/id/id.go:9-11); a type has bounds on length and nothing else, so here only the length refuses an id as `invalid`
+  open: the form is ^prj_[0-9a-f]{16}$, or 8 digits in ids made by old versions (pkg/id/id.go:9-11);
+    a type has bounds on length and nothing else, so here only the length refuses an id as `invalid`
   in Go: string
   in Json: string
   in Sqlite: text
@@ -30,7 +33,8 @@ type FolderPath "the path of a folder on this Mac": identifier {
 }
 
 type Name "a workspace's name" {
-  open: a name is trimmed of blanks before it is judged and stored (internal/workspace/store.go:172, :220); no expression trims a text, so here a name of blanks only is accepted
+  open: a name is trimmed of blanks before it is judged and stored (internal/workspace/store.go:172,
+    :220); no expression trims a text, so here a name of blanks only is accepted
   in Go: string
   in Json: string
   in Sqlite: text
@@ -52,7 +56,8 @@ type ConnId "identifies one connection to the core, for as long as it lasts": id
 }
 
 type Topic "a bus topic" {
-  open: a topic matches ^[a-z0-9][a-z0-9_-]*(\.[a-z0-9_-]+)*$ (internal/bus/topic.go:15); a type has bounds on length and nothing else
+  open: a topic matches ^[a-z0-9][a-z0-9_-]*(\.[a-z0-9_-]+)*$ (internal/bus/topic.go:15); a type has
+    bounds on length and nothing else
   in Go: string
   in Json: string
   in Sqlite: text
@@ -61,7 +66,8 @@ type Topic "a bus topic" {
 }
 
 type Pattern "which topics a reader wants" {
-  open: `*`, or topics separated by commas, each a topic or a topic followed by `.*` for everything under it (topic.go:21-57); a type has bounds on length and nothing else
+  open: `*`, or topics separated by commas, each a topic or a topic followed by `.*` for everything
+    under it (topic.go:21-57); a type has bounds on length and nothing else
   in Go: string
   in Json: string
   at least 1
@@ -103,14 +109,17 @@ type SessionRef "the agent session a caller says it is: agt_ and 16 hex digits":
 }
 
 type SessionId "identifies a terminal session: ses_ and 16 hex digits": identifier {
-  open: the form is ^ses_[0-9a-f]{16}$, or 8 digits in ids made by old versions (pkg/id/id.go:9-11, internal/session/manager.go:30); a type has bounds on length and nothing else, so here only the length refuses an id as `invalid`
+  open: the form is ^ses_[0-9a-f]{16}$, or 8 digits in ids made by old versions (pkg/id/id.go:9-11,
+    internal/session/manager.go:30); a type has bounds on length and nothing else, so here only the
+    length refuses an id as `invalid`
   in Go: string
   in Json: string
   at least 12
   at most 20
 }
 
-type AnySession "the session a notification is about: a terminal session's id, or an agent session's": identifier {
+type AnySession "the session a notification is about: a terminal session's id, or an agent"
+    "session's": identifier {
   in Go: string
   in Json: string
 }
@@ -126,7 +135,8 @@ type SectionId "a section's id from a plugin's manifest": identifier {
   at least 1
 }
 
-type SlotName "a slot: <section>.sidebar, .main, .status or a name the section declares, or <plugin>.settings": identifier {
+type SlotName "a slot: <section>.sidebar, .main, .status or a name the section declares, or"
+    "<plugin>.settings": identifier {
   in Go: string
   in Json: string
   at least 1

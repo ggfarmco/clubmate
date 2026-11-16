@@ -1,7 +1,9 @@
 module Processes "process trees per session and per root a plugin registers, orphans and kills" {
-  partial: all of it. process.tree, kill, register, unregister and roots; a plugin's roots end with its connection (internal/proc, internal/core/roots.go, internal/rpc/methods_process.go)
+  partial: all of it. process.tree, kill, register, unregister and roots; a plugin's roots end with
+    its connection (internal/proc, internal/core/roots.go, internal/rpc/methods_process.go)
 }
 
 module Unread "method families of the core this model's writer did not read" {
-  unstated: fs.*, browser.*, report.*, diagnostics.*, debug.* and testapp.*, known here only by their place in internal/rpc/server.go:108-122
+  unstated: fs.*, browser.*, report.*, diagnostics.*, debug.* and testapp.*, known here only by
+    their place in internal/rpc/server.go:108-122
 }

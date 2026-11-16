@@ -1,6 +1,7 @@
 module Workspaces "workspaces, their folders and the worktree each folder shows, in clubmate.db" {
   core {
-    code at "internal/workspace/store.go", "internal/core/service.go", "internal/rpc/methods_core.go"
+    code at "internal/workspace/store.go", "internal/core/service.go",
+      "internal/rpc/methods_core.go"
     tests at "internal/workspace/store_test.go", "internal/core/service_test.go"
     docs at "docs/sdui-protocol.md" section "Bus topics"
 
@@ -16,15 +17,21 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
     }
 
     record Workspace {
-      partial: the UI state clients keep for a workspace, which goes with it (ui.state.*, internal/rpc/methods_uistate.go, table ui_state); the `info` field of workspace.created and workspace.updated, which is the whole workspace as `get` answers it (pkg/contract/event.go:31-34)
+      partial: the UI state clients keep for a workspace, which goes with it (ui.state.*,
+        internal/rpc/methods_uistate.go, table ui_state); the `info` field of workspace.created and
+        workspace.updated, which is the whole workspace as `get` answers it
+        (pkg/contract/event.go:31-34)
       id: WorkspaceId, key
       name: Name
       home: Flag, default no
-      inherited: at most one workspace is the home one; a unique index keeps it (store.go:36) and `home` below is its only writer
+      inherited: at most one workspace is the home one; a unique index keeps it (store.go:36) and
+        `home` below is its only writer
       created_at: Time
       last_opened_at: Time, optional
       folders: list of FolderPath
-      decided by agent: the folders in the order they were added stand in this list, beside the Folder records; the code keeps a `position` on each repos row, always one above the highest (store.go:306)
+      decided by agent: the folders in the order they were added stand in this list, beside the
+        Folder records; the code keeps a `position` on each repos row, always one above the highest
+        (store.go:306)
     }
 
     record Folder "one folder of a workspace" {
@@ -52,7 +59,9 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
 
     port Hosts "the process trees of a workspace's sessions, which this model leaves out" {
       end_all(workspace: WorkspaceId): ended | still_running, not undone
-      inherited: every process of the workspace's sessions gets SIGTERM and, 3 seconds later, SIGKILL; a session that still runs 5 seconds after that is `still_running`; the ended sessions are removed (service.go:24-28, :247-265, :487-508)
+      inherited: every process of the workspace's sessions gets SIGTERM and, 3 seconds later,
+        SIGKILL; a session that still runs 5 seconds after that is `still_running`; the ended
+        sessions are removed (service.go:24-28, :247-265, :487-508)
     }
 
     block need_dir(path: FolderPath) {
@@ -87,14 +96,21 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
         name: Name = unstated "the last element of the first path as it was sent (service.go:139)"
       }
       returns Opened
-      open: each path is first resolved through links and cleaned and repeated paths are dropped (store.go:109-129, service.go:123); of several workspaces that match, the most recently opened wins (store.go:186). No expression walks a list while calling a port to build another list, or sorts downwards, so here the paths are taken as sent and any match is taken
-      let same = first(w in Workspace: count(w.folders) = count(folders) and all(f in folders: f in w.folders))   // @ internal/workspace/store.go:154-162
-      let leading = first(w in Workspace: count(folders) = 1 and count(w.folders) > 0 and all(f in folders: f = first(p in w.folders: yes)))   // @ internal/workspace/store.go:164-169
+      open: each path is first resolved through links and cleaned and repeated paths are dropped
+        (store.go:109-129, service.go:123); of several workspaces that match, the most recently
+        opened wins (store.go:186). No expression walks a list while calling a port to build another
+        list, or sorts downwards, so here the paths are taken as sent and any match is taken
+      let same = first(w in Workspace: count(w.folders) = count(folders)
+        and all(f in folders: f in w.folders))   // @ internal/workspace/store.go:154-162
+      // @ internal/workspace/store.go:164-169
+      let leading = first(w in Workspace: count(folders) = 1 and count(w.folders) > 0
+        and all(f in folders: f = first(p in w.folders: yes)))
       if same != none {
         ask Clients.show(same.id) { done(n) { return id = same.id, created = no, clients = n } }
       } else {
         if leading != none {
-          ask Clients.show(leading.id) { done(n) { return id = leading.id, created = no, clients = n } }
+          ask Clients.show(leading.id) { done(n) { return id = leading.id, created = no,
+            clients = n } }
         } else {
           for each f in folders { do need_dir(f) }
           create w: Workspace { id = new WorkspaceId; name = name; created_at = now; folders = () }
@@ -125,7 +141,9 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
     }
 
     method get by client, plugin {
-      partial: the answer also carries each folder's record in place of its path; workspace.list, which any connection may ask too and which answers every workspace so, the most recently opened first (methods_core.go:125-134, store.go:258-281)
+      partial: the answer also carries each folder's record in place of its path; workspace.list,
+        which any connection may ask too and which answers every workspace so, the most recently
+        opened first (methods_core.go:125-134, store.go:258-281)
       takes {
         workspace: Workspace
       }
@@ -151,7 +169,9 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
     }
 
     method add_folder by client, plugin {
-      partial: the answer, which is the workspace as `get` answers it (methods_core.go:135-140); a `returns` needs the workspace as an input, and then an unknown workspace would be refused before a path that is no directory, which the code does the other way round
+      partial: the answer, which is the workspace as `get` answers it (methods_core.go:135-140); a
+        `returns` needs the workspace as an input, and then an unknown workspace would be refused
+        before a path that is no directory, which the code does the other way round
       takes {
         id: WorkspaceId
         path: FolderPath
@@ -162,7 +182,8 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
       reject not_found unless a Workspace of id exists   // @ internal/workspace/store.go:298-303
       let key = FolderKey(workspace = id, path = path)
       reject invalid if a Folder of key exists   // @ internal/workspace/store.go:309-311
-      create folder: Folder { id = key; added_by = addedBy; added_at = now; added_afk = addedAfk; seen = not addedAfk and addedBy = none }   // @ internal/workspace/store.go:307
+      create folder: Folder { id = key; added_by = addedBy; added_at = now; added_afk = addedAfk; seen = not addedAfk
+        and addedBy = none }   // @ internal/workspace/store.go:307
       add path to (Workspace of id).folders
       emit workspace.updated(workspace = id)
     }
@@ -204,7 +225,8 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
       reject invalid unless a Folder of key exists
       let folder = Folder of key
       if path = none or path = repo {   // @ internal/workspace/store.go:353-363
-        open: an empty path clears the selection as an absent one does (store.go:353); a path only names something, and no written text is compared with such a value
+        open: an empty path clears the selection as an absent one does (store.go:353); a path only
+          names something, and no written text is compared with such a value
         set folder.worktree = none
       } else {
         do need_dir(path)
@@ -218,7 +240,8 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
         workspace: Workspace
       }
       returns Workspace
-      emit workspace.updated(workspace = workspace.id) if any(f in Folder where owner = workspace.id: f.missing)   // @ internal/core/service.go:232-241
+      // @ internal/core/service.go:232-241
+      emit workspace.updated(workspace = workspace.id) if any(f in Folder where owner = workspace.id: f.missing)
       never set workspace.folders
     }
 
@@ -228,7 +251,8 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
       }
       ask Hosts.end_all(workspace.id) unbounded, once {
         ended { change nothing }
-        still_running { reject session_running }   // @ internal/core/service.go:503-504, internal/rpc/errors.go:164
+        // @ internal/core/service.go:503-504, internal/rpc/errors.go:164
+        still_running { reject session_running }
       }
       ask Sessions.clear(workspace.id)
       let gone = workspace.id

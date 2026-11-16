@@ -1,22 +1,35 @@
-module Plugins "plugin processes: which run, how a dead or silent one comes back, and the calls the core passes to them" {
+module Plugins "plugin processes: which run, how a dead or silent one comes back, and the calls the"
+    "core passes to them" {
   core {
-    code at "internal/plugin/supervisor.go", "internal/plugin/router.go", "internal/plugin/control.go", "internal/rpc/methods_plugin.go"
-    tests at "internal/plugin/supervisor_test.go", "internal/plugin/router_test.go", "internal/plugin/control_test.go"
+    code at "internal/plugin/supervisor.go", "internal/plugin/router.go",
+      "internal/plugin/control.go", "internal/rpc/methods_plugin.go"
+    tests at "internal/plugin/supervisor_test.go", "internal/plugin/router_test.go",
+      "internal/plugin/control_test.go"
     docs at "docs/sdui-protocol.md" section "RPC methods"
 
     value PluginState: starting | running | backoff | failed | stopped | disabled
     value Reply { result: Document }
 
     record Plugin {
-      partial: its rows are made when the core starts, one for each valid plugin.json found beside the core and in the state dir, a second manifest with a known id skipped (internal/plugin/discover.go:17-28, :55-58, supervisor.go:228-235); the manifest and what it contributes, the process id, the environment and the log of the process; the slots it rendered and the process roots it registered, both cleared when its process ends (cmd/clubmate-core/main.go:160, internal/rpc/server.go:179-181); capability defaults and onboarding (control.go:89-103, internal/plugin/onboarding.go)
+      partial: its rows are made when the core starts, one for each valid plugin.json found beside
+        the core and in the state dir, a second manifest with a known id skipped
+        (internal/plugin/discover.go:17-28, :55-58, supervisor.go:228-235); the manifest and what it
+        contributes, the process id, the environment and the log of the process; the slots it
+        rendered and the process roots it registered, both cleared when its process ends
+        (cmd/clubmate-core/main.go:160, internal/rpc/server.go:179-181); capability defaults and
+        onboarding (control.go:89-103, internal/plugin/onboarding.go)
       id: PluginId, key
       state: PluginState
       records every change of state: at
       enabled: Flag
-      inherited: the user's choice is kept in plugins.db under the plugin `core`, key `plugin.enabled.<id>`, and wins over the manifest's `enabledByDefault` from then on (control.go:16-17, :75-83, :109-115)
+      inherited: the user's choice is kept in plugins.db under the plugin `core`, key
+        `plugin.enabled.<id>`, and wins over the manifest's `enabledByDefault` from then on
+        (control.go:16-17, :75-83, :109-115)
       restarts: Count, default 0
       last_error: Text, optional
-      inherited: the wording varies with how the process went: it may carry the exit status, or read "plugin connection closed" (supervisor.go:60-65, :756-767); the texts written below are the usual ones
+      inherited: the wording varies with how the process went: it may carry the exit status, or read
+        "plugin connection closed" (supervisor.go:60-65, :756-767); the texts written below are the
+        usual ones
       crashes: list of Time
       missed: Count, default 0
       strikes: Count, default 0
@@ -30,18 +43,24 @@ module Plugins "plugin processes: which run, how a dead or silent one comes back
 
     port Process "a plugin's own process group, spoken to over its stdin and stdout" {
       start(plugin: PluginId): ready | failed(why: Text), not undone
-      inherited: `ready` is: spawned, and it answered plugin.initialize with protocol 1 (supervisor.go:455-495, :736-748, internal/plugin/manifest.go:20)
+      inherited: `ready` is: spawned, and it answered plugin.initialize with protocol 1
+        (supervisor.go:455-495, :736-748, internal/plugin/manifest.go:20)
       ping(plugin: PluginId): answered
-      call(plugin: PluginId, route: Route, sent: Payload): replied(result: Document) | refused(message: Text) | closed, not undone
+      call(plugin: PluginId, route: Route,
+        sent: Payload): replied(result: Document) | refused(message: Text) | closed,
+        not undone
       stop(plugin: PluginId): stopped, not undone
-      inherited: plugin.shutdown is sent and given 2 seconds; a process still there 2 seconds later gets SIGTERM, and SIGKILL 5 seconds after that (supervisor.go:39-41, :647-664)
+      inherited: plugin.shutdown is sent and given 2 seconds; a process still there 2 seconds later
+        gets SIGTERM, and SIGKILL 5 seconds after that (supervisor.go:39-41, :647-664)
       kill(plugin: PluginId): killed, not undone
-      inherited: the pipe is closed and a process still there 500 milliseconds later gets SIGKILL (supervisor.go:42, :756-767)
+      inherited: the pipe is closed and a process still there 500 milliseconds later gets SIGKILL
+        (supervisor.go:42, :756-767)
     }
 
     block launch(p: Plugin) {
       p becomes starting
-      ask Process.start(p.id) within 5 seconds, once {   // @ internal/plugin/supervisor.go:38, :441-446, :497-504
+      // @ internal/plugin/supervisor.go:38, :441-446, :497-504
+      ask Process.start(p.id) within 5 seconds, once {
         ready {
           set p.missed = 0
           set p.strikes = 0
@@ -54,12 +73,15 @@ module Plugins "plugin processes: which run, how a dead or silent one comes back
     }
 
     block crashed(p: Plugin, why: Text) {
-      for each t in p.crashes { remove t from p.crashes if t + 1 minutes <= now }   // @ internal/plugin/supervisor.go:684-688
+      // @ internal/plugin/supervisor.go:684-688
+      for each t in p.crashes { remove t from p.crashes if t + 1 minutes <= now }
       add now to p.crashes
       set p.restarts = p.restarts + 1   // @ internal/plugin/supervisor.go:690-691
       set p.last_error = why
-      if count(p.crashes) >= 5 { p becomes failed } else { p becomes backoff }   // @ internal/plugin/supervisor.go:692-700
-      inherited: after 5 crashes within a minute the core gives up on a plugin until it is restarted or turned on by hand (supervisor.go:35-36, :693-697)
+      // @ internal/plugin/supervisor.go:692-700
+      if count(p.crashes) >= 5 { p becomes failed } else { p becomes backoff }
+      inherited: after 5 crashes within a minute the core gives up on a plugin until it is restarted
+        or turned on by hand (supervisor.go:35-36, :693-697)
       emit plugin.changed(id = p.id, running = no, enabled = p.enabled)
     }
 
@@ -88,11 +110,14 @@ module Plugins "plugin processes: which run, how a dead or silent one comes back
         sent: Payload
       }
       returns Reply
-      reject plugin_unavailable unless a Plugin of plugin exists   // @ internal/plugin/router.go:198-204
+      // @ internal/plugin/router.go:198-204
+      reject plugin_unavailable unless a Plugin of plugin exists
       let p = Plugin of plugin
       when p is running {
-        ask Process.call(p.id, route, sent) within 15 seconds, once {   // @ internal/plugin/router.go:21, :74-84
-          open: a command that declares a `timeout` of 1 to 600 seconds waits that long instead of 15 (router.go:78-84, manifest.go:23); a bound is a written duration
+        // @ internal/plugin/router.go:21, :74-84
+        ask Process.call(p.id, route, sent) within 15 seconds, once {
+          open: a command that declares a `timeout` of 1 to 600 seconds waits that long instead of
+            15 (router.go:78-84, manifest.go:23); a bound is a written duration
           replied(result) {
             set p.strikes = 0
             return result = result
@@ -100,7 +125,8 @@ module Plugins "plugin processes: which run, how a dead or silent one comes back
           refused(message) {
             set p.strikes = 0
             commit
-            reject plugin_error with message   // @ internal/plugin/router.go:283-284, internal/rpc/errors.go:154
+            // @ internal/plugin/router.go:283-284, internal/rpc/errors.go:154
+            reject plugin_error with message
           }
           closed { reject plugin_unavailable with "unknown" }
           no answer {
@@ -115,13 +141,22 @@ module Plugins "plugin processes: which run, how a dead or silent one comes back
             }
             commit
             reject plugin_unavailable with "unknown"
-            inherited: "unknown" says the plugin had the call and may have run it, so a caller must not send it again as if it had not (router.go:280-289, docs/sdui-protocol.md § RPC methods)
-            open: a timeout counts only when it began after the one before it, one agent session counts once in a run however many of its calls time out, a late reply within 60 seconds ends the run, and 3 timeouts with no reply at all for 60 seconds count whoever sent them (supervisor.go:47, :570-596, router.go:205-223); these read which call was sent when, which no line here keeps
+            inherited: "unknown" says the plugin had the call and may have run it, so a caller must
+              not send it again as if it had not (router.go:280-289, docs/sdui-protocol.md § RPC
+              methods)
+            open: a timeout counts only when it began after the one before it, one agent session
+              counts once in a run however many of its calls time out, a late reply within 60
+              seconds ends the run, and 3 timeouts with no reply at all for 60 seconds count whoever
+              sent them (supervisor.go:47, :570-596, router.go:205-223); these read which call was
+              sent when, which no line here keeps
           }
         }
       }
       when p is starting {
-        open: the call waits for the plugin to run and then goes on with what is left of its 15 seconds; it is `plugin_unavailable` when the plugin does not get there in time (supervisor.go:345-370, router.go:194-204). Nothing else runs while a use case waits, so here it could never come to run
+        open: the call waits for the plugin to run and then goes on with what is left of its 15
+          seconds; it is `plugin_unavailable` when the plugin does not get there in time
+          (supervisor.go:345-370, router.go:194-204). Nothing else runs while a use case waits, so
+          here it could never come to run
         reject plugin_unavailable
       }
       otherwise { reject plugin_unavailable }
@@ -131,18 +166,21 @@ module Plugins "plugin processes: which run, how a dead or silent one comes back
       takes {
         plugin: PluginId
       }
-      reject off unless a Plugin of plugin exists and (Plugin of plugin).enabled   // @ internal/plugin/router.go:121-124
+      // @ internal/plugin/router.go:121-124
+      reject off unless a Plugin of plugin exists and (Plugin of plugin).enabled
     }
 
     method restart by client, plugin {
-      inherited: the answer does not wait: the stop and the new start happen after it (supervisor.go:297-313)
+      inherited: the answer does not wait: the stop and the new start happen after it
+        (supervisor.go:297-313)
       takes {
         id: PluginId
       }
       reject invalid if caller.plugin != none   // @ internal/rpc/methods_plugin.go:77-80
       reject not_found unless a Plugin of id exists
       let p = Plugin of id
-      reject plugin_unavailable unless p.enabled   // @ internal/plugin/supervisor.go:302-307, internal/rpc/errors.go:152
+      // @ internal/plugin/supervisor.go:302-307, internal/rpc/errors.go:152
+      reject plugin_unavailable unless p.enabled
       when p is running {
         do halt(p)
         do fresh(p)   // @ internal/plugin/supervisor.go:522-529, :677-682
@@ -153,7 +191,8 @@ module Plugins "plugin processes: which run, how a dead or silent one comes back
         do launch(p)
       }
       when p is starting {
-        open: the restart is kept and done once the plugin runs (supervisor.go:308-311, :522-529); no line keeps a wish for later
+        open: the restart is kept and done once the plugin runs (supervisor.go:308-311, :522-529);
+          no line keeps a wish for later
         change nothing
       }
       otherwise { change nothing }
@@ -182,16 +221,19 @@ module Plugins "plugin processes: which run, how a dead or silent one comes back
       }
     }
 
-    method exited "a plugin's process ended, or closed its pipe, while the core was not stopping it" by os {
+    method exited "a plugin's process ended, or closed its pipe, while the core was not stopping"
+        "it" by os {
       takes {
         plugin: Plugin
       }
-      when plugin is running or starting { do crashed(plugin, "plugin exited") }   // @ internal/plugin/supervisor.go:530-533
+      // @ internal/plugin/supervisor.go:530-533
+      when plugin is running or starting { do crashed(plugin, "plugin exited") }
       otherwise { ignore }
     }
 
     method stop_all "the core is stopping" {
-      inherited: all plugins together get 15 seconds; after that the waits below are cut short (main.go:37, :283-287, supervisor.go:315-333)
+      inherited: all plugins together get 15 seconds; after that the waits below are cut short
+        (main.go:37, :283-287, supervisor.go:315-333)
       for each p in Plugin where enabled = yes {
         do halt(p) if p is running or starting
         p becomes stopped unless p is failed   // @ internal/plugin/supervisor.go:418-423, :672-675
@@ -200,29 +242,41 @@ module Plugins "plugin processes: which run, how a dead or silent one comes back
 
     policy supervise {
       whenever Core starts {
-        open: the plugins start side by side and the core takes calls meanwhile, which is why a call may meet a plugin that is `starting` (supervisor.go:240-251, main.go:181-183); a start rule runs to its end before anything is handled
+        open: the plugins start side by side and the core takes calls meanwhile, which is why a call
+          may meet a plugin that is `starting` (supervisor.go:240-251, main.go:181-183); a start
+          rule runs to its end before anything is handled
         for each p in Plugin {
           set p.restarts = 0
           set p.crashes = ()
           set p.last_error = none
-          if p.enabled { do launch(p) } else { p becomes disabled }   // @ internal/plugin/supervisor.go:228-235
+          // @ internal/plugin/supervisor.go:228-235
+          if p.enabled { do launch(p) } else { p becomes disabled }
         }
       }
-      whenever a Plugin where plugin has been backoff for 1 seconds and count(plugin.crashes) <= 1 { do launch(plugin) }
-      whenever a Plugin where plugin has been backoff for 2 seconds and count(plugin.crashes) = 2 { do launch(plugin) }
-      whenever a Plugin where plugin has been backoff for 4 seconds and count(plugin.crashes) = 3 { do launch(plugin) }
-      whenever a Plugin where plugin has been backoff for 8 seconds and count(plugin.crashes) >= 4 { do launch(plugin) }
-      inherited: the wait starts at 1 second and doubles with each crash still counted (supervisor.go:34, :713-715); with at most 4 crashes counted before the core gives up, the longest wait is 8 seconds
+      whenever a Plugin where plugin has been backoff for 1 seconds
+        and count(plugin.crashes) <= 1 { do launch(plugin) }
+      whenever a Plugin where plugin has been backoff for 2 seconds
+        and count(plugin.crashes) = 2 { do launch(plugin) }
+      whenever a Plugin where plugin has been backoff for 4 seconds
+        and count(plugin.crashes) = 3 { do launch(plugin) }
+      whenever a Plugin where plugin has been backoff for 8 seconds
+        and count(plugin.crashes) >= 4 { do launch(plugin) }
+      inherited: the wait starts at 1 second and doubles with each crash still counted
+        (supervisor.go:34, :713-715); with at most 4 crashes counted before the core gives up, the
+        longest wait is 8 seconds
       every 15 seconds {
-        open: each plugin has its own clock, started when it came to run (supervisor.go:605-614); `every` counts from the start of the core
+        open: each plugin has its own clock, started when it came to run (supervisor.go:605-614);
+          `every` counts from the start of the core
         for each p in Plugin where state = running {
-          ask Process.ping(p.id) within 5 seconds, once {   // @ internal/plugin/supervisor.go:43-45, :605-628
+          // @ internal/plugin/supervisor.go:43-45, :605-628
+          ask Process.ping(p.id) within 5 seconds, once {
             answered { set p.missed = 0 }
             no answer {
               set p.missed = p.missed + 1
               if p.missed >= 3 {
                 do cut(p)
-                do crashed(p, "plugin stopped answering plugin.ping")   // @ internal/plugin/supervisor.go:534-537
+                // @ internal/plugin/supervisor.go:534-537
+                do crashed(p, "plugin stopped answering plugin.ping")
               }
             }
           }

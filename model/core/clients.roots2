@@ -1,20 +1,30 @@
-module Clients "the connections of clients on the core's socket: what each registered for, who is asked to approve, and the stop of the core" {
+module Clients "the connections of clients on the core's socket: what each registered for, who is"
+    "asked to approve, and the stop of the core" {
   core {
     code at "internal/rpc/server.go", "internal/rpc/approval.go", "internal/rpc/methods_core.go"
     tests at "internal/rpc/agent_test.go", "internal/rpc/rpc_test.go"
     docs at "docs/agents.md" section "Approvals"
 
-    value Handle "a call or notification a client says it can take": workspace_show | ui_confirm | ui_report | ui_snapshot | ui_present | ui_key | ui_pointer | browser_call {
-      open: on the wire these are "workspace.show", "ui.confirm", "ui.report", "ui.snapshot", "ui.present", "ui.key", "ui.pointer" and "browser.call" (methods_core.go:330); a variant's name holds no dot
+    value Handle "a call or notification a client says it can"
+        "take": workspace_show | ui_confirm | ui_report | ui_snapshot | ui_present | ui_key | ui_pointer | browser_call {
+      open: on the wire these are "workspace.show", "ui.confirm", "ui.report", "ui.snapshot",
+        "ui.present", "ui.key", "ui.pointer" and "browser.call" (methods_core.go:330); a variant's
+        name holds no dot
     }
 
     value Shown { clients: Count }
 
     record Connection "a client's connection; a plugin's pipe is not one (server.go:170)" {
-      partial: ui.subscribe and ui.unsubscribe, which write `shows` and publish ui.opened when a workspace gets its first such connection and ui.idle when it loses its last (internal/rpc/methods_ui.go:179-211, internal/rpc/presence.go:66-87); what the core asks a registered client besides the calls of `App` below (ui.report, ui.snapshot, ui.present, ui.key, ui.pointer, browser.call); a client that takes no frame for 10 seconds is cut off (server.go:31, :254-262)
+      partial: ui.subscribe and ui.unsubscribe, which write `shows` and publish ui.opened when a
+        workspace gets its first such connection and ui.idle when it loses its last
+        (internal/rpc/methods_ui.go:179-211, internal/rpc/presence.go:66-87); what the core asks a
+        registered client besides the calls of `App` below (ui.report, ui.snapshot, ui.present,
+        ui.key, ui.pointer, browser.call); a client that takes no frame for 10 seconds is cut off
+        (server.go:31, :254-262)
       id: ConnId, key
       joined: Time
-      decided by agent: the code numbers connections in the order they arrive (server.go:189-190) and prefers the lowest number; the instant of arrival says the same order
+      decided by agent: the code numbers connections in the order they arrive (server.go:189-190)
+        and prefers the lowest number; the instant of arrival says the same order
       handles: list of Handle
       shows: list of WorkspaceId
     }
@@ -22,18 +32,23 @@ module Clients "the connections of clients on the core's socket: what each regis
     port App "a connected client, most often the Mac app" {
       show(to: ConnId, workspace: WorkspaceId): told
       stopping(to: ConnId): told
-      confirm(to: ConnId, command: CommandId, sent: Payload): approved | refused(reason: Text) | failed
-      inherited: the alert names the action, the workspace, the session it targets and the agent session that asked, and shows every argument in full (docs/agents.md § Approvals; approval.go:139)
+      confirm(to: ConnId, command: CommandId,
+        sent: Payload): approved | refused(reason: Text) | failed
+      inherited: the alert names the action, the workspace, the session it targets and the agent
+        session that asked, and shows every argument in full (docs/agents.md § Approvals;
+        approval.go:139)
     }
 
     method accept "a connection arrived on the socket" by os {
       if no Connection of caller.conn exists {
-        create c: Connection { id = caller.conn; joined = now; handles = (); shows = () }   // @ internal/rpc/server.go:186-191
+        // @ internal/rpc/server.go:186-191
+        create c: Connection { id = caller.conn; joined = now; handles = (); shows = () }
       }
     }
 
     method closed "a connection ended, a client's or a plugin's" by os {
-      remove Connection of caller.conn if a Connection of caller.conn exists   // @ internal/rpc/server.go:174-181
+      // @ internal/rpc/server.go:174-181
+      remove Connection of caller.conn if a Connection of caller.conn exists
       ask Bus.forget(caller.conn)
       ask Ui.forget(caller.conn)
     }
@@ -45,13 +60,17 @@ module Clients "the connections of clients on the core's socket: what each regis
       reject invalid if caller.plugin != none   // @ internal/rpc/methods_core.go:325-328
       if a Connection of caller.conn exists {
         let c = Connection of caller.conn
-        for each h in handles { add h to c.handles unless h in c.handles }   // @ internal/rpc/server.go:199-205
+        // @ internal/rpc/server.go:199-205
+        for each h in handles { add h to c.handles unless h in c.handles }
       }
     }
 
     block tell(id: WorkspaceId) {
-      open: the notifications go out side by side and the count is of those written within 1 second in all (server.go:30, :207-238); an `ask` stands in a sequence and nothing counts its answers
-      for each c in Connection where workspace_show in connection.handles and connection.id != caller.conn {
+      open: the notifications go out side by side and the count is of those written within 1 second
+        in all (server.go:30, :207-238); an `ask` stands in a sequence and nothing counts its
+        answers
+      for each c in Connection where workspace_show in connection.handles
+          and connection.id != caller.conn {
         ask App.show(c.id, id) within 1 seconds, once {
           told { change nothing }
           no answer { change nothing }
@@ -60,7 +79,8 @@ module Clients "the connections of clients on the core's socket: what each regis
       return clients = count(c in Connection: workspace_show in c.handles and c.id != caller.conn)
     }
 
-    method show "tell every client that registered workspace_show, but the asker, to show a workspace" {
+    method show "tell every client that registered workspace_show, but the asker, to show a"
+        "workspace" {
       takes {
         id: WorkspaceId
       }
@@ -83,25 +103,38 @@ module Clients "the connections of clients on the core's socket: what each regis
         command: CommandId
         sent: Payload
       }
-      let showing = first(c in (Connection sorted by joined): ui_confirm in c.handles and workspace != none and workspace in c.shows)   // @ internal/rpc/approval.go:311-335
+      let showing = first(c in (Connection sorted by joined): ui_confirm in c.handles
+        and workspace != none and workspace in c.shows)   // @ internal/rpc/approval.go:311-335
       let any_app = first(c in (Connection sorted by joined): ui_confirm in c.handles)
-      reject denied with "no app to approve" if any_app = none   // @ internal/rpc/approval.go:285-288
-      open: while an approval waits on a connection, a second one for that connection is refused `denied` with "approval busy" (approval.go:289-292); here one request is handled at a time, so the case never arises. When the asker's connection ends while the alert is up the call ends, the command never runs and the client is told `ui.confirm.cancelled` (approval.go:157-160)
-      if showing != none { do ask_user(showing, command, sent) } else { do ask_user(any_app, command, sent) }
+      // @ internal/rpc/approval.go:285-288
+      reject denied with "no app to approve" if any_app = none
+      open: while an approval waits on a connection, a second one for that connection is refused
+        `denied` with "approval busy" (approval.go:289-292); here one request is handled at a time,
+        so the case never arises. When the asker's connection ends while the alert is up the call
+        ends, the command never runs and the client is told `ui.confirm.cancelled`
+        (approval.go:157-160)
+      if showing != none { do ask_user(showing, command, sent) } else { do ask_user(any_app,
+        command, sent) }
     }
 
     block ask_user(app: Connection, command: CommandId, sent: Payload) {
-      inherited: a refusal with no reason reads "denied by user" (approval.go:166-171); the user's answer stands for this one call only, nothing is remembered
-      ask App.confirm(app.id, command, sent) within 60 seconds, once {   // @ internal/rpc/approval.go:21, :152-157
+      inherited: a refusal with no reason reads "denied by user" (approval.go:166-171); the user's
+        answer stands for this one call only, nothing is remembered
+      // @ internal/rpc/approval.go:21, :152-157
+      ask App.confirm(app.id, command, sent) within 60 seconds, once {
         approved { change nothing }
         refused(reason) { reject denied with reason }
         failed { reject denied with "no app to approve" }   // @ internal/rpc/approval.go:164
-        no answer { reject denied with "approval timed out" }   // @ internal/rpc/approval.go:161-163
+        // @ internal/rpc/approval.go:161-163
+        no answer { reject denied with "approval timed out" }
       }
     }
 
     method shutdown by client, plugin {
-      open: the answer goes out first; 100 milliseconds later every client is told `core.stopping`, then the core stops as it does on SIGINT or SIGTERM: plugins get 15 seconds to stop, the socket and the databases close (methods_core.go:283-294, cmd/clubmate-core/main.go:170-188). No line ends the system, and nothing happens after an answer
+      open: the answer goes out first; 100 milliseconds later every client is told `core.stopping`,
+        then the core stops as it does on SIGINT or SIGTERM: plugins get 15 seconds to stop, the
+        socket and the databases close (methods_core.go:283-294, cmd/clubmate-core/main.go:170-188).
+        No line ends the system, and nothing happens after an answer
       reject invalid if caller.plugin != none   // @ internal/rpc/methods_core.go:284-286
       for each c in Connection {
         ask App.stopping(c.id) within 1 seconds, once {
