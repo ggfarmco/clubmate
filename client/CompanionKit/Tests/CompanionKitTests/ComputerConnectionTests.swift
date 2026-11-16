@@ -138,6 +138,58 @@ final class ComputerConnectionTests: XCTestCase {
         connection.stop()
     }
 
+    func testAwakeFollowsTheMac() async throws {
+        let held = Recorder<AsyncThrowingStream<Data, any Error>.Continuation>()
+        let transport = FakeTransport(reply: { request in
+            switch FakeTransport.rpc(request) {
+            case "workspaces": (FakeTransport.result(workspacesJSON), 200)
+            case "awake.state": (FakeTransport.result(#"{"on":true,"text":"Awake · 2 agents","detail":"Kept awake while 2 agents work.","manual":false,"until":0,"holds":[]}"#), 200)
+            default: (FakeTransport.result(#"{"computer":{"id":"mac1","name":"Mac Studio"},"version":"0.0.71","commands":["awake.state","awake.set"],"topics":[]}"#), 200)
+            }
+        }, stream: { _ in
+            (200, AsyncThrowingStream {
+                $0.yield(Data(": connected\n\n".utf8))
+                held.add($0)
+            })
+        })
+        let connection = ComputerConnection(computer: computer, token: "t", transport: transport, sleep: { _ in })
+        connection.start()
+        try await waitUntil { connection.state == .online && held.values.count == 1 }
+        XCTAssertEqual(connection.awake, AwakeState(on: true, text: "Awake · 2 agents", detail: "Kept awake while 2 agents work.", manual: false))
+
+        held.values[0].yield(Data("id: 4\nevent: bus\ndata: {\"seq\":4,\"topic\":\"awake.changed\",\"payload\":{\"on\":false,\"text\":\"\",\"detail\":\"The Mac sleeps as usual.\",\"manual\":false,\"until\":0}}\n\n".utf8))
+
+        try await waitUntil { connection.awake?.on == false }
+        XCTAssertEqual(connection.awake?.detail, "The Mac sleeps as usual.")
+        connection.stop()
+    }
+
+    func testAwakeIsHiddenForAMacWithoutTheAwakePlugin() async throws {
+        let transport = FakeTransport(reply: { request in
+            (FakeTransport.result(FakeTransport.rpc(request) == "workspaces" ? workspacesJSON : helloJSON), 200)
+        }, stream: { _ in (200, AsyncThrowingStream { $0.yield(Data(": connected\n\n".utf8)) }) })
+        let connection = ComputerConnection(computer: computer, token: "t", transport: transport, sleep: { _ in })
+        connection.start()
+        try await waitUntil { connection.state == .online }
+        XCTAssertNil(connection.awake)
+        XCTAssertFalse(transport.requests.contains { FakeTransport.rpc($0) == "awake.state" })
+        connection.stop()
+    }
+
+    func testSetAwakeSendsTheHoldAndShowsTheReply() async throws {
+        let transport = FakeTransport(reply: { _ in
+            (FakeTransport.result(#"{"on":true,"text":"Awake until 18:30","detail":"Kept awake by you.","manual":true,"until":1789000000}"#), 200)
+        })
+        let connection = ComputerConnection(computer: computer, token: "t", transport: transport, sleep: { _ in })
+
+        try await connection.setAwake(true, minutes: 60)
+
+        let body = try JSONDecoder().decode(JSONValue.self, from: XCTUnwrap(transport.requests.last?.httpBody))
+        XCTAssertEqual(body["params"]?["id"]?.stringValue, "awake.set")
+        XCTAssertEqual(body["params"]?["args"], .object(["on": .bool(true), "minutes": .number(60)]))
+        XCTAssertEqual(connection.awake, AwakeState(on: true, text: "Awake until 18:30", detail: "Kept awake by you.", manual: true, until: 1789000000))
+    }
+
     func testCancelledRunLeavesTheNewerStateAlone() async throws {
         let hellos = Recorder<Int>()
         let held = Recorder<AsyncThrowingStream<Data, any Error>.Continuation>()

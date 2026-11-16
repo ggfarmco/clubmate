@@ -779,6 +779,22 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(wait(for: app.descendants(matching: .any)["connection.step.hello"], "label CONTAINS 'no address answered'"))
     }
 
+    func testKeepAwakeFromMacDetailsHoldsAndTurnsOff() {
+        let app = launch(open: "mac")
+        let state = app.staticTexts["mac.awake.state"]
+        XCTAssertTrue(state.waitForExistence(timeout: 10))
+        XCTAssertTrue(state.label.contains("Awake · 1 agent"), state.label)
+        XCTAssertFalse(app.buttons["mac.awake.off"].exists)
+        app.buttons["mac.awake.keep"].tap()
+        app.buttons["For 1 Hour"].tap()
+        XCTAssertTrue(wait(for: state, "label CONTAINS 'Awake until'"))
+        let off = app.buttons["mac.awake.off"]
+        XCTAssertTrue(off.waitForExistence(timeout: 5))
+        off.tap()
+        XCTAssertTrue(wait(for: off, "exists == false"))
+        XCTAssertTrue(state.label.contains("Awake · 1 agent"), state.label)
+    }
+
     func testReportQueuesWhileOfflineAndListsFiles() {
         let app = launch(open: "report", ["-offline", "4"])
         let text = app.descendants(matching: .any)["report.text"]

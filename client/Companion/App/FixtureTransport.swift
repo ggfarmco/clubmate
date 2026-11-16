@@ -102,6 +102,8 @@ actor FixtureServer {
     private var voiceRev = 0
     private var voiceChunks = 0
     private var runAnswers: [String: String] = [:]
+    private var awakeManual = UserDefaults.standard.string(forKey: "awakeHold") != nil
+    private var awakeUntil: Date? = UserDefaults.standard.string(forKey: "awakeHold").flatMap(Double.init).map { Date.now.addingTimeInterval($0 * 60) }
 
     init(directory: URL, mac: FixtureMac) {
         self.mac = mac
@@ -310,8 +312,8 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "graphs.show", "graphs.approve", "graphs.continue", "graphs.stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove].map(JSONValue.string)
-            return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge")), "reports": .bool(true)])]))
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "graphs.show", "graphs.approve", "graphs.continue", "graphs.stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove].map(JSONValue.string)
+            return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed"), .string("awake.changed")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge")), "reports": .bool(true)])]))
         case "report":
             return (200, Self.json(["result": .object(["id": .string("r-fixture")])]))
         case "uiSections":
@@ -558,6 +560,14 @@ actor FixtureServer {
             let session = sessions.first?["id"] ?? .null
             _ = updateTask("backlog.start", args)
             return .object(["session": session])
+        case "awake.state", "awake.settings-set":
+            return awakeState
+        case "awake.set":
+            awakeManual = args["on"]?.boolValue ?? false
+            let minutes = args["minutes"]?.numberValue ?? 0
+            awakeUntil = awakeManual && minutes > 0 ? Date.now.addingTimeInterval(minutes * 60) : nil
+            if case .object(let state) = awakeState { publish("awake.changed", state) }
+            return awakeState
         case "voice.settings":
             return .object(["enabled": .bool(!UserDefaults.standard.bool(forKey: "voiceOff")), "model": .string("nemotron"), "models": .array([])])
         case "voice.start":
@@ -1023,6 +1033,17 @@ actor FixtureServer {
 
     private func slotView(_ slot: String, rev: Int, tree: JSONValue) -> JSONValue {
         .object(["workspaceId": .string(workspace), "slot": .string(slot), "owner": .string(String(slot.prefix { $0 != "." })), "rev": .number(Double(rev)), "tree": tree])
+    }
+
+    private var awakeState: JSONValue {
+        let agents = !UserDefaults.standard.bool(forKey: "awakeOff")
+        guard awakeManual || agents else {
+            return .object(["on": .bool(false), "text": .string(""), "detail": .string("The Mac sleeps as usual."), "manual": .bool(false), "until": .number(0), "holds": .array([]), "agents": .bool(true), "battery": .bool(false), "display": .bool(false)])
+        }
+        let others = awakeManual && agents ? " +1" : ""
+        let text = !awakeManual ? "Awake · 1 agent" : awakeUntil.map { "Awake until " + $0.formatted(date: .omitted, time: .shortened) + others } ?? "Awake" + others
+        let detail = awakeManual ? "Kept awake by you\(agents ? " and while 1 agent works" : ""), on battery too. A closed lid still sleeps the Mac on battery." : "Kept awake while 1 agent works, on power only. A closed lid still sleeps the Mac on battery."
+        return .object(["on": .bool(true), "text": .string(text), "detail": .string(detail), "manual": .bool(awakeManual), "until": .number(awakeUntil.map { $0.timeIntervalSince1970.rounded() } ?? 0), "holds": .array([]), "agents": .bool(true), "battery": .bool(false), "display": .bool(false)])
     }
 
     private func publish(_ topic: String, _ payload: [String: JSONValue]) {

@@ -17,12 +17,14 @@ final class AppModel {
     let reports = ReportModel()
     private(set) var workspaceStore: WorkspacesStore?
     private(set) var commands: [Command] = []
+    var settingsRequest: SettingsPage?
 
     @ObservationIgnored private var openRequests: Task<Void, Never>?
     @ObservationIgnored private var gitChanges: Task<Void, Never>?
     @ObservationIgnored private var pluginChanges: Task<Void, Never>?
     @ObservationIgnored private var browserClosing: [Task<Void, Never>] = []
     @ObservationIgnored private var usageChanges: Task<Void, Never>?
+    @ObservationIgnored private var awakeChanges: Task<Void, Never>?
     @ObservationIgnored private var remoteChanges: Task<Void, Never>?
     @ObservationIgnored private var voiceChanges: Task<Void, Never>?
     @ObservationIgnored private var voiceSettingsChanges: Task<Void, Never>?
@@ -59,6 +61,10 @@ final class AppModel {
     }
 
     @ObservationIgnored private(set) lazy var usage = SubscriptionUsageModel { [weak self] invocation in
+        await self?.runCommand(invocation, in: "") ?? .failure(.notRunning)
+    }
+
+    @ObservationIgnored private(set) lazy var awake = KeepAwakeModel { [weak self] invocation in
         await self?.runCommand(invocation, in: "") ?? .failure(.notRunning)
     }
 
@@ -354,6 +360,11 @@ final class AppModel {
             guard let usage = self?.usage else { return }
             await usage.follow(client)
         }
+        awakeChanges?.cancel()
+        awakeChanges = Task { [weak self] in
+            guard let awake = self?.awake else { return }
+            await awake.follow(client)
+        }
         remoteChanges?.cancel()
         remoteChanges = Task { [weak self] in
             guard let remote = self?.remoteDevices else { return }
@@ -379,6 +390,7 @@ final class AppModel {
             for await _ in events {
                 await self?.reloadCommands(client)
                 await self?.usage.load()
+                await self?.awake.load()
                 await self?.remoteDevices.load()
                 await self?.voiceSettings.load()
             }

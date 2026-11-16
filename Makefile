@@ -38,6 +38,8 @@ build:
 	cp plugins/graphs/plugin.json bin/plugins/graphs/
 	$(GO_BUILD) -o bin/plugins/voice/voice ./plugins/voice
 	cp plugins/voice/plugin.json bin/plugins/voice/
+	$(GO_BUILD) -o bin/plugins/awake/awake ./plugins/awake
+	cp plugins/awake/plugin.json bin/plugins/awake/
 	rsync -a --exclude '__pycache__' --exclude '.pytest_cache' --exclude 'test_*' plugins/voice/asr bin/plugins/voice/
 
 run-core: build

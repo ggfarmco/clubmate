@@ -43,6 +43,11 @@ struct SettingsView: View {
             window.backgroundColor = surface
         } onClose: { })
         .onAppear { if page == .general { page = .initial } }
+        .onChange(of: app.settingsRequest, initial: true) { _, request in
+            guard let request else { return }
+            page = request
+            app.settingsRequest = nil
+        }
         .task(id: SettingsFollowKey(client: app.supervisor.client.map(ObjectIdentifier.init), active: appearsActive)) {
             await plugins.follow(app.supervisor.client, active: appearsActive)
         }

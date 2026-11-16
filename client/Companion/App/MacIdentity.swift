@@ -115,6 +115,9 @@ struct MacDetailsView: View {
         let others = model.computers.filter { $0.id != computerID }.map { model.connection($0.id)?.computer.tag ?? $0.tag }
         let reason = changeBlocked(connection)
         return List {
+            if connection.state == .online, let awake = connection.awake {
+                AwakeSection(connection: connection, awake: awake)
+            }
             Section {
                 ForEach(MacColour.allCases) { colour in
                     Button {
@@ -226,6 +229,63 @@ struct MacDetailsView: View {
                 failure = "Couldn't change the colour: " + ((error as? RemoteError)?.message ?? error.localizedDescription)
             }
             choosing = nil
+        }
+    }
+}
+
+private struct AwakeSection: View {
+    let connection: ComputerConnection
+    let awake: AwakeState
+    @State private var sending = false
+    @State private var failure: String?
+
+    var body: some View {
+        Section {
+            Label {
+                Text(awake.headline)
+                    .foregroundStyle(awake.on ? Color.primary : Color.captionInk)
+                    .accessibilityIdentifier("mac.awake.state")
+            } icon: {
+                Image(systemName: awake.on ? "cup.and.saucer.fill" : "cup.and.saucer")
+                    .foregroundStyle(awake.on ? Color.accentColor : Color.captionInk)
+            }
+            Menu {
+                Button("For 1 Hour") { set(true, minutes: 60) }
+                Button("For 4 Hours") { set(true, minutes: 240) }
+                Button("Until Turned Off") { set(true, minutes: 0) }
+            } label: {
+                HStack(spacing: 8) {
+                    Text("Keep Awake…")
+                    Spacer(minLength: 8)
+                    if sending { ProgressView() }
+                }
+                .contentShape(.rect)
+            }
+            .accessibilityIdentifier("mac.awake.keep")
+            if awake.manual {
+                Button("Turn Off") { set(false, minutes: 0) }
+                    .accessibilityIdentifier("mac.awake.off")
+            }
+        } header: {
+            Text("Keep Awake")
+        } footer: {
+            if let note = failure ?? awake.footnote {
+                Text(note)
+            }
+        }
+        .disabled(sending)
+    }
+
+    private func set(_ on: Bool, minutes: Int) {
+        sending = true
+        failure = nil
+        Task {
+            do {
+                try await connection.setAwake(on, minutes: minutes)
+            } catch {
+                failure = connection.failure(error, action: on ? "keep it awake" : "turn it off")
+            }
+            sending = false
         }
     }
 }

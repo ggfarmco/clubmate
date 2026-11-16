@@ -14,8 +14,10 @@ struct StatusBar<Trailing: View>: View {
     let connection: ConnectionStatus
     let agents: AgentTally?
     let usage: SubscriptionUsage?
+    let awake: KeepAwakeModel?
     let hints: String?
     let retry: () -> Void
+    let awakeSettings: () -> Void
     @ViewBuilder let trailing: Trailing
 
     @Environment(\.theme) private var theme
@@ -36,6 +38,9 @@ struct StatusBar<Trailing: View>: View {
             }
             if connected, let agents {
                 AgentCounts(tally: agents)
+            }
+            if connected, let awake {
+                KeepAwakeItem(model: awake, settings: awakeSettings)
             }
             UsageStatus(usage: usage)
                 .layoutPriority(1)
@@ -161,5 +166,64 @@ private struct UsageStatus: View {
             lines.append("Updated \(updated.formatted(date: .omitted, time: .shortened)) from the latest agent reply")
         }
         return lines.joined(separator: "\n")
+    }
+}
+
+private struct KeepAwakeItem: View {
+    let model: KeepAwakeModel
+    let settings: () -> Void
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        if let state = model.state {
+            menu(state)
+        }
+    }
+
+    private func menu(_ state: KeepAwake) -> some View {
+        Menu {
+            Button("Keep Awake for 1 Hour") { set(minutes: 60) }
+            Button("Keep Awake for 4 Hours") { set(minutes: 240) }
+            Button("Keep Awake Until Turned Off") { set(minutes: nil) }
+            if state.manual {
+                Button("Turn Off") { Task { await model.turnOff() } }
+            }
+            Divider()
+            Button("Keep Awake Settings…", action: settings)
+        } label: {
+            HStack(spacing: theme.spacing.xs) {
+                Image(systemName: state.on ? "cup.and.saucer.fill" : "cup.and.saucer")
+                    .foregroundStyle(state.on ? theme.text2 : theme.faint)
+                if state.on, !state.text.isEmpty {
+                    Text(state.text)
+                        .foregroundStyle(theme.muted)
+                        .truncationMode(.tail)
+                }
+            }
+            .font(theme.uiSmall)
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize(horizontal: false, vertical: true)
+        .help(help(state))
+        .accessibilityLabel(state.on ? state.text : "Keep awake")
+        .testMenu("awake", items(state))
+    }
+
+    private func set(minutes: Int?) {
+        Task { await model.keepAwake(minutes: minutes) }
+    }
+
+    private func help(_ state: KeepAwake) -> String {
+        [state.detail, model.error].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
+    }
+
+    private func items(_ state: KeepAwake) -> [LayoutMenuItem] {
+        ["Keep Awake for 1 Hour", "Keep Awake for 4 Hours", "Keep Awake Until Turned Off"].map { LayoutMenuItem(title: $0) }
+            + (state.manual ? [LayoutMenuItem(title: "Turn Off")] : [])
+            + [LayoutMenuItem(title: "Keep Awake Settings…")]
     }
 }
