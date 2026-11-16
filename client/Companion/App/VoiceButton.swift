@@ -143,6 +143,7 @@ struct SearchBar: ViewModifier {
     let text: Binding<String>
     let prompt: String
 
+    @Environment(CompanionModel.self) private var model
     @Environment(AppNavigation.self) private var navigation
     @State private var searching = false
 
@@ -154,11 +155,13 @@ struct SearchBar: ViewModifier {
                 .onAppear { navigation.searching = searching }
                 .onDisappear { navigation.searching = false }
                 .toolbar {
-                    ToolbarItem(placement: .bottomBar) {
-                        ComposerMic()
-                            .voiceDock()
+                    if navigation.voiceTarget(model) != nil {
+                        ToolbarItem(placement: .bottomBar) {
+                            ComposerMic()
+                                .voiceDock()
+                        }
+                        .sharedBackgroundVisibility(.hidden)
                     }
-                    .sharedBackgroundVisibility(.hidden)
                     DefaultToolbarItem(kind: .search, placement: .bottomBar)
                 }
         } else {

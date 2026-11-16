@@ -484,6 +484,14 @@ final class CompanionUITests: XCTestCase {
         }
     }
 
+    func testSearchTakesTheWholeBottomBarWhenVoiceIsOff() {
+        let app = launch(open: "agents", ["-voiceOff", "YES"])
+        let search = app.searchFields["Search sessions"]
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Talk to Clubmate"].exists)
+        XCTAssertLessThan(search.frame.minX, 40)
+    }
+
     func testHandOffAFailedSessionOpensTheNewOne() {
         let app = launch(open: "agents/agt_0000000000000005", ["-failureAction", "continue"])
         let handoff = app.buttons["Hand off to a new session"]
