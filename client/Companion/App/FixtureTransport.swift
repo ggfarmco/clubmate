@@ -184,6 +184,9 @@ actor FixtureServer {
                 Self.questionEntry(),
             ])]
         }
+        if UserDefaults.standard.bool(forKey: "longTranscript") {
+            transcripts["agt_0000000000000004"] = ["entries": .array(Self.longTranscript)]
+        }
         if UserDefaults.standard.bool(forKey: "openFixture"), let template = sessions.first {
             for (id, title, ago, report, items) in Self.openSessions {
                 var record = Self.session(template, id: id, title: title, status: "done", ago: ago)
@@ -1081,6 +1084,16 @@ actor FixtureServer {
         if !images.isEmpty { fields["images"] = .array(images) }
         if !imageLinks.isEmpty { fields["imageLinks"] = .object(imageLinks.mapValues(JSONValue.string)) }
         return .object(fields)
+    }
+
+    private static var longTranscript: [JSONValue] {
+        (1...60).flatMap { turn -> [JSONValue] in
+            let lines = (1...(turn % 7 == 0 ? 60 : turn % 3 * 6 + 1)).map { "- step \(turn).\($0): reserve.go keeps the hold until the expiry job releases it" }
+            return [
+                entry("user", "long-prompt-\(turn)", text: "Turn \(turn): go on"),
+                entry("agent", "long-reply-\(turn)", text: "Reply \(turn)\n\n" + lines.joined(separator: "\n")),
+            ]
+        } + [entry("agent", "long-last", text: "Last reply of the long session")]
     }
 
     private static func imageRef(_ path: String, width: Int? = nil, height: Int? = nil) -> JSONValue {

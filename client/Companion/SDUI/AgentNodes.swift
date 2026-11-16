@@ -56,7 +56,7 @@ struct TranscriptNode: View {
     }
 
     private var column: some View {
-        LazyVStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 14) {
             ForEach(parts) { part in
                 switch part {
                 case .node(let child): SDUINodeView(node: child.node, context: context)

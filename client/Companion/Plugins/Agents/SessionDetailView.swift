@@ -46,7 +46,7 @@ struct SessionDetailView: View {
         default: false
         }
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 10) {
                 if let parent = session?.parentSession.flatMap(store.session) {
                     StartedByCard(parent: parent) { context.navigation.detail = parent.id }
                 }

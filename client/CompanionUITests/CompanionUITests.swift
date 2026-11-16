@@ -649,6 +649,21 @@ final class CompanionUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'No longer pending'")).firstMatch.exists)
     }
 
+    func testALongTranscriptOpensAtItsLastReply() {
+        let app = launch(open: "agents", ["-longTranscript", "YES"])
+        let row = app.staticTexts["Add stock reservation expiry"]
+        let last = app.staticTexts["Last reply of the long session"]
+        let window = app.windows.firstMatch
+        for round in 0..<3 {
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
+            row.tap()
+            let shown = poll { last.exists && window.frame.contains(last.frame) }
+            add(screenshot(app, "long-\(round)"))
+            XCTAssertTrue(shown)
+            app.navigationBars.buttons.firstMatch.tap()
+        }
+    }
+
     func testOpenCardSendsItsPicksAndKeepsTheRestOpen() {
         let app = launch(open: "agents/agt_0000000000000021", ["-openFixture", "YES"])
         let card = app.otherElements["open-card"]
@@ -818,6 +833,15 @@ final class CompanionUITests: XCTestCase {
         let context = CGContext(data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         context?.draw(image, in: CGRect(x: -point.x * scale, y: point.y * scale + 1 - CGFloat(image.height), width: CGFloat(image.width), height: CGFloat(image.height)))
         return CGFloat(Int(pixel[0]) + Int(pixel[1]) + Int(pixel[2])) / (3 * 255)
+    }
+
+    private func poll(_ condition: () -> Bool) -> Bool {
+        let deadline = Date.now.addingTimeInterval(5)
+        while Date.now < deadline {
+            if condition() { return true }
+            RunLoop.current.run(until: .now.addingTimeInterval(0.2))
+        }
+        return condition()
     }
 
     private func wait(for element: XCUIElement, _ predicate: String) -> Bool {
