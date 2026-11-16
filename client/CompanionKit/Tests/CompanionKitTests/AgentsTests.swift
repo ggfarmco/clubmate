@@ -325,6 +325,18 @@ final class TranscriptImageTests: XCTestCase {
         XCTAssertEqual(store.image("/w/1.png", entry: "e", in: "s"), .loaded(Data("png".utf8)))
         XCTAssertEqual(store.image("/w/\(AgentsStore.imageLimit).png", entry: "e", in: "s"), .loaded(Data("png".utf8)))
     }
+
+    func testAnImageOnScreenIsNeverEvicted() async {
+        let runner = ImageRunner()
+        runner.data = Data("png".utf8).base64EncodedString()
+        let store = AgentsStore(workspace: "w", runner: runner)
+        store.showImage("/w/0.png", entry: "e", in: "s", shown: true)
+        for index in 0...AgentsStore.imageLimit {
+            await store.loadImage("/w/\(index).png", entry: "e", in: "s")
+        }
+        XCTAssertEqual(store.image("/w/0.png", entry: "e", in: "s"), .loaded(Data("png".utf8)))
+        XCTAssertNil(store.image("/w/1.png", entry: "e", in: "s"))
+    }
 }
 
 @MainActor

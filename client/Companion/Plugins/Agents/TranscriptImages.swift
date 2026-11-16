@@ -51,6 +51,14 @@ private struct LoadedImage {
     func load() async {
         await store.loadImage(ref.path, entry: entry, in: session)
     }
+
+    @MainActor
+    func show(_ shown: Bool) {
+        store.showImage(ref.path, entry: entry, in: session, shown: shown)
+        if shown, state == nil || state == .missing {
+            Task { await load() }
+        }
+    }
 }
 
 struct ImageTiles: View {
@@ -103,7 +111,7 @@ private struct ImageTile: View {
         .buttonStyle(ImageTilePressStyle())
         .accessibilityLabel(image.ref.name)
         .accessibilityHint("Opens the image")
-        .task(id: image.key) { await image.load() }
+        .onScrollVisibilityChange(threshold: 0.01) { image.show($0) }
     }
 
     @ViewBuilder

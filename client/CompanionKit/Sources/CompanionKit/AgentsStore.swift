@@ -63,6 +63,7 @@ public final class AgentsStore {
 
     @ObservationIgnored private weak var runner: (any CommandRunner)?
     @ObservationIgnored private var imageOrder: [String] = []
+    @ObservationIgnored private var shownImages: Set<String> = []
     @ObservationIgnored public let queue: ActionQueue?
     @ObservationIgnored private let computer: String
     @ObservationIgnored private let cache: ListCache
@@ -195,6 +196,11 @@ public final class AgentsStore {
         images[session + "|" + entry + "|" + path]
     }
 
+    public func showImage(_ path: String, entry: String, in session: String, shown: Bool) {
+        let key = session + "|" + entry + "|" + path
+        if shown { shownImages.insert(key) } else { shownImages.remove(key) }
+    }
+
     public func loadImage(_ path: String, entry: String, in session: String) async {
         let key = session + "|" + entry + "|" + path
         switch images[key] {
@@ -224,8 +230,8 @@ public final class AgentsStore {
             guard case .loaded(let data) = images[key] else { return total }
             return total + data.count
         }
-        while imageOrder.count > 1, imageOrder.count > Self.imageLimit || bytes > Self.imageBytes {
-            let oldest = imageOrder.removeFirst()
+        while imageOrder.count > Self.imageLimit || bytes > Self.imageBytes, let index = imageOrder.dropLast().firstIndex(where: { !shownImages.contains($0) }) {
+            let oldest = imageOrder.remove(at: index)
             if case .loaded(let data) = images[oldest] { bytes -= data.count }
             images[oldest] = nil
         }
@@ -235,6 +241,7 @@ public final class AgentsStore {
         let prefix = session + "|"
         images = images.filter { !$0.key.hasPrefix(prefix) }
         imageOrder.removeAll { $0.hasPrefix(prefix) }
+        shownImages = shownImages.filter { !$0.hasPrefix(prefix) }
         guard self.session(session)?.needsYou != true else { return }
         transcripts[session] = nil
         transcriptErrors[session] = nil

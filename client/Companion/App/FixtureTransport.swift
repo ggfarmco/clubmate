@@ -187,6 +187,12 @@ actor FixtureServer {
         if UserDefaults.standard.bool(forKey: "longTranscript") {
             transcripts["agt_0000000000000004"] = ["entries": .array(Self.longTranscript)]
         }
+        if UserDefaults.standard.bool(forKey: "manyImages") {
+            transcripts["agt_0000000000000004"] = ["entries": .array((1...60).map { shot in
+                let path = "/Users/me/src/shop/build/shots/shot-\(shot).png"
+                return Self.entry("agent", "shot-\(shot)", text: "Shot \(shot)", images: [Self.imageRef(path, width: 400, height: 300)])
+            })]
+        }
         if UserDefaults.standard.bool(forKey: "openFixture"), let template = sessions.first {
             for (id, title, ago, report, items) in Self.openSessions {
                 var record = Self.session(template, id: id, title: title, status: "done", ago: ago)
@@ -1111,6 +1117,8 @@ actor FixtureServer {
             return funnel(CGSize(width: 1200, height: 750), bars: [1.0, 0.72, 0.51, 0.38])
         case "checkout.png":
             return funnel(CGSize(width: 780, height: 1688), bars: [0.9, 0.6, 0.3])
+        case let name where name.hasPrefix("shot-"):
+            return funnel(CGSize(width: 400, height: 300), bars: [])
         default:
             return nil
         }

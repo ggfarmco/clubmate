@@ -659,8 +659,19 @@ final class CompanionUITests: XCTestCase {
             row.tap()
             let shown = poll { last.exists && window.frame.contains(last.frame) }
             add(screenshot(app, "long-\(round)"))
-            XCTAssertTrue(shown)
+            XCTAssertTrue(shown, "round \(round) opened away from the last reply")
             app.navigationBars.buttons.firstMatch.tap()
+        }
+    }
+
+    func testEveryImageOfALongTranscriptLoadsWhenScrolledTo() {
+        XCUIDevice.shared.appearance = .light
+        let app = launch(open: "agents/agt_0000000000000004", ["-manyImages", "YES"])
+        XCTAssertTrue(app.buttons["shot-60.png"].waitForExistence(timeout: 10))
+        for shot in [60, 55, 1, 60] {
+            let tile = app.buttons["shot-\(shot).png"]
+            bringIntoView(tile, in: app)
+            XCTAssertTrue(poll { self.showsImage(tile, in: app) }, "shot-\(shot) kept its spinner")
         }
     }
 
@@ -833,6 +844,30 @@ final class CompanionUITests: XCTestCase {
         let context = CGContext(data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         context?.draw(image, in: CGRect(x: -point.x * scale, y: point.y * scale + 1 - CGFloat(image.height), width: CGFloat(image.width), height: CGFloat(image.height)))
         return CGFloat(Int(pixel[0]) + Int(pixel[1]) + Int(pixel[2])) / (3 * 255)
+    }
+
+    private func band(_ app: XCUIApplication) -> CGRect {
+        let window = app.windows.firstMatch.frame
+        return CGRect(x: window.minX, y: window.minY + 200, width: window.width, height: window.height - 350)
+    }
+
+    private func bringIntoView(_ element: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<60 {
+            let band = band(app)
+            let frame = element.frame
+            if band.contains(frame) { return }
+            let far = abs(frame.midY - band.midY) > 2_000
+            if frame.midY < band.midY {
+                app.swipeDown(velocity: far ? .fast : .slow)
+            } else {
+                app.swipeUp(velocity: far ? .fast : .slow)
+            }
+        }
+    }
+
+    private func showsImage(_ tile: XCUIElement, in app: XCUIApplication) -> Bool {
+        let frame = tile.frame
+        return band(app).contains(frame) && brightness(at: CGPoint(x: frame.minX + 12, y: frame.minY + 12), in: app.screenshot()) < 0.4
     }
 
     private func poll(_ condition: () -> Bool) -> Bool {
