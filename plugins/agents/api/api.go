@@ -15,6 +15,7 @@ const (
 	ChangeDeleted  = "deleted"
 	ChangeResolved = "resolved"
 	ChangeReview   = "review"
+	ChangeUsage    = "usage"
 
 	RequestPermission  = "permission"
 	RequestElicitation = "elicitation"

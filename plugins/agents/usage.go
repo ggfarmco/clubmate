@@ -3,11 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"maps"
 	"math"
 	"os"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -24,6 +28,9 @@ const (
 	windowFiveHour   = "five_hour"
 	windowSevenDay   = "seven_day"
 
+	limitWarning  = "allowed_warning"
+	limitRejected = "rejected"
+
 	contextWarnPercent = 80
 	costMarkTTL        = 8 * 24 * time.Hour
 )
@@ -38,9 +45,32 @@ type usageWindow struct {
 	Status   string `json:"status,omitempty"`
 }
 
+type usageAlert struct {
+	Window   string `json:"window"`
+	Status   string `json:"status"`
+	Used     int    `json:"used"`
+	ResetsAt int64  `json:"resetsAt"`
+}
+
 type usageState struct {
+	Account   string                 `json:"account,omitempty"`
 	Windows   map[string]usageWindow `json:"windows"`
+	Alert     *usageAlert            `json:"alert,omitempty"`
 	UpdatedAt int64                  `json:"updatedAt,omitempty"`
+}
+
+type claudeConfig struct {
+	OAuthAccount struct {
+		AccountUUID      string `json:"accountUuid"`
+		OrganizationUUID string `json:"organizationUuid"`
+	} `json:"oauthAccount"`
+}
+
+type accountCache struct {
+	path string
+	mod  time.Time
+	size int64
+	id   string
 }
 
 type rateLimitWindow struct {
@@ -86,11 +116,14 @@ type usageReport struct {
 }
 
 type usageTracker struct {
-	host  *pluginsdk.Host
-	mu    sync.Mutex
-	pubMu sync.Mutex
-	state usageState
-	share shareState
+	host    *pluginsdk.Host
+	mu      sync.Mutex
+	pubMu   sync.Mutex
+	state   usageState
+	share   shareState
+	shown   map[string]string
+	account accountCache
+	onShare func(sessions []string)
 }
 
 func (u *usageTracker) load(ctx context.Context, h *pluginsdk.Host) error {
@@ -113,6 +146,7 @@ func (u *usageTracker) load(ctx context.Context, h *pluginsdk.Host) error {
 	if shareFound {
 		u.share = share
 	}
+	u.shown = u.share.keys(time.Now())
 	return nil
 }
 
@@ -120,11 +154,56 @@ func (u *usageTracker) snapshot() usageState {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	out := u.state
-	out.Windows = maps.Clone(out.Windows)
-	if out.Windows == nil {
-		out.Windows = map[string]usageWindow{}
+	now := time.Now().Unix()
+	out.Windows = map[string]usageWindow{}
+	for name, w := range u.state.Windows {
+		if w.ResetsAt > now {
+			out.Windows[name] = w
+		}
 	}
+	out.Alert = alertOf(out.Windows)
 	return out
+}
+
+func alertOf(windows map[string]usageWindow) *usageAlert {
+	for _, status := range []string{limitRejected, limitWarning} {
+		for _, name := range usageWindows {
+			if w, ok := windows[name]; ok && w.Status == status {
+				return &usageAlert{Window: name, Status: status, Used: w.Used, ResetsAt: w.ResetsAt}
+			}
+		}
+	}
+	return nil
+}
+
+func (u *usageTracker) accountLocked() string {
+	path := filepath.Join(os.Getenv("CLAUDE_CONFIG_DIR"), ".claude.json")
+	if os.Getenv("CLAUDE_CONFIG_DIR") == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		path = filepath.Join(home, ".claude.json")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	if c := u.account; c.path == path && c.mod.Equal(info.ModTime()) && c.size == info.Size() {
+		return c.id
+	}
+	u.account = accountCache{path: path, mod: info.ModTime(), size: info.Size()}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	var cfg claudeConfig
+	if json.Unmarshal(raw, &cfg) != nil || cfg.OAuthAccount.AccountUUID == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(cfg.OAuthAccount.AccountUUID + ":" + cfg.OAuthAccount.OrganizationUUID))
+	u.account.id = hex.EncodeToString(sum[:8])
+	return u.account.id
 }
 
 func (u *usageTracker) observe(agentSession, session string, update json.RawMessage) {
@@ -151,6 +230,13 @@ func (u *usageTracker) observe(agentSession, session string, update json.RawMess
 	now := time.Now()
 	u.mu.Lock()
 	if len(windows) > 0 {
+		if account := u.accountLocked(); account != "" && account != u.state.Account {
+			if u.state.Account != "" {
+				u.state.Windows = nil
+				u.share.Windows = nil
+			}
+			u.state.Account = account
+		}
 		if u.state.Windows == nil {
 			u.state.Windows = map[string]usageWindow{}
 		}
@@ -163,11 +249,33 @@ func (u *usageTracker) observe(agentSession, session string, update json.RawMess
 	if spent {
 		u.share.spend(agentSession, session, up.Cost.Amount, now)
 	}
-	host := u.host
+	changed := u.shareChangesLocked(now)
+	host, onShare := u.host, u.onShare
 	u.mu.Unlock()
 	if host != nil {
 		go u.publish(host, len(windows) > 0)
 	}
+	if onShare != nil && len(changed) > 0 {
+		onShare(changed)
+	}
+}
+
+func (u *usageTracker) shareChangesLocked(now time.Time) []string {
+	cur := u.share.keys(now)
+	var out []string
+	for id, key := range cur {
+		if u.shown[id] != key {
+			out = append(out, id)
+		}
+	}
+	for id := range u.shown {
+		if _, ok := cur[id]; !ok {
+			out = append(out, id)
+		}
+	}
+	u.shown = cur
+	slices.Sort(out)
+	return out
 }
 
 func (u *usageTracker) publish(h *pluginsdk.Host, rated bool) {
@@ -241,9 +349,21 @@ func (s *shareState) spend(agentSession, session string, amount float64, now tim
 func (s *shareState) of(session string, now time.Time) map[string]float64 {
 	out := map[string]float64{}
 	for name, w := range s.Windows {
-		if spent := w.Sessions[session]; spent > 0 && w.Total > 0 && now.Unix() < w.ResetsAt {
-			out[name] = (w.Last - w.Base) * 100 * spent / w.Total
+		if spent := w.Sessions[session]; spent > 0 && w.Total > 0 && w.Last > w.Base && now.Unix() < w.ResetsAt {
+			out[name] = math.Round((w.Last-w.Base)*1000*spent/w.Total) / 10
 		}
+	}
+	return out
+}
+
+func (s *shareState) keys(now time.Time) map[string]string {
+	out := map[string]string{}
+	for id, share := range s.all(now) {
+		key := ""
+		for _, name := range usageWindows {
+			key += name + "=" + shareAmount(share[name]) + ";"
+		}
+		out[id] = key
 	}
 	return out
 }
@@ -279,6 +399,14 @@ func percent(fraction float64) int {
 	return int(math.Round(max(fraction, 0) * 100))
 }
 
+func (a *app) sharesChanged(ids []string) {
+	for _, id := range ids {
+		if s := a.session(id); s != nil {
+			s.changed(changeUsage, false)
+		}
+	}
+}
+
 func (a *app) usageCommand(context.Context, pluginsdk.CommandRun) (any, error) {
 	state := a.usage.snapshot()
 	a.usage.mu.Lock()
@@ -290,17 +418,28 @@ func (a *app) usageCommand(context.Context, pluginsdk.CommandRun) (any, error) {
 func shareParts(share map[string]float64) []string {
 	var out []string
 	for _, name := range usageWindows {
-		v, ok := share[name]
-		if !ok {
-			continue
+		if v, ok := share[name]; ok && v > 0 {
+			out = append(out, shareAmount(v)+" of "+shareLabels[name])
 		}
-		amount := "<1%"
-		if v >= 0.5 {
-			amount = "≈" + strconv.Itoa(int(math.Round(v))) + "%"
-		}
-		out = append(out, amount+" of "+shareLabels[name])
 	}
 	return out
+}
+
+func shareAmount(v float64) string {
+	switch {
+	case v <= 0:
+		return ""
+	case v < 0.5:
+		return "<1%"
+	}
+	return "≈" + strconv.Itoa(int(math.Round(v))) + "%"
+}
+
+func shareLabel(share map[string]float64) string {
+	if v := share[windowFiveHour]; v >= 0.5 {
+		return shareAmount(v) + " of " + shareLabels[windowFiveHour]
+	}
+	return ""
 }
 
 func usageParts(u *acp.UsageUpdate) (string, bool) {

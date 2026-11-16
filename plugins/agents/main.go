@@ -126,6 +126,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err := h.Call(ctx, "ui.sections", nil, &sections); err != nil {
 		return err
 	}
+	a.usage.onShare = a.sharesChanged
 	if err := a.usage.load(ctx, h); err != nil {
 		return err
 	}
@@ -382,6 +383,9 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			info.ModeLabel = modeWord(rec.Mode, nil)
 		}
 		info.ReviewProgress = a.reviews.progress(rec.ID)
+		if share := a.usage.sessionShare(rec.ID); len(share) > 0 {
+			info.LimitShare, info.ShareLabel = share, shareLabel(share)
+		}
 		info.NeedsYou = needsYou(info.record)
 		info.Gate = a.gateState(info.record)
 		info.Service = rec.restricted()

@@ -22,6 +22,7 @@ const (
 	changeDeleted  = api.ChangeDeleted
 	changeResolved = api.ChangeResolved
 	changeReview   = api.ChangeReview
+	changeUsage    = api.ChangeUsage
 
 	notifyPermission = "permission"
 	notifyQuestion   = "question"

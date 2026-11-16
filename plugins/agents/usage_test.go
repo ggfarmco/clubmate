@@ -1,6 +1,9 @@
 package main_test
 
 import (
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -80,6 +83,22 @@ func TestSessionShareSplitsLimitGrowthByCostAndSurvivesRestart(t *testing.T) {
 	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
 		return strings.Contains(string(rawTree(t, n)), "≈6% of 5h · ≈3% of 7d")
 	})
+	testutil.WaitEvents(t, f.h.Bus, "agents.changed", func(events []bus.Event) bool {
+		return slices.ContainsFunc(events, func(e bus.Event) bool {
+			return strings.Contains(string(e.Payload), `"session":"`+first+`"`) && strings.Contains(string(e.Payload), `"kind":"usage"`)
+		})
+	})
+	var rows []struct {
+		ID         string             `json:"id"`
+		LimitShare map[string]float64 `json:"limitShare"`
+		ShareLabel string             `json:"shareLabel"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &rows))
+	labels := map[string]string{}
+	for _, r := range rows {
+		labels[r.ID] = r.ShareLabel
+	}
+	assert.Equal(t, map[string]string{first: "≈2% of 5h", second: "≈6% of 5h"}, labels)
 
 	f.restartPlugin(t, workspace)
 
@@ -91,4 +110,56 @@ func TestSessionShareSplitsLimitGrowthByCostAndSurvivesRestart(t *testing.T) {
 	assert.InDelta(t, 1, got.Sessions[first]["seven_day"], 0.001)
 	assert.InDelta(t, 6, got.Sessions[second]["five_hour"], 0.001)
 	assert.InDelta(t, 3, got.Sessions[second]["seven_day"], 0.001)
+}
+
+func TestUsageNamesTheAccountAndAlertsAndStartsOverOnAnotherAccount(t *testing.T) {
+	t.Parallel()
+	config := t.TempDir()
+	signIn := func(account string) {
+		raw := `{"oauthAccount":{"accountUuid":"` + account + `","organizationUuid":"org"}}`
+		require.NoError(t, os.WriteFile(filepath.Join(config, ".claude.json"), []byte(raw), 0o600))
+	}
+	rate := func(match string, windows map[string]any) map[string]any {
+		return map[string]any{"match": match, "update": map[string]any{"sessionUpdate": "usage_update", "used": 10, "size": 100, "_meta": map[string]any{"_claude/rateLimit": map[string]any{"status": "allowed", "unifiedWindows": windows}}}}
+	}
+	f := startEnv(t, []string{"CLAUDE_CONFIG_DIR=" + config}, map[string]any{"prompt": []map[string]any{
+		rate("first", map[string]any{
+			"five_hour": map[string]any{"utilization": 0.91, "resetsAt": 4102444800, "status": "allowed_warning"},
+			"seven_day": map[string]any{"utilization": 1.0, "resetsAt": 4102531200, "status": "rejected"},
+		}),
+		rate("second", map[string]any{
+			"five_hour": map[string]any{"utilization": 0.05, "resetsAt": 4102444800, "status": "allowed"},
+		}),
+	}})
+	type usage struct {
+		Account string                    `json:"account"`
+		Windows map[string]map[string]any `json:"windows"`
+		Alert   *struct {
+			Window string `json:"window"`
+			Status string `json:"status"`
+			Used   int    `json:"used"`
+		} `json:"alert"`
+	}
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+
+	signIn("alice")
+	f.prompt(t, workspace, session, "first")
+	f.waitStatus(t, workspace, session, "done")
+	var before usage
+	require.NoError(t, f.run(t, "", "agents.usage", nil, &before))
+	assert.NotEmpty(t, before.Account)
+	require.NotNil(t, before.Alert)
+	assert.Equal(t, "seven_day", before.Alert.Window)
+	assert.Equal(t, "rejected", before.Alert.Status)
+	assert.Equal(t, 100, before.Alert.Used)
+
+	signIn("bob")
+	f.prompt(t, workspace, session, "second")
+	f.waitStatus(t, workspace, session, "done")
+	var after usage
+	require.NoError(t, f.run(t, "", "agents.usage", nil, &after))
+	assert.NotEqual(t, before.Account, after.Account)
+	assert.NotContains(t, after.Windows, "seven_day")
+	assert.Nil(t, after.Alert)
 }
