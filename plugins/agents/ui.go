@@ -504,6 +504,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 	if s.claimChangesCheck() {
 		go a.refreshChanges(s)
 	}
+	sending := s.sendingEntry()
 	v := s.view(0)
 	v.Session.AsksParent = a.asksParent(s, v.Session)
 	v.Session = a.reminders.present(v.Session)
@@ -548,6 +549,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 		RestoreNote: st.restoreNote,
 		Attachments: slices.Clone(st.attachments),
 		Queue:       queue,
+		Sending:     sending,
 		Composer:    sid + "/composer/" + strconv.Itoa(st.gen),
 		Steers:      a.steers[v.Session.Agent],
 		NeedsAuth:   needsAuth,

@@ -12,15 +12,20 @@ struct TranscriptNodeView: View {
     @State private var watchUntil = ContinuousClock.now + .seconds(3)
     @Environment(\.theme) private var theme
     @Environment(\.sduiDispatch) private var dispatch
+    @Environment(\.composerDrafts) private var drafts
 
     var body: some View {
         let slack = theme.rowHeight
         let items = node.transcriptItems()
         let fullDiff = node.fullDiffCard
+        let echoes = drafts?.echoes.echoes(session: ComposerDrafts.session(of: node.id ?? "")) ?? []
         ScrollView {
             VStack(alignment: .leading, spacing: theme.gutter + theme.spacing.s) {
                 ForEach(items) { item in
                     TranscriptItemView(item: item).equatable()
+                }
+                ForEach(echoes) { echo in
+                    SDUINodeView(node: SDUINode(type: "message", id: echo.id, props: ["role": .string("user"), "text": .string(echo.text), "sending": .bool(true)])).equatable()
                 }
             }
             .padding(.horizontal, theme.gutter * 2)
@@ -47,6 +52,11 @@ struct TranscriptNodeView: View {
             if watching { transcriptLog.notice("children \(node.id ?? "", privacy: .public) items=\(items.count) pinned=\(pinned)") }
             if pinned { position.scrollTo(edge: .bottom) }
             ToolExpansion.shared.prune(node)
+        }
+        .onChange(of: echoes.count) { old, new in
+            guard new > old else { return }
+            pinned = true
+            position.scrollTo(edge: .bottom)
         }
         .onChange(of: ToolExpansion.shared.opened) { _, opened in
             guard let opened, let last = items.last, last.contains(opened) else { return }

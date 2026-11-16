@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"clubmate/pkg/docrender"
 	"clubmate/pkg/pluginsdk"
@@ -719,6 +720,7 @@ func (a *app) addAttachment(st *sessionUI, att attachment) {
 }
 
 func (a *app) send(ctx context.Context, workspaceID string, s *session, st *sessionUI, text string) error {
+	time.Sleep(a.takeHold)
 	a.uiMu.Lock()
 	pending := st.attachments
 	a.uiMu.Unlock()

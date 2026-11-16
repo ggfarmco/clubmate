@@ -223,6 +223,25 @@ func TestPromptCutByRestartBeforeSendIsSentOnce(t *testing.T) {
 	assert.Empty(t, f.promptsTo(t, agentID, cutOffText))
 }
 
+func TestPromptShowsAsSendingUntilItIsSent(t *testing.T) {
+	t.Parallel()
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_SEND_HOLD=4s"}, map[string]any{})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.doneSession(t, workspace)
+	msg := session + "/msg/user/prompt-2"
+
+	f.h.Event(t, workspace, "agents.main", session+"/composer/0", "send", map[string]any{"text": "second"})
+
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
+		m := nodesWithID(n, msg)
+		return len(m) == 1 && m[0].Props["sending"] == true && m[0].Props["text"] == "second"
+	})
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
+		m := nodesWithID(n, msg)
+		return len(m) == 1 && m[0].Props["sending"] == nil && m[0].Props["text"] == "second"
+	})
+}
+
 func TestLongQueuedTextSurvivesRestart(t *testing.T) {
 	t.Parallel()
 	f := start(t, longTurn)

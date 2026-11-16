@@ -67,3 +67,36 @@ func TestComposerTakesImagesDroppedOrPasted(t *testing.T) {
 		return slices.Equal(in.chips(composer), []string{"image Screenshot 2026-11-16 at 17.14.03.png", "image Pasted image.png"})
 	})
 }
+
+func TestSentMessageShowsDimmedUntilTheAgentHasIt(t *testing.T) {
+	in := startWith(t, "macui-composer-sending", "", []string{"CLUBMATE_AGENTS_TAKE_HOLD=4s", "CLUBMATE_AGENTS_SEND_HOLD=4s"})
+	in.focusSection("agents", "agents.sidebar")
+	session := in.idleSession("Hello")
+	echo := session + "/echo/"
+	sent := session + "/msg/user/prompt-2"
+	in.pointer("click", session+"/composer/0")
+	in.focusIn(session)
+	in.key("h", "i")
+
+	in.key("return")
+
+	drawn := func(want func(w *window) bool) func() bool {
+		return func() bool {
+			w := in.snapshot().main()
+			require.False(t, w.hasPrefix(echo) && w.has(sent), "the echo and the plugin's message are never both drawn")
+			return want(w)
+		}
+	}
+	in.eventually("the echo is drawn before the plugin takes the message", drawn(func(w *window) bool {
+		return w.hasPrefix(echo) && w.has(session+"/composer/0")
+	}))
+	assert.Equal(t, []string{"menu Undo (disabled, not sent)"}, in.key("cmd+z"), "the cleared composer has nothing to undo")
+	in.eventually("the plugin draws it as sending above the next composer", drawn(func(w *window) bool {
+		n := in.sdui(sent)
+		return n != nil && n.Props["sending"] == true && w.has(sent) && w.has(session+"/composer/1")
+	}))
+	in.eventually("the message lands", drawn(func(w *window) bool {
+		n := in.sdui(sent)
+		return n != nil && n.Props["sending"] == nil && n.Props["text"] == "hi" && w.has(sent)
+	}))
+}

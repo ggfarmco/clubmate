@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"clubmate/plugins/agents/acp"
 )
 
 const (
@@ -130,6 +132,24 @@ func (s *session) recordSentLocked(p promptPayload) {
 		s.sending = nil
 	}
 	s.recordLocked(promptActor(p.From), kindPrompt, p)
+}
+
+func (s *session) sendingEntry() *entry {
+	s.mu.Lock()
+	if s.sending == nil {
+		s.mu.Unlock()
+		return nil
+	}
+	q, turn, root := *s.sending, s.turn, s.rec.Worktree
+	s.mu.Unlock()
+	atts := slices.Clone(q.Attachments)
+	for i := range atts {
+		atts[i].Data = ""
+	}
+	blocks := promptBlocks(promptArgs{Text: q.Text, Attachments: atts}, root, acp.PromptCapabilities{Image: true})
+	en := &entry{Kind: entryUser, ID: promptEntryID(turn), Turn: turn}
+	fillPrompt(en, promptPayload{PromptRequest: acp.PromptRequest{Prompt: blocks}, From: q.From, Voice: q.Voice, Review: q.Review})
+	return en
 }
 
 func (s *session) storedQueueLocked() []queuedPrompt {

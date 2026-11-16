@@ -160,6 +160,9 @@ func transcript(sc screen) sdui.Node {
 		}
 		nodes = slices.Insert(nodes, 0, sdui.WithAction(sdui.Button(sid+"/earlier", label, "chevron.up"), actShowEarlier))
 	}
+	if n, ok := sendingNode(sc); ok {
+		nodes = append(nodes, n)
+	}
 	if card, ok := reposCard(sc); ok {
 		nodes = append(nodes, card)
 	}
@@ -168,6 +171,20 @@ func transcript(sc screen) sdui.Node {
 		n = sdui.WithAnchorRev(sdui.WithAnchor(n, sc.Anchor), sc.AnchorRev)
 	}
 	return n
+}
+
+func sendingNode(sc screen) (sdui.Node, bool) {
+	en := sc.Sending
+	if en == nil || slices.ContainsFunc(sc.View.Entries, func(e *entry) bool { return e.Kind == en.Kind && e.ID == en.ID }) {
+		return sdui.Node{}, false
+	}
+	n, ok := buildEntryNode(sc, en, "")
+	if !ok || n.Type != "message" {
+		return n, ok
+	}
+	n.Props = maps.Clone(n.Props)
+	n.Props["sending"] = true
+	return n, true
 }
 
 func openItemsLast(shown []*entry) []*entry {

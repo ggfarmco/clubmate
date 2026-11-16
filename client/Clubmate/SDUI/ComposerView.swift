@@ -94,6 +94,7 @@ struct ComposerNodeView: View {
         .onDisappear { drafts.focus(node.id ?? "", false) }
         .onChange(of: router?.pending, initial: true) { claim() }
         .onChange(of: node.id) { claim() }
+        .onChange(of: node.id, initial: true) { drafts.shown(node.id ?? "") }
         .onAppear {
             guard let session = ComposerFocus.afterSend, session == ComposerFocus.session(of: node.id), !disabled else { return }
             ComposerFocus.afterSend = nil
@@ -384,12 +385,14 @@ struct ComposerNodeView: View {
         let drafts = drafts
         let id = node.id ?? ""
         ComposerFocus.afterSend = session
+        let echo = drafts.send(id, text: text)
+        let undoManager = undoManager
+        undoManager?.removeAllActions()
         dispatch(node, .named("send", .object(["text": .string(text)]))) { sent in
-            if sent {
-                drafts.clear(id, sent: text)
-            } else if ComposerFocus.afterSend == session {
-                ComposerFocus.afterSend = nil
-            }
+            guard !sent else { return }
+            drafts.failed(echo, text: text, composer: id)
+            undoManager?.removeAllActions()
+            if ComposerFocus.afterSend == session { ComposerFocus.afterSend = nil }
         }
     }
 

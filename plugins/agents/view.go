@@ -66,6 +66,7 @@ type screen struct {
 	Repos        reposScreenData
 	Attachments  []pendingAttachment
 	Queue        []queuedPrompt
+	Sending      *entry
 	Composer     string
 	Steers       bool
 	NeedsAuth    bool

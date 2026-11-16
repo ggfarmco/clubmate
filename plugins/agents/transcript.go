@@ -504,7 +504,7 @@ func (s *session) applyPrompt(e envelope) {
 	}
 	s.turnInfo(e.Turn)
 	s.prompted = true
-	id := "prompt-" + strconv.Itoa(e.Turn)
+	id := promptEntryID(e.Turn)
 	if req.Steered {
 		s.nextID++
 		id += "-" + strconv.Itoa(s.nextID)
@@ -512,11 +512,22 @@ func (s *session) applyPrompt(e envelope) {
 		s.edited = false
 	}
 	en := s.upsert(entryUser, id, e.Turn)
-	en.Content = nil
-	en.From = req.From
 	if req.FromTitle != "" && !slices.Contains(s.senders, req.FromTitle) {
 		s.senders = append(s.senders, req.FromTitle)
 	}
+	fillPrompt(en, req)
+	if s.rec.Title == "" {
+		s.rec.Title = titleOf(en.Text)
+	}
+}
+
+func promptEntryID(turn int) string {
+	return "prompt-" + strconv.Itoa(turn)
+}
+
+func fillPrompt(en *entry, req promptPayload) {
+	en.Content = nil
+	en.From = req.From
 	for _, b := range req.Prompt {
 		raw, err := json.Marshal(b)
 		if err == nil {
@@ -530,9 +541,6 @@ func (s *session) applyPrompt(e envelope) {
 	en.Review = req.Review
 	if v := (voicePrompt{}); req.Voice && json.Unmarshal([]byte(en.Text), &v) == nil && v.Heard != "" {
 		en.Voice = &v
-	}
-	if s.rec.Title == "" {
-		s.rec.Title = titleOf(en.Text)
 	}
 }
 

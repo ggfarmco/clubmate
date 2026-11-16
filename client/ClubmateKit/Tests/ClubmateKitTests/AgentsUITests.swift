@@ -77,12 +77,41 @@ final class AgentsUITests: XCTestCase {
         drafts.model(for: "b/composer/0").text = "draft b"
         XCTAssertEqual(drafts.model(for: "a/composer/0").text, "draft a")
         XCTAssertEqual(drafts.model(for: "b/composer/0").text, "draft b")
-        drafts.clear("a/composer/0", sent: "draft a")
-        XCTAssertEqual(drafts.model(for: "a/composer/0").text, "")
-        XCTAssertEqual(drafts.model(for: "b/composer/0").text, "draft b")
-        drafts.model(for: "b/composer/0").text = "next prompt"
-        drafts.clear("b/composer/0", sent: "draft b")
-        XCTAssertEqual(drafts.model(for: "b/composer/0").text, "next prompt")
+    }
+
+    func testSentPromptEchoesUntilTheComposerAfterItShows() {
+        let drafts = ComposerDrafts()
+        drafts.shown("a/composer/3")
+        drafts.model(for: "a/composer/3").text = "first "
+        _ = drafts.send("a/composer/3", text: "first")
+        drafts.model(for: "a/composer/3").text = "second"
+        _ = drafts.send("a/composer/3", text: "second")
+        drafts.model(for: "a/composer/3").text = "typing"
+        XCTAssertEqual(drafts.echoes.echoes(session: "a").map(\.text), ["first", "second"])
+        XCTAssertEqual(drafts.echoes.echoes(session: "b"), [])
+
+        drafts.shown("a/composer/4")
+        XCTAssertEqual(drafts.echoes.echoes(session: "a").map(\.text), ["second"])
+        XCTAssertEqual(drafts.model(for: "a/composer/4").text, "typing")
+        XCTAssertEqual(drafts.model(for: "a/composer/3").text, "")
+
+        drafts.shown("a/composer/0")
+        XCTAssertEqual(drafts.echoes.echoes(session: "a"), [])
+    }
+
+    func testFailedSendPutsTheTextBackAndLaterEchoesWaitOneComposerLess() {
+        let drafts = ComposerDrafts()
+        drafts.shown("a/composer/0")
+        let first = drafts.send("a/composer/0", text: "first")
+        _ = drafts.send("a/composer/0", text: "second")
+        drafts.model(for: "a/composer/0").text = "typing"
+
+        drafts.failed(first, text: "first", composer: "a/composer/0")
+
+        XCTAssertEqual(drafts.model(for: "a/composer/0").text, "first\n\ntyping")
+        XCTAssertEqual(drafts.echoes.echoes(session: "a").map(\.text), ["second"])
+        drafts.shown("a/composer/1")
+        XCTAssertEqual(drafts.echoes.echoes(session: "a"), [])
     }
 
     func testUnsentFormAnswersSurviveLeavingUntilSent() {

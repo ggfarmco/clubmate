@@ -16,11 +16,16 @@ struct MessageNodeView: View, Equatable {
         let text = node.string("text") ?? ""
         switch node.messageRole {
         case .user:
-            if let heard = node.string("heard"), let id = node.id {
-                VoicePromptView(id: id, heard: heard, text: text)
-            } else {
-                userMessage(text)
+            Group {
+                if let heard = node.string("heard"), let id = node.id {
+                    VoicePromptView(id: id, heard: heard, text: text)
+                } else {
+                    userMessage(text)
+                }
             }
+            .opacity(sending ? 0.6 : 1)
+            .help(sending ? "Sending…" : "")
+            .accessibilityValue(sending ? "Sending" : "")
         case .thought:
             ThoughtView(text: text, seconds: node.props["seconds"]?.numberValue.map(Int.init))
         case .agent:
@@ -63,6 +68,10 @@ struct MessageNodeView: View, Equatable {
             .padding(.vertical, theme.gutter)
             .background(UnevenRoundedRectangle(topLeadingRadius: theme.radius.l, bottomLeadingRadius: theme.radius.l, bottomTrailingRadius: theme.radius.s, topTrailingRadius: theme.radius.l).fill(theme.surface1))
         }
+    }
+
+    private var sending: Bool {
+        node.bool("sending") == true
     }
 }
 

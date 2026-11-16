@@ -39,6 +39,7 @@ type app struct {
 	host      *pluginsdk.Host
 	stateDir  string
 	sendHold  time.Duration
+	takeHold  time.Duration
 	loaded    chan struct{}
 	quit      chan struct{}
 	notes     *notifier
@@ -124,6 +125,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	}
 	a.notes = newNotifier(h, a.stateDir)
 	a.sendHold = envDelay(sendHoldEnv, 0)
+	a.takeHold = envDelay(takeHoldEnv, 0)
 	a.groups = newGroups(a.stateDir)
 	a.groups.reap(orphanMarkers())
 	a.self = newSelfStore(a.stateDir)

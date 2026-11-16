@@ -23,6 +23,7 @@ const (
 	imageOmitted = "[An image was attached, but this agent does not accept images.]"
 	retryDelay   = 3 * time.Second
 	sendHoldEnv  = "CLUBMATE_AGENTS_SEND_HOLD"
+	takeHoldEnv  = "CLUBMATE_AGENTS_TAKE_HOLD"
 	retryNotice  = "The turn failed; retrying once"
 	retryFormat  = "[Clubmate] Your previous reply ended with an error (%s). Continue the task from where you stopped."
 	fromFormat   = "[From Clubmate agent session \"%s\" (%s), not from the user]\n\n"

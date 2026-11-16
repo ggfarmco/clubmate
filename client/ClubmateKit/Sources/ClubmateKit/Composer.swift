@@ -219,8 +219,81 @@ public final class ComposerDrafts {
         model(for: id).insert(text)
     }
 
-    public func clear(_ id: String, sent: String) {
-        guard let model = models[id], model.text.trimmingCharacters(in: .whitespacesAndNewlines) == sent else { return }
-        model.text = ""
+    public let echoes = ComposerEchoes()
+
+    public func send(_ id: String, text: String) -> String {
+        if let model = models[id], model.text.trimmingCharacters(in: .whitespacesAndNewlines) == text { model.text = "" }
+        return echoes.sent(text, composer: id)
+    }
+
+    public func failed(_ echo: String, text: String, composer id: String) {
+        echoes.failed(echo, composer: id)
+        let model = model(for: echoes.composer(of: Self.session(of: id)) ?? id)
+        model.text = model.text.isEmpty ? text : text + "\n\n" + model.text
+    }
+
+    public func shown(_ id: String) {
+        let old = echoes.composer(of: Self.session(of: id))
+        echoes.shown(composer: id)
+        guard let old, old != id, let left = models[old], !left.text.isEmpty else { return }
+        let model = model(for: id)
+        if model.text.isEmpty { model.text = left.text }
+        left.text = ""
+    }
+}
+
+@MainActor
+@Observable
+public final class ComposerEchoes {
+    public struct Echo: Identifiable, Equatable, Sendable {
+        public let id: String
+        public let text: String
+        fileprivate let base: Int
+        fileprivate var gen: Int
+    }
+
+    private var sessions: [String: [Echo]] = [:]
+    private var composers: [String: String] = [:]
+    private var counter = 0
+
+    public init() {}
+
+    public func echoes(session: String) -> [Echo] {
+        sessions[session] ?? []
+    }
+
+    func composer(of session: String) -> String? {
+        composers[session]
+    }
+
+    func sent(_ text: String, composer: String) -> String {
+        let session = ComposerDrafts.session(of: composer)
+        let list = sessions[session] ?? []
+        let base = Self.gen(of: composer)
+        counter += 1
+        let echo = Echo(id: "\(session)/echo/\(counter)", text: text, base: base, gen: max(base, list.last?.gen ?? base) + 1)
+        sessions[session] = list + [echo]
+        return echo.id
+    }
+
+    func failed(_ id: String, composer: String) {
+        let session = ComposerDrafts.session(of: composer)
+        guard var list = sessions[session], let i = list.firstIndex(where: { $0.id == id }) else { return }
+        list.remove(at: i)
+        for j in list.indices where j >= i { list[j].gen -= 1 }
+        sessions[session] = list.isEmpty ? nil : list
+    }
+
+    func shown(composer: String) {
+        let session = ComposerDrafts.session(of: composer)
+        composers[session] = composer
+        guard let list = sessions[session] else { return }
+        let gen = Self.gen(of: composer)
+        let kept = list.filter { gen < $0.gen && gen >= $0.base }
+        sessions[session] = kept.isEmpty ? nil : kept
+    }
+
+    private static func gen(of composer: String) -> Int {
+        composer.split(separator: "/").last.flatMap { Int($0) } ?? 0
     }
 }

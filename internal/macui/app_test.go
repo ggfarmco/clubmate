@@ -81,6 +81,11 @@ func appPath(t *testing.T) string {
 
 func start(t *testing.T, name, script string, args ...string) *instance {
 	t.Helper()
+	return startWith(t, name, script, nil, args...)
+}
+
+func startWith(t *testing.T, name, script string, extra []string, args ...string) *instance {
+	t.Helper()
 	app := appPath(t)
 	work := filepath.Join(root, "build", "mac-ui", name)
 	require.NoError(t, os.RemoveAll(work))
@@ -89,7 +94,7 @@ func start(t *testing.T, name, script string, args ...string) *instance {
 	for _, cmd := range [][]string{{"init", "-q", "-b", "main"}, {"-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init"}} {
 		require.NoError(t, exec.Command("git", append([]string{"-C", repo}, cmd...)...).Run())
 	}
-	env := []string{"CLUBMATE_AGENTS_COMMAND=" + filepath.Join(root, "build", "mac-ui", "fakeagent")}
+	env := append([]string{"CLUBMATE_AGENTS_COMMAND=" + filepath.Join(root, "build", "mac-ui", "fakeagent")}, extra...)
 	if script != "" {
 		path := filepath.Join(work, "script.json")
 		require.NoError(t, os.WriteFile(path, []byte(script), 0o600))
