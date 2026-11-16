@@ -87,6 +87,45 @@ func TestSnapshotReadsStorageOnceUntilAWrite(t *testing.T) {
 	assert.Equal(t, []any{2, "b"}, []any{kv.lists, tasks[0].Title})
 }
 
+func TestSinceReadsStorageOnceUntilAWrite(t *testing.T) {
+	kv := &countingKV{data: map[string][]byte{}}
+	s := &store{h: kv}
+	a, _, err := s.add(t.Context(), "ws", Task{Title: "a"})
+	require.NoError(t, err)
+	first, err := s.since(t.Context(), "ws", "")
+	require.NoError(t, err)
+	_, err = s.since(t.Context(), "ws", first.Cursor)
+	require.NoError(t, err)
+	assert.Equal(t, 1, kv.lists)
+
+	_, _, err = s.mutate(t.Context(), "ws", a.ID, "", func(t *Task) error {
+		t.Title = "b"
+		return nil
+	})
+	require.NoError(t, err)
+
+	got, err := s.since(t.Context(), "ws", first.Cursor)
+	require.NoError(t, err)
+	require.Len(t, got.Tasks, 1)
+	assert.Equal(t, []any{2, "b"}, []any{kv.lists, got.Tasks[0].Title})
+}
+
+func TestListSinceKeepsCachedOwners(t *testing.T) {
+	s := &store{h: &countingKV{data: map[string][]byte{}}}
+	b := &backlog{store: s}
+	_, _, err := s.add(t.Context(), "ws", Task{Title: "a", Description: "d"})
+	require.NoError(t, err)
+	_, err = s.snapshot(t.Context(), "ws")
+	require.NoError(t, err)
+	since := ""
+	_, err = b.listCmd(t.Context(), "ws", commandArgs{Since: &since, Slim: true})
+	require.NoError(t, err)
+
+	tasks, err := s.snapshot(t.Context(), "ws")
+	require.NoError(t, err)
+	assert.Equal(t, []any{1, "d"}, []any{len(tasks[0].Owners), tasks[0].Description})
+}
+
 func TestSyncLinksBumpsLinkedTask(t *testing.T) {
 	s := &store{h: &countingKV{data: map[string][]byte{}}}
 	b, _, err := s.add(t.Context(), "ws", Task{Title: "b"})

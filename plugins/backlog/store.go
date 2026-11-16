@@ -116,6 +116,10 @@ func (s *store) list(ctx context.Context, workspaceID string) ([]Task, error) {
 
 func (s *store) snapshot(ctx context.Context, workspaceID string) ([]Task, error) {
 	defer s.lock(workspaceID)()
+	return s.snapshotLocked(ctx, workspaceID)
+}
+
+func (s *store) snapshotLocked(ctx context.Context, workspaceID string) ([]Task, error) {
 	if tasks, ok := s.cached.Load(workspaceID); ok {
 		return tasks.([]Task), nil
 	}
@@ -220,10 +224,11 @@ func (s *store) remove(ctx context.Context, workspaceID string, id int) error {
 func (s *store) since(ctx context.Context, workspaceID, cursor string) (taskPage, error) {
 	defer s.lock(workspaceID)()
 	tr := s.tracker(ctx, workspaceID)
-	tasks, err := s.listLocked(ctx, workspaceID)
+	cached, err := s.snapshotLocked(ctx, workspaceID)
 	if err != nil {
 		return taskPage{}, err
 	}
+	tasks := slices.Clone(cached)
 	order := make([]int, 0, len(tasks))
 	for _, t := range tasks {
 		order = append(order, t.ID)
