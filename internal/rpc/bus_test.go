@@ -122,7 +122,7 @@ func TestRPCReentrantCallsDoNotDeadlock(t *testing.T) {
 			return len(workspaces), err
 		})))
 	t.Cleanup(func() { pluginConn.Close(); conn.Close() })
-	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), testutil.Timeout(3*time.Second))
 	defer cancel()
 	var n int
 	require.NoError(t, conn.Call(ctx, "plugin.ping", nil, &n))

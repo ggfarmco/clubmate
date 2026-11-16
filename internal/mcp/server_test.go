@@ -2,7 +2,6 @@ package mcp_test
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -350,23 +348,6 @@ func (c *eventCore) Dropped() int64 {
 	return c.dropped.Load()
 }
 
-type syncBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (b *syncBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Write(p)
-}
-
-func (b *syncBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.String()
-}
-
 func TestToolListRelistsOnlyOnPluginChanged(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		core := &eventCore{notes: make(chan rpc.Notification, 8)}
@@ -412,7 +393,7 @@ func TestFailedSubscribeIsLoggedOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		core := &eventCore{notes: make(chan rpc.Notification), subscribeErr: errors.New("bus gone")}
 		core.commands.Store(`[{"id":"alpha.one","title":"One","agent":true,"plugin":"alpha"}]`)
-		log := &syncBuffer{}
+		log := &testutil.SyncBuffer{}
 		startServer(t, &mcp.Server{Dial: func(context.Context) (mcp.Core, error) { return core, nil }, Version: "test", Log: log, Poll: time.Minute})
 		time.Sleep(time.Minute)
 		synctest.Wait()

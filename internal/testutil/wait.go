@@ -59,7 +59,7 @@ func WaitEvents(t *testing.T, b *bus.Bus, topic string, cond func([]bus.Event) b
 	t.Helper()
 	var got []bus.Event
 	reached := Poll(func() bool {
-		events, err := b.Read(t.Context(), topic, 0, eventReadLimit)
+		events, err := readAll(t, b, topic)
 		if err != nil {
 			return false
 		}
@@ -68,6 +68,22 @@ func WaitEvents(t *testing.T, b *bus.Bus, topic string, cond func([]bus.Event) b
 	}, eventWait)
 	require.True(t, reached, "bus topic %q never matched; last read %d events: %s", topic, len(got), eventSummary(got))
 	return got
+}
+
+func readAll(t *testing.T, b *bus.Bus, topic string) ([]bus.Event, error) {
+	var all []bus.Event
+	var after int64
+	for {
+		page, err := b.Read(t.Context(), topic, after, eventReadLimit)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, page...)
+		if len(page) < eventReadLimit {
+			return all, nil
+		}
+		after = page[len(page)-1].Seq
+	}
 }
 
 func eventSummary(events []bus.Event) string {

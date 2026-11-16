@@ -312,7 +312,7 @@ func TestOverlappingTimeoutsAndRepliesKeepPluginRunning(t *testing.T) {
 	testutil.Never(t, func() bool { return h.Sup.Statuses()[0].Restarts != 0 }, 200*time.Millisecond)
 }
 
-const lagManifest = `{"id":"stuck","name":"Lag","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"stuck.wait","title":"Wait","timeout":1}]},"echoResults":{"stuck.wait":{}},"echoDelays":{"stuck.wait":1500}}`
+const lagManifest = `{"id":"stuck","name":"Lag","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"stuck.wait","title":"Wait","timeout":2}]},"echoResults":{"stuck.wait":{}},"echoDelays":{"stuck.wait":3000}}`
 
 func TestLateRepliesKeepSlowPluginRunning(t *testing.T) {
 	h, run := startStuck(t, lagManifest)
@@ -376,7 +376,7 @@ func TestOneAgentRestartsSilentPlugin(t *testing.T) {
 }
 
 func TestOneAgentCannotRestartIdleSlowPlugin(t *testing.T) {
-	manifest := strings.Replace(lagManifest, `"stuck.wait":1500`, `"stuck.wait":3400`, 1)
+	manifest := `{"id":"stuck","name":"Lag","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"stuck.wait","title":"Wait","timeout":1}]},"echoResults":{"stuck.wait":{}},"echoDelays":{"stuck.wait":3400}}`
 	h, _ := startStuck(t, manifest, plugin.WithStuckSilence(3800*time.Millisecond))
 	wait := agentWaits(t, h)
 	pid := h.Sup.PIDs()[0]

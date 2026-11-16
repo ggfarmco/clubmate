@@ -45,7 +45,7 @@ type PluginHarness struct {
 	Control *plugin.Control
 	Dirs    paths.Dirs
 	client  *rpc.Client
-	logs    syncBuffer
+	logs    SyncBuffer
 }
 
 type noopHandler struct{}
@@ -150,7 +150,7 @@ func (h *PluginHarness) WaitSlotWithin(t *testing.T, workspaceID, slot string, t
 	t.Helper()
 	c := h.Client(t)
 	var found sdui.Node
-	require.Eventually(t, func() bool {
+	Eventually(t, func() bool {
 		var views []internalsdui.SlotView
 		if err := c.Call(t.Context(), "ui.get", map[string]string{"workspaceId": workspaceID}, &views); err != nil {
 			return false
@@ -165,7 +165,7 @@ func (h *PluginHarness) WaitSlotWithin(t *testing.T, workspaceID, slot string, t
 			}
 		}
 		return false
-	}, Timeout(timeout), pollEvery)
+	}, timeout)
 	return found
 }
 
@@ -186,10 +186,10 @@ func (h *PluginHarness) GetSession(t *testing.T, id string) session.Session {
 
 func (h *PluginHarness) WaitSessionGone(t *testing.T, id string) {
 	t.Helper()
-	require.Eventually(t, func() bool {
+	Eventually(t, func() bool {
 		_, err := h.Svc.GetSession(t.Context(), id)
 		return errors.Is(err, session.ErrNotFound)
-	}, Timeout(harnessWait), pollEvery)
+	}, harnessWait)
 }
 
 func (h *PluginHarness) reportFailure(t *testing.T) {
@@ -212,18 +212,18 @@ func tail(data []byte, n int) []byte {
 	return data[len(data)-n:]
 }
 
-type syncBuffer struct {
+type SyncBuffer struct {
 	mu  sync.Mutex
 	buf bytes.Buffer
 }
 
-func (b *syncBuffer) Write(p []byte) (int, error) {
+func (b *SyncBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.Write(p)
 }
 
-func (b *syncBuffer) String() string {
+func (b *SyncBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.String()
