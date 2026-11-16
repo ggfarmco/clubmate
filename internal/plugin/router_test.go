@@ -172,7 +172,8 @@ func TestCapabilityRouting(t *testing.T) {
 }
 
 func TestCommandTimeoutOutlivesRouteTimeout(t *testing.T) {
-	h := testutil.NewPluginHarness(t, testutil.EchoPluginDirAs(t, `{"id":"slow","name":"Slow","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"slow.wait","title":"Wait","timeout":8}]},"echoResults":{"slow.wait":{"ok":true}},"echoDelays":{"slow.wait":6000}}`))
+	plugin.SetRouteTimeout(t, time.Second)
+	h := testutil.NewPluginHarness(t, testutil.EchoPluginDirAs(t, `{"id":"slow","name":"Slow","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"slow.wait","title":"Wait","timeout":4}]},"echoResults":{"slow.wait":{"ok":true}},"echoDelays":{"slow.wait":2000}}`))
 	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	testutil.Eventually(t, func() bool { _, ok := h.Sup.Conn("slow"); return ok }, 5*time.Second)

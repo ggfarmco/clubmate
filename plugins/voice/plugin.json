@@ -13,7 +13,6 @@
         "title": "Start voice input",
         "hidden": true,
         "remote": true,
-        "timeout": 10,
         "description": "Start an utterance: args {pointer: {device: \"mac\"|\"phone\", section, selection: {session?, task?, file?, line?}}, lang?: \"ru\"|\"auto\", mode?: \"assistant\"|\"dictation\"} (default ru, assistant). dictation goes to no session: voice.end tidies the text with Claude Haiku and the utterance ends done with it as text. Returns {utterance}. Phase is loading while the recognizer loads its model (audio is kept), else listening. Fails with \"voice needs uv (https://docs.astral.sh/uv/)\" when uv is not installed."
       },
       {
@@ -21,7 +20,6 @@
         "title": "Send voice audio",
         "hidden": true,
         "remote": true,
-        "timeout": 10,
         "description": "Feed audio to an utterance: 16 kHz mono PCM s16le, base64, 320 ms chunks recommended, at most 64 KiB raw per call. Returns the partial text heard so far. After 60 s of audio the rest is dropped; the utterance still waits for voice.end. Fails with unknown utterance once it ended or was cancelled.",
         "args": {
           "properties": {

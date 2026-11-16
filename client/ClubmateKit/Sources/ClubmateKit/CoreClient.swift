@@ -141,7 +141,7 @@ public final class CoreClient {
     }
 
     public func uiEvent(_ event: UIEvent) async throws -> JSONValue {
-        try await connection.call("ui.event", CalledEvent(event: event, caller: pressCaller), timeout: .seconds(8))
+        try await connection.call("ui.event", CalledEvent(event: event, caller: pressCaller), timeout: .seconds(20))
     }
 
     public func pluginList() async throws -> [PluginStatus] {
@@ -178,7 +178,7 @@ public final class CoreClient {
     }
 
     public func commandRun(id: String, workspaceID: String, args: JSONValue = .null) async throws -> JSONValue {
-        try await connection.call("command.run", CommandRunParams(id: id, workspaceId: workspaceID, args: args, caller: pressCaller), timeout: .seconds(8))
+        try await connection.call("command.run", CommandRunParams(id: id, workspaceId: workspaceID, args: args, caller: pressCaller), timeout: .seconds(20))
     }
 
     public func collectDiagnostics(workspaceID: String?, appVersion: String, extra: [String: Data]) async throws -> DiagnosticsResult {

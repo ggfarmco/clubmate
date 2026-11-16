@@ -18,7 +18,7 @@ import (
 	"clubmate/pkg/pprofdump"
 )
 
-const routeTimeout = 5 * time.Second
+var routeTimeout = 15 * time.Second
 
 var (
 	ErrPluginUnavailable = rpc.ErrPluginUnavailable
