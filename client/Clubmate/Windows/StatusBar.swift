@@ -190,6 +190,8 @@ private struct KeepAwakeItem: View {
                 Button("Turn Off") { Task { await model.turnOff() } }
             }
             Divider()
+            Toggle("While Agents Work", isOn: Binding(get: { state.agents }, set: { on in Task { await model.whileAgentsWork(on) } }))
+            Divider()
             Button("Keep Awake Settings…", action: settings)
         } label: {
             HStack(spacing: theme.spacing.xs) {
@@ -224,6 +226,6 @@ private struct KeepAwakeItem: View {
     private func items(_ state: KeepAwake) -> [LayoutMenuItem] {
         ["Keep Awake for 1 Hour", "Keep Awake for 4 Hours", "Keep Awake Until Turned Off"].map { LayoutMenuItem(title: $0) }
             + (state.manual ? [LayoutMenuItem(title: "Turn Off")] : [])
-            + [LayoutMenuItem(title: "Keep Awake Settings…")]
+            + [LayoutMenuItem(title: "While Agents Work", checked: state.agents), LayoutMenuItem(title: "Keep Awake Settings…")]
     }
 }

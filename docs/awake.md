@@ -9,7 +9,7 @@ The Mac stays awake while at least one hold is on:
 | Kind | Who | Ends |
 |---|---|---|
 | `manual` | You: the status bar menu, Settings → Keep Awake, the phone, `cm command run awake.set`. | When you turn it off, or at its `until` (1 hour, 4 hours, or never). |
-| `agents` | The rule "while agents work" (Settings, on by default): any agent session in any workspace is `active` in `agents.sessions` (running or waiting for you, not a service session; the same sessions as the Mac status bar's "N agents"). | When no session is active. |
+| `agents` | The rule "while agents work" (off by default; turn it on with While Agents Work in the status bar menu, in Settings → Keep Awake or with `awake.settings-set`): any agent session in any workspace is `active` in `agents.sessions` (running or waiting for you, not a service session; the same sessions as the Mac status bar's "N agents"). | When no session is active. |
 | `agent` | An agent: `awake.hold` (MCP `awake_hold`), e.g. for a long build. | `awake.release`, its `minutes` (default 60, at most 720), the process `pid` it named exiting, or its session closing or being deleted. |
 
 The plugin re-reads `agents.sessions` of every workspace when it starts, when the agents plugin restarts (`agents.ready`) and on `agents.changed` for a workspace (that workspace only), and every minute while the rule is on, so a missed or out-of-order event is right again within a minute. Deadlines are checked against the wall clock every 5 seconds, so a timer that stalled across a sleep ends on the next check.
@@ -68,7 +68,7 @@ The palette has "Keep Mac awake" (`awake.on`: your hold, until turned off) and "
 
 ## Where it shows
 
-- **Mac:** the status bar shows `text` after the agent counts while `on` (a filled cup, `text` cut at the tail when the bar is narrow, `detail` as the tooltip); while off, only a faint outline cup, so the menu stays reachable. Clicking it opens a menu: Keep Awake for 1 Hour, for 4 Hours, Until Turned Off, Turn Off (only while `manual`), and Keep Awake Settings…, which opens Settings on the plugin's page. Nothing shows while the core is down or the plugin doesn't answer.
+- **Mac:** the status bar shows `text` after the agent counts while `on` (a filled cup, `text` cut at the tail when the bar is narrow, `detail` as the tooltip); while off, only a faint outline cup, so the menu stays reachable. Clicking it opens a menu: Keep Awake for 1 Hour, for 4 Hours, Until Turned Off, Turn Off (only while `manual`), While Agents Work (a checkmark: turns the `agents` rule on or off, `awake.settings-set`), and Keep Awake Settings…, which opens Settings on the plugin's page. Nothing shows while the core is down or the plugin doesn't answer.
 - **Phone:** Mac details (tap the Mac's name) opens with a Keep Awake group, shown only when the Mac offers `awake.state`: `text` while `on` (`detail` under the group), `detail` alone while off; Keep Awake… with for 1 hour, for 4 hours and until turned off, and Turn Off while `manual`. It follows `awake.changed` and shows only while the Mac is online, so a Mac that went to sleep never reads "Awake".
 
 ## Storage

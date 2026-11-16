@@ -174,13 +174,16 @@ func TestAgentsRuleHoldsOnPowerUnlessBatteryIsOn(t *testing.T) {
 	e := newEnv(t)
 	e.h.setSessions(agentSession{ID: "agt_a", Status: "running", Active: true}, agentSession{ID: "agt_b", Status: "waiting", Active: true}, agentSession{ID: "agt_c", Status: "done"})
 	e.agentsChanged(api.ChangeStatus, "agt_a", "running")
+	require.Nil(t, e.current())
+	_, err := e.run("awake.settings-set", map[string]any{"agents": true})
+	require.NoError(t, err)
 	require.NotNil(t, e.current())
 	assert.Equal(t, []string{assertSystem}, e.current().types)
 	v := e.a.state()
 	assert.Equal(t, "Awake · 2 agents", v.Text)
 	assert.Contains(t, v.Detail, "on power only")
 
-	_, err := e.run("awake.settings-set", map[string]any{"battery": true, "display": true})
+	_, err = e.run("awake.settings-set", map[string]any{"battery": true, "display": true})
 	require.NoError(t, err)
 	assert.Equal(t, []string{assertSystem, assertIdle, assertDisplay}, e.current().types)
 
@@ -191,6 +194,8 @@ func TestAgentsRuleHoldsOnPowerUnlessBatteryIsOn(t *testing.T) {
 
 func TestAgentsRuleRereadsSessionsWithoutEvents(t *testing.T) {
 	e := newEnv(t)
+	_, err := e.run("awake.settings-set", map[string]any{"agents": true})
+	require.NoError(t, err)
 	e.h.setSessions(agentSession{ID: "agt_a", Status: "running", Active: true})
 	e.agentsChanged(api.ChangeStatus, "agt_a", "running")
 	require.NotNil(t, e.current())
@@ -241,8 +246,8 @@ func TestRestartKeepsHoldsAndDropsExpiredOnes(t *testing.T) {
 	next.a.tick(t.Context())
 	v := next.a.state()
 	assert.True(t, v.On)
-	assert.Equal(t, "Awake +2", v.Text)
-	require.Len(t, v.Holds, 3)
+	assert.Equal(t, "Awake +1", v.Text)
+	require.Len(t, v.Holds, 2)
 	assert.Equal(t, "long", v.Holds[1].Label)
 }
 
@@ -252,7 +257,7 @@ func TestPluginAnswersStateAndRendersSettings(t *testing.T) {
 	var v stateView
 	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "awake.state", "args": map[string]any{}}, &v))
 	assert.False(t, v.On)
-	assert.True(t, v.Agents)
+	assert.False(t, v.Agents)
 	assert.Equal(t, "The Mac sleeps as usual.", v.Detail)
 	h.WaitSlot(t, "", settingsSlot, func(n sdui.Node) bool { return len(n.Children) > 0 })
 }

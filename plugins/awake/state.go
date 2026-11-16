@@ -24,7 +24,7 @@ type settings struct {
 	Display bool `json:"display"`
 }
 
-var defaultSettings = settings{Agents: true}
+var defaultSettings = settings{}
 
 type manualHold struct {
 	On    bool  `json:"on"`

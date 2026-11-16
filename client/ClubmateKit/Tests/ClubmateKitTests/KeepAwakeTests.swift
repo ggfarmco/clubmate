@@ -54,6 +54,19 @@ final class KeepAwakeTests: XCTestCase {
         XCTAssertEqual(model.state?.on, false)
     }
 
+    func testWhileAgentsWorkSetsTheRule() async {
+        let model = makeModel()
+        var on = state(on: false)
+        if case .object(var fields) = on { fields["agents"] = .bool(true); on = .object(fields) }
+        reply = .success(on)
+
+        await model.whileAgentsWork(true)
+
+        XCTAssertEqual(calls.map(\.id), ["awake.settings-set"])
+        XCTAssertEqual(calls.map(\.args), [.object(["agents": .bool(true)])])
+        XCTAssertEqual(model.state?.agents, true)
+    }
+
     func testBusPayloadUpdatesWithoutACall() {
         let model = makeModel()
 

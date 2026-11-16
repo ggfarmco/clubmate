@@ -6,12 +6,14 @@ public struct KeepAwake: Sendable, Equatable {
     public let text: String
     public let detail: String
     public let manual: Bool
+    public let agents: Bool
 
-    public init(on: Bool, text: String, detail: String, manual: Bool) {
+    public init(on: Bool, text: String, detail: String, manual: Bool, agents: Bool = false) {
         self.on = on
         self.text = text
         self.detail = detail
         self.manual = manual
+        self.agents = agents
     }
 
     public init?(_ value: JSONValue) {
@@ -20,7 +22,8 @@ public struct KeepAwake: Sendable, Equatable {
             on: on,
             text: fields["text"]?.stringValue ?? "",
             detail: fields["detail"]?.stringValue ?? "",
-            manual: fields["manual"]?.boolValue ?? false
+            manual: fields["manual"]?.boolValue ?? false,
+            agents: fields["agents"]?.boolValue ?? false
         )
     }
 }
@@ -32,6 +35,7 @@ public final class KeepAwakeModel {
 
     public static let command = "awake.state"
     public static let setCommand = "awake.set"
+    public static let settingsCommand = "awake.settings-set"
     public static let topic = "awake.changed"
 
     public private(set) var state: KeepAwake?
@@ -62,6 +66,10 @@ public final class KeepAwakeModel {
         await set(["on": .bool(false)])
     }
 
+    public func whileAgentsWork(_ on: Bool) async {
+        await set(["agents": .bool(on)], command: Self.settingsCommand)
+    }
+
     public func follow(_ client: CoreClient) async {
         let events = try? await client.busEvents(pattern: Self.topic)
         await load()
@@ -77,8 +85,8 @@ public final class KeepAwakeModel {
         if state != self.state { self.state = state }
     }
 
-    private func set(_ args: [String: JSONValue]) async {
-        switch await run(CommandInvocation(id: Self.setCommand, args: .object(args))) {
+    private func set(_ args: [String: JSONValue], command: String = setCommand) async {
+        switch await run(CommandInvocation(id: command, args: .object(args))) {
         case .success(let value):
             receive(value)
         case .failure(let failure):
