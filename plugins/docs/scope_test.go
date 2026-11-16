@@ -12,6 +12,7 @@ import (
 
 	"clubmate/pkg/contract"
 	"clubmate/plugins/internal/gitrepo"
+	"clubmate/plugins/internal/wikiroot"
 )
 
 func TestScope(t *testing.T) {
@@ -101,4 +102,23 @@ func write(t *testing.T, path, content string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+}
+
+func TestScopeIncludesWorkspaceWiki(t *testing.T) {
+	t.Setenv("CLUBMATE_WIKI_DIR", realDir(t))
+	root := realDir(t)
+	repo, other := filepath.Join(root, "repo"), filepath.Join(root, "other")
+	gitRepo(t, repo, "")
+	gitRepo(t, other, "")
+	mine, err := wikiroot.Ensure(t.Context(), repo)
+	require.NoError(t, err)
+	theirs, err := wikiroot.Ensure(t.Context(), other)
+	require.NoError(t, err)
+	write(t, filepath.Join(mine.Dir, "a.md"), "# A")
+	write(t, filepath.Join(theirs.Dir, "b.md"), "# B")
+
+	allow := workspaceScope(t.Context(), contract.Workspace{ID: "ws", Folders: []contract.Folder{{Path: repo}}}, nil)
+
+	assert.True(t, allow(filepath.Join(mine.Dir, "a.md")))
+	assert.False(t, allow(filepath.Join(theirs.Dir, "b.md")))
 }

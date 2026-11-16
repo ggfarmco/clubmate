@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"syscall"
 
 	"clubmate/pkg/contract"
@@ -15,6 +16,7 @@ import (
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/gitrepo"
+	"clubmate/plugins/internal/wikiroot"
 )
 
 const maxDoc = 4 << 20
@@ -136,7 +138,22 @@ func workspaceScope(ctx context.Context, ws contract.Workspace, uploads []string
 			trees[f.Path] = list
 		}
 	}
-	return allowed(ws, trees, uploads)
+	return allowed(ws, trees, append(uploads, wikiDirs(ctx, ws)...))
+}
+
+func wikiDirs(ctx context.Context, ws contract.Workspace) []string {
+	var dirs []string
+	for _, f := range ws.Folders {
+		p, ok, err := wikiroot.Find(ctx, f.Path)
+		if err != nil {
+			logError("wiki of "+f.Path, err)
+			continue
+		}
+		if ok && !slices.Contains(dirs, p.Dir) {
+			dirs = append(dirs, p.Dir)
+		}
+	}
+	return dirs
 }
 
 func mapped(folder string, trees []gitrepo.Worktree) []string {

@@ -36,6 +36,8 @@ build:
 	cp plugins/docs/plugin.json bin/plugins/docs/
 	$(GO_BUILD) -o bin/plugins/graphs/graphs ./plugins/graphs
 	cp plugins/graphs/plugin.json bin/plugins/graphs/
+	$(GO_BUILD) -o bin/plugins/wiki/wiki ./plugins/wiki
+	cp plugins/wiki/plugin.json bin/plugins/wiki/
 	$(GO_BUILD) -o bin/plugins/voice/voice ./plugins/voice
 	cp plugins/voice/plugin.json bin/plugins/voice/
 	$(GO_BUILD) -o bin/plugins/awake/awake ./plugins/awake

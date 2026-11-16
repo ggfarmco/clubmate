@@ -17,7 +17,7 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
   editor-nvim · editor-vscode · git        terminals, nvim TUI; survives
   search · terminals · processes            app and core restarts
   agents · cron · backlog · triggers
-  graphs · docs · voice · remote · awake
+  graphs · docs · wiki · voice · remote · awake
 ```
 
 ## Processes
@@ -79,12 +79,13 @@ The JSON-RPC transport is a fork of `github.com/sourcegraph/jsonrpc2` in `third_
 | `backlog` | Per-workspace task list shared by the user and agents; renders the Backlog section. See `docs/backlog.md`. |
 | `triggers` | Calls an agent-visible command when a bus event arrives; renders the Triggers section. See `docs/triggers.md`. |
 | `docs` | Docs viewer: Markdown, mermaid and HTML artifacts rendered in a popup on the Mac and for the phone. See `docs/docs-viewer.md`. |
+| `wiki` | Per-project knowledge base in `~/.clubmate/wiki/<project>` (a git repo per project, single writer by `flock`) that agents read and write through `wiki.*` commands, with a shadow wiki under `.agents/` and `stale` from source blobs; renders the Wiki section. See `docs/wiki.md`. |
 | `cron` | Calls agent-visible commands on a schedule (cron, every, one-shot), jobs per workspace, optionally owned by an agent session; renders the Cron section. See `docs/cron.md`. |
 | `graphs` | Agent graphs: reads `.clubmate/graphs/*.json` and its built-in graphs (`builtin/`). A run starts one idle agent session per agent node and one trigger per edge between them; step nodes (a shell command or a Clubmate command, no agent) it runs itself, the exit code picking the edge, and it fires every edge into or out of a step (or with `maxFires`) itself. A run stops at its turn or step budget. A graph with steps runs only once trusted in that repo (`graphs.trust`, a hash of its steps, routing and limits); a shell step follows Claude Code's `Bash` rules (a repo's allow rules only in its main checkout, the only place Always allow is offered), else waits for `graphs.approve`. Renders the Graphs section. See `docs/agent-graphs.md`. |
 | `voice` | Voice assistant and dictation: utterances (audio in, live partial text out), a Python speech recognizer (`asr/`: transcribe.cpp on ggml with Metal, Nemotron streaming by default) run through `uv` only while voice is on (off by default), context from where the user is, and one Voice agent session per workspace that answers agents as the user or runs commands, dangerous ones after the user confirms. Dictation skips the session: one Claude Haiku call (`claude -p`) tidies the text for the composer. No section. See `docs/voice.md`. |
 | `awake` | Keeps the Mac awake (like `caffeinate`): your own hold with a timer, agents' holds (`awake.hold`), and the rule "while agents work"; holds IOKit power assertions itself (cgo, `IOPMAssertionCreateWithName`; macOS drops them when the plugin exits) while any hold is on, publishes `awake.changed`, renders Settings → Keep Awake. No section. See `docs/awake.md`. |
 | `remote` | Companion server: HTTP + SSE on the Mac's Tailscale addresses only, QR pairing, device tokens, proxy for `"remote": true` commands, APNs pushes through the push relay. No section. See `docs/remote.md`. |
-| `internal/` | Shared helpers: `fuzzy`, `gitrepo`, `fileindex` (file lists for search and docs), `agentcall` (agent sessions and command targets), `automation` (what cron, triggers and graphs share: actions, runs, the registry), `editorroot` (worktree roots and HEAD watches shared by editor-nvim and editor-vscode), `claudecli` (runs `claude -p`: Haiku summaries, voice dictation cleanup), `parallel` (bounded fan-out), `shortcuttest` (test helper: a view's shortcuts are declared in `plugin.json`). |
+| `internal/` | Shared helpers: `fuzzy`, `gitrepo`, `fileindex` (file lists for search and docs), `agentcall` (agent sessions and command targets), `automation` (what cron, triggers and graphs share: actions, runs, the registry), `editorroot` (worktree roots and HEAD watches shared by editor-nvim and editor-vscode), `wikiroot` (folder → project wiki, shared by wiki and docs), `claudecli` (runs `claude -p`: Haiku summaries, voice dictation cleanup), `parallel` (bounded fan-out), `shortcuttest` (test helper: a view's shortcuts are declared in `plugin.json`). |
 
 ## UI model (SDUI)
 - **Sections:** plugins declare them in `plugin.json`, with an icon, order and slots (`<section>.sidebar`, `<section>.main`, plus extra slots a section declares). The rail shows sections in the user's order. A section may name another as its `host`, or set `rail: false` (Docs: only its `popup` slot shows); it then has no rail icon of its own.

@@ -1,0 +1,161 @@
+{
+  "id": "wiki",
+  "name": "Wiki",
+  "version": "0.1.0",
+  "protocol": 1,
+  "command": ["wiki"],
+  "contributes": {
+    "sections": [{"id": "wiki", "title": "Wiki", "icon": "book.closed", "order": 28}],
+    "commands": [
+      {
+        "id": "wiki.search",
+        "title": "Search wiki",
+        "hidden": true,
+        "agent": true,
+        "description": "Full-text search of this project's wiki (title > headings > body, any case, every word must match). The wiki is the project's knowledge base the user reads: how subsystems work, why things were decided, examples. Search it before you explore a subsystem; it may already explain it. A page with stale true explains code that changed on the default branch after it was written: check it against the code and refresh it with wiki_write. Fails with no wiki here in the home workspace.",
+        "args": {
+          "properties": {
+            "query": {"type": "string", "description": "Words to find."},
+            "shadow": {"type": "boolean", "description": "Also search the agents' own notes under .agents/."},
+            "limit": {"type": "integer", "description": "At most this many hits; default 20, max 100."}
+          },
+          "required": ["query"]
+        },
+        "result": {
+          "properties": {
+            "hits": {
+              "type": "array",
+              "description": "Best match first.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "page": {"type": "string", "description": "Page path inside the wiki."},
+                  "title": {"type": "string", "description": "Page title."},
+                  "snippet": {"type": "string", "description": "The first matching line, at most 160 characters."}
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "wiki.list",
+        "title": "List wiki pages",
+        "hidden": true,
+        "agent": true,
+        "description": "List this project's wiki pages by path, with title, last change, who made it and whether the page is stale. Fails with no wiki here in the home workspace.",
+        "args": {
+          "properties": {
+            "shadow": {"type": "boolean", "description": "Also list the agents' own notes under .agents/."}
+          }
+        },
+        "result": {
+          "properties": {
+            "pages": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "page": {"type": "string", "description": "Page path inside the wiki."},
+                  "title": {"type": "string", "description": "First # heading (an .html page's <title>), else the file name."},
+                  "updated": {"type": "string", "description": "Last write (RFC 3339)."},
+                  "by": {"type": "string", "description": "Agent session title, or you."},
+                  "stale": {"type": "boolean", "description": "A source the page explains changed on the default branch after it was written."}
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "wiki.read",
+        "title": "Read wiki page",
+        "hidden": true,
+        "agent": true,
+        "description": "Read one wiki page: its content and metadata. Fails with bad page path, not a page, not found or no wiki here.",
+        "args": {
+          "properties": {
+            "page": {"type": "string", "description": "Page path inside the wiki, e.g. sdui/components.md or .agents/test-app-traps.md."}
+          },
+          "required": ["page"]
+        },
+        "result": {
+          "properties": {
+            "page": {"type": "string", "description": "Page path inside the wiki."},
+            "title": {"type": "string", "description": "Page title."},
+            "content": {"type": "string", "description": "The page's text."},
+            "sources": {"type": "array", "items": {"type": "string"}, "description": "Repo paths the page explains."},
+            "updated": {"type": "string", "description": "Last write (RFC 3339)."},
+            "by": {"type": "string", "description": "Agent session title, or you."},
+            "stale": {"type": "boolean", "description": "A source changed on the default branch after the page was written."},
+            "path": {"type": "string", "description": "Absolute path of the page file."}
+          }
+        }
+      },
+      {
+        "id": "wiki.write",
+        "title": "Write wiki page",
+        "hidden": true,
+        "agent": true,
+        "description": "Create or replace a page of this project's wiki and commit it; every session and branch sees it at once. Pages are topics the user reads, updated in place, not logs: after you finish a feature or a decision, read the topic page (how it works, why it was decided so) and write it back updated, with sources, rather than adding a page per session. Your own traps, recipes and private notes go under .agents/ (hidden from the user by default). Markdown (.md, .markdown), mermaid (.mmd) or, for an example that must run, ONE self-contained .html page: inline CSS and JS, libraries only from cdnjs.cloudflare.com, cdn.jsdelivr.net, unpkg.com or esm.sh, no network calls, no iframes or forms (same rules as docs_open). No front matter. Link pages with relative Markdown links; link code by its absolute path in the repo's main checkout. Never write secrets, tokens or passwords. Fails with bad page path, not a page, too large (over 4 MiB) or no wiki here.",
+        "args": {
+          "properties": {
+            "page": {"type": "string", "description": "Page path inside the wiki, e.g. sdui/components.md; folders group pages; .agents/… for your own notes. No .. or absolute paths."},
+            "content": {"type": "string", "description": "The whole page."},
+            "summary": {"type": "string", "description": "One line on what changed; the commit message."},
+            "sources": {"type": "array", "items": {"type": "string"}, "description": "Repo paths (relative to your worktree) the page explains; the page shows as stale when one of them changes on the default branch later."}
+          },
+          "required": ["page", "content", "summary"]
+        },
+        "result": {
+          "properties": {
+            "page": {"type": "string", "description": "Page path inside the wiki."},
+            "path": {"type": "string", "description": "Absolute path of the page file."}
+          }
+        }
+      },
+      {
+        "id": "wiki.delete",
+        "title": "Delete wiki page",
+        "hidden": true,
+        "agent": true,
+        "destructive": true,
+        "confirm": "Delete this wiki page? It stays in the wiki's git history.",
+        "description": "Delete a wiki page; it stays in the wiki's git history. Fails with bad page path, not a page, not found or no wiki here.",
+        "args": {
+          "properties": {
+            "page": {"type": "string", "description": "Page path inside the wiki."}
+          },
+          "required": ["page"]
+        }
+      },
+      {
+        "id": "wiki.history",
+        "title": "Wiki page history",
+        "hidden": true,
+        "description": "Changes of a wiki page, newest first.",
+        "args": {
+          "properties": {
+            "page": {"type": "string", "description": "Page path inside the wiki."}
+          },
+          "required": ["page"]
+        },
+        "result": {
+          "properties": {
+            "changes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "at": {"type": "string", "description": "When (RFC 3339)."},
+                  "by": {"type": "string", "description": "Agent session title, or you."},
+                  "summary": {"type": "string", "description": "What changed."}
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
