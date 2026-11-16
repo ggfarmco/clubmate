@@ -40,7 +40,6 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
 
     event workspace.created { workspace: WorkspaceId }
     event workspace.updated {
-      open: docs/sdui-protocol.md § Bus topics names three causes: a folder added, a rename, a worktree chosen. The code also publishes it when a folder is removed or marked seen and when a check finds a chosen worktree gone (internal/core/service.go:204-240); the model follows the code
       workspace: WorkspaceId
     }
     event workspace.deleted { workspace: WorkspaceId }

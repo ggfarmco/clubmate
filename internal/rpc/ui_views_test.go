@@ -228,7 +228,7 @@ func TestCommandConfirmListed(t *testing.T) {
 
 func TestArgsValidated(t *testing.T) {
 	t.Setenv("ECHO_CRASH", "1")
-	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute, time.Minute))
+	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute))
 	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	h.Start(t, testutil.EchoPluginDir(t))

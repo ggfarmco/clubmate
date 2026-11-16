@@ -6,7 +6,6 @@ module Clients "the connections of clients on the core's socket: what each regis
 
     value Handle "a call or notification a client says it can take": workspace_show | ui_confirm | ui_report | ui_snapshot | ui_present | ui_key | ui_pointer | browser_call {
       open: on the wire these are "workspace.show", "ui.confirm", "ui.report", "ui.snapshot", "ui.present", "ui.key", "ui.pointer" and "browser.call" (methods_core.go:330); a variant's name holds no dot
-      open: docs/sdui-protocol.md § RPC methods says a client may register "workspace.show" and "ui.confirm" and that anything else is invalid; the code takes these eight, and the model follows the code
     }
 
     value Shown { clients: Count }

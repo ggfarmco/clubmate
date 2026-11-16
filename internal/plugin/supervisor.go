@@ -32,7 +32,6 @@ const (
 	StateDisabled = "disabled"
 
 	defaultBackoffBase = time.Second
-	defaultBackoffMax  = 30 * time.Second
 	defaultCrashLimit  = 5
 	defaultCrashWindow = time.Minute
 
@@ -91,7 +90,6 @@ type Supervisor struct {
 	dirs        paths.Dirs
 	logger      *slog.Logger
 	backoffBase time.Duration
-	backoffMax  time.Duration
 	crashLimit  int
 	crashWindow time.Duration
 	pingEvery   time.Duration
@@ -160,8 +158,8 @@ type initializeResult struct {
 	Protocol int `json:"protocol"`
 }
 
-func WithBackoff(base, maxDelay time.Duration) SupervisorOption {
-	return func(s *Supervisor) { s.backoffBase, s.backoffMax = base, maxDelay }
+func WithBackoff(base time.Duration) SupervisorOption {
+	return func(s *Supervisor) { s.backoffBase = base }
 }
 
 func WithCrashLimit(n int, window time.Duration) SupervisorOption {
@@ -202,7 +200,6 @@ func NewSupervisor(srv *rpc.Server, dirs paths.Dirs, logger *slog.Logger, opts .
 		dirs:        dirs,
 		logger:      logger,
 		backoffBase: defaultBackoffBase,
-		backoffMax:  defaultBackoffMax,
 		crashLimit:  defaultCrashLimit,
 		crashWindow: defaultCrashWindow,
 		pingEvery:   defaultPingEvery,
@@ -714,14 +711,7 @@ func (inst *instance) stoppedState() string {
 }
 
 func (s *Supervisor) backoff(crashes int) time.Duration {
-	d := s.backoffBase
-	for range crashes - 1 {
-		if d >= s.backoffMax {
-			break
-		}
-		d *= 2
-	}
-	return min(d, s.backoffMax)
+	return s.backoffBase << (crashes - 1)
 }
 
 func (s *Supervisor) update(id string, fn func(inst *instance)) {

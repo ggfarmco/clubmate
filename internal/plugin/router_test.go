@@ -56,7 +56,7 @@ func TestUIRenderEventAndOwnership(t *testing.T) {
 }
 
 func TestClearOwnerOnPluginCrash(t *testing.T) {
-	h := testutil.NewHarness(t, plugin.WithBackoff(10*time.Millisecond, 50*time.Millisecond))
+	h := testutil.NewHarness(t, plugin.WithBackoff(10*time.Millisecond))
 	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	h.Start(t, testutil.EchoPluginDir(t))
@@ -102,7 +102,7 @@ func TestCallTimesOutWhenPluginStopsReading(t *testing.T) {
 
 func TestRoutingToStoppedPluginIsUnavailable(t *testing.T) {
 	t.Setenv("ECHO_CRASH", "1")
-	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute, time.Minute))
+	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute))
 	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	h.Start(t, testutil.EchoPluginDir(t))
@@ -132,7 +132,7 @@ func TestSubscriptionIDsAreScopedByKind(t *testing.T) {
 
 func TestCapabilityRouting(t *testing.T) {
 	t.Setenv("ECHO_CRASH_ID", "delta")
-	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute, time.Minute))
+	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute))
 	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	sayer := func(id string, provides ...string) string {
@@ -200,7 +200,7 @@ func TestCallWaitsForStartingPlugin(t *testing.T) {
 func TestCallToPluginDyingAtStartFailsAtOnce(t *testing.T) {
 	t.Setenv("ECHO_START_DELAY", "300ms")
 	t.Setenv("ECHO_CRASH", "1")
-	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute, time.Minute))
+	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute))
 	p := h.CreateWorkspace(t, "demo")
 	h.Start(t, testutil.EchoPluginDir(t))
 	c := h.Client(t)
@@ -274,7 +274,7 @@ func TestDebugPprofReachesPlugin(t *testing.T) {
 const stuckManifest = `{"id":"stuck","name":"Stuck","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"stuck.wait","title":"Wait","timeout":1},{"id":"stuck.ok","title":"Ok"}]},"echoResults":{"stuck.wait":{},"stuck.ok":{}},"echoDelays":{"stuck.wait":60000}}`
 
 func startStuck(t *testing.T, manifest string, opts ...plugin.SupervisorOption) (*testutil.PluginHarness, func(id string) error) {
-	h := testutil.NewHarness(t, append([]plugin.SupervisorOption{plugin.WithBackoff(10*time.Millisecond, 10*time.Millisecond)}, opts...)...)
+	h := testutil.NewHarness(t, append([]plugin.SupervisorOption{plugin.WithBackoff(10 * time.Millisecond)}, opts...)...)
 	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	h.Start(t, testutil.EchoPluginDirAs(t, manifest))

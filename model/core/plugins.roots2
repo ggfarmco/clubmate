@@ -212,7 +212,7 @@ module Plugins "plugin processes: which run, how a dead or silent one comes back
       whenever a Plugin where plugin has been backoff for 2 seconds and count(plugin.crashes) = 2 { do launch(plugin) }
       whenever a Plugin where plugin has been backoff for 4 seconds and count(plugin.crashes) = 3 { do launch(plugin) }
       whenever a Plugin where plugin has been backoff for 8 seconds and count(plugin.crashes) >= 4 { do launch(plugin) }
-      inherited: the wait starts at 1 second and doubles with each crash still counted, up to 30 seconds (supervisor.go:34-35, :716-725); with at most 4 crashes counted before the core gives up, the longest wait is 8 seconds and the cap is never reached
+      inherited: the wait starts at 1 second and doubles with each crash still counted (supervisor.go:34, :713-715); with at most 4 crashes counted before the core gives up, the longest wait is 8 seconds
       every 15 seconds {
         open: each plugin has its own clock, started when it came to run (supervisor.go:608-617); `every` counts from the start of the core
         for each p in Plugin where state = running {

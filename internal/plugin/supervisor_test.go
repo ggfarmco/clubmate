@@ -49,7 +49,7 @@ func TestSupervisorCreatesPluginRuntimeDir(t *testing.T) {
 
 func TestSupervisorGivesUpOnCrashLoop(t *testing.T) {
 	t.Setenv("ECHO_CRASH", "1")
-	h := testutil.NewHarness(t, plugin.WithBackoff(10*time.Millisecond, 50*time.Millisecond), plugin.WithCrashLimit(5, time.Minute))
+	h := testutil.NewHarness(t, plugin.WithBackoff(10*time.Millisecond), plugin.WithCrashLimit(5, time.Minute))
 	sub, err := h.Bus.Subscribe(plugin.ChangedTopic, 0)
 	require.NoError(t, err)
 	t.Cleanup(sub.Close)
@@ -92,7 +92,7 @@ func TestPluginsGetResourcesDir(t *testing.T) {
 
 func TestSupervisorKillsLeftoverProcessGroupWhenPluginExits(t *testing.T) {
 	t.Setenv("ECHO_FORK_SLEEP", "1")
-	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute, time.Minute))
+	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute))
 	sub, err := h.Bus.Subscribe("echo.forked", 0)
 	require.NoError(t, err)
 	t.Cleanup(sub.Close)
@@ -113,7 +113,7 @@ func TestSupervisorKillsLeftoverProcessGroupWhenPluginExits(t *testing.T) {
 
 func TestStopDoesNotHangOnWedgedPlugin(t *testing.T) {
 	t.Setenv("ECHO_WEDGE", "1")
-	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute, time.Minute))
+	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute))
 	sub, err := h.Bus.Subscribe("echo.ready", 0)
 	require.NoError(t, err)
 	t.Cleanup(sub.Close)
@@ -148,7 +148,7 @@ func TestStopDoesNotHangOnWedgedPlugin(t *testing.T) {
 }
 
 func TestSupervisorRestartsPluginThatStopsAnsweringPing(t *testing.T) {
-	h := testutil.NewHarness(t, plugin.WithLiveness(50*time.Millisecond, 50*time.Millisecond, 3), plugin.WithBackoff(10*time.Millisecond, 10*time.Millisecond))
+	h := testutil.NewHarness(t, plugin.WithLiveness(50*time.Millisecond, 50*time.Millisecond, 3), plugin.WithBackoff(10*time.Millisecond))
 	h.Start(t, testutil.EchoPluginDir(t))
 	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "running" }, 5*time.Second)
 	testutil.Never(t, func() bool { return h.Sup.Statuses()[0].Restarts != 0 }, 300*time.Millisecond)
@@ -196,7 +196,7 @@ func TestRestartReplacesRunningPlugin(t *testing.T) {
 
 func TestRestartRevivesFailedPlugin(t *testing.T) {
 	t.Setenv("ECHO_CRASH", "1")
-	h := testutil.NewHarness(t, plugin.WithBackoff(10*time.Millisecond, 50*time.Millisecond), plugin.WithCrashLimit(2, time.Minute))
+	h := testutil.NewHarness(t, plugin.WithBackoff(10*time.Millisecond), plugin.WithCrashLimit(2, time.Minute))
 	h.Start(t, testutil.EchoPluginDir(t))
 	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "failed" }, 5*time.Second)
 	t.Setenv("ECHO_CRASH", "0")
