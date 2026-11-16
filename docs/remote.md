@@ -173,6 +173,14 @@ Setup (user):
 
 Without a relay the background refresh fallback above is the only way alerts reach a phone that has been in the pocket for a while.
 
+## Companion app: Connection screen
+
+For "won't connect though everything is set". Each Mac has a Connection sheet on the phone, opened from Mac details (Connection ›), the Mac header's context menu (Connection) and the stethoscope on the Offline row. Nothing on the Mac changes for it.
+
+- **Recent attempts**: every try of the connect loop (`hello` → `workspaces` → `/v1/events`) is logged per Mac (`ConnectionLog` in CompanionKit): time, the step it failed at (or Connected, or "Lost after <time>" for a stream that dropped once up), duration, the error, failures in a row, whether it ran in a background refresh, and each address tried with its own outcome (`URLError <code>`, the underlying `POSIX <code>`, `HTTP <status>`), not only the last one. Identical tries in a row fold into one entry with a count; cancellations the app makes itself (reconnect, background stop) are not logged, one the system makes is ("cancelled by the system"). The newest 50 entries are kept in the phone's `lists/` store (a file per Mac, removed with the Mac); no token is stored.
+- **Run check** (`ConnectionCheck`): one verdict and a hint per step — the phone has a Tailscale address (`getifaddrs`, 100.64/10 or fd7a:115c:a1e0::/48); each saved MagicDNS name resolves; a TCP connect to each saved address on the port (refused → Clubmate or companion access is off or the port changed; no answer in 4 s → asleep or off the tailnet; iOS Local Network denial when the path reports it); `hello` with the token through the first address that answered (401 → pair again); the event stream sends its first line (`: connected`) within 5 s (the check's stream is closed at once). A failed Tailscale, MagicDNS or TCP step doesn't stop the rest; `hello` is skipped when no address answered, the stream when `hello` failed. A name lookup gives up after 5 s. When every step passes, the Mac reconnects at once instead of waiting out the backoff.
+- ••• › Copy as Text copies the Mac, port, the last check and the log.
+
 ## End-to-end tests against a real core
 
 `make companion-e2e` runs the Companion in the simulator against a real Clubmate core over loopback, no Tailscale and no Mac app:

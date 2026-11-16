@@ -57,6 +57,8 @@ public final class ComputerConnection: CommandRunner {
     public private(set) var lastEventID: Int?
     public private(set) var lastSeen: Date?
     public private(set) var voiceEnabled: Bool?
+    public private(set) var log = ConnectionLog()
+    @ObservationIgnored public internal(set) var background = false
     @ObservationIgnored public private(set) var streamID: String?
 
     @ObservationIgnored public private(set) var client: RemoteClient
@@ -67,6 +69,9 @@ public final class ComputerConnection: CommandRunner {
     @ObservationIgnored private var listeners: [UUID: @MainActor (ConnectionSignal) -> Void] = [:]
     @ObservationIgnored private var interfaces: [String: WeakInterface] = [:]
     @ObservationIgnored private let cache: ListCache
+    @ObservationIgnored private let token: String?
+    @ObservationIgnored private let transport: any HTTPTransport
+    @ObservationIgnored private let policy: HostPolicy
 
     public init(computer: Computer, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, lastEventID: Int? = nil, cache: ListCache = ListCache(dir: nil), sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }) {
         self.computer = computer
@@ -75,7 +80,11 @@ public final class ComputerConnection: CommandRunner {
         self.cache = cache
         self.sleep = sleep
         self.now = now
+        self.token = token
+        self.transport = transport
+        self.policy = policy
         client = RemoteClient(hosts: computer.hosts, port: computer.port, token: token, transport: transport, policy: policy)
+        log = cache.load(logKey, as: ConnectionLog.self) ?? ConnectionLog()
         if token == nil {
             state = .unauthorized
         } else if let saved = cache.load(savedKey, as: Saved.self) {
@@ -93,13 +102,32 @@ public final class ComputerConnection: CommandRunner {
         ListCache.Key(computer: computer.id, workspace: "", collection: "connection")
     }
 
+    private var logKey: ListCache.Key {
+        ListCache.Key(computer: computer.id, workspace: "", collection: "attempts")
+    }
+
+    public func makeCheck(probe: any NetworkProbe) -> ConnectionCheck {
+        ConnectionCheck(hosts: client.hosts, port: computer.port, token: token, transport: transport, policy: policy, probe: probe) { [weak self] in
+            self?.reconnectNow()
+        }
+    }
+
+    private func record(_ step: ConnectionAttempt.Step, started: ContinuousClock.Instant, trace: HostTrace, error: String? = nil, lived: ContinuousClock.Instant? = nil) {
+        let elapsed = now() - started
+        let milliseconds = Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000)
+        let livedFor = lived.map { Int((now() - $0).components.seconds) }
+        log.record(ConnectionAttempt(at: .now, step: step, ok: error == nil, milliseconds: milliseconds, error: error, tries: trace.values, background: background, lived: livedFor))
+        cache.save(log, logKey)
+    }
+
     private func save() {
         guard let hello else { return }
         cache.save(Saved(hello: hello, workspaces: workspaces), savedKey)
     }
 
-    public func start() {
+    public func start(background: Bool = false) {
         guard task == nil, state != .unauthorized else { return }
+        self.background = background
         task = Task { await run() }
     }
 
@@ -296,9 +324,14 @@ public final class ComputerConnection: CommandRunner {
         var failures = 0
         while !Task.isCancelled {
             if state != .online { state = .connecting }
+            let started = now()
+            let trace = HostTrace()
+            var step = ConnectionAttempt.Step.hello
+            var connectedAt: ContinuousClock.Instant?
             do {
-                let hello = try await client.hello()
-                let list = try await client.workspaces()
+                let hello = try await client.hello(trace: trace)
+                step = .workspaces
+                let list = try await client.workspaces(trace: trace)
                 if Task.isCancelled { return }
                 self.hello = hello
                 workspaces = list
@@ -306,7 +339,8 @@ public final class ComputerConnection: CommandRunner {
                 identify(hello.computer)
                 await loadVoiceSettings()
                 if Task.isCancelled { return }
-                for try await item in try await client.events(after: lastEventID) {
+                step = .events
+                for try await item in try await client.events(after: lastEventID, trace: trace) {
                     if Task.isCancelled { return }
                     failures = 0
                     lastSeen = .now
@@ -314,6 +348,8 @@ public final class ComputerConnection: CommandRunner {
                     switch item {
                     case .alive:
                         state = .online
+                        connectedAt = now()
+                        record(.events, started: started, trace: trace)
                         emit(.online)
                     case .ping:
                         break
@@ -351,14 +387,17 @@ public final class ComputerConnection: CommandRunner {
                     }
                 }
                 if Task.isCancelled { return }
+                record(step, started: started, trace: trace, error: connectedAt == nil ? "stream closed before it said connected" : "stream closed by the Mac", lived: connectedAt)
                 streamID = nil
                 state = .offline(nil)
             } catch RemoteError.unauthorized {
                 if Task.isCancelled { return }
+                record(step, started: started, trace: trace, error: ConnectionAttempt.describe(RemoteError.unauthorized), lived: connectedAt)
                 revoke()
                 return
             } catch {
                 if Task.isCancelled { return }
+                record(step, started: started, trace: trace, error: ConnectionAttempt.describe(error), lived: connectedAt)
                 streamID = nil
                 state = .offline(error is CancellationError ? nil : (error as? RemoteError)?.message ?? error.localizedDescription)
             }

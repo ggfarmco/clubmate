@@ -37,6 +37,11 @@ enum DebugLaunch {
         try? FileManager.default.removeItem(at: file)
     }
 
+    static func probe() -> (any NetworkProbe)? {
+        guard let mode = UserDefaults.standard.string(forKey: "checkFixture") else { return nil }
+        return FixtureProbe(failing: mode == "fail")
+    }
+
     static func transport() -> (any HTTPTransport)? {
         let defaults = UserDefaults.standard
         let offline = defaults.object(forKey: "offline") == nil ? nil : Duration.seconds(defaults.double(forKey: "offline"))
@@ -84,11 +89,15 @@ enum DebugLaunch {
     private static func navigate(model: CompanionModel, navigation: AppNavigation) async {
         let defaults = UserDefaults.standard
         guard let target = defaults.string(forKey: "open"), let computer = model.computers.first else { return }
-        if target == "sidebar" || target == "mac" {
+        if target == "sidebar" || target == "mac" || target == "connection" {
             try? await Task.sleep(for: .seconds(1))
             navigation.sidebar = nil
             navigation.preferredColumn = .sidebar
-            if target == "mac" { navigation.showMac(computer.id) }
+            if target != "sidebar" { navigation.showMac(computer.id) }
+            if target == "connection" {
+                try? await Task.sleep(for: .seconds(1))
+                navigation.connectionSheet = ConnectionSheet(computer: computer.id)
+            }
             return
         }
         let parts = target.split(separator: "/", maxSplits: 2).map(String.init)
@@ -103,6 +112,25 @@ enum DebugLaunch {
         if let query = defaults.string(forKey: "search"), let connection = model.connection(computer.id), let workspace = navigation.workspace(for: connection) {
             model.agents(computer: computer.id, workspace: workspace.id)?.searchQuery = query
         }
+    }
+}
+#endif
+
+#if DEBUG
+struct FixtureProbe: NetworkProbe {
+    let failing: Bool
+
+    func tailnetAddresses() -> [String] {
+        failing ? [] : ["100.101.1.9"]
+    }
+
+    func resolve(_ name: String) async -> ResolveResult {
+        failing ? .failed("nodename nor servname provided, or not known") : .addresses(["100.101.1.2"])
+    }
+
+    func connect(host: String, port: Int, timeout: Duration) async -> ConnectResult {
+        try? await Task.sleep(for: .milliseconds(400))
+        return failing ? .timedOut : .open
     }
 }
 #endif

@@ -153,6 +153,23 @@ struct MacDetailsView: View {
             .disabled(reason != nil || choosing != nil)
             Section("This Mac") {
                 LabeledContent("Name", value: tag.name)
+                Button {
+                    navigation.connectionSheet = ConnectionSheet(computer: computerID)
+                } label: {
+                    HStack(spacing: 8) {
+                        Text("Connection")
+                            .foregroundStyle(Color.primary)
+                        Spacer(minLength: 8)
+                        Text(connection.shortPresence)
+                            .foregroundStyle(Color.captionInk)
+                            .lineLimit(1)
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Color(uiColor: .tertiaryLabel))
+                    }
+                    .contentShape(.rect)
+                }
+                .accessibilityIdentifier("mac.connection")
             }
             Section {
                 Button("Forget this Mac", role: .destructive) { forgetting = true }

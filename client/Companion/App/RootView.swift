@@ -57,6 +57,9 @@ struct RootView: View {
             PairingConfirmView(review: review)
                 .onAppear { navigation.pairingSheetAppeared() }
         }
+        .sheet(item: $navigation.connectionSheet) { sheet in
+            ConnectionView(computerID: sheet.computer)
+        }
         .fullScreenCover(item: $navigation.doc) { doc in
             DocumentSheet(doc: doc)
         }

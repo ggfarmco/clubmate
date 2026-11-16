@@ -730,6 +730,21 @@ final class CompanionUITests: XCTestCase {
         card.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
     }
 
+    func testConnectionCheckFromMacDetailsSaysWhatToFix() {
+        let app = launch(open: "mac", ["-checkFixture", "fail"])
+        let row = app.buttons["mac.connection"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+        let run = app.buttons["connection.run"]
+        XCTAssertTrue(run.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Connected"].waitForExistence(timeout: 5))
+        run.tap()
+        let port = app.descendants(matching: .any)["connection.step.tcp:100.101.1.2"]
+        XCTAssertTrue(wait(for: port, "label CONTAINS 'may be asleep'"))
+        XCTAssertTrue(app.descendants(matching: .any)["connection.step.tailscale"].label.contains("Tailscale isn't on on this phone"))
+        XCTAssertTrue(wait(for: app.descendants(matching: .any)["connection.step.hello"], "label CONTAINS 'no address answered'"))
+    }
+
     private func launch(open target: String, _ extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target] + extra

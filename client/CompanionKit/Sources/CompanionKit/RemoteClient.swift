@@ -159,10 +159,10 @@ public actor RemoteClient {
         try await rpc(method, params: params, as: JSONValue.self) ?? .null
     }
 
-    public func rpc<T: Decodable & Sendable>(_ method: String, params: JSONValue? = nil, as type: T.Type) async throws -> T? {
+    public func rpc<T: Decodable & Sendable>(_ method: String, params: JSONValue? = nil, as type: T.Type, trace: HostTrace? = nil) async throws -> T? {
         let body = try JSONEncoder().encode(RPCRequest(method: method, params: params))
         let slow = params?["id"]?.stringValue == TaskCommand.archive
-        let (data, response, _) = try await exchange(path: "/v1/rpc", method: "POST", body: body, probe: method == "hello", timeout: slow ? Self.archiveTimeout : Self.rpcTimeout)
+        let (data, response, _) = try await exchange(path: "/v1/rpc", method: "POST", body: body, probe: method == "hello", timeout: slow ? Self.archiveTimeout : Self.rpcTimeout, trace: trace)
         if response.statusCode == 401 { throw RemoteError.unauthorized }
         guard let envelope = try? JSONDecoder.clubmate.decode(Envelope<T>.self, from: data) else {
             if let failure = (try? JSONDecoder().decode(Envelope<JSONValue>.self, from: data))?.error {
@@ -175,13 +175,13 @@ public actor RemoteClient {
         return envelope.result
     }
 
-    public func hello() async throws -> Hello {
-        guard let hello = try await rpc("hello", as: Hello.self) else { throw RemoteError.badResponse }
+    public func hello(trace: HostTrace? = nil) async throws -> Hello {
+        guard let hello = try await rpc("hello", as: Hello.self, trace: trace) else { throw RemoteError.badResponse }
         return hello
     }
 
-    public func workspaces() async throws -> [Workspace] {
-        try await rpc("workspaces", as: [Workspace].self) ?? []
+    public func workspaces(trace: HostTrace? = nil) async throws -> [Workspace] {
+        try await rpc("workspaces", as: [Workspace].self, trace: trace) ?? []
     }
 
     public func macs(_ macs: [MacTag]) async throws {
@@ -230,7 +230,7 @@ public actor RemoteClient {
         return .object(params)
     }
 
-    public func events(after seq: Int?) async throws -> AsyncThrowingStream<EventStreamItem, any Error> {
+    public func events(after seq: Int?, trace: HostTrace? = nil) async throws -> AsyncThrowingStream<EventStreamItem, any Error> {
         var (response, chunks): (HTTPURLResponse?, AsyncThrowingStream<Data, any Error>?) = (nil, nil)
         var lastError: (any Error)?
         for host in orderedHosts() {
@@ -238,11 +238,14 @@ public actor RemoteClient {
             request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
             authorize(&request)
             if let seq { request.setValue(String(seq), forHTTPHeaderField: "Last-Event-ID") }
+            let started = ContinuousClock.now
             do {
                 (response, chunks) = try await transport.stream(request)
+                trace?.add(Self.tried(host, since: started, status: response?.statusCode ?? 0))
                 preferredHost = host
                 break
             } catch {
+                trace?.add(Self.tried(host, since: started, error: error))
                 lastError = error
                 guard canFallBack(error, probe: false) || Self.lost(error) else { throw Self.mapped(error) }
             }
@@ -250,6 +253,8 @@ public actor RemoteClient {
         guard let response, let chunks else { throw Self.mapped(lastError ?? RemoteError.hostNotAllowed) }
         if response.statusCode == 401 { throw RemoteError.unauthorized }
         guard response.statusCode == 200 else { throw RemoteError.http(response.statusCode) }
+        let opened = ContinuousClock.now
+        let host = preferredHost ?? ""
         return AsyncThrowingStream { continuation in
             let task = Task {
                 var parser = SSEParser()
@@ -284,6 +289,7 @@ public actor RemoteClient {
                     }
                     continuation.finish()
                 } catch {
+                    trace?.add(Self.tried(host, since: opened, error: error))
                     continuation.finish(throwing: Self.mapped(error))
                 }
             }
@@ -291,7 +297,7 @@ public actor RemoteClient {
         }
     }
 
-    private func exchange(path: String, method: String, body: Data, probe: Bool = false, timeout rpc: TimeInterval = rpcTimeout) async throws -> (Data, HTTPURLResponse, String) {
+    private func exchange(path: String, method: String, body: Data, probe: Bool = false, timeout rpc: TimeInterval = rpcTimeout, trace: HostTrace? = nil) async throws -> (Data, HTTPURLResponse, String) {
         var lastError: (any Error)?
         var reached = false
         let hosts = orderedHosts()
@@ -302,11 +308,14 @@ public actor RemoteClient {
             request.httpBody = body
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             authorize(&request)
+            let started = ContinuousClock.now
             do {
                 let (data, response) = try await transport.send(request)
+                trace?.add(Self.tried(host, since: started, status: response.statusCode))
                 preferredHost = host
                 return (data, response, host)
             } catch {
+                trace?.add(Self.tried(host, since: started, error: error))
                 lastError = error
                 if !Self.unsent(error) { reached = true }
                 guard canFallBack(error, probe: probe) else { throw Self.mapped(error) }
@@ -338,6 +347,14 @@ public actor RemoteClient {
         components.path = path
         guard let url = components.url, url.host(percentEncoded: false) == host, url.port == port, url.user == nil else { throw RemoteError.hostNotAllowed }
         return url
+    }
+
+    private static func tried(_ host: String, since start: ContinuousClock.Instant, status: Int) -> HostTry {
+        HostTry(host: host, milliseconds: HostTrace.milliseconds(since: start), outcome: "HTTP \(status)", ok: (200..<300).contains(status))
+    }
+
+    private static func tried(_ host: String, since start: ContinuousClock.Instant, error: any Error) -> HostTry {
+        HostTry(host: host, milliseconds: HostTrace.milliseconds(since: start), outcome: ConnectionAttempt.describe(error), ok: false)
     }
 
     private static func lost(_ error: any Error) -> Bool {

@@ -57,6 +57,7 @@ public final class CompanionModel {
 
     public func reconnectAll() {
         for connection in connections.values {
+            connection.background = false
             connection.reconnectNow()
         }
     }
@@ -84,7 +85,7 @@ public final class CompanionModel {
     public func catchUp(quiet: Duration = .seconds(2), timeout: Duration = .seconds(20)) async {
         for connection in connections.values {
             connection.stop()
-            connection.start()
+            connection.start(background: true)
         }
         lastSignal = .now
         let deadline = ContinuousClock.now + timeout

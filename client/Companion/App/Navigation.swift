@@ -27,6 +27,7 @@ final class AppNavigation {
     var sidebar: SidebarItem?
     var detail: String?
     var macDetails: String?
+    var connectionSheet: ConnectionSheet?
     var needsYouList = false
     var workspaces: [String: String] = [:]
     var newTaskWorkspaces: [String: String] = [:]

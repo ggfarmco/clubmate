@@ -182,6 +182,7 @@ struct ComputerSection: View {
         Button("Details", systemImage: "info.circle") { navigation.showMac(connection.computer.id) }
         Button("Reconnect", systemImage: "arrow.clockwise") { connection.reconnectNow() }
             .disabled(connection.state == .online || connection.state == .unauthorized)
+        Button("Connection", systemImage: "stethoscope") { navigation.connectionSheet = ConnectionSheet(computer: connection.computer.id) }
         Button("Remove…", systemImage: "trash", role: .destructive) { removing = connection.computer }
     }
 }
@@ -413,18 +414,33 @@ struct StatusRow: View {
                 }
             }
         case .offline(let reason):
-            Button {
-                connection.reconnectNow()
-            } label: {
-                Label {
-                    VStack(alignment: .leading) {
-                        Text("Offline")
-                        Text(reason ?? "Tap to retry").font(.footnote).lineLimit(2)
+            HStack(spacing: 8) {
+                Button {
+                    connection.reconnectNow()
+                } label: {
+                    Label {
+                        VStack(alignment: .leading) {
+                            Text("Offline")
+                            Text(reason ?? "Tap to retry").font(.footnote).lineLimit(2)
+                        }
+                    } icon: {
+                        Image(systemName: "wifi.slash")
                     }
-                } icon: {
-                    Image(systemName: "wifi.slash")
+                    .foregroundStyle(Color.captionInk)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
                 }
-                .foregroundStyle(Color.captionInk)
+                .buttonStyle(.borderless)
+                Button {
+                    navigation.connectionSheet = ConnectionSheet(computer: connection.computer.id)
+                } label: {
+                    Image(systemName: "stethoscope")
+                        .frame(width: 44, height: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Check connection")
+                .accessibilityIdentifier("status.connection." + connection.computer.id)
             }
         case .connecting, .online:
             Label {
