@@ -6,6 +6,7 @@ extension SessionGroup {
     public var title: String {
         switch self {
         case .needsInput: "Needs you"
+        case .paused: "Paused"
         case .open: "Open"
         case .running: "Running"
         case .idle: "Done"
@@ -16,6 +17,21 @@ extension SessionGroup {
 
     public var folds: Bool {
         self == .closed || self == .service
+    }
+}
+
+public struct SessionSection: Sendable, Equatable, Identifiable {
+    public let group: SessionGroup
+    public let until: Date?
+    public let sessions: [SessionNode]
+
+    public var id: String {
+        until.map { "\(group.rawValue)-\(Int($0.timeIntervalSince1970))" } ?? group.rawValue
+    }
+
+    public func title(now: Date, calendar: Calendar = .autoupdatingCurrent) -> String {
+        guard let until else { return group.title }
+        return "Paused until \(LimitWindow.clock(until, now: now, calendar: calendar))"
     }
 }
 
@@ -53,7 +69,7 @@ extension AgentSession {
         status == .running || status == .waiting
     }
 
-    public static func grouped(_ sessions: [AgentSession]) -> [(group: SessionGroup, sessions: [SessionNode])] {
+    public static func grouped(_ sessions: [AgentSession]) -> [SessionSection] {
         let ids = Set(sessions.map(\.id))
         var kids: [String: [AgentSession]] = [:]
         var roots: [AgentSession] = []
@@ -70,14 +86,18 @@ extension AgentSession {
             trees.append(SessionNode.build(session, kids: kids, seen: &seen))
         }
         let buckets = Dictionary(grouping: trees, by: \.group)
-        return SessionGroup.allCases.compactMap { group in
-            guard let list = buckets[group], !list.isEmpty else { return nil }
+        return SessionGroup.allCases.flatMap { group -> [SessionSection] in
+            guard let list = buckets[group], !list.isEmpty else { return [] }
             let order = switch group {
             case .needsInput: SessionNode.waitingLonger
             case .open: SessionNode.openLonger
             default: SessionNode.newerFirst
             }
-            return (group, list.sorted(by: order))
+            guard group == .paused else { return [SessionSection(group: group, until: nil, sessions: list.sorted(by: order))] }
+            let resets = Dictionary(grouping: list, by: \.session.pausedUntil)
+            return resets.keys.sorted { ($0 ?? .distantFuture) < ($1 ?? .distantFuture) }.map { until in
+                SessionSection(group: group, until: until, sessions: (resets[until] ?? []).sorted(by: order))
+            }
         }
     }
 }

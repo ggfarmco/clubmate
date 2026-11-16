@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -64,4 +65,44 @@ func TestSetGroupsLiftsParentsToTheMostUrgentChildGroup(t *testing.T) {
 		"lander": "running", "reviewer": "running",
 	}, got)
 	assert.Equal(t, []string{"kid", "busy", "helper", "reviewer"}, active)
+}
+
+func TestPausedGroupHoldsLimitStoppedSessionsAndLiftsIdleParents(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 11, 16, 19, 4, 30, 0, time.UTC)
+	info := func(id, parent, status string, until time.Time) sessionInfo {
+		rec := record{ID: id, lineage: lineage{ParentSession: parent}, Status: status}
+		if !until.IsZero() {
+			rec.LimitWait = &limitWait{At: until}
+		}
+		return sessionInfo{record: rec}
+	}
+	fired := info("fired", "", statusError, at)
+	fired.LimitWait.Fired = true
+	infos := []sessionInfo{
+		info("stopped", "", statusError, at),
+		fired,
+		info("idle", "", statusDone, time.Time{}),
+		info("soon", "idle", statusError, at),
+		info("later", "idle", statusError, at.Add(72*time.Hour)),
+		info("busy", "", statusRunning, time.Time{}),
+		info("held", "busy", statusError, at),
+	}
+	setGroups(infos)
+	got := map[string]string{}
+	until := map[string]int64{}
+	var paused []string
+	for _, i := range infos {
+		got[i.ID] = i.Group
+		if i.PausedUntil != nil {
+			until[i.ID] = *i.PausedUntil
+		}
+		if i.Paused {
+			paused = append(paused, i.ID)
+		}
+	}
+	minute := at.Truncate(time.Minute).Unix()
+	assert.Equal(t, map[string]string{"stopped": "paused", "fired": "done", "idle": "paused", "soon": "paused", "later": "paused", "busy": "running", "held": "paused"}, got)
+	assert.Equal(t, map[string]int64{"stopped": minute, "idle": minute, "soon": minute, "later": minute + 72*3600, "held": minute}, until)
+	assert.Equal(t, []string{"stopped", "soon", "later", "held"}, paused)
 }

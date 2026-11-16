@@ -250,7 +250,12 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	}
 	rows := make([]sessionRow, 0, len(recs))
 	needs := a.runNeeds.byRun(workspaceID)
-	graphs := a.graphState(ctx, workspaceID, a.infos(workspaceID))
+	infos := a.infos(workspaceID)
+	graphs := a.graphState(ctx, workspaceID, infos)
+	infoByID := make(map[string]sessionInfo, len(infos))
+	for _, info := range infos {
+		infoByID[info.ID] = info
+	}
 	runRows := make(map[string]*api.RunRow, len(graphs.runs))
 	for i := range graphs.runs {
 		runRows[graphs.runs[i].ID] = &graphs.runs[i]
@@ -262,6 +267,9 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	for _, rec := range recs {
 		row := a.sessionRow(ctx, rec, children[rec.ID])
 		row.CloseAsk = a.closeAsk(rec, kids).Message
+		if info, ok := infoByID[rec.ID]; ok && info.PausedUntil != nil {
+			row.Group, row.Until = info.Group, *info.PausedUntil
+		}
 		if n, ok := needs[runID(rec)]; ok {
 			row.RunNeed = &n
 		}

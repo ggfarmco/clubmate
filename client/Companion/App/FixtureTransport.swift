@@ -236,6 +236,19 @@ actor FixtureServer {
                 sessions[index]["shareDetail"] = .string(words[0] + " of 5h · " + words[1] + " of 7d")
             }
         }
+        if UserDefaults.standard.string(forKey: "usage") == "reached", let template = sessions.first {
+            let until = (Date.now.timeIntervalSince1970 / 60).rounded(.down) * 60 + 2 * 3_600
+            let clock = Date(timeIntervalSince1970: until).formatted(date: .omitted, time: .shortened)
+            for (id, title, ago) in [("agt_0000000000000031", "Add stock reservation expiry", 900.0), ("agt_0000000000000032", "Port the importer to streaming", 1_500.0)] {
+                var record = Self.session(template, id: id, title: title, status: "error", ago: ago)
+                record["error"] = .string("You've hit your session limit")
+                record["failure"] = .object(["word": .string("resumes \(clock)"), "badge": .string("Stopped · resumes \(clock)"), "line": .string("Stopped by the usage limit · resumes \(clock)"), "actions": .array([Self.failureAction(id)])])
+                record["group"] = .string("paused")
+                record["paused"] = .bool(true)
+                record["pausedUntil"] = .number(until)
+                sessions.append(record)
+            }
+        }
         self.sessions = sessions
         self.transcripts = transcripts
         tasks = (decode("backlog-tasks.json")["tasks"]?.arrayValue ?? []).enumerated().compactMap { index, value in

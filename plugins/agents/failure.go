@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"clubmate/plugins/agents/acp"
 )
@@ -185,9 +186,9 @@ func failureWord(text string) string {
 }
 
 func failureOf(rec record) sessionFailure {
-	if w := rec.LimitWait; w != nil && !w.Fired {
+	if w := rec.LimitWait; w.pausing() {
 		word := limitBadge(w)
-		return sessionFailure{Word: word, Badge: statusLabels[statusError] + " · " + word, Line: fmt.Sprintf(limitLine, w.At.Local().Format(limitLayout))}
+		return sessionFailure{Word: word, Badge: statusLabels[statusError] + " · " + word, Line: fmt.Sprintf(limitLine, limitClock(w.At, time.Now()))}
 	}
 	word := failureWord(rec.Error)
 	return sessionFailure{

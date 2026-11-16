@@ -422,7 +422,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			a.uiMu.Lock()
 			needsAuth, cannotResume := a.recoveryLocked(rec)
 			a.uiMu.Unlock()
-			failure.Actions = failureActions(rec.ID, needsAuth, cannotResume, rec.LimitWait != nil && !rec.LimitWait.Fired)
+			failure.Actions = failureActions(rec.ID, needsAuth, cannotResume, rec.LimitWait.pausing())
 			info.Failure = &failure
 		}
 		if rec.closed() && rec.HandoffTo == "" {

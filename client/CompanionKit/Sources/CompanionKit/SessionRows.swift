@@ -12,6 +12,7 @@ public enum SessionGlyph: Sendable, Equatable {
     case asksParent
     case running
     case stopped
+    case paused
     case open
     case review
     case done
@@ -58,7 +59,7 @@ extension AgentSession {
         if asksParent { return .asksParent }
         if childStatus == .waiting { return .childWaiting }
         if displayStatus == .running { return .running }
-        if status == .error { return .stopped }
+        if status == .error { return paused ? .paused : .stopped }
         if openLabel != nil { return .open }
         if review { return .review }
         return .done
@@ -121,6 +122,8 @@ extension AgentSession {
             return SessionStateLine(text: SessionState.running.label, age: age(turnStartedAt ?? updatedAt))
         case .stopped:
             return SessionStateLine(text: stopped.word, tone: .danger)
+        case .paused:
+            return SessionStateLine(text: stopped.line.isEmpty ? stopped.word : stopped.line)
         case .open:
             return SessionStateLine(text: [SessionState.done.label, openKinds?.text ?? openLabel ?? ""].joined(separator: " · "))
         case .review:

@@ -14,6 +14,7 @@ extension FallbackEnum {
 
 public enum SessionGroup: String, FallbackEnum, Identifiable {
     case needsInput = "needsYou"
+    case paused
     case open
     case running
     case idle = "done"

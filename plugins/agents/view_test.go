@@ -1218,3 +1218,35 @@ func TestHeaderValidatesForEveryDisplayStatus(t *testing.T) {
 	}
 	assert.Len(t, seen, len(statusIcons))
 }
+
+func TestSidebarPausedGroupsPerResetAboveTheWorktrees(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	soon := now.Add(2 * time.Hour).Truncate(time.Minute)
+	later := now.Add(72 * time.Hour).Truncate(time.Minute)
+	paused := func(id, wt string, at time.Time) sessionRow {
+		return sessionRow{Rec: record{ID: id, Worktree: wt, Agent: agentClaude, Title: id, Status: statusError, LimitWait: &limitWait{At: at}}, Group: groupPaused, Until: at.Unix()}
+	}
+	rows := []sessionRow{
+		{Rec: record{ID: "agt_run", Worktree: "/r/a", Agent: agentClaude, Title: "Run", Status: statusRunning}},
+		paused("agt_later", "/r/a", later),
+		paused("agt_a", "/r/a", soon),
+		paused("agt_b", "/r/b", soon),
+	}
+	tree := sidebarView(rows, "", nil, now, "/r/a", false, "", sidebarSearch{}, 0, sidebarPlus{})
+	require.NoError(t, internalsdui.Validate(tree))
+
+	items := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
+	require.Len(t, items, 3)
+	assert.Equal(t, []string{"Paused until " + soon.Format("15:04"), "Paused until " + later.Format("Mon"), "Run"}, []string{items[0].Label, items[1].Label, items[2].Label})
+	assert.Equal(t, []string{"2", "1"}, []string{items[0].Detail, items[1].Detail})
+	require.Len(t, items[0].Children, 2)
+	assert.Equal(t, []string{"agt_a", "agt_b"}, []string{items[0].Children[0].ID, items[0].Children[1].ID})
+	assert.Equal(t, []string{pausedIcon, ""}, []string{items[0].Children[0].Icon, items[0].Children[0].Tone})
+	assert.Equal(t, "resumes "+soon.Format("15:04"), items[0].Children[0].Detail)
+	assert.Equal(t, pausedKey, foldKey(items[1].ID))
+
+	folded := nodesOf(sidebarView(rows, "", map[string]bool{pausedKey: true}, now, "/r/a", false, "", sidebarSearch{}, 0, sidebarPlus{}), "tree")[0].Props["items"].([]sdui.TreeItem)
+	assert.Empty(t, folded[0].Children)
+	assert.Empty(t, folded[1].Children)
+}

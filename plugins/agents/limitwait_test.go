@@ -44,6 +44,8 @@ func TestUsageLimitWaitsForTheReset(t *testing.T) {
 			require.NoError(t, f.run(t, workspace, "agents.limit-cancel", map[string]any{"session": session}, nil))
 			rec := f.waitRecord(t, workspace, session, "no wait", func(r record) bool { return r.LimitWait == nil })
 			assert.NotContains(t, rec.Failure.Badge, "resumes")
+			assert.Equal(t, "done", rec.Group)
+			assert.False(t, rec.Paused)
 			testutil.Eventually(t, func() bool { return len(f.limitJobs(t, workspace)) == 0 }, wait)
 		}},
 		{"a prompt by hand drops the wait", func(f *fixture, workspace, session string) {
@@ -63,6 +65,12 @@ func TestUsageLimitWaitsForTheReset(t *testing.T) {
 			rec := f.waitRecord(t, workspace, session, "a scheduled wait", func(r record) bool { return r.LimitWait != nil && r.LimitWait.Job != "" })
 			assert.Equal(t, "error", rec.Status)
 			assert.Contains(t, rec.Failure.Badge, "resumes")
+			at, err := time.Parse(time.RFC3339Nano, rec.LimitWait.At)
+			require.NoError(t, err)
+			assert.Equal(t, "paused", rec.Group)
+			assert.True(t, rec.Paused)
+			assert.False(t, rec.NeedsYou)
+			assert.Equal(t, at.Truncate(time.Minute).Unix(), *rec.PausedUntil)
 			assert.Equal(t, []string{"retry", "cancelWait"}, []string{rec.Failure.Actions[0].ID, rec.Failure.Actions[1].ID})
 			assert.Equal(t, "agents.limit-cancel", rec.Failure.Actions[1].Command)
 			assert.Equal(t, []string{rec.LimitWait.Job}, f.limitJobs(t, workspace))
@@ -107,6 +115,7 @@ func TestFailedTurnContinues(t *testing.T) {
 			if tt.status == "error" {
 				require.NotNil(t, rec.Failure)
 				assert.NotContains(t, rec.Failure.Badge, "resumes")
+				assert.Equal(t, "done", rec.Group)
 			}
 		})
 	}

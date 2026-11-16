@@ -27,6 +27,7 @@ const (
 	limitMarginEnv   = "CLUBMATE_AGENTS_LIMIT_MARGIN"
 	limitMaxAttempts = 3
 	limitLayout      = "15:04"
+	limitDayLayout   = "Mon"
 	limitText        = "[Clubmate] Your usage limit has reset. Continue the task from where you stopped."
 	limitNotice      = "Stopped by the usage limit; continuing at %s"
 	limitGiveUp      = "Stopped by the usage limit again; stopped waiting"
@@ -156,7 +157,7 @@ func (a *app) settleLimitWait(s *session, err error, stopped bool) {
 	s.mu.Lock()
 	s.rec.LimitWait = wait
 	s.mu.Unlock()
-	s.notice(fmt.Sprintf(limitNotice, wait.At.Local().Format(limitLayout)), "")
+	s.notice(fmt.Sprintf(limitNotice, limitClock(wait.At, time.Now())), "")
 	go a.scheduleLimitJob(s, wait)
 }
 
@@ -357,5 +358,16 @@ func (a *app) reconcileLimitWaits() {
 }
 
 func limitBadge(w *limitWait) string {
-	return fmt.Sprintf(limitWord, w.At.Local().Format(limitLayout))
+	return fmt.Sprintf(limitWord, limitClock(w.At, time.Now()))
+}
+
+func limitClock(at, now time.Time) string {
+	if at.Sub(now) < 24*time.Hour {
+		return at.Local().Format(limitLayout)
+	}
+	return at.Local().Format(limitDayLayout)
+}
+
+func (w *limitWait) pausing() bool {
+	return w != nil && !w.Fired
 }

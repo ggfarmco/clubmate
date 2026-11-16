@@ -40,6 +40,34 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(groups[1].sessions.map(\.openInTree), [3, 2])
     }
 
+    func testPausedSectionsPerResetAfterNeedsYou() throws {
+        let json = #"""
+        [
+          {"id":"done","status":"done","group":"done"},
+          {"id":"wed","status":"error","group":"paused","paused":true,"pausedUntil":1763892000,"failure":{"word":"resumes Wed","badge":"Stopped · resumes Wed","line":"Stopped by the usage limit · resumes Wed"}},
+          {"id":"soon","status":"error","group":"paused","paused":true,"pausedUntil":1763319780,"failure":{"word":"resumes 19:03","badge":"Stopped · resumes 19:03","line":"Stopped by the usage limit · resumes 19:03"}},
+          {"id":"parent","status":"done","group":"paused","pausedUntil":1763319780},
+          {"id":"kid","parentSession":"parent","status":"error","group":"paused","paused":true,"pausedUntil":1763319780},
+          {"id":"ask","status":"done","needsYou":true,"group":"needsYou"}
+        ]
+        """#
+        let sessions = try JSONDecoder.clubmate.decode([AgentSession].self, from: Data(json.utf8))
+        let sections = AgentSession.grouped(sessions)
+        XCTAssertEqual(sections.map(\.group), [.needsInput, .paused, .paused, .idle])
+        XCTAssertEqual(sections[1].sessions.map(\.id).sorted(), ["parent", "soon"])
+        XCTAssertEqual(sections[2].sessions.map(\.id), ["wed"])
+        XCTAssertNotEqual(sections[1].id, sections[2].id)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        calendar.locale = Locale(identifier: "en_GB")
+        let now = Date(timeIntervalSince1970: 1763312400)
+        XCTAssertEqual(sections.map { $0.title(now: now, calendar: calendar) }, ["Needs you", "Paused until 19:03", "Paused until Sun", "Done"])
+        XCTAssertEqual(sessions.map(\.glyph), [.done, .paused, .paused, .done, .paused, .question])
+        XCTAssertEqual(sessions[2].stateLine(now: now).text, "Stopped by the usage limit · resumes 19:03")
+        let old = try JSONDecoder.clubmate.decode([AgentSession].self, from: Data(#"[{"id":"x","status":"error","group":"later"}]"#.utf8))
+        XCTAssertEqual(old[0].group, .idle)
+    }
+
     func testGroupsTreesByThePluginsGroupOfTheirRoot() throws {
         let json = #"""
         [

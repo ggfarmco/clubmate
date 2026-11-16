@@ -104,6 +104,8 @@ type record struct {
 	} `json:"reopen"`
 	ModeLabel       string           `json:"modeLabel"`
 	Group           string           `json:"group"`
+	Paused          bool             `json:"paused"`
+	PausedUntil     *int64           `json:"pausedUntil"`
 	MayAsk          bool             `json:"mayAsk"`
 	OpenCount       int              `json:"openCount"`
 	OpenDecisions   int              `json:"openDecisions"`

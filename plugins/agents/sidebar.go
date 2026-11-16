@@ -20,6 +20,9 @@ const (
 	expandPrefix = "s:"
 	closedKey    = "closed:"
 	serviceKey   = "service:"
+	pausedKey    = "paused:"
+	pausedTitle  = "Paused until %s"
+	pausedIcon   = "pause.circle"
 	moreID       = groupPrefix + "more:closed"
 	closedShown  = 3
 	closedBatch  = 25
@@ -122,6 +125,8 @@ type sessionRow struct {
 	Open      int
 	Gate      string
 	AsideAsks bool
+	Group     string
+	Until     int64
 }
 
 type sidebarPlus struct {
@@ -291,6 +296,8 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	}
 	var order []string
 	var closed []sessionRow
+	var resets []int64
+	paused := map[int64][]sessionRow{}
 	buckets := map[string]*bucket{}
 	for _, row := range roots {
 		switch {
@@ -298,6 +305,12 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 			closed = append(closed, row)
 			continue
 		case row.Rec.restricted():
+			continue
+		case row.Group == groupPaused:
+			if _, ok := paused[row.Until]; !ok {
+				resets = append(resets, row.Until)
+			}
+			paused[row.Until] = append(paused[row.Until], row)
 			continue
 		}
 		wt := row.Rec.Worktree
@@ -322,6 +335,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		group.Faint = b.detached
 		groups = append(groups, group)
 	}
+	groups = append(pausedGroups(resets, paused, kids, collapsed, now, oldest), groups...)
 	if len(closed) > 0 || len(emptied) > 0 {
 		folded, ok := collapsed[closedKey]
 		items := closedItems(closed, selected, closedShown+closedExtra, kids, collapsed, now, oldest)
@@ -355,8 +369,24 @@ func uniqueRunIDs(items []sdui.TreeItem, seen map[string]int) {
 	}
 }
 
+func pausedGroups(resets []int64, paused map[int64][]sessionRow, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, oldest map[string]time.Time) []sdui.TreeItem {
+	slices.Sort(resets)
+	out := make([]sdui.TreeItem, 0, len(resets))
+	for _, until := range resets {
+		key := pausedKey + strconv.FormatInt(until, 10)
+		rows := paused[until]
+		group := groupItem(key, fmt.Sprintf(pausedTitle, limitClock(time.Unix(until, 0), now)), pausedIcon, runItems(rows, key, kids, collapsed, now, map[string]bool{}, oldest), !collapsed[pausedKey])
+		group.Detail = strconv.Itoa(len(rows))
+		out = append(out, group)
+	}
+	return out
+}
+
 func foldKey(id string) string {
 	if wt, ok := strings.CutPrefix(id, groupPrefix); ok {
+		if strings.HasPrefix(wt, pausedKey) {
+			return pausedKey
+		}
 		return wt
 	}
 	if strings.HasPrefix(id, runPrefix) {
@@ -815,8 +845,12 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 	menu = append(menu, sdui.MenuEntry{Action: actDelete, Label: "Delete Session", Confirm: confirm, Key: removeKey})
 	display := displayStatus(rec, row.Children)
 	icon := statusIcons[cmp.Or(closedGlyphs[rec.ClosedStatus], display)]
+	tone := statusTones[display]
 	if reviewRow(row) {
 		icon = statusIcons[statusReview]
+	}
+	if display == statusError && rec.LimitWait.pausing() {
+		icon, tone = pausedIcon, ""
 	}
 	act := rowActivity(row, now)
 	var badges []sdui.HeaderBadge
@@ -841,7 +875,7 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 		DetailTone:  detailTone,
 		DetailFaint: mayAsk,
 		Icon:        icon,
-		Tone:        statusTones[display],
+		Tone:        tone,
 		Menu:        menu,
 		Badges:      badges,
 	}

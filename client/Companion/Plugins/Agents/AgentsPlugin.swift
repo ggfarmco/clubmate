@@ -168,7 +168,7 @@ struct SessionListView: View {
 
     @ViewBuilder
     private var sections: some View {
-        ForEach(store.groups, id: \.group) { group in
+        ForEach(store.groups) { group in
             let items = group.sessions.flatMap { $0.rows(expanded: store.expanded, folded: store.foldedTasks) }
             let count = group.sessions.count
             if group.group.folds {
@@ -213,7 +213,7 @@ struct SessionListView: View {
                     rows(items)
                 } header: {
                     HStack {
-                        Text(group.group.title)
+                        Text(group.title(now: .now))
                         Spacer()
                         Text("\(count)")
                     }
@@ -490,6 +490,7 @@ struct SessionGlyphView: View {
         case .asksParent: "arrow.up"
         case .running: "play.fill"
         case .stopped: "xmark"
+        case .paused: "pause.fill"
         case .review: "eye"
         case .open, .done: "checkmark"
         case .closed: "archivebox"
@@ -503,7 +504,7 @@ struct SessionGlyphView: View {
         case .asksParent, .running, .review: .accentColor
         case .stopped: Color.dangerInk
         case .open: Color.successInk
-        case .done, .closed: Color.captionInk
+        case .paused, .done, .closed: Color.captionInk
         }
     }
 
@@ -513,7 +514,7 @@ struct SessionGlyphView: View {
         case .childWaiting: Color.warning.opacity(0.18)
         case .asksParent, .running, .review: Color.accentColor.opacity(0.18)
         case .stopped: Color.dangerInk.opacity(0.18)
-        case .open, .done, .closed: Color(.tertiarySystemFill)
+        case .paused, .open, .done, .closed: Color(.tertiarySystemFill)
         }
     }
 }

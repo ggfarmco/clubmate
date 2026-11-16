@@ -128,7 +128,7 @@ public final class AgentsStore {
         RunRows.endRows(dock)
     }
 
-    public var groups: [(group: SessionGroup, sessions: [SessionNode])] {
+    public var groups: [SessionSection] {
         AgentSession.grouped(sessions)
     }
 

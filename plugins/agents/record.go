@@ -115,6 +115,8 @@ type sessionInfo struct {
 	NeedsYou        bool               `json:"needsYou"`
 	Service         bool               `json:"service,omitempty"`
 	Group           string             `json:"group,omitempty"`
+	Paused          bool               `json:"paused,omitempty"`
+	PausedUntil     *int64             `json:"pausedUntil,omitempty"`
 	Active          bool               `json:"active,omitempty"`
 	NeedsYouSince   *time.Time         `json:"needsYouSince,omitempty"`
 	Activity        *toolActivity      `json:"activity,omitempty"`

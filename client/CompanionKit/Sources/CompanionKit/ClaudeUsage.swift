@@ -53,11 +53,15 @@ public struct LimitWindow: Equatable, Sendable {
     }
 
     public func reset(now: Date, calendar: Calendar = .autoupdatingCurrent) -> String {
+        Self.clock(resetsAt, now: now, calendar: calendar)
+    }
+
+    public static func clock(_ date: Date, now: Date, calendar: Calendar = .autoupdatingCurrent) -> String {
         let locale = calendar.locale ?? .autoupdatingCurrent
-        if resetsAt.timeIntervalSince(now) < 24 * 3600 {
-            return resetsAt.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: locale, calendar: calendar, timeZone: calendar.timeZone))
+        if date.timeIntervalSince(now) < 24 * 3600 {
+            return date.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: locale, calendar: calendar, timeZone: calendar.timeZone))
         }
-        return resetsAt.formatted(Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone).weekday(.abbreviated))
+        return date.formatted(Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone).weekday(.abbreviated))
     }
 
     public func value(now: Date, calendar: Calendar = .autoupdatingCurrent) -> String {

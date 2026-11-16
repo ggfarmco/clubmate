@@ -56,6 +56,11 @@ The plugin owns the status and the words; Mac and phone draw them.
 
 `agents.usage` carries `accountEmail` (Claude Code's `.claude.json` `oauthAccount.emailAddress`) next to `account`. The phone talks to the Mac over Tailscale (WireGuard), not the push relay, so the email stays between the user's devices; it is kept out of `remote.log`.
 
-## Not built yet
+## Paused group (built 16 Nov)
 
-The "Paused until ‹reset›" group (Mac and phone) is a later slice.
+The plugin sends `group: "paused"`, `paused` and `pausedUntil` per session ([docs/agents.md](../../../docs/agents.md) § Groups). Where it differs from the boards:
+
+- The time is when the session continues (the reset plus the 90 s margin), so the group reads "Paused until 19:04" under a header line "resets 19:03"; the rows' "resumes 19:04" and the title always agree. Ruled 16 Nov: keep it so; the header's reset and the session's continue are two events, and the minute between them is honest.
+- Sessions waiting on different resets get one section each ("Paused until 19:04", "Paused until Wed"), earliest first; a parent lifted by a paused child joins its child's section.
+- On the Mac there is no Needs you group to follow (it is a filter tab), so the Paused sections sit at the top of the tree, above the worktree groups; their rows draw a neutral pause icon and keep the short word "resumes 19:04".
+- On the phone the row line "Stopped by the usage limit · resumes 19:04" is cut before the time at the default text size; the section title carries it.

@@ -40,6 +40,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let asksParent: Bool
     public let service: Bool
     public let group: SessionGroup
+    public let paused: Bool
+    public let pausedUntil: Date?
     public let active: Bool
     public let kind: String?
     public let run: SessionRun?
@@ -70,7 +72,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         notify: NotificationPolicy? = nil, error: String? = nil, pending: [String] = [], notifyEffective: NotificationPolicy = .all,
         childStatus: AgentSessionStatus? = nil, pendingSummary: PendingSummary? = nil, question: String? = nil, turnStartedAt: Date? = nil, needsYou: Bool? = nil,
         needsYouSince: Date? = nil, activity: SessionActivity? = nil, failure: SessionFailure? = nil, reopen: FailureAction? = nil, modeLabel: String? = nil,
-        autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false, group: SessionGroup? = nil, active: Bool = false, kind: String? = nil, run: SessionRun? = nil,
+        autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false, group: SessionGroup? = nil, paused: Bool = false, pausedUntil: Date? = nil, active: Bool = false, kind: String? = nil, run: SessionRun? = nil,
         reviewProgress: ReviewProgress? = nil, openCount: Int = 0, openDecisions: Int = 0, openOffers: Int = 0, openSince: Date? = nil, mayAsk: Bool = false,
         repo: String? = nil, taskRows: [RepoRow] = [], taskBadge: String? = nil, archivable: Bool = false, taskFinished: Bool = false, requests: [String] = [], turns: Int = 0, rowDetail: String? = nil,
         limitShare: [String: Double] = [:], shareLabel: String? = nil, shareWords: [String: String] = [:], shareDetail: String? = nil
@@ -114,6 +116,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.asksParent = asksParent
         self.service = service
         self.group = group ?? (status == .closed ? .closed : self.needsYou ? .needsInput : service ? .service : status == .running ? .running : .idle)
+        self.paused = paused
+        self.pausedUntil = pausedUntil
         self.active = active
         self.kind = kind
         self.run = run
@@ -142,7 +146,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
-        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, active, kind, run, reviewProgress, openCount, openDecisions, openOffers, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests, turns, rowDetail
+        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, paused, pausedUntil, active, kind, run, reviewProgress, openCount, openDecisions, openOffers, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests, turns, rowDetail
         case limitShare, shareLabel, shareWords, shareDetail
     }
 
@@ -193,6 +197,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             asksParent: try flag(.asksParent),
             service: try flag(.service),
             group: try c.decodeIfPresent(SessionGroup.self, forKey: .group),
+            paused: try flag(.paused),
+            pausedUntil: (try? c.decodeIfPresent(Double.self, forKey: .pausedUntil)).flatMap { $0.map { Date(timeIntervalSince1970: $0) } },
             active: try flag(.active),
             kind: try optional(.kind),
             run: try? c.decodeIfPresent(SessionRun.self, forKey: .run),
@@ -260,6 +266,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encode(asksParent, forKey: .asksParent)
         try c.encode(service, forKey: .service)
         try c.encode(group, forKey: .group)
+        try c.encode(paused, forKey: .paused)
+        try c.encodeIfPresent(pausedUntil?.timeIntervalSince1970, forKey: .pausedUntil)
         try c.encode(active, forKey: .active)
         try c.encodeIfPresent(kind, forKey: .kind)
         try c.encodeIfPresent(run, forKey: .run)
