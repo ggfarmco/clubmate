@@ -8,7 +8,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 
 | Keys | Action | Where defined |
 |---|---|---|
-| ⌘N | New (terminal or item in the current section; in Backlog it focuses the new task field, in Triggers and Cron it starts an agent session that asks you for a trigger or a cron job and adds it) | `ClubmateApp.swift` |
+| ⌘N | New (terminal or item in the current section; in Backlog it opens the New task field above the list and focuses it, like the sidebar header's +, in Triggers and Cron it starts an agent session that asks you for a trigger or a cron job and adds it) | `ClubmateApp.swift` |
 | ⇧⌘N | New Home Terminal | `ClubmateApp.swift` |
 | ⌘O | Open Folder… | `ClubmateApp.swift` |
 | ⇧⌘D | Open Doc…: fuzzy picker over `docs.list` (agent-written docs first), ↩ opens the doc in the popup | `ClubmateApp.swift` |
@@ -60,7 +60,7 @@ Send has no key on purpose, so a keystroke meant for the window under the sheet 
 
 ## Plugin buttons
 
-A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the button is on screen; a combo without ⌘, ⌃ or ⌥ does nothing while a text field has focus, app menu keys always win, and Esc, ↩ and ⇥ without ⌘, ⌃ or ⌥ cannot be plugin shortcuts. Plugin shortcuts do nothing while a terminal or nvim has focus, except ⌘↩, which presses over them too; a focused agent message field (the composer) keeps ⌘↩ to send its message. A button in a docked form (`form.dock`, the agent's question card) ranks above those: its key beats other buttons and an empty composer, loses to a composer with text, and does nothing while a terminal or nvim has focus. Defined in `SDUI/InputViews.swift` (`ButtonNodeView`) and `SDUI/KeyMonitor.swift`, combos parsed by `ClubmateKit/KeyCombo.swift`. In a plugin's sheet (the `sheet` node) Esc, ↩ and Enter press its cancel button (↩ and Enter not while a text field has focus), which prints ⎋; the sheet's other buttons keep their shortcuts and the page's buttons under it wait (`SDUI/SheetNodeView.swift`). Plugin shortcuts in use:
+A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the button is on screen; a combo without ⌘, ⌃ or ⌥ does nothing while a text field has focus, app menu keys always win (a menu item that needs fn, like Edit › Emoji & Symbols on fn E, never takes the bare key), and Esc, ↩ and ⇥ without ⌘, ⌃ or ⌥ cannot be plugin shortcuts. Plugin shortcuts do nothing while a terminal or nvim has focus, except ⌘↩, which presses over them too; a focused agent message field (the composer) keeps ⌘↩ to send its message. A button in a docked form (`form.dock`, the agent's question card) ranks above those: its key beats other buttons and an empty composer, loses to a composer with text, and does nothing while a terminal or nvim has focus. Defined in `SDUI/InputViews.swift` (`ButtonNodeView`) and `SDUI/KeyMonitor.swift`, combos parsed by `ClubmateKit/KeyCombo.swift`. In a plugin's sheet (the `sheet` node) Esc, ↩ and Enter press its cancel button (↩ and Enter not while a text field has focus), which prints ⎋; the sheet's other buttons keep their shortcuts and the page's buttons under it wait (`SDUI/SheetNodeView.swift`). Plugin shortcuts in use:
 
 | Keys | Action | Plugin |
 |---|---|---|
@@ -86,7 +86,8 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | G | Open the graph run that created the trigger | triggers |
 | ⌘N | Ask an agent to add a trigger (How triggers work; the app menu's ⌘N does the same anywhere in Triggers), ↩ on an event row asks for a trigger on that event | triggers |
 | D | Mark the task done | backlog |
-| ⌘S | Save the task now (the form also autosaves) | backlog |
+| E | Edit the task's description; again (Done editing) shows it as a page | backlog |
+| S / P | Open the task's Status / Priority menu (a `select` with `shortcut`; ↑↓ ↩ pick, ⎋ closes) | backlog |
 | ⌘N | Ask an agent to add a cron job (How cron works; the app menu's ⌘N does the same anywhere in Cron), ↩ on a schedule row asks for a job on that schedule | cron |
 | E | Edit the cron job; in the form, cancel the edit | cron |
 | ⌘S | Save the cron job's edit form | cron |
@@ -130,7 +131,7 @@ The title picker adds these to the keys above:
 | ↩ | On a row that opens a page (a session, a run, a graph, a land gate): select it and focus the main pane, without folding; else select a leaf item, or expand / collapse an item with children (a docked row unfolds or folds) |
 | o | Same as ↩, but an item with children gets selected instead |
 | ⌘⌫ | Remove the row under the cursor, always asking first: in Agents a session (Delete Session), an ended run (Remove run…) or a land gate (Delete land gate…); the row's menu entry with `key: cmd+delete`. On the iPad the same key in a plugin tree (Graphs, Land gates) asks the same way |
-| gc | Focus the sidebar's text field, when it has one (Agents and Backlog: the search field) |
+| gc | Focus the sidebar's first text field, when it has one (Agents and Backlog: the search field, also while Backlog's New task field is open) |
 | < / > | Previous / next chip of the sidebar's filter row, when it has one (Agents: All · Needs you · Open · Running) |
 | Esc | Fold the open docked row (also from a row inside it); elsewhere back to the main pane |
 | ⌃L (sidebar on the left), ⌃H (sidebar on the right) | Back to the main pane |

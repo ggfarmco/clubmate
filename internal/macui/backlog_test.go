@@ -53,17 +53,47 @@ func TestBacklogStartPopoverAndDrop(t *testing.T) {
 	})
 }
 
-func TestBacklogTagChipsKeepTheSelectionWhenUnfolded(t *testing.T) {
+func TestBacklogTagMenuPicksATag(t *testing.T) {
 	in := start(t, "macui-tags", "")
-	in.cm("command", "run", "backlog.add", "title=Tagged", "status=todo", "tags=a,b,c,d,e,f,g,h")
+	in.cm("command", "run", "backlog.add", "title=Tagged", "status=todo", "tags=a,b,c,d")
 	in.focusSection("backlog", "backlog.sidebar")
-	in.eventually("the tags fold after six", func() bool { return in.snapshot().main().has("tags#more") })
-	in.pointer("click", "tags#tag:b")
-	in.eventually("the clicked tag is selected", func() bool { return in.selected("tags#tag:b") })
-	in.pointer("click", "tags#more")
-	in.eventually("the tags unfold", func() bool { return in.snapshot().main().has("tags#tag:h") })
-	assert.True(t, in.selected("tags#tag:b"))
-	assert.False(t, in.selected("tags#less"))
+	in.eventually("one tag chip and the rest behind +3", func() bool {
+		w := in.snapshot().main()
+		return w.has("tags#tag:a") && !w.has("tags#tag:b") && w.has("tagMenu")
+	})
+	in.pointer("menu", "tagMenu", "c 1")
+	in.eventually("the picked tag is a selected chip", func() bool { return in.selected("tags#tag:c") })
+}
+
+func TestBacklogNewTaskFromPlusAndCmdN(t *testing.T) {
+	in := start(t, "macui-bnew", "")
+	in.cm("command", "run", "backlog.add", "title=First", "status=todo", "description=Body")
+	in.focusSection("backlog", "backlog.sidebar")
+	in.eventually("the task is listed", func() bool { return in.snapshot().main().has("tasks#1") })
+	assert.False(t, in.snapshot().main().has("title"), "the New task field waits for + or cmd+n")
+	keyFocus := func() string {
+		if w := in.snapshot().key(); w != nil {
+			return w.Focus
+		}
+		return ""
+	}
+
+	in.pointer("click", "newTask")
+	in.eventually("+ opens the New task field with the cursor in it", func() bool { return keyFocus() == "title" })
+	in.key("t", "w", "o", "return")
+	in.eventually("return adds the task and keeps the field", func() bool {
+		return in.snapshot().main().has("tasks#2") && keyFocus() == "title"
+	})
+	in.pointer("click", "newClose")
+	in.eventually("× closes the field", func() bool { return !in.snapshot().main().has("title") })
+
+	in.pointer("click", "tasks#1")
+	in.eventually("task 1 opens as a page", func() bool { return in.snapshot().main().has("doc") })
+	assert.Equal(t, []string{"monitor", "monitor"}, in.key("s", "p"), "s and p open the Status and Priority menus")
+	in.key("e")
+	in.eventually("e edits the description", func() bool { return in.snapshot().main().has("description") })
+	in.key("cmd+n")
+	in.eventually("cmd+n opens the field again", func() bool { return keyFocus() == "title" })
 }
 
 func TestBacklogWheelOverDescriptionScrollsTheTask(t *testing.T) {
@@ -164,4 +194,32 @@ func TestBacklogNumberSearchOpensTheTask(t *testing.T) {
 	})
 	in.key("9", "9")
 	in.eventually("a number with no task says so", func() bool { return in.snapshot().main().has("tasks#missing") })
+}
+
+func TestBacklogFocusedNoteTakesAnAgentNote(t *testing.T) {
+	in := start(t, "macui-bnote", "")
+	in.cm("command", "run", "backlog.add", "title=Task", "status=todo")
+	in.cm("command", "run", "backlog.update", "id=1", "note=mine")
+	in.focusSection("backlog", "backlog.sidebar")
+	in.eventually("the task is listed", func() bool { return in.snapshot().main().has("tasks#1") })
+	in.pointer("click", "tasks#1")
+	in.eventually("the note shows", func() bool { return in.snapshot().main().has("note") })
+	in.pointer("click", "note")
+	in.eventually("the caret is in Note", func() bool { s := in.snapshot(); return s.key() != nil && s.key().Focus == "note" })
+
+	in.cm("command", "run", "backlog.update", "--agent", "id=1", "note=from the agent")
+	in.eventually("the agent's note reaches the form", func() bool {
+		n := in.sdui("note")
+		return n != nil && n.Props["value"] == "from the agent"
+	})
+	in.pointer("menu", "priority", "↓ Low")
+	var task struct {
+		Priority string `json:"priority"`
+		Note     string `json:"note"`
+	}
+	in.eventually("the priority is saved", func() bool {
+		in.json(&task, "command", "run", "backlog.get", "id=1")
+		return task.Priority == "low"
+	})
+	assert.Equal(t, "from the agent", task.Note, "a focused Note the user didn't type in takes the agent's note, so the save keeps it")
 }

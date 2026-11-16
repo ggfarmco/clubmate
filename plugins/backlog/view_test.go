@@ -34,11 +34,20 @@ func TestSidebarGroupsByStatus(t *testing.T) {
 		{ID: 1, Title: "Plan", Status: statusTodo, Priority: priorityNormal},
 		{ID: 2, Title: "Shipped", Status: statusDone, Priority: priorityNormal},
 	}
-	tree, ok := findNode(sidebarView(tasks, "", map[string]bool{statusDone: true}, 0, "", "", false), "tasks")
+	side := sidebarView(tasks, "", map[string]bool{statusDone: true}, 0, "", "", false)
+	assert.Contains(t, mustText(t, side.Children[0]), `"text":"3 open"`)
+	_, ok := findNode(side, "new")
+	assert.False(t, ok, "the New task field waits for + or cmd+n")
+	_, ok = findNode(sidebarView(tasks, "", nil, 0, "", "", true), "new")
+	assert.True(t, ok)
+	tree, ok := findNode(side, "tasks")
 	require.True(t, ok)
 	groups := tree.Props["items"].([]sdui.TreeItem)
 	require.Len(t, groups, 3)
 	assert.Equal(t, "group:in_progress", groups[0].ID)
+	assert.Equal(t, "In progress", groups[0].Label)
+	assert.Equal(t, "2", groups[0].Detail)
+	assert.Empty(t, groups[0].Icon, "an action parent without an icon draws as a section label")
 	assert.True(t, groups[0].Action)
 	rows := groups[0].Children
 	require.Len(t, rows, 2)
@@ -90,7 +99,6 @@ func TestSidebarSearch(t *testing.T) {
 	assert.Equal(t, "1", groups[0].Children[0].ID)
 	assert.Equal(t, "group:done", groups[1].ID)
 	assert.True(t, groups[1].Expanded)
-	assert.False(t, groups[1].Action)
 	assert.Equal(t, "2", groups[1].Children[0].ID)
 
 	side := sidebarView(tasks, "", collapsed, 0, "", "nothing", false)
@@ -100,22 +108,26 @@ func TestSidebarSearch(t *testing.T) {
 	assert.True(t, ok)
 }
 
-func TestSidebarFoldsTags(t *testing.T) {
+func TestSidebarTagsFitOneLine(t *testing.T) {
 	tasks := []Task{
-		{ID: 1, Status: statusTodo, Tags: []string{"a", "b", "c", "d", "e", "f", "g", "h"}},
-		{ID: 2, Status: statusTodo, Tags: []string{"a", "b", "c", "d", "e", "f"}},
+		{ID: 1, Status: statusTodo, Tags: []string{"a", "b", "c", "d"}},
+		{ID: 2, Status: statusTodo, Tags: []string{"a", "b", "c"}},
+		{ID: 3, Status: statusTodo, Tags: []string{"a"}},
 	}
-	ids := func(open bool) []string {
-		tabs, ok := findNode(sidebarView(tasks, "", nil, 0, "h", "", open), "tags")
-		require.True(t, ok)
-		var out []string
-		for _, it := range tabs.Props["items"].([]sdui.Item) {
-			out = append(out, it.ID+" "+it.Label)
-		}
-		return out
+	side := sidebarView(tasks, "", nil, 0, "d", "", false)
+	tabs, ok := findNode(side, tagsNode)
+	require.True(t, ok)
+	var chips []string
+	for _, it := range tabs.Props["items"].([]sdui.Item) {
+		chips = append(chips, it.ID+" "+it.Badge)
 	}
-	assert.Equal(t, []string{"all All", "tag:a a", "tag:b b", "tag:c c", "tag:d d", "tag:e e", "tag:f f", "tag:h h", "more show 1 more"}, ids(false))
-	assert.Equal(t, []string{"all All", "tag:a a", "tag:b b", "tag:c c", "tag:d d", "tag:e e", "tag:f f", "tag:g g", "tag:h h", "less show less"}, ids(true))
+	assert.Equal(t, []string{"all 3", "tag:a 3", "tag:d 1"}, chips, "the selected tag stays a chip")
+	menu, ok := findNode(side, tagMenu)
+	require.True(t, ok)
+	assert.Equal(t, []sdui.Option{{Value: "", Label: "+2"}, {Value: "b", Label: "b 2"}, {Value: "c", Label: "c 2"}}, menu.Props["options"])
+	assert.Equal(t, actFilter, menu.Props["action"])
+	_, ok = findNode(sidebarView(tasks[2:], "", nil, 0, "", "", false), tagMenu)
+	assert.False(t, ok)
 }
 
 func TestMainOmitsStatusWhileInProgress(t *testing.T) {
@@ -210,6 +222,11 @@ func TestLinksAndAttachmentsSections(t *testing.T) {
 	field, ok := findNode(main, linkField)
 	require.True(t, ok)
 	assert.Equal(t, "Bad link", field.Props["error"])
+	quiet := mainView(task, detail{hasTasks: true, linked: map[int]Task{8: {ID: 8}}})
+	_, ok = findNode(quiet, linkField)
+	assert.False(t, ok, "the link field waits for + Link")
+	_, ok = findNode(mainView(task, detail{hasTasks: true, linked: map[int]Task{8: {ID: 8}}, linking: true}), linkField)
+	assert.True(t, ok)
 	files, ok := findNode(main, attachNode)
 	require.True(t, ok)
 	assert.Equal(t, "design/check/fix-list.md", files.Props["items"].([]sdui.Item)[0].Label)
@@ -245,19 +262,36 @@ func TestMainDeleteConfirms(t *testing.T) {
 	del, ok := findNode(mainView(&Task{ID: 7, Title: "a", Status: statusDone, Priority: priorityNormal}, detail{hasTasks: true}), "delete")
 	require.True(t, ok)
 	assert.Equal(t, "Delete task #7?", del.Props["confirm"])
+	assert.Equal(t, sdui.VariantGhost, del.Props["variant"])
 }
 
 func TestMainFormAutosaves(t *testing.T) {
-	main := mainView(&Task{ID: 7, Title: "a", Status: statusTodo, Priority: priorityNormal}, detail{hasTasks: true})
+	main := mainView(&Task{ID: 7, Title: "a", Status: statusTodo, Priority: priorityNormal, Note: "half done"}, detail{hasTasks: true})
 	form, ok := findNode(main, "edit")
 	require.True(t, ok)
 	assert.Equal(t, true, form.Props["autosave"])
 	assert.Equal(t, "save.7", form.Props["action"])
-	saved, ok := findNode(form, "save")
+	header, _ := findNode(form, "heading")
+	assert.Equal(t, "#7 · saved", header.Props["meta"])
+	note, ok := findNode(form, noteField)
 	require.True(t, ok)
-	assert.Equal(t, "Saved", saved.Props["label"])
-	assert.Equal(t, sdui.VariantGhost, saved.Props["variant"])
-	assert.Equal(t, "cmd+s", saved.Props["shortcut"])
+	assert.Equal(t, "half done", note.Props["value"])
+	var labels []string
+	for _, row := range form.Children[1:] {
+		if row.Type == "stack" {
+			labels = append(labels, row.Children[0].Props["text"].(string))
+		}
+	}
+	assert.Equal(t, []string{"Status", "Priority", "Tags", "Owner", "Note", "Description"}, labels)
+	status, _ := findNode(form, "status")
+	priority, _ := findNode(form, "priority")
+	assert.Equal(t, "s", status.Props["shortcut"])
+	assert.Equal(t, "p", priority.Props["shortcut"])
+	_, ok = findNode(main, ownersNode)
+	assert.False(t, ok, "one move draws no Owners lane")
+	errs := mainView(&Task{ID: 7, Title: "a", Status: statusTodo}, detail{hasTasks: true, errs: map[string]string{tagsField: "Bad tag"}})
+	header, _ = findNode(errs, "heading")
+	assert.Equal(t, "#7 · not saved", header.Props["meta"])
 }
 
 func TestOwnerRowsAndLanes(t *testing.T) {
@@ -274,8 +308,6 @@ func TestOwnerRowsAndLanes(t *testing.T) {
 	}
 	main := mainView(task, detail{owners: owners, hasTasks: true})
 
-	header, _ := findNode(main, "heading")
-	assert.Equal(t, "#4", header.Props["meta"])
 	chip, ok := findNode(main, "owner")
 	require.True(t, ok)
 	assert.Equal(t, "Review loop · Coder", chip.Props["label"])
@@ -286,6 +318,9 @@ func TestOwnerRowsAndLanes(t *testing.T) {
 	assert.Equal(t, actRevealLast, last.Props["action"])
 	assert.Equal(t, failedIcon, last.Props["icon"])
 	assert.Contains(t, mustText(t, main), `"text":"stopped · exit 1","tone":"danger"`)
+	assert.Contains(t, mustText(t, main), `"text":"since Nov 3 15:03 · claimed it"`)
+	created := &Task{ID: 5, Title: "New", Status: statusTodo, CreatedBy: "agt_b", Owners: task.Owners[:1]}
+	assert.Contains(t, mustText(t, mainView(created, detail{owners: owners, hasTasks: true})), `"text":"since Nov 2 14:10 · created by Fix (closed)"`)
 
 	lanes, ok := findNode(main, ownersNode)
 	require.True(t, ok)
@@ -337,6 +372,9 @@ func TestMainDescriptionIsADocumentUntilEdited(t *testing.T) {
 	toggle, ok := findNode(editing, "describe")
 	require.True(t, ok)
 	assert.Equal(t, "Done editing", toggle.Props["label"])
+	toggle, _ = findNode(mainView(task, detail{hasTasks: true}), "describe")
+	assert.Equal(t, "Edit", toggle.Props["label"])
+	assert.Equal(t, "e", toggle.Props["shortcut"])
 
 	empty := mainView(&Task{ID: 3, Title: "b", Status: statusTodo, Priority: priorityNormal}, detail{hasTasks: true})
 	_, ok = findNode(empty, "description")
@@ -404,6 +442,8 @@ func TestNumberQueryPinsExactTask(t *testing.T) {
 		items := tree.Props["items"].([]sdui.TreeItem)
 		require.Len(t, items, 2, query)
 		assert.Equal(t, "Task #601", items[0].Label)
+		assert.True(t, items[0].Action)
+		assert.Empty(t, items[0].Icon)
 		require.Len(t, items[0].Children, 1)
 		assert.Equal(t, "601", items[0].Children[0].ID)
 		assert.Equal(t, "checkmark.circle", items[0].Children[0].Icon)
@@ -421,4 +461,14 @@ func TestNumberQueryPinsExactTask(t *testing.T) {
 	items := tree.Props["items"].([]sdui.TreeItem)
 	require.Len(t, items, 1)
 	assert.Equal(t, sdui.TreeItem{ID: "missing", Label: "No task #999 · last is #6010", Muted: true}, items[0])
+}
+
+func TestNoteVersionIgnoresARenderBetweenOwnSaves(t *testing.T) {
+	b, w := &backlog{}, &workspaceUI{}
+	ver := b.noteShown(w, 1, "")
+	require.True(t, b.noteToSave(w, 1, ver, "a"))
+	require.True(t, b.noteToSave(w, 1, ver, "ab"))
+	assert.Equal(t, ver, b.noteShown(w, 1, "a"), "a render that read the store between two own saves")
+	assert.Equal(t, ver, b.noteShown(w, 1, "ab"))
+	assert.Equal(t, ver+1, b.noteShown(w, 1, "a"), "once a render confirmed the last save, an agent writing an older own text is a change")
 }

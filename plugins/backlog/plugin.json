@@ -10,7 +10,9 @@
     "shortcuts": [
       {"keys": "cmd+return", "action": "Start an agent on the task while you own it; open the session or graph run that owns it"},
       {"keys": "d", "action": "Mark the task done"},
-      {"keys": "cmd+s", "action": "Save the task now (the form also autosaves)"},
+      {"keys": "e", "action": "Edit the task's description, or finish editing it"},
+      {"keys": "s", "action": "Open the task's Status menu"},
+      {"keys": "p", "action": "Open the task's Priority menu"},
       {"keys": "cmd+delete", "action": "Delete the task (confirmed)"}
     ],
     "sections": [

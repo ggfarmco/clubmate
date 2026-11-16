@@ -45,6 +45,11 @@ extension SDUINode {
         type == "textField" || children.contains { $0.hasTextField }
     }
 
+    public var firstTextFieldID: String? {
+        if type == "textField" { return id }
+        return children.lazy.compactMap(\.firstTextFieldID).first
+    }
+
     public var hasComposer: Bool {
         type == "composer" || type != "transcript" && children.contains { $0.hasComposer }
     }

@@ -102,6 +102,25 @@
             ]
           }
         },
+        {"type": "stack", "props": {"direction": "horizontal"}, "children": [
+          {"type": "text", "props": {"text": "Priority", "style": "muted"}},
+          {"type": "select", "id": "gallery-priority", "props": {"value": "high", "shortcut": "p", "options": [{"value": "high", "label": "!! High"}, {"value": "normal", "label": "Normal"}, {"value": "low", "label": "↓ Low"}]}}
+        ]},
+        {"type": "text", "props": {"text": "SECTIONS", "style": "muted"}},
+        {
+          "type": "tree",
+          "id": "gallery-sections",
+          "props": {
+            "selected": "81",
+            "items": [
+              {"id": "group:todo", "label": "Todo", "detail": "36", "action": true, "hasChildren": true, "expanded": true, "children": [
+                {"id": "81", "label": "Land gate rollout: release, add the gate for the clubmate repo", "detail": "#81", "icon": "exclamationmark.2"},
+                {"id": "13", "label": "Graph definition diagram keeps the start marker", "detail": "#13"}
+              ]},
+              {"id": "group:done", "label": "Done", "detail": "12", "action": true, "hasChildren": true, "expanded": false}
+            ]
+          }
+        },
         {
           "type": "transcript",
           "id": "gallery-transcript",

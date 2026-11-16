@@ -356,15 +356,79 @@ func TestTags(t *testing.T) {
 	assert.Equal(t, []string{"ui", "mac"}, e.must(e.user("backlog.get", map[string]any{"id": 1})).Tags)
 }
 
-func TestShowMoreTagsKeepsFilter(t *testing.T) {
+func TestTagMenuPicksATag(t *testing.T) {
 	e := newEnv(t)
-	e.add("Many", map[string]any{"tags": []string{"a", "b", "c", "d", "e", "f", "g"}})
+	e.add("Many", map[string]any{"tags": []string{"a", "b", "c", "d"}})
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
-	e.h.Event(t, e.p, "backlog.sidebar", "tags", "filter", "tag:b")
-	e.h.Event(t, e.p, "backlog.sidebar", "tags", "filter", "more")
+	e.h.Event(t, e.p, "backlog.sidebar", "tagMenu", "filter", "c")
+	e.slotHas("backlog.sidebar", `"selected":"tag:c"`)
+	e.h.Event(t, e.p, "backlog.sidebar", "tagMenu", "filter", "")
+	e.slotHas("backlog.sidebar", `"selected":"tag:c"`)
+}
+
+func nodeByID(n sdui.Node, id string) (sdui.Node, bool) {
+	if n.ID == id {
+		return n, true
+	}
+	for _, c := range n.Children {
+		if found, ok := nodeByID(c, id); ok {
+			return found, true
+		}
+	}
+	return sdui.Node{}, false
+}
+
+func (e env) saveAction(note string) string {
+	e.t.Helper()
+	var action string
+	e.h.WaitSlot(e.t, e.p, "backlog.main", func(n sdui.Node) bool {
+		form, ok := nodeByID(n, "edit")
+		if !ok {
+			return false
+		}
+		field, ok := nodeByID(form, "note")
+		value, _ := field.Props["value"].(string)
+		action, _ = form.Props["action"].(string)
+		return ok && value == note
+	})
+	return action
+}
+
+func TestNoteFromTheForm(t *testing.T) {
+	e := newEnv(t)
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
+	e.add("Task", nil)
+	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "select", "1")
+	before := e.saveAction("")
+	note := func() string { return e.must(e.user("backlog.get", map[string]any{"id": 1})).Note }
+
+	e.must(e.agent("agt_a", "backlog.update", map[string]any{"id": 1, "note": "from the agent"}))
+	after := e.saveAction("from the agent")
+	require.NotEqual(t, before, after, "a note changed elsewhere gets a new version")
+	e.h.Event(t, e.p, "backlog.main", "edit", before, map[string]any{"title": "Task", "note": "", "priority": "high"})
+	assert.Equal(t, "from the agent", note(), "a form still holding the note from before keeps the agent's")
+	assert.Equal(t, "high", e.must(e.user("backlog.get", map[string]any{"id": 1})).Priority)
+
+	for _, text := range []string{"", "a", "ab", "a", ""} {
+		e.h.Event(t, e.p, "backlog.main", "edit", after, map[string]any{"title": "Task", "note": text})
+		assert.Equal(t, text, note(), "the user's own edit is saved, clearing the agent's note too")
+	}
+	assert.Equal(t, after, e.saveAction(""), "the user's own saves keep the version")
+}
+
+func TestNewTaskFieldOpensAndCloses(t *testing.T) {
+	e := newEnv(t)
+	e.add("Task", nil)
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
+	e.h.Event(t, e.p, "backlog.sidebar", "newTask", "newOpen", nil)
+	e.slotHas("backlog.sidebar", `"id":"new"`)
+	e.h.Event(t, e.p, "backlog.sidebar", "new", "add", map[string]any{"title": "Second"})
+	e.slotHas("backlog.sidebar", `"label":"Second"`)
+	e.slotHas("backlog.sidebar", `"id":"new"`)
+	e.h.Event(t, e.p, "backlog.sidebar", "newClose", "newClose", nil)
 	e.h.WaitSlot(t, e.p, "backlog.sidebar", func(n sdui.Node) bool {
 		raw, err := json.Marshal(n)
-		return err == nil && strings.Contains(string(raw), `"id":"less"`) && strings.Contains(string(raw), `"selected":"tag:b"`)
+		return err == nil && !strings.Contains(string(raw), `"id":"new"`)
 	})
 }
 

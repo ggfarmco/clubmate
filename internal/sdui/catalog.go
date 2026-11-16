@@ -249,7 +249,7 @@ var (
 		},
 		"select": {
 			required:    []string{"options"},
-			props:       map[string]propCheck{"options": listOf(optionCheck), "value": isString, "error": isString, "action": actionCheck},
+			props:       map[string]propCheck{"options": listOf(optionCheck), "value": isString, "error": isString, "shortcut": shortcutCheck, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},

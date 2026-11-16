@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Companion: task screen from a #N link</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
+<link rel="stylesheet" href="/_blob/4987a8b4234bbea3e512a6d02560ee1d">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+
+.comp .ptl{color:var(--ac);font-weight:500;text-decoration:none}
+.comp .ptl.dn{color:var(--t3)}
+.comp .ptl.pr{background:color-mix(in srgb,var(--ac) 22%,transparent);border-radius:5px;box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 22%,transparent)}
+.comp .ub{align-self:flex-end;max-width:300px;padding:9px 13px;border-radius:18px;background:var(--s2);font-size:15px;line-height:20px}
+.comp .pr15{font-size:15px;line-height:22px;margin:0}
+.comp .pul{margin:0;padding-left:20px;font-size:15px;line-height:22px;display:flex;flex-direction:column;gap:4px}
+.comp .tool{display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px;color:var(--t3)}
+.comp .sf{flex:1;height:36px;border-radius:10px;background:var(--s2);display:flex;align-items:center;gap:7px;padding:0 10px;font-size:16px}
+.comp .kv{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;font-size:15px}
+.comp .kv+.kv{border-top:1px solid var(--bd)}
+.comp .kv .k2{flex:1;color:var(--fg)}
+.comp .kv .v2{color:var(--t3)}
+.comp .scrim{position:absolute;inset:0;background:rgba(0,0,0,.42);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:8}
+.comp .pv{position:absolute;left:20px;right:20px;border-radius:16px;background:var(--s1);z-index:9;box-shadow:0 18px 40px rgba(0,0,0,.35)}
+.comp .menu{position:absolute;left:20px;width:250px;border-radius:14px;background:var(--s2);z-index:9;overflow:hidden}
+.comp .menu .mi{display:flex;align-items:center;gap:10px;height:44px;padding:0 16px;font-size:16px}
+.comp .menu .mi+.mi{border-top:1px solid var(--bd)}
+</style>
+</helmet>
+<div class="cm comp th-{{theme}}" style="width: 393px; height: 852px">
+<div class="edge"></div><div class="top"><button class="gbtn glass" aria-label="Back"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button><div class="t"><span class="tt">#612</span><span class="ts">Todo · clubmate</span></div><button class="gbtn glass" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button></div>
+<div style="position: absolute; inset: 0; padding-top: 112px; overflow: hidden">
+<h1 class="t20" style="margin: 0; padding: 0 20px; font-size: 22px; line-height: 28px; font-weight: 700">Phone backlog: search by number</h1>
+<div class="cap mut" style="padding: 4px 20px 0">Filed by Claude in “Backlog: find a task by its number” · just now</div>
+<div style="padding: 16px 16px 0"><button class="cb pri" style="width: 100%"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5Z"/></svg> Start agent</button></div>
+<div class="ig" style="margin-top: 18px"><div class="kv"><span class="k2">Status</span><span class="v2">Todo</span><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; color: var(--t4)"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div><div class="kv"><span class="k2">Priority</span><span class="v2">!! High</span><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; color: var(--t4)"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div><div class="kv"><span class="k2">Tags</span><span class="v2">phone, search</span><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; color: var(--t4)"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div><div class="kv"><span class="k2">Owner</span><span class="v2">you</span><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; color: var(--t4)"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div></div>
+<div class="hdr"><span>Description</span></div>
+<p class="pr15" style="padding: 0 20px">A number-only query pins that task first, like on the Mac (<a class="ptl dn" href="#task-590">#590</a>). The search field sits under the large title; return opens the pinned task.</p>
+<div class="hdr"><span>Links</span><span class="cap">1</span></div>
+<div class="ig"><div class="c" style="align-items: flex-start"><span class="st n" style="margin-top: 1px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 0 1 0 12Z" fill="currentColor" stroke="none"/></svg></span><div class="cbody"><span>Side threads: open beside the parent</span><span class="cap mut ell">#601 · relates to · In progress</span></div><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; color: var(--t4)"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"clight"},"$preview":{"width":393,"height":852}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'clight' };
+}
+}
+</script>
+</body>
+</html>

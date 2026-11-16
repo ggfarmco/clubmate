@@ -41,7 +41,7 @@ struct SidebarPane: View {
         } content: {
             SlotPane(store: store, slot: slot)
                 .environment(\.sidebarSlot, slot)
-                .environment(\.sidebarHasField, store.hasTextField(slot))
+                .environment(\.sidebarField, store.textFieldID(slot))
                 .environment(\.sidebarTabs, store.firstTabs(slot))
                 .background(theme.surface1, ignoresSafeAreaEdges: [])
         }

@@ -26,17 +26,23 @@ const (
 	tagsField     = "tagsText"
 	tagAll        = "all"
 	tagPrefix     = "tag:"
-	tagMore       = "more"
-	tagLess       = "less"
-	shownTags     = 6
+	tagMenu       = "tagMenu"
+	shownTags     = 1
 	actFilter     = "filter"
 	searchNode    = "search"
 	newTitleNode  = "title"
+	noteField     = "note"
+	actNewOpen    = "newOpen"
+	actNewClose   = "newClose"
+	actLinkOpen   = "linkOpen"
 	actSearch     = "search"
 	pinGroup      = groupPrefix + "pinned"
 	missingRow    = "missing"
 	noTasks       = "No tasks yet — add one on the left"
 	formLines     = 8
+	noteLines     = 4
+	minLaneMoves  = 2
+	sectionGap    = 12
 	actReveal     = "reveal"
 	actDescribe   = "describe"
 	actStart      = "start"
@@ -91,6 +97,7 @@ var (
 	attachIcons  = map[string]string{attachFile: "doc", attachImage: "photo", attachArtifact: "square.on.square", attachURL: "link"}
 	attachWords  = map[string]string{attachFile: "worktree", attachImage: "image", attachArtifact: "artifact", attachURL: "link"}
 	moveLabels   = map[string]string{whyCreated: "created", whyStarted: "Start agent", whyClaimed: "claimed", whyReleased: "released", whyDone: "done", whyTakenBack: "taken back", whyStopped: "stopped"}
+	sinceWords   = map[string]string{whyCreated: "created it", whyStarted: "started", whyClaimed: "claimed it", whyReleased: "released", whyDone: "done", whyTakenBack: "taken back", whyStopped: "stopped"}
 	attachCounts = map[string][2]string{attachFile: {"1 file", "%d files"}, attachImage: {"1 image", "%d images"}, attachArtifact: {"1 artifact", "%d artifacts"}, attachURL: {"1 URL", "%d URLs"}}
 )
 
@@ -110,6 +117,8 @@ type detail struct {
 	errs     map[string]string
 	editing  bool
 	prompt   bool
+	linking  bool
+	noteVer  int
 	rev      int
 }
 
@@ -147,50 +156,76 @@ func tagCounts(tasks []Task) map[string]int {
 	return counts
 }
 
-func tagTabs(tasks []Task, counts map[string]int, filter string, open bool) sdui.Node {
-	notDone := 0
+func openCount(tasks []Task) int {
+	n := 0
 	for _, t := range tasks {
 		if t.Status != statusDone {
-			notDone++
+			n++
 		}
 	}
-	items := []sdui.Item{{ID: tagAll, Label: "All", Badge: strconv.Itoa(notDone)}}
+	return n
+}
+
+func tagRow(tasks []Task, counts map[string]int, filter string) sdui.Node {
+	items := []sdui.Item{{ID: tagAll, Label: "All", Badge: strconv.Itoa(openCount(tasks))}}
 	tags := slices.Collect(maps.Keys(counts))
 	slices.SortFunc(tags, func(a, b string) int { return cmp.Or(cmp.Compare(counts[b], counts[a]), cmp.Compare(a, b)) })
-	shown := tags
-	if !open && len(tags) > shownTags {
-		shown = tags[:shownTags]
-		if filter != "" && !slices.Contains(shown, filter) {
-			shown = append(slices.Clone(shown), filter)
-		}
+	shown := tags[:min(shownTags, len(tags))]
+	if filter != "" && !slices.Contains(shown, filter) {
+		shown = append(slices.Clone(shown), filter)
 	}
 	for _, tag := range shown {
 		items = append(items, sdui.Item{ID: tagPrefix + tag, Label: tag, Badge: strconv.Itoa(counts[tag])})
-	}
-	switch {
-	case len(shown) < len(tags):
-		items = append(items, sdui.Item{ID: tagMore, Label: fmt.Sprintf("show %d more", len(tags)-len(shown))})
-	case len(tags) > shownTags:
-		items = append(items, sdui.Item{ID: tagLess, Label: "show less"})
 	}
 	selected := tagAll
 	if filter != "" {
 		selected = tagPrefix + filter
 	}
-	return sdui.WithAction(sdui.Tabs(tagsNode, items, selected), actFilter)
+	tabs := sdui.WithAction(sdui.Tabs(tagsNode, items, selected), actFilter)
+	rest := slices.DeleteFunc(slices.Clone(tags), func(tag string) bool { return slices.Contains(shown, tag) })
+	if len(rest) == 0 {
+		return tabs
+	}
+	opts := []sdui.Option{{Value: "", Label: fmt.Sprintf("+%d", len(rest))}}
+	for _, tag := range rest {
+		opts = append(opts, sdui.Option{Value: tag, Label: fmt.Sprintf("%s %d", tag, counts[tag])})
+	}
+	row := sdui.HStack(tabs, sdui.WithAction(sdui.Select(tagMenu, opts, ""), actFilter))
+	row.ID = "tagRow-" + filter
+	return row
 }
 
-func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formRev int, filter, query string, tagsOpen bool) sdui.Node {
-	add := sdui.WithAction(sdui.Form("new", sdui.TextField(newTitleNode, "", "New task…"), sdui.Button("add", "Add", "plus")), "add")
-	form := sdui.VStack(add)
-	form.ID = fmt.Sprintf("new-%d", formRev)
-	if len(tasks) == 0 {
-		return sdui.VStack(form, sdui.Empty("No tasks yet"))
+func sidebarHead(tasks []Task) sdui.Node {
+	title := sdui.Node{Type: "text", Props: map[string]any{"text": "Backlog", "style": "strong"}}
+	add := sdui.WithIconOnly(sdui.WithVariant(sdui.WithAction(sdui.Button("newTask", "New task", "plus"), actNewOpen), sdui.VariantGhost))
+	head := []sdui.Node{title}
+	if len(tasks) > 0 {
+		head = append(head, sdui.MutedText(fmt.Sprintf("%d open", openCount(tasks))))
 	}
-	search := sdui.WithAction(sdui.WithLive(sdui.TextField(searchNode, query, "Search, or a #number")), actSearch)
-	var list []sdui.Node
+	return sdui.HStack(append(head, sdui.Spacer(), add)...)
+}
+
+func newTaskForm(rev int) sdui.Node {
+	closeButton := sdui.WithIconOnly(sdui.WithVariant(sdui.WithAction(sdui.Button("newClose", "Close", "xmark"), actNewClose), sdui.VariantGhost))
+	form := sdui.VStack(sdui.WithAction(sdui.Form("new", sdui.HStack(sdui.TextField(newTitleNode, "", "New task…"), closeButton)), "add"))
+	form.ID = fmt.Sprintf("new-%d", rev)
+	return form
+}
+
+func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formRev int, filter, query string, adding bool) sdui.Node {
+	head := sidebarHead(tasks)
+	if len(tasks) == 0 {
+		if adding {
+			return sdui.VStack(head, newTaskForm(formRev), sdui.Empty("No tasks yet"))
+		}
+		return sdui.VStack(head, sdui.Empty("No tasks yet"))
+	}
+	top := []sdui.Node{head, sdui.WithAction(sdui.WithLive(sdui.TextField(searchNode, query, "Search, or a #number")), actSearch)}
 	if counts := tagCounts(tasks); len(counts) > 0 {
-		list = append(list, tagTabs(tasks, counts, filter, tagsOpen))
+		top = append(top, tagRow(tasks, counts, filter))
+	}
+	if adding {
+		top = append(top, newTaskForm(formRev))
 	}
 	pinned := -1
 	number, isNumber := exactID(query)
@@ -211,11 +246,11 @@ func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formR
 		}
 		g := sdui.TreeItem{
 			ID:          groupPrefix + status,
-			Label:       fmt.Sprintf("%s · %d", statusLabels[status], len(rows)),
-			Icon:        statusIcons[status],
+			Label:       statusLabels[status],
+			Detail:      strconv.Itoa(len(rows)),
 			HasChildren: true,
 			Expanded:    query != "" || !collapsed[status],
-			Action:      query == "",
+			Action:      true,
 		}
 		if g.Expanded {
 			g.Children = rows
@@ -226,7 +261,7 @@ func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formR
 	case pinned >= 0:
 		row := taskItem(tasks[pinned])
 		row.Icon = statusIcons[tasks[pinned].Status]
-		pin := sdui.TreeItem{ID: pinGroup, Label: fmt.Sprintf("Task #%d", number), HasChildren: true, Expanded: true, Children: []sdui.TreeItem{row}}
+		pin := sdui.TreeItem{ID: pinGroup, Label: fmt.Sprintf("Task #%d", number), HasChildren: true, Expanded: true, Action: true, Children: []sdui.TreeItem{row}}
 		groups = append([]sdui.TreeItem{pin}, groups...)
 	case isNumber:
 		last := slices.MaxFunc(tasks, func(a, b Task) int { return cmp.Compare(a.ID, b.ID) })
@@ -234,11 +269,9 @@ func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formR
 		groups = append([]sdui.TreeItem{missing}, groups...)
 	}
 	if len(groups) == 0 {
-		list = append(list, sdui.Empty("No tasks match"))
-	} else {
-		list = append(list, sdui.Tree("tasks", groups, selected))
+		return sdui.VStack(append(top, sdui.Empty("No tasks match"))...)
 	}
-	return sdui.VStack(form, search, sdui.Scroll(sdui.VStack(list...)))
+	return sdui.VStack(append(top, sdui.Scroll(sdui.Tree("tasks", groups, selected)))...)
 }
 
 func taskItem(t Task) sdui.TreeItem {
@@ -287,44 +320,38 @@ func mainView(t *Task, d detail) sdui.Node {
 		return emptyView(d.rev)
 	}
 	errs := d.errs
-	meta := []string{fmt.Sprintf("#%d", t.ID)}
-	if t.Note != "" {
-		meta = append(meta, t.Note)
-	}
-	saved := sdui.Button("save", "Saved", "checkmark")
+	meta := fmt.Sprintf("#%d · saved", t.ID)
 	if len(errs) > 0 {
-		saved = sdui.Button("save", "Not saved", "")
+		meta = fmt.Sprintf("#%d · not saved", t.ID)
 	}
-	header := sdui.Header(t.Title, sdui.HeaderProps{Icon: statusIcons[t.Status], Meta: strings.Join(meta, "\n"), Field: "title", Error: errs["title"]}, actions(t, d)...)
+	header := sdui.Header(t.Title, sdui.HeaderProps{Icon: statusIcons[t.Status], Meta: meta, Field: "title", Error: errs["title"]}, actions(t, d)...)
 	header.ID = "heading"
 	fields := []sdui.Node{header}
-	described := t.Description != "" && !d.editing
-	if described {
-		fields = append(fields, sdui.Document("doc", sdui.DocumentProps{HTML: describe(t.Description, d.linked), Rev: descriptionRev(t.Description), Size: sdui.SizeFit}))
-	}
-	if t.Description != "" {
-		label := "Done editing"
-		if described {
-			label = "Edit description"
-		}
-		fields = append(fields, sdui.HStack(sdui.WithVariant(sdui.WithAction(sdui.Button(actDescribe, label, "pencil"), actDescribe), sdui.VariantGhost)))
-	}
-	fields = append(fields, ownerLanes(t, d.owners))
 	if t.Status != statusInProgress {
-		fields = append(fields, sdui.HStack(sdui.MutedText("Status"), sdui.Select("status", options(editStatuses, statusLabels), t.Status)))
+		fields = append(fields, sdui.HStack(sdui.MutedText("Status"), sdui.WithShortcut(sdui.Select("status", options(editStatuses, statusLabels), t.Status), "s")))
 	}
-	fields = append(fields, sdui.HStack(sdui.MutedText("Priority"), sdui.Select("priority", options(priorities, priorityText), t.Priority)))
+	fields = append(fields, sdui.HStack(sdui.MutedText("Priority"), sdui.WithShortcut(sdui.Select("priority", options(priorities, priorityText), t.Priority), "p")))
 	tags := sdui.TextField(tagsField, strings.Join(t.Tags, ", "), "Tags — comma-separated words")
 	if errs[tagsField] != "" {
 		tags = sdui.WithError(tags, errs[tagsField])
 	}
 	fields = append(fields, sdui.HStack(sdui.MutedText("Tags"), tags))
 	fields = append(fields, ownerRows(t, d.owners)...)
-	if !described {
+	fields = append(fields, sdui.HStack(sdui.MutedText("Note"), sdui.WithLines(sdui.TextField(noteField, t.Note, "Note — progress or result, from you or an agent"), noteLines)))
+	if t.Description != "" && !d.editing {
+		fields = append(fields, sdui.Divider(), sdui.Document("doc", sdui.DocumentProps{HTML: describe(t.Description, d.linked), Rev: descriptionRev(t.Description), Size: sdui.SizeFit}))
+	} else {
 		fields = append(fields, sdui.HStack(sdui.MutedText("Description"), sdui.WithLines(sdui.TextField("description", t.Description, "Description — markdown"), formLines)))
 	}
-	fields = append(fields, sdui.WithShortcut(sdui.WithVariant(saved, sdui.VariantGhost), "cmd+s"))
-	form := sdui.VStack(sdui.WithAutosave(sdui.WithAction(sdui.Form("edit", fields...), "save."+strconv.Itoa(t.ID))), linksView(t, d), attachmentsView(t, d))
+	save := "save." + strconv.Itoa(t.ID)
+	if d.noteVer > 0 {
+		save += "." + strconv.Itoa(d.noteVer)
+	}
+	children := []sdui.Node{sdui.WithAutosave(sdui.WithAction(sdui.Form("edit", fields...), save)), linksView(t, d), attachmentsView(t, d)}
+	if len(ownerHistory(*t)) >= minLaneMoves {
+		children = append(children, ownerLanes(t, d.owners))
+	}
+	form := sdui.WithGap(sdui.VStack(children...), sectionGap)
 	form.ID = fmt.Sprintf("task-%d", t.ID)
 	return sdui.Scroll(form)
 }
@@ -339,15 +366,23 @@ func ownerRows(t *Task, owners map[string]owner) []sdui.Node {
 	if state := owners[current].state; state != "" {
 		status = append(status, state)
 	}
-	if current != userOwner && !t.ClaimedAt.IsZero() {
-		status = append(status, "since "+t.ClaimedAt.Local().Format(dayLayout))
+	history := ownerHistory(*t)
+	m := history[len(history)-1]
+	if !m.At.IsZero() {
+		status = append(status, "since "+m.At.Local().Format(dayLayout))
 	}
-	if len(status) > 0 {
-		row.Children = append(row.Children, sdui.MutedText(strings.Join(status, " · ")))
+	switch {
+	case m.failed():
+		status = append(status, moveWords(m))
+	case m.Why == whyCreated && t.CreatedBy != "" && t.CreatedBy != userOwner:
+		status = append(status, "created by "+labelOf(owners, t.CreatedBy))
+	default:
+		status = append(status, sinceWords[m.Why])
 	}
+	row.Children = append(row.Children, sdui.MutedText(strings.Join(slices.DeleteFunc(status, func(s string) bool { return s == "" }), " · ")))
 	rows := []sdui.Node{row}
 	if t.LastClaimedBy != "" {
-		m, left := leftMove(ownerHistory(*t), t.LastClaimedBy)
+		m, left := leftMove(history, t.LastClaimedBy)
 		chip := ownerChip("lastOwner", actRevealLast, t.LastClaimedBy, owners)
 		if m.failed() && chip.Type == "button" {
 			chip.Props["icon"] = failedIcon
@@ -362,8 +397,7 @@ func ownerRows(t *Task, owners map[string]owner) []sdui.Node {
 		}
 		rows = append(rows, last)
 	}
-	created := t.CreatedAt.Local().Format(dayLayout) + " · by " + labelOf(owners, cmp.Or(t.CreatedBy, userOwner))
-	return append(rows, sdui.HStack(sdui.MutedText("Created"), sdui.Text(created)))
+	return rows
 }
 
 func ownerChip(id, action, who string, owners map[string]owner) sdui.Node {
@@ -531,8 +565,25 @@ func linksView(t *Task, d detail) sdui.Node {
 			Menu:   []sdui.MenuEntry{{Action: actUnlink, Label: "Remove link"}},
 		})
 	}
-	field := sdui.WithAction(sdui.TextField(linkField, "", "Link a task — blocks #3, blocked by #5, relates #7"), actLink)
-	return section(fmt.Sprintf("links-%d-%d", t.ID, d.rev), "Links", sdui.List(linksNode, items, ""), len(items), field, d.errs[linkField])
+	title := "Links"
+	if len(items) > 0 {
+		title = fmt.Sprintf("Links · %d", len(items))
+	}
+	add := sdui.WithVariant(sdui.WithAction(sdui.Button("linkOpen", "Link", "plus"), actLinkOpen), sdui.VariantGhost)
+	children := []sdui.Node{sdui.HStack(sdui.MutedText(title), sdui.Spacer(), add)}
+	if len(items) > 0 {
+		children = append(children, sdui.List(linksNode, items, ""))
+	}
+	if err := d.errs[linkField]; d.linking || err != "" {
+		field := sdui.WithAction(sdui.TextField(linkField, "", "Link a task — blocks #3, blocked by #5, relates #7"), actLink)
+		if err != "" {
+			field = sdui.WithError(field, err)
+		}
+		children = append(children, field)
+	}
+	v := sdui.VStack(children...)
+	v.ID = fmt.Sprintf("links-%d-%d", t.ID, d.rev)
+	return v
 }
 
 func attachmentsView(t *Task, d detail) sdui.Node {
@@ -691,7 +742,14 @@ func actions(t *Task, d detail) []sdui.Node {
 	if t.Status != statusDone {
 		buttons = append(buttons, sdui.WithShortcut(button("done", "Done", "checkmark", sdui.VariantSecondary), "d"))
 	}
-	buttons = append(buttons, sdui.WithShortcut(sdui.WithConfirm(button("delete", "Delete", "trash", sdui.VariantDanger), deleteConfirm(t.ID)), "cmd+delete"))
+	if t.Description != "" {
+		label := "Edit"
+		if d.editing {
+			label = "Done editing"
+		}
+		buttons = append(buttons, sdui.WithShortcut(button(actDescribe, label, "pencil", sdui.VariantGhost), "e"))
+	}
+	buttons = append(buttons, sdui.WithShortcut(sdui.WithConfirm(button("delete", "Delete", "", sdui.VariantGhost), deleteConfirm(t.ID)), "cmd+delete"))
 	return buttons
 }
 

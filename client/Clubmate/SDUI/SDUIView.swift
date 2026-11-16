@@ -171,15 +171,17 @@ enum SidebarField {
     static let suffix = ".field"
 }
 
-private struct SidebarHasFieldKey: EnvironmentKey {
-    static let defaultValue = false
+private struct SidebarFieldKey: EnvironmentKey {
+    static let defaultValue: String? = nil
 }
 
 extension EnvironmentValues {
-    var sidebarHasField: Bool {
-        get { self[SidebarHasFieldKey.self] }
-        set { self[SidebarHasFieldKey.self] = newValue }
+    var sidebarField: String? {
+        get { self[SidebarFieldKey.self] }
+        set { self[SidebarFieldKey.self] = newValue }
     }
+
+    var sidebarHasField: Bool { sidebarField != nil }
 }
 
 private struct SidebarTabsKey: EnvironmentKey {

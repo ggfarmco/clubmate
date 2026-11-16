@@ -210,16 +210,24 @@ struct TreeNodeView: View {
     private struct Row: Identifiable {
         let item: SDUITreeItem
         let depth: Int
+        let section: Bool
+        let first: Bool
 
         var id: String { item.id }
+    }
+
+    private struct Columns {
+        let chevron: Bool
+        let icon: Bool
     }
 
     private var rows: [Row] {
         var rows: [Row] = []
         func visit(_ items: [SDUITreeItem], _ depth: Int) {
             for item in items {
-                rows.append(Row(item: item, depth: depth))
-                visit(item.shownChildren, depth + 1)
+                let section = depth == 0 && TreeSection.holds(item)
+                rows.append(Row(item: item, depth: depth, section: section, first: rows.isEmpty))
+                visit(item.shownChildren, section ? depth : depth + 1)
             }
         }
         visit(node.treeItems(), 0)
@@ -267,10 +275,13 @@ struct TreeNodeView: View {
 
     private var stack: some View {
         let rows = rows
-        let nested = node.treeItems().contains(where: \.hasChildren)
+        let columns = Columns(
+            chevron: rows.contains { !$0.section && $0.depth == 0 && $0.item.hasChildren },
+            icon: rows.contains { !$0.section && $0.item.item.icon?.isEmpty == false }
+        )
         return LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(rows) { row in
-                itemRow(row, nested: nested, selected: row.id == selected, cursor: focused && row.id == cursor) {
+                itemRow(row, columns: columns, selected: row.id == selected, cursor: focused && row.id == cursor) {
                     cursor = row.id
                     focused = true
                     select(row.id)
@@ -283,8 +294,9 @@ struct TreeNodeView: View {
             if scroller != nil {
                 let tree = TreeCursor.rows(node.treeItems())
                 StickyHeaders(rows: tree, limit: Self.stickyLimit) { id in
-                    if let row = rows.first(where: { $0.id == id }) {
-                        itemRow(row, nested: nested, selected: false, cursor: false) {
+                    if let found = rows.first(where: { $0.id == id }) {
+                        let row = Row(item: found.item, depth: found.depth, section: found.section, first: true)
+                        itemRow(row, columns: columns, selected: false, cursor: false) {
                             if let target = TreeCursor.stickyTarget(id, in: tree, limit: Self.stickyLimit) {
                                 scroller?.scrollTo(target, anchor: .top)
                             }
@@ -323,13 +335,22 @@ struct TreeNodeView: View {
         }
     }
 
-    private func itemRow(_ row: Row, nested: Bool, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
-        ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, faint: row.item.faint, tone: row.item.tone, detailTone: row.item.detailTone, detailFaint: row.item.detailFaint, depth: row.depth, badges: row.item.badges, changes: row.item.changes, labelIcon: row.item.labelIcon, action: action) {
-            Disclosure(hasChildren: row.item.hasChildren, expanded: row.item.expanded, reserve: nested) { expanded in
-                dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
+    @ViewBuilder
+    private func itemRow(_ row: Row, columns: Columns, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
+        if row.section {
+            SectionLabel(item: row.item, spaced: !row.first, cursor: cursor) {
+                self.cursor = row.id
+                focused = true
+                dispatch(node, row.item.expanded ? .collapse(row.id) : .expand(row.id))
             }
+        } else {
+            ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, faint: row.item.faint, tone: row.item.tone, detailTone: row.item.detailTone, detailFaint: row.item.detailFaint, depth: row.depth, badges: row.item.badges, changes: row.item.changes, labelIcon: row.item.labelIcon, reserveIcon: columns.icon, action: action) {
+                Disclosure(hasChildren: row.item.hasChildren, expanded: row.item.expanded, reserve: columns.chevron) { expanded in
+                    dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
+                }
+            }
+            .itemMenu(row.item.item.menu) { dispatch.choose($0, item: row.id, in: node) }
         }
-        .itemMenu(row.item.item.menu) { dispatch.choose($0, item: row.id, in: node) }
     }
 
     private func select(_ id: String) {
@@ -398,6 +419,58 @@ struct TreeNodeView: View {
     }
 }
 
+enum TreeSection {
+    static func holds(_ item: SDUITreeItem) -> Bool {
+        item.action && item.hasChildren && (item.item.icon ?? "").isEmpty
+    }
+}
+
+private struct SectionLabel: View {
+    let item: SDUITreeItem
+    let spaced: Bool
+    let cursor: Bool
+    let toggle: () -> Void
+
+    @State private var hovering = false
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: theme.spacing.s) {
+            Text(item.item.label)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .help(item.item.label)
+            if !item.expanded {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .semibold))
+            }
+            Spacer(minLength: theme.spacing.m)
+            if let detail = item.item.detail {
+                Text(detail)
+                    .monospacedDigit()
+                    .foregroundStyle(theme.tone(item.detailTone) ?? theme.muted)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        }
+        .font(theme.uiSmall)
+        .foregroundStyle(hovering ? theme.text2 : theme.muted)
+        .padding(.horizontal, theme.gutter)
+        .frame(height: theme.rowHeight)
+        .overlay {
+            if cursor { Rectangle().strokeBorder(theme.accent, lineWidth: theme.focusRing) }
+        }
+        .padding(.top, spaced ? theme.spacing.m : 0)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: toggle)
+        .onHover { hovering = $0 }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityAction(named: item.expanded ? "Collapse" : "Expand", toggle)
+        .testRow(item.id, label: item.item.label, selected: false, focused: cursor, hovered: hovering)
+    }
+}
+
 private struct StickyHeaders<Header: View>: View {
     let rows: [TreeRow]
     let limit: Int
@@ -462,6 +535,7 @@ struct ItemRow<Leading: View>: View {
     var badges: [SDUIHeaderBadge] = []
     var changes: SDUIChanges?
     var labelIcon: String?
+    var reserveIcon = false
     let action: () -> Void
     @ViewBuilder let leading: () -> Leading
 
@@ -490,6 +564,8 @@ struct ItemRow<Leading: View>: View {
                         .foregroundStyle(theme.tone(tone) ?? theme.muted)
                         .frame(width: 14)
                 }
+            } else if reserveIcon {
+                Color.clear.frame(width: 14, height: 1)
             }
             if let labelIcon {
                 Image(systemName: SymbolName.resolve(labelIcon))

@@ -385,6 +385,7 @@ struct TextFieldNodeView: View {
     let node: SDUINode
 
     @State private var text = ""
+    @State private var typed = false
     @State private var pending: Task<Void, Never>?
     @State private var targeted = false
     @FocusState private var focused: Bool
@@ -393,6 +394,7 @@ struct TextFieldNodeView: View {
     @Environment(\.theme) private var theme
     @Environment(\.focusRouter) private var router
     @Environment(\.sidebarSlot) private var sidebarSlot
+    @Environment(\.sidebarField) private var sidebarField
     @Environment(\.filePicker) private var filePicker
 
     private static let liveDelay: Duration = .milliseconds(250)
@@ -411,7 +413,7 @@ struct TextFieldNodeView: View {
             .reportsFocus(.field, focused, slot: sidebarSlot.map { $0 + SidebarField.suffix })
             .onChange(of: router?.pending, initial: true) {
                 guard let sidebarSlot else { return }
-                if router?.take(sidebarSlot + SidebarField.suffix) == true { focused = true }
+                if node.id == sidebarField, router?.take(sidebarSlot + SidebarField.suffix) == true { focused = true }
                 if let id = node.id, router?.pending?.node != nil, router?.take(sidebarSlot, node: id) == true { focused = true }
             }
             .textFieldStyle(.plain)
@@ -424,11 +426,14 @@ struct TextFieldNodeView: View {
             .modifier(FileDrop(active: drops, targeted: $targeted, drop: drop))
             .onSubmit(submit)
             .onChange(of: focused) { _, now in
-                if !now { form?.flush() }
+                guard !now else { return }
+                form?.flush()
+                if !typed { sync(node.string("value")) }
             }
             .onChange(of: node.string("value"), initial: true) { _, value in
-                if form?.autosave == true || live, focused { return }
-                text = node.id.flatMap { form?.draft($0)?.stringValue } ?? value ?? ""
+                if value == text { typed = false }
+                if form?.autosave == true || live, focused, typed { return }
+                sync(value)
             }
             .onChange(of: text, initial: true) { _, value in
                 if lines == nil, value.contains(where: \.isNewline) {
@@ -447,19 +452,25 @@ struct TextFieldNodeView: View {
             HStack(spacing: theme.spacing.m) {
                 Image(systemName: "paperclip")
                     .foregroundStyle(theme.muted)
-                TextField("", text: typed, prompt: prompt)
+                TextField("", text: binding, prompt: prompt)
             }
         } else if let lines {
-            TextField("", text: typed, prompt: prompt, axis: .vertical).lineLimit(2...lines)
+            TextField("", text: binding, prompt: prompt, axis: .vertical).lineLimit(2...lines)
         } else {
-            TextField("", text: typed, prompt: prompt)
+            TextField("", text: binding, prompt: prompt)
         }
     }
 
-    private var typed: Binding<String> {
+    private func sync(_ value: String?) {
+        text = node.id.flatMap { form?.draft($0)?.stringValue } ?? value ?? ""
+        typed = false
+    }
+
+    private var binding: Binding<String> {
         Binding(get: { text }, set: { value in
             guard value != text else { return }
             if drops, text.isEmpty, value == "@", filePicker != nil { return pickFile() }
+            typed = true
             text = value
             if let id = node.id { form?.touch(id) }
             form?.edited(after: FormState.typingDelay)
@@ -500,6 +511,7 @@ struct TextFieldNodeView: View {
         }
         guard let link = urls.first(where: { ["http", "https"].contains($0.scheme?.lowercased()) }) else { return false }
         text = link.absoluteString
+        typed = true
         focused = true
         return true
     }
@@ -578,17 +590,31 @@ struct SelectNodeView: View {
     @Environment(FormState.self) private var form: FormState?
     @Environment(\.theme) private var theme
 
+    @State private var anchor = SelectMenuAnchor()
+
     private var options: [SDUIOption] { node.options() }
 
     private var label: String { options.first { $0.value == value }?.label ?? value }
 
+    private var combo: KeyCombo? { node.string("shortcut").flatMap(KeyCombo.init) }
+
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            menu
-                .fixedSize()
-            menu
+        HStack(spacing: theme.spacing.m) {
+            ViewThatFits(in: .horizontal) {
+                menu
+                    .fixedSize()
+                menu
+            }
+            if let key = combo?.label {
+                Text(key)
+                    .font(theme.uiSmall)
+                    .foregroundStyle(theme.muted)
+                    .fixedSize()
+            }
         }
-        .help(label)
+        .background(SelectMenuAnchorView(anchor: anchor))
+        .keyMonitor(active: combo != nil, handle: openFromKey)
+        .help([label, combo?.label].compactMap { $0 }.joined(separator: " "))
         .testMenu("\(node.id ?? "select").menu", options.map { LayoutMenuItem(title: $0.label) })
         .padding(.horizontal, theme.spacing.m)
         .frame(height: theme.control)
@@ -617,6 +643,21 @@ struct SelectNodeView: View {
         .environment(\.colorScheme, theme.isDark ? .dark : .light)
     }
 
+    private func openFromKey(_ event: NSEvent) -> Bool {
+        guard combo?.fires(on: event) == true, let view = anchor.view else { return false }
+        let menu = NSMenu()
+        for option in options {
+            let item = SelectMenuItem(title: option.label) { choose(option.value) }
+            item.state = option.value == value ? .on : .off
+            menu.addItem(item)
+        }
+        let current = menu.items.first { $0.state == .on }
+        DispatchQueue.main.async {
+            menu.popUp(positioning: current, at: NSPoint(x: 0, y: view.isFlipped ? 0 : view.bounds.height), in: view)
+        }
+        return true
+    }
+
     private func choose(_ option: String) {
         value = option
         if let id = node.id {
@@ -625,6 +666,42 @@ struct SelectNodeView: View {
         }
         form?.edited()
         if form == nil || node.string("action") != nil { dispatch(node, .change(option)) }
+    }
+}
+
+final class SelectMenuAnchor {
+    weak var view: NSView?
+}
+
+private struct SelectMenuAnchorView: NSViewRepresentable {
+    let anchor: SelectMenuAnchor
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        anchor.view = view
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        anchor.view = view
+    }
+}
+
+private final class SelectMenuItem: NSMenuItem {
+    private let pick: () -> Void
+
+    init(title: String, pick: @escaping () -> Void) {
+        self.pick = pick
+        super.init(title: title, action: #selector(fire), keyEquivalent: "")
+        target = self
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    @objc private func fire() {
+        pick()
     }
 }
 
@@ -672,6 +749,7 @@ enum MenuKeys {
         for item in menu.items {
             if let found = item.submenu.flatMap({ Self.item(in: $0, matching: event) }) { return found }
             guard !item.keyEquivalent.isEmpty else { continue }
+            if item.keyEquivalentModifierMask.contains(.function), !event.modifierFlags.contains(.function) { continue }
             var mask = item.keyEquivalentModifierMask.intersection([.command, .control, .option, .shift])
             if item.keyEquivalent != item.keyEquivalent.lowercased() { mask.insert(.shift) }
             if item.keyEquivalent.lowercased() == key, mask == flags { return item }

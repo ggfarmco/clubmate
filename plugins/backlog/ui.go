@@ -21,6 +21,7 @@ import (
 )
 
 const (
+	keptNotes      = 8
 	kindDeleted    = "deleted"
 	sessionError   = "error"
 	sessionRunning = "running"
@@ -43,7 +44,16 @@ type workspaceUI struct {
 	prompt     int
 	tagFilter  string
 	query      string
-	tagsOpen   bool
+	adding     bool
+	linking    int
+	notes      map[int]*noteState
+}
+
+type noteState struct {
+	ver   int
+	known string
+	texts map[int]string
+	own   []string
 }
 
 type fieldError struct {
@@ -143,7 +153,7 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 	if w.tagFilter != "" && tagCounts(tasks)[w.tagFilter] == 0 {
 		w.tagFilter = ""
 	}
-	selected, collapsed, rev, fieldRev, fieldErr, editing, prompt, filter, query, tagsOpen := w.selected, maps.Clone(w.collapsed), w.formRev, w.fieldRev, w.fieldError, w.editing, w.prompt, w.tagFilter, w.query, w.tagsOpen
+	selected, collapsed, rev, fieldRev, fieldErr, editing, prompt, filter, query, adding, linking := w.selected, maps.Clone(w.collapsed), w.formRev, w.fieldRev, w.fieldError, w.editing, w.prompt, w.tagFilter, w.query, w.adding, w.linking
 	b.mu.Unlock()
 	var current *Task
 	byID := make(map[int]Task, len(tasks))
@@ -153,19 +163,23 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 			current = &tasks[i]
 		}
 	}
+	noteVer := 0
+	if current != nil {
+		noteVer = b.noteShown(w, current.ID, current.Note)
+	}
 	selectedID := ""
 	if current != nil {
 		selectedID = strconv.Itoa(current.ID)
 	}
 	owners := b.ownerLabels(ctx, workspaceID, current)
-	if err := b.push(ctx, w, workspaceID, sidebarSlot, sidebarView(tasks, selectedID, collapsed, rev, filter, query, tagsOpen)); err != nil {
+	if err := b.push(ctx, w, workspaceID, sidebarSlot, sidebarView(tasks, selectedID, collapsed, rev, filter, query, adding)); err != nil {
 		return err
 	}
 	var errs map[string]string
 	if fieldErr.task == selected && fieldErr.text != "" {
 		errs = map[string]string{fieldErr.field: fieldErr.text}
 	}
-	d := detail{owners: owners, linked: byID, hasTasks: len(tasks) > 0, errs: errs, editing: current != nil && editing == current.ID, prompt: current != nil && prompt == current.ID, rev: rev + fieldRev}
+	d := detail{owners: owners, linked: byID, hasTasks: len(tasks) > 0, errs: errs, editing: current != nil && editing == current.ID, prompt: current != nil && prompt == current.ID, linking: current != nil && linking == current.ID, noteVer: noteVer, rev: rev + fieldRev}
 	return b.push(ctx, w, workspaceID, mainSlot, mainView(current, d))
 }
 
@@ -256,19 +270,53 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		w.selected = res.(taskReply).ID
 		w.formRev++
 		b.mu.Unlock()
+		if ev.Slot != sidebarSlot {
+			return nil
+		}
+		return b.focusNew(ctx, ev.WorkspaceID)
+	case ev.Slot == sidebarSlot && (ev.Action == actNewOpen || ev.Action == actNewClose):
+		b.mu.Lock()
+		w.adding = ev.Action == actNewOpen
+		b.mu.Unlock()
+		if ev.Action == actNewClose {
+			return nil
+		}
+		return b.focusNew(ctx, ev.WorkspaceID)
+	case ev.NodeID == tagMenu && ev.Action == actFilter:
+		var tag string
+		if err := json.Unmarshal(ev.Value, &tag); err != nil {
+			return fmt.Errorf("filter value: %w", err)
+		}
+		if tag != "" {
+			b.mu.Lock()
+			w.tagFilter = tag
+			b.mu.Unlock()
+		}
+		return nil
+	case ev.Slot == mainSlot && ev.Action == actLinkOpen:
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		if w.linking == w.selected {
+			w.linking = 0
+		} else {
+			w.linking = w.selected
+		}
 		return nil
 	case ev.NodeID == "edit":
 		verb, value := parseAction(ev.Action)
 		if verb != "save" {
 			return fmt.Errorf("%w: %s %q", errUnknownAction, ev.NodeID, ev.Action)
 		}
-		id, err := strconv.Atoi(value)
+		idText, verText, _ := strings.Cut(value, ".")
+		id, err := strconv.Atoi(idText)
 		if err != nil {
 			return fmt.Errorf("save task id %q: %w", value, err)
 		}
+		ver, _ := strconv.Atoi(verText)
 		var args commandArgs
 		var form struct {
 			TagsText *string `json:"tagsText"`
+			Note     *string `json:"note"`
 		}
 		if err := json.Unmarshal(ev.Value, &args); err != nil {
 			return fmt.Errorf("save value: %w", err)
@@ -278,6 +326,9 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		}
 		args.ID = id
 		args.Note, args.Owner, args.Tags, args.keepClaim = nil, "", nil, true
+		if form.Note != nil && b.noteToSave(w, id, ver, *form.Note) {
+			args.Note = form.Note
+		}
 		if form.TagsText != nil {
 			tags := splitTags(*form.TagsText)
 			args.Tags = &tags
@@ -326,8 +377,6 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		b.mu.Lock()
 		defer b.mu.Unlock()
 		switch item {
-		case tagMore, tagLess:
-			w.tagsOpen = item == tagMore
 		case tagAll:
 			w.tagFilter = ""
 		default:
@@ -529,7 +578,55 @@ func (b *backlog) addRef(ctx context.Context, workspaceID string, w *workspaceUI
 		return nil
 	}
 	w.fieldRev++
+	if field == linkField {
+		w.linking = 0
+	}
 	return nil
+}
+
+func (b *backlog) focusNew(ctx context.Context, workspaceID string) error {
+	b.render(ctx, workspaceID)
+	return b.h.FocusNode(ctx, workspaceID, sectionID, sidebarSlot, newTitleNode)
+}
+
+func (b *backlog) noteShown(w *workspaceUI, id int, note string) int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	n, ok := w.notes[id]
+	switch {
+	case !ok:
+		if w.notes == nil {
+			w.notes = map[int]*noteState{}
+		}
+		n = &noteState{ver: 1, known: note, texts: map[int]string{1: note}}
+		w.notes[id] = n
+	case note == n.known:
+		n.own = nil
+	case slices.Contains(n.own, note):
+	default:
+		n.ver++
+		n.known, n.texts[n.ver] = note, note
+		delete(n.texts, n.ver-keptNotes)
+	}
+	return n.ver
+}
+
+func (b *backlog) noteToSave(w *workspaceUI, id, ver int, note string) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	n, ok := w.notes[id]
+	if !ok {
+		return true
+	}
+	if note == n.known {
+		return false
+	}
+	if base, seen := n.texts[ver]; seen && ver != n.ver && base == note {
+		return false
+	}
+	n.known, n.texts[n.ver] = note, note
+	n.own = append(n.own[max(0, len(n.own)-keptNotes+1):], note)
+	return true
 }
 
 func (b *backlog) refAction(ctx context.Context, workspaceID string, w *workspaceUI, node, action, item string) error {

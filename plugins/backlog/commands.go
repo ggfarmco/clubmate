@@ -183,7 +183,11 @@ func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.
 	case "backlog.reveal":
 		return nil, b.reveal(ctx, cmd.WorkspaceID, args.ID)
 	case "backlog.new":
-		return nil, b.h.FocusNode(ctx, cmd.WorkspaceID, sectionID, sidebarSlot, newTitleNode)
+		w := b.workspace(cmd.WorkspaceID)
+		b.mu.Lock()
+		w.adding = true
+		b.mu.Unlock()
+		return nil, b.focusNew(ctx, cmd.WorkspaceID)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }

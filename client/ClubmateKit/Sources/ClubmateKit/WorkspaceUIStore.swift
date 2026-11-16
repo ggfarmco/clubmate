@@ -172,9 +172,13 @@ public final class WorkspaceUIStore {
     }
 
     public func hasTextField(_ name: String) -> Bool {
+        textFieldID(name) != nil
+    }
+
+    public func textFieldID(_ name: String) -> String? {
         let cell = cell(name)
         cell.track(.textField)
-        return cell.hasTextField
+        return cell.textFieldID
     }
 
     public func hasComposer(_ name: String) -> Bool {
@@ -478,7 +482,7 @@ private final class SlotCell {
     private(set) var present = false
     private(set) var open = false
     private(set) var surface: String?
-    private(set) var hasTextField = false
+    private(set) var textFieldID: String?
     private(set) var hasComposer = false
     private(set) var tabs: SDUINode?
     @ObservationIgnored private var tracked: Set<SlotFact> = []
@@ -505,8 +509,8 @@ private final class SlotCell {
             if self.surface != surface { self.surface = surface }
         }
         if facts.contains(.textField) {
-            let hasTextField = tree?.hasTextField ?? false
-            if self.hasTextField != hasTextField { self.hasTextField = hasTextField }
+            let textFieldID = tree?.firstTextFieldID
+            if self.textFieldID != textFieldID { self.textFieldID = textFieldID }
         }
         if facts.contains(.composer) {
             let hasComposer = tree?.hasComposer ?? false
