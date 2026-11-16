@@ -13,7 +13,7 @@ system ClubmateCore follows core_host {
   actor core, os
 
   speaks Go
-  speaks Json: call, event, log
+  speaks Json: call, event, log, file
   speaks Sqlite: table
 
   code core at "internal"
@@ -21,7 +21,7 @@ system ClubmateCore follows core_host {
   code clients at "client"
 
   outside Mac "the operating system: it brings connections to the socket and tells the core when a process or a connection ends" acts as os {
-    calls Clients.accept, Clients.closed, Plugins.exited
+    calls Clients.accept, Clients.closed, Plugins.exited, Sessions.ended, Sessions.orphaned
   }
 
   hub Core "clubmate-core: one process per user, started by the app or the CLI when it is not there" acts as core {
@@ -30,6 +30,6 @@ system ClubmateCore follows core_host {
     inherited: core.log, each plugin's log and each session's log are cut back once a minute when over 10 MiB (main.go:39, :200-215, paths.go:24)
     code at "cmd/clubmate-core", "internal/rpc", "internal/core"
     hosts Storage, Workspaces, Clients, Bus, Plugins, Commands, Sessions, Processes, Ui, Notify, Unread
-    runs Plugins.supervise, Clients.fresh_start, Bus.fresh_start
+    runs Plugins.supervise, Clients.fresh_start, Bus.fresh_start, Sessions.watch, Ui.fresh_start, Notify.budget
   }
 }

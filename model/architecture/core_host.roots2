@@ -15,6 +15,7 @@ architecture core_host "one core process that owns state and carries calls, plug
   kind call in core is entry
   kind table in core is store
   kind memory in core is store
+  kind file in core is store
   kind log in core is stream
   kind hub is process
 

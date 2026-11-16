@@ -1,0 +1,197 @@
+module Sessions "terminal sessions: each runs under a clubmate-session host process of its own, which outlives the core" {
+  core {
+    code at "internal/session", "internal/core/service.go", "internal/rpc/methods_core.go"
+    tests at "internal/session/manager_test.go", "internal/session/io_test.go", "internal/core/events_test.go", "internal/rpc/rpc_test.go"
+    docs at "docs/sdui-protocol.md" section "RPC methods"
+
+    value SessionState: running | exited | lost
+    value Typed { queued: Flag }
+    value Screen {
+      text: Text
+      altScreen: Flag
+    }
+
+    record Session {
+      partial: title, command, cwd, the process ids, startedAt, exitCode, outputAt and bellAt, all written by the host into sessions/<id>.json and answered by `get` (pkg/contract/session.go:13-32); session.list, which any connection may ask and which answers the sessions of a workspace, of an owner or all, oldest first (internal/session/manager.go:139-168); the environment a session starts with (`env`, `unsetEnv`, `pathAppend`) and its `cwd`, which is the workspace's first folder, or the home directory when it has none, unless one is sent (internal/core/service.go:277-281, :546-555); session.created carries the whole session under `session` and session.exited its `exitCode` too (pkg/contract/event.go:40-50): the model names the id
+      id: SessionId, key
+      workspace: WorkspaceId
+      owner: PluginId, optional
+      inherited: the owner is the plugin whose pipe asked for the session, never a field of the call; a client's session has none (internal/rpc/methods_core.go:197, manager.go:55)
+      state: SessionState
+      inherited: no file holds the state: a session with an exit code is `exited`, one whose host process lives is `running`, any other is `lost` (manager.go:319-346)
+      announced: Flag, default no
+    }
+
+    event session.created { id: SessionId }
+    event session.exited {
+      open: no file under docs/ names session.created, session.exited or session.killed; docs/sdui-protocol.md § Bus topics lists the core's events without them, and names session.removed only under § Revisions. The model follows the code (internal/core/service.go:286, :310, :328, :349)
+      id: SessionId
+      workspace: WorkspaceId
+      owner: PluginId, optional
+      state: SessionState
+    }
+    event session.killed { id: SessionId }
+    event session.removed { id: SessionId }
+
+    port Host "a session's host process, started detached from the core and spoken to over its own socket" {
+      start(session: SessionId, command: list of Text): running | ended | failed, not undone
+      inherited: `ended` is a program that was over before the host could be reached (manager.go:286-305)
+      type(session: SessionId, text: Text, enter: Flag): typed | queued | gone, not undone
+      inherited: the text goes first and Enter 50 milliseconds later, as a key of its own; `queued` is a host that has all of it and had not closed 2 seconds later, since its program is not reading: it types it once the program reads, and sending it again would type it twice (internal/session/io.go:19-22, :88-107)
+      snapshot(session: SessionId, bytes: Count, raw: Flag): shown(text: Text) | alternate | gone
+      end(session: SessionId): exited | lost | still_running, not undone
+      inherited: every process of the session gets SIGTERM and, 3 seconds later, SIGKILL; a session still running 5 seconds after that is `still_running` (service.go:23-27, :314-330, :483-504)
+    }
+
+    method create by client, plugin {
+      takes {
+        workspaceId: WorkspaceId
+        command: list of Text
+      }
+      returns Session
+      ask Workspaces.require(workspaceId)   // @ internal/core/service.go:272-276
+      reject internal with "session host did not start" if command = ()   // @ internal/sessionhost/host.go:75-77, internal/session/manager.go:299-309
+      open by agent: the core's own command session.create ("Start a login-shell session") declares the args cwd and title only and nothing fills a command in, so an agent, who may send no other arg, always ends here; only a caller that is no agent and adds `command` itself gets a session (internal/rpc/primitives.go:81-91, :249-260, service.go:272-288; both seen with a throwaway probe against a running core). Is the user's shell meant to be the default?
+      create s: Session in running { id = new SessionId; workspace = workspaceId; owner = caller.plugin }
+      ask Host.start(s.id, command) within 3 seconds, once {   // @ internal/session/manager.go:31, :277-297
+        running { change nothing }
+        ended { s becomes exited }
+        failed { reject internal with "session host did not start" }
+        no answer { reject internal with "session host did not start" }
+      }
+      emit session.created(id = s.id)
+    }
+
+    method get by client, plugin {
+      takes {
+        session: Session
+      }
+      returns Session
+      change nothing
+    }
+
+    method kill by client, plugin {
+      takes {
+        session: Session
+      }
+      if session is running {
+        ask Host.end(session.id) within 8 seconds, once {
+          exited { session becomes exited }
+          lost { session becomes lost }
+          still_running { reject session_running }   // @ internal/core/service.go:499-500, internal/rpc/errors.go:164
+          no answer { reject session_running }
+        }
+      }
+      emit session.killed(id = session.id)   // @ internal/core/service.go:328
+      inherited: killing a session that already ended is accepted and publishes session.killed again; `watch` below still announces a killed session as exited (service.go:314-330, :342-355)
+    }
+
+    method send by client, plugin {
+      takes {
+        session: Session
+        text: Text
+        enter: Flag, default no
+      }
+      returns Typed
+      reject not_found unless session is running   // @ internal/session/io.go:152-154, internal/rpc/errors.go:145
+      ask Host.type(session.id, text, enter) within 10 seconds, once {   // @ internal/session/io.go:22, :53-60
+        typed { return queued = no }
+        queued { return queued = yes }
+        gone { reject not_found }
+        no answer { reject internal with "session busy: its program is not reading input; part of the text may have been typed" }   // @ internal/session/io.go:29, :78-86
+        inherited: this refusal has no code of its own and goes out as `internal` (errors.go:141-190)
+      }
+    }
+
+    method read by client, plugin {
+      takes {
+        session: Session
+        bytes: Count, default 0, at most 262144
+        inherited: 0 stands for 16384: the answer is the last `bytes` bytes of the session's output (io.go:16-17, :110-113)
+        raw: Flag, default no
+        inherited: without `raw` the text is shown as a terminal shows each line, escape sequences left out (internal/session/plain.go)
+      }
+      returns Screen
+      reject not_found unless session is running
+      ask Host.snapshot(session.id, bytes, raw) within 2 seconds, once {   // @ internal/session/io.go:23, :119-144
+        shown(text) { return text = text, altScreen = no }
+        alternate { return text = "", altScreen = yes }
+        gone { reject not_found }
+        no answer { reject not_found with "session host cannot be read; restart the session" }   // @ internal/session/io.go:28, errors.go:146
+      }
+    }
+
+    method remove by client, plugin {
+      takes {
+        session: Session
+      }
+      reject session_running if session is running   // @ internal/session/manager.go:221-223
+      do drop(session)
+    }
+
+    block drop(session: Session) {
+      let gone = session.id
+      remove Session of gone   // @ internal/session/manager.go:224-228
+      emit session.removed(id = gone)   // @ internal/core/service.go:310
+    }
+
+    method clear "a workspace is being deleted and its sessions have stopped" {
+      takes {
+        workspace: WorkspaceId
+      }
+      for each s in Session where workspace = workspace {
+        emit session.removed(id = s.id)
+        remove Session of s.id
+      }   // @ internal/core/service.go:253-264
+    }
+
+    method ended "a session's program ended and its host wrote the exit code" by os {
+      takes {
+        session: Session
+      }
+      when session is running { session becomes exited }
+      otherwise { ignore }
+    }
+
+    method orphaned "a session's host process died before it wrote an exit code" by os {
+      takes {
+        session: Session
+      }
+      when session is running { session becomes lost }
+      otherwise { ignore }
+    }
+
+    policy watch {
+      whenever Core starts {
+        open: the core first looks 2 seconds after it starts, not when it starts, so a session that ends in those 2 seconds is never announced either (service.go:346-348, :362, cmd/clubmate-core/main.go:36, :178); a start rule runs before anything else
+        for each s in Session { set s.announced = not (s is running) }
+        inherited: what was announced is kept in memory only: a session that ended while the core was down is never announced
+      }
+      every 2 seconds {
+        for each s in Session where session.announced = no and not (session is running) {   // @ internal/core/service.go:332-364
+          set s.announced = yes
+          emit session.exited(id = s.id, workspace = s.workspace, owner = s.owner, state = s.state)
+        }
+      }
+    }
+
+    call "session.create" -> create
+    call "session.get" -> get { session from body "id" }
+    call "session.kill" -> kill { session from body "id" }
+    call "session.send" -> send { session from body "id" }
+    call "session.read" -> read { session from body "id" }
+    call "session.remove" -> remove { session from body "id" }
+
+    file sessions "sessions/<id>.json in the state dir, written by each host" stores Session {
+      id: SessionId, key
+      workspace: WorkspaceId
+      owner: PluginId, optional
+      state: SessionState
+    }
+
+    memory announcements stores Session {
+      id: SessionId, key
+      announced: Flag
+    }
+  }
+}

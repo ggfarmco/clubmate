@@ -23,7 +23,7 @@ module Bus "the durable event log in bus.db: who may publish, cursors and live s
       pattern: Pattern
     }
 
-    log events "bus.db" carries Workspaces.workspace.created, Workspaces.workspace.updated, Workspaces.workspace.deleted, Plugins.plugin.changed {
+    log events "bus.db" carries Workspaces.workspace.created, Workspaces.workspace.updated, Workspaces.workspace.deleted, Plugins.plugin.changed, Sessions.session.created, Sessions.session.exited, Sessions.session.killed, Sessions.session.removed, Ui.ui.opened, Ui.ui.idle, Ui.ui.section, Notify.notify.posted {
       partial: plugins and every other connection append events of their own topics through `publish`; the model names the core's own
       on failure: drop
       inherited: an event of the core that cannot be stored is logged and lost (internal/core/service.go:478-480)

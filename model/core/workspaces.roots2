@@ -50,7 +50,7 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
       resolved(path: FolderPath): at(real: FolderPath)
     }
 
-    port Hosts "the terminal session hosts and process trees of a workspace, which this model leaves out" {
+    port Hosts "the process trees of a workspace's sessions, which this model leaves out" {
       end_all(workspace: WorkspaceId): ended | still_running, not undone
       inherited: every process of the workspace's sessions gets SIGTERM and, 3 seconds later, SIGKILL; a session that still runs 5 seconds after that is `still_running`; the ended sessions are removed (service.go:23-27, :246-264, :483-504)
     }
@@ -230,10 +230,12 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
         ended { change nothing }
         still_running { reject session_running }   // @ internal/core/service.go:499-500, internal/rpc/errors.go:164
       }
+      ask Sessions.clear(workspace.id)
       let gone = workspace.id
       for each f in Folder where owner = gone { remove Folder of f.id }
       remove Workspace of gone
       emit workspace.deleted(workspace = gone)   // @ internal/core/service.go:265-269
+      ask Ui.drop(gone)
     }
 
     method require "is there such a workspace" {

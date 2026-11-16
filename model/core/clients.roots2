@@ -35,6 +35,7 @@ module Clients "the connections of clients on the core's socket: what each regis
     method closed "a connection ended, a client's or a plugin's" by os {
       remove Connection of caller.conn if a Connection of caller.conn exists   // @ internal/rpc/server.go:174-181
       ask Bus.forget(caller.conn)
+      ask Ui.forget(caller.conn)
     }
 
     method register by client, plugin {

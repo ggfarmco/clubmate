@@ -1,0 +1,364 @@
+module Ui "the trees plugins render into slots, who watches them, the events clients send back, and what clients keep about a workspace's window" {
+  core {
+    code at "internal/sdui", "internal/rpc/methods_ui.go", "internal/rpc/methods_uistate.go", "internal/rpc/presence.go", "internal/workspace/uistate.go"
+    tests at "internal/sdui/store_test.go", "internal/rpc/ui_views_test.go", "internal/rpc/ui_focus_test.go", "internal/rpc/uistate_test.go"
+    docs at "docs/sdui-protocol.md" section "Slots"
+
+    value SlotKey {
+      workspace: WorkspaceId, optional
+      slot: SlotName
+    }
+
+    value Target "what a client is asked to show" {
+      section: SectionId
+      slot: SlotName, optional
+      field: Flag
+      node: Text, optional
+    }
+
+    value Rendered { rev: Count }
+    value Watching { subscription: SubscriptionId }
+    value Delivered { delivered: Count }
+    value Kept { state: Document, optional }
+    value Showing { section: Text }
+
+    record Section "a section a plugin's manifest registers" {
+      partial: its rows are made when the core starts, from every manifest, the first of two with one id kept (internal/sdui/sections.go:46-84); title, icon, order, host, autoNew and the extra slots it declares; ui.sections, which any connection may ask and which lists the sections of the plugins that are turned on (internal/rpc/methods_ui.go:160-166)
+      id: SectionId, key
+      owner: PluginId
+      app_wide: Flag
+    }
+
+    record Place "a slot a plugin may render into" {
+      partial: its rows are made with the sections: <section>.sidebar, .main, .status and every extra slot belong to the section's plugin, unless another plugin's manifest claims the slot as its view; <plugin>.settings is app-wide and its plugin's (sections.go:100-148, docs/sdui-protocol.md § Slots)
+      id: SlotName, key
+      owner: PluginId
+      app_wide: Flag
+      inherited: an app-wide slot belongs to no workspace: it is rendered, read and watched with no workspace, which on the wire is the empty text
+    }
+
+    record Slot "what a slot shows, for one workspace or for the app" {
+      partial: a plugin's slots are cleared whenever its process ends, however it ends: each loses its tree, its rev goes up by one and those watching get an empty view (internal/plugin/supervisor.go:452-453, cmd/clubmate-core/main.go:161, internal/sdui/store.go:143-145, :223-247). Plugins does not ask for it in this model
+      id: SlotKey, key
+      home: WorkspaceId, optional = id.workspace
+      owner: PluginId
+      rev: Count
+      inherited: the first render is rev 1 and a cleared slot keeps counting, so a rev is never given twice while the core runs (store.go:130-131, :231-232)
+      tree: Document, optional
+      inherited: a slot with no tree was cleared: `get` and a new subscription leave it out
+    }
+
+    record Watch "a connection's subscription to the slots of one workspace, or of the app" {
+      partial: ui.presence, which any connection may ask and which answers the workspaces that are shown (internal/rpc/methods_ui.go:211-213)
+      id: SubscriptionId, key
+      conn: ConnId
+      workspace: WorkspaceId, optional
+      present: Flag
+      inherited: a workspace is shown while a `present` subscription to it lives; Clients tells the same fact as a connection's `shows` (internal/rpc/presence.go:30-64, internal/rpc/approval.go:311-319)
+    }
+
+    record UiState "what clients keep about a workspace's window" {
+      id: WorkspaceId, key
+      value: Document
+      section: Text = unstated "the text under `section` in `value`, or the empty text (internal/rpc/methods_uistate.go:160-166)"
+    }
+
+    event ui.updated {
+      workspace: WorkspaceId, optional
+      slot: SlotName
+      owner: PluginId
+      rev: Count
+    }
+    event ui.opened { workspace: WorkspaceId }
+    event ui.idle { workspace: WorkspaceId }
+    event ui.section {
+      workspace: WorkspaceId
+      section: Text
+    }
+
+    port Viewer "a connection that subscribed" {
+      focus(to: ConnId, subscription: SubscriptionId, target: Target): told
+    }
+
+    log updates "ui.updated" carries ui.updated {
+      partial: who gets it and what it holds: only the subscriptions of the slot's workspace, each on its own connection and under its subscription id; the view holds the tree, or for a subscriber that asked for `delta` what changed since the view it was sent last; a new subscription first gets every slot that has a tree; a reader that is behind gets only the newest view of a slot (store.go:154-163, :260-275, internal/sdui/delta.go, methods_ui.go:459-494)
+      on failure: drop
+      inherited: a subscription whose connection cannot be written to gets nothing more (methods_ui.go:478-480)
+    }
+
+    method get by client, plugin {
+      partial: the answer: the slots of that workspace, or of the app, that have a tree, by slot name; an id that names no workspace answers an empty list (methods_ui.go:168-177)
+      takes {
+        workspaceId: WorkspaceId, optional
+      }
+      change nothing
+    }
+
+    method subscribe by client, plugin {
+      partial: `delta`, `append` and `keep`, which choose the form of the views sent
+      takes {
+        workspaceId: WorkspaceId, optional
+        presence: Flag, default yes
+      }
+      returns Watching
+      open by agent: the workspace is not looked up: a well-formed id that names no workspace, or a deleted one, is watched, counted as shown and announced with ui.opened (methods_ui.go:184-200; seen with a throwaway probe against a running core). Should an unknown workspace be `not_found`?
+      let shown = workspaceId != none and presence   // @ internal/rpc/methods_ui.go:193
+      let first = shown and no Watch where workspace = workspaceId and present = yes exists
+      create w: Watch { id = new SubscriptionId; conn = caller.conn; workspace = workspaceId; present = shown }
+      if first and workspaceId != none { emit ui.opened(workspace = workspaceId) }   // @ internal/rpc/presence.go:66-77
+      return subscription = w.id
+    }
+
+    method unsubscribe by client, plugin {
+      takes {
+        subscription: SubscriptionId
+      }
+      reject not_found unless a Watch of subscription exists and (Watch of subscription).conn = caller.conn   // @ internal/rpc/subscriptions.go:68-79
+      let w = Watch of subscription
+      do leave(w)
+      remove Watch of subscription
+    }
+
+    block leave(w: Watch) {
+      let home = w.workspace
+      if w.present and home != none {
+        emit ui.idle(workspace = home) unless any(o in Watch: o.present and o.workspace = home and o.id != w.id)   // @ internal/rpc/presence.go:79-87
+      }
+    }
+
+    method forget "a connection ended" {
+      takes {
+        conn: ConnId
+      }
+      for each w in Watch where conn = conn {   // @ internal/rpc/server.go:174-178, internal/rpc/subscriptions.go:81-91
+        do leave(w)
+        remove Watch of w.id
+      }
+    }
+
+    method focus by client, plugin {
+      open: `slot` must be absent or <section>.sidebar, <section>.main or an extra slot the section declares, for a section with no rail icon only <section>.popup, and `field` needs <section>.sidebar; anything else is `invalid` (methods_ui.go:236-241, :440-457). No expression joins texts
+      open: the notifications go out side by side and `delivered` counts those that were written (methods_ui.go:245-256); an `ask` stands in a sequence and nothing counts its answers
+      takes {
+        workspaceId: WorkspaceId
+        section: SectionId
+        slot: SlotName, optional
+        field: Flag, default no
+        node: Text, optional
+      }
+      returns Delivered
+      ask Workspaces.require(workspaceId) { not_found { reject invalid } }   // @ internal/rpc/methods_ui.go:220-225
+      reject invalid unless a Section of section exists
+      let s = Section of section
+      ask Plugins.must_be_on(s.owner) { off { reject plugin_unavailable } }   // @ internal/rpc/methods_ui.go:230-232
+      reject invalid if s.app_wide
+      reject invalid if node != none and (slot = none or field)   // @ internal/rpc/methods_ui.go:242-244
+      for each w in Watch where workspace = workspaceId and present = yes {
+        ask Viewer.focus(w.conn, w.id, Target(section = section, slot = slot, field = field, node = node)) within 10 seconds, once {
+          told { change nothing }
+          no answer { change nothing }
+        }
+      }
+      return delivered = count(w in Watch: w.present and w.workspace = workspaceId)
+    }
+
+    block must_fit(place: Place, workspace: WorkspaceId) {
+      reject invalid if place.app_wide
+      ask Workspaces.require(workspace)
+    }
+
+    method render by client, plugin {
+      open: a tree is `invalid` when it is no node of the catalog, names a member twice or one the catalog does not know, has more than 5000 nodes or is deeper than 32; a delta that does not resolve against the tree shown is `invalid` too (internal/sdui/catalog.go:20-21, :411-460, store.go:91-104). A document cannot be looked into
+      open: docs/sdui-protocol.md § RPC methods says ui.render for a deleted workspace is invalid params. The code looks the workspace up first and answers `not_found` (methods_ui.go:278, :421-438); `invalid` is left for a render that passed that check while the delete ran (store.go:123-125). The model follows the code
+      takes {
+        workspaceId: WorkspaceId, optional
+        slot: SlotName
+        tree: Document, optional
+        base: Count, default 0
+        delta: Document, optional
+      }
+      returns Rendered
+      reject invalid if caller.plugin = none   // @ internal/rpc/methods_ui.go:264-267
+      reject invalid unless a Place of slot exists and (Place of slot).owner = caller.plugin   // @ internal/rpc/methods_ui.go:272-277
+      let place = Place of slot
+      if workspaceId != none { do must_fit(place, workspaceId) } else { reject invalid unless place.app_wide }
+      reject invalid if delta = none and tree = none
+      reject invalid if delta != none and (tree != none or base = 0)   // @ internal/rpc/methods_ui.go:285-287
+      let id = SlotKey(workspace = workspaceId, slot = slot)
+      if delta != none {
+        reject stale_base unless a Slot of id exists and (Slot of id).tree != none and (Slot of id).rev = base   // @ internal/sdui/store.go:84-90, :127-129, internal/rpc/errors.go:160
+      }
+      let shown = if tree != none then tree else delta
+      inherited: a delta is resolved against the tree shown and the whole new tree is kept; `shown` stands for that tree
+      if a Slot of id exists {
+        let old = Slot of id
+        set old.rev = old.rev + 1
+        set old.tree = shown
+        emit ui.updated(workspace = workspaceId, slot = slot, owner = old.owner, rev = old.rev)
+        return rev = old.rev
+      } else {
+        create fresh: Slot { id = id; owner = place.owner; rev = 1; tree = shown }
+        emit ui.updated(workspace = workspaceId, slot = slot, owner = fresh.owner, rev = 1)
+        return rev = 1
+      }
+    }
+
+    method event by client, plugin {
+      partial: the answer, which is whatever the plugin answered
+      open: a slot name that is no <section>.sidebar, .main or .status, no declared extra slot and no settings slot is `invalid`, not `not_found` (methods_ui.go:300-307); the form of a text cannot be read
+      takes {
+        workspaceId: WorkspaceId, optional
+        slot: SlotName
+        nodeId: Text, optional
+        action: Text, at least 1
+        value: Document, optional
+        agent: Flag, default no
+      }
+      reject not_found unless a Place of slot exists
+      let place = Place of slot
+      if workspaceId != none { do must_fit(place, workspaceId) } else { reject invalid unless place.app_wide }
+      let id = SlotKey(workspace = workspaceId, slot = slot)
+      if agent {
+        reject denied unless a Slot of id exists and (Slot of id).tree != none   // @ internal/rpc/testapp.go:178-192
+        open: an agent is also refused `denied` when the tree shown asks the user to confirm that action: a node with `confirm` and that action, its id, or the `select`, `toggle` or `submit` it sends, also through the form around it (methods_ui.go:311-313, testapp.go:194-241). A document cannot be looked into. docs/sdui-protocol.md does not name this refusal, and the rule lives in testapp.go beside the test instance's calls
+      }
+      ask Plugins.call(place.owner, ui_event, Payload(args = value))   // @ internal/rpc/methods_ui.go:314-318, internal/plugin/router.go:74-76
+      inherited: the plugin gets the whole event: workspace, slot, node, action, value, `agent` and the session the caller says it is
+    }
+
+    method approve by client, plugin {
+      open: `command` must begin with the calling plugin's id and a dot, and `args` holds at most 10 texts of at most 200 characters each, else `invalid` (internal/rpc/approval.go:94-104). No expression reads the start of a text and a document cannot be looked into. A `workspaceId` of any form is looked up, so a malformed one is `not_found` here and not `invalid` (approval.go:119-127)
+      takes {
+        workspaceId: WorkspaceId, optional
+        title: Text, at least 1, at most 200
+        command: CommandId
+        args: Document, optional
+        body: Text, optional, at most 65536
+      }
+      reject invalid if caller.plugin = none   // @ internal/rpc/approval.go:87-90
+      if workspaceId != none { ask Workspaces.require(workspaceId) }
+      ask Clients.approve(workspaceId, command, Payload(args = args))   // @ internal/rpc/approval.go:116
+      inherited: the alert shows the title, the args and the body and asks "<title>?", not "Allow agent to <title>?": the core cannot tell whether a person or an agent set the plugin's action off (docs/sdui-protocol.md § RPC methods)
+    }
+
+    block keep(workspace: WorkspaceId, state: Document) {
+      let before = if a UiState of workspace exists then (UiState of workspace).section else ""
+      if a UiState of workspace exists {
+        let old = UiState of workspace
+        set old.value = state
+        emit ui.section(workspace = workspace, section = old.section) if old.section != before   // @ internal/rpc/methods_uistate.go:142-150
+      } else {
+        create fresh: UiState { id = workspace; value = state }
+        emit ui.section(workspace = workspace, section = fresh.section) if fresh.section != before
+      }
+    }
+
+    method state_set by client, plugin {
+      open: a state that is no JSON object, or is over 64 KiB, is `invalid` (methods_uistate.go:18, :207-216); a document has no size here
+      takes {
+        workspaceId: WorkspaceId
+        state: Document
+      }
+      reject invalid if caller.plugin != none   // @ internal/rpc/methods_uistate.go:182-187
+      ask Workspaces.require(workspaceId)
+      do keep(workspaceId, state)
+    }
+
+    method state_patch by client, plugin {
+      takes {
+        workspaceId: WorkspaceId
+        key: Text, at least 1
+        value: Document, optional
+        merged: Document = unstated "the kept state with `key` set to `value`, or taken out when the value is null or absent; a kept state that is no object counts as empty; over 64 KiB it is `invalid` (methods_uistate.go:113-140)"
+      }
+      reject invalid if caller.plugin != none
+      ask Workspaces.require(workspaceId)
+      do keep(workspaceId, merged)
+    }
+
+    method state_get by client, plugin {
+      takes {
+        workspaceId: WorkspaceId
+      }
+      returns Kept
+      reject invalid if caller.plugin != none
+      ask Workspaces.require(workspaceId)
+      return state = (UiState of workspaceId).value if a UiState of workspaceId exists
+      return state = none unless a UiState of workspaceId exists   // @ internal/rpc/methods_uistate.go:50-57
+    }
+
+    method state_section by client, plugin {
+      takes {
+        workspaceId: WorkspaceId
+      }
+      returns Showing
+      ask Workspaces.require(workspaceId)
+      return section = if a UiState of workspaceId exists then (UiState of workspaceId).section else ""   // @ internal/rpc/methods_uistate.go:77-83
+    }
+
+    method drop "a workspace was deleted" {
+      takes {
+        workspace: WorkspaceId
+      }
+      for each s in Slot where home = workspace {   // @ internal/rpc/methods_core.go:160-162, internal/sdui/store.go:147-152
+        if s.tree != none {
+          set s.tree = none
+          set s.rev = s.rev + 1
+          emit ui.updated(workspace = workspace, slot = s.id.slot, owner = s.owner, rev = s.rev)
+        }
+      }
+      remove UiState of workspace if a UiState of workspace exists   // @ internal/workspace/uistate.go:13
+      inherited: the subscriptions to it stay, so it counts as shown until its watchers leave
+    }
+
+    policy fresh_start {
+      whenever Core starts {
+        for each w in Watch { remove Watch of w.id }
+        for each s in Slot { remove Slot of s.id }
+      }
+    }
+
+    call "ui.get" -> get
+    call "ui.subscribe" -> subscribe
+    call "ui.unsubscribe" -> unsubscribe
+    call "ui.focus" -> focus
+    call "ui.render" -> render
+    call "ui.event" -> event
+    call "ui.approve" -> approve
+    call "ui.state.set" -> state_set
+    call "ui.state.patch" -> state_patch
+    call "ui.state.get" -> state_get
+    call "ui.state.section" -> state_section
+
+    memory sections stores Section {
+      id: SectionId, key
+      owner: PluginId
+      app_wide: Flag
+    }
+
+    memory places stores Place {
+      id: SlotName, key
+      owner: PluginId
+      app_wide: Flag
+    }
+
+    memory slots stores Slot {
+      id: SlotKey, key
+      owner: PluginId
+      rev: Count
+      tree: Document, optional
+    }
+
+    memory watches stores Watch {
+      id: SubscriptionId, key
+      conn: ConnId
+      workspace: WorkspaceId, optional
+      present: Flag
+    }
+
+    table ui_state "in clubmate.db, a row that goes with its workspace" stores UiState {
+      id: WorkspaceId, key
+      value: Document
+    }
+  }
+}

@@ -101,3 +101,33 @@ type SessionRef "the agent session a caller says it is: agt_ and 16 hex digits":
   in Go: string
   in Json: string
 }
+
+type SessionId "identifies a terminal session: ses_ and 16 hex digits": identifier {
+  open: the form is ^ses_[0-9a-f]{16}$, or 8 digits in ids made by old versions (pkg/id/id.go:9-11, internal/session/manager.go:30); a type has bounds on length and nothing else, so here only the length refuses an id as `invalid`
+  in Go: string
+  in Json: string
+  at least 12
+  at most 20
+}
+
+type AnySession "the session a notification is about: a terminal session's id, or an agent session's": identifier {
+  in Go: string
+  in Json: string
+}
+
+type NotificationId "identifies a notification: ntf_ and 16 hex digits": identifier {
+  in Go: string
+  in Json: string
+}
+
+type SectionId "a section's id from a plugin's manifest": identifier {
+  in Go: string
+  in Json: string
+  at least 1
+}
+
+type SlotName "a slot: <section>.sidebar, .main, .status or a name the section declares, or <plugin>.settings": identifier {
+  in Go: string
+  in Json: string
+  at least 1
+}

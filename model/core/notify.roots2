@@ -1,0 +1,77 @@
+module Notify "notifications: notify.post checks a post, counts it against a budget and publishes notify.posted" {
+  core {
+    code at "internal/notify/notify.go", "internal/rpc/methods_notify.go"
+    tests at "internal/notify/notify_test.go", "internal/rpc/notify_test.go"
+    docs at "docs/notifications.md"
+
+    value Purse "whose posts are counted together": people | plugins
+    value Posted { id: NotificationId }
+
+    record Recent "a notification that was let through, kept for the 10 seconds it counts against its budget" {
+      id: NotificationId, key
+      workspace: WorkspaceId
+      purse: Purse
+      at: Time
+    }
+
+    event notify.posted {
+      open: docs/sdui-protocol.md § Bus topics lists {id, workspace, session?, owner?, title?, message, kind, agent?, ts} and its table gives notify.post {workspaceId, message, title?, kind?, session?}; the code also takes and publishes `collapse`, `quiet` and `always` (internal/rpc/methods_notify.go:28-52), and the model follows the code
+      id: NotificationId
+      workspace: WorkspaceId
+      session: AnySession, optional
+      collapse: AnySession, optional
+      title: Text, optional
+      message: Text
+      kind: Text
+      agent: Flag
+      quiet: Flag
+      always: Flag
+      ts: Time
+    }
+
+    method post by client, plugin {
+      open: the message is trimmed of blanks and, when longer than 1000 characters, cut to 999 and "…"; the title likewise at 120; a message of blanks only is `invalid` (internal/notify/notify.go:13-31, methods_notify.go:102-105). No expression trims or cuts a text, so here both go out as sent
+      open: a `session` that begins with `ses_` must name a terminal session: an unknown one is `not_found`, one of another workspace `invalid`, and the event carries the plugin that owns it as `owner`; any other session passes when it is 2 to 8 small letters, `_` and 16 hex digits, and is `invalid` when not (methods_notify.go:26, :129-146). No expression reads the start of a text, so here no session is looked up and the event has no `owner`
+      takes {
+        workspaceId: WorkspaceId
+        message: Text
+        title: Text, optional
+        kind: Text, default "info"
+        session: AnySession, optional
+        collapse: AnySession, optional
+        quiet: Flag, default no
+        always: Flag, default no
+        agent: Flag = unstated "yes when the post came through command.run from a caller that said it is an agent (internal/rpc/methods_ui.go:383-386, internal/rpc/caller.go:41-48)"
+      }
+      returns Posted
+      ask Workspaces.require(workspaceId)   // @ internal/rpc/methods_notify.go:66-68
+      reject invalid unless kind in ("needs-input", "permission", "question", "done", "stuck", "info")   // @ internal/notify/notify.go:18
+      reject invalid if message = ""
+      reject invalid if collapse != none and collapse != session   // @ internal/rpc/methods_notify.go:110-112
+      let mine = if caller.plugin != none and not agent then plugins else people   // @ internal/rpc/methods_notify.go:73-76
+      inherited: a plugin's own posts have a budget apart, so agents, hooks and `cm notify` using up theirs never hold back a permission request (docs/notifications.md)
+      reject rate_limited with "too many notifications" if count(r in Recent: r.purse = mine and r.workspace = workspaceId) >= 5 or count(r in Recent: r.purse = mine) >= 20   // @ internal/rpc/methods_notify.go:18-20, :77-79
+      inherited: a post that is refused, for any reason, counts against nothing (notify.go:53-60)
+      create r: Recent { id = new NotificationId; workspace = workspaceId; purse = mine; at = now }
+      emit notify.posted(id = r.id, workspace = workspaceId, session = session, collapse = collapse, title = title, message = message, kind = kind, agent = agent, quiet = quiet, always = always and caller.plugin != none and not agent, ts = now)
+      inherited: `always` stands only for a plugin's own post; the event's source on the bus is `agent` for an agent's post, else the caller's (methods_notify.go:84-87, :124)
+      return id = r.id
+    }
+
+    policy budget {
+      whenever a Recent where recent.at + 10 seconds <= now { remove Recent of recent.id }   // @ internal/notify/notify.go:49-52
+      whenever Core starts {
+        for each r in Recent { remove Recent of r.id }
+      }
+    }
+
+    call "notify.post" -> post
+
+    memory recent_posts stores Recent {
+      id: NotificationId, key
+      workspace: WorkspaceId
+      purse: Purse
+      at: Time
+    }
+  }
+}
