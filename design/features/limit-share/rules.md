@@ -13,7 +13,7 @@ User rulings: direction A; paired Macs can be on different Claude accounts; warn
 
 ## Question by question
 
-- **Account limits.** Workspace header, right-aligned on the Mac line: `5h 42% · 7d 81%`, caption ink with the numbers in secondary ink, no reset times while both are allowed. The line is per workspace: the account of that workspace's Mac. Tapping it opens **Claude usage**: this Mac's account first, then any other account your Macs use, each with both windows, resets and "via ‹Mac› · 2 min ago". A window not reported yet is left out; a window whose reset time has passed is hidden until the next report.
+- **Account limits.** Workspace header, right-aligned in its own row above the tabs (ruled 16 Nov: on iOS 27 nothing on the Mac line under the large title takes a tap, so it is not on the Mac line the boards draw): `5h 42% · 7d 81%`, caption ink with the numbers in secondary ink, no reset times while both are allowed. The line is per workspace: the account of that workspace's Mac. Tapping it opens **Claude usage**: this Mac's account first, then any other account your Macs use, each with both windows, resets and "via ‹Mac› · 2 min ago". A window not reported yet is left out; a window whose reset time has passed is hidden until the next report.
 - **A session's share.** Session subtitle: "Waiting for you · shop · ≈6% of 5h", the 5-hour share only, from 1%. ••• → **Session info**: context, the share of both windows, one sentence on the estimate, and the **Claude account** group naming the account (its email) above its two windows. List rows show no share; ≈ marks every share as an estimate.
 - **Close to a limit.** Warning: the line narrows to the window in trouble and adds its reset, "5h 91% · resets 19:03", amber text. Reached: "5h limit reached · resets 19:03", danger text; stopped sessions move into Paused until 19:03 after Needs you, each reading "Stopped by the usage limit · resumes 19:03". The 7-day window works the same ("7d limit reached · resets Wed").
 - **The Mac.** The header's `≈6% of 5h · ≈3% of 7d` and the status bar stay, warning in amber text. The Mac takes the same plugin words and the same "Paused until ‹reset›" group in its tree.
@@ -42,7 +42,7 @@ The plugin owns the status and the words; Mac and phone draw them.
 
 ## Handoff
 
-- Phone workspace header: the usage text right-aligned on the Mac line, ink by status, tappable to Claude usage.
+- Phone workspace header: the usage text right-aligned in its own row above the tabs, ink by status, tappable to Claude usage.
 - Account label: shown only when the phone knows more than one account id; the email up to "@", plus the domain's first part when two accounts share that part.
 - Phone session subtitle: append the 5-hour share label when it is 1% or more.
 - Phone sheets: Session info behind ••• ("This session", the estimate sentence, "Claude account" with the email row) and Claude usage from the header line (this Mac's account, then your other Macs').
