@@ -46,7 +46,7 @@ Scope → **Capture** (`capture.sh`) → Judge → Fixer → **Tests** (`tests.s
 
 You judge the way Claude Design does, so read its rules first: `Artifact read` the project's `SKILL.md` § Designing well and `artifact-type/reference/craft.md` (accessible as drawn, 4.5:1 text contrast, ≥44 pt phone targets, no filler, follow the existing vocabulary). Then our own language: `design/language/README.md` and the `Principles`, `Tokens`, `Components`, `AgentNodes`, `Patterns` boards, the companion's `C-Language` and `C-Components`, and the `clubmate-ui` skill.
 
-The truth per screen is the board in the repo: its `.dc.html` in `design/*/source/` or `design/features/<slug>/` (it holds the exact values: sizes, weights, tokens, copy) and its PNG in `design/*/png/` or `design/features/<slug>/png/` for the picture. The shared project holds only the language boards (`design/README.md`); screen boards are no longer there.
+The truth per screen is the board in the repo: its `.dc.html` in `design/*/source/` or `design/features/<slug>/` (it holds the exact values: sizes, weights, tokens, copy) and for the picture its PNG in `design/*/png/`, or for a feature board a screenshot of `design/features/<slug>/boards.html` (chrome-devtools `take_screenshot` of the file, or a WebKit snapshot). The shared project holds only the language boards (`design/README.md`); screen boards are no longer there.
 
 Not a divergence: what `design/check/prompt.md` §3 decides and §4 already tracks, decisions in `design/check/fix-list.md`, seed data (the workspace is the capture tree: `tree`, detached at the captured sha), the capture conditions in §2 (800 pt minimum width, grey traffic lights, iPhone 18 Pro size), anything already open in the backlog (`backlog_list`, tags `design-check`, `tidy`).
 

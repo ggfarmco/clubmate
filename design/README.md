@@ -3,7 +3,7 @@
 The repo is the source of truth for design; Claude Design canvases are where boards get drawn.
 
 - `language/` and `companion/`: the design language and every board drawn up to 13 Nov 2026 (screens, Review, MR, Graph-Steps…), `source/` + `png/` + `html/`.
-- `features/<slug>/`: one folder per feature decided since 16 Nov: the chosen boards (`.dc.html`), `png/`, `rules.md` (what was decided, keys, handoff), rejected directions under `rounds/`. Builders and the nightly check read these.
+- `features/<slug>/`: one folder per feature decided since 16 Nov: the chosen boards (`.dc.html`), `boards.html` (all of them in one self-contained page), `rules.md` (what was decided, keys, handoff), rejected directions under `rounds/`. Builders and the nightly check read these.
 - `archive/canvas-2026-11-16/`: the shared canvas's layout (`canvas.json`) and the 70 boards that lived only there before it was cut down to the language.
 - `*-brief/`, `check/`: what we sent a designer.
 
@@ -15,9 +15,9 @@ Talk to Claude Design through the Claude in Chrome extension; the canvas and its
 
 1. **One canvas per feature.** Create a Design canvas "Clubmate · <feature>" (`Artifact publish type_url=<Design type> title=…`). Seed it with only what the feature touches: the language boards it needs (from `language/source/`, `companion/source/`) and real screenshots of today's screens from the test app (`scripts/test-app.sh`, the companion simulator), uploaded as assets. Not old screen mockups: the app is the truth for how a screen looks today.
 2. **Rounds.** Each round is at most 6 boards on its own canvas page (`pages` in `canvas.json`); the canvas opens on the latest. Say so in the brief: "put this round on page `r<n>`, at most 6 boards, 1280 Mate dark + 640 Mate light + phone dark/light only where they differ".
-3. **What the user sees.** One composite PNG per round in `design/<feature>-brief/boards/` (directions side by side, labelled A/B/C), opened with `docs_open`. Not the canvas.
+3. **What the user sees.** One self-contained HTML file per round, `design/<feature>-brief/round-<n>.html`, opened with `docs_open`: every board of the round as real HTML (not screenshots), directions side by side under A/B/C headings with the designer's one-line pitch each. Not the canvas, not PNGs. The docs viewer serves only that one file (any other URL is a 404, and its CSP allows inline styles, `data:` fonts and images, no iframes), so everything is inside it: `cm.css`, `c.css` and the boards' own `<style>` blocks inlined once in `<style>`, the fonts from `language/html/assets/` and any image as `data:` URIs, each board's markup inlined in the page (from the canvas's HTML export, or its `.dc.html` with the `support.js` line and `<x-dc>`/`<helmet>` wrappers dropped and `{{holes}}` filled with their defaults). Keep it under 4 MiB.
 4. **Chrome.** One canvas tab at a time; close it after each exchange with the designer.
-5. **After the pick.** Export the chosen boards to `features/<slug>/` (`.dc.html` via `Artifact read`, PNG renders, `rules.md`), rejected ones to `features/<slug>/rounds/`. The feature canvas is done after that; nothing goes back to the shared canvas.
+5. **After the pick.** Export the chosen boards to `features/<slug>/` (`.dc.html` via `Artifact read`, `boards.html`: the chosen boards as one self-contained page built like step 3, `rules.md`), rejected ones to `features/<slug>/rounds/`. The feature canvas is done after that; nothing goes back to the shared canvas.
 6. **Language changes.** A feature that adds or changes a component, token or pattern updates the language boards on the shared canvas and `.claude/skills/clubmate-ui/references/design-language.md` (or `companion.md`) as a separate, named step.
 
 ## Reaching the project from Claude Code
