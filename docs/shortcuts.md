@@ -207,10 +207,11 @@ Focus moving to the Agents main pane (switching to the section, Esc or ⌃L/⌃H
 | ⇧↩ / ⌥↩ | Insert a newline |
 | Esc | Stop the running turn |
 | @ (at the start of a word) | Attach a file through the file picker |
+| ⌘V | With an image on the clipboard (a screenshot copied with ⌃⇧⌘4, an image copied in a browser) or image files copied in Finder: attach them as images (`Pasted image.png`) instead of pasting; text on the clipboard pastes as usual. A pasted or dropped path to an image file is taken out of the text and attached too |
 | / (at the start of the prompt) | List the agent's commands, filtered by what follows |
 | ↑ ↓, ↩ / ⇥ | Move in the command list, insert the command |
 
-While an input method is composing (marked text), ↩ and Esc go to it. Defined in `ClubmateKit/Composer.swift` (`ComposerKey`).
+While an input method is composing (marked text), ↩ and Esc go to it. Defined in `ClubmateKit/Composer.swift` (`ComposerKey`, `takePastedImages`) and `SDUI/ComposerPaste.swift`.
 
 ## Agent transcript (Agents section or Code chat panel)
 

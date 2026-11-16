@@ -500,7 +500,11 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		if err := decode(ev.Value, &v); err != nil || v.Path == "" {
 			return errors.Join(err, errors.New("attachFile needs a path"))
 		}
-		a.addAttachment(st, attachment{Kind: "file", Path: v.Path})
+		att, err := attachedImage(v.Path)
+		if err != nil {
+			att = attachment{Kind: "file", Path: v.Path}
+		}
+		a.addAttachment(st, att)
 		return nil
 	case actAttachSelection:
 		var sel selection

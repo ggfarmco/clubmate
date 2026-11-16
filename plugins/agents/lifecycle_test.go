@@ -1,9 +1,14 @@
 package main_test
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/png"
+	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
@@ -13,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/testutil"
+	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/acp"
 	"clubmate/plugins/agents/api"
 )
@@ -258,4 +264,60 @@ func TestPromptHeldAtShutdownIsSentAfterRestart(t *testing.T) {
 
 	testutil.Eventually(t, func() bool { return len(f.promptsTo(t, agentID, "second")) > 0 }, wait)
 	assert.Equal(t, []string{"second"}, f.promptsTo(t, agentID, "second"))
+}
+
+func TestComposerAttachesADroppedImageByItsBytes(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{"image": true, "prompt": []map[string]any{{"echo": true}}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.doneSession(t, workspace)
+	shot := filepath.Join(t.TempDir(), "Screenshot 2026-11-16 at 17.14.03.png")
+	var img bytes.Buffer
+	require.NoError(t, png.Encode(&img, image.NewRGBA(image.Rect(0, 0, 3136, 1000))))
+	require.NoError(t, os.WriteFile(shot, img.Bytes(), 0o600))
+	logo := filepath.Join(t.TempDir(), "logo.png")
+	require.NoError(t, os.WriteFile(logo, img.Bytes(), 0o600))
+	notes := filepath.Join(t.TempDir(), "notes.txt")
+	require.NoError(t, os.WriteFile(notes, []byte("hi"), 0o600))
+	composer := session + "/composer/0"
+
+	for _, path := range []string{shot, logo, notes} {
+		f.h.Event(t, workspace, "agents.main", composer, "attachFile", map[string]any{"path": path})
+	}
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
+		c := nodesWithID(n, composer)
+		if len(c) != 1 {
+			return false
+		}
+		raw, err := json.Marshal(c[0].Props["attachments"])
+		require.NoError(t, err)
+		return strings.Contains(string(raw), `"kind":"image","path":"Screenshot 2026-11-16 at 17.14.03.png"`)
+	})
+	require.NoError(t, os.Remove(shot))
+	f.h.Event(t, workspace, "agents.main", composer, "send", map[string]any{"text": "see"})
+
+	call := f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.Contains(string(c.Params), `"type":"image"`) })
+	var p struct {
+		Prompt []struct {
+			Type     string `json:"type"`
+			Data     string `json:"data"`
+			MimeType string `json:"mimeType"`
+			URI      string `json:"uri"`
+		} `json:"prompt"`
+	}
+	require.NoError(t, json.Unmarshal(call.Params, &p))
+	var blocks []string
+	for _, b := range p.Prompt {
+		if b.URI != "" {
+			b.Type += " " + filepath.Base(b.URI)
+		}
+		blocks = append(blocks, b.Type)
+	}
+	assert.Equal(t, []string{"text", "image", "image", "resource_link logo.png", "resource_link notes.txt", "text"}, blocks)
+	assert.Equal(t, "image/png", p.Prompt[1].MimeType)
+	data, err := base64.StdEncoding.DecodeString(p.Prompt[1].Data)
+	require.NoError(t, err)
+	cfg, err := png.DecodeConfig(bytes.NewReader(data))
+	require.NoError(t, err)
+	assert.Equal(t, [2]int{1568, 500}, [2]int{cfg.Width, cfg.Height})
 }

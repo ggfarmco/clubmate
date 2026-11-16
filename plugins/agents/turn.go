@@ -525,11 +525,16 @@ func promptBlocks(args promptArgs, root string, caps acp.PromptCapabilities) []a
 		uri := (&url.URL{Scheme: "file", Path: path}).String()
 		switch att.Kind {
 		case "image":
+			source := att.Source != "" && isFile(att.Source)
 			if caps.Image {
 				blocks = append(blocks, acp.ContentBlock{Type: "image", Data: att.Data, MimeType: att.MimeType})
-				continue
 			}
-			blocks = append(blocks, acp.ContentBlock{Type: "text", Text: imageOmitted})
+			if source {
+				blocks = append(blocks, acp.ContentBlock{Type: "resource_link", URI: (&url.URL{Scheme: "file", Path: att.Source}).String(), Name: filepath.Base(att.Source)})
+			}
+			if !caps.Image && !source {
+				blocks = append(blocks, acp.ContentBlock{Type: "text", Text: imageOmitted})
+			}
 		case "file":
 			if caps.EmbeddedContext {
 				if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() && info.Size() <= embedLimit {

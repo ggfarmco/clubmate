@@ -198,8 +198,9 @@ struct ButtonPress {
 enum Clipboard {
     static let testName = NSPasteboard.Name("com.clubmate.test")
 
+    static var board: NSPasteboard { TestMode.current ? NSPasteboard(name: testName) : .general }
+
     static func copy(_ text: String) {
-        let board = TestMode.current ? NSPasteboard(name: testName) : .general
         board.clearContents()
         board.setString(text, forType: .string)
     }

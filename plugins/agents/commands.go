@@ -208,6 +208,7 @@ type attachment struct {
 	Text      string `json:"text"`
 	MimeType  string `json:"mimeType,omitempty"`
 	Data      string `json:"data,omitempty"`
+	Source    string `json:"source,omitempty"`
 }
 
 type answerArgs struct {

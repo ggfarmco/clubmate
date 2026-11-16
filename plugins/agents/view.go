@@ -374,7 +374,11 @@ func composer(sc screen) sdui.Node {
 	}
 	attachments := make([]sdui.Attachment, 0, len(sc.Attachments))
 	for _, a := range sc.Attachments {
-		attachments = append(attachments, sdui.Attachment{ID: a.ID, Kind: a.Kind, Path: relPath(a.Path, rec.Worktree), StartLine: a.StartLine, EndLine: a.EndLine})
+		path := relPath(a.Path, rec.Worktree)
+		if a.Kind == "image" {
+			path = a.Name
+		}
+		attachments = append(attachments, sdui.Attachment{ID: a.ID, Kind: a.Kind, Path: path, StartLine: a.StartLine, EndLine: a.EndLine})
 	}
 	return sdui.Composer(sc.Composer, sdui.ComposerProps{
 		Placeholder: composerPlaceholder(sc),

@@ -18,6 +18,32 @@ final class AgentsUITests: XCTestCase {
         XCTAssertEqual(model.text, "fix flaky voice the test now")
     }
 
+    func testDroppedImagePathBecomesAnAttachment() {
+        let shot = "/var/folders/T/NSIRD_screencaptureui_x/Screenshot 2026-11-16 at 17.14.03.png"
+        let files: Set<String> = [shot, "/tmp/a.jpg", "/tmp/notes.txt"]
+        let isFile = { files.contains($0) }
+        let model = ComposerModel()
+
+        model.text = "look \(shot) here"
+        XCTAssertEqual(model.takePastedImages(after: "look  here", isFile: isFile), [shot])
+        XCTAssertEqual(model.text, "look  here")
+        XCTAssertEqual(model.caret, 5)
+
+        model.text = "'/tmp/a.jpg'\n/var/folders/T/NSIRD_screencaptureui_x/Screenshot\\ 2026-11-16\\ at\\ 17.14.03.png"
+        XCTAssertEqual(model.takePastedImages(after: "", isFile: isFile), ["/tmp/a.jpg", shot])
+        XCTAssertEqual(model.text, "")
+
+        model.text = "/tmp/a.jpg"
+        XCTAssertEqual(model.takePastedImages(after: "a long draft replaced by the drop", isFile: isFile), ["/tmp/a.jpg"])
+        XCTAssertEqual(model.text, "")
+
+        for typed in ["/tmp/notes.txt", "/tmp/gone.png", "see /tmp/a.jpg"] {
+            model.text = typed
+            XCTAssertEqual(model.takePastedImages(after: "", isFile: isFile), [], typed)
+            XCTAssertEqual(model.text, typed)
+        }
+    }
+
     func testComposerKeys() throws {
         let model = ComposerModel()
         model.commands = ["review", "compact", "context"].map { ComposerCommand(name: $0, description: "", hint: "") }

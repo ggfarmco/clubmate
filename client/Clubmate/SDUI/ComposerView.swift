@@ -36,6 +36,11 @@ private enum ComposerFocus {
     }
 }
 
+private struct DraftText: Equatable {
+    let id: String?
+    let text: String
+}
+
 struct ComposerNodeView: View {
     let node: SDUINode
 
@@ -48,6 +53,7 @@ struct ComposerNodeView: View {
     @Environment(\.composerFocusSlot) private var focusSlot
     @Environment(\.focusRouter) private var router
     @Environment(\.voice) private var voice
+    @Environment(\.undoManager) private var undoManager
     @State private var local = ComposerDrafts()
 
     private var drafts: ComposerDrafts { shared ?? local }
@@ -71,6 +77,19 @@ struct ComposerNodeView: View {
         .onChange(of: node.composerCommands(), initial: true) { _, commands in model.commands = commands }
         .onChange(of: running, initial: true) { _, running in model.running = running }
         .onChange(of: focused, initial: true) { _, focused in drafts.focus(node.id ?? "", focused) }
+        .onChange(of: DraftText(id: node.id, text: model.text)) { old, new in
+            guard old.id == new.id, node.attachKinds().contains("file") else { return }
+            let model = model
+            let undoManager = undoManager
+            Task { @MainActor in
+                guard model.text == new.text else { return }
+                let paths = model.takePastedImages(after: old.text)
+                guard !paths.isEmpty else { return }
+                undoManager?.removeAllActions()
+                if let caret = model.caret { selection = TextSelection(insertionPoint: model.text.index(model.text.startIndex, offsetBy: caret)) }
+                for path in paths { dispatch(node, .attachFile(path)) }
+            }
+        }
         .onChange(of: selection) { model.caret = caret.map { model.text.distance(from: model.text.startIndex, to: min($0, model.text.endIndex)) } }
         .onDisappear { drafts.focus(node.id ?? "", false) }
         .onChange(of: router?.pending, initial: true) { claim() }
@@ -407,7 +426,19 @@ struct ComposerNodeView: View {
         return model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .idle : .typed
     }
 
+    private func pasteImages(_ event: NSEvent) -> Bool {
+        guard event.keyCode == 9, event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+              node.attachKinds().contains("file"), let pasted = ComposerPaste.images(on: Clipboard.board) else { return false }
+        for (index, path) in pasted.paths.enumerated() {
+            dispatch(node, .attachFile(path)) { _ in
+                if index == pasted.paths.count - 1, let scratch = pasted.scratch { try? FileManager.default.removeItem(at: scratch) }
+            }
+        }
+        return true
+    }
+
     private func handle(_ event: NSEvent) -> Bool {
+        if pasteImages(event) { return true }
         guard let key = Self.key(event) else { return false }
         if key != .send, (event.window?.firstResponder as? NSTextInputClient)?.hasMarkedText() == true { return false }
         if key == .attach, filePicker == nil || !node.attachKinds().contains("file") { return false }

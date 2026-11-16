@@ -116,6 +116,46 @@ public final class ComposerModel {
     public func insert(_ dictated: String) {
         (text, caret) = Dictation.insert(dictated, into: text, at: caret)
     }
+
+    public func takePastedImages(after old: String, isFile: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> [String] {
+        let now = Array(text), before = Array(old)
+        var head = 0
+        while head < min(now.count, before.count), now[head] == before[head] { head += 1 }
+        var tail = 0
+        while tail < min(now.count, before.count) - head, now[now.count - 1 - tail] == before[before.count - 1 - tail] { tail += 1 }
+        guard now.count - tail - head > 1, let paths = Self.imagePaths(in: String(now[head..<(now.count - tail)]), isFile: isFile) else { return [] }
+        text = String(now[..<head]) + String(now[(now.count - tail)...])
+        caret = head
+        return paths
+    }
+
+    private static let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "gif", "webp"]
+
+    private static func imagePaths(in inserted: String, isFile: (String) -> Bool) -> [String]? {
+        let whole = inserted.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let path = imagePath(whole, isFile: isFile) { return [path] }
+        let lines = whole.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard lines.count > 1 else { return nil }
+        let paths = lines.compactMap { imagePath($0, isFile: isFile) }
+        return paths.count == lines.count ? paths : nil
+    }
+
+    private static func imagePath(_ candidate: String, isFile: (String) -> Bool) -> String? {
+        var path = candidate
+        if path.count > 1, let quote = path.first, quote == "'" || quote == "\"", path.last == quote {
+            path = String(path.dropFirst().dropLast())
+        }
+        if path.hasPrefix("file://") {
+            guard let url = URL(string: path), url.isFileURL else { return nil }
+            path = url.path
+        } else if path.hasPrefix("~/") {
+            path = NSString(string: path).expandingTildeInPath
+        }
+        guard path.hasPrefix("/"), imageExtensions.contains((path as NSString).pathExtension.lowercased()) else { return nil }
+        if isFile(path) { return path }
+        let unescaped = path.replacing(/\\(.)/) { String($0.1) }
+        return unescaped != path && isFile(unescaped) ? unescaped : nil
+    }
 }
 
 @MainActor
