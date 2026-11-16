@@ -118,7 +118,10 @@ func TestChangesRoundsCapWaitsForUser(t *testing.T) {
 	require.True(t, lander.NeedsYou)
 	require.Len(t, lander.Pending, 1)
 
-	require.NoError(t, g.f.run(t, g.workspace, "agents.land-answer", map[string]any{"request": lander.Pending[0], "action": "merge"}, nil))
+	req := lander.Pending[0]
+	assert.Equal(t, req, g.f.phoneTranscript(t, g.workspace, g.lander).Request.Props["request"])
+	assert.Equal(t, []string{req}, g.f.phoneSession(t, g.workspace, g.lander).Requests)
+	require.NoError(t, g.f.cardEvent(t, g.workspace, g.lander+"/landgate/"+req, "landAnswer", map[string]any{"request": req, "action": "merge"}))
 	require.NoError(t, g.land(t))
 	assert.False(t, g.f.session(t, g.workspace, g.lander).NeedsYou)
 }

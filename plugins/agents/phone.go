@@ -91,7 +91,7 @@ func (r record) openRequests() []string {
 	if r.Task != nil {
 		out = append(out, r.Task.requests()...)
 	}
-	return out
+	return append(out, r.gateRequests()...)
 }
 
 func taskRowsOf(rec record, kids []record) []taskRow {

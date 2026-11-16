@@ -188,9 +188,6 @@ func (a *app) landAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 	if !a.userWord(cmd) {
 		return nil, errLandUser
 	}
-	if strings.HasPrefix(args.Request, gateRequestPrefix+"_") {
-		return nil, a.answerGate(ctx, cmd.WorkspaceID, args)
-	}
 	res, err := a.answerLand(ctx, cmd.WorkspaceID, args)
 	if err != nil || args.Action != landActionReview {
 		return nil, err
@@ -199,6 +196,9 @@ func (a *app) landAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 }
 
 func (a *app) answerLand(ctx context.Context, workspaceID string, args landAnswerArgs) (landReviewResult, error) {
+	if strings.HasPrefix(args.Request, gateRequestPrefix+"_") {
+		return landReviewResult{}, a.answerGate(ctx, workspaceID, args)
+	}
 	a.landMu.Lock()
 	defer a.landMu.Unlock()
 	owner, task, i, ok := a.findLand(workspaceID, args.Request)
