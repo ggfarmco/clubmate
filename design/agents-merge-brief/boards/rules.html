@@ -1,0 +1,272 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Rules, keys, links, phone, handoff</title><style>
+:root{color-scheme:light dark;--bg:#f4f4f2;--fg:#1d1d1b;--mut:#6b6b66;--bd:#dcdcd6}
+@media (prefers-color-scheme:dark){:root{--bg:#161615;--fg:#ececea;--mut:#9a9a94;--bd:#2c2c2a}}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,system-ui,sans-serif}
+header{padding:20px 24px 8px}
+h1{font-size:20px;margin:0 0 4px}
+nav a{color:var(--mut);margin-right:14px;text-decoration:none}
+nav a.on{color:var(--fg);font-weight:600}
+.boards{display:flex;flex-wrap:wrap;gap:28px;padding:16px 24px 40px;align-items:flex-start}
+figure{margin:0}
+figcaption{color:var(--mut);font-size:12px;margin-bottom:6px;max-width:100%}
+iframe{border:1px solid var(--bd);border-radius:8px;background:#fff;display:block}
+</style></head><body><header><h1>Graphs and Gates in Agents · Rules, keys, links, phone, handoff</h1><nav><a class="" href="a-one-tree.html">A · One tree (recommended)</a><a class="" href="b-tabs.html">B · Tabs</a><a class="" href="c-group-by.html">C · Group by</a><a class="on" href="rules.html">Rules, keys, links, phone, handoff</a></nav></header><div class="boards"><figure style="width:1480px"><figcaption>AG-Rules · Graphs and Gates in Agents</figcaption><iframe width="1480" height="4180" srcdoc="&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;style&gt;/* Clubmate design language — mockup stylesheet.
+   Theme classes hold ONLY what Ghostty gives us (bg, fg, 4 tones) plus what Theme.swift
+   computes from them (text ratios that pass contrast, tone inks). Everything else is a role
+   derived in .cm by fixed ratios. */
+
+.th-kanagawa{--bg:#1F1F28;--fg:#DCD7BA;--ac:#7E9CD8;--ok:#98BB6C;--wa:#E6C384;--er:#E46876;
+  --t2r:80%;--t3r:62%;--t4r:42%;--ac-i:#7E9CD8;--ok-i:#98BB6C;--wa-i:#E6C384;--er-i:#E46876;--on-ac:#16161D;
+  --sh:0 12px 32px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.5);--scrim:rgba(0,0,0,.4)}
+.th-onedark{--bg:#282C34;--fg:#ABB2BF;--ac:#61AFEF;--ok:#98C379;--wa:#E5C07B;--er:#E06C75;
+  --t2r:84%;--t3r:66%;--t4r:44%;--ac-i:#61AFEF;--ok-i:#98C379;--wa-i:#E5C07B;--er-i:#E06C75;--on-ac:#1B1F27;
+  --sh:0 12px 32px rgba(0,0,0,.5),0 0 0 1px rgba(0,0,0,.45);--scrim:rgba(0,0,0,.4)}
+.th-latte{--bg:#EFF1F5;--fg:#4C4F69;--ac:#1E66F5;--ok:#40A02B;--wa:#DF8E1D;--er:#D20F39;
+  --t2r:92%;--t3r:78%;--t4r:52%;--ac-i:#1D5BD6;--ok-i:#2F7A1F;--wa-i:#8F5F14;--er-i:#C10E35;--on-ac:#FFFFFF;
+  --sh:0 12px 32px rgba(40,44,70,.20),0 0 0 1px rgba(40,44,70,.14);--scrim:rgba(40,44,70,.18)}
+.th-mate{--bg:#151B17;--fg:#E3E3D3;--ac:#A6D85B;--ok:#4FB3A0;--wa:#F2B84B;--er:#FF6B5E;
+  --t2r:80%;--t3r:62%;--t4r:42%;--ac-i:#A6D85B;--ok-i:#5CC2AE;--wa-i:#F2B84B;--er-i:#FF7A6E;--on-ac:#0E1A08;
+  --sh:0 12px 32px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.5);--scrim:rgba(0,0,0,.4)}
+.th-matelight{--bg:#F6F1E6;--fg:#2B2A22;--ac:#357A27;--ok:#1F7F70;--wa:#B5761E;--er:#C93A30;
+  --t2r:90%;--t3r:72%;--t4r:50%;--ac-i:#357A27;--ok-i:#1A6E61;--wa-i:#8A5810;--er-i:#B23A33;--on-ac:#FFFFFF;
+  --sh:0 12px 32px rgba(60,50,20,.18),0 0 0 1px rgba(60,50,20,.14);--scrim:rgba(60,50,20,.16)}
+
+/* Mac identity colours — one per paired Mac; a mark next to the Mac&#x27;s name, never a role.
+   Hues kept away from accent (green), warning (amber), danger (red) and success (teal). */
+.th-kanagawa,.th-onedark,.th-mate,.th-cdark{--id-sky:#5AC8FA;--id-blue:#3D8BFF;--id-indigo:#8582FF;--id-purple:#BF7AF0;--id-magenta:#F06FC8;--id-graphite:#A1A1A6}
+.th-latte,.th-matelight,.th-clight{--id-sky:#0A78A8;--id-blue:#1F62D0;--id-indigo:#5450D6;--id-purple:#8540BF;--id-magenta:#B02E8C;--id-graphite:#636369}
+.id-sky{--id:var(--id-sky)} .id-blue{--id:var(--id-blue)} .id-indigo{--id:var(--id-indigo)}
+.id-purple{--id:var(--id-purple)} .id-magenta{--id:var(--id-magenta)} .id-graphite{--id:var(--id-graphite)}
+.cm .mdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--id);flex:none;vertical-align:middle}
+.cm .mtint{color:var(--id)}
+
+.cm{
+  --s1:color-mix(in srgb,var(--fg) 4%,var(--bg));
+  --s2:color-mix(in srgb,var(--fg) 7%,var(--bg));
+  --s3:color-mix(in srgb,var(--fg) 11%,var(--bg));
+  --t2:color-mix(in srgb,var(--fg) var(--t2r),var(--bg));
+  --t3:color-mix(in srgb,var(--fg) var(--t3r),var(--bg));
+  --t4:color-mix(in srgb,var(--fg) var(--t4r),var(--bg));
+  --hov:color-mix(in srgb,var(--fg) 6%,transparent);
+  --prs:color-mix(in srgb,var(--fg) 11%,transparent);
+  --sel:color-mix(in srgb,var(--ac) 20%,transparent);
+  --seli:color-mix(in srgb,var(--fg) 9%,transparent);
+  --bd:color-mix(in srgb,var(--fg) 12%,transparent);
+  --bd2:color-mix(in srgb,var(--fg) 22%,transparent);
+  --ac-bg:color-mix(in srgb,var(--ac) 15%,transparent);
+  --ok-bg:color-mix(in srgb,var(--ok) 15%,transparent);
+  --wa-bg:color-mix(in srgb,var(--wa) 15%,transparent);
+  --er-bg:color-mix(in srgb,var(--er) 15%,transparent);
+  --ac-bd:color-mix(in srgb,var(--ac) 45%,transparent);
+  --ok-bd:color-mix(in srgb,var(--ok) 45%,transparent);
+  --wa-bd:color-mix(in srgb,var(--wa) 50%,transparent);
+  --er-bd:color-mix(in srgb,var(--er) 50%,transparent);
+  background:var(--bg);color:var(--fg);
+  font-family:&#x27;JetBrains Mono&#x27;,ui-monospace,&#x27;SF Mono&#x27;,Menlo,monospace;
+  font-size:12px;line-height:20px;font-variant-ligatures:none;
+  -webkit-font-smoothing:antialiased;
+}
+.cm *{box-sizing:border-box}
+.cm button,.cm input,.cm select,.cm textarea{font:inherit;color:inherit;margin:0}
+.cm button{background:transparent;border:0;padding:0;-webkit-appearance:none;appearance:none}
+.doc .cm{min-width:0}
+.cm p{margin:0}
+.cm svg.i{width:14px;height:14px;flex:none;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.cm svg.i.s16{width:16px;height:16px}
+.cm svg.i.s12{width:12px;height:12px}
+
+/* text levels */
+.cm .t2{color:var(--t2)} .cm .mut{color:var(--t3)} .cm .faint{color:var(--t4)}
+.cm .cap{font-size:11px;line-height:16px}
+.cm .ttl{font-size:13px;line-height:20px;font-weight:600}
+.cm .h{font-size:16px;line-height:22px;font-weight:600}
+.cm .b{font-weight:600}
+.cm .ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.cm .ac-i{color:var(--ac-i)} .cm .ok-i{color:var(--ok-i)} .cm .wa-i{color:var(--wa-i)} .cm .er-i{color:var(--er-i)}
+.cm code{background:var(--hov);border-radius:3px;padding:0 4px;font-size:12px}
+
+/* rows: list / tree / table */
+.cm .row{display:flex;align-items:center;gap:6px;height:20px;padding:0 8px;white-space:nowrap;border-radius:4px;position:relative;min-width:0;flex:none}
+.cm .row&gt;.l{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .row&gt;.d{color:var(--t3);flex:none}
+.cm .row.two{height:36px;align-items:flex-start;padding-top:2px}
+.cm .row.hov{background:var(--hov)}
+.cm .row.sel{background:var(--sel)}
+.cm .row.sel::before{content:&#x27;&#x27;;position:absolute;left:0;top:3px;bottom:3px;width:2px;border-radius:2px;background:var(--ac)}
+.cm .row.seli{background:var(--seli)}
+.cm .row.foc{box-shadow:inset 0 0 0 1.5px var(--ac)}
+.cm .row.dis{color:var(--t4)}
+.cm .sec{display:flex;align-items:center;gap:6px;height:26px;padding:6px 8px 0;color:var(--t3);font-size:11px;line-height:16px;flex:none}
+
+/* atoms */
+.cm .kbd{display:inline-flex;align-items:center;height:16px;padding:0 4px;border-radius:3px;border:1px solid var(--bd2);color:var(--t3);font-size:10.5px;line-height:14px;flex:none;white-space:nowrap}
+.cm .badge{display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 6px;border-radius:8px;font-size:11px;line-height:16px;background:var(--hov);color:var(--t2);flex:none;white-space:nowrap}
+.cm .badge.ac{background:var(--ac-bg);color:var(--ac-i)}
+.cm .badge.ok{background:var(--ok-bg);color:var(--ok-i)}
+.cm .badge.wa{background:var(--wa-bg);color:var(--wa-i)}
+.cm .badge.er{background:var(--er-bg);color:var(--er-i)}
+.cm .count{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:8px;font-size:10.5px;font-weight:600;background:var(--wa);color:var(--on-ac);flex:none}
+.cm .count.n{background:var(--prs);color:var(--t2)}
+.cm .dot{width:7px;height:7px;border-radius:50%;flex:none;background:currentColor;display:inline-block}
+
+.cm .btn{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:5px;border:1px solid var(--bd2);background:var(--s2);color:var(--fg);white-space:nowrap;flex:none;cursor:default}
+.cm .btn .kbd{border-color:color-mix(in srgb,currentColor 35%,transparent);color:inherit;opacity:.8}
+.cm .btn.pri{background:var(--ac);border-color:var(--ac);color:var(--on-ac)}
+.cm .btn.gh{background:transparent;border-color:transparent;color:var(--t2)}
+.cm .btn.dg{background:transparent;border-color:var(--er-bd);color:var(--er-i)}
+.cm .btn.hov{background:color-mix(in srgb,var(--fg) 12%,var(--bg))}
+.cm .btn.pri.hov{background:color-mix(in srgb,var(--ac) 88%,var(--fg))}
+.cm .btn.foc{box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px var(--ac)}
+.cm .btn.dis{opacity:.42}
+.cm .btn.sm{height:20px;padding:0 7px;gap:5px}
+.cm .btn.ico{width:24px;padding:0;justify-content:center}
+.cm .btn.ico.sm{width:20px}
+
+.cm .field{display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:5px;background:var(--bg);border:1px solid var(--bd2);color:var(--fg);min-width:0}
+.cm .field.foc{border-color:var(--ac);box-shadow:0 0 0 3px var(--ac-bg)}
+.cm .field.err{border-color:var(--er)}
+.cm .field .phd{color:var(--t4)}
+.cm .tog{width:26px;height:16px;border-radius:8px;background:var(--bd2);position:relative;flex:none;display:inline-block}
+.cm .tog::after{content:&#x27;&#x27;;position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:6px;background:var(--fg)}
+.cm .tog.on{background:var(--ac)}
+.cm .tog.on::after{left:12px;background:var(--on-ac)}
+
+.cm .card{background:var(--s2);border:1px solid var(--bd);border-radius:8px}
+.cm .pop{background:var(--s3);border-radius:10px;box-shadow:var(--sh)}
+.cm .hr{height:1px;background:var(--bd);flex:none}
+.cm .vr{width:1px;align-self:stretch;background:var(--bd);flex:none}
+
+/* window chrome */
+.cm .win{display:grid;grid-template-rows:38px minmax(0,1fr) 22px;width:100%;height:100%;overflow:hidden}
+.cm .tb{display:flex;align-items:center;gap:8px;padding:0 10px 0 14px;background:var(--s1);border-bottom:1px solid var(--bd);min-width:0}
+.cm .lights{display:flex;gap:8px;margin-right:8px;flex:none}
+.cm .lights i{width:12px;height:12px;border-radius:6px;display:block}
+.cm .pill{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:6px;background:var(--s2);border:1px solid var(--bd);color:var(--fg);flex:none;white-space:nowrap}
+.cm .body{display:grid;min-height:0;min-width:0}
+.cm .rail{display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:6px;background:var(--s1);border-right:1px solid var(--bd)}
+.cm .ri{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--t3);position:relative;flex:none}
+.cm .ri.on{color:var(--fg);background:var(--hov)}
+.cm .ri.on::before{content:&#x27;&#x27;;position:absolute;left:-5px;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--ac)}
+.cm .ri .bdg{position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:3px;background:var(--wa);box-shadow:0 0 0 2px var(--s1)}
+.cm .side{background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+.cm .phead{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px 0 12px;border-bottom:1px solid var(--bd);flex:none;min-width:0}
+.cm .main{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+.cm .sb{display:flex;align-items:center;gap:14px;padding:0 10px;background:var(--s1);border-top:1px solid var(--bd);font-size:11px;line-height:16px;color:var(--t3);white-space:nowrap;overflow:hidden;min-width:0}
+
+/* detail pattern */
+.cm .props{display:grid;grid-template-columns:120px minmax(0,1fr);column-gap:16px;row-gap:2px}
+.cm .props&gt;.k{color:var(--t3);height:24px;display:flex;align-items:center}
+.cm .props&gt;.v{min-height:24px;display:flex;align-items:center;gap:8px;min-width:0}
+.cm .abar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* diff + code */
+.cm .diff{font-size:12px;line-height:19px}
+.cm .dl{display:grid;grid-template-columns:36px 16px minmax(0,1fr);white-space:pre}
+.cm .dl&gt;span:first-child{color:var(--t4);text-align:right;padding-right:8px}
+.cm .dl.add{background:color-mix(in srgb,var(--ok) 13%,transparent)}
+.cm .dl.add&gt;span:nth-child(2){color:var(--ok-i)}
+.cm .dl.del{background:color-mix(in srgb,var(--er) 13%,transparent)}
+.cm .dl.del&gt;span:nth-child(2){color:var(--er-i)}
+.cm .dl.hunk{color:var(--ac-i);background:var(--hov)}
+
+/* ---------- spec-sheet boards (doc) ---------- */
+.doc{font-family:&#x27;IBM Plex Sans&#x27;,-apple-system,&#x27;Helvetica Neue&#x27;,sans-serif;background:#F4F3EE;color:#1B1D1C;font-size:15px;line-height:22px;-webkit-font-smoothing:antialiased}
+.doc,.doc *{box-sizing:border-box}
+.doc h1{font-size:44px;line-height:50px;font-weight:600;letter-spacing:-.02em;margin:0}
+.doc h2{font-size:24px;line-height:30px;font-weight:600;letter-spacing:-.01em;margin:0}
+.doc h3{font-size:17px;line-height:24px;font-weight:600;margin:0}
+.doc p{margin:0;text-wrap:pretty}
+.doc .eyebrow{font-family:&#x27;JetBrains Mono&#x27;,monospace;font-size:12px;line-height:16px;letter-spacing:.06em;text-transform:uppercase;color:#2B6E39}
+.doc .mono{font-family:&#x27;JetBrains Mono&#x27;,ui-monospace,monospace;font-size:13px;line-height:19px}
+.doc .muted{color:#5B5F5C}
+.doc .lead{font-size:18px;line-height:27px;color:#2C302D;max-width:860px}
+.doc table{border-collapse:collapse;width:100%}
+.doc th{text-align:left;font-family:&#x27;JetBrains Mono&#x27;,monospace;font-weight:500;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:#5B5F5C;padding:8px 12px;border-bottom:1.5px solid #1B1D1C;vertical-align:bottom}
+.doc td{padding:10px 12px;border-bottom:1px solid #DAD8CF;vertical-align:top;font-size:14px;line-height:20px;text-wrap:pretty}
+.doc td.n{font-family:&#x27;JetBrains Mono&#x27;,monospace;font-size:13px;color:#5B5F5C;width:40px}
+.doc .tag{display:inline-block;font-family:&#x27;JetBrains Mono&#x27;,monospace;font-size:11.5px;line-height:18px;padding:0 7px;border-radius:4px;background:#E4E2D9;color:#3A3D3B;white-space:nowrap}
+.doc .tag.a{background:#D9EAD9;color:#1D5A2B}
+.doc .tag.b{background:#F3E0C3;color:#71440B}
+.doc .tag.c{background:#D9E2F2;color:#23457C}
+.doc .tag.p0{background:#1B1D1C;color:#F4F3EE}
+.doc .panel{background:#FFFFFF;border:1px solid #DAD8CF;border-radius:12px}
+.doc .rule{height:1.5px;background:#1B1D1C}
+.doc code{font-family:&#x27;JetBrains Mono&#x27;,monospace;font-size:12.5px;background:#E9E7DF;border-radius:4px;padding:1px 5px}
+.doc ul{margin:0;padding-left:18px}
+.doc li{margin:0 0 4px}
+&lt;/style&gt;
+&lt;link rel=&quot;stylesheet&quot; href=&quot;https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;amp;family=JetBrains+Mono:wght@400;500;600;700&amp;amp;display=swap&quot;&gt;
+&lt;style&gt;
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.cm .gcv{position:relative;flex:none}
+.cm .gcard{position:absolute;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;z-index:1}
+.cm .gcard.cur{box-shadow:0 0 0 3px var(--bg),0 0 0 4.5px var(--ac)}
+.cm .gcard.dim{opacity:.5}
+.cm .gcard.ghost{background:transparent;border:1px dashed var(--bd2)}
+.cm .gcard .gh{display:flex;flex-direction:column;padding:9px 14px 9px;min-width:0}
+.cm .gcard .gt{display:flex;align-items:center;gap:7px;height:20px;min-width:0;white-space:nowrap}
+.cm .gcard .gt b{font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.cm .gcard .gs{font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cm .gcard .gr{border-top:1px solid var(--bd);padding:5px 0}
+.cm .gcard .grow{display:flex;align-items:center;gap:8px;height:24px;padding:0 16px;color:var(--t2);white-space:nowrap}
+.cm .gcard .grow&gt;span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .gsvg{position:absolute;left:0;top:0;overflow:visible;z-index:2;pointer-events:none}
+.cm .glbl{position:absolute;transform:translate(-50%,-50%);font-size:11px;line-height:16px;padding:0 5px;background:var(--bg);border-radius:4px;white-space:nowrap;z-index:3}
+.cm .gmk{position:absolute;font-size:11px;line-height:16px;color:var(--t3);white-space:nowrap;transform:translateX(-50%);z-index:3}
+.cm .sch{position:absolute;width:30px;height:30px;border-radius:15px;border:1px solid var(--bd2);background:var(--s2);display:flex;align-items:center;justify-content:center;z-index:3;color:var(--t2)}
+.cm .ln{position:relative;flex:none}
+.cm .lnl{position:absolute;left:0;display:flex;align-items:center;gap:8px;height:20px;transform:translateY(-50%);white-space:nowrap}
+.cm .lnt{position:absolute;font-size:10.5px;line-height:14px;color:var(--t4);transform:translateX(-50%);white-space:nowrap}
+.cm .lnb{position:absolute;font-size:11px;line-height:16px;transform:translate(-50%,-50%);white-space:nowrap;padding:0 4px;background:var(--bg);border-radius:4px}
+.cm .shd{display:flex;align-items:center;gap:8px;height:24px;color:var(--t3);flex:none}
+.cm .shd .n{color:var(--t4)}
+.cm .tbl{display:flex;flex-direction:column;min-width:0}
+.cm .tr{display:grid;align-items:center;height:24px;column-gap:16px;padding:0 8px;border-radius:4px;white-space:nowrap;min-width:0}
+.cm .tr&gt;*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .tr.th{color:var(--t4);font-size:11px;height:22px;border-bottom:1px solid var(--bd);border-radius:0}
+.cm .tr.sel{background:var(--seli)}
+.cm .clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+.cm .pcard{padding:10px 14px;background:var(--s1);border:1px solid var(--bd);border-radius:6px;display:flex;flex-direction:column;gap:6px}
+.cm .lnk{color:var(--t2);text-decoration:underline;text-decoration-color:var(--bd2);text-underline-offset:3px}
+.cm .chip{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 8px;border-radius:10px;background:var(--hov);color:var(--t2);white-space:nowrap;flex:none}
+.cm .chip.on{background:var(--s3);color:var(--fg)}
+.cm .md p{margin:0 0 10px}
+.cm .md ul{margin:0 0 10px;padding-left:18px}
+.cm .md li{margin:2px 0}
+.cm .md code{font-size:11.5px}
+.cm .md pre{margin:0 0 10px;padding:8px 12px;background:var(--s1);border:1px solid var(--bd);border-radius:6px;font:inherit;font-size:11.5px;line-height:18px;color:var(--t2);white-space:pre}
+.cm .crumb{display:flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-bottom:1px solid var(--bd);background:var(--s1);flex:none;white-space:nowrap;min-width:0}
+.cm .zoom{display:flex;align-items:center;gap:12px;color:var(--t3);font-size:11px}
+.cm .empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
+.cm .eic{width:44px;height:44px;border-radius:22px;background:var(--s2);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;color:var(--t3)}
+.cm .tpl{display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:center;column-gap:8px;height:30px;padding:0 10px;border:1px solid var(--bd);border-radius:6px;background:var(--s1);white-space:nowrap}
+.cm .tpl&gt;*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .lrow{display:grid;grid-template-columns:78px 16px minmax(0,1fr) auto;align-items:center;column-gap:6px;height:24px;padding:0 6px;border-radius:4px;white-space:nowrap;min-width:0}
+.cm .lrow&gt;*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .arow{display:grid;grid-template-columns:16px minmax(0,1fr) auto;align-items:center;column-gap:8px;height:26px;padding:0 6px;border-radius:4px;white-space:nowrap;min-width:0}
+.cm .arow&gt;*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .drop{display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border:1px dashed var(--bd2);border-radius:6px;color:var(--t3);font-size:11px;white-space:nowrap;overflow:hidden}
+.cm .tref{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:4px;background:var(--hov);color:var(--t2);font-size:11.5px;vertical-align:1px}
+.cm .owner{max-width:100%;overflow:hidden;text-overflow:ellipsis;display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:5px;background:var(--s2);border:1px solid var(--bd);white-space:nowrap;min-width:0}
+&lt;/style&gt;
+&lt;/head&gt;&lt;body style=&quot;margin:0&quot;&gt;
+
+&lt;div class=&quot;doc&quot; style=&quot;width: 1480px; min-height: 4180px; padding: 64px; display: flex; flex-direction: column; gap: 36px&quot;&gt;
+&lt;div style=&quot;display: flex; flex-direction: column; gap: 14px&quot;&gt;
+&lt;div class=&quot;eyebrow&quot;&gt;Clubmate · Agents · Graphs and Gates move in&lt;/div&gt;
+&lt;h1&gt;Graphs and land gates inside Agents&lt;/h1&gt;
+&lt;p class=&quot;lead&quot;&gt;The rail loses Graphs and Gates. Recommended: one tree. Runs stay with their sessions and open their page in place; definitions and land gates are two quiet rows at the bottom of the tree; old runs go to Closed with their sessions and outlive them.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div style=&quot;display: flex; flex-direction: column; gap: 14px&quot;&gt;&lt;h2&gt;Three directions&lt;/h2&gt;
+&lt;div style=&quot;display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px&quot;&gt;&lt;div style=&quot;display: flex; flex-direction: column; gap: 8px; min-width: 0&quot;&gt;&lt;div style=&quot;display: flex; gap: 8px; align-items: baseline&quot;&gt;&lt;h3 style=&quot;margin: 0; font-size: 16px&quot;&gt;A · One tree&lt;/h3&gt;&lt;span class=&quot;tag a&quot;&gt;recommended&lt;/span&gt;&lt;/div&gt;&lt;p style=&quot;margin: 0&quot;&gt;Runs stay where they work, in the worktree group with their node sessions. Graphs and Land gates become quiet root rows at the bottom of the tree, beside Closed. A run row, a definition and a gate each open their page in the main pane.&lt;/p&gt;&lt;p class=&quot;muted&quot; style=&quot;margin: 0&quot;&gt;&lt;b&gt;For:&lt;/b&gt; One tree, one Needs-you count, nothing to switch. Uses rows the tree already has (root rows from the Agents decision of 3 Nov). Definitions and gates are rarely browsed, so a folded row costs nothing.&lt;/p&gt;&lt;p class=&quot;muted&quot; style=&quot;margin: 0&quot;&gt;&lt;b&gt;Against:&lt;/b&gt; The tree gets longer when Graphs or Land gates is open. Definitions sit in a tree of sessions.&lt;/p&gt;&lt;p class=&quot;muted cap&quot; style=&quot;margin: 0&quot;&gt;AG-A-Run-1280-Mate, AG-A-Gate-1280-Mate, AG-A-Tree-640-MateLight, AG-A-Gate-640-MateLight, C-AG-A-*&lt;/p&gt;&lt;/div&gt;&lt;div style=&quot;display: flex; flex-direction: column; gap: 8px; min-width: 0&quot;&gt;&lt;div style=&quot;display: flex; gap: 8px; align-items: baseline&quot;&gt;&lt;h3 style=&quot;margin: 0; font-size: 16px&quot;&gt;B · Tabs&lt;/h3&gt;&lt;span class=&quot;tag &quot;&gt;no&lt;/span&gt;&lt;/div&gt;&lt;p style=&quot;margin: 0&quot;&gt;A segmented control at the top of the sidebar: Sessions · Graphs · Gates, each with its needs-you count. Sessions is today&#x27;s tree; Graphs is today&#x27;s Graphs sidebar; Gates is gated repos plus the landings under review.&lt;/p&gt;&lt;p class=&quot;muted&quot; style=&quot;margin: 0&quot;&gt;&lt;b&gt;For:&lt;/b&gt; Smallest change: the two old sidebars move in whole. Each list stays short.&lt;/p&gt;&lt;p class=&quot;muted&quot; style=&quot;margin: 0&quot;&gt;&lt;b&gt;Against:&lt;/b&gt; Three places to look; a run shows twice (Sessions and Graphs); a tab hides what needs you behind a number; needs a tab-switch key that isn&#x27;t in docs/shortcuts.md yet.&lt;/p&gt;&lt;p class=&quot;muted cap&quot; style=&quot;margin: 0&quot;&gt;AG-B-Graphs-1280-Mate, AG-B-Gates-640-MateLight, C-AG-B-Agents-Light&lt;/p&gt;&lt;/div&gt;&lt;div style=&quot;display: flex; flex-direction: column; gap: 8px; min-width: 0&quot;&gt;&lt;div style=&quot;display: flex; gap: 8px; align-items: baseline&quot;&gt;&lt;h3 style=&quot;margin: 0; font-size: 16px&quot;&gt;C · Group by&lt;/h3&gt;&lt;span class=&quot;tag &quot;&gt;no&lt;/span&gt;&lt;/div&gt;&lt;p style=&quot;margin: 0&quot;&gt;One tree, regrouped by a Group by control: worktree (default) · graph · land gate. By graph, definitions are parents with their runs; by land gate, the gate is the parent with its landings and review rounds.&lt;/p&gt;&lt;p class=&quot;muted&quot; style=&quot;margin: 0&quot;&gt;&lt;b&gt;For:&lt;/b&gt; Answers “all runs of this graph” and “every landing under this gate” in place; chips still filter.&lt;/p&gt;&lt;p class=&quot;muted&quot; style=&quot;margin: 0&quot;&gt;&lt;b&gt;Against:&lt;/b&gt; Rows move when you switch, so position memory breaks; sessions outside a graph or gate fall into a catch-all; a third grouping control on a 250 pt sidebar.&lt;/p&gt;&lt;p class=&quot;muted cap&quot; style=&quot;margin: 0&quot;&gt;AG-C-Graph-1280-Mate, AG-C-Gate-640-MateLight, C-AG-C-Agents&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;div style=&quot;display: flex; flex-direction: column&quot;&gt;&lt;h2&gt;A · one tree, in detail (questions 1–4)&lt;/h2&gt;&lt;div style=&quot;display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; padding: 14px 0; border-bottom: 1px solid #DAD8CF&quot;&gt;&lt;h3 style=&quot;font-size: 16px; margin: 0&quot;&gt;1 · Where they live&lt;/h3&gt;&lt;p style=&quot;margin: 0&quot;&gt;At the bottom of the Agents tree, as root rows: &lt;b&gt;Closed · 12&lt;/b&gt;, &lt;b&gt;Graphs · 4&lt;/b&gt;, &lt;b&gt;Land gates · 1&lt;/b&gt;, folded by default. Graphs holds “How graphs work” and the definitions; Land gates holds “How land gates work” and one row per gated repo. The UI says &lt;b&gt;land gate&lt;/b&gt; everywhere a graph named “Review gate” can also show. No tabs, no extra chips: the sidebar keeps its 250 pt for rows.&lt;/p&gt;&lt;/div&gt;&lt;div style=&quot;display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; padding: 14px 0; border-bottom: 1px solid #DAD8CF&quot;&gt;&lt;h3 style=&quot;font-size: 16px; margin: 0&quot;&gt;2 · Runs and definitions&lt;/h3&gt;&lt;p style=&quot;margin: 0&quot;&gt;A run row stays in the worktree group where the run works, with its node sessions under it, as today. &lt;b&gt;↩ or a click opens the run page in the Agents main pane&lt;/b&gt; (diagram, Input/Turns/Definition, History, Open ‹node› ⌘↩, Stop run ⌘.), with a crumb Agents / main / Review gate · #4; ⌘[ goes back to the session you came from. Folding moves to ← → and the chevron, the same as every other tree row. A definition row opens the definition page: Description, &lt;b&gt;Input + Run ⌘↩&lt;/b&gt;, Turns, the diagram, and &lt;b&gt;Runs of this graph&lt;/b&gt; (all of them, newest first). That is where a run starts; ⌘K also offers “Run ‹graph›…”.&lt;/p&gt;&lt;/div&gt;&lt;div style=&quot;display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; padding: 14px 0; border-bottom: 1px solid #DAD8CF&quot;&gt;&lt;h3 style=&quot;font-size: 16px; margin: 0&quot;&gt;3 · Ended and emptied runs&lt;/h3&gt;&lt;p style=&quot;margin: 0&quot;&gt;A run follows its sessions. While any node session is open, the run stays in its worktree group; ended runs fold themselves once you have opened them. When the run has ended and none of its sessions is open, the run row moves to &lt;b&gt;Closed&lt;/b&gt; with its sessions under it. When its sessions are deleted after 30 days or archived, the row stays, built from the run itself: a faint graph glyph, “no sessions”, and the run page still opens with input, turns, diagram and History (Open ‹node› is gone). It leaves only through Remove run…. Side by side: a run that asks you itself has an amber glyph and the detail “asks you”, counts once in Needs you, and its page carries the request card; a run whose node waits has a plain glyph and the pointer “→ Coder”, and the amber sits on the Coder row only.&lt;/p&gt;&lt;/div&gt;&lt;div style=&quot;display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; padding: 14px 0; border-bottom: 1px solid #DAD8CF&quot;&gt;&lt;h3 style=&quot;font-size: 16px; margin: 0&quot;&gt;4 · Land gates&lt;/h3&gt;&lt;p style=&quot;margin: 0&quot;&gt;The gate page (settings, Pause P, Edit E, Delete ⌘⌫, Verdicts, findings) opens from Land gates in the tree; New land gate is + on that row and in ⌘K. &lt;b&gt;Reviewer sessions move under their lander&lt;/b&gt;, named “Round 2 review”, with the verdict as detail (“changes · 1”, “approved”, “reviewing”) instead of the notify level. The lander&#x27;s own detail stays the gate state (review… / asking). The gate row&#x27;s detail is a pointer, “1 asking”, never a second amber. A changes verdict is history: plain ink, also on the findings card. From the lander, the Land anyway / Stop card links to its rounds on the gate page.&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;div style=&quot;display: flex; flex-direction: column; gap: 12px&quot;&gt;&lt;h2&gt;Run rows — states the plugin owns&lt;/h2&gt;&lt;p class=&quot;muted&quot; style=&quot;margin: 0&quot;&gt;The plugin sends the state, the detail word and where the row lives; Mac and phone only draw them.&lt;/p&gt;&lt;table&gt;&lt;tr&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;Run state (plugin field)&lt;/b&gt;&lt;/td&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;Glyph&lt;/b&gt;&lt;/td&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;Detail&lt;/b&gt;&lt;/td&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;Ink&lt;/b&gt;&lt;/td&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;Needs you&lt;/b&gt;&lt;/td&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;Lives in&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 220px&quot;&gt;running&lt;/td&gt;&lt;td style=&quot;width: 110px&quot;&gt;graph&lt;/td&gt;&lt;td style=&quot;width: 230px&quot;&gt;turn 3 · or the node working&lt;/td&gt;&lt;td style=&quot;width: 80px&quot;&gt;accent&lt;/td&gt;&lt;td style=&quot;width: 170px&quot;&gt;no&lt;/td&gt;&lt;td&gt;its worktree group&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 220px&quot;&gt;running · a node waits&lt;/td&gt;&lt;td style=&quot;width: 110px&quot;&gt;graph&lt;/td&gt;&lt;td style=&quot;width: 230px&quot;&gt;→ Coder&lt;/td&gt;&lt;td style=&quot;width: 80px&quot;&gt;plain&lt;/td&gt;&lt;td style=&quot;width: 170px&quot;&gt;the node counts, not the run&lt;/td&gt;&lt;td&gt;its worktree group, never folds&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 220px&quot;&gt;asks (step approval, round cap)&lt;/td&gt;&lt;td style=&quot;width: 110px&quot;&gt;graph, amber&lt;/td&gt;&lt;td style=&quot;width: 230px&quot;&gt;asks you&lt;/td&gt;&lt;td style=&quot;width: 80px&quot;&gt;amber&lt;/td&gt;&lt;td style=&quot;width: 170px&quot;&gt;yes, once&lt;/td&gt;&lt;td&gt;its worktree group, never folds&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 220px&quot;&gt;ended&lt;/td&gt;&lt;td style=&quot;width: 110px&quot;&gt;graph, ok&lt;/td&gt;&lt;td style=&quot;width: 230px&quot;&gt;done · or the end edge (“approved”)&lt;/td&gt;&lt;td style=&quot;width: 80px&quot;&gt;ok&lt;/td&gt;&lt;td style=&quot;width: 170px&quot;&gt;no&lt;/td&gt;&lt;td&gt;its group; folds once opened; Closed when no session is open&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 220px&quot;&gt;stopped / failed&lt;/td&gt;&lt;td style=&quot;width: 110px&quot;&gt;graph&lt;/td&gt;&lt;td style=&quot;width: 230px&quot;&gt;stopped · failed&lt;/td&gt;&lt;td style=&quot;width: 80px&quot;&gt;plain · red&lt;/td&gt;&lt;td style=&quot;width: 170px&quot;&gt;no&lt;/td&gt;&lt;td&gt;same as ended&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 220px&quot;&gt;emptied (no sessions left)&lt;/td&gt;&lt;td style=&quot;width: 110px&quot;&gt;graph, faint&lt;/td&gt;&lt;td style=&quot;width: 230px&quot;&gt;no sessions&lt;/td&gt;&lt;td style=&quot;width: 80px&quot;&gt;faint&lt;/td&gt;&lt;td style=&quot;width: 170px&quot;&gt;no&lt;/td&gt;&lt;td&gt;Closed, until Remove run…&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/div&gt;
+&lt;div style=&quot;display: flex; flex-direction: column; gap: 12px&quot;&gt;&lt;h2&gt;5 · Keys&lt;/h2&gt;&lt;p class=&quot;muted&quot; style=&quot;margin: 0&quot;&gt;Keyboard first: the selection decides. One meaning per key; where a key had two meanings in two sections, the selected row or the open page picks.&lt;/p&gt;&lt;table&gt;&lt;tr&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;Key&lt;/b&gt;&lt;/td&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;Tree row selected&lt;/b&gt;&lt;/td&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;Run page&lt;/b&gt;&lt;/td&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;Definition page&lt;/b&gt;&lt;/td&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;Gate page&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 130px&quot;&gt;↩&lt;/td&gt;&lt;td style=&quot;width: 300px&quot;&gt;open its page (session, run, definition, gate)&lt;/td&gt;&lt;td style=&quot;width: 260px&quot;&gt;—&lt;/td&gt;&lt;td style=&quot;width: 160px&quot;&gt;—&lt;/td&gt;&lt;td&gt;open the selected landing&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 130px&quot;&gt;← →&lt;/td&gt;&lt;td style=&quot;width: 300px&quot;&gt;fold / unfold&lt;/td&gt;&lt;td style=&quot;width: 260px&quot;&gt;—&lt;/td&gt;&lt;td style=&quot;width: 160px&quot;&gt;—&lt;/td&gt;&lt;td&gt;—&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 130px&quot;&gt;Tab&lt;/td&gt;&lt;td style=&quot;width: 300px&quot;&gt;into the page&lt;/td&gt;&lt;td style=&quot;width: 260px&quot;&gt;next edge (diagram keys)&lt;/td&gt;&lt;td style=&quot;width: 160px&quot;&gt;next edge&lt;/td&gt;&lt;td&gt;next row&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 130px&quot;&gt;Esc&lt;/td&gt;&lt;td style=&quot;width: 300px&quot;&gt;—&lt;/td&gt;&lt;td style=&quot;width: 260px&quot;&gt;back to the tree&lt;/td&gt;&lt;td style=&quot;width: 160px&quot;&gt;back to the tree&lt;/td&gt;&lt;td&gt;back to the tree&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 130px&quot;&gt;⌘N&lt;/td&gt;&lt;td style=&quot;width: 300px&quot;&gt;new session (unchanged)&lt;/td&gt;&lt;td style=&quot;width: 260px&quot;&gt;new session&lt;/td&gt;&lt;td style=&quot;width: 160px&quot;&gt;new session&lt;/td&gt;&lt;td&gt;new session&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 130px&quot;&gt;⌘↩&lt;/td&gt;&lt;td style=&quot;width: 300px&quot;&gt;—&lt;/td&gt;&lt;td style=&quot;width: 260px&quot;&gt;Open ‹the node that waits, else the last›&lt;/td&gt;&lt;td style=&quot;width: 160px&quot;&gt;Run with Input&lt;/td&gt;&lt;td&gt;—&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 130px&quot;&gt;⌘.&lt;/td&gt;&lt;td style=&quot;width: 300px&quot;&gt;Stop run (run row)&lt;/td&gt;&lt;td style=&quot;width: 260px&quot;&gt;Stop run&lt;/td&gt;&lt;td style=&quot;width: 160px&quot;&gt;—&lt;/td&gt;&lt;td&gt;—&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 130px&quot;&gt;⌘⌫&lt;/td&gt;&lt;td style=&quot;width: 300px&quot;&gt;Remove… the selected thing: session as today, run only when ended&lt;/td&gt;&lt;td style=&quot;width: 260px&quot;&gt;Remove run… (ended)&lt;/td&gt;&lt;td style=&quot;width: 160px&quot;&gt;— (definitions are files)&lt;/td&gt;&lt;td&gt;Delete land gate…&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 130px&quot;&gt;P · E&lt;/td&gt;&lt;td style=&quot;width: 300px&quot;&gt;—&lt;/td&gt;&lt;td style=&quot;width: 260px&quot;&gt;—&lt;/td&gt;&lt;td style=&quot;width: 160px&quot;&gt;—&lt;/td&gt;&lt;td&gt;Pause · Edit (as in Gates today)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 130px&quot;&gt;⌥1–⌥3&lt;/td&gt;&lt;td style=&quot;width: 300px&quot;&gt;—&lt;/td&gt;&lt;td style=&quot;width: 260px&quot;&gt;answer the step card: Allow once · Always… · Reject&lt;/td&gt;&lt;td style=&quot;width: 160px&quot;&gt;—&lt;/td&gt;&lt;td&gt;—&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 130px&quot;&gt;j/k · Tab · h · o · − + 0&lt;/td&gt;&lt;td style=&quot;width: 300px&quot;&gt;j/k move rows&lt;/td&gt;&lt;td style=&quot;width: 260px&quot;&gt;diagram keys, once the page has focus&lt;/td&gt;&lt;td style=&quot;width: 160px&quot;&gt;diagram keys&lt;/td&gt;&lt;td&gt;j/k verdict rows&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;h3 style=&quot;font-size: 16px; margin: 8px 0 0&quot;&gt;Rail&lt;/h3&gt;&lt;table&gt;&lt;tr&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;&lt;/b&gt;&lt;/td&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;Before&lt;/b&gt;&lt;/td&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;After&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 120px&quot;&gt;⌘1–⌘7&lt;/td&gt;&lt;td style=&quot;width: 420px&quot;&gt;Code, Terminals, Agents, Backlog, Processes, Cron, Triggers&lt;/td&gt;&lt;td&gt;unchanged&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 120px&quot;&gt;⌘8&lt;/td&gt;&lt;td style=&quot;width: 420px&quot;&gt;Graphs&lt;/td&gt;&lt;td&gt;free — the next rail item takes it (a second editor)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 120px&quot;&gt;⌘9&lt;/td&gt;&lt;td style=&quot;width: 420px&quot;&gt;Gates (only with nine or fewer items)&lt;/td&gt;&lt;td&gt;free&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 120px&quot;&gt;⌘K&lt;/td&gt;&lt;td style=&quot;width: 420px&quot;&gt;—&lt;/td&gt;&lt;td&gt;adds: Run ‹graph›… · New graph… · New land gate… · Open land gates&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/div&gt;
+&lt;div style=&quot;display: flex; flex-direction: column; gap: 12px&quot;&gt;&lt;h2&gt;6 · Links&lt;/h2&gt;&lt;table&gt;&lt;tr&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;Today opens Graphs&lt;/b&gt;&lt;/td&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;Now opens&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 460px&quot;&gt;Bell: pinned run item · the run&#x27;s macOS notification&lt;/td&gt;&lt;td&gt;Agents › the run&#x27;s row, run page open, the request card in view&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 460px&quot;&gt;Triggers: Open graph (G) on a graph edge&lt;/td&gt;&lt;td&gt;Agents › the run page when the edge belongs to a run, else the definition page; the edge selected&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 460px&quot;&gt;Code chat: “Open in Graphs” for a graph step&lt;/td&gt;&lt;td&gt;renamed “Open run” → Agents › run page, that step selected&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 460px&quot;&gt;Phone: run row&lt;/td&gt;&lt;td&gt;the native run screen (unchanged)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 460px&quot;&gt;Gate verdicts: Open review · Open landing&lt;/td&gt;&lt;td&gt;the reviewer session (now under its lander) · the lander session&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/div&gt;
+&lt;div style=&quot;display: flex; flex-direction: column; gap: 12px&quot;&gt;&lt;h2&gt;7 · Phone&lt;/h2&gt;
+&lt;p style=&quot;margin: 0&quot;&gt;Run rows show in the Agents list at all times, like the Mac: a run with its node sessions nested under it, in Needs you or Running by the run&#x27;s own state (C-AG-A-Agents). &lt;b&gt;Closed, Graphs and Land gates&lt;/b&gt; are rows at the bottom of the list, the same three as on the Mac. Graphs lists the definitions and the ended runs (C-AG-A-Graphs-Light); a definition opens with Input and Run; new graphs are written on the Mac. A run opens the native run screen, also when its sessions are gone (C-AG-A-Run). Land gates opens the gate screen as SDUI: the landing that asks first, settings, verdicts, Pause; Edit and New land gate stay on the Mac, because the phone draws no sheet (C-AG-A-Gate-Light). A phone that hasn&#x27;t been updated loses More → Graphs and More → Gates: its More lists exactly the sections the Mac rail shows, so keeping them would keep the two rail items on the Mac. Its native run screen keeps working through command aliases, and the lander&#x27;s Land anyway / Stop card still shows; definitions, ended runs and land gates are out of reach on that phone until it is updated.&lt;/p&gt;&lt;/div&gt;
+&lt;div style=&quot;display: flex; flex-direction: column; gap: 12px&quot;&gt;&lt;h2&gt;Handoff&lt;/h2&gt;&lt;table&gt;&lt;tr&gt;&lt;td style=&quot;width: 40px&quot;&gt;&lt;span class=&quot;tag a&quot;&gt;a&lt;/span&gt;&lt;/td&gt;&lt;td&gt;Run row ↩ opens a page; ← → fold; Tab into the page and back. Emptied run row (faint graph glyph). Reviewer row under its lander. Root rows Graphs and Land gates with + on hover. Phone: run rows grouped with their node sessions; Closed · Graphs · Land gates rows at the bottom of the list.&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 40px&quot;&gt;&lt;span class=&quot;tag a&quot;&gt;a&lt;/span&gt;&lt;/td&gt;&lt;td&gt;Rail drops two items; ⌘8 and ⌘9 freed. docs/shortcuts.md: ↩ on a run row, ⌘⌫ by selection, ⌘K commands.&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 40px&quot;&gt;&lt;span class=&quot;tag b&quot;&gt;b&lt;/span&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;tree&lt;/code&gt; row prop &lt;code&gt;open&lt;/code&gt;: the view the main pane shows for this row (session, run, definition, gate) — today only sessions open.&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 40px&quot;&gt;&lt;span class=&quot;tag b&quot;&gt;b&lt;/span&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;tree&lt;/code&gt; root row prop &lt;code&gt;add&lt;/code&gt;: a + action on a group row (New land gate…, New graph…).&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 40px&quot;&gt;&lt;span class=&quot;tag c&quot;&gt;c&lt;/span&gt;&lt;/td&gt;&lt;td&gt;Words: “Land gates”, “How land gates work”, “Round 2 review”, “asks you”, “→ Coder”, “no sessions”, “Runs of this graph”, “Open run”; land gate everywhere “gate” could mean the Review gate graph.&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 40px&quot;&gt;&lt;span class=&quot;tag c&quot;&gt;c&lt;/span&gt;&lt;/td&gt;&lt;td&gt;Order at the root: worktree groups, then Closed, Graphs, Land gates. Ended runs fold once opened.&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 40px&quot;&gt;&lt;span class=&quot;tag p0&quot;&gt;d&lt;/span&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;agents.runs&lt;/code&gt;: id, graph, title, worktree, state (running · asks · ended · stopped · failed · emptied), detail, needsYou, request, pointer (node id), sessions[], home (group · closed). Built from the run, so it survives its sessions.&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 40px&quot;&gt;&lt;span class=&quot;tag p0&quot;&gt;d&lt;/span&gt;&lt;/td&gt;&lt;td&gt;Reviewer: &lt;code&gt;parentId&lt;/code&gt; = lander; &lt;code&gt;gate&lt;/code&gt; = {round, of, verdict, findings} replaces the notify detail. Gate rows: {repo, active, asking count}.&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 40px&quot;&gt;&lt;span class=&quot;tag p0&quot;&gt;d&lt;/span&gt;&lt;/td&gt;&lt;td&gt;Link targets: bell, notification, Triggers G, Code chat → &lt;code&gt;agents/run/‹id›&lt;/code&gt;, &lt;code&gt;agents/graph/‹name›&lt;/code&gt;, &lt;code&gt;agents/gate/‹repo›&lt;/code&gt;.&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 40px&quot;&gt;&lt;span class=&quot;tag p0&quot;&gt;d&lt;/span&gt;&lt;/td&gt;&lt;td&gt;Old phones: nothing to keep. Their More lists exactly the Mac rail&#x27;s sections (the same rail filter), so with the two rail items gone they lose More → Graphs and More → Gates. Keep the command aliases the native run screen uses, and keep sending the lander&#x27;s Land anyway / Stop request.&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/div&gt;
+&lt;div style=&quot;display: flex; flex-direction: column; gap: 12px&quot;&gt;&lt;h2&gt;Questions back&lt;/h2&gt;&lt;table&gt;&lt;tr&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;Open for you&lt;/b&gt;&lt;/td&gt;&lt;td class=&quot;muted&quot;&gt;&lt;b&gt;Why it&#x27;s a question&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 420px&quot;&gt;⌘⌫ follows the selection (session, run, gate)&lt;/td&gt;&lt;td&gt;Today ⌘⌫ means remove a run in Graphs and delete a gate in Gates; one key by selection is simpler, but it is a change to docs/shortcuts.md.&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 420px&quot;&gt;Phone: “Run again with this input” on an ended run&lt;/td&gt;&lt;td&gt;New on the phone; Run with an Input already exists on the definition page.&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 420px&quot;&gt;⌘[ back from a run page to the session you came from&lt;/td&gt;&lt;td&gt;Drawn on the boards; not in docs/shortcuts.md yet.&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;width: 420px&quot;&gt;Findings card in plain ink&lt;/td&gt;&lt;td&gt;Today a changes verdict is drawn amber; by the colour rule nothing waits there.&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/div&gt;
+&lt;/div&gt;
+&lt;/body&gt;&lt;/html&gt;"></iframe></figure></div></body></html>
