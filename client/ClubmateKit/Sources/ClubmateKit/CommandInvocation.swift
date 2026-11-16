@@ -80,6 +80,7 @@ public enum AgentsSection {
     public static let sheetSlot = "agents.sheet"
     public static let id = "agents"
     public static let closeCommand = "agents.close"
+    public static let busyCommand = "agents.busy"
     public static let stepCommand = "agents.step"
     public static let sidebarSlot = "agents.sidebar"
     static let trees = ["sessions", "searchResults"]
@@ -88,6 +89,11 @@ public enum AgentsSection {
         guard let selected = trees.lazy.compactMap({ sidebar?.node(type: "tree", id: $0)?.string("selected") }).first(where: { !$0.isEmpty }),
               commands.contains(where: { $0.id == closeCommand }) else { return nil }
         return CommandInvocation(id: closeCommand, args: .object(["session": .string(selected)]))
+    }
+
+    public static func busyMessage(_ result: JSONValue) -> String? {
+        guard case .object(let fields) = result, fields["busy"] == .bool(true), let message = fields["message"]?.stringValue, !message.isEmpty else { return nil }
+        return message
     }
 
     public static func step(_ by: Int, section: String?, commands: [Command]) -> CommandInvocation? {

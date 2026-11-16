@@ -280,11 +280,19 @@ final class WorkspaceSession {
     }
 
     func closeTerminal(_ close: CommandInvocation) {
+        closeAsking(close, busy: TerminalsSection.busyCommand, message: TerminalsSection.busyMessage)
+    }
+
+    func closeAgent(_ close: CommandInvocation) {
+        closeAsking(close, busy: AgentsSection.busyCommand, message: AgentsSection.busyMessage)
+    }
+
+    private func closeAsking(_ close: CommandInvocation, busy: String, message: @escaping (JSONValue) -> String?) {
         guard let store else { return }
         Task {
-            switch await store.run(CommandInvocation(id: TerminalsSection.busyCommand, args: close.args)) {
+            switch await store.run(CommandInvocation(id: busy, args: close.args)) {
             case .success(let result):
-                if let message = TerminalsSection.busyMessage(result), !(await Confirmation.ask(message, action: "Close")) { return }
+                if let message = message(result), !(await Confirmation.ask(message, action: "Close")) { return }
                 run(close)
             case .failure(let error):
                 banner.show(error.message)

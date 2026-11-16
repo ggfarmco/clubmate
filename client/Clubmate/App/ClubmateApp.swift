@@ -184,14 +184,7 @@ private struct WorkspaceCommands: Commands {
             Button("Remove Workspace…") { active.map(actions.remove) }
                 .disabled(active == nil)
             Divider()
-            Button("Close Session") {
-                run { store, commands in
-                    guard store.selectedSection != AgentsSection.id else {
-                        return AgentsSection.close(sidebar: store.slot(AgentsSection.sidebarSlot)?.tree, commands: commands)
-                    }
-                    return .close(section: store.selectedSection, main: store.selectedSection.flatMap(store.mainTree), commands: commands)
-                }
-            }
+            Button("Close Session") { closeSession() }
             .keyboardShortcut(AppShortcuts.closeSession)
             .disabled(store == nil)
             Button(session != nil ? CloseKeyOwner.terminalTitle : CloseKeyOwner.windowTitle) { closeTerminal() }
@@ -267,6 +260,18 @@ private struct WorkspaceCommands: Commands {
     private func closeWorkspace() {
         guard let windowID, let active else { return }
         windows.closeWorkspace(active, in: windowID)
+    }
+
+    private func closeSession() {
+        guard let session, let store else { return }
+        switch store.selectedSection {
+        case AgentsSection.id:
+            AgentsSection.close(sidebar: store.slot(AgentsSection.sidebarSlot)?.tree, commands: app.commands).map(session.closeAgent)
+        case TerminalsSection.id:
+            CommandInvocation.close(section: store.selectedSection, main: store.mainTree(TerminalsSection.id), commands: app.commands).map(session.closeTerminal)
+        default:
+            session.run(.close(section: store.selectedSection, main: store.selectedSection.flatMap(store.mainTree), commands: app.commands))
+        }
     }
 
     private func closeTerminal() {

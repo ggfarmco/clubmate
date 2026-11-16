@@ -715,6 +715,34 @@ func TestChildStatusesAggregateActiveDescendants(t *testing.T) {
 	assert.Equal(t, map[string]string{"agt_p": statusWaiting, "agt_c": statusRunning}, childStatuses(recs))
 }
 
+func TestCloseBusyAsksWhileATurnRuns(t *testing.T) {
+	t.Parallel()
+	recs := []record{
+		{ID: "agt_run", Status: statusRunning},
+		{ID: "agt_wait", Status: statusWaiting},
+		{ID: "agt_p", Status: statusDone},
+		{ID: "agt_c", Status: statusIdle, lineage: lineage{ParentSession: "agt_p"}},
+		{ID: "agt_g", Status: statusRunning, lineage: lineage{ParentSession: "agt_c"}},
+		{ID: "agt_both", Status: statusRunning},
+		{ID: "agt_ask", Status: statusDone, lineage: lineage{ParentSession: "agt_both"}, AsksParent: true},
+		{ID: "agt_idle", Status: statusDone},
+		{ID: "agt_gone", Status: statusClosed, lineage: lineage{ParentSession: "agt_idle"}},
+		{ID: "agt_closed", Status: statusClosed},
+		{ID: "agt_late", Status: statusRunning, lineage: lineage{ParentSession: "agt_closed"}},
+	}
+	for id, want := range map[string]string{
+		"agt_run":    busySelf,
+		"agt_wait":   busySelf,
+		"agt_p":      busyChild,
+		"agt_both":   busyBoth,
+		"agt_idle":   "",
+		"agt_closed": busyChild,
+	} {
+		rec := recs[slices.IndexFunc(recs, func(r record) bool { return r.ID == id })]
+		assert.Equal(t, busyResult{Busy: want != "", Message: want}, closeBusy(rec, recs), id)
+	}
+}
+
 func TestSidebarShowsParentWaitingForChildren(t *testing.T) {
 	t.Parallel()
 	now := time.Now()

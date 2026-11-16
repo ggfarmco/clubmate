@@ -608,6 +608,11 @@ final class StoresTests: XCTestCase {
         XCTAssertNil(TerminalsSection.busyMessage(.object(["busy": .bool(false), "process": .string("")])))
     }
 
+    func testAgentBusyMessage() {
+        XCTAssertEqual(AgentsSection.busyMessage(.object(["busy": .bool(true), "message": .string("Close?")])), "Close?")
+        XCTAssertNil(AgentsSection.busyMessage(.object(["busy": .bool(false), "message": .string("")])))
+    }
+
     private let exited = SDUINode(type: "stack", children: [SDUINode(type: "text", props: ["text": .string("Terminal exited (code 0)")]), SDUINode(type: "button", id: "restart")])
 
     private func startCore() async throws -> CoreClient {

@@ -15,7 +15,16 @@ import (
 
 const (
 	stopRootWait = 4 * time.Second
+
+	busySelf  = "The agent is still working. Close the session and stop its turn?"
+	busyChild = "A child session is still working. Close the session and its child sessions?"
+	busyBoth  = "The agent and a child session are still working. Close the session and its child sessions?"
 )
+
+type busyResult struct {
+	Busy    bool   `json:"busy"`
+	Message string `json:"message"`
+}
 
 type dropState int
 
@@ -23,6 +32,20 @@ const (
 	dropClosed dropState = iota + 1
 	dropRemoved
 )
+
+func closeBusy(rec record, recs []record) busyResult {
+	self := turnActive(rec)
+	child := activeDescendant(rec.ID, kidsOf(recs), map[string]bool{}) != ""
+	switch {
+	case self && child:
+		return busyResult{Busy: true, Message: busyBoth}
+	case self:
+		return busyResult{Busy: true, Message: busySelf}
+	case child:
+		return busyResult{Busy: true, Message: busyChild}
+	}
+	return busyResult{}
+}
 
 func (a *app) closeTree(ctx context.Context, s *session) {
 	seen := map[string]bool{}

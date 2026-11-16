@@ -390,6 +390,24 @@
         }
       },
       {
+        "id": "agents.busy",
+        "title": "Agent session busy",
+        "hidden": true,
+        "description": "Report whether closing the session would stop work: {busy, message}; busy when its turn or one of its child sessions' turns is still running or waiting, message the question the app asks before agents.close.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."}
+          },
+          "required": ["session"]
+        },
+        "result": {
+          "properties": {
+            "busy": {"type": "boolean", "description": "Whether the session or a child session is mid-turn; false for a closed session."},
+            "message": {"type": "string", "description": "The confirmation to show; empty when not busy."}
+          }
+        }
+      },
+      {
         "id": "agents.reveal",
         "title": "Show agent session",
         "hidden": true,

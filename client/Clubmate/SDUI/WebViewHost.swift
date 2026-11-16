@@ -161,22 +161,11 @@ final class CodeWebView: WKWebView {
             keyDown(with: event)
             return true
         }
-        if let item = NSApp.mainMenu.flatMap({ Self.item(in: $0, key: key, flags: flags) }),
+        if let item = NSApp.mainMenu.flatMap({ MenuKeys.item(in: $0, matching: event) }),
            item.target != nil || !Self.editing.contains(item.action ?? Selector(("none"))) {
             return false
         }
         return super.performKeyEquivalent(with: event)
-    }
-
-    private static func item(in menu: NSMenu, key: String, flags: NSEvent.ModifierFlags) -> NSMenuItem? {
-        for item in menu.items {
-            if let submenu = item.submenu, let found = Self.item(in: submenu, key: key, flags: flags) { return found }
-            guard !item.keyEquivalent.isEmpty else { continue }
-            var mask = item.keyEquivalentModifierMask.intersection([.command, .shift, .option, .control])
-            if item.keyEquivalent != item.keyEquivalent.lowercased() { mask.insert(.shift) }
-            if item.keyEquivalent.lowercased() == key, mask == flags { return item }
-        }
-        return nil
     }
 }
 

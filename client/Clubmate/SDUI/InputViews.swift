@@ -662,14 +662,19 @@ private struct FieldChrome: ViewModifier {
 @MainActor
 enum MenuKeys {
     static func claims(_ menu: NSMenu, _ event: NSEvent) -> Bool {
+        item(in: menu, matching: event) != nil
+    }
+
+    static func item(in menu: NSMenu, matching event: NSEvent) -> NSMenuItem? {
         let flags = event.modifierFlags.intersection([.command, .control, .option, .shift])
-        let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
-        return menu.items.contains { item in
-            if let sub = item.submenu, claims(sub, event) { return true }
-            guard !item.keyEquivalent.isEmpty else { return false }
+        let key = (event.charactersIgnoringModifiers?.lowercased() ?? "").replacingOccurrences(of: "\u{7f}", with: "\u{8}")
+        for item in menu.items {
+            if let found = item.submenu.flatMap({ Self.item(in: $0, matching: event) }) { return found }
+            guard !item.keyEquivalent.isEmpty else { continue }
             var mask = item.keyEquivalentModifierMask.intersection([.command, .control, .option, .shift])
             if item.keyEquivalent != item.keyEquivalent.lowercased() { mask.insert(.shift) }
-            return item.keyEquivalent.lowercased() == key && mask == flags
+            if item.keyEquivalent.lowercased() == key, mask == flags { return item }
         }
+        return nil
     }
 }

@@ -51,7 +51,7 @@ public enum AppShortcuts {
     public static let openFolder = Shortcut("app.open-folder", ["cmd+o"], "Open Folder…")
     public static let openDoc = Shortcut("app.open-doc", ["cmd+shift+d"], "Open Doc…")
     public static let switchPopupFocus = Shortcut("app.switch-popup-focus", ["cmd+j"], "Switch Popup Focus", when: "A popup is open")
-    public static let closeSession = Shortcut("app.close-session", ["cmd+shift+w"], "Close Session")
+    public static let closeSession = Shortcut("app.close-session", ["cmd+opt+delete"], "Close Session")
     public static let close = Shortcut("app.close", ["cmd+w"], "Close terminal session, popup or window")
     public static let palette = Shortcut("app.palette", ["cmd+k"], "Command Palette")
     public static let toggleSidebar = Shortcut("app.toggle-sidebar", ["cmd+b", "ctrl+cmd+s"], "Toggle Sidebar; in Code, Toggle Chat")

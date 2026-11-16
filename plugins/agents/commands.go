@@ -51,6 +51,7 @@ var (
 		"agents.cancel":         withArgs((*app).cancelCommand),
 		"agents.stop-subagent":  withArgs((*app).stopSubagentCommand),
 		"agents.close":          withSession((*app).closeCommand),
+		"agents.busy":           withSession((*app).busyCommand),
 		"agents.delete":         withSession((*app).deleteCommand),
 		"agents.resume":         withSession((*app).resumeCommand),
 		"agents.reveal":         withArgs((*app).revealCommand),
@@ -586,6 +587,15 @@ func (a *app) stopSubagentCommand(_ context.Context, cmd pluginsdk.CommandRun, a
 func (a *app) closeCommand(ctx context.Context, _ pluginsdk.CommandRun, s *session) (any, error) {
 	a.closeTree(ctx, s)
 	return nil, nil
+}
+
+func (a *app) busyCommand(_ context.Context, cmd pluginsdk.CommandRun, s *session) (any, error) {
+	recs := a.list(cmd.WorkspaceID)
+	rec := s.snapshot()
+	if i := slices.IndexFunc(recs, func(r record) bool { return r.ID == rec.ID }); i >= 0 {
+		rec = recs[i]
+	}
+	return closeBusy(rec, recs), nil
 }
 
 func (a *app) deleteCommand(ctx context.Context, _ pluginsdk.CommandRun, s *session) (any, error) {

@@ -165,24 +165,11 @@ final class TestHarness {
 
     private func menuKey(_ event: NSEvent, targeted: Bool = false) -> String? {
         NSApp.mainMenu?.items.compactMap(\.submenu).forEach(TestMenus.prepare)
-        if targeted, NSApp.mainMenu.flatMap({ matching(event, in: $0) })?.target == nil { return nil }
-        var title: String?
-        let observer = NotificationCenter.default.addObserver(forName: NSMenu.didSendActionNotification, object: nil, queue: nil) { note in
-            title = (note.userInfo?["MenuItem"] as? NSMenuItem)?.title
-        }
-        defer { NotificationCenter.default.removeObserver(observer) }
-        guard let menu = NSApp.mainMenu, menu.performKeyEquivalent(with: event) else { return nil }
-        if let title { return title }
-        return matching(event, in: menu).map { "\($0.title) (\($0.isEnabled ? "enabled" : "disabled"), not sent)" } ?? "item"
-    }
-
-    private func matching(_ event: NSEvent, in menu: NSMenu) -> NSMenuItem? {
-        let flags = event.modifierFlags.intersection([.command, .control, .option, .shift])
-        for item in menu.items {
-            if let found = item.submenu.flatMap({ matching(event, in: $0) }) { return found }
-            if !item.keyEquivalent.isEmpty, item.keyEquivalent.lowercased() == event.charactersIgnoringModifiers?.lowercased(), item.keyEquivalentModifierMask.intersection([.command, .control, .option, .shift]) == flags { return item }
-        }
-        return nil
+        guard let item = NSApp.mainMenu.flatMap({ MenuKeys.item(in: $0, matching: event) }), let owner = item.menu else { return nil }
+        if targeted, item.target == nil { return nil }
+        guard item.isEnabled else { return "\(item.title) (disabled, not sent)" }
+        owner.performActionForItem(at: owner.index(of: item))
+        return item.title
     }
 
     private func guardedWindow() -> String? {
