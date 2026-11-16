@@ -595,7 +595,7 @@ func (a *app) busyCommand(_ context.Context, cmd pluginsdk.CommandRun, s *sessio
 	if i := slices.IndexFunc(recs, func(r record) bool { return r.ID == rec.ID }); i >= 0 {
 		rec = recs[i]
 	}
-	return closeBusy(rec, recs), nil
+	return closeBusy(rec, kidsOf(recs)), nil
 }
 
 func (a *app) deleteCommand(ctx context.Context, _ pluginsdk.CommandRun, s *session) (any, error) {

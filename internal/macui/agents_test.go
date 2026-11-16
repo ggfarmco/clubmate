@@ -122,6 +122,12 @@ func TestCloseSessionAsksWhileTheTurnRuns(t *testing.T) {
 	assert.Equal(t, []string{"menu Close Terminal"}, in.key("cmd+w"))
 	testutil.Never(t, func() bool { return statusOf() != "running" }, testutil.Timeout(time.Second))
 
+	in.cm("ui", "menu", "sessions#"+id, "Close Session", "--context")
+	in.eventually("the row menu's close alert is the key window", func() bool { return in.alert() != nil })
+	assert.Equal(t, []string{"alert"}, in.key("esc"))
+	in.eventually("esc keeps the session", func() bool { return in.alert() == nil })
+	testutil.Never(t, func() bool { return statusOf() != "running" }, testutil.Timeout(time.Second))
+
 	require.NoError(t, os.WriteFile(release, nil, 0o600))
 	in.eventually("the turn ends", status("done"))
 	in.focusIn(id)

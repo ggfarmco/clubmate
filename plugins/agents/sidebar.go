@@ -110,6 +110,7 @@ type sessionRow struct {
 	Started  time.Time
 	Notify   string
 	Children string
+	CloseAsk string
 	Branch   string
 	Detached bool
 	Asking   bool
@@ -611,7 +612,7 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 		}
 	}
 	if !rec.closed() {
-		menu = append(menu, sdui.MenuEntry{Action: actClose, Label: "Close Session"})
+		menu = append(menu, sdui.MenuEntry{Action: actClose, Label: "Close Session", Confirm: row.CloseAsk})
 	}
 	if canArchive(row) {
 		menu = append(menu, sdui.MenuEntry{Action: actArchive, Label: archiveMenu})

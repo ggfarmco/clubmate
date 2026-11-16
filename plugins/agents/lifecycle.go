@@ -33,9 +33,9 @@ const (
 	dropRemoved
 )
 
-func closeBusy(rec record, recs []record) busyResult {
+func closeBusy(rec record, kids map[string][]record) busyResult {
 	self := turnActive(rec)
-	child := activeDescendant(rec.ID, kidsOf(recs), map[string]bool{}) != ""
+	child := activeDescendant(rec.ID, kids, map[string]bool{}) != ""
 	switch {
 	case self && child:
 		return busyResult{Busy: true, Message: busyBoth}

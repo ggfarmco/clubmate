@@ -237,6 +237,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	}
 	recs := a.list(workspaceID)
 	children := childStatuses(recs)
+	kids := kidsOf(recs)
 	slices.Reverse(recs)
 	recs = recs[:min(len(recs), maxSidebarRows)]
 	selected, err := a.resolveSelected(ctx, workspaceID, recs)
@@ -247,6 +248,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	needs := a.runNeeds.byRun(workspaceID)
 	for _, rec := range recs {
 		row := a.sessionRow(ctx, rec, children[rec.ID])
+		row.CloseAsk = closeBusy(rec, kids).Message
 		if n, ok := needs[runID(rec)]; ok {
 			row.RunNeed = &n
 		}

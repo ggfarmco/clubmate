@@ -739,7 +739,7 @@ func TestCloseBusyAsksWhileATurnRuns(t *testing.T) {
 		"agt_closed": busyChild,
 	} {
 		rec := recs[slices.IndexFunc(recs, func(r record) bool { return r.ID == id })]
-		assert.Equal(t, busyResult{Busy: want != "", Message: want}, closeBusy(rec, recs), id)
+		assert.Equal(t, busyResult{Busy: want != "", Message: want}, closeBusy(rec, kidsOf(recs)), id)
 	}
 }
 
