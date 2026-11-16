@@ -16,7 +16,7 @@ PAGES = [
     ("rules", "Rules, keys, links, phone, handoff", ["AG-Rules"]),
 ]
 
-AUTO = ' onload="this.height=this.contentDocument.documentElement.scrollHeight"'
+SCRIPT = "<script>for(const b of document.querySelectorAll('.board')){b.attachShadow({mode:'open'}).appendChild(b.querySelector('template').content.cloneNode(true))}</script>"
 
 PAGE_CSS = """
 :root{color-scheme:light dark;--bg:#f4f4f2;--fg:#1d1d1b;--mut:#6b6b66;--bd:#dcdcd6}
@@ -29,7 +29,7 @@ nav a.on{color:var(--fg);font-weight:600}
 .boards{display:flex;flex-wrap:wrap;gap:28px;padding:16px 24px 40px;align-items:flex-start}
 figure{margin:0}
 figcaption{color:var(--mut);font-size:12px;margin-bottom:6px;max-width:100%}
-iframe{border:1px solid var(--bd);border-radius:8px;background:#fff;display:block}
+.board{border:1px solid var(--bd);border-radius:8px;overflow:hidden;position:relative}
 """
 
 
@@ -47,7 +47,7 @@ def board(src, name, css):
     body = body.replace("{{theme}}", theme)
     links = re.findall(r'<link rel="stylesheet" href="/_blob/([0-9a-f]+)">', text)
     styles = "".join(f"<style>{css[i]}</style>" for i in links)
-    doc = f'<!doctype html><html><head><meta charset="utf-8">{styles}{head}</head><body style="margin:0">{body}</body></html>'
+    doc = f'{styles}{head}{body}'
     width = size.get("width")
     height = size.get("height")
     if not width:
@@ -66,10 +66,10 @@ def main():
         for n in names:
             w, h, t, doc = board(src / "project", n, css)
             figs.append(f'<figure style="width:{w}px"><figcaption>{html.escape(n)} · {html.escape(t)}</figcaption>'
-                        f'<iframe width="{w}" height="{h or 1200}"{AUTO if not h else ""} srcdoc="{html.escape(doc, quote=True)}"></iframe></figure>')
+                        f'<div class="board" style="width:{w}px;{f"height:{h}px" if h else ""}"><template>{doc}</template></div></figure>')
         page = (f'<!doctype html><html><head><meta charset="utf-8"><title>{html.escape(title)}</title><style>{PAGE_CSS}</style></head>'
                 f'<body><header><h1>Graphs and Gates in Agents · {html.escape(title)}</h1><nav>{nav(slug)}</nav></header>'
-                f'<div class="boards">{"".join(figs)}</div></body></html>')
+                f'<div class="boards">{"".join(figs)}</div>{SCRIPT}</body></html>')
         (HERE / f"{slug}.html").write_text(page)
         print(slug)
 

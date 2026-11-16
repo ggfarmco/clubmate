@@ -9,8 +9,8 @@ nav a.on{color:var(--fg);font-weight:600}
 .boards{display:flex;flex-wrap:wrap;gap:28px;padding:16px 24px 40px;align-items:flex-start}
 figure{margin:0}
 figcaption{color:var(--mut);font-size:12px;margin-bottom:6px;max-width:100%}
-iframe{border:1px solid var(--bd);border-radius:8px;background:#fff;display:block}
-</style></head><body><header><h1>Graphs and Gates in Agents · C · Group by</h1><nav><a class="" href="a-one-tree.html">A · One tree (recommended)</a><a class="" href="b-tabs.html">B · Tabs</a><a class="on" href="c-group-by.html">C · Group by</a><a class="" href="rules.html">Rules, keys, links, phone, handoff</a></nav></header><div class="boards"><figure style="width:1280px"><figcaption>AG-C-Graph-1280-Mate · C · group by graph · runs under their definition · run page · 1280 · Mate</figcaption><iframe width="1280" height="800" srcdoc="&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;style&gt;/* Clubmate design language — mockup stylesheet.
+.board{border:1px solid var(--bd);border-radius:8px;overflow:hidden;position:relative}
+</style></head><body><header><h1>Graphs and Gates in Agents · C · Group by</h1><nav><a class="" href="a-one-tree.html">A · One tree (recommended)</a><a class="" href="b-tabs.html">B · Tabs</a><a class="on" href="c-group-by.html">C · Group by</a><a class="" href="rules.html">Rules, keys, links, phone, handoff</a></nav></header><div class="boards"><figure style="width:1280px"><figcaption>AG-C-Graph-1280-Mate · C · group by graph · runs under their definition · run page · 1280 · Mate</figcaption><div class="board" style="width:1280px;height:800px"><template><style>/* Clubmate design language — mockup stylesheet.
    Theme classes hold ONLY what Ghostty gives us (bg, fg, 4 tones) plus what Theme.swift
    computes from them (text ratios that pass contrast, tone inks). Everything else is a role
    derived in .cm by fixed ratios. */
@@ -31,7 +31,7 @@ iframe{border:1px solid var(--bd);border-radius:8px;background:#fff;display:bloc
   --t2r:90%;--t3r:72%;--t4r:50%;--ac-i:#357A27;--ok-i:#1A6E61;--wa-i:#8A5810;--er-i:#B23A33;--on-ac:#FFFFFF;
   --sh:0 12px 32px rgba(60,50,20,.18),0 0 0 1px rgba(60,50,20,.14);--scrim:rgba(60,50,20,.16)}
 
-/* Mac identity colours — one per paired Mac; a mark next to the Mac&#x27;s name, never a role.
+/* Mac identity colours — one per paired Mac; a mark next to the Mac's name, never a role.
    Hues kept away from accent (green), warning (amber), danger (red) and success (teal). */
 .th-kanagawa,.th-onedark,.th-mate,.th-cdark{--id-sky:#5AC8FA;--id-blue:#3D8BFF;--id-indigo:#8582FF;--id-purple:#BF7AF0;--id-magenta:#F06FC8;--id-graphite:#A1A1A6}
 .th-latte,.th-matelight,.th-clight{--id-sky:#0A78A8;--id-blue:#1F62D0;--id-indigo:#5450D6;--id-purple:#8540BF;--id-magenta:#B02E8C;--id-graphite:#636369}
@@ -62,7 +62,7 @@ iframe{border:1px solid var(--bd);border-radius:8px;background:#fff;display:bloc
   --wa-bd:color-mix(in srgb,var(--wa) 50%,transparent);
   --er-bd:color-mix(in srgb,var(--er) 50%,transparent);
   background:var(--bg);color:var(--fg);
-  font-family:&#x27;JetBrains Mono&#x27;,ui-monospace,&#x27;SF Mono&#x27;,Menlo,monospace;
+  font-family:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
   font-size:12px;line-height:20px;font-variant-ligatures:none;
   -webkit-font-smoothing:antialiased;
 }
@@ -87,12 +87,12 @@ iframe{border:1px solid var(--bd);border-radius:8px;background:#fff;display:bloc
 
 /* rows: list / tree / table */
 .cm .row{display:flex;align-items:center;gap:6px;height:20px;padding:0 8px;white-space:nowrap;border-radius:4px;position:relative;min-width:0;flex:none}
-.cm .row&gt;.l{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.cm .row&gt;.d{color:var(--t3);flex:none}
+.cm .row>.l{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .row>.d{color:var(--t3);flex:none}
 .cm .row.two{height:36px;align-items:flex-start;padding-top:2px}
 .cm .row.hov{background:var(--hov)}
 .cm .row.sel{background:var(--sel)}
-.cm .row.sel::before{content:&#x27;&#x27;;position:absolute;left:0;top:3px;bottom:3px;width:2px;border-radius:2px;background:var(--ac)}
+.cm .row.sel::before{content:'';position:absolute;left:0;top:3px;bottom:3px;width:2px;border-radius:2px;background:var(--ac)}
 .cm .row.seli{background:var(--seli)}
 .cm .row.foc{box-shadow:inset 0 0 0 1.5px var(--ac)}
 .cm .row.dis{color:var(--t4)}
@@ -127,7 +127,7 @@ iframe{border:1px solid var(--bd);border-radius:8px;background:#fff;display:bloc
 .cm .field.err{border-color:var(--er)}
 .cm .field .phd{color:var(--t4)}
 .cm .tog{width:26px;height:16px;border-radius:8px;background:var(--bd2);position:relative;flex:none;display:inline-block}
-.cm .tog::after{content:&#x27;&#x27;;position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:6px;background:var(--fg)}
+.cm .tog::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:6px;background:var(--fg)}
 .cm .tog.on{background:var(--ac)}
 .cm .tog.on::after{left:12px;background:var(--on-ac)}
 
@@ -146,7 +146,7 @@ iframe{border:1px solid var(--bd);border-radius:8px;background:#fff;display:bloc
 .cm .rail{display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:6px;background:var(--s1);border-right:1px solid var(--bd)}
 .cm .ri{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--t3);position:relative;flex:none}
 .cm .ri.on{color:var(--fg);background:var(--hov)}
-.cm .ri.on::before{content:&#x27;&#x27;;position:absolute;left:-5px;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--ac)}
+.cm .ri.on::before{content:'';position:absolute;left:-5px;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--ac)}
 .cm .ri .bdg{position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:3px;background:var(--wa);box-shadow:0 0 0 2px var(--s1)}
 .cm .side{background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
 .cm .phead{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px 0 12px;border-bottom:1px solid var(--bd);flex:none;min-width:0}
@@ -155,48 +155,48 @@ iframe{border:1px solid var(--bd);border-radius:8px;background:#fff;display:bloc
 
 /* detail pattern */
 .cm .props{display:grid;grid-template-columns:120px minmax(0,1fr);column-gap:16px;row-gap:2px}
-.cm .props&gt;.k{color:var(--t3);height:24px;display:flex;align-items:center}
-.cm .props&gt;.v{min-height:24px;display:flex;align-items:center;gap:8px;min-width:0}
+.cm .props>.k{color:var(--t3);height:24px;display:flex;align-items:center}
+.cm .props>.v{min-height:24px;display:flex;align-items:center;gap:8px;min-width:0}
 .cm .abar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 
 /* diff + code */
 .cm .diff{font-size:12px;line-height:19px}
 .cm .dl{display:grid;grid-template-columns:36px 16px minmax(0,1fr);white-space:pre}
-.cm .dl&gt;span:first-child{color:var(--t4);text-align:right;padding-right:8px}
+.cm .dl>span:first-child{color:var(--t4);text-align:right;padding-right:8px}
 .cm .dl.add{background:color-mix(in srgb,var(--ok) 13%,transparent)}
-.cm .dl.add&gt;span:nth-child(2){color:var(--ok-i)}
+.cm .dl.add>span:nth-child(2){color:var(--ok-i)}
 .cm .dl.del{background:color-mix(in srgb,var(--er) 13%,transparent)}
-.cm .dl.del&gt;span:nth-child(2){color:var(--er-i)}
+.cm .dl.del>span:nth-child(2){color:var(--er-i)}
 .cm .dl.hunk{color:var(--ac-i);background:var(--hov)}
 
 /* ---------- spec-sheet boards (doc) ---------- */
-.doc{font-family:&#x27;IBM Plex Sans&#x27;,-apple-system,&#x27;Helvetica Neue&#x27;,sans-serif;background:#F4F3EE;color:#1B1D1C;font-size:15px;line-height:22px;-webkit-font-smoothing:antialiased}
+.doc{font-family:'IBM Plex Sans',-apple-system,'Helvetica Neue',sans-serif;background:#F4F3EE;color:#1B1D1C;font-size:15px;line-height:22px;-webkit-font-smoothing:antialiased}
 .doc,.doc *{box-sizing:border-box}
 .doc h1{font-size:44px;line-height:50px;font-weight:600;letter-spacing:-.02em;margin:0}
 .doc h2{font-size:24px;line-height:30px;font-weight:600;letter-spacing:-.01em;margin:0}
 .doc h3{font-size:17px;line-height:24px;font-weight:600;margin:0}
 .doc p{margin:0;text-wrap:pretty}
-.doc .eyebrow{font-family:&#x27;JetBrains Mono&#x27;,monospace;font-size:12px;line-height:16px;letter-spacing:.06em;text-transform:uppercase;color:#2B6E39}
-.doc .mono{font-family:&#x27;JetBrains Mono&#x27;,ui-monospace,monospace;font-size:13px;line-height:19px}
+.doc .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:16px;letter-spacing:.06em;text-transform:uppercase;color:#2B6E39}
+.doc .mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:19px}
 .doc .muted{color:#5B5F5C}
 .doc .lead{font-size:18px;line-height:27px;color:#2C302D;max-width:860px}
 .doc table{border-collapse:collapse;width:100%}
-.doc th{text-align:left;font-family:&#x27;JetBrains Mono&#x27;,monospace;font-weight:500;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:#5B5F5C;padding:8px 12px;border-bottom:1.5px solid #1B1D1C;vertical-align:bottom}
+.doc th{text-align:left;font-family:'JetBrains Mono',monospace;font-weight:500;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:#5B5F5C;padding:8px 12px;border-bottom:1.5px solid #1B1D1C;vertical-align:bottom}
 .doc td{padding:10px 12px;border-bottom:1px solid #DAD8CF;vertical-align:top;font-size:14px;line-height:20px;text-wrap:pretty}
-.doc td.n{font-family:&#x27;JetBrains Mono&#x27;,monospace;font-size:13px;color:#5B5F5C;width:40px}
-.doc .tag{display:inline-block;font-family:&#x27;JetBrains Mono&#x27;,monospace;font-size:11.5px;line-height:18px;padding:0 7px;border-radius:4px;background:#E4E2D9;color:#3A3D3B;white-space:nowrap}
+.doc td.n{font-family:'JetBrains Mono',monospace;font-size:13px;color:#5B5F5C;width:40px}
+.doc .tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:18px;padding:0 7px;border-radius:4px;background:#E4E2D9;color:#3A3D3B;white-space:nowrap}
 .doc .tag.a{background:#D9EAD9;color:#1D5A2B}
 .doc .tag.b{background:#F3E0C3;color:#71440B}
 .doc .tag.c{background:#D9E2F2;color:#23457C}
 .doc .tag.p0{background:#1B1D1C;color:#F4F3EE}
 .doc .panel{background:#FFFFFF;border:1px solid #DAD8CF;border-radius:12px}
 .doc .rule{height:1.5px;background:#1B1D1C}
-.doc code{font-family:&#x27;JetBrains Mono&#x27;,monospace;font-size:12.5px;background:#E9E7DF;border-radius:4px;padding:1px 5px}
+.doc code{font-family:'JetBrains Mono',monospace;font-size:12.5px;background:#E9E7DF;border-radius:4px;padding:1px 5px}
 .doc ul{margin:0;padding-left:18px}
 .doc li{margin:0 0 4px}
-&lt;/style&gt;
-&lt;link rel=&quot;stylesheet&quot; href=&quot;https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;amp;display=swap&quot;&gt;
-&lt;style&gt;
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
 body{margin:0}
 a{color:inherit}a:hover{color:inherit}
 .cm .gcv{position:relative;flex:none}
@@ -210,7 +210,7 @@ a{color:inherit}a:hover{color:inherit}
 .cm .gcard .gs{font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cm .gcard .gr{border-top:1px solid var(--bd);padding:5px 0}
 .cm .gcard .grow{display:flex;align-items:center;gap:8px;height:24px;padding:0 16px;color:var(--t2);white-space:nowrap}
-.cm .gcard .grow&gt;span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .gcard .grow>span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .cm .gsvg{position:absolute;left:0;top:0;overflow:visible;z-index:2;pointer-events:none}
 .cm .glbl{position:absolute;transform:translate(-50%,-50%);font-size:11px;line-height:16px;padding:0 5px;background:var(--bg);border-radius:4px;white-space:nowrap;z-index:3}
 .cm .gmk{position:absolute;font-size:11px;line-height:16px;color:var(--t3);white-space:nowrap;transform:translateX(-50%);z-index:3}
@@ -223,7 +223,7 @@ a{color:inherit}a:hover{color:inherit}
 .cm .shd .n{color:var(--t4)}
 .cm .tbl{display:flex;flex-direction:column;min-width:0}
 .cm .tr{display:grid;align-items:center;height:24px;column-gap:16px;padding:0 8px;border-radius:4px;white-space:nowrap;min-width:0}
-.cm .tr&gt;*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .tr>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .cm .tr.th{color:var(--t4);font-size:11px;height:22px;border-bottom:1px solid var(--bd);border-radius:0}
 .cm .tr.sel{background:var(--seli)}
 .cm .clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
@@ -241,19 +241,19 @@ a{color:inherit}a:hover{color:inherit}
 .cm .empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
 .cm .eic{width:44px;height:44px;border-radius:22px;background:var(--s2);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;color:var(--t3)}
 .cm .tpl{display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:center;column-gap:8px;height:30px;padding:0 10px;border:1px solid var(--bd);border-radius:6px;background:var(--s1);white-space:nowrap}
-.cm .tpl&gt;*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .tpl>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .cm .lrow{display:grid;grid-template-columns:78px 16px minmax(0,1fr) auto;align-items:center;column-gap:6px;height:24px;padding:0 6px;border-radius:4px;white-space:nowrap;min-width:0}
-.cm .lrow&gt;*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .lrow>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .cm .arow{display:grid;grid-template-columns:16px minmax(0,1fr) auto;align-items:center;column-gap:8px;height:26px;padding:0 6px;border-radius:4px;white-space:nowrap;min-width:0}
-.cm .arow&gt;*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .arow>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .cm .drop{display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border:1px dashed var(--bd2);border-radius:6px;color:var(--t3);font-size:11px;white-space:nowrap;overflow:hidden}
 .cm .tref{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:4px;background:var(--hov);color:var(--t2);font-size:11.5px;vertical-align:1px}
 .cm .owner{max-width:100%;overflow:hidden;text-overflow:ellipsis;display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:5px;background:var(--s2);border:1px solid var(--bd);white-space:nowrap;min-width:0}
-&lt;/style&gt;
-&lt;/head&gt;&lt;body style=&quot;margin:0&quot;&gt;
+</style>
 
-&lt;div class=&quot;cm th-mate&quot; style=&quot;width: 1280px; height: 800px; overflow: hidden&quot;&gt;
-&lt;style&gt;
+
+<div class="cm th-mate" style="width: 1280px; height: 800px; overflow: hidden">
+<style>
 .cm .seg{display:flex;gap:2px;padding:2px;border-radius:6px;background:var(--hov);margin:8px 8px 2px}
 .cm .seg button{flex:1;height:22px;border:0;border-radius:4px;background:transparent;color:var(--t2);font:inherit;font-size:11.5px;display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
 .cm .seg button.on{background:var(--prs);color:var(--fg)}
@@ -262,51 +262,51 @@ a{color:inherit}a:hover{color:inherit}
 .cm .root{margin-top:6px}
 .cm .vt{display:flex;flex-direction:column}
 .cm .vrow{display:grid;column-gap:12px;align-items:center;min-height:26px;padding:0 10px;border-top:1px solid var(--bd);white-space:nowrap}
-.cm .vrow&gt;*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .vrow>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .cm .vrow.sel{background:var(--sel);box-shadow:inset 2px 0 0 var(--ac)}
 .cm .vrow.hd{border-top:0;color:var(--t4);font-size:11px;min-height:22px}
 .cm .find{padding:10px 12px;border-radius:7px;border:1px solid var(--bd);background:var(--s1);display:flex;flex-direction:column;gap:6px}
 .cm .grp{display:flex;align-items:center;gap:8px;padding:2px 8px;color:var(--t3);font-size:11px}
 .cm .note{font-size:11px;color:var(--t4);padding:2px 10px}
-&lt;/style&gt;&lt;div class=&quot;win&quot;&gt;
-&lt;header class=&quot;tb&quot;&gt;
-&lt;div class=&quot;lights&quot;&gt;&lt;i style=&quot;background: #FF5F57&quot;&gt;&lt;/i&gt;&lt;i style=&quot;background: #FEBC2E&quot;&gt;&lt;/i&gt;&lt;i style=&quot;background: #28C840&quot;&gt;&lt;/i&gt;&lt;/div&gt;
-&lt;button class=&quot;pill&quot;&gt;&lt;span&gt;shop&lt;/span&gt;&lt;span class=&quot;faint&quot;&gt;/&lt;/span&gt;&lt;svg class=&quot;i mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;4.5&quot; cy=&quot;3.5&quot; r=&quot;1.5&quot;/&gt;&lt;circle cx=&quot;4.5&quot; cy=&quot;12.5&quot; r=&quot;1.5&quot;/&gt;&lt;circle cx=&quot;11.5&quot; cy=&quot;5&quot; r=&quot;1.5&quot;/&gt;&lt;path d=&quot;M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5&quot;/&gt;&lt;/svg&gt;&lt;span&gt;main&lt;/span&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3.5 6 8 10.5 12.5 6&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;
-&lt;span style=&quot;flex: 1&quot;&gt;&lt;/span&gt;
-&lt;button class=&quot;pill&quot; aria-label=&quot;Notifications&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z&quot;/&gt;&lt;path d=&quot;M6.5 14a1.5 1.5 0 0 0 3 0&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;count&quot;&gt;6&lt;/span&gt;&lt;/button&gt;
-&lt;button class=&quot;pill&quot; aria-label=&quot;Windows: 1&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;rect x=&quot;1.5&quot; y=&quot;3.5&quot; width=&quot;9&quot; height=&quot;9&quot; rx=&quot;1.5&quot;/&gt;&lt;path d=&quot;M5.5 1.5h7a2 2 0 0 1 2 2v7&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;t2&quot;&gt;1&lt;/span&gt;&lt;/button&gt;
-&lt;/header&gt;
-&lt;div class=&quot;body&quot; style=&quot;grid-template-columns: 40px 248px minmax(0, 1fr)&quot;&gt;
-&lt;nav class=&quot;rail&quot; aria-label=&quot;Sections&quot;&gt;&lt;button class=&quot;ri&quot; aria-label=&quot;Code ⌘1&quot;&gt;&lt;svg class=&quot;i s16&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;button class=&quot;ri&quot; aria-label=&quot;Terminals ⌘2&quot;&gt;&lt;svg class=&quot;i s16&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;rect x=&quot;1.5&quot; y=&quot;2.5&quot; width=&quot;13&quot; height=&quot;11&quot; rx=&quot;2&quot;/&gt;&lt;path d=&quot;m4.5 6 2 2-2 2M8.5 10.5h3&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;button class=&quot;ri on&quot; aria-label=&quot;Agents ⌘3&quot;&gt;&lt;svg class=&quot;i s16&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;button class=&quot;ri&quot; aria-label=&quot;Backlog ⌘4&quot;&gt;&lt;svg class=&quot;i s16&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7&quot;/&gt;&lt;circle cx=&quot;3.3&quot; cy=&quot;8.5&quot; r=&quot;1.3&quot;/&gt;&lt;circle cx=&quot;3.3&quot; cy=&quot;13&quot; r=&quot;1.3&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;button class=&quot;ri&quot; aria-label=&quot;Processes ⌘5&quot;&gt;&lt;svg class=&quot;i s16&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;rect x=&quot;4&quot; y=&quot;4&quot; width=&quot;8&quot; height=&quot;8&quot; rx=&quot;1.5&quot;/&gt;&lt;path d=&quot;M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;button class=&quot;ri&quot; aria-label=&quot;Cron ⌘6&quot;&gt;&lt;svg class=&quot;i s16&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6.5&quot;/&gt;&lt;path d=&quot;M8 4.5V8l2.5 1.5&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;button class=&quot;ri&quot; aria-label=&quot;Triggers ⌘7&quot;&gt;&lt;svg class=&quot;i s16&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;/nav&gt;
-&lt;aside class=&quot;side&quot; aria-label=&quot;Agents&quot;&gt;
-&lt;div class=&quot;phead&quot;&gt;&lt;span class=&quot;ttl&quot;&gt;Agents&lt;/span&gt;&lt;span style=&quot;flex: 1&quot;&gt;&lt;/span&gt;&lt;button class=&quot;btn ico sm gh&quot; aria-label=&quot;Filter /&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;7&quot; cy=&quot;7&quot; r=&quot;4.5&quot;/&gt;&lt;path d=&quot;m10.5 10.5 3.5 3.5&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;button class=&quot;btn ico sm gh&quot; aria-label=&quot;New session ⌘N&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M8 3v10M3 8h10&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;/div&gt;
-&lt;div style=&quot;display: flex; align-items: center; gap: 6px; padding: 8px 10px 0; white-space: nowrap&quot; class=&quot;cap&quot;&gt;&lt;span class=&quot;mut&quot;&gt;Group by&lt;/span&gt;&lt;button class=&quot;field&quot; style=&quot;height: 22px; padding: 0 8px; gap: 6px; white-space: nowrap&quot;&gt;Graph&lt;svg class=&quot;i s10 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3.5 6 8 10.5 12.5 6&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;/div&gt;&lt;div style=&quot;display: flex; gap: 4px; padding: 8px 8px 4px; flex-wrap: wrap&quot;&gt;&lt;button class=&quot;badge&quot; style=&quot;border: 0; background: var(--prs); color: var(--fg)&quot;&gt;All 16&lt;/button&gt;&lt;button class=&quot;badge wa&quot; style=&quot;border: 0&quot;&gt;Needs you 3&lt;/button&gt;&lt;button class=&quot;badge&quot; style=&quot;border: 0&quot;&gt;Open 0&lt;/button&gt;&lt;button class=&quot;badge&quot; style=&quot;border: 0&quot;&gt;Running 2&lt;/button&gt;&lt;/div&gt;
-&lt;div style=&quot;display: flex; flex-direction: column; padding: 0 4px 8px&quot;&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 8px&quot;&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3.5 6 8 10.5 12.5 6&quot;/&gt;&lt;/svg&gt;&lt;svg class=&quot;i mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M4 1.5h5l3 3v10H4Z&quot;/&gt;&lt;path d=&quot;M9 1.5v3h3&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l t2&quot;&gt;Review gate&lt;/span&gt;&lt;span class=&quot;d cap &quot;&gt;3 runs&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 24px&quot;&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3.5 6 8 10.5 12.5 6&quot;/&gt;&lt;/svg&gt;&lt;svg class=&quot;i wa-i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;3.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;12.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;8&quot; cy=&quot;12&quot; r=&quot;1.8&quot;/&gt;&lt;path d=&quot;M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;#4 · fix the flaky switcher&lt;/span&gt;&lt;span class=&quot;d cap wa-i&quot;&gt;asks you&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 40px&quot;&gt;&lt;span style=&quot;width: 12px; flex: none&quot;&gt;&lt;/span&gt;&lt;svg class=&quot;i ok-i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot;/&gt;&lt;path d=&quot;m5.5 8.2 1.8 1.8 3.4-3.6&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;Coder&lt;/span&gt;&lt;span class=&quot;d cap &quot;&gt;done&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 40px&quot;&gt;&lt;span style=&quot;width: 12px; flex: none&quot;&gt;&lt;/span&gt;&lt;svg class=&quot;i ok-i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot;/&gt;&lt;path d=&quot;m5.5 8.2 1.8 1.8 3.4-3.6&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;Reviewer&lt;/span&gt;&lt;span class=&quot;d cap &quot;&gt;approved&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 24px&quot;&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;m6 3.5 4.5 4.5L6 12.5&quot;/&gt;&lt;/svg&gt;&lt;svg class=&quot;i ok-i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;3.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;12.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;8&quot; cy=&quot;12&quot; r=&quot;1.8&quot;/&gt;&lt;path d=&quot;M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;#3 · show missed cron runs&lt;/span&gt;&lt;span class=&quot;d cap ok-i&quot;&gt;done&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 24px&quot;&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;m6 3.5 4.5 4.5L6 12.5&quot;/&gt;&lt;/svg&gt;&lt;svg class=&quot;i faint&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;3.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;12.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;8&quot; cy=&quot;12&quot; r=&quot;1.8&quot;/&gt;&lt;path d=&quot;M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;#2 · Nov 15&lt;/span&gt;&lt;span class=&quot;d cap mut&quot;&gt;stopped&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 8px&quot;&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3.5 6 8 10.5 12.5 6&quot;/&gt;&lt;/svg&gt;&lt;svg class=&quot;i mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M4 1.5h5l3 3v10H4Z&quot;/&gt;&lt;path d=&quot;M9 1.5v3h3&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l t2&quot;&gt;Review loop&lt;/span&gt;&lt;span class=&quot;d cap &quot;&gt;2 runs&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row sel&quot; style=&quot;padding-left: 24px&quot;&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3.5 6 8 10.5 12.5 6&quot;/&gt;&lt;/svg&gt;&lt;svg class=&quot;i mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;3.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;12.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;8&quot; cy=&quot;12&quot; r=&quot;1.8&quot;/&gt;&lt;path d=&quot;M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;fix the flaky switcher&lt;/span&gt;&lt;span class=&quot;d cap &quot;&gt;→ Coder&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 40px&quot;&gt;&lt;span style=&quot;width: 12px; flex: none&quot;&gt;&lt;/span&gt;&lt;svg class=&quot;i wa-i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot;/&gt;&lt;path d=&quot;M8 4.8v3.8M8 11.1v.1&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;Coder&lt;/span&gt;&lt;span class=&quot;d cap wa-i&quot;&gt;waiting&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 40px&quot;&gt;&lt;span style=&quot;width: 12px; flex: none&quot;&gt;&lt;/span&gt;&lt;svg class=&quot;i faint&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;Reviewer&lt;/span&gt;&lt;span class=&quot;d cap &quot;&gt;idle&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 24px&quot;&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;m6 3.5 4.5 4.5L6 12.5&quot;/&gt;&lt;/svg&gt;&lt;svg class=&quot;i ok-i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;3.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;12.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;8&quot; cy=&quot;12&quot; r=&quot;1.8&quot;/&gt;&lt;path d=&quot;M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;09:10 · missed cron runs&lt;/span&gt;&lt;span class=&quot;d cap ok-i&quot;&gt;done&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 8px&quot;&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3.5 6 8 10.5 12.5 6&quot;/&gt;&lt;/svg&gt;&lt;svg class=&quot;i mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M4 1.5h5l3 3v10H4Z&quot;/&gt;&lt;path d=&quot;M9 1.5v3h3&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l t2&quot;&gt;Nightly&lt;/span&gt;&lt;span class=&quot;d cap t2&quot;&gt;untrusted&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 24px&quot;&gt;&lt;span style=&quot;width: 12px; flex: none&quot;&gt;&lt;/span&gt;&lt;svg class=&quot;i faint&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;3.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;12.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;8&quot; cy=&quot;12&quot; r=&quot;1.8&quot;/&gt;&lt;path d=&quot;M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;Oct 14 · dependency audit&lt;/span&gt;&lt;span class=&quot;d cap faint&quot;&gt;no sessions&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 8px&quot;&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;m6 3.5 4.5 4.5L6 12.5&quot;/&gt;&lt;/svg&gt;&lt;svg class=&quot;i mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M4 1.5h5l3 3v10H4Z&quot;/&gt;&lt;path d=&quot;M9 1.5v3h3&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l t2&quot;&gt;PR walkthrough&lt;/span&gt;&lt;span class=&quot;d cap faint&quot;&gt;no runs&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row root&quot; style=&quot;padding-left: 8px&quot;&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;m6 3.5 4.5 4.5L6 12.5&quot;/&gt;&lt;/svg&gt;&lt;svg class=&quot;i mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l t2&quot;&gt;Not in a graph&lt;/span&gt;&lt;span class=&quot;d cap &quot;&gt;11&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;note&quot;&gt;Chips still filter: Needs you shows Review gate #4 and Coder.&lt;/div&gt;&lt;/div&gt;
-&lt;/aside&gt;
-&lt;main class=&quot;main&quot;&gt;
-&lt;div style=&quot;display: flex; flex-direction: column; gap: 12px; padding: 20px 28px 14px; border-bottom: 1px solid var(--bd); flex: none&quot;&gt;
-&lt;div style=&quot;display: flex; align-items: center; gap: 10px; min-width: 0&quot;&gt;
-&lt;svg class=&quot;i s16 t2&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;3.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;12.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;8&quot; cy=&quot;12&quot; r=&quot;1.8&quot;/&gt;&lt;path d=&quot;M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8&quot;/&gt;&lt;/svg&gt;
-&lt;h1 class=&quot;h ell&quot; style=&quot;margin: 0&quot;&gt;Review loop&lt;/h1&gt;
-&lt;span class=&quot;badge&quot;&gt;running · turn 0 of 12&lt;/span&gt;&lt;span class=&quot;badge&quot;&gt;→ Coder waits&lt;/span&gt;
-&lt;/div&gt;
+</style><div class="win">
+<header class="tb">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="pill"><span>shop</span><span class="faint">/</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span>main</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="pill" aria-label="Notifications"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">6</span></button>
+<button class="pill" aria-label="Windows: 1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M5.5 1.5h7a2 2 0 0 1 2 2v7"/></svg><span class="t2">1</span></button>
+</header>
+<div class="body" style="grid-template-columns: 40px 248px minmax(0, 1fr)">
+<nav class="rail" aria-label="Sections"><button class="ri" aria-label="Code ⌘1"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button><button class="ri" aria-label="Terminals ⌘2"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button><button class="ri on" aria-label="Agents ⌘3"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button><button class="ri" aria-label="Backlog ⌘4"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button><button class="ri" aria-label="Processes ⌘5"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg></button><button class="ri" aria-label="Cron ⌘6"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button><button class="ri" aria-label="Triggers ⌘7"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg></button></nav>
+<aside class="side" aria-label="Agents">
+<div class="phead"><span class="ttl">Agents</span><span style="flex: 1"></span><button class="btn ico sm gh" aria-label="Filter /"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg></button><button class="btn ico sm gh" aria-label="New session ⌘N"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button></div>
+<div style="display: flex; align-items: center; gap: 6px; padding: 8px 10px 0; white-space: nowrap" class="cap"><span class="mut">Group by</span><button class="field" style="height: 22px; padding: 0 8px; gap: 6px; white-space: nowrap">Graph<svg class="i s10 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button></div><div style="display: flex; gap: 4px; padding: 8px 8px 4px; flex-wrap: wrap"><button class="badge" style="border: 0; background: var(--prs); color: var(--fg)">All 16</button><button class="badge wa" style="border: 0">Needs you 3</button><button class="badge" style="border: 0">Open 0</button><button class="badge" style="border: 0">Running 2</button></div>
+<div style="display: flex; flex-direction: column; padding: 0 4px 8px"><div class="row" style="padding-left: 8px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3"/></svg><span class="l t2">Review gate</span><span class="d cap ">3 runs</span></div><div class="row" style="padding-left: 24px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg><span class="l ">#4 · fix the flaky switcher</span><span class="d cap wa-i">asks you</span></div><div class="row" style="padding-left: 40px"><span style="width: 12px; flex: none"></span><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg><span class="l ">Coder</span><span class="d cap ">done</span></div><div class="row" style="padding-left: 40px"><span style="width: 12px; flex: none"></span><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg><span class="l ">Reviewer</span><span class="d cap ">approved</span></div><div class="row" style="padding-left: 24px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg><span class="l ">#3 · show missed cron runs</span><span class="d cap ok-i">done</span></div><div class="row" style="padding-left: 24px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><svg class="i faint" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg><span class="l ">#2 · Nov 15</span><span class="d cap mut">stopped</span></div><div class="row" style="padding-left: 8px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3"/></svg><span class="l t2">Review loop</span><span class="d cap ">2 runs</span></div><div class="row sel" style="padding-left: 24px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg><span class="l ">fix the flaky switcher</span><span class="d cap ">→ Coder</span></div><div class="row" style="padding-left: 40px"><span style="width: 12px; flex: none"></span><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg><span class="l ">Coder</span><span class="d cap wa-i">waiting</span></div><div class="row" style="padding-left: 40px"><span style="width: 12px; flex: none"></span><svg class="i faint" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/></svg><span class="l ">Reviewer</span><span class="d cap ">idle</span></div><div class="row" style="padding-left: 24px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg><span class="l ">09:10 · missed cron runs</span><span class="d cap ok-i">done</span></div><div class="row" style="padding-left: 8px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3"/></svg><span class="l t2">Nightly</span><span class="d cap t2">untrusted</span></div><div class="row" style="padding-left: 24px"><span style="width: 12px; flex: none"></span><svg class="i faint" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg><span class="l ">Oct 14 · dependency audit</span><span class="d cap faint">no sessions</span></div><div class="row" style="padding-left: 8px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3"/></svg><span class="l t2">PR walkthrough</span><span class="d cap faint">no runs</span></div><div class="row root" style="padding-left: 8px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="l t2">Not in a graph</span><span class="d cap ">11</span></div><div class="note">Chips still filter: Needs you shows Review gate #4 and Coder.</div></div>
+</aside>
+<main class="main">
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 20px 28px 14px; border-bottom: 1px solid var(--bd); flex: none">
+<div style="display: flex; align-items: center; gap: 10px; min-width: 0">
+<svg class="i s16 t2" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg>
+<h1 class="h ell" style="margin: 0">Review loop</h1>
+<span class="badge">running · turn 0 of 12</span><span class="badge">→ Coder waits</span>
+</div>
 
-&lt;div class=&quot;abar&quot; style=&quot;padding-left: 26px&quot;&gt;&lt;button class=&quot;btn pri&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z&quot;/&gt;&lt;/svg&gt;Open Coder&lt;span class=&quot;kbd&quot;&gt;⌘↩&lt;/span&gt;&lt;/button&gt;&lt;button class=&quot;btn &quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6.5&quot;/&gt;&lt;rect x=&quot;6&quot; y=&quot;6&quot; width=&quot;4&quot; height=&quot;4&quot; rx=&quot;.6&quot;/&gt;&lt;/svg&gt;Stop run&lt;span class=&quot;kbd&quot;&gt;⌘.&lt;/span&gt;&lt;/button&gt;&lt;span style=&quot;flex: 1&quot;&gt;&lt;/span&gt;&lt;button class=&quot;btn ico sm gh&quot; aria-label=&quot;More&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;3.5&quot; cy=&quot;8&quot; r=&quot;.8&quot;/&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;.8&quot;/&gt;&lt;circle cx=&quot;12.5&quot; cy=&quot;8&quot; r=&quot;.8&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;/div&gt;
-&lt;/div&gt;&lt;div style=&quot;flex: 1; padding: 14px 28px 0; overflow: hidden; display: flex; flex-direction: column; gap: 6px&quot;&gt;
-&lt;div class=&quot;props&quot; style=&quot;grid-template-columns: 104px minmax(0, 1fr); row-gap: 0&quot;&gt;&lt;span class=&quot;k&quot;&gt;Input&lt;/span&gt;&lt;div class=&quot;v&quot;&gt;fix the flaky switcher test&lt;/div&gt;&lt;span class=&quot;k&quot;&gt;Started&lt;/span&gt;&lt;div class=&quot;v&quot;&gt;Nov 16 12:33 · 2 min ago&lt;/div&gt;&lt;span class=&quot;k&quot;&gt;Definition&lt;/span&gt;&lt;div class=&quot;v&quot;&gt;&lt;code&gt;.clubmate/graphs/review-loop.json&lt;/code&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;div style=&quot;display: flex; justify-content: flex-end&quot;&gt;&lt;div class=&quot;zoom&quot;&gt;&lt;span&gt;–&lt;/span&gt;&lt;span&gt;100%&lt;/span&gt;&lt;span&gt;+&lt;/span&gt;&lt;span&gt;Fit&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;gcv&quot; style=&quot;width: 936px; height: 197px&quot;&gt;&lt;div class=&quot;gcard cur&quot; style=&quot;left: 96px; top: 64px; width: 310px&quot;&gt;&lt;div class=&quot;gh&quot;&gt;&lt;span class=&quot;gt&quot;&gt;&lt;svg class=&quot;i wa-i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot;/&gt;&lt;path d=&quot;M8 4.8v3.8M8 11.1v.1&quot;/&gt;&lt;/svg&gt;&lt;b class=&quot;&quot;&gt;Coder&lt;/b&gt;&lt;/span&gt;&lt;span class=&quot;gs wa-i&quot; style=&quot;padding-left: 22px&quot;&gt;waiting for you&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;gr&quot;&gt;&lt;div class=&quot;grow&quot;&gt;&lt;span class=&quot;mut&quot;&gt;done&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;grow&quot;&gt;&lt;span class=&quot;mut&quot;&gt;error&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;gcard&quot; style=&quot;left: 570px; top: 64px; width: 310px&quot;&gt;&lt;div class=&quot;gh&quot;&gt;&lt;span class=&quot;gt&quot;&gt;&lt;svg class=&quot;i faint&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot;/&gt;&lt;/svg&gt;&lt;b class=&quot;&quot;&gt;Reviewer&lt;/b&gt;&lt;/span&gt;&lt;span class=&quot;gs mut&quot; style=&quot;padding-left: 22px&quot;&gt;not started&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;gr&quot;&gt;&lt;div class=&quot;grow&quot;&gt;&lt;span class=&quot;mut&quot;&gt;approved&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;grow&quot;&gt;&lt;span class=&quot;mut&quot;&gt;changes&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;svg class=&quot;gsvg&quot; width=&quot;936&quot; height=&quot;197&quot; viewBox=&quot;0 0 936 197&quot;&gt;&lt;path d=&quot;M30.0 84.0 C63.0 84.0 63.0 84.0 95.0 84.0&quot; style=&quot;fill:none;stroke:var(--t3);stroke-width:1.4&quot;/&gt;&lt;path d=&quot;M89.0 80.0 L95.0 84.0 L89.0 88.0&quot; style=&quot;fill:none;stroke:var(--t3);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round&quot;/&gt;&lt;path d=&quot;M406.0 139.0 C488.0 139.0 488.0 84.0 569.0 84.0&quot; style=&quot;fill:none;stroke:var(--t4);stroke-width:1.2;stroke-dasharray:4 4&quot;/&gt;&lt;path d=&quot;M563.0 80.0 L569.0 84.0 L563.0 88.0&quot; style=&quot;fill:none;stroke:var(--t4);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round&quot;/&gt;&lt;path d=&quot;M406.0 163.0 C488.0 163.0 488.0 84.0 569.0 84.0&quot; style=&quot;fill:none;stroke:var(--t4);stroke-width:1.2;stroke-dasharray:4 4&quot;/&gt;&lt;path d=&quot;M563.0 80.0 L569.0 84.0 L563.0 88.0&quot; style=&quot;fill:none;stroke:var(--t4);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round&quot;/&gt;&lt;path d=&quot;M880.0 139.0 C910.0 139.0 886.0 139.0 915.0 139.0&quot; style=&quot;fill:none;stroke:var(--t4);stroke-width:1.2;stroke-dasharray:4 4&quot;/&gt;&lt;path d=&quot;M909.0 135.0 L915.0 139.0 L909.0 143.0&quot; style=&quot;fill:none;stroke:var(--t4);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round&quot;/&gt;&lt;path d=&quot;M880.0 163.0 C906.0 163.0 906.0 18.0 874.0 18.0 L102.0 18.0 C62.0 18.0 70.0 84.0 95.0 84.0&quot; style=&quot;fill:none;stroke:var(--t4);stroke-width:1.2;stroke-dasharray:4 4&quot;/&gt;&lt;path d=&quot;M89.0 80.0 L95.0 84.0 L89.0 88.0&quot; style=&quot;fill:none;stroke:var(--t4);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round&quot;/&gt;&lt;circle cx=&quot;24&quot; cy=&quot;84&quot; r=&quot;6&quot; style=&quot;fill:var(--bg);stroke:var(--t3);stroke-width:1.4&quot;/&gt;&lt;circle cx=&quot;924&quot; cy=&quot;139.0&quot; r=&quot;8&quot; style=&quot;fill:var(--bg);stroke:var(--t4);stroke-width:1.4&quot;/&gt;&lt;circle cx=&quot;924&quot; cy=&quot;139.0&quot; r=&quot;4.5&quot; style=&quot;fill:none;stroke:var(--t4);stroke-width:1.4&quot;/&gt;&lt;circle cx=&quot;96&quot; cy=&quot;84&quot; r=&quot;3.5&quot; style=&quot;fill:var(--t3);stroke:none&quot;/&gt;&lt;circle cx=&quot;406&quot; cy=&quot;139.0&quot; r=&quot;3.5&quot; style=&quot;fill:var(--s2);stroke:var(--t4);stroke-width:1.2&quot;/&gt;&lt;circle cx=&quot;406&quot; cy=&quot;163.0&quot; r=&quot;3.5&quot; style=&quot;fill:var(--s2);stroke:var(--t4);stroke-width:1.2&quot;/&gt;&lt;circle cx=&quot;570&quot; cy=&quot;84&quot; r=&quot;3.5&quot; style=&quot;fill:var(--t3);stroke:none&quot;/&gt;&lt;circle cx=&quot;880&quot; cy=&quot;139.0&quot; r=&quot;3.5&quot; style=&quot;fill:var(--s2);stroke:var(--t4);stroke-width:1.2&quot;/&gt;&lt;circle cx=&quot;880&quot; cy=&quot;163.0&quot; r=&quot;3.5&quot; style=&quot;fill:var(--s2);stroke:var(--t4);stroke-width:1.2&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;gmk&quot; style=&quot;left: 24px; top: 94px&quot;&gt;start&lt;/span&gt;&lt;span class=&quot;gmk&quot; style=&quot;left: 924px; top: 111.0px&quot;&gt;end&lt;/span&gt;&lt;/div&gt;
-&lt;div class=&quot;hr&quot;&gt;&lt;/div&gt;&lt;div class=&quot;row mut&quot; style=&quot;padding-left: 0&quot;&gt;&lt;svg class=&quot;i s12&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;m6 3.5 4.5 4.5L6 12.5&quot;/&gt;&lt;/svg&gt;&lt;span&gt;History · 1 move&lt;/span&gt;&lt;span style=&quot;flex: 1&quot;&gt;&lt;/span&gt;&lt;span class=&quot;kbd&quot;&gt;h&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;/main&gt;
-&lt;/div&gt;
-&lt;footer class=&quot;sb&quot;&gt;
-&lt;span style=&quot;display: flex; align-items: center; gap: 6px&quot;&gt;&lt;span class=&quot;dot faint&quot;&gt;&lt;/span&gt;core&lt;/span&gt;
-&lt;span&gt;4 agents · &lt;span class=&quot;wa-i&quot;&gt;3 need you&lt;/span&gt;&lt;/span&gt;
-&lt;span style=&quot;flex: 1&quot;&gt;&lt;/span&gt;
-&lt;span&gt;↩ open · ← → fold · ⌘K&lt;/span&gt;
-&lt;/footer&gt;
-&lt;/div&gt;
-&lt;/div&gt;
-&lt;/body&gt;&lt;/html&gt;"></iframe></figure><figure style="width:640px"><figcaption>AG-C-Gate-640-MateLight · C · group by land gate · landings and review rounds · 640 · Mate light</figcaption><iframe width="640" height="800" srcdoc="&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;style&gt;/* Clubmate design language — mockup stylesheet.
+<div class="abar" style="padding-left: 26px"><button class="btn pri"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg>Open Coder<span class="kbd">⌘↩</span></button><button class="btn "><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><rect x="6" y="6" width="4" height="4" rx=".6"/></svg>Stop run<span class="kbd">⌘.</span></button><span style="flex: 1"></span><button class="btn ico sm gh" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button></div>
+</div><div style="flex: 1; padding: 14px 28px 0; overflow: hidden; display: flex; flex-direction: column; gap: 6px">
+<div class="props" style="grid-template-columns: 104px minmax(0, 1fr); row-gap: 0"><span class="k">Input</span><div class="v">fix the flaky switcher test</div><span class="k">Started</span><div class="v">Nov 16 12:33 · 2 min ago</div><span class="k">Definition</span><div class="v"><code>.clubmate/graphs/review-loop.json</code></div></div>
+<div style="display: flex; justify-content: flex-end"><div class="zoom"><span>–</span><span>100%</span><span>+</span><span>Fit</span></div></div><div class="gcv" style="width: 936px; height: 197px"><div class="gcard cur" style="left: 96px; top: 64px; width: 310px"><div class="gh"><span class="gt"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg><b class="">Coder</b></span><span class="gs wa-i" style="padding-left: 22px">waiting for you</span></div><div class="gr"><div class="grow"><span class="mut">done</span></div><div class="grow"><span class="mut">error</span></div></div></div><div class="gcard" style="left: 570px; top: 64px; width: 310px"><div class="gh"><span class="gt"><svg class="i faint" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/></svg><b class="">Reviewer</b></span><span class="gs mut" style="padding-left: 22px">not started</span></div><div class="gr"><div class="grow"><span class="mut">approved</span></div><div class="grow"><span class="mut">changes</span></div></div></div><svg class="gsvg" width="936" height="197" viewBox="0 0 936 197"><path d="M30.0 84.0 C63.0 84.0 63.0 84.0 95.0 84.0" style="fill:none;stroke:var(--t3);stroke-width:1.4"/><path d="M89.0 80.0 L95.0 84.0 L89.0 88.0" style="fill:none;stroke:var(--t3);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round"/><path d="M406.0 139.0 C488.0 139.0 488.0 84.0 569.0 84.0" style="fill:none;stroke:var(--t4);stroke-width:1.2;stroke-dasharray:4 4"/><path d="M563.0 80.0 L569.0 84.0 L563.0 88.0" style="fill:none;stroke:var(--t4);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round"/><path d="M406.0 163.0 C488.0 163.0 488.0 84.0 569.0 84.0" style="fill:none;stroke:var(--t4);stroke-width:1.2;stroke-dasharray:4 4"/><path d="M563.0 80.0 L569.0 84.0 L563.0 88.0" style="fill:none;stroke:var(--t4);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round"/><path d="M880.0 139.0 C910.0 139.0 886.0 139.0 915.0 139.0" style="fill:none;stroke:var(--t4);stroke-width:1.2;stroke-dasharray:4 4"/><path d="M909.0 135.0 L915.0 139.0 L909.0 143.0" style="fill:none;stroke:var(--t4);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round"/><path d="M880.0 163.0 C906.0 163.0 906.0 18.0 874.0 18.0 L102.0 18.0 C62.0 18.0 70.0 84.0 95.0 84.0" style="fill:none;stroke:var(--t4);stroke-width:1.2;stroke-dasharray:4 4"/><path d="M89.0 80.0 L95.0 84.0 L89.0 88.0" style="fill:none;stroke:var(--t4);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round"/><circle cx="24" cy="84" r="6" style="fill:var(--bg);stroke:var(--t3);stroke-width:1.4"/><circle cx="924" cy="139.0" r="8" style="fill:var(--bg);stroke:var(--t4);stroke-width:1.4"/><circle cx="924" cy="139.0" r="4.5" style="fill:none;stroke:var(--t4);stroke-width:1.4"/><circle cx="96" cy="84" r="3.5" style="fill:var(--t3);stroke:none"/><circle cx="406" cy="139.0" r="3.5" style="fill:var(--s2);stroke:var(--t4);stroke-width:1.2"/><circle cx="406" cy="163.0" r="3.5" style="fill:var(--s2);stroke:var(--t4);stroke-width:1.2"/><circle cx="570" cy="84" r="3.5" style="fill:var(--t3);stroke:none"/><circle cx="880" cy="139.0" r="3.5" style="fill:var(--s2);stroke:var(--t4);stroke-width:1.2"/><circle cx="880" cy="163.0" r="3.5" style="fill:var(--s2);stroke:var(--t4);stroke-width:1.2"/></svg><span class="gmk" style="left: 24px; top: 94px">start</span><span class="gmk" style="left: 924px; top: 111.0px">end</span></div>
+<div class="hr"></div><div class="row mut" style="padding-left: 0"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><span>History · 1 move</span><span style="flex: 1"></span><span class="kbd">h</span></div></div>
+</main>
+</div>
+<footer class="sb">
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span>
+<span>4 agents · <span class="wa-i">3 need you</span></span>
+<span style="flex: 1"></span>
+<span>↩ open · ← → fold · ⌘K</span>
+</footer>
+</div>
+</div>
+</template></div></figure><figure style="width:640px"><figcaption>AG-C-Gate-640-MateLight · C · group by land gate · landings and review rounds · 640 · Mate light</figcaption><div class="board" style="width:640px;height:800px"><template><style>/* Clubmate design language — mockup stylesheet.
    Theme classes hold ONLY what Ghostty gives us (bg, fg, 4 tones) plus what Theme.swift
    computes from them (text ratios that pass contrast, tone inks). Everything else is a role
    derived in .cm by fixed ratios. */
@@ -327,7 +327,7 @@ a{color:inherit}a:hover{color:inherit}
   --t2r:90%;--t3r:72%;--t4r:50%;--ac-i:#357A27;--ok-i:#1A6E61;--wa-i:#8A5810;--er-i:#B23A33;--on-ac:#FFFFFF;
   --sh:0 12px 32px rgba(60,50,20,.18),0 0 0 1px rgba(60,50,20,.14);--scrim:rgba(60,50,20,.16)}
 
-/* Mac identity colours — one per paired Mac; a mark next to the Mac&#x27;s name, never a role.
+/* Mac identity colours — one per paired Mac; a mark next to the Mac's name, never a role.
    Hues kept away from accent (green), warning (amber), danger (red) and success (teal). */
 .th-kanagawa,.th-onedark,.th-mate,.th-cdark{--id-sky:#5AC8FA;--id-blue:#3D8BFF;--id-indigo:#8582FF;--id-purple:#BF7AF0;--id-magenta:#F06FC8;--id-graphite:#A1A1A6}
 .th-latte,.th-matelight,.th-clight{--id-sky:#0A78A8;--id-blue:#1F62D0;--id-indigo:#5450D6;--id-purple:#8540BF;--id-magenta:#B02E8C;--id-graphite:#636369}
@@ -358,7 +358,7 @@ a{color:inherit}a:hover{color:inherit}
   --wa-bd:color-mix(in srgb,var(--wa) 50%,transparent);
   --er-bd:color-mix(in srgb,var(--er) 50%,transparent);
   background:var(--bg);color:var(--fg);
-  font-family:&#x27;JetBrains Mono&#x27;,ui-monospace,&#x27;SF Mono&#x27;,Menlo,monospace;
+  font-family:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
   font-size:12px;line-height:20px;font-variant-ligatures:none;
   -webkit-font-smoothing:antialiased;
 }
@@ -383,12 +383,12 @@ a{color:inherit}a:hover{color:inherit}
 
 /* rows: list / tree / table */
 .cm .row{display:flex;align-items:center;gap:6px;height:20px;padding:0 8px;white-space:nowrap;border-radius:4px;position:relative;min-width:0;flex:none}
-.cm .row&gt;.l{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.cm .row&gt;.d{color:var(--t3);flex:none}
+.cm .row>.l{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .row>.d{color:var(--t3);flex:none}
 .cm .row.two{height:36px;align-items:flex-start;padding-top:2px}
 .cm .row.hov{background:var(--hov)}
 .cm .row.sel{background:var(--sel)}
-.cm .row.sel::before{content:&#x27;&#x27;;position:absolute;left:0;top:3px;bottom:3px;width:2px;border-radius:2px;background:var(--ac)}
+.cm .row.sel::before{content:'';position:absolute;left:0;top:3px;bottom:3px;width:2px;border-radius:2px;background:var(--ac)}
 .cm .row.seli{background:var(--seli)}
 .cm .row.foc{box-shadow:inset 0 0 0 1.5px var(--ac)}
 .cm .row.dis{color:var(--t4)}
@@ -423,7 +423,7 @@ a{color:inherit}a:hover{color:inherit}
 .cm .field.err{border-color:var(--er)}
 .cm .field .phd{color:var(--t4)}
 .cm .tog{width:26px;height:16px;border-radius:8px;background:var(--bd2);position:relative;flex:none;display:inline-block}
-.cm .tog::after{content:&#x27;&#x27;;position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:6px;background:var(--fg)}
+.cm .tog::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:6px;background:var(--fg)}
 .cm .tog.on{background:var(--ac)}
 .cm .tog.on::after{left:12px;background:var(--on-ac)}
 
@@ -442,7 +442,7 @@ a{color:inherit}a:hover{color:inherit}
 .cm .rail{display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:6px;background:var(--s1);border-right:1px solid var(--bd)}
 .cm .ri{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--t3);position:relative;flex:none}
 .cm .ri.on{color:var(--fg);background:var(--hov)}
-.cm .ri.on::before{content:&#x27;&#x27;;position:absolute;left:-5px;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--ac)}
+.cm .ri.on::before{content:'';position:absolute;left:-5px;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--ac)}
 .cm .ri .bdg{position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:3px;background:var(--wa);box-shadow:0 0 0 2px var(--s1)}
 .cm .side{background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
 .cm .phead{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px 0 12px;border-bottom:1px solid var(--bd);flex:none;min-width:0}
@@ -451,48 +451,48 @@ a{color:inherit}a:hover{color:inherit}
 
 /* detail pattern */
 .cm .props{display:grid;grid-template-columns:120px minmax(0,1fr);column-gap:16px;row-gap:2px}
-.cm .props&gt;.k{color:var(--t3);height:24px;display:flex;align-items:center}
-.cm .props&gt;.v{min-height:24px;display:flex;align-items:center;gap:8px;min-width:0}
+.cm .props>.k{color:var(--t3);height:24px;display:flex;align-items:center}
+.cm .props>.v{min-height:24px;display:flex;align-items:center;gap:8px;min-width:0}
 .cm .abar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 
 /* diff + code */
 .cm .diff{font-size:12px;line-height:19px}
 .cm .dl{display:grid;grid-template-columns:36px 16px minmax(0,1fr);white-space:pre}
-.cm .dl&gt;span:first-child{color:var(--t4);text-align:right;padding-right:8px}
+.cm .dl>span:first-child{color:var(--t4);text-align:right;padding-right:8px}
 .cm .dl.add{background:color-mix(in srgb,var(--ok) 13%,transparent)}
-.cm .dl.add&gt;span:nth-child(2){color:var(--ok-i)}
+.cm .dl.add>span:nth-child(2){color:var(--ok-i)}
 .cm .dl.del{background:color-mix(in srgb,var(--er) 13%,transparent)}
-.cm .dl.del&gt;span:nth-child(2){color:var(--er-i)}
+.cm .dl.del>span:nth-child(2){color:var(--er-i)}
 .cm .dl.hunk{color:var(--ac-i);background:var(--hov)}
 
 /* ---------- spec-sheet boards (doc) ---------- */
-.doc{font-family:&#x27;IBM Plex Sans&#x27;,-apple-system,&#x27;Helvetica Neue&#x27;,sans-serif;background:#F4F3EE;color:#1B1D1C;font-size:15px;line-height:22px;-webkit-font-smoothing:antialiased}
+.doc{font-family:'IBM Plex Sans',-apple-system,'Helvetica Neue',sans-serif;background:#F4F3EE;color:#1B1D1C;font-size:15px;line-height:22px;-webkit-font-smoothing:antialiased}
 .doc,.doc *{box-sizing:border-box}
 .doc h1{font-size:44px;line-height:50px;font-weight:600;letter-spacing:-.02em;margin:0}
 .doc h2{font-size:24px;line-height:30px;font-weight:600;letter-spacing:-.01em;margin:0}
 .doc h3{font-size:17px;line-height:24px;font-weight:600;margin:0}
 .doc p{margin:0;text-wrap:pretty}
-.doc .eyebrow{font-family:&#x27;JetBrains Mono&#x27;,monospace;font-size:12px;line-height:16px;letter-spacing:.06em;text-transform:uppercase;color:#2B6E39}
-.doc .mono{font-family:&#x27;JetBrains Mono&#x27;,ui-monospace,monospace;font-size:13px;line-height:19px}
+.doc .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:16px;letter-spacing:.06em;text-transform:uppercase;color:#2B6E39}
+.doc .mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:19px}
 .doc .muted{color:#5B5F5C}
 .doc .lead{font-size:18px;line-height:27px;color:#2C302D;max-width:860px}
 .doc table{border-collapse:collapse;width:100%}
-.doc th{text-align:left;font-family:&#x27;JetBrains Mono&#x27;,monospace;font-weight:500;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:#5B5F5C;padding:8px 12px;border-bottom:1.5px solid #1B1D1C;vertical-align:bottom}
+.doc th{text-align:left;font-family:'JetBrains Mono',monospace;font-weight:500;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:#5B5F5C;padding:8px 12px;border-bottom:1.5px solid #1B1D1C;vertical-align:bottom}
 .doc td{padding:10px 12px;border-bottom:1px solid #DAD8CF;vertical-align:top;font-size:14px;line-height:20px;text-wrap:pretty}
-.doc td.n{font-family:&#x27;JetBrains Mono&#x27;,monospace;font-size:13px;color:#5B5F5C;width:40px}
-.doc .tag{display:inline-block;font-family:&#x27;JetBrains Mono&#x27;,monospace;font-size:11.5px;line-height:18px;padding:0 7px;border-radius:4px;background:#E4E2D9;color:#3A3D3B;white-space:nowrap}
+.doc td.n{font-family:'JetBrains Mono',monospace;font-size:13px;color:#5B5F5C;width:40px}
+.doc .tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:18px;padding:0 7px;border-radius:4px;background:#E4E2D9;color:#3A3D3B;white-space:nowrap}
 .doc .tag.a{background:#D9EAD9;color:#1D5A2B}
 .doc .tag.b{background:#F3E0C3;color:#71440B}
 .doc .tag.c{background:#D9E2F2;color:#23457C}
 .doc .tag.p0{background:#1B1D1C;color:#F4F3EE}
 .doc .panel{background:#FFFFFF;border:1px solid #DAD8CF;border-radius:12px}
 .doc .rule{height:1.5px;background:#1B1D1C}
-.doc code{font-family:&#x27;JetBrains Mono&#x27;,monospace;font-size:12.5px;background:#E9E7DF;border-radius:4px;padding:1px 5px}
+.doc code{font-family:'JetBrains Mono',monospace;font-size:12.5px;background:#E9E7DF;border-radius:4px;padding:1px 5px}
 .doc ul{margin:0;padding-left:18px}
 .doc li{margin:0 0 4px}
-&lt;/style&gt;
-&lt;link rel=&quot;stylesheet&quot; href=&quot;https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;amp;display=swap&quot;&gt;
-&lt;style&gt;
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
 body{margin:0}
 a{color:inherit}a:hover{color:inherit}
 .cm .gcv{position:relative;flex:none}
@@ -506,7 +506,7 @@ a{color:inherit}a:hover{color:inherit}
 .cm .gcard .gs{font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cm .gcard .gr{border-top:1px solid var(--bd);padding:5px 0}
 .cm .gcard .grow{display:flex;align-items:center;gap:8px;height:24px;padding:0 16px;color:var(--t2);white-space:nowrap}
-.cm .gcard .grow&gt;span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .gcard .grow>span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .cm .gsvg{position:absolute;left:0;top:0;overflow:visible;z-index:2;pointer-events:none}
 .cm .glbl{position:absolute;transform:translate(-50%,-50%);font-size:11px;line-height:16px;padding:0 5px;background:var(--bg);border-radius:4px;white-space:nowrap;z-index:3}
 .cm .gmk{position:absolute;font-size:11px;line-height:16px;color:var(--t3);white-space:nowrap;transform:translateX(-50%);z-index:3}
@@ -519,7 +519,7 @@ a{color:inherit}a:hover{color:inherit}
 .cm .shd .n{color:var(--t4)}
 .cm .tbl{display:flex;flex-direction:column;min-width:0}
 .cm .tr{display:grid;align-items:center;height:24px;column-gap:16px;padding:0 8px;border-radius:4px;white-space:nowrap;min-width:0}
-.cm .tr&gt;*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .tr>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .cm .tr.th{color:var(--t4);font-size:11px;height:22px;border-bottom:1px solid var(--bd);border-radius:0}
 .cm .tr.sel{background:var(--seli)}
 .cm .clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
@@ -537,19 +537,19 @@ a{color:inherit}a:hover{color:inherit}
 .cm .empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
 .cm .eic{width:44px;height:44px;border-radius:22px;background:var(--s2);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;color:var(--t3)}
 .cm .tpl{display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:center;column-gap:8px;height:30px;padding:0 10px;border:1px solid var(--bd);border-radius:6px;background:var(--s1);white-space:nowrap}
-.cm .tpl&gt;*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .tpl>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .cm .lrow{display:grid;grid-template-columns:78px 16px minmax(0,1fr) auto;align-items:center;column-gap:6px;height:24px;padding:0 6px;border-radius:4px;white-space:nowrap;min-width:0}
-.cm .lrow&gt;*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .lrow>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .cm .arow{display:grid;grid-template-columns:16px minmax(0,1fr) auto;align-items:center;column-gap:8px;height:26px;padding:0 6px;border-radius:4px;white-space:nowrap;min-width:0}
-.cm .arow&gt;*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .arow>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .cm .drop{display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border:1px dashed var(--bd2);border-radius:6px;color:var(--t3);font-size:11px;white-space:nowrap;overflow:hidden}
 .cm .tref{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:4px;background:var(--hov);color:var(--t2);font-size:11.5px;vertical-align:1px}
 .cm .owner{max-width:100%;overflow:hidden;text-overflow:ellipsis;display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:5px;background:var(--s2);border:1px solid var(--bd);white-space:nowrap;min-width:0}
-&lt;/style&gt;
-&lt;/head&gt;&lt;body style=&quot;margin:0&quot;&gt;
+</style>
 
-&lt;div class=&quot;cm th-matelight&quot; style=&quot;width: 640px; height: 800px; overflow: hidden&quot;&gt;
-&lt;style&gt;
+
+<div class="cm th-matelight" style="width: 640px; height: 800px; overflow: hidden">
+<style>
 .cm .seg{display:flex;gap:2px;padding:2px;border-radius:6px;background:var(--hov);margin:8px 8px 2px}
 .cm .seg button{flex:1;height:22px;border:0;border-radius:4px;background:transparent;color:var(--t2);font:inherit;font-size:11.5px;display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
 .cm .seg button.on{background:var(--prs);color:var(--fg)}
@@ -558,59 +558,59 @@ a{color:inherit}a:hover{color:inherit}
 .cm .root{margin-top:6px}
 .cm .vt{display:flex;flex-direction:column}
 .cm .vrow{display:grid;column-gap:12px;align-items:center;min-height:26px;padding:0 10px;border-top:1px solid var(--bd);white-space:nowrap}
-.cm .vrow&gt;*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .vrow>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .cm .vrow.sel{background:var(--sel);box-shadow:inset 2px 0 0 var(--ac)}
 .cm .vrow.hd{border-top:0;color:var(--t4);font-size:11px;min-height:22px}
 .cm .find{padding:10px 12px;border-radius:7px;border:1px solid var(--bd);background:var(--s1);display:flex;flex-direction:column;gap:6px}
 .cm .grp{display:flex;align-items:center;gap:8px;padding:2px 8px;color:var(--t3);font-size:11px}
 .cm .note{font-size:11px;color:var(--t4);padding:2px 10px}
-&lt;/style&gt;&lt;div style=&quot;position: absolute; left: 40px; top: 38px; bottom: 22px; width: 300px; background: var(--s1); border-right: 1px solid var(--bd); box-shadow: var(--sh); z-index: 10; display: flex; flex-direction: column; overflow: hidden&quot;&gt;&lt;div aria-label=&quot;Agents&quot;&gt;
-&lt;div class=&quot;phead&quot;&gt;&lt;span class=&quot;ttl&quot;&gt;Agents&lt;/span&gt;&lt;span style=&quot;flex: 1&quot;&gt;&lt;/span&gt;&lt;button class=&quot;btn ico sm gh&quot; aria-label=&quot;Filter /&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;7&quot; cy=&quot;7&quot; r=&quot;4.5&quot;/&gt;&lt;path d=&quot;m10.5 10.5 3.5 3.5&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;button class=&quot;btn ico sm gh&quot; aria-label=&quot;New session ⌘N&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M8 3v10M3 8h10&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;/div&gt;
-&lt;div style=&quot;display: flex; align-items: center; gap: 6px; padding: 8px 10px 0; white-space: nowrap&quot; class=&quot;cap&quot;&gt;&lt;span class=&quot;mut&quot;&gt;Group by&lt;/span&gt;&lt;button class=&quot;field&quot; style=&quot;height: 22px; padding: 0 8px; gap: 6px; white-space: nowrap&quot;&gt;Land gate&lt;svg class=&quot;i s10 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3.5 6 8 10.5 12.5 6&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;/div&gt;&lt;div style=&quot;display: flex; gap: 4px; padding: 8px 8px 4px; flex-wrap: wrap&quot;&gt;&lt;button class=&quot;badge&quot; style=&quot;border: 0; background: var(--prs); color: var(--fg)&quot;&gt;All 16&lt;/button&gt;&lt;button class=&quot;badge wa&quot; style=&quot;border: 0&quot;&gt;Needs you 3&lt;/button&gt;&lt;button class=&quot;badge&quot; style=&quot;border: 0&quot;&gt;Open 0&lt;/button&gt;&lt;button class=&quot;badge&quot; style=&quot;border: 0&quot;&gt;Running 2&lt;/button&gt;&lt;/div&gt;
-&lt;div style=&quot;display: flex; flex-direction: column; padding: 0 4px 8px&quot;&gt;&lt;div class=&quot;row sel&quot; style=&quot;padding-left: 8px&quot;&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3.5 6 8 10.5 12.5 6&quot;/&gt;&lt;/svg&gt;&lt;svg class=&quot;i mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z&quot;/&gt;&lt;path d=&quot;m5.6 8 1.7 1.7 3.1-3.3&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l t2&quot;&gt;shop · land gate&lt;/span&gt;&lt;span class=&quot;d cap &quot;&gt;1 asking&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;grp&quot;&gt;Now&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 24px&quot;&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3.5 6 8 10.5 12.5 6&quot;/&gt;&lt;/svg&gt;&lt;svg class=&quot;i wa-i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot;/&gt;&lt;path d=&quot;M8 4.8v3.8M8 11.1v.1&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;Refactor the cart total&lt;/span&gt;&lt;span class=&quot;d cap wa-i&quot;&gt;asking&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 40px&quot;&gt;&lt;span style=&quot;width: 12px; flex: none&quot;&gt;&lt;/span&gt;&lt;svg class=&quot;i mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z&quot;/&gt;&lt;path d=&quot;m5.6 8 1.7 1.7 3.1-3.3&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;round 2&lt;/span&gt;&lt;span class=&quot;d cap t2&quot;&gt;changes · 1&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 40px&quot;&gt;&lt;span style=&quot;width: 12px; flex: none&quot;&gt;&lt;/span&gt;&lt;svg class=&quot;i mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z&quot;/&gt;&lt;path d=&quot;m5.6 8 1.7 1.7 3.1-3.3&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;round 1&lt;/span&gt;&lt;span class=&quot;d cap t2&quot;&gt;changes · 2&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 24px&quot;&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3.5 6 8 10.5 12.5 6&quot;/&gt;&lt;/svg&gt;&lt;svg class=&quot;i mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot;/&gt;&lt;path d=&quot;m5.5 8.2 1.8 1.8 3.4-3.6&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;Inbox groups by workspace&lt;/span&gt;&lt;span class=&quot;d cap ac-i&quot;&gt;review…&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 40px&quot;&gt;&lt;span style=&quot;width: 12px; flex: none&quot;&gt;&lt;/span&gt;&lt;svg class=&quot;i ac-i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z&quot;/&gt;&lt;path d=&quot;m5.6 8 1.7 1.7 3.1-3.3&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;round 1&lt;/span&gt;&lt;span class=&quot;d cap ac-i&quot;&gt;reviewing&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;grp&quot;&gt;Last 7 days&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 24px&quot;&gt;&lt;span style=&quot;width: 12px; flex: none&quot;&gt;&lt;/span&gt;&lt;svg class=&quot;i ok-i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot;/&gt;&lt;path d=&quot;m5.5 8.2 1.8 1.8 3.4-3.6&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;Docs: transcript folding&lt;/span&gt;&lt;span class=&quot;d cap ok-i&quot;&gt;approved&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row&quot; style=&quot;padding-left: 24px&quot;&gt;&lt;span style=&quot;width: 12px; flex: none&quot;&gt;&lt;/span&gt;&lt;svg class=&quot;i ok-i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot;/&gt;&lt;path d=&quot;m5.5 8.2 1.8 1.8 3.4-3.6&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l &quot;&gt;Add stock reservation expiry&lt;/span&gt;&lt;span class=&quot;d cap ok-i&quot;&gt;approved&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;row root&quot; style=&quot;padding-left: 8px&quot;&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;m6 3.5 4.5 4.5L6 12.5&quot;/&gt;&lt;/svg&gt;&lt;svg class=&quot;i mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;l t2&quot;&gt;Not gated&lt;/span&gt;&lt;span class=&quot;d cap &quot;&gt;12&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;/div&gt;&lt;/div&gt;&lt;div style=&quot;position: absolute; left: 340px; right: 0; top: 38px; bottom: 22px; background: var(--scrim); z-index: 9&quot;&gt;&lt;/div&gt;&lt;div class=&quot;win&quot;&gt;
-&lt;header class=&quot;tb&quot;&gt;
-&lt;div class=&quot;lights&quot;&gt;&lt;i style=&quot;background: #FF5F57&quot;&gt;&lt;/i&gt;&lt;i style=&quot;background: #FEBC2E&quot;&gt;&lt;/i&gt;&lt;i style=&quot;background: #28C840&quot;&gt;&lt;/i&gt;&lt;/div&gt;
-&lt;button class=&quot;pill&quot;&gt;&lt;span&gt;shop&lt;/span&gt;&lt;span class=&quot;faint&quot;&gt;/&lt;/span&gt;&lt;svg class=&quot;i mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;4.5&quot; cy=&quot;3.5&quot; r=&quot;1.5&quot;/&gt;&lt;circle cx=&quot;4.5&quot; cy=&quot;12.5&quot; r=&quot;1.5&quot;/&gt;&lt;circle cx=&quot;11.5&quot; cy=&quot;5&quot; r=&quot;1.5&quot;/&gt;&lt;path d=&quot;M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5&quot;/&gt;&lt;/svg&gt;&lt;span&gt;main&lt;/span&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3.5 6 8 10.5 12.5 6&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;
-&lt;span style=&quot;flex: 1&quot;&gt;&lt;/span&gt;
-&lt;button class=&quot;pill&quot; aria-label=&quot;Notifications&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z&quot;/&gt;&lt;path d=&quot;M6.5 14a1.5 1.5 0 0 0 3 0&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;count&quot;&gt;6&lt;/span&gt;&lt;/button&gt;
-&lt;button class=&quot;pill&quot; aria-label=&quot;Windows: 1&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;rect x=&quot;1.5&quot; y=&quot;3.5&quot; width=&quot;9&quot; height=&quot;9&quot; rx=&quot;1.5&quot;/&gt;&lt;path d=&quot;M5.5 1.5h7a2 2 0 0 1 2 2v7&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;t2&quot;&gt;1&lt;/span&gt;&lt;/button&gt;
-&lt;/header&gt;
-&lt;div class=&quot;body&quot; style=&quot;grid-template-columns: 40px minmax(0, 1fr)&quot;&gt;
-&lt;nav class=&quot;rail&quot; aria-label=&quot;Sections&quot;&gt;&lt;button class=&quot;ri&quot; aria-label=&quot;Code ⌘1&quot;&gt;&lt;svg class=&quot;i s16&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;button class=&quot;ri&quot; aria-label=&quot;Terminals ⌘2&quot;&gt;&lt;svg class=&quot;i s16&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;rect x=&quot;1.5&quot; y=&quot;2.5&quot; width=&quot;13&quot; height=&quot;11&quot; rx=&quot;2&quot;/&gt;&lt;path d=&quot;m4.5 6 2 2-2 2M8.5 10.5h3&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;button class=&quot;ri on&quot; aria-label=&quot;Agents ⌘3&quot;&gt;&lt;svg class=&quot;i s16&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;button class=&quot;ri&quot; aria-label=&quot;Backlog ⌘4&quot;&gt;&lt;svg class=&quot;i s16&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7&quot;/&gt;&lt;circle cx=&quot;3.3&quot; cy=&quot;8.5&quot; r=&quot;1.3&quot;/&gt;&lt;circle cx=&quot;3.3&quot; cy=&quot;13&quot; r=&quot;1.3&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;button class=&quot;ri&quot; aria-label=&quot;Processes ⌘5&quot;&gt;&lt;svg class=&quot;i s16&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;rect x=&quot;4&quot; y=&quot;4&quot; width=&quot;8&quot; height=&quot;8&quot; rx=&quot;1.5&quot;/&gt;&lt;path d=&quot;M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;button class=&quot;ri&quot; aria-label=&quot;Cron ⌘6&quot;&gt;&lt;svg class=&quot;i s16&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6.5&quot;/&gt;&lt;path d=&quot;M8 4.5V8l2.5 1.5&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;button class=&quot;ri&quot; aria-label=&quot;Triggers ⌘7&quot;&gt;&lt;svg class=&quot;i s16&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;/nav&gt;
+</style><div style="position: absolute; left: 40px; top: 38px; bottom: 22px; width: 300px; background: var(--s1); border-right: 1px solid var(--bd); box-shadow: var(--sh); z-index: 10; display: flex; flex-direction: column; overflow: hidden"><div aria-label="Agents">
+<div class="phead"><span class="ttl">Agents</span><span style="flex: 1"></span><button class="btn ico sm gh" aria-label="Filter /"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg></button><button class="btn ico sm gh" aria-label="New session ⌘N"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button></div>
+<div style="display: flex; align-items: center; gap: 6px; padding: 8px 10px 0; white-space: nowrap" class="cap"><span class="mut">Group by</span><button class="field" style="height: 22px; padding: 0 8px; gap: 6px; white-space: nowrap">Land gate<svg class="i s10 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button></div><div style="display: flex; gap: 4px; padding: 8px 8px 4px; flex-wrap: wrap"><button class="badge" style="border: 0; background: var(--prs); color: var(--fg)">All 16</button><button class="badge wa" style="border: 0">Needs you 3</button><button class="badge" style="border: 0">Open 0</button><button class="badge" style="border: 0">Running 2</button></div>
+<div style="display: flex; flex-direction: column; padding: 0 4px 8px"><div class="row sel" style="padding-left: 8px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="m5.6 8 1.7 1.7 3.1-3.3"/></svg><span class="l t2">shop · land gate</span><span class="d cap ">1 asking</span></div><div class="grp">Now</div><div class="row" style="padding-left: 24px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg><span class="l ">Refactor the cart total</span><span class="d cap wa-i">asking</span></div><div class="row" style="padding-left: 40px"><span style="width: 12px; flex: none"></span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="m5.6 8 1.7 1.7 3.1-3.3"/></svg><span class="l ">round 2</span><span class="d cap t2">changes · 1</span></div><div class="row" style="padding-left: 40px"><span style="width: 12px; flex: none"></span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="m5.6 8 1.7 1.7 3.1-3.3"/></svg><span class="l ">round 1</span><span class="d cap t2">changes · 2</span></div><div class="row" style="padding-left: 24px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg><span class="l ">Inbox groups by workspace</span><span class="d cap ac-i">review…</span></div><div class="row" style="padding-left: 40px"><span style="width: 12px; flex: none"></span><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="m5.6 8 1.7 1.7 3.1-3.3"/></svg><span class="l ">round 1</span><span class="d cap ac-i">reviewing</span></div><div class="grp">Last 7 days</div><div class="row" style="padding-left: 24px"><span style="width: 12px; flex: none"></span><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg><span class="l ">Docs: transcript folding</span><span class="d cap ok-i">approved</span></div><div class="row" style="padding-left: 24px"><span style="width: 12px; flex: none"></span><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg><span class="l ">Add stock reservation expiry</span><span class="d cap ok-i">approved</span></div><div class="row root" style="padding-left: 8px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="l t2">Not gated</span><span class="d cap ">12</span></div></div>
+</div></div><div style="position: absolute; left: 340px; right: 0; top: 38px; bottom: 22px; background: var(--scrim); z-index: 9"></div><div class="win">
+<header class="tb">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="pill"><span>shop</span><span class="faint">/</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span>main</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="pill" aria-label="Notifications"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">6</span></button>
+<button class="pill" aria-label="Windows: 1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M5.5 1.5h7a2 2 0 0 1 2 2v7"/></svg><span class="t2">1</span></button>
+</header>
+<div class="body" style="grid-template-columns: 40px minmax(0, 1fr)">
+<nav class="rail" aria-label="Sections"><button class="ri" aria-label="Code ⌘1"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button><button class="ri" aria-label="Terminals ⌘2"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button><button class="ri on" aria-label="Agents ⌘3"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button><button class="ri" aria-label="Backlog ⌘4"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button><button class="ri" aria-label="Processes ⌘5"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg></button><button class="ri" aria-label="Cron ⌘6"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button><button class="ri" aria-label="Triggers ⌘7"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg></button></nav>
 
-&lt;main class=&quot;main&quot;&gt;
-&lt;div class=&quot;crumb&quot;&gt;&lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M10 3.5 5.5 8l4.5 4.5&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;mut cap&quot;&gt;Agents&lt;/span&gt;&lt;span class=&quot;faint&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;mut cap&quot;&gt;Land gates&lt;/span&gt;&lt;span class=&quot;faint&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;cap&quot;&gt;shop&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 12px; border-bottom: 1px solid var(--bd); flex: none&quot;&gt;
-&lt;div style=&quot;display: flex; align-items: center; gap: 10px; min-width: 0&quot;&gt;
-&lt;svg class=&quot;i s16 t2&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z&quot;/&gt;&lt;path d=&quot;m5.6 8 1.7 1.7 3.1-3.3&quot;/&gt;&lt;/svg&gt;
-&lt;h1 class=&quot;h ell&quot; style=&quot;margin: 0&quot;&gt;shop&lt;/h1&gt;
-&lt;span class=&quot;badge&quot;&gt;land gate · active&lt;/span&gt;&lt;span class=&quot;badge wa&quot;&gt;needs you&lt;/span&gt;
-&lt;/div&gt;
-&lt;div class=&quot;mut cap&quot; style=&quot;padding-left: 26px; margin-top: -8px&quot;&gt;last: changes 1 min ago · 1 reviewing&lt;/div&gt;
-&lt;div class=&quot;abar&quot; style=&quot;padding-left: 26px&quot;&gt;&lt;button class=&quot;btn &quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M5.5 3.5v9M10.5 3.5v9&quot;/&gt;&lt;/svg&gt;Pause&lt;span class=&quot;kbd&quot;&gt;P&lt;/span&gt;&lt;/button&gt;&lt;button class=&quot;btn &quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3 13l.8-3.2 6.7-6.7 2.4 2.4-6.7 6.7Z&quot;/&gt;&lt;/svg&gt;Edit&lt;span class=&quot;kbd&quot;&gt;E&lt;/span&gt;&lt;/button&gt;&lt;span style=&quot;flex: 1&quot;&gt;&lt;/span&gt;&lt;button class=&quot;btn dg sm&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9&quot;/&gt;&lt;/svg&gt;Delete&lt;span class=&quot;kbd&quot;&gt;⌘⌫&lt;/span&gt;&lt;/button&gt;&lt;/div&gt;
-&lt;/div&gt;
-&lt;div style=&quot;flex: 1; min-height: 0; overflow: hidden; padding: 12px 16px 0; display: flex; flex-direction: column; gap: 8px&quot;&gt;
-&lt;div class=&quot;props&quot; style=&quot;grid-template-columns: 88px minmax(0, 1fr); row-gap: 0&quot;&gt;&lt;span class=&quot;k&quot;&gt;Guards&lt;/span&gt;&lt;div class=&quot;v&quot;&gt;landings into main · a child&#x27;s merge into its parent&#x27;s branch&lt;/div&gt;&lt;span class=&quot;k&quot;&gt;Kind&lt;/span&gt;&lt;div class=&quot;v&quot;&gt;Fable review · read-only&lt;/div&gt;&lt;span class=&quot;k&quot;&gt;Rounds&lt;/span&gt;&lt;div class=&quot;v&quot;&gt;2 rounds of changes, then you decide&lt;/div&gt;&lt;span class=&quot;k&quot;&gt;Docs only&lt;/span&gt;&lt;div class=&quot;v&quot;&gt;.md-only changes land without a review&lt;/div&gt;&lt;/div&gt;
-&lt;div class=&quot;shd&quot;&gt;&lt;svg class=&quot;i s12&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3.5 6 8 10.5 12.5 6&quot;/&gt;&lt;/svg&gt;&lt;span&gt;Verdicts&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;·&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;last 7 days · approved 2 · changes 2&lt;/span&gt;&lt;span style=&quot;flex: 1&quot;&gt;&lt;/span&gt;&lt;/div&gt;
-&lt;div class=&quot;vt&quot;&gt;&lt;div class=&quot;vrow hd&quot; style=&quot;grid-template-columns: 44px 76px minmax(0, 1fr)&quot;&gt;&lt;span&gt;When&lt;/span&gt;&lt;span&gt;Verdict&lt;/span&gt;&lt;span&gt;Landing&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;vrow&quot; style=&quot;grid-template-columns: 44px 76px minmax(0, 1fr)&quot;&gt;&lt;span class=&quot;mut&quot;&gt;12:33&lt;/span&gt;&lt;span class=&quot;ac-i&quot;&gt;reviewing&lt;/span&gt;&lt;span&gt;Inbox groups by workspace · round 1&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;vrow&quot; style=&quot;grid-template-columns: 44px 76px minmax(0, 1fr)&quot;&gt;&lt;span class=&quot;mut&quot;&gt;12:33&lt;/span&gt;&lt;span class=&quot;wa-i&quot;&gt;needs you&lt;/span&gt;&lt;span&gt;Refactor the cart total · round 2 · 1 finding&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;vrow&quot; style=&quot;grid-template-columns: 44px 76px minmax(0, 1fr)&quot;&gt;&lt;span class=&quot;mut&quot;&gt;12:32&lt;/span&gt;&lt;span class=&quot;t2&quot;&gt;changes&lt;/span&gt;&lt;span&gt;Refactor the cart total · round 2 · 1 finding&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;vrow sel&quot; style=&quot;grid-template-columns: 44px 76px minmax(0, 1fr)&quot;&gt;&lt;span class=&quot;mut&quot;&gt;12:32&lt;/span&gt;&lt;span class=&quot;t2&quot;&gt;changes&lt;/span&gt;&lt;span&gt;Refactor the cart total · round 1 · 2 findings&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;vrow&quot; style=&quot;grid-template-columns: 44px 76px minmax(0, 1fr)&quot;&gt;&lt;span class=&quot;mut&quot;&gt;12:32&lt;/span&gt;&lt;span class=&quot;ok-i&quot;&gt;approved&lt;/span&gt;&lt;span&gt;Docs: transcript folding on the phone · round 1&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;vrow&quot; style=&quot;grid-template-columns: 44px 76px minmax(0, 1fr)&quot;&gt;&lt;span class=&quot;mut&quot;&gt;12:32&lt;/span&gt;&lt;span class=&quot;ok-i&quot;&gt;approved&lt;/span&gt;&lt;span&gt;Add stock reservation expiry · round 1&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;div class=&quot;find&quot;&gt;
-&lt;div style=&quot;display: flex; align-items: center; gap: 8px; white-space: nowrap; min-width: 0&quot;&gt;&lt;svg class=&quot;i s12 t2&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z&quot;/&gt;&lt;path d=&quot;m5.6 8 1.7 1.7 3.1-3.3&quot;/&gt;&lt;/svg&gt;&lt;span class=&quot;b&quot;&gt;Round 1 · changes&lt;/span&gt;&lt;span class=&quot;mut cap ell&quot;&gt;fix/cart-total → main&lt;/span&gt;&lt;span style=&quot;flex: 1&quot;&gt;&lt;/span&gt;&lt;span class=&quot;lnk mut cap&quot;&gt;Open review&lt;/span&gt;&lt;/div&gt;
-&lt;span class=&quot;t2&quot;&gt;· internal/cart/total.go:4 — a nil items slice from checkout returns 0 instead of the stored total&lt;/span&gt;
-&lt;span class=&quot;t2&quot;&gt;· internal/cart/total.go:5 — discounts are no longer subtracted&lt;/span&gt;
-&lt;/div&gt;
-&lt;span class=&quot;mut cap&quot;&gt;A changes verdict is history, not a request: plain ink. Only the landing that waits on Land anyway / Stop is amber, and it is answered on its own row.&lt;/span&gt;
-&lt;/div&gt;
-&lt;/main&gt;
-&lt;/div&gt;
-&lt;footer class=&quot;sb&quot;&gt;
-&lt;span style=&quot;display: flex; align-items: center; gap: 6px&quot;&gt;&lt;span class=&quot;dot faint&quot;&gt;&lt;/span&gt;core&lt;/span&gt;
-&lt;span&gt;&lt;span class=&quot;wa-i&quot;&gt;3 need you&lt;/span&gt;&lt;/span&gt;
-&lt;span style=&quot;flex: 1&quot;&gt;&lt;/span&gt;
-&lt;span&gt;⌘B sessions&lt;/span&gt;
-&lt;/footer&gt;
-&lt;/div&gt;
-&lt;/div&gt;
-&lt;/body&gt;&lt;/html&gt;"></iframe></figure><figure style="width:393px"><figcaption>C-AG-C-Agents · Companion: C · Agents grouped by graph</figcaption><iframe width="393" height="852" srcdoc="&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;style&gt;/* Clubmate design language — mockup stylesheet.
+<main class="main">
+<div class="crumb"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg><span class="mut cap">Agents</span><span class="faint">/</span><span class="mut cap">Land gates</span><span class="faint">/</span><span class="cap">shop</span></div><div style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 12px; border-bottom: 1px solid var(--bd); flex: none">
+<div style="display: flex; align-items: center; gap: 10px; min-width: 0">
+<svg class="i s16 t2" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="m5.6 8 1.7 1.7 3.1-3.3"/></svg>
+<h1 class="h ell" style="margin: 0">shop</h1>
+<span class="badge">land gate · active</span><span class="badge wa">needs you</span>
+</div>
+<div class="mut cap" style="padding-left: 26px; margin-top: -8px">last: changes 1 min ago · 1 reviewing</div>
+<div class="abar" style="padding-left: 26px"><button class="btn "><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9M10.5 3.5v9"/></svg>Pause<span class="kbd">P</span></button><button class="btn "><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13l.8-3.2 6.7-6.7 2.4 2.4-6.7 6.7Z"/></svg>Edit<span class="kbd">E</span></button><span style="flex: 1"></span><button class="btn dg sm"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9"/></svg>Delete<span class="kbd">⌘⌫</span></button></div>
+</div>
+<div style="flex: 1; min-height: 0; overflow: hidden; padding: 12px 16px 0; display: flex; flex-direction: column; gap: 8px">
+<div class="props" style="grid-template-columns: 88px minmax(0, 1fr); row-gap: 0"><span class="k">Guards</span><div class="v">landings into main · a child's merge into its parent's branch</div><span class="k">Kind</span><div class="v">Fable review · read-only</div><span class="k">Rounds</span><div class="v">2 rounds of changes, then you decide</div><span class="k">Docs only</span><div class="v">.md-only changes land without a review</div></div>
+<div class="shd"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><span>Verdicts</span><span class="n">·</span><span class="n">last 7 days · approved 2 · changes 2</span><span style="flex: 1"></span></div>
+<div class="vt"><div class="vrow hd" style="grid-template-columns: 44px 76px minmax(0, 1fr)"><span>When</span><span>Verdict</span><span>Landing</span></div><div class="vrow" style="grid-template-columns: 44px 76px minmax(0, 1fr)"><span class="mut">12:33</span><span class="ac-i">reviewing</span><span>Inbox groups by workspace · round 1</span></div><div class="vrow" style="grid-template-columns: 44px 76px minmax(0, 1fr)"><span class="mut">12:33</span><span class="wa-i">needs you</span><span>Refactor the cart total · round 2 · 1 finding</span></div><div class="vrow" style="grid-template-columns: 44px 76px minmax(0, 1fr)"><span class="mut">12:32</span><span class="t2">changes</span><span>Refactor the cart total · round 2 · 1 finding</span></div><div class="vrow sel" style="grid-template-columns: 44px 76px minmax(0, 1fr)"><span class="mut">12:32</span><span class="t2">changes</span><span>Refactor the cart total · round 1 · 2 findings</span></div><div class="vrow" style="grid-template-columns: 44px 76px minmax(0, 1fr)"><span class="mut">12:32</span><span class="ok-i">approved</span><span>Docs: transcript folding on the phone · round 1</span></div><div class="vrow" style="grid-template-columns: 44px 76px minmax(0, 1fr)"><span class="mut">12:32</span><span class="ok-i">approved</span><span>Add stock reservation expiry · round 1</span></div></div>
+<div class="find">
+<div style="display: flex; align-items: center; gap: 8px; white-space: nowrap; min-width: 0"><svg class="i s12 t2" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="m5.6 8 1.7 1.7 3.1-3.3"/></svg><span class="b">Round 1 · changes</span><span class="mut cap ell">fix/cart-total → main</span><span style="flex: 1"></span><span class="lnk mut cap">Open review</span></div>
+<span class="t2">· internal/cart/total.go:4 — a nil items slice from checkout returns 0 instead of the stored total</span>
+<span class="t2">· internal/cart/total.go:5 — discounts are no longer subtracted</span>
+</div>
+<span class="mut cap">A changes verdict is history, not a request: plain ink. Only the landing that waits on Land anyway / Stop is amber, and it is answered on its own row.</span>
+</div>
+</main>
+</div>
+<footer class="sb">
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span>
+<span><span class="wa-i">3 need you</span></span>
+<span style="flex: 1"></span>
+<span>⌘B sessions</span>
+</footer>
+</div>
+</div>
+</template></div></figure><figure style="width:393px"><figcaption>C-AG-C-Agents · Companion: C · Agents grouped by graph</figcaption><div class="board" style="width:393px;height:852px"><template><style>/* Clubmate design language — mockup stylesheet.
    Theme classes hold ONLY what Ghostty gives us (bg, fg, 4 tones) plus what Theme.swift
    computes from them (text ratios that pass contrast, tone inks). Everything else is a role
    derived in .cm by fixed ratios. */
@@ -631,7 +631,7 @@ a{color:inherit}a:hover{color:inherit}
   --t2r:90%;--t3r:72%;--t4r:50%;--ac-i:#357A27;--ok-i:#1A6E61;--wa-i:#8A5810;--er-i:#B23A33;--on-ac:#FFFFFF;
   --sh:0 12px 32px rgba(60,50,20,.18),0 0 0 1px rgba(60,50,20,.14);--scrim:rgba(60,50,20,.16)}
 
-/* Mac identity colours — one per paired Mac; a mark next to the Mac&#x27;s name, never a role.
+/* Mac identity colours — one per paired Mac; a mark next to the Mac's name, never a role.
    Hues kept away from accent (green), warning (amber), danger (red) and success (teal). */
 .th-kanagawa,.th-onedark,.th-mate,.th-cdark{--id-sky:#5AC8FA;--id-blue:#3D8BFF;--id-indigo:#8582FF;--id-purple:#BF7AF0;--id-magenta:#F06FC8;--id-graphite:#A1A1A6}
 .th-latte,.th-matelight,.th-clight{--id-sky:#0A78A8;--id-blue:#1F62D0;--id-indigo:#5450D6;--id-purple:#8540BF;--id-magenta:#B02E8C;--id-graphite:#636369}
@@ -662,7 +662,7 @@ a{color:inherit}a:hover{color:inherit}
   --wa-bd:color-mix(in srgb,var(--wa) 50%,transparent);
   --er-bd:color-mix(in srgb,var(--er) 50%,transparent);
   background:var(--bg);color:var(--fg);
-  font-family:&#x27;JetBrains Mono&#x27;,ui-monospace,&#x27;SF Mono&#x27;,Menlo,monospace;
+  font-family:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
   font-size:12px;line-height:20px;font-variant-ligatures:none;
   -webkit-font-smoothing:antialiased;
 }
@@ -687,12 +687,12 @@ a{color:inherit}a:hover{color:inherit}
 
 /* rows: list / tree / table */
 .cm .row{display:flex;align-items:center;gap:6px;height:20px;padding:0 8px;white-space:nowrap;border-radius:4px;position:relative;min-width:0;flex:none}
-.cm .row&gt;.l{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.cm .row&gt;.d{color:var(--t3);flex:none}
+.cm .row>.l{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm .row>.d{color:var(--t3);flex:none}
 .cm .row.two{height:36px;align-items:flex-start;padding-top:2px}
 .cm .row.hov{background:var(--hov)}
 .cm .row.sel{background:var(--sel)}
-.cm .row.sel::before{content:&#x27;&#x27;;position:absolute;left:0;top:3px;bottom:3px;width:2px;border-radius:2px;background:var(--ac)}
+.cm .row.sel::before{content:'';position:absolute;left:0;top:3px;bottom:3px;width:2px;border-radius:2px;background:var(--ac)}
 .cm .row.seli{background:var(--seli)}
 .cm .row.foc{box-shadow:inset 0 0 0 1.5px var(--ac)}
 .cm .row.dis{color:var(--t4)}
@@ -727,7 +727,7 @@ a{color:inherit}a:hover{color:inherit}
 .cm .field.err{border-color:var(--er)}
 .cm .field .phd{color:var(--t4)}
 .cm .tog{width:26px;height:16px;border-radius:8px;background:var(--bd2);position:relative;flex:none;display:inline-block}
-.cm .tog::after{content:&#x27;&#x27;;position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:6px;background:var(--fg)}
+.cm .tog::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:6px;background:var(--fg)}
 .cm .tog.on{background:var(--ac)}
 .cm .tog.on::after{left:12px;background:var(--on-ac)}
 
@@ -746,7 +746,7 @@ a{color:inherit}a:hover{color:inherit}
 .cm .rail{display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:6px;background:var(--s1);border-right:1px solid var(--bd)}
 .cm .ri{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--t3);position:relative;flex:none}
 .cm .ri.on{color:var(--fg);background:var(--hov)}
-.cm .ri.on::before{content:&#x27;&#x27;;position:absolute;left:-5px;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--ac)}
+.cm .ri.on::before{content:'';position:absolute;left:-5px;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--ac)}
 .cm .ri .bdg{position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:3px;background:var(--wa);box-shadow:0 0 0 2px var(--s1)}
 .cm .side{background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
 .cm .phead{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px 0 12px;border-bottom:1px solid var(--bd);flex:none;min-width:0}
@@ -755,46 +755,46 @@ a{color:inherit}a:hover{color:inherit}
 
 /* detail pattern */
 .cm .props{display:grid;grid-template-columns:120px minmax(0,1fr);column-gap:16px;row-gap:2px}
-.cm .props&gt;.k{color:var(--t3);height:24px;display:flex;align-items:center}
-.cm .props&gt;.v{min-height:24px;display:flex;align-items:center;gap:8px;min-width:0}
+.cm .props>.k{color:var(--t3);height:24px;display:flex;align-items:center}
+.cm .props>.v{min-height:24px;display:flex;align-items:center;gap:8px;min-width:0}
 .cm .abar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 
 /* diff + code */
 .cm .diff{font-size:12px;line-height:19px}
 .cm .dl{display:grid;grid-template-columns:36px 16px minmax(0,1fr);white-space:pre}
-.cm .dl&gt;span:first-child{color:var(--t4);text-align:right;padding-right:8px}
+.cm .dl>span:first-child{color:var(--t4);text-align:right;padding-right:8px}
 .cm .dl.add{background:color-mix(in srgb,var(--ok) 13%,transparent)}
-.cm .dl.add&gt;span:nth-child(2){color:var(--ok-i)}
+.cm .dl.add>span:nth-child(2){color:var(--ok-i)}
 .cm .dl.del{background:color-mix(in srgb,var(--er) 13%,transparent)}
-.cm .dl.del&gt;span:nth-child(2){color:var(--er-i)}
+.cm .dl.del>span:nth-child(2){color:var(--er-i)}
 .cm .dl.hunk{color:var(--ac-i);background:var(--hov)}
 
 /* ---------- spec-sheet boards (doc) ---------- */
-.doc{font-family:&#x27;IBM Plex Sans&#x27;,-apple-system,&#x27;Helvetica Neue&#x27;,sans-serif;background:#F4F3EE;color:#1B1D1C;font-size:15px;line-height:22px;-webkit-font-smoothing:antialiased}
+.doc{font-family:'IBM Plex Sans',-apple-system,'Helvetica Neue',sans-serif;background:#F4F3EE;color:#1B1D1C;font-size:15px;line-height:22px;-webkit-font-smoothing:antialiased}
 .doc,.doc *{box-sizing:border-box}
 .doc h1{font-size:44px;line-height:50px;font-weight:600;letter-spacing:-.02em;margin:0}
 .doc h2{font-size:24px;line-height:30px;font-weight:600;letter-spacing:-.01em;margin:0}
 .doc h3{font-size:17px;line-height:24px;font-weight:600;margin:0}
 .doc p{margin:0;text-wrap:pretty}
-.doc .eyebrow{font-family:&#x27;JetBrains Mono&#x27;,monospace;font-size:12px;line-height:16px;letter-spacing:.06em;text-transform:uppercase;color:#2B6E39}
-.doc .mono{font-family:&#x27;JetBrains Mono&#x27;,ui-monospace,monospace;font-size:13px;line-height:19px}
+.doc .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:16px;letter-spacing:.06em;text-transform:uppercase;color:#2B6E39}
+.doc .mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:19px}
 .doc .muted{color:#5B5F5C}
 .doc .lead{font-size:18px;line-height:27px;color:#2C302D;max-width:860px}
 .doc table{border-collapse:collapse;width:100%}
-.doc th{text-align:left;font-family:&#x27;JetBrains Mono&#x27;,monospace;font-weight:500;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:#5B5F5C;padding:8px 12px;border-bottom:1.5px solid #1B1D1C;vertical-align:bottom}
+.doc th{text-align:left;font-family:'JetBrains Mono',monospace;font-weight:500;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:#5B5F5C;padding:8px 12px;border-bottom:1.5px solid #1B1D1C;vertical-align:bottom}
 .doc td{padding:10px 12px;border-bottom:1px solid #DAD8CF;vertical-align:top;font-size:14px;line-height:20px;text-wrap:pretty}
-.doc td.n{font-family:&#x27;JetBrains Mono&#x27;,monospace;font-size:13px;color:#5B5F5C;width:40px}
-.doc .tag{display:inline-block;font-family:&#x27;JetBrains Mono&#x27;,monospace;font-size:11.5px;line-height:18px;padding:0 7px;border-radius:4px;background:#E4E2D9;color:#3A3D3B;white-space:nowrap}
+.doc td.n{font-family:'JetBrains Mono',monospace;font-size:13px;color:#5B5F5C;width:40px}
+.doc .tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:18px;padding:0 7px;border-radius:4px;background:#E4E2D9;color:#3A3D3B;white-space:nowrap}
 .doc .tag.a{background:#D9EAD9;color:#1D5A2B}
 .doc .tag.b{background:#F3E0C3;color:#71440B}
 .doc .tag.c{background:#D9E2F2;color:#23457C}
 .doc .tag.p0{background:#1B1D1C;color:#F4F3EE}
 .doc .panel{background:#FFFFFF;border:1px solid #DAD8CF;border-radius:12px}
 .doc .rule{height:1.5px;background:#1B1D1C}
-.doc code{font-family:&#x27;JetBrains Mono&#x27;,monospace;font-size:12.5px;background:#E9E7DF;border-radius:4px;padding:1px 5px}
+.doc code{font-family:'JetBrains Mono',monospace;font-size:12.5px;background:#E9E7DF;border-radius:4px;padding:1px 5px}
 .doc ul{margin:0;padding-left:18px}
 .doc li{margin:0 0 4px}
-&lt;/style&gt;&lt;style&gt;/* Clubmate Companion (iOS 26 / iPadOS) — layer on top of cm.css.
+</style><style>/* Clubmate Companion (iOS 26 / iPadOS) — layer on top of cm.css.
    No terminal theme on the phone: system appearance + the Mate brand as accent. */
 .th-cdark{--bg:#000000;--fg:#FFFFFF;--ac:#A6D85B;--ok:#4FB3A0;--wa:#F2B84B;--er:#FF6B5E;
   --t2r:74%;--t3r:58%;--t4r:36%;--ac-i:#A6D85B;--ok-i:#5CC2AE;--wa-i:#F2B84B;--er-i:#FF7A6E;--on-ac:#0E1A08;
@@ -806,8 +806,8 @@ a{color:inherit}a:hover{color:inherit}
 .cm.comp.th-cdark{--s1:#1C1C1E;--s2:#2C2C2E;--s3:#3A3A3C;--bd:rgba(255,255,255,.12);--bd2:rgba(255,255,255,.2)}
 .cm.comp.th-clight{--s1:#FFFFFF;--s2:#E9E9EE;--s3:#DCDCE1;--bd:rgba(60,60,67,.18);--bd2:rgba(60,60,67,.3)}
 
-.cm.comp{font-family:-apple-system,&#x27;SF Pro Text&#x27;,&#x27;Inter&#x27;,system-ui,sans-serif;font-size:17px;line-height:22px;letter-spacing:-.2px;position:relative;overflow:hidden}
-.comp .mono{font-family:&#x27;JetBrains Mono&#x27;,&#x27;SF Mono&#x27;,ui-monospace,Menlo,monospace;font-size:14px;line-height:20px;letter-spacing:0}
+.cm.comp{font-family:-apple-system,'SF Pro Text','Inter',system-ui,sans-serif;font-size:17px;line-height:22px;letter-spacing:-.2px;position:relative;overflow:hidden}
+.comp .mono{font-family:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;font-size:14px;line-height:20px;letter-spacing:0}
 .comp .sub{font-size:15px;line-height:20px}
 .comp .cap{font-size:13px;line-height:18px}
 .comp .foot{font-size:12px;line-height:16px}
@@ -821,7 +821,7 @@ a{color:inherit}a:hover{color:inherit}
 .comp .gbtn{width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--fg);flex:none;padding:0}
 .comp .gbtn svg.i{width:22px;height:22px;stroke-width:1.7}
 .comp .gpill{display:flex;align-items:center;height:44px;border-radius:22px;padding:0 4px;flex:none}
-.comp .gpill&gt;button{width:44px;height:44px;border:0;background:none;color:var(--fg);display:flex;align-items:center;justify-content:center}
+.comp .gpill>button{width:44px;height:44px;border:0;background:none;color:var(--fg);display:flex;align-items:center;justify-content:center}
 .comp .gpill svg.i{width:22px;height:22px;stroke-width:1.7}
 .comp .top{position:absolute;top:59px;left:16px;right:16px;height:44px;display:flex;align-items:center;gap:8px;z-index:5}
 .comp .top .t{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center}
@@ -833,7 +833,7 @@ a{color:inherit}a:hover{color:inherit}
 .comp .hdr{display:flex;align-items:center;justify-content:space-between;padding:22px 20px 8px;font-size:15px;line-height:20px;font-weight:600;color:var(--t3)}
 .comp .ig{margin:0 16px;border-radius:22px;background:var(--s1);overflow:hidden}
 .comp .c{display:flex;align-items:center;gap:12px;min-height:52px;padding:12px 16px;position:relative}
-.comp .c+.c::before{content:&#x27;&#x27;;position:absolute;top:0;left:56px;right:0;height:1px;background:var(--bd)}
+.comp .c+.c::before{content:'';position:absolute;top:0;left:56px;right:0;height:1px;background:var(--bd)}
 .comp .c .cbody{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .comp .c .chev{color:var(--t4);width:14px;height:14px;flex:none}
 .comp .c .val{color:var(--t3);flex:none}
@@ -873,9 +873,9 @@ a{color:inherit}a:hover{color:inherit}
 /* subagent nested under its parent: one step (24pt) in, no separator between them */
 .comp .c.nest{padding-left:40px}
 .comp .c.nest::before{display:none}
-&lt;/style&gt;
-&lt;link rel=&quot;stylesheet&quot; href=&quot;https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;amp;family=JetBrains+Mono:wght@400;500&amp;amp;display=swap&quot;&gt;
-&lt;style&gt;
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
 body{margin:0}
 a{color:inherit}a:hover{color:inherit}
 .comp .st.sq{border-radius:7px}
@@ -885,42 +885,42 @@ a{color:inherit}a:hover{color:inherit}
 .comp .nrow .nb .mono{font-size:12px;line-height:16px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .comp .nrow .sw{flex:none;text-align:right;font-size:13px;line-height:18px}
 .comp .seg{margin:12px 16px 0;height:34px;border-radius:17px;background:var(--s2);display:grid;grid-template-columns:1fr 1fr;padding:2px}
-.comp .seg&gt;button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
-.comp .seg&gt;button[aria-selected=&quot;true&quot;]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
-.comp.th-cdark .seg&gt;button[aria-selected=&quot;true&quot;]{background:#636366}
-.comp.th-clight .seg&gt;button[aria-selected=&quot;true&quot;]{background:#FFFFFF}
-&lt;/style&gt;
-&lt;/head&gt;&lt;body style=&quot;margin:0&quot;&gt;
+.comp .seg>button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
+.comp .seg>button[aria-selected="true"]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.comp.th-cdark .seg>button[aria-selected="true"]{background:#636366}
+.comp.th-clight .seg>button[aria-selected="true"]{background:#FFFFFF}
+</style>
 
-&lt;div class=&quot;cm comp th-cdark&quot; style=&quot;width: 393px; height: 852px&quot;&gt;
-&lt;style&gt;
+
+<div class="cm comp th-cdark" style="width: 393px; height: 852px">
+<style>
 .comp .c.nest{padding-left:44px}
 .comp .c.quiet .w6{font-weight:500;color:var(--t2)}
 .comp .seg3{margin:12px 16px 0;height:34px;border-radius:17px;background:var(--s2);display:grid;grid-template-columns:1fr 1fr 1fr;padding:2px}
-.comp .seg3&gt;button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
-.comp .seg3&gt;button[aria-selected=&quot;true&quot;]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
-.comp.th-cdark .seg3&gt;button[aria-selected=&quot;true&quot;]{background:#636366}
-.comp.th-clight .seg3&gt;button[aria-selected=&quot;true&quot;]{background:#FFFFFF}
+.comp .seg3>button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
+.comp .seg3>button[aria-selected="true"]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.comp.th-cdark .seg3>button[aria-selected="true"]{background:#636366}
+.comp.th-clight .seg3>button[aria-selected="true"]{background:#FFFFFF}
 .comp .kv{display:flex;justify-content:space-between;gap:12px;padding:11px 14px}
 .comp .kv+.kv{border-top:1px solid var(--bd)}
 .comp .gb{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:14px;background:var(--s2);font-size:13px}
-&lt;/style&gt;&lt;div class=&quot;top&quot;&gt;&lt;button class=&quot;gbtn glass&quot; aria-label=&quot;Back to Macs&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M10 3.5 5.5 8l4.5 4.5&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;span style=&quot;flex: 1&quot;&gt;&lt;/span&gt;&lt;div class=&quot;gpill glass&quot;&gt;&lt;button aria-label=&quot;Files&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M4 1.5h5l3 3v10H4Z&quot;/&gt;&lt;path d=&quot;M9 1.5v3h3&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;button aria-label=&quot;New session&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M8 3v10M3 8h10&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;&lt;div style=&quot;position: absolute; inset: 0; padding-top: 112px; overflow: hidden&quot;&gt;
-&lt;h1 class=&quot;big&quot; style=&quot;margin: 0; padding: 0 20px&quot;&gt;shop&lt;/h1&gt;
-&lt;div class=&quot;cap mut&quot; style=&quot;padding: 2px 20px 0&quot;&gt;Mac Studio · online&lt;/div&gt;
-&lt;div class=&quot;seg&quot; role=&quot;tablist&quot; style=&quot;grid-template-columns: repeat(4, 1fr)&quot;&gt;&lt;button role=&quot;tab&quot; aria-selected=&quot;true&quot;&gt;Agents&lt;/button&gt;&lt;button role=&quot;tab&quot; aria-selected=&quot;false&quot;&gt;Backlog&lt;/button&gt;&lt;button role=&quot;tab&quot; aria-selected=&quot;false&quot;&gt;Docs&lt;/button&gt;&lt;button role=&quot;tab&quot; aria-selected=&quot;false&quot;&gt;More&lt;/button&gt;&lt;/div&gt;
-&lt;div style=&quot;display: flex; align-items: center; gap: 8px; padding: 14px 20px 0&quot;&gt;&lt;span class=&quot;cap mut&quot;&gt;Group by&lt;/span&gt;&lt;span class=&quot;gb&quot;&gt;Graph &lt;svg class=&quot;i s12 mut&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3.5 6 8 10.5 12.5 6&quot;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;/div&gt;
-&lt;div class=&quot;hdr&quot;&gt;&lt;span&gt;Review gate&lt;/span&gt;&lt;span class=&quot;cap&quot;&gt;3 runs&lt;/span&gt;&lt;/div&gt;
-&lt;div class=&quot;ig&quot;&gt;
-&lt;div class=&quot;c&quot; style=&quot;align-items: flex-start&quot;&gt;&lt;span class=&quot;st wa&quot; style=&quot;margin-top: 2px&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;3.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;12.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;8&quot; cy=&quot;12&quot; r=&quot;1.8&quot;/&gt;&lt;path d=&quot;M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8&quot;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;div class=&quot;cbody&quot;&gt;&lt;span class=&quot;w6 ell&quot;&gt;#4 · fix the flaky switcher&lt;/span&gt;&lt;span class=&#x27;cap ell&#x27;&gt;&lt;span class=&quot;wa-i&quot;&gt;Squash into main wants to run&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;&lt;svg class=&quot;i chev&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;m6 3.5 4.5 4.5L6 12.5&quot;/&gt;&lt;/svg&gt;&lt;/div&gt;
-&lt;div class=&quot;c&quot; style=&quot;align-items: flex-start&quot;&gt;&lt;span class=&quot;st n&quot; style=&quot;margin-top: 2px&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot;/&gt;&lt;path d=&quot;m5.5 8.2 1.8 1.8 3.4-3.6&quot;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;div class=&quot;cbody&quot;&gt;&lt;span class=&quot;w6 ell&quot;&gt;#3 · show missed cron runs&lt;/span&gt;&lt;span class=&#x27;cap ell&#x27;&gt;&lt;span class=&quot;mut&quot;&gt;done&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;&lt;svg class=&quot;i chev&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;m6 3.5 4.5 4.5L6 12.5&quot;/&gt;&lt;/svg&gt;&lt;/div&gt;
-&lt;/div&gt;
-&lt;div class=&quot;hdr&quot;&gt;&lt;span&gt;Review loop&lt;/span&gt;&lt;span class=&quot;cap&quot;&gt;2 runs&lt;/span&gt;&lt;/div&gt;
-&lt;div class=&quot;ig&quot;&gt;
-&lt;div class=&quot;c&quot; style=&quot;align-items: flex-start&quot;&gt;&lt;span class=&quot;st n&quot; style=&quot;margin-top: 2px&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;3.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;12.5&quot; cy=&quot;4&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;8&quot; cy=&quot;12&quot; r=&quot;1.8&quot;/&gt;&lt;path d=&quot;M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8&quot;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;div class=&quot;cbody&quot;&gt;&lt;span class=&quot;w6 ell&quot;&gt;fix the flaky switcher&lt;/span&gt;&lt;span class=&#x27;cap ell&#x27;&gt;&lt;span class=&quot;mut&quot;&gt;running · Coder waits&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;div class=&quot;c nest&quot; style=&quot;align-items: flex-start&quot;&gt;&lt;span class=&quot;st wa&quot; style=&quot;margin-top: 2px&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot;/&gt;&lt;path d=&quot;M8 4.8v3.8M8 11.1v.1&quot;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;div class=&quot;cbody&quot;&gt;&lt;span class=&quot;ell&quot;&gt;Coder&lt;/span&gt;&lt;span class=&#x27;cap ell&#x27;&gt;&lt;span class=&quot;wa-i&quot;&gt;waiting&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;&lt;svg class=&quot;i chev&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;m6 3.5 4.5 4.5L6 12.5&quot;/&gt;&lt;/svg&gt;&lt;/div&gt;
-&lt;/div&gt;
-&lt;div class=&quot;hdr&quot;&gt;&lt;span&gt;Not in a graph&lt;/span&gt;&lt;span class=&quot;cap&quot;&gt;11&lt;/span&gt;&lt;/div&gt;
-&lt;div class=&quot;ig&quot;&gt;&lt;div class=&quot;c&quot; style=&quot;align-items: flex-start&quot;&gt;&lt;span class=&quot;st wa&quot; style=&quot;margin-top: 2px&quot;&gt;&lt;svg class=&quot;i&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot;/&gt;&lt;path d=&quot;M8 4.8v3.8M8 11.1v.1&quot;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;div class=&quot;cbody&quot;&gt;&lt;span class=&quot;w6 ell&quot;&gt;Refactor the cart total&lt;/span&gt;&lt;span class=&#x27;cap ell&#x27;&gt;&lt;span class=&quot;wa-i&quot;&gt;asking&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;&lt;svg class=&quot;i chev&quot; viewBox=&quot;0 0 16 16&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;m6 3.5 4.5 4.5L6 12.5&quot;/&gt;&lt;/svg&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;/div&gt;
-&lt;/div&gt;
-&lt;/body&gt;&lt;/html&gt;"></iframe></figure></div></body></html>
+</style><div class="top"><button class="gbtn glass" aria-label="Back to Macs"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button><span style="flex: 1"></span><div class="gpill glass"><button aria-label="Files"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button></div></div><div style="position: absolute; inset: 0; padding-top: 112px; overflow: hidden">
+<h1 class="big" style="margin: 0; padding: 0 20px">shop</h1>
+<div class="cap mut" style="padding: 2px 20px 0">Mac Studio · online</div>
+<div class="seg" role="tablist" style="grid-template-columns: repeat(4, 1fr)"><button role="tab" aria-selected="true">Agents</button><button role="tab" aria-selected="false">Backlog</button><button role="tab" aria-selected="false">Docs</button><button role="tab" aria-selected="false">More</button></div>
+<div style="display: flex; align-items: center; gap: 8px; padding: 14px 20px 0"><span class="cap mut">Group by</span><span class="gb">Graph <svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></span></div>
+<div class="hdr"><span>Review gate</span><span class="cap">3 runs</span></div>
+<div class="ig">
+<div class="c" style="align-items: flex-start"><span class="st wa" style="margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg></span><div class="cbody"><span class="w6 ell">#4 · fix the flaky switcher</span><span class='cap ell'><span class="wa-i">Squash into main wants to run</span></span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+<div class="c" style="align-items: flex-start"><span class="st n" style="margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg></span><div class="cbody"><span class="w6 ell">#3 · show missed cron runs</span><span class='cap ell'><span class="mut">done</span></span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+<div class="hdr"><span>Review loop</span><span class="cap">2 runs</span></div>
+<div class="ig">
+<div class="c" style="align-items: flex-start"><span class="st n" style="margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg></span><div class="cbody"><span class="w6 ell">fix the flaky switcher</span><span class='cap ell'><span class="mut">running · Coder waits</span></span></div></div>
+<div class="c nest" style="align-items: flex-start"><span class="st wa" style="margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg></span><div class="cbody"><span class="ell">Coder</span><span class='cap ell'><span class="wa-i">waiting</span></span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+<div class="hdr"><span>Not in a graph</span><span class="cap">11</span></div>
+<div class="ig"><div class="c" style="align-items: flex-start"><span class="st wa" style="margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg></span><div class="cbody"><span class="w6 ell">Refactor the cart total</span><span class='cap ell'><span class="wa-i">asking</span></span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div></div>
+</div>
+</div>
+</template></div></figure></div><script>for(const b of document.querySelectorAll('.board')){b.attachShadow({mode:'open'}).appendChild(b.querySelector('template').content.cloneNode(true))}</script></body></html>
