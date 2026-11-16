@@ -9,6 +9,7 @@ import (
 
 	"clubmate/internal/bus"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/sdui"
 )
 
 func TestUsageMergesRateLimitReportsAndSurvivesRestart(t *testing.T) {
@@ -48,4 +49,46 @@ func TestUsageMergesRateLimitReportsAndSurvivesRestart(t *testing.T) {
 	assert.Equal(t, int64(4102531200), got.Windows["seven_day"].ResetsAt)
 	assert.Equal(t, "allowed_warning", got.Windows["seven_day"].Status)
 	assert.NotZero(t, got.UpdatedAt)
+}
+
+func TestSessionShareSplitsLimitGrowthByCostAndSurvivesRestart(t *testing.T) {
+	t.Parallel()
+	rate := func(match string, fiveHour, sevenDay float64) map[string]any {
+		return map[string]any{"match": match, "update": map[string]any{"sessionUpdate": "usage_update", "used": 10, "size": 100, "_meta": map[string]any{"_claude/rateLimit": map[string]any{"status": "allowed", "unifiedWindows": map[string]any{
+			"five_hour": map[string]any{"utilization": fiveHour, "resetsAt": 4102444800, "status": "allowed"},
+			"seven_day": map[string]any{"utilization": sevenDay, "resetsAt": 4102531200, "status": "allowed"},
+		}}}}}
+	}
+	cost := func(match string, amount float64) map[string]any {
+		return map[string]any{"match": match, "update": map[string]any{"sessionUpdate": "usage_update", "used": 10, "size": 100, "cost": map[string]any{"amount": amount, "currency": "USD"}}}
+	}
+	f := start(t, map[string]any{"prompt": []map[string]any{
+		rate("first", 0.10, 0.50),
+		cost("first", 1),
+		rate("second", 0.12, 0.50),
+		cost("second", 1),
+		cost("second", 3),
+		rate("second", 0.18, 0.54),
+	}})
+	workspace := f.workspace(t, newRepo(t))
+	first := f.newSession(t, workspace)
+	f.prompt(t, workspace, first, "first")
+	f.waitStatus(t, workspace, first, "done")
+	second := f.newSession(t, workspace)
+	f.prompt(t, workspace, second, "second")
+	f.waitStatus(t, workspace, second, "done")
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
+		return strings.Contains(string(rawTree(t, n)), "≈6% of 5h · ≈3% of 7d")
+	})
+
+	f.restartPlugin(t, workspace)
+
+	var got struct {
+		Sessions map[string]map[string]float64 `json:"sessions"`
+	}
+	require.NoError(t, f.run(t, "", "agents.usage", nil, &got))
+	assert.InDelta(t, 2, got.Sessions[first]["five_hour"], 0.001)
+	assert.InDelta(t, 1, got.Sessions[first]["seven_day"], 0.001)
+	assert.InDelta(t, 6, got.Sessions[second]["five_hour"], 0.001)
+	assert.InDelta(t, 3, got.Sessions[second]["seven_day"], 0.001)
 }

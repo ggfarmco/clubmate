@@ -83,6 +83,7 @@ type screen struct {
 	Folders      pluginsdk.Workspace
 	Children     string
 	Row          sessionRow
+	Share        map[string]float64
 	Now          time.Time
 	FromTitles   map[string]string
 	Context      *contextScreen
@@ -254,6 +255,7 @@ func header(sc screen) sdui.Node {
 	if !full {
 		meta = append(meta, nonEmpty(fill)...)
 	}
+	meta = append(meta, shareParts(sc.Share)...)
 	var buttons []sdui.Node
 	if turnActive(rec) {
 		buttons = append(buttons, sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/stop", "Stop", "stop.fill"), actStop), sdui.VariantGhost))

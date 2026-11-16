@@ -534,6 +534,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 		Parent:      parent,
 		Children:    row.Children,
 		Row:         row,
+		Share:       a.usage.sessionShare(v.Session.ID),
 		Now:         time.Now(),
 		FromTitles:  fromTitles,
 		Context:     ctxScreen,

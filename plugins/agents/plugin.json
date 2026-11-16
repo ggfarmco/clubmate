@@ -161,7 +161,7 @@
         "title": "Subscription usage",
         "hidden": true,
         "scope": "app",
-        "description": "Latest Claude subscription usage seen in agent replies: {windows: {five_hour, seven_day: {used, resetsAt, status}}, updatedAt}. used is a percentage, resetsAt and updatedAt are unix seconds, status is allowed, allowed_warning or rejected. A window is missing until an agent reply reports it; agents.usage is published on the bus with the same payload whenever it changes."
+        "description": "Latest Claude subscription usage seen in agent replies: {windows: {five_hour, seven_day: {used, resetsAt, status}}, updatedAt}. used is a percentage, resetsAt and updatedAt are unix seconds, status is allowed, allowed_warning or rejected. A window is missing until an agent reply reports it; The command result also has sessions: {<session id>: {five_hour, seven_day}}, each session's estimated share of that window in percent (the window's growth split by what each session spent), not in the bus payload. agents.usage is published on the bus with windows and updatedAt whenever they change."
       },
       {
         "id": "agents.afk-default",

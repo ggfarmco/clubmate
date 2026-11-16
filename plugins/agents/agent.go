@@ -55,7 +55,7 @@ type agentProc struct {
 	launch   launch
 	mcp      []acp.McpServer
 	onExit   func(p *agentProc, reason string)
-	onUsage  func(json.RawMessage)
+	onUsage  func(agentSession, session string, update json.RawMessage)
 
 	mu       sync.Mutex
 	sessions map[string]*session
@@ -74,7 +74,7 @@ type ring struct {
 	buf []byte
 }
 
-func startProc(l launch, agent, root string, onExit func(p *agentProc, reason string), onUsage func(json.RawMessage)) (*agentProc, error) {
+func startProc(l launch, agent, root string, onExit func(p *agentProc, reason string), onUsage func(agentSession, session string, update json.RawMessage)) (*agentProc, error) {
 	stdinR, stdinW, err := os.Pipe()
 	if err != nil {
 		return nil, err
@@ -210,9 +210,6 @@ func (p *agentProc) Notify(method string, params json.RawMessage) {
 	if json.Unmarshal(params, &n) != nil {
 		return
 	}
-	if p.onUsage != nil {
-		p.onUsage(n.Update)
-	}
 	p.mu.Lock()
 	s := p.ownerLocked(n.SessionID)
 	var deliver []json.RawMessage
@@ -227,6 +224,13 @@ func (p *agentProc) Notify(method string, params json.RawMessage) {
 		p.orphans[n.SessionID] = append(queue, params)
 	}
 	p.mu.Unlock()
+	if p.onUsage != nil {
+		owner := ""
+		if s != nil && bytes.Contains(n.Update, []byte(`"cost"`)) {
+			owner = s.snapshot().ID
+		}
+		p.onUsage(n.SessionID, owner, n.Update)
+	}
 	for _, params := range deliver {
 		s.update(params)
 	}
