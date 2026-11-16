@@ -318,7 +318,10 @@ func sessionMeta(rec record, advisor string, self selfParts, chrome bool) *acp.S
 		meta.ClaudeCode.Options.Plugins = []acp.ClaudeCodePlugin{{Type: selfPluginType, Path: self.PluginDir}}
 	}
 	text := openItemsText
-	if rec.ParentSession == "" {
+	switch {
+	case rec.isAside():
+		text = asideSystemText
+	case rec.ParentSession == "":
 		text = askUserText
 	}
 	if self.Prompt != "" {

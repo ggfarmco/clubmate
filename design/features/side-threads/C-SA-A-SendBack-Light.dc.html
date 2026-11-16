@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Companion: send an aside back as the answer</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
+<link rel="stylesheet" href="/_blob/4987a8b4234bbea3e512a6d02560ee1d">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.comp .st.sq{border-radius:7px}
+.comp .nrow{display:flex;align-items:center;gap:12px;padding:10px 14px;min-width:0}
+.comp .nrow+.nrow{border-top:1px solid var(--bd)}
+.comp .nrow .nb{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.comp .nrow .nb .mono{font-size:12px;line-height:16px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.comp .nrow .sw{flex:none;text-align:right;font-size:13px;line-height:18px}
+.comp .seg{margin:12px 16px 0;height:34px;border-radius:17px;background:var(--s2);display:grid;grid-template-columns:1fr 1fr;padding:2px}
+.comp .seg>button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
+.comp .seg>button[aria-selected="true"]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.comp.th-cdark .seg>button[aria-selected="true"]{background:#636366}
+.comp.th-clight .seg>button[aria-selected="true"]{background:#FFFFFF}
+</style>
+</helmet>
+<div class="cm comp th-{{theme}}" style="width: 393px; height: 852px">
+<style>
+.comp .po{display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:12px;align-items:start;padding:12px 14px;border-radius:16px;background:var(--s2)}
+.comp .po.on{background:color-mix(in srgb,var(--ac) 22%,var(--s2))}
+.comp .po .r{width:22px;height:22px;border-radius:11px;border:2px solid var(--t4);margin-top:1px;box-sizing:border-box}
+.comp .po.on .r{border-color:var(--ac);background:var(--ac);box-shadow:inset 0 0 0 4px var(--s2)}
+.comp .po .c{width:22px;height:22px;border-radius:11px;border:2px solid var(--t4);box-sizing:border-box;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.comp .po.on .c{background:var(--ac);border-color:var(--ac);color:var(--on-ac)}
+.comp .po .c svg.i{width:13px;height:13px;stroke-width:2.4}
+.comp .chipq{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;background:var(--s2);color:var(--t2);font-size:12px;font-weight:600}
+.comp .oc{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:10px;border:1.5px solid var(--wa-bd);color:var(--wa-i);font-size:12px;font-weight:600;white-space:nowrap}
+.comp .dots{display:flex;gap:6px;align-items:center}
+.comp .dots i{width:7px;height:7px;border-radius:4px;background:var(--t4);display:block}
+.comp .dots i.on{background:var(--fg);width:18px}
+.comp .ctxq{font-size:13px;line-height:18px;color:var(--t3);border-left:2px solid var(--bd2);padding-left:10px}
+.comp .fold{display:flex;align-items:center;gap:10px;padding:12px 14px;border-top:1px solid var(--bd)}
+.comp .num{width:22px;height:22px;border-radius:11px;border:1.5px solid var(--bd2);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex:none;color:var(--t2)}
+.comp .num.done{border-color:var(--ok-bd);color:var(--ok-i);background:var(--ok-bg)}
+</style><style>
+.comp .sheet{position:absolute;left:0;right:0;bottom:0;z-index:6;background:var(--s1);border-radius:28px 28px 0 0;padding:8px 16px 30px;display:flex;flex-direction:column;gap:10px;box-shadow:0 -10px 30px rgba(0,0,0,.35)}
+.comp .grab{width:36px;height:5px;border-radius:3px;background:var(--bd2);align-self:center}
+.comp .rop{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 8px;border-radius:10px;background:var(--s2);color:var(--t2);font-size:12px;white-space:nowrap}
+.comp .forkp{border:1.5px dashed var(--bd2);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.comp .ubp{align-self:flex-end;max-width:84%;padding:9px 13px;border-radius:18px;background:var(--s2);font-size:15px;line-height:20px}
+.comp .fldp{display:flex;align-items:center;gap:8px;height:40px;padding:0 6px 0 14px;border-radius:20px;background:var(--s2);color:var(--t4);font-size:15px}
+.comp .dim{position:absolute;inset:0;background:rgba(0,0,0,.42);z-index:5}
+.comp .segp{display:grid;grid-template-columns:1fr 1fr;padding:2px;border-radius:9px;background:var(--s2);height:32px}
+.comp .segp span{display:flex;align-items:center;justify-content:center;border-radius:7px;font-size:13px}
+.comp .segp span.on{background:var(--s1);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.comp.th-cdark .segp span.on{background:#636366}
+.comp .chipp{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:13px;border:1.5px solid var(--ac);font-size:13px;font-weight:600}
+.comp .ta2{border-radius:12px;background:var(--s2);padding:10px 12px;font-size:14px;line-height:19px}
+.comp .ctxmenu{border-radius:14px;background:var(--s1);overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.comp .ctxmenu .mi{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;font-size:16px}
+.comp .ctxmenu .mi+.mi{border-top:1px solid var(--bd)}
+.comp .pkp{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:16px;background:var(--s2);font-size:13px;font-weight:600;white-space:nowrap}
+.comp .pkp.mk{box-shadow:inset 0 0 0 1.5px var(--ac)}
+</style><div class="edge"></div><div class="top"><button class="gbtn glass" aria-label="Back"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button><div class="t"><span class="tt">Rework the Send review sheet</span><span class="ts"><span class="wa-i">Waiting for you</span> · shop</span></div><button class="gbtn glass" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button></div><div class="dim" style="top: 0"></div>
+<div class="sheet" style="top: 150px">
+<div class="grab"></div>
+<span class="t20">Send back</span>
+<span class="foot mut" style="margin-top: -6px">to Rework the Send review sheet</span>
+<div class="segp"><span class="on">Answer question 1</span><span>Draft in its composer</span></div>
+<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap"><span class="cap mut">Picks</span><span class="chipp"><svg class="i s12 ac-i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>Add an SDUI prop</span><span class="cap mut">and adds a note</span></div>
+<div class="segp" style="grid-template-columns: 1fr 1fr 1fr"><span class="on">Summary</span><span>Last message</span><span>Quote…</span></div>
+<div class="ta2">detailMin only matters for the Send sheet today; Backlog and Cron fit in 6 em. One catalog prop, default unchanged.</div>
+<div style="display: flex; align-items: center; justify-content: space-between"><span class="sub">Close the aside after</span><span style="width: 44px; height: 26px; border-radius: 13px; background: var(--ac); position: relative"><i style="position: absolute; right: 2px; top: 2px; width: 22px; height: 22px; border-radius: 11px; background: #fff"></i></span></div>
+<div style="flex: 1"></div>
+<button class="cb pri full">Send back</button>
+<span class="foot mut" style="text-align: center">The card still waits for your Next / Send</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"clight"},"$preview":{"width":393,"height":852}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'clight' };
+}
+}
+</script>
+</body>
+</html>

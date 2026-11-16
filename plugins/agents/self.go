@@ -119,7 +119,7 @@ func (x *selfStore) commit(ctx context.Context, message string) error {
 }
 
 func (a *app) selfFor(ctx context.Context, rec record) selfParts {
-	if rec.restricted() || !a.selfEnabled(ctx) {
+	if rec.restricted() || rec.isAside() || !a.selfEnabled(ctx) {
 		return selfParts{}
 	}
 	return a.self.parts()

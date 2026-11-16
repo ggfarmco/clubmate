@@ -49,6 +49,7 @@ type uiState struct {
 	nodeProblem    string
 	installing     bool
 	resumable      map[string]bool
+	forks          map[string]bool
 	steers         map[string]bool
 	noResume       map[string]bool
 	advisors       map[string]string
@@ -118,7 +119,7 @@ type sessionUI struct {
 func newUIState() uiState {
 	return uiState{
 		ui: map[string]*workspaceUI{}, goneWorkspaces: map[string]bool{}, reposChecked: map[string]bool{}, auth: map[string]authCommand{}, signIns: map[string]string{},
-		resumable: map[string]bool{}, steers: map[string]bool{}, noResume: map[string]bool{}, advisors: map[string]string{},
+		resumable: map[string]bool{}, forks: map[string]bool{}, steers: map[string]bool{}, noResume: map[string]bool{}, advisors: map[string]string{},
 		present: map[string]bool{}, sections: map[string]string{}, watched: map[string][]string{}, editorFiles: map[string]editorFile{},
 	}
 }
@@ -260,7 +261,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	})
 	for _, rec := range recs {
 		row := a.sessionRow(ctx, rec, children[rec.ID])
-		row.CloseAsk = closeBusy(rec, kids).Message
+		row.CloseAsk = a.closeAsk(rec, kids).Message
 		if n, ok := needs[runID(rec)]; ok {
 			row.RunNeed = &n
 		}
@@ -525,6 +526,10 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 	current := s.currentTurn()
 	open := s.openCard()
 	kids := a.repoKids(v.Session)
+	prefills := s.prefillsFor()
+	pinned := a.pinnedStrip(v.Session)
+	asides := a.optionAsides(v.Session)
+	open.Asides = asides
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
 	st.open.prune(open.Items)
@@ -565,6 +570,9 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 		Review:      row.Review,
 		Open:        open,
 		OpenDraft:   st.open.clone(),
+		Prefills:    prefills,
+		Pinned:      pinned,
+		Asides:      asides,
 	}
 	sc.ReviewStates, sc.ReviewsOpen = a.reviews.cards(v.ReviewStates)
 	return sc
@@ -705,6 +713,9 @@ func (a *app) selectSession(ctx context.Context, workspaceID, sid string) error 
 			open[expandPrefix+runPrefix+rec.Run.ID] = false
 		}
 		parent := rec.ParentSession
+		if rec.isAside() {
+			open[asidesKey+parent] = false
+		}
 		if parent == "" && rec.restricted() && !rec.closed() {
 			a.uiMu.Lock()
 			p.dock = dockService

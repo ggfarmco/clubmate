@@ -93,6 +93,9 @@ type screen struct {
 	ReviewsOpen  map[string]bool
 	Open         openCardData
 	OpenDraft    openDraft
+	Prefills     map[string]map[int]elicitPrefill
+	Pinned       *sdui.Node
+	Asides       optionAsides
 }
 
 type codePanel struct {
@@ -133,6 +136,9 @@ func mainView(sc screen) sdui.Node {
 	if sc.SignIn != "" {
 		children = append(children, sdui.MutedText("Sign in to "+agentLabel(rec.Agent)+" in the terminal below; the session retries when it exits."), sdui.Surface(sc.SignIn))
 		return sdui.VStack(children...)
+	}
+	if sc.Pinned != nil {
+		children = append(children, *sc.Pinned)
 	}
 	switch {
 	case sc.Context != nil:
@@ -382,11 +388,15 @@ func composer(sc screen) sdui.Node {
 		}
 		attachments = append(attachments, sdui.Attachment{ID: a.ID, Kind: a.Kind, Path: path, StartLine: a.StartLine, EndLine: a.EndLine})
 	}
+	modes := modeOptions(v)
+	if rec.isAside() {
+		modes = nil
+	}
 	return sdui.Composer(sc.Composer, sdui.ComposerProps{
 		Placeholder: composerPlaceholder(sc),
 		Hint:        composerHint,
 		Agent:       agentLabel(rec.Agent),
-		Modes:       modeOptions(v),
+		Modes:       modes,
 		Mode:        rec.Mode,
 		Pickers:     pickers(sc),
 		Commands:    commands,
@@ -395,6 +405,7 @@ func composer(sc screen) sdui.Node {
 		Running:     turnActive(rec),
 		Steers:      sc.Steers,
 		Docked:      docked(sc),
+		Draft:       composerDraftNode(rec.ComposerDraft),
 	})
 }
 
@@ -516,4 +527,11 @@ func nonEmpty(values ...string) []string {
 		}
 	}
 	return out
+}
+
+func composerDraftNode(d *composerDraft) *sdui.ComposerDraft {
+	if d == nil {
+		return nil
+	}
+	return &sdui.ComposerDraft{Text: d.Text, Rev: d.Rev}
 }

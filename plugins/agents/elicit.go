@@ -227,6 +227,7 @@ func (s *session) respond(id string, resp acp.ElicitationResponse) error {
 		return err
 	}
 	delete(s.perms, id)
+	delete(s.prefills, id)
 	perm.elicit <- out
 	return nil
 }

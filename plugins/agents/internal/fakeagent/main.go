@@ -21,6 +21,7 @@ import (
 type script struct {
 	AuthFile              string                    `json:"authFile"`
 	Resume                bool                      `json:"resume"`
+	Fork                  bool                      `json:"fork"`
 	Linger                bool                      `json:"linger"`
 	Embedded              bool                      `json:"embedded"`
 	Image                 bool                      `json:"image"`
@@ -153,6 +154,9 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 		if a.script.Resume {
 			caps.SessionCapabilities.Resume = &acp.Capability{}
 		}
+		if a.script.Fork {
+			caps.SessionCapabilities.Fork = &acp.Capability{}
+		}
 		if a.script.AdditionalDirectories {
 			caps.SessionCapabilities.AdditionalDirectories = &acp.Capability{}
 		}
@@ -177,6 +181,16 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 		a.remember(id, start.Cwd, start.Meta)
 		go a.announce(id)
 		return acp.NewSessionResponse{SessionID: id, Modes: a.script.Modes, ConfigOptions: a.script.Configs}, nil
+	case acp.MethodSessionFork:
+		if !a.script.Fork {
+			return nil, acp.MethodNotFound(method)
+		}
+		var fork acp.ForkSessionRequest
+		_ = json.Unmarshal(params, &fork)
+		id := "fork-" + fork.SessionID + "-" + strconv.FormatInt(a.sessions.Add(1), 10)
+		a.remember(id, fork.Cwd, fork.Meta)
+		go a.announce(id)
+		return acp.ForkSessionResponse{SessionID: id, Modes: a.script.Modes, ConfigOptions: a.script.Configs}, nil
 	case acp.MethodSessionResume:
 		var resume acp.ResumeSessionRequest
 		_ = json.Unmarshal(params, &resume)

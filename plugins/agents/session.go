@@ -31,6 +31,7 @@ type session struct {
 	began     func(session string)
 	setup     *setup
 	wantTasks func()
+	prefills  map[string]map[int]elicitPrefill
 
 	taskTitles  map[int]string
 	tasksWanted bool

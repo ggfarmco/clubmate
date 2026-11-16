@@ -11,6 +11,7 @@ const (
 	MethodInitialize        = "initialize"
 	MethodSessionNew        = "session/new"
 	MethodSessionResume     = "session/resume"
+	MethodSessionFork       = "session/fork"
 	MethodSessionPrompt     = "session/prompt"
 	MethodSessionCancel     = "session/cancel"
 	MethodSessionClose      = "session/close"
@@ -191,6 +192,7 @@ type SessionCapabilities struct {
 	Close                 *Capability `json:"close,omitempty"`
 	Delete                *Capability `json:"delete,omitempty"`
 	AdditionalDirectories *Capability `json:"additionalDirectories,omitempty"`
+	Fork                  *Capability `json:"fork,omitempty"`
 }
 
 type EnvVariable struct {
@@ -264,6 +266,16 @@ type ResumeSessionRequest struct {
 	McpServers            []McpServer  `json:"mcpServers"`
 	Meta                  *SessionMeta `json:"_meta,omitempty"`
 }
+
+type ForkSessionRequest struct {
+	SessionID             string       `json:"sessionId"`
+	Cwd                   string       `json:"cwd"`
+	AdditionalDirectories []string     `json:"additionalDirectories,omitempty"`
+	McpServers            []McpServer  `json:"mcpServers"`
+	Meta                  *SessionMeta `json:"_meta,omitempty"`
+}
+
+type ForkSessionResponse = NewSessionResponse
 
 type ResumeSessionResponse struct {
 	Modes         *SessionModeState     `json:"modes,omitempty"`

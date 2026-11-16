@@ -43,7 +43,7 @@ func elicitationCard(sc screen, en *entry) sdui.Node {
 		decline := sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/decline", "Decline", ""), actElicitDecline), "ghost")
 		return sdui.Form(id, sdui.Card(cardTone, "person.badge.key.fill", sdui.Text(el.Message), sdui.MutedText(el.URL), sdui.HStack(open, decline)))
 	}
-	children := []sdui.Node{sdui.Text(el.Message), sdui.FitScroll(sdui.WithGap(sdui.VStack(fieldNodes(id, el.Fields)...), questionGap))}
+	children := []sdui.Node{sdui.Text(el.Message), sdui.FitScroll(sdui.WithGap(sdui.VStack(fieldNodes(id, el.Fields, sc.Prefills[en.ID], sc.Asides, en.ID)...), questionGap))}
 	submit := sdui.WithVariant(sdui.Button(id+"/submit", "Send", ""), "primary")
 	if !answersOnPick(el.Fields) {
 		submit = sdui.WithShortcut(submit, elicitSendKey)
@@ -157,7 +157,7 @@ func needsAnswer(fields []elicitField) bool {
 	})
 }
 
-func fieldNodes(id string, fields []elicitField) []sdui.Node {
+func fieldNodes(id string, fields []elicitField, prefill map[int]elicitPrefill, asides optionAsides, entry string) []sdui.Node {
 	questions := 0
 	for _, f := range fields {
 		if isChoice(f) {
@@ -172,6 +172,10 @@ func fieldNodes(id string, fields []elicitField) []sdui.Node {
 		case isChoice(f):
 			number++
 			p := choiceProps(f, otherField(id, fields, f), i == single)
+			if pf, ok := prefill[i]; ok {
+				markPrefill(&p, pf)
+			}
+			asides.apply(&p, func(value string) string { return elicitAsideMark(entry, i, value) })
 			if questions > 1 {
 				p.Number, p.Open = number, number == 1
 			}

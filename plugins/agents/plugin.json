@@ -379,6 +379,82 @@
         }
       },
       {
+        "id": "agents.aside",
+        "title": "Ask aside",
+        "hidden": true,
+        "remote": true,
+        "description": "Open the aside (a read-only fork in plan mode) of a session for an anchor, or return the one that already exists for it: {session, reopened}.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "The parent session id."},
+            "anchor": {"type": "array", "description": "The anchor as key/value pairs: elicitation (entry id), field (index), open (open item id), option, question, message (entry id), quote.", "items": {"type": "object", "properties": {"key": {"type": "string"}, "value": {"type": "string"}}, "required": ["key", "value"]}}
+          },
+          "required": ["session", "anchor"]
+        },
+        "result": {
+          "properties": {
+            "session": {"type": "string", "description": "The aside's session id."},
+            "reopened": {"type": "boolean", "description": "Whether the aside already existed."}
+          }
+        }
+      },
+      {
+        "id": "agents.aside-summary",
+        "title": "Summarize aside",
+        "hidden": true,
+        "remote": true,
+        "description": "Ask the aside for a short summary meant for its parent; the aside's next agent message is the text to send back.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "The aside's session id."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.aside-send",
+        "title": "Send aside back",
+        "hidden": true,
+        "remote": true,
+        "description": "Send text from an aside to its parent: to=answer prefills the parent's pending question (the anchored option, the text as its note), to=draft sets the parent's composer draft (the quote and the text). Nothing goes to the agent. The aside is closed (deleted) unless close is false.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "The aside's session id."},
+            "to": {"type": "string", "enum": ["answer", "draft"], "description": "Where the text goes."},
+            "text": {"type": "string", "description": "The text to send back."},
+            "close": {"type": "boolean", "description": "Close the aside after sending; default true."}
+          },
+          "required": ["session", "to"]
+        }
+      },
+      {
+        "id": "agents.aside-pick",
+        "title": "Pick from aside",
+        "hidden": true,
+        "remote": true,
+        "description": "Pick an option of the parent's pending question from the aside's pinned strip; the parent's card shows it picked and still waits for its Send.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "The aside's session id."},
+            "value": {"type": "string", "description": "The option's value or label."}
+          },
+          "required": ["session", "value"]
+        }
+      },
+      {
+        "id": "agents.aside-keep",
+        "title": "Keep aside",
+        "hidden": true,
+        "remote": true,
+        "description": "Make an aside an ordinary session: it moves to the top level of its parent's worktree with forkedFrom set, takes the parent's mode and gets the Clubmate tools back. Refused with \"the aside is busy\" while its turn runs.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "The aside's session id."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
         "id": "agents.close",
         "title": "Close agent session",
         "hidden": true,

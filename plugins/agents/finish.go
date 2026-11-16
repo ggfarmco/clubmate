@@ -58,7 +58,7 @@ type worktreeSession struct {
 }
 
 func (a *app) policies(ctx context.Context, rec record) []acp.ContentBlock {
-	if rec.SystemPrompt != "" {
+	if rec.SystemPrompt != "" || rec.isAside() {
 		return nil
 	}
 	if rec.GateFor != nil {

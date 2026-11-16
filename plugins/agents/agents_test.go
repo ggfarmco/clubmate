@@ -113,6 +113,13 @@ type record struct {
 	RepoPath        string           `json:"repoPath"`
 	Task            *taskRecord      `json:"task"`
 	ConnectRequests []connectRequest `json:"connectRequests"`
+	Aside           *asideView       `json:"aside"`
+	CanAside        bool             `json:"canAside"`
+	ForkedFrom      string           `json:"forkedFrom"`
+	ComposerDraft   *struct {
+		Text string `json:"text"`
+		Rev  int64  `json:"rev"`
+	} `json:"composerDraft"`
 }
 
 type entry struct {

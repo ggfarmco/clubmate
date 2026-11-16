@@ -48,50 +48,53 @@ type record struct {
 	AgentSessionID string `json:"agentSessionId"`
 	ClosedBranch   string `json:"closedBranch,omitempty"`
 	lineage
-	Run             *api.Run   `json:"run,omitempty"`
-	CronJob         string     `json:"cronJob,omitempty"`
-	Trigger         string     `json:"trigger,omitempty"`
-	Title           string     `json:"title"`
-	TitleSet        bool       `json:"titleSet,omitempty"`
-	Status          string     `json:"status"`
-	Mode            string     `json:"mode"`
-	Finish          string     `json:"finish,omitempty"`
-	AFK             bool       `json:"afk,omitempty"`
-	AFKBy           string     `json:"afkBy,omitempty"`
-	StartedBy       string     `json:"startedBy,omitempty"`
-	Suspended       bool       `json:"suspended,omitempty"`
-	AutoClosed      bool       `json:"autoClosed,omitempty"`
-	CleanupOnSeen   bool       `json:"cleanupOnSeen,omitempty"`
-	ClosedStatus    string     `json:"closedStatus,omitempty"`
-	Review          bool       `json:"review,omitempty"`
-	AsksParent      bool       `json:"asksParent,omitempty"`
-	Reminding       bool       `json:"reminding,omitempty"`
-	MayAsk          bool       `json:"mayAsk,omitempty"`
-	OpenCount       int        `json:"openCount,omitempty"`
-	OpenDecisions   int        `json:"openDecisions,omitempty"`
-	OpenOffers      int        `json:"openOffers,omitempty"`
-	OpenSince       time.Time  `json:"openSince,omitzero"`
-	CreatedAt       time.Time  `json:"createdAt"`
-	UpdatedAt       time.Time  `json:"updatedAt"`
-	Asks            bool       `json:"asks"`
-	Question        string     `json:"question,omitempty"`
-	Notify          string     `json:"notify,omitempty"`
-	Error           string     `json:"error,omitempty"`
-	DisallowedTools []string   `json:"disallowedTools,omitempty"`
-	SystemPrompt    string     `json:"systemPrompt,omitempty"`
-	StartMode       string     `json:"startMode,omitempty"`
-	FirstMode       string     `json:"firstMode,omitempty"`
-	StartModel      string     `json:"startModel,omitempty"`
-	StartEffort     string     `json:"startEffort,omitempty"`
-	StartNotice     string     `json:"startNotice,omitempty"`
-	Night           string     `json:"night,omitempty"`
-	NightSealed     bool       `json:"nightSealed,omitempty"`
-	Refused         int        `json:"refused,omitempty"`
-	Reads           []string   `json:"reads,omitempty"`
-	Allow           []string   `json:"allow,omitempty"`
-	RepoPath        string     `json:"repoPath,omitempty"`
-	GateFor         *gateFor   `json:"gateFor,omitempty"`
-	LimitWait       *limitWait `json:"limitWait,omitempty"`
+	Run             *api.Run       `json:"run,omitempty"`
+	CronJob         string         `json:"cronJob,omitempty"`
+	Trigger         string         `json:"trigger,omitempty"`
+	Title           string         `json:"title"`
+	TitleSet        bool           `json:"titleSet,omitempty"`
+	Status          string         `json:"status"`
+	Mode            string         `json:"mode"`
+	Finish          string         `json:"finish,omitempty"`
+	AFK             bool           `json:"afk,omitempty"`
+	AFKBy           string         `json:"afkBy,omitempty"`
+	StartedBy       string         `json:"startedBy,omitempty"`
+	Suspended       bool           `json:"suspended,omitempty"`
+	AutoClosed      bool           `json:"autoClosed,omitempty"`
+	CleanupOnSeen   bool           `json:"cleanupOnSeen,omitempty"`
+	ClosedStatus    string         `json:"closedStatus,omitempty"`
+	Review          bool           `json:"review,omitempty"`
+	AsksParent      bool           `json:"asksParent,omitempty"`
+	Reminding       bool           `json:"reminding,omitempty"`
+	MayAsk          bool           `json:"mayAsk,omitempty"`
+	OpenCount       int            `json:"openCount,omitempty"`
+	OpenDecisions   int            `json:"openDecisions,omitempty"`
+	OpenOffers      int            `json:"openOffers,omitempty"`
+	OpenSince       time.Time      `json:"openSince,omitzero"`
+	CreatedAt       time.Time      `json:"createdAt"`
+	UpdatedAt       time.Time      `json:"updatedAt"`
+	Asks            bool           `json:"asks"`
+	Question        string         `json:"question,omitempty"`
+	Notify          string         `json:"notify,omitempty"`
+	Error           string         `json:"error,omitempty"`
+	DisallowedTools []string       `json:"disallowedTools,omitempty"`
+	SystemPrompt    string         `json:"systemPrompt,omitempty"`
+	StartMode       string         `json:"startMode,omitempty"`
+	FirstMode       string         `json:"firstMode,omitempty"`
+	StartModel      string         `json:"startModel,omitempty"`
+	StartEffort     string         `json:"startEffort,omitempty"`
+	StartNotice     string         `json:"startNotice,omitempty"`
+	Night           string         `json:"night,omitempty"`
+	NightSealed     bool           `json:"nightSealed,omitempty"`
+	Refused         int            `json:"refused,omitempty"`
+	Reads           []string       `json:"reads,omitempty"`
+	Allow           []string       `json:"allow,omitempty"`
+	RepoPath        string         `json:"repoPath,omitempty"`
+	GateFor         *gateFor       `json:"gateFor,omitempty"`
+	LimitWait       *limitWait     `json:"limitWait,omitempty"`
+	Aside           *asideInfo     `json:"asideInfo,omitempty"`
+	ForkedFrom      string         `json:"forkedFrom,omitempty"`
+	ComposerDraft   *composerDraft `json:"composerDraft,omitempty"`
 
 	Task            *taskRecord      `json:"task,omitempty"`
 	ConnectRequests []connectRequest `json:"connectRequests,omitempty"`
@@ -134,6 +137,8 @@ type sessionInfo struct {
 	GateRound       *gateRound         `json:"gateRound,omitempty"`
 	ShareWords      map[string]string  `json:"shareWords,omitempty"`
 	ShareDetail     string             `json:"shareDetail,omitempty"`
+	Aside           *asideView         `json:"aside,omitempty"`
+	CanAside        bool               `json:"canAside,omitempty"`
 }
 
 type sessionFailure struct {
@@ -214,7 +219,7 @@ func (r record) closed() bool {
 }
 
 func (r record) restricted() bool {
-	return len(r.DisallowedTools) > 0 && r.GateFor == nil || r.SystemPrompt != "" || r.StartMode != "" || r.Night != ""
+	return len(r.DisallowedTools) > 0 && r.GateFor == nil && r.Aside == nil || r.SystemPrompt != "" || r.StartMode != "" || r.Night != ""
 }
 
 func (r record) pinnedModel() string {

@@ -249,7 +249,7 @@ func (a *app) notifyEnd(s *session, t api.Turn) {
 	if _, reminded := a.reminders.at(rec.Workspace, rec.ID); reminded && kind != notifyStuck {
 		return
 	}
-	if rec.ParentSession != "" || rec.restricted() || rec.Run != nil && kind != notifyAsks || kind == notifyDone && a.runningChildren(rec.ID) > 0 {
+	if rec.ParentSession != "" && !rec.isAside() || rec.isAside() && kind != notifyAsks || rec.restricted() || rec.Run != nil && kind != notifyAsks || kind == notifyDone && a.runningChildren(rec.ID) > 0 {
 		return
 	}
 	a.notes.ended(ending{workspace: rec.Workspace, session: rec.ID, title: rec.Title, kind: kind, policy: a.effectiveNotify(rec), open: rec.OpenCount, quiet: kind == notifyDone && (rec.OpenCount > 0 || s.askedInTurn())})

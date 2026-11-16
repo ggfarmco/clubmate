@@ -262,6 +262,12 @@ type ComposerProps struct {
 	Steers      bool
 	Docked      bool
 	Disabled    bool
+	Draft       *ComposerDraft
+}
+
+type ComposerDraft struct {
+	Text string `json:"text"`
+	Rev  int64  `json:"rev"`
 }
 
 func VStack(children ...Node) Node {
@@ -688,12 +694,18 @@ func Select(id string, options []Option, value string) Node {
 }
 
 type ChoiceOption struct {
-	Value       string `json:"value"`
-	Label       string `json:"label"`
-	Description string `json:"description,omitempty"`
-	Shortcut    string `json:"shortcut,omitempty"`
-	Hint        string `json:"hint,omitempty"`
-	On          bool   `json:"on,omitempty"`
+	Value       string       `json:"value"`
+	Label       string       `json:"label"`
+	Description string       `json:"description,omitempty"`
+	Shortcut    string       `json:"shortcut,omitempty"`
+	Hint        string       `json:"hint,omitempty"`
+	On          bool         `json:"on,omitempty"`
+	Aside       *ChoiceAside `json:"aside,omitempty"`
+}
+
+type ChoiceAside struct {
+	ID    string `json:"id"`
+	State string `json:"state"`
 }
 
 type ChoiceOther struct {
@@ -708,18 +720,20 @@ type ChoiceOther struct {
 }
 
 type ChoiceProps struct {
-	Style      string
-	Title      string
-	Text       string
-	Quote      string
-	Note       string
-	Summary    string
-	Cursor     string
-	OpenAction string
-	Number     int
-	Open       bool
-	Options    []ChoiceOption
-	Other      *ChoiceOther
+	Style       string
+	Title       string
+	Text        string
+	Quote       string
+	Note        string
+	Summary     string
+	Cursor      string
+	OpenAction  string
+	AsideAction string
+	Number      int
+	Open        bool
+	Pinned      bool
+	Options     []ChoiceOption
+	Other       *ChoiceOther
 }
 
 func Choice(id string, p ChoiceProps) Node {
@@ -731,11 +745,15 @@ func Choice(id string, p ChoiceProps) Node {
 	withOptional(props, "summary", p.Summary)
 	withOptional(props, "cursor", p.Cursor)
 	withOptional(props, "openAction", p.OpenAction)
+	withOptional(props, "asideAction", p.AsideAction)
 	if p.Number > 0 {
 		props["number"] = p.Number
 	}
 	if p.Open {
 		props["open"] = true
+	}
+	if p.Pinned {
+		props["pinned"] = true
 	}
 	if p.Other != nil {
 		props["other"] = *p.Other
@@ -1014,6 +1032,9 @@ func Composer(id string, p ComposerProps) Node {
 	}
 	if p.Disabled {
 		props["disabled"] = true
+	}
+	if p.Draft != nil {
+		props["draft"] = *p.Draft
 	}
 	return Node{Type: "composer", ID: id, Props: props}
 }

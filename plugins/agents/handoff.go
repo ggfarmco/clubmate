@@ -33,6 +33,9 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 	if s.snapshot().Night != "" {
 		return nil, errNightHandoff
 	}
+	if s.snapshot().isAside() {
+		return nil, errAsideHandoff
+	}
 	finish, _ := a.sessionDefaults(ctx, cmp.Or(s.snapshot().ParentSession, s.snapshot().StartedBy))
 	a.spawnMu.Lock()
 	defer a.spawnMu.Unlock()

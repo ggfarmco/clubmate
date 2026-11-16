@@ -23,7 +23,7 @@ func (a *app) children(id string) []*session {
 	a.mu.Unlock()
 	var out []*session
 	for _, s := range all {
-		if s.snapshot().ParentSession == id {
+		if rec := s.snapshot(); rec.ParentSession == id && !rec.isAside() {
 			out = append(out, s)
 		}
 	}
@@ -31,8 +31,22 @@ func (a *app) children(id string) []*session {
 	return out
 }
 
+func (a *app) asides(id string) []*session {
+	a.mu.Lock()
+	all := slices.Collect(maps.Values(a.sessions))
+	a.mu.Unlock()
+	var out []*session
+	for _, s := range all {
+		if rec := s.snapshot(); rec.ParentSession == id && rec.isAside() {
+			out = append(out, s)
+		}
+	}
+	slices.SortFunc(out, func(x, y *session) int { return y.snapshot().CreatedAt.Compare(x.snapshot().CreatedAt) })
+	return out
+}
+
 func (a *app) asksParent(s *session, rec record) bool {
-	if rec.Status != statusWaiting || rec.ParentSession == "" || !s.onlyQuestions() {
+	if rec.Status != statusWaiting || rec.ParentSession == "" || rec.isAside() || !s.onlyQuestions() {
 		return false
 	}
 	parent := a.session(rec.ParentSession)
@@ -69,7 +83,7 @@ func (a *app) openStartedBy(starter string) int {
 
 func (a *app) descendantOf(id, ancestor string) bool {
 	s := a.session(id)
-	if s == nil || id == ancestor {
+	if s == nil || id == ancestor || s.snapshot().isAside() {
 		return false
 	}
 	for rec := range a.ancestry(s.snapshot()) {
@@ -121,7 +135,7 @@ func statusParent(rec record) string {
 func statusKids(recs []record) map[string][]record {
 	kids := map[string][]record{}
 	for _, rec := range recs {
-		if p := statusParent(rec); p != "" {
+		if p := statusParent(rec); p != "" && !rec.isAside() {
 			kids[p] = append(kids[p], rec)
 		}
 	}
@@ -131,7 +145,7 @@ func statusKids(recs []record) map[string][]record {
 func kidsOf(recs []record) map[string][]record {
 	kids := map[string][]record{}
 	for _, rec := range recs {
-		if rec.ParentSession != "" {
+		if rec.ParentSession != "" && !rec.isAside() {
 			kids[rec.ParentSession] = append(kids[rec.ParentSession], rec)
 		}
 	}

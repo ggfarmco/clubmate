@@ -269,7 +269,7 @@ func (a *app) gateEnv(ctx context.Context, rec record) map[string]string {
 }
 
 func (a *app) gatedMeta(ctx context.Context, rec record) *acp.SessionMeta {
-	meta := sessionMeta(rec, a.sessionAdvisor(ctx, rec), a.selfFor(ctx, rec), a.userStarted(rec) && chromeByDefault())
+	meta := sessionMeta(rec, a.sessionAdvisor(ctx, rec), a.selfFor(ctx, rec), !rec.isAside() && a.userStarted(rec) && chromeByDefault())
 	maps.Copy(meta.ClaudeCode.Options.Env, a.gateEnv(ctx, rec))
 	return meta
 }

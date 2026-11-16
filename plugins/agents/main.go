@@ -63,6 +63,7 @@ type app struct {
 	openWake    chan struct{}
 
 	spawnMu    sync.Mutex
+	asideMu    sync.Mutex
 	leaving    map[string]int
 	worktreeMu sync.Mutex
 	connectMu  sync.Mutex
@@ -377,12 +378,7 @@ func (a *app) list(workspaceID string) []record {
 func (a *app) infos(workspaceID string) []sessionInfo {
 	recs := a.list(workspaceID)
 	children := childStatuses(recs)
-	kids := map[string][]record{}
-	for _, rec := range recs {
-		if rec.ParentSession != "" {
-			kids[rec.ParentSession] = append(kids[rec.ParentSession], rec)
-		}
-	}
+	kids := kidsOf(recs)
 	nest := reviewerNesting(recs, func(lander string, st landReview) bool {
 		_, ok := a.reviewing(lander, st)
 		return ok
@@ -417,6 +413,8 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		info.NeedsYou = needsYou(info.record)
 		info.Gate = a.gateState(info.record)
 		info.Service = rec.restricted()
+		info.Aside = asideViewOf(rec)
+		info.CanAside = a.canAside(rec)
 		if rec.Status == statusError {
 			failure := failureOf(rec)
 			a.uiMu.Lock()

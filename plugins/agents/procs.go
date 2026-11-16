@@ -98,6 +98,7 @@ func (a *app) startProc(ctx context.Context, agent, workspace, root string) (*ag
 	}
 	a.uiMu.Lock()
 	a.resumable[agent] = p.caps.SessionCapabilities.Resume != nil
+	a.forks[agent] = p.caps.SessionCapabilities.Fork != nil
 	a.steers[agent] = p.steering
 	a.uiMu.Unlock()
 	return p, nil

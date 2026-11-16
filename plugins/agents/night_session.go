@@ -90,7 +90,7 @@ func nightOutcome(options []acp.PermissionOption) acp.PermissionOutcome {
 }
 
 func hiddenFrom(cmd pluginsdk.CommandRun, rec record) bool {
-	return rec.Night != "" && cmd.Agent && cmd.Caller != rec.ID
+	return (rec.Night != "" || rec.isAside()) && cmd.Agent && cmd.Caller != rec.ID
 }
 
 func visibleInfos(cmd pluginsdk.CommandRun, infos []sessionInfo) []sessionInfo {

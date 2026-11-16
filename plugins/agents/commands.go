@@ -25,6 +25,11 @@ const (
 var (
 	commandTable = map[string]commandFunc{
 		"agents.new":            withArgs((*app).newCommand),
+		"agents.aside":          withArgs((*app).asideCommand),
+		"agents.aside-summary":  withArgs((*app).asideSummaryCommand),
+		"agents.aside-send":     withArgs((*app).asideSendCommand),
+		"agents.aside-pick":     withArgs((*app).asidePickCommand),
+		"agents.aside-keep":     withArgs((*app).asideKeepCommand),
 		"agents.prompt":         withArgs((*app).promptCommand),
 		"agents.answer":         withArgs((*app).answerCommand),
 		"agents.permission":     withArgs((*app).permissionCommand),
@@ -604,7 +609,7 @@ func (a *app) busyCommand(_ context.Context, cmd pluginsdk.CommandRun, s *sessio
 	if i := slices.IndexFunc(recs, func(r record) bool { return r.ID == rec.ID }); i >= 0 {
 		rec = recs[i]
 	}
-	return closeBusy(rec, kidsOf(recs)), nil
+	return a.closeAsk(rec, kidsOf(recs)), nil
 }
 
 func (a *app) deleteCommand(ctx context.Context, _ pluginsdk.CommandRun, s *session) (any, error) {

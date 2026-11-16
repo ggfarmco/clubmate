@@ -107,6 +107,7 @@ var (
 	documentSizes = []string{"fill", "fit"}
 	documentKinds = []string{"markdown", "artifact"}
 
+	asideStates  = []string{"open", "thinking", "asks", "sent"}
 	columnAligns = []string{"left", "right"}
 	truncates    = []string{"tail", "middle", "head"}
 	cellTones    = []string{"", "ok", "warn", "danger"}
@@ -254,7 +255,7 @@ var (
 		},
 		"choice": {
 			required:    []string{"style", "options"},
-			props:       map[string]propCheck{"style": oneOf(choiceStyles), "title": isString, "text": isString, "quote": isString, "note": isString, "summary": isString, "cursor": isString, "openAction": actionCheck, "number": countNumber, "open": isBool, "options": listOf(choiceOptionCheck), "other": choiceOtherCheck, "action": actionCheck},
+			props:       map[string]propCheck{"style": oneOf(choiceStyles), "title": isString, "text": isString, "quote": isString, "note": isString, "summary": isString, "cursor": isString, "openAction": actionCheck, "asideAction": actionCheck, "number": countNumber, "open": isBool, "pinned": isBool, "options": listOf(choiceOptionCheck), "other": choiceOtherCheck, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},
@@ -392,6 +393,7 @@ var (
 			props: map[string]propCheck{
 				"placeholder": isString, "hint": isString, "agent": isString, "modes": listOf(optionCheck), "mode": isString, "pickers": listOf(pickerCheck),
 				"commands": listOf(commandCheck), "attach": listOf(oneOf(attachSources)), "attachments": attachmentsCheck, "running": isBool, "steers": isBool, "docked": isBool, "disabled": isBool,
+				"draft": objectCheck([]string{"text", "rev"}, map[string]propCheck{"text": isString, "rev": countNumber}),
 			},
 			children:    noChildren,
 			interactive: true,
@@ -801,7 +803,11 @@ func optionCheck(c *validator, v any) error {
 }
 
 func choiceOptionCheck(c *validator, v any) error {
-	return objectCheck([]string{"value", "label"}, map[string]propCheck{"value": isString, "label": isString, "description": isString, "shortcut": shortcutCheck, "hint": isString, "on": isBool})(c, v)
+	return objectCheck([]string{"value", "label"}, map[string]propCheck{"value": isString, "label": isString, "description": isString, "shortcut": shortcutCheck, "hint": isString, "on": isBool, "aside": choiceAsideCheck})(c, v)
+}
+
+func choiceAsideCheck(c *validator, v any) error {
+	return objectCheck([]string{"id", "state"}, map[string]propCheck{"id": nonEmptyString, "state": oneOf(asideStates)})(c, v)
 }
 
 func choiceOtherCheck(c *validator, v any) error {

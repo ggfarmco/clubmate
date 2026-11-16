@@ -154,8 +154,10 @@ func TestValidateAgentNodes(t *testing.T) {
 			Placeholder: "Ask", Agent: "Claude", Modes: []sdui.Option{{Value: "default", Label: "Manual"}}, Mode: "default",
 			Pickers:  []sdui.Picker{{ID: "model", Help: "Model", Value: "opus", Options: []sdui.Option{{Value: "opus", Label: "Opus"}}}},
 			Commands: []sdui.Command{{Name: "review", Description: "Review"}}, Attach: []string{"file", "selection"}, Attachments: attachments, Running: true,
+			Draft: &sdui.ComposerDraft{Text: "> quote\n\ntext", Rev: 2},
 		}),
-		"menu": sdui.List("l", []sdui.Item{{ID: "a", Label: "A", Menu: []sdui.MenuEntry{{Action: "delete", Label: "Delete", Confirm: "Sure?"}}}}, ""),
+		"choice": sdui.Choice("q", sdui.ChoiceProps{Style: "radio", Text: "Store", Pinned: true, AsideAction: "asideAsk", Options: []sdui.ChoiceOption{{Value: "Postgres", Label: "Postgres", On: true, Aside: &sdui.ChoiceAside{ID: "agt_1", State: "asks"}}}, Other: &sdui.ChoiceOther{ID: "q/o", Label: "Other…", On: true, Value: "too heavy"}}),
+		"menu":   sdui.List("l", []sdui.Item{{ID: "a", Label: "A", Menu: []sdui.MenuEntry{{Action: "delete", Label: "Delete", Confirm: "Sure?"}}}}, ""),
 	}
 	for name, n := range nodes {
 		t.Run(name, func(t *testing.T) {
@@ -178,6 +180,8 @@ func TestValidateAgentNodes(t *testing.T) {
 		"bad card tone":          sdui.Card("orange", "", sdui.Text("x")),
 		"duplicate option":       sdui.PermissionCard("p", "r", sdui.PermissionCardProps{Text: "x", Options: []sdui.PermissionOption{{ID: "a", Label: "A"}, {ID: "a", Label: "B"}}}),
 		"bad attach kind":        sdui.Composer("m", sdui.ComposerProps{Attach: []string{"image"}}),
+		"bad aside state":        sdui.Choice("q", sdui.ChoiceProps{Style: "radio", Options: []sdui.ChoiceOption{{Value: "a", Label: "A", Aside: &sdui.ChoiceAside{ID: "agt_1", State: "kept"}}}}),
+		"draft without rev":      {Type: "composer", ID: "m", Props: map[string]any{"draft": map[string]any{"text": "x"}}},
 		"duplicate attachment":   sdui.Composer("m", sdui.ComposerProps{Attachments: []sdui.Attachment{{ID: "a1", Kind: "file", Path: "a"}, {ID: "a1", Kind: "file", Path: "b"}}}),
 		"menu bad action":        sdui.List("l", []sdui.Item{{ID: "a", Label: "A", Menu: []sdui.MenuEntry{{Action: "Bad Action", Label: "x"}}}}, ""),
 	}

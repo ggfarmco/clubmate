@@ -123,21 +123,30 @@ func (a *app) attachAgent(s *session) (*agentProc, error) {
 			_, extra, _ = workRoot(workspace)
 		}
 	}
-	if rec.AgentSessionID != "" && prompted {
+	if rec.AgentSessionID != "" && (prompted || rec.Aside != nil) {
 		return p, a.resumeOn(ctx, s, p, rec, extra)
 	}
+	method, params := acp.MethodSessionNew, any(acp.NewSessionRequest{Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcpFor(rec), Meta: a.gatedMeta(ctx, rec)})
+	if rec.isAside() {
+		from := a.forkSource(rec)
+		if from == "" || p.caps.SessionCapabilities.Fork == nil {
+			a.release(p)
+			return nil, errForkUnsupported
+		}
+		method, params = acp.MethodSessionFork, acp.ForkSessionRequest{SessionID: from, Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcpFor(rec), Meta: a.gatedMeta(ctx, rec)}
+	}
 	var raw json.RawMessage
-	if err := p.conn.Call(ctx, acp.MethodSessionNew, acp.NewSessionRequest{Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcpFor(rec), Meta: a.gatedMeta(ctx, rec)}, &raw); err != nil {
+	if err := p.conn.Call(ctx, method, params, &raw); err != nil {
 		a.release(p)
 		if authErr := a.authRequired(rec.ID, p, err); authErr != nil {
 			return nil, authErr
 		}
-		return nil, fmt.Errorf("session/new: %w", err)
+		return nil, fmt.Errorf("%s: %w", method, err)
 	}
 	var res acp.NewSessionResponse
 	if err := json.Unmarshal(raw, &res); err != nil || res.SessionID == "" {
 		a.release(p)
-		return nil, fmt.Errorf("session/new: bad response %s", raw)
+		return nil, fmt.Errorf("%s: bad response %s", method, raw)
 	}
 	if !p.register(res.SessionID, s) {
 		a.dropAttached(p, res.SessionID)
@@ -152,7 +161,13 @@ func (a *app) attachAgent(s *session) (*agentProc, error) {
 	a.notes.persist(ctx, s)
 	s.changed(changeStatus, true)
 	mode, value := a.startSettings(ctx, rec)
-	a.applyMode(ctx, s, res.Modes, cmp.Or(rec.StartMode, rec.FirstMode, mode))
+	if rec.isAside() {
+		if err := a.enterAsideMode(ctx, s, p, res.SessionID, res.Modes); err != nil {
+			return nil, err
+		}
+	} else {
+		a.applyMode(ctx, s, res.Modes, cmp.Or(rec.StartMode, rec.FirstMode, mode))
+	}
 	starts := startConfigs(rec)
 	configs, failed := a.applyConfigs(ctx, s, res.ConfigOptions, withStart(starts, value))
 	reportStart(s, configs, starts, failed)
@@ -205,7 +220,11 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 	}
 	var res acp.ResumeSessionResponse
 	if json.Unmarshal(raw, &res) == nil {
-		if rec.Night == "" {
+		if rec.isAside() {
+			if err := a.enterAsideMode(ctx, s, p, rec.AgentSessionID, res.Modes); err != nil {
+				return err
+			}
+		} else if rec.Night == "" {
 			a.applyMode(ctx, s, res.Modes, cmp.Or(rec.StartMode, mode))
 		}
 		a.applyConfigs(ctx, s, res.ConfigOptions, withStart([]startConfig{{category: acp.CategoryModel, value: rec.pinnedModel()}}, func(id string) string { return values[id] }))

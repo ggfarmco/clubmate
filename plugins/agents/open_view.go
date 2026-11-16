@@ -63,6 +63,7 @@ type openCardData struct {
 	Later    bool
 	Entry    string
 	Night    bool
+	Asides   optionAsides
 }
 
 type openQueueCard struct {
@@ -185,7 +186,7 @@ func openRows(sid string, data openCardData, d openDraft, cursor string) []sdui.
 	var rows []sdui.Node
 	for _, it := range data.Items {
 		if it.Kind != itemOffer {
-			rows = append(rows, decisionChoice(sid, it, data.Numbers[it.ID], d, cursor))
+			rows = append(rows, decisionChoice(sid, it, data.Numbers[it.ID], d, cursor, data.Asides))
 		}
 	}
 	if offers := offerItems(data.Items); len(offers) > 0 {
@@ -194,7 +195,7 @@ func openRows(sid string, data openCardData, d openDraft, cursor string) []sdui.
 	return rows
 }
 
-func decisionChoice(sid string, it openItem, number int, d openDraft, cursor string) sdui.Node {
+func decisionChoice(sid string, it openItem, number int, d openDraft, cursor string, asides optionAsides) sdui.Node {
 	ans := d.answers[it.ID]
 	style := "radio"
 	if it.MultiSelect {
@@ -208,10 +209,12 @@ func decisionChoice(sid string, it openItem, number int, d openDraft, cursor str
 	if it.ID == cursor {
 		other.Focus = d.focus
 	}
-	return sdui.Choice(openItemNode(sid, it.ID), sdui.ChoiceProps{
+	p := sdui.ChoiceProps{
 		Style: style, Title: it.Header, Text: it.Question, Quote: it.Quote, Number: number, Open: it.ID == cursor,
 		OpenAction: actOpenMove, Options: options, Other: other,
-	})
+	}
+	asides.apply(&p, func(value string) string { return openAsideMark(it.ID, value) })
+	return sdui.Choice(openItemNode(sid, it.ID), p)
 }
 
 func offersChoice(sid string, offers []openItem, number int, d openDraft, cursor string) sdui.Node {

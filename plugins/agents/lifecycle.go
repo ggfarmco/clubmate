@@ -19,6 +19,7 @@ const (
 	busySelf  = "The agent is still working. Close the session and stop its turn?"
 	busyChild = "A child session is still working. Close the session and its child sessions?"
 	busyBoth  = "The agent and a child session are still working. Close the session and its child sessions?"
+	busyAside = "Close without sending?"
 )
 
 type busyResult struct {
@@ -47,6 +48,17 @@ func closeBusy(rec record, kids map[string][]record) busyResult {
 	return busyResult{}
 }
 
+func (a *app) closeAsk(rec record, kids map[string][]record) busyResult {
+	busy := closeBusy(rec, kids)
+	if busy.Busy || !rec.isAside() || rec.Aside.Sent {
+		return busy
+	}
+	if s := a.session(rec.ID); s != nil && s.currentTurn() > 0 {
+		return busyResult{Busy: true, Message: busyAside}
+	}
+	return busy
+}
+
 func (a *app) closeTree(ctx context.Context, s *session) {
 	seen := map[string]bool{}
 	var walk func(*session)
@@ -56,6 +68,10 @@ func (a *app) closeTree(ctx context.Context, s *session) {
 			return
 		}
 		seen[id] = true
+		if x.snapshot().isAside() {
+			logError("delete aside", a.deleteSession(ctx, x, true))
+			return
+		}
 		a.closeSession(ctx, x, false)
 		a.spawnMu.Lock()
 		children := a.children(id)
@@ -123,6 +139,14 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentP
 		s.turned(ended)
 	}
 	s.changed(changeStatus, true)
+	if !rec.isAside() {
+		a.asideMu.Lock()
+		asides := a.asides(rec.ID)
+		a.asideMu.Unlock()
+		for _, x := range asides {
+			logError("delete aside", a.deleteSession(ctx, x, true))
+		}
+	}
 	a.wakeOpenAging()
 	a.gateTurnEnded(s, false)
 	a.cancelSignIn(ctx, rec.Workspace, rec.ID)

@@ -89,7 +89,7 @@ var (
 	errUserAction    = errors.New("only the user presses this")
 )
 
-var userActions = []string{actSend, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave, actArchive, actArchiveTick, actArchiveFolder, actArchiveCancel, actArchiveConfirm, actArchiveClose, actRestore, actCleanupTick, actCleanupGroup, actCleanupShow, actCleanupFilter, actCleanupFolder, actCleanupCancel, actCleanupConfirm, actRemoveRun, actGateDelete, actNewGate, actNewGraph}
+var userActions = []string{actSend, actAsidePick, actAsideAsk, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave, actArchive, actArchiveTick, actArchiveFolder, actArchiveCancel, actArchiveConfirm, actArchiveClose, actRestore, actCleanupTick, actCleanupGroup, actCleanupShow, actCleanupFilter, actCleanupFolder, actCleanupCancel, actCleanupConfirm, actRemoveRun, actGateDelete, actNewGate, actNewGraph}
 
 type textValue struct {
 	Text string `json:"text"`
@@ -536,6 +536,18 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		return a.landAct(ctx, ev.WorkspaceID, v)
 	case actElicitation, actElicitPick, actElicitDecline, actElicitOpen:
 		return a.elicitAct(ev, s, node)
+	case actAsideAsk:
+		value, err := itemID(ev)
+		if err != nil {
+			return err
+		}
+		return a.askAside(ctx, s, node, value)
+	case actAsidePick:
+		value, err := itemID(ev)
+		if err != nil {
+			return err
+		}
+		return a.asidePick(ev.WorkspaceID, sid, value)
 	case actMode:
 		var v modeValue
 		if err := decode(ev.Value, &v); err != nil {

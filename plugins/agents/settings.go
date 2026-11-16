@@ -43,6 +43,9 @@ func (a *app) setMode(ctx context.Context, workspaceID string, args modeArgs) er
 	if s.snapshot().Night != "" {
 		return errNightMode
 	}
+	if s.snapshot().isAside() {
+		return errAsideMode
+	}
 	s.mu.Lock()
 	known := slices.ContainsFunc(s.modes, func(m acp.SessionMode) bool { return m.ID == args.Mode })
 	worktree := s.rec.Worktree

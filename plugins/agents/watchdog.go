@@ -61,7 +61,7 @@ func (a *app) statusChanged(s *session) {
 	w.mu.Lock()
 	prev := w.last[rec.ID]
 	w.last[rec.ID] = rec.Status
-	report := rec.ParentSession != "" && reportable(rec.Status) && busy(prev) && prev != rec.Status && w.seen[rec.ID] != key && w.retryTimers[rec.ID] == nil && (rec.LimitWait == nil || rec.LimitWait.Fired)
+	report := rec.ParentSession != "" && !rec.isAside() && reportable(rec.Status) && busy(prev) && prev != rec.Status && w.seen[rec.ID] != key && w.retryTimers[rec.ID] == nil && (rec.LimitWait == nil || rec.LimitWait.Fired)
 	if report {
 		if w.pending[rec.ParentSession] == nil {
 			w.pending[rec.ParentSession] = map[string]string{}

@@ -47,7 +47,7 @@ func (a *app) closeDone(after time.Duration) {
 	for _, root := range roots {
 		rec := root.snapshot()
 		tree := a.subtree(root)
-		if slices.ContainsFunc(tree, func(s *session) bool { return !s.settled(after, s == root && rec.Run != nil) }) {
+		if slices.ContainsFunc(tree, func(s *session) bool { return !s.settled(after, s == root && rec.Run != nil) }) || !a.asidesSettled(tree, after) {
 			continue
 		}
 		workspace := rec.Workspace
@@ -106,4 +106,13 @@ func (s *session) settled(after time.Duration, idleOK bool) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.rec.closed() || (s.rec.Status == statusDone || idleOK && s.rec.Status == statusIdle) && !s.rec.Review && s.rec.OpenCount == 0 && !s.rec.connectWaits() && !s.rec.gateWaits() && !s.rec.taskOpen() && s.idleLocked(after) && (s.rec.ParentSession != "" || !s.asksLocked())
+}
+
+func (a *app) asidesSettled(tree []*session, after time.Duration) bool {
+	for _, s := range tree {
+		if slices.ContainsFunc(a.asides(s.snapshot().ID), func(x *session) bool { return !x.settled(after, true) }) {
+			return false
+		}
+	}
+	return true
 }

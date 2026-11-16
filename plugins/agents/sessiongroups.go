@@ -53,7 +53,7 @@ func setGroups(infos []sessionInfo) {
 			if visiting[k] {
 				continue
 			}
-			if g := lift(k); g == groupNeedsYou || (g == groupRunning || g == groupOpen) && own != groupService {
+			if g := lift(k); g == groupNeedsYou || (g == groupRunning || g == groupOpen) && own != groupService && !infos[k].record.isAside() {
 				best = min(best, slices.Index(groupOrder, g))
 			}
 		}

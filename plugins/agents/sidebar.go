@@ -105,22 +105,23 @@ var (
 )
 
 type sessionRow struct {
-	Rec      record
-	Activity string
-	Started  time.Time
-	Notify   string
-	Children string
-	CloseAsk string
-	Branch   string
-	Detached bool
-	Asking   bool
-	Since    time.Time
-	Review   *reviewProgress
-	RunNeed  *runNeed
-	RunRow   *api.RunRow
-	Nest     *reviewerNest
-	Open     int
-	Gate     string
+	Rec       record
+	Activity  string
+	Started   time.Time
+	Notify    string
+	Children  string
+	CloseAsk  string
+	Branch    string
+	Detached  bool
+	Asking    bool
+	Since     time.Time
+	Review    *reviewProgress
+	RunNeed   *runNeed
+	RunRow    *api.RunRow
+	Nest      *reviewerNest
+	Open      int
+	Gate      string
+	AsideAsks bool
 }
 
 type sidebarPlus struct {
@@ -270,6 +271,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	for i, row := range roots {
 		runs[row.Rec.ID] = runsNeeding(row, kids, map[string]bool{})
 		roots[i].Open = openTotal(row, kids, map[string]bool{})
+		roots[i].AsideAsks = subtreeAsideAsks(row.Rec.ID, kids, map[string]bool{})
 	}
 	tabs := filterTabs(roots, filter, runs)
 	roots = slices.DeleteFunc(roots, func(row sessionRow) bool {
@@ -522,7 +524,7 @@ func filterTabs(roots []sessionRow, filter string, runs map[string][]string) sdu
 }
 
 func ownNeeds(row sessionRow) bool {
-	return needsYou(row.Rec) || row.Children == statusWaiting
+	return needsYou(row.Rec) || row.Children == statusWaiting || row.AsideAsks
 }
 
 func runsNeeding(row sessionRow, kids map[string][]sessionRow, seen map[string]bool) []string {
@@ -607,9 +609,13 @@ func anyNeeds(rows []sessionRow, oldest map[string]time.Time) bool {
 func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, path map[string]bool, oldest map[string]time.Time) sdui.TreeItem {
 	path[row.Rec.ID] = true
 	defer delete(path, row.Rec.ID)
-	var children []sessionRow
+	var children, asides []sessionRow
 	for _, kid := range kids[row.Rec.ID] {
-		if !path[kid.Rec.ID] {
+		switch {
+		case path[kid.Rec.ID]:
+		case kid.Rec.isAside():
+			asides = append(asides, kid)
+		default:
 			children = append(children, kid)
 		}
 	}
@@ -617,18 +623,54 @@ func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[stri
 	if row.Nest != nil {
 		item.Label, item.Detail = row.Nest.Round.Label, row.Nest.Round.Verdict
 	}
-	if entries := row.Rec.repoEntries(); len(entries) > 0 {
-		return taskParent(item, row, entries, children, kids, collapsed, now, path, oldest)
+	if row.Rec.isAside() {
+		return asideItem(item, row.Rec)
 	}
-	if len(children) == 0 {
+	if entries := row.Rec.repoEntries(); len(entries) > 0 {
+		item = taskParent(item, row, entries, children, kids, collapsed, now, path, oldest)
+		if len(asides) > 0 && (item.Expanded || anyNeeds(asides, oldest)) {
+			item.Children = append(item.Children, asideItems(row.Rec.ID, asides, kids, collapsed, now, path, oldest)...)
+		}
+		return item
+	}
+	if len(children) == 0 && len(asides) == 0 {
 		return item
 	}
 	item.HasChildren = true
 	folded, ok := collapsed[expandPrefix+row.Rec.ID]
-	item.Expanded = ok && !folded || anyNeeds(children, oldest)
+	item.Expanded = ok && !folded || anyNeeds(children, oldest) || anyNeeds(asides, oldest)
 	if item.Expanded {
-		item.Children = runItems(children, row.Rec.ID, kids, collapsed, now, path, oldest)
+		item.Children = append(runItems(children, row.Rec.ID, kids, collapsed, now, path, oldest), asideItems(row.Rec.ID, asides, kids, collapsed, now, path, oldest)...)
 	}
+	return item
+}
+
+func asideItems(parent string, rows []sessionRow, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, path map[string]bool, oldest map[string]time.Time) []sdui.TreeItem {
+	rows = slices.Clone(rows)
+	slices.SortStableFunc(rows, func(x, y sessionRow) int { return y.Rec.CreatedAt.Compare(x.Rec.CreatedAt) })
+	items := make([]sdui.TreeItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, nestedItem(row, kids, collapsed, now, path, oldest))
+	}
+	if len(items) < asidesFoldAt {
+		return items
+	}
+	key := asidesKey + parent
+	folded, ok := collapsed[key]
+	group := groupItem(key, fmt.Sprintf(asidesLabel, len(items)), asideIcon, items, ok && !folded || anyNeeds(rows, oldest))
+	if anyNeeds(rows, oldest) {
+		group.DetailTone = statusTones[statusWaiting]
+	}
+	return []sdui.TreeItem{group}
+}
+
+func asideItem(item sdui.TreeItem, rec record) sdui.TreeItem {
+	state := asideState(rec)
+	item.Icon, item.Detail, item.Tone, item.DetailTone, item.DetailFaint, item.Badges = asideIcon, asideDetails[state], "", "", false, nil
+	if state == asideAsks {
+		item.Tone, item.DetailTone = statusTones[statusWaiting], statusTones[statusWaiting]
+	}
+	item.Menu = slices.DeleteFunc(item.Menu, func(m sdui.MenuEntry) bool { return m.Action == actHandoff || m.Action == actArchive })
 	return item
 }
 
@@ -722,11 +764,24 @@ func groupItem(key, label, icon string, children []sdui.TreeItem, expanded bool)
 	return item
 }
 
+func subtreeAsideAsks(id string, kids map[string][]sessionRow, seen map[string]bool) bool {
+	seen[id] = true
+	for _, kid := range kids[id] {
+		if seen[kid.Rec.ID] {
+			continue
+		}
+		if kid.Rec.isAside() && needsYou(kid.Rec) || subtreeAsideAsks(kid.Rec.ID, kids, seen) {
+			return true
+		}
+	}
+	return false
+}
+
 func descendantCount(id string, kids map[string][]sessionRow, seen map[string]bool) int {
 	seen[id] = true
 	n := 0
 	for _, kid := range kids[id] {
-		if !seen[kid.Rec.ID] {
+		if !seen[kid.Rec.ID] && !kid.Rec.isAside() {
 			n += 1 + descendantCount(kid.Rec.ID, kids, seen)
 		}
 	}
@@ -841,6 +896,9 @@ func displayStatus(rec record, children string) string {
 }
 
 func needsYou(rec record) bool {
+	if rec.isAside() {
+		return asideState(rec) == asideAsks
+	}
 	return rec.Status == statusWaiting && !rec.AsksParent || rec.Status == statusDone && rec.Asks && rec.ParentSession == "" && rec.Night == "" || rec.connectWaits() || rec.taskWaits() || rec.gateWaits()
 }
 

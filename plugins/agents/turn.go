@@ -56,7 +56,14 @@ func (a *app) prompt(workspaceID string, args promptArgs) error {
 	if err := a.refuseLeaving(s.snapshot().Worktree); err != nil {
 		return err
 	}
-	if args.From == "" || s.snapshot().ParentSession != args.From {
+	if args.From == "" {
+		err := a.submit(s, &args)
+		if err == nil {
+			s.clearDraft()
+		}
+		return err
+	}
+	if s.snapshot().ParentSession != args.From {
 		return a.submit(s, &args)
 	}
 	a.spawnMu.Lock()
@@ -244,6 +251,7 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	ctx, cancel = context.WithTimeout(context.Background(), callTimeout)
 	a.saveNow(ctx, s)
 	cancel()
+	parentTitle := a.frameParentTitle(rec)
 	time.Sleep(a.sendHold)
 	s.mu.Lock()
 	if a.stopping() {
@@ -257,6 +265,9 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	}
 	if none := s.takeNoneLocked(); none != "" {
 		req.Prompt = slices.Insert(slices.Clip(req.Prompt), 0, acp.ContentBlock{Type: "text", Text: none})
+	}
+	if frame := s.takeFrameLocked(parentTitle); frame != "" {
+		req.Prompt = slices.Insert(slices.Clip(req.Prompt), 0, acp.ContentBlock{Type: "text", Text: frame})
 	}
 	s.recordSentLocked(promptPayload{PromptRequest: acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: blocks}, From: args.From, FromTitle: fromTitle, Voice: args.Voice, Review: args.Review})
 	s.mu.Unlock()
