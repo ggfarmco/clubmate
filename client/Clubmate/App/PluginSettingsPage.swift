@@ -23,6 +23,9 @@ final class SettingsPlugins {
     func icon(_ plugin: String) -> String {
         let manifest = list?.first { $0.id == plugin }?.manifest
         let section = manifest?.contributes.sections.first?.icon
+        if let name = manifest?.icon, GourdGlyph.isName(name) {
+            return name
+        }
         return SymbolName.resolve(manifest?.icon ?? section, fallback: SymbolName.resolve(section, fallback: "puzzlepiece.extension"))
     }
 
@@ -133,9 +136,13 @@ struct PluginSidebarRow: View {
 
     var body: some View {
         HStack {
-            Label(plugin.name, systemImage: icon)
-                .lineLimit(1)
-                .foregroundStyle(plugin.isEnabled ? .primary : .secondary)
+            Label {
+                Text(plugin.name)
+            } icon: {
+                SymbolIcon(name: icon, size: 17)
+            }
+            .lineLimit(1)
+            .foregroundStyle(plugin.isEnabled ? .primary : .secondary)
             Spacer(minLength: 4)
             Circle()
                 .fill(plugin.statusColor)
@@ -255,7 +262,7 @@ private struct PluginSettingsHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 10) {
-                Image(systemName: icon)
+                SymbolIcon(name: icon, size: 17)
                     .foregroundStyle(.secondary)
                 Text(plugin.name)
                     .font(.title3.weight(.semibold))

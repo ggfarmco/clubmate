@@ -582,6 +582,90 @@ struct ToggleNodeView: View {
     }
 }
 
+struct RadioNodeView: View {
+    let node: SDUINode
+
+    @State private var hovering = false
+    @State private var keyboardFocus = false
+    @FocusState private var focused: Bool
+    @Environment(\.sduiDispatch) private var dispatch
+    @Environment(\.theme) private var theme
+
+    private var on: Bool { node.bool("on") == true }
+    private var disabled: Bool { node.bool("disabled") == true }
+    private var label: String { node.string("label") ?? "" }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            row
+                .padding(.horizontal, theme.gutter)
+            if !node.children.isEmpty {
+                VStack(alignment: .leading, spacing: theme.spacing.s) {
+                    SDUIChildren(node: node)
+                }
+                .padding(.leading, Self.mark + theme.spacing.s)
+            }
+        }
+    }
+
+    private static let mark: CGFloat = 14
+
+    private var row: some View {
+        Button(action: pick) {
+            HStack(spacing: theme.spacing.s) {
+                mark
+                if !label.isEmpty {
+                    Text(label)
+                        .font(theme.ui)
+                        .foregroundStyle(disabled ? theme.muted : theme.foreground)
+                        .lineLimit(1)
+                }
+            }
+            .frame(minHeight: theme.control + 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .focusable(!disabled, interactions: .activate)
+        .focusEffectDisabled()
+        .focused($focused)
+        .onChange(of: focused) { _, now in
+            keyboardFocus = now && !ButtonNodeView.mouseEvents.contains(NSApp.currentEvent?.type ?? .keyDown)
+        }
+        .onKeyPress(keys: [.space, .return]) { _ in
+            pick()
+            return .handled
+        }
+        .onHover { hovering = $0 }
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private var mark: some View {
+        ZStack {
+            if on {
+                Circle().fill(theme.accent)
+                Circle().fill(theme.onAccent).frame(width: 6, height: 6)
+            } else {
+                Circle().fill(hovering && !disabled ? theme.hover : .clear)
+                Circle().strokeBorder(theme.borderStrong, lineWidth: 1)
+            }
+        }
+        .frame(width: Self.mark, height: Self.mark)
+        .overlay {
+            if keyboardFocus {
+                Circle().stroke(theme.accent, lineWidth: theme.focusRing).padding(-3)
+            }
+        }
+        .opacity(disabled ? 0.5 : 1)
+    }
+
+    private func pick() {
+        guard !disabled, !on, let value = node.string("value") else { return }
+        dispatch(node, .change(value))
+    }
+}
+
 struct SelectNodeView: View {
     let node: SDUINode
 

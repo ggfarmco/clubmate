@@ -4,6 +4,8 @@ package main
 #cgo LDFLAGS: -framework IOKit -framework CoreFoundation
 #include <stdlib.h>
 #include <IOKit/pwr_mgt/IOPMLib.h>
+#include <IOKit/ps/IOPowerSources.h>
+#include <IOKit/ps/IOPSKeys.h>
 
 static IOReturn cm_assert(const char *type, const char *name, IOPMAssertionID *id) {
 	CFStringRef t = CFStringCreateWithCString(NULL, type, kCFStringEncodingUTF8);
@@ -12,6 +14,34 @@ static IOReturn cm_assert(const char *type, const char *name, IOPMAssertionID *i
 	CFRelease(t);
 	CFRelease(n);
 	return r;
+}
+
+static void cm_power(int *laptop, int *battery) {
+	*laptop = 0;
+	*battery = 0;
+	CFTypeRef info = IOPSCopyPowerSourcesInfo();
+	if (info == NULL) {
+		return;
+	}
+	CFArrayRef list = IOPSCopyPowerSourcesList(info);
+	if (list != NULL) {
+		for (CFIndex i = 0; i < CFArrayGetCount(list); i++) {
+			CFDictionaryRef d = IOPSGetPowerSourceDescription(info, CFArrayGetValueAtIndex(list, i));
+			if (d == NULL) {
+				continue;
+			}
+			CFStringRef type = CFDictionaryGetValue(d, CFSTR(kIOPSTypeKey));
+			if (type != NULL && CFEqual(type, CFSTR(kIOPSInternalBatteryType))) {
+				*laptop = 1;
+			}
+		}
+		CFRelease(list);
+	}
+	CFStringRef source = IOPSGetProvidingPowerSourceType(info);
+	if (source != NULL && CFEqual(source, CFSTR(kIOPMBatteryPowerKey))) {
+		*battery = 1;
+	}
+	CFRelease(info);
 }
 */
 import "C"
@@ -70,11 +100,8 @@ func (h *holder) on() bool {
 	return h.held != nil
 }
 
-func assertionTypes(battery, display bool) []string {
-	types := []string{assertSystem}
-	if battery {
-		types = append(types, assertIdle)
-	}
+func assertionTypes(display bool) []string {
+	types := []string{assertSystem, assertIdle}
 	if display {
 		types = append(types, assertDisplay)
 	}
@@ -110,4 +137,10 @@ func (ids iokitAssertions) Release() {
 func pidAlive(pid int) bool {
 	err := syscall.Kill(pid, 0)
 	return err == nil || err == syscall.EPERM
+}
+
+func readPower() power {
+	var laptop, battery C.int
+	C.cm_power(&laptop, &battery)
+	return power{Laptop: laptop != 0, OnBattery: battery != 0}
 }

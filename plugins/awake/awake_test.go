@@ -103,6 +103,7 @@ type env struct {
 	now  time.Time
 	held []*fakeAssertion
 	dead map[int]bool
+	pow  power
 }
 
 func newEnv(t *testing.T) *env {
@@ -116,7 +117,7 @@ func newEnvWith(t *testing.T, h *fakeHost) *env {
 		e.held = append(e.held, p)
 		return p, nil
 	}
-	e.a = &awake{h: h, k: newKeeper(assert, func() time.Time { return e.now }, func(pid int) bool { return !e.dead[pid] })}
+	e.a = &awake{h: h, k: newKeeper(assert, func() time.Time { return e.now }, func(pid int) bool { return !e.dead[pid] }), power: func() power { return e.pow }}
 	e.a.load(t.Context())
 	e.a.start(t.Context())
 	return e
@@ -151,50 +152,66 @@ func (e *env) agentsChanged(kind, session, status string) {
 	e.a.busEvent(e.t.Context(), pluginsdk.Event{Topic: api.TopicChanged, Payload: payload})
 }
 
-func TestManualHoldEndsAtItsDeadline(t *testing.T) {
+func TestHoursChoiceEndsAtItsDeadline(t *testing.T) {
 	e := newEnv(t)
-	_, err := e.run("awake.set", map[string]any{"on": true, "minutes": 60})
+	_, err := e.run("awake.set", map[string]any{"mode": "hours", "hours": 3})
+	require.Error(t, err)
+	_, err = e.run("awake.set", map[string]any{"mode": "hours", "hours": 4})
 	require.NoError(t, err)
 	require.NotNil(t, e.current())
 	assert.Equal(t, []string{assertSystem, assertIdle}, e.current().types)
 	v := e.a.state()
-	assert.Equal(t, "Awake until 18:00", v.Text)
-	assert.True(t, v.Manual)
+	assert.Equal(t, "Awake until 21:00", v.Text)
+	assert.Equal(t, "Kept awake by you until 21:00.", v.Detail)
+	assert.Equal(t, "Until 21:00", v.Value)
+	assert.Equal(t, "until 21:00", v.Ends)
+	assert.Equal(t, "For 4 Hours", v.Labels.Hours.Active)
+	assert.Equal(t, []holdLine{{Kind: kindYou, Title: "You", Trailing: "for 4 hours · until 21:00"}}, v.Holds)
 
-	e.now = e.now.Add(61 * time.Minute)
+	e.now = e.now.Add(4*time.Hour + time.Minute)
 	e.a.tick(t.Context())
 	assert.Nil(t, e.current())
 	last := e.h.published[len(e.h.published)-1]
 	assert.False(t, last.On)
-	assert.False(t, last.Manual)
+	assert.Equal(t, modeOff, last.Mode)
+	assert.Equal(t, "Off", last.Value)
 	assert.Equal(t, "The Mac sleeps as usual.", last.Detail)
 }
 
-func TestAgentsRuleHoldsOnPowerUnlessBatteryIsOn(t *testing.T) {
+func TestAgentsChoiceHoldsOnPowerAndWaitsOnBattery(t *testing.T) {
 	e := newEnv(t)
+	_, err := e.run("awake.agents", nil)
+	require.NoError(t, err)
+	v := e.a.state()
+	assert.True(t, v.Armed)
+	assert.False(t, v.On)
+	assert.Equal(t, "The Mac sleeps as usual until an agent is running or waiting for you.", v.Detail)
+
 	e.h.setSessions(agentSession{ID: "agt_a", Status: "running", Active: true}, agentSession{ID: "agt_b", Status: "waiting", Active: true}, agentSession{ID: "agt_c", Status: "done"})
 	e.agentsChanged(api.ChangeStatus, "agt_a", "running")
-	require.Nil(t, e.current())
-	_, err := e.run("awake.settings-set", map[string]any{"agents": true})
-	require.NoError(t, err)
 	require.NotNil(t, e.current())
-	assert.Equal(t, []string{assertSystem}, e.current().types)
-	v := e.a.state()
+	v = e.a.state()
 	assert.Equal(t, "Awake · 2 agents", v.Text)
-	assert.Contains(t, v.Detail, "on power only")
+	assert.Equal(t, "Kept awake while 2 agents work, on power.", v.Detail)
+
+	e.pow = power{Laptop: true, OnBattery: true}
+	e.a.tick(t.Context())
+	assert.Nil(t, e.current())
+	v = e.a.state()
+	assert.True(t, v.Armed)
+	assert.Equal(t, "The Mac sleeps as usual: on battery, agents wait for power.", v.Detail)
+	assert.Equal(t, "waits for power · 2 sessions", v.Holds[0].Trailing)
 
 	_, err = e.run("awake.settings-set", map[string]any{"battery": true, "display": true})
 	require.NoError(t, err)
+	require.NotNil(t, e.current())
 	assert.Equal(t, []string{assertSystem, assertIdle, assertDisplay}, e.current().types)
-
-	e.h.setSessions(agentSession{ID: "agt_a", Status: "done"})
-	e.agentsChanged(api.ChangeStatus, "agt_a", "done")
-	assert.Nil(t, e.current())
+	assert.Equal(t, "Kept awake while 2 agents work, on battery too. "+lidNote, e.a.state().Detail)
 }
 
 func TestAgentsRuleRereadsSessionsWithoutEvents(t *testing.T) {
 	e := newEnv(t)
-	_, err := e.run("awake.settings-set", map[string]any{"agents": true})
+	_, err := e.run("awake.agents", nil)
 	require.NoError(t, err)
 	e.h.setSessions(agentSession{ID: "agt_a", Status: "running", Active: true})
 	e.agentsChanged(api.ChangeStatus, "agt_a", "running")
@@ -212,17 +229,21 @@ func TestAgentHoldEndsWhenItsProcessExitsOrSessionCloses(t *testing.T) {
 	_, err := e.run("awake.hold", map[string]any{"reason": "release build", "pid": 4242})
 	require.NoError(t, err)
 	require.NotNil(t, e.current())
-	assert.Equal(t, "Awake · release build", e.a.state().Text)
+	v := e.a.state()
+	assert.Equal(t, "Awake · release build", v.Text)
+	assert.Equal(t, "Kept awake by an agent's release build until it ends, 18:00 at the latest.", v.Detail)
 	e.dead[4242] = true
 	e.a.tick(t.Context())
 	assert.Nil(t, e.current())
 
-	e.h.setSessions(agentSession{ID: "agt_0000000000000001", Status: "running"})
+	e.h.setSessions(agentSession{ID: "agt_0000000000000001", Title: "Ship 2.4 release", Status: "running"})
+	e.agentsChanged(api.ChangeStatus, "agt_0000000000000001", "running")
 	_, err = e.run("awake.hold", map[string]any{"reason": "tests"})
 	require.NoError(t, err)
 	require.NotNil(t, e.current())
-	e.h.setSessions(agentSession{ID: "agt_0000000000000001", Status: api.StatusClosed})
+	assert.Equal(t, "Ship 2.4 release · ≤ 18:00", e.a.state().Holds[0].Trailing)
 	var during stateView
+	e.h.setSessions(agentSession{ID: "agt_0000000000000001", Status: api.StatusClosed})
 	e.h.onRun = func() { during = e.a.state() }
 	e.agentsChanged(api.ChangeStatus, "agt_0000000000000001", api.StatusClosed)
 	assert.False(t, during.On)
@@ -230,9 +251,28 @@ func TestAgentHoldEndsWhenItsProcessExitsOrSessionCloses(t *testing.T) {
 	assert.Empty(t, e.a.state().Holds)
 }
 
-func TestRestartKeepsHoldsAndDropsExpiredOnes(t *testing.T) {
+func TestToggleTurnsYourChoiceOnAndOffButKeepsAgentHolds(t *testing.T) {
 	e := newEnv(t)
-	_, err := e.run("awake.set", map[string]any{"on": true})
+	_, err := e.run("awake.hold", map[string]any{"reason": "build"})
+	require.NoError(t, err)
+	_, err = e.run("awake.toggle", nil)
+	require.NoError(t, err)
+	v := e.a.state()
+	assert.Equal(t, modeOn, v.Mode)
+	assert.Equal(t, "Awake +1", v.Text)
+	assert.Equal(t, "Kept awake by you until you turn it off and by an agent's build.", v.Detail)
+
+	_, err = e.run("awake.toggle", nil)
+	require.NoError(t, err)
+	v = e.a.state()
+	assert.Equal(t, modeOff, v.Mode)
+	assert.True(t, v.On)
+	assert.Equal(t, "Awake · build", v.Text)
+}
+
+func TestRestartKeepsChoiceAndDropsExpiredHolds(t *testing.T) {
+	e := newEnv(t)
+	_, err := e.run("awake.on", nil)
 	require.NoError(t, err)
 	_, err = e.run("awake.hold", map[string]any{"reason": "short", "minutes": 1})
 	require.NoError(t, err)
@@ -246,9 +286,10 @@ func TestRestartKeepsHoldsAndDropsExpiredOnes(t *testing.T) {
 	next.a.tick(t.Context())
 	v := next.a.state()
 	assert.True(t, v.On)
+	assert.Equal(t, modeOn, v.Mode)
 	assert.Equal(t, "Awake +1", v.Text)
 	require.Len(t, v.Holds, 2)
-	assert.Equal(t, "long", v.Holds[1].Label)
+	assert.Equal(t, "long", v.Holds[1].Title)
 }
 
 func TestPluginAnswersStateAndRendersSettings(t *testing.T) {
@@ -257,7 +298,7 @@ func TestPluginAnswersStateAndRendersSettings(t *testing.T) {
 	var v stateView
 	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "awake.state", "args": map[string]any{}}, &v))
 	assert.False(t, v.On)
-	assert.False(t, v.Agents)
+	assert.Equal(t, modeOff, v.Mode)
 	assert.Equal(t, "The Mac sleeps as usual.", v.Detail)
 	h.WaitSlot(t, "", settingsSlot, func(n sdui.Node) bool { return len(n.Children) > 0 })
 }

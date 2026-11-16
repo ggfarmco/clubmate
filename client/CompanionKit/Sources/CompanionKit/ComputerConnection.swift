@@ -99,6 +99,7 @@ public final class ComputerConnection: CommandRunner {
     @ObservationIgnored public let device: DeviceIdentity?
     @ObservationIgnored public let appVersion: String
     @ObservationIgnored private var loggedState: String?
+    @ObservationIgnored private var awakeSeq = 0
 
     public init(computer: Computer, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, lastEventID: Int? = nil, cache: ListCache = ListCache(dir: nil), device: DeviceIdentity? = nil, appVersion: String = ProblemReport.appVersion, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }) {
         self.computer = computer
@@ -121,12 +122,14 @@ public final class ComputerConnection: CommandRunner {
         } else if let saved = cache.load(savedKey, as: Saved.self) {
             hello = saved.hello
             workspaces = saved.workspaces
+            awake = saved.awake
         }
     }
 
     private struct Saved: Codable {
         let hello: Hello
         let workspaces: [Workspace]
+        var awake: AwakeState?
     }
 
     private var savedKey: ListCache.Key {
@@ -190,7 +193,7 @@ public final class ComputerConnection: CommandRunner {
 
     private func save() {
         guard let hello else { return }
-        cache.save(Saved(hello: hello, workspaces: workspaces), savedKey)
+        cache.save(Saved(hello: hello, workspaces: workspaces, awake: awake), savedKey)
     }
 
     public func start(background: Bool = false) {
@@ -431,7 +434,6 @@ public final class ComputerConnection: CommandRunner {
                 save()
                 identify(hello.computer)
                 await loadVoiceSettings()
-                await loadAwake()
                 await loadUsage()
                 if Task.isCancelled { return }
                 step = .events
@@ -447,6 +449,8 @@ public final class ComputerConnection: CommandRunner {
                         connectedAt = now()
                         record(.events, started: started, trace: trace)
                         emit(.online)
+                        await loadAwake()
+                        if Task.isCancelled { return }
                     case .ping:
                         break
                     case .event(let event):
@@ -471,7 +475,7 @@ public final class ComputerConnection: CommandRunner {
                             voiceEnabled = event.payload["enabled"]?.boolValue
                         }
                         if event.topic == Self.awakeTopic, supports(Self.awakeState), let state = try? event.payload.decode(AwakeState.self) {
-                            awake = state
+                            show(awake: state)
                         }
                         if event.topic == Self.usageTopic, supports(Self.usageCommand), let state = try? event.payload.decode(ClaudeUsage.self) {
                             usage = state
@@ -534,11 +538,19 @@ public final class ComputerConnection: CommandRunner {
 
     private func loadAwake() async {
         guard supports(Self.awakeState) else {
-            awake = nil
+            if awake != nil { show(awake: nil) }
             return
         }
-        guard let state = try? await client.command(Self.awakeState, workspace: nil, as: AwakeState.self), !Task.isCancelled else { return }
-        awake = state
+        let seq = awakeSeq
+        do {
+            let state = try await client.command(Self.awakeState, workspace: nil, as: AwakeState.self)
+            guard !Task.isCancelled, seq == awakeSeq else { return }
+            show(awake: state)
+        } catch RemoteError.server {
+            guard !Task.isCancelled, seq == awakeSeq else { return }
+            show(awake: nil)
+        } catch {
+        }
     }
 
     private func loadUsage() async {
@@ -550,10 +562,20 @@ public final class ComputerConnection: CommandRunner {
         usage = state
     }
 
-    public func setAwake(_ on: Bool, minutes: Int = 0) async throws {
-        var args: [String: JSONValue] = ["on": .bool(on)]
-        if on, minutes > 0 { args["minutes"] = .number(Double(minutes)) }
-        awake = try await command(Self.awakeSet, workspace: nil, args: .object(args), as: AwakeState.self)
+    public func setAwake(mode: String, hours: Int? = nil) async throws {
+        var args: [String: JSONValue] = ["mode": .string(mode)]
+        if let hours { args["hours"] = .number(Double(hours)) }
+        let seq = awakeSeq
+        let state = try await command(Self.awakeSet, workspace: nil, args: .object(args), as: AwakeState.self)
+        guard seq == awakeSeq else { return }
+        show(awake: state)
+    }
+
+    private func show(awake state: AwakeState?) {
+        awakeSeq += 1
+        guard state != awake else { return }
+        awake = state
+        save()
     }
 
     private func revoke() {

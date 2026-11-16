@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,7 +28,7 @@ const (
 	maxReason    = 80
 
 	keySettings = "settings"
-	keyManual   = "manual"
+	keyChoice   = "choice"
 	keyHolds    = "holds"
 )
 
@@ -45,19 +46,21 @@ type awake struct {
 	mu     sync.Mutex
 	pubMu  sync.Mutex
 	k      *keeper
+	power  func() power
 	last   string
 	seeded time.Time
 }
 
 type agentSession struct {
 	ID     string `json:"id"`
+	Title  string `json:"title"`
 	Status string `json:"status"`
 	Active bool   `json:"active"`
 }
 
 type setArgs struct {
-	On      bool `json:"on"`
-	Minutes int  `json:"minutes"`
+	Mode  string `json:"mode"`
+	Hours int    `json:"hours"`
 }
 
 type holdArgs struct {
@@ -76,13 +79,12 @@ type releaseArgs struct {
 }
 
 type settingsArgs struct {
-	Agents  *bool `json:"agents"`
 	Battery *bool `json:"battery"`
 	Display *bool `json:"display"`
 }
 
 func main() {
-	a := &awake{k: newKeeper(assertIOKit, time.Now, pidAlive)}
+	a := &awake{k: newKeeper(assertIOKit, time.Now, pidAlive), power: readPower}
 	pluginsdk.Main(pluginsdk.Plugin{
 		Init: a.init,
 		Command: func(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -119,6 +121,7 @@ func (a *awake) init(ctx context.Context, h *pluginsdk.Host) error {
 func (a *awake) start(ctx context.Context) {
 	a.seedAll(ctx)
 	a.mu.Lock()
+	a.k.power = a.power()
 	a.k.prune()
 	a.k.apply()
 	a.mu.Unlock()
@@ -134,8 +137,8 @@ func (a *awake) load(ctx context.Context) {
 	if found && err == nil {
 		a.k.settings = s
 	}
-	_, err = a.h.StorageGet(ctx, keyManual, &a.k.manual)
-	logError("load manual", err)
+	_, err = a.h.StorageGet(ctx, keyChoice, &a.k.choice)
+	logError("load choice", err)
 	_, err = a.h.StorageGet(ctx, keyHolds, &a.k.holds)
 	logError("load holds", err)
 }
@@ -155,12 +158,14 @@ func (a *awake) ticks(ctx context.Context) {
 
 func (a *awake) tick(ctx context.Context) {
 	a.mu.Lock()
-	reseed := a.k.settings.Agents && a.k.now().Sub(a.seeded) >= reseedEvery
+	reseed := a.k.choice.Mode == modeAgents && a.k.now().Sub(a.seeded) >= reseedEvery
 	a.mu.Unlock()
 	if reseed {
 		a.seedAll(ctx)
 	}
+	p := a.power()
 	a.mu.Lock()
+	a.k.power = p
 	a.k.prune()
 	a.k.apply()
 	a.mu.Unlock()
@@ -182,11 +187,15 @@ func (a *awake) command(ctx context.Context, cmd pluginsdk.CommandRun) (any, err
 		if err := decode(cmd.Args, &args); err != nil {
 			return nil, err
 		}
-		return a.setManual(ctx, args.On, args.Minutes), nil
+		return a.choose(ctx, args.Mode, args.Hours)
 	case "awake.on":
-		return a.setManual(ctx, true, 0), nil
+		return a.choose(ctx, modeOn, 0)
+	case "awake.agents":
+		return a.choose(ctx, modeAgents, 0)
 	case "awake.off":
-		return a.setManual(ctx, false, 0), nil
+		return a.choose(ctx, modeOff, 0)
+	case "awake.toggle":
+		return a.toggle(ctx), nil
 	case "awake.hold":
 		var args holdArgs
 		if err := decode(cmd.Args, &args); err != nil {
@@ -215,16 +224,24 @@ func (a *awake) state() stateView {
 	return a.k.view()
 }
 
-func (a *awake) setManual(ctx context.Context, on bool, minutes int) stateView {
+func (a *awake) choose(ctx context.Context, mode string, hours int) (stateView, error) {
 	a.mu.Lock()
-	a.k.dirty = true
-	a.k.manual = manualHold{}
-	if on {
-		a.k.manual.On = true
-		if minutes > 0 {
-			a.k.manual.Until = a.k.now().Add(time.Duration(minutes) * time.Minute).Unix()
-		}
+	err := a.k.choose(mode, hours)
+	a.k.apply()
+	a.mu.Unlock()
+	if err != nil {
+		return stateView{}, err
 	}
+	return a.changed(ctx), nil
+}
+
+func (a *awake) toggle(ctx context.Context) stateView {
+	a.mu.Lock()
+	mode := modeOn
+	if a.k.choice.Mode != modeOff {
+		mode = modeOff
+	}
+	_ = a.k.choose(mode, 0)
 	a.k.apply()
 	a.mu.Unlock()
 	return a.changed(ctx)
@@ -286,9 +303,6 @@ func (a *awake) release(ctx context.Context, workspace, hold string) error {
 func (a *awake) setSettings(ctx context.Context, args settingsArgs) stateView {
 	a.mu.Lock()
 	a.k.dirty = true
-	if args.Agents != nil {
-		a.k.settings.Agents = *args.Agents
-	}
 	if args.Battery != nil {
 		a.k.settings.Battery = *args.Battery
 	}
@@ -381,6 +395,7 @@ func (a *awake) seed(ctx context.Context, workspace string) {
 		}
 		if s.Status != api.StatusClosed {
 			open[s.ID] = true
+			a.k.titles[s.ID] = s.Title
 		}
 	}
 	a.k.active[workspace] = n
@@ -391,18 +406,37 @@ func (a *awake) uiEvent(ctx context.Context, ev pluginsdk.UIEvent) (any, error) 
 	if ev.Slot != settingsSlot {
 		return nil, fmt.Errorf("unknown slot %q", ev.Slot)
 	}
-	var on bool
-	if err := json.Unmarshal(ev.Value, &on); err != nil {
-		return nil, fmt.Errorf("%s: %w", ev.Action, err)
-	}
 	switch ev.Action {
-	case "manual":
-		return a.setManual(ctx, on, 0), nil
-	case "agents":
-		return a.setSettings(ctx, settingsArgs{Agents: &on}), nil
-	case "battery":
-		return a.setSettings(ctx, settingsArgs{Battery: &on}), nil
-	case "display":
+	case "choice":
+		var mode string
+		if err := json.Unmarshal(ev.Value, &mode); err != nil {
+			return nil, fmt.Errorf("choice: %w", err)
+		}
+		hours := 0
+		if mode == modeHours {
+			a.mu.Lock()
+			hours = a.k.lastHours()
+			a.mu.Unlock()
+		}
+		return a.choose(ctx, mode, hours)
+	case "hours":
+		var n json.Number
+		if err := json.Unmarshal(ev.Value, &n); err != nil {
+			return nil, fmt.Errorf("hours: %w", err)
+		}
+		hours, err := strconv.Atoi(n.String())
+		if err != nil {
+			return nil, fmt.Errorf("hours: %w", err)
+		}
+		return a.choose(ctx, modeHours, hours)
+	case "battery", "display":
+		var on bool
+		if err := json.Unmarshal(ev.Value, &on); err != nil {
+			return nil, fmt.Errorf("%s: %w", ev.Action, err)
+		}
+		if ev.Action == "battery" {
+			return a.setSettings(ctx, settingsArgs{Battery: &on}), nil
+		}
 		return a.setSettings(ctx, settingsArgs{Display: &on}), nil
 	}
 	return nil, fmt.Errorf("unknown action %q", ev.Action)
@@ -413,7 +447,7 @@ func (a *awake) changed(ctx context.Context) stateView {
 	defer a.pubMu.Unlock()
 	a.mu.Lock()
 	v := a.k.view()
-	s, m, holds := a.k.settings, a.k.manual, append([]agentHold{}, a.k.holds...)
+	s, m, holds := a.k.settings, a.k.choice, append([]agentHold{}, a.k.holds...)
 	persist := a.k.dirty
 	a.k.dirty = false
 	raw, _ := json.Marshal(v)
@@ -422,7 +456,7 @@ func (a *awake) changed(ctx context.Context) stateView {
 	a.mu.Unlock()
 	if persist {
 		logError("store settings", a.h.StorageSet(ctx, keySettings, s))
-		logError("store manual", a.h.StorageSet(ctx, keyManual, m))
+		logError("store choice", a.h.StorageSet(ctx, keyChoice, m))
 		logError("store holds", a.h.StorageSet(ctx, keyHolds, holds))
 	}
 	if same {
@@ -432,17 +466,6 @@ func (a *awake) changed(ctx context.Context) stateView {
 	logError("publish "+changedTopic, err)
 	logError("render settings", a.render(ctx, v))
 	return v
-}
-
-func (a *awake) render(ctx context.Context, v stateView) error {
-	_, err := a.h.Render(ctx, "", settingsSlot, sdui.VStack(
-		sdui.SettingRow("Keep the Mac awake", strings.TrimSuffix(v.Detail, " "+lidNote), sdui.WithAction(sdui.Toggle("manual", v.Manual), "manual")),
-		sdui.SettingRow("While agents work", "Any agent session running or waiting for you keeps the Mac awake.", sdui.WithAction(sdui.Toggle("agents", v.Agents), "agents")),
-		sdui.SettingRow("On battery too", "Off: agents keep the Mac awake only on power, so a question left overnight doesn't drain the battery. Your own hold and agents' holds work on battery anyway.", sdui.WithAction(sdui.Toggle("battery", v.Battery), "battery")),
-		sdui.SettingRow("Keep the screen on", "Off: the screen sleeps as usual while the Mac stays awake.", sdui.WithAction(sdui.Toggle("display", v.Display), "display")),
-		sdui.MutedText("A closed lid still sleeps a laptop on battery; on power it stays awake with the lid closed only with an external display, keyboard and mouse."),
-	))
-	return err
 }
 
 func decode(raw json.RawMessage, out any) error {

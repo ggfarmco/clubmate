@@ -152,6 +152,11 @@ private struct WorkspaceCommands: Commands {
                 .disabled(!app.updates.canCheck)
             Button("Install “\(CommandLineTool.name(flavor: ClaudeConnector.bundleFlavor()))” Command…") { CLIInstaller.install() }
         }
+        CommandGroup(after: .appSettings) {
+            Button(app.awake.state?.mode == nil ? "Keep Mac Awake Until Turned Off" : "Turn Off Keep Awake") { Task { await app.awake.toggle() } }
+                .keyboardShortcut(AppShortcuts.keepAwake)
+                .disabled(app.awake.state == nil)
+        }
         CommandGroup(replacing: .newItem) {
             Button("New") { newItem() }
                 .keyboardShortcut(AppShortcuts.new)

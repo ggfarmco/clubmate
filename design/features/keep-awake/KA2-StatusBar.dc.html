@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keep Awake · status bar item</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/db7cb3a50f9b588af808d1cf3779c299">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+</helmet>
+<div class="doc" style="width: 1480px; min-height: 1900px; padding: 64px; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Keep Awake · Round 2</div>
+<h1>1 · Status bar item</h1>
+<p class="lead">One item with three looks: <b>off</b> (faint outline cup), <b>armed</b> (outline cup at muted: you chose While agents work, but no agent is running or waiting yet) and <b>awake</b> (filled, steaming cup + <code>text</code>). No tint: being awake is a normal state, not one that needs you. It moves to the right group, next to the hints and ⌘K, so it grows leftwards into empty bar and nothing else moves when it appears or its text changes.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 16px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
+<div style="display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px">
+<h2>Where it sits</h2>
+<ul class="muted" style="font-size: 14px">
+<li>Left group is Clubmate's own work: <code>● core</code> · agents · usage. Right group is the machine and keys: <b>Keep Awake</b> · hints · ⌘K. That is also where a Mac person looks for Amphetamine.</li>
+<li>Right-anchored: text changing from “Awake until 18:00” to “Awake · 2 agents” never moves core, agent counts or usage.</li>
+<li>Below 800pt the bar keeps core · waiting · ⌘K (Patterns); Keep Awake stays as the cup alone, so the menu is still one click away. Its text moves into the tooltip and the menu's first line.</li>
+<li>core, agent counts and usage are drawn as placeholders; only the cup item is the proposal.</li>
+</ul>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="mono muted">today · 1280 · Mate dark</span>
+<div class="cm th-mate" style="width: 1280px; border-radius: 6px; overflow: hidden; border: 1px solid #DAD8CF">
+<div class="sb" style="height: 22px">
+<span style="display: inline-flex; align-items: center; gap: 5px"><span class="dot" style="width: 6px; height: 6px"></span>core</span>
+<span style="display: inline-flex; align-items: center; gap: 5px; color: var(--t2)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z" fill="currentColor"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/></svg><span class="mut">Awake until 18:00</span></span>
+<span style="display: inline-flex; align-items: center; gap: 5px"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5Z"/></svg>2</span>
+<span style="display: inline-flex; align-items: center; gap: 5px"><span class="count">1</span>waiting</span>
+<span>usage 38%</span>
+<span style="flex: 1"></span>
+<span>⌘B chat</span>
+<span>⌘K</span>
+</div>
+</div>
+<span class="cap muted" style="font-size: 13px">Today: right after core. Agent counts and usage shift every time the text changes or the hold ends.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="mono muted">proposed · 1280 · Mate dark · your hold</span>
+<div class="cm th-mate" style="width: 1280px; border-radius: 6px; overflow: hidden; border: 1px solid #DAD8CF">
+<div class="sb" style="height: 22px">
+<span style="display: inline-flex; align-items: center; gap: 5px"><span class="dot" style="width: 6px; height: 6px"></span>core</span>
+<span style="display: inline-flex; align-items: center; gap: 5px"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5Z"/></svg>2</span>
+<span style="display: inline-flex; align-items: center; gap: 5px"><span class="count">1</span>waiting</span>
+<span>usage 38%</span>
+<span style="flex: 1"></span>
+<span style="display: inline-flex; align-items: center; gap: 5px; height: 18px; padding: 0 5px; margin-right: -6px; border-radius: 4px; box-shadow: 0 0 0 1.5px var(--ac)"><span style="display: flex; color: var(--fg)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z" fill="currentColor"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/><path d="M6 1.8v2.4M8.7 1.8v2.4"/></svg></span><span>Awake until 18:00</span></span>
+<span>⌘B chat</span>
+<span>⌘K</span>
+</div>
+</div>
+<span class="cap muted" style="font-size: 13px">Ring marks the proposed item; it is not part of the design.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="mono muted">proposed · 1280 · Mate light · your hold + an agent's</span>
+<div class="cm th-matelight" style="width: 1280px; border-radius: 6px; overflow: hidden; border: 1px solid #DAD8CF">
+<div class="sb" style="height: 22px">
+<span style="display: inline-flex; align-items: center; gap: 5px"><span class="dot" style="width: 6px; height: 6px"></span>core</span>
+<span style="display: inline-flex; align-items: center; gap: 5px"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5Z"/></svg>3</span>
+<span>usage 41%</span>
+<span style="flex: 1"></span>
+<span style="display: inline-flex; align-items: center; gap: 5px; height: 18px; padding: 0 5px; margin-right: -6px; border-radius: 4px"><span style="display: flex; color: var(--fg)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z" fill="currentColor"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/><path d="M6 1.8v2.4M8.7 1.8v2.4"/></svg></span><span>Awake until 18:00 +1</span></span>
+<span>⌘B chat</span>
+<span>⌘K</span>
+</div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="mono muted">640 · Mate dark · awake (cup only)</span>
+<div class="cm th-mate" style="width: 640px; border-radius: 6px; overflow: hidden; border: 1px solid #DAD8CF">
+<div class="sb" style="height: 22px">
+<span style="display: inline-flex; align-items: center; gap: 5px"><span class="dot" style="width: 6px; height: 6px"></span>core</span>
+<span style="display: inline-flex; align-items: center; gap: 5px"><span class="count">1</span>waiting</span>
+<span style="flex: 1"></span>
+<span style="display: inline-flex; align-items: center; height: 18px; padding: 0 5px; margin-right: -6px; border-radius: 4px; color: var(--fg)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z" fill="currentColor"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/><path d="M6 1.8v2.4M8.7 1.8v2.4"/></svg></span>
+<span>⌘K</span>
+</div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="mono muted">640 · Mate light · armed</span>
+<div class="cm th-matelight" style="width: 640px; border-radius: 6px; overflow: hidden; border: 1px solid #DAD8CF">
+<div class="sb" style="height: 22px">
+<span style="display: inline-flex; align-items: center; gap: 5px"><span class="dot" style="width: 6px; height: 6px"></span>core</span>
+<span style="flex: 1"></span>
+<span style="display: inline-flex; align-items: center; height: 18px; padding: 0 5px; margin-right: -6px; border-radius: 4px; color: var(--t3)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/></svg></span>
+<span>⌘K</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 16px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px">
+<h2>Three looks, eight states</h2>
+<ul class="muted" style="font-size: 14px">
+<li>Cup weight carries the state: faint outline = nothing will hold the Mac · muted outline = While agents work is chosen, waiting for an agent · filled fg with steam = awake. Colour stays off it (Principle 3).</li>
+<li>Text is the plugin's <code>text</code>, unchanged, in the bar's muted level. Shown only while awake. Times never truncate.</li>
+<li>Tooltip is <code>detail</code>. Shown 1.75× below, right end of the bar; the bar is 22pt.</li>
+</ul>
+</div>
+<table>
+<thead><tr><th style="width: 200px">State</th><th style="width: 360px">Mate dark · 1.75×</th><th style="width: 360px">Mate light · 1.75×</th><th>Tooltip (<code>detail</code>)</th></tr></thead>
+<tbody>
+<tr><td><b>Off</b><br><span class="muted">no choice, no agent hold</span></td>
+<td><div class="cm th-mate" style="zoom: 1.75; width: 180px; border-radius: 3px; overflow: hidden"><div class="sb" style="height: 22px; justify-content: flex-end; gap: 10px"><span style="display: inline-flex; align-items: center; padding: 0 4px; color: var(--t4)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/></svg></span></div></div></td>
+<td><div class="cm th-matelight" style="zoom: 1.75; width: 180px; border-radius: 3px; overflow: hidden"><div class="sb" style="height: 22px; justify-content: flex-end; gap: 10px"><span style="display: inline-flex; align-items: center; padding: 0 4px; color: var(--t4)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/></svg></span></div></div></td>
+<td>The Mac sleeps as usual.</td></tr>
+
+<tr><td><b>Armed</b><br><span class="muted">While agents work chosen, no agent working</span></td>
+<td><div class="cm th-mate" style="zoom: 1.75; width: 180px; border-radius: 3px; overflow: hidden"><div class="sb" style="height: 22px; justify-content: flex-end; gap: 10px"><span style="display: inline-flex; align-items: center; padding: 0 4px; color: var(--t3)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/></svg></span></div></div></td>
+<td><div class="cm th-matelight" style="zoom: 1.75; width: 180px; border-radius: 3px; overflow: hidden"><div class="sb" style="height: 22px; justify-content: flex-end; gap: 10px"><span style="display: inline-flex; align-items: center; padding: 0 4px; color: var(--t3)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/></svg></span></div></div></td>
+<td>The Mac sleeps as usual until an agent is running or waiting for you.</td></tr>
+
+<tr><td><b>Armed, on battery</b><br><span class="muted">While agents work, an agent waiting, On battery too off</span></td>
+<td><div class="cm th-mate" style="zoom: 1.75; width: 180px; border-radius: 3px; overflow: hidden"><div class="sb" style="height: 22px; justify-content: flex-end; gap: 10px"><span style="display: inline-flex; align-items: center; padding: 0 4px; color: var(--t3)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/></svg></span></div></div></td>
+<td><div class="cm th-matelight" style="zoom: 1.75; width: 180px; border-radius: 3px; overflow: hidden"><div class="sb" style="height: 22px; justify-content: flex-end; gap: 10px"><span style="display: inline-flex; align-items: center; padding: 0 4px; color: var(--t3)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/></svg></span></div></div></td>
+<td>The Mac sleeps as usual: on battery, agents wait for power.</td></tr>
+<tr><td colspan="4" class="mono muted" style="padding-top: 18px">Awake: one of the three choices, an agent's own hold, or both</td></tr>
+
+<tr><td><b>For N hours</b><br><span class="muted">chose 4 hours at 14:00</span></td>
+<td><div class="cm th-mate" style="zoom: 1.75; width: 180px; border-radius: 3px; overflow: hidden"><div class="sb" style="height: 22px; justify-content: flex-end; gap: 10px"><span style="display: inline-flex; align-items: center; gap: 5px; padding: 0 4px"><span style="display: flex; color: var(--fg)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z" fill="currentColor"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/><path d="M6 1.8v2.4M8.7 1.8v2.4"/></svg></span>Awake until 18:00</span></div></div></td>
+<td><div class="cm th-matelight" style="zoom: 1.75; width: 180px; border-radius: 3px; overflow: hidden"><div class="sb" style="height: 22px; justify-content: flex-end; gap: 10px"><span style="display: inline-flex; align-items: center; gap: 5px; padding: 0 4px"><span style="display: flex; color: var(--fg)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z" fill="currentColor"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/><path d="M6 1.8v2.4M8.7 1.8v2.4"/></svg></span>Awake until 18:00</span></div></div></td>
+<td>Kept awake by you until 18:00.</td></tr>
+
+<tr><td><b>Until turned off</b></td>
+<td><div class="cm th-mate" style="zoom: 1.75; width: 180px; border-radius: 3px; overflow: hidden"><div class="sb" style="height: 22px; justify-content: flex-end; gap: 10px"><span style="display: inline-flex; align-items: center; gap: 5px; padding: 0 4px"><span style="display: flex; color: var(--fg)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z" fill="currentColor"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/><path d="M6 1.8v2.4M8.7 1.8v2.4"/></svg></span>Awake</span></div></div></td>
+<td><div class="cm th-matelight" style="zoom: 1.75; width: 180px; border-radius: 3px; overflow: hidden"><div class="sb" style="height: 22px; justify-content: flex-end; gap: 10px"><span style="display: inline-flex; align-items: center; gap: 5px; padding: 0 4px"><span style="display: flex; color: var(--fg)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z" fill="currentColor"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/><path d="M6 1.8v2.4M8.7 1.8v2.4"/></svg></span>Awake</span></div></div></td>
+<td>Kept awake by you until you turn it off.</td></tr>
+
+<tr><td><b>An agent's own hold</b><br><span class="muted">no choice made; the agent asked</span></td>
+<td><div class="cm th-mate" style="zoom: 1.75; width: 180px; border-radius: 3px; overflow: hidden"><div class="sb" style="height: 22px; justify-content: flex-end; gap: 10px"><span style="display: inline-flex; align-items: center; gap: 5px; padding: 0 4px"><span style="display: flex; color: var(--fg)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z" fill="currentColor"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/><path d="M6 1.8v2.4M8.7 1.8v2.4"/></svg></span>Awake · release build</span></div></div></td>
+<td><div class="cm th-matelight" style="zoom: 1.75; width: 180px; border-radius: 3px; overflow: hidden"><div class="sb" style="height: 22px; justify-content: flex-end; gap: 10px"><span style="display: inline-flex; align-items: center; gap: 5px; padding: 0 4px"><span style="display: flex; color: var(--fg)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z" fill="currentColor"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/><path d="M6 1.8v2.4M8.7 1.8v2.4"/></svg></span>Awake · release build</span></div></div></td>
+<td>Kept awake by an agent's release build until it ends, 20:40 at the latest.</td></tr>
+
+<tr><td><b>While agents work, holding</b></td>
+<td><div class="cm th-mate" style="zoom: 1.75; width: 180px; border-radius: 3px; overflow: hidden"><div class="sb" style="height: 22px; justify-content: flex-end; gap: 10px"><span style="display: inline-flex; align-items: center; gap: 5px; padding: 0 4px"><span style="display: flex; color: var(--fg)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z" fill="currentColor"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/><path d="M6 1.8v2.4M8.7 1.8v2.4"/></svg></span>Awake · 2 agents</span></div></div></td>
+<td><div class="cm th-matelight" style="zoom: 1.75; width: 180px; border-radius: 3px; overflow: hidden"><div class="sb" style="height: 22px; justify-content: flex-end; gap: 10px"><span style="display: inline-flex; align-items: center; gap: 5px; padding: 0 4px"><span style="display: flex; color: var(--fg)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z" fill="currentColor"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/><path d="M6 1.8v2.4M8.7 1.8v2.4"/></svg></span>Awake · 2 agents</span></div></div></td>
+<td>Kept awake while 2 agents work, on power.</td></tr>
+
+<tr><td><b>Your choice + an agent's hold</b><br><span class="muted">your choice leads; +N = agents' holds</span></td>
+<td><div class="cm th-mate" style="zoom: 1.75; width: 180px; border-radius: 3px; overflow: hidden"><div class="sb" style="height: 22px; justify-content: flex-end; gap: 10px"><span style="display: inline-flex; align-items: center; gap: 5px; padding: 0 4px; background: var(--prs); border-radius: 4px"><span style="display: flex; color: var(--fg)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z" fill="currentColor"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/><path d="M6 1.8v2.4M8.7 1.8v2.4"/></svg></span>Awake until 18:00 +1</span></div></div><span class="cap muted" style="font-size: 12px">shown pressed: menu open</span></td>
+<td><div class="cm th-matelight" style="zoom: 1.75; width: 180px; border-radius: 3px; overflow: hidden"><div class="sb" style="height: 22px; justify-content: flex-end; gap: 10px"><span style="display: inline-flex; align-items: center; gap: 5px; padding: 0 4px; background: var(--hov); border-radius: 4px"><span style="display: flex; color: var(--fg)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z" fill="currentColor"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/><path d="M6 1.8v2.4M8.7 1.8v2.4"/></svg></span>Awake until 18:00 +1</span></div></div><span class="cap muted" style="font-size: 12px">shown hovered</span></td>
+<td>Kept awake by you until 18:00 and by an agent's release build. A closed lid still sleeps the Mac on battery. <span class="muted">(lid sentence: laptops only, only while on battery)</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Behaviour</h2>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 6px">
+<li><b>Click</b> or right-click: the menu (board 2). Item shows <b>pressed</b> (fg 11%) while it is open, <b>hover</b> (fg 6%) under the pointer. Same overlays as any ghost control.</li>
+<li><b>⌥-click</b>: the Amphetamine quick toggle without the menu. With no choice active it picks Until Turned Off; with any choice active it turns it off. It is an accelerator only: both items are in the menu with ⌥⌘A printed next to them, and in the palette.</li>
+<li><b>Palette</b>: “Keep Awake for 1 / 2 / 4 / 8 Hours”, “Keep Awake While Agents Work”, “Keep Awake Until Turned Off”, “Turn Off Keep Awake”. Typing “awake” or “sleep” finds them.</li>
+<li><b>Hold ends</b>: the cup goes back to outline with no flash or toast. Nothing finished that needs you (Principle 3).</li>
+<li><b>Accessibility</b>: the item is a button labelled “Keep Awake” whose value is <code>text</code> or “Off”; the tooltip is its help text.</li>
+</ul>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>When the bar runs out of room</h2>
+<p class="muted" style="font-size: 14px">Things leave the bar in this order. Keep Awake loses its text early but never its cup.</p>
+<table>
+<thead><tr><th style="width: 60px">#</th><th>Drops</th><th style="width: 200px">Keep Awake shows</th></tr></thead>
+<tbody>
+<tr><td class="mono">1</td><td>hints (⌘B chat …)</td><td class="mono">cup + text</td></tr>
+<tr><td class="mono">2</td><td>usage</td><td class="mono">cup + text</td></tr>
+<tr><td class="mono">3</td><td>Keep Awake text: it moves to the tooltip and the menu's first line</td><td class="mono">cup</td></tr>
+<tr><td class="mono">4</td><td>running count; waiting stays (&lt; 800pt rule)</td><td class="mono">cup</td></tr>
+<tr><td class="mono">—</td><td>never: core, waiting, Keep Awake cup, ⌘K</td><td class="mono">cup</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1480,"height":1900}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

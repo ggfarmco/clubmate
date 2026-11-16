@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keep Awake · settings, round 2</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/db7cb3a50f9b588af808d1cf3779c299">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+</helmet>
+<div class="doc" style="width: 1480px; min-height: 1760px; padding: 64px; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Keep Awake · Round 2</div>
+<h1>3 · Settings → Keep Awake</h1>
+<p class="lead">Standard row page, two parts. <b>Now</b> is read-only, as in round 1: <code>text</code>, <code>detail</code> and the holds. <b>Keep awake</b> is one control: a radio group with Off and the three choices, the hours as a select inside their row. “On battery too” sits under While agents work, the only choice it affects, and only on laptops. “Keep the screen on” stays as its own row.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 300px repeat(2, minmax(0, 1fr)); gap: 32px; padding-top: 24px; border-top: 1.5px solid #1B1D1C; align-items: start">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h2>The pane</h2>
+<ul class="muted" style="font-size: 14px; display: flex; flex-direction: column; gap: 4px">
+<li>Header: the standard plugin header, unchanged.</li>
+<li><b>Now</b>: status line, <code>detail</code>, holds as a read-only property list. No buttons here: the radio group below is the control, and Off in it is Turn off.</li>
+<li><b>Keep awake</b>: four radios, one always selected. “For” carries a select (1 / 2 / 4 / 8 hours) and, while active, its end time in muted. Changing the number restarts the clock.</li>
+<li><b>On battery too</b>: indented under While agents work; you can set it before choosing. Laptops only.</li>
+<li><b>Keep the screen on</b>: own row under Display; applies to every hold.</li>
+<li>Lid footnote last, muted, laptops only. Autosave.</li>
+</ul>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span class="mono muted">MacBook · Mate dark · For 4 hours + an agent's hold</span>
+<div class="cm th-mate" style="border-radius: 10px; overflow: hidden; border: 1px solid #1B1D1C">
+<div style="display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 16px; border-bottom: 1px solid var(--bd)">
+<svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/></svg>
+<span class="h">Keep Awake</span><span class="cap mut">awake 0.1.0</span>
+<span style="flex: 1"></span>
+<span class="cap t2" style="display: inline-flex; align-items: center; gap: 5px"><span class="dot ok-i" style="width: 6px; height: 6px"></span>running</span>
+<button class="btn gh sm">Restart</button>
+<span class="tog on"></span>
+</div>
+<div style="padding: 4px 20px 20px; display: flex; flex-direction: column">
+<div class="sec" style="padding-left: 0">Now</div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 6px 0 12px; border-bottom: 1px solid var(--bd)">
+<span style="display: flex; align-items: center; gap: 8px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z" fill="currentColor"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/><path d="M6 1.8v2.4M8.7 1.8v2.4"/></svg><span class="ttl">Awake until 18:00 +1</span></span>
+<p class="t2">Kept awake by you until 18:00 and by an agent's release build. A closed lid still sleeps the Mac on battery.</p>
+<div class="props" style="grid-template-columns: 120px minmax(0, 1fr); margin-top: 4px">
+<span class="k">You</span><div class="v"><span>for 4 hours</span><span class="mut">until 18:00</span></div>
+<span class="k">release build</span><div class="v"><span class="ell">Ship 2.4 release</span><span class="mut">≤ 20:40</span></div>
+</div>
+</div>
+<div class="sec" style="padding-left: 0; padding-top: 14px">Keep awake</div>
+<div role="radiogroup" aria-label="Keep awake" style="display: flex; flex-direction: column; padding: 4px 0 8px; border-bottom: 1px solid var(--bd)">
+<label style="display: flex; align-items: center; gap: 10px; height: 30px"><input type="radio" name="kad" style="position: absolute; opacity: 0; width: 1px; height: 1px"><span style="width: 14px; height: 14px; border-radius: 7px; border: 1px solid var(--bd2); background: var(--bg); flex: none"></span><span>Off</span></label>
+<label style="display: flex; align-items: center; gap: 10px; height: 30px"><input type="radio" name="kad" style="position: absolute; opacity: 0; width: 1px; height: 1px"><span style="width: 14px; height: 14px; border-radius: 7px; background: var(--ac); display: flex; align-items: center; justify-content: center; flex: none"><span style="width: 6px; height: 6px; border-radius: 3px; background: var(--on-ac)"></span></span><span>For</span><span class="field" style="width: 96px; justify-content: space-between; height: 22px">4 hours<svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></span><span class="mut">until 18:00</span></label>
+<label style="display: flex; align-items: flex-start; gap: 10px; padding: 6px 0"><input type="radio" name="kad" style="position: absolute; opacity: 0; width: 1px; height: 1px"><span style="width: 14px; height: 14px; border-radius: 7px; border: 1px solid var(--bd2); background: var(--bg); flex: none; margin-top: 3px"></span><span style="display: flex; flex-direction: column"><span>While agents work</span><span class="cap mut">An agent running or waiting for you keeps the Mac awake.</span></span></label>
+<div style="display: flex; align-items: center; gap: 16px; padding: 4px 0 8px 24px">
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span>On battery too</span><span class="cap mut">Off: agents keep it awake only on power.</span></div>
+<span class="tog"></span>
+</div>
+<label style="display: flex; align-items: center; gap: 10px; height: 30px"><input type="radio" name="kad" style="position: absolute; opacity: 0; width: 1px; height: 1px"><span style="width: 14px; height: 14px; border-radius: 7px; border: 1px solid var(--bd2); background: var(--bg); flex: none"></span><span>Until turned off</span><span class="kbd" style="margin-left: auto">⌥⌘A</span></label>
+</div>
+<div class="sec" style="padding-left: 0; padding-top: 14px">Display</div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--bd)">
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span>Keep the screen on</span><span class="cap mut">Off: the screen can sleep while the Mac stays awake.</span></div>
+<span class="tog"></span>
+</div>
+<p class="cap mut" style="padding-top: 12px">A closed lid still sleeps a laptop on battery. On power it stays awake closed only with an external display, keyboard and mouse.</p>
+</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span class="mono muted">Mac Studio · Mate light · Off</span>
+<div class="cm th-matelight" style="border-radius: 10px; overflow: hidden; border: 1px solid #C9C6BA">
+<div style="display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 16px; border-bottom: 1px solid var(--bd)">
+<svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/></svg>
+<span class="h">Keep Awake</span><span class="cap mut">awake 0.1.0</span>
+<span style="flex: 1"></span>
+<span class="cap t2" style="display: inline-flex; align-items: center; gap: 5px"><span class="dot ok-i" style="width: 6px; height: 6px"></span>running</span>
+<button class="btn gh sm">Restart</button>
+<span class="tog on"></span>
+</div>
+<div style="padding: 4px 20px 20px; display: flex; flex-direction: column">
+<div class="sec" style="padding-left: 0">Now</div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 6px 0 12px; border-bottom: 1px solid var(--bd)">
+<span style="display: flex; align-items: center; gap: 8px" class="t2"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.5h8.5V9a3.5 3.5 0 0 1-3.5 3.5H6.5A3.5 3.5 0 0 1 3 9Z"/><path d="M11.5 7.5h.7a1.6 1.6 0 0 1 0 3.2h-1"/><path d="M2 14.5h11.5"/></svg><span>The Mac sleeps as usual.</span></span>
+</div>
+<div class="sec" style="padding-left: 0; padding-top: 14px">Keep awake</div>
+<div role="radiogroup" aria-label="Keep awake" style="display: flex; flex-direction: column; padding: 4px 0 8px; border-bottom: 1px solid var(--bd)">
+<label style="display: flex; align-items: center; gap: 10px; height: 30px"><input type="radio" name="kal" style="position: absolute; opacity: 0; width: 1px; height: 1px"><span style="width: 14px; height: 14px; border-radius: 7px; background: var(--ac); display: flex; align-items: center; justify-content: center; flex: none"><span style="width: 6px; height: 6px; border-radius: 3px; background: var(--on-ac)"></span></span><span>Off</span></label>
+<label style="display: flex; align-items: center; gap: 10px; height: 30px"><input type="radio" name="kal" style="position: absolute; opacity: 0; width: 1px; height: 1px"><span style="width: 14px; height: 14px; border-radius: 7px; border: 1px solid var(--bd2); background: var(--bg); flex: none"></span><span>For</span><span class="field" style="width: 96px; justify-content: space-between; height: 22px">1 hour<svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></span></label>
+<label style="display: flex; align-items: flex-start; gap: 10px; padding: 6px 0"><input type="radio" name="kal" style="position: absolute; opacity: 0; width: 1px; height: 1px"><span style="width: 14px; height: 14px; border-radius: 7px; border: 1px solid var(--bd2); background: var(--bg); flex: none; margin-top: 3px"></span><span style="display: flex; flex-direction: column"><span>While agents work</span><span class="cap mut">An agent running or waiting for you keeps the Mac awake.</span></span></label>
+<label style="display: flex; align-items: center; gap: 10px; height: 30px"><input type="radio" name="kal" style="position: absolute; opacity: 0; width: 1px; height: 1px"><span style="width: 14px; height: 14px; border-radius: 7px; border: 1px solid var(--bd2); background: var(--bg); flex: none"></span><span>Until turned off</span><span class="kbd" style="margin-left: auto">⌥⌘A</span></label>
+</div>
+<div class="sec" style="padding-left: 0; padding-top: 14px">Display</div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--bd)">
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span>Keep the screen on</span><span class="cap mut">Off: the screen can sleep while the Mac stays awake.</span></div>
+<span class="tog"></span>
+</div>
+</div>
+</div>
+<span class="muted" style="font-size: 13px">A desktop has no battery and no lid: no “On battery too”, no footnote, and the plugin drops the lid sentence from <code>detail</code>. The hours select keeps the last number used (1 hour on first use).</span>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 300px repeat(2, minmax(0, 1fr)); gap: 32px; padding-top: 24px; border-top: 1px solid #DAD8CF; align-items: start">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h2>Radio: new to 4a</h2>
+<p class="muted" style="font-size: 14px">Components 4a has toggle, select and field but no radio. Built from the same parts: 14pt circle, border-strong off, accent fill + on-accent dot on; focus ring and disabled as for the toggle. Row height = control (24) + 6.</p>
+</div>
+<div class="cm th-mate" style="border-radius: 10px; padding: 16px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px 12px; align-items: center">
+<span class="cap mut">off</span><span class="cap mut">hover</span><span class="cap mut">on</span><span class="cap mut">focused</span><span class="cap mut">disabled</span>
+<span style="display: flex; align-items: center; gap: 8px"><span style="width: 14px; height: 14px; border-radius: 7px; border: 1px solid var(--bd2); background: var(--bg)"></span>Off</span>
+<span style="display: flex; align-items: center; gap: 8px"><span style="width: 14px; height: 14px; border-radius: 7px; border: 1px solid var(--bd2); background: var(--s3)"></span>Off</span>
+<span style="display: flex; align-items: center; gap: 8px"><span style="width: 14px; height: 14px; border-radius: 7px; background: var(--ac); display: flex; align-items: center; justify-content: center"><span style="width: 6px; height: 6px; border-radius: 3px; background: var(--on-ac)"></span></span>For</span>
+<span style="display: flex; align-items: center; gap: 8px"><span style="width: 14px; height: 14px; border-radius: 7px; background: var(--ac); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--ac)"><span style="width: 6px; height: 6px; border-radius: 3px; background: var(--on-ac)"></span></span>For</span>
+<span style="display: flex; align-items: center; gap: 8px; opacity: .42"><span style="width: 14px; height: 14px; border-radius: 7px; border: 1px solid var(--bd2); background: var(--bg)"></span>Off</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span class="cap muted" style="font-size: 13px">Fallback if the radio isn't wanted in the component set: one select with every option. Same words, less visible.</span>
+<div class="cm th-matelight" style="border-radius: 10px; padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 12px; align-items: start">
+<div style="display: flex; flex-direction: column"><span>Keep awake</span><span class="cap mut">For 4 hours · until 18:00</span></div>
+<div class="pop" style="padding: 4px; display: flex; flex-direction: column">
+<div class="row"><span class="l">Off</span></div>
+<div class="hr" style="margin: 3px 0"></div>
+<div class="row"><span class="l">For 1 hour</span></div>
+<div class="row"><span class="l">For 2 hours</span></div>
+<div class="row" style="background: var(--sel)"><span class="l">For 4 hours</span><span class="d cap">✓</span></div>
+<div class="row"><span class="l">For 8 hours</span></div>
+<div class="hr" style="margin: 3px 0"></div>
+<div class="row"><span class="l">While agents work</span></div>
+<div class="row"><span class="l">Until turned off</span></div>
+</div>
+</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<h2>Today → proposed</h2>
+<table>
+<thead><tr><th style="width: 260px">Today</th><th style="width: 380px">Proposed</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>“Keep the Mac awake” toggle with <code>detail</code> under it</td><td>Now block (read-only): <code>text</code> · <code>detail</code> · holds</td><td>In the Today shot the toggle is <b>off</b> while the line under it says an agent keeps the Mac awake. Status and control are now separate.</td></tr>
+<tr><td>“While agents work” toggle, separate from your hold</td><td>One radio group: Off · For N hours · While agents work · Until turned off</td><td>The ruling: one switch, three choices. Having all four options in view answers “what is it set to?” without opening anything.</td></tr>
+<tr><td>“On battery too” as a top-level row, 3-line explanation</td><td>Indented under While agents work, one line; laptops only</td><td>It only ever affected that choice. Your timed or until-off choice and agents' own holds work on battery anyway.</td></tr>
+<tr><td>“Keep the screen on”</td><td>Same row under a Display label</td><td>Applies whatever holds the Mac.</td></tr>
+<tr><td>Lid footnote, always</td><td>Laptops only; the lid sentence in <code>detail</code> only on battery</td><td>A Mac Studio has no lid.</td></tr>
+<tr><td>One grouped card</td><td>Flat rows under section labels</td><td>Principle 4. <b>If</b> every plugin's standard page uses the card, keep the card: consistency across Settings wins.</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1480,"height":1760}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

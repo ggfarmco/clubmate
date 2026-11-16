@@ -681,6 +681,10 @@ func Toggle(id string, value bool) Node {
 	return Node{Type: "toggle", ID: id, Props: map[string]any{"value": value}}
 }
 
+func Radio(id, value, label string, on bool, children ...Node) Node {
+	return Node{Type: "radio", ID: id, Props: withOptional(map[string]any{"value": value, "on": on}, "label", label), Children: children}
+}
+
 func Checkbox(id, label string, value bool) Node {
 	return Node{Type: "toggle", ID: id, Props: map[string]any{"value": value, "label": label, "style": "checkbox"}}
 }

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keep Awake · words and data, round 2</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/db7cb3a50f9b588af808d1cf3779c299">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+</helmet>
+<div class="doc" style="width: 1480px; min-height: 1900px; padding: 64px; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Keep Awake · Round 2</div>
+<h1>5 · Words and data</h1>
+<p class="lead">The plugin still decides every word. Besides <code>text</code> and <code>detail</code>, clients need the hold lines and <b>one</b> choice: which of the three is active (or none), plus the hours when it's the timed one. The labels for the choices come from the plugin too, so the Mac menu, Settings and the phone can't drift apart.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
+<h2>The model</h2>
+<table>
+<thead><tr><th style="width: 230px">Source</th><th style="width: 300px">Choice</th><th>Holds the Mac while</th><th style="width: 190px">On battery</th></tr></thead>
+<tbody>
+<tr><td rowspan="3"><b>Keep Awake</b> · you<br><span class="muted">one choice at a time, or none (Off)</span></td><td>For N hours · 1 / 2 / 4 / 8</td><td>the time hasn't passed</td><td>yes</td></tr>
+<tr><td>While agents work</td><td>any agent session is running or waiting for you</td><td>only with On battery too</td></tr>
+<tr><td>Until turned off</td><td>until you choose Turn Off</td><td>yes</td></tr>
+<tr><td><b>An agent's own hold</b></td><td>— (asked by the agent, with a label)</td><td>its build or session lasts, 12 h at most</td><td>yes</td></tr>
+<tr><td colspan="4" class="muted">Picking a choice replaces the current one; picking another number of hours restarts the clock. Turn Off ends your choice only, never an agent's hold. Keep the screen on applies to everything. A closed lid sleeps a laptop on battery whatever holds it.</td></tr>
+</tbody>
+</table>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2><code style="font-size: 20px">text</code> · only while awake</h2>
+<table>
+<thead><tr><th>State</th><th style="width: 250px">text</th></tr></thead>
+<tbody>
+<tr><td>For 4 hours</td><td class="mono">Awake until 18:00</td></tr>
+<tr><td>Until turned off</td><td class="mono">Awake</td></tr>
+<tr><td>While agents work, holding</td><td class="mono">Awake · 2 agents</td></tr>
+<tr><td>an agent's own hold, no choice</td><td class="mono">Awake · release build</td></tr>
+<tr><td>a choice + an agent's hold</td><td class="mono">Awake until 18:00 +1</td></tr>
+<tr><td>agents holding + an agent's hold</td><td class="mono">Awake · 2 agents +1</td></tr>
+<tr><td>off · armed · armed on battery</td><td class="mono muted">— (none)</td></tr>
+</tbody>
+</table>
+<ul class="muted" style="font-size: 14px">
+<li>Your choice leads; +N counts agents' own holds. The menu and the phone name them.</li>
+<li>Clock times in the system's format, never a countdown.</li>
+</ul>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2><code style="font-size: 20px">detail</code> · one sentence, always</h2>
+<table>
+<thead><tr><th style="width: 170px">State</th><th>detail</th></tr></thead>
+<tbody>
+<tr><td>off</td><td>The Mac sleeps as usual.</td></tr>
+<tr><td>armed</td><td>The Mac sleeps as usual until an agent is running or waiting for you.</td></tr>
+<tr><td>armed, on battery</td><td>The Mac sleeps as usual: on battery, agents wait for power.</td></tr>
+<tr><td>For 4 hours</td><td>Kept awake by you until 18:00.</td></tr>
+<tr><td>Until turned off</td><td>Kept awake by you until you turn it off.</td></tr>
+<tr><td>While agents work</td><td>Kept awake while 2 agents work, on power.</td></tr>
+<tr><td>an agent's hold</td><td>Kept awake by an agent's release build until it ends, 20:40 at the latest.</td></tr>
+<tr><td>choice + agent</td><td>Kept awake by you until 18:00 and by an agent's release build.</td></tr>
+</tbody>
+</table>
+<ul class="muted" style="font-size: 14px">
+<li>Order: who, until when, then power (“on power” / “on battery too” only for While agents work).</li>
+<li><b>Lid sentence</b> (“A closed lid still sleeps the Mac on battery.”) only on laptops, only while on battery.</li>
+</ul>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 520px; gap: 40px; padding-top: 24px; border-top: 1px solid #DAD8CF; align-items: start">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>What the plugin sends</h2>
+<p class="muted" style="font-size: 14px">One object for the status bar, the menu, Settings and the phone. Every string is shown as is. Shape only; field names are the plugin team's call.</p>
+<div class="cm th-mate" style="border-radius: 10px; padding: 16px 20px; font-size: 11.5px; line-height: 19px; white-space: pre; overflow-x: auto">{
+  "text":   "Awake until 18:00 +1",
+  "detail": "Kept awake by you until 18:00 and by an agent's release build.",
+
+  <span class="mut">// the one choice: "hours" | "agents" | "on" | null (off)</span>
+  "mode":  "hours",
+  "hours": 4,
+  "value": "Until 18:00",            <span class="mut">// phone picker value; Settings' muted end time</span>
+
+  <span class="mut">// lines under the menu's first line; the phone nests only kind "agent"</span>
+  "holds": [
+    { "kind": "you",   "title": "You",           "trailing": "for 4 hours · until 18:00" },
+    { "kind": "agent", "title": "release build", "trailing": "Ship 2.4 release · ≤ 20:40", "session": "…" }
+  ],
+
+  <span class="mut">// the words for the switch, owned by the plugin</span>
+  "labels": {
+    "section": "Keep Awake",
+    "hours":   { "title": "For Hours", "active": "For 4 Hours",
+                 "options": [ { "hours": 1, "title": "1 Hour" }, { "hours": 2, "title": "2 Hours" },
+                              { "hours": 4, "title": "4 Hours" }, { "hours": 8, "title": "8 Hours" } ] },
+    "agents":  { "title": "While Agents Work", "subtitle": "Running or waiting for you" },
+    "on":      { "title": "Until Turned Off" },
+    "off":     { "title": "Turn Off" }
+  },
+  "awake": true, "armed": false, "laptop": true, "onBattery": false
+}
+
+<span class="mut">// clients send back one of:</span>
+set({ "mode": "hours", "hours": 2 })  ·  set({ "mode": "agents" })  ·  set({ "mode": "on" })  ·  off()</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Edge cases</h2>
+<table>
+<tbody>
+<tr><td style="width: 170px"><b>Hours run out</b></td><td>Mode goes to none (Off). It does not fall back to a previous choice.</td></tr>
+<tr><td><b>Turn Off with an agent's hold</b></td><td>Your choice ends; the cup stays filled with “Awake · release build” until the build ends.</td></tr>
+<tr><td><b>While agents work, on battery, agent's own hold</b></td><td>The agent's hold keeps it awake anyway (holds work on battery); the choice waits for power.</td></tr>
+<tr><td><b>Agent asks for more than 12 h</b></td><td>Clamped. Its line says “≤ 20:40”: the cap, not a promise.</td></tr>
+<tr><td><b>Hold ends while the menu is open</b></td><td>The menu doesn't change under the pointer; the next open shows the new state. The bar updates at once.</td></tr>
+<tr><td><b>For 8 hours past midnight</b></td><td>“Until 02:00”. No date needed.</td></tr>
+<tr><td><b>Phone and Mac change it at once</b></td><td>Last write wins; both re-render from the plugin's next state.</td></tr>
+<tr><td><b>Plugin not running</b></td><td>No cup in the bar; Settings shows the standard stopped header; the phone hides the group.</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1480,"height":1900}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

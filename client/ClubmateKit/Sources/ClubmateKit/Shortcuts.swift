@@ -65,6 +65,7 @@ public enum AppShortcuts {
     public static let previousSession = Shortcut("app.previous-session", ["ctrl+cmd+up"], "Previous agent session", when: "Agents")
     public static let workspaceSwitcher = Shortcut("app.workspace-switcher", ["ctrl+cmd+w"], "Workspace switcher")
     public static let notifications = Shortcut("app.notifications", ["cmd+shift+i"], "Notifications")
+    public static let keepAwake = Shortcut("app.keep-awake", ["cmd+opt+a"], "Keep Awake: Until Turned Off, or Turn Off while a choice is active")
 
     public static func section(_ index: Int) -> String {
         "cmd+\(index)"
@@ -73,7 +74,7 @@ public enum AppShortcuts {
     public static let groups: [ShortcutGroup] = [
         ShortcutGroup(id: "app", title: "App and windows", shortcuts: [
             new, newHomeTerminal, openFolder, openDoc, close, closeSession, palette, toggleSidebar,
-            fontIncrease, fontDecrease, fontReset, section, nextWorkspace, previousWorkspace, nextSession, previousSession, workspaceSwitcher, notifications,
+            fontIncrease, fontDecrease, fontReset, section, nextWorkspace, previousWorkspace, nextSession, previousSession, workspaceSwitcher, notifications, keepAwake,
             Shortcut("voice.talk", ["opt+space"], "Voice: hold to talk, release to send", when: "While voice is on"),
             Shortcut("voice.confirm", ["return", "esc"], "Voice confirmation: yes, no", when: "Voice panel"),
             Shortcut("voice.cancel", ["esc"], "Cancel the utterance before it is sent", when: "Voice panel, Sending"),

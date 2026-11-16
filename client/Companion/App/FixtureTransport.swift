@@ -102,8 +102,10 @@ actor FixtureServer {
     private var voiceRev = 0
     private var voiceChunks = 0
     private var runAnswers: [String: String] = [:]
-    private var awakeManual = UserDefaults.standard.string(forKey: "awakeHold") != nil
-    private var awakeUntil: Date? = UserDefaults.standard.string(forKey: "awakeHold").flatMap(Double.init).map { Date.now.addingTimeInterval($0 * 60) }
+    private let awakeScene = UserDefaults.standard.string(forKey: "awake") ?? "off"
+    private lazy var awakeMode = ["hours": "hours", "armed": "agents", "on": "on"][awakeScene] ?? ""
+    private lazy var awakeHours = awakeScene == "hours" ? 4 : 0
+    private lazy var awakeUntil: Date? = awakeScene == "hours" ? Date.now.addingTimeInterval(4 * 3600) : nil
 
     init(directory: URL, mac: FixtureMac) {
         self.mac = mac
@@ -575,9 +577,10 @@ actor FixtureServer {
         case "awake.state", "awake.settings-set":
             return awakeState
         case "awake.set":
-            awakeManual = args["on"]?.boolValue ?? false
-            let minutes = args["minutes"]?.numberValue ?? 0
-            awakeUntil = awakeManual && minutes > 0 ? Date.now.addingTimeInterval(minutes * 60) : nil
+            let mode = args["mode"]?.stringValue ?? ""
+            awakeMode = mode == "off" ? "" : mode
+            awakeHours = mode == "hours" ? Int(args["hours"]?.numberValue ?? 1) : 0
+            awakeUntil = mode == "hours" ? Date.now.addingTimeInterval(Double(awakeHours) * 3600) : nil
             if case .object(let state) = awakeState { publish("awake.changed", state) }
             return awakeState
         case "voice.settings":
@@ -1048,14 +1051,52 @@ actor FixtureServer {
     }
 
     private var awakeState: JSONValue {
-        let agents = !UserDefaults.standard.bool(forKey: "awakeOff")
-        guard awakeManual || agents else {
-            return .object(["on": .bool(false), "text": .string(""), "detail": .string("The Mac sleeps as usual."), "manual": .bool(false), "until": .number(0), "holds": .array([]), "agents": .bool(true), "battery": .bool(false), "display": .bool(false)])
+        let battery = awakeScene == "armed"
+        let agentHold = awakeScene == "hours"
+        let time = awakeUntil.map { $0.formatted(date: .omitted, time: .shortened) } ?? ""
+        let agentsHold = awakeMode == "agents" && !battery
+        let on = awakeMode == "hours" || awakeMode == "on" || agentsHold || agentHold
+        let lead: String? = switch awakeMode {
+        case "hours": "Awake until " + time
+        case "on": "Awake"
+        case "agents" where agentsHold: "Awake · 1 agent"
+        default: nil
         }
-        let others = awakeManual && agents ? " +1" : ""
-        let text = !awakeManual ? "Awake · 1 agent" : awakeUntil.map { "Awake until " + $0.formatted(date: .omitted, time: .shortened) + others } ?? "Awake" + others
-        let detail = awakeManual ? "Kept awake by you\(agents ? " and while 1 agent works" : ""), on battery too. A closed lid still sleeps the Mac on battery." : "Kept awake while 1 agent works, on power only. A closed lid still sleeps the Mac on battery."
-        return .object(["on": .bool(true), "text": .string(text), "detail": .string(detail), "manual": .bool(awakeManual), "until": .number(awakeUntil.map { $0.timeIntervalSince1970.rounded() } ?? 0), "holds": .array([]), "agents": .bool(true), "battery": .bool(false), "display": .bool(false)])
+        let text = !on ? "" : lead.map { $0 + (agentHold ? " +1" : "") } ?? "Awake · release build"
+        let mine: String? = switch awakeMode {
+        case "hours": "by you until " + time
+        case "on": "by you until you turn it off"
+        default: nil
+        }
+        let detail: String = switch (on, awakeMode) {
+        case (false, "agents"): battery ? "The Mac sleeps as usual: on battery, agents wait for power." : "The Mac sleeps as usual until an agent is running or waiting for you."
+        case (false, _): "The Mac sleeps as usual."
+        case (true, "agents") where !agentHold: "Kept awake while 1 agent works, on power."
+        default: "Kept awake " + [mine, agentHold ? "by an agent's release build" : nil].compactMap { $0 }.joined(separator: " and ") + (mine == nil ? " until it ends, 20:40 at the latest." : ".")
+        }
+        let value: String = switch awakeMode {
+        case "hours": "Until " + time
+        case "agents": "While agents work"
+        case "on": "Until turned off"
+        default: "Off"
+        }
+        var holds: [JSONValue] = []
+        if !awakeMode.isEmpty {
+            holds.append(.object(["kind": .string(awakeMode == "agents" ? "rule" : "you"), "title": .string(awakeMode == "agents" ? "While agents work" : "You"), "trailing": .string(value)]))
+        }
+        if agentHold {
+            holds.append(.object(["kind": .string("agent"), "id": .string("ah_1"), "title": .string("release build"), "trailing": .string("Ship 2.4 release · ≤ 20:40"), "session": sessions.first?["id"] ?? .null, "workspace": .string(workspace)]))
+        }
+        let options: [JSONValue] = [1, 2, 4, 8, 24].map { .object(["hours": .number(Double($0)), "title": .string($0 == 1 ? "1 Hour" : "\($0) Hours"), "short": .string("\($0) h")]) }
+        let labels: JSONValue = .object([
+            "section": .string("Keep Awake"),
+            "picker": .string("Keep awake"),
+            "hours": .object(["title": .string("For Hours"), "active": .string("For \(awakeHours) Hours"), "options": .array(options)]),
+            "agents": .object(["title": .string("While Agents Work"), "subtitle": .string("Running or waiting for you")]),
+            "on": .object(["title": .string("Until Turned Off")]),
+            "off": .object(["title": .string("Turn Off")]),
+        ])
+        return .object(["on": .bool(on), "armed": .bool(awakeMode == "agents" && !on), "text": .string(text), "detail": .string(detail), "mode": .string(awakeMode), "hours": .number(Double(awakeHours)), "until": .number(awakeUntil.map { $0.timeIntervalSince1970.rounded() } ?? 0), "value": .string(value), "ends": .string(awakeMode == "hours" ? "until " + time : ""), "holds": .array(holds), "labels": labels, "laptop": .bool(battery), "onBattery": .bool(battery), "battery": .bool(false), "display": .bool(false)])
     }
 
     private var usageState: JSONValue {

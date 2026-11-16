@@ -86,6 +86,8 @@ struct WorkspaceLayout: View {
             } awakeSettings: { [app, openSettings] in
                 app.settingsRequest = .plugin("awake")
                 openSettings()
+            } openSession: { [app, store] session, workspace in
+                app.revealSession(session, in: workspace.isEmpty ? store.workspaceID : workspace)
             } trailing: {
                 if store.hasSlot("\(section).status") {
                     SlotPane(store: store, slot: "\(section).status", paneTheme: theme.scaled(theme.uiSize - 1))

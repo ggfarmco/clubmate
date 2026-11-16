@@ -1,42 +1,58 @@
 # Keep awake
 
-The `awake` plugin keeps the Mac from sleeping, like Amphetamine or `caffeinate`. It is the one place that decides whether the Mac stays awake: the Mac app, the phone and agents only ask it and show what it says. The core and the plugin outlive the app, so the Mac stays awake with the app closed, while the phone drives agents.
+The `awake` plugin keeps the Mac from sleeping, like Amphetamine. It is the one place that decides whether the Mac stays awake and every word about it: the Mac app, the phone and agents only ask it and show what it says. The core and the plugin outlive the app, so the Mac stays awake with the app closed, while the phone drives agents. The design is `design/features/keep-awake/` (Claude Design, round 2).
 
-## Holds
+## Your choice and agents' holds
 
-The Mac stays awake while at least one hold is on:
+**Your choice** is one switch with three choices; at most one is active, none means Off:
 
-| Kind | Who | Ends |
-|---|---|---|
-| `manual` | You: the status bar menu, Settings → Keep Awake, the phone, `cm command run awake.set`. | When you turn it off, or at its `until` (1 hour, 4 hours, or never). |
-| `agents` | The rule "while agents work" (off by default; turn it on with While Agents Work in the status bar menu, in Settings → Keep Awake or with `awake.settings-set`): any agent session in any workspace is `active` in `agents.sessions` (running or waiting for you, not a service session; the same sessions as the Mac status bar's "N agents"). | When no session is active. |
-| `agent` | An agent: `awake.hold` (MCP `awake_hold`), e.g. for a long build. | `awake.release`, its `minutes` (default 60, at most 720), the process `pid` it named exiting, or its session closing or being deleted. |
+| Mode | Choice | Holds the Mac while | On battery |
+|---|---|---|---|
+| `hours` | For N hours: 1, 2, 4, 8 or 24 | the time hasn't passed | yes |
+| `agents` | While agents work | any agent session in any workspace is `active` in `agents.sessions` (running or waiting for you, not a service session; the sessions of the Mac status bar's "N agents") | only with "On battery too" (laptops) |
+| `on` | Until turned off | until you choose Turn Off | yes |
 
-The plugin re-reads `agents.sessions` of every workspace when it starts, when the agents plugin restarts (`agents.ready`) and on `agents.changed` for a workspace (that workspace only), and every minute while the rule is on, so a missed or out-of-order event is right again within a minute. Deadlines are checked against the wall clock every 5 seconds, so a timer that stalled across a sleep ends on the next check.
+Picking a choice replaces the current one; picking another number of hours restarts the clock. When the hours run out the mode goes to none (Off). Turn Off ends your choice only. **Armed** is `agents` chosen while it holds nothing: no agent is active, or one is and the Mac is on battery with "On battery too" off.
+
+**An agent's hold** is separate: an agent asks with `awake.hold` (MCP `awake_hold`, e.g. "release build"); it ends with `awake.release`, its `minutes` (default 60, at most 720), the process `pid` it named exiting, or its session closing or being deleted. Turn Off never ends it.
+
+The plugin re-reads `agents.sessions` of every workspace when it starts, when the agents plugin restarts (`agents.ready`), on `agents.changed` for a workspace (that workspace only) and every minute while `agents` is chosen, so a missed event is right again within a minute. Deadlines and the power source are checked every 5 seconds against the wall clock, so a timer that stalled across a sleep ends on the next check.
 
 ## How it holds
 
-While any hold is on the plugin itself holds IOKit power assertions named "Clubmate keep awake" (`IOPMAssertionCreateWithName`, the API under `caffeinate`; no child process), and releases them when none is. macOS drops a process's assertions when it exits, so a crashed or killed plugin never leaves the Mac awake; the supervisor's restart reloads the stored holds and asserts again. A change of settings releases them and asserts the new set. `pmset -g assertions` lists them under the plugin's pid.
+While anything holds the Mac the plugin itself holds IOKit power assertions named "Clubmate keep awake" (`PreventUserIdleSystemSleep` and `PreventSystemSleep`; `PreventUserIdleDisplaySleep` too with "Keep the screen on"), and releases them when nothing does. macOS drops a process's assertions when it exits, so a crashed or killed plugin never leaves the Mac awake; the supervisor's restart reloads your choice and the agents' holds and asserts again. `pmset -g assertions` lists them under the plugin's pid. The plugin reads the power source itself (IOKit `IOPSCopyPowerSourcesInfo`): whether the Mac has a battery (`laptop`) and whether it runs on it (`onBattery`).
 
-- `PreventSystemSleep` keeps the Mac awake on power (macOS ignores it on battery).
-- `PreventUserIdleSystemSleep` also keeps it awake on battery. A `manual` or `agent` hold always adds it; the `agents` rule only with "On battery too" on (off by default), so an agent question left overnight does not drain a laptop.
-- `PreventUserIdleDisplaySleep` keeps the screen on too, with "Keep the screen on" (off by default).
-
-A closed lid still sleeps a laptop on battery, whatever the holds; on power it stays awake with the lid closed only with an external display, keyboard and mouse (clamshell mode). The detail line says so.
+A closed lid still sleeps a laptop on battery, whatever holds it; on power it stays awake closed only with an external display, keyboard and mouse. `detail` says so only on a laptop on battery.
 
 ## State
 
-`awake.state` (scope app, `remote`, agent-visible) returns the state; every change publishes the same object on the bus topic `awake.changed`, which `remote` forwards to the phone:
+`awake.state` (scope app, `remote`, agent-visible) returns the state; every change publishes the same object on the bus topic `awake.changed`, which `remote` forwards to the phone. Clients show every string as it is and never work out the state themselves.
 
 ```json
 {
   "on": true,
-  "text": "Awake · 2 agents",
-  "detail": "Kept awake by 2 agents working, on power only; on battery it sleeps as usual. A closed lid still sleeps the Mac on battery.",
-  "manual": false,
-  "until": 0,
-  "holds": [{"id": "agents", "kind": "agents", "label": "2 agents working"}],
-  "agents": true,
+  "armed": false,
+  "text": "Awake until 18:00 +1",
+  "detail": "Kept awake by you until 18:00 and by an agent's release build.",
+  "mode": "hours",
+  "hours": 4,
+  "until": 1794870000,
+  "value": "Until 18:00",
+  "ends": "until 18:00",
+  "holds": [
+    {"kind": "you", "title": "You", "trailing": "for 4 hours · until 18:00"},
+    {"kind": "agent", "id": "ah_…", "title": "release build", "trailing": "Ship 2.4 release · ≤ 20:40", "session": "agt_…", "workspace": "prj_…"}
+  ],
+  "labels": {
+    "section": "Keep Awake",
+    "picker": "Keep awake",
+    "hours": {"title": "For Hours", "active": "For 4 Hours", "options": [{"hours": 1, "title": "1 Hour", "short": "1 h"}, {"hours": 2, "title": "2 Hours", "short": "2 h"}, {"hours": 4, "title": "4 Hours", "short": "4 h"}, {"hours": 8, "title": "8 Hours", "short": "8 h"}, {"hours": 24, "title": "24 Hours", "short": "24 h"}]},
+    "agents": {"title": "While Agents Work", "subtitle": "Running or waiting for you"},
+    "on": {"title": "Until Turned Off"},
+    "off": {"title": "Turn Off"}
+  },
+  "laptop": true,
+  "onBattery": false,
   "battery": false,
   "display": false
 }
@@ -44,33 +60,39 @@ A closed lid still sleeps a laptop on battery, whatever the holds; on power it s
 
 | Field | Meaning |
 |---|---|
-| `on` | The plugin holds its power assertions now. |
-| `text` | What a client shows while `on` ("Awake", "Awake until 18:30", "Awake · 2 agents", "Awake · <reason>"); empty when off. The first of manual, agent holds, agents rule names it; "+N" counts the others. |
-| `detail` | One sentence for a tooltip or a footnote: what holds it, whether on battery too, the screen, the lid. "The Mac sleeps as usual." when off. |
-| `manual` | Your own hold is on: clients offer Turn off instead of Keep awake. |
-| `until` | Unix seconds when your hold ends; `0` when it is off or has no end. |
-| `holds` | `[{id, kind, label, until?, pid?, session?, workspace?}]`: `manual` (id `manual`), `agents` (id `agents`), `agent` (id `ah_…`). |
-| `agents`, `battery`, `display` | The settings: the "while agents work" rule is on, it holds on battery too, the screen stays on. |
-
-Clients show `text` and `detail` as they are and never work out the state themselves.
+| `on` | The plugin holds its assertions now. |
+| `armed` | `agents` is chosen and holds nothing yet (status bar: muted outline gourd). |
+| `text` | Shown only while `on`; empty otherwise. Your choice leads, then an agent's hold, then the agents choice; "+N" counts agents' own holds besides the lead. "Awake until 18:00", "Awake", "Awake · 2 agents", "Awake · release build", "Awake until 18:00 +1", "Awake · 2 agents +1". Clock times in the system's format, never a countdown. |
+| `detail` | One sentence, always: "The Mac sleeps as usual." / "The Mac sleeps as usual until an agent is running or waiting for you." (armed) / "The Mac sleeps as usual: on battery, agents wait for power." (armed on battery) / "Kept awake by you until 18:00." / "Kept awake by you until you turn it off." / "Kept awake while 2 agents work, on power." / "Kept awake by an agent's release build until it ends, 20:40 at the latest." / "Kept awake by you until 18:00 and by an agent's release build."; plus " A closed lid still sleeps the Mac on battery." on a laptop on battery while awake. |
+| `mode` | `hours`, `agents`, `on`, or empty (Off). |
+| `hours`, `until` | The chosen hours and when they end (unix seconds); 0 otherwise. |
+| `value` | Your choice in words, for the phone's picker and Settings: "Off", "Until 18:00", "While agents work", "Until turned off". |
+| `ends` | "until 18:00" while `hours` is chosen, else empty: beside the hours in Settings and in the phone's Macs list. |
+| `holds` | Lines under the status (menu, Settings Now block, phone): `you` (your choice), `rule` ("While agents work" · "2 sessions" / "no agent working" / "waits for power · 1 waiting"), `agent` (its label · its session's title · "≤ 20:40"; opens its `session`). |
+| `labels` | Every word of the switch, so the Mac menu, Settings and the phone can't drift apart. `hours.active` is the item's title while `hours` is chosen; `hours.options[].short` ("4 h") is the phone's palette row; `picker` the phone picker's label. |
+| `laptop`, `onBattery` | The Mac has a battery; it runs on it now. "On battery too" and the lid footnote show only on a laptop. |
+| `battery`, `display` | Settings: the agents choice holds on battery too; the screen stays on. |
 
 ## Commands
 
 | Command | Who | Does |
 |---|---|---|
 | `awake.state` | app, phone, agents | The state above. |
-| `awake.set {on, minutes?}` | app, phone, palette | Turns your hold on (for `minutes`, or until turned off when `0` or absent) or off. Returns the state. |
-| `awake.hold {reason, minutes?, pid?}` | agents | Adds an agent hold in the caller's workspace; returns `{hold, until}` (`hold` `ah_…`). `reason` is shown ("Awake · <reason>"), at most 80 characters. |
+| `awake.set {mode, hours?}` | app, phone | `mode` `hours` (with `hours` 1, 2, 4, 8 or 24), `agents`, `on` or `off`. Returns the state. |
+| `awake.toggle` | app (⌥-click on the gourd, ⌥⌘A) | Nothing chosen: `on`; anything chosen: `off`. Returns the state. |
+| `awake.on`, `awake.agents`, `awake.off` | palette | "Keep Mac Awake Until Turned Off", "Keep Mac Awake While Agents Work", "Turn Off Keep Awake". |
+| `awake.hold {reason, minutes?, pid?}` | agents | Adds an agent hold in the caller's workspace; returns `{hold, until}`. `reason` at most 80 characters. |
 | `awake.release {hold}` | agents | Ends an agent hold. |
-| `awake.settings-set {agents?, battery?, display?}` | app, phone | Changes the settings; returns the state. |
-
-The palette has "Keep Mac awake" (`awake.on`: your hold, until turned off) and "Let Mac sleep" (`awake.off`: ends your hold; agent holds and the agents rule stay). Settings → Keep Awake (`awake.settings`, rendered by the plugin) has your hold as a toggle with `detail` under it, and the three settings.
+| `awake.settings-set {battery?, display?}` | app, phone | Changes the settings; returns the state. |
 
 ## Where it shows
 
-- **Mac:** the status bar shows `text` after the agent counts while `on` (a filled cup, `text` cut at the tail when the bar is narrow, `detail` as the tooltip); while off, only a faint outline cup, so the menu stays reachable. Clicking it opens a menu: Keep Awake for 1 Hour, for 4 Hours, Until Turned Off, Turn Off (only while `manual`), While Agents Work (a checkmark: turns the `agents` rule on or off, `awake.settings-set`), and Keep Awake Settings…, which opens Settings on the plugin's page. Nothing shows while the core is down or the plugin doesn't answer.
-- **Phone:** Mac details (tap the Mac's name) opens with a Keep Awake group, shown only when the Mac offers `awake.state`: `text` while `on` (`detail` under the group), `detail` alone while off; Keep Awake… with for 1 hour, for 4 hours and until turned off, and Turn Off while `manual`. It follows `awake.changed` and shows only while the Mac is online, so a Mac that went to sleep never reads "Awake".
+- **Mac status bar** (`design/features/keep-awake/1-status-bar`): the item sits in the right group, just left of the section's status line (hints) and ⌘K, and grows leftwards, so nothing else in the bar moves. The glyph is a mate gourd (round 3, `KA3-Glyph`), drawn by `GourdGlyph` and monochrome on the Mac. Off: a faint outline gourd with its bombilla; armed: the outline gourd at muted; awake: the filled gourd with a leaf at the mouth plus `text` at the bar's muted level. No tint. Below 800 pt only the gourd; the text moves to the tooltip and the menu's first line. Tooltip `detail`. Click or right-click opens the menu; ⌥-click runs `awake.toggle`.
+- **Menu** (`2-menu`): the first line is `text` (or "The Mac sleeps as usual."), then one quiet line per hold (title left, trailing right). Then the section header (`labels.section`): For Hours ▸ (submenu of `labels.hours.options`, ✓ on the active number; the item reads `labels.hours.active` while active), While Agents Work, Until Turned Off, ✓ on the active choice; Turn Off (with ⌥⌘A) only while a choice is active, ⌥⌘A on Until Turned Off otherwise. The first line carries the gourd as a template image, so macOS tints it. Then Keep Awake Settings…
+- **Settings → Keep Awake** (`3-settings`, rendered by the plugin; its icon in the Settings sidebar and header is `clubmate.gourd`): a read-only **Now** block (the gourd, `clubmate.gourd.fill` while awake, and the status line, `detail`, the hold lines); **Keep awake**, one radio group: Off · For [hours select] (with "until 18:00" beside it while active) · While agents work (with "On battery too" indented under it, laptops only) · Until turned off; **Display**: Keep the screen on; the lid footnote, laptops only.
+  Its `ui.event` actions on slot `awake.settings` (workspace ""): `choice` with `"off"`, `"hours"` (the last number used, 1 on first use), `"agents"` or `"on"`; `hours` with 1, 2, 4, 8 or 24; `battery` and `display` with a bool.
+- **Phone** (`4-phone`): Mac details, first group, while the Mac is online or remembered: the status row (the gourd at 16 pt in a 28 pt circle, accent while awake), agents' holds nested under it (tap opens the session), one **Keep awake** picker whose value is `value`; its menu: a row of hour buttons (1 h · 2 h · 4 h · 8 h · 24 h), While Agents Work (with its subtitle), Until Turned Off, Turn Off while a choice is active; footer `detail` while awake. Offline: the group stays, dimmed, with the last known state ("Asleep or offline"). The Macs list shows a small filled gourd (13 pt) and the end time on a Mac that is awake.
 
 ## Storage
 
-Plugin storage keys: `settings`, `manual` (`{on, until}`) and `holds` (agent holds), so a plugin restart keeps them; expired holds, exited pids and closed sessions are dropped on load.
+Plugin storage keys: `settings` (`{battery, display}`), `choice` (`{mode, hours, until}`) and `holds` (agent holds), so a plugin restart keeps them; an expired choice, expired holds, exited pids and closed sessions are dropped on load.

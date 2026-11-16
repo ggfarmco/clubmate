@@ -803,16 +803,30 @@ final class CompanionUITests: XCTestCase {
         let app = launch(open: "mac")
         let state = app.staticTexts["mac.awake.state"]
         XCTAssertTrue(state.waitForExistence(timeout: 10))
-        XCTAssertTrue(state.label.contains("Awake · 1 agent"), state.label)
+        XCTAssertEqual(state.label, "The Mac sleeps as usual.")
+        let keep = app.buttons["mac.awake.keep"]
+        keep.tap()
+        XCTAssertTrue(app.buttons["mac.awake.agents"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["mac.awake.on"].exists)
         XCTAssertFalse(app.buttons["mac.awake.off"].exists)
-        app.buttons["mac.awake.keep"].tap()
-        app.buttons["For 1 Hour"].tap()
-        XCTAssertTrue(wait(for: state, "label CONTAINS 'Awake until'"))
+        app.buttons["4 Hours"].tap()
+        XCTAssertTrue(wait(for: state, "label BEGINSWITH 'Awake until'"))
+        XCTAssertTrue(app.staticTexts["mac.awake.value"].label.hasPrefix("Until "))
+        keep.tap()
         let off = app.buttons["mac.awake.off"]
         XCTAssertTrue(off.waitForExistence(timeout: 5))
         off.tap()
-        XCTAssertTrue(wait(for: off, "exists == false"))
-        XCTAssertTrue(state.label.contains("Awake · 1 agent"), state.label)
+        XCTAssertTrue(wait(for: state, "label == 'The Mac sleeps as usual.'"))
+        XCTAssertEqual(app.staticTexts["mac.awake.value"].label, "Off")
+    }
+
+    func testKeepAwakeAgentHoldOpensItsSession() {
+        let app = launch(open: "mac", ["-awake", "hours"])
+        let hold = app.buttons["mac.awake.hold.ah_1"]
+        XCTAssertTrue(hold.waitForExistence(timeout: 10))
+        XCTAssertTrue(hold.label.contains("release build"), hold.label)
+        hold.tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Explore: Check the cart tests")).firstMatch.waitForExistence(timeout: 10))
     }
 
     func testUsageLineOpensClaudeUsageAndSessionInfoShowsTheShares() {

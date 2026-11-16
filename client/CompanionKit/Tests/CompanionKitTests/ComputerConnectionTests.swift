@@ -143,7 +143,7 @@ final class ComputerConnectionTests: XCTestCase {
         let transport = FakeTransport(reply: { request in
             switch FakeTransport.rpc(request) {
             case "workspaces": (FakeTransport.result(workspacesJSON), 200)
-            case "awake.state": (FakeTransport.result(#"{"on":true,"text":"Awake · 2 agents","detail":"Kept awake while 2 agents work.","manual":false,"until":0,"holds":[]}"#), 200)
+            case "awake.state": (FakeTransport.result(awakeHoursJSON), 200)
             default: (FakeTransport.result(#"{"computer":{"id":"mac1","name":"Mac Studio"},"version":"0.0.71","commands":["awake.state","awake.set"],"topics":[]}"#), 200)
             }
         }, stream: { _ in
@@ -154,13 +154,17 @@ final class ComputerConnectionTests: XCTestCase {
         })
         let connection = ComputerConnection(computer: computer, token: "t", transport: transport, sleep: { _ in })
         connection.start()
-        try await waitUntil { connection.state == .online && held.values.count == 1 }
-        XCTAssertEqual(connection.awake, AwakeState(on: true, text: "Awake · 2 agents", detail: "Kept awake while 2 agents work.", manual: false))
+        try await waitUntil { connection.awake != nil && held.values.count == 1 }
+        XCTAssertEqual(connection.awake?.text, "Awake until 18:00 +1")
+        XCTAssertEqual(connection.awake?.agentHolds, [AwakeHold(kind: "agent", title: "release build", trailing: "Ship 2.4 release · ≤ 20:40", hold: "ah_1", session: "agt_1", workspace: "prj_1")])
+        XCTAssertEqual(connection.awake?.labels?.hours.options.map(\.hours), [1, 2, 4, 8, 24])
+        XCTAssertEqual(connection.awake?.labels?.hours.options.first?.short, "1 h")
+        XCTAssertEqual(connection.awake?.ends, "until 18:00")
 
-        held.values[0].yield(Data("id: 4\nevent: bus\ndata: {\"seq\":4,\"topic\":\"awake.changed\",\"payload\":{\"on\":false,\"text\":\"\",\"detail\":\"The Mac sleeps as usual.\",\"manual\":false,\"until\":0}}\n\n".utf8))
+        held.values[0].yield(Data("id: 4\nevent: bus\ndata: {\"seq\":4,\"topic\":\"awake.changed\",\"payload\":\(awakeOffJSON)}\n\n".utf8))
 
         try await waitUntil { connection.awake?.on == false }
-        XCTAssertEqual(connection.awake?.detail, "The Mac sleeps as usual.")
+        XCTAssertEqual(connection.awake?.value, "Off")
         connection.stop()
     }
 
@@ -176,18 +180,49 @@ final class ComputerConnectionTests: XCTestCase {
         connection.stop()
     }
 
-    func testSetAwakeSendsTheHoldAndShowsTheReply() async throws {
-        let transport = FakeTransport(reply: { _ in
-            (FakeTransport.result(#"{"on":true,"text":"Awake until 18:30","detail":"Kept awake by you.","manual":true,"until":1789000000}"#), 200)
-        })
+    func testSetAwakeSendsTheChoiceAndShowsTheReply() async throws {
+        let transport = FakeTransport(reply: { _ in (FakeTransport.result(awakeHoursJSON), 200) })
         let connection = ComputerConnection(computer: computer, token: "t", transport: transport, sleep: { _ in })
 
-        try await connection.setAwake(true, minutes: 60)
+        try await connection.setAwake(mode: "hours", hours: 4)
 
         let body = try JSONDecoder().decode(JSONValue.self, from: XCTUnwrap(transport.requests.last?.httpBody))
         XCTAssertEqual(body["params"]?["id"]?.stringValue, "awake.set")
-        XCTAssertEqual(body["params"]?["args"], .object(["on": .bool(true), "minutes": .number(60)]))
-        XCTAssertEqual(connection.awake, AwakeState(on: true, text: "Awake until 18:30", detail: "Kept awake by you.", manual: true, until: 1789000000))
+        XCTAssertEqual(body["params"]?["args"], .object(["mode": .string("hours"), "hours": .number(4)]))
+        XCTAssertEqual(connection.awake?.value, "Until 18:00")
+    }
+
+    func testSetAwakeReplyNeverOverwritesAChangeThatArrivedMeanwhile() async throws {
+        let held = Recorder<AsyncThrowingStream<Data, any Error>.Continuation>()
+        let gate = AsyncStream<Void>.makeStream()
+        let transport = FakeTransport(reply: { request in
+            switch FakeTransport.rpc(request) {
+            case "workspaces": return (FakeTransport.result(workspacesJSON), 200)
+            case "awake.state": return (FakeTransport.result(awakeOffJSON), 200)
+            case "awake.set":
+                for await _ in gate.stream { break }
+                return (FakeTransport.result(awakeHoursJSON), 200)
+            default: return (FakeTransport.result(#"{"computer":{"id":"mac1","name":"Mac Studio"},"version":"0.0.71","commands":["awake.state","awake.set"],"topics":[]}"#), 200)
+            }
+        }, stream: { _ in
+            (200, AsyncThrowingStream {
+                $0.yield(Data(": connected\n\n".utf8))
+                held.add($0)
+            })
+        })
+        let connection = ComputerConnection(computer: computer, token: "t", transport: transport, sleep: { _ in })
+        connection.start()
+        try await waitUntil { connection.awake?.value == "Off" && held.values.count == 1 }
+
+        let setting = Task { try await connection.setAwake(mode: "hours", hours: 4) }
+        try await waitUntil { transport.requests.contains { FakeTransport.rpc($0) == "awake.set" } }
+        held.values[0].yield(Data("id: 5\nevent: bus\ndata: {\"seq\":5,\"topic\":\"awake.changed\",\"payload\":{\"on\":true,\"text\":\"Awake · 2 agents\",\"mode\":\"agents\",\"value\":\"While agents work\"}}\n\n".utf8))
+        try await waitUntil { connection.awake?.mode == "agents" }
+        gate.continuation.yield()
+        try await setting.value
+
+        XCTAssertEqual(connection.awake?.mode, "agents")
+        connection.stop()
     }
 
     func testCancelledRunLeavesTheNewerStateAlone() async throws {
@@ -345,3 +380,6 @@ final class ComputerConnectionTests: XCTestCase {
     }
 }
 
+private let awakeHoursJSON = #"{"on":true,"armed":false,"text":"Awake until 18:00 +1","detail":"Kept awake by you until 18:00 and by an agent's release build.","mode":"hours","hours":4,"until":1794870000,"value":"Until 18:00","ends":"until 18:00","holds":[{"kind":"you","title":"You","trailing":"for 4 hours · until 18:00"},{"kind":"agent","id":"ah_1","title":"release build","trailing":"Ship 2.4 release · ≤ 20:40","session":"agt_1","workspace":"prj_1"}],"labels":{"section":"Keep Awake","picker":"Keep awake","hours":{"title":"For Hours","active":"For 4 Hours","options":[{"hours":1,"title":"1 Hour","short":"1 h"},{"hours":2,"title":"2 Hours"},{"hours":4,"title":"4 Hours"},{"hours":8,"title":"8 Hours"},{"hours":24,"title":"24 Hours"}]},"agents":{"title":"While Agents Work","subtitle":"Running or waiting for you"},"on":{"title":"Until Turned Off"},"off":{"title":"Turn Off"}},"laptop":false,"onBattery":false}"#
+
+private let awakeOffJSON = #"{"on":false,"text":"","detail":"The Mac sleeps as usual.","mode":"","value":"Off","holds":[]}"#

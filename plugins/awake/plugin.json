@@ -2,11 +2,17 @@
   "id": "awake",
   "name": "Keep Awake",
   "version": "0.1.0",
-  "icon": "cup.and.saucer",
+  "icon": "clubmate.gourd",
   "protocol": 1,
-  "command": ["awake"],
+  "command": [
+    "awake"
+  ],
   "contributes": {
-    "views": [{"slot": "awake.settings"}],
+    "views": [
+      {
+        "slot": "awake.settings"
+      }
+    ],
     "commands": [
       {
         "id": "awake.state",
@@ -15,33 +21,90 @@
         "remote": true,
         "agent": true,
         "scope": "app",
-        "description": "Whether the Mac is kept awake and why: {on, text, detail, manual, until, holds: [{id, kind, label, until?, pid?, session?, workspace?}], agents, battery, display}. Every change publishes awake.changed with the same shape. Show text and detail as they are.",
+        "description": "Whether the Mac is kept awake and why: {on, armed, text, detail, mode, hours, until, value, holds: [{kind, title, trailing, id?, session?, workspace?}], labels, laptop, onBattery, battery, display}. mode is the user's one choice (hours, agents, on, or empty = off); holds are the lines under the status; labels holds every word of the switch. Every change publishes awake.changed with the same shape. Show every string as it is.",
         "result": {
           "properties": {
-            "on": {"type": "boolean", "description": "The Mac is kept awake now."},
-            "text": {"type": "string", "description": "What to show while on, e.g. Awake until 18:30; empty when off."},
-            "detail": {"type": "string", "description": "One sentence: what holds it, battery, screen, lid."},
-            "manual": {"type": "boolean", "description": "The user's own hold is on."},
-            "until": {"type": "integer", "description": "Unix seconds when the user's hold ends; 0 when off or without an end."},
+            "on": {
+              "type": "boolean",
+              "description": "The Mac is kept awake now."
+            },
+            "armed": {
+              "type": "boolean",
+              "description": "While agents work is chosen and holds nothing yet."
+            },
+            "text": {
+              "type": "string",
+              "description": "What to show while on, e.g. Awake until 18:00; empty otherwise."
+            },
+            "detail": {
+              "type": "string",
+              "description": "One sentence: what holds it, power, lid."
+            },
+            "mode": {
+              "type": "string",
+              "description": "hours, agents, on, or empty (off)."
+            },
+            "hours": {
+              "type": "integer",
+              "description": "The chosen hours while mode is hours."
+            },
+            "until": {
+              "type": "integer",
+              "description": "Unix seconds when the hours end; 0 otherwise."
+            },
+            "value": {
+              "type": "string",
+              "description": "The choice in words: Off, Until 18:00, While agents work, Until turned off."
+            },
             "holds": {
               "type": "array",
-              "description": "What keeps the Mac awake.",
+              "description": "Lines under the status.",
               "items": {
                 "type": "object",
                 "properties": {
-                  "id": {"type": "string", "description": "manual, agents or ah_…"},
-                  "kind": {"type": "string", "description": "manual, agents or agent."},
-                  "label": {"type": "string", "description": "What it is, in words."},
-                  "until": {"type": "integer", "description": "Unix seconds when it ends, if it does."},
-                  "pid": {"type": "integer", "description": "Process whose exit ends it."},
-                  "session": {"type": "string", "description": "Agent session that holds it."},
-                  "workspace": {"type": "string", "description": "Workspace of that session."}
+                  "kind": {
+                    "type": "string",
+                    "description": "you, rule or agent."
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "Left side, e.g. release build."
+                  },
+                  "trailing": {
+                    "type": "string",
+                    "description": "Right side, e.g. Ship 2.4 release · ≤ 20:40."
+                  },
+                  "id": {
+                    "type": "string",
+                    "description": "An agent hold's id (ah_…)."
+                  },
+                  "session": {
+                    "type": "string",
+                    "description": "The agent session that holds it."
+                  },
+                  "workspace": {
+                    "type": "string",
+                    "description": "That session's workspace."
+                  }
                 }
               }
             },
-            "agents": {"type": "boolean", "description": "The while-agents-work rule is on."},
-            "battery": {"type": "boolean", "description": "The rule holds on battery too."},
-            "display": {"type": "boolean", "description": "The screen stays on too."}
+            "laptop": {
+              "type": "boolean",
+              "description": "The Mac has a battery."
+            },
+            "onBattery": {
+              "type": "boolean",
+              "description": "The Mac runs on battery now."
+            },
+            "battery": {
+              "type": "boolean",
+              "description": "While agents work holds on battery too."
+            },
+            "display": {
+              "type": "boolean",
+              "description": "The screen stays on too."
+            }
           }
         }
       },
@@ -51,26 +114,60 @@
         "hidden": true,
         "remote": true,
         "scope": "app",
-        "description": "Turn the user's own keep-awake hold on (for minutes, or until turned off when minutes is 0 or absent) or off. Returns the state as awake.state does.",
+        "description": "Set the user's one keep-awake choice: mode hours (with hours 1, 2, 4, 8 or 24), agents (while agents work), on (until turned off) or off. Returns the state as awake.state does.",
         "args": {
           "properties": {
-            "on": {"type": "boolean", "description": "Turn the hold on or off."},
-            "minutes": {"type": "integer", "minimum": 0, "maximum": 10080, "description": "How long; 0 or absent: until turned off."}
+            "mode": {
+              "type": "string",
+              "enum": [
+                "hours",
+                "agents",
+                "on",
+                "off"
+              ],
+              "description": "The choice, or off."
+            },
+            "hours": {
+              "type": "integer",
+              "enum": [
+                1,
+                2,
+                4,
+                8,
+                24
+              ],
+              "description": "How many hours, with mode hours."
+            }
           },
-          "required": ["on"]
+          "required": [
+            "mode"
+          ]
         }
       },
       {
         "id": "awake.on",
-        "title": "Keep Mac awake",
+        "title": "Keep Mac Awake Until Turned Off",
         "scope": "app",
         "description": "Keep the Mac awake until you turn it off."
       },
       {
         "id": "awake.off",
-        "title": "Let Mac sleep",
+        "title": "Turn Off Keep Awake",
         "scope": "app",
-        "description": "End your keep-awake hold; agent holds and the while-agents-work rule stay."
+        "description": "End your keep-awake choice; agents' own holds stay."
+      },
+      {
+        "id": "awake.agents",
+        "title": "Keep Mac Awake While Agents Work",
+        "scope": "app",
+        "description": "Keep the Mac awake while any agent session is running or waiting for you."
+      },
+      {
+        "id": "awake.toggle",
+        "title": "Toggle Keep Awake",
+        "hidden": true,
+        "scope": "app",
+        "description": "Nothing chosen: keep awake until turned off; anything chosen: turn it off. Returns the state."
       },
       {
         "id": "awake.hold",
@@ -80,16 +177,37 @@
         "description": "Keep the Mac awake for a long build or run, then release it with awake.release. The hold ends by itself after minutes (default 60, at most 720), when the process pid exits, or when your session closes. Returns {hold, until}.",
         "args": {
           "properties": {
-            "reason": {"type": "string", "maxLength": 80, "description": "What runs, shown to the user, e.g. release build."},
-            "minutes": {"type": "integer", "minimum": 1, "maximum": 720, "description": "At most this long; default 60."},
-            "pid": {"type": "integer", "minimum": 1, "description": "End the hold when this process exits."}
+            "reason": {
+              "type": "string",
+              "maxLength": 80,
+              "description": "What runs, shown to the user, e.g. release build."
+            },
+            "minutes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 720,
+              "description": "At most this long; default 60."
+            },
+            "pid": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "End the hold when this process exits."
+            }
           },
-          "required": ["reason"]
+          "required": [
+            "reason"
+          ]
         },
         "result": {
           "properties": {
-            "hold": {"type": "string", "description": "Hold id (ah_…) for awake.release."},
-            "until": {"type": "integer", "description": "Unix seconds when it ends at the latest."}
+            "hold": {
+              "type": "string",
+              "description": "Hold id (ah_…) for awake.release."
+            },
+            "until": {
+              "type": "integer",
+              "description": "Unix seconds when it ends at the latest."
+            }
           }
         }
       },
@@ -101,9 +219,14 @@
         "description": "End a hold made with awake.hold.",
         "args": {
           "properties": {
-            "hold": {"type": "string", "description": "Hold id (ah_…)."}
+            "hold": {
+              "type": "string",
+              "description": "Hold id (ah_…)."
+            }
           },
-          "required": ["hold"]
+          "required": [
+            "hold"
+          ]
         }
       },
       {
@@ -115,9 +238,14 @@
         "description": "Change the keep-awake settings; returns the state as awake.state does.",
         "args": {
           "properties": {
-            "agents": {"type": "boolean", "description": "Keep the Mac awake while any agent session is active."},
-            "battery": {"type": "boolean", "description": "That rule holds on battery too."},
-            "display": {"type": "boolean", "description": "Keep the screen on too."}
+            "battery": {
+              "type": "boolean",
+              "description": "While agents work holds on battery too."
+            },
+            "display": {
+              "type": "boolean",
+              "description": "Keep the screen on too."
+            }
           }
         }
       }

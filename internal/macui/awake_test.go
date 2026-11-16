@@ -2,6 +2,7 @@ package macui_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,56 +11,59 @@ import (
 func TestKeepAwakeStatusMenu(t *testing.T) {
 	in := start(t, "macui-awake", "")
 	t.Cleanup(func() {
-		_, _ = in.run("command", "run", "awake.set", "on=false")
-		_, _ = in.run("command", "run", "awake.settings-set", "agents=false")
+		_, _ = in.run("command", "run", "awake.set", "mode=off")
 	})
 	var state struct {
-		Text   string `json:"text"`
-		Manual bool   `json:"manual"`
-		Agents bool   `json:"agents"`
+		Mode  string `json:"mode"`
+		Hours int    `json:"hours"`
 	}
 	read := func() {
 		in.json(&state, "command", "run", "awake.state")
 	}
+	menu := func() []menuItem {
+		if item := in.snapshot().main().node("awake"); item != nil {
+			return item.Menu
+		}
+		return nil
+	}
+	chosen := func(what, mode string, hours int) {
+		t.Helper()
+		in.eventually(what, func() bool {
+			read()
+			return state.Mode == mode && state.Hours == hours
+		})
+	}
 	in.eventually("the status bar shows the keep-awake item without Turn Off", func() bool {
-		item := in.snapshot().main().node("awake")
-		return item != nil && len(item.Menu) > 0 && !slices.Contains(titles(item.Menu), "Turn Off")
+		items := menu()
+		return len(items) > 0 && slices.Contains(titles(items), "For Hours") && !slices.Contains(titles(items), "Turn Off")
 	})
 
-	in.pointer("menu", "awake", "Keep Awake Until Turned Off")
-	in.eventually("the menu turned the hold on", func() bool {
-		read()
-		return state.Manual
-	})
-	assert.Equal(t, "Awake", state.Text)
-	in.eventually("the item offers Turn Off", func() bool {
-		item := in.snapshot().main().node("awake")
-		return item != nil && slices.Contains(titles(item.Menu), "Turn Off")
-	})
-
-	in.pointer("menu", "awake", "Turn Off")
-	in.eventually("Turn Off ended the hold", func() bool {
-		read()
-		return !state.Manual
+	in.pointer("menu", "awake", "For Hours > 2 Hours")
+	chosen("For Hours ▸ 2 Hours chose two hours", "hours", 2)
+	in.eventually("the item names the hours, checked, with Turn Off", func() bool {
+		items := menu()
+		i := slices.IndexFunc(items, func(m menuItem) bool { return m.Title == "For 2 Hours" })
+		return i >= 0 && items[i].Checked && slices.Contains(titles(items), "Turn Off")
 	})
 
 	in.pointer("menu", "awake", "While Agents Work")
-	in.eventually("While Agents Work turned the rule on", func() bool {
-		read()
-		return state.Agents
-	})
-	in.eventually("the item shows the rule checked", func() bool {
-		item := in.snapshot().main().node("awake")
-		if item == nil {
-			return false
-		}
-		i := slices.IndexFunc(item.Menu, func(m menuItem) bool { return m.Title == "While Agents Work" })
-		return i >= 0 && item.Menu[i].Checked
-	})
+	chosen("While Agents Work replaced the hours", "agents", 0)
+	in.pointer("menu", "awake", "Until Turned Off")
+	chosen("Until Turned Off replaced the agents choice", "on", 0)
+	in.pointer("menu", "awake", "Turn Off")
+	chosen("Turn Off ended the choice", "", 0)
+
+	in.pointer("click", "awake", "--keys", "opt")
+	chosen("⌥-click keeps it awake until turned off", "on", 0)
+	routes := in.key("cmd+opt+a")
+	assert.True(t, len(routes) == 1 && strings.HasPrefix(routes[0], "menu Turn Off Keep Awake"), "⌥⌘A routes to the menu item: %v", routes)
+	chosen("⌥⌘A turns it off", "", 0)
 
 	in.pointer("menu", "awake", "Keep Awake Settings…")
 	in.eventually("Settings opens on the plugin's page", func() bool {
 		w := in.snapshot().kind("settings")
-		return w != nil && w.has("display")
+		return w != nil && w.has("choice-agents")
 	})
+	in.pointer("click", "choice-agents", "--at", "20,12")
+	chosen("the While agents work radio chose it", "agents", 0)
 }

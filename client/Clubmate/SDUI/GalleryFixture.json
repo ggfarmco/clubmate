@@ -572,6 +572,11 @@
                             {"type": "text", "props": {"text": "start sessions on open"}}
                           ]
                         },
+                        {"type": "radio", "id": "gallery-radio-off", "props": {"value": "off", "on": false, "label": "Off", "action": "choice"}},
+                        {"type": "radio", "id": "gallery-radio-agents", "props": {"value": "agents", "on": true, "label": "While agents work", "action": "choice"}, "children": [
+                          {"type": "text", "props": {"text": "An agent running or waiting for you keeps the Mac awake.", "style": "muted"}}
+                        ]},
+                        {"type": "radio", "id": "gallery-radio-disabled", "props": {"value": "on", "on": false, "label": "Until turned off", "disabled": true, "action": "choice"}},
                         {
                           "type": "stack",
                           "props": {"direction": "horizontal"},

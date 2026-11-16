@@ -38,6 +38,8 @@ func TestValidate(t *testing.T) {
 		{"tree bad nested", sdui.Node{Type: "tree", ID: "t", Props: map[string]any{"items": []any{map[string]any{"id": "a", "label": "A", "children": []any{map[string]any{"id": "b"}}}}}}, false},
 		{"toggle false", sdui.Toggle("t", false), true},
 		{"checkbox", sdui.Checkbox("t", "tests 3", true), true},
+		{"radio", sdui.WithDisabled(sdui.WithAction(sdui.Radio("r", "hours", "For", true), "choice")), true},
+		{"radio without on", sdui.Node{Type: "radio", ID: "r", Props: map[string]any{"value": "off"}}, false},
 		{"choice ok", sdui.Choice("c", sdui.ChoiceProps{Style: "radio", Title: "Scope", Text: "Where?", Number: 1, Open: true, Options: []sdui.ChoiceOption{{Value: "a", Label: "A", Description: "first", Shortcut: "opt+1"}}, Other: &sdui.ChoiceOther{ID: "c/o", Label: "Other…"}}), true},
 		{"choice with a quote, a server cursor and a kept Other", sdui.Choice("c", sdui.ChoiceProps{Style: "check", Title: "Next", Text: "Tick", Quote: "from the report", Note: "any", Summary: "3 offers", Cursor: "a", OpenAction: "move", Options: []sdui.ChoiceOption{{Value: "a", Label: "A", Hint: "1"}}, Other: &sdui.ChoiceOther{ID: "c/o", Label: "Other…", Hint: "o", On: true, Value: "x", Focus: 2}}), true},
 		{"keys scope", sdui.WithPaneFocus(sdui.WithAction(sdui.Keys("k", []string{"j", "return"}, sdui.WithAccordion(sdui.Form("f", sdui.WithRows(sdui.Card("", "", sdui.WithHint(sdui.Button("b", "Later", ""), "l")))))), "key")), true},

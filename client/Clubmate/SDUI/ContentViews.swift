@@ -217,7 +217,7 @@ struct IconNodeView: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        Image(systemName: SymbolName.resolve(node.string("name")))
+        SymbolIcon(name: node.string("name"), size: theme.uiSize + 2)
             .font(theme.ui)
             .foregroundStyle(theme.tone(node.string("tone")) ?? theme.foreground)
     }

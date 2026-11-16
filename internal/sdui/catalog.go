@@ -241,6 +241,7 @@ var (
 			children:    noChildren,
 			interactive: true,
 		},
+		"radio":  {required: []string{"value", "on"}, props: map[string]propCheck{"value": isString, "on": isBool, "label": isString, "disabled": isBool, "action": actionCheck}, children: anyChildren, interactive: true},
 		"toggle": {required: []string{"value"}, props: map[string]propCheck{"value": isBool, "action": actionCheck, "label": isString, "style": oneOf(toggleStyles), "disabled": isBool}, children: noChildren, interactive: true},
 		"progress": {
 			required: []string{"value", "total"},

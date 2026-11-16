@@ -287,15 +287,26 @@ struct PluginRow: View {
 }
 
 struct RowIcon: View {
-    let systemImage: String
+    let image: Image
     var tint: Color?
+    var fill: Color?
+
+    init(systemImage: String, tint: Color? = nil, fill: Color? = nil) {
+        self.init(image: Image(systemName: systemImage), tint: tint, fill: fill)
+    }
+
+    init(image: Image, tint: Color? = nil, fill: Color? = nil) {
+        self.image = image
+        self.tint = tint
+        self.fill = fill
+    }
 
     var body: some View {
-        Image(systemName: systemImage)
+        image
             .font(.system(size: 14, weight: .medium))
             .foregroundStyle(tint ?? Color.captionInk)
             .frame(width: 28, height: 28)
-            .background(Color(.tertiarySystemFill), in: .circle)
+            .background(fill ?? Color(.tertiarySystemFill), in: .circle)
     }
 }
 
