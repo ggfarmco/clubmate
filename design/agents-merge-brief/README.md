@@ -1,0 +1,5 @@
+# Agents merge brief
+
+Input for a Claude Design pass on how Graphs and Gates look once they move into the Agents section. `prompt.md` is the message for the Design chat; the screenshots in `screens/mac/` and `screens/phone/` are already uploaded to the project as assets, and `prompt.md` maps each one to its `/_blob/<id>`. After re-capturing, upload them again as in `design/README.md` and update those tables.
+
+Each folder's `notes.md` has its capture setup. `capture/` holds the scripts: `seed.sh` (scratch repo, test instance, gate verdicts through `rpc.py`, graph runs; it takes the app's launch args, and `APP=` picks another build), `fakeagent-script.json` and `phone.sh`. Not scripted: the Mac snapshot pass (after the seed, `graphs.stop` the "CSV export" run, then `ui.focus` + `ui event … select` per screen and `ui snapshot --size 1280x800|640x800`, as in `scripts/design/capture-mac.sh`), the dark build (a `git archive` copy with a `ShotDark` check in `GhosttyApp.systemIsDark`, see `screens/mac/notes.md`), and the phone fixture copy (the repo's fixtures plus the `graphs` and `agents.gates` sections from `cm ui sections` and their trees from `cm ui dump`).
