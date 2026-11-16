@@ -144,12 +144,16 @@ public struct SDUIHeaderBadge: Sendable, Equatable {
     public let text: String
     public let tone: String?
     public let outline: Bool
+    public let id: String?
+    public let action: String?
 
     public init?(_ json: JSONValue) {
         guard let fields = json.objectValue, let text = fields["text"]?.stringValue else { return nil }
         self.text = text
         tone = fields["tone"]?.stringValue
         outline = fields["outline"]?.boolValue ?? false
+        id = fields["id"]?.stringValue
+        action = fields["action"]?.stringValue
     }
 }
 

@@ -23,7 +23,7 @@ type openStop struct {
 
 func isOpenAction(action string) bool {
 	switch action {
-	case actOpenDraft, actOpenSend, actOpenLater, actOpenBacklog, actOpenNoAll, actOpenMove, actOpenShow, actOpenConvert, actOpenSession:
+	case actOpenDraft, actOpenSend, actOpenLater, actOpenBacklog, actOpenNoAll, actOpenMove, actOpenShow, actOpenConvert, actOpenSession, actOpenReveal:
 		return true
 	}
 	return false
@@ -47,7 +47,7 @@ func (a *app) openAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, st 
 		}
 		return nil
 	case actOpenLater:
-		return a.laterOpen(ctx, cmd, s, st)
+		return a.laterOpen(ctx, cmd, s)
 	case actOpenBacklog:
 		_, err := a.openBacklogCommand(ctx, cmd, openPickArgs{Session: sid})
 		return err
@@ -81,8 +81,27 @@ func (a *app) openAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, st 
 		return err
 	case actOpenSession:
 		return a.showOpenSession(ctx, ev.WorkspaceID, sid)
+	case actOpenReveal:
+		return a.revealOpen(ctx, ev.WorkspaceID, s, st)
 	}
 	return fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
+}
+
+func (a *app) revealOpen(ctx context.Context, workspaceID string, s *session, st *sessionUI) error {
+	data := s.openCard()
+	if data.Entry == "" {
+		return nil
+	}
+	sid := s.snapshot().ID
+	current := s.currentTurn()
+	a.uiMu.Lock()
+	st.expanded[data.Entry] = true
+	st.context = false
+	st.anchor, st.anchorTurn = openKeysID(sid), current
+	st.anchorRev++
+	st.window = max(st.window, current-data.Turn+1)
+	a.uiMu.Unlock()
+	return a.host.FocusNode(ctx, workspaceID, sectionID, mainSlot, openKeysID(sid))
 }
 
 func (a *app) queueSelect(ctx context.Context, workspaceID, sid string) error {
@@ -104,16 +123,9 @@ func (a *app) showOpenSession(ctx context.Context, workspaceID, sid string) erro
 	return a.selectSession(ctx, workspaceID, sid)
 }
 
-func (a *app) laterOpen(ctx context.Context, cmd pluginsdk.CommandRun, s *session, st *sessionUI) error {
-	sid := s.snapshot().ID
-	entry := s.openCard().Entry
-	if _, err := a.openLaterCommand(ctx, cmd, sessionArgs{Session: sid}); err != nil {
-		return err
-	}
-	a.uiMu.Lock()
-	delete(st.expanded, entry)
-	a.uiMu.Unlock()
-	return nil
+func (a *app) laterOpen(ctx context.Context, cmd pluginsdk.CommandRun, s *session) error {
+	_, err := a.openLaterCommand(ctx, cmd, sessionArgs{Session: s.snapshot().ID})
+	return err
 }
 
 func (a *app) sendOpen(ctx context.Context, workspaceID string, s *session, st *sessionUI) error {
@@ -182,7 +194,7 @@ func (a *app) openKey(ctx context.Context, ev pluginsdk.UIEvent) error {
 			a.withDraft(st, func(d *openDraft) { d.openOther(stop.item) })
 		}
 	case "l":
-		return a.laterOpen(ctx, cmd, s, st)
+		return a.laterOpen(ctx, cmd, s)
 	case openBacklogKey:
 		_, err := a.openBacklogCommand(ctx, cmd, openPickArgs{Session: stop.session})
 		return err

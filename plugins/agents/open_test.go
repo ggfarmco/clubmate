@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -293,6 +294,32 @@ func TestLaterKeepsItemsOpenAndFoldsTheCard(t *testing.T) {
 
 	assert.True(t, f.openEntry(t, workspace, session).Later)
 	assert.Equal(t, 1, f.session(t, workspace, session).OpenCount)
+}
+
+func TestOpenBadgeUnfoldsAndAnchorsTheCard(t *testing.T) {
+	t.Parallel()
+	f := start(t, echoScript)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.doneSession(t, workspace)
+	f.postItems(t, workspace, session, offer("add a screen"))
+	require.NoError(t, f.run(t, workspace, "agents.open-later", map[string]any{"session": session}, nil))
+	badge := session + "/open/badge"
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
+		headers := cardsOf(n, "header")
+		return len(headers) == 1 && strings.Contains(fmt.Sprint(headers[0].Props["badges"]), badge) && len(nodesWithID(n, session+"/open/keys")) == 0
+	})
+
+	f.h.Event(t, workspace, "agents.main", session+"/context/toggle", "context", nil)
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(cardsOf(n, "transcript")) == 0 })
+
+	f.h.Event(t, workspace, "agents.main", badge, "openReveal", nil)
+
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
+		transcripts := cardsOf(n, "transcript")
+		return len(nodesWithID(n, session+"/open/keys")) == 1 && len(transcripts) == 1 && transcripts[0].Props["anchor"] == session+"/open/keys"
+	})
+	require.NoError(t, f.run(t, workspace, "agents.open-later", map[string]any{"session": session}, nil))
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(nodesWithID(n, session+"/open/keys")) == 0 })
 }
 
 func TestBacklogFilesTheItemsNamed(t *testing.T) {

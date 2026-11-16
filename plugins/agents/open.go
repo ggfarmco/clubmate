@@ -219,9 +219,14 @@ func (a *app) openLaterCommand(_ context.Context, cmd pluginsdk.CommandRun, args
 	if err != nil {
 		return nil, err
 	}
+	entry := s.openCard().Entry
+	st := a.sessionState(cmd.WorkspaceID, s.snapshot().ID)
 	s.openMu.Lock()
-	defer s.openMu.Unlock()
 	s.resolveOpen(openChange{Later: true})
+	s.openMu.Unlock()
+	a.uiMu.Lock()
+	delete(st.expanded, entry)
+	a.uiMu.Unlock()
 	return nil, nil
 }
 

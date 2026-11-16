@@ -793,6 +793,8 @@ type HeaderBadge struct {
 	Text    string `json:"text"`
 	Tone    string `json:"tone,omitempty"`
 	Outline bool   `json:"outline,omitempty"`
+	ID      string `json:"id,omitempty"`
+	Action  string `json:"action,omitempty"`
 }
 
 type HeaderProps struct {

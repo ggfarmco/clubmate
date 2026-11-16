@@ -777,7 +777,7 @@ func itemCheck(c *validator, v any) error {
 }
 
 func headerBadgeCheck(c *validator, v any) error {
-	return objectCheck([]string{"text"}, map[string]propCheck{"text": isString, "tone": oneOf(badgeTones), "outline": isBool})(c, v)
+	return objectCheck([]string{"text"}, map[string]propCheck{"text": isString, "tone": oneOf(badgeTones), "outline": isBool, "id": isString, "action": isString})(c, v)
 }
 
 func reposSegmentCheck(c *validator, v any) error {

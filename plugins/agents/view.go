@@ -307,7 +307,7 @@ func header(sc screen) sdui.Node {
 			badges = append(badges, reviewBadge(sc.Review))
 		}
 		if rec.OpenCount > 0 {
-			badges = append(badges, openBadge(rec.OpenCount))
+			badges = append(badges, headerOpenBadge(rec))
 		}
 		if sc.Crumb != nil && sc.Crumb.Waits != "" {
 			badges = append(badges, sdui.HeaderBadge{Text: sc.Crumb.Waits})

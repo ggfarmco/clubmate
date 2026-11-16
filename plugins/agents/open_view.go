@@ -23,9 +23,11 @@ const (
 	actOpenKey     = "openKey"
 	actOpenConvert = "openConvert"
 	actOpenSession = "openSession"
+	actOpenReveal  = "openReveal"
 
 	openQueueNode = "openQueue"
 	openKeysNode  = "keys"
+	openBadgeNode = "badge"
 
 	openTitle      = "Open after this turn"
 	openNote       = "answer any time; nothing waits"
@@ -62,6 +64,7 @@ type openCardData struct {
 	Overflow []int
 	Later    bool
 	Entry    string
+	Turn     int
 	Night    bool
 	Asides   optionAsides
 }
@@ -90,7 +93,7 @@ func (s *session) openCard() openCardData {
 		if held == nil {
 			continue
 		}
-		data.Entry, data.Later = en.ID, en.Later
+		data.Entry, data.Turn, data.Later = en.ID, en.Turn, en.Later
 		data.Overflow = append(data.Overflow, en.Overflow...)
 		for i, it := range en.Items {
 			data.Numbers[it.ID] = held[i]
@@ -124,6 +127,18 @@ func openEntryNode(sc screen, en *entry) (sdui.Node, bool) {
 
 func openBadge(count int) sdui.HeaderBadge {
 	return sdui.HeaderBadge{Text: openLabel(count), Tone: openTone, Outline: true}
+}
+
+func headerOpenBadge(rec record) sdui.HeaderBadge {
+	badge := openBadge(rec.OpenCount)
+	if rec.Status != statusWaiting {
+		badge.ID, badge.Action = openFormNode(rec.ID)+"/"+openBadgeNode, actOpenReveal
+	}
+	return badge
+}
+
+func openKeysID(sid string) string {
+	return openFormNode(sid) + "/" + openKeysNode
 }
 
 func openLabel(count int) string {
@@ -179,7 +194,7 @@ func openCard(sid string, count int, data openCardData, d openDraft) sdui.Node {
 	if data.Night {
 		keys = slices.DeleteFunc(slices.Clone(keys), func(key string) bool { return key == openBacklogKey })
 	}
-	return sdui.WithAction(sdui.Keys(openFormNode(sid)+"/"+openKeysNode, keys, form), actOpenKey)
+	return sdui.WithAction(sdui.Keys(openKeysID(sid), keys, form), actOpenKey)
 }
 
 func openRows(sid string, data openCardData, d openDraft, cursor string) []sdui.Node {

@@ -164,6 +164,31 @@ struct BadgeLabel: View {
     }
 }
 
+private struct HeaderBadgeButton: View {
+    let badge: SDUIHeaderBadge
+    let id: String
+    let action: String
+
+    @State private var hovering = false
+    @Environment(\.theme) private var theme
+    @Environment(\.sduiDispatch) private var dispatch
+
+    var body: some View {
+        Button {
+            dispatch(SDUINode(type: "badge", id: id, props: ["action": .string(action)]), .click)
+        } label: {
+            BadgeLabel(text: badge.text, tone: theme.tone(badge.tone), outline: badge.outline)
+                .background(Capsule().fill(hovering ? theme.tone(badge.tone).map(theme.toneBg) ?? theme.hover : .clear))
+                .fixedSize()
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .onHover { hovering = $0 }
+        .help("Show \(badge.text)")
+        .testNode(id, role: "button", label: badge.text)
+    }
+}
+
 struct ProgressNodeView: View {
     let node: SDUINode
 
@@ -450,8 +475,12 @@ struct HeaderNodeView: View {
 
     private var badges: some View {
         ForEach(Array(node.headerBadges().enumerated()), id: \.offset) { _, badge in
-            BadgeLabel(text: badge.text, tone: theme.tone(badge.tone), outline: badge.outline)
-                .fixedSize()
+            if let id = badge.id, let action = badge.action {
+                HeaderBadgeButton(badge: badge, id: id, action: action)
+            } else {
+                BadgeLabel(text: badge.text, tone: theme.tone(badge.tone), outline: badge.outline)
+                    .fixedSize()
+            }
         }
     }
 

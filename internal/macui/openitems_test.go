@@ -100,3 +100,19 @@ func TestOpenItemsCardPointer(t *testing.T) {
 		in.eventually("the sidebar selects its session", func() bool { return in.selected("sessions#" + b) })
 	})
 }
+
+func TestOpenBadgeShowsALaterCard(t *testing.T) {
+	in := start(t, "macui-open-badge", "")
+	in.focusSection("agents", "agents.sidebar")
+	a := in.doneWithOpenItems("First")
+	in.pointer("click", "sessions#"+a)
+	in.eventually("the card shows", func() bool { return in.snapshot().main().has(a + "/open/card") })
+	in.cm("command", "run", "agents.open-later", "--args", fmt.Sprintf(`{"session": %q}`, a))
+	in.eventually("Later folds the card", func() bool { return !in.snapshot().main().has(a + "/open/card") })
+
+	in.pointer("click", a+"/open/badge")
+
+	in.eventually("the badge unfolds the card", func() bool { return in.snapshot().main().has(a + "/open/card") })
+	in.key("j")
+	in.eventually("the card has the keys", in.cursorOn(a+"/open/oi-2"))
+}

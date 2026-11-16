@@ -303,7 +303,7 @@
                     {
                       "type": "header",
                       "id": "gallery-session-header",
-                      "props": {"title": "Rate-limit notifications per workspace", "icon": "exclamationmark.circle", "status": "waiting", "agent": "Claude", "branch": "docs/design-brief", "mode": "Ask before edits", "badges": [{"text": "waiting for you", "tone": "warning"}]},
+                      "props": {"title": "Rate-limit notifications per workspace", "icon": "exclamationmark.circle", "status": "waiting", "agent": "Claude", "branch": "docs/design-brief", "mode": "Ask before edits", "badges": [{"text": "waiting for you", "tone": "warning"}, {"text": "2 open", "tone": "warning", "outline": true, "id": "gallery/open/badge", "action": "openReveal"}]},
                       "children": [
                         {"type": "button", "id": "gallery-session-header/stop", "props": {"label": "Stop", "icon": "stop.fill", "variant": "ghost", "action": "stop"}}
                       ]
