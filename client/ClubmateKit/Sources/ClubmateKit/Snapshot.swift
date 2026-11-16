@@ -156,8 +156,9 @@ public struct LayoutElement: Codable, Equatable, Sendable {
     public var menu: [LayoutMenuItem]?
     public var flags: [String]
     public var visible: Rect?
+    public var textHeight: Double?
 
-    public init(id: String, source: String, role: String, label: String, frame: Rect, parent: String?, text: String?, idealWidth: Double?, lineHeight: Double?, menu: [LayoutMenuItem]?, flags: [String], visible: Rect? = nil) {
+    public init(id: String, source: String, role: String, label: String, frame: Rect, parent: String?, text: String?, idealWidth: Double?, lineHeight: Double?, menu: [LayoutMenuItem]?, flags: [String], visible: Rect? = nil, textHeight: Double? = nil) {
         self.id = id
         self.source = source
         self.role = role
@@ -170,6 +171,7 @@ public struct LayoutElement: Codable, Equatable, Sendable {
         self.menu = menu
         self.flags = flags
         self.visible = visible
+        self.textHeight = textHeight
     }
 }
 

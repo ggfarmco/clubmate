@@ -483,10 +483,25 @@ final class TestHarness {
             let visible = flip(shown.isNull ? NSRect(origin: bounds.origin, size: .zero) : shown)
             out.append(LayoutElement(id: probe.nodeID, source: probe.source, role: probe.role, label: probe.label, frame: frame, parent: probe.parent, text: nil, idealWidth: probe.idealWidth, lineHeight: probe.lineHeight, menu: probe.menuItems, flags: [], visible: visible == frame ? nil : visible))
         }
+        for text in Self.inlineTexts(in: root) {
+            guard let container = text.textContainer, let layout = text.layoutManager else { continue }
+            layout.ensureLayout(for: container)
+            let height = layout.usedRect(for: container).height + text.textContainerInset.height * 2
+            let label = String(text.string.prefix { $0 != "\n" }.prefix(60))
+            out.append(LayoutElement(id: "text-\(ObjectIdentifier(text).hashValue)", source: "text", role: "text", label: label, frame: flip(text.convert(text.bounds, to: nil)), parent: nil, text: nil, idealWidth: nil, lineHeight: nil, menu: nil, flags: [], textHeight: ceil(height)))
+        }
         for terminal in WindowImage.terminals(in: root) {
             out.append(LayoutElement(id: "terminal-\(terminal.sessionID)", source: "terminal", role: "terminal", label: terminal.sessionID, frame: flip(terminal.convert(terminal.bounds, to: nil)), parent: nil, text: terminal.viewportText(), idealWidth: nil, lineHeight: nil, menu: nil, flags: []))
         }
         return out
+    }
+
+    private static func inlineTexts(in view: NSView) -> [NSTextView] {
+        guard !view.isHidden else { return [] }
+        if let text = view as? NSTextView {
+            return text.textLayoutManager == nil && !text.isVerticallyResizable && text.enclosingScrollView?.documentView !== text ? [text] : []
+        }
+        return view.subviews.flatMap(inlineTexts)
     }
 
 }

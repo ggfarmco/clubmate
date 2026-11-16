@@ -341,10 +341,20 @@ private struct ProseText: NSViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, nsView view: ProseTextView, context: Context) -> CGSize? {
         guard let container = view.textContainer, let layout = view.layoutManager else { return nil }
         let width = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? .greatestFiniteMagnitude
+        let used = Self.layOut(container, layout, width: width)
+        let fitted = ceil(used.width)
+        guard fitted < width else { return CGSize(width: width, height: ceil(used.height)) }
+        let narrow = Self.layOut(container, layout, width: fitted)
+        if ceil(narrow.height) == ceil(used.height) || proposal.width?.isFinite != true { return CGSize(width: fitted, height: ceil(narrow.height)) }
+        Self.layOut(container, layout, width: width)
+        return CGSize(width: width, height: ceil(used.height))
+    }
+
+    @discardableResult
+    private static func layOut(_ container: NSTextContainer, _ layout: NSLayoutManager, width: CGFloat) -> NSRect {
         container.containerSize = NSSize(width: width, height: .greatestFiniteMagnitude)
         layout.ensureLayout(for: container)
-        let used = layout.usedRect(for: container)
-        return CGSize(width: min(width, ceil(used.width)), height: ceil(used.height))
+        return layout.usedRect(for: container)
     }
 }
 

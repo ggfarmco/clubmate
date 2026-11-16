@@ -34,6 +34,7 @@ type element struct {
 	Frame   rect       `json:"frame"`
 	Visible *rect      `json:"visible"`
 	Menu    []menuItem `json:"menu"`
+	Flags   []string   `json:"flags"`
 }
 
 type rect struct {
@@ -201,9 +202,17 @@ func (in *instance) focusSection(section, slot string) {
 
 func (in *instance) snapshot() snapshot {
 	in.t.Helper()
-	out := filepath.Join(in.dir, "snapshots")
+	return in.snapshotAt("")
+}
+
+func (in *instance) snapshotAt(size string) snapshot {
+	in.t.Helper()
+	args := []string{"ui", "snapshot", "--no-png", "--out", filepath.Join(in.dir, "snapshots")}
+	if size != "" {
+		args = append(args, "--size", size)
+	}
 	var snap snapshot
-	in.json(&snap, "ui", "snapshot", "--no-png", "--out", out)
+	in.json(&snap, args...)
 	for i := range snap.Windows {
 		data, err := os.ReadFile(snap.Windows[i].Layout)
 		require.NoError(in.t, err)

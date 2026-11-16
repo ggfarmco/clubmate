@@ -3,7 +3,7 @@ import Foundation
 public enum LayoutAnalyzer {
     static let tolerance = 0.5
     static let overlap = 1.0
-    static let order = ["outside-window", "wider-than-parent", "overlaps-sibling", "zero-size", "truncated"]
+    static let order = ["outside-window", "wider-than-parent", "overlaps-sibling", "zero-size", "truncated", "text-overflow"]
 
     public static func flag(_ elements: [LayoutElement], bounds: Rect) -> [LayoutElement] {
         let byID = Dictionary(grouping: elements, by: \.id)
@@ -17,6 +17,9 @@ public enum LayoutAnalyzer {
             }
             if (f.width == 0 || f.height == 0) && !element.label.isEmpty {
                 flags.insert("zero-size")
+            }
+            if let text = element.textHeight, text > f.height + tolerance {
+                flags.insert("text-overflow")
             }
             if element.source == "sdui" {
                 if let parent = parent(of: element, in: byID), f.width > parent.frame.width + tolerance {
@@ -70,6 +73,7 @@ public enum LayoutAnalyzer {
         switch flag {
         case "wider-than-parent": parent.map { "\(number(element.frame.width)) > \(number($0.frame.width))" }
         case "truncated": element.idealWidth.map { "ideal \(number($0)) > \(number(element.frame.width))" }
+        case "text-overflow": element.textHeight.map { "text \(number($0)) > \(number(element.frame.height))" }
         case "outside-window": "\(number(element.frame.x)),\(number(element.frame.y)) \(number(element.frame.width))x\(number(element.frame.height))"
         default: nil
         }

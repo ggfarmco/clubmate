@@ -5,6 +5,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -47,4 +48,16 @@ func TestTranscriptImageLinkOpensViewer(t *testing.T) {
 			in.eventually("esc closes it", func() bool { return in.snapshot().kind("sheet") == nil })
 		})
 	}
+}
+
+func TestTranscriptTableTextStaysInsideItsFrame(t *testing.T) {
+	script, err := os.ReadFile(filepath.Join("testdata", "table-message.json"))
+	require.NoError(t, err)
+	in := start(t, "macui-prose-table", string(script))
+	in.focusSection("agents", "agents.sidebar")
+	in.cm("agent", "spawn", "Plan it")
+	in.eventually("the message's text fits its frame in a wide pane", func() bool {
+		prose := in.snapshotAt("1600x900").main().find(func(e element) bool { return e.Role == "text" && e.Label == "План такой." })
+		return prose != nil && !slices.Contains(prose.Flags, "text-overflow")
+	})
 }

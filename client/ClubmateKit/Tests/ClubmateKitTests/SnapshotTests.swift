@@ -34,6 +34,8 @@ final class SnapshotTests: XCTestCase {
             element("wrapped", frame: Rect(x: 0, y: 110, width: 50, height: 32), parent: "panel", idealWidth: 72, lineHeight: 16),
             element("footer", frame: Rect(x: 0, y: 590, width: 100, height: 20)),
             element("ax-row", source: "ax", frame: Rect(x: 0, y: 100, width: 500, height: 20), parent: "panel"),
+            element("prose", source: "text", frame: Rect(x: 0, y: 150, width: 300, height: 386), textHeight: 401),
+            element("fitting-prose", source: "text", frame: Rect(x: 0, y: 150, width: 300, height: 386), textHeight: 386),
         ]
         let flagged = Dictionary(uniqueKeysWithValues: LayoutAnalyzer.flag(elements, bounds: Rect(x: 0, y: 0, width: 600, height: 600)).map { ($0.id, $0.flags) })
         XCTAssertEqual(flagged["panel"], [])
@@ -44,6 +46,8 @@ final class SnapshotTests: XCTestCase {
         XCTAssertEqual(flagged["wrapped"], [])
         XCTAssertEqual(flagged["footer"], ["outside-window"])
         XCTAssertEqual(flagged["ax-row"], [])
+        XCTAssertEqual(flagged["prose"], ["text-overflow"])
+        XCTAssertEqual(flagged["fitting-prose"], [])
     }
 
     func testParentIsTheSameIDElementHoldingTheChild() {
@@ -115,8 +119,8 @@ final class SnapshotTests: XCTestCase {
         await client.close()
     }
 
-    private func element(_ id: String, source: String = "sdui", frame: Rect, parent: String? = nil, idealWidth: Double? = nil, lineHeight: Double? = nil) -> LayoutElement {
-        LayoutElement(id: id, source: source, role: "group", label: id, frame: frame, parent: parent, text: nil, idealWidth: idealWidth, lineHeight: lineHeight, menu: nil, flags: [])
+    private func element(_ id: String, source: String = "sdui", frame: Rect, parent: String? = nil, idealWidth: Double? = nil, lineHeight: Double? = nil, textHeight: Double? = nil) -> LayoutElement {
+        LayoutElement(id: id, source: source, role: "group", label: id, frame: frame, parent: parent, text: nil, idealWidth: idealWidth, lineHeight: lineHeight, menu: nil, flags: [], textHeight: textHeight)
     }
 }
 
