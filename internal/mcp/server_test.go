@@ -14,6 +14,7 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -244,6 +245,14 @@ func TestInstructionsPointAtNvimGuide(t *testing.T) {
 	guide := filepath.Join(t.TempDir(), "SKILL.md")
 	require.NoError(t, os.WriteFile(guide, []byte("# guide\n"), 0o644))
 	assert.Contains(t, instructions(t, guide), "To customise Clubmate's Neovim, read "+guide+" first.")
+}
+
+func TestInstructionsFitClaudeCodeCut(t *testing.T) {
+	guide := filepath.Join(t.TempDir(), "SKILL.md")
+	require.NoError(t, os.WriteFile(guide, []byte("# guide\n"), 0o644))
+	installed := "/Applications/Clubmate.app/Contents/Resources/nvim-distro/skill/SKILL.md"
+	text := strings.Replace(instructions(t, guide), guide, installed, 1)
+	assert.LessOrEqual(t, utf8.RuneCountInString(text), 3800)
 }
 
 func TestInstructionsAskToParallelize(t *testing.T) {
