@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Companion: A · a held tool call in the session</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
+<link rel="stylesheet" href="/_blob/4987a8b4234bbea3e512a6d02560ee1d">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.comp .st.sq{border-radius:7px}
+.comp .nrow{display:flex;align-items:center;gap:12px;padding:10px 14px;min-width:0}
+.comp .nrow+.nrow{border-top:1px solid var(--bd)}
+.comp .nrow .nb{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.comp .nrow .nb .mono{font-size:12px;line-height:16px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.comp .nrow .sw{flex:none;text-align:right;font-size:13px;line-height:18px}
+.comp .seg{margin:12px 16px 0;height:34px;border-radius:17px;background:var(--s2);display:grid;grid-template-columns:1fr 1fr;padding:2px}
+.comp .seg>button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
+.comp .seg>button[aria-selected="true"]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.comp.th-cdark .seg>button[aria-selected="true"]{background:#636366}
+.comp.th-clight .seg>button[aria-selected="true"]{background:#FFFFFF}
+</style>
+</helmet>
+<div class="cm comp th-{{theme}}" style="width: 393px; height: 852px">
+<style>
+.comp .c.nest{padding-left:44px}
+.comp .c.quiet .w6{font-weight:500;color:var(--t2)}
+.comp .seg3{margin:12px 16px 0;height:34px;border-radius:17px;background:var(--s2);display:grid;grid-template-columns:1fr 1fr 1fr;padding:2px}
+.comp .seg3>button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
+.comp .seg3>button[aria-selected="true"]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.comp.th-cdark .seg3>button[aria-selected="true"]{background:#636366}
+.comp.th-clight .seg3>button[aria-selected="true"]{background:#FFFFFF}
+.comp .kv{display:flex;justify-content:space-between;gap:12px;padding:11px 14px}
+.comp .kv+.kv{border-top:1px solid var(--bd)}
+.comp .gb{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:14px;background:var(--s2);font-size:13px}
+</style><style>
+.comp .heldp{border-radius:16px;background:var(--s1);border:1.5px solid color-mix(in srgb,var(--ac) 45%,var(--bd));padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.comp .ndp{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:13px;background:var(--s2);font-size:13px;white-space:nowrap}
+.comp .ndp.run{box-shadow:inset 0 0 0 1.5px var(--ac)}
+.comp .cardw{border-radius:16px;border:1.5px solid var(--wa-bd);background:color-mix(in srgb,var(--wa) 9%,var(--s1));padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.comp .fnd{font-size:14px;line-height:19px;color:var(--t2)}
+</style><div class="edge"></div><div class="top"><button class="gbtn glass" aria-label="Back"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button><div class="t"><span class="tt">Ship the cart fix</span><span class="ts"><span class="ac-i">Held by a gate</span> · fix/cart-total</span></div><button class="gbtn glass" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button></div>
+<div style="position: absolute; left: 16px; right: 16px; top: 118px; display: flex; flex-direction: column; gap: 12px">
+<p class="sub" style="margin: 0">The cart total keeps the stored total when the items slice is nil, and discounts are subtracted again. <span class="mono" style="font-size: 13px">go test ./internal/cart/...</span> passes. Pushing the branch so the PR can open.</p>
+<span class="cap mut">2 actions · edited 1 file · ran 1 command</span>
+<div class="heldp">
+<div style="display: flex; align-items: center; gap: 10px"><span class="st ac"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="m5.6 8 1.7 1.7 3.1-3.3"/></svg></span><span class="sub w6" style="flex: 1">Held by a gate</span><span class="foot mut">round 1 of 2</span></div>
+<span class="mono" style="font-size: 13px; background: var(--s2); border-radius: 8px; padding: 6px 10px">git push origin fix/cart-total</span>
+<div style="display: flex; align-items: center; gap: 8px"><span class="ndp run"><svg class="i s13 ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.9 5.7v4.6L10.5 8Z"/></svg>Fable review</span><span class="cap ac-i">reviewing · 40 s</span></div>
+<span class="cap mut">shop · git push. Claude waits inside the call; nothing to answer here. Changes refuse it, then the gate's findings arrive as a message.</span>
+</div>
+</div>
+<div class="bar" style="padding-bottom: 28px"><div class="fldp" style="display: flex; align-items: center; height: 40px; padding: 0 14px; border-radius: 20px; background: var(--s2); color: var(--t4); font-size: 15px">Messages queue while it's held</div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"clight"},"$preview":{"width":393,"height":852}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'clight' };
+}
+}
+</script>
+</body>
+</html>

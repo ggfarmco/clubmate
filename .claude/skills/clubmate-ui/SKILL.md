@@ -9,7 +9,7 @@ Every UI complaint so far was a screenshot of code that compiled fine: a list gr
 
 ## Design language: read it first
 
-Clubmate has a design language: `references/design-language.md` (principles, colour roles, type and spacing, one spec per node type, patterns, the SDUI additions it needs). The boards it was distilled from are in `design/language/` (`png/` or `html/`); before you change a screen, open its mockup there (`Agents-1280`, `Agents-640`, `Code-*`, `Backlog-*`, `Cron-1280`, `Triggers-640`, `Graphs-*`, `Processes-*`) and build toward it. Where this file and the design language disagree, the design language wins.
+Clubmate has a design language: `references/design-language.md` (principles, colour roles, type and spacing, one spec per node type, patterns, the SDUI additions it needs). The boards it was distilled from are in `design/language/` (`png/` or `html/`); before you change a screen, open its mockup there (`Agents-1280`, `Agents-640`, `Code-*`, `Backlog-*`, `Cron-1280`, `Triggers-640`, `Graphs-*`, `Processes-*`) and build toward it; a feature decided since 16 Nov has its boards and `rules.md` in `design/features/<slug>/`. Design work with Claude Design follows `design/README.md` § Working with a designer (one canvas per feature, never the shared one). Where this file and the design language disagree, the design language wins.
 
 The iPhone/iPad companion (`client/Companion`) follows the same principles with phone metrics, the Mate green accent and its own component specs: `references/companion.md` (boards in `design/companion/`). Look at a companion change in the simulator with fixtures (`design/companion-brief/README.md`).
 

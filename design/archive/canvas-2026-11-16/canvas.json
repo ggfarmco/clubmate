@@ -1,0 +1,1849 @@
+{
+ "v": 3,
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-10-30T23:30:00Z"
+ },
+ "title": "Clubmate design",
+ "launch": {
+  "view": "canvas"
+ },
+ "pages": [],
+ "boards": {
+  "Main.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1200,
+   "h": 760,
+   "title": "Clubmate — app icon"
+  },
+  "Layers.dc.html": {
+   "x": 0,
+   "y": 880,
+   "w": 1560,
+   "h": 440,
+   "title": "Icon Composer layers"
+  },
+  "Audit.dc.html": {
+   "x": 0,
+   "y": 1700,
+   "w": 1480,
+   "h": 2440,
+   "title": "1 · Audit"
+  },
+  "Principles.dc.html": {
+   "x": 1560,
+   "y": 1700,
+   "w": 1000,
+   "h": 2220,
+   "title": "2 · Principles & brand"
+  },
+  "Tokens.dc.html": {
+   "x": 2640,
+   "y": 1700,
+   "w": 1480,
+   "h": 2720,
+   "title": "3 · Tokens"
+  },
+  "Components.dc.html": {
+   "x": 0,
+   "y": 4820,
+   "w": 1480,
+   "h": 2360,
+   "title": "4a · Components — rows & controls"
+  },
+  "AgentNodes.dc.html": {
+   "x": 1560,
+   "y": 4820,
+   "w": 1480,
+   "h": 2320,
+   "title": "4b · Components — agent nodes & chrome"
+  },
+  "Patterns.dc.html": {
+   "x": 3120,
+   "y": 4820,
+   "w": 1480,
+   "h": 1940,
+   "title": "5 · Patterns"
+  },
+  "Handoff.dc.html": {
+   "x": 4680,
+   "y": 4820,
+   "w": 1200,
+   "h": 2480,
+   "title": "6 · Handoff & open questions"
+  },
+  "Agents-1280.dc.html": {
+   "x": 0,
+   "y": 7700,
+   "w": 1280,
+   "h": 800,
+   "title": "Agents · 1280 · dark · two worktrees, Closed and Service at the root"
+  },
+  "Code-1280.dc.html": {
+   "x": 1360,
+   "y": 7700,
+   "w": 1280,
+   "h": 800,
+   "title": "Code + chat · 1280 · dark"
+  },
+  "Backlog-1280.dc.html": {
+   "x": 2720,
+   "y": 7700,
+   "w": 1280,
+   "h": 800,
+   "title": "Backlog task · 1280 · dark"
+  },
+  "Cron-1280.dc.html": {
+   "x": 4080,
+   "y": 7700,
+   "w": 1280,
+   "h": 800,
+   "title": "Cron job · 1280 · dark"
+  },
+  "Processes-1280.dc.html": {
+   "x": 5440,
+   "y": 7700,
+   "w": 1280,
+   "h": 800,
+   "title": "Processes · 1280 · dark"
+  },
+  "Graphs-1280.dc.html": {
+   "x": 6800,
+   "y": 7700,
+   "w": 1280,
+   "h": 800,
+   "title": "Graph run · 1280 · dark"
+  },
+  "Agents-640.dc.html": {
+   "x": 0,
+   "y": 8620,
+   "w": 640,
+   "h": 800,
+   "title": "Agents · 640 · light"
+  },
+  "Code-640.dc.html": {
+   "x": 1360,
+   "y": 8620,
+   "w": 640,
+   "h": 800,
+   "title": "Code + chat · 640 · light"
+  },
+  "Backlog-640.dc.html": {
+   "x": 2720,
+   "y": 8620,
+   "w": 640,
+   "h": 800,
+   "title": "Backlog task · 640 · light"
+  },
+  "Triggers-640.dc.html": {
+   "x": 4080,
+   "y": 8620,
+   "w": 640,
+   "h": 800,
+   "title": "Trigger · 640 · light"
+  },
+  "Processes-640.dc.html": {
+   "x": 5440,
+   "y": 8620,
+   "w": 640,
+   "h": 800,
+   "title": "Processes · 640 · light"
+  },
+  "Graphs-640.dc.html": {
+   "x": 6800,
+   "y": 8620,
+   "w": 640,
+   "h": 800,
+   "title": "Graph run · 640 · light"
+  },
+  "C-Audit.dc.html": {
+   "x": 0,
+   "y": 9820,
+   "w": 1400,
+   "h": 1720,
+   "title": "C1 · Companion audit"
+  },
+  "C-Language.dc.html": {
+   "x": 1480,
+   "y": 9820,
+   "w": 1400,
+   "h": 2520,
+   "title": "C2 · Companion adaptation"
+  },
+  "C-Components.dc.html": {
+   "x": 2960,
+   "y": 9820,
+   "w": 1400,
+   "h": 2340,
+   "title": "C3 · Companion components"
+  },
+  "C-Handoff.dc.html": {
+   "x": 4440,
+   "y": 9820,
+   "w": 1200,
+   "h": 1920,
+   "title": "C4 · Companion handoff & questions"
+  },
+  "C-Macs.dc.html": {
+   "x": 0,
+   "y": 12520,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Macs (three Macs, colours) · dark"
+  },
+  "C-Workspace.dc.html": {
+   "x": 473,
+   "y": 12520,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Workspace sessions · dark"
+  },
+  "C-Permission.dc.html": {
+   "x": 946,
+   "y": 12520,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Waiting for permission · dark"
+  },
+  "C-Question.dc.html": {
+   "x": 1419,
+   "y": 12520,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Asking a question · dark"
+  },
+  "C-Inbox.dc.html": {
+   "x": 1892,
+   "y": 12520,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Inbox · dark"
+  },
+  "C-Macs-Light.dc.html": {
+   "x": 0,
+   "y": 13500,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Macs (three Macs, colours) · light"
+  },
+  "C-Workspace-Light.dc.html": {
+   "x": 473,
+   "y": 13500,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Workspace sessions · light"
+  },
+  "C-Permission-Light.dc.html": {
+   "x": 946,
+   "y": 13500,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Waiting for permission · light"
+  },
+  "C-Question-Light.dc.html": {
+   "x": 1419,
+   "y": 13500,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Asking a question · light"
+  },
+  "C-Inbox-Light.dc.html": {
+   "x": 1892,
+   "y": 13500,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Inbox · light"
+  },
+  "C-iPad.dc.html": {
+   "x": 2365,
+   "y": 12520,
+   "w": 1194,
+   "h": 834,
+   "radius": 18,
+   "title": "iPad · split view · dark"
+  },
+  "C-MacColour.dc.html": {
+   "x": 0,
+   "y": 14880,
+   "w": 1400,
+   "h": 1900,
+   "title": "C5 · A colour for each Mac"
+  },
+  "C-MacInfo.dc.html": {
+   "x": 1480,
+   "y": 14880,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Mac details, colour · dark"
+  },
+  "C-MacInfo-Light.dc.html": {
+   "x": 1953,
+   "y": 14880,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Mac details, colour · light"
+  },
+  "Mac-Settings-Remote.dc.html": {
+   "x": 2426,
+   "y": 14880,
+   "w": 520,
+   "h": 680,
+   "radius": 12,
+   "title": "Mac · Settings → Remote (native form, as built)"
+  },
+  "Agents-Mate-1280.dc.html": {
+   "x": 0,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Agents · 1280 · Mate · paired (blue Mac dot) · two worktrees, Closed and Service at the root"
+  },
+  "C-Duo-Outer.dc.html": {
+   "x": 2365,
+   "y": 13500,
+   "w": 466,
+   "h": 678,
+   "radius": 40,
+   "title": "iPhone Duo · outer display, closed · side bar · dark"
+  },
+  "C-Duo-Outer-Light.dc.html": {
+   "x": 2911,
+   "y": 13500,
+   "w": 466,
+   "h": 678,
+   "radius": 40,
+   "title": "iPhone Duo · outer display, closed · side bar · light"
+  },
+  "C-Duo-Book.dc.html": {
+   "x": 3457,
+   "y": 13500,
+   "w": 951,
+   "h": 669,
+   "radius": 28,
+   "title": "iPhone Duo · open, book pose · 50/50 around the fold · light"
+  },
+  "C-Duo-Laptop.dc.html": {
+   "x": 4488,
+   "y": 13500,
+   "w": 669,
+   "h": 951,
+   "radius": 28,
+   "title": "iPhone Duo · open, laptop pose · read on top, answer below · dark"
+  },
+  "K1-Check-Mac.dc.html": {
+   "x": 0,
+   "y": 17320,
+   "w": 1480,
+   "h": 4780,
+   "title": "K1 · Build check — Mac"
+  },
+  "K2-Check-Companion.dc.html": {
+   "x": 1560,
+   "y": 17320,
+   "w": 1480,
+   "h": 4100,
+   "title": "K2 · Build check — companion, cross-screen, verdicts"
+  },
+  "C-Backlog.dc.html": {
+   "x": 3120,
+   "y": 17320,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Workspace backlog · dark (new)"
+  },
+  "C-Backlog-Light.dc.html": {
+   "x": 3593,
+   "y": 17320,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Workspace backlog · light (new)"
+  },
+  "C-Offline.dc.html": {
+   "x": 4066,
+   "y": 17320,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · one Mac offline · waiting items read-only · dark (new)"
+  },
+  "Mac-AlwaysAllow.dc.html": {
+   "x": 3120,
+   "y": 18252,
+   "w": 880,
+   "h": 470,
+   "radius": 12,
+   "title": "Mac · Always allow… confirm (⌥2, then ⌥2 again) · Kanagawa (new)"
+  },
+  "Mac-ChatGraphStep.dc.html": {
+   "x": 4080,
+   "y": 18252,
+   "w": 400,
+   "h": 620,
+   "radius": 12,
+   "title": "Mac · Code chat on a graph step: off until the loop runs it · Kanagawa (new)"
+  },
+  "Code-1280-Mate.dc.html": {
+   "x": 1360,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Code + chat · 1280 · Mate"
+  },
+  "Backlog-1280-Mate.dc.html": {
+   "x": 2720,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Backlog task · 1280 · Mate"
+  },
+  "Cron-1280-Mate.dc.html": {
+   "x": 4080,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Cron job · 1280 · Mate"
+  },
+  "Processes-1280-Mate.dc.html": {
+   "x": 5440,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Processes · 1280 · Mate"
+  },
+  "Graphs-1280-Mate.dc.html": {
+   "x": 6800,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Graph run · drawn (as built 3 Nov) · 1280 · Mate"
+  },
+  "Agents-640-MateLight.dc.html": {
+   "x": 0,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Agents · 640 · Mate light"
+  },
+  "Code-640-MateLight.dc.html": {
+   "x": 1360,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Code + chat · 640 · Mate light"
+  },
+  "Backlog-640-MateLight.dc.html": {
+   "x": 2720,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Backlog task · 640 · Mate light"
+  },
+  "Triggers-640-MateLight.dc.html": {
+   "x": 4080,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Trigger · 640 · Mate light"
+  },
+  "Processes-640-MateLight.dc.html": {
+   "x": 5440,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Processes · 640 · Mate light"
+  },
+  "Graphs-640-MateLight.dc.html": {
+   "x": 6800,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Graph run · drawn (as built 3 Nov) · 640 · Mate light"
+  },
+  "T-Themes.dc.html": {
+   "x": 0,
+   "y": 24640,
+   "w": 1480,
+   "h": 1420,
+   "title": "T · Mate for Ghostty and nvim"
+  },
+  "T-Nvim-Map.dc.html": {
+   "x": 1560,
+   "y": 24640,
+   "w": 1480,
+   "h": 4100,
+   "title": "T2 · How nvim takes colour — every role, Light Owl as the example"
+  },
+  "T-Nvim-Clubmate.dc.html": {
+   "x": 3120,
+   "y": 24640,
+   "w": 1640,
+   "h": 8100,
+   "title": "T3 · Clubmate for nvim — every role, dark and light"
+  },
+  "Drawn-Views.dc.html": {
+   "x": 8240,
+   "y": 22660,
+   "w": 1480,
+   "h": 3040,
+   "title": "D · Drawn views — cards, ports, edges, lanes: what each screen draws"
+  },
+  "Graphs-Def-1280-Mate.dc.html": {
+   "x": 9800,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Graph definition · structure, an edge as its trigger · 1280 · Mate"
+  },
+  "Cron-Runs-1280-Mate.dc.html": {
+   "x": 11240,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Cron job · missed + failed, run strip · 1280 · Mate"
+  },
+  "Triggers-Edge-1280-Mate.dc.html": {
+   "x": 12680,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Trigger · a graph's edge, drawn in its graph · 1280 · Mate"
+  },
+  "Backlog-Owned-1280-Mate.dc.html": {
+   "x": 14120,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Backlog task · owned by a graph run · links, attachments · 1280 · Mate"
+  },
+  "Graphs-Def-640-MateLight.dc.html": {
+   "x": 9800,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Graph definition · selected edge · 640 · Mate light"
+  },
+  "Cron-Paused-640-MateLight.dc.html": {
+   "x": 11240,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Cron job · paused, owner a session · 640 · Mate light"
+  },
+  "Cron-Empty-640-MateLight.dc.html": {
+   "x": 11960,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Cron · no jobs · 640 · Mate light"
+  },
+  "Triggers-Chain-640-MateLight.dc.html": {
+   "x": 12680,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Trigger · a chain, failed run · 640 · Mate light"
+  },
+  "Triggers-Empty-640-MateLight.dc.html": {
+   "x": 13400,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Triggers · none · 640 · Mate light"
+  },
+  "Backlog-Start-640-MateLight.dc.html": {
+   "x": 14120,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Backlog task · Start agent, links, last owner failed · 640 · Mate light"
+  },
+  "Backlog-Empty-640-MateLight.dc.html": {
+   "x": 14840,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Backlog · empty · 640 · Mate light"
+  },
+  "Agents-OneTree-1280-Mate.dc.html": {
+   "x": 15560,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "Agents · one worktree: no branch row · Closed (branch per row) and Service at the root · 1280 · Mate"
+  },
+  "Agents-Drawer-640-MateLight.dc.html": {
+   "x": 15560,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "Agents · sessions open (⌘B) · one worktree, Service opened because it needs you · 640 · Mate light"
+  },
+  "Graphs-Gate-1280-Mate.dc.html": {
+   "x": 9800,
+   "y": 24660,
+   "w": 1280,
+   "h": 800,
+   "title": "Graph run with steps · Tests failed once, Coder round 2 · 1280 · Mate"
+  },
+  "Graphs-Nightly-1280-Mate.dc.html": {
+   "x": 11240,
+   "y": 24660,
+   "w": 1280,
+   "h": 800,
+   "title": "Graph run with steps · Ship running 40 min, empty output · 1280 · Mate"
+  },
+  "Graphs-GateDef-1280-Mate.dc.html": {
+   "x": 12680,
+   "y": 24660,
+   "w": 1280,
+   "h": 800,
+   "title": "Graph definition with steps · untrusted file · 1280 · Mate"
+  },
+  "Graph-Steps.dc.html": {
+   "x": 14120,
+   "y": 24660,
+   "w": 1480,
+   "h": 2300,
+   "title": "G · Steps in graphs — step vs agent, states, approval, output, caps, trust"
+  },
+  "Graphs-Approve-640-MateLight.dc.html": {
+   "x": 9800,
+   "y": 25580,
+   "w": 640,
+   "h": 800,
+   "title": "Graph run · a step waiting for approval · 640 · Mate light"
+  },
+  "Graphs-Cap-640-MateLight.dc.html": {
+   "x": 10520,
+   "y": 25580,
+   "w": 640,
+   "h": 800,
+   "title": "Graph run · round cap hit · 640 · Mate light"
+  },
+  "Graphs-NightlyDef-640-MateLight.dc.html": {
+   "x": 11240,
+   "y": 25580,
+   "w": 640,
+   "h": 800,
+   "title": "Graph definition · Trust… sheet · 640 · Mate light"
+  },
+  "C-Step-Approve.dc.html": {
+   "x": 11960,
+   "y": 25580,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · a graph step waiting for approval · dark",
+   "radius": 50
+  },
+  "C-Step-NeedsYou-Light.dc.html": {
+   "x": 12433,
+   "y": 25580,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · graph runs with steps in Needs you · light",
+   "radius": 50
+  },
+  "Review-Open-1280-Mate.dc.html": {
+   "x": 9800,
+   "y": 27100,
+   "w": 1280,
+   "h": 800,
+   "title": "Review · just opened · 1280 · Mate"
+  },
+  "Review-Mid-1280-Mate.dc.html": {
+   "x": 11240,
+   "y": 27100,
+   "w": 1280,
+   "h": 800,
+   "title": "Review · mid-review with comments · 1280 · Mate"
+  },
+  "Review-NewFile-1280-Mate.dc.html": {
+   "x": 12680,
+   "y": 27100,
+   "w": 1280,
+   "h": 800,
+   "title": "Review · a new file · 1280 · Mate"
+  },
+  "Review-Done-1280-Mate.dc.html": {
+   "x": 14120,
+   "y": 27100,
+   "w": 1280,
+   "h": 800,
+   "title": "Review · everything reviewed → send to the agent · 1280 · Mate"
+  },
+  "Review-Agents-1280-Mate.dc.html": {
+   "x": 15560,
+   "y": 27100,
+   "w": 1280,
+   "h": 800,
+   "title": "Agents · a session after its review was sent · 1280 · Mate"
+  },
+  "Review-Mid-640-MateLight.dc.html": {
+   "x": 9800,
+   "y": 28020,
+   "w": 640,
+   "h": 800,
+   "title": "Review · inline layout · 640 · Mate light"
+  },
+  "Review-Deleted-640-MateLight.dc.html": {
+   "x": 10520,
+   "y": 28020,
+   "w": 640,
+   "h": 800,
+   "title": "Review · a deleted file, files drawer · 640 · Mate light"
+  },
+  "Review-Done-640-MateLight.dc.html": {
+   "x": 11240,
+   "y": 28020,
+   "w": 640,
+   "h": 800,
+   "title": "Review · done → send · 640 · Mate light"
+  },
+  "Review-Rules.dc.html": {
+   "x": 12000,
+   "y": 28020,
+   "w": 1480,
+   "h": 1800,
+   "title": "R · Review — native panel + nvim panes: decisions, row grammar, Agents, handoff"
+  },
+  "Q1-Ask-1280-Mate.dc.html": {
+   "x": 9800,
+   "y": 30100,
+   "w": 1280,
+   "h": 800,
+   "title": "Q1 (A) · ask before stopping · the last act is a question card · 1280 · Mate"
+  },
+  "Q2-Open-1280-Mate.dc.html": {
+   "x": 11240,
+   "y": 30100,
+   "w": 1280,
+   "h": 800,
+   "title": "Q2 (B) · done, with open items · in the transcript · 1280 · Mate"
+  },
+  "Q2-Queue-1280-Mate.dc.html": {
+   "x": 12680,
+   "y": 30100,
+   "w": 1280,
+   "h": 800,
+   "title": "Q2 (B) · Open: one pass across sessions · 1280 · Mate"
+  },
+  "Q3-Inbox-1280-Mate.dc.html": {
+   "x": 14120,
+   "y": 30100,
+   "w": 1280,
+   "h": 800,
+   "title": "Q3 (B) · Decisions inbox across sessions · 1280 · Mate"
+  },
+  "Q1-Ask-640-MateLight.dc.html": {
+   "x": 9800,
+   "y": 31020,
+   "w": 640,
+   "h": 800,
+   "title": "Q1 (A) · ask before stopping · 640 · Mate light"
+  },
+  "Q2-Open-640-MateLight.dc.html": {
+   "x": 10520,
+   "y": 31020,
+   "w": 640,
+   "h": 800,
+   "title": "Q2 (B) · done, with open items · 640 · Mate light"
+  },
+  "Q2-Seven-640-MateLight.dc.html": {
+   "x": 11240,
+   "y": 31020,
+   "w": 640,
+   "h": 800,
+   "title": "Q2 (B) · 7 open items, Later menu · 640 · Mate light"
+  },
+  "Q3-Inbox-640-MateLight.dc.html": {
+   "x": 11960,
+   "y": 31020,
+   "w": 640,
+   "h": 800,
+   "title": "Q3 (B) · the session points to Decisions · 640 · Mate light"
+  },
+  "Q-Decisions.dc.html": {
+   "x": 16000,
+   "y": 30100,
+   "w": 1480,
+   "h": 3560,
+   "title": "Q · Decisions left in prose — three directions, recommendation, states, handoff"
+  },
+  "C-Q1-Session.dc.html": {
+   "x": 12680,
+   "y": 31020,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · Q1 (A) · end-of-turn card, one question per page · dark",
+   "radius": 50
+  },
+  "C-Q1-NeedsYou-Light.dc.html": {
+   "x": 13140,
+   "y": 31020,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · Q1 (A) · Needs you · light",
+   "radius": 50
+  },
+  "C-Q2-Session.dc.html": {
+   "x": 13600,
+   "y": 31020,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · Q2 (B) · done, 3 open · dark",
+   "radius": 50
+  },
+  "C-Q2-Open-Light.dc.html": {
+   "x": 14060,
+   "y": 31020,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · Q2 (B) · the Open section · light",
+   "radius": 50
+  },
+  "C-Q2-Queue.dc.html": {
+   "x": 14520,
+   "y": 31020,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · Q2 (B) · one pass through open items · dark",
+   "radius": 50
+  },
+  "C-Q3-Decisions.dc.html": {
+   "x": 14980,
+   "y": 31020,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · Q3 (B) · Decisions inbox · dark",
+   "radius": 50
+  },
+  "C-Q3-List-Light.dc.html": {
+   "x": 15440,
+   "y": 31020,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · Q3 (B) · Decisions in the list · light",
+   "radius": 50
+  },
+  "MR-Request-1280-Mate.dc.html": {
+   "x": 9800,
+   "y": 32200,
+   "w": 1280,
+   "h": 800,
+   "title": "Multi-repo · two repos asked at once, landing rule per repo, one behind origin · 1280 · Mate"
+  },
+  "MR-Task-1280-Mate.dc.html": {
+   "x": 11240,
+   "y": 32200,
+   "w": 1280,
+   "h": 800,
+   "title": "Multi-repo · Repos card in dependency order: merged by PR, failed (needs you), waits on its branch · 1280 · Mate"
+  },
+  "MR-Code-1280-Mate.dc.html": {
+   "x": 12680,
+   "y": 32200,
+   "w": 1280,
+   "h": 800,
+   "title": "Multi-repo · Code: title picker by folder, worktrees named by task, folder actions behind ⋯ · 1280 · Mate"
+  },
+  "MR-Request-640-MateLight.dc.html": {
+   "x": 9800,
+   "y": 33120,
+   "w": 640,
+   "h": 800,
+   "title": "Multi-repo · connect request · 640 · Mate light"
+  },
+  "MR-Tree-640-MateLight.dc.html": {
+   "x": 10520,
+   "y": 33120,
+   "w": 640,
+   "h": 800,
+   "title": "Multi-repo · parent + 8 children by repo · 640 · Mate light"
+  },
+  "MR-AFK-640-MateLight.dc.html": {
+   "x": 11240,
+   "y": 33120,
+   "w": 640,
+   "h": 800,
+   "title": "Multi-repo · connected by AFK · 640 · Mate light"
+  },
+  "C-MR-Request.dc.html": {
+   "x": 11960,
+   "y": 33120,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · connect a repo · dark",
+   "radius": 50
+  },
+  "C-MR-Workspace-Light.dc.html": {
+   "x": 12420,
+   "y": 33120,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · a multi-repo task with children by repo · light",
+   "radius": 50
+  },
+  "C-MR-Task.dc.html": {
+   "x": 12880,
+   "y": 33120,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · the task's repos, ask before merging · dark",
+   "radius": 50
+  },
+  "MR-Rules.dc.html": {
+   "x": 14120,
+   "y": 32200,
+   "w": 1480,
+   "h": 6700,
+   "title": "MR · One task, several repos — decisions, ergonomics, second opinion, cleanup, handoff"
+  },
+  "MR-Archive-1280-Mate.dc.html": {
+   "x": 9800,
+   "y": 34120,
+   "w": 1280,
+   "h": 800,
+   "title": "Multi-repo · archive a landed task: what goes, what stays · 1280 · Mate"
+  },
+  "MR-Sweep-640-MateLight.dc.html": {
+   "x": 11240,
+   "y": 34120,
+   "w": 640,
+   "h": 800,
+   "title": "Multi-repo · clean up hundreds of worktrees, grouped by what removing costs · 640 · Mate light"
+  },
+  "C-MR-Archive.dc.html": {
+   "x": 12000,
+   "y": 34120,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · archive a landed task · dark",
+   "radius": 50
+  },
+  "MR-Remove-1280-Mate.dc.html": {
+   "x": 9800,
+   "y": 35100,
+   "w": 1280,
+   "h": 800,
+   "title": "Multi-repo · remove a folder: what is tied to it, what stays · 1280 · Mate"
+  },
+  "MR-Backlog-1280-Mate.dc.html": {
+   "x": 11240,
+   "y": 35100,
+   "w": 1280,
+   "h": 800,
+   "title": "Multi-repo · Backlog task with a Repos field, Start agent → orchestrator (proposal) · 1280 · Mate"
+  },
+  "MR-Cron-1280-Mate.dc.html": {
+   "x": 12680,
+   "y": 35100,
+   "w": 1280,
+   "h": 800,
+   "title": "Multi-repo · Cron job “Runs in” a folder, folder tags (proposal) · 1280 · Mate"
+  },
+  "MR-Picker-1280-Mate.dc.html": {
+   "x": 9800,
+   "y": 36060,
+   "w": 1280,
+   "h": 800,
+   "title": "Title picker at scale · empty query: now, live, recent, folders with counts · 1280 · Mate"
+  },
+  "MR-PickerFolder-1280-Mate.dc.html": {
+   "x": 11240,
+   "y": 36060,
+   "w": 1280,
+   "h": 800,
+   "title": "Title picker at scale · inside a folder of 214 worktrees: grouped and capped · 1280 · Mate"
+  },
+  "MR-PickerSearch-640-MateLight.dc.html": {
+   "x": 12680,
+   "y": 36060,
+   "w": 640,
+   "h": 800,
+   "title": "Title picker at scale · search across folders, a task is one row · 640 · Mate light"
+  },
+  "MR-Merge-640-MateLight.dc.html": {
+   "x": 13340,
+   "y": 36060,
+   "w": 640,
+   "h": 800,
+   "title": "Multi-repo · ask before merging on the Mac: land the next repo · 640 · Mate light"
+  },
+  "AG-A-Run-1280-Mate.dc.html": {
+   "x": 17600,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "A · one tree · run page; Service, Land gates, Graphs docked under the scrolling tree; Service asks · 1280 · Mate"
+  },
+  "AG-A-Gate-1280-Mate.dc.html": {
+   "x": 19040,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "A · one tree · Land gates open in the dock, gate page; Graphs has one to trust · 1280 · Mate"
+  },
+  "AG-B-Graphs-1280-Mate.dc.html": {
+   "x": 20480,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "B · tabs Sessions · Graphs · Gates · definition page with Run and its runs · 1280 · Mate"
+  },
+  "AG-C-Graph-1280-Mate.dc.html": {
+   "x": 21920,
+   "y": 22660,
+   "w": 1280,
+   "h": 800,
+   "title": "C · group by graph · runs under their definition · run page · 1280 · Mate"
+  },
+  "AG-A-Tree-640-MateLight.dc.html": {
+   "x": 17600,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "A · one tree · drawer with the dock, Graphs open upward · 640 · Mate light"
+  },
+  "AG-A-Gate-640-MateLight.dc.html": {
+   "x": 18320,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "A · one tree · gate page, narrow · 640 · Mate light"
+  },
+  "AG-B-Gates-640-MateLight.dc.html": {
+   "x": 19040,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "B · tabs · Gates tab over the gate page · 640 · Mate light"
+  },
+  "AG-C-Gate-640-MateLight.dc.html": {
+   "x": 19760,
+   "y": 23580,
+   "w": 640,
+   "h": 800,
+   "title": "C · group by land gate · landings and review rounds · 640 · Mate light"
+  },
+  "C-AG-A-Agents.dc.html": {
+   "x": 17600,
+   "y": 24500,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · A · runs in the Agents list; what asks is in Needs you; Closed, Service, Land gates, Graphs end the list · dark",
+   "radius": 50
+  },
+  "C-AG-A-Graphs-Light.dc.html": {
+   "x": 18073,
+   "y": 24500,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · A · Graphs reached from Agents: definitions and ended runs · light",
+   "radius": 50
+  },
+  "C-AG-A-Run.dc.html": {
+   "x": 18546,
+   "y": 24500,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · A · native run screen, a run whose sessions are gone · dark",
+   "radius": 50
+  },
+  "C-AG-A-Gate-Light.dc.html": {
+   "x": 19019,
+   "y": 24500,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · A · land gate screen · light",
+   "radius": 50
+  },
+  "C-AG-B-Agents-Light.dc.html": {
+   "x": 19492,
+   "y": 24500,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · B · Sessions · Graphs · Gates in the Agents tab · light",
+   "radius": 50
+  },
+  "C-AG-C-Agents.dc.html": {
+   "x": 19965,
+   "y": 24500,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · C · Agents grouped by graph · dark",
+   "radius": 50
+  },
+  "AG-Rules.dc.html": {
+   "x": 23360,
+   "y": 22660,
+   "w": 1480,
+   "h": 5370,
+   "title": "Graphs and Gates inside Agents — decided 16 Nov: A with the pinned dock, keys, links, phone, handoff"
+  },
+  "SA-A-Option-1280-Mate.dc.html": {
+   "x": 17600,
+   "y": 26200,
+   "w": 1280,
+   "h": 800,
+   "title": "Side threads · decided 16 Nov · opens beside the parent; the card stays in view · 1280 · Mate"
+  },
+  "SA-A-Selection-1280-Mate.dc.html": {
+   "x": 20480,
+   "y": 26200,
+   "w": 1280,
+   "h": 800,
+   "title": "Side threads · decided 16 Nov · Ask aside from a selection (⌘\\) · 1280 · Mate"
+  },
+  "SA-A-SendBack-1280-Mate.dc.html": {
+   "x": 21920,
+   "y": 26200,
+   "w": 1280,
+   "h": 800,
+   "title": "Side threads · decided 16 Nov · send back as the answer to question 1, with a note · 1280 · Mate"
+  },
+  "SA-A-Option-640-MateLight.dc.html": {
+   "x": 17600,
+   "y": 27120,
+   "w": 640,
+   "h": 800,
+   "title": "Side threads · decided 16 Nov · stacked under the parent at 640 · Mate light"
+  },
+  "SA-A-SendBack-640-MateLight.dc.html": {
+   "x": 18320,
+   "y": 27120,
+   "w": 640,
+   "h": 800,
+   "title": "Side threads · decided 16 Nov · a passage's aside sent back as a draft in the composer · 640 · Mate light"
+  },
+  "C-SA-A-Option.dc.html": {
+   "x": 19040,
+   "y": 27120,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · side threads · decided 16 Nov · an aside about option 2 as a sheet over the session · dark",
+   "radius": 50
+  },
+  "C-SA-A-Message-Light.dc.html": {
+   "x": 19986,
+   "y": 27120,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · side threads · decided 16 Nov · Ask aside on a long-pressed message · light",
+   "radius": 50
+  },
+  "C-SA-A-SendBack-Light.dc.html": {
+   "x": 20459,
+   "y": 27120,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · side threads · decided 16 Nov · send back as the answer, with a note · light",
+   "radius": 50
+  },
+  "SA-B-Option-1280-Mate.dc.html": {
+   "x": 17600,
+   "y": 28100,
+   "w": 1280,
+   "h": 800,
+   "title": "Side threads · B over · not chosen · a panel anchored to the option · 1280 · Mate"
+  },
+  "SA-B-Selection-640-MateLight.dc.html": {
+   "x": 19040,
+   "y": 28100,
+   "w": 640,
+   "h": 800,
+   "title": "Side threads · B over · not chosen · a panel over the parent from a passage · 640 · Mate light"
+  },
+  "C-SA-B-Option-Light.dc.html": {
+   "x": 19760,
+   "y": 28100,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · side threads · B · not chosen · the aside unfolds inside the option · light",
+   "radius": 50
+  },
+  "SA-C-Option-1280-Mate.dc.html": {
+   "x": 17600,
+   "y": 29080,
+   "w": 1280,
+   "h": 800,
+   "title": "Side threads · C go there · folded into the final direction as the full page (see SA-A-Full-1280-Mate) · 1280 · Mate"
+  },
+  "SA-C-Option-640-MateLight.dc.html": {
+   "x": 19040,
+   "y": 29080,
+   "w": 640,
+   "h": 800,
+   "title": "Side threads · C go there · folded into the final direction as the full page · 640 · Mate light"
+  },
+  "C-SA-C-Option.dc.html": {
+   "x": 19760,
+   "y": 29080,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · side threads · C · folded into the final direction as the expanded screen · dark",
+   "radius": 50
+  },
+  "SA-Rules.dc.html": {
+   "x": 21000,
+   "y": 27120,
+   "w": 1480,
+   "h": 4140,
+   "title": "Side threads (#601) — decided 16 Nov: beside by default, full page on request, keys, handoff"
+  },
+  "SA-A-Full-1280-Mate.dc.html": {
+   "x": 19040,
+   "y": 26200,
+   "w": 1280,
+   "h": 800,
+   "title": "Side threads · decided 16 Nov · expanded to its own page, the question pinned on top (⌘⇧\\) · 1280 · Mate"
+  },
+  "C-SA-A-Full.dc.html": {
+   "x": 19513,
+   "y": 27120,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · side threads · decided 16 Nov · expanded to the pushed session screen, the question pinned · dark",
+   "radius": 50
+  },
+  "C-UL-A-List.dc.html": {
+   "x": 17600,
+   "y": 31860,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · usage limits · decided 16 Nov · the account's windows in the workspace header · dark",
+   "radius": 50
+  },
+  "C-UL-A-Session-Light.dc.html": {
+   "x": 18073,
+   "y": 31860,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · usage limits · decided 16 Nov · the session's share in its subtitle; Session info names the account · light",
+   "radius": 50
+  },
+  "C-UL-A-Close-Light.dc.html": {
+   "x": 19019,
+   "y": 31860,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · usage limits · decided 16 Nov · close to the 5-hour limit (amber text) · light",
+   "radius": 50
+  },
+  "C-UL-A-Reached.dc.html": {
+   "x": 19492,
+   "y": 31860,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · usage limits · decided 16 Nov · the 5-hour limit reached; Paused until 19:03 · dark",
+   "radius": 50
+  },
+  "C-UL-B-Macs.dc.html": {
+   "x": 17600,
+   "y": 32820,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · usage limits · B · not chosen · Claude usage on the Macs screen · dark",
+   "radius": 50
+  },
+  "C-UL-B-Session-Light.dc.html": {
+   "x": 18073,
+   "y": 32820,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · usage limits · B · not chosen · the share only in Session info · light",
+   "radius": 50
+  },
+  "C-UL-B-Close-Light.dc.html": {
+   "x": 18546,
+   "y": 32820,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · usage limits · B · not chosen · a strip once Claude warns · light",
+   "radius": 50
+  },
+  "C-UL-B-Reached.dc.html": {
+   "x": 19019,
+   "y": 32820,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · usage limits · B · not chosen · limit reached: notification and strip · dark",
+   "radius": 50
+  },
+  "UL-Rules.dc.html": {
+   "x": 20040,
+   "y": 31860,
+   "w": 1480,
+   "h": 2540,
+   "title": "Usage limits on the phone — decided 16 Nov: A in place, accounts, states, Mac and iPad, handoff"
+  },
+  "C-UL-A-Accounts.dc.html": {
+   "x": 18546,
+   "y": 31860,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · usage limits · decided 16 Nov · two Macs on two Claude accounts: the header names it, never mixed · dark",
+   "radius": 50
+  },
+  "GT-Sheet-1280-Mate.dc.html": {
+   "x": 17600,
+   "y": 34960,
+   "w": 1280,
+   "h": 800,
+   "title": "Gates · decided 16 Nov · New gate sheet · Done point, Plan pipeline picked, graph list open · 1280 · Mate"
+  },
+  "GT-A-Held-1280-Mate.dc.html": {
+   "x": 19040,
+   "y": 34960,
+   "w": 1280,
+   "h": 800,
+   "title": "Gates · decided 16 Nov · one held state: a held git push in the transcript, held rows in the tree · 1280 · Mate"
+  },
+  "GT-A-Gate-1280-Mate.dc.html": {
+   "x": 20480,
+   "y": 34960,
+   "w": 1280,
+   "h": 800,
+   "title": "Gates · decided 16 Nov · a Done gate's page: point, match, graph as a node list, history with summaries · 1280 · Mate"
+  },
+  "GT-B-Dock-1280-Mate.dc.html": {
+   "x": 21920,
+   "y": 34960,
+   "w": 1280,
+   "h": 800,
+   "title": "Gates · B by point · not chosen · dock grouped by point, held rows read like what's held, mini diagram · 1280 · Mate"
+  },
+  "GT-Sheet-640-MateLight.dc.html": {
+   "x": 17600,
+   "y": 35880,
+   "w": 640,
+   "h": 800,
+   "title": "Gates · decided 16 Nov · Edit gate sheet · Tool call point, presets and Custom… · 640 · Mate light"
+  },
+  "GT-A-Trust-640-MateLight.dc.html": {
+   "x": 19040,
+   "y": 35880,
+   "w": 640,
+   "h": 800,
+   "title": "Gates · decided 16 Nov · the gate's graph changed: trust card on the gate page · 640 · Mate light"
+  },
+  "GT-A-Rounds-640-MateLight.dc.html": {
+   "x": 19760,
+   "y": 35880,
+   "w": 640,
+   "h": 800,
+   "title": "Gates · decided 16 Nov · rounds used up on a Done gate: Accept as done / One more round / Stop · 640 · Mate light"
+  },
+  "GT-B-Held-640-MateLight.dc.html": {
+   "x": 20480,
+   "y": 35880,
+   "w": 640,
+   "h": 800,
+   "title": "Gates · B by point · not chosen · a held git push as a bar above the composer · 640 · Mate light"
+  },
+  "C-GT-A-Agents.dc.html": {
+   "x": 21260,
+   "y": 35880,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · gates · decided 16 Nov · held rows under Running, the rounds-used card in Needs you · dark",
+   "radius": 50
+  },
+  "C-GT-A-Held-Light.dc.html": {
+   "x": 21733,
+   "y": 35880,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · gates · decided 16 Nov · a held tool call in the session · light",
+   "radius": 50
+  },
+  "C-GT-A-Card.dc.html": {
+   "x": 22206,
+   "y": 35880,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · gates · decided 16 Nov · rounds used up: Accept as done / One more round / Stop · dark",
+   "radius": 50
+  },
+  "C-GT-A-Gates-Light.dc.html": {
+   "x": 22679,
+   "y": 35880,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · gates · decided 16 Nov · Gates grouped by repo; Trust stays on the Mac, the phone can Pause · light",
+   "radius": 50
+  },
+  "C-GT-B-Agents-Light.dc.html": {
+   "x": 23152,
+   "y": 35880,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · gates · B · not chosen · a Held by gates section · light",
+   "radius": 50
+  },
+  "GT-Rules.dc.html": {
+   "x": 23700,
+   "y": 34960,
+   "w": 1480,
+   "h": 3920,
+   "title": "Gates: point × match × graph — decided 16 Nov: A, names, match, held states, keys, handoff"
+  },
+  "BL-A-1280-Mate.dc.html": {
+   "x": 17600,
+   "y": 39380,
+   "w": 1280,
+   "h": 800,
+   "title": "A · tidy in place · recommended · one search field, tags on one line, section labels, quiet properties, Delete quiet · #81 · 1280 · Mate"
+  },
+  "BL-B-1280-Mate.dc.html": {
+   "x": 19040,
+   "y": 39380,
+   "w": 1280,
+   "h": 800,
+   "title": "B · properties beside · find-or-add field, number-first rows, a properties rail with links and history · #81 · 1280 · Mate"
+  },
+  "BL-C-1280-Mate.dc.html": {
+   "x": 20480,
+   "y": 39380,
+   "w": 1280,
+   "h": 800,
+   "title": "C · one meta line · list 316 wide, properties under the title, Links and History on one line each · #81 · 1280 · Mate"
+  },
+  "BL-Rules.dc.html": {
+   "x": 22200,
+   "y": 39380,
+   "w": 1480,
+   "h": 5200,
+   "title": "BL · Backlog cleanup + task numbers — what looks dirty, three directions, recommendation (A), number search, #N links, handoff"
+  },
+  "BL-A-640-MateLight.dc.html": {
+   "x": 17600,
+   "y": 40300,
+   "w": 640,
+   "h": 800,
+   "title": "A · search “40”: Task #40 pinned and opened, text matches below · 640 · Mate light"
+  },
+  "C-BL-Search.dc.html": {
+   "x": 18320,
+   "y": 40300,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · backlog search “40”: Task #40 first, Return opens it · dark",
+   "radius": 50
+  },
+  "BL-B-640-MateLight.dc.html": {
+   "x": 19040,
+   "y": 40300,
+   "w": 640,
+   "h": 800,
+   "title": "B · search “#999”: No task #999 · last is #83 · 640 · Mate light"
+  },
+  "BL-C-640-MateLight.dc.html": {
+   "x": 20480,
+   "y": 40300,
+   "w": 640,
+   "h": 800,
+   "title": "C · search “#78”: a done task pinned, its group stays closed · 640 · Mate light"
+  },
+  "TL-A-Link-1280-Mate.dc.html": {
+   "x": 17600,
+   "y": 41580,
+   "w": 1280,
+   "h": 800,
+   "title": "#N links · plain accent link (recommended) · hover shows the task, a done task in secondary ink, PR #3 and your own #601 stay text · 1280 · Mate"
+  },
+  "TL-B-Chip-1280-Mate.dc.html": {
+   "x": 19040,
+   "y": 41580,
+   "w": 1280,
+   "h": 800,
+   "title": "#N links · chips with a status icon (not recommended: three in a sentence crowd the line) · 1280 · Mate"
+  },
+  "TL-A-Link-640-MateLight.dc.html": {
+   "x": 20480,
+   "y": 41580,
+   "w": 640,
+   "h": 800,
+   "title": "#N links · narrow: links wrap like words, hover on an idea · 640 · Mate light"
+  },
+  "C-TL-Session.dc.html": {
+   "x": 21200,
+   "y": 41580,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · #N links in a session · long-press previews the task · dark",
+   "radius": 50
+  },
+  "C-TL-Task-Light.dc.html": {
+   "x": 21673,
+   "y": 41580,
+   "w": 393,
+   "h": 852,
+   "title": "iPhone · tap #612 → the task screen, ‹ back to the session · light",
+   "radius": 50
+  },
+  "GT-A-Refused-640-MateLight.dc.html": {
+   "x": 18320,
+   "y": 35880,
+   "w": 640,
+   "h": 800,
+   "title": "Gates · decided 16 Nov · changes on a held tool call: a plain refusal, then the gate's message · 640 · Mate light"
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "Layers.dc.html",
+  "Audit.dc.html",
+  "Principles.dc.html",
+  "Tokens.dc.html",
+  "Components.dc.html",
+  "AgentNodes.dc.html",
+  "Patterns.dc.html",
+  "Handoff.dc.html",
+  "Agents-1280.dc.html",
+  "Code-1280.dc.html",
+  "Backlog-1280.dc.html",
+  "Cron-1280.dc.html",
+  "Processes-1280.dc.html",
+  "Graphs-1280.dc.html",
+  "Agents-640.dc.html",
+  "Code-640.dc.html",
+  "Backlog-640.dc.html",
+  "Triggers-640.dc.html",
+  "Processes-640.dc.html",
+  "Graphs-640.dc.html",
+  "C-Audit.dc.html",
+  "C-Language.dc.html",
+  "C-Components.dc.html",
+  "C-Handoff.dc.html",
+  "C-Macs.dc.html",
+  "C-Workspace.dc.html",
+  "C-Permission.dc.html",
+  "C-Question.dc.html",
+  "C-Inbox.dc.html",
+  "C-Macs-Light.dc.html",
+  "C-Workspace-Light.dc.html",
+  "C-Permission-Light.dc.html",
+  "C-Question-Light.dc.html",
+  "C-Inbox-Light.dc.html",
+  "C-iPad.dc.html",
+  "C-Duo-Outer.dc.html",
+  "C-Duo-Outer-Light.dc.html",
+  "C-Duo-Book.dc.html",
+  "C-Duo-Laptop.dc.html",
+  "C-MacColour.dc.html",
+  "C-MacInfo.dc.html",
+  "C-MacInfo-Light.dc.html",
+  "Mac-Settings-Remote.dc.html",
+  "K1-Check-Mac.dc.html",
+  "K2-Check-Companion.dc.html",
+  "C-Backlog.dc.html",
+  "C-Backlog-Light.dc.html",
+  "C-Offline.dc.html",
+  "Mac-AlwaysAllow.dc.html",
+  "Mac-ChatGraphStep.dc.html",
+  "Agents-Mate-1280.dc.html",
+  "Code-1280-Mate.dc.html",
+  "Backlog-1280-Mate.dc.html",
+  "Cron-1280-Mate.dc.html",
+  "Processes-1280-Mate.dc.html",
+  "Graphs-1280-Mate.dc.html",
+  "Agents-640-MateLight.dc.html",
+  "Code-640-MateLight.dc.html",
+  "Backlog-640-MateLight.dc.html",
+  "Triggers-640-MateLight.dc.html",
+  "Processes-640-MateLight.dc.html",
+  "Graphs-640-MateLight.dc.html",
+  "Drawn-Views.dc.html",
+  "Graphs-Def-1280-Mate.dc.html",
+  "Cron-Runs-1280-Mate.dc.html",
+  "Triggers-Edge-1280-Mate.dc.html",
+  "Backlog-Owned-1280-Mate.dc.html",
+  "Graphs-Def-640-MateLight.dc.html",
+  "Cron-Paused-640-MateLight.dc.html",
+  "Cron-Empty-640-MateLight.dc.html",
+  "Triggers-Chain-640-MateLight.dc.html",
+  "Triggers-Empty-640-MateLight.dc.html",
+  "Backlog-Start-640-MateLight.dc.html",
+  "Backlog-Empty-640-MateLight.dc.html",
+  "Agents-OneTree-1280-Mate.dc.html",
+  "Agents-Drawer-640-MateLight.dc.html",
+  "T-Themes.dc.html",
+  "T-Nvim-Map.dc.html",
+  "T-Nvim-Clubmate.dc.html",
+  "Graphs-Gate-1280-Mate.dc.html",
+  "Graphs-Nightly-1280-Mate.dc.html",
+  "Graphs-GateDef-1280-Mate.dc.html",
+  "Graph-Steps.dc.html",
+  "Graphs-Approve-640-MateLight.dc.html",
+  "Graphs-Cap-640-MateLight.dc.html",
+  "Graphs-NightlyDef-640-MateLight.dc.html",
+  "C-Step-Approve.dc.html",
+  "C-Step-NeedsYou-Light.dc.html",
+  "Review-Open-1280-Mate.dc.html",
+  "Review-Mid-1280-Mate.dc.html",
+  "Review-NewFile-1280-Mate.dc.html",
+  "Review-Done-1280-Mate.dc.html",
+  "Review-Agents-1280-Mate.dc.html",
+  "Review-Mid-640-MateLight.dc.html",
+  "Review-Deleted-640-MateLight.dc.html",
+  "Review-Done-640-MateLight.dc.html",
+  "Review-Rules.dc.html",
+  "Q1-Ask-1280-Mate.dc.html",
+  "Q2-Open-1280-Mate.dc.html",
+  "Q2-Queue-1280-Mate.dc.html",
+  "Q3-Inbox-1280-Mate.dc.html",
+  "Q1-Ask-640-MateLight.dc.html",
+  "Q2-Open-640-MateLight.dc.html",
+  "Q2-Seven-640-MateLight.dc.html",
+  "Q3-Inbox-640-MateLight.dc.html",
+  "Q-Decisions.dc.html",
+  "C-Q1-Session.dc.html",
+  "C-Q1-NeedsYou-Light.dc.html",
+  "C-Q2-Session.dc.html",
+  "C-Q2-Open-Light.dc.html",
+  "C-Q2-Queue.dc.html",
+  "C-Q3-Decisions.dc.html",
+  "C-Q3-List-Light.dc.html",
+  "MR-Request-1280-Mate.dc.html",
+  "MR-Task-1280-Mate.dc.html",
+  "MR-Code-1280-Mate.dc.html",
+  "MR-Request-640-MateLight.dc.html",
+  "MR-Tree-640-MateLight.dc.html",
+  "MR-AFK-640-MateLight.dc.html",
+  "C-MR-Request.dc.html",
+  "C-MR-Workspace-Light.dc.html",
+  "C-MR-Task.dc.html",
+  "MR-Rules.dc.html",
+  "MR-Archive-1280-Mate.dc.html",
+  "MR-Sweep-640-MateLight.dc.html",
+  "C-MR-Archive.dc.html",
+  "MR-Remove-1280-Mate.dc.html",
+  "MR-Backlog-1280-Mate.dc.html",
+  "MR-Cron-1280-Mate.dc.html",
+  "MR-Picker-1280-Mate.dc.html",
+  "MR-PickerFolder-1280-Mate.dc.html",
+  "MR-PickerSearch-640-MateLight.dc.html",
+  "MR-Merge-640-MateLight.dc.html",
+  "AG-A-Run-1280-Mate.dc.html",
+  "AG-A-Gate-1280-Mate.dc.html",
+  "AG-B-Graphs-1280-Mate.dc.html",
+  "AG-C-Graph-1280-Mate.dc.html",
+  "AG-A-Tree-640-MateLight.dc.html",
+  "AG-A-Gate-640-MateLight.dc.html",
+  "AG-B-Gates-640-MateLight.dc.html",
+  "AG-C-Gate-640-MateLight.dc.html",
+  "C-AG-A-Agents.dc.html",
+  "C-AG-A-Graphs-Light.dc.html",
+  "C-AG-A-Run.dc.html",
+  "C-AG-A-Gate-Light.dc.html",
+  "C-AG-B-Agents-Light.dc.html",
+  "C-AG-C-Agents.dc.html",
+  "AG-Rules.dc.html",
+  "SA-A-Option-1280-Mate.dc.html",
+  "SA-A-Selection-1280-Mate.dc.html",
+  "SA-A-SendBack-1280-Mate.dc.html",
+  "SA-A-Option-640-MateLight.dc.html",
+  "SA-A-SendBack-640-MateLight.dc.html",
+  "C-SA-A-Option.dc.html",
+  "C-SA-A-Message-Light.dc.html",
+  "C-SA-A-SendBack-Light.dc.html",
+  "SA-B-Option-1280-Mate.dc.html",
+  "SA-B-Selection-640-MateLight.dc.html",
+  "C-SA-B-Option-Light.dc.html",
+  "SA-C-Option-1280-Mate.dc.html",
+  "SA-C-Option-640-MateLight.dc.html",
+  "C-SA-C-Option.dc.html",
+  "SA-Rules.dc.html",
+  "SA-A-Full-1280-Mate.dc.html",
+  "C-SA-A-Full.dc.html",
+  "C-UL-A-List.dc.html",
+  "C-UL-A-Session-Light.dc.html",
+  "C-UL-A-Close-Light.dc.html",
+  "C-UL-A-Reached.dc.html",
+  "C-UL-B-Macs.dc.html",
+  "C-UL-B-Session-Light.dc.html",
+  "C-UL-B-Close-Light.dc.html",
+  "C-UL-B-Reached.dc.html",
+  "UL-Rules.dc.html",
+  "C-UL-A-Accounts.dc.html",
+  "GT-Sheet-1280-Mate.dc.html",
+  "GT-A-Held-1280-Mate.dc.html",
+  "GT-A-Gate-1280-Mate.dc.html",
+  "GT-B-Dock-1280-Mate.dc.html",
+  "GT-Sheet-640-MateLight.dc.html",
+  "GT-A-Trust-640-MateLight.dc.html",
+  "GT-A-Rounds-640-MateLight.dc.html",
+  "GT-B-Held-640-MateLight.dc.html",
+  "C-GT-A-Agents.dc.html",
+  "C-GT-A-Held-Light.dc.html",
+  "C-GT-A-Card.dc.html",
+  "C-GT-A-Gates-Light.dc.html",
+  "C-GT-B-Agents-Light.dc.html",
+  "GT-Rules.dc.html",
+  "BL-A-1280-Mate.dc.html",
+  "BL-B-1280-Mate.dc.html",
+  "BL-C-1280-Mate.dc.html",
+  "BL-Rules.dc.html",
+  "BL-A-640-MateLight.dc.html",
+  "C-BL-Search.dc.html",
+  "BL-B-640-MateLight.dc.html",
+  "BL-C-640-MateLight.dc.html",
+  "TL-A-Link-1280-Mate.dc.html",
+  "TL-B-Chip-1280-Mate.dc.html",
+  "TL-A-Link-640-MateLight.dc.html",
+  "C-TL-Session.dc.html",
+  "C-TL-Task-Light.dc.html",
+  "GT-A-Refused-640-MateLight.dc.html"
+ ],
+ "notes": {
+  "t_lang": {
+   "x": 0,
+   "y": 1420,
+   "text": "Clubmate design language — review & system",
+   "kind": "title1",
+   "maxW": 4120
+  },
+  "t_comp": {
+   "x": 0,
+   "y": 4560,
+   "text": "Components, patterns, handoff",
+   "kind": "title1",
+   "maxW": 5880
+  },
+  "t_mock": {
+   "x": 0,
+   "y": 7440,
+   "text": "Earlier mockups in Kanagawa (dark) and Catppuccin Latte (light) — the interface now always uses Mate (section below); these stay as the source the Mate versions import",
+   "kind": "title1",
+   "maxW": 8080
+  },
+  "t_companion": {
+   "x": 0,
+   "y": 9560,
+   "text": "Companion — the shipped structure, the Mac language, iPhone · iPad · iPhone Duo",
+   "kind": "title1",
+   "maxW": 5640
+  },
+  "t_maccolour": {
+   "x": 0,
+   "y": 14620,
+   "text": "A colour for each Mac — a name tag, not a theme; shown with two or more Macs",
+   "kind": "title1",
+   "maxW": 4546
+  },
+  "t_check": {
+   "x": 0,
+   "y": 17060,
+   "text": "Build check, 1 Nov 2026 — screenshots vs boards",
+   "kind": "title1",
+   "maxW": 3986
+  },
+  "t_mate": {
+   "x": 0,
+   "y": 22400,
+   "text": "Mac interface in Mate — every window and plugin panel; terminal and nvim default to the Clubmate themes",
+   "kind": "title1",
+   "maxW": 8080
+  },
+  "t_drawn": {
+   "x": 8240,
+   "y": 22400,
+   "text": "Drawn views — Graphs, Cron, Triggers, Backlog: a trigger is an edge, a cron job is a strip of runs, a task's owners are lanes",
+   "kind": "title1",
+   "maxW": 7240
+  },
+  "t_agents_tree": {
+   "x": 15560,
+   "y": 22400,
+   "text": "Agents sidebar, 3 Nov (main cdc26f6a) — branch rows only for 2+ worktrees; Closed and Service at the root",
+   "kind": "title1",
+   "maxW": 1280
+  },
+  "t_steps": {
+   "x": 9800,
+   "y": 24400,
+   "text": "Steps in graphs — nodes Clubmate runs itself: checks pick the next edge, actions do the work; Review gate and Nightly",
+   "kind": "title1",
+   "maxW": 5800
+  },
+  "t_review": {
+   "x": 9800,
+   "y": 26840,
+   "text": "Review in the Code section — nvim draws the two diff panes; the review (files, progress, comments, send to the agent) is a native Mate panel",
+   "kind": "title1",
+   "maxW": 7040
+  },
+  "t_q": {
+   "x": 9800,
+   "y": 29840,
+   "text": "Decisions left in prose — 1 (A) ask before stopping · 2 (B) done, with open items (recommended) · 3 (B) decisions inbox",
+   "kind": "title1",
+   "maxW": 7680
+  },
+  "t_mr": {
+   "x": 9800,
+   "y": 31940,
+   "text": "One task, several repos — connect card · tree named by repo · live Repos card · folders of the workspace",
+   "kind": "title1",
+   "maxW": 6000
+  },
+  "t_agmerge": {
+   "x": 17600,
+   "y": 22400,
+   "text": "Graphs and Gates move into Agents — decided 16 Nov: A, one tree with Service · Land gates · Graphs docked at the bottom (B tabs and C group by kept for reference)",
+   "kind": "title1",
+   "maxW": 7000
+  },
+  "t_sa": {
+   "x": 17600,
+   "y": 25940,
+   "text": "Side threads (#601) — decided 16 Nov: opens beside the parent (A), expands to its own page with the question pinned (C) · B not chosen",
+   "kind": "title1",
+   "maxW": 6000
+  },
+  "t_ul": {
+   "x": 17600,
+   "y": 31600,
+   "text": "Usage limits on the phone — decided 16 Nov: A in place (a quiet line per workspace and account, the share in the session subtitle) · B not chosen",
+   "kind": "title1",
+   "maxW": 6000
+  },
+  "t_gt": {
+   "x": 17600,
+   "y": 34700,
+   "text": "Gates: point × match × graph — decided 16 Nov: A, by repo, one held state, node list · B not chosen",
+   "kind": "title1",
+   "maxW": 6000
+  },
+  "t_bl": {
+   "x": 17600,
+   "y": 39100,
+   "text": "Backlog cleanup + task numbers — A tidy in place (recommended) · B properties beside · C one meta line; a number pins its task",
+   "kind": "title1",
+   "maxW": 6080
+  },
+  "t_tl": {
+   "x": 17600,
+   "y": 41300,
+   "text": "#N in agent messages — a plain accent link (recommended) or a chip; hover on the Mac, long-press on the phone",
+   "kind": "title1",
+   "maxW": 4466
+  }
+ },
+ "designSystems": []
+}

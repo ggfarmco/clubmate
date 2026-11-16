@@ -18,7 +18,7 @@ Scope → **Capture** (`capture.sh`) → Judge → Fixer → **Tests** (`tests.s
 - `MAIN` is the main checkout, `NOTES` is `MAIN/../clubmate-notes` (absolute paths).
 - Run dir `RUN` = `MAIN/.worktrees/design-check/<run>` (the run id lower-cased, `_` as `-`, e.g. `gr-1a2b`): `boards`, `base`, `tree/` (the capture checkout), `shots/<Board>.png`, `manifest.json` (`head`, `base`, `shots` board → png, `skipped` board → reason), `logs/`, `findings.md`, `fixes.md`, `merged` (`<sha> <branch>` per landed fix), `reverted`, `tests.log`. Clean up deletes it.
 - The scripts take the run from `CLUBMATE_GRAPH_RUN` (steps) or `DESIGN_CHECK_RUN=<run>` (you, in a Bash call).
-- The design project is in `design/README.md`; you reach it with the `Artifact` tool, which the nodes have from the main checkout's settings and children in worktrees don't. No `Artifact` (or the project refuses): judge against the repo copy in `design/*/source` and `design/*/png`, skip the package and say so.
+- The design project is in `design/README.md`; you reach it with the `Artifact` tool, which the nodes have from the main checkout's settings and children in worktrees don't. You need it only for Claude Design's craft rules and the package; the boards come from the repo. No `Artifact` (or the project refuses): judge with the repo's rules alone, skip the package and say so.
 
 ## Scope (graph node)
 
@@ -46,7 +46,7 @@ Scope → **Capture** (`capture.sh`) → Judge → Fixer → **Tests** (`tests.s
 
 You judge the way Claude Design does, so read its rules first: `Artifact read` the project's `SKILL.md` § Designing well and `artifact-type/reference/craft.md` (accessible as drawn, 4.5:1 text contrast, ≥44 pt phone targets, no filler, follow the existing vocabulary). Then our own language: `design/language/README.md` and the `Principles`, `Tokens`, `Components`, `AgentNodes`, `Patterns` boards, the companion's `C-Language` and `C-Components`, and the `clubmate-ui` skill.
 
-The truth per screen is the board: its `.dc.html` from the project (pull as in `design/README.md`; it holds the exact values: sizes, weights, tokens, copy) and its PNG in `design/*/png/` for the picture. A board that changed in the project since the repo copy is judged in its project version, and the report says the repo copy is stale.
+The truth per screen is the board in the repo: its `.dc.html` in `design/*/source/` or `design/features/<slug>/` (it holds the exact values: sizes, weights, tokens, copy) and its PNG in `design/*/png/` or `design/features/<slug>/png/` for the picture. The shared project holds only the language boards (`design/README.md`); screen boards are no longer there.
 
 Not a divergence: what `design/check/prompt.md` §3 decides and §4 already tracks, decisions in `design/check/fix-list.md`, seed data (the workspace is the capture tree: `tree`, detached at the captured sha), the capture conditions in §2 (800 pt minimum width, grey traffic lights, iPhone 18 Pro size), anything already open in the backlog (`backlog_list`, tags `design-check`, `tidy`).
 
