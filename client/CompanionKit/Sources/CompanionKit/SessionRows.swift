@@ -30,6 +30,8 @@ public struct SessionStateLine: Sendable, Equatable {
         case faint
         case needsYou
         case danger
+        case accent
+        case success
     }
 
     public var lead: String?
@@ -83,6 +85,9 @@ extension AgentSession {
         if let rowDetail {
             return SessionStateLine(text: rowDetail, tone: needsYou ? .needsYou : status == .error ? .danger : .secondary)
         }
+        if let landing, !needsYou, status != .error {
+            return SessionStateLine(text: landing.words, tone: landing.lineTone, age: landing.verdict == "reviewing" ? nil : age(updatedAt))
+        }
         switch glyph(waitingChildren: waitingChildren) {
         case .connect:
             guard let summary = pendingSummary, let subject = summary.subject else {
@@ -133,6 +138,17 @@ extension AgentSession {
             return SessionStateLine(text: reviewProgress?.text ?? SessionState.done.label, age: age(updatedAt))
         case .closed:
             return SessionStateLine(text: autoClosed ? "Auto-closed" : SessionState.closed.label, age: age(updatedAt))
+        }
+    }
+}
+
+extension SessionLanding {
+    var lineTone: SessionStateLine.Tone {
+        switch tone {
+        case "accent": .accent
+        case "success": .success
+        case "warning": .needsYou
+        default: .secondary
         }
     }
 }
@@ -228,6 +244,7 @@ public struct NeedsYouItem: Sendable, Equatable, Identifiable {
     public let workspace: Workspace
     public let session: AgentSession
     public var offline = false
+    public var lander: String?
 
     public var id: String { Self.id(computer: computer, session: session.id) }
 
@@ -249,8 +266,12 @@ public struct NeedsYouItem: Sendable, Equatable, Identifiable {
         }
     }
 
+    public var sessionTitle: String {
+        [session.displayTitle, lander].compactMap { $0 }.joined(separator: " · ")
+    }
+
     public var subtitle: String {
-        [workspace.name, session.displayTitle].joined(separator: " · ")
+        [workspace.name, sessionTitle].joined(separator: " · ")
     }
 
     public var wants: String {
@@ -274,7 +295,8 @@ public struct NeedsYouItem: Sendable, Equatable, Identifiable {
         var items: [NeedsYouItem] = []
         for source in sources {
             for session in source.sessions where session.glyph.needsYou {
-                items.append(NeedsYouItem(computer: source.computer, mac: source.mac, workspace: source.workspace, session: session, offline: offline.contains(source.computer)))
+                let lander = session.rowUnder.flatMap { id in source.sessions.first { $0.id == id }?.displayTitle }
+                items.append(NeedsYouItem(computer: source.computer, mac: source.mac, workspace: source.workspace, session: session, offline: offline.contains(source.computer), lander: lander))
             }
         }
         return items.sorted { $0.at != $1.at ? $0.at < $1.at : $0.id < $1.id }

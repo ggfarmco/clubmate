@@ -237,6 +237,29 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(store.sessions[1].status, .running)
     }
 
+    func testLandReviewersHaveNoRowUnlessTheyAskAndLandersSayTheirLanding() async throws {
+        let runner = ScriptedRunner(replies: [], sessions: [#"""
+        {"sessions":[
+          {"id":"lander","status":"idle","group":"needsYou","childStatus":"waiting","landing":{"round":2,"of":2,"verdict":"reviewing","words":"review 2/2…","tone":"accent","badge":"reviewing","into":"main"}},
+          {"id":"asking","status":"waiting","needsYou":true,"group":"needsYou","pending":["perm-1"],"rowUnder":"lander","gateRound":{"round":2,"label":"Round 2 review","verdict":"reviewing"}},
+          {"id":"old","status":"closed","group":"closed","hidden":true,"gateRound":{"round":1,"label":"Round 1 review","verdict":"changes"}},
+          {"id":"fixing","status":"done","group":"done","landing":{"round":1,"of":2,"verdict":"changes","findings":3,"words":"3 changes","tone":"plain","badge":"3 changes","into":"main"}}
+        ],"removed":[],"cursor":"e.1"}
+        """#])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.refresh()
+        XCTAssertEqual(store.sessions.map(\.id), ["lander", "asking", "fixing"])
+        XCTAssertEqual(store.session("old")?.displayTitle, "Round 1 review")
+        let groups = store.groups
+        XCTAssertEqual(groups.map(\.group), [.needsInput, .idle])
+        let lander = try XCTUnwrap(groups.first?.sessions.first)
+        XCTAssertEqual(lander.children.map(\.session.displayTitle), ["Round 2 review"])
+        XCTAssertEqual([lander.session.stateLine(now: .now).text, groups[1].sessions[0].session.stateLine(now: .now).text], ["review 2/2…", "3 changes"])
+        XCTAssertEqual([lander.session.stateLine(now: .now).tone, groups[1].sessions[0].session.stateLine(now: .now).tone], [.accent, .secondary])
+        let activity = WorkspaceActivity(store.sessions)
+        XCTAssertEqual([activity.waiting, activity.closed], [1, 0])
+    }
+
     func testStopSendsItsTurnAndAStaleOneRefreshesTheSession() async throws {
         let runner = ScriptedRunner(replies: [], sessions: [
             #"{"sessions":[{"id":"b","status":"running","turns":4}],"removed":[],"cursor":"e.3"}"#,
@@ -414,6 +437,18 @@ final class TranscriptRefreshTests: XCTestCase {
         XCTAssertEqual(transcript.entries[2].content, .agent("full answer"))
         XCTAssertEqual(transcript.session.status, .running)
         store.unwatch("s")
+    }
+
+    func testAHiddenRunningReviewerOpenedByIDKeepsFollowingItsTranscript() async throws {
+        let first = #"{"session":{"id":"r","status":"running"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"review"}]}"#
+        let second = #"{"session":{"id":"r","status":"done"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"review"},{"kind":"agent","id":"a1","turn":1,"text":"approved"}]}"#
+        let runner = ScriptedRunner(replies: [first, second], sessions: [#"{"sessions":[{"id":"r","status":"running","hidden":true}],"removed":[],"cursor":"e.1"}"#])
+        let store = AgentsStore(workspace: "w", runner: runner, sleep: { _ in try await Task.sleep(for: .milliseconds(10)) })
+        await store.refresh()
+        XCTAssertTrue(store.sessions.isEmpty)
+        store.watch("r")
+        try await waitUntil { store.transcripts["r"]?.entries.count == 2 }
+        store.unwatch("r")
     }
 
     func testOpenedBannerOnlyForShownSession() {

@@ -273,11 +273,6 @@ public enum RunRows {
             if let run = fields["run"]?["id"]?.stringValue, ids.contains(run), fields["parentSession"]?.stringValue.map(listed.contains) != true {
                 fields["parentSession"] = .string(run)
             }
-            if let lander = fields["nestUnder"]?.stringValue, listed.contains(lander), let round = fields["gateRound"] {
-                fields["parentSession"] = .string(lander)
-                if let label = round["label"]?.stringValue { fields["title"] = .string(label) }
-                if let verdict = round["verdict"]?.stringValue { fields["rowDetail"] = .string(verdict) }
-            }
             if let session = try? JSONValue.object(fields).decode(AgentSession.self) { out.append(session) }
         }
         for run in runs {

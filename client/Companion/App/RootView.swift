@@ -115,7 +115,7 @@ struct RootView: View {
     }
 
     private var shownSection: ShownSection? {
-        guard let item = navigation.sidebar, item.plugin == MorePluginInfo.id, let section = navigation.detail, let connection = model.connection(item.computer),
+        guard let item = navigation.sidebar, let section = navigation.detail, item.plugin == MorePluginInfo.id || item.plugin == AgentsPluginInfo.id && section.hasPrefix(AgentsPluginInfo.id + "."), let connection = model.connection(item.computer),
               let workspace = navigation.workspace(for: connection), navigation.layout != .compact || navigation.preferredColumn == .detail else { return nil }
         return ShownSection(computer: item.computer, workspace: workspace.id, section: section)
     }

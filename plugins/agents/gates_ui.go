@@ -186,13 +186,9 @@ func (a *app) gatesAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 		a.uiMu.Unlock()
 		return nil
 	case actGateReview, actGateLanding:
-		sid := target
-		if !fromButton {
-			var row string
-			if err := json.Unmarshal(ev.Value, &row); err != nil {
-				return fmt.Errorf("%s value: %w", ev.Action, err)
-			}
-			sid = gateRowSession(row)
+		sid, err := gateOpens(ev)
+		if err != nil {
+			return err
 		}
 		if ev.Action == actGateReview {
 			a.uiMu.Lock()
@@ -209,6 +205,17 @@ func (a *app) gatesAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 		return a.openGateSession(ctx, ev.WorkspaceID, sid)
 	}
 	return nil
+}
+
+func gateOpens(ev pluginsdk.UIEvent) (string, error) {
+	if sid, fromButton := automation.ActionTarget(ev.NodeID, ev.Action); fromButton {
+		return sid, nil
+	}
+	var row string
+	if err := json.Unmarshal(ev.Value, &row); err != nil {
+		return "", fmt.Errorf("%s value: %w", ev.Action, err)
+	}
+	return gateRowSession(row), nil
 }
 
 func (a *app) openGateSession(ctx context.Context, workspaceID, sid string) error {

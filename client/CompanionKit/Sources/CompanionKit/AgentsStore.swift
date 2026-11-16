@@ -27,7 +27,10 @@ public final class AgentsStore {
     private var runRows: [AgentRunRow]? {
         didSet { listed = RunRows.sessions(list.rows, runs: runRows) }
     }
-    private var listed: [AgentSession] = []
+    private var listed: [AgentSession] = [] {
+        didSet { sessions = listed.filter { !$0.hidden } }
+    }
+    public private(set) var sessions: [AgentSession] = []
     public private(set) var dock: [AgentDockRow] = []
     public private(set) var transcripts: [String: AgentTranscript] = [:]
     public private(set) var loaded = false
@@ -120,10 +123,6 @@ public final class AgentsStore {
         let at: Date
     }
 
-    public var sessions: [AgentSession] {
-        listed
-    }
-
     public var endRows: [RunEndRow] {
         RunRows.endRows(dock)
     }
@@ -137,7 +136,7 @@ public final class AgentsStore {
     }
 
     public func session(_ id: String) -> AgentSession? {
-        sessions.first { $0.id == id } ?? transcripts[id]?.session
+        listed.first { $0.id == id } ?? transcripts[id]?.session
     }
 
     public func entries(_ session: String) -> [TranscriptEntry] {
@@ -452,7 +451,7 @@ public final class AgentsStore {
             } catch {
                 return
             }
-            guard sessions.first(where: { $0.id == session })?.status == .running else { continue }
+            guard listed.first(where: { $0.id == session })?.status == .running else { continue }
             await load(session)
             if let status = transcripts[session]?.session.status, status != .running { await refresh() }
         }

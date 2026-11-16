@@ -1785,5 +1785,445 @@
     }
    ]
   }
+ },
+ "landReview": {
+  "agents.gates.main": {
+   "type": "stack",
+   "props": {
+    "direction": "vertical"
+   },
+   "children": [
+    {
+     "type": "header",
+     "props": {
+      "badges": [
+       {
+        "text": "active"
+       }
+      ],
+      "icon": "shield",
+      "meta": "last: changes 40 min ago · 2 reviewing",
+      "title": "clubmate"
+     },
+     "children": [
+      {
+       "type": "button",
+       "id": "lg_fixture/gatePause",
+       "props": {
+        "action": "gatePause",
+        "icon": "pause",
+        "label": "Pause",
+        "shortcut": "p",
+        "variant": "secondary"
+       }
+      },
+      {
+       "type": "button",
+       "id": "lg_fixture/gateEdit",
+       "props": {
+        "action": "gateEdit",
+        "icon": "pencil",
+        "label": "Edit",
+        "shortcut": "e",
+        "variant": "secondary"
+       }
+      },
+      {
+       "type": "button",
+       "id": "lg_fixture/gateDelete",
+       "props": {
+        "action": "gateDelete",
+        "confirm": "Delete the land gate on clubmate? Landings into main then land without a review. Its verdict history goes too.",
+        "icon": "trash",
+        "label": "Delete",
+        "shortcut": "cmd+delete",
+        "variant": "danger"
+       }
+      }
+     ]
+    },
+    {
+     "type": "scroll",
+     "children": [
+      {
+       "type": "stack",
+       "props": {
+        "direction": "vertical"
+       },
+       "children": [
+        {
+         "type": "form",
+         "id": "props",
+         "children": [
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "Repo"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "text": "clubmate"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "/Users/me/src/clubmate"
+             }
+            }
+           ]
+          },
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "Guards"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "text": "landings into main · a child's merge into its parent's branch"
+             }
+            }
+           ]
+          },
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "Kind"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "text": "Fable review"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "a fresh Fable session reads the diff, read-only"
+             }
+            }
+           ]
+          },
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "Rounds"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "text": "2 rounds of changes, then you decide"
+             }
+            }
+           ]
+          },
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal"
+           },
+           "children": [
+            {
+             "type": "text",
+             "props": {
+              "style": "muted",
+              "text": "Docs only"
+             }
+            },
+            {
+             "type": "text",
+             "props": {
+              "text": "a change only in .md files lands without a review"
+             }
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": "Verdicts · last 7 days · approved 1 · changes 2"
+         }
+        },
+        {
+         "type": "table",
+         "id": "gateVerdicts",
+         "props": {
+          "action": "select",
+          "columns": [
+           {
+            "id": "when",
+            "title": "When",
+            "width": 110
+           },
+           {
+            "id": "verdict",
+            "title": "Verdict",
+            "width": 90
+           },
+           {
+            "id": "landing",
+            "title": "Landing"
+           },
+           {
+            "id": "into",
+            "title": "Into",
+            "width": 120,
+            "truncate": "middle",
+            "priority": 1
+           }
+          ],
+          "rows": [
+           {
+            "id": "1794839040000000000/agt_00000000000000b2",
+            "cells": [
+             {
+              "text": "Nov 16 14:24"
+             },
+             {
+              "text": "reviewing",
+              "tone": "warn"
+             },
+             {
+              "text": "Gate graph instead of a fixed guard · round 1",
+              "action": "gateReview",
+              "label": "Open review"
+             },
+             {
+              "text": "main"
+             }
+            ]
+           },
+           {
+            "id": "1794839220000000000/agt_00000000000000b6",
+            "cells": [
+             {
+              "text": "Nov 16 14:27"
+             },
+             {
+              "text": "reviewing",
+              "tone": "warn"
+             },
+             {
+              "text": "Side threads: dig into limits · round 2",
+              "action": "gateReview",
+              "label": "Open review"
+             },
+             {
+              "text": "main"
+             }
+            ]
+           },
+           {
+            "id": "1794837000000000000/agt_00000000000000b4",
+            "cells": [
+             {
+              "text": "Nov 16 13:50"
+             },
+             {
+              "text": "changes",
+              "tone": "warn"
+             },
+             {
+              "text": "Keep-awake plugin (Amphetamine) · round 1 · 3 findings",
+              "action": "gateReview",
+              "label": "Open review"
+             },
+             {
+              "text": "main"
+             }
+            ]
+           },
+           {
+            "id": "1794832200000000000/agt_00000000000000b7",
+            "cells": [
+             {
+              "text": "Nov 16 12:30"
+             },
+             {
+              "text": "changes",
+              "tone": "warn"
+             },
+             {
+              "text": "Side threads: dig into limits · round 1 · 1 finding",
+              "action": "gateReview",
+              "label": "Open review"
+             },
+             {
+              "text": "main"
+             }
+            ]
+           },
+           {
+            "id": "1794821400000000000/agt_00000000000000b9",
+            "cells": [
+             {
+              "text": "Nov 16 09:30"
+             },
+             {
+              "text": "approved",
+              "tone": "ok"
+             },
+             {
+              "text": "Fix the flaky switcher test · round 1",
+              "action": "gateReview",
+              "label": "Open review"
+             },
+             {
+              "text": "main"
+             }
+            ]
+           }
+          ]
+         }
+        },
+        {
+         "type": "card",
+         "id": "gateLive",
+         "props": {
+          "icon": "shield",
+          "tone": "accent"
+         },
+         "children": [
+          {
+           "type": "text",
+           "props": {
+            "text": "Round 1 · reviewing"
+           }
+          },
+          {
+           "type": "text",
+           "props": {
+            "style": "muted",
+            "text": "feat/gate-graph → main · 6 min"
+           }
+          },
+          {
+           "type": "text",
+           "props": {
+            "text": "Running go test ./plugins/gates/… before the verdict"
+           }
+          },
+          {
+           "type": "text",
+           "props": {
+            "style": "muted",
+            "text": "Findings show here when it decides; the lander gets them in its transcript."
+           }
+          },
+          {
+           "type": "stack",
+           "props": {
+            "direction": "horizontal",
+            "gap": 8
+           },
+           "children": [
+            {
+             "type": "spacer"
+            },
+            {
+             "type": "button",
+             "id": "agt_00000000000000b2/gateReview",
+             "props": {
+              "action": "gateReview",
+              "label": "Open review",
+              "shortcut": "opt+r",
+              "variant": "secondary"
+             }
+            },
+            {
+             "type": "button",
+             "id": "agt_00000000000000b1/gateLanding",
+             "props": {
+              "action": "gateLanding",
+              "label": "Open landing",
+              "variant": "secondary"
+             }
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "agents.gates.sidebar": {
+   "type": "tree",
+   "id": "gates",
+   "props": {
+    "items": [
+     {
+      "id": "help",
+      "label": "How gates work",
+      "icon": "info.circle",
+      "muted": true
+     },
+     {
+      "id": "lg_fixture",
+      "label": "clubmate",
+      "detail": "reviewing",
+      "icon": "shield",
+      "detailTone": "warning",
+      "menu": [
+       {
+        "action": "gatePause",
+        "label": "Pause"
+       },
+       {
+        "action": "gateEdit",
+        "label": "Edit…"
+       },
+       {
+        "action": "gateDelete",
+        "label": "Delete",
+        "confirm": "Delete the land gate on clubmate? Landings into its default branch then land without a review. Its verdict history goes too."
+       }
+      ]
+     }
+    ],
+    "selected": "lg_fixture"
+   }
+  }
  }
 }

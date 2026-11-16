@@ -64,6 +64,10 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let shareWords: [String: String]
     public let shareDetail: String?
     public let listKey: String?
+    public let hidden: Bool
+    public let rowUnder: String?
+    public let gateRound: GateRound?
+    public let landing: SessionLanding?
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -76,7 +80,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false, group: SessionGroup? = nil, paused: Bool = false, pausedUntil: Date? = nil, active: Bool = false, kind: String? = nil, run: SessionRun? = nil,
         reviewProgress: ReviewProgress? = nil, openCount: Int = 0, openDecisions: Int = 0, openOffers: Int = 0, openSince: Date? = nil, mayAsk: Bool = false,
         repo: String? = nil, taskRows: [RepoRow] = [], taskBadge: String? = nil, archivable: Bool = false, taskFinished: Bool = false, requests: [String] = [], turns: Int = 0, rowDetail: String? = nil,
-        limitShare: [String: Double] = [:], shareLabel: String? = nil, shareWords: [String: String] = [:], shareDetail: String? = nil, listKey: String? = nil
+        limitShare: [String: Double] = [:], shareLabel: String? = nil, shareWords: [String: String] = [:], shareDetail: String? = nil, listKey: String? = nil,
+        hidden: Bool = false, rowUnder: String? = nil, gateRound: GateRound? = nil, landing: SessionLanding? = nil
     ) {
         self.id = id
         self.workspace = workspace
@@ -141,6 +146,10 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.shareWords = shareWords
         self.shareDetail = shareDetail
         self.listKey = listKey
+        self.hidden = hidden
+        self.rowUnder = rowUnder
+        self.gateRound = gateRound
+        self.landing = landing
     }
 
     public var isClosed: Bool { status == .closed }
@@ -150,6 +159,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
         case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, paused, pausedUntil, active, kind, run, reviewProgress, openCount, openDecisions, openOffers, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests, turns, rowDetail
         case limitShare, shareLabel, shareWords, shareDetail, listKey
+        case hidden, rowUnder, gateRound, landing
     }
 
     public init(from decoder: any Decoder) throws {
@@ -222,7 +232,11 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             shareLabel: try optional(.shareLabel),
             shareWords: (try? c.decodeIfPresent([String: String].self, forKey: .shareWords)) ?? [:],
             shareDetail: try optional(.shareDetail),
-            listKey: try optional(.listKey)
+            listKey: try optional(.listKey),
+            hidden: try flag(.hidden),
+            rowUnder: try optional(.rowUnder),
+            gateRound: try? c.decodeIfPresent(GateRound.self, forKey: .gateRound),
+            landing: try? c.decodeIfPresent(SessionLanding.self, forKey: .landing)
         )
     }
 
@@ -293,6 +307,30 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         if !shareWords.isEmpty { try c.encode(shareWords, forKey: .shareWords) }
         try c.encodeIfPresent(shareDetail, forKey: .shareDetail)
         try c.encodeIfPresent(listKey, forKey: .listKey)
+        if hidden { try c.encode(hidden, forKey: .hidden) }
+        try c.encodeIfPresent(rowUnder, forKey: .rowUnder)
+        try c.encodeIfPresent(gateRound, forKey: .gateRound)
+        try c.encodeIfPresent(landing, forKey: .landing)
+    }
+}
+
+public struct GateRound: Codable, Sendable, Hashable {
+    public let label: String
+
+    public init(label: String) {
+        self.label = label
+    }
+}
+
+public struct SessionLanding: Codable, Sendable, Hashable {
+    public let verdict: String
+    public let words: String
+    public let tone: String?
+
+    public init(verdict: String, words: String, tone: String? = nil) {
+        self.verdict = verdict
+        self.words = words
+        self.tone = tone
     }
 }
 

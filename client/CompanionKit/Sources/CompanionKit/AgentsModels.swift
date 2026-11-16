@@ -37,6 +37,7 @@ public struct SessionSection: Sendable, Equatable, Identifiable {
 
 extension AgentSession {
     public var displayTitle: String {
+        if let gateRound, !gateRound.label.isEmpty { return gateRound.label }
         if title.isEmpty { return "New Session" }
         return GraphRun.numbered(title, run?.number)
     }
@@ -74,7 +75,7 @@ extension AgentSession {
         var kids: [String: [AgentSession]] = [:]
         var roots: [AgentSession] = []
         for session in sessions {
-            if let parent = session.parentSession, parent != session.id, ids.contains(parent) {
+            if let parent = session.rowUnder ?? session.parentSession, parent != session.id, ids.contains(parent) {
                 kids[parent, default: []].append(session)
             } else {
                 roots.append(session)

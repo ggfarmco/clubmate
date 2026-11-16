@@ -190,7 +190,7 @@ Input fields are uncontrolled: `value` on `textField`, `toggle` and `select` is 
 
 The Companion (`client/Companion/SDUI`) draws the same trees with iOS controls and sends the same events (§ ui.event contract). Where it differs from the Mac:
 
-- An event whose result is `{"open": {"session": "agt_…", "turn": N}}` opens that session in Agents. Plugins return it from links that reveal a session on the Mac with `agents.reveal` (a trigger run's Open session, a graph turn panel's Open ‹Role› and its header's open, a cron job's Show session), since the reveal only moves the Mac; the Mac ignores the result.
+- An event whose result is `{"open": {"session": "agt_…", "turn": N}}` opens that session in Agents. Plugins return it from links that reveal a session on the Mac with `agents.reveal` (a trigger run's Open session, a graph turn panel's Open ‹Role› and its header's open, a cron job's Show session, a land gate's Open review and Open landing), since the reveal only moves the Mac; the Mac ignores the result.
 - A section's `sidebar` and `main` slots are watched while the navigation shows the section (`RootView`), not from the screen's appear and disappear, which a pushed detail breaks.
 - `split`: panes stack vertically on compact width; a horizontal split is side by side on regular width (iPad).
 - `toggle` with `style: "checkbox"` is a small checkbox followed by its `label` (a click on the label toggles too; `disabled` dims it, label in muted ink, and takes no click); a `switch` draws `label` before the switch. `progress` is a 4pt rounded bar that fills the width it is given (at least 40pt), `value`/`total` of it filled in `tone` (`total` 0 draws it empty).

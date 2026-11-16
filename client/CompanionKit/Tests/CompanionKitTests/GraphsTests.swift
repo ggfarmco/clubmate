@@ -58,17 +58,6 @@ final class GraphsTests: XCTestCase {
         XCTAssertEqual(run.stateLine(now: now).text, "failed")
     }
 
-    func testReviewerNestsUnderItsLander() throws {
-        let rows = try JSONDecoder().decode([JSONValue].self, from: Data(#"""
-        [{"id":"agt_l","workspace":"ws","title":"Fix login","status":"idle"},
-         {"id":"agt_r","workspace":"ws","title":"Review fix","status":"idle","nestUnder":"agt_l","gateRound":{"round":2,"label":"Round 2 review","verdict":"changes"}}]
-        """#.utf8))
-        let sessions = RunRows.sessions(rows, runs: [])
-        let lander = try XCTUnwrap(AgentSession.grouped(sessions).flatMap(\.sessions).first { $0.id == "agt_l" })
-        XCTAssertEqual(lander.children.map(\.session.displayTitle), ["Round 2 review"])
-        XCTAssertEqual(lander.children.first?.session.stateLine(now: now).text, "changes")
-    }
-
     func testEmptiedRunOpensRunScreen() throws {
         let page = try runPage()
         let emptied = try XCTUnwrap(RunRows.sessions(page.rows, runs: page.runs).first { $0.id == "gr_9" })

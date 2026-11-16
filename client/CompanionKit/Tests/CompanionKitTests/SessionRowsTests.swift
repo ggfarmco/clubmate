@@ -122,15 +122,16 @@ final class SessionRowsTests: XCTestCase {
             ("mac1", MacTag(name: "Mac Studio", colour: "blue"), shop, [
                 AgentSession(id: "a", title: "Refactor the cart total", status: .waiting, pendingSummary: PendingSummary(kind: .permission, text: "go test ./...", tool: "execute", at: now.addingTimeInterval(-60))),
                 AgentSession(id: "b", parentSession: "a", title: "Explain the checkout flow", status: .waiting, afk: true, pending: ["elicitation-1"], pendingSummary: PendingSummary(kind: .question, text: "Add retries?", at: now.addingTimeInterval(-30))),
-                AgentSession(id: "c", status: .running),
+                AgentSession(id: "c", title: "Fix login", status: .running),
+                AgentSession(id: "r", status: .waiting, pendingSummary: PendingSummary(kind: .permission, text: "go vet", tool: "execute", at: now.addingTimeInterval(-10)), rowUnder: "c", gateRound: GateRound(label: "Round 1 review")),
             ]),
             ("mac2", MacTag(name: "MacBook Pro", colour: "magenta"), api, [AgentSession(id: "d", title: "Docs", status: .waiting, pendingSummary: PendingSummary(kind: .permission, text: "Edit README.md", tool: "edit", at: now.addingTimeInterval(-90)))]),
         ])
-        XCTAssertEqual(items.map(\.id), ["mac2|d", "mac1|a", "mac1|b"])
-        XCTAssertEqual(items.map(\.title), ["Edit README.md?", "Run go test ./...?", "Add retries?"])
-        XCTAssertEqual(items.map(\.command), [nil, "go test ./...", nil])
-        XCTAssertEqual(items.map(\.mac?.name), ["MacBook Pro", "Mac Studio", "Mac Studio"])
-        XCTAssertEqual(items.map(\.subtitle), ["api · Docs", "shop · Refactor the cart total", "shop · Explain the checkout flow"])
-        XCTAssertEqual(items.map(\.bannerDetail), ["api · wants: Edit README.md", "shop · wants to run go test ./...", "shop · asks: Add retries?"])
+        XCTAssertEqual(items.map(\.id), ["mac2|d", "mac1|a", "mac1|b", "mac1|r"])
+        XCTAssertEqual(items.map(\.title), ["Edit README.md?", "Run go test ./...?", "Add retries?", "Run go vet?"])
+        XCTAssertEqual(items.map(\.command), [nil, "go test ./...", nil, "go vet"])
+        XCTAssertEqual(items.map(\.mac?.name), ["MacBook Pro", "Mac Studio", "Mac Studio", "Mac Studio"])
+        XCTAssertEqual(items.map(\.subtitle), ["api · Docs", "shop · Refactor the cart total", "shop · Explain the checkout flow", "shop · Round 1 review · Fix login"])
+        XCTAssertEqual(items.map(\.bannerDetail), ["api · wants: Edit README.md", "shop · wants to run go test ./...", "shop · asks: Add retries?", "shop · wants to run go vet"])
     }
 }

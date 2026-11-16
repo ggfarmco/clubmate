@@ -249,6 +249,10 @@ actor FixtureServer {
                 sessions.append(record)
             }
         }
+        if LandReviewFixture.on, let template = sessions.first {
+            sessions += LandReviewFixture.sessions(template) { Self.stamp(ago: $0) }
+            transcripts.merge(LandReviewFixture.transcripts { kind, id, text in Self.entry(kind, id, text: text) }) { $1 }
+        }
         self.sessions = sessions
         self.transcripts = transcripts
         tasks = (decode("backlog-tasks.json")["tasks"]?.arrayValue ?? []).enumerated().compactMap { index, value in
@@ -274,6 +278,12 @@ actor FixtureServer {
         uiSections = sdui["sections"] ?? .array([])
         for (slot, tree) in sdui["views"]?.objectValue ?? [:] {
             uiViews[slot] = (1, tree)
+        }
+        if LandReviewFixture.on {
+            for (slot, tree) in sdui["landReview"]?.objectValue ?? [:] {
+                uiViews[slot] = (1, tree)
+            }
+            uiSections = .array((uiSections.arrayValue ?? []) + [LandReviewFixture.section])
         }
         if let slot = UserDefaults.standard.string(forKey: "empty"), let tree = sdui["empty"]?[slot] {
             uiViews[slot] = (1, tree)
@@ -350,7 +360,7 @@ actor FixtureServer {
         case "uiWatch":
             return (200, Self.json(["result": .null]))
         case "uiEvent":
-            return (200, Self.json(["result": .null]))
+            return (200, Self.json(["result": LandReviewFixture.on ? LandReviewFixture.opens(params) ?? .null : .null]))
         case "workspaces":
             return (200, Self.json(["result": .array(mac.workspaces.map { item in
                 .object(["id": .string(item.id), "name": .string(TaskFixture.scene == nil ? item.name : "ads"), "folders": .array(TaskFixture.scene == nil ? [.object(["path": .string("/Users/me/src/" + item.name)])] : TaskFixture.folders)])
@@ -392,6 +402,8 @@ actor FixtureServer {
     private func command(_ id: String, workspace: String, args: JSONValue) -> JSONValue {
         let session = args["session"]?.stringValue ?? ""
         switch id {
+        case "agents.sessions" where LandReviewFixture.on && workspace == self.workspace && args["session"] == nil:
+            return .object(["sessions": .array(sessions.map(JSONValue.object)), "removed": .array([]), "cursor": .string("fx.land"), "dock": .array(LandReviewFixture.dock)])
         case "agents.sessions":
             return .array((workspace == self.workspace ? sessions : others).map { .object(Self.listKeyed($0)) } + (workspace == self.workspace ? [] : runEntries))
         case "agents.graph-show":
@@ -830,6 +842,13 @@ actor FixtureServer {
         }
         transcripts[session]?["entries"] = .array(entries)
         update(session) { $0["status"] = .string("running"); $0["pending"] = nil }
+        if LandReviewFixture.on, session == LandReviewFixture.askingReviewer {
+            update(session) { $0["hidden"] = .bool(true); $0["rowUnder"] = nil }
+            if let lander = sessions.firstIndex(where: { $0["id"]?.stringValue == LandReviewFixture.asking }) {
+                sessions[lander]["childStatus"] = .string("running")
+                sessions[lander]["group"] = .string("running")
+            }
+        }
         publish("agents.changed", ["workspace": .string(workspace), "session": .string(session), "kind": .string("resolved"), "request": .string(request)])
         Task {
             try? await Task.sleep(for: .milliseconds(1500))

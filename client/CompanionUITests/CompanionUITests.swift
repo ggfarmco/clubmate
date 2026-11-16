@@ -117,6 +117,43 @@ final class CompanionUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Show 1 subagents"].exists)
     }
 
+    func testALandReviewerHasNoRowUnlessItAsksThenItNestsUnderItsLander() {
+        let app = launch(open: "agents", ["-landReview", "YES"])
+        let lander = app.staticTexts["Gate graph instead of a fixed guard"]
+        let review = app.staticTexts["Round 1 review"]
+        XCTAssertTrue(review.waitForExistence(timeout: 10))
+        XCTAssertGreaterThan(review.frame.minY, lander.frame.maxY)
+        XCTAssertGreaterThan(review.frame.minX, lander.frame.minX)
+        XCTAssertEqual(app.staticTexts.matching(identifier: "Round 1 review").count, 1)
+        XCTAssertFalse(app.staticTexts["Round 2 review"].exists)
+        add(screenshot(app, "needs-you"))
+        let closed = app.buttons["Closed · 1"]
+        reveal(closed, in: app)
+        XCTAssertTrue(closed.exists)
+        XCTAssertFalse(app.staticTexts["Round 2 review"].exists)
+        XCTAssertFalse(app.staticTexts["Land review"].exists)
+        add(screenshot(app, "end-rows"))
+    }
+
+    func testOpenReviewOnTheGateScreenOpensTheReviewersSession() {
+        let app = launch(open: "agents", ["-landReview", "YES"])
+        XCTAssertTrue(app.staticTexts["Round 1 review"].waitForExistence(timeout: 10))
+        let gates = app.staticTexts["Land gates"]
+        reveal(gates, in: app)
+        gates.tap()
+        let gate = app.staticTexts["clubmate"]
+        XCTAssertTrue(gate.waitForExistence(timeout: 10))
+        gate.tap()
+        let open = app.buttons["sdui.table.link.1794837000000000000/agt_00000000000000b4"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        reveal(open, in: app)
+        add(screenshot(app, "gate"))
+        open.tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Three confirmed bugs")).firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Round 1 review"].exists)
+        add(screenshot(app, "reviewer"))
+    }
+
     func testSubagentStopIsInTheCardMenuAndAsksFirst() {
         let app = launch(open: "agents/agt_0000000000000001")
         let card = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Explore: Check the cart tests")).firstMatch

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/internal/agentcall"
 )
 
 type gateListed struct {
@@ -91,7 +92,14 @@ func TestGateKeepsVerdictHistoryAndSaysTheLandingState(t *testing.T) {
 	assert.Equal(t, []string{"active", "approved"}, []string{listed.State, listed.Last.Outcome})
 
 	row := strconv.FormatInt(h.Verdicts[1].At.UnixNano(), 10) + "/" + first
-	g.f.h.Event(t, g.workspace, "agents.gates.main", "gateVerdicts", "gateReview", row)
+	open := func(nodeID, action string, value any) agentcall.Opened {
+		var opened agentcall.Opened
+		require.NoError(t, g.f.h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": g.workspace, "slot": "agents.gates.main", "nodeId": nodeID, "action": action, "value": value}, &opened))
+		return opened
+	}
+	assert.Equal(t, agentcall.Open(g.lander, 0), open(g.lander+"/gateLanding", "gateLanding", nil))
+	assert.Equal(t, agentcall.Open(first, 0), open(first+"/gateReview", "gateReview", nil))
+	assert.Equal(t, agentcall.Open(first, 0), open("gateVerdicts", "gateReview", row))
 	g.f.h.WaitSlot(t, g.workspace, "agents.sidebar", func(n sdui.Node) bool {
 		return slices.ContainsFunc(sheetNodes(n, "tree"), func(tree sdui.Node) bool { return tree.Props["selected"] == first })
 	})

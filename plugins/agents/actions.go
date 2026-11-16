@@ -16,6 +16,7 @@ import (
 	"clubmate/pkg/docrender"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/internal/agentcall"
 )
 
 const (
@@ -185,6 +186,10 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 		return nil, h.Focus(ctx, ev.WorkspaceID, sectionID, mainSlot)
 	case focusComposer:
 		return nil, a.focusComposer(ctx, ev.WorkspaceID, sid)
+	}
+	if (ev.Slot == gatesSidebarSlot || ev.Slot == gatesMainSlot) && (ev.Action == actGateReview || ev.Action == actGateLanding) {
+		sid, err := gateOpens(ev)
+		return agentcall.Open(sid, 0), err
 	}
 	return nil, nil
 }

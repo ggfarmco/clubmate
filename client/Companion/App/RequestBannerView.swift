@@ -41,7 +41,7 @@ struct RequestBannerView: View {
                     .background(Color(.tertiarySystemFill), in: .circle)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(item.session.displayTitle)
+                    Text(item.sessionTitle)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
                     item.mac.lead(item.bannerDetail)

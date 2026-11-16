@@ -345,9 +345,9 @@ struct SessionRow: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { timeline in
             HStack(alignment: .top, spacing: 12) {
-                SessionGlyphView(glyph: session.glyph(waitingChildren: waitingChildren), size: depth > 0 ? 24 : 28)
+                SessionGlyphView(glyph: session.glyph(waitingChildren: waitingChildren), size: depth > 0 ? 24 : 28, review: session.gateRound != nil)
                 VStack(alignment: .leading, spacing: 2) {
-                    if depth > 0, session.repo == nil {
+                    if depth > 0, session.repo == nil, session.gateRound == nil {
                         Text(session.subagentLabel)
                             .font(.subheadline)
                             .foregroundStyle(Color.captionInk)
@@ -457,6 +457,8 @@ struct StateLineText: View {
         case .faint: Color(.tertiaryLabel)
         case .needsYou: Color.warningInk
         case .danger: Color.dangerInk
+        case .accent: .accentColor
+        case .success: Color.successInk
         }
     }
 }
@@ -465,6 +467,7 @@ struct SessionGlyphView: View {
     let glyph: SessionGlyph
     var size: CGFloat = 28
     var muted = false
+    var review = false
 
     var body: some View {
         Image(systemName: symbol)
@@ -480,7 +483,8 @@ struct SessionGlyphView: View {
     }
 
     private var symbol: String {
-        switch glyph {
+        if review, glyph == .permission { return "exclamationmark.shield.fill" }
+        return switch glyph {
         case .connect: "folder.fill.badge.plus"
         case .permission: "hand.raised.fill"
         case .question: "questionmark.bubble.fill"
