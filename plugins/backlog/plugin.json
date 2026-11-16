@@ -28,6 +28,23 @@
         "description": "Show the Backlog section to add a task."
       },
       {
+        "id": "backlog.reveal",
+        "title": "Reveal backlog task",
+        "hidden": true,
+        "description": "Show a task in the Backlog section: select it, clear the tag filter and the search if they hide it, unfold its status group and focus the task list. An unknown number fails with task not found.",
+        "args": {
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "Task number, as in #12."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      },
+      {
         "id": "backlog.list",
         "remote": true,
         "title": "List backlog tasks",
@@ -63,7 +80,7 @@
             },
             "query": {
               "type": "string",
-              "description": "Only tasks whose title, description, note or tags contain this text (any case), or whose number it is (12 or #12). Without status it searches every status, done and not_now included."
+              "description": "Only tasks whose title, description, note or tags contain this text (any case), or whose number it is (12 or #12). Without status it searches every status, done and not_now included. A query that is only a number lists that task first."
             },
             "slim": {
               "type": "boolean",

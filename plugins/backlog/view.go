@@ -33,6 +33,8 @@ const (
 	searchNode    = "search"
 	newTitleNode  = "title"
 	actSearch     = "search"
+	pinGroup      = groupPrefix + "pinned"
+	missingRow    = "missing"
 	noTasks       = "No tasks yet — add one on the left"
 	formLines     = 8
 	actReveal     = "reveal"
@@ -185,14 +187,19 @@ func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formR
 	if len(tasks) == 0 {
 		return sdui.VStack(form, sdui.Empty("No tasks yet"))
 	}
-	search := sdui.WithAction(sdui.WithLive(sdui.TextField(searchNode, query, "Search tasks")), actSearch)
+	search := sdui.WithAction(sdui.WithLive(sdui.TextField(searchNode, query, "Search, or a #number")), actSearch)
 	var list []sdui.Node
 	if counts := tagCounts(tasks); len(counts) > 0 {
 		list = append(list, tagTabs(tasks, counts, filter, tagsOpen))
 	}
+	pinned := -1
+	number, isNumber := exactID(query)
+	if isNumber {
+		pinned = slices.IndexFunc(tasks, func(t Task) bool { return t.ID == number })
+	}
 	byStatus := map[string][]sdui.TreeItem{}
-	for _, t := range tasks {
-		if (filter == "" || slices.Contains(t.Tags, filter)) && matches(t, query) {
+	for i, t := range tasks {
+		if i != pinned && (filter == "" || slices.Contains(t.Tags, filter)) && matches(t, query) {
 			byStatus[t.Status] = append(byStatus[t.Status], taskItem(t))
 		}
 	}
@@ -214,6 +221,17 @@ func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formR
 			g.Children = rows
 		}
 		groups = append(groups, g)
+	}
+	switch {
+	case pinned >= 0:
+		row := taskItem(tasks[pinned])
+		row.Icon = statusIcons[tasks[pinned].Status]
+		pin := sdui.TreeItem{ID: pinGroup, Label: fmt.Sprintf("Task #%d", number), HasChildren: true, Expanded: true, Children: []sdui.TreeItem{row}}
+		groups = append([]sdui.TreeItem{pin}, groups...)
+	case isNumber:
+		last := slices.MaxFunc(tasks, func(a, b Task) int { return cmp.Compare(a.ID, b.ID) })
+		missing := sdui.TreeItem{ID: missingRow, Label: fmt.Sprintf("No task #%d · last is #%d", number, last.ID), Muted: true}
+		groups = append([]sdui.TreeItem{missing}, groups...)
 	}
 	if len(groups) == 0 {
 		list = append(list, sdui.Empty("No tasks match"))

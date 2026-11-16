@@ -121,3 +121,47 @@ func TestBacklogSearch(t *testing.T) {
 	in.key("g", "c")
 	in.eventually("gc in the tree focuses the search", func() bool { return keyFocus() == "search" })
 }
+
+func TestBacklogNumberSearchOpensTheTask(t *testing.T) {
+	in := start(t, "macui-bnumber", "")
+	for i := 1; i <= 12; i++ {
+		title := "Item " + string(rune('a'+i))
+		if i == 3 {
+			title = "Follow up on 12"
+		}
+		in.cm("command", "run", "backlog.add", "title="+title, "status=todo")
+	}
+	in.focusSection("backlog", "backlog.sidebar")
+	in.eventually("the tasks are listed", func() bool { return in.snapshot().main().has("tasks#12") })
+	in.pointer("click", "tasks#5")
+	in.eventually("task 5 opens", func() bool { return in.snapshot().main().has("description") })
+	in.pointer("click", "description")
+	in.key("n", "o", "t", "e")
+
+	in.pointer("click", "search")
+	in.key("1", "2")
+	in.eventually("#12 is selected and pinned above its text matches, focus stays in the search", func() bool {
+		s := in.snapshot()
+		w := s.main()
+		pin, group := w.node("tasks#12"), w.node("tasks#group:todo")
+		return in.selected("tasks#12") && pin != nil && group != nil && pin.Frame.Y < group.Frame.Y && w.has("tasks#3") && s.key() != nil && s.key().Focus == "search" && in.sdui("task-12") != nil
+	})
+	var task struct {
+		Description string `json:"description"`
+	}
+	in.eventually("the edit in task 5 was saved", func() bool {
+		in.json(&task, "command", "run", "backlog.get", "id=5")
+		return task.Description == "note"
+	})
+	in.cm("command", "run", "backlog.reveal", "id=7")
+	in.eventually("reveal clears the search hiding #7 and selects it", func() bool {
+		return in.selected("tasks#7") && in.snapshot().main().has("tasks#1")
+	})
+	in.key("g", "c")
+	in.eventually("the task list had the keys: gc moves them to the empty search", func() bool {
+		s := in.snapshot()
+		return s.key() != nil && s.key().Focus == "search" && in.sdui("search").Props["value"] == nil
+	})
+	in.key("9", "9")
+	in.eventually("a number with no task says so", func() bool { return in.snapshot().main().has("tasks#missing") })
+}

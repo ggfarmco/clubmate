@@ -361,7 +361,7 @@ func matches(t Task, query string) bool {
 	if query == "" {
 		return true
 	}
-	if id, err := strconv.Atoi(strings.TrimPrefix(query, "#")); err == nil && id == t.ID {
+	if id, ok := exactID(query); ok && id == t.ID {
 		return true
 	}
 	for _, field := range append([]string{t.Title, t.Description, t.Note}, t.Tags...) {
@@ -370,4 +370,13 @@ func matches(t Task, query string) bool {
 		}
 	}
 	return false
+}
+
+func exactID(query string) (int, bool) {
+	digits := strings.TrimPrefix(strings.TrimSpace(query), "#")
+	if digits == "" || strings.Trim(digits, "0123456789") != "" {
+		return 0, false
+	}
+	id, err := strconv.Atoi(digits)
+	return id, err == nil && id > 0
 }

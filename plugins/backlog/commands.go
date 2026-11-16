@@ -180,6 +180,8 @@ func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.
 			return nil, err
 		}
 		return b.takeBack(ctx, cmd.WorkspaceID, args.ID, args.Seen)
+	case "backlog.reveal":
+		return nil, b.reveal(ctx, cmd.WorkspaceID, args.ID)
 	case "backlog.new":
 		return nil, b.h.FocusNode(ctx, cmd.WorkspaceID, sectionID, sidebarSlot, newTitleNode)
 	}
@@ -284,6 +286,13 @@ func (b *backlog) listCmd(ctx context.Context, workspaceID string, args commandA
 				t.Description = ""
 			}
 			tasks = append(tasks, t)
+		}
+	}
+	if id, ok := exactID(args.Query); ok {
+		if i := slices.IndexFunc(tasks, func(t Task) bool { return t.ID == id }); i > 0 {
+			exact := tasks[i]
+			copy(tasks[1:i+1], tasks[:i])
+			tasks[0] = exact
 		}
 	}
 	if args.Limit > 0 && len(tasks) > args.Limit {

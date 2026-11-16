@@ -300,9 +300,23 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if err := json.Unmarshal(ev.Value, &query); err != nil {
 			return fmt.Errorf("search value: %w", err)
 		}
+		query = strings.TrimSpace(query)
+		pin := 0
+		if id, ok := exactID(query); ok {
+			_, err := b.store.get(ctx, ev.WorkspaceID, id)
+			switch {
+			case err == nil:
+				pin = id
+			case !errors.Is(err, errTaskNotFound):
+				return err
+			}
+		}
 		b.mu.Lock()
 		defer b.mu.Unlock()
-		w.query = strings.TrimSpace(query)
+		if pin != 0 && query != w.query {
+			w.selected = pin
+		}
+		w.query = query
 		return nil
 	case ev.NodeID == tagsNode && ev.Action == actFilter:
 		var item string
@@ -384,6 +398,9 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 	var item string
 	if err := json.Unmarshal(ev.Value, &item); err != nil {
 		return fmt.Errorf("%s value: %w", ev.Action, err)
+	}
+	if item == missingRow {
+		return nil
 	}
 	if status, ok := strings.CutPrefix(item, groupPrefix); ok {
 		b.mu.Lock()
@@ -577,4 +594,24 @@ func (b *backlog) openOwner(ctx context.Context, workspaceID, owner string) erro
 		return b.h.RunCommand(ctx, "graphs.reveal", workspaceID, map[string]string{"id": s.Run.ID}, nil)
 	}
 	return agentcall.Reveal(ctx, b.h, workspaceID, owner)
+}
+
+func (b *backlog) reveal(ctx context.Context, workspaceID string, id int) error {
+	t, err := b.store.get(ctx, workspaceID, id)
+	if err != nil {
+		return err
+	}
+	w := b.workspace(workspaceID)
+	b.mu.Lock()
+	w.selected = id
+	if w.tagFilter != "" && !slices.Contains(t.Tags, w.tagFilter) {
+		w.tagFilter = ""
+	}
+	if !matches(t, w.query) {
+		w.query = ""
+	}
+	w.collapsed[t.Status] = false
+	b.mu.Unlock()
+	b.render(ctx, workspaceID)
+	return b.h.Focus(ctx, workspaceID, sectionID, sidebarSlot)
 }

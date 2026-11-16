@@ -93,10 +93,6 @@ func TestSidebarSearch(t *testing.T) {
 	assert.False(t, groups[1].Action)
 	assert.Equal(t, "2", groups[1].Children[0].ID)
 
-	tree, ok = findNode(sidebarView(tasks, "", collapsed, 0, "", "#12", false), "tasks")
-	require.True(t, ok)
-	assert.Equal(t, "12", tree.Props["items"].([]sdui.TreeItem)[0].Children[0].ID)
-
 	side := sidebarView(tasks, "", collapsed, 0, "", "nothing", false)
 	_, ok = findNode(side, "tasks")
 	assert.False(t, ok)
@@ -394,4 +390,35 @@ func TestDropRefsStayInsideTheWorktree(t *testing.T) {
 func TestBranchFor(t *testing.T) {
 	assert.Equal(t, "backlog/4-fix-the-flaky-switcher-test", branchFor(&Task{ID: 4, Title: "Fix the flaky switcher test!"}))
 	assert.Equal(t, "backlog/5", branchFor(&Task{ID: 5, Title: "Ёлка"}))
+}
+
+func TestNumberQueryPinsExactTask(t *testing.T) {
+	tasks := []Task{
+		{ID: 590, Title: "Follow up on #601", Status: statusTodo},
+		{ID: 601, Title: "Search by number", Status: statusDone, Priority: priorityHigh},
+		{ID: 6010, Title: "Far", Status: statusTodo},
+	}
+	for _, query := range []string{"601", "#601"} {
+		tree, ok := findNode(sidebarView(tasks, "601", map[string]bool{statusDone: true}, 0, "", query, false), "tasks")
+		require.True(t, ok, query)
+		items := tree.Props["items"].([]sdui.TreeItem)
+		require.Len(t, items, 2, query)
+		assert.Equal(t, "Task #601", items[0].Label)
+		require.Len(t, items[0].Children, 1)
+		assert.Equal(t, "601", items[0].Children[0].ID)
+		assert.Equal(t, "checkmark.circle", items[0].Children[0].Icon)
+		assert.Equal(t, "601", tree.Props["selected"])
+		assert.Equal(t, "group:todo", items[1].ID)
+		require.Len(t, items[1].Children, 1)
+		assert.Equal(t, "590", items[1].Children[0].ID)
+	}
+	tree, ok := findNode(sidebarView(tasks, "", nil, 0, "ui", "601", false), "tasks")
+	require.True(t, ok, "a tag filter does not hide the pinned task")
+	assert.Len(t, tree.Props["items"].([]sdui.TreeItem), 1)
+
+	tree, ok = findNode(sidebarView(tasks, "", nil, 0, "", "999", false), "tasks")
+	require.True(t, ok)
+	items := tree.Props["items"].([]sdui.TreeItem)
+	require.Len(t, items, 1)
+	assert.Equal(t, sdui.TreeItem{ID: "missing", Label: "No task #999 · last is #6010", Muted: true}, items[0])
 }

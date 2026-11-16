@@ -869,3 +869,73 @@ func TestNextWriteWithTheReplyCursorIsAccepted(t *testing.T) {
 
 	e.must(e.user("backlog.update", map[string]any{"id": tk.ID, "note": "two", "seen": first.Cursor}))
 }
+
+func sduiNode(n sdui.Node, id string) (sdui.Node, bool) {
+	if n.ID == id {
+		return n, true
+	}
+	for _, c := range n.Children {
+		if found, ok := sduiNode(c, id); ok {
+			return found, true
+		}
+	}
+	return sdui.Node{}, false
+}
+
+func (e env) listIDs(args map[string]any) []int {
+	var res struct {
+		Tasks []task `json:"tasks"`
+	}
+	require.NoError(e.t, e.h.Client(e.t).Call(e.t.Context(), "command.run", map[string]any{"id": "backlog.list", "workspaceId": e.p, "args": args}, &res))
+	var ids []int
+	for _, tk := range res.Tasks {
+		ids = append(ids, tk.ID)
+	}
+	return ids
+}
+
+func TestListQueryPutsTheNumberFirst(t *testing.T) {
+	e := newEnv(t)
+	e.add("Follow up on 3", nil)
+	e.add("Other", nil)
+	e.add("Third", nil)
+	assert.Equal(t, []int{3, 1}, e.listIDs(map[string]any{"query": "3"}))
+	assert.Equal(t, []int{3}, e.listIDs(map[string]any{"query": "#3", "limit": 1}))
+}
+
+func TestNumberSearchSelectsTheTask(t *testing.T) {
+	e := newEnv(t)
+	e.add("Follow up on 2", nil)
+	e.add("Two", nil)
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
+	e.h.Event(t, e.p, "backlog.sidebar", "search", "search", "2")
+	e.h.WaitSlot(t, e.p, "backlog.sidebar", func(n sdui.Node) bool {
+		tree, ok := sduiNode(n, "tasks")
+		return ok && tree.Props["selected"] == "2"
+	})
+	e.slotHas("backlog.main", `"id":"task-2"`)
+}
+
+func TestRevealShowsHiddenTask(t *testing.T) {
+	e := newEnv(t)
+	e.add("Shown", map[string]any{"tags": []string{"x", "z"}})
+	e.add("Hidden", map[string]any{"tags": []string{"y"}})
+	e.add("Other", map[string]any{"tags": []string{"z"}})
+	e.must(e.user("backlog.done", map[string]any{"id": 2}))
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
+	e.h.Event(t, e.p, "backlog.sidebar", "tags", "filter", "tag:x")
+	e.h.Event(t, e.p, "backlog.sidebar", "search", "search", "Shown")
+
+	e.must(e.user("backlog.reveal", map[string]any{"id": 2}))
+	e.h.WaitSlot(t, e.p, "backlog.sidebar", func(n sdui.Node) bool {
+		tree, ok := sduiNode(n, "tasks")
+		tabs, _ := sduiNode(n, "tags")
+		search, _ := sduiNode(n, "search")
+		raw, err := json.Marshal(tree)
+		return ok && err == nil && tree.Props["selected"] == "2" && strings.Contains(string(raw), `"id":"2"`) && tabs.Props["selected"] == "all" && search.Props["value"] == nil
+	})
+	e.slotHas("backlog.main", `"id":"task-2"`)
+
+	_, err := e.user("backlog.reveal", map[string]any{"id": 99})
+	require.ErrorContains(t, err, "task not found")
+}
