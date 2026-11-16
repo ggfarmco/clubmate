@@ -32,6 +32,7 @@ var (
 	errLandNothing   = errors.New("nothing is staged to land")
 	errLandMoved     = errors.New("the target branch moved while landing; call git_land again")
 	errLandTree      = errors.New("the squashed result differs from the reviewed one; call git_land again")
+	errLandHook      = errors.New("the repo's commit hook changed the committed tree")
 	errNoLandTarget  = errors.New("no worktree has the target branch checked out")
 )
 
@@ -217,7 +218,54 @@ func (p *landPlan) commit(ctx context.Context, message string) (string, error) {
 		}
 		return "", err
 	}
-	return revParse(ctx, dir, currentHead)
+	commit, err := revParse(ctx, dir, currentHead)
+	if err != nil {
+		return "", err
+	}
+	tree, err := revParse(ctx, dir, commit+"^{tree}")
+	if err != nil {
+		return "", err
+	}
+	if tree != p.tree {
+		return "", p.uncommit(ctx, commit, tree)
+	}
+	return commit, nil
+}
+
+func (p *landPlan) uncommit(ctx context.Context, commit, tree string) error {
+	dir := p.target.Path
+	changed, err := diffNames(ctx, dir, p.tree, tree)
+	if err != nil {
+		return errors.Join(errLandHook, err)
+	}
+	hook := fmt.Errorf("%w (%s)", errLandHook, strings.Join(changed, ", "))
+	parent, err := revParse(ctx, dir, commit+"^")
+	if err != nil {
+		return errors.Join(hook, err)
+	}
+	if parent != p.old {
+		return fmt.Errorf("%w; kept commit %s on %s: its parent is not %s", hook, commit, p.into, p.old)
+	}
+	if _, err := mutateInert(ctx, dir, "update-ref", headsPrefix+p.into, p.old, commit); err != nil {
+		return fmt.Errorf("%w; kept commit %s on %s: %w", hook, commit, p.into, err)
+	}
+	if p.source == "" {
+		if _, err := mutate(ctx, dir, "read-tree", "-m", p.tree); err != nil {
+			return fmt.Errorf("%w; %s is back at %s but the staged change is not: %w", hook, p.into, p.old, err)
+		}
+		return fmt.Errorf("%w; undone: %s is back at %s and the change is staged again; stage what belongs to it and call git_land again", hook, p.into, p.old)
+	}
+	squashed, err := diffNames(ctx, dir, p.old, p.tree)
+	if err == nil {
+		_, err = mutate(ctx, dir, append([]string{"restore", "--source=" + p.old, "--staged", "--worktree", "--"}, squashed...)...)
+	}
+	if err == nil {
+		_, err = mutate(ctx, dir, "read-tree", "-m", p.old)
+	}
+	if err != nil {
+		return fmt.Errorf("%w; %s is back at %s but the squash stays in %s: %w", hook, p.into, p.old, dir, err)
+	}
+	return fmt.Errorf("%w; undone: %s is back at %s, the squash is taken out and other files are as they were; commit what belongs to the change on %s and call git_land again", hook, p.into, p.old, p.source)
 }
 
 func (p *landPlan) undo(ctx context.Context) {
@@ -230,6 +278,10 @@ func (p *landPlan) cleanup(ctx context.Context, h *pluginsdk.Host, workspaceID s
 		return res
 	}
 	top := p.folder.Trees[0].Path
+	if head, err := revParse(ctx, p.own.Path, currentHead); err != nil || head != p.head {
+		res.Note = strings.TrimSpace(res.Note + " Kept the worktree and branch: " + p.source + " moved after the landing.")
+		return res
+	}
 	if terminals, err := worktreeSessions(ctx, h, workspaceID, p.own.Path); err != nil || len(terminals) > 0 {
 		res.Note = strings.TrimSpace(res.Note + " Kept the worktree and branch: terminals still run in it.")
 		return res
@@ -239,7 +291,9 @@ func (p *landPlan) cleanup(ctx context.Context, h *pluginsdk.Host, workspaceID s
 		return res
 	}
 	res.Removed = true
-	if _, err := mutate(ctx, top, "branch", "-D", p.source); err != nil {
+	if err := forceDeleteBranch(ctx, top, p.source, p.head); errors.Is(err, errBranchMoved) {
+		res.Note = strings.TrimSpace(res.Note + " Kept the branch: " + p.source + " moved after the landing.")
+	} else if err != nil {
 		res.Note = strings.TrimSpace(res.Note + " Kept the branch: " + err.Error())
 	}
 	return res
@@ -248,6 +302,14 @@ func (p *landPlan) cleanup(ctx context.Context, h *pluginsdk.Host, workspaceID s
 func revParse(ctx context.Context, dir, rev string) (string, error) {
 	out, err := run(ctx, dir, "rev-parse", "-q", "--verify", rev)
 	return strings.TrimSpace(string(out)), err
+}
+
+func diffNames(ctx context.Context, dir, from, to string) ([]string, error) {
+	out, err := run(ctx, dir, "diff", "--name-only", "-z", "--no-renames", from, to)
+	if err != nil {
+		return nil, err
+	}
+	return strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00"), nil
 }
 
 func writeTree(ctx context.Context, dir string) (string, error) {
