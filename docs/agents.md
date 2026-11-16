@@ -361,6 +361,12 @@ An agent message shows the images it names. The same pass over a finished turn's
 
 When an agent opens a doc with `docs_open`, the phone shows "Opened <file name>" with an Open button above the composer of that session's screen, for 8 s or until tapped; on any other screen it shows nothing.
 
+### Task links
+
+An agent message that writes `#601` links task 601 of the session's workspace backlog. At each turn end the plugin finds the `#N` tokens in the turn's `agent` messages (the rule of `docrender.TaskIDs`, the same one the doc viewer links tasks with: outside inline code, code blocks and links, `#` not after a letter, digit, `_`, `&`, `#` or `/`, 1–9 digits not followed by one), and when there are any it asks the backlog once with `backlog.list {since: "", slim: true}` (every status) outside the session lock, coalesced per workspace; the entry's `taskLinks` maps each id that is a task to its title (in `agents.transcript` and as the `message` node's prop, omitted when empty), so `PR #3` stays text when there is no task 3. When an entry's links change the session gets an `agents.changed` of kind `links`, which re-renders the Mac transcript and makes the phone refetch it. User messages, thoughts and tool output never get links. The links are not written to the log: loading a transcript (a restart, a session that was unloaded, an old session) runs the same lookup once, so old transcripts get links too, a renamed task shows its new title and a deleted one loses its link. A lookup that fails (the backlog plugin is not up yet) leaves the links as they were until the next turn end or load.
+
+On the Mac a task link is drawn like a doc link with the title as its tooltip; a click sends `openDoc` with `/task/N`, and the plugin runs `backlog.reveal {id}`, which selects the task, makes it visible and focuses the Backlog section. A task deleted since answers "task not found" and the click does nothing. On the phone a tap opens that task's screen in the Backlog of the session's workspace, refetching the backlog first when the phone has no copy of that task; a task the refetched backlog does not have does nothing, and the task screen reads "Task Not Found" for an id the fetched backlog lacks.
+
 ## CLI
 
 Inside a Clubmate terminal, `clubmate` is on `PATH` and `$CLUBMATE_WORKSPACE_ID` names the current workspace.

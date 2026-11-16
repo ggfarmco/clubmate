@@ -488,6 +488,10 @@ extension SDUINode {
         props["imageLinks"]?.objectValue?.compactMapValues(\.stringValue) ?? [:]
     }
 
+    public var taskLinks: [String: String] {
+        props["taskLinks"]?.objectValue?.compactMapValues(\.stringValue) ?? [:]
+    }
+
     public func items() -> [SDUIItem] {
         props["items"]?.arrayValue?.compactMap(SDUIItem.init) ?? []
     }

@@ -144,6 +144,7 @@ struct SessionDetailView: View {
             }
         } : nil)
         .environment(\.openDoc, docOpener)
+        .environment(\.openTask, taskOpener)
         .environment(\.imageStore, context.connection.supports(AgentsStore.imageCommand) ? store : nil)
         .environment(\.imageSession, sessionID)
         .scrollPosition($position)
@@ -479,6 +480,22 @@ struct SessionDetailView: View {
     private var docOpener: (@MainActor (String) -> Void)? {
         guard context.connection.supports(DocsCommand.read) else { return nil }
         return { path in open(doc: path) }
+    }
+
+    private var taskOpener: (@MainActor (String) -> Void)? {
+        guard BacklogPluginInfo.requiredCommands.allSatisfy(context.connection.supports) else { return nil }
+        let computer = context.connection.computer.id
+        let workspace = store.workspace
+        let model = context.model
+        return { target in
+            Task { @MainActor in
+                let backlog = model.backlog(computer: computer, workspace: workspace)
+                if let backlog, !backlog.fetched || MarkdownTaskLink.id(target).flatMap(backlog.task) == nil { await backlog.refresh() }
+                guard let detail = backlog.map({ $0.detail(link: target) }) ?? MarkdownTaskLink.id(target).map(String.init) else { return }
+                navigation.workspaces[computer] = workspace
+                navigation.open(computer: computer, plugin: BacklogPluginInfo.id, detail: detail)
+            }
+        }
     }
 
     private func open(doc path: String) {

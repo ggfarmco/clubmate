@@ -339,6 +339,9 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 		if en.Kind == entryAgent && len(en.ImageLinks) > 0 {
 			n.Props["imageLinks"] = en.ImageLinks
 		}
+		if en.Kind == entryAgent && len(en.TaskLinks) > 0 {
+			n.Props["taskLinks"] = en.TaskLinks
+		}
 		n.ID = sid + "/msg/" + en.Kind + "/" + en.ID
 		return n, true
 	case entryPlan:

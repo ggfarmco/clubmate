@@ -61,3 +61,38 @@ func TestTranscriptTableTextStaysInsideItsFrame(t *testing.T) {
 		return prose != nil && !slices.Contains(prose.Flags, "text-overflow")
 	})
 }
+
+const taskScript = `{"prompt": [{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "#1 is filed, PR #3 is not a task."}}}]}`
+
+func TestTranscriptTaskLinkRevealsTheTask(t *testing.T) {
+	in := start(t, "macui-tasklink", taskScript)
+	in.cm("command", "run", "backlog.add", "title=Pin the exact task", "status=todo")
+	in.focusSection("agents", "agents.sidebar")
+	var spawned struct {
+		Session string `json:"session"`
+	}
+	in.json(&spawned, "agent", "spawn", "File it")
+	sid := spawned.Session
+	var transcript struct {
+		Entries []struct {
+			TaskLinks map[string]string `json:"taskLinks"`
+		} `json:"entries"`
+	}
+	in.eventually("the message links task 1", func() bool {
+		in.json(&transcript, "command", "run", "agents.transcript", "session="+sid)
+		return slices.ContainsFunc(transcript.Entries, func(e struct {
+			TaskLinks map[string]string `json:"taskLinks"`
+		}) bool {
+			return e.TaskLinks["1"] == "Pin the exact task"
+		})
+	})
+	var msg *element
+	in.eventually("the agent's message shows", func() bool {
+		msg = in.snapshot().main().find(func(e element) bool {
+			return strings.HasPrefix(e.ID, sid+"/msg/agent/") && strings.HasPrefix(e.Label, "#1")
+		})
+		return msg != nil
+	})
+	in.pointer("click", msg.ID, "--at", "6,8")
+	in.eventually("the Backlog opens with task 1 selected", func() bool { return in.selected("tasks#1") })
+}

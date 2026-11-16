@@ -129,7 +129,7 @@ public struct ToolGroup: Sendable, Equatable {
 
 public enum TranscriptRow: Sendable, Equatable, Identifiable {
     case entry(TranscriptEntry)
-    case agent(id: String, blocks: [MarkdownBlock], docLinks: [String: String], docCards: [DocCard], images: [ImageRef], imageLinks: [String: String])
+    case agent(id: String, blocks: [MarkdownBlock], docLinks: [String: String], docCards: [DocCard], images: [ImageRef], imageLinks: [String: String], taskLinks: [String: String])
     case tools(id: String, ToolGroup)
     case thought(id: String, text: String, title: String)
     case answered(PermissionRequest)
@@ -139,7 +139,7 @@ public enum TranscriptRow: Sendable, Equatable, Identifiable {
     public var id: String {
         switch self {
         case .entry(let entry): entry.id
-        case .agent(let id, _, _, _, _, _), .tools(let id, _), .thought(let id, _, _), .openClosed(let id, _): id
+        case .agent(let id, _, _, _, _, _, _), .tools(let id, _), .thought(let id, _, _), .openClosed(let id, _): id
         case .answered(let request): "permission/" + request.id
         case .asked(let question): "elicitation/" + question.id
         }
@@ -181,7 +181,7 @@ public struct SessionScreen: Sendable, Equatable {
                 if asked?.index == index, asked?.drop == true, case .paragraph = blocks.last {
                     blocks.removeLast()
                 }
-                if !blocks.isEmpty || !entry.images.isEmpty { rows.append(.agent(id: entry.id, blocks: blocks, docLinks: entry.docLinks, docCards: entry.docCards, images: entry.images, imageLinks: entry.imageLinks)) }
+                if !blocks.isEmpty || !entry.images.isEmpty { rows.append(.agent(id: entry.id, blocks: blocks, docLinks: entry.docLinks, docCards: entry.docCards, images: entry.images, imageLinks: entry.imageLinks, taskLinks: entry.taskLinks)) }
             case .thought(let text):
                 let next = index + 1 < entries.count ? entries[index + 1].at : nil
                 rows.append(.thought(id: entry.id, text: text, title: Self.thoughtTitle(from: entry.at, to: next)))

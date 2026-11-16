@@ -456,6 +456,8 @@ struct TaskDetailView: View {
                 ContentUnavailableView("Task Not Found", systemImage: "checklist", description: Text("It was deleted or moved out of this workspace."))
             } else if let error = store.error {
                 ContentUnavailableView("Task Unavailable", systemImage: "checklist", description: Text(error))
+            } else if store.fetched {
+                ContentUnavailableView("Task Not Found", systemImage: "checklist")
             } else {
                 ProgressView()
             }

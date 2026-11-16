@@ -23,6 +23,7 @@ const (
 	changeResolved = api.ChangeResolved
 	changeReview   = api.ChangeReview
 	changeUsage    = api.ChangeUsage
+	changeLinks    = api.ChangeLinks
 
 	notifyPermission = "permission"
 	notifyQuestion   = "question"

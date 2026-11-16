@@ -29,7 +29,7 @@ struct MessageNodeView: View, Equatable {
             let images = node.images
             let openImage = { (path: String) in ImageViewer.shared.open(message: message, path: path) }
             VStack(alignment: .leading, spacing: theme.spacing.l) {
-                MarkdownText(text: text, links: ProseLinks(docs: node.docLinks, images: node.imageLinks), openDoc: open, openImage: openImage)
+                MarkdownText(text: text, links: ProseLinks(docs: node.docLinks, images: node.imageLinks, tasks: node.taskLinks), openDoc: open, openImage: openImage)
                     .equatable()
                     .frame(maxWidth: .infinity, alignment: .leading)
                 let cards = node.docCards

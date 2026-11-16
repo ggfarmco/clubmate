@@ -79,6 +79,15 @@ final class ClubmateProtocolTests: XCTestCase {
         XCTAssertEqual(links.map(\.1), ["/w/docs/plan.md#goals", "/w/my plan.md", nil, "image:/w/shots/a b.png"])
     }
 
+    func testInlineLinksOnlyListedTaskTokensInProse() {
+        let text = "Filed #601 and **#601**, PR #3, a#601, /#601, #6010, `#601`, [#601](https://x.dev) and #601."
+        let content = Markdown.inline(text, docLinks: [:], taskLinks: ["601": "Number search", "6010": "Other"])
+        let links = content.runs.compactMap { run in run.link.map { (String(content[run.range].characters), MarkdownDocLink.target($0).flatMap(MarkdownTaskLink.id)) } }
+        XCTAssertEqual(links.map(\.0), ["#601", "#601", "#6010", "#601", "#601"])
+        XCTAssertEqual(links.map(\.1), [601, 601, 6010, nil, 601])
+        XCTAssertEqual(String(content.characters), "Filed #601 and #601, PR #3, a#601, /#601, #6010, #601, #601 and #601.")
+    }
+
     func testInlineKeepsReturnArrowsAsText() {
         XCTAssertEqual(String(Markdown.inline("⌘↩ sends, ↩\u{FE0F} stays, `↪`").characters), "⌘↩\u{FE0E} sends, ↩\u{FE0F} stays, ↪\u{FE0E}")
     }

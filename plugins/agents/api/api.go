@@ -20,6 +20,7 @@ const (
 	ChangeResolved = "resolved"
 	ChangeReview   = "review"
 	ChangeUsage    = "usage"
+	ChangeLinks    = "links"
 
 	RequestPermission  = "permission"
 	RequestElicitation = "elicitation"

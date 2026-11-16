@@ -51,6 +51,24 @@ final class BacklogTests: XCTestCase {
         XCTAssertEqual(store.tasks.map(\.id), [7, 9, 4, 11, 3, 2])
     }
 
+    func testATaskLinkOpensItsTaskUnlessTheFetchedListLacksIt() async throws {
+        let runner = BacklogRunner()
+        let store = BacklogStore(workspace: "w", runner: runner)
+        XCTAssertEqual(store.detail(link: "/task/601"), "601")
+        await store.refresh()
+        XCTAssertEqual(store.detail(link: "/task/7"), "7")
+        XCTAssertNil(store.detail(link: "/task/601"))
+        XCTAssertNil(store.detail(link: "/w/docs/plan.md"))
+    }
+
+    func testACancelledRefreshIsNotAnError() async {
+        let runner = CancelledRunner()
+        let store = BacklogStore(workspace: "w", runner: runner)
+        await store.refresh()
+        XCTAssertNil(store.error)
+        XCTAssertFalse(store.fetched)
+    }
+
     func testAWriteReplysCursorNeverBecomesSince() async throws {
         let runner = SyncRunner([
             BacklogCommand.list: [#"{"tasks":[{"id":7,"title":"Old","status":"todo"}],"removed":[],"order":[7],"cursor":"e.3","delta":false}"#, #"{"tasks":[],"removed":[],"cursor":"e.9","delta":true}"#],
@@ -194,6 +212,13 @@ final class BacklogTests: XCTestCase {
         XCTAssertEqual(draft.changes(from: task), ["title": .string("Retry the charge"), "priority": .string("low")])
         draft.status = .done
         XCTAssertEqual(draft.changes(from: task)["status"], .string("done"))
+    }
+}
+
+@MainActor
+final class CancelledRunner: CommandRunner {
+    func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
+        throw CancellationError()
     }
 }
 

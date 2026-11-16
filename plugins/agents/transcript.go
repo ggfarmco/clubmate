@@ -111,6 +111,7 @@ type entry struct {
 	DocCards   []sdui.DocCard    `json:"docCards,omitempty"`
 	Images     []sdui.ImageRef   `json:"images,omitempty"`
 	ImageLinks map[string]string `json:"imageLinks,omitempty"`
+	TaskLinks  map[string]string `json:"taskLinks,omitempty"`
 	Hidden     bool              `json:"hidden,omitempty"`
 	Voice      *voicePrompt      `json:"voice,omitempty"`
 	Review     *reviewSent       `json:"review,omitempty"`
@@ -125,6 +126,7 @@ type entry struct {
 	closed  bool
 	marked  string
 	numbers []int
+	taskIDs []int
 }
 
 type voicePrompt struct {

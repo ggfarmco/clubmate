@@ -26,6 +26,7 @@ extension View {
 struct ProseLinks: Hashable {
     var docs: [String: String] = [:]
     var images: [String: String] = [:]
+    var tasks: [String: String] = [:]
 }
 
 struct MarkdownText: View, Equatable {
@@ -199,7 +200,7 @@ extension Theme {
     }
 
     private func paragraph(_ text: String, font: NSFont, color: NSColor, indent: CGFloat, before: CGFloat, links: ProseLinks) -> NSAttributedString {
-        let source = Markdown.inline(text, docLinks: links.docs, imageLinks: links.images)
+        let source = Markdown.inline(text, docLinks: links.docs, imageLinks: links.images, taskLinks: links.tasks)
         let result = NSMutableAttributedString()
         for run in source.runs {
             let intent = run.inlinePresentationIntent ?? []
@@ -213,6 +214,7 @@ extension Theme {
             }
             if intent.contains(.strikethrough) { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
             if let link = run.link, MarkdownLinkPolicy.allows(link) || MarkdownDocLink.target(link) != nil || MarkdownImageLink.target(link) != nil { attributes[.link] = link }
+            if let link = run.link, let id = MarkdownDocLink.target(link).flatMap(MarkdownTaskLink.id), let title = links.tasks[String(id)] { attributes[.toolTip] = title }
             let piece = NSMutableAttributedString(string: String(source[run.range].characters), attributes: attributes)
             if !intent.contains(.code) { markNumbers(in: piece) }
             result.append(piece)

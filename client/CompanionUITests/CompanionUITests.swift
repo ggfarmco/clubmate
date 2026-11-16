@@ -879,6 +879,18 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(run.exists)
     }
 
+    func testATaskLinkInAnAgentMessageOpensThatTask() {
+        let app = launch(open: "agents/agt_0000000000000002")
+        let link = app.links["#7"]
+        for _ in 0..<8 where !link.isHittable {
+            app.swipeDown()
+        }
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.links["#3"].exists)
+        link.tap()
+        XCTAssertTrue(app.staticTexts["Retry the charge step on 502"].waitForExistence(timeout: 10))
+    }
+
     private func launch(open target: String, _ extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target] + extra

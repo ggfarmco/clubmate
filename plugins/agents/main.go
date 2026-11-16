@@ -59,6 +59,7 @@ type app struct {
 	runSigs     map[string]map[string]string
 	reminders   reminders
 	limitJobs   limitJobs
+	taskLookups taskLookups
 	openWake    chan struct{}
 
 	spawnMu    sync.Mutex
@@ -319,6 +320,7 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 		a.kick(rec.Workspace)
 	})
 	s.setup = ready
+	s.wantTasks = func() { a.wantTasks(rec.Workspace, s) }
 	s.turned = func(t api.Turn) {
 		t.Finished = a.finished(t)
 		a.notes.turn(t)

@@ -161,3 +161,8 @@ func TestTaskLinks(t *testing.T) {
 	assert.Contains(t, doc.HTML, `Builds on <a href="clubmate-doc:/task/3" title="Parser">#3</a>, not #9 or a#3; <code>#4</code>`)
 	assert.NotContains(t, docrender.Render([]byte("#3"), docrender.Options{}).HTML, "<a")
 }
+
+func TestTaskIDsFollowTheLinkRule(t *testing.T) {
+	src := "Filed #601 and #12, see PR #3, a#5, /#6, #7010x, `#8` and [#9](https://x.y)\n\n```\n#10\n```\n\n#601 again"
+	assert.Equal(t, []int{601, 12, 3}, docrender.TaskIDs([]byte(src)))
+}

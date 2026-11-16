@@ -12,8 +12,8 @@ struct RowView: View {
         case .entry(let entry):
             EntryView(entry: entry)
                 .opacity(entry.isOutgoing ? 0.6 : 1)
-        case .agent(let id, let blocks, let docLinks, let docCards, let images, let imageLinks):
-            AgentMessage(cards: docCards, entry: id, images: images) { MarkdownView(blocks: blocks, docLinks: docLinks, imageLinks: imageLinks) }
+        case .agent(let id, let blocks, let docLinks, let docCards, let images, let imageLinks, let taskLinks):
+            AgentMessage(cards: docCards, entry: id, images: images) { MarkdownView(blocks: blocks, docLinks: docLinks, imageLinks: imageLinks, taskLinks: taskLinks) }
         case .tools(_, let group):
             if group.calls.count == 1 {
                 ToolRow(tool: group.calls[0])
@@ -42,7 +42,7 @@ struct EntryView: View {
         case .voice(let prompt):
             VoicePromptRow(prompt: prompt)
         case .agent(let text):
-            AgentMessage(cards: entry.docCards, entry: entry.id, images: entry.images) { MarkdownView(text: text, docLinks: entry.docLinks, imageLinks: entry.imageLinks) }
+            AgentMessage(cards: entry.docCards, entry: entry.id, images: entry.images) { MarkdownView(text: text, docLinks: entry.docLinks, imageLinks: entry.imageLinks, taskLinks: entry.taskLinks) }
         case .thought(let text):
             ThoughtView(text: text, title: "Thought")
         case .tool(let tool):
@@ -361,24 +361,28 @@ struct MarkdownView: View {
     let blocks: [MarkdownBlock]
     var docLinks: [String: String] = [:]
     var imageLinks: [String: String] = [:]
+    var taskLinks: [String: String] = [:]
     @Environment(\.openDoc) private var openDoc
     @Environment(\.openImage) private var openImage
+    @Environment(\.openTask) private var openTask
     @Environment(\.openURL) private var openURL
 
-    init(blocks: [MarkdownBlock], docLinks: [String: String] = [:], imageLinks: [String: String] = [:]) {
+    init(blocks: [MarkdownBlock], docLinks: [String: String] = [:], imageLinks: [String: String] = [:], taskLinks: [String: String] = [:]) {
         self.blocks = blocks
         self.docLinks = docLinks
         self.imageLinks = imageLinks
+        self.taskLinks = taskLinks
     }
 
-    init(text: String, docLinks: [String: String] = [:], imageLinks: [String: String] = [:]) {
+    init(text: String, docLinks: [String: String] = [:], imageLinks: [String: String] = [:], taskLinks: [String: String] = [:]) {
         blocks = Markdown.blocks(text)
         self.docLinks = docLinks
         self.imageLinks = imageLinks
+        self.taskLinks = taskLinks
     }
 
     private func inline(_ text: String) -> AttributedString {
-        Markdown.inline(text, docLinks: docLinks, imageLinks: openImage == nil ? [:] : imageLinks)
+        Markdown.inline(text, docLinks: docLinks, imageLinks: openImage == nil ? [:] : imageLinks, taskLinks: openTask == nil ? [:] : taskLinks)
     }
 
     var body: some View {
@@ -422,7 +426,9 @@ struct MarkdownView: View {
         .textSelection(.enabled)
         .frame(maxWidth: .infinity, alignment: .leading)
         .environment(\.openURL, OpenURLAction { url in
-            if let target = MarkdownDocLink.target(url) {
+            if let target = MarkdownDocLink.target(url), MarkdownTaskLink.id(target) != nil {
+                openTask?(target)
+            } else if let target = MarkdownDocLink.target(url) {
                 openDoc?(target)
             } else if let target = MarkdownImageLink.target(url) {
                 openImage?(target)
@@ -671,6 +677,7 @@ struct SubagentStop {
 extension EnvironmentValues {
     @Entry var subagentStop: SubagentStop?
     @Entry var openDoc: (@MainActor (String) -> Void)?
+    @Entry var openTask: (@MainActor (String) -> Void)?
 }
 
 struct ToolLine: View {

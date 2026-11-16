@@ -30,6 +30,10 @@ type session struct {
 	requested func(kind, request string)
 	began     func(session string)
 	setup     *setup
+	wantTasks func()
+
+	taskTitles  map[int]string
+	tasksWanted bool
 
 	transcriptState
 	runState
@@ -71,7 +75,9 @@ func (s *session) loadLocked() {
 	if err := s.log.replay(s.apply); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: replay log:", err)
 		s.loaded, s.unread = false, true
+		return
 	}
+	s.askTasksLocked()
 }
 
 func (s *session) actor() string {
@@ -90,6 +96,7 @@ func (s *session) recordLocked(actor, kind string, payload any) {
 	e := s.envelope(actor, kind, raw)
 	s.log.write(e)
 	s.apply(e)
+	s.askTasksLocked()
 }
 
 func (s *session) envelope(actor, kind string, payload json.RawMessage) envelope {

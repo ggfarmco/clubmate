@@ -155,7 +155,7 @@ actor FixtureServer {
         if sessions.count > 1, let id = sessions[1]["id"]?.stringValue {
             transcripts[id] = ["entries": .array([
                 Self.entry("user", "prompt-1", text: "Explain the checkout flow"),
-                Self.entry("agent", "agent-1", text: "Checkout runs in three steps: *validate*, *reserve*, *charge* ([the retries plan](docs/checkout-retries.md)).\n\n- **validate** checks the cart\n- **reserve** holds stock for 10 minutes\n- **charge** calls the payment provider, see `docs/payments.md`\n\nThe flow is drawn in `docs/checkout-flow.mmd`, the numbers are in `docs/conversion.html`, the funnel in `docs/checkout-funnel.png` and the screen in `build/screens/checkout.png` (the old `docs/old-flow.png` is gone).\n\nShould I add retries to the charge step?", docLinks: ["docs/checkout-retries.md": "/Users/me/src/shop/docs/checkout-retries.md", "docs/payments.md": "/Users/me/src/shop/docs/payments.md", "docs/checkout-flow.mmd": "/Users/me/src/shop/docs/checkout-flow.mmd", "docs/conversion.html": "/Users/me/src/shop/docs/conversion.html"], docCards: [
+                Self.entry("agent", "agent-1", text: "Checkout runs in three steps: *validate*, *reserve*, *charge* ([the retries plan](docs/checkout-retries.md)).\n\n- **validate** checks the cart\n- **reserve** holds stock for 10 minutes\n- **charge** calls the payment provider, see `docs/payments.md`; retries are #7, the stale cart badge is #9 (PR #3 is unrelated)\n\nThe flow is drawn in `docs/checkout-flow.mmd`, the numbers are in `docs/conversion.html`, the funnel in `docs/checkout-funnel.png` and the screen in `build/screens/checkout.png` (the old `docs/old-flow.png` is gone).\n\nShould I add retries to the charge step?", docLinks: ["docs/checkout-retries.md": "/Users/me/src/shop/docs/checkout-retries.md", "docs/payments.md": "/Users/me/src/shop/docs/payments.md", "docs/checkout-flow.mmd": "/Users/me/src/shop/docs/checkout-flow.mmd", "docs/conversion.html": "/Users/me/src/shop/docs/conversion.html"], docCards: [
                     Self.docCard("/Users/me/src/shop/docs/checkout-retries.md", kind: "markdown", title: "Checkout retries", presented: true),
                     Self.docCard("/Users/me/src/shop/docs/checkout-flow.mmd", kind: "mermaid", title: "checkout-flow"),
                     Self.docCard("/Users/me/src/shop/docs/conversion.html", kind: "artifact", title: "Checkout conversion"),
@@ -163,7 +163,7 @@ actor FixtureServer {
                     Self.imageRef("/Users/me/src/shop/docs/checkout-funnel.png", width: 1200, height: 750),
                     Self.imageRef("/Users/me/src/shop/build/screens/checkout.png"),
                     Self.imageRef("/Users/me/src/shop/docs/old-flow.png"),
-                ], imageLinks: ["docs/checkout-funnel.png": "/Users/me/src/shop/docs/checkout-funnel.png", "build/screens/checkout.png": "/Users/me/src/shop/build/screens/checkout.png", "docs/old-flow.png": "/Users/me/src/shop/docs/old-flow.png"]),
+                ], imageLinks: ["docs/checkout-funnel.png": "/Users/me/src/shop/docs/checkout-funnel.png", "build/screens/checkout.png": "/Users/me/src/shop/build/screens/checkout.png", "docs/old-flow.png": "/Users/me/src/shop/docs/old-flow.png"], taskLinks: ["7": "Retry the charge step on 502", "9": "Cart badge shows stale count after checkout"]),
             ])]
         }
         transcripts["agt_00000000000000a1"] = ["session": .object(Self.session(sessions.first ?? [:], id: "agt_00000000000000a1", title: "Voice", status: "idle", ago: 60)), "entries": .array([
@@ -1138,12 +1138,13 @@ actor FixtureServer {
         }
     }
 
-    private static func entry(_ kind: String, _ id: String, text: String, docLinks: [String: String] = [:], docCards: [JSONValue] = [], images: [JSONValue] = [], imageLinks: [String: String] = [:]) -> JSONValue {
+    private static func entry(_ kind: String, _ id: String, text: String, docLinks: [String: String] = [:], docCards: [JSONValue] = [], images: [JSONValue] = [], imageLinks: [String: String] = [:], taskLinks: [String: String] = [:]) -> JSONValue {
         var fields: [String: JSONValue] = ["kind": .string(kind), "id": .string(id), "turn": .number(1), "text": .string(text)]
         if !docLinks.isEmpty { fields["docLinks"] = .object(docLinks.mapValues(JSONValue.string)) }
         if !docCards.isEmpty { fields["docCards"] = .array(docCards) }
         if !images.isEmpty { fields["images"] = .array(images) }
         if !imageLinks.isEmpty { fields["imageLinks"] = .object(imageLinks.mapValues(JSONValue.string)) }
+        if !taskLinks.isEmpty { fields["taskLinks"] = .object(taskLinks.mapValues(JSONValue.string)) }
         return .object(fields)
     }
 

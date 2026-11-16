@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"clubmate/pkg/docrender"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 )
@@ -588,6 +589,9 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		var path string
 		if err := decode(ev.Value, &path); err != nil {
 			return err
+		}
+		if id, ok := docrender.TaskID(path); ok {
+			return a.revealTask(ctx, ev.WorkspaceID, id)
 		}
 		return a.host.RunCommand(ctx, docsOpenCmd, ev.WorkspaceID, docsOpenArgs{Path: path, Session: sid}, nil)
 	case actReview:

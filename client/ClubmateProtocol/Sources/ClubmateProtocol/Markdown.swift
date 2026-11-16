@@ -113,7 +113,7 @@ public enum Markdown {
         inline(text, docLinks: [:])
     }
 
-    public static func inline(_ text: String, docLinks: [String: String], imageLinks: [String: String] = [:]) -> AttributedString {
+    public static func inline(_ text: String, docLinks: [String: String], imageLinks: [String: String] = [:], taskLinks: [String: String] = [:]) -> AttributedString {
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         let text = text.replacing(/([↩↪])(?![\x{FE0E}\x{FE0F}])/) { "\($0.1)\u{FE0E}" }
         var content = (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
@@ -131,7 +131,40 @@ public enum Markdown {
         for (range, url) in linked {
             content[range].link = url
         }
+        if !taskLinks.isEmpty {
+            for (range, url) in taskRanges(content, taskLinks) {
+                content[range].link = url
+            }
+        }
         return content
+    }
+
+    private static func taskRanges(_ content: AttributedString, _ taskLinks: [String: String]) -> [(Range<AttributedString.Index>, URL)] {
+        let chars = content.characters
+        var found: [(Range<AttributedString.Index>, URL)] = []
+        for run in content.runs where run.link == nil && run.inlinePresentationIntent?.contains(.code) != true {
+            var index = run.range.lowerBound
+            while index < run.range.upperBound {
+                guard chars[index] == "#", index == chars.startIndex || !taskWordChar(chars[chars.index(before: index)]) else {
+                    index = chars.index(after: index)
+                    continue
+                }
+                var end = chars.index(after: index)
+                while end < run.range.upperBound, chars[end].isASCII, chars[end].isNumber {
+                    end = chars.index(after: end)
+                }
+                let digits = String(chars[chars.index(after: index)..<end])
+                if !digits.isEmpty, digits.count <= 9, end == chars.endIndex || !taskWordChar(chars[end]), taskLinks[digits] != nil, let url = MarkdownTaskLink.url(digits) {
+                    found.append((index..<end, url))
+                }
+                index = end
+            }
+        }
+        return found
+    }
+
+    private static func taskWordChar(_ char: Character) -> Bool {
+        char.isLetter || char.isNumber || "_&#/".contains(char)
     }
 
     private static func fenceMarker(_ line: String) -> String? {
@@ -239,6 +272,19 @@ public enum MarkdownDocLink {
     public static func target(_ url: URL) -> String? {
         guard url.scheme?.lowercased() == scheme, let components = URLComponents(url: url, resolvingAgainstBaseURL: false), !components.path.isEmpty else { return nil }
         return components.fragment.map { "\(components.path)#\($0)" } ?? components.path
+    }
+}
+
+public enum MarkdownTaskLink {
+    public static let path = "/task/"
+
+    public static func url(_ id: String) -> URL? {
+        MarkdownDocLink.url(path + id)
+    }
+
+    public static func id(_ target: String) -> Int? {
+        guard target.hasPrefix(path), let id = Int(target.dropFirst(path.count)), id > 0 else { return nil }
+        return id
     }
 }
 

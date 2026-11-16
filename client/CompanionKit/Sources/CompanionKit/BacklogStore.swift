@@ -1,6 +1,8 @@
 import Foundation
 import Observation
 
+import ClubmateProtocol
+
 @MainActor
 @Observable
 public final class BacklogStore {
@@ -113,6 +115,11 @@ public final class BacklogStore {
 
     public func task(_ id: Int) -> BacklogTask? {
         tasks.first { $0.id == id }
+    }
+
+    public func detail(link target: String) -> String? {
+        guard let id = MarkdownTaskLink.id(target), !fetched || task(id) != nil else { return nil }
+        return String(id)
     }
 
     public func handle(_ signal: ConnectionSignal) {
@@ -308,6 +315,7 @@ public final class BacklogStore {
                 guard let self, let at = self.syncedAt else { return }
                 self.cache.save(Snapshot(tasks: .array(self.list.rows), cursor: self.list.cursor, at: at), self.key)
             }
+        } catch is CancellationError {
         } catch {
             self.error = (error as? RemoteError)?.message ?? error.localizedDescription
         }

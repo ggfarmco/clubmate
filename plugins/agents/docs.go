@@ -146,6 +146,7 @@ func (s *session) linkDocs(turn int) {
 		if en.Kind != entryAgent || en.Turn != turn {
 			continue
 		}
+		s.findTasksLocked(en)
 		r := docRefs(en.Text, s.rec.Worktree)
 		for i, c := range r.cards {
 			r.cards[i] = presentCard(c, s.presented[turn])
