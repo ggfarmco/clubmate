@@ -3,10 +3,16 @@ package main_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/plugin"
+	"clubmate/internal/session"
+	"clubmate/internal/testutil"
 )
 
 type landed struct {
@@ -102,4 +108,24 @@ func TestLandIndexRefusalKeepsTheStagedChange(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, want, string(got), name)
 	}
+}
+
+func TestLandKeepsAWorktreeOpenInTheEditor(t *testing.T) {
+	repo, feat := featWorktree(t)
+	h, id := open(t, repo, testutil.EchoPluginDirAs(t, stopEditorManifest))
+	testutil.Eventually(t, func() bool {
+		return !slices.ContainsFunc(h.Sup.Statuses(), func(s plugin.Status) bool { return s.State != "running" })
+	}, readyWait)
+	_, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{WorkspaceID: id, Title: "nvim", Owner: "editor-nvim", Command: []string{"sh", "-c", "exec cat"}, Cwd: feat})
+	require.NoError(t, err)
+
+	var res landed
+	require.NoError(t, runCommand(t, h, id, "git.land", map[string]string{"path": feat, "message": "feat: b"}, &res))
+
+	assert.Equal(t, res.Commit, git(t, repo, "rev-parse", "main"))
+	assert.False(t, res.Removed)
+	assert.Equal(t, "Kept the worktree and branch: it is open in the editor; leave it, the user removes it from the app.", res.Note)
+	assert.DirExists(t, feat)
+	assert.Equal(t, "two", git(t, repo, "log", "-1", "--format=%s", "feat"))
+	testutil.Never(t, func() bool { return len(commandArgs(t, h, "editor-nvim.stop-root", 0)) > 0 }, 250*time.Millisecond)
 }

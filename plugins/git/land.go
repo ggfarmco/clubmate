@@ -282,7 +282,12 @@ func (p *landPlan) cleanup(ctx context.Context, h *pluginsdk.Host, workspaceID s
 		res.Note = strings.TrimSpace(res.Note + " Kept the worktree and branch: " + p.source + " moved after the landing.")
 		return res
 	}
-	if terminals, err := worktreeSessions(ctx, h, workspaceID, p.own.Path); err != nil || len(terminals) > 0 {
+	use, err := worktreeUsers(ctx, h, workspaceID, p.own.Path)
+	if err == nil && len(use.editors) > 0 {
+		res.Note = strings.TrimSpace(res.Note + " Kept the worktree and branch: it is open in the editor; leave it, the user removes it from the app.")
+		return res
+	}
+	if err != nil || len(use.terminals) > 0 {
 		res.Note = strings.TrimSpace(res.Note + " Kept the worktree and branch: terminals still run in it.")
 		return res
 	}

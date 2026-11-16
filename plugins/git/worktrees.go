@@ -115,28 +115,46 @@ func switchWorktree(ctx context.Context, h *pluginsdk.Host, workspaceID string, 
 	return err
 }
 
+type worktreeUse struct {
+	terminals []sessionInfo
+	editors   []sessionInfo
+}
+
 func worktreeSessions(ctx context.Context, h *pluginsdk.Host, workspaceID, path string) ([]sessionInfo, error) {
+	use, err := worktreeUsers(ctx, h, workspaceID, path)
+	return use.terminals, err
+}
+
+func worktreeUsers(ctx context.Context, h *pluginsdk.Host, workspaceID, path string) (worktreeUse, error) {
 	if !filepath.IsAbs(path) {
-		return nil, errRelativePath
+		return worktreeUse{}, errRelativePath
 	}
 	dir := gitrepo.Canonical(filepath.Clean(path))
 	sessions, err := h.ListSessions(ctx, workspaceID, false)
 	if err != nil {
-		return nil, err
+		return worktreeUse{}, err
 	}
 	vacate, err := removingOwners(ctx, h)
 	if err != nil {
-		return nil, err
+		return worktreeUse{}, err
 	}
 	inside, err := movedIn(ctx, h, workspaceID, dir)
 	if err != nil {
-		return nil, err
+		return worktreeUse{}, err
 	}
-	out := []sessionInfo{}
+	out := worktreeUse{terminals: []sessionInfo{}}
 	for _, s := range sessions {
+		if s.State != sessionRunning {
+			continue
+		}
 		started := filepath.IsAbs(s.Cwd) && gitrepo.Within(gitrepo.Canonical(s.Cwd), dir)
-		if s.State == sessionRunning && !vacate[s.Owner] && (started || inside[s.ID]) {
-			out = append(out, sessionInfo{ID: s.ID, Title: s.Title})
+		switch {
+		case vacate[s.Owner]:
+			if started {
+				out.editors = append(out.editors, sessionInfo{ID: s.ID, Title: s.Title})
+			}
+		case started || inside[s.ID]:
+			out.terminals = append(out.terminals, sessionInfo{ID: s.ID, Title: s.Title})
 		}
 	}
 	return out, nil
