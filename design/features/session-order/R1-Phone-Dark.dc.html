@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · Phone list · three directions</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f90f4f2d4879801390191beec7e5e354">
+<link rel="stylesheet" href="/_blob/d2e767e20e47baa0fc98c33222db0d71">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.cm figure{margin:0}
+.cm.comp.phone{width:393px;height:852px;border-radius:48px;border:1px solid var(--bd2);box-shadow:var(--sh);flex:none}
+.comp .seg{margin:12px 16px 0;height:34px;border-radius:17px;background:var(--s2);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:2px}
+.comp .seg>button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
+.comp .seg>button[aria-selected="true"]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12);background:var(--s3)}
+.comp .pchips{display:flex;gap:8px;padding:12px 16px 0;overflow:hidden}
+.comp .chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:16px;border:0;background:var(--s1);color:var(--fg);font-size:15px;line-height:20px;white-space:nowrap;flex:none}
+.comp .chip .n{color:var(--t3)}
+.comp .chip .n.wa{color:var(--wa-i);font-weight:600}
+.comp .chip.on{background:var(--s3);font-weight:600}
+.comp .c.hl-wa{background:var(--wa-bg)}
+.comp .c.hl-ac{background:var(--ac-bg)}
+.comp .hold{display:flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:18px;font-size:14px;line-height:18px;font-weight:600;color:var(--fg);white-space:nowrap}
+.comp .hold svg.i{width:16px;height:16px;color:var(--ac-i);stroke-width:1.8}
+.comp .fld{gap:8px}
+.comp .fld svg.i{width:18px;height:18px;stroke-width:1.7}
+.cm .log{display:flex;flex-direction:column;gap:12px}
+.cm .ev{display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:8px;align-items:start}
+.cm .ev .n{color:var(--t3);font-weight:600}
+.cm .ev p{color:var(--t2)}
+.cm .ev .badge{margin-top:4px}
+</style>
+</helmet>
+<div class="cm th-mate" style="width: 1640px; height: 3264px; padding: 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 40px">
+<header style="height: 64px; display: flex; flex-direction: column; gap: 4px; flex: none">
+<span class="h">Phone · dark · Agents list</span>
+<span class="t2">The same 20 s, the same sessions as the Mac board on the left. Each section lines up with its Mac section.</span>
+</header>
+<sc-for list="{{dirs}}" as="dir" hint-placeholder-count="3">
+<section style="height: 1000px; flex: none; display: flex; flex-direction: column; gap: 16px; border-top: 1px solid var(--bd2); padding-top: 20px; box-sizing: border-box">
+<div style="height: 64px; display: flex; flex-direction: column; gap: 4px; flex: none">
+<div style="display: flex; align-items: center; gap: 10px"><span class="h">{{dir.name}}</span><sc-if value="{{dir.rec}}" hint-placeholder-val="{{false}}"><span class="badge ac">recommended</span></sc-if></div>
+<p class="t2" style="max-width: 1300px">{{dir.rule}}</p>
+</div>
+<div style="display: flex; gap: 24px; align-items: flex-start">
+<sc-for list="{{dir.frames}}" as="f" hint-placeholder-count="2">
+<figure style="display: flex; flex-direction: column; gap: 8px; flex: none">
+<figcaption class="cap" style="height: 16px"><span class="b">{{f.t}}</span> <span class="mut">{{f.sub}}</span></figcaption>
+<div class="cm comp th-{{ptheme}} phone">
+<div class="top">
+<button class="gbtn glass" aria-label="Back to Macs"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<div class="t">
+<sc-if value="{{f.hasHold}}" hint-placeholder-val="{{false}}"><button class="hold glass"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/></svg>{{f.hold}}</button></sc-if>
+</div>
+<div class="gpill glass"><button aria-label="Files"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8.5 2.5H3a.5.5 0 0 0-.5.5v10a.5.5 0 0 0 .5.5h10a.5.5 0 0 0 .5-.5V7.5"/><path d="m13 2.5-5.5 5.5-.5 2 2-.5L14.5 4Z"/></svg></button></div>
+</div>
+<div style="position: absolute; inset: 0; padding-top: 112px; overflow: hidden">
+<h1 class="big" style="margin: 0; padding: 0 20px">clubmate</h1>
+<div class="cap mut" style="padding: 2px 20px 0"><span class="mdot id-blue" style="margin-right: 6px"></span>Mac Studio · online</div>
+<div class="seg" role="tablist" aria-label="Workspace view"><button role="tab" aria-selected="true">Agents</button><button role="tab" aria-selected="false">Backlog</button><button role="tab" aria-selected="false">Docs</button><button role="tab" aria-selected="false">More</button></div>
+<sc-if value="{{f.hasChips}}" hint-placeholder-val="{{true}}"><div class="pchips"><sc-for list="{{f.chips}}" as="c" hint-placeholder-count="4"><button class="chip {{c.cls}}">{{c.l}}<span class="n {{c.ncls}}">{{c.n}}</span></button></sc-for></div></sc-if>
+<sc-for list="{{f.secs}}" as="s" hint-placeholder-count="2">
+<div class="hdr"><span class="ell">{{s.title}}</span><span class="cap">{{s.count}}</span></div>
+<div class="ig">
+<sc-for list="{{s.rows}}" as="r" hint-placeholder-count="3">
+<div class="c {{r.cls}}"><span class="st {{r.st}}"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="{{r.gd}}"/></svg></span><div class="cbody"><span class="ell {{r.tw}}">{{r.title}}</span><span class="cap ell"><span class="{{r.lt}}">{{r.lead}}</span><span class="{{r.rt}}">{{r.rest}}</span></span></div><sc-if value="{{r.dot}}" hint-placeholder-val="{{false}}"><span class="unread"></span></sc-if><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</sc-for>
+</div>
+</sc-for>
+<div class="hdr" style="padding-top: 26px"><span>Closed · 280</span><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+<div class="bar"><div class="cmp"><button class="gbtn glass" aria-label="Dictate"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5a2 2 0 0 0-2 2v4a2 2 0 0 0 4 0v-4a2 2 0 0 0-2-2ZM4 7.5a4 4 0 0 0 8 0M8 11.5v3"/></svg></button><div class="fld glass"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg>Search sessions</div></div></div>
+</div>
+</figure>
+</sc-for>
+<div class="log" style="flex: 1 1 auto; min-width: 0; padding-top: 24px">
+<span class="cap mut">What the 20 s did</span>
+<sc-for list="{{dir.log}}" as="e" hint-placeholder-count="5">
+<div class="ev"><span class="n">{{e.n}}</span><div><p>{{e.t}}</p><span class="badge {{e.cls}}">{{e.v}}</span></div></div>
+</sc-for>
+<div class="card" style="padding: 10px 12px; margin-top: 6px"><p>{{dir.score}}</p></div>
+</div>
+</div>
+</section>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"ptheme":{"editor":"enum","options":["cdark","clight"],"default":"cdark"},"$preview":{"width":1640,"height":3264}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const HAND = 'M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9';
+    const ASK = 'M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2ZM6.6 6a1.5 1.5 0 1 1 2 1.4c-.4.2-.6.5-.6.9M8 9.6v.1';
+    const PG = { need: ['wa', HAND], ask: ['wa', ASK], run: ['ac', 'M5.5 3.5v9l7-4.5Z'], done: ['n', 'm3.5 8.5 3 3 6-7'] };
+    const WT = 'chore/awake-mac-shots';
+    const P = {
+      m1: [['done', 'Корневые сущности в реестре', '', 'Done · 1 h'], ['done', 'Корневые сущности в реестре', '', 'Done · 1 h']],
+      m2: [['done', 'Agents: cron, triggers, graphs, gates', '', 'Done · 49 min'], ['done', 'Agents: cron, triggers, graphs, gates', '', 'Done · 49 min']],
+      m3: [['run', 'Ветки для ревью', '', 'Next check 20:47'], ['need', 'Ветки для ревью', 'Wants to run ', 'git fetch · now']],
+      m4: [['run', 'Keep-awake plugin (Amphetamine)', '', 'Landing on main'], ['run', 'Keep-awake plugin (Amphetamine)', '', 'Land review running']],
+      m5: [['run', 'Поиск по номеру', '', 'Waiting for 2 children'], ['run', 'Поиск по номеру', '', 'Waiting for 1 child']],
+      n: [null, ['run', 'Nightly: deps audit', '', 'Started by cron · now']],
+      c1: [['ask', 'Отображение текста в превью', 'Asks: ', 'keep the old font size? · 3 min'], ['ask', 'Отображение текста в превью', 'Asks: ', 'keep the old font size? · 3 min']],
+      c2: [['run', 'Кликабельность статуса', '', 'Running go test · 9 min'], ['done', 'Кликабельность статуса', '', 'Done · now']]
+    };
+    const r = (k, ph, o) => {
+      const a = P[k][ph];
+      const g = PG[a[0]];
+      const x = o || {};
+      const urgent = a[0] === 'need' || a[0] === 'ask';
+      return {
+        st: g[0], gd: g[1], title: a[1], lead: a[2], rest: x.rest || a[3],
+        lt: a[2] ? 'wa-i' : '', rt: urgent ? 't2' : 'mut', tw: urgent ? 'w6' : '',
+        cls: x.cls || '', dot: !!x.dot
+      };
+    };
+    const sec = (title, count, rows) => ({ title: title, count: String(count), rows: rows });
+    const pc0 = [{ l: 'All', n: '7', cls: 'on', ncls: '' }, { l: 'Needs you', n: '1', cls: '', ncls: 'wa' }, { l: 'Open', n: '0', cls: '', ncls: '' }, { l: 'Running', n: '4', cls: '', ncls: '' }];
+    const pc1 = [{ l: 'All', n: '8', cls: 'on', ncls: '' }, { l: 'Needs you', n: '2', cls: '', ncls: 'wa' }, { l: 'Open', n: '0', cls: '', ncls: '' }, { l: 'Running', n: '3', cls: '', ncls: '' }];
+    const F = (t, sub, chips, secs, hold) => ({ t: t, sub: sub, hasChips: !!chips, chips: chips || [], secs: secs, hasHold: !!hold, hold: hold || '' });
+    const E = (n, t, v, cls) => ({ n: n, t: t, v: v, cls: cls });
+    const c1m = { rest: 'keep the old font size? · chore' };
+    const m3m = { rest: 'git fetch · main', cls: 'hl-wa', dot: true };
+
+    const A = {
+      name: 'A · Ledger', rec: false,
+      rule: 'The phone shows the Mac’s tree: worktree groups, rows oldest first, new rows last. Running and Done stop being groups; the chips filter by state, and Needs you and Open sort longest waiting first inside their chip. Changes wait while a finger is down, then land 1 s after it lifts.',
+      frames: [
+        F('20:46:28', 'before', pc0, [sec('main', 5, [r('m1', 0), r('m2', 0), r('m3', 0), r('m4', 0), r('m5', 0)]), sec(WT, 2, [r('c1', 0), r('c2', 0)])]),
+        F('20:46:49', 'after · 1 s after the finger lifts', pc1, [sec('main', 6, [r('m1', 1), r('m2', 1), r('m3', 1), r('m4', 1), r('m5', 1), r('n', 1)]), sec(WT, 2, [r('c1', 1), r('c2', 1)])])
+      ],
+      log: [
+        E('1', 'Land review folds under Keep-awake; its detail says so.', 'no new row', 'ok'),
+        E('2', 'Check glyph in place (below the fold here).', 'stays', 'ok'),
+        E('3', 'Hand glyph and “Wants to run git fetch” in place. Only the chip count tells you from the top.', 'stays', 'ok'),
+        E('4', 'Nightly goes last in main.', 'chore moves 66 px', 'wa'),
+        E('5', 'Detail text only: Running no longer sorts by activity.', 'stays', 'ok')
+      ],
+      score: 'Rows above the new session never move. The chore rows shift one row, 1 s after your finger lifts. A reach-to-tap without touching first is not covered, and Needs you is now a chip away.'
+    };
+
+    const B = {
+      name: 'B · Gated feed', rec: false,
+      rule: 'Keep the state groups. Needs you and Open longest waiting first; Running by start, newest first, never by activity; Done by finish, newest first. Inserts and group changes wait for Show, a pull, or coming back to the list. Restyles are live.',
+      frames: [
+        F('20:46:28', 'before', null, [sec('Needs you', 1, [r('c1', 0)]), sec('Running', 4, [r('c2', 0), r('m5', 0), r('m4', 0), r('m3', 0)]), sec('Done', 2, [r('m2', 0), r('m1', 0)])]),
+        F('20:46:49', 'held · pill in the top bar', null, [sec('Needs you', 1, [r('c1', 1)]), sec('Running', 4, [r('c2', 1), r('m5', 1), r('m4', 1), r('m3', 1)]), sec('Done', 2, [r('m2', 1), r('m1', 1)])], '3 to show'),
+        F('Show', 'applied on request', null, [sec('Needs you', 2, [r('c1', 1), r('m3', 1)]), sec('Running', 3, [r('n', 1), r('m5', 1), r('m4', 1)]), sec('Done', 3, [r('c2', 1), r('m2', 1), r('m1', 1)])])
+      ],
+      log: [
+        E('1', 'Land review folds under Keep-awake.', 'no new row', 'ok'),
+        E('2', 'Shows a check but stays in Running.', 'held', 'ac'),
+        E('3', 'Shows the hand but stays in Running.', 'held', 'ac'),
+        E('4', 'Nightly waits.', 'held', 'ac'),
+        E('5', 'Detail only: Running sorts by start now.', 'stays', 'ok')
+      ],
+      score: 'Pill: 3 to show. On Show, Ветки jumps to Needs you, Кликабельность to Done and Nightly to the top of Running: 6 of the 7 rows you were looking at change place at once.'
+    };
+
+    const C = {
+      name: 'C · Inbox over a ledger', rec: true,
+      rule: 'The Mac’s tree, with a Needs you inbox on top: mirrors, longest waiting first, the row also stays in its worktree. Nothing you can see moves on its own. A change that would push a visible row waits; the top bar says what is waiting. It lands when you tap it, pull, or come back to the list.',
+      frames: [
+        F('20:46:28', 'before', pc0, [sec('Needs you', 1, [r('c1', 0, c1m)]), sec('main', 5, [r('m1', 0), r('m2', 0), r('m3', 0), r('m4', 0), r('m5', 0)]), sec(WT, 2, [r('c1', 0), r('c2', 0)])]),
+        F('20:46:49', 'list on screen · held', pc1, [sec('Needs you', 1, [r('c1', 1, c1m)]), sec('main', 5, [r('m1', 1), r('m2', 1), r('m3', 1, { cls: 'hl-wa', dot: true }), r('m4', 1), r('m5', 1)]), sec(WT, 2, [r('c1', 1), r('c2', 1, { dot: true })])], '1 needs you · 1 new'),
+        F('Tap / come back', 'applied', pc1, [sec('Needs you', 2, [r('c1', 1, c1m), r('m3', 1, m3m)]), sec('main', 6, [r('m1', 1), r('m2', 1), r('m3', 1, { dot: true }), r('m4', 1), r('m5', 1), r('n', 1, { cls: 'hl-ac', dot: true })]), sec(WT, 2, [r('c1', 1), r('c2', 1, { dot: true })])])
+      ],
+      log: [
+        E('1', 'Land review folds under Keep-awake.', 'no new row', 'ok'),
+        E('2', 'Check and dot in place, off screen.', 'stays', 'ok'),
+        E('3', 'Hand, dot and a 1.5 s tint in place; its inbox copy waits.', 'held', 'ac'),
+        E('4', 'Nightly waits.', 'held', 'ac'),
+        E('5', 'Detail text only.', 'stays', 'ok')
+      ],
+      score: 'While the list is on screen: 0 moved, and the top bar says 1 needs you · 1 new. On tap, pull or coming back, Ветки joins the inbox under Отображение and Nightly lands last in main. Rows shift; nothing reorders.'
+    };
+
+    return { ptheme: this.props.ptheme ?? 'cdark', dirs: [A, B, C] };
+  }
+}
+</script>
+</body>
+</html>

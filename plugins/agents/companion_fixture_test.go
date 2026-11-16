@@ -36,6 +36,7 @@ var (
 	shaRe      = regexp.MustCompile(`\b[0-9a-f]{40}\b`)
 	fakeIDRe   = regexp.MustCompile(`fake-\d+-(\d+)`)
 	cursorRe   = regexp.MustCompile(`"cursor":"[0-9a-z]+\.`)
+	listKeyRe  = regexp.MustCompile(`"(1?)\d{8}T\d{6}\.\d{9}Z `)
 	sessionIDs = regexp.MustCompile(`agt_[0-9a-f]{16}`)
 )
 
@@ -141,6 +142,7 @@ func normalize(t *testing.T, scrub *strings.Replacer, raw json.RawMessage) []byt
 		return ids[id]
 	})
 	text = timeRe.ReplaceAllString(text, `"`+fixtureTime+`"`)
+	text = listKeyRe.ReplaceAllString(text, `"${1}20261030T094100.000000000Z `)
 	text = shaRe.ReplaceAllString(text, fixtureSha)
 	text = fakeIDRe.ReplaceAllString(text, "claude-session-$1")
 	text = cursorRe.ReplaceAllString(text, `"cursor":"epoch.`)

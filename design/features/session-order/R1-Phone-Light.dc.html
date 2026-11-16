@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · C on the phone, light</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f90f4f2d4879801390191beec7e5e354">
+<link rel="stylesheet" href="/_blob/d2e767e20e47baa0fc98c33222db0d71">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.cm figure{margin:0}
+.cm.comp.phone{width:393px;height:852px;border-radius:48px;border:1px solid var(--bd2);box-shadow:var(--sh);flex:none}
+.comp .seg{margin:12px 16px 0;height:34px;border-radius:17px;background:var(--s2);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:2px}
+.comp .seg>button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
+.comp .seg>button[aria-selected="true"]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12);background:var(--s1)}
+.comp .pchips{display:flex;gap:8px;padding:12px 16px 0;overflow:hidden}
+.comp .chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:16px;border:0;background:var(--s1);color:var(--fg);font-size:15px;line-height:20px;white-space:nowrap;flex:none}
+.comp .chip .n{color:var(--t3)}
+.comp .chip .n.wa{color:var(--wa-i);font-weight:600}
+.comp .chip.on{background:var(--s3);font-weight:600}
+.comp .chip.wa.on{background:var(--wa-bg);box-shadow:inset 0 0 0 1.5px var(--wa-bd)}
+.comp .c.hl-wa{background:var(--wa-bg)}
+.comp .c.hl-ac{background:var(--ac-bg)}
+.comp .hold{display:flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:18px;font-size:14px;line-height:18px;font-weight:600;color:var(--fg);white-space:nowrap}
+.comp .hold svg.i{width:16px;height:16px;color:var(--ac-i);stroke-width:1.8}
+.comp .fld{gap:8px}
+.comp .fld svg.i{width:18px;height:18px;stroke-width:1.7}
+.comp .touch{position:absolute;z-index:7;width:44px;height:44px;border-radius:22px;background:color-mix(in srgb,var(--fg) 18%,transparent);border:2px solid color-mix(in srgb,var(--fg) 40%,transparent)}
+.comp .empty{padding:10px 20px 0;color:var(--t3);font-size:15px;line-height:20px}
+.cm .udot{width:7px;height:7px;border-radius:4px;background:var(--ac);display:inline-block}
+</style>
+</helmet>
+<div class="cm th-matelight" style="width: 1340px; height: 1200px; padding: 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+<header style="height: 64px; display: flex; flex-direction: column; gap: 4px; flex: none">
+<span class="h">C · Inbox over a ledger · phone · light</span>
+<span class="t2"><span class="udot"></span> changed since you last opened it · tint: changed just now, fades in 1.5 s · top-bar pill: what is waiting to land</span>
+</header>
+<div style="display: flex; gap: 40px; align-items: flex-start">
+<sc-for list="{{frames}}" as="f" hint-placeholder-count="3">
+<figure style="display: flex; flex-direction: column; gap: 8px; width: 393px; flex: none">
+<figcaption class="cap" style="height: 16px"><span class="b">{{f.t}}</span> <span class="mut">{{f.sub}}</span></figcaption>
+<div class="cm comp th-{{ptheme}} phone">
+<sc-if value="{{f.scrolled}}" hint-placeholder-val="{{false}}"><div class="edge"></div></sc-if>
+<div class="top">
+<button class="gbtn glass" aria-label="Back to Macs"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<div class="t">
+<sc-if value="{{f.hasHold}}" hint-placeholder-val="{{false}}"><button class="hold glass"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/></svg>{{f.hold}}</button></sc-if>
+</div>
+<div class="gpill glass"><button aria-label="Files"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8.5 2.5H3a.5.5 0 0 0-.5.5v10a.5.5 0 0 0 .5.5h10a.5.5 0 0 0 .5-.5V7.5"/><path d="m13 2.5-5.5 5.5-.5 2 2-.5L14.5 4Z"/></svg></button></div>
+</div>
+<div style="position: absolute; inset: 0; padding-top: 112px; overflow: hidden">
+<sc-if value="{{f.head}}" hint-placeholder-val="{{true}}">
+<h1 class="big" style="margin: 0; padding: 0 20px">clubmate</h1>
+<div class="cap mut" style="padding: 2px 20px 0"><span class="mdot id-blue" style="margin-right: 6px"></span>Mac Studio · online</div>
+<div class="seg" role="tablist" aria-label="Workspace view"><button role="tab" aria-selected="true">Agents</button><button role="tab" aria-selected="false">Backlog</button><button role="tab" aria-selected="false">Docs</button><button role="tab" aria-selected="false">More</button></div>
+<div class="pchips"><sc-for list="{{f.chips}}" as="c" hint-placeholder-count="4"><button class="chip {{c.cls}}">{{c.l}}<span class="n {{c.ncls}}">{{c.n}}</span></button></sc-for></div>
+</sc-if>
+<sc-for list="{{f.secs}}" as="s" hint-placeholder-count="2">
+<div class="hdr"><span class="ell">{{s.title}}</span><span class="cap">{{s.count}}</span></div>
+<div class="ig">
+<sc-for list="{{s.rows}}" as="r" hint-placeholder-count="3">
+<div class="c {{r.cls}}"><span class="st {{r.st}}"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="{{r.gd}}"/></svg></span><div class="cbody"><span class="ell {{r.tw}}">{{r.title}}</span><span class="cap ell"><span class="{{r.lt}}">{{r.lead}}</span><span class="{{r.rt}}">{{r.rest}}</span></span></div><sc-if value="{{r.dot}}" hint-placeholder-val="{{false}}"><span class="unread"></span></sc-if><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</sc-for>
+</div>
+</sc-for>
+<sc-if value="{{f.empty}}" hint-placeholder-val="{{false}}"><p class="empty">Open: nothing waiting. The rest of the list is one tap away under All.</p></sc-if>
+<sc-if value="{{f.closed}}" hint-placeholder-val="{{true}}"><div class="hdr" style="padding-top: 26px"><span>Closed · 280</span><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div></sc-if>
+</div>
+<div class="bar"><div class="cmp"><button class="gbtn glass" aria-label="Dictate"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5a2 2 0 0 0-2 2v4a2 2 0 0 0 4 0v-4a2 2 0 0 0-2-2ZM4 7.5a4 4 0 0 0 8 0M8 11.5v3"/></svg></button><div class="fld glass"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg>Search sessions</div></div></div>
+<sc-if value="{{f.touch}}" hint-placeholder-val="{{false}}"><div class="touch" style="top: 487px; left: 178px"></div></sc-if>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px; padding-top: 8px">
+<span class="b">{{f.headline}}</span>
+<p class="t2">{{f.note}}</p>
+</div>
+</figure>
+</sc-for>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"ptheme":{"editor":"enum","options":["cdark","clight"],"default":"clight"},"$preview":{"width":1340,"height":1200}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const HAND = 'M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9';
+    const ASK = 'M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2ZM6.6 6a1.5 1.5 0 1 1 2 1.4c-.4.2-.6.5-.6.9M8 9.6v.1';
+    const PG = { need: ['wa', HAND], ask: ['wa', ASK], run: ['ac', 'M5.5 3.5v9l7-4.5Z'], done: ['n', 'm3.5 8.5 3 3 6-7'] };
+    const WT = 'chore/awake-mac-shots';
+    const P = {
+      m1: ['done', 'Корневые сущности в реестре', '', 'Done · 1 h'],
+      m2: ['done', 'Agents: cron, triggers, graphs, gates', '', 'Done · 49 min'],
+      m3: ['need', 'Ветки для ревью', 'Wants to run ', 'git fetch · now'],
+      m4: ['run', 'Keep-awake plugin (Amphetamine)', '', 'Land review running'],
+      m5: ['run', 'Поиск по номеру', '', 'Waiting for 1 child'],
+      n: ['run', 'Nightly: deps audit', '', 'Started by cron · now'],
+      c1: ['ask', 'Отображение текста в превью', 'Asks: ', 'keep the old font size? · 3 min'],
+      c2: ['done', 'Кликабельность статуса', '', 'Done · now']
+    };
+    const r = (k, o) => {
+      const a = P[k];
+      const g = PG[a[0]];
+      const x = o || {};
+      const urgent = a[0] === 'need' || a[0] === 'ask';
+      return {
+        st: g[0], gd: g[1], title: a[1], lead: a[2], rest: x.rest || a[3],
+        lt: a[2] ? 'wa-i' : '', rt: urgent ? 't2' : 'mut', tw: urgent ? 'w6' : '',
+        cls: x.cls || '', dot: !!x.dot
+      };
+    };
+    const sec = (title, count, rows) => ({ title: title, count: String(count), rows: rows });
+    const pc1 = [{ l: 'All', n: '8', cls: 'on', ncls: '' }, { l: 'Needs you', n: '2', cls: 'wa', ncls: 'wa' }, { l: 'Open', n: '0', cls: '', ncls: '' }, { l: 'Running', n: '3', cls: '', ncls: '' }];
+    const pcNY = [{ l: 'All', n: '8', cls: '', ncls: '' }, { l: 'Needs you', n: '2', cls: 'wa on', ncls: 'wa' }, { l: 'Open', n: '0', cls: '', ncls: '' }, { l: 'Running', n: '3', cls: '', ncls: '' }];
+    const c1m = { rest: 'keep the old font size? · chore' };
+
+    const frames = [
+      {
+        t: '20:46:49', sub: 'reaching for Кликабельность · held',
+        scrolled: true, head: false, chips: [], hasHold: true, hold: '1 new', touch: true, empty: false, closed: false,
+        secs: [sec('main', 5, [r('m3', { cls: 'hl-wa', dot: true }), r('m4'), r('m5')]), sec(WT, 2, [r('c1'), r('c2', { cls: 'hl-ac', dot: true })])],
+        headline: 'Your target stays where your thumb is going.',
+        note: 'Кликабельность finished a moment ago: check, dot and tint, same place. Ветки’s inbox copy landed above the screen with scroll anchoring, so nothing visible moved. Nightly would push the chore rows, so it waits: the top bar reads 1 new.'
+      },
+      {
+        t: '20:47:30', sub: 'back from a session · applied',
+        scrolled: false, head: true, chips: pc1, hasHold: false, hold: '', touch: false, empty: false, closed: true,
+        secs: [sec('Needs you', 2, [r('c1', c1m), r('m3', { rest: 'git fetch · main', cls: 'hl-wa', dot: true })]), sec('main', 6, [r('m1'), r('m2'), r('m3', { dot: true }), r('m4'), r('m5'), r('n', { cls: 'hl-ac', dot: true })]), sec(WT, 2, [r('c1'), r('c2', { dot: true })])],
+        headline: 'The queue lands when the list comes back.',
+        note: 'Coming back from a session, pulling, or tapping the pill lands what waited. The inbox reads longest waiting first; Nightly sits last in main. New arrivals get a tint that fades in 1.5 s; dots stay until you open the session.'
+      },
+      {
+        t: '20:47:32', sub: 'Needs you chip',
+        scrolled: false, head: true, chips: pcNY, hasHold: false, hold: '', touch: false, empty: true, closed: false,
+        secs: [sec('Needs you', 2, [r('c1', c1m), r('m3', { rest: 'git fetch · main', dot: true })])],
+        headline: 'Same meaning as the Mac’s chip.',
+        note: 'The Needs you chip is the inbox on its own: same rows, same order as on the Mac. Open, when it has rows, sorts longest waiting first the same way.'
+      }
+    ];
+    return { ptheme: this.props.ptheme ?? 'clight', frames: frames };
+  }
+}
+</script>
+</body>
+</html>

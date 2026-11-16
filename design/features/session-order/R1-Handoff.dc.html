@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · Handoff for C</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f90f4f2d4879801390191beec7e5e354">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+.doc td.w{width:150px;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#3A3D3B}
+.doc td.t{width:120px;white-space:nowrap}
+.doc tr.grp td{padding-top:22px;border-bottom:1.5px solid #1B1D1C;font-weight:600;font-size:15px}
+.doc .legend{display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center}
+.doc .legend span.muted{font-size:14px}
+</style>
+</helmet>
+<div class="doc" style="width: 1280px; height: 2140px; padding: 56px 64px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px">
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<span class="eyebrow">Clubmate · Agents order · r1 handoff</span>
+<h1>Handoff: direction C</h1>
+<p class="lead">Every change C needs, tagged by kind. Most of it is plugin content and renderer work. Mirror rows need one new SDUI prop, and only the optional shared unseen dot needs new plugin logic.</p>
+</div>
+
+<div class="legend">
+<span><span class="tag a">(a)</span> <span class="muted">token or renderer change</span></span>
+<span><span class="tag b">(b)</span> <span class="muted">new SDUI node or prop</span></span>
+<span><span class="tag c">(c)</span> <span class="muted">plugin content: words, grouping, order</span></span>
+<span><span class="tag p0">(d)</span> <span class="muted">new plugin logic: a new state or rule</span></span>
+</div>
+
+<table>
+<thead><tr><th>#</th><th>Change</th><th>Where</th><th>Tag</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">Order and grouping, decided once in the plugin</td></tr>
+<tr><td class="n">1</td><td>Sort sessions inside a group by start time, oldest first, with session id as the tie-break. Stop using last activity and newest-first everywhere.</td><td class="w">plugin</td><td class="t"><span class="tag c">(c)</span></td></tr>
+<tr><td class="n">2</td><td>Put a new session last under its parent: its worktree group, or the session that started it.</td><td class="w">plugin</td><td class="t"><span class="tag c">(c)</span></td></tr>
+<tr><td class="n">3</td><td>Land review is a child of its lander from the moment it starts until it is closed. It never shows at the top level.</td><td class="w">plugin</td><td class="t"><span class="tag c">(c)</span></td></tr>
+<tr><td class="n">4</td><td>Send parents with agent-started children folded by default. The parent’s detail names them: “Land review running”, “Waiting for 2 children”.</td><td class="w">plugin</td><td class="t"><span class="tag c">(c)</span></td></tr>
+<tr><td class="n">5</td><td>Order worktree groups: main first, then by when the worktree was created. A new worktree goes last, above Closed. If the plugin doesn’t store worktree creation, use its first session’s start.</td><td class="w">plugin</td><td class="t"><span class="tag c">(c)</span></td></tr>
+<tr><td class="n">6</td><td>A state change never moves a row. Send the new glyph state, tint role and detail instead. Chip and group counts update in place.</td><td class="w">plugin</td><td class="t"><span class="tag c">(c)</span></td></tr>
+<tr><td class="n">7</td><td>Needs you inbox at the top of the tree: one mirror row per session in Needs you, longest waiting first (waiting-since ascending). An Open section follows only when Open has rows. Hide the inbox when it’s empty.</td><td class="w">plugin</td><td class="t"><span class="tag c">(c)</span></td></tr>
+<tr><td class="n">8</td><td>Mirror row: a session row that points at its session (<code>mirrorOf: id</code>). Selection, the keyboard and the Needs you filter treat both rows as one session.</td><td class="w">SDUI</td><td class="t"><span class="tag b">(b)</span></td></tr>
+<tr><td class="n">9</td><td>Closed stays folded at the end, most recently closed first, 25 at a time, with Service folded after it. Unchanged.</td><td class="w">plugin</td><td class="t"><span class="tag c">(c)</span></td></tr>
+<tr><td class="n">10</td><td>Detail wording for in-place change: “Wants to run git fetch”, “Asks: …”, “Land review running”, “Waiting for 1 child”, “Done · now”, “Started by cron”.</td><td class="w">plugin</td><td class="t"><span class="tag c">(c)</span></td></tr>
+
+<tr class="grp"><td colspan="4">Phone</td></tr>
+<tr><td class="n">11</td><td>Render the plugin’s tree in its order. Delete the local sort and the Running and Done state groups.</td><td class="w">phone</td><td class="t"><span class="tag a">(a)</span></td></tr>
+<tr><td class="n">12</td><td>Worktree group headers, and folded parent rows that open on tap.</td><td class="w">phone</td><td class="t"><span class="tag a">(a)</span></td></tr>
+<tr><td class="n">13</td><td>Filter chips All / Needs you / Open / Running, from the same filter definitions the plugin sends the Mac.</td><td class="w">phone · plugin</td><td class="t"><span class="tag a">(a)</span> <span class="tag c">(c)</span></td></tr>
+
+<tr class="grp"><td colspan="4">Both renderers</td></tr>
+<tr><td class="n">14</td><td>In-view gate: a change that would move a visible row is queued. Changes off screen land at once with scroll anchoring. Restyles land at once.</td><td class="w">mac · phone</td><td class="t"><span class="tag a">(a)</span></td></tr>
+<tr><td class="n">15</td><td>Queue pill with counts taken from the queued diff: “1 needs you · 1 new” in the phone’s top bar, “2 to show ⌘R” in the Mac sidebar header. The renderer computes it; no plugin change.</td><td class="w">mac · phone</td><td class="t"><span class="tag a">(a)</span></td></tr>
+<tr><td class="n">16</td><td>When the queue lands. Phone: the list reappears, the app comes to the foreground, a pull to refresh, or a tap on the pill. Mac: the pointer has been off the sidebar for 0.5 s, ⌘R, or the sidebar gets keyboard focus.</td><td class="w">mac · phone</td><td class="t"><span class="tag a">(a)</span></td></tr>
+<tr><td class="n">17</td><td>Selection is keyed by session id. A mirror row and its tree row show selection together (<code>sel</code> / <code>seli</code>). ↑↓ walks visible rows in order, and the Needs you filter keeps working.</td><td class="w">mac</td><td class="t"><span class="tag a">(a)</span></td></tr>
+<tr><td class="n">18</td><td>Change tint: a row whose state changes on screen gets <code>--wa-bg</code> (Needs you) or <code>--ac-bg</code> (anything else), fading over a new token <code>--hl-fade: 1.5s</code>. Off under Reduce Motion.</td><td class="w">mac · phone</td><td class="t"><span class="tag a">(a)</span></td></tr>
+
+<tr class="grp"><td colspan="4">Unseen dot (optional, question 5)</td></tr>
+<tr><td class="n">19</td><td>Row prop <code>unseen</code>, drawn as the accent dot (the existing <code>.unread</code> on the phone, a 6 px dot after the detail on the Mac).</td><td class="w">SDUI</td><td class="t"><span class="tag b">(b)</span></td></tr>
+<tr><td class="n">20</td><td>Track a seen time per session (last opened, on any client) so the dot clears everywhere. Without this, each client keeps seen locally (a) and the two can disagree.</td><td class="w">plugin</td><td class="t"><span class="tag p0">(d)</span></td></tr>
+</tbody>
+</table>
+
+<section class="panel" style="padding: 22px 24px; display: flex; flex-direction: column; gap: 10px">
+<h3>Left out of r1</h3>
+<ul>
+<li>User-pinned or dragged worktree order needs a stored order per user (d). Creation order comes first; pinning can sit on top of it later.</li>
+<li>Auto-closing long-finished sessions, so Done rows don’t pile up in the tree, would be a new rule (d).</li>
+<li>Whether Open joins the inbox or stays chip-only. r1 shows it in the inbox when it has rows; the 20 s event had none.</li>
+</ul>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":2140}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

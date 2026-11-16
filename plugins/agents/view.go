@@ -188,7 +188,7 @@ func codeView(recs []record, bound string, sc *screen, file string) sdui.Node {
 	}
 	add := sdui.WithIconOnly(sdui.WithVariant(sdui.WithAction(sdui.Button(codeNewNode, newChat, "plus"), actCodeNew), "ghost"))
 	var opts []sdui.Option
-	for _, rec := range recs {
+	for _, rec := range slices.Backward(recs) {
 		if len(opts) < maxCodeOptions && (!rec.closed() || rec.ID == bound) {
 			opts = append(opts, sdui.Option{Value: rec.ID, Label: cmp.Or(rec.Title, newChat)})
 		}

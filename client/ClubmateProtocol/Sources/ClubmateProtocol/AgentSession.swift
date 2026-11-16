@@ -63,6 +63,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let shareLabel: String?
     public let shareWords: [String: String]
     public let shareDetail: String?
+    public let listKey: String?
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -75,7 +76,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false, group: SessionGroup? = nil, paused: Bool = false, pausedUntil: Date? = nil, active: Bool = false, kind: String? = nil, run: SessionRun? = nil,
         reviewProgress: ReviewProgress? = nil, openCount: Int = 0, openDecisions: Int = 0, openOffers: Int = 0, openSince: Date? = nil, mayAsk: Bool = false,
         repo: String? = nil, taskRows: [RepoRow] = [], taskBadge: String? = nil, archivable: Bool = false, taskFinished: Bool = false, requests: [String] = [], turns: Int = 0, rowDetail: String? = nil,
-        limitShare: [String: Double] = [:], shareLabel: String? = nil, shareWords: [String: String] = [:], shareDetail: String? = nil
+        limitShare: [String: Double] = [:], shareLabel: String? = nil, shareWords: [String: String] = [:], shareDetail: String? = nil, listKey: String? = nil
     ) {
         self.id = id
         self.workspace = workspace
@@ -139,6 +140,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.shareLabel = shareLabel
         self.shareWords = shareWords
         self.shareDetail = shareDetail
+        self.listKey = listKey
     }
 
     public var isClosed: Bool { status == .closed }
@@ -147,7 +149,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
         case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, paused, pausedUntil, active, kind, run, reviewProgress, openCount, openDecisions, openOffers, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests, turns, rowDetail
-        case limitShare, shareLabel, shareWords, shareDetail
+        case limitShare, shareLabel, shareWords, shareDetail, listKey
     }
 
     public init(from decoder: any Decoder) throws {
@@ -219,7 +221,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             limitShare: (try? c.decodeIfPresent([String: Double].self, forKey: .limitShare)) ?? [:],
             shareLabel: try optional(.shareLabel),
             shareWords: (try? c.decodeIfPresent([String: String].self, forKey: .shareWords)) ?? [:],
-            shareDetail: try optional(.shareDetail)
+            shareDetail: try optional(.shareDetail),
+            listKey: try optional(.listKey)
         )
     }
 
@@ -289,6 +292,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encodeIfPresent(shareLabel, forKey: .shareLabel)
         if !shareWords.isEmpty { try c.encode(shareWords, forKey: .shareWords) }
         try c.encodeIfPresent(shareDetail, forKey: .shareDetail)
+        try c.encodeIfPresent(listKey, forKey: .listKey)
     }
 }
 

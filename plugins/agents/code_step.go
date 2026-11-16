@@ -42,7 +42,7 @@ var (
 func defaultCodeSession(here []record) string {
 	var best *record
 	for i, rec := range here {
-		if rec.Run == nil && !rec.closed() && (best == nil || rec.UpdatedAt.After(best.UpdatedAt)) {
+		if rec.Run == nil && !rec.closed() && (best == nil || !rec.UpdatedAt.Before(best.UpdatedAt)) {
 			best = &here[i]
 		}
 	}
@@ -65,7 +65,7 @@ func stepView(sc screen, recs []record) sdui.Node {
 		sdui.MutedText(stepNoteFor(rec.Run.After)),
 	)}
 	steps := slices.DeleteFunc(slices.Clone(recs), func(r record) bool { return r.Run == nil || r.Run.ID != rec.Run.ID })
-	slices.SortStableFunc(steps, func(a, b record) int { return a.CreatedAt.Compare(b.CreatedAt) })
+	slices.SortStableFunc(steps, startedFirst)
 	for _, step := range steps {
 		state := cmp.Or(stepStates[step.Status], stepStates[statusIdle])
 		label := state.label

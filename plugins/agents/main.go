@@ -373,7 +373,7 @@ func (a *app) list(workspaceID string) []record {
 			out = append(out, a.reminders.present(rec))
 		}
 	}
-	slices.SortFunc(out, func(x, y record) int { return x.CreatedAt.Compare(y.CreatedAt) })
+	slices.SortFunc(out, startedFirst)
 	return out
 }
 

@@ -411,6 +411,7 @@ func (a *app) configCommand(ctx context.Context, cmd pluginsdk.CommandRun, args 
 
 func (a *app) sessionsCommand(ctx context.Context, cmd pluginsdk.CommandRun, args sessionsArgs) (any, error) {
 	infos := a.infos(cmd.WorkspaceID)
+	setOrder(infos, a.home(ctx, cmd.WorkspaceID))
 	if args.Since == nil {
 		return onlySession(visibleInfos(cmd, infos), args.Session), nil
 	}

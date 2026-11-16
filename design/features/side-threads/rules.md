@@ -51,7 +51,7 @@ A preview panel at the end of the aside (⌘⇧↩); nothing leaves without it. 
 6 · Keep and close
 In the aside's header: Send back ⌘⇧↩ (primary), Keep ⌘⇧K , Full page / Beside ⌘⇧\ , and × ⌥⌘⌫ at the far end. Keep: the aside leaves its parent for the top level of its worktree group, the aside glyph becomes the session glyph, “read-only” goes, the mode switches from Plan to the parent's mode, the header keeps “forked from ‹parent›”, and it stays where it is on screen. Close (⌥⌘⌫ or ×) deletes it; only when something is unsent it asks once: “Close without sending? · Send back… · Close”.
 7 · Several asides
-One aside per anchor : asking again about the same option or passage reopens it. In the tree, asides hang under their parent after the children an agent started, newest first; from three on they fold into one row “Asides · 3”. Beside shows one aside at a time; its header gets “‹ 2 of 3 ›” and ⌘] steps through them. The card marks each option that has one. On the phone the parent's title bar gets a pill “2 asides” that lists them in a sheet.
+One aside per anchor : asking again about the same option or passage reopens it. In the tree, asides hang under their parent after the children an agent started, oldest first (session order, ruled 16 Nov: a new aside goes last); from three on they fold into one row “Asides · 3”. Beside shows one aside at a time; its header gets “‹ 2 of 3 ›” and ⌘] steps through them. The card marks each option that has one. On the phone the parent's title bar gets a pill “2 asides” that lists them in a sheet.
 8 · Needs you
 An open aside doesn't count, unless it asks you itself. The plugin owns the state and the label; Mac and phone draw them.
 Aside state (plugin) Tree detail Ink Needs you
@@ -83,7 +83,7 @@ b Question card answer prop note : a per-question note under the options, prefil
 b Question card prop pinned : one question drawn as a strip — header chip, question, options as chips, the aside's option marked; picking writes to the parent's card. The plugin sends it only on the aside's full page.
 b Send back panel from existing nodes (card, select, textField, toggle, button): no new node.
 c Words: “Ask aside”, “Aside · ‹option›”, “read-only”, “Full page” / “Beside”, “‹parent› asks”, “Pick here: it answers question 1 in the parent's card…”, “Forked from the question · read everything the session knew”, “forked from ‹parent›”, “Send back”, “Answer question 1” / “Draft in its composer”, “Summary · Last message · Quote…”, “close the aside after” (on), “Keep”, “Close without sending?”.
-c Order: asides after agent-started children under a parent, newest first; fold into “Asides · N” from 3. A kept aside goes to the top level of its worktree group.
+c Order: asides after agent-started children under a parent, oldest first (session order, 16 Nov); fold into “Asides · N” from 3. A kept aside goes to the top level of its worktree group.
 d Aside session kind: fork of the parent at an anchor — {question id, option index} or {message id, range}; plan mode; parentId ; one per anchor.
 d Commands: askAside(anchor) , summarize (on request), sendBack{to: answer|draft, from: summary|last|quote, text, close = true} , keep (lifts plan mode, takes the parent's mode, reparents to the top level, keeps forkedFrom ), close (the Close Session command on an aside: delete, reports unsent first).
 d Strip answers: a pick in the pinned strip sets the parent's pending answer for that question, the same write as the card; the card and the strip stay in sync.

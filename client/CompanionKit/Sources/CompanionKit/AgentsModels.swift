@@ -91,6 +91,7 @@ extension AgentSession {
             let order = switch group {
             case .needsInput: SessionNode.waitingLonger
             case .open: SessionNode.openLonger
+            case .running, .idle: SessionNode.startedFirst
             default: SessionNode.newerFirst
             }
             guard group == .paused else { return [SessionSection(group: group, until: nil, sessions: list.sorted(by: order))] }
@@ -130,7 +131,7 @@ public struct SessionNode: Sendable, Equatable, Identifiable {
             session: session,
             children: children.sorted { a, b in
                 let (x, y) = (landing[a.id] ?? .max, landing[b.id] ?? .max)
-                return x != y ? x < y : newerFirst(a, b)
+                return x != y ? x < y : startedFirst(a, b)
             },
             group: session.group,
             updatedAt: children.map(\.updatedAt).reduce(session.updatedAt, max),
@@ -146,6 +147,12 @@ public struct SessionNode: Sendable, Equatable, Identifiable {
     static func openLonger(_ a: SessionNode, _ b: SessionNode) -> Bool {
         let (x, y) = (a.session.openSince ?? .distantFuture, b.session.openSince ?? .distantFuture)
         return x != y ? x < y : a.id < b.id
+    }
+
+    static func startedFirst(_ a: SessionNode, _ b: SessionNode) -> Bool {
+        let (x, y) = (a.session.listKey ?? "", b.session.listKey ?? "")
+        if x != y { return x < y }
+        return a.session.createdAt != b.session.createdAt ? a.session.createdAt < b.session.createdAt : a.id < b.id
     }
 
     static func newerFirst(_ a: SessionNode, _ b: SessionNode) -> Bool {

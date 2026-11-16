@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · Three directions and the pick</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f90f4f2d4879801390191beec7e5e354">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+.doc ol{margin:0;padding-left:22px}
+.doc ol li{margin:0 0 6px}
+.doc td.q{font-weight:600;width:150px}
+.doc th.rec,.doc td.rec{background:#EEF4EA}
+.doc .panel{padding:22px 24px;display:flex;flex-direction:column;gap:12px}
+</style>
+</helmet>
+<div class="doc" style="width: 1280px; height: 2000px; padding: 56px 64px; box-sizing: border-box; display: flex; flex-direction: column; gap: 32px">
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<span class="eyebrow">Clubmate · Agents order · round 1</span>
+<h1>A session list that stays still</h1>
+<p class="lead">The order jumps because three keys keep changing: rows sort newest-started first, worktree groups rank by their newest session, and Running sorts by last activity. Each direction below removes them differently. Each is drawn on the Mac sidebar (1280, Mate) and the phone list, before and after the same 20 seconds. My pick is C.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+<section class="panel">
+<h3>The 20 seconds, 20:46:28 → 20:46:49</h3>
+<ol>
+<li>Keep-awake plugin lands, and a Land review session starts on its own.</li>
+<li>Кликабельность статуса finishes: Running → Done.</li>
+<li>Ветки для ревью asks to run <code>git fetch</code>: Running → Needs you.</li>
+<li>A cron job starts Nightly: deps audit in main.</li>
+<li>Agents keep making tool calls, and one child of Поиск по номеру finishes.</li>
+</ol>
+<p class="muted">With today’s rules, main jumps above chore/awake-mac-shots (it now has the newest session) and every row in both groups moves. On the phone, Running reshuffles on every tool call, and three rows change groups.</p>
+</section>
+<section class="panel">
+<h3>C as six rules</h3>
+<ol>
+<li>Inside a group, rows go by start time, oldest first.</li>
+<li>A new session goes last under its parent. Children and Land review fold under the session that started them, for good.</li>
+<li>Groups: main first, then worktrees in the order they were created. Closed and Service stay folded at the end.</li>
+<li>State and activity never change a row’s position, only its glyph, tint and right-hand detail.</li>
+<li>Needs you (and Open, when it has rows) is mirrored in an inbox on top, longest waiting first.</li>
+<li>Nothing you can see moves on its own.</li>
+</ol>
+</section>
+</div>
+
+<table>
+<thead>
+<tr><th></th><th>A · Ledger</th><th>B · Gated feed</th><th class="rec">C · Inbox over a ledger <span class="tag a">recommended</span></th></tr>
+</thead>
+<tbody>
+<tr><td class="q">1 · Order in a group</td>
+<td>Start time, oldest first. A new session goes last under its parent; agent-started children and Land review fold under the session that started them.</td>
+<td>Start time, newest first. Running by start, never by activity; Done by finish. New rows enter at the top, behind the pill.</td>
+<td class="rec">Same as A.</td></tr>
+<tr><td class="q">2 · Order of groups</td>
+<td>main first, then worktrees in creation order. A new worktree goes last, above Closed.</td>
+<td>Same as A.</td>
+<td class="rec">Same as A. Pinning can come later; it needs a stored order (d).</td></tr>
+<tr><td class="q">3 · Tap safety</td>
+<td>Changes wait while a finger is down or the pointer moves on the list, then land 1 s later. Restyles are live.</td>
+<td>Every insert, removal and group change waits until you tap Show (⌘R), pull, or come back to the list. Restyles are live.</td>
+<td class="rec">Nothing you can see moves on its own. A change that would push a visible row waits, and a pill says what is waiting. Changes off screen land at once with scroll anchoring. Restyles are live. The queue lands when you come back, pull, tap the pill, or move the pointer off the sidebar.</td></tr>
+<tr><td class="q">4 · State groups or one list</td>
+<td>One worktree tree on both clients. State is a filter: All / Needs you / Open / Running chips on both; Needs you and Open sort longest waiting first.</td>
+<td>Keep both shapes: the phone groups by state, the Mac by worktree. A state change moves the row to its new group, behind the pill.</td>
+<td class="rec">A’s tree on both clients, plus a Needs you inbox on top, longest waiting first. Inbox rows are mirrors: the session keeps its place in the tree. Chips as in A.</td></tr>
+<tr><td class="q">The 20 s, Mac</td>
+<td>Rows above Nightly don’t move; the chore group shifts down a row.</td>
+<td>Nothing moves until ⌘R; then every line below Nightly moves.</td>
+<td class="rec">Nothing moves while the pointer is on the list. When it leaves, rows shift down; none changes order.</td></tr>
+<tr><td class="q">The 20 s, phone</td>
+<td>Chore rows shift 66 px after the finger lifts. Needs you is a chip away.</td>
+<td>Nothing moves until Show; then 6 of the 7 rows change place at once.</td>
+<td class="rec">Nothing moves while you look. The top bar reads “1 needs you · 1 new”.</td></tr>
+<tr><td class="q">What it costs</td>
+<td>The phone loses Needs you at the top, the part the user likes today. A reach to tap without touching first isn’t covered.</td>
+<td>You manage a pill, and Show brings back today’s jump, just on request. The clients still mean different things.</td>
+<td class="rec">A Needs you session shows twice. When the queue lands, inbox growth still shifts the tree, but only after you look away.</td></tr>
+</tbody>
+</table>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+<section class="panel">
+<span class="eyebrow">Recommendation</span>
+<h2>C · Inbox over a ledger</h2>
+<ul>
+<li>It removes every cause in the brief. Activity never sorts. A state change never moves a row. Reviewers stay under their lander. Groups never swap.</li>
+<li>It keeps what the phone is for: what needs me, longest waiting first, at the top. That’s the part the user is happy with today.</li>
+<li>It covers the reach to tap: rows on screen don’t move until the user looks away or asks.</li>
+<li>Both clients render one plugin tree with one meaning. Nearly all of it is plugin content (c) and renderer work (a), plus one new prop for mirror rows (b). New plugin logic (d) is only needed for the optional shared unseen dot.</li>
+</ul>
+</section>
+<section class="panel">
+<span class="eyebrow">Question 5</span>
+<h2>Seeing what changed without movement</h2>
+<ul>
+<li><b>In place, always:</b> the glyph and the right-hand detail change where they are (“Done · now”, “Wants to run git fetch”, “Land review running”). Chip and group counts update.</li>
+<li><b>Lasting:</b> an accent dot on rows whose state changed since you last opened them. It clears when you open the session on either client.</li>
+<li><b>Brief:</b> a row that changes while on screen gets a tint (amber for Needs you, accent otherwise) that fades over 1.5 s. Turned off under Reduce Motion.</li>
+<li><b>Waiting:</b> the pill names what is queued (“1 needs you · 1 new”), so the user knows something will land.</li>
+<li>Not used: moving rows to the top, animating rows into place, badges on group headers.</li>
+</ul>
+</section>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":2000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

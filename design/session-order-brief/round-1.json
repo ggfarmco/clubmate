@@ -1,0 +1,16 @@
+{
+  "title": "Session order · round 1",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 16 Nov. Three directions, drawn on the same 20 seconds from your screenshots: Keep-awake lands and starts its Land review, one session finishes, one asks for git fetch, cron starts a new session in main, agents keep calling tools.",
+    "A · Ledger: one stable worktree tree on both clients, oldest first, new sessions go last; state is only a filter chip. B · Gated feed: today's shapes with the sort fixed, every move waits behind a Show pill. C · Inbox over a ledger (designer's pick): A's tree plus a Needs you inbox on top; nothing you can see moves on its own."
+  ],
+  "boards": [
+    {"file": "R1-Directions.dc.html", "w": 1280, "title": "Directions A · B · C and the pick", "caption": "The rules of each direction, what the 20 s does, the cost, and question 5 (seeing a change without movement)."},
+    {"file": "R1-Mac-1280-Mate.dc.html", "w": 1280, "title": "Mac · 1280 · Mate · before / after", "caption": "Each direction on the Mac sidebar, before and after the same 20 s."},
+    {"file": "R1-Phone-Dark.dc.html", "w": 1640, "title": "Phone · dark · before / after", "caption": "The same 20 s on the phone list, lined up with the Mac board."},
+    {"file": "R1-Mac-640-MateLight.dc.html", "w": 2080, "title": "C · Mac · 640 · Mate light", "caption": "C holding changes while the pointer is on the list; Needs you chip and keyboard selection."},
+    {"file": "R1-Phone-Light.dc.html", "w": 1340, "title": "C · Phone · light", "caption": "A finger heading for a row that just finished: the row stays where the thumb is going."},
+    {"file": "R1-Handoff.dc.html", "w": 1280, "title": "C · handoff, tagged (a)–(d)", "caption": "20 items: mostly plugin content (c) and renderer work (a); one new prop for mirror rows (b); only the shared unseen dot needs new plugin logic (d)."}
+  ]
+}

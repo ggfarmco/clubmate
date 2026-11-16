@@ -200,7 +200,7 @@ type notifyChoice struct {
 	label  string
 }
 
-func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, now time.Time, home string, branchOpen bool, filter string, search sidebarSearch, closedExtra int, plus sidebarPlus) sdui.Node {
+func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, now time.Time, home string, worktreeOrder map[string]string, branchOpen bool, filter string, search sidebarSearch, closedExtra int, plus sidebarPlus) sdui.Node {
 	top := sdui.HStack(sdui.WithAction(sdui.Button("new", "New", "plus"), actNew), sdui.WithAction(sdui.Button("branch", "New in worktree…", "arrow.triangle.branch"), actShowBranch))
 	if branchOpen {
 		top = sdui.WithAction(sdui.Form(actNewBranch,
@@ -327,6 +327,9 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 			order = append(order, wt)
 		}
 		b.open = append(b.open, row)
+	}
+	if filter != filterNeeds {
+		slices.SortStableFunc(order, func(x, y string) int { return cmp.Compare(worktreeOrder[x], worktreeOrder[y]) })
 	}
 	var groups []sdui.TreeItem
 	for _, wt := range order {
@@ -683,7 +686,7 @@ func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[stri
 
 func asideItems(parent string, rows []sessionRow, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, path map[string]bool, oldest map[string]time.Time) []sdui.TreeItem {
 	rows = slices.Clone(rows)
-	slices.SortStableFunc(rows, func(x, y sessionRow) int { return y.Rec.CreatedAt.Compare(x.Rec.CreatedAt) })
+	slices.SortStableFunc(rows, func(x, y sessionRow) int { return startedFirst(x.Rec, y.Rec) })
 	items := make([]sdui.TreeItem, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, nestedItem(row, kids, collapsed, now, path, oldest))
@@ -738,7 +741,7 @@ func runItems(rows []sessionRow, scope string, kids map[string][]sessionRow, col
 			items = append(items, nestedItem(e.row, kids, collapsed, now, path, oldest))
 			continue
 		}
-		slices.SortStableFunc(e.rows, func(x, y sessionRow) int { return x.Rec.CreatedAt.Compare(y.Rec.CreatedAt) })
+		slices.SortStableFunc(e.rows, func(x, y sessionRow) int { return startedFirst(x.Rec, y.Rec) })
 		nodes := make([]sdui.TreeItem, 0, len(e.rows))
 		for _, row := range e.rows {
 			item := nestedItem(row, kids, collapsed, now, path, oldest)

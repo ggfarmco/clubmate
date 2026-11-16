@@ -144,6 +144,8 @@ type sessionInfo struct {
 	ShareDetail     string             `json:"shareDetail,omitempty"`
 	Aside           *asideView         `json:"aside,omitempty"`
 	CanAside        bool               `json:"canAside,omitempty"`
+	ListKey         string             `json:"listKey,omitempty"`
+	ListGroupKey    string             `json:"listGroupKey,omitempty"`
 }
 
 type sessionFailure struct {

@@ -181,7 +181,7 @@ func TestSidebarOpenFilterCountsItemsAndKeepsAMayAskRow(t *testing.T) {
 		{Rec: record{ID: "c", Status: statusDone, Worktree: "/r", MayAsk: true}},
 		{Rec: record{ID: "d", Status: statusDone, Worktree: "/r"}},
 	}
-	view := sidebarView(rows, "", nil, time.Now(), "/r", false, filterOpen, sidebarSearch{}, 0, sidebarPlus{})
+	view := sidebarView(rows, "", nil, time.Now(), "/r", nil, false, filterOpen, sidebarSearch{}, 0, sidebarPlus{})
 	require.NoError(t, internalsdui.Validate(view))
 	var tabs []sdui.Item
 	raw, _ := json.Marshal(nodesOf(view, "tabs")[0].Props["items"])

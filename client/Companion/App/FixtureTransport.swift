@@ -393,7 +393,7 @@ actor FixtureServer {
         let session = args["session"]?.stringValue ?? ""
         switch id {
         case "agents.sessions":
-            return .array((workspace == self.workspace ? sessions : others).map(JSONValue.object) + (workspace == self.workspace ? [] : runEntries))
+            return .array((workspace == self.workspace ? sessions : others).map { .object(Self.listKeyed($0)) } + (workspace == self.workspace ? [] : runEntries))
         case "agents.graph-show":
             return shownRun(args["id"]?.stringValue ?? "")
         case "agents.graph-approve":
@@ -1380,6 +1380,12 @@ actor FixtureServer {
         case "continue": .object(["id": .string("continue"), "label": .string("Hand off to a new session"), "icon": .string("arrow.turn.down.right"), "command": .string("agents.handoff"), "args": args])
         default: .object(["id": .string("retry"), "label": .string("Retry"), "icon": .string("arrow.clockwise"), "command": .string("agents.resume"), "args": args])
         }
+    }
+
+    private static func listKeyed(_ fields: [String: JSONValue]) -> [String: JSONValue] {
+        guard let created = fields["createdAt"]?.stringValue, let id = fields["id"]?.stringValue else { return fields }
+        let start = created.replacingOccurrences(of: "-", with: "").replacingOccurrences(of: ":", with: "").replacingOccurrences(of: "Z", with: ".000000000Z")
+        return fields.merging(["listKey": .string(start + " " + id)]) { $1 }
     }
 
     private static func stamp(ago seconds: TimeInterval) -> JSONValue {

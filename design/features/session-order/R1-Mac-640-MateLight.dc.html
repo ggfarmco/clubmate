@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · C on the Mac at 640, Mate light</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f90f4f2d4879801390191beec7e5e354">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.cm figure{margin:0}
+.cm .w640{width:640px;height:800px;border:1px solid var(--bd2);border-radius:10px;overflow:hidden;box-shadow:var(--sh);flex:none}
+.cm .chips{display:flex;flex-wrap:wrap;gap:4px;padding:8px 8px 4px;flex:none}
+.cm .chips .badge,.cm .phead .badge{border:0}
+.cm .badge.on{background:var(--prs);color:var(--fg)}
+.cm .badge.wa.on{background:var(--wa-bg);color:var(--wa-i);box-shadow:inset 0 0 0 1px var(--wa-bd)}
+.cm .sec.gapt,.cm .row.gapt{margin-top:6px}
+.cm .row>.d{max-width:92px;overflow:hidden;text-overflow:ellipsis}
+.cm .row.hl-wa{background:var(--wa-bg)}
+.cm .row.hl-ac{background:var(--ac-bg)}
+.cm .udot{width:6px;height:6px;border-radius:3px;background:var(--ac);flex:none;display:inline-block}
+</style>
+</helmet>
+<div class="cm th-{{theme}}" style="width: 2080px; height: 1160px; padding: 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+<header style="height: 64px; display: flex; flex-direction: column; gap: 4px; flex: none">
+<span class="h">C · Inbox over a ledger · Mac 640 · Mate light</span>
+<span class="t2">Same 20 s. <span class="udot"></span> changed since you last opened it · tint: changed just now, fades in 1.5 s · pill: changes waiting for the pointer to leave</span>
+</header>
+<div style="display: flex; gap: 40px; align-items: flex-start">
+<sc-for list="{{frames}}" as="f" hint-placeholder-count="3">
+<figure style="display: flex; flex-direction: column; gap: 8px; width: 640px; flex: none">
+<figcaption class="cap" style="height: 16px"><span class="b">{{f.t}}</span> <span class="mut">{{f.sub}}</span></figcaption>
+<div class="w640">
+<div class="win">
+<header class="tb">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="pill" style="flex: 0 1 auto; min-width: 0"><span class="mdot id-blue"></span><span class="ell">clubmate</span><span class="faint">/</span><span class="ell">main</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="pill" aria-label="Notifications: 2 need you"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">2</span></button>
+</header>
+<div class="body" style="grid-template-columns: 40px 248px minmax(0, 1fr)">
+<nav class="rail" aria-label="Sections">
+<button class="ri" aria-label="Code ⌘1"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button>
+<button class="ri" aria-label="Terminals ⌘2"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button>
+<button class="ri on" aria-label="Agents ⌘3, 2 need you"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="bdg"></span></button>
+<button class="ri" aria-label="Backlog ⌘4"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button>
+<button class="ri" aria-label="Cron ⌘6"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button>
+</nav>
+<aside class="side" aria-label="Agent sessions">
+<div class="phead">
+<span class="ttl">Agents</span>
+<span style="flex: 1"></span>
+<sc-if value="{{f.hasPill}}" hint-placeholder-val="{{false}}"><button class="badge ac">{{f.pill}}</button></sc-if>
+<button class="btn ico sm gh" aria-label="Filter /"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg></button>
+<button class="btn ico sm gh" aria-label="New session ⌘N"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
+</div>
+<div class="chips"><sc-for list="{{f.chips}}" as="c" hint-placeholder-count="4"><button class="badge {{c.cls}}">{{c.l}}</button></sc-for></div>
+<div style="display: flex; flex-direction: column; padding: 0 4px">
+<sc-for list="{{f.lines}}" as="l" hint-placeholder-count="12">
+<sc-if value="{{l.sec}}" hint-placeholder-val="{{false}}"><div class="sec {{l.cls}}"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="{{l.icon}}"/></svg><span class="ell" style="flex: 1">{{l.label}}</span><span>{{l.count}}</span></div></sc-if>
+<sc-if value="{{l.row}}" hint-placeholder-val="{{true}}"><div class="row {{l.cls}}"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="{{l.chev}}"/></svg><svg class="i {{l.gt}}" viewBox="0 0 16 16" aria-hidden="true"><path d="{{l.gd}}"/></svg><span class="l">{{l.title}}</span><span class="d cap {{l.dt}}">{{l.detail}}</span><sc-if value="{{l.dot}}" hint-placeholder-val="{{false}}"><span class="udot"></span></sc-if></div></sc-if>
+<sc-if value="{{l.fold}}" hint-placeholder-val="{{false}}"><div class="row {{l.cls}}"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="{{l.icon}}"/></svg><span class="l">{{l.label}}</span><span class="d cap">{{l.count}}</span></div></sc-if>
+</sc-for>
+</div>
+</aside>
+<main class="main">
+<sc-if value="{{f.chat}}" hint-placeholder-val="{{true}}">
+<div style="display: flex; flex-direction: column; padding: 6px 8px; border-bottom: 1px solid var(--bd); flex: none; min-width: 0">
+<div style="display: flex; align-items: center; gap: 8px; min-width: 0; height: 24px">
+<button class="btn ico sm gh" aria-label="Hide sessions ⌘B"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg></button>
+<h1 class="ttl ell" style="margin: 0; flex: 1 1 auto">Agents: cron, triggers, graphs, gates</h1>
+</div>
+<div class="mut cap ell" style="padding-left: 28px">Claude · main · 49 min ago</div>
+</div>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; padding: 0 16px 12px">
+<p>Landed as <code>9ee5f929</code>. Cleaning up the leftover check worktree.</p>
+<p>Graphs and Land gates now live inside Agents, and it’s in main as one commit.</p>
+<p class="mut">Tests: all Go tests, the test linter, and the Mac and phone kit tests pass.</p>
+</div>
+</sc-if>
+<sc-if value="{{f.perm}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; flex-direction: column; padding: 6px 8px; border-bottom: 1px solid var(--bd); flex: none; min-width: 0">
+<div style="display: flex; align-items: center; gap: 8px; min-width: 0; height: 24px">
+<button class="btn ico sm gh" aria-label="Hide sessions ⌘B"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg></button>
+<h1 class="ttl ell" style="margin: 0; flex: 1 1 auto">Ветки для ревью</h1>
+<span class="badge wa">waiting</span>
+</div>
+<div class="mut cap ell" style="padding-left: 28px">Claude · main · Auto</div>
+</div>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; padding: 0 16px 12px">
+<p>Checking which review branches went stale. I need the remote state first.</p>
+</div>
+<div style="padding: 0 16px 8px; flex: none">
+<section class="card" aria-label="Permission request" style="padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; border-color: var(--wa-bd); background: color-mix(in srgb, var(--wa) 7%, var(--bg))">
+<div style="display: flex; align-items: center; gap: 8px; min-width: 0">
+<svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="M8 5.5v3M8 10.8v.1"/></svg>
+<span class="b">Run a command?</span>
+</div>
+<div style="background: var(--bg); border: 1px solid var(--bd); border-radius: 5px; padding: 2px 10px">git fetch origin --prune</div>
+<div class="abar">
+<button class="btn pri">Allow once<span class="kbd">⌥1</span></button>
+<button class="btn">Always…<span class="kbd">⌥2</span></button>
+<button class="btn dg">Reject<span class="kbd">⌥3</span></button>
+</div>
+</section>
+</div>
+</sc-if>
+<div style="padding: 0 16px 12px; flex: none">
+<div class="card" style="display: flex; flex-direction: column">
+<span class="faint" style="padding: 8px 12px 0; min-height: 40px">Reply, / for commands, @ for files</span>
+<div style="display: flex; align-items: center; gap: 4px; padding: 4px 6px 6px 6px">
+<button class="btn sm gh">Auto<svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="btn sm">Send<span class="kbd">⏎</span></button>
+</div>
+</div>
+</div>
+</main>
+</div>
+<footer class="sb">
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span>
+<span>8 agents · <span class="wa-i">2 need you</span></span>
+<span style="flex: 1"></span>
+<span>⌘R show waiting · ⌘K</span>
+</footer>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px; padding-top: 8px">
+<span class="b">{{f.head}}</span>
+<p class="t2">{{f.note}}</p>
+</div>
+</figure>
+</sc-for>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["kanagawa","onedark","latte","mate","matelight"],"default":"matelight"},"$preview":{"width":2080,"height":1160}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const CIR = 'M2 8a6 6 0 1 0 12 0a6 6 0 1 0-12 0';
+    const G = {
+      run: [CIR + 'M6.8 5.6v4.8L10.5 8Z', 'ac-i', 'ac-i'],
+      done: [CIR + 'M5.5 8.2l1.8 1.8 3.3-3.6', 'mut', ''],
+      need: [CIR + 'M8 4.8v3.8M8 11.1v.1', 'wa-i', 'wa-i']
+    };
+    const RIGHT = 'm6 3.5 4.5 4.5L6 12.5';
+    const BR = 'M3 3.5a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0M3 12.5a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0M10 5a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5';
+    const INB = 'M1.5 9h3.5l1 2h4l1-2h3.5M1.5 9l2-5.5h9l2 5.5v4.5h-13Z';
+    const ARC = 'M2 3.5h12v3H2ZM3 6.5v6.5h10V6.5M6.5 9h3';
+    const SVC = 'M8 5.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5ZM8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4';
+    const WT = 'chore/awake-mac-shots';
+    const M = {
+      m1: ['done', 'Корневые сущности в реестре', '1 h ago'],
+      m2: ['done', 'Agents: cron, triggers, graphs, gates', '49 min ago', true],
+      m3: ['need', 'Ветки для ревью', 'Wants to run · now'],
+      m4: ['run', 'Keep-awake plugin (Amphetamine)', 'Land review running', true],
+      m5: ['run', 'Поиск по номеру', 'Waiting for 1 child', true],
+      n: ['run', 'Nightly: deps audit', 'cron · now'],
+      c1: ['need', 'Отображение текста в превью', 'Asks · 3 min'],
+      c2: ['done', 'Кликабельность статуса', 'now']
+    };
+    const r = (k, o) => {
+      const a = M[k];
+      const g = G[a[0]];
+      const x = o || {};
+      return {
+        sec: false, row: true, fold: false, label: '', count: '', icon: '',
+        gd: g[0], gt: g[1], dt: g[2], title: a[1], detail: x.detail || a[2],
+        chev: (a[3] && !x.mirror) ? RIGHT : '', cls: x.cls || '', dot: !!x.dot
+      };
+    };
+    const s = (label, count, icon, first) => ({
+      sec: true, row: false, fold: false, label: label, count: String(count), icon: icon || BR,
+      cls: first ? '' : 'gapt', gd: '', gt: '', dt: '', title: '', detail: '', chev: '', dot: false
+    });
+    const folds = [
+      { sec: false, row: false, fold: true, label: 'Closed', count: '280', icon: ARC, cls: 'gapt', dot: false },
+      { sec: false, row: false, fold: true, label: 'Service', count: '1', icon: SVC, cls: '', dot: false }
+    ];
+    const SEL = { cls: 'sel' };
+    const ch1 = [{ l: 'All 8', cls: 'on' }, { l: 'Needs you 2', cls: 'wa' }, { l: 'Open 0', cls: '' }, { l: 'Running 3', cls: '' }];
+    const chNY = [{ l: 'All 8', cls: '' }, { l: 'Needs you 2', cls: 'wa on' }, { l: 'Open 0', cls: '' }, { l: 'Running 3', cls: '' }];
+    const c1m = { mirror: true, detail: 'chore · 3 min' };
+
+    const held = [s('Needs you', 1, INB, true), r('c1', c1m), s('main', 5), r('m1'), r('m2', SEL), r('m3', { cls: 'hl-wa', dot: true }), r('m4'), r('m5'), s(WT, 2), r('c1'), r('c2', { cls: 'hl-ac', dot: true })].concat(folds);
+    const applied = [s('Needs you', 2, INB, true), r('c1', c1m), r('m3', { mirror: true, detail: 'main · now', cls: 'hl-wa', dot: true }), s('main', 6), r('m1'), r('m2', SEL), r('m3', { dot: true }), r('m4'), r('m5'), r('n', { cls: 'hl-ac', dot: true }), s(WT, 2), r('c1'), r('c2', { dot: true })].concat(folds);
+    const filtered = [s('Needs you · longest waiting first', 2, INB, true), r('c1', c1m), r('m3', { mirror: true, detail: 'main · now', cls: 'sel', dot: true })];
+
+    const frames = [
+      { t: '20:46:49', sub: 'pointer on the list · held', chips: ch1, lines: held, hasPill: true, pill: '2 to show ⌘R', chat: true, perm: false,
+        head: 'Restyles land, moves wait.',
+        note: 'Ветки and Кликабельность change glyph and detail where they are, with a dot and a 1.5 s tint. The inbox copy of Ветки and the new Nightly row would push rows under the pointer, so they wait in the header pill.' },
+      { t: '20:46:51', sub: 'pointer left · applied', chips: ch1, lines: applied, hasPill: false, pill: '', chat: true, perm: false,
+        head: 'The queue lands when the pointer leaves.',
+        note: 'Inbox: Отображение (3 min) then Ветки (now), longest waiting first. Nightly lands last in main with an accent tint. Agents: cron stays selected and in its place; the main pane never changes on its own.' },
+      { t: '20:47:05', sub: 'Needs you chip · ↓ to Ветки', chips: chNY, lines: filtered, hasPill: false, pill: '', chat: false, perm: true,
+        head: 'The filter and the keyboard keep working.',
+        note: 'The Needs you chip shows the inbox on its own, in the same order. Selection follows the session id, so Ветки is one session whether you pick it here, in the inbox, or in the tree.' }
+    ];
+    return { theme: this.props.theme ?? 'matelight', frames: frames };
+  }
+}
+</script>
+</body>
+</html>

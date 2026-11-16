@@ -79,7 +79,7 @@ func TestReviewersHaveNoRowUnlessTheyAskOrNothingLinksThem(t *testing.T) {
 	rows := rowsOf(recs)
 	rows[0].Landing = &landingView{Words: "review…", Tone: "accent"}
 
-	tree := sidebarView(rows, "", map[string]bool{}, now, "/r/a", false, filterAll, sidebarSearch{}, 0, sidebarPlus{})
+	tree := sidebarView(rows, "", map[string]bool{}, now, "/r/a", nil, false, filterAll, sidebarSearch{}, 0, sidebarPlus{})
 	require.NoError(t, internalsdui.Validate(tree))
 	items := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
 	require.Equal(t, []string{"agt_l"}, ids(items))
@@ -94,8 +94,8 @@ func TestReviewersHaveNoRowUnlessTheyAskOrNothingLinksThem(t *testing.T) {
 	tabs := nodesOf(tree, "tabs")[0].Props["items"].([]sdui.Item)
 	assert.Equal(t, []string{"1", "1", "1"}, []string{tabs[0].Badge, tabs[1].Badge, tabs[3].Badge})
 
-	alone := sidebarView(rowsOf([]record{review("agt_x", "rel", statusDone, true)})[0:0], "", nil, now, "/r/a", false, filterAll, sidebarSearch{}, 0, sidebarPlus{})
-	hidden := sidebarView(rowsOf([]record{lander, review("agt_hid", "rel", statusClosed, true)})[1:], "", nil, now, "/r/a", false, filterAll, sidebarSearch{}, 0, sidebarPlus{})
+	alone := sidebarView(rowsOf([]record{review("agt_x", "rel", statusDone, true)})[0:0], "", nil, now, "/r/a", nil, false, filterAll, sidebarSearch{}, 0, sidebarPlus{})
+	hidden := sidebarView(rowsOf([]record{lander, review("agt_hid", "rel", statusClosed, true)})[1:], "", nil, now, "/r/a", nil, false, filterAll, sidebarSearch{}, 0, sidebarPlus{})
 	assert.Equal(t, alone, hidden)
 }
 

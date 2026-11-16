@@ -68,6 +68,24 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(old[0].group, .idle)
     }
 
+    func testRunningDoneAndChildrenKeepThePluginsStartOrder() throws {
+        let json = #"""
+        [
+          {"id":"b","status":"running","group":"running","listKey":"20261116T100002.000000000Z b","updatedAt":"2026-11-16T09:00:00Z"},
+          {"id":"a","status":"running","group":"running","listKey":"20261116T100001.000000000Z a","updatedAt":"2026-11-16T11:00:00Z"},
+          {"id":"kid2","parentSession":"a","status":"running","group":"running","listKey":"20261116T100004.000000000Z kid2","updatedAt":"2026-11-16T12:00:00Z"},
+          {"id":"kid1","parentSession":"a","status":"done","group":"done","listKey":"20261116T100003.000000000Z kid1"},
+          {"id":"new","status":"done","group":"done","createdAt":"2026-11-16T10:00:09Z","updatedAt":"2026-11-16T10:00:09Z"},
+          {"id":"old","status":"done","group":"done","createdAt":"2026-11-16T10:00:08Z","updatedAt":"2026-11-16T12:00:00Z"}
+        ]
+        """#
+        let groups = AgentSession.grouped(try JSONDecoder.clubmate.decode([AgentSession].self, from: Data(json.utf8)))
+        XCTAssertEqual(groups.map(\.group), [.running, .idle])
+        XCTAssertEqual(groups[0].sessions.map(\.id), ["a", "b"])
+        XCTAssertEqual(groups[0].sessions[0].children.map(\.id), ["kid1", "kid2"])
+        XCTAssertEqual(groups[1].sessions.map(\.id), ["old", "new"])
+    }
+
     func testGroupsTreesByThePluginsGroupOfTheirRoot() throws {
         let json = #"""
         [

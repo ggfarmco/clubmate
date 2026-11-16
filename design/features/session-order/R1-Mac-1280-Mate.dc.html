@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r1 · Mac sidebar · three directions</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f90f4f2d4879801390191beec7e5e354">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.cm figure{margin:0}
+.cm .crop{width:288px;height:740px;display:grid;grid-template-columns:40px 248px;border:1px solid var(--bd2);border-radius:10px;overflow:hidden;box-shadow:var(--sh);flex:none;background:var(--s1)}
+.cm .crop .side{border-right:0}
+.cm .chips{display:flex;flex-wrap:wrap;gap:4px;padding:8px 8px 4px;flex:none}
+.cm .chips .badge,.cm .phead .badge{border:0}
+.cm .badge.on{background:var(--prs);color:var(--fg)}
+.cm .sec.gapt,.cm .row.gapt{margin-top:6px}
+.cm .row>.d{max-width:92px;overflow:hidden;text-overflow:ellipsis}
+.cm .row.hl-wa{background:var(--wa-bg)}
+.cm .row.hl-ac{background:var(--ac-bg)}
+.cm .udot{width:6px;height:6px;border-radius:3px;background:var(--ac);flex:none}
+.cm .log{display:flex;flex-direction:column;gap:12px}
+.cm .ev{display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:8px;align-items:start}
+.cm .ev .n{color:var(--t3);font-weight:600}
+.cm .ev p{color:var(--t2)}
+.cm .ev .badge{margin-top:4px}
+</style>
+</helmet>
+<div class="cm th-{{theme}}" style="width: 1280px; height: 3264px; padding: 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 40px">
+<header style="height: 64px; display: flex; flex-direction: column; gap: 4px; flex: none">
+<span class="h">Mac · 1280 · Mate · Agents sidebar</span>
+<span class="t2">The same 20 s in every direction, 20:46:28 → 20:46:49. Workspace clubmate, worktrees main and chore/awake-mac-shots.</span>
+</header>
+<sc-for list="{{dirs}}" as="dir" hint-placeholder-count="3">
+<section style="height: 1000px; flex: none; display: flex; flex-direction: column; gap: 16px; border-top: 1px solid var(--bd2); padding-top: 20px; box-sizing: border-box">
+<div style="height: 64px; display: flex; flex-direction: column; gap: 4px; flex: none">
+<div style="display: flex; align-items: center; gap: 10px"><span class="h">{{dir.name}}</span><sc-if value="{{dir.rec}}" hint-placeholder-val="{{false}}"><span class="badge ac">recommended</span></sc-if></div>
+<p class="t2" style="max-width: 1100px">{{dir.rule}}</p>
+</div>
+<div style="display: flex; gap: 24px; align-items: flex-start">
+<sc-for list="{{dir.frames}}" as="f" hint-placeholder-count="2">
+<figure style="display: flex; flex-direction: column; gap: 8px; flex: none">
+<figcaption class="cap" style="height: 16px"><span class="b">{{f.t}}</span> <span class="mut">{{f.sub}}</span></figcaption>
+<div class="crop">
+<nav class="rail" aria-label="Sections">
+<button class="ri" aria-label="Code ⌘1"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button>
+<button class="ri" aria-label="Terminals ⌘2"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button>
+<button class="ri on" aria-label="Agents ⌘3"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="bdg"></span></button>
+<button class="ri" aria-label="Backlog ⌘4"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button>
+</nav>
+<aside class="side" aria-label="Agent sessions">
+<div class="phead">
+<span class="ttl">Agents</span>
+<span style="flex: 1"></span>
+<sc-if value="{{f.hasPill}}" hint-placeholder-val="{{false}}"><button class="badge ac">{{f.pill}}</button></sc-if>
+<button class="btn ico sm gh" aria-label="Filter /"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg></button>
+<button class="btn ico sm gh" aria-label="New session ⌘N"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
+</div>
+<div class="chips"><sc-for list="{{f.chips}}" as="c" hint-placeholder-count="4"><button class="badge {{c.cls}}">{{c.l}}</button></sc-for></div>
+<div style="display: flex; flex-direction: column; padding: 0 4px">
+<sc-for list="{{f.lines}}" as="l" hint-placeholder-count="12">
+<sc-if value="{{l.sec}}" hint-placeholder-val="{{false}}"><div class="sec {{l.cls}}"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="{{l.icon}}"/></svg><span class="ell" style="flex: 1">{{l.label}}</span><span>{{l.count}}</span></div></sc-if>
+<sc-if value="{{l.row}}" hint-placeholder-val="{{true}}"><div class="row {{l.cls}}"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="{{l.chev}}"/></svg><svg class="i {{l.gt}}" viewBox="0 0 16 16" aria-hidden="true"><path d="{{l.gd}}"/></svg><span class="l">{{l.title}}</span><span class="d cap {{l.dt}}">{{l.detail}}</span><sc-if value="{{l.dot}}" hint-placeholder-val="{{false}}"><span class="udot"></span></sc-if></div></sc-if>
+<sc-if value="{{l.fold}}" hint-placeholder-val="{{false}}"><div class="row {{l.cls}}"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="{{l.icon}}"/></svg><span class="l">{{l.label}}</span><span class="d cap">{{l.count}}</span></div></sc-if>
+</sc-for>
+</div>
+</aside>
+</div>
+</figure>
+</sc-for>
+<div class="log" style="flex: 1 1 auto; min-width: 0; padding-top: 24px">
+<span class="cap mut">What the 20 s did</span>
+<sc-for list="{{dir.log}}" as="e" hint-placeholder-count="5">
+<div class="ev"><span class="n">{{e.n}}</span><div><p>{{e.t}}</p><span class="badge {{e.cls}}">{{e.v}}</span></div></div>
+</sc-for>
+<div class="card" style="padding: 10px 12px; margin-top: 6px"><p>{{dir.score}}</p></div>
+</div>
+</div>
+</section>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["kanagawa","onedark","latte","mate","matelight"],"default":"mate"},"$preview":{"width":1280,"height":3264}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const CIR = 'M2 8a6 6 0 1 0 12 0a6 6 0 1 0-12 0';
+    const G = {
+      run: [CIR + 'M6.8 5.6v4.8L10.5 8Z', 'ac-i', 'ac-i'],
+      done: [CIR + 'M5.5 8.2l1.8 1.8 3.3-3.6', 'mut', ''],
+      need: [CIR + 'M8 4.8v3.8M8 11.1v.1', 'wa-i', 'wa-i']
+    };
+    const RIGHT = 'm6 3.5 4.5 4.5L6 12.5';
+    const BR = 'M3 3.5a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0M3 12.5a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0M10 5a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5';
+    const INB = 'M1.5 9h3.5l1 2h4l1-2h3.5M1.5 9l2-5.5h9l2 5.5v4.5h-13Z';
+    const ARC = 'M2 3.5h12v3H2ZM3 6.5v6.5h10V6.5M6.5 9h3';
+    const SVC = 'M8 5.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5ZM8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4';
+    const WT = 'chore/awake-mac-shots';
+    const M = {
+      m1: [['done', 'Корневые сущности в реестре', '1 h ago'], ['done', 'Корневые сущности в реестре', '1 h ago']],
+      m2: [['done', 'Agents: cron, triggers, graphs, gates', '49 min ago', true], ['done', 'Agents: cron, triggers, graphs, gates', '49 min ago', true]],
+      m3: [['run', 'Ветки для ревью', 'next check 20:47'], ['need', 'Ветки для ревью', 'Wants to run · now']],
+      m4: [['run', 'Keep-awake plugin (Amphetamine)', 'Landing…'], ['run', 'Keep-awake plugin (Amphetamine)', 'Land review running', true]],
+      m5: [['run', 'Поиск по номеру', 'Waiting for 2 children', true], ['run', 'Поиск по номеру', 'Waiting for 1 child', true]],
+      n: [null, ['run', 'Nightly: deps audit', 'cron · now']],
+      c1: [['need', 'Отображение текста в превью', 'Asks · 3 min'], ['need', 'Отображение текста в превью', 'Asks · 3 min']],
+      c2: [['run', 'Кликабельность статуса', 'go test · 9 min'], ['done', 'Кликабельность статуса', 'now']]
+    };
+    const r = (k, ph, o) => {
+      const a = M[k][ph];
+      const g = G[a[0]];
+      const x = o || {};
+      return {
+        sec: false, row: true, fold: false, label: '', count: '', icon: '',
+        gd: g[0], gt: g[1], dt: g[2], title: a[1], detail: x.detail || a[2],
+        chev: (a[3] && !x.mirror) ? RIGHT : '', cls: x.cls || '', dot: !!x.dot
+      };
+    };
+    const s = (label, count, icon, first) => ({
+      sec: true, row: false, fold: false, label: label, count: String(count), icon: icon || BR,
+      cls: first ? '' : 'gapt', gd: '', gt: '', dt: '', title: '', detail: '', chev: '', dot: false
+    });
+    const folds = [
+      { sec: false, row: false, fold: true, label: 'Closed', count: '280', icon: ARC, cls: 'gapt', dot: false },
+      { sec: false, row: false, fold: true, label: 'Service', count: '1', icon: SVC, cls: '', dot: false }
+    ];
+    const L = (arr) => arr.concat(folds);
+    const SEL = { cls: 'sel' };
+    const ch0 = [{ l: 'All 7', cls: 'on' }, { l: 'Needs you 1', cls: 'wa' }, { l: 'Open 0', cls: '' }, { l: 'Running 4', cls: '' }];
+    const ch1 = [{ l: 'All 8', cls: 'on' }, { l: 'Needs you 2', cls: 'wa' }, { l: 'Open 0', cls: '' }, { l: 'Running 3', cls: '' }];
+    const F = (t, sub, chips, lines, pill) => ({ t: t, sub: sub, chips: chips, lines: lines, hasPill: !!pill, pill: pill || '' });
+    const E = (n, t, v, cls) => ({ n: n, t: t, v: v, cls: cls });
+    const c1m = { mirror: true, detail: 'chore · 3 min' };
+
+    const A = {
+      name: 'A · Ledger', rec: false,
+      rule: 'One stable tree on both clients. Rows by start time, oldest first; a new session goes last under its parent. Groups: main, then worktrees by creation. State is a filter (the chips), never a position. Changes wait while the pointer moves on the list, then land 1 s after it stops.',
+      frames: [
+        F('20:46:28', 'before', ch0, L([s('main', 5, BR, true), r('m1', 0), r('m2', 0, SEL), r('m3', 0), r('m4', 0), r('m5', 0), s(WT, 2), r('c1', 0), r('c2', 0)])),
+        F('20:46:49', 'after · pointer stopped 1 s', ch1, L([s('main', 6, BR, true), r('m1', 1), r('m2', 1, SEL), r('m3', 1), r('m4', 1), r('m5', 1), r('n', 1), s(WT, 2), r('c1', 1), r('c2', 1)]))
+      ],
+      log: [
+        E('1', 'Keep-awake lands and Land review starts on its own. It folds under its lander, which now says “Land review running”.', 'no new row', 'ok'),
+        E('2', 'Кликабельность статуса finishes. The glyph turns to a check in place.', 'stays', 'ok'),
+        E('3', 'Ветки для ревью asks to run git fetch. Amber glyph and detail in place; the chip reads Needs you 2.', 'stays', 'ok'),
+        E('4', 'Cron starts Nightly: deps audit. It goes last in main.', 'chore group moves 1 row', 'wa'),
+        E('5', 'Tool calls; one child of Поиск по номеру finishes. Detail text only.', 'stays', 'ok')
+      ],
+      score: 'Rows above the new session: 0 moved. Below it, the chore group and the folds shift down one row (20 px). Nothing changes order.'
+    };
+
+    const B = {
+      name: 'B · Gated feed', rec: false,
+      rule: 'Keep today’s shapes, fix the keys. Rows newest-started first; Running by start, never by activity. Every insert, removal or group change waits behind a pill until you click it (⌘R) or come back to Agents. Restyles are live.',
+      frames: [
+        F('20:46:28', 'before', ch0, L([s('main', 5, BR, true), r('m5', 0), r('m4', 0), r('m3', 0), r('m2', 0, SEL), r('m1', 0), s(WT, 2), r('c2', 0), r('c1', 0)])),
+        F('20:46:49', 'held · pill in the header', ch1, L([s('main', 5, BR, true), r('m5', 1), r('m4', 1), r('m3', 1), r('m2', 1, SEL), r('m1', 1), s(WT, 2), r('c2', 1), r('c1', 1)]), '1 to show ⌘R'),
+        F('⌘R', 'applied on request', ch1, L([s('main', 6, BR, true), r('n', 1), r('m5', 1), r('m4', 1), r('m3', 1), r('m2', 1, SEL), r('m1', 1), s(WT, 2), r('c2', 1), r('c1', 1)]))
+      ],
+      log: [
+        E('1', 'Land review folds under Keep-awake.', 'no new row', 'ok'),
+        E('2', 'Check glyph in place.', 'stays', 'ok'),
+        E('3', 'Amber glyph and detail in place.', 'stays', 'ok'),
+        E('4', 'Nightly waits behind “1 to show”. On ⌘R it goes to the top of main.', 'held, then main moves', 'wa'),
+        E('5', 'Detail text only.', 'stays', 'ok')
+      ],
+      score: 'Until you click: 0 moved. When you do, every line below Nightly moves down a row: today’s jump, on request. The next new session does it again.'
+    };
+
+    const C = {
+      name: 'C · Inbox over a ledger', rec: true,
+      rule: 'The ledger from A, plus a Needs you inbox on top that mirrors rows, longest waiting first; the rows also keep their place in the tree. Nothing you can see moves on its own: changes that would move a visible row wait while the pointer is on the list, and land when it leaves (or on ⌘R).',
+      frames: [
+        F('20:46:28', 'before', ch0, L([s('Needs you', 1, INB, true), r('c1', 0, c1m), s('main', 5), r('m1', 0), r('m2', 0, SEL), r('m3', 0), r('m4', 0), r('m5', 0), s(WT, 2), r('c1', 0), r('c2', 0)])),
+        F('20:46:49', 'pointer on the list · held', ch1, L([s('Needs you', 1, INB, true), r('c1', 1, c1m), s('main', 5), r('m1', 1), r('m2', 1, SEL), r('m3', 1, { cls: 'hl-wa', dot: true }), r('m4', 1), r('m5', 1), s(WT, 2), r('c1', 1), r('c2', 1, { cls: 'hl-ac', dot: true })]), '2 to show ⌘R'),
+        F('20:46:51', 'pointer left · applied', ch1, L([s('Needs you', 2, INB, true), r('c1', 1, c1m), r('m3', 1, { mirror: true, detail: 'main · now', cls: 'hl-wa', dot: true }), s('main', 6), r('m1', 1), r('m2', 1, SEL), r('m3', 1, { dot: true }), r('m4', 1), r('m5', 1), r('n', 1, { cls: 'hl-ac', dot: true }), s(WT, 2), r('c1', 1), r('c2', 1, { dot: true })]))
+      ],
+      log: [
+        E('1', 'Land review folds under Keep-awake.', 'no new row', 'ok'),
+        E('2', 'Check in place, dot, 1.5 s tint.', 'stays', 'ok'),
+        E('3', 'Amber in place, dot, tint. Its inbox copy waits.', 'held', 'ac'),
+        E('4', 'Nightly waits; the header pill reads 2 to show.', 'held', 'ac'),
+        E('5', 'Detail text only.', 'stays', 'ok')
+      ],
+      score: 'Pointer on the list: 0 moved. Pointer leaves: Ветки joins the inbox under Отображение (longest waiting first) and Nightly lands last in main. Rows shift down; none changes order.'
+    };
+
+    return { theme: this.props.theme ?? 'mate', dirs: [A, B, C] };
+  }
+}
+</script>
+</body>
+</html>

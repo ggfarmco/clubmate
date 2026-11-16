@@ -240,11 +240,12 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 		}
 		return nil
 	}
+	home, _, _ := workRoot(workspace)
 	recs := a.list(workspaceID)
 	children := childStatuses(recs)
 	kids := kidsOf(recs)
-	slices.Reverse(recs)
-	recs = recs[:min(len(recs), maxSidebarRows)]
+	groups := groupKeys(recs, home)
+	recs = sidebarWindow(recs)
 	selected, err := a.resolveSelected(ctx, workspaceID, recs)
 	if err != nil {
 		return err
@@ -301,8 +302,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	if search.query != "" {
 		search.results = a.search(workspaceID, search.query)
 	}
-	home, _, _ := workRoot(workspace)
-	if err := a.push(ctx, p, workspaceID, sidebarSlot, sidebarView(rows, selected, collapsed, time.Now(), home, branchOpen, filter, search, closedExtra, graphs.plus(dock))); err != nil {
+	if err := a.push(ctx, p, workspaceID, sidebarSlot, sidebarView(rows, selected, collapsed, time.Now(), home, groups, branchOpen, filter, search, closedExtra, graphs.plus(dock))); err != nil {
 		return err
 	}
 	var shown *screen
@@ -691,10 +691,7 @@ func (a *app) resolveSelected(ctx context.Context, workspaceID string, recs []re
 		a.uiMu.Lock()
 		back := p.back
 		a.uiMu.Unlock()
-		resolved = ""
-		if i := slices.IndexFunc(recs, func(r record) bool { return !r.restricted() && r.GateFor == nil }); i >= 0 {
-			resolved = recs[i].ID
-		}
+		resolved = newestPick(recs)
 		if pageID(selected) && slices.ContainsFunc(recs, func(r record) bool { return r.ID == back }) {
 			resolved = back
 		}
