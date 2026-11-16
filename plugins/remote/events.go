@@ -27,6 +27,11 @@ const (
 	resumeMaxAge    = 12 * time.Hour
 
 	pluginChangedTopic = "plugin.changed"
+
+	closeClient   = "client"
+	closeRevoked  = "revoked"
+	closeShutdown = "shutdown"
+	closeError    = "error"
 )
 
 var (
@@ -59,6 +64,7 @@ type stream struct {
 	watch   map[string][]string
 	done    chan struct{}
 	once    sync.Once
+	reason  string
 }
 
 type wireEvent struct {
@@ -116,6 +122,7 @@ func (h *hub) publish(ev pluginsdk.Event) {
 		case st.events <- ev:
 		default:
 			st.lagging = true
+			logEvent("stream lag", "device", logID(st.device))
 			select {
 			case st.lagged <- struct{}{}:
 			default:
@@ -135,7 +142,7 @@ func (h *hub) revoke(device string) {
 	defer h.mu.Unlock()
 	for st := range h.streams {
 		if st.device == device {
-			st.stop()
+			st.stopWith(closeRevoked)
 		}
 	}
 }
@@ -144,7 +151,7 @@ func (h *hub) closeAll() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for st := range h.streams {
-		st.stop()
+		st.stopWith(closeShutdown)
 	}
 }
 
@@ -164,7 +171,14 @@ func (h *hub) connectedLocked(device string) bool {
 }
 
 func (st *stream) stop() {
-	st.once.Do(func() { close(st.done) })
+	st.stopWith(closeError)
+}
+
+func (st *stream) stopWith(reason string) {
+	st.once.Do(func() {
+		st.reason = reason
+		close(st.done)
+	})
 }
 
 func (s *server) events(w http.ResponseWriter, r *http.Request, d device) {
@@ -178,10 +192,20 @@ func (s *server) events(w http.ResponseWriter, r *http.Request, d device) {
 	valid := func() bool { return s.devices.valid(d) }
 	st, ok := s.hub.open(d.ID, valid)
 	if !ok {
+		logEvent("auth", "device", logID(d.ID), "path", r.URL.Path, "err", "revoked")
 		writeError(w, http.StatusUnauthorized, codeUnauthorized, "unknown or revoked device token")
 		return
 	}
 	defer s.closeStream(r.Context(), st)
+	opened, reason := s.now(), closeError
+	resumeAt := "live"
+	if resume {
+		resumeAt = strconv.FormatInt(after, 10)
+	}
+	logEvent("stream open", "device", logID(d.ID), "resume", resumeAt)
+	defer func() {
+		logEvent("stream close", "device", logID(d.ID), "lived", strconv.Itoa(int(s.now().Sub(opened).Seconds()))+"s", "reason", reason)
+	}()
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -199,6 +223,7 @@ func (s *server) events(w http.ResponseWriter, r *http.Request, d device) {
 		case err != nil:
 			return
 		case stale:
+			logEvent("stream reset", "device", logID(d.ID), "head", strconv.FormatInt(head, 10))
 			if !s.send(rc, w, resetSSEFrame(head)) {
 				return
 			}
@@ -214,8 +239,10 @@ func (s *server) events(w http.ResponseWriter, r *http.Request, d device) {
 	for {
 		select {
 		case <-r.Context().Done():
+			reason = closeClient
 			return
 		case <-st.done:
+			reason = st.reason
 			return
 		case <-st.lagged:
 			if seen, err = s.catchUp(r.Context(), rc, w, st, seen); err != nil {
@@ -236,7 +263,11 @@ func (s *server) events(w http.ResponseWriter, r *http.Request, d device) {
 				}
 			}
 		case <-ping.C:
-			if !valid() || !s.send(rc, w, ": ping\n\n") {
+			if !valid() {
+				reason = closeRevoked
+				return
+			}
+			if !s.send(rc, w, ": ping\n\n") {
 				return
 			}
 		}

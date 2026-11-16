@@ -16,6 +16,24 @@ final class RemoteClientTests: XCTestCase {
         XCTAssertEqual(transport.requests.last?.value(forHTTPHeaderField: "Authorization"), "Bearer cmt_x")
     }
 
+    func testReportSendsTheWireContractWithBase64FilesAndALongTimeout() async throws {
+        let transport = FakeTransport(reply: { _ in (FakeTransport.result(#"{"id":"r-9"}"#), 200) })
+        let client = RemoteClient(hosts: ["100.64.0.2"], port: 47621, token: "t", transport: transport)
+
+        let id = try await client.report(text: "Can't connect", mac: true, files: [("phone/events.log", Data("abc".utf8))], requestId: "req-1", device: DeviceIdentity(id: "d", name: "Cali's iPhone", model: "iPhone18,1"), appVersion: "1.0+7")
+
+        XCTAssertEqual(id, "r-9")
+        let request = try XCTUnwrap(transport.requests.first)
+        XCTAssertGreaterThan(request.timeoutInterval, 120)
+        let body = try JSONDecoder().decode(JSONValue.self, from: try XCTUnwrap(request.httpBody))
+        XCTAssertEqual(body["method"], .string("report"))
+        XCTAssertEqual(body["params"], .object([
+            "requestId": .string("req-1"), "text": .string("Can't connect"), "mac": .bool(true), "appVersion": .string("1.0+7"),
+            "device": .string("Cali's iPhone"), "model": .string("iPhone18,1"),
+            "files": .array([.object(["name": .string("phone/events.log"), "data": .string("YWJj")])]),
+        ]))
+    }
+
     func testHelloProbesEachHostBrieflyExceptTheLast() async throws {
         let transport = FakeTransport(reply: { request in
             guard request.url?.host() == "100.64.0.3" else { throw URLError(.timedOut) }

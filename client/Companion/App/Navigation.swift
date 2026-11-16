@@ -13,6 +13,13 @@ struct VoiceDockFrame: Equatable {
     var frame: CGRect
 }
 
+struct ReportSheet: Identifiable, Hashable {
+    let computer: String
+    let about: String?
+
+    var id: String { computer + "|" + (about ?? "") }
+}
+
 struct OpenDoc: Identifiable, Hashable {
     let computer: String
     let workspace: String
@@ -28,6 +35,7 @@ final class AppNavigation {
     var detail: String?
     var macDetails: String?
     var connectionSheet: ConnectionSheet?
+    var reportSheet: ReportSheet?
     var needsYouList = false
     var workspaces: [String: String] = [:]
     var newTaskWorkspaces: [String: String] = [:]

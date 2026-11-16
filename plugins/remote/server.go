@@ -131,6 +131,7 @@ type helloResult struct {
 	Topics   []string `json:"topics"`
 	UI       bool     `json:"ui"`
 	Requests bool     `json:"requests"`
+	Reports  bool     `json:"reports"`
 }
 
 type workspaceInfo struct {
@@ -139,6 +140,8 @@ type workspaceInfo struct {
 	Folders []pluginsdk.Folder `json:"folders"`
 	Roots   []string           `json:"roots"`
 }
+
+type deviceCtxKey struct{}
 
 type authedHandler func(w http.ResponseWriter, r *http.Request, d device)
 
@@ -171,11 +174,13 @@ func (s *server) pair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !validDevice(req.Device) {
+		logEvent("pair", "result", "invalid")
 		writeError(w, http.StatusBadRequest, codeInvalidParams, "device id, name and model must be at most 128 characters; id is required")
 		return
 	}
-	gen, ok := s.pairing.redeem(req.Code, remoteHost(r.RemoteAddr))
-	if !ok {
+	gen, result := s.pairing.try(req.Code, remoteHost(r.RemoteAddr))
+	logEvent("pair", "result", result)
+	if result != pairOK {
 		writeError(w, http.StatusForbidden, codePairingFailed, "the pairing code is wrong, expired or already used")
 		return
 	}
@@ -205,15 +210,17 @@ func (s *server) authed(next authedHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if !ok || token == "" {
+			logEvent("auth", "device", "-", "path", r.URL.Path, "err", "missing")
 			writeError(w, http.StatusUnauthorized, codeUnauthorized, "missing device token")
 			return
 		}
 		d, ok := s.devices.authenticate(r.Context(), token)
 		if !ok {
+			logEvent("auth", "device", "-", "path", r.URL.Path, "err", "unknown")
 			writeError(w, http.StatusUnauthorized, codeUnauthorized, "unknown or revoked device token")
 			return
 		}
-		next(w, r, d)
+		next(w, r.WithContext(withDevice(r.Context(), d)), d)
 	}
 }
 
@@ -223,10 +230,14 @@ func (s *server) rpc(w http.ResponseWriter, r *http.Request, d device) {
 	_ = rc.SetWriteDeadline(time.Now().Add(requestTimeout))
 	var req rpcRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusOK, errorBody{Error: apiError{Code: codeInvalidParams, Message: "invalid request body"}})
+		api := &apiError{Code: codeInvalidParams, Message: "invalid request body"}
+		s.logRPC(d, rpcRequest{Method: "-"}, 0, api)
+		writeJSON(w, http.StatusOK, errorBody{Error: *api})
 		return
 	}
+	started := s.now()
 	result, err := s.call(r.Context(), d, req)
+	s.logRPC(d, req, s.now().Sub(started), err)
 	if err != nil {
 		writeJSON(w, http.StatusOK, errorBody{Error: toAPIError(err)})
 		return
@@ -284,6 +295,12 @@ func (s *server) call(ctx context.Context, d device, req rpcRequest) (any, error
 			return nil, err
 		}
 		return nil, s.uiWatch(ctx, d, p)
+	case "report":
+		var p phoneReportRequest
+		if err := decodeParams(req.Params, &p); err != nil {
+			return nil, err
+		}
+		return s.report(ctx, d, p)
 	}
 	return nil, &apiError{Code: codeNotAllowed, Message: "unknown method: " + req.Method}
 }
@@ -297,7 +314,7 @@ func (s *server) hello(ctx context.Context) (helloResult, error) {
 	if err != nil {
 		return helloResult{}, err
 	}
-	return helloResult{Computer: s.identity.get(), Version: version, Commands: cmds, Topics: slices.Clone(forwardedTopics), UI: true, Requests: true}, nil
+	return helloResult{Computer: s.identity.get(), Version: version, Commands: cmds, Topics: slices.Clone(forwardedTopics), UI: true, Requests: true, Reports: true}, nil
 }
 
 func (s *server) workspaces(ctx context.Context) ([]workspaceInfo, error) {
@@ -421,6 +438,34 @@ func (s *server) coreVersion(ctx context.Context) (string, error) {
 	s.version = version
 	s.cacheMu.Unlock()
 	return version, nil
+}
+
+func (s *server) logRPC(d device, req rpcRequest, took time.Duration, err error) {
+	if err == nil && took < slowRPC {
+		return
+	}
+	kv := []string{"device", logID(d.ID), "method", req.Method}
+	if req.Method == "command" {
+		var p struct {
+			ID string `json:"id"`
+		}
+		_ = json.Unmarshal(req.Params, &p)
+		kv = append(kv, "id", p.ID)
+	}
+	kv = append(kv, "ms", logMillis(took))
+	if err != nil {
+		kv = append(kv, "err", toAPIError(err).Code)
+	}
+	logEvent("rpc", kv...)
+}
+
+func withDevice(ctx context.Context, d device) context.Context {
+	return context.WithValue(ctx, deviceCtxKey{}, d.ID)
+}
+
+func logDevice(ctx context.Context) string {
+	id, _ := ctx.Value(deviceCtxKey{}).(string)
+	return logID(id)
 }
 
 func (e *apiError) Error() string {

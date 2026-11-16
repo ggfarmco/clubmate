@@ -12,6 +12,18 @@ Args: `text` (the user's words, required), `summary` (the agent's account), `ses
 
 Result: `{sent: true, id}`, or `{sent: false, reason: "cancelled" | "timed out"}`. The sheet waits 10 minutes. When the calling agent's call goes away first (a cancelled tool call, the MCP server exiting), the core sends `ui.report.cancelled {id}` and the app closes the sheet with a banner that the agent stopped waiting (one still waiting its turn just leaves the queue); nothing is sent. No app, or no window to show it on → `no app to show the report`. No rule, AFK mode or orchestrator skips the sheet.
 
+## From the phone: `report.submit`
+
+The Companion's Report a Problem screen sends a report through the Mac it is about, by the phone's outbox (RPC `report`, see [Remote § Wire contract](remote.md#wire-contract-v1)). The `remote` plugin hands it to the core method `report.submit`, which refuses every other caller ("report.submit is only for the remote plugin"). There is no sheet on the Mac: the user checked the files on the phone.
+
+Params: `text` (required, up to 20 KiB), `device` and `model` (the paired device's, from its token), `appVersion` (the phone app's), `mac` (add the Mac's part), `files` (up to 20 `{name, data}`, `data` base64).
+
+1. Every name must be `phone/` and up to 64 of `a-z 0-9 . _ -`, not starting with `.` (so no `..`, `.git` or sub-folders), and listed once. A bad name, more than 20 files or a blank text is refused before anything is written.
+2. With `mac: true` the core adds only `info.json`, `logs/core.log`, `logs/plugins/*.log` and `plugins.json`. Never `sessions.json`, `workspaces.json`, UI state or `settings.json`.
+3. It writes `report.json` with `source: "phone"`, `device` and `model`, zips the files under `<state>/diagnostics/report-….zip`, checks the 25 MiB limit and uploads with `remote.report-upload`. The zip is removed on every outcome.
+
+Result: `{id}`, the relay's report id. On the relay the report is trusted with the Mac's name like any report from that Mac; `remote.reports-fetch` shows the `phone/…` files next to the Mac's logs. The Mac shows no notification for it; the `remote` plugin's `remote.log` records it.
+
 ## Trust
 
 Every report is signed with the install's own Ed25519 key, created on first use. A Mac with a push-relay token (`remote.set-push-relay`) also sends it to that relay, and the report arrives **trusted** with the Mac's name. Without one it goes to `https://clubmate-push.exe.xyz` as **anonymous**, known only by its key (`key ab12cd34`).

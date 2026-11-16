@@ -231,6 +231,7 @@ struct QueuedLine: View {
     let item: QueuedAction
     let queuedLine: String
     var sendAgain: (() -> Void)? = nil
+    var report: (() -> Void)? = nil
     let remove: () -> Void
 
     var body: some View {
@@ -262,10 +263,17 @@ struct QueuedLine: View {
                         .textSelection(.enabled)
                         .accessibilityIdentifier("queuedText")
                 }
-                if let resend {
+                if resend != nil || (report != nil && item.canDismiss) {
                     HStack(spacing: 20) {
-                        Button("Send again", action: resend)
-                            .font(.subheadline.weight(.semibold))
+                        if let resend {
+                            Button("Send again", action: resend)
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        if let report {
+                            Button("Report…", action: report)
+                                .font(.subheadline)
+                                .accessibilityIdentifier("queued.report")
+                        }
                         Button("Dismiss", action: remove)
                             .font(.subheadline)
                             .tint(Color.captionInk)
@@ -275,7 +283,7 @@ struct QueuedLine: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            if resend == nil, item.canUndo || item.canDismiss {
+            if resend == nil, !(report != nil && item.canDismiss), item.canUndo || item.canDismiss {
                 Button(item.canUndo ? "Undo" : "Dismiss", action: remove)
                     .font(.subheadline.weight(.semibold))
                     .frame(minHeight: 44)
@@ -852,6 +860,7 @@ struct PendingRepoRow: View {
 
 struct QueueSection: View {
     @Environment(CompanionModel.self) private var model
+    @Environment(AppNavigation.self) private var navigation
     @Binding var failure: String?
 
     var body: some View {
@@ -859,7 +868,7 @@ struct QueueSection: View {
         if !queue.items.isEmpty || !queue.notes.isEmpty {
             Section("Queued") {
                 ForEach(queue.items) { item in
-                    QueuedLine(item: item, queuedLine: model.connection(item.computer)?.queuedLine ?? "Queued", sendAgain: sendAgain(item)) {
+                    QueuedLine(item: item, queuedLine: model.connection(item.computer)?.queuedLine ?? "Queued", sendAgain: sendAgain(item), report: report(item)) {
                         queue.cancel(item)
                     }
                 }
@@ -871,8 +880,17 @@ struct QueueSection: View {
         }
     }
 
+    private func report(_ item: QueuedAction) -> (() -> Void)? {
+        guard item.kind != .report, item.failure != nil || item.mayHaveRun else { return nil }
+        return { navigation.reportSheet = ReportSheet(computer: item.computer, about: item.line(queued: item.title) + " · " + item.detail) }
+    }
+
     private func sendAgain(_ item: QueuedAction) -> (() -> Void)? {
-        guard item.canResend, let store = model.backlog(computer: item.computer, workspace: item.workspace) else { return nil }
+        guard item.canResend else { return nil }
+        if item.kind == .report {
+            return { attempt($failure) { try model.resendReport(item) } }
+        }
+        guard let store = model.backlog(computer: item.computer, workspace: item.workspace) else { return nil }
         return { attempt($failure) { try await store.sendAgain(item) } }
     }
 }

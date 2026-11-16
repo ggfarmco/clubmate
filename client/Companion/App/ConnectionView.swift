@@ -12,6 +12,7 @@ struct ConnectionView: View {
     let computerID: String
     @Environment(CompanionModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppNavigation.self) private var navigation
     @State private var check: ConnectionCheck?
     @State private var copied = false
 
@@ -76,6 +77,9 @@ struct ConnectionView: View {
         .navigationTitle("Connection")
         .navigationBarTitleDisplayMode(.inline)
         .navigationSubtitle(connection.computer.name + " · " + connection.presence)
+        .sheet(item: Binding(get: { navigation.reportSheet }, set: { navigation.reportSheet = $0 })) { sheet in
+            ReportView(sheet: sheet)
+        }
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") { dismiss() }
@@ -90,6 +94,10 @@ struct ConnectionView: View {
                             copied = false
                         }
                     }
+                    Button("Report a Problem…", systemImage: "exclamationmark.bubble") {
+                        navigation.reportSheet = ReportSheet(computer: computerID, about: nil)
+                    }
+                    .accessibilityIdentifier("connection.report")
                 } label: {
                     Image(systemName: "ellipsis")
                 }

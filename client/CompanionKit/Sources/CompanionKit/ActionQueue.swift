@@ -6,6 +6,7 @@ public struct QueuedAction: Codable, Sendable, Equatable, Identifiable {
         case connect
         case archive
         case command
+        case report
     }
 
     public var id = UUID().uuidString
@@ -29,6 +30,8 @@ public struct QueuedAction: Codable, Sendable, Equatable, Identifiable {
     public var place: String?
     public var text: String?
     public var deduped: Bool?
+    public var reportFiles: [String]?
+    public var reportMac: Bool?
 
     public init(computer: String, workspace: String, session: String, kind: Kind, title: String, request: String? = nil, seen: String? = nil, answers: [ConnectAnswer] = [], choices: [ArchiveChoice] = []) {
         self.computer = computer
@@ -56,6 +59,10 @@ public struct QueuedAction: Codable, Sendable, Equatable, Identifiable {
     }
 
     public static let sessionTarget = "session/"
+    public static let reportTarget = "report"
+    public static let reportTitle = "Problem report"
+    public static let mayHaveGoneThrough = "may have gone through"
+    public static let reportFilesGone = "Its files are gone from this phone · Dismiss it and report again"
     static let checkOnMac = "Check it on the Mac"
     public static let changedOnMac = "Changed on the Mac"
 
@@ -80,13 +87,15 @@ extension QueuedAction {
     }
 
     public func line(queued: String) -> String {
+        if kind == .report, let failure { return title + (failure == Self.mayHaveGoneThrough ? " " + failure : " didn't go through") }
         if let failure { return title + (failure == QueuedAction.checkOnMac ? " may have run" : " didn't go through") }
         if mayHaveRun { return title + " may have run" }
         return nextTry == nil ? queued : title + " · trying again"
     }
 
     public var detail: String {
-        failure ?? (mayHaveRun ? "Check it on the Mac" : title)
+        if kind == .report, failure == Self.mayHaveGoneThrough { return "The Mac never confirmed it · Send again may send a copy" }
+        return failure ?? (mayHaveRun ? "Check it on the Mac" : title)
     }
 }
 
@@ -121,18 +130,21 @@ public final class ActionQueue {
     public static let retryDelay: Duration = .seconds(5)
 
     @ObservationIgnored private let file: URL?
+    @ObservationIgnored private let reports: URL?
     @ObservationIgnored private let now: @MainActor () -> Date
     @ObservationIgnored private var flushing: Set<String> = []
     @ObservationIgnored private var sending: Set<String> = []
     @ObservationIgnored public var onLanded: (@MainActor (Landed) -> Void)?
+    @ObservationIgnored public var onEvent: (@MainActor (QueuedAction, String) -> Void)?
 
     private struct Saved: Codable {
         var items: [QueuedAction]
         var notes: [QueueNote]
     }
 
-    public init(file: URL?, now: @escaping @MainActor () -> Date = { Date.now }) {
+    public init(file: URL?, reports: URL? = nil, now: @escaping @MainActor () -> Date = { Date.now }) {
         self.file = file
+        self.reports = reports
         self.now = now
         if let saved = file.flatMap({ try? Data(contentsOf: $0) }).flatMap({ try? JSONDecoder.clubmate.decode(Saved.self, from: $0) }) {
             items = saved.items
@@ -145,6 +157,63 @@ public final class ActionQueue {
         items.removeAll { $0.matches(item) }
         items.append(item)
         persist()
+        emit("queued", item)
+    }
+
+    public func enqueueReport(computer: String, text: String, files: [ReportFile], mac: Bool) throws -> QueuedAction {
+        var item = QueuedAction(computer: computer, workspace: "", session: "", kind: .report, title: QueuedAction.reportTitle)
+        item.place = QueuedAction.reportTarget
+        item.text = text
+        item.reportMac = mac
+        let kept = files.filter(\.checked)
+        item.reportFiles = kept.map(\.name)
+        let folder = try reportFolder(item.id)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            for file in kept {
+                let url = folder.appending(path: file.name)
+                try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try file.data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+            }
+        } catch {
+            try? FileManager.default.removeItem(at: folder)
+            throw error
+        }
+        enqueue(item)
+        return item
+    }
+
+    public func resendReport(_ item: QueuedAction) throws {
+        guard let old = current(item.id), old.kind == .report, old.canResend else { return }
+        var fresh = old
+        fresh.id = UUID().uuidString
+        fresh.at = now()
+        fresh.failure = nil
+        fresh.attempted = false
+        fresh.deduped = nil
+        fresh.tries = 0
+        fresh.nextTry = nil
+        try FileManager.default.moveItem(at: try reportFolder(old.id), to: try reportFolder(fresh.id))
+        items.removeAll { $0.id == old.id }
+        enqueue(fresh)
+    }
+
+    private func reportFolder(_ id: String) throws -> URL {
+        guard let reports else { throw CocoaError(.fileNoSuchFile) }
+        return reports.appending(path: id, directoryHint: .isDirectory)
+    }
+
+    private func reportData(_ item: QueuedAction) throws -> [(name: String, data: Data)] {
+        let folder = try reportFolder(item.id)
+        return try (item.reportFiles ?? []).map { ($0, try Data(contentsOf: folder.appending(path: $0))) }
+    }
+
+    private func sweepReports() {
+        guard let reports, let folders = try? FileManager.default.contentsOfDirectory(atPath: reports.path) else { return }
+        let kept = Set(items.filter { $0.kind == .report }.map(\.id))
+        for name in folders where !kept.contains(name) {
+            try? FileManager.default.removeItem(at: reports.appending(path: name))
+        }
     }
 
     public func writes(computer: String, workspace: String) -> [QueuedAction] {
@@ -159,6 +228,7 @@ public final class ActionQueue {
         sending.insert(id)
         defer { sending.remove(id) }
         markAttempted(id, deduped: runner.dedupes)
+        emit("sending", id: id)
         do {
             let result = try await runner.command(item.command, workspace: item.workspace, args: item.sendArgs, requestId: id)
             land(id, result)
@@ -167,17 +237,25 @@ public final class ActionQueue {
             markAttempted(id, false)
             return nil
         } catch RemoteError.server(let code, _) where code == ServerReason.stale && item.seen != nil {
-            refuse(id, QueuedAction.changedOnMac)
+            refuse(id, QueuedAction.changedOnMac, event: Self.failed(code))
             return nil
         } catch RemoteError.server(let code, let message) where runner.dedupes && !ServerReason.final(code) {
-            backOff(id, message)
+            backOff(id, message, code: code)
             return nil
         } catch let error where runner.dedupes && Self.outcomeLost(error) {
             return nil
         } catch {
+            emit(Self.failed(EventLog.shortCode(error)), id: id)
             items.removeAll { $0.id == id }
             persist()
             throw error
+        }
+    }
+
+    static func retriesReport(_ error: RemoteError) -> Bool {
+        switch error {
+        case .unreachable, .http, .badResponse: true
+        default: false
         }
     }
 
@@ -199,6 +277,7 @@ public final class ActionQueue {
 
     public func cancel(_ item: QueuedAction) {
         guard let current = current(item.id), current.canUndo || current.canDismiss else { return }
+        emit(current.canUndo ? "undone" : "dismissed", current)
         items.removeAll { $0.id == item.id }
         persist()
     }
@@ -246,7 +325,7 @@ public final class ActionQueue {
         var out = Flushed()
         while let item = items.first(where: { $0.computer == computer && !tried.contains($0.id) && !sending.contains($0.id) && due($0) && !held($0) }) {
             tried.insert(item.id)
-            guard supports(item.command) else {
+            guard item.kind == .report || supports(item.command) else {
                 if supports(AgentCommand.sessions), !item.noted { noteTooOld(item) }
                 continue
             }
@@ -259,17 +338,27 @@ public final class ActionQueue {
                     out.landed.append(landed)
                     onLanded?(landed)
                 }
+            } catch RemoteError.server(let code, let message) where item.kind == .report {
+                if code == ServerReason.unknown {
+                    refuse(item.id, QueuedAction.mayHaveGoneThrough, event: Self.mayHaveRun)
+                } else if ServerReason.final(code) {
+                    refuse(item.id, message, event: Self.failed(code))
+                } else {
+                    backOff(item.id, message, code: code)
+                }
+            } catch let error as RemoteError where item.kind == .report && Self.retriesReport(error) {
+                backOff(item.id, error.message, code: EventLog.shortCode(error))
             } catch RemoteError.server(let code, let message) where ServerReason.drops(code) && item.kind == .command {
-                refuse(item.id, code == ServerReason.unknown ? QueuedAction.checkOnMac : code == ServerReason.stale && item.seen != nil ? QueuedAction.changedOnMac : message)
+                refuse(item.id, code == ServerReason.unknown ? QueuedAction.checkOnMac : code == ServerReason.stale && item.seen != nil ? QueuedAction.changedOnMac : message, event: Self.failed(code))
                 out.touched.insert(item.workspace)
             } catch RemoteError.server(let code, let message) where ServerReason.drops(code) {
-                drop(item.id, note: Self.staleNote(item, code: code, message))
+                drop(item.id, note: Self.staleNote(item, code: code, message), event: Self.failed(code))
                 out.touched.insert(item.workspace)
             } catch RemoteError.server(let code, let message) where ServerReason.final(code) {
-                refuse(item.id, message)
+                refuse(item.id, message, event: Self.failed(code))
                 out.touched.insert(item.workspace)
-            } catch RemoteError.server(_, let message) {
-                backOff(item.id, message)
+            } catch RemoteError.server(let code, let message) {
+                backOff(item.id, message, code: code)
             } catch {
                 return out
             }
@@ -296,10 +385,11 @@ public final class ActionQueue {
         switch item.kind {
         case .command:
             if item.mayHaveRun {
-                refuse(id, QueuedAction.checkOnMac)
+                refuse(id, QueuedAction.checkOnMac, event: Self.mayHaveRun)
                 return (true, nil)
             }
             markAttempted(id, deduped: runner.dedupes)
+            emit("sending", id: id)
             let result = try await runner.command(item.command, workspace: item.workspace, args: item.sendArgs, requestId: id)
             return (true, land(id, result))
         case .connect:
@@ -307,18 +397,34 @@ public final class ActionQueue {
                 let sessions = try await runner.command(AgentCommand.sessions, workspace: item.workspace, args: .object(["session": .string(item.session)]), as: [AgentSession].self)
                 guard current(id) != nil else { return (false, nil) }
                 guard let request = item.request, sessions.first?.requests.contains(request) == true else {
-                    drop(id, note: Self.answeredNote(item))
+                    drop(id, note: Self.answeredNote(item), event: Self.failed(ServerReason.answered))
                     return (true, nil)
                 }
             }
             markAttempted(id, deduped: runner.dedupes)
+            emit("sending", id: id)
             _ = try await runner.command(TaskCommand.connectAnswer, workspace: item.workspace, args: item.connectArgs, requestId: id)
-            drop(id, note: nil)
+            drop(id, note: nil, event: Self.landed)
         case .archive:
             markAttempted(id, deduped: runner.dedupes)
+            emit("sending", id: id)
             let result = try await runner.command(TaskCommand.archive, workspace: item.workspace, args: item.archiveArgs, requestId: id)
             let kept = result["kept"]?.arrayValue?.compactMap(\.stringValue) ?? []
-            drop(id, note: kept.isEmpty ? nil : ([item.title + " ran; some of it stayed:"] + kept).joined(separator: "\n"))
+            drop(id, note: kept.isEmpty ? nil : ([item.title + " ran; some of it stayed:"] + kept).joined(separator: "\n"), event: Self.landed)
+        case .report:
+            guard runner.reports else {
+                refuse(id, "Update Clubmate on \(runner.macName) to send reports", event: Self.failed("no-reports"))
+                return (false, nil)
+            }
+            guard let files = try? reportData(item) else {
+                refuse(id, QueuedAction.reportFilesGone, event: Self.failed("files-missing"))
+                return (false, nil)
+            }
+            markAttempted(id, deduped: runner.dedupes)
+            emit("sending", id: id)
+            let report = try await runner.report(text: item.text ?? "", mac: item.reportMac ?? false, files: files, requestId: id)
+            drop(id, note: "\(item.title) sent · \(report)", event: Self.landed)
+            return (false, nil)
         }
         return (true, nil)
     }
@@ -326,6 +432,7 @@ public final class ActionQueue {
     @discardableResult
     private func land(_ id: String, _ result: JSONValue) -> Landed? {
         guard let item = current(id) else { return nil }
+        emit(Self.landed, item)
         items.removeAll { $0.id == id }
         if item.seen != nil, let cursor = result["cursor"]?.stringValue {
             for i in items.indices where items[i].seen != nil && !items[i].attempted && items[i].computer == item.computer && items[i].workspace == item.workspace && items[i].target == item.target {
@@ -336,24 +443,29 @@ public final class ActionQueue {
         return Landed(item: item, result: result, at: now())
     }
 
-    private func refuse(_ id: String, _ message: String) {
+    private func refuse(_ id: String, _ message: String, event: String) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         items[index].failure = message
         items[index].nextTry = nil
         persist()
+        emit(message == QueuedAction.checkOnMac ? Self.mayHaveRun : event, items[index])
     }
 
-    private func backOff(_ id: String, _ message: String) {
+    private func backOff(_ id: String, _ message: String, code: String) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         items[index].tries += 1
         let tries = items[index].tries
         if tries >= Self.maxTries {
             items[index].failure = message
             items[index].nextTry = nil
+            persist()
+            emit(Self.failed(code), items[index])
         } else {
-            items[index].nextTry = now().addingTimeInterval(min(Self.firstWait * pow(2, Double(tries - 1)), Self.longestWait))
+            let wait = min(Self.firstWait * pow(2, Double(tries - 1)), Self.longestWait)
+            items[index].nextTry = now().addingTimeInterval(wait)
+            persist()
+            emit("retry try=\(tries) wait=\(Int(wait))s", items[index])
         }
-        persist()
     }
 
     private func markAttempted(_ id: String, _ attempted: Bool = true, deduped: Bool? = nil) {
@@ -370,11 +482,27 @@ public final class ActionQueue {
         persist()
     }
 
-    private func drop(_ id: String, note: String?) {
+    private func drop(_ id: String, note: String?, event: String) {
         guard let item = current(id) else { return }
+        emit(event, item)
         items.removeAll { $0.id == id }
         if let note { notes.append(QueueNote(computer: item.computer, session: item.session, text: note)) }
         persist()
+    }
+
+    static let landed = "landed"
+    static let mayHaveRun = "may-have-run"
+
+    static func failed(_ code: String) -> String {
+        code == ServerReason.unknown ? mayHaveRun : "failed code=" + code
+    }
+
+    private func emit(_ event: String, id: String) {
+        if let item = current(id) { emit(event, item) }
+    }
+
+    private func emit(_ event: String, _ item: QueuedAction) {
+        onEvent?(item, "\(event) cmd=\(item.command) target=\(item.target) req=\(EventLog.requestTag(item.id))")
     }
 
     static func answeredNote(_ item: QueuedAction) -> String {
@@ -387,6 +515,7 @@ public final class ActionQueue {
     }
 
     private func persist() {
+        sweepReports()
         guard let file else { return }
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -423,7 +552,7 @@ public enum ServerReason {
 
 extension QueuedAction {
     func matches(_ other: QueuedAction) -> Bool {
-        kind != .command && session == other.session && kind == other.kind && request == other.request
+        kind != .command && kind != .report && session == other.session && kind == other.kind && request == other.request
     }
 
     var command: String {
@@ -431,6 +560,7 @@ extension QueuedAction {
         case .connect: TaskCommand.connectAnswer
         case .archive: TaskCommand.archive
         case .command: name ?? ""
+        case .report: "report"
         }
     }
 

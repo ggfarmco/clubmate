@@ -29,8 +29,8 @@ public final class CompanionModel {
     @ObservationIgnored private var retrying: Set<String> = []
     @ObservationIgnored public private(set) var pushToken: PushToken?
 
-    public init(store: ComputerStore, transport: any HTTPTransport, device: DeviceIdentity, policy: HostPolicy = .tailnet, cursors: UserDefaults? = nil, queueFile: URL? = nil, listsDir: URL? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
-        queue = ActionQueue(file: queueFile)
+    public init(store: ComputerStore, transport: any HTTPTransport, device: DeviceIdentity, policy: HostPolicy = .tailnet, cursors: UserDefaults? = nil, queueFile: URL? = nil, reportsDir: URL? = nil, listsDir: URL? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+        queue = ActionQueue(file: queueFile, reports: reportsDir)
         lists = ListCache(dir: listsDir)
         self.store = store
         self.transport = transport
@@ -46,6 +46,9 @@ public final class CompanionModel {
             let key = landed.item.computer + "|" + landed.item.workspace
             self?.backlogs[key]?.landed(landed)
             self?.agents[key]?.landed(landed)
+        }
+        queue.onEvent = { [weak self] item, line in
+            self?.connections[item.computer]?.note(.outbox, line)
         }
     }
 
@@ -201,7 +204,7 @@ public final class CompanionModel {
     private func attach(_ computer: Computer) {
         let saved = cursors?.object(forKey: Self.cursorKey(computer.id)) as? Int
         lists.allow(computer: computer.id)
-        let connection = ComputerConnection(computer: computer, token: store.token(for: computer.id), transport: transport, policy: policy, lastEventID: saved, cache: lists, sleep: sleep)
+        let connection = ComputerConnection(computer: computer, token: store.token(for: computer.id), transport: transport, policy: policy, lastEventID: saved, cache: lists, device: device, sleep: sleep)
         connections[computer.id] = connection
         observers[computer.id] = connection.observe { [weak self] signal in
             self?.route(signal, from: computer.id)
@@ -280,6 +283,23 @@ public final class CompanionModel {
             store.handle(signal)
         }
         received?(computer, signal)
+    }
+
+    public func reportFiles(computer: String, screenshot: Data?) -> [ReportFile] {
+        guard let connection = connections[computer] else { return [] }
+        return ProblemReport.files(connection: connection, queue: queue, device: device, appVersion: connection.appVersion, screenshot: screenshot)
+    }
+
+    @discardableResult
+    public func sendReport(computer: String, text: String, files: [ReportFile], mac: Bool) throws -> QueuedAction {
+        let item = try queue.enqueueReport(computer: computer, text: text, files: files, mac: mac)
+        if let connection = connections[computer], connection.state == .online { flushQueue(connection) }
+        return item
+    }
+
+    public func resendReport(_ item: QueuedAction) throws {
+        try queue.resendReport(item)
+        if let connection = connections[item.computer], connection.state == .online { flushQueue(connection) }
     }
 
     private func flushQueue(_ connection: ComputerConnection) {

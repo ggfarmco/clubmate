@@ -753,6 +753,44 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(wait(for: app.descendants(matching: .any)["connection.step.hello"], "label CONTAINS 'no address answered'"))
     }
 
+    func testReportQueuesWhileOfflineAndListsFiles() {
+        let app = launch(open: "report", ["-offline", "4"])
+        let text = app.descendants(matching: .any)["report.text"]
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.switches["report.mac"].exists)
+        let events = app.buttons["report.file.phone/events.log"]
+        XCTAssertTrue(events.waitForExistence(timeout: 5))
+        XCTAssertTrue(events.isSelected)
+        let outbox = app.buttons["report.file.phone/outbox.json"]
+        XCTAssertFalse(outbox.isSelected)
+        XCTAssertTrue(outbox.label.contains("contains what you typed"), outbox.label)
+        let offline = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS 'is offline'"), object: app.staticTexts["report.status"])
+        XCTAssertEqual(XCTWaiter().wait(for: [offline], timeout: 30), .completed)
+        let send = app.buttons["report.send"]
+        XCTAssertFalse(send.isEnabled)
+        text.tap()
+        text.typeText("Can't connect")
+        send.tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Problem report'")).firstMatch.waitForExistence(timeout: 10))
+        add(screenshot(app, "report-queued"))
+        let undo = app.buttons["Undo"]
+        undo.tap()
+        XCTAssertTrue(wait(for: undo, "exists == false"))
+    }
+
+    func testReportOpensOverTheConnectionSheetAndCancelKeepsIt() {
+        let app = launch(open: "connection")
+        let run = app.buttons["connection.run"]
+        XCTAssertTrue(run.waitForExistence(timeout: 10))
+        app.buttons["More"].firstMatch.tap()
+        app.buttons["connection.report"].tap()
+        let text = app.descendants(matching: .any)["report.text"]
+        XCTAssertTrue(text.waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(wait(for: text, "exists == false"))
+        XCTAssertTrue(run.exists)
+    }
+
     private func launch(open target: String, _ extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target] + extra

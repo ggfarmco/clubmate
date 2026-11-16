@@ -80,10 +80,14 @@ func (l *requestLog) claim(ctx context.Context, id string, run func(context.Cont
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if r, ok := l.running[id]; ok {
+		logDedupe(ctx, id)
 		return r, requestRecord{}, nil
 	}
 	var rec requestRecord
 	found, err := l.kv.StorageGet(ctx, requestKey(id), &rec)
+	if found {
+		logDedupe(ctx, id)
+	}
 	if err != nil || found {
 		return nil, rec, err
 	}
@@ -180,6 +184,10 @@ func (l *requestLog) pruneLoop(ctx context.Context) {
 		case <-ticker.C:
 		}
 	}
+}
+
+func logDedupe(ctx context.Context, id string) {
+	logEvent("dedupe hit", "device", logDevice(ctx), "request", logID(id))
 }
 
 func storedError(err error) (*apiError, bool) {

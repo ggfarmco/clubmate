@@ -42,14 +42,16 @@ public struct Hello: Codable, Sendable, Equatable {
     public let topics: [String]
     public let ui: Bool
     public let requests: Bool
+    public let reports: Bool
 
-    public init(computer: ComputerInfo, version: String, commands: [String], topics: [String], ui: Bool = false, requests: Bool = false) {
+    public init(computer: ComputerInfo, version: String, commands: [String], topics: [String], ui: Bool = false, requests: Bool = false, reports: Bool = false) {
         self.computer = computer
         self.version = version
         self.commands = commands
         self.topics = topics
         self.ui = ui
         self.requests = requests
+        self.reports = reports
     }
 
     public init(from decoder: any Decoder) throws {
@@ -60,6 +62,7 @@ public struct Hello: Codable, Sendable, Equatable {
         topics = try c.decode([String].self, forKey: .topics)
         ui = try c.decodeIfPresent(Bool.self, forKey: .ui) ?? false
         requests = try c.decodeIfPresent(Bool.self, forKey: .requests) ?? false
+        reports = try c.decodeIfPresent(Bool.self, forKey: .reports) ?? false
     }
 }
 
@@ -119,6 +122,7 @@ public actor RemoteClient {
 
     private static let rpcTimeout: TimeInterval = 20
     private static let archiveTimeout: TimeInterval = 120
+    private static let reportTimeout: TimeInterval = 180
     public static let probeTimeout: TimeInterval = 4
     private static let streamIdleTimeout: TimeInterval = 45
     private static let unsentErrors: Set<URLError.Code> = [
@@ -162,7 +166,8 @@ public actor RemoteClient {
     public func rpc<T: Decodable & Sendable>(_ method: String, params: JSONValue? = nil, as type: T.Type, trace: HostTrace? = nil) async throws -> T? {
         let body = try JSONEncoder().encode(RPCRequest(method: method, params: params))
         let slow = params?["id"]?.stringValue == TaskCommand.archive
-        let (data, response, _) = try await exchange(path: "/v1/rpc", method: "POST", body: body, probe: method == "hello", timeout: slow ? Self.archiveTimeout : Self.rpcTimeout, trace: trace)
+        let timeout = method == "report" ? Self.reportTimeout : slow ? Self.archiveTimeout : Self.rpcTimeout
+        let (data, response, _) = try await exchange(path: "/v1/rpc", method: "POST", body: body, probe: method == "hello", timeout: timeout, trace: trace)
         if response.statusCode == 401 { throw RemoteError.unauthorized }
         guard let envelope = try? JSONDecoder.clubmate.decode(Envelope<T>.self, from: data) else {
             if let failure = (try? JSONDecoder().decode(Envelope<JSONValue>.self, from: data))?.error {
@@ -203,6 +208,22 @@ public actor RemoteClient {
     public func command<T: Decodable & Sendable>(_ id: String, workspace: String?, args: JSONValue? = nil, as type: T.Type) async throws -> T {
         guard let value = try await rpc("command", params: Self.commandParams(id, workspace: workspace, args: args), as: type) else { throw RemoteError.badResponse }
         return value
+    }
+
+    public func report(text: String, mac: Bool, files: [(name: String, data: Data)], requestId: String, device: DeviceIdentity?, appVersion: String) async throws -> String {
+        var params: [String: JSONValue] = [
+            "requestId": .string(requestId),
+            "text": .string(text),
+            "appVersion": .string(appVersion),
+            "mac": .bool(mac),
+            "files": .array(files.map { .object(["name": .string($0.name), "data": .string($0.data.base64EncodedString())]) }),
+        ]
+        if let device {
+            params["device"] = .string(device.name)
+            params["model"] = .string(device.model)
+        }
+        guard let id = try await rpc("report", params: .object(params))["id"]?.stringValue else { throw RemoteError.badResponse }
+        return id
     }
 
     public func uiSections() async throws -> [SectionInfo] {

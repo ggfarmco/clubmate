@@ -89,14 +89,18 @@ enum DebugLaunch {
     private static func navigate(model: CompanionModel, navigation: AppNavigation) async {
         let defaults = UserDefaults.standard
         guard let target = defaults.string(forKey: "open"), let computer = model.computers.first else { return }
-        if target == "sidebar" || target == "mac" || target == "connection" {
+        if target == "sidebar" || target == "mac" || target == "connection" || target == "report" {
             try? await Task.sleep(for: .seconds(1))
             navigation.sidebar = nil
             navigation.preferredColumn = .sidebar
-            if target != "sidebar" { navigation.showMac(computer.id) }
+            if target == "mac" || target == "connection" { navigation.showMac(computer.id) }
             if target == "connection" {
                 try? await Task.sleep(for: .seconds(1))
                 navigation.connectionSheet = ConnectionSheet(computer: computer.id)
+            }
+            if target == "report" {
+                try? await Task.sleep(for: .seconds(1))
+                navigation.reportSheet = ReportSheet(computer: computer.id, about: nil)
             }
             return
         }

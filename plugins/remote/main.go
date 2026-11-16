@@ -12,9 +12,11 @@ import (
 	"net/netip"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
@@ -22,6 +24,9 @@ import (
 
 const (
 	listenEnv    = "CLUBMATE_REMOTE_LISTEN"
+	logIDLen     = 8
+	maxLogValue  = 64
+	slowRPC      = 2 * time.Second
 	testModeEnv  = "CLUBMATE_TEST_MODE"
 	defaultPort  = 47621
 	rescanEvery  = 30 * time.Second
@@ -34,6 +39,9 @@ const (
 )
 
 var (
+	logMu   sync.Mutex
+	logSink = func(line string) { fmt.Fprintln(os.Stderr, "remote: "+line) }
+
 	errUnknownCommand = errors.New("unknown command")
 	errNoPairHost     = errors.New("pairing needs a Tailscale address")
 	errBadPort        = errors.New("port must be between 1 and 65535")
@@ -641,5 +649,56 @@ func decodeArgs(raw json.RawMessage, v any) error {
 }
 
 func logf(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, "remote: "+format+"\n", args...)
+	logLine(fmt.Sprintf(format, args...))
+}
+
+func logEvent(event string, kv ...string) {
+	var b strings.Builder
+	b.WriteString(event)
+	for i := 0; i+1 < len(kv); i += 2 {
+		b.WriteString(" " + kv[i] + "=" + logValue(kv[i+1]))
+	}
+	logLine(b.String())
+}
+
+func logLine(line string) {
+	logMu.Lock()
+	sink := logSink
+	logMu.Unlock()
+	sink(line)
+}
+
+func setLogSink(sink func(string)) func(string) {
+	logMu.Lock()
+	defer logMu.Unlock()
+	prev := logSink
+	logSink = sink
+	return prev
+}
+
+func logValue(v string) string {
+	if v == "" {
+		return "-"
+	}
+	v = strings.Map(func(r rune) rune {
+		if r <= ' ' || r == '=' || r == 0x7f || !unicode.IsPrint(r) {
+			return '_'
+		}
+		return r
+	}, v)
+	if runes := []rune(v); len(runes) > maxLogValue {
+		return string(runes[:maxLogValue])
+	}
+	return v
+}
+
+func logID(id string) string {
+	if runes := []rune(id); len(runes) > logIDLen {
+		return string(runes[:logIDLen])
+	}
+	return id
+}
+
+func logMillis(d time.Duration) string {
+	return strconv.FormatInt(d.Milliseconds(), 10)
 }

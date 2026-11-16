@@ -28,6 +28,10 @@ struct Mac: Sendable {
         try request("GET", "pushes", nil) as? [[String: Any]] ?? []
     }
 
+    func reports() throws -> [[String: Any]] {
+        try request("GET", "reports", nil) as? [[String: Any]] ?? []
+    }
+
     func repo(_ name: String) throws -> String {
         guard let path = (try request("POST", "repo/\(name)", nil) as? [String: Any])?["path"] as? String else {
             throw MacError(description: "no repo path")

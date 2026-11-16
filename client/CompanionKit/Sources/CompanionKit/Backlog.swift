@@ -417,7 +417,7 @@ public struct BacklogConflict: Sendable, Equatable, Identifiable {
 
 extension QueuedAction {
     public var canResend: Bool {
-        failure == Self.changedOnMac && command.hasPrefix("backlog.")
+        (kind == .report && failure != nil && failure != Self.reportFilesGone) || (failure == Self.changedOnMac && command.hasPrefix("backlog."))
     }
 
     public var change: String? {

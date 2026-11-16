@@ -362,7 +362,14 @@ func (s *server) pushAll(ctx context.Context, p relayPush) []devicePush {
 		}
 		switch {
 		case err != nil:
-			logf("push to %s: %v", d.ID, err)
+			logEvent("push", "device", logID(d.ID), "status", "error")
+		case reply.Status != http.StatusOK:
+			logEvent("push", "device", logID(d.ID), "status", strconv.Itoa(reply.Status), "reason", reply.Reason)
+		default:
+			logEvent("push", "device", logID(d.ID), "status", strconv.Itoa(reply.Status))
+		}
+		switch {
+		case err != nil:
 			r.Outcome, r.err = outcomeUnreachable, err
 		case reply.GoneToken():
 			r.Outcome = replyWords(reply) + outcomeTokenDropped
@@ -371,9 +378,6 @@ func (s *server) pushAll(ctx context.Context, p relayPush) []devicePush {
 			}
 		default:
 			r.Outcome = replyWords(reply)
-			if reply.Status != http.StatusOK {
-				logf("push to %s: %d %s", d.ID, reply.Status, reply.Reason)
-			}
 		}
 		out = append(out, r)
 	}

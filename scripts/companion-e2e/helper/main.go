@@ -1,11 +1,13 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -33,7 +35,14 @@ type helper struct {
 
 	mu       sync.Mutex
 	pushes   []push
+	reports  []storedReport
 	presence *rpc.Client
+}
+
+type storedReport struct {
+	ID    string   `json:"id"`
+	Bytes int      `json:"bytes"`
+	Files []string `json:"files"`
 }
 
 type push struct {
@@ -74,6 +83,8 @@ func main() {
 	mux.HandleFunc("GET /agent-log", h.log)
 	mux.HandleFunc("POST /v1/push", h.relay)
 	mux.HandleFunc("GET /pushes", h.listPushes)
+	mux.HandleFunc("POST /v1/reports", h.receiveReport)
+	mux.HandleFunc("GET /reports", h.listReports)
 	mux.HandleFunc("DELETE /pushes", h.clearPushes)
 	mux.HandleFunc("GET /config", h.config)
 	mux.HandleFunc("POST /repo/{name}", h.repo)
@@ -164,6 +175,36 @@ func (h *helper) relay(w http.ResponseWriter, r *http.Request) {
 	h.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprint(w, `{"status":200}`)
+}
+
+func (h *helper) receiveReport(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	h.mu.Lock()
+	rep := storedReport{ID: fmt.Sprintf("r-%d", len(h.reports)+1), Bytes: len(body)}
+	for _, f := range zr.File {
+		rep.Files = append(rep.Files, f.Name)
+	}
+	h.reports = append(h.reports, rep)
+	h.mu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]string{"id": rep.ID})
+}
+
+func (h *helper) listReports(w http.ResponseWriter, _ *http.Request) {
+	h.mu.Lock()
+	out, err := json.Marshal(append([]storedReport{}, h.reports...))
+	h.mu.Unlock()
+	reply(w, out, err)
 }
 
 func (h *helper) deliver(ctx context.Context, p push) string {

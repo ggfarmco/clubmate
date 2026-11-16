@@ -18,6 +18,11 @@ const (
 	maxFailures      = 5
 	maxTotalFailures = 50
 	linkVersion      = "1"
+
+	pairOK      = "ok"
+	pairBadCode = "bad-code"
+	pairExpired = "expired"
+	pairLimit   = "limit"
 )
 
 var codeEncoding = base32.StdEncoding.WithPadding(base32.NoPadding)
@@ -67,14 +72,22 @@ func (p *pairing) cancel() {
 }
 
 func (p *pairing) redeem(code, source string) (uint64, bool) {
+	gen, result := p.try(code, source)
+	return gen, result == pairOK
+}
+
+func (p *pairing) try(code, source string) (uint64, string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if !p.active || p.failures[source] >= maxFailures {
-		return 0, false
+	if p.failures[source] >= maxFailures {
+		return 0, pairLimit
+	}
+	if !p.active {
+		return 0, pairExpired
 	}
 	if !p.now().Before(p.expires) {
 		p.active = false
-		return 0, false
+		return 0, pairExpired
 	}
 	got := sha256.Sum256([]byte(strings.ToUpper(code)))
 	if subtle.ConstantTimeCompare(got[:], p.hash[:]) != 1 {
@@ -83,10 +96,10 @@ func (p *pairing) redeem(code, source string) (uint64, bool) {
 		if p.total >= maxTotalFailures {
 			p.active = false
 		}
-		return 0, false
+		return 0, pairBadCode
 	}
 	p.active = false
-	return p.gen, true
+	return p.gen, pairOK
 }
 
 func (p *pairing) reopen(gen uint64) {

@@ -17,7 +17,10 @@ import (
 	sdk "clubmate/pkg/sdui"
 )
 
-const diagnosticsExtraMax = 10 << 20
+const (
+	diagnosticsExtraMax    = 10 << 20
+	diagnosticsPluginsName = "plugins.json"
+)
 
 var (
 	errNoDiagnostics  = errors.New("diagnostics not configured")
@@ -85,30 +88,17 @@ func (s *Server) collectDiagnostics(ctx context.Context, p diagnosticsParams) (d
 }
 
 func (s *Server) diagnosticsEntries(ctx context.Context, p diagnosticsParams, now time.Time) ([]diagnostics.Entry, error) {
-	var entries []diagnostics.Entry
-	add := func(name string, v any) error {
-		data, err := json.MarshalIndent(v, "", "  ")
-		if err != nil {
-			return fmt.Errorf("encode %s: %w", name, err)
-		}
-		entries = append(entries, diagnostics.Entry{Name: name, Data: append(data, '\n')})
-		return nil
-	}
-	info := diagnostics.NewInfo(now)
-	info.CoreVersion = buildinfo.String()
-	info.CoreUptimeSeconds = int64(now.Sub(s.started).Seconds())
-	info.AppVersion = p.AppVersion
-	if err := add(diagnostics.InfoName, info); err != nil {
-		return nil, err
-	}
-	logs, err := diagnostics.Logs(*s.dirs)
+	entries, err := s.macLogEntries(p.AppVersion, now)
 	if err != nil {
 		return nil, err
 	}
-	entries = append(entries, logs...)
-	var plugins any = []struct{}{}
-	if fn := s.pluginList.Load(); fn != nil {
-		plugins = (*fn)()
+	add := func(name string, v any) error {
+		e, err := jsonEntry(name, v)
+		if err != nil {
+			return err
+		}
+		entries = append(entries, e)
+		return nil
 	}
 	workspaces, err := s.diagnosticsWorkspaces(ctx)
 	if err != nil {
@@ -118,7 +108,7 @@ func (s *Server) diagnosticsEntries(ctx context.Context, p diagnosticsParams, no
 	if err != nil {
 		return nil, err
 	}
-	if err := errors.Join(add("plugins.json", plugins), add("workspaces.json", workspaces), add("sessions.json", sessions)); err != nil {
+	if err := errors.Join(add("workspaces.json", workspaces), add("sessions.json", sessions)); err != nil {
 		return nil, err
 	}
 	u, err := s.uiState()
@@ -135,6 +125,38 @@ func (s *Server) diagnosticsEntries(ctx context.Context, p diagnosticsParams, no
 		}
 	}
 	return entries, nil
+}
+
+func (s *Server) macLogEntries(appVersion string, now time.Time) ([]diagnostics.Entry, error) {
+	info := diagnostics.NewInfo(now)
+	info.CoreVersion = buildinfo.String()
+	info.CoreUptimeSeconds = int64(now.Sub(s.started).Seconds())
+	info.AppVersion = appVersion
+	infoEntry, err := jsonEntry(diagnostics.InfoName, info)
+	if err != nil {
+		return nil, err
+	}
+	logs, err := diagnostics.Logs(*s.dirs)
+	if err != nil {
+		return nil, err
+	}
+	var plugins any = []struct{}{}
+	if fn := s.pluginList.Load(); fn != nil {
+		plugins = (*fn)()
+	}
+	pluginsEntry, err := jsonEntry(diagnosticsPluginsName, plugins)
+	if err != nil {
+		return nil, err
+	}
+	return append(append([]diagnostics.Entry{infoEntry}, logs...), pluginsEntry), nil
+}
+
+func jsonEntry(name string, v any) (diagnostics.Entry, error) {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return diagnostics.Entry{}, fmt.Errorf("encode %s: %w", name, err)
+	}
+	return diagnostics.Entry{Name: name, Data: append(data, '\n')}, nil
 }
 
 func (s *Server) diagnosticsWorkspaces(ctx context.Context) ([]diagnosticsWorkspace, error) {

@@ -61,6 +61,9 @@ type Meta struct {
 	MacOS        string   `json:"macOS"`
 	Arch         string   `json:"arch"`
 	Files        []string `json:"files"`
+	Source       string   `json:"source,omitempty"`
+	Device       string   `json:"device,omitempty"`
+	Model        string   `json:"model,omitempty"`
 }
 
 type Stored struct {

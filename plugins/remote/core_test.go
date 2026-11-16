@@ -1,18 +1,24 @@
 package main
 
 import (
+	"crypto/rand"
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/report"
 )
 
 const alphaManifest = `{"id":"alpha","name":"alpha","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"alpha.say","title":"Say","remote":true}],"sections":[{"id":"alpha","title":"Alpha"}]}}`
@@ -80,6 +86,13 @@ func TestRemoteThroughCore(t *testing.T) {
 
 func rpcCall(t *testing.T, base, token, method string, params, out any) {
 	t.Helper()
+	body := rpcReply(t, base, token, method, params)
+	require.Nil(t, body.Error)
+	require.NoError(t, json.Unmarshal(body.Result, out))
+}
+
+func rpcReply(t *testing.T, base, token, method string, params any) reply {
+	t.Helper()
 	raw, err := json.Marshal(params)
 	require.NoError(t, err)
 	res := post(t, base, "/v1/rpc", token, rpcRequest{Method: method, Params: raw})
@@ -87,6 +100,60 @@ func rpcCall(t *testing.T, base, token, method string, params, out any) {
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	var body reply
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
-	require.Nil(t, body.Error)
-	require.NoError(t, json.Unmarshal(body.Result, out))
+	return body
+}
+
+func TestPhoneReportThroughCore(t *testing.T) {
+	t.Setenv(listenEnv, "127.0.0.1:0")
+	t.Setenv(testModeEnv, "1")
+	uploads := make(chan []byte, 1)
+	var tries atomic.Int32
+	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != reportsPath {
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		if tries.Add(1) == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		uploads <- body
+		w.WriteHeader(http.StatusCreated)
+		_, _ = io.WriteString(w, `{"id":"rpt_phone"}`)
+	}))
+	t.Cleanup(relay.Close)
+	h := testutil.NewHarness(t)
+	rpc.WithDirs(h.Dirs)(h.Srv)
+	h.Start(t, testutil.BuildPluginDir(t, "clubmate/plugins/remote", "plugins/remote/plugin.json"))
+	c := h.Client(t)
+	var pr pairResult
+	testutil.Eventually(t, func() bool {
+		return c.Call(t.Context(), "command.run", map[string]any{"id": "remote.pair", "workspaceId": ""}, &pr) == nil
+	}, 10*time.Second)
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "remote.set-push-relay", "workspaceId": "", "args": map[string]any{"url": relay.URL, "token": "mac"}}, nil))
+	link, err := url.Parse(pr.Link)
+	require.NoError(t, err)
+	base := "http://" + net.JoinHostPort(link.Query().Get("h"), link.Query().Get("p"))
+	res := post(t, base, "/v1/pair", "", pairRequest{Code: pr.Code, Device: deviceInfo{ID: "phone", Name: "Cali's iPhone", Model: "iPhone17,1"}})
+	defer res.Body.Close()
+	var paired pairResponse
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&paired))
+
+	big := make([]byte, 11<<20)
+	_, err = rand.Read(big)
+	require.NoError(t, err)
+	params := phoneReportParams("r1")
+	params["files"] = []map[string]any{{"name": "phone/events.log", "data": []byte("12:00 offline")}, {"name": "phone/screenshot.png", "data": big}}
+	first := rpcReply(t, base, paired.Token, "report", params)
+	require.NotNil(t, first.Error)
+	assert.Equal(t, codeFailed, first.Error.Code)
+	var sent phoneReportResult
+	rpcCall(t, base, paired.Token, "report", params, &sent)
+
+	assert.Equal(t, "rpt_phone", sent.ID)
+	meta, err := report.ReadMeta(<-uploads)
+	require.NoError(t, err)
+	assert.Equal(t, [3]string{"phone", "Cali's iPhone", "can't connect"}, [3]string{meta.Source, meta.Device, meta.Text})
+	assert.Contains(t, meta.Files, "phone/events.log")
+	assert.Contains(t, meta.Files, "logs/plugins/remote.log")
 }

@@ -21,6 +21,7 @@ type backend interface {
 	UIEvent(ctx context.Context, ev pluginsdk.UIEvent) (json.RawMessage, error)
 	UISubscribe(ctx context.Context, p pluginsdk.UISubscribe) (string, error)
 	UIUnsubscribe(ctx context.Context, sub string) error
+	SubmitReport(ctx context.Context, p submitReport) (string, error)
 }
 
 type kvStore interface {
@@ -106,4 +107,10 @@ func (b hostBackend) UISubscribe(ctx context.Context, p pluginsdk.UISubscribe) (
 
 func (b hostBackend) UIUnsubscribe(ctx context.Context, sub string) error {
 	return b.host.UIUnsubscribe(ctx, sub)
+}
+
+func (b hostBackend) SubmitReport(ctx context.Context, p submitReport) (string, error) {
+	var out phoneReportResult
+	err := b.host.Call(ctx, reportSubmitMethod, p, &out)
+	return out.ID, err
 }

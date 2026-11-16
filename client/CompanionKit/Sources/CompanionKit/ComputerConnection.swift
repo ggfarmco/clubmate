@@ -11,6 +11,9 @@ public protocol CommandRunner: AnyObject {
     @MainActor func command(_ id: String, workspace: String?, args: JSONValue?, requestId: String?) async throws -> JSONValue
     @MainActor func command<T: Decodable & Sendable>(_ id: String, workspace: String?, args: JSONValue?, as type: T.Type) async throws -> T
     @MainActor var dedupes: Bool { get }
+    @MainActor var reports: Bool { get }
+    @MainActor var macName: String { get }
+    @MainActor func report(text: String, mac: Bool, files: [(name: String, data: Data)], requestId: String) async throws -> String
 }
 
 extension CommandRunner {
@@ -19,6 +22,14 @@ extension CommandRunner {
     }
 
     @MainActor public var dedupes: Bool { false }
+
+    @MainActor public var reports: Bool { false }
+
+    @MainActor public var macName: String { "the Mac" }
+
+    @MainActor public func report(text: String, mac: Bool, files: [(name: String, data: Data)], requestId: String) async throws -> String {
+        throw RemoteError.badResponse
+    }
 
     @MainActor public func command<T: Decodable & Sendable>(_ id: String, workspace: String?, args: JSONValue?, as type: T.Type) async throws -> T {
         try await command(id, workspace: workspace, args: args).decode(type)
@@ -58,6 +69,7 @@ public final class ComputerConnection: CommandRunner {
     public private(set) var lastSeen: Date?
     public private(set) var voiceEnabled: Bool?
     public private(set) var log = ConnectionLog()
+    public private(set) var events = EventLog()
     @ObservationIgnored public internal(set) var background = false
     @ObservationIgnored public private(set) var streamID: String?
 
@@ -72,8 +84,12 @@ public final class ComputerConnection: CommandRunner {
     @ObservationIgnored private let token: String?
     @ObservationIgnored private let transport: any HTTPTransport
     @ObservationIgnored private let policy: HostPolicy
+    @ObservationIgnored private let eventSaves = SaveThrottle()
+    @ObservationIgnored public let device: DeviceIdentity?
+    @ObservationIgnored public let appVersion: String
+    @ObservationIgnored private var loggedState: String?
 
-    public init(computer: Computer, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, lastEventID: Int? = nil, cache: ListCache = ListCache(dir: nil), sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }) {
+    public init(computer: Computer, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, lastEventID: Int? = nil, cache: ListCache = ListCache(dir: nil), device: DeviceIdentity? = nil, appVersion: String = ProblemReport.appVersion, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }) {
         self.computer = computer
         self.lastEventID = lastEventID
         lastSeen = computer.lastSeen
@@ -83,8 +99,12 @@ public final class ComputerConnection: CommandRunner {
         self.token = token
         self.transport = transport
         self.policy = policy
+        self.device = device
+        self.appVersion = appVersion
         client = RemoteClient(hosts: computer.hosts, port: computer.port, token: token, transport: transport, policy: policy)
         log = cache.load(logKey, as: ConnectionLog.self) ?? ConnectionLog()
+        events = cache.load(eventsKey, as: EventLog.self) ?? EventLog()
+        loggedState = events.lines.last { $0.kind == .state }?.text
         if token == nil {
             state = .unauthorized
         } else if let saved = cache.load(savedKey, as: Saved.self) {
@@ -104,6 +124,32 @@ public final class ComputerConnection: CommandRunner {
 
     private var logKey: ListCache.Key {
         ListCache.Key(computer: computer.id, workspace: "", collection: "attempts")
+    }
+
+    private var eventsKey: ListCache.Key {
+        ListCache.Key(computer: computer.id, workspace: "", collection: "events")
+    }
+
+    public func note(_ kind: EventKind, _ text: String) {
+        events.add(kind, text)
+        eventSaves.request { [weak self] in self?.saveEvents() }
+    }
+
+    private func saveEvents() {
+        cache.save(events, eventsKey)
+    }
+
+    private func move(to new: State, error: (any Error)? = nil) {
+        state = new
+        let line: String? = switch new {
+        case .online: "online"
+        case .unauthorized: "unauthorized"
+        case .offline: error.map { "offline err=" + EventLog.code($0) } ?? "offline stopped"
+        case .connecting: nil
+        }
+        guard let line, line != loggedState else { return }
+        loggedState = line
+        note(.state, line)
     }
 
     public func makeCheck(probe: any NetworkProbe) -> ConnectionCheck {
@@ -135,7 +181,8 @@ public final class ComputerConnection: CommandRunner {
         task?.cancel()
         task = nil
         streamID = nil
-        if state != .unauthorized { state = .offline(nil) }
+        if state != .unauthorized { move(to: .offline(nil)) }
+        saveEvents()
     }
 
     public func reconnectNow() {
@@ -172,19 +219,33 @@ public final class ComputerConnection: CommandRunner {
     }
 
     public func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
-        try await authorized { try await $0.command(id, workspace: workspace, args: args) }
+        try await authorized("id=" + id) { try await $0.command(id, workspace: workspace, args: args) }
     }
 
     public func command(_ id: String, workspace: String?, args: JSONValue?, requestId: String?) async throws -> JSONValue {
-        try await authorized { try await $0.command(id, workspace: workspace, args: args, requestId: requestId) }
+        try await authorized("id=" + id) { try await $0.command(id, workspace: workspace, args: args, requestId: requestId) }
     }
 
     public var dedupes: Bool {
         hello?.requests ?? false
     }
 
+    public var reports: Bool {
+        hello?.reports ?? false
+    }
+
+    public var macName: String {
+        computer.name
+    }
+
+    public func report(text: String, mac: Bool, files: [(name: String, data: Data)], requestId: String) async throws -> String {
+        let device = device
+        let appVersion = appVersion
+        return try await authorized("method=report") { try await $0.report(text: text, mac: mac, files: files, requestId: requestId, device: device, appVersion: appVersion) }
+    }
+
     public func command<T: Decodable & Sendable>(_ id: String, workspace: String?, args: JSONValue?, as type: T.Type) async throws -> T {
-        try await authorized { try await $0.command(id, workspace: workspace, args: args, as: type) }
+        try await authorized("id=" + id) { try await $0.command(id, workspace: workspace, args: args, as: type) }
     }
 
     public var supportsUI: Bool {
@@ -200,27 +261,33 @@ public final class ComputerConnection: CommandRunner {
     }
 
     func uiSections() async throws -> [SectionInfo] {
-        try await authorized { try await $0.uiSections() }
+        try await authorized("method=uiSections") { try await $0.uiSections() }
     }
 
     func uiGet(workspace: String, slots: [String]) async throws -> [SlotView] {
-        try await authorized { try await $0.uiGet(workspace: workspace, slots: slots) }
+        try await authorized("method=uiGet") { try await $0.uiGet(workspace: workspace, slots: slots) }
     }
 
     func uiWatch(stream: String, workspace: String, slots: [String]) async throws {
-        try await authorized { try await $0.uiWatch(stream: stream, workspace: workspace, slots: slots) }
+        try await authorized("method=uiWatch") { try await $0.uiWatch(stream: stream, workspace: workspace, slots: slots) }
     }
 
     func uiEvent(workspace: String, slot: String, nodeId: String, action: String, value: JSONValue?) async throws -> JSONValue {
-        try await authorized { try await $0.uiEvent(workspace: workspace, slot: slot, nodeId: nodeId, action: action, value: value) }
+        try await authorized("method=uiEvent slot=\(slot) action=\(action)") { try await $0.uiEvent(workspace: workspace, slot: slot, nodeId: nodeId, action: action, value: value) }
     }
 
-    private func authorized<T: Sendable>(_ call: (RemoteClient) async throws -> T) async throws -> T {
+    private func authorized<T: Sendable>(_ what: String, _ call: (RemoteClient) async throws -> T) async throws -> T {
         do {
             return try await call(client)
         } catch RemoteError.unauthorized {
+            note(.command, "failed \(what) err=" + EventLog.code(RemoteError.unauthorized))
             revoke()
             throw RemoteError.unauthorized
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            note(.command, "failed \(what) err=" + EventLog.code(error))
+            throw error
         }
     }
 
@@ -323,7 +390,7 @@ public final class ComputerConnection: CommandRunner {
     private func run() async {
         var failures = 0
         while !Task.isCancelled {
-            if state != .online { state = .connecting }
+            if state != .online { move(to: .connecting) }
             let started = now()
             let trace = HostTrace()
             var step = ConnectionAttempt.Step.hello
@@ -347,7 +414,7 @@ public final class ComputerConnection: CommandRunner {
                     heardAt = now()
                     switch item {
                     case .alive:
-                        state = .online
+                        move(to: .online)
                         connectedAt = now()
                         record(.events, started: started, trace: trace)
                         emit(.online)
@@ -356,6 +423,7 @@ public final class ComputerConnection: CommandRunner {
                     case .event(let event):
                         lastEventID = event.seq
                         if event.topic == Topic.pluginChanged {
+                            note(.stream, "plugin.changed id=" + (event.payload["id"]?.stringValue ?? "-"))
                             for ui in interfaces.values.compactMap(\.value) {
                                 ui.reloadSections()
                             }
@@ -383,13 +451,14 @@ public final class ComputerConnection: CommandRunner {
                     case .ui(let view):
                         interfaces[view.workspaceId]?.value?.receive(view)
                     case .reset(let seq):
+                        note(.stream, "reset seq=\(seq)")
                         lastEventID = seq
                     }
                 }
                 if Task.isCancelled { return }
                 record(step, started: started, trace: trace, error: connectedAt == nil ? "stream closed before it said connected" : "stream closed by the Mac", lived: connectedAt)
                 streamID = nil
-                state = .offline(nil)
+                move(to: .offline(nil), error: RemoteError.unreachable(connectedAt == nil ? "stream closed before it said connected" : "stream closed by the Mac"))
             } catch RemoteError.unauthorized {
                 if Task.isCancelled { return }
                 record(step, started: started, trace: trace, error: ConnectionAttempt.describe(RemoteError.unauthorized), lived: connectedAt)
@@ -399,7 +468,7 @@ public final class ComputerConnection: CommandRunner {
                 if Task.isCancelled { return }
                 record(step, started: started, trace: trace, error: ConnectionAttempt.describe(error), lived: connectedAt)
                 streamID = nil
-                state = .offline(error is CancellationError ? nil : (error as? RemoteError)?.message ?? error.localizedDescription)
+                move(to: .offline(error is CancellationError ? nil : (error as? RemoteError)?.message ?? error.localizedDescription), error: error)
             }
             let delay = Self.backoff[min(failures, Self.backoff.count - 1)]
             failures += 1
@@ -427,7 +496,8 @@ public final class ComputerConnection: CommandRunner {
     }
 
     private func revoke() {
-        state = .unauthorized
+        move(to: .unauthorized)
+        saveEvents()
         streamID = nil
         hello = nil
         voiceEnabled = nil

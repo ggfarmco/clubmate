@@ -112,7 +112,7 @@ type reportBundle struct {
 }
 
 func (s *Server) reportMethods() map[string]handlerFunc {
-	return map[string]handlerFunc{reportMethod: method(s.reportSend)}
+	return map[string]handlerFunc{reportMethod: method(s.reportSend), reportSubmitMethod: method(s.reportSubmit)}
 }
 
 func (s *Server) reportSend(ctx context.Context, p reportSendParams) (reportSendResult, error) {
@@ -208,29 +208,36 @@ func (s *Server) reportSend(ctx context.Context, p reportSendParams) (reportSend
 	if err != nil {
 		return reportSendResult{}, err
 	}
-	zipPath := dir + ".zip"
-	defer os.Remove(zipPath)
-	if _, err := diagnostics.Save(zipPath, now, kept); err != nil {
+	id, err := s.uploadReport(ctx, dir+".zip", now, kept)
+	if err != nil {
 		return reportSendResult{}, err
+	}
+	return reportSendResult{Sent: true, ID: id}, nil
+}
+
+func (s *Server) uploadReport(ctx context.Context, zipPath string, now time.Time, entries []diagnostics.Entry) (string, error) {
+	defer os.Remove(zipPath)
+	if _, err := diagnostics.Save(zipPath, now, entries); err != nil {
+		return "", err
 	}
 	fi, err := os.Stat(zipPath)
 	if err != nil {
-		return reportSendResult{}, err
+		return "", err
 	}
 	if fi.Size() > report.MaxBundle {
-		return reportSendResult{}, fmt.Errorf("report is over %d MiB", report.MaxBundle>>20)
+		return "", fmt.Errorf("report is over %d MiB", report.MaxBundle>>20)
 	}
 	raw, err := s.runPluginCommandWithin(ctx, cmdReportUpload, "", map[string]string{"path": zipPath}, reportUploadSeconds)
 	if err != nil {
-		return reportSendResult{}, err
+		return "", err
 	}
 	var up struct {
 		ID string `json:"id"`
 	}
 	if err := json.Unmarshal(raw, &up); err != nil {
-		return reportSendResult{}, fmt.Errorf("%s: %w", cmdReportUpload, err)
+		return "", fmt.Errorf("%s: %w", cmdReportUpload, err)
 	}
-	return reportSendResult{Sent: true, ID: up.ID}, nil
+	return up.ID, nil
 }
 
 func (s *Server) RemoveStaleReports() error {
@@ -430,17 +437,21 @@ func (b *reportBundle) kept(ans reportAnswer, meta report.Meta, now time.Time) (
 		}
 		entries = append(entries, diagnostics.Entry{Name: name, Data: data})
 	}
-	info := diagnostics.NewInfo(now)
 	meta.Text, meta.Summary, meta.AppVersion = ans.Text, ans.Summary, ans.AppVersion
+	return withMeta(entries, meta, now)
+}
+
+func withMeta(entries []diagnostics.Entry, meta report.Meta, now time.Time) ([]diagnostics.Entry, error) {
+	info := diagnostics.NewInfo(now)
 	meta.CoreVersion, meta.Commit, meta.MacOS, meta.Arch = buildinfo.String(), info.Commit, info.MacOS, info.Arch
 	for _, e := range entries {
 		meta.Files = append(meta.Files, e.Name)
 	}
-	data, err := json.MarshalIndent(meta, "", "  ")
+	e, err := jsonEntry(report.MetaName, meta)
 	if err != nil {
 		return nil, err
 	}
-	return append(entries, diagnostics.Entry{Name: report.MetaName, Data: append(data, '\n')}), nil
+	return append(entries, e), nil
 }
 
 func checkReportText(text, summary string) error {

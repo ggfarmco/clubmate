@@ -170,6 +170,14 @@ struct MacDetailsView: View {
                     .contentShape(.rect)
                 }
                 .accessibilityIdentifier("mac.connection")
+                Button {
+                    navigation.reportSheet = ReportSheet(computer: computerID, about: nil)
+                } label: {
+                    Text("Report a Problem…")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(.rect)
+                }
+                .accessibilityIdentifier("mac.report")
             }
             Section {
                 Button("Forget this Mac", role: .destructive) { forgetting = true }
