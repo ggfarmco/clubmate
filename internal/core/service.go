@@ -15,6 +15,7 @@ import (
 	"clubmate/internal/bus"
 	"clubmate/internal/proc"
 	"clubmate/internal/session"
+	"clubmate/internal/shellenv"
 	"clubmate/internal/workspace"
 	"clubmate/pkg/contract"
 )
@@ -278,6 +279,9 @@ func (s *Service) CreateSession(ctx context.Context, req session.CreateRequest) 
 		if req.Cwd, err = defaultCwd(p); err != nil {
 			return session.Session{}, err
 		}
+	}
+	if len(req.Command) == 0 {
+		req.Command = shellenv.LoginCommand()
 	}
 	sess, err := s.sessions.Create(ctx, req)
 	if err != nil {

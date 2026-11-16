@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	fallbackShell  = "/bin/zsh"
 	marker         = "\n__CLUBMATE_ENV__\n"
 	script         = `printf '\n__CLUBMATE_ENV__\n'; command env -0`
 	clubmatePrefix = "CLUBMATE_"
@@ -26,6 +27,18 @@ var dropped = map[string]struct{}{
 	"TERM_PROGRAM": {}, "TERM_PROGRAM_VERSION": {}, "GHOSTTY_RESOURCES_DIR": {},
 	"GHOSTTY_BIN_DIR": {}, "GHOSTTY_SHELL_FEATURES": {}, "__CFBundleIdentifier": {},
 	"XPC_SERVICE_NAME": {}, "XPC_FLAGS": {},
+}
+
+func LoginShell() string {
+	shell := os.Getenv("SHELL")
+	if _, err := exec.LookPath(shell); err != nil {
+		return fallbackShell
+	}
+	return shell
+}
+
+func LoginCommand() []string {
+	return []string{LoginShell(), "-l"}
 }
 
 func Resolve(ctx context.Context, shell string) ([]string, error) {

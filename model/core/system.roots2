@@ -25,9 +25,9 @@ system ClubmateCore follows core_host {
   }
 
   hub Core "clubmate-core: one process per user, started by the app or the CLI when it is not there" acts as core {
-    inherited: a second core for the same state dir ends at once with "clubmate-core already running": the first holds a lock on core.lock (internal/paths/paths.go:250-262, cmd/clubmate-core/main.go:93-97)
-    inherited: the socket is a file only its user may open, and nothing more is asked of a caller: every process of that user is a client (main.go:272-285); what such a caller says of itself is taken as said
-    inherited: core.log, each plugin's log and each session's log are cut back once a minute when over 10 MiB (main.go:39, :200-215, paths.go:24)
+    inherited: a second core for the same state dir ends at once with "clubmate-core already running": the first holds a lock on core.lock (internal/paths/paths.go:250-262, cmd/clubmate-core/main.go:92-96)
+    inherited: the socket is a file only its user may open, and nothing more is asked of a caller: every process of that user is a client (main.go:268-281); what such a caller says of itself is taken as said
+    inherited: core.log, each plugin's log and each session's log are cut back once a minute when over 10 MiB (main.go:38, :199-214, paths.go:24)
     code at "cmd/clubmate-core", "internal/rpc", "internal/core"
     hosts Storage, Workspaces, Clients, Bus, Plugins, Commands, Sessions, Processes, Ui, Notify, Unread
     runs Plugins.supervise, Clients.fresh_start, Bus.fresh_start, Sessions.watch, Ui.fresh_start, Notify.budget

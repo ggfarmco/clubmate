@@ -113,6 +113,18 @@ func TestAgentSessionCreateTakesNoCommand(t *testing.T) {
 	}
 }
 
+func TestAgentSessionCreateStartsLoginShell(t *testing.T) {
+	t.Setenv("SHELL", "/bin/sh")
+	h := testutil.NewHarness(t)
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
+	require.NoError(t, err)
+	h.Start(t)
+	var s session.Session
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "session.create", "workspaceId": p.ID, "agent": true}, &s))
+	assert.Equal(t, []string{"/bin/sh", "-l"}, s.Command)
+	assert.Equal(t, session.StateRunning, s.State)
+}
+
 func TestApproverDisconnectDenies(t *testing.T) {
 	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","agent":true,"destructive":true}`)
 	a := newApprover(t, h)

@@ -32,7 +32,6 @@ import (
 
 const (
 	shellEnvTimeout   = 10 * time.Second
-	defaultShell      = "/bin/zsh"
 	refreshEvery      = 2 * time.Second
 	snapshotTTL       = 1500 * time.Millisecond
 	pluginStopTimeout = 15 * time.Second
@@ -222,10 +221,7 @@ func applyShellEnv(logger *slog.Logger) {
 	if os.Getenv("CLUBMATE_SHELL_ENV") == "0" {
 		return
 	}
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = defaultShell
-	}
+	shell := shellenv.LoginShell()
 	ctx, cancel := context.WithTimeout(context.Background(), shellEnvTimeout)
 	defer cancel()
 	base := os.Environ()

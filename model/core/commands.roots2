@@ -5,7 +5,7 @@ module Commands "the commands of the core and of plugins: who may run one, and w
     docs at "docs/sdui-protocol.md" section "RPC methods"
 
     record Command {
-      partial: its rows are made when the core starts and never change: the core's own (primitives.go:26-177) and those each manifest contributes, the first of two with one id kept (internal/plugin/manifest.go:164-187, internal/plugin/router.go:113-135); title, description, the schemas of args and result, `hidden`, `remote`, `confirm`, `provides`, `handles` and `timeout`; a capability name, which stands for the command of its provider (router.go:94-101); the reads command.list and command.capabilities, which any connection may ask (methods_ui.go:321-327, :399-411); command.broadcast, which passes a call to every command of an enabled plugin that `handles` a topic, side by side, and answers `plugin_error` with their refusals joined (internal/rpc/broadcast.go:22-53)
+      partial: its rows are made when the core starts and never change: the core's own (primitives.go:26-177) and those each manifest contributes, the first of two with one id kept (internal/plugin/manifest.go:164-187, internal/plugin/router.go:113-135); title, description, the schemas of args and result, `hidden`, `remote`, `confirm`, `provides`, `handles` and `timeout`; a capability name, which stands for the command of its provider (router.go:94-101); the reads command.list and command.capabilities, which any connection may ask (methods_ui.go:323-329, :401-413); command.broadcast, which passes a call to every command of an enabled plugin that `handles` a topic, side by side, and answers `plugin_error` with their refusals joined (internal/rpc/broadcast.go:22-53)
       id: CommandId, key
       plugin: PluginId, optional
       agent: Flag
@@ -19,8 +19,8 @@ module Commands "the commands of the core and of plugins: who may run one, and w
     }
 
     method run by client, plugin {
-      partial: the answer, which is whatever the command answered; what a command of the core does once it may run: the core method of its name, for session.kill, session.send and session.read only on a session of the workspace named when an agent asks, else `denied` (primitives.go:227-240, :262-276, methods_ui.go:370-377); for an agent a core command that lists a workspace's things takes the workspace named (methods_ui.go:345-347)
-      open: args that do not fit the command's schema are refused `invalid` once the workspace is found; then, for an agent, args with a key the schema does not declare, at any depth (methods_ui.go:359-368, primitives.go:249-260). A document cannot be looked into
+      partial: the answer, which is whatever the command answered; what a command of the core does once it may run: the core method of its name, for session.kill, session.send and session.read only on a session of the workspace named when an agent asks, else `denied` (primitives.go:227-240, :262-276, methods_ui.go:372-379); for an agent a core command that lists a workspace's things takes the workspace named (methods_ui.go:347-349)
+      open: args that do not fit the command's schema are refused `invalid` once the workspace is found; then, for an agent, args with a key the schema does not declare, at any depth (methods_ui.go:361-370, primitives.go:249-260). A document cannot be looked into
       takes {
         id: CommandId
         workspaceId: WorkspaceId, optional
@@ -29,15 +29,15 @@ module Commands "the commands of the core and of plugins: who may run one, and w
         inherited: `agent` and `session` are what the caller says of itself: agent mode is a cooperative guard, not a security boundary, since any process of the same user can call without it (docs/sdui-protocol.md § RPC methods; docs/agents.md § Approvals)
         session: SessionRef, optional
       }
-      reject not_found unless a Command of id exists   // @ internal/rpc/methods_ui.go:334-341
+      reject not_found unless a Command of id exists   // @ internal/rpc/methods_ui.go:336-343
       let c = Command of id
       if c.plugin != none {
         ask Plugins.must_be_on(c.plugin) { off { reject not_found } }
       }
-      reject not_found if agent and not c.agent   // @ internal/rpc/methods_ui.go:342-344
-      inherited: to an agent a command it may not run looks unknown, not forbidden (methods_ui.go:342-344; docs/sdui-protocol.md § RPC methods: "as if unknown")
+      reject not_found if agent and not c.agent   // @ internal/rpc/methods_ui.go:344-346
+      inherited: to an agent a command it may not run looks unknown, not forbidden (methods_ui.go:344-346; docs/sdui-protocol.md § RPC methods: "as if unknown")
       if not c.app_wide {
-        reject invalid if workspaceId = none   // @ internal/rpc/methods_ui.go:348-358, :432-438
+        reject invalid if workspaceId = none   // @ internal/rpc/methods_ui.go:350-360, :434-440
         ask Workspaces.require(workspaceId)
       }
       if agent and session != none and workspaceId != none and caller.plugin = none {   // @ internal/rpc/caller_scope.go:36-39
@@ -52,13 +52,13 @@ module Commands "the commands of the core and of plugins: who may run one, and w
           inherited: so a call that could not be checked can be sent again (docs/sdui-protocol.md § RPC methods; internal/rpc/methods_report.go:267-286, internal/rpc/errors.go:152-155)
         }
       }
-      if agent and c.destructive {   // @ internal/rpc/methods_ui.go:378-382
+      if agent and c.destructive {   // @ internal/rpc/methods_ui.go:380-384
         open: before anyone is asked the args must be showable, else `invalid`: absent or an object of at most 10 fields, each at most 200 characters as shown and no number beyond 2^53, and no args at all for a command that declares none (approval.go:22-25, :211-236); what the user approved is exactly what runs
         ask Clients.approve(workspaceId, c.id, Payload(args = args))
       }
       if c.plugin != none {
-        ask Plugins.call(c.plugin, command_run, Payload(args = args))   // @ internal/rpc/methods_ui.go:390-396
-        inherited: the plugin also gets the workspace, `agent`, `session`, the terminal the call came from and, as `via`, the id of the plugin whose connection asked (methods_ui.go:128-136, :390-396)
+        ask Plugins.call(c.plugin, command_run, Payload(args = args))   // @ internal/rpc/methods_ui.go:392-398
+        inherited: the plugin also gets the workspace, `agent`, `session`, the terminal the call came from and, as `via`, the id of the plugin whose connection asked (methods_ui.go:128-136, :392-398)
       }
     }
 

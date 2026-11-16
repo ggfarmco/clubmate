@@ -181,8 +181,10 @@ func (s *Server) uiSubscribe(ctx context.Context, p uiSubscribeParams) (subscrip
 	if err != nil {
 		return subscriptionParams{}, err
 	}
-	if err := optionalID(workspacePrefix, p.WorkspaceID); err != nil {
-		return subscriptionParams{}, err
+	if p.WorkspaceID != "" {
+		if err := s.requireWorkspace(ctx, p.WorkspaceID); err != nil {
+			return subscriptionParams{}, err
+		}
 	}
 	sub, err := u.store.Subscribe(p.WorkspaceID)
 	if err != nil {

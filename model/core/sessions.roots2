@@ -12,7 +12,7 @@ module Sessions "terminal sessions: each runs under a clubmate-session host proc
     }
 
     record Session {
-      partial: title, command, cwd, the process ids, startedAt, exitCode, outputAt and bellAt, all written by the host into sessions/<id>.json and answered by `get` (pkg/contract/session.go:13-32); session.list, which any connection may ask and which answers the sessions of a workspace, of an owner or all, oldest first (internal/session/manager.go:139-168); the environment a session starts with (`env`, `unsetEnv`, `pathAppend`) and its `cwd`, which is the workspace's first folder, or the home directory when it has none, unless one is sent (internal/core/service.go:277-281, :546-555); session.created carries the whole session under `session` and session.exited its `exitCode` too (pkg/contract/event.go:40-50): the model names the id
+      partial: title, command, cwd, the process ids, startedAt, exitCode, outputAt and bellAt, all written by the host into sessions/<id>.json and answered by `get` (pkg/contract/session.go:13-32); session.list, which any connection may ask and which answers the sessions of a workspace, of an owner or all, oldest first (internal/session/manager.go:139-168); the environment a session starts with (`env`, `unsetEnv`, `pathAppend`) and its `cwd`, which is the workspace's first folder, or the home directory when it has none, unless one is sent (internal/core/service.go:278-282, :550-559); session.created carries the whole session under `session` and session.exited its `exitCode` too (pkg/contract/event.go:40-50): the model names the id
       id: SessionId, key
       workspace: WorkspaceId
       owner: PluginId, optional
@@ -24,7 +24,7 @@ module Sessions "terminal sessions: each runs under a clubmate-session host proc
 
     event session.created { id: SessionId }
     event session.exited {
-      open: no file under docs/ names session.created, session.exited or session.killed; docs/sdui-protocol.md § Bus topics lists the core's events without them, and names session.removed only under § Revisions. The model follows the code (internal/core/service.go:286, :310, :328, :349)
+      open: no file under docs/ says what session.created, session.exited or session.killed carry: docs/triggers.md § Filter names session.killed, as an event that names no workspace, and nothing names the other two; docs/sdui-protocol.md § Bus topics lists the core's events without them, and names session.removed only under § Revisions. The model follows the code (internal/core/service.go:290, :314, :332, :353)
       id: SessionId
       workspace: WorkspaceId
       owner: PluginId, optional
@@ -40,18 +40,17 @@ module Sessions "terminal sessions: each runs under a clubmate-session host proc
       inherited: the text goes first and Enter 50 milliseconds later, as a key of its own; `queued` is a host that has all of it and had not closed 2 seconds later, since its program is not reading: it types it once the program reads, and sending it again would type it twice (internal/session/io.go:19-22, :88-107)
       snapshot(session: SessionId, bytes: Count, raw: Flag): shown(text: Text) | alternate | gone
       end(session: SessionId): exited | lost | still_running, not undone
-      inherited: every process of the session gets SIGTERM and, 3 seconds later, SIGKILL; a session still running 5 seconds after that is `still_running` (service.go:23-27, :314-330, :483-504)
+      inherited: every process of the session gets SIGTERM and, 3 seconds later, SIGKILL; a session still running 5 seconds after that is `still_running` (service.go:24-28, :318-334, :487-508)
     }
 
     method create by client, plugin {
       takes {
         workspaceId: WorkspaceId
         command: list of Text
+        inherited: an empty command stands for the user's login shell: `$SHELL -l`, read from the core's environment, or `/bin/zsh -l` when $SHELL is unset or names no executable file (internal/core/service.go:283-285, internal/shellenv/shellenv.go:32-42). The core's own command session.create ("Start a login-shell session") declares the args cwd and title only, so an agent, who may send no other arg, always gets that shell (internal/rpc/primitives.go:81-91, :249-260)
       }
       returns Session
-      ask Workspaces.require(workspaceId)   // @ internal/core/service.go:272-276
-      reject internal with "session host did not start" if command = ()   // @ internal/sessionhost/host.go:75-77, internal/session/manager.go:299-309
-      open by agent: the core's own command session.create ("Start a login-shell session") declares the args cwd and title only and nothing fills a command in, so an agent, who may send no other arg, always ends here; only a caller that is no agent and adds `command` itself gets a session (internal/rpc/primitives.go:81-91, :249-260, service.go:272-288; both seen with a throwaway probe against a running core). Is the user's shell meant to be the default?
+      ask Workspaces.require(workspaceId)   // @ internal/core/service.go:273-277
       create s: Session in running { id = new SessionId; workspace = workspaceId; owner = caller.plugin }
       ask Host.start(s.id, command) within 3 seconds, once {   // @ internal/session/manager.go:31, :277-297
         running { change nothing }
@@ -78,12 +77,12 @@ module Sessions "terminal sessions: each runs under a clubmate-session host proc
         ask Host.end(session.id) within 8 seconds, once {
           exited { session becomes exited }
           lost { session becomes lost }
-          still_running { reject session_running }   // @ internal/core/service.go:499-500, internal/rpc/errors.go:164
+          still_running { reject session_running }   // @ internal/core/service.go:503-504, internal/rpc/errors.go:164
           no answer { reject session_running }
         }
       }
-      emit session.killed(id = session.id)   // @ internal/core/service.go:328
-      inherited: killing a session that already ended is accepted and publishes session.killed again; `watch` below still announces a killed session as exited (service.go:314-330, :342-355)
+      emit session.killed(id = session.id)   // @ internal/core/service.go:332
+      inherited: killing a session that already ended is accepted and publishes session.killed again; `watch` below still announces a killed session as exited (service.go:318-334, :346-359)
     }
 
     method send by client, plugin {
@@ -132,7 +131,7 @@ module Sessions "terminal sessions: each runs under a clubmate-session host proc
     block drop(session: Session) {
       let gone = session.id
       remove Session of gone   // @ internal/session/manager.go:224-228
-      emit session.removed(id = gone)   // @ internal/core/service.go:310
+      emit session.removed(id = gone)   // @ internal/core/service.go:314
     }
 
     method clear "a workspace is being deleted and its sessions have stopped" {
@@ -142,7 +141,7 @@ module Sessions "terminal sessions: each runs under a clubmate-session host proc
       for each s in Session where workspace = workspace {
         emit session.removed(id = s.id)
         remove Session of s.id
-      }   // @ internal/core/service.go:253-264
+      }   // @ internal/core/service.go:254-265
     }
 
     method ended "a session's program ended and its host wrote the exit code" by os {
@@ -163,12 +162,12 @@ module Sessions "terminal sessions: each runs under a clubmate-session host proc
 
     policy watch {
       whenever Core starts {
-        open: the core first looks 2 seconds after it starts, not when it starts, so a session that ends in those 2 seconds is never announced either (service.go:346-348, :362, cmd/clubmate-core/main.go:36, :178); a start rule runs before anything else
+        open: the core first looks 2 seconds after it starts, not when it starts, so a session that ends in those 2 seconds is never announced either (service.go:350-352, :366, cmd/clubmate-core/main.go:35, :177); a start rule runs before anything else
         for each s in Session { set s.announced = not (s is running) }
         inherited: what was announced is kept in memory only: a session that ended while the core was down is never announced
       }
       every 2 seconds {
-        for each s in Session where session.announced = no and not (session is running) {   // @ internal/core/service.go:332-364
+        for each s in Session where session.announced = no and not (session is running) {   // @ internal/core/service.go:336-368
           set s.announced = yes
           emit session.exited(id = s.id, workspace = s.workspace, owner = s.owner, state = s.state)
         }

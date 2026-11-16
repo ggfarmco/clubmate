@@ -23,7 +23,6 @@ const (
 	mainSlot     = "terminals.main"
 	sectionID    = "terminals"
 	titlePrefix  = "Terminal "
-	defaultShell = "/bin/zsh"
 	refreshEvery = 2 * time.Second
 )
 
@@ -306,7 +305,7 @@ func (a *app) removeSession(ctx context.Context, h *pluginsdk.Host, s pluginsdk.
 }
 
 func (a *app) spawn(ctx context.Context, h *pluginsdk.Host, workspaceID, title, cwd string) error {
-	req := pluginsdk.SessionRequest{WorkspaceID: workspaceID, Title: title, Command: []string{shell(), "-l"}, Cwd: cwd}
+	req := pluginsdk.SessionRequest{WorkspaceID: workspaceID, Title: title, Cwd: cwd}
 	if tools := pluginsdk.ToolsDir(); tools != "" {
 		req.PathAppend = []string{tools}
 	}
@@ -459,13 +458,6 @@ func maxNumber(sessions []pluginsdk.Session) int {
 		}
 	}
 	return highest
-}
-
-func shell() string {
-	if sh := os.Getenv("SHELL"); sh != "" {
-		return sh
-	}
-	return defaultShell
 }
 
 func selectedKey(workspaceID string) string {

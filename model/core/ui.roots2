@@ -38,7 +38,7 @@ module Ui "the trees plugins render into slots, who watches them, the events cli
     }
 
     record Slot "what a slot shows, for one workspace or for the app" {
-      partial: a plugin's slots are cleared whenever its process ends, however it ends: each loses its tree, its rev goes up by one and those watching get an empty view (internal/plugin/supervisor.go:452-453, cmd/clubmate-core/main.go:161, internal/sdui/store.go:143-145, :223-247). Plugins does not ask for it in this model
+      partial: a plugin's slots are cleared whenever its process ends, however it ends: each loses its tree, its rev goes up by one and those watching get an empty view (internal/plugin/supervisor.go:449-451, cmd/clubmate-core/main.go:160, internal/sdui/store.go:143-145, :223-247). Plugins does not ask for it in this model
       id: SlotKey, key
       home: WorkspaceId, optional = id.workspace
       owner: PluginId
@@ -49,7 +49,7 @@ module Ui "the trees plugins render into slots, who watches them, the events cli
     }
 
     record Watch "a connection's subscription to the slots of one workspace, or of the app" {
-      partial: ui.presence, which any connection may ask and which answers the workspaces that are shown (internal/rpc/methods_ui.go:211-213)
+      partial: ui.presence, which any connection may ask and which answers the workspaces that are shown (internal/rpc/methods_ui.go:213-215)
       id: SubscriptionId, key
       conn: ConnId
       workspace: WorkspaceId, optional
@@ -81,9 +81,9 @@ module Ui "the trees plugins render into slots, who watches them, the events cli
     }
 
     log updates "ui.updated" carries ui.updated {
-      partial: who gets it and what it holds: only the subscriptions of the slot's workspace, each on its own connection and under its subscription id; the view holds the tree, or for a subscriber that asked for `delta` what changed since the view it was sent last; a new subscription first gets every slot that has a tree; a reader that is behind gets only the newest view of a slot (store.go:154-163, :260-275, internal/sdui/delta.go, methods_ui.go:459-494)
+      partial: who gets it and what it holds: only the subscriptions of the slot's workspace, each on its own connection and under its subscription id; the view holds the tree, or for a subscriber that asked for `delta` what changed since the view it was sent last; a new subscription first gets every slot that has a tree; a reader that is behind gets only the newest view of a slot (store.go:154-163, :260-275, internal/sdui/delta.go, methods_ui.go:461-496)
       on failure: drop
-      inherited: a subscription whose connection cannot be written to gets nothing more (methods_ui.go:478-480)
+      inherited: a subscription whose connection cannot be written to ends there: it gets nothing more and leaves as `unsubscribe` does, so it stops counting its workspace as shown and may publish ui.idle before the connection itself is closed (methods_ui.go:480-482, internal/rpc/subscriptions.go:59-64)
     }
 
     method get by client, plugin {
@@ -101,8 +101,8 @@ module Ui "the trees plugins render into slots, who watches them, the events cli
         presence: Flag, default yes
       }
       returns Watching
-      open by agent: the workspace is not looked up: a well-formed id that names no workspace, or a deleted one, is watched, counted as shown and announced with ui.opened (methods_ui.go:184-200; seen with a throwaway probe against a running core). Should an unknown workspace be `not_found`?
-      let shown = workspaceId != none and presence   // @ internal/rpc/methods_ui.go:193
+      if workspaceId != none { ask Workspaces.require(workspaceId) }   // @ internal/rpc/methods_ui.go:184-188
+      let shown = workspaceId != none and presence   // @ internal/rpc/methods_ui.go:195
       let first = shown and no Watch where workspace = workspaceId and present = yes exists
       create w: Watch { id = new SubscriptionId; conn = caller.conn; workspace = workspaceId; present = shown }
       if first and workspaceId != none { emit ui.opened(workspace = workspaceId) }   // @ internal/rpc/presence.go:66-77
@@ -137,8 +137,8 @@ module Ui "the trees plugins render into slots, who watches them, the events cli
     }
 
     method focus by client, plugin {
-      open: `slot` must be absent or <section>.sidebar, <section>.main or an extra slot the section declares, for a section with no rail icon only <section>.popup, and `field` needs <section>.sidebar; anything else is `invalid` (methods_ui.go:236-241, :440-457). No expression joins texts
-      open: the notifications go out side by side and `delivered` counts those that were written (methods_ui.go:245-256); an `ask` stands in a sequence and nothing counts its answers
+      open: `slot` must be absent or <section>.sidebar, <section>.main or an extra slot the section declares, for a section with no rail icon only <section>.popup, and `field` needs <section>.sidebar; anything else is `invalid` (methods_ui.go:238-243, :442-459). No expression joins texts
+      open: the notifications go out side by side and `delivered` counts those that were written (methods_ui.go:247-258); an `ask` stands in a sequence and nothing counts its answers
       takes {
         workspaceId: WorkspaceId
         section: SectionId
@@ -147,12 +147,12 @@ module Ui "the trees plugins render into slots, who watches them, the events cli
         node: Text, optional
       }
       returns Delivered
-      ask Workspaces.require(workspaceId) { not_found { reject invalid } }   // @ internal/rpc/methods_ui.go:220-225
+      ask Workspaces.require(workspaceId) { not_found { reject invalid } }   // @ internal/rpc/methods_ui.go:222-227
       reject invalid unless a Section of section exists
       let s = Section of section
-      ask Plugins.must_be_on(s.owner) { off { reject plugin_unavailable } }   // @ internal/rpc/methods_ui.go:230-232
+      ask Plugins.must_be_on(s.owner) { off { reject plugin_unavailable } }   // @ internal/rpc/methods_ui.go:232-234
       reject invalid if s.app_wide
-      reject invalid if node != none and (slot = none or field)   // @ internal/rpc/methods_ui.go:242-244
+      reject invalid if node != none and (slot = none or field)   // @ internal/rpc/methods_ui.go:244-246
       for each w in Watch where workspace = workspaceId and present = yes {
         ask Viewer.focus(w.conn, w.id, Target(section = section, slot = slot, field = field, node = node)) within 10 seconds, once {
           told { change nothing }
@@ -169,7 +169,7 @@ module Ui "the trees plugins render into slots, who watches them, the events cli
 
     method render by client, plugin {
       open: a tree is `invalid` when it is no node of the catalog, names a member twice or one the catalog does not know, has more than 5000 nodes or is deeper than 32; a delta that does not resolve against the tree shown is `invalid` too (internal/sdui/catalog.go:20-21, :411-460, store.go:91-104). A document cannot be looked into
-      open: docs/sdui-protocol.md § RPC methods says ui.render for a deleted workspace is invalid params. The code looks the workspace up first and answers `not_found` (methods_ui.go:278, :421-438); `invalid` is left for a render that passed that check while the delete ran (store.go:123-125). The model follows the code
+      inherited: a workspace that names none, or a deleted one, is `not_found`: the workspace is looked up first (methods_ui.go:280, :423-440); `invalid` is left for a render that passed that check while the delete ran (store.go:123-125)
       takes {
         workspaceId: WorkspaceId, optional
         slot: SlotName
@@ -178,12 +178,12 @@ module Ui "the trees plugins render into slots, who watches them, the events cli
         delta: Document, optional
       }
       returns Rendered
-      reject invalid if caller.plugin = none   // @ internal/rpc/methods_ui.go:264-267
-      reject invalid unless a Place of slot exists and (Place of slot).owner = caller.plugin   // @ internal/rpc/methods_ui.go:272-277
+      reject invalid if caller.plugin = none   // @ internal/rpc/methods_ui.go:266-269
+      reject invalid unless a Place of slot exists and (Place of slot).owner = caller.plugin   // @ internal/rpc/methods_ui.go:274-279
       let place = Place of slot
       if workspaceId != none { do must_fit(place, workspaceId) } else { reject invalid unless place.app_wide }
       reject invalid if delta = none and tree = none
-      reject invalid if delta != none and (tree != none or base = 0)   // @ internal/rpc/methods_ui.go:285-287
+      reject invalid if delta != none and (tree != none or base = 0)   // @ internal/rpc/methods_ui.go:287-289
       let id = SlotKey(workspace = workspaceId, slot = slot)
       if delta != none {
         reject stale_base unless a Slot of id exists and (Slot of id).tree != none and (Slot of id).rev = base   // @ internal/sdui/store.go:84-90, :127-129, internal/rpc/errors.go:160
@@ -205,7 +205,7 @@ module Ui "the trees plugins render into slots, who watches them, the events cli
 
     method event by client, plugin {
       partial: the answer, which is whatever the plugin answered
-      open: a slot name that is no <section>.sidebar, .main or .status, no declared extra slot and no settings slot is `invalid`, not `not_found` (methods_ui.go:300-307); the form of a text cannot be read
+      open: a slot name that is no <section>.sidebar, .main or .status, no declared extra slot and no settings slot is `invalid`, not `not_found` (methods_ui.go:302-309); the form of a text cannot be read
       takes {
         workspaceId: WorkspaceId, optional
         slot: SlotName
@@ -220,9 +220,9 @@ module Ui "the trees plugins render into slots, who watches them, the events cli
       let id = SlotKey(workspace = workspaceId, slot = slot)
       if agent {
         reject denied unless a Slot of id exists and (Slot of id).tree != none   // @ internal/rpc/testapp.go:178-192
-        open: an agent is also refused `denied` when the tree shown asks the user to confirm that action: a node with `confirm` and that action, its id, or the `select`, `toggle` or `submit` it sends, also through the form around it (methods_ui.go:311-313, testapp.go:194-241). A document cannot be looked into. docs/sdui-protocol.md does not name this refusal, and the rule lives in testapp.go beside the test instance's calls
+        open: an agent is also refused `denied` when the tree shown asks the user to confirm that action: a node with `confirm` and that action, its id, or the `select`, `toggle` or `submit` it sends, also through the form around it (methods_ui.go:313-315, testapp.go:194-241). A document cannot be looked into. docs/sdui-protocol.md does not name this refusal, and the rule lives in testapp.go beside the test instance's calls
       }
-      ask Plugins.call(place.owner, ui_event, Payload(args = value))   // @ internal/rpc/methods_ui.go:314-318, internal/plugin/router.go:74-76
+      ask Plugins.call(place.owner, ui_event, Payload(args = value))   // @ internal/rpc/methods_ui.go:316-320, internal/plugin/router.go:74-76
       inherited: the plugin gets the whole event: workspace, slot, node, action, value, `agent` and the session the caller says it is
     }
 
@@ -308,7 +308,7 @@ module Ui "the trees plugins render into slots, who watches them, the events cli
         }
       }
       remove UiState of workspace if a UiState of workspace exists   // @ internal/workspace/uistate.go:13
-      inherited: the subscriptions to it stay, so it counts as shown until its watchers leave
+      inherited: the subscriptions to it stay, so it counts as shown until its watchers leave; a new subscription to it is refused `not_found`
     }
 
     policy fresh_start {

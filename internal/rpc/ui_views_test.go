@@ -155,6 +155,18 @@ func TestPresenceEvents(t *testing.T) {
 	assert.JSONEq(t, fmt.Sprintf(`{"workspace":%q}`, p.ID), string(events[0].Payload))
 }
 
+func TestSubscribeUnknownWorkspace(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t)
+	c := h.Client(t)
+	err := c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": "prj_0123456789abcdef"}, nil)
+	require.ErrorIs(t, err, rpc.ErrNotFound)
+	var present []string
+	require.NoError(t, c.Call(t.Context(), "ui.presence", struct{}{}, &present))
+	assert.Empty(t, present)
+	noUIEvents(t, h)
+}
+
 func TestSubscribeWithoutPresence(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t)

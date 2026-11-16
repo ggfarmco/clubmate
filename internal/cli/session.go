@@ -13,8 +13,6 @@ import (
 	"clubmate/internal/session"
 )
 
-const fallbackShell = "/bin/zsh"
-
 func (a *app) sessionCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "session", Short: "Manage sessions"}
 	cmd.AddCommand(a.sessionCreateCmd(), a.sessionListCmd(), a.sessionKillCmd(), a.sessionRemoveCmd(), a.sessionSendCmd(), a.sessionReadCmd())
@@ -28,9 +26,6 @@ func (a *app) sessionCreateCmd() *cobra.Command {
 		Short: "Create a session",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			req.Command = args
-			if len(args) == 0 {
-				req.Command = defaultCommand()
-			}
 			if term := os.Getenv("TERM"); term != "" {
 				req.Env = []string{"TERM=" + term}
 			}
@@ -151,12 +146,4 @@ func (a *app) sessionReadCmd() *cobra.Command {
 	cmd.Flags().IntVar(&bytes, "bytes", session.ReadDefault, fmt.Sprintf("bytes to read from the end (max %d)", session.ReadMax))
 	cmd.Flags().BoolVar(&raw, "raw", false, "keep ANSI escapes")
 	return cmd
-}
-
-func defaultCommand() []string {
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = fallbackShell
-	}
-	return []string{shell, "-l"}
 }

@@ -11,7 +11,7 @@ module Clients "the connections of clients on the core's socket: what each regis
     value Shown { clients: Count }
 
     record Connection "a client's connection; a plugin's pipe is not one (server.go:170)" {
-      partial: ui.subscribe and ui.unsubscribe, which write `shows` and publish ui.opened when a workspace gets its first such connection and ui.idle when it loses its last (internal/rpc/methods_ui.go:179-209, internal/rpc/presence.go:66-87); what the core asks a registered client besides the calls of `App` below (ui.report, ui.snapshot, ui.present, ui.key, ui.pointer, browser.call); a client that takes no frame for 10 seconds is cut off (server.go:31, :254-262)
+      partial: ui.subscribe and ui.unsubscribe, which write `shows` and publish ui.opened when a workspace gets its first such connection and ui.idle when it loses its last (internal/rpc/methods_ui.go:179-211, internal/rpc/presence.go:66-87); what the core asks a registered client besides the calls of `App` below (ui.report, ui.snapshot, ui.present, ui.key, ui.pointer, browser.call); a client that takes no frame for 10 seconds is cut off (server.go:31, :254-262)
       id: ConnId, key
       joined: Time
       decided by agent: the code numbers connections in the order they arrive (server.go:189-190) and prefers the lowest number; the instant of arrival says the same order
@@ -101,7 +101,7 @@ module Clients "the connections of clients on the core's socket: what each regis
     }
 
     method shutdown by client, plugin {
-      open: the answer goes out first; 100 milliseconds later every client is told `core.stopping`, then the core stops as it does on SIGINT or SIGTERM: plugins get 15 seconds to stop, the socket and the databases close (methods_core.go:283-294, cmd/clubmate-core/main.go:171-189). No line ends the system, and nothing happens after an answer
+      open: the answer goes out first; 100 milliseconds later every client is told `core.stopping`, then the core stops as it does on SIGINT or SIGTERM: plugins get 15 seconds to stop, the socket and the databases close (methods_core.go:283-294, cmd/clubmate-core/main.go:170-188). No line ends the system, and nothing happens after an answer
       reject invalid if caller.plugin != none   // @ internal/rpc/methods_core.go:284-286
       for each c in Connection {
         ask App.stopping(c.id) within 1 seconds, once {

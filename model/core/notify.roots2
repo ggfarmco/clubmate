@@ -41,7 +41,7 @@ module Notify "notifications: notify.post checks a post, counts it against a bud
         collapse: AnySession, optional
         quiet: Flag, default no
         always: Flag, default no
-        agent: Flag = unstated "yes when the post came through command.run from a caller that said it is an agent (internal/rpc/methods_ui.go:383-386, internal/rpc/caller.go:41-48)"
+        agent: Flag = unstated "yes when the post came through command.run from a caller that said it is an agent (internal/rpc/methods_ui.go:385-388, internal/rpc/caller.go:41-48)"
       }
       returns Posted
       ask Workspaces.require(workspaceId)   // @ internal/rpc/methods_notify.go:66-68
@@ -51,7 +51,7 @@ module Notify "notifications: notify.post checks a post, counts it against a bud
       let mine = if caller.plugin != none and not agent then plugins else people   // @ internal/rpc/methods_notify.go:73-76
       inherited: a plugin's own posts have a budget apart, so agents, hooks and `cm notify` using up theirs never hold back a permission request (docs/notifications.md)
       reject rate_limited with "too many notifications" if count(r in Recent: r.purse = mine and r.workspace = workspaceId) >= 5 or count(r in Recent: r.purse = mine) >= 20   // @ internal/rpc/methods_notify.go:18-20, :77-79
-      inherited: a post that is refused, for any reason, counts against nothing (notify.go:53-60)
+      inherited: a post that is refused before the budget is asked, or by it, counts against nothing (notify.go:53-60); a post the budget let through whose publish on the bus then fails is answered with an error and still counts (internal/rpc/methods_notify.go:77-90)
       create r: Recent { id = new NotificationId; workspace = workspaceId; purse = mine; at = now }
       emit notify.posted(id = r.id, workspace = workspaceId, session = session, collapse = collapse, title = title, message = message, kind = kind, agent = agent, quiet = quiet, always = always and caller.plugin != none and not agent, ts = now)
       inherited: `always` stands only for a plugin's own post; the event's source on the bus is `agent` for an agent's post, else the caller's (methods_notify.go:84-87, :124)

@@ -52,7 +52,7 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
 
     port Hosts "the process trees of a workspace's sessions, which this model leaves out" {
       end_all(workspace: WorkspaceId): ended | still_running, not undone
-      inherited: every process of the workspace's sessions gets SIGTERM and, 3 seconds later, SIGKILL; a session that still runs 5 seconds after that is `still_running`; the ended sessions are removed (service.go:23-27, :246-264, :483-504)
+      inherited: every process of the workspace's sessions gets SIGTERM and, 3 seconds later, SIGKILL; a session that still runs 5 seconds after that is `still_running`; the ended sessions are removed (service.go:24-28, :247-265, :487-508)
     }
 
     block need_dir(path: FolderPath) {
@@ -78,16 +78,16 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
       for each r in repos { do need_dir(r) }
       create w: Workspace { id = new WorkspaceId; name = name; created_at = now; folders = () }
       for each r in repos { do add(w, r) }
-      emit workspace.created(workspace = w.id)   // @ internal/core/service.go:112-119
+      emit workspace.created(workspace = w.id)   // @ internal/core/service.go:113-120
     }
 
     method open by client, plugin {
       takes {
         folders: list of FolderPath, at least 1
-        name: Name = unstated "the last element of the first path as it was sent (service.go:138)"
+        name: Name = unstated "the last element of the first path as it was sent (service.go:139)"
       }
       returns Opened
-      open: each path is first resolved through links and cleaned and repeated paths are dropped (store.go:109-129, service.go:122); of several workspaces that match, the most recently opened wins (store.go:186). No expression walks a list while calling a port to build another list, or sorts downwards, so here the paths are taken as sent and any match is taken
+      open: each path is first resolved through links and cleaned and repeated paths are dropped (store.go:109-129, service.go:123); of several workspaces that match, the most recently opened wins (store.go:186). No expression walks a list while calling a port to build another list, or sorts downwards, so here the paths are taken as sent and any match is taken
       let same = first(w in Workspace: count(w.folders) = count(folders) and all(f in folders: f in w.folders))   // @ internal/workspace/store.go:154-162
       let leading = first(w in Workspace: count(folders) = 1 and count(w.folders) > 0 and all(f in folders: f = first(p in w.folders: yes)))   // @ internal/workspace/store.go:164-169
       if same != none {
@@ -119,7 +119,7 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
             emit workspace.created(workspace = w.id)
             ask Clients.show(w.id) { done(n) { return id = w.id, created = yes, clients = n } }
           }
-          unknown { reject internal }   // @ internal/core/service.go:143-146
+          unknown { reject internal }   // @ internal/core/service.go:144-147
         }
       }
     }
@@ -218,7 +218,7 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
         workspace: Workspace
       }
       returns Workspace
-      emit workspace.updated(workspace = workspace.id) if any(f in Folder where owner = workspace.id: f.missing)   // @ internal/core/service.go:231-240
+      emit workspace.updated(workspace = workspace.id) if any(f in Folder where owner = workspace.id: f.missing)   // @ internal/core/service.go:232-241
       never set workspace.folders
     }
 
@@ -228,13 +228,13 @@ module Workspaces "workspaces, their folders and the worktree each folder shows,
       }
       ask Hosts.end_all(workspace.id) unbounded, once {
         ended { change nothing }
-        still_running { reject session_running }   // @ internal/core/service.go:499-500, internal/rpc/errors.go:164
+        still_running { reject session_running }   // @ internal/core/service.go:503-504, internal/rpc/errors.go:164
       }
       ask Sessions.clear(workspace.id)
       let gone = workspace.id
       for each f in Folder where owner = gone { remove Folder of f.id }
       remove Workspace of gone
-      emit workspace.deleted(workspace = gone)   // @ internal/core/service.go:265-269
+      emit workspace.deleted(workspace = gone)   // @ internal/core/service.go:266-270
       ask Ui.drop(gone)
     }
 
