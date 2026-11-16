@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>C, no reviewer row, 640, the review asks</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/5bfa6c4278f65e570e80e33b470232cb">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="cm th-{{theme}}" style="width: 640px; height: 800px; overflow: hidden; position: relative">
+<div class="win">
+
+<header class="tb">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="pill" aria-label="Workspace clubmate, branch main"><span class="mdot id-blue"></span><span>clubmate</span><span class="faint">/</span><span>main</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="pill" aria-label="Notifications: 1 needs you"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">1</span></button>
+</header>
+
+<div class="body" style="grid-template-columns: 40px minmax(0, 1fr)">
+<nav class="rail" aria-label="Sections">
+<button class="ri" aria-label="Code ⌘1"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button>
+<button class="ri" aria-label="Terminals ⌘2"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button>
+<button class="ri on" aria-label="Agents ⌘3, 1 needs you"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="bdg"></span></button>
+<button class="ri" aria-label="Backlog ⌘4"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button>
+<button class="ri" aria-label="Cron ⌘6"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button>
+<button class="ri" aria-label="Gates ⌘9"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/></svg></button>
+</nav>
+
+<main class="main">
+<div style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--bd); flex: none; min-width: 0" class="cap mut">
+<span style="flex: none">‹ Agents</span><span class="faint">/</span><span class="ell">Gate graph instead of a fixed guard</span><span class="faint">/</span><span style="flex: none; color: var(--fg)">Land review</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 8px 16px; border-bottom: 1px solid var(--bd); flex: none; min-width: 0">
+<div style="display: flex; align-items: center; gap: 8px; min-width: 0"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/></svg><h1 class="ttl ell" style="margin: 0">Land review · round 1 of 2</h1><span style="flex: 1"></span><span class="badge wa">asks you</span></div>
+<div class="cap mut ell" style="padding-left: 22px">feat/gates-land-graph → main · Fable 5.2 · read-only</div>
+</div>
+<div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 16px 8px; gap: 10px">
+<div class="row" style="padding-left: 0"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><span>6 actions</span><span class="mut ell">read 5 files · 1 search</span></div>
+<p>The worktree tests decide this one; I need to run them.</p>
+</div>
+<div style="padding: 0 16px 8px; flex: none">
+<section class="card" aria-label="Permission request" style="padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; border-color: var(--wa-bd); background: color-mix(in srgb, var(--wa) 7%, var(--bg))">
+<div style="display: flex; align-items: center; gap: 8px"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="M8 5.5v3M8 10.8v.1"/></svg><span class="b">Run a command?</span><span class="mut cap ell">a reviewer is read-only</span></div>
+<div style="background: var(--bg); border: 1px solid var(--bd); border-radius: 5px; padding: 2px 10px" class="ell">go test ./plugins/gates/...</div>
+<div class="abar"><button class="btn pri">Allow once<span class="kbd">⌥1</span></button><button class="btn">Always…<span class="kbd">⌥2</span></button><button class="btn dg">Reject<span class="kbd">⌥3</span></button></div>
+</section>
+</div>
+</main>
+</div>
+
+<footer class="sb">
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span>
+<span>6 agents · <span class="wa-i">1 needs you</span></span>
+<span style="flex: 1"></span>
+<span>⌘K</span>
+</footer>
+</div>
+
+<div style="position: absolute; left: 40px; right: 0; top: 38px; bottom: 22px; background: var(--scrim)"></div>
+
+<aside class="side" aria-label="Agent sessions" style="position: absolute; left: 40px; top: 38px; bottom: 22px; width: 280px; box-shadow: var(--sh); z-index: 2">
+<div class="phead">
+<span class="ttl">Agents</span>
+<span class="kbd">⌘B</span>
+<span style="flex: 1"></span>
+<button class="btn ico sm gh" aria-label="Filter /"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg></button>
+<button class="btn ico sm gh" aria-label="New session ⌘N"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
+</div>
+<div style="display: flex; gap: 4px; padding: 8px 8px 4px; flex: none">
+<button class="badge" style="border: 0; background: var(--prs); color: var(--fg)">All 6</button>
+<button class="badge wa" style="border: 0">Needs you 1</button>
+<button class="badge" style="border: 0">Running 4</button>
+</div>
+<div style="display: flex; flex-direction: column; padding: 0 4px">
+<div class="sec"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span style="flex: 1">main</span><span>4</span></div>
+<div class="row"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Gate graph instead of a fixed guard</span><span class="d cap">review…</span></div>
+<div class="row sel" style="padding-left: 38px"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="M8 5.5v3M8 10.8v.1"/></svg><span class="l">Land review</span><span class="d cap" style="color: var(--wa-i)">asks</span></div>
+<div class="row" style="padding-left: 26px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Keep-awake plugin (Amphetamine)</span><span class="d cap" style="color: var(--t2)">3 changes</span></div>
+<div class="row" style="padding-left: 26px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Side threads: dig into limits</span><span class="d cap">10m</span></div>
+<div class="row" style="padding-left: 26px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.3-3.6"/></svg><span class="l t2">Agents: cron, triggers</span><span class="d cap">40m</span></div>
+<div class="sec" style="margin-top: 6px"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span style="flex: 1">chore/awake-mac-shots</span><span>2</span></div>
+<div class="row" style="padding-left: 26px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l">Status bar click targets</span><span class="d cap">1m</span></div>
+<div class="row" style="padding-left: 26px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.3-3.6"/></svg><span class="l t2">Screenshot the lock screen</span><span class="d cap">2m</span></div>
+<div class="row" style="margin-top: 6px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h12v3H2Z"/><path d="M3 6.5v6.5h10V6.5M6.5 9h3"/></svg><span class="l">Closed</span><span class="d cap">87</span></div>
+<div class="row" style="padding-left: 26px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.3-3.6"/></svg><span class="l t2">Deploy the app to the phone</span><span class="d cap">main</span></div>
+<div class="row" style="padding-left: 26px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.3-3.6"/></svg><span class="l t2">Wiki plugin for docs</span><span class="d cap">main</span></div>
+<div class="row" style="padding-left: 26px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.3-3.6"/></svg><span class="l t2">Image instead of a path in input</span><span class="d cap">main</span></div>
+<div class="row" style="padding-left: 26px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.3-3.6"/></svg><span class="l t2">Lock-screen reply screenshot</span><span class="d cap">main</span></div>
+<div class="row" style="padding-left: 26px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.3-3.6"/></svg><span class="l t2">Agents: on a subscription</span><span class="d cap">main</span></div>
+<div class="row faint" style="padding-left: 26px"><span class="l">Show 25 more · 57 left</span></div>
+</div>
+</aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["matelight","mate","kanagawa","onedark","latte"],"default":"matelight"},"$preview":{"width":640,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'matelight' };
+}
+}
+</script>
+</body>
+</html>

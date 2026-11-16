@@ -1,0 +1,36 @@
+{
+  "project": "/Users/cali/develop/norimori/ggfarmco/clubmate/design/land-review-brief/canvas/project",
+  "out": "/Users/cali/develop/norimori/ggfarmco/clubmate/design/land-review-brief/round-2.html",
+  "title": "Land review · раунд 2 · C на новом Agents",
+  "lead": "Вариант C, перерисованный на решённом 16 Nov макете Agents (A · закреплённые внизу Service, Land gates, Graphs; в левой панели разделов нет Graphs и Gates). У ревьюера нет строки в дереве и в Closed; он появляется под лендером, только пока просит разрешение.",
+  "directions": [
+    {
+      "title": "Mac · 1280 · тёмная",
+      "pitch": "Лендер несёт состояние вливки; ревьюер открывается со страницы лендера (⌥R) или с вердикта на странице гейта.",
+      "points": [
+        "Подпись лендера: review… (с round 2 — review 2/2…) акцентом · 3 changes обычным · approved зелёным, потом гаснет · asking жёлтым, когда ждёт Land anyway / Stop.",
+        "Вторая строка шапки лендера: щит · Landing into main · round 1 of 2 · бейдж вердикта · Open review ⌥R.",
+        "Страница гейта (Land gates → clubmate): таблица вердиктов с Open review, карточка текущего ревью; закрытые ревью доступны только отсюда.",
+        "Редкий случай: ревьюер просит разрешение → строка «Round 1 review · asks you» под лендером, счётчик Needs you, на Land gates «1 asking»; после ответа строка исчезает.",
+        "Страница ревьюера: крошки Agents / main / ‹лендер› / Round 1 review, ⌘[ назад; «Input only» нет."
+      ],
+      "boards": [
+        {"file": "R2-C-Lander-1280.dc.html", "w": 1280, "h": 800, "zoom": 0.75, "caption": "Страница лендера: строки ревьюеров нет, в шапке линия вливки и Open review ⌥R; Closed 87."},
+        {"file": "R2-C-Gate-1280.dc.html", "w": 1280, "h": 800, "zoom": 0.75, "caption": "Land gates открыт внизу сайдбара, страница гейта с вливкой на ревью."},
+        {"file": "R2-C-Asks-1280.dc.html", "w": 1280, "h": 800, "zoom": 0.75, "caption": "Ревьюер просит разрешение: строка под лендером, карточка разрешения на его странице."}
+      ]
+    },
+    {
+      "title": "640 · светлая и телефон",
+      "pitch": "Те же правила; на телефоне Closed, Service, Land gates и Graphs замыкают список.",
+      "points": [
+        "Телефон: состояние ревью в подзаголовке лендера; просящий ревьюер вложен под лендером в Needs you."
+      ],
+      "boards": [
+        {"file": "R2-C-Drawer-640-Light.dc.html", "w": 640, "h": 800, "zoom": 0.75, "caption": "Выдвижной сайдбар (⌘B) с закреплёнными внизу разделами; в Closed только сессии."},
+        {"file": "R2-C-Review-640-Light.dc.html", "w": 640, "h": 800, "zoom": 0.75, "caption": "Ревьюер, открытый с вердикта на странице гейта."},
+        {"file": "R2-C-Phone.dc.html", "w": 393, "h": 852, "zoom": 0.7, "caption": "iPhone: ревью просит под лендером; список заканчивается Closed, Service, Land gates, Graphs."}
+      ]
+    }
+  ]
+}
