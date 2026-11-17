@@ -138,7 +138,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err := h.Call(ctx, "ui.sections", nil, &sections); err != nil {
 		return err
 	}
-	a.usage.onShare = a.sharesChanged
+	a.usage.onShare, a.usage.tree = a.sharesChanged, a.spendTree
 	if err := a.usage.load(ctx, h); err != nil {
 		return err
 	}
@@ -385,6 +385,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 	children := childStatuses(recs)
 	kids := kidsOf(recs)
 	nest := reviewNests(recs)
+	tree := a.spendTree()
 	out := make([]sessionInfo, 0, len(recs))
 	for _, rec := range recs {
 		info := sessionInfo{record: rec, NotifyEffective: a.effectiveNotify(rec), ChildStatus: children[rec.ID]}
@@ -415,7 +416,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			info.ModeLabel = modeWord(rec.Mode, nil)
 		}
 		info.ReviewProgress = a.reviews.progress(rec.ID)
-		if share := a.usage.sessionShare(rec.ID); len(share) > 0 {
+		if share := a.usage.sessionShare(tree.of(rec.ID)); len(share) > 0 {
 			info.LimitShare, info.ShareLabel, info.ShareWords, info.ShareDetail = share, shareLabel(share), shareWords(share), shareDetail(share)
 		}
 		info.NeedsYou = needsYou(info.record)

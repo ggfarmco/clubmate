@@ -569,6 +569,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 	if f := a.session(v.Session.ForkedFrom); f != nil {
 		forked = cmp.Or(f.snapshot().Title, "New session")
 	}
+	share := a.usage.sessionShare(a.spendTree().of(sid))
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
 	st.open.prune(open.Items)
@@ -602,7 +603,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 		Parent:      parent,
 		Children:    row.Children,
 		Row:         row,
-		Share:       a.usage.sessionShare(v.Session.ID),
+		Share:       share,
 		Now:         time.Now(),
 		FromTitles:  fromTitles,
 		Context:     ctxScreen,

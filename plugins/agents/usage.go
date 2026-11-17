@@ -128,6 +128,67 @@ type usageTracker struct {
 	shown   map[string]string
 	account accountCache
 	onShare func(sessions []string)
+	tree    func() spendTree
+}
+
+type spendTree map[string][]string
+
+func (t spendTree) of(id string) []string {
+	if ids, ok := t[id]; ok {
+		return ids
+	}
+	return []string{id}
+}
+
+func spendParent(rec record) string {
+	if rec.ParentSession != "" {
+		return rec.ParentSession
+	}
+	if rec.GateFor != nil {
+		return rec.GateFor.Lander
+	}
+	return ""
+}
+
+func spendTreeOf(recs []record) spendTree {
+	kids := map[string][]string{}
+	for _, rec := range recs {
+		if p := spendParent(rec); p != "" && p != rec.ID {
+			kids[p] = append(kids[p], rec.ID)
+		}
+	}
+	out := spendTree{}
+	for id := range kids {
+		ids, seen := []string{id}, map[string]bool{id: true}
+		for i := 0; i < len(ids); i++ {
+			for _, kid := range kids[ids[i]] {
+				if !seen[kid] {
+					seen[kid] = true
+					ids = append(ids, kid)
+				}
+			}
+		}
+		out[id] = ids
+	}
+	return out
+}
+
+func (a *app) spendTree() spendTree {
+	a.mu.Lock()
+	all := slices.Collect(maps.Values(a.sessions))
+	a.mu.Unlock()
+	recs := make([]record, 0, len(all))
+	for _, s := range all {
+		recs = append(recs, s.snapshot())
+	}
+	return spendTreeOf(recs)
+}
+
+func (u *usageTracker) lineage() spendTree {
+	if u.tree == nil {
+		return nil
+	}
+	return u.tree()
 }
 
 func (u *usageTracker) load(ctx context.Context, h *pluginsdk.Host) error {
@@ -150,7 +211,7 @@ func (u *usageTracker) load(ctx context.Context, h *pluginsdk.Host) error {
 	if shareFound {
 		u.share = share
 	}
-	u.shown = u.share.keys(time.Now())
+	u.shown = u.share.keys(time.Now(), nil)
 	return nil
 }
 
@@ -232,6 +293,7 @@ func (u *usageTracker) observe(agentSession, session string, update json.RawMess
 		return
 	}
 	now := time.Now()
+	tree := u.lineage()
 	u.mu.Lock()
 	if len(windows) > 0 {
 		if account, email := u.accountLocked(); account != "" {
@@ -253,7 +315,7 @@ func (u *usageTracker) observe(agentSession, session string, update json.RawMess
 	if spent {
 		u.share.spend(agentSession, session, up.Cost.Amount, now)
 	}
-	changed := u.shareChangesLocked(now)
+	changed := u.shareChangesLocked(now, tree)
 	host, onShare := u.host, u.onShare
 	u.mu.Unlock()
 	if host != nil {
@@ -264,8 +326,8 @@ func (u *usageTracker) observe(agentSession, session string, update json.RawMess
 	}
 }
 
-func (u *usageTracker) shareChangesLocked(now time.Time) []string {
-	cur := u.share.keys(now)
+func (u *usageTracker) shareChangesLocked(now time.Time, tree spendTree) []string {
+	cur := u.share.keys(now, tree)
 	var out []string
 	for id, key := range cur {
 		if u.shown[id] != key {
@@ -308,10 +370,35 @@ func (u *usageTracker) publish(h *pluginsdk.Host, rated bool) {
 	}
 }
 
-func (u *usageTracker) sessionShare(session string) map[string]float64 {
+func (u *usageTracker) sessionShare(ids []string) map[string]float64 {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	return u.share.of(session, time.Now())
+	return u.share.of(ids, time.Now())
+}
+
+func (u *usageTracker) fold(child, parent string) {
+	if parent == "" {
+		return
+	}
+	u.mu.Lock()
+	moved := u.share.fold(child, parent)
+	host := u.host
+	u.mu.Unlock()
+	if moved && host != nil {
+		go u.publish(host, false)
+	}
+}
+
+func (s *shareState) fold(child, parent string) bool {
+	moved := false
+	for _, w := range s.Windows {
+		if spent, ok := w.Sessions[child]; ok {
+			w.Sessions[parent] += spent
+			delete(w.Sessions, child)
+			moved = true
+		}
+	}
+	return moved
 }
 
 func (s *shareState) see(windows map[string]rateLimitWindow, now time.Time) {
@@ -350,10 +437,14 @@ func (s *shareState) spend(agentSession, session string, amount float64, now tim
 	}
 }
 
-func (s *shareState) of(session string, now time.Time) map[string]float64 {
+func (s *shareState) of(ids []string, now time.Time) map[string]float64 {
 	out := map[string]float64{}
 	for name, w := range s.Windows {
-		if spent := w.Sessions[session]; spent > 0 && w.Total > 0 && w.Last > w.Base && now.Unix() < w.ResetsAt {
+		spent := 0.0
+		for _, id := range ids {
+			spent += w.Sessions[id]
+		}
+		if spent > 0 && w.Total > 0 && w.Last > w.Base && now.Unix() < w.ResetsAt {
 			if v := math.Round((w.Last-w.Base)*1000*spent/w.Total) / 10; v > 0 {
 				out[name] = v
 			}
@@ -362,9 +453,9 @@ func (s *shareState) of(session string, now time.Time) map[string]float64 {
 	return out
 }
 
-func (s *shareState) keys(now time.Time) map[string]string {
+func (s *shareState) keys(now time.Time, tree spendTree) map[string]string {
 	out := map[string]string{}
-	for id, share := range s.all(now) {
+	for id, share := range s.all(now, tree) {
 		key := ""
 		for _, name := range usageWindows {
 			key += name + "=" + shareAmount(share[name]) + ";"
@@ -374,16 +465,25 @@ func (s *shareState) keys(now time.Time) map[string]string {
 	return out
 }
 
-func (s *shareState) all(now time.Time) map[string]map[string]float64 {
+func (s *shareState) all(now time.Time, tree spendTree) map[string]map[string]float64 {
 	out := map[string]map[string]float64{}
+	seen := map[string]bool{}
+	add := func(id string) {
+		if seen[id] {
+			return
+		}
+		seen[id] = true
+		if share := s.of(tree.of(id), now); len(share) > 0 {
+			out[id] = share
+		}
+	}
 	for _, w := range s.Windows {
 		for session := range w.Sessions {
-			if _, ok := out[session]; !ok {
-				if share := s.of(session, now); len(share) > 0 {
-					out[session] = share
-				}
-			}
+			add(session)
 		}
+	}
+	for id := range tree {
+		add(id)
 	}
 	return out
 }
@@ -415,8 +515,9 @@ func (a *app) sharesChanged(ids []string) {
 
 func (a *app) usageCommand(context.Context, pluginsdk.CommandRun) (any, error) {
 	state := a.usage.snapshot()
+	tree := a.spendTree()
 	a.usage.mu.Lock()
-	sessions := a.usage.share.all(time.Now())
+	sessions := a.usage.share.all(time.Now(), tree)
 	a.usage.mu.Unlock()
 	return usageReport{usageState: state, Sessions: sessions}, nil
 }

@@ -179,6 +179,7 @@ func (a *app) deleteSession(ctx context.Context, s *session, remote bool) error 
 	err := s.log.remove()
 	s.mu.Unlock()
 	a.texts.forget(logPath(a.stateDir, rec.ID))
+	a.usage.fold(rec.ID, spendParent(rec))
 	err = errors.Join(err, a.dropUploads(rec.ID))
 	a.mu.Lock()
 	delete(a.sessions, rec.ID)
