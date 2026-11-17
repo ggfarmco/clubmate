@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -214,7 +215,7 @@ func projectPages(projects []projectView, name string) []Page {
 
 func (w *wiki) pageData(ctx context.Context, ws contract.Workspace, projects []wikiroot.Project, s *Store, row recentRow, pages []Page, history bool) mainData {
 	page := row.Page
-	m := mainData{Project: row.Project, Page: &page, ShowHistory: history, Path: filepath.Join(s.p.Dir, filepath.FromSlash(page.Path))}
+	m := mainData{Project: row.Project, Page: &page, ShowHistory: history, Now: w.now(), Path: filepath.Join(s.p.Dir, filepath.FromSlash(page.Path))}
 	if history {
 		changes, err := s.History(ctx, page.Path, historyLimit)
 		logError("history "+page.Path, err)
@@ -300,7 +301,7 @@ func (w *wiki) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEv
 
 func (w *wiki) handle(ctx context.Context, ev pluginsdk.UIEvent) error {
 	u := w.workspace(ev.WorkspaceID)
-	if (ev.NodeID == newNode || ev.NodeID == deleteNode || ev.NodeID == editNode) && (ev.Agent || w.fromSession(ctx, ev.WorkspaceID, ev.Caller)) {
+	if (ev.NodeID == newNode || ev.NodeID == deleteNode || ev.NodeID == editNode || ev.NodeID == revealNode) && (ev.Agent || w.fromSession(ctx, ev.WorkspaceID, ev.Caller)) {
 		return errNotForAgents
 	}
 	switch {
@@ -343,6 +344,12 @@ func (w *wiki) handle(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return err
 		}
 		return w.h.RunCommand(ctx, "editor.open", ev.WorkspaceID, map[string]any{"path": path, "focus": true}, nil)
+	case ev.NodeID == revealNode:
+		path, err := w.selectedPath(ctx, ev.WorkspaceID)
+		if err != nil {
+			return err
+		}
+		return exec.CommandContext(ctx, "/usr/bin/open", "-R", path).Run()
 	case ev.NodeID == historyNode:
 		w.mu.Lock()
 		u.history = !u.history

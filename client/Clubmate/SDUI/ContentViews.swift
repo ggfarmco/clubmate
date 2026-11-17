@@ -289,6 +289,7 @@ struct HeaderNodeView: View {
     let node: SDUINode
 
     @State private var width: CGFloat = 0
+    @State private var metaWidth: CGFloat = .infinity
     @Environment(\.theme) private var theme
     @Environment(\.headerTrailingInset) private var trailingInset
     @Environment(FormState.self) private var form: FormState?
@@ -311,7 +312,27 @@ struct HeaderNodeView: View {
         .padding(.vertical, theme.spacing.l)
         .frame(maxWidth: .infinity, alignment: .leading)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .background(alignment: .topLeading) { metaProbe }
         .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
+    }
+
+    private var metaInline: Bool {
+        width >= Self.inlineCaptionWidth && node.string("status") == nil && metaWidth <= width / 3
+    }
+
+    @ViewBuilder
+    private var metaProbe: some View {
+        if let meta = node.string("meta") {
+            Text(meta)
+                .font(theme.uiSmall)
+                .lineLimit(1)
+                .fixedSize()
+                .hidden()
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { metaWidth = $0 }
+                .frame(width: 0, height: 0, alignment: .topLeading)
+                .clipped()
+                .accessibilityHidden(true)
+        }
     }
 
     private func oneLine(_ title: String) -> some View {
@@ -361,6 +382,7 @@ struct HeaderNodeView: View {
                             .fixedSize()
                         badges
                         Spacer(minLength: 0)
+                        if metaInline { lineMeta }
                         corner
                     }
                     HStack(alignment: .top, spacing: theme.spacing.m) {
@@ -369,6 +391,7 @@ struct HeaderNodeView: View {
                             HStack(spacing: theme.spacing.m) { badges }
                         }
                         Spacer(minLength: 0)
+                        if metaInline { lineMeta }
                         corner
                     }
                 }
@@ -379,7 +402,7 @@ struct HeaderNodeView: View {
             if !inline, let caption = sessionCaption {
                 captionText(caption)
             }
-            if let meta = node.string("meta") {
+            if !metaInline, let meta = node.string("meta") {
                 Text(meta)
                     .font(theme.uiSmall)
                     .foregroundStyle(theme.muted)
@@ -453,6 +476,7 @@ struct HeaderNodeView: View {
             }
             if !session { badges }
             Spacer(minLength: 0)
+            if metaInline { lineMeta }
             if session {
                 if let pill = node.headerPill {
                     HeaderPillView(node: pill.node)
@@ -463,6 +487,17 @@ struct HeaderNodeView: View {
             corner
         }
         .padding(.trailing, trailingInset)
+    }
+
+    @ViewBuilder
+    private var lineMeta: some View {
+        if let meta = node.string("meta") {
+            Text(meta)
+                .font(theme.uiSmall)
+                .foregroundStyle(theme.muted)
+                .lineLimit(1)
+                .fixedSize()
+        }
     }
 
     @ViewBuilder

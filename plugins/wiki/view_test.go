@@ -83,7 +83,7 @@ func TestSearchFiltersTree(t *testing.T) {
 func TestMainShowsStaleBadgeFromField(t *testing.T) {
 	page := Page{Path: "a.md", Title: "A", Updated: time.Date(2026, 1, 2, 15, 4, 0, 0, time.Local), By: "Fix SDUI"}
 	header := func(p Page) sdui.Node {
-		h, ok := findNode(mainView(mainData{Project: "app", Page: &p, HTML: "<p>x</p>", Kind: sdui.DocumentMarkdown}), headerNode)
+		h, ok := findNode(mainView(mainData{Project: "app", Page: &p, HTML: "<p>x</p>", Kind: sdui.DocumentMarkdown, Now: time.Date(2026, 3, 1, 9, 0, 0, 0, time.Local)}), headerNode)
 		require.True(t, ok)
 		return h
 	}
@@ -94,8 +94,16 @@ func TestMainShowsStaleBadgeFromField(t *testing.T) {
 	assert.Equal(t, []sdui.HeaderBadge{{Text: "stale", Tone: "warning"}}, header(page).Props["badges"])
 }
 
+func TestMetaShowsTimeOnlyForToday(t *testing.T) {
+	at := time.Date(2026, 11, 16, 18, 20, 0, 0, time.Local)
+
+	assert.Equal(t, "updated 18:20 by you", meta(at, "you", at.Add(3*time.Hour)))
+	assert.Equal(t, "updated Nov 16 18:20 by you", meta(at, "you", at.Add(8*time.Hour)))
+	assert.Equal(t, "updated Nov 16, 2026 18:20 by you", meta(at, "you", at.AddDate(1, 0, 0)))
+}
+
 func TestDropTitleOnlyWhenItMatches(t *testing.T) {
-	assert.Equal(t, "<p>x</p>", dropTitle("<h1 id=\"a\">A &amp; <code>B</code></h1>\n<p>x</p>", "A & B"))
+	assert.Equal(t, "<a id=\"a\"></a><p>x</p>", dropTitle("<h1 id=\"a\">A &amp; <code>B</code></h1>\n<p>x</p>", "A & B"))
 	assert.Equal(t, "<h1>Other</h1><p>x</p>", dropTitle("<h1>Other</h1><p>x</p>", "A"))
 	assert.Equal(t, "<p>x</p><h1>A</h1>", dropTitle("<p>x</p><h1>A</h1>", "A"))
 }

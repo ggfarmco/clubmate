@@ -30,6 +30,7 @@ const (
 	timeLayout    = "Jan 2 15:04"
 	notesLabel    = "Agent notes"
 	copyNode      = "copyPath"
+	revealNode    = "reveal"
 	emptyText     = "Agents write here as they work: how things work, why they were decided, examples. You can add a page too."
 	homeText      = "Open a project workspace to see its wiki."
 )
@@ -70,6 +71,7 @@ type mainData struct {
 	Rev         int
 	ShowHistory bool
 	History     []Change
+	Now         time.Time
 }
 
 func pageID(project, page string) string {
@@ -232,12 +234,13 @@ func mainView(d mainData) sdui.Node {
 		sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(editNode, "Edit", "pencil"), "edit"), sdui.VariantPrimary), "e"),
 		sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(historyNode, "History", "clock.arrow.circlepath"), "history"), sdui.VariantSecondary), "cmd+y"),
 		sdui.WithOverflow(sdui.WithCopy(sdui.Button(copyNode, "Copy path", "doc.on.doc"), d.Path)),
+		sdui.WithOverflow(sdui.WithAction(sdui.Button(revealNode, "Reveal in Finder", "folder"), "reveal")),
 		sdui.WithOverflow(sdui.WithConfirm(sdui.WithVariant(sdui.WithAction(sdui.Button(deleteNode, "Delete", "trash"), "delete"), sdui.VariantDanger), "Delete "+p.Path+"? It stays in the wiki's git history.")),
 	}
 	if d.ShowHistory {
 		actions[1] = sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(historyNode, "Back to page", "chevron.left"), "history"), sdui.VariantSecondary), "cmd+y")
 	}
-	props := sdui.HeaderProps{Icon: pageIcon(p.Path), Meta: meta(p.Updated, p.By)}
+	props := sdui.HeaderProps{Icon: pageIcon(p.Path), Meta: meta(p.Updated, p.By, d.Now)}
 	if p.Stale {
 		props.Badges = []sdui.HeaderBadge{{Text: staleBadge, Tone: "warning"}}
 	}
@@ -259,7 +262,9 @@ func historyView(changes []Change) sdui.Node {
 	return sdui.List(changesNode, items, "")
 }
 
-var leadingH1 = regexp.MustCompile(`(?s)^\s*<h1[^>]*>(.*?)</h1>\s*`)
+var leadingH1 = regexp.MustCompile(`(?s)^\s*<h1([^>]*)>(.*?)</h1>\s*`)
+
+var idAttr = regexp.MustCompile(`\sid="([^"]*)"`)
 
 var tags = regexp.MustCompile(`<[^>]*>`)
 
@@ -268,15 +273,26 @@ func dropTitle(body, title string) string {
 	if m == nil {
 		return body
 	}
-	if strings.TrimSpace(html.UnescapeString(tags.ReplaceAllString(body[m[2]:m[3]], ""))) != strings.TrimSpace(title) {
+	if strings.TrimSpace(html.UnescapeString(tags.ReplaceAllString(body[m[4]:m[5]], ""))) != strings.TrimSpace(title) {
 		return body
+	}
+	if id := idAttr.FindStringSubmatch(body[m[2]:m[3]]); id != nil {
+		return `<a id="` + id[1] + `"></a>` + body[m[1]:]
 	}
 	return body[m[1]:]
 }
 
-func meta(at time.Time, by string) string {
+func meta(at time.Time, by string, now time.Time) string {
 	if at.IsZero() {
 		return "by " + by
 	}
-	return "updated " + at.Local().Format(timeLayout) + " by " + by
+	at, now = at.Local(), now.Local()
+	layout := "Jan 2, 2006 15:04"
+	switch {
+	case at.Year() == now.Year() && at.YearDay() == now.YearDay():
+		layout = "15:04"
+	case at.Year() == now.Year():
+		layout = timeLayout
+	}
+	return "updated " + at.Format(layout) + " by " + by
 }
