@@ -13,6 +13,7 @@ public final class FormState {
     public private(set) var submissions = 0
     public private(set) var save = UIFormSave()
     @ObservationIgnored public var autosave = false
+    @ObservationIgnored public var seeds: [String: ChoiceSeed] = [:]
     @ObservationIgnored private var pending: Task<Void, Never>?
     @ObservationIgnored private var touched: Set<String> = []
     @ObservationIgnored private var mounts: [UUID] = []

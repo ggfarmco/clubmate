@@ -166,9 +166,15 @@ func transcript(sc screen) sdui.Node {
 	if card, ok := reposCard(sc); ok {
 		nodes = append(nodes, card)
 	}
+	if v.Session.isAside() && hidden == 0 {
+		nodes = slices.Insert(nodes, 0, forkedBlock(v.Session))
+	}
 	n := sdui.Transcript(sid+"/transcript", nodes...)
 	if sc.Anchor != "" {
 		n = sdui.WithAnchorRev(sdui.WithAnchor(n, sc.Anchor), sc.AnchorRev)
+	}
+	if sc.Asides.ask && sc.Code == nil {
+		n = sdui.WithAsideAction(n, actAsideQuote)
 	}
 	return n
 }

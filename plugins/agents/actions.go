@@ -91,7 +91,7 @@ var (
 	errUserAction    = errors.New("only the user presses this")
 )
 
-var userActions = []string{actSend, actAsidePick, actAsideAsk, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave, actArchive, actArchiveTick, actArchiveFolder, actArchiveCancel, actArchiveConfirm, actArchiveClose, actRestore, actCleanupTick, actCleanupGroup, actCleanupShow, actCleanupFilter, actCleanupFolder, actCleanupCancel, actCleanupConfirm, actRemoveRun, actGateDelete, actNewGate, actNewGraph}
+var userActions = []string{actSend, actAsidePick, actAsideAsk, actAsideQuote, actAsideFull, actAsideBeside, actAsideParent, actAsideNext, actAsideKeep, actAsideClose, actSendBackOpen, actSendBackDraft, actSendBackFrom, actSendBackSend, actSendBackCancel, actSendBackKey, actPermission, actElicitation, actElicitPick, actElicitDecline, actElicitOpen, actMode, actConfig, actDelete, actOpenKey, actOpenSendAll, actConnectAnswer, actLandAnswer, actFolderRemove, actFolderTick, actFolderCancel, actFolderConfirm, actRepoFix, actRepoLeave, actArchive, actArchiveTick, actArchiveFolder, actArchiveCancel, actArchiveConfirm, actArchiveClose, actRestore, actCleanupTick, actCleanupGroup, actCleanupShow, actCleanupFilter, actCleanupFolder, actCleanupCancel, actCleanupConfirm, actRemoveRun, actGateDelete, actNewGate, actNewGraph}
 
 type textValue struct {
 	Text string `json:"text"`
@@ -180,6 +180,9 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	}
 	if err != nil {
 		return nil, err
+	}
+	if f := a.takeFocusNode(ev.WorkspaceID); f.node != "" {
+		return nil, h.FocusNode(ctx, ev.WorkspaceID, sectionID, f.slot, f.node)
 	}
 	switch focus, sid := a.takeFocusAfter(ev.WorkspaceID); focus {
 	case focusQueue:
@@ -552,6 +555,12 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		return a.landAct(ctx, ev.WorkspaceID, v)
 	case actElicitation, actElicitPick, actElicitDecline, actElicitOpen:
 		return a.elicitAct(ev, s, node)
+	case actAsideFull, actAsideBeside, actAsideParent, actAsideNext, actAsideKeep, actAsideClose, actAsideForked:
+		return a.asideAct(ctx, ev, s)
+	case actSendBackOpen, actSendBackDraft, actSendBackFrom, actSendBackSend, actSendBackCancel, actSendBackKey:
+		return a.sendBackAct(ctx, ev, s)
+	case actAsideQuote:
+		return a.askQuote(ctx, ev, s, node)
 	case actAsideAsk:
 		value, err := itemID(ev)
 		if err != nil {

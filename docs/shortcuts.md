@@ -13,7 +13,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⌘O | Open Folder… | `ClubmateApp.swift` |
 | ⇧⌘D | Open Doc…: fuzzy picker over `docs.list` (agent-written docs first), ↩ opens the doc in the popup | `ClubmateApp.swift` |
 | ⌘W | Close terminal session, or the window when no terminal is focused (the popup when it has focus, see below; VS Code when it has focus, see VS Code) | `ClubmateApp.swift` (`CloseKeyOwner`) |
-| ⌥⌘⌫ | Close Session: the terminal session shown in the main pane, asking first while it runs a process (as ⌘W); in Agents the selected agent session with its child sessions, as its row's Close Session (a closed one stays as it is), asking first while its turn or a child session's turn runs or waits (`agents.busy`) | `ClubmateApp.swift`, `ClubmateKit/CommandInvocation.swift` (`AgentsSection`) |
+| ⌥⌘⌫ | Close Session: the terminal session shown in the main pane, asking first while it runs a process (as ⌘W); in Agents the selected agent session with its child sessions, as its row's Close Session (a closed one stays as it is), asking first while its turn or a child session's turn runs or waits (`agents.busy`); with an aside's prompt focused beside its parent, that aside (Close without sending? when something is unsent) | `ClubmateApp.swift`, `ClubmateKit/CommandInvocation.swift` (`AgentsSection`) |
 | ⌘K | Command Palette | `ClubmateApp.swift` |
 | ⌘B, ⌃⌘S | Toggle Sidebar; in Neovim, Toggle Chat: the right column with the agent chat panel (per window) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
 | ⌘= (⌘+), ⌘-, ⌘0 | Font size up, down, reset where focus is: in a terminal or nvim (or with nothing focused) the terminal font for all terminals; in the agent chat (composer) the chat font, shared by every chat; in another pane (e.g. the Backlog sidebar) that plugin's font, both its sidebar and its main pane. The terminal font is Settings → Terminals → Font size, the chat font Settings → Agents → Chat font size and a plugin's font its own Settings page → Font size; a plugin follows Settings → General → Interface font size until zoomed or set there, ⌘0 puts it back (General → Plugin fonts resets them all); sizes are kept across restarts. While the popup shows a doc and has focus it zooms the doc instead, see below | `ClubmateApp.swift`, `WorkspaceLayout.swift`, `WorkspacePanes.swift` (`ClubmateKit/PaneFocus.swift`, `AppSettings.swift`) |
@@ -68,7 +68,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌘R | Run the cron job or trigger now | cron, triggers |
 | P | Pause or resume the job or trigger | cron, triggers |
 | ⌘⌫ | Delete the job, trigger or task, or Remove run… on an ended run's page in Agents (confirmed) | cron, triggers, backlog, agents |
-| ⌘[ | Back from a run, graph or land gate page in the Agents main pane to the session you came from | agents |
+| ⌘[ | Back from a run, graph or land gate page in the Agents main pane to the session you came from; in an aside, back to its parent (see [Asides](#asides-agents-section)) | agents |
 | ⌘↩ | Open the Start agent popover on the task while you own it (↩ in it starts, ⎋ cancels), else open the session or graph run that owns it; on a graph run held at a round cap Continue it, else open the session of the graph node that needs you, else a running step's output (Open ‹Step› output), else the running or start node's session; run the graph of a definition page with its input (↩ in the Input field too); on an untrusted graph Trust… (then Trust in its sheet, where Esc cancels) | backlog, agents |
 | ⌘↩ | Send review: opens the Send sheet for the review tab current in Neovim, also while Neovim has focus (status bar button "Send review") | editor-nvim |
 | ⌘↩ | Remove the folder, on the Remove folder sheet (⎋ cancels); Close, once the folder left and a worktree stayed | agents |
@@ -224,6 +224,7 @@ While an input method is composing (marked text), ↩ and Esc go to it. Defined 
 | Keys | Action | Where defined |
 |---|---|---|
 | ⌘D | Full diff: open the turn of the newest edit card in the transcript in nvim's diffview (printed on that card's Full diff) | `SDUI/Agents/TranscriptView.swift` |
+| ⌘\ | Ask aside: about the passage selected in an agent message (also the first item of the message's right-click menu), else about the whole last answer; it opens beside the session (Agents section, a session that can have asides) | `SDUI/Agents/TranscriptView.swift`, `SDUI/MarkdownView.swift` |
 
 Open in nvim on an edit card has no key: the board's ⌘O is the app's Open Folder….
 
@@ -281,6 +282,21 @@ Only while the card has focus (a click in it, its header pill), never in the com
 
 Defined by the `keys` scope in `plugins/agents/repos_view.go`, handled in `plugins/agents/repos.go`.
 
+## Asides (Agents section)
+
+An aside opens beside its parent (a split in a wide window, under it in a narrow one) or on its own page. Its keys are the `shortcut`s of its header buttons, so they work while the aside is on screen.
+
+| Keys | Action |
+|---|---|
+| ⇧⌘\ | Full page ↔ Beside: the aside's own page with the parent's question pinned on top, or back beside the parent |
+| ⌘[ | From the aside to its parent, scrolled to the option or passage it is about; from the full page the aside goes back beside it |
+| ⌘] | From a parent to its aside beside it; again steps through its asides, newest first (the header's Aside / Asides · N) |
+| ⇧⌘↩ | Send back…: the panel at the end of the aside |
+| ⌘↩ / ⎋ | In the Send back panel: send / cancel (while the panel has focus; ⎋ in its text field goes back to the panel) |
+| ⇧⌘K | Keep: the aside becomes an ordinary session |
+
+⌘W doesn't close an aside. Defined by the header buttons in `plugins/agents/aside_view.go` and the `keys` scope in `plugins/agents/aside_send.go`.
+
 ## Open items (Agents section, card or Open queue)
 
 ⌥O works anywhere in Agents; the rest only while the card or the queue has focus (a click in it, Open in the sidebar), never in the composer or a text field.
@@ -292,6 +308,7 @@ Defined by the `keys` scope in `plugins/agents/repos_view.go`, handled in `plugi
 | 1 2 3 4 | Pick that option of the focused decision, or tick that offer |
 | X | Tick the focused offer |
 | O | Other…: opens the focused decision's field; Esc or ↩ in it goes back to the card |
+| A, then 1 2 3 4 or O | Ask aside about that option of the focused decision (or its Other), without picking it: A arms the card (the status bar shows "1–4 ask aside about · ⎋ cancel"), the number opens the aside beside the session or reopens it; ⎋ or any other key disarms. Nothing while the session can't have asides |
 | ⌘↩ | Send answers; in the queue every answered session's, one turn each |
 | L | Later: keep them open and fold the card |
 | B | To backlog: one task per open item of the session (not on a night session's card, whose offers never go to the backlog) |

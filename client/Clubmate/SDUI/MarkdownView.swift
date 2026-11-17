@@ -246,7 +246,31 @@ private extension NSAttributedString.Key {
     static let proseNumber = NSAttributedString.Key("clubmateProseNumber")
 }
 
-private final class ProseTextView: NSTextView {
+final class ProseTextView: NSTextView {
+    var askAside: ((String?) -> Void)?
+
+    var selectedQuote: String? {
+        let range = selectedRange()
+        guard range.length > 0 else { return nil }
+        let quote = (string as NSString).substring(with: range).trimmingCharacters(in: .whitespacesAndNewlines)
+        return quote.isEmpty ? nil : quote
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = super.menu(for: event) ?? NSMenu()
+        guard askAside != nil else { return menu }
+        let item = NSMenuItem(title: "Ask aside", action: #selector(askAsideItem), keyEquivalent: AsideKey.character)
+        item.keyEquivalentModifierMask = .command
+        item.target = self
+        menu.insertItem(item, at: 0)
+        menu.insertItem(.separator(), at: 1)
+        return menu
+    }
+
+    @objc private func askAsideItem() {
+        askAside?(selectedQuote)
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard let storage = textStorage, let layout = layoutManager else { return }
@@ -333,6 +357,7 @@ private struct ProseText: NSViewRepresentable {
     }
 
     func updateNSView(_ view: ProseTextView, context: Context) {
+        view.askAside = context.environment.askAside
         context.coordinator.openDoc = openDoc
         context.coordinator.openImage = openImage
         view.linkTextAttributes = [.foregroundColor: linkColor, .cursor: NSCursor.pointingHand]

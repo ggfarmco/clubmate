@@ -89,5 +89,6 @@ d Commands: askAside(anchor) , summarize (on request), sendBack{to: answer|draft
 d Strip answers: a pick in the pinned strip sets the parent's pending answer for that question, the same write as the card; the card and the strip stay in sync.
 d States and Needs you as in the table: an aside counts only when it asks itself; the parent's state is untouched by its asides.
 d docs/shortcuts.md: add a (card), ⌘\, ⌘⇧\, ⌘], ⌘⇧↩, ⌘⇧K; ⌥⌘⌫ gains “closes an aside”; ⌘W unchanged.
+Mac, decided 16 Nov after the build: the open items card has no option cursor, so a arms the card and the next 1–4 (or o) names the option to ask about; it doesn't pick it, and ⎋ or any other key disarms.
 One check
 ⌘⇧\ is used on no other board, and ⌘] only on these; neither is in AG-Rules. Please check both against docs/shortcuts.md before the keys land.

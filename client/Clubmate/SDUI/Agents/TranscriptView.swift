@@ -14,6 +14,16 @@ struct TranscriptNodeView: View {
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.composerDrafts) private var drafts
 
+    private var ownsFocus: Bool {
+        guard let focused = drafts?.focused, let id = node.id else { return true }
+        return ComposerDrafts.session(of: focused) == ComposerDrafts.session(of: id)
+    }
+
+    private var asideQuote: AsideQuote? {
+        guard let action = node.string("asideAction") else { return nil }
+        return AsideQuote { [dispatch] message, quote in dispatch(message, .named(action, .object(["quote": .string(quote)]))) }
+    }
+
     var body: some View {
         let slack = theme.rowHeight
         let items = node.transcriptItems()
@@ -41,6 +51,13 @@ struct TranscriptNodeView: View {
         } action: { _, scroll in
             if pinned != scroll.pinned { pinned = scroll.pinned }
             if let id = node.id { TranscriptScroll.saved[id] = scroll }
+        }
+        .onScrollGeometryChange(for: TranscriptFit.self) { geometry in
+            TranscriptFit(container: geometry.containerSize.height, pinned: geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - slack)
+        } action: { old, new in
+            guard new.container < old.container, old.pinned else { return }
+            pinned = true
+            position.scrollTo(edge: .bottom)
         }
         .onScrollGeometryChange(for: TranscriptGeometry.self) { geometry in
             TranscriptGeometry(offset: geometry.contentOffset.y, content: geometry.contentSize.height, container: geometry.containerSize.height)
@@ -81,6 +98,19 @@ struct TranscriptNodeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
         .environment(\.fullDiffCard, fullDiff?.id)
+        .environment(\.asideQuote, asideQuote)
+        .keyMonitor(active: asideQuote != nil) { event in
+            guard let asideQuote, AsideKey.matches(event) else { return false }
+            if let prose = NSApp.keyWindow?.firstResponder as? ProseTextView, prose.askAside == nil { return false }
+            guard ownsFocus else { return false }
+            if let prose = NSApp.keyWindow?.firstResponder as? ProseTextView, let ask = prose.askAside, let quote = prose.selectedQuote {
+                ask(quote)
+                return true
+            }
+            guard let last = node.lastAgentMessage, let text = last.string("text") else { return false }
+            asideQuote.ask(last, text)
+            return true
+        }
         .keyMonitor(active: fullDiff != nil) { event in
             guard let fullDiff, let review = fullDiff.cardActions().first(where: { $0.action == "review" }), FullDiffKey.matches(event) else { return false }
             dispatch(fullDiff, .named(review.action, review.value))
@@ -150,6 +180,11 @@ private struct TranscriptGeometry: Equatable {
     }
 }
 
+private struct TranscriptFit: Equatable {
+    let container: CGFloat
+    let pinned: Bool
+}
+
 private struct TranscriptScroll: Equatable {
     let offset: CGFloat
     let pinned: Bool
@@ -167,6 +202,31 @@ private struct TranscriptAnchor: Equatable {
         self.id = id
         rev = node.props["anchorRev"]?.numberValue.flatMap { Int(exactly: $0) } ?? 0
     }
+}
+
+struct AsideQuote {
+    let ask: (SDUINode, String) -> Void
+}
+
+enum AsideKey {
+    static let character = "\\"
+
+    static func matches(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        return flags == .command && event.charactersIgnoringModifiers == character
+    }
+}
+
+extension SDUINode {
+    var lastAgentMessage: SDUINode? {
+        if type == "message", string("role") == "agent" { return self }
+        return children.reversed().lazy.compactMap(\.lastAgentMessage).first
+    }
+}
+
+extension EnvironmentValues {
+    @Entry var asideQuote: AsideQuote?
+    @Entry var askAside: ((String?) -> Void)?
 }
 
 @MainActor

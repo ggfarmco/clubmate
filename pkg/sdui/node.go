@@ -713,14 +713,15 @@ type ChoiceAside struct {
 }
 
 type ChoiceOther struct {
-	ID          string `json:"id"`
-	Label       string `json:"label"`
-	Placeholder string `json:"placeholder,omitempty"`
-	Shortcut    string `json:"shortcut,omitempty"`
-	Hint        string `json:"hint,omitempty"`
-	On          bool   `json:"on,omitempty"`
-	Value       string `json:"value,omitempty"`
-	Focus       int    `json:"focus,omitempty"`
+	ID          string       `json:"id"`
+	Label       string       `json:"label"`
+	Placeholder string       `json:"placeholder,omitempty"`
+	Shortcut    string       `json:"shortcut,omitempty"`
+	Hint        string       `json:"hint,omitempty"`
+	On          bool         `json:"on,omitempty"`
+	Value       string       `json:"value,omitempty"`
+	Focus       int          `json:"focus,omitempty"`
+	Aside       *ChoiceAside `json:"aside,omitempty"`
 }
 
 type ChoiceProps struct {
@@ -1173,6 +1174,10 @@ func WithDrop(n Node) Node {
 
 func WithAnchor(n Node, id string) Node {
 	return withProp(n, "anchor", id)
+}
+
+func WithAsideAction(n Node, action string) Node {
+	return withProp(n, "asideAction", action)
 }
 
 func WithAnchorRev(n Node, rev int) Node {

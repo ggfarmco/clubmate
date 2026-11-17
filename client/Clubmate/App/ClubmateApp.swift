@@ -271,7 +271,7 @@ private struct WorkspaceCommands: Commands {
         guard let session, let store else { return }
         switch store.selectedSection {
         case AgentsSection.id:
-            AgentsSection.close(sidebar: store.slot(AgentsSection.sidebarSlot)?.tree, commands: app.commands).map(session.closeAgent)
+            AgentsSection.close(sidebar: store.slot(AgentsSection.sidebarSlot)?.tree, aside: store.slot(AgentsSection.asideSlot)?.tree, focused: store.drafts.focused, commands: app.commands).map(session.closeAgent)
         case TerminalsSection.id:
             CommandInvocation.close(section: store.selectedSection, main: store.mainTree(TerminalsSection.id), commands: app.commands).map(session.closeTerminal)
         default:

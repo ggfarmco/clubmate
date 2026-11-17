@@ -163,3 +163,7 @@ func TestDeleteConfirmCountsNoAsides(t *testing.T) {
 	require.GreaterOrEqual(t, i, 0)
 	assert.Equal(t, fmt.Sprintf(deleteTree, 1), item.Menu[i].Confirm)
 }
+
+func TestDraftTextQuotesEveryLine(t *testing.T) {
+	assert.Equal(t, "> one\n> \n> two\n\nwhy", draftText("one\n\ntwo", "why"))
+}

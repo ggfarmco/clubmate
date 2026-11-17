@@ -7,6 +7,7 @@ struct ChoiceNodeView: View {
     let node: SDUINode
 
     static let foldWidth: CGFloat = 560
+    static let otherOption = "Other"
 
     private static let numberSize: CGFloat = 18
     private static let accentBar: CGFloat = 2
@@ -46,7 +47,7 @@ struct ChoiceNodeView: View {
         return openChoice == node.id
     }
 
-    private var folded: Bool { accordion && form != nil && question != nil && !current }
+    private var folded: Bool { accordion && form != nil && question != nil && !current && (form?.questions.count ?? 0) > 1 }
 
     private var answer: String? {
         var labels = options.filter { picked.contains($0.value) }.map(\.label)
@@ -54,9 +55,18 @@ struct ChoiceNodeView: View {
         return labels.isEmpty ? nil : labels.joined(separator: ", ")
     }
 
+    private var asideAction: String? { node.string("asideAction") }
+
+    private func ask(_ option: String) -> (() -> Void)? {
+        guard let asideAction else { return nil }
+        return { dispatch(node, .named(asideAction, .string(option))) }
+    }
+
     var body: some View {
         Group {
-            if folded { foldedRow } else { unfolded }
+            if node.bool("pinned") == true {
+                PinnedStrip(node: node, options: options, picked: picked) { pick($0) }
+            } else if folded { foldedRow } else { unfolded }
         }
         .id(node.id)
         .onChange(of: current) { _, now in
@@ -126,10 +136,10 @@ struct ChoiceNodeView: View {
             }
             VStack(alignment: .leading, spacing: 1) {
                 ForEach(options) { option in
-                    ChoiceRow(probe: option.value, label: option.label, description: option.description, shortcut: option.shortcut, hint: option.hint, radio: radio, on: picked.contains(option.value), inline: !narrow, cursor: keysFocused && node.string("cursor") == option.value, tabStop: !serverOpens) { pick(option.value) }
+                    ChoiceRow(probe: option.value, label: option.label, description: option.description, shortcut: option.shortcut, hint: option.hint, radio: radio, on: picked.contains(option.value), inline: !narrow, cursor: keysFocused && node.string("cursor") == option.value, tabStop: !serverOpens, aside: option.aside, ask: ask(option.value), askKey: serverOpens ? "A" : nil) { pick(option.value) }
                 }
                 if let other {
-                    ChoiceRow(probe: "other", label: other.label, description: nil, shortcut: other.shortcut, hint: other.hint, radio: radio, on: otherOn, inline: !narrow, tabStop: !serverOpens, press: toggleOther)
+                    ChoiceRow(probe: "other", label: other.label, description: nil, shortcut: other.shortcut, hint: other.hint, radio: radio, on: otherOn, inline: !narrow, tabStop: !serverOpens, aside: other.aside, ask: other.aside == nil ? nil : ask(Self.otherOption), press: toggleOther)
                     if otherOn { otherField(other) }
                 }
             }
@@ -205,16 +215,31 @@ struct ChoiceNodeView: View {
             }
     }
 
+    private var serverSeed: ChoiceSeed {
+        ChoiceSeed(picks: options.filter(\.on).map(\.value), other: other.flatMap { $0.on ? $0.value ?? "" : nil })
+    }
+
     private func restore() {
         guard let id = node.id else { return }
+        let server = serverSeed
+        var draftPicks: [String]?
         switch form?.draft(id) {
-        case .string(let value)?: picked = [value]
-        case .array(let values)?: picked = values.compactMap(\.stringValue)
-        default: picked = options.filter(\.on).map(\.value)
+        case .string(let value)?: draftPicks = [value]
+        case .array(let values)?: draftPicks = values.compactMap(\.stringValue)
+        default: break
         }
-        if let other, let text = form?.draft(other.id)?.stringValue ?? (other.on ? other.value ?? "" : nil) {
+        let draftOther = other.flatMap { form?.draft($0.id)?.stringValue }
+        let local = draftPicks == nil && draftOther == nil ? nil : ChoiceSeed(picks: draftPicks ?? server.picks, other: draftOther ?? server.other)
+        let seen = form?.seeds[id]
+        let chosen = ChoiceSeed.resolve(draft: local, server: server, seen: seen)
+        let serverWon = local != nil && chosen == server && seen != server
+        form?.seeds[id] = server
+        picked = chosen.picks
+        if other != nil, let text = chosen.other {
             otherOn = true
             otherText = text
+        } else if serverWon {
+            otherOn = false
         }
         store()
     }
@@ -295,13 +320,19 @@ private struct ChoiceRow: View {
     let inline: Bool
     var cursor = false
     var tabStop = true
+    var aside: SDUIChoiceAside?
+    var ask: (() -> Void)?
+    var askKey: String?
     let press: () -> Void
 
+    @State private var hovering = false
     @Environment(\.theme) private var theme
 
     private static let inlineGap = "   "
 
     private var combo: KeyCombo? { shortcut.flatMap(KeyCombo.init) }
+
+    private var showsAsk: Bool { ask != nil && aside == nil && (hovering || cursor) }
 
     var body: some View {
         ChoicePressable(radius: theme.radius.s, fill: on ? theme.selected : nil, combo: combo, tabStop: tabStop, probe: probe, press: press) {
@@ -311,6 +342,9 @@ private struct ChoiceRow: View {
                 text
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                if aside != nil || showsAsk {
+                    asideControl.hidden()
+                }
                 if let key = combo?.label ?? hint {
                     Text(key)
                         .font(theme.uiSmall)
@@ -325,8 +359,36 @@ private struct ChoiceRow: View {
                 }
             }
         }
+        .overlay(alignment: .trailing) {
+            if aside != nil || showsAsk {
+                asideControl
+                    .padding(.trailing, theme.spacing.m + keyWidth)
+            }
+        }
+        .onHover { hovering = $0 }
+        .contextMenu {
+            if let ask {
+                Button(aside == nil ? "Ask aside" : "Open aside", action: ask)
+            }
+        }
         .accessibilityLabel(label)
         .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private var keyWidth: CGFloat {
+        guard let key = combo?.label ?? hint else { return 0 }
+        return CGFloat(key.count) * 7 + theme.spacing.m
+    }
+
+    @ViewBuilder
+    private var asideControl: some View {
+        if let aside {
+            AsideMark(state: aside.state, press: ask ?? {})
+                .testNode("\(probe)/aside", role: "button")
+        } else {
+            AsideAskButton(key: askKey, press: ask ?? {})
+                .testNode("\(probe)/askAside", role: "button")
+        }
     }
 
     @ViewBuilder
@@ -432,5 +494,160 @@ private struct ChoicePressable<Label: View>: View {
             return true
         }
         .testRow(probe, label: probe, selected: fill != nil, focused: keyboardFocus, hovered: hovering)
+    }
+}
+
+private struct AsideMark: View {
+    let state: String
+    let press: () -> Void
+
+    @Environment(\.theme) private var theme
+
+    private var ink: Color {
+        switch state {
+        case "thinking": theme.accentInk
+        case "asks": theme.warning
+        case "sent": theme.success
+        default: theme.muted
+        }
+    }
+
+    var body: some View {
+        Button(action: press) {
+            HStack(spacing: theme.spacing.xs) {
+                Image(systemName: "bubble.left.and.bubble.right")
+                Text("aside")
+            }
+            .font(theme.uiSmall)
+            .foregroundStyle(ink)
+            .padding(.horizontal, theme.spacing.s)
+            .background(Capsule().fill(theme.surface2))
+            .overlay(Capsule().stroke(theme.border, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .help("Open the aside about this option")
+    }
+}
+
+private struct AsideAskButton: View {
+    let key: String?
+    let press: () -> Void
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Button(action: press) {
+            HStack(spacing: theme.spacing.xs) {
+                Image(systemName: "bubble.left.and.bubble.right")
+                Text("Ask aside")
+                if let key {
+                    Text(key)
+                        .foregroundStyle(theme.faint)
+                        .padding(.horizontal, theme.spacing.xs)
+                        .overlay(RoundedRectangle(cornerRadius: theme.radius.s).stroke(theme.border, lineWidth: 1))
+                }
+            }
+            .font(theme.uiSmall)
+            .foregroundStyle(theme.text2)
+            .padding(.horizontal, theme.spacing.s)
+            .background(Capsule().fill(theme.surface2))
+            .overlay(Capsule().stroke(theme.border, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .help("Ask aside: a read-only side conversation about this option")
+    }
+}
+
+private struct PinnedStrip: View {
+    let node: SDUINode
+    let options: [SDUIChoiceOption]
+    let picked: [String]
+    let pick: (String) -> Void
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: theme.spacing.m) {
+            HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
+                Image(systemName: "exclamationmark.circle")
+                    .foregroundStyle(theme.warning)
+                if let note = node.string("note") {
+                    Text(note)
+                        .font(theme.uiSmall)
+                        .foregroundStyle(theme.warning)
+                        .lineLimit(1)
+                        .truncationMode(.label)
+                        .help(note)
+                }
+                if let title = node.string("title"), !title.isEmpty {
+                    Text(title)
+                        .font(theme.uiSmall)
+                        .foregroundStyle(theme.text2)
+                        .lineLimit(1)
+                        .padding(.horizontal, theme.spacing.s)
+                        .background(RoundedRectangle(cornerRadius: theme.radius.s).fill(theme.hover))
+                        .fixedSize()
+                }
+                Text(node.string("text") ?? "")
+                    .font(theme.strong)
+                    .foregroundStyle(theme.foreground)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
+            }
+            FlowLayout(spacing: theme.spacing.s) {
+                ForEach(Array(options.enumerated()), id: \.element.id) { index, option in
+                    PinnedChip(number: index + 1, label: option.label, on: picked.contains(option.value), marked: option.aside != nil) { pick(option.value) }
+                        .testRow(option.value, label: option.value, selected: picked.contains(option.value), focused: false, hovered: false)
+                }
+            }
+            if let quote = node.string("quote") {
+                Text(quote)
+                    .font(theme.uiSmall)
+                    .foregroundStyle(theme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(theme.spacing.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.toneBg(theme.warning)))
+        .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(theme.toneBorder(theme.warning), lineWidth: 1))
+    }
+}
+
+private struct PinnedChip: View {
+    let number: Int
+    let label: String
+    let on: Bool
+    let marked: Bool
+    let press: () -> Void
+
+    @State private var hovering = false
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Button(action: press) {
+            HStack(spacing: theme.spacing.s) {
+                Text("\(number)")
+                    .font(theme.uiSmall)
+                    .foregroundStyle(theme.faint)
+                Text(label)
+                    .foregroundStyle(theme.foreground)
+                    .lineLimit(1)
+                    .truncationMode(.label)
+                if marked {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                        .font(theme.uiSmall)
+                        .foregroundStyle(theme.accentInk)
+                }
+            }
+            .padding(.horizontal, theme.spacing.m)
+            .padding(.vertical, theme.spacing.xs)
+            .background(RoundedRectangle(cornerRadius: theme.radius.s).fill(on ? theme.selected : hovering ? theme.hover : theme.surface2))
+            .overlay(RoundedRectangle(cornerRadius: theme.radius.s).stroke(on || marked ? theme.accent : theme.border, lineWidth: 1))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(label)
     }
 }

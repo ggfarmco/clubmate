@@ -281,4 +281,16 @@ final class AgentsUITests: XCTestCase {
         XCTAssertEqual(grid.cardWidth, 264)
         XCTAssertEqual(DocCardGrid(count: 4, proposed: 500, spacing: 8, minWidth: 200, maxWidth: 270).cardWidth, 246)
     }
+
+    func testAComposerDraftReplacesTheTextOnlyWhenItsRevGrows() {
+        let model = ComposerModel()
+        XCTAssertTrue(model.apply(draft: "> quote\n\nnote", rev: 1))
+        XCTAssertEqual(model.text, "> quote\n\nnote")
+        model.text = "edited"
+        XCTAssertFalse(model.apply(draft: "> quote\n\nnote", rev: 1))
+        XCTAssertEqual(model.text, "edited")
+        model.apply(draft: "second", rev: 2)
+        XCTAssertEqual(model.text, "second")
+        XCTAssertEqual(model.caret, 6)
+    }
 }

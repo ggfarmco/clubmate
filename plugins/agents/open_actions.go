@@ -29,7 +29,17 @@ func isOpenAction(action string) bool {
 	return false
 }
 
+func (a *app) disarmOpen(workspaceID string) {
+	p := a.workspaceState(workspaceID)
+	a.uiMu.Lock()
+	defer a.uiMu.Unlock()
+	for _, st := range p.sessions {
+		st.open.armed = false
+	}
+}
+
 func (a *app) openAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, st *sessionUI) error {
+	a.disarmOpen(ev.WorkspaceID)
 	sid := s.snapshot().ID
 	cmd := pluginsdk.CommandRun{WorkspaceID: ev.WorkspaceID}
 	switch ev.Action {
@@ -176,6 +186,13 @@ func (a *app) openKey(ctx context.Context, ev pluginsdk.UIEvent) error {
 		return err
 	}
 	st := a.sessionState(ev.WorkspaceID, stop.session)
+	a.uiMu.Lock()
+	armed := st.open.armed
+	st.open.armed = false
+	a.uiMu.Unlock()
+	if armed {
+		return a.askArmed(ctx, ev.WorkspaceID, s, stop.item, combo)
+	}
 	cmd := pluginsdk.CommandRun{WorkspaceID: ev.WorkspaceID}
 	switch combo {
 	case "j", "down":
@@ -188,6 +205,10 @@ func (a *app) openKey(ctx context.Context, ev pluginsdk.UIEvent) error {
 	case "x":
 		if stop.item.Kind == itemOffer {
 			a.withDraft(st, func(d *openDraft) { d.tick(stop.item.ID) })
+		}
+	case openAsideKey:
+		if stop.item.Kind != itemOffer && a.canAside(s.snapshot()) {
+			a.withDraft(st, func(d *openDraft) { d.armed = true })
 		}
 	case "o":
 		if stop.item.Kind != itemOffer {

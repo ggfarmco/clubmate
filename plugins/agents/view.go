@@ -99,6 +99,11 @@ type screen struct {
 	Asides       optionAsides
 	GateReview   *reviewHead
 	Back         string
+	SendBack     *sendBackView
+	CloseAsk     string
+	AsideCount   int
+	ForkedFrom   string
+	Beside       bool
 }
 
 type codePanel struct {
@@ -177,6 +182,9 @@ func mainView(sc screen) sdui.Node {
 	}
 	if len(sc.Queue) > 0 {
 		children = append(children, queueView(sc))
+	}
+	if sc.SendBack != nil {
+		children = append(children, sendBackPanel(sid, *sc.SendBack))
 	}
 	return sdui.VStack(append(children, composer(sc))...)
 }
@@ -278,6 +286,12 @@ func header(sc screen) sdui.Node {
 	if sc.Parent != "" {
 		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/parent", "from "+sc.Parent, "arrow.turn.up.left"), actSelectParent))
 	}
+	if sc.ForkedFrom != "" {
+		buttons = append(buttons, forkedFromButton(sid, sc.ForkedFrom))
+	}
+	if sc.AsideCount > 0 {
+		buttons = append(buttons, asideNextButton(sid, sc.AsideCount))
+	}
 	if rec.HandoffFrom != "" {
 		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/"+handoffFromNode, "Earlier session", "clock.arrow.circlepath"), actOpenHandoff))
 	}
@@ -294,7 +308,9 @@ func header(sc screen) sdui.Node {
 		buttons = append(buttons, openReviewButton(sid))
 	}
 	var top sdui.Node
-	if sc.Code != nil {
+	if rec.isAside() && sc.Code == nil {
+		top = asideHeader(sc)
+	} else if sc.Code != nil {
 		icon := cmp.Or(statusIcons[display], statusIcons[statusIdle])
 		if unstartedStep(sc) {
 			icon = graphIcon
@@ -441,6 +457,8 @@ func composerPlaceholder(sc screen) string {
 	rec := sc.View.Session
 	agent := agentLabel(rec.Agent)
 	switch {
+	case rec.isAside() && !turnActive(rec):
+		return asidePlaceholder
 	case asked(sc):
 		return "Answer " + agent + "…"
 	case turnActive(rec) && !sc.Steers:

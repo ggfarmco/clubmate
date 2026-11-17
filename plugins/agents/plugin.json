@@ -27,6 +27,7 @@
       {"keys": "2", "action": "Pick the focused decision's 2nd option, or tick the 2nd offer", "when": "an open items card or the Open queue has focus"},
       {"keys": "3", "action": "Pick the focused decision's 3rd option, or tick the 3rd offer", "when": "an open items card or the Open queue has focus"},
       {"keys": "4", "action": "Pick the focused decision's 4th option, or tick the 4th offer", "when": "an open items card or the Open queue has focus"},
+      {"keys": "a", "action": "Ask aside: then 1–4 (or o) picks the option of the focused decision to ask about, without answering it; ⎋ cancels", "when": "an open items card or the Open queue has focus"},
       {"keys": "x", "action": "Tick the focused offer", "when": "an open items card or the Open queue has focus"},
       {"keys": "o", "action": "Other…: open the focused decision's text field", "when": "an open items card or the Open queue has focus"},
       {"keys": "l", "action": "Later: keep the items open and fold the card", "when": "an open items card or the Open queue has focus"},
@@ -38,9 +39,14 @@
       {"keys": "p", "action": "Pause or resume the land gate", "when": "a gate is open in Gates"},
       {"keys": "e", "action": "Edit the land gate's rounds or pause it", "when": "a gate is open in Gates"},
       {"keys": "cmd+delete", "action": "Delete the land gate (confirmed), or remove the finished run (confirmed)", "when": "a gate is open in Gates, or a finished run in Graphs"},
+      {"keys": "cmd+[", "action": "Back to the session you came from; in an aside, to its parent, scrolled to what it is about", "when": "a run, graph or gate page, or an aside, is open in Agents"},
+      {"keys": "cmd+]", "action": "To the session's aside beside it; again steps through its asides", "when": "the session has asides"},
+      {"keys": "cmd+shift+\\", "action": "Aside: full page or beside its parent", "when": "an aside is open"},
+      {"keys": "cmd+shift+return", "action": "Aside: open the Send back panel", "when": "an aside is open"},
+      {"keys": "cmd+shift+k", "action": "Aside: keep it as its own session", "when": "an aside is open"},
       {"keys": "cmd+.", "action": "Stop the run (confirmed)", "when": "a running run is open in Graphs"}
     ],
-    "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25, "slots": ["sheet"]}, {"id": "agents.graphs", "title": "Graphs", "icon": "point.3.connected.trianglepath.dotted", "order": 37, "rail": false}, {"id": "agents.gates", "title": "Land gates", "icon": "checkmark.shield", "order": 38, "rail": false}],
+    "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25, "slots": ["sheet", "aside"]}, {"id": "agents.graphs", "title": "Graphs", "icon": "point.3.connected.trianglepath.dotted", "order": 37, "rail": false}, {"id": "agents.gates", "title": "Land gates", "icon": "checkmark.shield", "order": 38, "rail": false}],
     "views": [{"slot": "editor-nvim.sidebar"}, {"slot": "agents.settings"}],
     "commands": [
       {

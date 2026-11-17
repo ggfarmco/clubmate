@@ -396,6 +396,7 @@ struct TextFieldNodeView: View {
     @Environment(\.sidebarSlot) private var sidebarSlot
     @Environment(\.sidebarField) private var sidebarField
     @Environment(\.filePicker) private var filePicker
+    @Environment(\.keysRefocus) private var keysRefocus
 
     private static let liveDelay: Duration = .milliseconds(250)
 
@@ -425,6 +426,7 @@ struct TextFieldNodeView: View {
             .fieldChrome(focused: focused || targeted, error: node.string("error"), dashed: drops)
             .modifier(FileDrop(active: drops, targeted: $targeted, drop: drop))
             .onSubmit(submit)
+            .modifier(ExitToKeys(refocus: keysRefocus))
             .onChange(of: focused) { _, now in
                 guard !now else { return }
                 form?.flush()
@@ -839,5 +841,17 @@ enum MenuKeys {
             if item.keyEquivalent.lowercased() == key, mask == flags { return item }
         }
         return nil
+    }
+}
+
+private struct ExitToKeys: ViewModifier {
+    let refocus: KeysRefocus?
+
+    func body(content: Content) -> some View {
+        if let refocus {
+            content.onExitCommand { refocus.take() }
+        } else {
+            content
+        }
     }
 }

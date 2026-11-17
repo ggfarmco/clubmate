@@ -35,6 +35,9 @@ const (
 	openSendShort  = "starts a turn"
 	openNightNote  = "Undo happens at once, with no turn"
 	openBacklogKey = "b"
+	openAsideKey   = "a"
+	openAsideHints = "1–4 pick · A ask aside · L later · ⌘↩ send"
+	openArmedHints = "1–4 ask aside about · ⎋ cancel"
 	nextHeader     = "Next"
 	nextQuestion   = "Next — tick what you want me to do"
 	nextNote       = "any, or none"
@@ -53,7 +56,7 @@ const (
 )
 
 var (
-	openSessionKeys = []string{"j", "k", "up", "down", "1", "2", "3", "4", "x", "o", "l", openBacklogKey, "delete", "shift+delete", "cmd+return"}
+	openSessionKeys = []string{"j", "k", "up", "down", "1", "2", "3", "4", "x", "o", openAsideKey, "l", openBacklogKey, "delete", "shift+delete", "cmd+return"}
 	openQueueKeys   = append(slices.Clone(openSessionKeys), "return")
 )
 
@@ -194,7 +197,17 @@ func openCard(sid string, count int, data openCardData, d openDraft) sdui.Node {
 	if data.Night {
 		keys = slices.DeleteFunc(slices.Clone(keys), func(key string) bool { return key == openBacklogKey })
 	}
-	return sdui.WithAction(sdui.Keys(openKeysID(sid), keys, form), actOpenKey)
+	if d.armed {
+		keys = append(slices.Clone(keys), "esc")
+	}
+	n := sdui.WithAction(sdui.Keys(openKeysID(sid), keys, form), actOpenKey)
+	switch {
+	case d.armed:
+		n = sdui.WithHints(n, openArmedHints)
+	case data.Asides.ask:
+		n = sdui.WithHints(n, openAsideHints)
+	}
+	return n
 }
 
 func openRows(sid string, data openCardData, d openDraft, cursor string) []sdui.Node {
@@ -328,7 +341,16 @@ func openQueueView(q openQueueScreen) sdui.Node {
 	}
 	cards = append(cards, sdui.MutedText(queueHints))
 	body := sdui.VStack(sdui.WithInline(sdui.Header(title, sdui.HeaderProps{Meta: meta}, send)), sdui.Scroll(sdui.WithGap(sdui.VStack(cards...), queueGap)))
-	return sdui.WithPaneFocus(sdui.WithAction(sdui.Keys(openQueueNode, openQueueKeys, body), actOpenKey))
+	keys := openQueueKeys
+	armed := slices.ContainsFunc(q.Cards, func(c openQueueCard) bool { return c.Draft.armed })
+	if armed {
+		keys = append(slices.Clone(keys), "esc")
+	}
+	n := sdui.WithAction(sdui.Keys(openQueueNode, keys, body), actOpenKey)
+	if armed {
+		n = sdui.WithHints(n, openArmedHints)
+	}
+	return sdui.WithPaneFocus(n)
 }
 
 func queueCard(c openQueueCard, now time.Time) sdui.Node {

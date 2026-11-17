@@ -80,6 +80,73 @@ struct CodeColumn: View {
     }
 }
 
+struct AsideColumn: View {
+    let store: WorkspaceUIStore
+    let stacked: Bool
+    let width: CGFloat
+    let limit: CGFloat
+    let commit: (Double) -> Void
+
+    static let minWidth: CGFloat = 320
+
+    @Environment(\.theme) private var theme
+    @State private var dragStart: CGFloat?
+    @State private var dragWidth: CGFloat?
+    @State private var hovering = false
+
+    private var current: CGFloat {
+        min(max(dragWidth ?? width, Self.minWidth), max(Self.minWidth, limit))
+    }
+
+    var body: some View {
+        let layout = stacked ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
+        layout {
+            edge
+            SlotPane(store: store, slot: AgentsSection.asideSlot)
+                .environment(\.composerFocusSlot, AgentsSection.asideSlot)
+                .frame(width: stacked ? nil : current)
+                .frame(maxHeight: .infinity)
+        }
+    }
+
+    private var edge: some View {
+        theme.border
+            .frame(width: stacked ? nil : 1, height: stacked ? 1 : nil)
+            .overlay {
+                if !stacked {
+                    Color.clear
+                        .frame(width: 7)
+                        .contentShape(Rectangle())
+                        .onHover(perform: hover)
+                        .onDisappear { hover(false) }
+                        .gesture(resize)
+                        .testNode(AgentsSection.asideSlot + "/resize", role: "divider")
+                }
+            }
+            .zIndex(1)
+    }
+
+    private var resize: some Gesture {
+        DragGesture(minimumDistance: 1, coordinateSpace: .global)
+            .onChanged { drag in
+                let start = dragStart ?? current
+                dragStart = start
+                dragWidth = min(max(start - drag.translation.width, Self.minWidth), max(Self.minWidth, limit))
+            }
+            .onEnded { _ in
+                if let dragWidth { commit(Double(dragWidth)) }
+                dragStart = nil
+                dragWidth = nil
+            }
+    }
+
+    private func hover(_ inside: Bool) {
+        guard inside != hovering else { return }
+        hovering = inside
+        if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+    }
+}
+
 private struct ResizablePane<Content: View>: View {
     let id: String
     let side: SidebarSide

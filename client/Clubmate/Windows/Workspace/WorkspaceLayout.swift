@@ -33,11 +33,7 @@ struct WorkspaceLayout: View {
                     SidebarPane(store: store, slot: sidebar, side: .left)
                 }
                 content {
-                    SlotPane(store: store, slot: "\(section).main")
-                        .modifier(MainFocus(store: store, slot: "\(section).main"))
-                        .overlay(alignment: .top) {
-                            if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
-                        }
+                    mainPane
                     if let sidebar, side == .right {
                         SidebarPane(store: store, slot: sidebar, side: .right)
                     }
@@ -104,6 +100,37 @@ struct WorkspaceLayout: View {
         .onChange(of: app.voiceSettings.isOn) { _, on in
             if !on { app.sessions.existing(store.workspaceID)?.voice.cancel() }
         }
+    }
+
+    private var mainPane: some View {
+        let stacked = store.asideShown && CodeSection.stacksChat(width: Double(rowWidth))
+        let split = stacked ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
+        return split {
+            SlotPane(store: store, slot: "\(section).main")
+                .modifier(MainFocus(store: store, slot: "\(section).main"))
+                .overlay(alignment: .top) {
+                    if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
+                }
+                .frame(maxHeight: .infinity)
+            if store.asideShown {
+                AsideColumn(store: store, stacked: stacked, width: asideWidth, limit: asideLimit) { [store] width in
+                    store.asideWidth = width
+                }
+            }
+        }
+    }
+
+    private var asideLimit: CGFloat {
+        max(AsideColumn.minWidth, mainWidth - AsideColumn.minWidth)
+    }
+
+    private var mainWidth: CGFloat {
+        let sidebar = store.sidebarSlot == nil ? 0 : CGFloat(store.sidebarWidth ?? 248) + 1
+        return max(0, rowWidth - theme.rail - 1 - sidebar)
+    }
+
+    private var asideWidth: CGFloat {
+        min(max(store.asideWidth.map { CGFloat($0) } ?? mainWidth / 2, AsideColumn.minWidth), asideLimit)
     }
 
     private var columnLimit: CGFloat {

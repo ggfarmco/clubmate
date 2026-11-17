@@ -68,8 +68,18 @@ public final class ComposerModel {
     public var running = false
     public var caret: Int?
     public private(set) var highlighted = 0
+    public private(set) var draftRev = 0
 
     public init() {}
+
+    @discardableResult
+    public func apply(draft: String, rev: Int) -> Bool {
+        guard rev > draftRev else { return false }
+        draftRev = rev
+        text = draft
+        caret = draft.count
+        return true
+    }
 
     public var suggestions: [ComposerCommand] {
         guard text.hasPrefix("/") else { return [] }

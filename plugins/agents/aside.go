@@ -40,6 +40,7 @@ const (
 	sendDraft        = "draft"
 	actAsidePick     = "asidePick"
 	actAsideAsk      = "asideAsk"
+	actAsideQuote    = "asideQuote"
 	pinnedNode       = "pinned"
 	asideSystemText  = "When you need the user's answer or decision before you can go on, ask it with the AskUserQuestion tool instead of ending your turn with a question in your reply."
 )
@@ -446,10 +447,9 @@ func (a *app) prefillOpen(parent *session, item, value, note string) error {
 	}
 	it := items[i]
 	o := slices.IndexFunc(it.Options, func(o openOption) bool { return o.Label == value })
-	if o < 0 {
+	if o < 0 && value != otherOption {
 		return fmt.Errorf("%w: %q", errBadAnswer, value)
 	}
-	label := it.Options[o].Label
 	rec := parent.snapshot()
 	st := a.sessionState(rec.Workspace, rec.ID)
 	a.uiMu.Lock()
@@ -458,10 +458,13 @@ func (a *app) prefillOpen(parent *session, item, value, note string) error {
 	ans := st.open.answers[it.ID]
 	ans.Item = it.ID
 	switch {
+	case o < 0 && !it.MultiSelect:
+		ans.Option = ""
+	case o < 0:
 	case !it.MultiSelect:
-		ans.Option = label
-	case !slices.Contains(ans.Options, label):
-		ans.Options = append(slices.Clone(ans.Options), label)
+		ans.Option = it.Options[o].Label
+	case !slices.Contains(ans.Options, it.Options[o].Label):
+		ans.Options = append(slices.Clone(ans.Options), it.Options[o].Label)
 	}
 	if note != "" {
 		ans.Other = note
@@ -476,16 +479,16 @@ func draftText(quote, text string) string {
 	if quote == "" {
 		return text
 	}
-	return "> " + quote + "\n\n" + text
+	return "> " + strings.ReplaceAll(quote, "\n", "\n> ") + "\n\n" + text
 }
 
 func (s *session) setDraft(text string) {
 	s.mu.Lock()
-	rev := int64(1)
 	if s.rec.ComposerDraft != nil {
-		rev = s.rec.ComposerDraft.Rev + 1
+		s.rec.DraftRev = max(s.rec.DraftRev, s.rec.ComposerDraft.Rev)
 	}
-	s.rec.ComposerDraft = &composerDraft{Text: text, Rev: rev}
+	s.rec.DraftRev++
+	s.rec.ComposerDraft = &composerDraft{Text: text, Rev: s.rec.DraftRev}
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
 }
@@ -527,6 +530,7 @@ func (a *app) pinnedStrip(rec record) *sdui.Node {
 	p := choiceProps(f, nil, false)
 	p.Pinned = true
 	markPrefill(&p, pf)
+	pinStrip(&p, parent.snapshot().Title, an.Option, rec)
 	n := sdui.WithAction(sdui.Choice(rec.ID+"/"+pinnedNode, p), actAsidePick)
 	return &n
 }
@@ -579,6 +583,11 @@ func (o optionAsides) apply(p *sdui.ChoiceProps, mark func(value string) string)
 			p.Options[i].Aside = &m
 		}
 	}
+	if m, ok := o.marks[mark(otherOption)]; ok && p.Other != nil {
+		other := *p.Other
+		other.Aside = &m
+		p.Other = &other
+	}
 }
 
 func (a *app) optionAsides(rec record) optionAsides {
@@ -602,8 +611,7 @@ func (a *app) askAside(ctx context.Context, s *session, node, value string) erro
 	if !ok {
 		return fmt.Errorf("%w: %s on %q", errUnknownAction, actAsideAsk, node)
 	}
-	_, _, err := a.newAside(ctx, s, an, "")
-	return err
+	return a.openAside(ctx, s.snapshot().Workspace, s, an)
 }
 
 func (s *session) optionAnchor(node, value string) (asideAnchor, bool) {

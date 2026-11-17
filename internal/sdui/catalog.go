@@ -280,7 +280,7 @@ var (
 			children: childRule{min: 0, max: 3, only: []string{"button", "flow", "form", "stack"}, once: []string{"button", "flow", "form", "stack"}},
 		},
 
-		"transcript": {props: map[string]propCheck{"center": isBool, "anchor": isString, "anchorRev": countNumber}, children: anyChildren},
+		"transcript": {props: map[string]propCheck{"center": isBool, "anchor": isString, "anchorRev": countNumber, "asideAction": actionCheck}, children: anyChildren},
 		"message": {
 			required: []string{"role", "text"},
 			props:    map[string]propCheck{"role": oneOf(messageRoles), "text": isString, "attachments": attachmentsCheck, "from": isString, "seconds": countNumber, "heard": isString, "docLinks": stringMap, "docCards": docCardsCheck, "images": imageRefsCheck, "imageLinks": stringMap, "taskLinks": stringMap, "sending": isBool},
@@ -813,7 +813,7 @@ func choiceAsideCheck(c *validator, v any) error {
 }
 
 func choiceOtherCheck(c *validator, v any) error {
-	return objectCheck([]string{"id", "label"}, map[string]propCheck{"id": isString, "label": isString, "placeholder": isString, "shortcut": shortcutCheck, "hint": isString, "on": isBool, "value": isString, "focus": countNumber})(c, v)
+	return objectCheck([]string{"id", "label"}, map[string]propCheck{"id": isString, "label": isString, "placeholder": isString, "shortcut": shortcutCheck, "hint": isString, "on": isBool, "value": isString, "focus": countNumber, "aside": choiceAsideCheck})(c, v)
 }
 
 func menuEntryCheck(c *validator, v any) error {

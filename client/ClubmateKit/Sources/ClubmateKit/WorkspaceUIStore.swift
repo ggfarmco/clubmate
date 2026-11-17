@@ -39,6 +39,12 @@ public final class WorkspaceUIStore {
             updateState("chatWidth", .number(chatWidth))
         }
     }
+    public var asideWidth: Double? {
+        didSet {
+            guard !restoring, asideWidth != oldValue, let asideWidth else { return }
+            updateState("asideWidth", .number(asideWidth))
+        }
+    }
 
     @ObservationIgnored private var client: CoreClient
     @ObservationIgnored private var subscription: String?
@@ -254,6 +260,10 @@ public final class WorkspaceUIStore {
         togglesChat && !isSidebarHidden(CodeSection.id)
     }
 
+    public var asideShown: Bool {
+        selectedSection == AgentsSection.id && AgentsSection.showsAside(slot(AgentsSection.asideSlot)?.tree)
+    }
+
     public var columnSlot: String? {
         columnShown ? CodeSection.chatSlot : nil
     }
@@ -453,6 +463,7 @@ public final class WorkspaceUIStore {
         sidebarWidth = saved["sidebarWidth"]?.numberValue
         sidebarHidden = saved["sidebarHidden"]?.objectValue?.compactMapValues(\.boolValue) ?? [:]
         chatWidth = saved["chatWidth"]?.numberValue
+        asideWidth = saved["asideWidth"]?.numberValue
         restoring = false
         adoptLegacyChat()
         if let selectedSection, saved["section"]?.stringValue != selectedSection { updateState("section", .string(selectedSection)) }

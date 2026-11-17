@@ -83,11 +83,21 @@ public enum AgentsSection {
     public static let busyCommand = "agents.busy"
     public static let stepCommand = "agents.step"
     public static let sidebarSlot = "agents.sidebar"
+    public static let asideSlot = "agents.aside"
     static let trees = ["sessions", "searchResults"]
 
-    public static func close(sidebar: SDUINode?, commands: [Command]) -> CommandInvocation? {
-        guard let selected = trees.lazy.compactMap({ sidebar?.node(type: "tree", id: $0)?.string("selected") }).first(where: { !$0.isEmpty }),
-              commands.contains(where: { $0.id == closeCommand }) else { return nil }
+    public static func showsAside(_ tree: SDUINode?) -> Bool {
+        guard let tree else { return false }
+        return tree.type != "empty"
+    }
+
+    public static func close(sidebar: SDUINode?, aside: SDUINode? = nil, focused: String? = nil, commands: [Command]) -> CommandInvocation? {
+        guard commands.contains(where: { $0.id == closeCommand }) else { return nil }
+        let session = { (id: String) in String(id.prefix { $0 != "/" }) }
+        if let focused, let composer = aside?.firstNode(type: "composer")?.id, session(composer) == session(focused) {
+            return CommandInvocation(id: closeCommand, args: .object(["session": .string(session(focused))]))
+        }
+        guard let selected = trees.lazy.compactMap({ sidebar?.node(type: "tree", id: $0)?.string("selected") }).first(where: { !$0.isEmpty }) else { return nil }
         return CommandInvocation(id: closeCommand, args: .object(["session": .string(selected)]))
     }
 
@@ -106,6 +116,11 @@ extension SDUINode {
     func node(type: String, id: String) -> SDUINode? {
         if self.type == type, self.id == id { return self }
         return children.lazy.compactMap { $0.node(type: type, id: id) }.first
+    }
+
+    func firstNode(type: String) -> SDUINode? {
+        if self.type == type { return self }
+        return children.lazy.compactMap { $0.firstNode(type: type) }.first
     }
 
     public var surfaceSessionID: String? {

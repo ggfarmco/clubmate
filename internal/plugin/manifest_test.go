@@ -225,7 +225,7 @@ func keyLabel(combo string) string {
 	if !named {
 		label = strings.ToUpper(key)
 	}
-	const plain, shifted = "1234567890=-][';\\,/.`", `!@#$%^&*()+_}{":|<?>~`
+	const plain, shifted = "1234567890=-][';,/.`", `!@#$%^&*()+_}{":<?>~`
 	if i := strings.Index(plain, key); !named && i >= 0 && slices.Contains(mods, "shift") {
 		label = shifted[i : i+1]
 	}

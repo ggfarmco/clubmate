@@ -469,6 +469,10 @@ func TestAsideSendDraft(t *testing.T) {
 	assert.Equal(t, int64(2), f.session(t, workspace, parent.ID).ComposerDraft.Rev)
 	f.prompt(t, workspace, parent.ID, "next")
 	assert.Nil(t, f.session(t, workspace, parent.ID).ComposerDraft)
+	f.waitStatus(t, workspace, parent.ID, "done")
+
+	require.NoError(t, f.run(t, workspace, "agents.aside-send", keep, nil))
+	assert.Equal(t, int64(3), f.session(t, workspace, parent.ID).ComposerDraft.Rev)
 }
 
 func TestAsideSendOpenItems(t *testing.T) {

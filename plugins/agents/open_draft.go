@@ -18,6 +18,7 @@ type openDraft struct {
 	offers  map[string]bool
 	cursor  string
 	focus   int
+	armed   bool
 }
 
 func openFormNode(sid string) string {

@@ -11,6 +11,7 @@ struct MessageNodeView: View, Equatable {
 
     @Environment(\.theme) private var theme
     @Environment(\.sduiDispatch) private var dispatch
+    @Environment(\.asideQuote) private var asideQuote
 
     var body: some View {
         let text = node.string("text") ?? ""
@@ -45,6 +46,7 @@ struct MessageNodeView: View, Equatable {
                     MessageImages(message: message, images: images)
                 }
             }
+            .environment(\.askAside, asideQuote.map { quote in { [node] passage in quote.ask(node, passage ?? text) } })
             .sheet(item: ImageViewer.shared.binding(message: message)) { shown in
                 ImageViewerSheet(path: shown.path, rel: images.first { $0.path == shown.path }?.rel, size: NSApp.keyWindow?.contentLayoutRect.size)
             }

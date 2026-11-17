@@ -15,7 +15,7 @@ func TestShownSlotsWhilePhoneWatches(t *testing.T) {
 	assert.Equal(t, []string{sidebarSlot, sheetSlot}, a.shownSlots("p"))
 
 	a.setWatched("p", []string{sectionID, editorSection})
-	assert.Equal(t, []string{sidebarSlot, sheetSlot, mainSlot, codeSlot}, a.shownSlots("p"))
+	assert.Equal(t, []string{sidebarSlot, sheetSlot, mainSlot, asideSlot, codeSlot}, a.shownSlots("p"))
 }
 
 func TestForgetWorkspaceDropsItsRemindersAndRunNeeds(t *testing.T) {

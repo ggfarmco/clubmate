@@ -243,6 +243,7 @@ public struct SDUIChoiceOption: Sendable, Equatable, Identifiable {
     public let shortcut: String?
     public let hint: String?
     public let on: Bool
+    public let aside: SDUIChoiceAside?
 
     public var id: String { value }
 
@@ -254,6 +255,29 @@ public struct SDUIChoiceOption: Sendable, Equatable, Identifiable {
         shortcut = fields["shortcut"]?.stringValue
         hint = fields["hint"]?.stringValue
         on = fields["on"]?.boolValue ?? false
+        aside = fields["aside"].flatMap(SDUIChoiceAside.init)
+    }
+}
+
+public struct SDUIChoiceAside: Sendable, Equatable {
+    public let id: String
+    public let state: String
+
+    public init?(_ json: JSONValue) {
+        guard let fields = json.objectValue, let id = fields["id"]?.stringValue else { return nil }
+        self.id = id
+        state = fields["state"]?.stringValue ?? "open"
+    }
+}
+
+public struct SDUIComposerDraft: Sendable, Equatable {
+    public let text: String
+    public let rev: Int
+
+    public init?(_ json: JSONValue) {
+        guard let fields = json.objectValue, let text = fields["text"]?.stringValue, let rev = fields["rev"]?.numberValue.flatMap({ Int(exactly: $0) }) else { return nil }
+        self.text = text
+        self.rev = rev
     }
 }
 
@@ -266,6 +290,7 @@ public struct SDUIChoiceOther: Sendable, Equatable {
     public let on: Bool
     public let value: String?
     public let focus: Int
+    public let aside: SDUIChoiceAside?
 
     public init?(_ json: JSONValue) {
         guard let fields = json.objectValue, let id = fields["id"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
@@ -277,6 +302,7 @@ public struct SDUIChoiceOther: Sendable, Equatable {
         on = fields["on"]?.boolValue ?? false
         value = fields["value"]?.stringValue
         focus = fields["focus"]?.numberValue.flatMap { Int(exactly: $0) } ?? 0
+        aside = fields["aside"].flatMap(SDUIChoiceAside.init)
     }
 }
 
@@ -567,6 +593,10 @@ extension SDUINode {
 
     public func choiceOptions() -> [SDUIChoiceOption] {
         props["options"]?.arrayValue?.compactMap(SDUIChoiceOption.init) ?? []
+    }
+
+    public func composerDraft() -> SDUIComposerDraft? {
+        props["draft"].flatMap(SDUIComposerDraft.init)
     }
 
     public func choiceOther() -> SDUIChoiceOther? {

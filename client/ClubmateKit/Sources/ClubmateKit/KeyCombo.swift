@@ -8,6 +8,7 @@ public struct KeyCombo: Equatable, Sendable {
     public let shift: Bool
     public let characters: String
     public let charactersIgnoringModifiers: String
+    private let written: String
 
     public init?(_ combo: String) {
         var parts = combo.lowercased().split(separator: "+", omittingEmptySubsequences: false).map(String.init)
@@ -29,6 +30,7 @@ public struct KeyCombo: Equatable, Sendable {
         self.option = option
         self.shift = shift
         charactersIgnoringModifiers = typed
+        written = key.text
         if control, let scalar = typed.lowercased().unicodeScalars.first, ("a"..."z").contains(scalar) {
             characters = String(UnicodeScalar(UInt8(scalar.value & 0x1f)))
         } else {
@@ -38,7 +40,7 @@ public struct KeyCombo: Equatable, Sendable {
 
     public var label: String {
         let names: [UInt16: String] = [36: "↩", 48: "⇥", 49: "Space", 51: "⌫", 53: "⎋", 123: "←", 124: "→", 125: "↓", 126: "↑"]
-        let key = names[keyCode] ?? charactersIgnoringModifiers.uppercased()
+        let key = names[keyCode] ?? written.uppercased()
         return (control ? "⌃" : "") + (option ? "⌥" : "") + (shift ? "⇧" : "") + (command ? "⌘" : "") + key
     }
 

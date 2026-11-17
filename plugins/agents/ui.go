@@ -94,6 +94,8 @@ type workspaceUI struct {
 	dock       string
 	back       string
 	reviewFrom reviewTrail
+	beside     map[string]string
+	focusNode  asideFocus
 }
 
 type sessionUI struct {
@@ -109,6 +111,7 @@ type sessionUI struct {
 	open        openDraft
 	repos       reposChoice
 	restoreNote string
+	sendBack    *sendBackDraft
 	reviewBase  string
 
 	context         bool
@@ -327,6 +330,18 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 		if err := a.push(ctx, p, workspaceID, mainSlot, main); err != nil {
 			return err
 		}
+		aside := sdui.Empty("")
+		if filter != filterOpen && !pageID(selected) {
+			if id := a.besideOf(workspaceID, selected); id != "" {
+				if sc, ok := a.asideScreen(ctx, workspaceID, id, children[id]); ok {
+					sc.Workspace, sc.Folders = workspace.Name, workspace
+					aside = mainView(sc)
+				}
+			}
+		}
+		if err := a.push(ctx, p, workspaceID, asideSlot, aside); err != nil {
+			return err
+		}
 	}
 	logError("render gates", a.renderGates(ctx, p, workspace, slots))
 	if !slices.Contains(slots, codeSlot) {
@@ -337,9 +352,9 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 
 func (a *app) slots() []string {
 	if a.codePanel {
-		return []string{sidebarSlot, mainSlot, sheetSlot, gatesSidebarSlot, gatesMainSlot, codeSlot}
+		return []string{sidebarSlot, mainSlot, asideSlot, sheetSlot, gatesSidebarSlot, gatesMainSlot, codeSlot}
 	}
-	return []string{sidebarSlot, mainSlot, sheetSlot, gatesSidebarSlot, gatesMainSlot}
+	return []string{sidebarSlot, mainSlot, asideSlot, sheetSlot, gatesSidebarSlot, gatesMainSlot}
 }
 
 func (a *app) shownSlots(workspaceID string) []string {
@@ -352,7 +367,7 @@ func (a *app) shownSlots(workspaceID string) []string {
 	shown := func(id string) bool { return section == "" || section == id || slices.Contains(watched, id) }
 	slots := []string{sidebarSlot, sheetSlot}
 	if shown(sectionID) {
-		slots = append(slots, mainSlot)
+		slots = append(slots, mainSlot, asideSlot)
 	}
 	if shown(gatesSection) {
 		slots = append(slots, gatesSidebarSlot, gatesMainSlot)
@@ -539,6 +554,19 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 	asides := a.optionAsides(v.Session)
 	open.Asides = asides
 	gateReview := a.reviewHead(ctx, v.Session)
+	sendBack := a.sendBackScreen(workspaceID, s, v)
+	closeAsk := ""
+	if v.Session.isAside() {
+		closeAsk = a.closeAsk(v.Session, nil).Message
+	}
+	asideCount := 0
+	if a.canAside(v.Session) {
+		asideCount = a.liveAsides(sid)
+	}
+	forked := ""
+	if f := a.session(v.Session.ForkedFrom); f != nil {
+		forked = cmp.Or(f.snapshot().Title, "New session")
+	}
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
 	st.open.prune(open.Items)
@@ -584,6 +612,10 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 		Pinned:      pinned,
 		Asides:      asides,
 		GateReview:  gateReview,
+		SendBack:    sendBack,
+		CloseAsk:    closeAsk,
+		AsideCount:  asideCount,
+		ForkedFrom:  forked,
 	}
 	sc.ReviewStates, sc.ReviewsOpen = a.reviews.cards(v.ReviewStates)
 	return sc

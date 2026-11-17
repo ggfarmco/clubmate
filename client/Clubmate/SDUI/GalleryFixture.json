@@ -34,9 +34,13 @@
                 {"type": "badge", "props": {"text": "1 open", "tone": "warning", "outline": true}},
                 {"type": "text", "props": {"text": "1 decision · 0 offers · answer any time; nothing waits", "short": "1 decision · 0 offers", "style": "muted"}}
               ]},
-              {"type": "choice", "id": "gallery-open-item", "props": {"style": "radio", "title": "Lists", "text": "How should a long detail behave?", "quote": "Lists only keep a detail up to 6 em.", "note": "pick one", "number": 1, "open": true, "openAction": "move", "other": {"id": "gallery-open-other", "label": "Other…", "hint": "o", "placeholder": "Your answer"}, "options": [
+              {"type": "choice", "id": "gallery-open-item", "props": {"style": "radio", "title": "Lists", "text": "How should a long detail behave?", "quote": "Lists only keep a detail up to 6 em.", "note": "pick one", "number": 1, "open": true, "openAction": "move", "asideAction": "asideAsk", "other": {"id": "gallery-open-other", "label": "Other…", "hint": "o", "placeholder": "Your answer"}, "options": [
                 {"value": "all", "label": "Change the rule", "description": "Every list changes", "hint": "1", "on": true},
-                {"value": "prop", "label": "Add an SDUI prop", "description": "Only the sheet uses it", "hint": "2"}
+                {"value": "prop", "label": "Add an SDUI prop", "description": "Only the sheet uses it", "hint": "2", "aside": {"id": "agt_gallery_aside", "state": "thinking"}}
+              ]}},
+              {"type": "choice", "id": "gallery-pinned", "props": {"style": "radio", "pinned": true, "action": "asidePick", "title": "Lists", "text": "How should a long detail behave?", "note": "Rework the Send review sheet asks", "quote": "Pick here: it answers the question in the parent's card, where Send still waits.", "options": [
+                {"value": "all", "label": "Change the rule for all lists"},
+                {"value": "prop", "label": "Add an SDUI prop", "on": true, "aside": {"id": "agt_gallery_aside", "state": "open"}}
               ]}},
               {"type": "stack", "props": {"direction": "horizontal", "gap": 8}, "children": [
                 {"type": "button", "id": "gallery-open-send", "props": {"label": "Send answers", "variant": "primary", "hint": "cmd+return", "action": "send"}},

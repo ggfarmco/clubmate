@@ -76,6 +76,11 @@ struct ComposerNodeView: View {
         .reportsFocus(pane, focused, slot: focusSlot)
         .onChange(of: node.composerCommands(), initial: true) { _, commands in model.commands = commands }
         .onChange(of: running, initial: true) { _, running in model.running = running }
+        .onChange(of: node.composerDraft(), initial: true) { _, draft in
+            guard let draft, model.apply(draft: draft.text, rev: draft.rev) else { return }
+            undoManager?.removeAllActions()
+            selection = TextSelection(insertionPoint: model.text.endIndex)
+        }
         .onChange(of: focused, initial: true) { _, focused in drafts.focus(node.id ?? "", focused) }
         .onChange(of: DraftText(id: node.id, text: model.text)) { old, new in
             guard old.id == new.id, node.attachKinds().contains("file") else { return }
