@@ -1322,6 +1322,7 @@ struct PermissionCard: View {
     private var title: some View {
         Text(request.card?.title ?? request.question)
             .font(.title3.weight(.semibold))
+            .textSelection(.enabled)
     }
 
     private var stackedHeader: some View {
@@ -1615,6 +1616,7 @@ struct QuestionCard: View {
                         Text(Markdown.inline(question))
                             .font(.title3.weight(.semibold))
                             .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
                     }
@@ -1800,10 +1802,12 @@ struct ElicitationCard: View {
                 .font(.footnote)
                 .foregroundStyle(Color.captionInk)
                 .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
         } else {
             Text(Markdown.inline(question.request.message))
                 .font(.title3.weight(.semibold))
                 .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
         }
     }
 
@@ -1824,11 +1828,13 @@ struct ElicitationCard: View {
                         Text(Markdown.inline(heading(field)))
                             .font(.title3.weight(.semibold))
                             .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
                             .padding(.bottom, 6)
                     } else if field.key != single?.key, !field.title.isEmpty || !field.description.isEmpty {
                         Text(heading(field))
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(Color.captionInk)
+                            .textSelection(.enabled)
                     }
                     input(field, single: field.key == single?.key)
                     if let other = item.other {

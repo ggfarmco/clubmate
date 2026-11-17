@@ -272,6 +272,7 @@ struct OpenItemsCard: View {
             Text(Markdown.inline(section.title))
                 .font(.title3.weight(.semibold))
                 .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
             switch section {
             case .decision(let item):
                 OpenChoices(item: item, draft: $draft, focused: focused)

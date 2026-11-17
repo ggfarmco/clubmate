@@ -843,6 +843,18 @@ final class CompanionUITests: XCTestCase {
         XCTAssertFalse(card.exists)
     }
 
+    func testATapOnTheTranscriptFoldsTheOpenCardLikeLater() {
+        let app = launch(open: "agents/agt_0000000000000021", ["-openFixture", "YES"])
+        let card = app.otherElements["open-card"]
+        XCTAssertTrue(card.staticTexts["5 open"].waitForExistence(timeout: 10))
+        XCTAssertTrue(wait(for: card.buttons["Later"], "isEnabled == true"))
+        card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0)).withOffset(CGVector(dx: 0, dy: -24)).tap()
+        XCTAssertTrue(card.buttons["Send answers"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(card.staticTexts["5 open"].exists)
+        card.buttons.firstMatch.tap()
+        XCTAssertTrue(card.buttons["Send answers"].waitForExistence(timeout: 5))
+    }
+
     func testSelectedBacklogAndMoreRowsAreTintedNotFilledOnIPad() throws {
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "selection shows only in the iPad columns")
         XCUIDevice.shared.appearance = .light

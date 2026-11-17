@@ -38,6 +38,7 @@ struct SessionDetailView: View {
     @State private var pushReady = false
     @State private var sendingBack: SendBackStart?
     @State private var closeQuestion: String?
+    @State private var foldingOpen = false
 
     private static let pairedWidth = 520.0
 
@@ -275,8 +276,12 @@ struct SessionDetailView: View {
             }
         }
         .simultaneousGesture(TapGesture().onEnded {
-            if composerFocused { composerFocused = false }
-            if cardField != nil { cardField = nil }
+            if composerFocused || cardField != nil {
+                composerFocused = false
+                cardField = nil
+            } else if cardDock(screen) == "open", blocked == nil {
+                foldOpen()
+            }
         })
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 10) {
@@ -767,6 +772,15 @@ struct SessionDetailView: View {
 
     private func folded(_ card: OpenCard) -> Bool {
         card.later || store.session(sessionID)?.isTurnActive == true
+    }
+
+    private func foldOpen() {
+        guard !foldingOpen else { return }
+        foldingOpen = true
+        perform {
+            defer { foldingOpen = false }
+            try await store.laterOpen(sessionID)
+        }
     }
 
     private var closing: Bool {
