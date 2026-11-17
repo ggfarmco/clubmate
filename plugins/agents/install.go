@@ -24,7 +24,7 @@ import (
 const (
 	agentClaude     = "claude"
 	claudePackage   = "@agentclientprotocol/claude-agent-acp"
-	claudeVersion   = "0.102.0"
+	claudeVersion   = "0.108.0"
 	claudeBin       = "claude-agent-acp"
 	chromeFlag      = "chrome"
 	claudeDir       = "claude-acp"
