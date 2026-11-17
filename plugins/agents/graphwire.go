@@ -30,12 +30,13 @@ const (
 
 func (a *app) newGraphs(h *pluginsdk.Host) *graphs.Engine {
 	return graphs.New(graphs.Deps{
-		Host:     h,
-		StateDir: filepath.Join(a.stateDir, "graphs"),
-		Sessions: a.graphSessions,
-		Needs:    a.setRunNeeds,
-		ShowRun:  a.showRun,
-		Changed:  a.graphsChanged,
+		Host:       h,
+		StateDir:   filepath.Join(a.stateDir, "graphs"),
+		Sessions:   a.graphSessions,
+		Needs:      a.setRunNeeds,
+		ShowRun:    a.showRun,
+		Changed:    a.graphsChanged,
+		PruneAfter: envDelay(runDeleteAfterEnv, runDeleteAfter),
 	})
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"time"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
@@ -11,12 +12,13 @@ import (
 )
 
 type Deps struct {
-	Host     *pluginsdk.Host
-	StateDir string
-	Sessions func(ctx context.Context, workspace string) ([]api.Session, error)
-	Needs    func(ctx context.Context, workspace string, needs []api.RunNeed)
-	ShowRun  func(ctx context.Context, workspace, run string) error
-	Changed  func(workspace string)
+	Host       *pluginsdk.Host
+	StateDir   string
+	Sessions   func(ctx context.Context, workspace string) ([]api.Session, error)
+	Needs      func(ctx context.Context, workspace string, needs []api.RunNeed)
+	ShowRun    func(ctx context.Context, workspace, run string) error
+	Changed    func(workspace string)
+	PruneAfter time.Duration
 }
 
 type Engine struct {
@@ -30,7 +32,7 @@ type Engine struct {
 
 func New(d Deps) *Engine {
 	a := newApp()
-	a.host, a.stateDir, a.sessions, a.needs = d.Host, d.StateDir, d.Sessions, d.Needs
+	a.host, a.stateDir, a.sessions, a.needs, a.pruneAfter = d.Host, d.StateDir, d.Sessions, d.Needs, d.PruneAfter
 	if d.ShowRun != nil {
 		a.showRun = d.ShowRun
 	}

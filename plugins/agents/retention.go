@@ -9,9 +9,11 @@ import (
 )
 
 const (
-	deleteAfter    = 30 * 24 * time.Hour
-	deleteAfterEnv = "CLUBMATE_AGENTS_DELETE_AFTER"
-	deleteTick     = time.Hour
+	deleteAfter       = 30 * 24 * time.Hour
+	deleteAfterEnv    = "CLUBMATE_AGENTS_DELETE_AFTER"
+	deleteTick        = time.Hour
+	runDeleteAfter    = 7 * 24 * time.Hour
+	runDeleteAfterEnv = "CLUBMATE_AGENTS_RUN_DELETE_AFTER"
 )
 
 func (a *app) deleteOldLoop(after time.Duration) {

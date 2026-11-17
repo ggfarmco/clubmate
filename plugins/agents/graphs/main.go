@@ -94,6 +94,7 @@ type app struct {
 	changed      func(workspace string)
 	stateDir     string
 	startErr     error
+	pruneAfter   time.Duration
 }
 
 type draft struct {
@@ -188,6 +189,7 @@ func (a *app) startEngine(ctx context.Context, after int64) error {
 	a.spawn(func() { resume(ctx) })
 	a.renderAll(ctx)
 	go a.followLive(ctx)
+	go a.pruneLoop(ctx, a.pruneAfter)
 	return nil
 }
 
