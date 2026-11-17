@@ -78,6 +78,14 @@ struct SDUIGalleryScreen: View {
     private static let extrasJSON = """
     {"type": "stack", "id": "phone-extras", "props": {"direction": "vertical"}, "children": [
       {"type": "text", "props": {"text": "PHONE EXTRAS", "style": "muted"}},
+      {"type": "tree", "id": "phone-wiki-tree", "props": {"selected": "sdui-index", "items": [
+        {"id": "start", "label": "Start here", "icon": "doc.text"},
+        {"id": "dir-guides", "label": "guides", "action": true, "hasChildren": true, "expanded": true, "children": [
+          {"id": "guides-index", "label": "Guides home", "icon": "list.bullet.rectangle.portrait"},
+          {"id": "dir-sdui", "label": "SDUI protocol", "icon": "list.bullet.rectangle.portrait", "mirrorOf": "sdui-index", "hasChildren": true, "expanded": true, "children": [
+            {"id": "nodes", "label": "Nodes", "icon": "doc.text"}]},
+          {"id": "dir-plain", "label": "testing", "action": true, "hasChildren": true, "expanded": true, "children": [
+            {"id": "flaky", "label": "Flaky tests", "icon": "doc.text"}]}]}]}},
       {"type": "list", "id": "jobs", "props": {"selected": "j1", "items": [
         {"id": "j1", "label": "Nightly dependency audit for the whole monorepo", "detail": "every day at 03:00", "icon": "clock", "menu": [{"action": "run", "label": "Run now"}, {"action": "delete", "label": "Delete", "confirm": "Delete this job?"}]},
         {"id": "j2", "label": "Weekly digest", "detail": "Missed", "icon": "exclamationmark.triangle", "tone": "warning", "badge": "1"},

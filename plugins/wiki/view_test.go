@@ -58,6 +58,45 @@ func TestSidebarFoldsAgentNotesLast(t *testing.T) {
 	assert.Equal(t, []string{"app/a.md", "dir:app/sdui", "app/sdui/nodes.md", "dir:app/.agents", "app/.agents/trap.md"}, sidebarTree(t, d))
 }
 
+func TestFolderIndexPageIsTheFirstRowOrTheFolderRow(t *testing.T) {
+	d := sidebarData{AgentNotes: true, Selected: "app/guides/sdui/index.md", Projects: []projectView{{Name: "app", Pages: []Page{
+		{Path: ".agents/index.md", Title: "Notes index", Shadow: true},
+		{Path: "guides/index.md", Title: "Guides home"},
+		{Path: "guides/sdui/README.md", Title: "Readme"},
+		{Path: "guides/sdui/index.md", Title: "SDUI protocol", Stale: true},
+		{Path: "guides/sdui/nodes.md", Title: "Nodes"},
+		{Path: "index.md", Title: "Home"},
+		{Path: "solo/README.md", Title: "Solo"},
+	}}}}
+
+	tree, ok := findNode(sidebarView(d), pagesNode)
+	require.True(t, ok)
+	items := tree.Props["items"].([]sdui.TreeItem)
+	assert.Equal(t, []string{"app/index.md", "app/solo/README.md", "dir:app/guides", "app/guides/index.md", "dir:app/guides/sdui", "app/guides/sdui/README.md", "app/guides/sdui/nodes.md", "dir:app/.agents", "app/.agents/index.md"}, treeIDs(items))
+	assert.Equal(t, sdui.TreeItem{ID: "app/solo/README.md", Label: "Solo", Icon: folderPageIcon, Truncate: "tail"}, items[1])
+	guides := items[2]
+	assert.Equal(t, "guides", guides.Label)
+	assert.Equal(t, sdui.TreeItem{ID: "app/guides/index.md", Label: "Guides home", Icon: folderPageIcon, Truncate: "tail"}, guides.Children[0])
+	sub := guides.Children[1]
+	assert.Equal(t, sdui.TreeItem{ID: "dir:app/guides/sdui", Label: "SDUI protocol", Icon: folderPageIcon, MirrorOf: "app/guides/sdui/index.md", Truncate: "tail", Badges: []sdui.HeaderBadge{{Text: staleBadge, Tone: "warning"}}, HasChildren: true, Expanded: true, Children: sub.Children}, sub)
+	assert.Equal(t, d.Selected, tree.Props["selected"])
+	assert.Equal(t, notesLabel, items[3].Label)
+
+	d.Collapsed = map[string]bool{"dir:app/guides": true}
+	tree, ok = findNode(sidebarView(d), pagesNode)
+	require.True(t, ok)
+	assert.Equal(t, "4", tree.Props["items"].([]sdui.TreeItem)[2].Detail)
+
+	multi := folderItems("app", "", d.Projects[0].Pages, nil, false, false)
+	assert.Equal(t, "app/guides/index.md", multi[2].MirrorOf)
+}
+
+func TestIndexPageHeaderUsesTheFolderPageIcon(t *testing.T) {
+	h, ok := findNode(mainView(mainData{Page: &Page{Path: "guides/index.md", Title: "Guides"}, Kind: sdui.DocumentMarkdown, Index: true}), headerNode)
+	require.True(t, ok)
+	assert.Equal(t, folderPageIcon, h.Props["icon"])
+}
+
 func TestOnlyTopLevelAgentsFolderIsAgentNotes(t *testing.T) {
 	w := newWiki()
 	fold := func(id, action string) {

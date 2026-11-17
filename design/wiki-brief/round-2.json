@@ -1,0 +1,16 @@
+{
+  "title": "Wiki · round 2 · a folder that has its own page",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 17 Nov. How a folder with an index.md shows in the tree, on the Mac and in the Companion.",
+    "A · Page with children: the folder becomes a page row with a chevron, labelled with the page title; top-level folders stop being section labels. B · Folder with a mark: keeps the folder name plus a small page glyph; section labels become selectable everywhere (what the branch built). C · Heading + first row (designer's pick): section labels stay plain headings; a top-level folder's page is the first row under its label; a nested folder is one row (chevron · folder-page icon · title); click opens and unfolds, the chevron only folds.",
+    "Extras in C: a \"Wiki / guides /\" breadcrumb above the title (new header prop), \"In this folder · n\" at the top of the margin column, \"Page in this folder ⌘⇧N\". Companion: iPad, the row opens the page and a 44 pt disclosure button folds it; iPhone, the folder pushes a list whose first row is its page."
+  ],
+  "boards": [
+    {"file": "r2-Tree-1280-Mate.dc.html", "w": 1280, "title": "A · B · C at 1280 · Mate dark", "caption": "Sidebar: a top-level folder with a page, a nested one, a plain folder, pages."},
+    {"file": "r2-Tree-640-MateLight.dc.html", "w": 2000, "title": "A · B · C at 640 · Mate light", "caption": "Narrow pane."},
+    {"file": "r2-C-iPad.dc.html", "w": 1194, "title": "C · iPad", "caption": "A tap opens the folder's page; the trailing disclosure folds."},
+    {"file": "r2-C-iPhone.dc.html", "w": 1339, "title": "C · iPhone", "caption": "No tree: a folder pushes its list, its page is the first row."},
+    {"file": "r2-Handoff.dc.html", "w": 1480, "title": "Recommendation + handoff", "caption": "17 changes tagged (a)–(e), what leaks outside the wiki, three open questions."}
+  ]
+}

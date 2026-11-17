@@ -90,6 +90,18 @@ final class SDUITests: XCTestCase {
         XCTAssertTrue(item.action)
     }
 
+    func testTreeTapOpensAPageRowAndFoldsAPlainFolder() throws {
+        func item(_ json: String) throws -> SDUITreeItem {
+            try XCTUnwrap(SDUITreeItem(JSONDecoder().decode(JSONValue.self, from: Data(json.utf8))))
+        }
+
+        XCTAssertEqual(try item(#"{"id": "dir:a/g", "label": "G", "mirrorOf": "a/g/index.md", "hasChildren": true}"#).tap, .open("a/g/index.md", unfold: true))
+        XCTAssertEqual(try item(#"{"id": "dir:a/g", "label": "G", "mirrorOf": "a/g/index.md", "hasChildren": true, "expanded": true}"#).tap, .open("a/g/index.md", unfold: false))
+        XCTAssertEqual(try item(#"{"id": "dir:a/p", "label": "p", "action": true, "hasChildren": true, "expanded": true}"#).tap, .fold(expand: false))
+        XCTAssertEqual(try item(#"{"id": "new:a/x.md", "label": "X", "mirrorOf": "a/x.md"}"#).tap, .select("a/x.md"))
+        XCTAssertEqual(try item(#"{"id": "gate-repo:/r", "label": "r", "hasChildren": true, "expanded": true}"#).tap, .select("gate-repo:/r"))
+    }
+
     func testTableColumnsDropByPriority() {
         let columns = [
             SDUIColumn(id: "pid", title: "PID", align: .left, width: 60),

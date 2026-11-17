@@ -23,6 +23,26 @@ final class TreeKeysTests: XCTestCase {
         XCTAssertEqual(TreeCursor.move(nil, by: 1, in: rows), "a")
     }
 
+    func testJKSkipSectionLabels() throws {
+        let tree = try JSONDecoder().decode(SDUINode.self, from: Data("""
+        {"type": "tree", "props": {"items": [
+          {"id": "a", "label": "A"},
+          {"id": "sec", "label": "guides", "action": true, "hasChildren": true, "expanded": true, "children": [
+            {"id": "sub", "label": "plain", "action": true, "hasChildren": true, "expanded": true, "children": [{"id": "x", "label": "X"}]}
+          ]},
+          {"id": "done", "label": "Done", "action": true, "hasChildren": true}
+        ]}}
+        """.utf8))
+        let rows = TreeCursor.rows(tree.treeItems())
+
+        XCTAssertEqual(rows.filter(\.heading).map(\.id), ["sec", "sub", "done"])
+        XCTAssertEqual(TreeCursor.move("a", by: 1, in: rows), "x")
+        XCTAssertEqual(TreeCursor.move("x", by: -1, in: rows), "a")
+        XCTAssertEqual(TreeCursor.resolve(.collapse, cursor: "x", in: rows), .cursor("sub"))
+        XCTAssertEqual(TreeCursor.move("x", by: 1, in: rows), "done")
+        XCTAssertEqual(TreeCursor.resolve(.expand, cursor: "done", in: rows), .expand("done"))
+    }
+
     func testFoldedParentKeepsItsPinnedChildren() throws {
         let tree = try JSONDecoder().decode(JSONValue.self, from: Data("""
         {"id": "task", "label": "Task", "hasChildren": true, "expanded": false, "children": [{"id": "failed", "label": "auth", "pinned": true}, {"id": "merged", "label": "ads"}]}
@@ -223,6 +243,13 @@ final class TreeKeysTests: XCTestCase {
         XCTAssertEqual(MenuEntryKey("cmd+delete"), .commandDelete)
         XCTAssertEqual(MenuEntryKey("c"), .plain("c"))
         XCTAssertNil(MenuEntryKey(nil))
+    }
+
+    func testFolderCarryingAPageOpensItOnReturnAndFoldsOnArrows() {
+        let rows = [TreeRow(id: "dir:app/sdui", depth: 0, parent: nil, hasChildren: true, expanded: true, selects: true)]
+
+        XCTAssertEqual(TreeCursor.resolve(.open, cursor: "dir:app/sdui", in: rows), .select("dir:app/sdui"))
+        XCTAssertEqual(TreeCursor.resolve(.collapse, cursor: "dir:app/sdui", in: rows), .collapse("dir:app/sdui"))
     }
 
     func testReturnOnFolderRowStillFolds() {

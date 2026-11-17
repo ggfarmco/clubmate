@@ -2,8 +2,12 @@ package main
 
 import (
 	"html"
+	"maps"
 	"net/url"
+	"path"
+	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +17,7 @@ const (
 	historyAnchor = "wiki:history"
 	marginChanges = 3
 	warnIcon      = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 14.5 13.5h-13Z"/><path d="M8 6.5v3M8 11.6v.1"/></svg>`
+	folderIcon    = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5Z"/></svg>`
 	noteIcon      = `<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>`
 )
 
@@ -30,6 +35,13 @@ type linkedPage struct {
 	Shadow bool
 }
 
+type folderEntry struct {
+	Title   string
+	Path    string
+	Updated time.Time
+	Folder  bool
+}
+
 type marginData struct {
 	Path    string
 	Page    Page
@@ -37,7 +49,47 @@ type marginData struct {
 	Changes []Change
 	Total   int
 	Linked  []linkedPage
+	Folder  []folderEntry
 	Now     time.Time
+}
+
+func indexFolder(page string, pages []Page) (string, bool) {
+	folder := path.Dir(page)
+	if folder == "." {
+		return "", false
+	}
+	idx, ok := indexPage(folder, pages)
+	return folder, ok && idx.Path == page
+}
+
+func folderEntries(root, folder, self string, pages []Page) []folderEntry {
+	under := slices.DeleteFunc(slices.Clone(pages), func(pg Page) bool { return !strings.HasPrefix(pg.Path, folder+"/") })
+	files, byDir := group(folder+"/", under)
+	var out []folderEntry
+	for _, name := range slices.Sorted(maps.Keys(byDir)) {
+		inside := byDir[name]
+		e := folderEntry{Title: name, Folder: true}
+		if idx, ok := indexPage(folder+"/"+name, inside); ok {
+			e.Title, e.Path = idx.Title, filepath.Join(root, filepath.FromSlash(idx.Path))
+		}
+		for _, pg := range inside {
+			e.Updated = maxTime(e.Updated, pg.Updated)
+		}
+		out = append(out, e)
+	}
+	for _, pg := range files {
+		if pg.Path != self {
+			out = append(out, folderEntry{Title: pg.Title, Path: filepath.Join(root, filepath.FromSlash(pg.Path)), Updated: pg.Updated})
+		}
+	}
+	return out
+}
+
+func maxTime(a, b time.Time) time.Time {
+	if b.After(a) {
+		return b
+	}
+	return a
 }
 
 func headings(body string) []heading {
@@ -62,6 +114,25 @@ func docHref(abs, anchor string) string {
 
 func margin(d marginData) string {
 	var sections, folded []string
+	if len(d.Folder) > 0 {
+		var b strings.Builder
+		b.WriteString(`<div class="wm-sec"><div class="wm-cap">In this folder · ` + strconv.Itoa(len(d.Folder)) + `</div>`)
+		for _, e := range d.Folder {
+			icon := ""
+			if e.Folder {
+				icon = folderIcon
+			}
+			row := icon + `<span class="wm-label">` + html.EscapeString(e.Title) + `</span><span class="wm-detail">` + changeWhen(e.Updated, d.Now) + `</span>`
+			if e.Path == "" {
+				b.WriteString(`<div class="wm-row" title="` + html.EscapeString(e.Title) + `">` + row + `</div>`)
+				continue
+			}
+			b.WriteString(`<a class="wm-row" href="` + html.EscapeString(docHref(e.Path, "")) + `" title="` + html.EscapeString(e.Title) + `">` + row + `</a>`)
+		}
+		b.WriteString(`</div>`)
+		sections = append(sections, b.String())
+		folded = append(folded, strconv.Itoa(len(d.Folder))+" in this folder")
+	}
 	if len(d.Outline) >= 2 {
 		var b strings.Builder
 		b.WriteString(`<nav class="wm-sec"><div class="wm-cap">On this page</div>`)

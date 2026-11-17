@@ -82,3 +82,69 @@ func TestWikiMarginAllChangesOpensHistory(t *testing.T) {
 	}
 	in.eventually("a click on All 4 changes in the margin opens History", opened)
 }
+
+func TestWikiFolderRowOpensItsIndexPage(t *testing.T) {
+	in := start(t, "macui-wiki-index", "")
+	for page, content := range map[string]string{"a.md": "# A\n\nBody.\n", "guides/sdui/index.md": "# SDUI protocol\n\nIndex.\n", "guides/sdui/nodes.md": "# Nodes\n\nNodes.\n", "guides/sdui/examples/e.md": "# Example\n\nE.\n", "solo/index.md": "# Solo page\n\nSolo.\n"} {
+		args, err := json.Marshal(map[string]string{"page": page, "content": content, "summary": "seed"})
+		require.NoError(t, err)
+		in.cm("command", "run", "wiki.write", "--args", string(args))
+	}
+	in.focusSection("wiki", "wiki.sidebar")
+
+	row := func(suffix string) *element {
+		return in.snapshot().main().find(func(e element) bool { return strings.HasPrefix(e.ID, "pages#") && strings.HasSuffix(e.ID, suffix) })
+	}
+	in.eventually("a nested folder with a page is one row, a folder holding only its page a page row", func() bool {
+		r := row("/guides/sdui")
+		return r != nil && r.Label == "SDUI protocol" && row("/guides/sdui/index.md") == nil && row("/solo/index.md") != nil
+	})
+	title := func() any {
+		var slots []struct {
+			Slot string   `json:"slot"`
+			Tree sduiNode `json:"tree"`
+		}
+		in.json(&slots, "ui", "dump", "--workspace", in.workspace)
+		for _, s := range slots {
+			if h := s.Tree.find("header"); s.Slot == "wiki.main" && h != nil {
+				return h.Props["title"]
+			}
+		}
+		return nil
+	}
+	selected := func(suffix string) bool { return hasRole(row(suffix), "selected") }
+	unfolded := func() bool { return row("/guides/sdui/nodes.md") != nil }
+	chevron := func() { in.pointer("click", row("/guides/sdui").ID, "--at", "14,10") }
+
+	page := strings.TrimPrefix(row("/guides/sdui").ID, "pages#dir:") + "/index.md"
+	in.cm("ui", "event", "--workspace="+in.workspace, "--slot=wiki.sidebar", "--node=pages", "--action=select", `--value="`+page+`"`)
+	in.eventually("the index page opens from outside the tree", func() bool { return title() == "SDUI protocol" && selected("/guides/sdui") })
+	in.cm("command", "run", "ui.focus", "section=wiki", "slot=wiki.main")
+	in.focusSection("wiki", "wiki.sidebar")
+	in.key("j")
+	in.eventually("focusing the sidebar puts the cursor on the folder, so j steps to its first child", func() bool { return hasRole(row("/guides/sdui/examples"), "focused") })
+	in.pointer("click", row("/guides/sdui/examples").ID)
+	in.eventually("a click on a plain subfolder folds it", func() bool { return row("/guides/sdui/examples/e.md") == nil && row("/guides/sdui/examples") != nil })
+
+	in.pointer("click", row("/a.md").ID)
+	in.eventually("page A shows", func() bool { return title() == "A" })
+	chevron()
+	in.eventually("the chevron folds and leaves the selection", func() bool { return !unfolded() && title() == "A" && selected("/a.md") })
+	in.pointer("click", row("/guides/sdui").ID)
+	in.eventually("a click on the folded row opens its page and unfolds it", func() bool {
+		return title() == "SDUI protocol" && selected("/guides/sdui") && unfolded()
+	})
+	in.pointer("click", row("/guides/sdui").ID)
+	in.eventually("a second click never folds", func() bool { return unfolded() && title() == "SDUI protocol" })
+
+	in.pointer("click", row("/a.md").ID)
+	chevron()
+	in.eventually("folded again on page A", func() bool { return !unfolded() && title() == "A" })
+	in.key("j", "j", "return")
+	in.eventually("j skips the section label and return opens and unfolds the folder", func() bool {
+		return title() == "SDUI protocol" && selected("/guides/sdui") && unfolded()
+	})
+
+	in.pointer("click", row("/solo/index.md").ID)
+	in.eventually("a folder holding only its page opens like a page", func() bool { return title() == "Solo page" && selected("/solo/index.md") })
+}

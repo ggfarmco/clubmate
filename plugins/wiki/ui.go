@@ -244,7 +244,8 @@ func projectPages(projects []projectView, name string) []Page {
 
 func (w *wiki) pageData(ctx context.Context, ws contract.Workspace, projects []wikiroot.Project, s *Store, row recentRow, pages []Page, history bool, f find) mainData {
 	page := row.Page
-	m := mainData{Project: row.Project, Page: &page, ShowHistory: history, Now: w.now(), Path: filepath.Join(s.p.Dir, filepath.FromSlash(page.Path))}
+	folder, isIndex := indexFolder(page.Path, pages)
+	m := mainData{Project: row.Project, Page: &page, ShowHistory: history, Now: w.now(), Path: filepath.Join(s.p.Dir, filepath.FromSlash(page.Path)), Index: isIndex}
 	if history {
 		return m
 	}
@@ -268,7 +269,11 @@ func (w *wiki) pageData(ctx context.Context, ws contract.Workspace, projects []w
 	}
 	m.HTML = body
 	if docext.Kind(page.Path) == docext.KindMarkdown {
-		m.HTML = w.margin(ctx, s, m.Path, page, pages, body) + body
+		var here []folderEntry
+		if isIndex {
+			here = folderEntries(s.p.Dir, folder, page.Path, pages)
+		}
+		m.HTML = w.margin(ctx, s, m.Path, page, pages, here, body) + body
 	}
 	m.Kind, m.Rev = sdui.DocumentMarkdown, rev([]byte(m.HTML))
 	return m
@@ -278,12 +283,12 @@ func rev(b []byte) int {
 	return int(crc32.ChecksumIEEE(b) & 0x7fffffff)
 }
 
-func (w *wiki) margin(ctx context.Context, s *Store, abs string, page Page, pages []Page, body string) string {
+func (w *wiki) margin(ctx context.Context, s *Store, abs string, page Page, pages []Page, here []folderEntry, body string) string {
 	changes, err := s.History(ctx, page.Path, marginChanges)
 	logError("history "+page.Path, err)
 	total, err := s.Count(ctx, page.Path)
 	logError("count "+page.Path, err)
-	d := marginData{Path: abs, Page: page, Outline: headings(body), Changes: changes, Total: max(total, len(changes)), Now: w.now()}
+	d := marginData{Path: abs, Page: page, Outline: headings(body), Changes: changes, Total: max(total, len(changes)), Folder: here, Now: w.now()}
 	for _, l := range w.linkedFrom(s, pages, page.Path) {
 		d.Linked = append(d.Linked, linkedPage{Title: l.Title, Path: filepath.Join(s.p.Dir, filepath.FromSlash(l.Path)), Shadow: l.Shadow})
 	}

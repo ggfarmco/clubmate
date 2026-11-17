@@ -11,6 +11,24 @@ final class CompanionUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    func testTreeRowWithAPageOpensItAndTheChevronFolds() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-sdui-gallery", "phone-wiki-tree"]
+        app.launch()
+        let last = app.staticTexts["sdui.lastEvent"]
+        func sent(_ action: String, _ value: String) -> Bool {
+            let label = NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", " · \(action) · ", value)
+            return XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: label, object: last)], timeout: 5) == .completed
+        }
+
+        app.buttons["SDUI protocol"].firstMatch.tap()
+        XCTAssertTrue(sent("select", "sdui-index"))
+        app.buttons["Collapse SDUI protocol"].tap()
+        XCTAssertTrue(sent("collapse", "dir-sdui"))
+        app.buttons["testing"].firstMatch.tap()
+        XCTAssertTrue(sent("collapse", "dir-plain"))
+    }
+
     func testScanningTheFirstMacOpensItsSessions() {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-latency", "20", "-scan", Self.pairLink]

@@ -287,20 +287,26 @@ struct TreeNode: View {
         let rows = Self.rows(node.treeItems() + Self.docked(node))
         let gutter = rows.contains { $0.item.hasChildren }
         let byID = Dictionary(rows.map { ($0.item.id, $0) }, uniquingKeysWith: { first, _ in first })
-        RowGroup(ids: rows.map(\.item.id), selected: selected) { id in
+        let highlighted = selected.map { selected in rows.first { $0.item.id == selected }?.item.id ?? rows.first { $0.item.target == selected }?.item.id ?? selected }
+        RowGroup(ids: rows.map(\.item.id), selected: highlighted) { id in
             if let row = byID[id] {
+                let page = row.item.hasChildren && row.item.opensPage
                 HStack(spacing: 0) {
                     Color.clear.frame(width: CGFloat(row.depth) * 16, height: 1)
-                    disclosure(row.item, gutter: gutter)
+                    if page {
+                        Color.clear.frame(width: 32, height: 1)
+                    } else {
+                        disclosure(row.item, gutter: gutter)
+                    }
                     Button {
-                        if !row.item.action { selected = id }
-                        context.run { await $0.select(node, id) }
+                        tap(row.item)
                     } label: {
                         ItemLabel(item: row.item.item, detailTone: row.item.detailTone, muted: row.item.muted, faint: row.item.faint, opens: context.mainSlot != nil && !row.item.hasChildren && !row.item.action)
                     }
                     .buttonStyle(.plain)
+                    if page { trailingDisclosure(row.item) }
                 }
-                .itemMenu(row.item.item.menu) { context.choose($0, item: id, in: node, confirm: &choice) }
+                .itemMenu(row.item.item.menu) { context.choose($0, item: row.item.target, in: node, confirm: &choice) }
             }
         }
         .menuConfirm($choice, node: node, context: context)
@@ -316,6 +322,37 @@ struct TreeNode: View {
         .onChange(of: node.string("selected"), initial: true) { _, value in
             selected = value
         }
+    }
+
+    private func tap(_ item: SDUITreeItem) {
+        switch item.tap {
+        case .select(let target):
+            if !item.action { selected = target }
+            context.run { await $0.select(node, target) }
+        case .open(let target, let unfold):
+            selected = target
+            context.run { context in
+                await context.select(node, target)
+                if unfold { await context.fire(node, .expand(item.id)) }
+            }
+        case .fold(let expand):
+            context.run { await $0.fire(node, expand ? .expand(item.id) : .collapse(item.id)) }
+        }
+    }
+
+    private func trailingDisclosure(_ item: SDUITreeItem) -> some View {
+        Button {
+            context.run { await $0.fire(node, item.expanded ? .collapse(item.id) : .expand(item.id)) }
+        } label: {
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Color.captionInk)
+                .rotationEffect(.degrees(item.expanded ? 90 : 0))
+                .frame(width: 44, height: 44)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(item.expanded ? "Collapse \(item.item.label)" : "Expand \(item.item.label)")
     }
 
     @ViewBuilder

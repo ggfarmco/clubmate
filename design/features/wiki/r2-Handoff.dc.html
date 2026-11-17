@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wiki r2: recommendation and handoff</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/3625e436fe514a17296f985885d56c7f">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+.doc td.g{padding-top:20px;font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#2B6E39;border-bottom:1.5px solid #1B1D1C}
+</style>
+</helmet>
+<div class="doc" style="width: 1480px; min-height: 2600px; padding: 64px; display: flex; flex-direction: column; gap: 40px">
+
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · Wiki · round 2</div>
+<h1>A folder that has its own page</h1>
+<p class="lead"><b>Pick C · Heading + first row.</b> Section labels stay headings, as they are everywhere else in the app. A top-level folder's page becomes the first row under its label. A nested folder with a page is one row: chevron, folder-page icon, page title. Clicking the row opens the page; the chevron only folds. The same rule, “the folder's page is its first row”, carries over to the iPhone, which has no tree.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Three directions</h2>
+<table>
+<thead><tr><th style="width: 150px"></th><th>A · Page with children</th><th>B · Folder with a mark</th><th>C · Heading + first row <span class="tag a">pick</span></th></tr></thead>
+<tbody>
+<tr><td class="mono">Label</td><td>Page title</td><td>Folder name; title in tooltip and header</td><td>Page title; folder name only for plain folders and in the breadcrumb</td></tr>
+<tr><td class="mono">Mark</td><td>Doc icon + chevron (pages have no chevron, plain folders have no icon)</td><td>Small page glyph after the name</td><td>Folder-page icon (a doc with list lines) + chevron</td></tr>
+<tr><td class="mono">Top level</td><td>Leaves the section labels and becomes a level-0 row; its pages indent one step deeper than a section's</td><td>Section label becomes selectable: fg text and an accent bar</td><td>Section label unchanged; the page is the first row under it</td></tr>
+<tr><td class="mono">Leaks</td><td>None in section labels</td><td>A selected state for <b>every</b> section label: new prop and renderer state</td><td>None in section labels; it reverts the built one</td></tr>
+<tr><td class="mono">Weak spot</td><td>Mixed depths at the top level</td><td>A lit heading still reads oddly, and a folder name tells you less than the title</td><td>Top level and nested look different: a row under a label vs. a row with children</td></tr>
+</tbody>
+</table>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h2>Answers, for C</h2>
+<p><b>1 · Look.</b> The mark is the folder-page icon, so a folder with a page is visible before you hover. Its label is the page title (names over ids). A long title tail-truncates like any page row, with title and path in the tooltip. A folder whose only file is its page shows as a page row with that icon and no chevron.</p>
+<p><b>2 · Selection and keys.</b> Clicking the label or icon opens the page and unfolds the folder if it is folded; it never folds. The chevron is its own target: a 20 × 20 cell in the indent with a hover ring, which folds and leaves the selection alone. ↩ opens and unfolds. l/→ unfolds, then moves to the first child; h/← folds, then moves to the parent. j/k never stop on a section label.</p>
+<p><b>3 · The page.</b> Every page in a folder gets a caption breadcrumb above its title: “Wiki / guides /”, using folder-page titles where they exist. On an index page the margin column starts with “In this folder · n”, and the action bar adds “Page in this folder ⌘⇧N”.</p>
+<p><b>4 · Companion.</b> iPad: top-level folders are collapsible section headers with the same first-row rule. A nested folder's row opens the page, and a trailing 44 pt disclosure button folds it. A plain folder folds from the whole row. iPhone: a folder row pushes its list, and the folder's page is that list's first row, so a tap never has two meanings.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h2>What leaks outside the wiki</h2>
+<ul>
+<li><b>Section labels:</b> nothing. C removes the selectable section label the branch added.</li>
+<li><b>Tree rows (items 7–9):</b> every tree, on purpose. “Click opens, chevron folds, ↩ opens and unfolds” becomes the app rule for any row that has children and an open action. Today only the wiki sends such rows.</li>
+<li><b>Header breadcrumb (item 12):</b> a new opt-in prop on the header node. Only the wiki sets it for now.</li>
+<li><b>Icon (item 6):</b> one more glyph in the shared set.</li>
+</ul>
+<p class="muted" style="font-size: 14px">Tags: <span class="tag a">a</span> token / renderer · <span class="tag c">b</span> new SDUI node or prop · <span class="tag a">c</span> plugin content · <span class="tag b">d</span> new plugin logic · <span class="tag a">e</span> doc stylesheet. Green = preferred.</p>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Handoff</h2>
+<table>
+<thead><tr><th style="width: 44px">#</th><th>Change</th><th style="width: 110px">Tag</th><th style="width: 320px">Scope · leak</th></tr></thead>
+<tbody>
+<tr><td colspan="4" class="g">Mac tree</td></tr>
+<tr><td class="n">1</td><td>Section labels stay headings: not selectable, folded by click, skipped by j/k. Revert the branch's selectable section label.</td><td><span class="tag a">c</span></td><td>wiki; removes a leak</td></tr>
+<tr><td class="n">2</td><td>Top-level folder with a page: the page is the first row under the label, with the page title and the folder-page icon. “Not listed again” still holds for nested folders.</td><td><span class="tag a">c</span></td><td>wiki only</td></tr>
+<tr><td class="n">3</td><td>Nested folder with a page: one row. Chevron in the indent · folder-page icon · page title; tail-truncate; tooltip shows title + path.</td><td><span class="tag a">c</span></td><td>wiki only; existing row props (icon, children, action)</td></tr>
+<tr><td class="n">4</td><td>A folder holding only its page: a page row with the folder-page icon and no chevron (“Solo folder page” in the seed).</td><td><span class="tag a">c</span></td><td>wiki only</td></tr>
+<tr><td class="n">5</td><td>Plain folder: chevron · folder name in text-2 · page count while folded; no icon.</td><td><span class="tag a">c</span></td><td>wiki only</td></tr>
+<tr><td class="n">6</td><td>Folder-page icon (a doc with list lines) in the icon set.</td><td><span class="tag a">a</span></td><td>shared set; no behaviour</td></tr>
+<tr><td class="n">7</td><td>Clicking a row that has children and an open action opens it and unfolds it if folded; it never folds.</td><td><span class="tag a">a</span></td><td>every tree; intended</td></tr>
+<tr><td class="n">8</td><td>The chevron is its own target: the 20 × 20 indent cell, a hover ring, fold only, selection stays.</td><td><span class="tag a">a</span></td><td>every tree; intended</td></tr>
+<tr><td class="n">9</td><td>Keys: ↩ opens and unfolds; l/→ unfolds, then first child; h/← folds, then parent; j/k skip section labels.</td><td><span class="tag a">a</span></td><td>every tree; only “↩ also unfolds” is new</td></tr>
+
+<tr><td colspan="4" class="g">Page</td></tr>
+<tr><td class="n">10</td><td>Index page header uses the folder-page icon.</td><td><span class="tag a">c</span></td><td>wiki only</td></tr>
+<tr><td class="n">11</td><td>Margin column on an index page starts with “In this folder · n” (pages and subfolders, with age); the narrow fold row lists it first too.</td><td><span class="tag b">d</span> <span class="tag a">e</span></td><td>wiki only; the plugin adds it to the r1 aside</td></tr>
+<tr><td class="n">12</td><td>Caption breadcrumb above the title at ≥ 800: “Wiki / guides /”. Segments use a folder page's title when there is one, else the folder name; each opens that folder's page or reveals the folder. Below 800 the existing “‹ Wiki / folder” bar does this.</td><td><span class="tag c">b</span></td><td>new <code>crumb</code> prop on the header node; opt-in for any detail view</td></tr>
+<tr><td class="n">13</td><td>“Page in this folder ⌘⇧N” in an index page's action bar.</td><td><span class="tag a">c</span> <span class="tag b">d</span></td><td>wiki only; creates the file in that folder</td></tr>
+<tr><td class="n">14</td><td>Plain folder's “…” menu: “Add a page for this folder” (creates <code>index.md</code>).</td><td><span class="tag b">d</span></td><td>wiki only; optional</td></tr>
+
+<tr><td colspan="4" class="g">Companion</td></tr>
+<tr><td class="n">15</td><td>iPad sidebar: top-level folders are collapsible section headers with the first-row rule. A nested folder with a page: tapping the row opens it; a trailing 44 pt disclosure button folds. A plain folder folds from the whole row.</td><td><span class="tag a">a</span></td><td>companion tree renderer; same SDUI as the Mac, no new prop</td></tr>
+<tr><td class="n">16</td><td>iPhone: no tree. A folder row (“Folder · n pages”) pushes its list; the folder page is the first row (“Folder page · updated …”).</td><td><span class="tag a">a</span></td><td>companion list renderer</td></tr>
+<tr><td class="n">17</td><td>Page on Companion: breadcrumb caption above the title; “In this folder” as an inset group at the end of the page.</td><td><span class="tag a">e</span></td><td>companion doc stylesheet, fed by item 11's aside</td></tr>
+</tbody>
+</table>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Open questions</h2>
+<ul>
+<li>A root <code>index.md</code>: should it be the wiki's home, opened by the pane title “Wiki”? It's the same rule one level up; I'd say yes.</li>
+<li>Multi-project wikis: top level is projects, so the first-row rule applies to each project's folders. Please confirm.</li>
+<li><code>index.md</code> and <code>README.md</code> both present: the brief says index wins. Should the README then show as an ordinary page?</li>
+</ul>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1480,"height":2600}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

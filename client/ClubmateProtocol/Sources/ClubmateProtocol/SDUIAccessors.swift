@@ -70,6 +70,16 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
 
     public var target: String { mirrorOf ?? item.id }
 
+    public var heading: Bool { action && hasChildren && (item.icon ?? "").isEmpty }
+
+    public var opensPage: Bool { mirrorOf != nil || open != nil }
+
+    public var tap: SDUITreeTap {
+        guard hasChildren else { return .select(target) }
+        if opensPage { return .open(target, unfold: !expanded) }
+        return action ? .fold(expand: !expanded) : .select(target)
+    }
+
     public var shownChildren: [SDUITreeItem] {
         expanded ? children : children.filter(\.pinned)
     }
@@ -656,4 +666,10 @@ extension SDUINode {
         let title = label.hasSuffix("…") ? String(label.dropLast()) : label
         return title.isEmpty ? "OK" : title
     }
+}
+
+public enum SDUITreeTap: Equatable, Sendable {
+    case select(String)
+    case open(String, unfold: Bool)
+    case fold(expand: Bool)
 }

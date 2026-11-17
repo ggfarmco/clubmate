@@ -226,7 +226,7 @@ struct TreeNodeView: View {
         var rows: [Row] = []
         func visit(_ items: [SDUITreeItem], _ depth: Int) {
             for item in items {
-                let section = depth == 0 && TreeSection.holds(item)
+                let section = depth == 0 && item.heading
                 rows.append(Row(item: item, depth: depth, section: section, first: rows.isEmpty))
                 visit(item.shownChildren, section ? depth : depth + 1)
             }
@@ -285,7 +285,11 @@ struct TreeNodeView: View {
                 itemRow(row, columns: columns, selected: row.item.target == selected, cursor: focused && row.id == cursor) {
                     cursor = row.id
                     focused = true
-                    select(row.id)
+                    if case .fold(let expand) = row.item.tap {
+                        dispatch(node, expand ? .expand(row.id) : .collapse(row.id))
+                    } else {
+                        select(row.id)
+                    }
                 }
                 .id(row.id)
             }
@@ -322,11 +326,11 @@ struct TreeNodeView: View {
         .onChange(of: node.string("selected"), initial: true) { _, value in
             guard value != selected else { return }
             selected = value
-            if let value { scroller?.scrollTo(value, anchor: .center) }
+            if let value { scroller?.scrollTo(rowID(value), anchor: .center) }
         }
         .onChange(of: router?.pending, initial: true) {
             guard let sidebarSlot, router?.take(sidebarSlot) == true else { return }
-            cursor = selected ?? rows.first?.id
+            cursor = selected.map(rowID) ?? rows.first?.id
             focused = true
         }
         .onChange(of: TreeCursor.rows(node.treeItems(), dock: dock).map(\.id)) { old, new in
@@ -355,11 +359,18 @@ struct TreeNodeView: View {
         }
     }
 
+    private func rowID(_ selected: String) -> String {
+        let rows = rows
+        if rows.contains(where: { $0.id == selected }) { return selected }
+        return rows.first(where: { $0.item.target == selected })?.id ?? selected
+    }
+
     private func select(_ id: String) {
         let item = rows.first(where: { $0.id == id })?.item ?? dock.flatMap(\.rows).first(where: { $0.id == id })
         let target = item?.target ?? id
         if item?.action != true { selected = target } else if item?.hasChildren == false { activated = id }
         dispatch(node, .select(target))
+        if let item, case .open(_, unfold: true) = item.tap { dispatch(node, .expand(id)) }
     }
 
     private func handle(_ event: NSEvent) -> Bool {
@@ -419,12 +430,6 @@ struct TreeNodeView: View {
     private func chord(_ chord: TreeChord?) {
         guard chord == .focusField, let sidebarSlot, sidebarHasField else { return }
         router?.request(sidebarSlot + SidebarField.suffix)
-    }
-}
-
-enum TreeSection {
-    static func holds(_ item: SDUITreeItem) -> Bool {
-        item.action && item.hasChildren && (item.item.icon ?? "").isEmpty
     }
 }
 
@@ -506,18 +511,29 @@ struct Disclosure: View {
     var reserve = true
     let toggle: (Bool) -> Void
 
+    private static let cell: CGFloat = 20
+
+    @State private var hovering = false
     @Environment(\.theme) private var theme
 
     var body: some View {
         if hasChildren {
             Button { toggle(expanded) } label: {
                 DisclosureChevron(expanded: expanded, font: .system(size: 8, weight: .semibold))
-                    .foregroundStyle(theme.muted)
-                    .frame(width: theme.indent, height: theme.rowHeight)
+                    .foregroundStyle(hovering ? theme.foreground : theme.muted)
+                    .frame(width: Self.cell, height: Self.cell)
+                    .background {
+                        if hovering { RoundedRectangle(cornerRadius: theme.radius.s).fill(theme.hover) }
+                    }
+                    .overlay {
+                        if hovering { RoundedRectangle(cornerRadius: theme.radius.s).strokeBorder(theme.borderStrong) }
+                    }
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .onHover { hovering = $0 }
             .accessibilityLabel(expanded ? "Collapse" : "Expand")
+            .frame(width: theme.indent, height: theme.rowHeight)
         } else if reserve {
             Color.clear.frame(width: theme.indent)
         }

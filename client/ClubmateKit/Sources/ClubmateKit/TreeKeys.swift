@@ -6,8 +6,10 @@ public struct TreeRow: Equatable, Sendable {
     public let expanded: Bool
     public let opens: Bool
     public let docked: Bool
+    public let selects: Bool
+    public let heading: Bool
 
-    public init(id: String, depth: Int, parent: String?, hasChildren: Bool, expanded: Bool, opens: Bool = false, docked: Bool = false) {
+    public init(id: String, depth: Int, parent: String?, hasChildren: Bool, expanded: Bool, opens: Bool = false, docked: Bool = false, selects: Bool = false, heading: Bool = false) {
         self.id = id
         self.depth = depth
         self.parent = parent
@@ -15,12 +17,16 @@ public struct TreeRow: Equatable, Sendable {
         self.expanded = expanded
         self.opens = opens
         self.docked = docked
+        self.selects = selects
+        self.heading = heading
     }
+
+    var skipped: Bool { heading && expanded }
 }
 
 public enum TreeCursor {
     public static func rows(_ items: [SDUITreeItem], dock: [SDUITreeDock] = []) -> [TreeRow] {
-        rows(items, depth: 0, parent: nil) + dock.flatMap { section in
+        rows(items, depth: 0, parent: nil, top: true) + dock.flatMap { section in
             [TreeRow(id: section.id, depth: 0, parent: nil, hasChildren: true, expanded: section.expanded, docked: true)]
                 + (section.expanded ? rows(section.rows, depth: 1, parent: section.id) : [])
         }
@@ -28,8 +34,18 @@ public enum TreeCursor {
 
     public static func move(_ id: String?, by delta: Int, in rows: [TreeRow]) -> String? {
         guard !rows.isEmpty else { return nil }
-        guard let id, let index = rows.firstIndex(where: { $0.id == id }) else { return rows[0].id }
-        return rows[min(max(index + delta, 0), rows.count - 1)].id
+        guard let id, let index = rows.firstIndex(where: { $0.id == id }) else { return (rows.first { !$0.skipped } ?? rows[0]).id }
+        let step = delta < 0 ? -1 : 1
+        var at = index, found = index, left = abs(delta)
+        while left > 0 {
+            at += step
+            guard rows.indices.contains(at) else { break }
+            if !rows[at].skipped {
+                found = at
+                left -= 1
+            }
+        }
+        return rows[found].id
     }
 
     public static func settle(_ cursor: String?, activated: Bool, from old: [String], to new: [String]) -> String? {
@@ -54,7 +70,7 @@ public enum TreeCursor {
             guard let index else { return nil }
             let row = rows[index]
             if row.opens { return .openPage(row.id) }
-            guard row.hasChildren else { return .select(row.id) }
+            guard row.hasChildren, !row.selects else { return .select(row.id) }
             return row.expanded ? .collapse(row.id) : .expand(row.id)
         case .remove:
             return index.map { .remove(rows[$0].id) }
@@ -119,10 +135,11 @@ public enum TreeCursor {
         return rows[(ancestor + 1)...index].allSatisfy { $0.depth > rows[ancestor].depth }
     }
 
-    private static func rows(_ items: [SDUITreeItem], depth: Int, parent: String?) -> [TreeRow] {
+    private static func rows(_ items: [SDUITreeItem], depth: Int, parent: String?, top: Bool = true) -> [TreeRow] {
         items.flatMap { item in
-            let row = TreeRow(id: item.id, depth: depth, parent: parent, hasChildren: item.hasChildren, expanded: item.expanded, opens: item.open != nil)
-            return [row] + rows(item.shownChildren, depth: depth + 1, parent: item.id)
+            let heading = top && item.heading
+            let row = TreeRow(id: item.id, depth: depth, parent: parent, hasChildren: item.hasChildren, expanded: item.expanded, opens: item.open != nil, selects: item.mirrorOf != nil, heading: heading)
+            return [row] + rows(item.shownChildren, depth: depth + 1, parent: item.id, top: heading)
         }
     }
 }

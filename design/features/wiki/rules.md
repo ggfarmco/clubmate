@@ -4,7 +4,7 @@ Direction B, "Margin" (Claude Design round 1, canvas "Clubmate · Wiki", https:/
 
 The user's pain: "the wiki looks sad: huge empty margins on the sides, and in general it isn't neat". The page body was an 820 px column centred in the pane, the title showed twice, the sidebar listed every page twice (Recent + tree).
 
-**Status:** landing 1 (rules 1, 3, 4, 8, rule 5 without New to you), landing 2a (rule 2, the margin column), landing 2b (rule 6, History with diff and Restore, without Show page at this version) and landing 2c (New to you, search results with snippets, opened hits marked and scrolled to: rules 5, 7) are built. Rule 4's meta on the title line (from a 640pt header), its today-only time and Reveal in Finder are built too; the full timestamp tooltip is not (the `header` has no tooltip for `meta`). Left: backlog #803, #805, #808. How it looks: `built/` (`margin-*.jpg` for the margin column, `mac-1280-history.jpg` for History).
+**Status:** landing 1 (rules 1, 3, 4, 8, rule 5 without New to you), landing 2a (rule 2, the margin column), landing 2b (rule 6, History with diff and Restore, without Show page at this version) and landing 2c (New to you, search results with snippets, opened hits marked and scrolled to: rules 5, 7) are built. Rule 4's meta on the title line (from a 640pt header), its today-only time and Reveal in Finder are built too; the full timestamp tooltip is not (the `header` has no tooltip for `meta`). Folder index pages: see § Round 2. Left: backlog #803, #805, #808. How it looks: `built/` (`margin-*.jpg` for the margin column, `mac-1280-history.jpg` for History).
 
 ## The rules
 
@@ -35,3 +35,38 @@ The user's pain: "the wiki looks sad: huge empty margins on the sides, and in ge
 
 1. **Look:** rules 1, 3, 4, 5 and 8; Recent is dropped and New to you comes with landing 2. No new plugin logic.
 2. **Margin column** (rule 2), **History with diff and Restore** (rule 6), **New to you and search snippets** (rules 5, 7): one landing each.
+
+## Round 2 · folder index pages — decided 17 Nov 2026
+
+Direction C, "Heading + first row" (Claude Design round 2), plus "In this folder" in the margin column. Boards: `r2-Handoff.dc.html` (rules 1–17), `r2-C-iPad.dc.html`, `r2-C-iPhone.dc.html`; A/B/C side by side in `rounds/r2-Tree-*`. Brief: `design/wiki-brief/prompt-r2.md`, `round-2.json`, `round-2.html`.
+
+A folder's own page is `<folder>/index.md`, else `<folder>/README.md` (Markdown, any depth, never under `.agents/` or at the wiki root).
+
+**Rules as built (handoff numbers):**
+
+1. Section labels stay headings: not selectable, a click folds them, j/k skip them while unfolded (see Deviations). The selectable section label of the first build is gone.
+2. A top-level folder with a page (a section label in a single-project wiki) keeps its name; its page is the first row under it, with the page's title and the folder-page icon.
+3. Any other folder with a page is one row: chevron in the indent, folder-page icon, the page's title, tail-truncated, its stale badge; its other pages are its children and its page is not listed again.
+4. A folder holding only its page is a page row with the folder-page icon and no chevron, among the pages it sits with (top-level ones among the wiki's root pages).
+5. Plain folders are as before.
+6. The folder-page icon is the SF Symbol `list.bullet.rectangle.portrait` (a page with list lines); pages keep `doc.text`.
+7–9. Every tree (SDUI renderer): a row with children and an open action (`mirrorOf` or `open`) opens on a click or ↩ and unfolds while folded, a click never folds it; its chevron is a 20 × 20 target in the indent with a hover ring that only folds; a plain folder row (`action`, children, no open action) folds on a click of the whole row, as on the Companion; l/→ unfolds, then steps to the first child; h/← folds, then goes to the parent; j/k skip unfolded section labels. Tables share the chevron cell.
+10. An index page's header uses the folder-page icon.
+11. On an index page the margin column starts with **In this folder · n**: subfolders, then the other pages, each with its age; the narrow fold row lists "n in this folder" first.
+15. Companion: a tree row with children and an open action opens its page on a tap and gets a trailing 44 pt disclosure button that folds it; an `action` row with children and no open action folds on a tap of the whole row; taps and menus send the row's target (`mirrorOf`), like the Mac.
+
+**Answers to the designer's questions:** a multi-project wiki applies the rule per project (its folders are rows under the project row, so a folder with a page is one row there, rule 3); with both index.md and README.md, README.md is an ordinary page; a root index.md stays an ordinary root page for now.
+
+**Deviations:**
+
+- **j/k skip only unfolded section labels**, not every section label (rule 9 says "j/k skip section labels"): amended in land review 2 because a folded section (Backlog's Done, the wiki's Agent notes, Graphs' Runs) became unreachable from the keyboard; a folded label is a stop and ↩ or l unfolds it.
+
+- **Tooltip is the title only**, not title + path (rule 3): tree items have no tooltip prop; the row shows the title and its `.help` is the label.
+- **Plain folder names are not in text-2** (rule 5): a section-label folder keeps the muted caption, a folder row under a project row the foreground ink; a text-2 label needs a tree-item prop the design language doesn't name.
+- **Companion top-level folders are not section headers** (rule 15): the phone tree has no section headers; a top-level folder is a row that folds from the whole row, its page the first row under it.
+- **iPhone drill-down waits** (rule 16): the Companion renders a `tree` as one indented list on the iPhone and the iPad alike, with no pushed list per folder; pushing a folder's list needs a drill-down tree renderer first.
+- **Count while folded**: a section label counts every page under it (its page row included), a folder row the pages under it besides its own.
+
+**Not in this release:** 12 (caption breadcrumb and the header `crumb` prop), 13 (Page in this folder ⌘⇧N), 14 (Add a page for this folder), 17 (Companion page breadcrumb and "In this folder" inset group), a root index.md as the wiki's home.
+
+**Status:** rules 1–11 and 15 built on `feat/wiki-folder-index`. Go tests for the tree, the header icon and the margin; ClubmateKit test for j/k; ClubmateProtocol test for the tap rule; mac-ui `TestWikiFolderRowOpensItsIndexPage` (click opens and unfolds, chevron folds, ↩, j skips the label, cursor from outside the tree); XCUITest `testTreeRowWithAPageOpensItAndTheChevronFolds` on the phone gallery.

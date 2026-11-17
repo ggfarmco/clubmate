@@ -3,6 +3,7 @@ package main
 import (
 	"hash/crc32"
 	"html"
+	"maps"
 	"path"
 	"regexp"
 	"slices"
@@ -46,6 +47,10 @@ const (
 	emptyText     = "Agents write here as they work: how things work, why they were decided, examples. You can add a page too."
 	homeText      = "Open a project workspace to see its wiki."
 )
+
+const folderPageIcon = "list.bullet.rectangle.portrait"
+
+var indexNames = []string{"index.md", "README.md"}
 
 type projectView struct {
 	Name  string
@@ -91,6 +96,7 @@ type mainData struct {
 	Diff        string
 	CanRestore  bool
 	Folded      map[string]bool
+	Index       bool
 }
 
 func pageID(project, page string) string {
@@ -159,7 +165,7 @@ func pageItems(d sidebarData) []sdui.TreeItem {
 	var groups []sdui.TreeItem
 	for _, p := range d.Projects {
 		notesOpen := d.AgentNotes || strings.HasPrefix(d.Selected, pageID(p.Name, shadowDir+"/"))
-		items := folderItems(p.Name, "", p.Pages, d.Collapsed, notesOpen)
+		items := folderItems(p.Name, "", p.Pages, d.Collapsed, notesOpen, len(d.Projects) == 1)
 		if len(d.Projects) == 1 {
 			return append(top, rootPages(items, len(top) > 0, d.Collapsed)...)
 		}
@@ -186,7 +192,7 @@ func section(id, label string, count int, collapsed map[string]bool, children []
 
 func rootPages(items []sdui.TreeItem, labelled bool, collapsed map[string]bool) []sdui.TreeItem {
 	n := 0
-	for n < len(items) && !items[n].HasChildren {
+	for n < len(items) && !strings.HasPrefix(items[n].ID, dirPrefix) {
 		n++
 	}
 	if !labelled || n == 0 {
@@ -249,35 +255,39 @@ func shortTime(at, now time.Time) string {
 	return at.Format(dayLayout)
 }
 
-func folderItems(project, dir string, pages []Page, collapsed map[string]bool, notesOpen bool) []sdui.TreeItem {
-	byDir := map[string][]Page{}
-	var leaves []sdui.TreeItem
-	for _, pg := range pages {
-		rest := strings.TrimPrefix(pg.Path, dir)
-		if sub, _, ok := strings.Cut(rest, "/"); ok {
-			byDir[sub] = append(byDir[sub], pg)
-			continue
-		}
+func folderItems(project, dir string, pages []Page, collapsed map[string]bool, notesOpen, labels bool) []sdui.TreeItem {
+	files, byDir := group(dir, pages)
+	leaves := make([]sdui.TreeItem, 0, len(files))
+	for _, pg := range files {
 		leaves = append(leaves, pageItem(project, pg))
 	}
-	dirs := make([]string, 0, len(byDir))
-	for name := range byDir {
-		dirs = append(dirs, name)
-	}
-	slices.Sort(dirs)
+	dirs := slices.Sorted(maps.Keys(byDir))
 	items := make([]sdui.TreeItem, 0, len(dirs)+len(leaves))
 	var notes []sdui.TreeItem
 	for _, name := range dirs {
 		full := dir + name
+		inside, idx, ok := withoutIndex(full, byDir[name])
+		if ok && len(inside) == 0 {
+			leaves = append(leaves, indexItem(project, idx))
+			continue
+		}
 		id := dirPrefix + pageID(project, full)
 		g := sdui.TreeItem{ID: id, Label: name, HasChildren: true, Expanded: !collapsed[id], Action: true}
 		if full == shadowDir {
 			g.Label, g.Expanded = notesLabel, notesOpen
 		}
-		if !g.Expanded {
-			g.Detail = strconv.Itoa(len(byDir[name]))
+		var first []sdui.TreeItem
+		switch {
+		case ok && labels && dir == "":
+			first = []sdui.TreeItem{indexItem(project, idx)}
+		case ok:
+			page := indexItem(project, idx)
+			g.Label, g.Icon, g.MirrorOf, g.Truncate, g.Badges, g.Action = page.Label, page.Icon, page.ID, page.Truncate, page.Badges, false
+		}
+		if g.Expanded {
+			g.Children = append(first, folderItems(project, full+"/", inside, collapsed, notesOpen, labels)...)
 		} else {
-			g.Children = folderItems(project, full+"/", byDir[name], collapsed, notesOpen)
+			g.Detail = strconv.Itoa(len(first) + len(inside))
 		}
 		if full == shadowDir {
 			notes = append(notes, g)
@@ -289,6 +299,45 @@ func folderItems(project, dir string, pages []Page, collapsed map[string]bool, n
 		return append(append(leaves, items...), notes...)
 	}
 	return append(append(items, leaves...), notes...)
+}
+
+func indexItem(project string, pg Page) sdui.TreeItem {
+	it := pageItem(project, pg)
+	it.Icon = folderPageIcon
+	return it
+}
+
+func group(dir string, pages []Page) ([]Page, map[string][]Page) {
+	var files []Page
+	byDir := map[string][]Page{}
+	for _, pg := range pages {
+		if sub, _, ok := strings.Cut(strings.TrimPrefix(pg.Path, dir), "/"); ok {
+			byDir[sub] = append(byDir[sub], pg)
+			continue
+		}
+		files = append(files, pg)
+	}
+	return files, byDir
+}
+
+func withoutIndex(folder string, pages []Page) ([]Page, Page, bool) {
+	idx, ok := indexPage(folder, pages)
+	if !ok {
+		return pages, Page{}, false
+	}
+	return slices.DeleteFunc(slices.Clone(pages), func(pg Page) bool { return pg.Path == idx.Path }), idx, true
+}
+
+func indexPage(folder string, pages []Page) (Page, bool) {
+	if isShadow(folder) {
+		return Page{}, false
+	}
+	for _, name := range indexNames {
+		if i := slices.IndexFunc(pages, func(pg Page) bool { return pg.Path == folder+"/"+name }); i >= 0 {
+			return pages[i], true
+		}
+	}
+	return Page{}, false
 }
 
 func pageItem(project string, pg Page) sdui.TreeItem {
@@ -330,6 +379,9 @@ func mainView(d mainData) sdui.Node {
 		sdui.WithOverflow(sdui.WithConfirm(sdui.WithVariant(sdui.WithAction(sdui.Button(deleteNode, "Delete", "trash"), "delete"), sdui.VariantDanger), "Delete "+p.Path+"? It stays in the wiki's git history.")),
 	}
 	props := sdui.HeaderProps{Icon: pageIcon(p.Path), Meta: meta(p.Updated, p.By, d.Now)}
+	if d.Index {
+		props.Icon = folderPageIcon
+	}
 	if p.Stale {
 		props.Badges = []sdui.HeaderBadge{{Text: staleBadge, Tone: "warning"}}
 	}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMarginOmitsEmptySections(t *testing.T) {
@@ -37,6 +38,33 @@ func TestMarginEscapesPageStrings(t *testing.T) {
 	}
 	assert.Contains(t, got, `href="clubmate-doc:/w/%22a%20b%22.md#wiki:history"`)
 	assert.Contains(t, got, "<summary>On this page · 5 changes · stale · 1 link</summary>")
+}
+
+func TestIndexPageMarginListsItsFolderFirst(t *testing.T) {
+	day := time.Date(2026, 11, 16, 10, 0, 0, 0, time.Local)
+	pages := []Page{
+		{Path: "guides/index.md", Title: "Guides"},
+		{Path: "guides/a.md", Title: "<b>A</b>", Updated: day},
+		{Path: "guides/plain/y.md", Title: "Y", Updated: day},
+		{Path: "guides/sub/index.md", Title: "Sub", Updated: day},
+		{Path: "guides/sub/x.md", Title: "X", Updated: day.Add(time.Hour)},
+		{Path: "guidesx.md", Title: "Other"},
+	}
+	folder, ok := indexFolder("guides/index.md", pages)
+	require.True(t, ok)
+	_, ok = indexFolder("guides/a.md", pages)
+	assert.False(t, ok)
+
+	here := folderEntries("/w", folder, "guides/index.md", pages)
+	assert.Equal(t, []folderEntry{
+		{Title: "plain", Updated: day, Folder: true},
+		{Title: "Sub", Path: "/w/guides/sub/index.md", Updated: day.Add(time.Hour), Folder: true},
+		{Title: "<b>A</b>", Path: "/w/guides/a.md", Updated: day},
+	}, here)
+	got := margin(marginData{Path: "/w/guides/index.md", Folder: here, Changes: []Change{{Summary: "x", At: day}}, Total: 1, Now: day})
+	assert.Contains(t, got, "In this folder · 3")
+	assert.NotContains(t, got, "<b>A")
+	assert.Contains(t, got, "<summary>3 in this folder · 1 change</summary>")
 }
 
 func TestPageTargetsResolveRealLinks(t *testing.T) {

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Companion iPad: wiki with folder pages</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/3625e436fe514a17296f985885d56c7f">
+<link rel="stylesheet" href="/_blob/33b3366de885d0bddb439515a6d2f99f">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.comp .nr{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 4px 0 10px;border-radius:12px}
+.comp .nr .lb{flex:1;min-width:0;font-size:15px;line-height:20px}
+.comp .disc{width:44px;height:44px;border:0;background:none;display:flex;align-items:center;justify-content:center;color:var(--t3);flex:none;padding:0}
+.comp .disc svg.i{width:16px;height:16px;stroke-width:2}
+.comp .sh{display:flex;align-items:center;gap:6px;padding:14px 4px 4px 10px;font-size:13px;line-height:18px;font-weight:600;color:var(--t3)}
+.comp .doc2 table{border-collapse:collapse;width:100%;font-size:15px;line-height:20px}
+.comp .doc2 th{text-align:left;font-weight:400;font-size:13px;color:var(--t3);padding:0 16px 6px 0;border-bottom:1px solid var(--bd2)}
+.comp .doc2 td{padding:8px 16px 8px 0;border-bottom:1px solid var(--bd);vertical-align:top}
+</style>
+</helmet>
+<div class="cm comp th-{{theme}}" style="width: 1194px; height: 834px; display: grid; grid-template-columns: 250px 360px minmax(0, 1fr)">
+
+<nav class="col" aria-label="clubmate" style="background: var(--s1); border-right: 1px solid var(--bd); padding-top: 24px; display: flex; flex-direction: column">
+<div class="colhd"><span class="t20" style="flex: 1; padding-left: 8px">clubmate</span></div>
+<div class="hdr id-blue" style="padding: 8px 20px 6px; font-size: 13px; justify-content: flex-start; gap: 7px"><svg class="i mtint" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px; stroke-width: 2"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2"/><path d="M6 14h4M8 11v3"/></svg><span>Mac Studio</span><span style="font-weight: 400">· online</span></div>
+<div style="padding: 0 10px; display: flex; flex-direction: column; gap: 2px">
+<div class="nr"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M8 2.5 9.3 6.7 13.5 8 9.3 9.3 8 13.5 6.7 9.3 2.5 8 6.7 6.7Z"/></svg><span class="lb">Sessions</span><span class="cap wa-i" style="padding-right: 10px">2</span></div>
+<div class="nr"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><circle cx="4" cy="4.5" r="1.5"/><circle cx="4" cy="11.5" r="1.5"/><path d="M7.5 4.5H14M7.5 11.5H14"/></svg><span class="lb">Backlog</span></div>
+<div class="nr sel"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M3.5 2.5h8.5v10.5H4.5a1 1 0 0 1-1-1Z"/><path d="M3.5 12a1 1 0 0 1 1-1H12"/></svg><span class="lb w6">Wiki</span></div>
+<div class="nr"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></svg><span class="lb">Cron</span></div>
+</div>
+</nav>
+
+<section class="col" aria-label="Wiki pages" style="border-right: 1px solid var(--bd); padding-top: 24px; display: flex; flex-direction: column">
+<div class="colhd"><span class="t20" style="flex: 1; padding-left: 8px">Wiki</span><button class="gbtn glass" aria-label="Search wiki" style="width: 36px; height: 36px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg></button></div>
+<div style="padding: 4px 10px; display: flex; flex-direction: column; gap: 2px">
+<div class="nr"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3M6 8.5h4M6 11h4"/></svg><span class="lb">Start here</span></div>
+<div class="sh"><span style="flex: 1">architecture</span><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; stroke-width: 2"><path d="M3.5 6 8 10.5 12.5 6"/></svg></div>
+<div class="nr"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><rect x="2.5" y="2" width="11" height="12" rx="1.5"/><path d="M5 5h6M5 7.5h6M5 10h3.5"/></svg><span class="lb">Architecture overview</span></div>
+<div class="nr"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3M6 8.5h4M6 11h4"/></svg><span class="lb">Processes</span></div>
+<div class="nr"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3M6 8.5h4M6 11h4"/></svg><span class="lb">Sockets and restarts</span></div>
+<div class="sh"><span style="flex: 1">decisions</span><span style="font-weight: 400">2</span><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; stroke-width: 2"><path d="M6 3.5 10.5 8 6 12.5"/></svg></div>
+<div class="sh"><span style="flex: 1">guides</span><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; stroke-width: 2"><path d="M3.5 6 8 10.5 12.5 6"/></svg></div>
+<div class="nr sel"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><rect x="2.5" y="2" width="11" height="12" rx="1.5"/><path d="M5 5h6M5 7.5h6M5 10h3.5"/></svg><span class="lb w6">SDUI protocol</span><button class="disc" aria-label="Hide pages in SDUI protocol" aria-expanded="true"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button></div>
+<div class="nr" style="padding-left: 38px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3M6 8.5h4M6 11h4"/></svg><span class="lb">Nodes</span></div>
+<div class="nr" style="padding-left: 38px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3M6 8.5h4M6 11h4"/></svg><span class="lb">Wire format</span></div>
+<div class="nr" style="padding-top: 6px; padding-bottom: 6px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px; align-self: flex-start; margin-top: 7px"><rect x="2.5" y="2" width="11" height="12" rx="1.5"/><path d="M5 5h6M5 7.5h6M5 10h3.5"/></svg><span class="lb">Long transcripts: how agents fold and page their output</span><button class="disc" aria-label="Show pages in Long transcripts" aria-expanded="false"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg></button></div>
+<div class="nr"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg><span class="lb t2">testing</span><span class="cap mut">2</span><button class="disc" aria-label="Show pages in testing" aria-expanded="false"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg></button></div>
+</div>
+</section>
+
+<main class="col" style="display: flex; flex-direction: column">
+<div style="display: flex; align-items: flex-start; gap: 10px; padding: 24px 20px 12px 28px; border-bottom: 1px solid var(--bd); flex: none">
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px"><span class="cap mut">guides</span><span class="t20">SDUI protocol</span><span class="cap mut">updated 19:43 by you</span></div>
+<button class="gbtn glass" aria-label="History" style="width: 36px; height: 36px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"/><path d="M2.5 2.5V5H5"/><path d="M8 5v3l2 1.2"/></svg></button>
+<button class="gbtn glass" aria-label="More" style="width: 36px; height: 36px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button>
+</div>
+<div class="doc2" style="flex: 1; min-height: 0; overflow: hidden; padding: 20px 28px; display: flex; flex-direction: column; gap: 14px">
+<p>Plugins describe their views as a tree of nodes; the app renders them and sends events back. The pages in this folder cover the node set and the wire format.</p>
+<span class="w6">Messages</span>
+<table>
+<thead><tr><th style="width: 130px">Message</th><th style="width: 140px">Direction</th><th>Carries</th></tr></thead>
+<tbody>
+<tr><td class="mono">view.set</td><td>plugin → app</td><td>a whole view tree</td></tr>
+<tr><td class="mono">view.patch</td><td>plugin → app</td><td>changed nodes, by id</td></tr>
+<tr><td class="mono">event</td><td>app → plugin</td><td>node id, action, value</td></tr>
+</tbody>
+</table>
+<div style="display: flex; flex-direction: column">
+<div class="hdr" style="padding: 10px 4px 8px"><span>In this folder</span><span style="font-weight: 400">2</span></div>
+<div class="ig" style="margin: 0">
+<div class="c"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3M6 8.5h4M6 11h4"/></svg><div class="cbody"><span>Nodes</span><span class="cap mut">19:20 · Claude</span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg></div>
+<div class="c"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px"><path d="M4 1.5h5l3 3v10H4Z"/><path d="M9 1.5v3h3M6 8.5h4M6 11h4"/></svg><div class="cbody"><span>Wire format</span><span class="cap mut">Nov 16 · Claude</span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg></div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"cdark"},"$preview":{"width":1194,"height":834}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'cdark' };
+}
+}
+</script>
+</body>
+</html>
