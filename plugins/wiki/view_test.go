@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/pkg/contract"
+	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 )
 
@@ -47,24 +49,35 @@ func demoProject() projectView {
 	}}
 }
 
-func TestSidebarHidesAgentNotesUntilToggled(t *testing.T) {
+func TestSidebarFoldsAgentNotesLast(t *testing.T) {
 	d := sidebarData{Projects: []projectView{demoProject()}}
 
-	assert.Equal(t, []string{"dir:app/sdui", "app/sdui/nodes.md", "app/a.md"}, sidebarTree(t, d))
+	assert.Equal(t, []string{"app/a.md", "dir:app/sdui", "app/sdui/nodes.md", "dir:app/.agents"}, sidebarTree(t, d))
 
-	d.AgentNotes = true
-	assert.Equal(t, []string{"dir:app/sdui", "app/sdui/nodes.md", "app/a.md", "dir:app/.agents", "app/.agents/trap.md"}, sidebarTree(t, d))
-	toggle, ok := findNode(sidebarView(d), agentNotesNode)
-	require.True(t, ok)
-	assert.Equal(t, true, toggle.Props["value"])
+	d.Selected = "app/.agents/trap.md"
+	assert.Equal(t, []string{"app/a.md", "dir:app/sdui", "app/sdui/nodes.md", "dir:app/.agents", "app/.agents/trap.md"}, sidebarTree(t, d))
+}
+
+func TestOnlyTopLevelAgentsFolderIsAgentNotes(t *testing.T) {
+	w := newWiki()
+	fold := func(id, action string) {
+		raw, err := json.Marshal(id)
+		require.NoError(t, err)
+		require.NoError(t, w.handle(t.Context(), pluginsdk.UIEvent{WorkspaceID: "ws", NodeID: pagesNode, Action: action, Value: raw}))
+	}
+
+	fold("dir:app/guides/.agents", "collapse")
+	fold("dir:app/.agents", "expand")
+
+	u := w.workspace("ws")
+	assert.True(t, u.collapsed["dir:app/guides/.agents"])
+	assert.True(t, u.agentNotes)
 }
 
 func TestSearchFiltersTree(t *testing.T) {
 	d := sidebarData{Projects: []projectView{demoProject()}, Query: "node", Hits: []hitRow{{Project: "app", Hit: Hit{Page: "sdui/nodes.md", Title: "Nodes", Snippet: "a node"}}}}
 
 	assert.Equal(t, []string{"app/sdui/nodes.md"}, sidebarTree(t, d))
-	_, recent := findNode(sidebarView(d), recentNode)
-	assert.False(t, recent)
 }
 
 func TestMainShowsStaleBadgeFromField(t *testing.T) {
@@ -79,6 +92,12 @@ func TestMainShowsStaleBadgeFromField(t *testing.T) {
 	assert.Equal(t, "updated Jan 2 15:04 by Fix SDUI", header(page).Props["meta"])
 	page.Stale = true
 	assert.Equal(t, []sdui.HeaderBadge{{Text: "stale", Tone: "warning"}}, header(page).Props["badges"])
+}
+
+func TestDropTitleOnlyWhenItMatches(t *testing.T) {
+	assert.Equal(t, "<p>x</p>", dropTitle("<h1 id=\"a\">A &amp; <code>B</code></h1>\n<p>x</p>", "A & B"))
+	assert.Equal(t, "<h1>Other</h1><p>x</p>", dropTitle("<h1>Other</h1><p>x</p>", "A"))
+	assert.Equal(t, "<p>x</p><h1>A</h1>", dropTitle("<p>x</p><h1>A</h1>", "A"))
 }
 
 func TestEmptyWikiShowsNewPage(t *testing.T) {

@@ -146,7 +146,7 @@ func TestUIEventGuards(t *testing.T) {
 	}
 
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.ws}, nil))
-	e.h.WaitSlot(t, e.ws, mainSlot, func(n sdui.Node) bool {
+	e.h.WaitSlot(t, e.ws, sidebarSlot, func(n sdui.Node) bool {
 		_, ok := findNode(n, newNode)
 		return ok
 	})

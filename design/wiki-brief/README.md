@@ -4,6 +4,6 @@ Claude Design pass on the Wiki section (17 Nov 2026). Canvas "Clubmate · Wiki":
 
 - `prompt.md`: the brief sent to the Design chat.
 - `boards/`: test-app screenshots of the wiki today (seeded test wiki, light theme), 640 / 1280 / 1720.
-- `r1/`: round 1 boards (`.dc.html`) pulled from the canvas; `round-1.html` shows them in one page (`round-1.json`).
+- `round-1.html`: round 1 in one page (built from `round-1.json`); its boards (`.dc.html`) live in `design/features/wiki/` (B) and `design/features/wiki/rounds/` (A · B · C side by side).
 
 What the code does today: `client/ClubmateDocument/.../Web/document.css` `#doc { max-width: 820px; margin: 0 auto }` centres the page (also used by the docs popup, artifacts and the backlog description); `plugins/wiki/view.go` builds the sidebar (search, Recent, tree, agent-notes toggle) and the header (title, meta, Edit/History/New/Delete).

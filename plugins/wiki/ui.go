@@ -165,7 +165,7 @@ func (w *wiki) renderNow(ctx context.Context, workspaceID string) error {
 			all = append(all, recentRow{Project: p.Name, Page: pg})
 		}
 		if query != "" {
-			for _, h := range s.searchIn(pages, query, notes, searchLimit) {
+			for _, h := range s.searchIn(pages, query, true, searchLimit) {
 				d.Hits = append(d.Hits, hitRow{Project: p.Name, Hit: h})
 			}
 		}
@@ -224,7 +224,7 @@ func (w *wiki) pageData(ctx context.Context, ws contract.Workspace, projects []w
 		m.HTML, m.Kind = docrender.Artifact(src, m.Path).HTML, sdui.DocumentArtifact
 		return m
 	}
-	m.HTML, m.Kind = docrender.Render(src, docrender.Options{Path: m.Path, Allowed: scope(ws, projects)}).HTML, sdui.DocumentMarkdown
+	m.HTML, m.Kind = dropTitle(docrender.Render(src, docrender.Options{Path: m.Path, Allowed: scope(ws, projects)}).HTML, page.Title), sdui.DocumentMarkdown
 	return m
 }
 
@@ -286,16 +286,7 @@ func (w *wiki) handle(ctx context.Context, ev pluginsdk.UIEvent) error {
 		u.query = strings.TrimSpace(q)
 		w.mu.Unlock()
 		return nil
-	case ev.NodeID == agentNotesNode:
-		var on bool
-		if err := json.Unmarshal(ev.Value, &on); err != nil {
-			return fmt.Errorf("agent notes value: %w", err)
-		}
-		w.mu.Lock()
-		u.agentNotes = on
-		w.mu.Unlock()
-		return nil
-	case ev.NodeID == pagesNode || ev.NodeID == recentNode:
+	case ev.NodeID == pagesNode:
 		var id string
 		if err := json.Unmarshal(ev.Value, &id); err != nil {
 			return fmt.Errorf("%s value: %w", ev.Action, err)
@@ -303,9 +294,14 @@ func (w *wiki) handle(ctx context.Context, ev pluginsdk.UIEvent) error {
 		w.mu.Lock()
 		defer w.mu.Unlock()
 		if strings.HasPrefix(id, dirPrefix) || strings.HasPrefix(id, projectPrefix) {
-			if ev.Action == "expand" || ev.Action == "collapse" {
-				u.collapsed[id] = ev.Action == "collapse"
+			if ev.Action != "expand" && ev.Action != "collapse" {
+				return nil
 			}
+			if _, dir, _ := splitID(strings.TrimPrefix(id, dirPrefix)); strings.HasPrefix(id, dirPrefix) && dir == shadowDir {
+				u.agentNotes = ev.Action == "expand"
+				return nil
+			}
+			u.collapsed[id] = ev.Action == "collapse"
 			return nil
 		}
 		if ev.Action == "select" {

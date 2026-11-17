@@ -1,7 +1,9 @@
 package main
 
 import (
+	"html"
 	"path"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -11,25 +13,25 @@ import (
 )
 
 const (
-	sidebarSlot    = "wiki.sidebar"
-	mainSlot       = "wiki.main"
-	searchNode     = "search"
-	recentNode     = "recent"
-	pagesNode      = "pages"
-	agentNotesNode = "agentNotes"
-	headerNode     = "header"
-	docNode        = "page"
-	changesNode    = "changes"
-	newNode        = "new"
-	editNode       = "edit"
-	historyNode    = "history"
-	deleteNode     = "delete"
-	dirPrefix      = "dir:"
-	projectPrefix  = "project:"
-	staleBadge     = "stale"
-	timeLayout     = "Jan 2 15:04"
-	emptyText      = "Agents write here as they work: how things work, why they were decided, examples. You can add a page too."
-	homeText       = "Open a project workspace to see its wiki."
+	sidebarSlot   = "wiki.sidebar"
+	mainSlot      = "wiki.main"
+	searchNode    = "search"
+	pagesNode     = "pages"
+	headerNode    = "header"
+	docNode       = "page"
+	changesNode   = "changes"
+	newNode       = "new"
+	editNode      = "edit"
+	historyNode   = "history"
+	deleteNode    = "delete"
+	dirPrefix     = "dir:"
+	projectPrefix = "project:"
+	staleBadge    = "stale"
+	timeLayout    = "Jan 2 15:04"
+	notesLabel    = "Agent notes"
+	copyNode      = "copyPath"
+	emptyText     = "Agents write here as they work: how things work, why they were decided, examples. You can add a page too."
+	homeText      = "Open a project workspace to see its wiki."
 )
 
 type projectView struct {
@@ -83,28 +85,46 @@ func sidebarView(d sidebarData) sdui.Node {
 		return sdui.VStack(sdui.EmptyState(homeText, sdui.EmptyProps{Icon: "book.closed"}))
 	}
 	search := sdui.WithAction(sdui.WithLive(sdui.TextField(searchNode, d.Query, "Search wiki")), "search")
-	var body []sdui.Node
-	if d.Query == "" && len(d.Recent) > 0 {
-		items := make([]sdui.Item, 0, len(d.Recent))
-		for _, r := range d.Recent {
-			items = append(items, sdui.Item{ID: pageID(r.Project, r.Page.Path), Label: r.Page.Title, Detail: r.Page.By, Icon: pageIcon(r.Page.Path), Truncate: "tail"})
-		}
-		body = append(body, sdui.MutedText("Recent"), sdui.List(recentNode, items, ""))
-	}
 	items := pageItems(d)
+	var body sdui.Node
 	switch {
 	case len(items) > 0:
-		if d.Query == "" && len(d.Recent) > 0 {
-			body = append(body, sdui.MutedText("Pages"))
-		}
-		body = append(body, sdui.Tree(pagesNode, items, d.Selected))
+		body = sdui.Tree(pagesNode, items, d.Selected)
 	case d.Query != "":
-		body = append(body, sdui.Empty("No pages match"))
+		body = sdui.Empty("No pages match")
 	default:
-		body = append(body, sdui.Empty("No pages yet"))
+		body = sdui.Empty("No pages yet")
 	}
-	notes := sdui.SettingRow("Show agent notes", "", sdui.WithAction(sdui.Toggle(agentNotesNode, d.AgentNotes), "agentNotes"))
-	return sdui.VStack(search, sdui.Scroll(sdui.VStack(body...)), notes)
+	return sdui.VStack(sidebarHead(d), search, sdui.Scroll(sdui.VStack(body)))
+}
+
+func sidebarHead(d sidebarData) sdui.Node {
+	title := sdui.Node{Type: "text", Props: map[string]any{"text": "Wiki", "style": "strong"}}
+	add := sdui.WithIconOnly(sdui.WithVariant(newButton(), sdui.VariantGhost))
+	head := []sdui.Node{title}
+	if n := pageCount(d.Projects); n > 0 {
+		head = append(head, sdui.MutedText(plural(n, "page")))
+	}
+	return sdui.HStack(append(head, sdui.Spacer(), add)...)
+}
+
+func pageCount(projects []projectView) int {
+	n := 0
+	for _, p := range projects {
+		for _, pg := range p.Pages {
+			if !pg.Shadow {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+func plural(n int, word string) string {
+	if n == 1 {
+		return "1 " + word
+	}
+	return strconv.Itoa(n) + " " + word + "s"
 }
 
 func pageItems(d sidebarData) []sdui.TreeItem {
@@ -117,11 +137,8 @@ func pageItems(d sidebarData) []sdui.TreeItem {
 	}
 	var groups []sdui.TreeItem
 	for _, p := range d.Projects {
-		pages := p.Pages
-		if !d.AgentNotes {
-			pages = slices.DeleteFunc(slices.Clone(pages), func(pg Page) bool { return pg.Shadow })
-		}
-		items := folderItems(p.Name, "", pages, d.Collapsed)
+		notesOpen := d.AgentNotes || strings.HasPrefix(d.Selected, pageID(p.Name, shadowDir+"/"))
+		items := folderItems(p.Name, "", p.Pages, d.Collapsed, notesOpen)
 		if len(d.Projects) == 1 {
 			return items
 		}
@@ -138,7 +155,7 @@ func pageItems(d sidebarData) []sdui.TreeItem {
 	return groups
 }
 
-func folderItems(project, dir string, pages []Page, collapsed map[string]bool) []sdui.TreeItem {
+func folderItems(project, dir string, pages []Page, collapsed map[string]bool, notesOpen bool) []sdui.TreeItem {
 	byDir := map[string][]Page{}
 	var leaves []sdui.TreeItem
 	for _, pg := range pages {
@@ -159,19 +176,23 @@ func folderItems(project, dir string, pages []Page, collapsed map[string]bool) [
 	for _, name := range dirs {
 		full := dir + name
 		id := dirPrefix + pageID(project, full)
-		label, icon := name, "folder"
+		g := sdui.TreeItem{ID: id, Label: name, HasChildren: true, Expanded: !collapsed[id], Action: true}
 		if full == shadowDir {
-			label, icon = "Agent notes", "lock"
+			g.Label, g.Expanded = notesLabel, notesOpen
 		}
-		g := sdui.TreeItem{ID: id, Label: label, Icon: icon, HasChildren: true, Expanded: !collapsed[id], Action: true}
-		if g.Expanded {
-			g.Children = folderItems(project, full+"/", byDir[name], collapsed)
+		if !g.Expanded {
+			g.Detail = strconv.Itoa(len(byDir[name]))
+		} else {
+			g.Children = folderItems(project, full+"/", byDir[name], collapsed, notesOpen)
 		}
 		if full == shadowDir {
 			notes = append(notes, g)
 			continue
 		}
 		items = append(items, g)
+	}
+	if dir == "" {
+		return append(append(leaves, items...), notes...)
 	}
 	return append(append(items, leaves...), notes...)
 }
@@ -207,15 +228,14 @@ func mainView(d mainData) sdui.Node {
 		return sdui.EmptyState(emptyText, sdui.EmptyProps{Title: "No wiki pages yet", Icon: "book.closed", Action: &action, Center: true})
 	}
 	p := *d.Page
-	historyLabel := "History"
-	if d.ShowHistory {
-		historyLabel = "Back to page"
-	}
 	actions := []sdui.Node{
-		sdui.WithVariant(sdui.WithAction(sdui.Button(editNode, "Edit in nvim", "pencil"), "edit"), sdui.VariantSecondary),
-		sdui.WithVariant(sdui.WithAction(sdui.Button(historyNode, historyLabel, "clock.arrow.circlepath"), "history"), sdui.VariantGhost),
-		sdui.WithVariant(newButton(), sdui.VariantGhost),
-		sdui.WithConfirm(sdui.WithVariant(sdui.WithAction(sdui.Button(deleteNode, "Delete", "trash"), "delete"), sdui.VariantDanger), "Delete "+p.Path+"? It stays in the wiki's git history."),
+		sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(editNode, "Edit", "pencil"), "edit"), sdui.VariantPrimary), "e"),
+		sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(historyNode, "History", "clock.arrow.circlepath"), "history"), sdui.VariantSecondary), "cmd+y"),
+		sdui.WithOverflow(sdui.WithCopy(sdui.Button(copyNode, "Copy path", "doc.on.doc"), d.Path)),
+		sdui.WithOverflow(sdui.WithConfirm(sdui.WithVariant(sdui.WithAction(sdui.Button(deleteNode, "Delete", "trash"), "delete"), sdui.VariantDanger), "Delete "+p.Path+"? It stays in the wiki's git history.")),
+	}
+	if d.ShowHistory {
+		actions[1] = sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(historyNode, "Back to page", "chevron.left"), "history"), sdui.VariantSecondary), "cmd+y")
 	}
 	props := sdui.HeaderProps{Icon: pageIcon(p.Path), Meta: meta(p.Updated, p.By)}
 	if p.Stale {
@@ -237,6 +257,21 @@ func historyView(changes []Change) sdui.Node {
 		items = append(items, sdui.Item{ID: strconv.Itoa(i), Label: c.Summary, Detail: c.At.Local().Format(timeLayout) + " · " + c.By, Truncate: "tail"})
 	}
 	return sdui.List(changesNode, items, "")
+}
+
+var leadingH1 = regexp.MustCompile(`(?s)^\s*<h1[^>]*>(.*?)</h1>\s*`)
+
+var tags = regexp.MustCompile(`<[^>]*>`)
+
+func dropTitle(body, title string) string {
+	m := leadingH1.FindStringSubmatchIndex(body)
+	if m == nil {
+		return body
+	}
+	if strings.TrimSpace(html.UnescapeString(tags.ReplaceAllString(body[m[2]:m[3]], ""))) != strings.TrimSpace(title) {
+		return body
+	}
+	return body[m[1]:]
 }
 
 func meta(at time.Time, by string) string {

@@ -4,12 +4,14 @@ Direction B, "Margin" (Claude Design round 1, canvas "Clubmate · Wiki", https:/
 
 The user's pain: "the wiki looks sad: huge empty margins on the sides, and in general it isn't neat". The page body was an 820 px column centred in the pane, the title showed twice, the sidebar listed every page twice (Recent + tree).
 
+**Status:** landing 1 (rules 1, 3, 4, 8, rule 5 without New to you) is built; the margin column (rule 2), History with diff (rule 6), New to you and search snippets (rules 5, 7) are not yet, so the boards show more than the app until those land (backlog #787–#790). How landing 1 looks: `built/`.
+
 ## The rules
 
 1. **Layout.** The page body starts on the header's left inset; nothing is centred. Prose, lists, quotes and headings keep a reading measure of 88ch; code, tables and diagrams may grow to the content width and scroll inside their box beyond it.
 2. **Margin column.** From a 960 px wide page view, a 200 px column on the right (40 px gap) holds: On this page (≥ 2 headings), Stale (the changed source path), Changes (last 3, "All n changes"), Linked from (pages whose Markdown links point here). Below 960 it folds into one row above the body.
 3. **One title.** The header carries the title; the page's leading `# H1` is not drawn when it matches the title.
-4. **Header** (Patterns detail header): kind icon · title (two lines max) · stale badge · meta right ("updated 14:04 by Claude", the date only before today); then the action bar: **Edit** (primary, E), **History** (H), "…" with Copy path, Reveal in Finder, Delete. New page moves to the sidebar header (+).
+4. **Header** (Patterns detail header): kind icon · title (two lines max) · stale badge · meta right ("updated 14:04 by Claude", the date only before today); then the action bar: **Edit** (primary, E), **History** (⌘Y), "…" with Copy path, Reveal in Finder, Delete. New page moves to the sidebar header (+).
 5. **Sidebar:** pane header "Wiki" with +; search field; "New to you" (≤ 5 pages someone else changed since you last opened them, hidden when empty) instead of Recent; "Pages" with a count; folder rows without folder icons, page count when folded; long titles tail-truncate with the full title in the tooltip; stale pages show the badge; agent notes are a folded "Agent notes" section at the end of the tree instead of the toggle.
 6. **History** replaces the body, not the header: changes grouped by day (summary / who · time, +n −m), the selected change's diff beside them; ⎋ or Back to page returns; Restore this version writes a new commit with the old text (user only, with a confirm).
 7. **Search:** a query replaces New to you and the tree with results (Pages, then Agent notes), two-line rows with a snippet; opening a result marks the matches on the page.
@@ -18,6 +20,7 @@ The user's pain: "the wiki looks sad: huge empty margins on the sides, and in ge
 ## Deviations from the boards
 
 - **"Edit", not "Edit in nvim".** Ruled by the user on 17 Nov: the wiki has no focus on nvim. The button opens the page in the workspace's editor (`editor.open`); no "nvim" in any wiki label or menu.
+- **History is ⌘Y, not H.** A bare h is the sidebar tree's collapse key (`docs/shortcuts.md` § Trees); ⌘Y is History in Safari.
 - **No ⌘B sidebar overlay below 800.** That is app shell, not the wiki; the sidebar stays docked as in every other section.
 - **No match highlights in sidebar snippets** (handoff 29): it needs a new SDUI prop the design language doesn't name. Snippets ship without marks.
 - **No outline scroll-spy, no "Ask Claude to update", no "while working on …"** (handoff 7, 8, 26): later, backlog.

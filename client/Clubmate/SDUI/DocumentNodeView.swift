@@ -25,8 +25,14 @@ struct DocumentNodeView: View {
         node.string("size") == "fit"
     }
 
+    private var documentTheme: DocumentTheme {
+        var document = theme.document
+        document.inset = theme.gutter
+        return document
+    }
+
     var body: some View {
-        DocumentWebView(content: content, theme: theme.document, size: fit ? .fit : .fill, zoom: fit ? nil : zoom, find: fit ? nil : find) { link in
+        DocumentWebView(content: content, theme: documentTheme, size: fit ? .fit : .fill, zoom: fit ? nil : zoom, find: fit ? nil : find) { link in
             open(link)
         }
         .frame(maxWidth: .infinity, maxHeight: fit ? nil : .infinity)

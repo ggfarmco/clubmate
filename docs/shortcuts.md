@@ -95,6 +95,8 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌘N | Ask an agent to add a cron job (How cron works; the app menu's ⌘N does the same anywhere in Cron), ↩ on a schedule row asks for a job on that schedule | cron |
 | E | Edit the cron job; in the form, cancel the edit | cron |
 | ⌘S | Save the cron job's edit form | cron |
+| E | Edit the wiki page open in Wiki, in the workspace's editor | wiki |
+| ⌘Y | Show the wiki page's history; again (Back to page) shows the page | wiki |
 | ↩ | Edit the task title (title focused); while editing ↩ saves it, Esc cancels | backlog |
 | @ | In the empty Attachments field: pick a file to attach | backlog |
 | ⌘I | Show the session's context, or back to the transcript | agents |

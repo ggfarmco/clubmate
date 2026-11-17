@@ -14,6 +14,7 @@ public struct DocumentTheme: Hashable, Sendable {
     public var codeFont: String
     public var fontSize: Double
     public var dark: Bool
+    public var inset: Double?
 
     public init(
         background: String, text: String, muted: String, accent: String, border: String, codeBackground: String,
@@ -55,7 +56,7 @@ public struct DocumentTheme: Hashable, Sendable {
             ("bg", background), ("text", text), ("muted", muted), ("accent", accent), ("border", border), ("code-bg", codeBackground),
             ("success", success), ("warning", warning), ("danger", danger), ("font", font), ("code-font", codeFont),
             ("size", "\(fontSize)px"), ("dark", dark ? "1" : "0"),
-        ]
+        ] + (inset.map { [("inset", "\($0)px")] } ?? [])
         return ":root{color-scheme:\(dark ? "dark" : "light");" + vars.map { "--\($0.0):\($0.1);" }.joined() + "}"
     }
 }
