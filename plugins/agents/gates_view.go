@@ -93,6 +93,7 @@ type gateScreen struct {
 	History  []gateVerdict
 	Picked   string
 	Sessions map[string]bool
+	Asks     map[string]sdui.Node
 	Now      time.Time
 	Loc      *time.Location
 }
@@ -461,11 +462,11 @@ func gateTableRows(sc gateScreen) ([]sdui.TableRow, string) {
 	}
 	for _, l := range sc.Row.Landings {
 		landing := landingWords(l.Title, l.Source, l.Round, len(l.Findings))
-		word, link, open := "reviewing", "Open review", l.Reviewer
+		word, link, open := "reviewing", "Open review", l.open()
 		if l.State == gateStateNeedsMe {
-			word, link, open = "needs you", "Open landing", l.Lander
+			word, link = "needs you", "Open landing"
 		}
-		add(gateRowID(l.Since, open), []sdui.Cell{{Text: when(l.Since)}, {Text: word, Tone: "warn"}, sessionLink(sc, landing, open, link, l.State == gateStateNeedsMe), {Text: l.Into}})
+		add(l.rowID(), []sdui.Cell{{Text: when(l.Since)}, {Text: word, Tone: "warn"}, sessionLink(sc, landing, open, link, l.State == gateStateNeedsMe), {Text: l.Into}})
 	}
 	for _, v := range sc.History {
 		look := verdictLook(v)
@@ -548,22 +549,43 @@ func findingsCard(sc gateScreen, picked string) (sdui.Node, bool) {
 	return sdui.WithID(sdui.Card("neutral", look.Icon, lines...), gateFindingsID), true
 }
 
+func (l gateLanding) open() string {
+	if l.State == gateStateNeedsMe {
+		return l.Lander
+	}
+	return l.Reviewer
+}
+
+func (l gateLanding) rowID() string {
+	return gateRowID(l.Since, l.open())
+}
+
 func liveCard(sc gateScreen, picked string) (sdui.Node, bool) {
 	i := slices.IndexFunc(sc.Row.Landings, func(l gateLanding) bool {
-		return l.State == gateStateReview && (picked == "" || gateRowID(l.Since, l.Reviewer) == picked)
+		return (l.State == gateStateReview || l.Ask != "") && (picked == "" || l.rowID() == picked)
 	})
 	if i < 0 {
 		return sdui.Node{}, false
 	}
 	l := sc.Row.Landings[i]
+	state, tone := gateStateReview, "accent"
+	if l.Ask != "" {
+		state, tone = landingAsking, toneWarning
+	}
 	title := fmt.Sprintf(reviewRoundLabel, max(l.Round, 1))
-	title = strings.TrimSuffix(title, " review") + " · " + gateStateReview
+	title = strings.TrimSuffix(title, " review") + " · " + state
 	subject := landReview{Into: l.Into, Source: l.Source}.subject() + " · " + elapsed(sc.Now.Sub(l.Since))
 	lines := []sdui.Node{sdui.Text(title), sdui.MutedText(subject)}
-	if line := sc.Lines[l.Reviewer]; line != "" {
-		lines = append(lines, sdui.Text(line))
+	ask, asks := sc.Asks[l.Run]
+	switch {
+	case l.Ask != "":
+		lines = append(lines, sdui.WithTone(sdui.Text(l.Ask), toneWarning))
+	case sc.Lines[l.Reviewer] != "":
+		lines = append(lines, sdui.Text(sc.Lines[l.Reviewer]))
 	}
-	lines = append(lines, sdui.MutedText(gateLiveNote))
+	if !asks {
+		lines = append(lines, sdui.MutedText(gateLiveNote))
+	}
 	var buttons []sdui.Node
 	if sc.Sessions[l.Reviewer] {
 		buttons = append(buttons, gateCardButton(l.Reviewer, actGateReview, landingOpenReview, landingOpenKey))
@@ -574,7 +596,11 @@ func liveCard(sc gateScreen, picked string) (sdui.Node, bool) {
 	if len(buttons) > 0 {
 		lines = append(lines, sdui.WithGap(sdui.HStack(append([]sdui.Node{sdui.Spacer()}, buttons...)...), openGap))
 	}
-	return sdui.WithID(sdui.Card("accent", landingIcon, lines...), gateLiveID), true
+	card := sdui.WithID(sdui.Card(tone, landingIcon, lines...), gateLiveID)
+	if asks && l.Ask != "" {
+		return sdui.VStack(card, ask), true
+	}
+	return card, true
 }
 
 func gateCardButton(sid, action, label, key string) sdui.Node {

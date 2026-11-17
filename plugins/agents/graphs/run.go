@@ -315,7 +315,7 @@ func (x *runner) edgeTrigger(g *Graph, e Edge) (triggerArgs, error) {
 		on = eventPrefix + x.run.outcomeEvent(e.From)
 		match = map[string]any{"by": from.Session, "outcome": e.Outcome}
 	}
-	text := x.render(e.Text)
+	text := x.renderInput(e.Text, x.inputFor(g.node(e.To)))
 	if text == "" {
 		text = x.defaultEdgeText(from, e)
 	}
@@ -368,10 +368,7 @@ func (x *runner) brief(n *Node) string {
 	b.WriteString(x.header(n))
 	b.WriteString("\n\n")
 	verdict := x.run.Gate && n.decides()
-	input := x.run.Input
-	if x.run.Gate && !verdict && x.run.GateOther != "" {
-		input = x.run.GateOther
-	}
+	input := x.inputFor(n)
 	b.WriteString(x.renderInput(n.Prompt, input))
 	if x.run.Gate && input != "" && !strings.Contains(n.Prompt, "{{input}}") {
 		b.WriteString("\n\nTask:\n" + input)
@@ -428,6 +425,13 @@ func (x *runner) defaultEdgeText(from *RunNode, e Edge) string {
 		return who + " asks a question. Answer it with agents_prompt to that session if you can. " + reply
 	}
 	return who + " finished its turn. Act on it. " + reply
+}
+
+func (x *runner) inputFor(n *Node) string {
+	if x.run.Gate && n != nil && !n.decides() && x.run.GateOther != "" {
+		return x.run.GateOther
+	}
+	return x.run.Input
 }
 
 func (x *runner) render(s string) string {

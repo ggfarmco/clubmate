@@ -120,6 +120,7 @@ type sessionRow struct {
 	Since     time.Time
 	Review    *reviewProgress
 	RunNeed   *runNeed
+	GateAsk   *runNeed
 	RunRow    *api.RunRow
 	Nest      *reviewerNest
 	Open      int
@@ -580,7 +581,7 @@ func filterTabs(roots []sessionRow, filter string, runs map[string][]string) sdu
 }
 
 func ownNeeds(row sessionRow) bool {
-	return needsYou(row.Rec) || row.Children == statusWaiting || row.AsideAsks
+	return needsYou(row.Rec) || row.Children == statusWaiting || row.AsideAsks || row.GateAsk != nil
 }
 
 func runsNeeding(row sessionRow, kids map[string][]sessionRow, seen map[string]bool) []string {
@@ -626,8 +627,10 @@ func oldestNeed(row sessionRow, kids map[string][]sessionRow, oldest map[string]
 	if needsYou(row.Rec) {
 		at = cmp.Or(row.Since, row.Rec.UpdatedAt)
 	}
-	if n := row.RunNeed; n != nil && (at.IsZero() || n.Since.Before(at)) {
-		at = n.Since
+	for _, n := range []*runNeed{row.RunNeed, row.GateAsk} {
+		if n != nil && (at.IsZero() || n.Since.Before(at)) {
+			at = n.Since
+		}
 	}
 	for _, kid := range kids[row.Rec.ID] {
 		if seen[kid.Rec.ID] {
@@ -689,16 +692,28 @@ func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[stri
 		}
 		return item
 	}
-	if len(children) == 0 && len(asides) == 0 {
+	ask, asks := gateAskItem(row)
+	if len(children) == 0 && len(asides) == 0 && !asks {
 		return item
 	}
 	item.HasChildren = true
 	folded, ok := collapsed[expandPrefix+row.Rec.ID]
-	item.Expanded = ok && !folded || anyNeeds(children, oldest) || anyNeeds(asides, oldest)
+	item.Expanded = ok && !folded || asks || anyNeeds(children, oldest) || anyNeeds(asides, oldest)
 	if item.Expanded {
 		item.Children = append(runItems(children, row.Rec.ID, kids, collapsed, now, path, oldest), asideItems(row.Rec.ID, asides, kids, collapsed, now, path, oldest)...)
+		if asks {
+			item.Children = append([]sdui.TreeItem{ask}, item.Children...)
+		}
 	}
 	return item
+}
+
+func gateAskItem(row sessionRow) (sdui.TreeItem, bool) {
+	l, n := row.Landing, row.GateAsk
+	if l == nil || n == nil || l.Run != n.Run {
+		return sdui.TreeItem{}, false
+	}
+	return sdui.TreeItem{ID: runPrefix + n.Run, Label: fmt.Sprintf(reviewRoundLabel, max(l.Round, 1)), Icon: landingIcon, Tone: toneWarning, Detail: n.Text, DetailTone: toneWarning}, true
 }
 
 func asideItems(parent string, rows []sessionRow, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, path map[string]bool, oldest map[string]time.Time) []sdui.TreeItem {
@@ -909,7 +924,7 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 
 func rowGateChip(row sessionRow) (string, string) {
 	l := row.Landing
-	if l == nil || l.Asking || needsYou(row.Rec) || row.Rec.Status == statusError {
+	if l == nil || l.Asking && l.Ask == "" || needsYou(row.Rec) || row.Rec.Status == statusError {
 		return "", ""
 	}
 	return l.Words, l.Tone

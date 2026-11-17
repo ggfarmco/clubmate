@@ -77,6 +77,7 @@ type record struct {
 	NeedsYou      bool   `json:"needsYou"`
 	Gate          string `json:"gate"`
 	Hidden        bool   `json:"hidden"`
+	Kind          string `json:"kind"`
 	RowUnder      string `json:"rowUnder"`
 	Landing       *struct {
 		Round    int    `json:"round"`
@@ -85,6 +86,7 @@ type record struct {
 		Words    string `json:"words"`
 		Tone     string `json:"tone"`
 		Reviewer string `json:"reviewer"`
+		Ask      string `json:"ask"`
 	} `json:"landing"`
 	AsksParent      bool     `json:"asksParent"`
 	ChildStatus     string   `json:"childStatus"`

@@ -78,6 +78,16 @@ func runNeedChanges(workspace string, prev, next []runNeed) []api.Changed {
 	return out
 }
 
+func (a *app) gateAskers(recs []record) map[string]record {
+	out := map[string]record{}
+	for _, rec := range recs {
+		for run := range a.gateAsks(rec) {
+			out[run] = rec
+		}
+	}
+	return out
+}
+
 func runInfo(workspace string, n runNeed) sessionInfo {
 	since := n.Since
 	summary := &pendingSummary{Kind: pendingQuestion, Text: n.Text, At: since}

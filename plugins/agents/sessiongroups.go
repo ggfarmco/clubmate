@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"slices"
 	"time"
 )
@@ -42,7 +43,11 @@ func setGroups(infos []sessionInfo) {
 	}
 	kids := map[int][]int{}
 	for i, info := range infos {
-		if p, ok := index[statusParent(info.record)]; ok && p != i {
+		parent := statusParent(info.record)
+		if info.Kind == kindRun {
+			parent = cmp.Or(parent, info.RowUnder)
+		}
+		if p, ok := index[parent]; ok && p != i {
 			kids[p] = append(kids[p], i)
 		}
 	}

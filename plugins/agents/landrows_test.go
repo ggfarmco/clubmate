@@ -28,11 +28,11 @@ func TestLandingWordsFollowTheRound(t *testing.T) {
 		{"asking", landReview{Cap: 2, Rounds: 2, Last: gateChanges, Findings: findings[:1], Request: "lr_1"}, false, landingView{Round: 2, Of: 2, Verdict: "changes", Findings: 1, Asking: true, Words: "asking", Tone: "warning", Badge: "1 change"}},
 	} {
 		tc.st.Into, tc.st.Reviewer, tc.want.Into, tc.want.Reviewer = "main", "agt_r", "main", "agt_r"
-		got, ok := landingOf(tc.st, tc.reviewing)
+		got, ok := landingOf(tc.st, tc.reviewing, nil)
 		require.True(t, ok, tc.name)
 		assert.Equal(t, tc.want, got, tc.name)
 	}
-	_, ok := landingOf(landReview{Rounds: 1}, false)
+	_, ok := landingOf(landReview{Rounds: 1}, false, nil)
 	assert.False(t, ok)
 }
 
@@ -190,4 +190,23 @@ func findNode(n sdui.Node, id string) *sdui.Node {
 		}
 	}
 	return nil
+}
+
+func TestGateRunAskRowsUnderItsLander(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	lander := record{ID: "agt_l", Worktree: "/r/a", Agent: agentClaude, Title: "Fix login", Status: statusDone, UpdatedAt: now}
+	ask := runNeed{Run: "gr_1", Kind: needStep, Text: "where wants to run pwd", Since: now}
+	row := sessionRow{Rec: lander, Branch: "main", Landing: &landingView{Round: 1, Words: "asking", Tone: "warning", Asking: true, Ask: ask.Text, Run: ask.Run}, GateAsk: &ask}
+
+	tree := sidebarView([]sessionRow{row}, "", map[string]bool{}, now, "/r/a", nil, false, filterNeeds, sidebarSearch{}, 0, sidebarPlus{}, nil)
+
+	require.NoError(t, internalsdui.Validate(tree))
+	items := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
+	require.Equal(t, []string{"agt_l"}, ids(items))
+	assert.Equal(t, []any{"asking", "warning", true}, []any{items[0].Detail, items[0].DetailTone, items[0].Expanded})
+	require.Len(t, items[0].Children, 1)
+	asks := items[0].Children[0]
+	assert.Equal(t, []string{"run:gr_1", "Round 1 review", "shield", "warning", "where wants to run pwd", "warning"}, []string{asks.ID, asks.Label, asks.Icon, asks.Tone, asks.Detail, asks.DetailTone})
+	assert.Equal(t, "1", nodesOf(tree, "tabs")[0].Props["items"].([]sdui.Item)[1].Badge)
 }

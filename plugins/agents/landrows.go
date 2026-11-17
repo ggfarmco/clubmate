@@ -44,13 +44,17 @@ type landingView struct {
 	Into      string `json:"into"`
 	Source    string `json:"source,omitempty"`
 	Reviewer  string `json:"reviewer,omitempty"`
+	Ask       string `json:"ask,omitempty"`
+	Run       string `json:"run,omitempty"`
 }
 
-func landingOf(st landReview, reviewing bool) (landingView, bool) {
+func landingOf(st landReview, reviewing bool, ask *runNeed) (landingView, bool) {
 	l := landingView{Into: st.Into, Source: st.Source, Reviewer: st.Reviewer}
 	switch {
 	case st.Request != "":
 		l.Round, l.Verdict, l.Asking, l.Words, l.Tone = st.Rounds, gateChanges, true, landingAsking, toneWarning
+	case ask != nil:
+		l.Round, l.Verdict, l.Asking, l.Words, l.Tone, l.Ask, l.Run = st.Rounds+1, gateStateReview, true, landingAsking, toneWarning, ask.Text, ask.Run
 	case reviewing:
 		l.Round, l.Verdict, l.Tone = st.Rounds+1, gateStateReview, toneAccent
 	case st.Last == gateChanges:
@@ -67,6 +71,7 @@ func landingOf(st landReview, reviewing bool) (landingView, bool) {
 		l.Findings = len(st.Findings)
 	}
 	switch {
+	case l.Asking:
 	case l.Verdict == gateStateReview && l.Round > 1:
 		l.Words = fmt.Sprintf(landingReviewOf, l.Round, l.Of)
 	case l.Verdict == gateStateReview:
@@ -75,6 +80,19 @@ func landingOf(st landReview, reviewing bool) (landingView, bool) {
 		l.Words = l.Badge
 	}
 	return l, true
+}
+
+func (a *app) gateAsks(rec record) map[string]*runNeed {
+	if rec.closed() || !slices.ContainsFunc(rec.LandReviews, func(st landReview) bool { return st.Run != "" }) {
+		return nil
+	}
+	out := map[string]*runNeed{}
+	for run, n := range a.runNeeds.byRun(rec.Workspace) {
+		if slices.ContainsFunc(rec.LandReviews, func(st landReview) bool { return st.Run == run && st.Request == "" && a.gateLive(st.Gate) }) {
+			out[run] = &n
+		}
+	}
+	return out
 }
 
 func approvedRound(st landReview) int {
@@ -111,12 +129,13 @@ func (a *app) landing(rec record) *landingView {
 		return nil
 	}
 	var best *landingView
+	needs := a.gateAsks(rec)
 	for _, st := range rec.LandReviews {
 		if !a.gateLive(st.Gate) {
 			continue
 		}
 		_, reviewing := a.reviewing(rec.ID, st)
-		l, ok := landingOf(st, reviewing)
+		l, ok := landingOf(st, reviewing, needs[st.Run])
 		if s := a.session(l.Reviewer); s == nil || s.snapshot().Workspace != rec.Workspace {
 			l.Reviewer = ""
 		}

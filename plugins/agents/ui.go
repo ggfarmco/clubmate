@@ -276,6 +276,11 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 		if n, ok := needs[runID(rec)]; ok {
 			row.RunNeed = &n
 		}
+		if l := row.Landing; l != nil && l.Run != "" {
+			if n, ok := needs[l.Run]; ok {
+				row.GateAsk = &n
+			}
+		}
 		if rec.Run != nil {
 			row.RunRow = runRows[rec.Run.ID]
 		}

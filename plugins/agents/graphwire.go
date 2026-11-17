@@ -154,6 +154,15 @@ func (a *app) selectPage(ctx context.Context, workspace, id string) error {
 		id = runPrefix + runOf(id)
 	}
 	if run, ok := strings.CutPrefix(id, runPrefix); ok {
+		if gate, pick, ok := a.gateRunLanding(workspace, run); ok {
+			p := a.workspaceState(workspace)
+			a.uiMu.Lock()
+			p.gate, p.gatePick = gate, pick
+			a.uiMu.Unlock()
+			id = gatePrefix + gate
+		}
+	}
+	if run, ok := strings.CutPrefix(id, runPrefix); ok {
 		for _, r := range a.graphs.Runs(workspace) {
 			if r.ID == run && r.Status != graphRunning {
 				if err := a.setCollapsed(ctx, workspace, map[string]bool{expandPrefix + id: true}); err != nil {

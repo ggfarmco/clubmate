@@ -175,3 +175,16 @@ func TestGateGraphChoicesSayWhereEachComesFromAndWhetherItDecides(t *testing.T) 
 	require.NoError(t, err)
 	assert.Equal(t, hash, pipeline.Hash)
 }
+
+func TestGateEdgeTextGivesANonDecidingTargetTheOtherInput(t *testing.T) {
+	f := newGateFixture(t)
+	f.write(t, "pipeline", `{"nodes":[{"id":"review","prompt":"Review.","start":true,"outcomes":["approved","changes"]},{"id":"note","prompt":"Note."}],"edges":[{"from":"review","to":"note","text":"Context: {{input}}"}]}`)
+	_, _, err := f.start(t, f.pin(t))
+	require.NoError(t, err)
+
+	turnDone(t, f.a, "agt_g1", 1)
+
+	note := prompts(t, f.core, "agt_g2")
+	require.NotEmpty(t, note)
+	assert.Contains(t, note[len(note)-1], "Context: Land it, no verdict")
+}

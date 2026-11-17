@@ -10,7 +10,9 @@ import (
 	"slices"
 	"time"
 
+	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/automation"
 )
 
 const (
@@ -314,4 +316,31 @@ func graphHash(g *Graph) string {
 	data, _ := json.Marshal(g)
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
+}
+
+func NeedAction(action string) bool {
+	return action == actApprove || action == actContinue
+}
+
+func (e *Engine) NeedCard(run string) (sdui.Node, bool) {
+	a := e.a
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	r := a.runs[run]
+	if r == nil || !r.Gate {
+		return sdui.Node{}, false
+	}
+	need := r.need()
+	switch {
+	case need == nil:
+		return sdui.Node{}, false
+	case need.Kind == needCap:
+		cont := automation.ActionNode(r.ID, automation.DetailAction{Action: actContinue, Label: "Continue", Icon: "play.fill", Variant: sdui.VariantPrimary, Shortcut: "cmd+return"})
+		return sdui.VStack(capCard(r, need), sdui.HStack(sdui.Spacer(), cont)), true
+	}
+	var p *pendingInfo
+	if ps, ok := a.pending[r.ID+"/"+need.Node]; ok {
+		p = pendingOf(ps)
+	}
+	return approvalCard(r, need, p, a.home), true
 }

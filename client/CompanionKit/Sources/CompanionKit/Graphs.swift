@@ -282,6 +282,7 @@ public enum RunRows {
                 out.append(session)
             }
         }
+        out += entries.values.filter { !ids.contains($0.id) && $0.rowUnder != nil }.sorted { $0.id < $1.id }
         return out
     }
 

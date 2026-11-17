@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -68,6 +69,7 @@ const (
 	gateUserMoreFixText = "[Clubmate] The user allowed one more review round for %s. Fix the review's findings and commit, then call git_land again for one more review round."
 	gateUserStopText    = "[Clubmate] The user stopped landing %s. Don't land it; report what is left."
 	gatePendingText     = "review pending: %s. End your turn; Clubmate prompts you with the verdict."
+	gatePreparingText   = "review pending: the gate is preparing the worktree for this change's review. End your turn; Clubmate prompts you with the verdict."
 	gateWaitsUserText   = "the review asked for changes %d times, so this landing waits for the user's answer. End your turn; Clubmate prompts you with it."
 	gateChangesResult   = "the review asked for changes; fix them and call git_land again:\n%s"
 	gateCardTitle       = "Land %s without another review?"
@@ -103,6 +105,7 @@ var (
 	errGateNoLander = errors.New("git_land needs the calling agent session")
 	errDecided      = errors.New("already decided: this tree has its verdict")
 	errTrustStale   = errors.New("the gate's graph changed since it was shown: look at it again")
+	errLandingMoved = errors.New("the landing changed while its gate worktree was prepared: call git_land again")
 )
 
 type gateConfig struct {
@@ -702,6 +705,9 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 	defer func() { a.closeGateNodes(context.WithoutCancel(ctx), stale) }()
 	a.gateMu.Lock()
 	defer a.gateMu.Unlock()
+	if a.gatePreparing(lander.snapshot().ID, args.Into, args.Source) {
+		return landGateResult{State: gatePending, Text: gatePreparingText}, nil
+	}
 	st := lander.landReview(args.Into, args.Source)
 	made := st
 	st.Repo, st.Cap, st.Gate = args.Target, g.Rounds+st.Extra, g.ID
@@ -730,7 +736,7 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 	prompted := false
 	if live && st.Tree != "" && made.Gate == g.ID && (!steps || st.TreeKey != "") && a.graphs.GateRunOf(ctx, st.Run, g.Graph, graph.hash) && a.graphs.GateStepsIdle(ctx, st.Run) {
 		if steps {
-			if _, err := a.gateTree(ctx, workspaceID, g, st.TreeKey, args); err != nil {
+			if _, err := a.unlockedGateTree(ctx, workspaceID, lander, g, st.TreeKey, args, made); err != nil {
 				return landGateResult{}, err
 			}
 		}
@@ -752,12 +758,14 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 		}
 		a.dropGateTree(ctx, workspaceID, made)
 		st.TreeKey = ""
+		made.Run, made.TreeKey = "", ""
+		lander.putLandReview(made)
 		stale = a.landingNodes(workspaceID, gf)
 		var dir string
 		if steps {
 			key := id.New(gateTreeKeyPrefix)
 			var err error
-			if dir, err = a.gateTree(ctx, workspaceID, g, key, args); err != nil {
+			if dir, err = a.unlockedGateTree(ctx, workspaceID, lander, g, key, args, made); err != nil {
 				return landGateResult{}, err
 			}
 			st.TreeKey = key
@@ -787,11 +795,49 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 	return landGateResult{State: gatePending, Reviewer: st.Reviewer, Text: fmt.Sprintf(gatePendingText, st.Reviewer)}, nil
 }
 
+func prepKey(lander, into, source string) string {
+	return lander + "\x00" + into + "\x00" + source
+}
+
+func (a *app) gatePreparing(lander, into, source string) bool {
+	return a.gatePrep[prepKey(lander, into, source)]
+}
+
+func (a *app) unlockedGateTree(ctx context.Context, workspaceID string, lander *session, g gateConfig, key string, args landGateArgs, held landReview) (string, error) {
+	prep := prepKey(lander.snapshot().ID, args.Into, args.Source)
+	if a.gatePrep == nil {
+		a.gatePrep = map[string]bool{}
+	}
+	a.gatePrep[prep] = true
+	a.gateMu.Unlock()
+	dir, err := a.gateTree(ctx, workspaceID, g, key, args)
+	a.gateMu.Lock()
+	delete(a.gatePrep, prep)
+	if err != nil {
+		return "", err
+	}
+	cur := lander.landReview(args.Into, args.Source)
+	if lander.snapshot().closed() || !a.gateLive(g.ID) || !reflect.DeepEqual(cur, held) {
+		if cur.TreeKey != key {
+			a.dropGateTree(ctx, workspaceID, landReview{Repo: g.Repo, Gate: g.ID, TreeKey: key})
+		}
+		return "", errLandingMoved
+	}
+	return dir, nil
+}
+
+func (a *app) runGateTree(ctx context.Context, workspaceID string, args map[string]any, out any) error {
+	if a.gateTreeRun != nil {
+		return a.gateTreeRun(ctx, workspaceID, args, out)
+	}
+	return a.host.RunCommand(ctx, gateTreeCmd, workspaceID, args, out)
+}
+
 func (a *app) gateTree(ctx context.Context, workspaceID string, g gateConfig, key string, args landGateArgs) (string, error) {
 	var out struct {
 		Path string `json:"path"`
 	}
-	if err := a.host.RunCommand(ctx, gateTreeCmd, workspaceID, map[string]any{"repo": g.Repo, "gate": g.ID, "key": key, "old": args.Old, "tree": args.Tree}, &out); err != nil {
+	if err := a.runGateTree(ctx, workspaceID, map[string]any{"repo": g.Repo, "gate": g.ID, "key": key, "old": args.Old, "tree": args.Tree}, &out); err != nil {
 		return "", fmt.Errorf("prepare the gate's worktree: %w", err)
 	}
 	return out.Path, nil
@@ -801,7 +847,7 @@ func (a *app) dropGateTree(ctx context.Context, workspaceID string, st landRevie
 	if st.TreeKey == "" || st.Gate == "" {
 		return
 	}
-	logError("remove gate worktree", a.host.RunCommand(context.WithoutCancel(ctx), gateTreeCmd, workspaceID, map[string]any{"repo": st.Repo, "gate": st.Gate, "key": st.TreeKey, "remove": true}, nil))
+	logError("remove gate worktree", a.runGateTree(context.WithoutCancel(ctx), workspaceID, map[string]any{"repo": st.Repo, "gate": st.Gate, "key": st.TreeKey, "remove": true}, nil))
 }
 
 func (a *app) landerClosed(ctx context.Context, s *session) {

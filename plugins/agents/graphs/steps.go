@@ -750,7 +750,7 @@ func (x *runner) ownedText(g *Graph, e Edge, cause ownedCause) string {
 			text = x.defaultEdgeText(from, e)
 		}
 	}
-	text = placeholderRe.ReplaceAllStringFunc(x.render(text), func(m string) string {
+	text = placeholderRe.ReplaceAllStringFunc(x.renderInput(text, x.inputFor(g.node(e.To))), func(m string) string {
 		switch placeholderRe.FindStringSubmatch(m)[1] {
 		case "payload.output":
 			return fence(cause.Tail) + checkNote(cause.CheckFiles)

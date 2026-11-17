@@ -56,6 +56,8 @@ type gateLanding struct {
 	Reviewer string    `json:"reviewer,omitempty"`
 	Findings []string  `json:"findings,omitempty"`
 	Since    time.Time `json:"since,omitzero"`
+	Ask      string    `json:"ask,omitempty"`
+	Run      string    `json:"run,omitempty"`
 }
 
 type gateRow struct {
@@ -190,6 +192,7 @@ func (a *app) gateState(rec record) string {
 		return ""
 	}
 	best := ""
+	asks := a.gateAsks(rec)
 	for _, st := range rec.LandReviews {
 		if !a.gateLive(st.Gate) {
 			continue
@@ -198,7 +201,7 @@ func (a *app) gateState(rec record) string {
 		if _, ok := a.reviewing(rec.ID, st); ok {
 			state = gateStateReview
 		}
-		if st.Request != "" {
+		if st.Request != "" || asks[st.Run] != nil {
 			state = gateStateNeedsMe
 		}
 		if gateRank[state] > gateRank[best] {
@@ -215,6 +218,7 @@ func (a *app) gateLandings(workspaceID, gateID string) []gateLanding {
 		if rec.closed() {
 			continue
 		}
+		asks := a.gateAsks(rec)
 		for _, st := range rec.LandReviews {
 			if st.Gate != gateID {
 				continue
@@ -222,6 +226,9 @@ func (a *app) gateLandings(workspaceID, gateID string) []gateLanding {
 			l := gateLanding{Lander: rec.ID, Title: rec.Title, Into: st.Into, Source: st.Source, Round: st.Rounds, Findings: st.Findings, Since: st.Since}
 			if r, ok := a.reviewing(rec.ID, st); ok && st.Request == "" {
 				l.State, l.Reviewer, l.Round, l.Since = gateStateReview, r.snapshot().ID, st.Rounds+1, cmp.Or(r.turnStart(), r.snapshot().UpdatedAt)
+			}
+			if n := asks[st.Run]; n != nil {
+				l.State, l.Reviewer, l.Round, l.Since, l.Ask, l.Run = gateStateNeedsMe, st.Reviewer, st.Rounds+1, n.Since, n.Text, n.Run
 			}
 			if st.Request != "" {
 				l.State, l.Reviewer = gateStateNeedsMe, st.Reviewer
@@ -233,6 +240,17 @@ func (a *app) gateLandings(workspaceID, gateID string) []gateLanding {
 	}
 	slices.SortFunc(out, func(x, y gateLanding) int { return y.Since.Compare(x.Since) })
 	return out
+}
+
+func (a *app) gateRunLanding(workspaceID, run string) (gate, pick string, ok bool) {
+	for _, s := range a.workspaceSessions(workspaceID) {
+		rec := s.snapshot()
+		if n := a.gateAsks(rec)[run]; n != nil {
+			i := slices.IndexFunc(rec.LandReviews, func(st landReview) bool { return st.Run == run })
+			return rec.LandReviews[i].Gate, gateRowID(n.Since, rec.ID), true
+		}
+	}
+	return "", "", false
 }
 
 func (a *app) gateRow(ctx context.Context, workspaceID string, g gateConfig) gateRow {

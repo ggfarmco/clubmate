@@ -49,6 +49,21 @@ final class GraphsTests: XCTestCase {
         XCTAssertEqual(session.stateLine(now: now).lead, "Squash into main wants to run")
     }
 
+    func testGateRunAskNestsUnderItsLanderInNeedsYou() throws {
+        let json = #"""
+        [{"id":"agt_l","workspace":"ws","title":"Fix login","status":"done","group":"needsYou","landing":{"round":1,"of":2,"verdict":"reviewing","words":"asking","tone":"warning","into":"main","badge":"reviewing","asking":true}},
+         {"id":"gr_g","kind":"run","workspace":"ws","title":"Round 1 review","status":"waiting","run":{"id":"gr_g","title":"where"},"rowUnder":"agt_l","pending":["step-where"],"pendingSummary":{"kind":"permission","tool":"execute","role":"where","text":"pwd","at":"2027-01-15T08:00:00Z"},"needsYou":true,"needsYouSince":"2027-01-15T08:00:00Z","group":"needsYou"}]
+        """#
+        let rows = try JSONDecoder().decode([JSONValue].self, from: Data(json.utf8))
+        let groups = AgentSession.grouped(RunRows.sessions(rows, runs: []))
+        let lander = try XCTUnwrap(groups.first { $0.group == .needsInput }?.sessions.first)
+        XCTAssertEqual(lander.id, "agt_l")
+        XCTAssertEqual(lander.session.stateLine(now: now).text, "asking")
+        let ask = try XCTUnwrap(lander.children.first)
+        XCTAssertEqual(ask.id, "gr_g")
+        XCTAssertEqual(ask.session.stateLine(now: now).lead, "where wants to run")
+    }
+
     func testRunRowRendersThePluginsFields() throws {
         let runs = try JSONDecoder().decode([AgentRunRow].self, from: Data(#"[{"id":"gr_2","graph":"g","title":"Gate","state":"failed","detail":"failed","sessions":["agt_x"],"home":"group","group":"done","status":"error"}]"#.utf8))
         let rows = try JSONDecoder().decode([JSONValue].self, from: Data(#"[{"id":"agt_x","workspace":"ws","status":"done"}]"#.utf8))

@@ -64,23 +64,25 @@ type app struct {
 	openWake    chan struct{}
 	inbox       inboxMemo
 
-	spawnMu    sync.Mutex
-	asideMu    sync.Mutex
-	leaving    map[string]int
-	worktreeMu sync.Mutex
-	connectMu  sync.Mutex
-	cloners    map[string]bool
-	landMu     sync.Mutex
-	gateMu     sync.Mutex
-	gateLogMu  sync.Mutex
-	liveGates  atomic.Pointer[map[string]bool]
-	gateRepos  sync.Map
-	landWork   coalesced
-	onceLocks  onceLocks
-	archiving  archiveClaims
-	declareMu  sync.Mutex
-	nightMu    sync.Mutex
-	stopOnce   sync.Once
+	spawnMu     sync.Mutex
+	asideMu     sync.Mutex
+	leaving     map[string]int
+	worktreeMu  sync.Mutex
+	connectMu   sync.Mutex
+	cloners     map[string]bool
+	landMu      sync.Mutex
+	gateMu      sync.Mutex
+	gatePrep    map[string]bool
+	gateTreeRun func(ctx context.Context, workspaceID string, args map[string]any, out any) error
+	gateLogMu   sync.Mutex
+	liveGates   atomic.Pointer[map[string]bool]
+	gateRepos   sync.Map
+	landWork    coalesced
+	onceLocks   onceLocks
+	archiving   archiveClaims
+	declareMu   sync.Mutex
+	nightMu     sync.Mutex
+	stopOnce    sync.Once
 
 	nightStopMu sync.Mutex
 	nightStop   context.CancelCauseFunc
@@ -472,8 +474,17 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		}
 		out = append(out, info)
 	}
+	askers := a.gateAskers(recs)
 	for _, n := range a.runNeeds.list(workspaceID) {
-		out = append(out, runInfo(workspaceID, n))
+		info := runInfo(workspaceID, n)
+		if lander, ok := askers[n.Run]; ok {
+			info.RowUnder, info.NestUnder = lander.ID, lander.ID
+			if l := a.landing(lander); l != nil {
+				info.GateRound = &gateRound{Round: l.Round, Label: fmt.Sprintf(reviewRoundLabel, l.Round), Verdict: gateStateReview}
+				info.Title = info.GateRound.Label
+			}
+		}
+		out = append(out, info)
 	}
 	setGroups(out)
 	a.inbox.apply(out)

@@ -13,6 +13,7 @@ import (
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/agents/graphs"
 	"clubmate/plugins/internal/automation"
 )
 
@@ -129,7 +130,16 @@ func (a *app) gateMainView(ctx context.Context, workspace string, rows []gateRow
 			lines[l.Reviewer] = s.latestLine()
 		}
 	}
-	sc := gateScreen{Row: r, Repo: repo, History: history, Picked: picked, Sessions: sessions, Lines: lines, Mac: mac, Now: now, Loc: time.Local}
+	asks := map[string]sdui.Node{}
+	for _, l := range r.Landings {
+		if l.Run == "" {
+			continue
+		}
+		if card, ok := a.graphs.NeedCard(l.Run); ok {
+			asks[l.Run] = card
+		}
+	}
+	sc := gateScreen{Row: r, Repo: repo, History: history, Picked: picked, Sessions: sessions, Lines: lines, Asks: asks, Mac: mac, Now: now, Loc: time.Local}
 	if info, err := a.graphs.GateGraphInfo(ctx, r.Repo, r.Graph); err == nil {
 		sc.Graph = &info
 	} else {
@@ -196,6 +206,12 @@ func (a *app) openGateSheet(ctx context.Context, workspaceID, edit string) error
 }
 
 func (a *app) gatesAct(ctx context.Context, ev pluginsdk.UIEvent) error {
+	if graphs.NeedAction(ev.Action) {
+		ev.Slot = graphsMainOld
+		_, err := a.graphs.PageEvent(ctx, ev)
+		a.kick(ev.WorkspaceID)
+		return err
+	}
 	p := a.workspaceState(ev.WorkspaceID)
 	target, fromButton := automation.ActionTarget(ev.NodeID, ev.Action)
 	id := target
