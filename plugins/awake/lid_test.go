@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/testutil"
+	"clubmate/plugins/agents/api"
 )
 
 const (
@@ -88,8 +89,23 @@ func TestRestartClearsTheLidItLeftHeld(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []bool{true}, e.lid.writes)
 
-	assert.Equal(t, []bool{false}, newEnvWith(t, e.h).lid.writes, "the restarted plugin reads no laptop yet")
-	assert.Empty(t, newEnvWith(t, e.h).lid.writes, "a clean start leaves the lid alone")
+	assert.Equal(t, []bool{false}, newEnvWith(t, e.h, power{}).lid.writes, "the restarted plugin reads no laptop yet")
+	assert.Empty(t, newEnvWith(t, e.h, power{}).lid.writes, "a clean start leaves the lid alone")
+}
+
+func TestRestartWhileAgentsWorkKeepsTheLidWithoutAZero(t *testing.T) {
+	e := newEnv(t)
+	e.pow = power{Laptop: true, OnBattery: true}
+	e.a.tick(t.Context())
+	_, err := e.run("awake.settings-set", map[string]any{"lid": true, "battery": true})
+	require.NoError(t, err)
+	_, err = e.run("awake.agents", nil)
+	require.NoError(t, err)
+	e.h.setSessions(agentSession{ID: "agt_a", Status: "running", Active: true})
+	e.agentsChanged(api.ChangeStatus, "agt_a", "running")
+	require.Equal(t, []bool{true}, e.lid.writes)
+
+	assert.Equal(t, []bool{true}, newEnvWith(t, e.h, e.pow).lid.writes)
 }
 
 func TestLidBelongsToOneHolderAtATime(t *testing.T) {

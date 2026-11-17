@@ -130,6 +130,7 @@ func (a *awake) start(ctx context.Context) {
 	a.mu.Lock()
 	a.k.power = a.power()
 	a.k.prune()
+	a.k.started = true
 	a.k.refresh()
 	a.mu.Unlock()
 	a.changed(ctx)

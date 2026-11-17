@@ -123,6 +123,7 @@ type keeper struct {
 	lidOn    bool
 	lidErr   error
 	stopped  bool
+	started  bool
 	now      func() time.Time
 	alive    func(pid int) bool
 	err      error
@@ -251,6 +252,9 @@ func (k *keeper) applyLid(resend bool) {
 		return
 	}
 	k.err = k.holder.want(k.types())
+	if !k.started {
+		return
+	}
 	want := k.holder.on() && k.settings.Lid && k.power.Laptop && !k.power.Low
 	switch {
 	case want && (resend || !k.lidOn):

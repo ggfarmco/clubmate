@@ -126,11 +126,11 @@ type env struct {
 }
 
 func newEnv(t *testing.T) *env {
-	return newEnvWith(t, &fakeHost{storage: map[string]json.RawMessage{}, sessions: map[string][]agentSession{}})
+	return newEnvWith(t, &fakeHost{storage: map[string]json.RawMessage{}, sessions: map[string][]agentSession{}}, power{})
 }
 
-func newEnvWith(t *testing.T, h *fakeHost) *env {
-	e := &env{t: t, h: h, now: time.Date(2026, 11, 16, 17, 0, 0, 0, time.Local), dead: map[int]bool{}, lid: &fakeLid{}}
+func newEnvWith(t *testing.T, h *fakeHost, pow power) *env {
+	e := &env{t: t, h: h, pow: pow, now: time.Date(2026, 11, 16, 17, 0, 0, 0, time.Local), dead: map[int]bool{}, lid: &fakeLid{}}
 	assert := func(types []string) (assertion, error) {
 		p := &fakeAssertion{types: types}
 		e.held = append(e.held, p)
@@ -300,7 +300,7 @@ func TestRestartKeepsChoiceAndDropsExpiredHolds(t *testing.T) {
 
 	e.h.setSessions(agentSession{ID: "agt_0000000000000001", Status: "running", Active: true})
 	later := e.now.Add(5 * time.Minute)
-	next := newEnvWith(t, e.h)
+	next := newEnvWith(t, e.h, power{})
 	next.now = later
 	next.a.tick(t.Context())
 	v := next.a.state()
