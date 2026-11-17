@@ -21,8 +21,11 @@ const (
 	cleanupFailed       = "Couldn't remove the merged worktree"
 
 	finishAskText          = "[Clubmate finish mode: ask] When the task is done, don't merge into main or remove worktrees and branches on your own; ask the user first unless they already asked for it."
-	mergeSteps             = "run the project's tests. If they all pass, land the task as one commit without asking: call the git_land tool (mcp__clubmate__git_land; load it with ToolSearch if it is deferred) with path your worktree and one conventional commit message; it squashes your branch into main, then removes that worktree and force-deletes the branch. On main itself, stage your change and call git_land with mode index instead of committing. If git_land says a review is pending, end your turn: Clubmate prompts you with the verdict; fix the confirmed findings, commit, and call it again. Never merge, squash or remove worktrees and branches with plain git. If tests fail or cannot run, don't land; report why."
-	finishMergeText        = "[Clubmate finish mode: merge] When the task is done, " + mergeSteps
+	mergeHead              = "run the project's tests. If they all pass, land the task as one commit without asking: call the git_land tool (mcp__clubmate__git_land; load it with ToolSearch if it is deferred) with path your worktree and one conventional commit message; it squashes your branch into "
+	mergeTail              = ", then removes that worktree and force-deletes the branch. On main itself, stage your change and call git_land with mode index instead of committing. If git_land says a review is pending, end your turn: Clubmate prompts you with the verdict; fix the confirmed findings, commit, and call it again. Never merge, squash or remove worktrees and branches with plain git. If tests fail or cannot run, don't land; report why."
+	mergeIntro             = "[Clubmate finish mode: merge] When the task is done, "
+	finishMergeText        = mergeIntro + mergeHead + "main" + mergeTail
+	finishMergeBaseFormat  = mergeIntro + mergeHead + "%s" + mergeTail
 	finishChildText        = "[Clubmate finish mode: child] When the task is done, run the project's tests. If they all pass, commit on your branch, then land it into %[1]s: call the git_land tool (mcp__clubmate__git_land; load it with ToolSearch if it is deferred) with path your worktree, into %[1]s and one conventional commit message; it squashes your branch into %[1]s inside %[2]s and removes your worktree and branch. If git_land says a review is pending, end your turn: Clubmate prompts you with the verdict. If it reports a conflict or changes staged in %[2]s, don't land; report why and the conflicting files. Never merge into main, never merge or remove worktrees and branches with plain git."
 	finishChildCommitText  = "[Clubmate finish mode: child] When the task is done, run the project's tests. If they all pass, commit your work and stop; if they fail or cannot run, report why. Don't merge anything, never merge into main, never remove worktrees or branches."
 	afkText                = "[Clubmate AFK mode] The user is away. Do as much as you can without them: don't ask questions and don't wait for answers; make reasonable decisions yourself and note each one. Split large work into child sessions (agents.new) and subagents. Keep going while there is work. At the end give one short report: what was done (commits) and which decisions you made; post the questions left for the user with the agents_open_items tool instead of listing them."
@@ -61,8 +64,11 @@ func (a *app) policies(ctx context.Context, rec record) []acp.ContentBlock {
 	if rec.SystemPrompt != "" || rec.isAside() {
 		return nil
 	}
-	if rec.GateFor != nil {
+	if rec.GateFor != nil && (rec.GateFor.Verdict || rec.GateFor.Run == "") {
 		return []acp.ContentBlock{{Type: "text", Text: gateReviewerText}}
+	}
+	if rec.GateFor != nil {
+		return []acp.ContentBlock{{Type: "text", Text: gateNodeText}}
 	}
 	out := []acp.ContentBlock{{Type: "text", Text: a.finishText(ctx, rec)}}
 	if len(a.children(rec.ID)) > 0 {
@@ -79,6 +85,11 @@ func (a *app) policies(ctx context.Context, rec record) []acp.ContentBlock {
 
 func (a *app) finishText(ctx context.Context, rec record) string {
 	switch {
+	case rec.ParentSession == "" && rec.Finish == finishMerge:
+		if base := baseOf(ctx, rec.Worktree); base != "" {
+			return fmt.Sprintf(finishMergeBaseFormat, base)
+		}
+		return finishMergeText
 	case rec.RepoPath == "" || rec.ParentSession == "":
 		return finishPolicy(rec, a.layout(ctx, rec))
 	case a.ownerFinish(rec) == finishMerge:
@@ -106,8 +117,6 @@ func (a *app) repoRuleCheck(rec record) string {
 
 func finishPolicy(rec record, parent *childLayout) string {
 	switch {
-	case rec.ParentSession == "" && rec.Finish == finishMerge:
-		return finishMergeText
 	case rec.ParentSession == "":
 		return finishAskText
 	case parent == nil || parent.onDefault:
@@ -153,6 +162,17 @@ func openTaskTree(ctx context.Context, worktree string) *taskTree {
 		return nil
 	}
 	return t
+}
+
+func baseOf(ctx context.Context, worktree string) string {
+	t := openTaskTree(ctx, worktree)
+	if t == nil {
+		return ""
+	}
+	if base, ok := gitrepo.Base(ctx, t.own.Path, t.own.Branch); ok {
+		return base
+	}
+	return ""
 }
 
 func (a *app) cleanupChild(s *session) {

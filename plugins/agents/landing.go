@@ -33,6 +33,7 @@ const (
 
 	landActionReview = "review"
 	landActionMerge  = "merge"
+	landActionMore   = "more"
 	landActionLeave  = "leave"
 
 	landPromptDue  = "due"
@@ -74,7 +75,7 @@ var (
 	errReportState  = errors.New("state is ready, failed, onBranch, prOpen or merged")
 	errLandUser     = errors.New("only the user answers a landing request")
 	errLandStale    = errors.New("this landing request was already answered")
-	errLandAction   = errors.New("action is review, merge or leave")
+	errLandAction   = errors.New("action is review, merge, more or leave")
 	errLandMoved    = errors.New("this branch changed since you saw it")
 	errNotItsTurn   = errors.New("it isn't this repo's turn to land; report ready and wait for Clubmate's prompt")
 	errRepoSettled  = errors.New("this repo already landed or was left")

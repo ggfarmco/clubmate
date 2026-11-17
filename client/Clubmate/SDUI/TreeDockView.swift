@@ -60,7 +60,7 @@ struct TreeDockView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(section.rows) { row in
-                    ItemRow(item: row.item, selected: row.id == selected, active: active, cursor: cursor == row.id, muted: row.muted, faint: row.faint, tone: row.tone, detailTone: row.detailTone, detailFaint: row.detailFaint, depth: 1, badges: row.badges, labelIcon: row.labelIcon, action: { open(row.id) }) {
+                    ItemRow(item: row.item, selected: row.id == selected, active: active, cursor: cursor == row.id, muted: row.muted, faint: row.faint, tone: row.tone, detailTone: row.detailTone, detailFaint: row.detailFaint, depth: 1 + (section.depths[row.id] ?? 0), badges: row.badges, labelIcon: row.labelIcon, action: { open(row.id) }) {
                         Color.clear.frame(width: theme.indent)
                     }
                     .id(row.id)

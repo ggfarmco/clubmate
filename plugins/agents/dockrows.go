@@ -16,8 +16,10 @@ const (
 )
 
 type gateCount struct {
-	Gated  int
-	Asking int
+	Gated   int
+	Asking  int
+	Trust   int
+	Landing int
 }
 
 type gateRound struct {
@@ -35,6 +37,19 @@ type reviewerNest struct {
 	Open    bool
 }
 
+func gateCounts(rows []gateRow, reviewersAsking int) gateCount {
+	c := gateCount{Gated: len(rows), Asking: reviewersAsking}
+	for _, r := range rows {
+		asking, landing := r.landingCounts()
+		c.Asking += asking
+		c.Landing += landing
+		if r.State == gateStateTrust {
+			c.Trust++
+		}
+	}
+	return c
+}
+
 func dockRows(service []sessionInfo, gates gateCount, defs []graphs.Definition) []api.DockRow {
 	asks := 0
 	for _, s := range service {
@@ -46,9 +61,14 @@ func dockRows(service []sessionInfo, gates gateCount, defs []graphs.Definition) 
 	if asks > 0 {
 		svc.Detail, svc.PhoneDetail, svc.Attention = "asks you", strconv.Itoa(asks)+" asks", true
 	}
-	gate := api.DockRow{ID: dockGates, Label: "Land gates", Icon: gatesIcon, Detail: strconv.Itoa(gates.Gated)}
-	if gates.Asking > 0 {
+	gate := api.DockRow{ID: dockGates, Label: "Gates", Icon: gatesIcon, Detail: strconv.Itoa(gates.Gated)}
+	switch {
+	case gates.Trust > 0:
+		gate.Detail, gate.Attention = strconv.Itoa(gates.Trust)+" to trust", true
+	case gates.Asking > 0:
 		gate.Detail = strconv.Itoa(gates.Asking) + " asking"
+	case gates.Landing > 0:
+		gate.Detail = landingCount(gates.Landing)
 	}
 	gate.PhoneDetail = gate.Detail
 	waits := 0

@@ -19,7 +19,7 @@ const (
 	helpParts = "Parts of a graph · ↩ asks an agent for a graph that uses the selected part"
 	askBase   = "Help me write an agent graph for this workspace."
 	askPart   = "Help me write an agent graph for this workspace that uses %s (%s)."
-	askRest   = " Ask me what roles and hand-offs I want, then write it to .clubmate/graphs/<name>.json in this repo (or ~/.clubmate/graphs/<name>.json if I want it in every workspace) and check with agents_graph_list that it shows without an error. Don't run it. Tell me it shows under Graphs and, if it has steps, that I must Trust it there first." +
+	askRest   = " Ask me what roles and hand-offs I want, then write it to ~/.clubmate/graphs/<name>.json (it shows and runs in every workspace; only if I want it shared with this repo, write it to .clubmate/graphs/<name>.json in the repo instead) and check with agents_graph_list that it shows without an error. Don't run it. Tell me it shows under Graphs and, if it has steps, that I must Trust it there first." +
 		" The file is JSON and unknown fields are errors: {title, description, maxTurns?, nodes: [{id (lowercase), role, start?: true, and one of prompt (an agent), run (a shell command) or command + args (a Clubmate command) (a step), outcomes?: [words the agent reports], end?: [outcomes that finish the run], exits?: {\"3\": \"flaky\"} (a step's words by exit code)}], edges: [{from, to, on: done|asks|error|outcome, outcome?, text?, maxFires?}]}." +
 		" At least one agent node starts, a step can't; a step with an on: outcome edge is a check (pass on exit 0, fail, or its exits word), any other step is done or error. In a prompt {{input}} is the run's input and {{node.<id>}} another node's session. agents_graph_run's description says how a run goes."
 )
@@ -55,7 +55,7 @@ var graphParts = []graphPart{
 }
 
 var helpFacts = [][2]string{
-	{"Files", ".clubmate/graphs/<name>.json in the repo · ~/.clubmate/graphs/ for every workspace · copy a built-in one there to change it"},
+	{"Files", "~/.clubmate/graphs/<name>.json for every workspace · .clubmate/graphs/ in the repo to share it with the repo · copy a built-in one there to change it"},
 	{"Trust", "a graph with steps runs once you trust its steps in this repo; changing a step or the wiring untrusts it"},
 	{"Budget", "a run stops after maxTurns agent turns (default 20) or maxSteps steps (default 50)"},
 	{"Needs you", "a step's command outside the allow list, or an edge past its round cap, waits for you"},

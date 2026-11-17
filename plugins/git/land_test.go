@@ -17,6 +17,7 @@ import (
 
 type landed struct {
 	Commit  string `json:"commit"`
+	Into    string `json:"into"`
 	Removed bool   `json:"removed"`
 	Note    string `json:"note"`
 }
@@ -36,6 +37,54 @@ func featWorktree(t *testing.T) (string, string) {
 	git(t, feat, "add", ".")
 	git(t, feat, "commit", "-qm", "two")
 	return repo, feat
+}
+
+func baseWorktrees(t *testing.T) (string, string, string) {
+	t.Helper()
+	repo := committedRepo(t)
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	a, b := filepath.Join(dir, "A"), filepath.Join(dir, "B")
+	git(t, repo, "worktree", "add", "-q", "-b", "A", a)
+	git(t, repo, "worktree", "add", "-q", "-b", "B", b, "A")
+	git(t, repo, "config", "branch.B.clubmate-base", "A")
+	write(t, filepath.Join(b, "b.go"), "two\n")
+	git(t, b, "add", ".")
+	git(t, b, "commit", "-qm", "two")
+	return repo, a, b
+}
+
+func TestLandDefaultsIntoBase(t *testing.T) {
+	repo, _, b := baseWorktrees(t)
+	main := git(t, repo, "rev-parse", "main")
+	h, id := open(t, repo)
+
+	var res landed
+	require.NoError(t, runCommand(t, h, id, "git.land", map[string]string{"path": b, "message": "feat: b"}, &res))
+
+	assert.Equal(t, "A", res.Into)
+	assert.Equal(t, res.Commit, git(t, repo, "rev-parse", "A"))
+	assert.Equal(t, main, git(t, repo, "rev-parse", "main"))
+}
+
+func TestLandFallsBackWhenBaseGone(t *testing.T) {
+	for name, gone := range map[string]func(t *testing.T, repo, a string){
+		"removed":         func(t *testing.T, repo, a string) { git(t, repo, "worktree", "remove", a) },
+		"deleted by hand": func(t *testing.T, _, a string) { require.NoError(t, os.RemoveAll(a)) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			repo, a, b := baseWorktrees(t)
+			gone(t, repo, a)
+			h, id := open(t, repo)
+
+			var res landed
+			require.NoError(t, runCommand(t, h, id, "git.land", map[string]string{"path": b, "message": "feat: b"}, &res))
+
+			assert.Equal(t, "main", res.Into)
+			assert.Equal(t, res.Commit, git(t, repo, "rev-parse", "main"))
+			assert.Contains(t, res.Note, "Base A is gone, landed into main.")
+		})
+	}
 }
 
 func preCommit(t *testing.T, repo, script string) {

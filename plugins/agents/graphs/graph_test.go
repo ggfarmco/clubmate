@@ -23,13 +23,13 @@ func TestLoadGraph(t *testing.T) {
 	assert.Equal(t, fromBuiltin, from)
 
 	files := listGraphs([]string{"testdata"}, "")
-	require.Len(t, files, 5)
-	assert.Equal(t, []string{"gate", "pr-walkthrough", "red-team", "review-gate", "review-loop"}, []string{files[0].Name, files[1].Name, files[2].Name, files[3].Name, files[4].Name})
-	assert.Equal(t, graphFile{Name: "pr-walkthrough", Title: "PR walkthrough", Description: files[1].Description, Path: "builtin/pr-walkthrough.json", Nodes: files[1].Nodes, Builtin: true, spec: files[1].spec}, files[1])
-	assert.Equal(t, graphFile{Name: "review-loop", Title: "Review loop", Description: g.Description, Path: "testdata/.clubmate/graphs/review-loop.json", Nodes: 2, spec: files[4].spec}, files[4])
-	assert.NotNil(t, files[4].spec)
-	assert.Contains(t, yourGraphs(files), files[4].spec)
-	assert.NotContains(t, yourGraphs(files), files[1].spec)
+	require.Len(t, files, 6)
+	assert.Equal(t, []string{"fable-review", "gate", "pr-walkthrough", "red-team", "review-gate", "review-loop"}, []string{files[0].Name, files[1].Name, files[2].Name, files[3].Name, files[4].Name, files[5].Name})
+	assert.Equal(t, graphFile{Name: "pr-walkthrough", Title: "PR walkthrough", Description: files[2].Description, Path: "builtin/pr-walkthrough.json", Nodes: files[2].Nodes, Builtin: true, spec: files[2].spec}, files[2])
+	assert.Equal(t, graphFile{Name: "review-loop", Title: "Review loop", Description: g.Description, Path: "testdata/.clubmate/graphs/review-loop.json", Nodes: 2, spec: files[5].spec}, files[5])
+	assert.NotNil(t, files[5].spec)
+	assert.Contains(t, yourGraphs(files), files[5].spec)
+	assert.NotContains(t, yourGraphs(files), files[2].spec)
 }
 
 func TestGraphPrecedenceProjectUserBuiltin(t *testing.T) {
@@ -50,9 +50,9 @@ func TestGraphPrecedenceProjectUserBuiltin(t *testing.T) {
 	assert.Equal(t, []any{"Yours", fromUser}, []any{g.Title, from})
 
 	files := listGraphs([]string{dir}, home)
-	require.Len(t, files, 2)
-	assert.Equal(t, []any{"Mine", false, false}, []any{files[0].Title, files[0].User, files[0].Builtin})
-	assert.Equal(t, graphFile{Name: "review-gate", Title: "Yours", Path: filepath.Join(home, graphsDir, "review-gate.json"), Nodes: 1, User: true, spec: files[1].spec}, files[1])
+	require.Len(t, files, 3)
+	assert.Equal(t, []any{"Mine", false, false}, []any{files[1].Title, files[1].User, files[1].Builtin})
+	assert.Equal(t, graphFile{Name: "review-gate", Title: "Yours", Path: filepath.Join(home, graphsDir, "review-gate.json"), Nodes: 1, User: true, spec: files[2].spec}, files[2])
 }
 
 func TestBuiltinGraphsParse(t *testing.T) {
@@ -82,6 +82,12 @@ func TestStepGraphParses(t *testing.T) {
 	assert.Equal(t, 10*time.Minute, tests.timeout())
 	assert.Equal(t, 50, g.maxSteps())
 	assert.Equal(t, "CODE_REVIEW", envName("code-review"))
+}
+
+func TestNodeModelAndEffortParse(t *testing.T) {
+	g, err := parseGraph("g", []byte(`{"nodes":[{"id":"r","prompt":"p","start":true,"model":"fable","effort":"high"}]}`))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"fable", "high"}, []string{g.node("r").Model, g.node("r").Effort})
 }
 
 func TestParseGraphRejects(t *testing.T) {
@@ -117,6 +123,8 @@ func TestParseGraphRejects(t *testing.T) {
 		{"bad args placeholder", `{"nodes":[{"id":"a","prompt":"p","start":true},{"id":"s","command":"notify.post","args":{"message":"{{input}}"}}],"edges":[]}`, "args: {{input}}"},
 		{"nine agent nodes", `{"nodes":[{"id":"a0","prompt":"p","start":true},{"id":"a1","prompt":"p","start":true},{"id":"a2","prompt":"p","start":true},{"id":"a3","prompt":"p","start":true},{"id":"a4","prompt":"p","start":true},{"id":"a5","prompt":"p","start":true},{"id":"a6","prompt":"p","start":true},{"id":"a7","prompt":"p","start":true},{"id":"a8","prompt":"p","start":true}],"edges":[]}`, "at most 8 agent nodes"},
 		{"seventeen nodes", `{"nodes":[{"id":"a","prompt":"p","start":true},{"id":"s0","run":"x"},{"id":"s1","run":"x"},{"id":"s2","run":"x"},{"id":"s3","run":"x"},{"id":"s4","run":"x"},{"id":"s5","run":"x"},{"id":"s6","run":"x"},{"id":"s7","run":"x"},{"id":"s8","run":"x"},{"id":"s9","run":"x"},{"id":"s10","run":"x"},{"id":"s11","run":"x"},{"id":"s12","run":"x"},{"id":"s13","run":"x"},{"id":"s14","run":"x"},{"id":"s15","run":"x"}],"edges":[]}`, "at most 16 nodes"},
+		{"model on a step", `{"nodes":[{"id":"a","prompt":"p","start":true},{"id":"s","run":"x","model":"fable"}],"edges":[]}`, "model and effort are only for agent nodes"},
+		{"effort too long", `{"nodes":[{"id":"a","prompt":"p","start":true,"effort":"` + strings.Repeat("x", 33) + `"}],"edges":[]}`, "effort: at most 32 characters"},
 		{"placeholder of an unknown node", `{"nodes":[{"id":"a","prompt":"p","start":true}],"edges":[{"from":"a","to":"a","text":"{{node.b}}"}]}`, "{{node.b}}"},
 	}
 	for _, tt := range tests {

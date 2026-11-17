@@ -36,8 +36,8 @@ func findItem(items []sdui.TreeItem, id string) *sdui.TreeItem {
 }
 
 func plusDock() sidebarPlus {
-	return sidebarPlus{dock: []api.DockRow{{ID: dockService, Label: "Service", Detail: "0"}, {ID: dockGates, Label: "Land gates", Detail: "1"}, {ID: dockGraphs, Label: "Graphs", Detail: "1"}},
-		gates: []sdui.TreeItem{{ID: dockGateHelp, Label: "How land gates work"}}, graphs: []sdui.TreeItem{{ID: dockGraphHelp, Label: "How graphs work"}, {ID: "graph:nightly", Label: "nightly", Open: "graph"}}}
+	return sidebarPlus{dock: []api.DockRow{{ID: dockService, Label: "Service", Detail: "0"}, {ID: dockGates, Label: "Gates", Detail: "1"}, {ID: dockGraphs, Label: "Graphs", Detail: "1"}},
+		gates: []sdui.TreeItem{{ID: dockGateHelp, Label: gateHelpTitle}}, graphs: []sdui.TreeItem{{ID: dockGraphHelp, Label: "How graphs work"}, {ID: "graph:nightly", Label: "nightly", Open: "graph"}}}
 }
 
 func TestSidebarRunRowInWorktreeGroup(t *testing.T) {
@@ -142,7 +142,7 @@ func TestRemoveBySelectionAlwaysConfirms(t *testing.T) {
 		{Rec: record{ID: "agt_x", Worktree: "/r/a", Title: "Solo", Status: statusDone, UpdatedAt: now}},
 	}
 	plus := plusDock()
-	plus.gates = append(plus.gates, sdui.TreeItem{ID: gatePrefix + "lg_1", Label: "shop", Menu: gateRemoveMenu("shop")})
+	plus.gates = append(plus.gates, sdui.TreeItem{ID: gatePrefix + "lg_1", Label: "shop", Menu: gateRemoveMenu("Landing into main", "/src/shop")})
 	plus.open = dockGates
 	tree := sidebarView(rows, "", map[string]bool{}, now, "/r/a", nil, false, filterAll, sidebarSearch{}, 0, plus, nil)
 	require.NoError(t, internalsdui.Validate(tree))
@@ -208,4 +208,36 @@ func TestOpenTabKeepsMainEventsOffAPage(t *testing.T) {
 	p.filter = filterOpen
 	_, ok = a.shownPage("ws")
 	assert.False(t, ok)
+}
+
+func TestDockGroupsGatesByRepo(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 16, 13, 0, 0, 0, time.UTC)
+	approved := &gateVerdict{Outcome: gateApproved, By: "reviewer", At: now.Add(-4 * time.Minute)}
+	rows := []gateRow{
+		{gateConfig: gateConfig{ID: "gt_main", Repo: "/src/shop", Into: gateIntoDefault}, Name: "Landing into main", State: gateStateActive, Last: approved},
+		{gateConfig: gateConfig{ID: "gt_base", Repo: "/src/shop", Into: gateIntoBase}, Name: "Landing into the base", State: gateStateReview, Landings: []gateLanding{{State: gateStateReview}}},
+		{gateConfig: gateConfig{ID: "gt_infra", Repo: "/src/infra", Into: gateIntoDefault, Paused: true}, Name: "Landing into main", State: gateStateTrust},
+	}
+	plus := plusDock()
+	plus.gates = gateDock(rows, now)
+	plus.dock = dockRows(nil, gateCounts(rows, 0), nil)
+	plus.open = dockGates
+
+	dock := dockOf(t, sidebarView(nil, "", map[string]bool{}, now, "/src/shop", nil, false, filterAll, sidebarSearch{}, 0, plus, nil))
+	gates := dock[slices.IndexFunc(dock, func(d sdui.TreeDock) bool { return d.ID == dockGates })]
+
+	assert.Equal(t, []string{"Gates", "1 to trust"}, []string{gates.Label, gates.Detail})
+	assert.True(t, gates.Attention)
+	assert.Equal(t, []string{dockGateHelp, gateRepoPrefix + "/src/infra", gateRepoPrefix + "/src/shop"}, ids(gates.Rows))
+	shop := gates.Rows[2]
+	var got [][]string
+	for _, g := range shop.Children {
+		got = append(got, []string{g.ID, g.Label, g.Icon, g.Detail, g.Open})
+	}
+	assert.Equal(t, [][]string{
+		{gatePrefix + "gt_main", "into main", gateLandIcon, "approved 4m", openGate},
+		{gatePrefix + "gt_base", "into the base", gateLandIcon, "1 landing", openGate},
+	}, got)
+	assert.Equal(t, "trust?", gates.Rows[1].Children[0].Detail)
 }

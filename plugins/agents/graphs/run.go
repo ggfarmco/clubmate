@@ -60,6 +60,10 @@ type Run struct {
 	Extra     map[int]int `json:"extra,omitempty"`
 	Starts    []Start     `json:"starts,omitempty"`
 	Spec      *Graph      `json:"spec,omitempty"`
+	Gate      bool        `json:"gate,omitempty"`
+	GateDir   string      `json:"gateDir,omitempty"`
+	GatePin   string      `json:"gatePin,omitempty"`
+	GateOther string      `json:"gateOther,omitempty"`
 }
 
 type Start struct {
@@ -89,6 +93,8 @@ type newArgs struct {
 	Title    string         `json:"title"`
 	Branch   string         `json:"branch,omitempty"`
 	Afk      bool           `json:"afk,omitempty"`
+	Model    string         `json:"model,omitempty"`
+	Effort   string         `json:"effort,omitempty"`
 	Run      string         `json:"run"`
 	RunTitle string         `json:"runTitle"`
 	RunAfter []api.RunAfter `json:"runAfter,omitempty"`
@@ -134,6 +140,7 @@ type runner struct {
 	started func(node int, session string)
 	live    func() bool
 	stopped func() bool
+	newNode func(ctx context.Context, n GateNode) (string, error)
 }
 
 func newRun(g *Graph, workspace, input string, agent bool, caller string, now time.Time) (*Run, error) {
@@ -186,9 +193,15 @@ func (x *runner) start(ctx context.Context, g *Graph) error {
 		if x.stopped != nil && x.stopped() {
 			return fmt.Errorf(errStoppedStarting, x.run.ID)
 		}
-		args := newArgs{Title: x.run.Title + " · " + n.label(), Branch: x.render(n.Branch), Afk: n.Afk, Run: x.run.ID, RunTitle: cmp.Or(x.run.Title, x.run.Graph), RunAfter: g.after(n.ID)}
+		args := newArgs{Title: x.run.Title + " · " + n.label(), Branch: x.render(n.Branch), Afk: n.Afk, Model: n.Model, Effort: n.Effort, Run: x.run.ID, RunTitle: cmp.Or(x.run.Title, x.run.Graph), RunAfter: g.after(n.ID)}
 		var out newResult
-		if err := x.do(ctx, "agents.new", args, &out); err != nil {
+		var err error
+		if x.newNode != nil {
+			out.Session, err = x.newNode(ctx, GateNode{Title: n.label(), Run: args.Run, RunTitle: args.RunTitle, RunAfter: args.RunAfter, Model: n.Model, Effort: n.Effort, Verdict: n.decides()})
+		} else {
+			err = x.do(ctx, "agents.new", args, &out)
+		}
+		if err != nil {
 			return fmt.Errorf("start node %s: %w", n.ID, err)
 		}
 		x.run.Nodes[i].Session = out.Session
@@ -197,7 +210,7 @@ func (x *runner) start(ctx context.Context, g *Graph) error {
 		}
 	}
 	for i, e := range g.Edges {
-		if g.owned(e) {
+		if x.run.Edges[i].Owned {
 			continue
 		}
 		if x.stopped != nil && x.stopped() {
@@ -222,7 +235,7 @@ func (x *runner) kickoff(ctx context.Context, g *Graph) error {
 			continue
 		}
 		text := x.brief(&n)
-		if x.run.Input != "" && !strings.Contains(n.Prompt, "{{input}}") {
+		if x.run.Input != "" && !x.run.Gate && !strings.Contains(n.Prompt, "{{input}}") {
 			text += "\n\nTask:\n" + x.run.Input
 		}
 		if x.live != nil && !x.live() {
@@ -238,7 +251,7 @@ func (x *runner) kickoff(ctx context.Context, g *Graph) error {
 func (x *runner) repoint(ctx context.Context) []error {
 	var errs []error
 	for i, e := range x.run.Spec.Edges {
-		if x.run.Spec.owned(e) {
+		if x.run.Edges[i].Owned {
 			continue
 		}
 		args, err := x.edgeTrigger(x.run.Spec, e)
@@ -354,7 +367,18 @@ func (x *runner) brief(n *Node) string {
 	var b strings.Builder
 	b.WriteString(x.header(n))
 	b.WriteString("\n\n")
-	b.WriteString(x.render(n.Prompt))
+	verdict := x.run.Gate && n.decides()
+	input := x.run.Input
+	if x.run.Gate && !verdict && x.run.GateOther != "" {
+		input = x.run.GateOther
+	}
+	b.WriteString(x.renderInput(n.Prompt, input))
+	if x.run.Gate && input != "" && !strings.Contains(n.Prompt, "{{input}}") {
+		b.WriteString("\n\nTask:\n" + input)
+	}
+	if x.run.Gate && !verdict {
+		fmt.Fprintf(&b, "\n\nYou are not the node that decides this landing (%s is): put your findings in your reply and don't call agents_land_verdict.", strings.Join(x.run.Spec.deciders(), ", "))
+	}
 	var peers []string
 	for _, rn := range x.run.Nodes {
 		switch {
@@ -367,6 +391,9 @@ func (x *runner) brief(n *Node) string {
 	}
 	if len(peers) > 0 {
 		b.WriteString("\n\nOther nodes of this run: " + strings.Join(peers, "; ") + ". Clubmate passes your results on along the graph's edges; read another node's work with the clubmate tool agents_transcript.")
+	}
+	if verdict {
+		return b.String()
 	}
 	b.WriteString("\n\nYour reply goes to the next node of the graph, not to a person: do not end it with a question unless you need the answer to go on.")
 	if len(n.Outcomes) > 0 {
@@ -404,11 +431,15 @@ func (x *runner) defaultEdgeText(from *RunNode, e Edge) string {
 }
 
 func (x *runner) render(s string) string {
+	return x.renderInput(s, x.run.Input)
+}
+
+func (x *runner) renderInput(s, input string) string {
 	return placeholderRe.ReplaceAllStringFunc(s, func(m string) string {
 		name := placeholderRe.FindStringSubmatch(m)[1]
 		switch name {
 		case "input":
-			return x.run.Input
+			return input
 		case "run":
 			return x.run.ID
 		case "graph":

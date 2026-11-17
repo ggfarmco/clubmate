@@ -99,6 +99,20 @@ func TestReviewersHaveNoRowUnlessTheyAskOrNothingLinksThem(t *testing.T) {
 	assert.Equal(t, alone, hidden)
 }
 
+func TestNodesOfTheLandingsRunHaveNoRow(t *testing.T) {
+	t.Parallel()
+	lander := record{ID: "agt_l", LandReviews: []landReview{{Into: "main", Source: "fix", Reviewer: "agt_v", Run: "gr_2"}}}
+	node := func(id, run string) record {
+		return record{ID: id, Status: statusRunning, GateFor: &gateFor{Lander: "agt_l", Into: "main", Source: "fix", Old: "a", Tree: "b", Run: run}}
+	}
+
+	nest := reviewNests([]record{lander, node("agt_v", "gr_2"), node("agt_lint", "gr_2"), node("agt_old", "gr_1")})
+
+	assert.False(t, nest["agt_lint"].Shown)
+	assert.True(t, nest["agt_lint"].Tracked)
+	assert.True(t, nest["agt_old"].Shown)
+}
+
 func TestLanderHeaderCarriesTheLanding(t *testing.T) {
 	t.Parallel()
 	rec := record{ID: "agt_l", Worktree: "/r/a", Agent: agentClaude, Title: "Fix login", Status: statusRunning}

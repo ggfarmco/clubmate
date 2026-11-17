@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
+
+const GateTreePrefix = ".gate-"
 
 var ErrNotRepo = errors.New("not a git folder")
 
@@ -60,6 +63,10 @@ func (f *Folder) DefaultName(ctx context.Context) string {
 
 func (f *Folder) Primary(defaultName string, t Worktree) bool {
 	return t.Real == f.Trees[0].Real || defaultName != "" && t.Branch == defaultName
+}
+
+func (f *Folder) GateTree(t Worktree) bool {
+	return filepath.Dir(t.Real) == filepath.Join(f.Trees[0].Real, ".worktrees") && strings.HasPrefix(filepath.Base(t.Real), GateTreePrefix)
 }
 
 func (f *Folder) Mapped(t Worktree) string {
@@ -156,4 +163,23 @@ func Canonical(path string) string {
 		rest = filepath.Join(filepath.Base(dir), rest)
 		dir = parent
 	}
+}
+
+func Base(ctx context.Context, dir, branch string) (string, bool) {
+	out, err := Run(ctx, dir, "config", "--get", "branch."+branch+".clubmate-base")
+	base := strings.TrimSpace(string(out))
+	if err != nil || base == "" {
+		return "", false
+	}
+	trees, err := Worktrees(ctx, dir)
+	if err != nil {
+		return base, false
+	}
+	return base, slices.ContainsFunc(trees, func(t Worktree) bool {
+		if t.Branch != base || t.Bare {
+			return false
+		}
+		_, err := os.Stat(t.Path)
+		return err == nil
+	})
 }

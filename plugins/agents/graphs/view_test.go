@@ -509,6 +509,7 @@ func TestHelpPageCountsYourGraphsPerPart(t *testing.T) {
 func TestAskPromptNamesThePart(t *testing.T) {
 	assert.Contains(t, askPrompt("maxFires"), "that uses a round cap (maxFires).")
 	assert.NotContains(t, askPrompt(""), "that uses")
+	assert.Contains(t, askPrompt(""), "write it to ~/.clubmate/graphs/<name>.json")
 }
 
 func TestHomeShort(t *testing.T) {

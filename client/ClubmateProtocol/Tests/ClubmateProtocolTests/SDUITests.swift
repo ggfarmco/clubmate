@@ -42,6 +42,21 @@ final class SDUITests: XCTestCase {
         XCTAssertEqual(table.string("selected"), "42")
     }
 
+    func testDockRowsFlattenChildrenOneLevelDeeper() throws {
+        let json = """
+        {"type": "tree", "id": "sessions", "props": {"items": [], "dock": [{"id": "gates", "label": "Gates", "cap": 6, "rows": [
+          {"id": "gate-help", "label": "How gates work"},
+          {"id": "gate-repo:/src/shop", "label": "shop", "children": [{"id": "gate:gt_1", "label": "into main"}, {"id": "gate:gt_2", "label": "into the base"}]},
+          {"id": "run:gr_1", "label": "Review", "hasChildren": true, "expanded": true, "children": [{"id": "agt_1", "label": "Coder"}]}
+        ]}]}}
+        """
+        let dock = try XCTUnwrap(try JSONDecoder().decode(SDUINode.self, from: Data(json.utf8)).treeDock().first)
+
+        XCTAssertEqual(dock.rows.map(\.id), ["gate-help", "gate-repo:/src/shop", "gate:gt_1", "gate:gt_2", "run:gr_1"])
+        XCTAssertEqual(dock.rows.map { dock.depths[$0.id] }, [0, 0, 1, 1, 0])
+        XCTAssertTrue(dock.rows.allSatisfy(\.children.isEmpty))
+    }
+
     func testSparklineHeightDecodes() throws {
         let sized = try JSONDecoder().decode(SDUINode.self, from: Data(#"{"type": "sparkline", "props": {"values": [1, 3], "max": 4, "height": 64}}"#.utf8))
         XCTAssertEqual(sized.spark(), SDUISpark(values: [1, 3], max: 4))

@@ -149,6 +149,7 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentP
 	}
 	a.wakeOpenAging()
 	a.gateTurnEnded(s, false)
+	a.landerClosed(ctx, s)
 	a.cancelSignIn(ctx, rec.Workspace, rec.ID)
 	if p == nil {
 		return nil

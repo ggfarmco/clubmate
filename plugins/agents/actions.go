@@ -297,6 +297,9 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if strings.HasPrefix(id, groupPrefix) {
 			return nil
 		}
+		if repo, ok := strings.CutPrefix(id, gateRepoPrefix); ok {
+			return a.openRepoGate(ctx, ev.WorkspaceID, repo)
+		}
 		if pageID(id) {
 			return a.selectPage(ctx, ev.WorkspaceID, id)
 		}
@@ -383,7 +386,7 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if err != nil {
 			return err
 		}
-		return a.deleteGate(ctx, strings.TrimPrefix(id, gatePrefix))
+		return a.deleteGate(ctx, ev.WorkspaceID, strings.TrimPrefix(id, gatePrefix))
 	case actNewGate:
 		return a.openGateSheet(ctx, ev.WorkspaceID, "")
 	case actNewGraph:

@@ -296,7 +296,7 @@ func (a *app) worktreesOf(ctx context.Context, workspaceID, folder string) []fol
 	}
 	defaultName := f.DefaultName(ctx)
 	for _, t := range f.Trees[1:] {
-		if t.Bare || t.Real == f.Checkout.Real || f.Primary(defaultName, t) {
+		if t.Bare || t.Real == f.Checkout.Real || f.Primary(defaultName, t) || f.GateTree(t) {
 			continue
 		}
 		wt := folderWorktree{Path: t.Path, Branch: t.Branch}
@@ -351,7 +351,7 @@ func (a *app) folderJobs(ctx context.Context, w pluginsdk.Workspace, folder stri
 	var trees []worktreeRef
 	if f, err := gitrepo.OpenFolder(ctx, folder); err == nil {
 		for _, t := range f.Trees {
-			if !t.Bare {
+			if !t.Bare && !f.GateTree(t) {
 				trees = append(trees, worktreeRef{Path: f.Mapped(t), Branch: t.Branch})
 			}
 		}
@@ -458,7 +458,9 @@ func folderDirs(ctx context.Context, folder string) []string {
 	}
 	dirs := make([]string, 0, len(f.Trees))
 	for _, t := range f.Trees {
-		dirs = append(dirs, f.Mapped(t))
+		if !f.GateTree(t) {
+			dirs = append(dirs, f.Mapped(t))
+		}
 	}
 	return dirs
 }

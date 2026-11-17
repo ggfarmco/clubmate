@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/agents/graphs"
 	"clubmate/plugins/internal/automation"
 	"clubmate/plugins/internal/landgate"
 )
@@ -28,45 +29,56 @@ const (
 	gateRoundsMax    = 5
 	gateWeek         = 7 * 24 * time.Hour
 
-	actGateNew     = "gateNew"
-	actGatePause   = "gatePause"
-	actGateResume  = "gateResume"
-	actGateEdit    = "gateEdit"
-	actGateDelete  = "gateDelete"
-	actGateReview  = "gateReview"
-	actGateLanding = "gateLanding"
-	actGateRepo    = "gateRepo"
-	actGateRounds  = "gateRounds"
-	actGatePaused  = "gatePaused"
-	actGateCancel  = "gateCancel"
-	actGateSave    = "gateSave"
+	actGateNew       = "gateNew"
+	actGatePause     = "gatePause"
+	actGateResume    = "gateResume"
+	actGateEdit      = "gateEdit"
+	actGateDelete    = "gateDelete"
+	actGateReview    = "gateReview"
+	actGateLanding   = "gateLanding"
+	actGateRepo      = "gateRepo"
+	actGateInto      = "gateInto"
+	actGateLike      = "gateLike"
+	actGatePick      = "gatePick"
+	actGateRounds    = "gateRounds"
+	actGatePaused    = "gatePaused"
+	actGateCancel    = "gateCancel"
+	actGateSave      = "gateSave"
+	actGateTrust     = "gateTrust"
+	actGateOpenGraph = "gateOpenGraph"
 
 	gateIcon        = "shield"
-	gateOKIcon      = "checkmark.shield"
-	gateWarnIcon    = "exclamationmark.shield"
-	gatePausedIcon  = "pause.circle"
+	gateLandIcon    = "arrow.triangle.merge"
+	gateRepoIcon    = "folder"
+	gateRepoPrefix  = "gate-repo:"
+	gateCardPrefix  = "card:"
+	gateTrustID     = "gateTrust"
+	gateShortHash   = 6
 	gateHelpTitle   = "How gates work"
 	gateNoLandings  = "no landings yet"
-	gateNoHistory   = "No landings yet. The next landing into %s waits for a review."
-	gateDeleteText  = "Delete the land gate on %s? Landings into %s then land without a review. Its verdict history goes too."
-	gateSheetNote   = "Only you add, change or delete gates."
-	gateHasGate     = "%s · has a gate"
-	gateRepoTaken   = "Gated already"
-	gateNoRepo      = "No folder of this workspace is a git repo."
-	gateKindLabel   = "Fable review"
-	gateKindLater   = "Command, graph and check gates come later."
-	gateKindHint    = "a fresh Fable session reads the diff, read-only"
+	gateNoHistory   = "No landings yet. The next landing this gate holds waits for %s."
+	gateDeleteText  = "Delete the gate %s on %s? Landings it holds then land without a review. Its verdict history goes too."
 	gateDocsOnly    = "a change only in .md files lands without a review"
-	gateGuards      = "landings into %s · a child's merge into its parent's branch"
+	gateHolds       = "an agent's landing (git_land)"
 	gateRoundsWords = "of changes, then you decide"
-	gateRepoHint    = "%s · lands into %s"
+	gateEnds        = "ends approved · changes"
+	gateVerdictDoes = "approves or asks for changes"
+	gateTrustTitle  = "%s changed: trust the new version?"
+	gateTrustText   = "This gate pinned %s. The file is now %s. Until you trust it, the gate runs nothing: a landing it holds is refused, and runs through the new version when its agent calls git_land again."
+	gateTrustLost   = "The pinned version wasn't kept, so only the new one can be shown:"
+	gateTrustOther  = "Its content changed in a way this card doesn't list; read the file before you trust it."
+	gateUnreadable  = "%s can't be read: %s"
+	gateTrustPhone  = "Trust it on the Mac, where the change can be read; Pause works here."
+	gateSummaryRow  = "summary"
+	gateSummaryWord = "Summary · "
 )
 
 var gateHelpFacts = [][2]string{
-	{"Guards", "git_land into a gated repo's default branch, and a child's merge into its parent's branch, wait for a read-only Fable review of the diff"},
-	{"Rounds", "after the gate's rounds of changes the landing waits for you: Land anyway or Stop, in Agents"},
+	{"Holds", "an agent's git_land that a gate matches waits until the gate's graph decides the change (Fable review, built in, by default)"},
+	{"Into", "which landings a gate holds: into the default branch, into a worktree's base (the branch it was made from), into any branch, or into branches like release/*; when several gates match, the most specific decides"},
+	{"Decided by", "a graph from the repo's main checkout, your own graphs or the built-in ones; the gate pins its content, and a changed file waits until you trust it on the gate's page"},
+	{"Rounds", "after the gate's rounds of changes the landing waits for you: Land anyway, One more round or Stop, in Agents"},
 	{"Docs only", gateDocsOnly},
-	{"Repo", "one gate per repo; it covers every worktree of the repo"},
 	{"Only you", "add, change, pause or delete gates; agents can read them"},
 }
 
@@ -74,6 +86,10 @@ type gateScreen struct {
 	Row      gateRow
 	Lines    map[string]string
 	Repo     gateRepo
+	Graph    *graphs.GateGraphInfo
+	GraphErr string
+	Pinned   *graphs.GateGraphInfo
+	Mac      bool
 	History  []gateVerdict
 	Picked   string
 	Sessions map[string]bool
@@ -81,15 +97,10 @@ type gateScreen struct {
 	Loc      *time.Location
 }
 
-type gateDraft struct {
-	Edit   string
-	Name   string
-	Repo   string
-	Rounds int
-	Paused bool
-	Err    string
-	Repos  []gateRepo
-	Gated  map[string]bool
+type gateLook struct {
+	Text  string
+	Tone  string
+	Faint bool
 }
 
 type gateVerdictLook struct {
@@ -101,34 +112,87 @@ type gateVerdictLook struct {
 
 func gatesSidebar(rows []gateRow, selected string, now time.Time) sdui.Node {
 	items := []sdui.TreeItem{automation.HelpItem(gateHelpTitle)}
-	for _, r := range rows {
-		items = append(items, gateItem(r, now))
+	for _, g := range gateGroups(rows) {
+		repo := sdui.TreeItem{ID: gateRepoPrefix + g.Repo, Label: filepath.Base(g.Repo), Icon: gateRepoIcon, Detail: strconv.Itoa(len(g.Rows)), HasChildren: true, Expanded: true}
+		for _, r := range g.Rows {
+			repo.Children = append(repo.Children, gateItem(r, now, r.Name))
+		}
+		items = append(items, repo)
 	}
 	return sdui.Tree(gatesTreeID, items, cmp.Or(selected, gateHelpID))
 }
 
-func gateItem(r gateRow, now time.Time) sdui.TreeItem {
-	item := sdui.TreeItem{ID: r.ID, Label: r.Name, Icon: gateIcon, Menu: gateMenu(r)}
-	switch r.State {
-	case gateStateNeedsMe:
-		item.Icon, item.Tone = gateWarnIcon, "warning"
-		item.Badges = []sdui.HeaderBadge{{Text: "needs you", Tone: "warning"}}
-	case gateStatePaused:
-		item.Icon, item.Detail = gatePausedIcon, gateStatePaused
-	case gateStateReview:
-		item.Detail, item.DetailTone = gateStateReview, "warning"
-	default:
-		if r.Last == nil {
-			item.Detail, item.DetailFaint = gateNoLandings, true
-			break
+func gateDock(rows []gateRow, now time.Time) []sdui.TreeItem {
+	items := []sdui.TreeItem{{ID: dockGateHelp, Label: gateHelpTitle, Icon: "info.circle", Open: openGate}}
+	for _, g := range gateGroups(rows) {
+		repo := sdui.TreeItem{ID: gateRepoPrefix + g.Repo, Label: filepath.Base(g.Repo), Icon: gateRepoIcon, Expanded: true}
+		for _, r := range g.Rows {
+			item := gateItem(r, now, strings.TrimPrefix(r.Name, gateNameLanding))
+			item.ID, item.Open, item.Menu = gatePrefix+r.ID, openGate, gateRemoveMenu(r.Name, r.Repo)
+			if item.Detail == gateNoLandings {
+				item.Detail, item.DetailFaint = "", false
+			}
+			repo.Children = append(repo.Children, item)
 		}
-		look := verdictLook(*r.Last)
-		item.Detail, item.DetailTone = look.Word+" · "+shortAge(now.Sub(r.Last.At), r.Last.At), look.Tone
-		if r.Last.By == landgate.ByReviewer {
-			item.Icon, item.Tone = gateVerdictIcon(r.Last.Outcome), look.Tone
+		items = append(items, repo)
+	}
+	return items
+}
+
+type gateGroup struct {
+	Repo string
+	Rows []gateRow
+}
+
+func gateGroups(rows []gateRow) []gateGroup {
+	var out []gateGroup
+	for _, r := range rows {
+		i := slices.IndexFunc(out, func(g gateGroup) bool { return g.Repo == r.Repo })
+		if i < 0 {
+			out = append(out, gateGroup{Repo: r.Repo})
+			i = len(out) - 1
+		}
+		out[i].Rows = append(out[i].Rows, r)
+	}
+	slices.SortStableFunc(out, func(x, y gateGroup) int {
+		return cmp.Compare(strings.ToLower(filepath.Base(x.Repo)), strings.ToLower(filepath.Base(y.Repo)))
+	})
+	return out
+}
+
+func gateItem(r gateRow, now time.Time, label string) sdui.TreeItem {
+	look := r.look(now)
+	return sdui.TreeItem{ID: r.ID, Label: label, Icon: gateLandIcon, Detail: look.Text, DetailTone: look.Tone, DetailFaint: look.Faint, Menu: gateMenu(r)}
+}
+
+func (r gateRow) look(now time.Time) gateLook {
+	asking, landing := r.landingCounts()
+	switch {
+	case r.State == gateStateTrust:
+		return gateLook{Text: "trust?", Tone: "warning"}
+	case asking > 0:
+		return gateLook{Text: strconv.Itoa(asking) + " asking", Tone: tonePlain}
+	case landing > 0:
+		return gateLook{Text: landingCount(landing), Tone: tonePlain}
+	case r.Paused:
+		return gateLook{Text: gateStatePaused, Faint: true}
+	case r.Last == nil:
+		return gateLook{Text: gateNoLandings, Faint: true}
+	}
+	v := verdictLook(*r.Last)
+	return gateLook{Text: v.Word + " " + shortAge(now.Sub(r.Last.At), r.Last.At), Tone: v.Tone}
+}
+
+func (r gateRow) landingCounts() (asking, landing int) {
+	for _, l := range r.Landings {
+		switch l.State {
+		case gateStateNeedsMe:
+			asking++
+		case gateStateReview:
+			landing++
 		}
 	}
-	return item
+	return asking, landing
 }
 
 func shortAge(d time.Duration, at time.Time) string {
@@ -145,13 +209,6 @@ func shortAge(d time.Duration, at time.Time) string {
 	return at.Local().Format("Jan 2")
 }
 
-func gateVerdictIcon(outcome string) string {
-	if outcome == gateChanges {
-		return gateWarnIcon
-	}
-	return gateOKIcon
-}
-
 func gateMenu(r gateRow) []sdui.MenuEntry {
 	toggle := sdui.MenuEntry{Action: actGatePause, Label: "Pause"}
 	if r.Paused {
@@ -160,12 +217,12 @@ func gateMenu(r gateRow) []sdui.MenuEntry {
 	return []sdui.MenuEntry{
 		toggle,
 		{Action: actGateEdit, Label: "Edit…"},
-		{Action: actGateDelete, Label: "Delete", Confirm: gateDeleteConfirm(r.Name, "")},
+		{Action: actGateDelete, Label: "Delete", Confirm: gateDeleteConfirm(r.Name, r.Repo)},
 	}
 }
 
-func gateDeleteConfirm(name, branch string) string {
-	return fmt.Sprintf(gateDeleteText, name, cmp.Or(branch, "its default branch"))
+func gateDeleteConfirm(name, repo string) string {
+	return fmt.Sprintf(gateDeleteText, cmp.Or(name, "gate"), filepath.Base(repo))
 }
 
 func verdictLook(v gateVerdict) gateVerdictLook {
@@ -206,31 +263,29 @@ func gatesCount(rows []gateRow) string {
 func gateMain(sc gateScreen) sdui.Node {
 	r := sc.Row
 	badges := []sdui.HeaderBadge{{Text: gateStateActive}}
-	icon := gateIcon
 	if r.Paused {
-		badges[0].Text, icon = gateStatePaused, gatePausedIcon
+		badges[0].Text = gateStatePaused
 	}
-	if r.State == gateStateNeedsMe {
+	if r.State == gateStateTrust {
+		badges = append(badges, sdui.HeaderBadge{Text: "trust?", Tone: "warning"})
+	}
+	if asking, _ := r.landingCounts(); asking > 0 {
 		badges = append(badges, sdui.HeaderBadge{Text: "needs you", Tone: "warning"})
 	}
 	actions := []sdui.Node{
 		automation.ActionNode(r.ID, gatePauseAction(r.Paused)),
 		automation.ActionNode(r.ID, automation.DetailAction{Action: actGateEdit, Label: "Edit", Icon: "pencil", Variant: sdui.VariantSecondary, Shortcut: "e"}),
-		automation.ActionNode(r.ID, automation.DetailAction{Action: actGateDelete, Label: "Delete", Icon: "trash", Variant: sdui.VariantDanger, Shortcut: "cmd+delete", Confirm: gateDeleteConfirm(r.Name, sc.Repo.Branch)}),
+		automation.ActionNode(r.ID, automation.DetailAction{Action: actGateDelete, Label: "Delete", Icon: "trash", Variant: sdui.VariantDanger, Shortcut: "cmd+delete", Confirm: gateDeleteConfirm(r.Name, r.Repo)}),
 	}
-	header := sdui.Header(r.Name, sdui.HeaderProps{Icon: icon, Meta: gateMeta(sc), Badges: badges}, actions...)
-	branch := cmp.Or(sc.Repo.Branch, "the default branch")
-	props := automation.Properties(
-		automation.Property("Repo", r.Name, tildePath(r.Repo)),
-		automation.Property("Guards", fmt.Sprintf(gateGuards, branch), ""),
-		automation.Property("Kind", gateKindLabel, gateKindHint),
-		automation.Property("Rounds", roundsWords(r.Rounds), ""),
-		automation.Property("Docs only", gateDocsOnly, ""),
-	)
-	body := []sdui.Node{props}
+	header := sdui.Header(r.Name, sdui.HeaderProps{Icon: gateLandIcon, Meta: gateMeta(sc), Badges: badges}, actions...)
+	var body []sdui.Node
+	if r.State == gateStateTrust {
+		body = append(body, trustCard(sc))
+	}
+	body = append(body, gateFacts(sc))
 	rows, picked := gateTableRows(sc)
 	if len(rows) == 0 {
-		body = append(body, sdui.MutedText(fmt.Sprintf(gateNoHistory, branch)))
+		body = append(body, sdui.MutedText(fmt.Sprintf(gateNoHistory, graphTitle(sc.Graph, r.Graph))))
 		return sdui.VStack(header, sdui.Scroll(sdui.VStack(body...)))
 	}
 	columns := []sdui.Column{
@@ -246,6 +301,93 @@ func gateMain(sc gateScreen) sdui.Node {
 		body = append(body, card)
 	}
 	return sdui.VStack(header, sdui.Scroll(sdui.VStack(body...)))
+}
+
+func gateFacts(sc gateScreen) sdui.Node {
+	r := sc.Row
+	return automation.Properties(
+		automation.Property("Repo", filepath.Base(r.Repo), tildePath(r.Repo)),
+		automation.Property("Holds", gateHolds, ""),
+		automation.Property("Match", matchWords(r.Into, sc.Repo.Branch), ""),
+		sdui.HStack(sdui.MutedText("Graph"), graphFact(sc)),
+		automation.Property("Rounds", roundsWords(r.Rounds), ""),
+		automation.Property("Docs only", gateDocsOnly, ""),
+	)
+}
+
+func matchWords(into, branch string) string {
+	branch = cmp.Or(branch, "the default branch")
+	switch {
+	case into == gateIntoDefault:
+		return "landings into " + branch + ", the default branch"
+	case into == gateIntoBase:
+		return "landings into a worktree's base, the branch it was made from; only worktrees made from a branch have one"
+	case into == gateIntoAny:
+		return "every landing: into " + branch + ", into a base, and a child's merge into its parent's branch"
+	case isGlob(into):
+		return "landings into a branch like " + into
+	}
+	return "landings into " + into
+}
+
+func graphFact(sc gateScreen) sdui.Node {
+	r := sc.Row
+	if sc.Graph == nil {
+		return sdui.MutedText(fmt.Sprintf(gateUnreadable, r.Graph, cmp.Or(sc.GraphErr, "no such graph")))
+	}
+	g := *sc.Graph
+	head := []sdui.Node{sdui.Text(graphTitle(sc.Graph, r.Graph)), sdui.MutedText(originWords(g.From, r.Repo) + " · pinned " + shortHash(r.Pin))}
+	if sc.Mac {
+		head = append(head, gateGraphButton(r.ID))
+	}
+	lines := []sdui.Node{sdui.HStack(head...)}
+	for i, n := range g.Nodes {
+		lines = append(lines, sdui.HStack(sdui.MutedText(strconv.Itoa(i+1)), sdui.Text(n.Title), sdui.MutedText(nodeDoes(n))))
+	}
+	lines = append(lines, sdui.MutedText(gateEnds))
+	return sdui.VStack(lines...)
+}
+
+func nodeDoes(n graphs.GateNodeInfo) string {
+	if n.Step {
+		return "step · " + n.Command
+	}
+	parts := []string{"agent"}
+	if n.Model != "" {
+		parts = append(parts, n.Model)
+	}
+	if n.Effort != "" {
+		parts = append(parts, n.Effort+" effort")
+	}
+	if n.Verdict {
+		parts = append(parts, gateVerdictDoes)
+	}
+	return strings.Join(parts, " · ")
+}
+
+func graphTitle(g *graphs.GateGraphInfo, name string) string {
+	if g == nil {
+		return name
+	}
+	return cmp.Or(g.Title, g.Name)
+}
+
+func originWords(from, repo string) string {
+	switch from {
+	case graphs.FromBuiltin:
+		return "built in"
+	case graphs.FromUser:
+		return "yours"
+	}
+	return "in " + filepath.Base(repo)
+}
+
+func shortHash(h string) string {
+	return h[:min(len(h), gateShortHash)]
+}
+
+func gateGraphButton(target string) sdui.Node {
+	return automation.ActionNode(target, automation.DetailAction{Action: actGateOpenGraph, Label: "Open graph", Variant: sdui.VariantGhost})
 }
 
 func gatePauseAction(paused bool) automation.DetailAction {
@@ -287,9 +429,9 @@ func weekLine(history []gateVerdict, now time.Time) string {
 		total++
 	}
 	if total == 0 {
-		return "Verdicts · none in the last 7 days"
+		return "History · none in the last 7 days"
 	}
-	parts := []string{"Verdicts · last 7 days"}
+	parts := []string{"History · last 7 days"}
 	for _, w := range []string{"approved", "changes", "docs only", "you: land"} {
 		if counts[w] > 0 {
 			parts = append(parts, w+" "+strconv.Itoa(counts[w]))
@@ -336,6 +478,11 @@ func gateTableRows(sc gateScreen) ([]sdui.TableRow, string) {
 			landing = cmp.Or(v.Title, v.Source, "the staged change") + " · after " + counted(v.Round, "round")
 		}
 		add(gateRowID(v.At, v.Reviewer), []sdui.Cell{{Text: when(v.At)}, {Text: look.Word, Tone: look.Cell}, sessionLink(sc, landing, v.Reviewer, "Open review", false), {Text: v.Into}})
+		if v.Summary != "" && v.Outcome == gateApproved && v.By == landgate.ByReviewer {
+			id := gateRowID(v.At, gateSummaryRow)
+			ids[id] = true
+			rows = append(rows, sdui.TableRow{ID: id, Depth: 1, Muted: true, Cells: []sdui.Cell{{}, {}, {Text: gateSummaryWord + v.Summary}, {}}})
+		}
 	}
 	picked := sc.Picked
 	if !ids[picked] {
@@ -377,7 +524,7 @@ func findingsCard(sc gateScreen, picked string) (sdui.Node, bool) {
 	}
 	v := sc.History[i]
 	open := v.Reviewer != "" && sc.Sessions[v.Reviewer]
-	if len(v.Findings) == 0 && len(v.Deferred) == 0 && !open {
+	if len(v.Findings) == 0 && len(v.Deferred) == 0 && v.Summary == "" && !open {
 		return sdui.Node{}, false
 	}
 	look := verdictLook(v)
@@ -391,6 +538,9 @@ func findingsCard(sc gateScreen, picked string) (sdui.Node, bool) {
 	}
 	if len(v.Deferred) > 0 {
 		lines = append(lines, sdui.MutedText("Deferred: "+strings.Join(v.Deferred, " · ")))
+	}
+	if v.Summary != "" {
+		lines = append(lines, sdui.MutedText(gateSummaryWord+v.Summary))
 	}
 	if open {
 		lines = append(lines, sdui.HStack(sdui.Spacer(), gateCardButton(v.Reviewer, actGateReview, landingOpenReview, landingOpenKey)))
@@ -429,69 +579,6 @@ func liveCard(sc gateScreen, picked string) (sdui.Node, bool) {
 
 func gateCardButton(sid, action, label, key string) sdui.Node {
 	return automation.ActionNode(sid, automation.DetailAction{Action: action, Label: label, Variant: sdui.VariantSecondary, Shortcut: key})
-}
-
-func gateSheetView(d gateDraft) sdui.Node {
-	var rows []sdui.Node
-	title := "New gate"
-	save := "Add gate"
-	disabled := false
-	if d.Edit == "" {
-		repo, err := gateRepoField(d)
-		rows = append(rows, repo...)
-		disabled = err
-	} else {
-		title, save = "Edit gate · "+d.Name, "Save"
-		rows = append(rows, automation.Property("Repo", d.Name, ""))
-	}
-	kind, hint := sdui.Select(gateSheetID+"/kind", []sdui.Option{{Value: gateKindReview, Label: gateKindLabel}}, gateKindReview), gateKindLater
-	if d.Edit != "" {
-		kind, hint = sdui.Text(gateKindLabel), gateKindHint
-	}
-	rows = append(rows, sdui.HStack(sdui.MutedText("Kind"), kind, sdui.MutedText(hint)))
-	rows = append(rows, sdui.HStack(sdui.MutedText("Rounds"), sdui.WithAction(sdui.Select(gateSheetID+"/rounds", roundOptions(d.Rounds), strconv.Itoa(d.Rounds)), actGateRounds), sdui.MutedText(gateRoundsWords)))
-	if d.Edit != "" {
-		rows = append(rows, sdui.HStack(sdui.MutedText("Paused"), sdui.WithAction(sdui.Toggle(gateSheetID+"/paused", d.Paused), actGatePaused), sdui.MutedText("a paused gate gates nothing")))
-	}
-	rows = append(rows, automation.Property("Docs only", gateDocsOnly, ""))
-	cancel := sdui.WithVariant(sdui.WithAction(sdui.Button(gateSheetID+"/cancel", "Cancel", ""), actGateCancel), sdui.VariantSecondary)
-	ok := sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(gateSheetID+"/save", save, ""), actGateSave), sdui.VariantPrimary), "cmd+return")
-	if disabled {
-		ok = sdui.WithDisabled(ok)
-	}
-	note, tone := gateSheetNote, ""
-	if d.Err != "" {
-		note, tone = d.Err, "danger"
-	}
-	return sdui.Sheet(gateSheetID, sdui.SheetProps{Title: title, Icon: gateIcon, Cancel: actGateCancel, Note: note, NoteTone: tone},
-		automation.Properties(rows...),
-		sdui.HStack(cancel, ok),
-	)
-}
-
-func gateRepoField(d gateDraft) ([]sdui.Node, bool) {
-	if len(d.Repos) == 0 {
-		return []sdui.Node{automation.Property("Repo", gateNoRepo, "")}, true
-	}
-	options := make([]sdui.Option, 0, len(d.Repos))
-	var chosen gateRepo
-	for _, r := range d.Repos {
-		label := filepath.Base(r.Primary)
-		if d.Gated[r.Primary] {
-			label = fmt.Sprintf(gateHasGate, label)
-		}
-		options = append(options, sdui.Option{Value: r.Path, Label: label})
-		if r.Path == d.Repo {
-			chosen = r
-		}
-	}
-	field := sdui.WithAction(sdui.Select(gateSheetID+"/repo", options, d.Repo), actGateRepo)
-	taken := d.Gated[chosen.Primary]
-	if taken {
-		field = sdui.WithError(field, gateRepoTaken)
-	}
-	hint := fmt.Sprintf(gateRepoHint, tildePath(chosen.Primary), cmp.Or(chosen.Branch, "its default branch"))
-	return []sdui.Node{sdui.HStack(sdui.MutedText("Repo"), field, sdui.MutedText(hint))}, taken || chosen.Primary == ""
 }
 
 func roundOptions(current int) []sdui.Option {

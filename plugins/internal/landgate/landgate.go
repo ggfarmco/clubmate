@@ -51,6 +51,7 @@ type Verdict struct {
 	Commit   string    `json:"commit,omitempty"`
 	Findings []string  `json:"findings,omitempty"`
 	Deferred []string  `json:"deferred,omitempty"`
+	Summary  string    `json:"summary,omitempty"`
 	At       time.Time `json:"at"`
 }
 

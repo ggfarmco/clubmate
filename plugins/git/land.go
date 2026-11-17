@@ -20,6 +20,7 @@ const (
 	landDoneCmd    = "agents.land-done"
 	landApproved   = "approved"
 	nothingToLand  = "%s adds nothing to %s; nothing landed"
+	baseGoneText   = "Base %s is gone, landed into %s."
 )
 
 var (
@@ -49,8 +50,9 @@ type landGateCall struct {
 }
 
 type landGateReply struct {
-	State string `json:"state"`
-	Text  string `json:"text"`
+	State   string `json:"state"`
+	Text    string `json:"text"`
+	Summary string `json:"summary"`
 }
 
 type landResult struct {
@@ -70,6 +72,7 @@ type landPlan struct {
 	head   string
 	old    string
 	tree   string
+	note   string
 	keep   bool
 }
 
@@ -81,9 +84,10 @@ func landCommand(ctx context.Context, a *app, c call) (any, error) {
 		return nil, err
 	}
 	if p.tree == "" {
-		return p.cleanup(ctx, c.h, c.workspaceID, landResult{Into: p.into, Source: p.source, Note: fmt.Sprintf(nothingToLand, p.source, p.into)}), nil
+		return p.cleanup(ctx, c.h, c.workspaceID, landResult{Into: p.into, Source: p.source, Note: strings.TrimSpace(p.note + " " + fmt.Sprintf(nothingToLand, p.source, p.into))}), nil
 	}
 	gate := landGateCall{Session: c.caller, Target: p.target.Path, Worktree: p.own.Path, Into: p.into, Source: p.source, Head: p.head, Old: p.old, Tree: p.tree}
+	message := c.args.Message
 	if c.agent {
 		var reply landGateReply
 		if err := c.h.RunCommand(ctx, landGateCmd, c.workspaceID, gate, &reply); err != nil {
@@ -92,8 +96,11 @@ func landCommand(ctx context.Context, a *app, c call) (any, error) {
 		if reply.State != landApproved {
 			return nil, errors.New(reply.Text)
 		}
+		if summary := strings.TrimSpace(reply.Summary); summary != "" {
+			message += "\n\n" + summary
+		}
 	}
-	commit, err := p.commit(ctx, c.args.Message)
+	commit, err := p.commit(ctx, message)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +108,7 @@ func landCommand(ctx context.Context, a *app, c call) (any, error) {
 		gate.Commit = commit
 		logError("record landing", c.h.RunCommand(ctx, landDoneCmd, c.workspaceID, gate, nil))
 	}
-	return p.cleanup(ctx, c.h, c.workspaceID, landResult{Commit: commit, Into: p.into, Source: p.source}), nil
+	return p.cleanup(ctx, c.h, c.workspaceID, landResult{Commit: commit, Into: p.into, Source: p.source, Note: p.note}), nil
 }
 
 func planLand(ctx context.Context, c call) (*landPlan, error) {
@@ -122,7 +129,7 @@ func planLand(ctx context.Context, c call) (*landPlan, error) {
 	}
 	p := &landPlan{folder: f, own: own, into: args.Into}
 	if p.into == "" {
-		if p.into, err = gitrepo.DefaultBranch(ctx, f.Trees[0].Path); err != nil {
+		if p.into, p.note, err = defaultInto(ctx, f, own, mode); err != nil {
 			return nil, err
 		}
 	}
@@ -175,6 +182,21 @@ func planLand(ctx context.Context, c call) (*landPlan, error) {
 		p.tree = ""
 	}
 	return p, nil
+}
+
+func defaultInto(ctx context.Context, f *folder, own gitrepo.Worktree, mode string) (string, string, error) {
+	base, ok := "", false
+	if mode == landModeBranch && own.Branch != "" {
+		base, ok = gitrepo.Base(ctx, own.Path, own.Branch)
+	}
+	if ok {
+		return base, "", nil
+	}
+	def, err := gitrepo.DefaultBranch(ctx, f.Trees[0].Path)
+	if err != nil || base == "" {
+		return def, "", err
+	}
+	return def, fmt.Sprintf(baseGoneText, base, def), nil
 }
 
 func folderOf(ctx context.Context, c call, path string) (*folder, gitrepo.Worktree, error) {

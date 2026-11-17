@@ -1,7 +1,6 @@
 package main_test
 
 import (
-	"path/filepath"
 	"slices"
 	"strconv"
 	"testing"
@@ -19,8 +18,13 @@ type gateListed struct {
 	Repo   string `json:"repo"`
 	Rounds int    `json:"rounds"`
 	Paused bool   `json:"paused"`
+	Point  string `json:"point"`
+	Into   string `json:"into"`
+	Graph  string `json:"graph"`
 	Name   string `json:"name"`
 	State  string `json:"state"`
+	Pin    string `json:"pin"`
+	Hash   string `json:"hash"`
 	Last   *struct {
 		Outcome string `json:"outcome"`
 	} `json:"last"`
@@ -41,6 +45,7 @@ type gateHistory struct {
 		Round    int       `json:"round"`
 		Reviewer string    `json:"reviewer"`
 		Findings []string  `json:"findings"`
+		Summary  string    `json:"summary"`
 		At       time.Time `json:"at"`
 	} `json:"verdicts"`
 }
@@ -122,7 +127,6 @@ func TestGatesSectionAddsPausesAndDeletesAGateAsTheUser(t *testing.T) {
 	f := start(t, map[string]any{})
 	repo := newRepo(t)
 	workspace := f.workspace(t, repo)
-	name := filepath.Base(repo)
 
 	require.NoError(t, f.run(t, workspace, "agents.gates.new", map[string]any{}, nil))
 	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool { return len(sheetNodes(n, "sheet")) == 1 })
@@ -131,14 +135,14 @@ func TestGatesSectionAddsPausesAndDeletesAGateAsTheUser(t *testing.T) {
 
 	gates := f.gates(t, workspace)
 	require.Len(t, gates, 1)
-	assert.Equal(t, 3, gates[0].Rounds)
+	assert.Equal(t, []any{3, "default", "fable-review"}, []any{gates[0].Rounds, gates[0].Into, gates[0].Graph})
 	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool { return len(sheetNodes(n, "sheet")) == 0 })
 	f.h.WaitSlot(t, workspace, "agents.gates.sidebar", func(n sdui.Node) bool {
 		items, _ := n.Props["items"].([]any)
 		return len(items) == 2 && n.Props["selected"] == gates[0].ID
 	})
 	f.h.WaitSlot(t, workspace, "agents.gates.main", func(n sdui.Node) bool {
-		return slices.ContainsFunc(sheetNodes(n, "header"), func(h sdui.Node) bool { return h.Props["title"] == name })
+		return slices.ContainsFunc(sheetNodes(n, "header"), func(h sdui.Node) bool { return h.Props["title"] == gates[0].Name })
 	})
 
 	agent := f.newSession(t, workspace)
@@ -156,4 +160,39 @@ func TestGatesSectionAddsPausesAndDeletesAGateAsTheUser(t *testing.T) {
 	assert.True(t, f.gates(t, workspace)[0].Paused)
 	f.h.Event(t, workspace, "agents.gates.main", gates[0].ID+"/gateDelete", "gateDelete", nil)
 	assert.Empty(t, f.gates(t, workspace))
+}
+
+func TestGateNamesFromMatch(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{})
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	for _, into := range []string{"any", "default", "base", "release/*"} {
+		require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": repo, "into": into}, nil))
+	}
+
+	names := map[string]string{}
+	for _, g := range f.gates(t, workspace) {
+		names[g.Into] = g.Name
+	}
+
+	assert.Equal(t, map[string]string{"any": "Landing into any branch", "default": "Landing into main", "base": "Landing into the base", "release/*": "Landing into release/*"}, names)
+}
+
+func TestDockRepoRowOpensItsFirstGate(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{})
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	for _, into := range []string{"any", "default"} {
+		require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": repo, "into": into}, nil))
+	}
+	gates := f.gates(t, workspace)
+	first := gates[slices.IndexFunc(gates, func(g gateListed) bool { return g.Into == "default" })]
+
+	f.h.Event(t, workspace, "agents.sidebar", "sessions", "select", "gate-repo:"+first.Repo)
+
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
+		return slices.ContainsFunc(sheetNodes(n, "header"), func(h sdui.Node) bool { return h.Props["title"] == first.Name })
+	})
 }

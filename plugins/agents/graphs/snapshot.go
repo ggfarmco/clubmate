@@ -40,6 +40,9 @@ func (e *Engine) Runs(workspace string) []RunSnapshot {
 	runs := e.a.workspaceRuns(workspace, false)
 	out := make([]RunSnapshot, 0, len(runs))
 	for _, r := range runs {
+		if r.Gate {
+			continue
+		}
 		s := RunSnapshot{ID: r.ID, Graph: r.Graph, Title: r.Title, Number: r.Number, Dir: r.Dir, Status: r.Status, Reason: r.Reason, Turns: r.Turns, MaxTurns: r.MaxTurns, Need: r.need()}
 		for _, n := range r.Nodes {
 			s.Nodes = append(s.Nodes, SnapshotNode{ID: n.ID, Role: n.Role, Session: n.Session, Step: n.Step})

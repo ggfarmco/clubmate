@@ -112,6 +112,7 @@ public struct SDUITreeDock: Sendable, Equatable, Identifiable {
     public let attention: Bool
     public let expanded: Bool
     public let rows: [SDUITreeItem]
+    public let depths: [String: Int]
     public let add: Add?
     public let cap: Int
 
@@ -123,7 +124,21 @@ public struct SDUITreeDock: Sendable, Equatable, Identifiable {
         detail = fields["detail"]?.stringValue
         attention = fields["attention"]?.boolValue ?? false
         expanded = fields["expanded"]?.boolValue ?? false
-        rows = fields["rows"]?.arrayValue?.compactMap(SDUITreeItem.init) ?? []
+        var flat: [SDUITreeItem] = []
+        var depths: [String: Int] = [:]
+        func walk(_ values: [JSONValue], _ depth: Int) {
+            for value in values {
+                guard var row = value.objectValue else { continue }
+                let children = row.removeValue(forKey: "children")?.arrayValue ?? []
+                guard let item = SDUITreeItem(.object(row)) else { continue }
+                flat.append(item)
+                depths[item.id] = depth
+                if !item.hasChildren { walk(children, depth + 1) }
+            }
+        }
+        walk(fields["rows"]?.arrayValue ?? [], 0)
+        rows = flat
+        self.depths = depths
         if let add = fields["add"]?.objectValue, let action = add["action"]?.stringValue, let label = add["label"]?.stringValue {
             self.add = Add(action: action, label: label)
         } else {

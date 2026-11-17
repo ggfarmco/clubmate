@@ -92,6 +92,7 @@ type app struct {
 	onSubscribed func()
 	showRun      func(ctx context.Context, workspace, run string) error
 	changed      func(workspace string)
+	gateEnded    func(workspace, run string)
 	stateDir     string
 	startErr     error
 	pruneAfter   time.Duration
@@ -157,6 +158,7 @@ func newApp() *app {
 	a.onSubscribed = func() {}
 	a.showRun = func(context.Context, string, string) error { return nil }
 	a.changed = func(string) {}
+	a.gateEnded = func(string, string) {}
 	a.needs = func(context.Context, string, []runNeed) {}
 	return a
 }
@@ -601,7 +603,7 @@ func (a *app) countTurn(ctx context.Context, p api.Turn, source string) {
 		owed = append(owed, r.owedSince(before, ownedCause{Reply: p.Reply})...)
 		a.touch(r.Workspace)
 		if r.Turns >= r.MaxTurns {
-			r.stop(fmt.Sprintf(reasonBudget, r.MaxTurns), a.now())
+			a.stop(r, fmt.Sprintf(reasonBudget, r.MaxTurns), a.now())
 			spent = append(spent, cloneRun(r))
 		}
 		logError(a.store.Save(ctx, r))
@@ -638,8 +640,8 @@ func (a *app) reportOutcome(ctx context.Context, runID, nodeID string, p outcome
 	r.outcome(nodeID, p.Outcome, a.now())
 	owed := r.owedSince(before, ownedCause{Outcome: p.Outcome})
 	var ended *Run
-	if slices.Contains(spec.End, p.Outcome) {
-		r.stop(fmt.Sprintf(reasonEnd, nodeID, p.Outcome), a.now())
+	if !r.Gate && slices.Contains(spec.End, p.Outcome) {
+		a.stop(r, fmt.Sprintf(reasonEnd, nodeID, p.Outcome), a.now())
 		ended = cloneRun(r)
 	}
 	a.touch(r.Workspace)
@@ -752,7 +754,7 @@ func (a *app) checkCaller(ctx context.Context, p api.Changed) {
 	var stopped []string
 	for _, r := range a.runs {
 		if r.Workspace == p.Workspace && r.Status == statusRunning && r.Caller == p.Session {
-			r.stop(reasonCaller, a.now())
+			a.stop(r, reasonCaller, a.now())
 			logError(a.store.Save(ctx, r))
 			stopped = append(stopped, r.ID)
 		}

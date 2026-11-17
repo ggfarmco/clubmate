@@ -295,6 +295,18 @@ func TestStopDuringKickoffPromptsNoFurtherStartNode(t *testing.T) {
 	assert.Equal(t, statusStopped, out.(listResult).Runs[0].Status)
 }
 
+func TestRunStartsNodeWithModel(t *testing.T) {
+	core := &fakeCore{}
+	a := testApp(t, core)
+	dir := filepath.Join(a.home, graphsDir)
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "solo.json"), []byte(`{"nodes":[{"id":"r","prompt":"p","start":true,"model":"fable","effort":"high"}]}`), 0o644))
+	runNamed(t, a, "solo")
+	node := called(core, "agents.new")[0]
+	assert.JSONEq(t, `"fable"`, string(mustField(t, node, "model")))
+	assert.JSONEq(t, `"high"`, string(mustField(t, node, "effort")))
+}
+
 func TestRunCreatesNoSessionOrTriggerForSteps(t *testing.T) {
 	core := &fakeCore{}
 	a := testApp(t, core)
@@ -475,8 +487,8 @@ func TestListWithoutProjectGraphsOrRuns(t *testing.T) {
 		Runs   json.RawMessage `json:"runs"`
 	}
 	require.NoError(t, json.Unmarshal(raw, &res))
-	require.Len(t, res.Graphs, 2)
-	assert.Equal(t, []any{"pr-walkthrough", true}, []any{res.Graphs[0].Name, res.Graphs[0].Builtin})
+	require.Len(t, res.Graphs, 3)
+	assert.Equal(t, []any{"pr-walkthrough", true}, []any{res.Graphs[1].Name, res.Graphs[1].Builtin})
 	assert.JSONEq(t, `[]`, string(res.Runs))
 }
 

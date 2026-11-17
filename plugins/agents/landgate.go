@@ -17,20 +17,28 @@ import (
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/acp"
+	"clubmate/plugins/agents/graphs"
 	"clubmate/plugins/internal/gitrepo"
 	"clubmate/plugins/internal/landgate"
 )
 
 const (
 	gitPlugin         = "git"
+	gateTreeCmd       = "git.gate-tree"
 	gatesKey          = "land-gates"
 	verdictKey        = "land-verdict/"
+	gatePinKey        = "gate-pin/"
 	gateKindReview    = "fable-review"
+	gatePointLand     = "land"
+	gateIntoAny       = "any"
+	gateIntoDefault   = "default"
+	gateIntoBase      = "base"
+	gateGraphDefault  = "fable-review"
 	gateRoundsDefault = 2
-	gateModel         = "fable"
 	gateIDPrefix      = "gt"
 	shortSha          = 10
 	gateRequestPrefix = "lg"
+	gateTreeKeyPrefix = "lt"
 	hooksDirName      = "githooks"
 	verdictsDirName   = "land-verdicts"
 	gateCardNode      = "landgate"
@@ -40,30 +48,37 @@ const (
 	gatePending  = "pending"
 	gateUser     = "user"
 
-	gateReviewerText  = "[Clubmate land reviewer] You review a change before it lands. You are read-only: never edit files, commit, merge, reset, check out, stash or delete anything, and never start sessions. Read the diff and the code around it, run read-only commands and tests when they help, and end every review with exactly one agents_land_verdict call."
-	gateFirstFormat   = "[Clubmate land review] Review this change before it lands in %s (repo %s).\nGoal: %s\nThe change: `git diff %s %s` (%s's tip, then the tree %s will hold)%s.%s\nReport confirmed correctness bugs, regressions and missed cases with file:line. Then call agents_land_verdict once with tree %s: outcome changes only for confirmed bugs, each finding as \"file:line — what breaks\"; otherwise approved. Nits and suggestions go to deferred."
-	gateDeltaFormat   = "[Clubmate land review] The lander changed the change after your findings. Review only the delta: `git diff %s %s` (the whole change is `git diff %s %s`). Then call agents_land_verdict again with tree %s."
-	gateLandedFormat  = "\nThese commits already landed on %s through the gate, each for its own diff: %s. Still review the whole change above; spend most of the time on the other commits: %s."
-	verdictTreeFormat = "tree must be the one your latest review prompt names: %s"
-	gateBusyText      = "a review of an earlier version of this change is still running (%s). End your turn; when its verdict comes, call git_land again and the reviewer gets what changed since."
-	gateCommitsFormat = ", commits `git log %s..%s`"
-	gateNudgeText     = "[Clubmate] Your land review ended without a verdict. Call agents_land_verdict now with the tree your review prompt names: approved, or changes with the confirmed bugs as findings."
-	gateNoVerdictText = "[Clubmate] The land review of %s ended without a verdict. Call git_land again to start it over."
-	gateApprovedText  = "[Clubmate] Land review of %s: approved by %s. Call git_land again to land it."
-	gateChangesText   = "[Clubmate] Land review of %s asks for changes (round %d of %d). Fix these, commit, and call git_land again:\n%s"
-	gateDeferredText  = "\nDeferred (file them in the backlog, they don't block):\n%s"
-	gateUserLandText  = "[Clubmate] The user agreed to land %s without another review. Call git_land again to land it."
-	gateUserStopText  = "[Clubmate] The user stopped landing %s. Don't land it; report what is left."
-	gatePendingText   = "review pending: %s. End your turn; Clubmate prompts you with the verdict."
-	gateWaitsUserText = "the review asked for changes %d times, so this landing waits for the user's answer. End your turn; Clubmate prompts you with it."
-	gateChangesResult = "the review asked for changes; fix them and call git_land again:\n%s"
-	gateCardTitle     = "Land %s without another review?"
-	gateCardCaption   = "The review asked for changes %d times"
-	gateAgainCaption  = "; asked again because the change or its target moved after the last answer"
-	gateCardRule      = "Land anyway squashes it into %s as it is. Stop tells the agent not to land it."
-	gateLandLabel     = "Land anyway"
-	gateStopLabel     = "Stop"
-	gateMovedLog      = "agents: %s moved without a land verdict: %s"
+	gateNodeText        = "[Clubmate land gate node] You help a land gate review a change before it lands. You are read-only: never edit files, commit, merge, reset, check out, stash or delete anything, and never start sessions. Do what your node's prompt asks and put your findings in your reply; another node of the gate's graph decides the landing, so don't call agents_land_verdict."
+	gateReviewerText    = "[Clubmate land reviewer] You review a change before it lands. You are read-only: never edit files, commit, merge, reset, check out, stash or delete anything, and never start sessions. Read the diff and the code around it, run read-only commands and tests when they help, and end every review with exactly one agents_land_verdict call."
+	gateFirstFormat     = "[Clubmate land review] Review this change before it lands in %s (repo %s).\nGoal: %s\nThe change: `git diff %s %s` (%s's tip, then the tree %s will hold)%s.%s\nReport confirmed correctness bugs, regressions and missed cases with file:line."
+	gateFirstVerdict    = " Then call agents_land_verdict once with tree %s: outcome changes only for confirmed bugs, each finding as \"file:line — what breaks\"; otherwise approved. Nits and suggestions go to deferred."
+	gateDeltaFormat     = "[Clubmate land review] The lander changed the change after your findings. Review only the delta: `git diff %s %s` (the whole change is `git diff %s %s`)."
+	gateDeltaVerdict    = " Then call agents_land_verdict again with tree %s."
+	gateLandedFormat    = "\nThese commits already landed on %s through the gate, each for its own diff: %s. Still review the whole change above; spend most of the time on the other commits: %s."
+	verdictTreeFormat   = "tree must be the one your latest review prompt names: %s"
+	gateBusyText        = "a review of an earlier version of this change is still running (%s). End your turn; when its verdict comes, call git_land again and the reviewer gets what changed since."
+	gateCommitsFormat   = ", commits `git log %s..%s`"
+	gateNudgeText       = "[Clubmate] Your land review ended without a verdict. Call agents_land_verdict now with the tree your review prompt names: approved, or changes with the confirmed bugs as findings."
+	gateNoVerdictText   = "[Clubmate] The land review of %s ended without a verdict. Call git_land again to start it over."
+	gateApprovedText    = "[Clubmate] Land review of %s: approved by %s. Call git_land again to land it."
+	gateChangesText     = "[Clubmate] Land review of %s asks for changes (round %d of %d). Fix these, commit, and call git_land again:\n%s"
+	gateDeferredText    = "\nDeferred (file them in the backlog, they don't block):\n%s"
+	gateUserLandText    = "[Clubmate] The user agreed to land %s without another review. Call git_land again to land it."
+	gateUserMoreText    = "[Clubmate] The user allowed one more review round for %s. Call git_land again for one more review round."
+	gateUserMoreFixText = "[Clubmate] The user allowed one more review round for %s. Fix the review's findings and commit, then call git_land again for one more review round."
+	gateUserStopText    = "[Clubmate] The user stopped landing %s. Don't land it; report what is left."
+	gatePendingText     = "review pending: %s. End your turn; Clubmate prompts you with the verdict."
+	gateWaitsUserText   = "the review asked for changes %d times, so this landing waits for the user's answer. End your turn; Clubmate prompts you with it."
+	gateChangesResult   = "the review asked for changes; fix them and call git_land again:\n%s"
+	gateCardTitle       = "Land %s without another review?"
+	gateCardCaption     = "The review asked for changes %d times"
+	gateAgainCaption    = "; asked again because the change or its target moved after the last answer"
+	gateCardRule        = "Land anyway squashes it into %s as it is. One more round runs the review again after the agent fixes the findings. Stop tells the agent not to land it."
+	gateLandLabel       = "Land anyway"
+	gateMoreLabel       = "One more round"
+	gateStopLabel       = "Stop"
+	gateMovedLog        = "agents: %s moved without a land verdict: %s"
+	gateUnreadText      = "the gate's graph %s can't be read: %v"
 )
 
 var (
@@ -77,34 +92,44 @@ var (
 
 	errGitOnly      = errors.New("only the git plugin calls this")
 	errGateUser     = errors.New("only the user changes land gates")
-	errGateKind     = errors.New("kind is fable-review")
-	errGateExists   = errors.New("this repo already has a land gate")
+	errGateExists   = errors.New("this repo already has a land gate for this target")
+	errGateInto     = errors.New("into is any, default, base, a branch or a branch glob")
+	errGateGraph    = errors.New("graph names a graph")
 	errGateUnknown  = errors.New("no such land gate")
 	errGateRounds   = errors.New("rounds is 1 or more")
 	errNotReviewer  = errors.New("only a land reviewer session gives a verdict")
 	errNoReview     = errors.New("no land review is waiting for a verdict")
 	errVerdict      = errors.New("outcome is approved or changes, and changes needs findings")
 	errGateNoLander = errors.New("git_land needs the calling agent session")
+	errDecided      = errors.New("already decided: this tree has its verdict")
+	errTrustStale   = errors.New("the gate's graph changed since it was shown: look at it again")
 )
 
 type gateConfig struct {
-	ID        string    `json:"id"`
-	Repo      string    `json:"repo"`
-	Kind      string    `json:"kind"`
-	Rounds    int       `json:"rounds"`
-	Paused    bool      `json:"paused,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID         string    `json:"id"`
+	Repo       string    `json:"repo"`
+	Point      string    `json:"point"`
+	Into       string    `json:"into"`
+	Graph      string    `json:"graph"`
+	Pin        string    `json:"pin,omitempty"`
+	PinBuiltin bool      `json:"pinBuiltin,omitempty"`
+	Kind       string    `json:"kind,omitempty"`
+	Rounds     int       `json:"rounds"`
+	Paused     bool      `json:"paused,omitempty"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 type gateFor struct {
-	Gate   string `json:"gate,omitempty"`
-	Lander string `json:"lander"`
-	Into   string `json:"into"`
-	Source string `json:"source,omitempty"`
-	Old    string `json:"old,omitempty"`
-	Tree   string `json:"tree,omitempty"`
-	Done   bool   `json:"done,omitempty"`
-	Nudged bool   `json:"nudged,omitempty"`
+	Gate    string `json:"gate,omitempty"`
+	Lander  string `json:"lander"`
+	Into    string `json:"into"`
+	Source  string `json:"source,omitempty"`
+	Old     string `json:"old,omitempty"`
+	Tree    string `json:"tree,omitempty"`
+	Run     string `json:"run,omitempty"`
+	Verdict bool   `json:"verdict,omitempty"`
+	Done    bool   `json:"done,omitempty"`
+	Nudged  bool   `json:"nudged,omitempty"`
 }
 
 type landReview struct {
@@ -114,10 +139,15 @@ type landReview struct {
 	Source   string    `json:"source,omitempty"`
 	Repo     string    `json:"repo"`
 	Reviewer string    `json:"reviewer,omitempty"`
+	Run      string    `json:"run,omitempty"`
+	TreeKey  string    `json:"treeKey,omitempty"`
 	Old      string    `json:"old,omitempty"`
 	Tree     string    `json:"tree,omitempty"`
+	ReqOld   string    `json:"reqOld,omitempty"`
+	ReqTree  string    `json:"reqTree,omitempty"`
 	Rounds   int       `json:"rounds,omitempty"`
 	Cap      int       `json:"cap,omitempty"`
+	Extra    int       `json:"extra,omitempty"`
 	Request  string    `json:"request,omitempty"`
 	Answered string    `json:"answered,omitempty"`
 	Moved    bool      `json:"moved,omitempty"`
@@ -131,14 +161,18 @@ type gatesResult struct {
 
 type gateAddArgs struct {
 	Repo   string `json:"repo"`
-	Kind   string `json:"kind"`
+	Into   string `json:"into"`
+	Graph  string `json:"graph"`
 	Rounds int    `json:"rounds"`
 }
 
 type gateUpdateArgs struct {
-	ID     string `json:"id"`
-	Paused *bool  `json:"paused"`
-	Rounds *int   `json:"rounds"`
+	ID     string  `json:"id"`
+	Paused *bool   `json:"paused"`
+	Rounds *int    `json:"rounds"`
+	Into   *string `json:"into"`
+	Graph  *string `json:"graph"`
+	Trust  *string `json:"trust"`
 }
 
 type gateIDArgs struct {
@@ -163,6 +197,7 @@ type landGateResult struct {
 	Text     string   `json:"text,omitempty"`
 	Findings []string `json:"findings,omitempty"`
 	Deferred []string `json:"deferred,omitempty"`
+	Summary  string   `json:"summary,omitempty"`
 }
 
 type landVerdictArgs struct {
@@ -170,6 +205,7 @@ type landVerdictArgs struct {
 	Outcome  string   `json:"outcome"`
 	Findings []string `json:"findings"`
 	Deferred []string `json:"deferred"`
+	Summary  string   `json:"summary"`
 }
 
 func (r landReview) subject() string {
@@ -191,6 +227,9 @@ func (a *app) gates(ctx context.Context) ([]gateConfig, error) {
 	var out []gateConfig
 	if _, err := a.host.StorageGet(ctx, gatesKey, &out); err != nil {
 		return nil, err
+	}
+	for i := range out {
+		out[i] = out[i].migrated()
 	}
 	a.keepGates(out)
 	return out, nil
@@ -225,17 +264,94 @@ func (a *app) gateLive(id string) bool {
 	return (*live)[id]
 }
 
-func (a *app) gateFor(ctx context.Context, worktree string) *gateConfig {
+func (g gateConfig) migrated() gateConfig {
+	if g.Graph == "" {
+		g.Point, g.Into, g.Graph, g.Kind = gatePointLand, gateIntoAny, gateGraphDefault, ""
+	}
+	return g
+}
+
+func (a *app) repoGated(ctx context.Context, worktree string) bool {
+	gates, err := a.gates(ctx)
+	if err != nil || len(gates) == 0 {
+		return false
+	}
+	primary := primaryOf(ctx, worktree)
+	return primary != "" && slices.ContainsFunc(gates, func(g gateConfig) bool { return g.Repo == primary && !g.Paused })
+}
+
+func (a *app) landingGate(ctx context.Context, target, into, source string) *gateConfig {
 	gates, err := a.gates(ctx)
 	if err != nil || len(gates) == 0 {
 		return nil
 	}
-	primary := primaryOf(ctx, worktree)
+	primary := primaryOf(ctx, target)
 	if primary == "" {
 		return nil
 	}
-	if i := slices.IndexFunc(gates, func(g gateConfig) bool { return g.Repo == primary && !g.Paused }); i >= 0 {
-		return &gates[i]
+	def, _ := gitrepo.DefaultBranch(ctx, target)
+	base := ""
+	if source != "" {
+		if b, ok := gitrepo.Base(ctx, target, source); ok {
+			base = b
+		}
+	}
+	var best *gateConfig
+	bestRank := 0
+	for i, g := range gates {
+		if g.Repo != primary || g.Paused || g.Point != gatePointLand {
+			continue
+		}
+		rank := intoRank(g.Into, into, def, base)
+		if rank > bestRank || rank > 0 && rank == bestRank && len(g.Into) > len(best.Into) {
+			best, bestRank = &gates[i], rank
+		}
+	}
+	return best
+}
+
+func intoRank(match, into, def, base string) int {
+	switch {
+	case match == gateIntoAny:
+		return 1
+	case match == gateIntoDefault:
+		if def == "" || into == def {
+			return 2
+		}
+	case match == gateIntoBase:
+		if base != "" && into == base {
+			return 3
+		}
+	case match == into:
+		return 5
+	case isGlob(match):
+		if ok, _ := path.Match(match, into); ok {
+			return 4
+		}
+	}
+	return 0
+}
+
+func isGlob(into string) bool {
+	return strings.ContainsAny(into, "*?[")
+}
+
+func validInto(into string) error {
+	if into == "" || strings.TrimSpace(into) != into {
+		return errGateInto
+	}
+	if _, err := path.Match(into, ""); err != nil {
+		return errGateInto
+	}
+	return nil
+}
+
+func sameMatch(gates []gateConfig, g gateConfig) error {
+	i := slices.IndexFunc(gates, func(o gateConfig) bool {
+		return o.ID != g.ID && o.Repo == g.Repo && o.Point == g.Point && o.Into == g.Into
+	})
+	if i >= 0 {
+		return fmt.Errorf("%w (%s)", errGateExists, gates[i].ID)
 	}
 	return nil
 }
@@ -250,7 +366,7 @@ func primaryOf(ctx context.Context, worktree string) string {
 
 func (a *app) gateEnv(ctx context.Context, rec record) map[string]string {
 	none := map[string]string{}
-	if a.gateFor(ctx, rec.Worktree) == nil {
+	if !a.repoGated(ctx, rec.Worktree) {
 		return none
 	}
 	_, common, err := gitrepo.Dirs(ctx, rec.Worktree)
@@ -264,6 +380,9 @@ func (a *app) gateEnv(ctx context.Context, rec record) map[string]string {
 	protect := []string{"refs/heads/" + branch}
 	if l := a.layout(ctx, rec); l != nil && !l.onDefault {
 		protect = append(protect, "refs/heads/"+l.parent.Branch)
+	}
+	if base := baseOf(ctx, rec.Worktree); base != "" && !slices.Contains(protect, "refs/heads/"+base) {
+		protect = append(protect, "refs/heads/"+base)
 	}
 	return landgate.SessionEnv(os.Environ(), a.hooksDir(), common, protect, a.verdictsDir())
 }
@@ -301,15 +420,21 @@ func (a *app) gateAddCommand(ctx context.Context, cmd pluginsdk.CommandRun, args
 }
 
 func (a *app) addGate(ctx context.Context, args gateAddArgs) (gateConfig, error) {
-	if args.Kind != "" && args.Kind != gateKindReview {
-		return gateConfig{}, errGateKind
-	}
 	if args.Rounds < 0 {
 		return gateConfig{}, errGateRounds
+	}
+	into := cmp.Or(args.Into, gateIntoAny)
+	if err := validInto(into); err != nil {
+		return gateConfig{}, err
 	}
 	primary := primaryOf(ctx, args.Repo)
 	if primary == "" {
 		return gateConfig{}, errNotGit
+	}
+	graph := cmp.Or(strings.TrimSpace(args.Graph), gateGraphDefault)
+	pin, builtin, err := a.gatePin(ctx, primary, graph)
+	if err != nil {
+		return gateConfig{}, err
 	}
 	a.gateMu.Lock()
 	defer a.gateMu.Unlock()
@@ -317,11 +442,25 @@ func (a *app) addGate(ctx context.Context, args gateAddArgs) (gateConfig, error)
 	if err != nil {
 		return gateConfig{}, err
 	}
-	if i := slices.IndexFunc(gates, func(g gateConfig) bool { return g.Repo == primary }); i >= 0 {
-		return gateConfig{}, fmt.Errorf("%w (%s)", errGateExists, gates[i].ID)
+	g := gateConfig{
+		ID:         id.New(gateIDPrefix),
+		Repo:       primary,
+		Point:      gatePointLand,
+		Into:       into,
+		Graph:      graph,
+		Pin:        pin,
+		PinBuiltin: builtin,
+		Rounds:     cmp.Or(args.Rounds, gateRoundsDefault),
+		CreatedAt:  time.Now().UTC(),
 	}
-	g := gateConfig{ID: id.New(gateIDPrefix), Repo: primary, Kind: gateKindReview, Rounds: cmp.Or(args.Rounds, gateRoundsDefault), CreatedAt: time.Now().UTC()}
-	return g, a.saveGates(ctx, append(gates, g))
+	if err := sameMatch(gates, g); err != nil {
+		return gateConfig{}, err
+	}
+	if err := a.saveGates(ctx, append(gates, g)); err != nil {
+		return gateConfig{}, err
+	}
+	a.keepPinned(ctx, g)
+	return g, nil
 }
 
 func (a *app) gateUpdateCommand(ctx context.Context, cmd pluginsdk.CommandRun, args gateUpdateArgs) (any, error) {
@@ -342,25 +481,145 @@ func (a *app) updateGate(ctx context.Context, args gateUpdateArgs) error {
 		if args.Paused != nil {
 			gates[i].Paused = *args.Paused
 		}
+		if args.Into != nil {
+			if err := validInto(*args.Into); err != nil {
+				return nil, err
+			}
+			gates[i].Into = *args.Into
+			if err := sameMatch(gates, gates[i]); err != nil {
+				return nil, err
+			}
+		}
+		if args.Graph != nil {
+			graph := strings.TrimSpace(*args.Graph)
+			if graph == "" {
+				return nil, errGateGraph
+			}
+			if graph != gates[i].Graph {
+				pin, builtin, err := a.gatePin(ctx, gates[i].Repo, graph)
+				if err != nil {
+					return nil, err
+				}
+				gates[i].Graph, gates[i].Pin, gates[i].PinBuiltin = graph, pin, builtin
+				a.keepPinned(ctx, gates[i])
+			}
+		}
+		if args.Trust != nil {
+			hash, _, err := a.graphs.GateGraph(ctx, gates[i].Repo, gates[i].Graph)
+			if err != nil {
+				return nil, err
+			}
+			if *args.Trust != hash {
+				return nil, errTrustStale
+			}
+			gates[i].Pin, gates[i].PinBuiltin = hash, hash == graphs.BuiltinHash(gates[i].Graph)
+			a.keepPinned(ctx, gates[i])
+		}
 		return gates, nil
 	})
+}
+
+func (a *app) gatePin(ctx context.Context, repo, graph string) (string, bool, error) {
+	hash, valid, err := a.graphs.GateGraph(ctx, repo, graph)
+	if err != nil {
+		return "", false, err
+	}
+	if !valid {
+		return "", false, graphs.GateUndecided(graph)
+	}
+	return hash, hash == graphs.BuiltinHash(graph), nil
+}
+
+func (a *app) gateGraphTrust(ctx context.Context, g gateConfig) gateGraphCheck {
+	hash, _, err := a.graphs.GateGraph(ctx, g.Repo, g.Graph)
+	switch {
+	case err != nil:
+		return gateGraphCheck{text: fmt.Sprintf(gateUnreadText, g.Graph, err)}
+	case hash == g.Pin:
+		return gateGraphCheck{hash: hash, ok: true}
+	case (g.Pin == "" || g.PinBuiltin) && hash == graphs.BuiltinHash(g.Graph):
+		return gateGraphCheck{hash: hash, ok: true, repin: true}
+	}
+	return gateGraphCheck{hash: hash, text: graphs.ErrGateGraphChanged.Error()}
+}
+
+func (a *app) gateGraphReady(ctx context.Context, g gateConfig) gateGraphCheck {
+	check := a.gateGraphTrust(ctx, g)
+	if check.repin {
+		logError("pin built-in gate graph", a.changeGate(ctx, g.ID, func(gates []gateConfig, i int) ([]gateConfig, error) {
+			gates[i].Pin, gates[i].PinBuiltin = check.hash, true
+			a.keepPinned(ctx, gates[i])
+			return gates, nil
+		}))
+	}
+	return check
 }
 
 func (a *app) gateDeleteCommand(ctx context.Context, cmd pluginsdk.CommandRun, args gateIDArgs) (any, error) {
 	if !a.userWord(cmd) {
 		return nil, errGateUser
 	}
-	return nil, a.deleteGate(ctx, args.ID)
+	return nil, a.deleteGate(ctx, cmd.WorkspaceID, args.ID)
 }
 
-func (a *app) deleteGate(ctx context.Context, gateID string) error {
+func (a *app) deleteGate(ctx context.Context, workspaceID, gateID string) error {
+	var repo string
 	err := a.changeGate(ctx, gateID, func(gates []gateConfig, i int) ([]gateConfig, error) {
+		repo = gates[i].Repo
 		return slices.Delete(gates, i, i+1), nil
 	})
 	if err != nil {
 		return err
 	}
+	a.dropGateLandings(ctx, gateID)
+	logError("remove gate worktree", a.host.RunCommand(ctx, gateTreeCmd, workspaceID, map[string]any{"repo": repo, "gate": gateID, "remove": true}, nil))
+	logError("forget pinned gate graph", a.host.StorageDelete(ctx, gatePinKey+gateID))
 	return a.host.StorageDelete(ctx, gateHistoryKey+gateID)
+}
+
+func (a *app) dropGateLandings(ctx context.Context, gateID string) {
+	for _, s := range a.allSessions() {
+		a.gateMu.Lock()
+		var gone []landReview
+		for _, st := range s.snapshot().LandReviews {
+			if st.Gate == gateID {
+				gone = append(gone, st)
+				s.dropLandReview(st.Into, st.Source)
+			}
+		}
+		a.gateMu.Unlock()
+		if len(gone) == 0 {
+			continue
+		}
+		a.saveNow(ctx, s)
+		for _, st := range gone {
+			a.stopLanding(ctx, s.snapshot(), st)
+		}
+	}
+}
+
+func (a *app) stopLanding(ctx context.Context, lander record, st landReview) {
+	if st.Run != "" {
+		logError("stop gate run", a.graphs.StopGate(ctx, st.Run))
+	}
+	a.closeGateNodes(ctx, a.landingNodes(lander.Workspace, gateFor{Lander: lander.ID, Into: st.Into, Source: st.Source}))
+}
+
+func (a *app) keepPinned(ctx context.Context, g gateConfig) {
+	info, err := a.graphs.GateGraphInfo(ctx, g.Repo, g.Graph)
+	if err != nil || info.Hash != g.Pin {
+		return
+	}
+	logError("keep pinned gate graph", a.host.StorageSet(ctx, gatePinKey+g.ID, info))
+}
+
+func (a *app) pinnedGraph(ctx context.Context, g gateConfig) *graphs.GateGraphInfo {
+	var info graphs.GateGraphInfo
+	found, err := a.host.StorageGet(ctx, gatePinKey+g.ID, &info)
+	if err != nil || !found || info.Hash != g.Pin {
+		return nil
+	}
+	return &info
 }
 
 func (a *app) changeGate(ctx context.Context, gateID string, change func([]gateConfig, int) ([]gateConfig, error)) error {
@@ -388,14 +647,18 @@ func (a *app) landGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 	if cmd.Via != gitPlugin {
 		return nil, errGitOnly
 	}
-	g := a.gateFor(ctx, args.Target)
+	g := a.landingGate(ctx, args.Target, args.Into, args.Source)
 	if g == nil {
 		return landGateResult{State: gateApproved}, nil
 	}
 	if v, ok := a.readVerdict(ctx, args.Old, args.Tree); ok {
 		switch v.Outcome {
 		case gateApproved:
-			return landGateResult{State: gateApproved}, nil
+			res := landGateResult{State: gateApproved}
+			if v.By == landgate.ByReviewer {
+				res.Summary = v.Summary
+			}
+			return res, nil
 		case gateChanges:
 			if a.roundsUsed(cmd.WorkspaceID, args, *g) {
 				break
@@ -415,7 +678,7 @@ func (a *app) landGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 	if err != nil {
 		return nil, errGateNoLander
 	}
-	return a.reviewLanding(ctx, cmd.WorkspaceID, lander, *g, args)
+	return a.reviewLanding(ctx, cmd.WorkspaceID, lander, *g, args, a.gateGraphReady(ctx, *g))
 }
 
 func (a *app) roundsUsed(workspaceID string, args landGateArgs, g gateConfig) bool {
@@ -423,60 +686,98 @@ func (a *app) roundsUsed(workspaceID string, args landGateArgs, g gateConfig) bo
 	if err != nil {
 		return false
 	}
-	return lander.landReview(args.Into, args.Source).Rounds >= g.Rounds
+	st := lander.landReview(args.Into, args.Source)
+	return st.Rounds >= g.Rounds+st.Extra
 }
 
-func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *session, g gateConfig, args landGateArgs) (landGateResult, error) {
+type gateGraphCheck struct {
+	hash  string
+	text  string
+	ok    bool
+	repin bool
+}
+
+func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *session, g gateConfig, args landGateArgs, graph gateGraphCheck) (landGateResult, error) {
+	var stale []*session
+	defer func() { a.closeGateNodes(context.WithoutCancel(ctx), stale) }()
 	a.gateMu.Lock()
 	defer a.gateMu.Unlock()
 	st := lander.landReview(args.Into, args.Source)
-	st.Repo, st.Cap, st.Gate = args.Target, g.Rounds, g.ID
+	made := st
+	st.Repo, st.Cap, st.Gate = args.Target, g.Rounds+st.Extra, g.ID
 	if st.Request != "" {
 		return landGateResult{State: gateUser, Text: fmt.Sprintf(gateWaitsUserText, st.Rounds)}, nil
 	}
-	if st.Rounds >= g.Rounds {
-		st.Request, st.Old, st.Tree, st.Since = id.New(gateRequestPrefix), args.Old, args.Tree, time.Now().UTC()
+	if st.Rounds >= st.Cap {
+		st.Request, st.ReqOld, st.ReqTree, st.Since = id.New(gateRequestPrefix), args.Old, args.Tree, time.Now().UTC()
 		st.Moved = st.Answered != "" && st.Answered != args.Old+"-"+args.Tree
 		lander.putLandReview(st)
 		a.saveNow(ctx, lander)
 		return landGateResult{State: gateUser, Text: fmt.Sprintf(gateWaitsUserText, st.Rounds)}, nil
 	}
-	reviewer := a.session(st.Reviewer)
-	alive := reviewer != nil && !reviewer.snapshot().closed()
-	if running := reviewer.runningGate(); alive && running != nil {
+	live := a.gateRunLive(ctx, workspaceID, st.Run)
+	if running := a.session(st.Reviewer).runningGate(); live && running != nil {
 		if running.Old == args.Old && running.Tree == args.Tree {
 			return landGateResult{State: gatePending, Reviewer: st.Reviewer, Text: fmt.Sprintf(gatePendingText, st.Reviewer)}, nil
 		}
 		return landGateResult{State: gatePending, Reviewer: st.Reviewer, Text: fmt.Sprintf(gateBusyText, st.Reviewer)}, nil
 	}
-	gf := &gateFor{Gate: g.ID, Lander: lander.snapshot().ID, Into: args.Into, Source: args.Source, Old: args.Old, Tree: args.Tree}
-	if alive && st.Tree != "" {
-		text := fmt.Sprintf(gateDeltaFormat, st.Tree, args.Tree, args.Old, args.Tree, args.Tree)
+	if !graph.ok {
+		return landGateResult{State: gateUser, Text: graph.text}, nil
+	}
+	steps := a.graphs.GateSteps(ctx, g.Repo, g.Graph)
+	gf := gateFor{Gate: g.ID, Lander: lander.snapshot().ID, Into: args.Into, Source: args.Source, Old: args.Old, Tree: args.Tree, Run: st.Run}
+	prompted := false
+	if live && st.Tree != "" && made.Gate == g.ID && (!steps || st.TreeKey != "") && a.graphs.GateRunOf(ctx, st.Run, g.Graph, graph.hash) && a.graphs.GateStepsIdle(ctx, st.Run) {
+		if steps {
+			if _, err := a.gateTree(ctx, workspaceID, g, st.TreeKey, args); err != nil {
+				return landGateResult{}, err
+			}
+		}
+		other := fmt.Sprintf(gateDeltaFormat, st.Tree, args.Tree, args.Old, args.Tree)
+		verdict := other + fmt.Sprintf(gateDeltaVerdict, args.Tree)
 		if st.Old != args.Old {
-			text = a.firstReviewPrompt(ctx, lander.snapshot(), args)
+			other = a.firstReviewPrompt(ctx, lander.snapshot(), args)
+			verdict = other + fmt.Sprintf(gateFirstVerdict, args.Tree)
 		}
-		reviewer.setGateFor(gf)
-		if err := a.submit(reviewer, &promptArgs{Text: text}); err != nil {
-			return landGateResult{}, err
+		err := a.graphs.PromptGate(ctx, st.Run, verdict, other)
+		if prompted = err == nil; prompted {
+			a.openGateRound(ctx, workspaceID, gf)
 		}
-	} else {
-		if alive {
-			a.closeReviewer(ctx, reviewer)
+		logError("prompt gate run", err)
+	}
+	if !prompted {
+		if st.Run != "" {
+			logError("stop gate run", a.graphs.StopGate(ctx, st.Run))
 		}
-		cwd := cmp.Or(args.Worktree, args.Target)
-		res, err := a.newSession(ctx, a.host, workspaceID, "", newArgs{
-			Title:     "Land review · " + st.subject(),
-			Prompt:    a.firstReviewPrompt(ctx, lander.snapshot(), args),
-			Model:     gateModel,
-			Notify:    notifyNeedsInput,
-			worktree:  cwd,
-			gate:      gf,
-			startedBy: lander.snapshot().ID,
+		a.dropGateTree(ctx, workspaceID, made)
+		st.TreeKey = ""
+		stale = a.landingNodes(workspaceID, gf)
+		var dir string
+		if steps {
+			key := id.New(gateTreeKeyPrefix)
+			var err error
+			if dir, err = a.gateTree(ctx, workspaceID, g, key, args); err != nil {
+				return landGateResult{}, err
+			}
+			st.TreeKey = key
+		}
+		first := a.firstReviewPrompt(ctx, lander.snapshot(), args)
+		run, verdict, err := a.graphs.StartGate(ctx, graphs.GateRun{
+			Workspace: workspaceID,
+			Graph:     g.Graph,
+			Pin:       graph.hash,
+			Repo:      g.Repo,
+			Input:     first + fmt.Sprintf(gateFirstVerdict, args.Tree),
+			Other:     first,
+			Dir:       dir,
+			NewNode:   a.gateNode(workspaceID, st.subject(), cmp.Or(args.Worktree, args.Target), gf),
 		})
 		if err != nil {
+			a.dropGateTree(ctx, workspaceID, st)
 			return landGateResult{}, err
 		}
-		st.Reviewer = res.Session
+		st.Run, st.Reviewer = run, verdict
 		a.kick(workspaceID)
 	}
 	st.Old, st.Tree, st.Last = args.Old, args.Tree, ""
@@ -484,6 +785,128 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 	a.saveNow(ctx, lander)
 	a.gatesChanged()
 	return landGateResult{State: gatePending, Reviewer: st.Reviewer, Text: fmt.Sprintf(gatePendingText, st.Reviewer)}, nil
+}
+
+func (a *app) gateTree(ctx context.Context, workspaceID string, g gateConfig, key string, args landGateArgs) (string, error) {
+	var out struct {
+		Path string `json:"path"`
+	}
+	if err := a.host.RunCommand(ctx, gateTreeCmd, workspaceID, map[string]any{"repo": g.Repo, "gate": g.ID, "key": key, "old": args.Old, "tree": args.Tree}, &out); err != nil {
+		return "", fmt.Errorf("prepare the gate's worktree: %w", err)
+	}
+	return out.Path, nil
+}
+
+func (a *app) dropGateTree(ctx context.Context, workspaceID string, st landReview) {
+	if st.TreeKey == "" || st.Gate == "" {
+		return
+	}
+	logError("remove gate worktree", a.host.RunCommand(context.WithoutCancel(ctx), gateTreeCmd, workspaceID, map[string]any{"repo": st.Repo, "gate": st.Gate, "key": st.TreeKey, "remove": true}, nil))
+}
+
+func (a *app) landerClosed(ctx context.Context, s *session) {
+	held := func(st landReview) bool { return st.Run != "" || st.TreeKey != "" }
+	if !slices.ContainsFunc(s.snapshot().LandReviews, held) {
+		return
+	}
+	a.gateMu.Lock()
+	var drop []landReview
+	for _, st := range s.snapshot().LandReviews {
+		if held(st) {
+			drop = append(drop, st)
+			st.TreeKey = ""
+			s.putLandReview(st)
+		}
+	}
+	a.gateMu.Unlock()
+	a.saveNow(ctx, s)
+	for _, st := range drop {
+		a.stopLanding(ctx, s.snapshot(), st)
+		a.dropGateTree(ctx, s.snapshot().Workspace, st)
+	}
+}
+
+func (a *app) gateNode(workspaceID, subject, cwd string, gf gateFor) func(context.Context, graphs.GateNode) (string, error) {
+	return func(ctx context.Context, n graphs.GateNode) (string, error) {
+		node := gf
+		node.Run, node.Verdict = n.Run, n.Verdict
+		title := "Land review · " + subject
+		if !n.Verdict {
+			title += " · " + n.Title
+		}
+		res, err := a.newSession(ctx, a.host, workspaceID, "", newArgs{
+			Title:     title,
+			Model:     n.Model,
+			Effort:    n.Effort,
+			Notify:    notifyNeedsInput,
+			worktree:  cwd,
+			gate:      &node,
+			startedBy: gf.Lander,
+		})
+		return res.Session, err
+	}
+}
+
+func (a *app) gateNodes(workspaceID, run string) []*session {
+	var out []*session
+	for _, s := range a.workspaceSessions(workspaceID) {
+		if gf := s.snapshot().GateFor; gf != nil && run != "" && gf.Run == run {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func (a *app) gateRunLive(ctx context.Context, workspaceID, run string) bool {
+	if run == "" || !a.graphs.GateRunning(ctx, run) {
+		return false
+	}
+	nodes := a.graphs.GateSessions(ctx, run)
+	return len(nodes) > 0 && !slices.ContainsFunc(nodes, func(id string) bool {
+		s := a.session(id)
+		return s == nil || s.snapshot().Workspace != workspaceID || s.snapshot().closed()
+	})
+}
+
+func (a *app) landingNodes(workspaceID string, gf gateFor) []*session {
+	var out []*session
+	for _, s := range a.workspaceSessions(workspaceID) {
+		rec := s.snapshot()
+		if n := rec.GateFor; n != nil && !rec.closed() && n.Lander == gf.Lander && n.Into == gf.Into && n.Source == gf.Source {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func (a *app) closeGateNodes(ctx context.Context, nodes []*session) {
+	for _, s := range nodes {
+		if a.closeReviewer(ctx, s); !s.snapshot().closed() {
+			a.closeSession(ctx, s, false)
+		}
+	}
+}
+
+func (a *app) openGateRound(ctx context.Context, workspaceID string, gf gateFor) {
+	for _, s := range a.gateNodes(workspaceID, gf.Run) {
+		node := gf
+		node.Verdict = s.snapshot().GateFor.Verdict
+		s.setGateFor(&node)
+		a.saveNow(ctx, s)
+	}
+}
+
+func (a *app) closeGateRound(ctx context.Context, workspaceID string, run string, also *session) {
+	nodes := a.gateNodes(workspaceID, run)
+	if also != nil && !slices.Contains(nodes, also) {
+		nodes = append(nodes, also)
+	}
+	for _, s := range nodes {
+		gf := *s.snapshot().GateFor
+		gf.Done = true
+		s.setGateFor(&gf)
+		a.saveNow(ctx, s)
+	}
 }
 
 func (a *app) firstReviewPrompt(ctx context.Context, lander record, args landGateArgs) string {
@@ -494,7 +917,7 @@ func (a *app) firstReviewPrompt(ctx context.Context, lander record, args landGat
 			landed = fmt.Sprintf(gateLandedFormat, args.Source, strings.Join(done, ", "), cmp.Or(strings.Join(rest, ", "), "none"))
 		}
 	}
-	return fmt.Sprintf(gateFirstFormat, args.Into, filepath.Base(primaryOf(ctx, args.Target)), lander.Title, args.Old, args.Tree, args.Into, args.Into, commits, landed, args.Tree)
+	return fmt.Sprintf(gateFirstFormat, args.Into, filepath.Base(primaryOf(ctx, args.Target)), lander.Title, args.Old, args.Tree, args.Into, args.Into, commits, landed)
 }
 
 func (a *app) readVerdict(ctx context.Context, old, tree string) (landgate.Verdict, bool) {
@@ -564,8 +987,8 @@ func docsOnly(ctx context.Context, repo, old, tree string) bool {
 }
 
 func (a *app) landVerdictCommand(ctx context.Context, cmd pluginsdk.CommandRun, args landVerdictArgs) (any, error) {
-	reviewer := a.session(cmd.Caller)
-	if reviewer == nil || reviewer.snapshot().GateFor == nil {
+	node := a.session(cmd.Caller)
+	if node == nil || node.snapshot().GateFor == nil {
 		return nil, errNotReviewer
 	}
 	if args.Outcome != gateApproved && (args.Outcome != gateChanges || len(args.Findings) == 0) {
@@ -573,27 +996,34 @@ func (a *app) landVerdictCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 	}
 	a.gateMu.Lock()
 	defer a.gateMu.Unlock()
-	rec := reviewer.snapshot()
+	rec := node.snapshot()
 	gf := *rec.GateFor
-	if gf.Old == "" || gf.Done {
+	if gf.Old == "" {
 		return nil, errNoReview
 	}
 	if args.Tree != gf.Tree {
 		return nil, fmt.Errorf(verdictTreeFormat, gf.Tree)
 	}
-	v := landgate.Verdict{Old: gf.Old, Tree: gf.Tree, Outcome: args.Outcome, By: landgate.ByReviewer, Reviewer: rec.ID, Findings: args.Findings, Deferred: args.Deferred, At: time.Now().UTC()}
-	if err := a.writeVerdict(ctx, v); err != nil {
-		return nil, err
+	if _, ok := a.readVerdict(ctx, gf.Old, gf.Tree); ok {
+		return nil, errDecided
 	}
-	gf.Done = true
-	reviewer.setGateFor(&gf)
-	a.saveNow(ctx, reviewer)
 	lander := a.session(gf.Lander)
 	st := landReview{Into: gf.Into, Source: gf.Source}
 	if lander != nil {
 		st = lander.landReview(gf.Into, gf.Source)
 	}
-	logged := gateVerdict{Gate: cmp.Or(gf.Gate, st.Gate), Outcome: args.Outcome, By: landgate.ByReviewer, Lander: gf.Lander, Title: a.titleOf(gf.Lander), Into: gf.Into, Source: gf.Source, Round: st.Rounds + 1, Reviewer: rec.ID, Findings: args.Findings, Deferred: args.Deferred, At: v.At}
+	if gf.Done || gf.Run != "" && lander != nil && st.Run != gf.Run {
+		return nil, errNoReview
+	}
+	v := landgate.Verdict{Old: gf.Old, Tree: gf.Tree, Outcome: args.Outcome, By: landgate.ByReviewer, Reviewer: rec.ID, Findings: args.Findings, Deferred: args.Deferred, Summary: args.Summary, At: time.Now().UTC()}
+	if err := a.writeVerdict(ctx, v); err != nil {
+		return nil, err
+	}
+	a.closeGateRound(ctx, rec.Workspace, gf.Run, node)
+	if gf.Run != "" {
+		a.graphs.GateOutcome(ctx, gf.Run, rec.ID, args.Outcome)
+	}
+	logged := gateVerdict{Gate: cmp.Or(gf.Gate, st.Gate), Outcome: args.Outcome, By: landgate.ByReviewer, Lander: gf.Lander, Title: a.titleOf(gf.Lander), Into: gf.Into, Source: gf.Source, Round: st.Rounds + 1, Reviewer: rec.ID, Findings: args.Findings, Deferred: args.Deferred, Summary: args.Summary, At: v.At}
 	a.logGateVerdict(ctx, logged)
 	if lander == nil || lander.snapshot().closed() {
 		return nil, nil
@@ -619,6 +1049,9 @@ func (a *app) gateTurnEnded(s *session, nudge bool) {
 		return
 	}
 	gf := *rec.GateFor
+	if nudge && gf.Run != "" && !gf.Verdict {
+		return
+	}
 	ctx := context.Background()
 	if nudge && !gf.Nudged && !rec.closed() {
 		gf.Nudged = true
@@ -627,21 +1060,44 @@ func (a *app) gateTurnEnded(s *session, nudge bool) {
 		logError("land review nudge", a.submit(s, &promptArgs{Text: gateNudgeText}))
 		return
 	}
-	a.gateMu.Lock()
-	gf.Done = true
-	s.setGateFor(&gf)
-	lander := a.session(gf.Lander)
-	var subject string
-	if lander != nil {
-		st := lander.landReview(gf.Into, gf.Source)
-		st.Old, st.Tree, subject = "", "", st.subject()
-		lander.putLandReview(st)
+	if gf.Run != "" {
+		logError("stop gate run", a.graphs.StopGate(ctx, gf.Run))
+		return
 	}
+	a.endGateRound(rec.Workspace, s, func(st landReview) bool { return st.Run == "" && st.Reviewer == rec.ID })
+}
+
+func (a *app) gateRunEnded(workspaceID, run string) {
+	a.endGateRound(workspaceID, nil, func(st landReview) bool { return st.Run == run })
+}
+
+func (a *app) endGateRound(workspaceID string, also *session, match func(landReview) bool) {
+	ctx := context.Background()
+	a.gateMu.Lock()
+	var lander *session
+	var st landReview
+	for _, s := range a.workspaceSessions(workspaceID) {
+		if i := slices.IndexFunc(s.snapshot().LandReviews, match); i >= 0 {
+			lander, st = s, s.snapshot().LandReviews[i]
+			break
+		}
+	}
+	if lander == nil || st.Old == "" {
+		a.gateMu.Unlock()
+		return
+	}
+	if _, decided := a.readVerdict(ctx, st.Old, st.Tree); decided {
+		a.gateMu.Unlock()
+		return
+	}
+	a.closeGateRound(ctx, workspaceID, st.Run, also)
+	subject := st.subject()
+	st.Old, st.Tree = "", ""
+	lander.putLandReview(st)
 	a.gateMu.Unlock()
-	a.saveNow(ctx, s)
+	a.saveNow(ctx, lander)
 	a.gatesChanged()
-	if lander != nil && !lander.snapshot().closed() {
-		a.saveNow(ctx, lander)
+	if !lander.snapshot().closed() {
 		logError("land review missing", a.submit(lander, &promptArgs{Text: fmt.Sprintf(gateNoVerdictText, subject)}))
 	}
 }
@@ -659,15 +1115,16 @@ func (a *app) landDoneCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 		return nil, nil
 	}
 	a.gateMu.Lock()
+	st := lander.landReview(args.Into, args.Source)
+	nodes := a.landingNodes(lander.snapshot().Workspace, gateFor{Lander: lander.snapshot().ID, Into: args.Into, Source: args.Source})
 	lander.dropLandReview(args.Into, args.Source)
 	a.gateMu.Unlock()
 	a.saveNow(ctx, lander)
-	id := lander.snapshot().ID
-	for _, s := range a.workspaceSessions(lander.snapshot().Workspace) {
-		if gf := s.snapshot().GateFor; gf != nil && gf.Lander == id && gf.Into == args.Into && gf.Source == args.Source {
-			a.closeReviewer(ctx, s)
-		}
+	if st.Run != "" {
+		logError("stop gate run", a.graphs.StopGate(ctx, st.Run))
 	}
+	a.dropGateTree(ctx, lander.snapshot().Workspace, st)
+	a.closeGateNodes(ctx, nodes)
 	a.gatesChanged()
 	return nil, nil
 }
@@ -679,10 +1136,11 @@ func (a *app) answerGate(ctx context.Context, workspaceID string, args landAnswe
 		a.gateMu.Unlock()
 		return errLandStale
 	}
+	reqOld, reqTree := st.ReqOld, st.ReqTree
 	var text string
 	switch args.Action {
 	case landActionMerge:
-		v := landgate.Verdict{Old: st.Old, Tree: st.Tree, Outcome: gateApproved, By: landgate.ByUser, At: time.Now().UTC()}
+		v := landgate.Verdict{Old: st.ReqOld, Tree: st.ReqTree, Outcome: gateApproved, By: landgate.ByUser, At: time.Now().UTC()}
 		if err := a.writeVerdict(ctx, v); err != nil {
 			a.gateMu.Unlock()
 			return err
@@ -690,13 +1148,23 @@ func (a *app) answerGate(ctx context.Context, workspaceID string, args landAnswe
 		text = fmt.Sprintf(gateUserLandText, st.subject())
 		a.logGateVerdict(ctx, gateVerdict{Gate: st.Gate, Outcome: gateApproved, By: landgate.ByUser, Lander: lander.snapshot().ID, Title: lander.snapshot().Title, Into: st.Into, Source: st.Source, Round: st.Rounds, At: v.At})
 		st.Last = gateApproved
+	case landActionMore:
+		st.Extra++
+		st.Cap++
+		text = fmt.Sprintf(gateUserMoreText, st.subject())
+		if v, ok := a.readVerdict(ctx, st.ReqOld, st.ReqTree); ok && v.Outcome == gateChanges {
+			text = fmt.Sprintf(gateUserMoreFixText, st.subject())
+		}
 	case landActionLeave:
 		text = fmt.Sprintf(gateUserStopText, st.subject())
 	default:
 		a.gateMu.Unlock()
 		return fmt.Errorf("%w: %s", errLandAction, args.Action)
 	}
-	st.Request, st.Since, st.Answered = "", time.Time{}, st.Old+"-"+st.Tree
+	st.Request, st.Since, st.ReqOld, st.ReqTree = "", time.Time{}, "", ""
+	if args.Action != landActionMore {
+		st.Answered = reqOld + "-" + reqTree
+	}
 	lander.putLandReview(st)
 	a.gateMu.Unlock()
 	a.saveNow(ctx, lander)
@@ -711,11 +1179,11 @@ func (a *app) gateCommits(ctx context.Context, workspaceID, request string) (lan
 	if !ok {
 		return landCommitsResult{}, false, nil
 	}
-	out := landCommitsResult{Commits: []landCommit{}, Tip: st.Tree, Detail: bullets(st.Findings)}
+	out := landCommitsResult{Commits: []landCommit{}, Tip: st.ReqTree, Detail: bullets(st.Findings)}
 	if st.Source == "" {
 		return out, true, nil
 	}
-	log, err := gitrepo.Run(ctx, st.Repo, "log", "--format="+landCommitsLine, "-n", landCommitsMax, st.Old+".."+"refs/heads/"+st.Source)
+	log, err := gitrepo.Run(ctx, st.Repo, "log", "--format="+landCommitsLine, "-n", landCommitsMax, st.ReqOld+".."+"refs/heads/"+st.Source)
 	if err != nil {
 		return out, true, err
 	}
@@ -745,7 +1213,7 @@ func (a *app) logUngatedMain(rec record, commits []string) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)
 	defer cancel()
-	if a.gateFor(ctx, rec.Worktree) == nil {
+	if !a.repoGated(ctx, rec.Worktree) {
 		return
 	}
 	branch, err := gitrepo.Branch(ctx, rec.Worktree)
@@ -753,6 +1221,9 @@ func (a *app) logUngatedMain(rec record, commits []string) {
 		return
 	}
 	if def, err := gitrepo.DefaultBranch(ctx, rec.Worktree); err != nil || def != branch {
+		return
+	}
+	if a.landingGate(ctx, rec.Worktree, branch, "") == nil {
 		return
 	}
 	for _, sha := range commits {
@@ -776,7 +1247,8 @@ func gateCard(rec record, st landReview) sdui.Node {
 		Rule:    fmt.Sprintf(gateCardRule, st.Into),
 		Options: []sdui.PermissionOption{
 			{ID: landActionMerge, Label: gateLandLabel, Kind: "allow_once", Shortcut: "opt+1"},
-			{ID: landActionLeave, Label: gateStopLabel, Kind: "reject_once", Shortcut: "opt+2"},
+			{ID: landActionMore, Label: gateMoreLabel, Shortcut: "opt+2"},
+			{ID: landActionLeave, Label: gateStopLabel, Kind: "reject_once", Shortcut: "opt+3"},
 		},
 	}))
 }

@@ -31,6 +31,7 @@ const (
 	maxMaxFires     = 50
 	defaultTimeout  = 600
 	maxTimeout      = 7200
+	maxNodeOption   = 32
 	inMain          = "main"
 )
 
@@ -79,6 +80,8 @@ type Node struct {
 	Start    bool              `json:"start,omitempty"`
 	Branch   string            `json:"branch,omitempty"`
 	Afk      bool              `json:"afk,omitempty"`
+	Model    string            `json:"model,omitempty"`
+	Effort   string            `json:"effort,omitempty"`
 	Outcomes []string          `json:"outcomes,omitempty"`
 	End      []string          `json:"end,omitempty"`
 }
@@ -349,6 +352,12 @@ func (n *Node) validate(nodes map[string]*Node) error {
 				return fmt.Errorf("branch: {{%s}}: use run or graph", m[1])
 			}
 		}
+		if len(n.Model) > maxNodeOption {
+			return fmt.Errorf("model: at most %d characters", maxNodeOption)
+		}
+		if len(n.Effort) > maxNodeOption {
+			return fmt.Errorf("effort: at most %d characters", maxNodeOption)
+		}
 		for _, o := range n.Outcomes {
 			if strings.TrimSpace(o) == "" || strings.Contains(o, "{{") {
 				return fmt.Errorf("outcome %q: give a plain word", o)
@@ -366,6 +375,8 @@ func (n *Node) validate(nodes map[string]*Node) error {
 		return errors.New("a step's outcomes come from its exit code: use exits")
 	case n.Branch != "" || n.Afk:
 		return errors.New("branch and afk are only for agent nodes")
+	case n.Model != "" || n.Effort != "":
+		return errors.New("model and effort are only for agent nodes")
 	case n.Timeout < 0 || n.Timeout > maxTimeout:
 		return fmt.Errorf("timeout: between 1 and %d seconds, or omit for %d", maxTimeout, defaultTimeout)
 	case len(n.Args) > 0 && n.Command == "":

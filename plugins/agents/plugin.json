@@ -9,8 +9,8 @@
       {"keys": "cmd+i", "action": "Show the session's context, or back to the transcript"},
       {"keys": "cmd+r", "action": "Open the session's review in the Code section", "when": "the session opened or received an open review"},
       {"keys": "opt+1", "action": "Allow the permission request once, pick the question's 1st option, Connect the ticked repos on a connect card, or Review… on a Land card; in Graphs, allow a waiting step once", "when": "a permission request, a question, a connect request, a Land request or a graph step is pending"},
-      {"keys": "opt+2", "action": "Always allow… the permission request (asks to confirm), pick the question's 2nd option, pick another folder for the focused repo on a connect card, or Merge on a Land card; in Graphs, always allow a waiting step's command (asks first)", "when": "a permission request, a question, a connect request, a Land request or a graph step is pending"},
-      {"keys": "opt+3", "action": "Reject the permission request, pick the question's 3rd option, Don't connect on a connect card, or Leave it unlanded… on a Land card (asks to confirm); in Graphs, reject a waiting step", "when": "a permission request, a question, a connect request, a Land request or a graph step is pending"},
+      {"keys": "opt+2", "action": "Always allow… the permission request (asks to confirm), pick the question's 2nd option, pick another folder for the focused repo on a connect card, Merge on a Land card, or One more round on a land review card; in Graphs, always allow a waiting step's command (asks first)", "when": "a permission request, a question, a connect request, a Land request or a graph step is pending"},
+      {"keys": "opt+3", "action": "Reject the permission request, pick the question's 3rd option, Don't connect on a connect card, Leave it unlanded… on a Land card (asks to confirm), or Stop on a land review card; in Graphs, reject a waiting step", "when": "a permission request, a question, a connect request, a Land request or a graph step is pending"},
       {"keys": "opt+4", "action": "Pick the question's 4th option", "when": "a question is pending"},
       {"keys": "opt+5", "action": "Pick the question's 5th option", "when": "a question is pending"},
       {"keys": "opt+6", "action": "Pick the question's 6th option", "when": "a question is pending"},
@@ -34,11 +34,11 @@
       {"keys": "b", "action": "To backlog: one task per open item of the session", "when": "an open items card or the Open queue has focus, except a night session's card"},
       {"keys": "delete", "action": "No to the focused item", "when": "an open items card or the Open queue has focus"},
       {"keys": "shift+delete", "action": "No to all of the session's open items", "when": "an open items card or the Open queue has focus"},
-      {"keys": "cmd+return", "action": "Send answers; in the Open queue every answered session's; send a pending question's form; or remove the folder on the Remove folder sheet; in Graphs, trust an untrusted graph (Trust… then Trust), continue an edge held at its round cap, else open the session of the step that needs you (else the running or start step), or on a graph run it with its input", "when": "an open items card or the Open queue has focus, a question is pending and the composer is empty, or the Remove folder sheet is open; add or save the gate on the New gate or Edit gate sheet; a graph or a run is open in Graphs"},
-      {"keys": "cmd+n", "action": "New land gate: opens the New gate sheet; in Graphs, ask an agent to write a graph", "when": "in Gates or Graphs"},
-      {"keys": "p", "action": "Pause or resume the land gate", "when": "a gate is open in Gates"},
-      {"keys": "e", "action": "Edit the land gate's rounds or pause it", "when": "a gate is open in Gates"},
-      {"keys": "cmd+delete", "action": "Delete the land gate (confirmed), or remove the finished run (confirmed)", "when": "a gate is open in Gates, or a finished run in Graphs"},
+      {"keys": "cmd+return", "action": "Send answers; in the Open queue every answered session's; send a pending question's form; or remove the folder on the Remove folder sheet; in Graphs, trust an untrusted graph (Trust… then Trust), continue an edge held at its round cap, else open the session of the step that needs you (else the running or start step), or on a graph run it with its input", "when": "an open items card or the Open queue has focus, a question is pending and the composer is empty, or the Remove folder sheet is open; create or save the gate on the New gate or Edit gate sheet; Trust and run on a gate page whose graph changed; a graph or a run is open in Graphs"},
+      {"keys": "cmd+n", "action": "New gate: opens the New gate sheet; in Graphs, ask an agent to write a graph", "when": "in Gates or Graphs"},
+      {"keys": "p", "action": "Pause or resume the gate", "when": "a gate is open in Gates"},
+      {"keys": "e", "action": "Edit the gate: into, graph, rounds, paused", "when": "a gate is open in Gates"},
+      {"keys": "cmd+delete", "action": "Delete the gate (confirmed), or remove the finished run (confirmed)", "when": "a gate is open in Gates, or a finished run in Graphs"},
       {"keys": "cmd+[", "action": "Back to the session you came from; in an aside, to its parent, scrolled to what it is about", "when": "a run, graph or gate page, or an aside, is open in Agents"},
       {"keys": "cmd+]", "action": "To the session's aside beside it; again steps through its asides", "when": "the session has asides"},
       {"keys": "cmd+shift+\\", "action": "Aside: full page or beside its parent", "when": "an aside is open"},
@@ -46,7 +46,7 @@
       {"keys": "cmd+shift+k", "action": "Aside: keep it as its own session", "when": "an aside is open"},
       {"keys": "cmd+.", "action": "Stop the run (confirmed)", "when": "a running run is open in Graphs"}
     ],
-    "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25, "slots": ["sheet", "aside"]}, {"id": "agents.graphs", "title": "Graphs", "icon": "point.3.connected.trianglepath.dotted", "order": 37, "rail": false}, {"id": "agents.gates", "title": "Land gates", "icon": "checkmark.shield", "order": 38, "rail": false}],
+    "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25, "slots": ["sheet", "aside"]}, {"id": "agents.graphs", "title": "Graphs", "icon": "point.3.connected.trianglepath.dotted", "order": 37, "rail": false}, {"id": "agents.gates", "title": "Gates", "icon": "checkmark.shield", "order": 38, "rail": false}],
     "views": [{"slot": "editor-nvim.sidebar"}, {"slot": "agents.settings"}],
     "commands": [
       {
@@ -987,11 +987,11 @@
         "title": "Answer a landing request",
         "hidden": true,
         "remote": true,
-        "description": "The user's answer to a Land request: review returns {session, worktree} and leaves the request open, merge prompts the child to land, leave records left, which holds what depends on the repo. An agent gets an error.",
+        "description": "The user's answer to a Land request: review returns {session, worktree} and leaves the request open, merge prompts the child to land, more (a land gate's card) allows one more review round, leave records left, which holds what depends on the repo. An agent gets an error.",
         "args": {
           "properties": {
             "request": {"type": "string", "description": "Request id."},
-            "action": {"type": "string", "enum": ["review", "merge", "leave"], "description": "The answer."},
+            "action": {"type": "string", "enum": ["review", "merge", "more", "leave"], "description": "The answer."},
             "tip": {"type": "string", "description": "The tip the user saw: merge is refused when the branch moved."}
           },
           "required": ["request", "action"]
@@ -1016,7 +1016,7 @@
         "title": "List land gates",
         "hidden": true,
         "agent": true,
-        "description": "The land gates: every gate for the user, only the ones on this workspace's git folders for an agent: {gates: [{id, repo, kind, rounds, paused, createdAt, name, state, last?, landings?}]}. state is needs-you (a landing waits for your Land anyway or Stop), paused, reviewing (a review of a landing in this workspace runs) or active; last is the newest verdict {gate, outcome, by, lander?, title?, into, source?, round?, reviewer?, findings?, deferred?, at} with by reviewer, docs (docs only, not reviewed) or user (the user's Land anyway); last and landings count only this workspace's landings; landings are the ones under review or waiting for the user {lander, title?, into, source?, state, round, reviewer?, findings?, since?}. A repo with a gate lands only after a fresh Fable review approves the diff (git.land). History: agents.gate-verdicts {id}."
+        "description": "The land gates: every gate for the user, only the ones on this workspace's git folders for an agent: {gates: [{id, repo, point, into, graph, pin?, rounds, paused, createdAt, name, state, last?, landings?}]}; into is which landings the gate holds (any, default, base, a branch or a glob) and name says it (\"Landing into main\"). state is trust (the gate's graph changed since it was pinned; nothing runs until the user trusts it), needs-you (a landing waits for your Land anyway or Stop), paused, reviewing (a review of a landing in this workspace runs) or active; last is the newest verdict {gate, outcome, by, lander?, title?, into, source?, round?, reviewer?, findings?, deferred?, at} with by reviewer, docs (docs only, not reviewed) or user (the user's Land anyway); last and landings count only this workspace's landings; landings are the ones under review or waiting for the user {lander, title?, into, source?, state, round, reviewer?, findings?, since?}. A repo with a gate lands only after a fresh Fable review approves the diff (git.land). History: agents.gate-verdicts {id}."
       },
       {
         "id": "agents.gate-verdicts",
@@ -1034,18 +1034,19 @@
       },
       {
         "id": "agents.gates.new",
-        "title": "New land gate…",
-        "description": "Open the New gate sheet: pick a folder of this workspace, the kind and the rounds. Only the user."
+        "title": "New gate…",
+        "description": "Open the New gate sheet: pick a folder of this workspace, which landings it holds (into), the graph that decides and the rounds. Only the user."
       },
       {
         "id": "agents.gate-add",
         "title": "Add a land gate",
         "hidden": true,
-        "description": "Gate a repo's landings: every agent git.land in the repo, whatever its target branch, waits for a read-only Fable review of the diff, and agent sessions in it get a git hook that refuses updates of its default branch, or of a parent session's branch, without an approved verdict. One gate per repo. Returns the gate. Only the user; an agent gets an error.",
+        "description": "Gate a repo's landings: an agent git.land in the repo whose target branch the gate matches waits for the gate's review of the diff, and agent sessions in a repo with any active gate get a git hook that refuses updates of its default branch, or of a parent session's branch, without an approved verdict. When several gates match a landing, the most specific one decides: an exact branch, then a branch glob, then base, then default, then any. One gate per repo and target. Returns the gate. Only the user; an agent gets an error.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "A path in the repo; the gate holds for all its worktrees."},
-            "kind": {"type": "string", "enum": ["fable-review"], "description": "The gate; fable-review is the only one."},
+            "into": {"type": "string", "description": "Which landings it holds: any (default), default (the repo's default branch), base (the worktree's base branch), a branch name or a branch glob such as release/*."},
+            "graph": {"type": "string", "description": "The graph that decides, read from the repo's main checkout, your graphs or the built-ins and pinned as it is now; it needs a node with outcomes approved and changes. Default fable-review."},
             "rounds": {"type": "integer", "description": "Rounds of changes before a landing needs the user; default 2."}
           },
           "required": ["repo"]
@@ -1055,12 +1056,15 @@
         "id": "agents.gate-update",
         "title": "Change a land gate",
         "hidden": true,
-        "description": "Pause or resume a land gate, or change its rounds. Only the user; an agent gets an error.",
+        "description": "Pause or resume a land gate, or change its rounds, target, graph or pinned graph version. Only the user; an agent gets an error.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Gate id (gt_…)."},
             "paused": {"type": "boolean", "description": "A paused gate gates nothing."},
-            "rounds": {"type": "integer", "description": "Rounds of changes before a landing needs the user."}
+            "rounds": {"type": "integer", "description": "Rounds of changes before a landing needs the user."},
+            "into": {"type": "string", "description": "Which landings it holds: any, default, base, a branch name or a branch glob."},
+            "graph": {"type": "string", "description": "The graph that decides; a new graph drops the pin."},
+            "trust": {"type": "string", "description": "The graph content hash to pin: the gate's current hash from agents.gates; any other is refused."}
           },
           "required": ["id"]
         }
@@ -1082,6 +1086,7 @@
         "id": "agents.land-gate",
         "title": "Check a landing against its gate",
         "hidden": true,
+        "timeout": 240,
         "description": "Only the git plugin, from git.land: {state: approved | pending | changes | user, reviewer?, text?, findings?, deferred?} for landing tree on top of old. With no verdict it starts (or re-prompts) the land reviewer.",
         "args": {
           "properties": {
@@ -1110,13 +1115,14 @@
         "hidden": true,
         "agent": true,
         "timeout": 30,
-        "description": "Only a land reviewer session: the verdict on the change it was asked to review. approved lets git.land land it; changes (confirmed correctness bugs only, each finding \"file:line — what breaks\") sends the findings to the lander. Nits and suggestions go to deferred; they never block.",
+        "description": "Only a node of a land gate's current run: the verdict on the change it was asked to review; the first verdict for a tree wins. approved lets git.land land it; changes (confirmed correctness bugs only, each finding \"file:line — what breaks\") sends the findings to the lander. Nits and suggestions go to deferred; they never block.",
         "args": {
           "properties": {
             "tree": {"type": "string", "description": "The tree sha your latest review prompt names; a verdict for any other tree is refused."},
             "outcome": {"type": "string", "enum": ["approved", "changes"], "description": "The verdict."},
             "findings": {"type": "array", "items": {"type": "string"}, "description": "Confirmed bugs, \"file:line — what breaks\"; required with changes."},
-            "deferred": {"type": "array", "items": {"type": "string"}, "description": "Nits and suggestions that don't block."}
+            "deferred": {"type": "array", "items": {"type": "string"}, "description": "Nits and suggestions that don't block."},
+            "summary": {"type": "string", "description": "A short summary of the change, kept with the verdict."}
           },
           "required": ["tree", "outcome"]
         }
@@ -1244,7 +1250,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, parentSession?, advisor?, fork?, run?: {id, title, after?: [{role, on, outcome?}]}, title, titleSet?, status, mode, finish?, afk?, afkBy?, startedBy?, createdAt, updatedAt, error?, pending?, pendingSummary?: {kind, text, tool?, at}, turnStartedAt?, asks, question?, needsYou, needsYouSince?, childStatus?, notify?, notifyEffective, startNotice?, cronJob?, trigger?}]. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; question is that question. needsYou is true when the session waits for the user: a permission or question is pending, a top-level session asks, a connect request waits after its turn ended, or a Land request or failed repo of its task waits; a child session's asks and its pending questions are for the session that started it (asksParent, while that session is open), only its permissions need the user; every client shows exactly these as needing you. pendingSummary says what the session waits for: kind permission (text the pending command or tool title, tool its ACP kind) or question (text the question), connect or land (pending then also lists those request ids). parentSession is the agent session that started it with agents.new; run is the agent graph run it is a node of; nestUnder is the lander a land gate reviewer session is drawn under, with gateRound {round, label (\"Round N review\"), verdict}. listKey and listGroupKey are the list order as sortable strings (start then id; home group first, then each worktree by its earliest session): sort by them, never by updatedAt. With since, the reply also has runs (every graph run of the workspace, also in a delta: {id, graph, title, number?, worktree, state running|asks|ended|stopped|failed|emptied, detail, needsYou?, request?, pointer? (the node whose session needs you), sessions, home group|closed, group, status}) and dock (Service, Land gates, Graphs: {id service|gates|graphs, label, icon, detail, phoneDetail, attention?}); clients draw both as sent. status is running, waiting (a permission or a question is pending; pending lists the request ids), done, idle, error or closed. Non-destructive.",
+        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, parentSession?, advisor?, fork?, run?: {id, title, after?: [{role, on, outcome?}]}, title, titleSet?, status, mode, finish?, afk?, afkBy?, startedBy?, createdAt, updatedAt, error?, pending?, pendingSummary?: {kind, text, tool?, at}, turnStartedAt?, asks, question?, needsYou, needsYouSince?, childStatus?, notify?, notifyEffective, startNotice?, cronJob?, trigger?}]. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; question is that question. needsYou is true when the session waits for the user: a permission or question is pending, a top-level session asks, a connect request waits after its turn ended, or a Land request or failed repo of its task waits; a child session's asks and its pending questions are for the session that started it (asksParent, while that session is open), only its permissions need the user; every client shows exactly these as needing you. pendingSummary says what the session waits for: kind permission (text the pending command or tool title, tool its ACP kind) or question (text the question), connect or land (pending then also lists those request ids). parentSession is the agent session that started it with agents.new; run is the agent graph run it is a node of; nestUnder is the lander a land gate reviewer session is drawn under, with gateRound {round, label (\"Round N review\"), verdict}. listKey and listGroupKey are the list order as sortable strings (start then id; home group first, then each worktree by its earliest session): sort by them, never by updatedAt. With since, the reply also has runs (every graph run of the workspace, also in a delta: {id, graph, title, number?, worktree, state running|asks|ended|stopped|failed|emptied, detail, needsYou?, request?, pointer? (the node whose session needs you), sessions, home group|closed, group, status}) and dock (Service, Gates, Graphs: {id service|gates|graphs, label, icon, detail, phoneDetail, attention?}); clients draw both as sent. status is running, waiting (a permission or a question is pending; pending lists the request ids), done, idle, error or closed. Non-destructive.",
         "args": {
           "properties": {
             "session": {
@@ -1396,7 +1402,7 @@
         "id": "agents.graph-new",
         "aliases": ["graphs.new"],
         "title": "New graph…",
-        "description": "Start an agent session that asks you what roles and hand-offs the graph should have, then writes its file without running it, and show it in Agents."
+        "description": "Start an agent session that asks you what roles and hand-offs the graph should have, then writes its file to ~/.clubmate/graphs/ (the repo's .clubmate/graphs/ only if you want it shared with the repo) without running it, and show it in Agents."
       },
       {
         "id": "agents.graph-list",
@@ -1529,8 +1535,8 @@
       },
       {
         "id": "agents.gates-open",
-        "title": "Open land gates",
-        "description": "Unfold Land gates at the bottom of the Agents sidebar with the cursor in it."
+        "title": "Open gates",
+        "description": "Unfold Gates at the bottom of the Agents sidebar with the cursor in it."
       },
       {
         "id": "agents.graph-rerun",

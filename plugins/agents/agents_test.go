@@ -91,9 +91,12 @@ type record struct {
 	DisallowedTools []string `json:"disallowedTools"`
 	StartModel      string   `json:"startModel"`
 	GateFor         *struct {
-		Lander string `json:"lander"`
-		Tree   string `json:"tree"`
-		Done   bool   `json:"done"`
+		Gate    string `json:"gate"`
+		Lander  string `json:"lander"`
+		Tree    string `json:"tree"`
+		Run     string `json:"run"`
+		Verdict bool   `json:"verdict"`
+		Done    bool   `json:"done"`
 	} `json:"gateFor"`
 	Failure *struct {
 		Badge   string `json:"badge"`

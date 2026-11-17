@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
@@ -37,6 +38,7 @@ func (a *app) newGraphs(h *pluginsdk.Host) *graphs.Engine {
 		ShowRun:    a.showRun,
 		Changed:    a.graphsChanged,
 		PruneAfter: envDelay(runDeleteAfterEnv, runDeleteAfter),
+		GateEnded:  a.gateRunEnded,
 	})
 }
 
@@ -77,48 +79,39 @@ func graphsSlot(slot string) bool {
 }
 
 type graphState struct {
-	runs     []api.RunRow
-	dock     []api.DockRow
-	defs     []graphs.Definition
-	gates    []gateConfig
-	landings map[string]int
+	runs  []api.RunRow
+	dock  []api.DockRow
+	defs  []graphs.Definition
+	gates []gateRow
+	now   time.Time
 }
 
 func (a *app) graphState(ctx context.Context, workspace string, infos []sessionInfo) graphState {
 	byID := make(map[string]sessionInfo, len(infos))
 	var service []sessionInfo
-	count := gateCount{}
+	asking := 0
 	for _, info := range infos {
 		byID[info.ID] = info
 		if info.Service && !info.closed() {
 			service = append(service, info)
 		}
 		if info.GateFor != nil && info.NeedsYou && !info.closed() {
-			count.Asking++
+			asking++
 		}
 	}
 	gates, _, err := a.workspaceGates(ctx, workspace)
 	logError("land gates", err)
-	count.Gated = len(gates)
-	landings := map[string]int{}
+	rows := make([]gateRow, 0, len(gates))
 	for _, g := range gates {
-		for _, l := range a.gateLandings(workspace, g.ID) {
-			landings[g.ID]++
-			if l.State == gateStateNeedsMe {
-				count.Asking++
-			}
-		}
+		rows = append(rows, a.gateRow(ctx, workspace, g))
 	}
+	sortGateRows(rows)
 	defs := a.graphs.Definitions(ctx, workspace)
-	return graphState{runs: runRows(a.graphs.Runs(workspace), byID), dock: dockRows(service, count, defs), defs: defs, gates: gates, landings: landings}
+	return graphState{runs: runRows(a.graphs.Runs(workspace), byID), dock: dockRows(service, gateCounts(rows, asking), defs), defs: defs, gates: rows, now: time.Now()}
 }
 
 func (st graphState) plus(open string) sidebarPlus {
-	plus := sidebarPlus{runs: st.runs, dock: st.dock, open: open}
-	plus.gates = append(plus.gates, sdui.TreeItem{ID: dockGateHelp, Label: "How land gates work", Icon: "info.circle", Open: openGate})
-	for _, g := range st.gates {
-		plus.gates = append(plus.gates, sdui.TreeItem{ID: gatePrefix + g.ID, Label: gateName(g), Icon: gatesIcon, Detail: landingCount(st.landings[g.ID]), DetailTone: tonePlain, Open: openGate, Menu: gateRemoveMenu(gateName(g))})
-	}
+	plus := sidebarPlus{runs: st.runs, dock: st.dock, open: open, gates: gateDock(st.gates, st.now)}
 	plus.graphs = append(plus.graphs, sdui.TreeItem{ID: dockGraphHelp, Label: "How graphs work", Icon: "info.circle", Open: openGraph})
 	for _, d := range st.defs {
 		item := sdui.TreeItem{ID: graphPrefix + d.Name, Label: cmp.Or(d.Title, d.Name), Icon: "doc", Detail: strconv.Itoa(d.Nodes) + " nodes", Open: openGraph}
@@ -205,7 +198,7 @@ func (a *app) pageView(ctx context.Context, workspace, id, back string) sdui.Nod
 		if err != nil {
 			return sdui.Empty(err.Error())
 		}
-		page, crumb = node, crumb+" / Land gates"
+		page, crumb = node, crumb+" / Gates"+a.gateCrumb(ctx, strings.TrimPrefix(id, gatePrefix))
 	default:
 		engineID := id
 		if run, ok := strings.CutPrefix(id, runPrefix); ok {

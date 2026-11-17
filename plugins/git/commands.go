@@ -30,6 +30,7 @@ var (
 		"git.worktree-unpushed":  worktreeUnpushedCommand,
 		"git.repos-in":           reposInCommand,
 		"git.land":               landCommand,
+		"git.gate-tree":          gateTreeCommand,
 	}
 )
 
@@ -67,6 +68,11 @@ type worktreeArgs struct {
 	Dates   bool     `json:"dates"`
 	Message string   `json:"message"`
 	Mode    string   `json:"mode"`
+	Gate    string   `json:"gate"`
+	Key     string   `json:"key"`
+	Old     string   `json:"old"`
+	Tree    string   `json:"tree"`
+	Remove  bool     `json:"remove"`
 
 	SeenDirty   int `json:"seenDirty"`
 	SeenSecrets int `json:"seenSecrets"`

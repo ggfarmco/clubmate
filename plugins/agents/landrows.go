@@ -143,7 +143,7 @@ func reviewRound(rec record, st landReview) gateRound {
 func landerReview(lander record, rec record) (landReview, bool) {
 	gf := rec.GateFor
 	i := slices.IndexFunc(lander.LandReviews, func(st landReview) bool {
-		return st.Into == gf.Into && st.Source == gf.Source && st.Reviewer == rec.ID
+		return st.Into == gf.Into && st.Source == gf.Source && (st.Reviewer == rec.ID || gf.Run != "" && st.Run == gf.Run)
 	})
 	if i < 0 {
 		return landReview{}, false
@@ -344,7 +344,7 @@ func (a *app) reviewCrumb(ctx context.Context, workspaceID string, rec record, h
 	from := reviewBack(rec, trail)
 	parts := []string{"Agents"}
 	if gate, ok := strings.CutPrefix(from, gatePrefix); ok {
-		parts = append(parts, "Land gates")
+		parts = append(parts, "Gates")
 		gates, err := a.gates(ctx)
 		if i := slices.IndexFunc(gates, func(g gateConfig) bool { return g.ID == gate }); err == nil && i >= 0 {
 			parts = append(parts, gateName(gates[i]))

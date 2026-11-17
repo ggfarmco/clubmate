@@ -188,6 +188,29 @@ final class TreeKeysTests: XCTestCase {
         XCTAssertEqual(TreeCursor.resolve(.open, cursor: "gates", in: rows), .expand("gates"))
     }
 
+    func testJWalksGatesGroupedByRepoOnceAndEscFoldsTheDock() {
+        func repo(_ id: String, _ gates: [String]) -> JSONValue {
+            .object(["id": .string(id), "label": .string(id), "expanded": .bool(true), "children": .array(gates.map { item($0) })])
+        }
+        let tree = SDUINode(type: "tree", props: [
+            "items": .array([]),
+            "dock": .array([
+                .object(["id": .string("gates"), "label": .string("Gates"), "expanded": .bool(true), "cap": .number(6), "rows": .array([repo("r1", ["g1", "g2"]), repo("r2", ["g3", "g4"])])]),
+                .object(["id": .string("graphs"), "label": .string("Graphs"), "cap": .number(6), "rows": .array([item("graph:nightly")])]),
+            ]),
+        ])
+        let rows = TreeCursor.rows(tree.treeItems(), dock: tree.treeDock())
+
+        var cursor: String? = "gates"
+        var walked: [String] = []
+        for _ in 0..<7 {
+            cursor = TreeCursor.move(cursor, by: 1, in: rows)
+            walked.append(cursor ?? "")
+        }
+        XCTAssertEqual(walked, ["r1", "g1", "g2", "r2", "g3", "g4", "graphs"])
+        XCTAssertEqual(TreeCursor.resolve(.escape, cursor: "g3", in: rows), .collapse("gates"))
+    }
+
     func testCmdDeleteRemovesTheCursorRow() throws {
         XCTAssertEqual(TreeKeys.action(keyCode: 51, control: false, command: true, side: .left), .remove)
         XCTAssertNil(TreeKeys.action(keyCode: 51, control: false, command: true, side: .left, option: true))

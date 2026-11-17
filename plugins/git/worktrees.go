@@ -36,6 +36,8 @@ const (
 	unsavedTitle        = "Worktree %s has %s. Remove it and discard the changes?"
 	missingText         = "Worktree %s no longer exists — back on main"
 	baseDefault         = "default"
+	baseKey             = ".clubmate-base"
+	baseUnrecordedText  = "Couldn't record %s as the branch's base: %v"
 	originRemote        = "origin"
 	invalidSlugText     = "'%s' is not a valid worktree name"
 	staleBaseText       = "Started from the local %s: couldn't update it from origin: %v"
@@ -195,13 +197,16 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, workspaceID string, args
 	if err != nil {
 		return nil, err
 	}
-	base, source := currentHead, cur.Path
+	base, source, parent := currentHead, cur.Path, ""
 	if args.From != "" {
 		from, err := f.member(args.From)
 		if err != nil {
 			return nil, err
 		}
-		base, source = from.Head, from.Path
+		base, source, parent = from.Head, from.Path, from.Branch
+	}
+	if parent != "" && (args.Base == baseDefault || parent == f.DefaultName(ctx)) {
+		parent = ""
 	}
 	k := hooks{h: h, workspaceID: workspaceID, primary: primary.Path}
 	exists := hasRef(ctx, cur.Path, headsPrefix+args.Branch)
@@ -223,6 +228,14 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, workspaceID string, args
 			return "", err
 		}
 		var notes []string
+		switch {
+		case made != "" && parent != "":
+			if _, err := mutate(ctx, cur.Path, "config", "branch."+made+baseKey, parent); err != nil {
+				notes = append(notes, fmt.Sprintf(baseUnrecordedText, parent, err))
+			}
+		case made != "":
+			_, _ = mutate(ctx, cur.Path, "config", "--unset-all", "branch."+made+baseKey)
+		}
 		if err := copyIncluded(source, dir); err != nil {
 			notes = append(notes, err.Error())
 		}
@@ -577,6 +590,7 @@ func removalFolder(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 	if err != nil {
 		return nil, gitError(nil, err)
 	}
+	f.Trees = slices.DeleteFunc(f.Trees, f.GateTree)
 	return &folder{Folder: f, root: args.Repo}, nil
 }
 

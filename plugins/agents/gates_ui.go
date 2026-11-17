@@ -16,7 +16,7 @@ import (
 	"clubmate/plugins/internal/automation"
 )
 
-var gateSheetActions = []string{actGateRepo, actGateRounds, actGatePaused, actGateCancel, actGateSave}
+var gateSheetActions = []string{actGateRepo, actGateInto, actGateLike, actGatePick, actGateRounds, actGatePaused, actGateCancel, actGateSave}
 
 func isGateSheetAction(action string) bool {
 	return slices.Contains(gateSheetActions, action)
@@ -34,7 +34,7 @@ func (a *app) renderGates(ctx context.Context, p *workspaceUI, w pluginsdk.Works
 	for _, g := range gates {
 		rows = append(rows, a.gateRow(ctx, w.ID, g))
 	}
-	slices.SortStableFunc(rows, func(x, y gateRow) int { return cmp.Compare(strings.ToLower(x.Name), strings.ToLower(y.Name)) })
+	sortGateRows(rows)
 	a.uiMu.Lock()
 	selected, picked := p.gate, p.gatePick
 	a.uiMu.Unlock()
@@ -51,7 +51,51 @@ func (a *app) renderGates(ctx context.Context, p *workspaceUI, w pluginsdk.Works
 	if !slices.Contains(slots, gatesMainSlot) {
 		return nil
 	}
-	return a.push(ctx, p, w.ID, gatesMainSlot, a.gateMainView(ctx, w.ID, rows, repos, selected, picked, now))
+	return a.push(ctx, p, w.ID, gatesMainSlot, a.gateMainView(ctx, w.ID, rows, repos, selected, picked, now, false))
+}
+
+func sortGateRows(rows []gateRow) {
+	slices.SortStableFunc(rows, func(x, y gateRow) int {
+		if c := cmp.Compare(intoOrder(x.Into), intoOrder(y.Into)); c != 0 {
+			return c
+		}
+		return cmp.Compare(strings.ToLower(x.Name), strings.ToLower(y.Name))
+	})
+}
+
+func intoOrder(into string) int {
+	switch into {
+	case gateIntoDefault:
+		return 0
+	case gateIntoBase:
+		return 1
+	case gateIntoAny:
+		return 3
+	}
+	return 2
+}
+
+func (a *app) openRepoGate(ctx context.Context, workspaceID, repo string) error {
+	gates, _, err := a.workspaceGates(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	gates = slices.DeleteFunc(gates, func(g gateConfig) bool { return g.Repo != repo })
+	if len(gates) == 0 {
+		return nil
+	}
+	slices.SortStableFunc(gates, func(x, y gateConfig) int {
+		return cmp.Or(cmp.Compare(intoOrder(x.Into), intoOrder(y.Into)), cmp.Compare(x.Into, y.Into))
+	})
+	return a.selectPage(ctx, workspaceID, gatePrefix+gates[0].ID)
+}
+
+func (a *app) gateCrumb(ctx context.Context, gateID string) string {
+	gates, err := a.gates(ctx)
+	if i := slices.IndexFunc(gates, func(g gateConfig) bool { return g.ID == gateID }); err == nil && i >= 0 {
+		return " / " + filepath.Base(gates[i].Repo)
+	}
+	return ""
 }
 
 func (a *app) gatePage(ctx context.Context, workspace, gateID, picked string) (sdui.Node, error) {
@@ -63,10 +107,11 @@ func (a *app) gatePage(ctx context.Context, workspace, gateID, picked string) (s
 	for _, g := range gates {
 		rows = append(rows, a.gateRow(ctx, workspace, g))
 	}
-	return a.gateMainView(ctx, workspace, rows, repos, gateID, picked, time.Now()), nil
+	sortGateRows(rows)
+	return a.gateMainView(ctx, workspace, rows, repos, gateID, picked, time.Now(), true), nil
 }
 
-func (a *app) gateMainView(ctx context.Context, workspace string, rows []gateRow, repos []gateRepo, selected, picked string, now time.Time) sdui.Node {
+func (a *app) gateMainView(ctx context.Context, workspace string, rows []gateRow, repos []gateRepo, selected, picked string, now time.Time, mac bool) sdui.Node {
 	i := slices.IndexFunc(rows, func(r gateRow) bool { return r.ID == selected })
 	if i < 0 {
 		return gatesHelp(rows)
@@ -84,7 +129,16 @@ func (a *app) gateMainView(ctx context.Context, workspace string, rows []gateRow
 			lines[l.Reviewer] = s.latestLine()
 		}
 	}
-	return gateMain(gateScreen{Row: r, Repo: repo, History: history, Picked: picked, Sessions: sessions, Lines: lines, Now: now, Loc: time.Local})
+	sc := gateScreen{Row: r, Repo: repo, History: history, Picked: picked, Sessions: sessions, Lines: lines, Mac: mac, Now: now, Loc: time.Local}
+	if info, err := a.graphs.GateGraphInfo(ctx, r.Repo, r.Graph); err == nil {
+		sc.Graph = &info
+	} else {
+		sc.GraphErr = err.Error()
+	}
+	if r.State == gateStateTrust {
+		sc.Pinned = a.pinnedGraph(ctx, r.gateConfig)
+	}
+	return gateMain(sc)
 }
 
 func (a *app) gateSheetTree(p *workspaceUI) (sdui.Node, bool) {
@@ -111,28 +165,29 @@ func (a *app) openGateSheet(ctx context.Context, workspaceID, edit string) error
 	if err != nil {
 		return err
 	}
-	d := gateDraft{Rounds: gateRoundsDefault, Gated: map[string]bool{}}
-	for _, g := range gates {
-		d.Gated[g.Repo] = true
-		if g.ID == edit {
-			d.Edit, d.Name, d.Repo, d.Rounds, d.Paused = g.ID, gateName(g), g.Repo, g.Rounds, g.Paused
+	d := gateDraft{Rounds: gateRoundsDefault, Graph: gateGraphDefault, Gates: gates}
+	if edit != "" {
+		i := slices.IndexFunc(gates, func(g gateConfig) bool { return g.ID == edit })
+		if i < 0 {
+			return errGateUnknown
 		}
-	}
-	if edit != "" && d.Edit == "" {
-		return errGateUnknown
-	}
-	if edit == "" {
+		g := gates[i]
+		d.Edit, d.Repo, d.Into, d.Graph, d.Rounds, d.Paused = g.ID, g.Repo, g.Into, g.Graph, g.Rounds, g.Paused
+		d.Repos = []gateRepo{a.gateRepo(ctx, g.Repo)}
+		d.Name = gateNameOf(g.Into, d.branch())
+		d.Like = !slices.Contains([]string{gateIntoDefault, gateIntoBase, gateIntoAny}, g.Into)
+	} else {
 		w, err := a.host.GetWorkspace(ctx, workspaceID)
 		if err != nil {
 			return err
 		}
 		d.Repos = a.workspaceRepos(ctx, w)
-		if i := slices.IndexFunc(d.Repos, func(r gateRepo) bool { return !d.Gated[r.Primary] }); i >= 0 {
-			d.Repo = d.Repos[i].Path
-		} else if len(d.Repos) > 0 {
+		if len(d.Repos) > 0 {
 			d.Repo = d.Repos[0].Path
 		}
+		d.Into = d.freeInto()
 	}
+	d.Choices = a.graphs.GateGraphChoices(ctx, d.primary())
 	p := a.workspaceState(workspaceID)
 	a.uiMu.Lock()
 	p.gateSheet = &d
@@ -149,6 +204,7 @@ func (a *app) gatesAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return fmt.Errorf("%s value: %w", ev.Action, err)
 		}
 	}
+	id = strings.TrimPrefix(id, gateCardPrefix)
 	switch ev.Action {
 	case "select":
 		var row string
@@ -159,6 +215,9 @@ func (a *app) gatesAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 		defer a.uiMu.Unlock()
 		if ev.NodeID == gateVerdictsID {
 			p.gatePick = row
+			return nil
+		}
+		if strings.HasPrefix(row, gateRepoPrefix) {
 			return nil
 		}
 		if row == gateHelpID {
@@ -175,8 +234,24 @@ func (a *app) gatesAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 	case actGatePause, actGateResume:
 		paused := ev.Action == actGatePause
 		return a.updateGate(ctx, gateUpdateArgs{ID: id, Paused: &paused})
+	case actGateTrust:
+		gateID, hash, ok := strings.Cut(id, "@")
+		if !ok {
+			return errTrustStale
+		}
+		return a.updateGate(ctx, gateUpdateArgs{ID: gateID, Trust: &hash})
+	case actGateOpenGraph:
+		gates, err := a.gates(ctx)
+		if err != nil {
+			return err
+		}
+		i := slices.IndexFunc(gates, func(g gateConfig) bool { return g.ID == id })
+		if i < 0 {
+			return errGateUnknown
+		}
+		return a.selectPage(ctx, ev.WorkspaceID, graphPrefix+gates[i].Graph)
 	case actGateDelete:
-		if err := a.deleteGate(ctx, id); err != nil {
+		if err := a.deleteGate(ctx, ev.WorkspaceID, id); err != nil {
 			return err
 		}
 		a.uiMu.Lock()
@@ -249,6 +324,29 @@ func (a *app) gateSheetAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if err := json.Unmarshal(ev.Value, &d.Repo); err != nil {
 			return fmt.Errorf("%s value: %w", ev.Action, err)
 		}
+		d.Choices = a.graphs.GateGraphChoices(ctx, d.primary())
+		if _, ok := d.choice(); !ok {
+			d.Graph = gateGraphDefault
+		}
+	case actGateInto:
+		var v string
+		if err := json.Unmarshal(ev.Value, &v); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+		d.Like = v == gateIntoLike
+		if d.Like {
+			v = ""
+		}
+		d.Into = v
+	case actGateLike:
+		if err := json.Unmarshal(ev.Value, &d.Into); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+		d.Into = strings.TrimSpace(d.Into)
+	case actGatePick:
+		if err := json.Unmarshal(ev.Value, &d.Graph); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
 	case actGateRounds:
 		var v string
 		if err := json.Unmarshal(ev.Value, &v); err != nil {
@@ -284,13 +382,13 @@ func (a *app) gateSheetAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 
 func (a *app) saveGateDraft(ctx context.Context, d gateDraft) (string, error) {
 	if d.Edit == "" {
-		g, err := a.addGate(ctx, gateAddArgs{Repo: d.Repo, Kind: gateKindReview, Rounds: d.Rounds})
+		g, err := a.addGate(ctx, gateAddArgs{Repo: d.Repo, Into: d.Into, Graph: d.Graph, Rounds: d.Rounds})
 		if err == nil {
 			a.gatesChanged()
 		}
 		return g.ID, err
 	}
-	return d.Edit, a.updateGate(ctx, gateUpdateArgs{ID: d.Edit, Paused: &d.Paused, Rounds: &d.Rounds})
+	return d.Edit, a.updateGate(ctx, gateUpdateArgs{ID: d.Edit, Paused: &d.Paused, Rounds: &d.Rounds, Into: &d.Into, Graph: &d.Graph})
 }
 
 func gateName(g gateConfig) string {

@@ -156,8 +156,8 @@ func runMenu(r api.RunRow) []sdui.MenuEntry {
 	return []sdui.MenuEntry{{Action: actRemoveRun, Label: "Remove run…", Confirm: "Remove graph run “" + cmp.Or(r.Title, graphRun) + "” from the list? Its sessions stay.", Key: removeKey}}
 }
 
-func gateRemoveMenu(name string) []sdui.MenuEntry {
-	return []sdui.MenuEntry{{Action: actGateDelete, Label: "Delete land gate…", Confirm: gateDeleteConfirm(name, ""), Key: removeKey}}
+func gateRemoveMenu(name, repo string) []sdui.MenuEntry {
+	return []sdui.MenuEntry{{Action: actGateDelete, Label: "Delete gate…", Confirm: gateDeleteConfirm(name, repo), Key: removeKey}}
 }
 
 func openDock(current, id string, expand bool) string {
@@ -172,19 +172,32 @@ func openDock(current, id string, expand bool) string {
 
 func (plus sidebarPlus) treeDock(service []sdui.TreeItem, query string) []sdui.TreeDock {
 	rows := map[string][]sdui.TreeItem{dockService: service, dockGates: plus.gates, dockGraphs: plus.graphs}
-	add := map[string]*sdui.TreeAdd{dockGates: {Action: actNewGate, Label: "New land gate…"}, dockGraphs: {Action: actNewGraph, Label: "New graph…"}}
+	add := map[string]*sdui.TreeAdd{dockGates: {Action: actNewGate, Label: "New gate…"}, dockGraphs: {Action: actNewGraph, Label: "New graph…"}}
 	out := make([]sdui.TreeDock, 0, len(plus.dock))
 	matched := false
 	for _, d := range plus.dock {
 		section := sdui.TreeDock{ID: d.ID, Label: d.Label, Icon: d.Icon, Detail: d.Detail, Attention: d.Attention, Rows: rows[d.ID], Add: add[d.ID], Cap: dockCap, Expanded: d.ID == plus.open}
 		if query != "" {
-			section.Rows = slices.DeleteFunc(slices.Clone(section.Rows), func(item sdui.TreeItem) bool {
-				return !strings.Contains(strings.ToLower(item.Label), strings.ToLower(query))
-			})
+			section.Rows = dockMatches(section.Rows, strings.ToLower(query))
 			section.Expanded = len(section.Rows) > 0 && !matched
 			matched = matched || section.Expanded
 		}
 		out = append(out, section)
+	}
+	return out
+}
+
+func dockMatches(items []sdui.TreeItem, query string) []sdui.TreeItem {
+	var out []sdui.TreeItem
+	for _, item := range items {
+		if strings.Contains(strings.ToLower(item.Label), query) {
+			out = append(out, item)
+			continue
+		}
+		if children := dockMatches(item.Children, query); len(children) > 0 {
+			item.Children = children
+			out = append(out, item)
+		}
 	}
 	return out
 }

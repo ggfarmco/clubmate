@@ -187,7 +187,7 @@ func (a *app) startStep(ctx context.Context, runID, node string, move int) {
 		return
 	}
 	if r.Steps >= r.MaxSteps {
-		r.stop(fmt.Sprintf(reasonSteps, r.MaxSteps), a.now())
+		a.stop(r, fmt.Sprintf(reasonSteps, r.MaxSteps), a.now())
 		stopped := cloneRun(r)
 		a.touch(r.Workspace)
 		logError(a.store.Save(ctx, r))
@@ -499,7 +499,7 @@ func (a *app) recoverSteps(ctx context.Context) func(context.Context) {
 			for _, i := range lost {
 				node := r.Moves[i].Node
 				if !r.Spec.hasEdge(node, onError) {
-					r.stop(fmt.Sprintf(reasonStepError, r.Spec.node(node).label(), reasonInterrupted), now)
+					a.stop(r, fmt.Sprintf(reasonStepError, r.Spec.node(node).label(), reasonInterrupted), now)
 					break
 				}
 				before := len(r.Moves)
@@ -640,9 +640,9 @@ func (a *app) stepDone(ctx context.Context, runID, node string, move int, res st
 		switch {
 		case slices.Contains(n.End, outcome):
 			r.Moves[move].End = outcome
-			r.stop(fmt.Sprintf(reasonEnd, node, outcome), now)
+			a.stop(r, fmt.Sprintf(reasonEnd, node, outcome), now)
 		case outcome == onError && !r.Spec.hasEdge(node, onError):
-			r.stop(fmt.Sprintf(reasonStepError, n.label(), reason), now)
+			a.stop(r, fmt.Sprintf(reasonStepError, n.label(), reason), now)
 		}
 		if r.Status == statusRunning {
 			next = r.nextQueued(node)
@@ -805,9 +805,11 @@ func (a *app) resolveStep(ctx context.Context, r *Run, n *Node, move int) (stepS
 		}
 	}
 	dir := folder
-	switch n.In {
-	case "":
-	case inMain:
+	switch {
+	case r.GateDir != "" && (n.In == "" || n.In == inMain):
+		dir = r.GateDir
+	case n.In == "":
+	case n.In == inMain:
 		if dir = mainCheckout(trees, folder); dir == "" {
 			return stepSpec{}, fmt.Errorf("no main checkout for %s", folder)
 		}

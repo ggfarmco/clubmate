@@ -144,5 +144,6 @@ func openFolder(ctx context.Context, p pluginsdk.Workspace, i int) (*folder, err
 	if err != nil {
 		return nil, gitError(nil, err)
 	}
+	f.Trees = slices.DeleteFunc(f.Trees, f.GateTree)
 	return &folder{Folder: f, root: p.Folders[i].Root(), unseen: p.Folders[i].AddedAfk && !p.Folders[i].Seen}, nil
 }

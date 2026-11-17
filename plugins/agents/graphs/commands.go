@@ -235,7 +235,7 @@ func (a *app) startIn(ctx context.Context, cmd pluginsdk.CommandRun, caller stri
 		return nil, fmt.Errorf(errStoppedStarting, r.ID)
 	} else if err != nil {
 		a.mu.Lock()
-		r.stop(fmt.Sprintf(reasonKickoff, err), a.now())
+		a.stop(r, fmt.Sprintf(reasonKickoff, err), a.now())
 		a.touch(r.Workspace)
 		logError(a.store.Save(ctx, r))
 		a.mu.Unlock()
@@ -325,7 +325,7 @@ func (a *app) stopRun(ctx context.Context, cmd pluginsdk.CommandRun, forget bool
 	}
 	var saveErr error
 	if live.Status == statusRunning {
-		live.stop(reasonStopped, a.now())
+		a.stop(live, reasonStopped, a.now())
 		a.touch(r.Workspace)
 		saveErr = a.store.Save(ctx, live)
 	}
@@ -395,7 +395,7 @@ func (a *app) stopLaunching(id string, forget bool) (*Run, error) {
 		return nil, unknownRun(id)
 	}
 	if l.Status == statusRunning {
-		l.stop(reasonStopped, a.now())
+		a.stop(l, reasonStopped, a.now())
 	}
 	if forget {
 		return nil, nil

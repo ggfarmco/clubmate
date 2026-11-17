@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"slices"
 	"time"
 
@@ -18,6 +19,12 @@ const (
 	gateStatePaused  = "paused"
 	gateStateReview  = "reviewing"
 	gateStateNeedsMe = "needs-you"
+	gateStateTrust   = "trust"
+	gateNameLanding  = "Landing "
+	gateNameFormat   = gateNameLanding + "into %s"
+	gateNameAny      = "any branch"
+	gateNameBase     = "the base"
+	gateNameDefault  = "the default branch"
 )
 
 var gateRank = map[string]int{gateApproved: 1, gateChanges: 2, gateStateReview: 3, gateStateNeedsMe: 4}
@@ -35,6 +42,7 @@ type gateVerdict struct {
 	Reviewer  string    `json:"reviewer,omitempty"`
 	Findings  []string  `json:"findings,omitempty"`
 	Deferred  []string  `json:"deferred,omitempty"`
+	Summary   string    `json:"summary,omitempty"`
 	At        time.Time `json:"at"`
 }
 
@@ -54,6 +62,7 @@ type gateRow struct {
 	gateConfig
 	Name     string        `json:"name"`
 	State    string        `json:"state"`
+	Hash     string        `json:"hash,omitempty"`
 	Last     *gateVerdict  `json:"last,omitempty"`
 	Landings []gateLanding `json:"landings,omitempty"`
 }
@@ -227,11 +236,15 @@ func (a *app) gateLandings(workspaceID, gateID string) []gateLanding {
 }
 
 func (a *app) gateRow(ctx context.Context, workspaceID string, g gateConfig) gateRow {
-	row := gateRow{gateConfig: g, Name: gateName(g), State: gateStateActive, Landings: a.gateLandings(workspaceID, g.ID)}
+	row := gateRow{gateConfig: g, Name: a.gateMatchName(ctx, g), State: gateStateActive, Landings: a.gateLandings(workspaceID, g.ID)}
 	if history := a.gateHistory(ctx, workspaceID, g.ID); len(history) > 0 {
 		row.Last = &history[0]
 	}
+	trust := a.gateGraphTrust(ctx, g)
+	row.Hash = trust.hash
 	switch {
+	case !trust.ok:
+		row.State = gateStateTrust
 	case slices.ContainsFunc(row.Landings, func(l gateLanding) bool { return l.State == gateStateNeedsMe }):
 		row.State = gateStateNeedsMe
 	case g.Paused:
@@ -240,6 +253,22 @@ func (a *app) gateRow(ctx context.Context, workspaceID string, g gateConfig) gat
 		row.State = gateStateReview
 	}
 	return row
+}
+
+func (a *app) gateMatchName(ctx context.Context, g gateConfig) string {
+	return gateNameOf(g.Into, a.gateRepo(ctx, g.Repo).Branch)
+}
+
+func gateNameOf(into, branch string) string {
+	switch into {
+	case gateIntoAny:
+		into = gateNameAny
+	case gateIntoBase:
+		into = gateNameBase
+	case gateIntoDefault:
+		into = cmp.Or(branch, gateNameDefault)
+	}
+	return fmt.Sprintf(gateNameFormat, into)
 }
 
 func (a *app) gateRepo(ctx context.Context, path string) gateRepo {
