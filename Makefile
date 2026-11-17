@@ -46,6 +46,9 @@ build:
 run-core: build
 	bin/clubmate-core
 
+hooks:
+	common="$$(cd "$$(git rev-parse --git-common-dir)" && pwd -P)" && ln -sf "$$(dirname "$$common")/scripts/githooks/post-commit" "$$common/hooks/post-commit"
+
 test:
 	go test -race $$(go list ./... | grep -v /dist/)
 	cd third_party/jsonrpc2 && go test ./...
@@ -131,7 +134,7 @@ companion-e2e: build
 	scripts/companion-e2e/run.sh $(COMPANION_E2E_SIM) "$(COMPANION_SIM_TYPE)" && \
 	scripts/companion-e2e/run.sh $(COMPANION_E2E_SIM)-ipad "$(COMPANION_E2E_IPAD_TYPE)" CompanionE2ETests/HardwareKeyboardTests
 
-.PHONY: build run-core test test-stress lint lint-tests push-relay push-relay-linux ghostty app app-release run-app protocol-test kit-test nvim-distro nvim-test bundle-smoke gallery-smoke companion-kit-test companion companion-ui-test companion-e2e mac-ui-test
+.PHONY: build run-core hooks test test-stress lint lint-tests push-relay push-relay-linux ghostty app app-release run-app protocol-test kit-test nvim-distro nvim-test bundle-smoke gallery-smoke companion-kit-test companion companion-ui-test companion-e2e mac-ui-test
 
 mac-ui-test:
 	mkdir -p build/mac-ui

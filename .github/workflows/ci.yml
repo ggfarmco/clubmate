@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 defaults:
   run:
     shell: bash
@@ -44,7 +48,7 @@ jobs:
         run: sysctl -n hw.ncpu hw.memsize
 
       - name: Go tests
-        run: go list ./... | grep -v /dist/ | grep -vx clubmate/plugins/agents | xargs go test -race -timeout 30m
+        run: scripts/ci/go-test.sh "$(go list ./... | grep -v /dist/ | grep -vx clubmate/plugins/agents | xargs)"
 
       - name: Test lint
         run: make lint-tests
@@ -92,7 +96,7 @@ jobs:
         run: sysctl -n hw.ncpu hw.memsize
 
       - name: Agents plugin tests
-        run: go test -race -timeout 30m ./plugins/agents/
+        run: scripts/ci/go-test.sh ./plugins/agents/
 
       - name: Save Go cache
         if: github.event_name == 'push'
@@ -180,7 +184,7 @@ jobs:
             ~/go/pkg/mod
 
       - name: ClubmateKit tests
-        run: make kit-test
+        run: scripts/ci/swift-test.sh client/ClubmateProtocol && scripts/ci/swift-test.sh client/ClubmateKit
 
       - name: Save Go cache
         if: github.event_name == 'push'
