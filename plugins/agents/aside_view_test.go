@@ -136,6 +136,7 @@ func TestAskAsideAboutAPassage(t *testing.T) {
 	require.NotNil(t, got.Aside)
 	assert.Equal(t, agent[0].ID, got.Aside.Anchor["message"])
 	assert.Equal(t, "hi", got.Aside.Anchor["quote"])
+	assert.Contains(t, nodesWithID(beside, id+"/forked")[0].Children, sdui.Markdown("hi"))
 }
 
 func forkedID(n sdui.Node) string {

@@ -134,9 +134,8 @@ struct ForkedFromCard: View {
                 .font(.caption)
                 .foregroundStyle(Color.captionInk)
             if let quote = anchor.quote, anchor.message != nil {
-                Text(quote)
+                MarkdownView(text: quote, markerFont: .footnote)
                     .font(.footnote)
-                    .textSelection(.enabled)
                     .padding(.leading, 10)
                     .overlay(alignment: .leading) { Capsule().fill(.quaternary).frame(width: 3) }
             } else {

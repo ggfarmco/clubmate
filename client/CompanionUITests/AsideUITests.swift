@@ -107,6 +107,23 @@ final class AsideUITests: XCTestCase {
         shot(app, "draft")
     }
 
+    func testFreshMessageAsideShowsTheQuoteAsMarkdownWithoutEmptyState() {
+        let app = launch(["-asideFixture", "many"])
+        let pill = app.buttons["asides.pill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 10))
+        pill.tap()
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Aside · “'")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        XCTAssertTrue(app.buttons["aside.expand"].waitForExistence(timeout: 10))
+        assertFreshQuote(app)
+        shot(app, "fresh-sheet")
+        app.buttons["aside.expand"].tap()
+        XCTAssertTrue(app.buttons["aside.collapse"].waitForExistence(timeout: 10))
+        assertFreshQuote(app)
+        shot(app, "fresh-full")
+    }
+
     func testAsideOpenedAsTheDetailHasItsChrome() {
         let app = launch(["-asideFixture", "YES"], open: "agents/agt_00000000000000b1")
         XCTAssertTrue(app.buttons["aside.sendBack"].waitForExistence(timeout: 10))
@@ -169,6 +186,15 @@ final class AsideUITests: XCTestCase {
         app.buttons["Open aside"].tap()
         XCTAssertTrue(app.buttons["aside.expand"].waitForExistence(timeout: 10))
         shot(app, "sheet")
+    }
+
+    private func assertFreshQuote(_ app: XCUIApplication) {
+        let card = app.descendants(matching: .any)["aside.forked"].firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["No Messages Yet"].exists)
+        XCTAssertTrue(card.label.contains("how long a hold lasts"), card.label)
+        XCTAssertFalse(card.label.contains("`"), card.label)
+        XCTAssertFalse(card.label.contains("**"), card.label)
     }
 
     private func shot(_ app: XCUIApplication, _ name: String) {

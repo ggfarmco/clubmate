@@ -100,6 +100,22 @@ struct SessionDetailView: View {
         }
     }
 
+    @ViewBuilder private func loadState(loaded: Bool, empty: Bool) -> some View {
+        if !loaded, let failure = store.transcriptErrors[sessionID] {
+            ContentUnavailableView {
+                Label("Couldn't Load the Transcript", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(failure)
+            } actions: {
+                Button("Try Again") { Task { await store.loadTranscript(sessionID) } }
+            }
+        } else if !loaded && empty {
+            ProgressView()
+        } else if empty {
+            ContentUnavailableView("No Messages Yet", systemImage: "text.bubble", description: Text("Send the first prompt below."))
+        }
+    }
+
     @ViewBuilder private var screen: some View {
         let transcript = store.transcripts[sessionID]
         let entries = store.entries(sessionID)
@@ -117,12 +133,19 @@ struct SessionDetailView: View {
         case .open(let card): !closing && (!folded(card) || store.openDraft(sessionID).unfolded)
         default: false
         }
+        let parent = session?.aside == nil ? session?.parentSession.flatMap(store.session) : nil
+        let leadCard = session?.aside != nil || parent != nil
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 if let session, let aside = session.aside {
                     ForkedFromCard(anchor: aside.anchor, panel: transcript?.asidePanel)
-                } else if let parent = session?.parentSession.flatMap(store.session) {
+                } else if let parent {
                     StartedByCard(parent: parent) { context.navigation.detail = parent.id }
+                }
+                if leadCard && entries.isEmpty && transcript == nil {
+                    loadState(loaded: false, empty: true)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 24)
                 }
                 if skip > 0 {
                     EarlierRowsButton(left: skip, page: TranscriptWindow.page) { window.showEarlier(rows) }
@@ -246,18 +269,8 @@ struct SessionDetailView: View {
         .scrollEdgeEffectStyle(.soft, for: .top)
         .background(Color(.systemGroupedBackground))
         .overlay {
-            if transcript == nil, let failure = store.transcriptErrors[sessionID] {
-                ContentUnavailableView {
-                    Label("Couldn't Load the Transcript", systemImage: "exclamationmark.triangle")
-                } description: {
-                    Text(failure)
-                } actions: {
-                    Button("Try Again") { Task { await store.loadTranscript(sessionID) } }
-                }
-            } else if transcript == nil && entries.isEmpty {
-                ProgressView()
-            } else if entries.isEmpty {
-                ContentUnavailableView("No Messages Yet", systemImage: "text.bubble", description: Text("Send the first prompt below."))
+            if !leadCard {
+                loadState(loaded: transcript != nil, empty: entries.isEmpty)
             }
         }
         .simultaneousGesture(TapGesture().onEnded {

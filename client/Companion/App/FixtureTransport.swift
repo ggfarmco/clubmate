@@ -209,7 +209,7 @@ actor FixtureServer {
                 var aside = Self.session(parent, id: "agt_00000000000000b2", title: "Aside · “reserve.go holds stock with no end…”", status: "done", ago: 60)
                 aside["parentSession"] = parent["id"]
                 aside["canAside"] = nil
-                aside["aside"] = .object(["anchor": .object(["message": .string("agent-q1"), "quote": .string("`reserve.go` holds stock with no end date. Before I add the expiry job I need two decisions from you.")])])
+                aside["aside"] = .object(["anchor": .object(["message": .string("agent-q1"), "quote": .string("`reserve.go` holds stock with no end date. Before I add the expiry job I need two decisions from you:\n\n- how long a **hold** lasts\n- whether `sale_day` changes it")])])
                 sessions.append(aside)
                 transcripts["agt_00000000000000b2"] = ["entries": .array([])]
             }

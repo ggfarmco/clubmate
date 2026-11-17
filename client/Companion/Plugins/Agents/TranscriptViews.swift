@@ -363,6 +363,7 @@ struct MarkdownView: View {
     var docLinks: [String: String] = [:]
     var imageLinks: [String: String] = [:]
     var taskLinks: [String: String] = [:]
+    var markerFont: Font = .body
     @Environment(\.openDoc) private var openDoc
     @Environment(\.openImage) private var openImage
     @Environment(\.openTask) private var openTask
@@ -375,11 +376,12 @@ struct MarkdownView: View {
         self.taskLinks = taskLinks
     }
 
-    init(text: String, docLinks: [String: String] = [:], imageLinks: [String: String] = [:], taskLinks: [String: String] = [:]) {
+    init(text: String, docLinks: [String: String] = [:], imageLinks: [String: String] = [:], taskLinks: [String: String] = [:], markerFont: Font = .body) {
         blocks = Markdown.blocks(text)
         self.docLinks = docLinks
         self.imageLinks = imageLinks
         self.taskLinks = taskLinks
+        self.markerFont = markerFont
     }
 
     private func inline(_ text: String) -> AttributedString {
@@ -400,7 +402,7 @@ struct MarkdownView: View {
                         ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
                                 Text(item.marker)
-                                    .font(.body)
+                                    .font(markerFont)
                                     .monospacedDigit()
                                     .foregroundStyle(.primary)
                                 Text(inline(item.text))

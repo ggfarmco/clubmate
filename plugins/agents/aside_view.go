@@ -359,7 +359,7 @@ func forkedBlock(rec record) sdui.Node {
 	an := rec.Aside.Anchor
 	id := rec.ID + "/" + asideForkedNode
 	if an.Option == "" {
-		return sdui.WithID(sdui.Card("", asideIcon, sdui.MutedText(forkedPassage), sdui.Text("“"+an.Quote+"”")), id)
+		return sdui.WithID(sdui.Card("", asideIcon, sdui.MutedText(forkedPassage), sdui.Markdown(an.Quote)), id)
 	}
 	rows := []sdui.Node{sdui.MutedText(forkedQuestion)}
 	if an.Question != "" {

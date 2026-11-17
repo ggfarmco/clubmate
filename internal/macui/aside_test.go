@@ -140,7 +140,7 @@ func (in *instance) waitDone(id string) {
 func TestAsideFromTheLastAnswerAndAnOpenItem(t *testing.T) {
 	in := start(t, "macui-aside-passage", asideScript)
 	in.focusSection("agents", "agents.sidebar")
-	parent := in.doneWithOpenItems("Tell me about lists")
+	parent := in.doneWithOpenItems("Tell me about `lists`:\n\n- **rows** keep a detail\n- a key gives way")
 	row := parent + "/open/oi-1#Global"
 	in.eventually("the open items card shows", func() bool { return in.snapshot().main().has(row) })
 
