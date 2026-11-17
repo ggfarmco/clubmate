@@ -13,12 +13,15 @@ const (
 	actionHours   = "hours"
 	actionBattery = "battery"
 	actionDisplay = "display"
+	actionLid     = "lid"
 	choiceOff     = "off"
 
 	agentsCaption = "An agent running or waiting for you keeps the Mac awake."
 	batteryHint   = "Off: agents keep it awake only on power."
 	displayHint   = "Off: the screen can sleep while the Mac stays awake."
+	lidHint       = "Off: closing the lid sleeps the Mac."
 	lidFootnote   = "A closed lid still sleeps a laptop on battery. On power it stays awake closed only with an external display, keyboard and mouse."
+	lidOnFootnote = "While it is kept awake, a closed Mac keeps running, on battery too until 10 % is left. It gets hot in a closed bag."
 	toggleKey     = "⌥⌘A"
 )
 
@@ -37,7 +40,11 @@ func settingsPage(v stateView, last int) sdui.Node {
 		group("Display", switchRow("Keep the screen on", displayHint, actionDisplay, v.Display)),
 	}
 	if v.Laptop {
-		rows = append(rows, sdui.MutedText(lidFootnote))
+		footnote := lidFootnote
+		if v.Lid {
+			footnote = lidOnFootnote
+		}
+		rows = append(rows, group("Lid", switchRow("Keep awake with the lid closed", lidHint, actionLid, v.Lid)), sdui.MutedText(footnote))
 	}
 	return sdui.VStack(rows...)
 }

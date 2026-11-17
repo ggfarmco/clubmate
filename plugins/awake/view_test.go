@@ -51,7 +51,15 @@ func TestSettingsPageOnALaptopAndADesktop(t *testing.T) {
 	assert.NotNil(t, find(page, byID("choice-agents")).Children, "the agents radio carries its caption and On battery too")
 	assert.NotNil(t, find(page, byID(actionBattery)))
 	assert.NotNil(t, find(page, byText(lidFootnote)))
+	assert.Equal(t, false, find(page, byID(actionLid)).Props["value"])
 	assert.NotNil(t, find(page, byText("You")), "the hold lines show in Now")
+
+	lid := laptop
+	lid.Lid = true
+	page = settingsPage(lid, 4)
+	assert.Equal(t, true, find(page, byID(actionLid)).Props["value"])
+	assert.NotNil(t, find(page, byText(lidOnFootnote)))
+	assert.Nil(t, find(page, byText(lidFootnote)))
 
 	desktop := laptop
 	desktop.Laptop, desktop.Mode, desktop.Hours, desktop.On, desktop.Holds, desktop.Ends = false, modeOff, 0, false, nil, ""
@@ -60,6 +68,7 @@ func TestSettingsPageOnALaptopAndADesktop(t *testing.T) {
 	assert.Equal(t, "2", find(page, byID(actionHours)).Props["value"], "the select keeps the last number used")
 	assert.Nil(t, find(page, byID(actionBattery)))
 	assert.Nil(t, find(page, byText(lidFootnote)))
+	assert.Nil(t, find(page, byID(actionLid)))
 }
 
 func TestSettingsEventsChooseTheHoursTheSelectSends(t *testing.T) {
@@ -77,4 +86,5 @@ func TestSettingsEventsChooseTheHoursTheSelectSends(t *testing.T) {
 	v := event(actionChoice, modeHours)
 	assert.Equal(t, modeHours, v.Mode)
 	assert.Equal(t, 8, v.Hours, "picking For again uses the last number")
+	assert.True(t, event(actionLid, true).Lid)
 }

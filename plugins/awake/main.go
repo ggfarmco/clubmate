@@ -30,6 +30,7 @@ const (
 	keySettings = "settings"
 	keyChoice   = "choice"
 	keyHolds    = "holds"
+	keyLid      = "lid"
 )
 
 type host interface {
@@ -81,10 +82,15 @@ type releaseArgs struct {
 type settingsArgs struct {
 	Battery *bool `json:"battery"`
 	Display *bool `json:"display"`
+	Lid     *bool `json:"lid"`
 }
 
 func main() {
-	a := &awake{k: newKeeper(assertIOKit, time.Now, pidAlive), power: readPower}
+	if len(os.Args) > 1 && os.Args[1] == guardArg {
+		runGuard(newClamshell())
+		return
+	}
+	a := &awake{k: newKeeper(assertIOKit, newClamshell(), time.Now, pidAlive), power: readPower}
 	pluginsdk.Main(pluginsdk.Plugin{
 		Init: a.init,
 		Command: func(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -113,6 +119,7 @@ func (a *awake) init(ctx context.Context, h *pluginsdk.Host) error {
 	go func() {
 		ctx := context.WithoutCancel(ctx)
 		a.start(ctx)
+		go watchPower(func() { a.tick(ctx) })
 		a.ticks(ctx)
 	}()
 	return nil
@@ -123,7 +130,7 @@ func (a *awake) start(ctx context.Context) {
 	a.mu.Lock()
 	a.k.power = a.power()
 	a.k.prune()
-	a.k.apply()
+	a.k.refresh()
 	a.mu.Unlock()
 	a.changed(ctx)
 }
@@ -141,6 +148,8 @@ func (a *awake) load(ctx context.Context) {
 	logError("load choice", err)
 	_, err = a.h.StorageGet(ctx, keyHolds, &a.k.holds)
 	logError("load holds", err)
+	_, err = a.h.StorageGet(ctx, keyLid, &a.k.lidOn)
+	logError("load lid", err)
 }
 
 func (a *awake) ticks(ctx context.Context) {
@@ -167,7 +176,7 @@ func (a *awake) tick(ctx context.Context) {
 	a.mu.Lock()
 	a.k.power = p
 	a.k.prune()
-	a.k.apply()
+	a.k.refresh()
 	a.mu.Unlock()
 	a.changed(ctx)
 }
@@ -175,7 +184,7 @@ func (a *awake) tick(ctx context.Context) {
 func (a *awake) shutdown() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.k.holder.release()
+	a.k.stop()
 }
 
 func (a *awake) command(ctx context.Context, cmd pluginsdk.CommandRun) (any, error) {
@@ -309,6 +318,9 @@ func (a *awake) setSettings(ctx context.Context, args settingsArgs) stateView {
 	if args.Display != nil {
 		a.k.settings.Display = *args.Display
 	}
+	if args.Lid != nil {
+		a.k.settings.Lid = *args.Lid
+	}
 	a.k.apply()
 	a.mu.Unlock()
 	return a.changed(ctx)
@@ -429,15 +441,18 @@ func (a *awake) uiEvent(ctx context.Context, ev pluginsdk.UIEvent) (any, error) 
 			return nil, fmt.Errorf("hours: %w", err)
 		}
 		return a.choose(ctx, modeHours, hours)
-	case "battery", "display":
+	case actionBattery, actionDisplay, actionLid:
 		var on bool
 		if err := json.Unmarshal(ev.Value, &on); err != nil {
 			return nil, fmt.Errorf("%s: %w", ev.Action, err)
 		}
-		if ev.Action == "battery" {
+		switch ev.Action {
+		case actionBattery:
 			return a.setSettings(ctx, settingsArgs{Battery: &on}), nil
+		case actionDisplay:
+			return a.setSettings(ctx, settingsArgs{Display: &on}), nil
 		}
-		return a.setSettings(ctx, settingsArgs{Display: &on}), nil
+		return a.setSettings(ctx, settingsArgs{Lid: &on}), nil
 	}
 	return nil, fmt.Errorf("unknown action %q", ev.Action)
 }
@@ -447,7 +462,7 @@ func (a *awake) changed(ctx context.Context) stateView {
 	defer a.pubMu.Unlock()
 	a.mu.Lock()
 	v := a.k.view()
-	s, m, holds := a.k.settings, a.k.choice, append([]agentHold{}, a.k.holds...)
+	s, m, holds, lid := a.k.settings, a.k.choice, append([]agentHold{}, a.k.holds...), a.k.lidOn
 	persist := a.k.dirty
 	a.k.dirty = false
 	raw, _ := json.Marshal(v)
@@ -458,6 +473,7 @@ func (a *awake) changed(ctx context.Context) stateView {
 		logError("store settings", a.h.StorageSet(ctx, keySettings, s))
 		logError("store choice", a.h.StorageSet(ctx, keyChoice, m))
 		logError("store holds", a.h.StorageSet(ctx, keyHolds, holds))
+		logError("store lid", a.h.StorageSet(ctx, keyLid, lid))
 	}
 	if same {
 		return v

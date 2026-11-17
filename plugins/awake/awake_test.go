@@ -96,6 +96,24 @@ type fakeAssertion struct {
 
 func (p *fakeAssertion) Release() { p.released = true }
 
+type fakeLid struct {
+	writes []bool
+	err    error
+}
+
+func (l *fakeLid) Hold() error {
+	if l.err != nil {
+		return l.err
+	}
+	l.writes = append(l.writes, true)
+	return nil
+}
+
+func (l *fakeLid) Free() error {
+	l.writes = append(l.writes, false)
+	return nil
+}
+
 type env struct {
 	t    *testing.T
 	h    *fakeHost
@@ -104,6 +122,7 @@ type env struct {
 	held []*fakeAssertion
 	dead map[int]bool
 	pow  power
+	lid  *fakeLid
 }
 
 func newEnv(t *testing.T) *env {
@@ -111,13 +130,13 @@ func newEnv(t *testing.T) *env {
 }
 
 func newEnvWith(t *testing.T, h *fakeHost) *env {
-	e := &env{t: t, h: h, now: time.Date(2026, 11, 16, 17, 0, 0, 0, time.Local), dead: map[int]bool{}}
+	e := &env{t: t, h: h, now: time.Date(2026, 11, 16, 17, 0, 0, 0, time.Local), dead: map[int]bool{}, lid: &fakeLid{}}
 	assert := func(types []string) (assertion, error) {
 		p := &fakeAssertion{types: types}
 		e.held = append(e.held, p)
 		return p, nil
 	}
-	e.a = &awake{h: h, k: newKeeper(assert, func() time.Time { return e.now }, func(pid int) bool { return !e.dead[pid] }), power: func() power { return e.pow }}
+	e.a = &awake{h: h, k: newKeeper(assert, e.lid, func() time.Time { return e.now }, func(pid int) bool { return !e.dead[pid] }), power: func() power { return e.pow }}
 	e.a.load(t.Context())
 	e.a.start(t.Context())
 	return e

@@ -21,7 +21,7 @@
         "remote": true,
         "agent": true,
         "scope": "app",
-        "description": "Whether the Mac is kept awake and why: {on, armed, text, detail, mode, hours, until, value, holds: [{kind, title, trailing, id?, session?, workspace?}], labels, laptop, onBattery, battery, display}. mode is the user's one choice (hours, agents, on, or empty = off); holds are the lines under the status; labels holds every word of the switch. Every change publishes awake.changed with the same shape. Show every string as it is.",
+        "description": "Whether the Mac is kept awake and why: {on, armed, text, detail, mode, hours, until, value, holds: [{kind, title, trailing, id?, session?, workspace?}], labels, laptop, onBattery, battery, display, lid}. mode is the user's one choice (hours, agents, on, or empty = off); holds are the lines under the status; labels holds every word of the switch. Every change publishes awake.changed with the same shape. Show every string as it is.",
         "result": {
           "properties": {
             "on": {
@@ -104,6 +104,10 @@
             "display": {
               "type": "boolean",
               "description": "The screen stays on too."
+            },
+            "lid": {
+              "type": "boolean",
+              "description": "A laptop stays awake with the lid closed while it is kept awake."
             }
           }
         }
@@ -245,6 +249,10 @@
             "display": {
               "type": "boolean",
               "description": "Keep the screen on too."
+            },
+            "lid": {
+              "type": "boolean",
+              "description": "Keep a laptop awake with the lid closed while it is kept awake (on battery until 10 % is left)."
             }
           }
         }

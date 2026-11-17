@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -20,7 +21,10 @@ const (
 	defaultHoldMinutes = 60
 	maxHoldMinutes     = 720
 
-	lidNote = "A closed lid still sleeps the Mac on battery."
+	lidNote    = "A closed lid still sleeps the Mac on battery."
+	lidAwake   = "It stays awake with the lid closed."
+	lidLow     = "Below 10 % battery a closed lid sleeps the Mac again."
+	lidFailure = "Could not keep it awake with the lid closed: "
 )
 
 var hourChoices = []int{1, 2, 4, 8, 24}
@@ -28,6 +32,7 @@ var hourChoices = []int{1, 2, 4, 8, 24}
 type settings struct {
 	Battery bool `json:"battery"`
 	Display bool `json:"display"`
+	Lid     bool `json:"lid"`
 }
 
 type choice struct {
@@ -40,6 +45,7 @@ type choice struct {
 type power struct {
 	Laptop    bool
 	OnBattery bool
+	Low       bool
 }
 
 type agentHold struct {
@@ -102,6 +108,7 @@ type stateView struct {
 	OnBattery bool       `json:"onBattery"`
 	Battery   bool       `json:"battery"`
 	Display   bool       `json:"display"`
+	Lid       bool       `json:"lid"`
 }
 
 type keeper struct {
@@ -112,14 +119,18 @@ type keeper struct {
 	titles   map[string]string
 	power    power
 	holder   holder
+	lid      lidControl
+	lidOn    bool
+	lidErr   error
+	stopped  bool
 	now      func() time.Time
 	alive    func(pid int) bool
 	err      error
 	dirty    bool
 }
 
-func newKeeper(assert asserter, now func() time.Time, alive func(int) bool) *keeper {
-	return &keeper{active: map[string]int{}, titles: map[string]string{}, holder: holder{assert: assert}, now: now, alive: alive}
+func newKeeper(assert asserter, lid lidControl, now func() time.Time, alive func(int) bool) *keeper {
+	return &keeper{active: map[string]int{}, titles: map[string]string{}, holder: holder{assert: assert}, lid: lid, now: now, alive: alive}
 }
 
 func validHours(h int) bool {
@@ -228,7 +239,47 @@ func (k *keeper) types() []string {
 }
 
 func (k *keeper) apply() {
+	k.applyLid(false)
+}
+
+func (k *keeper) refresh() {
+	k.applyLid(true)
+}
+
+func (k *keeper) applyLid(resend bool) {
+	if k.stopped {
+		return
+	}
 	k.err = k.holder.want(k.types())
+	want := k.holder.on() && k.settings.Lid && k.power.Laptop && !k.power.Low
+	switch {
+	case want && (resend || !k.lidOn):
+		err := k.lid.Hold()
+		if errors.Is(err, errLidBusy) {
+			err = nil
+		} else if err == nil {
+			k.mark(!k.lidOn)
+			k.lidOn = true
+		}
+		k.lidErr = err
+	case !want && k.lidOn:
+		k.lidErr = k.lid.Free()
+		if k.lidErr == nil {
+			k.lidOn = false
+			k.mark(true)
+		}
+	case !want:
+		k.lidErr = nil
+	}
+}
+
+func (k *keeper) stop() {
+	if k.lidOn {
+		logError("free the lid", k.lid.Free())
+		k.lidOn = false
+	}
+	k.holder.release()
+	k.stopped = true
 }
 
 func (k *keeper) view() stateView {
@@ -246,6 +297,7 @@ func (k *keeper) view() stateView {
 		OnBattery: k.power.OnBattery,
 		Battery:   k.settings.Battery,
 		Display:   k.settings.Display,
+		Lid:       k.settings.Lid,
 	}
 	switch {
 	case v.On:
@@ -312,10 +364,26 @@ func (k *keeper) awakeDetail() string {
 		}
 	}
 	s += "."
-	if k.power.Laptop && k.power.OnBattery {
-		s += " " + lidNote
+	if l := k.lidSentence(); l != "" {
+		s += " " + l
 	}
 	return s
+}
+
+func (k *keeper) lidSentence() string {
+	switch {
+	case !k.power.Laptop:
+		return ""
+	case k.lidErr != nil:
+		return lidFailure + k.lidErr.Error() + "."
+	case k.lidOn:
+		return lidAwake
+	case k.settings.Lid && k.power.Low:
+		return lidLow
+	case k.power.OnBattery:
+		return lidNote
+	}
+	return ""
 }
 
 func (k *keeper) asleepDetail() string {
