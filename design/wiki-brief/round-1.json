@@ -1,0 +1,17 @@
+{
+  "title": "Wiki · round 1",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 17 Nov. Three directions on the same page (Architecture overview), then the designer's pick drawn on History, Search and a long-title page.",
+    "A · Flush: text aligned left with the header, one-line header, sidebar = tree only. Cheapest; at 1720 the right ~600 px are still empty. B · Margin (designer's pick): text column + a 200 px column with outline, latest changes, why it's stale, what links here; title once; Recent → \"New to you\"; agent notes = folded section. C · Side panel: outline/info/history in the 392 px side panel, only from 1440 up.",
+    "B ships in two steps: step 1 needs no new plugin logic and already removes the margins and the double title; step 2 adds the margin column, New to you, history with diff, search snippets."
+  ],
+  "boards": [
+    {"file": "r1-ABC-1720-Mate.dc.html", "w": 1720, "title": "A · B · C at 1720 · Mate dark", "caption": "The complaint width. Same page in each direction."},
+    {"file": "r1-ABC-640-MateLight.dc.html", "w": 2680, "title": "A · B · C at 640 · Mate light", "caption": "Narrow pane; the fourth frame shows the sidebar as a ⌘B overlay below 800."},
+    {"file": "r1-B-History-1280-Mate.dc.html", "w": 1280, "title": "B · History · 1280", "caption": "Changes by day, the selected change's diff beside them; ⎋ back, Restore."},
+    {"file": "r1-B-Search-1280-Mate.dc.html", "w": 1280, "title": "B · Search · 1280", "caption": "Results with snippets in the sidebar, matches marked on the page, counts per section in the outline."},
+    {"file": "r1-B-LongTitle-1280-Mate.dc.html", "w": 1280, "title": "B · Long title + table · 1280", "caption": "Title wraps once, agent notes unfolded, full title in the row's tooltip."},
+    {"file": "r1-Handoff.dc.html", "w": 1480, "title": "Recommendation + handoff", "caption": "31 changes tagged (a)–(e), typography table (wiki only vs every doc), two-step plan."}
+  ]
+}
