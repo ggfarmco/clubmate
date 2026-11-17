@@ -383,6 +383,9 @@ func (a *app) promptCommand(_ context.Context, cmd pluginsdk.CommandRun, args pr
 }
 
 func (a *app) answerCommand(_ context.Context, cmd pluginsdk.CommandRun, args answerArgs) (any, error) {
+	if a.bySession(cmd) && !a.descendantOf(args.Session, cmd.Caller) {
+		return nil, errNotDescendant
+	}
 	return nil, a.prompt(cmd.WorkspaceID, promptArgs{Session: args.Session, Text: args.Text})
 }
 

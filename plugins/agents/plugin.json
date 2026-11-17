@@ -267,9 +267,7 @@
         "title": "Send answer as user",
         "hidden": true,
         "agent": true,
-        "destructive": true,
-        "confirm": "Send this text to the agent session as your own message?",
-        "description": "Propose an answer to a session's question on the user's behalf. The user sees the text and approves it in Clubmate; only then it is sent as a normal user prompt (into the running turn or queued, as agents.prompt). Use it for the user's real answer, never paraphrase the user into agents.prompt.",
+        "description": "Relay the user's own answer to a session you started (a child or its descendants), marked as the user's message: it is sent as a normal user prompt (into the running turn or queued, as agents.prompt), without asking the user again. Pass only text the user wrote, word for word; never paraphrase the user into agents.prompt. Fails with \"the session was not started by this agent\" for any other session.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},

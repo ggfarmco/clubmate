@@ -2926,6 +2926,8 @@ func TestAnswerIsUserTurn(t *testing.T) {
 	actor, from := promptEvent(t, f.logLines(t, kid))
 	assert.Equal(t, "user", actor)
 	assert.Empty(t, from)
+
+	require.ErrorContains(t, f.runAs(t, workspace, kid, "agents.answer", map[string]any{"session": parent, "text": "yes"}, nil), "the session was not started by this agent")
 }
 
 func TestNotifyPolicy(t *testing.T) {
