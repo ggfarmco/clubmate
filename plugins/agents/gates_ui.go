@@ -17,7 +17,7 @@ import (
 	"clubmate/plugins/internal/automation"
 )
 
-var gateSheetActions = []string{actGateRepo, actGateInto, actGateLike, actGatePick, actGateRounds, actGatePaused, actGateCancel, actGateSave}
+var gateSheetActions = []string{actGateRepo, actGateHolds, actGateSession, actGateWrote, actGateWroteLike, actGateInto, actGateLike, actGatePick, actGateRounds, actGatePaused, actGateCancel, actGateSave}
 
 func isGateSheetAction(action string) bool {
 	return slices.Contains(gateSheetActions, action)
@@ -57,11 +57,12 @@ func (a *app) renderGates(ctx context.Context, p *workspaceUI, w pluginsdk.Works
 
 func sortGateRows(rows []gateRow) {
 	slices.SortStableFunc(rows, func(x, y gateRow) int {
-		if c := cmp.Compare(intoOrder(x.Into), intoOrder(y.Into)); c != 0 {
-			return c
-		}
-		return cmp.Compare(strings.ToLower(x.Name), strings.ToLower(y.Name))
+		return cmp.Or(gateOrder(x.gateConfig, y.gateConfig), cmp.Compare(strings.ToLower(x.Name), strings.ToLower(y.Name)))
 	})
+}
+
+func gateOrder(x, y gateConfig) int {
+	return cmp.Or(cmp.Compare(pointOrder(x.Point), pointOrder(y.Point)), cmp.Compare(intoOrder(x.Into), intoOrder(y.Into)))
 }
 
 func intoOrder(into string) int {
@@ -86,7 +87,7 @@ func (a *app) openRepoGate(ctx context.Context, workspaceID, repo string) error 
 		return nil
 	}
 	slices.SortStableFunc(gates, func(x, y gateConfig) int {
-		return cmp.Or(cmp.Compare(intoOrder(x.Into), intoOrder(y.Into)), cmp.Compare(x.Into, y.Into))
+		return cmp.Or(gateOrder(x, y), cmp.Compare(x.Into, y.Into), cmp.Compare(doneGateName(x.Wrote), doneGateName(y.Wrote)))
 	})
 	return a.selectPage(ctx, workspaceID, gatePrefix+gates[0].ID)
 }
@@ -182,10 +183,17 @@ func (a *app) openGateSheet(ctx context.Context, workspaceID, edit string) error
 			return errGateUnknown
 		}
 		g := gates[i]
-		d.Edit, d.Repo, d.Into, d.Graph, d.Rounds, d.Paused = g.ID, g.Repo, g.Into, g.Graph, g.Rounds, g.Paused
+		d.Edit, d.Point, d.Repo, d.Into, d.Graph, d.Rounds, d.Paused = g.ID, g.Point, g.Repo, g.Into, g.Graph, g.Rounds, g.Paused
 		d.Repos = []gateRepo{a.gateRepo(ctx, g.Repo)}
 		d.Name = gateNameOf(g.Into, d.branch())
 		d.Like = !slices.Contains([]string{gateIntoDefault, gateIntoBase, gateIntoAny}, g.Into)
+		if g.Point == gatePointTurn {
+			d.Name, d.Like = doneGateName(g.Wrote), false
+			d.Sessions, d.WroteMode = slices.Clone(g.Sessions), wroteMode(g.Wrote)
+			if d.WroteMode == gateWroteLike {
+				d.WroteLike = strings.Join(g.Wrote, ", ")
+			}
+		}
 	} else {
 		w, err := a.host.GetWorkspace(ctx, workspaceID)
 		if err != nil {
@@ -195,7 +203,7 @@ func (a *app) openGateSheet(ctx context.Context, workspaceID, edit string) error
 		if len(d.Repos) > 0 {
 			d.Repo = d.Repos[0].Path
 		}
-		d.Into = d.freeInto()
+		d.Point, d.Into = gatePointLand, d.freeInto()
 	}
 	d.Choices = a.graphs.GateGraphChoices(ctx, d.primary())
 	p := a.workspaceState(workspaceID)
@@ -344,6 +352,40 @@ func (a *app) gateSheetAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if _, ok := d.choice(); !ok {
 			d.Graph = gateGraphDefault
 		}
+	case actGateHolds:
+		var v string
+		if err := json.Unmarshal(ev.Value, &v); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+		if d.Edit != "" || v == d.Point {
+			break
+		}
+		d.Point, d.Like = v, false
+		switch v {
+		case gatePointTurn:
+			d.Into, d.Sessions, d.WroteMode, d.WroteLike = "", slices.Clone(doneSessionsDefault), gateWrotePlans, ""
+		default:
+			d.Point, d.Into = gatePointLand, d.freeInto()
+		}
+	case actGateSession:
+		var on bool
+		if err := json.Unmarshal(ev.Value, &on); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+		kind := strings.TrimPrefix(ev.NodeID, gateSheetID+"/session/")
+		d.Sessions = slices.DeleteFunc(slices.Clone(d.Sessions), func(k string) bool { return k == kind })
+		if on {
+			d.Sessions = append(d.Sessions, kind)
+			slices.Sort(d.Sessions)
+		}
+	case actGateWrote:
+		if err := json.Unmarshal(ev.Value, &d.WroteMode); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+	case actGateWroteLike:
+		if err := json.Unmarshal(ev.Value, &d.WroteLike); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
 	case actGateInto:
 		var v string
 		if err := json.Unmarshal(ev.Value, &v); err != nil {
@@ -398,13 +440,24 @@ func (a *app) gateSheetAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 
 func (a *app) saveGateDraft(ctx context.Context, d gateDraft) (string, error) {
 	if d.Edit == "" {
-		g, err := a.addGate(ctx, gateAddArgs{Repo: d.Repo, Into: d.Into, Graph: d.Graph, Rounds: d.Rounds})
+		args := gateAddArgs{Repo: d.Repo, Point: cmp.Or(d.Point, gatePointLand), Into: d.Into, Graph: d.Graph, Rounds: d.Rounds}
+		if d.Point == gatePointTurn {
+			args.Sessions, args.Wrote = d.Sessions, d.wrote()
+		}
+		g, err := a.addGate(ctx, args)
 		if err == nil {
 			a.gatesChanged()
 		}
 		return g.ID, err
 	}
-	return d.Edit, a.updateGate(ctx, gateUpdateArgs{ID: d.Edit, Paused: &d.Paused, Rounds: &d.Rounds, Into: &d.Into, Graph: &d.Graph})
+	args := gateUpdateArgs{ID: d.Edit, Paused: &d.Paused, Rounds: &d.Rounds, Graph: &d.Graph}
+	if d.Point != gatePointTurn {
+		args.Into = &d.Into
+	} else if i := slices.IndexFunc(d.Gates, func(g gateConfig) bool { return g.ID == d.Edit }); i < 0 || !sameDone(d.Gates[i], gateConfig{Sessions: slices.Sorted(slices.Values(d.Sessions)), Wrote: d.wrote()}) {
+		wrote := d.wrote()
+		args.Sessions, args.Wrote = &d.Sessions, &wrote
+	}
+	return d.Edit, a.updateGate(ctx, args)
 }
 
 func gateName(g gateConfig) string {

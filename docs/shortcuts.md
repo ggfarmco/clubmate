@@ -253,7 +253,7 @@ Outside the Always allow confirm, Esc still stops the turn and does not answer t
 
 ## Repo requests (Agents section or Code chat panel)
 
-A connect request (`Connect a repo?`) or a Land request (`Land ‹repo›?`) is docked above the composer. The card has the keys as soon as it shows, unless you are typing, and until you click the composer; ⌥1–⌥3 work either way.
+A connect request (`Connect a repo?`), a Land request (`Land ‹repo›?`) or a Done gate's held-turn card is docked above the composer. The card has the keys as soon as it shows, unless you are typing, and until you click the composer; ⌥1–⌥3 work either way.
 
 | Keys | Action |
 |---|---|
@@ -262,6 +262,7 @@ A connect request (`Connect a repo?`) or a Land request (`Land ‹repo›?`) is 
 | ↑ ↓ | Connect card: move between repos; moving past the third opens the folded ones |
 | ⌥1 ⌥2 ⌥3 | Land card: Review… (opens the repo's diff, never merges) · Merge · Leave it unlanded… (⌥3 again confirms, Esc or ↩ cancels) |
 | ⌥1 ⌥2 ⌥3 | Land review card ("Land ‹branch› without another review?"): Land anyway · One more round · Stop |
+| ⌥1 ⌥2 ⌥3 | Held turn card ("‹graph› still asks for changes after N rounds" / "‹graph› ended without a verdict"): Accept as done · One more round · Stop |
 
 ## Agent questions (Agents section or Code chat panel)
 

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,7 +21,12 @@ const (
 	changedTopic   = "docs.changed"
 	openedTopic    = "docs.opened"
 	presentedTopic = "docs.presented"
+	agentsPlugin   = "agents"
+	docGateCommand = "agents.doc-gate"
+	queuedNote     = "queued: shown when this turn is reviewed"
 )
+
+var errGatedArg = errors.New("invalid_params: only the agents plugin sets gated")
 
 type docs struct {
 	h       *pluginsdk.Host
@@ -36,12 +42,26 @@ type docs struct {
 type openArgs struct {
 	Path    string `json:"path"`
 	Session string `json:"session"`
+	Gated   *bool  `json:"gated"`
 }
 
 type presentArgs struct {
 	Path    string `json:"path"`
 	Title   string `json:"title"`
 	Session string `json:"session"`
+	Gated   *bool  `json:"gated"`
+}
+
+type docGateArgs struct {
+	Session string `json:"session"`
+	For     string `json:"for,omitempty"`
+	Path    string `json:"path"`
+	Mode    string `json:"mode"`
+	Title   string `json:"title,omitempty"`
+}
+
+type docGateResult struct {
+	Queued bool `json:"queued"`
 }
 
 type readArgs struct {
@@ -50,6 +70,7 @@ type readArgs struct {
 
 type openResult struct {
 	Path string `json:"path"`
+	Note string `json:"note,omitempty"`
 }
 
 type readResult struct {
@@ -162,12 +183,18 @@ func (d *docs) open(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comman
 	if err != nil {
 		return nil, err
 	}
+	if args.Gated != nil && cmd.Via != agentsPlugin {
+		return nil, errGatedArg
+	}
 	session := cmp.Or(args.Session, cmd.Caller)
 	allow := d.scope(ctx, h, ws)
 	path, anchor := splitAnchor(args.Path)
 	abs, src, err := load(d.absolute(ctx, h, ws, session, path), allow)
 	if err != nil {
 		return nil, err
+	}
+	if cmd.Agent && d.queued(ctx, h, ws.ID, docGateArgs{Session: cmd.Caller, For: session, Path: withAnchor(abs, anchor), Mode: "open"}) {
+		return openResult{Path: abs, Note: queuedNote}, nil
 	}
 	s := d.space(ws.ID)
 	s.mu.Lock()
@@ -182,7 +209,7 @@ func (d *docs) open(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comman
 		return nil, err
 	}
 	logError("focus "+ws.ID, h.Focus(ctx, ws.ID, "docs", popupSlot))
-	if cmd.Agent {
+	if cmd.Agent || args.Gated != nil {
 		_, err := h.Publish(ctx, openedTopic, openedEvent{Workspace: ws.ID, Session: session, Path: abs})
 		logError("publish "+openedTopic, err)
 	}
@@ -194,16 +221,34 @@ func (d *docs) present(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Com
 	if err != nil {
 		return nil, err
 	}
+	if args.Gated != nil && cmd.Via != agentsPlugin {
+		return nil, errGatedArg
+	}
 	session := cmp.Or(args.Session, cmd.Caller)
 	path, _ := splitAnchor(args.Path)
 	abs, _, err := load(d.absolute(ctx, h, ws, session, path), d.scope(ctx, h, ws))
 	if err != nil {
 		return nil, err
 	}
+	if cmd.Agent && d.queued(ctx, h, ws.ID, docGateArgs{Session: cmd.Caller, For: session, Path: abs, Mode: "present", Title: args.Title}) {
+		return openResult{Path: abs, Note: queuedNote}, nil
+	}
 	if _, err := h.Publish(ctx, presentedTopic, presentedEvent{Workspace: ws.ID, Session: session, Path: abs, Title: args.Title}); err != nil {
 		return nil, err
 	}
 	return openResult{Path: abs}, nil
+}
+
+func (d *docs) queued(ctx context.Context, h *pluginsdk.Host, workspaceID string, args docGateArgs) bool {
+	if args.Session == "" {
+		return false
+	}
+	var res docGateResult
+	if err := h.RunCommand(ctx, docGateCommand, workspaceID, args, &res); err != nil {
+		logError("ask the Done gate", err)
+		return false
+	}
+	return res.Queued
 }
 
 func (d *docs) read(ctx context.Context, h *pluginsdk.Host, workspaceID, path string) (any, error) {

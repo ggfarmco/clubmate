@@ -126,7 +126,7 @@ func (a *app) finished(t api.Turn) bool {
 }
 
 func statusParent(rec record) string {
-	if gf := rec.GateFor; rec.ParentSession == "" && gf != nil && !gf.Done && gf.Old != "" {
+	if gf := rec.GateFor; rec.ParentSession == "" && gf.open() {
 		return gf.Lander
 	}
 	return rec.ParentSession

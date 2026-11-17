@@ -367,7 +367,7 @@ struct LandRequestCardView: View {
         .focusable()
         .focusEffectDisabled()
         .focused($focused)
-        .reportsFocus(.landCard, focused)
+        .reportsFocus(.keys(keyHints), focused)
         .onTapGesture { focused = true }
         .padding(.horizontal, theme.gutter * 2)
         .padding(.bottom, theme.spacing.l)
@@ -403,6 +403,10 @@ struct LandRequestCardView: View {
 
     private func shortcut(_ option: SDUIPermissionOption) -> String? {
         options.firstIndex(of: option).flatMap { PermissionKeys.label($0, in: options) }
+    }
+
+    private var keyHints: String {
+        options.compactMap { option in shortcut(option).map { $0 + " " + Self.plain(option.label).lowercased() } }.joined(separator: " · ")
     }
 
     private static func plain(_ label: String) -> String {

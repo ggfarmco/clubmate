@@ -35,6 +35,8 @@ type fakeCore struct {
 	focus     []string
 	published []published
 	unwatched int
+	queued    bool
+	gateArgs  []docGateArgs
 }
 
 type fakeClock struct {
@@ -168,6 +170,41 @@ func TestPresentPublishesWithoutOpening(t *testing.T) {
 
 	_, err = e.run(pluginsdk.CommandRun{ID: "docs.present", Agent: true, Caller: "agt_a", Args: e.args(map[string]any{"path": "/etc/hosts.md"})})
 	assert.ErrorIs(t, err, errNotInWorkspace)
+}
+
+func TestGatedTurnQueuesAgentDocs(t *testing.T) {
+	e := newEnv(t)
+	spec := e.doc("spec.md", "# Spec")
+	e.core.sessions = []map[string]string{{"id": "agt_a", "worktree": e.dir}}
+	e.core.queued = true
+
+	opened, err := e.run(pluginsdk.CommandRun{ID: "docs.open", Agent: true, Caller: "agt_a", Args: e.args(map[string]any{"path": "spec.md#intro"})})
+	require.NoError(t, err)
+	presented, err := e.run(pluginsdk.CommandRun{ID: "docs.present", Agent: true, Caller: "agt_a", Args: e.args(map[string]any{"path": spec, "title": "The spec", "session": "agt_b"})})
+	require.NoError(t, err)
+
+	queued := openResult{Path: spec, Note: queuedNote}
+	assert.Equal(t, []any{queued, queued}, []any{opened, presented})
+	assert.Equal(t, []docGateArgs{{Session: "agt_a", For: "agt_a", Path: spec + "#intro", Mode: "open"}, {Session: "agt_a", For: "agt_b", Path: spec, Mode: "present", Title: "The spec"}}, e.core.gateArgs)
+	assert.Zero(t, e.core.renderCount())
+	assert.Empty(t, e.core.published)
+}
+
+func TestDocReplayDoesNotQueueAgain(t *testing.T) {
+	e := newEnv(t)
+	spec := e.doc("spec.md", "# Spec")
+	e.core.queued = true
+	replay := e.args(map[string]any{"path": spec, "session": "agt_a", "gated": false})
+
+	_, err := e.run(pluginsdk.CommandRun{ID: "docs.open", Agent: true, Caller: "agt_a", Args: replay})
+	require.ErrorIs(t, err, errGatedArg)
+	res, err := e.run(pluginsdk.CommandRun{ID: "docs.open", Via: "agents", Args: replay})
+	require.NoError(t, err)
+
+	assert.Equal(t, openResult{Path: spec}, res)
+	e.assertDoc(spec, 1, false)
+	assert.Equal(t, published{Topic: "docs.opened", Payload: map[string]any{"workspace": "ws", "session": "agt_a", "path": spec}}, e.core.lastPublished())
+	assert.Empty(t, e.core.gateArgs)
 }
 
 func TestArtifactOpens(t *testing.T) {
@@ -351,8 +388,16 @@ func (c *fakeCore) handle(req *jsonrpc2.Request) (any, error) {
 		if err := json.Unmarshal(params["id"], &id); err != nil {
 			return nil, err
 		}
-		if id == "agents.docs" {
+		switch id {
+		case "agents.docs":
 			return c.runAgentDocs(params["args"])
+		case "agents.doc-gate":
+			var args docGateArgs
+			if err := json.Unmarshal(params["args"], &args); err != nil {
+				return nil, err
+			}
+			c.gateArgs = append(c.gateArgs, args)
+			return docGateResult{Queued: c.queued}, nil
 		}
 		return c.sessions, nil
 	}

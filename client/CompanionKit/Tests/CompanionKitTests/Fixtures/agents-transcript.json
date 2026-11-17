@@ -11,7 +11,8 @@
     "finish": "ask",
     "createdAt": "2026-10-30T09:41:00Z",
     "updatedAt": "2026-10-30T09:41:00Z",
-    "asks": false
+    "asks": false,
+    "gateSince": "0123456789abcdef0123456789abcdef01234567"
   },
   "modes": [
     {

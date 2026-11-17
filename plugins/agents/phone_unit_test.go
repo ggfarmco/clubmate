@@ -33,7 +33,7 @@ func TestPhoneCommandsAreRemoteAndTakeThePhoneAsTheUser(t *testing.T) {
 	for _, c := range manifest.Contributes.Commands {
 		remote[c.ID] = c.Remote
 	}
-	for _, id := range []string{"agents.connect-answer", "agents.land-answer", "agents.land-commits", "agents.repo-fix", "agents.repo-leave", "agents.archive-plan", "agents.archive", "agents.folder-remove"} {
+	for _, id := range []string{"agents.connect-answer", "agents.land-answer", "agents.gate-answer", "agents.land-commits", "agents.repo-fix", "agents.repo-leave", "agents.archive-plan", "agents.archive", "agents.folder-remove"} {
 		assert.True(t, remote[id], id)
 	}
 

@@ -49,6 +49,7 @@ var (
 		"agents.blame":          typed((*app).blameCommand),
 		"agents.trace":          typed((*app).traceCommand),
 		"agents.docs":           withArgs((*app).docsCommand),
+		"agents.doc-gate":       withArgs((*app).docGateCommand),
 		"agents.image":          withArgs((*app).imageCommand),
 		toolCallCmd:             withArgs((*app).toolCallCommand),
 		"agents.export":         withArgs((*app).exportCommand),
@@ -95,6 +96,7 @@ var (
 		"agents.task":           withArgs((*app).taskCommand),
 		"agents.task-report":    withArgs((*app).taskReportCommand),
 		"agents.land-answer":    withArgs((*app).landAnswerCommand),
+		"agents.gate-answer":    withArgs((*app).gateAnswerCommand),
 		"agents.land-commits":   withArgs((*app).landCommitsCommand),
 		"agents.repo-leave":     withArgs((*app).repoLeaveCommand),
 		"agents.repo-fix":       withArgs((*app).repoFixCommand),
@@ -114,6 +116,7 @@ var (
 	errUnknownCmd    = errors.New("unknown command")
 	errRelativeRoot  = errors.New("stop-root: path must be absolute")
 	errNotDescendant = errors.New("the session was not started by this agent")
+	errHeldByGate    = errors.New("a Done gate holds this session's turn; only the user can stop it")
 	errVoiceOnly     = errors.New("invalid_params: only the voice plugin may set disallowedTools, systemPrompt or mode")
 	errOriginOnly    = errors.New("invalid_params: only the cron plugin may set cronJob and only the triggers plugin may set trigger")
 	errFinishUser    = errors.New("invalid_params: only the user may set finish")
@@ -204,6 +207,7 @@ type promptArgs struct {
 	Queued      bool         `json:"-"`
 	Answered    []string     `json:"-"`
 	Land        bool         `json:"-"`
+	Gate        bool         `json:"-"`
 }
 
 type attachment struct {
@@ -604,6 +608,9 @@ func (a *app) cancelCommand(_ context.Context, cmd pluginsdk.CommandRun, args ca
 	}
 	if a.bySession(cmd) && !a.descendantOf(s.snapshot().ID, cmd.Caller) {
 		return nil, errNotDescendant
+	}
+	if a.bySession(cmd) && s.snapshot().Held != nil {
+		return nil, errHeldByGate
 	}
 	if args.Turn != 0 && !s.turnActive(args.Turn) {
 		return nil, fmt.Errorf("%w: turn %d is over", errTurnChanged, args.Turn)

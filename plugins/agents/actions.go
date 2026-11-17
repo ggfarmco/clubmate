@@ -508,6 +508,13 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		return nil
 	case actOpenReview:
 		return a.openReview(ctx, ev.WorkspaceID, sid, a.cardReview(s, node))
+	case actHeldReview:
+		_, id, _ := strings.Cut(strings.TrimPrefix(node, heldReviewPrefix), "/")
+		reviewer := a.session(id)
+		if reviewer == nil || reviewer.snapshot().GateFor == nil || reviewer.snapshot().GateFor.Lander != sid {
+			return nil
+		}
+		return a.openReviewer(ctx, ev.WorkspaceID, reviewer.snapshot().ID, sid)
 	case actLandReview:
 		l := a.landing(s.snapshot())
 		if l == nil || l.Reviewer == "" {

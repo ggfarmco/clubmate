@@ -29,6 +29,7 @@ type queuedPrompt struct {
 	Sending     bool         `json:"sending,omitempty"`
 	Parts       []string     `json:"-"`
 	Land        bool         `json:"-"`
+	Gate        bool         `json:"gate,omitempty"`
 }
 
 func (s *session) enqueueLocked(args promptArgs) {
@@ -79,7 +80,7 @@ func (s *session) queued() []queuedPrompt {
 }
 
 func (s *session) queuedLocked(args promptArgs) queuedPrompt {
-	return queuedPrompt{ID: rand.Text(), Text: args.Text, Attachments: args.Attachments, From: args.From, Voice: args.Voice, Review: args.Review, Answered: args.Answered, Land: args.Land}
+	return queuedPrompt{ID: rand.Text(), Text: args.Text, Attachments: args.Attachments, From: args.From, Voice: args.Voice, Review: args.Review, Answered: args.Answered, Land: args.Land, Gate: args.Gate}
 }
 
 func (s *session) dequeueLocked() (promptArgs, bool) {
@@ -112,6 +113,7 @@ func (s *session) dequeueLocked() (promptArgs, bool) {
 	sending := s.queuedLocked(args)
 	sending.Sending, sending.Parts = true, ids
 	sending.Land = !slices.ContainsFunc(parts, func(q queuedPrompt) bool { return !q.Land })
+	sending.Gate = !slices.ContainsFunc(parts, func(q queuedPrompt) bool { return !q.Gate })
 	s.sending = &sending
 	return args, true
 }

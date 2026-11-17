@@ -2,6 +2,7 @@ package main
 
 import (
 	"strconv"
+	"strings"
 
 	"clubmate/plugins/agents/api"
 	"clubmate/plugins/agents/graphs"
@@ -20,6 +21,7 @@ type gateCount struct {
 	Asking  int
 	Trust   int
 	Landing int
+	Held    int
 }
 
 type gateRound struct {
@@ -42,7 +44,11 @@ func gateCounts(rows []gateRow, reviewersAsking int) gateCount {
 	for _, r := range rows {
 		asking, landing := r.landingCounts()
 		c.Asking += asking
-		c.Landing += landing
+		if r.Point == gatePointTurn {
+			c.Held += landing
+		} else {
+			c.Landing += landing
+		}
 		if r.State == gateStateTrust {
 			c.Trust++
 		}
@@ -67,8 +73,8 @@ func dockRows(service []sessionInfo, gates gateCount, defs []graphs.Definition) 
 		gate.Detail, gate.Attention = strconv.Itoa(gates.Trust)+" to trust", true
 	case gates.Asking > 0:
 		gate.Detail = strconv.Itoa(gates.Asking) + " asking"
-	case gates.Landing > 0:
-		gate.Detail = landingCount(gates.Landing)
+	case gates.Landing > 0 || gates.Held > 0:
+		gate.Detail = strings.Join(nonEmpty(landingCount(gates.Landing), heldCount(gates.Held)), " · ")
 	}
 	gate.PhoneDetail = gate.Detail
 	waits := 0

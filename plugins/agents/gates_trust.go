@@ -25,7 +25,7 @@ func trustCard(sc gateScreen) sdui.Node {
 	} else {
 		lines = append(lines,
 			sdui.Text(fmt.Sprintf(gateTrustTitle, graphTitle(sc.Graph, r.Graph))),
-			sdui.MutedText(fmt.Sprintf(gateTrustText, shortHash(r.Pin), shortHash(sc.Graph.Hash))),
+			sdui.MutedText(fmt.Sprintf(trustText(r.Point), shortHash(r.Pin), shortHash(sc.Graph.Hash))),
 		)
 		lines = append(lines, gateGraphDiff(sc.Pinned, sc.Graph)...)
 		if sc.Mac {

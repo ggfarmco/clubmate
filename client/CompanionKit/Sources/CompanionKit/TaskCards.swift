@@ -138,10 +138,12 @@ public struct LandCard: Decodable, Sendable, Equatable, Identifiable {
     public struct Option: Decodable, Sendable, Equatable, Identifiable {
         public let id: String
         public let label: String
+        public var kind: String?
     }
 
     public static let merge = "merge"
     public static let leave = "leave"
+    public static let more = "more"
 
     public let request: String
     public let title: String
@@ -164,6 +166,14 @@ public struct LandCard: Decodable, Sendable, Equatable, Identifiable {
 
     public var reviewLabel: String {
         "Review and merge \(name)…"
+    }
+
+    public var choice: Bool {
+        options.contains { $0.id == Self.more }
+    }
+
+    public var moreLabel: String? {
+        options.first { $0.id == Self.more }?.label
     }
 
     public func canMerge(commits: LandCommits?, blocked: String?) -> Bool {

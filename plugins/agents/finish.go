@@ -64,11 +64,8 @@ func (a *app) policies(ctx context.Context, rec record) []acp.ContentBlock {
 	if rec.SystemPrompt != "" || rec.isAside() {
 		return nil
 	}
-	if rec.GateFor != nil && (rec.GateFor.Verdict || rec.GateFor.Run == "") {
-		return []acp.ContentBlock{{Type: "text", Text: gateReviewerText}}
-	}
-	if rec.GateFor != nil {
-		return []acp.ContentBlock{{Type: "text", Text: gateNodeText}}
+	if gf := rec.GateFor; gf != nil {
+		return []acp.ContentBlock{{Type: "text", Text: gf.policy()}}
 	}
 	out := []acp.ContentBlock{{Type: "text", Text: a.finishText(ctx, rec)}}
 	if len(a.children(rec.ID)) > 0 {

@@ -6,7 +6,7 @@ The `docs` plugin (`plugins/docs`) shows a Markdown or mermaid file rendered, or
 
 | Command | Args | Agent | Remote | Result |
 |---|---|---|---|---|
-| `docs.open` | `{path, session?}` (`path` may end in `#anchor`) | yes (MCP `docs_open`) | no | `{path}`; shows the doc in the workspace's popup and focuses it |
+| `docs.open` | `{path, session?, gated?}` (`path` may end in `#anchor`) | yes (MCP `docs_open`) | no | `{path, note?}`; shows the doc in the workspace's popup and focuses it |
 | `docs.read` | `{path}` | no | yes | `{path, title, html, rev, kind}` |
 | `docs.list` | `{session?, ifNoneMatch?, since?}` | no | yes | `{docs: [{path, rel, kind, modified, agent}], truncated, etag}`, or `{unchanged: true, etag}`, or with `since` `{docs, removed, order?, cursor, delta, truncated}`; see § Docs list |
 | `docs.close` | none | no | no | renders the popup `empty` |
@@ -51,7 +51,8 @@ The plugin declares section `docs` with `rail: false` and slot `popup`, so it ha
 - Esc and ⌘W close the popup while it has focus (also in its popped-out window); ⌘W does not reach the terminal or window under it. While a diagram is enlarged (§ Zoom), Esc closes only the diagram.
 - ⌘J (Switch Popup Focus) leaves the popup for where focus was before it and comes back: the panel hides on the way out (the plugin is not told; doc, Back stack and zoom stay) and shows on the way in; a popped-out window stays open and only key focus moves. A `ui.focus` on `docs.popup` (every `docs.open`) shows a hidden panel again; a `close` while it is hidden returns no focus.
 - `docs.open` replaces the back stack with the doc and calls `ui.focus` on `docs.popup`. From an agent it also publishes `docs.opened`.
-- `docs.present {path, title?, session?}` (agent tool `docs_present`, non-destructive) checks the path like `docs.open` (same scope, kinds, size and errors, an `#anchor` is dropped), opens nothing and publishes `docs.presented`; the agents plugin turns it into a card under the agent's reply (see [agents](agents.md#docs-in-the-transcript)). It returns `{path}`.
+- `docs.present {path, title?, session?}` (agent tool `docs_present`, non-destructive) checks the path like `docs.open` (same scope, kinds, size and errors, an `#anchor` is dropped), opens nothing and publishes `docs.presented`; the agents plugin turns it into a card under the agent's reply (see [agents](agents.md#docs-in-the-transcript)). It returns `{path, note?}`.
+- **Done gates.** An agent's `docs.open` or `docs.present` first checks the path, then asks `agents.doc-gate {session, for, path, mode, title?}` about the calling session (`for` is the session the call named); when the caller's turn may be held by a Done gate it shows and publishes nothing and returns `note: "queued: shown when this turn is reviewed"`, and the agents plugin runs the call again once the turn ends not held or its gate releases it (see [agents](agents.md#done-gates)). That replay passes `gated: false`, which only the agents plugin may set (anyone else gets `invalid_params`): it is never queued and `docs.open` publishes `docs.opened` as for an agent. If the agents plugin can't answer, the doc shows at once.
 - A `#anchor` is split off a path only when the part before it is a doc (`a.md#intro`; `notes#1.md` stays a file name). Each back stack entry keeps its anchor: the doc loads at that heading, or at the top when no element has that id; a live reload keeps the scroll position.
 - Events on `docs.popup`: `openDoc` (value the path with an optional `#anchor`) pushes the doc, or for the doc already on top only moves to the anchor, `back` pops, `close` clears the stack and renders `empty`; `openFile` opens the file in the editor.
 - When the open file is deleted or renamed away, the popup keeps its header and shows `File no longer exists` with the path as hint; it shows the doc again when the file comes back.
@@ -89,7 +90,7 @@ While a workspace has a doc open in the popup or read by `docs.read` (the last 1
 | Topic | Payload | When |
 |---|---|---|
 | `docs.changed` | `{workspace, path, rev}` | a watched path re-rendered |
-| `docs.opened` | `{workspace, session, path}` | `docs.open` from an agent |
+| `docs.opened` | `{workspace, session, path}` | `docs.open` from an agent, or its replay after a Done gate |
 | `docs.presented` | `{workspace, session, path, title?}` | `docs.present` |
 
 `docs.changed` and `docs.opened` are forwarded to paired phones by `remote` (see [remote](remote.md)); `docs.presented` is not, the phone sees its card in the transcript.

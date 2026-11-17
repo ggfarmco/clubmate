@@ -18,6 +18,7 @@ type session struct {
 	openMu    sync.Mutex
 	saveMu    sync.Mutex
 	rec       record
+	holdOf    *heldTurn
 	log       *eventLog
 	loaded    bool
 	unread    bool
@@ -33,9 +34,11 @@ type session struct {
 	wantTasks func()
 	prefills  map[string]map[int]elicitPrefill
 
-	taskTitles  map[int]string
-	tasksWanted bool
-	minor       int64
+	taskTitles    map[int]string
+	tasksWanted   bool
+	minor         int64
+	replayingDocs bool
+	replayAgain   bool
 
 	transcriptState
 	runState
@@ -121,6 +124,9 @@ func (s *session) setStatusLocked(status, errText string) {
 		s.rec.ClosedStatus = s.rec.Status
 	}
 	s.rec.Status = status
+	if status != statusRunning && status != statusWaiting {
+		s.rec.Held = nil
+	}
 	s.rec.AutoClosed = false
 	s.rec.Review = false
 	s.rec.Error = errText
@@ -134,7 +140,7 @@ func (s *session) setStatusLocked(status, errText string) {
 	s.rec.UpdatedAt = time.Now().UTC()
 }
 
-func (s *session) settleLocked() {
+func (s *session) settleLocked() bool {
 	switch {
 	case s.rec.closed():
 	case len(s.perms) > 0:
@@ -144,9 +150,17 @@ func (s *session) settleLocked() {
 		s.setStatusLocked(statusWaiting, "")
 	case s.busyLocked():
 		s.setStatusLocked(statusRunning, "")
-	case s.rec.Status == statusWaiting:
+	case s.rec.Status != statusWaiting:
+	case s.rec.Held != nil:
+		s.setStatusLocked(statusRunning, "")
+		return true
+	case s.ending != nil:
+		s.setStatusLocked(statusRunning, "")
+		return true
+	default:
 		s.setStatusLocked(cmpStatus(s.prior), "")
 	}
+	return false
 }
 
 func (s *session) settings() (string, map[string]string) {
@@ -188,7 +202,7 @@ func (s *session) turnActive(turn int) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.loadLocked()
-	return s.turn == turn && s.workingLocked()
+	return s.turn == turn && (s.workingLocked() || s.rec.Held != nil)
 }
 
 func (s *session) currentTurn() int {

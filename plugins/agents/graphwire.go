@@ -46,6 +46,7 @@ func (a *app) startGraphs(ctx context.Context, after int64) {
 	if err := a.graphs.Start(ctx, after); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: start graphs:", err)
 	}
+	a.resumeHolds()
 }
 
 func (a *app) graphSessions(_ context.Context, workspace string) ([]api.Session, error) {

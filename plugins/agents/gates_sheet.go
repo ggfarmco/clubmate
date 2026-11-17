@@ -31,18 +31,22 @@ const (
 )
 
 type gateDraft struct {
-	Edit    string
-	Name    string
-	Repo    string
-	Into    string
-	Like    bool
-	Graph   string
-	Rounds  int
-	Paused  bool
-	Err     string
-	Repos   []gateRepo
-	Gates   []gateConfig
-	Choices []graphs.GateGraphInfo
+	Edit      string
+	Name      string
+	Point     string
+	Repo      string
+	Into      string
+	Like      bool
+	Sessions  []string
+	WroteMode string
+	WroteLike string
+	Graph     string
+	Rounds    int
+	Paused    bool
+	Err       string
+	Repos     []gateRepo
+	Gates     []gateConfig
+	Choices   []graphs.GateGraphInfo
 }
 
 func (d gateDraft) primary() string {
@@ -105,9 +109,13 @@ func gateSheetView(d gateDraft) sdui.Node {
 		title, save = "Edit gate · "+d.Name, "Save"
 		rows = append(rows, automation.Property("Repo", filepath.Base(d.Repo), tildePath(d.Repo)))
 	}
-	rows = append(rows, sdui.HStack(sdui.MutedText("Holds"), sdui.Text("Landing"), sdui.MutedText(gateHoldsLine)))
-	into, ok := gateIntoField(d)
-	rows = append(rows, into...)
+	rows = append(rows, gateHoldsField(d)...)
+	match := gateIntoField
+	if d.Point == gatePointTurn {
+		match = gateDoneFields
+	}
+	fields, ok := match(d)
+	rows = append(rows, fields...)
 	disabled = disabled || !ok
 	graph, ok := gateGraphField(d)
 	rows = append(rows, graph...)
@@ -116,7 +124,9 @@ func gateSheetView(d gateDraft) sdui.Node {
 	if d.Edit != "" {
 		rows = append(rows, sdui.HStack(sdui.MutedText("Paused"), sdui.WithAction(sdui.Toggle(gateSheetID+"/paused", d.Paused), actGatePaused), sdui.MutedText("a paused gate holds nothing")))
 	}
-	rows = append(rows, automation.Property("Docs only", gateDocsOnly, ""))
+	if d.Point != gatePointTurn {
+		rows = append(rows, automation.Property("Docs only", gateDocsOnly, ""))
+	}
 	cancel := sdui.WithVariant(sdui.WithAction(sdui.Button(gateSheetID+"/cancel", "Cancel", ""), actGateCancel), sdui.VariantSecondary)
 	ok2 := sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(gateSheetID+"/save", save, ""), actGateSave), sdui.VariantPrimary), "cmd+return")
 	if disabled {
@@ -129,7 +139,7 @@ func gateSheetView(d gateDraft) sdui.Node {
 	if d.Err != "" {
 		note, tone = d.Err, "danger"
 	}
-	return sdui.Sheet(gateSheetID, sdui.SheetProps{Title: title, Icon: gateLandIcon, Cancel: actGateCancel, Note: note, NoteTone: tone},
+	return sdui.Sheet(gateSheetID, sdui.SheetProps{Title: title, Icon: pointIcon(d.Point), Cancel: actGateCancel, Note: note, NoteTone: tone},
 		automation.Properties(rows...),
 		sdui.HStack(cancel, ok2),
 	)
@@ -220,7 +230,11 @@ func gateGraphField(d gateDraft) ([]sdui.Node, bool) {
 		out = append(out, sdui.MutedText(chainWords(chosen)))
 	}
 	if len(undecided) > 0 {
-		out = append(out, sdui.MutedText(fmt.Sprintf(gateUndecided, strings.Join(undecided, ", "))))
+		words := gateUndecided
+		if d.Point == gatePointTurn {
+			words = gateUndecidedDone
+		}
+		out = append(out, sdui.MutedText(fmt.Sprintf(words, strings.Join(undecided, ", "))))
 	}
 	if len(unreadable) > 0 {
 		out = append(out, sdui.MutedText(fmt.Sprintf(gateUnreadableGraphs, strings.Join(unreadable, ", "))))
@@ -250,6 +264,9 @@ func chainWords(g graphs.GateGraphInfo) string {
 
 func gateSentenceOf(d gateDraft) string {
 	chosen, _ := d.choice()
+	if d.Point == gatePointTurn {
+		return doneSentenceOf(d, cmp.Or(chosen.Title, chosen.Name), filepath.Base(d.primary()))
+	}
 	what := "l" + strings.TrimPrefix(gateNameOf(d.Into, d.branch()), "L")
 	return fmt.Sprintf(gateSentence, what, filepath.Base(d.primary()), cmp.Or(chosen.Title, chosen.Name))
 }

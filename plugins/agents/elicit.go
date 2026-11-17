@@ -205,11 +205,14 @@ func (s *session) requestElicitation(ctx context.Context, request string, params
 	s.mu.Lock()
 	delete(s.perms, id)
 	s.recordLocked(actorUser, kindElicitationAnswer, elicitationAnswerPayload{Request: id, Response: out})
-	s.settleLocked()
+	finish := s.settleLocked()
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
 	if s.resolved != nil {
 		s.resolved(entryElicitation, id)
+	}
+	if finish && s.idled != nil {
+		go s.idled()
 	}
 	return out
 }

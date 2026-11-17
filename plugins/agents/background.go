@@ -43,6 +43,10 @@ func (s *session) trackLocked(kind string, payload json.RawMessage) (started, en
 			}
 			s.background[res.BackgroundTaskID] = true
 		}
+	case slices.Contains(cycleKinds, kind) && s.running && s.answered:
+		s.late = true
+	case kind == acp.UpdateUsage && s.late && s.running && hasCost(payload):
+		s.late = false
 	case kind == acp.UpdateUsage && s.cycle && !s.running && hasCost(payload):
 		s.cycle = false
 		return false, true
@@ -119,18 +123,5 @@ func runsShell(root int, procs []proc.Process) bool {
 
 func (a *app) settleBackground(s *session) {
 	a.pruneBackground(s)
-	s.mu.Lock()
-	if s.busyLocked() || s.rec.Status != statusRunning {
-		s.mu.Unlock()
-		return
-	}
-	s.setStatusLocked(statusDone, "")
-	ended := s.turnLocked()
-	s.mu.Unlock()
-	s.turned(ended)
-	s.changed(changeStatus, true)
-	a.notifyEnd(s, ended)
-	a.markReview(s)
-	a.cleanupChild(s)
-	a.closeVanishedChildren(s)
+	a.finishTurn(s)
 }

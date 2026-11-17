@@ -14,27 +14,30 @@ import (
 )
 
 type gateListed struct {
-	ID     string `json:"id"`
-	Repo   string `json:"repo"`
-	Rounds int    `json:"rounds"`
-	Paused bool   `json:"paused"`
-	Point  string `json:"point"`
-	Into   string `json:"into"`
-	Graph  string `json:"graph"`
-	Name   string `json:"name"`
-	State  string `json:"state"`
-	Pin    string `json:"pin"`
-	Hash   string `json:"hash"`
-	Last   *struct {
+	ID       string   `json:"id"`
+	Repo     string   `json:"repo"`
+	Rounds   int      `json:"rounds"`
+	Paused   bool     `json:"paused"`
+	Point    string   `json:"point"`
+	Into     string   `json:"into"`
+	Sessions []string `json:"sessions"`
+	Wrote    []string `json:"wrote"`
+	Graph    string   `json:"graph"`
+	Name     string   `json:"name"`
+	State    string   `json:"state"`
+	Pin      string   `json:"pin"`
+	Hash     string   `json:"hash"`
+	Last     *struct {
 		Outcome string `json:"outcome"`
 	} `json:"last"`
 }
 
 type gateHistory struct {
 	Landings []struct {
-		Lander string `json:"lander"`
-		State  string `json:"state"`
-		Round  int    `json:"round"`
+		Lander   string `json:"lander"`
+		State    string `json:"state"`
+		Round    int    `json:"round"`
+		Reviewer string `json:"reviewer"`
 	} `json:"landings"`
 	Verdicts []struct {
 		Gate     string    `json:"gate"`

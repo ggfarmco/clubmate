@@ -149,9 +149,16 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	}
 	cut := map[*session]string{}
 	for _, rec := range recs {
-		stale := rec.Status == statusRunning || rec.Status == statusWaiting
+		if !busy(rec.Status) {
+			rec.Held = nil
+		}
+		stale := busy(rec.Status) && rec.Held == nil
 		if stale {
 			rec.Status = statusIdle
+		}
+		if rec.Held != nil {
+			rec.Status = statusRunning
+			a.watchdog.heldAtStart(rec.ID)
 		}
 		queue, spilled := rec.Queue, rec.QueueSpilled
 		rec.Queue, rec.QueueSpilled = nil, false
@@ -204,7 +211,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if _, err := h.Subscribe(ctx, reviewTopic+","+editorReady, reviewsAfter); err != nil {
 		return err
 	}
-	for _, topic := range []string{docsOpenedTopic, docsPresentedTopic} {
+	for _, topic := range []string{docsOpenedTopic, docsPresentedTopic, docsReadyTopic} {
 		if _, err := h.Subscribe(ctx, topic, ready.Seq); err != nil {
 			return err
 		}
@@ -235,6 +242,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	go a.deleteOldLoop(envDelay(deleteAfterEnv, deleteAfter))
 	go a.prCheckLoop(envDelay(prCheckEnv, prCheckEvery))
 	go a.ageOpenLoop(envDelay(openAfterEnv, openAfter))
+	a.settleAllGatedDocs()
 	go a.continueCutOff(cut)
 	go a.ensureSelf(context.WithoutCancel(ctx))
 	go a.nightLoop()
@@ -275,6 +283,8 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, sub string, ev pl
 		if json.Unmarshal(ev.Payload, &p) == nil {
 			a.docPresented(p)
 		}
+	case docsReadyTopic:
+		a.settleAllGatedDocs()
 	case contract.TopicRemoteWatching:
 		var p contract.RemoteWatching
 		if json.Unmarshal(ev.Payload, &p) == nil {
@@ -316,8 +326,10 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 	var s *session
 	s = newSession(rec, newEventLog(logPath(a.stateDir, rec.ID)), loaded, func(kind string, save bool) {
 		if kind == changeStatus {
+			a.holdSynced(s)
 			a.wakeWaiters()
 			a.statusChanged(s)
+			a.settleGatedDocs(s)
 			if child := s.snapshot(); child.RepoPath != "" && child.ParentSession != "" {
 				go a.landingChanged()
 			}
@@ -325,6 +337,10 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 		a.notes.mark(s, kind, save)
 		a.kick(rec.Workspace)
 	})
+	if rec.Held != nil {
+		h := *rec.Held
+		s.holdOf = &h
+	}
 	s.setup = ready
 	s.wantTasks = func() { a.wantTasks(rec.Workspace, s) }
 	s.turned = func(t api.Turn) {

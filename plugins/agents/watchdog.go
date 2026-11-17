@@ -47,6 +47,12 @@ func (a *app) continueCutOff(cut map[*session]string) {
 	}
 }
 
+func (w *watchdog) heldAtStart(id string) {
+	w.mu.Lock()
+	w.last[id] = statusRunning
+	w.mu.Unlock()
+}
+
 func (a *app) orchestrated(rec record) bool {
 	if p := a.session(rec.ParentSession); p != nil && !p.snapshot().closed() {
 		return true
@@ -56,7 +62,7 @@ func (a *app) orchestrated(rec record) bool {
 
 func (a *app) statusChanged(s *session) {
 	rec, turn, running := s.progress()
-	key := progressKey(turn, rec.Status, s.pending())
+	key, held := progressKey(turn, rec.Status, s.pending()), s.heldIdle()
 	w := &a.watchdog
 	w.mu.Lock()
 	prev := w.last[rec.ID]
@@ -68,7 +74,7 @@ func (a *app) statusChanged(s *session) {
 		}
 		w.pending[rec.ParentSession][rec.ID] = key
 	}
-	flush := !running && !busy(rec.Status) && len(w.pending[rec.ID]) > 0
+	flush := !running && (!busy(rec.Status) || held) && len(w.pending[rec.ID]) > 0
 	w.mu.Unlock()
 	if report {
 		a.scheduleWake(rec.ParentSession)
@@ -183,7 +189,7 @@ func (a *app) flushWake(id string) {
 			a.dropWakes(id)
 		}
 		return
-	case running || busy(rec.Status):
+	case running || busy(rec.Status) && !parent.heldIdle():
 		return
 	}
 	w.mu.Lock()
@@ -290,6 +296,12 @@ func (a *app) runIdle(s *session, args promptArgs, add func(*session, promptArgs
 	add(s, args)
 	a.runQueuedLocked(s)
 	return true
+}
+
+func (s *session) heldIdle() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.rec.Held != nil && !s.busyLocked() && len(s.perms) == 0
 }
 
 func (s *session) progress() (record, int, bool) {

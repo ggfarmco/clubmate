@@ -49,11 +49,14 @@ func (s *session) requestPermission(ctx context.Context, request string, params 
 	s.mu.Lock()
 	delete(s.perms, id)
 	s.recordLocked(actorUser, kindAnswer, answerPayload{Request: id, Outcome: out})
-	s.settleLocked()
+	finish := s.settleLocked()
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
 	if s.resolved != nil {
 		s.resolved(entryPermission, id)
+	}
+	if finish && s.idled != nil {
+		go s.idled()
 	}
 	return out
 }

@@ -357,6 +357,83 @@ struct LandDock: View {
     }
 }
 
+struct LandChoiceCard: View {
+    let card: LandCard
+    let blocked: String?
+    let answer: @MainActor (String) async throws -> Void
+    @State private var busy = false
+    @State private var failure: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: "exclamationmark.circle")
+                    .foregroundStyle(Color.warning)
+                Text(card.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.warningInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let caption = card.caption {
+                Text(caption)
+                    .font(.footnote)
+                    .foregroundStyle(Color.captionInk)
+            }
+            if let detail = card.detail {
+                Text(PlainMarkdown.attributed(detail))
+                    .font(.footnote)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 10) {
+                if let more = card.moreLabel {
+                    choice(more, id: LandCard.more, primary: false)
+                }
+                choice(card.mergeLabel, id: LandCard.merge, primary: true)
+            }
+            if let leave = card.leaveLabel {
+                choice(leave, id: LandCard.leave, primary: false, tint: Color.dangerInk)
+            }
+            if let message = blocked ?? failure {
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(failure != nil ? Color.danger : Color.captionInk)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.surface1, in: .rect(cornerRadius: 20))
+    }
+
+    private func choice(_ title: String, id: String, primary: Bool, tint: Color = .primary) -> some View {
+        Button { run(id) } label: {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .foregroundStyle(primary ? Color.onAccent : tint)
+                .background(primary ? Color.accentColor : Color.surface2, in: .capsule)
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .disabled(busy || blocked != nil)
+        .accessibilityIdentifier("land-choice-" + id)
+    }
+
+    private func run(_ action: String) {
+        busy = true
+        Task {
+            do {
+                try await answer(action)
+                failure = nil
+            } catch {
+                failure = (error as? RemoteError)?.message ?? error.localizedDescription
+            }
+            busy = false
+        }
+    }
+}
+
 struct LandReviewSheet: View {
     let card: LandCard
     let store: AgentsStore

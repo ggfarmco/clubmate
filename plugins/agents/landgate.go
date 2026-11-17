@@ -81,6 +81,7 @@ const (
 	gateStopLabel       = "Stop"
 	gateMovedLog        = "agents: %s moved without a land verdict: %s"
 	gateUnreadText      = "the gate's graph %s can't be read: %v"
+	gateLandTitle       = "Land review · "
 )
 
 var (
@@ -94,7 +95,7 @@ var (
 
 	errGitOnly      = errors.New("only the git plugin calls this")
 	errGateUser     = errors.New("only the user changes land gates")
-	errGateExists   = errors.New("this repo already has a land gate for this target")
+	errGateExists   = errors.New("this repo already has a gate with this match")
 	errGateInto     = errors.New("into is any, default, base, a branch or a branch glob")
 	errGateGraph    = errors.New("graph names a graph")
 	errGateUnknown  = errors.New("no such land gate")
@@ -113,6 +114,8 @@ type gateConfig struct {
 	Repo       string    `json:"repo"`
 	Point      string    `json:"point"`
 	Into       string    `json:"into"`
+	Sessions   []string  `json:"sessions,omitempty"`
+	Wrote      []string  `json:"wrote,omitempty"`
 	Graph      string    `json:"graph"`
 	Pin        string    `json:"pin,omitempty"`
 	PinBuiltin bool      `json:"pinBuiltin,omitempty"`
@@ -124,6 +127,8 @@ type gateConfig struct {
 
 type gateFor struct {
 	Gate    string `json:"gate,omitempty"`
+	Point   string `json:"point,omitempty"`
+	Key     string `json:"key,omitempty"`
 	Lander  string `json:"lander"`
 	Into    string `json:"into"`
 	Source  string `json:"source,omitempty"`
@@ -163,19 +168,24 @@ type gatesResult struct {
 }
 
 type gateAddArgs struct {
-	Repo   string `json:"repo"`
-	Into   string `json:"into"`
-	Graph  string `json:"graph"`
-	Rounds int    `json:"rounds"`
+	Repo     string   `json:"repo"`
+	Point    string   `json:"point"`
+	Into     string   `json:"into"`
+	Sessions []string `json:"sessions"`
+	Wrote    []string `json:"wrote"`
+	Graph    string   `json:"graph"`
+	Rounds   int      `json:"rounds"`
 }
 
 type gateUpdateArgs struct {
-	ID     string  `json:"id"`
-	Paused *bool   `json:"paused"`
-	Rounds *int    `json:"rounds"`
-	Into   *string `json:"into"`
-	Graph  *string `json:"graph"`
-	Trust  *string `json:"trust"`
+	ID       string    `json:"id"`
+	Paused   *bool     `json:"paused"`
+	Rounds   *int      `json:"rounds"`
+	Into     *string   `json:"into"`
+	Sessions *[]string `json:"sessions"`
+	Wrote    *[]string `json:"wrote"`
+	Graph    *string   `json:"graph"`
+	Trust    *string   `json:"trust"`
 }
 
 type gateIDArgs struct {
@@ -204,6 +214,7 @@ type landGateResult struct {
 }
 
 type landVerdictArgs struct {
+	Key      string   `json:"key"`
 	Tree     string   `json:"tree"`
 	Outcome  string   `json:"outcome"`
 	Findings []string `json:"findings"`
@@ -234,7 +245,8 @@ func (a *app) gates(ctx context.Context) ([]gateConfig, error) {
 	for i := range out {
 		out[i] = out[i].migrated()
 	}
-	a.keepGates(out)
+	live := liveOf(out)
+	a.liveGates.CompareAndSwap(nil, &live)
 	return out, nil
 }
 
@@ -247,11 +259,16 @@ func (a *app) saveGates(ctx context.Context, gates []gateConfig) error {
 }
 
 func (a *app) keepGates(gates []gateConfig) {
+	live := liveOf(gates)
+	a.liveGates.Store(&live)
+}
+
+func liveOf(gates []gateConfig) map[string]bool {
 	live := map[string]bool{}
 	for _, g := range gates {
 		live[g.ID] = !g.Paused
 	}
-	a.liveGates.Store(&live)
+	return live
 }
 
 func (a *app) gateLive(id string) bool {
@@ -280,7 +297,7 @@ func (a *app) repoGated(ctx context.Context, worktree string) bool {
 		return false
 	}
 	primary := primaryOf(ctx, worktree)
-	return primary != "" && slices.ContainsFunc(gates, func(g gateConfig) bool { return g.Repo == primary && !g.Paused })
+	return primary != "" && slices.ContainsFunc(gates, func(g gateConfig) bool { return g.Repo == primary && !g.Paused && g.Point == gatePointLand })
 }
 
 func (a *app) landingGate(ctx context.Context, target, into, source string) *gateConfig {
@@ -351,7 +368,13 @@ func validInto(into string) error {
 
 func sameMatch(gates []gateConfig, g gateConfig) error {
 	i := slices.IndexFunc(gates, func(o gateConfig) bool {
-		return o.ID != g.ID && o.Repo == g.Repo && o.Point == g.Point && o.Into == g.Into
+		if o.ID == g.ID || o.Repo != g.Repo || o.Point != g.Point {
+			return false
+		}
+		if g.Point == gatePointTurn {
+			return sameDone(o, g)
+		}
+		return o.Into == g.Into
 	})
 	if i >= 0 {
 		return fmt.Errorf("%w (%s)", errGateExists, gates[i].ID)
@@ -426,8 +449,8 @@ func (a *app) addGate(ctx context.Context, args gateAddArgs) (gateConfig, error)
 	if args.Rounds < 0 {
 		return gateConfig{}, errGateRounds
 	}
-	into := cmp.Or(args.Into, gateIntoAny)
-	if err := validInto(into); err != nil {
+	g, err := gateMatchOf(args)
+	if err != nil {
 		return gateConfig{}, err
 	}
 	primary := primaryOf(ctx, args.Repo)
@@ -445,17 +468,8 @@ func (a *app) addGate(ctx context.Context, args gateAddArgs) (gateConfig, error)
 	if err != nil {
 		return gateConfig{}, err
 	}
-	g := gateConfig{
-		ID:         id.New(gateIDPrefix),
-		Repo:       primary,
-		Point:      gatePointLand,
-		Into:       into,
-		Graph:      graph,
-		Pin:        pin,
-		PinBuiltin: builtin,
-		Rounds:     cmp.Or(args.Rounds, gateRoundsDefault),
-		CreatedAt:  time.Now().UTC(),
-	}
+	g.ID, g.Repo, g.Graph, g.Pin, g.PinBuiltin = id.New(gateIDPrefix), primary, graph, pin, builtin
+	g.Rounds, g.CreatedAt = cmp.Or(args.Rounds, gateRoundsDefault), time.Now().UTC()
 	if err := sameMatch(gates, g); err != nil {
 		return gateConfig{}, err
 	}
@@ -474,7 +488,7 @@ func (a *app) gateUpdateCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 }
 
 func (a *app) updateGate(ctx context.Context, args gateUpdateArgs) error {
-	return a.changeGate(ctx, args.ID, func(gates []gateConfig, i int) ([]gateConfig, error) {
+	err := a.changeGate(ctx, args.ID, func(gates []gateConfig, i int) ([]gateConfig, error) {
 		if args.Rounds != nil {
 			if *args.Rounds < 1 {
 				return nil, errGateRounds
@@ -485,10 +499,26 @@ func (a *app) updateGate(ctx context.Context, args gateUpdateArgs) error {
 			gates[i].Paused = *args.Paused
 		}
 		if args.Into != nil {
+			if gates[i].Point != gatePointLand {
+				return nil, errGateTurnInto
+			}
 			if err := validInto(*args.Into); err != nil {
 				return nil, err
 			}
 			gates[i].Into = *args.Into
+			if err := sameMatch(gates, gates[i]); err != nil {
+				return nil, err
+			}
+		}
+		if args.Sessions != nil || args.Wrote != nil {
+			if gates[i].Point != gatePointTurn {
+				return nil, errGateLandOnly
+			}
+			kinds, globs, err := doneMatch(*cmp.Or(args.Sessions, &gates[i].Sessions), *cmp.Or(args.Wrote, &gates[i].Wrote))
+			if err != nil {
+				return nil, err
+			}
+			gates[i].Sessions, gates[i].Wrote = kinds, globs
 			if err := sameMatch(gates, gates[i]); err != nil {
 				return nil, err
 			}
@@ -520,6 +550,16 @@ func (a *app) updateGate(ctx context.Context, args gateUpdateArgs) error {
 		}
 		return gates, nil
 	})
+	switch {
+	case err != nil:
+	case args.Paused != nil && *args.Paused:
+		a.regateHolds(ctx, args.ID, byGatePaused)
+	case args.Sessions != nil || args.Wrote != nil:
+		a.regateHolds(ctx, args.ID, byGateChanged)
+	case args.Trust != nil || args.Graph != nil:
+		a.trustedHolds(args.ID)
+	}
+	return err
 }
 
 func (a *app) gatePin(ctx context.Context, repo, graph string) (string, bool, error) {
@@ -575,8 +615,10 @@ func (a *app) deleteGate(ctx context.Context, workspaceID, gateID string) error 
 		return err
 	}
 	a.dropGateLandings(ctx, gateID)
+	a.regateHolds(ctx, gateID, byGateDeleted)
 	logError("remove gate worktree", a.host.RunCommand(ctx, gateTreeCmd, workspaceID, map[string]any{"repo": repo, "gate": gateID, "remove": true}, nil))
 	logError("forget pinned gate graph", a.host.StorageDelete(ctx, gatePinKey+gateID))
+	logError("forget the gate's turn verdicts", a.host.StorageDeletePrefix(ctx, turnVerdictKey+gateID+"/"))
 	return a.host.StorageDelete(ctx, gateHistoryKey+gateID)
 }
 
@@ -732,7 +774,7 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 		return landGateResult{State: gateUser, Text: graph.text}, nil
 	}
 	steps := a.graphs.GateSteps(ctx, g.Repo, g.Graph)
-	gf := gateFor{Gate: g.ID, Lander: lander.snapshot().ID, Into: args.Into, Source: args.Source, Old: args.Old, Tree: args.Tree, Run: st.Run}
+	gf := gateFor{Gate: g.ID, Point: gatePointLand, Key: args.Tree, Lander: lander.snapshot().ID, Into: args.Into, Source: args.Source, Old: args.Old, Tree: args.Tree, Run: st.Run}
 	prompted := false
 	if live && st.Tree != "" && made.Gate == g.ID && (!steps || st.TreeKey != "") && a.graphs.GateRunOf(ctx, st.Run, g.Graph, graph.hash) && a.graphs.GateStepsIdle(ctx, st.Run) {
 		if steps {
@@ -779,7 +821,7 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 			Input:     first + fmt.Sprintf(gateFirstVerdict, args.Tree),
 			Other:     first,
 			Dir:       dir,
-			NewNode:   a.gateNode(workspaceID, st.subject(), cmp.Or(args.Worktree, args.Target), gf),
+			NewNode:   a.gateNode(workspaceID, gateLandTitle+st.subject(), cmp.Or(args.Worktree, args.Target), gf),
 		})
 		if err != nil {
 			a.dropGateTree(ctx, workspaceID, st)
@@ -872,11 +914,11 @@ func (a *app) landerClosed(ctx context.Context, s *session) {
 	}
 }
 
-func (a *app) gateNode(workspaceID, subject, cwd string, gf gateFor) func(context.Context, graphs.GateNode) (string, error) {
+func (a *app) gateNode(workspaceID, name, cwd string, gf gateFor) func(context.Context, graphs.GateNode) (string, error) {
 	return func(ctx context.Context, n graphs.GateNode) (string, error) {
 		node := gf
 		node.Run, node.Verdict = n.Run, n.Verdict
-		title := "Land review · " + subject
+		title := name
 		if !n.Verdict {
 			title += " · " + n.Title
 		}
@@ -1040,6 +1082,9 @@ func (a *app) landVerdictCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 	if args.Outcome != gateApproved && (args.Outcome != gateChanges || len(args.Findings) == 0) {
 		return nil, errVerdict
 	}
+	if node.snapshot().GateFor.Point == gatePointTurn {
+		return a.heldVerdictCommand(ctx, node, args)
+	}
 	a.gateMu.Lock()
 	defer a.gateMu.Unlock()
 	rec := node.snapshot()
@@ -1047,7 +1092,7 @@ func (a *app) landVerdictCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 	if gf.Old == "" {
 		return nil, errNoReview
 	}
-	if args.Tree != gf.Tree {
+	if cmp.Or(args.Key, args.Tree) != gf.Tree {
 		return nil, fmt.Errorf(verdictTreeFormat, gf.Tree)
 	}
 	if _, ok := a.readVerdict(ctx, gf.Old, gf.Tree); ok {
@@ -1091,7 +1136,7 @@ func (a *app) landVerdictCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 
 func (a *app) gateTurnEnded(s *session, nudge bool) {
 	rec := s.snapshot()
-	if rec.GateFor == nil || rec.GateFor.Done || rec.GateFor.Old == "" {
+	if !rec.GateFor.open() {
 		return
 	}
 	gf := *rec.GateFor
@@ -1103,7 +1148,7 @@ func (a *app) gateTurnEnded(s *session, nudge bool) {
 		gf.Nudged = true
 		s.setGateFor(&gf)
 		a.saveNow(ctx, s)
-		logError("land review nudge", a.submit(s, &promptArgs{Text: gateNudgeText}))
+		logError("land review nudge", a.submit(s, &promptArgs{Text: gf.nudgeText()}))
 		return
 	}
 	if gf.Run != "" {
@@ -1115,6 +1160,7 @@ func (a *app) gateTurnEnded(s *session, nudge bool) {
 
 func (a *app) gateRunEnded(workspaceID, run string) {
 	a.endGateRound(workspaceID, nil, func(st landReview) bool { return st.Run == run })
+	a.heldRunEnded(workspaceID, run)
 }
 
 func (a *app) endGateRound(workspaceID string, also *session, match func(landReview) bool) {
@@ -1219,6 +1265,9 @@ func (a *app) answerGate(ctx context.Context, workspaceID string, args landAnswe
 }
 
 func (a *app) gateCommits(ctx context.Context, workspaceID, request string) (landCommitsResult, bool, error) {
+	if _, h := a.findHeldRequest(workspaceID, request); h != nil {
+		return landCommitsResult{Commits: []landCommit{}, Detail: heldDetail(*h)}, true, nil
+	}
 	a.gateMu.Lock()
 	_, st, ok := a.findGateRequest(workspaceID, request)
 	a.gateMu.Unlock()
@@ -1285,18 +1334,22 @@ func (a *app) logUngatedMain(rec record, commits []string) {
 }
 
 func gateCard(rec record, st landReview) sdui.Node {
-	return sdui.WithDock(sdui.LandRequestCard(rec.ID+"/"+gateCardNode+"/"+st.Request, st.Request, sdui.LandRequestProps{
+	return roundsCard(rec, st.Request, gateLandLabel, sdui.LandRequestProps{
 		Title:   fmt.Sprintf(gateCardTitle, cmp.Or(st.Source, st.Into)),
 		Caption: gateCaption(st),
 		Name:    cmp.Or(st.Source, st.Into),
 		Detail:  bullets(st.Findings),
 		Rule:    fmt.Sprintf(gateCardRule, st.Into),
-		Options: []sdui.PermissionOption{
-			{ID: landActionMerge, Label: gateLandLabel, Kind: "allow_once", Shortcut: "opt+1"},
-			{ID: landActionMore, Label: gateMoreLabel, Shortcut: "opt+2"},
-			{ID: landActionLeave, Label: gateStopLabel, Kind: "reject_once", Shortcut: "opt+3"},
-		},
-	}))
+	})
+}
+
+func roundsCard(rec record, request, pass string, p sdui.LandRequestProps) sdui.Node {
+	p.Options = []sdui.PermissionOption{
+		{ID: landActionMerge, Label: pass, Kind: "allow_once", Shortcut: "opt+1"},
+		{ID: landActionMore, Label: gateMoreLabel, Shortcut: "opt+2"},
+		{ID: landActionLeave, Label: gateStopLabel, Kind: "reject_once", Shortcut: "opt+3"},
+	}
+	return sdui.WithDock(sdui.LandRequestCard(rec.ID+"/"+gateCardNode+"/"+request, request, p))
 }
 
 func gateCaption(st landReview) string {
@@ -1308,11 +1361,14 @@ func gateCaption(st landReview) string {
 }
 
 func (r record) gateWaits() bool {
-	return !r.closed() && slices.ContainsFunc(r.LandReviews, func(st landReview) bool { return st.Request != "" })
+	return r.heldWaits() || !r.closed() && slices.ContainsFunc(r.LandReviews, func(st landReview) bool { return st.Request != "" })
 }
 
 func (r record) gateRequests() []string {
 	var out []string
+	if r.heldWaits() {
+		out = append(out, r.Held.Request)
+	}
 	for _, st := range r.LandReviews {
 		if st.Request != "" {
 			out = append(out, st.Request)
@@ -1322,6 +1378,9 @@ func (r record) gateRequests() []string {
 }
 
 func (r record) gatePending() *pendingSummary {
+	if r.heldWaits() {
+		return &pendingSummary{Kind: pendingLand, Text: heldCardTitle(*r.Held), At: cmp.Or(r.Held.Asked, r.Held.Since), OnMac: true}
+	}
 	for _, st := range r.LandReviews {
 		if st.Request != "" {
 			return &pendingSummary{Kind: pendingLand, Text: fmt.Sprintf(gateCardTitle, cmp.Or(st.Source, st.Into)), At: st.Since, OnMac: true}
@@ -1357,10 +1416,33 @@ func (s *session) runningGate() *gateFor {
 		return nil
 	}
 	gf := s.snapshot().GateFor
-	if gf == nil || gf.Done || gf.Old == "" {
+	if !gf.open() {
 		return nil
 	}
 	return gf
+}
+
+func (gf *gateFor) open() bool {
+	return gf != nil && !gf.Done && (gf.Key != "" || gf.Old != "")
+}
+
+func (gf *gateFor) policy() string {
+	switch {
+	case gf.Point == gatePointTurn && gf.Verdict:
+		return heldReviewerText
+	case gf.Point == gatePointTurn:
+		return heldNodeText
+	case gf.Verdict || gf.Run == "":
+		return gateReviewerText
+	}
+	return gateNodeText
+}
+
+func (gf *gateFor) nudgeText() string {
+	if gf.Point == gatePointTurn {
+		return heldNudgeText
+	}
+	return gateNudgeText
 }
 
 func (s *session) setGateFor(gf *gateFor) {

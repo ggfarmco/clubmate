@@ -982,6 +982,20 @@
         }
       },
       {
+        "id": "agents.gate-answer",
+        "title": "Answer a held turn's card",
+        "hidden": true,
+        "remote": true,
+        "description": "The user's answer to the card a Done gate opens on a held turn (after its rounds of changes, or when its review ended without a verdict twice): accept shows the turn as done as it is, more allows one more round (after changes: sends the findings to the agent and reviews its next finished turn; after no verdict: runs the review again on the same turn), stop drops the hold and leaves the session idle without showing the turn as done. The card's own buttons answer through agents.land-answer (merge, more, leave). An agent gets an error.",
+        "args": {
+          "properties": {
+            "request": {"type": "string", "description": "Request id."},
+            "action": {"type": "string", "enum": ["accept", "more", "stop"], "description": "The answer."}
+          },
+          "required": ["request", "action"]
+        }
+      },
+      {
         "id": "agents.land-answer",
         "title": "Answer a landing request",
         "hidden": true,
@@ -1038,13 +1052,16 @@
       },
       {
         "id": "agents.gate-add",
-        "title": "Add a land gate",
+        "title": "Add a gate",
         "hidden": true,
-        "description": "Gate a repo's landings: an agent git.land in the repo whose target branch the gate matches waits for the gate's review of the diff, and agent sessions in a repo with any active gate get a git hook that refuses updates of its default branch, or of a parent session's branch, without an approved verdict. When several gates match a landing, the most specific one decides: an exact branch, then a branch glob, then base, then default, then any. One gate per repo and target. Returns the gate. Only the user; an agent gets an error.",
+        "description": "Gate a repo. Point land (default): an agent git.land in the repo whose target branch the gate matches waits for the gate's review of the diff, and agent sessions in a repo with any active land gate get a git hook that refuses updates of its default branch, or of a parent session's branch, without an approved verdict. When several gates match a landing, the most specific one decides: an exact branch, then a branch glob, then base, then default, then any. One gate per repo and target. Point turn (Done): matches an agent turn that ends done in a session of the kinds in sessions, optionally only when the session wrote files matching wrote since its last reviewed done; a gate with a matching wrote pattern decides before one without. One gate per repo, sessions and wrote. Returns the gate. Only the user; an agent gets an error.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "A path in the repo; the gate holds for all its worktrees."},
-            "into": {"type": "string", "description": "Which landings it holds: any (default), default (the repo's default branch), base (the worktree's base branch), a branch name or a branch glob such as release/*."},
+            "point": {"type": "string", "enum": ["land", "turn"], "description": "Where it holds: land (an agent's landing, default) or turn (an agent's turn that ends done)."},
+            "into": {"type": "string", "description": "Land only. Which landings it holds: any (default), default (the repo's default branch), base (the worktree's base branch), a branch name or a branch glob such as release/*."},
+            "sessions": {"type": "array", "items": {"type": "string", "enum": ["top", "child", "afk"]}, "description": "Turn only. Which sessions it holds: top (no parent session), child (has one); an AFK session also needs afk. Default [top, afk]."},
+            "wrote": {"type": "array", "items": {"type": "string"}, "description": "Turn only. File globs relative to a repo root, ** for any folders (e.g. **/plans/*.md); the turn is held only when the session wrote a matching file since its last reviewed done. Empty: any turn."},
             "graph": {"type": "string", "description": "The graph that decides, read from the repo's main checkout, your graphs or the built-ins and pinned as it is now; it needs a node with outcomes approved and changes. Default fable-review."},
             "rounds": {"type": "integer", "description": "Rounds of changes before a landing needs the user; default 2."}
           },
@@ -1053,15 +1070,17 @@
       },
       {
         "id": "agents.gate-update",
-        "title": "Change a land gate",
+        "title": "Change a gate",
         "hidden": true,
-        "description": "Pause or resume a land gate, or change its rounds, target, graph or pinned graph version. Only the user; an agent gets an error.",
+        "description": "Pause or resume a gate, or change its rounds, match (into for a land gate, sessions and wrote for a Done gate), graph or pinned graph version. Only the user; an agent gets an error.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Gate id (gt_…)."},
             "paused": {"type": "boolean", "description": "A paused gate gates nothing."},
             "rounds": {"type": "integer", "description": "Rounds of changes before a landing needs the user."},
-            "into": {"type": "string", "description": "Which landings it holds: any, default, base, a branch name or a branch glob."},
+            "into": {"type": "string", "description": "Land only. Which landings it holds: any, default, base, a branch name or a branch glob."},
+            "sessions": {"type": "array", "items": {"type": "string", "enum": ["top", "child", "afk"]}, "description": "Turn only. Which sessions it holds: top, child, afk."},
+            "wrote": {"type": "array", "items": {"type": "string"}, "description": "Turn only. File globs it requires; empty makes it hold any turn."},
             "graph": {"type": "string", "description": "The graph that decides; a new graph drops the pin."},
             "trust": {"type": "string", "description": "The graph content hash to pin: the gate's current hash from agents.gates; any other is refused."}
           },
@@ -1110,20 +1129,21 @@
       },
       {
         "id": "agents.land-verdict",
-        "title": "Give a land review verdict",
+        "title": "Give a gate review verdict",
         "hidden": true,
         "agent": true,
         "timeout": 30,
-        "description": "Only a node of a land gate's current run: the verdict on the change it was asked to review; the first verdict for a tree wins. approved lets git.land land it; changes (confirmed correctness bugs only, each finding \"file:line — what breaks\") sends the findings to the lander. Nits and suggestions go to deferred; they never block.",
+        "description": "Only a node of a gate's current run: the verdict on what it was asked to review (a landing, or an agent's finished turn for a Done gate); the first verdict for a key wins. approved lets git.land land it or releases the held turn as done; changes (confirmed problems only, each finding \"file:line — what breaks\") sends the findings to the lander or the held session. Nits and suggestions go to deferred; they never block.",
         "args": {
           "properties": {
-            "tree": {"type": "string", "description": "The tree sha your latest review prompt names; a verdict for any other tree is refused."},
+            "key": {"type": "string", "description": "The key your latest review prompt names; a verdict for any other key is refused."},
+            "tree": {"type": "string", "description": "The tree sha a land review prompt names; the same as key for a landing."},
             "outcome": {"type": "string", "enum": ["approved", "changes"], "description": "The verdict."},
             "findings": {"type": "array", "items": {"type": "string"}, "description": "Confirmed bugs, \"file:line — what breaks\"; required with changes."},
             "deferred": {"type": "array", "items": {"type": "string"}, "description": "Nits and suggestions that don't block."},
             "summary": {"type": "string", "description": "A short summary of the change, kept with the verdict."}
           },
-          "required": ["tree", "outcome"]
+          "required": ["outcome"]
         }
       },
       {
@@ -1342,6 +1362,24 @@
           "properties": {
             "mimeType": {"type": "string", "description": "Sniffed content type, e.g. image/png."},
             "data": {"type": "string", "description": "File content, base64."}
+          }
+        }
+      },
+      {
+        "id": "agents.doc-gate",
+        "title": "Queue a doc for a gated turn",
+        "hidden": true,
+        "description": "Only the docs plugin, from an agent's docs.open or docs.present: session is the calling agent session, for the session the doc is for (default session); queued is true while the session's turn runs and its repo has an active Done gate holding its kind; the agents plugin then opens or presents the doc (gated: false) when the turn ends not held or its gate releases it, and drops it when the session closes.",
+        "args": {
+          "properties": {
+            "session": {"type": "string"}, "for": {"type": "string"}, "path": {"type": "string"},
+            "mode": {"type": "string", "enum": ["open", "present"]}, "title": {"type": "string"}
+          },
+          "required": ["session", "path", "mode"]
+        },
+        "result": {
+          "properties": {
+            "queued": {"type": "boolean", "description": "The doc waits for the turn's review."}
           }
         }
       },

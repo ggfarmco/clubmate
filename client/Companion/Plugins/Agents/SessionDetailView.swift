@@ -341,6 +341,15 @@ struct SessionDetailView: View {
                                 if let queued { store.queue?.cancel(queued) }
                             }
                             .id(card.request)
+                        case .land(let card) where card.choice:
+                            LandChoiceCard(card: card, blocked: blocked) { action in
+                                do {
+                                    try await store.land(sessionID, card: card, action: action)
+                                } catch AnswerError.alreadyAnswered {
+                                    withAnimation { answeredElsewhere += 1 }
+                                }
+                            }
+                            .id(card.request)
                         case .land(let card):
                             LandDock(card: card, later: store.landLater.contains(card.request), session: repos?.row(named: card.name)?.session, blocked: blocked) {
                                 reviewing = card

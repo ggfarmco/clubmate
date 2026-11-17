@@ -12,6 +12,9 @@ enum LandReviewFixture {
     static let reviewingReviewer = "agt_00000000000000b6"
     static let closedReviewer = "agt_00000000000000b7"
     static let approved = "agt_00000000000000b8"
+    static let held = "agt_00000000000000b9"
+    static let heldCard = "agt_00000000000000ba"
+    static let heldRequest = "lg_00000000000000ba"
     static let permission = "permission-r1"
     static let command = "go test ./plugins/gates/..."
 
@@ -50,7 +53,7 @@ enum LandReviewFixture {
         func round(_ n: Int, _ verdict: String, label: String? = nil) -> JSONValue {
             .object(["round": .number(Double(n)), "label": .string(label ?? "Round \(n) review"), "verdict": .string(verdict)])
         }
-        let branches = [asking: "gate-graph", askingReviewer: "gate-graph", changes: "keep-awake", changesReviewer: "keep-awake", reviewing: "side-threads", reviewingReviewer: "side-threads", closedReviewer: "side-threads", approved: "flaky-switcher"]
+        let branches = [held: "main", heldCard: "main", asking: "gate-graph", askingReviewer: "gate-graph", changes: "keep-awake", changesReviewer: "keep-awake", reviewing: "side-threads", reviewingReviewer: "side-threads", closedReviewer: "side-threads", approved: "flaky-switcher"]
         let reviewer = { (lander: String) in JSONValue.object(["lander": .string(lander), "into": .string("main")]) }
         return [
             record(asking, "Gate graph instead of a fixed guard", status: "idle", group: "needsYou", ago: 120, [
@@ -79,11 +82,37 @@ enum LandReviewFixture {
             record(approved, "Fix the flaky switcher test", status: "done", group: "done", ago: 900, [
                 "landing": landing("approved", round: 2, words: "approved", tone: "success", badge: "approved", reviewer: ""),
             ]),
+            record(held, "Write the inbox plan", status: "running", group: "running", ago: 40, [
+                "turnStartedAt": stamp(400),
+                "landing": .object(["round": .number(1), "of": .number(1), "verdict": .string("reviewing"), "words": .string("held"), "tone": .string("accent"), "badge": .string("held · plans and specs"), "badgeTone": .string("accent"), "into": .string(""), "held": .string("plans and specs"), "line": .string("Held · plans and specs · Plan pipeline…")]),
+            ]),
+            record(heldCard, "Plan rate limits", status: "running", group: "needsYou", ago: 90, [
+                "needsYou": .bool(true), "needsYouSince": stamp(90), "pending": .array([.string(heldRequest)]), "requests": .array([.string(heldRequest)]),
+                "pendingSummary": .object(["kind": .string("land"), "text": .string("Plan pipeline still asks for changes after 2 rounds"), "onMac": .bool(true), "at": stamp(90)]),
+            ]),
         ]
     }
 
     static func transcripts(entry: (String, String, String) -> JSONValue) -> [String: [String: JSONValue]] {
-        [
+        let option = { (id: String, label: String, kind: String?, key: String) in
+            JSONValue.object(["id": .string(id), "label": .string(label), "shortcut": .string(key)].merging(kind.map { ["kind": .string($0)] } ?? [:]) { $1 })
+        }
+        let heldNode = JSONValue.object(["type": .string("request.land"), "id": .string(heldCard + "/landgate/" + heldRequest), "props": .object([
+            "request": .string(heldRequest), "title": .string("Plan pipeline still asks for changes after 2 rounds"), "name": .string("Plan rate limits"), "dock": .bool(true),
+            "caption": .string("shop · Done · plans and specs · held since 12:41"),
+            "detail": .string("- Fable review — the plan still doesn't say who owns the muted-workspace setting\n- Lint — plans/inbox-groups.md:12 line length\n\nSummary: Groups the inbox by workspace, then by day; muted workspaces fold into one row."),
+            "rule": .string("Accept as done shows the turn as done as it is. One more round sends the agent these findings and reviews its next finished turn. Stop leaves the session idle and its turn not done."),
+            "options": .array([option("merge", "Accept as done", "allow_once", "opt+1"), option("more", "One more round", nil, "opt+2"), option("leave", "Stop", "reject_once", "opt+3")]),
+        ])])
+        return [
+            held: ["entries": .array([
+                entry("user", "held-1", "Write the inbox plan"),
+                entry("agent", "held-2", "Updated the plan after the second review: the ordering is now workspace, then day, and muted workspaces fold. Ready for you to read."),
+            ])],
+            heldCard: ["request": heldNode, "entries": .array([
+                entry("user", "card-1", "Plan rate limits"),
+                entry("agent", "card-2", "Updated the plan after the second review: the ordering is now workspace, then day, and muted workspaces fold."),
+            ])],
             askingReviewer: ["entries": .array([
                 entry("user", "review-request", "Review the landing of feat/gate-graph into main: the diff, the commits, and the goal \"Gate graph instead of a fixed guard\". End with agents_land_verdict."),
                 entry("agent", "review-1", "The gate graph replaces the fixed guard in plugins/gates. Running its tests before the verdict."),

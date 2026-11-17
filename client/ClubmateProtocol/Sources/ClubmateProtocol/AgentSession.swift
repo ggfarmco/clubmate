@@ -366,11 +366,13 @@ public struct SessionLanding: Codable, Sendable, Hashable {
     public let verdict: String
     public let words: String
     public let tone: String?
+    public var line: String?
 
-    public init(verdict: String, words: String, tone: String? = nil) {
+    public init(verdict: String, words: String, tone: String? = nil, line: String? = nil) {
         self.verdict = verdict
         self.words = words
         self.tone = tone
+        self.line = line
     }
 }
 

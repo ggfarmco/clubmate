@@ -263,6 +263,19 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual([activity.waiting, activity.closed], [1, 0])
     }
 
+    func testHeldSessionReadsItsLine() async throws {
+        let runner = ScriptedRunner(replies: [], sessions: [#"""
+        {"sessions":[
+          {"id":"held","status":"running","group":"running","landing":{"round":1,"of":1,"verdict":"reviewing","words":"held","tone":"accent","badge":"held · plans and specs","held":"plans and specs","line":"Held · plans and specs · Plan pipeline…"}}
+        ],"removed":[],"cursor":"e.1"}
+        """#])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.refresh()
+        let line = try XCTUnwrap(store.session("held")).stateLine(now: .now)
+        XCTAssertEqual([line.text], ["Held · plans and specs · Plan pipeline…"])
+        XCTAssertEqual(line.tone, .accent)
+    }
+
     func testStopSendsItsTurnAndAStaleOneRefreshesTheSession() async throws {
         let runner = ScriptedRunner(replies: [], sessions: [
             #"{"sessions":[{"id":"b","status":"running","turns":4}],"removed":[],"cursor":"e.3"}"#,

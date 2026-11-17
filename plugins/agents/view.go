@@ -98,6 +98,7 @@ type screen struct {
 	Pinned       *sdui.Node
 	Asides       optionAsides
 	GateReview   *reviewHead
+	Held         *heldBlock
 	Back         string
 	SendBack     *sendBackView
 	CloseAsk     string
@@ -327,6 +328,9 @@ func header(sc screen) sdui.Node {
 				badges = append(badges, sdui.HeaderBadge{Text: h.Badge, Tone: h.Tone})
 			}
 		}
+		if l := sc.Row.Landing; l != nil && l.Held != "" {
+			badges = append(badges, sdui.HeaderBadge{Text: l.Badge, Tone: l.BadgeTone})
+		}
 		if needsYou(rec) {
 			badges = append(badges, sdui.HeaderBadge{Text: cmp.Or(landBadge(rec), asks), Tone: statusTones[statusWaiting]})
 		}
@@ -359,7 +363,7 @@ func header(sc screen) sdui.Node {
 		}, buttons...)
 	}
 	children := []sdui.Node{top}
-	if l := sc.Row.Landing; l != nil && sc.Code == nil {
+	if l := sc.Row.Landing; l != nil && sc.Code == nil && l.Into != "" {
 		children = append(children, landingLine(sid, *l))
 	}
 	if rec.Status != statusError {

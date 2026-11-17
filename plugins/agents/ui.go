@@ -546,6 +546,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 	asides := a.optionAsides(v.Session)
 	open.Asides = asides
 	gateReview := a.reviewHead(ctx, v.Session)
+	held := a.heldBlockOf(ctx, v.Session)
 	sendBack := a.sendBackScreen(workspaceID, s, v)
 	closeAsk := ""
 	if v.Session.isAside() {
@@ -604,6 +605,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 		Pinned:      pinned,
 		Asides:      asides,
 		GateReview:  gateReview,
+		Held:        held,
 		SendBack:    sendBack,
 		CloseAsk:    closeAsk,
 		AsideCount:  asideCount,

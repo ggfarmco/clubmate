@@ -91,6 +91,10 @@ type record struct {
 	Allow           []string       `json:"allow,omitempty"`
 	RepoPath        string         `json:"repoPath,omitempty"`
 	GateFor         *gateFor       `json:"gateFor,omitempty"`
+	GateSince       string         `json:"gateSince,omitempty"`
+	GateAt          time.Time      `json:"gateAt,omitzero"`
+	Held            *heldTurn      `json:"held,omitempty"`
+	GatedDocs       []gatedDoc     `json:"gatedDocs,omitempty"`
 	LimitWait       *limitWait     `json:"limitWait,omitempty"`
 	Aside           *asideInfo     `json:"asideInfo,omitempty"`
 	ForkedFrom      string         `json:"forkedFrom,omitempty"`

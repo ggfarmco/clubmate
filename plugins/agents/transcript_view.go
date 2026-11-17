@@ -168,6 +168,9 @@ func transcript(sc screen) sdui.Node {
 	if hidden > 0 {
 		nodes = slices.Insert(nodes, 0, sdui.WithAction(sdui.Button(sid+"/earlier", earlierLabel(hidden), "chevron.up"), actShowEarlier))
 	}
+	if sc.Held != nil {
+		nodes = append(nodes, heldNode(sid, *sc.Held))
+	}
 	if n, ok := sendingNode(sc); ok {
 		nodes = append(nodes, n)
 	}

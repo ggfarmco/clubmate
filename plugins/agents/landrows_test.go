@@ -144,6 +144,25 @@ func TestReviewerHeaderNamesItsRoundAndLander(t *testing.T) {
 	assert.Equal(t, []any{actBack, "cmd+["}, []any{back.Props["action"], back.Props["shortcut"]})
 }
 
+func TestDoneReviewerHeaderNamesTheHoldsRoundAndGate(t *testing.T) {
+	t.Parallel()
+	lander := record{ID: "agt_l", Title: "Planner", Held: &heldTurn{Gate: "gt_1", Key: "k2", Run: "run_1", Round: 2, Last: gateChanges, Findings: []string{"a.md:1", "b.md:2"}}}
+	rec := record{ID: "agt_r", GateFor: &gateFor{Gate: "gt_1", Point: gatePointTurn, Key: "k1", Lander: "agt_l", Run: "run_1", Done: true}}
+
+	logged := func() (gateVerdict, bool) { return gateVerdict{Round: 3, Outcome: gateApproved}, true }
+
+	head := reviewHeadOf(&lander, rec, "Done · plans and specs", logged)
+	released := lander
+	released.Held = nil
+	after := reviewHeadOf(&released, rec, "Done · plans and specs", logged)
+
+	assert.Equal(t, gateRound{Round: 2, Label: "Round 2 review", Verdict: gateChanges}, head.Round)
+	assert.Equal(t, []string{"of Planner", "Done · plans and specs"}, head.meta())
+	assert.Equal(t, "2 changes", head.Badge)
+	assert.Equal(t, gateRound{Round: 3, Label: "Round 3 review", Verdict: gateApproved}, after.Round)
+	assert.Equal(t, []string{"of Planner", "Done · plans and specs"}, after.meta())
+}
+
 func TestGatePageShowsTheLandingUnderReview(t *testing.T) {
 	t.Parallel()
 	now := time.Now()

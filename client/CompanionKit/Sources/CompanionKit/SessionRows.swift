@@ -89,7 +89,7 @@ extension AgentSession {
             return SessionStateLine(text: rowDetail, tone: needsYou ? .needsYou : status == .error ? .danger : .secondary)
         }
         if let landing, !needsYou, status != .error {
-            return SessionStateLine(text: landing.words, tone: landing.lineTone, age: landing.verdict == "reviewing" ? nil : age(updatedAt))
+            return SessionStateLine(text: landing.line ?? landing.words, tone: landing.lineTone, age: landing.verdict == "reviewing" ? nil : age(updatedAt))
         }
         switch glyph(waitingChildren: waitingChildren) {
         case .connect:

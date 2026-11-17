@@ -12,17 +12,19 @@
         "title": "Open doc",
         "hidden": true,
         "agent": true,
-        "description": "Show a Markdown (.md, .markdown) or mermaid (.mmd) file rendered, with diagrams drawn, or an HTML page (.html, .htm) running with JS, in a popup over the user's workspace; it takes focus and updates while the file changes. Call it after you write a spec, plan or report the user should read now; it also shows the doc as a card under your reply. Mention docs as a Markdown link or `path` in your reply freely, the user can click them; docs you only mention are folded under one small \"N docs mentioned\" row, so call docs_present (or docs_open) for the ones the user should look at. For interactive reports and UI mockups write ONE self-contained .html: inline CSS and JS, libraries only from cdnjs.cloudflare.com, cdn.jsdelivr.net, unpkg.com or esm.sh, no network calls (fetch, XHR and WebSockets are blocked), no iframes or forms; use the CSS variables --bg --text --muted --accent --border --code-bg --success --warning --danger --font --code-font to match the app; then call docs_open with it. Only files inside the workspace's folders, their git worktrees and agent uploads open; fails with not in workspace, not a document, too large (over 4 MiB) or not found.",
+        "description": "Show a Markdown (.md, .markdown) or mermaid (.mmd) file rendered, with diagrams drawn, or an HTML page (.html, .htm) running with JS, in a popup over the user's workspace; it takes focus and updates while the file changes. Call it after you write a spec, plan or report the user should read now; it also shows the doc as a card under your reply. Mention docs as a Markdown link or `path` in your reply freely, the user can click them; docs you only mention are folded under one small \"N docs mentioned\" row, so call docs_present (or docs_open) for the ones the user should look at. For interactive reports and UI mockups write ONE self-contained .html: inline CSS and JS, libraries only from cdnjs.cloudflare.com, cdn.jsdelivr.net, unpkg.com or esm.sh, no network calls (fetch, XHR and WebSockets are blocked), no iframes or forms; use the CSS variables --bg --text --muted --accent --border --code-bg --success --warning --danger --font --code-font to match the app; then call docs_open with it. Only files inside the workspace's folders, their git worktrees and agent uploads open; fails with not in workspace, not a document, too large (over 4 MiB) or not found. While a Done gate of your repo may hold your turn, the doc is queued (note) and opens once the turn is reviewed.",
         "args": {
           "properties": {
             "path": {"type": "string", "description": "File to show; absolute, or relative to the session's worktree (else the workspace's first folder)."},
-            "session": {"type": "string", "description": "Agent session whose worktree a relative path is resolved against; default the calling session."}
+            "session": {"type": "string", "description": "Agent session whose worktree a relative path is resolved against; default the calling session."},
+            "gated": {"type": "boolean", "description": "Set only by the agents plugin when it shows a doc a Done gate held: the doc shows at once and nobody else may set it."}
           },
           "required": ["path"]
         },
         "result": {
           "properties": {
-            "path": {"type": "string", "description": "Absolute path shown, symlinks resolved."}
+            "path": {"type": "string", "description": "Absolute path shown, symlinks resolved."},
+            "note": {"type": "string", "description": "\"queued: shown when this turn is reviewed\" when a Done gate of the session's repo may hold this turn: the doc opens when the turn ends or the gate lets it through."}
           }
         }
       },
@@ -31,18 +33,20 @@
         "title": "Present doc",
         "hidden": true,
         "agent": true,
-        "description": "Show a doc or artifact you wrote to the user as a card under your reply, without opening it. Use it for the few docs the user should look at (a spec, plan, report or artifact), at most a few per reply; docs you only mention in your reply stay folded under one small \"N docs mentioned\" row. Takes the same files as docs_open: Markdown, mermaid or HTML inside the workspace's folders, their git worktrees and agent uploads; fails with not in workspace, not a document, too large (over 4 MiB) or not found. Non-destructive.",
+        "description": "Show a doc or artifact you wrote to the user as a card under your reply, without opening it. Use it for the few docs the user should look at (a spec, plan, report or artifact), at most a few per reply; docs you only mention in your reply stay folded under one small \"N docs mentioned\" row. Takes the same files as docs_open: Markdown, mermaid or HTML inside the workspace's folders, their git worktrees and agent uploads; fails with not in workspace, not a document, too large (over 4 MiB) or not found. While a Done gate of your repo may hold your turn, the card is queued (note) and shows once the turn is reviewed. Non-destructive.",
         "args": {
           "properties": {
             "path": {"type": "string", "description": "File to present; absolute, or relative to the session's worktree (else the workspace's first folder)."},
             "title": {"type": "string", "description": "Card title; default the doc's first # heading (an artifact's <title>), else its file name."},
-            "session": {"type": "string", "description": "Agent session whose reply gets the card; default the calling session."}
+            "session": {"type": "string", "description": "Agent session whose reply gets the card; default the calling session."},
+            "gated": {"type": "boolean", "description": "Set only by the agents plugin when it shows a doc a Done gate held: the doc shows at once and nobody else may set it."}
           },
           "required": ["path"]
         },
         "result": {
           "properties": {
-            "path": {"type": "string", "description": "Absolute path presented, symlinks resolved."}
+            "path": {"type": "string", "description": "Absolute path presented, symlinks resolved."},
+            "note": {"type": "string", "description": "\"queued: shown when this turn is reviewed\" when a Done gate of the session's repo may hold this turn: the card shows when the turn ends or the gate lets it through."}
           }
         }
       },

@@ -58,6 +58,7 @@ type gateLanding struct {
 	Since    time.Time `json:"since,omitzero"`
 	Ask      string    `json:"ask,omitempty"`
 	Run      string    `json:"run,omitempty"`
+	Wait     string    `json:"wait,omitempty"`
 }
 
 type gateRow struct {
@@ -208,6 +209,9 @@ func (a *app) gateState(rec record) string {
 			best = state
 		}
 	}
+	if rec.heldWaits() || asks[heldRun(rec)] != nil {
+		best = gateStateNeedsMe
+	}
 	return best
 }
 
@@ -237,16 +241,68 @@ func (a *app) gateLandings(workspaceID, gateID string) []gateLanding {
 				out = append(out, l)
 			}
 		}
+		if h := rec.Held; h != nil && h.Gate == gateID {
+			if l, ok := a.heldLanding(rec, asks); ok {
+				out = append(out, l)
+			}
+		}
 	}
 	slices.SortFunc(out, func(x, y gateLanding) int { return y.Since.Compare(x.Since) })
 	return out
 }
 
+func (a *app) heldLanding(rec record, asks map[string]*runNeed) (gateLanding, bool) {
+	h := rec.Held
+	l := gateLanding{Lander: rec.ID, Title: rec.Title, State: gateStateNeedsMe, Round: max(h.Round, 1), Findings: h.Findings, Since: cmp.Or(h.Asked, h.Since)}
+	if n := asks[heldRun(rec)]; n != nil {
+		l.Since, l.Ask, l.Run = n.Since, n.Text, n.Run
+		return l, true
+	}
+	if h.Request != "" {
+		return l, true
+	}
+	if !a.heldIdle(rec) {
+		return gateLanding{}, false
+	}
+	l.State, l.Findings = gateStateReview, nil
+	if heldWaits(rec) {
+		l.Wait = heldWaitsTrust
+		return l, true
+	}
+	if r := a.heldReviewer(rec); r != nil {
+		l.Reviewer, l.Since = r.ID, r.UpdatedAt
+		if s := a.session(r.ID); s != nil {
+			l.Since = cmp.Or(s.turnStart(), r.UpdatedAt)
+		}
+	}
+	return l, true
+}
+
+func (a *app) heldReviewer(rec record) *record {
+	h := rec.Held
+	if h == nil {
+		return nil
+	}
+	for _, s := range a.workspaceSessions(rec.Workspace) {
+		r := s.snapshot()
+		if gf := r.GateFor; gf != nil && gf.Point == gatePointTurn && gf.Lander == rec.ID && !gf.Done && gf.Verdict && !r.closed() && holdsNode(*h, *gf) {
+			return &r
+		}
+	}
+	return nil
+}
+
 func (a *app) gateRunLanding(workspaceID, run string) (gate, pick string, ok bool) {
 	for _, s := range a.workspaceSessions(workspaceID) {
 		rec := s.snapshot()
-		if n := a.gateAsks(rec)[run]; n != nil {
-			i := slices.IndexFunc(rec.LandReviews, func(st landReview) bool { return st.Run == run })
+		n := a.gateAsks(rec)[run]
+		if n == nil {
+			continue
+		}
+		if heldRun(rec) == run {
+			return rec.Held.Gate, gateRowID(n.Since, rec.ID), true
+		}
+		if i := slices.IndexFunc(rec.LandReviews, func(st landReview) bool { return st.Run == run }); i >= 0 {
 			return rec.LandReviews[i].Gate, gateRowID(n.Since, rec.ID), true
 		}
 	}
@@ -274,6 +330,9 @@ func (a *app) gateRow(ctx context.Context, workspaceID string, g gateConfig) gat
 }
 
 func (a *app) gateMatchName(ctx context.Context, g gateConfig) string {
+	if g.Point == gatePointTurn {
+		return doneGateName(g.Wrote)
+	}
 	return gateNameOf(g.Into, a.gateRepo(ctx, g.Repo).Branch)
 }
 

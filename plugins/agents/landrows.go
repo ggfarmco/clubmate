@@ -46,6 +46,8 @@ type landingView struct {
 	Reviewer  string `json:"reviewer,omitempty"`
 	Ask       string `json:"ask,omitempty"`
 	Run       string `json:"run,omitempty"`
+	Held      string `json:"held,omitempty"`
+	Line      string `json:"line,omitempty"`
 }
 
 func landingOf(st landReview, reviewing bool, ask *runNeed) (landingView, bool) {
@@ -83,16 +85,34 @@ func landingOf(st landReview, reviewing bool, ask *runNeed) (landingView, bool) 
 }
 
 func (a *app) gateAsks(rec record) map[string]*runNeed {
-	if rec.closed() || !slices.ContainsFunc(rec.LandReviews, func(st landReview) bool { return st.Run != "" }) {
+	held := heldRun(rec)
+	if rec.closed() || held == "" && !slices.ContainsFunc(rec.LandReviews, func(st landReview) bool { return st.Run != "" }) {
 		return nil
+	}
+	if held != "" && !a.gateLive(rec.Held.Gate) {
+		held = ""
 	}
 	out := map[string]*runNeed{}
 	for run, n := range a.runNeeds.byRun(rec.Workspace) {
-		if slices.ContainsFunc(rec.LandReviews, func(st landReview) bool { return st.Run == run && st.Request == "" && a.gateLive(st.Gate) }) {
+		if run == held || slices.ContainsFunc(rec.LandReviews, func(st landReview) bool { return st.Run == run && st.Request == "" && a.gateLive(st.Gate) }) {
 			out[run] = &n
 		}
 	}
 	return out
+}
+
+func heldRun(rec record) string {
+	if h := rec.Held; h != nil && h.Request == "" {
+		return h.Run
+	}
+	return ""
+}
+
+func heldAsking(h heldTurn, ask *runNeed) landingView {
+	round := max(h.Round, 1)
+	l := landingView{Round: round, Of: round, Verdict: gateStateReview, Asking: true, Words: landingAsking, Tone: toneWarning, Ask: ask.Text, Run: ask.Run}
+	l.Badge, l.BadgeTone = verdictBadge(l.Verdict, 0)
+	return l
 }
 
 func approvedRound(st landReview) int {
@@ -143,18 +163,62 @@ func (a *app) landing(rec record) *landingView {
 			best = &l
 		}
 	}
+	if l, ok := a.heldView(rec, needs); ok && (best == nil || landingRank(l) > landingRank(*best)) {
+		best = &l
+	}
 	return best
+}
+
+func (a *app) heldView(rec record, needs map[string]*runNeed) (landingView, bool) {
+	h := rec.Held
+	ask := needs[heldRun(rec)]
+	if h == nil || ask == nil && !a.heldIdle(rec) || !a.gateLive(h.Gate) {
+		return landingView{}, false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)
+	defer cancel()
+	facts := a.heldAskOf(ctx, a.gateByID(ctx, h.Gate))
+	match := strings.TrimPrefix(cmp.Or(facts.name, gatePointDone), gateNameDone)
+	l := landingView{Round: max(h.Round, 1), Of: max(h.Round, 1), Verdict: gateStateReview, Words: heldWord, Tone: toneAccent}
+	switch {
+	case ask != nil:
+		l = heldAsking(*h, ask)
+	case heldWaits(rec):
+		l.Words, l.Tone = heldWaitsTrust, toneWarning
+	}
+	l.Held = match
+	l.Badge, l.BadgeTone = fmt.Sprintf(heldBadgeFormat, match), toneAccent
+	switch {
+	case l.Asking:
+	case heldWaits(rec):
+		l.Line = fmt.Sprintf(heldLineWaits, match)
+	default:
+		l.Line = fmt.Sprintf(heldLineFormat, match, cmp.Or(facts.graph, heldGraphFallback))
+	}
+	if r := a.heldReviewer(rec); r != nil && r.Workspace == rec.Workspace {
+		l.Reviewer = r.ID
+	}
+	return l, true
 }
 
 func reviewRound(rec record, st landReview) gateRound {
 	r := gateRound{Round: st.Rounds, Verdict: st.Last}
 	switch gf := rec.GateFor; {
-	case gf != nil && !gf.Done && gf.Old != "":
+	case gf.open():
 		r.Round, r.Verdict = st.Rounds+1, gateStateReview
 	case st.Last == gateApproved:
 		r.Round = approvedRound(st)
 	}
 	r.Round = max(r.Round, 1)
+	r.Label = fmt.Sprintf(reviewRoundLabel, r.Round)
+	return r
+}
+
+func heldRound(rec record, h heldTurn) gateRound {
+	r := gateRound{Round: max(h.Round, 1), Verdict: h.Last}
+	if rec.GateFor.open() {
+		r.Verdict = gateStateReview
+	}
 	r.Label = fmt.Sprintf(reviewRoundLabel, r.Round)
 	return r
 }
@@ -187,9 +251,13 @@ func reviewNests(recs []record) map[string]reviewerNest {
 		}
 		lander, listed := byID[gf.Lander]
 		st, tracked := landerReview(lander, rec)
-		tracked = listed && tracked
+		held := gf.Point == gatePointTurn && lander.Held != nil && holdsNode(*lander.Held, *gf)
+		tracked = listed && (tracked || held)
 		n := reviewerNest{Lander: gf.Lander, Round: earlierRound(), Tracked: tracked, Asks: needsYou(rec) && !rec.closed(), Open: listed && !lander.closed()}
-		if tracked {
+		switch {
+		case tracked && held:
+			n.Round = heldRound(rec, *lander.Held)
+		case tracked:
 			n.Round = reviewRound(rec, st)
 		}
 		n.Shown = n.Asks || !rec.closed() && (rec.Status == statusError || !tracked && rec.Run == nil)
@@ -230,6 +298,7 @@ type reviewHead struct {
 	Title  string
 	Into   string
 	Source string
+	Gate   string
 	Badge  string
 	Tone   string
 }
@@ -239,19 +308,38 @@ func (a *app) reviewHead(ctx context.Context, rec record) *reviewHead {
 	if gf == nil {
 		return nil
 	}
-	h := &reviewHead{Lander: gf.Lander, Into: gf.Into, Source: gf.Source}
+	var lander *record
+	if s := a.session(gf.Lander); s != nil {
+		l := s.snapshot()
+		lander = &l
+	}
+	gate := ""
+	if gf.Point == gatePointTurn {
+		gate = gatePointDone
+		if g := a.gateByID(ctx, gf.Gate); g != nil {
+			gate = a.gateMatchName(ctx, *g)
+		}
+	}
+	return reviewHeadOf(lander, rec, gate, func() (gateVerdict, bool) { return a.loggedVerdict(ctx, rec) })
+}
+
+func reviewHeadOf(lander *record, rec record, gate string, logged func() (gateVerdict, bool)) *reviewHead {
+	gf := rec.GateFor
+	if gf.Point == gatePointTurn && lander != nil && lander.Held != nil && holdsNode(*lander.Held, *gf) {
+		return turnHead(*lander, rec, gate)
+	}
+	h := &reviewHead{Lander: gf.Lander, Into: gf.Into, Source: gf.Source, Gate: gate}
 	var st landReview
 	tracked := false
-	if s := a.session(gf.Lander); s != nil {
-		lander := s.snapshot()
+	if lander != nil {
 		h.Title = lander.Title
-		st, tracked = landerReview(lander, rec)
+		st, tracked = landerReview(*lander, rec)
 	}
 	findings := len(st.Findings)
 	h.Round = reviewRound(rec, st)
 	if !tracked {
 		h.Round, findings = earlierRound(), 0
-		if v, ok := a.loggedVerdict(ctx, rec); ok {
+		if v, ok := logged(); ok {
 			h.Round = gateRound{Round: max(v.Round, 1), Verdict: v.Outcome}
 			h.Round.Label = fmt.Sprintf(reviewRoundLabel, h.Round.Round)
 			findings = len(v.Findings)
@@ -262,6 +350,20 @@ func (a *app) reviewHead(ctx context.Context, rec record) *reviewHead {
 	}
 	h.Badge, h.Tone = verdictBadge(h.Round.Verdict, findings)
 	return h
+}
+
+func turnHead(lander, rec record, gate string) *reviewHead {
+	h := &reviewHead{Lander: lander.ID, Title: lander.Title, Gate: gate, Round: heldRound(rec, *lander.Held)}
+	findings := 0
+	if h.Round.Verdict == gateChanges {
+		findings = len(lander.Held.Findings)
+	}
+	h.Badge, h.Tone = verdictBadge(h.Round.Verdict, findings)
+	return h
+}
+
+func holdsNode(h heldTurn, gf gateFor) bool {
+	return gf.Run != "" && h.Run == gf.Run || h.Key == gf.Key
 }
 
 func (a *app) loggedVerdict(ctx context.Context, rec record) (gateVerdict, bool) {
@@ -281,7 +383,10 @@ func (a *app) loggedVerdict(ctx context.Context, rec record) (gateVerdict, bool)
 }
 
 func (h reviewHead) meta() []string {
-	subject := landReview{Into: h.Into, Source: h.Source}.subject()
+	subject := h.Gate
+	if subject == "" {
+		subject = landReview{Into: h.Into, Source: h.Source}.subject()
+	}
 	return nonEmpty(ofLander(h.Title), subject)
 }
 

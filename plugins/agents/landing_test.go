@@ -121,8 +121,14 @@ func (l *landing) repo(t *testing.T, i int) landRepo {
 
 func (l *landing) waitState(t *testing.T, i int, state string) landRepo {
 	t.Helper()
-	testutil.Eventually(t, func() bool { return l.repo(t, i).State == state }, wait)
-	return l.repo(t, i)
+	return l.waitRepo(t, i, func(r landRepo) bool { return r.State == state })
+}
+
+func (l *landing) waitRepo(t *testing.T, i int, ok func(landRepo) bool) landRepo {
+	t.Helper()
+	var got landRepo
+	testutil.Eventually(t, func() bool { got = l.repo(t, i); return ok(got) }, wait)
+	return got
 }
 
 func (l *landing) report(t *testing.T, i int, state string, extra ...string) reportResult {
@@ -736,7 +742,7 @@ func TestLandTurnWithNoReportFailsAndKeepsTheFolder(t *testing.T) {
 	assert.Contains(t, failed.Tail, "no report")
 	testutil.Eventually(t, func() bool { return one.task(t).NeedsYou }, wait)
 	two.report(t, 0, "ready")
-	assert.Contains(t, two.waitState(t, 0, "waits").For, "pause")
+	two.waitRepo(t, 0, func(r landRepo) bool { return r.State == "waits" && strings.Contains(r.For, "pause") })
 
 	require.NoError(t, f.run(t, one.workspace, "agents.repo-leave", map[string]any{"session": one.owner, "repo": one.repos[0]}, nil))
 

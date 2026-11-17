@@ -287,3 +287,10 @@ func show(ctx context.Context, h *pluginsdk.Host, workspaceID string, v popupSta
 func (realClock) AfterFunc(d time.Duration, f func()) func() bool {
 	return time.AfterFunc(d, f).Stop
 }
+
+func withAnchor(path, anchor string) string {
+	if anchor == "" {
+		return path
+	}
+	return path + "#" + anchor
+}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"clubmate/plugins/agents/acp"
+	"clubmate/plugins/internal/landgate"
 )
 
 const (
@@ -44,6 +46,9 @@ type runState struct {
 	epoch           int
 	superseded      map[string]bool
 	asked           bool
+	ending          *turnOutcome
+	answered        bool
+	late            bool
 }
 
 func (a *app) prompt(workspaceID string, args promptArgs) error {
@@ -121,16 +126,27 @@ func (a *app) runQueuedLocked(s *session) {
 
 func (a *app) cancel(s *session) {
 	s.mu.Lock()
-	p, running, cycle, agentID := s.proc, s.running, s.cycle, s.rec.AgentSessionID
+	p, running, cycle, agentID, held := s.proc, s.running, s.cycle, s.rec.AgentSessionID, s.rec.Held
 	idle := !running && s.busyLocked()
 	if running {
 		s.cancelRequested = true
 		s.recordLocked(actorUser, kindCancel, acp.SessionRequest{SessionID: agentID})
 	}
+	if idle || !running && s.ending != nil {
+		s.ending = &turnOutcome{cancelled: true}
+	}
 	if idle {
 		s.dropBackgroundLocked()
 	}
+	if held != nil && !running {
+		s.setStatusLocked(statusIdle, "")
+		s.ending = nil
+	}
 	s.mu.Unlock()
+	if held != nil && !running {
+		s.changed(changeStatus, true)
+		a.logHeld(s, *held, gateStopped, landgate.ByUser)
+	}
 	if p != nil && (running || cycle) {
 		if err := p.conn.Notify(acp.MethodSessionCancel, acp.SessionRequest{SessionID: agentID}); err != nil {
 			fmt.Fprintln(os.Stderr, "agents: cancel:", err)
@@ -227,6 +243,7 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	deleted := s.deleted
 	if !deleted && s.epoch == epoch {
 		s.recordLocked(actorClubmate, kindCheckpoint, checkpointPayload{Turn: turn, Sha: sha})
+		s.rec.GateSince = cmp.Or(s.rec.GateSince, sha)
 	}
 	s.mu.Unlock()
 	if deleted {
@@ -283,6 +300,9 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 		res = acp.PromptResponse{}
 		err = p.conn.Call(context.Background(), acp.MethodSessionPrompt, retry, &res)
 	}
+	s.mu.Lock()
+	s.answered = true
+	s.mu.Unlock()
 	if errors.Is(err, acp.ErrClosed) {
 		go p.stop()
 		return 0, 0, promptArgs{}
@@ -302,6 +322,15 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	a.logUngatedMain(rec, commits)
 	a.pruneBackground(s)
 	s.mu.Lock()
+	cancelled := s.cancelRequested || res.StopReason == acp.StopCancelled
+	ends := err == nil && !s.rec.closed() && (cancelled || len(s.queue) == 0) && s.rec.Status != statusWaiting && len(s.background) == 0 && !s.late
+	s.mu.Unlock()
+	var plan *donePlan
+	if ends {
+		p := a.planDone(s, cancelled)
+		plan = &p
+	}
+	s.mu.Lock()
 	if s.epoch != epoch {
 		s.mu.Unlock()
 		return 0, 0, promptArgs{}
@@ -313,32 +342,47 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	s.running = false
 	edited := s.edited
 	var next promptArgs
-	nextTurn, nextEpoch, finished := 0, 0, false
+	nextTurn, nextEpoch, finished, held, settle, stale := 0, 0, false, false, false, false
+	cancelled = s.cancelRequested || res.StopReason == acp.StopCancelled
+	if cancelled && plan != nil {
+		plan = &donePlan{stop: true}
+	}
+	prior := s.rec.Held
 	switch {
 	case s.rec.closed():
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
 	case err != nil:
 		s.recordLocked(actorClubmate, kindTurnEnd, turnEndPayload{Error: err.Error()})
 		s.setStatusLocked(statusError, status)
-	case !s.cancelRequested && res.StopReason != acp.StopCancelled && len(s.queue) > 0:
+	case !cancelled && len(s.queue) > 0:
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
 		next, _ = s.dequeueLocked()
 		nextTurn, nextEpoch = s.beginTurnLocked()
 	default:
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
+		if s.late && !cancelled {
+			s.cycle, s.background, s.started = true, nil, time.Now()
+		}
 		switch {
 		case s.rec.Status == statusWaiting:
-			s.prior = statusDone
-		case len(s.background) > 0:
+			s.ending = &turnOutcome{cancelled: cancelled}
+		case s.busyLocked():
 			s.setStatusLocked(statusRunning, "")
+			s.ending = &turnOutcome{cancelled: cancelled}
+		case plan == nil:
+			s.ending = &turnOutcome{cancelled: cancelled}
+			settle = true
 		default:
-			s.setStatusLocked(statusDone, "")
-			finished = true
+			held, stale = s.finishLocked(*plan)
+			finished = !held
 		}
 	}
-	closed, ended, cancelled := s.rec.closed(), s.turnLocked(), s.cancelRequested || res.StopReason == acp.StopCancelled
+	closed, ended := s.rec.closed(), s.turnLocked()
 	s.mu.Unlock()
-	if !closed {
+	if finished {
+		a.closeHeldRound(s, prior)
+	}
+	if !closed && !held && !settle {
 		s.turned(ended)
 	}
 	if err != nil {
@@ -356,14 +400,23 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	if edited && rec.Night == "" {
 		a.checktime(rec)
 	}
-	if !finished && (err != nil || cancelled) {
+	if !finished && !settle && (err != nil || cancelled) {
 		a.gateTurnEnded(s, false)
 	}
 	if finished {
 		a.markReview(s)
-		a.gateTurnEnded(s, true)
+		a.gateTurnEnded(s, !cancelled)
 		a.cleanupChild(s)
 		a.closeVanishedChildren(s)
+		if plan.release != "" && prior != nil {
+			a.logReleased(s, *prior, plan.release)
+		}
+	}
+	if held && !stale {
+		a.planned(s, *plan, prior, true, ended, cancelled)
+	}
+	if settle || stale {
+		a.finishTurn(s)
 	}
 	return nextTurn, nextEpoch, next
 }
@@ -406,15 +459,22 @@ func (a *app) abandon(s *session, epoch int) bool {
 		s.running = false
 		s.requeueSendingLocked()
 		s.recordLocked(actorUser, kindTurnEnd, turnEndPayload{StopReason: acp.StopCancelled})
+		prior := s.rec.Held
+		stopped := false
 		if s.rec.Status == statusWaiting {
-			s.prior = statusDone
+			s.ending = &turnOutcome{cancelled: true}
 		} else {
-			s.setStatusLocked(statusDone, "")
+			stopped, _ = s.finishLocked(donePlan{stop: true})
 		}
 		ended := s.turnLocked()
 		s.mu.Unlock()
-		s.turned(ended)
+		if !stopped {
+			s.turned(ended)
+		}
 		s.changed(changeStatus, true)
+		if stopped && prior != nil {
+			a.logHeld(s, *prior, gateStopped, landgate.ByUser)
+		}
 		return true
 	}
 	s.mu.Unlock()
@@ -443,6 +503,11 @@ func (s *session) beginTurnLocked() (int, int) {
 	s.turn++
 	s.superseded = nil
 	s.asked = false
+	s.ending = nil
+	s.answered, s.late = false, false
+	if s.sending == nil || !s.sending.Gate {
+		s.rec.Held = nil
+	}
 	if w := s.rec.LimitWait; w != nil && !w.Fired {
 		s.rec.LimitWait = nil
 	}

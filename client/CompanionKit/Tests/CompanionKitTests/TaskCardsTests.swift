@@ -37,6 +37,11 @@ private func decoded<T: Decodable>(_ json: String, as type: T.Type = T.self) thr
     try JSONDecoder.clubmate.decode(type, from: Data(json.utf8))
 }
 
+private let heldNode = """
+{"type": "request.land", "id": "s/gateCard/lg_1", "props": {"request": "lg_1", "title": "Plan pipeline still asks for changes after 2 rounds", "name": "Write the plan",
+ "options": [{"id": "merge", "label": "Accept as done", "kind": "allow_once"}, {"id": "more", "label": "One more round"}, {"id": "leave", "label": "Stop", "kind": "reject_once"}]}}
+"""
+
 private func transcript(request: String = "null", repos: String = "null", session: String = #"{"id": "s", "status": "done"}"#) throws -> AgentTranscript {
     try decoded(#"{"session": \#(session), "entries": [], "request": \#(request), "repos": \#(repos)}"#)
 }
@@ -114,6 +119,12 @@ final class TaskCardsTests: XCTestCase {
     func testAnotherFolderSendsTheUserToTheMac() throws {
         XCTAssertTrue(ConnectCard.footnote.contains("another folder: on the Mac"))
         XCTAssertNil(ConnectAnswer.Action(rawValue: "other"))
+    }
+
+    func testARoundsCardOffersOneMoreRound() throws {
+        guard case .land(let held) = try transcript(request: heldNode).request else { throw RemoteError.badResponse }
+        XCTAssertEqual([held.choice, try landCard().choice], [true, false])
+        XCTAssertEqual([held.mergeLabel, held.moreLabel, held.leaveLabel], ["Accept as done", "One more round", "Stop"])
     }
 
     func testMergeIsRefusedOfflineAndNeverQueues() async throws {

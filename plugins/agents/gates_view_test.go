@@ -256,3 +256,142 @@ func TestSheetRefusesAKeywordTypedAsAPattern(t *testing.T) {
 	assert.Equal(t, gateLikeKeyword, selectNamed(t, sheet, "into").Props["error"])
 	assert.Equal(t, true, saveButton(t, sheet).Props["disabled"])
 }
+
+func TestHeldTurnHistorySaysStoppedAndReleased(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 17, 13, 0, 0, 0, time.UTC)
+	history := []gateVerdict{
+		{Outcome: gateStopped, By: landgate.ByUser, Title: "Plan the cache", Round: 1, At: now.Add(-time.Minute)},
+		{Outcome: gateReleased, By: byGatePaused, Title: "Plan the cache", Round: 1, At: now.Add(-2 * time.Minute)},
+		{Outcome: gateReleased, By: byGateChanged, Title: "Plan the cache", Round: 1, At: now.Add(-3 * time.Minute)},
+	}
+	sc := gateScreen{Row: gateRow{gateConfig: gateConfig{ID: "gt_1", Repo: "/src/clubmate", Point: gatePointTurn, Rounds: 2}}, History: history, Now: now, Loc: time.UTC}
+
+	rows := nodesOf(gateMain(sc), "table")[0].Props["rows"].([]sdui.TableRow)
+
+	var got [][]string
+	for _, r := range rows {
+		got = append(got, []string{r.Cells[1].Text, r.Cells[1].Tone, r.Cells[2].Text})
+	}
+	assert.Equal(t, [][]string{
+		{"stopped by you", "", "Plan the cache · round 1"},
+		{"released: gate paused", "warn", "Plan the cache · round 1"},
+		{"released: gate changed", "warn", "Plan the cache · round 1"},
+	}, got)
+}
+
+func TestGatePageFactsForDone(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 17, 13, 0, 0, 0, time.UTC)
+	sc := gateScreen{
+		Row: gateRow{
+			gateConfig: gateConfig{ID: "gt_1", Repo: "/src/shop", Point: gatePointTurn, Sessions: doneSessionsDefault, Wrote: donePlansAndSpecs, Rounds: 2},
+			Name:       gateNamePlanSpecs, State: gateStateReview,
+			Landings: []gateLanding{{Lander: "agt_l", Title: "Write the inbox plan", State: gateStateReview, Round: 1, Reviewer: "agt_rev", Since: now.Add(-time.Minute)}},
+		},
+		Sessions: map[string]bool{"agt_l": true, "agt_rev": true},
+		Now:      now,
+		Loc:      time.UTC,
+	}
+
+	tree := gateMain(sc)
+
+	require.NoError(t, internalsdui.Validate(tree))
+	assert.Equal(t, gateDoneIcon, nodesOf(tree, "header")[0].Props["icon"])
+	texts := textsOf(tree)
+	assert.Contains(t, texts, gateHoldsDone)
+	assert.Contains(t, texts, "top-level and AFK sessions · plans and specs: **/plans/*.md or **/specs/*.md")
+	assert.NotContains(t, texts, gateDocsOnly)
+	table := nodesOf(tree, "table")[0]
+	var titles []string
+	for _, c := range table.Props["columns"].([]sdui.Column) {
+		titles = append(titles, c.Title)
+	}
+	assert.Equal(t, []string{"When", "Verdict", "Held"}, titles)
+	row := table.Props["rows"].([]sdui.TableRow)[0]
+	assert.Equal(t, []string{"reviewing", "Write the inbox plan · round 1", "Open review"}, []string{row.Cells[1].Text, row.Cells[2].Text, row.Cells[2].Label})
+}
+
+func TestDoneGatesSortAfterLandingGatesAndShowTheirMatch(t *testing.T) {
+	t.Parallel()
+	rows := []gateRow{
+		{gateConfig: gateConfig{ID: "gt_done", Repo: "/src/shop", Point: gatePointTurn}, Name: gateNameAnyTurn},
+		{gateConfig: gateConfig{ID: "gt_any", Repo: "/src/shop", Point: gatePointLand, Into: gateIntoAny}, Name: "Landing into any branch"},
+	}
+
+	sortGateRows(rows)
+	repo := gateDock(rows, time.Now())[1]
+
+	assert.Equal(t, []string{gatePrefix + "gt_any", gatePrefix + "gt_done"}, ids(repo.Children))
+	assert.Equal(t, []string{"any turn", gateDoneIcon}, []string{repo.Children[1].Label, repo.Children[1].Icon})
+}
+
+func TestHeldBlockListsRounds(t *testing.T) {
+	t.Parallel()
+	b := heldBlock{Graph: "Plan pipeline", Round: 2, Rounds: []finishedRound{{Round: 1, Verdict: gateChanges, Findings: 3, Reviewer: "agt_r1"}}, Reviewing: true, Live: "agt_r2"}
+
+	n := heldNode("agt_1", b)
+
+	require.NoError(t, internalsdui.Validate(sdui.VStack(n)))
+	assert.Equal(t, []string{"Gate · Plan pipeline · round 2", "Round 1 · changes · 3 findings", "Round 2 · reviewing"}, textsOf(n))
+	var buttons []string
+	for _, btn := range nodesOf(n, "button") {
+		buttons = append(buttons, btn.ID)
+	}
+	assert.Equal(t, []string{"agt_1/heldReview/1/agt_r1", "agt_1/heldReview/2/agt_r2"}, buttons)
+}
+
+func TestSheetHoldsDone(t *testing.T) {
+	t.Parallel()
+	repos := []gateRepo{{Path: "/src/shop", Primary: "/src/shop", Branch: "main"}}
+	d := gateDraft{Point: gatePointTurn, Repo: "/src/shop", Sessions: doneSessionsDefault, WroteMode: gateWrotePlans, Graph: "fable-review", Rounds: 2, Repos: repos, Choices: []graphs.GateGraphInfo{fableChoice()}}
+	noKinds := d
+	noKinds.Sessions = []string{doneAFK}
+	badGlob := d
+	badGlob.WroteMode, badGlob.WroteLike = gateWroteLike, "plans/, /abs"
+
+	sheets := []sdui.Node{gateSheetView(d), gateSheetView(noKinds), gateSheetView(badGlob)}
+
+	for _, n := range sheets {
+		require.NoError(t, internalsdui.Validate(sdui.VStack(n)))
+	}
+	sheet := nodesOf(sheets[0], "sheet")[0]
+	assert.Equal(t, "Holds a top-level or AFK agent's done turn in shop when it wrote a plan or a spec; Fable review decides.", sheet.Props["note"])
+	assert.Equal(t, gatePointTurn, nodesOf(sheets[0], "tabs")[0].Props["selected"])
+	assert.Contains(t, textsOf(sheets[0]), gateHoldsDoneLine)
+	assert.Nil(t, saveButton(t, sheets[0]).Props["disabled"])
+	assert.Equal(t, true, saveButton(t, sheets[1]).Props["disabled"])
+	assert.Contains(t, textsOf(sheets[1]), gateSessionsLine)
+	assert.Equal(t, true, saveButton(t, sheets[2]).Props["disabled"])
+	assert.Equal(t, errGateWrote.Error(), nodesOf(sheets[2], "textField")[0].Props["error"])
+}
+
+func TestGatesDockRowCountsHeldTurnsApartFromLandings(t *testing.T) {
+	t.Parallel()
+	done := gateRow{gateConfig: gateConfig{ID: "gt_done", Point: gatePointTurn}, Landings: []gateLanding{{State: gateStateReview}}}
+	land := gateRow{gateConfig: gateConfig{ID: "gt_land", Point: gatePointLand}, Landings: []gateLanding{{State: gateStateReview}}}
+
+	only := dockRows(nil, gateCounts([]gateRow{done}, 0), nil)[1]
+	both := dockRows(nil, gateCounts([]gateRow{land, done}, 0), nil)[1]
+
+	assert.Equal(t, []string{"1 held", "1 held"}, []string{only.Detail, only.PhoneDetail})
+	assert.Equal(t, "1 landing · 1 held", both.Detail)
+}
+
+func TestHeldTurnWaitingForTrustSaysSo(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 17, 13, 0, 0, 0, time.UTC)
+	sc := gateScreen{
+		Row:      gateRow{gateConfig: gateConfig{ID: "gt_1", Repo: "/src/shop", Point: gatePointTurn, Rounds: 2}, Name: gateNameAnyTurn, Landings: []gateLanding{{Lander: "agt_l", Title: "Write the plan", State: gateStateReview, Round: 1, Wait: heldWaitsTrust, Since: now}}},
+		Sessions: map[string]bool{"agt_l": true},
+		Now:      now,
+		Loc:      time.UTC,
+	}
+
+	row := nodesOf(gateMain(sc), "table")[0].Props["rows"].([]sdui.TableRow)[0]
+	block := heldNode("agt_l", heldBlock{Graph: "Fable review", Round: 1, Waits: true})
+
+	assert.Equal(t, heldWaitsTrust, row.Cells[1].Text)
+	assert.Equal(t, []string{"Gate · Fable review · round 1", "Round 1 · waits for trust"}, textsOf(block))
+	assert.Empty(t, nodesOf(block, "button"))
+}

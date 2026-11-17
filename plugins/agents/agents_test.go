@@ -95,6 +95,8 @@ type record struct {
 	GateFor         *struct {
 		Gate    string `json:"gate"`
 		Lander  string `json:"lander"`
+		Point   string `json:"point"`
+		Key     string `json:"key"`
 		Tree    string `json:"tree"`
 		Run     string `json:"run"`
 		Verdict bool   `json:"verdict"`

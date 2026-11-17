@@ -11,6 +11,7 @@ import (
 const (
 	checkpointRefs  = "refs/clubmate/cp/"
 	endSuffix       = ".end"
+	reviewedSuffix  = "reviewed"
 	worktreeTrailer = "Clubmate-Worktree"
 )
 
@@ -40,6 +41,21 @@ func pin(ctx context.Context, root, ref, title string) (string, error) {
 		return "", err
 	}
 	if err := gitrepo.UpdateRef(ctx, root, ref, sha); err != nil {
+		return "", err
+	}
+	return sha, nil
+}
+
+func reviewedCheckpoint(ctx context.Context, rec record, tree string) (string, error) {
+	top, ok := gitrepo.RepoRoot(rec.Worktree)
+	if !ok || rec.Night != "" || tree == "" {
+		return "", nil
+	}
+	sha, err := gitrepo.CommitTree(ctx, rec.Worktree, tree, "", "clubmate reviewed done "+rec.ID, worktreeTrailer+": "+top)
+	if err != nil {
+		return "", err
+	}
+	if err := gitrepo.UpdateRef(ctx, rec.Worktree, checkpointRefs+rec.ID+"/"+reviewedSuffix, sha); err != nil {
 		return "", err
 	}
 	return sha, nil

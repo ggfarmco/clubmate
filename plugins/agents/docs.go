@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"errors"
 	"maps"
 	"net/url"
 	"os"
@@ -12,10 +13,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sourcegraph/jsonrpc2"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/docext"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
@@ -89,6 +92,8 @@ const (
 	maxDocCards        = 8
 	docsOpenedTopic    = "docs.opened"
 	docsPresentedTopic = "docs.presented"
+	docsReadyTopic     = "docs.ready"
+	codeUnknownCommand = -32004
 )
 
 type presentedDoc struct {
@@ -307,4 +312,142 @@ func resolveTarget(target, root string) (string, string, bool) {
 func isFile(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.Mode().IsRegular()
+}
+
+const (
+	docsPlugin     = "docs"
+	docGateOpen    = "open"
+	docGatePresent = "present"
+)
+
+var (
+	errDocsOnly   = errors.New("only the docs plugin calls this")
+	errDocGateArg = errors.New("doc-gate needs a session, a path and mode open or present")
+)
+
+type gatedDoc struct {
+	Workspace string `json:"workspace"`
+	For       string `json:"for"`
+	Path      string `json:"path"`
+	Mode      string `json:"mode"`
+	Title     string `json:"title,omitempty"`
+}
+
+type docGateArgs struct {
+	Session string `json:"session"`
+	For     string `json:"for"`
+	Path    string `json:"path"`
+	Mode    string `json:"mode"`
+	Title   string `json:"title"`
+}
+
+type docGateResult struct {
+	Queued bool `json:"queued"`
+}
+
+func (a *app) docGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, args docGateArgs) (any, error) {
+	if cmd.Via != docsPlugin || cmd.Agent {
+		return nil, errDocsOnly
+	}
+	if args.Session == "" || args.Path == "" || args.Mode != docGateOpen && args.Mode != docGatePresent {
+		return nil, errDocGateArg
+	}
+	s := a.session(args.Session)
+	if s == nil {
+		return docGateResult{}, nil
+	}
+	rec := s.snapshot()
+	if rec.Workspace != cmd.WorkspaceID || !turnRunning(rec) {
+		return docGateResult{}, nil
+	}
+	gates, err := a.gates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !doneGated(gates, primaryOf(ctx, rec.Worktree), rec) {
+		return docGateResult{}, nil
+	}
+	doc := gatedDoc{Workspace: rec.Workspace, For: cmp.Or(args.For, args.Session), Path: args.Path, Mode: args.Mode, Title: args.Title}
+	s.mu.Lock()
+	queued := turnRunning(s.rec)
+	if queued {
+		docs := slices.DeleteFunc(slices.Clone(s.rec.GatedDocs), func(d gatedDoc) bool { return d.For == doc.For && d.Path == doc.Path && d.Mode == doc.Mode })
+		s.rec.GatedDocs = append(docs, doc)
+	}
+	s.mu.Unlock()
+	if queued {
+		s.changed(changeUpdate, true)
+	}
+	return docGateResult{Queued: queued}, nil
+}
+
+func turnRunning(rec record) bool {
+	return !rec.closed() && (rec.Status == statusRunning || rec.Status == statusWaiting)
+}
+
+func (a *app) settleGatedDocs(s *session) {
+	s.mu.Lock()
+	docs, closed := s.rec.GatedDocs, s.rec.closed()
+	s.replayAgain = s.replayingDocs
+	if len(docs) == 0 || s.replayingDocs || turnRunning(s.rec) || !closed && s.rec.LimitWait != nil {
+		s.mu.Unlock()
+		return
+	}
+	if closed {
+		s.rec.GatedDocs = nil
+	}
+	s.replayingDocs = !closed
+	s.mu.Unlock()
+	go func() {
+		if closed {
+			s.changed(changeUpdate, true)
+			return
+		}
+		settled := a.replayDocs(docs)
+		s.mu.Lock()
+		again := s.replayAgain
+		s.replayingDocs, s.replayAgain = false, false
+		s.rec.GatedDocs = slices.DeleteFunc(slices.Clone(s.rec.GatedDocs), func(d gatedDoc) bool { return slices.Contains(settled, d) })
+		s.mu.Unlock()
+		if len(settled) > 0 {
+			s.changed(changeUpdate, true)
+		}
+		if again {
+			a.settleGatedDocs(s)
+		}
+	}()
+}
+
+func (a *app) replayDocs(docs []gatedDoc) []gatedDoc {
+	var settled []gatedDoc
+	for _, d := range docs {
+		args := map[string]any{"path": d.Path, "session": d.For, "gated": false}
+		id := "docs.open"
+		if d.Mode == docGatePresent {
+			id = "docs.present"
+			if d.Title != "" {
+				args["title"] = d.Title
+			}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+		err := a.host.RunCommand(ctx, id, d.Workspace, args, nil)
+		cancel()
+		if docsDown(err) {
+			continue
+		}
+		logError("show a doc after its turn", err)
+		settled = append(settled, d)
+	}
+	return settled
+}
+
+func docsDown(err error) bool {
+	rpcErr, ok := errors.AsType[*jsonrpc2.Error](err)
+	return ok && (rpcErr.Code == contract.CodePluginUnavailable || rpcErr.Code == codeUnknownCommand) || errors.Is(err, context.DeadlineExceeded)
+}
+
+func (a *app) settleAllGatedDocs() {
+	for _, s := range a.allSessions() {
+		a.settleGatedDocs(s)
+	}
 }

@@ -980,7 +980,7 @@ func displayStatus(rec record, children string) string {
 	if rec.AsksParent {
 		return statusAsksParent
 	}
-	if needsYou(rec) && rec.Status == statusDone {
+	if needsYou(rec) && rec.Status == statusDone || rec.heldWaits() {
 		return statusAsks
 	}
 	if rec.Review && rec.Status == statusDone {
