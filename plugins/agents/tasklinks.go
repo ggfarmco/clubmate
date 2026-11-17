@@ -109,10 +109,15 @@ func (s *session) setTaskTitles(titles map[int]string) {
 			}
 		}
 	}
+	first := s.taskTitles == nil
 	s.taskTitles = known
 	for _, en := range s.entries {
-		if len(en.taskIDs) > 0 && s.linkTasksLocked(en) {
+		switch {
+		case len(en.taskIDs) == 0:
+		case s.linkTasksLocked(en):
 			changed = true
+		case first:
+			s.touch(en)
 		}
 	}
 	deleted := s.deleted
@@ -143,7 +148,8 @@ func (s *session) linkTasksLocked(en *entry) bool {
 	if maps.Equal(links, en.TaskLinks) {
 		return false
 	}
-	en.TaskLinks, en.node = links, nil
+	en.TaskLinks = links
+	s.touch(en)
 	return true
 }
 

@@ -11,6 +11,7 @@ public enum Topic {
 public enum AgentCommand {
     public static let sessions = "agents.sessions"
     public static let transcript = "agents.transcript"
+    public static let toolCall = "agents.tool-call"
     public static let prompt = "agents.prompt"
     public static let new = "agents.new"
 }

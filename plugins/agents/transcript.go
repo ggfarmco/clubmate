@@ -16,7 +16,7 @@ import (
 	"clubmate/plugins/agents/acp"
 )
 
-const cursorSep = "."
+const cursorSep = ":"
 
 var transcriptEpoch = strconv.FormatInt(time.Now().UnixNano(), 36)
 
@@ -49,7 +49,8 @@ type transcriptState struct {
 	turns      []turnInfo
 	turn       int
 	nextID     int
-	rev        int64
+	stamp      int64
+	applying   bool
 	edited     bool
 	prompted   bool
 	senders    []string
@@ -84,6 +85,8 @@ type transcriptView struct {
 	AsidePanel   *asidePanel       `json:"asidePanel,omitempty"`
 
 	ReviewStates map[string]map[int64]string `json:"-"`
+
+	pos cursor
 }
 
 type entry struct {
@@ -125,9 +128,12 @@ type entry struct {
 	Overflow []int      `json:"overflow,omitempty"`
 	Later    bool       `json:"later,omitempty"`
 
+	Summary *toolSummary `json:"toolSummary,omitempty"`
+
 	node    *nodeCache
 	sub     *subagent
-	rev     int64
+	seq     int64
+	minor   int64
 	closed  bool
 	marked  string
 	numbers []int
@@ -201,30 +207,34 @@ type noticeUpdate struct {
 }
 
 func (s *session) view(fromTurn int) transcriptView {
-	return s.viewSince(fromTurn, -1)
+	return s.viewSince(fromTurn, nil, nil)
 }
 
-func (s *session) viewSince(fromTurn int, since int64) transcriptView {
+func (s *session) viewSince(fromTurn int, since *cursor, always func(*entry) bool) transcriptView {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.loadLocked()
 	v := transcriptView{Session: s.rec, Modes: slices.Clone(s.modes), Configs: slices.Clone(s.configs), Usage: s.usage, Commands: slices.Clone(s.commands), Turns: slices.Clone(s.turns), ReviewStates: maps.Clone(s.reviewStates)}
+	high := s.log.high()
+	if since != nil && since.seq > high {
+		since = nil
+	}
 	marked := s.markedLocked()
 	numbers := openNumbers(s.opens)
 	for _, en := range s.entries {
-		if since < 0 && en.Turn < fromTurn {
+		if since == nil && en.Turn < fromTurn {
 			continue
 		}
 		s.refreshLocked(en)
+		changed, derived := en.node == nil, false
 		if marked[en] != en.marked {
-			en.marked, en.node = marked[en], nil
+			en.marked, en.node, derived = marked[en], nil, true
 		}
 		if !slices.Equal(numbers[en], en.numbers) {
-			en.numbers, en.node = numbers[en], nil
+			en.numbers, en.node, derived = numbers[en], nil, true
 		}
 		if en.node == nil {
 			en.node = new(nodeCache)
-			s.bumpLocked(en)
 		}
 		c := *en
 		c.sub = nil
@@ -240,30 +250,99 @@ func (s *session) viewSince(fromTurn int, since int64) transcriptView {
 			c.Compaction, c.node, closed = &compaction{Status: compactionCancelled}, nil, true
 		}
 		if closed != en.closed {
-			en.closed = closed
-			s.bumpLocked(en)
-			c.rev = en.rev
+			en.closed, derived = closed, true
 		}
-		if c.rev > since {
+		if derived {
+			en.seq = high
+		}
+		if changed || derived {
+			s.minor++
+			en.minor = s.minor
+		}
+		c.seq, c.minor = en.seq, en.minor
+		if since == nil || c.pos().after(*since) || always != nil && always(&c) {
 			v.Entries = append(v.Entries, &c)
 		}
 	}
-	v.Cursor = transcriptEpoch + cursorSep + strconv.FormatInt(s.rev, 10)
+	v.pos, v.Delta = cursor{seq: high, minor: s.minor}, since != nil
+	v.Cursor = v.pos.format("")
 	return v
 }
 
-func (s *session) bumpLocked(en *entry) {
-	s.rev++
-	en.rev = s.rev
+func (s *session) stampDerivableLocked() {
+	opened := map[int]bool{}
+	for _, en := range s.opens {
+		opened[en.Turn] = true
+	}
+	high := s.log.high()
+	for _, en := range s.entries {
+		s.refreshLocked(en)
+		if derivable(en, opened) {
+			en.seq = high
+		}
+	}
 }
 
-func parseCursor(cursor string) (int64, bool) {
-	epoch, rev, ok := strings.Cut(cursor, cursorSep)
-	if !ok || epoch != transcriptEpoch {
-		return 0, false
+func derivable(en *entry, opened map[int]bool) bool {
+	switch {
+	case en.Kind == entryOpenItems, en.Kind == entryAgent && opened[en.Turn]:
+		return true
+	case len(en.taskIDs) > 0, len(en.DocLinks) > 0, len(en.DocCards) > 0, len(en.Images) > 0, len(en.ImageLinks) > 0:
+		return true
+	case en.Compaction != nil:
+		return en.Compaction.Status == compactionRunning
+	case en.Tool != nil:
+		_, open := closeTool(en.Tool)
+		return open
 	}
-	n, err := strconv.ParseInt(rev, 10, 64)
-	return n, err == nil && n >= 0
+	return false
+}
+
+func (s *session) touch(en *entry) {
+	en.node, en.seq = nil, s.stampLocked()
+}
+
+func (s *session) stampLocked() int64 {
+	if s.applying {
+		return s.stamp
+	}
+	return s.log.high()
+}
+
+type cursor struct {
+	seq   int64
+	minor int64
+}
+
+func (en *entry) pos() cursor {
+	return cursor{seq: en.seq, minor: en.minor}
+}
+
+func (c cursor) after(o cursor) bool {
+	return c.seq > o.seq || c.seq == o.seq && c.minor > o.minor
+}
+
+func (c cursor) format(ctx string) string {
+	return strings.Join([]string{strconv.FormatInt(c.seq, 10), strconv.FormatInt(c.minor, 10), transcriptEpoch, ctx}, cursorSep)
+}
+
+func parseCursor(text string) (cursor, string, bool) {
+	parts := strings.Split(text, cursorSep)
+	if len(parts) != 4 {
+		return cursor{}, "", false
+	}
+	seq, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || seq < 0 {
+		return cursor{}, "", false
+	}
+	minor, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil || minor < 0 {
+		return cursor{}, "", false
+	}
+	if parts[2] != transcriptEpoch {
+		minor = 0
+	}
+	return cursor{seq: seq, minor: minor}, parts[3], true
 }
 
 func (v transcriptView) lastTurn() transcriptView {
@@ -343,13 +422,14 @@ func (s *session) update(params json.RawMessage) {
 	_, chunked := chunkKinds[head.SessionUpdate]
 	switch {
 	case chunked && json.Unmarshal(n.Update, &chunk) == nil && chunk.Content.Type == "text":
-		s.log.chunk(e, head.SessionUpdate, chunk.MessageID, chunk.Content.Text)
+		e.Seq = s.log.chunk(e, head.SessionUpdate, chunk.MessageID, chunk.Content.Text)
 	case head.SessionUpdate == acp.UpdateCompactionChunk && json.Unmarshal(n.Update, &summary) == nil && summary.Content.Type == "text":
-		s.log.chunk(e, head.SessionUpdate, summary.CompactionID, summary.Content.Text)
+		e.Seq = s.log.chunk(e, head.SessionUpdate, summary.CompactionID, summary.Content.Text)
 	case head.SessionUpdate == acp.UpdateUsage:
 		s.log.latest(e)
+		e.Seq = s.log.high()
 	default:
-		s.log.write(e)
+		e.Seq = s.log.write(e)
 	}
 	title, mode := s.rec.Title, s.rec.Mode
 	s.apply(e)
@@ -387,6 +467,8 @@ func (s *session) noticeUpdate(n noticeUpdate) {
 }
 
 func (s *session) apply(e envelope) {
+	s.stamp, s.applying = e.Seq, true
+	defer func() { s.stamp, s.applying = 0, false }()
 	s.at = e.TS
 	if e.Turn > s.turn {
 		s.turn = e.Turn
@@ -471,7 +553,8 @@ func (s *session) apply(e envelope) {
 		var p answerPayload
 		if json.Unmarshal(e.Payload, &p) == nil {
 			if i, ok := s.index[key(entryPermission, p.Request)]; ok {
-				s.entries[i].Outcome, s.entries[i].AnsweredAt, s.entries[i].node = &p.Outcome, e.TS, nil
+				s.entries[i].Outcome, s.entries[i].AnsweredAt = &p.Outcome, e.TS
+				s.touch(s.entries[i])
 			}
 		}
 	case kindElicitation:
@@ -677,7 +760,8 @@ func (s *session) cancelTools(turn int) {
 			continue
 		}
 		if closed, ok := closeTool(en.Tool); ok {
-			en.Tool, en.node = closed, nil
+			en.Tool = closed
+			s.touch(en)
 		}
 	}
 }
@@ -699,7 +783,7 @@ func (s *session) messageEntry(kind, messageID string, turn int) *entry {
 	}
 	if n := len(s.entries); n > 0 {
 		if last := s.entries[n-1]; last.Kind == kind && last.Turn == turn {
-			last.node = nil
+			s.touch(last)
 			return last
 		}
 	}
@@ -710,10 +794,10 @@ func (s *session) messageEntry(kind, messageID string, turn int) *entry {
 func (s *session) upsert(kind, id string, turn int) *entry {
 	k := key(kind, id)
 	if i, ok := s.index[k]; ok {
-		s.entries[i].node = nil
+		s.touch(s.entries[i])
 		return s.entries[i]
 	}
-	en := &entry{Kind: kind, ID: id, Turn: turn, At: s.at}
+	en := &entry{Kind: kind, ID: id, Turn: turn, At: s.at, seq: s.stampLocked()}
 	s.index[k] = len(s.entries)
 	s.entries = append(s.entries, en)
 	return en

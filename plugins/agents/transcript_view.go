@@ -55,6 +55,20 @@ type nodeCache struct {
 	key   nodeKey
 	built builtNode
 	ok    bool
+	sum   *toolSummary
+}
+
+func (n *nodeCache) summary(build func() toolSummary) toolSummary {
+	if n == nil {
+		return build()
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sum == nil {
+		sum := build()
+		n.sum = &sum
+	}
+	return *n.sum
 }
 
 type nodeKey struct {

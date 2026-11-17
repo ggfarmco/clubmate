@@ -9,6 +9,7 @@ public final class CompanionModel {
     public var inbox = Inbox()
     @ObservationIgnored public let queue: ActionQueue
     @ObservationIgnored public let lists: ListCache
+    @ObservationIgnored public let transcripts: TranscriptCache
     @ObservationIgnored public var posted: (@MainActor (InboxItem) -> Void)?
     @ObservationIgnored public var withdrawn: (@MainActor ([String]) -> Void)?
     @ObservationIgnored public var received: (@MainActor (String, ConnectionSignal) -> Void)?
@@ -32,6 +33,7 @@ public final class CompanionModel {
     public init(store: ComputerStore, transport: any HTTPTransport, device: DeviceIdentity, policy: HostPolicy = .tailnet, cursors: UserDefaults? = nil, queueFile: URL? = nil, reportsDir: URL? = nil, listsDir: URL? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         queue = ActionQueue(file: queueFile, reports: reportsDir)
         lists = ListCache(dir: listsDir)
+        transcripts = TranscriptCache(lists: lists)
         self.store = store
         self.transport = transport
         self.device = device
@@ -121,6 +123,7 @@ public final class CompanionModel {
         detach(id)
         queue.forget(computer: id)
         lists.forget(computer: id)
+        Task { [transcripts] in await transcripts.forget(computer: id) }
         cursors?.removeObject(forKey: Self.cursorKey(id))
         try store.remove(id)
         computers = store.computers
@@ -170,7 +173,7 @@ public final class CompanionModel {
         let key = computer + "|" + workspace
         if let existing = agents[key] { return existing }
         guard let connection = connections[computer] else { return nil }
-        let store = AgentsStore(workspace: workspace, runner: connection, queue: queue, computer: computer, cache: lists, queues: { [weak connection] in connection?.queues ?? false }, retry: { [weak self, weak connection] in
+        let store = AgentsStore(workspace: workspace, runner: connection, queue: queue, computer: computer, cache: lists, transcriptCache: transcripts, queues: { [weak connection] in connection?.queues ?? false }, retry: { [weak self, weak connection] in
             if let self, let connection { self.flushQueue(connection) }
         })
         agents[key] = store

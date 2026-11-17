@@ -279,7 +279,8 @@ func (s *session) applyOpenChanged(e envelope) {
 	if p.Later {
 		for _, en := range s.opens {
 			if slices.ContainsFunc(en.Items, func(it openItem) bool { return it.State == itemOpen }) {
-				en.Later, en.node = true, nil
+				en.Later = true
+				s.touch(en)
 			}
 		}
 	}
@@ -294,7 +295,7 @@ func (s *session) editItem(id string, edit func(*openItem)) {
 		}
 		en.Items = slices.Clone(en.Items)
 		edit(&en.Items[i])
-		en.node = nil
+		s.touch(en)
 		return
 	}
 }

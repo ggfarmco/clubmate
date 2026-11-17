@@ -252,7 +252,7 @@ func (s *session) freezeReviews(closed map[string]map[int64]string) {
 		at := s.rec.UpdatedAt
 		e := s.envelope(actorClubmate, kindReviewClosed, raw)
 		s.rec.UpdatedAt = at
-		s.log.write(e)
+		e.Seq = s.log.write(e)
 		if s.loaded {
 			s.apply(e)
 		}

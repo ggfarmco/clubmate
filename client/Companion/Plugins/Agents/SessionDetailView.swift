@@ -256,6 +256,7 @@ struct SessionDetailView: View {
         } : nil)
         .environment(\.openDoc, docOpener)
         .environment(\.openTask, taskOpener)
+        .environment(\.toolCallLoader, ToolCallLoader { [store, sessionID] id in await store.toolCall(id, in: sessionID) })
         .environment(\.imageStore, context.connection.supports(AgentsStore.imageCommand) ? store : nil)
         .environment(\.imageSession, sessionID)
         .onScrollGeometryChange(for: Bool.self) { geometry in

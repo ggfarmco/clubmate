@@ -1307,9 +1307,24 @@
             "fromTurn": {"type": "integer", "description": "First turn to include; defaults to all."},
             "last": {"type": "boolean", "description": "Only the last turn's entry in turns and its entries; modes, configOptions and commands are null."},
             "compact": {"type": "boolean", "description": "Also drop the images in tool calls' content and commands (null). Agent calls never get image data in entries, with or without compact."},
-            "since": {"type": "string", "description": "A cursor from an earlier result: entries holds only the entries added or changed since then, in log order, and delta is true; fromTurn is ignored. A cursor from before the plugin restarted is ignored and the full transcript comes back without delta. Ignored with last."}
+            "since": {"type": "string", "description": "A cursor from an earlier result: entries holds only the entries added or changed since then, in log order, and delta is true; fromTurn is ignored. The cursor is the session log's seq, so it outlives plugin restarts; a cursor it can't read (another format, or past the log's end) is ignored and the full transcript comes back without delta. Ignored with last."},
+            "slim": {"type": "boolean", "description": "Leave tool calls' content and rawInput out (rawInput keeps command and description) and give each such entry toolSummary {diffs:[{path, added, removed}], output}: the changed files with their line counts and whether there is text output. agents.tool-call returns one call in full."}
           },
           "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.tool-call",
+        "title": "Agent tool call",
+        "hidden": true,
+        "remote": true,
+        "description": "One tool call of a session's transcript in full, for a client that read it with slim: {tool} with the call's fields as in a tool entry's tool (images in content dropped). Fails for an unknown call. Non-destructive.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."},
+            "tool": {"type": "string", "description": "Tool call id: the id of the transcript's tool entry."}
+          },
+          "required": ["session", "tool"]
         }
       },
       {

@@ -71,7 +71,7 @@ func (s *session) applySubagent(turn int, agentSession string, payload json.RawM
 	default:
 		return
 	}
-	sub.touch()
+	sub.touch(s.stampLocked())
 }
 
 func (s *session) announceSubagent(parent *subagent, turn int, payload json.RawMessage) {
@@ -105,7 +105,7 @@ func (s *session) announceSubagent(parent *subagent, turn int, payload json.RawM
 	if u.Capabilities != nil {
 		sub.cancel = u.Capabilities.Cancel != nil
 	}
-	sub.touch()
+	sub.touch(s.stampLocked())
 }
 
 func (s *session) sessionMessage(payload json.RawMessage) {
@@ -122,7 +122,7 @@ func (s *session) sessionMessage(payload json.RawMessage) {
 	text := strings.Join(parts, "\n")
 	if from := s.subagents[m.SenderSessionID]; from != nil && from.repliesTo(m.RecipientSessionID, s.subagents) {
 		from.reply = text
-		from.touch()
+		from.touch(s.stampLocked())
 		return
 	}
 	to := s.subagents[m.RecipientSessionID]
@@ -133,14 +133,14 @@ func (s *session) sessionMessage(payload json.RawMessage) {
 	if to.prompt == "" {
 		to.prompt = text
 	}
-	to.touch()
+	to.touch(s.stampLocked())
 }
 
 func (s *session) loseSubagents() {
 	for _, sub := range s.subagents {
 		if sub.working() {
 			sub.state = &acp.SubagentState{State: acp.SubagentUnknown}
-			sub.touch()
+			sub.touch(s.stampLocked())
 		}
 	}
 }
@@ -175,10 +175,10 @@ func (sub *subagent) repliesTo(recipient string, known map[string]*subagent) boo
 	return known[recipient] == nil
 }
 
-func (sub *subagent) touch() {
+func (sub *subagent) touch(seq int64) {
 	for x := sub; x != nil; x = x.parent {
 		x.dirty = true
-		x.entry.node = nil
+		x.entry.node, x.entry.seq = nil, seq
 	}
 }
 

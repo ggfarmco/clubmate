@@ -37,7 +37,7 @@ func (a *app) digest(workspaceID string, since time.Time) string {
 		if s == nil {
 			continue
 		}
-		part := digestSession(rec, digestEntries(s.viewSince(0, -1)), since)
+		part := digestSession(rec, digestEntries(s.view(0)), since)
 		if part == "" {
 			continue
 		}

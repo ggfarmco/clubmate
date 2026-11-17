@@ -373,7 +373,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "agents.usage", "agents.graph-show", "agents.graph-approve", "agents.graph-continue", "agents.graph-stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove, AsideCommand.ask, AsideCommand.summary, AsideCommand.send, AsideCommand.pick, AsideCommand.keep, AsideCommand.busy].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", AgentCommand.toolCall, "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "agents.usage", "agents.graph-show", "agents.graph-approve", "agents.graph-continue", "agents.graph-stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove, AsideCommand.ask, AsideCommand.summary, AsideCommand.send, AsideCommand.pick, AsideCommand.keep, AsideCommand.busy].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed"), .string("awake.changed"), .string("agents.usage")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge")), "reports": .bool(true)])]))
         case "report":
             return (200, Self.json(["result": .object(["id": .string("r-fixture")])]))
@@ -448,6 +448,9 @@ actor FixtureServer {
             if args["compact"] == .bool(true) {
                 transcript["entries"] = .array((transcript["entries"]?.arrayValue ?? []).map(Self.compact))
             }
+            if args["slim"] == .bool(true) {
+                transcript["entries"] = .array((transcript["entries"]?.arrayValue ?? []).map(Self.slim))
+            }
             if case .number(let from) = args["fromTurn"] ?? .null {
                 transcript["entries"] = .array((transcript["entries"]?.arrayValue ?? []).filter { entry in
                     if case .number(let turn) = entry["turn"] ?? .null { return turn >= from }
@@ -460,6 +463,9 @@ actor FixtureServer {
                 withAsides(&transcript, record: record)
             }
             return .object(transcript)
+        case AgentCommand.toolCall:
+            let call = (transcripts[session]?["entries"]?.arrayValue ?? []).first { $0["kind"] == .string("tool") && $0["id"] == args["tool"] }
+            return .object(["tool": call?["tool"] ?? .null])
         case "agents.prompt":
             let text = args["text"]?.stringValue ?? ""
             var prompt = Self.entry("user", "prompt-\(UUID().uuidString)", text: text)
@@ -1345,6 +1351,23 @@ actor FixtureServer {
             image["data"] = .string("")
             return .object(image)
         })
+        return .object(fields)
+    }
+
+    private static func slim(_ entry: JSONValue) -> JSONValue {
+        guard case .object(var fields) = entry, fields["kind"] == .string("tool"), case .object(var tool) = fields["tool"] ?? .null, tool["content"] != nil || tool["rawInput"] != nil else { return entry }
+        let content = tool["content"]?.arrayValue ?? []
+        let diffs: [JSONValue] = content.compactMap { item in
+            guard item["type"] == .string("diff"), let path = item["path"]?.stringValue else { return nil }
+            let lines = LineDiff.lines(old: item["oldText"]?.stringValue ?? "", new: item["newText"]?.stringValue ?? "")
+            return .object(["path": .string(path), "added": .number(Double(lines.filter { $0.kind == .added }.count)), "removed": .number(Double(lines.filter { $0.kind == .removed }.count))])
+        }
+        let output = content.compactMap { $0["type"] == .string("content") ? $0["content"]?["text"]?.stringValue : nil }.joined(separator: "\n")
+        tool["content"] = nil
+        let input = (tool["rawInput"]?.objectValue ?? [:]).filter { ["command", "description"].contains($0.key) }
+        tool["rawInput"] = input.isEmpty ? nil : .object(input)
+        fields["tool"] = .object(tool)
+        fields["toolSummary"] = .object(["diffs": .array(diffs), "output": .bool(!output.isEmpty)])
         return .object(fields)
     }
 

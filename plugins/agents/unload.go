@@ -38,6 +38,6 @@ func (s *session) unloadableLocked(after time.Duration) bool {
 
 func (s *session) unloadLocked() {
 	s.log.flush()
-	s.transcriptState = transcriptState{index: map[string]int{}, rev: s.rev}
+	s.transcriptState = transcriptState{index: map[string]int{}}
 	s.loaded = false
 }

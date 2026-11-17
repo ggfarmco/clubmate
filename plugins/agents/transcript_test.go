@@ -54,30 +54,27 @@ func TestViewSinceReturnsOnlyEntriesChangedAfterTheCursor(t *testing.T) {
 		}
 		return out
 	}
-	since := func(v transcriptView) int64 {
-		n, ok := parseCursor(v.Cursor)
+	since := func(v transcriptView) *cursor {
+		pos, _, ok := parseCursor(v.Cursor)
 		require.True(t, ok)
-		return n
+		return &pos
 	}
 
 	full := s.view(0)
 	require.Len(t, full.Entries, 2)
-	assert.Empty(t, ids(s.viewSince(0, since(full))))
+	assert.Empty(t, ids(s.viewSince(0, since(full), nil)))
 
 	s.update(json.RawMessage(`{"update":{"sessionUpdate":"tool_call_update","toolCallId":"t1","title":"Read a.go"}}`))
 	s.update(json.RawMessage(`{"update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"ok"}}}`))
-	changed := s.viewSince(0, since(full))
+	changed := s.viewSince(0, since(full), nil)
 	assert.Equal(t, []string{"tool/t1", "agent/agent-1"}, ids(changed))
 
 	s.mu.Lock()
 	s.running = true
 	s.mu.Unlock()
-	reopened := s.viewSince(0, since(changed))
+	reopened := s.viewSince(0, since(changed), nil)
 	assert.Equal(t, []string{"tool/t1"}, ids(reopened))
 	assert.JSONEq(t, `"pending"`, string(reopened.Entries[0].Tool["status"]))
-
-	_, ok := parseCursor("other" + cursorSep + "1")
-	assert.False(t, ok)
 }
 
 func TestDocOnlyForCompletedDocTools(t *testing.T) {
@@ -174,13 +171,13 @@ func TestDocLinksResolveWhenTheTurnEnds(t *testing.T) {
 	before := s.view(0)
 	require.Len(t, before.Entries, 2)
 	assert.Nil(t, before.Entries[1].DocLinks)
-	cursor, ok := parseCursor(before.Cursor)
+	pos, _, ok := parseCursor(before.Cursor)
 	require.True(t, ok)
 
 	s.mu.Lock()
 	s.recordLocked(actorClubmate, kindTurnEnd, turnEndPayload{StopReason: "end_turn"})
 	s.mu.Unlock()
-	after := s.viewSince(0, cursor)
+	after := s.viewSince(0, &pos, nil)
 	require.Len(t, after.Entries, 1)
 	assert.Equal(t, map[string]string{
 		"docs/plan.md#goals": filepath.Join(wt, "docs", "plan.md") + "#goals",

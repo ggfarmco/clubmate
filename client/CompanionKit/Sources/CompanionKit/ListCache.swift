@@ -30,18 +30,25 @@ public struct ListCache: Sendable {
         self.dir = dir
     }
 
-    public func load<T: Codable>(_ key: Key, as type: T.Type) -> T? {
+    public func load<T: Decodable>(_ key: Key, as type: T.Type) -> T? {
         guard let file = file(key), let data = try? Data(contentsOf: file) else { return nil }
         return try? JSONDecoder.clubmate.decode(T.self, from: data)
     }
 
-    public func save<T: Codable>(_ value: T, _ key: Key) {
-        guard let file = file(key), !forgotten.computers.withLock({ $0.contains(key.computer) }) else { return }
+    @discardableResult
+    public func save<T: Encodable>(_ value: T, _ key: Key) -> Int? {
+        guard let file = file(key), !forgotten.computers.withLock({ $0.contains(key.computer) }) else { return nil }
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(value) else { return }
+        guard let data = try? encoder.encode(value) else { return nil }
         try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? data.write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        guard (try? data.write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])) != nil else { return nil }
+        return data.count
+    }
+
+    public func remove(_ key: Key) {
+        guard let file = file(key) else { return }
+        try? FileManager.default.removeItem(at: file)
     }
 
     public func forget(computer: String) {

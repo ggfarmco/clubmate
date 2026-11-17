@@ -176,7 +176,8 @@ func (s *session) linkDocs(turn int) {
 			cards = nil
 		}
 		if !maps.Equal(m.links, m.en.DocLinks) || !slices.Equal(cards, m.en.DocCards) || !slices.Equal(m.images, m.en.Images) || !maps.Equal(m.imageLinks, m.en.ImageLinks) {
-			m.en.DocLinks, m.en.DocCards, m.en.Images, m.en.ImageLinks, m.en.node = m.links, cards, m.images, m.imageLinks, nil
+			m.en.DocLinks, m.en.DocCards, m.en.Images, m.en.ImageLinks = m.links, cards, m.images, m.imageLinks
+			s.touch(m.en)
 		}
 	}
 }

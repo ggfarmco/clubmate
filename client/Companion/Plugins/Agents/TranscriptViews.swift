@@ -677,8 +677,13 @@ struct SubagentStop {
     let run: @MainActor (String) async -> Bool
 }
 
+struct ToolCallLoader {
+    let load: @MainActor (String) async -> ToolCall?
+}
+
 extension EnvironmentValues {
     @Entry var subagentStop: SubagentStop?
+    @Entry var toolCallLoader: ToolCallLoader?
     @Entry var openDoc: (@MainActor (String) -> Void)?
     @Entry var openTask: (@MainActor (String) -> Void)?
 }
@@ -689,8 +694,11 @@ struct ToolLine: View {
     var link = false
     @Environment(\.subagentStop) private var stop
     @Environment(\.openDoc) private var openDoc
+    @Environment(\.toolCallLoader) private var loader
     @State private var stopping = false
     @State private var confirmingStop = false
+    @State private var full: ToolCall?
+    @State private var loadFailed = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -717,7 +725,7 @@ struct ToolLine: View {
                         }
                     }
                     Spacer(minLength: 6)
-                    if !tool.diffs.isEmpty {
+                    if tool.hasDiffs {
                         ChangeCounts(changes: tool.changes)
                     }
                     ToolStatusIcon(status: tool.status)
@@ -762,22 +770,68 @@ struct ToolLine: View {
                 }
             }
             if expanded {
-                ForEach(Array(tool.diffs.enumerated()), id: \.offset) { _, diff in
+                let shown = full ?? tool
+                ForEach(Array(shown.diffs.enumerated()), id: \.offset) { _, diff in
                     DiffView(diff: diff)
                 }
-                if let command = tool.command, tool.diffs.isEmpty {
+                if let command = shown.command, !shown.hasDiffs {
                     CodeBlock(text: command)
                 }
-                if !tool.output.isEmpty {
-                    CodeBlock(text: tool.output)
+                if !shown.output.isEmpty {
+                    CodeBlock(text: shown.output)
+                }
+                if tool.isSlim, full == nil {
+                    fetching
                 }
             }
         }
         .onChange(of: tool.stoppable) { _, _ in stopping = false }
+        .task(id: FetchKey(expanded: expanded, tool: tool, failed: loadFailed)) {
+            guard expanded, tool.isSlim, !loadFailed else { return }
+            guard let call = await loader?.load(tool.id) else {
+                if !Task.isCancelled, full == nil { loadFailed = true }
+                return
+            }
+            full = call
+        }
+    }
+
+    private struct FetchKey: Equatable {
+        let expanded: Bool
+        let tool: ToolCall
+        let failed: Bool
+    }
+
+    @ViewBuilder
+    private var fetching: some View {
+        if loadFailed {
+            HStack(spacing: 8) {
+                Text("Couldn't load the output")
+                    .font(.footnote)
+                    .foregroundStyle(Color.captionInk)
+                Button("Try Again") { loadFailed = false }
+                    .font(.footnote.weight(.semibold))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.tint)
+                    .frame(minHeight: 44)
+            }
+            .padding(.leading, 30)
+        } else {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Loading…")
+                    .font(.footnote)
+                    .foregroundStyle(Color.captionInk)
+            }
+            .padding(.leading, 30)
+            .frame(minHeight: 28)
+            .accessibilityIdentifier("tool.loading")
+        }
     }
 
     private var hasDetails: Bool {
-        !tool.diffs.isEmpty || !tool.output.isEmpty || tool.command != nil
+        tool.hasDetails
     }
 }
 

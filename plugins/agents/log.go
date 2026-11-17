@@ -84,11 +84,24 @@ func newEventLog(path string) *eventLog {
 	return &eventLog{path: path}
 }
 
-func (l *eventLog) write(e envelope) {
+func (l *eventLog) write(e envelope) int64 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.flushLocked()
 	l.appendLocked(e)
+	return l.seq
+}
+
+func (l *eventLog) high() int64 {
+	if l == nil {
+		return 0
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.pending != nil {
+		return l.seq + 1
+	}
+	return l.seq
 }
 
 func (l *eventLog) latest(e envelope) {
@@ -99,11 +112,11 @@ func (l *eventLog) latest(e envelope) {
 	}
 }
 
-func (l *eventLog) chunk(e envelope, update, messageID, text string) {
+func (l *eventLog) chunk(e envelope, update, messageID, text string) int64 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.removed {
-		return
+		return l.seq
 	}
 	if p := l.pending; p != nil && (p.update != update || p.messageID != messageID || p.env.Turn != e.Turn || p.env.AgentSession != e.AgentSession) {
 		l.flushChunkLocked()
@@ -116,7 +129,9 @@ func (l *eventLog) chunk(e envelope, update, messageID, text string) {
 	l.pending.text.WriteString(text)
 	if l.pending.text.Len() >= coalesceLimit {
 		l.flushChunkLocked()
+		return l.seq
 	}
+	return l.seq + 1
 }
 
 func (l *eventLog) flush() {

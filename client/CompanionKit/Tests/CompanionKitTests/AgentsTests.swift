@@ -561,7 +561,8 @@ final class TranscriptRefreshTests: XCTestCase {
 
     func testAnUnchangedRefetchLeavesTheTranscriptStateUntouched() async throws {
         let reply = #"{"session":{"id":"s","status":"running"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"}]}"#
-        let runner = ScriptedRunner(replies: [reply, reply])
+        let again = #"{"session":{"id":"s","status":"running","seenAt":"now"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one","extra":1}]}"#
+        let runner = ScriptedRunner(replies: [reply, again])
         let store = AgentsStore(workspace: "w", runner: runner)
         await store.loadTranscript("s")
         XCTAssertNotNil(store.transcripts["s"])
@@ -848,13 +849,32 @@ final class ScriptedRunner: CommandRunner {
     private var sessions: [String]
     private(set) var args: [JSONValue] = []
     private(set) var sessionArgs: [JSONValue] = []
+    private(set) var toolCalls: [JSONValue] = []
+    var durable = false
+    var held = false
+    private(set) var waiting: CheckedContinuation<Void, Never>?
 
     init(replies: [String], sessions: [String] = []) {
         self.replies = replies
         self.sessions = sessions
     }
 
+    func supports(_ command: String) -> Bool {
+        command != AgentCommand.toolCall || durable
+    }
+
+    func release() {
+        held = false
+        waiting?.resume()
+        waiting = nil
+    }
+
     func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
+        if id == AgentCommand.toolCall {
+            toolCalls.append(args ?? .null)
+            return .object(["tool": .object(["title": .string("Read a.go"), "kind": .string("read"), "content": .array([.object(["type": .string("content"), "content": .object(["type": .string("text"), "text": .string("package a")])])])])])
+        }
+        if id == "agents.transcript", held { await withCheckedContinuation { waiting = $0 } }
         guard id == "agents.transcript" else {
             sessionArgs.append(args ?? .null)
             guard !sessions.isEmpty else { return .array([]) }
@@ -915,5 +935,147 @@ final class AgentSearchTests: XCTestCase {
         XCTAssertEqual(result.displayTitle, "New Session")
         XCTAssertEqual(result.snippets.map(\.kind), [.prompt, .reply])
         XCTAssertEqual(result.snippets.map(\.turn), [2, 2])
+    }
+}
+
+@MainActor
+final class TranscriptCacheTests: XCTestCase {
+    private let slimReply = #"{"session":{"id":"s","status":"done"},"cursor":"7:3:e:k","entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"},{"kind":"tool","id":"t1","turn":1,"tool":{"title":"Edit a.go","kind":"edit","status":"completed","locations":[{"path":"/w/a.go"}]},"toolSummary":{"diffs":[{"path":"/w/a.go","added":2,"removed":1}]}}]}"#
+    private let emptyDelta = #"{"session":{"id":"s","status":"done"},"cursor":"7:3:e:k","delta":true,"entries":[]}"#
+
+    private func cache() -> TranscriptCache {
+        TranscriptCache(lists: ListCache(dir: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)))
+    }
+
+    private func transcript(_ json: String) throws -> AgentTranscript {
+        try JSONDecoder.clubmate.decode(AgentTranscript.self, from: Data(json.utf8))
+    }
+
+    func testALeftTranscriptShowsFromDiskBeforeTheMacAnswersAndAsksOnlySinceItsCursor() async throws {
+        let disk = cache()
+        let first = ScriptedRunner(replies: [slimReply])
+        first.durable = true
+        let before = AgentsStore(workspace: "w", runner: first, computer: "mac", transcriptCache: disk)
+        before.watch("s")
+        try await waitUntil { before.transcripts["s"] != nil }
+        XCTAssertEqual(first.args.first?["slim"], .bool(true))
+        before.unwatch("s")
+        try await waitUntilAsync { await disk.cached().count == 1 }
+
+        let second = ScriptedRunner(replies: [emptyDelta])
+        second.held = true
+        let after = AgentsStore(workspace: "w", runner: second, computer: "mac", transcriptCache: disk)
+        after.watch("s")
+        try await waitUntil { after.transcripts["s"] != nil }
+        XCTAssertTrue(second.args.isEmpty)
+        let shown = try XCTUnwrap(after.transcripts["s"])
+        XCTAssertEqual(shown, try transcript(slimReply))
+        guard case .tool(let call) = shown.entries[1].content else { return XCTFail("not a tool") }
+        XCTAssertEqual(call.changes.added, 2)
+        XCTAssertTrue(call.hasDetails)
+        try await waitUntil { second.waiting != nil }
+        second.release()
+        try await waitUntil { second.args.count == 1 }
+        XCTAssertEqual(second.args.first?["since"], .string("7:3:e:k"))
+        after.unwatch("s")
+    }
+
+    func testALongDiskCopyWindowsLikeTheFetchedTranscriptAndSlimToolsCountTheSameRows() async throws {
+        func reply(slim: Bool) -> String {
+            let entries = (1...90).flatMap { turn -> [String] in
+                let tool = slim
+                    ? #"{"kind":"tool","id":"t\#(turn)","turn":\#(turn),"tool":{"title":"Edit a.go","kind":"edit","status":"completed"},"toolSummary":{"diffs":[{"path":"/w/a.go","added":1,"removed":1}]}}"#
+                    : #"{"kind":"tool","id":"t\#(turn)","turn":\#(turn),"tool":{"title":"Edit a.go","kind":"edit","status":"completed","content":[{"type":"diff","path":"/w/a.go","oldText":"a\n","newText":"b\n"}]}}"#
+                return [#"{"kind":"user","id":"prompt-\#(turn)","turn":\#(turn),"text":"go \#(turn)"}"#, tool, #"{"kind":"agent","id":"a\#(turn)","turn":\#(turn),"text":"reply \#(turn)"}"#]
+            }
+            return #"{"session":{"id":"s","status":"done"},"cursor":"9:0:e:k","entries":["# + entries.joined(separator: ",") + "]}"
+        }
+        let disk = cache()
+        let slim = try transcript(reply(slim: true))
+        await disk.save(slim, TranscriptCache.Key(computer: "mac", workspace: "w", session: "s"))
+        let runner = ScriptedRunner(replies: [emptyDelta])
+        runner.held = true
+        let store = AgentsStore(workspace: "w", runner: runner, computer: "mac", transcriptCache: disk)
+        store.watch("s")
+        try await waitUntil { store.transcripts["s"] != nil }
+        let rows = { (entries: [TranscriptEntry]) in SessionScreen(entries: entries, session: AgentSession(id: "s", status: .done)).rows }
+        let restored = rows(store.entries("s"))
+        XCTAssertEqual(restored, rows(slim.entries))
+        XCTAssertEqual(restored.count, rows(try transcript(reply(slim: false)).entries).count)
+        var window = TranscriptWindow()
+        window.update(count: restored.count, atBottom: true)
+        XCTAssertEqual(window.skip(restored), restored.count - TranscriptWindow.size)
+        try await waitUntil { runner.waiting != nil }
+        runner.release()
+        store.unwatch("s")
+    }
+
+    func testAMacWithoutTheDurableCursorGetsNoSlimRequestAndNothingOnDisk() async throws {
+        let disk = cache()
+        let runner = ScriptedRunner(replies: [slimReply])
+        let cursorless = ScriptedRunner(replies: [#"{"session":{"id":"s","status":"done"},"entries":[]}"#])
+        cursorless.durable = true
+        let other = AgentsStore(workspace: "w", runner: cursorless, computer: "mac", transcriptCache: disk)
+        other.watch("s")
+        try await waitUntil { other.transcripts["s"] != nil }
+        other.unwatch("s")
+        let store = AgentsStore(workspace: "w", runner: runner, computer: "mac", transcriptCache: disk)
+        store.watch("s")
+        try await waitUntil { store.transcripts["s"] != nil }
+        store.unwatch("s")
+        XCTAssertNil(runner.args.first?["slim"])
+        let cached = await disk.cached()
+        XCTAssertTrue(cached.isEmpty)
+    }
+
+    func testTheOldestTranscriptLeavesTheDiskPastTheCap() async throws {
+        let disk = TranscriptCache(lists: ListCache(dir: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)), maxCount: 2)
+        let reply = try transcript(slimReply)
+        let key = { (s: String) in TranscriptCache.Key(computer: "mac", workspace: "w", session: s) }
+        await disk.save(reply, key("a"))
+        await disk.save(reply, key("b"))
+        _ = await disk.load(key("a"))
+        await disk.save(reply, key("c"))
+        let kept = await disk.cached()
+        XCTAssertEqual(Set(kept), [key("a"), key("c")])
+        let gone = await disk.load(key("b"))
+        XCTAssertNil(gone)
+    }
+
+    func testASessionRemovedOnTheMacLeavesTheDisk() async throws {
+        let disk = cache()
+        let key = TranscriptCache.Key(computer: "mac", workspace: "w", session: "s")
+        await disk.save(try transcript(slimReply), key)
+        let runner = ScriptedRunner(replies: [], sessions: [#"{"sessions":[{"id":"s","status":"done"}],"removed":[],"cursor":"e.1"}"#, #"{"sessions":[],"removed":["s"],"cursor":"e.2","delta":true}"#])
+        let store = AgentsStore(workspace: "w", runner: runner, computer: "mac", transcriptCache: disk)
+        await store.refresh()
+        let listed = await disk.cached()
+        XCTAssertEqual(listed, [key])
+        await store.refresh()
+        try await waitUntilAsync { await disk.cached().isEmpty }
+    }
+
+    func testAnOpenedSlimCallIsFetchedAgainOnlyAfterItChanged() async throws {
+        let changed = #"{"session":{"id":"s","status":"done"},"cursor":"8:0:e:k","delta":true,"entries":[{"kind":"tool","id":"t1","turn":1,"tool":{"title":"Edit a.go","kind":"edit","status":"failed"},"toolSummary":{}}]}"#
+        let runner = ScriptedRunner(replies: [slimReply, emptyDelta, changed])
+        runner.durable = true
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.loadTranscript("s")
+        let call = await store.toolCall("t1", in: "s")
+        XCTAssertEqual(call?.output, "package a")
+        await store.loadTranscript("s", incremental: true)
+        _ = await store.toolCall("t1", in: "s")
+        XCTAssertEqual(runner.toolCalls.count, 1)
+        await store.loadTranscript("s", incremental: true)
+        _ = await store.toolCall("t1", in: "s")
+        XCTAssertEqual(runner.toolCalls.count, 2)
+    }
+}
+
+func waitUntilAsync(timeout: Duration = .seconds(5), _ condition: @Sendable () async -> Bool) async throws {
+    let deadline = ContinuousClock.now + timeout
+    while await !condition() {
+        guard ContinuousClock.now < deadline else { throw CancellationError() }
+        try await Task.sleep(for: .milliseconds(5))
     }
 }

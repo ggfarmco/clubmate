@@ -72,6 +72,8 @@ public final class AgentsStore {
     public static let searchDelay: Duration = .milliseconds(250)
     public static let imageLimit = 48
     public static let keptTranscripts = 4
+    public static let keptToolCalls = 32
+    public static let transcriptSaveInterval: Duration = .seconds(30)
     public static let openNoUndo: Duration = .seconds(5)
     public static let imageBytes = 48 << 20
 
@@ -82,6 +84,11 @@ public final class AgentsStore {
     @ObservationIgnored private let computer: String
     @ObservationIgnored private let cache: ListCache
     @ObservationIgnored private let saves = SaveThrottle()
+    @ObservationIgnored private let transcriptCache: TranscriptCache?
+    @ObservationIgnored private let transcriptSaves = SaveThrottle(interval: AgentsStore.transcriptSaveInterval)
+    @ObservationIgnored private var unsaved: Set<String> = []
+    @ObservationIgnored private var toolCalls: [String: ToolCall] = [:]
+    @ObservationIgnored private var toolCallOrder: [String] = []
     @ObservationIgnored private let queues: @MainActor () -> Bool
     @ObservationIgnored private let retry: @MainActor () -> Void
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
@@ -96,12 +103,13 @@ public final class AgentsStore {
     @ObservationIgnored private var closings: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var promptKnown: [String: Set<String>] = [:]
 
-    public init(workspace: String, runner: any CommandRunner, queue: ActionQueue? = nil, computer: String = "", cache: ListCache = ListCache(dir: nil), queues: @escaping @MainActor () -> Bool = { false }, retry: @escaping @MainActor () -> Void = {}, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+    public init(workspace: String, runner: any CommandRunner, queue: ActionQueue? = nil, computer: String = "", cache: ListCache = ListCache(dir: nil), transcriptCache: TranscriptCache? = nil, queues: @escaping @MainActor () -> Bool = { false }, retry: @escaping @MainActor () -> Void = {}, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.workspace = workspace
         self.runner = runner
         self.queue = queue
         self.computer = computer
         self.cache = cache
+        self.transcriptCache = transcriptCache
         self.queues = queues
         self.retry = retry
         self.sleep = sleep
@@ -267,6 +275,63 @@ public final class AgentsStore {
         }
     }
 
+    private var slim: Bool {
+        runner?.supports(AgentCommand.toolCall) ?? false
+    }
+
+    private func cacheKey(_ session: String) -> TranscriptCache.Key {
+        TranscriptCache.Key(computer: computer, workspace: workspace, session: session)
+    }
+
+    private func restore(_ session: String) async {
+        guard let transcriptCache, transcripts[session] == nil else { return }
+        guard let cached = await transcriptCache.load(cacheKey(session)), cached.cursor != nil, transcripts[session] == nil else { return }
+        transcripts[session] = cached
+    }
+
+    private func transcriptChanged(_ session: String) {
+        guard transcriptCache != nil, slim else { return }
+        unsaved.insert(session)
+        transcriptSaves.request { [weak self] in self?.saveTranscripts() }
+    }
+
+    private func saveTranscripts(_ only: String? = nil) {
+        guard let transcriptCache else { return }
+        for session in unsaved where only == nil || only == session {
+            unsaved.remove(session)
+            guard let transcript = transcripts[session], transcript.cursor != nil else { continue }
+            let key = cacheKey(session)
+            Task.detached { await transcriptCache.save(transcript, key) }
+        }
+    }
+
+    private func dropCached(_ sessions: Set<String>) {
+        guard let transcriptCache, !sessions.isEmpty else { return }
+        let keys = sessions.map(cacheKey)
+        unsaved.subtract(sessions)
+        Task.detached { await transcriptCache.remove(keys) }
+    }
+
+    private func forgetToolCall(_ id: String, in session: String) {
+        let key = session + "|" + id
+        guard toolCalls.removeValue(forKey: key) != nil else { return }
+        toolCallOrder.removeAll { $0 == key }
+    }
+
+    public func toolCall(_ id: String, in session: String) async -> ToolCall? {
+        let key = session + "|" + id
+        if let known = toolCalls[key] { return known }
+        guard let runner else { return nil }
+        guard let reply = try? await runner.command(AgentCommand.toolCall, workspace: workspace, args: .object(["session": .string(session), "tool": .string(id)])), let fields = reply["tool"] else { return nil }
+        let call = ToolCall(id: id, fields: fields)
+        toolCalls[key] = call
+        toolCallOrder.append(key)
+        while toolCallOrder.count > Self.keptToolCalls {
+            toolCalls[toolCallOrder.removeFirst()] = nil
+        }
+        return call
+    }
+
     public func dismissOpenedDoc(_ session: String) {
         openedDocs[session] = nil
     }
@@ -295,7 +360,9 @@ public final class AgentsStore {
                 runRows = try reply["runs"].flatMap { $0 == .null ? nil : try $0.decode([AgentRunRow].self) }
                 dock = try reply["dock"].flatMap { $0 == .null ? nil : try $0.decode([AgentDockRow].self) } ?? []
             }
+            let before = Set(list.items.map(\.id))
             if let rows = reply.arrayValue { try list.replace(rows) } else { try list.apply(reply) }
+            dropCached(before.subtracting(list.items.map(\.id)))
             error = nil
             fetched = true
             syncedAt = .now
@@ -370,6 +437,7 @@ public final class AgentsStore {
         }
         watched[session] = nil
         followers.removeValue(forKey: session)?.cancel()
+        saveTranscripts(session)
         forget(session)
     }
 
@@ -436,16 +504,24 @@ public final class AgentsStore {
                 do {
                     let loaded = incremental ? transcripts[session] : nil
                     let fromTurn = loaded?.lastTurn ?? 0
-                    var args: [String: JSONValue] = ["session": .string(session), "compact": .bool(true)]
+                    var full: [String: JSONValue] = ["session": .string(session), "compact": .bool(true)]
+                    if slim { full["slim"] = .bool(true) }
+                    var args = full
                     if fromTurn > 0 { args["fromTurn"] = .number(Double(fromTurn)) }
                     if let cursor = loaded?.cursor { args["since"] = .string(cursor) }
-                    var fetched = try await runner.command("agents.transcript", workspace: workspace, args: .object(args), as: AgentTranscript.self)
+                    var fetched = try await runner.command(AgentCommand.transcript, workspace: workspace, args: .object(args), as: AgentTranscript.self)
                     let stale = loaded?.cursor != nil && !fetched.delta
                     if stale {
-                        fetched = try await runner.command("agents.transcript", workspace: workspace, args: .object(["session": .string(session), "compact": .bool(true)]), as: AgentTranscript.self)
+                        fetched = try await runner.command(AgentCommand.transcript, workspace: workspace, args: .object(full), as: AgentTranscript.self)
                     }
                     let merged = if let loaded, fetched.delta { loaded.merging(delta: fetched) } else if let loaded, fromTurn > 0, !stale { loaded.merging(fetched, fromTurn: fromTurn) } else { fetched }
-                    if transcripts[session] != merged { transcripts[session] = merged }
+                    for entry in fetched.entries {
+                        if case .tool = entry.content { forgetToolCall(entry.entryID, in: session) }
+                    }
+                    if transcripts[session] != merged {
+                        transcripts[session] = merged
+                        transcriptChanged(session)
+                    }
                     if transcriptErrors[session] != nil { transcriptErrors[session] = nil }
                     reconcile(session)
                     mergePrefills(session)
@@ -460,6 +536,7 @@ public final class AgentsStore {
     }
 
     private func follow(_ session: String) async {
+        await restore(session)
         await load(session)
         while !Task.isCancelled {
             do {

@@ -35,7 +35,7 @@ var (
 	timeRe     = regexp.MustCompile(`"\d{4}-\d{2}-\d{2}T[0-9:.]+(Z|[+-]\d{2}:\d{2})"`)
 	shaRe      = regexp.MustCompile(`\b[0-9a-f]{40}\b`)
 	fakeIDRe   = regexp.MustCompile(`fake-\d+-(\d+)`)
-	cursorRe   = regexp.MustCompile(`"cursor":"[0-9a-z]+\.`)
+	cursorRe   = regexp.MustCompile(`"cursor":"([0-9]+):([0-9]+):[0-9a-z]+:[0-9a-f]*"`)
 	listKeyRe  = regexp.MustCompile(`"([01]?)\d{8}T\d{6}\.\d{9}Z `)
 	sessionIDs = regexp.MustCompile(`agt_[0-9a-f]{16}`)
 )
@@ -145,7 +145,7 @@ func normalize(t *testing.T, scrub *strings.Replacer, raw json.RawMessage) []byt
 	text = listKeyRe.ReplaceAllString(text, `"${1}20261030T094100.000000000Z `)
 	text = shaRe.ReplaceAllString(text, fixtureSha)
 	text = fakeIDRe.ReplaceAllString(text, "claude-session-$1")
-	text = cursorRe.ReplaceAllString(text, `"cursor":"epoch.`)
+	text = cursorRe.ReplaceAllString(text, `"cursor":"$1:$2:epoch:key"`)
 	var out bytes.Buffer
 	require.NoError(t, json.Indent(&out, []byte(text), "", "  "))
 	out.WriteByte('\n')

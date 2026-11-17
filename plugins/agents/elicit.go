@@ -303,7 +303,8 @@ func (s *session) applyElicitationAnswer(e envelope) {
 		return
 	}
 	if i, ok := s.index[key(entryElicitation, p.Request)]; ok {
-		s.entries[i].Response, s.entries[i].AnsweredAt, s.entries[i].node = &p.Response, e.TS, nil
+		s.entries[i].Response, s.entries[i].AnsweredAt = &p.Response, e.TS
+		s.touch(s.entries[i])
 	}
 }
 
@@ -313,7 +314,8 @@ func (s *session) applyElicitationComplete(e envelope) {
 		return
 	}
 	if i, ok := s.index[key(entryElicitation, p.Request)]; ok {
-		s.entries[i].Completed, s.entries[i].node = true, nil
+		s.entries[i].Completed = true
+		s.touch(s.entries[i])
 	}
 }
 

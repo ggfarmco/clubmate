@@ -35,6 +35,7 @@ type session struct {
 
 	taskTitles  map[int]string
 	tasksWanted bool
+	minor       int64
 
 	transcriptState
 	runState
@@ -78,6 +79,7 @@ func (s *session) loadLocked() {
 		s.loaded, s.unread = false, true
 		return
 	}
+	s.stampDerivableLocked()
 	s.askTasksLocked()
 	open := s.rec.OpenCount
 	s.countOpen()
@@ -100,7 +102,7 @@ func (s *session) recordLocked(actor, kind string, payload any) {
 		}
 	}
 	e := s.envelope(actor, kind, raw)
-	s.log.write(e)
+	e.Seq = s.log.write(e)
 	s.apply(e)
 	s.askTasksLocked()
 }

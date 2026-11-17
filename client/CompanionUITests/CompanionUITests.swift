@@ -747,6 +747,24 @@ final class CompanionUITests: XCTestCase {
         XCTAssertFalse(earlier.exists)
     }
 
+    func testASlimToolCallFetchesItsOutputWhenExpanded() {
+        for fails in [false, true] {
+            let app = launch(open: "agents/agt_0000000000000001", fails ? ["-failCommands", "agents.tool-call"] : [])
+            let group = app.buttons.matching(NSPredicate(format: "label CONTAINS '3 actions'")).firstMatch
+            XCTAssertTrue(group.waitForExistence(timeout: 10))
+            reveal(group, in: app)
+            group.tap()
+            let edit = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Edit cart.go'")).firstMatch
+            XCTAssertTrue(edit.waitForExistence(timeout: 5))
+            add(screenshot(app, "slim-collapsed"))
+            edit.tap()
+            let shown = fails ? app.staticTexts["Couldn't load the output"] : app.staticTexts["func cartTotal(items []Item) int {"]
+            XCTAssertTrue(shown.waitForExistence(timeout: 5))
+            add(screenshot(app, fails ? "slim-failed" : "slim-expanded"))
+            app.terminate()
+        }
+    }
+
     func testEveryImageOfALongTranscriptLoadsWhenScrolledTo() {
         XCUIDevice.shared.appearance = .light
         let app = launch(open: "agents/agt_0000000000000004", ["-manyImages", "YES"])

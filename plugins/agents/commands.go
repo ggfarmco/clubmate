@@ -50,6 +50,7 @@ var (
 		"agents.trace":          typed((*app).traceCommand),
 		"agents.docs":           withArgs((*app).docsCommand),
 		"agents.image":          withArgs((*app).imageCommand),
+		toolCallCmd:             withArgs((*app).toolCallCommand),
 		"agents.export":         withArgs((*app).exportCommand),
 		"agents.import":         withArgs((*app).importCommand),
 		"agents.handoff":        withArgs((*app).handoffCommand),
@@ -275,6 +276,7 @@ type transcriptArgs struct {
 	Compact  bool   `json:"compact"`
 	Last     bool   `json:"last"`
 	Since    string `json:"since"`
+	Slim     bool   `json:"slim"`
 }
 
 func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -505,17 +507,25 @@ func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 	if err != nil {
 		return nil, err
 	}
-	since, delta := parseCursor(args.Since)
-	if !delta || args.Last {
-		since, delta = -1, false
-	}
-	v := s.viewSince(args.FromTurn, since)
-	v.Delta = delta
+	var w pluginsdk.Workspace
+	key := ""
 	if !cmd.Agent {
-		w, err := a.host.GetWorkspace(ctx, cmd.WorkspaceID)
-		if err != nil {
+		if w, err = a.host.GetWorkspace(ctx, cmd.WorkspaceID); err != nil {
 			w = pluginsdk.Workspace{}
 		}
+		key = decorationKey(s.snapshot(), w)
+	}
+	var since *cursor
+	var always func(*entry) bool
+	if pos, seen, ok := parseCursor(args.Since); ok && !args.Last {
+		since = &pos
+		if seen != key {
+			always = decorated
+		}
+	}
+	v := s.viewSince(args.FromTurn, since, always)
+	v.Cursor = v.pos.format(key)
+	if !cmd.Agent {
 		withPermissionContent(v.Session, v.Entries, w.Name)
 		a.withTaskContent(&v, w)
 		a.withAsideContent(&v, s)
@@ -524,6 +534,9 @@ func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 		v = v.lastTurn()
 	} else if v.Session.Agent == agentClaude {
 		v.Advisor = a.sessionAdvisor(ctx, v.Session)
+	}
+	if args.Slim {
+		slimTools(v.Entries)
 	}
 	if cmd.Agent || args.Compact {
 		dropImageData(v.Entries)
