@@ -310,7 +310,7 @@ struct HeaderNode: View {
             if let field = node.headerField {
                 SDUINodeView(node: field.node, context: context)
             }
-            let bar = split.shown + (node.headerStop.map { [$0] } ?? [])
+            let bar = split.shown + (node.headerStop.map { [$0] } ?? []) + (node.headerCorner.map { [$0] } ?? [])
             if !bar.isEmpty {
                 FlowLayout(spacing: 8) {
                     ForEach(bar) { child in

@@ -562,7 +562,11 @@ extension SDUINode {
     }
 
     public var headerButtons: [SDUIChild] {
-        identifiedChildren.filter { $0.node.type != "textField" && $0.id != headerStop?.id && $0.node.bool("pill") != true }
+        identifiedChildren.filter { $0.node.type != "textField" && $0.id != headerStop?.id && $0.node.bool("pill") != true && $0.node.bool("corner") != true }
+    }
+
+    public var headerCorner: SDUIChild? {
+        identifiedChildren.first { $0.node.type == "button" && $0.node.bool("corner") == true }
     }
 
     public var headerPill: SDUIChild? {

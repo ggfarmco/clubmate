@@ -48,12 +48,14 @@ func TestAsideOpensBesideAndExpands(t *testing.T) {
 
 	beside := f.h.WaitSlot(t, workspace, "agents.aside", shows(aside+"/asideFull"))
 	assert.Equal(t, "asideFull", nodesWithID(beside, aside+"/asideFull")[0].Props["action"])
+	assert.Equal(t, true, nodesWithID(beside, aside+"/asideClose")[0].Props["corner"])
 	assert.Empty(t, nodesWithID(beside, aside+"/pinned"))
 	assert.NotEmpty(t, nodesWithID(beside, aside+"/forked"))
 	f.h.WaitSlot(t, workspace, "agents.main", shows(parent.ID+"/asideNext"))
 
 	f.h.Event(t, workspace, "agents.aside", aside+"/asideFull", "asideFull", nil)
-	f.h.WaitSlot(t, workspace, "agents.main", shows(aside+"/pinned"))
+	full := f.h.WaitSlot(t, workspace, "agents.main", shows(aside+"/pinned"))
+	assert.Equal(t, true, nodesWithID(full, aside+"/asideClose")[0].Props["corner"])
 	f.h.WaitSlot(t, workspace, "agents.aside", func(n sdui.Node) bool { return n.Type == "empty" })
 
 	f.h.Event(t, workspace, "agents.main", aside+"/asideFull", "asideBeside", nil)

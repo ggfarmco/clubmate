@@ -324,6 +324,18 @@
                     },
                     {
                       "type": "header",
+                      "id": "gallery-aside-header",
+                      "props": {"title": "Aside · “Add an SDUI prop for a long detail in list rows”", "icon": "bubble.left.and.bubble.right", "status": "done", "agent": "Claude", "mode": "Plan", "badges": [{"text": "read-only"}]},
+                      "children": [
+                        {"type": "button", "id": "gallery-aside-header/send", "props": {"label": "Send back", "icon": "arrow.uturn.backward", "variant": "primary", "shortcut": "cmd+shift+return"}},
+                        {"type": "button", "id": "gallery-aside-header/full", "props": {"label": "Full page", "icon": "arrow.up.left.and.arrow.down.right", "variant": "ghost", "shortcut": "cmd+shift+\\"}},
+                        {"type": "button", "id": "gallery-aside-header/keep", "props": {"label": "Keep", "icon": "tray.and.arrow.down", "variant": "ghost", "shortcut": "cmd+shift+k"}},
+                        {"type": "button", "id": "gallery-aside-header/parent", "props": {"label": "from Rework the Send review sheet", "icon": "arrow.turn.up.left", "variant": "ghost", "shortcut": "cmd+["}},
+                        {"type": "button", "id": "gallery-aside-header/close", "props": {"label": "Close aside", "icon": "xmark", "variant": "ghost", "iconOnly": true, "hint": "opt+cmd+delete", "corner": true, "confirm": "Close without sending?"}}
+                      ]
+                    },
+                    {
+                      "type": "header",
                       "id": "gallery-graph-trigger-header",
                       "props": {"title": "Review loop: Coder done → Reviewer", "icon": "bolt", "meta": "created by graph Review loop", "badges": [{"text": "active"}]},
                       "children": [

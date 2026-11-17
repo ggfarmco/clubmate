@@ -91,11 +91,12 @@ public enum AgentsSection {
         return tree.type != "empty"
     }
 
-    public static func close(sidebar: SDUINode?, aside: SDUINode? = nil, focused: String? = nil, commands: [Command]) -> CommandInvocation? {
+    public static func close(sidebar: SDUINode?, aside: SDUINode? = nil, focused: String? = nil, inAside: Bool = false, commands: [Command]) -> CommandInvocation? {
         guard commands.contains(where: { $0.id == closeCommand }) else { return nil }
         let session = { (id: String) in String(id.prefix { $0 != "/" }) }
-        if let focused, let composer = aside?.firstNode(type: "composer")?.id, session(composer) == session(focused) {
-            return CommandInvocation(id: closeCommand, args: .object(["session": .string(session(focused))]))
+        let shown = (aside?.firstNode(type: "header")?.headerCorner?.id ?? aside?.firstNode(type: "composer")?.id).map(session)
+        if let shown, inAside || focused.map(session) == shown {
+            return CommandInvocation(id: closeCommand, args: .object(["session": .string(shown)]))
         }
         guard let selected = trees.lazy.compactMap({ sidebar?.node(type: "tree", id: $0)?.string("selected") }).first(where: { !$0.isEmpty }) else { return nil }
         return CommandInvocation(id: closeCommand, args: .object(["session": .string(selected)]))

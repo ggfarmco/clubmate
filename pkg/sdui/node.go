@@ -1101,6 +1101,10 @@ func WithOverflow(n Node) Node {
 	return withProp(n, "overflow", true)
 }
 
+func WithCorner(n Node) Node {
+	return withProp(n, "corner", true)
+}
+
 func WithDock(n Node) Node {
 	return withProp(n, "dock", true)
 }

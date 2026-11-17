@@ -13,7 +13,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⌘O | Open Folder… | `ClubmateApp.swift` |
 | ⇧⌘D | Open Doc…: fuzzy picker over `docs.list` (agent-written docs first), ↩ opens the doc in the popup | `ClubmateApp.swift` |
 | ⌘W | Close terminal session, or the window when no terminal is focused (the popup when it has focus, see below; VS Code when it has focus, see VS Code) | `ClubmateApp.swift` (`CloseKeyOwner`) |
-| ⌥⌘⌫ | Close Session: the terminal session shown in the main pane, asking first while it runs a process (as ⌘W); in Agents the selected agent session with its child sessions, as its row's Close Session (a closed one stays as it is), asking first while its turn or a child session's turn runs or waits (`agents.busy`); with an aside's prompt focused beside its parent, that aside (Close without sending? when something is unsent) | `ClubmateApp.swift`, `ClubmateKit/CommandInvocation.swift` (`AgentsSection`) |
+| ⌥⌘⌫ | Close Session: the terminal session shown in the main pane, asking first while it runs a process (as ⌘W); in Agents the selected agent session with its child sessions, as its row's Close Session (a closed one stays as it is), asking first while its turn or a child session's turn runs or waits (`agents.busy`); with focus anywhere in an aside beside its parent (its prompt, a message, a card), that aside (Close without sending? when something is unsent) | `ClubmateApp.swift`, `ClubmateKit/CommandInvocation.swift` (`AgentsSection`) |
 | ⌘K | Command Palette | `ClubmateApp.swift` |
 | ⌘B, ⌃⌘S | Toggle Sidebar; in Neovim, Toggle Chat: the right column with the agent chat panel (per window) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
 | ⌘= (⌘+), ⌘-, ⌘0 | Font size up, down, reset where focus is: in a terminal or nvim (or with nothing focused) the terminal font for all terminals; in the agent chat (composer) the chat font, shared by every chat; in another pane (e.g. the Backlog sidebar) that plugin's font, both its sidebar and its main pane. The terminal font is Settings → Terminals → Font size, the chat font Settings → Agents → Chat font size and a plugin's font its own Settings page → Font size; a plugin follows Settings → General → Interface font size until zoomed or set there, ⌘0 puts it back (General → Plugin fonts resets them all); sizes are kept across restarts. While the popup shows a doc and has focus it zooms the doc instead, see below | `ClubmateApp.swift`, `WorkspaceLayout.swift`, `WorkspacePanes.swift` (`ClubmateKit/PaneFocus.swift`, `AppSettings.swift`) |
@@ -295,6 +295,7 @@ An aside opens beside its parent (a split in a wide window, under it in a narrow
 | ⇧⌘↩ | Send back…: the panel at the end of the aside |
 | ⌘↩ / ⎋ | In the Send back panel: send / cancel (while the panel has focus; ⎋ in its text field goes back to the panel) |
 | ⇧⌘K | Keep: the aside becomes an ordinary session |
+| ⌥⌘⌫ | Close the aside: with focus anywhere in the aside beside its parent, or on its full page (as the selected session); the same as its header's × |
 
 ⌘W doesn't close an aside. Defined by the header buttons in `plugins/agents/aside_view.go` and the `keys` scope in `plugins/agents/aside_send.go`.
 

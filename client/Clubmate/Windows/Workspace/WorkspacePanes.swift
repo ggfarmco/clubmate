@@ -111,6 +111,8 @@ struct AsideColumn: View {
             edge
             SlotPane(store: store, slot: AgentsSection.asideSlot)
                 .environment(\.composerFocusSlot, AgentsSection.asideSlot)
+                .background(PaneMarker(slot: AgentsSection.asideSlot))
+                .focusedValue(\.focusedPane, AgentsSection.asideSlot)
                 .frame(width: stacked ? nil : current)
                 .frame(maxHeight: .infinity)
         }
@@ -151,6 +153,38 @@ struct AsideColumn: View {
         guard inside != hovering else { return }
         hovering = inside
         if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+    }
+}
+
+final class PaneMarkerView: NSView {
+    var slot = ""
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+struct PaneMarker: NSViewRepresentable {
+    let slot: String
+
+    @MainActor static let views = NSHashTable<PaneMarkerView>.weakObjects()
+
+    func makeNSView(context: Context) -> PaneMarkerView {
+        let view = PaneMarkerView()
+        view.slot = slot
+        Self.views.add(view)
+        return view
+    }
+
+    func updateNSView(_ view: PaneMarkerView, context: Context) {
+        view.slot = slot
+    }
+
+    @MainActor static func holds(_ slot: String, _ responder: NSResponder?) -> Bool {
+        guard let view = responder as? NSView, let window = view.window, view !== window.contentView, view !== window.contentView?.superview else { return false }
+        let frame = view.convert(view.bounds, to: nil)
+        let shown = frame.intersection(view.convert(view.visibleRect, to: nil))
+        let rect = shown.isEmpty ? frame : shown
+        let point = NSPoint(x: rect.midX, y: rect.midY)
+        return views.allObjects.contains { $0.slot == slot && $0.window === window && !$0.isHiddenOrHasHiddenAncestor && $0.convert($0.bounds, to: nil).contains(point) }
     }
 }
 

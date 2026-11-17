@@ -341,7 +341,7 @@ func asideHeader(sc screen) sdui.Node {
 	if sc.Parent != "" {
 		buttons = append(buttons, sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/parent", "from "+sc.Parent, asideParentIcon), actAsideParent), sdui.VariantGhost), asideParentKey))
 	}
-	closeButton := sdui.WithHint(sdui.WithIconOnly(sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/"+asideCloseNode, asideCloseLabel, asideCloseIcon), actAsideClose), sdui.VariantDanger)), asideCloseHint)
+	closeButton := sdui.WithCorner(sdui.WithHint(sdui.WithIconOnly(sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/"+asideCloseNode, asideCloseLabel, asideCloseIcon), actAsideClose), sdui.VariantGhost)), asideCloseHint))
 	if sc.CloseAsk != "" {
 		closeButton = sdui.WithConfirm(closeButton, sc.CloseAsk)
 	}

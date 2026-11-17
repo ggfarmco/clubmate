@@ -345,6 +345,7 @@ struct HeaderNodeView: View {
             if !menu.isEmpty {
                 HeaderMoreMenu(id: "\(node.id ?? "header").more", actions: menu.map(\.node))
             }
+            corner
         }
         .padding(.trailing, trailingInset)
     }
@@ -360,10 +361,15 @@ struct HeaderNodeView: View {
                             .fixedSize()
                         badges
                         Spacer(minLength: 0)
+                        corner
                     }
-                    VStack(alignment: .leading, spacing: theme.spacing.s) {
-                        titleLine(title)
-                        HStack(spacing: theme.spacing.m) { badges }
+                    HStack(alignment: .top, spacing: theme.spacing.m) {
+                        VStack(alignment: .leading, spacing: theme.spacing.s) {
+                            titleLine(title)
+                            HStack(spacing: theme.spacing.m) { badges }
+                        }
+                        Spacer(minLength: 0)
+                        corner
                     }
                 }
                 .padding(.trailing, trailingInset)
@@ -454,8 +460,18 @@ struct HeaderNodeView: View {
                 badges
                 stop(compact: !inline)
             }
+            corner
         }
         .padding(.trailing, trailingInset)
+    }
+
+    @ViewBuilder
+    private var corner: some View {
+        if let corner = node.headerCorner {
+            SDUINodeView(node: corner.node)
+                .equatable()
+                .fixedSize()
+        }
     }
 
     private func titleLine(_ title: String) -> some View {

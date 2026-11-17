@@ -85,7 +85,7 @@ One interface family (Settings → General → Interface font; by default the te
 
 ## SDUI additions the language needs (not in the protocol yet)
 
-`header {icon, title, badges[], actions[], meta}` · `button {variant: primary|secondary|ghost|danger, disabled, shortcut, loading}` · `textField`/`select` `{error}` · table column `{truncate, align, priority}` (list/tree items take the same `truncate`) · `empty {icon, title, action, hint}`. Until they exist, build the closest thing from existing nodes and keep plugin content (names, words, grouping) right.
+`header {icon, title, badges[], actions[], meta}` (a `corner` button, the aside's ×, ends the title line and never folds into the bar or "…") · `button {variant: primary|secondary|ghost|danger, disabled, shortcut, loading}` · `textField`/`select` `{error}` · table column `{truncate, align, priority}` (list/tree items take the same `truncate`) · `empty {icon, title, action, hint}`. Until they exist, build the closest thing from existing nodes and keep plugin content (names, words, grouping) right.
 
 ## Status
 

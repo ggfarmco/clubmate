@@ -16,6 +16,16 @@ final class HeaderActionsTests: XCTestCase {
         XCTAssertEqual(header.headerBar.map(\.id), ["review"])
     }
 
+    func testCornerButtonStaysOutOfTheBarAndTheMenu() {
+        let header = SDUINode(type: "header", props: ["title": .string("Aside"), "status": .string("done")], children: [
+            button("keep", "ghost"), button("a", "ghost"), button("b", "ghost"), button("c", "ghost"), button("close", "danger", ["corner": .bool(true), "iconOnly": .bool(true)]),
+        ])
+
+        XCTAssertEqual(header.headerCorner?.id, "close")
+        XCTAssertEqual(header.headerOverflow().shown.map(\.id), ["keep", "a", "b"])
+        XCTAssertEqual(header.headerOverflow().more.map(\.id), ["c"])
+    }
+
     func testReposRowsDecode() {
         let row: JSONValue = .object(["id": .string("a"), "order": .number(2), "name": .string("auth"), "landsBy": .string("merge to main"), "state": .string("failed"), "tone": .string("danger"), "opens": .bool(true), "open": .bool(true)])
         let node = SDUINode(type: "repos", id: "r", props: ["rows": .array([row, .string("junk")]), "summary": .array([.object(["text": .string("1 failed"), "tone": .string("danger")])])])

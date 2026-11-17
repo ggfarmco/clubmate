@@ -590,6 +590,12 @@ final class StoresTests: XCTestCase {
         let closeAside = CommandInvocation(id: "agents.close", args: .object(["session": .string("agt_2")]))
         XCTAssertEqual(AgentsSection.close(sidebar: tree("sessions", "agt_1"), aside: aside, focused: "agt_2/composer/0", commands: commands), closeAside)
         XCTAssertEqual(AgentsSection.close(sidebar: tree("sessions", "agt_1"), aside: aside, focused: "agt_1/composer/0", commands: commands), close)
+
+        let header = SDUINode(type: "header", props: ["title": .string("Aside"), "status": .string("done")], children: [SDUINode(type: "button", id: "agt_3/asideClose", props: ["label": .string("Close aside"), "corner": .bool(true)])])
+        let headerOnly = SDUINode(type: "stack", children: [header])
+        XCTAssertEqual(AgentsSection.close(sidebar: tree("sessions", "agt_1"), aside: headerOnly, inAside: true, commands: commands), CommandInvocation(id: "agents.close", args: .object(["session": .string("agt_3")])))
+        XCTAssertEqual(AgentsSection.close(sidebar: tree("sessions", "agt_1"), aside: headerOnly, commands: commands), close)
+        XCTAssertEqual(AgentsSection.close(sidebar: tree("sessions", "agt_1"), aside: SDUINode(type: "empty"), inAside: true, commands: commands), close)
     }
 
     func testFocusTargetTakesOnlyItsNode() {
