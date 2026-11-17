@@ -58,7 +58,7 @@ type screen struct {
 	View         transcriptView
 	Workspace    string
 	Pending      map[string]bool
-	Window       int
+	WindowFirst  string
 	RestoreNote  string
 	Anchor       string
 	AnchorRev    int

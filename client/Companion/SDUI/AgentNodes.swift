@@ -17,6 +17,25 @@ struct TranscriptNode: View {
             case .tools(let cards): "tools:" + (cards.first?.id ?? "")
             }
         }
+
+        func contains(_ id: String) -> Bool {
+            switch self {
+            case .node(let child): child.id == id
+            case .tools(let cards): cards.contains { $0.id == id }
+            }
+        }
+    }
+
+    private struct Anchor: Equatable {
+        let id: String
+        let rev: Int
+    }
+
+    @MainActor private static var scrolled: [String: Anchor] = [:]
+
+    private var anchor: Anchor? {
+        guard let id = node.string("anchor") else { return nil }
+        return Anchor(id: id, rev: node.props["anchorRev"]?.numberValue.flatMap { Int(exactly: $0) } ?? 0)
     }
 
     private static func folds(_ node: SDUINode) -> Bool {
@@ -46,22 +65,37 @@ struct TranscriptNode: View {
         if inScroll {
             column
         } else {
-            ScrollView {
-                column.padding(.vertical, 12)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    column.padding(.vertical, 12)
+                }
+                .defaultScrollAnchor(.bottom)
+                .scrollDismissesKeyboard(.interactively)
+                .environment(\.sduiInScroll, true)
+                .onChange(of: anchor, initial: true) { _, anchor in
+                    scroll(to: anchor, with: proxy)
+                }
             }
-            .defaultScrollAnchor(.bottom)
-            .scrollDismissesKeyboard(.interactively)
-            .environment(\.sduiInScroll, true)
         }
+    }
+
+    private func scroll(to anchor: Anchor?, with proxy: ScrollViewProxy) {
+        guard let key = node.id, let anchor, Self.scrolled[key] != anchor else { return }
+        Self.scrolled[key] = anchor
+        guard let part = parts.first(where: { $0.contains(anchor.id) }) else { return }
+        Task { proxy.scrollTo(part.id, anchor: .top) }
     }
 
     private var column: some View {
         VStack(alignment: .leading, spacing: 14) {
             ForEach(parts) { part in
-                switch part {
-                case .node(let child): SDUINodeView(node: child.node, context: context)
-                case .tools(let cards): ToolCardGroup(cards: cards, context: context)
+                Group {
+                    switch part {
+                    case .node(let child): SDUINodeView(node: child.node, context: context)
+                    case .tools(let cards): ToolCardGroup(cards: cards, context: context)
+                    }
                 }
+                .id(part.id)
             }
         }
     }

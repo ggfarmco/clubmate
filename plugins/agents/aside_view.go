@@ -281,12 +281,26 @@ func (a *app) anchorAside(workspaceID string, rec record) {
 	if node == "" {
 		return
 	}
+	reveal := asideReveal(an, parent.openCard().Entry)
 	st := a.sessionState(workspaceID, pid)
 	current := parent.currentTurn()
 	a.uiMu.Lock()
 	st.anchor, st.anchorTurn = node, current
 	st.anchorRev++
+	st.window.reveal = reveal
 	a.uiMu.Unlock()
+}
+
+func asideReveal(an asideAnchor, openEntry string) string {
+	switch {
+	case an.Elicitation != "":
+		return entryElicitation + "/" + an.Elicitation
+	case an.Open != "" && openEntry != "":
+		return entryOpenItems + "/" + openEntry
+	case an.Message != "":
+		return entryAgent + "/" + an.Message
+	}
+	return ""
 }
 
 func (a *app) keepAside(ctx context.Context, s *session) error {

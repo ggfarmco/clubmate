@@ -20,14 +20,15 @@ import (
 )
 
 const (
-	windowStep    = 20
-	bodyLines     = 200
-	scrollLines   = 24
-	bodyBytes     = 64 << 10
-	expandedBytes = 1 << 20
-	nodeBudget    = 4000
-	diffContext   = 3
-	fromAnother   = "another agent"
+	transcriptRows = 60
+	transcriptPage = 100
+	bodyLines      = 200
+	scrollLines    = 24
+	bodyBytes      = 64 << 10
+	expandedBytes  = 1 << 20
+	nodeBudget     = 4000
+	diffContext    = 3
+	fromAnother    = "another agent"
 )
 
 var (
@@ -103,32 +104,23 @@ type planUpdate struct {
 func transcript(sc screen) sdui.Node {
 	v := sc.View
 	sid := v.Session.ID
-	window := max(sc.Window, windowStep)
-	turns := turnNumbers(v)
-	cutoff := 0
-	if len(turns) > window {
-		cutoff = turns[len(turns)-window]
-	}
-	stops := map[int]string{}
+	stops := stopReasons(v)
 	shas := map[int]string{}
 	for _, t := range v.Turns {
-		stops[t.Turn] = t.StopReason
 		shas[t.Turn] = t.CheckpointSha
 	}
-	var shown []*entry
-	for _, en := range v.Entries {
-		if en.Turn >= cutoff {
-			shown = append(shown, en)
-		}
+	shown := openItemsLast(v.Entries)
+	rows := windowRows(sc, shown, stops)
+	from := 0
+	if start := windowStart(rows, sc.WindowFirst); start < len(rows) {
+		from = rows[start].at
 	}
-	hidden := len(v.Entries) - len(shown)
-	shown = openItemsLast(shown)
 	var nodes []sdui.Node
 	budget := nodeBudget
-	for i := len(shown) - 1; i >= 0; i-- {
+	for i := len(shown) - 1; i >= from; i-- {
 		en := shown[i]
 		note := ""
-		if i == len(shown)-1 || shown[i+1].Turn != en.Turn {
+		if lastOfTurn(shown, i) {
 			note = stopNote(stops[en.Turn])
 		}
 		b := entryNode(sc, en, shas[en.Turn])
@@ -141,7 +133,7 @@ func transcript(sc screen) sdui.Node {
 			cost += b.cost
 		}
 		if cost > budget {
-			hidden += i + 1
+			from = i + 1
 			break
 		}
 		budget -= cost
@@ -153,12 +145,14 @@ func transcript(sc screen) sdui.Node {
 		}
 	}
 	slices.Reverse(nodes)
-	if hidden > 0 {
-		label := "Show earlier"
-		if len(turns) > window {
-			label += " (" + strconv.Itoa(len(turns)-window) + " more turns)"
+	hidden := 0
+	for _, r := range rows {
+		if r.at < from {
+			hidden++
 		}
-		nodes = slices.Insert(nodes, 0, sdui.WithAction(sdui.Button(sid+"/earlier", label, "chevron.up"), actShowEarlier))
+	}
+	if hidden > 0 {
+		nodes = slices.Insert(nodes, 0, sdui.WithAction(sdui.Button(sid+"/earlier", earlierLabel(hidden), "chevron.up"), actShowEarlier))
 	}
 	if n, ok := sendingNode(sc); ok {
 		nodes = append(nodes, n)
@@ -177,6 +171,127 @@ func transcript(sc screen) sdui.Node {
 		n = sdui.WithAsideAction(n, actAsideQuote)
 	}
 	return n
+}
+
+type windowRow struct {
+	at  int
+	key string
+}
+
+type transcriptWindow struct {
+	first  string
+	more   int
+	reveal string
+	end    int
+}
+
+func (w *transcriptWindow) showEarlier() {
+	w.more += transcriptPage
+}
+
+func (w *transcriptWindow) resolve(rows []windowRow, anchored bool) (string, int) {
+	if len(rows) == 0 {
+		w.first, w.end = "", 0
+		return "", -1
+	}
+	at := func(key string) int { return slices.IndexFunc(rows, func(r windowRow) bool { return r.key == key }) }
+	start := at(w.first)
+	if start < 0 || !anchored && len(rows)-w.end >= transcriptPage {
+		start, w.end = max(0, len(rows)-transcriptRows), len(rows)
+	}
+	landed := -1
+	if w.more > 0 {
+		start, w.more, w.end = max(0, start-w.more), 0, len(rows)
+		landed = start
+	}
+	if w.reveal != "" {
+		if r := at(w.reveal); r >= 0 && r < start {
+			start, w.end = r, len(rows)
+		}
+		w.reveal = ""
+	}
+	w.first = rows[start].key
+	return w.first, landed
+}
+
+func rowNodeID(sc screen, shown []*entry, rows []windowRow, from int) string {
+	shas := map[int]string{}
+	for _, t := range sc.View.Turns {
+		shas[t.Turn] = t.CheckpointSha
+	}
+	for _, r := range rows[from:] {
+		en := shown[r.at]
+		if b := entryNode(sc, en, shas[en.Turn]); b.node.ID != "" {
+			return b.node.ID
+		}
+	}
+	return ""
+}
+
+func windowStart(rows []windowRow, first string) int {
+	if i := slices.IndexFunc(rows, func(r windowRow) bool { return r.key == first }); first != "" && i >= 0 {
+		return i
+	}
+	return max(0, len(rows)-transcriptRows)
+}
+
+func earlierLabel(hidden int) string {
+	if hidden > transcriptPage {
+		return "Show " + strconv.Itoa(transcriptPage) + " earlier · " + strconv.Itoa(hidden) + " left"
+	}
+	return "Show " + strconv.Itoa(hidden) + " earlier"
+}
+
+func entryKey(en *entry) string {
+	return en.Kind + "/" + en.ID
+}
+
+func lastOfTurn(shown []*entry, i int) bool {
+	return i == len(shown)-1 || shown[i+1].Turn != shown[i].Turn
+}
+
+func windowRows(sc screen, shown []*entry, stops map[int]string) []windowRow {
+	var rows []windowRow
+	run := false
+	for i, en := range shown {
+		if show, tool := entryShape(sc, shown, i); show {
+			if !tool || !run {
+				rows = append(rows, windowRow{at: i, key: entryKey(en)})
+			}
+			run = tool
+		}
+		if lastOfTurn(shown, i) && stopNote(stops[en.Turn]) != "" {
+			run = false
+		}
+	}
+	return rows
+}
+
+func entryShape(sc screen, shown []*entry, i int) (show, tool bool) {
+	en := shown[i]
+	if pending(sc, en) || foldsIntoPlan(shown, i) {
+		return false, false
+	}
+	switch en.Kind {
+	case entryUser, entryPermission, entryCompaction:
+		return true, false
+	case entryAgent, entryThought:
+		return strings.TrimSpace(en.Text) != "", false
+	case entryTool:
+		return !en.Hidden, !en.Hidden
+	case entryElicitation:
+		return en.Elicitation != nil, false
+	case entryPlan:
+		var p planUpdate
+		return json.Unmarshal(en.Plan, &p) == nil, false
+	case entryOpenItems:
+		_, ok := openEntryNode(sc, en)
+		return ok, false
+	case entryNotice:
+		var n noticeUpdate
+		return json.Unmarshal(en.Notice, &n) == nil && (n.Title != "" || n.Description != ""), false
+	}
+	return false, false
 }
 
 func sendingNode(sc screen) (sdui.Node, bool) {
@@ -260,17 +375,12 @@ func dockedPermission(sc screen) (sdui.Node, bool) {
 	return requestCard(sc)
 }
 
-func turnNumbers(v transcriptView) []int {
-	seen := map[int]bool{}
-	var turns []int
-	for _, en := range v.Entries {
-		if !seen[en.Turn] {
-			seen[en.Turn] = true
-			turns = append(turns, en.Turn)
-		}
+func stopReasons(v transcriptView) map[int]string {
+	stops := map[int]string{}
+	for _, t := range v.Turns {
+		stops[t.Turn] = t.StopReason
 	}
-	slices.Sort(turns)
-	return turns
+	return stops
 }
 
 func stopNote(reason string) string {

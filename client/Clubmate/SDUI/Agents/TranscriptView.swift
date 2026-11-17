@@ -132,7 +132,8 @@ struct TranscriptNodeView: View {
         guard TranscriptScroll.anchors[id] != anchor else { return false }
         TranscriptScroll.anchors[id] = anchor
         pinned = false
-        Task { position.scrollTo(id: anchor.id, anchor: .top) }
+        let target = node.transcriptItems().first { $0.contains(anchor.id) }?.id ?? anchor.id
+        Task { position.scrollTo(id: target, anchor: .top) }
         return true
     }
 }

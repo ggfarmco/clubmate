@@ -1398,7 +1398,8 @@ actor FixtureServer {
     }
 
     private static var longTranscript: [JSONValue] {
-        (1...60).flatMap { turn -> [JSONValue] in
+        let turns = UserDefaults.standard.integer(forKey: "longTranscriptTurns")
+        return (1...(turns > 0 ? turns : 60)).flatMap { turn -> [JSONValue] in
             let lines = (1...(turn % 7 == 0 ? 60 : turn % 3 * 6 + 1)).map { "- step \(turn).\($0): reserve.go keeps the hold until the expiry job releases it" }
             return [
                 entry("user", "long-prompt-\(turn)", text: "Turn \(turn): go on"),

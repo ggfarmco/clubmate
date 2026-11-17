@@ -99,7 +99,7 @@ type workspaceUI struct {
 }
 
 type sessionUI struct {
-	window       int
+	window       transcriptWindow
 	expanded     map[string]bool
 	attachments  []pendingAttachment
 	nextID       int
@@ -148,14 +148,10 @@ func (a *app) sessionState(workspaceID, sid string) *sessionUI {
 	defer a.uiMu.Unlock()
 	v, ok := p.sessions[sid]
 	if !ok {
-		v = &sessionUI{window: windowStep, expanded: map[string]bool{}}
+		v = &sessionUI{expanded: map[string]bool{}}
 		p.sessions[sid] = v
 	}
 	return v
-}
-
-func (v *sessionUI) showEarlier() {
-	v.window = max(v.window, windowStep) + windowStep
 }
 
 func (a *app) kick(workspaceID string) {
@@ -583,7 +579,6 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 	sc := screen{
 		View:        v,
 		Pending:     pending,
-		Window:      st.window,
 		Anchor:      st.anchor,
 		AnchorRev:   st.anchorRev,
 		Expanded:    maps.Clone(st.expanded),
@@ -624,6 +619,17 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 		ForkedFrom:  forked,
 	}
 	sc.ReviewStates, sc.ReviewsOpen = a.reviews.cards(v.ReviewStates)
+	shown := openItemsLast(v.Entries)
+	rows := windowRows(sc, shown, stopReasons(v))
+	first, landed := st.window.resolve(rows, st.anchor != "")
+	sc.WindowFirst = first
+	if landed >= 0 {
+		if id := rowNodeID(sc, shown, rows, landed); id != "" {
+			st.anchor, st.anchorTurn = id, current
+			st.anchorRev++
+			sc.Anchor, sc.AnchorRev = st.anchor, st.anchorRev
+		}
+	}
 	return sc
 }
 
@@ -819,7 +825,7 @@ func (a *app) anchorTurn(workspaceID string, s *session, turn int) error {
 	defer a.uiMu.Unlock()
 	st.anchor, st.anchorTurn = sid+"/msg/"+entryUser+"/"+v.Entries[i].ID, current
 	st.anchorRev++
-	st.window = max(st.window, current-turn+1)
+	st.window.reveal = entryKey(v.Entries[i])
 	return nil
 }
 

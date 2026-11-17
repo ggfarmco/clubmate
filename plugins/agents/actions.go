@@ -646,7 +646,7 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		return a.review(ctx, ev.WorkspaceID, s, v.Turn)
 	case actShowEarlier:
 		a.uiMu.Lock()
-		st.showEarlier()
+		st.window.showEarlier()
 		a.uiMu.Unlock()
 		return nil
 	case actShowAll:

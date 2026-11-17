@@ -138,7 +138,7 @@ func benchCore(b *testing.B, store *internalsdui.Store) *jsonrpc2.Conn {
 
 func benchScreen(s *session) screen {
 	v := s.view(0)
-	return screen{View: v, Window: windowStep, Composer: v.Session.ID + "/composer/0"}
+	return screen{View: v, Composer: v.Session.ID + "/composer/0"}
 }
 
 func benchSession(b *testing.B, turns int) *session {

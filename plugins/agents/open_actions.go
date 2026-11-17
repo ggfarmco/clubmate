@@ -109,7 +109,7 @@ func (a *app) revealOpen(ctx context.Context, workspaceID string, s *session, st
 	st.context = false
 	st.anchor, st.anchorTurn = openKeysID(sid), current
 	st.anchorRev++
-	st.window = max(st.window, current-data.Turn+1)
+	st.window.reveal = entryOpenItems + "/" + data.Entry
 	a.uiMu.Unlock()
 	return a.host.FocusNode(ctx, workspaceID, sectionID, mainSlot, openKeysID(sid))
 }

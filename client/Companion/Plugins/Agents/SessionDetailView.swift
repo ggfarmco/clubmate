@@ -29,7 +29,8 @@ struct SessionDetailView: View {
     @FocusState private var cardField: String?
     @State private var reviewing: LandCard?
     @State private var archiving = false
-    @State private var hidden: Int?
+    @State private var window = TranscriptWindow()
+    @State private var atBottom = true
     @State private var draftSeen: Int?
     @State private var showingAsides = false
     @State private var pickedAside: String?
@@ -39,8 +40,6 @@ struct SessionDetailView: View {
     @State private var closeQuestion: String?
 
     private static let pairedWidth = 520.0
-    private static let window = 60
-    private static let page = 100
 
     private var mode: SessionRole {
         role == .plain && store.session(sessionID)?.isAside == true ? .asideFull : role
@@ -110,7 +109,7 @@ struct SessionDetailView: View {
         let blocked = context.connection.blocked
         let queued = store.queue?.item(sessionID)
         let rows = screen.rows
-        let skip = min(hidden ?? max(0, rows.count - Self.window), rows.count)
+        let skip = window.skip(rows)
         let cardTyping = typingInCard(screen)
         let keySend: (() -> Void)? = cardTyping ? nil : { send() }
         let answerDocked = switch screen.dock {
@@ -126,7 +125,7 @@ struct SessionDetailView: View {
                     StartedByCard(parent: parent) { context.navigation.detail = parent.id }
                 }
                 if skip > 0 {
-                    EarlierRowsButton(left: skip, page: Self.page) { hidden = max(0, skip - Self.page) }
+                    EarlierRowsButton(left: skip, page: TranscriptWindow.page) { window.showEarlier(rows) }
                 }
                 ForEach(Self.blocks(Array(rows[skip...]), paired: width >= Self.pairedWidth), id: \.[0].id) { block in
                     if block.count == 2 {
@@ -193,7 +192,10 @@ struct SessionDetailView: View {
             .onGeometryChange(for: Double.self) { $0.size.width } action: { width = $0 }
             .frame(maxWidth: .infinity)
             .onChange(of: rows.count, initial: true) { _, count in
-                if hidden == nil, transcript != nil, count > 0 { hidden = max(0, count - Self.window) }
+                if transcript != nil { window.update(count: count, atBottom: atBottom) }
+            }
+            .onChange(of: atBottom) { _, atBottom in
+                if transcript != nil { window.update(count: rows.count, atBottom: atBottom) }
             }
         }
         .environment(\.subagentStop, context.connection.supports("agents.stop-subagent") ? SubagentStop(enabled: blocked == nil) { id in
@@ -233,6 +235,11 @@ struct SessionDetailView: View {
         .environment(\.openTask, taskOpener)
         .environment(\.imageStore, context.connection.supports(AgentsStore.imageCommand) ? store : nil)
         .environment(\.imageSession, sessionID)
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 80
+        } action: { _, bottom in
+            atBottom = bottom
+        }
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom)
         .scrollDismissesKeyboard(.interactively)

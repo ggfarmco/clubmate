@@ -379,7 +379,7 @@ func TestVoicePromptRendersHeard(t *testing.T) {
 	text := `{"utterance":"vu_1","heard":"открой бэклог","context":{"section":"agents"}}`
 	v := transcriptView{Session: record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, Status: statusDone}, Entries: []*entry{{Kind: entryUser, ID: "prompt-1", Turn: 1, Text: text, Voice: &voicePrompt{Heard: "открой бэклог", Utterance: "vu_1"}}}}
 
-	tree := mainView(screen{View: v, Window: windowStep, Composer: "agt_1/composer/0"})
+	tree := mainView(screen{View: v, Composer: "agt_1/composer/0"})
 
 	require.NoError(t, internalsdui.Validate(tree))
 	msgs := nodesOf(tree, "message")
@@ -388,47 +388,141 @@ func TestVoicePromptRendersHeard(t *testing.T) {
 	assert.Equal(t, text, msgs[0].Props["text"])
 }
 
-func TestTranscriptWindowAndShowEarlier(t *testing.T) {
-	t.Parallel()
+func windowedView(turns int) transcriptView {
 	v := transcriptView{Session: record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, Status: statusDone}}
-	for turn := 1; turn <= 45; turn++ {
-		n := strconv.Itoa(turn)
-		v.Turns = append(v.Turns, turnInfo{Turn: turn, CheckpointSha: "sha" + n, StopReason: "end_turn"})
-		v.Entries = append(v.Entries, &entry{Kind: entryUser, ID: "prompt-" + n, Turn: turn, Text: "p" + n}, &entry{Kind: entryAgent, ID: "m" + n, Turn: turn, Text: "a" + n})
+	for turn := 1; turn <= turns; turn++ {
+		addWindowTurn(&v, turn)
 	}
-	firstPrompt := func(st *sessionUI) (sdui.Node, int) {
-		tree := mainView(screen{View: v, Window: st.window, Composer: "agt_1/composer/0"})
-		require.NoError(t, internalsdui.Validate(tree))
-		var users []sdui.Node
-		for _, m := range nodesOf(tree, "message") {
-			if m.Props["role"] == "user" {
-				users = append(users, m)
-			}
-		}
-		earlier := false
-		for _, b := range nodesOf(tree, "button") {
-			earlier = earlier || b.Props["action"] == actShowEarlier
-		}
-		assert.True(t, earlier)
-		return users[0], len(users)
-	}
+	return v
+}
 
-	st := &sessionUI{window: windowStep}
-	first, shown := firstPrompt(st)
-	assert.Equal(t, 20, shown)
-	assert.Equal(t, "p26", first.Props["text"])
-	assert.Equal(t, "agt_1/msg/user/prompt-26", first.ID)
-
-	st.showEarlier()
-	first, shown = firstPrompt(st)
-	assert.Equal(t, 40, shown)
-	assert.Equal(t, "p6", first.Props["text"])
-	shifted := map[string]string{}
-	for _, m := range nodesOf(mainView(screen{View: v, Window: st.window, Composer: "agt_1/composer/0"}), "message") {
-		shifted[m.Props["text"].(string)] = m.ID
+func addWindowTurn(v *transcriptView, turn int) {
+	n := strconv.Itoa(turn)
+	v.Turns = append(v.Turns, turnInfo{Turn: turn, CheckpointSha: "sha" + n, StopReason: "end_turn"})
+	v.Entries = append(v.Entries, &entry{Kind: entryUser, ID: "prompt-" + n, Turn: turn, Text: "p" + n})
+	for k := range 3 {
+		v.Entries = append(v.Entries, &entry{Kind: entryTool, ID: "t" + n + "-" + strconv.Itoa(k), Turn: turn, Tool: map[string]json.RawMessage{"title": json.RawMessage(`"ls"`), "kind": json.RawMessage(`"execute"`), "status": json.RawMessage(`"completed"`)}})
 	}
-	assert.Equal(t, "agt_1/msg/user/prompt-26", shifted["p26"])
-	assert.Equal(t, "agt_1/msg/agent/m26", shifted["a26"])
+	v.Entries = append(v.Entries, &entry{Kind: entryAgent, ID: "m" + n, Turn: turn, Text: "a" + n})
+}
+
+type windowShot struct {
+	first   sdui.Node
+	earlier string
+	rows    int
+	ids     map[string]string
+	landed  string
+}
+
+func renderWindow(t *testing.T, v transcriptView, st *sessionUI) windowShot {
+	t.Helper()
+	sc := screen{View: v, Composer: "agt_1/composer/0"}
+	shown := openItemsLast(v.Entries)
+	rows := windowRows(sc, shown, stopReasons(v))
+	first, landed := st.window.resolve(rows, st.anchor != "")
+	sc.WindowFirst = first
+	tree := mainView(sc)
+	require.NoError(t, internalsdui.Validate(tree))
+	tr := nodesOf(tree, "transcript")[0]
+	shot := windowShot{ids: map[string]string{}}
+	if landed >= 0 {
+		shot.landed = rowNodeID(sc, shown, rows, landed)
+	}
+	run := false
+	for _, c := range tr.Children {
+		if c.Props["action"] == actShowEarlier {
+			shot.earlier = c.Props["label"].(string)
+			continue
+		}
+		if shot.first.Type == "" {
+			shot.first = c
+		}
+		tool := c.Type == "toolCard"
+		if !tool || !run {
+			shot.rows++
+		}
+		run = tool
+		if text, ok := c.Props["text"].(string); ok {
+			shot.ids[text] = c.ID
+		}
+	}
+	return shot
+}
+
+func TestTranscriptWindowShowsTheLastRowsAndPagesEarlier(t *testing.T) {
+	t.Parallel()
+	v := windowedView(100)
+	st := &sessionUI{}
+
+	shot := renderWindow(t, v, st)
+	assert.Equal(t, 60, shot.rows)
+	assert.Equal(t, "Show 100 earlier · 240 left", shot.earlier)
+	assert.Equal(t, "p81", shot.first.Props["text"])
+
+	st.window.showEarlier()
+	shot = renderWindow(t, v, st)
+	assert.Equal(t, 160, shot.rows)
+	assert.Equal(t, "Show 100 earlier · 140 left", shot.earlier)
+	assert.Equal(t, "agt_1/msg/agent/m47", shot.landed)
+	assert.Equal(t, "agt_1/msg/user/prompt-81", shot.ids["p81"])
+
+	st.window.showEarlier()
+	shot = renderWindow(t, v, st)
+	assert.Equal(t, "Show 40 earlier", shot.earlier)
+
+	st.window.showEarlier()
+	shot = renderWindow(t, v, st)
+	assert.Equal(t, 300, shot.rows)
+	assert.Empty(t, shot.earlier)
+	assert.Equal(t, "p1", shot.first.Props["text"])
+}
+
+func TestTranscriptWindowKeepsItsRowsUntilAPageGrewBelow(t *testing.T) {
+	t.Parallel()
+	v := windowedView(10)
+	st := &sessionUI{}
+	assert.Equal(t, 30, renderWindow(t, v, st).rows)
+
+	for turn := 11; turn <= 42; turn++ {
+		addWindowTurn(&v, turn)
+	}
+	shot := renderWindow(t, v, st)
+	assert.Equal(t, 126, shot.rows)
+	assert.Equal(t, "p1", shot.first.Props["text"])
+
+	addWindowTurn(&v, 43)
+	addWindowTurn(&v, 44)
+	st.anchor = "agt_1/msg/user/prompt-2"
+	assert.Equal(t, "p1", renderWindow(t, v, st).first.Props["text"])
+
+	st.anchor = ""
+	shot = renderWindow(t, v, st)
+	assert.Equal(t, 60, shot.rows)
+	assert.Equal(t, "p25", shot.first.Props["text"])
+}
+
+func TestTranscriptWindowWidensToAnAsideOrigin(t *testing.T) {
+	t.Parallel()
+	v := windowedView(100)
+	st := &sessionUI{}
+	renderWindow(t, v, st)
+
+	st.window.reveal = asideReveal(asideAnchor{Message: "m70"}, "")
+	shot := renderWindow(t, v, st)
+	assert.Equal(t, "agt_1/msg/agent/m70", shot.ids["a70"])
+	assert.Equal(t, "a70", shot.first.Props["text"])
+}
+
+func TestTranscriptWindowWidensToARevealedTurn(t *testing.T) {
+	t.Parallel()
+	v := windowedView(100)
+	st := &sessionUI{}
+	renderWindow(t, v, st)
+
+	st.window.reveal = entryKey(v.Entries[slices.IndexFunc(v.Entries, func(en *entry) bool { return en.ID == "prompt-5" })])
+	shot := renderWindow(t, v, st)
+	assert.Equal(t, "p5", shot.first.Props["text"])
+	assert.Equal(t, "Show 12 earlier", shot.earlier)
 }
 
 func TestPlanOnly(t *testing.T) {
@@ -1239,4 +1333,33 @@ func TestSidebarPausedGroupsPerResetAboveTheWorktrees(t *testing.T) {
 	folded := nodesOf(sidebarView(rows, "", map[string]bool{pausedKey: true}, now, "/r/a", nil, false, "", sidebarSearch{}, 0, sidebarPlus{}, nil), "tree")[0].Props["items"].([]sdui.TreeItem)
 	assert.Empty(t, folded[0].Children)
 	assert.Empty(t, folded[1].Children)
+}
+
+func TestEntryShapeMatchesTheBuiltNode(t *testing.T) {
+	t.Parallel()
+	tool := map[string]json.RawMessage{"title": json.RawMessage(`"ls"`), "kind": json.RawMessage(`"execute"`), "status": json.RawMessage(`"failed"`)}
+	entries := []*entry{
+		{Kind: entryUser, ID: "u", Text: "hi"},
+		{Kind: entryAgent, ID: "a", Text: "  "},
+		{Kind: entryAgent, ID: "b", Text: "text"},
+		{Kind: entryThought, ID: "th", Text: "hmm"},
+		{Kind: entryPlan, ID: "pl", Plan: json.RawMessage(`{"entries":[{"content":"x","status":"pending"}]}`)},
+		{Kind: entryPlan, ID: "bad", Plan: json.RawMessage(`[`)},
+		{Kind: entryTool, ID: "t", Tool: tool},
+		{Kind: entryTool, ID: "h", Tool: tool, Hidden: true},
+		{Kind: entryPermission, ID: "p", Tool: tool},
+		{Kind: entryElicitation, ID: "e"},
+		{Kind: entryElicitation, ID: "e2", Elicitation: &elicitation{Message: "Pick"}},
+		{Kind: entryCompaction, ID: "c", Compaction: &compaction{}},
+		{Kind: entryNotice, ID: "n0", Notice: json.RawMessage(`{}`)},
+		{Kind: entryNotice, ID: "n1", Notice: json.RawMessage(`{"title":"Note"}`)},
+		{Kind: entryOpenItems, ID: "o"},
+	}
+	sc := screen{View: transcriptView{Session: record{ID: "agt_1", Worktree: "/r"}, Entries: entries}}
+	for i, en := range entries {
+		n, ok := buildEntryNode(sc, en, "")
+		show, tool := entryShape(sc, entries, i)
+		assert.Equal(t, ok, show, en.ID)
+		assert.Equal(t, ok && n.Type == "toolCard" && n.Props["standalone"] != true, tool, en.ID)
+	}
 }
