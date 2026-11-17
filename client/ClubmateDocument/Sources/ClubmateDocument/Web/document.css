@@ -333,3 +333,29 @@ a.wm-row:hover { color: var(--text); text-decoration: none; background: var(--ho
 .wiki-fold > summary { cursor: pointer; color: var(--muted); }
 .wiki-fold > summary:hover { color: var(--text); }
 .wiki-fold .wm-fold { font-size: 1em; }
+
+.diff-head { margin: 0 0 16px; }
+.diff-head p { margin: 0; }
+.diff-title { font-weight: 600; }
+.diff-meta, .diff-at { color: var(--muted); font-size: 0.9em; }
+.diff-at { margin: 16px 0 6px; }
+.diff-add { color: var(--success); font-variant-numeric: tabular-nums; }
+.diff-del { color: var(--danger); font-variant-numeric: tabular-nums; }
+pre.diff { width: 100%; padding: 4px 0; }
+pre.diff > code { display: block; width: max-content; min-width: 100%; }
+pre.diff .line { display: block; padding-right: 12px; }
+pre.diff .ln {
+  display: inline-block;
+  width: 5ch;
+  padding-right: 1ch;
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  -webkit-user-select: none;
+}
+pre.diff .sign { display: inline-block; width: 2ch; color: var(--muted); user-select: none; -webkit-user-select: none; }
+pre.diff .add { background: var(--tone-bg-success); }
+pre.diff .del { background: var(--tone-bg-danger); }
+pre.diff .add .sign { color: var(--success); }
+pre.diff .del .sign { color: var(--danger); }

@@ -191,3 +191,35 @@ func TestReadErrorIsEscaped(t *testing.T) {
 	assert.NotContains(t, m.HTML, "<i>")
 	assert.Contains(t, m.HTML, "&lt;i&gt;")
 }
+
+func TestDiffHTMLEscapesAndNumbersLines(t *testing.T) {
+	diff := "diff --git a/a.md b/a.md\n--- a/a.md\n+++ b/a.md\n@@ -2,3 +2,3 @@\n \n ## Setup\n-<b>old</b>\n+new & better\n\\ No newline at end of file\n"
+
+	got := diffHTML(Change{Summary: "<i>fix</i>", By: "Agent", Added: 1, Removed: 1}, "Nov 16 10:05", diff, []string{"## Intro", "", "## Setup", "new & better"})
+
+	assert.Contains(t, got, `<p class="diff-title">&lt;i&gt;fix&lt;/i&gt;</p>`)
+	assert.Contains(t, got, `<p class="diff-at">Setup</p>`)
+	assert.Contains(t, got, `<span class="line del"><span class="ln">4</span><span class="sign">−</span>&lt;b&gt;old&lt;/b&gt;`)
+	assert.Contains(t, got, `<span class="line add"><span class="ln">4</span><span class="sign">+</span>new &amp; better`)
+	assert.NotContains(t, got, "No newline")
+}
+
+func TestHistoryGroupsChangesByDay(t *testing.T) {
+	day1 := time.Date(2026, 11, 16, 18, 20, 0, 0, time.Local)
+	day0 := time.Date(2026, 11, 12, 9, 41, 0, 0, time.Local)
+	d := mainData{Page: &Page{Path: "a.md", Title: "A"}, ShowHistory: true, Change: "r2", History: []Change{
+		{Rev: "r3", At: day1, By: "Claude", Summary: "third"},
+		{Rev: "r2", At: day1.Add(-time.Hour), By: "Claude", Summary: "second"},
+		{Rev: "r1", At: day0, By: "you", Summary: "first"},
+	}}
+
+	tree, ok := findNode(mainView(d), changesNode)
+	require.True(t, ok)
+	items := tree.Props["items"].([]sdui.TreeItem)
+	assert.Equal(t, []string{"day:2026-11-16", "r3", "r2", "day:2026-11-12", "r1"}, treeIDs(items))
+	assert.Equal(t, "Claude · 18:20 · current", items[0].Children[0].Detail)
+	assert.Equal(t, "r2", tree.Props["selected"])
+	restore, ok := findNode(mainView(d), restoreNode)
+	require.True(t, ok)
+	assert.Equal(t, true, restore.Props["disabled"])
+}

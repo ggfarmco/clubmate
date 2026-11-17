@@ -53,6 +53,7 @@ type workspaceUI struct {
 	find       string
 	findSeq    int
 	read       *readState
+	change     string
 	collapsed  map[string]bool
 	sent       map[string][32]byte
 }
@@ -150,7 +151,7 @@ func (w *wiki) renderNow(ctx context.Context, workspaceID string) error {
 		return w.push(ctx, u, workspaceID, mainSlot, mainView(mainData{Home: true}))
 	}
 	w.mu.Lock()
-	selected, query, notes, history, collapsed, opening := u.selected, u.query, u.agentNotes, u.history, maps.Clone(u.collapsed), u.opening
+	selected, query, notes, history, change, collapsed, opening := u.selected, u.query, u.agentNotes, u.history, u.change, maps.Clone(u.collapsed), u.opening
 	u.opening = false
 	f := find{query: u.find, seq: u.findSeq}
 	w.mu.Unlock()
@@ -188,6 +189,9 @@ func (w *wiki) renderNow(ctx context.Context, workspaceID string) error {
 	if ok {
 		d.Selected = pageID(current.Project, current.Page.Path)
 		m = w.pageData(ctx, ws, projects, stores[current.Project], current, projectPages(d.Projects, current.Project), history, f)
+		if history {
+			w.historyData(ctx, stores[current.Project], &m, change, collapsed)
+		}
 		if opening || w.looking(ctx, workspaceID) {
 			w.markOpened(ctx, workspaceID, u, current, all)
 			read = w.readState(ctx, workspaceID, u)
@@ -242,9 +246,6 @@ func (w *wiki) pageData(ctx context.Context, ws contract.Workspace, projects []w
 	page := row.Page
 	m := mainData{Project: row.Project, Page: &page, ShowHistory: history, Now: w.now(), Path: filepath.Join(s.p.Dir, filepath.FromSlash(page.Path))}
 	if history {
-		changes, err := s.History(ctx, page.Path, historyLimit)
-		logError("history "+page.Path, err)
-		m.History = changes
 		return m
 	}
 	src, err := s.readFile(page.Path)
@@ -278,13 +279,38 @@ func rev(b []byte) int {
 }
 
 func (w *wiki) margin(ctx context.Context, s *Store, abs string, page Page, pages []Page, body string) string {
-	changes, err := s.History(ctx, page.Path, 0)
+	changes, err := s.History(ctx, page.Path, marginChanges)
 	logError("history "+page.Path, err)
-	d := marginData{Path: abs, Page: page, Outline: headings(body), Changes: changes, Total: len(changes), Now: w.now()}
+	total, err := s.Count(ctx, page.Path)
+	logError("count "+page.Path, err)
+	d := marginData{Path: abs, Page: page, Outline: headings(body), Changes: changes, Total: max(total, len(changes)), Now: w.now()}
 	for _, l := range w.linkedFrom(s, pages, page.Path) {
 		d.Linked = append(d.Linked, linkedPage{Title: l.Title, Path: filepath.Join(s.p.Dir, filepath.FromSlash(l.Path)), Shadow: l.Shadow})
 	}
 	return margin(d)
+}
+
+func (w *wiki) historyData(ctx context.Context, s *Store, m *mainData, change string, folded map[string]bool) {
+	changes, err := s.History(ctx, m.Page.Path, historyLimit)
+	logError("history "+m.Page.Path, err)
+	m.History, m.Folded = changes, folded
+	total, err := s.Count(ctx, m.Page.Path)
+	logError("count "+m.Page.Path, err)
+	m.Total = total
+	if len(changes) == 0 {
+		return
+	}
+	i := max(slices.IndexFunc(changes, func(c Change) bool { return c.Rev == change }), 0)
+	c := changes[i]
+	m.Change = c.Rev
+	diff, err := s.Diff(ctx, m.Page.Path, c.Rev)
+	logError("diff "+m.Page.Path, err)
+	var after []string
+	if src, err := s.Version(ctx, m.Page.Path, c.Rev); err == nil {
+		after = strings.Split(string(src), "\n")
+		m.CanRestore = i > 0
+	}
+	m.Diff = diffHTML(c, c.At.Local().Format(timeLayout), diff, after)
 }
 
 func scope(ws contract.Workspace, projects []wikiroot.Project) func(string) bool {
@@ -332,7 +358,7 @@ func (w *wiki) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEv
 
 func (w *wiki) handle(ctx context.Context, ev pluginsdk.UIEvent) error {
 	u := w.workspace(ev.WorkspaceID)
-	if (ev.NodeID == newNode || ev.NodeID == deleteNode || ev.NodeID == editNode || ev.NodeID == revealNode) && (ev.Agent || w.fromSession(ctx, ev.WorkspaceID, ev.Caller)) {
+	if (ev.NodeID == newNode || ev.NodeID == deleteNode || ev.NodeID == editNode || ev.NodeID == revealNode || ev.NodeID == restoreNode) && (ev.Agent || w.fromSession(ctx, ev.WorkspaceID, ev.Caller)) {
 		return errNotForAgents
 	}
 	switch {
@@ -367,7 +393,7 @@ func (w *wiki) handle(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return nil
 		}
 		if ev.Action == "select" {
-			u.selected, u.history, u.opening = strings.TrimPrefix(id, newPrefix), false, true
+			u.selected, u.history, u.opening, u.change = strings.TrimPrefix(id, newPrefix), false, true, ""
 			u.find = ""
 			if u.query != "" {
 				u.find, u.findSeq = u.query, u.findSeq+1
@@ -390,9 +416,25 @@ func (w *wiki) handle(ctx context.Context, ev pluginsdk.UIEvent) error {
 		return exec.CommandContext(ctx, "/usr/bin/open", "-R", path).Run()
 	case ev.NodeID == historyNode:
 		w.mu.Lock()
-		u.history = !u.history
+		u.history, u.change = !u.history, ""
 		w.mu.Unlock()
 		return nil
+	case ev.NodeID == changesNode:
+		var id string
+		if err := json.Unmarshal(ev.Value, &id); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+		w.mu.Lock()
+		defer w.mu.Unlock()
+		switch {
+		case strings.HasPrefix(id, dayPrefix) && (ev.Action == "expand" || ev.Action == "collapse"):
+			u.collapsed[id] = ev.Action == "collapse"
+		case ev.Action == "select" && !strings.HasPrefix(id, dayPrefix):
+			u.change = id
+		}
+		return nil
+	case ev.NodeID == restoreNode:
+		return w.restoreSelected(ctx, ev.WorkspaceID, u)
 	case ev.NodeID == deleteNode:
 		return w.deleteSelected(ctx, ev.WorkspaceID, u)
 	case ev.NodeID == docNode && (ev.Action == "openDoc" || ev.Action == "openFile"):
@@ -464,7 +506,34 @@ func (w *wiki) deleteSelected(ctx context.Context, workspaceID string, u *worksp
 		return err
 	}
 	w.mu.Lock()
-	u.selected, u.history, u.find = "", false, ""
+	u.selected, u.history, u.find, u.change = "", false, "", ""
+	w.mu.Unlock()
+	w.changed(ctx, workspaceID, page)
+	w.renderOthers(ctx, workspaceID)
+	return nil
+}
+
+func (w *wiki) restoreSelected(ctx context.Context, workspaceID string, u *workspaceUI) error {
+	s, page, err := w.current(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	w.mu.Lock()
+	rev := u.change
+	w.mu.Unlock()
+	changes, err := s.History(ctx, page, historyLimit)
+	if err != nil {
+		return err
+	}
+	i := slices.IndexFunc(changes, func(c Change) bool { return c.Rev == rev })
+	if i <= 0 {
+		return errNotFound
+	}
+	if _, err := s.Restore(ctx, page, rev, userName, "restored the version of "+changes[i].At.Local().Format(timeLayout)); err != nil {
+		return err
+	}
+	w.mu.Lock()
+	u.change = ""
 	w.mu.Unlock()
 	w.changed(ctx, workspaceID, page)
 	w.renderOthers(ctx, workspaceID)
@@ -491,7 +560,7 @@ func (w *wiki) newPage(ctx context.Context, workspaceID string, u *workspaceUI) 
 		return err
 	}
 	w.mu.Lock()
-	u.selected, u.history, u.find = pageID(p.Name, page), false, ""
+	u.selected, u.history, u.find, u.change = pageID(p.Name, page), false, "", ""
 	w.mu.Unlock()
 	w.changed(ctx, workspaceID, page)
 	w.renderOthers(ctx, workspaceID)
@@ -517,7 +586,7 @@ func (w *wiki) openLink(ctx context.Context, workspaceID string, u *workspaceUI,
 		if rel, err := filepath.Rel(dir, abs); err == nil && gitrepo.Within(abs, dir) {
 			if page, err := cleanPage(filepath.ToSlash(rel)); err == nil {
 				w.mu.Lock()
-				u.selected, u.history, u.opening, u.find = pageID(p.Name, page), anchor == historyAnchor, true, ""
+				u.selected, u.history, u.opening, u.find, u.change = pageID(p.Name, page), anchor == historyAnchor, true, "", ""
 				w.mu.Unlock()
 				return nil
 			}

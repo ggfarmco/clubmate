@@ -282,3 +282,29 @@ func TestWriteCommitsGloballyIgnoredPage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "a.md", git(t, p.Dir, "ls-files", "a.md"))
 }
+
+func TestHistoryCountsLinesAndRestoreCommitsOldText(t *testing.T) {
+	p, repo := newProject(t)
+	s := Open(p, time.Now)
+	_, err := s.Write(t.Context(), WriteReq{Page: "a.md", Content: "# A\n\none\ntwo\n", Summary: "first", By: "Agent", Worktree: repo, Sources: []string{"a.go"}})
+	require.NoError(t, err)
+	_, err = s.Write(t.Context(), WriteReq{Page: "a.md", Content: "# A\n\nthree\n", Summary: "second", By: "Agent", Worktree: repo, Sources: []string{"a.go"}})
+	require.NoError(t, err)
+
+	changes, err := s.History(t.Context(), "a.md", historyLimit)
+	require.NoError(t, err)
+	require.Len(t, changes, 2)
+	assert.Equal(t, [2]int{1, 2}, [2]int{changes[0].Added, changes[0].Removed})
+	assert.Equal(t, [2]int{4, 0}, [2]int{changes[1].Added, changes[1].Removed})
+
+	_, err = s.Restore(t.Context(), "a.md", changes[1].Rev, userName, "restored")
+	require.NoError(t, err)
+
+	_, got, err := s.Read(t.Context(), "a.md")
+	require.NoError(t, err)
+	assert.Equal(t, "# A\n\none\ntwo\n", got)
+	assert.Equal(t, "you|a.md: restored", git(t, p.Dir, "log", "-1", "--format=%an|%s"))
+	assert.Equal(t, []string{"a.go"}, pagesMeta(t, p.Dir)["a.md"].Sources)
+	_, err = s.Restore(t.Context(), "a.md", "--output=x", userName, "restored")
+	assert.ErrorIs(t, err, errNotFound)
+}

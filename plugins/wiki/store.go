@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,6 +21,8 @@ import (
 	"clubmate/plugins/internal/gitrepo"
 	"clubmate/plugins/internal/wikiroot"
 )
+
+var revPattern = regexp.MustCompile(`^[0-9a-f]{40,64}$`)
 
 type Store struct {
 	p   wikiroot.Project
@@ -232,7 +236,7 @@ func (s *Store) History(ctx context.Context, page string, limit int) ([]Change, 
 	if err != nil {
 		return nil, err
 	}
-	args := []string{"log", "--format=%at%x00%an%x00%s"}
+	args := []string{"log", "--no-renames", "--numstat", "--format=%x1e%H%x00%at%x00%an%x00%s"}
 	if limit > 0 {
 		args = append(args, "-n", strconv.Itoa(limit))
 	}
@@ -241,15 +245,109 @@ func (s *Store) History(ctx context.Context, page string, limit int) ([]Change, 
 		return nil, err
 	}
 	var changes []Change
-	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
-		parts := strings.SplitN(line, "\x00", 3)
-		if len(parts) != 3 {
+	for entry := range strings.SplitSeq(string(out), "\x1e") {
+		head, stat, _ := strings.Cut(entry, "\n")
+		parts := strings.SplitN(head, "\x00", 4)
+		if len(parts) != 4 {
 			continue
 		}
-		sec, _ := strconv.ParseInt(parts[0], 10, 64)
-		changes = append(changes, Change{At: time.Unix(sec, 0).UTC(), By: parts[1], Summary: strings.TrimPrefix(parts[2], page+": ")})
+		sec, _ := strconv.ParseInt(parts[1], 10, 64)
+		c := Change{Rev: parts[0], At: time.Unix(sec, 0).UTC(), By: parts[2], Summary: strings.TrimPrefix(parts[3], page+": ")}
+		for line := range strings.SplitSeq(strings.TrimSpace(stat), "\n") {
+			if f := strings.SplitN(line, "\t", 3); len(f) == 3 {
+				added, _ := strconv.Atoi(f[0])
+				removed, _ := strconv.Atoi(f[1])
+				c.Added, c.Removed = c.Added+added, c.Removed+removed
+			}
+		}
+		changes = append(changes, c)
 	}
 	return changes, nil
+}
+
+func (s *Store) Count(ctx context.Context, page string) (int, error) {
+	page, err := cleanPage(page)
+	if err != nil {
+		return 0, err
+	}
+	out, err := wikiroot.Git(ctx, s.p.Dir, "rev-list", "--count", "HEAD", "--", page)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(strings.TrimSpace(string(out)))
+}
+
+func (s *Store) Diff(ctx context.Context, page, rev string) (string, error) {
+	page, err := cleanPage(page)
+	if err != nil {
+		return "", err
+	}
+	if !revPattern.MatchString(rev) {
+		return "", errNotFound
+	}
+	out, err := wikiroot.Git(ctx, s.p.Dir, "show", "--format=", "--no-color", "--no-ext-diff", "--no-renames", "-U3", rev, "--", page)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
+func (s *Store) Version(ctx context.Context, page, rev string) ([]byte, error) {
+	page, err := cleanPage(page)
+	if err != nil {
+		return nil, err
+	}
+	if !revPattern.MatchString(rev) {
+		return nil, errNotFound
+	}
+	out, err := wikiroot.Git(ctx, s.p.Dir, "cat-file", "blob", rev+":"+page)
+	if err != nil {
+		return nil, errNotFound
+	}
+	if len(out) > maxPage {
+		return nil, errTooLarge
+	}
+	return out, nil
+}
+
+func (s *Store) Restore(ctx context.Context, page, rev, by, summary string) (Page, error) {
+	page, err := cleanPage(page)
+	if err != nil {
+		return Page{}, err
+	}
+	if _, err := s.Sweep(ctx); err != nil {
+		return Page{}, err
+	}
+	unlock, err := s.lock()
+	if err != nil {
+		return Page{}, err
+	}
+	defer unlock()
+	abs, err := s.file(page)
+	if err != nil {
+		return Page{}, err
+	}
+	data, err := s.Version(ctx, page, rev)
+	if err != nil {
+		return Page{}, err
+	}
+	metas, err := s.loadMeta()
+	if err != nil {
+		return Page{}, err
+	}
+	if cur, err := s.readFile(page); err == nil && bytes.Equal(cur, data) {
+		return s.page(page, metas[page]), nil
+	}
+	if err := s.writeFile(page, data); err != nil {
+		return Page{}, err
+	}
+	m := metas[page]
+	m.Title, m.WrittenAt, m.By = docext.Title(abs), s.now().UTC(), authorName(by)
+	metas[page] = m
+	if err := s.commit(ctx, metas, page, m.By, summary); err != nil {
+		return Page{}, err
+	}
+	return s.page(page, m), nil
 }
 
 func (s *Store) Sweep(ctx context.Context) ([]string, error) {

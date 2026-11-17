@@ -1,6 +1,7 @@
 package main
 
 import (
+	"hash/crc32"
 	"html"
 	"path"
 	"regexp"
@@ -23,6 +24,9 @@ const (
 	newNode       = "new"
 	editNode      = "edit"
 	historyNode   = "history"
+	restoreNode   = "restore"
+	diffNode      = "diff"
+	dayPrefix     = "day:"
 	deleteNode    = "delete"
 	dirPrefix     = "dir:"
 	projectPrefix = "project:"
@@ -82,6 +86,11 @@ type mainData struct {
 	ShowHistory bool
 	History     []Change
 	Now         time.Time
+	Change      string
+	Total       int
+	Diff        string
+	CanRestore  bool
+	Folded      map[string]bool
 }
 
 func pageID(project, page string) string {
@@ -320,29 +329,70 @@ func mainView(d mainData) sdui.Node {
 		sdui.WithOverflow(sdui.WithAction(sdui.Button(revealNode, "Reveal in Finder", "folder"), "reveal")),
 		sdui.WithOverflow(sdui.WithConfirm(sdui.WithVariant(sdui.WithAction(sdui.Button(deleteNode, "Delete", "trash"), "delete"), sdui.VariantDanger), "Delete "+p.Path+"? It stays in the wiki's git history.")),
 	}
-	if d.ShowHistory {
-		actions[1] = sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(historyNode, "Back to page", "chevron.left"), "history"), sdui.VariantSecondary), "cmd+y")
-	}
 	props := sdui.HeaderProps{Icon: pageIcon(p.Path), Meta: meta(p.Updated, p.By, d.Now)}
 	if p.Stale {
 		props.Badges = []sdui.HeaderBadge{{Text: staleBadge, Tone: "warning"}}
 	}
-	header := sdui.WithID(sdui.Header(p.Title, props, actions...), headerNode)
 	if d.ShowHistory {
-		return sdui.VStack(header, historyView(d.History))
+		back := sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(historyNode, "Back to page", "chevron.left"), "history"), sdui.VariantSecondary), "cmd+y")
+		restore := sdui.WithConfirm(sdui.WithVariant(sdui.WithAction(sdui.Button(restoreNode, "Restore this version", "arrow.uturn.backward"), "restore"), sdui.VariantSecondary), "Restore "+p.Path+" to this version? The current text stays in the history.")
+		if !d.CanRestore {
+			restore = sdui.WithDisabled(restore)
+		}
+		props.Meta = historyMeta(d.History, d.Total)
+		edit := sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(editNode, "Edit", "pencil"), "edit"), sdui.VariantSecondary), "e")
+		actions = append([]sdui.Node{back, restore, edit}, actions[2:]...)
+		header := sdui.WithID(sdui.Header(p.Title+" / History", props, actions...), headerNode)
+		return sdui.VStack(header, historyBody(d))
 	}
+	header := sdui.WithID(sdui.Header(p.Title, props, actions...), headerNode)
 	return sdui.VStack(header, sdui.Document(docNode, sdui.DocumentProps{HTML: d.HTML, Path: d.Path, Rev: d.Rev, Anchor: d.Anchor, Size: sdui.SizeFill, Kind: d.Kind}))
 }
 
-func historyView(changes []Change) sdui.Node {
+func historyMeta(changes []Change, total int) string {
 	if len(changes) == 0 {
+		return ""
+	}
+	if total > len(changes) {
+		return "latest " + strconv.Itoa(len(changes)) + " of " + plural(total, "change")
+	}
+	return plural(len(changes), "change") + " since " + changes[len(changes)-1].At.Local().Format(dayLayout)
+}
+
+func historyBody(d mainData) sdui.Node {
+	if len(d.History) == 0 {
 		return sdui.Empty("No changes yet")
 	}
-	items := make([]sdui.Item, 0, len(changes))
+	rev := int(crc32.ChecksumIEEE([]byte(d.Change+d.Diff))&0x7fffffff) | 1
+	diff := sdui.Document(diffNode, sdui.DocumentProps{HTML: d.Diff, Path: d.Path + "@" + d.Change, Rev: rev, Size: sdui.SizeFill, Kind: sdui.DocumentMarkdown})
+	return sdui.Split("horizontal", sdui.Tree(changesNode, historyItems(d.History, d.Folded), d.Change), diff)
+}
+
+func historyItems(changes []Change, folded map[string]bool) []sdui.TreeItem {
+	var days []sdui.TreeItem
 	for i, c := range changes {
-		items = append(items, sdui.Item{ID: strconv.Itoa(i), Label: c.Summary, Detail: c.At.Local().Format(timeLayout) + " · " + c.By, Truncate: "tail"})
+		at := c.At.Local()
+		id := dayPrefix + at.Format(time.DateOnly)
+		if len(days) == 0 || days[len(days)-1].ID != id {
+			days = append(days, sdui.TreeItem{ID: id, Label: at.Format(dayLayout), HasChildren: true, Expanded: !folded[id], Action: true})
+		}
+		day := &days[len(days)-1]
+		if !day.Expanded {
+			day.Detail = strconv.Itoa(len(day.Children) + 1)
+		}
+		detail := c.By + " · " + at.Format(clockLayout)
+		if i == 0 {
+			detail += " · current"
+		}
+		row := sdui.TreeItem{ID: c.Rev, Label: c.Summary, Detail: detail, Truncate: "tail", Changes: &sdui.Changes{Added: c.Added, Removed: c.Removed}}
+		day.Children = append(day.Children, row)
 	}
-	return sdui.List(changesNode, items, "")
+	for i := range days {
+		if !days[i].Expanded {
+			days[i].Children = nil
+		}
+	}
+	return days
 }
 
 var leadingH1 = regexp.MustCompile(`(?s)^\s*<h1([^>]*)>(.*?)</h1>\s*`)

@@ -288,7 +288,7 @@ func (w *wiki) historyCmd(ctx context.Context, cmd pluginsdk.CommandRun, args pa
 		return nil, err
 	}
 	for _, c := range changes {
-		out.Changes = append(out.Changes, changeOut(c))
+		out.Changes = append(out.Changes, changeOut{At: c.At, By: c.By, Summary: c.Summary})
 	}
 	return out, nil
 }

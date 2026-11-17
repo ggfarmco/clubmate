@@ -47,9 +47,12 @@ type Page struct {
 }
 
 type Change struct {
+	Rev     string
 	At      time.Time
 	By      string
 	Summary string
+	Added   int
+	Removed int
 }
 
 type WriteReq struct {

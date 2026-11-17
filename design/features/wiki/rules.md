@@ -4,7 +4,7 @@ Direction B, "Margin" (Claude Design round 1, canvas "Clubmate · Wiki", https:/
 
 The user's pain: "the wiki looks sad: huge empty margins on the sides, and in general it isn't neat". The page body was an 820 px column centred in the pane, the title showed twice, the sidebar listed every page twice (Recent + tree).
 
-**Status:** landing 1 (rules 1, 3, 4, 8, rule 5 without New to you), landing 2a (rule 2, the margin column) and landing 2c (New to you, search results with snippets, opened hits marked and scrolled to: rules 5, 7) are built; History with diff (rule 6) is not yet, so the boards show more than the app until it lands (backlog #788, #790). Rule 4's meta on the title line (from a 640pt header), its today-only time and Reveal in Finder are built too; the full timestamp tooltip is not (the `header` has no tooltip for `meta`). How landing 1 looks: `built/`.
+**Status:** landing 1 (rules 1, 3, 4, 8, rule 5 without New to you), landing 2a (rule 2, the margin column), landing 2b (rule 6, History with diff and Restore, without Show page at this version) and landing 2c (New to you, search results with snippets, opened hits marked and scrolled to: rules 5, 7) are built. Rule 4's meta on the title line (from a 640pt header), its today-only time and Reveal in Finder are built too; the full timestamp tooltip is not (the `header` has no tooltip for `meta`). Left: backlog #803, #805, #808. How it looks: `built/` (`margin-*.jpg` for the margin column, `mac-1280-history.jpg` for History).
 
 ## The rules
 
@@ -13,7 +13,7 @@ The user's pain: "the wiki looks sad: huge empty margins on the sides, and in ge
 3. **One title.** The header carries the title; the page's leading `# H1` is not drawn when it matches the title.
 4. **Header** (Patterns detail header): kind icon · title (two lines max) · stale badge · meta right ("updated 14:04 by Claude", the date only before today); then the action bar: **Edit** (primary, E), **History** (⌘Y), "…" with Copy path, Reveal in Finder, Delete. New page moves to the sidebar header (+).
 5. **Sidebar:** pane header "Wiki" with +; search field; "New to you" (≤ 5 pages someone else changed since you last opened them, hidden when empty) instead of Recent; "Pages" with a count; folder rows without folder icons, page count when folded; long titles tail-truncate with the full title in the tooltip; stale pages show the badge; agent notes are a folded "Agent notes" section at the end of the tree instead of the toggle.
-6. **History** replaces the body, not the header: changes grouped by day (summary / who · time, +n −m), the selected change's diff beside them; ⎋ or Back to page returns; Restore this version writes a new commit with the old text (user only, with a confirm).
+6. **History** replaces the body, not the header: changes grouped by day (summary / who · time, +n −m), the selected change's diff beside them; Back to page (⌘Y) returns; Restore this version writes a new commit with the old text (user only, with a confirm).
 7. **Search:** a query replaces New to you and the tree with results (Pages, then Agent notes), two-line rows with a snippet; opening a result marks the matches on the page.
 8. **Typography** (doc stylesheet, every doc): no rules under h1/h2; h1 1.23em, h2 1.15em, h3/h4 1em, weight 600; inline code without a border; `pre` on surface-1 with a border and a muted language caption; tables with a muted caption-size header row, row rules, no zebra; blockquote in text-2 with a 2 px rule. Sizes in em of the interface size, not the board's px.
 
@@ -21,6 +21,8 @@ The user's pain: "the wiki looks sad: huge empty margins on the sides, and in ge
 
 - **"Edit", not "Edit in nvim".** Ruled by the user on 17 Nov: the wiki has no focus on nvim. The button opens the page in the workspace's editor (`editor.open`); no "nvim" in any wiki label or menu.
 - **History is ⌘Y, not H.** A bare h is the sidebar tree's collapse key (`docs/shortcuts.md` § Trees); ⌘Y is History in Safari.
+- **History: ⌘Y only, no ⎋, no key for Restore.** Ruled on 17 Nov: a bare esc is reserved for the app (SDUI catalog), and a bare R collides with the tree's keys; Back to page is ⌘Y, Restore this version is pressed (confirmed), and Edit (E) stays in the History bar.
+- **History list: equal panes, one-line rows.** Ruled on 17 Nov: the list and the diff split the pane equally and each change is one row with who · time as its detail, until `split` gets a width prop and the tree a two-line row (backlog #805).
 - **No ⌘B sidebar overlay below 800.** That is app shell, not the wiki; the sidebar stays docked as in every other section.
 - **No match highlights in sidebar snippets** (handoff 29): it needs a new SDUI prop the design language doesn't name. Snippets ship without marks.
 - **Search rows are one line** (handoff 28, 30): tree rows have no second line, so the snippet is the row's detail (from the first match on, since the sidebar leaves the detail about 16 characters) and the match count is dropped; an opened hit marks its matches and scrolls to the first, without the "1 of 4 · n · N" find strip. No "/" to focus search and no "⎋ clear" hint.

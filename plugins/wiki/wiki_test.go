@@ -152,9 +152,11 @@ func TestUIEventGuards(t *testing.T) {
 		return ok
 	})
 
-	err := event(newNode, "new", nil, true)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not for agents")
+	for _, node := range []string{newNode, restoreNode} {
+		err := event(node, node, nil, true)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not for agents")
+	}
 	raw, err := json.Marshal(nil)
 	require.NoError(t, err)
 	err = e.h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": e.ws, "slot": mainSlot, "nodeId": newNode, "action": "new", "value": json.RawMessage(raw), "caller": "agt_1"}, nil)

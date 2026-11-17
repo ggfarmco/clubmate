@@ -1,8 +1,10 @@
 package macui_test
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -10,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWikiAgentNotesFoldAndHistoryKey(t *testing.T) {
+func TestWikiAgentNotesFoldHistoryKeyAndRestoreConfirm(t *testing.T) {
 	in := start(t, "macui-wiki", "")
 	write := func(page, content string) {
 		args, err := json.Marshal(map[string]string{"page": page, "content": content, "summary": "seed"})
@@ -18,6 +20,7 @@ func TestWikiAgentNotesFoldAndHistoryKey(t *testing.T) {
 		in.cm("command", "run", "wiki.write", "--args", string(args))
 	}
 	write("a.md", "# A\n\nBody of A.\n")
+	write("a.md", "# A\n\nNew body of A.\n")
 	write(".agents/trap.md", "# Trap\n\nA note.\n")
 	in.focusSection("wiki", "wiki.sidebar")
 
@@ -34,6 +37,27 @@ func TestWikiAgentNotesFoldAndHistoryKey(t *testing.T) {
 	in.eventually("the page shows with Edit", func() bool { return in.snapshot().main().label("button", "Edit") != nil })
 	in.key("cmd+y")
 	in.eventually("cmd+y shows the page's history with the tree focused", func() bool { return in.snapshot().main().has("changes") })
+	changes := func() []element {
+		var rows []element
+		for _, e := range in.snapshot().main().elements {
+			if strings.HasPrefix(e.ID, "changes#") && !strings.HasPrefix(e.ID, "changes#day:") {
+				rows = append(rows, e)
+			}
+		}
+		slices.SortFunc(rows, func(a, b element) int { return cmp.Compare(a.Frame.Y, b.Frame.Y) })
+		return rows
+	}
+	in.eventually("both changes are listed", func() bool { return len(changes()) == 2 })
+	oldest := changes()[1].ID
+	in.pointer("click", oldest)
+	in.eventually("restore is offered for the older change", func() bool {
+		n := in.sdui("restore")
+		return n != nil && n.Props["disabled"] != true
+	})
+	in.pointer("click", "restore")
+	in.eventually("restore asks first", func() bool { return in.alert() != nil })
+	in.key("esc")
+	in.eventually("esc restores nothing", func() bool { return in.alert() == nil && len(changes()) == 2 })
 	in.key("cmd+y")
 	in.eventually("cmd+y again goes back to the page", func() bool { return in.snapshot().main().has("page") })
 }
