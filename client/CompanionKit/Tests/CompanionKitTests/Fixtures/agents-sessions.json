@@ -30,6 +30,11 @@
     "modeLabel": "Ask before edits",
     "listKey": "20261030T094100.000000000Z agt_0000000000000001",
     "listGroupKey": "0",
+    "listGroupLabel": "main",
+    "listFilters": [
+      "all",
+      "needs"
+    ],
     "inboxKey": "020261030T094100.000000000Z agt_0000000000000001"
   },
   {
@@ -59,6 +64,11 @@
     "modeLabel": "Ask before edits",
     "listKey": "20261030T094100.000000000Z agt_0000000000000002",
     "listGroupKey": "0",
+    "listGroupLabel": "main",
+    "listFilters": [
+      "all",
+      "needs"
+    ],
     "inboxKey": "020261030T094100.000000000Z agt_0000000000000002"
   },
   {
@@ -90,6 +100,7 @@
     },
     "modeLabel": "Ask before edits",
     "listKey": "20261030T094100.000000000Z agt_0000000000000003",
-    "listGroupKey": "0"
+    "listGroupKey": "0",
+    "listGroupLabel": "main"
   }
 ]

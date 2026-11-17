@@ -119,10 +119,12 @@ final class CompanionUITests: XCTestCase {
 
     func testALandReviewerHasNoRowUnlessItAsksThenItNestsUnderItsLander() {
         let app = launch(open: "agents", ["-landReview", "YES"])
-        let lander = app.staticTexts["Gate graph instead of a fixed guard"]
+        XCTAssertTrue(app.descendants(matching: .any)["inbox.agt_00000000000000b1"].waitForExistence(timeout: 10))
+        let lander = app.descendants(matching: .any)["row.agt_00000000000000b1"]
         let review = app.staticTexts["Round 1 review"]
-        XCTAssertTrue(review.waitForExistence(timeout: 10))
-        XCTAssertGreaterThan(review.frame.minY, lander.frame.maxY)
+        reveal(review, in: app)
+        XCTAssertTrue(review.exists)
+        XCTAssertGreaterThan(review.frame.minY, lander.frame.maxY - 1)
         XCTAssertGreaterThan(review.frame.minX, lander.frame.minX)
         XCTAssertEqual(app.staticTexts.matching(identifier: "Round 1 review").count, 1)
         XCTAssertFalse(app.staticTexts["Round 2 review"].exists)
@@ -137,7 +139,7 @@ final class CompanionUITests: XCTestCase {
 
     func testOpenReviewOnTheGateScreenOpensTheReviewersSession() {
         let app = launch(open: "agents", ["-landReview", "YES"])
-        XCTAssertTrue(app.staticTexts["Round 1 review"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["inbox.agt_00000000000000b1"].waitForExistence(timeout: 10))
         let gates = app.staticTexts["Land gates"]
         reveal(gates, in: app)
         gates.tap()
@@ -152,6 +154,26 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Three confirmed bugs")).firstMatch.waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Round 1 review"].exists)
         add(screenshot(app, "reviewer"))
+    }
+
+    func testAHeldChangeNeverMovesTheRowAboutToBeTappedAndLandsOnThePill() {
+        let app = launch(open: "agents", ["-holdFixture", "12"])
+        let row = app.descendants(matching: .any)["row.agt_0000000000000001"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        let before = row.frame
+        let pill = app.descendants(matching: .any)["list.hold"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 25))
+        XCTAssertTrue(pill.label.hasPrefix("1 needs you · 1 new"), pill.label)
+        XCTAssertEqual(row.frame, before)
+        let nightly = app.descendants(matching: .any)["row.agt_0000000000000041"]
+        XCTAssertFalse(nightly.exists)
+        add(screenshot(app, "held"))
+        pill.tap()
+        XCTAssertTrue(nightly.waitForExistence(timeout: 5))
+        XCTAssertTrue(wait(for: pill, "exists == false"))
+        XCTAssertTrue(app.descendants(matching: .any)["inbox.agt_0000000000000004"].waitForExistence(timeout: 5))
+        let moved = NSPredicate { element, _ in ((element as? XCUIElement)?.frame.minY ?? 0) > before.minY }
+        XCTAssertEqual(XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: moved, object: row)], timeout: 5), .completed)
     }
 
     func testSubagentStopIsInTheCardMenuAndAsksFirst() {
@@ -731,7 +753,7 @@ final class CompanionUITests: XCTestCase {
         card.buttons["Next"].tap()
         XCTAssertTrue(card.staticTexts["2 of 2"].waitForExistence(timeout: 5))
         app.navigationBars.buttons.firstMatch.tap()
-        let row = app.staticTexts["Add stock reservation expiry"]
+        let row = app.staticTexts["Add stock reservation expiry"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
         XCTAssertTrue(card.staticTexts["2 of 2"].waitForExistence(timeout: 5))
@@ -749,7 +771,7 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(option("30 minutes", in: card).waitForExistence(timeout: 10))
         for _ in 0..<2 {
             app.navigationBars.buttons.firstMatch.tap()
-            let row = app.staticTexts["Add stock reservation expiry"]
+            let row = app.staticTexts["Add stock reservation expiry"].firstMatch
             XCTAssertTrue(row.waitForExistence(timeout: 5))
             row.tap()
         }
@@ -763,7 +785,7 @@ final class CompanionUITests: XCTestCase {
 
     func testALongTranscriptOpensAtItsLastReply() {
         let app = launch(open: "agents", ["-longTranscript", "YES"])
-        let row = app.staticTexts["Add stock reservation expiry"]
+        let row = app.staticTexts["Add stock reservation expiry"].firstMatch
         let last = app.staticTexts["Last reply of the long session"]
         let window = app.windows.firstMatch
         for round in 0..<3 {

@@ -28,9 +28,18 @@ public final class AgentsStore {
         didSet { listed = RunRows.sessions(list.rows, runs: runRows) }
     }
     private var listed: [AgentSession] = [] {
-        didSet { sessions = listed.filter { !$0.hidden } }
+        didSet {
+            sessions = listed.filter { !$0.hidden }
+            offerList()
+        }
     }
     public private(set) var sessions: [AgentSession] = []
+    public var listFilter: ListFilter = .all
+    public var unfoldedSections: Set<String> = []
+    public internal(set) var hold = ListHold()
+    @ObservationIgnored var awaited: String?
+    @ObservationIgnored public var visibleRows: Set<String> = []
+    @ObservationIgnored public var listOnScreen = false
     public private(set) var dock: [AgentDockRow] = []
     public private(set) var transcripts: [String: AgentTranscript] = [:]
     public private(set) var loaded = false
@@ -176,6 +185,8 @@ public final class AgentsStore {
             guard let id = landed.result["session"]?.stringValue else { return }
             if let text = item.text { echo(text, images: [], in: id, sent: true) }
             arrived = id
+            awaited = id
+            landAwaited()
         case AgentCommand.prompt:
             echo(item.text ?? "", images: [], in: item.session, sent: true, known: promptKnown.removeValue(forKey: item.id))
             reconcile(item.session)

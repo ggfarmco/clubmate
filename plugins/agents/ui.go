@@ -269,19 +269,9 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 		if info, ok := infoByID[rec.ID]; ok && info.PausedUntil != nil {
 			row.Group, row.Until = info.Group, *info.PausedUntil
 		}
-		if n, ok := needs[runID(rec)]; ok {
-			row.RunNeed = &n
-		}
-		if l := row.Landing; l != nil && l.Run != "" {
-			if n, ok := needs[l.Run]; ok {
-				row.GateAsk = &n
-			}
-		}
+		row.attachNeeds(needs, nest)
 		if rec.Run != nil {
 			row.RunRow = runRows[rec.Run.ID]
-		}
-		if n, ok := nest[rec.ID]; ok {
-			row.Nest = &n
 		}
 		rows = append(rows, row)
 		if turnActive(rec) {

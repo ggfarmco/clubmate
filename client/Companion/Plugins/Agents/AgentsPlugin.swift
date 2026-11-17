@@ -93,6 +93,7 @@ struct SessionListView: View {
     let context: PluginContext
     let store: AgentsStore
     @State private var unfolded: Set<SessionGroup> = []
+    @Environment(\.scenePhase) private var phase
 
     var body: some View {
         List(selection: Binding(get: { context.navigation.detail }, set: { id in
@@ -157,7 +158,21 @@ struct SessionListView: View {
                 }
             }
         }
-        .refreshable { await store.refresh() }
+        .refreshable {
+            await store.refresh()
+            store.landList()
+        }
+        .toolbar {
+            if let pill = store.hold.pill, !store.searching {
+                ToolbarItem(placement: .topBarLeading) {
+                    HoldPill(text: pill) { Motion.disclose { store.landList() } }
+                }
+            }
+        }
+        .onChange(of: onScreen, initial: true) { _, shown in
+            store.listOnScreen = shown
+            if shown { store.landList() }
+        }
         .onChange(of: store.arrived) { _, arrived in
             guard let arrived else { return }
             store.arrived = nil
@@ -166,10 +181,85 @@ struct SessionListView: View {
         }
     }
 
+    private var onScreen: Bool {
+        phase != .background && (wide || context.navigation.detail == nil)
+    }
+
     @ViewBuilder
     private var sections: some View {
+        if store.treeMode {
+            tree
+        } else {
+            stateSections
+        }
+        endRows
+    }
+
+    @ViewBuilder
+    private var tree: some View {
+        Section {
+        } header: {
+            FilterChips(counts: store.listCounts, selected: store.listFilter) { filter in
+                Motion.disclose {
+                    store.listFilter = filter
+                    store.landList()
+                }
+            }
+            .textCase(nil)
+        }
+        ForEach(store.shownSections) { shown in
+            let section = shown.section
+            if section.folds {
+                let open = store.unfoldedSections.contains(section.id)
+                Section(isExpanded: Binding(get: { open }, set: { _ in })) {
+                    rows(shown.rows)
+                } header: {
+                    Button {
+                        Motion.disclose {
+                            if store.unfoldedSections.remove(section.id) == nil { store.unfoldedSections.insert(section.id) }
+                        }
+                    } label: {
+                        HStack {
+                            Text("\(section.title(now: .now) ?? "") · \(section.nodes.count)")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .rotationEffect(.degrees(open ? 90 : 0))
+                        }
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else if let title = section.title(now: .now) {
+                Section {
+                    rows(shown.rows)
+                } header: {
+                    HStack(spacing: 10) {
+                        Text(title)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        if section.kind == .open, context.connection.supports(OpenCommand.queue) {
+                            Button("Answer all", action: answerAll)
+                                .buttonStyle(.borderless)
+                                .tint(.accentColor)
+                                .fontWeight(.semibold)
+                                .contentShape(.rect.inset(by: -12))
+                        }
+                        Text("\(section.kind == .open ? section.nodes.reduce(0) { $0 + $1.openInTree } : section.nodes.count)")
+                    }
+                }
+            } else {
+                Section {
+                    rows(shown.rows)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var stateSections: some View {
         ForEach(store.groups) { group in
-            let items = group.sessions.flatMap { $0.rows(expanded: store.expanded, folded: store.foldedTasks) }
+            let items = group.sessions.flatMap { $0.rows(expanded: store.expanded, folded: store.foldedTasks) }.map { ListRow(section: group.id, item: $0, place: nil) }
             let count = group.sessions.count
             if group.group.folds {
                 let open = unfolded.contains(group.group)
@@ -220,6 +310,10 @@ struct SessionListView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var endRows: some View {
         if !store.endRows.isEmpty {
             Section {
                 ForEach(store.endRows) { row in
@@ -251,14 +345,15 @@ struct SessionListView: View {
         context.navigation.preferredColumn = .detail
     }
 
-    private func rows(_ items: [SessionRowItem]) -> some View {
-        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-            let nestedBelow = index + 1 < items.count && items[index + 1].depth > 0
+    private func rows(_ rows: [ListRow]) -> some View {
+        ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+            let item = row.item
+            let nestedBelow = index + 1 < rows.count && rows[index + 1].item.depth > 0
             HStack(spacing: 0) {
                 if let repo = item.repo {
                     PendingRepoRow(row: repo)
                 } else {
-                    SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants, waitingAsides: item.node.waitingAsides, chevron: item.toggleCount == nil, taskRow: item.taskRow)
+                    SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants, waitingAsides: item.node.waitingAsides, chevron: item.toggleCount == nil, taskRow: item.taskRow, place: row.place)
                 }
                 if let count = item.toggleCount {
                     SubagentToggle(count: count, expanded: item.expanded) {
@@ -272,9 +367,75 @@ struct SessionListView: View {
             .tag(item.id)
             .selectionDisabled(item.repo != nil)
             .modifier(SelectedSessionRow(active: wide, selected: context.navigation.detail == item.id))
+            .accessibilityIdentifier(row.place == nil ? "row." + item.id : "inbox." + item.id)
+            .onAppear { store.visibleRows.insert(row.id) }
+            .onDisappear { store.visibleRows.remove(row.id) }
         }
     }
 }
+
+struct FilterChips: View {
+    let counts: [ListFilter: Int]
+    let selected: ListFilter
+    let pick: (ListFilter) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                ForEach(ListFilter.allCases) { filter in
+                    let count = counts[filter] ?? 0
+                    let on = filter == selected
+                    Button { pick(filter) } label: {
+                        HStack(spacing: 6) {
+                            Text(filter.title)
+                                .fontWeight(on ? .semibold : .regular)
+                                .foregroundStyle(.primary)
+                            Text("\(count)")
+                                .monospacedDigit()
+                                .fontWeight(filter == .needs && count > 0 ? .semibold : .regular)
+                                .foregroundStyle(filter == .needs && count > 0 ? Color.warningInk : Color(.tertiaryLabel))
+                        }
+                        .font(.subheadline)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 32)
+                        .background(Capsule().fill(on ? Color(.tertiarySystemFill) : Color(.quaternarySystemFill)))
+                        .contentShape(.capsule)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                    .accessibilityIdentifier("chip." + filter.rawValue)
+                }
+            }
+        }
+        .scrollIndicators(.hidden)
+        .scrollClipDisabled()
+    }
+}
+
+struct HoldPill: View {
+    let text: String
+    let land: () -> Void
+
+    var body: some View {
+        Button(action: land) {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.down.to.line")
+                    .foregroundStyle(Color.accentColor)
+                Text(text)
+                    .fixedSize()
+            }
+            .font(.footnote.weight(.semibold))
+            .lineLimit(1)
+            .padding(.horizontal, 4)
+            .frame(minHeight: 36)
+            .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("list.hold")
+        .accessibilityHint("Shows the waiting changes")
+    }
+}
+
 
 struct SelectedSessionRow: ViewModifier {
     let active: Bool
@@ -342,6 +503,7 @@ struct SessionRow: View {
     var waitingAsides = 0
     var chevron = false
     var taskRow: RepoRow?
+    var place: String?
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { timeline in
@@ -375,7 +537,7 @@ struct SessionRow: View {
                             .foregroundStyle(taskRow?.tone.toneInk(default: Color.captionInk) ?? Color.captionInk)
                             .lineLimit(1)
                     } else {
-                        StateLineText(line: session.stateLine(now: timeline.date, waitingChildren: waitingChildren, waitingAsides: waitingAsides))
+                        StateLineText(line: placed(session.stateLine(now: timeline.date, waitingChildren: waitingChildren, waitingAsides: waitingAsides)))
                             .font(.subheadline)
                             .lineLimit(1)
                     }
@@ -391,6 +553,13 @@ struct SessionRow: View {
             .contentShape(.rect)
             .accessibilityElement(children: .combine)
         }
+    }
+
+    private func placed(_ line: SessionStateLine) -> SessionStateLine {
+        guard let place else { return line }
+        var line = line
+        line.age = place
+        return line
     }
 }
 

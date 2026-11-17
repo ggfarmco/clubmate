@@ -147,6 +147,9 @@ type sessionInfo struct {
 	CanAside        bool               `json:"canAside,omitempty"`
 	ListKey         string             `json:"listKey,omitempty"`
 	ListGroupKey    string             `json:"listGroupKey,omitempty"`
+	ListGroupLabel  string             `json:"listGroupLabel,omitempty"`
+	ListFilters     []string           `json:"listFilters,omitempty"`
+	ListOpen        int                `json:"listOpen,omitempty"`
 	InboxKey        string             `json:"inboxKey,omitempty"`
 	inbox           inboxEntry
 }

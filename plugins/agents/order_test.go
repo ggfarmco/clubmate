@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/agents/api"
 )
 
 const orderHome = "/r/m"
@@ -130,4 +131,85 @@ func idsOf(infos []sessionInfo) []string {
 		out = append(out, info.ID)
 	}
 	return out
+}
+
+func TestListFiltersAddUpToTheMacBadges(t *testing.T) {
+	t.Parallel()
+	t0 := time.Date(2026, 11, 16, 10, 0, 0, 0, time.UTC)
+	at := func(s int) time.Time { return t0.Add(time.Duration(s) * time.Second) }
+	recs := []record{
+		{ID: "agt_m1", Worktree: orderHome, Status: statusWaiting, CreatedAt: at(1)},
+		{ID: "agt_m2", Worktree: orderHome, Status: statusRunning, CreatedAt: at(2)},
+		{ID: "agt_m3", Worktree: orderHome, Status: statusDone, OpenCount: 2, CreatedAt: at(3)},
+		{ID: "agt_p", Worktree: "/r/b", Status: statusDone, CreatedAt: at(4)},
+		{ID: "agt_k", Worktree: "/r/b", lineage: lineage{ParentSession: "agt_p"}, Status: statusRunning, CreatedAt: at(5)},
+		{ID: "agt_s", Worktree: orderHome, Night: "deps", Status: statusWaiting, CreatedAt: at(6)},
+		{ID: "agt_x", Worktree: orderHome, Status: statusClosed, OpenCount: 1, CreatedAt: at(7)},
+		{ID: "agt_g", Worktree: "/r/b", Run: &api.Run{ID: "run_1"}, Status: statusDone, CreatedAt: at(8)},
+		{ID: "agt_l", Worktree: "/r/c", Status: statusDone, CreatedAt: at(10)},
+	}
+	needs := map[string]runNeed{
+		"run_1": {Run: "run_1", Kind: needStep, Request: "step-1", Since: at(9)},
+		"run_g": {Run: "run_g", Kind: needStep, Request: "step-2", Since: at(11)},
+	}
+	landings := map[string]*landingView{"agt_l": {Run: "run_g"}}
+	children := childStatuses(recs)
+	infos := make([]sessionInfo, 0, len(recs)+2)
+	rows := make([]sessionRow, 0, len(recs))
+	for _, rec := range recs {
+		infos = append(infos, sessionInfo{record: rec, ChildStatus: children[rec.ID], Landing: landings[rec.ID]})
+		row := sessionRow{Rec: rec, Children: children[rec.ID], Landing: landings[rec.ID]}
+		if rec.Run != nil {
+			row.RunNeed = new(needs["run_1"])
+		}
+		if l := landings[rec.ID]; l != nil {
+			row.GateAsk = new(needs[l.Run])
+		}
+		rows = append(rows, row)
+	}
+	infos = append(infos, runInfo("w", needs["run_1"]), runInfo("w", needs["run_g"]))
+	setListFilters(infos, needs)
+
+	phone := map[string]int{}
+	for _, info := range infos {
+		for _, f := range info.ListFilters {
+			if f != filterOpen {
+				phone[f]++
+			}
+		}
+		phone[filterOpen] += info.ListOpen
+	}
+	tree := sidebarView(rows, "", map[string]bool{}, t0, orderHome, groupKeys(recs, orderHome), false, "", sidebarSearch{}, 0, sidebarPlus{}, nil)
+	mac := map[string]int{}
+	for _, item := range nodesOf(tree, "tabs")[0].Props["items"].([]sdui.Item) {
+		var n int
+		fmt.Sscan(item.Badge, &n)
+		mac[item.ID] = n
+	}
+	assert.Equal(t, map[string]int{filterAll: 6, filterNeeds: 4, filterOpen: 2, filterRunning: 2}, mac)
+	assert.Equal(t, mac, phone)
+	assert.Equal(t, []string{"run_1"}, idsOf(slices.DeleteFunc(slices.Clone(infos), func(info sessionInfo) bool {
+		return info.Kind == "" || !slices.Contains(info.ListFilters, filterNeeds)
+	})))
+}
+
+func TestGroupLabelsNameTheBranchAndRunsSitWithTheirFirstNode(t *testing.T) {
+	t.Parallel()
+	t0 := time.Date(2026, 11, 16, 10, 0, 0, 0, time.UTC)
+	infos := []sessionInfo{
+		{record: record{ID: "agt_m", Worktree: orderHome, CreatedAt: t0}},
+		{record: record{ID: "agt_g2", Worktree: "/r/wt/feat-x", Run: &api.Run{ID: "run_1"}, CreatedAt: t0.Add(2 * time.Second)}},
+		{record: record{ID: "agt_g1", Worktree: "/r/wt/feat-x", Run: &api.Run{ID: "run_1"}, CreatedAt: t0.Add(time.Second)}},
+		runInfo("w", runNeed{Run: "run_1", Since: t0.Add(time.Hour)}),
+	}
+	setOrder(infos, orderHome)
+	setGroupLabels(infos, func(worktree string) string {
+		if worktree == orderHome {
+			return "main"
+		}
+		return ""
+	})
+	assert.Equal(t, []string{"main", "feat-x", "feat-x", "feat-x"}, []string{infos[0].ListGroupLabel, infos[1].ListGroupLabel, infos[2].ListGroupLabel, infos[3].ListGroupLabel})
+	assert.Equal(t, infos[2].ListKey, infos[3].ListKey)
+	assert.Equal(t, infos[2].ListGroupKey, infos[3].ListGroupKey)
 }

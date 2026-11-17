@@ -222,31 +222,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 			sdui.HStack(sdui.Button("start", "Start", "arrow.triangle.branch"), sdui.WithAction(sdui.Button("cancel", "Cancel", "xmark"), actHideBranch)),
 		), actNewBranch)
 	}
-	byID := make(map[string]bool, len(rows))
-	open := make(map[string]bool, len(rows))
-	for _, row := range rows {
-		byID[row.Rec.ID] = true
-		open[row.Rec.ID] = !row.Rec.closed()
-	}
-	kids := map[string][]sessionRow{}
-	var roots []sessionRow
-	for _, row := range rows {
-		parent := row.Rec.ParentSession
-		if n := row.Nest; n != nil {
-			if !n.Shown {
-				continue
-			}
-			parent = ""
-			if open[n.Lander] {
-				parent = n.Lander
-			}
-		}
-		if parent != "" && byID[parent] {
-			kids[parent] = append(kids[parent], row)
-			continue
-		}
-		roots = append(roots, row)
-	}
+	roots, kids := sidebarTree(rows)
 	var serviceRows []sessionRow
 	for _, row := range roots {
 		if row.Rec.restricted() && !row.Rec.closed() {
@@ -292,12 +268,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		oldestNeed(row, kids, oldest, map[string]bool{})
 	}
 	filter = cmp.Or(filter, filterAll)
-	runs := map[string][]string{}
-	for i, row := range roots {
-		runs[row.Rec.ID] = runsNeeding(row, kids, map[string]bool{})
-		roots[i].Open = openTotal(row, kids, map[string]bool{})
-		roots[i].AsideAsks = subtreeAsideAsks(row.Rec.ID, kids, map[string]bool{})
-	}
+	runs := markRoots(roots, kids)
 	tabs := filterTabs(roots, filter, runs)
 	roots = slices.DeleteFunc(roots, func(row sessionRow) bool {
 		return !matchesFilter(row, filter) && (filter != filterNeeds || len(runs[row.Rec.ID]) == 0)
@@ -540,34 +511,81 @@ func hitSession(id string) (string, bool) {
 	return session, true
 }
 
-func filterTabs(roots []sessionRow, filter string, runs map[string][]string) sdui.Node {
-	counts := map[string]int{}
+func sidebarTree(rows []sessionRow) ([]sessionRow, map[string][]sessionRow) {
+	byID := make(map[string]bool, len(rows))
+	open := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		byID[row.Rec.ID] = true
+		open[row.Rec.ID] = !row.Rec.closed()
+	}
+	kids := map[string][]sessionRow{}
+	var roots []sessionRow
+	for _, row := range rows {
+		parent := row.Rec.ParentSession
+		if n := row.Nest; n != nil {
+			if !n.Shown {
+				continue
+			}
+			parent = ""
+			if open[n.Lander] {
+				parent = n.Lander
+			}
+		}
+		if parent != "" && byID[parent] {
+			kids[parent] = append(kids[parent], row)
+			continue
+		}
+		roots = append(roots, row)
+	}
+	return roots, kids
+}
+
+func markRoots(roots []sessionRow, kids map[string][]sessionRow) map[string][]string {
+	runs := map[string][]string{}
+	for i, row := range roots {
+		runs[row.Rec.ID] = runsNeeding(row, kids, map[string]bool{})
+		roots[i].Open = openTotal(row, kids, map[string]bool{})
+		roots[i].AsideAsks = subtreeAsideAsks(row.Rec.ID, kids, map[string]bool{})
+	}
+	return runs
+}
+
+func tallyFilters(roots []sessionRow, runs map[string][]string, add func(id, filter string, n int)) {
 	counted := map[string]bool{}
 	for _, row := range roots {
-		fresh := false
+		var fresh string
 		for _, run := range runs[row.Rec.ID] {
-			fresh = fresh || !counted[run]
+			if !counted[run] && fresh == "" {
+				fresh = run
+			}
 			counted[run] = true
 		}
-		if fresh && !ownNeeds(row) {
-			counts[filterNeeds]++
+		if fresh != "" && !ownNeeds(row) {
+			add(fresh, filterNeeds, 1)
 		}
 		if row.Rec.closed() {
 			continue
 		}
 		if row.Rec.restricted() {
 			if matchesFilter(row, filterNeeds) {
-				counts[filterNeeds]++
+				add(row.Rec.ID, filterNeeds, 1)
 			}
 			continue
 		}
 		for _, f := range []string{filterAll, filterNeeds, filterRunning} {
 			if matchesFilter(row, f) {
-				counts[f]++
+				add(row.Rec.ID, f, 1)
 			}
 		}
-		counts[filterOpen] += row.Open
+		if row.Open > 0 {
+			add(row.Rec.ID, filterOpen, row.Open)
+		}
 	}
+}
+
+func filterTabs(roots []sessionRow, filter string, runs map[string][]string) sdui.Node {
+	counts := map[string]int{}
+	tallyFilters(roots, runs, func(_, f string, n int) { counts[f] += n })
 	needs := sdui.Item{ID: filterNeeds, Label: "Needs you", Icon: statusIcons[statusWaiting], Badge: strconv.Itoa(counts[filterNeeds])}
 	if counts[filterNeeds] > 0 {
 		needs.Tone = statusTones[statusWaiting]

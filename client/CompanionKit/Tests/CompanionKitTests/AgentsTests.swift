@@ -18,6 +18,8 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(sessions[0].createdAt, Date.parseRFC3339("2026-10-30T09:41:00Z"))
         XCTAssertEqual(AgentSession.grouped(sessions).map { $0.group }, [.needsInput, .closed])
         XCTAssertEqual(AgentSession.grouped(sessions)[0].sessions.map(\.id).sorted(), ["agt_0000000000000001", "agt_0000000000000002"])
+        XCTAssertEqual(AgentsTree.sections(sessions).map(\.id), ["inbox", "wt:0", "closed"])
+        XCTAssertTrue(AgentsTree.supported(sessions))
     }
 
     func testDecodesTheReviewProgressText() throws {

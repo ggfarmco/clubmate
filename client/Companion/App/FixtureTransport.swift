@@ -142,6 +142,7 @@ actor FixtureServer {
             for (id, title, status, ago, activity) in extra {
                 var record = Self.session(template, id: id, title: title, status: status, ago: ago, activity: activity)
                 if id == "agt_0000000000000006" { record["review"] = .bool(true) }
+                if id != "agt_0000000000000004" { record["worktree"] = .string(Self.choreWorktree) }
                 sessions.append(record)
             }
             others = [Self.session(template, id: "agt_0000000000000007", title: "Draft the companion brief", status: "running", ago: 600)]
@@ -429,9 +430,10 @@ actor FixtureServer {
         let session = args["session"]?.stringValue ?? ""
         switch id {
         case "agents.sessions" where LandReviewFixture.on && workspace == self.workspace && args["session"] == nil:
-            return .object(["sessions": .array(sessions.map(JSONValue.object)), "removed": .array([]), "cursor": .string("fx.land"), "dock": .array(LandReviewFixture.dock)])
+            return .object(["sessions": .array(Self.treeKeyed(sessions.map(Self.listKeyed)).map(JSONValue.object)), "removed": .array([]), "cursor": .string("fx.land"), "dock": .array(LandReviewFixture.dock)])
         case "agents.sessions":
-            return .array((workspace == self.workspace ? sessions.map(Self.withAsideState) : others).map { .object(Self.listKeyed($0)) } + (workspace == self.workspace ? [] : runEntries))
+            if workspace == self.workspace { scheduleHeldChange() }
+            return .array(Self.treeKeyed((workspace == self.workspace ? sessions.map(Self.withAsideState) : others).map(Self.listKeyed)).map(JSONValue.object) + (workspace == self.workspace ? [] : runEntries))
         case "agents.graph-show":
             return shownRun(args["id"]?.stringValue ?? "")
         case "agents.graph-approve":
@@ -747,7 +749,7 @@ actor FixtureServer {
         if docRevs[path] == nil {
             docRevs[path] = 1
             Task {
-                try? await Task.sleep(for: .seconds(4))
+                try? await Task.sleep(for: .seconds(max(UserDefaults.standard.double(forKey: "holdFixture"), 4)))
                 change(path)
             }
         }
@@ -1604,6 +1606,67 @@ actor FixtureServer {
         case "signin": .object(["id": .string("signin"), "label": .string("Sign in"), "icon": .string("person.badge.key")])
         case "continue": .object(["id": .string("continue"), "label": .string("Hand off to a new session"), "icon": .string("arrow.turn.down.right"), "command": .string("agents.handoff"), "args": args])
         default: .object(["id": .string("retry"), "label": .string("Retry"), "icon": .string("arrow.clockwise"), "command": .string("agents.resume"), "args": args])
+        }
+    }
+
+    private static let homeWorktree = "/Users/me/src/shop"
+    private static let choreWorktree = "/Users/me/src/shop/.worktrees/chore/cart-store"
+    private var heldChange: Task<Void, Never>?
+    private static let heldStart = Date.now
+
+    private func scheduleHeldChange() {
+        guard UserDefaults.standard.object(forKey: "holdFixture") != nil, heldChange == nil, let template = sessions.first else { return }
+        let at = Self.heldStart.addingTimeInterval(max(UserDefaults.standard.double(forKey: "holdFixture"), 4))
+        heldChange = Task {
+            try? await Task.sleep(for: .seconds(max(at.timeIntervalSinceNow, 0)))
+            self.applyHeldChange(template)
+        }
+    }
+
+    private func applyHeldChange(_ template: [String: JSONValue]) {
+        if let index = sessions.firstIndex(where: { $0["id"] == .string("agt_0000000000000004") }) {
+            sessions[index]["status"] = .string("waiting")
+            sessions[index]["activity"] = nil
+            sessions[index]["pending"] = .array([.string("permission-9")])
+            sessions[index]["pendingSummary"] = .object(["kind": .string("permission"), "text": .string("git fetch"), "tool": .string("execute"), "at": Self.stamp(ago: 0)])
+            sessions[index]["needsYou"] = .bool(true)
+            sessions[index]["needsYouSince"] = Self.stamp(ago: 0)
+            Self.regroup(&sessions[index])
+        }
+        var nightly = Self.session(template, id: "agt_0000000000000041", title: "Nightly: deps audit", status: "running", ago: 0, activity: "Started by cron")
+        nightly["worktree"] = .string(Self.homeWorktree)
+        sessions.append(nightly)
+        publish("agents.changed", ["workspace": .string(workspace), "session": .string("agt_0000000000000041"), "kind": .string("status")])
+    }
+
+    private static func treeKeyed(_ list: [[String: JSONValue]]) -> [[String: JSONValue]] {
+        let ids = Set(list.compactMap { $0["id"]?.stringValue })
+        return list.map { fields in
+            var fields = fields
+            for key in ["inboxKey", "listFilters", "listOpen"] { fields[key] = nil }
+            let worktree = fields["worktree"]?.stringValue ?? homeWorktree
+            let home = worktree == homeWorktree
+            fields["listGroupKey"] = .string(home ? "0" : "1 " + worktree)
+            fields["listGroupLabel"] = .string(home ? "main" : worktree.components(separatedBy: ".worktrees/").last ?? worktree)
+            let root = !["nestUnder", "rowUnder", "parentSession"].contains { fields[$0]?.stringValue.map(ids.contains) == true } && fields["hidden"] != .bool(true)
+            let status = fields["status"]?.stringValue ?? ""
+            let group = fields["group"]?.stringValue ?? ""
+            guard root, status != "closed" else { return fields }
+            let open = Int(fields["openCount"]?.numberValue ?? 0)
+            let service = fields["service"] == .bool(true)
+            var filters = service ? [] : ["all"]
+            if group == "needsYou" { filters.append("needs") }
+            if !service, open > 0 || fields["mayAsk"] == .bool(true) { filters.append("open") }
+            if !service, status == "running" || fields["childStatus"] == .string("running") { filters.append("running") }
+            fields["listFilters"] = .array(filters.map(JSONValue.string))
+            if open > 0, !service { fields["listOpen"] = .number(Double(open)) }
+            let id = fields["id"]?.stringValue ?? ""
+            if !service, group == "needsYou" {
+                fields["inboxKey"] = .string("0 " + (fields["needsYouSince"]?.stringValue ?? fields["updatedAt"]?.stringValue ?? "") + " " + id)
+            } else if !service, group == "open" {
+                fields["inboxKey"] = .string("1 " + (fields["openSince"]?.stringValue ?? "") + " " + id)
+            }
+            return fields
         }
     }
 

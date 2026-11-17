@@ -72,6 +72,11 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let canAside: Bool
     public let forkedFrom: String?
     public let composerDraft: ComposerDraft?
+    public let listGroupKey: String?
+    public let listGroupLabel: String?
+    public let listFilters: [String]?
+    public let listOpen: Int
+    public let inboxKey: String?
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -86,7 +91,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         repo: String? = nil, taskRows: [RepoRow] = [], taskBadge: String? = nil, archivable: Bool = false, taskFinished: Bool = false, requests: [String] = [], turns: Int = 0, rowDetail: String? = nil,
         limitShare: [String: Double] = [:], shareLabel: String? = nil, shareWords: [String: String] = [:], shareDetail: String? = nil, listKey: String? = nil,
         hidden: Bool = false, rowUnder: String? = nil, gateRound: GateRound? = nil, landing: SessionLanding? = nil,
-        aside: AsideInfo? = nil, canAside: Bool = false, forkedFrom: String? = nil, composerDraft: ComposerDraft? = nil
+        aside: AsideInfo? = nil, canAside: Bool = false, forkedFrom: String? = nil, composerDraft: ComposerDraft? = nil,
+        listGroupKey: String? = nil, listGroupLabel: String? = nil, listFilters: [String]? = nil, listOpen: Int = 0, inboxKey: String? = nil
     ) {
         self.id = id
         self.workspace = workspace
@@ -159,6 +165,11 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.canAside = canAside
         self.forkedFrom = forkedFrom
         self.composerDraft = composerDraft
+        self.listGroupKey = listGroupKey
+        self.listGroupLabel = listGroupLabel
+        self.listFilters = listFilters
+        self.listOpen = listOpen
+        self.inboxKey = inboxKey
     }
 
     public var isClosed: Bool { status == .closed }
@@ -170,6 +181,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         case limitShare, shareLabel, shareWords, shareDetail, listKey
         case hidden, rowUnder, gateRound, landing
         case aside, canAside, forkedFrom, composerDraft
+        case listGroupKey, listGroupLabel, listFilters, listOpen, inboxKey
     }
 
     public init(from decoder: any Decoder) throws {
@@ -250,7 +262,12 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             aside: try? c.decodeIfPresent(AsideInfo.self, forKey: .aside),
             canAside: try flag(.canAside),
             forkedFrom: try optional(.forkedFrom),
-            composerDraft: try? c.decodeIfPresent(ComposerDraft.self, forKey: .composerDraft)
+            composerDraft: try? c.decodeIfPresent(ComposerDraft.self, forKey: .composerDraft),
+            listGroupKey: try optional(.listGroupKey),
+            listGroupLabel: try optional(.listGroupLabel),
+            listFilters: try c.decodeIfPresent([String].self, forKey: .listFilters),
+            listOpen: try c.decodeIfPresent(Int.self, forKey: .listOpen) ?? 0,
+            inboxKey: try optional(.inboxKey)
         )
     }
 
@@ -325,6 +342,11 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         if canAside { try c.encode(canAside, forKey: .canAside) }
         try c.encodeIfPresent(forkedFrom, forKey: .forkedFrom)
         try c.encodeIfPresent(composerDraft, forKey: .composerDraft)
+        try c.encodeIfPresent(listGroupKey, forKey: .listGroupKey)
+        try c.encodeIfPresent(listGroupLabel, forKey: .listGroupLabel)
+        try c.encodeIfPresent(listFilters, forKey: .listFilters)
+        if listOpen > 0 { try c.encode(listOpen, forKey: .listOpen) }
+        try c.encodeIfPresent(inboxKey, forKey: .inboxKey)
         if hidden { try c.encode(hidden, forKey: .hidden) }
         try c.encodeIfPresent(rowUnder, forKey: .rowUnder)
         try c.encodeIfPresent(gateRound, forKey: .gateRound)
