@@ -158,7 +158,7 @@ func (s *Store) Read(ctx context.Context, page string) (Page, string, error) {
 		return Page{}, "", err
 	}
 	p := s.pageAt(page, abs, info, metas)
-	p.Stale = newStaleCheck(ctx, s.p.Checkout, []Meta{metas[page]}).stale(metas[page])
+	newStaleCheck(ctx, s.p.Checkout, []Meta{metas[page]}).apply(&p, metas[page])
 	return p, string(data), nil
 }
 
@@ -180,7 +180,7 @@ func (s *Store) List(ctx context.Context, shadow bool) ([]Page, error) {
 	})
 	check := newStaleCheck(ctx, s.p.Checkout, listed)
 	for i := range pages {
-		pages[i].Stale = check.stale(listed[i])
+		check.apply(&pages[i], listed[i])
 	}
 	return pages, err
 }
@@ -232,7 +232,11 @@ func (s *Store) History(ctx context.Context, page string, limit int) ([]Change, 
 	if err != nil {
 		return nil, err
 	}
-	out, err := wikiroot.Git(ctx, s.p.Dir, "log", "-n", strconv.Itoa(max(limit, 1)), "--format=%at%x00%an%x00%s", "--", page)
+	args := []string{"log", "--format=%at%x00%an%x00%s"}
+	if limit > 0 {
+		args = append(args, "-n", strconv.Itoa(limit))
+	}
+	out, err := wikiroot.Git(ctx, s.p.Dir, append(args, "--", page)...)
 	if err != nil {
 		return nil, err
 	}

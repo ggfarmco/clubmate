@@ -70,7 +70,11 @@ func TestStaleAfterLaterChange(t *testing.T) {
 	writeFile(t, filepath.Join(repo, "a.go"), "package a\n\nfunc B() {}\n")
 	gitAt(t, repo, writtenAt.Add(2*time.Hour), "commit", "-q", "-am", "later")
 
-	assert.True(t, stale(t, s))
+	page, _, err := s.Read(t.Context(), "a.md")
+	require.NoError(t, err)
+	assert.True(t, page.Stale)
+	assert.Equal(t, "a.go", page.StaleSource)
+	assert.Equal(t, writtenAt.Add(2*time.Hour), page.StaleAt)
 }
 
 func TestStaleDeletedSource(t *testing.T) {

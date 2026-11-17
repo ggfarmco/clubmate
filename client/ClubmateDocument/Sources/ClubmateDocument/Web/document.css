@@ -4,6 +4,9 @@
   --border-strong: color-mix(in srgb, var(--text) 22%, var(--bg));
   --tone-bg-danger: color-mix(in srgb, var(--danger) 15%, var(--bg));
   --tone-bg-success: color-mix(in srgb, var(--success) 15%, var(--bg));
+  --measure: 88ch;
+  --margin-col: 200px;
+  --margin-gap: 40px;
 }
 
 html, body {
@@ -26,12 +29,12 @@ html.fit, html.fit body { overflow: hidden; }
   overflow-wrap: break-word;
 }
 
-#doc > :is(p, ul, ol, dl, blockquote, details, h1, h2, h3, h4, h5, h6, .footnotes) { max-width: 88ch; }
+#doc > :is(p, ul, ol, dl, blockquote, details, h1, h2, h3, h4, h5, h6, .footnotes) { max-width: var(--measure); }
 
 html.fit #doc { padding: 0; }
 html.fit #doc > :is(p, ul, ol, dl, blockquote, details, h1, h2, h3, h4, h5, h6, .footnotes) { max-width: none; }
 
-#doc > :first-child { margin-top: 0; }
+#doc > :first-child, #doc > .wiki-fold + * { margin-top: 0; }
 #doc > :last-child { margin-bottom: 0; }
 
 p, ul, ol, dl, table, blockquote, pre, .mermaid-diagram, details { margin: 0 0 12px; }
@@ -97,7 +100,7 @@ kbd {
 pre {
   box-sizing: border-box;
   width: fit-content;
-  min-width: min(100%, 88ch);
+  min-width: min(100%, var(--measure));
   max-width: 100%;
   padding: 8px 12px;
   border: 1px solid var(--border);
@@ -240,3 +243,83 @@ pre.mermaid-failed {
 .chroma .gs { font-weight: 600; }
 .chroma .gh, .chroma .gu { color: var(--muted); font-weight: 600; }
 .chroma .gp, .chroma .go { color: var(--muted); }
+
+.wiki-margin { display: none; }
+
+.wiki-margin, .wm-fold {
+  flex-direction: column;
+  gap: 22px;
+  font-size: 0.92em;
+  line-height: 1.67;
+  overflow-wrap: anywhere;
+}
+
+.wm-fold { display: flex; padding: 12px 0 4px; }
+
+@media (min-width: 960px) {
+  #doc:has(> .wiki-margin) { padding-right: calc(var(--inset, 24px) + var(--margin-col) + var(--margin-gap)); }
+  .wiki-margin {
+    display: flex;
+    position: fixed;
+    top: 16px;
+    right: var(--inset, 24px);
+    box-sizing: border-box;
+    width: var(--margin-col);
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+  }
+  .wiki-fold { display: none; }
+  .wiki-margin > nav { flex: none; max-height: 50vh; overflow-y: auto; }
+}
+
+.wm-sec { display: flex; flex-direction: column; min-width: 0; }
+.wm-cap { display: flex; align-items: center; gap: 6px; padding: 0 0 4px 10px; color: var(--muted); }
+.wm-warn { color: var(--warning); }
+.wm-text { padding-left: 10px; color: var(--text-2); }
+.wm-text code { font-size: 0.95em; }
+
+.wiki-margin svg, .wm-fold svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.wm-oln {
+  display: block;
+  flex: none;
+  padding: 0 0 0 10px;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wm-oln.wm-l3 { padding-left: 22px; }
+.wm-oln:hover { color: var(--text); text-decoration: none; }
+
+.wm-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding-left: 10px;
+  color: var(--text-2);
+}
+
+a.wm-row:hover { color: var(--text); text-decoration: none; background: var(--hover); border-radius: 3px; }
+.wm-row svg { color: var(--muted); }
+.wm-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wm-detail { flex: none; color: var(--muted); font-size: 0.92em; font-variant-numeric: tabular-nums; }
+.wm-all { color: var(--muted); }
+.wm-all kbd { font-size: 0.85em; line-height: 1.4; color: var(--muted); }
+
+.wiki-fold { color: var(--text-2); font-size: 0.92em; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.wiki-fold > summary { cursor: pointer; color: var(--muted); }
+.wiki-fold > summary:hover { color: var(--text); }
+.wiki-fold .wm-fold { font-size: 1em; }

@@ -2,6 +2,8 @@ package macui_test
 
 import (
 	"encoding/json"
+	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -34,4 +36,25 @@ func TestWikiAgentNotesFoldAndHistoryKey(t *testing.T) {
 	in.eventually("cmd+y shows the page's history with the tree focused", func() bool { return in.snapshot().main().has("changes") })
 	in.key("cmd+y")
 	in.eventually("cmd+y again goes back to the page", func() bool { return in.snapshot().main().has("page") })
+}
+
+func TestWikiMarginAllChangesOpensHistory(t *testing.T) {
+	in := start(t, "macui-wiki-margin", "")
+	for i := range 4 {
+		args, err := json.Marshal(map[string]string{"page": "a.md", "content": "# A\n\nBody " + strconv.Itoa(i) + ".\n", "summary": "v" + strconv.Itoa(i)})
+		require.NoError(t, err)
+		in.cm("command", "run", "wiki.write", "--args", string(args))
+	}
+	in.focusSection("wiki", "wiki.sidebar")
+	var page *element
+	in.eventually("the page shows at 1280", func() bool {
+		page = in.snapshotAt("1280x800").main().find(func(e element) bool { return e.ID == "page" })
+		return page != nil
+	})
+
+	opened := func() bool { return in.snapshot().main().has("changes") }
+	for y := 90; y <= 140 && !opened(); y += 5 {
+		in.pointer("click", "page", "--at", fmt.Sprintf("%d,%d", int(page.Frame.Width)-110, y))
+	}
+	in.eventually("a click on All 4 changes in the margin opens History", opened)
 }

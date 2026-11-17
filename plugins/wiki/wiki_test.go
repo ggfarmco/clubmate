@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -188,5 +189,32 @@ func TestLinkToPageSelectsIt(t *testing.T) {
 	e.h.WaitSlot(t, e.ws, mainSlot, func(n sdui.Node) bool {
 		h, ok := findNode(n, headerNode)
 		return ok && h.Props["title"] == "Bee"
+	})
+}
+
+func TestMarginListsBacklinksAndOpensHistory(t *testing.T) {
+	e := newPluginEnv(t)
+	require.NoError(t, e.run("wiki.write", "", map[string]any{"page": "guides/a.md", "content": "# Aye\n\nSee [b](../b.md#two).\n", "summary": "x"}, nil))
+	var out struct {
+		Path string `json:"path"`
+	}
+	for i := range 4 {
+		require.NoError(t, e.run("wiki.write", "", map[string]any{"page": "b.md", "content": "# Bee\n\n## One\n\n## Two\n\nv" + strconv.Itoa(i) + "\n", "summary": "v" + strconv.Itoa(i)}, &out))
+	}
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.ws}, nil))
+	e.h.WaitSlot(t, e.ws, mainSlot, func(n sdui.Node) bool {
+		doc, ok := findNode(n, docNode)
+		if !ok {
+			return false
+		}
+		html, _ := doc.Props["html"].(string)
+		return strings.Contains(html, `>Aye</span>`) && strings.Contains(html, "All 4 changes") && strings.Contains(html, `href="#two"`)
+	})
+
+	e.h.Event(t, e.ws, mainSlot, docNode, "openDoc", out.Path+"#"+historyAnchor)
+
+	e.h.WaitSlot(t, e.ws, mainSlot, func(n sdui.Node) bool {
+		_, ok := findNode(n, changesNode)
+		return ok
 	})
 }

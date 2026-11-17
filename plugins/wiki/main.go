@@ -22,6 +22,7 @@ type wiki struct {
 	ui      map[string]*workspaceUI
 	present map[string]bool
 	sigs    map[string]string
+	links   map[string]map[string]linkEntry
 }
 
 type changedEvent struct {
@@ -30,7 +31,7 @@ type changedEvent struct {
 }
 
 func newWiki() *wiki {
-	return &wiki{now: time.Now, ui: map[string]*workspaceUI{}, present: map[string]bool{}, sigs: map[string]string{}}
+	return &wiki{now: time.Now, ui: map[string]*workspaceUI{}, present: map[string]bool{}, sigs: map[string]string{}, links: map[string]map[string]linkEntry{}}
 }
 
 func main() {

@@ -122,7 +122,7 @@ func TestRenderKeepsSelectionMadeMeanwhile(t *testing.T) {
 
 func TestReadErrorIsEscaped(t *testing.T) {
 	p, _ := newProject(t)
-	m := newWiki().pageData(t.Context(), contract.Workspace{}, nil, Open(p, time.Now), recentRow{Project: p.Name, Page: Page{Path: "<i>x</i>.md"}}, false)
+	m := newWiki().pageData(t.Context(), contract.Workspace{}, nil, Open(p, time.Now), recentRow{Project: p.Name, Page: Page{Path: "<i>x</i>.md"}}, nil, false)
 
 	assert.NotContains(t, m.HTML, "<i>")
 	assert.Contains(t, m.HTML, "&lt;i&gt;")

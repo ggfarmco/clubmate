@@ -86,16 +86,26 @@ func newStaleCheck(ctx context.Context, checkout string, metas []Meta) *staleChe
 	return c
 }
 
-func (c *staleCheck) stale(m Meta) bool {
+func (c *staleCheck) apply(p *Page, m Meta) {
 	if c == nil {
-		return false
+		return
 	}
+	var at int64
 	for _, src := range m.Sources {
-		if c.blobs[src] != m.Blobs[src] && c.touched[src] > m.WrittenAt.Unix() {
-			return true
+		if c.blobs[src] == m.Blobs[src] || c.touched[src] <= m.WrittenAt.Unix() {
+			continue
 		}
+		if p.Stale {
+			p.StaleMore++
+		}
+		if !p.Stale || c.touched[src] > at {
+			p.StaleSource, at = src, c.touched[src]
+		}
+		p.Stale = true
 	}
-	return false
+	if p.Stale {
+		p.StaleAt = time.Unix(at, 0).UTC()
+	}
 }
 
 func blobsOf(ctx context.Context, checkout, rev string, sources []string) (map[string]string, error) {

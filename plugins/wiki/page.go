@@ -34,13 +34,16 @@ type Meta struct {
 }
 
 type Page struct {
-	Path    string
-	Title   string
-	Shadow  bool
-	Updated time.Time
-	By      string
-	Stale   bool
-	Sources []string
+	Path        string
+	Title       string
+	Shadow      bool
+	Updated     time.Time
+	By          string
+	Stale       bool
+	Sources     []string
+	StaleSource string
+	StaleAt     time.Time
+	StaleMore   int
 }
 
 type Change struct {

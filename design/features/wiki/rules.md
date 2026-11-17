@@ -4,7 +4,7 @@ Direction B, "Margin" (Claude Design round 1, canvas "Clubmate · Wiki", https:/
 
 The user's pain: "the wiki looks sad: huge empty margins on the sides, and in general it isn't neat". The page body was an 820 px column centred in the pane, the title showed twice, the sidebar listed every page twice (Recent + tree).
 
-**Status:** landing 1 (rules 1, 3, 4, 8, rule 5 without New to you) is built; the margin column (rule 2), History with diff (rule 6), New to you and search snippets (rules 5, 7) are not yet, so the boards show more than the app until those land (backlog #787–#790). How landing 1 looks: `built/`.
+**Status:** landing 1 (rules 1, 3, 4, 8, rule 5 without New to you) and landing 2a (rule 2, the margin column) are built; History with diff (rule 6), New to you and search snippets (rules 5, 7) are not yet, so the boards show more than the app until those land (backlog #788–#790). How landing 1 looks: `built/`.
 
 ## The rules
 

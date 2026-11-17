@@ -185,7 +185,7 @@ func (w *wiki) renderNow(ctx context.Context, workspaceID string) error {
 	m := mainData{}
 	if ok {
 		d.Selected = pageID(current.Project, current.Page.Path)
-		m = w.pageData(ctx, ws, projects, stores[current.Project], current, history)
+		m = w.pageData(ctx, ws, projects, stores[current.Project], current, projectPages(d.Projects, current.Project), history)
 	}
 	w.settleSelection(u, selected, d.Selected)
 	if err := w.push(ctx, u, workspaceID, sidebarSlot, sidebarView(d)); err != nil {
@@ -203,7 +203,16 @@ func find(rows []recentRow, id string) (recentRow, bool) {
 	return recentRow{}, false
 }
 
-func (w *wiki) pageData(ctx context.Context, ws contract.Workspace, projects []wikiroot.Project, s *Store, row recentRow, history bool) mainData {
+func projectPages(projects []projectView, name string) []Page {
+	for _, p := range projects {
+		if p.Name == name {
+			return p.Pages
+		}
+	}
+	return nil
+}
+
+func (w *wiki) pageData(ctx context.Context, ws contract.Workspace, projects []wikiroot.Project, s *Store, row recentRow, pages []Page, history bool) mainData {
 	page := row.Page
 	m := mainData{Project: row.Project, Page: &page, ShowHistory: history, Path: filepath.Join(s.p.Dir, filepath.FromSlash(page.Path))}
 	if history {
@@ -219,13 +228,31 @@ func (w *wiki) pageData(ctx context.Context, ws contract.Workspace, projects []w
 		m.Kind = sdui.DocumentMarkdown
 		return m
 	}
-	m.Rev = int(crc32.ChecksumIEEE(src) & 0x7fffffff)
 	if docext.IsArtifact(page.Path) {
-		m.HTML, m.Kind = docrender.Artifact(src, m.Path).HTML, sdui.DocumentArtifact
+		m.HTML, m.Kind, m.Rev = docrender.Artifact(src, m.Path).HTML, sdui.DocumentArtifact, rev(src)
 		return m
 	}
-	m.HTML, m.Kind = dropTitle(docrender.Render(src, docrender.Options{Path: m.Path, Allowed: scope(ws, projects)}).HTML, page.Title), sdui.DocumentMarkdown
+	body := dropTitle(docrender.Render(src, docrender.Options{Path: m.Path, Allowed: scope(ws, projects)}).HTML, page.Title)
+	m.HTML = body
+	if docext.Kind(page.Path) == docext.KindMarkdown {
+		m.HTML = w.margin(ctx, s, m.Path, page, pages, body) + body
+	}
+	m.Kind, m.Rev = sdui.DocumentMarkdown, rev([]byte(m.HTML))
 	return m
+}
+
+func rev(b []byte) int {
+	return int(crc32.ChecksumIEEE(b) & 0x7fffffff)
+}
+
+func (w *wiki) margin(ctx context.Context, s *Store, abs string, page Page, pages []Page, body string) string {
+	changes, err := s.History(ctx, page.Path, 0)
+	logError("history "+page.Path, err)
+	d := marginData{Path: abs, Page: page, Outline: headings(body), Changes: changes, Total: len(changes), Now: w.now()}
+	for _, l := range w.linkedFrom(s, pages, page.Path) {
+		d.Linked = append(d.Linked, linkedPage{Title: l.Title, Path: filepath.Join(s.p.Dir, filepath.FromSlash(l.Path)), Shadow: l.Shadow})
+	}
+	return margin(d)
 }
 
 func scope(ws contract.Workspace, projects []wikiroot.Project) func(string) bool {
@@ -427,7 +454,7 @@ func (w *wiki) newPage(ctx context.Context, workspaceID string, u *workspaceUI) 
 }
 
 func (w *wiki) openLink(ctx context.Context, workspaceID string, u *workspaceUI, action, target string) error {
-	path, _, _ := strings.Cut(target, "#")
+	path, anchor, _ := strings.Cut(target, "#")
 	ws, err := w.h.GetWorkspace(ctx, workspaceID)
 	if err != nil {
 		return err
@@ -445,7 +472,7 @@ func (w *wiki) openLink(ctx context.Context, workspaceID string, u *workspaceUI,
 		if rel, err := filepath.Rel(dir, abs); err == nil && gitrepo.Within(abs, dir) {
 			if page, err := cleanPage(filepath.ToSlash(rel)); err == nil {
 				w.mu.Lock()
-				u.selected, u.history = pageID(p.Name, page), false
+				u.selected, u.history = pageID(p.Name, page), anchor == historyAnchor
 				w.mu.Unlock()
 				return nil
 			}
