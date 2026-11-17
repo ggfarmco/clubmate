@@ -21,11 +21,14 @@ import (
 const (
 	flagEnv   = "AWAKE_TEST_LID_FLAG"
 	holderEnv = "AWAKE_TEST_LID_HOLDER"
+	graceEnv  = "AWAKE_TEST_LID_GRACE"
 )
 
 func TestMain(m *testing.M) {
 	if len(os.Args) > 1 && os.Args[1] == guardArg {
-		runGuard(fileShell(os.Getenv(flagEnv)))
+		c := fileShell(os.Getenv(flagEnv))
+		c.grace, _ = time.ParseDuration(os.Getenv(graceEnv))
+		runGuard(c, os.Args[2:])
 		return
 	}
 	if os.Getenv(holderEnv) != "" {
@@ -76,7 +79,7 @@ func TestLidStaysAwakeWhileHeldAndSleepsAtLowBattery(t *testing.T) {
 	require.NoError(t, err)
 	e.a.shutdown()
 	e.a.tick(t.Context())
-	assert.Equal(t, []bool{true, true, false, true, false, true, false}, e.lid.writes, "a tick after shutdown holds nothing")
+	assert.Equal(t, []bool{true, true, false, true, false, true}, e.lid.writes, "shutdown leaves the flag to the guard's hand-over")
 }
 
 func TestRestartClearsTheLidItLeftHeld(t *testing.T) {
@@ -136,13 +139,29 @@ func TestGuardWaitsForADyingHolderToLetGo(t *testing.T) {
 	assert.Equal(t, "0\n", readFlag(t, path))
 }
 
-func TestGuardFreesTheLidWhenItsPluginIsKilled(t *testing.T) {
+func TestGuardFreesTheLidWhenNoPluginTakesItOver(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "flag")
+	killHolder(t, path, "100ms")
+	testutil.Eventually(t, func() bool { return readFlag(t, path) == "1\n0\n" }, 10*time.Second)
+}
+
+func TestGuardHandsTheLidToTheNextPlugin(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "flag")
+	killHolder(t, path, "3s")
+	testutil.Never(t, func() bool { return readFlag(t, path) != "1\n" }, time.Second)
+	next := fileShell(path)
+	next.guardIn = nopCloser{}
+	testutil.Eventually(t, func() bool { return next.Hold() == nil }, 10*time.Second)
+	testutil.Never(t, func() bool { return readFlag(t, path) != "1\n1\n" }, testutil.Timeout(3*time.Second))
+}
+
+func killHolder(t *testing.T, path, grace string) {
+	t.Helper()
 	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^$")
-	cmd.Env = append(os.Environ(), flagEnv+"="+path, holderEnv+"=1")
+	cmd.Env = append(os.Environ(), flagEnv+"="+path, holderEnv+"=1", graceEnv+"="+grace)
 	stdin, err := cmd.StdinPipe()
 	require.NoError(t, err)
-	defer stdin.Close()
+	t.Cleanup(func() { _ = stdin.Close() })
 	stdout, err := cmd.StdoutPipe()
 	require.NoError(t, err)
 	require.NoError(t, cmd.Start())
@@ -151,10 +170,8 @@ func TestGuardFreesTheLidWhenItsPluginIsKilled(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "held\n", line)
 	require.Equal(t, "1\n", readFlag(t, path))
-
 	require.NoError(t, cmd.Process.Kill())
 	_ = cmd.Wait()
-	testutil.Eventually(t, func() bool { return readFlag(t, path) == "1\n0\n" }, 10*time.Second)
 }
 
 func fileShell(path string) *clamshell {

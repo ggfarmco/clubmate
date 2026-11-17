@@ -278,10 +278,6 @@ func (k *keeper) applyLid(resend bool) {
 }
 
 func (k *keeper) stop() {
-	if k.lidOn {
-		logError("free the lid", k.lid.Free())
-		k.lidOn = false
-	}
 	k.holder.release()
 	k.stopped = true
 }

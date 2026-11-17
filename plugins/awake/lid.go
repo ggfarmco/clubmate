@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -17,7 +18,9 @@ const (
 	lockName = "clubmate-awake-lid.lock"
 
 	guardLockWait = 2 * time.Second
+	guardGrace    = 60 * time.Second
 	lockRetry     = 20 * time.Millisecond
+	handOverPoll  = 200 * time.Millisecond
 )
 
 var errLidBusy = errors.New("another keep awake holds the lid")
@@ -33,10 +36,11 @@ type clamshell struct {
 	lockPath string
 	lock     *os.File
 	guardIn  io.WriteCloser
+	grace    time.Duration
 }
 
 func newClamshell() *clamshell {
-	return &clamshell{write: setClamshellIOKit, lockPath: filepath.Join(os.TempDir(), lockName)}
+	return &clamshell{write: setClamshellIOKit, lockPath: filepath.Join(os.TempDir(), lockName), grace: guardGrace}
 }
 
 func (c *clamshell) Hold() error {
@@ -86,7 +90,7 @@ func (c *clamshell) startGuard() error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(exe, guardArg)
+	cmd := exec.Command(exe, guardArg, strconv.Itoa(os.Getpid()))
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	in, err := cmd.StdinPipe()
 	if err != nil {
@@ -133,7 +137,36 @@ func lockWithin(path string, wait time.Duration) (*os.File, error) {
 	}
 }
 
-func runGuard(c *clamshell) {
+func (c *clamshell) handOver() error {
+	for end := time.Now().Add(c.grace); time.Now().Before(end); time.Sleep(handOverPoll) {
+		f, err := tryLock(c.lockPath)
+		if errors.Is(err, errLidBusy) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		f.Close()
+	}
+	return c.free(guardLockWait)
+}
+
+func waitGone(parent int, wait time.Duration) {
+	for end := time.Now().Add(wait); time.Now().Before(end); time.Sleep(lockRetry) {
+		if os.Getppid() != parent {
+			return
+		}
+	}
+}
+
+func runGuard(c *clamshell, args []string) {
+	parent := os.Getppid()
+	if len(args) > 0 {
+		if pid, err := strconv.Atoi(args[0]); err == nil {
+			parent = pid
+		}
+	}
 	_, _ = io.Copy(io.Discard, os.Stdin)
-	logError("lid guard", c.free(guardLockWait))
+	waitGone(parent, guardLockWait)
+	logError("lid guard", c.handOver())
 }

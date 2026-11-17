@@ -87,7 +87,7 @@ type settingsArgs struct {
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == guardArg {
-		runGuard(newClamshell())
+		runGuard(newClamshell(), os.Args[2:])
 		return
 	}
 	a := &awake{k: newKeeper(assertIOKit, newClamshell(), time.Now, pidAlive), power: readPower}
