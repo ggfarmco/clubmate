@@ -64,8 +64,11 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
     public let labelIcon: String?
     public let pinned: Bool
     public let open: String?
+    public let mirrorOf: String?
 
     public var id: String { item.id }
+
+    public var target: String { mirrorOf ?? item.id }
 
     public var shownChildren: [SDUITreeItem] {
         expanded ? children : children.filter(\.pinned)
@@ -92,6 +95,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
         labelIcon = fields["labelIcon"]?.stringValue
         pinned = fields["pinned"]?.boolValue ?? false
         open = fields["open"]?.stringValue
+        mirrorOf = fields["mirrorOf"]?.stringValue
     }
 }
 

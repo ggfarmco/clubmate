@@ -29,7 +29,8 @@
     "needsYouSince": "2026-10-30T09:41:00Z",
     "modeLabel": "Ask before edits",
     "listKey": "20261030T094100.000000000Z agt_0000000000000001",
-    "listGroupKey": "0"
+    "listGroupKey": "0",
+    "inboxKey": "020261030T094100.000000000Z agt_0000000000000001"
   },
   {
     "id": "agt_0000000000000002",
@@ -57,7 +58,8 @@
     "needsYouSince": "2026-10-30T09:41:00Z",
     "modeLabel": "Ask before edits",
     "listKey": "20261030T094100.000000000Z agt_0000000000000002",
-    "listGroupKey": "0"
+    "listGroupKey": "0",
+    "inboxKey": "020261030T094100.000000000Z agt_0000000000000002"
   },
   {
     "id": "agt_0000000000000003",

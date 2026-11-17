@@ -198,7 +198,7 @@ var (
 		},
 		"tree": {
 			required:    []string{"items"},
-			props:       map[string]propCheck{"items": listOf(treeItemCheck), "selected": isString, "action": actionCheck, "dock": listOf(treeDockCheck)},
+			props:       map[string]propCheck{"items": listOf(treeItemCheck), "selected": isString, "action": actionCheck, "dock": listOf(treeDockCheck), "hold": isString},
 			children:    noChildren,
 			interactive: true,
 		},
@@ -925,7 +925,7 @@ func treeItemCheck(c *validator, v any) error {
 	fields := map[string]propCheck{
 		"muted": isBool, "faint": isBool, "action": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck),
 		"badges": listOf(headerBadgeCheck), "changes": changesCheck, "detailTone": oneOf(detailTones), "detailFaint": isBool,
-		"labelIcon": isString, "pinned": isBool, "open": oneOf(treeOpens),
+		"labelIcon": isString, "pinned": isBool, "open": oneOf(treeOpens), "mirrorOf": isString,
 	}
 	for k, f := range itemFields {
 		fields[k] = f

@@ -200,7 +200,7 @@ type notifyChoice struct {
 	label  string
 }
 
-func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, now time.Time, home string, worktreeOrder map[string]string, branchOpen bool, filter string, search sidebarSearch, closedExtra int, plus sidebarPlus) sdui.Node {
+func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, now time.Time, home string, worktreeOrder map[string]string, branchOpen bool, filter string, search sidebarSearch, closedExtra int, plus sidebarPlus, inbox []inboxEntry) sdui.Node {
 	top := sdui.HStack(sdui.WithAction(sdui.Button("new", "New", "plus"), actNew), sdui.WithAction(sdui.Button("branch", "New in worktree…", "arrow.triangle.branch"), actShowBranch))
 	if branchOpen {
 		top = sdui.WithAction(sdui.Form(actNewBranch,
@@ -331,11 +331,15 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	if filter != filterNeeds {
 		slices.SortStableFunc(order, func(x, y string) int { return cmp.Compare(worktreeOrder[x], worktreeOrder[y]) })
 	}
+	var mirrors []sdui.TreeItem
+	if filter == filterAll {
+		mirrors = inboxGroups(inbox, roots, kids, collapsed, now, oldest)
+	}
 	var groups []sdui.TreeItem
 	for _, wt := range order {
 		b := buckets[wt]
 		children := runItems(b.open, wt, kids, collapsed, now, map[string]bool{}, oldest)
-		if len(order) == 1 && wt == home {
+		if len(order) == 1 && wt == home && len(mirrors) == 0 {
 			groups = children
 			break
 		}
@@ -344,7 +348,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		group.Faint = b.detached
 		groups = append(groups, group)
 	}
-	groups = append(pausedGroups(resets, paused, kids, collapsed, now, oldest), groups...)
+	groups = append(append(mirrors, pausedGroups(resets, paused, kids, collapsed, now, oldest)...), groups...)
 	if len(closed) > 0 || len(emptied) > 0 {
 		folded, ok := collapsed[closedKey]
 		items := closedItems(closed, selected, closedShown+closedExtra, kids, collapsed, now, oldest)
@@ -353,7 +357,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		groups = append(groups, group)
 	}
 	uniqueRunIDs(groups, map[string]int{})
-	return sdui.VStack(top, field, tabs, docked(sdui.Tree(sessionsTree, groups, selected)))
+	return sdui.VStack(top, field, tabs, docked(sdui.WithTreeHold(sdui.Tree(sessionsTree, groups, selected), filter)))
 }
 
 func (plus sidebarPlus) emptiedRuns() []sdui.TreeItem {
@@ -505,7 +509,7 @@ func findTree(n sdui.Node) (sdui.Node, bool) {
 func shownSessions(items []sdui.TreeItem) []string {
 	var ids []string
 	for _, item := range items {
-		if !strings.HasPrefix(item.ID, groupPrefix) && !strings.HasPrefix(item.ID, hitPrefix) && !strings.HasPrefix(item.ID, repoPrefix) && !strings.HasPrefix(item.ID, runPrefix) {
+		if !strings.HasPrefix(item.ID, groupPrefix) && !strings.HasPrefix(item.ID, mirrorPrefix) && !strings.HasPrefix(item.ID, hitPrefix) && !strings.HasPrefix(item.ID, repoPrefix) && !strings.HasPrefix(item.ID, runPrefix) {
 			ids = append(ids, item.ID)
 		}
 		ids = append(ids, shownSessions(item.Children)...)

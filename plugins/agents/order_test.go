@@ -34,7 +34,7 @@ func sidebarOrder(recs []record) []string {
 	for _, rec := range recs {
 		rows = append(rows, sessionRow{Rec: rec})
 	}
-	tree := sidebarView(rows, "", map[string]bool{expandPrefix + "agt_b2": false, closedKey: false}, time.Now(), orderHome, groupKeys(recs, orderHome), false, "", sidebarSearch{}, 0, sidebarPlus{})
+	tree := sidebarView(rows, "", map[string]bool{expandPrefix + "agt_b2": false, closedKey: false}, time.Now(), orderHome, groupKeys(recs, orderHome), false, "", sidebarSearch{}, 0, sidebarPlus{}, nil)
 	var walk func(items []sdui.TreeItem) []string
 	walk = func(items []sdui.TreeItem) []string {
 		var out []string

@@ -147,6 +147,8 @@ type sessionInfo struct {
 	CanAside        bool               `json:"canAside,omitempty"`
 	ListKey         string             `json:"listKey,omitempty"`
 	ListGroupKey    string             `json:"listGroupKey,omitempty"`
+	InboxKey        string             `json:"inboxKey,omitempty"`
+	inbox           inboxEntry
 }
 
 type sessionFailure struct {

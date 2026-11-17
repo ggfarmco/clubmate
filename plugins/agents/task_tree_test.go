@@ -39,14 +39,24 @@ func (f *fixture) sidebarItem(t *testing.T, workspace, id string) sdui.TreeItem 
 	}
 	require.NoError(t, json.Unmarshal([]byte(f.slotTree(t, workspace, "agents.sidebar")), &root))
 	for _, child := range root.Children {
-		for _, item := range child.Props.Items {
-			if item.ID == id {
-				return item
-			}
+		if item, ok := treeRow(child.Props.Items, id); ok {
+			return item
 		}
 	}
 	require.Fail(t, "no such sidebar row", id)
 	return sdui.TreeItem{}
+}
+
+func treeRow(items []sdui.TreeItem, id string) (sdui.TreeItem, bool) {
+	for _, item := range items {
+		if item.ID == id {
+			return item, true
+		}
+		if found, ok := treeRow(item.Children, id); ok {
+			return found, true
+		}
+	}
+	return sdui.TreeItem{}, false
 }
 
 func (f *fixture) fire(t *testing.T, workspace, slot, node, action string, value any) {

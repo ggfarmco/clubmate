@@ -65,7 +65,7 @@ func asideRows(n int) []sessionRow {
 
 func parentItem(t *testing.T, rows []sessionRow) sdui.TreeItem {
 	t.Helper()
-	view := sidebarView(rows, "", map[string]bool{expandPrefix + "p": false}, time.Now(), "/w", nil, false, "", sidebarSearch{}, 0, sidebarPlus{})
+	view := sidebarView(rows, "", map[string]bool{expandPrefix + "p": false}, time.Now(), "/w", nil, false, "", sidebarSearch{}, 0, sidebarPlus{}, nil)
 	tree := view.Children[len(view.Children)-1]
 	items, ok := tree.Props["items"].([]sdui.TreeItem)
 	require.True(t, ok)
@@ -95,7 +95,7 @@ func TestAsidesFold(t *testing.T) {
 func TestAsideAsksListsItsParent(t *testing.T) {
 	rows := asideRows(1)
 	rows[2].Rec.Status = statusWaiting
-	view := sidebarView(rows, "", map[string]bool{}, time.Now(), "/w", nil, false, filterNeeds, sidebarSearch{}, 0, sidebarPlus{})
+	view := sidebarView(rows, "", map[string]bool{}, time.Now(), "/w", nil, false, filterNeeds, sidebarSearch{}, 0, sidebarPlus{}, nil)
 	tree := view.Children[len(view.Children)-1]
 	items, ok := tree.Props["items"].([]sdui.TreeItem)
 	require.True(t, ok)
@@ -135,7 +135,7 @@ func TestAsideLeavesTaskSummaryAndArchivable(t *testing.T) {
 
 func treeItems(t *testing.T, rows []sessionRow, collapsed map[string]bool, filter string) []sdui.TreeItem {
 	t.Helper()
-	view := sidebarView(rows, "", collapsed, time.Now(), "/w", nil, false, filter, sidebarSearch{}, 0, sidebarPlus{})
+	view := sidebarView(rows, "", collapsed, time.Now(), "/w", nil, false, filter, sidebarSearch{}, 0, sidebarPlus{}, nil)
 	items, ok := view.Children[len(view.Children)-1].Props["items"].([]sdui.TreeItem)
 	require.True(t, ok)
 	return items

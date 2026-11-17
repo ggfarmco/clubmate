@@ -286,6 +286,7 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if err != nil {
 			return err
 		}
+		id = strings.TrimPrefix(id, mirrorPrefix)
 		if id == moreID {
 			p := a.workspaceState(ev.WorkspaceID)
 			a.uiMu.Lock()

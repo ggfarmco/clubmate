@@ -397,6 +397,7 @@ struct TextFieldNodeView: View {
     @Environment(\.sidebarField) private var sidebarField
     @Environment(\.filePicker) private var filePicker
     @Environment(\.keysRefocus) private var keysRefocus
+    @Environment(\.treeHold) private var treeHold
 
     private static let liveDelay: Duration = .milliseconds(250)
 
@@ -424,10 +425,17 @@ struct TextFieldNodeView: View {
             .padding(.vertical, lines == nil ? 0 : theme.spacing.s)
             .frame(minWidth: 160, minHeight: theme.control, alignment: lines == nil ? .center : .topLeading)
             .fieldChrome(focused: focused || targeted, error: node.string("error"), dashed: drops)
+            .overlay(alignment: .trailing) {
+                if let treeHold, node.id == sidebarField {
+                    HoldPill(hold: treeHold)
+                        .padding(.trailing, theme.spacing.s)
+                }
+            }
             .modifier(FileDrop(active: drops, targeted: $targeted, drop: drop))
             .onSubmit(submit)
             .modifier(ExitToKeys(refocus: keysRefocus))
             .onChange(of: focused) { _, now in
+                if now, node.id == sidebarField { treeHold?.land() }
                 guard !now else { return }
                 form?.flush()
                 if !typed { sync(node.string("value")) }

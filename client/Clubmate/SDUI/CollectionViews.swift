@@ -204,6 +204,7 @@ struct TreeNodeView: View {
     @Environment(\.sidebarSlot) private var sidebarSlot
     @Environment(\.sidebarHasField) private var sidebarHasField
     @Environment(\.sidebarTabs) private var sidebarTabs
+    @Environment(\.treeHold) private var treeHold
 
     private static let stickyLimit = 4
 
@@ -281,7 +282,7 @@ struct TreeNodeView: View {
         )
         return LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(rows) { row in
-                itemRow(row, columns: columns, selected: row.id == selected, cursor: focused && row.id == cursor) {
+                itemRow(row, columns: columns, selected: row.item.target == selected, cursor: focused && row.id == cursor) {
                     cursor = row.id
                     focused = true
                     select(row.id)
@@ -316,6 +317,7 @@ struct TreeNodeView: View {
         .reportsFocus(.tree(field: sidebarHasField), focused, slot: sidebarSlot)
         .onChange(of: focused) { _, focused in
             if !focused { leader = false }
+            if focused { treeHold?.land() }
         }
         .onChange(of: node.string("selected"), initial: true) { _, value in
             guard value != selected else { return }
@@ -349,14 +351,15 @@ struct TreeNodeView: View {
                     dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
                 }
             }
-            .itemMenu(row.item.item.menu) { dispatch.choose($0, item: row.id, in: node) }
+            .itemMenu(row.item.item.menu) { dispatch.choose($0, item: row.item.target, in: node) }
         }
     }
 
     private func select(_ id: String) {
         let item = rows.first(where: { $0.id == id })?.item ?? dock.flatMap(\.rows).first(where: { $0.id == id })
-        if item?.action != true { selected = id } else if item?.hasChildren == false { activated = id }
-        dispatch(node, .select(id))
+        let target = item?.target ?? id
+        if item?.action != true { selected = target } else if item?.hasChildren == false { activated = id }
+        dispatch(node, .select(target))
     }
 
     private func handle(_ event: NSEvent) -> Bool {
@@ -385,8 +388,8 @@ struct TreeNodeView: View {
             router?.requestMain(from: sidebarSlot ?? dispatch.slot)
         case .remove(let id):
             let item = treeItem(id)
-            guard let entry = item?.item.menu.first(where: { $0.key == Self.removeKey }) else { return false }
-            dispatch.choose(entry, item: id, in: node)
+            guard let item, let entry = item.item.menu.first(where: { $0.key == Self.removeKey }) else { return false }
+            dispatch.choose(entry, item: item.target, in: node)
         case .expand(let id): dispatch(node, .expand(id))
         case .collapse(let id): dispatch(node, .collapse(id))
         case .focusMain: router?.requestMain(from: sidebarSlot ?? dispatch.slot)
@@ -404,7 +407,7 @@ struct TreeNodeView: View {
 
     private func menuKey(_ key: String) -> Bool {
         guard let id = cursor ?? selected, let row = rows.first(where: { $0.id == id }), let entry = row.item.item.menu.first(where: { $0.key == key }) else { return false }
-        dispatch.choose(entry, item: id, in: node)
+        dispatch.choose(entry, item: row.item.target, in: node)
         return true
     }
 

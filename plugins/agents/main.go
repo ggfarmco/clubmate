@@ -62,6 +62,7 @@ type app struct {
 	limitJobs   limitJobs
 	taskLookups taskLookups
 	openWake    chan struct{}
+	inbox       inboxMemo
 
 	spawnMu    sync.Mutex
 	asideMu    sync.Mutex
@@ -475,6 +476,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		out = append(out, runInfo(workspaceID, n))
 	}
 	setGroups(out)
+	a.inbox.apply(out)
 	return out
 }
 

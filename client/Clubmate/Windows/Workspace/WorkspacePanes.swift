@@ -7,14 +7,18 @@ struct SlotPane: View {
     let store: WorkspaceUIStore
     let slot: String
     var paneTheme: Theme?
+    var hold: TreeHold?
 
     @Environment(AppModel.self) private var app
     @Environment(\.theme) private var theme
 
     var body: some View {
         if let view = store.slot(slot) {
-            SDUIView(node: view.tree, slot: slot, workspaceID: store.workspaceID, rev: view.rev, drafts: store.drafts) { [store] event in
-                await store.send(event)
+            SDUIView(node: view.tree, slot: slot, workspaceID: store.workspaceID, rev: view.rev, drafts: store.drafts) { [store, hold] event in
+                await hold?.act()
+                let result = await store.send(event)
+                if let hold { Task { await hold.acted() } }
+                return result
             }
             .equatable()
             .environment(\.theme, paneTheme ?? theme.interface(family: app.settings.paneFontFamily(fontKey), size: app.settings.paneFontSize(fontKey)))
@@ -33,16 +37,19 @@ struct SidebarPane: View {
     let slot: String
     let side: SidebarSide
 
+    @State private var hold = TreeHold()
     @Environment(\.theme) private var theme
 
     var body: some View {
         ResizablePane(id: slot + "/resize", side: side, saved: store.sidebarWidth.map { CGFloat($0) } ?? 248, range: 200...320) { [store] width in
             store.sidebarWidth = width
         } content: {
-            SlotPane(store: store, slot: slot)
+            SlotPane(store: store, slot: slot, hold: hold)
                 .environment(\.sidebarSlot, slot)
                 .environment(\.sidebarField, store.textFieldID(slot))
                 .environment(\.sidebarTabs, store.firstTabs(slot))
+                .environment(\.treeHold, hold)
+                .background { PointerInside { hold.hover($0) } }
                 .background(theme.surface1, ignoresSafeAreaEdges: [])
         }
     }

@@ -71,7 +71,11 @@
           "id": "files",
           "props": {
             "selected": "main-go",
+            "hold": "all",
             "items": [
+              {"id": "wt:inbox:needs", "label": "Needs you", "icon": "tray", "detail": "1", "action": true, "hasChildren": true, "expanded": true, "children": [
+                {"id": "mirror:agt-wait", "mirrorOf": "agt-wait", "label": "Cron плагин для MCP", "icon": "exclamationmark.circle.fill", "tone": "warning", "detail": "chore · 3 min", "detailTone": "warning"}
+              ]},
               {
                 "id": "cmd", "label": "cmd", "icon": "folder", "hasChildren": true, "expanded": true,
                 "children": [

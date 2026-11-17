@@ -55,6 +55,7 @@ type TreeItem struct {
 	LabelIcon   string        `json:"labelIcon,omitempty"`
 	Pinned      bool          `json:"pinned,omitempty"`
 	Open        string        `json:"open,omitempty"`
+	MirrorOf    string        `json:"mirrorOf,omitempty"`
 }
 
 type TreeDock struct {
@@ -323,6 +324,11 @@ func List(id string, items []Item, selected string) Node {
 
 func Tree(id string, items []TreeItem, selected string) Node {
 	return Node{Type: "tree", ID: id, Props: withOptional(map[string]any{"items": nonNil(items)}, "selected", selected)}
+}
+
+func WithTreeHold(n Node, key string) Node {
+	n.Props["hold"] = key
+	return n
 }
 
 func WithTreeDock(n Node, dock []TreeDock) Node {

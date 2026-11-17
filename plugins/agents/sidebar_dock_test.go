@@ -50,7 +50,7 @@ func TestSidebarRunRowInWorktreeGroup(t *testing.T) {
 		{Rec: record{ID: "agt_r", Worktree: "/r/a", Run: run, Title: "Review gate · Reviewer", Status: statusIdle, CreatedAt: now.Add(time.Second), UpdatedAt: now}, RunRow: rr},
 		{Rec: record{ID: "agt_x", Worktree: "/r/b", Title: "Solo", Status: statusDone, UpdatedAt: now}},
 	}
-	tree := sidebarView(rows, "", map[string]bool{}, now, "/r/a", nil, false, filterAll, sidebarSearch{}, 0, plusDock())
+	tree := sidebarView(rows, "", map[string]bool{}, now, "/r/a", nil, false, filterAll, sidebarSearch{}, 0, plusDock(), nil)
 	require.NoError(t, internalsdui.Validate(tree))
 	items := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
 	group := findItem(items, groupPrefix+"/r/a")
@@ -66,7 +66,7 @@ func TestSidebarEmptiedRunInClosed(t *testing.T) {
 	plus := plusDock()
 	plus.runs = []api.RunRow{{ID: "gr_9", Title: "Nightly", State: runEmptied, Detail: "no sessions", Home: homeClosed, Sessions: []string{}}}
 	rows := []sessionRow{{Rec: record{ID: "agt_x", Worktree: "/r/a", Title: "Solo", Status: statusDone, UpdatedAt: now}}}
-	tree := sidebarView(rows, "", map[string]bool{closedKey: false}, now, "/r/a", nil, false, filterAll, sidebarSearch{}, 0, plus)
+	tree := sidebarView(rows, "", map[string]bool{closedKey: false}, now, "/r/a", nil, false, filterAll, sidebarSearch{}, 0, plus, nil)
 	require.NoError(t, internalsdui.Validate(tree))
 	closed := findItem(nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem), groupPrefix+closedKey)
 	require.NotNil(t, closed)
@@ -84,7 +84,7 @@ func TestSidebarServiceInDock(t *testing.T) {
 	}
 	plus := plusDock()
 	plus.open = dockService
-	tree := sidebarView(rows, "", map[string]bool{}, now, "/r/a", nil, false, filterAll, sidebarSearch{}, 0, plus)
+	tree := sidebarView(rows, "", map[string]bool{}, now, "/r/a", nil, false, filterAll, sidebarSearch{}, 0, plus, nil)
 	require.NoError(t, internalsdui.Validate(tree))
 	items := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
 	assert.Nil(t, findItem(items, groupPrefix+serviceKey))
@@ -111,7 +111,7 @@ func TestSearchUnfoldsDockMatch(t *testing.T) {
 	now := time.Now()
 	rows := []sessionRow{{Rec: record{ID: "agt_x", Worktree: "/r/a", Title: "Solo", Status: statusDone, UpdatedAt: now}}}
 	search := sidebarSearch{query: "night", results: []searchResult{{Session: "agt_x", Title: "Solo", UpdatedAt: now}}}
-	dock := dockOf(t, sidebarView(rows, "", map[string]bool{}, now, "/r/a", nil, false, filterAll, search, 0, plusDock()))
+	dock := dockOf(t, sidebarView(rows, "", map[string]bool{}, now, "/r/a", nil, false, filterAll, search, 0, plusDock(), nil))
 	i := slices.IndexFunc(dock, func(d sdui.TreeDock) bool { return d.ID == dockGraphs })
 	assert.True(t, dock[i].Expanded)
 	assert.Equal(t, []string{"graph:nightly"}, ids(dock[i].Rows))
@@ -144,7 +144,7 @@ func TestRemoveBySelectionAlwaysConfirms(t *testing.T) {
 	plus := plusDock()
 	plus.gates = append(plus.gates, sdui.TreeItem{ID: gatePrefix + "lg_1", Label: "shop", Menu: gateRemoveMenu("shop")})
 	plus.open = dockGates
-	tree := sidebarView(rows, "", map[string]bool{}, now, "/r/a", nil, false, filterAll, sidebarSearch{}, 0, plus)
+	tree := sidebarView(rows, "", map[string]bool{}, now, "/r/a", nil, false, filterAll, sidebarSearch{}, 0, plus, nil)
 	require.NoError(t, internalsdui.Validate(tree))
 	items := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
 	removal := func(item *sdui.TreeItem) sdui.MenuEntry {
@@ -168,7 +168,7 @@ func TestRunInTwoScopesKeepsIDsUnique(t *testing.T) {
 		{Rec: record{ID: "agt_r", Worktree: "/r/a", Run: run, Title: "Reviewer", Status: statusIdle, CreatedAt: now, UpdatedAt: now}, RunRow: rr},
 		{Rec: record{ID: "agt_t", Worktree: "/r/a", Run: run, Title: "Tester", Status: statusClosed, CreatedAt: now, UpdatedAt: now}, RunRow: rr},
 	}
-	tree := sidebarView(rows, "run:gr_1", map[string]bool{closedKey: false}, now, "/r/a", nil, false, filterAll, sidebarSearch{}, 0, plusDock())
+	tree := sidebarView(rows, "run:gr_1", map[string]bool{closedKey: false}, now, "/r/a", nil, false, filterAll, sidebarSearch{}, 0, plusDock(), nil)
 	require.NoError(t, internalsdui.Validate(tree))
 	items := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
 	assert.NotNil(t, findItem(items, "run:gr_1"))
@@ -181,7 +181,7 @@ func TestEmptiedRunShowsWithoutSessions(t *testing.T) {
 	t.Parallel()
 	plus := plusDock()
 	plus.runs = []api.RunRow{{ID: "gr_9", Title: "Nightly", State: runEmptied, Detail: "no sessions", Home: homeClosed, Sessions: []string{}}}
-	tree := sidebarView(nil, "", map[string]bool{closedKey: false}, time.Now(), "/r/a", nil, false, filterAll, sidebarSearch{}, 0, plus)
+	tree := sidebarView(nil, "", map[string]bool{closedKey: false}, time.Now(), "/r/a", nil, false, filterAll, sidebarSearch{}, 0, plus, nil)
 	require.NoError(t, internalsdui.Validate(tree))
 	closed := findItem(nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem), groupPrefix+closedKey)
 	require.NotNil(t, closed)
@@ -193,7 +193,7 @@ func TestSearchListsAServiceSessionOnce(t *testing.T) {
 	now := time.Now()
 	rows := []sessionRow{{Rec: record{ID: "agt_v", Worktree: "/r/a", Title: "Voice", Status: statusIdle, SystemPrompt: "x", UpdatedAt: now}}}
 	search := sidebarSearch{query: "voice", results: []searchResult{{Session: "agt_v", Title: "Voice", UpdatedAt: now}}}
-	raw, err := json.Marshal(sidebarView(rows, "", map[string]bool{}, now, "/r/a", nil, false, filterAll, search, 0, plusDock()))
+	raw, err := json.Marshal(sidebarView(rows, "", map[string]bool{}, now, "/r/a", nil, false, filterAll, search, 0, plusDock(), nil))
 	require.NoError(t, err)
 	assert.Equal(t, 1, strings.Count(string(raw), `"id":"agt_v"`))
 }

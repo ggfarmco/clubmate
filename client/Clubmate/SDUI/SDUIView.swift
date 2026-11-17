@@ -252,6 +252,7 @@ struct SDUINodeView: View, Equatable {
     }
 
     @Environment(\.sduiGutter) private var gutter
+    @Environment(\.treeHold) private var treeHold
 
     var body: some View {
         if TestMode.current {
@@ -279,10 +280,10 @@ struct SDUINodeView: View, Equatable {
         case "tabs": TabsNodeView(node: node)
         case "list": OwnScroll { ListNodeView(node: node) }
         case "tree":
-            if node.treeDock().isEmpty {
-                OwnScroll { TreeNodeView(node: node) }
+            if let treeHold {
+                HeldTree(node: node, hold: treeHold) { TreeNodeHost(node: $0) }
             } else {
-                TreeNodeView(node: node)
+                TreeNodeHost(node: node)
             }
         case "table": TableNodeView(node: node)
         case "sparkline": SparklineNodeView(node: node)
@@ -325,6 +326,18 @@ struct SDUINodeView: View, Equatable {
         case "spacer": Spacer(minLength: 0)
         case "divider": DividerNodeView()
         default: UnsupportedNodeView(type: node.type)
+        }
+    }
+}
+
+private struct TreeNodeHost: View {
+    let node: SDUINode
+
+    var body: some View {
+        if node.treeDock().isEmpty {
+            OwnScroll { TreeNodeView(node: node) }
+        } else {
+            TreeNodeView(node: node)
         }
     }
 }
