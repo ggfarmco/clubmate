@@ -2015,6 +2015,7 @@ func TestContinueHandsOff(t *testing.T) {
 	workspace := f.workspace(t, repo)
 	old := f.newSession(t, workspace)
 	f.waitStatus(t, workspace, old, "idle")
+	f.waitRecord(t, workspace, old, "an agent session", func(r record) bool { return r.AgentSessionID != "" })
 	require.NoError(t, f.run(t, workspace, "agents.close", map[string]any{"session": old}, nil))
 
 	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
