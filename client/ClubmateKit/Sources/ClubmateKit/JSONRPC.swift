@@ -92,7 +92,7 @@ public actor RPCConnection {
                 guard (try? await Task.sleep(for: timeout)) != nil else { return }
                 expire(id)
             }
-            writer.write(line, within: timeout) { error in
+            writer.write(line, within: timeout, expired: { Task { await self.writeExpired(id) } }) { error in
                 guard let error else { return }
                 Task { await self.fail(id, error) }
             }
@@ -108,14 +108,14 @@ public actor RPCConnection {
         guard !closed else { throw ClubmateError.notRunning }
         var line = try JSONEncoder().encode(Reply(id: id, result: result))
         line.append(0x0A)
-        writer.write(line, within: Self.replyTimeout) { _ in }
+        writer.write(line, within: Self.replyTimeout, expired: { [fd] in shutdown(fd, SHUT_RDWR) }) { _ in }
     }
 
     public func replyError(id: Int, code: Int, message: String) throws {
         guard !closed else { throw ClubmateError.notRunning }
         var line = try JSONEncoder().encode(ErrorReply(id: id, error: .init(code: code, message: message)))
         line.append(0x0A)
-        writer.write(line, within: Self.replyTimeout) { _ in }
+        writer.write(line, within: Self.replyTimeout, expired: { [fd] in shutdown(fd, SHUT_RDWR) }) { _ in }
     }
 
     static let replyTimeout: Duration = .seconds(10)
@@ -165,6 +165,12 @@ public actor RPCConnection {
 
     private func expire(_ id: Int) {
         resolve(id)?.resume(throwing: ClubmateError.timeout)
+    }
+
+    private func writeExpired(_ id: Int) {
+        expire(id)
+        guard !closed else { return }
+        shutdown(fd, SHUT_RDWR)
     }
 
     private func fail(_ id: Int, _ error: any Error) {
@@ -222,11 +228,11 @@ private final class SocketWriter: Sendable {
         self.fd = fd
     }
 
-    func write(_ data: Data, within timeout: Duration, done: @escaping @Sendable ((any Error)?) -> Void) {
+    func write(_ data: Data, within timeout: Duration, expired: @escaping @Sendable () -> Void, done: @escaping @Sendable ((any Error)?) -> Void) {
         queue.async { [fd] in
             let watch = WriteWatch()
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout / .seconds(1)) {
-                if watch.expire() { shutdown(fd, SHUT_RDWR) }
+                if watch.expire() { expired() }
             }
             let sent = Self.writeAll(fd, data)
             let expired = watch.finish()
