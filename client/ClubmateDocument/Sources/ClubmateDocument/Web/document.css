@@ -58,6 +58,13 @@ a:hover { text-decoration: underline; }
 strong { font-weight: 600; }
 del { color: var(--muted); }
 
+mark {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+mark[id] { box-shadow: 0 0 0 1.5px var(--accent); }
+
 hr { height: 0; margin: 24px 0; border: 0; border-top: 1px solid var(--border); }
 
 ul, ol { padding-left: 1.6em; }

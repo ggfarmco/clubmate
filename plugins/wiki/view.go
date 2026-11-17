@@ -26,8 +26,16 @@ const (
 	deleteNode    = "delete"
 	dirPrefix     = "dir:"
 	projectPrefix = "project:"
+	sectionPrefix = "sec:"
+	newPrefix     = "new:"
+	newSection    = sectionPrefix + "new"
+	rootSection   = sectionPrefix + "pages"
+	hitsSection   = sectionPrefix + "hits"
+	notesHits     = sectionPrefix + "notes"
 	staleBadge    = "stale"
 	timeLayout    = "Jan 2 15:04"
+	dayLayout     = "Jan 2"
+	clockLayout   = "15:04"
 	notesLabel    = "Agent notes"
 	copyNode      = "copyPath"
 	revealNode    = "reveal"
@@ -53,7 +61,8 @@ type hitRow struct {
 type sidebarData struct {
 	Home       bool
 	Projects   []projectView
-	Recent     []recentRow
+	New        []recentRow
+	Now        time.Time
 	Query      string
 	Hits       []hitRow
 	AgentNotes bool
@@ -69,6 +78,7 @@ type mainData struct {
 	Path        string
 	Kind        string
 	Rev         int
+	Anchor      string
 	ShowHistory bool
 	History     []Change
 	Now         time.Time
@@ -93,7 +103,7 @@ func sidebarView(d sidebarData) sdui.Node {
 	case len(items) > 0:
 		body = sdui.Tree(pagesNode, items, d.Selected)
 	case d.Query != "":
-		body = sdui.Empty("No pages match")
+		body = sdui.Empty("No match for \u201c" + d.Query + "\u201d")
 	default:
 		body = sdui.Empty("No pages yet")
 	}
@@ -131,18 +141,18 @@ func plural(n int, word string) string {
 
 func pageItems(d sidebarData) []sdui.TreeItem {
 	if d.Query != "" {
-		items := make([]sdui.TreeItem, 0, len(d.Hits))
-		for _, h := range d.Hits {
-			items = append(items, sdui.TreeItem{ID: pageID(h.Project, h.Hit.Page), Label: h.Hit.Title, Icon: pageIcon(h.Hit.Page), Truncate: "tail"})
-		}
-		return items
+		return hitItems(d)
+	}
+	var top []sdui.TreeItem
+	if len(d.New) > 0 {
+		top = append(top, section(newSection, "New to you", len(d.New), d.Collapsed, newItems(d)))
 	}
 	var groups []sdui.TreeItem
 	for _, p := range d.Projects {
 		notesOpen := d.AgentNotes || strings.HasPrefix(d.Selected, pageID(p.Name, shadowDir+"/"))
 		items := folderItems(p.Name, "", p.Pages, d.Collapsed, notesOpen)
 		if len(d.Projects) == 1 {
-			return items
+			return append(top, rootPages(items, len(top) > 0, d.Collapsed)...)
 		}
 		if len(items) == 0 {
 			continue
@@ -154,7 +164,80 @@ func pageItems(d sidebarData) []sdui.TreeItem {
 		}
 		groups = append(groups, g)
 	}
-	return groups
+	return append(top, groups...)
+}
+
+func section(id, label string, count int, collapsed map[string]bool, children []sdui.TreeItem) sdui.TreeItem {
+	s := sdui.TreeItem{ID: id, Label: label, Detail: strconv.Itoa(count), HasChildren: true, Expanded: !collapsed[id], Action: true}
+	if s.Expanded {
+		s.Children = children
+	}
+	return s
+}
+
+func rootPages(items []sdui.TreeItem, labelled bool, collapsed map[string]bool) []sdui.TreeItem {
+	n := 0
+	for n < len(items) && !items[n].HasChildren {
+		n++
+	}
+	if !labelled || n == 0 {
+		return items
+	}
+	pages := section(rootSection, "Pages", n, collapsed, items[:n])
+	pages.Detail = ""
+	return append([]sdui.TreeItem{pages}, items[n:]...)
+}
+
+func newItems(d sidebarData) []sdui.TreeItem {
+	items := make([]sdui.TreeItem, 0, len(d.New))
+	for _, r := range d.New {
+		id := pageID(r.Project, r.Page.Path)
+		items = append(items, sdui.TreeItem{ID: newPrefix + id, MirrorOf: id, Label: r.Page.Title, Icon: "circlebadge.fill", Tone: "accent", DetailTone: "neutral", Detail: r.Page.By + " · " + shortTime(r.Page.Updated, d.Now), Truncate: "tail"})
+	}
+	return items
+}
+
+func hitItems(d sidebarData) []sdui.TreeItem {
+	var pages, notes []sdui.TreeItem
+	for _, h := range d.Hits {
+		it := sdui.TreeItem{ID: pageID(h.Project, h.Hit.Page), Label: h.Hit.Title, Icon: pageIcon(h.Hit.Page), Detail: snippetAround(h.Hit.Snippet, d.Query), Truncate: "tail"}
+		if isShadow(h.Hit.Page) {
+			notes = append(notes, it)
+			continue
+		}
+		pages = append(pages, it)
+	}
+	var out []sdui.TreeItem
+	if len(pages) > 0 {
+		out = append(out, section(hitsSection, "Pages", len(pages), d.Collapsed, pages))
+	}
+	if len(notes) > 0 {
+		out = append(out, section(notesHits, notesLabel, len(notes), d.Collapsed, notes))
+	}
+	return out
+}
+
+func snippetAround(snippet, query string) string {
+	re := termsPattern(query)
+	if re == nil {
+		return snippet
+	}
+	loc := re.FindStringIndex(snippet)
+	if loc == nil {
+		return snippet
+	}
+	if loc[0] == 0 {
+		return snippet
+	}
+	return "…" + snippet[loc[0]:]
+}
+
+func shortTime(at, now time.Time) string {
+	at, now = at.Local(), now.Local()
+	if y, m, d := at.Date(); y == now.Year() && m == now.Month() && d == now.Day() {
+		return at.Format(clockLayout)
+	}
+	return at.Format(dayLayout)
 }
 
 func folderItems(project, dir string, pages []Page, collapsed map[string]bool, notesOpen bool) []sdui.TreeItem {
@@ -248,7 +331,7 @@ func mainView(d mainData) sdui.Node {
 	if d.ShowHistory {
 		return sdui.VStack(header, historyView(d.History))
 	}
-	return sdui.VStack(header, sdui.Document(docNode, sdui.DocumentProps{HTML: d.HTML, Path: d.Path, Rev: d.Rev, Size: sdui.SizeFill, Kind: d.Kind}))
+	return sdui.VStack(header, sdui.Document(docNode, sdui.DocumentProps{HTML: d.HTML, Path: d.Path, Rev: d.Rev, Anchor: d.Anchor, Size: sdui.SizeFill, Kind: d.Kind}))
 }
 
 func historyView(changes []Change) sdui.Node {

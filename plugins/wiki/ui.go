@@ -32,7 +32,6 @@ import (
 
 const (
 	sectionID    = "wiki"
-	recentCount  = 10
 	searchLimit  = 50
 	pollInterval = 3 * time.Second
 	untitled     = "untitled"
@@ -50,6 +49,10 @@ type workspaceUI struct {
 	query      string
 	agentNotes bool
 	history    bool
+	opening    bool
+	find       string
+	findSeq    int
+	read       *readState
 	collapsed  map[string]bool
 	sent       map[string][32]byte
 }
@@ -147,10 +150,13 @@ func (w *wiki) renderNow(ctx context.Context, workspaceID string) error {
 		return w.push(ctx, u, workspaceID, mainSlot, mainView(mainData{Home: true}))
 	}
 	w.mu.Lock()
-	selected, query, notes, history, collapsed := u.selected, u.query, u.agentNotes, u.history, maps.Clone(u.collapsed)
+	selected, query, notes, history, collapsed, opening := u.selected, u.query, u.agentNotes, u.history, maps.Clone(u.collapsed), u.opening
+	u.opening = false
+	f := find{query: u.find, seq: u.findSeq}
 	w.mu.Unlock()
 	projects := w.projects(ctx, ws)
-	d := sidebarData{Query: query, AgentNotes: notes, Collapsed: collapsed}
+	read := w.readState(ctx, workspaceID, u)
+	d := sidebarData{Query: query, AgentNotes: notes, Collapsed: collapsed, Now: w.now()}
 	stores := map[string]*Store{}
 	var all []recentRow
 	for _, p := range projects {
@@ -174,20 +180,20 @@ func (w *wiki) renderNow(ctx context.Context, workspaceID string) error {
 	slices.SortStableFunc(all, func(a, b recentRow) int {
 		return cmp.Or(b.Page.Updated.Compare(a.Page.Updated), cmp.Compare(pageID(a.Project, a.Page.Path), pageID(b.Project, b.Page.Path)))
 	})
-	for _, r := range all {
-		if len(d.Recent) < recentCount && !r.Page.Shadow {
-			d.Recent = append(d.Recent, r)
-		}
-	}
-	current, ok := find(all, selected)
-	if !ok && len(d.Recent) > 0 {
-		current, ok = d.Recent[0], true
+	current, ok := findRow(all, selected)
+	if !ok {
+		current, ok = newest(all)
 	}
 	m := mainData{}
 	if ok {
 		d.Selected = pageID(current.Project, current.Page.Path)
-		m = w.pageData(ctx, ws, projects, stores[current.Project], current, projectPages(d.Projects, current.Project), history)
+		m = w.pageData(ctx, ws, projects, stores[current.Project], current, projectPages(d.Projects, current.Project), history, f)
+		if opening || w.looking(ctx, workspaceID) {
+			w.markOpened(ctx, workspaceID, u, current, all)
+			read = w.readState(ctx, workspaceID, u)
+		}
 	}
+	d.New = newToYou(all, read)
 	w.settleSelection(u, selected, d.Selected)
 	if err := w.push(ctx, u, workspaceID, sidebarSlot, sidebarView(d)); err != nil {
 		return err
@@ -195,13 +201,32 @@ func (w *wiki) renderNow(ctx context.Context, workspaceID string) error {
 	return w.push(ctx, u, workspaceID, mainSlot, mainView(m))
 }
 
-func find(rows []recentRow, id string) (recentRow, bool) {
+func (w *wiki) looking(ctx context.Context, workspaceID string) bool {
+	section, err := w.h.SelectedSection(ctx, workspaceID)
+	return err == nil && section == sectionID
+}
+
+func newest(rows []recentRow) (recentRow, bool) {
+	for _, r := range rows {
+		if !r.Page.Shadow {
+			return r, true
+		}
+	}
+	return recentRow{}, false
+}
+
+func findRow(rows []recentRow, id string) (recentRow, bool) {
 	for _, r := range rows {
 		if pageID(r.Project, r.Page.Path) == id {
 			return r, true
 		}
 	}
 	return recentRow{}, false
+}
+
+type find struct {
+	query string
+	seq   int
 }
 
 func projectPages(projects []projectView, name string) []Page {
@@ -213,7 +238,7 @@ func projectPages(projects []projectView, name string) []Page {
 	return nil
 }
 
-func (w *wiki) pageData(ctx context.Context, ws contract.Workspace, projects []wikiroot.Project, s *Store, row recentRow, pages []Page, history bool) mainData {
+func (w *wiki) pageData(ctx context.Context, ws contract.Workspace, projects []wikiroot.Project, s *Store, row recentRow, pages []Page, history bool, f find) mainData {
 	page := row.Page
 	m := mainData{Project: row.Project, Page: &page, ShowHistory: history, Now: w.now(), Path: filepath.Join(s.p.Dir, filepath.FromSlash(page.Path))}
 	if history {
@@ -234,6 +259,12 @@ func (w *wiki) pageData(ctx context.Context, ws contract.Workspace, projects []w
 		return m
 	}
 	body := dropTitle(docrender.Render(src, docrender.Options{Path: m.Path, Allowed: scope(ws, projects)}).HTML, page.Title)
+	if f.query != "" {
+		anchor := matchAnchor + strconv.Itoa(f.seq)
+		if marked, ok := markMatches(body, f.query, anchor); ok {
+			body, m.Anchor = marked, anchor
+		}
+	}
 	m.HTML = body
 	if docext.Kind(page.Path) == docext.KindMarkdown {
 		m.HTML = w.margin(ctx, s, m.Path, page, pages, body) + body
@@ -312,6 +343,9 @@ func (w *wiki) handle(ctx context.Context, ev pluginsdk.UIEvent) error {
 		}
 		w.mu.Lock()
 		u.query = strings.TrimSpace(q)
+		if u.query == "" {
+			u.find = ""
+		}
 		w.mu.Unlock()
 		return nil
 	case ev.NodeID == pagesNode:
@@ -321,7 +355,7 @@ func (w *wiki) handle(ctx context.Context, ev pluginsdk.UIEvent) error {
 		}
 		w.mu.Lock()
 		defer w.mu.Unlock()
-		if strings.HasPrefix(id, dirPrefix) || strings.HasPrefix(id, projectPrefix) {
+		if strings.HasPrefix(id, dirPrefix) || strings.HasPrefix(id, projectPrefix) || strings.HasPrefix(id, sectionPrefix) {
 			if ev.Action != "expand" && ev.Action != "collapse" {
 				return nil
 			}
@@ -333,7 +367,11 @@ func (w *wiki) handle(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return nil
 		}
 		if ev.Action == "select" {
-			u.selected, u.history = id, false
+			u.selected, u.history, u.opening = strings.TrimPrefix(id, newPrefix), false, true
+			u.find = ""
+			if u.query != "" {
+				u.find, u.findSeq = u.query, u.findSeq+1
+			}
 		}
 		return nil
 	case ev.NodeID == newNode:
@@ -426,7 +464,7 @@ func (w *wiki) deleteSelected(ctx context.Context, workspaceID string, u *worksp
 		return err
 	}
 	w.mu.Lock()
-	u.selected, u.history = "", false
+	u.selected, u.history, u.find = "", false, ""
 	w.mu.Unlock()
 	w.changed(ctx, workspaceID, page)
 	w.renderOthers(ctx, workspaceID)
@@ -453,7 +491,7 @@ func (w *wiki) newPage(ctx context.Context, workspaceID string, u *workspaceUI) 
 		return err
 	}
 	w.mu.Lock()
-	u.selected, u.history = pageID(p.Name, page), false
+	u.selected, u.history, u.find = pageID(p.Name, page), false, ""
 	w.mu.Unlock()
 	w.changed(ctx, workspaceID, page)
 	w.renderOthers(ctx, workspaceID)
@@ -479,7 +517,7 @@ func (w *wiki) openLink(ctx context.Context, workspaceID string, u *workspaceUI,
 		if rel, err := filepath.Rel(dir, abs); err == nil && gitrepo.Within(abs, dir) {
 			if page, err := cleanPage(filepath.ToSlash(rel)); err == nil {
 				w.mu.Lock()
-				u.selected, u.history = pageID(p.Name, page), anchor == historyAnchor
+				u.selected, u.history, u.opening, u.find = pageID(p.Name, page), anchor == historyAnchor, true, ""
 				w.mu.Unlock()
 				return nil
 			}

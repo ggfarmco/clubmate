@@ -74,10 +74,66 @@ func TestOnlyTopLevelAgentsFolderIsAgentNotes(t *testing.T) {
 	assert.True(t, u.agentNotes)
 }
 
-func TestSearchFiltersTree(t *testing.T) {
-	d := sidebarData{Projects: []projectView{demoProject()}, Query: "node", Hits: []hitRow{{Project: "app", Hit: Hit{Page: "sdui/nodes.md", Title: "Nodes", Snippet: "a node"}}}}
+func TestSearchShowsPagesThenAgentNotesWithSnippets(t *testing.T) {
+	d := sidebarData{Projects: []projectView{demoProject()}, Query: "node", Hits: []hitRow{
+		{Project: "app", Hit: Hit{Page: ".agents/trap.md", Title: "Trap", Snippet: "a node trap"}},
+		{Project: "app", Hit: Hit{Page: "sdui/nodes.md", Title: "Nodes", Snippet: "the node tree"}},
+	}}
 
-	assert.Equal(t, []string{"app/sdui/nodes.md"}, sidebarTree(t, d))
+	tree, ok := findNode(sidebarView(d), pagesNode)
+	require.True(t, ok)
+	items := tree.Props["items"].([]sdui.TreeItem)
+	assert.Equal(t, []string{hitsSection, "app/sdui/nodes.md", notesHits, "app/.agents/trap.md"}, treeIDs(items))
+	assert.Equal(t, "…node tree", items[0].Children[0].Detail)
+	assert.Equal(t, "…node trap", items[1].Children[0].Detail)
+}
+
+func TestNewToYouListsOthersChangesSinceOpened(t *testing.T) {
+	since := time.Date(2026, 11, 17, 10, 0, 0, 0, time.UTC)
+	row := func(page, by string, minutes int, shadow bool) recentRow {
+		return recentRow{Project: "app", Page: Page{Path: page, Title: page, By: by, Updated: since.Add(time.Duration(minutes) * time.Minute), Shadow: shadow}}
+	}
+	all := []recentRow{
+		row("h.md", "Claude", 80, false),
+		row("g.md", "Claude", 70, false),
+		row("f.md", "Claude", 60, false),
+		row("e.md", "Claude", 50, false),
+		row("d.md", "Claude", 40, false),
+		row(".agents/n.md", "Claude", 35, true),
+		row("mine.md", "you", 30, false),
+		row("read.md", "Claude", 20, false),
+		row("c.md", "Claude", 10, false),
+		row("old.md", "Claude", -10, false),
+	}
+	st := readState{Since: since, Opened: map[string]time.Time{"app/read.md": since.Add(20 * time.Minute), "app/h.md": since.Add(time.Minute)}}
+
+	paths := func(rows []recentRow) []string {
+		var out []string
+		for _, r := range rows {
+			out = append(out, r.Page.Path)
+		}
+		return out
+	}
+
+	assert.Equal(t, []string{"h.md", "g.md", "f.md", "e.md", "d.md"}, paths(newToYou(all, st)))
+	assert.Equal(t, []string{"c.md"}, paths(newToYou(all[6:], st)))
+}
+
+func TestNewToYouSitsAboveLabelledRootPages(t *testing.T) {
+	d := sidebarData{Projects: []projectView{demoProject()}, New: []recentRow{{Project: "app", Page: Page{Path: "sdui/nodes.md", Title: "Nodes", By: "Claude"}}}}
+
+	assert.Equal(t, []string{newSection, "new:app/sdui/nodes.md", rootSection, "app/a.md", "dir:app/sdui", "app/sdui/nodes.md", "dir:app/.agents"}, sidebarTree(t, d))
+}
+
+func TestMarkMatchesOnlyText(t *testing.T) {
+	body := `<h2 id="node">Node &amp; tree</h2><p><a href="node.md">a NODE</a></p><pre class="mermaid">node --> b</pre><script>node()</script><p>node</p>`
+
+	got, ok := markMatches(body, "node", "m1")
+
+	require.True(t, ok)
+	assert.Equal(t, `<h2 id="node"><mark id="m1">Node</mark> &amp; tree</h2><p><a href="node.md">a <mark>NODE</mark></a></p><pre class="mermaid">node --> b</pre><script>node()</script><p><mark>node</mark></p>`, got)
+	_, ok = markMatches(body, "absent", "m1")
+	assert.False(t, ok)
 }
 
 func TestMainShowsStaleBadgeFromField(t *testing.T) {
@@ -130,7 +186,7 @@ func TestRenderKeepsSelectionMadeMeanwhile(t *testing.T) {
 
 func TestReadErrorIsEscaped(t *testing.T) {
 	p, _ := newProject(t)
-	m := newWiki().pageData(t.Context(), contract.Workspace{}, nil, Open(p, time.Now), recentRow{Project: p.Name, Page: Page{Path: "<i>x</i>.md"}}, nil, false)
+	m := newWiki().pageData(t.Context(), contract.Workspace{}, nil, Open(p, time.Now), recentRow{Project: p.Name, Page: Page{Path: "<i>x</i>.md"}}, nil, false, find{})
 
 	assert.NotContains(t, m.HTML, "<i>")
 	assert.Contains(t, m.HTML, "&lt;i&gt;")

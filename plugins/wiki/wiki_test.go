@@ -218,3 +218,40 @@ func TestMarginListsBacklinksAndOpensHistory(t *testing.T) {
 		return ok
 	})
 }
+
+func (e pluginEnv) slotHas(slot, text string, want bool) {
+	e.h.WaitSlot(e.t, e.ws, slot, func(n sdui.Node) bool {
+		raw, err := json.Marshal(n)
+		return err == nil && strings.Contains(string(raw), text) == want
+	})
+}
+
+func TestNewToYouClearsWhenOpened(t *testing.T) {
+	e := newPluginEnv(t)
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.ws}, nil))
+	e.slotHas(mainSlot, "No wiki pages yet", true)
+	require.NoError(t, e.run("wiki.write", "", map[string]any{"page": "a.md", "content": "# A\n", "summary": "x"}, nil))
+	e.h.Event(t, e.ws, sidebarSlot, pagesNode, "select", "app/a.md")
+
+	require.NoError(t, e.run("wiki.write", "agt_1", map[string]any{"page": "b.md", "content": "# Bee\n", "summary": "x"}, nil))
+	e.slotHas(sidebarSlot, `"id":"new:app/b.md"`, true)
+
+	e.h.Event(t, e.ws, sidebarSlot, pagesNode, "select", "app/b.md")
+	e.slotHas(sidebarSlot, `"id":"new:app/b.md"`, false)
+}
+
+func TestOpeningSearchHitMarksMatches(t *testing.T) {
+	e := newPluginEnv(t)
+	require.NoError(t, e.run("wiki.write", "", map[string]any{"page": "a.md", "content": "# A\n\nThe socket listens.\n", "summary": "x"}, nil))
+	require.NoError(t, e.run("wiki.write", "", map[string]any{"page": "b.md", "content": "# B\n", "summary": "x"}, nil))
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.ws}, nil))
+	e.slotHas(mainSlot, `"title":"B"`, true)
+
+	e.h.Event(t, e.ws, sidebarSlot, searchNode, "search", "socket")
+	e.h.Event(t, e.ws, sidebarSlot, pagesNode, "select", "app/a.md")
+
+	e.h.WaitSlot(t, e.ws, mainSlot, func(n sdui.Node) bool {
+		doc, ok := findNode(n, docNode)
+		return ok && doc.Props["anchor"] == matchAnchor+"1" && strings.Contains(doc.Props["html"].(string), `<mark id="wiki-match-1">socket</mark>`)
+	})
+}

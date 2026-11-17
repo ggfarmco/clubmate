@@ -4,7 +4,7 @@ Direction B, "Margin" (Claude Design round 1, canvas "Clubmate · Wiki", https:/
 
 The user's pain: "the wiki looks sad: huge empty margins on the sides, and in general it isn't neat". The page body was an 820 px column centred in the pane, the title showed twice, the sidebar listed every page twice (Recent + tree).
 
-**Status:** landing 1 (rules 1, 3, 4, 8, rule 5 without New to you) and landing 2a (rule 2, the margin column) are built; History with diff (rule 6), New to you and search snippets (rules 5, 7) are not yet, so the boards show more than the app until those land (backlog #788–#789). Rule 4's meta on the title line (from a 640pt header), its today-only time and Reveal in Finder are built too; the full timestamp tooltip is not (the `header` has no tooltip for `meta`). How landing 1 looks: `built/`.
+**Status:** landing 1 (rules 1, 3, 4, 8, rule 5 without New to you), landing 2a (rule 2, the margin column) and landing 2c (New to you, search results with snippets, opened hits marked and scrolled to: rules 5, 7) are built; History with diff (rule 6) is not yet, so the boards show more than the app until it lands (backlog #788, #790). Rule 4's meta on the title line (from a 640pt header), its today-only time and Reveal in Finder are built too; the full timestamp tooltip is not (the `header` has no tooltip for `meta`). How landing 1 looks: `built/`.
 
 ## The rules
 
@@ -23,6 +23,9 @@ The user's pain: "the wiki looks sad: huge empty margins on the sides, and in ge
 - **History is ⌘Y, not H.** A bare h is the sidebar tree's collapse key (`docs/shortcuts.md` § Trees); ⌘Y is History in Safari.
 - **No ⌘B sidebar overlay below 800.** That is app shell, not the wiki; the sidebar stays docked as in every other section.
 - **No match highlights in sidebar snippets** (handoff 29): it needs a new SDUI prop the design language doesn't name. Snippets ship without marks.
+- **Search rows are one line** (handoff 28, 30): tree rows have no second line, so the snippet is the row's detail (from the first match on, since the sidebar leaves the detail about 16 characters) and the match count is dropped; an opened hit marks its matches and scrolls to the first, without the "1 of 4 · n · N" find strip. No "/" to focus search and no "⎋ clear" hint.
+- **The unread mark is the row's icon** (an accent `circlebadge.fill` at icon size, in place of the page icon), not a small dot beside it; the detail "<who> · <time>" tail-truncates at 640.
+- **"Pages" label only while New to you shows**, so the wiki's root pages don't read as part of it; the page count stays in the sidebar head.
 - **No outline scroll-spy, no "Ask Claude to update", no "while working on …"** (handoff 7, 8, 26): later, backlog.
 - **Sample content** on the boards (Claude's history entries, `[[SDUI protocol]]` links) is the designer's invention; "Linked from" uses real Markdown links between wiki pages.
 

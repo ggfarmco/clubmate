@@ -151,6 +151,9 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
             case .replaceBody:
                 await call("return await window.clubmate.setBody(html)", ["html": next.content.html])
                 await finder?.refresh()
+                if next.content.anchor != previous?.content.anchor {
+                    await scroll(to: next.content.anchor)
+                }
             case .scroll:
                 await scroll(to: next.content.anchor)
             case .load, .none:

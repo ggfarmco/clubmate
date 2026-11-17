@@ -72,6 +72,7 @@ func (w *wiki) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plu
 	delete(w.ui, p.Workspace)
 	delete(w.present, p.Workspace)
 	w.mu.Unlock()
+	logError("forget read state "+p.Workspace, w.h.StorageDelete(ctx, readKey(p.Workspace)))
 }
 
 func (w *wiki) changed(ctx context.Context, workspaceID, page string) {
