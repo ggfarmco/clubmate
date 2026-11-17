@@ -539,6 +539,7 @@ struct ItemRow<Leading: View>: View {
     var changes: SDUIChanges?
     var labelIcon: String?
     var reserveIcon = false
+    var reserveTrailing: CGFloat = 0
     let action: () -> Void
     @ViewBuilder let leading: () -> Leading
 
@@ -615,7 +616,7 @@ struct ItemRow<Leading: View>: View {
         }
         .font(theme.ui)
         .padding(.leading, theme.gutter + CGFloat(depth) * theme.indent)
-        .padding(.trailing, theme.gutter)
+        .padding(.trailing, theme.gutter + reserveTrailing)
         .frame(height: theme.rowHeight)
         .background(alignment: .leading) { guides }
         .background(background, ignoresSafeAreaEdges: [])

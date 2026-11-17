@@ -29,7 +29,7 @@ struct TreeDockView: View {
 
     private func header(_ section: SDUITreeDock) -> some View {
         HStack(spacing: 0) {
-            ItemRow(item: item(section), selected: false, active: active, cursor: cursor == section.id, tone: nil, detailTone: section.attention ? "warning" : nil, action: { toggle(section.id) }) {
+            ItemRow(item: item(section), selected: false, active: active, cursor: cursor == section.id, tone: nil, detailTone: section.attention ? "warning" : nil, reserveTrailing: section.add == nil ? addColumn : 0, action: { toggle(section.id) }) {
                 Button { toggle(section.id) } label: {
                     Image(systemName: "chevron.up")
                         .font(.system(size: 8, weight: .semibold))
@@ -60,7 +60,7 @@ struct TreeDockView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(section.rows) { row in
-                    ItemRow(item: row.item, selected: row.id == selected, active: active, cursor: cursor == row.id, muted: row.muted, faint: row.faint, tone: row.tone, detailTone: row.detailTone, detailFaint: row.detailFaint, depth: 1 + (section.depths[row.id] ?? 0), badges: row.badges, labelIcon: row.labelIcon, action: { open(row.id) }) {
+                    ItemRow(item: row.item, selected: row.id == selected, active: active, cursor: cursor == row.id, muted: row.muted, faint: row.faint, tone: row.tone, detailTone: row.detailTone, detailFaint: row.detailFaint, depth: 1 + (section.depths[row.id] ?? 0), badges: row.badges, labelIcon: row.labelIcon, reserveTrailing: addColumn, action: { open(row.id) }) {
                         Color.clear.frame(width: theme.indent)
                     }
                     .id(row.id)
@@ -70,6 +70,10 @@ struct TreeDockView: View {
         .frame(height: theme.rowHeight * CGFloat(min(section.rows.count, section.cap)))
         .clipped()
         .overlay(alignment: .leading) { theme.border.frame(width: 1).padding(.leading, theme.indent + theme.spacing.s) }
+    }
+
+    private var addColumn: CGFloat {
+        dock.contains { $0.add != nil } ? theme.rowHeight : 0
     }
 
     private func item(_ section: SDUITreeDock) -> SDUIItem {
