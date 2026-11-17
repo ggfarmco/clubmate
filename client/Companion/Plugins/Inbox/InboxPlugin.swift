@@ -48,6 +48,7 @@ struct InboxListView: View {
         let sections = InboxPlugin.sections(context)
         let workspaces = Set((sections.waiting + sections.earlier).map(\.workspace)).sorted()
         List {
+            MacLineSection(text: context.model.tag(context.connection.computer.id)?.lead("") ?? Text(context.connection.computer.name))
             if !sections.waiting.isEmpty {
                 Section {
                     rows(sections.waiting, sections: sections, waiting: true)
@@ -78,9 +79,7 @@ struct InboxListView: View {
             }
         }
         .navigationTitle("Inbox")
-        .navigationSubtitle(context.connection.computer.name)
         .toolbar {
-            MacSubtitle(text: context.model.tag(context.connection.computer.id)?.lead(""))
             ToolbarItem(placement: .primaryAction) {
                 Menu("More", systemImage: "ellipsis") {
                     Button("Mark All as Read", systemImage: "envelope.open") { context.model.inbox.markAllRead() }

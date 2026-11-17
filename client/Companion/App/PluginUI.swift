@@ -52,10 +52,13 @@ struct WorkspaceTabs: View {
         let compact = context.navigation.layout == .compact
         let tabs = compact ? CompanionPlugins.inWorkspace(context.connection) : []
         let usage = context.navigation.layout != .wide && context.showsUsage
-        if tabs.count > 1 || usage {
+        if compact || usage {
             Section {
             } header: {
                 VStack(spacing: 8) {
+                    if compact {
+                        MacLine(text: context.macLine)
+                    }
                     if usage {
                         UsageHeaderLine(computer: context.connection.computer.id)
                             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -82,17 +85,10 @@ struct WorkspaceChrome: ViewModifier {
     let context: PluginContext
     let title: String
 
-    private var presence: String {
-        let workspace = context.navigation.workspace(for: context.connection)
-        return [context.connection.presence, workspace?.foldersLine, workspace?.newFolders].compactMap { $0 }.joined(separator: " · ")
-    }
-
     func body(content: Content) -> some View {
         if context.navigation.layout == .compact {
             content
                 .navigationTitle(title)
-                .navigationSubtitle("\(context.connection.computer.name) · \(presence)")
-                .toolbar { MacSubtitle(text: context.model.tag(context.connection.computer.id)?.lead(presence)) }
         } else {
             content
                 .navigationTitle(title)
@@ -108,6 +104,12 @@ extension View {
 }
 
 extension PluginContext {
+    @MainActor var macLine: Text {
+        let workspace = navigation.workspace(for: connection)
+        let presence = [connection.presence, workspace?.foldersLine, workspace?.newFolders].compactMap { $0 }.joined(separator: " · ")
+        return model.tag(connection.computer.id)?.lead(presence) ?? Text("\(connection.computer.name) · \(presence)")
+    }
+
     @MainActor var showsUsage: Bool {
         model.claudeAccounts.line(for: connection.computer.id, now: .now) != nil
     }

@@ -322,6 +322,42 @@ final class CompanionUITests: XCTestCase {
         }
     }
 
+    func testWorkspaceAndInboxTitlesAreLargeEveryTimeTheyOpen() {
+        for macs in [[], ["-macs", "3"]] {
+            let app = launch(open: "sidebar", macs)
+            XCTAssertTrue(app.navigationBars["Macs"].waitForExistence(timeout: 10))
+            for _ in 0..<3 {
+                reveal(app.staticTexts["shop"].firstMatch, in: app)
+                app.staticTexts["shop"].firstMatch.tap()
+                XCTAssertTrue(poll { largeTitle(app, "shop") }, "\(macs) on entry")
+                XCTAssertTrue(app.staticTexts["mac.line"].exists)
+                let row = app.staticTexts["Explain the checkout flow"]
+                XCTAssertTrue(row.waitForExistence(timeout: 5))
+                row.tap()
+                XCTAssertTrue(app.textViews["composer"].waitForExistence(timeout: 5))
+                app.navigationBars.buttons.firstMatch.tap()
+                XCTAssertTrue(poll { largeTitle(app, "shop") }, "\(macs) back from a session")
+                app.buttons["Backlog"].firstMatch.tap()
+                XCTAssertTrue(poll { largeTitle(app, "shop") }, "\(macs) on Backlog")
+                app.buttons["Agents"].firstMatch.tap()
+                XCTAssertTrue(row.waitForExistence(timeout: 5))
+                app.navigationBars["shop"].buttons.firstMatch.tap()
+                XCTAssertTrue(app.navigationBars["Macs"].waitForExistence(timeout: 5))
+                reveal(app.staticTexts["Inbox"].firstMatch, in: app)
+                app.staticTexts["Inbox"].firstMatch.tap()
+                XCTAssertTrue(poll { largeTitle(app, "Inbox") }, "\(macs) Inbox")
+                app.navigationBars["Inbox"].buttons.firstMatch.tap()
+                XCTAssertTrue(app.navigationBars["Macs"].waitForExistence(timeout: 5))
+            }
+            app.terminate()
+        }
+    }
+
+    private func largeTitle(_ app: XCUIApplication, _ title: String) -> Bool {
+        let text = app.navigationBars[title].staticTexts[title].firstMatch
+        return text.exists && text.frame.height > 30 && text.frame.minX < 40
+    }
+
     func testSendQueuesAndStopAsksOnceFromTheMenu() {
         let app = launch(open: "agents/agt_0000000000000002")
         let composer = app.textViews["composer"]

@@ -24,19 +24,31 @@ extension Optional where Wrapped == MacTag {
     }
 }
 
-struct MacSubtitle: ToolbarContent {
-    let text: Text?
+struct MacLine: View {
+    let text: Text
 
-    var body: some ToolbarContent {
-        if let text {
-            ToolbarItem(placement: .largeSubtitle) {
-                text
-                    .font(.subheadline)
-                    .foregroundStyle(Color.captionInk)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+    var body: some View {
+        text
+            .font(.subheadline)
+            .foregroundStyle(Color.captionInk)
+            .lineLimit(1)
+            .textCase(nil)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("mac.line")
+    }
+}
+
+struct MacLineSection: View {
+    let text: Text
+
+    var body: some View {
+        Section {
+        } header: {
+            MacLine(text: text)
+                .padding(.bottom, 8)
+                .listRowInsets(EdgeInsets())
         }
+        .listSectionSpacing(0)
     }
 }
 
@@ -125,6 +137,7 @@ struct MacDetailsView: View {
         let others = model.computers.filter { $0.id != computerID }.map { model.connection($0.id)?.computer.tag ?? $0.tag }
         let reason = changeBlocked(connection)
         return List {
+            MacLineSection(text: model.namesMacs ? Text("\(tag.dot) \(summary(connection))") : Text(summary(connection)))
             if connection.state != .unauthorized, let awake = connection.awake {
                 AwakeSection(connection: connection, awake: awake)
             }
@@ -199,8 +212,6 @@ struct MacDetailsView: View {
         .listStyle(.insetGrouped)
         .environment(\.defaultMinListRowHeight, 44)
         .navigationTitle(tag.name)
-        .navigationSubtitle(summary(connection))
-        .toolbar { MacSubtitle(text: model.namesMacs ? Text("\(tag.dot) \(summary(connection))") : nil) }
         .confirmationDialog("Forget \(tag.name)?", isPresented: $forgetting, titleVisibility: .visible) {
             Button("Forget", role: .destructive) {
                 navigation.macDetails = nil
