@@ -2,6 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -9,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	internalsdui "clubmate/internal/sdui"
+	"clubmate/internal/testutil"
 	"clubmate/pkg/sdui"
 )
 
@@ -217,4 +221,21 @@ func TestStopIndexWithNoSelectionMakesNoSession(t *testing.T) {
 	assert.Zero(t, a.stopIndex("p", "", nil))
 
 	assert.NotContains(t, a.workspaceState("p").sessions, "")
+}
+
+func TestQueueSkipsItemsTheLogNeverKept(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "s.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte(`{"turn":1,"kind":"session/prompt","payload":{"prompt":[{"type":"text","text":"go"}]}}`+"\n"), 0o600))
+	var saved atomic.Bool
+	a := &app{registry: newRegistry()}
+	a.sessions["s"] = newSession(record{ID: "s", Workspace: "w", Status: statusDone, OpenCount: 1}, newEventLog(path), false, func(kind string, save bool) {
+		if kind == changeStatus && save {
+			saved.Store(true)
+		}
+	})
+
+	assert.Empty(t, a.openQueue("w"))
+	assert.Zero(t, a.session("s").snapshot().OpenCount)
+	testutil.Eventually(t, saved.Load, 10*time.Second)
 }

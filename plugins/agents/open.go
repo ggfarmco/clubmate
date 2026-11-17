@@ -281,7 +281,11 @@ func (a *app) openQueue(workspaceID string) []openQueueEntry {
 		if s == nil || rec.OpenCount == 0 {
 			continue
 		}
-		out = append(out, openQueueEntry{Session: rec.ID, Title: rec.Title, Worktree: rec.Worktree, UpdatedAt: rec.UpdatedAt, Items: s.numberedOpen(), since: rec.OpenSince})
+		items := s.numberedOpen()
+		if len(items) == 0 {
+			continue
+		}
+		out = append(out, openQueueEntry{Session: rec.ID, Title: rec.Title, Worktree: rec.Worktree, UpdatedAt: rec.UpdatedAt, Items: items, since: rec.OpenSince})
 	}
 	slices.SortStableFunc(out, func(x, y openQueueEntry) int {
 		return cmp.Or(x.since.Compare(y.since), cmp.Compare(x.Session, y.Session))

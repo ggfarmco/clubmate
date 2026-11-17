@@ -79,6 +79,11 @@ func (s *session) loadLocked() {
 		return
 	}
 	s.askTasksLocked()
+	open := s.rec.OpenCount
+	s.countOpen()
+	if s.rec.OpenCount != open && s.changed != nil {
+		go s.changed(changeStatus, true)
+	}
 }
 
 func (s *session) actor() string {
