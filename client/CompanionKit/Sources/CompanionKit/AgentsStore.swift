@@ -68,6 +68,7 @@ public final class AgentsStore {
     public static let searchCommand = "agents.search"
     public static let searchDelay: Duration = .milliseconds(250)
     public static let imageLimit = 48
+    public static let keptTranscripts = 4
     public static let openNoUndo: Duration = .seconds(5)
     public static let imageBytes = 48 << 20
 
@@ -82,6 +83,7 @@ public final class AgentsStore {
     @ObservationIgnored private let retry: @MainActor () -> Void
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
     @ObservationIgnored private var watched: [String: Int] = [:]
+    @ObservationIgnored private var left: [String] = []
     @ObservationIgnored public private(set) var shown: String?
     @ObservationIgnored private var followers: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var inflight: Set<String> = []
@@ -252,9 +254,14 @@ public final class AgentsStore {
         images = images.filter { !$0.key.hasPrefix(prefix) }
         imageOrder.removeAll { $0.hasPrefix(prefix) }
         shownImages = shownImages.filter { !$0.hasPrefix(prefix) }
-        guard self.session(session)?.needsYou != true else { return }
-        transcripts[session] = nil
-        transcriptErrors[session] = nil
+        if transcriptErrors[session] != nil { transcriptErrors[session] = nil }
+        left.removeAll { $0 == session }
+        left.append(session)
+        while left.count > Self.keptTranscripts {
+            let oldest = left.removeFirst()
+            guard self.session(oldest)?.needsYou != true else { continue }
+            transcripts[oldest] = nil
+        }
     }
 
     public func dismissOpenedDoc(_ session: String) {
@@ -347,6 +354,7 @@ public final class AgentsStore {
 
     public func watch(_ session: String) {
         watched[session, default: 0] += 1
+        left.removeAll { $0 == session }
         guard followers[session] == nil else { return }
         followers[session] = Task { [weak self] in await self?.follow(session) }
     }
@@ -428,10 +436,14 @@ public final class AgentsStore {
                     var args: [String: JSONValue] = ["session": .string(session), "compact": .bool(true)]
                     if fromTurn > 0 { args["fromTurn"] = .number(Double(fromTurn)) }
                     if let cursor = loaded?.cursor { args["since"] = .string(cursor) }
-                    let fetched = try await runner.command("agents.transcript", workspace: workspace, args: .object(args), as: AgentTranscript.self)
-                    let merged = if let loaded, fetched.delta { loaded.merging(delta: fetched) } else if let loaded, fromTurn > 0 { loaded.merging(fetched, fromTurn: fromTurn) } else { fetched }
+                    var fetched = try await runner.command("agents.transcript", workspace: workspace, args: .object(args), as: AgentTranscript.self)
+                    let stale = loaded?.cursor != nil && !fetched.delta
+                    if stale {
+                        fetched = try await runner.command("agents.transcript", workspace: workspace, args: .object(["session": .string(session), "compact": .bool(true)]), as: AgentTranscript.self)
+                    }
+                    let merged = if let loaded, fetched.delta { loaded.merging(delta: fetched) } else if let loaded, fromTurn > 0, !stale { loaded.merging(fetched, fromTurn: fromTurn) } else { fetched }
                     if transcripts[session] != merged { transcripts[session] = merged }
-                    transcriptErrors[session] = nil
+                    if transcriptErrors[session] != nil { transcriptErrors[session] = nil }
                     reconcile(session)
                     return
                 } catch {

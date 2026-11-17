@@ -1932,3 +1932,27 @@ struct NoticeView: View {
         .padding(.vertical, 4)
     }
 }
+
+struct EarlierRowsButton: View {
+    let left: Int
+    let page: Int
+    let show: () -> Void
+
+    var body: some View {
+        Button {
+            show()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.up")
+                    .font(.caption.weight(.semibold))
+                Text(left > page ? "Show \(page) earlier · \(left) left" : "Show \(left) earlier")
+            }
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.tint)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("earlier-rows")
+    }
+}

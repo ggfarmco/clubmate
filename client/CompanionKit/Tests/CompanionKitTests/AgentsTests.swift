@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import XCTest
 
 import CompanionKit
@@ -367,20 +368,24 @@ final class TranscriptImageTests: XCTestCase {
         XCTAssertEqual(runner.calls, 3)
     }
 
-    func testClosingASessionDropsItsImagesAndTranscript() async throws {
+    func testLeavingASessionDropsItsImagesAndKeepsTheLastFewTranscripts() async throws {
         let runner = ImageRunner()
         runner.data = Data("png".utf8).base64EncodedString()
         let store = AgentsStore(workspace: "w", runner: runner)
-        store.watch("s")
-        try await waitUntil { store.transcripts["s"] != nil }
-        await store.loadImage("/w/a.png", entry: "e", in: "s")
+        let sessions = (0...AgentsStore.keptTranscripts).map { "s\($0)" }
+        for session in sessions {
+            store.watch(session)
+            try await waitUntil { store.transcripts[session] != nil }
+        }
+        await store.loadImage("/w/a.png", entry: "e", in: "s0")
         await store.loadImage("/w/a.png", entry: "e", in: "t")
 
-        store.unwatch("s")
+        for session in sessions { store.unwatch(session) }
 
-        XCTAssertNil(store.transcripts["s"])
-        XCTAssertNil(store.image("/w/a.png", entry: "e", in: "s"))
+        XCTAssertNil(store.image("/w/a.png", entry: "e", in: "s0"))
         XCTAssertEqual(store.image("/w/a.png", entry: "e", in: "t"), .loaded(Data("png".utf8)))
+        XCTAssertNil(store.transcripts["s0"])
+        XCTAssertEqual(sessions.dropFirst().filter { store.transcripts[$0] != nil }, Array(sessions.dropFirst()))
     }
 
     func testOnlyTheNewestImagesStayLoaded() async {
@@ -526,6 +531,50 @@ final class TranscriptRefreshTests: XCTestCase {
         XCTAssertEqual(store.transcripts["s"]?.entries.count, 1)
         XCTAssertNil(store.transcriptErrors["s"])
         store.unwatch("s")
+    }
+
+    func testACursorTheMacNoLongerKnowsRefetchesTheWholeTranscript() async throws {
+        let first = #"{"session":{"id":"s","status":"done"},"cursor":"e.2","entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"},{"kind":"user","id":"prompt-2","turn":2,"text":"two"}]}"#
+        let restarted = #"{"session":{"id":"s","status":"done"},"cursor":"f.1","entries":[{"kind":"user","id":"prompt-2","turn":2,"text":"two"}]}"#
+        let full = #"{"session":{"id":"s","status":"done"},"cursor":"f.1","entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one, edited"},{"kind":"user","id":"prompt-2","turn":2,"text":"two"}]}"#
+        let runner = ScriptedRunner(replies: [first, restarted, full])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.loadTranscript("s")
+        await store.loadTranscript("s", incremental: true)
+        XCTAssertEqual(runner.args.last, .object(["session": .string("s"), "compact": .bool(true)]))
+        XCTAssertEqual(store.transcripts["s"]?.entries.first?.content, .user(text: "one, edited", fromAgent: false, images: []))
+    }
+
+    func testReopeningALeftSessionAsksOnlyForWhatChanged() async throws {
+        let reply = #"{"session":{"id":"s","status":"done"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"}],"cursor":"e.1"}"#
+        let delta = #"{"session":{"id":"s","status":"done"},"entries":[],"cursor":"e.1","delta":true}"#
+        let runner = ScriptedRunner(replies: [reply, delta])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        store.watch("s")
+        try await waitUntil { store.transcripts["s"] != nil }
+        store.unwatch("s")
+        store.watch("s")
+        try await waitUntil { runner.args.count == 2 }
+        XCTAssertEqual(runner.args[1]["since"], .string("e.1"))
+        store.unwatch("s")
+    }
+
+    func testAnUnchangedRefetchLeavesTheTranscriptStateUntouched() async throws {
+        let reply = #"{"session":{"id":"s","status":"running"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"}]}"#
+        let runner = ScriptedRunner(replies: [reply, reply])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.loadTranscript("s")
+        XCTAssertNotNil(store.transcripts["s"])
+        let changed = Mutex(false)
+        withObservationTracking {
+            _ = store.transcripts["s"]
+            _ = store.transcriptErrors["s"]
+            _ = store.entries("s")
+        } onChange: {
+            changed.withLock { $0 = true }
+        }
+        await store.loadTranscript("s", incremental: true)
+        XCTAssertFalse(changed.withLock { $0 })
     }
 
     func testReopeningASessionWhileItsLoadIsInFlightStillLoadsIt() async throws {

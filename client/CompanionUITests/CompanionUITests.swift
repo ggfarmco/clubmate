@@ -721,6 +721,18 @@ final class CompanionUITests: XCTestCase {
         }
     }
 
+    func testALongTranscriptDrawsItsLastRowsAndTheEarlierOnesOnATap() {
+        let app = launch(open: "agents/agt_0000000000000004", ["-longTranscript", "YES"])
+        let first = app.staticTexts["Turn 1: go on"]
+        XCTAssertTrue(app.staticTexts["Last reply of the long session"].waitForExistence(timeout: 10))
+        XCTAssertFalse(first.exists)
+        let earlier = app.buttons["earlier-rows"]
+        earlier.tap()
+        let window = app.windows.firstMatch
+        XCTAssertTrue(poll { first.exists && window.frame.contains(first.frame) })
+        XCTAssertFalse(earlier.exists)
+    }
+
     func testEveryImageOfALongTranscriptLoadsWhenScrolledTo() {
         XCUIDevice.shared.appearance = .light
         let app = launch(open: "agents/agt_0000000000000004", ["-manyImages", "YES"])

@@ -28,8 +28,11 @@ struct SessionDetailView: View {
     @FocusState private var cardField: String?
     @State private var reviewing: LandCard?
     @State private var archiving = false
+    @State private var hidden: Int?
 
     private static let pairedWidth = 520.0
+    private static let window = 60
+    private static let page = 100
 
     var body: some View {
         let transcript = store.transcripts[sessionID]
@@ -39,6 +42,8 @@ struct SessionDetailView: View {
         let screen = SessionScreen(entries: entries, session: session, request: store.request(sessionID), repos: repos)
         let blocked = context.connection.blocked
         let queued = store.queue?.item(sessionID)
+        let rows = screen.rows
+        let skip = min(hidden ?? max(0, rows.count - Self.window), rows.count)
         let cardTyping = typingInCard(screen)
         let keySend: (() -> Void)? = cardTyping ? nil : { send() }
         let answerDocked = switch screen.dock {
@@ -51,7 +56,10 @@ struct SessionDetailView: View {
                 if let parent = session?.parentSession.flatMap(store.session) {
                     StartedByCard(parent: parent) { context.navigation.detail = parent.id }
                 }
-                ForEach(Self.blocks(screen.rows, paired: width >= Self.pairedWidth), id: \.[0].id) { block in
+                if skip > 0 {
+                    EarlierRowsButton(left: skip, page: Self.page) { hidden = max(0, skip - Self.page) }
+                }
+                ForEach(Self.blocks(Array(rows[skip...]), paired: width >= Self.pairedWidth), id: \.[0].id) { block in
                     if block.count == 2 {
                         HStack(alignment: .top, spacing: 10) {
                             RowView(row: block[0])
@@ -115,6 +123,9 @@ struct SessionDetailView: View {
             .frame(maxWidth: 820)
             .onGeometryChange(for: Double.self) { $0.size.width } action: { width = $0 }
             .frame(maxWidth: .infinity)
+            .onChange(of: rows.count, initial: true) { _, count in
+                if hidden == nil, transcript != nil, count > 0 { hidden = max(0, count - Self.window) }
+            }
         }
         .environment(\.subagentStop, context.connection.supports("agents.stop-subagent") ? SubagentStop(enabled: blocked == nil) { id in
             do {
