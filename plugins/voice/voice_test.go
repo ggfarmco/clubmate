@@ -260,6 +260,9 @@ func TestIdleRecognizerUnloadsAndRespawnsOnNextUtterance(t *testing.T) {
 		return err == nil && st.Phase == phaseError
 	}, 5*time.Second)
 
+	proc.mu.Lock()
+	proc.idle = time.Hour
+	proc.mu.Unlock()
 	next := start(t, v)
 	feed(t, v, next, 320)
 	res, err := v.end(t.Context(), testWorkspace, next)
