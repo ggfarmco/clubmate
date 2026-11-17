@@ -742,17 +742,23 @@ func TestGateStepRunsOnKeyedTree(t *testing.T) {
 
 func TestGateTreeFollowsRounds(t *testing.T) {
 	t.Parallel()
-	g := startGateWith(t, "checked", gateChecked)
+	release := filepath.Join(t.TempDir(), "release")
+	g := startGateReview(t, allowHome(t, "Bash(cat VERSION b.go)"), "checked", gateChecked, release, map[string]any{"match": "Review. ", "wait": release})
+	write(t, filepath.Join(g.repo, "VERSION"), "2\n")
+	git(t, g.repo, "add", "VERSION")
+	git(t, g.repo, "commit", "-qm", "version")
 	require.ErrorContains(t, g.land(t), "review pending")
-	run := g.reviewer(t).GateFor.Run
+	first := g.reviewer(t)
+	g.f.waitStatus(t, g.workspace, first.ID, "running")
 	g.verdict(t, "changes", "b.go:1 — breaks")
 	write(t, g.release, "")
+	g.f.waitStatus(t, g.workspace, first.ID, "done")
 	g.commit(t, "d.go", "fix\n")
 
 	require.ErrorContains(t, g.land(t), "review pending")
 
 	review := g.reviewer(t)
-	assert.Equal(t, run, review.GateFor.Run)
+	assert.Equal(t, first.GateFor.Run, review.GateFor.Run)
 	trees := g.gateTrees(t)
 	require.Len(t, trees, 1)
 	assert.Equal(t, review.GateFor.Tree, git(t, trees[0], "rev-parse", "HEAD^{tree}"))
