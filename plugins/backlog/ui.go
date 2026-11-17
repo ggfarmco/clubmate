@@ -46,6 +46,7 @@ type workspaceUI struct {
 	query      string
 	adding     bool
 	linking    int
+	closing    int
 	notes      map[int]*noteState
 }
 
@@ -67,7 +68,7 @@ func (b *backlog) workspace(workspaceID string) *workspaceUI {
 	defer b.mu.Unlock()
 	w, ok := b.ui[workspaceID]
 	if !ok {
-		w = &workspaceUI{collapsed: map[string]bool{statusDone: true}, sent: map[string][32]byte{}}
+		w = &workspaceUI{collapsed: map[string]bool{statusDone: true, statusWontDo: true}, sent: map[string][32]byte{}}
 		b.ui[workspaceID] = w
 	}
 	return w
@@ -153,7 +154,7 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 	if w.tagFilter != "" && tagCounts(tasks)[w.tagFilter] == 0 {
 		w.tagFilter = ""
 	}
-	selected, collapsed, rev, fieldRev, fieldErr, editing, prompt, filter, query, adding, linking := w.selected, maps.Clone(w.collapsed), w.formRev, w.fieldRev, w.fieldError, w.editing, w.prompt, w.tagFilter, w.query, w.adding, w.linking
+	selected, collapsed, rev, fieldRev, fieldErr, editing, prompt, filter, query, adding, linking, closing := w.selected, maps.Clone(w.collapsed), w.formRev, w.fieldRev, w.fieldError, w.editing, w.prompt, w.tagFilter, w.query, w.adding, w.linking, w.closing
 	b.mu.Unlock()
 	var current *Task
 	byID := make(map[int]Task, len(tasks))
@@ -179,7 +180,7 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 	if fieldErr.task == selected && fieldErr.text != "" {
 		errs = map[string]string{fieldErr.field: fieldErr.text}
 	}
-	d := detail{owners: owners, linked: byID, hasTasks: len(tasks) > 0, errs: errs, editing: current != nil && editing == current.ID, prompt: current != nil && prompt == current.ID, linking: current != nil && linking == current.ID, noteVer: noteVer, rev: rev + fieldRev}
+	d := detail{owners: owners, linked: byID, hasTasks: len(tasks) > 0, errs: errs, editing: current != nil && editing == current.ID, prompt: current != nil && prompt == current.ID, linking: current != nil && linking == current.ID, closing: current != nil && closing == current.ID, noteVer: noteVer, rev: rev + fieldRev}
 	return b.push(ctx, w, workspaceID, mainSlot, mainView(current, d))
 }
 
@@ -292,6 +293,33 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			w.tagFilter = tag
 			b.mu.Unlock()
 		}
+		return nil
+	case ev.Slot == mainSlot && ev.Action == actCloseOpen:
+		return b.openClose(ctx, ev.WorkspaceID, w, b.selected(w))
+	case ev.Slot == mainSlot && ev.Action == actCloseShut:
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		w.closing = 0
+		if w.fieldError.field == reasonField {
+			w.fieldError = fieldError{}
+		}
+		return nil
+	case ev.Slot == mainSlot && ev.NodeID == reasonField:
+		var reason string
+		if err := json.Unmarshal(ev.Value, &reason); err != nil {
+			return fmt.Errorf("%s value: %w", ev.NodeID, err)
+		}
+		id := b.selected(w)
+		_, err := b.closeCmd(ctx, user, commandArgs{ID: id, Reason: reason})
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		w.fieldError = fieldError{}
+		if err != nil {
+			w.fieldError = fieldError{task: id, field: reasonField, text: caption(err)}
+			return nil
+		}
+		w.closing = 0
+		w.fieldRev++
 		return nil
 	case ev.Slot == mainSlot && ev.Action == actLinkOpen:
 		b.mu.Lock()
@@ -463,11 +491,17 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 	if err != nil {
 		return fmt.Errorf("task id %q: %w", item, err)
 	}
-	if ev.Action == "select" {
+	switch ev.Action {
+	case "select":
 		b.mu.Lock()
 		w.selected = id
+		if w.closing != id {
+			w.closing = 0
+		}
 		b.mu.Unlock()
 		return nil
+	case actCloseOpen:
+		return b.openClose(ctx, ev.WorkspaceID, w, id)
 	}
 	return b.taskAction(ctx, ev.WorkspaceID, w, ev.Action, id)
 }
@@ -483,7 +517,7 @@ func (b *backlog) fromSession(ctx context.Context, workspaceID, caller string) b
 
 func changesTasks(ev pluginsdk.UIEvent, verb string) bool {
 	switch ev.NodeID {
-	case "new", "edit", linkField, attachField:
+	case "new", "edit", linkField, attachField, reasonField:
 		return true
 	}
 	return slices.Contains(taskVerbs, verb)
@@ -582,6 +616,17 @@ func (b *backlog) addRef(ctx context.Context, workspaceID string, w *workspaceUI
 		w.linking = 0
 	}
 	return nil
+}
+
+func (b *backlog) openClose(ctx context.Context, workspaceID string, w *workspaceUI, id int) error {
+	if id == 0 {
+		return nil
+	}
+	b.mu.Lock()
+	w.selected, w.closing = id, id
+	b.mu.Unlock()
+	b.render(ctx, workspaceID)
+	return b.h.FocusNode(ctx, workspaceID, sectionID, mainSlot, reasonField)
 }
 
 func (b *backlog) focusNew(ctx context.Context, workspaceID string) error {

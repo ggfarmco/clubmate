@@ -98,6 +98,7 @@ struct TaskListView: View {
     let store: BacklogStore
     @State private var expanded: Set<BacklogStatus> = []
     @State private var failure: String?
+    @State private var closing: BacklogTask?
 
     var body: some View {
         List(selection: Binding(get: { context.navigation.detail }, set: { id in
@@ -144,6 +145,7 @@ struct TaskListView: View {
             }
         }
         .refreshable { await store.refresh() }
+        .closeTask($closing, store: store)
         .actionFailure($failure)
     }
 
@@ -233,6 +235,10 @@ struct TaskListView: View {
                         Button("Done", systemImage: "checkmark") { perform { try await store.done(task.id) } }
                             .tint(.green)
                     }
+                    if !task.status.closed, closes {
+                        Button("Won't do", systemImage: BacklogStatus.wontDo.symbol) { closing = task }
+                            .tint(.gray)
+                    }
                 }
                 .swipeActions(edge: .leading) {
                     if task.status == .todo || task.status == .idea {
@@ -243,7 +249,7 @@ struct TaskListView: View {
                     }
                 }
                 .contextMenu {
-                    TaskActions(task: task, store: store, agentStart: agentStart, failure: $failure)
+                    TaskActions(task: task, store: store, agentStart: agentStart, failure: $failure, close: closes ? { closing = $0 } : nil)
                 }
         }
     }
@@ -254,6 +260,10 @@ struct TaskListView: View {
 
     private var agentStart: Bool {
         context.connection.supports(BacklogCommand.start)
+    }
+
+    private var closes: Bool {
+        context.connection.supports(BacklogCommand.close)
     }
 
     private func start(_ task: BacklogTask) async throws {
@@ -274,6 +284,7 @@ struct TaskActions: View {
     let store: BacklogStore
     let agentStart: Bool
     @Binding var failure: String?
+    var close: ((BacklogTask) -> Void)?
 
     var body: some View {
         if task.status == .todo || task.status == .idea {
@@ -288,6 +299,9 @@ struct TaskActions: View {
         }
         if task.status != .done {
             Button("Mark Done", systemImage: "checkmark.circle") { perform { try await store.done(task.id) } }
+        }
+        if !task.status.closed, let close {
+            Button("Won't do…", systemImage: BacklogStatus.wontDo.symbol) { close(task) }
         }
         Menu("Move to", systemImage: "arrow.right.circle") {
             ForEach(BacklogStatus.moveTargets.filter { $0 != task.status }) { status in
@@ -413,6 +427,7 @@ struct TaskDetailView: View {
     @State private var editing = false
     @State private var starting = false
     @State private var failure: String?
+    @State private var closing: BacklogTask?
     @State private var detail: TaskDetail?
     @State private var retries = 0
     @Environment(\.colorScheme) private var scheme
@@ -429,7 +444,7 @@ struct TaskDetailView: View {
                         }
                         ToolbarItem(placement: .primaryAction) {
                             Menu("More", systemImage: "ellipsis") {
-                                TaskActions(task: task, store: store, agentStart: context.connection.supports(BacklogCommand.start), failure: $failure)
+                                TaskActions(task: task, store: store, agentStart: context.connection.supports(BacklogCommand.start), failure: $failure, close: closes ? { closing = $0 } : nil)
                             }
                             .disabled(!context.connection.canWrite)
                         }
@@ -464,7 +479,20 @@ struct TaskDetailView: View {
         }
         .navigationTitle(store.task(taskID)?.number ?? "Task")
         .navigationBarTitleDisplayMode(.inline)
+        .closeTask($closing, store: store)
         .actionFailure($failure)
+    }
+
+    private var closes: Bool {
+        context.connection.supports(BacklogCommand.close)
+    }
+
+    @ViewBuilder
+    private func wontDoButton(_ task: BacklogTask) -> some View {
+        if closes {
+            Button("Won't do", systemImage: BacklogStatus.wontDo.symbol) { closing = task }
+                .buttonStyle(.glass)
+        }
     }
 
     private func content(_ task: BacklogTask) -> some View {
@@ -625,18 +653,13 @@ struct TaskDetailView: View {
                             .font(.footnote)
                             .foregroundStyle(Color.captionInk)
                     }
-                    HStack(spacing: 10) {
-                        if task.status == .inProgress {
-                            if task.claimedByUser {
-                                Button("Release", systemImage: "arrow.uturn.backward") { perform { try await store.release(task.id) } }
-                                    .buttonStyle(.glass)
-                            } else if primary.action != .takeback {
-                                Button("Take back", systemImage: "person") { perform { try await store.takeBack(task.id) } }
-                                    .buttonStyle(.glass)
-                            }
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 10) {
+                            secondaryButtons(primary, task)
                         }
-                        Button("Done", systemImage: "checkmark") { perform { try await store.done(task.id) } }
-                            .buttonStyle(.glass)
+                        VStack(alignment: .leading, spacing: 8) {
+                            secondaryButtons(primary, task)
+                        }
                     }
                 }
             } else {
@@ -644,6 +667,22 @@ struct TaskDetailView: View {
             }
         }
         .disabled(!context.connection.canWrite)
+    }
+
+    @ViewBuilder
+    private func secondaryButtons(_ primary: BacklogPrimary, _ task: BacklogTask) -> some View {
+        if task.status == .inProgress {
+            if task.claimedByUser {
+                Button("Release", systemImage: "arrow.uturn.backward") { perform { try await store.release(task.id) } }
+                    .buttonStyle(.glass)
+            } else if primary.action != .takeback {
+                Button("Take back", systemImage: "person") { perform { try await store.takeBack(task.id) } }
+                    .buttonStyle(.glass)
+            }
+        }
+        Button("Done", systemImage: "checkmark") { perform { try await store.done(task.id) } }
+            .buttonStyle(.glass)
+        wontDoButton(task)
     }
 
     @ViewBuilder
@@ -703,34 +742,51 @@ struct TaskDetailView: View {
         }
     }
 
-    @ViewBuilder
     private func legacyButtons(_ task: BacklogTask) -> some View {
-        HStack(spacing: 10) {
-            switch task.status {
-            case .todo, .idea:
-                if context.connection.supports(BacklogCommand.start) {
-                    Button("Start agent", systemImage: "play.fill") { perform { try await store.start(task.id) } }
-                        .buttonStyle(.glassProminent)
-                } else {
-                    Button("Start", systemImage: "play.fill") { perform { try await store.claim(task.id) } }
-                        .buttonStyle(.glassProminent)
-                }
-                Button("Done", systemImage: "checkmark") { perform { try await store.done(task.id) } }
-                    .buttonStyle(.glass)
-            case .inProgress:
-                Button("Done", systemImage: "checkmark") { perform { try await store.done(task.id) } }
-                    .buttonStyle(.glassProminent)
-                Button("Release", systemImage: "arrow.uturn.backward") { perform { try await store.release(task.id) } }
-                    .buttonStyle(.glass)
-            case .notNow:
-                Button("Move to Todo", systemImage: "circle") { perform { try await store.move(task.id, to: .todo) } }
-                    .buttonStyle(.glass)
-            case .done:
-                Button("Reopen", systemImage: "arrow.counterclockwise") { perform { try await store.move(task.id, to: .todo) } }
-                    .buttonStyle(.glass)
-            case .other:
-                EmptyView()
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                legacyRow(task)
             }
+            VStack(alignment: .leading, spacing: 8) {
+                legacyRow(task)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func legacyRow(_ task: BacklogTask) -> some View {
+        switch task.status {
+        case .todo, .idea:
+            if context.connection.supports(BacklogCommand.start) {
+                Button("Start agent", systemImage: "play.fill") { perform { try await store.start(task.id) } }
+                    .buttonStyle(.glassProminent)
+            } else {
+                Button("Start", systemImage: "play.fill") { perform { try await store.claim(task.id) } }
+                    .buttonStyle(.glassProminent)
+            }
+            Button("Done", systemImage: "checkmark") { perform { try await store.done(task.id) } }
+                .buttonStyle(.glass)
+            wontDoButton(task)
+        case .inProgress:
+            Button("Done", systemImage: "checkmark") { perform { try await store.done(task.id) } }
+                .buttonStyle(.glassProminent)
+            Button("Release", systemImage: "arrow.uturn.backward") { perform { try await store.release(task.id) } }
+                .buttonStyle(.glass)
+            wontDoButton(task)
+        case .notNow:
+            Button("Move to Todo", systemImage: "circle") { perform { try await store.move(task.id, to: .todo) } }
+                .buttonStyle(.glass)
+            wontDoButton(task)
+        case .done:
+            Button("Reopen", systemImage: "arrow.counterclockwise") { perform { try await store.move(task.id, to: .todo) } }
+                .buttonStyle(.glass)
+        case .wontDo:
+            Button("Reopen", systemImage: "arrow.counterclockwise") { perform { try await store.move(task.id, to: .todo) } }
+                .buttonStyle(.glass)
+            Button("Done", systemImage: "checkmark") { perform { try await store.done(task.id) } }
+                .buttonStyle(.glass)
+        case .other:
+            EmptyView()
         }
     }
 
@@ -943,6 +999,82 @@ struct StartAgentView: View {
     }
 }
 
+struct CloseTaskView: View {
+    let task: BacklogTask
+    let close: @MainActor (String) async throws -> Void
+    let cancel: () -> Void
+    @State private var reason = ""
+    @State private var sending = false
+    @State private var failure: String?
+    @FocusState private var focused: Bool
+
+    private var trimmed: String {
+        reason.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                TextField("Why won't it be done?", text: $reason, axis: .vertical)
+                    .lineLimit(3...8)
+                    .focused($focused)
+                    .accessibilityIdentifier("wontDoReason")
+            } header: {
+                Text("\(task.number) · \(task.title)")
+                    .lineLimit(2)
+                    .textCase(nil)
+            } footer: {
+                Text("The reason goes into the task's note as “Won't do: …”.")
+            }
+        }
+        .navigationTitle("Won't Do")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel", action: cancel)
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                if sending {
+                    ProgressView()
+                } else {
+                    Button("Close Task") { send() }
+                        .disabled(trimmed.isEmpty)
+                }
+            }
+        }
+        .onAppear { focused = true }
+        .actionFailure($failure)
+    }
+
+    private func send() {
+        sending = true
+        Task {
+            do {
+                try await close(trimmed)
+            } catch {
+                failure = (error as? RemoteError)?.message ?? error.localizedDescription
+            }
+            sending = false
+        }
+    }
+}
+
+extension View {
+    func closeTask(_ closing: Binding<BacklogTask?>, store: BacklogStore) -> some View {
+        sheet(item: closing) { task in
+            NavigationStack {
+                CloseTaskView(task: task) { reason in
+                    try await store.close(task.id, reason: reason)
+                    closing.wrappedValue = nil
+                } cancel: {
+                    closing.wrappedValue = nil
+                }
+            }
+            .presentationDetents([.medium, .large])
+        }
+    }
+}
+
 struct NewTaskView: View {
     let context: PluginContext
     let store: BacklogStore
@@ -1033,7 +1165,7 @@ struct TaskEditorView: View {
                     LabeledContent("Status", value: BacklogStatus.inProgress.label)
                 } else {
                     Picker("Status", selection: draft.status) {
-                        ForEach(task == nil ? BacklogStatus.addable : BacklogStatus.moveTargets + [.done]) { status in
+                        ForEach(task == nil ? BacklogStatus.addable : BacklogStatus.moveTargets + [.done] + (task?.status == .wontDo || draft.wrappedValue.status == .wontDo ? [.wontDo] : [])) { status in
                             Label(status.label, systemImage: status.symbol).tag(status)
                         }
                     }

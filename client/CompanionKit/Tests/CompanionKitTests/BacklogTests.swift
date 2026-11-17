@@ -7,7 +7,7 @@ import CompanionKit
 final class BacklogTests: XCTestCase {
     func testDecodesTasksFixtureIntoGroups() throws {
         let tasks = try XCTUnwrap(JSONDecoder().decode(JSONValue.self, from: fixture("backlog-tasks"))["tasks"]).decode([BacklogTask].self)
-        XCTAssertEqual(BacklogTask.grouped(tasks).map(\.status), [.inProgress, .todo, .idea, .notNow, .done, .other])
+        XCTAssertEqual(BacklogTask.grouped(tasks).map(\.status), [.inProgress, .todo, .idea, .notNow, .done, .wontDo, .other])
         XCTAssertEqual(BacklogTask.grouped(tasks)[1].tasks.map(\.id), [9, 4])
         XCTAssertEqual(tasks[0].claimedBy, "agt_0000000000000001")
         XCTAssertEqual(tasks[0].claimedAt, Date.parseRFC3339("2026-10-31T09:12:00.123Z"))
@@ -203,6 +203,16 @@ final class BacklogTests: XCTestCase {
         XCTAssertFalse(runner.calls.contains { $0.id == BacklogCommand.add })
     }
 
+    func testWontDoQueuesACloseWithItsReason() async throws {
+        let runner = BacklogRunner()
+        let store = BacklogStore(workspace: "w", runner: runner, queue: ActionQueue(file: nil), computer: "m", queues: { true })
+
+        try await store.close(9, reason: "  covered by #4 \n")
+
+        XCTAssertEqual(store.outbox.map(\.title), ["Won't do #9"])
+        XCTAssertEqual(store.outbox.first?.args, .object(["id": .number(9), "reason": .string("covered by #4")]))
+    }
+
     func testDraftSendsOnlyChangedFieldsAndNeverInProgress() {
         let task = BacklogTask(id: 7, title: "Retry", description: "x", status: .inProgress, priority: .high)
         var draft = BacklogDraft(task)
@@ -212,6 +222,8 @@ final class BacklogTests: XCTestCase {
         XCTAssertEqual(draft.changes(from: task), ["title": .string("Retry the charge"), "priority": .string("low")])
         draft.status = .done
         XCTAssertEqual(draft.changes(from: task)["status"], .string("done"))
+        draft.status = .wontDo
+        XCTAssertNil(draft.changes(from: task)["status"])
     }
 }
 

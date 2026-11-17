@@ -217,6 +217,52 @@ func TestUpdateCannotStartWork(t *testing.T) {
 	assert.Equal(t, "agt_a", moved.LastClaimedBy)
 }
 
+func TestCloseAsWontDo(t *testing.T) {
+	e := newEnv(t)
+	tk := e.add("work", nil)
+	e.must(e.user("backlog.update", map[string]any{"id": tk.ID, "note": "half done"}))
+	e.must(e.agent("agt_a", "backlog.claim", map[string]any{"id": tk.ID}))
+	_, err := e.agent("agt_b", "backlog.close", map[string]any{"id": tk.ID, "reason": "obsolete"})
+	assert.Error(t, err, "someone else's claim")
+	_, err = e.agent("agt_a", "backlog.close", map[string]any{"id": tk.ID, "reason": " "})
+	assert.ErrorContains(t, err, "reason must not be empty")
+	_, err = e.agent("agt_a", "backlog.update", map[string]any{"id": tk.ID, "status": "wont_do"})
+	assert.Error(t, err)
+
+	closed := e.must(e.agent("agt_a", "backlog.close", map[string]any{"id": tk.ID, "reason": "superseded by #2"}))
+	assert.Equal(t, "wont_do", closed.Status)
+	assert.Equal(t, "half done\n\nWon't do: superseded by #2", closed.Note)
+	assert.Empty(t, closed.ClaimedBy)
+	assert.Equal(t, []string{"user created", "agt_a claimed", "user won't do"}, e.owners(tk.ID))
+	assert.Empty(t, e.listIDs(map[string]any{}))
+	assert.Equal(t, []int{tk.ID}, e.listIDs(map[string]any{"status": "wont_do"}))
+	_, err = e.agent("agt_a", "backlog.claim", map[string]any{"id": tk.ID})
+	assert.Error(t, err)
+
+	reopened := e.must(e.user("backlog.update", map[string]any{"id": tk.ID, "status": "todo"}))
+	assert.Equal(t, "todo", reopened.Status)
+}
+
+func TestWontDoFromTheTaskPane(t *testing.T) {
+	e := newEnv(t)
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
+	tk := e.add("Old idea", nil)
+	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "closeOpen", strconv.Itoa(tk.ID))
+	e.slotHas("backlog.main", `"id":"reasonText"`)
+
+	e.h.Event(t, e.p, "backlog.main", "reasonText", "close", "")
+	e.slotHas("backlog.main", `"error":"Reason must not be empty"`)
+	e.h.Event(t, e.p, "backlog.main", "reasonText", "close", "covered by #9")
+	e.h.WaitSlot(t, e.p, "backlog.main", func(n sdui.Node) bool {
+		_, open := nodeByID(n, "reasonText")
+		_, button := nodeByID(n, "closeOpen")
+		return !open && !button
+	})
+	got := e.must(e.user("backlog.get", map[string]any{"id": tk.ID}))
+	assert.Equal(t, "wont_do", got.Status)
+	assert.Equal(t, "Won't do: covered by #9", got.Note)
+}
+
 func TestWorkspaceDeletedDropsTasks(t *testing.T) {
 	e := newEnv(t)
 	e.add("one", nil)
@@ -725,6 +771,7 @@ func TestAgentUIEventsDontChangeTasks(t *testing.T) {
 		{"backlog.main", "attachText", "attach", "https://example.org"},
 		{"backlog.main", "links", "unlink", strconv.Itoa(other.ID)},
 		{"backlog.main", "attachments", "detach", "0"},
+		{"backlog.main", "reasonText", "close", "obsolete"},
 	} {
 		params := map[string]any{"workspaceId": e.p, "slot": ev.slot, "nodeId": ev.node, "action": ev.action, "value": ev.value, "agent": true}
 		assert.Error(t, e.h.Client(t).Call(t.Context(), "ui.event", params, nil), ev.action)

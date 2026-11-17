@@ -6,14 +6,19 @@ public enum BacklogStatus: String, Sendable, Codable, CaseIterable, Identifiable
     case idea
     case notNow = "not_now"
     case done
+    case wontDo = "wont_do"
     case other
 
     public var id: String { rawValue }
 
-    public static let groupOrder: [BacklogStatus] = [.inProgress, .todo, .idea, .notNow, .done]
+    public static let groupOrder: [BacklogStatus] = [.inProgress, .todo, .idea, .notNow, .done, .wontDo]
     public static let moveTargets: [BacklogStatus] = [.todo, .idea, .notNow]
     public static let addable: [BacklogStatus] = [.todo, .idea, .notNow]
-    public static let folded: Set<BacklogStatus> = [.notNow, .done]
+    public static let folded: Set<BacklogStatus> = [.notNow, .done, .wontDo]
+
+    public var closed: Bool {
+        self == .done || self == .wontDo
+    }
 
     public init(from decoder: any Decoder) throws {
         self = BacklogStatus(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .other
@@ -26,6 +31,7 @@ public enum BacklogStatus: String, Sendable, Codable, CaseIterable, Identifiable
         case .idea: "Idea"
         case .notNow: "Not now"
         case .done: "Done"
+        case .wontDo: "Won't do"
         case .other: "Other"
         }
     }
@@ -37,6 +43,7 @@ public enum BacklogStatus: String, Sendable, Codable, CaseIterable, Identifiable
         case .idea: "lightbulb"
         case .notNow: "moon.zzz"
         case .done: "checkmark.circle"
+        case .wontDo: "nosign"
         case .other: "questionmark.circle"
         }
     }
@@ -427,7 +434,7 @@ public struct BacklogDraft: Sendable, Equatable {
         if trimmedTitle != task.title { args["title"] = .string(trimmedTitle) }
         if description != task.description { args["description"] = .string(description) }
         if priority != task.priority { args["priority"] = .string(priority.rawValue) }
-        if status != task.status, status != .inProgress, status != .other { args["status"] = .string(status.rawValue) }
+        if status != task.status, status != .inProgress, status != .wontDo, status != .other { args["status"] = .string(status.rawValue) }
         return args
     }
 

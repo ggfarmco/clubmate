@@ -6,6 +6,7 @@
     {"id": 11, "title": "Cache product images on the CDN", "status": "idea", "priority": "low", "note": "found while profiling the product page", "createdBy": "agt_0000000000000002", "createdAt": "2026-10-31T07:00:00Z", "updatedAt": "2026-10-31T07:00:00Z"},
     {"id": 3, "title": "Dark mode for the admin panel", "status": "not_now", "priority": "normal", "createdBy": "user", "createdAt": "2026-10-20T10:00:00Z", "updatedAt": "2026-10-22T10:00:00Z"},
     {"id": 2, "title": "Bump Go to 1.26", "status": "done", "priority": "normal", "note": "merged in 4f1c2ab", "lastClaimedBy": "agt_0000000000000003", "createdBy": "user", "createdAt": "2026-10-18T10:00:00Z", "updatedAt": "2026-10-28T10:00:00Z"},
+    {"id": 5, "title": "Rewrite the importer in Rust", "status": "wont_do", "priority": "low", "note": "Won't do: the Go importer is fast enough after #11", "createdBy": "user", "createdAt": "2026-10-18T09:00:00Z", "updatedAt": "2026-10-29T10:00:00Z"},
     {"id": 1, "title": "Something new", "status": "archived", "priority": "urgent", "createdBy": "user", "createdAt": "2026-10-17T10:00:00Z", "updatedAt": "2026-10-17T10:00:00Z"}
   ]
 }

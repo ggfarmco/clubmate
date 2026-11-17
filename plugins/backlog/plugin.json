@@ -10,6 +10,7 @@
     "shortcuts": [
       {"keys": "cmd+return", "action": "Start an agent on the task while you own it; open the session or graph run that owns it"},
       {"keys": "d", "action": "Mark the task done"},
+      {"keys": "w", "action": "Close the task as Won't do: opens the reason field, ↩ in it closes"},
       {"keys": "e", "action": "Edit the task's description, or finish editing it"},
       {"keys": "s", "action": "Open the task's Status menu"},
       {"keys": "p", "action": "Open the task's Priority menu"},
@@ -52,7 +53,7 @@
         "title": "List backlog tasks",
         "hidden": true,
         "agent": true,
-        "description": "List this workspace's backlog tasks ordered by priority, then oldest first (done: newest first). Workflow: list status todo, pick the first, claim it, record progress with backlog.update note, finish with backlog.done and a note naming the commit, or backlog.release when you give up. Tasks you find yourself go in as idea; use todo only when the user asked for the task to be done.",
+        "description": "List this workspace's backlog tasks ordered by priority, then oldest first (done and wont_do: newest first). Workflow: list status todo, pick the first, claim it, record progress with backlog.update note, finish with backlog.done and a note naming the commit, or backlog.release when you give up. Tasks you find yourself go in as idea; use todo only when the user asked for the task to be done.",
         "args": {
           "properties": {
             "since": {
@@ -67,6 +68,7 @@
                 "in_progress",
                 "done",
                 "not_now",
+                "wont_do",
                 "open"
               ],
               "default": "open",
@@ -82,7 +84,7 @@
             },
             "query": {
               "type": "string",
-              "description": "Only tasks whose title, description, note or tags contain this text (any case), or whose number it is (12 or #12). Without status it searches every status, done and not_now included. A query that is only a number lists that task first."
+              "description": "Only tasks whose title, description, note or tags contain this text (any case), or whose number it is (12 or #12). Without status it searches every status, done, not_now and wont_do included. A query that is only a number lists that task first."
             },
             "slim": {
               "type": "boolean",
@@ -135,7 +137,8 @@
                       "todo",
                       "in_progress",
                       "done",
-                      "not_now"
+                      "not_now",
+                      "wont_do"
                     ],
                     "description": "Task status."
                   },
@@ -236,7 +239,8 @@
                 "todo",
                 "in_progress",
                 "done",
-                "not_now"
+                "not_now",
+                "wont_do"
               ],
               "description": "Task status."
             },
@@ -492,7 +496,8 @@
                 "todo",
                 "in_progress",
                 "done",
-                "not_now"
+                "not_now",
+                "wont_do"
               ],
               "description": "Task status."
             },
@@ -619,7 +624,7 @@
         "title": "Update backlog task",
         "hidden": true,
         "agent": true,
-        "description": "Change a task's title, description, priority, tags, links, attachments, note or status. Cannot set in_progress (use backlog.claim); moving a task out of in_progress drops its claim. Agents may not change the status of a task claimed by someone else. Delete is not available; use not_now.",
+        "description": "Change a task's title, description, priority, tags, links, attachments, note or status. Cannot set in_progress (use backlog.claim); moving a task out of in_progress drops its claim. Agents may not change the status of a task claimed by someone else. Delete is not available: use not_now to park a task and backlog.close to close one that won't be done (status wont_do is set only there).",
         "args": {
           "properties": {
             "seen": {
@@ -755,7 +760,8 @@
                 "todo",
                 "in_progress",
                 "done",
-                "not_now"
+                "not_now",
+                "wont_do"
               ],
               "description": "Task status."
             },
@@ -1002,7 +1008,8 @@
                 "todo",
                 "in_progress",
                 "done",
-                "not_now"
+                "not_now",
+                "wont_do"
               ],
               "description": "Task status."
             },
@@ -1178,7 +1185,8 @@
                 "todo",
                 "in_progress",
                 "done",
-                "not_now"
+                "not_now",
+                "wont_do"
               ],
               "description": "Task status."
             },
@@ -1354,7 +1362,186 @@
                 "todo",
                 "in_progress",
                 "done",
-                "not_now"
+                "not_now",
+                "wont_do"
+              ],
+              "description": "Task status."
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "high",
+                "normal",
+                "low"
+              ],
+              "description": "Priority."
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Lowercase one-word tags."
+            },
+            "links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "task": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Links to other tasks: kind blocked_by, blocks or relates; backlog.get adds the other task's title and status."
+            },
+            "attachments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "ref": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Attachments: kind file, artifact, image or url, ref a worktree path or URL."
+            },
+            "owners": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "run": {
+                    "type": "string"
+                  },
+                  "runTitle": {
+                    "type": "string"
+                  },
+                  "at": {
+                    "type": "string"
+                  },
+                  "why": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Owner history, oldest first (see backlog.get)."
+            },
+            "claimedBy": {
+              "type": "string",
+              "description": "Owner while in_progress."
+            },
+            "claimedAt": {
+              "type": "string",
+              "description": "When the claim was made, RFC 3339."
+            },
+            "claimedFrom": {
+              "type": "string",
+              "description": "Status before the claim."
+            },
+            "lastClaimedBy": {
+              "type": "string",
+              "description": "Who held the task before it was released or taken over."
+            },
+            "note": {
+              "type": "string",
+              "description": "Last progress or result note."
+            },
+            "createdBy": {
+              "type": "string",
+              "description": "user, an agent session id or agent."
+            },
+            "createdAt": {
+              "type": "string",
+              "description": "RFC 3339."
+            },
+            "updatedAt": {
+              "type": "string",
+              "description": "RFC 3339."
+            }
+          }
+        }
+      },
+      {
+        "id": "backlog.close",
+        "remote": true,
+        "title": "Close backlog task as won't do",
+        "hidden": true,
+        "agent": true,
+        "description": "Close a task that is no longer needed (obsolete, superseded, a duplicate, ruled out) as wont_do, with a reason; the reason is added to the note as \"Won't do: <reason>\". Allowed to the same callers as backlog.done. Move it back with backlog.update status.",
+        "args": {
+          "properties": {
+            "seen": {
+              "type": "string",
+              "description": "The cursor of the list this write was made on (the phone sends it). Refused with reason stale when this task changed after it; omit for no check."
+            },
+            "id": {
+              "type": "integer",
+              "description": "Task number, as in #12."
+            },
+            "owner": {
+              "type": "string",
+              "description": "Needed only when you are not a Clubmate agent session: a name unique to you, e.g. your session id."
+            },
+            "reason": {
+              "type": "string",
+              "description": "Why the task won't be done, e.g. \"superseded by #12\"; required."
+            }
+          },
+          "required": [
+            "id",
+            "reason"
+          ]
+        },
+        "result": {
+          "properties": {
+            "cursor": {
+              "type": "string",
+              "description": "Cursor right after this write: pass it as seen for the next write to the same task."
+            },
+            "id": {
+              "type": "integer",
+              "description": "Task number."
+            },
+            "title": {
+              "type": "string",
+              "description": "One-line title."
+            },
+            "description": {
+              "type": "string",
+              "description": "Markdown details."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "idea",
+                "todo",
+                "in_progress",
+                "done",
+                "not_now",
+                "wont_do"
               ],
               "description": "Task status."
             },

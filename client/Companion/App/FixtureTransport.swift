@@ -373,7 +373,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", AgentCommand.toolCall, "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "agents.usage", "agents.graph-show", "agents.graph-approve", "agents.graph-continue", "agents.graph-stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove, AsideCommand.ask, AsideCommand.summary, AsideCommand.send, AsideCommand.pick, AsideCommand.keep, AsideCommand.busy].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.close", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", AgentCommand.toolCall, "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "agents.usage", "agents.graph-show", "agents.graph-approve", "agents.graph-continue", "agents.graph-stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove, AsideCommand.ask, AsideCommand.summary, AsideCommand.send, AsideCommand.pick, AsideCommand.keep, AsideCommand.busy].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed"), .string("awake.changed"), .string("agents.usage")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge")), "reports": .bool(true)])]))
         case "report":
             return (200, Self.json(["result": .object(["id": .string("r-fixture")])]))
@@ -660,7 +660,7 @@ actor FixtureServer {
             bump(task["id"])
             publish("backlog.changed", ["workspace": .string(self.workspace), "id": .number(id), "kind": .string("added")])
             return .object(task)
-        case "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.takeback":
+        case "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.close", "backlog.takeback":
             return updateTask(id, args)
         case "backlog.start":
             let session = sessions.first?["id"] ?? .null
@@ -871,6 +871,12 @@ actor FixtureServer {
             task["claimedBy"] = nil
         case "backlog.done":
             task["status"] = .string("done")
+            task["claimedBy"] = nil
+        case "backlog.close":
+            let note = task["note"]?.stringValue ?? ""
+            let line = "Won't do: " + (args["reason"]?.stringValue ?? "")
+            task["note"] = .string(note.isEmpty ? line : note + "\n\n" + line)
+            task["status"] = .string("wont_do")
             task["claimedBy"] = nil
         default:
             for key in ["title", "description", "priority", "status"] {

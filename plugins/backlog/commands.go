@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
@@ -24,6 +25,8 @@ const (
 	kindClaimed  = "claimed"
 	kindReleased = "released"
 	kindDone     = "done"
+	kindClosed   = "closed"
+	wontDoPrefix = "Won't do: "
 
 	statusOpen = "open"
 )
@@ -40,6 +43,8 @@ var (
 	errReservedOwner  = errors.New("owner user, agent and agt_… are reserved; pass a name unique to you")
 	errNoSession      = errors.New("agents.new returned no session")
 	errStartOption    = errors.New("invalid_params")
+	errCloseViaClose  = errors.New("status wont_do is set by backlog.close with a reason")
+	errNoReason       = errors.New("reason must not be empty")
 )
 
 type actor struct {
@@ -122,6 +127,7 @@ type commandArgs struct {
 	Slim        bool          `json:"slim"`
 	Since       *string       `json:"since"`
 	Seen        string        `json:"seen"`
+	Reason      string        `json:"reason"`
 	keepClaim   bool
 	startOptions
 }
@@ -170,6 +176,8 @@ func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.
 		return b.releaseCmd(ctx, cmd, args)
 	case "backlog.done":
 		return b.doneCmd(ctx, cmd, args)
+	case "backlog.close":
+		return b.closeCmd(ctx, cmd, args)
 	case "backlog.start":
 		if err := b.notUser(ctx, cmd); err != nil {
 			return nil, err
@@ -380,6 +388,8 @@ func (b *backlog) updateCmd(ctx context.Context, cmd pluginsdk.CommandRun, args 
 			return errBadStatus
 		case status == statusInProgress:
 			return errStartViaClaim
+		case status == statusWontDo:
+			return errCloseViaClose
 		case isAgent && t.Status == statusInProgress && t.ClaimedBy != self:
 			return errForeignStatus
 		}
@@ -640,6 +650,40 @@ func (b *backlog) doneCmd(ctx context.Context, cmd pluginsdk.CommandRun, args co
 	}
 	b.changed(ctx, cmd.WorkspaceID, t.ID, kindDone)
 	return taskReply{Task: t, Cursor: cursor}, nil
+}
+
+func (b *backlog) closeCmd(ctx context.Context, cmd pluginsdk.CommandRun, args commandArgs) (any, error) {
+	who, err := actorOf(cmd, args.Owner)
+	if err != nil {
+		return nil, err
+	}
+	reason := strings.TrimSpace(args.Reason)
+	if reason == "" {
+		return nil, errNoReason
+	}
+	t, cursor, err := b.store.mutate(ctx, cmd.WorkspaceID, args.ID, args.Seen, func(t *Task) error {
+		if t.Status == statusInProgress && !b.mayFinish(ctx, cmd.WorkspaceID, who, t) && !b.live.stale(ctx, cmd.WorkspaceID, t.ClaimedBy) {
+			return fmt.Errorf("task #%d is in progress by %s: %w", t.ID, t.ClaimedBy, errNotHolder)
+		}
+		if t.Status == statusInProgress {
+			releaseClaim(t, whyWontDo)
+		}
+		t.Status = statusWontDo
+		t.Note = withReason(t.Note, reason)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	b.changed(ctx, cmd.WorkspaceID, t.ID, kindClosed)
+	return taskReply{Task: t, Cursor: cursor}, nil
+}
+
+func withReason(note, reason string) string {
+	if note = strings.TrimRightFunc(note, unicode.IsSpace); note == "" {
+		return wontDoPrefix + reason
+	}
+	return note + "\n\n" + wontDoPrefix + reason
 }
 
 func releaseClaim(t *Task, why string) {

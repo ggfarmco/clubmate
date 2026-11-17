@@ -276,6 +276,25 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Start agent"].waitForExistence(timeout: 5))
     }
 
+    func testWontDoAsksForAReasonAndClosesTheTask() {
+        let app = launch(open: "backlog/9")
+        let wontDo = app.buttons["Won't do"]
+        XCTAssertTrue(wontDo.waitForExistence(timeout: 10))
+        wontDo.tap()
+        let close = app.buttons["Close Task"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        XCTAssertFalse(close.isEnabled)
+        app.textFields["wontDoReason"].typeText("covered by #4")
+        XCTAssertTrue(close.isEnabled)
+        close.tap()
+        XCTAssertTrue(app.staticTexts["Won't do: covered by #4"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Reopen"].exists)
+        app.navigationBars.buttons.firstMatch.tap()
+        let group = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Won't do · 2")).firstMatch
+        reveal(group, in: app)
+        XCTAssertTrue(group.exists)
+    }
+
     func testTheFloatingMicStaysClearOfTheBackButtonOnATask() {
         let app = launch(open: "backlog/4")
         let mic = app.buttons["Talk to Clubmate"]

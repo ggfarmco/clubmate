@@ -223,3 +223,42 @@ func TestBacklogFocusedNoteTakesAnAgentNote(t *testing.T) {
 	})
 	assert.Equal(t, "from the agent", task.Note, "a focused Note the user didn't type in takes the agent's note, so the save keeps it")
 }
+
+func TestBacklogWontDo(t *testing.T) {
+	in := start(t, "macui-bwont", "")
+	in.cm("command", "run", "backlog.add", "title=First", "status=todo")
+	in.cm("command", "run", "backlog.add", "title=Second", "status=todo")
+	in.focusSection("backlog", "backlog.sidebar")
+	in.eventually("the tasks are listed", func() bool { return in.snapshot().main().has("tasks#2") })
+	keyFocus := func() string {
+		if w := in.snapshot().key(); w != nil {
+			return w.Focus
+		}
+		return ""
+	}
+	status := func(id string) string {
+		var tk struct {
+			Status string `json:"status"`
+			Note   string `json:"note"`
+		}
+		in.json(&tk, "command", "run", "backlog.get", "id="+id)
+		return tk.Status + " " + tk.Note
+	}
+
+	in.pointer("click", "tasks#1")
+	in.eventually("task 1 shows Won't do", func() bool { return in.snapshot().main().has("closeOpen") })
+	in.key("w")
+	in.eventually("w opens the reason field with the cursor in it", func() bool { return keyFocus() == "reasonText" })
+	in.key("o", "l", "d", "return")
+	in.eventually("return closes the task with the reason", func() bool { return status("1") == "wont_do Won't do: old" })
+	in.eventually("the field and the button go", func() bool {
+		w := in.snapshot().main()
+		return !w.has("reasonText") && !w.has("closeOpen")
+	})
+
+	in.pointer("menu", "tasks#2", "Won't Do…", "--context")
+	in.eventually("the row menu opens the field on that task", func() bool { return keyFocus() == "reasonText" })
+	in.pointer("click", "closeCancel")
+	in.eventually("cancel closes the field", func() bool { return !in.snapshot().main().has("reasonText") })
+	assert.Equal(t, "todo ", status("2"))
+}

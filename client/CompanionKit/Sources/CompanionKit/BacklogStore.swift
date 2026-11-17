@@ -97,7 +97,7 @@ public final class BacklogStore {
     }
 
     public var groups: [(status: BacklogStatus, tasks: [BacklogTask])] {
-        BacklogTask.grouped(tasks).map { ($0.status, $0.status == .done ? Array($0.tasks.prefix(Self.doneLimit)) : $0.tasks) }
+        BacklogTask.grouped(tasks).map { ($0.status, $0.status.closed ? Array($0.tasks.prefix(Self.doneLimit)) : $0.tasks) }
     }
 
     public var search: BacklogSearch? {
@@ -243,6 +243,11 @@ public final class BacklogStore {
 
     public func done(_ id: Int) async throws {
         try await mutate(BacklogCommand.done, id, title: "Mark #\(id) done")
+    }
+
+    public func close(_ id: Int, reason: String) async throws {
+        let reason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        try await mutate(BacklogCommand.close, id, ["reason": .string(reason)], title: "Won't do #\(id)", text: reason)
     }
 
     @discardableResult

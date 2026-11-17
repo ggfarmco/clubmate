@@ -24,6 +24,7 @@ public enum BacklogCommand {
     public static let claim = "backlog.claim"
     public static let release = "backlog.release"
     public static let done = "backlog.done"
+    public static let close = "backlog.close"
     public static let start = "backlog.start"
     public static let takeBack = "backlog.takeback"
 }

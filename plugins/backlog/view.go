@@ -64,6 +64,10 @@ const (
 	actOpenDoc    = "openDoc"
 	actOpenMove   = "openMove"
 	actRevealLast = "revealLast"
+	actCloseOpen  = "closeOpen"
+	actCloseShut  = "closeCancel"
+	actClose      = "close"
+	reasonField   = "reasonText"
 	ownersNode    = "owners"
 	runRef        = "run:"
 	youActor      = "you"
@@ -85,9 +89,9 @@ const (
 )
 
 var (
-	groupOrder   = []string{statusInProgress, statusTodo, statusIdea, statusNotNow, statusDone}
-	statusLabels = map[string]string{statusInProgress: "In progress", statusTodo: "Todo", statusIdea: "Idea", statusNotNow: "Not now", statusDone: "Done"}
-	statusIcons  = map[string]string{statusInProgress: "play.circle", statusTodo: "circle", statusIdea: "lightbulb", statusNotNow: "moon.zzz", statusDone: "checkmark.circle"}
+	groupOrder   = []string{statusInProgress, statusTodo, statusIdea, statusNotNow, statusDone, statusWontDo}
+	statusLabels = map[string]string{statusInProgress: "In progress", statusTodo: "Todo", statusIdea: "Idea", statusNotNow: "Not now", statusDone: "Done", statusWontDo: "Won't do"}
+	statusIcons  = map[string]string{statusInProgress: "play.circle", statusTodo: "circle", statusIdea: "lightbulb", statusNotNow: "moon.zzz", statusDone: "checkmark.circle", statusWontDo: "nosign"}
 	priorityIcon = map[string]string{priorityHigh: "exclamationmark.2", priorityLow: "arrow.down"}
 	priorityText = map[string]string{priorityHigh: "!! High", priorityNormal: "Normal", priorityLow: "↓ Low"}
 	moveTargets  = []string{statusTodo, statusIdea, statusNotNow}
@@ -96,8 +100,8 @@ var (
 	linkWords    = map[string]string{linkBlockedBy: "blocked by", linkBlocks: "blocks", linkRelates: "relates to"}
 	attachIcons  = map[string]string{attachFile: "doc", attachImage: "photo", attachArtifact: "square.on.square", attachURL: "link"}
 	attachWords  = map[string]string{attachFile: "worktree", attachImage: "image", attachArtifact: "artifact", attachURL: "link"}
-	moveLabels   = map[string]string{whyCreated: "created", whyStarted: "Start agent", whyClaimed: "claimed", whyReleased: "released", whyDone: "done", whyTakenBack: "taken back", whyStopped: "stopped"}
-	sinceWords   = map[string]string{whyCreated: "created it", whyStarted: "started", whyClaimed: "claimed it", whyReleased: "released", whyDone: "done", whyTakenBack: "taken back", whyStopped: "stopped"}
+	moveLabels   = map[string]string{whyCreated: "created", whyStarted: "Start agent", whyClaimed: "claimed", whyReleased: "released", whyDone: "done", whyTakenBack: "taken back", whyStopped: "stopped", whyWontDo: "won't do"}
+	sinceWords   = map[string]string{whyCreated: "created it", whyStarted: "started", whyClaimed: "claimed it", whyReleased: "released", whyDone: "done", whyTakenBack: "taken back", whyStopped: "stopped", whyWontDo: "won't do"}
 	attachCounts = map[string][2]string{attachFile: {"1 file", "%d files"}, attachImage: {"1 image", "%d images"}, attachArtifact: {"1 artifact", "%d artifacts"}, attachURL: {"1 URL", "%d URLs"}}
 )
 
@@ -118,6 +122,7 @@ type detail struct {
 	editing  bool
 	prompt   bool
 	linking  bool
+	closing  bool
 	noteVer  int
 	rev      int
 }
@@ -146,7 +151,7 @@ func labelOf(owners map[string]owner, id string) string {
 func tagCounts(tasks []Task) map[string]int {
 	counts := map[string]int{}
 	for _, t := range tasks {
-		if t.Status == statusDone {
+		if closed(t.Status) {
 			continue
 		}
 		for _, tag := range t.Tags {
@@ -159,7 +164,7 @@ func tagCounts(tasks []Task) map[string]int {
 func openCount(tasks []Task) int {
 	n := 0
 	for _, t := range tasks {
-		if t.Status != statusDone {
+		if !closed(t.Status) {
 			n++
 		}
 	}
@@ -288,6 +293,9 @@ func taskMenu(t Task) []sdui.MenuEntry {
 	if t.Status != statusDone {
 		menu = append(menu, sdui.MenuEntry{Action: "done", Label: "Mark Done"})
 	}
+	if !closed(t.Status) {
+		menu = append(menu, sdui.MenuEntry{Action: actCloseOpen, Label: "Won't Do…"})
+	}
 	if t.Status == statusInProgress {
 		menu = append(menu, sdui.MenuEntry{Action: "release", Label: "Release"})
 	}
@@ -328,7 +336,11 @@ func mainView(t *Task, d detail) sdui.Node {
 	header.ID = "heading"
 	fields := []sdui.Node{header}
 	if t.Status != statusInProgress {
-		fields = append(fields, sdui.HStack(sdui.MutedText("Status"), sdui.WithShortcut(sdui.Select("status", options(editStatuses, statusLabels), t.Status), "s")))
+		statuses := editStatuses
+		if t.Status == statusWontDo {
+			statuses = append(slices.Clone(editStatuses), statusWontDo)
+		}
+		fields = append(fields, sdui.HStack(sdui.MutedText("Status"), sdui.WithShortcut(sdui.Select("status", options(statuses, statusLabels), t.Status), "s")))
 	}
 	fields = append(fields, sdui.HStack(sdui.MutedText("Priority"), sdui.WithShortcut(sdui.Select("priority", options(priorities, priorityText), t.Priority), "p")))
 	tags := sdui.TextField(tagsField, strings.Join(t.Tags, ", "), "Tags — comma-separated words")
@@ -347,7 +359,11 @@ func mainView(t *Task, d detail) sdui.Node {
 	if d.noteVer > 0 {
 		save += "." + strconv.Itoa(d.noteVer)
 	}
-	children := []sdui.Node{sdui.WithAutosave(sdui.WithAction(sdui.Form("edit", fields...), save)), linksView(t, d), attachmentsView(t, d)}
+	children := []sdui.Node{sdui.WithAutosave(sdui.WithAction(sdui.Form("edit", fields...), save))}
+	if err := d.errs[reasonField]; d.closing && !closed(t.Status) || err != "" {
+		children = append(children, closeView(t, d))
+	}
+	children = append(children, linksView(t, d), attachmentsView(t, d))
 	if len(ownerHistory(*t)) >= minLaneMoves {
 		children = append(children, ownerLanes(t, d.owners))
 	}
@@ -550,6 +566,17 @@ func lifecycle() sdui.Node {
 	return v
 }
 
+func closeView(t *Task, d detail) sdui.Node {
+	field := sdui.WithAction(sdui.TextField(reasonField, "", "Why it won't be done — ↩ closes the task"), actClose)
+	if err := d.errs[reasonField]; err != "" {
+		field = sdui.WithError(field, err)
+	}
+	cancel := sdui.WithVariant(sdui.WithAction(sdui.Button(actCloseShut, "Cancel", ""), actCloseShut), sdui.VariantGhost)
+	v := sdui.VStack(sdui.MutedText(fmt.Sprintf("Won't do #%d", t.ID)), sdui.HStack(field, cancel))
+	v.ID = fmt.Sprintf("close-%d-%d", t.ID, d.rev)
+	return v
+}
+
 func linksView(t *Task, d detail) sdui.Node {
 	items := make([]sdui.Item, 0, len(t.Links))
 	for _, l := range t.Links {
@@ -741,6 +768,9 @@ func actions(t *Task, d detail) []sdui.Node {
 	}
 	if t.Status != statusDone {
 		buttons = append(buttons, sdui.WithShortcut(button("done", "Done", "checkmark", sdui.VariantSecondary), "d"))
+	}
+	if !closed(t.Status) {
+		buttons = append(buttons, sdui.WithShortcut(button(actCloseOpen, "Won't do", statusIcons[statusWontDo], sdui.VariantGhost), "w"))
 	}
 	if t.Description != "" {
 		label := "Edit"

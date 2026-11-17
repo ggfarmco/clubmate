@@ -39,7 +39,7 @@ var catalog = []eventKind{
 	{"Your events", emitAny, "an agent or a cron job emits an event", "triggers_emit"},
 	{"Graphs", graphOutcome + "*", "a graph step reports its outcome", "approved · changes · …"},
 	{"Git", "git.changed", "the branch or worktree changes", ""},
-	{"Backlog", "backlog.changed", "a backlog task changes", "added · claimed · done"},
+	{"Backlog", "backlog.changed", "a backlog task changes", "added · claimed · done · closed"},
 	{"Docs", "docs.presented", "an agent presents a doc", ""},
 	{"Review", "editor-nvim.review", "a review in nvim changes", "comments sent · closed"},
 }

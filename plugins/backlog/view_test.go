@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -471,4 +472,29 @@ func TestNoteVersionIgnoresARenderBetweenOwnSaves(t *testing.T) {
 	assert.Equal(t, ver, b.noteShown(w, 1, "a"), "a render that read the store between two own saves")
 	assert.Equal(t, ver, b.noteShown(w, 1, "ab"))
 	assert.Equal(t, ver+1, b.noteShown(w, 1, "a"), "once a render confirmed the last save, an agent writing an older own text is a change")
+}
+
+func TestWontDoOnlyFromItsOwnPath(t *testing.T) {
+	statuses := func(n sdui.Node) []string {
+		sel, _ := findNode(n, "status")
+		var out []string
+		for _, o := range sel.Props["options"].([]sdui.Option) {
+			out = append(out, o.Value)
+		}
+		return out
+	}
+	open := mainView(&Task{ID: 1, Title: "a", Status: statusTodo}, detail{hasTasks: true})
+	button, ok := findNode(open, actCloseOpen)
+	require.True(t, ok)
+	assert.Equal(t, "w", button.Props["shortcut"])
+	assert.NotContains(t, statuses(open), statusWontDo)
+
+	shut := mainView(&Task{ID: 1, Title: "a", Status: statusWontDo}, detail{hasTasks: true, closing: true})
+	_, ok = findNode(shut, actCloseOpen)
+	assert.False(t, ok)
+	_, ok = findNode(shut, reasonField)
+	assert.False(t, ok)
+	assert.Contains(t, statuses(shut), statusWontDo)
+	assert.Equal(t, 1, openCount([]Task{{Status: statusTodo}, {Status: statusDone}, {Status: statusWontDo}}))
+	assert.False(t, slices.ContainsFunc(taskMenu(Task{Status: statusDone}), func(m sdui.MenuEntry) bool { return m.Action == actCloseOpen }), "a done task offers no Won't do")
 }

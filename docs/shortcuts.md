@@ -90,6 +90,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | G | Open the graph run that created the trigger | triggers |
 | ⌘N | Ask an agent to add a trigger (How triggers work; the app menu's ⌘N does the same anywhere in Triggers), ↩ on an event row asks for a trigger on that event | triggers |
 | D | Mark the task done | backlog |
+| W | Close the task as Won't do: opens the "Why it won't be done" field under the task form, ↩ in it closes the task with that reason | backlog |
 | E | Edit the task's description; again (Done editing) shows it as a page | backlog |
 | S / P | Open the task's Status / Priority menu (a `select` with `shortcut`; ↑↓ ↩ pick, ⎋ closes) | backlog |
 | ⌘N | Ask an agent to add a cron job (How cron works; the app menu's ⌘N does the same anywhere in Cron), ↩ on a schedule row asks for a job on that schedule | cron |

@@ -20,6 +20,7 @@ const (
 	statusInProgress = "in_progress"
 	statusDone       = "done"
 	statusNotNow     = "not_now"
+	statusWontDo     = "wont_do"
 
 	priorityHigh   = "high"
 	priorityNormal = "normal"
@@ -50,6 +51,7 @@ const (
 	whyDone      = "done"
 	whyTakenBack = "taken back"
 	whyStopped   = "stopped"
+	whyWontDo    = "won't do"
 )
 
 var (
@@ -57,7 +59,7 @@ var (
 	errTitleLine    = errors.New("title must be one line")
 	errTitleLong    = fmt.Errorf("title must be at most %d characters", maxTitleChars)
 	errDescLong     = fmt.Errorf("description must be at most %d KiB", maxDescBytes>>10)
-	errBadStatus    = errors.New("status must be one of idea, todo, in_progress, done, not_now")
+	errBadStatus    = errors.New("status must be one of idea, todo, in_progress, done, not_now, wont_do")
 	errBadPriority  = errors.New("priority must be high, normal or low")
 	errTaskNotFound = errors.New("task not found")
 	errTagChars     = errors.New("a tag must be one word of letters, digits, - _ . or /")
@@ -245,7 +247,11 @@ func ownerHistory(t Task) []OwnerMove {
 }
 
 func validStatus(s string) bool {
-	return slices.Contains([]string{statusIdea, statusTodo, statusInProgress, statusDone, statusNotNow}, s)
+	return slices.Contains([]string{statusIdea, statusTodo, statusInProgress, statusDone, statusNotNow, statusWontDo}, s)
+}
+
+func closed(status string) bool {
+	return status == statusDone || status == statusWontDo
 }
 
 func validPriority(p string) bool {
@@ -310,7 +316,7 @@ func priorityRank(p string) int {
 
 func sortTasks(tasks []Task) {
 	slices.SortFunc(tasks, func(a, b Task) int {
-		aDone, bDone := a.Status == statusDone, b.Status == statusDone
+		aDone, bDone := closed(a.Status), closed(b.Status)
 		switch {
 		case aDone != bDone:
 			if aDone {
