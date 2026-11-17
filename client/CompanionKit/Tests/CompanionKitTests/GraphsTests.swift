@@ -73,6 +73,15 @@ final class GraphsTests: XCTestCase {
         XCTAssertEqual(run.stateLine(now: now).text, "failed")
     }
 
+    func testRunningRunWithoutTheNeedsYouFieldDoesNotNeedYou() throws {
+        let runs = try JSONDecoder().decode([AgentRunRow].self, from: Data(#"[{"id":"gr_3","graph":"nightly","title":"Nightly","number":11,"state":"running","detail":"turn 1","sessions":[],"home":"group","group":"running","status":"running"}]"#.utf8))
+        let run = try XCTUnwrap(RunRows.sessions([], runs: runs).first { $0.id == "gr_3" })
+        XCTAssertEqual(run.glyph, .running)
+        XCTAssertEqual(run.stateLine(now: now).tone, .secondary)
+        let workspace = Workspace(id: "ws", name: "clubmate")
+        XCTAssertTrue(NeedsYouItem.collect([(computer: "m", mac: nil, workspace: workspace, sessions: [run])]).isEmpty)
+    }
+
     func testEmptiedRunOpensRunScreen() throws {
         let page = try runPage()
         let emptied = try XCTUnwrap(RunRows.sessions(page.rows, runs: page.runs).first { $0.id == "gr_9" })

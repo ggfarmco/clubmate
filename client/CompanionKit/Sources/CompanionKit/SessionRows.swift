@@ -53,7 +53,7 @@ public struct SessionStateLine: Sendable, Equatable {
 extension AgentSession {
     public var glyph: SessionGlyph {
         if isClosed { return .closed }
-        if isRun { return pending.contains { $0.hasPrefix(GraphRun.stepRequest) } ? .step : .cap }
+        if isRun, needsYou { return pending.contains { $0.hasPrefix(GraphRun.stepRequest) } ? .step : .cap }
         if needsYou {
             if pendingSummary?.kind == .connect { return .connect }
             if pendingSummary?.kind == .question, pending.contains(where: AgentSession.isQuestion) { return .question }
