@@ -60,6 +60,9 @@ public final class AgentsStore {
     public var landLater: Set<String> = []
     public private(set) var closingOpen: Set<String> = []
     public private(set) var foldedTasks: Set<String> = []
+    public var asidePresentation: [String: AsidePresentation] = [:]
+    public private(set) var summaryAsked: [String: Int] = [:]
+    @ObservationIgnored private var appliedPrefills: [String: AsidePrefill] = [:]
     private var foldedOnce: Set<String> = []
 
     public static let followInterval: Duration = .seconds(2)
@@ -445,6 +448,7 @@ public final class AgentsStore {
                     if transcripts[session] != merged { transcripts[session] = merged }
                     if transcriptErrors[session] != nil { transcriptErrors[session] = nil }
                     reconcile(session)
+                    mergePrefills(session)
                     return
                 } catch {
                     if Task.isCancelled { return }
@@ -750,6 +754,83 @@ public final class AgentsStore {
     public func setElicitationDraft(_ draft: ElicitationDraft, session: String, request: String) {
         elicitationDrafts[session, default: [:]][request] = draft.isEmpty ? nil : draft
         if elicitationDrafts[session]?.isEmpty == true { elicitationDrafts[session] = nil }
+    }
+
+    public func asides(of parent: String) -> [AgentSession] {
+        sessions.filter { $0.parentSession == parent && $0.isAside && !$0.isClosed }.sorted { ($0.listKey ?? "", $0.createdAt, $0.id) < ($1.listKey ?? "", $1.createdAt, $1.id) }
+    }
+
+    func mergePrefills(_ session: String) {
+        guard let transcript = transcripts[session] else { return }
+        for prefill in transcript.prefills where appliedPrefills[session + "|" + prefill.key] != prefill {
+            appliedPrefills[session + "|" + prefill.key] = prefill
+            if let request = prefill.elicitation {
+                guard let fields = transcript.entries.lazy.compactMap({ entry -> [Elicitation.Field]? in
+                    if case .elicitation(let question) = entry.content, question.id == request { return question.request.fields }
+                    return nil
+                }).first else { continue }
+                setElicitationDraft(elicitationDraft(session, request: request).merging(prefill, fields: fields), session: session, request: request)
+            } else if let id = prefill.open {
+                guard let item = transcript.entries.lazy.compactMap({ entry -> OpenItem? in
+                    if case .openItems(let items) = entry.content { return items.items.first { $0.id == id } }
+                    return nil
+                }).first else { continue }
+                setOpenDraft(openDraft(session).merging(prefill, item: item), session: session)
+            }
+        }
+    }
+
+    public func askAside(_ parent: String, anchor: AsideAnchor) async throws -> String {
+        let reply = try await asideCommand(AsideCommand.ask, ["session": .string(parent), "anchor": .array(anchor.pairs.map { .object(["key": .string($0.key), "value": .string($0.value)]) })])
+        guard let id = reply["session"]?.stringValue else { throw RemoteError.badResponse }
+        await refresh()
+        await loadTranscript(parent, incremental: true)
+        return id
+    }
+
+    public func asideSummary(_ aside: String) async throws {
+        guard summaryAsked[aside] == nil else { return }
+        summaryAsked[aside] = transcripts[aside]?.entries.count ?? 0
+        do {
+            _ = try await asideCommand(AsideCommand.summary, ["session": .string(aside)])
+        } catch {
+            summaryAsked[aside] = nil
+            throw error
+        }
+        await refreshSession(aside)
+    }
+
+    public func forgetSummary(_ aside: String) {
+        summaryAsked[aside] = nil
+    }
+
+    public func asideSend(_ aside: String, parent: String, to target: AsideTarget, text: String, close: Bool) async throws {
+        _ = try await asideCommand(AsideCommand.send, ["session": .string(aside), "to": .string(target.rawValue), "text": .string(text), "close": .bool(close)])
+        if close, asidePresentation[parent]?.aside == aside { asidePresentation[parent] = nil }
+        await refresh()
+        await loadTranscript(parent, incremental: true)
+    }
+
+    public func asidePick(_ aside: String, parent: String, value: String) async throws {
+        _ = try await asideCommand(AsideCommand.pick, ["session": .string(aside), "value": .string(value)])
+        await refreshSession(aside)
+        await loadTranscript(parent, incremental: true)
+    }
+
+    public func asideKeep(_ aside: String) async throws {
+        _ = try await asideCommand(AsideCommand.keep, ["session": .string(aside)])
+        await refresh()
+    }
+
+    public func closeAsk(_ session: String) async throws -> String? {
+        let reply = try await asideCommand(AsideCommand.busy, ["session": .string(session)])
+        guard reply["busy"]?.boolValue == true else { return nil }
+        return reply["message"]?.stringValue
+    }
+
+    private func asideCommand(_ command: String, _ args: [String: JSONValue]) async throws -> JSONValue {
+        guard let runner else { throw RemoteError.badResponse }
+        return try await runner.command(command, workspace: workspace, args: .object(args))
     }
 
     public func loadOpenQueue() async {

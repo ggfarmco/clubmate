@@ -34,7 +34,7 @@ struct AgentsPlugin: CompanionPluginUI {
         if GraphRun.isRun(selection) {
             return AnyView(RunDetailView(context: context, store: store, runID: selection).id(selection))
         }
-        return AnyView(SessionDetailView(context: context, store: store, sessionID: selection).id(selection))
+        return AnyView(NavigationStack { SessionDetailView(context: context, store: store, sessionID: selection) }.id(selection))
     }
 
     @MainActor
@@ -258,7 +258,7 @@ struct SessionListView: View {
                 if let repo = item.repo {
                     PendingRepoRow(row: repo)
                 } else {
-                    SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants, chevron: item.toggleCount == nil, taskRow: item.taskRow)
+                    SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants, waitingAsides: item.node.waitingAsides, chevron: item.toggleCount == nil, taskRow: item.taskRow)
                 }
                 if let count = item.toggleCount {
                     SubagentToggle(count: count, expanded: item.expanded) {
@@ -339,6 +339,7 @@ struct SessionRow: View {
     let session: AgentSession
     var depth = 0
     var waitingChildren = 0
+    var waitingAsides = 0
     var chevron = false
     var taskRow: RepoRow?
 
@@ -374,7 +375,7 @@ struct SessionRow: View {
                             .foregroundStyle(taskRow?.tone.toneInk(default: Color.captionInk) ?? Color.captionInk)
                             .lineLimit(1)
                     } else {
-                        StateLineText(line: session.stateLine(now: timeline.date, waitingChildren: waitingChildren))
+                        StateLineText(line: session.stateLine(now: timeline.date, waitingChildren: waitingChildren, waitingAsides: waitingAsides))
                             .font(.subheadline)
                             .lineLimit(1)
                     }
@@ -498,6 +499,7 @@ struct SessionGlyphView: View {
         case .review: "eye"
         case .open, .done: "checkmark"
         case .closed: "archivebox"
+        case .aside: "bubble.left.and.bubble.right"
         }
     }
 
@@ -508,7 +510,7 @@ struct SessionGlyphView: View {
         case .asksParent, .running, .review: .accentColor
         case .stopped: Color.dangerInk
         case .open: Color.successInk
-        case .paused, .done, .closed: Color.captionInk
+        case .paused, .done, .closed, .aside: Color.captionInk
         }
     }
 
@@ -518,7 +520,7 @@ struct SessionGlyphView: View {
         case .childWaiting: Color.warning.opacity(0.18)
         case .asksParent, .running, .review: Color.accentColor.opacity(0.18)
         case .stopped: Color.dangerInk.opacity(0.18)
-        case .paused, .open, .done, .closed: Color(.tertiarySystemFill)
+        case .paused, .open, .done, .closed, .aside: Color(.tertiarySystemFill)
         }
     }
 }

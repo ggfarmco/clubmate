@@ -477,6 +477,7 @@
         "id": "agents.busy",
         "title": "Agent session busy",
         "hidden": true,
+        "remote": true,
         "description": "Report whether closing the session would stop work: {busy, message}; busy when its turn or one of its child sessions' turns is still running or waiting, message the question the app asks before agents.close.",
         "args": {
           "properties": {

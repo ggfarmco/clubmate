@@ -68,6 +68,10 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let rowUnder: String?
     public let gateRound: GateRound?
     public let landing: SessionLanding?
+    public let aside: AsideInfo?
+    public let canAside: Bool
+    public let forkedFrom: String?
+    public let composerDraft: ComposerDraft?
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -81,7 +85,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         reviewProgress: ReviewProgress? = nil, openCount: Int = 0, openDecisions: Int = 0, openOffers: Int = 0, openSince: Date? = nil, mayAsk: Bool = false,
         repo: String? = nil, taskRows: [RepoRow] = [], taskBadge: String? = nil, archivable: Bool = false, taskFinished: Bool = false, requests: [String] = [], turns: Int = 0, rowDetail: String? = nil,
         limitShare: [String: Double] = [:], shareLabel: String? = nil, shareWords: [String: String] = [:], shareDetail: String? = nil, listKey: String? = nil,
-        hidden: Bool = false, rowUnder: String? = nil, gateRound: GateRound? = nil, landing: SessionLanding? = nil
+        hidden: Bool = false, rowUnder: String? = nil, gateRound: GateRound? = nil, landing: SessionLanding? = nil,
+        aside: AsideInfo? = nil, canAside: Bool = false, forkedFrom: String? = nil, composerDraft: ComposerDraft? = nil
     ) {
         self.id = id
         self.workspace = workspace
@@ -150,6 +155,10 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.rowUnder = rowUnder
         self.gateRound = gateRound
         self.landing = landing
+        self.aside = aside
+        self.canAside = canAside
+        self.forkedFrom = forkedFrom
+        self.composerDraft = composerDraft
     }
 
     public var isClosed: Bool { status == .closed }
@@ -160,6 +169,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, paused, pausedUntil, active, kind, run, reviewProgress, openCount, openDecisions, openOffers, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests, turns, rowDetail
         case limitShare, shareLabel, shareWords, shareDetail, listKey
         case hidden, rowUnder, gateRound, landing
+        case aside, canAside, forkedFrom, composerDraft
     }
 
     public init(from decoder: any Decoder) throws {
@@ -236,7 +246,11 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             hidden: try flag(.hidden),
             rowUnder: try optional(.rowUnder),
             gateRound: try? c.decodeIfPresent(GateRound.self, forKey: .gateRound),
-            landing: try? c.decodeIfPresent(SessionLanding.self, forKey: .landing)
+            landing: try? c.decodeIfPresent(SessionLanding.self, forKey: .landing),
+            aside: try? c.decodeIfPresent(AsideInfo.self, forKey: .aside),
+            canAside: try flag(.canAside),
+            forkedFrom: try optional(.forkedFrom),
+            composerDraft: try? c.decodeIfPresent(ComposerDraft.self, forKey: .composerDraft)
         )
     }
 
@@ -307,6 +321,10 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         if !shareWords.isEmpty { try c.encode(shareWords, forKey: .shareWords) }
         try c.encodeIfPresent(shareDetail, forKey: .shareDetail)
         try c.encodeIfPresent(listKey, forKey: .listKey)
+        try c.encodeIfPresent(aside, forKey: .aside)
+        if canAside { try c.encode(canAside, forKey: .canAside) }
+        try c.encodeIfPresent(forkedFrom, forKey: .forkedFrom)
+        try c.encodeIfPresent(composerDraft, forKey: .composerDraft)
         if hidden { try c.encode(hidden, forKey: .hidden) }
         try c.encodeIfPresent(rowUnder, forKey: .rowUnder)
         try c.encodeIfPresent(gateRound, forKey: .gateRound)

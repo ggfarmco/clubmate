@@ -92,3 +92,5 @@ d docs/shortcuts.md: add a (card), ⌘\, ⌘⇧\, ⌘], ⌘⇧↩, ⌘⇧K; ⌥�
 Mac, decided 16 Nov after the build: the open items card has no option cursor, so a arms the card and the next 1–4 (or o) names the option to ask about; it doesn't pick it, and ⎋ or any other key disarms.
 One check
 ⌘⇧\ is used on no other board, and ⌘] only on these; neither is in AG-Rules. Please check both against docs/shortcuts.md before the keys land.
+
+Phone note (16 Nov 2026, the user): on the phone, Send back's "Quote…" lists the aside's answers. A tap fills the editable text with that whole answer, and you trim it there. This matches the phone rule that a passage is a whole message (long-press); the editable text is where you narrow it.

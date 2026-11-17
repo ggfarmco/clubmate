@@ -85,6 +85,7 @@ extension AgentSession {
         switch state {
         case .askingYou: "Answer \(agentName)…"
         case _ where isTurnActive: "Queue a message"
+        case _ where isAside: "Ask aside…"
         default: "Message \(agentName)"
         }
     }

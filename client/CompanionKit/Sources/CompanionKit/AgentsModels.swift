@@ -131,6 +131,7 @@ public struct SessionNode: Sendable, Equatable, Identifiable {
         return SessionNode(
             session: session,
             children: children.sorted { a, b in
+                if a.session.isAside != b.session.isAside { return b.session.isAside }
                 let (x, y) = (landing[a.id] ?? .max, landing[b.id] ?? .max)
                 return x != y ? x < y : startedFirst(a, b)
             },
@@ -326,12 +327,19 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
     public let delta: Bool
     public let request: RequestCard?
     public let repos: ReposCard?
+    public let prefills: [AsidePrefill]
+    public let optionAsides: [OptionAside]
+    public let pinned: PinnedQuestion?
+    public let asidePanel: AsidePanel?
 
     enum CodingKeys: String, CodingKey {
-        case session, modes, configOptions, advisor, usage, turns, entries, cursor, delta, request, repos
+        case session, modes, configOptions, advisor, usage, turns, entries, cursor, delta, request, repos, prefills, optionAsides, pinned, asidePanel
     }
 
-    init(session: AgentSession, modes: [AgentMode], configOptions: [AgentConfigOption], advisor: String, usage: AgentUsage?, turns: [AgentTurn], entries: [TranscriptEntry], cursor: String? = nil, request: RequestCard? = nil, repos: ReposCard? = nil) {
+    init(
+        session: AgentSession, modes: [AgentMode], configOptions: [AgentConfigOption], advisor: String, usage: AgentUsage?, turns: [AgentTurn], entries: [TranscriptEntry], cursor: String? = nil, request: RequestCard? = nil, repos: ReposCard? = nil,
+        prefills: [AsidePrefill] = [], optionAsides: [OptionAside] = [], pinned: PinnedQuestion? = nil, asidePanel: AsidePanel? = nil
+    ) {
         self.session = session
         self.modes = modes
         self.configOptions = configOptions
@@ -343,6 +351,10 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
         delta = false
         self.request = request
         self.repos = repos
+        self.prefills = prefills
+        self.optionAsides = optionAsides
+        self.pinned = pinned
+        self.asidePanel = asidePanel
     }
 
     public var lastTurn: Int {
@@ -352,7 +364,8 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
     public func merging(_ newer: AgentTranscript, fromTurn: Int) -> AgentTranscript {
         AgentTranscript(
             session: newer.session, modes: newer.modes, configOptions: newer.configOptions, advisor: newer.advisor, usage: newer.usage, turns: newer.turns,
-            entries: entries.filter { $0.turn < fromTurn } + newer.entries, cursor: newer.cursor, request: newer.request, repos: newer.repos
+            entries: entries.filter { $0.turn < fromTurn } + newer.entries, cursor: newer.cursor, request: newer.request, repos: newer.repos,
+            prefills: newer.prefills, optionAsides: newer.optionAsides, pinned: newer.pinned, asidePanel: newer.asidePanel
         )
     }
 
@@ -361,7 +374,8 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
         let known = Set(entries.map(\.id))
         return AgentTranscript(
             session: newer.session, modes: newer.modes, configOptions: newer.configOptions, advisor: newer.advisor, usage: newer.usage, turns: newer.turns,
-            entries: newer.entries.isEmpty ? entries : entries.map { changed[$0.id] ?? $0 } + newer.entries.filter { !known.contains($0.id) }, cursor: newer.cursor, request: newer.request, repos: newer.repos
+            entries: newer.entries.isEmpty ? entries : entries.map { changed[$0.id] ?? $0 } + newer.entries.filter { !known.contains($0.id) }, cursor: newer.cursor, request: newer.request, repos: newer.repos,
+            prefills: newer.prefills, optionAsides: newer.optionAsides, pinned: newer.pinned, asidePanel: newer.asidePanel
         )
     }
 
@@ -378,6 +392,10 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
         delta = (try? c.decodeIfPresent(Bool.self, forKey: .delta)) ?? false
         request = (try? c.decodeIfPresent(JSONValue.self, forKey: .request)).flatMap { $0 }.flatMap(RequestCard.init(node:))
         repos = (try? c.decodeIfPresent(JSONValue.self, forKey: .repos)).flatMap { $0 }.flatMap(ReposCard.init(node:))
+        prefills = (try? c.decodeIfPresent([AsidePrefill].self, forKey: .prefills)) ?? []
+        optionAsides = (try? c.decodeIfPresent([OptionAside].self, forKey: .optionAsides)) ?? []
+        pinned = (try? c.decodeIfPresent(JSONValue.self, forKey: .pinned)).flatMap { $0 }.flatMap(PinnedQuestion.init(node:))
+        asidePanel = try? c.decodeIfPresent(AsidePanel.self, forKey: .asidePanel)
     }
 }
 

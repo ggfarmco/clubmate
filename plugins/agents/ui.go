@@ -99,20 +99,21 @@ type workspaceUI struct {
 }
 
 type sessionUI struct {
-	window      int
-	expanded    map[string]bool
-	attachments []pendingAttachment
-	nextID      int
-	gen         int
-	signIn      string
-	anchor      string
-	anchorTurn  int
-	anchorRev   int
-	open        openDraft
-	repos       reposChoice
-	restoreNote string
-	sendBack    *sendBackDraft
-	reviewBase  string
+	window       int
+	expanded     map[string]bool
+	attachments  []pendingAttachment
+	nextID       int
+	gen          int
+	signIn       string
+	anchor       string
+	anchorTurn   int
+	anchorRev    int
+	open         openDraft
+	openPrefills map[string]elicitPrefill
+	repos        reposChoice
+	restoreNote  string
+	sendBack     *sendBackDraft
+	reviewBase   string
 
 	context         bool
 	contextSelected string

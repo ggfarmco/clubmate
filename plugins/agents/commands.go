@@ -518,6 +518,7 @@ func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 		}
 		withPermissionContent(v.Session, v.Entries, w.Name)
 		a.withTaskContent(&v, w)
+		a.withAsideContent(&v, s)
 	}
 	if args.Last {
 		v = v.lastTurn()

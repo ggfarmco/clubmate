@@ -14,6 +14,7 @@ struct RowView: View {
                 .opacity(entry.isOutgoing ? 0.6 : 1)
         case .agent(let id, let blocks, let docLinks, let docCards, let images, let imageLinks, let taskLinks):
             AgentMessage(cards: docCards, entry: id, images: images) { MarkdownView(blocks: blocks, docLinks: docLinks, imageLinks: imageLinks, taskLinks: taskLinks) }
+                .messageAsideMenu(id)
         case .tools(_, let group):
             if group.calls.count == 1 {
                 ToolRow(tool: group.calls[0])
@@ -1427,6 +1428,7 @@ struct ChoiceRow: View {
     let symbol: String?
     let selected: Bool
     var muted = false
+    var aside: AsideState?
 
     static func symbol(multi: Bool, selected: Bool) -> String {
         guard selected else { return "circle" }
@@ -1440,9 +1442,14 @@ struct ChoiceRow: View {
                     .foregroundStyle(symbol == "circle" ? Color.captionInk : Color.accentColor)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(muted ? Color.captionInk : Color.primary)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(muted ? Color.captionInk : Color.primary)
+                    if let aside {
+                        AsideGlyph(state: aside)
+                    }
+                }
                 if let detail, !detail.isEmpty {
                     Text(detail)
                         .font(.footnote)
@@ -1617,6 +1624,7 @@ struct ElicitationCard: View {
     @State private var bodyHeight: CGFloat = 0
     @State private var armedPage: Int?
     @Environment(\.openURL) private var openURL
+    @Environment(\.asideEntry) private var asideEntry
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     var body: some View {
@@ -1786,6 +1794,7 @@ struct ElicitationCard: View {
         case "choice", "multi":
             ForEach(field.options) { option in
                 let selected = draft.picks[field.key, default: []].contains(option.value)
+                let anchor = AsideAnchor(elicitation: question.id, field: question.request.fields.firstIndex { $0.key == field.key }, option: option.value)
                 Button {
                     if single {
                         submit("accept", draft.answers(question.request.fields, picking: option, in: field))
@@ -1793,11 +1802,12 @@ struct ElicitationCard: View {
                         draft.toggle(field, option)
                     }
                 } label: {
-                    ChoiceRow(title: option.label, detail: option.description, symbol: symbol(field, selected: selected, single: single), selected: selected)
+                    ChoiceRow(title: option.label, detail: option.description, symbol: symbol(field, selected: selected, single: single), selected: selected, aside: asideEntry?.mark(anchor))
                 }
                 .buttonStyle(.plain)
                 .disabled(!answerable)
                 .accessibilityAddTraits(selected ? .isSelected : [])
+                .asideMenu(anchor)
             }
         case "boolean":
             Toggle(field.label, isOn: Binding(get: { draft.toggles[field.key] ?? false }, set: { draft.toggles[field.key] = $0 }))

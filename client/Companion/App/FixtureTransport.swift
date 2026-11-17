@@ -102,6 +102,8 @@ actor FixtureServer {
     private var voiceRev = 0
     private var voiceChunks = 0
     private var runAnswers: [String: String] = [:]
+    private var prefills: [String: [JSONValue]] = [:]
+    private var asideSeq = 0
     private let awakeScene = UserDefaults.standard.string(forKey: "awake") ?? "off"
     private lazy var awakeMode = ["hours": "hours", "armed": "agents", "on": "on"][awakeScene] ?? ""
     private lazy var awakeHours = awakeScene == "hours" ? 4 : 0
@@ -175,7 +177,8 @@ actor FixtureServer {
         if UserDefaults.standard.string(forKey: "reopenAction") == "resume", let index = sessions.firstIndex(where: { $0["id"] == .string("agt_0000000000000003") }) {
             sessions[index]["reopen"] = .object(["id": .string("reopen"), "label": .string("Reopen"), "icon": .string("arrow.clockwise"), "command": .string("agents.resume"), "args": .object(["session": .string("agt_0000000000000003")])])
         }
-        if UserDefaults.standard.bool(forKey: "questionFixture"), sessions.count > 3 {
+        let asideFixture = UserDefaults.standard.string(forKey: "asideFixture")
+        if UserDefaults.standard.bool(forKey: "questionFixture") || asideFixture != nil, sessions.count > 3 {
             sessions[3]["status"] = .string("waiting")
             sessions[3]["activity"] = nil
             sessions[3]["pending"] = .array([.string("elicitation-1")])
@@ -187,6 +190,29 @@ actor FixtureServer {
                 Self.entry("agent", "agent-q1", text: "`reserve.go` holds stock with no end date. Before I add the expiry job I need two decisions from you."),
                 Self.questionEntry(),
             ])]
+        }
+        if let asideFixture, sessions.count > 3 {
+            sessions[3]["canAside"] = .bool(true)
+            let parent = sessions[3]
+            if asideFixture != "empty" {
+                var aside = Self.session(parent, id: "agt_00000000000000b1", title: "Aside · 30 minutes", status: "done", ago: 120)
+                aside["parentSession"] = parent["id"]
+                aside["canAside"] = nil
+                aside["aside"] = .object(["anchor": .object(["elicitation": .string("elicitation-1"), "field": .number(0), "option": .string("30 minutes"), "question": .string("Hold")])])
+                sessions.append(aside)
+                transcripts["agt_00000000000000b1"] = ["entries": .array([
+                    Self.entry("user", "aside-u1", text: "Would 30 minutes break the checkout timeout?"),
+                    Self.entry("agent", "aside-a1", text: "No. The checkout page gives up after ten minutes, but the stock stays held for thirty, so a shopper who comes back within the half hour still finds the items in the cart."),
+                ])]
+            }
+            if asideFixture == "many" {
+                var aside = Self.session(parent, id: "agt_00000000000000b2", title: "Aside · “reserve.go holds stock with no end…”", status: "done", ago: 60)
+                aside["parentSession"] = parent["id"]
+                aside["canAside"] = nil
+                aside["aside"] = .object(["anchor": .object(["message": .string("agent-q1"), "quote": .string("`reserve.go` holds stock with no end date. Before I add the expiry job I need two decisions from you.")])])
+                sessions.append(aside)
+                transcripts["agt_00000000000000b2"] = ["entries": .array([])]
+            }
         }
         if UserDefaults.standard.bool(forKey: "longTranscript") {
             transcripts["agt_0000000000000004"] = ["entries": .array(Self.longTranscript)]
@@ -347,7 +373,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "agents.usage", "agents.graph-show", "agents.graph-approve", "agents.graph-continue", "agents.graph-stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "agents.usage", "agents.graph-show", "agents.graph-approve", "agents.graph-continue", "agents.graph-stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove, AsideCommand.ask, AsideCommand.summary, AsideCommand.send, AsideCommand.pick, AsideCommand.keep, AsideCommand.busy].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed"), .string("awake.changed"), .string("agents.usage")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge")), "reports": .bool(true)])]))
         case "report":
             return (200, Self.json(["result": .object(["id": .string("r-fixture")])]))
@@ -405,7 +431,7 @@ actor FixtureServer {
         case "agents.sessions" where LandReviewFixture.on && workspace == self.workspace && args["session"] == nil:
             return .object(["sessions": .array(sessions.map(JSONValue.object)), "removed": .array([]), "cursor": .string("fx.land"), "dock": .array(LandReviewFixture.dock)])
         case "agents.sessions":
-            return .array((workspace == self.workspace ? sessions : others).map { .object(Self.listKeyed($0)) } + (workspace == self.workspace ? [] : runEntries))
+            return .array((workspace == self.workspace ? sessions.map(Self.withAsideState) : others).map { .object(Self.listKeyed($0)) } + (workspace == self.workspace ? [] : runEntries))
         case "agents.graph-show":
             return shownRun(args["id"]?.stringValue ?? "")
         case "agents.graph-approve":
@@ -430,7 +456,8 @@ actor FixtureServer {
             }
             if var record = sessions.first(where: { $0["id"]?.stringValue == session }) {
                 record["pending"] = nil
-                transcript["session"] = .object(record)
+                transcript["session"] = .object(Self.withAsideState(record))
+                withAsides(&transcript, record: record)
             }
             return .object(transcript)
         case "agents.prompt":
@@ -448,6 +475,7 @@ actor FixtureServer {
             }
             append(session, prompt)
             update(session) { record in
+                record["composerDraft"] = nil
                 record["status"] = .string("running")
                 record["asks"] = .bool(false)
                 if record["title"]?.stringValue?.isEmpty ?? true { record["title"] = .string(text) }
@@ -512,7 +540,42 @@ actor FixtureServer {
             stopSubagent(session, args["subagent"]?.stringValue ?? "")
             return .null
         case "agents.close":
+            if sessions.first(where: { $0["id"]?.stringValue == session })?["aside"] != nil {
+                dropAside(session)
+                return .null
+            }
             update(session) { $0["status"] = .string("closed") }
+            return .null
+        case AsideCommand.ask:
+            return ask(aside: session, anchor: args["anchor"]?.arrayValue ?? [])
+        case AsideCommand.busy:
+            let record = sessions.first { $0["id"]?.stringValue == session }
+            let unsent = record?["aside"] != nil && record?["aside"]?["sent"] != .bool(true) && (transcripts[session]?["entries"]?.arrayValue ?? []).contains { $0["kind"] == .string("user") }
+            return .object(["busy": .bool(unsent), "message": .string(unsent ? "Close without sending?" : "")])
+        case AsideCommand.summary:
+            append(session, Self.entry("user", "summary-\(UUID().uuidString)", text: "Summarize what we found in this aside in at most 5 sentences, written to be sent back to the parent session."))
+            update(session) { $0["status"] = .string("running") }
+            turns[session] = Task {
+                try? await Task.sleep(for: .seconds(1))
+                append(session, Self.entry("agent", "summary-reply-\(UUID().uuidString)", text: "30 minutes covers slow payment pages and the provider's window; the checkout page still times out at ten, but the stock waits for the shopper."))
+                update(session) { $0["status"] = .string("done") }
+            }
+            return .null
+        case AsideCommand.send:
+            sendAside(session, args)
+            return .null
+        case AsideCommand.pick:
+            guard let record = sessions.first(where: { $0["id"]?.stringValue == session }), let parent = record["parentSession"]?.stringValue else { return .null }
+            prefill(parent, anchor: record["aside"]?["anchor"] ?? .null, value: args["value"]?.stringValue ?? "", note: nil)
+            update(session) { _ in }
+            return .null
+        case AsideCommand.keep:
+            update(session) { record in
+                record["forkedFrom"] = record["parentSession"]
+                record["parentSession"] = nil
+                record["aside"] = nil
+                record["title"] = .string((record["title"]?.stringValue ?? "").replacingOccurrences(of: "Aside · ", with: ""))
+            }
             return .null
         case "agents.reviewed":
             update(session) { $0["review"] = nil }
@@ -875,6 +938,119 @@ actor FixtureServer {
         }
         transcripts[session]?["entries"] = .array(entries)
         update(session) { $0["status"] = .string("running"); $0["pending"] = nil }
+    }
+
+    private static func withAsideState(_ record: [String: JSONValue]) -> [String: JSONValue] {
+        guard case .object(var aside) = record["aside"] ?? .null else { return record }
+        var record = record
+        let status = record["status"]?.stringValue
+        let state = status == "running" ? "thinking" : status == "waiting" ? "asks" : aside["sent"] == .bool(true) ? "sent" : "open"
+        aside["state"] = .string(state)
+        aside["label"] = record["title"]
+        aside["detail"] = .string(["open": "open", "thinking": "thinking…", "asks": "asks you", "sent": "sent"][state] ?? state)
+        record["aside"] = .object(aside)
+        return record
+    }
+
+    private func elicitationField(_ parent: String, _ anchor: JSONValue) -> (field: JSONValue, index: Int, pending: Bool)? {
+        guard let request = anchor["elicitation"]?.stringValue, let index = anchor["field"]?.numberValue.map(Int.init),
+              let entry = transcripts[parent]?["entries"]?.arrayValue?.first(where: { $0["id"]?.stringValue == request }),
+              let fields = entry["elicitation"]?["fields"]?.arrayValue, fields.indices.contains(index) else { return nil }
+        let pending = sessions.first { $0["id"]?.stringValue == parent }?["pending"]?.arrayValue?.contains(.string(request)) == true
+        return (fields[index], index, pending)
+    }
+
+    private func withAsides(_ transcript: inout [String: JSONValue], record: [String: JSONValue]) {
+        let id = record["id"]?.stringValue ?? ""
+        if let parent = record["parentSession"]?.stringValue, let anchor = record["aside"]?["anchor"] {
+            var panel: [String: JSONValue] = ["text": anchor["quote"] ?? anchor["question"] ?? .null]
+            if let (field, index, pending) = elicitationField(parent, anchor), let option = anchor["option"]?.stringValue {
+                let options = field["options"]?.arrayValue ?? []
+                let at = options.firstIndex { $0["value"]?.stringValue == option } ?? 0
+                let multi = field["type"] == .string("multi")
+                panel = ["question": .number(Double(index / 2 + 1)), "option": .number(Double(at + 1)), "header": field["title"] ?? .null, "text": field["description"] ?? .null, "label": .string(option), "description": options[at]["description"] ?? .null, "answer": .bool(pending), "multi": .bool(multi)]
+                if pending {
+                    let filled = (prefills[parent] ?? []).first { $0["field"] == field["key"] }
+                    let chips: [JSONValue] = options.map { o in
+                        let mark: JSONValue = o["value"] == .string(option) ? .object(["id": .string(id), "state": .string("open")]) : .null
+                        let on: Bool = filled?["value"] == o["value"]
+                        return .object(["value": o["value"] ?? .null, "label": o["label"] ?? .null, "description": o["description"] ?? .null, "on": .bool(on), "aside": mark])
+                    }
+                    var props: [String: JSONValue] = ["style": .string(multi ? "check" : "radio"), "pinned": .bool(true), "action": .string("asidePick"), "options": .array(chips)]
+                    props["title"] = field["title"]
+                    props["text"] = field["description"]
+                    transcript["pinned"] = .object(["type": .string("choice"), "id": .string(id + "/pinned"), "props": .object(props)])
+                }
+            }
+            transcript["asidePanel"] = .object(panel)
+            return
+        }
+        transcript["prefills"] = .array(prefills[id] ?? [])
+        transcript["optionAsides"] = .array(sessions.filter { $0["parentSession"]?.stringValue == id && $0["aside"] != nil }.compactMap { aside in
+            let anchor = aside["aside"]?["anchor"] ?? .null
+            guard let option = anchor["option"], let (field, _, _) = elicitationField(id, anchor) else { return nil }
+            return .object(["elicitation": anchor["elicitation"] ?? .null, "field": field["key"] ?? .null, "option": option, "id": aside["id"] ?? .null, "state": Self.withAsideState(aside)["aside"]?["state"] ?? .null])
+        })
+    }
+
+    private func ask(aside parent: String, anchor pairs: [JSONValue]) -> JSONValue {
+        var anchor: [String: JSONValue] = [:]
+        for pair in pairs {
+            guard let key = pair["key"]?.stringValue, let value = pair["value"]?.stringValue else { continue }
+            anchor[key] = key == "field" ? .number(Double(value) ?? 0) : .string(value)
+        }
+        let same = { (other: JSONValue) in ["elicitation", "field", "open", "option", "message", "quote"].allSatisfy { other[$0] == anchor[$0] } }
+        if let existing = sessions.first(where: { $0["parentSession"]?.stringValue == parent && $0["aside"] != nil && same($0["aside"]?["anchor"] ?? .null) }) {
+            return .object(["session": existing["id"] ?? .null, "reopened": .bool(true)])
+        }
+        guard let template = sessions.first(where: { $0["id"]?.stringValue == parent }) else { return .null }
+        asideSeq += 1
+        let id = String(format: "agt_00000000000000c%x", asideSeq)
+        let label = anchor["option"]?.stringValue.map { "Aside · " + $0 } ?? "Aside · “" + String((anchor["quote"]?.stringValue ?? "").prefix(40)) + "”"
+        var record = Self.session(template, id: id, title: label, status: "idle", ago: 0)
+        record["parentSession"] = .string(parent)
+        record["canAside"] = nil
+        record["aside"] = .object(["anchor": .object(anchor)])
+        sessions.append(record)
+        transcripts[id] = ["entries": .array([])]
+        update(parent) { _ in }
+        return .object(["session": .string(id), "reopened": .bool(false)])
+    }
+
+    private func prefill(_ parent: String, anchor: JSONValue, value: String, note: String?) {
+        guard let (field, _, _) = elicitationField(parent, anchor) else { return }
+        var list = prefills[parent] ?? []
+        let old = list.first { $0["field"] == field["key"] }
+        list.removeAll { $0["field"] == field["key"] }
+        list.append(.object(["elicitation": anchor["elicitation"] ?? .null, "field": field["key"] ?? .null, "value": .string(value), "note": note.map(JSONValue.string) ?? old?["note"] ?? .string("")]))
+        prefills[parent] = list
+        update(parent) { _ in }
+    }
+
+    private func sendAside(_ session: String, _ args: JSONValue) {
+        guard let record = sessions.first(where: { $0["id"]?.stringValue == session }), let parent = record["parentSession"]?.stringValue else { return }
+        let anchor = record["aside"]?["anchor"] ?? .null
+        let text = args["text"]?.stringValue ?? ""
+        if args["to"] == .string("answer"), let option = anchor["option"]?.stringValue {
+            prefill(parent, anchor: anchor, value: option, note: text)
+        } else {
+            let quote = anchor["quote"]?.stringValue.map { "> " + $0 + "\n\n" } ?? ""
+            update(parent) { $0["composerDraft"] = .object(["text": .string(quote + text), "rev": .number(($0["composerDraft"]?["rev"]?.numberValue ?? 0) + 1)]) }
+        }
+        if args["close"] == .bool(false) {
+            update(session) { record in
+                if case .object(var aside) = record["aside"] ?? .null { aside["sent"] = .bool(true); record["aside"] = .object(aside) }
+            }
+        } else {
+            dropAside(session)
+        }
+    }
+
+    private func dropAside(_ session: String) {
+        let parent = sessions.first { $0["id"]?.stringValue == session }?["parentSession"]?.stringValue
+        sessions.removeAll { $0["id"]?.stringValue == session }
+        transcripts[session] = nil
+        if let parent { update(parent) { _ in } }
     }
 
     private func openEntries(_ session: String) -> [JSONValue] {

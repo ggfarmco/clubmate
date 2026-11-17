@@ -17,6 +17,7 @@ public enum SessionGlyph: Sendable, Equatable {
     case review
     case done
     case closed
+    case aside
 
     public var needsYou: Bool {
         self == .connect || self == .permission || self == .question || self == .step || self == .cap
@@ -58,6 +59,7 @@ extension AgentSession {
             if pendingSummary?.kind == .question, pending.contains(where: AgentSession.isQuestion) { return .question }
             return status == .waiting || !pending.isEmpty || answersOnMac ? .permission : .question
         }
+        if isAside { return .aside }
         if asksParent { return .asksParent }
         if childStatus == .waiting { return .childWaiting }
         if displayStatus == .running { return .running }
@@ -68,7 +70,8 @@ extension AgentSession {
     }
 
     public var subagentLabel: String {
-        afk ? "Subagent · AFK" : "Subagent"
+        if isAside { return "Aside" }
+        return afk ? "Subagent · AFK" : "Subagent"
     }
 
     public var askedQuestion: String? {
@@ -80,7 +83,7 @@ extension AgentSession {
         waitingChildren > 0 && !glyph.needsYou ? .childWaiting : glyph
     }
 
-    public func stateLine(now: Date, waitingChildren: Int = 0) -> SessionStateLine {
+    public func stateLine(now: Date, waitingChildren: Int = 0, waitingAsides: Int = 0) -> SessionStateLine {
         let age = { (date: Date) in ShortAge.since(date, now: now) }
         if let rowDetail {
             return SessionStateLine(text: rowDetail, tone: needsYou ? .needsYou : status == .error ? .danger : .secondary)
@@ -120,6 +123,7 @@ extension AgentSession {
             return SessionStateLine(lead: "Asks parent:", text: question, age: pendingSummary.map { age($0.at) })
         case .childWaiting:
             let count = max(waitingChildren, 1)
+            if waitingAsides >= count { return SessionStateLine(text: count == 1 ? "An aside asks you" : "\(count) asides ask you") }
             return SessionStateLine(text: count == 1 ? "1 subagent waiting" : "\(count) subagents waiting")
         case .running:
             if status != .running { return SessionStateLine(text: "Waiting for subagents") }
@@ -138,6 +142,8 @@ extension AgentSession {
             return SessionStateLine(text: reviewProgress?.text ?? SessionState.done.label, age: age(updatedAt))
         case .closed:
             return SessionStateLine(text: autoClosed ? "Auto-closed" : SessionState.closed.label, age: age(updatedAt))
+        case .aside:
+            return SessionStateLine(text: aside?.detail.nilIfEmpty ?? aside?.state.rawValue ?? "", tone: aside?.state == .thinking ? .primary : .secondary)
         }
     }
 }
@@ -156,6 +162,10 @@ extension SessionLanding {
 extension SessionNode {
     public var waitingDescendants: Int {
         children.reduce(0) { $0 + ($1.session.glyph.needsYou ? 1 : 0) + $1.waitingDescendants }
+    }
+
+    public var waitingAsides: Int {
+        children.reduce(0) { $0 + ($1.session.isAside && $1.session.glyph.needsYou ? 1 : 0) + $1.waitingAsides }
     }
 
     public var needsYouInTree: Bool {

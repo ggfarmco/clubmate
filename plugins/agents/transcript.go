@@ -78,6 +78,11 @@ type transcriptView struct {
 	Request  *sdui.Node                `json:"request,omitempty"`
 	Repos    *sdui.Node                `json:"repos,omitempty"`
 
+	Prefills     []prefillView     `json:"prefills,omitempty"`
+	OptionAsides []optionAsideView `json:"optionAsides,omitempty"`
+	Pinned       *sdui.Node        `json:"pinned,omitempty"`
+	AsidePanel   *asidePanel       `json:"asidePanel,omitempty"`
+
 	ReviewStates map[string]map[int64]string `json:"-"`
 }
 

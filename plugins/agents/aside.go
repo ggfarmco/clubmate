@@ -86,6 +86,7 @@ type asideInfo struct {
 type asideView struct {
 	State  string      `json:"state"`
 	Label  string      `json:"label"`
+	Detail string      `json:"detail"`
 	Anchor asideAnchor `json:"anchor"`
 }
 
@@ -124,7 +125,8 @@ func asideViewOf(rec record) *asideView {
 	if !rec.isAside() {
 		return nil
 	}
-	return &asideView{State: asideState(rec), Label: rec.Title, Anchor: rec.Aside.Anchor}
+	state := asideState(rec)
+	return &asideView{State: state, Label: rec.Title, Detail: asideDetails[state], Anchor: rec.Aside.Anchor}
 }
 
 func (a *app) canAside(rec record) bool {
@@ -162,7 +164,11 @@ func (a *app) asideCommand(ctx context.Context, cmd pluginsdk.CommandRun, args a
 	if err != nil {
 		return nil, err
 	}
-	s, reopened, err := a.newAside(ctx, parent, anchorOf(args.Anchor), cmd.Caller)
+	an := anchorOf(args.Anchor)
+	if an.Question == "" && an.Option != "" {
+		an.Question = parent.anchorQuestion(an)
+	}
+	s, reopened, err := a.newAside(ctx, parent, an, cmd.Caller)
 	if err != nil {
 		return nil, err
 	}
@@ -190,6 +196,20 @@ func anchorOf(pairs []keyValue) asideAnchor {
 		}
 	}
 	return an
+}
+
+func (s *session) anchorQuestion(an asideAnchor) string {
+	if an.Elicitation != "" {
+		if el, ok := s.elicitation(an.Elicitation); ok && an.Field >= 0 && an.Field < len(el.Fields) {
+			return cmp.Or(el.Fields[an.Field].Title, el.Message)
+		}
+		return ""
+	}
+	items := s.openList()
+	if i := slices.IndexFunc(items, func(it openItem) bool { return it.ID == an.Open }); i >= 0 {
+		return items[i].Question
+	}
+	return ""
 }
 
 func asideLabel(an asideAnchor) string {
@@ -472,6 +492,14 @@ func (a *app) prefillOpen(parent *session, item, value, note string) error {
 	}
 	st.open.answers[it.ID] = ans
 	st.open.cursor = it.ID
+	if st.openPrefills == nil {
+		st.openPrefills = map[string]elicitPrefill{}
+	}
+	pf := elicitPrefill{Note: note}
+	if o >= 0 {
+		pf.Value = it.Options[o].Label
+	}
+	st.openPrefills[it.ID] = pf
 	return nil
 }
 

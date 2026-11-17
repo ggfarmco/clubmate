@@ -7,6 +7,7 @@ struct SessionDetailView: View {
     let context: PluginContext
     let store: AgentsStore
     let sessionID: String
+    var role: SessionRole = .plain
     @Environment(AppNavigation.self) private var navigation
     @Environment(VoiceSession.self) private var voice
     @Environment(\.verticalSizeClass) private var verticalSizeClass
@@ -29,12 +30,78 @@ struct SessionDetailView: View {
     @State private var reviewing: LandCard?
     @State private var archiving = false
     @State private var hidden: Int?
+    @State private var draftSeen: Int?
+    @State private var showingAsides = false
+    @State private var pickedAside: String?
+    @State private var asideSheetUp = false
+    @State private var pushReady = false
+    @State private var sendingBack: SendBackStart?
+    @State private var closeQuestion: String?
 
     private static let pairedWidth = 520.0
     private static let window = 60
     private static let page = 100
 
+    private var mode: SessionRole {
+        role == .plain && store.session(sessionID)?.isAside == true ? .asideFull : role
+    }
+
     var body: some View {
+        let session = store.session(sessionID)
+        let transcript = store.transcripts[sessionID]
+        let blocked = context.connection.blocked
+        screen
+        .sheet(item: asideSheet, onDismiss: asideSheetDismissed) { item in
+            NavigationStack {
+                SessionDetailView(context: context, store: store, sessionID: item.id, role: .asideSheet)
+            }
+            .presentationDetents([.fraction(0.62)])
+            .presentationDragIndicator(.visible)
+            .onAppear { asideSheetUp = true }
+        }
+        .sheet(isPresented: $showingAsides, onDismiss: {
+            if let id = pickedAside { store.asidePresentation[sessionID] = .sheet(id) }
+            pickedAside = nil
+        }) {
+            AsideListSheet(asides: store.asides(of: sessionID)) { pickedAside = $0 }
+        }
+        .sheet(item: $sendingBack) { start in
+            if let parent = session?.parentSession {
+                SendBackSheet(store: store, aside: sessionID, parent: parent, parentTitle: store.session(parent)?.displayTitle ?? "the session", blocked: blocked, to: start.to)
+                    .presentationDetents([.large])
+            }
+        }
+        .navigationDestination(item: asidePushed) { id in
+            SessionDetailView(context: context, store: store, sessionID: id, role: .asideFull)
+        }
+        .confirmationDialog(closeQuestion ?? "", isPresented: Binding(get: { closeQuestion != nil }, set: { if !$0 { closeQuestion = nil } }), titleVisibility: .visible) {
+            Button("Send back…") { sendingBack = SendBackStart(to: transcript?.asidePanel?.answer == true ? .answer : .draft) }
+            Button("Close", role: .destructive) { perform { try await closeAside() } }
+        }
+        .task(id: sessionID) {
+            guard role != .plain else { return }
+            store.watch(sessionID)
+            defer { store.unwatch(sessionID) }
+            while !Task.isCancelled { try? await Task.sleep(for: .seconds(3600)) }
+        }
+        .onChange(of: session?.composerDraft, initial: true) { _, next in
+            guard let next else { return }
+            if let text = next.apply(local: draft, seen: draftSeen) { draft = text }
+            draftSeen = next.rev
+        }
+        .onChange(of: store.asidePresentation[sessionID]) { _, presentation in
+            switch presentation {
+            case .full where !asideSheetUp: pushReady = true
+            case .kept(let id) where !asideSheetUp:
+                store.asidePresentation[sessionID] = nil
+                context.navigation.detail = id
+            case .full, .kept: break
+            default: pushReady = false
+            }
+        }
+    }
+
+    @ViewBuilder private var screen: some View {
         let transcript = store.transcripts[sessionID]
         let entries = store.entries(sessionID)
         let session = store.session(sessionID)
@@ -53,7 +120,9 @@ struct SessionDetailView: View {
         }
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                if let parent = session?.parentSession.flatMap(store.session) {
+                if let session, let aside = session.aside {
+                    ForkedFromCard(anchor: aside.anchor, panel: transcript?.asidePanel)
+                } else if let parent = session?.parentSession.flatMap(store.session) {
                     StartedByCard(parent: parent) { context.navigation.detail = parent.id }
                 }
                 if skip > 0 {
@@ -137,7 +206,13 @@ struct SessionDetailView: View {
             }
         } : nil)
         .safeAreaInset(edge: .top, spacing: 0) {
-            if !(answerDocked && verticalSizeClass == .compact) {
+            if mode == .asideFull, let pinned = transcript?.pinned, let session, let parent = session.parentSession {
+                AsideStrip(pinned: pinned, panel: transcript?.asidePanel, anchorOption: session.aside?.anchor.option, blocked: blocked) { value in
+                    perform { try await store.asidePick(sessionID, parent: parent, value: value) }
+                } other: {
+                    sendingBack = SendBackStart(to: .answer)
+                }
+            } else if mode == .plain, !(answerDocked && verticalSizeClass == .compact) {
                 RequestBannerHost()
                     .padding(.horizontal)
                     .padding(.vertical, 6)
@@ -273,6 +348,13 @@ struct SessionDetailView: View {
                     .frame(maxWidth: 820)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
+                if let session, session.isAside, !session.isClosed, mode != .plain {
+                    AsideActions(blocked: blocked) {
+                        sendingBack = SendBackStart(to: transcript?.asidePanel?.answer == true ? .answer : .draft)
+                    } keep: {
+                        keepAside()
+                    }
+                }
                 if let session {
                     composer(session, screen: screen, blocked: blocked, answerDocked: answerDocked, hidden: cardTyping)
                 }
@@ -281,9 +363,13 @@ struct SessionDetailView: View {
             .animation(.snappy, value: store.openedDocs[sessionID])
             .voiceDock()
         }
+        .environment(\.asideEntry, asideEntry(session, blocked: blocked))
         .navigationTitle(session?.displayTitle ?? "Session")
-        .toolbarTitleDisplayMode(stopInHeader ? .inlineLarge : .inline)
+        .toolbarTitleDisplayMode(stopInHeader && mode == .plain ? .inlineLarge : .inline)
         .toolbar {
+            if mode != .plain {
+                asideToolbar(session)
+            } else {
             if let session {
                 if stopInHeader {
                     ToolbarItem(placement: .largeSubtitle) {
@@ -357,6 +443,12 @@ struct SessionDetailView: View {
                     }
                 }
             }
+            if store.asides(of: sessionID).count >= 2 {
+                ToolbarItem(placement: .primaryAction) {
+                    AsidesPill(count: store.asides(of: sessionID).count) { showingAsides = true }
+                }
+            }
+            }
         }
         .sheet(isPresented: $showingSettings) {
             SessionSettingsView(store: store, sessionID: sessionID)
@@ -404,6 +496,144 @@ struct SessionDetailView: View {
             store.opened(sessionID)
         }
         .task(id: planDue, loadPlan)
+    }
+
+    private var asideSheet: Binding<AsideItem?> {
+        Binding(get: {
+            guard mode == .plain, case .sheet(let id) = store.asidePresentation[sessionID], liveAside(id) else { return nil }
+            return AsideItem(id: id)
+        }, set: { item in
+            if item == nil, case .sheet = store.asidePresentation[sessionID] { store.asidePresentation[sessionID] = nil }
+        })
+    }
+
+    private var asidePushed: Binding<String?> {
+        Binding(get: {
+            guard mode == .plain, pushReady, case .full(let id) = store.asidePresentation[sessionID], liveAside(id) else { return nil }
+            return id
+        }, set: { id in
+            guard id == nil else { return }
+            pushReady = false
+            if case .full(let aside) = store.asidePresentation[sessionID] { store.asidePresentation[sessionID] = .sheet(aside) }
+        })
+    }
+
+    private func liveAside(_ id: String) -> Bool {
+        store.session(id).map { $0.isAside && !$0.isClosed } ?? false
+    }
+
+    private func asideSheetDismissed() {
+        asideSheetUp = false
+        switch store.asidePresentation[sessionID] {
+        case .full: pushReady = true
+        case .kept(let id):
+            store.asidePresentation[sessionID] = nil
+            context.navigation.detail = id
+        default: break
+        }
+    }
+
+    private func asideEntry(_ session: AgentSession?, blocked: String?) -> AsideEntry? {
+        guard mode == .plain, let session, session.canAside, !session.isAside, blocked == nil, context.connection.supports(AsideCommand.ask) else { return nil }
+        let transcript = store.transcripts[sessionID]
+        return AsideEntry { anchor in
+            perform {
+                let id = try await store.askAside(sessionID, anchor: anchor)
+                store.asidePresentation[sessionID] = .sheet(id)
+            }
+        } mark: { anchor in
+            guard let option = anchor.option else { return nil }
+            let mark = if let request = anchor.elicitation, let field = anchor.field, let key = Self.fieldKey(transcript, request: request, index: field) {
+                transcript?.optionAside(elicitation: request, field: key, option: option)
+            } else if let item = anchor.open {
+                transcript?.optionAside(open: item, option: option)
+            } else {
+                nil as OptionAside?
+            }
+            return mark.map { store.session($0.id)?.aside?.state ?? $0.state }
+        } message: { row in
+            guard let entry = transcript?.entries.first(where: { $0.id == row }), case .agent(let text) = entry.content else { return nil }
+            return text
+        }
+    }
+
+    private static func fieldKey(_ transcript: AgentTranscript?, request: String, index: Int) -> String? {
+        for entry in transcript?.entries ?? [] {
+            if case .elicitation(let question) = entry.content, question.id == request, question.request.fields.indices.contains(index) {
+                return question.request.fields[index].key
+            }
+        }
+        return nil
+    }
+
+    @ToolbarContentBuilder
+    private func asideToolbar(_ session: AgentSession?) -> some ToolbarContent {
+        if let session {
+            ToolbarItem(placement: .principal) {
+                AsideHeader(session: session, place: mode == .asideSheet ? (store.transcripts[sessionID]?.asidePanel?.place ?? "an aside") + " · swipe down to the card" : "read-only · Plan")
+            }
+        }
+        ToolbarItemGroup(placement: .primaryAction) {
+            if mode == .asideSheet {
+                Button("Full Screen", systemImage: "arrow.up.left.and.arrow.down.right") { moveAside { .full($0) } }
+                    .accessibilityIdentifier("aside.expand")
+            } else {
+                Button("Beside", systemImage: "arrow.down.right.and.arrow.up.left") { collapseAside() }
+                    .accessibilityIdentifier("aside.collapse")
+            }
+            Button("Close Aside", systemImage: "xmark") { askClose() }
+                .accessibilityIdentifier("aside.close")
+                .disabled(context.connection.blocked != nil)
+        }
+    }
+
+    private func moveAside(_ next: (String) -> AsidePresentation) {
+        guard let parent = store.session(sessionID)?.parentSession else { return }
+        store.asidePresentation[parent] = next(sessionID)
+    }
+
+    private func collapseAside() {
+        guard let parent = asideParent else { return }
+        let pushed = store.asidePresentation[parent] == .full(sessionID)
+        store.asidePresentation[parent] = .sheet(sessionID)
+        if !pushed { context.navigation.detail = parent }
+    }
+
+    private var asideParent: String? {
+        store.session(sessionID)?.parentSession ?? store.transcripts[sessionID]?.session.parentSession
+    }
+
+    private func askClose() {
+        guard context.connection.supports(AsideCommand.busy) else {
+            closeQuestion = "Close this aside?"
+            return
+        }
+        perform {
+            if let question = try await store.closeAsk(sessionID) {
+                closeQuestion = question
+            } else {
+                try await closeAside()
+            }
+        }
+    }
+
+    private func closeAside() async throws {
+        let parent = asideParent
+        try await store.close(sessionID)
+        guard let parent else { return }
+        store.asidePresentation[parent] = nil
+        if role == .plain { context.navigation.detail = parent }
+        await store.loadTranscript(parent, incremental: true)
+    }
+
+    private func keepAside() {
+        let parent = asideParent
+        perform {
+            try await store.asideKeep(sessionID)
+            guard let parent else { return }
+            if role != .plain { store.asidePresentation[parent] = .kept(sessionID) }
+            await store.loadTranscript(parent, incremental: true)
+        }
     }
 
     private var failureShown: Binding<Bool> {
@@ -539,6 +769,7 @@ struct SessionDetailView: View {
             sending: sending,
             wide: stopInHeader,
             hint: answersGoWith(screen) ? "Your answers go with it" : nil,
+            trailing: session.isAside ? "Plan" : nil,
             reopen: { action in
                 perform {
                     if let next = try await store.recover(sessionID, with: action) {
@@ -845,6 +1076,7 @@ struct ComposerView: View {
     let sending: Bool
     var wide = false
     var hint: String?
+    var trailing: String?
     var reopen: (FailureAction) -> Void = { _ in }
     let send: () -> Void
     @State private var picked: [PhotosPickerItem] = []
@@ -935,6 +1167,14 @@ struct ComposerView: View {
                                         .lineLimit(1)
                                         .allowsHitTesting(false)
                                         .accessibilityHidden(true)
+                                }
+                            }
+                            .overlay(alignment: .trailing) {
+                                if let trailing, draft.isEmpty {
+                                    Text(trailing)
+                                        .font(.caption)
+                                        .foregroundStyle(Color.captionInk)
+                                        .allowsHitTesting(false)
                                 }
                             }
                             .padding(.horizontal, 16)

@@ -21,7 +21,32 @@ import (
 type asideView struct {
 	State  string         `json:"state"`
 	Label  string         `json:"label"`
+	Detail string         `json:"detail"`
 	Anchor map[string]any `json:"anchor"`
+}
+
+type phonePrefill struct{ Elicitation, Field, Open, Value, Note string }
+
+type phoneMark struct{ Elicitation, Field, Open, Option, ID, State string }
+
+type phonePanel struct {
+	Question, Option                 int
+	Header, Text, Label, Description string
+	Answer, Multi                    bool
+}
+
+type asideTranscript struct {
+	Prefills     []phonePrefill
+	OptionAsides []phoneMark
+	Pinned       *sdui.Node
+	AsidePanel   *phonePanel
+}
+
+func (f *fixture) asideTranscript(t *testing.T, workspace, session string) asideTranscript {
+	t.Helper()
+	var out asideTranscript
+	require.NoError(t, f.run(t, workspace, "agents.transcript", map[string]any{"session": session}, &out))
+	return out
 }
 
 type asideResult struct {
@@ -774,4 +799,48 @@ func TestRefusedPromptKeepsTheDraft(t *testing.T) {
 	draft := f.session(t, workspace, parent.ID).ComposerDraft
 	require.NotNil(t, draft)
 	assert.Equal(t, "> the title\n\nwhy", draft.Text)
+}
+
+func TestAsidePhoneFields(t *testing.T) {
+	t.Parallel()
+	f := start(t, askingScript)
+	workspace := f.workspace(t, newRepo(t))
+	parent, ask := f.askingParent(t, workspace)
+	aside := f.aside(t, workspace, parent.ID, "elicitation", ask, "field", "0", "option", "Postgres")
+	f.forkOf(t, workspace, aside.Session)
+	rec := f.session(t, workspace, aside.Session)
+	assert.Equal(t, "Store", rec.Aside.Anchor["question"])
+	assert.Equal(t, "open", rec.Aside.Detail)
+
+	own := f.asideTranscript(t, workspace, aside.Session)
+	assert.Equal(t, &phonePanel{Question: 1, Option: 1, Text: "Store", Label: "Postgres", Description: "Relational", Answer: true}, own.AsidePanel)
+	require.NotNil(t, own.Pinned)
+	assert.Equal(t, true, own.Pinned.Props["pinned"])
+
+	require.NoError(t, f.run(t, workspace, "agents.aside-send", map[string]any{"session": aside.Session, "to": "answer", "text": "too heavy", "close": false}, nil))
+	got := f.asideTranscript(t, workspace, parent.ID)
+	assert.Equal(t, []phonePrefill{{Elicitation: ask, Field: "question_0", Value: "Postgres", Note: "too heavy"}}, got.Prefills)
+	assert.Equal(t, []phoneMark{{Elicitation: ask, Field: "question_0", Option: "Postgres", ID: aside.Session, State: "sent"}}, got.OptionAsides)
+	assert.Equal(t, "sent", f.session(t, workspace, aside.Session).Aside.Detail)
+
+	var agent asideTranscript
+	require.NoError(t, f.runAs(t, workspace, parent.ID, "agents.transcript", map[string]any{"session": parent.ID}, &agent))
+	assert.Equal(t, asideTranscript{}, agent)
+}
+
+func TestAsidePhoneOpenItems(t *testing.T) {
+	t.Parallel()
+	f := start(t, asideScript())
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.promptedParent(t, workspace)
+	f.postItems(t, workspace, parent.ID, decision("Lists"))
+	aside := f.aside(t, workspace, parent.ID, "open", "oi-1", "option", "Two")
+	f.forkOf(t, workspace, aside.Session)
+	assert.Equal(t, "Which Lists?", f.session(t, workspace, aside.Session).Aside.Anchor["question"])
+	assert.Equal(t, &phonePanel{Question: 1, Option: 2, Header: "Lists", Text: "Which Lists?", Label: "Two", Description: "Second", Answer: true}, f.asideTranscript(t, workspace, aside.Session).AsidePanel)
+
+	require.NoError(t, f.run(t, workspace, "agents.aside-send", map[string]any{"session": aside.Session, "to": "answer", "text": "but simpler", "close": false}, nil))
+	got := f.asideTranscript(t, workspace, parent.ID)
+	assert.Equal(t, []phonePrefill{{Open: "oi-1", Value: "Two", Note: "but simpler"}}, got.Prefills)
+	assert.Equal(t, []phoneMark{{Open: "oi-1", Option: "Two", ID: aside.Session, State: "sent"}}, got.OptionAsides)
 }

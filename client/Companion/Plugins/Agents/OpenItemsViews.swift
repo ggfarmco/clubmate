@@ -62,18 +62,21 @@ struct OpenChoices: View {
     let item: OpenItem
     @Binding var draft: OpenDraft
     var focused: FocusState<String?>.Binding
+    @Environment(\.asideEntry) private var asideEntry
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(item.options) { option in
                 let selected = draft.picks[item.id, default: []].contains(option.label)
+                let anchor = AsideAnchor(open: item.id, option: option.label)
                 Button {
                     draft.pick(option, in: item)
                 } label: {
-                    ChoiceRow(title: option.label, detail: option.description, symbol: ChoiceRow.symbol(multi: item.multiSelect, selected: selected), selected: selected)
+                    ChoiceRow(title: option.label, detail: option.description, symbol: ChoiceRow.symbol(multi: item.multiSelect, selected: selected), selected: selected, aside: asideEntry?.mark(anchor))
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(selected ? .isSelected : [])
+                .asideMenu(anchor)
             }
             let open = draft.opened.contains(item.id)
             Button {
