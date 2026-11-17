@@ -1025,6 +1025,18 @@ final class CompanionUITests: XCTestCase {
         add(screenshot(app, "session-info"))
     }
 
+    func testIPadShowsTheUsageLineAboveTheSessionsLikeThePhone() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "the three-column layout is iPad only")
+        let app = launch(open: "agents", ["-usage", "normal", "-macs", "3"])
+        let line = app.buttons["usage.header"]
+        XCTAssertTrue(line.waitForExistence(timeout: 20))
+        XCTAssertTrue(wait(for: line, "label CONTAINS 'alex@acme · 5h 42% · 7d 81%'"), line.label)
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'usage.footer.'")).firstMatch.exists)
+        add(screenshot(app, "usage-ipad-header"))
+        line.tap()
+        XCTAssertTrue(app.staticTexts["Your other Macs"].waitForExistence(timeout: 5))
+    }
+
     func testReportQueuesWhileOfflineAndListsFiles() {
         let app = launch(open: "report", ["-offline", "4"])
         let text = app.descendants(matching: .any)["report.text"]

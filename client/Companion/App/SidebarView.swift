@@ -52,11 +52,6 @@ struct SidebarView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .safeAreaInset(edge: .bottom) {
-            if navigation.layout == .wide {
-                UsageFooter()
-            }
-        }
         .actionFailure($queueFailure)
         .navigationTitle("Macs")
         .overlay {

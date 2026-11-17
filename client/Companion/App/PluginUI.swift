@@ -51,7 +51,7 @@ struct WorkspaceTabs: View {
     var body: some View {
         let compact = context.navigation.layout == .compact
         let tabs = compact ? CompanionPlugins.inWorkspace(context.connection) : []
-        let usage = context.navigation.layout != .wide && context.showsUsage
+        let usage = context.showsUsage
         if compact || usage {
             Section {
             } header: {
@@ -74,7 +74,7 @@ struct WorkspaceTabs: View {
                     }
                 }
                 .padding(.bottom, 8)
-                .listRowInsets(EdgeInsets())
+                .listRowInsets(compact ? EdgeInsets() : nil)
             }
             .listSectionSpacing(0)
         }

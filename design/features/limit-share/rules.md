@@ -9,7 +9,7 @@ User rulings: direction A; paired Macs can be on different Claude accounts; warn
 1. **A, in place.** The account's two windows are one caption line in the workspace header; the session's 5-hour share joins its subtitle from 1%; ••• → Session info holds the rest.
 2. **Close to a limit** the line changes: amber text on warning, danger text when reached, the same on Mac and phone. Sessions the limit stopped gather under "Paused until ‹reset›" after Needs you, on phone and Mac. No banner, no notification, nothing in Needs you.
 3. **Accounts:** paired Macs can use different Claude accounts. The plugin sends an account id with the windows; the phone keeps each account's numbers apart and never adds them up.
-4. The Mac keeps its header text and status bar; the iPad carries the line in its sidebar footer.
+4. The Mac keeps its header text and status bar; the iPad shows the line as the phone does, at the top of the sessions column (ruled 17 Nov; the sidebar footer first built here had no board and was dropped).
 
 ## Question by question
 
@@ -17,7 +17,7 @@ User rulings: direction A; paired Macs can be on different Claude accounts; warn
 - **A session's share.** Session subtitle: "Waiting for you · shop · ≈6% of 5h", the 5-hour share only, from 1%. ••• → **Session info**: context, the share of both windows, one sentence on the estimate, and the **Claude account** group naming the account (its email) above its two windows. List rows show no share; ≈ marks every share as an estimate.
 - **Close to a limit.** Warning: the line narrows to the window in trouble and adds its reset, "5h 91% · resets 19:03", amber text. Reached: "5h limit reached · resets 19:03", danger text; stopped sessions move into Paused until 19:03 after Needs you, each reading "Stopped by the usage limit · resumes 19:03". The 7-day window works the same ("7d limit reached · resets Wed").
 - **The Mac.** The header's `≈6% of 5h · ≈3% of 7d` and the status bar stay, warning in amber text. The Mac takes the same plugin words and the same "Paused until ‹reset›" group in its tree.
-- **iPad.** As the phone, plus the account line all the time in the sidebar footer (so the workspace header doesn't repeat it) and both shares in the session header's meta line, as on the Mac.
+- **iPad.** As the phone: the account line at the top of the sessions column (17 Nov), plus both shares in the session header's meta line, as on the Mac.
 
 ## Several accounts
 
@@ -47,7 +47,7 @@ The plugin owns the status and the words; Mac and phone draw them.
 - Phone session subtitle: append the 5-hour share label when it is 1% or more.
 - Phone sheets: Session info behind ••• ("This session", the estimate sentence, "Claude account" with the email row) and Claude usage from the header line (this Mac's account, then your other Macs').
 - Render rules: per account id, the newest `updatedAt` wins; leave out a window not yet reported; hide a window once its `resetsAt` has passed; never sum across accounts.
-- iPad: the account line in the sidebar footer; both shares in the session header's meta line.
+- iPad: the account line at the top of the sessions column, as on the phone; both shares in the session header's meta line.
 - Words, shared by Mac and phone: "5h 42% · 7d 81%", "5h 91% · resets 19:03", "5h limit reached · resets 19:03", "≈6% of 5h", "<1%", "Share of 5-hour window", "Claude account", "Claude usage", "This Mac's account", "Your other Macs", "via ‹Mac› · 2 min ago", the estimate sentence, "Paused until ‹reset›".
 - Grouping: sessions stopped by a usage limit go under "Paused until ‹reset›" after Needs you, in the phone list and the Mac tree; they never count toward Needs you.
 - Companion feed: per Mac, the account (`account`, `accountEmail`) and its windows (`used`, `resetsAt`, `status`, `updatedAt`) from `agents.usage`; per session `limitShare`, `shareLabel`, `shareWords`, `shareDetail` in `agents.sessions` ([docs/agents.md](../../../docs/agents.md)).

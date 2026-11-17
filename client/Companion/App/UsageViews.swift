@@ -54,45 +54,6 @@ struct UsageHeaderLine: View {
     }
 }
 
-struct UsageFooter: View {
-    @Environment(CompanionModel.self) private var model
-    @Environment(AppNavigation.self) private var navigation
-
-    var body: some View {
-        let accounts = model.claudeAccounts
-        if !accounts.accounts.isEmpty {
-            TimelineView(.periodic(from: .now, by: 60)) { timeline in
-                let lines = accounts.accounts.compactMap { account in accounts.line(account, now: timeline.date).map { (account, $0) } }
-                if !lines.isEmpty {
-                    VStack(alignment: .leading, spacing: 2) {
-                        ForEach(lines, id: \.0.id) { account, line in
-                            Button {
-                                navigation.usageSheet = UsageSheet(computer: anchor(account))
-                            } label: {
-                                line.styled
-                                    .font(.footnote)
-                                    .lineLimit(1)
-                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                                    .contentShape(.rect)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Claude usage: " + line.text)
-                            .accessibilityIdentifier("usage.footer." + account.id)
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 4)
-                }
-            }
-        }
-    }
-
-    private func anchor(_ account: UsageAccount) -> String {
-        if let shown = navigation.sidebar?.computer, account.computers.contains(shown) { return shown }
-        return account.computers.first ?? ""
-    }
-}
-
 struct ClaudeUsageView: View {
     let computerID: String
     @Environment(CompanionModel.self) private var model
