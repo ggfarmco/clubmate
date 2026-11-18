@@ -1126,15 +1126,19 @@ type unreadSetup struct {
 	workspace string
 	session   string
 	gate      string
+	extra     []string
 	head      string
 }
 
-func startUnread(t *testing.T, every time.Duration) unreadSetup {
+func startUnread(t *testing.T, every time.Duration, extra ...map[string]any) unreadSetup {
 	t.Helper()
 	f := startEnv(t, []string{"CLUBMATE_AGENTS_RECHECK=" + every.String()}, map[string]any{"prompt": []map[string]any{{"match": doneReview, "wait": filepath.Join(t.TempDir(), "never")}, {"match": "BREAK", "run": writesNote + "; mv .git/HEAD .git/HEAD-away"}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
 	u := unreadSetup{f: f, repo: newRepo(t)}
 	u.workspace = f.workspace(t, u.repo)
 	u.gate = f.doneGate(t, u.workspace, u.repo, nil)
+	for _, g := range extra {
+		u.extra = append(u.extra, f.doneGate(t, u.workspace, u.repo, g))
+	}
 	u.session = f.newSession(t, u.workspace)
 	u.head = filepath.Join(u.repo, ".git", "HEAD")
 	t.Cleanup(func() { _ = os.Rename(u.head+"-away", u.head) })
@@ -1221,4 +1225,56 @@ func TestChildOfAnAFKParentIsAFKForADoneGate(t *testing.T) {
 
 	f.waitStatus(t, workspace, kid, "done")
 	assert.Nil(t, f.held(t, workspace, kid))
+}
+
+func TestPausingTheGateReleasesAnUnreadHoldWithItsCardOpen(t *testing.T) {
+	t.Parallel()
+	u := startUnread(t, 10*time.Millisecond)
+	testutil.Eventually(t, func() bool {
+		h := u.f.held(t, u.workspace, u.session)
+		return h != nil && h.Request != ""
+	}, wait)
+
+	u.f.pauseGate(t, u.workspace, u.gate)
+
+	u.f.waitStatus(t, u.workspace, u.session, "done")
+	assert.Nil(t, u.f.held(t, u.workspace, u.session))
+}
+
+func TestHeldLineFollowsAGraphRetitle(t *testing.T) {
+	t.Parallel()
+	titled := func(title string) string { return `{"title":"` + title + `",` + heldReviewOnly[1:] }
+	d := startDoneIn(t, nil, titled("Alpha"), map[string]any{}, map[string]any{}, nil)
+	line := func(want string) {
+		t.Helper()
+		testutil.Eventually(t, func() bool {
+			var list []struct {
+				Landing *struct {
+					Line string `json:"line"`
+				} `json:"landing"`
+			}
+			require.NoError(t, d.f.run(t, d.workspace, "agents.sessions", map[string]any{"session": d.session}, &list))
+			return list[0].Landing != nil && strings.Contains(list[0].Landing.Line, want)
+		}, wait)
+	}
+	line("Alpha")
+
+	writeGraph(t, d.repo, "held", titled("Beta"))
+
+	line("Beta")
+}
+
+func TestPausingTheGateMovesAnUnreadHoldToAnotherGate(t *testing.T) {
+	t.Parallel()
+	u := startUnread(t, testutil.Timeout(2*time.Second), map[string]any{"wrote": []string{"**"}})
+	testutil.Eventually(t, func() bool { h := u.f.held(t, u.workspace, u.session); return h != nil && h.Gate == u.gate }, wait)
+
+	u.f.pauseGate(t, u.workspace, u.gate)
+	testutil.Eventually(t, func() bool { h := u.f.held(t, u.workspace, u.session); return h != nil && h.Gate == u.extra[0] }, wait)
+	u.mend(t)
+
+	testutil.Eventually(t, func() bool {
+		h := u.f.held(t, u.workspace, u.session)
+		return h != nil && h.Gate == u.extra[0] && h.Run != ""
+	}, wait)
 }

@@ -92,7 +92,7 @@ Gates screen grouped by repo, gate pages from the shared SDUI. Pause works on th
 
 ## Rulings (Claude Design, 18 Nov, canvas "Clubmate · Gates"): a turn whose gates can't be read
 
-The user ruled 18 Nov (#849): a turn whose gates or repo can't be read at its end fails closed, with a way out. It stays held under the first Done gate for its kind, the plugin checks again after 5 s, 30 s and 2 min, and only then the card opens.
+The user ruled 18 Nov (#849): a turn whose gates or repo can't be read at its end fails closed, with a way out. It stays held under the first Done gate of its repo for its kind (a repo with no such gate ends done), the plugin checks again after 5 s, 30 s and 2 min, and only then the card opens.
 
 - While the checks run: the Mac row and header badge read `held · checking again` in the held row's accent (plain, not an attention badge), the phone line `Held · checking the gates again…`; neither names a match or a graph. It moves to Needs you only when the card opens after the third failure.
 - Card: title "Couldn't check this turn against its gates"; question line "Accept as done without a review?" (sent as `question`, drawn under the title like every rounds card's); rule "When the turn ended, Clubmate couldn't read ‹the gates / ‹repo›'s repo›: ‹reason›. It tried 3 times. Check again tries now. Stop leaves the session idle and the turn not done." naming the actual cause when known, never explaining ⌥1; caption "held since 12:41 · tried 12:41, 12:42, 12:44".

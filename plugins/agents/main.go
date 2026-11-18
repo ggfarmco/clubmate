@@ -64,29 +64,30 @@ type app struct {
 	openWake    chan struct{}
 	inbox       inboxMemo
 
-	spawnMu     sync.Mutex
-	asideMu     sync.Mutex
-	leaving     map[string]int
-	worktreeMu  sync.Mutex
-	connectMu   sync.Mutex
-	cloners     map[string]bool
-	landMu      sync.Mutex
-	gateMu      sync.Mutex
-	gatePrep    map[string]bool
-	gateTreeRun func(ctx context.Context, workspaceID string, args map[string]any, out any) error
-	docsRun     func(ctx context.Context, id, workspaceID string, args map[string]any) error
-	gateLogMu   sync.Mutex
-	liveGates   atomic.Pointer[map[string]bool]
-	heldFacts   heldFacts
-	lastGates   atomic.Pointer[[]gateConfig]
-	rechecks    []time.Duration
-	gateRepos   sync.Map
-	landWork    coalesced
-	onceLocks   onceLocks
-	archiving   archiveClaims
-	declareMu   sync.Mutex
-	nightMu     sync.Mutex
-	stopOnce    sync.Once
+	spawnMu        sync.Mutex
+	asideMu        sync.Mutex
+	leaving        map[string]int
+	worktreeMu     sync.Mutex
+	connectMu      sync.Mutex
+	cloners        map[string]bool
+	landMu         sync.Mutex
+	gateMu         sync.Mutex
+	gatePrep       map[string]bool
+	gateTreeRun    func(ctx context.Context, workspaceID string, args map[string]any, out any) error
+	docsRun        func(ctx context.Context, id, workspaceID string, args map[string]any) error
+	gateLogMu      sync.Mutex
+	liveGates      atomic.Pointer[map[string]bool]
+	heldFacts      heldFacts
+	lastGates      atomic.Pointer[[]gateConfig]
+	lastGatesSaved atomic.Bool
+	rechecks       []time.Duration
+	gateRepos      sync.Map
+	landWork       coalesced
+	onceLocks      onceLocks
+	archiving      archiveClaims
+	declareMu      sync.Mutex
+	nightMu        sync.Mutex
+	stopOnce       sync.Once
 
 	nightStopMu sync.Mutex
 	nightStop   context.CancelCauseFunc

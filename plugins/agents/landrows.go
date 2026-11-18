@@ -172,7 +172,7 @@ func (a *app) landing(rec record) *landingView {
 func (a *app) heldView(rec record, needs map[string]*runNeed) (landingView, bool) {
 	h := rec.Held
 	ask := needs[heldRun(rec)]
-	if h == nil || ask == nil && !a.heldIdle(rec) || !a.gateLive(h.Gate) {
+	if h == nil || ask == nil && !a.heldIdle(rec) || !h.Unread && !a.gateLive(h.Gate) {
 		return landingView{}, false
 	}
 	if h.Unread && ask == nil {

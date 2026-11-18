@@ -367,7 +367,7 @@ func (a *app) docGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, args
 	if s == nil {
 		return docGateResult{}, nil
 	}
-	rec := s.snapshot()
+	rec := a.afkRec(s.snapshot())
 	if rec.Workspace != cmd.WorkspaceID || !turnRunning(rec) {
 		return docGateResult{}, nil
 	}
@@ -392,9 +392,7 @@ func mayHoldDone(ctx context.Context, gates []gateConfig, rec record) bool {
 	case err == nil || errors.Is(err, gitrepo.ErrNotRepo):
 		return false
 	}
-	return doneHoldable(rec) && slices.ContainsFunc(gates, func(g gateConfig) bool {
-		return !g.Paused && g.Point == gatePointTurn && holdsKind(g.Sessions, rec)
-	})
+	return doneHoldable(rec) && unreadGate(gates, rec, nil) != nil
 }
 
 func (s *session) queueDoc(doc gatedDoc) bool {

@@ -286,7 +286,8 @@ func (a *app) gateLive(id string) bool {
 		ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)
 		defer cancel()
 		if _, err := a.gates(ctx); err != nil {
-			return false
+			last := a.lastGatesRead()
+			return last != nil && liveOf(*last)[id]
 		}
 		live = a.liveGates.Load()
 	}

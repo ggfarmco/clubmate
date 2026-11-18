@@ -311,20 +311,34 @@ func (a *app) heldEnded(s *session, h *heldTurn) {
 }
 
 func (a *app) heldAskOf(ctx context.Context, g *gateConfig) heldAsk {
+	out, _ := a.heldAskRead(ctx, g)
+	return out
+}
+
+func (a *app) heldAskRead(ctx context.Context, g *gateConfig) (heldAsk, bool) {
 	if g == nil {
-		return heldAsk{}
+		return heldAsk{}, false
 	}
 	out := heldAsk{graph: g.Graph, name: doneGateName(g.Wrote), repo: filepath.Base(g.Repo)}
-	if info, err := a.graphs.GateGraphInfo(ctx, g.Repo, g.Graph); err == nil {
-		out.graph = cmp.Or(info.Title, info.Name, g.Graph)
+	info, err := a.graphs.GateGraphInfo(ctx, g.Repo, g.Graph)
+	if err != nil {
+		return out, false
 	}
-	return out
+	out.graph = cmp.Or(info.Title, info.Name, g.Graph)
+	return out, true
 }
 
 type heldFacts struct {
 	mu   sync.Mutex
 	gen  int
-	byID map[string]heldAsk
+	byID map[string]heldFact
+}
+
+type heldFact struct {
+	ask   heldAsk
+	repo  string
+	graph string
+	stamp string
 }
 
 func (f *heldFacts) reset() {
@@ -336,26 +350,30 @@ func (f *heldFacts) reset() {
 
 func (a *app) heldFactsOf(gateID string) heldAsk {
 	a.heldFacts.mu.Lock()
-	facts, ok := a.heldFacts.byID[gateID]
+	fact, ok := a.heldFacts.byID[gateID]
 	gen := a.heldFacts.gen
 	a.heldFacts.mu.Unlock()
-	if ok {
-		return facts
+	if ok && a.graphs.GateGraphStamp(fact.repo, fact.graph) == fact.stamp {
+		return fact.ask
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)
 	defer cancel()
 	g := a.gateByID(ctx, gateID)
-	facts = a.heldAskOf(ctx, g)
 	if g == nil {
+		return heldAsk{}
+	}
+	stamp := a.graphs.GateGraphStamp(g.Repo, g.Graph)
+	facts, read := a.heldAskRead(ctx, g)
+	if !read {
 		return facts
 	}
 	a.heldFacts.mu.Lock()
 	defer a.heldFacts.mu.Unlock()
 	if a.heldFacts.gen == gen {
 		if a.heldFacts.byID == nil {
-			a.heldFacts.byID = map[string]heldAsk{}
+			a.heldFacts.byID = map[string]heldFact{}
 		}
-		a.heldFacts.byID[gateID] = facts
+		a.heldFacts.byID[gateID] = heldFact{ask: facts, repo: g.Repo, graph: g.Graph, stamp: stamp}
 	}
 	return facts
 }
@@ -382,8 +400,11 @@ func (a *app) regateHolds(ctx context.Context, gateID, by string) {
 func (a *app) regateHold(ctx context.Context, s *session, gates []gateConfig, gateID, by string) bool {
 	rec := a.afkRec(s.snapshot())
 	h := rec.Held
-	if h == nil || h.Gate != gateID || h.Unread {
+	switch {
+	case h == nil || h.Gate != gateID:
 		return false
+	case h.Unread:
+		return a.regateUnread(ctx, s, rec, gates, by)
 	}
 	taken := time.Now().UTC()
 	tree, head, err := gitrepo.Snapshot(ctx, rec.Worktree)
@@ -406,6 +427,35 @@ func (a *app) regateHold(ctx context.Context, s *session, gates []gateConfig, ga
 		if !s.settling() {
 			a.reviewHeld(s)
 		}
+	}
+	return false
+}
+
+func (a *app) regateUnread(ctx context.Context, s *session, rec record, gates []gateConfig, by string) bool {
+	h := rec.Held
+	g := unreadGate(gates, rec, h)
+	switch {
+	case g == nil:
+		a.releaseHeld(s, h.Key, by)
+		return false
+	case g.ID == h.Gate:
+		return false
+	}
+	n := *h
+	n.Gate = g.ID
+	if _, err := primaryRead(ctx, rec.Worktree); err != nil {
+		n.ReadRepo, n.Reason = readRepoName(rec.Worktree), causeOf(err)
+	}
+	if n.Request != "" {
+		facts := a.heldAskOf(ctx, g)
+		n.Graph, n.Name, n.Repo = facts.graph, facts.name, facts.repo
+	}
+	if !s.casHeld(h, &n) {
+		return true
+	}
+	s.changed(changeStatus, true)
+	if !s.settling() {
+		a.reviewHeld(s)
 	}
 	return false
 }

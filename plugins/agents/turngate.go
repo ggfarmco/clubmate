@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"syscall"
@@ -39,6 +40,7 @@ const (
 	byGateDeleted     = "gate-deleted"
 	byGateChanged     = "gate-changed"
 	recheckEnv        = "CLUBMATE_AGENTS_RECHECK"
+	lastGatesFile     = "last-gates.json"
 	gateReleased      = "released"
 	gateStopped       = "stopped"
 )
@@ -124,12 +126,12 @@ func (a *app) planDone(s *session, cancelled bool) donePlan {
 	gates, err := a.gates(ctx)
 	if err != nil {
 		logError("read the gates for a finished turn", err)
-		return a.unreadPlan(ctx, prior, rec, a.lastGatesRead(), "", err)
+		return a.unreadPlan(ctx, prior, rec, a.lastGatesRead(), false, err)
 	}
 	primary := ""
 	if prior != nil || turnGated(gates) {
 		if primary, err = primaryRead(ctx, rec.Worktree); err != nil {
-			return a.unreadPlan(ctx, prior, rec, gates, repoName(rec.Worktree), err)
+			return a.unreadPlan(ctx, prior, rec, &gates, true, err)
 		}
 	}
 	switch {
@@ -163,11 +165,18 @@ func (a *app) planDone(s *session, cancelled bool) donePlan {
 	return donePlan{from: prior, held: nextHold(prior, g.ID, key, tree, taken)}
 }
 
-func (a *app) unreadPlan(ctx context.Context, prior *heldTurn, rec record, gates []gateConfig, repo string, cause error) donePlan {
+func (a *app) unreadPlan(ctx context.Context, prior *heldTurn, rec record, read *[]gateConfig, repoUnread bool, cause error) donePlan {
 	if prior != nil && !prior.Unread {
 		return sameRound(prior)
 	}
-	g := unreadGate(gates, rec)
+	var g *gateConfig
+	_, inRepo := gitrepo.RepoRoot(gitrepo.Canonical(rec.Worktree))
+	switch {
+	case read != nil:
+		g = unreadGate(*read, rec, prior)
+	case prior != nil && inRepo:
+		g = &gateConfig{ID: prior.Gate}
+	}
 	if g == nil {
 		return donePlan{release: releasedBy(prior, byUnmatched)}
 	}
@@ -177,35 +186,86 @@ func (a *app) unreadPlan(ctx context.Context, prior *heldTurn, rec record, gates
 		n.Tried = append(slices.Clone(prior.Tried), time.Now().UTC())
 		h = &n
 	}
-	h.Gate, h.ReadRepo, h.Reason = g.ID, repo, causeOf(cause)
-	if h.Request == "" && len(h.Tried) >= len(a.recheckDelays()) {
+	h.Gate, h.ReadRepo, h.Reason = g.ID, "", causeOf(cause)
+	if repoUnread {
+		h.ReadRepo = readRepoName(rec.Worktree)
+	}
+	switch {
+	case h.Request != "" || len(h.Tried) < len(a.recheckDelays()):
+	case read == nil:
+		h.ask(heldAsk{})
+	default:
 		h.ask(a.heldAskOf(ctx, g))
 	}
 	return donePlan{from: prior, held: h}
 }
 
-func unreadGate(gates []gateConfig, rec record) *gateConfig {
-	var first *gateConfig
-	worktree := gitrepo.Canonical(rec.Worktree)
+func unreadGate(gates []gateConfig, rec record, prior *heldTurn) *gateConfig {
+	if _, ok := gitrepo.RepoRoot(gitrepo.Canonical(rec.Worktree)); !ok {
+		return nil
+	}
+	repo := sessionRepo(rec.Worktree)
+	first := -1
 	for i, g := range gates {
-		if g.Paused || g.Point != gatePointTurn || !holdsKind(g.Sessions, rec) {
-			continue
-		}
-		if gitrepo.Within(worktree, g.Repo) {
+		switch {
+		case g.Paused || g.Point != gatePointTurn || !holdsKind(g.Sessions, rec):
+		case prior != nil && g.ID == prior.Gate:
 			return &gates[i]
-		}
-		if first == nil {
-			first = &gates[i]
+		case first < 0 && (repo == "" || gitrepo.Canonical(g.Repo) == repo):
+			first = i
 		}
 	}
-	return first
+	if first < 0 {
+		return nil
+	}
+	return &gates[first]
 }
 
-func repoName(worktree string) string {
+func readRepoName(worktree string) string {
+	if repo := sessionRepo(worktree); repo != "" {
+		return filepath.Base(repo)
+	}
 	if top, ok := gitrepo.RepoRoot(gitrepo.Canonical(worktree)); ok {
 		return filepath.Base(top)
 	}
 	return filepath.Base(worktree)
+}
+
+func sessionRepo(worktree string) string {
+	top, ok := gitrepo.RepoRoot(gitrepo.Canonical(worktree))
+	if !ok {
+		return ""
+	}
+	dotgit := filepath.Join(top, ".git")
+	if info, err := os.Stat(dotgit); err == nil && info.IsDir() {
+		return top
+	}
+	raw, err := os.ReadFile(dotgit)
+	gitdir, ok := strings.CutPrefix(strings.TrimSpace(string(raw)), "gitdir:")
+	if err != nil || !ok {
+		return ""
+	}
+	gitdir = absUnder(top, strings.TrimSpace(gitdir))
+	common, err := os.ReadFile(filepath.Join(gitdir, "commondir"))
+	if err != nil {
+		return ""
+	}
+	back, err := os.ReadFile(filepath.Join(gitdir, "gitdir"))
+	if err != nil || gitrepo.Canonical(absUnder(gitdir, strings.TrimSpace(string(back)))) != gitrepo.Canonical(dotgit) {
+		return ""
+	}
+	dir := filepath.Clean(absUnder(gitdir, strings.TrimSpace(string(common))))
+	if filepath.Base(dir) == ".git" {
+		dir = filepath.Dir(dir)
+	}
+	return gitrepo.Canonical(dir)
+}
+
+func absUnder(dir, p string) string {
+	if filepath.IsAbs(p) {
+		return p
+	}
+	return filepath.Join(dir, p)
 }
 
 func causeOf(err error) string {
@@ -246,16 +306,35 @@ func (a *app) recheckLater(s *session, h *heldTurn) {
 	})
 }
 
-func (a *app) lastGatesRead() []gateConfig {
-	if p := a.lastGates.Load(); p != nil {
-		return *p
+func (a *app) lastGatesRead() *[]gateConfig {
+	if p := a.lastGates.Load(); p != nil || a.stateDir == "" {
+		return p
 	}
-	return nil
+	raw, err := os.ReadFile(filepath.Join(a.stateDir, lastGatesFile))
+	if err != nil {
+		return nil
+	}
+	var kept []gateConfig
+	if err := json.Unmarshal(raw, &kept); err != nil {
+		logError("read the last good gates", err)
+		return nil
+	}
+	a.lastGates.CompareAndSwap(nil, &kept)
+	return a.lastGates.Load()
 }
 
 func (a *app) keepLastGates(gates []gateConfig) {
 	kept := slices.Clone(gates)
-	a.lastGates.Store(&kept)
+	was := a.lastGates.Swap(&kept)
+	if a.stateDir == "" || was != nil && a.lastGatesSaved.Load() && reflect.DeepEqual(*was, kept) {
+		return
+	}
+	raw, err := json.Marshal(kept)
+	if err == nil {
+		err = writeAtomic(filepath.Join(a.stateDir, lastGatesFile), raw)
+	}
+	a.lastGatesSaved.Store(err == nil)
+	logError("keep the last good gates", err)
 }
 
 func (a *app) afkRec(rec record) record {

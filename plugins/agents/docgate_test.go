@@ -186,3 +186,26 @@ func TestReplayedDocCardStaysOnItsTurn(t *testing.T) {
 	g.restartAgents(t, g.ws)
 	testutil.Eventually(t, onFirstTurn, wait)
 }
+
+func TestDocOfAnAFKParentsChildOpensAtOnce(t *testing.T) {
+	t.Parallel()
+	hold := filepath.Join(t.TempDir(), "hold")
+	f := start(t, map[string]any{"prompt": []map[string]any{{"wait": hold}}}, testutil.BuildPluginDir(t, "clubmate/plugins/docs", "plugins/docs/plugin.json"))
+	t.Cleanup(func() { write(t, hold, "") })
+	repo := newRepo(t)
+	spec := filepath.Join(repo, "spec.md")
+	write(t, spec, "# Spec\n")
+	ws := f.workspace(t, repo)
+	f.doneGate(t, ws, repo, map[string]any{"sessions": []string{"child"}})
+	parent := f.newSession(t, ws)
+	require.NoError(t, f.run(t, ws, "agents.afk", map[string]any{"session": parent, "on": true}, nil))
+	kid := f.newChild(t, ws, parent, map[string]any{"title": "Kid", "prompt": "work"}).Session
+	f.waitStatus(t, ws, kid, "running")
+	var res struct {
+		Note string `json:"note"`
+	}
+
+	require.NoError(t, f.runAs(t, ws, kid, "docs.open", map[string]any{"path": spec}, &res))
+
+	assert.Empty(t, res.Note)
+}

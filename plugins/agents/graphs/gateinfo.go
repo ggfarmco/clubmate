@@ -3,6 +3,9 @@ package graphs
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 )
 
 const (
@@ -41,6 +44,19 @@ func (e *Engine) GateGraphInfo(_ context.Context, repo, name string) (GateGraphI
 		return GateGraphInfo{}, err
 	}
 	return gateInfo(g, from), nil
+}
+
+func (e *Engine) GateGraphStamp(repo, name string) string {
+	for _, dir := range append(gateDirs(repo), e.a.home) {
+		if dir == "" {
+			continue
+		}
+		path := filepath.Join(dir, graphsDir, name+graphExt)
+		if info, err := os.Stat(path); err == nil {
+			return fmt.Sprintf("%s\x00%d\x00%d", path, info.Size(), info.ModTime().UnixNano())
+		}
+	}
+	return ""
 }
 
 func (e *Engine) GateGraphChoices(_ context.Context, repo string) []GateGraphInfo {

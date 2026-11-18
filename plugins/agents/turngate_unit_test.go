@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -214,4 +215,53 @@ func TestUnmovedHoldKeepsItsPointer(t *testing.T) {
 func TestHeldCardTitleAfterTheThirdKeyMove(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "The files kept changing during Fable review", heldCardTitle(heldTurn{Graph: "Fable review", Moves: heldMovesMax}))
+}
+
+func TestUnreadHoldKeepsItsGateAfterARestart(t *testing.T) {
+	t.Parallel()
+	repo := unitRepo(t)
+	dir := t.TempDir()
+	(&app{stateDir: dir}).keepLastGates([]gateConfig{{ID: "gt_done", Repo: repo, Point: gatePointTurn, Sessions: doneSessionsDefault}})
+	rec := record{ID: "a", Worktree: repo}
+	down := errors.New("storage down")
+	gateOf := func(p donePlan) string {
+		if p.held == nil {
+			return ""
+		}
+		return p.held.Gate
+	}
+
+	restarted := &app{stateDir: dir}
+	unknown := &app{stateDir: t.TempDir()}
+	tried := []time.Time{time.Now(), time.Now()}
+
+	assert.Equal(t, "gt_done", gateOf(restarted.unreadPlan(t.Context(), nil, rec, restarted.lastGatesRead(), false, down)))
+	kept := unknown.unreadPlan(t.Context(), &heldTurn{Gate: "gt_old", Round: 1, Unread: true, Tried: tried}, rec, unknown.lastGatesRead(), false, down).held
+	require.NotNil(t, kept)
+	assert.Equal(t, []string{"gt_old", "", ""}, []string{kept.Gate, kept.Graph, kept.Name})
+	assert.NotEmpty(t, kept.Request)
+}
+
+func TestUnreadHoldOnlyUnderAGateOfTheSessionsRepo(t *testing.T) {
+	t.Parallel()
+	gated, other := unitRepo(t), unitRepo(t)
+	linked := filepath.Join(t.TempDir(), "wt")
+	out, err := exec.Command("git", "-C", gated, "worktree", "add", "-q", "-b", "feat", linked).CombinedOutput()
+	require.NoError(t, err, string(out))
+	gates := []gateConfig{{ID: "gt_done", Repo: gated, Point: gatePointTurn, Sessions: doneSessionsDefault}}
+	bad := errors.New("not a git repository")
+	a := &app{}
+
+	forged := filepath.Join(t.TempDir(), "mysub")
+	require.NoError(t, os.MkdirAll(forged, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(forged, ".git"), []byte("gitdir: "+filepath.Join(other, ".git")+"\n"), 0o600))
+
+	assert.Nil(t, a.unreadPlan(t.Context(), nil, record{ID: "a", Worktree: other}, &gates, true, bad).held)
+	h := a.unreadPlan(t.Context(), nil, record{ID: "b", Worktree: linked}, &gates, true, bad).held
+	require.NotNil(t, h)
+	assert.Equal(t, []string{"gt_done", filepath.Base(gated)}, []string{h.Gate, h.ReadRepo})
+	h = a.unreadPlan(t.Context(), nil, record{ID: "c", Worktree: forged}, &gates, true, bad).held
+	require.NotNil(t, h)
+	assert.Equal(t, "mysub", h.ReadRepo)
+	assert.Nil(t, a.unreadPlan(t.Context(), nil, record{ID: "d", Worktree: t.TempDir()}, &gates, false, bad).held)
 }
