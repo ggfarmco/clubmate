@@ -504,7 +504,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		out = append(out, info)
 	}
 	setGroups(out)
-	a.inbox.apply(out)
+	a.inbox.apply(workspaceID, out)
 	return out
 }
 

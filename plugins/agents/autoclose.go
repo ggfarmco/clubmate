@@ -19,7 +19,7 @@ func (a *app) closeDoneLoop(after time.Duration) {
 	if after <= 0 {
 		return
 	}
-	t := time.NewTicker(min(suspendTick, after/2))
+	t := time.NewTicker(max(min(suspendTick, after/2), time.Millisecond))
 	defer t.Stop()
 	for {
 		select {

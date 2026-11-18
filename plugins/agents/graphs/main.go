@@ -191,7 +191,7 @@ func (a *app) startEngine(ctx context.Context, after int64) error {
 	a.spawn(func() { resume(ctx) })
 	a.renderAll(ctx)
 	go a.followLive(ctx)
-	go a.pruneLoop(ctx, a.pruneAfter)
+	a.spawn(func() { a.pruneLoop(ctx, a.pruneAfter) })
 	return nil
 }
 

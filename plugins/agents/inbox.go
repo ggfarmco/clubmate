@@ -40,8 +40,9 @@ type inboxMemo struct {
 }
 
 type inboxSeen struct {
-	open bool
-	at   time.Time
+	workspace string
+	open      bool
+	at        time.Time
 }
 
 func inboxParent(info sessionInfo) string {
@@ -122,7 +123,7 @@ func inboxKey(entry inboxEntry) string {
 	return section + entry.Since.UTC().Format(startLayout) + " " + entry.ID
 }
 
-func (m *inboxMemo) apply(infos []sessionInfo) {
+func (m *inboxMemo) apply(workspace string, infos []sessionInfo) {
 	entries := inboxEntries(infos)
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -134,15 +135,19 @@ func (m *inboxMemo) apply(infos []sessionInfo) {
 		if seen, ok := m.since[entry.ID]; ok && seen.open == entry.Open {
 			entry.Since = seen.at
 		}
-		m.since[entry.ID] = inboxSeen{open: entry.Open, at: entry.Since}
+		m.since[entry.ID] = inboxSeen{workspace: workspace, open: entry.Open, at: entry.Since}
 		entry.Key = inboxKey(entry)
 		entries[i] = entry
 		members[entry.ID] = i
 	}
+	for id, seen := range m.since {
+		if _, ok := members[id]; !ok && seen.workspace == workspace {
+			delete(m.since, id)
+		}
+	}
 	for i := range infos {
 		at, ok := members[infos[i].ID]
 		if !ok {
-			delete(m.since, infos[i].ID)
 			continue
 		}
 		infos[i].InboxKey = entries[at].Key

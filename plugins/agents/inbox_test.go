@@ -55,7 +55,7 @@ func TestInboxKeysPutNeedsYouBeforeOpenLongestWaitingFirst(t *testing.T) {
 	t.Parallel()
 	var memo inboxMemo
 	infos := inboxInfos(30)
-	memo.apply(infos)
+	memo.apply("ws", infos)
 	var order []string
 	for _, entry := range inboxOf(infos) {
 		order = append(order, entry.ID)
@@ -71,11 +71,11 @@ func TestInboxKeyHoldsWhileWaitingAndRenewsAfterLeaving(t *testing.T) {
 	t.Parallel()
 	var memo inboxMemo
 	first := inboxInfos(30)
-	memo.apply(first)
+	memo.apply("ws", first)
 	key := inboxKeys(first)["agt_a"]
 
 	moved := inboxInfos(40)
-	memo.apply(moved)
+	memo.apply("ws", moved)
 	assert.Equal(t, key, inboxKeys(moved)["agt_a"])
 
 	left := inboxInfos(40)
@@ -84,19 +84,42 @@ func TestInboxKeyHoldsWhileWaitingAndRenewsAfterLeaving(t *testing.T) {
 		left[i].Group = ""
 	}
 	setGroups(left)
-	memo.apply(left)
+	memo.apply("ws", left)
 	assert.NotContains(t, inboxKeys(left), "agt_a")
 
 	back := inboxInfos(50)
-	memo.apply(back)
+	memo.apply("ws", back)
 	assert.Equal(t, "0"+inboxAt(50).Format(startLayout)+" agt_a", inboxKeys(back)["agt_a"])
+}
+
+func TestInboxKeyRenewsForANeedThatLeftAndCameBack(t *testing.T) {
+	t.Parallel()
+	var memo inboxMemo
+	memo.apply("ws", inboxInfos(30))
+	other := []sessionInfo{inboxInfo(record{ID: "agt_w", Workspace: "other", Worktree: orderHome, Status: statusWaiting}, 5)}
+	setGroups(other)
+	memo.apply("other", other)
+
+	gone := inboxInfos(30)
+	memo.apply("ws", gone[:len(gone)-1])
+
+	back := inboxInfos(30)
+	back[len(back)-1] = runInfo("ws", runNeed{Run: "run_1", Title: "Nightly", Since: inboxAt(60)})
+	setGroups(back)
+	memo.apply("ws", back)
+	assert.Equal(t, "0"+inboxAt(60).Format(startLayout)+" run_1", inboxKeys(back)["run_1"])
+
+	again := []sessionInfo{inboxInfo(record{ID: "agt_w", Workspace: "other", Worktree: orderHome, Status: statusWaiting}, 70)}
+	setGroups(again)
+	memo.apply("other", again)
+	assert.Equal(t, "0"+inboxAt(5).Format(startLayout)+" agt_w", inboxKeys(again)["agt_w"])
 }
 
 func TestSidebarInboxMirrorsSessionsOnTop(t *testing.T) {
 	t.Parallel()
 	var memo inboxMemo
 	infos := inboxInfos(30)
-	memo.apply(infos)
+	memo.apply("ws", infos)
 	var recs []record
 	for _, info := range infos {
 		if info.Kind == "" {
@@ -162,7 +185,7 @@ func TestSidebarInboxCopiesARunOnce(t *testing.T) {
 	infos = append(infos, runInfo("ws", runNeed{Run: "run_1", Title: "Nightly", Since: inboxAt(5)}))
 	setGroups(infos)
 	var memo inboxMemo
-	memo.apply(infos)
+	memo.apply("ws", infos)
 	tree := nodesOf(sidebarView(rows, "", nil, inboxAt(90), orderHome, map[string]string{orderHome: homeListGroup}, false, filterAll, sidebarSearch{}, 0, sidebarPlus{}, inboxOf(infos)), "tree")[0]
 	require.NoError(t, internalsdui.Validate(tree))
 	items := tree.Props["items"].([]sdui.TreeItem)

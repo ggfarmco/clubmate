@@ -21,7 +21,7 @@ func (a *app) pruneLoop(ctx context.Context, after time.Duration) {
 		return
 	}
 	a.prune(ctx, after)
-	t := time.NewTicker(min(pruneTick, after/2))
+	t := time.NewTicker(max(min(pruneTick, after/2), time.Millisecond))
 	defer t.Stop()
 	for {
 		select {

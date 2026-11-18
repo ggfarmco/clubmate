@@ -21,7 +21,7 @@ func (a *app) deleteOldLoop(after time.Duration) {
 		return
 	}
 	a.deleteOld(after)
-	t := time.NewTicker(min(deleteTick, after/2))
+	t := time.NewTicker(max(min(deleteTick, after/2), time.Millisecond))
 	defer t.Stop()
 	for {
 		select {
