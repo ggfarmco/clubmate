@@ -277,6 +277,7 @@ struct QueuedLine: View {
                         Button("Dismiss", action: remove)
                             .font(.subheadline)
                             .tint(Color.captionInk)
+                            .accessibilityIdentifier("queued.dismiss")
                     }
                     .buttonStyle(.borderless)
                     .frame(minHeight: 44)

@@ -81,6 +81,7 @@ struct SectionScreen: View {
                 do {
                     let result = try await ui.send(slot: slot, nodeId: nodeId, action: action, value: value)
                     if let session = result["open"]?["session"]?.stringValue {
+                        path = []
                         navigation.workspaces[connection.computer.id] = ui.workspace
                         navigation.open(computer: connection.computer.id, plugin: AgentsPluginInfo.id, detail: session)
                     }

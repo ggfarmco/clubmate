@@ -241,7 +241,7 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Macs"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Send again"].firstMatch.exists)
         add(screenshot(app, "macs-queued"))
-        app.buttons["Dismiss"].firstMatch.tap()
+        app.buttons["queued.dismiss"].tap()
         XCTAssertTrue(wait(for: app.staticTexts["Changed on the Mac"], "exists == false"))
     }
 
@@ -453,6 +453,7 @@ final class CompanionUITests: XCTestCase {
         let app = launch(open: "agents/agt_0000000000000001")
         let always = app.buttons["Always allow…"]
         XCTAssertTrue(always.waitForExistence(timeout: 10))
+        XCTAssertTrue(wait(for: always, "isEnabled == true"))
         always.tap()
         XCTAssertTrue(app.staticTexts["Always allow this command?"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Bash(go test:*)"].exists)
@@ -1129,10 +1130,12 @@ final class CompanionUITests: XCTestCase {
     func testATaskLinkInAnAgentMessageOpensThatTask() {
         let app = launch(open: "agents/agt_0000000000000002")
         let link = app.links["#7"]
-        for _ in 0..<8 where !link.isHittable {
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        var last = CGRect.null
+        for _ in 0..<8 where link.frame != last {
+            last = link.frame
             app.swipeDown()
         }
-        XCTAssertTrue(link.waitForExistence(timeout: 10))
         XCTAssertFalse(app.links["#3"].exists)
         link.tap()
         XCTAssertTrue(app.staticTexts["Retry the charge step on 502"].waitForExistence(timeout: 10))
