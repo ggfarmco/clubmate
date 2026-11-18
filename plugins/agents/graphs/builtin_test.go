@@ -52,6 +52,11 @@ func TestBuiltinGraphsWiring(t *testing.T) {
 				"phone done: -> mac ×0",
 				"mac done: -> push ×0",
 				"push done: -> ship ×0",
+				"tests error: -> tidy ×2",
+				"phone error: -> tidy ×2",
+				"mac error: -> tidy ×2",
+				"push error: -> tidy ×2",
+				"ship error: -> tidy ×2",
 			},
 		},
 		{
@@ -176,7 +181,7 @@ func TestSquashScript(t *testing.T) {
 func TestBuiltinTrustHashUnchanged(t *testing.T) {
 	golden := map[string]string{
 		"builtin/review-gate.json":                    "71688ce38c52b4e56b67cc69f94230ca9df68f19bd28c2a026ad6ee664e6b5e6",
-		"../../../.clubmate/graphs/nightly.json":      "b940ea5b738bb2bb70adb915ff2dbfc70b7a0f159df7f8639f84c8bbb63f65fd",
+		"../../../.clubmate/graphs/nightly.json":      "aebd6a7fa94c89339192bb49baa55e4797f9598984211d1aef33e21fc7a29bf2",
 		"../../../.clubmate/graphs/design-check.json": "fd6314b7998ae15ce4dac3d363880f5d4e0d57b3aee38293c4e470e2acee1d4a",
 	}
 	for path, want := range golden {
