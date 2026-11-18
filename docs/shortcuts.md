@@ -79,7 +79,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌘↩ | Trust and run on a gate page whose graph changed (the trust card; Mac only) | agents |
 | ⌘N | New gate: opens the New gate sheet (on How gates work in Agents; also + on the docked Gates row and New gate… in ⌘K) | agents |
 | P | Pause or resume the gate open in Agents | agents |
-| E | Edit the gate open in Agents: which landings it holds (Into), the graph that decides, its rounds and whether it is paused | agents |
+| E | Edit the gate open in Agents: which landings it holds (Into) or, for a Done gate, which sessions (Sessions) and what they wrote (Wrote), the graph that decides, its rounds and whether it is paused | agents |
 | ⌘⌫ | Delete the gate open in Agents (confirmed; its verdict history goes too) | agents |
 | ⌥1 / ⌥2 / ⌥3 | A graph step waiting for approval: Allow once / Always allow… (asks first) / Reject | agents |
 | ⌥R | Open review: the land review of this landing. On a lander's page (second header line while its landing is gated) the latest round's reviewer; on a land gate's page the reviewer of the live card or of the selected verdict | agents |
