@@ -175,9 +175,10 @@ func (a *app) heldView(rec record, needs map[string]*runNeed) (landingView, bool
 	if h == nil || ask == nil && !a.heldIdle(rec) || !a.gateLive(h.Gate) {
 		return landingView{}, false
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)
-	defer cancel()
-	facts := a.heldAskOf(ctx, a.gateByID(ctx, h.Gate))
+	if h.Unread && ask == nil {
+		return landingView{Round: 1, Of: 1, Verdict: gateStateReview, Words: heldCheckingBadge, Tone: toneAccent, Badge: heldCheckingBadge, BadgeTone: toneAccent, Line: heldCheckingLine}, true
+	}
+	facts := a.heldFactsOf(h.Gate)
 	match := strings.TrimPrefix(cmp.Or(facts.name, gatePointDone), gateNameDone)
 	l := landingView{Round: max(h.Round, 1), Of: max(h.Round, 1), Verdict: gateStateReview, Words: heldWord, Tone: toneAccent}
 	switch {

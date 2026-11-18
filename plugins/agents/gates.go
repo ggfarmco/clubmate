@@ -265,8 +265,7 @@ func (a *app) heldLanding(rec record, asks map[string]*runNeed) (gateLanding, bo
 		return gateLanding{}, false
 	}
 	l.State, l.Findings = gateStateReview, nil
-	if heldWaits(rec) {
-		l.Wait = heldWaitsTrust
+	if l.Wait = heldWaitWords(h); l.Wait != "" {
 		return l, true
 	}
 	if r := a.heldReviewer(rec); r != nil {

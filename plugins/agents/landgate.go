@@ -93,6 +93,7 @@ var (
 		"Bash(git rebase:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(git update-ref:*)", "Bash(rm:*)", "Bash(mv:*)",
 	}
 	passShorts      = map[string]string{heldAcceptLabel: heldAcceptShort}
+	moreShorts      = map[string]string{gateMoreLabel: gateMoreShort, heldCheckLabel: heldCheckShort}
 	docsOnlyRefused = []string{"claude.md", "agents.md", "gemini.md", "skill.md"}
 	docsOnlyDirs    = []string{".claude/", ".clubmate/", ".github/", ".agents/", "skills/", "commands/", "agents/", "prompts/", "rules/"}
 
@@ -252,6 +253,7 @@ func (a *app) gates(ctx context.Context) ([]gateConfig, error) {
 	}
 	live := liveOf(out)
 	a.liveGates.CompareAndSwap(nil, &live)
+	a.keepLastGates(out)
 	return out, nil
 }
 
@@ -266,6 +268,8 @@ func (a *app) saveGates(ctx context.Context, gates []gateConfig) error {
 func (a *app) keepGates(gates []gateConfig) {
 	live := liveOf(gates)
 	a.liveGates.Store(&live)
+	a.keepLastGates(gates)
+	a.heldFacts.reset()
 }
 
 func liveOf(gates []gateConfig) map[string]bool {
@@ -388,11 +392,21 @@ func sameMatch(gates []gateConfig, g gateConfig) error {
 }
 
 func primaryOf(ctx context.Context, worktree string) string {
+	primary, _ := primaryRead(ctx, worktree)
+	return primary
+}
+
+func primaryRead(ctx context.Context, worktree string) (string, error) {
 	f, err := gitrepo.OpenFolder(ctx, worktree)
-	if err != nil || len(f.Trees) == 0 {
-		return ""
+	switch {
+	case errors.Is(err, gitrepo.ErrNotRepo):
+		return "", nil
+	case err != nil:
+		return "", err
+	case len(f.Trees) == 0:
+		return "", nil
 	}
-	return f.Trees[0].Real
+	return f.Trees[0].Real, nil
 }
 
 func (a *app) gateEnv(ctx context.Context, rec record) map[string]string {
@@ -1343,7 +1357,7 @@ func (a *app) logUngatedMain(rec record, commits []string) {
 }
 
 func gateCard(rec record, st landReview) sdui.Node {
-	return roundsCard(rec, st.Request, gateLandLabel, sdui.LandRequestProps{
+	return roundsCard(rec, st.Request, gateLandLabel, gateMoreLabel, sdui.LandRequestProps{
 		Title:    gateCardTitle(st),
 		Caption:  gateCaption(st),
 		Name:     cmp.Or(st.Source, st.Into),
@@ -1353,11 +1367,11 @@ func gateCard(rec record, st landReview) sdui.Node {
 	})
 }
 
-func roundsCard(rec record, request, pass string, p sdui.LandRequestProps) sdui.Node {
+func roundsCard(rec record, request, pass, more string, p sdui.LandRequestProps) sdui.Node {
 	p.Gate = true
 	p.Options = []sdui.PermissionOption{
 		{ID: landActionMerge, Label: pass, Kind: "allow_once", Shortcut: "opt+1", Short: passShorts[pass]},
-		{ID: landActionMore, Label: gateMoreLabel, Shortcut: "opt+2", Short: gateMoreShort},
+		{ID: landActionMore, Label: more, Shortcut: "opt+2", Short: moreShorts[more]},
 		{ID: landActionLeave, Label: gateStopLabel, Kind: "reject_once", Shortcut: "opt+3", Short: gateStopShort},
 	}
 	return sdui.WithDock(sdui.LandRequestCard(rec.ID+"/"+gateCardNode+"/"+request, request, p))

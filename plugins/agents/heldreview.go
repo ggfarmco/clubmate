@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unicode/utf8"
@@ -24,6 +25,7 @@ const (
 	heldTitle          = "Done review · "
 	heldFilesLimit     = 64 << 10
 	heldMovesMax       = 3
+	regateTries        = 3
 	heldFirstFormat    = "[Clubmate Done review] Review this agent's turn before the user sees it as done (repo %s, gate %s).\nSession: %s\nThe change since its last reviewed done: `git diff %s %s` in %s.%s%s\nReport confirmed problems with file:line."
 	heldFirstVerdict   = " Then call agents_land_verdict once with key %s: outcome changes only for confirmed problems, each finding as \"file:line — what is wrong\"; otherwise approved. Nits and suggestions go to deferred."
 	heldDeltaFormat    = "[Clubmate Done review] The agent changed its work after your last review. Review what changed: `git diff %s %s` (the whole change is `git diff %s %s`) in %s.%s"
@@ -68,6 +70,10 @@ func (a *app) reviewHeld(s *session) {
 	if h == nil || h.Last != "" || h.Request != "" || rec.closed() {
 		return
 	}
+	if h.Unread {
+		a.recheckLater(s, h)
+		return
+	}
 	g := a.gateByID(ctx, h.Gate)
 	if g == nil {
 		return
@@ -75,7 +81,7 @@ func (a *app) reviewHeld(s *session) {
 	if v, ok := a.turnVerdict(ctx, h.Gate, h.Key); ok {
 		switch v.Outcome {
 		case gateApproved:
-			a.releaseHeld(s, h.Key, v.By)
+			a.releaseHeld(s, h.Key, landgate.ByReviewer)
 		case gateChanges:
 			a.heldChanges(s, h, *g, v)
 		}
@@ -156,8 +162,11 @@ func (a *app) reviewHeld(s *session) {
 	n.Reviewed = h.Tree
 	swapped := s.casHeld(h, &n)
 	a.gateMu.Unlock()
-	if swapped {
+	switch {
+	case swapped:
 		s.changed(changeStatus, true)
+	case !reuse:
+		go a.endHoldRun(rec.Workspace, n, true, n.TreeKey != "" && n.TreeKey != h.TreeKey)
 	}
 }
 
@@ -282,7 +291,9 @@ func (a *app) heldEnded(s *session, h *heldTurn) {
 	step := heldNothing
 	_, decided := a.turnVerdict(ctx, h.Gate, h.Key)
 	switch {
-	case h.Last != "" || h.Request != "" || decided:
+	case h.Last != "" || h.Request != "":
+	case decided:
+		step = heldRetry
 	case !h.Retried:
 		n.Retried, step = true, heldRetry
 	default:
@@ -310,6 +321,45 @@ func (a *app) heldAskOf(ctx context.Context, g *gateConfig) heldAsk {
 	return out
 }
 
+type heldFacts struct {
+	mu   sync.Mutex
+	gen  int
+	byID map[string]heldAsk
+}
+
+func (f *heldFacts) reset() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.gen++
+	f.byID = nil
+}
+
+func (a *app) heldFactsOf(gateID string) heldAsk {
+	a.heldFacts.mu.Lock()
+	facts, ok := a.heldFacts.byID[gateID]
+	gen := a.heldFacts.gen
+	a.heldFacts.mu.Unlock()
+	if ok {
+		return facts
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)
+	defer cancel()
+	g := a.gateByID(ctx, gateID)
+	facts = a.heldAskOf(ctx, g)
+	if g == nil {
+		return facts
+	}
+	a.heldFacts.mu.Lock()
+	defer a.heldFacts.mu.Unlock()
+	if a.heldFacts.gen == gen {
+		if a.heldFacts.byID == nil {
+			a.heldFacts.byID = map[string]heldAsk{}
+		}
+		a.heldFacts.byID[gateID] = facts
+	}
+	return facts
+}
+
 func (h *heldTurn) ask(facts heldAsk) {
 	h.Request, h.Asked = id.New(gateRequestPrefix), time.Now().UTC()
 	h.Graph, h.Name, h.Repo = facts.graph, facts.name, facts.repo
@@ -321,31 +371,43 @@ func (a *app) regateHolds(ctx context.Context, gateID, by string) {
 		return
 	}
 	for _, s := range a.allSessions() {
-		rec := s.snapshot()
-		h := rec.Held
-		if h == nil || h.Gate != gateID {
-			continue
-		}
-		taken := time.Now().UTC()
-		tree, head, err := gitrepo.Snapshot(ctx, rec.Worktree)
-		wrote := a.turnWrote(ctx, s, tree)
-		g := doneGate(gates, primaryOf(ctx, rec.Worktree), rec, wrote)
-		switch {
-		case err != nil && by == byGateChanged:
-		case g == nil:
-			a.releaseHeld(s, h.Key, by)
-		case g.ID == gateID:
-		default:
-			n := &heldTurn{Gate: g.ID, Key: h.Key, Tree: h.Tree, Round: 1, Since: h.Since, TreeAt: h.TreeAt}
-			if err == nil {
-				n.Key, n.Tree, n.TreeAt = heldKey(g.ID, head, tree, matchedPaths(*g, rec.Worktree, wrote)), tree, taken
-			}
-			if s.casHeld(h, n) {
-				s.changed(changeStatus, true)
-				a.reviewHeld(s)
+		for range regateTries {
+			if !a.regateHold(ctx, s, gates, gateID, by) {
+				break
 			}
 		}
 	}
+}
+
+func (a *app) regateHold(ctx context.Context, s *session, gates []gateConfig, gateID, by string) bool {
+	rec := a.afkRec(s.snapshot())
+	h := rec.Held
+	if h == nil || h.Gate != gateID || h.Unread {
+		return false
+	}
+	taken := time.Now().UTC()
+	tree, head, err := gitrepo.Snapshot(ctx, rec.Worktree)
+	wrote := a.turnWrote(ctx, s, tree)
+	g := doneGate(gates, primaryOf(ctx, rec.Worktree), rec, wrote)
+	switch {
+	case err != nil && by == byGateChanged:
+	case g == nil:
+		a.releaseHeld(s, h.Key, by)
+	case g.ID == gateID:
+	default:
+		n := &heldTurn{Gate: g.ID, Key: h.Key, Tree: h.Tree, Round: 1, Since: h.Since, TreeAt: h.TreeAt}
+		if err == nil {
+			n.Key, n.Tree, n.TreeAt = heldKey(g.ID, head, tree, matchedPaths(*g, rec.Worktree, wrote)), tree, taken
+		}
+		if !s.casHeld(h, n) {
+			return true
+		}
+		s.changed(changeStatus, true)
+		if !s.settling() {
+			a.reviewHeld(s)
+		}
+	}
+	return false
 }
 
 func (a *app) trustedHolds(gateID string) {
@@ -372,6 +434,12 @@ func (a *app) resumeHolds() {
 			a.reviewHeld(s)
 		}
 	}
+}
+
+func (s *session) settling() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.busyLocked() || len(s.perms) > 0
 }
 
 func (s *session) gateQueued() bool {
@@ -501,7 +569,7 @@ func heldFiles(paths []string) string {
 		if !ok {
 			continue
 		}
-		if binaryText(data) {
+		if binaryText(data, len(data) > left) {
 			b.WriteString(fmt.Sprintf(heldFileBinary, p))
 			continue
 		}
@@ -520,8 +588,8 @@ func heldFiles(paths []string) string {
 	return fmt.Sprintf(heldFilesFormat, b.String())
 }
 
-func binaryText(data []byte) bool {
-	for len(data) > 0 && utf8.FullRune(data) {
+func binaryText(data []byte, cut bool) bool {
+	for len(data) > 0 && (!cut || utf8.FullRune(data)) {
 		r, n := utf8.DecodeRune(data)
 		if r == 0 || r == utf8.RuneError && n == 1 {
 			return true

@@ -25,6 +25,14 @@ const (
 	heldSummaryFormat = "Summary: %s"
 	heldRuleChanges   = "Accept as done shows the turn as done as it is. One more round sends the agent these findings and reviews its next finished turn. Stop leaves the session idle and its turn not done."
 	heldRuleRerun     = "Accept as done shows the turn as done as it is. One more round runs the review again on this turn. Stop leaves the session idle and its turn not done."
+	heldUnreadTitle   = "Couldn't check this turn against its gates"
+	heldUnreadAsk     = "Accept as done without a review?"
+	heldUnreadRule    = "When the turn ended, Clubmate couldn't read %s%s. It tried %s. Check again tries now. Stop leaves the session idle and the turn not done."
+	heldUnreadGates   = "the gates"
+	heldUnreadRepo    = "%s's repo"
+	heldTriedFormat   = "tried %s"
+	heldCheckLabel    = "Check again"
+	heldCheckShort    = "check again"
 )
 
 var errGateAction = errors.New("action is accept, more or stop")
@@ -53,6 +61,9 @@ func (a *app) answerHeld(ctx context.Context, workspaceID, request, action strin
 	switch action {
 	case heldActionAccept, heldActionStop:
 	case landActionMore:
+		if h.Unread {
+			break
+		}
 		if g = a.gateByID(ctx, h.Gate); g == nil {
 			return errLandStale
 		}
@@ -65,28 +76,27 @@ func (a *app) answerHeld(ctx context.Context, workspaceID, request, action strin
 		return fmt.Errorf("%w: %s", errGateAction, action)
 	}
 	a.gateMu.Lock()
-	if s.snapshot().Held != h {
+	if !s.casHeld(h, &n) {
 		a.gateMu.Unlock()
 		return errLandStale
 	}
-	if action == heldActionAccept {
+	if action == heldActionAccept && !h.Unread {
 		v := landgate.Verdict{Tree: h.Key, Outcome: gateApproved, By: landgate.ByUser, At: time.Now().UTC()}
 		if err := a.host.StorageSet(ctx, turnVerdictPath(h.Gate, h.Key), v); err != nil {
+			s.casHeld(&n, h)
 			a.gateMu.Unlock()
 			return err
 		}
 	}
-	swapped := s.casHeld(h, &n)
 	a.gateMu.Unlock()
-	if !swapped {
-		return errLandStale
-	}
 	s.changed(changeStatus, true)
 	switch {
 	case action == heldActionAccept:
 		a.releaseHeld(s, n.Key, landgate.ByUser)
 	case action == heldActionStop:
 		a.cancel(s)
+	case h.Unread:
+		a.finishTurn(s)
 	case changes:
 		a.promptChanges(s, *g, n)
 	default:
@@ -118,11 +128,14 @@ func heldAction(landAction string) string {
 }
 
 func heldCard(rec record, h heldTurn) sdui.Node {
+	if h.Unread {
+		return unreadCard(rec, h)
+	}
 	rule := heldRuleRerun
 	if h.Last == gateChanges {
 		rule = heldRuleChanges
 	}
-	return roundsCard(rec, h.Request, heldAcceptLabel, sdui.LandRequestProps{
+	return roundsCard(rec, h.Request, heldAcceptLabel, gateMoreLabel, sdui.LandRequestProps{
 		Title:    heldCardTitle(h),
 		Caption:  heldCaption(h),
 		Name:     cmp.Or(rec.Title, h.Name),
@@ -132,8 +145,37 @@ func heldCard(rec record, h heldTurn) sdui.Node {
 	})
 }
 
+func unreadCard(rec record, h heldTurn) sdui.Node {
+	what := heldUnreadGates
+	if h.ReadRepo != "" {
+		what = fmt.Sprintf(heldUnreadRepo, h.ReadRepo)
+	}
+	reason := ""
+	if h.Reason != "" {
+		reason = ": " + h.Reason
+	}
+	tried := make([]string, 0, len(h.Tried))
+	for _, at := range h.Tried {
+		tried = append(tried, clockOf(at))
+	}
+	caption := heldCaption(heldTurn{Since: h.Since})
+	if len(tried) > 0 {
+		caption = strings.Join(nonEmpty(caption, fmt.Sprintf(heldTriedFormat, strings.Join(tried, ", "))), " · ")
+	}
+	return roundsCard(rec, h.Request, heldAcceptLabel, heldCheckLabel, sdui.LandRequestProps{
+		Title:    heldCardTitle(h),
+		Caption:  caption,
+		Name:     cmp.Or(rec.Title, h.Name),
+		Rule:     fmt.Sprintf(heldUnreadRule, what, reason, counted(len(h.Tried), "time")),
+		Question: heldQuestion(h),
+	})
+}
+
 func heldCardTitle(h heldTurn) string {
 	graph := cmp.Or(h.Graph, heldGraphFallback)
+	if h.Unread {
+		return heldUnreadTitle
+	}
 	if h.Last == gateChanges {
 		return fmt.Sprintf(heldChangesTitle, graph, counted(max(h.Round, 1), "round"))
 	}

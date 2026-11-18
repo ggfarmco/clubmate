@@ -81,7 +81,7 @@ type agent struct {
 	logMu     sync.Mutex
 	log       *os.File
 	sessions  atomic.Int64
-	cancelled atomic.Bool
+	cancelled sync.Map
 	turns     atomic.Int64
 	placesMu  sync.Mutex
 	places    map[string]place
@@ -140,7 +140,9 @@ func (a *agent) record(method string, params any) {
 func (a *agent) Notify(method string, params json.RawMessage) {
 	a.record(method, params)
 	if method == acp.MethodSessionCancel {
-		a.cancelled.Store(true)
+		var req acp.SessionRequest
+		_ = json.Unmarshal(params, &req)
+		a.cancelled.Store(req.SessionID, true)
 	}
 }
 
@@ -198,18 +200,18 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 		go a.announce(req.SessionID)
 		return acp.ResumeSessionResponse{Modes: a.script.Modes, ConfigOptions: a.script.Configs}, nil
 	case acp.MethodSessionPrompt:
-		a.cancelled.Store(false)
-		a.turns.Add(1)
-		defer a.turns.Add(-1)
 		var prompt acp.PromptRequest
 		_ = json.Unmarshal(params, &prompt)
+		a.cancelled.Delete(prompt.SessionID)
+		a.turns.Add(1)
+		defer a.turns.Add(-1)
 		if err := a.run(ctx, prompt, a.script.Prompt); err != nil {
 			a.record("prompt_error", err.Error())
 			return nil, err
 		}
 		go a.run(context.Background(), prompt, a.script.After)
 		res := acp.PromptResponse{StopReason: acp.StopEndTurn}
-		if a.cancelled.Load() {
+		if a.isCancelled(prompt.SessionID) {
 			res.StopReason = acp.StopCancelled
 		}
 		a.record("prompt_end", res)
@@ -291,8 +293,13 @@ func (a *agent) update(session string, update any) {
 	_ = a.conn.Notify(acp.MethodSessionUpdate, map[string]any{"sessionId": session, "update": update})
 }
 
-func (a *agent) waitFile(path string) {
-	for !a.cancelled.Load() {
+func (a *agent) isCancelled(session string) bool {
+	_, ok := a.cancelled.Load(session)
+	return ok
+}
+
+func (a *agent) waitFile(session, path string) {
+	for !a.isCancelled(session) {
 		if _, err := os.Stat(path); err == nil {
 			return
 		}
@@ -358,7 +365,7 @@ func (a *agent) run(ctx context.Context, prompt acp.PromptRequest, steps []step)
 		case s.Run != "":
 			a.runIn(session, s.Run)
 		case s.Wait != "":
-			a.waitFile(s.Wait)
+			a.waitFile(session, s.Wait)
 		case s.Exit != nil:
 			os.Exit(*s.Exit)
 		case s.Echo && len(prompt.Prompt) > 0:

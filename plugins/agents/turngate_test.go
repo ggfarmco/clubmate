@@ -2,11 +2,13 @@ package main_test
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -457,9 +459,10 @@ func TestGateNoLongerMatchingReleasesHold(t *testing.T) {
 
 func TestHeldSessionThatErrorsStaysErrorAfterRestart(t *testing.T) {
 	t.Parallel()
+	exit := filepath.Join(t.TempDir(), "exit")
 	f := start(t, map[string]any{
 		"prompt": []map[string]any{{"run": writesNote}},
-		"after":  []map[string]any{{"sleep": 1500}, {"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "more"}}}, {"exit": 1}},
+		"after":  []map[string]any{{"wait": exit}, {"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "more"}}}, {"exit": 1}},
 	})
 	repo := newRepo(t)
 	workspace := f.workspace(t, repo)
@@ -467,6 +470,7 @@ func TestHeldSessionThatErrorsStaysErrorAfterRestart(t *testing.T) {
 	session := f.newSession(t, workspace)
 	f.prompt(t, workspace, session, "write")
 	f.waitHeld(t, workspace, session)
+	write(t, exit, "")
 	f.waitStatus(t, workspace, session, "error")
 	testutil.Eventually(t, func() bool {
 		raw, _, err := f.h.KV.Get(t.Context(), "agents", "session/"+workspace+"/"+session)
@@ -832,6 +836,8 @@ func TestDoneVerdictOnlyFromDecidingNode(t *testing.T) {
 
 	require.ErrorContains(t, err, "only a deciding node")
 	assert.NotContains(t, err.Error(), lint.GateFor.Key)
+	require.NoError(t, d.verdict(t, d.reviewer(t), "approved"))
+	d.f.waitStatus(t, d.workspace, d.session, "done")
 }
 
 func TestDoneGateStepRunsOnHeldTree(t *testing.T) {
@@ -1012,4 +1018,207 @@ func TestHeldTurnWorkingItsChangesIsNotShownHeld(t *testing.T) {
 		require.NoError(t, d.f.run(t, d.workspace, "agents.gate-verdicts", map[string]any{"id": d.gate}, &h))
 		return list[0].Landing == nil && len(h.Landings) == 0
 	}, wait)
+}
+
+func TestRunEndingAfterAStoredChangesVerdictSendsItsFindings(t *testing.T) {
+	t.Parallel()
+	d := startDone(t, nil, map[string]any{}, nil)
+	r := d.reviewer(t)
+	seedRow(t, d.f.h, "agents", "turn-verdict/"+d.gate+"/"+r.GateFor.Key, map[string]any{"tree": r.GateFor.Key, "outcome": "changes", "by": "reviewer", "findings": []string{"note.md:1 — says x"}})
+
+	require.NoError(t, d.f.run(t, d.workspace, "agents.graph-stop", map[string]any{"id": r.GateFor.Run}, nil))
+
+	testutil.Eventually(t, func() bool {
+		prompts := d.gatePrompts(t)
+		return len(prompts) == 1 && strings.Contains(prompts[0], "note.md:1 — says x")
+	}, wait)
+}
+
+func TestRegatingAHoldMidFixTurnReviewsOnlyAfterTheTurn(t *testing.T) {
+	t.Parallel()
+	fix := filepath.Join(t.TempDir(), "fix")
+	d := startDone(t, map[string]any{"wrote": []string{"**/*.md"}}, map[string]any{"prompt": []map[string]any{{"match": "From the gate", "run": "while [ ! -e " + fix + " ]; do sleep 0.05; done"}}}, nil)
+	other := d.f.doneGate(t, d.workspace, d.repo, nil)
+	require.NoError(t, d.verdict(t, d.reviewer(t), "changes", "note.md:1 — says x"))
+	testutil.Eventually(t, func() bool { return len(d.gatePrompts(t)) == 1 }, wait)
+
+	require.NoError(t, d.f.run(t, d.workspace, "agents.gate-update", map[string]any{"id": d.gate, "wrote": []string{"**/plans/*.md"}}, nil))
+
+	testutil.Eventually(t, func() bool { h := d.held(t); return h != nil && h.Gate == other }, wait)
+	testutil.Never(t, func() bool { h := d.held(t); return h == nil || h.Run != "" }, quiet)
+	write(t, fix, "")
+	testutil.Eventually(t, func() bool { h := d.held(t); return h != nil && h.Gate == other && h.Run != "" }, wait)
+}
+
+func TestTurnThatLeavesItsRepoEndsDoneKeepingGateSince(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "AWAY", "run": "mv .git .git-away"}}})
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	f.doneGate(t, workspace, repo, nil)
+	session := f.newSession(t, workspace)
+	away := filepath.Join(repo, ".git-away")
+	t.Cleanup(func() { _ = os.Rename(away, filepath.Join(repo, ".git")) })
+
+	f.prompt(t, workspace, session, "AWAY")
+	f.waitStatus(t, workspace, session, "done")
+	require.NoError(t, os.Rename(away, filepath.Join(repo, ".git")))
+
+	assert.Equal(t, git(t, repo, "rev-parse", "refs/clubmate/cp/"+session+"/1"), f.gateSince(t, workspace, session))
+}
+
+func TestDeleteGateDropsItsTurnVerdicts(t *testing.T) {
+	t.Parallel()
+	d := startDone(t, nil, map[string]any{}, nil)
+	require.NoError(t, d.verdict(t, d.reviewer(t), "approved"))
+	d.f.waitStatus(t, d.workspace, d.session, "done")
+	verdicts := func() []string {
+		keys, err := d.f.h.KV.List(t.Context(), "agents", "turn-verdict/"+d.gate+"/")
+		require.NoError(t, err)
+		return keys
+	}
+	require.Len(t, verdicts(), 1)
+
+	require.NoError(t, d.f.run(t, d.workspace, "agents.gate-delete", map[string]any{"id": d.gate}, nil))
+
+	testutil.Eventually(t, func() bool { return len(verdicts()) == 0 }, wait)
+}
+
+func TestHeldRowFollowsAGateEdit(t *testing.T) {
+	t.Parallel()
+	d := startDone(t, map[string]any{"wrote": []string{"**/*.md"}}, map[string]any{}, nil)
+	badge := func(want string) {
+		testutil.Eventually(t, func() bool {
+			var list []struct {
+				Landing *struct {
+					Badge string `json:"badge"`
+				} `json:"landing"`
+			}
+			require.NoError(t, d.f.run(t, d.workspace, "agents.sessions", map[string]any{"session": d.session}, &list))
+			return list[0].Landing != nil && list[0].Landing.Badge == want
+		}, wait)
+	}
+	badge("held · **/*.md")
+
+	require.NoError(t, d.f.run(t, d.workspace, "agents.gate-update", map[string]any{"id": d.gate, "wrote": []string{"*.md"}}, nil))
+
+	badge("held · *.md")
+}
+
+func TestOpenReviewOnAHeldTurnShowsItsReviewer(t *testing.T) {
+	t.Parallel()
+	d := startDone(t, nil, map[string]any{}, nil)
+	r := d.reviewer(t)
+	button := d.session + "/heldReview/1/" + r.ID
+	d.f.h.Event(t, d.workspace, "agents.sidebar", d.session, "select", d.session)
+	d.f.h.WaitSlot(t, d.workspace, "agents.main", shows(button))
+
+	d.f.h.Event(t, d.workspace, "agents.main", button, "openHeldReview", nil)
+
+	d.f.h.WaitSlot(t, d.workspace, "agents.main", func(n sdui.Node) bool {
+		return len(nodesWithID(n, "back")) == 1 && strings.Contains(string(rawTree(t, n)), "Planner / Round 1")
+	})
+}
+
+type unreadSetup struct {
+	f         *fixture
+	repo      string
+	workspace string
+	session   string
+	gate      string
+	head      string
+}
+
+func startUnread(t *testing.T, every time.Duration) unreadSetup {
+	t.Helper()
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_RECHECK=" + every.String()}, map[string]any{"prompt": []map[string]any{{"match": doneReview, "wait": filepath.Join(t.TempDir(), "never")}, {"match": "BREAK", "run": writesNote + "; mv .git/HEAD .git/HEAD-away"}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	u := unreadSetup{f: f, repo: newRepo(t)}
+	u.workspace = f.workspace(t, u.repo)
+	u.gate = f.doneGate(t, u.workspace, u.repo, nil)
+	u.session = f.newSession(t, u.workspace)
+	u.head = filepath.Join(u.repo, ".git", "HEAD")
+	t.Cleanup(func() { _ = os.Rename(u.head+"-away", u.head) })
+	f.prompt(t, u.workspace, u.session, "BREAK")
+	return u
+}
+
+func (u unreadSetup) mend(t *testing.T) {
+	t.Helper()
+	require.NoError(t, os.Rename(u.head+"-away", u.head))
+}
+
+func (u unreadSetup) waitReview(t *testing.T) {
+	t.Helper()
+	testutil.Eventually(t, func() bool {
+		h := u.f.held(t, u.workspace, u.session)
+		return h != nil && h.Gate == u.gate && h.Run != ""
+	}, wait)
+}
+
+func TestUnreadableRepoIsCheckedAgainUntilItReads(t *testing.T) {
+	t.Parallel()
+	u := startUnread(t, testutil.Timeout(2*time.Second))
+	testutil.Eventually(t, func() bool {
+		var list []struct {
+			NeedsYou bool `json:"needsYou"`
+			Landing  *struct {
+				Words string `json:"words"`
+				Badge string `json:"badge"`
+				Line  string `json:"line"`
+			} `json:"landing"`
+		}
+		require.NoError(t, u.f.run(t, u.workspace, "agents.sessions", map[string]any{"session": u.session}, &list))
+		l := list[0].Landing
+		return !list[0].NeedsYou && l != nil && l.Words == "held · checking again" && l.Badge == l.Words && l.Line == "Held · checking the gates again…"
+	}, wait)
+
+	u.mend(t)
+
+	u.waitReview(t)
+}
+
+func TestUnreadableRepoOpensItsCardAfterThreeTries(t *testing.T) {
+	t.Parallel()
+	u := startUnread(t, 10*time.Millisecond)
+	var card map[string]any
+	testutil.Eventually(t, func() bool {
+		h := u.f.held(t, u.workspace, u.session)
+		if h == nil || h.Request == "" || !u.f.session(t, u.workspace, u.session).NeedsYou {
+			return false
+		}
+		card = u.f.phoneTranscript(t, u.workspace, u.session).Request.Props
+		return card != nil
+	}, wait)
+	assert.Equal(t, "Couldn't check this turn against its gates", card["title"])
+	assert.Equal(t, "Accept as done without a review?", card["question"])
+	assert.Contains(t, card["rule"], "When the turn ended, Clubmate couldn't read "+filepath.Base(u.repo)+"'s repo: not a git repository")
+	assert.Contains(t, card["rule"], "It tried 3 times. Check again tries now.")
+	assert.Regexp(t, `^held since \d\d:\d\d · tried \d\d:\d\d, \d\d:\d\d, \d\d:\d\d$`, card["caption"])
+	var labels []string
+	for _, o := range card["options"].([]any) {
+		labels = append(labels, o.(map[string]any)["label"].(string))
+	}
+	assert.Equal(t, []string{"Accept as done", "Check again", "Stop"}, labels)
+	u.mend(t)
+
+	require.NoError(t, u.f.run(t, u.workspace, "agents.gate-answer", map[string]any{"request": card["request"], "action": "more"}, nil))
+
+	u.waitReview(t)
+}
+
+func TestChildOfAnAFKParentIsAFKForADoneGate(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "work", "run": writesNote}}})
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	f.doneGate(t, workspace, repo, map[string]any{"sessions": []string{"child"}})
+	parent := f.newSession(t, workspace)
+	kid := f.newChild(t, workspace, parent, map[string]any{"title": "Kid"}).Session
+	require.NoError(t, f.run(t, workspace, "agents.afk", map[string]any{"session": parent, "on": true}, nil))
+	require.False(t, f.session(t, workspace, kid).AFK)
+
+	f.prompt(t, workspace, kid, "work")
+
+	f.waitStatus(t, workspace, kid, "done")
+	assert.Nil(t, f.held(t, workspace, kid))
 }

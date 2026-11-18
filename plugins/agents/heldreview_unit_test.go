@@ -18,6 +18,7 @@ func TestHeldFilesListBinariesByPathOnly(t *testing.T) {
 		{"plan.md", "the plan"},
 		{"nul.bin", "abc\x00def"},
 		{"bad.bin", "abc\xff\xfedef"},
+		{"tail.bin", "abc\xe2\x80"},
 	}
 	paths := make([]string, 0, len(files))
 	for _, f := range files {
@@ -31,6 +32,7 @@ func TestHeldFilesListBinariesByPathOnly(t *testing.T) {
 	assert.Contains(t, out, "--- "+filepath.Join(dir, "plan.md")+"\nthe plan\n")
 	assert.Contains(t, out, "--- "+filepath.Join(dir, "nul.bin")+" (binary, not shown)\n")
 	assert.Contains(t, out, "--- "+filepath.Join(dir, "bad.bin")+" (binary, not shown)\n")
+	assert.Contains(t, out, "--- "+filepath.Join(dir, "tail.bin")+" (binary, not shown)\n")
 	assert.NotContains(t, out, "abc")
 }
 

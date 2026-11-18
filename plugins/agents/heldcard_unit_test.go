@@ -39,7 +39,7 @@ func TestEveryRoundsCardAsksItsQuestion(t *testing.T) {
 func TestHeldRoundLineNamesEachRound(t *testing.T) {
 	b := heldBlock{Graph: "Plan pipeline", Round: 2, Rounds: []finishedRound{{Round: 1, Verdict: gateChanges}}}
 	reviewing, waits := b, b
-	reviewing.Reviewing, waits.Waits = true, true
+	reviewing.Reviewing, waits.Wait = true, "waits for trust"
 
 	assert.Equal(t, "Plan pipeline · round 1 changes", heldRoundText(b))
 	assert.Equal(t, "Plan pipeline · round 1 changes · round 2 reviewing", heldRoundText(reviewing))

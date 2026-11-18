@@ -400,7 +400,7 @@ func TestHeldTurnWaitingForTrustSaysSo(t *testing.T) {
 	}
 
 	row := nodesOf(gateMain(sc), "table")[0].Props["rows"].([]sdui.TableRow)[0]
-	block := heldNode("agt_l", heldBlock{Graph: "Fable review", Round: 1, Waits: true})
+	block := heldNode("agt_l", heldBlock{Graph: "Fable review", Round: 1, Wait: "waits for trust"})
 
 	assert.Equal(t, heldWaitsTrust, row.Cells[1].Text)
 	assert.Equal(t, []string{"Gate · Fable review · round 1", "Round 1 · waits for trust"}, textsOf(block))

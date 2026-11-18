@@ -168,17 +168,11 @@ func (f *fixture) slugOf(t *testing.T, repo string) string {
 
 func (f *fixture) landPrompts(t *testing.T, session string) int {
 	t.Helper()
-	agentSession := ""
-	if rec := f.sessionOf(t, session); rec != nil {
-		agentSession = rec.AgentSessionID
+	rec := f.sessionOf(t, session)
+	if rec == nil || rec.AgentSessionID == "" {
+		return 0
 	}
-	n := 0
-	for _, c := range f.calls(t, "session/prompt") {
-		if strings.Contains(string(c.Params), agentSession) && strings.Contains(string(c.Params), landMarker) {
-			n++
-		}
-	}
-	return n
+	return len(f.promptsTo(t, rec.AgentSessionID, landMarker))
 }
 
 func (f *fixture) sessionOf(t *testing.T, id string) *record {

@@ -226,8 +226,10 @@ func TestArchiveFromAStalePlanDoesNothing(t *testing.T) {
 	l := f.landing(t, "merge", "pause", 1)
 	l.settle(t)
 	l.waitOwnerWoken(t)
-	assert.True(t, f.phoneSession(t, l.workspace, l.owner).Archivable)
-	assert.True(t, f.phoneSession(t, l.workspace, l.owner).TaskFinished)
+	testutil.Eventually(t, func() bool {
+		s := f.phoneSession(t, l.workspace, l.owner)
+		return s.Archivable && s.TaskFinished
+	}, wait)
 	raw := map[string]any{}
 	require.NoError(t, f.run(t, l.workspace, "agents.archive-plan", map[string]any{"session": l.owner}, &raw))
 	plan := l.plan(t)

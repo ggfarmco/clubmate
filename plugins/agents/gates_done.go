@@ -44,6 +44,9 @@ const (
 	heldRoundLine      = "Round %d · %s"
 	heldReviewPrefix   = "heldReview/"
 	heldWaitsTrust     = "waits for trust"
+	heldChecking       = "checking again"
+	heldCheckingBadge  = "held · checking again"
+	heldCheckingLine   = "Held · checking the gates again…"
 	heldLineWaits      = "Held · %s · waits for trust"
 	actHeldReview      = "openHeldReview"
 	gateTrustDoneText  = "This gate pinned %s. The file is now %s. Until you trust it, the gate runs nothing: a turn it holds stays held and its review runs on the new version once you trust it."
@@ -257,7 +260,7 @@ type heldBlock struct {
 	Round     int
 	Rounds    []finishedRound
 	Reviewing bool
-	Waits     bool
+	Wait      string
 	Live      string
 }
 
@@ -273,7 +276,7 @@ func (a *app) heldBlockOf(ctx context.Context, rec record) *heldBlock {
 	if h == nil || rec.closed() {
 		return nil
 	}
-	facts := a.heldAskOf(ctx, a.gateByID(ctx, h.Gate))
+	facts := a.heldFactsOf(h.Gate)
 	b := &heldBlock{Graph: cmp.Or(h.Graph, facts.graph, heldGraphFallback), Round: max(h.Round, 1)}
 	history, err := a.readGateHistory(ctx, h.Gate)
 	logError("read held turn rounds", err)
@@ -287,7 +290,9 @@ func (a *app) heldBlockOf(ctx context.Context, rec record) *heldBlock {
 		}
 		b.Rounds = append(b.Rounds, r)
 	}
-	b.Waits = a.heldIdle(rec) && heldWaits(rec)
+	if a.heldIdle(rec) {
+		b.Wait = heldWaitWords(h)
+	}
 	if b.Reviewing = a.heldReviewing(rec); b.Reviewing {
 		if r := a.heldReviewer(rec); r != nil {
 			b.Live = r.ID
@@ -308,8 +313,8 @@ func heldNode(sid string, b heldBlock) sdui.Node {
 	switch {
 	case b.Reviewing:
 		lines = append(lines, heldRoundRow(sid, b.Round, fmt.Sprintf(heldRoundLine, b.Round, gateStateReview), b.Live))
-	case b.Waits:
-		lines = append(lines, heldRoundRow(sid, b.Round, fmt.Sprintf(heldRoundLine, b.Round, heldWaitsTrust), ""))
+	case b.Wait != "":
+		lines = append(lines, heldRoundRow(sid, b.Round, fmt.Sprintf(heldRoundLine, b.Round, b.Wait), ""))
 	}
 	return sdui.WithID(sdui.Card(toneAccent, landingIcon, lines...), sid+"/held")
 }
@@ -342,6 +347,9 @@ func (a *app) turnHeld(rec record) bool {
 }
 
 func heldQuestion(h heldTurn) string {
+	if h.Unread {
+		return heldUnreadAsk
+	}
 	switch h.Name {
 	case gateNamePlanSpecs:
 		return heldPlanQuestion
@@ -357,7 +365,7 @@ type heldRoundView struct {
 }
 
 func (a *app) heldRound(rec record) *heldRoundView {
-	if !a.turnHeld(rec) {
+	if !a.turnHeld(rec) || rec.Held.Unread {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)
@@ -377,14 +385,26 @@ func heldRoundText(b heldBlock) string {
 	switch {
 	case b.Reviewing:
 		parts = append(parts, fmt.Sprintf(heldRoundWords, b.Round, gateStateReview))
-	case b.Waits:
-		parts = append(parts, fmt.Sprintf(heldRoundWords, b.Round, heldWaitsTrust))
+	case b.Wait != "":
+		parts = append(parts, fmt.Sprintf(heldRoundWords, b.Round, b.Wait))
 	}
 	return strings.Join(parts, " · ")
 }
 
 func (a *app) heldReviewing(rec record) bool {
-	return a.heldIdle(rec) && rec.Held.Wait == ""
+	return a.heldIdle(rec) && rec.Held.Wait == "" && !rec.Held.Unread
+}
+
+func heldWaitWords(h *heldTurn) string {
+	switch {
+	case h == nil:
+		return ""
+	case h.Unread:
+		return heldChecking
+	case h.Wait != "":
+		return heldWaitsTrust
+	}
+	return ""
 }
 
 func heldWaits(rec record) bool {

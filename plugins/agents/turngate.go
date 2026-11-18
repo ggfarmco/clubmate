@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"slices"
@@ -37,11 +38,13 @@ const (
 	byGatePaused      = "gate-paused"
 	byGateDeleted     = "gate-deleted"
 	byGateChanged     = "gate-changed"
+	recheckEnv        = "CLUBMATE_AGENTS_RECHECK"
 	gateReleased      = "released"
 	gateStopped       = "stopped"
 )
 
 var (
+	recheckDefault      = []time.Duration{5 * time.Second, 30 * time.Second, 2 * time.Minute}
 	doneSessionsDefault = []string{doneTop, doneAFK}
 	donePlansAndSpecs   = []string{"**/plans/*.md", "**/specs/*.md"}
 
@@ -53,30 +56,34 @@ var (
 )
 
 type heldTurn struct {
-	Gate     string    `json:"gate"`
-	Key      string    `json:"key"`
-	Tree     string    `json:"tree,omitempty"`
-	Reviewed string    `json:"reviewed,omitempty"`
-	Run      string    `json:"run,omitempty"`
-	Reviewer string    `json:"reviewer,omitempty"`
-	TreeKey  string    `json:"treeKey,omitempty"`
-	Round    int       `json:"round,omitempty"`
-	Extra    int       `json:"extra,omitempty"`
-	Last     string    `json:"last,omitempty"`
-	Retried  bool      `json:"retried,omitempty"`
-	Moves    int       `json:"moves,omitempty"`
-	Wait     string    `json:"wait,omitempty"`
-	Release  string    `json:"release,omitempty"`
-	Request  string    `json:"request,omitempty"`
-	Graph    string    `json:"graph,omitempty"`
-	Name     string    `json:"name,omitempty"`
-	Repo     string    `json:"repo,omitempty"`
-	Asked    time.Time `json:"asked,omitzero"`
-	Findings []string  `json:"findings,omitempty"`
-	Deferred []string  `json:"deferred,omitempty"`
-	Summary  string    `json:"summary,omitempty"`
-	Since    time.Time `json:"since"`
-	TreeAt   time.Time `json:"treeAt,omitzero"`
+	Gate     string      `json:"gate"`
+	Key      string      `json:"key"`
+	Tree     string      `json:"tree,omitempty"`
+	Reviewed string      `json:"reviewed,omitempty"`
+	Run      string      `json:"run,omitempty"`
+	Reviewer string      `json:"reviewer,omitempty"`
+	TreeKey  string      `json:"treeKey,omitempty"`
+	Round    int         `json:"round,omitempty"`
+	Extra    int         `json:"extra,omitempty"`
+	Last     string      `json:"last,omitempty"`
+	Retried  bool        `json:"retried,omitempty"`
+	Moves    int         `json:"moves,omitempty"`
+	Wait     string      `json:"wait,omitempty"`
+	Release  string      `json:"release,omitempty"`
+	Request  string      `json:"request,omitempty"`
+	Graph    string      `json:"graph,omitempty"`
+	Name     string      `json:"name,omitempty"`
+	Repo     string      `json:"repo,omitempty"`
+	Asked    time.Time   `json:"asked,omitzero"`
+	Findings []string    `json:"findings,omitempty"`
+	Deferred []string    `json:"deferred,omitempty"`
+	Summary  string      `json:"summary,omitempty"`
+	Since    time.Time   `json:"since"`
+	TreeAt   time.Time   `json:"treeAt,omitzero"`
+	Unread   bool        `json:"unread,omitempty"`
+	ReadRepo string      `json:"readRepo,omitempty"`
+	Reason   string      `json:"reason,omitempty"`
+	Tried    []time.Time `json:"tried,omitempty"`
 }
 
 type turnOutcome struct {
@@ -99,7 +106,7 @@ type gateBase struct {
 var clearedBase = &gateBase{}
 
 func (a *app) planDone(s *session, cancelled bool) donePlan {
-	rec := s.snapshot()
+	rec := a.afkRec(s.snapshot())
 	prior := rec.Held
 	switch {
 	case cancelled && prior != nil:
@@ -116,15 +123,20 @@ func (a *app) planDone(s *session, cancelled bool) donePlan {
 	}
 	gates, err := a.gates(ctx)
 	if err != nil {
-		return sameRound(prior)
+		logError("read the gates for a finished turn", err)
+		return a.unreadPlan(ctx, prior, rec, a.lastGatesRead(), "", err)
 	}
 	primary := ""
 	if prior != nil || turnGated(gates) {
-		primary = primaryOf(ctx, rec.Worktree)
+		if primary, err = primaryRead(ctx, rec.Worktree); err != nil {
+			return a.unreadPlan(ctx, prior, rec, gates, repoName(rec.Worktree), err)
+		}
 	}
 	switch {
-	case prior != nil && primary == "":
+	case prior != nil && primary == "" && !prior.Unread:
 		return sameRound(prior)
+	case primary == "" && turnGated(gates):
+		return donePlan{release: releasedBy(prior, byUnmatched)}
 	case !doneGated(gates, primary, rec):
 		return donePlan{base: clearedBase, release: releasedBy(prior, byGateChanged)}
 	case a.runningChildren(rec.ID) > 0:
@@ -133,7 +145,7 @@ func (a *app) planDone(s *session, cancelled bool) donePlan {
 	taken := time.Now().UTC()
 	tree, head, err := gitrepo.Snapshot(ctx, rec.Worktree)
 	logError("snapshot a finished turn", err)
-	if err != nil && prior != nil {
+	if err != nil && prior != nil && !prior.Unread {
 		return sameRound(prior)
 	}
 	wrote := a.turnWrote(ctx, s, tree)
@@ -151,6 +163,106 @@ func (a *app) planDone(s *session, cancelled bool) donePlan {
 	return donePlan{from: prior, held: nextHold(prior, g.ID, key, tree, taken)}
 }
 
+func (a *app) unreadPlan(ctx context.Context, prior *heldTurn, rec record, gates []gateConfig, repo string, cause error) donePlan {
+	if prior != nil && !prior.Unread {
+		return sameRound(prior)
+	}
+	g := unreadGate(gates, rec)
+	if g == nil {
+		return donePlan{release: releasedBy(prior, byUnmatched)}
+	}
+	h := &heldTurn{Round: 1, Since: time.Now().UTC(), Unread: true}
+	if prior != nil {
+		n := *prior
+		n.Tried = append(slices.Clone(prior.Tried), time.Now().UTC())
+		h = &n
+	}
+	h.Gate, h.ReadRepo, h.Reason = g.ID, repo, causeOf(cause)
+	if h.Request == "" && len(h.Tried) >= len(a.recheckDelays()) {
+		h.ask(a.heldAskOf(ctx, g))
+	}
+	return donePlan{from: prior, held: h}
+}
+
+func unreadGate(gates []gateConfig, rec record) *gateConfig {
+	var first *gateConfig
+	worktree := gitrepo.Canonical(rec.Worktree)
+	for i, g := range gates {
+		if g.Paused || g.Point != gatePointTurn || !holdsKind(g.Sessions, rec) {
+			continue
+		}
+		if gitrepo.Within(worktree, g.Repo) {
+			return &gates[i]
+		}
+		if first == nil {
+			first = &gates[i]
+		}
+	}
+	return first
+}
+
+func repoName(worktree string) string {
+	if top, ok := gitrepo.RepoRoot(gitrepo.Canonical(worktree)); ok {
+		return filepath.Base(top)
+	}
+	return filepath.Base(worktree)
+}
+
+func causeOf(err error) string {
+	if err == nil {
+		return ""
+	}
+	text := err.Error()
+	if exit, ok := errors.AsType[*exec.ExitError](err); ok && len(exit.Stderr) > 0 {
+		text = string(exit.Stderr)
+	}
+	line, _, _ := strings.Cut(strings.TrimSpace(text), "\n")
+	for _, p := range []string{"fatal: ", "error: "} {
+		line = strings.TrimPrefix(line, p)
+	}
+	return line
+}
+
+func (a *app) recheckDelays() []time.Duration {
+	if len(a.rechecks) > 0 {
+		return a.rechecks
+	}
+	return recheckDefault
+}
+
+func recheckDelays(every time.Duration) []time.Duration {
+	if every <= 0 {
+		return recheckDefault
+	}
+	return []time.Duration{every, every, every}
+}
+
+func (a *app) recheckLater(s *session, h *heldTurn) {
+	delays := a.recheckDelays()
+	time.AfterFunc(delays[min(len(h.Tried), len(delays)-1)], func() {
+		if s.snapshot().Held == h {
+			a.finishTurn(s)
+		}
+	})
+}
+
+func (a *app) lastGatesRead() []gateConfig {
+	if p := a.lastGates.Load(); p != nil {
+		return *p
+	}
+	return nil
+}
+
+func (a *app) keepLastGates(gates []gateConfig) {
+	kept := slices.Clone(gates)
+	a.lastGates.Store(&kept)
+}
+
+func (a *app) afkRec(rec record) record {
+	rec.AFK = a.effectiveAFK(rec)
+	return rec
+}
+
 func sameRound(prior *heldTurn) donePlan {
 	if prior == nil {
 		return donePlan{}
@@ -166,7 +278,7 @@ func releasedBy(prior *heldTurn, by string) string {
 }
 
 func nextHold(prior *heldTurn, gate, key, tree string, taken time.Time) *heldTurn {
-	if prior == nil || prior.Gate != gate {
+	if prior == nil || prior.Gate != gate || prior.Unread {
 		since := time.Now().UTC()
 		if prior != nil {
 			since = prior.Since
@@ -217,11 +329,18 @@ func (a *app) reviewedBase(ctx context.Context, rec record, tree string, taken t
 }
 
 func (a *app) releasedBase(ctx context.Context, rec record, h heldTurn, by string) *gateBase {
-	if by == landgate.ByUser || by == landgate.ByReviewer {
+	rec = a.afkRec(rec)
+	switch {
+	case h.Unread:
+		return nil
+	case by == landgate.ByUser || by == landgate.ByReviewer:
 		return a.reviewedBase(ctx, rec, h.Tree, h.treeTaken())
 	}
 	gates, err := a.gates(ctx)
-	if err != nil || doneGated(gates, primaryOf(ctx, rec.Worktree), rec) {
+	if err != nil {
+		return nil
+	}
+	if primary := primaryOf(ctx, rec.Worktree); primary == "" || doneGated(gates, primary, rec) {
 		return nil
 	}
 	return clearedBase

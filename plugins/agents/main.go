@@ -77,6 +77,9 @@ type app struct {
 	docsRun     func(ctx context.Context, id, workspaceID string, args map[string]any) error
 	gateLogMu   sync.Mutex
 	liveGates   atomic.Pointer[map[string]bool]
+	heldFacts   heldFacts
+	lastGates   atomic.Pointer[[]gateConfig]
+	rechecks    []time.Duration
 	gateRepos   sync.Map
 	landWork    coalesced
 	onceLocks   onceLocks
@@ -129,6 +132,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	}
 	a.notes = newNotifier(h, a.stateDir)
 	a.sendHold = envDelay(sendHoldEnv, 0)
+	a.rechecks = recheckDelays(envDelay(recheckEnv, 0))
 	a.takeHold = envDelay(takeHoldEnv, 0)
 	a.groups = newGroups(a.stateDir)
 	a.groups.reap(orphanMarkers())
