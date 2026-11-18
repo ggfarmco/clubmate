@@ -2,14 +2,7 @@ import Foundation
 
 import ClubmateProtocol
 
-public enum ListFilter: String, CaseIterable, Sendable, Identifiable {
-    case all
-    case needs
-    case open
-    case running
-
-    public var id: String { rawValue }
-
+extension ListFilter {
     public var title: String {
         switch self {
         case .all: "All"
@@ -96,7 +89,7 @@ public enum AgentsTree {
     public static func counts(_ sessions: [AgentSession]) -> [ListFilter: Int] {
         var out: [ListFilter: Int] = [:]
         for filter in ListFilter.allCases {
-            out[filter] = filter == .open ? sessions.reduce(0) { $0 + $1.listOpen } : sessions.count { $0.listFilters?.contains(filter.rawValue) == true }
+            out[filter] = filter == .open ? sessions.listedOpen : sessions.listed(in: filter)
         }
         return out
     }

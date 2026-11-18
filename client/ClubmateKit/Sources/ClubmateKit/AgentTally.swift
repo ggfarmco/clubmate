@@ -10,9 +10,9 @@ public struct AgentTally: Sendable, Equatable {
 
     public init(_ sessions: [AgentSession]) {
         active = sessions.count(where: \.active)
-        needYou = sessions.count(where: \.needsYou)
-        runsNeedYou = sessions.count { $0.needsYou && $0.kind == "run" }
-        open = sessions.reduce(0) { $0 + $1.openCount }
+        needYou = sessions.listed(in: .needs)
+        runsNeedYou = sessions.filter { $0.kind == "run" }.listed(in: .needs)
+        open = sessions.listedOpen
     }
 
     public var needYouLabel: String {

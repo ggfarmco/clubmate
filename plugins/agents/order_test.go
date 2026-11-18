@@ -147,10 +147,17 @@ func TestListFiltersAddUpToTheMacBadges(t *testing.T) {
 		{ID: "agt_x", Worktree: orderHome, Status: statusClosed, OpenCount: 1, CreatedAt: at(7)},
 		{ID: "agt_g", Worktree: "/r/b", Run: &api.Run{ID: "run_1"}, Status: statusDone, CreatedAt: at(8)},
 		{ID: "agt_l", Worktree: "/r/c", Status: statusDone, CreatedAt: at(10)},
+		{ID: "agt_r", Worktree: orderHome, Status: statusRunning, CreatedAt: at(12)},
+		{ID: "agt_rk", Worktree: orderHome, lineage: lineage{ParentSession: "agt_r"}, Status: statusWaiting, CreatedAt: at(13)},
+		{ID: "agt_e", Worktree: orderHome, Status: statusError, CreatedAt: at(14)},
+		{ID: "agt_ek", Worktree: orderHome, lineage: lineage{ParentSession: "agt_e"}, Status: statusWaiting, CreatedAt: at(15)},
+		{ID: "agt_c", Worktree: orderHome, Status: statusClosed, CreatedAt: at(16)},
+		{ID: "agt_ck", Worktree: orderHome, lineage: lineage{ParentSession: "agt_c"}, Status: statusWaiting, CreatedAt: at(17)},
 	}
 	needs := map[string]runNeed{
 		"run_1": {Run: "run_1", Kind: needStep, Request: "step-1", Since: at(9)},
 		"run_g": {Run: "run_g", Kind: needStep, Request: "step-2", Since: at(11)},
+		"run_o": {Run: "run_o", Kind: needStep, Request: "step-3", Since: at(18)},
 	}
 	landings := map[string]*landingView{"agt_l": {Run: "run_g"}}
 	children := childStatuses(recs)
@@ -167,7 +174,7 @@ func TestListFiltersAddUpToTheMacBadges(t *testing.T) {
 		}
 		rows = append(rows, row)
 	}
-	infos = append(infos, runInfo("w", needs["run_1"]), runInfo("w", needs["run_g"]))
+	infos = append(infos, runInfo("w", needs["run_1"]), runInfo("w", needs["run_g"]), runInfo("w", needs["run_o"]))
 	setListFilters(infos, needs)
 
 	phone := map[string]int{}
@@ -179,17 +186,17 @@ func TestListFiltersAddUpToTheMacBadges(t *testing.T) {
 		}
 		phone[filterOpen] += info.ListOpen
 	}
-	tree := sidebarView(rows, "", map[string]bool{}, t0, orderHome, groupKeys(recs, orderHome), false, "", sidebarSearch{}, 0, sidebarPlus{}, nil)
+	tree := sidebarView(rows, "", map[string]bool{}, t0, orderHome, groupKeys(recs, orderHome), false, "", sidebarSearch{}, 0, sidebarPlus{needRuns: []string{"run_1", "run_g", "run_o"}}, nil)
 	mac := map[string]int{}
 	for _, item := range nodesOf(tree, "tabs")[0].Props["items"].([]sdui.Item) {
 		var n int
 		fmt.Sscan(item.Badge, &n)
 		mac[item.ID] = n
 	}
-	assert.Equal(t, map[string]int{filterAll: 6, filterNeeds: 4, filterOpen: 2, filterRunning: 2}, mac)
+	assert.Equal(t, map[string]int{filterAll: 8, filterNeeds: 8, filterOpen: 2, filterRunning: 3}, mac)
 	assert.Equal(t, mac, phone)
-	assert.Equal(t, []string{"run_1"}, idsOf(slices.DeleteFunc(slices.Clone(infos), func(info sessionInfo) bool {
-		return info.Kind == "" || !slices.Contains(info.ListFilters, filterNeeds)
+	assert.Equal(t, []string{"agt_m1", "agt_s", "agt_l", "agt_r", "agt_e", "agt_c", "run_1", "run_o"}, idsOf(slices.DeleteFunc(slices.Clone(infos), func(info sessionInfo) bool {
+		return !slices.Contains(info.ListFilters, filterNeeds)
 	})))
 }
 

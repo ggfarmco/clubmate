@@ -568,3 +568,22 @@ extension AgentSession {
         request.hasPrefix("elicitation-")
     }
 }
+
+public enum ListFilter: String, CaseIterable, Sendable, Identifiable {
+    case all
+    case needs
+    case open
+    case running
+
+    public var id: String { rawValue }
+}
+
+extension Sequence where Element == AgentSession {
+    public func listed(in filter: ListFilter) -> Int {
+        reduce(0) { $0 + ($1.listFilters?.contains(filter.rawValue) == true ? 1 : 0) }
+    }
+
+    public var listedOpen: Int {
+        reduce(0) { $0 + $1.listOpen }
+    }
+}

@@ -297,7 +297,9 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	if search.query != "" {
 		search.results = a.search(workspaceID, search.query)
 	}
-	if err := a.push(ctx, p, workspaceID, sidebarSlot, sidebarView(rows, selected, collapsed, time.Now(), home, groups, branchOpen, filter, search, closedExtra, graphs.plus(dock), inboxOf(infos))); err != nil {
+	plus := graphs.plus(dock)
+	plus.needRuns = slices.Sorted(maps.Keys(needs))
+	if err := a.push(ctx, p, workspaceID, sidebarSlot, sidebarView(rows, selected, collapsed, time.Now(), home, groups, branchOpen, filter, search, closedExtra, plus, inboxOf(infos))); err != nil {
 		return err
 	}
 	var shown *screen

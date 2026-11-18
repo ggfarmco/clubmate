@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"context"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -98,7 +99,7 @@ func setListFilters(infos []sessionInfo, needs map[string]runNeed) {
 		rows = append(rows, row)
 	}
 	roots, kids := sidebarTree(rows)
-	tallyFilters(roots, markRoots(roots, kids), func(id, filter string, n int) {
+	tallyFilters(roots, markRoots(roots, kids), slices.Sorted(maps.Keys(needs)), func(id, filter string, n int) {
 		i, ok := index[id]
 		if !ok {
 			return

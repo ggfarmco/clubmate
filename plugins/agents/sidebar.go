@@ -125,17 +125,18 @@ type sessionRow struct {
 	Nest      *reviewerNest
 	Open      int
 	Landing   *landingView
-	AsideAsks bool
+	TreeNeeds bool
 	Group     string
 	Until     int64
 }
 
 type sidebarPlus struct {
-	runs   []api.RunRow
-	dock   []api.DockRow
-	gates  []sdui.TreeItem
-	graphs []sdui.TreeItem
-	open   string
+	runs     []api.RunRow
+	dock     []api.DockRow
+	gates    []sdui.TreeItem
+	graphs   []sdui.TreeItem
+	open     string
+	needRuns []string
 }
 
 const (
@@ -269,7 +270,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	}
 	filter = cmp.Or(filter, filterAll)
 	runs := markRoots(roots, kids)
-	tabs := filterTabs(roots, filter, runs)
+	tabs := filterTabs(roots, filter, runs, plus.needRuns)
 	roots = slices.DeleteFunc(roots, func(row sessionRow) bool {
 		return !matchesFilter(row, filter) && (filter != filterNeeds || len(runs[row.Rec.ID]) == 0)
 	})
@@ -545,12 +546,12 @@ func markRoots(roots []sessionRow, kids map[string][]sessionRow) map[string][]st
 	for i, row := range roots {
 		runs[row.Rec.ID] = runsNeeding(row, kids, map[string]bool{})
 		roots[i].Open = openTotal(row, kids, map[string]bool{})
-		roots[i].AsideAsks = subtreeAsideAsks(row.Rec.ID, kids, map[string]bool{})
+		roots[i].TreeNeeds = subtreeNeeds(row.Rec.ID, kids, map[string]bool{})
 	}
 	return runs
 }
 
-func tallyFilters(roots []sessionRow, runs map[string][]string, add func(id, filter string, n int)) {
+func tallyFilters(roots []sessionRow, runs map[string][]string, needRuns []string, add func(id, filter string, n int)) {
 	counted := map[string]bool{}
 	for _, row := range roots {
 		var fresh string
@@ -563,10 +564,7 @@ func tallyFilters(roots []sessionRow, runs map[string][]string, add func(id, fil
 		if fresh != "" && !ownNeeds(row) {
 			add(fresh, filterNeeds, 1)
 		}
-		if row.Rec.closed() {
-			continue
-		}
-		if row.Rec.restricted() {
+		if row.Rec.closed() || row.Rec.restricted() {
 			if matchesFilter(row, filterNeeds) {
 				add(row.Rec.ID, filterNeeds, 1)
 			}
@@ -581,11 +579,16 @@ func tallyFilters(roots []sessionRow, runs map[string][]string, add func(id, fil
 			add(row.Rec.ID, filterOpen, row.Open)
 		}
 	}
+	for _, run := range needRuns {
+		if !counted[run] {
+			add(run, filterNeeds, 1)
+		}
+	}
 }
 
-func filterTabs(roots []sessionRow, filter string, runs map[string][]string) sdui.Node {
+func filterTabs(roots []sessionRow, filter string, runs map[string][]string, needRuns []string) sdui.Node {
 	counts := map[string]int{}
-	tallyFilters(roots, runs, func(_, f string, n int) { counts[f] += n })
+	tallyFilters(roots, runs, needRuns, func(_, f string, n int) { counts[f] += n })
 	needs := sdui.Item{ID: filterNeeds, Label: "Needs you", Icon: statusIcons[statusWaiting], Badge: strconv.Itoa(counts[filterNeeds])}
 	if counts[filterNeeds] > 0 {
 		needs.Tone = statusTones[statusWaiting]
@@ -599,14 +602,16 @@ func filterTabs(roots []sessionRow, filter string, runs map[string][]string) sdu
 }
 
 func ownNeeds(row sessionRow) bool {
-	return needsYou(row.Rec) || row.Children == statusWaiting || row.AsideAsks || row.GateAsk != nil
+	return needsYou(row.Rec) || row.Children == statusWaiting || row.TreeNeeds || row.GateAsk != nil
 }
 
 func runsNeeding(row sessionRow, kids map[string][]sessionRow, seen map[string]bool) []string {
 	seen[row.Rec.ID] = true
 	var out []string
-	if row.RunNeed != nil {
-		out = append(out, row.RunNeed.Run)
+	for _, n := range []*runNeed{row.RunNeed, row.GateAsk} {
+		if n != nil {
+			out = append(out, n.Run)
+		}
 	}
 	for _, kid := range kids[row.Rec.ID] {
 		if !seen[kid.Rec.ID] {
@@ -853,13 +858,13 @@ func groupItem(key, label, icon string, children []sdui.TreeItem, expanded bool)
 	return item
 }
 
-func subtreeAsideAsks(id string, kids map[string][]sessionRow, seen map[string]bool) bool {
+func subtreeNeeds(id string, kids map[string][]sessionRow, seen map[string]bool) bool {
 	seen[id] = true
 	for _, kid := range kids[id] {
 		if seen[kid.Rec.ID] {
 			continue
 		}
-		if (kid.Rec.isAside() || kid.Rec.GateFor != nil) && needsYou(kid.Rec) || subtreeAsideAsks(kid.Rec.ID, kids, seen) {
+		if needsYou(kid.Rec) || kid.GateAsk != nil || subtreeNeeds(kid.Rec.ID, kids, seen) {
 			return true
 		}
 	}
