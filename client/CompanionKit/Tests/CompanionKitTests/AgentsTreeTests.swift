@@ -44,6 +44,13 @@ final class AgentsTreeTests: XCTestCase {
         XCTAssertNil(needs[0].title)
     }
 
+    func testLoneHomeGroupIsHeadedOnlyUnderAnInbox() throws {
+        let home = #"{"id":"m1","status":"done","group":"done","listKey":"t1 m1","listGroupKey":"0","listGroupLabel":"main","listFilters":["all"]}"#
+        let open = #"{"id":"m2","status":"done","group":"open","openCount":1,"listOpen":1,"listKey":"t2 m2","listGroupKey":"0","listGroupLabel":"main","listFilters":["all","open"],"inboxKey":"1 t2 m2"}"#
+        XCTAssertEqual(AgentsTree.sections(try sessions("[\(home)]")).map(\.title), [nil])
+        XCTAssertEqual(AgentsTree.sections(try sessions("[\(home),\(open)]")).map(\.title), ["Open", "main"])
+    }
+
     func testTreeWaitsForTheInboxWhileSomethingNeedsYou() throws {
         let old = try sessions(#"[{"id":"a","status":"waiting","group":"needsYou","needsYou":true,"listFilters":["all","needs"]}]"#)
         XCTAssertFalse(AgentsTree.supported(old))

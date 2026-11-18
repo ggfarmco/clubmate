@@ -135,7 +135,7 @@ public enum AgentsTree {
             worktrees.sort { rowOrder($0.nodes[0], $1.nodes[0]) }
         }
         for (key, nodes) in worktrees {
-            let lone = worktrees.count == 1 && key == homeGroup
+            let lone = worktrees.count == 1 && key == homeGroup && !out.contains(where: \.mirrors)
             out.append(ListSection(kind: .worktree(key), title: lone ? nil : nodes[0].groupLabel, nodes: nodes))
         }
         if !closed.isEmpty { out.append(ListSection(kind: .closed, title: SessionGroup.closed.title, nodes: closed.sorted(by: SessionNode.newerFirst))) }
