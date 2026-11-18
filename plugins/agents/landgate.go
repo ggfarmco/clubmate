@@ -1231,6 +1231,7 @@ func (a *app) landDoneCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 	}
 	lander := a.session(args.Session)
 	if lander == nil {
+		a.journalLanding(cmd.WorkspaceID, args)
 		return nil, nil
 	}
 	a.gateMu.Lock()
@@ -1238,6 +1239,7 @@ func (a *app) landDoneCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 	nodes := a.landingNodes(lander.snapshot().Workspace, gateFor{Lander: lander.snapshot().ID, Into: args.Into, Source: args.Source})
 	lander.dropLandReview(args.Into, args.Source)
 	a.gateMu.Unlock()
+	a.journalLanding(cmd.WorkspaceID, args)
 	a.saveNow(ctx, lander)
 	if st.Run != "" {
 		logError("stop gate run", a.graphs.StopGate(ctx, st.Run))

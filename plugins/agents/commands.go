@@ -111,6 +111,7 @@ var (
 		"agents.land-gate":      withArgs((*app).landGateCommand),
 		"agents.land-done":      withArgs((*app).landDone),
 		"agents.land-verdict":   withArgs((*app).landVerdictCommand),
+		"agents.outcomes":       withArgs((*app).outcomesCommand),
 	}
 
 	errUnknownCmd    = errors.New("unknown command")

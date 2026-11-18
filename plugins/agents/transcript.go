@@ -55,6 +55,9 @@ type transcriptState struct {
 	prompted   bool
 	senders    []string
 	at         time.Time
+	lastEnd    time.Time
+	costTotal  float64
+	costLast   float64
 
 	presented    map[int][]presentedDoc
 	ended        map[int]bool
@@ -522,6 +525,7 @@ func (s *session) apply(e envelope) {
 			s.ended = map[int]bool{}
 		}
 		s.ended[e.Turn] = true
+		s.lastEnd = e.TS
 		s.linkDocs(e.Turn)
 		var p turnEndPayload
 		if json.Unmarshal(e.Payload, &p) == nil {

@@ -135,6 +135,9 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentP
 	}
 	ended := s.turnLocked()
 	s.mu.Unlock()
+	if !rec.isAside() {
+		a.journalSession(s)
+	}
 	if running {
 		s.turned(ended)
 	}

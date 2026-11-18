@@ -86,6 +86,7 @@ type record struct {
 	FirstMode       string         `json:"firstMode,omitempty"`
 	StartModel      string         `json:"startModel,omitempty"`
 	StartEffort     string         `json:"startEffort,omitempty"`
+	Exp             *expTag        `json:"exp,omitempty"`
 	StartNotice     string         `json:"startNotice,omitempty"`
 	Night           string         `json:"night,omitempty"`
 	NightSealed     bool           `json:"nightSealed,omitempty"`

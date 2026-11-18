@@ -128,6 +128,7 @@ func (a *app) logGateVerdict(ctx context.Context, v gateVerdict) {
 	if s := a.session(v.Lander); s != nil {
 		v.Workspace = s.snapshot().Workspace
 	}
+	a.journalVerdict(v)
 	a.gateLogMu.Lock()
 	history, err := a.readGateHistory(ctx, v.Gate)
 	if err == nil {

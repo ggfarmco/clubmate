@@ -77,6 +77,8 @@ type app struct {
 	gateTreeRun    func(ctx context.Context, workspaceID string, args map[string]any, out any) error
 	docsRun        func(ctx context.Context, id, workspaceID string, args map[string]any) error
 	gateLogMu      sync.Mutex
+	outcomesMu     sync.Mutex
+	journaled      map[string]string
 	liveGates      atomic.Pointer[map[string]bool]
 	heldFacts      heldFacts
 	lastGates      atomic.Pointer[[]gateConfig]

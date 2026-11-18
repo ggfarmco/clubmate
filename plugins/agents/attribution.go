@@ -43,6 +43,7 @@ type attribution struct {
 	Title      string `json:"title,omitempty"`
 	Prompt     string `json:"prompt,omitempty"`
 	Checkpoint string `json:"checkpoint,omitempty"`
+	Builder    string `json:"builder,omitempty"`
 }
 
 type blameArgs struct {
@@ -73,18 +74,22 @@ func (a *app) blameCommand(ctx context.Context, cmd pluginsdk.CommandRun) (blame
 	dir := a.callerDir(cmd, args.Cwd)
 	if args.Path != "" && filepath.IsAbs(args.Path) {
 		ranges, err := blame(ctx, args.Path, args.StartLine, args.EndLine)
-		return blameResult{Attributions: ranges}, err
+		return blameResult{Attributions: a.withBuilders(ranges)}, err
 	}
 	if !filepath.IsAbs(dir) {
 		return blameResult{}, errBlameDir
 	}
 	if args.Path != "" {
 		ranges, err := blame(ctx, filepath.Join(dir, args.Path), args.StartLine, args.EndLine)
-		return blameResult{Attributions: ranges}, err
+		return blameResult{Attributions: a.withBuilders(ranges)}, err
 	}
 	at, err := commitAttribution(ctx, dir, args.Commit)
-	if err != nil || at.Session == "" {
+	if err != nil {
 		return blameResult{}, err
+	}
+	at.Builder = a.buildersOf([]string{at.Commit})[at.Commit]
+	if at.Session == "" && at.Builder == "" {
+		return blameResult{}, nil
 	}
 	return blameResult{Attributions: []attribution{at}}, nil
 }

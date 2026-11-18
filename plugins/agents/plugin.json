@@ -1118,13 +1118,26 @@
         "id": "agents.land-done",
         "title": "Record a landing",
         "hidden": true,
-        "description": "Only the git plugin, after git.land committed: records the landed commit on its verdict and closes the land reviewer.",
+        "description": "Only the git plugin, after git.land committed: records the landed commit on its verdict, writes the landing to the outcomes journal and closes the land reviewer.",
         "args": {
           "properties": {
-            "session": {"type": "string"}, "into": {"type": "string"}, "source": {"type": "string"},
+            "session": {"type": "string"}, "target": {"type": "string"}, "worktree": {"type": "string"}, "into": {"type": "string"}, "source": {"type": "string"},
             "old": {"type": "string"}, "tree": {"type": "string"}, "commit": {"type": "string"}
           },
           "required": ["old", "tree", "commit"]
+        }
+      },
+      {
+        "id": "agents.outcomes",
+        "title": "List child outcomes",
+        "hidden": true,
+        "agent": true,
+        "description": "Children of agent sessions and the builders of landings, oldest first, from live sessions and the outcomes journal (kept 90 days): {outcomes: [{session, title, parent, kind, size, arm (from an [exp kind=… size=… arm=…] first line of the starting prompt), model, effort, createdAt, lastTurnEnd, wallSeconds, turns, cost, landing?: {squash, into, source, lander, builder, fixers, gate, rounds, changes, verdicts, reviewers, at}, reviewersCost, fixersCost, costToLanding}]}. Cost is the session's running usage cost in USD; costToLanding = cost + reviewersCost + fixersCost of its latest landing.",
+        "args": {
+          "properties": {
+            "since": {"type": "string", "description": "Only sessions created at or after this RFC 3339 time or YYYY-MM-DD date."},
+            "workspace": {"type": "string", "description": "Only this workspace id; default every workspace."}
+          }
         }
       },
       {

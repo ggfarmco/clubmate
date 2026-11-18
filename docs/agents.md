@@ -528,10 +528,23 @@ The turn's commits are those reachable from `HEAD` but not from its start or fro
 Read them with `git log --notes=clubmate`, `agents.blame` or `clubmate agent blame <file|commit> [-L a,b]` (git blame of the file, only line ranges whose commit has a note).
 
 Limits:
-- `git merge --squash` into `main` makes a new commit, noted with the session that ran the squash (the orchestrator), not the child whose branch it was; the child's notes stay on its branch commits.
+- `git merge --squash` into `main` makes a new commit, noted with the session that ran the squash (the orchestrator), not the child whose branch it was; the child's notes stay on its branch commits. For a commit `git_land` made, `agents.blame` also returns `builder`, the child whose branch landed, from the outcomes journal (see [Outcomes](#outcomes)).
 - Commits the user makes in the same worktree during an agent's turn, or pulls into its branch from that branch's remote, are noted with that turn.
 - Rebase and amend drop the notes unless the repo sets `git config notes.rewriteRef refs/notes/clubmate`; Clubmate doesn't set it.
 - Notes are local; push `refs/notes/clubmate` to share them, but they carry each session's title and the first line of its prompts, so check them before pushing.
+
+### Outcomes
+
+Clubmate keeps the data to judge a child by **cost to landing**: the builder's cost, plus the cost of the land-gate reviewers of its landing, plus its fixers.
+
+The outcomes journal is append-only JSON lines in the agents plugin's state dir, `outcomes/<YYYY-MM>.jsonl`; a month's file is deleted 90 days after the month ends. It holds:
+- `verdict`: every land-gate verdict, as the gate's history has it (the gate's own history keeps only its last 100).
+- `landing`: every `git_land` by an agent: `lander` (the caller), `builder` (the lander when it lands with mode index or works in the landed worktree itself, with no fixers; otherwise, of the sessions on the landed worktree, asides and gate nodes aside, the newest whose parent is not also there), `fixers` (the other such sessions on that worktree and the builder's own children), `squash`, `into`, `source` and each one's cost at that moment.
+- `session`: a session's facts whenever it is closed or deleted, by the user or by Clubmate, written again only when they changed (the last entry wins), so they outlive its log (deleted after 30 days): title, parent, an `[exp kind=… size=S|M|L arm=model/effort]` first line of the prompt it was started with, model and effort (the session's current config value, so an inherited model shows too), created, last turn end, turns and cost.
+
+A session's cost is its running `usage_update.cost` total in USD; a total that drops (a new agent process) adds on from zero.
+
+`agents.outcomes {since?, workspace?}` (an agent caller sees only its own workspace and no night sessions) lists children of agent sessions and builders of landings, oldest first: the facts above, `wallSeconds` (created to last turn end), and for a builder its latest `landing` with `rounds` (reviewer verdicts; docs-only and user approvals are listed in `verdicts` but are no round), `changes`, `verdicts` and `reviewers` (the gate nodes of that lander, target and source started since the previous such landing), `reviewersCost`, `fixersCost` and `costToLanding`. A live session's numbers come from its log, a deleted one's from the journal.
 
 ### Agent Trace
 

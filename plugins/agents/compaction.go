@@ -29,7 +29,13 @@ type compaction struct {
 
 func (s *session) applyUsage(payload json.RawMessage) {
 	var u acp.UsageUpdate
-	if json.Unmarshal(payload, &u) != nil || u.Size <= 0 {
+	if json.Unmarshal(payload, &u) != nil {
+		return
+	}
+	if u.Cost != nil {
+		s.addCost(u.Cost.Amount)
+	}
+	if u.Size <= 0 {
 		return
 	}
 	if u.Cost == nil && s.usage != nil {
