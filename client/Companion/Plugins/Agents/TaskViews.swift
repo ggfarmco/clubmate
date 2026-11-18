@@ -375,6 +375,11 @@ struct LandChoiceCard: View {
                     .foregroundStyle(Color.warningInk)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if let question = card.question {
+                Text(question)
+                    .font(.title3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let caption = card.caption {
                 Text(caption)
                     .font(.footnote)

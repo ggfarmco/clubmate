@@ -15,6 +15,14 @@ final class PermissionKeysTests: XCTestCase {
         SDUIPermissionOption(id: "reject", label: "Reject", kind: .rejectOnce, shortcut: "opt+3"),
     ]
 
+    func testHintsUseTheShortWordElseTheLabel() {
+        let options = [
+            SDUIPermissionOption(id: "review", label: "Review…", kind: .allowOnce, shortcut: "opt+1"),
+            SDUIPermissionOption(id: "leave", label: "Leave it unlanded…", kind: .rejectOnce, shortcut: "opt+3", short: "leave"),
+        ]
+        XCTAssertEqual(PermissionKeys.hints(options), "⌥1 review · ⌥3 leave")
+    }
+
     func testOptionDigitPicksTheOptionInButtonOrder() {
         XCTAssertEqual(PermissionKeys.option(characters: "3", option: true, otherModifiers: false, options: legacy), 2)
         XCTAssertNil(PermissionKeys.option(characters: "1", option: false, otherModifiers: false, options: legacy))

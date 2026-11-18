@@ -17,8 +17,10 @@ const (
 	gatePointLanding   = "Landing"
 	gateHoldsDoneLine  = "An agent's turn that ends done waits for the graph."
 	gateHoldsDone      = "an agent's turn that ends done"
-	gateSessionsLine   = "Pick top-level or children; AFK only narrows them."
-	gateDoneSentence   = "Holds a %s agent's done turn in %s%s; %s decides."
+	gateSessionsLine   = "Holds done turns from the sessions you pick. Only AFK leaves sessions you're running yourself alone."
+	gateOnlyAFK        = "Only AFK sessions"
+	gateDoneSentence   = "Holds %s done turn in %s%s; %s decides."
+	gatePickSessions   = "Pick top-level, children or both."
 	gateWrotePlans     = "plans"
 	gateWroteAny       = "any"
 	gateWroteNone      = "none"
@@ -31,6 +33,11 @@ const (
 	gateLiveNoteDone   = "Findings show here when it decides; the session gets them as a message from the gate."
 	gateUndecidedDone  = "%s can't decide a turn: no node reports approved and changes"
 	heldWord           = "held"
+	heldAcceptShort    = "accept"
+	heldPlanQuestion   = "Accept the plan as done?"
+	heldTurnQuestion   = "Accept the turn as done?"
+	heldFilesQuestion  = "Accept the changes as done?"
+	heldRoundWords     = "round %d %s"
 	heldBadgeFormat    = "held · %s"
 	heldLineFormat     = "Held · %s · %s…"
 	heldBlockTitle     = "Gate · %s · round %d"
@@ -42,16 +49,23 @@ const (
 	gateTrustDoneText  = "This gate pinned %s. The file is now %s. Until you trust it, the gate runs nothing: a turn it holds stays held and its review runs on the new version once you trust it."
 )
 
-var doneKindWords = map[string]string{doneTop: "top-level", doneChild: "child", doneAFK: "AFK"}
-
-func doneKinds(sessions []string) []string {
-	var out []string
-	for _, k := range []string{doneTop, doneChild, doneAFK} {
-		if slices.Contains(sessions, k) {
-			out = append(out, doneKindWords[k])
-		}
+func doneWho(sessions []string) (whose, who string) {
+	top, child, afk := slices.Contains(sessions, doneTop), slices.Contains(sessions, doneChild), slices.Contains(sessions, doneAFK)
+	kind := ""
+	if afk {
+		kind = "AFK "
 	}
-	return out
+	switch {
+	case top && child && afk:
+		return "any AFK session's", "AFK sessions"
+	case top && child:
+		return "any session's", "all sessions"
+	case top:
+		return "a top-level " + kind + "session's", "top-level " + kind + "sessions"
+	case child:
+		return "a child " + kind + "session's", "child " + kind + "sessions"
+	}
+	return "", ""
 }
 
 func validKinds(sessions []string) bool {
@@ -91,19 +105,19 @@ func parseGlobs(text string) []string {
 }
 
 func doneMatchWords(sessions, wrote []string) string {
-	who := joinWords(doneKinds(sessions), " and ") + " sessions"
+	_, who := doneWho(sessions)
 	var what string
 	switch wroteMode(wrote) {
 	case gateWroteNone:
-		what = "every turn that changed something"
+		what = "anything"
 	case gateWrotePlans:
 		what = "plans and specs: " + strings.Join(wrote, " or ")
 	case gateWroteAny:
-		what = "a turn that wrote any file"
+		what = "any file"
 	default:
 		what = "files like " + strings.Join(wrote, " or ")
 	}
-	return who + " · " + what
+	return who + " · wrote " + what
 }
 
 func doneWroteClause(wrote []string) string {
@@ -116,13 +130,6 @@ func doneWroteClause(wrote []string) string {
 		return " when it wrote a file"
 	}
 	return " when it wrote files like " + strings.Join(wrote, ", ")
-}
-
-func joinWords(words []string, last string) string {
-	if len(words) < 2 {
-		return strings.Join(words, "")
-	}
-	return strings.Join(words[:len(words)-1], ", ") + last + words[len(words)-1]
 }
 
 func pointIcon(point string) string {
@@ -154,10 +161,10 @@ func gateHoldsField(d gateDraft) []sdui.Node {
 		}
 		return []sdui.Node{sdui.HStack(sdui.MutedText("Holds"), sdui.Text(word))}
 	}
-	tabs := sdui.WithAction(sdui.Tabs(gateSheetID+"/holds", []sdui.Item{
+	tabs := sdui.WithAction(sdui.WithSegmented(sdui.Tabs(gateSheetID+"/holds", []sdui.Item{
 		{ID: gatePointLand, Label: gatePointLanding, Icon: gateLandIcon},
 		{ID: gatePointTurn, Label: gatePointDone, Icon: gateDoneIcon},
-	}, cmp.Or(d.Point, gatePointLand)), actGateHolds)
+	}, cmp.Or(d.Point, gatePointLand))), actGateHolds)
 	line := gateHoldsLine
 	if d.Point == gatePointTurn {
 		line = gateHoldsDoneLine
@@ -166,15 +173,18 @@ func gateHoldsField(d gateDraft) []sdui.Node {
 }
 
 func gateDoneFields(d gateDraft) ([]sdui.Node, bool) {
-	kinds := []sdui.Node{sdui.MutedText("Sessions")}
-	for _, k := range []string{doneTop, doneChild, doneAFK} {
-		label := map[string]string{doneTop: "Top-level", doneChild: "Children", doneAFK: "AFK"}[k]
-		kinds = append(kinds, sdui.WithAction(sdui.Checkbox(gateSheetID+"/session/"+k, label, slices.Contains(d.Sessions, k)), actGateSession))
+	check := func(k, label string) sdui.Node {
+		return sdui.WithAction(sdui.Checkbox(gateSheetID+"/session/"+k, label, slices.Contains(d.Sessions, k)), actGateSession)
 	}
-	out := []sdui.Node{sdui.HStack(kinds...)}
 	ok := validKinds(d.Sessions)
+	note := sdui.MutedText(gateSessionsLine)
 	if !ok {
-		out = append(out, sdui.WithTone(sdui.MutedText(gateSessionsLine), toneWarning))
+		note = sdui.WithTone(note, toneWarning)
+	}
+	out := []sdui.Node{
+		sdui.HStack(sdui.MutedText("Sessions"), check(doneTop, "Top-level"), check(doneChild, "Children")),
+		sdui.HStack(sdui.MutedText(""), check(doneAFK, gateOnlyAFK)),
+		note,
 	}
 	mode := d.WroteMode
 	options := []sdui.Option{
@@ -235,7 +245,11 @@ func (d gateDraft) takenDone() (gateConfig, bool) {
 }
 
 func doneSentenceOf(d gateDraft, graph, repo string) string {
-	return fmt.Sprintf(gateDoneSentence, joinWords(doneKinds(d.Sessions), " or "), repo, doneWroteClause(d.wrote()), graph)
+	if !validKinds(d.Sessions) {
+		return gatePickSessions
+	}
+	whose, _ := doneWho(d.Sessions)
+	return fmt.Sprintf(gateDoneSentence, whose, repo, doneWroteClause(d.wrote()), graph)
 }
 
 type heldBlock struct {
@@ -321,6 +335,52 @@ func (a *app) heldIdle(rec record) bool {
 	}
 	s := a.session(rec.ID)
 	return s == nil || !s.working()
+}
+
+func (a *app) turnHeld(rec record) bool {
+	return rec.heldWaits() || a.heldIdle(rec)
+}
+
+func heldQuestion(h heldTurn) string {
+	switch h.Name {
+	case gateNamePlanSpecs:
+		return heldPlanQuestion
+	case gateNameAnyTurn:
+		return heldTurnQuestion
+	}
+	return heldFilesQuestion
+}
+
+type heldRoundView struct {
+	Text string `json:"text"`
+	Run  string `json:"run,omitempty"`
+}
+
+func (a *app) heldRound(rec record) *heldRoundView {
+	if !a.turnHeld(rec) {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)
+	defer cancel()
+	b := a.heldBlockOf(ctx, rec)
+	if b == nil {
+		return nil
+	}
+	return &heldRoundView{Text: heldRoundText(*b), Run: rec.Held.Run}
+}
+
+func heldRoundText(b heldBlock) string {
+	parts := []string{b.Graph}
+	for _, r := range b.Rounds {
+		parts = append(parts, fmt.Sprintf(heldRoundWords, r.Round, r.Verdict))
+	}
+	switch {
+	case b.Reviewing:
+		parts = append(parts, fmt.Sprintf(heldRoundWords, b.Round, gateStateReview))
+	case b.Waits:
+		parts = append(parts, fmt.Sprintf(heldRoundWords, b.Round, heldWaitsTrust))
+	}
+	return strings.Join(parts, " · ")
 }
 
 func (a *app) heldReviewing(rec record) bool {

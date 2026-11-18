@@ -41,7 +41,10 @@ func TestDoneGateCardAtCap(t *testing.T) {
 	req := d.cardAtCap(t)
 
 	rec := d.f.session(t, d.workspace, d.session)
-	assert.Equal(t, []any{"running", true, []string{req}, "needsYou"}, []any{rec.Status, rec.NeedsYou, rec.Pending, rec.Group})
+	assert.Equal(t, []any{"running", true, []string{req}, "needsYou", true}, []any{rec.Status, rec.NeedsYou, rec.Pending, rec.Group, rec.TurnHeld})
+	require.NotNil(t, rec.HeldRound)
+	assert.Equal(t, "Fable review · round 1 changes", rec.HeldRound.Text)
+	assert.Equal(t, d.held(t).Run, rec.HeldRound.Run)
 	var list []record
 	require.NoError(t, d.f.run(t, d.workspace, "agents.sessions", map[string]any{}, &list))
 	assert.Len(t, slices.DeleteFunc(list, func(r record) bool { return !r.NeedsYou }), 1)

@@ -45,12 +45,12 @@ func (a *app) cardOpened(rec record, request string) {
 
 func cardMessage(rec record, request string) string {
 	if rec.heldWaits() && rec.Held.Request == request {
-		return heldCardTitle(*rec.Held)
+		return fmt.Sprintf(cardMessageFormat, heldCardTitle(*rec.Held), heldQuestion(*rec.Held))
 	}
 	i := slices.IndexFunc(rec.LandReviews, func(st landReview) bool { return st.Request == request })
 	if i < 0 {
 		return ""
 	}
 	st := rec.LandReviews[i]
-	return fmt.Sprintf(cardMessageFormat, fmt.Sprintf(heldChangesTitle, heldGraphFallback, counted(st.Rounds, "round")), fmt.Sprintf(gateCardTitle, cmp.Or(st.Source, st.Into)))
+	return fmt.Sprintf(cardMessageFormat, gateCardTitle(st), fmt.Sprintf(gateCardQuestion, cmp.Or(st.Source, st.Into)))
 }

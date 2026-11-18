@@ -72,13 +72,15 @@ const (
 	gatePreparingText   = "review pending: the gate is preparing the worktree for this change's review. End your turn; Clubmate prompts you with the verdict."
 	gateWaitsUserText   = "the review asked for changes %d times, so this landing waits for the user's answer. End your turn; Clubmate prompts you with it."
 	gateChangesResult   = "the review asked for changes; fix them and call git_land again:\n%s"
-	gateCardTitle       = "Land %s without another review?"
 	gateCardCaption     = "The review asked for changes %d times"
 	gateAgainCaption    = "; asked again because the change or its target moved after the last answer"
 	gateCardRule        = "Land anyway squashes it into %s as it is. One more round runs the review again after the agent fixes the findings. Stop tells the agent not to land it."
 	gateLandLabel       = "Land anyway"
 	gateMoreLabel       = "One more round"
 	gateStopLabel       = "Stop"
+	gateCardQuestion    = "Land %s without another review?"
+	gateMoreShort       = "one more round"
+	gateStopShort       = "stop"
 	gateMovedLog        = "agents: %s moved without a land verdict: %s"
 	gateUnreadText      = "the gate's graph %s can't be read: %v"
 	gateLandTitle       = "Land review · "
@@ -90,6 +92,7 @@ var (
 		"Bash(git commit:*)", "Bash(git merge:*)", "Bash(git reset:*)", "Bash(git checkout:*)", "Bash(git switch:*)",
 		"Bash(git rebase:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(git update-ref:*)", "Bash(rm:*)", "Bash(mv:*)",
 	}
+	passShorts      = map[string]string{heldAcceptLabel: heldAcceptShort}
 	docsOnlyRefused = []string{"claude.md", "agents.md", "gemini.md", "skill.md"}
 	docsOnlyDirs    = []string{".claude/", ".clubmate/", ".github/", ".agents/", "skills/", "commands/", "agents/", "prompts/", "rules/"}
 
@@ -155,6 +158,7 @@ type landReview struct {
 	ReqOld   string    `json:"reqOld,omitempty"`
 	ReqTree  string    `json:"reqTree,omitempty"`
 	Rounds   int       `json:"rounds,omitempty"`
+	Graph    string    `json:"graph,omitempty"`
 	Cap      int       `json:"cap,omitempty"`
 	Extra    int       `json:"extra,omitempty"`
 	Request  string    `json:"request,omitempty"`
@@ -759,6 +763,7 @@ func (a *app) reviewLanding(ctx context.Context, workspaceID string, lander *ses
 	}
 	if st.Rounds >= st.Cap {
 		st.Request, st.ReqOld, st.ReqTree, st.Since = id.New(gateRequestPrefix), args.Old, args.Tree, time.Now().UTC()
+		st.Graph = a.heldAskOf(ctx, &g).graph
 		st.Moved = st.Answered != "" && st.Answered != args.Old+"-"+args.Tree
 		lander.putLandReview(st)
 		a.saveNow(ctx, lander)
@@ -1339,21 +1344,27 @@ func (a *app) logUngatedMain(rec record, commits []string) {
 
 func gateCard(rec record, st landReview) sdui.Node {
 	return roundsCard(rec, st.Request, gateLandLabel, sdui.LandRequestProps{
-		Title:   fmt.Sprintf(gateCardTitle, cmp.Or(st.Source, st.Into)),
-		Caption: gateCaption(st),
-		Name:    cmp.Or(st.Source, st.Into),
-		Detail:  bullets(st.Findings),
-		Rule:    fmt.Sprintf(gateCardRule, st.Into),
+		Title:    gateCardTitle(st),
+		Caption:  gateCaption(st),
+		Name:     cmp.Or(st.Source, st.Into),
+		Detail:   bullets(st.Findings),
+		Rule:     fmt.Sprintf(gateCardRule, st.Into),
+		Question: fmt.Sprintf(gateCardQuestion, cmp.Or(st.Source, st.Into)),
 	})
 }
 
 func roundsCard(rec record, request, pass string, p sdui.LandRequestProps) sdui.Node {
+	p.Gate = true
 	p.Options = []sdui.PermissionOption{
-		{ID: landActionMerge, Label: pass, Kind: "allow_once", Shortcut: "opt+1"},
-		{ID: landActionMore, Label: gateMoreLabel, Shortcut: "opt+2"},
-		{ID: landActionLeave, Label: gateStopLabel, Kind: "reject_once", Shortcut: "opt+3"},
+		{ID: landActionMerge, Label: pass, Kind: "allow_once", Shortcut: "opt+1", Short: passShorts[pass]},
+		{ID: landActionMore, Label: gateMoreLabel, Shortcut: "opt+2", Short: gateMoreShort},
+		{ID: landActionLeave, Label: gateStopLabel, Kind: "reject_once", Shortcut: "opt+3", Short: gateStopShort},
 	}
 	return sdui.WithDock(sdui.LandRequestCard(rec.ID+"/"+gateCardNode+"/"+request, request, p))
+}
+
+func gateCardTitle(st landReview) string {
+	return fmt.Sprintf(heldChangesTitle, cmp.Or(st.Graph, heldGraphFallback), counted(max(st.Rounds, 1), "round"))
 }
 
 func gateCaption(st landReview) string {
@@ -1387,7 +1398,7 @@ func (r record) gatePending() *pendingSummary {
 	}
 	for _, st := range r.LandReviews {
 		if st.Request != "" {
-			return &pendingSummary{Kind: pendingLand, Text: fmt.Sprintf(gateCardTitle, cmp.Or(st.Source, st.Into)), At: st.Since, OnMac: true}
+			return &pendingSummary{Kind: pendingLand, Text: gateCardTitle(st), At: st.Since, OnMac: true}
 		}
 	}
 	return nil

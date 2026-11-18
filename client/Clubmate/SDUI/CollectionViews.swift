@@ -40,16 +40,30 @@ struct TabsNodeView: View {
         }
     }
 
+    private var segmented: Bool { node.bool("segmented") == true }
+
+    @ViewBuilder
     private func chips(_ items: [SDUIItem], compact: Bool) -> some View {
-        HStack(spacing: theme.spacing.s) {
-            chipButtons(items, compact: compact)
+        if segmented {
+            HStack(spacing: Self.segmentGap) {
+                chipButtons(items, compact: compact)
+            }
+            .padding(Self.segmentGap)
+            .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.hover))
+            .fixedSize()
+        } else {
+            HStack(spacing: theme.spacing.s) {
+                chipButtons(items, compact: compact)
+            }
+            .fixedSize()
         }
-        .fixedSize()
     }
+
+    private static let segmentGap: CGFloat = 2
 
     private func chipButtons(_ items: [SDUIItem], compact: Bool) -> some View {
         ForEach(items) { item in
-            TabButton(item: item, compact: compact, selected: item.id == selected) {
+            TabButton(item: item, compact: compact, selected: item.id == selected, segmented: segmented) {
                 selected = item.id
                 dispatch(node, .select(item.id))
             }
@@ -68,6 +82,7 @@ struct TabButton: View {
     let item: SDUIItem
     let compact: Bool
     let selected: Bool
+    var segmented = false
     let action: () -> Void
 
     @State private var hovering = false
@@ -77,12 +92,14 @@ struct TabButton: View {
 
     var body: some View {
         let ink = theme.tone(item.tone)
-        let icon = compact ? item.icon.flatMap { $0.isEmpty ? nil : $0 } : nil
+        let icon = compact || segmented ? item.icon.flatMap { $0.isEmpty ? nil : $0 } : nil
+        let shape = segmented ? AnyShape(RoundedRectangle(cornerRadius: theme.radius.s)) : AnyShape(Capsule())
         Button(action: action) {
             HStack(spacing: theme.spacing.s) {
                 if let icon {
                     Image(systemName: SymbolName.resolve(icon))
-                } else {
+                }
+                if icon == nil || segmented {
                     Text(item.label)
                 }
                 if let badge = item.badge {
@@ -94,15 +111,15 @@ struct TabButton: View {
             .foregroundStyle(ink ?? (selected || hovering ? theme.foreground : theme.text2))
             .padding(.horizontal, theme.spacing.l)
             .frame(height: theme.rowHeight)
-            .background(Capsule().fill(fill))
+            .background(shape.fill(fill))
             .overlay {
                 if keyboardFocus && focused {
-                    Capsule()
+                    shape
                         .stroke(theme.accent, lineWidth: theme.focusRing)
                         .padding(-ButtonNodeView.ringGap)
                 }
             }
-            .contentShape(Capsule())
+            .contentShape(shape)
         }
         .buttonStyle(.plain)
         .focusable(interactions: .activate)
@@ -124,6 +141,7 @@ struct TabButton: View {
 
     private var fill: Color {
         if let tone = theme.toneFill(item.tone) { return selected ? theme.toneBorder(tone) : theme.toneBg(tone) }
+        if segmented { return selected ? theme.pressed : hovering ? theme.hover : .clear }
         return selected || hovering ? theme.pressed : theme.hover
     }
 }

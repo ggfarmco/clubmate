@@ -38,7 +38,7 @@ private func decoded<T: Decodable>(_ json: String, as type: T.Type = T.self) thr
 }
 
 private let heldNode = """
-{"type": "request.land", "id": "s/gateCard/lg_1", "props": {"request": "lg_1", "title": "Plan pipeline still asks for changes after 2 rounds", "name": "Write the plan",
+{"type": "request.land", "id": "s/gateCard/lg_1", "props": {"request": "lg_1", "title": "Plan pipeline still asks for changes after 2 rounds", "name": "Write the plan", "question": "Accept the plan as done?",
  "options": [{"id": "merge", "label": "Accept as done", "kind": "allow_once"}, {"id": "more", "label": "One more round"}, {"id": "leave", "label": "Stop", "kind": "reject_once"}]}}
 """
 
@@ -125,6 +125,7 @@ final class TaskCardsTests: XCTestCase {
         guard case .land(let held) = try transcript(request: heldNode).request else { throw RemoteError.badResponse }
         XCTAssertEqual([held.choice, try landCard().choice], [true, false])
         XCTAssertEqual([held.mergeLabel, held.moreLabel, held.leaveLabel], ["Accept as done", "One more round", "Stop"])
+        XCTAssertEqual([held.question, try landCard().question], ["Accept the plan as done?", nil])
     }
 
     func testMergeIsRefusedOfflineAndNeverQueues() async throws {

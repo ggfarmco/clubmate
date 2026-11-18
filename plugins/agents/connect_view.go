@@ -56,6 +56,9 @@ const (
 	landReviewLabel   = "Review…"
 	landMergeLabel    = "Merge"
 	landLeaveLabel    = "Leave it unlanded…"
+	landReviewShort   = "review"
+	landMergeShort    = "merge"
+	landLeaveShort    = "leave"
 	repoFolderIcon    = "folder"
 	landHeadNode      = "land"
 	connectHeadNode   = "connect"
@@ -284,9 +287,9 @@ func landCard(rec record, i int) sdui.Node {
 		Hint:    landHint(after),
 		Confirm: leaveQuestion(r.Name, after),
 		Options: []sdui.PermissionOption{
-			{ID: landActionReview, Label: landReviewLabel, Kind: "allow_once", Shortcut: "opt+1"},
-			{ID: landActionMerge, Label: landMergeLabel, Shortcut: "opt+2"},
-			{ID: landActionLeave, Label: landLeaveLabel, Kind: "reject_once", Shortcut: "opt+3"},
+			{ID: landActionReview, Label: landReviewLabel, Kind: "allow_once", Shortcut: "opt+1", Short: landReviewShort},
+			{ID: landActionMerge, Label: landMergeLabel, Shortcut: "opt+2", Short: landMergeShort},
+			{ID: landActionLeave, Label: landLeaveLabel, Kind: "reject_once", Shortcut: "opt+3", Short: landLeaveShort},
 		},
 	}))
 }

@@ -201,7 +201,9 @@ struct SessionDetailView: View {
                         perform { try await store.reviewed(sessionID) }
                     }
                 }
-                if session?.status == .running {
+                if let round = session?.heldRound {
+                    HeldRoundLine(round: round) { run in context.navigation.detail = run }
+                } else if session?.status == .running, session?.turnHeld != true {
                     HStack(spacing: 8) {
                         ProgressView()
                         Text("Working…").foregroundStyle(Color.captionInk)
@@ -1312,5 +1314,29 @@ struct ComposerView: View {
 
     private func paste(_ data: Data) {
         if let jpeg = PhotoEncoder.jpeg(data) { attachments.append(.photo(jpeg)) }
+    }
+}
+
+struct HeldRoundLine: View {
+    let round: HeldRound
+    let open: (String) -> Void
+
+    var body: some View {
+        if let run = round.run {
+            Button { open(run) } label: { line }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("held-round")
+        } else {
+            line
+        }
+    }
+
+    private var line: some View {
+        Text(round.text)
+            .font(.footnote)
+            .foregroundStyle(Color.captionInk)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
+            .id("held-round")
     }
 }

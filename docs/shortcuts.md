@@ -261,7 +261,7 @@ A connect request (`Connect a repo?`), a Land request (`Land ‹repo›?`) or a 
 | Space | Connect card: un-tick or tick the focused repo; un-ticked repos are skipped |
 | ↑ ↓ | Connect card: move between repos; moving past the third opens the folded ones |
 | ⌥1 ⌥2 ⌥3 | Land card: Review… (opens the repo's diff, never merges) · Merge · Leave it unlanded… (⌥3 again confirms, Esc or ↩ cancels) |
-| ⌥1 ⌥2 ⌥3 | Land review card ("Land ‹branch› without another review?"): Land anyway · One more round · Stop |
+| ⌥1 ⌥2 ⌥3 | Land review card ("‹graph› still asks for changes after N rounds"): Land anyway · One more round · Stop |
 | ⌥1 ⌥2 ⌥3 | Held turn card ("‹graph› still asks for changes after N rounds" / "‹graph› ended without a verdict"): Accept as done · One more round · Stop |
 
 ## Agent questions (Agents section or Code chat panel)

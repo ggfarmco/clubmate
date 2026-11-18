@@ -175,6 +175,7 @@ type PermissionOption struct {
 	Label     string `json:"label"`
 	Kind      string `json:"kind,omitempty"`
 	Shortcut  string `json:"shortcut,omitempty"`
+	Short     string `json:"short,omitempty"`
 	Menu      bool   `json:"menu,omitempty"`
 	Rule      string `json:"rule,omitempty"`
 	Scope     string `json:"scope,omitempty"`
@@ -225,14 +226,16 @@ type ConnectRepoProps struct {
 }
 
 type LandRequestProps struct {
-	Title   string
-	Caption string
-	Name    string
-	Detail  string
-	Rule    string
-	Hint    string
-	Confirm string
-	Options []PermissionOption
+	Title    string
+	Caption  string
+	Name     string
+	Detail   string
+	Rule     string
+	Hint     string
+	Confirm  string
+	Question string
+	Gate     bool
+	Options  []PermissionOption
 }
 
 type Command struct {
@@ -1009,8 +1012,11 @@ func ConnectRepoCard(id, request string, p ConnectRepoProps) Node {
 
 func LandRequestCard(id, request string, p LandRequestProps) Node {
 	props := map[string]any{"request": request, "title": p.Title, "name": p.Name, "options": nonNil(p.Options)}
-	for _, kv := range [][2]string{{"caption", p.Caption}, {"detail", p.Detail}, {"rule", p.Rule}, {"hint", p.Hint}, {"confirm", p.Confirm}} {
+	for _, kv := range [][2]string{{"caption", p.Caption}, {"detail", p.Detail}, {"rule", p.Rule}, {"hint", p.Hint}, {"confirm", p.Confirm}, {"question", p.Question}} {
 		props = withOptional(props, kv[0], kv[1])
+	}
+	if p.Gate {
+		props["gate"] = true
 	}
 	return Node{Type: "request.land", ID: id, Props: props}
 }
@@ -1104,6 +1110,10 @@ func WithOverflow(n Node) Node {
 
 func WithCorner(n Node) Node {
 	return withProp(n, "corner", true)
+}
+
+func WithSegmented(n Node) Node {
+	return withProp(n, "segmented", true)
 }
 
 func WithDock(n Node) Node {

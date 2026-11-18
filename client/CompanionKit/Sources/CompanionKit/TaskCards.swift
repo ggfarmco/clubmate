@@ -152,6 +152,7 @@ public struct LandCard: Decodable, Sendable, Equatable, Identifiable {
     public var detail: String?
     public var rule: String?
     public var confirm: String?
+    public var question: String?
     public let options: [Option]
 
     public var id: String { request }

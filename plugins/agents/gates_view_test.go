@@ -300,7 +300,7 @@ func TestGatePageFactsForDone(t *testing.T) {
 	assert.Equal(t, gateDoneIcon, nodesOf(tree, "header")[0].Props["icon"])
 	texts := textsOf(tree)
 	assert.Contains(t, texts, gateHoldsDone)
-	assert.Contains(t, texts, "top-level and AFK sessions · plans and specs: **/plans/*.md or **/specs/*.md")
+	assert.Contains(t, texts, "top-level AFK sessions · wrote plans and specs: **/plans/*.md or **/specs/*.md")
 	assert.NotContains(t, texts, gateDocsOnly)
 	table := nodesOf(tree, "table")[0]
 	var titles []string
@@ -356,12 +356,23 @@ func TestSheetHoldsDone(t *testing.T) {
 		require.NoError(t, internalsdui.Validate(sdui.VStack(n)))
 	}
 	sheet := nodesOf(sheets[0], "sheet")[0]
-	assert.Equal(t, "Holds a top-level or AFK agent's done turn in shop when it wrote a plan or a spec; Fable review decides.", sheet.Props["note"])
+	assert.Equal(t, "Holds a top-level AFK session's done turn in shop when it wrote a plan or a spec; Fable review decides.", sheet.Props["note"])
 	assert.Equal(t, gatePointTurn, nodesOf(sheets[0], "tabs")[0].Props["selected"])
 	assert.Contains(t, textsOf(sheets[0]), gateHoldsDoneLine)
+	assert.Contains(t, textsOf(sheets[0]), "Holds done turns from the sessions you pick. Only AFK leaves sessions you're running yourself alone.")
+	var checks []string
+	for _, c := range nodesOf(sheets[0], "toggle") {
+		checks = append(checks, fmt.Sprint(c.Props["label"]))
+	}
+	assert.Equal(t, []string{"Top-level", "Children", "Only AFK sessions"}, checks)
 	assert.Nil(t, saveButton(t, sheets[0]).Props["disabled"])
 	assert.Equal(t, true, saveButton(t, sheets[1]).Props["disabled"])
-	assert.Contains(t, textsOf(sheets[1]), gateSessionsLine)
+	assert.Equal(t, "Pick top-level, children or both.", nodesOf(sheets[1], "sheet")[0].Props["note"])
+	for _, n := range nodesOf(sheets[1], "text") {
+		if n.Props["text"] == gateSessionsLine {
+			assert.Equal(t, toneWarning, n.Props["tone"])
+		}
+	}
 	assert.Equal(t, true, saveButton(t, sheets[2]).Props["disabled"])
 	assert.Equal(t, errGateWrote.Error(), nodesOf(sheets[2], "textField")[0].Props["error"])
 }

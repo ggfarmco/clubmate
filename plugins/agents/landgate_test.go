@@ -243,7 +243,11 @@ func TestCardOffersThreeAnswers(t *testing.T) {
 	g := startGate(t)
 	g.cardAtCap(t)
 
-	options, _ := g.f.phoneTranscript(t, g.workspace, g.lander).Request.Props["options"].([]any)
+	props := g.f.phoneTranscript(t, g.workspace, g.lander).Request.Props
+	assert.Regexp(t, `^\S.* still asks for changes after \d+ rounds?$`, props["title"])
+	assert.NotContains(t, props["title"], "The review")
+	assert.Regexp(t, `^Land .+ without another review\?$`, props["question"])
+	options, _ := props["options"].([]any)
 
 	var got [][2]string
 	for _, o := range options {

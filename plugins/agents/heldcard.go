@@ -123,11 +123,12 @@ func heldCard(rec record, h heldTurn) sdui.Node {
 		rule = heldRuleChanges
 	}
 	return roundsCard(rec, h.Request, heldAcceptLabel, sdui.LandRequestProps{
-		Title:   heldCardTitle(h),
-		Caption: heldCaption(h),
-		Name:    cmp.Or(rec.Title, h.Name),
-		Detail:  heldDetail(h),
-		Rule:    rule,
+		Title:    heldCardTitle(h),
+		Caption:  heldCaption(h),
+		Name:     cmp.Or(rec.Title, h.Name),
+		Detail:   heldDetail(h),
+		Rule:     rule,
+		Question: heldQuestion(h),
 	})
 }
 

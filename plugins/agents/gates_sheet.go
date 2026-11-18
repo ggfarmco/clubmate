@@ -133,7 +133,7 @@ func gateSheetView(d gateDraft) sdui.Node {
 		ok2 = sdui.WithDisabled(ok2)
 	}
 	note, tone := gateSheetNote, ""
-	if !disabled {
+	if !disabled || d.Point == gatePointTurn && !validKinds(d.Sessions) {
 		note = gateSentenceOf(d)
 	}
 	if d.Err != "" {

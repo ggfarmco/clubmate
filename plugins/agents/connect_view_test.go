@@ -146,6 +146,8 @@ func TestLandCardNamesItsOrderAndWhatItHolds(t *testing.T) {
 	options := card.Props["options"].([]sdui.PermissionOption)
 	require.Len(t, options, 3)
 	assert.Equal(t, "opt+3", options[2].Shortcut)
+	assert.Equal(t, []string{"review", "merge", "leave"}, []string{options[0].Short, options[1].Short, options[2].Short})
+	assert.NotContains(t, card.Props, "gate")
 }
 
 func TestAConnectRequestDocksBeforeALandRequest(t *testing.T) {

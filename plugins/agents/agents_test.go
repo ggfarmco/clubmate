@@ -79,7 +79,12 @@ type record struct {
 	Hidden        bool   `json:"hidden"`
 	Kind          string `json:"kind"`
 	RowUnder      string `json:"rowUnder"`
-	Landing       *struct {
+	TurnHeld      bool   `json:"turnHeld"`
+	HeldRound     *struct {
+		Text string `json:"text"`
+		Run  string `json:"run"`
+	} `json:"heldRound"`
+	Landing *struct {
 		Round    int    `json:"round"`
 		Of       int    `json:"of"`
 		Verdict  string `json:"verdict"`

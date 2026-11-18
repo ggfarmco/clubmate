@@ -83,11 +83,11 @@ enum LandReviewFixture {
                 "landing": landing("approved", round: 2, words: "approved", tone: "success", badge: "approved", reviewer: ""),
             ]),
             record(held, "Write the inbox plan", status: "running", group: "running", ago: 40, [
-                "turnStartedAt": stamp(400),
+                "turnStartedAt": stamp(400), "turnHeld": .bool(true), "heldRound": .object(["text": .string("Plan pipeline · round 1 changes · round 2 reviewing"), "run": .string("gr_00000000000000b9")]),
                 "landing": .object(["round": .number(1), "of": .number(1), "verdict": .string("reviewing"), "words": .string("held"), "tone": .string("accent"), "badge": .string("held · plans and specs"), "badgeTone": .string("accent"), "into": .string(""), "held": .string("plans and specs"), "line": .string("Held · plans and specs · Plan pipeline…")]),
             ]),
             record(heldCard, "Plan rate limits", status: "running", group: "needsYou", ago: 90, [
-                "needsYou": .bool(true), "needsYouSince": stamp(90), "pending": .array([.string(heldRequest)]), "requests": .array([.string(heldRequest)]),
+                "turnHeld": .bool(true), "heldRound": .object(["text": .string("Plan pipeline · round 1 changes · round 2 changes"), "run": .string("gr_00000000000000ba")]), "needsYou": .bool(true), "needsYouSince": stamp(90), "pending": .array([.string(heldRequest)]), "requests": .array([.string(heldRequest)]),
                 "pendingSummary": .object(["kind": .string("land"), "text": .string("Plan pipeline still asks for changes after 2 rounds"), "onMac": .bool(true), "at": stamp(90)]),
             ]),
         ]
@@ -99,7 +99,7 @@ enum LandReviewFixture {
         }
         let heldNode = JSONValue.object(["type": .string("request.land"), "id": .string(heldCard + "/landgate/" + heldRequest), "props": .object([
             "request": .string(heldRequest), "title": .string("Plan pipeline still asks for changes after 2 rounds"), "name": .string("Plan rate limits"), "dock": .bool(true),
-            "caption": .string("shop · Done · plans and specs · held since 12:41"),
+            "caption": .string("shop · Done · plans and specs · held since 12:41"), "gate": .bool(true), "question": .string("Accept the plan as done?"),
             "detail": .string("- Fable review — the plan still doesn't say who owns the muted-workspace setting\n- Lint — plans/inbox-groups.md:12 line length\n\nSummary: Groups the inbox by workspace, then by day; muted workspaces fold into one row."),
             "rule": .string("Accept as done shows the turn as done as it is. One more round sends the agent these findings and reviews its next finished turn. Stop leaves the session idle and its turn not done."),
             "options": .array([option("merge", "Accept as done", "allow_once", "opt+1"), option("more", "One more round", nil, "opt+2"), option("leave", "Stop", "reject_once", "opt+3")]),

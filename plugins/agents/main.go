@@ -441,6 +441,8 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		info.NeedsYou = needsYou(info.record)
 		info.Gate = a.gateState(info.record)
 		info.Landing = a.landing(info.record)
+		info.TurnHeld = a.turnHeld(info.record)
+		info.HeldRound = a.heldRound(info.record)
 		info.Service = rec.restricted()
 		info.Aside = asideViewOf(rec)
 		info.CanAside = a.canAside(rec)

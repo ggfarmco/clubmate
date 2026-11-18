@@ -9,6 +9,27 @@ struct TabsNode: View {
     @Environment(\.sduiInset) private var inset
 
     var body: some View {
+        if node.bool("segmented") == true {
+            Picker("", selection: Binding(get: { selected }, set: { id in
+                selected = id
+                context.run { await $0.fire(node, .select(id)) }
+            })) {
+                ForEach(node.items()) { item in
+                    Text(item.label).tag(item.id)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, inset)
+            .onChange(of: node.string("selected"), initial: true) { _, value in
+                selected = value ?? ""
+            }
+        } else {
+            chips
+        }
+    }
+
+    private var chips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(node.items()) { item in

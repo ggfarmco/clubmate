@@ -145,6 +145,8 @@ type sessionInfo struct {
 	Hidden          bool               `json:"hidden,omitempty"`
 	RowUnder        string             `json:"rowUnder,omitempty"`
 	Landing         *landingView       `json:"landing,omitempty"`
+	TurnHeld        bool               `json:"turnHeld,omitempty"`
+	HeldRound       *heldRoundView     `json:"heldRound,omitempty"`
 	ShareWords      map[string]string  `json:"shareWords,omitempty"`
 	ShareDetail     string             `json:"shareDetail,omitempty"`
 	Aside           *asideView         `json:"aside,omitempty"`

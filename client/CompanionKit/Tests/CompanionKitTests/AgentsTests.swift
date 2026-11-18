@@ -266,7 +266,7 @@ final class AgentsTests: XCTestCase {
     func testHeldSessionReadsItsLine() async throws {
         let runner = ScriptedRunner(replies: [], sessions: [#"""
         {"sessions":[
-          {"id":"held","status":"running","group":"running","landing":{"round":1,"of":1,"verdict":"reviewing","words":"held","tone":"accent","badge":"held · plans and specs","held":"plans and specs","line":"Held · plans and specs · Plan pipeline…"}}
+          {"id":"held","status":"running","group":"running","turnHeld":true,"heldRound":{"text":"Plan pipeline · round 1 reviewing","run":"gr_1"},"landing":{"round":1,"of":1,"verdict":"reviewing","words":"held","tone":"accent","badge":"held · plans and specs","held":"plans and specs","line":"Held · plans and specs · Plan pipeline…"}}
         ],"removed":[],"cursor":"e.1"}
         """#])
         let store = AgentsStore(workspace: "w", runner: runner)
@@ -274,6 +274,8 @@ final class AgentsTests: XCTestCase {
         let line = try XCTUnwrap(store.session("held")).stateLine(now: .now)
         XCTAssertEqual([line.text], ["Held · plans and specs · Plan pipeline…"])
         XCTAssertEqual(line.tone, .accent)
+        XCTAssertTrue(try XCTUnwrap(store.session("held")).turnHeld)
+        XCTAssertEqual(try XCTUnwrap(store.session("held")).heldRound, HeldRound(text: "Plan pipeline · round 1 reviewing", run: "gr_1"))
     }
 
     func testStopSendsItsTurnAndAStaleOneRefreshesTheSession() async throws {

@@ -186,7 +186,7 @@ var (
 		"divider": {children: noChildren},
 		"tabs": {
 			required:    []string{"items", "selected"},
-			props:       map[string]propCheck{"items": listOf(itemCheck), "selected": isString, "action": actionCheck},
+			props:       map[string]propCheck{"items": listOf(itemCheck), "selected": isString, "segmented": isBool, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},
@@ -319,7 +319,7 @@ var (
 			required: []string{"request", "title", "name", "options"},
 			props: map[string]propCheck{
 				"request": isString, "title": isString, "caption": isString, "name": isString, "detail": isString, "rule": isString, "hint": isString, "confirm": isString,
-				"options": listOf(permissionOptionCheck), "dock": isBool, "action": actionCheck,
+				"question": isString, "gate": isBool, "options": listOf(permissionOptionCheck), "dock": isBool, "action": actionCheck,
 			},
 			children:    noChildren,
 			interactive: true,
@@ -846,7 +846,7 @@ func cardActionCheck(c *validator, v any) error {
 
 func permissionOptionCheck(c *validator, v any) error {
 	return objectCheck([]string{"id", "label"}, map[string]propCheck{
-		"id": uniqueItemID, "label": isString, "kind": oneOf(permissionKinds), "shortcut": shortcutCheck, "menu": isBool, "rule": isString, "scope": isString, "workspace": isString,
+		"id": uniqueItemID, "label": isString, "kind": oneOf(permissionKinds), "shortcut": shortcutCheck, "short": isString, "menu": isBool, "rule": isString, "scope": isString, "workspace": isString,
 	})(c, v)
 }
 

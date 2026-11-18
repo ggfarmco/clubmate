@@ -18,6 +18,14 @@ public enum PermissionKeys {
         digit(index, in: options).map { "⌥\($0)" }
     }
 
+    public static func hints(_ options: [SDUIPermissionOption]) -> String {
+        options.indices.compactMap { index in
+            let option = options[index]
+            let word = option.short ?? (option.label.hasSuffix("…") ? String(option.label.dropLast()) : option.label).lowercased()
+            return label(index, in: options).map { $0 + " " + word }
+        }.joined(separator: " · ")
+    }
+
     private static func digit(_ index: Int, in options: [SDUIPermissionOption]) -> Int? {
         let option = options[index]
         guard !option.menu else { return nil }

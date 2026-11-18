@@ -303,33 +303,63 @@ struct LandRequestCardView: View {
     @Environment(\.composerDrafts) private var drafts
 
     private var options: [SDUIPermissionOption] { node.permissionOptions() }
+    private var gate: Bool { node.bool("gate") == true }
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing.l) {
-            HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
-                Image(systemName: "arrow.triangle.branch")
-                    .foregroundStyle(theme.warning)
-                Text(node.string("title") ?? "")
-                    .font(theme.strong)
-                    .foregroundStyle(theme.foreground)
-                    .lineLimit(1)
-                    .fixedSize()
-                Text(node.string("caption") ?? "")
-                    .font(theme.uiSmall)
-                    .foregroundStyle(theme.muted)
-                    .lineLimit(1)
-                    .truncationMode(.label)
-                    .help(node.string("caption") ?? "")
+            if gate {
+                VStack(alignment: .leading, spacing: theme.spacing.s) {
+                    HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
+                        Image(systemName: "exclamationmark.circle")
+                            .foregroundStyle(theme.warning)
+                        Text(node.string("title") ?? "")
+                            .font(theme.strong)
+                            .foregroundStyle(theme.foreground)
+                            .lineLimit(1)
+                            .truncationMode(.label)
+                            .help(node.string("title") ?? "")
+                    }
+                    if let question = node.string("question") {
+                        Text(question)
+                            .font(theme.title)
+                            .foregroundStyle(theme.foreground)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let caption = node.string("caption") {
+                        Text(caption)
+                            .font(theme.uiSmall)
+                            .foregroundStyle(theme.muted)
+                            .lineLimit(1)
+                            .truncationMode(.label)
+                            .help(caption)
+                    }
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
+                    Image(systemName: "arrow.triangle.branch")
+                        .foregroundStyle(theme.warning)
+                    Text(node.string("title") ?? "")
+                        .font(theme.strong)
+                        .foregroundStyle(theme.foreground)
+                        .lineLimit(1)
+                        .fixedSize()
+                    Text(node.string("caption") ?? "")
+                        .font(theme.uiSmall)
+                        .foregroundStyle(theme.muted)
+                        .lineLimit(1)
+                        .truncationMode(.label)
+                        .help(node.string("caption") ?? "")
+                }
+                HStack(spacing: theme.spacing.m) {
+                    Image(systemName: "folder")
+                    Text(node.string("name") ?? "")
+                        .font(theme.title)
+                        .lineLimit(1)
+                        .truncationMode(.label)
+                        .help(node.string("name") ?? "")
+                }
+                .foregroundStyle(theme.foreground)
             }
-            HStack(spacing: theme.spacing.m) {
-                Image(systemName: "folder")
-                Text(node.string("name") ?? "")
-                    .font(theme.title)
-                    .lineLimit(1)
-                    .truncationMode(.label)
-                    .help(node.string("name") ?? "")
-            }
-            .foregroundStyle(theme.foreground)
             if let detail = node.string("detail") {
                 InlineCardText(text: detail, color: theme.text2)
             }
@@ -406,7 +436,7 @@ struct LandRequestCardView: View {
     }
 
     private var keyHints: String {
-        options.compactMap { option in shortcut(option).map { $0 + " " + Self.plain(option.label).lowercased() } }.joined(separator: " · ")
+        PermissionKeys.hints(options)
     }
 
     private static func plain(_ label: String) -> String {
