@@ -57,6 +57,7 @@ type notifier struct {
 	saves map[*session]bool
 	turns []api.Turn
 	asks  []change
+	cards []notifyPost
 	ends  []ending
 	endq  endQueue
 	timer *time.Timer
@@ -137,6 +138,13 @@ func (n *notifier) requested(s *session, kind, request string) {
 	n.poke()
 }
 
+func (n *notifier) carded(p notifyPost) {
+	n.mu.Lock()
+	n.cards = append(n.cards, p)
+	n.mu.Unlock()
+	n.poke()
+}
+
 func (n *notifier) turn(p api.Turn) {
 	n.mu.Lock()
 	n.turns = append(n.turns, p)
@@ -165,8 +173,8 @@ func (n *notifier) poke() {
 func (n *notifier) run() {
 	for range n.wake {
 		n.mu.Lock()
-		order, saves, turns, asks, ends := n.order, n.saves, n.turns, n.asks, n.ends
-		n.order, n.seen, n.saves, n.turns, n.asks, n.ends = nil, map[change]bool{}, map[*session]bool{}, nil, nil, nil
+		order, saves, turns, asks, cards, ends := n.order, n.saves, n.turns, n.asks, n.cards, n.ends
+		n.order, n.seen, n.saves, n.turns, n.asks, n.cards, n.ends = nil, map[change]bool{}, map[*session]bool{}, nil, nil, nil, nil
 		n.mu.Unlock()
 		if len(saves) > 0 {
 			time.Sleep(n.hold)
@@ -188,6 +196,9 @@ func (n *notifier) run() {
 		}
 		for _, c := range asks {
 			n.notify(ctx, c)
+		}
+		for _, p := range cards {
+			n.post(ctx, p)
 		}
 		now := time.Now()
 		for _, e := range ends {
@@ -246,6 +257,9 @@ func (a *app) notifyEnd(s *session, t api.Turn) {
 		kind = notifyAsks
 	}
 	rec := s.snapshot()
+	if kind == notifyDone && rec.gateWaits() {
+		return
+	}
 	if _, reminded := a.reminders.at(rec.Workspace, rec.ID); reminded && kind != notifyStuck {
 		return
 	}

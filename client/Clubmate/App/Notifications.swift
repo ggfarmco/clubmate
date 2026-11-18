@@ -104,6 +104,9 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         guard !event.workspace.isEmpty, let fields = event.payload.objectValue else { return }
         switch fields["kind"]?.stringValue {
         case "status", "resolved":
+            if fields["requestKind"]?.stringValue == "gate", let session = fields["session"]?.stringValue {
+                withdraw(hub.handleGateAnswered(workspace: event.workspace, session: session))
+            }
             await checkAgents(event.workspace, session: fields["session"]?.stringValue)
         case "deleted":
             if let session = fields["session"]?.stringValue { agentDeleted(event.workspace, session) }

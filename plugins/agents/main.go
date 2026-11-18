@@ -327,6 +327,7 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 	s = newSession(rec, newEventLog(logPath(a.stateDir, rec.ID)), loaded, func(kind string, save bool) {
 		if kind == changeStatus {
 			a.holdSynced(s)
+			a.cardsSynced(s)
 			a.wakeWaiters()
 			a.statusChanged(s)
 			a.settleGatedDocs(s)
@@ -341,6 +342,7 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 		h := *rec.Held
 		s.holdOf = &h
 	}
+	s.cards = rec.openCards()
 	s.setup = ready
 	s.wantTasks = func() { a.wantTasks(rec.Workspace, s) }
 	s.turned = func(t api.Turn) {

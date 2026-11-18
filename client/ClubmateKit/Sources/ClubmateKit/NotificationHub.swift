@@ -184,6 +184,11 @@ public struct NotificationHub: Sendable {
         }
     }
 
+    @discardableResult
+    public mutating func handleGateAnswered(workspace: String, session: String) -> [String] {
+        inbox.handle { $0.note.source == .bus && $0.note.kind == .needsInput && $0.note.workspace == workspace && $0.note.session == session }
+    }
+
     public mutating func keep(_ workspaces: Set<String>) {
         inbox.keep(workspaces)
     }

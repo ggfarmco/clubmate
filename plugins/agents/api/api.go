@@ -24,6 +24,7 @@ const (
 
 	RequestPermission  = "permission"
 	RequestElicitation = "elicitation"
+	RequestGate        = "gate"
 
 	StatusClosed = "closed"
 )

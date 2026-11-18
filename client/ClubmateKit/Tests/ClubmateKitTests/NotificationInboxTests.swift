@@ -98,6 +98,17 @@ final class NotificationInboxTests: XCTestCase {
         XCTAssertEqual(hub.handleResolved(workspace: "w", session: nil, sessions: [asking[1]]), [])
     }
 
+    func testAnsweredGateCardHandlesOnlyItsSessionsNeedsInputNotes() {
+        var hub = NotificationHub()
+        let away = HubFocus(appActive: false, workspace: nil)
+        for (id, session, kind) in [("gate", "agt_1", NotificationKind.needsInput), ("done", "agt_1", .done), ("other", "agt_2", .needsInput)] {
+            XCTAssertTrue(hub.receive(HubNotification(id: id, workspace: "w", session: session, message: "?", kind: kind), focus: away, now: now))
+        }
+
+        XCTAssertEqual(hub.handleGateAnswered(workspace: "w", session: "agt_1"), ["gate"])
+        XCTAssertEqual(hub.inbox.unhandled, ["done", "other"])
+    }
+
     func testPendingQuestionIsItsOwnKindAndLeavesOnceAnswered() {
         var hub = NotificationHub()
         let asking = AgentSession(id: "agt_1", workspace: "w", agent: "claude", title: "", status: .waiting, pending: ["elicitation-2"])

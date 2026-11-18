@@ -54,6 +54,10 @@ public struct DeliveredNotice: Sendable, Equatable {
 
 extension NotificationKind {
     public static func resolved(by requestKind: String?) -> [NotificationKind] {
-        requestKind == "elicitation" ? [.question, .needsInput] : [.permission]
+        switch requestKind {
+        case "elicitation": [.question, .needsInput]
+        case "gate": [.needsInput]
+        default: [.permission]
+        }
     }
 }

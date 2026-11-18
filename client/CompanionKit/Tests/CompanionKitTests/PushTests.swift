@@ -26,6 +26,7 @@ final class PushTests: XCTestCase {
         XCTAssertEqual(DeliveredNotice.withdrawn(["mac1|n1", "mac1|n2"], from: delivered), ["mac1|n1", "SYS-2"])
         XCTAssertEqual(DeliveredNotice.resolved(["resolved": ["computer": "mac1", "session": "s1", "requestKind": "permission"]], from: delivered), ["mac1|n1"])
         XCTAssertEqual(DeliveredNotice.resolved(["resolved": ["computer": "mac1", "session": "s1", "requestKind": "elicitation"]], from: delivered), ["SYS-2"])
+        XCTAssertEqual(DeliveredNotice.resolved(["resolved": ["computer": "mac2", "session": "s1", "requestKind": "gate"]], from: delivered), ["SYS-3"])
         XCTAssertNil(DeliveredNotice.resolved(["aps": ["content-available": 1]], from: delivered))
     }
 

@@ -1,0 +1,56 @@
+package main
+
+import (
+	"cmp"
+	"fmt"
+	"slices"
+
+	"clubmate/plugins/agents/api"
+)
+
+const cardMessageFormat = "%s · %s"
+
+func (r record) openCards() []string {
+	if r.closed() {
+		return nil
+	}
+	return r.gateRequests()
+}
+
+func (a *app) cardsSynced(s *session) {
+	s.mu.Lock()
+	rec, was := s.rec, s.cards
+	now := rec.openCards()
+	s.cards = now
+	s.mu.Unlock()
+	for _, request := range now {
+		if !slices.Contains(was, request) {
+			a.cardOpened(rec, request)
+		}
+	}
+	for _, request := range was {
+		if !slices.Contains(now, request) {
+			a.notes.resolved(s, api.RequestGate, request)
+		}
+	}
+}
+
+func (a *app) cardOpened(rec record, request string) {
+	a.notes.superseded(rec.ID)
+	if a.effectiveNotify(rec) == notifyMuted {
+		return
+	}
+	a.notes.carded(notifyPost{WorkspaceID: rec.Workspace, Session: rec.ID, Collapse: rec.ID, Title: rec.Title, Message: cardMessage(rec, request), Kind: notifyAsks})
+}
+
+func cardMessage(rec record, request string) string {
+	if rec.heldWaits() && rec.Held.Request == request {
+		return heldCardTitle(*rec.Held)
+	}
+	i := slices.IndexFunc(rec.LandReviews, func(st landReview) bool { return st.Request == request })
+	if i < 0 {
+		return ""
+	}
+	st := rec.LandReviews[i]
+	return fmt.Sprintf(cardMessageFormat, fmt.Sprintf(heldChangesTitle, heldGraphFallback, counted(st.Rounds, "round")), fmt.Sprintf(gateCardTitle, cmp.Or(st.Source, st.Into)))
+}
