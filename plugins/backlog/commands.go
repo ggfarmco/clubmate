@@ -662,6 +662,9 @@ func (b *backlog) closeCmd(ctx context.Context, cmd pluginsdk.CommandRun, args c
 		return nil, errNoReason
 	}
 	t, cursor, err := b.store.mutate(ctx, cmd.WorkspaceID, args.ID, args.Seen, func(t *Task) error {
+		if t.Status == statusWontDo {
+			return errUnchanged
+		}
 		if t.Status == statusInProgress && !b.mayFinish(ctx, cmd.WorkspaceID, who, t) && !b.live.stale(ctx, cmd.WorkspaceID, t.ClaimedBy) {
 			return fmt.Errorf("task #%d is in progress by %s: %w", t.ID, t.ClaimedBy, errNotHolder)
 		}
@@ -672,6 +675,9 @@ func (b *backlog) closeCmd(ctx context.Context, cmd pluginsdk.CommandRun, args c
 		t.Note = withReason(t.Note, reason)
 		return nil
 	})
+	if errors.Is(err, errUnchanged) {
+		return taskReply{Task: t, Cursor: cursor}, nil
+	}
 	if err != nil {
 		return nil, err
 	}

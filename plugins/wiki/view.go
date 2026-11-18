@@ -1,7 +1,6 @@
 package main
 
 import (
-	"hash/crc32"
 	"html"
 	"maps"
 	"path"
@@ -415,8 +414,7 @@ func historyBody(d mainData) sdui.Node {
 	if len(d.History) == 0 {
 		return sdui.Empty("No changes yet")
 	}
-	rev := int(crc32.ChecksumIEEE([]byte(d.Change+d.Diff))&0x7fffffff) | 1
-	diff := sdui.Document(diffNode, sdui.DocumentProps{HTML: d.Diff, Path: d.Path + "@" + d.Change, Rev: rev, Size: sdui.SizeFill, Kind: sdui.DocumentMarkdown})
+	diff := sdui.Document(diffNode, sdui.DocumentProps{HTML: d.Diff, Path: d.Path + "@" + d.Change, Rev: rev([]byte(d.Change+d.Diff)) | 1, Size: sdui.SizeFill, Kind: sdui.DocumentMarkdown})
 	return sdui.Split("horizontal", sdui.Tree(changesNode, historyItems(d.History, d.Folded), d.Change), diff)
 }
 

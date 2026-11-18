@@ -122,7 +122,7 @@ func margin(d marginData) string {
 			if e.Folder {
 				icon = folderIcon
 			}
-			row := icon + `<span class="wm-label">` + html.EscapeString(e.Title) + `</span><span class="wm-detail">` + changeWhen(e.Updated, d.Now) + `</span>`
+			row := icon + `<span class="wm-label">` + html.EscapeString(e.Title) + `</span><span class="wm-detail">` + shortTime(e.Updated, d.Now) + `</span>`
 			if e.Path == "" {
 				b.WriteString(`<div class="wm-row" title="` + html.EscapeString(e.Title) + `">` + row + `</div>`)
 				continue
@@ -154,7 +154,7 @@ func margin(d marginData) string {
 		var b strings.Builder
 		b.WriteString(`<div class="wm-sec"><div class="wm-cap">Changes</div>`)
 		for _, c := range d.Changes[:min(len(d.Changes), marginChanges)] {
-			b.WriteString(`<div class="wm-row" title="` + html.EscapeString(c.Summary+" · "+c.By+" · "+c.At.Local().Format(timeLayout)) + `"><span class="wm-label">` + html.EscapeString(c.Summary) + `</span><span class="wm-detail">` + changeWhen(c.At, d.Now) + `</span></div>`)
+			b.WriteString(`<div class="wm-row" title="` + html.EscapeString(c.Summary+" · "+c.By+" · "+c.At.Local().Format(timeLayout)) + `"><span class="wm-label">` + html.EscapeString(c.Summary) + `</span><span class="wm-detail">` + shortTime(c.At, d.Now) + `</span></div>`)
 		}
 		if d.Total > marginChanges {
 			b.WriteString(`<a class="wm-row wm-all" href="` + html.EscapeString(docHref(d.Path, historyAnchor)) + `"><span class="wm-label">All ` + plural(d.Total, "change") + `</span><kbd>⌘Y</kbd></a>`)
@@ -198,11 +198,4 @@ func staleWhen(at, now time.Time) string {
 		return "today " + at.Local().Format("15:04")
 	}
 	return at.Local().Format(timeLayout)
-}
-
-func changeWhen(at, now time.Time) string {
-	if sameDay(at, now) {
-		return at.Local().Format("15:04")
-	}
-	return at.Local().Format("Jan 2")
 }

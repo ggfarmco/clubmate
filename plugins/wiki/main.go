@@ -23,6 +23,9 @@ type wiki struct {
 	present map[string]bool
 	sigs    map[string]string
 	links   map[string]map[string]linkEntry
+
+	versionsMu sync.Mutex
+	versions   map[versionKey]pageVersion
 }
 
 type changedEvent struct {
@@ -31,7 +34,7 @@ type changedEvent struct {
 }
 
 func newWiki() *wiki {
-	return &wiki{now: time.Now, ui: map[string]*workspaceUI{}, present: map[string]bool{}, sigs: map[string]string{}, links: map[string]map[string]linkEntry{}}
+	return &wiki{now: time.Now, ui: map[string]*workspaceUI{}, present: map[string]bool{}, sigs: map[string]string{}, links: map[string]map[string]linkEntry{}, versions: map[versionKey]pageVersion{}}
 }
 
 func main() {

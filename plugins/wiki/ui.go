@@ -279,6 +279,18 @@ func (w *wiki) pageData(ctx context.Context, ws contract.Workspace, projects []w
 	return m
 }
 
+const maxVersions = 8
+
+type versionKey struct {
+	dir, page, rev string
+}
+
+type pageVersion struct {
+	diff  string
+	src   []byte
+	found bool
+}
+
 func rev(b []byte) int {
 	return int(crc32.ChecksumIEEE(b) & 0x7fffffff)
 }
@@ -296,7 +308,7 @@ func (w *wiki) margin(ctx context.Context, s *Store, abs string, page Page, page
 }
 
 func (w *wiki) historyData(ctx context.Context, s *Store, m *mainData, change string, folded map[string]bool) {
-	changes, err := s.History(ctx, m.Page.Path, historyLimit)
+	changes, err := s.HistoryStats(ctx, m.Page.Path, historyLimit)
 	logError("history "+m.Page.Path, err)
 	m.History, m.Folded = changes, folded
 	total, err := s.Count(ctx, m.Page.Path)
@@ -308,14 +320,37 @@ func (w *wiki) historyData(ctx context.Context, s *Store, m *mainData, change st
 	i := max(slices.IndexFunc(changes, func(c Change) bool { return c.Rev == change }), 0)
 	c := changes[i]
 	m.Change = c.Rev
-	diff, err := s.Diff(ctx, m.Page.Path, c.Rev)
-	logError("diff "+m.Page.Path, err)
+	v := w.version(ctx, s, m.Page.Path, c.Rev)
 	var after []string
-	if src, err := s.Version(ctx, m.Page.Path, c.Rev); err == nil {
-		after = strings.Split(string(src), "\n")
+	if v.found {
+		after = strings.Split(string(v.src), "\n")
 		m.CanRestore = i > 0
 	}
-	m.Diff = diffHTML(c, c.At.Local().Format(timeLayout), diff, after)
+	m.Diff = diffHTML(c, c.At.Local().Format(timeLayout), v.diff, after)
+}
+
+func (w *wiki) version(ctx context.Context, s *Store, page, rev string) pageVersion {
+	k := versionKey{dir: s.p.Dir, page: page, rev: rev}
+	w.versionsMu.Lock()
+	v, ok := w.versions[k]
+	w.versionsMu.Unlock()
+	if ok {
+		return v
+	}
+	diff, err := s.Diff(ctx, page, rev)
+	logError("diff "+page, err)
+	src, verr := s.Version(ctx, page, rev)
+	v = pageVersion{diff: diff, src: src, found: verr == nil}
+	if err != nil || verr != nil && !errors.Is(verr, errNotFound) || ctx.Err() != nil {
+		return v
+	}
+	w.versionsMu.Lock()
+	defer w.versionsMu.Unlock()
+	if len(w.versions) >= maxVersions {
+		clear(w.versions)
+	}
+	w.versions[k] = v
+	return v
 }
 
 func scope(ws contract.Workspace, projects []wikiroot.Project) func(string) bool {

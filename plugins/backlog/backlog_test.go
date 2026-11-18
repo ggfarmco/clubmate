@@ -263,6 +263,51 @@ func TestWontDoFromTheTaskPane(t *testing.T) {
 	assert.Equal(t, "Won't do: covered by #9", got.Note)
 }
 
+func TestReasonClosesOnlyTheTaskItsFormIsDrawnFor(t *testing.T) {
+	e := newEnv(t)
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
+	s, x := e.add("S", nil), e.add("X", nil)
+	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "closeOpen", strconv.Itoa(s.ID))
+	e.h.Event(t, e.p, "backlog.main", "reasonText", "close", "")
+	e.slotHas("backlog.main", `"error":"Reason must not be empty"`)
+	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "closeOpen", strconv.Itoa(x.ID))
+	e.must(e.user("backlog.reveal", map[string]any{"id": s.ID}))
+	e.h.WaitSlot(t, e.p, "backlog.main", func(n sdui.Node) bool {
+		_, shown := nodeByID(n, "task-"+strconv.Itoa(s.ID))
+		_, form := nodeByID(n, "reasonText")
+		return shown && !form
+	})
+
+	e.h.Event(t, e.p, "backlog.main", "reasonText", "close", "dup")
+
+	testutil.Never(t, func() bool { return len(e.listIDs(map[string]any{"status": "wont_do"})) > 0 }, 300*time.Millisecond)
+}
+
+func TestClosingAClosedTaskChangesNothing(t *testing.T) {
+	e := newEnv(t)
+	tk := e.add("work", nil)
+	e.must(e.user("backlog.close", map[string]any{"id": tk.ID, "reason": "first"}))
+
+	again := e.must(e.user("backlog.close", map[string]any{"id": tk.ID, "reason": "second"}))
+
+	assert.Equal(t, "Won't do: first", again.Note)
+	closedEvents := func(events []bus.Event) int {
+		n := 0
+		for _, ev := range events {
+			if strings.Contains(string(ev.Payload), `"kind":"closed"`) {
+				n++
+			}
+		}
+		return n
+	}
+	testutil.WaitEvents(t, e.h.Bus, "backlog.changed", func(events []bus.Event) bool { return closedEvents(events) >= 1 })
+	testutil.Never(t, func() bool {
+		events, err := e.h.Bus.Read(t.Context(), "backlog.changed", 0, 1000)
+		require.NoError(t, err)
+		return closedEvents(events) != 1
+	}, 300*time.Millisecond)
+}
+
 func TestWorkspaceDeletedDropsTasks(t *testing.T) {
 	e := newEnv(t)
 	e.add("one", nil)

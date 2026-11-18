@@ -27,10 +27,11 @@ var revPattern = regexp.MustCompile(`^[0-9a-f]{40,64}$`)
 type Store struct {
 	p   wikiroot.Project
 	now func() time.Time
+	git func(ctx context.Context, dir string, args ...string) ([]byte, error)
 }
 
 func Open(p wikiroot.Project, now func() time.Time) *Store {
-	return &Store{p: p, now: now}
+	return &Store{p: p, now: now, git: wikiroot.Git}
 }
 
 func (s *Store) lock() (func(), error) {
@@ -232,15 +233,23 @@ func (s *Store) Delete(ctx context.Context, page, by string) error {
 }
 
 func (s *Store) History(ctx context.Context, page string, limit int) ([]Change, error) {
+	return s.history(ctx, page, limit, nil)
+}
+
+func (s *Store) HistoryStats(ctx context.Context, page string, limit int) ([]Change, error) {
+	return s.history(ctx, page, limit, []string{"--numstat"})
+}
+
+func (s *Store) history(ctx context.Context, page string, limit int, stats []string) ([]Change, error) {
 	page, err := cleanPage(page)
 	if err != nil {
 		return nil, err
 	}
-	args := []string{"log", "--no-renames", "--numstat", "--format=%x1e%H%x00%at%x00%an%x00%s"}
+	args := append([]string{"log", "--no-renames", "--format=%x1e%H%x00%at%x00%an%x00%s"}, stats...)
 	if limit > 0 {
 		args = append(args, "-n", strconv.Itoa(limit))
 	}
-	out, err := wikiroot.Git(ctx, s.p.Dir, append(args, "--", page)...)
+	out, err := s.git(ctx, s.p.Dir, append(args, "--", page)...)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +279,7 @@ func (s *Store) Count(ctx context.Context, page string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	out, err := wikiroot.Git(ctx, s.p.Dir, "rev-list", "--count", "HEAD", "--", page)
+	out, err := s.git(ctx, s.p.Dir, "rev-list", "--count", "HEAD", "--", page)
 	if err != nil {
 		return 0, err
 	}
@@ -285,7 +294,7 @@ func (s *Store) Diff(ctx context.Context, page, rev string) (string, error) {
 	if !revPattern.MatchString(rev) {
 		return "", errNotFound
 	}
-	out, err := wikiroot.Git(ctx, s.p.Dir, "show", "--format=", "--no-color", "--no-ext-diff", "--no-renames", "-U3", rev, "--", page)
+	out, err := s.git(ctx, s.p.Dir, "show", "--format=", "--no-color", "--no-ext-diff", "--no-renames", "-U3", rev, "--", page)
 	if err != nil {
 		return "", err
 	}
@@ -300,7 +309,7 @@ func (s *Store) Version(ctx context.Context, page, rev string) ([]byte, error) {
 	if !revPattern.MatchString(rev) {
 		return nil, errNotFound
 	}
-	out, err := wikiroot.Git(ctx, s.p.Dir, "cat-file", "blob", rev+":"+page)
+	out, err := s.git(ctx, s.p.Dir, "cat-file", "blob", rev+":"+page)
 	if err != nil {
 		return nil, errNotFound
 	}
@@ -390,7 +399,7 @@ func (s *Store) Sweep(ctx context.Context) ([]string, error) {
 }
 
 func (s *Store) dirty(ctx context.Context) ([]string, error) {
-	out, err := wikiroot.Git(ctx, s.p.Dir, "status", "--porcelain", "-z", "--untracked-files=all")
+	out, err := s.git(ctx, s.p.Dir, "status", "--porcelain", "-z", "--untracked-files=all")
 	if err != nil {
 		return nil, err
 	}
@@ -416,10 +425,10 @@ func (s *Store) commit(ctx context.Context, metas map[string]Meta, page, by, sum
 	if err := s.saveMeta(metas); err != nil {
 		return err
 	}
-	if _, err := wikiroot.Git(ctx, s.p.Dir, "add", "-A", "-f", "--", page, metaFile); err != nil {
+	if _, err := s.git(ctx, s.p.Dir, "add", "-A", "-f", "--", page, metaFile); err != nil {
 		return err
 	}
-	_, err := wikiroot.Git(ctx, s.p.Dir, "commit", "-q", "--allow-empty", "--author", by+" <"+wikiroot.Email+">", "-m", page+": "+summary)
+	_, err := s.git(ctx, s.p.Dir, "commit", "-q", "--allow-empty", "--author", by+" <"+wikiroot.Email+">", "-m", page+": "+summary)
 	return err
 }
 

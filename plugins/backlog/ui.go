@@ -309,7 +309,10 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if err := json.Unmarshal(ev.Value, &reason); err != nil {
 			return fmt.Errorf("%s value: %w", ev.NodeID, err)
 		}
-		id := b.selected(w)
+		id := b.closingTask(w)
+		if id == 0 {
+			return nil
+		}
 		_, err := b.closeCmd(ctx, user, commandArgs{ID: id, Reason: reason})
 		b.mu.Lock()
 		defer b.mu.Unlock()
@@ -534,6 +537,15 @@ func (b *backlog) selected(w *workspaceUI) int {
 	return w.selected
 }
 
+func (b *backlog) closingTask(w *workspaceUI) int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if w.closing == w.selected || w.fieldError.field == reasonField && w.fieldError.task == w.selected {
+		return w.selected
+	}
+	return 0
+}
+
 func (b *backlog) taskAction(ctx context.Context, workspaceID string, w *workspaceUI, action string, id int) error {
 	user := pluginsdk.CommandRun{WorkspaceID: workspaceID}
 	args := commandArgs{ID: id}
@@ -624,6 +636,9 @@ func (b *backlog) openClose(ctx context.Context, workspaceID string, w *workspac
 	}
 	b.mu.Lock()
 	w.selected, w.closing = id, id
+	if w.fieldError.field == reasonField {
+		w.fieldError = fieldError{}
+	}
 	b.mu.Unlock()
 	b.render(ctx, workspaceID)
 	return b.h.FocusNode(ctx, workspaceID, sectionID, mainSlot, reasonField)

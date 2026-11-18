@@ -39,7 +39,10 @@ type taskPage struct {
 	Delta   bool   `json:"delta"`
 }
 
-var errTaskChanged = errors.New("the task changed since you saw it")
+var (
+	errTaskChanged = errors.New("the task changed since you saw it")
+	errUnchanged   = errors.New("task unchanged")
+)
 
 func taskPrefix(workspaceID string) string {
 	return "task/" + workspaceID + "/"
@@ -188,7 +191,9 @@ func (s *store) mutate(ctx context.Context, workspaceID string, id int, seen str
 		return Task{}, "", err
 	}
 	old := slices.Clone(t.Links)
-	if err := fn(&t); err != nil {
+	if err := fn(&t); errors.Is(err, errUnchanged) {
+		return t, tr.Cursor(), err
+	} else if err != nil {
 		return Task{}, "", err
 	}
 	if err := s.checkLinks(ctx, workspaceID, id, t.Links); err != nil {

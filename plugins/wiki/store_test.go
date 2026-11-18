@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -283,6 +284,35 @@ func TestWriteCommitsGloballyIgnoredPage(t *testing.T) {
 	assert.Equal(t, "a.md", git(t, p.Dir, "ls-files", "a.md"))
 }
 
+func TestHistoryRerenderReusesTheDiff(t *testing.T) {
+	p, _ := newProject(t)
+	s := Open(p, time.Now)
+	for _, body := range []string{"one", "two"} {
+		_, err := s.Write(t.Context(), WriteReq{Page: "a.md", Content: "# A\n\n" + body + "\n", Summary: body, By: "you"})
+		require.NoError(t, err)
+	}
+	calls := map[string]int{}
+	s.git = func(ctx context.Context, dir string, args ...string) ([]byte, error) {
+		calls[args[0]]++
+		return wikiroot.Git(ctx, dir, args...)
+	}
+	w := newWiki()
+	render := func(want string) {
+		for range 2 {
+			m := mainData{Page: &Page{Path: "a.md"}}
+			w.historyData(t.Context(), s, &m, "", nil)
+			assert.Contains(t, m.Diff, want)
+		}
+	}
+
+	render("two")
+	require.NoError(t, s.Delete(t.Context(), "a.md", "you"))
+	render("deleted")
+
+	assert.Equal(t, 2, calls["show"])
+	assert.Equal(t, 2, calls["cat-file"])
+}
+
 func TestHistoryCountsLinesAndRestoreCommitsOldText(t *testing.T) {
 	p, repo := newProject(t)
 	s := Open(p, time.Now)
@@ -291,7 +321,7 @@ func TestHistoryCountsLinesAndRestoreCommitsOldText(t *testing.T) {
 	_, err = s.Write(t.Context(), WriteReq{Page: "a.md", Content: "# A\n\nthree\n", Summary: "second", By: "Agent", Worktree: repo, Sources: []string{"a.go"}})
 	require.NoError(t, err)
 
-	changes, err := s.History(t.Context(), "a.md", historyLimit)
+	changes, err := s.HistoryStats(t.Context(), "a.md", historyLimit)
 	require.NoError(t, err)
 	require.Len(t, changes, 2)
 	assert.Equal(t, [2]int{1, 2}, [2]int{changes[0].Added, changes[0].Removed})
