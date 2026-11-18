@@ -74,6 +74,7 @@ type app struct {
 	gateMu      sync.Mutex
 	gatePrep    map[string]bool
 	gateTreeRun func(ctx context.Context, workspaceID string, args map[string]any, out any) error
+	docsRun     func(ctx context.Context, id, workspaceID string, args map[string]any) error
 	gateLogMu   sync.Mutex
 	liveGates   atomic.Pointer[map[string]bool]
 	gateRepos   sync.Map
@@ -281,7 +282,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, sub string, ev pl
 	case docsOpenedTopic, docsPresentedTopic:
 		var p docsPresented
 		if json.Unmarshal(ev.Payload, &p) == nil {
-			a.docPresented(p)
+			a.docPresented(docModes[ev.Topic], p)
 		}
 	case docsReadyTopic:
 		a.settleAllGatedDocs()

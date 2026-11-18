@@ -132,3 +132,57 @@ func TestQueuedDocWaitsForTheDocsPlugin(t *testing.T) {
 
 	testutil.Eventually(t, func() bool { return g.shown(t, "docs.opened") && !g.queued(t) }, wait)
 }
+
+func TestDocQueuedWhenGitFails(t *testing.T) {
+	t.Parallel()
+	g := startGatedDocs(t, nil)
+	write(t, filepath.Join(filepath.Dir(g.spec), ".git", "HEAD"), "garbage\n")
+
+	assert.Equal(t, queuedNote, g.agentDoc(t, "docs.open"))
+}
+
+func TestQueuedDocShowsWhenTheAgentAsks(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		step  map[string]any
+		shown bool
+	}{
+		"question":   {map[string]any{"elicitation": askScript(false)}, true},
+		"permission": {map[string]any{"permission": permissionScript()}, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ask := filepath.Join(t.TempDir(), "ask")
+			g := startGatedDocs(t, nil, map[string]any{"wait": ask}, tc.step)
+			require.Equal(t, queuedNote, g.agentDoc(t, "docs.open"))
+
+			write(t, ask, "")
+
+			g.waitStatus(t, g.ws, g.sid, "waiting")
+			if tc.shown {
+				testutil.Eventually(t, func() bool { return g.shown(t, "docs.opened") }, wait)
+			} else {
+				testutil.Never(t, func() bool { return g.shown(t, "docs.opened") }, quiet)
+			}
+		})
+	}
+}
+
+func TestReplayedDocCardStaysOnItsTurn(t *testing.T) {
+	t.Parallel()
+	reply := map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "Done."}}}
+	g := startGatedDocs(t, nil, reply)
+	require.Equal(t, queuedNote, g.agentDoc(t, "docs.present"))
+	g.prompt(t, g.ws, g.sid, "again")
+	g.pauseGate(t, g.ws, g.gate)
+
+	write(t, g.hold, "")
+
+	onFirstTurn := func() bool {
+		agent := ofKind(g.transcript(t, g.ws, g.sid).Entries, "agent")
+		return len(agent) == 2 && len(agent[0].DocCards) == 1 && agent[0].DocCards[0].Presented && len(agent[1].DocCards) == 0
+	}
+	testutil.Eventually(t, onFirstTurn, wait)
+	g.restartAgents(t, g.ws)
+	testutil.Eventually(t, onFirstTurn, wait)
+}

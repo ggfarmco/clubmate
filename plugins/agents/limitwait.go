@@ -295,6 +295,7 @@ func (a *app) continueLimited(workspace string, now time.Time) int {
 		}
 		if !a.submitIdle(s, promptArgs{Text: limitText}) {
 			a.dropLimitWait(s, s.snapshot().LimitWait)
+			s.changed(changeStatus, true)
 			continue
 		}
 		n++

@@ -40,6 +40,7 @@ type session struct {
 	minor         int64
 	replayingDocs bool
 	replayAgain   bool
+	replayTurns   map[string]int
 
 	transcriptState
 	runState
@@ -98,6 +99,11 @@ func (s *session) actor() string {
 
 func (s *session) recordLocked(actor, kind string, payload any) {
 	s.loadLocked()
+	s.recordTurnLocked(s.turn, actor, kind, payload)
+}
+
+func (s *session) recordTurnLocked(turn int, actor, kind string, payload any) {
+	s.loadLocked()
 	raw, ok := payload.(json.RawMessage)
 	if !ok {
 		var err error
@@ -106,6 +112,7 @@ func (s *session) recordLocked(actor, kind string, payload any) {
 		}
 	}
 	e := s.envelope(actor, kind, raw)
+	e.Turn = turn
 	e.Seq = s.log.write(e)
 	s.apply(e)
 	s.askTasksLocked()

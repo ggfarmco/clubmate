@@ -93,7 +93,7 @@ const (
 	docsOpenedTopic    = "docs.opened"
 	docsPresentedTopic = "docs.presented"
 	docsReadyTopic     = "docs.ready"
-	codeUnknownCommand = -32004
+	codeNotFound       = -32004
 )
 
 type presentedDoc struct {
@@ -108,7 +108,7 @@ type docsPresented struct {
 	Title     string `json:"title"`
 }
 
-func (a *app) docPresented(p docsPresented) {
+func (a *app) docPresented(mode string, p docsPresented) {
 	s := a.session(p.Session)
 	if s == nil || p.Path == "" || s.snapshot().Workspace != p.Workspace {
 		return
@@ -116,7 +116,14 @@ func (a *app) docPresented(p docsPresented) {
 	s.mu.Lock()
 	deleted := s.deleted
 	if !deleted {
-		s.recordLocked(actorClubmate, kindPresented, presentedDoc{Path: p.Path, Title: p.Title})
+		s.loadLocked()
+		turn := s.turn
+		key := replayKey(mode, p.Path)
+		if t, ok := s.replayTurns[key]; ok {
+			delete(s.replayTurns, key)
+			turn = min(t, turn)
+		}
+		s.recordTurnLocked(turn, actorClubmate, kindPresented, presentedDoc{Path: p.Path, Title: p.Title})
 	}
 	s.mu.Unlock()
 	if !deleted {
@@ -320,17 +327,21 @@ const (
 	docGatePresent = "present"
 )
 
+var docModes = map[string]string{docsOpenedTopic: docGateOpen, docsPresentedTopic: docGatePresent}
+
 var (
 	errDocsOnly   = errors.New("only the docs plugin calls this")
 	errDocGateArg = errors.New("doc-gate needs a session, a path and mode open or present")
 )
 
 type gatedDoc struct {
-	Workspace string `json:"workspace"`
-	For       string `json:"for"`
-	Path      string `json:"path"`
-	Mode      string `json:"mode"`
-	Title     string `json:"title,omitempty"`
+	Workspace string    `json:"workspace"`
+	For       string    `json:"for"`
+	Path      string    `json:"path"`
+	Mode      string    `json:"mode"`
+	Title     string    `json:"title,omitempty"`
+	Turn      int       `json:"turn,omitempty"`
+	At        time.Time `json:"at,omitzero"`
 }
 
 type docGateArgs struct {
@@ -364,13 +375,36 @@ func (a *app) docGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, args
 	if err != nil {
 		return nil, err
 	}
-	if !turnGated(gates) || !doneGated(gates, primaryOf(ctx, rec.Worktree), rec) {
+	if !turnGated(gates) || !mayHoldDone(ctx, gates, rec) {
 		return docGateResult{}, nil
 	}
-	doc := gatedDoc{Workspace: rec.Workspace, For: cmp.Or(args.For, args.Session), Path: args.Path, Mode: args.Mode, Title: args.Title}
+	return docGateResult{Queued: s.queueDoc(gatedDoc{Workspace: rec.Workspace, For: cmp.Or(args.For, args.Session), Path: args.Path, Mode: args.Mode, Title: args.Title})}, nil
+}
+
+func mayHoldDone(ctx context.Context, gates []gateConfig, rec record) bool {
+	if rec.Worktree == "" {
+		return false
+	}
+	f, err := gitrepo.OpenFolder(ctx, rec.Worktree)
+	switch {
+	case err == nil && len(f.Trees) > 0:
+		return doneGated(gates, f.Trees[0].Real, rec)
+	case err == nil || errors.Is(err, gitrepo.ErrNotRepo):
+		return false
+	}
+	return doneHoldable(rec) && slices.ContainsFunc(gates, func(g gateConfig) bool {
+		return !g.Paused && g.Point == gatePointTurn && holdsKind(g.Sessions, rec)
+	})
+}
+
+func (s *session) queueDoc(doc gatedDoc) bool {
 	s.mu.Lock()
-	queued := turnRunning(s.rec)
+	queued := turnRunning(s.rec) && !s.asksUserLocked()
 	if queued {
+		doc.At = time.Now().UTC()
+		if doc.For == s.rec.ID {
+			doc.Turn = s.turn
+		}
 		docs := slices.DeleteFunc(slices.Clone(s.rec.GatedDocs), func(d gatedDoc) bool { return d.For == doc.For && d.Path == doc.Path && d.Mode == doc.Mode })
 		s.rec.GatedDocs = append(docs, doc)
 	}
@@ -378,7 +412,16 @@ func (a *app) docGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, args
 	if queued {
 		s.changed(changeUpdate, true)
 	}
-	return docGateResult{Queued: queued}, nil
+	return queued
+}
+
+func (s *session) asksUserLocked() bool {
+	for _, p := range s.perms {
+		if p.elicit != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func turnRunning(rec record) bool {
@@ -389,7 +432,7 @@ func (a *app) settleGatedDocs(s *session) {
 	s.mu.Lock()
 	docs, closed := s.rec.GatedDocs, s.rec.closed()
 	s.replayAgain = s.replayingDocs
-	if len(docs) == 0 || s.replayingDocs || turnRunning(s.rec) || !closed && s.rec.LimitWait != nil {
+	if len(docs) == 0 || s.replayingDocs || !closed && !s.asksUserLocked() && (turnRunning(s.rec) || s.rec.LimitWait != nil) {
 		s.mu.Unlock()
 		return
 	}
@@ -429,9 +472,14 @@ func (a *app) replayDocs(docs []gatedDoc) []gatedDoc {
 				args["title"] = d.Title
 			}
 		}
+		s := a.session(d.For)
+		s.expectReplay(d)
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
-		err := a.host.RunCommand(ctx, id, d.Workspace, args, nil)
+		err := a.runDocs(ctx, id, d.Workspace, args)
 		cancel()
+		if err != nil {
+			s.dropReplay(d)
+		}
 		if docsDown(err) {
 			continue
 		}
@@ -441,9 +489,46 @@ func (a *app) replayDocs(docs []gatedDoc) []gatedDoc {
 	return settled
 }
 
+func (a *app) runDocs(ctx context.Context, id, workspaceID string, args map[string]any) error {
+	if a.docsRun != nil {
+		return a.docsRun(ctx, id, workspaceID, args)
+	}
+	return a.host.RunCommand(ctx, id, workspaceID, args, nil)
+}
+
+func replayKey(mode, path string) string {
+	file, _, _ := strings.Cut(path, "#")
+	return mode + "\x00" + gitrepo.Canonical(file)
+}
+
+func (s *session) expectReplay(d gatedDoc) {
+	if s == nil || d.Turn == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.replayTurns == nil {
+		s.replayTurns = map[string]int{}
+	}
+	s.replayTurns[replayKey(d.Mode, d.Path)] = d.Turn
+}
+
+func (s *session) dropReplay(d gatedDoc) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.replayTurns, replayKey(d.Mode, d.Path))
+}
+
 func docsDown(err error) bool {
 	rpcErr, ok := errors.AsType[*jsonrpc2.Error](err)
-	return ok && (rpcErr.Code == contract.CodePluginUnavailable || rpcErr.Code == codeUnknownCommand) || errors.Is(err, context.DeadlineExceeded)
+	if !ok {
+		return false
+	}
+	reason := contract.ReasonIn(rpcErr.Data)
+	return rpcErr.Code == contract.CodePluginUnavailable && reason != contract.ReasonUnknown || rpcErr.Code == codeNotFound && reason != contract.ReasonStale
 }
 
 func (a *app) settleAllGatedDocs() {
