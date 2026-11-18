@@ -119,6 +119,7 @@ public struct SDUITreeDock: Sendable, Equatable, Identifiable {
     public let label: String
     public let icon: String?
     public let detail: String?
+    public let state: String?
     public let attention: Bool
     public let expanded: Bool
     public let rows: [SDUITreeItem]
@@ -132,6 +133,7 @@ public struct SDUITreeDock: Sendable, Equatable, Identifiable {
         self.label = label
         icon = fields["icon"]?.stringValue
         detail = fields["detail"]?.stringValue
+        state = fields["state"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
         attention = fields["attention"]?.boolValue ?? false
         expanded = fields["expanded"]?.boolValue ?? false
         var flat: [SDUITreeItem] = []

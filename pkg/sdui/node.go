@@ -63,6 +63,7 @@ type TreeDock struct {
 	Label     string     `json:"label"`
 	Icon      string     `json:"icon,omitempty"`
 	Detail    string     `json:"detail,omitempty"`
+	State     string     `json:"state,omitempty"`
 	Attention bool       `json:"attention,omitempty"`
 	Expanded  bool       `json:"expanded,omitempty"`
 	Rows      []TreeItem `json:"rows,omitempty"`

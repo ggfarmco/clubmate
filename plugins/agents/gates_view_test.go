@@ -366,16 +366,16 @@ func TestSheetHoldsDone(t *testing.T) {
 	assert.Equal(t, errGateWrote.Error(), nodesOf(sheets[2], "textField")[0].Props["error"])
 }
 
-func TestGatesDockRowCountsHeldTurnsApartFromLandings(t *testing.T) {
+func TestGatesDockRowShowsHeldTurnsOnlyWithoutALanding(t *testing.T) {
 	t.Parallel()
-	done := gateRow{gateConfig: gateConfig{ID: "gt_done", Point: gatePointTurn}, Landings: []gateLanding{{State: gateStateReview}}}
-	land := gateRow{gateConfig: gateConfig{ID: "gt_land", Point: gatePointLand}, Landings: []gateLanding{{State: gateStateReview}}}
+	done := gateRow{gateConfig: gateConfig{ID: "gt_done", Point: gatePointTurn}, Name: gateNamePlanSpecs, Landings: []gateLanding{{State: gateStateReview}}}
+	land := gateRow{gateConfig: gateConfig{ID: "gt_land", Point: gatePointLand}, Name: "Landing into main", Landings: []gateLanding{{State: gateStateReview}}}
 
 	only := dockRows(nil, gateCounts([]gateRow{done}, 0), nil)[1]
 	both := dockRows(nil, gateCounts([]gateRow{land, done}, 0), nil)[1]
 
-	assert.Equal(t, []string{"1 held", "1 held"}, []string{only.Detail, only.PhoneDetail})
-	assert.Equal(t, "1 landing · 1 held", both.Detail)
+	assert.Equal(t, []string{"1", "1 held", "plans and specs"}, []string{only.Detail, only.State, only.Which})
+	assert.Equal(t, []string{"2", "1 landing", "into main"}, []string{both.Detail, both.State, both.Which})
 }
 
 func TestHeldTurnWaitingForTrustSaysSo(t *testing.T) {

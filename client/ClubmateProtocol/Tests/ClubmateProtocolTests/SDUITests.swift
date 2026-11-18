@@ -57,6 +57,14 @@ final class SDUITests: XCTestCase {
         XCTAssertTrue(dock.rows.allSatisfy(\.children.isEmpty))
     }
 
+    func testDockRowKeepsItsStateApartFromTheCount() throws {
+        let json = #"{"type": "tree", "id": "sessions", "props": {"items": [], "dock": [{"id": "gates", "label": "Gates", "detail": "4", "state": "1 landing"}, {"id": "graphs", "label": "Graphs", "detail": "5", "state": ""}]}}"#
+        let dock = try JSONDecoder().decode(SDUINode.self, from: Data(json.utf8)).treeDock()
+
+        XCTAssertEqual(dock.map(\.detail), ["4", "5"])
+        XCTAssertEqual(dock.map(\.state), ["1 landing", nil])
+    }
+
     func testSparklineHeightDecodes() throws {
         let sized = try JSONDecoder().decode(SDUINode.self, from: Data(#"{"type": "sparkline", "props": {"values": [1, 3], "max": 4, "height": 64}}"#.utf8))
         XCTAssertEqual(sized.spark(), SDUISpark(values: [1, 3], max: 4))

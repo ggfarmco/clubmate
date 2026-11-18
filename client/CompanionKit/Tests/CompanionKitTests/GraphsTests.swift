@@ -13,9 +13,9 @@ final class GraphsTests: XCTestCase {
                      {"id":"gr_1","kind":"run","workspace":"ws","title":"Review gate","status":"waiting","needsYou":true,"run":{"id":"gr_1","title":"Review gate","number":4}}],
          "runs":[{"id":"gr_1","graph":"review-gate","title":"Review gate","number":4,"state":"running","detail":"turn 2","sessions":["agt_c"],"home":"group","group":"running","status":"running"},
                  {"id":"gr_9","graph":"nightly","title":"Nightly","state":"emptied","detail":"no sessions","sessions":[],"home":"closed","group":"closed","status":"closed"}],
-         "dock":[{"id":"service","label":"Service","icon":"gearshape.2","detail":"asks you","phoneDetail":"1 asks","attention":true},
-                 {"id":"gates","label":"Land gates","icon":"checkmark.shield","detail":"1 asking","phoneDetail":"1 asking"},
-                 {"id":"graphs","label":"Graphs","icon":"point.3.connected.trianglepath.dotted","detail":"1 to trust","phoneDetail":"1 to trust","attention":true}]}
+         "dock":[{"id":"service","label":"Service","icon":"gearshape.2","detail":"1","phoneDetail":"1","state":"asks you","attention":true},
+                 {"id":"gates","label":"Gates","icon":"checkmark.shield","detail":"4","phoneDetail":"4","state":"1 landing","which":"into main"},
+                 {"id":"graphs","label":"Graphs","icon":"point.3.connected.trianglepath.dotted","detail":"5","phoneDetail":"5","state":"2 to trust","attention":true}]}
         """#
         let page = try JSONDecoder().decode(JSONValue.self, from: Data(json.utf8))
         return (page["sessions"]?.arrayValue ?? [], try page["runs"]!.decode([AgentRunRow].self), try page["dock"]!.decode([AgentDockRow].self))
@@ -31,10 +31,13 @@ final class GraphsTests: XCTestCase {
         XCTAssertEqual(sessions.filter { $0.id == "gr_1" }.count, 1)
     }
 
-    func testDockRowsEndTheListPlain() throws {
+    func testDockRowsKeepTheCountAndSayTheStateUnderTheLabel() throws {
         let rows = RunRows.endRows(try runPage().dock)
-        XCTAssertEqual(rows.map(\.label), ["Land gates", "Graphs"])
-        XCTAssertEqual(rows.map(\.detail), ["1 asking", "1 to trust"])
+        XCTAssertEqual(rows.map(\.label), ["Gates", "Graphs"])
+        XCTAssertEqual(rows.map(\.detail), ["4", "5"])
+        XCTAssertEqual(rows.map(\.state), ["1 landing", "2 to trust"])
+        XCTAssertEqual(rows.map(\.which), ["into main", nil])
+        XCTAssertEqual(rows.map(\.attention), [false, true])
         let order = SessionGroup.allCases
         XCTAssertLessThan(try XCTUnwrap(order.firstIndex(of: .closed)), try XCTUnwrap(order.firstIndex(of: .service)))
     }

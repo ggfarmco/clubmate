@@ -50,21 +50,24 @@ func TestRunRowStates(t *testing.T) {
 	}
 }
 
-func TestDockRowAttention(t *testing.T) {
+func TestDockRowKeepsItsCountAndSaysTheStateApart(t *testing.T) {
 	t.Parallel()
 	asking := []sessionInfo{{record: record{ID: "agt_v"}, NeedsYou: true}}
-	defs := []graphs.Definition{{Name: "nightly", Untrusted: true}, {Name: "review-loop"}}
+	defs := []graphs.Definition{{Name: "nightly", Title: "Nightly", Untrusted: true}, {Name: "review-loop"}}
 	rows := dockRows(asking, gateCount{Gated: 2, Asking: 1}, defs)
 	assert.Equal(t, []string{"service", "gates", "graphs"}, []string{rows[0].ID, rows[1].ID, rows[2].ID})
-	assert.Equal(t, api.DockRow{ID: "service", Label: "Service", Icon: rows[0].Icon, Detail: "asks you", PhoneDetail: "1 asks", Attention: true}, rows[0])
-	assert.Equal(t, []any{"1 asking", false}, []any{rows[1].Detail, rows[1].Attention})
-	assert.Equal(t, []any{"2", false}, []any{rows[2].Detail, rows[2].Attention})
+	assert.Equal(t, api.DockRow{ID: "service", Label: "Service", Icon: rows[0].Icon, Detail: "1", PhoneDetail: "1", State: "asks you", Attention: true}, rows[0])
+	assert.Equal(t, []any{"2", "1 asking", "", false}, []any{rows[1].Detail, rows[1].State, rows[1].Which, rows[1].Attention})
+	assert.Equal(t, []any{"2", "", false}, []any{rows[2].Detail, rows[2].State, rows[2].Attention})
 
 	defs[0].WaitsTrust = true
 	rows = dockRows(nil, gateCount{Gated: 2}, defs)
-	assert.Equal(t, []any{"0", false}, []any{rows[0].Detail, rows[0].Attention})
-	assert.Equal(t, "2", rows[1].Detail)
-	assert.Equal(t, []any{"1 to trust", true}, []any{rows[2].Detail, rows[2].Attention})
+	assert.Equal(t, []any{"0", ""}, []any{rows[0].Detail, rows[0].State})
+	assert.Equal(t, []any{"2", "2", ""}, []any{rows[1].Detail, rows[1].PhoneDetail, rows[1].State})
+	assert.Equal(t, []any{"2", "1 to trust", "Nightly", true}, []any{rows[2].Detail, rows[2].State, rows[2].Which, rows[2].Attention})
+
+	defs[1].WaitsTrust = true
+	assert.Equal(t, []string{"2 to trust", ""}, []string{dockRows(nil, gateCount{}, defs)[2].State, dockRows(nil, gateCount{}, defs)[2].Which})
 }
 
 func TestRunRowGroupAndStatus(t *testing.T) {

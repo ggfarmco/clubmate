@@ -321,9 +321,16 @@ struct SessionListView: View {
                 ForEach(store.endRows) { row in
                     HStack(spacing: 12) {
                         Image(systemName: row.icon)
-                            .foregroundStyle(Color.captionInk)
+                            .foregroundStyle(row.attention ? Color.warningInk : Color.captionInk)
                             .frame(width: 24)
-                        Text(row.label)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(row.label)
+                            if let state = row.state {
+                                (Text(state).foregroundStyle(row.attention ? Color.warningInk : Color.captionInk) + Text(row.which.map { " · " + $0 } ?? "").foregroundStyle(Color.captionInk))
+                                    .font(.footnote)
+                                    .lineLimit(1)
+                            }
+                        }
                         Spacer()
                         Text(row.detail)
                             .font(.footnote)

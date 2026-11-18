@@ -29,7 +29,7 @@ struct TreeDockView: View {
 
     private func header(_ section: SDUITreeDock) -> some View {
         HStack(spacing: 0) {
-            ItemRow(item: item(section), selected: false, active: active, cursor: cursor == section.id, tone: nil, detailTone: section.attention ? "warning" : nil, reserveTrailing: section.add == nil ? addColumn : 0, action: { toggle(section.id) }) {
+            ItemRow(item: item(section), selected: false, active: active, cursor: cursor == section.id, tone: nil, note: section.state.map { ItemNote(text: $0, attention: section.attention) }, reserveTrailing: section.add == nil ? addColumn : 0, action: { toggle(section.id) }) {
                 Button { toggle(section.id) } label: {
                     Image(systemName: "chevron.up")
                         .font(.system(size: 8, weight: .semibold))

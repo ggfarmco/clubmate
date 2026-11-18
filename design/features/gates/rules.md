@@ -28,7 +28,7 @@ Into: the default branch (its name, e.g. `main`) · the worktree's base · any b
 
 ## Dock
 
-Gates → repos → gates. Row detail by priority: `trust?` amber (graph changed; counts once in Needs you) › `N asking` (the card is on the lander) › `N landing` plain › `paused` muted › last verdict and age. The Gates row shows the highest of these across all gates. Up to 6 rows, then it scrolls.
+Gates → repos → gates. Row detail by priority: `trust?` amber (graph changed; counts once in Needs you) › `N asking` (the card is on the lander) › `N landing` plain › `paused` muted › last verdict and age. The Gates row shows the highest of these across all gates, after its label, with the gate count staying in the count column (`design/features/dock-state`, 18 Nov). Up to 6 rows, then it scrolls.
 
 ## Sheet (`GT-Sheet-*`)
 

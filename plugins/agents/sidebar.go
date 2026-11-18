@@ -177,7 +177,7 @@ func (plus sidebarPlus) treeDock(service []sdui.TreeItem, query string) []sdui.T
 	out := make([]sdui.TreeDock, 0, len(plus.dock))
 	matched := false
 	for _, d := range plus.dock {
-		section := sdui.TreeDock{ID: d.ID, Label: d.Label, Icon: d.Icon, Detail: d.Detail, Attention: d.Attention, Rows: rows[d.ID], Add: add[d.ID], Cap: dockCap, Expanded: d.ID == plus.open}
+		section := sdui.TreeDock{ID: d.ID, Label: d.Label, Icon: d.Icon, Detail: d.Detail, State: d.State, Attention: d.Attention, Rows: rows[d.ID], Add: add[d.ID], Cap: dockCap, Expanded: d.ID == plus.open}
 		if query != "" {
 			section.Rows = dockMatches(section.Rows, strings.ToLower(query))
 			section.Expanded = len(section.Rows) > 0 && !matched

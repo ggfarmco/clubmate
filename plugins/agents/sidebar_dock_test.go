@@ -227,7 +227,7 @@ func TestDockGroupsGatesByRepo(t *testing.T) {
 	dock := dockOf(t, sidebarView(nil, "", map[string]bool{}, now, "/src/shop", nil, false, filterAll, sidebarSearch{}, 0, plus, nil))
 	gates := dock[slices.IndexFunc(dock, func(d sdui.TreeDock) bool { return d.ID == dockGates })]
 
-	assert.Equal(t, []string{"Gates", "1 to trust"}, []string{gates.Label, gates.Detail})
+	assert.Equal(t, []string{"Gates", "3", "1 to trust"}, []string{gates.Label, gates.Detail, gates.State})
 	assert.True(t, gates.Attention)
 	assert.Equal(t, []string{dockGateHelp, gateRepoPrefix + "/src/infra", gateRepoPrefix + "/src/shop"}, ids(gates.Rows))
 	shop := gates.Rows[2]

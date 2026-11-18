@@ -898,7 +898,7 @@ var (
 	treeOpens    = []string{"session", "run", "graph", "gate"}
 	treeAddCheck = objectCheck([]string{"action", "label"}, map[string]propCheck{"action": isString, "label": isString})
 	treeDockRows = objectCheck([]string{"id", "label"}, map[string]propCheck{
-		"id": isString, "label": isString, "icon": isString, "detail": isString, "attention": isBool, "expanded": isBool,
+		"id": isString, "label": isString, "icon": isString, "detail": isString, "state": isString, "attention": isBool, "expanded": isBool,
 		"rows": listOf(treeItemCheck), "add": treeAddCheck, "cap": countNumber,
 	})
 )

@@ -554,6 +554,7 @@ struct ItemRow<Leading: View>: View {
     var badges: [SDUIHeaderBadge] = []
     var changes: SDUIChanges?
     var labelIcon: String?
+    var note: ItemNote?
     var reserveIcon = false
     var reserveTrailing: CGFloat = 0
     let action: () -> Void
@@ -593,11 +594,17 @@ struct ItemRow<Leading: View>: View {
                     .frame(width: 14)
             }
             RowLayout(hasDetail: item.detail != nil, lead: labelIcon == nil ? theme.gutter + theme.spacing.m * 2 : theme.spacing.l, spacing: theme.spacing.m, keptLabel: keptLabel, keptDetail: keptDetail) {
-                Text(item.label)
-                    .foregroundStyle(faint ? theme.faint : muted ? theme.muted : theme.foreground)
-                    .lineLimit(1)
-                    .truncationMode(Text.TruncationMode(item.truncate))
-                    .help(item.label)
+                HStack(spacing: theme.spacing.s) {
+                    Text(item.label)
+                        .foregroundStyle(faint ? theme.faint : muted ? theme.muted : theme.foreground)
+                        .lineLimit(1)
+                        .truncationMode(Text.TruncationMode(item.truncate))
+                        .help(item.label)
+                        .layoutPriority(1)
+                    if let note {
+                        ItemNoteView(note: note)
+                    }
+                }
                 ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
                     BadgeLabel(text: badge.text, tone: theme.tone(badge.tone), outline: badge.outline)
                         .fixedSize()
@@ -668,6 +675,32 @@ struct ItemRow<Leading: View>: View {
     private var background: Color {
         if selected { return active ? theme.selected : theme.selectedIdle }
         return hovering ? theme.hover : .clear
+    }
+}
+
+struct ItemNote: Equatable {
+    let text: String
+    let attention: Bool
+}
+
+private struct ItemNoteView: View {
+    let note: ItemNote
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        if note.attention {
+            BadgeLabel(text: note.text, tone: theme.warning)
+                .lineLimit(1)
+                .help(note.text)
+        } else {
+            Text("· " + note.text)
+                .font(theme.uiSmall)
+                .foregroundStyle(theme.muted)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .help(note.text)
+        }
     }
 }
 

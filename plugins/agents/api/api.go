@@ -98,6 +98,8 @@ type DockRow struct {
 	Icon        string `json:"icon"`
 	Detail      string `json:"detail"`
 	PhoneDetail string `json:"phoneDetail"`
+	State       string `json:"state,omitempty"`
+	Which       string `json:"which,omitempty"`
 	Attention   bool   `json:"attention,omitempty"`
 }
 

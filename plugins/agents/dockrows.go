@@ -1,8 +1,8 @@
 package main
 
 import (
+	"cmp"
 	"strconv"
-	"strings"
 
 	"clubmate/plugins/agents/api"
 	"clubmate/plugins/agents/graphs"
@@ -22,6 +22,10 @@ type gateCount struct {
 	Trust   int
 	Landing int
 	Held    int
+	asked   []string
+	trusted []string
+	landing []string
+	held    []string
 }
 
 type gateRound struct {
@@ -43,17 +47,33 @@ func gateCounts(rows []gateRow, reviewersAsking int) gateCount {
 	c := gateCount{Gated: len(rows), Asking: reviewersAsking}
 	for _, r := range rows {
 		asking, landing := r.landingCounts()
+		label := dockGateLabel(r.Name)
 		c.Asking += asking
-		if r.Point == gatePointTurn {
+		if asking > 0 {
+			c.asked = append(c.asked, label)
+		}
+		switch {
+		case landing == 0:
+		case r.Point == gatePointTurn:
 			c.Held += landing
-		} else {
+			c.held = append(c.held, label)
+		default:
 			c.Landing += landing
+			c.landing = append(c.landing, label)
 		}
 		if r.State == gateStateTrust {
 			c.Trust++
+			c.trusted = append(c.trusted, label)
 		}
 	}
 	return c
+}
+
+func onlyOne(n int, names []string) string {
+	if n == 1 && len(names) == 1 {
+		return names[0]
+	}
+	return ""
 }
 
 func dockRows(service []sessionInfo, gates gateCount, defs []graphs.Definition) []api.DockRow {
@@ -63,30 +83,34 @@ func dockRows(service []sessionInfo, gates gateCount, defs []graphs.Definition) 
 			asks++
 		}
 	}
-	svc := api.DockRow{ID: dockService, Label: "Service", Icon: serviceIcon, Detail: strconv.Itoa(len(service)), PhoneDetail: strconv.Itoa(len(service))}
+	svc := countRow(dockService, "Service", serviceIcon, len(service))
 	if asks > 0 {
-		svc.Detail, svc.PhoneDetail, svc.Attention = "asks you", strconv.Itoa(asks)+" asks", true
+		svc.State, svc.Attention = "asks you", true
 	}
-	gate := api.DockRow{ID: dockGates, Label: "Gates", Icon: gatesIcon, Detail: strconv.Itoa(gates.Gated)}
+	gate := countRow(dockGates, "Gates", gatesIcon, gates.Gated)
 	switch {
 	case gates.Trust > 0:
-		gate.Detail, gate.Attention = strconv.Itoa(gates.Trust)+" to trust", true
+		gate.State, gate.Which, gate.Attention = strconv.Itoa(gates.Trust)+" to trust", onlyOne(gates.Trust, gates.trusted), true
 	case gates.Asking > 0:
-		gate.Detail = strconv.Itoa(gates.Asking) + " asking"
-	case gates.Landing > 0 || gates.Held > 0:
-		gate.Detail = strings.Join(nonEmpty(landingCount(gates.Landing), heldCount(gates.Held)), " · ")
+		gate.State, gate.Which = strconv.Itoa(gates.Asking)+" asking", onlyOne(gates.Asking, gates.asked)
+	case gates.Landing > 0:
+		gate.State, gate.Which = landingCount(gates.Landing), onlyOne(gates.Landing, gates.landing)
+	case gates.Held > 0:
+		gate.State, gate.Which = heldCount(gates.Held), onlyOne(gates.Held, gates.held)
 	}
-	gate.PhoneDetail = gate.Detail
-	waits := 0
+	var waiting []string
 	for _, d := range defs {
 		if d.WaitsTrust {
-			waits++
+			waiting = append(waiting, cmp.Or(d.Title, d.Name))
 		}
 	}
-	graph := api.DockRow{ID: dockGraphs, Label: "Graphs", Icon: graphsIcon, Detail: strconv.Itoa(len(defs))}
-	if waits > 0 {
-		graph.Detail, graph.Attention = strconv.Itoa(waits)+" to trust", true
+	graph := countRow(dockGraphs, "Graphs", graphsIcon, len(defs))
+	if len(waiting) > 0 {
+		graph.State, graph.Which, graph.Attention = strconv.Itoa(len(waiting))+" to trust", onlyOne(len(waiting), waiting), true
 	}
-	graph.PhoneDetail = graph.Detail
 	return []api.DockRow{svc, gate, graph}
+}
+
+func countRow(id, label, icon string, n int) api.DockRow {
+	return api.DockRow{ID: id, Label: label, Icon: icon, Detail: strconv.Itoa(n), PhoneDetail: strconv.Itoa(n)}
 }

@@ -26,8 +26,8 @@ enum LandReviewFixture {
 
     static let dock: [JSONValue] = [
         .object(["id": .string("service"), "label": .string("Service"), "icon": .string("gearshape.2"), "detail": .string("0"), "phoneDetail": .string("0")]),
-        .object(["id": .string("gates"), "label": .string("Land gates"), "icon": .string("checkmark.shield"), "detail": .string("1 asking"), "phoneDetail": .string("1 asking")]),
-        .object(["id": .string("graphs"), "label": .string("Graphs"), "icon": .string("point.3.connected.trianglepath.dotted"), "detail": .string("0"), "phoneDetail": .string("0")]),
+        .object(["id": .string("gates"), "label": .string("Gates"), "icon": .string("checkmark.shield"), "detail": .string("1"), "phoneDetail": .string("1"), "state": .string("1 asking"), "which": .string("into main")]),
+        .object(["id": .string("graphs"), "label": .string("Graphs"), "icon": .string("point.3.connected.trianglepath.dotted"), "detail": .string("2"), "phoneDetail": .string("2"), "state": .string("1 to trust"), "which": .string("Plan pipeline"), "attention": .bool(true)]),
     ]
 
     static func sessions(_ template: [String: JSONValue], stamp: (TimeInterval) -> JSONValue) -> [[String: JSONValue]] {

@@ -152,13 +152,17 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(closed.exists)
         XCTAssertFalse(app.staticTexts["Round 2 review"].exists)
         XCTAssertFalse(app.staticTexts["Land review"].exists)
+        let gates = app.staticTexts["1 asking · into main"]
+        reveal(gates, in: app)
+        XCTAssertTrue(gates.exists)
+        XCTAssertTrue(app.staticTexts["1 to trust · Plan pipeline"].exists)
         add(screenshot(app, "end-rows"))
     }
 
     func testOpenReviewOnTheGateScreenOpensTheReviewersSession() {
         let app = launch(open: "agents", ["-landReview", "YES"])
         XCTAssertTrue(app.descendants(matching: .any)["inbox.agt_00000000000000b1"].waitForExistence(timeout: 10))
-        let gates = app.staticTexts["Land gates"]
+        let gates = app.staticTexts["Gates"]
         reveal(gates, in: app)
         gates.tap()
         let gate = app.staticTexts["clubmate"]

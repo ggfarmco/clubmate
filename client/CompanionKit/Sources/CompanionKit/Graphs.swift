@@ -242,6 +242,8 @@ public struct AgentDockRow: Codable, Sendable, Equatable, Identifiable {
     public let icon: String
     public let detail: String
     public let phoneDetail: String
+    public let state: String?
+    public let which: String?
     public let attention: Bool?
 }
 
@@ -250,6 +252,9 @@ public struct RunEndRow: Sendable, Equatable, Identifiable {
     public let label: String
     public let icon: String
     public let detail: String
+    public let state: String?
+    public let which: String?
+    public let attention: Bool
     public let section: String
 }
 
@@ -287,7 +292,13 @@ public enum RunRows {
     }
 
     public static func endRows(_ dock: [AgentDockRow]) -> [RunEndRow] {
-        dock.compactMap { row in sections[row.id].map { RunEndRow(id: row.id, label: row.label, icon: row.icon, detail: row.phoneDetail, section: $0) } }
+        dock.compactMap { row in
+            sections[row.id].map {
+                let state = row.state.flatMap { $0.isEmpty ? nil : $0 }
+                let which = state == nil ? nil : row.which.flatMap { $0.isEmpty ? nil : $0 }
+                return RunEndRow(id: row.id, label: row.label, icon: row.icon, detail: row.phoneDetail, state: state, which: which, attention: state != nil && row.attention == true, section: $0)
+            }
+        }
     }
 
     private static func session(_ run: AgentRunRow, workspace: String) throws -> AgentSession {

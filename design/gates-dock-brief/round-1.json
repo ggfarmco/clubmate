@@ -1,0 +1,15 @@
+{
+  "title": "Gates dock · где писать «1 landing»",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 17 Nov. Rule for every direction: the count column only holds the row's number (sessions, gates, graphs); the state (asks you, N to trust, N asking, N landing) moves to the label area. Attention (to trust, asks you) is an amber badge, moving (landing, asking) is plain caption ink.",
+    "A · After the label (designer's pick, your idea): «Gates · 1 landing  4». B · A pip on the glyph: numbers only, words on hover. C · A second line under the label that also names which gate: «1 landing · into main». Phone: the state goes into the row subtitle in every direction."
+  ],
+  "boards": [
+    {"file": "RD-Rules.dc.html", "w": 1280, "title": "Rule, A · B · C, pros and cons", "caption": "The rule for all three dock rows, per-row states, the three directions, the phone, the handoff."},
+    {"file": "RD-A-Mac.dc.html", "w": 1480, "title": "A · After the label (recommended)", "caption": "1280 Mate dark and 640 Mate light: idle, 1 landing, 2 asking, attention on all three rows. Drawn with «·»; parentheses are the board's alternative."},
+    {"file": "RD-B-Mac.dc.html", "w": 1480, "title": "B · A pip on the glyph", "caption": "Quietest; landing and asking look the same without a hover."},
+    {"file": "RD-C-Mac.dc.html", "w": 1480, "title": "C · A second line", "caption": "Names the gate or graph; the pinned dock grows a line per active row, so the tree above jumps."},
+    {"file": "C-RD-Phone.dc.html", "w": 1280, "title": "Phone and iPad", "caption": "The state leads the subtitle, the count stays on the right; attention fills the glyph amber."}
+  ]
+}

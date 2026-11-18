@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r-dock · B · a pip on the glyph · Mac</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/cf0fcdda877b7c44d2b28cefa5a6e01a">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.doc .fcap{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:16px;color:#3A3D3B}
+.doc .wcap{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:16px;letter-spacing:.06em;text-transform:uppercase;color:#5B5F5C}
+.frag{position:relative;border:1px solid #CFCCC2;border-radius:8px;overflow:hidden;background:var(--s1);flex:none}
+.frag.w248{width:248px}
+.frag.w320{width:320px}
+.frag .tail{position:relative;padding:4px 4px 6px;display:flex;flex-direction:column}
+.frag .tail .fade{position:absolute;left:0;right:0;bottom:0;height:24px;background:linear-gradient(to bottom,transparent,var(--s1));pointer-events:none}
+.frag .dk0{border-top:1px solid var(--bd);padding:4px 4px 6px;display:flex;flex-direction:column;background:var(--s1);box-shadow:0 -8px 12px -10px rgba(0,0,0,.45)}
+.frag .dk{display:grid;grid-template-columns:12px 14px minmax(0,1fr) 28px 14px;column-gap:6px;align-items:start;padding:2px 6px 2px 8px;border-radius:4px;white-space:nowrap}
+.frag .dk.hov{background:var(--hov)}
+.frag .dk>.c{height:20px;display:flex;align-items:center;min-width:0}
+.frag .dk .lb{font-weight:500;flex:none}
+.frag .dk .cn{justify-content:flex-end;color:var(--t3);font-size:11px;font-variant-numeric:tabular-nums}
+.frag .dk .pl{justify-content:center;color:var(--t3)}
+.frag .gi{position:relative;display:inline-flex;width:14px;height:14px}
+.frag .gi.mut{color:var(--t3)}
+.frag .gi.on{color:var(--fg)}
+.frag .pip{position:absolute;top:-3px;right:-4px;width:7px;height:7px;border-radius:4px}
+.frag .pip.wa{background:var(--wa);box-shadow:0 0 0 2px var(--s1)}
+.frag .pip.mv{background:var(--s1);box-shadow:inset 0 0 0 1.5px var(--t2),0 0 0 2px var(--s1)}
+.frag .tip{position:absolute;left:40px;top:10px;padding:3px 9px;border-radius:6px;font-size:11px;line-height:16px;z-index:3;white-space:nowrap;color:var(--fg)}
+</style>
+</helmet>
+<div class="doc" style="width: 1480px; height: 760px; padding: 48px; display: flex; flex-direction: column; gap: 28px; overflow: hidden">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div class="eyebrow">r-dock · direction B · quietest</div>
+<h2 style="font-size: 28px; line-height: 34px">B · A pip on the glyph</h2>
+<p class="lead" style="max-width: 1200px">Numbers only. A pip on the row's glyph says something is on: a filled amber pip (the rail's badge) for attention, a hollow pip for moving. The words live in the hover and in the unfolded rows.</p>
+</div>
+<sc-for list="{{widths}}" as="t" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div class="wcap">{{t.name}}</div>
+<div style="display: flex; gap: 32px; align-items: flex-start">
+<sc-for list="{{t.frags}}" as="f" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div class="fcap">{{f.title}}</div>
+<div class="frag cm {{t.cls}}">
+<div class="tail">
+<div class="row"><span style="width: 12px; flex: none"></span><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.9 5.7v4.6L10.5 8Z"/></svg><span class="l">Port cron to the plugin</span><span class="d cap ac-i">1 min</span></div>
+<div class="row"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M12.5 10A5 5 0 0 1 6 3.5a5 5 0 1 0 6.5 6.5Z"/></svg><span class="l t2">Closed</span><span class="d cap">12</span></div>
+<div class="fade"></div>
+</div>
+<sc-if value="{{f.tip}}" hint-placeholder-val="{{ false }}"><div class="tip pop" role="tooltip">{{f.tipText}}</div></sc-if>
+<div class="dk0" aria-label="Pinned: Service, Gates, Graphs">
+<sc-for list="{{f.rows}}" as="r" hint-placeholder-count="3">
+<div class="dk {{r.rcls}}" title="{{r.title}}">
+<span class="c"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 10 4-4 4 4"/></svg></span>
+<span class="c"><span class="gi {{r.gcls}}">
+<sc-if value="{{r.svc}}" hint-placeholder-val="{{ true }}"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 1.5v3M10 1.5v3M4 4.5h8v3a4 4 0 0 1-8 0Z"/><path d="M8 11.5v3"/></svg></sc-if>
+<sc-if value="{{r.gate}}" hint-placeholder-val="{{ false }}"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="m5.6 8 1.7 1.7 3.1-3.3"/></svg></sc-if>
+<sc-if value="{{r.graph}}" hint-placeholder-val="{{ false }}"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg></sc-if>
+<sc-if value="{{r.att}}" hint-placeholder-val="{{ false }}"><i class="pip wa"></i></sc-if>
+<sc-if value="{{r.move}}" hint-placeholder-val="{{ false }}"><i class="pip mv"></i></sc-if>
+</span></span>
+<span class="c"><span class="lb">{{r.name}}</span></span>
+<span class="c cn">{{r.count}}</span>
+<span class="c pl"><sc-if value="{{r.plus}}" hint-placeholder-val="{{ true }}"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></sc-if></span>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1480,"height":760}}'>
+class Component extends DCLogic {
+renderVals() {
+const counts = { Service: '2', Gates: '4', Graphs: '5' };
+const row = (k, extra) => {
+const r = Object.assign({ svc: k === 'Service', gate: k === 'Gates', graph: k === 'Graphs', name: k, count: counts[k], plus: k !== 'Service', move: false, att: false, text: '', hov: false }, extra || {});
+r.gcls = r.move ? 'on' : 'mut';
+r.rcls = r.hov ? 'hov' : '';
+r.title = r.text ? k + ' · ' + r.text : k;
+return r;
+};
+const frags = [
+{ title: 'Idle', tip: false, tipText: '', rows: [row('Service'), row('Gates'), row('Graphs')] },
+{ title: '1 landing · hovered', tip: true, tipText: '1 landing · into main', rows: [row('Service'), row('Gates', { move: true, text: '1 landing', hov: true }), row('Graphs')] },
+{ title: '2 asking', tip: false, tipText: '', rows: [row('Service'), row('Gates', { move: true, text: '2 asking' }), row('Graphs')] },
+{ title: '1 to trust · asks you', tip: false, tipText: '', rows: [row('Service', { att: true, text: 'asks you' }), row('Gates', { att: true, text: '1 to trust' }), row('Graphs', { att: true, text: '1 to trust' })] }
+];
+return {
+widths: [
+{ name: '1280 · Mate dark · sidebar 248', cls: 'th-mate w248', frags: frags },
+{ name: '640 · Mate light · sidebar 320', cls: 'th-matelight w320', frags: frags }
+]
+};
+}
+}
+</script>
+</body>
+</html>

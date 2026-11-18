@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r-dock · one rule for a dock row's detail</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/cf0fcdda877b7c44d2b28cefa5a6e01a">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.doc .ex{display:flex;flex-direction:column;gap:2px;background:#FFFFFF;border:1px solid #DAD8CF;border-radius:8px;padding:10px 12px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:20px;color:#1B1D1C}
+.doc .exr{display:flex;align-items:center;gap:8px;min-height:22px;white-space:nowrap}
+.doc .exr .lb{font-weight:500}
+.doc .exr .sx{color:#5B5F5C;font-size:12px}
+.doc .exr .bd{display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:9px;background:#F6E3BF;color:#6E4A0E;font-size:12px}
+.doc .exr .sp{flex:1}
+.doc .exr .cn{width:24px;text-align:right;color:#5B5F5C;font-variant-numeric:tabular-nums}
+.doc .exr .pl{width:14px;text-align:center;color:#5B5F5C}
+.doc .exr2{display:flex;flex-direction:column;padding:1px 0}
+.doc .exr2 .l2{padding-left:0;font-size:12px;line-height:16px;color:#5B5F5C;display:flex;align-items:center;gap:6px}
+.doc svg.gi{width:14px;height:14px;flex:none;fill:none;stroke:#3A3D3B;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.doc .pip{display:inline-block;width:8px;height:8px;border-radius:4px;margin-left:-6px;margin-top:-10px}
+.doc .pip.wa{background:#D9961F}
+.doc .pip.mv{box-shadow:inset 0 0 0 1.5px #3A3D3B}
+.doc .rulebox{background:#FFFFFF;border:1.5px solid #1B1D1C;border-radius:12px;padding:20px 24px;display:flex;flex-direction:column;gap:10px}
+.doc .rulebox ol{margin:0;padding-left:22px}
+.doc .rulebox li{margin:0 0 6px}
+</style>
+</helmet>
+<div class="doc" style="width: 1280px; min-height: 1760px; padding: 64px; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · Agents · dock · round r-dock · 17 Nov</div>
+<h1>Where a dock row says what's happening</h1>
+<p class="lead">Today the count column swaps its number for words — “1 landing” — so the column goes ragged, the text is wider than the numbers, it pushes past the right edge, and the gate count disappears. One rule for Service, Gates and Graphs in every state.</p>
+</div>
+<div class="rulebox">
+<h2 style="font-size: 20px; line-height: 26px">The rule</h2>
+<ol>
+<li><b>The count column holds only the row's number</b> (sessions, gates, graphs), always, right-aligned in caption ink with tabular digits. The + keeps its own column after it.</li>
+<li><b>What's happening is one state</b>: the row's highest by priority, in words, in the label area. Never in the count column.</li>
+<li><b>Attention</b> (to trust, asks you) <b>is an amber badge</b>. <b>Moving</b> (landing, asking) <b>is plain caption ink</b>. Nothing else gets a badge or a tone.</li>
+</ol>
+<p class="muted">What's still open is where the words go in the label area. Three directions follow.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px"><h2>States, per row</h2>
+<table>
+<tr><td class="muted"><b>Row</b></td><td class="muted"><b>Count column</b></td><td class="muted"><b>States, highest first</b></td><td class="muted"><b>Ink</b></td></tr>
+<tr><td style="width: 160px">Service</td><td style="width: 200px">sessions</td><td style="width: 420px">asks you</td><td>badge</td></tr>
+<tr><td>Gates</td><td>gates</td><td>N to trust › N asking › N landing</td><td>badge › plain › plain</td></tr>
+<tr><td>Graphs</td><td>graphs</td><td>N to trust</td><td>badge</td></tr>
+</table>
+<p class="muted" style="margin: 0">“asking” stays plain: its card sits on the held session and is already counted once in Needs you. A row shows only its highest state; the unfolded rows below it carry the rest.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 14px"><h2>Three directions</h2>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<div style="display: flex; gap: 8px; align-items: baseline"><h3 style="margin: 0; font-size: 16px">A · After the label</h3><span class="tag a">recommended</span></div>
+<p style="margin: 0"><b>Your idea: the words move next to the label and the number stays where it is.</b></p>
+<div class="ex">
+<div class="exr"><span class="lb">Service</span><span class="bd">asks you</span><span class="sp"></span><span class="cn">2</span><span class="pl"></span></div>
+<div class="exr"><span class="lb">Gates</span><span class="sx">· 1 landing</span><span class="sp"></span><span class="cn">4</span><span class="pl">+</span></div>
+<div class="exr"><span class="lb">Graphs</span><span class="sp"></span><span class="cn">5</span><span class="pl">+</span></div>
+</div>
+<p class="muted" style="margin: 0"><b>For:</b> One line, so the pinned dock never changes height. The state reads in the same sweep as the label, and the count column is a clean edge of numbers again.</p>
+<p class="muted" style="margin: 0"><b>Against:</b> Two numbers on one row (1 landing, 4 gates). They stay apart because the state's number sits with its word and the count stands alone at the edge. A future long label would crowd the state.</p>
+<p class="muted" style="margin: 0"><b>“·” or parentheses:</b> “·” is the house separator (“held · git push”). Parentheses read as an aside. The A board's tweak switches between them.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<div style="display: flex; gap: 8px; align-items: baseline"><h3 style="margin: 0; font-size: 16px">B · A pip on the glyph</h3><span class="tag">quietest</span></div>
+<p style="margin: 0"><b>Numbers only: a pip on the row's glyph says something is on, and the words live in the hover and the unfolded rows.</b></p>
+<div class="ex">
+<div class="exr"><svg class="gi" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 1.5v3M10 1.5v3M4 4.5h8v3a4 4 0 0 1-8 0Z"/><path d="M8 11.5v3"/></svg><span class="pip wa"></span><span class="lb">Service</span><span class="sp"></span><span class="cn">2</span><span class="pl"></span></div>
+<div class="exr"><svg class="gi" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="m5.6 8 1.7 1.7 3.1-3.3"/></svg><span class="pip mv"></span><span class="lb">Gates</span><span class="sp"></span><span class="cn">4</span><span class="pl">+</span></div>
+<div class="exr"><svg class="gi" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg><span style="width: 2px"></span><span class="lb">Graphs</span><span class="sp"></span><span class="cn">5</span><span class="pl">+</span></div>
+</div>
+<p class="muted" style="margin: 0"><b>For:</b> Nothing moves, and the filled amber pip is the rail's own badge. Fits any width.</p>
+<p class="muted" style="margin: 0"><b>Against:</b> You can't tell “landing” from “asking” without hovering or unfolding. A hollow pip is easy to miss. The row no longer says what's happening.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<div style="display: flex; gap: 8px; align-items: baseline"><h3 style="margin: 0; font-size: 16px">C · A second line</h3><span class="tag">most said</span></div>
+<p style="margin: 0"><b>Room for what and which: a caption line under the label names the gate or graph.</b></p>
+<div class="ex">
+<div class="exr"><span class="lb">Service</span><span class="sp"></span><span class="cn">2</span><span class="pl"></span></div>
+<div class="exr2"><div class="exr"><span class="lb">Gates</span><span class="sp"></span><span class="cn">4</span><span class="pl">+</span></div><span class="l2">1 landing · into main</span></div>
+<div class="exr2"><div class="exr"><span class="lb">Graphs</span><span class="sp"></span><span class="cn">5</span><span class="pl">+</span></div><span class="l2"><span class="bd" style="font-size: 11px; height: 16px">1 to trust</span>Plan pipeline</span></div>
+</div>
+<p class="muted" style="margin: 0"><b>For:</b> Says which gate or graph without unfolding, and it has the same shape as the phone row.</p>
+<p class="muted" style="margin: 0"><b>Against:</b> The pinned dock grows a line for each active row, up to three, so the tree above jumps every time a landing starts or ends.</p>
+</div>
+</div></div>
+<div style="display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; padding: 14px 0; border-top: 1px solid #DAD8CF; border-bottom: 1px solid #DAD8CF"><h3 style="font-size: 16px; margin: 0">Phone and iPad</h3><p style="margin: 0">The rule carries over, but A's placement doesn't: a 17 pt title leaves no room beside it, and the phone row already has a subtitle line. So on the phone the state goes in the subtitle (C's shape), and the count stays on the right in caption ink. <b>Moving</b>: the subtitle is in secondary ink, “1 landing · into main”. <b>Attention</b>: the row's glyph fills amber, the phone's way of saying “needs you”, and the subtitle leads with the amber word, “1 to trust · plans and specs”. The iPad sidebar uses the same rows. See C-RD-Phone.</p></div>
+<div style="display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; padding: 0 0 14px; border-bottom: 1px solid #DAD8CF"><h3 style="font-size: 16px; margin: 0">Recommendation</h3><p style="margin: 0"><b>A with “·” on the Mac, the subtitle on the phone.</b> The number never leaves its column. The dock keeps its height. The words sit where the eye already is, and the Mac and the phone both say the same words in the same inks.</p></div>
+<div style="display: flex; flex-direction: column; gap: 12px"><h2>Handoff</h2><table>
+<tr><td style="width: 40px"><span class="tag a">a</span></td><td>The count column: fixed width, right-aligned, tabular digits, caption ink. It shows only the row's number in every state. The + column follows it.</td></tr>
+<tr><td style="width: 40px"><span class="tag c">c</span></td><td>Words: “asks you”, “N to trust”, “N asking”, “N landing”. On the Mac they follow the label after “·”. On the phone they lead the subtitle, followed by “· ‹which›” when it's a single gate or graph.</td></tr>
+<tr><td style="width: 40px"><span class="tag p0">d</span></td><td>Each row exposes its highest state (by the priority above), the state's count, and, for a count of one, the name of the gate or graph. The phone detail drops the words and carries only the number.</td></tr>
+</table></div>
+<p class="muted cap" style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 12px">Boards: RD-A-Mac, RD-B-Mac, RD-C-Mac (each: 1280 Mate dark and 640 Mate light, four states), C-RD-Phone (iPhone and iPad, light and dark).</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1760}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
