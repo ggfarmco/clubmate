@@ -44,6 +44,13 @@ final class AgentsTreeTests: XCTestCase {
         XCTAssertNil(needs[0].title)
     }
 
+    func testAGateWaitingForTrustIsListedOnlyInTheInbox() throws {
+        let gate = #"{"id":"gt_1","status":"waiting","kind":"gate","group":"needsYou","needsYou":true,"rowDetail":"Graph changed · 1 waits","listKey":"t9 gt_1","listFilters":["needs"],"inboxKey":"0 t9 gt_1"}"#
+        let all = try sessions(String(Self.tree.dropLast()) + ",\(gate)]")
+        XCTAssertEqual(AgentsTree.sections(all).filter { $0.nodes.contains { $0.id == "gt_1" } }.map(\.id), ["inbox"])
+        XCTAssertEqual(AgentsTree.sections(all, filter: .needs).flatMap(\.nodes).filter { $0.id == "gt_1" }.count, 1)
+    }
+
     func testLoneHomeGroupIsHeadedOnlyUnderAnInbox() throws {
         let home = #"{"id":"m1","status":"done","group":"done","listKey":"t1 m1","listGroupKey":"0","listGroupLabel":"main","listFilters":["all"]}"#
         let open = #"{"id":"m2","status":"done","group":"open","openCount":1,"listOpen":1,"listKey":"t2 m2","listGroupKey":"0","listGroupLabel":"main","listFilters":["all","open"],"inboxKey":"1 t2 m2"}"#

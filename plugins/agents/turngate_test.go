@@ -975,7 +975,7 @@ func TestGateWaitingForTrustNeedsYouOnceUntilTrusted(t *testing.T) {
 	g := d.f.gates(t, d.workspace)[0]
 
 	held := got[slices.IndexFunc(got, func(e entry) bool { return e.ID == d.session })]
-	assert.Equal(t, entry{ID: d.gate, Kind: "gate", Title: g.Name, RowDetail: "Graph changed: trust it · 1 waits", ListGroupKey: held.ListGroupKey, NeedsYou: true, ListFilters: []string{"needs"}}, got[gate(got)])
+	assert.Equal(t, entry{ID: d.gate, Kind: "gate", Title: g.Name, RowDetail: "Graph changed · 1 waits", NeedsYou: true, ListFilters: []string{"needs"}}, got[gate(got)])
 	assert.NotEmpty(t, held.ListGroupKey)
 	d.f.h.WaitSlot(t, d.workspace, "agents.gates.sidebar", func(n sdui.Node) bool {
 		items, ok := n.Props["items"].([]any)
@@ -983,7 +983,7 @@ func TestGateWaitingForTrustNeedsYouOnceUntilTrusted(t *testing.T) {
 	})
 	assert.NotContains(t, held.ListFilters, "needs")
 	d.f.waitNotes(t, func(n []notePost) bool {
-		return slices.Contains(n, notePost{d.workspace, d.gate, g.Name, "Graph changed: trust it · 1 waits", "needs-input"})
+		return slices.Contains(n, notePost{d.workspace, d.gate, g.Name, "Graph changed · 1 waits", "needs-input"})
 	})
 
 	require.NoError(t, d.f.run(t, d.workspace, "agents.gate-update", map[string]any{"id": d.gate, "trust": g.Hash}, nil))

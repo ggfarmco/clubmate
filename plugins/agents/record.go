@@ -163,6 +163,7 @@ type sessionInfo struct {
 	ListOpen        int                `json:"listOpen,omitempty"`
 	InboxKey        string             `json:"inboxKey,omitempty"`
 	inbox           inboxEntry
+	gatePoint       string
 }
 
 type sessionFailure struct {

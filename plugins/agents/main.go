@@ -522,7 +522,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		out = append(out, info)
 	}
 	for _, n := range a.trustWaiting(workspaceID) {
-		n.Name = a.trustGateName(n.Gate)
+		n.Name, n.Point = a.trustGate(n.Gate)
 		out = append(out, trustInfo(workspaceID, n))
 	}
 	setGroups(out)

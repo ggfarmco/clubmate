@@ -194,3 +194,21 @@ func TestSidebarInboxCopiesARunOnce(t *testing.T) {
 	assert.Equal(t, runPrefix+"run_1", items[0].Children[0].MirrorOf)
 	assert.Nil(t, findItem(items, groupPrefix+inboxOpenKey))
 }
+
+func TestSidebarInboxDrawsAGateWaitingForTrustOnOneLine(t *testing.T) {
+	t.Parallel()
+	held := inboxInfo(record{ID: "agt_h", Worktree: orderHome, Status: statusRunning}, 0)
+	infos := []sessionInfo{held, trustInfo("ws", trustNeed{Gate: "gt_1", Name: gateNameDone + "plans and specs", Point: gatePointTurn, Waits: 2, Since: inboxAt(5)})}
+	setGroups(infos)
+	var memo inboxMemo
+	memo.apply("ws", infos)
+	tree := nodesOf(sidebarView([]sessionRow{{Rec: held.record}}, "", nil, inboxAt(90), orderHome, map[string]string{orderHome: homeListGroup}, false, filterAll, sidebarSearch{}, 0, sidebarPlus{}, inboxOf(infos)), "tree")[0]
+	require.NoError(t, internalsdui.Validate(tree))
+
+	got := tree.Props["items"].([]sdui.TreeItem)[0].Children
+
+	assert.Equal(t, []sdui.TreeItem{{
+		ID: mirrorPrefix + gatePrefix + "gt_1", MirrorOf: gatePrefix + "gt_1", Label: "plans and specs", Icon: gateDoneIcon, Tone: toneWarning,
+		Badges: []sdui.HeaderBadge{{Text: "to trust", Tone: toneWarning}}, Help: "Graph changed · 2 waits",
+	}}, got)
+}

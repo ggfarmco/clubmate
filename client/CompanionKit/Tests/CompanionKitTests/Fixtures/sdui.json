@@ -2827,8 +2827,9 @@
           {
             "id": "trust:gt_00000000000000d1",
             "label": "Done · plans and specs",
-            "detail": "Graph changed: trust it · 1 waits",
-            "icon": "checkmark.bubble",
+            "detail": "Graph changed · 1 waits",
+            "icon": "exclamationmark.circle.fill",
+            "tone": "warning",
             "detailTone": "warning"
           },
           {

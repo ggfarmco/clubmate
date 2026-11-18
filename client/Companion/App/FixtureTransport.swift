@@ -1663,8 +1663,13 @@ actor FixtureServer {
             for key in ["inboxKey", "listFilters", "listOpen"] { fields[key] = nil }
             let worktree = fields["worktree"]?.stringValue ?? homeWorktree
             let home = worktree == homeWorktree
-            fields["listGroupKey"] = .string(home ? "0" : "1 " + worktree)
-            fields["listGroupLabel"] = .string(home ? "main" : worktree.components(separatedBy: ".worktrees/").last ?? worktree)
+            if fields["kind"] == .string("gate") {
+                fields["listGroupKey"] = nil
+                fields["listGroupLabel"] = nil
+            } else {
+                fields["listGroupKey"] = .string(home ? "0" : "1 " + worktree)
+                fields["listGroupLabel"] = .string(home ? "main" : worktree.components(separatedBy: ".worktrees/").last ?? worktree)
+            }
             let root = !["nestUnder", "rowUnder", "parentSession"].contains { fields[$0]?.stringValue.map(ids.contains) == true } && fields["hidden"] != .bool(true)
             let status = fields["status"]?.stringValue ?? ""
             let group = fields["group"]?.stringValue ?? ""

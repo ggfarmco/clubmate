@@ -182,7 +182,8 @@ final class CompanionUITests: XCTestCase {
         let app = launch(open: "agents", ["-landReview", "YES", "-gateTrust", "YES"])
         let needs = app.descendants(matching: .any)["inbox.gt_00000000000000d1"]
         XCTAssertTrue(needs.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Graph changed: trust it · 1 waits"].exists)
+        XCTAssertTrue(app.staticTexts["Graph changed · 1 waits"].exists)
+        XCTAssertEqual(app.descendants(matching: .any).matching(NSPredicate(format: "identifier ENDSWITH %@", "gt_00000000000000d1")).count, 1)
         add(screenshot(app, "needs-you"))
         needs.tap()
         let trust = app.buttons["Trust and run"]

@@ -75,6 +75,7 @@ final class NotificationInboxTests: XCTestCase {
         XCTAssertEqual(reveal.section, "agents")
         XCTAssertEqual(reveal.event?.value, .string("gate:gt_1"))
         XCTAssertTrue(reveal.focusMain)
+        XCTAssertEqual(HubNotification(id: "n1", workspace: "w", session: "gt_1", message: "Graph changed · 1 waits", kind: .needsInput, date: now).source(workspaceName: "shop"), "shop · Gates")
     }
 
     func testPinsOldestFirstByWhenItNeededYou() {

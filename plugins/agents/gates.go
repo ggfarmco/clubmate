@@ -59,15 +59,17 @@ type gateLanding struct {
 	Ask      string    `json:"ask,omitempty"`
 	Run      string    `json:"run,omitempty"`
 	Wait     string    `json:"wait,omitempty"`
+	Trust    bool      `json:"trust,omitempty"`
 }
 
 type gateRow struct {
 	gateConfig
-	Name     string        `json:"name"`
-	State    string        `json:"state"`
-	Hash     string        `json:"hash,omitempty"`
-	Last     *gateVerdict  `json:"last,omitempty"`
-	Landings []gateLanding `json:"landings,omitempty"`
+	Name       string        `json:"name"`
+	State      string        `json:"state"`
+	Hash       string        `json:"hash,omitempty"`
+	Unreadable bool          `json:"unreadable,omitempty"`
+	Last       *gateVerdict  `json:"last,omitempty"`
+	Landings   []gateLanding `json:"landings,omitempty"`
 }
 
 type gateVerdictsArgs struct {
@@ -267,6 +269,7 @@ func (a *app) heldLanding(rec record, asks map[string]*runNeed) (gateLanding, bo
 	}
 	l.State, l.Findings = gateStateReview, nil
 	if l.Wait = heldWaitWords(h); l.Wait != "" {
+		l.Trust = waitsForTrust(rec) != ""
 		return l, true
 	}
 	if r := a.heldReviewer(rec); r != nil {
@@ -318,7 +321,7 @@ func (a *app) gateRow(ctx context.Context, workspaceID string, g gateConfig) gat
 	row.Hash = trust.hash
 	switch {
 	case !trust.ok:
-		row.State = gateStateTrust
+		row.State, row.Unreadable = gateStateTrust, trust.hash == ""
 	case slices.ContainsFunc(row.Landings, func(l gateLanding) bool { return l.State == gateStateNeedsMe }):
 		row.State = gateStateNeedsMe
 	case g.Paused:

@@ -26,7 +26,7 @@ const (
 	gateRemovedWord  = "removed"
 	gateUnchanged    = "%s: unchanged"
 	gateDiffCells    = 1 << 20
-	gateOrderWhat    = "Steps · order changed"
+	gateOrderWhat    = "Order changed:"
 	gateTrustNothing = "Until you trust it, the gate runs nothing."
 	gateTurnWaits    = "1 done turn waits: %s"
 	gateTurnsWait    = "%d done turns wait: %s +%d"
@@ -155,7 +155,7 @@ func gateGraphDiff(gate string, old, cur *graphs.GateGraphInfo) graphDiff {
 		}
 	}
 	if was, now := commonOrder(old.Nodes, cur.Nodes), commonOrder(cur.Nodes, old.Nodes); !slices.EqualFunc(was, now, func(x, y graphs.GateNodeInfo) bool { return x.ID == y.ID }) {
-		block("order", gateOrderWhat, lineDiff(nodeTitles(was), nodeTitles(now)), true)
+		d.Nodes = append(d.Nodes, sdui.Markdown(orderLine(lineDiff(nodeTitles(was), nodeTitles(now)))))
 	}
 	if old.Edges != cur.Edges {
 		block("edges", gateEdgesWord+" · "+fmt.Sprintf(gateChangedWord, gateEdgesWhat), lineDiff(old.Edges, cur.Edges), true)
@@ -184,6 +184,22 @@ func nodeTitles(nodes []graphs.GateNodeInfo) string {
 	}
 	return strings.Join(titles, "\n")
 }
+
+func orderLine(lines []sdui.DiffLine) string {
+	var steps []string
+	for _, l := range lines {
+		switch l.Sign {
+		case sdui.DiffRemoved:
+		case sdui.DiffAdded:
+			steps = append(steps, "**"+markdownEscaper.Replace(l.Text)+"**")
+		default:
+			steps = append(steps, markdownEscaper.Replace(l.Text))
+		}
+	}
+	return gateOrderWhat + " " + strings.Join(steps, " · ")
+}
+
+var markdownEscaper = strings.NewReplacer(`\`, `\\`, "*", `\*`, "_", `\_`, "`", "\\`", "[", `\[`, "]", `\]`, "<", `\<`, "#", `\#`)
 
 func nodeKind(n graphs.GateNodeInfo) string {
 	if n.Step {

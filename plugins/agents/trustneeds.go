@@ -24,6 +24,7 @@ const (
 type trustNeed struct {
 	Gate  string
 	Name  string
+	Point string
 	Waits int
 	Since time.Time
 }
@@ -100,12 +101,12 @@ func (a *app) trustWaiting(workspace string) []trustNeed {
 	return out
 }
 
-func (a *app) trustGateName(gate string) string {
+func (a *app) trustGate(gate string) (name, point string) {
 	ctx := context.Background()
 	if g := a.gateByID(ctx, gate); g != nil {
-		return a.gateMatchName(ctx, *g)
+		return a.gateMatchName(ctx, *g), g.Point
 	}
-	return gate
+	return gate, ""
 }
 
 func (a *app) trustSynced(workspace string) {
@@ -120,7 +121,7 @@ func (a *app) trustSynced(workspace string) {
 	for _, n := range needs {
 		if !was[n.Gate] {
 			go func(n trustNeed) {
-				title := a.trustGateName(n.Gate)
+				title, _ := a.trustGate(n.Gate)
 				if !a.trustNeeds.waiting(workspace, n.Gate) {
 					return
 				}
@@ -156,6 +157,7 @@ func trustInfo(workspace string, n trustNeed) sessionInfo {
 		NeedsYouSince:   &since,
 		Group:           groupNeedsYou,
 		NotifyEffective: notifyAll,
+		gatePoint:       n.Point,
 	}
 }
 

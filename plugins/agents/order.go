@@ -48,12 +48,9 @@ func setOrder(infos []sessionInfo, home string) {
 	groups := groupKeys(recs, home)
 	firstNode := map[string]record{}
 	for _, rec := range recs {
-		for _, owner := range []string{runID(rec), waitsForTrust(rec)} {
-			if owner == "" {
-				continue
-			}
-			if first, ok := firstNode[owner]; !ok || startedFirst(rec, first) < 0 {
-				firstNode[owner] = rec
+		if run := runID(rec); run != "" {
+			if first, ok := firstNode[run]; !ok || startedFirst(rec, first) < 0 {
+				firstNode[run] = rec
 			}
 		}
 	}
@@ -62,7 +59,7 @@ func setOrder(infos []sessionInfo, home string) {
 		switch first, ok := firstNode[infos[i].ID]; {
 		case infos[i].Kind == "":
 			infos[i].ListGroupKey = groups[infos[i].Worktree]
-		case (infos[i].Kind == kindRun || infos[i].Kind == kindGate) && ok:
+		case infos[i].Kind == kindRun && ok:
 			infos[i].ListKey, infos[i].ListGroupKey, infos[i].Worktree = listKey(first), groups[first.Worktree], first.Worktree
 		}
 	}

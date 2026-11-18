@@ -68,6 +68,7 @@ public struct HubNotification: Sendable, Equatable, Codable {
 
     static func sessionLabel(session: String, owner: String?) -> String {
         if GraphRun.matches(session) { return "Graph run" }
+        if GateEntry.matches(session) { return "Gates" }
         if AgentSessionID.matches(session) || owner == AgentNotifier.section { return "Agent" }
         switch owner {
         case TerminalsSection.id: return "Terminal"

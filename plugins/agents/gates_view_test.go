@@ -163,7 +163,7 @@ func trustScreen(mac bool) gateScreen {
 		gateConfig: gateConfig{ID: "gt_1", Repo: "/src/shop", Point: gatePointTurn, Graph: "pipeline", Pin: "3f9a1c00ff", Rounds: 2, Paused: true},
 		Name:       "Done · plans and specs", State: gateStateTrust, Hash: "8b02e700aa",
 		Landings: []gateLanding{
-			{Lander: "agt_l", Title: "Write the inbox plan", State: gateStateReview, Round: 1, Since: now, Wait: heldWaitsTrust},
+			{Lander: "agt_l", Title: "Write the inbox plan", State: gateStateReview, Round: 1, Since: now, Wait: heldWaitsTrust, Trust: true},
 			{Lander: "agt_m", Title: "Plan rate limits", State: gateStateNeedsMe, Round: 2, Since: now},
 		},
 	}
@@ -232,7 +232,7 @@ func TestPhoneTrustCardHasTrustAndRunWithConfirm(t *testing.T) {
 	}
 	assert.Equal(t, "Graph changed · shop", nodesOf(phone, "header")[0].Props["meta"])
 	top := side.Props["items"].([]sdui.TreeItem)[0]
-	assert.Equal(t, []string{gateTrustPrefix + "gt_1", "Done · plans and specs", "Graph changed: trust it · 1 waits"}, []string{top.ID, top.Label, top.Detail})
+	assert.Equal(t, []string{gateTrustPrefix + "gt_1", "Done · plans and specs", gateTrustIcon, "Graph changed · 1 waits"}, []string{top.ID, top.Label, top.Icon, top.Detail})
 }
 
 func fableChoice() graphs.GateGraphInfo {
@@ -288,12 +288,14 @@ func TestTrustDiffShowsAStepOrderChange(t *testing.T) {
 	pinned := graphs.GateGraphInfo{Nodes: []graphs.GateNodeInfo{{ID: "a", Title: "A"}, {ID: "b", Title: "B"}}}
 	current := graphs.GateGraphInfo{Nodes: []graphs.GateNodeInfo{pinned.Nodes[1], pinned.Nodes[0]}}
 
-	lines := cardLines(sdui.VStack(gateGraphDiff("gt_1", &pinned, &current).Nodes...))
+	order := func(old, cur graphs.GateGraphInfo) any {
+		return nodesOf(sdui.VStack(gateGraphDiff("gt_1", &old, &cur).Nodes...), "markdown")[0].Props["text"]
+	}
 
-	assert.Equal(t, []string{gateOrderWhat, "- A", "  B", "+ A"}, lines)
-	same := graphs.GateGraphInfo{Nodes: []graphs.GateNodeInfo{{ID: "a", Title: "Review"}, {ID: "b", Title: "Review"}}}
+	assert.Equal(t, "Order changed: B · **A**", order(pinned, current))
+	same := graphs.GateGraphInfo{Nodes: []graphs.GateNodeInfo{{ID: "a", Title: "Review_1"}, {ID: "b", Title: "Review_1"}}}
 	swapped := graphs.GateGraphInfo{Nodes: []graphs.GateNodeInfo{same.Nodes[1], same.Nodes[0]}}
-	assert.Equal(t, []string{gateOrderWhat, "- Review · a", "  Review · b", "+ Review · a"}, cardLines(sdui.VStack(gateGraphDiff("gt_1", &same, &swapped).Nodes...)))
+	assert.Equal(t, `Order changed: Review\_1 · b · **Review\_1 · a**`, order(same, swapped))
 }
 
 func TestTrustDiffCountsARemovedStep(t *testing.T) {
@@ -328,6 +330,9 @@ func TestOnlyAChangedGraphCountsAsWaitingForTrust(t *testing.T) {
 
 	assert.Equal(t, "gt_1", waitsForTrust(held(graphs.ErrGateGraphChanged.Error())))
 	assert.Empty(t, waitsForTrust(held("held can't be read: no such graph")))
+	waits := []gateLanding{{Wait: heldWaitsTrust}, {Wait: heldWaitsTrust, Trust: true}}
+	assert.Equal(t, "Graph changed · 1 waits", gateRow{State: gateStateTrust, Landings: waits}.trustRowWords())
+	assert.Equal(t, "Graph can't be read", gateRow{State: gateStateTrust, Unreadable: true, Landings: waits}.trustRowWords())
 }
 
 func TestTrustDiffWithoutAPinnedCopyShowsTheWholeGraph(t *testing.T) {

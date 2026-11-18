@@ -78,8 +78,9 @@
               {"id": "graphs", "label": "Graphs", "icon": "point.3.connected.trianglepath.dotted", "detail": "5", "state": "1 to trust", "attention": true, "add": {"action": "newGraph", "label": "New graph…"}}
             ],
             "items": [
-              {"id": "wt:inbox:needs", "label": "Needs you", "icon": "tray", "detail": "1", "action": true, "hasChildren": true, "expanded": true, "children": [
-                {"id": "mirror:agt-wait", "mirrorOf": "agt-wait", "label": "Cron плагин для MCP", "icon": "exclamationmark.circle.fill", "tone": "warning", "detail": "chore · 3 min", "detailTone": "warning"}
+              {"id": "wt:inbox:needs", "label": "Needs you", "icon": "tray", "detail": "2", "action": true, "hasChildren": true, "expanded": true, "children": [
+                {"id": "mirror:agt-wait", "mirrorOf": "agt-wait", "label": "Cron плагин для MCP", "icon": "exclamationmark.circle.fill", "tone": "warning", "detail": "chore · 3 min", "detailTone": "warning"},
+                {"id": "mirror:gate:gt_1", "mirrorOf": "gate:gt_1", "label": "plans and specs, and every file under docs/superpowers", "icon": "checkmark.bubble", "tone": "warning", "badges": [{"text": "to trust", "tone": "warning"}], "help": "Graph changed · 2 waits"}
               ]},
               {
                 "id": "cmd", "label": "cmd", "icon": "folder", "hasChildren": true, "expanded": true,

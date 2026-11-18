@@ -368,7 +368,7 @@ struct TreeNodeView: View {
                 dispatch(node, row.item.expanded ? .collapse(row.id) : .expand(row.id))
             }
         } else {
-            ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, faint: row.item.faint, tone: row.item.tone, detailTone: row.item.detailTone, detailFaint: row.item.detailFaint, depth: row.depth, badges: row.item.badges, changes: row.item.changes, labelIcon: row.item.labelIcon, reserveIcon: columns.icon, action: action) {
+            ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, faint: row.item.faint, tone: row.item.tone, detailTone: row.item.detailTone, detailFaint: row.item.detailFaint, depth: row.depth, badges: row.item.badges, changes: row.item.changes, labelIcon: row.item.labelIcon, help: row.item.help, reserveIcon: columns.icon, action: action) {
                 Disclosure(hasChildren: row.item.hasChildren, expanded: row.item.expanded, reserve: columns.chevron) { expanded in
                     dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
                 }
@@ -572,6 +572,7 @@ struct ItemRow<Leading: View>: View {
     var badges: [SDUIHeaderBadge] = []
     var changes: SDUIChanges?
     var labelIcon: String?
+    var help: String?
     var note: ItemNote?
     var reserveIcon = false
     var reserveTrailing: CGFloat = 0
@@ -617,7 +618,7 @@ struct ItemRow<Leading: View>: View {
                         .foregroundStyle(faint ? theme.faint : muted ? theme.muted : theme.foreground)
                         .lineLimit(1)
                         .truncationMode(Text.TruncationMode(item.truncate))
-                        .help(item.label)
+                        .help(help ?? item.label)
                         .layoutPriority(1)
                     if let note {
                         ItemNoteView(note: note)

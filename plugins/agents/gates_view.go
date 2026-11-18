@@ -53,6 +53,7 @@ const (
 
 	gateIcon         = "shield"
 	gateLandIcon     = "arrow.triangle.merge"
+	gateTrustIcon    = "exclamationmark.circle.fill"
 	gateRepoIcon     = "folder"
 	gateRepoPrefix   = "gate-repo:"
 	gateCardPrefix   = "card:"
@@ -74,7 +75,9 @@ const (
 	gateUnreadable   = "%s can't be read: %s"
 	gateTrustAsk     = "Trust this version of %s?"
 	gateTrustReview  = "What the gate holds is reviewed by it."
-	gateTrustRow     = "Graph changed: trust it"
+	gateTrustRow     = "Graph changed"
+	gateUnreadRow    = "Graph can't be read"
+	gateToTrust      = "to trust"
 	gateTrustWaits   = "%s · %d waits"
 	gateTrustPrefix  = "trust:"
 	gateChangedMac   = "graph changed"
@@ -129,7 +132,7 @@ func gatesSidebar(rows []gateRow, selected string, now time.Time) sdui.Node {
 		if r.State != gateStateTrust {
 			continue
 		}
-		items = append(items, sdui.TreeItem{ID: gateTrustPrefix + r.ID, Label: r.Name, Icon: pointIcon(r.Point), Detail: r.trustRowWords(), DetailTone: "warning"})
+		items = append(items, sdui.TreeItem{ID: gateTrustPrefix + r.ID, Label: r.Name, Icon: gateTrustIcon, Tone: toneWarning, Detail: r.trustRowWords(), DetailTone: toneWarning})
 	}
 	items = append(items, automation.HelpItem(gateHelpTitle))
 	for _, g := range gateGroups(rows) {
@@ -213,7 +216,7 @@ func (r gateRow) trustWaits() []gateLanding {
 	}
 	var out []gateLanding
 	for _, l := range r.Landings {
-		if l.Wait == heldWaitsTrust {
+		if l.Trust {
 			out = append(out, l)
 		}
 	}
@@ -221,6 +224,9 @@ func (r gateRow) trustWaits() []gateLanding {
 }
 
 func (r gateRow) trustRowWords() string {
+	if r.Unreadable {
+		return gateUnreadRow
+	}
 	if n := len(r.trustWaits()); n > 0 {
 		return fmt.Sprintf(gateTrustWaits, gateTrustRow, n)
 	}

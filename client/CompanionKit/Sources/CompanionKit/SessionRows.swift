@@ -87,6 +87,9 @@ extension AgentSession {
 
     public func stateLine(now: Date, waitingChildren: Int = 0, waitingAsides: Int = 0) -> SessionStateLine {
         let age = { (date: Date) in ShortAge.since(date, now: now) }
+        if let rowDetail, kind == GateEntry.kind, let cut = rowDetail.range(of: " · ") {
+            return SessionStateLine(lead: String(rowDetail[..<cut.lowerBound]), text: "· " + rowDetail[cut.upperBound...])
+        }
         if let rowDetail {
             return SessionStateLine(text: rowDetail, tone: needsYou ? .needsYou : status == .error ? .danger : .secondary)
         }

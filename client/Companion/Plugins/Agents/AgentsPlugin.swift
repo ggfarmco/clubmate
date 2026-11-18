@@ -377,7 +377,7 @@ struct SessionListView: View {
             .tag(item.id)
             .selectionDisabled(item.repo != nil)
             .modifier(SelectedSessionRow(active: wide, selected: context.navigation.detail == item.id))
-            .accessibilityIdentifier(row.place == nil ? "row." + item.id : "inbox." + item.id)
+            .accessibilityIdentifier(row.section.hasPrefix("inbox") ? "inbox." + item.id : "row." + item.id)
             .onAppear { store.visibleRows.insert(row.id) }
             .onDisappear { store.visibleRows.remove(row.id) }
         }
@@ -679,7 +679,7 @@ struct SessionGlyphView: View {
         case .open, .done: "checkmark"
         case .closed: "archivebox"
         case .aside: "bubble.left.and.bubble.right"
-        case .gate: "checkmark.shield.fill"
+        case .gate: "exclamationmark"
         }
     }
 

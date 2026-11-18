@@ -113,6 +113,8 @@ public enum AgentsTree {
                 closed.append(root)
             } else if root.session.service {
                 service.append(root)
+            } else if filter == .all, root.session.inboxOnly {
+                continue
             } else if root.session.group == .paused {
                 paused[root.session.pausedUntil, default: []].append(root)
             } else {
@@ -144,6 +146,12 @@ public enum AgentsTree {
 
     static let homeGroup = "0"
     static let needsSection = "0"
+}
+
+extension AgentSession {
+    var inboxOnly: Bool {
+        kind != nil && inboxKey != nil && listGroupKey == nil
+    }
 }
 
 extension SessionNode {

@@ -48,7 +48,7 @@ One card on the lander, counted once in Needs you: Land anyway ⌥1, One more ro
 
 ## Phone (`C-GT-A-Gates-Light`)
 
-Gates screen grouped by repo, gate pages from the shared SDUI. Pause and Trust and run work on the phone; New and Edit stay on the Mac. A gate waiting for trust is the screen's top row: its name and "Graph changed: trust it · N waits".
+Gates screen grouped by repo, gate pages from the shared SDUI. Pause and Trust and run work on the phone; New and Edit stay on the Mac. A gate waiting for trust is the screen's top row: the amber needs-you glyph, its name and "Graph changed · N waits".
 
 ## Keys
 
@@ -106,14 +106,18 @@ Boards: `TR-Rules`, `C-TR-A-Gate-Light`, `C-TR-A-Confirm-Dark` (in `boards.html`
 - **Every changed line shows** (second ruling, 18 Nov). A − or + line never folds, however long the diff; only runs of unchanged context inside a step fold ("12 unchanged lines"), and the page scrolls.
 - **The waiting line**, per point: "Until you trust it, the gate runs nothing. 1 done turn waits: ‹title›" / "1 landing waits: ‹branch› into ‹base›"; more than one "2 done turns wait: ‹first title› +1". The gate page header reads "graph changed ‹age› · N waiting for trust" on the Mac, the phone's "Graph changed · ‹repo›".
 - **One confirm.** Trust and run on the phone asks once in a system alert: "Trust this version of ‹graph›?" / "What the gate holds is reviewed by it." / Cancel · Trust and run. Then the card goes and the held thing's round line reads "round 1 reviewing". The Mac's ⌘↩ keeps trusting at once.
-- **Where you find it.** The Gates dock row ("N to trust", amber) and the Gates screen's top row (the gate's name and "Graph changed: trust it · N waits") show any gate whose graph changed. Only while the gate holds something does it also get a Needs you row, the same words, counted once however many things wait, with one needs-input notification that goes when the gate is trusted or nothing waits; the held sessions stay under Running with "waits for trust" and don't count again. Each opens the gate page.
+- **Where you find it.** The Gates dock row ("N to trust", amber) and the Gates screen's top row (the gate's name and "Graph changed · N waits") show any gate whose graph changed. Only while the gate holds something does it also get a Needs you row, counted once however many things wait and listed only in Needs you (not again under a held session's worktree; graph run entries keep theirs), with one needs-input notification that goes when the gate is trusted or nothing waits; the held sessions stay under Running with "waits for trust" and don't count again. Each opens the gate page.
 - **iPad.** The same card in the detail column.
 - **SDUI.** A `diffLines` node (mono − / + lines, tinted; `fold` folds only runs of unchanged lines into "N unchanged lines") and a button `confirm` with `confirmMessage` (title, message; Cancel and the button's label).
 - **Graph put back.** When the graph's file again matches the pin (put back), the gate is no longer waiting for trust: what waited resumes its review and the Needs you row goes, as after Trust (the held turn checks again every 30 s).
-- **Every hashed change shows** (second ruling, 18 Nov). An added step says where it went ("‹step› · ‹kind› · added as step N"); a change in the steps' order is its own block, "Steps · order changed", with " · ‹id›" after a title two steps share.
+- **Every hashed change shows** (second ruling, 18 Nov). An added step says where it went ("‹step› · ‹kind› · added as step N"); a change in the steps' order reads "Order changed:" then the new order, the moved steps in full ink, with " · ‹id›" after a title two steps share.
 
-### Pending Claude Design (18 Nov; built as the builder chose until the designer answers)
+## Rulings (Claude Design, 18 Nov, the trust entry; TR-Rules, GT-Rules, C-GT-A-Gates-Light redrawn)
 
-- The Mac's Needs you row for a gate waiting for trust is cut at the default sidebar width ("Done · an… Graph chan…").
-- The phone lists the gate's Needs you entry twice: in Needs you and under its held session's worktree group, as it does for graph run entries.
-- Unruled words and looks: the phone row's "Graph changed: trust it · 1… · ‹branch›" cut, the shield glyph on the gate's row, "Steps · order changed", and the Mac notification's source label "‹repo› · Session".
+- **Mac Needs you row.** One line like every tree row: the point's glyph in amber, the gate's match ("plans and specs"), then an amber "to trust" badge (the dock's attention form). At narrow widths the label truncates, the badge never. The waiting count is in the tooltip ("Graph changed · 1 waits", tree item `help`) and on the gate page, not the row.
+- **Needs you only.** The trust entry is listed only in Needs you, not again under the held session's worktree group (the held session already reads "waits for trust"). Graph run entries keep their duplicate.
+- **Phone row.** "Graph changed · 1 waits" with "Graph changed" in amber (no "trust it", no branch), the amber needs-you glyph (circle with "!"), not the shield, which means held with nothing to answer. The Gates screen's top row reads the same words with the same glyph.
+- **Order changed.** A reordered graph reads "Order changed:" then the new order, the moved steps in full ink, the others in caption ink ("Simplify · **Lint** · Fable review · Summary").
+- **Mac notification.** Source "‹repo› · Gates", title the gate's name, body "Graph changed · 1 waits".
+- **One counting rule.** Only holds whose graph changed count, in the Needs you entry, the Gates top row, the gate header and the card's waiting line; a gate whose graph can't be read counts nothing and its top row reads "Graph can't be read".
+- **As built, differs from the boards.** The "Order changed:" line is a `markdown` node: the moved steps are bold and the others in body ink, not caption ink (no node mixes inks in one line). The Gates screen's top row draws its whole detail in warning ink, not "· 1 waits" in caption ink (a tree item's detail has one tone).

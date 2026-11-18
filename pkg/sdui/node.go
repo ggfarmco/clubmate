@@ -56,6 +56,7 @@ type TreeItem struct {
 	Pinned      bool          `json:"pinned,omitempty"`
 	Open        string        `json:"open,omitempty"`
 	MirrorOf    string        `json:"mirrorOf,omitempty"`
+	Help        string        `json:"help,omitempty"`
 }
 
 type TreeDock struct {

@@ -32,6 +32,7 @@ type inboxEntry struct {
 	Gate  bool
 	Label string
 	Words string
+	Point string
 	Open  bool
 	Since time.Time
 	Key   string
@@ -99,7 +100,7 @@ func inboxEntries(infos []sessionInfo) []inboxEntry {
 		}
 		entry.ID, entry.Run, entry.Gate = info.ID, info.Kind == kindRun, info.Kind == kindGate
 		if entry.Gate {
-			entry.Label, entry.Words = info.Title, info.RowDetail
+			entry.Label, entry.Words, entry.Point = info.Title, info.RowDetail, info.gatePoint
 		}
 		entry.Since = cmp.Or(entry.Since, info.UpdatedAt)
 		out = append(out, entry)
@@ -185,7 +186,7 @@ func inboxGroups(entries []inboxEntry, roots []sessionRow, kids map[string][]ses
 	copied := map[string]bool{}
 	for _, entry := range entries {
 		if entry.Gate {
-			needs = append(needs, gateInboxItem(entry, now))
+			needs = append(needs, gateInboxItem(entry))
 			continue
 		}
 		rows := byRun[entry.ID]
@@ -240,14 +241,15 @@ func mirrorItem(item sdui.TreeItem, row sessionRow, entry inboxEntry, now time.T
 	return item
 }
 
-func gateInboxItem(entry inboxEntry, now time.Time) sdui.TreeItem {
+func gateInboxItem(entry inboxEntry) sdui.TreeItem {
 	return sdui.TreeItem{
-		ID:         mirrorPrefix + gatePrefix + entry.ID,
-		MirrorOf:   gatePrefix + entry.ID,
-		Label:      entry.Label,
-		Icon:       gatesIcon,
-		Detail:     strings.Join(nonEmpty(entry.Words, waited(now.Sub(entry.Since))), " · "),
-		DetailTone: statusTones[statusWaiting],
+		ID:       mirrorPrefix + gatePrefix + entry.ID,
+		MirrorOf: gatePrefix + entry.ID,
+		Label:    dockGateLabel(entry.Label),
+		Icon:     pointIcon(entry.Point),
+		Tone:     toneWarning,
+		Badges:   []sdui.HeaderBadge{{Text: gateToTrust, Tone: toneWarning}},
+		Help:     entry.Words,
 	}
 }
 

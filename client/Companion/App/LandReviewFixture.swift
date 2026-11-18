@@ -22,7 +22,7 @@ enum LandReviewFixture {
         UserDefaults.standard.bool(forKey: "landReview")
     }
 
-    static let section = JSONValue.object(["id": .string("agents.gates"), "title": .string("Land gates"), "icon": .string("checkmark.shield"), "order": .number(38), "scope": .string("workspace"), "autoNew": .bool(false), "plugin": .string("agents"), "rail": .bool(false)])
+    static let section = JSONValue.object(["id": .string("agents.gates"), "title": .string("Gates"), "icon": .string("checkmark.shield"), "order": .number(38), "scope": .string("workspace"), "autoNew": .bool(false), "plugin": .string("agents"), "rail": .bool(false)])
 
     static var dock: [JSONValue] { [
         .object(["id": .string("service"), "label": .string("Service"), "icon": .string("gearshape.2"), "detail": .string("0"), "phoneDetail": .string("0")]),
@@ -95,7 +95,7 @@ enum LandReviewFixture {
         ]
         guard GateTrustFixture.on else { return rows }
         return rows + [record(GateTrustFixture.gate, "Done · plans and specs", status: "waiting", group: "needsYou", ago: 240, [
-            "kind": .string("gate"), "rowDetail": .string("Graph changed: trust it · 1 waits"), "needsYou": .bool(true), "needsYouSince": stamp(240), "listFilters": .array([.string("needs")]),
+            "kind": .string("gate"), "rowDetail": .string("Graph changed · 1 waits"), "needsYou": .bool(true), "needsYouSince": stamp(240), "listFilters": .array([.string("needs")]),
         ])]
     }
 

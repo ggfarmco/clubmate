@@ -65,6 +65,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
     public let pinned: Bool
     public let open: String?
     public let mirrorOf: String?
+    public let help: String?
 
     public var id: String { item.id }
 
@@ -106,6 +107,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
         pinned = fields["pinned"]?.boolValue ?? false
         open = fields["open"]?.stringValue
         mirrorOf = fields["mirrorOf"]?.stringValue
+        help = fields["help"]?.stringValue
     }
 }
 
