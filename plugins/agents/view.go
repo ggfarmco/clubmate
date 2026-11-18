@@ -517,8 +517,13 @@ func pickers(sc screen) []sdui.Picker {
 	for _, c := range finishChoices {
 		finish = append(finish, sdui.Option{Value: c.value, Label: c.label})
 	}
+	handoff := make([]sdui.Option, 0, len(handoffChoices))
+	for _, c := range handoffChoices {
+		handoff = append(handoff, sdui.Option{Value: c.value, Label: c.label})
+	}
 	return append(out,
 		sdui.Picker{ID: finishID, Title: "Finish", Help: finishHelp, Value: cmp.Or(sc.View.Session.Finish, finishAsk), Options: finish},
+		sdui.Picker{ID: handoffID, Title: "Handoff", Help: handoffHelp, Value: cmp.Or(sc.View.Session.Handoff, handoffOff), Options: handoff},
 		sdui.Picker{ID: afkID, Title: afkLabel, Help: afkHelp, Value: strconv.FormatBool(sc.View.Session.AFK), Options: toggleOptions, Toggle: true},
 	)
 }

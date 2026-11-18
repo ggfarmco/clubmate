@@ -176,7 +176,7 @@ func (a *app) importSession(ctx context.Context, h *pluginsdk.Host, workspaceID,
 	next.rec.HandoffFrom = copied.ID
 	next.mu.Unlock()
 	next.changed(changeUpdate, true)
-	first := promptArgs{Session: res.Session, Text: handoffBrief(imported.view(0), args.Note), From: from}
+	first := promptArgs{Session: res.Session, Text: handoffBrief(imported.view(0), args.Note, ""), From: from}
 	if first.Text != "" {
 		if err := a.submit(next, &first); err != nil {
 			return importResult{}, err

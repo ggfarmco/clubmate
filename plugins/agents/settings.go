@@ -88,6 +88,8 @@ func (a *app) setConfig(ctx context.Context, workspaceID string, args configArgs
 		return a.setAdvisor(ctx, s, args.Value)
 	case finishID:
 		return a.setFinish(s, args.Value)
+	case handoffID:
+		return a.setHandoff(s, args.Value)
 	case afkID:
 		on, known := afkValues[args.Value]
 		if !known {

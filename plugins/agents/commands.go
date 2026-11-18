@@ -109,7 +109,7 @@ var (
 		"agents.gate-update":    withArgs((*app).gateUpdateCommand),
 		"agents.gate-delete":    withArgs((*app).gateDeleteCommand),
 		"agents.land-gate":      withArgs((*app).landGateCommand),
-		"agents.land-done":      withArgs((*app).landDoneCommand),
+		"agents.land-done":      withArgs((*app).landDone),
 		"agents.land-verdict":   withArgs((*app).landVerdictCommand),
 	}
 

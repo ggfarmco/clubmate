@@ -27,13 +27,15 @@ func TestHandoffBrief(t *testing.T) {
 		name string
 		view transcriptView
 		note string
+		task string
 		want []string
 		not  []string
 	}{
-		{"no prompts gives the note", transcriptView{}, "go", []string{"go"}, nil},
+		{"no prompts gives the note", transcriptView{}, "go", "", []string{"go"}, nil},
 		{
 			"digest",
 			view,
+			"",
 			"",
 			[]string{
 				`continue agent session "Refunds" (agt_1) in /r/a`,
@@ -46,11 +48,19 @@ func TestHandoffBrief(t *testing.T) {
 			},
 			[]string{"secret", strings.Repeat("é", handoffPieceLimit+1)},
 		},
-		{"note replaces the default", view, "ship it", []string{"\n\nship it"}, []string{handoffDefault}},
+		{"note replaces the default", view, "ship it", "", []string{"\n\nship it"}, []string{handoffDefault}},
+		{
+			"a chain keeps the first task",
+			transcriptView{Session: record{ID: "agt_2"}, Entries: []*entry{{Kind: entryUser, Turn: 1, Text: "[Clubmate handoff] older brief"}, {Kind: entryAgent, Turn: 1, Text: "read it"}}},
+			"",
+			"fix refunds",
+			[]string{"Task (from the first session before its handoffs):\nfix refunds", "Last reply (turn 1):\nread it"},
+			[]string{"older brief", "Last prompt"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := handoffBrief(tt.view, tt.note)
+			got := handoffBrief(tt.view, tt.note, tt.task)
 			for _, w := range tt.want {
 				assert.Contains(t, got, w)
 			}
@@ -103,4 +113,28 @@ func TestHandoffMovesOpenWaits(t *testing.T) {
 	assert.True(t, a.watchdog.waitingLocked("new", "kid"))
 	release()
 	assert.Empty(t, a.watchdog.waits)
+}
+
+func TestHandoffWhy(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		rec     record
+		used    int
+		want    string
+		landing bool
+	}{
+		{"off", record{HandoffLanded: "main"}, 900_000, "", false},
+		{"context under the limit", record{Handoff: handoffContext}, handoffLimit, "", false},
+		{"context over the limit", record{Handoff: handoffContext, HandoffLanded: "main"}, 412_345, "context 412k", false},
+		{"landed", record{Handoff: handoffLanded, HandoffLanded: "main"}, 900_000, "landed into main", true},
+		{"either prefers context", record{Handoff: handoffEither, HandoffLanded: "main"}, 300_000, "context 300k", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, landing := handoffWhy(tt.rec, tt.used)
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.landing, landing)
+		})
+	}
 }

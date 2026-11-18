@@ -295,7 +295,7 @@
         "title": "Set agent option",
         "hidden": true,
         "remote": true,
-        "description": "Set a session option such as the model; the choice is remembered for new sessions in the worktree. The advisor option sets the advisor model for new sessions in the worktree (empty value restores the default).",
+        "description": "Set a session option such as the model; the choice is remembered for new sessions in the worktree. The advisor option sets the advisor model for new sessions in the worktree (empty value restores the default). The handoff option (off, landed, context, either) hands the session off to a new one by itself at the end of a turn after it landed into the default branch or once its context is over 250k.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},
@@ -311,7 +311,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Continue a session that is not running in a new session: same worktree, agent, parent, advisor, title, graph run, notification policy, AFK mode and starting cron job or trigger, first prompt a brief built from Clubmate's log (the task, the last prompt, the last reply, the last turn's stop reason and checkpoint, and how to read the full transcript) followed by note. The old session is closed (it can be reopened) and both link to each other (handoffTo, handoffFrom); the sessions the old one started become the new one's children. Fails while a turn is running, on a session already handed off and on a night session. Agents may hand off only sessions they started (directly or through their children). Returns {session}.",
+        "description": "Continue a session that is not running in a new session: same worktree, agent, parent, advisor, title, graph run, notification policy, AFK mode, handoff option and starting cron job or trigger, first prompt a brief built from Clubmate's log (the task, the last prompt, the last reply, the last turn's stop reason and checkpoint, and how to read the full transcript) followed by note. The old session is closed (it can be reopened) and both link to each other (handoffTo, handoffFrom); the sessions the old one started become the new one's children. Fails while a turn is running, on a session already handed off and on a night session. Agents may hand off only sessions they started (directly or through their children). Returns {session}.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id to hand off."},

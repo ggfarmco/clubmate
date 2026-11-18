@@ -562,6 +562,7 @@ func (a *app) doneTail(s *session, ended api.Turn, cancelled bool) {
 	a.gateTurnEnded(s, !cancelled)
 	a.cleanupChild(s)
 	a.closeVanishedChildren(s)
+	a.handoffAfter(s, cancelled)
 }
 
 func (s *session) rebaseLocked(b *gateBase) {

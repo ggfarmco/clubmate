@@ -56,6 +56,9 @@ type record struct {
 	Status          string         `json:"status"`
 	Mode            string         `json:"mode"`
 	Finish          string         `json:"finish,omitempty"`
+	Handoff         string         `json:"handoff,omitempty"`
+	HandoffLanded   string         `json:"handoffLanded,omitempty"`
+	HandoffNotes    string         `json:"handoffNotes,omitempty"`
 	AFK             bool           `json:"afk,omitempty"`
 	AFKBy           string         `json:"afkBy,omitempty"`
 	StartedBy       string         `json:"startedBy,omitempty"`

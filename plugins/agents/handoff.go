@@ -23,6 +23,7 @@ var (
 type handoffArgs struct {
 	Session string `json:"session"`
 	Note    string `json:"note"`
+	brief   string
 }
 
 type handoffResult struct {
@@ -57,7 +58,10 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 	if old.Task != nil {
 		finish = old.Finish
 	}
-	first := promptArgs{Text: handoffBrief(s.view(0), args.Note), From: from}
+	first := promptArgs{Text: args.brief, From: from}
+	if first.Text == "" {
+		first.Text = handoffBrief(s.view(0), args.Note, a.chainTask(s))
+	}
 	a.beginHandoff(old.ID)
 	a.closeSession(ctx, s, false)
 	a.connectMu.Lock()
@@ -79,6 +83,7 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 		Title:    old.Title,
 		TitleSet: old.TitleSet,
 		Finish:   finish,
+		Handoff:  old.Handoff,
 		AFK:      old.AFK,
 		AFKBy:    old.AFKBy,
 		RepoPath: old.RepoPath,
@@ -114,7 +119,28 @@ func (a *app) moveChildren(ctx context.Context, from, to string) {
 	}
 }
 
-func handoffBrief(v transcriptView, note string) string {
+func firstTask(v transcriptView) string {
+	for _, en := range v.Entries {
+		if en.Kind == entryUser {
+			return clip(en.Text)
+		}
+	}
+	return ""
+}
+
+func (a *app) chainTask(s *session) string {
+	root, seen := s, map[string]bool{}
+	for prev := a.session(root.snapshot().HandoffFrom); prev != nil && !seen[prev.snapshot().ID]; prev = a.session(prev.snapshot().HandoffFrom) {
+		seen[prev.snapshot().ID] = true
+		root = prev
+	}
+	if root == s {
+		return ""
+	}
+	return firstTask(root.view(0))
+}
+
+func handoffBrief(v transcriptView, note, origin string) string {
 	var task, last, reply *entry
 	for _, en := range v.Entries {
 		switch en.Kind {
@@ -131,7 +157,11 @@ func handoffBrief(v transcriptView, note string) string {
 		return strings.TrimSpace(note)
 	}
 	rec := v.Session
-	parts := []string{fmt.Sprintf(handoffHead, cmp.Or(rec.Title, "New session"), rec.ID, rec.Worktree, rec.ID), "Task (turn " + strconv.Itoa(task.Turn) + "):\n" + clip(task.Text)}
+	first := "Task (turn " + strconv.Itoa(task.Turn) + "):\n" + clip(task.Text)
+	if origin != "" {
+		first = "Task (from the first session before its handoffs):\n" + origin
+	}
+	parts := []string{fmt.Sprintf(handoffHead, cmp.Or(rec.Title, "New session"), rec.ID, rec.Worktree, rec.ID), first}
 	if last != task {
 		parts = append(parts, "Last prompt (turn "+strconv.Itoa(last.Turn)+"):\n"+clip(last.Text))
 	}

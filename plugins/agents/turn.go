@@ -408,6 +408,7 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 		a.gateTurnEnded(s, !cancelled)
 		a.cleanupChild(s)
 		a.closeVanishedChildren(s)
+		a.handoffAfter(s, cancelled)
 		if plan.release != "" && prior != nil {
 			a.logReleased(s, *prior, plan.release)
 		}
