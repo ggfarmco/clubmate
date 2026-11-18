@@ -95,7 +95,7 @@ func TestStartGateStartsNodesItself(t *testing.T) {
 	require.Len(t, first, 1)
 	assert.Contains(t, first[0], "Land it, no verdict")
 	assert.NotContains(t, first[0], "Land {{title}} at tree T")
-	assert.Contains(t, first[0], "review is): put your findings in your reply and don't call agents_land_verdict")
+	assert.Contains(t, first[0], "decides this gate (review): put your findings in your reply and don't call agents_land_verdict; it refuses you")
 }
 
 func TestGateRoundCarriesItsInputAlongEdges(t *testing.T) {

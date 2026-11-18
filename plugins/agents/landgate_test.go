@@ -563,7 +563,7 @@ func TestGraphChangedWaitsForTrust(t *testing.T) {
 	require.ErrorContains(t, g.land(t), "review pending")
 }
 
-func TestVerdictFromAnyGateNode(t *testing.T) {
+func TestVerdictOnlyFromDecidingNode(t *testing.T) {
 	t.Parallel()
 	g := startGateWith(t, "pipeline", gatePipeline)
 	require.ErrorContains(t, g.land(t), "review pending")
@@ -571,12 +571,12 @@ func TestVerdictFromAnyGateNode(t *testing.T) {
 	nodes := g.nodes(t)
 	i := slices.IndexFunc(nodes, func(r record) bool { return r.ID != review.ID })
 	require.GreaterOrEqual(t, i, 0)
-	simplify := nodes[i]
 
-	require.NoError(t, g.f.runAs(t, g.workspace, simplify.ID, "agents.land-verdict", map[string]any{"tree": simplify.GateFor.Tree, "outcome": "approved"}, nil))
-	err := g.f.runAs(t, g.workspace, review.ID, "agents.land-verdict", map[string]any{"tree": review.GateFor.Tree, "outcome": "changes", "findings": []string{"b.go:1 — breaks"}}, nil)
+	err := g.f.runAs(t, g.workspace, nodes[i].ID, "agents.land-verdict", map[string]any{"tree": "wrong", "outcome": "approved"}, nil)
 
-	require.ErrorContains(t, err, "already decided")
+	require.ErrorContains(t, err, "only a deciding node")
+	assert.NotContains(t, err.Error(), review.GateFor.Tree)
+	g.verdict(t, "approved")
 	require.NoError(t, g.land(t))
 }
 

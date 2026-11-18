@@ -1133,7 +1133,7 @@
         "hidden": true,
         "agent": true,
         "timeout": 30,
-        "description": "Only a node of a gate's current run: the verdict on what it was asked to review (a landing, or an agent's finished turn for a Done gate); the first verdict for a key wins. approved lets git.land land it or releases the held turn as done; changes (confirmed problems only, each finding \"file:line — what breaks\") sends the findings to the lander or the held session. Nits and suggestions go to deferred; they never block.",
+        "description": "Only a deciding node of a gate's current run (an agent node whose outcomes hold approved and changes; any other node is refused): the verdict on what it was asked to review (a landing, or an agent's finished turn for a Done gate); the first verdict for a key wins. approved lets git.land land it or releases the held turn as done; changes (confirmed problems only, each finding \"file:line — what breaks\") sends the findings to the lander or the held session. Nits and suggestions go to deferred; they never block.",
         "args": {
           "properties": {
             "key": {"type": "string", "description": "The key your latest review prompt names; a verdict for any other key is refused."},

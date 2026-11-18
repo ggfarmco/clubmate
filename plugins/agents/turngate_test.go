@@ -815,6 +815,25 @@ func TestStopHeldMidCycleThenPermissionSettlesIdle(t *testing.T) {
 
 const heldChecked = `{"nodes":[{"id":"lint","prompt":"Lint. {{input}}","start":true},{"id":"check","run":"cat note.md"},{"id":"review","prompt":"Review. {{input}}","outcomes":["approved","changes"]}],"edges":[{"from":"lint","to":"check"},{"from":"check","to":"review"}]}`
 
+func TestDoneVerdictOnlyFromDecidingNode(t *testing.T) {
+	t.Parallel()
+	d := startDoneIn(t, nil, gateWhere, map[string]any{}, map[string]any{}, nil)
+	var lint record
+	testutil.Eventually(t, func() bool {
+		nodes := gateSetup{f: d.f, workspace: d.workspace, lander: d.session}.nodes(t)
+		i := slices.IndexFunc(nodes, func(r record) bool { return !r.GateFor.Verdict })
+		if i >= 0 {
+			lint = nodes[i]
+		}
+		return i >= 0
+	}, wait)
+
+	err := d.f.runAs(t, d.workspace, lint.ID, "agents.land-verdict", map[string]any{"key": "wrong", "outcome": "approved"}, nil)
+
+	require.ErrorContains(t, err, "only a deciding node")
+	assert.NotContains(t, err.Error(), lint.GateFor.Key)
+}
+
 func TestDoneGateStepRunsOnHeldTree(t *testing.T) {
 	t.Parallel()
 	d := startDoneIn(t, allowHome(t, "Bash(cat note.md)"), heldChecked, map[string]any{}, map[string]any{}, map[string]any{"match": "Review.", "wait": filepath.Join(t.TempDir(), "never")})

@@ -374,7 +374,7 @@ func (x *runner) brief(n *Node) string {
 		b.WriteString("\n\nTask:\n" + input)
 	}
 	if x.run.Gate && !verdict {
-		fmt.Fprintf(&b, "\n\nYou are not the node that decides this landing (%s is): put your findings in your reply and don't call agents_land_verdict.", strings.Join(x.run.Spec.deciders(), ", "))
+		fmt.Fprintf(&b, "\n\nYou are not a node that decides this gate (%s): put your findings in your reply and don't call agents_land_verdict; it refuses you.", strings.Join(x.run.Spec.deciders(), ", "))
 	}
 	var peers []string
 	for _, rn := range x.run.Nodes {

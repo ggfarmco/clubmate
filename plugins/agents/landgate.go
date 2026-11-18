@@ -49,7 +49,7 @@ const (
 	gatePending  = "pending"
 	gateUser     = "user"
 
-	gateNodeText        = "[Clubmate land gate node] You help a land gate review a change before it lands. You are read-only: never edit files, commit, merge, reset, check out, stash or delete anything, and never start sessions. Do what your node's prompt asks and put your findings in your reply; another node of the gate's graph decides the landing, so don't call agents_land_verdict."
+	gateNodeText        = "[Clubmate land gate node] You help a land gate review a change before it lands. You are read-only: never edit files, commit, merge, reset, check out, stash or delete anything, and never start sessions. Do what your node's prompt asks and put your findings in your reply; only a deciding node of the gate's graph gives the verdict, so don't call agents_land_verdict: it refuses you."
 	gateReviewerText    = "[Clubmate land reviewer] You review a change before it lands. You are read-only: never edit files, commit, merge, reset, check out, stash or delete anything, and never start sessions. Read the diff and the code around it, run read-only commands and tests when they help, and end every review with exactly one agents_land_verdict call."
 	gateFirstFormat     = "[Clubmate land review] Review this change before it lands in %s (repo %s).\nGoal: %s\nThe change: `git diff %s %s` (%s's tip, then the tree %s will hold)%s.%s\nReport confirmed correctness bugs, regressions and missed cases with file:line."
 	gateFirstVerdict    = " Then call agents_land_verdict once with tree %s: outcome changes only for confirmed bugs, each finding as \"file:line — what breaks\"; otherwise approved. Nits and suggestions go to deferred."
@@ -101,6 +101,7 @@ var (
 	errGateUnknown  = errors.New("no such land gate")
 	errGateRounds   = errors.New("rounds is 1 or more")
 	errNotReviewer  = errors.New("only a land reviewer session gives a verdict")
+	errNotDecider   = errors.New("only a deciding node of the gate's graph gives the verdict")
 	errNoReview     = errors.New("no land review is waiting for a verdict")
 	errVerdict      = errors.New("outcome is approved or changes, and changes needs findings")
 	errGateNoLander = errors.New("git_land needs the calling agent session")
@@ -1078,6 +1079,9 @@ func (a *app) landVerdictCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 	node := a.session(cmd.Caller)
 	if node == nil || node.snapshot().GateFor == nil {
 		return nil, errNotReviewer
+	}
+	if gf := node.snapshot().GateFor; gf.Run != "" && !gf.Verdict {
+		return nil, errNotDecider
 	}
 	if args.Outcome != gateApproved && (args.Outcome != gateChanges || len(args.Findings) == 0) {
 		return nil, errVerdict

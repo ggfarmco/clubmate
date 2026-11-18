@@ -38,7 +38,7 @@ const (
 	heldChangesTail    = "\nFix these; your next finished turn goes back to the gate."
 	heldNudgeText      = "[Clubmate] Your Done review ended without a verdict. Call agents_land_verdict now with the key your review prompt names: approved, or changes with the confirmed problems as findings."
 	heldReviewerText   = "[Clubmate Done reviewer] You review an agent's finished turn before the user sees it as done. You are read-only: never edit files, commit, merge, reset, check out, stash or delete anything, and never start sessions. Read the change and the files around it, run read-only commands when they help, and end every review with exactly one agents_land_verdict call with the key your review prompt names."
-	heldNodeText       = "[Clubmate Done gate node] You help a Done gate review an agent's finished turn. You are read-only: never edit files, commit, merge, reset, check out, stash or delete anything, and never start sessions. Do what your node's prompt asks and put your findings in your reply; another node of the gate's graph decides, so don't call agents_land_verdict."
+	heldNodeText       = "[Clubmate Done gate node] You help a Done gate review an agent's finished turn. You are read-only: never edit files, commit, merge, reset, check out, stash or delete anything, and never start sessions. Do what your node's prompt asks and put your findings in your reply; only a deciding node of the gate's graph gives the verdict, so don't call agents_land_verdict: it refuses you."
 	verdictKeyFormat   = "key must be the one your latest review prompt names: %s"
 	heldReviewStartLog = "start the Done review"
 	byChildren         = "children-running"
