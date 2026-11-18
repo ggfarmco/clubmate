@@ -36,9 +36,10 @@ var (
 )
 
 type expTag struct {
-	Kind string `json:"kind,omitempty"`
-	Size string `json:"size,omitempty"`
-	Arm  string `json:"arm,omitempty"`
+	Kind  string `json:"kind,omitempty"`
+	Size  string `json:"size,omitempty"`
+	Arm   string `json:"arm,omitempty"`
+	ArmBy string `json:"armBy,omitempty"`
 }
 
 type outcomeEntry struct {
@@ -70,6 +71,7 @@ type sessionOutcome struct {
 	Kind        string    `json:"kind,omitempty"`
 	Size        string    `json:"size,omitempty"`
 	Arm         string    `json:"arm,omitempty"`
+	ArmBy       string    `json:"armBy,omitempty"`
 	Model       string    `json:"model,omitempty"`
 	Effort      string    `json:"effort,omitempty"`
 	CreatedAt   time.Time `json:"createdAt"`
@@ -115,6 +117,19 @@ type outcomesArgs struct {
 
 type outcomesResult struct {
 	Outcomes []outcomeRow `json:"outcomes"`
+	Arms     []armSummary `json:"arms"`
+}
+
+type armSummary struct {
+	Kind                string  `json:"kind"`
+	Size                string  `json:"size"`
+	Arm                 string  `json:"arm"`
+	N                   int     `json:"n"`
+	Landed              int     `json:"landed"`
+	MedianCostToLanding float64 `json:"medianCostToLanding"`
+	MeanCostToLanding   float64 `json:"meanCostToLanding"`
+	ChangesShare        float64 `json:"changesShare"`
+	MedianWallSeconds   int64   `json:"medianWallSeconds"`
 }
 
 type outcomeJournal struct {
@@ -343,7 +358,7 @@ func (s *session) outcome() sessionOutcome {
 		Closed:      rec.closed(),
 	}
 	if rec.Exp != nil {
-		o.Kind, o.Size, o.Arm = rec.Exp.Kind, rec.Exp.Size, rec.Exp.Arm
+		o.Kind, o.Size, o.Arm, o.ArmBy = rec.Exp.Kind, rec.Exp.Size, rec.Exp.Arm, rec.Exp.ArmBy
 	}
 	return o
 }
@@ -483,7 +498,71 @@ func (a *app) outcomesCommand(_ context.Context, cmd pluginsdk.CommandRun, args 
 	slices.SortFunc(rows, func(x, y outcomeRow) int {
 		return cmp.Or(x.CreatedAt.Compare(y.CreatedAt), strings.Compare(x.Session, y.Session))
 	})
-	return outcomesResult{Outcomes: rows}, nil
+	return outcomesResult{Outcomes: rows, Arms: summarizeArms(rows)}, nil
+}
+
+func summarizeArms(rows []outcomeRow) []armSummary {
+	type cell struct {
+		armSummary
+		costs    []float64
+		walls    []int64
+		verdicts int
+		changes  int
+	}
+	cells := map[[3]string]*cell{}
+	for _, r := range rows {
+		if r.ArmBy != armByAuto {
+			continue
+		}
+		key := [3]string{cmp.Or(r.Kind, stratumBlank), cmp.Or(r.Size, stratumBlank), r.Arm}
+		c := cells[key]
+		if c == nil {
+			c = &cell{armSummary: armSummary{Kind: key[0], Size: key[1], Arm: key[2]}}
+			cells[key] = c
+		}
+		c.N++
+		if !r.LastTurnEnd.IsZero() {
+			c.walls = append(c.walls, r.WallSeconds)
+		}
+		if r.Landing != nil {
+			c.Landed++
+			c.costs = append(c.costs, r.CostToLanding)
+			c.verdicts += len(r.Landing.Verdicts)
+			c.changes += r.Landing.Changes
+		}
+	}
+	out := []armSummary{}
+	for _, c := range cells {
+		s := c.armSummary
+		if len(c.costs) > 0 {
+			var sum float64
+			for _, v := range c.costs {
+				sum += v
+			}
+			s.MeanCostToLanding = sum / float64(len(c.costs))
+			s.MedianCostToLanding = median(c.costs)
+		}
+		if c.verdicts > 0 {
+			s.ChangesShare = float64(c.changes) / float64(c.verdicts)
+		}
+		if len(c.walls) > 0 {
+			s.MedianWallSeconds = median(c.walls)
+		}
+		out = append(out, s)
+	}
+	slices.SortFunc(out, func(x, y armSummary) int {
+		return cmp.Or(strings.Compare(x.Kind, y.Kind), strings.Compare(x.Size, y.Size), strings.Compare(x.Arm, y.Arm))
+	})
+	return out
+}
+
+func median[T int64 | float64](values []T) T {
+	sorted := slices.Sorted(slices.Values(values))
+	n := len(sorted)
+	if n%2 == 1 {
+		return sorted[n/2]
+	}
+	return (sorted[n/2-1] + sorted[n/2]) / 2
 }
 
 func (j outcomeJournal) landingRow(e outcomeEntry, gates map[string]*gateFor, created map[string]time.Time) landingRow {

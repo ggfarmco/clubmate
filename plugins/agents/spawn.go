@@ -70,7 +70,12 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 	if args.Finish != "" && !validFinish(args.Finish) {
 		return newResult{}, fmt.Errorf("%w: %s=%s", errUnknownValue, finishID, args.Finish)
 	}
-	rec := record{Workspace: workspaceID, Agent: agent, Title: titleOf(args.Title), TitleSet: args.Title != "", Notify: storedNotify(args.Notify), DisallowedTools: args.DisallowedTools, SystemPrompt: args.SystemPrompt, StartMode: args.Mode, FirstMode: args.FirstMode, StartModel: args.Model, StartEffort: args.Effort, Exp: parseExp(args.Prompt), CronJob: args.CronJob, Trigger: args.Trigger}
+	sid := id.New(api.IDPrefix)
+	exp, model, err := a.startExp(ctx, sid, args)
+	if err != nil {
+		return newResult{}, err
+	}
+	rec := record{ID: sid, Workspace: workspaceID, Agent: agent, Title: titleOf(args.Title), TitleSet: args.Title != "", Notify: storedNotify(args.Notify), DisallowedTools: args.DisallowedTools, SystemPrompt: args.SystemPrompt, StartMode: args.Mode, FirstMode: args.FirstMode, StartModel: model, StartEffort: args.Effort, Exp: exp, CronJob: args.CronJob, Trigger: args.Trigger}
 	if args.gate != nil {
 		rec.GateFor, rec.DisallowedTools = args.gate, gateReviewerDenied
 	}
@@ -217,7 +222,7 @@ func (a *app) launch(rec record, first promptArgs, ready *setup) (*session, erro
 
 func (a *app) createSession(rec record, ready *setup) *session {
 	now := time.Now().UTC()
-	rec.ID, rec.Status, rec.CreatedAt, rec.UpdatedAt = id.New(api.IDPrefix), statusIdle, now, now
+	rec.ID, rec.Status, rec.CreatedAt, rec.UpdatedAt = cmp.Or(rec.ID, id.New(api.IDPrefix)), statusIdle, now, now
 	s := a.addSession(rec, true, ready)
 	a.notes.mark(s, changeCreated, true)
 	a.kick(rec.Workspace)

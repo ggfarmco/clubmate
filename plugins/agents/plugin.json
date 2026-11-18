@@ -83,7 +83,9 @@
             "disallowedTools": {"type": "array", "items": {"type": "string"}, "description": "Tools the session may not use (Claude Code tool names, e.g. Bash or mcp__clubmate__agents_delete), on every start and resume. Voice plugin only."},
             "systemPrompt": {"type": "string", "description": "Text appended to the session's system prompt instead of Clubmate's AskUserQuestion and open items hint. Voice plugin only."},
             "mode": {"type": "string", "description": "Mode set right after the session starts or resumes, e.g. bypassPermissions; ignored when the agent does not offer it. Voice plugin only."},
-            "model": {"type": "string", "description": "Model set right after the session starts, e.g. sonnet or fable; for a child too, instead of the caller's model. The session stays an ordinary one. A model the agent does not offer leaves a notice in the session's transcript listing the offered ones, and the same text in startNotice of agents.sessions."},
+            "model": {"type": "string", "description": "Model set right after the session starts, e.g. sonnet or fable; for a child too, instead of the caller's model. The session stays an ordinary one. A model the agent does not offer leaves a notice in the session's transcript listing the offered ones, and the same text in startNotice of agents.sessions. auto: Clubmate picks one of the experiment's arms (agents.model-arms, default opus and sonnet) from a hash of the new session's id, so the arms split evenly within every kind × size; pass auto when the choice of model doesn't matter for the task. exp in agents.sessions records {kind, size, arm, armBy}: armBy auto for a picked model, caller for one named here."},
+            "kind": {"type": "string", "enum": ["feature", "fix", "refactor", "docs", "test", "ui-check", "review", "spike"], "description": "What the session is started to do, for agents.outcomes; recorded in exp of agents.sessions."},
+            "size": {"type": "string", "enum": ["S", "M", "L"], "description": "The caller's size estimate: S up to 60 tool calls, M 60-150, L more; recorded in exp of agents.sessions."},
             "effort": {"type": "string", "description": "Effort level set right after the session starts, e.g. low, medium, high, xhigh or max (the levels depend on the model); for a child too. Like model, a level the agent does not offer leaves a notice and startNotice."},
             "firstMode": {"type": "string", "description": "Mode the session starts in instead of the worktree's remembered one, e.g. plan; ignored when the agent does not offer it. Unlike mode it applies once (the user may change it later) and the session stays an ordinary one. Not from an agent (\"invalid_params: only the user may set firstMode\"); Backlog's Start agent sets it."},
             "afk": {"type": "boolean", "description": "Start the session in AFK mode (true) or not (false) from its first prompt, instead of the AFK default (agents.afk-default, top-level sessions the user starts only; a session an agent starts outside its own tree, e.g. in another workspace, from a cron job or trigger an agent made, or from an agent without a session, starts without AFK unless this is true, and then it is that agent's AFK). A child of an AFK session is in AFK mode anyway."},
@@ -184,6 +186,22 @@
         "result": {
           "properties": {
             "on": {"type": "boolean", "description": "Current default."}
+          }
+        }
+      },
+      {
+        "id": "agents.model-arms",
+        "title": "Model experiment arms",
+        "hidden": true,
+        "description": "Get the models agents.new with model auto picks from, or set them when arms is given (only the user): model names other than auto, at least one, no duplicates. Default [\"opus\", \"sonnet\"].",
+        "args": {
+          "properties": {
+            "arms": {"type": "array", "items": {"type": "string"}, "description": "New arms; omit to read the current ones."}
+          }
+        },
+        "result": {
+          "properties": {
+            "arms": {"type": "array", "items": {"type": "string"}, "description": "Current arms."}
           }
         }
       },
@@ -1132,7 +1150,7 @@
         "title": "List child outcomes",
         "hidden": true,
         "agent": true,
-        "description": "Children of agent sessions and the builders of landings, oldest first, from live sessions and the outcomes journal (kept 90 days): {outcomes: [{session, title, parent, kind, size, arm (from an [exp kind=… size=… arm=…] first line of the starting prompt), model, effort, createdAt, lastTurnEnd, wallSeconds, turns, cost, landing?: {squash, into, source, lander, builder, fixers, gate, rounds, changes, verdicts, reviewers, at}, reviewersCost, fixersCost, costToLanding}]}. Cost is the session's running usage cost in USD; costToLanding = cost + reviewersCost + fixersCost of its latest landing.",
+        "description": "Children of agent sessions and the builders of landings, oldest first, from live sessions and the outcomes journal (kept 90 days): {outcomes: [{session, title, parent, kind, size, arm, armBy (from agents.new kind, size and model; for a session started without them, an [exp kind=… size=… arm=…] first line of the starting prompt), model, effort, createdAt, lastTurnEnd, wallSeconds, turns, cost, landing?: {squash, into, source, lander, builder, fixers, gate, rounds, changes, verdicts, reviewers, at}, reviewersCost, fixersCost, costToLanding}], arms: [{kind, size, arm, n, landed, medianCostToLanding, meanCostToLanding, changesShare, medianWallSeconds}]}. Cost is the session's running usage cost in USD; costToLanding = cost + reviewersCost + fixersCost of its latest landing. arms sums up the listed sessions with armBy auto per kind × size × arm (a missing kind or size is unknown): n sessions, landed with a landing, the median and mean costToLanding of the landed ones, changesShare the changes verdicts among all verdicts of their landings, and the median wallSeconds of those with a turn end.",
         "args": {
           "properties": {
             "since": {"type": "string", "description": "Only sessions created at or after this RFC 3339 time or YYYY-MM-DD date."},

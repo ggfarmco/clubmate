@@ -42,6 +42,7 @@ var (
 		"agents.finish-default": withArgs((*app).finishDefaultCommand),
 		"agents.afk":            withArgs((*app).afkCommand),
 		"agents.afk-default":    withArgs((*app).afkDefaultCommand),
+		"agents.model-arms":     withArgs((*app).armsCommand),
 		"agents.usage":          (*app).usageCommand,
 		"agents.stop-root":      withArgs((*app).stopRootCommand),
 		"agents.wait":           withArgs((*app).waitCommand),
@@ -173,6 +174,8 @@ type newArgs struct {
 	FirstMode       string         `json:"firstMode"`
 	Model           string         `json:"model"`
 	Effort          string         `json:"effort"`
+	Kind            string         `json:"kind"`
+	Size            string         `json:"size"`
 	AFK             *bool          `json:"afk"`
 	Finish          string         `json:"finish"`
 	CronJob         string         `json:"cronJob"`

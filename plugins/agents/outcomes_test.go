@@ -17,6 +17,7 @@ type outcomeRow struct {
 	Kind          string  `json:"kind"`
 	Size          string  `json:"size"`
 	Arm           string  `json:"arm"`
+	ArmBy         string  `json:"armBy"`
 	Model         string  `json:"model"`
 	Turns         int     `json:"turns"`
 	Cost          float64 `json:"cost"`
@@ -31,6 +32,16 @@ type outcomeRow struct {
 		Rounds    int      `json:"rounds"`
 		Reviewers []string `json:"reviewers"`
 	} `json:"landing"`
+}
+
+type expListed struct {
+	ID  string `json:"id"`
+	Exp struct {
+		Kind  string `json:"kind"`
+		Size  string `json:"size"`
+		Arm   string `json:"arm"`
+		ArmBy string `json:"armBy"`
+	} `json:"exp"`
 }
 
 func usageCost(match string, amount float64) map[string]any {
@@ -119,6 +130,47 @@ func TestOutcomeBindsLandingToChildBuilderWithReviewCost(t *testing.T) {
 	require.NoError(t, f.run(t, workspace, "agents.blame", map[string]any{"commit": squash, "cwd": repo}, &blamed))
 	require.Len(t, blamed.Attributions, 1)
 	assert.Equal(t, kid.Session, blamed.Attributions[0].Builder)
+}
+
+func TestOutcomeAutoModelPicksAnArmAndCountsOnlyAuto(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{
+		"configs": []map[string]any{
+			{"id": "model", "name": "Model", "category": "model", "type": "select", "currentValue": "default", "options": []map[string]string{{"value": "default", "name": "Default"}, {"value": "opus", "name": "Opus"}, {"value": "sonnet", "name": "Sonnet"}, {"value": "fable", "name": "Fable"}}},
+		},
+	})
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	f.prompt(t, workspace, parent, "orchestrate")
+	f.waitStatus(t, workspace, parent, "done")
+
+	auto := f.newChild(t, workspace, parent, map[string]any{"prompt": "go", "model": "auto", "kind": "fix", "size": "S"}).Session
+	fable := f.newChild(t, workspace, parent, map[string]any{"prompt": "go", "model": "fable", "kind": "review"}).Session
+	f.waitStatus(t, workspace, auto, "done")
+	f.waitStatus(t, workspace, fable, "done")
+
+	var listed []expListed
+	require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &listed))
+	i := slices.IndexFunc(listed, func(r expListed) bool { return r.ID == auto })
+	require.GreaterOrEqual(t, i, 0)
+	assert.Equal(t, []string{"fix", "S", "auto"}, []string{listed[i].Exp.Kind, listed[i].Exp.Size, listed[i].Exp.ArmBy})
+	assert.Contains(t, []string{"opus", "sonnet"}, listed[i].Exp.Arm)
+
+	row := f.outcome(t, workspace, auto, func(r outcomeRow) bool { return r.Model == r.Arm })
+	assert.Equal(t, []string{"fix", "S", listed[i].Exp.Arm, "auto"}, []string{row.Kind, row.Size, row.Arm, row.ArmBy})
+	kept := f.outcome(t, workspace, fable, func(r outcomeRow) bool { return r.Model == "fable" })
+	assert.Equal(t, []string{"review", "fable", "caller"}, []string{kept.Kind, kept.Arm, kept.ArmBy})
+	var out struct {
+		Arms []struct {
+			Kind string `json:"kind"`
+			Size string `json:"size"`
+			Arm  string `json:"arm"`
+			N    int    `json:"n"`
+		} `json:"arms"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.outcomes", map[string]any{}, &out))
+	require.Len(t, out.Arms, 1)
+	assert.Equal(t, []any{"fix", "S", row.Arm, 1}, []any{out.Arms[0].Kind, out.Arms[0].Size, out.Arms[0].Arm, out.Arms[0].N})
 }
 
 func TestOutcomeKeepsCostAfterSessionIsDeleted(t *testing.T) {

@@ -283,7 +283,7 @@ def build_rows(sessions, metrics, verdicts, trees):
                 break
             p = by_id.get(p["parentSession"])
     for s in children:
-        if s["id"] in fix_of or metrics.get(s["id"], {}).get("exp", {}).get("kind") != "fix":
+        if s["id"] in fix_of or (s.get("exp") or metrics.get(s["id"], {}).get("exp") or {}).get("kind") != "fix":
             continue
         own = norm(own_branch(s, by_id))
         text = s.get("title", "")
@@ -300,7 +300,7 @@ def build_rows(sessions, metrics, verdicts, trees):
     for s in children:
         sid = s["id"]
         m = metrics.get(sid, {})
-        exp = m.get("exp") or {}
+        exp = s.get("exp") or m.get("exp") or {}
         cl = m.get("claude") or {}
         cost, source = cost_of(m)
         branch = own_branch(s, by_id)
@@ -462,7 +462,7 @@ def run(out_dir, skip_fetch):
     for s in sessions:
         cache[s["id"]]["session"] = {k: v for k, v in s.items() if k in (
             "id", "title", "parentSession", "createdAt", "closedBranch", "worktree", "agentSessionId",
-            "gateFor", "gateRound", "startModel", "startEffort")}
+            "gateFor", "gateRound", "startModel", "startEffort", "exp")}
     tmp = cache_path + ".tmp"
     with open(tmp, "w") as f:
         json.dump({"version": CACHE_VERSION, "sessions": cache}, f)
