@@ -206,6 +206,8 @@ struct SessionListView: View {
                 }
             }
             .textCase(nil)
+            .padding(.top, wide ? 0 : 4)
+            .listRowInsets(wide ? nil : EdgeInsets())
         }
         ForEach(store.shownSections) { shown in
             let section = shown.section

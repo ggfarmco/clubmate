@@ -412,6 +412,15 @@ final class CompanionUITests: XCTestCase {
         }
     }
 
+    func testFilterChipsStartInLineWithTheTabs() {
+        let app = launch(open: "agents", ["-macs", "3"])
+        let tabs = app.segmentedControls.firstMatch
+        let first = app.buttons["chip.all"]
+        XCTAssertTrue(tabs.waitForExistence(timeout: 10))
+        XCTAssertTrue(first.waitForExistence(timeout: 10))
+        XCTAssertTrue(poll { abs(first.frame.minX - tabs.frame.minX) <= 2 }, "first chip at \(first.frame.minX), tabs at \(tabs.frame.minX)")
+    }
+
     private func largeTitle(_ app: XCUIApplication, _ title: String) -> Bool {
         let text = app.navigationBars[title].staticTexts[title].firstMatch
         return text.exists && text.frame.height > 30 && text.frame.minX < 40
