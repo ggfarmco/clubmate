@@ -245,8 +245,10 @@ type ClaudeCodePlugin struct {
 }
 
 type ClaudeCodeSettings struct {
-	AdvisorModel string                 `json:"advisorModel,omitempty"`
-	Permissions  *ClaudeCodePermissions `json:"permissions,omitempty"`
+	AdvisorModel              string                 `json:"advisorModel,omitempty"`
+	Permissions               *ClaudeCodePermissions `json:"permissions,omitempty"`
+	EnabledPlugins            map[string]bool        `json:"enabledPlugins,omitempty"`
+	DisableClaudeAiConnectors bool                   `json:"disableClaudeAiConnectors,omitempty"`
 }
 
 type ClaudeCodePermissions struct {

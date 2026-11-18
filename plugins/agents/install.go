@@ -36,6 +36,7 @@ const (
 	mcpName         = "clubmate"
 	agentSessionEnv = "CLUBMATE_AGENT_SESSION"
 	autoMemoryEnv   = "CLAUDE_CODE_DISABLE_AUTO_MEMORY"
+	advisorOffEnv   = "CLAUDE_CODE_DISABLE_ADVISOR_TOOL"
 	installMarker   = ".clubmate-installed"
 )
 
@@ -272,6 +273,49 @@ func chromeByDefault() bool {
 	return json.Unmarshal(data, &cfg) == nil && cfg.On
 }
 
+func userPlugins() []string {
+	dir := os.Getenv("CLAUDE_CONFIG_DIR")
+	if dir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil
+		}
+		dir = filepath.Join(home, ".claude")
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "settings.json"))
+	if err != nil {
+		return nil
+	}
+	var cfg struct {
+		Plugins map[string]json.RawMessage `json:"enabledPlugins"`
+	}
+	if json.Unmarshal(data, &cfg) != nil {
+		return nil
+	}
+	out := make([]string, 0, len(cfg.Plugins))
+	for id, on := range cfg.Plugins {
+		if string(on) != "false" {
+			out = append(out, id)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+func leanOptions(opts *acp.ClaudeCodeOptions, plugins []string) {
+	if opts.Settings == nil {
+		opts.Settings = &acp.ClaudeCodeSettings{}
+	}
+	opts.Settings.DisableClaudeAiConnectors = true
+	if len(plugins) > 0 {
+		opts.Settings.EnabledPlugins = make(map[string]bool, len(plugins))
+		for _, id := range plugins {
+			opts.Settings.EnabledPlugins[id] = false
+		}
+	}
+	opts.StrictMcpConfig = true
+}
+
 func registered(ctx context.Context, root string) bool {
 	claude, err := exec.LookPath("claude")
 	if err != nil {
@@ -294,8 +338,11 @@ func sessionMeta(rec record, advisor string, self selfParts, chrome bool) *acp.S
 	if chrome && !rec.restricted() {
 		opts.ExtraArgs = map[string]*string{chromeFlag: nil}
 	}
-	if advisor != "" {
+	switch {
+	case advisor != "":
 		opts.Settings = &acp.ClaudeCodeSettings{AdvisorModel: advisor}
+	case rec.lean():
+		opts.Env[advisorOffEnv] = "1"
 	}
 	if rec.restricted() {
 		opts.Env[autoMemoryEnv] = "1"

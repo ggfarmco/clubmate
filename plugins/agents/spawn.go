@@ -80,7 +80,7 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 	var prec record
 	if parent, err := a.lookup(workspaceID, from); err == nil {
 		if prec = parent.snapshot(); !prec.restricted() {
-			rec.ParentSession, rec.Advisor, root = prec.ID, a.sessionAdvisor(ctx, prec), prec.Worktree
+			rec.ParentSession, root = prec.ID, prec.Worktree
 		}
 	}
 	var plan worktreeNewArgs

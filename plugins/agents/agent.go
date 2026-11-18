@@ -237,7 +237,7 @@ func (p *agentProc) Notify(method string, params json.RawMessage) {
 }
 
 func (p *agentProc) mcpFor(rec record) []acp.McpServer {
-	if p.launch.registered && !rec.restricted() {
+	if p.launch.registered && !rec.restricted() && !rec.lean() {
 		return []acp.McpServer{}
 	}
 	return p.mcp

@@ -12,6 +12,7 @@ import (
 
 	"clubmate/internal/paths"
 	"clubmate/pkg/contract"
+	"clubmate/plugins/agents/acp"
 	"clubmate/plugins/agents/api"
 )
 
@@ -103,4 +104,36 @@ func TestChromeOnlyForSessionsTheUserStarted(t *testing.T) {
 	assert.False(t, a.userStarted(record{ID: "t", Trigger: "tr"}))
 	assert.False(t, a.userStarted(record{ID: "s", StartedBy: "agt_x"}))
 	assert.False(t, a.userStarted(record{ID: "g", Run: &api.Run{ID: "r"}}))
+}
+
+func TestLeanProfileForAgentStartedSessions(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", dir)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "settings.json"), []byte(`{"enabledPlugins":{"b@m":true,"off@m":false,"a@m":["x"]}}`), 0o600))
+	assert.Equal(t, []string{"a@m", "b@m"}, userPlugins())
+
+	for _, rec := range []record{{ID: "c", ParentSession: "p"}, {ID: "n", Run: &api.Run{ID: "r"}}, {ID: "g", GateFor: &gateFor{}}} {
+		opts := sessionMeta(rec, "", selfParts{}, false).ClaudeCode.Options
+		require.True(t, rec.lean(), rec.ID)
+		leanOptions(&opts, userPlugins())
+		assert.Equal(t, "1", opts.Env[advisorOffEnv], rec.ID)
+		assert.Equal(t, &acp.ClaudeCodeSettings{EnabledPlugins: map[string]bool{"a@m": false, "b@m": false}, DisableClaudeAiConnectors: true}, opts.Settings, rec.ID)
+		assert.True(t, opts.StrictMcpConfig, rec.ID)
+	}
+
+	byHand := sessionMeta(record{ID: "c", ParentSession: "p"}, "opus", selfParts{}, false).ClaudeCode.Options
+	assert.Equal(t, "opus", byHand.Settings.AdvisorModel)
+	assert.NotContains(t, byHand.Env, advisorOffEnv)
+
+	for _, rec := range []record{{ID: "top"}, {ID: "aside", ParentSession: "p", Aside: &asideInfo{Kept: true}}, {ID: "voice", ParentSession: "p", SystemPrompt: "serve"}} {
+		assert.False(t, rec.lean(), rec.ID)
+		assert.NotContains(t, sessionMeta(rec, "", selfParts{}, false).ClaudeCode.Options.Env, advisorOffEnv, rec.ID)
+	}
+}
+
+func TestLeanSessionGetsClubmateMCPWhenRegistered(t *testing.T) {
+	own := []acp.McpServer{{Name: mcpName, Command: "clubmate"}}
+	p := &agentProc{launch: launch{registered: true}, mcp: own}
+	assert.Empty(t, p.mcpFor(record{ID: "top"}))
+	assert.Equal(t, own, p.mcpFor(record{ID: "c", ParentSession: "p"}))
 }

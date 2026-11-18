@@ -242,6 +242,10 @@ func (r record) restricted() bool {
 	return len(r.DisallowedTools) > 0 && r.GateFor == nil && r.Aside == nil || r.SystemPrompt != "" || r.StartMode != "" || r.Night != ""
 }
 
+func (r record) lean() bool {
+	return r.Aside == nil && !r.restricted() && (r.ParentSession != "" || r.Run != nil || r.GateFor != nil)
+}
+
 func (r record) pinnedModel() string {
 	if !r.restricted() {
 		return ""

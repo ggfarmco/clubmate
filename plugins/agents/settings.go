@@ -138,7 +138,7 @@ func (a *app) setAdvisor(ctx context.Context, s *session, value string) error {
 		return fmt.Errorf("%w: %s=%s", errUnknownValue, advisorID, value)
 	}
 	s.mu.Lock()
-	child, worktree := s.rec.ParentSession != "", s.rec.Worktree
+	child, worktree := s.rec.ParentSession != "" || s.rec.lean(), s.rec.Worktree
 	if child {
 		s.rec.Advisor = value
 	}
@@ -158,7 +158,7 @@ func (a *app) setAdvisor(ctx context.Context, s *session, value string) error {
 }
 
 func (a *app) sessionAdvisor(ctx context.Context, rec record) string {
-	if rec.ParentSession != "" {
+	if rec.ParentSession != "" || rec.lean() {
 		return rec.Advisor
 	}
 	return a.advisor(ctx, rec.Worktree)
