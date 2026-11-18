@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r-trust · A · the trust card on the phone's gate page</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
+<link rel="stylesheet" href="/_blob/4987a8b4234bbea3e512a6d02560ee1d">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.comp .cardw{border-radius:16px;border:1.5px solid var(--wa-bd);background:color-mix(in srgb,var(--wa) 9%,var(--s1));padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.comp .fnd{font-size:14px;line-height:19px;color:var(--t2)}
+.comp .kv{display:flex;justify-content:space-between;gap:12px;padding:11px 14px;font-size:15px;line-height:20px}
+.comp .kv+.kv{border-top:1px solid var(--bd)}
+.comp .kv .vv{color:var(--t2);text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.comp .stbox{border-radius:12px;background:var(--s1);border:1px solid var(--bd);overflow:hidden;display:flex;flex-direction:column}
+.comp .stbox .sh{display:flex;align-items:baseline;gap:8px;padding:9px 12px 6px}
+.comp .stbox .sf{padding:8px 12px;border-top:1px solid var(--bd)}
+.comp .dlp{font-family:'JetBrains Mono','SF Mono',ui-monospace,monospace;font-size:12px;line-height:18px;letter-spacing:0;padding:2px 12px;white-space:pre-wrap;word-break:break-all}
+.comp .dlp.del{background:color-mix(in srgb,var(--er) 13%,transparent)}
+.comp .dlp.add{background:color-mix(in srgb,var(--ok) 13%,transparent)}
+</style>
+</helmet>
+<div class="cm comp th-{{theme}}" style="width: 393px; height: 852px">
+<div class="edge"></div>
+<div class="top"><button class="gbtn glass" aria-label="Back to Gates"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button><div class="t"><span class="tt">Done · plans and specs</span><span class="ts"><span class="wa-i">Graph changed</span> · shop</span></div><button class="gbtn glass" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button></div>
+<div style="position: absolute; left: 0; right: 0; top: 118px; bottom: 0; overflow: hidden">
+<div style="padding: 0 16px">
+<section class="cardw" aria-label="The gate's graph changed">
+<div style="display: flex; align-items: center; gap: 10px"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg></span><span class="sub w6" style="flex: 1; min-width: 0"><span class="wa-i">Plan pipeline changed:</span> trust the new version?</span></div>
+<span class="cap t2">Pinned 3f9a1c · now 8b02e7 · 2 of 4 steps changed</span>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span class="sub w6">Fable review <span class="cap mut" style="font-weight: 400">· agent · prompt changed</span></span>
+<div style="border-radius: 8px; overflow: hidden"><div class="dlp" style="color: var(--t3)">  4 unchanged lines</div><div class="dlp del">− Approve when the plan names an owner for each setting.</div><div class="dlp add">+ Approve when the plan names an owner for each setting</div><div class="dlp add">+ and a test for each behaviour it changes.</div><div class="dlp add">+ Ask for changes if either is missing.</div><div class="dlp" style="color: var(--t3)">  9 unchanged lines</div></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span class="sub w6">Lint <span class="cap mut" style="font-weight: 400">· step · command changed</span></span>
+<div style="border-radius: 8px; overflow: hidden"><div class="dlp del">− markdownlint docs/ plans/ specs/</div><div class="dlp add">+ markdownlint --fix docs/ plans/ specs/</div></div>
+</div>
+<span class="cap mut">Simplify, Summary: unchanged</span>
+<span class="fnd">Until you trust it, the gate runs nothing. 1 done turn waits: Write the inbox plan.</span>
+<div style="display: flex; flex-wrap: wrap; gap: 10px"><button class="cb pri sm">Trust and run</button><button class="cb plain sm">Pause the gate</button></div>
+</section>
+</div>
+<div class="hdr"><span>Gate</span></div>
+<div class="ig">
+<div class="kv"><span>Holds</span><span class="vv">a turn that ends done</span></div>
+<div class="kv"><span>Match</span><span class="vv">top-level AFK · plans and specs</span></div>
+<div class="kv"><span>Graph</span><span class="vv">Plan pipeline · 4 steps</span></div>
+<div class="kv"><span>Rounds</span><span class="vv">2, then you decide</span></div>
+</div>
+<div class="hdr"><span>History</span><span class="cap">7 days</span></div>
+<div class="ig">
+<div class="kv"><span>12:41 · Write the inbox plan</span><span class="vv">waits for trust</span></div>
+<div class="kv"><span>12:20 · Plan: rate limits</span><span class="vv">approved</span></div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"clight"},"$preview":{"width":393,"height":852}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'clight' };
+}
+}
+</script>
+</body>
+</html>

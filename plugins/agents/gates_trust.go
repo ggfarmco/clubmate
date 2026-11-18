@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"strings"
 
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/graphs"
@@ -11,10 +12,35 @@ import (
 )
 
 const (
-	gateNone      = "(none)"
-	gateGraphWord = "Graph"
-	gateEdgesWord = "Edges"
+	gateNone         = "(none)"
+	gateGraphWord    = "Graph"
+	gateEdgesWord    = "Edges"
+	gateHeadWhat     = "title, description or limits"
+	gateEdgesWhat    = "which node runs after which, and what it is told"
+	gateVersions     = "Pinned %s · now %s"
+	gateStepsChanged = "%d of %d steps changed"
+	gateStepWord     = "step"
+	gateAgentWord    = "agent"
+	gateChangedWord  = "%s changed"
+	gateAddedWord    = "added as step %d"
+	gateRemovedWord  = "removed"
+	gateUnchanged    = "%s: unchanged"
+	gateDiffCells    = 1 << 20
+	gateOrderWhat    = "Steps · order changed"
+	gateTrustNothing = "Until you trust it, the gate runs nothing."
+	gateTurnWaits    = "1 done turn waits: %s"
+	gateTurnsWait    = "%d done turns wait: %s +%d"
+	gateLandWaits    = "1 landing waits: %s"
+	gateLandsWait    = "%d landings wait: %s +%d"
+	gateLandInto     = "%s into %s"
 )
+
+type graphDiff struct {
+	Nodes     []sdui.Node
+	Changed   int
+	Steps     int
+	Unchanged []string
+}
 
 func trustCard(sc gateScreen) sdui.Node {
 	r := sc.Row
@@ -23,16 +49,29 @@ func trustCard(sc gateScreen) sdui.Node {
 	if sc.Graph == nil {
 		lines = append(lines, sdui.Text(fmt.Sprintf(gateUnreadable, r.Graph, cmp.Or(sc.GraphErr, "no such graph"))))
 	} else {
-		lines = append(lines,
-			sdui.Text(fmt.Sprintf(gateTrustTitle, graphTitle(sc.Graph, r.Graph))),
-			sdui.MutedText(fmt.Sprintf(trustText(r.Point), shortHash(r.Pin), shortHash(sc.Graph.Hash))),
-		)
-		lines = append(lines, gateGraphDiff(sc.Pinned, sc.Graph)...)
+		title := graphTitle(sc.Graph, r.Graph)
+		diff := gateGraphDiff(r.ID, sc.Pinned, sc.Graph)
+		versions := fmt.Sprintf(gateVersions, shortHash(r.Pin), shortHash(sc.Graph.Hash))
+		if sc.Pinned != nil && diff.Changed > 0 {
+			versions += " · " + fmt.Sprintf(gateStepsChanged, diff.Changed, diff.Steps)
+		}
+		lines = append(lines, sdui.Text(fmt.Sprintf(gateTrustTitle, title)), sdui.MutedText(versions))
+		lines = append(lines, diff.Nodes...)
+		if len(diff.Unchanged) > 0 {
+			lines = append(lines, sdui.MutedText(fmt.Sprintf(gateUnchanged, strings.Join(diff.Unchanged, ", "))))
+		}
+		lines = append(lines, sdui.MutedText(trustWaitsText(r)))
+		trust := automation.DetailAction{Action: actGateTrust, Label: "Trust and run", Variant: sdui.VariantPrimary}
 		if sc.Mac {
-			trust := automation.DetailAction{Action: actGateTrust, Label: "Trust and run", Variant: sdui.VariantPrimary, Shortcut: "cmd+return"}
-			buttons = append(buttons, automation.ActionNode(r.ID+"@"+sc.Graph.Hash, trust), gateGraphButton(gateCardPrefix+r.ID))
-		} else {
-			lines = append(lines, sdui.MutedText(gateTrustPhone))
+			trust.Shortcut = "cmd+return"
+		}
+		button := automation.ActionNode(r.ID+"@"+sc.Graph.Hash, trust)
+		if !sc.Mac {
+			button = sdui.WithConfirmMessage(button, fmt.Sprintf(gateTrustAsk, title), gateTrustReview)
+		}
+		buttons = append(buttons, button)
+		if sc.Mac {
+			buttons = append(buttons, gateGraphButton(gateCardPrefix+r.ID))
 		}
 	}
 	if !r.Paused {
@@ -44,66 +83,174 @@ func trustCard(sc gateScreen) sdui.Node {
 	return sdui.WithID(sdui.Card("warning", "exclamationmark.shield", lines...), gateTrustID)
 }
 
-func gateGraphDiff(old, cur *graphs.GateGraphInfo) []sdui.Node {
-	if old == nil {
-		out := []sdui.Node{sdui.MutedText(gateTrustLost), sdui.Text(gateGraphWord + " · title, description or limits"), sdui.MonoText(cmp.Or(cur.Head, gateNone))}
-		for _, n := range cur.Nodes {
-			out = append(out, sdui.Text(n.Title+" · "+nodeDoes(n)))
-			if n.Prompt != "" {
-				out = append(out, sdui.MonoText(n.Prompt))
-			}
-			out = append(out, sdui.MonoText(n.Other))
-		}
-		return append(out, sdui.Text(gateEdgesWord+" · which node runs after which, and what it is told"), sdui.MonoText(cmp.Or(cur.Edges, gateNone)))
+func trustWaitsText(r gateRow) string {
+	waits := r.trustWaits()
+	if len(waits) == 0 {
+		return trustText(r.Point)
 	}
-	var out []sdui.Node
-	change := func(title, field, was, now string) {
-		out = append(out, sdui.Text(title+" · "+field), sdui.MonoText("− "+cmp.Or(was, gateNone)), sdui.MonoText("+ "+cmp.Or(now, gateNone)))
+	first := waits[0]
+	if r.Point == gatePointTurn {
+		what := cmp.Or(first.Title, gateNone)
+		if len(waits) == 1 {
+			return gateTrustNothing + " " + fmt.Sprintf(gateTurnWaits, what) + "."
+		}
+		return gateTrustNothing + " " + fmt.Sprintf(gateTurnsWait, len(waits), what, len(waits)-1) + "."
+	}
+	what := fmt.Sprintf(gateLandInto, cmp.Or(first.Source, first.Title, gateNone), first.Into)
+	if len(waits) == 1 {
+		return gateTrustNothing + " " + fmt.Sprintf(gateLandWaits, what) + "."
+	}
+	return gateTrustNothing + " " + fmt.Sprintf(gateLandsWait, len(waits), what, len(waits)-1) + "."
+}
+
+func gateGraphDiff(gate string, old, cur *graphs.GateGraphInfo) graphDiff {
+	if old != nil && old.Shape < cur.Shape {
+		was := cur.AsShape(old.Shape)
+		cur = &was
+	}
+	d := graphDiff{Steps: len(cur.Nodes)}
+	block := func(id, head string, lines []sdui.DiffLine, fold bool) {
+		d.Nodes = append(d.Nodes, sdui.Text(head), sdui.DiffLines(gateTrustID+"/"+gate+"/"+id, lines, fold))
+	}
+	if old == nil {
+		d.Nodes = append(d.Nodes, sdui.MutedText(gateTrustLost))
+		block("graph", gateGraphWord+" · "+gateHeadWhat, sameLines(cmp.Or(cur.Head, gateNone)), false)
+		for _, n := range cur.Nodes {
+			block("node:"+n.ID, n.Title+" · "+nodeKind(n), sameLines(nodeText(n)), false)
+		}
+		block("edges", gateEdgesWord+" · "+gateEdgesWhat, sameLines(cmp.Or(cur.Edges, gateNone)), false)
+		return d
 	}
 	if old.Head != cur.Head {
-		change(gateGraphWord, "title, description or limits", old.Head, cur.Head)
+		block("graph", gateGraphWord+" · "+fmt.Sprintf(gateChangedWord, gateHeadWhat), lineDiff(old.Head, cur.Head), true)
 	}
-	for _, n := range cur.Nodes {
+	for at, n := range cur.Nodes {
 		i := slices.IndexFunc(old.Nodes, func(o graphs.GateNodeInfo) bool { return o.ID == n.ID })
 		if i < 0 {
-			out = append(out, sdui.Text(n.Title+" · added"), sdui.MonoText("+ "+nodeDoes(n)))
-			if n.Prompt != "" {
-				out = append(out, sdui.MonoText("+ "+n.Prompt))
-			}
-			out = append(out, sdui.MonoText("+ "+n.Other))
+			d.Changed++
+			block("node:"+n.ID, n.Title+" · "+nodeKind(n)+" · "+fmt.Sprintf(gateAddedWord, at+1), signed(sdui.DiffAdded, nodeText(n)), false)
 			continue
 		}
 		o := old.Nodes[i]
-		if o.Command != n.Command {
-			change(n.Title, "command", o.Command, n.Command)
+		var fields []string
+		var lines []sdui.DiffLine
+		for _, f := range [][3]string{{"command", o.Command, n.Command}, {"prompt", o.Prompt, n.Prompt}, {"model", o.Model, n.Model}, {"effort", o.Effort, n.Effort}, {"settings", o.Other, n.Other}} {
+			if f[1] != f[2] {
+				fields = append(fields, f[0])
+				lines = append(lines, lineDiff(f[1], f[2])...)
+			}
 		}
-		if o.Prompt != n.Prompt {
-			change(n.Title, "prompt", o.Prompt, n.Prompt)
+		if len(fields) == 0 {
+			d.Unchanged = append(d.Unchanged, n.Title)
+			continue
 		}
-		if o.Model != n.Model {
-			change(n.Title, "model", o.Model, n.Model)
-		}
-		if o.Effort != n.Effort {
-			change(n.Title, "effort", o.Effort, n.Effort)
-		}
-		if o.Other != n.Other {
-			change(n.Title, "settings", o.Other, n.Other)
-		}
+		d.Changed++
+		block("node:"+n.ID, n.Title+" · "+nodeKind(n)+" · "+fmt.Sprintf(gateChangedWord, strings.Join(fields, ", ")), lines, true)
 	}
 	for _, o := range old.Nodes {
 		if !slices.ContainsFunc(cur.Nodes, func(n graphs.GateNodeInfo) bool { return n.ID == o.ID }) {
-			out = append(out, sdui.Text(o.Title+" · removed"), sdui.MonoText("− "+nodeDoes(o)))
-			if o.Prompt != "" {
-				out = append(out, sdui.MonoText("− "+o.Prompt))
-			}
-			out = append(out, sdui.MonoText("− "+o.Other))
+			d.Changed++
+			d.Steps++
+			block("node:"+o.ID, o.Title+" · "+nodeKind(o)+" · "+gateRemovedWord, signed(sdui.DiffRemoved, nodeText(o)), false)
 		}
 	}
-	if old.Edges != cur.Edges {
-		change(gateEdgesWord, "which node runs after which, and what it is told", old.Edges, cur.Edges)
+	if was, now := commonOrder(old.Nodes, cur.Nodes), commonOrder(cur.Nodes, old.Nodes); !slices.EqualFunc(was, now, func(x, y graphs.GateNodeInfo) bool { return x.ID == y.ID }) {
+		block("order", gateOrderWhat, lineDiff(nodeTitles(was), nodeTitles(now)), true)
 	}
-	if len(out) == 0 {
-		out = append(out, sdui.MutedText(gateTrustOther))
+	if old.Edges != cur.Edges {
+		block("edges", gateEdgesWord+" · "+fmt.Sprintf(gateChangedWord, gateEdgesWhat), lineDiff(old.Edges, cur.Edges), true)
+	}
+	if len(d.Nodes) == 0 {
+		d.Nodes = append(d.Nodes, sdui.MutedText(gateTrustOther))
+		d.Unchanged = nil
+	}
+	return d
+}
+
+func commonOrder(nodes, other []graphs.GateNodeInfo) []graphs.GateNodeInfo {
+	return slices.DeleteFunc(slices.Clone(nodes), func(n graphs.GateNodeInfo) bool {
+		return !slices.ContainsFunc(other, func(o graphs.GateNodeInfo) bool { return o.ID == n.ID })
+	})
+}
+
+func nodeTitles(nodes []graphs.GateNodeInfo) string {
+	titles := make([]string, 0, len(nodes))
+	for _, n := range nodes {
+		title := n.Title
+		if slices.ContainsFunc(nodes, func(o graphs.GateNodeInfo) bool { return o.ID != n.ID && o.Title == n.Title }) {
+			title += " · " + n.ID
+		}
+		titles = append(titles, title)
+	}
+	return strings.Join(titles, "\n")
+}
+
+func nodeKind(n graphs.GateNodeInfo) string {
+	if n.Step {
+		return gateStepWord
+	}
+	return gateAgentWord
+}
+
+func nodeText(n graphs.GateNodeInfo) string {
+	parts := []string{nodeDoes(n)}
+	if n.Prompt != "" {
+		parts = append(parts, n.Prompt)
+	}
+	return strings.Join(append(parts, n.Other), "\n")
+}
+
+func diffSplit(text string) []string {
+	if text == "" {
+		return nil
+	}
+	return strings.Split(text, "\n")
+}
+
+func sameLines(text string) []sdui.DiffLine {
+	return signed(sdui.DiffSame, text)
+}
+
+func signed(sign, text string) []sdui.DiffLine {
+	var out []sdui.DiffLine
+	for _, l := range diffSplit(text) {
+		out = append(out, sdui.DiffLine{Sign: sign, Text: l})
 	}
 	return out
+}
+
+func lineDiff(was, now string) []sdui.DiffLine {
+	a, b := diffSplit(was), diffSplit(now)
+	if (len(a)+1)*(len(b)+1) > gateDiffCells {
+		return append(signed(sdui.DiffRemoved, was), signed(sdui.DiffAdded, now)...)
+	}
+	common := make([][]int, len(a)+1)
+	for i := range common {
+		common[i] = make([]int, len(b)+1)
+	}
+	for i := len(a) - 1; i >= 0; i-- {
+		for j := len(b) - 1; j >= 0; j-- {
+			if a[i] == b[j] {
+				common[i][j] = common[i+1][j+1] + 1
+			} else {
+				common[i][j] = max(common[i+1][j], common[i][j+1])
+			}
+		}
+	}
+	var all []sdui.DiffLine
+	i, j := 0, 0
+	for i < len(a) || j < len(b) {
+		switch {
+		case i < len(a) && j < len(b) && a[i] == b[j]:
+			all = append(all, sdui.DiffLine{Sign: sdui.DiffSame, Text: a[i]})
+			i, j = i+1, j+1
+		case i < len(a) && (j == len(b) || common[i+1][j] >= common[i][j+1]):
+			all = append(all, sdui.DiffLine{Sign: sdui.DiffRemoved, Text: a[i]})
+			i++
+		default:
+			all = append(all, sdui.DiffLine{Sign: sdui.DiffAdded, Text: b[j]})
+			j++
+		}
+	}
+	return all
 }

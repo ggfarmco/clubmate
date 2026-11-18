@@ -50,6 +50,8 @@ struct ButtonNode: View {
         .alert(node.confirmation() ?? "", isPresented: $confirming) {
             Button(node.confirmActionTitle(), role: node.string("variant") == "danger" ? .destructive : nil) { press() }
             Button("Cancel", role: .cancel) {}
+        } message: {
+            if let message = node.confirmMessage() { Text(message) }
         }
     }
 

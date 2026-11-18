@@ -50,6 +50,16 @@ final class SessionRowsTests: XCTestCase {
         XCTAssertNil(AgentSession(id: "w2", status: .waiting, turnStartedAt: ago(900)).headerActivity(now: now))
     }
 
+    func testAGateWaitingForTrustReadsAsAGateNotAPermission() throws {
+        let json = #"{"id":"gt_00000000000000d1","workspace":"prj_0000000000000001","worktree":"","agent":"","agentSessionId":"","title":"Done · plans and specs","status":"waiting","mode":"","createdAt":"2026-11-18T12:41:00Z","updatedAt":"2026-11-18T12:41:00Z","asks":false,"kind":"gate","rowDetail":"Graph changed: trust it · 1 waits","notifyEffective":"all","needsYou":true,"group":"needsYou","needsYouSince":"2026-11-18T12:41:00Z"}"#
+        let entry = try JSONDecoder().decode(AgentSession.self, from: Data(json.utf8))
+
+        XCTAssertEqual(entry.glyph, .gate)
+        XCTAssertTrue(entry.glyph.needsYou)
+        XCTAssertEqual(entry.stateLine(now: now), SessionStateLine(text: "Graph changed: trust it · 1 waits", tone: .needsYou))
+        XCTAssertTrue(GateEntry.matches(entry.id))
+    }
+
     func testReviewOnlyOutranksDone() {
         let review = [
             AgentSession(id: "closed", status: .closed, review: true),

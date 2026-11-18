@@ -12,6 +12,16 @@ final class SDUITests: XCTestCase {
         XCTAssertEqual(titles, ["Discard", "Delete", "OK"])
     }
 
+    func testDiffLinesDecodeAndFoldOnlyUnchangedRuns() throws {
+        let json = #"{"type": "diffLines", "id": "d", "props": {"lines": [{"sign": "", "text": "a"}, {"sign": "", "text": "b"}, {"sign": "-", "text": "c"}, {"sign": "+", "text": "d"}, {"sign": "", "text": "e"}], "fold": true}}"#
+        let node = try JSONDecoder().decode(SDUINode.self, from: Data(json.utf8))
+        let lines = node.diffLines()
+
+        XCTAssertEqual(lines.map(\.kind), [.context, .context, .removed, .added, .context])
+        XCTAssertEqual(DiffLine.rows(lines, fold: node.diffFolds()), [.unchanged(2), .line(lines[2]), .line(lines[3]), .unchanged(1)])
+        XCTAssertEqual(DiffLine.rows(lines, fold: false).count, 5)
+    }
+
     func testTableDecodes() throws {
         let json = """
         {"type": "table", "id": "procs", "props": {

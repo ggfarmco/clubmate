@@ -909,6 +909,25 @@ func Card(tone, icon string, children ...Node) Node {
 	return Node{Type: "card", Props: withOptional(props, "icon", icon), Children: children}
 }
 
+const (
+	DiffRemoved = "-"
+	DiffAdded   = "+"
+	DiffSame    = ""
+)
+
+type DiffLine struct {
+	Sign string `json:"sign"`
+	Text string `json:"text"`
+}
+
+func DiffLines(id string, lines []DiffLine, fold bool) Node {
+	props := map[string]any{"lines": nonNil(lines)}
+	if fold {
+		props["fold"] = true
+	}
+	return Node{Type: "diffLines", ID: id, Props: props}
+}
+
 type SheetProps struct {
 	Title    string
 	Icon     string
@@ -1075,6 +1094,10 @@ func WithAction(n Node, action string) Node {
 
 func WithConfirm(n Node, text string) Node {
 	return withProp(n, "confirm", text)
+}
+
+func WithConfirmMessage(n Node, title, message string) Node {
+	return withProp(WithConfirm(n, title), "confirmMessage", message)
 }
 
 const (

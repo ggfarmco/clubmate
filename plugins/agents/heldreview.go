@@ -89,7 +89,10 @@ func (a *app) reviewHeld(s *session) {
 	}
 	graph := a.gateGraphReady(ctx, *g)
 	if !graph.ok {
-		a.swapHeld(s, h, func(n *heldTurn) { n.Wait = graph.text })
+		if h.Wait != graph.text {
+			a.swapHeld(s, h, func(n *heldTurn) { n.Wait = graph.text })
+		}
+		a.pollTrust(s)
 		return
 	}
 	reuse := a.gateRunLive(ctx, rec.Workspace, h.Run) && a.graphs.GateRunOf(ctx, h.Run, g.Graph, graph.hash) && a.graphs.GateStepsIdle(ctx, h.Run)

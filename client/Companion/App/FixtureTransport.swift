@@ -93,6 +93,7 @@ actor FixtureServer {
     private var subscribers: [AsyncThrowingStream<Data, any Error>.Continuation] = []
     private var uiSections: JSONValue = .array([])
     private var uiViews: [String: (rev: Int, tree: JSONValue)] = [:]
+    private var gateTrusted: [String: JSONValue] = [:]
     private var streams = 0
     private var seq = 100
     private var notified = false
@@ -311,6 +312,10 @@ actor FixtureServer {
                 uiViews[slot] = (1, tree)
             }
             uiSections = .array((uiSections.arrayValue ?? []) + [LandReviewFixture.section])
+            gateTrusted = sdui["gateTrusted"]?.objectValue ?? [:]
+            for (slot, tree) in GateTrustFixture.on ? sdui["gateTrust"]?.objectValue ?? [:] : [:] {
+                uiViews[slot] = (1, tree)
+            }
         }
         if let slot = UserDefaults.standard.string(forKey: "empty"), let tree = sdui["empty"]?[slot] {
             uiViews[slot] = (1, tree)
@@ -387,6 +392,7 @@ actor FixtureServer {
         case "uiWatch":
             return (200, Self.json(["result": .null]))
         case "uiEvent":
+            if GateTrustFixture.on, params["action"]?.stringValue == "gateTrust" { trustGate() }
             return (200, Self.json(["result": LandReviewFixture.on ? LandReviewFixture.opens(params) ?? .null : .null]))
         case "workspaces":
             return (200, Self.json(["result": .array(mac.workspaces.map { item in
@@ -1266,6 +1272,17 @@ actor FixtureServer {
         publish("notify.posted", ["id": .string("ntf_1"), "workspace": .string(workspace), "title": .string("Build finished"), "message": .string("make test passed in 42 s."), "kind": .string("done"), "ts": Self.stamp(ago: 600)])
         publish("notify.posted", ["id": .string("ntf_2"), "workspace": .string(workspace), "session": sessions.first?["id"] ?? .null, "title": .string("Permission needed"), "message": .string("Claude wants to run go test ./... in shop."), "kind": .string("permission"), "agent": .bool(true), "ts": Self.stamp(ago: 60)])
         publish("notify.posted", ["id": .string("ntf_3"), "workspace": .string(workspace), "session": asking, "title": .string("Checkout question"), "message": .string("Should I add retries to the charge step?"), "kind": .string("needs-input"), "agent": .bool(true), "ts": Self.stamp(ago: 30)])
+    }
+
+    private func trustGate() {
+        for (slot, tree) in gateTrusted {
+            let rev = (uiViews[slot]?.rev ?? 0) + 1
+            uiViews[slot] = (rev, tree)
+            let wire = Data("event: ui\ndata: ".utf8) + Self.json(slotView(slot, rev: rev, tree: tree).objectValue ?? [:]) + Data("\n\n".utf8)
+            for subscriber in subscribers {
+                subscriber.yield(wire)
+            }
+        }
     }
 
     private func slotView(_ slot: String, rev: Int, tree: JSONValue) -> JSONValue {

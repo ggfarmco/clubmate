@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r-trust · Trust and run on the phone, and two gates on one call</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.doc .rulebox{background:#FFFFFF;border:1.5px solid #1B1D1C;border-radius:12px;padding:20px 24px;display:flex;flex-direction:column;gap:10px}
+.doc .rulebox ul{margin:0;padding-left:20px}
+.doc .rulebox li{margin:0 0 6px}
+.doc .q{font-family:'JetBrains Mono',monospace;font-size:13px;line-height:19px}
+</style>
+</helmet>
+<div class="doc" style="width: 1280px; min-height: 2240px; padding: 64px; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · Gates · round r-trust · 18 Nov</div>
+<h1>Trust and run on the phone</h1>
+<p class="lead">Ruled 18 Nov: Pause no longer releases what a gate holds, so the phone must be able to trust a changed graph. The phone gate page shows what changed and offers <b>Trust and run</b> with one confirm, next to <b>Pause the gate</b>. There's no Open graph on the phone.</p>
+</div>
+<div class="rulebox">
+<h2 style="font-size: 20px; line-height: 26px">What the phone shows, in both directions</h2>
+<ul>
+<li><b>Where you find it.</b> Whenever a graph changed, the Gates dock row (“1 to trust”, amber) and the Gates screen's top row show it: “Done · plans and specs”, then “<span style="color: #8A5810">Graph changed:</span> trust it · 1 waits”. <b>Only while the gate holds something</b> does it also get a Needs you row, counted once however many things wait. The held sessions stay under Running with “waits for trust” and don't count again. Each opens the gate page.</li>
+<li><b>Versions.</b> “Pinned 3f9a1c · now 8b02e7 · 1 of 4 steps changed”.</li>
+<li><b>Steps.</b> Each changed step is open, with its kind and its − / + lines in mono. Added and removed steps say so. The unchanged steps fold into one line: “Simplify, Fable review, Summary: unchanged”. <b>Every − and + line always shows</b>, however long the diff; only runs of unchanged context inside a step fold (“12 unchanged lines”). A long prompt rewrite makes a long card, and the page scrolls.</li>
+<li><b>The waiting line</b>, per point: “1 done turn waits: ‹title›”, “1 landing waits: ‹branch› into ‹base›”, “1 call waits: ‹match› in ‹session title›”; more than one: “2 calls wait: ‹first title› +1”. The gate page header reads “graph changed ‹age› · N waiting for trust”.</li>
+<li><b>Trust and run</b> (primary) asks once, in a system alert: <span class="q">Trust this version of Plan pipeline?</span> / <span class="q">What the gate holds is reviewed by it.</span> / Cancel · <b>Trust and run</b>. Then the card goes away, and the held thing's round line reads “round 1 reviewing”.</li>
+<li><b>Pause the gate</b> (plain) needs no confirm. It leaves what's held held.</li>
+<li><b>iPad</b>: the same card in the detail column. Only the diff's width changes, so it has no board of its own.</li>
+</ul>
+</div>
+<div style="display: flex; flex-direction: column; gap: 14px"><h2>Two directions</h2>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px">
+<div style="display: flex; flex-direction: column; gap: 8px; min-width: 0"><div style="display: flex; gap: 8px; align-items: baseline"><h3 style="margin: 0; font-size: 16px">A · The trust card on the gate page</h3><span class="tag a">recommended</span></div>
+<p style="margin: 0"><b>The Mac's trust card on top of the phone's gate page: read the change, tap Trust and run, confirm once.</b></p>
+<p class="muted" style="margin: 0"><b>For:</b> It's the same card and the same place as on the Mac, so there's nothing new to learn. It fits on one screen, and the confirm is exactly the one you asked for. In SDUI it needs only a diff-lines node.</p>
+<p class="muted" style="margin: 0"><b>Against:</b> A long diff pushes Facts and History down the page; only unchanged context folds, never a changed line.</p>
+<p class="muted cap" style="margin: 0">C-TR-A-Gate-Light · C-TR-A-Confirm-Dark</p></div>
+<div style="display: flex; flex-direction: column; gap: 8px; min-width: 0"><div style="display: flex; gap: 8px; align-items: baseline"><h3 style="margin: 0; font-size: 16px">B · A review sheet</h3><span class="tag">more room</span></div>
+<p style="margin: 0"><b>A one-line card on the gate page opens a sheet with every step and its diff. The sheet's footer is the confirm.</b></p>
+<p class="muted" style="margin: 0"><b>For:</b> There's room for long prompt diffs, and you read and trust in one focused place. Trust and run in the sheet trusts directly, because opening the sheet is the deliberate step.</p>
+<p class="muted" style="margin: 0"><b>Against:</b> It's one more tap and a new SDUI sheet node. The Mac has no sheet. And the confirm becomes a footer sentence rather than the alert you asked for.</p>
+<p class="muted cap" style="margin: 0">C-TR-B-Sheet-Light</p></div>
+</div></div>
+<div style="display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; padding: 14px 0; border-top: 1px solid #DAD8CF; border-bottom: 1px solid #DAD8CF"><h3 style="font-size: 16px; margin: 0">Recommendation</h3><p style="margin: 0"><b>A.</b> It matches the Mac's trust card, uses the confirm you specified, and graph changes are usually one or two steps. B earns its place only if agent-prompt diffs turn out to be long and frequent; its sheet could be added later without changing anything else.</p></div>
+<div style="display: flex; flex-direction: column; gap: 14px"><h2>Two gates hold one call</h2>
+<p class="muted" style="margin: 0"><code>git push origin fix/cart-total &amp;&amp; gh pr create --fill</code> matches a git push gate and a gh pr create gate, and both review. The builder's default compared with the ruling (drawn in TR-Two-Gates):</p>
+<table>
+<tr><td class="muted"><b>Where</b></td><td class="muted"><b>Builder's default</b></td><td class="muted"><b>Ruling</b></td></tr>
+<tr><td style="width: 180px">Held block</td><td style="width: 300px">one caption line per gate</td><td><b>Keep.</b> The title reads “Held by 2 gates”. Under the call, one line per gate: “‹match› · ‹graph› · round N of M · ‹state›”, in the order the matches appear in the command.</td></tr>
+<tr><td>Header badge</td><td>oldest gate's match + “+1”</td><td><b>Keep the shape, order by the command:</b> “held · git push +1”. Gate age is invisible to you; the command is right there.</td></tr>
+<tr><td>Phone line</td><td>oldest gate's match + “+1”</td><td>“Held · git push +1 · 2 graphs reviewing”. With more than one gate, the “who decides” part becomes a count.</td></tr>
+<tr><td>Verdict</td><td>—</td><td>The call runs when every gate approves. If one asks for changes, the refusal waits until the other gate finishes. Then one refusal, and right after it one message with every gate's findings, one section per gate in command order, in the same turn, so Claude fixes both at once.</td></tr>
+<tr><td>Rounds-used cards</td><td>two cards, the older one first with ⌥1–3</td><td><b>One card, not two.</b> A session waits on one call, so there's one card per held call. It reads “2 gates still ask for changes”, with findings grouped by gate and the question line “Run it without another review?”. <b>⌥1 Run anyway</b> overrides every gate on the call, <b>⌥2 One more round</b> gives each gate that asked for changes another round, and <b>⌥3 Stop</b> stops the session. The card appears when any gate asking for changes has used up its rounds, and it lists every gate that asked for changes this round.</td></tr>
+</table></div>
+<div style="display: flex; flex-direction: column; gap: 12px"><h2>Handoff</h2><table>
+<tr><td style="width: 40px"><span class="tag a">a</span></td><td>Phone gate page: the trust card as built (one-line title, versions line, each changed step's name above its − / + lines with no step number or box, unchanged steps folded into one line, the waiting line, Trust and run first and Pause the gate after it, wrapping), and the confirm alert.</td></tr>
+<tr><td style="width: 40px"><span class="tag b">b</span></td><td>SDUI: a diff-lines node (mono − / + lines, tinted; never folds a − or + line, folds only runs of unchanged context into “N unchanged lines”) and a system confirm action (title, message, Cancel, primary).</td></tr>
+<tr><td style="width: 40px"><span class="tag c">c</span></td><td>Words: “Graph changed: trust it · N waits”, “Pinned ‹a› · now ‹b› · N of M steps changed”, “‹steps›: unchanged”, “Trust this version of ‹graph›?”, “What the gate holds is reviewed by it.”, “Held by 2 gates”, “held · ‹match› +1”, “N graphs reviewing”, “2 gates still ask for changes”, “Run it without another review?”, “N unchanged lines”, “1 done turn waits: ‹title›”, “1 landing waits: ‹branch› into ‹base›”, “1 call waits: ‹match› in ‹session title›”, “graph changed ‹age› · N waiting for trust”.</td></tr>
+<tr><td style="width: 40px"><span class="tag p0">d</span></td><td>Trust from the phone re-pins exactly as the Mac does. A gate waiting for trust counts once in Needs you only while it holds something; with nothing held it shows only on the Gates dock row and the Gates screen. Several gates on one call: the call runs when all approve; on changes, wait for every gate, refuse once, then steer one message with every gate's findings (a section per gate, command order; queued if the turn already ended); one rounds-used card per call; ⌥1 overrides all gates on the call.</td></tr>
+</table></div>
+<p class="muted cap" style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 12px">Boards: C-TR-A-Gate-Light, C-TR-A-Confirm-Dark, C-TR-B-Sheet-Light, TR-Two-Gates (Mac 1280 Mate dark fragments + phone light).</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":2240}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

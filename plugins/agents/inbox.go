@@ -29,6 +29,9 @@ const (
 type inboxEntry struct {
 	ID    string
 	Run   bool
+	Gate  bool
+	Label string
+	Words string
 	Open  bool
 	Since time.Time
 	Key   string
@@ -94,7 +97,10 @@ func inboxEntries(infos []sessionInfo) []inboxEntry {
 		default:
 			continue
 		}
-		entry.ID, entry.Run = info.ID, info.Kind == kindRun
+		entry.ID, entry.Run, entry.Gate = info.ID, info.Kind == kindRun, info.Kind == kindGate
+		if entry.Gate {
+			entry.Label, entry.Words = info.Title, info.RowDetail
+		}
 		entry.Since = cmp.Or(entry.Since, info.UpdatedAt)
 		out = append(out, entry)
 	}
@@ -178,6 +184,10 @@ func inboxGroups(entries []inboxEntry, roots []sessionRow, kids map[string][]ses
 	var needs, open []sdui.TreeItem
 	copied := map[string]bool{}
 	for _, entry := range entries {
+		if entry.Gate {
+			needs = append(needs, gateInboxItem(entry, now))
+			continue
+		}
 		rows := byRun[entry.ID]
 		if row, ok := byID[entry.ID]; ok && !entry.Run {
 			rows = []sessionRow{row}
@@ -228,6 +238,17 @@ func mirrorItem(item sdui.TreeItem, row sessionRow, entry inboxEntry, now time.T
 		item.DetailTone = statusTones[statusWaiting]
 	}
 	return item
+}
+
+func gateInboxItem(entry inboxEntry, now time.Time) sdui.TreeItem {
+	return sdui.TreeItem{
+		ID:         mirrorPrefix + gatePrefix + entry.ID,
+		MirrorOf:   gatePrefix + entry.ID,
+		Label:      entry.Label,
+		Icon:       gatesIcon,
+		Detail:     strings.Join(nonEmpty(entry.Words, waited(now.Sub(entry.Since))), " · "),
+		DetailTone: statusTones[statusWaiting],
+	}
 }
 
 func waited(d time.Duration) string {

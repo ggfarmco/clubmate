@@ -4,6 +4,65 @@ import SwiftUI
 import ClubmateDocument
 import CompanionKit
 
+struct DiffLinesNode: View {
+    let node: SDUINode
+    @State private var expanded = false
+    @Environment(\.sduiInset) private var inset
+
+    var body: some View {
+        let rows = DiffLine.rows(node.diffLines(), fold: node.diffFolds() && !expanded)
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                switch row {
+                case .line(let line):
+                    Text(sign(line.kind) + " " + (line.text.isEmpty ? " " : line.text))
+                        .font(.caption.monospaced())
+                        .foregroundStyle(line.kind == .context ? Color.captionInk : .primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(tint(line.kind), in: Rectangle())
+                case .unchanged(let count):
+                    Button { Motion.disclose { expanded = true } } label: {
+                        Text("  \(count) unchanged \(count == 1 ? "line" : "lines")")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(Color.captionInk)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 2)
+                            .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .textSelection(.enabled)
+        .padding(.vertical, 6)
+        .background(Color.surface1, in: .rect(cornerRadius: 12))
+        .clipShape(.rect(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color(.separator), lineWidth: 1))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, inset)
+    }
+
+    private func sign(_ kind: DiffLine.Kind) -> String {
+        switch kind {
+        case .added: "+"
+        case .removed: "−"
+        default: " "
+        }
+    }
+
+    private func tint(_ kind: DiffLine.Kind) -> Color {
+        switch kind {
+        case .added: Color.success.opacity(0.13)
+        case .removed: Color.danger.opacity(0.13)
+        default: .clear
+        }
+    }
+}
+
 struct TextNode: View {
     let node: SDUINode
     @State private var expanded = false
@@ -325,6 +384,8 @@ struct HeaderNode: View {
         .alert(confirming?.confirmation() ?? "", isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }), presenting: confirming) { button in
             Button(button.confirmActionTitle(), role: button.string("variant") == "danger" ? .destructive : nil) { SDUIPress.run(button, context: context, form: form) }
             Button("Cancel", role: .cancel) {}
+        } message: { button in
+            if let message = button.confirmMessage() { Text(message) }
         }
     }
 

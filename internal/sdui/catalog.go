@@ -71,6 +71,7 @@ var (
 
 	directions   = []string{"vertical", "horizontal"}
 	textStyles   = []string{"body", "muted", "title", "strong", "mono", "block"}
+	diffSigns    = []string{"-", "+", ""}
 	alignments   = []string{"leading", "center", "trailing"}
 	variants     = []string{"primary", "secondary", "ghost", "danger"}
 	toggleStyles = []string{"switch", "checkbox"}
@@ -233,7 +234,7 @@ var (
 		},
 		"button": {
 			required:    []string{"label"},
-			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck, "hint": isString, "loading": isString, "iconOnly": isBool, "copy": isString, "overflow": isBool, "withForm": isBool, "pill": isBool, "corner": isBool, "detail": isString, "detailTone": oneOf(badgeTones)},
+			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "confirmMessage": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck, "hint": isString, "loading": isString, "iconOnly": isBool, "copy": isString, "overflow": isBool, "withForm": isBool, "pill": isBool, "corner": isBool, "detail": isString, "detailTone": oneOf(badgeTones)},
 			children:    childRule{min: 0, max: 1, only: []string{"form"}},
 			interactive: true,
 		},
@@ -297,7 +298,12 @@ var (
 			interactive: true,
 		},
 		"crumb": {required: []string{"parts", "leaf"}, props: map[string]propCheck{"parts": listOf(isString), "leaf": isString, "icon": isString, "note": isString}, children: childRule{max: 2, only: []string{"button"}}},
-		"card":  {props: map[string]propCheck{"tone": oneOf(badgeTones), "icon": isString, "rows": isBool}, children: childRule{min: 1, max: -1}},
+		"diffLines": {
+			required: []string{"lines"},
+			props:    map[string]propCheck{"lines": arrayOf(objectCheck([]string{"sign", "text"}, map[string]propCheck{"sign": oneOf(diffSigns), "text": isString})), "fold": isBool},
+			children: noChildren,
+		},
+		"card": {props: map[string]propCheck{"tone": oneOf(badgeTones), "icon": isString, "rows": isBool}, children: childRule{min: 1, max: -1}},
 		"sheet": {
 			required:    []string{"title", "cancel"},
 			props:       map[string]propCheck{"title": isString, "icon": isString, "tone": oneOf(badgeTones), "cancel": actionCheck, "note": isString, "noteTone": oneOf(badgeTones)},

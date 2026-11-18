@@ -55,6 +55,7 @@ type app struct {
 
 	sessionRevs delta.Observed
 	runNeeds    runNeeds
+	trustNeeds  trustNeeds
 	graphs      *graphs.Engine
 	runSigsMu   sync.Mutex
 	runSigs     map[string]map[string]string
@@ -81,6 +82,8 @@ type app struct {
 	lastGates      atomic.Pointer[[]gateConfig]
 	lastGatesSaved atomic.Bool
 	rechecks       []time.Duration
+	trustPoll      time.Duration
+	trustPolls     sync.Map
 	gateRepos      sync.Map
 	landWork       coalesced
 	onceLocks      onceLocks
@@ -134,6 +137,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.notes = newNotifier(h, a.stateDir)
 	a.sendHold = envDelay(sendHoldEnv, 0)
 	a.rechecks = recheckDelays(envDelay(recheckEnv, 0))
+	a.trustPoll = envDelay(trustPollEnv, trustPollDefault)
 	a.takeHold = envDelay(takeHoldEnv, 0)
 	a.groups = newGroups(a.stateDir)
 	a.groups.reap(orphanMarkers())
@@ -334,6 +338,7 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 		if kind == changeStatus {
 			a.holdSynced(s)
 			a.cardsSynced(s)
+			a.trustSynced(rec.Workspace)
 			a.wakeWaiters()
 			a.statusChanged(s)
 			a.settleGatedDocs(s)
@@ -349,6 +354,7 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 		s.holdOf = &h
 	}
 	s.cards = rec.openCards()
+	a.trustNeeds.seed(rec)
 	s.setup = ready
 	s.wantTasks = func() { a.wantTasks(rec.Workspace, s) }
 	s.turned = func(t api.Turn) {
@@ -512,6 +518,10 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			}
 		}
 		out = append(out, info)
+	}
+	for _, n := range a.trustWaiting(workspaceID) {
+		n.Name = a.trustGateName(n.Gate)
+		out = append(out, trustInfo(workspaceID, n))
 	}
 	setGroups(out)
 	a.inbox.apply(workspaceID, out)

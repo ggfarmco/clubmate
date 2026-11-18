@@ -188,3 +188,50 @@ func TestGateEdgeTextGivesANonDecidingTargetTheOtherInput(t *testing.T) {
 	require.NotEmpty(t, note)
 	assert.Contains(t, note[len(note)-1], "Context: Land it, no verdict")
 }
+
+func TestGateInfoShowsEveryHashedChange(t *testing.T) {
+	base := func() *Graph {
+		return &Graph{Name: "g", Title: "G", Nodes: []Node{
+			{ID: "a", Role: "A", Prompt: "Review.", Model: "fable", Start: true, Outcomes: []string{"approved", "changes"}},
+			{ID: "b", Role: "B", Run: "make lint"},
+		}, Edges: []Edge{{From: "a", To: "b", Outcome: "changes", Text: "Fix it."}}}
+	}
+	shown := func(g *Graph) string {
+		info := gateInfo(g, fromProject)
+		out := info.Head + info.Edges
+		for _, n := range info.Nodes {
+			out += fmt.Sprint(n.ID, n.Title, n.Command, n.Prompt, n.Model, n.Effort, n.Other)
+		}
+		return out
+	}
+	changes := map[string]func(g *Graph){
+		"title":         func(g *Graph) { g.Title = "H" },
+		"description":   func(g *Graph) { g.Description = "d" },
+		"maxTurns":      func(g *Graph) { g.MaxTurns = 3 },
+		"maxSteps":      func(g *Graph) { g.MaxSteps = 3 },
+		"role":          func(g *Graph) { g.Nodes[0].Role = "Z" },
+		"agent prompt":  func(g *Graph) { g.Nodes[0].Prompt = "Approve." },
+		"step prompt":   func(g *Graph) { g.Nodes[1].Prompt = "x" },
+		"step run":      func(g *Graph) { g.Nodes[1].Run = "make ship" },
+		"agent command": func(g *Graph) { g.Nodes[0].Command, g.Nodes[0].Args = "", json.RawMessage(`{"x":1}`) },
+		"step args":     func(g *Graph) { g.Nodes[1].Args = json.RawMessage(`{"x":1}`) },
+		"in":            func(g *Graph) { g.Nodes[1].In = "main" },
+		"timeout":       func(g *Graph) { g.Nodes[1].Timeout = 9 },
+		"exits":         func(g *Graph) { g.Nodes[1].Exits = map[string]string{"1": "changes"} },
+		"start":         func(g *Graph) { g.Nodes[1].Start = true },
+		"branch":        func(g *Graph) { g.Nodes[0].Branch = "x" },
+		"afk":           func(g *Graph) { g.Nodes[0].Afk = true },
+		"model":         func(g *Graph) { g.Nodes[0].Model = "opus" },
+		"effort":        func(g *Graph) { g.Nodes[0].Effort = "high" },
+		"outcomes":      func(g *Graph) { g.Nodes[0].Outcomes = []string{"approved"} },
+		"end":           func(g *Graph) { g.Nodes[0].End = []string{"approved"} },
+		"node order":    func(g *Graph) { g.Nodes[0], g.Nodes[1] = g.Nodes[1], g.Nodes[0] },
+		"edge":          func(g *Graph) { g.Edges[0].MaxFires = 2 },
+	}
+	for name, change := range changes {
+		g := base()
+		change(g)
+		assert.NotEqual(t, graphHash(base()), graphHash(g), name)
+		assert.NotEqual(t, shown(base()), shown(g), name)
+	}
+}

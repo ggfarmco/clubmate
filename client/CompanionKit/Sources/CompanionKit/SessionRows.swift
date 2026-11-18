@@ -18,9 +18,10 @@ public enum SessionGlyph: Sendable, Equatable {
     case done
     case closed
     case aside
+    case gate
 
     public var needsYou: Bool {
-        self == .connect || self == .permission || self == .question || self == .step || self == .cap
+        self == .connect || self == .permission || self == .question || self == .step || self == .cap || self == .gate
     }
 }
 
@@ -53,6 +54,7 @@ public struct SessionStateLine: Sendable, Equatable {
 extension AgentSession {
     public var glyph: SessionGlyph {
         if isClosed { return .closed }
+        if kind == GateEntry.kind { return .gate }
         if isRun, needsYou { return pending.contains { $0.hasPrefix(GraphRun.stepRequest) } ? .step : .cap }
         if needsYou {
             if pendingSummary?.kind == .connect { return .connect }
@@ -144,6 +146,8 @@ extension AgentSession {
             return SessionStateLine(text: autoClosed ? "Auto-closed" : SessionState.closed.label, age: age(updatedAt))
         case .aside:
             return SessionStateLine(text: aside?.detail.nilIfEmpty ?? aside?.state.rawValue ?? "", tone: aside?.state == .thinking ? .primary : .secondary)
+        case .gate:
+            return SessionStateLine(text: title, tone: .needsYou)
         }
     }
 }
@@ -266,6 +270,8 @@ public struct NeedsYouItem: Sendable, Equatable, Identifiable {
     public var title: String {
         if let command { return "Run \(command)?" }
         switch session.glyph {
+        case .gate:
+            return session.rowDetail ?? session.title
         case .cap:
             return session.pendingSummary?.text ?? SessionState.waitingForYou.label
         case .question:

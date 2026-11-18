@@ -39,7 +39,7 @@ Repo · Holds (Landing; "An agent's landing waits for the graph.") · Into (pres
 - Header: Landing glyph, the gate's name, active/paused, last verdict; Pause P, Edit E, Delete ⌘⌫.
 - Facts: Repo, Holds, Match, Graph (numbered node list: title, agent or step, model or command, the verdict node "approves or asks for changes"; then "ends approved · changes", the pinned version and Open graph), Rounds, Docs only.
 - History: C's verdict rows (When, Verdict, Landing, Into, Open review) and C's live card for the landing under review; an approved row carries its summary under it in caption ink. A selected changes row opens its findings, deferred items last.
-- Graph changed (`state: trust`): an amber trust card on top — "‹graph› changed: trust the new version?", pinned and current version, what changed per node (− old, + new), **Trust and run** ⌘↩, Open graph, Pause the gate P. Mac only: the phone's Gates screen shows the card without Trust and run.
+- Graph changed (`state: trust`): an amber trust card on top — "‹graph› changed: trust the new version?", "Pinned ‹a› · now ‹b› · N of M steps changed", each changed step with its kind and its − / + lines (a `diffLines` node: every − and + line shows, runs of unchanged lines fold into "N unchanged lines"), the unchanged steps in one line "‹steps›: unchanged", **Trust and run** ⌘↩, Open graph, Pause the gate P. The phone draws the same card without Open graph, and its Trust and run asks once (r-trust, below).
 - `trust` never hides a landing that needs you or a paused gate: the header keeps both badges.
 
 ## Rounds used up (`GT-A-Rounds-640-MateLight`, `C-GT-A-Card`)
@@ -48,7 +48,7 @@ One card on the lander, counted once in Needs you: Land anyway ⌥1, One more ro
 
 ## Phone (`C-GT-A-Gates-Light`)
 
-Gates screen grouped by repo, gate pages from the shared SDUI. Pause works on the phone; New, Edit and Trust stay on the Mac.
+Gates screen grouped by repo, gate pages from the shared SDUI. Pause and Trust and run work on the phone; New and Edit stay on the Mac. A gate waiting for trust is the screen's top row: its name and "Graph changed: trust it · N waits".
 
 ## Keys
 
@@ -83,7 +83,7 @@ Gates screen grouped by repo, gate pages from the shared SDUI. Pause works on th
 
 - **Only AFK sessions.** The Done sheet's Sessions picks Top-level · Children (toggles); a separate checkbox "Only AFK sessions" below them narrows them. The note under the field: "Holds done turns from the sessions you pick. Only AFK leaves sessions you're running yourself alone."
 - **Tool-call message order** (Tool call slice). Changes on a held tool call: the gate's message ("From the gate · ‹gate› · round N · changes" with the findings) is queued first, then the call gets a plain refusal, so both reach Claude in the same turn and it never ends its turn on the bare refusal. The held block becomes "Refused by the gate · round N · changes" with the gate's message right under it, no turn break (GT-A-Refused-640-MateLight). Check in a test run that the queued message rides with the tool result.
-- **Pause keeps holds.** Pausing a gate stops new holds only: what it already holds stays held until its review ends (approved runs it, changes refuse it), and a hold waiting for trust keeps waiting until the gate is trusted on the Mac or the session stops. Pause on the phone never releases what a gate holds.
+- **Pause keeps holds.** Pausing a gate stops new holds only: what it already holds stays held until its review ends (approved runs it, changes refuse it), and a hold waiting for trust keeps waiting until the gate is trusted (on the Mac, the phone or the iPad) or the session stops. Pause on the phone never releases what a gate holds.
 - **Question line on every rounds card** (#840 open item). The plugin sends "‹verb› ‹what› ‹as done / without another review›?" and the Mac and the phone draw it under the title: Done · plans and specs "Accept the plan as done?"; Done · Any file and Files like… "Accept the changes as done?"; Done · Nothing required "Accept the turn as done?"; Landing "Land ‹branch› without another review?" (see below).
 - **Round line under a held turn on the phone.** In place of "Working…": the round line in caption ink, no spinner, updated in place, opening the gate run on tap, e.g. "Plan pipeline · round 1 changes · round 2 reviewing" (`heldRound`, sent by the plugin).
 - **Holds chips are a segmented control** in form rows: the track in the hover colour, the selected item in the pressed colour on top, as GT-Sheet draws (`tabs` `segmented`). `tabs` elsewhere stay chips.
@@ -97,3 +97,23 @@ The user ruled 18 Nov (#849): a turn whose gates or repo can't be read at its en
 - While the checks run: the Mac row and header badge read `held · checking again` in the held row's accent (plain, not an attention badge), the phone line `Held · checking the gates again…`; neither names a match or a graph. It moves to Needs you only when the card opens after the third failure.
 - Card: title "Couldn't check this turn against its gates"; question line "Accept as done without a review?" (sent as `question`, drawn under the title like every rounds card's); rule "When the turn ended, Clubmate couldn't read ‹the gates / ‹repo›'s repo›: ‹reason›. It tried 3 times. Check again tries now. Stop leaves the session idle and the turn not done." naming the actual cause when known, never explaining ⌥1; caption "held since 12:41 · tried 12:41, 12:42, 12:44".
 - ⌥2 reads "Check again", not One more round: no review ran, it counts against no rounds, and once a check succeeds the turn goes through its gate as round 1.
+
+## Rulings (Claude Design, 18 Nov, round r-trust; the user picked direction A)
+
+Boards: `TR-Rules`, `C-TR-A-Gate-Light`, `C-TR-A-Confirm-Dark` (in `boards.html`); the rejected review sheet (B) is `rounds/C-TR-B-Sheet-Light`. Two gates on one call (`TR-Two-Gates`, also in `boards.html`) belongs to the Tool call slice.
+
+- **Trust and run on the phone.** The Mac's trust card sits on top of the phone's gate page, as built: a one-line title, the versions line "Pinned ‹a› · now ‹b› · N of M steps changed"; each changed step's name "· ‹kind› · ‹what› changed" above its − / + lines in mono, no step number or box (added and removed steps say so and show their whole content); the unchanged steps fold into "‹steps›: unchanged"; the waiting line; **Trust and run** (primary, first) and **Pause the gate** (no confirm, leaves what's held held), wrapping; no Open graph.
+- **Every changed line shows** (second ruling, 18 Nov). A − or + line never folds, however long the diff; only runs of unchanged context inside a step fold ("12 unchanged lines"), and the page scrolls.
+- **The waiting line**, per point: "Until you trust it, the gate runs nothing. 1 done turn waits: ‹title›" / "1 landing waits: ‹branch› into ‹base›"; more than one "2 done turns wait: ‹first title› +1". The gate page header reads "graph changed ‹age› · N waiting for trust" on the Mac, the phone's "Graph changed · ‹repo›".
+- **One confirm.** Trust and run on the phone asks once in a system alert: "Trust this version of ‹graph›?" / "What the gate holds is reviewed by it." / Cancel · Trust and run. Then the card goes and the held thing's round line reads "round 1 reviewing". The Mac's ⌘↩ keeps trusting at once.
+- **Where you find it.** The Gates dock row ("N to trust", amber) and the Gates screen's top row (the gate's name and "Graph changed: trust it · N waits") show any gate whose graph changed. Only while the gate holds something does it also get a Needs you row, the same words, counted once however many things wait, with one needs-input notification that goes when the gate is trusted or nothing waits; the held sessions stay under Running with "waits for trust" and don't count again. Each opens the gate page.
+- **iPad.** The same card in the detail column.
+- **SDUI.** A `diffLines` node (mono − / + lines, tinted; `fold` folds only runs of unchanged lines into "N unchanged lines") and a button `confirm` with `confirmMessage` (title, message; Cancel and the button's label).
+- **Graph put back.** When the graph's file again matches the pin (put back), the gate is no longer waiting for trust: what waited resumes its review and the Needs you row goes, as after Trust (the held turn checks again every 30 s).
+- **Every hashed change shows** (second ruling, 18 Nov). An added step says where it went ("‹step› · ‹kind› · added as step N"); a change in the steps' order is its own block, "Steps · order changed", with " · ‹id›" after a title two steps share.
+
+### Pending Claude Design (18 Nov; built as the builder chose until the designer answers)
+
+- The Mac's Needs you row for a gate waiting for trust is cut at the default sidebar width ("Done · an… Graph chan…").
+- The phone lists the gate's Needs you entry twice: in Needs you and under its held session's worktree group, as it does for graph run entries.
+- Unruled words and looks: the phone row's "Graph changed: trust it · 1… · ‹branch›" cut, the shield glyph on the gate's row, "Steps · order changed", and the Mac notification's source label "‹repo› · Session".

@@ -49,7 +49,7 @@ const (
 	heldCheckingLine   = "Held · checking the gates again…"
 	heldLineWaits      = "Held · %s · waits for trust"
 	actHeldReview      = "openHeldReview"
-	gateTrustDoneText  = "This gate pinned %s. The file is now %s. Until you trust it, the gate runs nothing: a turn it holds stays held and its review runs on the new version once you trust it."
+	gateTrustDoneText  = "Until you trust it, the gate runs nothing: a turn it holds stays held and its review runs on the new version once you trust it."
 )
 
 func doneWho(sessions []string) (whose, who string) {

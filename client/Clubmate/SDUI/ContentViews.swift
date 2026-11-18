@@ -122,6 +122,82 @@ private struct ClampedText: View {
     }
 }
 
+struct DiffLinesNodeView: View {
+    let node: SDUINode
+
+    @State private var hovering = false
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        let lines = node.diffLines()
+        let expanded = node.id.map { MessageExpansion.shared.expanded.contains($0) } ?? false
+        let rows = DiffLine.rows(lines, fold: node.diffFolds() && !expanded)
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                switch row {
+                case .line(let line):
+                    HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
+                        Text(sign(line.kind))
+                            .foregroundStyle(ink(line.kind))
+                            .textSelection(.disabled)
+                        Text(line.text.isEmpty ? " " : line.text)
+                            .foregroundStyle(line.kind == .context ? theme.text2 : theme.foreground)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.horizontal, theme.spacing.l)
+                    .padding(.vertical, 1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(tint(line.kind))
+                case .unchanged(let count):
+                    Button {
+                        if let id = node.id { MessageExpansion.shared.toggle(id) }
+                    } label: {
+                        Text("  \(count) unchanged \(count == 1 ? "line" : "lines")")
+                            .foregroundStyle(hovering ? theme.text2 : theme.faint)
+                            .padding(.horizontal, theme.spacing.l)
+                            .padding(.vertical, 1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { hovering = $0 }
+                }
+            }
+        }
+        .font(theme.mono)
+        .textSelection(.enabled)
+        .padding(.vertical, theme.spacing.s)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.surface1))
+        .clipShape(RoundedRectangle(cornerRadius: theme.radius.m))
+        .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(theme.border, lineWidth: 1))
+    }
+
+    private func sign(_ kind: DiffLine.Kind) -> String {
+        switch kind {
+        case .added: "+"
+        case .removed: "−"
+        default: " "
+        }
+    }
+
+    private func ink(_ kind: DiffLine.Kind) -> Color {
+        switch kind {
+        case .added: theme.success
+        case .removed: theme.danger
+        default: theme.faint
+        }
+    }
+
+    private func tint(_ kind: DiffLine.Kind) -> Color {
+        switch kind {
+        case .added: theme.toneBg(theme.success)
+        case .removed: theme.toneBg(theme.danger)
+        default: .clear
+        }
+    }
+}
+
 struct DividerNodeView: View {
     @Environment(\.theme) private var theme
 

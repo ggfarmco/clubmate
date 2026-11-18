@@ -48,9 +48,12 @@ func setOrder(infos []sessionInfo, home string) {
 	groups := groupKeys(recs, home)
 	firstNode := map[string]record{}
 	for _, rec := range recs {
-		if run := runID(rec); run != "" {
-			if first, ok := firstNode[run]; !ok || startedFirst(rec, first) < 0 {
-				firstNode[run] = rec
+		for _, owner := range []string{runID(rec), waitsForTrust(rec)} {
+			if owner == "" {
+				continue
+			}
+			if first, ok := firstNode[owner]; !ok || startedFirst(rec, first) < 0 {
+				firstNode[owner] = rec
 			}
 		}
 	}
@@ -59,7 +62,7 @@ func setOrder(infos []sessionInfo, home string) {
 		switch first, ok := firstNode[infos[i].ID]; {
 		case infos[i].Kind == "":
 			infos[i].ListGroupKey = groups[infos[i].Worktree]
-		case infos[i].Kind == kindRun && ok:
+		case (infos[i].Kind == kindRun || infos[i].Kind == kindGate) && ok:
 			infos[i].ListKey, infos[i].ListGroupKey, infos[i].Worktree = listKey(first), groups[first.Worktree], first.Worktree
 		}
 	}
@@ -99,7 +102,7 @@ func setListFilters(infos []sessionInfo, needs map[string]runNeed) {
 		rows = append(rows, row)
 	}
 	roots, kids := sidebarTree(rows)
-	tallyFilters(roots, markRoots(roots, kids), slices.Sorted(maps.Keys(needs)), func(id, filter string, n int) {
+	tallyFilters(roots, markRoots(roots, kids), append(slices.Sorted(maps.Keys(needs)), gateEntries(infos)...), func(id, filter string, n int) {
 		i, ok := index[id]
 		if !ok {
 			return

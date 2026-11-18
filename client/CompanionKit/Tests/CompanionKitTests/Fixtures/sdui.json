@@ -2225,5 +2225,1168 @@
     "selected": "lg_fixture"
    }
   }
- }
+ },
+  "gateTrust": {
+    "agents.gates.main": {
+      "type": "stack",
+      "props": {
+        "direction": "vertical"
+      },
+      "children": [
+        {
+          "type": "header",
+          "props": {
+            "badges": [
+              {
+                "text": "active"
+              },
+              {
+                "text": "trust?",
+                "tone": "warning"
+              }
+            ],
+            "icon": "checkmark.bubble",
+            "meta": "Graph changed · shop",
+            "title": "Done · plans and specs"
+          },
+          "children": [
+            {
+              "type": "button",
+              "id": "gt_00000000000000d1/gatePause",
+              "props": {
+                "action": "gatePause",
+                "icon": "pause",
+                "label": "Pause",
+                "shortcut": "p",
+                "variant": "secondary"
+              }
+            },
+            {
+              "type": "button",
+              "id": "gt_00000000000000d1/gateEdit",
+              "props": {
+                "action": "gateEdit",
+                "icon": "pencil",
+                "label": "Edit",
+                "shortcut": "e",
+                "variant": "secondary"
+              }
+            },
+            {
+              "type": "button",
+              "id": "gt_00000000000000d1/gateDelete",
+              "props": {
+                "action": "gateDelete",
+                "confirm": "Delete the gate Done · plans and specs on shop? Turns it holds then end done without a review. Its verdict history goes too.",
+                "icon": "trash",
+                "label": "Delete",
+                "shortcut": "cmd+delete",
+                "variant": "danger"
+              }
+            }
+          ]
+        },
+        {
+          "type": "scroll",
+          "children": [
+            {
+              "type": "stack",
+              "props": {
+                "direction": "vertical"
+              },
+              "children": [
+                {
+                  "type": "card",
+                  "id": "gateTrust",
+                  "props": {
+                    "icon": "exclamationmark.shield",
+                    "tone": "warning"
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "props": {
+                        "text": "Plan pipeline changed: trust the new version?"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "style": "muted",
+                        "text": "Pinned 3f9a1c · now 8b02e7 · 2 of 4 steps changed"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "text": "Fable review · agent · prompt changed"
+                      }
+                    },
+                    {
+                      "type": "diffLines",
+                      "id": "gateTrust/gt_00000000000000d1/node:review",
+                      "props": {
+                        "fold": true,
+                        "lines": [
+                          {
+                            "sign": "",
+                            "text": "Read the plan."
+                          },
+                          {
+                            "sign": "",
+                            "text": "Check every setting it adds."
+                          },
+                          {
+                            "sign": "",
+                            "text": "Check every behaviour it changes."
+                          },
+                          {
+                            "sign": "",
+                            "text": "Ask who owns each new setting."
+                          },
+                          {
+                            "sign": "-",
+                            "text": "Approve when the plan names an owner for each setting."
+                          },
+                          {
+                            "sign": "+",
+                            "text": "Approve when the plan names an owner for each setting"
+                          },
+                          {
+                            "sign": "+",
+                            "text": "and a test for each behaviour it changes."
+                          },
+                          {
+                            "sign": "+",
+                            "text": "Ask for changes if either is missing."
+                          },
+                          {
+                            "sign": "",
+                            "text": "List findings as file:line — what."
+                          },
+                          {
+                            "sign": "",
+                            "text": "Keep findings short."
+                          },
+                          {
+                            "sign": "",
+                            "text": "One finding per line."
+                          },
+                          {
+                            "sign": "",
+                            "text": "Say approved or changes."
+                          },
+                          {
+                            "sign": "",
+                            "text": "Never edit files."
+                          },
+                          {
+                            "sign": "",
+                            "text": "Never run commands."
+                          },
+                          {
+                            "sign": "",
+                            "text": "End with the verdict."
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "text": "Lint · step · command changed"
+                      }
+                    },
+                    {
+                      "type": "diffLines",
+                      "id": "gateTrust/gt_00000000000000d1/node:lint",
+                      "props": {
+                        "fold": true,
+                        "lines": [
+                          {
+                            "sign": "-",
+                            "text": "markdownlint docs/"
+                          },
+                          {
+                            "sign": "+",
+                            "text": "markdownlint --fix docs/"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "style": "muted",
+                        "text": "Simplify, Summary: unchanged"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "style": "muted",
+                        "text": "Until you trust it, the gate runs nothing. 1 done turn waits: Write the inbox plan."
+                      }
+                    },
+                    {
+                      "type": "stack",
+                      "props": {
+                        "direction": "horizontal"
+                      },
+                      "children": [
+                        {
+                          "type": "spacer"
+                        },
+                        {
+                          "type": "button",
+                          "id": "gt_00000000000000d1@8b02e700aa/gateTrust",
+                          "props": {
+                            "action": "gateTrust",
+                            "confirm": "Trust this version of Plan pipeline?",
+                            "confirmMessage": "What the gate holds is reviewed by it.",
+                            "label": "Trust and run",
+                            "variant": "primary"
+                          }
+                        },
+                        {
+                          "type": "button",
+                          "id": "card:gt_00000000000000d1/gatePause",
+                          "props": {
+                            "action": "gatePause",
+                            "label": "Pause the gate",
+                            "variant": "secondary"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "form",
+                  "id": "props",
+                  "children": [
+                    {
+                      "type": "stack",
+                      "props": {
+                        "direction": "horizontal"
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "props": {
+                            "style": "muted",
+                            "text": "Repo"
+                          }
+                        },
+                        {
+                          "type": "text",
+                          "props": {
+                            "text": "shop"
+                          }
+                        },
+                        {
+                          "type": "text",
+                          "props": {
+                            "style": "muted",
+                            "text": "/Users/me/src/shop"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "stack",
+                      "props": {
+                        "direction": "horizontal"
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "props": {
+                            "style": "muted",
+                            "text": "Holds"
+                          }
+                        },
+                        {
+                          "type": "text",
+                          "props": {
+                            "text": "an agent's turn that ends done"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "stack",
+                      "props": {
+                        "direction": "horizontal"
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "props": {
+                            "style": "muted",
+                            "text": "Match"
+                          }
+                        },
+                        {
+                          "type": "text",
+                          "props": {
+                            "text": "top-level AFK sessions · wrote plans and specs: **/plans/*.md or **/specs/*.md"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "stack",
+                      "props": {
+                        "direction": "horizontal"
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "props": {
+                            "style": "muted",
+                            "text": "Graph"
+                          }
+                        },
+                        {
+                          "type": "stack",
+                          "props": {
+                            "direction": "vertical"
+                          },
+                          "children": [
+                            {
+                              "type": "stack",
+                              "props": {
+                                "direction": "horizontal"
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "text": "Plan pipeline"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "in shop · pinned 3f9a1c"
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "type": "stack",
+                              "props": {
+                                "direction": "horizontal"
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "1"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "text": "Simplify"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "agent"
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "type": "stack",
+                              "props": {
+                                "direction": "horizontal"
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "2"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "text": "Fable review"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "agent · fable · approves or asks for changes"
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "type": "stack",
+                              "props": {
+                                "direction": "horizontal"
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "3"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "text": "Lint"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "step · markdownlint --fix docs/"
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "type": "stack",
+                              "props": {
+                                "direction": "horizontal"
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "4"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "text": "Summary"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "agent · haiku"
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "props": {
+                                "style": "muted",
+                                "text": "ends approved · changes"
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "stack",
+                      "props": {
+                        "direction": "horizontal"
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "props": {
+                            "style": "muted",
+                            "text": "Rounds"
+                          }
+                        },
+                        {
+                          "type": "text",
+                          "props": {
+                            "text": "2 rounds of changes, then you decide"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "style": "muted",
+                    "text": "History · last 7 days · approved 1"
+                  }
+                },
+                {
+                  "type": "table",
+                  "id": "gateVerdicts",
+                  "props": {
+                    "action": "select",
+                    "columns": [
+                      {
+                        "id": "when",
+                        "title": "When",
+                        "width": 110
+                      },
+                      {
+                        "id": "verdict",
+                        "title": "Verdict",
+                        "width": 90
+                      },
+                      {
+                        "id": "landing",
+                        "title": "Held"
+                      }
+                    ],
+                    "rows": [
+                      {
+                        "id": "1795005660000000000/",
+                        "cells": [
+                          {
+                            "text": "Nov 18 12:41"
+                          },
+                          {
+                            "text": "waits for trust",
+                            "tone": "warn"
+                          },
+                          {
+                            "text": "Write the inbox plan · round 1"
+                          }
+                        ]
+                      },
+                      {
+                        "id": "1795004400000000000/",
+                        "cells": [
+                          {
+                            "text": "Nov 18 12:20"
+                          },
+                          {
+                            "text": "approved",
+                            "tone": "ok"
+                          },
+                          {
+                            "text": "Plan: rate limits · round 2"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "card",
+                  "id": "gateLive",
+                  "props": {
+                    "icon": "shield",
+                    "tone": "warning"
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "props": {
+                        "text": "Round 1 · waits for trust"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "style": "muted",
+                        "text": "Write the inbox plan · 4 min"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "style": "muted",
+                        "text": "Findings show here when it decides; the session gets them as a message from the gate."
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "agents.gates.sidebar": {
+      "type": "tree",
+      "id": "gates",
+      "props": {
+        "items": [
+          {
+            "id": "trust:gt_00000000000000d1",
+            "label": "Done · plans and specs",
+            "detail": "Graph changed: trust it · 1 waits",
+            "icon": "checkmark.bubble",
+            "detailTone": "warning"
+          },
+          {
+            "id": "help",
+            "label": "How gates work",
+            "icon": "info.circle",
+            "muted": true
+          },
+          {
+            "id": "gate-repo:/Users/me/src/shop",
+            "label": "shop",
+            "detail": "2",
+            "icon": "folder",
+            "hasChildren": true,
+            "expanded": true,
+            "children": [
+              {
+                "id": "gt_00000000000000d1",
+                "label": "Done · plans and specs",
+                "detail": "trust?",
+                "icon": "checkmark.bubble",
+                "detailTone": "warning",
+                "menu": [
+                  {
+                    "action": "gatePause",
+                    "label": "Pause"
+                  },
+                  {
+                    "action": "gateEdit",
+                    "label": "Edit…"
+                  },
+                  {
+                    "action": "gateDelete",
+                    "label": "Delete",
+                    "confirm": "Delete the gate Done · plans and specs on shop? Turns it holds then end done without a review. Its verdict history goes too."
+                  }
+                ]
+              },
+              {
+                "id": "gt_00000000000000d2",
+                "label": "Landing into main",
+                "detail": "no landings yet",
+                "icon": "arrow.triangle.merge",
+                "detailFaint": true,
+                "menu": [
+                  {
+                    "action": "gatePause",
+                    "label": "Pause"
+                  },
+                  {
+                    "action": "gateEdit",
+                    "label": "Edit…"
+                  },
+                  {
+                    "action": "gateDelete",
+                    "label": "Delete",
+                    "confirm": "Delete the gate Landing into main on shop? Landings it holds then land without a review. Its verdict history goes too."
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "selected": "help"
+      }
+    }
+  },
+  "gateTrusted": {
+    "agents.gates.main": {
+      "type": "stack",
+      "props": {
+        "direction": "vertical"
+      },
+      "children": [
+        {
+          "type": "header",
+          "props": {
+            "badges": [
+              {
+                "text": "active"
+              }
+            ],
+            "icon": "checkmark.bubble",
+            "meta": "1 reviewing",
+            "title": "Done · plans and specs"
+          },
+          "children": [
+            {
+              "type": "button",
+              "id": "gt_00000000000000d1/gatePause",
+              "props": {
+                "action": "gatePause",
+                "icon": "pause",
+                "label": "Pause",
+                "shortcut": "p",
+                "variant": "secondary"
+              }
+            },
+            {
+              "type": "button",
+              "id": "gt_00000000000000d1/gateEdit",
+              "props": {
+                "action": "gateEdit",
+                "icon": "pencil",
+                "label": "Edit",
+                "shortcut": "e",
+                "variant": "secondary"
+              }
+            },
+            {
+              "type": "button",
+              "id": "gt_00000000000000d1/gateDelete",
+              "props": {
+                "action": "gateDelete",
+                "confirm": "Delete the gate Done · plans and specs on shop? Turns it holds then end done without a review. Its verdict history goes too.",
+                "icon": "trash",
+                "label": "Delete",
+                "shortcut": "cmd+delete",
+                "variant": "danger"
+              }
+            }
+          ]
+        },
+        {
+          "type": "scroll",
+          "children": [
+            {
+              "type": "stack",
+              "props": {
+                "direction": "vertical"
+              },
+              "children": [
+                {
+                  "type": "form",
+                  "id": "props",
+                  "children": [
+                    {
+                      "type": "stack",
+                      "props": {
+                        "direction": "horizontal"
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "props": {
+                            "style": "muted",
+                            "text": "Repo"
+                          }
+                        },
+                        {
+                          "type": "text",
+                          "props": {
+                            "text": "shop"
+                          }
+                        },
+                        {
+                          "type": "text",
+                          "props": {
+                            "style": "muted",
+                            "text": "/Users/me/src/shop"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "stack",
+                      "props": {
+                        "direction": "horizontal"
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "props": {
+                            "style": "muted",
+                            "text": "Holds"
+                          }
+                        },
+                        {
+                          "type": "text",
+                          "props": {
+                            "text": "an agent's turn that ends done"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "stack",
+                      "props": {
+                        "direction": "horizontal"
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "props": {
+                            "style": "muted",
+                            "text": "Match"
+                          }
+                        },
+                        {
+                          "type": "text",
+                          "props": {
+                            "text": "top-level AFK sessions · wrote plans and specs: **/plans/*.md or **/specs/*.md"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "stack",
+                      "props": {
+                        "direction": "horizontal"
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "props": {
+                            "style": "muted",
+                            "text": "Graph"
+                          }
+                        },
+                        {
+                          "type": "stack",
+                          "props": {
+                            "direction": "vertical"
+                          },
+                          "children": [
+                            {
+                              "type": "stack",
+                              "props": {
+                                "direction": "horizontal"
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "text": "Plan pipeline"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "in shop · pinned 8b02e7"
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "type": "stack",
+                              "props": {
+                                "direction": "horizontal"
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "1"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "text": "Simplify"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "agent"
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "type": "stack",
+                              "props": {
+                                "direction": "horizontal"
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "2"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "text": "Fable review"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "agent · fable · approves or asks for changes"
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "type": "stack",
+                              "props": {
+                                "direction": "horizontal"
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "3"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "text": "Lint"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "step · markdownlint --fix docs/"
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "type": "stack",
+                              "props": {
+                                "direction": "horizontal"
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "4"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "text": "Summary"
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "props": {
+                                    "style": "muted",
+                                    "text": "agent · haiku"
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "props": {
+                                "style": "muted",
+                                "text": "ends approved · changes"
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "stack",
+                      "props": {
+                        "direction": "horizontal"
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "props": {
+                            "style": "muted",
+                            "text": "Rounds"
+                          }
+                        },
+                        {
+                          "type": "text",
+                          "props": {
+                            "text": "2 rounds of changes, then you decide"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "style": "muted",
+                    "text": "History · last 7 days · approved 1"
+                  }
+                },
+                {
+                  "type": "table",
+                  "id": "gateVerdicts",
+                  "props": {
+                    "action": "select",
+                    "columns": [
+                      {
+                        "id": "when",
+                        "title": "When",
+                        "width": 110
+                      },
+                      {
+                        "id": "verdict",
+                        "title": "Verdict",
+                        "width": 90
+                      },
+                      {
+                        "id": "landing",
+                        "title": "Held"
+                      }
+                    ],
+                    "rows": [
+                      {
+                        "id": "1795005660000000000/",
+                        "cells": [
+                          {
+                            "text": "Nov 18 12:41"
+                          },
+                          {
+                            "text": "reviewing",
+                            "tone": "warn"
+                          },
+                          {
+                            "text": "Write the inbox plan · round 1"
+                          }
+                        ]
+                      },
+                      {
+                        "id": "1795004400000000000/",
+                        "cells": [
+                          {
+                            "text": "Nov 18 12:20"
+                          },
+                          {
+                            "text": "approved",
+                            "tone": "ok"
+                          },
+                          {
+                            "text": "Plan: rate limits · round 2"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "card",
+                  "id": "gateLive",
+                  "props": {
+                    "icon": "shield",
+                    "tone": "accent"
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "props": {
+                        "text": "Round 1 · reviewing"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "style": "muted",
+                        "text": "Write the inbox plan · 4 min"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "style": "muted",
+                        "text": "Findings show here when it decides; the session gets them as a message from the gate."
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "agents.gates.sidebar": {
+      "type": "tree",
+      "id": "gates",
+      "props": {
+        "items": [
+          {
+            "id": "help",
+            "label": "How gates work",
+            "icon": "info.circle",
+            "muted": true
+          },
+          {
+            "id": "gate-repo:/Users/me/src/shop",
+            "label": "shop",
+            "detail": "2",
+            "icon": "folder",
+            "hasChildren": true,
+            "expanded": true,
+            "children": [
+              {
+                "id": "gt_00000000000000d1",
+                "label": "Done · plans and specs",
+                "detail": "1 held",
+                "icon": "checkmark.bubble",
+                "detailTone": "accent",
+                "menu": [
+                  {
+                    "action": "gatePause",
+                    "label": "Pause"
+                  },
+                  {
+                    "action": "gateEdit",
+                    "label": "Edit…"
+                  },
+                  {
+                    "action": "gateDelete",
+                    "label": "Delete",
+                    "confirm": "Delete the gate Done · plans and specs on shop? Turns it holds then end done without a review. Its verdict history goes too."
+                  }
+                ]
+              },
+              {
+                "id": "gt_00000000000000d2",
+                "label": "Landing into main",
+                "detail": "no landings yet",
+                "icon": "arrow.triangle.merge",
+                "detailFaint": true,
+                "menu": [
+                  {
+                    "action": "gatePause",
+                    "label": "Pause"
+                  },
+                  {
+                    "action": "gateEdit",
+                    "label": "Edit…"
+                  },
+                  {
+                    "action": "gateDelete",
+                    "label": "Delete",
+                    "confirm": "Delete the gate Landing into main on shop? Landings it holds then land without a review. Its verdict history goes too."
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "selected": "help"
+      }
+    }
+  }
 }

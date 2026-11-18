@@ -663,6 +663,25 @@ extension SDUINode {
         string("confirm").flatMap { $0.isEmpty ? nil : $0 }
     }
 
+    public func confirmMessage() -> String? {
+        string("confirmMessage").flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    public func diffLines() -> [DiffLine] {
+        props["lines"]?.arrayValue?.compactMap { line in
+            guard let text = line["text"]?.stringValue else { return nil }
+            switch line["sign"]?.stringValue {
+            case "+": return DiffLine(text: text, kind: .added)
+            case "-": return DiffLine(text: text, kind: .removed)
+            default: return DiffLine(text: text, kind: .context)
+            }
+        } ?? []
+    }
+
+    public func diffFolds() -> Bool {
+        bool("fold") == true
+    }
+
     public func confirmActionTitle() -> String {
         let label = string("label") ?? ""
         let title = label.hasSuffix("…") ? String(label.dropLast()) : label

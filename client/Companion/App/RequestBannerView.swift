@@ -78,6 +78,7 @@ struct RequestBannerView: View {
         case .question: "questionmark.bubble"
         case .step: "dollarsign"
         case .cap: "exclamationmark"
+        case .gate: "checkmark.shield"
         default: "hand.raised"
         }
     }

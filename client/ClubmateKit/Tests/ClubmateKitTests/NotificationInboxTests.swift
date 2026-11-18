@@ -69,6 +69,14 @@ final class NotificationInboxTests: XCTestCase {
         XCTAssertEqual(reveal.event, GraphRun.selectEvent(workspace: "w", run: "gr_1"))
     }
 
+    func testAGateNotificationOpensTheGatePage() throws {
+        let reveal = try XCTUnwrap(NotificationHub.reveal(workspace: "w", session: "gt_1", owner: AgentNotifier.section))
+
+        XCTAssertEqual(reveal.section, "agents")
+        XCTAssertEqual(reveal.event?.value, .string("gate:gt_1"))
+        XCTAssertTrue(reveal.focusMain)
+    }
+
     func testPinsOldestFirstByWhenItNeededYou() {
         var hub = NotificationHub()
         let away = HubFocus(appActive: false, workspace: nil)

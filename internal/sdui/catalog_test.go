@@ -413,3 +413,10 @@ func TestTreeDockValidates(t *testing.T) {
 	assert.ErrorIs(t, internalsdui.Validate(dock(6, "x")), internalsdui.ErrInvalidTree)
 	assert.ErrorIs(t, internalsdui.Validate(dock(0, "run")), internalsdui.ErrInvalidTree)
 }
+
+func TestDiffLinesNodeValidates(t *testing.T) {
+	lines := []sdui.DiffLine{{Sign: sdui.DiffSame, Text: "markdownlint"}, {Sign: sdui.DiffRemoved, Text: "docs/"}, {Sign: sdui.DiffAdded, Text: "--fix docs/"}}
+	trust := sdui.WithConfirmMessage(sdui.Button("trust", "Trust and run", ""), "Trust this version?", "What the gate holds is reviewed by it.")
+	assert.NoError(t, internalsdui.Validate(sdui.VStack(sdui.DiffLines("d", lines, true), trust)))
+	assert.ErrorContains(t, internalsdui.Validate(sdui.DiffLines("d", []sdui.DiffLine{{Sign: "~", Text: "x"}}, false)), "sign")
+}

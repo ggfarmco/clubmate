@@ -174,7 +174,7 @@ func TestListFiltersAddUpToTheMacBadges(t *testing.T) {
 		}
 		rows = append(rows, row)
 	}
-	infos = append(infos, runInfo("w", needs["run_1"]), runInfo("w", needs["run_g"]), runInfo("w", needs["run_o"]))
+	infos = append(infos, runInfo("w", needs["run_1"]), runInfo("w", needs["run_g"]), runInfo("w", needs["run_o"]), trustInfo("w", trustNeed{Gate: "gt_1", Name: "Done · plans and specs", Waits: 2, Since: at(19)}))
 	setListFilters(infos, needs)
 
 	phone := map[string]int{}
@@ -186,16 +186,16 @@ func TestListFiltersAddUpToTheMacBadges(t *testing.T) {
 		}
 		phone[filterOpen] += info.ListOpen
 	}
-	tree := sidebarView(rows, "", map[string]bool{}, t0, orderHome, groupKeys(recs, orderHome), false, "", sidebarSearch{}, 0, sidebarPlus{needRuns: []string{"run_1", "run_g", "run_o"}}, nil)
+	tree := sidebarView(rows, "", map[string]bool{}, t0, orderHome, groupKeys(recs, orderHome), false, "", sidebarSearch{}, 0, sidebarPlus{needRuns: []string{"run_1", "run_g", "run_o", "gt_1"}}, nil)
 	mac := map[string]int{}
 	for _, item := range nodesOf(tree, "tabs")[0].Props["items"].([]sdui.Item) {
 		var n int
 		fmt.Sscan(item.Badge, &n)
 		mac[item.ID] = n
 	}
-	assert.Equal(t, map[string]int{filterAll: 8, filterNeeds: 8, filterOpen: 2, filterRunning: 3}, mac)
+	assert.Equal(t, map[string]int{filterAll: 8, filterNeeds: 9, filterOpen: 2, filterRunning: 3}, mac)
 	assert.Equal(t, mac, phone)
-	assert.Equal(t, []string{"agt_m1", "agt_s", "agt_l", "agt_r", "agt_e", "agt_c", "run_1", "run_o"}, idsOf(slices.DeleteFunc(slices.Clone(infos), func(info sessionInfo) bool {
+	assert.Equal(t, []string{"agt_m1", "agt_s", "agt_l", "agt_r", "agt_e", "agt_c", "run_1", "run_o", "gt_1"}, idsOf(slices.DeleteFunc(slices.Clone(infos), func(info sessionInfo) bool {
 		return !slices.Contains(info.ListFilters, filterNeeds)
 	})))
 }

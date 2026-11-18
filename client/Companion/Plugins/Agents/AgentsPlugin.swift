@@ -98,6 +98,7 @@ struct SessionListView: View {
     var body: some View {
         List(selection: Binding(get: { context.navigation.detail }, set: { id in
             context.navigation.detail = id
+            if let id, GateEntry.matches(id) { context.navigation.openGate(id) }
             if id != nil { context.navigation.preferredColumn = .detail }
         })) {
             WorkspaceTabs(context: context)
@@ -678,12 +679,13 @@ struct SessionGlyphView: View {
         case .open, .done: "checkmark"
         case .closed: "archivebox"
         case .aside: "bubble.left.and.bubble.right"
+        case .gate: "checkmark.shield.fill"
         }
     }
 
     private var foreground: Color {
         switch glyph {
-        case .connect, .permission, .question, .step, .cap: Color.onWarning
+        case .connect, .permission, .question, .step, .cap, .gate: Color.onWarning
         case .childWaiting: Color.warningInk
         case .asksParent, .running, .review: .accentColor
         case .stopped: Color.dangerInk
@@ -694,7 +696,7 @@ struct SessionGlyphView: View {
 
     private var background: Color {
         switch glyph {
-        case .connect, .permission, .question, .step, .cap: Color.warning
+        case .connect, .permission, .question, .step, .cap, .gate: Color.warning
         case .childWaiting: Color.warning.opacity(0.18)
         case .asksParent, .running, .review: Color.accentColor.opacity(0.18)
         case .stopped: Color.dangerInk.opacity(0.18)

@@ -244,6 +244,7 @@ func (a *app) gatesAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if strings.HasPrefix(row, gateRepoPrefix) {
 			return nil
 		}
+		row = strings.TrimPrefix(row, gateTrustPrefix)
 		if row == gateHelpID {
 			row = ""
 		}

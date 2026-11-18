@@ -180,7 +180,7 @@ struct ButtonPress {
         guard !disabled else { return }
         guard let message = node.confirmation() else { return perform() }
         Task {
-            if await Confirmation.ask(message, action: node.confirmActionTitle()) { perform() }
+            if await Confirmation.ask(message, detail: node.confirmMessage() ?? "", action: node.confirmActionTitle()) { perform() }
         }
     }
 

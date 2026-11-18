@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>r-trust · B · a review sheet whose footer is the confirm</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
+<link rel="stylesheet" href="/_blob/4987a8b4234bbea3e512a6d02560ee1d">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.comp .cardw{border-radius:16px;border:1.5px solid var(--wa-bd);background:color-mix(in srgb,var(--wa) 9%,var(--s1));padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.comp .fnd{font-size:14px;line-height:19px;color:var(--t2)}
+.comp .sheet{position:absolute;left:0;right:0;top:270px;bottom:0;border-radius:34px 34px 0 0;background:var(--bg);box-shadow:0 -10px 30px rgba(0,0,0,.18);z-index:9;overflow:hidden}
+.comp .grab{position:absolute;left:50%;top:7px;width:36px;height:5px;border-radius:3px;margin-left:-18px;background:var(--bd2)}
+.comp .stc{display:flex;flex-direction:column;gap:2px;padding:10px 16px;position:relative}
+.comp .stc+.stc::before{content:'';position:absolute;top:0;left:52px;right:0;height:1px;background:var(--bd)}
+.comp .stc .sl{display:flex;align-items:center;gap:12px}
+.comp .num{width:28px;height:28px;border-radius:14px;background:var(--s2);color:var(--t3);display:flex;align-items:center;justify-content:center;font-size:13px;flex:none}
+.comp .num.ch{background:var(--wa);color:#1A1300}
+.comp .dbox{margin:6px 0 2px 40px;border-radius:10px;overflow:hidden;border:1px solid var(--bd)}
+.comp .dlp{font-family:'JetBrains Mono','SF Mono',ui-monospace,monospace;font-size:12px;line-height:18px;letter-spacing:0;padding:2px 10px;white-space:pre-wrap;word-break:break-all}
+.comp .dlp.del{background:color-mix(in srgb,var(--er) 13%,transparent)}
+.comp .dlp.add{background:color-mix(in srgb,var(--ok) 13%,transparent)}
+.comp .sfoot{position:absolute;left:0;right:0;bottom:0;padding:12px 16px 34px;display:flex;flex-direction:column;gap:10px;background:linear-gradient(transparent,var(--bg) 18%)}
+</style>
+</helmet>
+<div class="cm comp th-{{theme}}" style="width: 393px; height: 852px">
+<div class="top"><button class="gbtn glass" aria-label="Back to Gates"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button><div class="t"><span class="tt">Done · plans and specs</span><span class="ts"><span class="wa-i">Graph changed</span> · shop</span></div><button class="gbtn glass" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button></div>
+<div style="position: absolute; left: 16px; right: 16px; top: 118px">
+<section class="cardw" aria-label="The gate's graph changed">
+<div style="display: flex; align-items: center; gap: 10px"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg></span><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="sub w6 wa-i">Plan pipeline changed</span><span class="cap t2">1 of 4 steps · 1 done turn waits</span></div></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px"><button class="cb pri sm">Review the change</button><button class="cb plain sm">Pause the gate</button></div>
+</section>
+</div>
+<div style="position: absolute; inset: 0; background: var(--scrim); z-index: 8"></div>
+<div class="sheet" role="dialog" aria-labelledby="sh-t">
+<div class="grab"></div>
+<div style="display: flex; align-items: center; gap: 8px; padding: 20px 16px 10px"><button class="gbtn glass" aria-label="Close" style="width: 36px; height: 36px; border-radius: 18px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px"><path d="m4 4 8 8M12 4l-8 8"/></svg></button><div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center"><span id="sh-t" class="sub w6">Plan pipeline</span><span class="foot mut">Pinned 3f9a1c · now 8b02e7</span></div><span style="width: 36px; flex: none"></span></div>
+<div class="ig" style="margin: 4px 16px 0">
+<div class="stc"><div class="sl"><span class="num">1</span><span class="sub" style="flex: 1">Simplify</span><span class="cap mut">unchanged</span></div></div>
+<div class="stc"><div class="sl"><span class="num">2</span><span class="sub" style="flex: 1">Fable review</span><span class="cap mut">unchanged</span></div></div>
+<div class="stc"><div class="sl"><span class="num ch">3</span><span class="sub w6" style="flex: 1">Lint</span><span class="cap wa-i">command changed</span></div>
+<div class="dbox"><div class="dlp del">− markdownlint docs/ plans/ specs/</div><div class="dlp add">+ markdownlint --fix docs/ plans/ specs/</div></div></div>
+<div class="stc"><div class="sl"><span class="num">4</span><span class="sub" style="flex: 1">Summary</span><span class="cap mut">unchanged</span></div></div>
+</div>
+<div class="sfoot">
+<span class="fnd" style="text-align: center">Trust this version of Plan pipeline? What the gate holds is reviewed by it.</span>
+<button class="cb pri full">Trust and run</button>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"clight"},"$preview":{"width":393,"height":852}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'clight' };
+}
+}
+</script>
+</body>
+</html>

@@ -14,6 +14,28 @@ public struct DiffLine: Sendable, Hashable {
         self.kind = kind
     }
 
+    public enum Row: Sendable, Hashable {
+        case line(DiffLine)
+        case unchanged(Int)
+    }
+
+    public static func rows(_ lines: [DiffLine], fold: Bool) -> [Row] {
+        guard fold else { return lines.map(Row.line) }
+        var out: [Row] = []
+        var run = 0
+        for line in lines {
+            if line.kind == .context {
+                run += 1
+                continue
+            }
+            if run > 0 { out.append(.unchanged(run)) }
+            run = 0
+            out.append(.line(line))
+        }
+        if run > 0 { out.append(.unchanged(run)) }
+        return out
+    }
+
     public static func parse(_ text: String) -> [DiffLine] {
         var lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         if lines.last == "" { lines.removeLast() }

@@ -178,6 +178,36 @@ final class CompanionUITests: XCTestCase {
         add(screenshot(app, "reviewer"))
     }
 
+    func testTrustAChangedGateGraphFromTheGatePageAsksOnce() {
+        let app = launch(open: "agents", ["-landReview", "YES", "-gateTrust", "YES"])
+        let needs = app.descendants(matching: .any)["inbox.gt_00000000000000d1"]
+        XCTAssertTrue(needs.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Graph changed: trust it · 1 waits"].exists)
+        add(screenshot(app, "needs-you"))
+        needs.tap()
+        let trust = app.buttons["Trust and run"]
+        XCTAssertTrue(trust.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["+ markdownlint --fix docs/"].exists)
+        XCTAssertTrue(app.staticTexts["Simplify, Summary: unchanged"].exists)
+        add(screenshot(app, "trust-card"))
+        app.buttons["  4 unchanged lines"].tap()
+        XCTAssertTrue(app.staticTexts["  Read the plan."].waitForExistence(timeout: 5))
+        add(screenshot(app, "unfolded"))
+        let alert = app.alerts["Trust this version of Plan pipeline?"]
+        trust.tap()
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertTrue(alert.staticTexts["What the gate holds is reviewed by it."].exists)
+        add(screenshot(app, "trust-confirm"))
+        alert.buttons["Cancel"].tap()
+        XCTAssertTrue(wait(for: alert, "exists == false"))
+        trust.tap()
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        alert.buttons["Trust and run"].tap()
+        XCTAssertTrue(app.staticTexts["Round 1 · reviewing"].waitForExistence(timeout: 10))
+        XCTAssertTrue(wait(for: trust, "exists == false"))
+        add(screenshot(app, "trusted"))
+    }
+
     func testAHeldChangeNeverMovesTheRowAboutToBeTappedAndLandsOnThePill() {
         let app = launch(open: "agents", ["-holdFixture", "12"])
         let row = app.descendants(matching: .any)["row.agt_0000000000000001"]

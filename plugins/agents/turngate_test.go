@@ -150,6 +150,7 @@ type heldTurn struct {
 	Round   int    `json:"round"`
 	Last    string `json:"last"`
 	Request string `json:"request"`
+	Wait    string `json:"wait"`
 }
 
 func (f *fixture) held(t *testing.T, workspace, session string) *heldTurn {
@@ -931,6 +932,117 @@ func TestNewGraphStartsAHoldWaitingForTrust(t *testing.T) {
 	require.NoError(t, d.f.run(t, d.workspace, "agents.gate-update", map[string]any{"id": d.gate, "graph": "fable-review"}, nil))
 
 	testutil.Eventually(t, func() bool { h := d.held(t); return h != nil && h.Run != "" }, wait)
+}
+
+func TestTrustFromThePhoneStartsWaitingReviews(t *testing.T) {
+	t.Parallel()
+	d := startDoneIn(t, nil, heldReviewOnly, map[string]any{}, map[string]any{"prompt": []map[string]any{{"match": "WORK", "run": "sed -i '' 's/Review\\./Check./' .clubmate/graphs/held.json"}}}, nil)
+	testutil.Eventually(t, func() bool { h := d.held(t); return h != nil && h.Wait != "" }, wait)
+	trustButton := func(n sdui.Node) (sdui.Node, bool) {
+		for _, b := range sheetNodes(n, "button") {
+			if b.Props["action"] == "gateTrust" && b.Props["confirm"] != nil {
+				return b, true
+			}
+		}
+		return sdui.Node{}, false
+	}
+
+	d.f.h.Event(t, d.workspace, "agents.gates.sidebar", "gates", "select", "trust:"+d.gate)
+	page := d.f.h.WaitSlot(t, d.workspace, "agents.gates.main", func(n sdui.Node) bool { _, ok := trustButton(n); return ok })
+	trust, _ := trustButton(page)
+	d.f.h.Event(t, d.workspace, "agents.gates.main", trust.ID, "gateTrust", nil)
+
+	testutil.Eventually(t, func() bool { h := d.held(t); return h != nil && h.Run != "" }, wait)
+	d.f.h.WaitSlot(t, d.workspace, "agents.gates.main", func(n sdui.Node) bool { _, ok := trustButton(n); return !ok })
+}
+
+func TestGateWaitingForTrustNeedsYouOnceUntilTrusted(t *testing.T) {
+	t.Parallel()
+	d := startDoneIn(t, nil, heldReviewOnly, map[string]any{}, map[string]any{"prompt": []map[string]any{{"match": "WORK", "run": "sed -i '' 's/Review\\./Check./' .clubmate/graphs/held.json"}}}, nil)
+	type entry struct {
+		ID, Kind, Title, RowDetail, ListGroupKey string
+		NeedsYou                                 bool
+		ListFilters                              []string
+	}
+	list := func() []entry {
+		var out []entry
+		require.NoError(t, d.f.run(t, d.workspace, "agents.sessions", map[string]any{}, &out))
+		return out
+	}
+	gate := func(list []entry) int { return slices.IndexFunc(list, func(e entry) bool { return e.Kind == "gate" }) }
+	testutil.Eventually(t, func() bool { return gate(list()) >= 0 }, wait)
+	got := list()
+	g := d.f.gates(t, d.workspace)[0]
+
+	held := got[slices.IndexFunc(got, func(e entry) bool { return e.ID == d.session })]
+	assert.Equal(t, entry{ID: d.gate, Kind: "gate", Title: g.Name, RowDetail: "Graph changed: trust it · 1 waits", ListGroupKey: held.ListGroupKey, NeedsYou: true, ListFilters: []string{"needs"}}, got[gate(got)])
+	assert.NotEmpty(t, held.ListGroupKey)
+	d.f.h.WaitSlot(t, d.workspace, "agents.gates.sidebar", func(n sdui.Node) bool {
+		items, ok := n.Props["items"].([]any)
+		return ok && len(items) > 0 && items[0].(map[string]any)["detail"] == got[gate(got)].RowDetail
+	})
+	assert.NotContains(t, held.ListFilters, "needs")
+	d.f.waitNotes(t, func(n []notePost) bool {
+		return slices.Contains(n, notePost{d.workspace, d.gate, g.Name, "Graph changed: trust it · 1 waits", "needs-input"})
+	})
+
+	require.NoError(t, d.f.run(t, d.workspace, "agents.gate-update", map[string]any{"id": d.gate, "trust": g.Hash}, nil))
+
+	testutil.WaitEvents(t, d.f.h.Bus, "agents.changed", func(events []bus.Event) bool {
+		return slices.ContainsFunc(events, func(e bus.Event) bool {
+			var c struct{ Session, Kind, Request, RequestKind string }
+			require.NoError(t, json.Unmarshal(e.Payload, &c))
+			return c == struct{ Session, Kind, Request, RequestKind string }{d.gate, "resolved", "trust:" + d.gate, "gate"}
+		})
+	})
+	testutil.Eventually(t, func() bool { return gate(list()) < 0 }, wait)
+	testutil.Never(t, func() bool { return len(notesOf(d.f.notes(t), d.gate)) > 1 }, quiet)
+}
+
+func TestRestartWithAGateWaitingForTrustPostsNoSecondNotification(t *testing.T) {
+	t.Parallel()
+	d := startDoneIn(t, nil, heldReviewOnly, map[string]any{}, map[string]any{"prompt": []map[string]any{{"match": "WORK", "run": "sed -i '' 's/Review\\./Check./' .clubmate/graphs/held.json"}}}, nil)
+	d.f.waitNotes(t, func(n []notePost) bool { return len(notesOf(n, d.gate)) == 1 })
+
+	d.f.restartAgents(t, d.workspace)
+
+	d.f.postItems(t, d.workspace, d.session, decision("Lists"))
+	testutil.Eventually(t, func() bool { return d.f.session(t, d.workspace, d.session).OpenCount == 1 }, wait)
+	testutil.Never(t, func() bool { return len(notesOf(d.f.notes(t), d.gate)) > 1 }, quiet)
+}
+
+func TestGateGraphPutBackResumesTheWaitingReview(t *testing.T) {
+	t.Parallel()
+	d := startDoneIn(t, []string{"CLUBMATE_AGENTS_TRUST_POLL=100ms"}, heldReviewOnly, map[string]any{}, map[string]any{"prompt": []map[string]any{{"match": "WORK", "run": "sed -i '' 's/Review\\./Check./' .clubmate/graphs/held.json"}}}, nil)
+	testutil.Eventually(t, func() bool { h := d.held(t); return h != nil && h.Wait != "" }, wait)
+	d.f.waitNotes(t, func(n []notePost) bool { return len(notesOf(n, d.gate)) == 1 })
+
+	writeGraph(t, d.repo, "held", heldReviewOnly)
+
+	testutil.Eventually(t, func() bool { h := d.held(t); return h != nil && h.Wait == "" && h.Run != "" }, wait)
+	testutil.WaitEvents(t, d.f.h.Bus, "agents.changed", func(events []bus.Event) bool {
+		return slices.ContainsFunc(events, func(e bus.Event) bool {
+			var c struct{ Session, Kind string }
+			require.NoError(t, json.Unmarshal(e.Payload, &c))
+			return c == struct{ Session, Kind string }{d.gate, "resolved"}
+		})
+	})
+}
+
+func TestTrustPollLeavesAWaitingHoldAlone(t *testing.T) {
+	t.Parallel()
+	d := startDoneIn(t, []string{"CLUBMATE_AGENTS_TRUST_POLL=50ms"}, heldReviewOnly, map[string]any{}, map[string]any{"prompt": []map[string]any{{"match": "WORK", "run": "sed -i '' 's/Review\\./Check./' .clubmate/graphs/held.json"}}}, nil)
+	updated := func() string {
+		var list []struct {
+			UpdatedAt string `json:"updatedAt"`
+		}
+		require.NoError(t, d.f.run(t, d.workspace, "agents.sessions", map[string]any{"session": d.session}, &list))
+		return list[0].UpdatedAt
+	}
+	testutil.Eventually(t, func() bool { h := d.held(t); return h != nil && h.Wait != "" }, wait)
+	at := updated()
+
+	testutil.Never(t, func() bool { return updated() != at }, quiet)
 }
 
 func TestReheldTurnDoesNotReplayTheOldGatesVerdict(t *testing.T) {

@@ -80,7 +80,13 @@ final class AppNavigation {
         needsYouList = false
         sidebar = SidebarItem(computer: computer, plugin: plugin)
         self.detail = detail
+        if plugin == AgentsPluginInfo.id, let detail, GateEntry.matches(detail) { openGate(detail) }
         preferredColumn = detail == nil ? .content : .detail
+    }
+
+    func openGate(_ gate: String) {
+        sectionItem = gate
+        detail = GateEntry.section
     }
 
     func openPaired(_ computer: String) {

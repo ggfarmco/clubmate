@@ -51,30 +51,37 @@ const (
 	actGateTrust     = "gateTrust"
 	actGateOpenGraph = "gateOpenGraph"
 
-	gateIcon        = "shield"
-	gateLandIcon    = "arrow.triangle.merge"
-	gateRepoIcon    = "folder"
-	gateRepoPrefix  = "gate-repo:"
-	gateCardPrefix  = "card:"
-	gateTrustID     = "gateTrust"
-	gateShortHash   = 6
-	gateHelpTitle   = "How gates work"
-	gateNoLandings  = "no landings yet"
-	gateNoHistory   = "No landings yet. The next landing this gate holds waits for %s."
-	gateDeleteText  = "Delete the gate %s on %s? Landings it holds then land without a review. Its verdict history goes too."
-	gateDocsOnly    = "a change only in .md files lands without a review"
-	gateHolds       = "an agent's landing (git_land)"
-	gateRoundsWords = "of changes, then you decide"
-	gateEnds        = "ends approved · changes"
-	gateVerdictDoes = "approves or asks for changes"
-	gateTrustTitle  = "%s changed: trust the new version?"
-	gateTrustText   = "This gate pinned %s. The file is now %s. Until you trust it, the gate runs nothing: a landing it holds is refused, and runs through the new version when its agent calls git_land again."
-	gateTrustLost   = "The pinned version wasn't kept, so only the new one can be shown:"
-	gateTrustOther  = "Its content changed in a way this card doesn't list; read the file before you trust it."
-	gateUnreadable  = "%s can't be read: %s"
-	gateTrustPhone  = "Trust it on the Mac, where the change can be read; Pause works here."
-	gateSummaryRow  = "summary"
-	gateSummaryWord = "Summary · "
+	gateIcon         = "shield"
+	gateLandIcon     = "arrow.triangle.merge"
+	gateRepoIcon     = "folder"
+	gateRepoPrefix   = "gate-repo:"
+	gateCardPrefix   = "card:"
+	gateTrustID      = "gateTrust"
+	gateShortHash    = 6
+	gateHelpTitle    = "How gates work"
+	gateNoLandings   = "no landings yet"
+	gateNoHistory    = "No landings yet. The next landing this gate holds waits for %s."
+	gateDeleteText   = "Delete the gate %s on %s? Landings it holds then land without a review. Its verdict history goes too."
+	gateDocsOnly     = "a change only in .md files lands without a review"
+	gateHolds        = "an agent's landing (git_land)"
+	gateRoundsWords  = "of changes, then you decide"
+	gateEnds         = "ends approved · changes"
+	gateVerdictDoes  = "approves or asks for changes"
+	gateTrustTitle   = "%s changed: trust the new version?"
+	gateTrustText    = "Until you trust it, the gate runs nothing: a landing it holds is refused, and runs through the new version when its agent calls git_land again."
+	gateTrustLost    = "The pinned version wasn't kept, so only the new one can be shown:"
+	gateTrustOther   = "Its content changed in a way this card doesn't list; read the file before you trust it."
+	gateUnreadable   = "%s can't be read: %s"
+	gateTrustAsk     = "Trust this version of %s?"
+	gateTrustReview  = "What the gate holds is reviewed by it."
+	gateTrustRow     = "Graph changed: trust it"
+	gateTrustWaits   = "%s · %d waits"
+	gateTrustPrefix  = "trust:"
+	gateChangedMac   = "graph changed"
+	gateChangedPhone = "Graph changed"
+	gateWaitingTrust = "%d waiting for trust"
+	gateSummaryRow   = "summary"
+	gateSummaryWord  = "Summary · "
 )
 
 var gateHelpFacts = [][2]string{
@@ -117,7 +124,14 @@ type gateVerdictLook struct {
 }
 
 func gatesSidebar(rows []gateRow, selected string, now time.Time) sdui.Node {
-	items := []sdui.TreeItem{automation.HelpItem(gateHelpTitle)}
+	var items []sdui.TreeItem
+	for _, r := range rows {
+		if r.State != gateStateTrust {
+			continue
+		}
+		items = append(items, sdui.TreeItem{ID: gateTrustPrefix + r.ID, Label: r.Name, Icon: pointIcon(r.Point), Detail: r.trustRowWords(), DetailTone: "warning"})
+	}
+	items = append(items, automation.HelpItem(gateHelpTitle))
 	for _, g := range gateGroups(rows) {
 		repo := sdui.TreeItem{ID: gateRepoPrefix + g.Repo, Label: filepath.Base(g.Repo), Icon: gateRepoIcon, Detail: strconv.Itoa(len(g.Rows)), HasChildren: true, Expanded: true}
 		for _, r := range g.Rows {
@@ -191,6 +205,26 @@ func (r gateRow) look(now time.Time) gateLook {
 	}
 	v := verdictLook(*r.Last, r.Point)
 	return gateLook{Text: v.Word + " " + shortAge(now.Sub(r.Last.At), r.Last.At), Tone: v.Tone}
+}
+
+func (r gateRow) trustWaits() []gateLanding {
+	if r.State != gateStateTrust {
+		return nil
+	}
+	var out []gateLanding
+	for _, l := range r.Landings {
+		if l.Wait == heldWaitsTrust {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+func (r gateRow) trustRowWords() string {
+	if n := len(r.trustWaits()); n > 0 {
+		return fmt.Sprintf(gateTrustWaits, gateTrustRow, n)
+	}
+	return gateTrustRow
 }
 
 func (r gateRow) landingCounts() (asking, landing int) {
@@ -434,6 +468,9 @@ func gatePauseAction(paused bool) automation.DetailAction {
 }
 
 func gateMeta(sc gateScreen) string {
+	if sc.Row.State == gateStateTrust {
+		return trustMeta(sc)
+	}
 	var parts []string
 	if sc.Row.Last != nil {
 		parts = append(parts, "last: "+verdictLook(*sc.Row.Last, sc.Row.Point).Word+" "+ago(sc.Row.Last.At, sc.Now))
@@ -448,6 +485,20 @@ func gateMeta(sc gateScreen) string {
 		parts = append(parts, strconv.Itoa(reviewing)+" reviewing")
 	}
 	return strings.Join(parts, " · ")
+}
+
+func trustMeta(sc gateScreen) string {
+	if !sc.Mac {
+		return gateChangedPhone + " · " + filepath.Base(sc.Row.Repo)
+	}
+	meta := gateChangedMac
+	if sc.Graph != nil && !sc.Graph.Changed.IsZero() {
+		meta += " " + ago(sc.Graph.Changed, sc.Now)
+	}
+	if n := len(sc.Row.trustWaits()); n > 0 {
+		meta += " · " + fmt.Sprintf(gateWaitingTrust, n)
+	}
+	return meta
 }
 
 func roundsWords(n int) string {

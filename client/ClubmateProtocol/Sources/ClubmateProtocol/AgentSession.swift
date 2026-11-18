@@ -605,3 +605,14 @@ extension Sequence where Element == AgentSession {
         reduce(0) { $0 + $1.listOpen }
     }
 }
+
+public enum GateEntry {
+    public static let kind = "gate"
+    public static let prefix = "gt_"
+    public static let section = "agents.gates"
+    public static let dockRow = "gate:"
+
+    public static func matches(_ id: String) -> Bool {
+        id.hasPrefix(prefix)
+    }
+}

@@ -24,11 +24,13 @@ enum LandReviewFixture {
 
     static let section = JSONValue.object(["id": .string("agents.gates"), "title": .string("Land gates"), "icon": .string("checkmark.shield"), "order": .number(38), "scope": .string("workspace"), "autoNew": .bool(false), "plugin": .string("agents"), "rail": .bool(false)])
 
-    static let dock: [JSONValue] = [
+    static var dock: [JSONValue] { [
         .object(["id": .string("service"), "label": .string("Service"), "icon": .string("gearshape.2"), "detail": .string("0"), "phoneDetail": .string("0")]),
-        .object(["id": .string("gates"), "label": .string("Gates"), "icon": .string("checkmark.shield"), "detail": .string("1"), "phoneDetail": .string("1"), "state": .string("1 asking"), "which": .string("into main")]),
+        GateTrustFixture.on
+            ? .object(["id": .string("gates"), "label": .string("Gates"), "icon": .string("checkmark.shield"), "detail": .string("2"), "phoneDetail": .string("2"), "state": .string("1 to trust"), "which": .string("Done · plans and specs"), "attention": .bool(true)])
+            : .object(["id": .string("gates"), "label": .string("Gates"), "icon": .string("checkmark.shield"), "detail": .string("1"), "phoneDetail": .string("1"), "state": .string("1 asking"), "which": .string("into main")]),
         .object(["id": .string("graphs"), "label": .string("Graphs"), "icon": .string("point.3.connected.trianglepath.dotted"), "detail": .string("2"), "phoneDetail": .string("2"), "state": .string("1 to trust"), "which": .string("Plan pipeline"), "attention": .bool(true)]),
-    ]
+    ] }
 
     static func sessions(_ template: [String: JSONValue], stamp: (TimeInterval) -> JSONValue) -> [[String: JSONValue]] {
         func record(_ id: String, _ title: String, status: String, group: String, ago: TimeInterval, _ extra: [String: JSONValue]) -> [String: JSONValue] {
@@ -55,7 +57,7 @@ enum LandReviewFixture {
         }
         let branches = [held: "main", heldCard: "main", asking: "gate-graph", askingReviewer: "gate-graph", changes: "keep-awake", changesReviewer: "keep-awake", reviewing: "side-threads", reviewingReviewer: "side-threads", closedReviewer: "side-threads", approved: "flaky-switcher"]
         let reviewer = { (lander: String) in JSONValue.object(["lander": .string(lander), "into": .string("main")]) }
-        return [
+        let rows = [
             record(asking, "Gate graph instead of a fixed guard", status: "idle", group: "needsYou", ago: 120, [
                 "childStatus": .string("waiting"), "landing": landing("reviewing", round: 1, words: "review…", tone: "accent", badge: "reviewing", reviewer: askingReviewer),
             ]),
@@ -91,6 +93,10 @@ enum LandReviewFixture {
                 "pendingSummary": .object(["kind": .string("land"), "text": .string("Plan pipeline still asks for changes after 2 rounds"), "onMac": .bool(true), "at": stamp(90)]),
             ]),
         ]
+        guard GateTrustFixture.on else { return rows }
+        return rows + [record(GateTrustFixture.gate, "Done · plans and specs", status: "waiting", group: "needsYou", ago: 240, [
+            "kind": .string("gate"), "rowDetail": .string("Graph changed: trust it · 1 waits"), "needsYou": .bool(true), "needsYouSince": stamp(240), "listFilters": .array([.string("needs")]),
+        ])]
     }
 
     static func transcripts(entry: (String, String, String) -> JSONValue) -> [String: [String: JSONValue]] {
@@ -133,6 +139,13 @@ enum LandReviewFixture {
         let node = params["nodeId"]?.stringValue ?? ""
         let session = node.hasSuffix("/" + action) ? String(node.dropLast(action.count + 1)) : (params["value"]?.stringValue?.split(separator: "/").last).map(String.init) ?? ""
         return .object(["open": .object(["session": .string(session)])])
+    }
+}
+enum GateTrustFixture {
+    static let gate = "gt_00000000000000d1"
+
+    static var on: Bool {
+        UserDefaults.standard.bool(forKey: "gateTrust")
     }
 }
 #endif

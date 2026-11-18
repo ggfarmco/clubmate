@@ -197,6 +197,10 @@ public struct NotificationHub: Sendable {
         if GraphRun.matches(session) {
             return HubReveal(section: GraphRun.section, event: GraphRun.selectEvent(workspace: workspace, run: session), focusMain: true)
         }
+        if GateEntry.matches(session) {
+            let event = UIEvent(workspaceId: workspace, slot: AgentNotifier.sidebarSlot, nodeId: AgentNotifier.sessionsNode, action: "select", value: .string(GateEntry.dockRow + session))
+            return HubReveal(section: AgentNotifier.section, event: event, focusMain: true)
+        }
         let section = owner ?? (AgentSessionID.matches(session) ? AgentNotifier.section : nil)
         switch section {
         case nil:

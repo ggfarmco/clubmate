@@ -3,9 +3,12 @@ package graphs
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"time"
 )
 
 const (
@@ -24,7 +27,11 @@ type GateGraphInfo struct {
 	Edges   string         `json:"edges,omitempty"`
 	Nodes   []GateNodeInfo `json:"nodes"`
 	Error   string         `json:"error,omitempty"`
+	Changed time.Time      `json:"changed,omitzero"`
+	Shape   int            `json:"shape,omitempty"`
 }
+
+const gateInfoShape = 1
 
 type GateNodeInfo struct {
 	ID      string `json:"id"`
@@ -43,7 +50,26 @@ func (e *Engine) GateGraphInfo(_ context.Context, repo, name string) (GateGraphI
 	if err != nil {
 		return GateGraphInfo{}, err
 	}
-	return gateInfo(g, from), nil
+	info := gateInfo(g, from)
+	info.Changed = graphFileTime(gateDirs(repo), e.a.home, name)
+	return info, nil
+}
+
+func graphFileTime(dirs []string, home, name string) time.Time {
+	for _, dir := range append(slices.Clip(dirs), home) {
+		if dir == "" {
+			continue
+		}
+		st, err := os.Stat(filepath.Join(dir, graphsDir, name+graphExt))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return time.Time{}
+		}
+		return st.ModTime()
+	}
+	return time.Time{}
 }
 
 func (e *Engine) GateGraphStamp(repo, name string) string {
@@ -86,16 +112,20 @@ func gateInfo(g *Graph, from origin) GateGraphInfo {
 		MaxTurns    int    `json:"maxTurns,omitempty"`
 		MaxSteps    int    `json:"maxSteps,omitempty"`
 	}{g.Title, g.Description, g.MaxTurns, g.MaxSteps}
-	info := GateGraphInfo{Name: g.Name, Title: g.Title, From: originWord(from), Hash: graphHash(g), Decides: g.decides(), Head: jsonText(head), Edges: jsonText(g.Edges)}
+	info := GateGraphInfo{Name: g.Name, Title: g.Title, From: originWord(from), Hash: graphHash(g), Decides: g.decides(), Head: jsonText(head), Edges: jsonText(g.Edges), Shape: gateInfoShape}
 	for _, n := range g.Nodes {
 		rest := n
-		rest.Prompt, rest.Run, rest.Command, rest.Args, rest.Model, rest.Effort = "", "", "", nil, "", ""
-		node := GateNodeInfo{ID: n.ID, Title: n.label(), Step: n.step(), Model: n.Model, Effort: n.Effort, Verdict: n.decides(), Other: jsonText(rest)}
+		rest.Prompt, rest.Model, rest.Effort = "", "", ""
+		node := GateNodeInfo{ID: n.ID, Title: n.label(), Step: n.step(), Prompt: n.Prompt, Model: n.Model, Effort: n.Effort, Verdict: n.decides()}
 		if node.Step {
 			node.Command = commandLine(&n)
-		} else {
-			node.Prompt = n.Prompt
+			if n.Run != "" {
+				rest.Run = ""
+			} else {
+				rest.Command, rest.Args = "", nil
+			}
 		}
+		node.Other = jsonText(rest)
 		info.Nodes = append(info.Nodes, node)
 	}
 	return info
@@ -114,4 +144,24 @@ func originWord(from origin) string {
 		return FromUser
 	}
 	return FromRepo
+}
+
+func (i GateGraphInfo) AsShape(shape int) GateGraphInfo {
+	if shape >= i.Shape {
+		return i
+	}
+	i.Shape = shape
+	i.Nodes = slices.Clone(i.Nodes)
+	for k, n := range i.Nodes {
+		var rest Node
+		if json.Unmarshal([]byte(n.Other), &rest) == nil {
+			rest.Run, rest.Command, rest.Args = "", "", nil
+			n.Other = jsonText(rest)
+		}
+		if n.Step {
+			n.Prompt = ""
+		}
+		i.Nodes[k] = n
+	}
+	return i
 }

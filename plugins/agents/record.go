@@ -112,6 +112,7 @@ type record struct {
 type sessionInfo struct {
 	record
 	Kind            string             `json:"kind,omitempty"`
+	RowDetail       string             `json:"rowDetail,omitempty"`
 	Pending         []string           `json:"pending,omitempty"`
 	PendingSummary  *pendingSummary    `json:"pendingSummary,omitempty"`
 	TurnStartedAt   *time.Time         `json:"turnStartedAt,omitempty"`

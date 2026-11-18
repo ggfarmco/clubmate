@@ -325,6 +325,7 @@ struct SDUINodeView: View, Equatable {
         case "runstrip": RunstripNodeView(node: node)
         case "spacer": Spacer(minLength: 0)
         case "divider": DividerNodeView()
+        case "diffLines": DiffLinesNodeView(node: node)
         default: UnsupportedNodeView(type: node.type)
         }
     }
