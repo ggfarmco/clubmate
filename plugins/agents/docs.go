@@ -364,7 +364,7 @@ func (a *app) docGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, args
 	if err != nil {
 		return nil, err
 	}
-	if !doneGated(gates, primaryOf(ctx, rec.Worktree), rec) {
+	if !turnGated(gates) || !doneGated(gates, primaryOf(ctx, rec.Worktree), rec) {
 		return docGateResult{}, nil
 	}
 	doc := gatedDoc{Workspace: rec.Workspace, For: cmp.Or(args.For, args.Session), Path: args.Path, Mode: args.Mode, Title: args.Title}

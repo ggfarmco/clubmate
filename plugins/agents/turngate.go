@@ -118,7 +118,10 @@ func (a *app) planDone(s *session, cancelled bool) donePlan {
 	if err != nil {
 		return sameRound(prior)
 	}
-	primary := primaryOf(ctx, rec.Worktree)
+	primary := ""
+	if prior != nil || turnGated(gates) {
+		primary = primaryOf(ctx, rec.Worktree)
+	}
 	switch {
 	case prior != nil && primary == "":
 		return sameRound(prior)
@@ -451,12 +454,8 @@ func (a *app) turnWrote(ctx context.Context, s *session, tree string) []string {
 	return slices.Compact(out)
 }
 
-func (a *app) turnGate(ctx context.Context, rec record, wrote []string) *gateConfig {
-	gates, err := a.gates(ctx)
-	if err != nil || len(gates) == 0 {
-		return nil
-	}
-	return doneGate(gates, primaryOf(ctx, rec.Worktree), rec, wrote)
+func turnGated(gates []gateConfig) bool {
+	return slices.ContainsFunc(gates, func(g gateConfig) bool { return !g.Paused && g.Point == gatePointTurn })
 }
 
 func doneGated(gates []gateConfig, primary string, rec record) bool {

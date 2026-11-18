@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"clubmate/pkg/id"
 	"clubmate/plugins/agents/graphs"
@@ -29,6 +30,7 @@ const (
 	heldDeltaVerdict   = " Then call agents_land_verdict again with key %s."
 	heldFilesFormat    = "\nFiles the gate matched:\n%s"
 	heldFileFormat     = "--- %s\n%s\n"
+	heldFileBinary     = "--- %s (binary, not shown)\n"
 	heldFilesCut       = "(the rest is cut at 64 KiB; read it from disk)\n"
 	heldReplyFormat    = "\nThe agent's last reply:\n%s"
 	heldChangesFormat  = "[Clubmate] From the gate · %s · %s · round %d of %d · changes\n%s"
@@ -499,8 +501,16 @@ func heldFiles(paths []string) string {
 		if !ok {
 			continue
 		}
+		if binaryText(data) {
+			b.WriteString(fmt.Sprintf(heldFileBinary, p))
+			continue
+		}
 		if len(data) > left {
-			b.WriteString(fmt.Sprintf(heldFileFormat, p, data[:left]))
+			end := left
+			for end > 0 && !utf8.RuneStart(data[end]) {
+				end--
+			}
+			b.WriteString(fmt.Sprintf(heldFileFormat, p, data[:end]))
 			b.WriteString(heldFilesCut)
 			break
 		}
@@ -508,6 +518,17 @@ func heldFiles(paths []string) string {
 		b.WriteString(fmt.Sprintf(heldFileFormat, p, data))
 	}
 	return fmt.Sprintf(heldFilesFormat, b.String())
+}
+
+func binaryText(data []byte) bool {
+	for len(data) > 0 && utf8.FullRune(data) {
+		r, n := utf8.DecodeRune(data)
+		if r == 0 || r == utf8.RuneError && n == 1 {
+			return true
+		}
+		data = data[n:]
+	}
+	return false
 }
 
 func readCapped(p string, limit int) ([]byte, bool) {

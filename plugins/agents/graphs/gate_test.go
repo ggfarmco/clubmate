@@ -132,7 +132,7 @@ func TestGateRunEndsOnlyWhenStopped(t *testing.T) {
 func stripRun(nodes []GateNode) []GateNode {
 	out := make([]GateNode, 0, len(nodes))
 	for _, n := range nodes {
-		n.Run, n.RunTitle, n.RunAfter = "", "", nil
+		n.Run = ""
 		out = append(out, n)
 	}
 	return out

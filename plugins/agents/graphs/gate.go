@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"clubmate/pkg/sdui"
-	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/automation"
 )
 
@@ -27,13 +26,11 @@ var (
 )
 
 type GateNode struct {
-	Title    string
-	Run      string
-	RunTitle string
-	RunAfter []api.RunAfter
-	Model    string
-	Effort   string
-	Verdict  bool
+	Title   string
+	Run     string
+	Model   string
+	Effort  string
+	Verdict bool
 }
 
 type GateRun struct {

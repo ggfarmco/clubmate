@@ -78,6 +78,25 @@ func TestGateSinceStaysAtTheFirstTurnAfterAnErrorWhereADoneGateHolds(t *testing.
 	assert.Equal(t, git(t, repo, "rev-parse", "refs/clubmate/cp/"+session+"/1"), f.gateSince(t, workspace, session))
 }
 
+func TestDoneClearsGateSinceOnceTheOnlyDoneGateIsPaused(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "first", "fail": "Internal error: max_output_tokens", "errorKind": "max_output_tokens"}}})
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	gate := f.doneGate(t, workspace, repo, map[string]any{})
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "first")
+	f.waitStatus(t, workspace, session, "error")
+	require.NotEmpty(t, f.gateSince(t, workspace, session))
+	f.pauseGate(t, workspace, gate)
+
+	f.prompt(t, workspace, session, "second")
+	f.waitStatus(t, workspace, session, "done")
+
+	assert.Empty(t, f.gateSince(t, workspace, session))
+	assert.Nil(t, f.held(t, workspace, session))
+}
+
 func TestDoneClearsGateSinceWithoutADoneGateForItsKind(t *testing.T) {
 	t.Parallel()
 	f := start(t, map[string]any{})

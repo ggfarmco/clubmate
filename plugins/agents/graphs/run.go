@@ -197,7 +197,7 @@ func (x *runner) start(ctx context.Context, g *Graph) error {
 		var out newResult
 		var err error
 		if x.newNode != nil {
-			out.Session, err = x.newNode(ctx, GateNode{Title: n.label(), Run: args.Run, RunTitle: args.RunTitle, RunAfter: args.RunAfter, Model: n.Model, Effort: n.Effort, Verdict: n.decides()})
+			out.Session, err = x.newNode(ctx, GateNode{Title: n.label(), Run: args.Run, Model: n.Model, Effort: n.Effort, Verdict: n.decides()})
 		} else {
 			err = x.do(ctx, "agents.new", args, &out)
 		}
