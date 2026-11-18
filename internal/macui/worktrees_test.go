@@ -417,12 +417,10 @@ func TestArchiveTaskFromTheRowMenu(t *testing.T) {
 	})
 
 	row := "sessions#" + owner
-	var menu []menuItem
-	in.eventually("the owner's row menu offers Archive Task…", func() bool {
-		menu = in.pointer("menu", row, "--context").Menu
-		return slices.Contains(titles(menu), "Archive Task…")
+	in.eventually("the owner's row menu picks Archive Task…", func() bool {
+		_, err := in.run("--json", "ui", "menu", row, "Archive Task…", "--context")
+		return err == nil
 	})
-	in.pointer("menu", row, "Archive Task…", "--context")
 	in.eventually("the Archive sheet is the key window", func() bool {
 		w := in.sheet()
 		return w != nil && w.Key && w.has("archiveSheet/archive")

@@ -139,4 +139,4 @@ companion-e2e: build
 mac-ui-test:
 	mkdir -p build/mac-ui
 	go build -o build/mac-ui/fakeagent ./plugins/agents/internal/fakeagent
-	CLUBMATE_TEST_APP="$(CURDIR)/build/DerivedData/Build/Products/Debug/Clubmate Dev.app" go test -count=1 -p 1 -timeout 40m -v ./internal/macui/ $(if $(RUN),-run '$(RUN)')
+	CLUBMATE_TEST_APP="$(CURDIR)/build/DerivedData/Build/Products/Debug/Clubmate Dev.app" caffeinate -d -u go test -count=1 -p 1 -timeout 40m -v ./internal/macui/ $(if $(RUN),-run '$(RUN)')
