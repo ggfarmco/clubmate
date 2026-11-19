@@ -102,4 +102,4 @@ The flag lives in the kernel and outlives the process, so a crash would leave th
 
 ## Storage
 
-Plugin storage keys: `settings` (`{battery, display, lid}`), `choice` (`{mode, hours, until}`), `holds` (agent holds) and `lid` (this plugin wrote 1 to the clamshell flag and has not written 0 since), so a plugin restart keeps them; an expired choice, expired holds, exited pids and closed sessions are dropped on load.
+Plugin storage keys: `settings` (`{battery, display, lid}`), `choice` (`{mode, hours, until, lastHours}`, `lastHours` where the Settings hours picker starts), `holds` (agent holds) and `lid` (this plugin wrote 1 to the clamshell flag and has not written 0 since), so a plugin restart keeps them; an expired choice, expired holds, exited pids and closed sessions are dropped on load.

@@ -17,7 +17,7 @@ The `triggers` plugin calls an agent-visible command when a bus event arrives: a
 | `parallel` | `true` lets a run start while the previous one is still running; unset is `false`, and the event is skipped (see [Firing](#firing)). |
 | `owner` | The agent session the trigger belongs to, if any (see [Owner](#owner)). |
 | `createdBy` | The agent session that added it; `plugin:<id>` when a plugin added it on its own (e.g. `plugin:remote`); empty when added by the user or the CLI, and for a graph's edge the run's starter (a session, or empty for you). |
-| `run`, `runTitle` | The graph run that made the trigger for one of its edges and that run's title; empty for other triggers. Only the Graphs plugin can set them; `triggers.add` drops them from any other caller, so an agent can't pass its trigger off as a graph's. The Triggers section groups and labels a run's triggers by them. |
+| `run`, `runTitle` | The graph run that made the trigger for one of its edges and that run's title; empty for other triggers. Only the agents plugin (a graph run, `agents.graph-run`) can set them; `triggers.add` drops them from any other caller, so an agent can't pass its trigger off as a graph's. The Triggers section groups and labels a run's triggers by them. |
 | `failures`, `lastError` | Errors in a row and the last error message. |
 | `history` | The last 100 runs: `{at, topic, seq, status, reason?, result?, target?, chain?}`, `topic` and `seq` of the event, `status` `ok`, `error` or `skipped`; `result` is the command's raw result cut to 200 characters; `target` is the session an `agents.prompt` run prompted; `chain` is what led to the event (see [Chain](#chain)). Only `triggers.show` returns it. |
 | `paused` | When it was paused, as for a [cron job](cron.md#job). |
@@ -103,7 +103,7 @@ An agent may update, pause, resume and delete only triggers owned or created by 
 
 ## Commands
 
-All are agent-visible and none is destructive (the fired command carries its own approval).
+All but `triggers.new` are agent-visible and none is destructive (the fired command carries its own approval).
 
 | Command | Does |
 |---|---|

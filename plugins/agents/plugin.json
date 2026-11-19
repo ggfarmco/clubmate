@@ -1154,7 +1154,7 @@
         "args": {
           "properties": {
             "since": {"type": "string", "description": "Only sessions created at or after this RFC 3339 time or YYYY-MM-DD date."},
-            "workspace": {"type": "string", "description": "Only this workspace id; default every workspace. From an agent session always its own workspace, without other night sessions."}
+            "workspace": {"type": "string", "description": "Only this workspace id; default every workspace. From an agent session always its own workspace, and night sessions other than the caller are left out."}
           }
         }
       },

@@ -66,7 +66,7 @@ An agent may update, pause, resume, run and delete only jobs owned or created by
 
 ## Commands
 
-All but the hidden `cron.jobs-in` are agent-visible and none is destructive (the fired command carries its own approval).
+All but `cron.new` and the hidden `cron.jobs-in` are agent-visible and none is destructive (the fired command carries its own approval).
 
 | Command | Does |
 |---|---|
