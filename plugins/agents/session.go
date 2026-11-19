@@ -19,6 +19,7 @@ type session struct {
 	saveMu    sync.Mutex
 	rec       record
 	holdOf    *heldTurn
+	trustOf   string
 	cards     []string
 	log       *eventLog
 	loaded    bool

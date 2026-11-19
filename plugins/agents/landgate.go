@@ -245,6 +245,7 @@ func (a *app) verdictsDir() string {
 
 func (a *app) gates(ctx context.Context) ([]gateConfig, error) {
 	var out []gateConfig
+	gen := a.gatesGen.Load()
 	if _, err := a.host.StorageGet(ctx, gatesKey, &out); err != nil {
 		return nil, err
 	}
@@ -253,7 +254,7 @@ func (a *app) gates(ctx context.Context) ([]gateConfig, error) {
 	}
 	live := liveOf(out)
 	a.liveGates.CompareAndSwap(nil, &live)
-	a.keepLastGates(out)
+	a.keepReadGates(out, gen)
 	return out, nil
 }
 
@@ -642,7 +643,7 @@ func (a *app) deleteGate(ctx context.Context, workspaceID, gateID string) error 
 	logError("remove gate worktree", a.host.RunCommand(ctx, gateTreeCmd, workspaceID, map[string]any{"repo": repo, "gate": gateID, "remove": true}, nil))
 	logError("forget pinned gate graph", a.host.StorageDelete(ctx, gatePinKey+gateID))
 	logError("forget the gate's turn verdicts", a.host.StorageDeletePrefix(ctx, turnVerdictKey+gateID+"/"))
-	return a.host.StorageDelete(ctx, gateHistoryKey+gateID)
+	return a.forgetGateHistory(ctx, gateID)
 }
 
 func (a *app) dropGateLandings(ctx context.Context, gateID string) {

@@ -57,12 +57,18 @@ type notifier struct {
 	saves map[*session]bool
 	turns []api.Turn
 	asks  []change
-	cards []notifyPost
+	cards []cardPost
+	pubs  []api.Changed
 	ends  []ending
 	endq  endQueue
 	timer *time.Timer
 	wake  chan struct{}
 	hold  time.Duration
+}
+
+type cardPost struct {
+	post  notifyPost
+	still func() bool
 }
 
 type ending struct {
@@ -139,8 +145,19 @@ func (n *notifier) requested(s *session, kind, request string) {
 }
 
 func (n *notifier) carded(p notifyPost) {
+	n.cardedIf(p, nil)
+}
+
+func (n *notifier) cardedIf(p notifyPost, still func() bool) {
 	n.mu.Lock()
-	n.cards = append(n.cards, p)
+	n.cards = append(n.cards, cardPost{post: p, still: still})
+	n.mu.Unlock()
+	n.poke()
+}
+
+func (n *notifier) withdrawn(c api.Changed) {
+	n.mu.Lock()
+	n.pubs = append(n.pubs, c)
 	n.mu.Unlock()
 	n.poke()
 }
@@ -173,8 +190,8 @@ func (n *notifier) poke() {
 func (n *notifier) run() {
 	for range n.wake {
 		n.mu.Lock()
-		order, saves, turns, asks, cards, ends := n.order, n.saves, n.turns, n.asks, n.cards, n.ends
-		n.order, n.seen, n.saves, n.turns, n.asks, n.cards, n.ends = nil, map[change]bool{}, map[*session]bool{}, nil, nil, nil, nil
+		order, saves, turns, asks, cards, pubs, ends := n.order, n.saves, n.turns, n.asks, n.cards, n.pubs, n.ends
+		n.order, n.seen, n.saves, n.turns, n.asks, n.cards, n.pubs, n.ends = nil, map[change]bool{}, map[*session]bool{}, nil, nil, nil, nil, nil
 		n.mu.Unlock()
 		if len(saves) > 0 {
 			time.Sleep(n.hold)
@@ -197,8 +214,15 @@ func (n *notifier) run() {
 		for _, c := range asks {
 			n.notify(ctx, c)
 		}
-		for _, p := range cards {
-			n.post(ctx, p)
+		for _, c := range cards {
+			if c.still == nil || c.still() {
+				n.post(ctx, c.post)
+			}
+		}
+		for _, c := range pubs {
+			if _, err := n.host.Publish(ctx, api.TopicChanged, c); err != nil {
+				fmt.Fprintln(os.Stderr, "agents: publish:", err)
+			}
 		}
 		now := time.Now()
 		for _, e := range ends {

@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"os"
 	"slices"
 	"sync"
 	"time"
@@ -40,6 +39,15 @@ func waitsForTrust(rec record) string {
 		return h.Gate
 	}
 	return ""
+}
+
+func (s *session) trustFlipped() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	gate := waitsForTrust(s.rec)
+	was := s.trustOf
+	s.trustOf = gate
+	return gate != was
 }
 
 func (n *trustNeeds) seed(rec record) {
@@ -122,10 +130,8 @@ func (a *app) trustSynced(workspace string) {
 		if !was[n.Gate] {
 			go func(n trustNeed) {
 				title, _ := a.trustGate(n.Gate)
-				if !a.trustNeeds.waiting(workspace, n.Gate) {
-					return
-				}
-				a.notes.carded(notifyPost{WorkspaceID: workspace, Session: n.Gate, Collapse: n.Gate, Title: title, Message: trustWords(n.Waits), Kind: notifyAsks})
+				still := func() bool { return a.trustNeeds.waiting(workspace, n.Gate) }
+				a.notes.cardedIf(notifyPost{WorkspaceID: workspace, Session: n.Gate, Collapse: n.Gate, Title: title, Message: trustWords(n.Waits), Kind: notifyAsks}, still)
 			}(n)
 		}
 	}
@@ -137,9 +143,7 @@ func (a *app) trustSynced(workspace string) {
 			continue
 		}
 		c := api.Changed{Workspace: workspace, Session: gate, Kind: api.ChangeResolved, Request: trustRequest + gate, RequestKind: api.RequestGate}
-		if _, err := a.host.Publish(context.Background(), api.TopicChanged, c); err != nil {
-			fmt.Fprintln(os.Stderr, "agents: publish:", err)
-		}
+		a.notes.withdrawn(c)
 	}
 }
 

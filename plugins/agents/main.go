@@ -78,12 +78,16 @@ type app struct {
 	gateTreeRun    func(ctx context.Context, workspaceID string, args map[string]any, out any) error
 	docsRun        func(ctx context.Context, id, workspaceID string, args map[string]any) error
 	gateLogMu      sync.Mutex
+	historyMu      sync.Mutex
+	historyCache   map[string][]gateVerdict
 	outcomesMu     sync.Mutex
 	journaled      map[string][sha256.Size]byte
 	liveGates      atomic.Pointer[map[string]bool]
 	heldFacts      heldFacts
 	lastGates      atomic.Pointer[[]gateConfig]
 	lastGatesSaved atomic.Bool
+	lastGatesMu    sync.Mutex
+	gatesGen       atomic.Uint64
 	rechecks       []time.Duration
 	trustPoll      time.Duration
 	trustPolls     sync.Map
@@ -341,7 +345,9 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 		if kind == changeStatus {
 			a.holdSynced(s)
 			a.cardsSynced(s)
-			a.trustSynced(rec.Workspace)
+			if s.trustFlipped() {
+				a.trustSynced(rec.Workspace)
+			}
 			a.wakeWaiters()
 			a.statusChanged(s)
 			a.settleGatedDocs(s)
@@ -358,6 +364,7 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 	}
 	s.cards = rec.openCards()
 	a.trustNeeds.seed(rec)
+	s.trustOf = waitsForTrust(rec)
 	s.setup = ready
 	s.wantTasks = func() { a.wantTasks(rec.Workspace, s) }
 	s.turned = func(t api.Turn) {

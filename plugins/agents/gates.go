@@ -106,9 +106,39 @@ func (a *app) gateVerdictsCommand(ctx context.Context, cmd pluginsdk.CommandRun,
 }
 
 func (a *app) readGateHistory(ctx context.Context, gateID string) ([]gateVerdict, error) {
+	a.historyMu.Lock()
+	defer a.historyMu.Unlock()
+	if out, ok := a.historyCache[gateID]; ok {
+		return out, nil
+	}
 	var out []gateVerdict
-	_, err := a.host.StorageGet(ctx, gateHistoryKey+gateID, &out)
-	return out, err
+	if _, err := a.host.StorageGet(ctx, gateHistoryKey+gateID, &out); err != nil {
+		return nil, err
+	}
+	if a.historyCache == nil {
+		a.historyCache = map[string][]gateVerdict{}
+	}
+	a.historyCache[gateID] = out
+	return out, nil
+}
+
+func (a *app) cacheGateHistory(gateID string, history []gateVerdict) {
+	a.historyMu.Lock()
+	defer a.historyMu.Unlock()
+	if history == nil {
+		delete(a.historyCache, gateID)
+		return
+	}
+	if a.historyCache == nil {
+		a.historyCache = map[string][]gateVerdict{}
+	}
+	a.historyCache[gateID] = history
+}
+
+func (a *app) forgetGateHistory(ctx context.Context, gateID string) error {
+	err := a.host.StorageDelete(ctx, gateHistoryKey+gateID)
+	a.cacheGateHistory(gateID, nil)
+	return err
 }
 
 func (a *app) gateHistory(ctx context.Context, workspaceID, gateID string) []gateVerdict {
@@ -134,8 +164,10 @@ func (a *app) logGateVerdict(ctx context.Context, v gateVerdict) {
 	a.gateLogMu.Lock()
 	history, err := a.readGateHistory(ctx, v.Gate)
 	if err == nil {
-		history = slices.Insert(history, 0, v)
-		err = a.host.StorageSet(ctx, gateHistoryKey+v.Gate, history[:min(len(history), gateHistoryKeep)])
+		history = append([]gateVerdict{v}, history[:min(len(history), gateHistoryKeep-1)]...)
+		if err = a.host.StorageSet(ctx, gateHistoryKey+v.Gate, history); err == nil {
+			a.cacheGateHistory(v.Gate, history)
+		}
 	}
 	a.gateLogMu.Unlock()
 	logError("log land gate verdict", err)

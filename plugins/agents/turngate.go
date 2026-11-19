@@ -323,7 +323,23 @@ func (a *app) lastGatesRead() *[]gateConfig {
 	return a.lastGates.Load()
 }
 
+func (a *app) keepReadGates(gates []gateConfig, gen uint64) {
+	a.lastGatesMu.Lock()
+	defer a.lastGatesMu.Unlock()
+	if a.gatesGen.Load() != gen || a.lastGates.Load() != nil && a.lastGatesSaved.Load() {
+		return
+	}
+	a.storeLastGates(gates)
+}
+
 func (a *app) keepLastGates(gates []gateConfig) {
+	a.lastGatesMu.Lock()
+	defer a.lastGatesMu.Unlock()
+	a.gatesGen.Add(1)
+	a.storeLastGates(gates)
+}
+
+func (a *app) storeLastGates(gates []gateConfig) {
 	kept := slices.Clone(gates)
 	was := a.lastGates.Swap(&kept)
 	if a.stateDir == "" || was != nil && a.lastGatesSaved.Load() && reflect.DeepEqual(*was, kept) {
