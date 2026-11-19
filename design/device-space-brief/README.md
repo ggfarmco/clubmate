@@ -162,3 +162,7 @@ Claude Design, 19 Nov 2026. Canvas "Clubmate · Device UX": https://claude.ai/ar
 - Recommendation: A, plus B's reading mode for wiki pages and docs and the iPad reading view.
 - Answered in the chat from the code: today's 2 permission taps are open + Allow once (no confirm step); plugins send no typed link targets, so link routing needs no plugin change.
 - Open for the pick: Wiki as its own iPhone segment (2 taps to a page; drawn on A1 only) or under More (3 taps).
+
+## Round 2 (final)
+
+Same canvas and chat, page r2, 19 Nov 2026. The user's pick after round 1: A + B's reading mode, Wiki as its own tab, Docs removed; then sections as a native Liquid Glass `TabView`. During the round the user accepted dropping the iPhone Macs screen (workspace capsule + Inbox tray) and Search over the current workspace. One fix pass aligned the question card with `design/features/question-card-fold/`, removed an invented "More › Files", and settled ⌘F / ⇧⌘F / Esc, the Search tab and the amber count. Result in `design/features/device-ux/` (boards, `boards.html`, `rules.md`; rejected B and C in `rounds/`).
