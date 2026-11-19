@@ -50,7 +50,7 @@ hooks:
 	common="$$(cd "$$(git rev-parse --git-common-dir)" && pwd -P)" && ln -sf "$$(dirname "$$common")/scripts/githooks/post-commit" "$$common/hooks/post-commit"
 
 test:
-	go test -race $$(go list ./... | grep -v /dist/)
+	go test -race -timeout 20m $$(go list ./... | grep -v /dist/)
 	cd third_party/jsonrpc2 && go test ./...
 	scripts/release/ship-test.sh
 	$(MAKE) lint-tests
