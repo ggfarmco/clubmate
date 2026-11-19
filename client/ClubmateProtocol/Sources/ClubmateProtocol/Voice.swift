@@ -106,6 +106,11 @@ public struct VoiceState: Decodable, Sendable, Equatable {
 public enum VoiceAudio {
     public static let chunkBytes = 10_240
     public static let maxCallBytes = 65_536
+    public static let sampleRate = 16_000
+    public static let pcmFormat = "pcm"
+    public static let opusFormat = "opus"
+    public static let opusBitRate = 24_000
+    public static let opusFrameSamples = 320
 
     public static func level(_ pcm: Data) -> Double {
         let samples = pcm.count / 2

@@ -44,7 +44,7 @@ var (
 	errUnknownUtterance  = errors.New("unknown utterance")
 	errRecognizerStopped = errors.New(msgRecognizerStopped)
 	errNothingHeard      = errors.New(msgNothingHeard)
-	errChunkTooLarge     = fmt.Errorf("pcm chunk over %d bytes", maxChunkBytes)
+	errChunkTooLarge     = fmt.Errorf("audio chunk over %d bytes", maxChunkBytes)
 
 	languages = []string{"ru", "auto"}
 )
@@ -89,11 +89,13 @@ type startArgs struct {
 	Pointer Pointer `json:"pointer"`
 	Lang    string  `json:"lang"`
 	Mode    string  `json:"mode"`
+	Format  string  `json:"format"`
 }
 
 type audioArgs struct {
-	Utterance string `json:"utterance"`
-	PCM       []byte `json:"pcm"`
+	Utterance string   `json:"utterance"`
+	PCM       []byte   `json:"pcm"`
+	Opus      [][]byte `json:"opus"`
 }
 
 type utteranceArgs struct {
@@ -102,6 +104,7 @@ type utteranceArgs struct {
 
 type startResult struct {
 	Utterance string `json:"utterance"`
+	Format    string `json:"format"`
 }
 
 type audioResult struct {
@@ -117,7 +120,9 @@ type utterance struct {
 	where      Context
 	clean      cleaner
 	state      State
+	decoder    *opusDecoder
 	audioBytes int
+	wireBytes  int
 	peak       int
 	closing    bool
 	ended      time.Time
@@ -143,6 +148,13 @@ func (v *voice) start(ctx context.Context, workspace string, args startArgs) (st
 		where, err = resolve(ctx, v.h, workspace, args.Pointer)
 		logError("resolve context", err)
 	}
+	var decoder *opusDecoder
+	if args.Format == formatOpus {
+		var err error
+		if decoder, err = newOpusDecoder(); err != nil {
+			return startResult{}, err
+		}
+	}
 	v.cancelListening()
 	uid := id.New(utterancePrefix)
 	if err := v.recognizer().Start(uid, lang, hintWords(where)); err != nil {
@@ -152,7 +164,7 @@ func (v *voice) start(ctx context.Context, workspace string, args startArgs) (st
 	if v.recognizer().Ready() {
 		phase = phaseListening
 	}
-	u := &utterance{workspace: workspace, where: where, done: make(chan struct{}), state: State{Utterance: uid, Mode: mode, Phase: phase, Rev: 1}}
+	u := &utterance{workspace: workspace, where: where, decoder: decoder, done: make(chan struct{}), state: State{Utterance: uid, Mode: mode, Phase: phase, Rev: 1}}
 	if mode == modeDictation {
 		u.clean = v.cleaner(v.loadDictionary(ctx))
 	}
@@ -161,12 +173,15 @@ func (v *voice) start(ctx context.Context, workspace string, args startArgs) (st
 	v.utterances[uid] = u
 	v.mu.Unlock()
 	v.publish(workspace, uid, 1)
-	return startResult{Utterance: uid}, nil
+	return startResult{Utterance: uid, Format: u.format()}, nil
 }
 
 func (v *voice) audio(workspace string, args audioArgs) (audioResult, error) {
 	if len(args.PCM) > maxChunkBytes {
 		return audioResult{}, errChunkTooLarge
+	}
+	if err := checkPackets(args.Opus); err != nil {
+		return audioResult{}, err
 	}
 	u := v.lookup(workspace, args.Utterance)
 	if u == nil {
@@ -179,8 +194,19 @@ func (v *voice) audio(workspace string, args audioArgs) (audioResult, error) {
 		v.mu.Unlock()
 		return audioResult{}, errUnknownUtterance
 	}
-	pcm := args.PCM[:min(len(args.PCM), maxAudioBytes-u.audioBytes)]
+	room := maxAudioBytes - u.audioBytes
+	v.mu.Unlock()
+	pcm, wire, err := u.decode(args, room)
+	if errors.Is(err, errWrongFormat) {
+		return audioResult{}, err
+	}
+	if err != nil {
+		v.fail(u, err)
+		return audioResult{}, err
+	}
+	v.mu.Lock()
 	u.audioBytes += len(pcm)
+	u.wireBytes += wire
 	u.peak = max(u.peak, peakLevel(pcm))
 	v.mu.Unlock()
 	partial, err := v.recognizer().Feed(u.state.Utterance, pcm)
@@ -323,8 +349,8 @@ func (v *voice) send(u *utterance) {
 func (v *voice) logUtterance(u *utterance, heard string, final time.Duration) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	fmt.Fprintf(os.Stderr, "voice: utterance %s device=%s audio=%dB/%.1fs peak=%.2f heard=%d final=%dms\n",
-		u.state.Utterance, u.where.Device, u.audioBytes, float64(u.audioBytes)/bytesPerSecond, float64(u.peak)/32768, len([]rune(heard)), final.Milliseconds())
+	fmt.Fprintf(os.Stderr, "voice: utterance %s device=%s format=%s audio=%dB/%.1fs wire=%dB peak=%.2f heard=%d final=%dms\n",
+		u.state.Utterance, u.where.Device, u.format(), u.audioBytes, float64(u.audioBytes)/bytesPerSecond, u.wireBytes, float64(u.peak)/32768, len([]rune(heard)), final.Milliseconds())
 }
 
 func (v *voice) fail(u *utterance, err error) bool {
@@ -402,6 +428,31 @@ func peakLevel(pcm []byte) int {
 
 func isWordRune(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+func (u *utterance) format() string {
+	if u.decoder != nil {
+		return formatOpus
+	}
+	return formatPCM
+}
+
+func (u *utterance) decode(args audioArgs, room int) ([]byte, int, error) {
+	if u.decoder == nil {
+		if args.Opus != nil {
+			return nil, 0, errWrongFormat
+		}
+		return args.PCM[:min(len(args.PCM), room)], len(args.PCM), nil
+	}
+	if args.PCM != nil {
+		return nil, 0, errWrongFormat
+	}
+	wire := 0
+	for _, p := range args.Opus {
+		wire += len(p)
+	}
+	pcm, err := u.decoder.decode(args.Opus, room)
+	return pcm, wire, err
 }
 
 func (u *utterance) accepting() bool {

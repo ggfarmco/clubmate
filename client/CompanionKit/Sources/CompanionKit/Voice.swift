@@ -79,6 +79,8 @@ public final class VoiceSession {
     @ObservationIgnored private let source: VoiceAudioSource
     @ObservationIgnored private let current: @MainActor () -> VoiceTarget?
     @ObservationIgnored private let uptime: @MainActor () -> TimeInterval
+    @ObservationIgnored private let makeEncoder: @MainActor () -> OpusEncoder?
+    @ObservationIgnored private var encoder: OpusEncoder?
     @ObservationIgnored private var confirmShownAt: TimeInterval = 0
     @ObservationIgnored private var chain: Task<Void, Never>?
     @ObservationIgnored private var utterance: String?
@@ -94,11 +96,13 @@ public final class VoiceSession {
         runner: @escaping Runner,
         source: VoiceAudioSource,
         uptime: @escaping @MainActor () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+        encoder: @escaping @MainActor () -> OpusEncoder? = { OpusEncoder() },
         target: @escaping @MainActor () -> VoiceTarget?
     ) {
         self.runner = runner
         self.source = source
         self.uptime = uptime
+        makeEncoder = encoder
         current = target
     }
 
@@ -207,6 +211,7 @@ public final class VoiceSession {
         sendingSince = nil
         levels = Array(repeating: 0, count: Self.meterBars)
         utterance = nil
+        encoder = nil
         buffered = Data()
         failed = false
         accepting = true
@@ -353,6 +358,8 @@ public final class VoiceSession {
         }
         var args: [String: JSONValue] = ["pointer": (try? JSONValue.encoding(target.pointer)) ?? .null]
         if let mode { args["mode"] = .string(mode) }
+        let offered = makeEncoder()
+        if offered != nil { args["format"] = .string(VoiceAudio.opusFormat) }
         switch await call(target, "voice.start", args) {
         case .success(let value):
             guard let id = value["utterance"]?.stringValue else { return await fail("voice.start returned no utterance") }
@@ -361,6 +368,7 @@ public final class VoiceSession {
                 return
             }
             utterance = id
+            encoder = value["format"]?.stringValue == VoiceAudio.opusFormat ? offered : nil
             await refresh(id)
         case .failure(let failure):
             await fail(failure.message)
@@ -371,22 +379,43 @@ public final class VoiceSession {
         while generation == self.generation, !failed, let id = utterance, let target, !buffered.isEmpty {
             let batch = Data(buffered.prefix(VoiceAudio.maxCallBytes))
             buffered.removeFirst(batch.count)
-            switch await call(target, "voice.audio", ["utterance": .string(id), "pcm": .string(batch.base64EncodedString())]) {
-            case .success(let value):
-                if let text = value["partial"]?.stringValue, generation == self.generation { partial = text }
-            case .failure(let failure):
-                accepting = false
-                buffered = Data()
-                await refresh(id)
-                if state?.phase.capturing ?? true { await fail(failure.message) }
-                return
+            let audio: JSONValue
+            if let encoder {
+                let packets = encoder.encode(batch)
+                guard !packets.isEmpty else { continue }
+                audio = Self.opus(packets)
+            } else {
+                audio = .string(batch.base64EncodedString())
             }
+            guard await sendAudio(id, target, audio, generation) else { return }
         }
+    }
+
+    private func sendAudio(_ id: String, _ target: VoiceTarget, _ audio: JSONValue, _ generation: Int) async -> Bool {
+        let field = encoder == nil ? "pcm" : VoiceAudio.opusFormat
+        switch await call(target, "voice.audio", ["utterance": .string(id), field: audio]) {
+        case .success(let value):
+            if let text = value["partial"]?.stringValue, generation == self.generation { partial = text }
+            return true
+        case .failure(let failure):
+            accepting = false
+            buffered = Data()
+            await refresh(id)
+            if state?.phase.capturing ?? true { await fail(failure.message) }
+            return false
+        }
+    }
+
+    private static func opus(_ packets: [Data]) -> JSONValue {
+        .array(packets.map { .string($0.base64EncodedString()) })
     }
 
     private func end(_ generation: Int) async {
         accepting = false
         guard generation == self.generation, !failed, let id = utterance, let target else { return }
+        if let tail = encoder?.finish(), !tail.isEmpty {
+            guard await sendAudio(id, target, Self.opus(tail), generation), !failed else { return }
+        }
         switch await call(target, "voice.end", ["utterance": .string(id)]) {
         case .success:
             await refresh(id)

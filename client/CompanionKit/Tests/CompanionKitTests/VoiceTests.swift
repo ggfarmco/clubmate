@@ -224,6 +224,63 @@ final class VoiceTests: XCTestCase {
         XCTAssertEqual(mac.calls.last { $0.id == "voice.end" }?.args?["utterance"]?.stringValue, "vu_2")
     }
 
+    func testOldMacGetsPCM() async throws {
+        let mac = VoiceMac()
+        let voice = mac.session()
+        voice.begin()
+        try await waitUntil { mac.ids.contains("voice.state") }
+        mac.source.emit(Data(repeating: 1, count: VoiceAudio.chunkBytes))
+        try await waitUntil { mac.ids.contains("voice.audio") }
+        XCTAssertEqual(mac.calls.first { $0.id == "voice.start" }?.args?["format"], .string("opus"))
+        let audio = try XCTUnwrap(mac.calls.first { $0.id == "voice.audio" }?.args)
+        XCTAssertEqual(audio["pcm"]?.stringValue.flatMap { Data(base64Encoded: $0) }?.count, VoiceAudio.chunkBytes)
+        XCTAssertNil(audio["opus"])
+    }
+
+    func testNewMacGetsOpusWithTailBeforeEnd() async throws {
+        let mac = VoiceMac()
+        mac.format = "opus"
+        let voice = mac.session()
+        voice.begin()
+        try await waitUntil { mac.ids.contains("voice.state") }
+        mac.source.emit(Self.tone(VoiceAudio.chunkBytes))
+        try await waitUntil { mac.ids.contains("voice.audio") }
+        voice.finish()
+        try await waitUntil { mac.ids.contains("voice.end") }
+        let audio = mac.calls.filter { $0.id == "voice.audio" }.compactMap(\.args)
+        XCTAssertEqual(audio.map { $0["opus"].map(Self.packetCount) }, [16, 1])
+        XCTAssertEqual(audio.compactMap { $0["pcm"] }, [])
+        XCTAssertEqual(mac.ids.suffix(3), ["voice.audio", "voice.end", "voice.state"])
+    }
+
+    func testOpusEncoderMakesOneSilkWidebandPacketPer20ms() throws {
+        let encoder = try XCTUnwrap(OpusEncoder())
+        var packets: [Data] = []
+        for _ in 0..<3 {
+            let chunk = encoder.encode(Self.tone(VoiceAudio.chunkBytes))
+            XCTAssertEqual(chunk.count, 16)
+            packets += chunk
+        }
+        packets += encoder.finish()
+        XCTAssertEqual(packets.count, 49)
+        XCTAssertEqual(Set(packets.map { $0[0] }), [9 << 3])
+        XCTAssertEqual(encoder.encode(Self.tone(640)), [])
+    }
+
+    private static func tone(_ bytes: Int) -> Data {
+        var data = Data(capacity: bytes)
+        for index in 0..<bytes / 2 {
+            let sample = Int16(8000 * sin(Double(index) * 2 * .pi * 440 / Double(VoiceAudio.sampleRate)))
+            withUnsafeBytes(of: sample.littleEndian) { data.append(contentsOf: $0) }
+        }
+        return data
+    }
+
+    private static func packetCount(_ value: JSONValue) -> Int {
+        guard case .array(let packets) = value else { return 0 }
+        return packets.count
+    }
+
     func testPointerFromPhoneScreen() {
         XCTAssertEqual(VoiceTarget.phone(computer: "m", workspace: "w", plugin: "agents", detail: "agt_1").pointer, VoicePointer(device: "phone", section: "agents", selection: .init(session: "agt_1")))
         XCTAssertEqual(VoiceTarget.phone(computer: "m", workspace: "w", plugin: "backlog", detail: "12").pointer, VoicePointer(device: "phone", section: "backlog", selection: .init(task: 12)))
@@ -264,6 +321,7 @@ private final class VoiceMac: CommandRunner {
     var held: Set<String> = []
     var started: [String] = []
     var clock: TimeInterval = 0
+    var format: String?
     private var gates: [String: CheckedContinuation<Void, Never>] = [:]
 
     var ids: [String] {
@@ -287,7 +345,9 @@ private final class VoiceMac: CommandRunner {
         if held.contains(id) { await withCheckedContinuation { gates[id] = $0 } }
         switch id {
         case "voice.start":
-            return .object(["utterance": .string(started.isEmpty ? "vu_1" : started.removeFirst())])
+            var reply: [String: JSONValue] = ["utterance": .string(started.isEmpty ? "vu_1" : started.removeFirst())]
+            if let format { reply["format"] = .string(format) }
+            return .object(reply)
         case "voice.audio":
             return .object(["partial": .string("при")])
         case "voice.end":

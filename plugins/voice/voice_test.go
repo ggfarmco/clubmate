@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"sync"
 	"syscall"
@@ -27,6 +28,8 @@ const (
 	testWorkspace = "ws"
 	voiceSession  = "agt_00000000000000f0"
 	fakeASREnv    = "VOICE_FAKE_ASR"
+
+	opusPacketBytes = sampleRate / 50 * 2
 )
 
 type fakeHost struct {
@@ -576,4 +579,111 @@ func roundTrip(in, out any) error {
 		return err
 	}
 	return json.Unmarshal(b, out)
+}
+
+func TestStartRepliesWithFormatItDecodes(t *testing.T) {
+	tests := []struct {
+		name string
+		ask  string
+		want string
+	}{
+		{"opus", formatOpus, formatOpus},
+		{"unknown", "flac", formatPCM},
+		{"none", "", formatPCM},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v, _, _ := newTestVoice(t)
+			res, err := v.command(t.Context(), nil, pluginsdk.CommandRun{ID: "voice.start", WorkspaceID: testWorkspace, Args: raw(t, map[string]any{"format": tt.ask})})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, res.(startResult).Format)
+		})
+	}
+}
+
+func TestOpusPhraseReachesRecognizerAsPCM(t *testing.T) {
+	v, _, rec := newTestVoice(t)
+	packets := phrasePackets(t)
+	uid := startOpus(t, v)
+
+	for batch := range slices.Chunk(packets, 16) {
+		_, err := v.command(t.Context(), nil, pluginsdk.CommandRun{ID: "voice.audio", WorkspaceID: testWorkspace, Args: raw(t, map[string]any{"utterance": uid, "opus": batch})})
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, len(packets)*opusPacketBytes, rec.sizes[uid])
+	assert.Greater(t, v.utterances[uid].peak, 1000)
+	assert.Equal(t, phaseListening, phaseOf(t, v, uid))
+}
+
+func TestOpusOverLimitWaitsForEnd(t *testing.T) {
+	v, _, rec := newTestVoice(t)
+	packets := phrasePackets(t)
+	uid := startOpus(t, v)
+
+	for range maxAudioBytes/(len(packets)*opusPacketBytes) + 2 {
+		_, err := v.audio(testWorkspace, audioArgs{Utterance: uid, Opus: packets})
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, maxAudioBytes, rec.sizes[uid])
+	assert.Equal(t, phaseListening, phaseOf(t, v, uid))
+}
+
+func TestOpusAudioRejected(t *testing.T) {
+	tests := []struct {
+		name  string
+		args  audioArgs
+		err   error
+		phase string
+	}{
+		{"bad packet", audioArgs{Opus: [][]byte{{0xff}}}, nil, phaseError},
+		{"pcm field", audioArgs{PCM: make([]byte, 640)}, errWrongFormat, phaseListening},
+		{"empty packet", audioArgs{Opus: [][]byte{{}}}, errEmptyPacket, phaseListening},
+		{"packet too large", audioArgs{Opus: [][]byte{make([]byte, maxOpusPacket+1)}}, errPacketTooLarge, phaseListening},
+		{"too many packets", audioArgs{Opus: slices.Repeat([][]byte{{0x48}}, maxCallPackets+1)}, errTooManyPackets, phaseListening},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v, _, rec := newTestVoice(t)
+			uid := startOpus(t, v)
+			tt.args.Utterance = uid
+
+			_, err := v.audio(testWorkspace, tt.args)
+
+			require.Error(t, err)
+			if tt.err != nil {
+				assert.ErrorIs(t, err, tt.err)
+			}
+			assert.Equal(t, tt.phase, phaseOf(t, v, uid))
+			assert.Zero(t, rec.fed)
+		})
+	}
+}
+
+func TestOpusToPCMUtteranceFails(t *testing.T) {
+	v, _, rec := newTestVoice(t)
+	uid := start(t, v)
+
+	_, err := v.audio(testWorkspace, audioArgs{Utterance: uid, Opus: phrasePackets(t)[:1]})
+
+	assert.ErrorIs(t, err, errWrongFormat)
+	assert.Zero(t, rec.fed)
+}
+
+func startOpus(t *testing.T, v *voice) string {
+	t.Helper()
+	res, err := v.start(t.Context(), testWorkspace, startArgs{Pointer: Pointer{Device: "phone", Section: "agents"}, Format: formatOpus})
+	require.NoError(t, err)
+	return res.Utterance
+}
+
+func phrasePackets(t *testing.T) [][]byte {
+	t.Helper()
+	b, err := os.ReadFile("testdata/phrase.opus.json")
+	require.NoError(t, err)
+	var packets [][]byte
+	require.NoError(t, json.Unmarshal(b, &packets))
+	require.NotEmpty(t, packets)
+	return packets
 }
