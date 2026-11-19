@@ -251,8 +251,35 @@ enum TestScroll {
         return NSEvent(cgEvent: cg)
     }
 
+    private static var reached: [(view: NSScrollView, origin: NSPoint, lines: CGFloat)] = []
+
+    static func received(_ view: NSScrollView, _ event: NSEvent) {
+        guard target(event) != nil, !reached.contains(where: { $0.view === view }) else { return }
+        reached.append((view, view.contentView.bounds.origin, event.scrollingDeltaY))
+    }
+
     static func done() {
-        pending.removeAll()
+        defer {
+            reached.removeAll()
+            pending.removeAll()
+        }
+        guard displaysAsleep, !reached.contains(where: { $0.view.contentView.bounds.origin != $0.origin }) else { return }
+        for (view, origin, lines) in reached where lines != 0 {
+            let clip = view.contentView
+            let step = lines * view.verticalLineScroll * ((view.documentView?.isFlipped ?? true) ? -1 : 1)
+            let to = clip.constrainBoundsRect(NSRect(origin: NSPoint(x: origin.x, y: origin.y + step), size: clip.bounds.size)).origin
+            guard to != origin else { continue }
+            clip.scroll(to: to)
+            view.reflectScrolledClipView(clip)
+            return
+        }
+    }
+
+    private static var displaysAsleep: Bool {
+        var ids = [CGDirectDisplayID](repeating: 0, count: 16)
+        var count: UInt32 = 0
+        guard CGGetOnlineDisplayList(UInt32(ids.count), &ids, &count) == .success else { return true }
+        return ids.prefix(Int(count)).allSatisfy { CGDisplayIsAsleep($0) != 0 }
     }
 
     static func target(_ event: NSEvent) -> (window: NSWindow, point: NSPoint)? {
@@ -271,6 +298,21 @@ enum TestScroll {
             }
             method_exchangeImplementations(a, b)
         }
+        guard let a = class_getInstanceMethod(NSScrollView.self, #selector(NSScrollView.scrollWheel(with:))), let b = class_getInstanceMethod(NSScrollView.self, #selector(NSScrollView.test_scrollWheel(with:))) else {
+            fatalError("test input: cannot swizzle scrollWheel")
+        }
+        method_exchangeImplementations(a, b)
+    }
+}
+
+extension NSScrollView {
+    @objc func test_scrollWheel(with event: NSEvent) {
+        if Thread.isMainThread {
+            nonisolated(unsafe) let view = self
+            nonisolated(unsafe) let event = event
+            MainActor.assumeIsolated { TestScroll.received(view, event) }
+        }
+        test_scrollWheel(with: event)
     }
 }
 
