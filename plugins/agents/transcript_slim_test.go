@@ -58,3 +58,48 @@ func TestSlimTranscriptSummarisesToolCallsAndToolCallSendsOneInFull(t *testing.T
 	assert.Contains(t, string(full.Tool["rawInput"]), `"old_string":"two"`)
 	assert.ErrorContains(t, f.run(t, workspace, "agents.tool-call", map[string]any{"session": session, "tool": "nope"}, nil), "no such tool call")
 }
+
+func TestAPollWithTheSameHeaderRevGetsNoHeader(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	f := start(t, map[string]any{})
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "go")
+	f.waitStatus(t, workspace, session, "done")
+
+	header := []string{"modes", "configOptions", "commands", "turns"}
+	fetch := func(args map[string]any) map[string]json.RawMessage {
+		t.Helper()
+		args["session"], args["compact"] = session, true
+		var out map[string]json.RawMessage
+		require.NoError(t, f.run(t, workspace, "agents.transcript", args, &out))
+		return out
+	}
+	var rev, cursor string
+	full := fetch(map[string]any{})
+	require.NoError(t, json.Unmarshal(full["headerRev"], &rev))
+	require.NoError(t, json.Unmarshal(full["cursor"], &cursor))
+	require.NotEmpty(t, rev)
+
+	kept := fetch(map[string]any{"since": cursor, "headerRev": rev})
+	for _, key := range header {
+		assert.NotContains(t, kept, key)
+	}
+	assert.JSONEq(t, `["modes","configOptions","commands","turns"]`, string(kept["kept"]))
+	assert.JSONEq(t, string(full["headerRev"]), string(kept["headerRev"]))
+	assert.Contains(t, kept, "session")
+
+	for name, args := range map[string]map[string]any{
+		"other rev":  {"since": cursor, "headerRev": rev + "x"},
+		"bad cursor": {"since": "nope", "headerRev": rev},
+		"last":       {"since": cursor, "headerRev": rev, "last": true},
+		"fromTurn":   {"fromTurn": 1, "headerRev": rev},
+	} {
+		got := fetch(args)
+		assert.NotContains(t, got, "kept", name)
+		for _, key := range header {
+			assert.Contains(t, got, key, name)
+		}
+	}
+}

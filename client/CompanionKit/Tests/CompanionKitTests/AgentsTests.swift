@@ -562,7 +562,7 @@ final class TranscriptRefreshTests: XCTestCase {
     }
 
     func testChangeSendsTheCursorAndMergesTheDeltaByEntry() async throws {
-        let first = #"{"session":{"id":"s","status":"running"},"cursor":"e.2","entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"},{"kind":"agent","id":"a1","turn":1,"text":"part"}]}"#
+        let first = #"{"session":{"id":"s","status":"running"},"cursor":"e.2","headerRev":"r1","entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"},{"kind":"agent","id":"a1","turn":1,"text":"part"}]}"#
         let delta = #"{"session":{"id":"s","status":"running"},"cursor":"e.4","delta":true,"entries":[{"kind":"agent","id":"a1","turn":1,"text":"partial answer"},{"kind":"tool","id":"t1","turn":1}]}"#
         let runner = ScriptedRunner(replies: [first, delta])
         let store = AgentsStore(workspace: "w", runner: runner)
@@ -570,7 +570,7 @@ final class TranscriptRefreshTests: XCTestCase {
         try await waitUntil { store.transcripts["s"] != nil }
         store.handle(.event(BusEvent(seq: 1, topic: "agents.changed", payload: .object(["workspace": .string("w"), "session": .string("s")]))))
         try await waitUntil { store.transcripts["s"]?.cursor == "e.4" }
-        XCTAssertEqual(runner.args.last, .object(["session": .string("s"), "compact": .bool(true), "fromTurn": .number(1), "since": .string("e.2")]))
+        XCTAssertEqual(runner.args.last, .object(["session": .string("s"), "compact": .bool(true), "fromTurn": .number(1), "since": .string("e.2"), "headerRev": .string("r1")]))
         let transcript = try XCTUnwrap(store.transcripts["s"])
         XCTAssertEqual(transcript.entries.map(\.id), ["user/prompt-1", "agent/a1", "tool/t1"])
         XCTAssertEqual(transcript.entries[1].content, .agent("partial answer"))
@@ -1052,6 +1052,25 @@ final class TranscriptCacheTests: XCTestCase {
         try await waitUntil { second.args.count == 1 }
         XCTAssertEqual(second.args.first?["since"], .string("7:3:e:k"))
         after.unwatch("s")
+    }
+
+    func testAKeptHeaderSurvivesTheMergeAndTheDiskAndAnAbsentOneIsGone() async throws {
+        let full = try transcript(#"{"session":{"id":"s","status":"running"},"cursor":"1:0:e:k","headerRev":"r1","modes":[{"id":"plan","name":"Plan"}],"turns":[{"turn":1,"checkpointSha":"abc"}],"commands":[{"name":"review","description":"Review"}],"configOptions":[],"request":{"type":"card"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"}]}"#)
+        let delta = try transcript(#"{"session":{"id":"s","status":"running"},"cursor":"2:0:e:k","headerRev":"r1","delta":true,"kept":["modes","configOptions","commands","turns"],"entries":[]}"#)
+        let merged = full.merging(delta: delta)
+        XCTAssertEqual(merged.modes, full.modes)
+        XCTAssertEqual(merged.turns, full.turns)
+        XCTAssertNil(merged.request)
+
+        let disk = cache()
+        let key = TranscriptCache.Key(computer: "mac", workspace: "w", session: "s")
+        await disk.save(merged, key)
+        let loaded = await disk.load(key)
+        let restored = try XCTUnwrap(loaded)
+        XCTAssertEqual(restored, merged)
+        let object = try JSONDecoder().decode([String: JSONValue].self, from: JSONEncoder().encode(restored))
+        XCTAssertEqual(Set(object.keys), ["session", "cursor", "headerRev", "modes", "turns", "commands", "configOptions", "entries"])
+        XCTAssertEqual(object["commands"], .array([.object(["name": .string("review"), "description": .string("Review")])]))
     }
 
     func testALongDiskCopyWindowsLikeTheFetchedTranscriptAndSlimToolsCountTheSameRows() async throws {

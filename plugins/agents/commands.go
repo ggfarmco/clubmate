@@ -282,12 +282,13 @@ type pathArgs struct {
 }
 
 type transcriptArgs struct {
-	Session  string `json:"session"`
-	FromTurn int    `json:"fromTurn"`
-	Compact  bool   `json:"compact"`
-	Last     bool   `json:"last"`
-	Since    string `json:"since"`
-	Slim     bool   `json:"slim"`
+	Session   string `json:"session"`
+	FromTurn  int    `json:"fromTurn"`
+	Compact   bool   `json:"compact"`
+	Last      bool   `json:"last"`
+	Since     string `json:"since"`
+	Slim      bool   `json:"slim"`
+	HeaderRev string `json:"headerRev"`
 }
 
 func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -569,7 +570,8 @@ func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 		compactTools(v.Entries)
 		v.Commands = nil
 	}
-	return v, nil
+	v.HeaderRev = v.headerRev()
+	return v.keepingHeader(args.HeaderRev), nil
 }
 
 func (a *app) exportCommand(ctx context.Context, cmd pluginsdk.CommandRun, args exportArgs) (any, error) {

@@ -31,13 +31,14 @@ const (
 )
 
 var (
-	update     = flag.Bool("update", false, "rewrite the companion fixtures")
-	timeRe     = regexp.MustCompile(`"\d{4}-\d{2}-\d{2}T[0-9:.]+(Z|[+-]\d{2}:\d{2})"`)
-	shaRe      = regexp.MustCompile(`\b[0-9a-f]{40}\b`)
-	fakeIDRe   = regexp.MustCompile(`fake-\d+-(\d+)`)
-	cursorRe   = regexp.MustCompile(`"cursor":"([0-9]+):([0-9]+):[0-9a-z]+:[0-9a-f]*"`)
-	listKeyRe  = regexp.MustCompile(`"([01]?)\d{8}T\d{6}\.\d{9}Z `)
-	sessionIDs = regexp.MustCompile(`agt_[0-9a-f]{16}`)
+	update      = flag.Bool("update", false, "rewrite the companion fixtures")
+	timeRe      = regexp.MustCompile(`"\d{4}-\d{2}-\d{2}T[0-9:.]+(Z|[+-]\d{2}:\d{2})"`)
+	shaRe       = regexp.MustCompile(`\b[0-9a-f]{40}\b`)
+	fakeIDRe    = regexp.MustCompile(`fake-\d+-(\d+)`)
+	cursorRe    = regexp.MustCompile(`"cursor":"([0-9]+):([0-9]+):[0-9a-z]+:[0-9a-f]*"`)
+	headerRevRe = regexp.MustCompile(`"headerRev":"[0-9a-z]+"`)
+	listKeyRe   = regexp.MustCompile(`"([01]?)\d{8}T\d{6}\.\d{9}Z `)
+	sessionIDs  = regexp.MustCompile(`agt_[0-9a-f]{16}`)
 )
 
 func TestCompanionFixtures(t *testing.T) {
@@ -146,6 +147,7 @@ func normalize(t *testing.T, scrub *strings.Replacer, raw json.RawMessage) []byt
 	text = shaRe.ReplaceAllString(text, fixtureSha)
 	text = fakeIDRe.ReplaceAllString(text, "claude-session-$1")
 	text = cursorRe.ReplaceAllString(text, `"cursor":"$1:$2:epoch:key"`)
+	text = headerRevRe.ReplaceAllString(text, `"headerRev":"rev"`)
 	var out bytes.Buffer
 	require.NoError(t, json.Indent(&out, []byte(text), "", "  "))
 	out.WriteByte('\n')

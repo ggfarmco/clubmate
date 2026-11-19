@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"encoding/json"
+	"hash/fnv"
 	"maps"
 	"net/url"
 	"path/filepath"
@@ -69,18 +70,19 @@ type transcriptState struct {
 }
 
 type transcriptView struct {
-	Session  record                    `json:"session"`
-	Modes    []acp.SessionMode         `json:"modes"`
-	Configs  []acp.SessionConfigOption `json:"configOptions"`
-	Advisor  string                    `json:"advisor,omitempty"`
-	Usage    *acp.UsageUpdate          `json:"usage,omitempty"`
-	Commands []acp.AvailableCommand    `json:"commands"`
-	Turns    []turnInfo                `json:"turns"`
-	Entries  []*entry                  `json:"entries"`
-	Cursor   string                    `json:"cursor,omitempty"`
-	Delta    bool                      `json:"delta,omitempty"`
-	Request  *sdui.Node                `json:"request,omitempty"`
-	Repos    *sdui.Node                `json:"repos,omitempty"`
+	Session   record                    `json:"session"`
+	Modes     []acp.SessionMode         `json:"modes"`
+	Configs   []acp.SessionConfigOption `json:"configOptions"`
+	Advisor   string                    `json:"advisor,omitempty"`
+	Usage     *acp.UsageUpdate          `json:"usage,omitempty"`
+	Commands  []acp.AvailableCommand    `json:"commands"`
+	Turns     []turnInfo                `json:"turns"`
+	Entries   []*entry                  `json:"entries"`
+	Cursor    string                    `json:"cursor,omitempty"`
+	Delta     bool                      `json:"delta,omitempty"`
+	HeaderRev string                    `json:"headerRev,omitempty"`
+	Request   *sdui.Node                `json:"request,omitempty"`
+	Repos     *sdui.Node                `json:"repos,omitempty"`
 
 	Prefills     []prefillView     `json:"prefills,omitempty"`
 	OptionAsides []optionAsideView `json:"optionAsides,omitempty"`
@@ -90,6 +92,37 @@ type transcriptView struct {
 	ReviewStates map[string]map[int64]string `json:"-"`
 
 	pos cursor
+}
+
+type keptHeaderView struct {
+	transcriptView
+	Modes    []acp.SessionMode         `json:"modes,omitempty"`
+	Configs  []acp.SessionConfigOption `json:"configOptions,omitempty"`
+	Commands []acp.AvailableCommand    `json:"commands,omitempty"`
+	Turns    []turnInfo                `json:"turns,omitempty"`
+	Kept     []string                  `json:"kept"`
+}
+
+func (v transcriptView) headerRev() string {
+	raw, err := json.Marshal(struct {
+		Modes    []acp.SessionMode         `json:"modes"`
+		Configs  []acp.SessionConfigOption `json:"configOptions"`
+		Commands []acp.AvailableCommand    `json:"commands"`
+		Turns    []turnInfo                `json:"turns"`
+	}{v.Modes, v.Configs, v.Commands, v.Turns})
+	if err != nil {
+		return ""
+	}
+	h := fnv.New64a()
+	h.Write(raw)
+	return strconv.FormatUint(h.Sum64(), 36)
+}
+
+func (v transcriptView) keepingHeader(rev string) any {
+	if !v.Delta || rev == "" || rev != v.HeaderRev {
+		return v
+	}
+	return keptHeaderView{transcriptView: v, Kept: []string{"modes", "configOptions", "commands", "turns"}}
 }
 
 type entry struct {

@@ -312,5 +312,6 @@
       "at": "2026-10-30T09:41:00Z"
     }
   ],
-  "cursor": "15:10:epoch:key"
+  "cursor": "15:10:epoch:key",
+  "headerRev": "rev"
 }

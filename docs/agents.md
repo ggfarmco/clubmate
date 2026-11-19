@@ -499,6 +499,8 @@ State the transcript derives without a log line moves an entry too, never leavin
 
 A cursor the plugin can't read (an older format, or past the end of the log) gets the whole transcript without `delta`.
 
+Every reply carries `headerRev`, a hash of the JSON of `modes`, `configOptions`, `commands` and `turns` (the same after an unload or a restart while they don't change). A `delta: true` reply to a call whose `headerRev` equals it leaves those four out and adds `kept: ["modes", "configOptions", "commands", "turns"]`; the caller keeps its own copy of each key named in `kept` and takes every other key from the reply (absent means gone). Any reply that isn't a delta (no `since`, a cursor the plugin can't read, `last`) sends all four. Only the phone sends `headerRev`; without it the reply is unchanged. An empty poll of a running session drops from about 6–18 KB to about 0.7 KB (the rest is `session` and `usage`).
+
 `slim: true` leaves tool calls' `content` and `rawInput` out (`rawInput` keeps `command` and `description`) and adds `toolSummary {diffs: [{path, added, removed}], output}`: what the folded row shows, with the line counts of the phone's line diff. `agents.tool-call {session, tool}` returns one call's fields in full. The phone sends `slim` only to a Mac that lists `agents.tool-call` ([remote](remote.md)).
 
 ## Long transcripts

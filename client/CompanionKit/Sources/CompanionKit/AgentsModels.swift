@@ -341,6 +341,9 @@ public struct AgentTranscript: Codable, Sendable, Equatable {
         case session, modes, configOptions, advisor, usage, turns, entries, cursor, delta, request, repos, prefills, optionAsides, pinned, asidePanel
     }
 
+    static let headerRevKey = "headerRev"
+    private static let keptKey = "kept"
+
     private struct Key: CodingKey {
         let stringValue: String
         var intValue: Int? { nil }
@@ -388,13 +391,25 @@ public struct AgentTranscript: Codable, Sendable, Equatable {
         )
     }
 
+    var headerRev: String? {
+        header[Self.headerRevKey]?.stringValue
+    }
+
     public func merging(delta newer: AgentTranscript) -> AgentTranscript {
         let changed = Dictionary(newer.entries.map { ($0.id, $0) }, uniquingKeysWith: { $1 })
         let known = Set(entries.map(\.id))
+        let kept = Set((newer.header[Self.keptKey]?.arrayValue ?? []).compactMap(\.stringValue))
+        var header = newer.header
+        header[Self.keptKey] = nil
+        for key in kept {
+            header[key] = self.header[key]
+        }
         return AgentTranscript(
-            session: newer.session, modes: newer.modes, configOptions: newer.configOptions, advisor: newer.advisor, usage: newer.usage, turns: newer.turns,
+            session: newer.session, modes: kept.contains(CodingKeys.modes.rawValue) ? modes : newer.modes,
+            configOptions: kept.contains(CodingKeys.configOptions.rawValue) ? configOptions : newer.configOptions, advisor: newer.advisor, usage: newer.usage,
+            turns: kept.contains(CodingKeys.turns.rawValue) ? turns : newer.turns,
             entries: newer.entries.isEmpty ? entries : entries.map { changed[$0.id] ?? $0 } + newer.entries.filter { !known.contains($0.id) }, cursor: newer.cursor, request: newer.request, repos: newer.repos,
-            prefills: newer.prefills, optionAsides: newer.optionAsides, pinned: newer.pinned, asidePanel: newer.asidePanel, header: newer.header
+            prefills: newer.prefills, optionAsides: newer.optionAsides, pinned: newer.pinned, asidePanel: newer.asidePanel, header: header
         )
     }
 
@@ -424,7 +439,7 @@ public struct AgentTranscript: Codable, Sendable, Equatable {
     }
 
     public static func == (lhs: AgentTranscript, rhs: AgentTranscript) -> Bool {
-        lhs.session == rhs.session && lhs.modes == rhs.modes && lhs.configOptions == rhs.configOptions && lhs.advisor == rhs.advisor && lhs.usage == rhs.usage && lhs.turns == rhs.turns && lhs.cursor == rhs.cursor && lhs.delta == rhs.delta && lhs.request == rhs.request && lhs.repos == rhs.repos && lhs.prefills == rhs.prefills && lhs.optionAsides == rhs.optionAsides && lhs.pinned == rhs.pinned && lhs.asidePanel == rhs.asidePanel && lhs.entries == rhs.entries
+        lhs.session == rhs.session && lhs.modes == rhs.modes && lhs.configOptions == rhs.configOptions && lhs.advisor == rhs.advisor && lhs.usage == rhs.usage && lhs.turns == rhs.turns && lhs.cursor == rhs.cursor && lhs.delta == rhs.delta && lhs.request == rhs.request && lhs.repos == rhs.repos && lhs.prefills == rhs.prefills && lhs.optionAsides == rhs.optionAsides && lhs.pinned == rhs.pinned && lhs.asidePanel == rhs.asidePanel && lhs.headerRev == rhs.headerRev && lhs.entries == rhs.entries
     }
 
     public func encode(to encoder: any Encoder) throws {

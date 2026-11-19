@@ -519,7 +519,10 @@ public final class AgentsStore {
                     if slim { full["slim"] = .bool(true) }
                     var args = full
                     if fromTurn > 0 { args["fromTurn"] = .number(Double(fromTurn)) }
-                    if let cursor = loaded?.cursor { args["since"] = .string(cursor) }
+                    if let cursor = loaded?.cursor {
+                        args["since"] = .string(cursor)
+                        if let rev = loaded?.headerRev { args[AgentTranscript.headerRevKey] = .string(rev) }
+                    }
                     var fetched = try await runner.command(AgentCommand.transcript, workspace: workspace, args: .object(args), as: AgentTranscript.self)
                     let stale = loaded?.cursor != nil && !fetched.delta
                     if stale {

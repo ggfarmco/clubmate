@@ -223,6 +223,7 @@ func TestACursorOutlivesARestart(t *testing.T) {
 	next := restarted(t, s, path)
 	since := foreign(t, before)
 	assert.Empty(t, next.viewSince(0, &since, nil).Entries)
+	assert.Equal(t, before.headerRev(), next.view(0).headerRev())
 
 	next.update(json.RawMessage(`{"update":{"sessionUpdate":"agent_message_chunk","messageId":"m2","content":{"type":"text","text":"more"}}}`))
 	delta := next.viewSince(0, &since, nil)
@@ -243,7 +244,9 @@ func TestAnUnloadedSessionSendsOnlyWhatChanged(t *testing.T) {
 	s.unloadLocked()
 	s.mu.Unlock()
 
-	assert.Equal(t, []string{"agent/m1"}, slicesKeys(entryJSON(t, s.viewSince(0, &pos, nil))))
+	after := s.viewSince(0, &pos, nil)
+	assert.Equal(t, []string{"agent/m1"}, slicesKeys(entryJSON(t, after)))
+	assert.Equal(t, before.headerRev(), after.headerRev())
 }
 
 func TestCursorsItCannotReadGiveTheWholeTranscript(t *testing.T) {
