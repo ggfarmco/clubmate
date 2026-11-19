@@ -197,7 +197,7 @@ func (a *app) landAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 }
 
 func (a *app) answerLand(ctx context.Context, workspaceID string, args landAnswerArgs) (landReviewResult, error) {
-	if s, _ := a.findHeldRequest(workspaceID, args.Request); s != nil {
+	if _, h := a.findHeldRequest(workspaceID, args.Request); h != nil {
 		return landReviewResult{}, a.answerHeld(ctx, workspaceID, args.Request, heldAction(args.Action))
 	}
 	if strings.HasPrefix(args.Request, gateRequestPrefix+"_") {

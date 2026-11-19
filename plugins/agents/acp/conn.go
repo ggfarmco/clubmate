@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+type callIDKey struct{}
+
 const (
 	writeTimeout       = 30 * time.Second
 	codeMethodNotFound = -32601
@@ -94,6 +96,9 @@ func (c *Conn) Call(ctx context.Context, method string, params, result any) erro
 	ch := make(chan response, 1)
 	c.pending[id] = ch
 	c.mu.Unlock()
+	if seen, ok := ctx.Value(callIDKey{}).(func(json.RawMessage)); ok {
+		seen(json.RawMessage(id))
+	}
 	if err := c.send(message{JSONRPC: "2.0", ID: json.RawMessage(id), Method: method, Params: mustRaw(params)}); err != nil {
 		c.forget(id)
 		return err
@@ -111,6 +116,10 @@ func (c *Conn) Call(ctx context.Context, method string, params, result any) erro
 		c.forget(id)
 		return ctx.Err()
 	}
+}
+
+func WithCallID(ctx context.Context, seen func(id json.RawMessage)) context.Context {
+	return context.WithValue(ctx, callIDKey{}, seen)
 }
 
 func (c *Conn) Notify(method string, params any) error {

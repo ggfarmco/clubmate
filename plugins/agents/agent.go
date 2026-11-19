@@ -28,6 +28,7 @@ const (
 	clientName    = "clubmate"
 	clientVersion = "0.1.0"
 	maxOrphans    = 1000
+	maxWithdrawn  = 256
 )
 
 var (
@@ -62,11 +63,14 @@ type agentProc struct {
 	children map[string]*session
 	orphans  map[string][]json.RawMessage
 
+	attaching int
+
 	quiet    atomic.Bool
 	stopOnce sync.Once
 	exited   chan struct{}
 
-	elicited map[string]bool
+	elicited  map[string]bool
+	withdrawn []string
 }
 
 type ring struct {
@@ -191,8 +195,10 @@ func (p *agentProc) Notify(method string, params json.RawMessage) {
 		var n acp.CancelRequestNotification
 		if json.Unmarshal(params, &n) == nil {
 			request := acp.RequestKey(n.RequestID)
+			p.noteWithdrawn(request)
 			for _, s := range p.attached() {
-				if s.cancelRequest(request) {
+				if s.withdrawCall != nil && s.withdrawCall(request) || s.cancelRequest(request) {
+					p.takeWithdrawn(request)
 					return
 				}
 			}
@@ -236,6 +242,26 @@ func (p *agentProc) Notify(method string, params json.RawMessage) {
 	}
 }
 
+func (p *agentProc) noteWithdrawn(request string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.withdrawn = append(p.withdrawn, request)
+	if over := len(p.withdrawn) - maxWithdrawn; over > 0 {
+		p.withdrawn = slices.Delete(p.withdrawn, 0, over)
+	}
+}
+
+func (p *agentProc) takeWithdrawn(request string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	i := slices.Index(p.withdrawn, request)
+	if i < 0 {
+		return false
+	}
+	p.withdrawn = slices.Delete(p.withdrawn, i, i+1)
+	return true
+}
+
 func (p *agentProc) mcpFor(rec record) []acp.McpServer {
 	if p.launch.registered && !rec.restricted() && !rec.lean() {
 		return []acp.McpServer{}
@@ -260,11 +286,16 @@ func (p *agentProc) Request(ctx context.Context, id, method string, params json.
 	if s == nil {
 		return acp.RequestPermissionResponse{Outcome: acp.PermissionOutcome{Outcome: acp.OutcomeCancelled}}, nil
 	}
+	if s.holdCall != nil {
+		if out, held := s.holdCall(ctx, p, id, req); held {
+			return acp.RequestPermissionResponse{Outcome: out}, nil
+		}
+	}
 	if s.snapshot().Night != "" {
 		s.noteRefused()
 		return acp.RequestPermissionResponse{Outcome: nightOutcome(req.Options)}, nil
 	}
-	return acp.RequestPermissionResponse{Outcome: s.requestPermission(ctx, id, params)}, nil
+	return acp.RequestPermissionResponse{Outcome: s.requestPermission(ctx, p, id, params)}, nil
 }
 
 func (p *agentProc) register(agentSessionID string, s *session) bool {

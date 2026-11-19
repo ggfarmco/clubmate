@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -42,11 +43,15 @@ type step struct {
 	Update     json.RawMessage `json:"update"`
 	Burst      int             `json:"burst"`
 	Permission json.RawMessage `json:"permission"`
+	Async      bool            `json:"async"`
+	Withdraw   string          `json:"withdraw"`
 	Stderr     string          `json:"stderr"`
 	Child      bool            `json:"child"`
 	Shell      string          `json:"shell"`
 	Run        string          `json:"run"`
 	Wait       string          `json:"wait"`
+	Await      string          `json:"await"`
+	Hangup     bool            `json:"hangup"`
 	Exit       *int            `json:"exit"`
 	Sleep      int             `json:"sleep"`
 	Echo       bool            `json:"echo"`
@@ -54,6 +59,7 @@ type step struct {
 	Fail       string          `json:"fail"`
 	ErrorKind  string          `json:"errorKind"`
 	Session    string          `json:"session"`
+	Batch      []string        `json:"batch"`
 
 	Elicitation json.RawMessage `json:"elicitation"`
 	Complete    string          `json:"complete"`
@@ -88,8 +94,9 @@ type agent struct {
 }
 
 type place struct {
-	cwd string
-	env map[string]string
+	cwd     string
+	env     map[string]string
+	plugins []string
 }
 
 func main() {
@@ -245,6 +252,34 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 	return nil, acp.MethodNotFound(method)
 }
 
+func (a *agent) permission(ctx context.Context, target string, s step) {
+	var p struct {
+		ToolCall json.RawMessage        `json:"toolCall"`
+		Options  []acp.PermissionOption `json:"options"`
+	}
+	_ = json.Unmarshal(s.Permission, &p)
+	if s.Withdraw != "" {
+		ctx = acp.WithCallID(ctx, func(id json.RawMessage) {
+			go func() {
+				awaitFile(s.Withdraw)
+				_ = a.conn.Notify(acp.MethodCancelRequest, acp.CancelRequestNotification{RequestID: id})
+			}()
+		})
+	}
+	var res json.RawMessage
+	if err := a.conn.Call(ctx, acp.MethodRequestPermission, acp.RequestPermissionRequest{SessionID: target, ToolCall: p.ToolCall, Options: p.Options}, &res); err != nil {
+		a.record("permission_error", err.Error())
+		return
+	}
+	a.record("permission_response", res)
+}
+
+func awaitFile(path string) {
+	for _, err := os.Stat(path); err != nil; _, err = os.Stat(path) {
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func (a *agent) setConfig(id string, value any) []acp.SessionConfigOption {
 	out := slices.Clone(a.script.Configs)
 	raw, _ := json.Marshal(value)
@@ -260,6 +295,9 @@ func (a *agent) remember(session, cwd string, meta *acp.SessionMeta) {
 	p := place{cwd: cwd}
 	if meta != nil {
 		p.env = meta.ClaudeCode.Options.Env
+		for _, pl := range meta.ClaudeCode.Options.Plugins {
+			p.plugins = append(p.plugins, pl.Path)
+		}
 	}
 	a.placesMu.Lock()
 	defer a.placesMu.Unlock()
@@ -281,6 +319,40 @@ func (a *agent) runIn(session, script string) {
 	}
 	out, err := cmd.CombinedOutput()
 	a.record("run", map[string]any{"output": string(out), "error": fmt.Sprint(err)})
+}
+
+func (a *agent) batchHook(session string, ids []string) {
+	a.placesMu.Lock()
+	p := a.places[session]
+	a.placesMu.Unlock()
+	calls := make([]map[string]string, 0, len(ids))
+	for _, id := range ids {
+		calls = append(calls, map[string]string{"tool_name": "Bash", "tool_use_id": id})
+	}
+	stdin, _ := json.Marshal(map[string]any{"hook_event_name": "PostToolBatch", "tool_calls": calls})
+	var hooks struct {
+		Hooks map[string][]struct {
+			Hooks []struct {
+				Command string `json:"command"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+	var out strings.Builder
+	for _, dir := range p.plugins {
+		raw, err := os.ReadFile(filepath.Join(dir, "hooks", "hooks.json"))
+		if err != nil || json.Unmarshal(raw, &hooks) != nil {
+			continue
+		}
+		for _, m := range hooks.Hooks["PostToolBatch"] {
+			for _, h := range m.Hooks {
+				cmd := exec.Command("/bin/sh", "-c", h.Command)
+				cmd.Stdin = strings.NewReader(string(stdin))
+				got, _ := cmd.Output()
+				out.Write(got)
+			}
+		}
+	}
+	a.record("batch_hook", out.String())
 }
 
 func (a *agent) announce(session string) {
@@ -321,19 +393,10 @@ func (a *agent) run(ctx context.Context, prompt acp.PromptRequest, steps []step)
 			for i := range s.Burst {
 				a.update(session, map[string]any{"sessionUpdate": acp.UpdateToolCall, "toolCallId": "b" + strconv.Itoa(i), "title": "step " + strconv.Itoa(i), "kind": "read", "status": "completed"})
 			}
+		case s.Permission != nil && s.Async:
+			go a.permission(ctx, target, s)
 		case s.Permission != nil:
-			var p struct {
-				ToolCall json.RawMessage        `json:"toolCall"`
-				Options  []acp.PermissionOption `json:"options"`
-			}
-			_ = json.Unmarshal(s.Permission, &p)
-			var res json.RawMessage
-			err := a.conn.Call(ctx, acp.MethodRequestPermission, acp.RequestPermissionRequest{SessionID: target, ToolCall: p.ToolCall, Options: p.Options}, &res)
-			if err != nil {
-				a.record("permission_error", err.Error())
-				continue
-			}
-			a.record("permission_response", res)
+			a.permission(ctx, target, s)
 		case s.Elicitation != nil:
 			var req map[string]any
 			_ = json.Unmarshal(s.Elicitation, &req)
@@ -364,8 +427,16 @@ func (a *agent) run(ctx context.Context, prompt acp.PromptRequest, steps []step)
 			}
 		case s.Run != "":
 			a.runIn(session, s.Run)
+		case s.Batch != nil:
+			a.batchHook(session, s.Batch)
 		case s.Wait != "":
 			a.waitFile(session, s.Wait)
+		case s.Await != "":
+			awaitFile(s.Await)
+		case s.Hangup:
+			a.record("hangup", nil)
+			os.Stdout.Close()
+			select {}
 		case s.Exit != nil:
 			os.Exit(*s.Exit)
 		case s.Echo && len(prompt.Prompt) > 0:

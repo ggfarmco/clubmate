@@ -82,7 +82,7 @@ func (a *app) sendReviewCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 	sent := &reviewSent{ID: args.Review, Worktree: args.Worktree, Base: args.Base, Head: args.Head, Reviewed: args.Reviewed, Total: args.Total, Comments: args.Comments, Note: strings.TrimSpace(args.Note)}
 	text := reviewPrompt(args)
 	if sid := a.reviewRecipient(cmd.WorkspaceID, args.Session, args.Worktree); sid != "" {
-		if err := a.prompt(cmd.WorkspaceID, promptArgs{Session: sid, Text: text, Review: sent}); err != nil {
+		if err := a.prompt(cmd.WorkspaceID, promptArgs{Session: sid, Text: text, Review: sent, User: true}); err != nil {
 			return nil, err
 		}
 		a.kick(cmd.WorkspaceID)

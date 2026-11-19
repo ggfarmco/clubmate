@@ -405,10 +405,10 @@ func (a *app) awaitNight(ctx context.Context, s *session) error {
 		select {
 		case <-woken:
 		case <-timer.C:
-			a.cancel(s)
+			a.cancel(s, true)
 			return errNightLimit
 		case <-ctx.Done():
-			a.cancel(s)
+			a.cancel(s, true)
 			return nightEnded(ctx)
 		case <-a.quit:
 			return errNightQuit

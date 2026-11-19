@@ -99,6 +99,7 @@ type screen struct {
 	Asides       optionAsides
 	GateReview   *reviewHead
 	Held         *heldBlock
+	Calls        map[string]map[string]callLive
 	Back         string
 	SendBack     *sendBackView
 	CloseAsk     string
@@ -331,6 +332,9 @@ func header(sc screen) sdui.Node {
 		if l := sc.Row.Landing; l != nil && l.Held != "" {
 			badges = append(badges, sdui.HeaderBadge{Text: l.Badge, Tone: l.BadgeTone})
 		}
+		if u := sc.Row.Ungated; u != nil {
+			badges = append(badges, sdui.HeaderBadge{Text: u.Badge, Tone: toneNeutral})
+		}
 		if needsYou(rec) {
 			badges = append(badges, sdui.HeaderBadge{Text: cmp.Or(landBadge(rec), asks), Tone: statusTones[statusWaiting]})
 		}
@@ -465,6 +469,8 @@ func composerPlaceholder(sc screen) string {
 		return asidePlaceholder
 	case asked(sc):
 		return "Answer " + agent + "…"
+	case sc.Row.Landing != nil && sc.Row.Landing.Hint != "":
+		return sc.Row.Landing.Hint
 	case turnActive(rec) && !sc.Steers:
 		return "Queue a message"
 	case rec.OpenCount > 0:

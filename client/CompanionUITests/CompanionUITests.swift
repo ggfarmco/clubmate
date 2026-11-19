@@ -209,6 +209,17 @@ final class CompanionUITests: XCTestCase {
         add(screenshot(app, "trusted"))
     }
 
+    func testAHeldCallIsAnUnfoldedBlockWithItsGateAndTheComposerSaysMessagesQueue() {
+        let app = launch(open: "agents/agt_00000000000000bb", ["-landReview", "YES"])
+        let block = app.descendants(matching: .any)["held.call-push"]
+        XCTAssertTrue(block.waitForExistence(timeout: 10))
+        XCTAssertTrue(block.staticTexts["Held by a gate"].exists)
+        XCTAssertTrue(block.staticTexts["shop · git push · round 1 of 2"].exists)
+        XCTAssertTrue(block.buttons["Open review"].exists)
+        XCTAssertTrue(app.staticTexts["Held by a gate — messages queue"].exists)
+        add(screenshot(app, "held-call"))
+    }
+
     func testAHeldChangeNeverMovesTheRowAboutToBeTappedAndLandsOnThePill() {
         let app = launch(open: "agents", ["-holdFixture", "12"])
         let row = app.descendants(matching: .any)["row.agt_0000000000000001"]

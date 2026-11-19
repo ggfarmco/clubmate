@@ -168,7 +168,19 @@ type ToolCardProps struct {
 	Body       *ToolBody
 	Truncated  bool
 	Standalone bool
+	StatusWord string
 	Actions    []CardAction
+}
+
+type GateMessage struct {
+	Groups []GateGroup `json:"groups"`
+	Tail   string      `json:"tail,omitempty"`
+}
+
+type GateGroup struct {
+	Title    string   `json:"title"`
+	Findings []string `json:"findings,omitempty"`
+	Deferred []string `json:"deferred,omitempty"`
 }
 
 type PermissionOption struct {
@@ -898,6 +910,9 @@ func ToolCard(id string, p ToolCardProps) Node {
 	}
 	if p.Standalone {
 		props["standalone"] = true
+	}
+	if p.StatusWord != "" {
+		props["statusWord"] = p.StatusWord
 	}
 	if len(p.Actions) > 0 {
 		props["actions"] = p.Actions

@@ -68,6 +68,13 @@ func (s *session) applySubagent(turn int, agentSession string, payload json.RawM
 	case acp.UpdateSessionMessage:
 		s.sessionMessage(payload)
 		return
+	case updateGateMsg:
+		m, ok := gateMessageOf(payload)
+		if !ok {
+			return
+		}
+		en := sub.upsert(entryUser, gateEntryID(m.Call))
+		en.Text, en.Gate = m.text(), &m
 	default:
 		return
 	}
@@ -210,14 +217,17 @@ func (sub *subagent) tool(create bool, payload json.RawMessage, at time.Time) bo
 	if json.Unmarshal(payload, &fields) != nil || json.Unmarshal(payload, &head) != nil || head.ToolCallID == "" {
 		return false
 	}
+	name := metaToolName(fields)
 	dropUnkeptToolFields(fields)
 	en := sub.upsert(entryTool, head.ToolCallID)
+	en.toolName = cmp.Or(name, en.toolName)
 	if en.At.IsZero() {
 		en.At = at
 	}
 	if create || en.Tool == nil {
 		en.Tool = map[string]json.RawMessage{}
 	}
+	keepHolds(en.Tool, fields)
 	for k, v := range fields {
 		en.Tool[k] = v
 	}
@@ -321,6 +331,9 @@ func (sub *subagent) body() string {
 	for _, en := range sub.entries {
 		switch en.Kind {
 		case entryUser:
+			if en.Hidden {
+				continue
+			}
 			line("→ " + strings.ReplaceAll(capLines(strings.TrimSpace(en.Text), promptLines), "\n", "\n  "))
 		case entryAgent:
 			text := strings.TrimSpace(en.Text)
@@ -338,7 +351,7 @@ func (sub *subagent) body() string {
 			_ = json.Unmarshal(en.Tool["title"], &f.Title)
 			_ = json.Unmarshal(en.Tool["status"], &f.Status)
 			mark := "• "
-			if f.Status == "failed" {
+			if f.Status == "failed" && markOf(en) == nil {
 				mark = "✗ "
 			}
 			line(mark + firstLine(cmp.Or(f.Title, entryTool)))

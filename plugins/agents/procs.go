@@ -41,6 +41,8 @@ func (a *app) ensureProc(ctx context.Context, agent, workspace, root string) (*a
 			slot.proc, slot.err = p, err
 			if err != nil {
 				delete(a.procs, k)
+			} else {
+				p.attaching++
 			}
 			a.mu.Unlock()
 			close(slot.ready)
@@ -55,10 +57,12 @@ func (a *app) ensureProc(ctx context.Context, agent, workspace, root string) (*a
 		if slot.err != nil {
 			return nil, slot.err
 		}
-		if slot.proc.alive() {
+		a.mu.Lock()
+		if a.procs[k] == slot && slot.proc.alive() {
+			slot.proc.attaching++
+			a.mu.Unlock()
 			return slot.proc, nil
 		}
-		a.mu.Lock()
 		if a.procs[k] == slot {
 			delete(a.procs, k)
 		}
@@ -135,6 +139,7 @@ func (a *app) procExited(p *agentProc, reason string) {
 		s.cutTurnLocked()
 		s.dropBackgroundLocked()
 		s.cancelPermissionsLocked()
+		s.endCallsLocked(false)
 		quiet := p.quiet.Load() || s.rec.closed()
 		var ended api.Turn
 		if !quiet {
@@ -164,9 +169,16 @@ func (a *app) unregisterProc(p *agentProc) {
 	}
 }
 
+func (a *app) attachEnded(p *agentProc) {
+	a.mu.Lock()
+	p.attaching--
+	a.mu.Unlock()
+	a.release(p)
+}
+
 func (a *app) release(p *agentProc) {
 	a.mu.Lock()
-	if len(p.attached()) > 0 {
+	if len(p.attached()) > 0 || p.attaching > 0 {
 		a.mu.Unlock()
 		return
 	}

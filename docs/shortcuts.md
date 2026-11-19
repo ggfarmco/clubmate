@@ -263,6 +263,7 @@ A connect request (`Connect a repo?`), a Land request (`Land ‹repo›?`) or a 
 | ⌥1 ⌥2 ⌥3 | Land card: Review… (opens the repo's diff, never merges) · Merge · Leave it unlanded… (⌥3 again confirms, Esc or ↩ cancels) |
 | ⌥1 ⌥2 ⌥3 | Land review card ("‹graph› still asks for changes after N rounds"): Land anyway · One more round · Stop |
 | ⌥1 ⌥2 ⌥3 | Held turn card ("‹graph› still asks for changes after N rounds" / "‹graph› ended without a verdict"): Accept as done · One more round (Check again on "Couldn't check this turn against its gates") · Stop |
+| ⌥1 ⌥2 ⌥3 | Held tool call card ("‹graph› still asks for changes after N rounds" / "N gates still ask for changes"): Run anyway · One more round · Stop |
 
 ## Agent questions (Agents section or Code chat panel)
 

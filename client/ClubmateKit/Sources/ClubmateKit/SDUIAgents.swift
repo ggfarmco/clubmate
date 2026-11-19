@@ -39,6 +39,30 @@ public struct SDUIPlanEntry: Sendable, Equatable {
     }
 }
 
+public struct SDUIGateGroup: Sendable, Equatable {
+    public let title: String
+    public let findings: [String]
+    public let deferred: [String]
+
+    init?(_ value: JSONValue) {
+        guard let fields = value.objectValue, let title = fields["title"]?.stringValue else { return nil }
+        self.title = title
+        findings = fields["findings"]?.arrayValue?.compactMap(\.stringValue) ?? []
+        deferred = fields["deferred"]?.arrayValue?.compactMap(\.stringValue) ?? []
+    }
+}
+
+public struct SDUIGateMessage: Sendable, Equatable {
+    public let groups: [SDUIGateGroup]
+    public let tail: String?
+
+    init?(_ value: JSONValue) {
+        guard let fields = value.objectValue, let groups = fields["groups"]?.arrayValue?.compactMap(SDUIGateGroup.init), !groups.isEmpty else { return nil }
+        self.groups = groups
+        tail = fields["tail"]?.stringValue
+    }
+}
+
 public struct SDUIToolBody: Sendable, Hashable {
     public enum Format: String, Sendable {
         case diff
@@ -177,6 +201,14 @@ extension SDUINode {
 
     public var messageRole: MessageRole {
         MessageRole(string("role"))
+    }
+
+    public var toolStatusWord: String? {
+        string("statusWord")
+    }
+
+    public var gateMessage: SDUIGateMessage? {
+        props["gate"].flatMap(SDUIGateMessage.init)
     }
 
     public func attachments() -> [SDUIAttachment] {

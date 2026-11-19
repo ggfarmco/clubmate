@@ -501,7 +501,7 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		}
 		return a.send(ctx, ev.WorkspaceID, s, st, v.Text)
 	case actStop:
-		a.cancel(s)
+		a.cancel(s, true)
 		return nil
 	case actReviewed:
 		a.setReviewed(s)
@@ -725,7 +725,7 @@ func (a *app) start(workspaceID string, s *session, node string) error {
 	if err != nil || n < 1 || n > len(list) {
 		return fmt.Errorf("%w: starter %q", errUnknownAction, node)
 	}
-	args := promptArgs{Session: rec.ID, Text: list[n-1].prompt}
+	args := promptArgs{Session: rec.ID, Text: list[n-1].prompt, User: true}
 	if list[n-1].attach {
 		args.Attachments = []attachment{{Kind: "file", Path: file}}
 	}
@@ -776,7 +776,7 @@ func (a *app) send(ctx context.Context, workspaceID string, s *session, st *sess
 		open.Note = text
 		_, err = a.answerOpen(ctx, s, workspaceID, open, atts)
 	} else {
-		err = a.prompt(workspaceID, promptArgs{Session: sid, Text: text, Attachments: atts})
+		err = a.prompt(workspaceID, promptArgs{Session: sid, Text: text, Attachments: atts, User: true})
 	}
 	if err != nil {
 		return err

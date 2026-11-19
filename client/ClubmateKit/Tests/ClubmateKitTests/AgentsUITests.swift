@@ -226,13 +226,15 @@ final class AgentsUITests: XCTestCase {
             SDUINode(type: "toolCard", props: ["kind": .string(kind), "status": .string(status), "title": .string("go test ./...")])
         }
         let done = ToolActionsSummary(["read", "search", "execute", "read", "edit", "search", "execute", "read"].map { card($0) })
-        let running = ToolActionsSummary([card("execute", "failed"), card("execute", "in_progress")])
+        var refused = card("execute", "failed")
+        refused.props["statusWord"] = .string("refused")
+        let running = ToolActionsSummary([card("execute", "failed"), refused, card("execute", "in_progress")])
         let agents = ToolActionsSummary([card("agent"), card("read"), card("agent", "in_progress")])
 
         XCTAssertEqual(done.text, "8 actions: read 3 files, 2 searches, 2 commands, edited 1 file")
         XCTAssertNil(done.running)
         XCTAssertEqual(done.failed, 0)
-        XCTAssertEqual(running.text, "2 actions: 2 commands")
+        XCTAssertEqual(running.text, "3 actions: 3 commands")
         XCTAssertEqual(running.failed, 1)
         XCTAssertEqual(running.running, "go test ./...")
         XCTAssertEqual(agents.text, "3 actions: 2 agents, read 1 file")

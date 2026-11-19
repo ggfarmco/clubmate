@@ -33,6 +33,11 @@ struct StackNodeView: View {
         return first
     }
 
+    private static func priority(_ child: SDUINode) -> Double {
+        if child.type == "text", ["strong", "title"].contains(child.string("style")) { return 1 }
+        return child.string("short") == nil && child.props["lines"]?.numberValue != 1 ? 0 : -1
+    }
+
     var body: some View {
         if let keyWidth, let key = propertyKey {
             HStack(alignment: .firstTextBaseline, spacing: gap) {
@@ -64,7 +69,7 @@ struct StackNodeView: View {
                     } else {
                         SDUINodeView(node: child.node)
                             .equatable()
-                            .layoutPriority(child.node.string("short") == nil && child.node.props["lines"]?.numberValue != 1 ? 0 : -1)
+                            .layoutPriority(Self.priority(child.node))
                     }
                 }
             }

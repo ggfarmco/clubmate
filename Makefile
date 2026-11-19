@@ -23,6 +23,7 @@ build:
 	$(GO_BUILD) -o bin/plugins/search/search ./plugins/search
 	cp plugins/search/plugin.json bin/plugins/search/
 	$(GO_BUILD) -o bin/plugins/agents/agents ./plugins/agents
+	$(GO_BUILD) -o bin/plugins/agents/tool-hook ./plugins/agents/toolhook
 	cp plugins/agents/plugin.json bin/plugins/agents/
 	$(GO_BUILD) -o bin/plugins/remote/remote ./plugins/remote
 	cp plugins/remote/plugin.json bin/plugins/remote/

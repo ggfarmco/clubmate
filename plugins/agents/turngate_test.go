@@ -181,6 +181,11 @@ func (f *fixture) pauseGate(t *testing.T, workspace, id string) {
 	require.NoError(t, f.run(t, workspace, "agents.gate-update", map[string]any{"id": id, "paused": true}, nil))
 }
 
+func (f *fixture) deleteGate(t *testing.T, workspace, id string) {
+	t.Helper()
+	require.NoError(t, f.run(t, workspace, "agents.gate-delete", map[string]any{"id": id}, nil))
+}
+
 func doneTurns(t *testing.T, events []bus.Event, session string) int {
 	t.Helper()
 	n := 0
@@ -210,7 +215,7 @@ func TestDoneGateHoldsTurnUntilReleased(t *testing.T) {
 	testutil.Never(t, func() bool {
 		return doneTurns(t, testutil.WaitEvents(t, f.h.Bus, "agents.turn", func([]bus.Event) bool { return true }), session) > 0
 	}, quiet)
-	f.pauseGate(t, workspace, gate)
+	f.deleteGate(t, workspace, gate)
 
 	f.waitStatus(t, workspace, session, "done")
 	testutil.WaitEvents(t, f.h.Bus, "agents.turn", func(events []bus.Event) bool { return doneTurns(t, events, session) == 1 })
@@ -236,7 +241,7 @@ func TestHeldChildDoesNotWakeParent(t *testing.T) {
 	assert.ErrorContains(t, f.runAs(t, workspace, parent, "agents.cancel", map[string]any{"session": kid}, nil), "only the user can stop it")
 	assert.NotNil(t, f.held(t, workspace, kid))
 	assert.Empty(t, f.promptsTo(t, parentID, "[Clubmate] Child"))
-	f.pauseGate(t, workspace, gate)
+	f.deleteGate(t, workspace, gate)
 
 	testutil.Eventually(t, func() bool { return len(f.promptsTo(t, parentID, "[Clubmate] Child")) > 0 }, wait)
 	testutil.Never(t, func() bool { return len(f.promptsTo(t, parentID, "[Clubmate] Child")) > 1 }, quiet)
@@ -261,7 +266,7 @@ func TestHeldTurnSurvivesRestart(t *testing.T) {
 
 	f.restartPlugin(t, workspace)
 	f.waitHeld(t, workspace, kid)
-	f.pauseGate(t, workspace, gate)
+	f.deleteGate(t, workspace, gate)
 
 	f.waitStatus(t, workspace, kid, "done")
 	testutil.Eventually(t, func() bool { return len(f.promptsTo(t, parentID, "[Clubmate] Child")) == 1 }, wait)
@@ -386,7 +391,7 @@ func TestReleaseRunsReview(t *testing.T) {
 	f.waitHeld(t, workspace, session)
 	require.False(t, f.session(t, workspace, session).Review)
 
-	f.pauseGate(t, workspace, gate)
+	f.deleteGate(t, workspace, gate)
 
 	testutil.Eventually(t, func() bool { return f.session(t, workspace, session).Review }, wait)
 }
@@ -738,7 +743,7 @@ func TestHeldCycleRecomputesKey(t *testing.T) {
 	assert.Equal(t, r.GateFor.Run, d.held(t).Run)
 }
 
-func TestPauseWhileHeldCycleRunsReleasesAfterIt(t *testing.T) {
+func TestDeleteWhileHeldCycleRunsReleasesAfterIt(t *testing.T) {
 	t.Parallel()
 	cycle, settle := filepath.Join(t.TempDir(), "cycle"), filepath.Join(t.TempDir(), "settle")
 	d := startDone(t, nil, map[string]any{"after": []map[string]any{
@@ -752,7 +757,7 @@ func TestPauseWhileHeldCycleRunsReleasesAfterIt(t *testing.T) {
 		return slices.ContainsFunc(d.f.transcript(t, d.workspace, d.session).Entries, func(e entry) bool { return e.Text == "one more thing" })
 	}, wait)
 
-	d.f.pauseGate(t, d.workspace, d.gate)
+	d.f.deleteGate(t, d.workspace, d.gate)
 	testutil.Never(t, func() bool { return d.f.session(t, d.workspace, d.session).Status != "running" }, quiet)
 	write(t, settle, "")
 
@@ -849,7 +854,7 @@ func TestDoneGateStepRunsOnHeldTree(t *testing.T) {
 
 	assert.Equal(t, "x\n", g.stepOutput(t, d.held(t).Run, "check"))
 	require.Len(t, g.gateTrees(t), 1)
-	d.f.pauseGate(t, d.workspace, d.gate)
+	require.NoError(t, d.verdict(t, d.reviewer(t), "approved"))
 
 	d.f.waitStatus(t, d.workspace, d.session, "done")
 	testutil.Eventually(t, func() bool { return len(g.gateTrees(t)) == 0 }, wait)
@@ -864,13 +869,21 @@ func TestDoneReviewNodeHasNoRow(t *testing.T) {
 	testutil.Never(t, func() bool { return !d.f.session(t, d.workspace, r.ID).Hidden }, quiet)
 }
 
-func TestPauseReleasesAsFinished(t *testing.T) {
+func TestPausedDoneGateKeepsHeldTurnUntilVerdict(t *testing.T) {
 	t.Parallel()
 	d := startDone(t, nil, map[string]any{}, nil)
-	d.reviewer(t)
+	r := d.reviewer(t)
 
 	d.f.pauseGate(t, d.workspace, d.gate)
 
+	testutil.Never(t, func() bool { return d.held(t) == nil || d.f.session(t, d.workspace, d.session).Status != "running" }, quiet)
+	var h gateHistory
+	require.NoError(t, d.f.run(t, d.workspace, "agents.gate-verdicts", map[string]any{"id": d.gate}, &h))
+	assert.Empty(t, h.Verdicts)
+	require.Len(t, h.Landings, 1)
+	assert.Equal(t, d.session, h.Landings[0].Lander)
+	require.NotNil(t, d.f.session(t, d.workspace, d.session).Landing)
+	require.NoError(t, d.verdict(t, r, "approved"))
 	testutil.WaitEvents(t, d.f.h.Bus, "agents.turn", func(events []bus.Event) bool {
 		return slices.ContainsFunc(events, func(e bus.Event) bool {
 			var p struct {
@@ -881,6 +894,109 @@ func TestPauseReleasesAsFinished(t *testing.T) {
 			return json.Unmarshal(e.Payload, &p) == nil && p.Session == d.session && p.Status == "done" && p.Finished
 		})
 	})
+}
+
+func TestPausedDoneGateReleasesTheFixTurn(t *testing.T) {
+	t.Parallel()
+	d := startDone(t, map[string]any{"rounds": 3}, map[string]any{"prompt": []map[string]any{{"match": "From the gate", "run": "echo y >> note.md"}}}, nil)
+	r := d.reviewer(t)
+	d.f.pauseGate(t, d.workspace, d.gate)
+
+	require.NoError(t, d.verdict(t, r, "changes", "note.md:1 — says x"))
+
+	testutil.Eventually(t, func() bool {
+		var h gateHistory
+		require.NoError(t, d.f.run(t, d.workspace, "agents.gate-verdicts", map[string]any{"id": d.gate}, &h))
+		released := len(h.Verdicts) == 2 && h.Verdicts[0].Outcome == "released" && h.Verdicts[0].By == "gate-paused"
+		return released && d.held(t) == nil && d.f.session(t, d.workspace, d.session).Status == "done"
+	}, wait)
+	assert.Len(t, d.gatePrompts(t), 1)
+}
+
+func TestPausedDoneGateFollowUpCycleStaysHeld(t *testing.T) {
+	t.Parallel()
+	settle := filepath.Join(t.TempDir(), "settle")
+	d := startDone(t, nil, map[string]any{"after": []map[string]any{
+		{"match": "WORK", "wait": settle},
+		{"match": "WORK", "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "one more thing"}}},
+		{"match": "WORK", "run": "echo z > note.md"},
+		{"match": "WORK", "update": map[string]any{"sessionUpdate": "usage_update", "used": 1, "size": 10, "cost": map[string]any{"amount": 1, "currency": "USD"}}},
+	}}, nil)
+	key := d.held(t).Key
+	d.f.pauseGate(t, d.workspace, d.gate)
+
+	write(t, settle, "")
+
+	testutil.Eventually(t, func() bool {
+		h := d.held(t)
+		return h != nil && h.Key != key && d.f.session(t, d.workspace, d.session).Status == "running"
+	}, wait)
+}
+
+func TestPromptToAHeldTurnOnAPausedGateIsHeldAgain(t *testing.T) {
+	t.Parallel()
+	d := startDone(t, nil, map[string]any{"prompt": []map[string]any{{"match": "again", "run": "echo b > other.md"}}}, nil)
+	key := d.held(t).Key
+	d.f.pauseGate(t, d.workspace, d.gate)
+
+	d.f.prompt(t, d.workspace, d.session, "again")
+
+	testutil.Eventually(t, func() bool {
+		h := d.held(t)
+		return h != nil && h.Gate == d.gate && h.Key != key && d.f.session(t, d.workspace, d.session).Status == "running"
+	}, wait)
+}
+
+func TestCycleReleasedForChildrenOnAPausedGateIsHeldAfterTheWake(t *testing.T) {
+	t.Parallel()
+	cycle, kidHold := filepath.Join(t.TempDir(), "cycle"), filepath.Join(t.TempDir(), "kid")
+	d := startDone(t, nil, map[string]any{"prompt": []map[string]any{{"match": "kid", "wait": kidHold}}, "after": []map[string]any{
+		{"match": "WORK", "wait": cycle},
+		{"match": "WORK", "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "one more thing"}}},
+		{"match": "WORK", "update": map[string]any{"sessionUpdate": "usage_update", "used": 1, "size": 10, "cost": map[string]any{"amount": 1, "currency": "USD"}}},
+	}}, nil)
+	d.f.pauseGate(t, d.workspace, d.gate)
+	kid := d.f.newChild(t, d.workspace, d.session, map[string]any{"prompt": "kid"}).Session
+	d.f.waitStatus(t, d.workspace, kid, "running")
+	write(t, cycle, "")
+	d.f.waitStatus(t, d.workspace, d.session, "done")
+
+	write(t, kidHold, "")
+
+	testutil.Eventually(t, func() bool {
+		h := d.held(t)
+		return h != nil && h.Gate == d.gate && d.f.session(t, d.workspace, d.session).Status == "running"
+	}, wait)
+}
+
+func TestEditingAPausedDoneGateSoItNoLongerMatchesReleases(t *testing.T) {
+	t.Parallel()
+	d := startDone(t, nil, map[string]any{}, nil)
+	d.f.pauseGate(t, d.workspace, d.gate)
+
+	require.NoError(t, d.f.run(t, d.workspace, "agents.gate-update", map[string]any{"id": d.gate, "paused": true, "wrote": []string{"**/plans/*.md"}}, nil))
+
+	testutil.Eventually(t, func() bool {
+		var h gateHistory
+		require.NoError(t, d.f.run(t, d.workspace, "agents.gate-verdicts", map[string]any{"id": d.gate}, &h))
+		released := len(h.Verdicts) == 1 && h.Verdicts[0].By == "gate-changed"
+		return released && d.held(t) == nil && d.f.session(t, d.workspace, d.session).Status == "done"
+	}, wait)
+}
+
+func TestPausedDoneGateWaitingForTrustStaysHeld(t *testing.T) {
+	t.Parallel()
+	d := startDoneIn(t, nil, heldReviewOnly, map[string]any{}, map[string]any{"prompt": []map[string]any{{"match": "WORK", "run": "sed -i '' 's/Review\\./Check./' .clubmate/graphs/held.json"}}}, nil)
+	testutil.Eventually(t, func() bool {
+		h := d.held(t)
+		return h != nil && h.Run == "" && d.f.gates(t, d.workspace)[0].State == "trust"
+	}, wait)
+
+	d.f.pauseGate(t, d.workspace, d.gate)
+	testutil.Never(t, func() bool { h := d.held(t); return h == nil || h.Run != "" }, quiet)
+	require.NoError(t, d.f.run(t, d.workspace, "agents.gate-update", map[string]any{"id": d.gate, "trust": d.f.gates(t, d.workspace)[0].Hash}, nil))
+
+	testutil.Eventually(t, func() bool { h := d.held(t); return h != nil && h.Run != "" }, wait)
 }
 
 func TestCancelledReviewerSettlingStopsItsRun(t *testing.T) {
@@ -1056,7 +1172,7 @@ func TestReheldTurnDoesNotReplayTheOldGatesVerdict(t *testing.T) {
 	t.Cleanup(func() { _ = exec.Command("chmod", "-R", "u+w", objects).Run() })
 	require.NoError(t, exec.Command("chmod", "-R", "a-w", objects).Run())
 
-	d.f.pauseGate(t, d.workspace, d.gate)
+	d.f.deleteGate(t, d.workspace, d.gate)
 	require.NoError(t, exec.Command("chmod", "-R", "u+w", objects).Run())
 
 	testutil.Eventually(t, func() bool { h := d.held(t); return h != nil && h.Gate == other && h.Run != "" }, wait)
@@ -1339,7 +1455,7 @@ func TestChildOfAnAFKParentIsAFKForADoneGate(t *testing.T) {
 	assert.Nil(t, f.held(t, workspace, kid))
 }
 
-func TestPausingTheGateReleasesAnUnreadHoldWithItsCardOpen(t *testing.T) {
+func TestDeletingTheGateReleasesAnUnreadHoldWithItsCardOpen(t *testing.T) {
 	t.Parallel()
 	u := startUnread(t, 10*time.Millisecond)
 	testutil.Eventually(t, func() bool {
@@ -1347,7 +1463,7 @@ func TestPausingTheGateReleasesAnUnreadHoldWithItsCardOpen(t *testing.T) {
 		return h != nil && h.Request != ""
 	}, wait)
 
-	u.f.pauseGate(t, u.workspace, u.gate)
+	u.f.deleteGate(t, u.workspace, u.gate)
 
 	u.f.waitStatus(t, u.workspace, u.session, "done")
 	assert.Nil(t, u.f.held(t, u.workspace, u.session))
@@ -1376,12 +1492,12 @@ func TestHeldLineFollowsAGraphRetitle(t *testing.T) {
 	line("Beta")
 }
 
-func TestPausingTheGateMovesAnUnreadHoldToAnotherGate(t *testing.T) {
+func TestDeletingTheGateMovesAnUnreadHoldToAnotherGate(t *testing.T) {
 	t.Parallel()
 	u := startUnread(t, testutil.Timeout(2*time.Second), map[string]any{"wrote": []string{"**"}})
 	testutil.Eventually(t, func() bool { h := u.f.held(t, u.workspace, u.session); return h != nil && h.Gate == u.gate }, wait)
 
-	u.f.pauseGate(t, u.workspace, u.gate)
+	u.f.deleteGate(t, u.workspace, u.gate)
 	testutil.Eventually(t, func() bool { h := u.f.held(t, u.workspace, u.session); return h != nil && h.Gate == u.extra[0] }, wait)
 	u.mend(t)
 

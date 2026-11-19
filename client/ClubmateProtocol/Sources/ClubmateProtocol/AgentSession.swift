@@ -68,6 +68,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let rowUnder: String?
     public let gateRound: GateRound?
     public let landing: SessionLanding?
+    public let ungated: SessionUngated?
     public let turnHeld: Bool
     public let heldRound: HeldRound?
     public let aside: AsideInfo?
@@ -92,7 +93,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         reviewProgress: ReviewProgress? = nil, openCount: Int = 0, openDecisions: Int = 0, openOffers: Int = 0, openSince: Date? = nil, mayAsk: Bool = false,
         repo: String? = nil, taskRows: [RepoRow] = [], taskBadge: String? = nil, archivable: Bool = false, taskFinished: Bool = false, requests: [String] = [], turns: Int = 0, rowDetail: String? = nil,
         limitShare: [String: Double] = [:], shareLabel: String? = nil, shareWords: [String: String] = [:], shareDetail: String? = nil, listKey: String? = nil,
-        hidden: Bool = false, rowUnder: String? = nil, gateRound: GateRound? = nil, landing: SessionLanding? = nil, turnHeld: Bool = false, heldRound: HeldRound? = nil,
+        hidden: Bool = false, rowUnder: String? = nil, gateRound: GateRound? = nil, landing: SessionLanding? = nil, ungated: SessionUngated? = nil, turnHeld: Bool = false, heldRound: HeldRound? = nil,
         aside: AsideInfo? = nil, canAside: Bool = false, forkedFrom: String? = nil, composerDraft: ComposerDraft? = nil,
         listGroupKey: String? = nil, listGroupLabel: String? = nil, listFilters: [String]? = nil, listOpen: Int = 0, inboxKey: String? = nil
     ) {
@@ -163,6 +164,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.rowUnder = rowUnder
         self.gateRound = gateRound
         self.landing = landing
+        self.ungated = ungated
         self.turnHeld = turnHeld
         self.heldRound = heldRound
         self.aside = aside
@@ -183,7 +185,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
         case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, reopen, modeLabel, autoClosed, review, asksParent, service, group, paused, pausedUntil, active, kind, run, reviewProgress, openCount, openDecisions, openOffers, openSince, mayAsk, repo, taskRows, taskBadge, archivable, taskFinished, requests, turns, rowDetail
         case limitShare, shareLabel, shareWords, shareDetail, listKey
-        case hidden, rowUnder, gateRound, landing, turnHeld, heldRound
+        case hidden, rowUnder, gateRound, landing, ungated, turnHeld, heldRound
         case aside, canAside, forkedFrom, composerDraft
         case listGroupKey, listGroupLabel, listFilters, listOpen, inboxKey
     }
@@ -263,6 +265,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             rowUnder: try optional(.rowUnder),
             gateRound: try? c.decodeIfPresent(GateRound.self, forKey: .gateRound),
             landing: try? c.decodeIfPresent(SessionLanding.self, forKey: .landing),
+            ungated: try? c.decodeIfPresent(SessionUngated.self, forKey: .ungated),
             turnHeld: try flag(.turnHeld),
             heldRound: try? c.decodeIfPresent(HeldRound.self, forKey: .heldRound),
             aside: try? c.decodeIfPresent(AsideInfo.self, forKey: .aside),
@@ -357,6 +360,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encodeIfPresent(rowUnder, forKey: .rowUnder)
         try c.encodeIfPresent(gateRound, forKey: .gateRound)
         try c.encodeIfPresent(landing, forKey: .landing)
+        try c.encodeIfPresent(ungated, forKey: .ungated)
         if turnHeld { try c.encode(turnHeld, forKey: .turnHeld) }
         try c.encodeIfPresent(heldRound, forKey: .heldRound)
     }
@@ -385,11 +389,23 @@ public struct SessionLanding: Codable, Sendable, Hashable {
     public let words: String
     public let tone: String?
     public var line: String?
+    public var hint: String?
 
-    public init(verdict: String, words: String, tone: String? = nil, line: String? = nil) {
+    public init(verdict: String, words: String, tone: String? = nil, line: String? = nil, hint: String? = nil) {
         self.verdict = verdict
         self.words = words
         self.tone = tone
+        self.line = line
+        self.hint = hint
+    }
+}
+
+public struct SessionUngated: Codable, Sendable, Hashable {
+    public let badge: String
+    public let line: String
+
+    public init(badge: String, line: String) {
+        self.badge = badge
         self.line = line
     }
 }

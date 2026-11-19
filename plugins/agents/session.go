@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -8,33 +9,36 @@ import (
 	"sync"
 	"time"
 
+	"clubmate/plugins/agents/acp"
 	"clubmate/plugins/agents/api"
 )
 
 type session struct {
-	mu        sync.Mutex
-	attachMu  sync.Mutex
-	changesMu sync.Mutex
-	openMu    sync.Mutex
-	saveMu    sync.Mutex
-	rec       record
-	holdOf    *heldTurn
-	trustOf   string
-	cards     []string
-	log       *eventLog
-	loaded    bool
-	unread    bool
-	used      time.Time
-	deleted   bool
-	changed   func(kind string, save bool)
-	turned    func(api.Turn)
-	idled     func()
-	resolved  func(kind, request string)
-	requested func(kind, request string)
-	began     func(session string)
-	setup     *setup
-	wantTasks func()
-	prefills  map[string]map[int]elicitPrefill
+	mu           sync.Mutex
+	attachMu     sync.Mutex
+	changesMu    sync.Mutex
+	openMu       sync.Mutex
+	saveMu       sync.Mutex
+	rec          record
+	holdOf       map[string]heldTurn
+	trustOf      string
+	cards        []string
+	log          *eventLog
+	loaded       bool
+	unread       bool
+	used         time.Time
+	deleted      bool
+	changed      func(kind string, save bool)
+	turned       func(api.Turn)
+	idled        func()
+	resolved     func(kind, request string)
+	requested    func(kind, request string)
+	holdCall     func(ctx context.Context, p *agentProc, request string, req acp.RequestPermissionRequest) (acp.PermissionOutcome, bool)
+	withdrawCall func(request string) bool
+	began        func(session string)
+	setup        *setup
+	wantTasks    func()
+	prefills     map[string]map[int]elicitPrefill
 
 	taskTitles    map[int]string
 	tasksWanted   bool
@@ -46,6 +50,7 @@ type session struct {
 	transcriptState
 	runState
 	changeState
+	hookState
 }
 
 type setup struct {

@@ -109,6 +109,7 @@ var (
 
 type sessionRow struct {
 	Rec       record
+	Ungated   *ungatedView
 	Activity  string
 	Started   time.Time
 	Notify    string
@@ -273,7 +274,15 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	if filter == filterNeeds {
 		slices.SortStableFunc(roots, func(x, y sessionRow) int { return compareSince(oldest[x.Rec.ID], oldest[y.Rec.ID]) })
 	}
-	if len(roots) == 0 {
+	var gates []sdui.TreeItem
+	if filter == filterNeeds {
+		for _, entry := range inbox {
+			if entry.Gate {
+				gates = append(gates, gateInboxItem(entry))
+			}
+		}
+	}
+	if len(roots) == 0 && len(gates) == 0 {
 		all := sdui.WithAction(sdui.Button("filterAll", "Show all", ""), actFilterAll)
 		return dockOnly(top, field, tabs, sdui.EmptyState(filterEmpty[filter], sdui.EmptyProps{Action: &all}))
 	}
@@ -330,7 +339,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		group.Faint = b.detached
 		groups = append(groups, group)
 	}
-	groups = append(append(mirrors, pausedGroups(resets, paused, kids, collapsed, now, oldest)...), groups...)
+	groups = append(append(append(gates, mirrors...), pausedGroups(resets, paused, kids, collapsed, now, oldest)...), groups...)
 	if len(closed) > 0 || len(emptied) > 0 {
 		folded, ok := collapsed[closedKey]
 		items := closedItems(closed, selected, closedShown+closedExtra, kids, collapsed, now, oldest)
@@ -960,7 +969,7 @@ func displayStatus(rec record, children string) string {
 	if rec.AsksParent {
 		return statusAsksParent
 	}
-	if needsYou(rec) && rec.Status == statusDone || rec.heldWaits() {
+	if needsYou(rec) && rec.Status == statusDone || rec.heldWaits() || len(rec.callRequests()) > 0 {
 		return statusAsks
 	}
 	if rec.Review && rec.Status == statusDone {

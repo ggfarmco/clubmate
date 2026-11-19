@@ -204,7 +204,7 @@ func (a *app) answerOpen(ctx context.Context, s *session, workspaceID string, ar
 	if s.snapshot().closed() {
 		return a.answerClosed(ctx, s, picks, args.Note)
 	}
-	if err := a.prompt(workspaceID, promptArgs{Session: args.Session, Text: picks.prompt(args.Note), Attachments: attachments, Queued: true, Answered: picks.ids()}); err != nil {
+	if err := a.prompt(workspaceID, promptArgs{Session: args.Session, Text: picks.prompt(args.Note), Attachments: attachments, Queued: true, Answered: picks.ids(), User: true}); err != nil {
 		return nil, err
 	}
 	s.resolveOpen(openChange{Resolved: picks.resolved()})
@@ -297,7 +297,7 @@ func (a *app) openConvertCommand(_ context.Context, cmd pluginsdk.CommandRun, ar
 	if !a.userWord(cmd) {
 		return nil, errOpenUser
 	}
-	return nil, a.prompt(cmd.WorkspaceID, promptArgs{Session: args.Session, Text: convertText, Queued: true})
+	return nil, a.prompt(cmd.WorkspaceID, promptArgs{Session: args.Session, Text: convertText, Queued: true, User: true})
 }
 
 func (a *app) openTarget(cmd pluginsdk.CommandRun, session string) (*session, error) {

@@ -146,3 +146,20 @@ func TestAlwaysAllowRefusesSymlinks(t *testing.T) {
 	assert.Equal(t, "keep", string(data))
 	assert.NoFileExists(t, filepath.Join(filepath.Dir(victim), "settings.local.json"))
 }
+
+func TestBashAllowedTrustsOnlyUserAndManagedAllowRulesForAPlainCommand(t *testing.T) {
+	root := t.TempDir()
+	managed, home, dir := filepath.Join(root, "managed.json"), filepath.Join(root, "home"), filepath.Join(root, "repo")
+	writeSettings(t, filepath.Join(home, ".claude", "settings.json"), map[string]any{"permissions": map[string]any{"allow": []string{"Bash(git push:*)"}}})
+	writeSettings(t, managed, map[string]any{"permissions": map[string]any{"allow": []string{"Bash(make deploy)"}}})
+	writeSettings(t, filepath.Join(dir, ".claude", "settings.local.json"), map[string]any{"permissions": map[string]any{"allow": []string{"Bash(gh pr create:*)"}, "ask": []string{"Bash(git push --force:*)"}}})
+	a := newApp()
+	a.home, a.managedPath = home, managed
+	e := &Engine{a: a}
+
+	assert.True(t, e.BashAllowed(dir, "git push origin main"))
+	assert.True(t, e.BashAllowed(dir, "make deploy"))
+	assert.False(t, e.BashAllowed(dir, "git push --force origin main"))
+	assert.False(t, e.BashAllowed(dir, "git commit -m x && git push"))
+	assert.False(t, e.BashAllowed(dir, "gh pr create"))
+}

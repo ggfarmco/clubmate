@@ -82,7 +82,7 @@ func TestDocOpenWaitsForRelease(t *testing.T) {
 	}
 	testutil.Never(t, func() bool { return len(cards()) > 0 || g.shown(t, "docs.opened") || g.shown(t, "docs.presented") }, quiet)
 
-	g.pauseGate(t, g.ws, g.gate)
+	g.deleteGate(t, g.ws, g.gate)
 
 	testutil.Eventually(t, func() bool { c := cards(); return g.shown(t, "docs.opened") && len(c) == 1 && c[0].Presented }, wait)
 }
@@ -174,7 +174,7 @@ func TestReplayedDocCardStaysOnItsTurn(t *testing.T) {
 	g := startGatedDocs(t, nil, reply)
 	require.Equal(t, queuedNote, g.agentDoc(t, "docs.present"))
 	g.prompt(t, g.ws, g.sid, "again")
-	g.pauseGate(t, g.ws, g.gate)
+	g.deleteGate(t, g.ws, g.gate)
 
 	write(t, g.hold, "")
 

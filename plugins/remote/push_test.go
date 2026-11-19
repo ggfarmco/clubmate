@@ -49,7 +49,7 @@ func TestPushGoesToTokensWithoutAnOpenStream(t *testing.T) {
 	assert.JSONEq(t, `{"push":true}`, string(reply.Result))
 	f.openEvents(t, streaming, "")
 
-	res := f.pushNotification(t, `{"id":"ntf_1","workspace":"prj_1","session":"agt_1","message":"Run tests?","kind":"permission"}`)
+	res := f.pushNotification(t, `{"id":"ntf_1","workspace":"prj_1","session":"agt_1","message":"Run tests?","kind":"permission","request":"lg_1"}`)
 
 	assert.Equal(t, "phone-b skipped, stream open · phone-c 200", res.Summary)
 	reqs := relay.requests()
@@ -72,6 +72,7 @@ func TestPushGoesToTokensWithoutAnOpenStream(t *testing.T) {
 			"workspace": "prj_1",
 			"session":   "agt_1",
 			"kind":      "permission",
+			"request":   "lg_1",
 		},
 	}, reqs[0].body)
 }
@@ -314,7 +315,7 @@ func TestResolvedSendsABackgroundPush(t *testing.T) {
 		"type":        "background",
 		"payload": map[string]any{
 			"aps":      map[string]any{"content-available": float64(1)},
-			"resolved": map[string]any{"computer": "cmp", "session": "agt_1", "requestKind": "elicitation"},
+			"resolved": map[string]any{"computer": "cmp", "session": "agt_1", "request": "r1", "requestKind": "elicitation"},
 		},
 	}, reqs[0].body)
 }

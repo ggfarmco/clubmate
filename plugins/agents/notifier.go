@@ -97,6 +97,7 @@ type notifyPost struct {
 	Kind        string `json:"kind"`
 	Quiet       bool   `json:"quiet,omitempty"`
 	Always      bool   `json:"always,omitempty"`
+	Request     string `json:"request,omitempty"`
 }
 
 type change struct {

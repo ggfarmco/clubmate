@@ -375,6 +375,7 @@ func (a *app) docGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, args
 	if err != nil {
 		return nil, err
 	}
+	gates = doneGates(gates, rec)
 	if !turnGated(gates) || !mayHoldDone(ctx, gates, rec) {
 		return docGateResult{}, nil
 	}

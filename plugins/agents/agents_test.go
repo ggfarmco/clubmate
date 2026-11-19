@@ -69,7 +69,13 @@ type record struct {
 		Kind string `json:"kind"`
 		Text string `json:"text"`
 	} `json:"pendingSummary"`
-	Suspended     bool   `json:"suspended"`
+	Suspended bool `json:"suspended"`
+	Hooked    bool `json:"hooked"`
+	Ungated   *struct {
+		Chip  string `json:"chip"`
+		Badge string `json:"badge"`
+		Line  string `json:"line"`
+	} `json:"ungated"`
 	AutoClosed    bool   `json:"autoClosed"`
 	CleanupOnSeen bool   `json:"cleanupOnSeen"`
 	ClosedStatus  string `json:"closedStatus"`
@@ -93,11 +99,17 @@ type record struct {
 		Tone     string `json:"tone"`
 		Reviewer string `json:"reviewer"`
 		Ask      string `json:"ask"`
+		Line     string `json:"line"`
+		Ungated  bool   `json:"ungated"`
+		Badge    string `json:"badge"`
+		Held     string `json:"held"`
+		Hint     string `json:"hint"`
 	} `json:"landing"`
-	AsksParent      bool     `json:"asksParent"`
-	ChildStatus     string   `json:"childStatus"`
-	DisallowedTools []string `json:"disallowedTools"`
-	StartModel      string   `json:"startModel"`
+	Calls           []callRow `json:"calls"`
+	AsksParent      bool      `json:"asksParent"`
+	ChildStatus     string    `json:"childStatus"`
+	DisallowedTools []string  `json:"disallowedTools"`
+	StartModel      string    `json:"startModel"`
 	GateFor         *struct {
 		Gate    string `json:"gate"`
 		Lander  string `json:"lander"`
@@ -148,6 +160,19 @@ type record struct {
 	} `json:"composerDraft"`
 }
 
+type callRow struct {
+	Gate    string `json:"gate"`
+	Tool    string `json:"tool"`
+	Input   string `json:"input"`
+	Caption string `json:"caption"`
+	Round   int    `json:"round"`
+	Of      int    `json:"of"`
+	Held    bool   `json:"held"`
+	Request string `json:"request"`
+	Run     string `json:"run"`
+	Wait    string `json:"wait"`
+}
+
 type entry struct {
 	Kind        string `json:"kind"`
 	ID          string `json:"id"`
@@ -167,6 +192,7 @@ type entry struct {
 	Items     []openItem                 `json:"items"`
 	Overflow  []int                      `json:"overflow"`
 	Later     bool                       `json:"later"`
+	Gate      json.RawMessage            `json:"gateMessage"`
 }
 
 type transcript struct {

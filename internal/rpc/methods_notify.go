@@ -21,6 +21,7 @@ const (
 	notifyMethod      = "notify.post"
 	notifyTimeLayout  = time.RFC3339Nano
 	notifyAgentSource = "agent"
+	notifyRequestMax  = 128
 )
 
 var notifySessionPattern = regexp.MustCompile(`^[a-z]{2,8}_[0-9a-f]{16}$`)
@@ -34,6 +35,7 @@ type notifyParams struct {
 	Kind        string `json:"kind"`
 	Quiet       bool   `json:"quiet"`
 	Always      bool   `json:"always"`
+	Request     string `json:"request"`
 }
 
 type notifyPayload struct {
@@ -48,6 +50,7 @@ type notifyPayload struct {
 	Agent     bool   `json:"agent,omitempty"`
 	Quiet     bool   `json:"quiet,omitempty"`
 	Always    bool   `json:"always,omitempty"`
+	Request   string `json:"request,omitempty"`
 	TS        string `json:"ts"`
 }
 
@@ -110,6 +113,9 @@ func (s *Server) notifyPayload(ctx context.Context, p notifyParams) (notifyPaylo
 	if p.Collapse != "" && p.Collapse != p.Session {
 		return notifyPayload{}, invalidParams("collapse must be the notification's session")
 	}
+	if len(p.Request) > notifyRequestMax {
+		return notifyPayload{}, invalidParams(fmt.Sprintf("request is at most %d bytes", notifyRequestMax))
+	}
 	return notifyPayload{
 		ID:        id.New(notifyPrefix),
 		Workspace: p.WorkspaceID,
@@ -122,6 +128,7 @@ func (s *Server) notifyPayload(ctx context.Context, p notifyParams) (notifyPaylo
 		Agent:     isAgentCall(ctx),
 		Quiet:     p.Quiet,
 		Always:    p.Always && CallerFrom(ctx).IsPlugin() && !isAgentCall(ctx),
+		Request:   p.Request,
 		TS:        time.Now().UTC().Format(notifyTimeLayout),
 	}, nil
 }

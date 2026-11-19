@@ -33,6 +33,8 @@ const (
 	gateLandWaits    = "1 landing waits: %s"
 	gateLandsWait    = "%d landings wait: %s +%d"
 	gateLandInto     = "%s into %s"
+	gateCallWaits    = "1 call waits: %s"
+	gateCallsWait    = "%d calls wait: %s +%d"
 )
 
 type graphDiff struct {
@@ -95,6 +97,13 @@ func trustWaitsText(r gateRow) string {
 			return gateTrustNothing + " " + fmt.Sprintf(gateTurnWaits, what) + "."
 		}
 		return gateTrustNothing + " " + fmt.Sprintf(gateTurnsWait, len(waits), what, len(waits)-1) + "."
+	}
+	if r.Point == gatePointTool {
+		what := cmp.Or(first.Call, first.Title, gateNone)
+		if len(waits) == 1 {
+			return gateTrustNothing + " " + fmt.Sprintf(gateCallWaits, what) + "."
+		}
+		return gateTrustNothing + " " + fmt.Sprintf(gateCallsWait, len(waits), what, len(waits)-1) + "."
 	}
 	what := fmt.Sprintf(gateLandInto, cmp.Or(first.Source, first.Title, gateNone), first.Into)
 	if len(waits) == 1 {

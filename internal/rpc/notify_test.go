@@ -30,6 +30,7 @@ func TestNotifyPostValidatesAndPublishes(t *testing.T) {
 		"foreign session":   {"workspaceId": p.ID, "message": "hi", "session": s.ID},
 		"malformed session": {"workspaceId": p.ID, "message": "hi", "session": "../x"},
 		"foreign collapse":  {"workspaceId": p.ID, "message": "hi", "collapse": "agt_0123456789abcdef"},
+		"long request":      {"workspaceId": p.ID, "message": "hi", "request": strings.Repeat("r", 129)},
 	} {
 		assert.ErrorIs(t, c.Call(t.Context(), "notify.post", params, nil), rpc.ErrInvalidParams, name)
 	}
@@ -37,7 +38,7 @@ func TestNotifyPostValidatesAndPublishes(t *testing.T) {
 	var res struct {
 		ID string `json:"id"`
 	}
-	require.NoError(t, c.Call(t.Context(), "notify.post", map[string]any{"workspaceId": other.ID, "session": s.ID, "collapse": s.ID, "quiet": true, "always": true, "title": "Claude", "message": strings.Repeat("x", 1500)}, &res))
+	require.NoError(t, c.Call(t.Context(), "notify.post", map[string]any{"workspaceId": other.ID, "session": s.ID, "collapse": s.ID, "quiet": true, "always": true, "title": "Claude", "request": "lg_1", "message": strings.Repeat("x", 1500)}, &res))
 	events := testutil.WaitEvents(t, b, "notify.posted", func(e []bus.Event) bool { return len(e) > 0 })
 	require.Len(t, events, 1)
 	var got map[string]any
@@ -49,6 +50,7 @@ func TestNotifyPostValidatesAndPublishes(t *testing.T) {
 	assert.Equal(t, true, got["quiet"])
 	assert.NotContains(t, got, "always", "only a plugin decides a notification ignores the session's policy")
 	assert.Equal(t, "Claude", got["title"])
+	assert.Equal(t, "lg_1", got["request"])
 	assert.Equal(t, "info", got["kind"])
 	assert.Len(t, []rune(got["message"].(string)), 1000)
 	assert.NotEmpty(t, got["ts"])

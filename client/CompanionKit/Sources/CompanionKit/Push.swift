@@ -30,6 +30,7 @@ public struct DeliveredNotice: Sendable, Equatable {
     public let computer: String?
     public let session: String?
     public let kind: String?
+    public let request: String?
 
     public init(identifier: String, userInfo: [AnyHashable: Any]) {
         self.identifier = identifier
@@ -37,6 +38,7 @@ public struct DeliveredNotice: Sendable, Equatable {
         computer = userInfo["computer"] as? String
         session = userInfo["session"] as? String
         kind = userInfo["kind"] as? String
+        request = userInfo["request"] as? String
     }
 
     public static func withdrawn(_ ids: Set<String>, from delivered: [DeliveredNotice]) -> [String] {
@@ -48,7 +50,13 @@ public struct DeliveredNotice: Sendable, Equatable {
               let computer = resolved["computer"] as? String,
               let session = resolved["session"] as? String else { return nil }
         let kinds = Set(NotificationKind.resolved(by: resolved["requestKind"] as? String).map(\.rawValue))
-        return delivered.filter { $0.computer == computer && $0.session == session && $0.kind.map(kinds.contains) == true }.map(\.identifier)
+        let request = cardRequest(resolved["requestKind"] as? String, resolved["request"] as? String)
+        return delivered.filter { $0.computer == computer && $0.session == session && $0.kind.map(kinds.contains) == true && (request == nil || $0.request == request) }.map(\.identifier)
+    }
+
+    public static func cardRequest(_ requestKind: String?, _ request: String?) -> String? {
+        guard requestKind == "gate", let request, !request.isEmpty else { return nil }
+        return request
     }
 }
 

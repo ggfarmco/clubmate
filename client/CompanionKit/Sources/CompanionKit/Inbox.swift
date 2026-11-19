@@ -15,9 +15,10 @@ public struct InboxItem: Sendable, Equatable, Identifiable, Hashable {
     public let pushed: Bool
     public let quiet: Bool
     public let always: Bool
+    public let request: String?
     public let date: Date
 
-    public init(notificationID: String, computerID: String, workspace: String, session: String? = nil, collapse: String? = nil, title: String = "", message: String, kind: NotificationKind = .info, viaAgent: Bool = false, pushed: Bool = false, quiet: Bool = false, always: Bool = false, date: Date) {
+    public init(notificationID: String, computerID: String, workspace: String, session: String? = nil, collapse: String? = nil, title: String = "", message: String, kind: NotificationKind = .info, viaAgent: Bool = false, pushed: Bool = false, quiet: Bool = false, always: Bool = false, request: String? = nil, date: Date) {
         self.notificationID = notificationID
         self.computerID = computerID
         self.workspace = workspace
@@ -30,6 +31,7 @@ public struct InboxItem: Sendable, Equatable, Identifiable, Hashable {
         self.pushed = pushed
         self.quiet = quiet
         self.always = always
+        self.request = request
         self.date = date
     }
 
@@ -52,6 +54,7 @@ public struct InboxItem: Sendable, Equatable, Identifiable, Hashable {
             pushed: posted.pushed,
             quiet: posted.quiet,
             always: posted.always,
+            request: posted.request,
             date: posted.date ?? received
         )
     }
@@ -94,8 +97,8 @@ public struct Inbox: Sendable, Equatable {
         unread.removeAll()
     }
 
-    public mutating func resolve(computer: String, session: String, kind: NotificationKind) -> [String] {
-        let resolved = items.filter { $0.computerID == computer && $0.session == session && $0.kind == kind }.map(\.id)
+    public mutating func resolve(computer: String, session: String, kind: NotificationKind, request: String? = nil) -> [String] {
+        let resolved = items.filter { $0.computerID == computer && $0.session == session && $0.kind == kind && (request == nil || $0.request == request) }.map(\.id)
         unread.subtract(resolved)
         return resolved
     }
@@ -120,6 +123,7 @@ public struct LocalAlert: Sendable, Equatable {
     public let session: String?
     public let kind: NotificationKind
     public let quiet: Bool
+    public let request: String?
 
     public init?(_ item: InboxItem, computerName: String, workspaceName: String?, now: Date) {
         guard Self.kinds.contains(item.kind), now.timeIntervalSince(item.date) < Self.window else { return nil }
@@ -133,6 +137,14 @@ public struct LocalAlert: Sendable, Equatable {
         session = item.session
         kind = item.kind
         quiet = item.quiet
+        request = item.request
+    }
+
+    public var userInfo: [String: String] {
+        var info = ["id": id, "computer": computerID, "workspace": workspace, "kind": kind.rawValue]
+        if let session { info["session"] = session }
+        if let request { info["request"] = request }
+        return info
     }
 }
 

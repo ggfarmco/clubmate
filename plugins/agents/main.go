@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -17,6 +18,7 @@ import (
 
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/acp"
 	"clubmate/plugins/agents/api"
 	"clubmate/plugins/agents/graphs"
 	"clubmate/plugins/internal/delta"
@@ -37,22 +39,23 @@ var (
 )
 
 type app struct {
-	host      *pluginsdk.Host
-	stateDir  string
-	sendHold  time.Duration
-	takeHold  time.Duration
-	loaded    chan struct{}
-	quit      chan struct{}
-	notes     *notifier
-	groups    *groups
-	codePanel bool
-	usage     usageTracker
-	branches  branchCache
-	texts     textIndex
-	found     searchCache
-	watchdog  watchdog
-	reviews   *reviewBoard
-	self      *selfStore
+	host       *pluginsdk.Host
+	stateDir   string
+	sendHold   time.Duration
+	takeHold   time.Duration
+	roundAfter time.Duration
+	loaded     chan struct{}
+	quit       chan struct{}
+	notes      *notifier
+	groups     *groups
+	codePanel  bool
+	usage      usageTracker
+	branches   branchCache
+	texts      textIndex
+	found      searchCache
+	watchdog   watchdog
+	reviews    *reviewBoard
+	self       *selfStore
 
 	sessionRevs delta.Observed
 	runNeeds    runNeeds
@@ -92,6 +95,8 @@ type app struct {
 	trustPoll      time.Duration
 	trustPolls     sync.Map
 	gateRepos      sync.Map
+	hookMu         sync.Mutex
+	hookPrimaries  sync.Map
 	landWork       coalesced
 	onceLocks      onceLocks
 	archiving      archiveClaims
@@ -146,11 +151,15 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.rechecks = recheckDelays(envDelay(recheckEnv, 0))
 	a.trustPoll = envDelay(trustPollEnv, trustPollDefault)
 	a.takeHold = envDelay(takeHoldEnv, 0)
+	a.roundAfter = envDelay(roundResetEnv, roundReset)
 	a.groups = newGroups(a.stateDir)
 	a.groups.reap(orphanMarkers())
 	a.self = newSelfStore(a.stateDir)
 	a.graphs = a.newGraphs(h)
 	installHooks(a.stateDir)
+	logError("write the tool hooks", a.syncToolHooks(ctx))
+	a.sweepToolHooks(time.Now())
+	go a.hookLoop(envDelay(toolHookPollEnv, toolHookPoll))
 	var sections []sectionRef
 	if err := h.Call(ctx, "ui.sections", nil, &sections); err != nil {
 		return err
@@ -177,9 +186,11 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 			rec.Status = statusRunning
 			a.watchdog.heldAtStart(rec.ID)
 		}
+		cleared := rec.clearCalls()
 		queue, spilled := rec.Queue, rec.QueueSpilled
 		rec.Queue, rec.QueueSpilled = nil, false
 		s := a.addSession(rec, false, nil)
+		s.unmarkCalls(cleared)
 		unsent := false
 		if !rec.closed() {
 			if spilled {
@@ -200,6 +211,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 			}
 		}
 	}
+	a.sweepInputs()
 	go a.texts.warm(a.stateDir, recs)
 	go a.reconcileLimitWaits()
 	ready, err := h.Publish(ctx, h.PluginID()+".ready", nil)
@@ -259,6 +271,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	go a.deleteOldLoop(envDelay(deleteAfterEnv, deleteAfter))
 	go a.prCheckLoop(envDelay(prCheckEnv, prCheckEvery))
 	go a.ageOpenLoop(envDelay(openAfterEnv, openAfter))
+	go a.roundResetLoop(a.roundAfter)
 	a.settleAllGatedDocs()
 	go a.continueCutOff(cut)
 	go a.ensureSelf(context.WithoutCancel(ctx))
@@ -358,13 +371,10 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 		a.notes.mark(s, kind, save)
 		a.kick(rec.Workspace)
 	})
-	if rec.Held != nil {
-		h := *rec.Held
-		s.holdOf = &h
-	}
+	s.holdOf = heldCopies(rec)
 	s.cards = rec.openCards()
 	a.trustNeeds.seed(rec)
-	s.trustOf = waitsForTrust(rec)
+	s.trustOf = strings.Join(waitsForTrust(rec), ",")
 	s.setup = ready
 	s.wantTasks = func() { a.wantTasks(rec.Workspace, s) }
 	s.turned = func(t api.Turn) {
@@ -372,6 +382,12 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 		a.notes.turn(t)
 	}
 	s.idled = func() { a.settleBackground(s) }
+	s.holdCall = func(ctx context.Context, p *agentProc, request string, req acp.RequestPermissionRequest) (acp.PermissionOutcome, bool) {
+		return a.holdCall(ctx, s, p, request, req)
+	}
+	s.withdrawCall = func(request string) bool { return a.withdrawCall(s, request) }
+	s.cycled = func() { a.cycleStarted(s) }
+	s.ran = func(c endedCall) { a.judgeCall(s, c) }
 	s.resolved = func(kind, request string) { a.notes.resolved(s, kind, request) }
 	s.began = a.notes.superseded
 	s.requested = func(kind, request string) {
@@ -462,7 +478,9 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		info.NeedsYou = needsYou(info.record)
 		info.Gate = a.gateState(info.record)
 		info.Landing = a.landing(info.record)
+		info.Ungated = a.ungated(info.record)
 		info.TurnHeld = a.turnHeld(info.record)
+		info.Calls = a.callViews(info.record)
 		info.HeldRound = a.heldRound(info.record)
 		info.Service = rec.restricted()
 		info.Aside = asideViewOf(rec)

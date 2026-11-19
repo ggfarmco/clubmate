@@ -438,6 +438,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     public enum Content: Sendable, Equatable {
         case user(text: String, fromAgent: Bool, images: [Data], files: [String] = [])
         case voice(VoicePrompt)
+        case gateMessage(GateMessage)
         case agent(String)
         case thought(String)
         case tool(ToolCall)
@@ -463,7 +464,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     let raw: JSONValue
 
     enum CodingKeys: String, CodingKey {
-        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, afk, from, compaction, elicitation, response, completed, stoppable, doc, hidden, docLinks, docCards, images, imageLinks, taskLinks, card, voice, items, overflow, later, toolSummary
+        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, afk, from, compaction, elicitation, response, completed, stoppable, doc, hidden, docLinks, docCards, images, imageLinks, taskLinks, card, voice, items, overflow, later, toolSummary, gate, heldCalls, gateMessage
     }
 
     static let outgoingPrefix = "outgoing/"
@@ -490,6 +491,10 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         id.hasPrefix(Self.outgoingPrefix)
     }
 
+    var toolCall: ToolCall? {
+        if case .tool(let call) = content { call } else { nil }
+    }
+
     public init(from decoder: any Decoder) throws {
         raw = try JSONValue(from: decoder)
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -510,6 +515,10 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
                 content = .voice(VoicePrompt(heard: voice.heard, utterance: voice.utterance, prompt: text))
                 return
             }
+            if let gate = try? c.decodeIfPresent(GateMessage.self, forKey: .gateMessage), !gate.groups.isEmpty {
+                content = .gateMessage(gate)
+                return
+            }
             let blocks = (try? c.decodeIfPresent([JSONValue].self, forKey: .content)) ?? []
             let images = blocks.compactMap { $0["type"]?.stringValue == "image" ? Data(base64Encoded: $0["data"]?.stringValue ?? "") ?? Data() : nil }
             let files = blocks.compactMap { block -> String? in
@@ -525,7 +534,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         case .thought:
             content = .thought(text)
         case .tool:
-            content = .tool(ToolCall(id: entryID, fields: (try? c.decodeIfPresent(JSONValue.self, forKey: .tool)) ?? .null, stoppable: (try? c.decodeIfPresent(Bool.self, forKey: .stoppable)) ?? false, at: at, doc: try? c.decodeIfPresent(String.self, forKey: .doc), hidden: (try? c.decodeIfPresent(Bool.self, forKey: .hidden)) ?? false, summary: try? c.decodeIfPresent(ToolSummary.self, forKey: .toolSummary)))
+            content = .tool(ToolCall(id: entryID, fields: (try? c.decodeIfPresent(JSONValue.self, forKey: .tool)) ?? .null, stoppable: (try? c.decodeIfPresent(Bool.self, forKey: .stoppable)) ?? false, at: at, doc: try? c.decodeIfPresent(String.self, forKey: .doc), hidden: (try? c.decodeIfPresent(Bool.self, forKey: .hidden)) ?? false, summary: try? c.decodeIfPresent(ToolSummary.self, forKey: .toolSummary), gate: try? c.decodeIfPresent(CallBlock.self, forKey: .gate), held: ((try? c.decodeIfPresent([TranscriptEntry].self, forKey: .heldCalls)) ?? []).compactMap(\.toolCall)))
         case .plan:
             let plan = (try? c.decodeIfPresent(JSONValue.self, forKey: .plan)) ?? .null
             content = .plan((plan["entries"]?.arrayValue ?? []).map(PlanItem.init))
@@ -614,9 +623,13 @@ public struct ToolCall: Sendable, Equatable {
     public let doc: String?
     public let hidden: Bool
     public let summary: ToolSummary?
+    public let gate: CallBlock?
+    public let held: [ToolCall]
 
-    public init(id: String, fields: JSONValue, stoppable: Bool = false, at: Date? = nil, doc: String? = nil, hidden: Bool = false, summary: ToolSummary? = nil) {
+    public init(id: String, fields: JSONValue, stoppable: Bool = false, at: Date? = nil, doc: String? = nil, hidden: Bool = false, summary: ToolSummary? = nil, gate: CallBlock? = nil, held: [ToolCall] = []) {
         self.id = id
+        self.gate = gate
+        self.held = held
         self.stoppable = stoppable
         self.at = at
         self.doc = doc
@@ -666,6 +679,98 @@ public struct ToolCall: Sendable, Equatable {
 
     public var hasDetails: Bool {
         hasDiffs || !output.isEmpty || command != nil || summary?.output == true
+    }
+
+    public var countsFailed: Bool {
+        status == .failed && gate == nil
+    }
+
+    public var isHeldBlock: Bool {
+        gate?.title?.isEmpty == false
+    }
+}
+
+public struct CallBlock: Decodable, Sendable, Equatable {
+    public struct Line: Decodable, Sendable, Equatable {
+        public let text: String
+        public let state: String?
+        public let round: Int
+        public let review: String?
+
+        enum CodingKeys: String, CodingKey {
+            case text, state, round, review
+        }
+
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            text = (try? c.decodeIfPresent(String.self, forKey: .text)) ?? ""
+            state = try? c.decodeIfPresent(String.self, forKey: .state)
+            round = (try? c.decodeIfPresent(Int.self, forKey: .round)) ?? 0
+            review = try? c.decodeIfPresent(String.self, forKey: .review)
+        }
+    }
+
+    public let state: String
+    public let word: String?
+    public let title: String?
+    public let caption: String?
+    public let tool: String?
+    public let input: String?
+    public let lines: [Line]
+    public let note: String?
+
+    enum CodingKeys: String, CodingKey {
+        case state, word, title, caption, tool, input, lines, note
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        state = (try? c.decodeIfPresent(String.self, forKey: .state)) ?? ""
+        word = try? c.decodeIfPresent(String.self, forKey: .word)
+        title = try? c.decodeIfPresent(String.self, forKey: .title)
+        caption = try? c.decodeIfPresent(String.self, forKey: .caption)
+        tool = try? c.decodeIfPresent(String.self, forKey: .tool)
+        input = try? c.decodeIfPresent(String.self, forKey: .input)
+        lines = (try? c.decodeIfPresent([Line].self, forKey: .lines)) ?? []
+        note = try? c.decodeIfPresent(String.self, forKey: .note)
+    }
+
+    public var reviewOnTitle: String? {
+        lines.count == 1 ? lines[0].review?.nilIfEmpty : nil
+    }
+}
+
+public struct GateMessage: Decodable, Sendable, Equatable {
+    public struct Group: Decodable, Sendable, Equatable {
+        public let title: String
+        public let findings: [String]
+        public let deferred: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case title, head, findings, deferred
+        }
+
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            title = (try? c.decodeIfPresent(String.self, forKey: .title)).flatMap(\.nilIfEmpty) ?? (try? c.decodeIfPresent(String.self, forKey: .head)) ?? ""
+            findings = (try? c.decodeIfPresent([String].self, forKey: .findings)) ?? []
+            deferred = (try? c.decodeIfPresent([String].self, forKey: .deferred)) ?? []
+        }
+    }
+
+    public let groups: [Group]
+    public let tail: String
+    public let call: String
+
+    enum CodingKeys: String, CodingKey {
+        case groups, tail, call
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        groups = (try? c.decodeIfPresent([Group].self, forKey: .groups)) ?? []
+        tail = (try? c.decodeIfPresent(String.self, forKey: .tail)) ?? ""
+        call = (try? c.decodeIfPresent(String.self, forKey: .call)) ?? ""
     }
 }
 

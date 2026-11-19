@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,25 +35,49 @@ type trustNeeds struct {
 	byWS   map[string]map[string]bool
 }
 
-func waitsForTrust(rec record) string {
-	if h := rec.Held; h != nil && h.Wait == graphs.ErrGateGraphChanged.Error() && !h.Unread && !rec.closed() {
-		return h.Gate
+func holdWaitsTrust(h *heldTurn) bool {
+	return h != nil && h.Wait == graphs.ErrGateGraphChanged.Error() && !h.Unread
+}
+
+func trustHolds(rec record) []*heldTurn {
+	if rec.closed() {
+		return nil
 	}
-	return ""
+	var out []*heldTurn
+	if holdWaitsTrust(rec.Held) {
+		out = append(out, rec.Held)
+	}
+	for _, c := range rec.Calls {
+		if holdWaitsTrust(c.Hold) {
+			out = append(out, c.Hold)
+		}
+	}
+	return out
+}
+
+func waitsForTrust(rec record) []string {
+	var out []string
+	for _, h := range trustHolds(rec) {
+		if !slices.Contains(out, h.Gate) {
+			out = append(out, h.Gate)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 func (s *session) trustFlipped() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	gate := waitsForTrust(s.rec)
+	gates := strings.Join(waitsForTrust(s.rec), ",")
 	was := s.trustOf
-	s.trustOf = gate
-	return gate != was
+	s.trustOf = gates
+	return gates != was
 }
 
 func (n *trustNeeds) seed(rec record) {
-	gate := waitsForTrust(rec)
-	if gate == "" {
+	gates := waitsForTrust(rec)
+	if len(gates) == 0 {
 		return
 	}
 	n.mu.Lock()
@@ -63,7 +88,9 @@ func (n *trustNeeds) seed(rec record) {
 	if n.byWS[rec.Workspace] == nil {
 		n.byWS[rec.Workspace] = map[string]bool{}
 	}
-	n.byWS[rec.Workspace][gate] = true
+	for _, gate := range gates {
+		n.byWS[rec.Workspace][gate] = true
+	}
 }
 
 func (n *trustNeeds) waiting(workspace, gate string) bool {
@@ -87,19 +114,17 @@ func (a *app) trustWaiting(workspace string) []trustNeed {
 	byGate := map[string]*trustNeed{}
 	for _, s := range a.workspaceSessions(workspace) {
 		rec := s.snapshot()
-		gate := waitsForTrust(rec)
-		if gate == "" {
-			continue
-		}
-		since := cmp.Or(rec.Held.Since, rec.UpdatedAt)
-		n := byGate[gate]
-		if n == nil {
-			n = &trustNeed{Gate: gate, Since: since}
-			byGate[gate] = n
-		}
-		n.Waits++
-		if since.Before(n.Since) {
-			n.Since = since
+		for _, h := range trustHolds(rec) {
+			since := cmp.Or(h.Since, rec.UpdatedAt)
+			n := byGate[h.Gate]
+			if n == nil {
+				n = &trustNeed{Gate: h.Gate, Since: since}
+				byGate[h.Gate] = n
+			}
+			n.Waits++
+			if since.Before(n.Since) {
+				n.Since = since
+			}
 		}
 	}
 	var out []trustNeed
@@ -175,8 +200,8 @@ func needEntries(needs map[string]runNeed, infos []sessionInfo) []string {
 	return out
 }
 
-func (a *app) pollTrust(s *session) {
-	id := s.snapshot().ID
+func (a *app) pollTrust(r holdRef) {
+	id := r.s.snapshot().ID + "/" + r.gate
 	if a.trustPoll <= 0 {
 		return
 	}
@@ -185,8 +210,8 @@ func (a *app) pollTrust(s *session) {
 	}
 	time.AfterFunc(a.trustPoll, func() {
 		a.trustPolls.Delete(id)
-		if h := s.snapshot().Held; h != nil && h.Wait != "" && !h.Unread {
-			a.reviewHeld(s)
+		if h := r.get(); h != nil && h.Wait != "" && !h.Unread {
+			a.reviewHeld(r)
 		}
 	})
 }

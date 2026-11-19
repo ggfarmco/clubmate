@@ -136,21 +136,34 @@ func doneWroteClause(wrote []string) string {
 }
 
 func pointIcon(point string) string {
-	if point == gatePointTurn {
+	switch point {
+	case gatePointTurn:
 		return gateDoneIcon
+	case gatePointTool:
+		return gateToolIcon
 	}
 	return gateLandIcon
 }
 
 func pointOrder(point string) int {
-	if point == gatePointTurn {
+	switch point {
+	case gatePointTurn:
 		return 1
+	case gatePointTool:
+		return 2
 	}
 	return 0
 }
 
+func heldPoint(point string) bool {
+	return point == gatePointTurn || point == gatePointTool
+}
+
 func dockGateLabel(name string) string {
 	if label, ok := strings.CutPrefix(name, gateNameDone); ok {
+		return label
+	}
+	if label, ok := strings.CutPrefix(name, gateNameTool); ok {
 		return label
 	}
 	return strings.TrimPrefix(name, gateNameLanding)
@@ -159,18 +172,25 @@ func dockGateLabel(name string) string {
 func gateHoldsField(d gateDraft) []sdui.Node {
 	if d.Edit != "" {
 		word := gatePointLanding
-		if d.Point == gatePointTurn {
+		switch d.Point {
+		case gatePointTurn:
 			word = gatePointDone
+		case gatePointTool:
+			word = gatePointToolCall
 		}
 		return []sdui.Node{sdui.HStack(sdui.MutedText("Holds"), sdui.Text(word))}
 	}
 	tabs := sdui.WithAction(sdui.WithSegmented(sdui.Tabs(gateSheetID+"/holds", []sdui.Item{
 		{ID: gatePointLand, Label: gatePointLanding, Icon: gateLandIcon},
 		{ID: gatePointTurn, Label: gatePointDone, Icon: gateDoneIcon},
+		{ID: gatePointTool, Label: gatePointToolCall, Icon: gateToolIcon},
 	}, cmp.Or(d.Point, gatePointLand))), actGateHolds)
 	line := gateHoldsLine
-	if d.Point == gatePointTurn {
+	switch d.Point {
+	case gatePointTurn:
 		line = gateHoldsDoneLine
+	case gatePointTool:
+		line = gateHoldsToolLine
 	}
 	return []sdui.Node{sdui.HStack(sdui.MutedText("Holds"), tabs), sdui.MutedText(line)}
 }
@@ -412,8 +432,11 @@ func heldWaits(rec record) bool {
 }
 
 func trustText(point string) string {
-	if point == gatePointTurn {
+	switch point {
+	case gatePointTurn:
 		return gateTrustDoneText
+	case gatePointTool:
+		return gateTrustToolText
 	}
 	return gateTrustText
 }

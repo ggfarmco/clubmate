@@ -104,6 +104,14 @@ final class ModelTests: XCTestCase {
         XCTAssertTrue(others.allSatisfy(inbox.isUnread))
     }
 
+    func testGateResolveWithdrawsOnlyItsCardFromTheInbox() {
+        var inbox = Inbox()
+        let cards = ["lg_1", "lg_2"].map { InboxItem(notificationID: $0, computerID: "m", workspace: "w", session: "agt_1", message: "", kind: .needsInput, request: $0, date: .distantPast) }
+        for card in cards { inbox.add(card) }
+        XCTAssertEqual(inbox.resolve(computer: "m", session: "agt_1", kind: .needsInput, request: "lg_1"), [cards[0].id])
+        XCTAssertTrue(inbox.isUnread(cards[1]))
+    }
+
     func testInboxAgeIsCompact() {
         let now = Date(timeIntervalSince1970: 200_000)
         let ages = [30, 600, 3_700, 90_000].map { InboxItem(notificationID: "n", computerID: "m", workspace: "w", message: "", date: now.addingTimeInterval(-TimeInterval($0))).age(now: now) }

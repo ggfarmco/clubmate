@@ -122,6 +122,7 @@ type notifyPayload struct {
 	Kind      string `json:"kind"`
 	Quiet     bool   `json:"quiet"`
 	Always    bool   `json:"always"`
+	Request   string `json:"request"`
 	TS        string `json:"ts"`
 }
 
@@ -135,6 +136,7 @@ func (n notifyPayload) collapseID() string {
 type agentsChanged struct {
 	Session     string `json:"session"`
 	Kind        string `json:"kind"`
+	Request     string `json:"request"`
 	RequestKind string `json:"requestKind"`
 }
 
@@ -154,6 +156,7 @@ type alertBody struct {
 	Workspace string   `json:"workspace"`
 	Session   string   `json:"session,omitempty"`
 	Kind      string   `json:"kind"`
+	Request   string   `json:"request,omitempty"`
 }
 
 type alertAPS struct {
@@ -181,6 +184,7 @@ type backgroundAPS struct {
 type resolvedPush struct {
 	Computer    string `json:"computer"`
 	Session     string `json:"session"`
+	Request     string `json:"request,omitempty"`
 	RequestKind string `json:"requestKind"`
 }
 
@@ -267,6 +271,7 @@ func (s *server) pushCommand(ctx context.Context, workspace string, enabled bool
 		Workspace: workspace,
 		Session:   n.Session,
 		Kind:      n.Kind,
+		Request:   n.Request,
 	})
 	if err != nil {
 		return pushResult{}, err
@@ -332,7 +337,7 @@ func (s *server) pushResolved(ctx context.Context, ev pluginsdk.Event) {
 	}
 	body, err := json.Marshal(backgroundBody{
 		APS:      backgroundAPS{ContentAvailable: 1},
-		Resolved: resolvedPush{Computer: s.identity.get().ID, Session: c.Session, RequestKind: c.RequestKind},
+		Resolved: resolvedPush{Computer: s.identity.get().ID, Session: c.Session, Request: c.Request, RequestKind: c.RequestKind},
 	})
 	if err != nil {
 		return

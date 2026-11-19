@@ -140,6 +140,47 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(prompt.json, "{\n  \"context\" : {\n    \"path\" : \"a/b\"\n  },\n  \"heard\" : \"удали ворктри\"\n}")
     }
 
+    private func gateCalls() throws -> [TranscriptEntry] {
+        try JSONDecoder.clubmate.decode([TranscriptEntry].self, from: fixture("agents-gate-calls"))
+    }
+
+    func testHeldCallEntryDecodes() throws {
+        let entries = try gateCalls()
+        guard case .tool(let one) = entries[0].content, case .tool(let two) = entries[1].content, case .tool(let agent) = entries[4].content else { return XCTFail("unexpected \(entries)") }
+        let block = try XCTUnwrap(one.gate)
+        XCTAssertTrue(one.isHeldBlock)
+        XCTAssertEqual([block.title, block.caption, block.tool, block.input], ["Held by a gate", "shop · git push · round 1 of 2", "Bash", "git push origin fix/cart"])
+        XCTAssertEqual(block.lines.map(\.text), ["Fable review → approved / changes"])
+        XCTAssertEqual(block.reviewOnTitle, "agt_rev")
+        XCTAssertEqual(two.gate?.lines.map(\.state), ["approved · waits for gh pr create", "reviewing · <1 min"])
+        XCTAssertNil(two.gate?.reviewOnTitle)
+        XCTAssertEqual(agent.held.map(\.id), ["s1"])
+        XCTAssertEqual(agent.held.first?.gate?.title, "Held by a gate")
+    }
+
+    func testRefusedCallIsNotCountedFailed() throws {
+        let rows = SessionScreen(entries: try gateCalls(), session: nil).rows
+        guard let group = rows.compactMap({ row -> ToolGroup? in if case .tools(_, let group) = row, group.calls.first?.id == "t4" { group } else { nil } }).first else { return XCTFail("no t4 row in \(rows.map(\.id))") }
+        XCTAssertFalse(group.failed)
+        XCTAssertEqual(group.calls.first?.gate?.word, "refused")
+        XCTAssertFalse(group.calls.first?.isHeldBlock ?? true)
+    }
+
+    func testGateMessageDecodes() throws {
+        guard case .gateMessage(let message) = try gateCalls()[5].content else { return XCTFail("not a gate message") }
+        XCTAssertEqual(message.groups.map(\.title), ["From the gate · shop · git push · round 1 of 2 · changes"])
+        XCTAssertEqual(message.groups.map(\.findings), [["total.go:5 — discount first"]])
+        XCTAssertEqual(message.groups.map(\.deferred), [["naming"]])
+        XCTAssertEqual([message.tail, message.call], ["The next git push goes through the gate again, as round 2.", "t3"])
+        guard case .user(let text, _, _, _) = try gateCalls()[6].content else { return XCTFail("a message with no groups is not a user message") }
+        XCTAssertEqual(text, "[Clubmate] From the gate · shop · git push · round 1 of 2 · changes")
+    }
+
+    func testGateMessageSitsUnderItsRefusedCall() throws {
+        let rows = SessionScreen(entries: try gateCalls(), session: nil).rows
+        XCTAssertEqual(rows.map(\.id), ["tool/t1", "tool/t2", "tool/t3", "user/gate-t3", "tool/t4", "tool/sub-1", "tool/sub-1/held/s1", "user/gate-empty"])
+    }
+
     func testPromptTextNotesVideoFrames() {
         let video = ComposerAttachment.video(frames: [Data([1]), Data([2])], times: [1.5, 4.5], duration: 6)
         XCTAssertEqual(ComposerAttachment.promptText("why", [.photo(Data([0])), video]), "why\n\n[Video, 6.0 s — 2 frames in order at 1.5 s, 4.5 s]")
@@ -266,7 +307,7 @@ final class AgentsTests: XCTestCase {
     func testHeldSessionReadsItsLine() async throws {
         let runner = ScriptedRunner(replies: [], sessions: [#"""
         {"sessions":[
-          {"id":"held","status":"running","group":"running","turnHeld":true,"heldRound":{"text":"Plan pipeline · round 1 reviewing","run":"gr_1"},"landing":{"round":1,"of":1,"verdict":"reviewing","words":"held","tone":"accent","badge":"held · plans and specs","held":"plans and specs","line":"Held · plans and specs · Plan pipeline…"}}
+          {"id":"held","status":"running","group":"running","turnHeld":true,"heldRound":{"text":"Plan pipeline · round 1 reviewing","run":"gr_1"},"landing":{"round":1,"of":1,"verdict":"reviewing","words":"held","tone":"accent","badge":"held · plans and specs","held":"plans and specs","line":"Held · plans and specs · Plan pipeline…","hint":"Held by a gate — messages queue"}}
         ],"removed":[],"cursor":"e.1"}
         """#])
         let store = AgentsStore(workspace: "w", runner: runner)
@@ -274,8 +315,24 @@ final class AgentsTests: XCTestCase {
         let line = try XCTUnwrap(store.session("held")).stateLine(now: .now)
         XCTAssertEqual([line.text], ["Held · plans and specs · Plan pipeline…"])
         XCTAssertEqual(line.tone, .accent)
+        XCTAssertEqual(try XCTUnwrap(store.session("held")).composerPlaceholder, "Held by a gate — messages queue")
         XCTAssertTrue(try XCTUnwrap(store.session("held")).turnHeld)
         XCTAssertEqual(try XCTUnwrap(store.session("held")).heldRound, HeldRound(text: "Plan pipeline · round 1 reviewing", run: "gr_1"))
+    }
+
+    func testUngatedSessionReadsAPlainLineAndKeepsItsHeaderBadge() async throws {
+        let runner = ScriptedRunner(replies: [], sessions: [#"""
+        {"sessions":[
+          {"id":"bg","status":"running","group":"running","landing":{"round":0,"of":0,"verdict":"","words":"not gated yet","tone":"plain","badge":"not gated yet · after its background command","line":"Not gated yet · after its background command","ungated":true},"ungated":{"chip":"not gated yet","badge":"not gated yet · after its background command","line":"Not gated yet · after its background command"}}
+        ],"removed":[],"cursor":"e.1"}
+        """#])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.refresh()
+        let session = try XCTUnwrap(store.session("bg"))
+        let line = session.stateLine(now: .now)
+        XCTAssertEqual(line.text, "Not gated yet · after its background command")
+        XCTAssertEqual(line.tone, .secondary)
+        XCTAssertEqual(session.ungated?.badge, "not gated yet · after its background command")
     }
 
     func testStopSendsItsTurnAndAStaleOneRefreshesTheSession() async throws {

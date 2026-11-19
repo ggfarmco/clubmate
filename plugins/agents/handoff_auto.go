@@ -104,7 +104,7 @@ func (s *session) handoffState() (record, int, int) {
 func (a *app) handoffBlocked(rec record, queued int, landing bool) bool {
 	switch {
 	case rec.closed(), turnActive(rec), rec.HandoffTo != "", rec.Night != "", rec.isAside(), rec.GateFor != nil, rec.restricted(),
-		rec.Held != nil, rec.LimitWait != nil, queued > 0, len(rec.LandReviews) > 0, rec.OpenCount > 0,
+		rec.Held != nil, len(rec.Calls) > 0, rec.LimitWait != nil, queued > 0, len(rec.LandReviews) > 0, rec.OpenCount > 0,
 		rec.ComposerDraft != nil && strings.TrimSpace(rec.ComposerDraft.Text) != "", len(a.asides(rec.ID)) > 0:
 		return true
 	}

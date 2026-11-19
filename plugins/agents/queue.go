@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -30,6 +31,7 @@ type queuedPrompt struct {
 	Parts       []string     `json:"-"`
 	Land        bool         `json:"-"`
 	Gate        bool         `json:"gate,omitempty"`
+	Message     *gateMessage `json:"message,omitempty"`
 }
 
 func (s *session) enqueueLocked(args promptArgs) {
@@ -80,7 +82,7 @@ func (s *session) queued() []queuedPrompt {
 }
 
 func (s *session) queuedLocked(args promptArgs) queuedPrompt {
-	return queuedPrompt{ID: rand.Text(), Text: args.Text, Attachments: args.Attachments, From: args.From, Voice: args.Voice, Review: args.Review, Answered: args.Answered, Land: args.Land, Gate: args.Gate}
+	return queuedPrompt{ID: rand.Text(), Text: args.Text, Attachments: args.Attachments, From: args.From, Voice: args.Voice, Review: args.Review, Answered: args.Answered, Land: args.Land, Gate: args.Gate, Message: args.Message}
 }
 
 func (s *session) dequeueLocked() (promptArgs, bool) {
@@ -89,9 +91,11 @@ func (s *session) dequeueLocked() (promptArgs, bool) {
 		return promptArgs{}, false
 	}
 	from, voice := s.queue[0].From, s.queue[0].Voice
-	n := slices.IndexFunc(s.queue, func(q queuedPrompt) bool { return q.From != from || q.Voice != voice || q.Review != nil })
+	n := slices.IndexFunc(s.queue, func(q queuedPrompt) bool {
+		return q.From != from || q.Voice != voice || q.Review != nil || q.Message != nil
+	})
 	switch {
-	case s.queue[0].Review != nil:
+	case s.queue[0].Review != nil, s.queue[0].Message != nil:
 		n = 1
 	case n < 0:
 		n = len(s.queue)
@@ -108,6 +112,7 @@ func (s *session) dequeueLocked() (promptArgs, bool) {
 		}
 		args.Attachments = append(args.Attachments, q.Attachments...)
 		args.Answered = append(args.Answered, q.Answered...)
+		args.Message = cmp.Or(args.Message, q.Message)
 	}
 	args.Text = strings.Join(texts, "\n\n")
 	sending := s.queuedLocked(args)

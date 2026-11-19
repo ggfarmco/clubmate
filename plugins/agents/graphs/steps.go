@@ -21,6 +21,7 @@ import (
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/automation"
+	"clubmate/plugins/internal/bashcmd"
 	"clubmate/plugins/internal/gitrepo"
 )
 
@@ -924,7 +925,7 @@ func changedSince(ctx context.Context, dir, commit string) []string {
 func checkOwnFiles(run string, changed []string) []string {
 	usesMake := false
 	scripts := map[string]bool{}
-	for _, part := range commandParts(run)[1:] {
+	for _, part := range bashcmd.Parts(run)[1:] {
 		words := strings.Fields(part)
 		w := words[0]
 		if slices.Contains(interpreters, w) {

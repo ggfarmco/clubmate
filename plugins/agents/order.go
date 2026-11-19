@@ -93,7 +93,7 @@ func setListFilters(infos []sessionInfo, needs map[string]runNeed) {
 		if info.Kind != "" {
 			continue
 		}
-		row := sessionRow{Rec: info.record, Children: info.ChildStatus, Landing: info.Landing}
+		row := sessionRow{Rec: info.record, Children: info.ChildStatus, Landing: info.Landing, Ungated: info.Ungated}
 		row.attachNeeds(needs, nest)
 		rows = append(rows, row)
 	}

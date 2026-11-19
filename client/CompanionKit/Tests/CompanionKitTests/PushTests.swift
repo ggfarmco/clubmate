@@ -30,6 +30,20 @@ final class PushTests: XCTestCase {
         XCTAssertNil(DeliveredNotice.resolved(["aps": ["content-available": 1]], from: delivered))
     }
 
+    func testGateResolveWithdrawsOnlyItsCard() {
+        let delivered = ["lg_1", "lg_2"].map { DeliveredNotice(identifier: "mac1|" + $0, userInfo: ["computer": "mac1", "session": "s1", "kind": "needs-input", "request": $0]) }
+            + [DeliveredNotice(identifier: "mac1|asks", userInfo: ["computer": "mac1", "session": "s1", "kind": "needs-input"])]
+        XCTAssertEqual(DeliveredNotice.resolved(["resolved": ["computer": "mac1", "session": "s1", "requestKind": "gate", "request": "lg_1"]], from: delivered), ["mac1|lg_1"])
+        XCTAssertEqual(DeliveredNotice.resolved(["resolved": ["computer": "mac1", "session": "s1", "requestKind": "gate"]], from: delivered), ["mac1|lg_1", "mac1|lg_2", "mac1|asks"])
+    }
+
+    func testLocalCardAlertIsWithdrawnByItsResolve() throws {
+        let item = InboxItem(notificationID: "ntf_1", computerID: "mac1", workspace: "w", session: "s1", collapse: "s1", message: "?", kind: .needsInput, request: "lg_1", date: .now)
+        let alert = try XCTUnwrap(LocalAlert(item, computerName: "", workspaceName: nil, now: .now))
+        let delivered = [DeliveredNotice(identifier: alert.identifier, userInfo: alert.userInfo)]
+        XCTAssertEqual(DeliveredNotice.resolved(["resolved": ["computer": "mac1", "session": "s1", "requestKind": "gate", "request": "lg_1"]], from: delivered), ["s1"])
+    }
+
     func testTokenGoesToEveryMacAfterHelloAndWhenItChangesAndAnOlderMacStaysOnlineAndIsClearedOnRemove() async throws {
         let file = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).appending(path: "computers.json")
         let store = ComputerStore(file: file, vault: MemoryTokenVault())

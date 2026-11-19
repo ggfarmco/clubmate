@@ -63,6 +63,7 @@ type record struct {
 	AFKBy           string         `json:"afkBy,omitempty"`
 	StartedBy       string         `json:"startedBy,omitempty"`
 	Suspended       bool           `json:"suspended,omitempty"`
+	Hooked          bool           `json:"hooked,omitempty"`
 	AutoClosed      bool           `json:"autoClosed,omitempty"`
 	CleanupOnSeen   bool           `json:"cleanupOnSeen,omitempty"`
 	ClosedStatus    string         `json:"closedStatus,omitempty"`
@@ -98,6 +99,9 @@ type record struct {
 	GateSince       string         `json:"gateSince,omitempty"`
 	GateAt          time.Time      `json:"gateAt,omitzero"`
 	Held            *heldTurn      `json:"held,omitempty"`
+	HeldGate        string         `json:"heldGate,omitempty"`
+	Calls           []*callHold    `json:"calls,omitempty"`
+	Spare           []callSpare    `json:"spare,omitempty"`
 	GatedDocs       []gatedDoc     `json:"gatedDocs,omitempty"`
 	LimitWait       *limitWait     `json:"limitWait,omitempty"`
 	Aside           *asideInfo     `json:"asideInfo,omitempty"`
@@ -143,6 +147,7 @@ type sessionInfo struct {
 	TaskFinished    bool               `json:"taskFinished,omitempty"`
 	Requests        []string           `json:"requests,omitempty"`
 	Gate            string             `json:"gate,omitempty"`
+	Ungated         *ungatedView       `json:"ungated,omitempty"`
 	LimitShare      map[string]float64 `json:"limitShare,omitempty"`
 	ShareLabel      string             `json:"shareLabel,omitempty"`
 	NestUnder       string             `json:"nestUnder,omitempty"`
@@ -151,6 +156,7 @@ type sessionInfo struct {
 	RowUnder        string             `json:"rowUnder,omitempty"`
 	Landing         *landingView       `json:"landing,omitempty"`
 	TurnHeld        bool               `json:"turnHeld,omitempty"`
+	Calls           []callView         `json:"calls,omitempty"`
 	HeldRound       *heldRoundView     `json:"heldRound,omitempty"`
 	ShareWords      map[string]string  `json:"shareWords,omitempty"`
 	ShareDetail     string             `json:"shareDetail,omitempty"`

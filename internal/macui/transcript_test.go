@@ -96,3 +96,44 @@ func TestTranscriptTaskLinkRevealsTheTask(t *testing.T) {
 	in.pointer("click", msg.ID, "--at", "6,8")
 	in.eventually("the Backlog opens with task 1 selected", func() bool { return in.selected("tasks#1") })
 }
+
+const refusedScript = `{"modes": {"currentModeId": "auto", "availableModes": [{"id": "auto", "name": "Auto"}]}, "prompt": [
+  {"match": "[Clubmate Tool call review]", "wait": "/nonexistent/never"},
+  {"match": "Push", "update": {"sessionUpdate": "tool_call", "toolCallId": "p1", "title": "git push", "kind": "execute", "status": "pending", "rawInput": {"command": "git push origin main"}}},
+  {"match": "Push", "permission": {"toolCall": {"toolCallId": "p1", "name": "Bash", "rawInput": {"command": "git push origin main"}}, "options": [{"optionId": "allow", "name": "Allow", "kind": "allow_once"}, {"optionId": "deny", "name": "Deny", "kind": "reject_once"}]}}]}`
+
+func TestRefusedCallTitleShowsWholeAt640(t *testing.T) {
+	in := start(t, "macui-refused", refusedScript)
+	in.cm("command", "run", "agents.gate-add", "repo="+in.repo, "point=tool", "how=command", "text=git push")
+	in.focusSection("agents", "agents.sidebar")
+	var spawned struct {
+		Session string `json:"session"`
+	}
+	in.json(&spawned, "agent", "spawn", "Push")
+	type reviewer struct {
+		ID      string `json:"id"`
+		GateFor *struct {
+			Lander string `json:"lander"`
+			Key    string `json:"key"`
+		} `json:"gateFor"`
+	}
+	var r reviewer
+	in.eventually("the call's review starts", func() bool {
+		var list []reviewer
+		in.json(&list, "command", "run", "agents.sessions")
+		i := slices.IndexFunc(list, func(s reviewer) bool {
+			return s.GateFor != nil && s.GateFor.Lander == spawned.Session && s.GateFor.Key != ""
+		})
+		if i >= 0 {
+			r = list[i]
+		}
+		return i >= 0
+	})
+
+	in.runAs(r.ID, "command", "run", "--agent", "agents.land-verdict", "key="+r.GateFor.Key, "outcome=changes", "findings=main.go:1 has no test")
+
+	in.eventually("the refused block's title is drawn whole at 640", func() bool {
+		e := in.snapshotAt("930x800").main().label("text", "Refused by the gate · round 1 · changes")
+		return e != nil && !slices.Contains(e.Flags, "truncated")
+	})
+}

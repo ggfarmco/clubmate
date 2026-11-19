@@ -158,10 +158,10 @@ func diffLines(text string) []string {
 	return strings.Split(strings.TrimSuffix(text, "\n"), "\n")
 }
 
-func decorationKey(rec record, w pluginsdk.Workspace) string {
+func decorationKey(rec record, w pluginsdk.Workspace, more ...string) string {
 	h := fnv.New64a()
 	name, offset := time.Now().Zone()
-	parts := append([]string{w.Name, name, fmt.Sprint(offset)}, w.Paths()...)
+	parts := append(append([]string{w.Name, name, fmt.Sprint(offset)}, w.Paths()...), more...)
 	if rec.Task != nil {
 		for _, r := range rec.Task.Repos {
 			parts = append(parts, r.Path, r.State)

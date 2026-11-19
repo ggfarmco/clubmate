@@ -268,9 +268,10 @@ public final class CompanionModel {
         }
         if case .event(let event) = signal, event.topic == Topic.agentsChanged, event.payload["kind"]?.stringValue == Self.resolvedKind,
            let session = event.payload["session"]?.stringValue {
+            let request = DeliveredNotice.cardRequest(event.payload["requestKind"]?.stringValue, event.payload["request"]?.stringValue)
             let ids = NotificationKind.resolved(by: event.payload["requestKind"]?.stringValue).flatMap { kind in
-                resolvedAt[Self.resolvedKey(computer, session, kind)] = event.seq
-                return inbox.resolve(computer: computer, session: session, kind: kind)
+                resolvedAt[Self.resolvedKey(computer, request ?? session, kind)] = event.seq
+                return inbox.resolve(computer: computer, session: session, kind: kind, request: request)
             }
             if !ids.isEmpty { withdrawn?(ids) }
         }
@@ -337,7 +338,7 @@ public final class CompanionModel {
     private func receive(_ item: InboxItem, seq: Int) async {
         let allowed = item.always ? true : await policy(item).allows(item.kind)
         guard inbox.add(item) else { return }
-        let resolved = (item.session.flatMap { resolvedAt[Self.resolvedKey(item.computerID, $0, item.kind)] } ?? 0) > seq
+        let resolved = ([item.session, item.request].compactMap { $0 }.compactMap { resolvedAt[Self.resolvedKey(item.computerID, $0, item.kind)] }.max() ?? 0) > seq
         if !allowed || resolved {
             inbox.markRead(item)
         } else if !item.pushed {

@@ -27,6 +27,7 @@ const (
 	actLandReview     = "openLandReview"
 	toneAccent        = "accent"
 	tonePlain         = "plain"
+	toneNeutral       = "neutral"
 	toneSuccess       = "success"
 	toneWarning       = "warning"
 )
@@ -48,6 +49,8 @@ type landingView struct {
 	Run       string `json:"run,omitempty"`
 	Held      string `json:"held,omitempty"`
 	Line      string `json:"line,omitempty"`
+	Ungated   bool   `json:"ungated,omitempty"`
+	Hint      string `json:"hint,omitempty"`
 }
 
 func landingOf(st landReview, reviewing bool, ask *runNeed) (landingView, bool) {
@@ -89,12 +92,12 @@ func (a *app) gateAsks(rec record) map[string]*runNeed {
 	if rec.closed() || held == "" && !slices.ContainsFunc(rec.LandReviews, func(st landReview) bool { return st.Run != "" }) {
 		return nil
 	}
-	if held != "" && !a.gateLive(rec.Held.Gate) {
+	if held != "" && !a.heldShown(rec.Held) {
 		held = ""
 	}
 	out := map[string]*runNeed{}
 	for run, n := range a.runNeeds.byRun(rec.Workspace) {
-		if run == held || slices.ContainsFunc(rec.LandReviews, func(st landReview) bool { return st.Run == run && st.Request == "" && a.gateLive(st.Gate) }) {
+		if run == held || slices.ContainsFunc(rec.LandReviews, func(st landReview) bool { return st.Run == run && st.Request == "" && a.landingShown(st) }) {
 			out[run] = &n
 		}
 	}
@@ -151,7 +154,7 @@ func (a *app) landing(rec record) *landingView {
 	var best *landingView
 	needs := a.gateAsks(rec)
 	for _, st := range rec.LandReviews {
-		if !a.gateLive(st.Gate) {
+		if !a.landingShown(st) {
 			continue
 		}
 		_, reviewing := a.reviewing(rec.ID, st)
@@ -166,13 +169,19 @@ func (a *app) landing(rec record) *landingView {
 	if l, ok := a.heldView(rec, needs); ok && (best == nil || landingRank(l) > landingRank(*best)) {
 		best = &l
 	}
+	if l, ok := a.callLanding(rec); ok && (best == nil || landingRank(l) > landingRank(*best)) {
+		best = &l
+	}
+	if best == nil {
+		return ungatedLanding(a.ungated(rec))
+	}
 	return best
 }
 
 func (a *app) heldView(rec record, needs map[string]*runNeed) (landingView, bool) {
 	h := rec.Held
 	ask := needs[heldRun(rec)]
-	if h == nil || ask == nil && !a.heldIdle(rec) || !h.Unread && !a.gateLive(h.Gate) {
+	if h == nil || ask == nil && !a.heldIdle(rec) || !h.Unread && !a.heldShown(h) {
 		return landingView{}, false
 	}
 	if h.Unread && ask == nil {

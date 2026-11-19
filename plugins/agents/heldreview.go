@@ -51,9 +51,10 @@ const (
 var errHeldMoved = errors.New("the session's files changed since this review began: review the new prompt, then give the verdict again")
 
 type heldAsk struct {
-	graph string
-	name  string
-	repo  string
+	graph  string
+	name   string
+	repo   string
+	rounds int
 }
 
 type heldStep int
@@ -63,36 +64,160 @@ const (
 	heldRetry
 )
 
-func (a *app) reviewHeld(s *session) {
+type holdRef struct {
+	s    *session
+	gate string
+}
+
+func (s *session) doneHold() holdRef {
+	return holdRef{s: s}
+}
+
+func (s *session) holds() []holdRef {
+	out := []holdRef{s.doneHold()}
+	for _, c := range s.snapshot().Calls {
+		out = append(out, holdRef{s: s, gate: c.Hold.Gate})
+	}
+	return out
+}
+
+func holdOfNode(s *session, gf gateFor) holdRef {
+	if gf.Point == gatePointTurn {
+		return s.doneHold()
+	}
+	return holdRef{s: s, gate: gf.Gate}
+}
+
+func (r holdRef) of(rec record) *heldTurn {
+	if r.gate == "" {
+		return rec.Held
+	}
+	if c := rec.call(r.gate); c != nil {
+		return c.Hold
+	}
+	return nil
+}
+
+func (r holdRef) get() *heldTurn {
+	return r.of(r.s.snapshot())
+}
+
+func (r holdRef) cas(old, next *heldTurn) bool {
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	if r.of(r.s.rec) != old || r.s.rec.closed() {
+		return false
+	}
+	if r.gate == "" {
+		r.s.rec.Held = next
+	} else {
+		if next != nil && next.Request != "" && (old == nil || old.Request != next.Request) {
+			next.Request = cmp.Or(r.s.rec.callCard(r.gate), next.Request)
+		}
+		r.s.rec.Calls = withCallHold(r.s.rec.Calls, r.gate, next)
+	}
+	r.s.rec.UpdatedAt = time.Now().UTC()
+	return true
+}
+
+func (r holdRef) swap(h *heldTurn, change func(*heldTurn)) {
+	n := *h
+	change(&n)
+	if r.cas(h, &n) {
+		r.s.changed(changeStatus, true)
+	}
+}
+
+func (r holdRef) point() string {
+	if r.gate == "" {
+		return gatePointTurn
+	}
+	return gatePointTool
+}
+
+func (r holdRef) name(g gateConfig) string {
+	if r.point() == gatePointTool {
+		return toolMatchName(g)
+	}
+	return doneGateName(g.Wrote)
+}
+
+func (a *app) releaseHold(r holdRef, key, by string) {
+	if r.point() == gatePointTool {
+		a.approveCall(r, key)
+		return
+	}
+	a.releaseHeld(r.s, key, by)
+}
+
+func (r holdRef) verdictPath(gate, key string) string {
+	if r.point() == gatePointTool {
+		return toolVerdictKey + gate + "/" + key
+	}
+	return turnVerdictPath(gate, key)
+}
+
+func (r holdRef) title() string {
+	if r.point() == gatePointTool {
+		return callReviewTitle
+	}
+	return heldTitle
+}
+
+func (a *app) holdVerdict(ctx context.Context, r holdRef, gate, key string) (landgate.Verdict, bool) {
+	var v landgate.Verdict
+	found, err := a.host.StorageGet(ctx, r.verdictPath(gate, key), &v)
+	return v, err == nil && found
+}
+
+func (a *app) holdBase(ctx context.Context, r holdRef, h *heldTurn) string {
+	if r.point() == gatePointTool {
+		return h.Head
+	}
+	return gateBaseOf(ctx, r.s).since
+}
+
+func heldCopies(rec record) map[string]heldTurn {
+	out := make(map[string]heldTurn, len(rec.Calls)+1)
+	if rec.Held != nil {
+		out[""] = *rec.Held
+	}
+	for _, c := range rec.Calls {
+		out[c.Hold.Gate] = *c.Hold
+	}
+	return out
+}
+
+func (a *app) reviewHeld(r holdRef) {
 	ctx := context.Background()
-	rec := s.snapshot()
-	h := rec.Held
+	rec := r.s.snapshot()
+	h := r.of(rec)
 	if h == nil || h.Last != "" || h.Request != "" || rec.closed() {
 		return
 	}
 	if h.Unread {
-		a.recheckLater(s, h)
+		a.recheckLater(r.s, h)
 		return
 	}
 	g := a.gateByID(ctx, h.Gate)
 	if g == nil {
 		return
 	}
-	if v, ok := a.turnVerdict(ctx, h.Gate, h.Key); ok {
+	if v, ok := a.holdVerdict(ctx, r, h.Gate, h.Key); ok {
 		switch v.Outcome {
 		case gateApproved:
-			a.releaseHeld(s, h.Key, landgate.ByReviewer)
+			a.releaseHold(r, h.Key, landgate.ByReviewer)
 		case gateChanges:
-			a.heldChanges(s, h, *g, v)
+			a.heldChanges(r, h, *g, v)
 		}
 		return
 	}
 	graph := a.gateGraphReady(ctx, *g)
 	if !graph.ok {
 		if h.Wait != graph.text {
-			a.swapHeld(s, h, func(n *heldTurn) { n.Wait = graph.text })
+			r.swap(h, func(n *heldTurn) { n.Wait = graph.text })
 		}
-		a.pollTrust(s)
+		a.pollTrust(r)
 		return
 	}
 	reuse := a.gateRunLive(ctx, rec.Workspace, h.Run) && a.graphs.GateRunOf(ctx, h.Run, g.Graph, graph.hash) && a.graphs.GateStepsIdle(ctx, h.Run)
@@ -113,21 +238,21 @@ func (a *app) reviewHeld(s *session) {
 			n.TreeKey = id.New(gateTreeKeyPrefix)
 		}
 		var err error
-		if dir, err = a.heldGateTree(ctx, rec, *g, gateBaseOf(ctx, s).since, n.TreeKey, h.Tree); err != nil {
+		if dir, err = a.heldGateTree(ctx, rec, *g, a.holdBase(ctx, r, h), n.TreeKey, h.Tree); err != nil {
 			logError(heldReviewStartLog, err)
 			a.dropHeldTree(ctx, rec.Workspace, *g, h.TreeKey, n.TreeKey)
-			a.heldEnded(s, h)
+			a.heldEnded(r, h)
 			return
 		}
 	}
-	first, delta := a.heldPrompts(ctx, s, rec, *g, h)
+	first, delta := a.heldPrompts(ctx, r, rec, *g, h)
 	a.gateMu.Lock()
-	if s.snapshot().Held != h {
+	if r.get() != h {
 		a.gateMu.Unlock()
 		a.dropHeldTree(ctx, rec.Workspace, *g, h.TreeKey, n.TreeKey)
 		return
 	}
-	gf := gateFor{Gate: g.ID, Point: gatePointTurn, Key: h.Key, Lander: rec.ID, Run: h.Run}
+	gf := gateFor{Gate: g.ID, Point: r.point(), Key: h.Key, Lander: rec.ID, Run: h.Run}
 	if reuse {
 		text, verdict := first, first+fmt.Sprintf(heldFirstVerdict, h.Key)
 		if delta != "" {
@@ -136,7 +261,7 @@ func (a *app) reviewHeld(s *session) {
 		if err := a.graphs.PromptGate(ctx, h.Run, verdict, text); err != nil {
 			a.gateMu.Unlock()
 			logError("prompt the Done review", err)
-			a.heldEnded(s, h)
+			a.heldEnded(r, h)
 			return
 		}
 		a.openGateRound(ctx, rec.Workspace, gf)
@@ -150,24 +275,24 @@ func (a *app) reviewHeld(s *session) {
 			Input:     first + fmt.Sprintf(heldFirstVerdict, h.Key),
 			Other:     first,
 			Dir:       dir,
-			NewNode:   a.gateNode(rec.Workspace, heldTitle+rec.Title, rec.Worktree, gf),
+			NewNode:   a.gateNode(rec.Workspace, r.title()+rec.Title, rec.Worktree, gf),
 		})
 		if err != nil {
 			a.gateMu.Unlock()
 			logError(heldReviewStartLog, err)
 			a.dropHeldTree(ctx, rec.Workspace, *g, h.TreeKey, n.TreeKey)
-			a.heldEnded(s, h)
+			a.heldEnded(r, h)
 			return
 		}
 		n.Run, n.Reviewer = run, reviewer
 		a.kick(rec.Workspace)
 	}
 	n.Reviewed = h.Tree
-	swapped := s.casHeld(h, &n)
+	swapped := r.cas(h, &n)
 	a.gateMu.Unlock()
 	switch {
 	case swapped:
-		s.changed(changeStatus, true)
+		r.s.changed(changeStatus, true)
 	case !reuse:
 		go a.endHoldRun(rec.Workspace, n, true, n.TreeKey != "" && n.TreeKey != h.TreeKey)
 	}
@@ -189,8 +314,9 @@ func (a *app) heldVerdictCommand(ctx context.Context, node *session, args landVe
 	if gf.Done || s == nil {
 		return nil, errNoReview
 	}
+	r := holdOfNode(s, gf)
 	a.gateMu.Lock()
-	h := s.snapshot().Held
+	h := r.get()
 	a.gateMu.Unlock()
 	if h == nil || h.Key != gf.Key || h.Run != gf.Run || h.Last != "" {
 		return nil, errNoReview
@@ -200,33 +326,38 @@ func (a *app) heldVerdictCommand(ctx context.Context, node *session, args landVe
 		return nil, errNoReview
 	}
 	taken := time.Now().UTC()
-	key, tree, ok := a.heldKeyNow(ctx, s, *g)
+	key, tree, head, ok := a.heldKeyNow(ctx, r, *g)
 	ask := a.heldAskOf(ctx, g)
 	a.gateMu.Lock()
-	if s.snapshot().Held != h {
+	if r.get() != h {
 		a.gateMu.Unlock()
 		return nil, errNoReview
 	}
-	if _, decided := a.turnVerdict(ctx, h.Gate, h.Key); decided {
+	if _, decided := a.holdVerdict(ctx, r, h.Gate, h.Key); decided {
 		a.gateMu.Unlock()
 		return nil, errDecided
 	}
 	if ok && key != h.Key {
 		n := *h
 		n.Key, n.Tree, n.TreeAt, n.Moves = key, tree, taken, h.Moves+1
+		if r.point() == gatePointTool {
+			n.Head = head
+		}
 		if n.Moves >= heldMovesMax {
 			n.ask(ask)
 		}
-		swapped := s.casHeld(h, &n)
+		swapped := r.cas(h, &n)
 		a.gateMu.Unlock()
 		if swapped {
-			s.changed(changeStatus, true)
-			a.reviewHeld(s)
+			a.callRekeyed(r, key)
+			r.s.changed(changeStatus, true)
+			a.joinCard(r)
+			a.reviewHeld(r)
 		}
 		return nil, errHeldMoved
 	}
 	v := landgate.Verdict{Tree: h.Key, Outcome: args.Outcome, By: landgate.ByReviewer, Reviewer: rec.ID, Findings: args.Findings, Deferred: args.Deferred, Summary: args.Summary, At: time.Now().UTC()}
-	if err := a.host.StorageSet(ctx, turnVerdictPath(h.Gate, h.Key), v); err != nil {
+	if err := a.host.StorageSet(ctx, r.verdictPath(h.Gate, h.Key), v); err != nil {
 		a.gateMu.Unlock()
 		return nil, err
 	}
@@ -235,64 +366,69 @@ func (a *app) heldVerdictCommand(ctx context.Context, node *session, args landVe
 		a.graphs.GateOutcome(ctx, gf.Run, rec.ID, args.Outcome)
 	}
 	held := s.snapshot()
-	a.logGateVerdict(ctx, gateVerdict{Gate: h.Gate, Workspace: held.Workspace, Outcome: args.Outcome, By: landgate.ByReviewer, Lander: held.ID, Title: held.Title, Round: h.Round, Reviewer: rec.ID, Findings: args.Findings, Deferred: args.Deferred, Summary: args.Summary, At: v.At})
+	a.logGateVerdict(ctx, gateVerdict{Gate: h.Gate, Workspace: held.Workspace, Outcome: args.Outcome, By: landgate.ByReviewer, Lander: held.ID, Title: held.Title, Call: callLine(held, r.gate), Round: h.Round, Reviewer: rec.ID, Findings: args.Findings, Deferred: args.Deferred, Summary: args.Summary, At: v.At})
 	a.gateMu.Unlock()
 	if args.Outcome == gateApproved {
-		a.releaseHeld(s, h.Key, landgate.ByReviewer)
+		a.releaseHold(r, h.Key, landgate.ByReviewer)
 		return nil, nil
 	}
-	a.heldChanges(s, h, *g, v)
+	a.heldChanges(r, h, *g, v)
 	return nil, nil
 }
 
-func (a *app) heldChanges(s *session, h *heldTurn, g gateConfig, v landgate.Verdict) {
+func (a *app) heldChanges(r holdRef, h *heldTurn, g gateConfig, v landgate.Verdict) {
 	n := *h
 	n.Last, n.Findings, n.Deferred, n.Summary = gateChanges, v.Findings, v.Deferred, v.Summary
-	capped := n.Round >= g.Rounds+n.Extra
+	capped := r.point() == gatePointTurn && n.Round >= g.Rounds+n.Extra
 	if capped {
 		n.ask(a.heldAskOf(context.Background(), &g))
 	}
-	if !s.casHeld(h, &n) {
+	if !r.cas(h, &n) {
 		return
 	}
-	s.changed(changeStatus, true)
-	if !capped {
-		a.promptChanges(s, g, n)
+	r.s.changed(changeStatus, true)
+	switch {
+	case r.point() == gatePointTool:
+		a.decideCall(r, n.Key, true)
+	case !capped:
+		a.promptChanges(r, g, n)
 	}
 }
 
-func (a *app) promptChanges(s *session, g gateConfig, h heldTurn) {
-	text := fmt.Sprintf(heldChangesFormat, filepath.Base(g.Repo), doneGateName(g.Wrote), h.Round, g.Rounds+h.Extra, bullets(h.Findings))
+func (a *app) promptChanges(r holdRef, g gateConfig, h heldTurn) {
+	text := fmt.Sprintf(heldChangesFormat, filepath.Base(g.Repo), r.name(g), h.Round, g.Rounds+h.Extra, bullets(h.Findings))
 	if len(h.Deferred) > 0 {
 		text += fmt.Sprintf(heldNotBlocking, bullets(h.Deferred))
 	}
-	logError("send the gate's findings", a.submit(s, &promptArgs{Text: text + heldChangesTail, Gate: true}))
+	logError("send the gate's findings", a.submit(r.s, &promptArgs{Text: text + heldChangesTail, Gate: true}))
 }
 
 func (a *app) heldRunEnded(workspaceID, run string) {
 	a.gateMu.Lock()
-	var ended []*session
+	var ended []holdRef
 	for _, s := range a.workspaceSessions(workspaceID) {
-		if h := s.snapshot().Held; h != nil && h.Run == run {
-			ended = append(ended, s)
+		for _, r := range s.holds() {
+			if h := r.get(); h != nil && h.Run == run {
+				ended = append(ended, r)
+			}
 		}
 	}
 	a.gateMu.Unlock()
-	for _, s := range ended {
-		if h := s.snapshot().Held; h != nil && h.Run == run {
-			a.heldEnded(s, h)
+	for _, r := range ended {
+		if h := r.get(); h != nil && h.Run == run {
+			a.heldEnded(r, h)
 		}
 	}
 }
 
-func (a *app) heldEnded(s *session, h *heldTurn) {
+func (a *app) heldEnded(r holdRef, h *heldTurn) {
 	ctx := context.Background()
 	ask := a.heldAskOf(ctx, a.gateByID(ctx, h.Gate))
 	a.gateMu.Lock()
 	n := *h
 	n.Run, n.Reviewer = "", ""
 	step := heldNothing
-	_, decided := a.turnVerdict(ctx, h.Gate, h.Key)
+	_, decided := a.holdVerdict(ctx, r, h.Gate, h.Key)
 	switch {
 	case h.Last != "" || h.Request != "":
 	case decided:
@@ -302,14 +438,15 @@ func (a *app) heldEnded(s *session, h *heldTurn) {
 	default:
 		n.ask(ask)
 	}
-	swapped := s.casHeld(h, &n)
+	swapped := r.cas(h, &n)
 	a.gateMu.Unlock()
 	if !swapped {
 		return
 	}
-	s.changed(changeStatus, true)
+	r.s.changed(changeStatus, true)
+	a.joinCard(r)
 	if step == heldRetry {
-		a.reviewHeld(s)
+		a.reviewHeld(r)
 	}
 }
 
@@ -322,7 +459,10 @@ func (a *app) heldAskRead(ctx context.Context, g *gateConfig) (heldAsk, bool) {
 	if g == nil {
 		return heldAsk{}, false
 	}
-	out := heldAsk{graph: g.Graph, name: doneGateName(g.Wrote), repo: filepath.Base(g.Repo)}
+	out := heldAsk{graph: g.Graph, name: doneGateName(g.Wrote), repo: filepath.Base(g.Repo), rounds: g.Rounds}
+	if g.Point == gatePointTool {
+		out.name = toolGateName(*g)
+	}
 	info, err := a.graphs.GateGraphInfo(ctx, g.Repo, g.Graph)
 	if err != nil {
 		return out, false
@@ -383,7 +523,7 @@ func (a *app) heldFactsOf(gateID string) heldAsk {
 
 func (h *heldTurn) ask(facts heldAsk) {
 	h.Request, h.Asked = id.New(gateRequestPrefix), time.Now().UTC()
-	h.Graph, h.Name, h.Repo = facts.graph, facts.name, facts.repo
+	h.Graph, h.Name, h.Repo, h.Of = facts.graph, facts.name, facts.repo, facts.rounds+h.Extra
 }
 
 func (a *app) regateHolds(ctx context.Context, gateID, by string) {
@@ -391,55 +531,70 @@ func (a *app) regateHolds(ctx context.Context, gateID, by string) {
 	if err != nil {
 		return
 	}
+	var g *gateConfig
+	if i := slices.IndexFunc(gates, func(x gateConfig) bool { return x.ID == gateID }); i >= 0 {
+		g = &gates[i]
+	}
 	for _, s := range a.allSessions() {
-		for range regateTries {
-			if !a.regateHold(ctx, s, gates, gateID, by) {
-				break
+		a.regateCalls(ctx, s, g, gateID, by)
+		if by == byGatePaused {
+			continue
+		}
+		for _, r := range s.holds() {
+			for range regateTries {
+				if !a.regateHold(ctx, r, gates, gateID, by) {
+					break
+				}
 			}
 		}
 	}
 }
 
-func (a *app) regateHold(ctx context.Context, s *session, gates []gateConfig, gateID, by string) bool {
+func (a *app) regateHold(ctx context.Context, r holdRef, gates []gateConfig, gateID, by string) bool {
+	if r.point() != gatePointTurn {
+		return false
+	}
+	s := r.s
 	rec := a.afkRec(s.snapshot())
-	h := rec.Held
+	h := r.of(rec)
 	switch {
 	case h == nil || h.Gate != gateID:
 		return false
 	case h.Unread:
-		return a.regateUnread(ctx, s, rec, gates, by)
+		return a.regateUnread(ctx, r, rec, gates, by)
 	}
 	taken := time.Now().UTC()
 	tree, head, err := gitrepo.Snapshot(ctx, rec.Worktree)
 	wrote := a.turnWrote(ctx, s, tree)
-	g := doneGate(gates, primaryOf(ctx, rec.Worktree), rec, wrote)
+	g := doneGate(stillHolding(gates, h), primaryOf(ctx, rec.Worktree), rec, wrote)
 	switch {
 	case err != nil && by == byGateChanged:
 	case g == nil:
-		a.releaseHeld(s, h.Key, by)
+		a.releaseHold(r, h.Key, by)
 	case g.ID == gateID:
 	default:
 		n := &heldTurn{Gate: g.ID, Key: h.Key, Tree: h.Tree, Round: 1, Since: h.Since, TreeAt: h.TreeAt}
 		if err == nil {
 			n.Key, n.Tree, n.TreeAt = heldKey(g.ID, head, tree, matchedPaths(*g, rec.Worktree, wrote)), tree, taken
 		}
-		if !s.casHeld(h, n) {
+		if !r.cas(h, n) {
 			return true
 		}
 		s.changed(changeStatus, true)
 		if !s.settling() {
-			a.reviewHeld(s)
+			a.reviewHeld(r)
 		}
 	}
 	return false
 }
 
-func (a *app) regateUnread(ctx context.Context, s *session, rec record, gates []gateConfig, by string) bool {
-	h := rec.Held
-	g := unreadGate(gates, rec, h)
+func (a *app) regateUnread(ctx context.Context, r holdRef, rec record, gates []gateConfig, by string) bool {
+	s := r.s
+	h := r.of(rec)
+	g := unreadGate(stillHolding(gates, h), rec, h)
 	switch {
 	case g == nil:
-		a.releaseHeld(s, h.Key, by)
+		a.releaseHold(r, h.Key, by)
 		return false
 	case g.ID == h.Gate:
 		return false
@@ -453,20 +608,22 @@ func (a *app) regateUnread(ctx context.Context, s *session, rec record, gates []
 		facts := a.heldAskOf(ctx, g)
 		n.Graph, n.Name, n.Repo = facts.graph, facts.name, facts.repo
 	}
-	if !s.casHeld(h, &n) {
+	if !r.cas(h, &n) {
 		return true
 	}
 	s.changed(changeStatus, true)
 	if !s.settling() {
-		a.reviewHeld(s)
+		a.reviewHeld(r)
 	}
 	return false
 }
 
 func (a *app) trustedHolds(gateID string) {
 	for _, s := range a.allSessions() {
-		if h := s.snapshot().Held; h != nil && h.Gate == gateID && h.Wait != "" {
-			a.reviewHeld(s)
+		for _, r := range s.holds() {
+			if h := r.get(); h != nil && h.Gate == gateID && h.Wait != "" {
+				a.reviewHeld(r)
+			}
 		}
 	}
 }
@@ -474,18 +631,30 @@ func (a *app) trustedHolds(gateID string) {
 func (a *app) resumeHolds() {
 	ctx := context.Background()
 	for _, s := range a.allSessions() {
-		h := s.snapshot().Held
-		switch {
-		case h == nil || h.Request != "":
-		case h.Last == gateChanges && s.gateQueued():
-			logError("send the queued gate findings", a.submit(s, nil))
-		case h.Last == gateChanges:
-			if g := a.gateByID(ctx, h.Gate); g != nil {
-				a.promptChanges(s, *g, *h)
+		a.resetStale(s, time.Now())
+		queued := false
+		for _, r := range s.holds() {
+			h := r.get()
+			switch {
+			case h == nil || h.Request != "":
+			case r.point() == gatePointTool:
+				if h.Last == "" {
+					a.reviewHeld(r)
+				}
+			case h.Last == gateChanges && s.gateQueued():
+				queued = true
+			case h.Last == gateChanges:
+				if g := a.gateByID(ctx, h.Gate); g != nil {
+					a.promptChanges(r, *g, *h)
+				}
+			default:
+				a.reviewHeld(r)
 			}
-		default:
-			a.reviewHeld(s)
 		}
+		if queued {
+			logError("send the queued gate findings", a.submit(s, nil))
+		}
+		a.tellFindings(s, false)
 	}
 }
 
@@ -501,21 +670,20 @@ func (s *session) gateQueued() bool {
 
 func (a *app) holdSynced(s *session) {
 	s.mu.Lock()
-	cur, was := s.rec.Held, s.holdOf
+	was, now := s.holdOf, heldCopies(s.rec)
 	workspaceID := s.rec.Workspace
-	s.holdOf = nil
-	if cur != nil {
-		c := *cur
-		s.holdOf = &c
-	}
+	s.holdOf = now
 	s.mu.Unlock()
-	if was == nil {
-		return
-	}
-	run := was.Run != "" && (cur == nil || cur.Run != was.Run)
-	tree := was.TreeKey != "" && (cur == nil || cur.TreeKey != was.TreeKey)
-	if run || tree {
-		go a.endHoldRun(workspaceID, *was, run, tree)
+	for gate, w := range was {
+		cur, ok := now[gate]
+		run := w.Run != "" && (!ok || cur.Run != w.Run)
+		tree := w.TreeKey != "" && (!ok || cur.TreeKey != w.TreeKey)
+		if run || tree {
+			go a.endHoldRun(workspaceID, w, run, tree)
+		}
+		if gate != "" && (!ok || cur.Key != w.Key) {
+			a.dropInput(w.Key)
+		}
 	}
 }
 
@@ -530,32 +698,13 @@ func (a *app) endHoldRun(workspaceID string, was heldTurn, run, tree bool) {
 	}
 }
 
-func (a *app) closeHeldRound(s *session, h *heldTurn) {
+func (a *app) closeHeldRound(r holdRef, h *heldTurn) {
 	if h == nil || h.Run == "" {
 		return
 	}
 	a.gateMu.Lock()
 	defer a.gateMu.Unlock()
-	a.closeGateRound(context.Background(), s.snapshot().Workspace, h.Run, nil)
-}
-
-func (s *session) casHeld(old, next *heldTurn) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.rec.Held != old || s.rec.closed() {
-		return false
-	}
-	s.rec.Held = next
-	s.rec.UpdatedAt = time.Now().UTC()
-	return true
-}
-
-func (a *app) swapHeld(s *session, h *heldTurn, change func(*heldTurn)) {
-	n := *h
-	change(&n)
-	if s.casHeld(h, &n) {
-		s.changed(changeStatus, true)
-	}
+	a.closeGateRound(context.Background(), r.s.snapshot().Workspace, h.Run, nil)
 }
 
 func (a *app) gateByID(ctx context.Context, gateID string) *gateConfig {
@@ -571,19 +720,21 @@ func (a *app) gateByID(ctx context.Context, gateID string) *gateConfig {
 }
 
 func (a *app) turnVerdict(ctx context.Context, gate, key string) (landgate.Verdict, bool) {
-	var v landgate.Verdict
-	found, err := a.host.StorageGet(ctx, turnVerdictPath(gate, key), &v)
-	return v, err == nil && found
+	return a.holdVerdict(ctx, holdRef{}, gate, key)
 }
 
-func (a *app) heldKeyNow(ctx context.Context, s *session, g gateConfig) (string, string, bool) {
+func (a *app) heldKeyNow(ctx context.Context, r holdRef, g gateConfig) (string, string, string, bool) {
+	if r.point() == gatePointTool {
+		return a.callKeyNow(ctx, r, g)
+	}
+	s := r.s
 	rec := s.snapshot()
 	tree, head, err := gitrepo.Snapshot(ctx, rec.Worktree)
 	if err != nil {
-		return "", "", false
+		return "", "", "", false
 	}
 	wrote := a.turnWrote(ctx, s, tree)
-	return heldKey(g.ID, head, tree, matchedPaths(g, rec.Worktree, wrote)), tree, true
+	return heldKey(g.ID, head, tree, matchedPaths(g, rec.Worktree, wrote)), tree, head, true
 }
 
 func (a *app) heldGateTree(ctx context.Context, rec record, g gateConfig, since, key, tree string) (string, error) {
@@ -597,14 +748,18 @@ func (a *app) heldGateTree(ctx context.Context, rec record, g gateConfig, since,
 	return out.Path, nil
 }
 
-func (a *app) heldPrompts(ctx context.Context, s *session, rec record, g gateConfig, h *heldTurn) (string, string) {
+func (a *app) heldPrompts(ctx context.Context, r holdRef, rec record, g gateConfig, h *heldTurn) (string, string) {
+	if r.point() == gatePointTool {
+		return a.callPrompts(ctx, r, rec, g, h)
+	}
+	s := r.s
 	since := gateBaseOf(ctx, s).since
 	files := heldFiles(matchedPaths(g, rec.Worktree, a.turnWrote(ctx, s, h.Tree)))
 	reply := ""
 	if text := s.lastReply(); text != "" {
 		reply = fmt.Sprintf(heldReplyFormat, text)
 	}
-	first := fmt.Sprintf(heldFirstFormat, filepath.Base(g.Repo), doneGateName(g.Wrote), rec.Title, since, h.Tree, rec.Worktree, files, reply)
+	first := fmt.Sprintf(heldFirstFormat, filepath.Base(g.Repo), r.name(g), rec.Title, since, h.Tree, rec.Worktree, files, reply)
 	if h.Reviewed == "" || h.Reviewed == h.Tree {
 		return first, ""
 	}

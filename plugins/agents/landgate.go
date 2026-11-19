@@ -92,7 +92,7 @@ var (
 		"Bash(git commit:*)", "Bash(git merge:*)", "Bash(git reset:*)", "Bash(git checkout:*)", "Bash(git switch:*)",
 		"Bash(git rebase:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(git update-ref:*)", "Bash(rm:*)", "Bash(mv:*)",
 	}
-	passShorts      = map[string]string{heldAcceptLabel: heldAcceptShort}
+	passShorts      = map[string]string{heldAcceptLabel: heldAcceptShort, callRunLabel: callRunShort}
 	moreShorts      = map[string]string{gateMoreLabel: gateMoreShort, heldCheckLabel: heldCheckShort}
 	docsOnlyRefused = []string{"claude.md", "agents.md", "gemini.md", "skill.md"}
 	docsOnlyDirs    = []string{".claude/", ".clubmate/", ".github/", ".agents/", "skills/", "commands/", "agents/", "prompts/", "rules/"}
@@ -121,6 +121,9 @@ type gateConfig struct {
 	Into       string    `json:"into"`
 	Sessions   []string  `json:"sessions,omitempty"`
 	Wrote      []string  `json:"wrote,omitempty"`
+	Tool       string    `json:"tool,omitempty"`
+	How        string    `json:"how,omitempty"`
+	Text       string    `json:"text,omitempty"`
 	Graph      string    `json:"graph"`
 	Pin        string    `json:"pin,omitempty"`
 	PinBuiltin bool      `json:"pinBuiltin,omitempty"`
@@ -128,6 +131,14 @@ type gateConfig struct {
 	Rounds     int       `json:"rounds"`
 	Paused     bool      `json:"paused,omitempty"`
 	CreatedAt  time.Time `json:"createdAt"`
+	Since      time.Time `json:"since,omitzero"`
+}
+
+func (g gateConfig) since() time.Time {
+	if g.Since.IsZero() {
+		return g.CreatedAt
+	}
+	return g.Since
 }
 
 type gateFor struct {
@@ -179,6 +190,9 @@ type gateAddArgs struct {
 	Into     string   `json:"into"`
 	Sessions []string `json:"sessions"`
 	Wrote    []string `json:"wrote"`
+	Tool     string   `json:"tool"`
+	How      string   `json:"how"`
+	Text     string   `json:"text"`
 	Graph    string   `json:"graph"`
 	Rounds   int      `json:"rounds"`
 }
@@ -190,6 +204,9 @@ type gateUpdateArgs struct {
 	Into     *string   `json:"into"`
 	Sessions *[]string `json:"sessions"`
 	Wrote    *[]string `json:"wrote"`
+	Tool     *string   `json:"tool"`
+	How      *string   `json:"how"`
+	Text     *string   `json:"text"`
 	Graph    *string   `json:"graph"`
 	Trust    *string   `json:"trust"`
 }
@@ -259,11 +276,37 @@ func (a *app) gates(ctx context.Context) ([]gateConfig, error) {
 }
 
 func (a *app) saveGates(ctx context.Context, gates []gateConfig) error {
+	old := a.lastGatesRead()
 	if err := a.host.StorageSet(ctx, gatesKey, gates); err != nil {
 		return err
 	}
+	logError("write the tool hooks", a.writeToolHooks(gates))
+	if stamped, ok := sinceStamped(old, gates, time.Now().UTC()); ok {
+		gates = stamped
+		logError("stamp a gate's since", a.host.StorageSet(ctx, gatesKey, gates))
+	}
 	a.keepGates(gates)
+	for _, primary := range newlyToolGated(old, gates) {
+		go a.rehook(context.WithoutCancel(ctx), primary)
+	}
 	return nil
+}
+
+func sinceStamped(old *[]gateConfig, gates []gateConfig, now time.Time) ([]gateConfig, bool) {
+	if old == nil {
+		return nil, false
+	}
+	out, stamped := slices.Clone(gates), false
+	for i, g := range out {
+		if g.Point != gatePointTool {
+			continue
+		}
+		j := slices.IndexFunc(*old, func(o gateConfig) bool { return o.ID == g.ID })
+		if j < 0 || (*old)[j].Paused && !g.Paused || (*old)[j].Tool != g.Tool || (*old)[j].How != g.How || (*old)[j].Text != g.Text {
+			out[i].Since, stamped = now, true
+		}
+	}
+	return out, stamped
 }
 
 func (a *app) keepGates(gates []gateConfig) {
@@ -281,18 +324,37 @@ func liveOf(gates []gateConfig) map[string]bool {
 	return live
 }
 
-func (a *app) gateLive(id string) bool {
+func (a *app) gateFlag(id string) (bool, bool) {
 	live := a.liveGates.Load()
 	if live == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)
 		defer cancel()
 		if _, err := a.gates(ctx); err != nil {
 			last := a.lastGatesRead()
-			return last != nil && liveOf(*last)[id]
+			if last == nil {
+				return false, false
+			}
+			v, ok := liveOf(*last)[id]
+			return v, ok
 		}
 		live = a.liveGates.Load()
 	}
-	return (*live)[id]
+	v, ok := (*live)[id]
+	return v, ok
+}
+
+func (a *app) landingShown(st landReview) bool {
+	live, ok := a.gateFlag(st.Gate)
+	return ok && (live || st.holding())
+}
+
+func (a *app) heldShown(h *heldTurn) bool {
+	live, ok := a.gateFlag(h.Gate)
+	return ok && (live || h.holding())
+}
+
+func (st landReview) holding() bool {
+	return st.Request != "" || st.Last == ""
 }
 
 func (g gateConfig) migrated() gateConfig {
@@ -311,7 +373,7 @@ func (a *app) repoGated(ctx context.Context, worktree string) bool {
 	return primary != "" && slices.ContainsFunc(gates, func(g gateConfig) bool { return g.Repo == primary && !g.Paused && g.Point == gatePointLand })
 }
 
-func (a *app) landingGate(ctx context.Context, target, into, source string) *gateConfig {
+func (a *app) landingGate(ctx context.Context, lander, target, into, source string) *gateConfig {
 	gates, err := a.gates(ctx)
 	if err != nil || len(gates) == 0 {
 		return nil
@@ -327,10 +389,16 @@ func (a *app) landingGate(ctx context.Context, target, into, source string) *gat
 			base = b
 		}
 	}
+	held := ""
+	if s := a.session(lander); s != nil {
+		if st := s.landReview(into, source); st.holding() {
+			held = st.Gate
+		}
+	}
 	var best *gateConfig
 	bestRank := 0
 	for i, g := range gates {
-		if g.Repo != primary || g.Paused || g.Point != gatePointLand {
+		if g.Repo != primary || g.Paused && g.ID != held || g.Point != gatePointLand {
 			continue
 		}
 		rank := intoRank(g.Into, into, def, base)
@@ -382,8 +450,11 @@ func sameMatch(gates []gateConfig, g gateConfig) error {
 		if o.ID == g.ID || o.Repo != g.Repo || o.Point != g.Point {
 			return false
 		}
-		if g.Point == gatePointTurn {
+		switch g.Point {
+		case gatePointTurn:
 			return sameDone(o, g)
+		case gatePointTool:
+			return sameTool(o, g)
 		}
 		return o.Into == g.Into
 	})
@@ -434,13 +505,17 @@ func (a *app) gateEnv(ctx context.Context, rec record) map[string]string {
 	return landgate.SessionEnv(os.Environ(), a.hooksDir(), common, protect, a.verdictsDir())
 }
 
-func (a *app) gatedMeta(ctx context.Context, rec record) *acp.SessionMeta {
+func (a *app) gatedMeta(ctx context.Context, rec record) (*acp.SessionMeta, string) {
 	meta := sessionMeta(rec, a.sessionAdvisor(ctx, rec), a.selfFor(ctx, rec), !rec.isAside() && a.userStarted(rec) && chromeByDefault())
 	maps.Copy(meta.ClaudeCode.Options.Env, a.gateEnv(ctx, rec))
 	if rec.lean() {
 		leanOptions(&meta.ClaudeCode.Options, userPlugins())
 	}
-	return meta
+	dir := a.toolHookDir(ctx, rec)
+	if dir != "" {
+		withToolHook(meta, dir)
+	}
+	return meta, dir
 }
 
 func (a *app) gatesCommand(ctx context.Context, cmd pluginsdk.CommandRun, _ struct{}) (any, error) {
@@ -523,6 +598,9 @@ func (a *app) updateGate(ctx context.Context, args gateUpdateArgs) error {
 			gates[i].Paused = *args.Paused
 		}
 		if args.Into != nil {
+			if gates[i].Point == gatePointTool {
+				return nil, errGateToolMatch
+			}
 			if gates[i].Point != gatePointLand {
 				return nil, errGateTurnInto
 			}
@@ -534,7 +612,30 @@ func (a *app) updateGate(ctx context.Context, args gateUpdateArgs) error {
 				return nil, err
 			}
 		}
+		if args.Tool != nil || args.How != nil || args.Text != nil {
+			if gates[i].Point != gatePointTool {
+				return nil, errGateToolOnly
+			}
+			if args.Tool != nil && strings.TrimSpace(*args.Tool) == "" {
+				return nil, errGateTool
+			}
+			tool, how := *cmp.Or(args.Tool, &gates[i].Tool), *cmp.Or(args.How, &gates[i].How)
+			if args.How == nil {
+				how = toolHowAfter(strings.TrimSpace(tool), how)
+			}
+			g, err := toolMatch(tool, how, *cmp.Or(args.Text, &gates[i].Text))
+			if err != nil {
+				return nil, err
+			}
+			gates[i].Tool, gates[i].How, gates[i].Text = g.Tool, g.How, g.Text
+			if err := sameMatch(gates, gates[i]); err != nil {
+				return nil, err
+			}
+		}
 		if args.Sessions != nil || args.Wrote != nil {
+			if gates[i].Point == gatePointTool {
+				return nil, errGateToolMatch
+			}
 			if gates[i].Point != gatePointTurn {
 				return nil, errGateLandOnly
 			}
@@ -574,16 +675,19 @@ func (a *app) updateGate(ctx context.Context, args gateUpdateArgs) error {
 		}
 		return gates, nil
 	})
-	switch {
-	case err != nil:
-	case args.Paused != nil && *args.Paused:
+	if err != nil {
+		return err
+	}
+	if args.Paused != nil && *args.Paused {
 		a.regateHolds(ctx, args.ID, byGatePaused)
-	case args.Sessions != nil || args.Wrote != nil:
+	}
+	if args.Sessions != nil || args.Wrote != nil || args.Tool != nil || args.How != nil || args.Text != nil {
 		a.regateHolds(ctx, args.ID, byGateChanged)
-	case args.Trust != nil || args.Graph != nil:
+	}
+	if args.Trust != nil || args.Graph != nil {
 		a.trustedHolds(args.ID)
 	}
-	return err
+	return nil
 }
 
 func (a *app) gatePin(ctx context.Context, repo, graph string) (string, bool, error) {
@@ -643,6 +747,7 @@ func (a *app) deleteGate(ctx context.Context, workspaceID, gateID string) error 
 	logError("remove gate worktree", a.host.RunCommand(ctx, gateTreeCmd, workspaceID, map[string]any{"repo": repo, "gate": gateID, "remove": true}, nil))
 	logError("forget pinned gate graph", a.host.StorageDelete(ctx, gatePinKey+gateID))
 	logError("forget the gate's turn verdicts", a.host.StorageDeletePrefix(ctx, turnVerdictKey+gateID+"/"))
+	logError("forget the gate's tool call verdicts", a.host.StorageDeletePrefix(ctx, toolVerdictKey+gateID+"/"))
 	return a.forgetGateHistory(ctx, gateID)
 }
 
@@ -716,18 +821,15 @@ func (a *app) landGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 	if cmd.Via != gitPlugin {
 		return nil, errGitOnly
 	}
-	g := a.landingGate(ctx, args.Target, args.Into, args.Source)
+	g := a.landingGate(ctx, args.Session, args.Target, args.Into, args.Source)
+	v, decided := a.readVerdict(ctx, args.Old, args.Tree)
 	if g == nil {
-		return landGateResult{State: gateApproved}, nil
+		return landGateResult{State: gateApproved, Summary: reviewedSummary(v, decided)}, nil
 	}
-	if v, ok := a.readVerdict(ctx, args.Old, args.Tree); ok {
+	if decided {
 		switch v.Outcome {
 		case gateApproved:
-			res := landGateResult{State: gateApproved}
-			if v.By == landgate.ByReviewer {
-				res.Summary = v.Summary
-			}
-			return res, nil
+			return landGateResult{State: gateApproved, Summary: reviewedSummary(v, decided)}, nil
 		case gateChanges:
 			if a.roundsUsed(cmd.WorkspaceID, args, *g) {
 				break
@@ -748,6 +850,13 @@ func (a *app) landGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 		return nil, errGateNoLander
 	}
 	return a.reviewLanding(ctx, cmd.WorkspaceID, lander, *g, args, a.gateGraphReady(ctx, *g))
+}
+
+func reviewedSummary(v landgate.Verdict, decided bool) string {
+	if !decided || v.Outcome != gateApproved || v.By != landgate.ByReviewer {
+		return ""
+	}
+	return v.Summary
 }
 
 func (a *app) roundsUsed(workspaceID string, args landGateArgs, g gateConfig) bool {
@@ -884,7 +993,7 @@ func (a *app) unlockedGateTree(ctx context.Context, workspaceID string, lander *
 		return "", err
 	}
 	cur := lander.landReview(args.Into, args.Source)
-	if lander.snapshot().closed() || !a.gateLive(g.ID) || !reflect.DeepEqual(cur, held) {
+	if _, known := a.gateFlag(g.ID); lander.snapshot().closed() || !known || !reflect.DeepEqual(cur, held) {
 		if cur.TreeKey != key {
 			a.dropGateTree(ctx, workspaceID, landReview{Repo: g.Repo, Gate: g.ID, TreeKey: key})
 		}
@@ -1110,7 +1219,7 @@ func (a *app) landVerdictCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 	if args.Outcome != gateApproved && (args.Outcome != gateChanges || len(args.Findings) == 0) {
 		return nil, errVerdict
 	}
-	if node.snapshot().GateFor.Point == gatePointTurn {
+	if point := node.snapshot().GateFor.Point; point == gatePointTurn || point == gatePointTool {
 		return a.heldVerdictCommand(ctx, node, args)
 	}
 	a.gateMu.Lock()
@@ -1294,9 +1403,37 @@ func (a *app) answerGate(ctx context.Context, workspaceID string, args landAnswe
 	return a.submit(lander, &promptArgs{Text: text})
 }
 
+func (a *app) closeLandCards(ctx context.Context, s *session) {
+	a.gateMu.Lock()
+	s.mu.Lock()
+	closed := false
+	reviews := slices.Clone(s.rec.LandReviews)
+	for i, st := range reviews {
+		if st.Request == "" {
+			continue
+		}
+		st.Answered = st.ReqOld + "-" + st.ReqTree
+		st.Request, st.Since, st.ReqOld, st.ReqTree = "", time.Time{}, "", ""
+		reviews[i], closed = st, true
+	}
+	if closed {
+		s.rec.LandReviews = reviews
+	}
+	s.mu.Unlock()
+	a.gateMu.Unlock()
+	if closed {
+		a.saveNow(ctx, s)
+		a.gatesChanged()
+	}
+}
+
 func (a *app) gateCommits(ctx context.Context, workspaceID, request string) (landCommitsResult, bool, error) {
-	if _, h := a.findHeldRequest(workspaceID, request); h != nil {
-		return landCommitsResult{Commits: []landCommit{}, Detail: heldDetail(*h)}, true, nil
+	if r, h := a.findHeldRequest(workspaceID, request); h != nil {
+		detail := heldDetail(*h)
+		if r.point() == gatePointTool {
+			detail = callDetail(r.s.snapshot().cardHolds(request))
+		}
+		return landCommitsResult{Commits: []landCommit{}, Detail: detail}, true, nil
 	}
 	a.gateMu.Lock()
 	_, st, ok := a.findGateRequest(workspaceID, request)
@@ -1348,7 +1485,7 @@ func (a *app) logUngatedMain(rec record, commits []string) {
 	if def, err := gitrepo.DefaultBranch(ctx, rec.Worktree); err != nil || def != branch {
 		return
 	}
-	if a.landingGate(ctx, rec.Worktree, branch, "") == nil {
+	if a.landingGate(ctx, rec.ID, rec.Worktree, branch, "") == nil {
 		return
 	}
 	for _, sha := range commits {
@@ -1397,7 +1534,7 @@ func gateCaption(st landReview) string {
 }
 
 func (r record) gateWaits() bool {
-	return r.heldWaits() || !r.closed() && slices.ContainsFunc(r.LandReviews, func(st landReview) bool { return st.Request != "" })
+	return r.heldWaits() || len(r.callRequests()) > 0 || !r.closed() && slices.ContainsFunc(r.LandReviews, func(st landReview) bool { return st.Request != "" })
 }
 
 func (r record) gateRequests() []string {
@@ -1410,7 +1547,7 @@ func (r record) gateRequests() []string {
 			out = append(out, st.Request)
 		}
 	}
-	return out
+	return append(out, r.callRequests()...)
 }
 
 func (r record) gatePending() *pendingSummary {
@@ -1421,6 +1558,10 @@ func (r record) gatePending() *pendingSummary {
 		if st.Request != "" {
 			return &pendingSummary{Kind: pendingLand, Text: gateCardTitle(st), At: st.Since, OnMac: true}
 		}
+	}
+	if requests := r.callRequests(); len(requests) > 0 {
+		holds := r.cardHolds(requests[0])
+		return &pendingSummary{Kind: pendingLand, Text: callCardTitle(holds), At: cmp.Or(holds[0].Hold.Asked, holds[0].Hold.Since), OnMac: true}
 	}
 	return nil
 }
@@ -1464,6 +1605,10 @@ func (gf *gateFor) open() bool {
 
 func (gf *gateFor) policy() string {
 	switch {
+	case gf.Point == gatePointTool && gf.Verdict:
+		return callReviewerText
+	case gf.Point == gatePointTool:
+		return callNodeText
 	case gf.Point == gatePointTurn && gf.Verdict:
 		return heldReviewerText
 	case gf.Point == gatePointTurn:
@@ -1475,7 +1620,10 @@ func (gf *gateFor) policy() string {
 }
 
 func (gf *gateFor) nudgeText() string {
-	if gf.Point == gatePointTurn {
+	switch gf.Point {
+	case gatePointTool:
+		return callNudgeText
+	case gatePointTurn:
 		return heldNudgeText
 	}
 	return gateNudgeText

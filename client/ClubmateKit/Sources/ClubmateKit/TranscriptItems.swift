@@ -32,7 +32,7 @@ public struct ToolActionsSummary: Sendable, Equatable {
             .map { Self.phrase($0.key, $0.value) }
         text = "\(Self.plural(cards.count, "action", "actions")): " + parts.joined(separator: ", ")
         running = cards.last { $0.toolStatus.isOpen }.map { ToolLineTitle($0).text }
-        failed = cards.filter { $0.toolStatus == .failed }.count
+        failed = cards.filter { $0.toolStatus == .failed && $0.toolStatusWord == nil }.count
     }
 
     private static func rank(_ kind: ToolKind) -> Int {

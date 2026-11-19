@@ -886,3 +886,23 @@ func TestClosedLanderStopsAStepLessRun(t *testing.T) {
 		return !slices.ContainsFunc(g.nodes(t), func(r record) bool { return r.Status != "closed" })
 	}, wait)
 }
+
+func TestPausedLandGateFinishesItsRunningReview(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	require.ErrorContains(t, g.land(t), "review pending")
+	g.f.pauseGate(t, g.workspace, g.gate)
+
+	require.ErrorContains(t, g.land(t), "review pending")
+	assert.Equal(t, "reviewing", g.f.session(t, g.workspace, g.lander).Gate)
+	g.approveWithSummary(t, "Groups the inbox by workspace.")
+	require.NoError(t, g.land(t))
+	assert.Equal(t, "Groups the inbox by workspace.", git(t, g.repo, "log", "-1", "--format=%b", "main"))
+
+	other, worktree := g.f.newSession(t, g.workspace), filepath.Join(g.repo, ".worktrees", "other")
+	git(t, g.repo, "worktree", "add", "-q", "-b", "other", worktree)
+	write(t, filepath.Join(worktree, "c.go"), "three\n")
+	git(t, worktree, "add", ".")
+	git(t, worktree, "commit", "-qm", "c")
+	require.NoError(t, g.f.runAs(t, g.workspace, other, "git.land", map[string]any{"path": worktree, "message": "feat: c"}, nil))
+}

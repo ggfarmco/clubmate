@@ -84,6 +84,7 @@ extension AgentSession {
     public var composerPlaceholder: String {
         switch state {
         case .askingYou: "Answer \(agentName)…"
+        case _ where landing?.hint?.isEmpty == false: landing?.hint ?? ""
         case _ where isTurnActive: "Queue a message"
         case _ where isAside: "Ask aside…"
         default: "Message \(agentName)"
@@ -116,7 +117,7 @@ public struct ToolGroup: Sendable, Equatable {
     }
 
     public var failed: Bool {
-        calls.contains { $0.status == .failed }
+        calls.contains(where: \.countsFailed)
     }
 
     public var running: Bool {
@@ -132,6 +133,7 @@ public enum TranscriptRow: Sendable, Equatable, Identifiable {
     case entry(TranscriptEntry)
     case agent(id: String, blocks: [MarkdownBlock], docLinks: [String: String], docCards: [DocCard], images: [ImageRef], imageLinks: [String: String], taskLinks: [String: String])
     case tools(id: String, ToolGroup)
+    case held(id: String, ToolCall)
     case thought(id: String, text: String, title: String)
     case answered(PermissionRequest)
     case asked(Elicitation)
@@ -140,7 +142,7 @@ public enum TranscriptRow: Sendable, Equatable, Identifiable {
     public var id: String {
         switch self {
         case .entry(let entry): entry.id
-        case .agent(let id, _, _, _, _, _, _), .tools(let id, _), .thought(let id, _, _), .openClosed(let id, _): id
+        case .agent(let id, _, _, _, _, _, _), .tools(let id, _), .held(let id, _), .thought(let id, _, _), .openClosed(let id, _): id
         case .answered(let request): "permission/" + request.id
         case .asked(let question): "elicitation/" + question.id
         }
@@ -172,6 +174,15 @@ public struct SessionScreen: Sendable, Equatable {
         var waiting: [PermissionRequest] = []
         var questions: [Elicitation] = []
         var opens: [OpenItems] = []
+        let calls = Set(entries.compactMap { entry in entry.toolCall.flatMap { $0.hidden ? nil : entry.entryID } })
+        var under: [String: [TranscriptEntry]] = [:]
+        var moved: Set<String> = []
+        for entry in entries {
+            if case .gateMessage(let message) = entry.content, calls.contains(message.call) {
+                under[message.call, default: []].append(entry)
+                moved.insert(entry.id)
+            }
+        }
         for (index, entry) in entries.enumerated() {
             switch entry.content {
             case .agent(let text):
@@ -188,12 +199,19 @@ public struct SessionScreen: Sendable, Equatable {
                 rows.append(.thought(id: entry.id, text: text, title: Self.thoughtTitle(from: entry.at, to: next)))
             case .tool(let call) where call.hidden:
                 break
+            case .tool(let call) where call.isHeldBlock:
+                rows.append(.held(id: entry.id, call))
+                rows += (under[entry.entryID] ?? []).map(TranscriptRow.entry)
             case .tool(let call):
                 if call.kind != .agent, case .tools(let id, let group) = rows.last, !group.calls.contains(where: { $0.kind == .agent }) {
                     rows[rows.count - 1] = .tools(id: id, ToolGroup(calls: group.calls + [call]))
                 } else {
                     rows.append(.tools(id: entry.id, ToolGroup(calls: [call])))
                 }
+                rows += call.held.map { .held(id: entry.id + "/held/" + $0.id, $0) }
+                rows += (under[entry.entryID] ?? []).map(TranscriptRow.entry)
+            case .gateMessage where moved.contains(entry.id):
+                break
             case .permission(let request):
                 if pending.contains(request.id) {
                     waiting.append(request)

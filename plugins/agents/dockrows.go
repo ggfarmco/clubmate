@@ -54,7 +54,7 @@ func gateCounts(rows []gateRow, reviewersAsking int) gateCount {
 		}
 		switch {
 		case landing == 0:
-		case r.Point == gatePointTurn:
+		case heldPoint(r.Point):
 			c.Held += landing
 			c.held = append(c.held, label)
 		default:

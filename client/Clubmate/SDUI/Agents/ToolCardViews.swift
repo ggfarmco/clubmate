@@ -23,7 +23,7 @@ struct ToolCardNodeView: View {
                     .textSelection(.enabled)
                 Spacer(minLength: theme.gutter)
                 if oneLine { ToolCardButtons(node: node) }
-                ToolStatusView(status: node.toolStatus)
+                ToolStatusView(status: node.toolStatus, word: node.toolStatusWord)
             }
             .padding(.horizontal, theme.gutter + theme.spacing.s)
             .padding(.vertical, theme.spacing.m)
@@ -226,10 +226,21 @@ struct TruncatedNote: View {
 
 struct ToolStatusView: View {
     let status: ToolStatus
+    var word: String?
 
     @Environment(\.theme) private var theme
 
     var body: some View {
+        if let word {
+            Text(word)
+                .font(theme.uiSmall)
+                .foregroundStyle(theme.muted)
+        } else {
+            mark
+        }
+    }
+
+    @ViewBuilder private var mark: some View {
         switch status {
         case .pending, .inProgress:
             ProgressView().controlSize(.mini)

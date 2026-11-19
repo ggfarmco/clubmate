@@ -2,7 +2,7 @@
 
 A gate is point × match × graph, several per repo; the graph decides. The user picked A (`GT-Rules`): gates live under their repo in the dock row **Gates**, each named by its match with the point's glyph; the gate page lists the graph's steps. B (`rounds/GT-B-*`) is not chosen. Spec: `clubmate-notes/superpowers/specs/2026-11-16-gates-points-graphs-design.md`; plan: `clubmate-notes/superpowers/plans/2026-11-16-gates-land-graph.md`. All boards in `boards.html`.
 
-Slice 1 built the **Landing** point; slice 2 (17 Nov) adds **Done** (see "Done slice" below). Tool call and the 7-day dry run under the match are drawn on the boards but come in later slices.
+Slice 1 built the **Landing** point; slice 2 (17 Nov) adds **Done** (see "Done slice" below); slice 3 (18 Nov) adds **Tool call** (see "Tool call slice" below). The 7-day dry run under the match is drawn on the boards but comes in a later slice.
 
 ## Overrides of the boards
 
@@ -10,7 +10,7 @@ Slice 1 built the **Landing** point; slice 2 (17 Nov) adds **Done** (see "Done s
 - **Dock row detail for a landing gate** reads C's `N landing` (plain), not `reviewing` / `N held`.
 - **Open run** on history rows waits for gate runs to have a page (gate runs are not listed with the workspace's runs); rows keep C's Open review.
 - **Trust and run** re-pins the graph; a landing refused while the gate waited for trust runs when its agent calls `git_land` again (nothing records the refused landings yet, so the card says no count).
-- **Holds** is a Landing · Done chip row (`tabs`) in New gate, plain text in Edit; Tool call waits for its slice.
+- **Holds** is a Landing · Done · Tool call chip row (`tabs`) in New gate, plain text in Edit.
 - **Decided by** is a menu (graph and where it comes from); graphs that can't decide a landing are listed under it as "can't decide a landing" instead of greyed menu items, since the SDUI select has no disabled or grouped items.
 
 ## Names
@@ -28,7 +28,7 @@ Into: the default branch (its name, e.g. `main`) · the worktree's base · any b
 
 ## Dock
 
-Gates → repos → gates. Row detail by priority: `trust?` amber (graph changed; counts once in Needs you) › `N asking` (the card is on the lander) › `N landing` plain › `paused` muted › last verdict and age. The Gates row shows the highest of these across all gates, after its label, with the gate count staying in the count column (`design/features/dock-state`, 18 Nov). Up to 6 rows, then it scrolls.
+Gates → repos → gates. Row detail by priority: `trust?` amber (graph changed; counts once in Needs you) › `N asking` (the card is on the lander) › `N landing` plain (a paused gate still holding something: `paused · N landing`, `paused · N held` for Done and Tool call) › `paused` muted › last verdict and age. The Gates row shows the highest of these across all gates, after its label, with the gate count staying in the count column (`design/features/dock-state`, 18 Nov). Up to 6 rows, then it scrolls.
 
 ## Sheet (`GT-Sheet-*`)
 
@@ -36,7 +36,7 @@ Repo · Holds (Landing; "An agent's landing waits for the graph.") · Into (pres
 
 ## Gate page (`GT-A-Gate-1280-Mate`, `GT-A-Trust-640-MateLight`)
 
-- Header: Landing glyph, the gate's name, active/paused, last verdict; Pause P, Edit E, Delete ⌘⌫.
+- Header: Landing glyph, the gate's name, active/paused (`paused · N landing` / `paused · N held` while a paused gate still holds something), last verdict; Pause P, Edit E, Delete ⌘⌫.
 - Facts: Repo, Holds, Match, Graph (numbered node list: title, agent or step, model or command, the verdict node "approves or asks for changes"; then "ends approved · changes", the pinned version and Open graph), Rounds, Docs only.
 - History: C's verdict rows (When, Verdict, Landing, Into, Open review) and C's live card for the landing under review; an approved row carries its summary under it in caption ink. A selected changes row opens its findings, deferred items last.
 - Graph changed (`state: trust`): an amber trust card on top — "‹graph› changed: trust the new version?", "Pinned ‹a› · now ‹b› · N of M steps changed", each changed step with its kind and its − / + lines (a `diffLines` node: every − and + line shows, runs of unchanged lines fold into "N unchanged lines"), the unchanged steps in one line "‹steps›: unchanged", **Trust and run** ⌘↩, Open graph, Pause the gate P. The phone draws the same card without Open graph, and its Trust and run asks once (r-trust, below).
@@ -121,3 +121,20 @@ Boards: `TR-Rules`, `C-TR-A-Gate-Light`, `C-TR-A-Confirm-Dark` (in `boards.html`
 - **Mac notification.** Source "‹repo› · Gates", title the gate's name, body "Graph changed · 1 waits".
 - **One counting rule.** Only holds whose graph changed count, in the Needs you entry, the Gates top row, the gate header and the card's waiting line; a gate whose graph can't be read counts nothing and its top row reads "Graph can't be read".
 - **As built, differs from the boards.** The "Order changed:" line is a `markdown` node: the moved steps are bold and the others in body ink, not caption ink (no node mixes inks in one line). The Gates screen's top row draws its whole detail in warning ink, not "· 1 waits" in caption ink (a tree item's detail has one tone).
+
+## Rulings (Claude Design, 18 Nov): a session that can't take the hook yet
+
+The user ruled 18 Nov: a session whose agent process runs a background command keeps it and runs unhooked, visibly, and is re-attached as soon as the background work ends. Claude Design ruled the look the same day:
+
+- Plain ink, never warning: nothing needs the user (the phone reads warning as Needs you). Not in Needs you, no card; it clears by itself when the session is re-attached.
+- Lead with "not gated yet" and say when it will be gated. Mac row chip `not gated yet` (normal priority: it may hide behind another landing, needs you or an error). Mac session header badge and the phone session header always show it: `not gated yet · ‹when›`; phone list line `Not gated yet · ‹when›`.
+- ‹when›: `after its background command` (the session's own background command); `from its next start` (an agent that can't resume: it takes the hook only when Clubmate starts it fresh, i.e. after Clubmate restarts; resuming isn't possible).
+- **Pending Claude Design:** `after the worktree's other work`, for a session held back by another process of its worktree's shared agent process (a sibling's command or a helper), worded by the builder after the designer's pattern.
+
+## Tool call slice (18 Nov, plan `clubmate-notes/superpowers/plans/2026-11-18-gates-tool-call-point.md`)
+
+- **Override of "One gate decides"** (`GT-Rules`, user ruling 8): for a Tool call, every gate that matches a call holds it. The call runs only when every one of them approves; each gate keeps its own rounds and history; there is one card per held call (designer ruling 13). Gates are listed in the order their match appears in the command. Landing and Done keep "one gate decides".
+- Names: point **Tool call**, glyph terminal; a gate "Tool call · ‹match›" ("Tool call · git push", "Tool call · /deploy|release/", "Tool call · Write" for any call of a tool); under its repo in the dock only the match.
+- Sheet (`GT-Sheet-640-MateLight`): Holds Landing · Done · Tool call; under it "An agent's tool call. The agent waits inside it while the graph runs."; **Call** chips git push · gh pr create · Custom…, then the match in words ("= Bash · a git push command"). Custom… adds Tool (text, empty reads Bash) · starts with / contains / regex (segmented) · the text, with its words line ("= Bash · a command that starts with make deploy"); a tool other than Bash offers only contains and regex, contains chosen, and the line reads "= ‹tool› · the input contains …" (ruling 4). A taken match: "Tool call · git push is there already", Create gate disabled. With sessions mid-turn: a muted "N sessions mid-turn pick this gate up when their turn ends". Sentence "Holds an agent's git push in shop; Fable review decides." Edit shows Holds as text and changes Call, Decided by, Rounds, Paused. No 7-day count, no repo presets (#859): the board's "Deploy (make deploy)" chip is not built.
+- Dock and page: Tool call gates sit after the repo's Done gates; detail "N held" (accent), "no calls yet" before the first; a paused gate still holding a call reads "paused · N held". Facts: Holds "an agent's tool call", Match in words. Table When · Verdict · Held ("‹session title› · ‹call›"), rows `reviewing`, `asking`, "waits for trust", "you: run", "released: gate deleted", "stopped by you", "ran ungated" (warning ink). Trust card: a held call stays held; its review runs on the new version once trusted. Delete's confirm: calls it holds then run without a review.
+- Builder's nearest builds where the boards are silent (open look questions for Claude Design): Custom… keeps the Call chips above its three fields, so a preset can be picked again (the board draws the fields "instead of the chips"); a taken preset is a warning line under the chips, since chips carry no field error; the paused-and-holding dock detail "paused · N held" in accent; the sentence for a tool other than Bash "Holds an agent's ‹tool› call in ‹repo›"; Edit's Paused line for a Tool call gate "a paused gate takes no new call; what it holds stays held" (ruling 11).

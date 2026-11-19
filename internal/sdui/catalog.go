@@ -103,6 +103,9 @@ var (
 	docCardFields = map[string]propCheck{"path": nonEmptyString, "kind": oneOf(docCardKinds), "title": isString, "rel": isString, "presented": isBool}
 	docCardsCheck = listOf(objectCheck([]string{"path", "kind", "title", "rel"}, docCardFields))
 
+	gateGroupCheck   = objectCheck([]string{"title"}, map[string]propCheck{"title": isString, "findings": listOf(isString), "deferred": listOf(isString)})
+	gateMessageCheck = objectCheck([]string{"groups"}, map[string]propCheck{"groups": listOf(gateGroupCheck), "tail": isString})
+
 	imageRefFields = map[string]propCheck{"path": nonEmptyString, "rel": isString, "width": countNumber, "height": countNumber}
 	imageRefsCheck = listOf(objectCheck([]string{"path", "rel"}, imageRefFields))
 
@@ -284,7 +287,7 @@ var (
 		"transcript": {props: map[string]propCheck{"center": isBool, "anchor": isString, "anchorRev": countNumber, "asideAction": actionCheck}, children: anyChildren},
 		"message": {
 			required: []string{"role", "text"},
-			props:    map[string]propCheck{"role": oneOf(messageRoles), "text": isString, "attachments": attachmentsCheck, "from": isString, "seconds": countNumber, "heard": isString, "docLinks": stringMap, "docCards": docCardsCheck, "images": imageRefsCheck, "imageLinks": stringMap, "taskLinks": stringMap, "sending": isBool},
+			props:    map[string]propCheck{"role": oneOf(messageRoles), "text": isString, "attachments": attachmentsCheck, "from": isString, "seconds": countNumber, "heard": isString, "docLinks": stringMap, "docCards": docCardsCheck, "images": imageRefsCheck, "imageLinks": stringMap, "taskLinks": stringMap, "sending": isBool, "gate": gateMessageCheck},
 			children: noChildren,
 		},
 		"plan": {required: []string{"entries"}, props: map[string]propCheck{"entries": listOf(planEntryCheck)}, children: noChildren},
@@ -292,7 +295,7 @@ var (
 			required: []string{"kind", "title"},
 			props: map[string]propCheck{
 				"kind": oneOf(toolKinds), "title": isString, "status": oneOf(toolStatuses), "body": toolBodyCheck,
-				"truncated": isBool, "standalone": isBool, "actions": listOf(cardActionCheck),
+				"truncated": isBool, "standalone": isBool, "statusWord": isString, "actions": listOf(cardActionCheck),
 			},
 			children:    noChildren,
 			interactive: true,

@@ -18,8 +18,9 @@ public struct HubNotification: Sendable, Equatable, Codable {
     public let viaAgent: Bool
     public let source: Source
     public let date: Date?
+    public let request: String?
 
-    public init(id: String, workspace: String, session: String? = nil, owner: String? = nil, title: String = "", message: String, kind: NotificationKind = .info, viaAgent: Bool = false, source: Source = .bus, date: Date? = nil) {
+    public init(id: String, workspace: String, session: String? = nil, owner: String? = nil, title: String = "", message: String, kind: NotificationKind = .info, viaAgent: Bool = false, source: Source = .bus, date: Date? = nil, request: String? = nil) {
         self.id = id
         self.workspace = workspace
         self.session = session
@@ -30,6 +31,7 @@ public struct HubNotification: Sendable, Equatable, Codable {
         self.viaAgent = viaAgent
         self.source = source
         self.date = date
+        self.request = request
     }
 
     public init(_ alert: AgentAlert) {
@@ -47,7 +49,8 @@ public struct HubNotification: Sendable, Equatable, Codable {
             message: posted.message,
             kind: posted.kind,
             viaAgent: posted.viaAgent,
-            date: posted.date
+            date: posted.date,
+            request: posted.request
         )
     }
 
@@ -186,8 +189,8 @@ public struct NotificationHub: Sendable {
     }
 
     @discardableResult
-    public mutating func handleGateAnswered(workspace: String, session: String) -> [String] {
-        inbox.handle { $0.note.source == .bus && $0.note.kind == .needsInput && $0.note.workspace == workspace && $0.note.session == session }
+    public mutating func handleGateAnswered(workspace: String, session: String, request: String? = nil) -> [String] {
+        inbox.handle { $0.note.source == .bus && $0.note.kind == .needsInput && $0.note.workspace == workspace && $0.note.session == session && (request == nil || $0.note.request == request) }
     }
 
     public mutating func keep(_ workspaces: Set<String>) {

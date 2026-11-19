@@ -41,6 +41,11 @@ type runState struct {
 	prior           string
 	started         time.Time
 	perms           map[string]*pendingPermission
+	calls           []*heldCall
+	refusals        []callRefusal
+	gateMsgs        map[string]gateMessage
+	telling         map[string]bool
+	userOnly        map[string]bool
 	queue           []queuedPrompt
 	sending         *queuedPrompt
 	epoch           int
@@ -81,6 +86,9 @@ func (a *app) prompt(workspaceID string, args promptArgs) error {
 }
 
 func (a *app) submit(s *session, args *promptArgs) error {
+	if args != nil && args.User {
+		a.resetRounds(s, time.Time{})
+	}
 	s.mu.Lock()
 	s.loadLocked()
 	if args != nil && !args.Queued && s.running && !s.cancelRequested && !s.rec.closed() && s.proc != nil && s.proc.steering {
@@ -124,8 +132,16 @@ func (a *app) runQueuedLocked(s *session) {
 	go a.runTurn(s, turn, epoch, next)
 }
 
-func (a *app) cancel(s *session) {
+func (a *app) cancel(s *session, user bool) {
+	a.cancelIf(s, user, func() bool { return true })
+}
+
+func (a *app) cancelIf(s *session, user bool, live func() bool) bool {
 	s.mu.Lock()
+	if !live() {
+		s.mu.Unlock()
+		return false
+	}
 	p, running, cycle, agentID, held := s.proc, s.running, s.cycle, s.rec.AgentSessionID, s.rec.Held
 	idle := !running && s.busyLocked()
 	if running {
@@ -138,6 +154,7 @@ func (a *app) cancel(s *session) {
 	if idle {
 		s.dropBackgroundLocked()
 	}
+	s.followedUpLocked()
 	if held != nil && !running {
 		s.setStatusLocked(statusIdle, "")
 		s.ending = nil
@@ -155,10 +172,12 @@ func (a *app) cancel(s *session) {
 	s.mu.Lock()
 	s.cancelPermissionsLocked()
 	s.mu.Unlock()
+	a.endCalls(s, user)
 	s.changed(changeUpdate, false)
 	if idle {
 		a.settleBackground(s)
 	}
+	return true
 }
 
 func (a *app) steerText(s *session, text string) {
@@ -217,6 +236,9 @@ func (a *app) runTurn(s *session, turn, epoch int, args promptArgs) {
 
 func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, promptArgs) {
 	p, err := a.attach(s)
+	if err == nil && a.hookTurn(s) {
+		p, err = a.attach(s)
+	}
 	if err != nil {
 		s.mu.Lock()
 		stale := s.epoch != epoch
@@ -287,7 +309,7 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	if frame := s.takeFrameLocked(parentTitle); frame != "" {
 		req.Prompt = slices.Insert(slices.Clip(req.Prompt), 0, acp.ContentBlock{Type: "text", Text: frame})
 	}
-	s.recordSentLocked(promptPayload{PromptRequest: acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: blocks}, From: args.From, FromTitle: fromTitle, Voice: args.Voice, Review: args.Review})
+	s.recordSentLocked(promptPayload{PromptRequest: acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: blocks}, From: args.From, FromTitle: fromTitle, Voice: args.Voice, Review: args.Review, Gate: cmp.Or(args.Message, doneMessage(args, args.Gate || s.sending != nil && s.sending.Gate))})
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
 	req.Prompt = sendable(req.Prompt)
@@ -323,6 +345,11 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	a.pruneBackground(s)
 	s.mu.Lock()
 	cancelled := s.cancelRequested || res.StopReason == acp.StopCancelled
+	s.mu.Unlock()
+	if err == nil {
+		a.tellFindings(s, cancelled)
+	}
+	s.mu.Lock()
 	ends := err == nil && !s.rec.closed() && (cancelled || len(s.queue) == 0) && s.rec.Status != statusWaiting && len(s.background) == 0 && !s.late
 	s.mu.Unlock()
 	var plan *donePlan
@@ -340,12 +367,17 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 		s.recordLocked(actorClubmate, kindCommits, commitsPayload{Turn: turn, Commits: commits})
 	}
 	s.running = false
+	s.followedUpLocked()
 	edited := s.edited
 	var next promptArgs
 	nextTurn, nextEpoch, finished, held, settle, stale := 0, 0, false, false, false, false
 	cancelled = s.cancelRequested || res.StopReason == acp.StopCancelled
 	if cancelled && plan != nil {
 		plan = &donePlan{stop: true}
+	}
+	handover := err == nil && !s.rec.closed() && !cancelled && len(s.queue) == 0 && s.late
+	if !handover {
+		s.refuseCallsLocked()
 	}
 	prior := s.rec.Held
 	switch {
@@ -360,7 +392,7 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 		nextTurn, nextEpoch = s.beginTurnLocked()
 	default:
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
-		if s.late && !cancelled {
+		if handover {
 			s.cycle, s.background, s.started = true, nil, time.Now()
 		}
 		switch {
@@ -379,8 +411,9 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	}
 	closed, ended := s.rec.closed(), s.turnLocked()
 	s.mu.Unlock()
+	a.logRefusals(s)
 	if finished {
-		a.closeHeldRound(s, prior)
+		a.closeHeldRound(s.doneHold(), prior)
 	}
 	if !closed && !held && !settle {
 		s.turned(ended)
@@ -418,6 +451,9 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	}
 	if settle || stale {
 		a.finishTurn(s)
+	}
+	if nextTurn == 0 && !settle && !stale {
+		go a.rehookSession(s)
 	}
 	return nextTurn, nextEpoch, next
 }
@@ -459,6 +495,7 @@ func (a *app) abandon(s *session, epoch int) bool {
 	case s.cancelRequested:
 		s.running = false
 		s.requeueSendingLocked()
+		s.unqueueMessageLocked("")
 		s.recordLocked(actorUser, kindTurnEnd, turnEndPayload{StopReason: acp.StopCancelled})
 		prior := s.rec.Held
 		stopped := false
@@ -507,7 +544,14 @@ func (s *session) beginTurnLocked() (int, int) {
 	s.ending = nil
 	s.answered, s.late = false, false
 	if s.sending == nil || !s.sending.Gate {
+		if h := s.rec.Held; h != nil && h.holding() {
+			s.rec.HeldGate = h.Gate
+		}
 		s.rec.Held = nil
+	}
+	if s.sending != nil && s.sending.Message != nil {
+		s.rec.Calls = toldCalls(s.rec.Calls, s.sending.Message.Call, true)
+		delete(s.telling, s.sending.Message.Call)
 	}
 	if w := s.rec.LimitWait; w != nil && !w.Fired {
 		s.rec.LimitWait = nil

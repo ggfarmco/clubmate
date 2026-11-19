@@ -20,6 +20,8 @@ struct MessageNodeView: View, Equatable {
             Group {
                 if let heard = node.string("heard"), let id = node.id {
                     VoicePromptView(id: id, heard: heard, text: text)
+                } else if let gate = node.gateMessage {
+                    GateMessageView(message: gate)
                 } else {
                     userMessage(text)
                 }
@@ -74,6 +76,50 @@ struct MessageNodeView: View, Equatable {
 
     private var sending: Bool {
         node.bool("sending") == true
+    }
+}
+
+private struct GateMessageView: View {
+    let message: SDUIGateMessage
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Spacer(minLength: theme.gutter * 8)
+            VStack(alignment: .leading, spacing: theme.spacing.s) {
+                ForEach(Array(message.groups.enumerated()), id: \.offset) { _, group in
+                    Label(group.title, systemImage: "checkmark.shield")
+                        .font(theme.uiSmall)
+                        .foregroundStyle(theme.accentInk)
+                    ForEach(Array(group.findings.enumerated()), id: \.offset) { _, finding in
+                        Text("· \(finding)")
+                            .font(theme.ui)
+                            .foregroundStyle(theme.text2)
+                    }
+                    if !group.deferred.isEmpty {
+                        Text("Not blocking:")
+                            .font(theme.uiSmall)
+                            .foregroundStyle(theme.muted)
+                        ForEach(Array(group.deferred.enumerated()), id: \.offset) { _, item in
+                            Text("· \(item)")
+                                .font(theme.ui)
+                                .foregroundStyle(theme.text2)
+                        }
+                    }
+                }
+                if let tail = message.tail, !tail.isEmpty {
+                    Text(tail)
+                        .font(theme.uiSmall)
+                        .foregroundStyle(theme.muted)
+                }
+            }
+            .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, theme.gutter + theme.spacing.s)
+            .padding(.vertical, theme.gutter)
+            .background(UnevenRoundedRectangle(topLeadingRadius: theme.radius.l, bottomLeadingRadius: theme.radius.l, bottomTrailingRadius: theme.radius.s, topTrailingRadius: theme.radius.l).fill(theme.surface1))
+        }
     }
 }
 

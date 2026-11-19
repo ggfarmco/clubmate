@@ -40,12 +40,15 @@ func (a *app) cardOpened(rec record, request string) {
 	if a.effectiveNotify(rec) == notifyMuted {
 		return
 	}
-	a.notes.carded(notifyPost{WorkspaceID: rec.Workspace, Session: rec.ID, Collapse: rec.ID, Title: rec.Title, Message: cardMessage(rec, request), Kind: notifyAsks})
+	a.notes.carded(notifyPost{WorkspaceID: rec.Workspace, Session: rec.ID, Collapse: rec.ID, Title: rec.Title, Message: cardMessage(rec, request), Kind: notifyAsks, Request: request})
 }
 
 func cardMessage(rec record, request string) string {
 	if rec.heldWaits() && rec.Held.Request == request {
 		return fmt.Sprintf(cardMessageFormat, heldCardTitle(*rec.Held), heldQuestion(*rec.Held))
+	}
+	if holds := rec.cardHolds(request); len(holds) > 0 {
+		return fmt.Sprintf(cardMessageFormat, callCardTitle(holds), callAsk)
 	}
 	i := slices.IndexFunc(rec.LandReviews, func(st landReview) bool { return st.Request == request })
 	if i < 0 {

@@ -21,6 +21,8 @@ struct RowView: View {
             } else {
                 ToolGroupRow(group: group)
             }
+        case .held(_, let call):
+            HeldCallBlock(call: call)
         case .thought(_, let text, let title):
             ThoughtView(text: text, title: title)
         case .answered(let request):
@@ -42,6 +44,8 @@ struct EntryView: View {
             UserBubble(text: text, fromAgent: fromAgent, images: images, files: files)
         case .voice(let prompt):
             VoicePromptRow(prompt: prompt)
+        case .gateMessage(let message):
+            GateMessageBubble(message: message)
         case .agent(let text):
             AgentMessage(cards: entry.docCards, entry: entry.id, images: entry.images) { MarkdownView(text: text, docLinks: entry.docLinks, imageLinks: entry.imageLinks, taskLinks: entry.taskLinks) }
         case .thought(let text):
@@ -665,7 +669,7 @@ struct ToolRow: View {
             .padding(.vertical, 12)
             .background(Color.surface1, in: .rect(cornerRadius: 20))
             .overlay {
-                if tool.status == .failed {
+                if tool.countsFailed {
                     RoundedRectangle(cornerRadius: 20).strokeBorder(Color.danger.opacity(0.5), lineWidth: 1)
                 }
             }
@@ -686,6 +690,7 @@ extension EnvironmentValues {
     @Entry var toolCallLoader: ToolCallLoader?
     @Entry var openDoc: (@MainActor (String) -> Void)?
     @Entry var openTask: (@MainActor (String) -> Void)?
+    @Entry var openSession: (@MainActor (String) -> Void)?
 }
 
 struct ToolLine: View {
@@ -714,7 +719,7 @@ struct ToolLine: View {
                         Text(tool.displayTitle)
                             .font(tool.kind == .execute ? .callout.monospaced() : .callout)
                             .lineLimit(1)
-                            .foregroundStyle(tool.status == .failed ? Color.danger : .primary)
+                            .foregroundStyle(tool.countsFailed ? Color.danger : .primary)
                         if tool.stoppable {
                             TimelineView(.periodic(from: .now, by: 30)) { timeline in
                                 Text(stopping ? "Stopping…" : tool.runningLine(now: timeline.date))
@@ -728,7 +733,13 @@ struct ToolLine: View {
                     if tool.hasDiffs {
                         ChangeCounts(changes: tool.changes)
                     }
-                    ToolStatusIcon(status: tool.status)
+                    if let word = tool.gate?.word?.nilIfEmpty {
+                        Text(word)
+                            .font(.footnote)
+                            .foregroundStyle(Color.captionInk)
+                    } else {
+                        ToolStatusIcon(status: tool.status)
+                    }
                     if hasDetails {
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))
@@ -2026,5 +2037,160 @@ struct EarlierRowsButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("earlier-rows")
+    }
+}
+
+struct HeldCallBlock: View {
+    let call: ToolCall
+    @Environment(\.openSession) private var openSession
+
+    var body: some View {
+        if let block = call.gate {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Image(systemName: "checkmark.shield")
+                        .foregroundStyle(.tint)
+                        .frame(width: 20)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(block.title ?? "")
+                            .font(.callout.weight(.semibold))
+                        if let caption = block.caption?.nilIfEmpty {
+                            Text(caption)
+                                .font(.footnote)
+                                .foregroundStyle(Color.captionInk)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if let review = block.reviewOnTitle {
+                        reviewButton(review)
+                    }
+                }
+                if block.input?.isEmpty == false || block.tool?.isEmpty == false {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        if let tool = block.tool?.nilIfEmpty {
+                            Text(tool)
+                                .font(.caption)
+                                .foregroundStyle(Color.captionInk)
+                        }
+                        Text(block.input ?? "")
+                            .font(.footnote.monospaced())
+                            .lineLimit(3)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.surface2, in: .rect(cornerRadius: 8))
+                }
+                ForEach(Array(block.lines.enumerated()), id: \.offset) { _, line in
+                    lineView(line, review: block.lines.count > 1 ? line.review?.nilIfEmpty : nil)
+                }
+                if let note = block.note?.nilIfEmpty {
+                    Text(note)
+                        .font(.footnote)
+                        .foregroundStyle(Color.captionInk)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.surface1, in: .rect(cornerRadius: 16))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16).strokeBorder(Color.accentColor.opacity(0.45), lineWidth: 1.5)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("held." + call.id)
+        }
+    }
+
+    private func lineView(_ line: CallBlock.Line, review: String?) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                pill(line)
+                state(line)
+                Spacer(minLength: 0)
+                if let review { reviewButton(review) }
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    pill(line)
+                    Spacer(minLength: 0)
+                    if let review { reviewButton(review) }
+                }
+                state(line)
+            }
+        }
+    }
+
+    private func pill(_ line: CallBlock.Line) -> some View {
+        Text(line.text)
+            .font(.footnote)
+            .lineLimit(2)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.surface2, in: .capsule)
+    }
+
+    @ViewBuilder
+    private func state(_ line: CallBlock.Line) -> some View {
+        if let state = line.state?.nilIfEmpty {
+            Text(state)
+                .font(.footnote)
+                .foregroundStyle(.tint)
+                .fixedSize()
+        }
+    }
+
+    @ViewBuilder
+    private func reviewButton(_ session: String) -> some View {
+        if let openSession {
+            Button("Open review") { openSession(session) }
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.tint)
+                .buttonStyle(.plain)
+                .frame(minHeight: 44)
+                .fixedSize()
+        }
+    }
+}
+
+struct GateMessageBubble: View {
+    let message: GateMessage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(message.groups.enumerated()), id: \.offset) { _, group in
+                Label(group.title, systemImage: "checkmark.shield")
+                    .font(.footnote)
+                    .foregroundStyle(.tint)
+                ForEach(Array(group.findings.enumerated()), id: \.offset) { _, finding in
+                    Text("· " + finding)
+                        .font(.subheadline)
+                }
+                if !group.deferred.isEmpty {
+                    Text("Not blocking:")
+                        .font(.footnote)
+                        .foregroundStyle(Color.captionInk)
+                    ForEach(Array(group.deferred.enumerated()), id: \.offset) { _, item in
+                        Text("· " + item)
+                            .font(.subheadline)
+                    }
+                }
+            }
+            if !message.tail.isEmpty {
+                Text(message.tail)
+                    .font(.footnote)
+                    .foregroundStyle(Color.captionInk)
+            }
+        }
+        .textSelection(.enabled)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.surface1, in: .rect(cornerRadius: 20))
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(.leading, 48)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("gateMessage")
     }
 }

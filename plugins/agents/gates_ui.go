@@ -17,7 +17,7 @@ import (
 	"clubmate/plugins/internal/automation"
 )
 
-var gateSheetActions = []string{actGateRepo, actGateHolds, actGateSession, actGateWrote, actGateWroteLike, actGateInto, actGateLike, actGatePick, actGateRounds, actGatePaused, actGateCancel, actGateSave}
+var gateSheetActions = []string{actGateRepo, actGateHolds, actGateSession, actGateWrote, actGateWroteLike, actGateInto, actGateLike, actGateCall, actGateTool, actGateHow, actGateText, actGatePick, actGateRounds, actGatePaused, actGateCancel, actGateSave}
 
 func isGateSheetAction(action string) bool {
 	return slices.Contains(gateSheetActions, action)
@@ -86,10 +86,12 @@ func (a *app) openRepoGate(ctx context.Context, workspaceID, repo string) error 
 	if len(gates) == 0 {
 		return nil
 	}
-	slices.SortStableFunc(gates, func(x, y gateConfig) int {
-		return cmp.Or(gateOrder(x, y), cmp.Compare(x.Into, y.Into), cmp.Compare(doneGateName(x.Wrote), doneGateName(y.Wrote)))
-	})
-	return a.selectPage(ctx, workspaceID, gatePrefix+gates[0].ID)
+	rows := make([]gateRow, 0, len(gates))
+	for _, g := range gates {
+		rows = append(rows, gateRow{gateConfig: g, Name: a.gateMatchName(ctx, g)})
+	}
+	sortGateRows(rows)
+	return a.selectPage(ctx, workspaceID, gatePrefix+rows[0].ID)
 }
 
 func (a *app) gateCrumb(ctx context.Context, gateID string) string {
@@ -187,6 +189,13 @@ func (a *app) openGateSheet(ctx context.Context, workspaceID, edit string) error
 		d.Repos = []gateRepo{a.gateRepo(ctx, g.Repo)}
 		d.Name = gateNameOf(g.Into, d.branch())
 		d.Like = !slices.Contains([]string{gateIntoDefault, gateIntoBase, gateIntoAny}, g.Into)
+		if g.Point == gatePointTool {
+			d.Name, d.Like = toolGateName(g), false
+			d.Call = gateCallOf(g)
+			if d.Call == gateCallCustom {
+				d.Tool, d.How, d.Text = g.Tool, g.How, g.Text
+			}
+		}
 		if g.Point == gatePointTurn {
 			d.Name, d.Like = doneGateName(g.Wrote), false
 			d.Sessions, d.WroteMode = slices.Clone(g.Sessions), wroteMode(g.Wrote)
@@ -206,6 +215,7 @@ func (a *app) openGateSheet(ctx context.Context, workspaceID, edit string) error
 		d.Point, d.Into = gatePointLand, d.freeInto()
 	}
 	d.Choices = a.graphs.GateGraphChoices(ctx, d.primary())
+	d.Unhooked = a.sheetUnhooked(ctx, gates, d.primary())
 	p := a.workspaceState(workspaceID)
 	a.uiMu.Lock()
 	p.gateSheet = &d
@@ -353,6 +363,7 @@ func (a *app) gateSheetAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if _, ok := d.choice(); !ok {
 			d.Graph = gateGraphDefault
 		}
+		d.Unhooked = a.sheetUnhooked(ctx, d.Gates, d.primary())
 	case actGateHolds:
 		var v string
 		if err := json.Unmarshal(ev.Value, &v); err != nil {
@@ -365,6 +376,9 @@ func (a *app) gateSheetAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 		switch v {
 		case gatePointTurn:
 			d.Into, d.Sessions, d.WroteMode, d.WroteLike = "", slices.Clone(doneSessionsDefault), gateWrotePlans, ""
+		case gatePointTool:
+			d.Into, d.Tool, d.How, d.Text = "", "", "", ""
+			d.Call = d.freeCall()
 		default:
 			d.Point, d.Into = gatePointLand, d.freeInto()
 		}
@@ -402,6 +416,23 @@ func (a *app) gateSheetAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return fmt.Errorf("%s value: %w", ev.Action, err)
 		}
 		d.Into = strings.TrimSpace(d.Into)
+	case actGateCall:
+		if err := json.Unmarshal(ev.Value, &d.Call); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+	case actGateTool:
+		if err := json.Unmarshal(ev.Value, &d.Tool); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+		d.How = toolHowAfter(d.customTool(), d.How)
+	case actGateHow:
+		if err := json.Unmarshal(ev.Value, &d.How); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+	case actGateText:
+		if err := json.Unmarshal(ev.Value, &d.Text); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
 	case actGatePick:
 		if err := json.Unmarshal(ev.Value, &d.Graph); err != nil {
 			return fmt.Errorf("%s value: %w", ev.Action, err)
@@ -442,8 +473,15 @@ func (a *app) gateSheetAct(ctx context.Context, ev pluginsdk.UIEvent) error {
 func (a *app) saveGateDraft(ctx context.Context, d gateDraft) (string, error) {
 	if d.Edit == "" {
 		args := gateAddArgs{Repo: d.Repo, Point: cmp.Or(d.Point, gatePointLand), Into: d.Into, Graph: d.Graph, Rounds: d.Rounds}
-		if d.Point == gatePointTurn {
+		switch d.Point {
+		case gatePointTurn:
 			args.Sessions, args.Wrote = d.Sessions, d.wrote()
+		case gatePointTool:
+			t, err := d.toolConfig()
+			if err != nil {
+				return "", err
+			}
+			args.Tool, args.How, args.Text = t.Tool, t.How, t.Text
 		}
 		g, err := a.addGate(ctx, args)
 		if err == nil {
@@ -452,7 +490,15 @@ func (a *app) saveGateDraft(ctx context.Context, d gateDraft) (string, error) {
 		return g.ID, err
 	}
 	args := gateUpdateArgs{ID: d.Edit, Paused: &d.Paused, Rounds: &d.Rounds, Graph: &d.Graph}
-	if d.Point != gatePointTurn {
+	if d.Point == gatePointTool {
+		t, err := d.toolConfig()
+		if err != nil {
+			return d.Edit, err
+		}
+		if i := slices.IndexFunc(d.Gates, func(g gateConfig) bool { return g.ID == d.Edit }); i < 0 || !sameTool(d.Gates[i], t) {
+			args.Tool, args.How, args.Text = &t.Tool, &t.How, &t.Text
+		}
+	} else if d.Point != gatePointTurn {
 		args.Into = &d.Into
 	} else if i := slices.IndexFunc(d.Gates, func(g gateConfig) bool { return g.ID == d.Edit }); i < 0 || !sameDone(d.Gates[i], gateConfig{Sessions: slices.Sorted(slices.Values(d.Sessions)), Wrote: d.wrote()}) {
 		wrote := d.wrote()
@@ -463,4 +509,24 @@ func (a *app) saveGateDraft(ctx context.Context, d gateDraft) (string, error) {
 
 func gateName(g gateConfig) string {
 	return filepath.Base(g.Repo)
+}
+
+func (a *app) sheetUnhooked(ctx context.Context, gates []gateConfig, primary string) int {
+	if primary == "" {
+		return 0
+	}
+	if slices.Contains(toolGatedRepos(gates), primary) {
+		return a.unhooked(primary)
+	}
+	n := 0
+	for _, s := range a.allSessions() {
+		rec, live, _, _ := s.hookView()
+		if !live || rec.closed() || !hookable(rec) || !s.working() {
+			continue
+		}
+		if p, err := a.hookPrimary(ctx, rec.Worktree); err == nil && p == primary {
+			n++
+		}
+	}
+	return n
 }

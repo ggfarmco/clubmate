@@ -43,6 +43,10 @@ const (
 	actGateWroteLike = "gateWroteLike"
 	actGateInto      = "gateInto"
 	actGateLike      = "gateLike"
+	actGateCall      = "gateCall"
+	actGateTool      = "gateTool"
+	actGateHow       = "gateHow"
+	actGateText      = "gateText"
 	actGatePick      = "gatePick"
 	actGateRounds    = "gateRounds"
 	actGatePaused    = "gatePaused"
@@ -51,48 +55,55 @@ const (
 	actGateTrust     = "gateTrust"
 	actGateOpenGraph = "gateOpenGraph"
 
-	gateIcon         = "shield"
-	gateLandIcon     = "arrow.triangle.merge"
-	gateTrustIcon    = "exclamationmark.circle.fill"
-	gateRepoIcon     = "folder"
-	gateRepoPrefix   = "gate-repo:"
-	gateCardPrefix   = "card:"
-	gateTrustID      = "gateTrust"
-	gateShortHash    = 6
-	gateHelpTitle    = "How gates work"
-	gateNoLandings   = "no landings yet"
-	gateNoHistory    = "No landings yet. The next landing this gate holds waits for %s."
-	gateDeleteText   = "Delete the gate %s on %s? Landings it holds then land without a review. Its verdict history goes too."
-	gateDocsOnly     = "a change only in .md files lands without a review"
-	gateHolds        = "an agent's landing (git_land)"
-	gateRoundsWords  = "of changes, then you decide"
-	gateEnds         = "ends approved · changes"
-	gateVerdictDoes  = "approves or asks for changes"
-	gateTrustTitle   = "%s changed: trust the new version?"
-	gateTrustText    = "Until you trust it, the gate runs nothing: a landing it holds is refused, and runs through the new version when its agent calls git_land again."
-	gateTrustLost    = "The pinned version wasn't kept, so only the new one can be shown:"
-	gateTrustOther   = "Its content changed in a way this card doesn't list; read the file before you trust it."
-	gateUnreadable   = "%s can't be read: %s"
-	gateTrustAsk     = "Trust this version of %s?"
-	gateTrustReview  = "What the gate holds is reviewed by it."
-	gateTrustRow     = "Graph changed"
-	gateUnreadRow    = "Graph can't be read"
-	gateToTrust      = "to trust"
-	gateTrustWaits   = "%s · %d waits"
-	gateTrustPrefix  = "trust:"
-	gateChangedMac   = "graph changed"
-	gateChangedPhone = "Graph changed"
-	gateWaitingTrust = "%d waiting for trust"
-	gateSummaryRow   = "summary"
-	gateSummaryWord  = "Summary · "
+	gateIcon           = "shield"
+	gateLandIcon       = "arrow.triangle.merge"
+	gateTrustIcon      = "exclamationmark.circle.fill"
+	gateRepoIcon       = "folder"
+	gateRepoPrefix     = "gate-repo:"
+	gateCardPrefix     = "card:"
+	gateTrustID        = "gateTrust"
+	gateShortHash      = 6
+	gateHelpTitle      = "How gates work"
+	gateNoLandings     = "no landings yet"
+	gateNoHistory      = "No landings yet. The next landing this gate holds waits for %s."
+	gateDeleteText     = "Delete the gate %s on %s? Landings it holds then land without a review. Its verdict history goes too."
+	gateDocsOnly       = "a change only in .md files lands without a review"
+	gateHolds          = "an agent's landing (git_land)"
+	gateRoundsWords    = "of changes, then you decide"
+	gateEnds           = "ends approved · changes"
+	gateVerdictDoes    = "approves or asks for changes"
+	gateTrustTitle     = "%s changed: trust the new version?"
+	gateTrustText      = "Until you trust it, the gate runs nothing: a landing it holds is refused, and runs through the new version when its agent calls git_land again."
+	gateTrustLost      = "The pinned version wasn't kept, so only the new one can be shown:"
+	gateTrustOther     = "Its content changed in a way this card doesn't list; read the file before you trust it."
+	gateUnreadable     = "%s can't be read: %s"
+	gateTrustAsk       = "Trust this version of %s?"
+	gateTrustReview    = "What the gate holds is reviewed by it."
+	gateTrustRow       = "Graph changed"
+	gateUnreadRow      = "Graph can't be read"
+	gateToTrust        = "to trust"
+	gateTrustWaits     = "%s · %d waits"
+	gateTrustPrefix    = "trust:"
+	gateChangedMac     = "graph changed"
+	gateChangedPhone   = "Graph changed"
+	gateWaitingTrust   = "%d waiting for trust"
+	gateSummaryRow     = "summary"
+	gateSummaryWord    = "Summary · "
+	gateNoCalls        = "No calls held yet. The next call this gate holds waits for %s."
+	gateNoCallsShort   = "no calls yet"
+	gateDeleteToolText = "Delete the gate %s on %s? Calls it holds then run without a review. Its verdict history goes too."
+	gateTrustToolText  = "Until you trust it, the gate runs nothing: a held call stays held and its review runs on the new version once you trust it."
+	gatePausedHeld     = "%s · %s"
+	gateRanUngated     = "ran ungated"
 )
 
 var gateHelpFacts = [][2]string{
-	{"Holds", "an agent's git_land (Landing) or its turn that ends done (Done) that a gate matches waits until the gate's graph decides the change (Fable review, built in, by default)"},
+	{"Holds", "an agent's git_land (Landing), its turn that ends done (Done) or its tool call (Tool call) that a gate matches waits until the gate's graph decides the change (Fable review, built in, by default)"},
 	{"Into", "which landings a gate holds: into the default branch, into a worktree's base (the branch it was made from), into any branch, or into branches like release/*; when several gates match, the most specific decides"},
+	{"Tool call", "matches an agent's tool call by the tool's name and its input: git push, gh pr create, or Custom… (a tool, then starts with, contains or regex); the agent waits inside the call while the graph runs, and changes refuse it with the findings as a message from the gate. It checks a cooperative agent, not a security boundary"},
 	{"Done", "matches top-level, child or AFK sessions and what they wrote (plans and specs, any file, nothing required, or files like a glob); until the graph approves, the turn is held: no done, no Needs you, no notification"},
 	{"Decided by", "a graph from the repo's main checkout, your own graphs or the built-in ones; the gate pins its content, and a changed file waits until you trust it on the gate's page"},
-	{"Rounds", "after the gate's rounds of changes the landing or turn waits for you: Land anyway or Accept as done, One more round or Stop, in Agents"},
+	{"Rounds", "after the gate's rounds of changes the landing, turn or call waits for you: Land anyway, Accept as done or Run anyway, One more round or Stop, in Agents"},
 	{"Docs only", gateDocsOnly},
 	{"Only you", "add, change, pause or delete gates; agents can read them"},
 }
@@ -152,7 +163,7 @@ func gateDock(rows []gateRow, now time.Time) []sdui.TreeItem {
 		for _, r := range g.Rows {
 			item := gateItem(r, now, dockGateLabel(r.Name))
 			item.ID, item.Open, item.Menu = gatePrefix+r.ID, openGate, gateRemoveMenu(r.Name, r.Repo)
-			if item.Detail == gateNoLandings || item.Detail == gateNoTurnsShort {
+			if item.Detail == gateNoLandings || item.Detail == gateNoTurnsShort || item.Detail == gateNoCallsShort {
 				item.Detail, item.DetailFaint = "", false
 			}
 			repo.Children = append(repo.Children, item)
@@ -195,14 +206,16 @@ func (r gateRow) look(now time.Time) gateLook {
 		return gateLook{Text: "trust?", Tone: "warning"}
 	case asking > 0:
 		return gateLook{Text: strconv.Itoa(asking) + " asking", Tone: tonePlain}
-	case landing > 0 && r.Point == gatePointTurn:
-		return gateLook{Text: heldCount(landing), Tone: toneAccent}
+	case landing > 0 && heldPoint(r.Point):
+		return gateLook{Text: r.pausedBeside(r.holdCount()), Tone: toneAccent}
 	case landing > 0:
-		return gateLook{Text: landingCount(landing), Tone: tonePlain}
+		return gateLook{Text: r.pausedBeside(r.holdCount()), Tone: tonePlain}
 	case r.Paused:
 		return gateLook{Text: gateStatePaused, Faint: true}
 	case r.Last == nil && r.Point == gatePointTurn:
 		return gateLook{Text: gateNoTurnsShort, Faint: true}
+	case r.Last == nil && r.Point == gatePointTool:
+		return gateLook{Text: gateNoCallsShort, Faint: true}
 	case r.Last == nil:
 		return gateLook{Text: gateNoLandings, Faint: true}
 	}
@@ -231,6 +244,21 @@ func (r gateRow) trustRowWords() string {
 		return fmt.Sprintf(gateTrustWaits, gateTrustRow, n)
 	}
 	return gateTrustRow
+}
+
+func (r gateRow) pausedBeside(count string) string {
+	if !r.Paused {
+		return count
+	}
+	return fmt.Sprintf(gatePausedHeld, gateStatePaused, count)
+}
+
+func (r gateRow) holdCount() string {
+	_, landing := r.landingCounts()
+	if heldPoint(r.Point) {
+		return heldCount(landing)
+	}
+	return landingCount(landing)
 }
 
 func (r gateRow) landingCounts() (asking, landing int) {
@@ -273,8 +301,11 @@ func gateMenu(r gateRow) []sdui.MenuEntry {
 
 func gateDeleteConfirm(name, repo string) string {
 	text := gateDeleteText
-	if strings.HasPrefix(name, gateNameDone) {
+	switch {
+	case strings.HasPrefix(name, gateNameDone):
 		text = gateDeleteDoneText
+	case strings.HasPrefix(name, gateNameTool):
+		text = gateDeleteToolText
 	}
 	return fmt.Sprintf(text, cmp.Or(name, "gate"), filepath.Base(repo))
 }
@@ -285,12 +316,18 @@ func verdictLook(v gateVerdict, point string) gateVerdictLook {
 	switch {
 	case v.Outcome == gateStopped:
 		return gateVerdictLook{Word: "stopped by you", Icon: "stop.circle"}
+	case v.Outcome == gateRefused:
+		return gateVerdictLook{Word: "refused: no turn", Tone: "warning", Cell: "warn", Icon: "xmark.circle"}
+	case v.Outcome == gateUngated:
+		return gateVerdictLook{Word: gateRanUngated, Tone: "warning", Cell: "warn", Icon: "exclamationmark.triangle"}
 	case v.Outcome == gateReleased:
 		return gateVerdictLook{Word: "released: " + releasedWords[v.By], Tone: "warning", Cell: "warn", Icon: "lock.open"}
 	case v.By == landgate.ByDocs:
 		return gateVerdictLook{Word: "docs only", Icon: "doc.text"}
 	case v.By == landgate.ByUser && point == gatePointTurn:
 		return gateVerdictLook{Word: "you: done", Tone: "accent", Icon: "person"}
+	case v.By == landgate.ByUser && point == gatePointTool:
+		return gateVerdictLook{Word: "you: run", Tone: "accent", Icon: "person"}
 	case v.By == landgate.ByUser:
 		return gateVerdictLook{Word: "you: land", Tone: "accent", Icon: "person"}
 	case v.Outcome == gateChanges:
@@ -327,6 +364,9 @@ func gateMain(sc gateScreen) sdui.Node {
 	badges := []sdui.HeaderBadge{{Text: gateStateActive}}
 	if r.Paused {
 		badges[0].Text = gateStatePaused
+		if held := r.holdCount(); held != "" {
+			badges[0].Text = r.pausedBeside(held)
+		}
 	}
 	if r.State == gateStateTrust {
 		badges = append(badges, sdui.HeaderBadge{Text: "trust?", Tone: "warning"})
@@ -348,8 +388,11 @@ func gateMain(sc gateScreen) sdui.Node {
 	rows, picked := gateTableRows(sc)
 	if len(rows) == 0 {
 		empty := gateNoHistory
-		if r.Point == gatePointTurn {
+		switch r.Point {
+		case gatePointTurn:
 			empty = gateNoTurns
+		case gatePointTool:
+			empty = gateNoCalls
 		}
 		body = append(body, sdui.MutedText(fmt.Sprintf(empty, graphTitle(sc.Graph, r.Graph))))
 		return sdui.VStack(header, sdui.Scroll(sdui.VStack(body...)))
@@ -360,8 +403,8 @@ func gateMain(sc gateScreen) sdui.Node {
 		{ID: "landing", Title: "Landing"},
 		{ID: "into", Title: "Into", Width: 120, Truncate: "middle", Priority: 1},
 	}
-	if r.Point == gatePointTurn {
-		columns = []sdui.Column{columns[0], columns[1], {ID: "landing", Title: "Held"}}
+	if heldPoint(r.Point) {
+		columns = []sdui.Column{columns[0], columns[1], {ID: "landing", Title: "Held", Truncate: "tail"}}
 	}
 	body = append(body, sdui.MutedText(weekLine(sc.History, sc.Now, r.Point)), sdui.WithAction(sdui.Table(gateVerdictsID, columns, rows, picked, sdui.Sort{}), "select"))
 	if card, ok := liveCard(sc, picked); ok {
@@ -375,8 +418,11 @@ func gateMain(sc gateScreen) sdui.Node {
 func gateFacts(sc gateScreen) sdui.Node {
 	r := sc.Row
 	holds, match := gateHolds, matchWords(r.Into, sc.Repo.Branch)
-	if r.Point == gatePointTurn {
+	switch r.Point {
+	case gatePointTurn:
 		holds, match = gateHoldsDone, doneMatchWords(r.Sessions, r.Wrote)
+	case gatePointTool:
+		holds, match = gateHoldsTool, toolMatchWords(r.gateConfig)
 	}
 	rows := []sdui.Node{
 		automation.Property("Repo", filepath.Base(r.Repo), tildePath(r.Repo)),
@@ -385,7 +431,7 @@ func gateFacts(sc gateScreen) sdui.Node {
 		sdui.HStack(sdui.MutedText("Graph"), graphFact(sc)),
 		automation.Property("Rounds", roundsWords(r.Rounds), ""),
 	}
-	if r.Point != gatePointTurn {
+	if !heldPoint(r.Point) {
 		rows = append(rows, automation.Property("Docs only", gateDocsOnly, ""))
 	}
 	return automation.Properties(rows...)
@@ -525,7 +571,7 @@ func weekLine(history []gateVerdict, now time.Time, point string) string {
 		return "History · none in the last 7 days"
 	}
 	parts := []string{"History · last 7 days"}
-	for _, w := range []string{"approved", "changes", "docs only", "you: land", "you: done"} {
+	for _, w := range []string{"approved", "changes", "docs only", "you: land", "you: done", "you: run", gateRanUngated, "refused: no turn"} {
 		if counts[w] > 0 {
 			parts = append(parts, w+" "+strconv.Itoa(counts[w]))
 		}
@@ -546,7 +592,8 @@ func gateTableRows(sc gateScreen) ([]sdui.TableRow, string) {
 	when := func(t time.Time) string { return t.In(sc.Loc).Format("Jan 2 15:04") }
 	var rows []sdui.TableRow
 	ids := map[string]bool{}
-	done := sc.Row.Point == gatePointTurn
+	done := heldPoint(sc.Row.Point)
+	tool := sc.Row.Point == gatePointTool
 	add := func(id string, cells []sdui.Cell) {
 		if done {
 			cells = cells[:3]
@@ -558,6 +605,9 @@ func gateTableRows(sc gateScreen) ([]sdui.TableRow, string) {
 	}
 	for _, l := range sc.Row.Landings {
 		landing := landingWords(l.Title, l.Source, l.Round, len(l.Findings))
+		if tool {
+			landing = heldCallWords(l.Title, l.Call, l.Caption)
+		}
 		word, link, open := "reviewing", "Open review", l.open()
 		switch {
 		case l.State == gateStateNeedsMe && done:
@@ -576,7 +626,10 @@ func gateTableRows(sc gateScreen) ([]sdui.TableRow, string) {
 			round = 0
 		}
 		landing := landingWords(v.Title, v.Source, round, len(v.Findings))
-		if v.By == landgate.ByUser && v.Outcome == gateApproved && v.Round > 0 {
+		switch {
+		case tool:
+			landing = heldCallWords(v.Title, v.Call)
+		case v.By == landgate.ByUser && v.Outcome == gateApproved && v.Round > 0:
 			landing = cmp.Or(v.Title, v.Source, "the staged change") + " · after " + counted(v.Round, "round")
 		}
 		add(gateRowID(v.At, v.Reviewer), []sdui.Cell{{Text: when(v.At)}, {Text: look.Word, Tone: look.Cell}, sessionLink(sc, landing, v.Reviewer, "Open review", false), {Text: v.Into}})
@@ -606,6 +659,17 @@ func landingWords(title, source string, round, findings int) string {
 		parts = append(parts, counted(findings, "finding"))
 	}
 	return strings.Join(parts, " · ")
+}
+
+func heldCallWords(title, call string, more ...string) string {
+	call, _, _ = strings.Cut(strings.TrimSpace(call), "\n")
+	parts := []string{}
+	for _, p := range append([]string{title, call}, more...) {
+		if p != "" {
+			parts = append(parts, p)
+		}
+	}
+	return cmp.Or(strings.Join(parts, " · "), "a tool call")
 }
 
 func sessionLink(sc gateScreen, text, sid, label string, landing bool) sdui.Cell {
@@ -639,8 +703,11 @@ func findingsCard(sc gateScreen, picked string) (sdui.Node, bool) {
 		title = "Round " + strconv.Itoa(v.Round) + " · " + look.Word
 	}
 	subject := cmp.Or(v.Source, "the staged change") + " → " + v.Into
-	if sc.Row.Point == gatePointTurn {
+	switch sc.Row.Point {
+	case gatePointTurn:
 		subject = cmp.Or(v.Title, sc.Row.Name)
+	case gatePointTool:
+		subject = heldCallWords(v.Title, v.Call)
 	}
 	lines := []sdui.Node{sdui.Text(title), sdui.MutedText(subject)}
 	for _, f := range v.Findings {
@@ -687,8 +754,11 @@ func liveCard(sc gateScreen, picked string) (sdui.Node, bool) {
 	title := fmt.Sprintf(reviewRoundLabel, max(l.Round, 1))
 	title = strings.TrimSuffix(title, " review") + " · " + state
 	subject := landReview{Into: l.Into, Source: l.Source}.subject()
-	if sc.Row.Point == gatePointTurn {
+	switch sc.Row.Point {
+	case gatePointTurn:
 		subject = cmp.Or(l.Title, sc.Row.Name)
+	case gatePointTool:
+		subject = heldCallWords(l.Title, l.Call)
 	}
 	subject += " · " + elapsed(sc.Now.Sub(l.Since))
 	lines := []sdui.Node{sdui.Text(title), sdui.MutedText(subject)}
@@ -701,7 +771,7 @@ func liveCard(sc gateScreen, picked string) (sdui.Node, bool) {
 	}
 	if !asks {
 		note := gateLiveNote
-		if sc.Row.Point == gatePointTurn {
+		if heldPoint(sc.Row.Point) {
 			note = gateLiveNoteDone
 		}
 		lines = append(lines, sdui.MutedText(note))
@@ -712,7 +782,7 @@ func liveCard(sc gateScreen, picked string) (sdui.Node, bool) {
 	}
 	if sc.Sessions[l.Lander] {
 		label := "Open landing"
-		if sc.Row.Point == gatePointTurn {
+		if heldPoint(sc.Row.Point) {
 			label = "Open session"
 		}
 		buttons = append(buttons, gateCardButton(l.Lander, actGateLanding, label, ""))

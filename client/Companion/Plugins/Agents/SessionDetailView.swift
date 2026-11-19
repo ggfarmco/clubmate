@@ -259,6 +259,7 @@ struct SessionDetailView: View {
         } : nil)
         .environment(\.openDoc, docOpener)
         .environment(\.openTask, taskOpener)
+        .environment(\.openSession) { id in context.navigation.detail = id }
         .environment(\.toolCallLoader, ToolCallLoader { [store, sessionID] id in await store.toolCall(id, in: sessionID) })
         .environment(\.imageStore, context.connection.supports(AgentsStore.imageCommand) ? store : nil)
         .environment(\.imageSession, sessionID)
@@ -945,7 +946,9 @@ struct SessionHeader: View {
         let open = session.openLabel.map { Text(" · ").foregroundStyle(Color.captionInk) + Text($0).foregroundStyle(Color.warningInk) } ?? Text("")
         let done = session.openLabel != nil || session.archivable
         let tint = session.state.needsYou ? Color.warningInk : done ? Color.successInk : Color.captionInk
+        let ungated = session.ungated.map { Text(" · " + $0.badge).foregroundStyle(Color.captionInk) } ?? Text("")
         return Text(session.headerState).foregroundStyle(tint)
+            + ungated
             + activity
             + open
             + (mac != nil || !detail.isEmpty ? Text(" · ") + mac.lead(detail) : Text("")).foregroundStyle(Color.captionInk)

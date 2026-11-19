@@ -81,6 +81,10 @@ func (a *app) suspend(s *session, after time.Duration, table func() ([]proc.Proc
 	s.rec.Suspended = true
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
+	a.closeAgentSession(p, agentID)
+}
+
+func (a *app) closeAgentSession(p *agentProc, agentID string) {
 	if p.caps.SessionCapabilities.Close != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 		_ = p.conn.Call(ctx, acp.MethodSessionClose, acp.SessionRequest{SessionID: agentID}, nil)
@@ -115,7 +119,7 @@ func (a *app) resumes(id string) bool {
 
 func (s *session) idleLocked(after time.Duration) bool {
 	switch {
-	case s.rec.closed(), s.deleted, s.running, len(s.perms) > 0, len(s.queue) > 0:
+	case s.rec.closed(), s.deleted, s.running, len(s.perms) > 0, len(s.queue) > 0, len(s.calls) > 0:
 		return false
 	case s.rec.Status != statusDone && s.rec.Status != statusIdle:
 		return false

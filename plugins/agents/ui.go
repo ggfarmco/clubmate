@@ -501,7 +501,7 @@ func (a *app) sessionRow(ctx context.Context, rec record, children string) sessi
 	if rec.Night == "" {
 		branch = a.branches.name(ctx, rec.Workspace, rec.Worktree)
 	}
-	row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children, Branch: branchLabel(branch), Detached: detachedBranch(branch), Review: a.reviews.progress(rec.ID), Landing: a.landing(rec)}
+	row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children, Branch: branchLabel(branch), Detached: detachedBranch(branch), Review: a.reviews.progress(rec.ID), Landing: a.landing(rec), Ungated: a.ungated(rec)}
 	if s := a.session(rec.ID); s != nil {
 		row.Asking = s.asking()
 		row.Started = s.turnStart()
@@ -549,6 +549,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 	open.Asides = asides
 	gateReview := a.reviewHead(ctx, v.Session)
 	held := a.heldBlockOf(ctx, v.Session)
+	calls := a.callLives(v.Session)
 	sendBack := a.sendBackScreen(workspaceID, s, v)
 	closeAsk := ""
 	if v.Session.isAside() {
@@ -608,13 +609,14 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session, childr
 		Asides:      asides,
 		GateReview:  gateReview,
 		Held:        held,
+		Calls:       calls,
 		SendBack:    sendBack,
 		CloseAsk:    closeAsk,
 		AsideCount:  asideCount,
 		ForkedFrom:  forked,
 	}
 	sc.ReviewStates, sc.ReviewsOpen = a.reviews.cards(v.ReviewStates)
-	shown := openItemsLast(v.Entries)
+	shown := gateUnderCalls(openItemsLast(v.Entries))
 	rows := windowRows(sc, shown, stopReasons(v))
 	first, landed := st.window.resolve(rows, st.anchor != "")
 	sc.WindowFirst = first

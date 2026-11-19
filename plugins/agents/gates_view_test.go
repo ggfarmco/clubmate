@@ -33,7 +33,7 @@ func TestGateItemSaysTheGateStateByPriority(t *testing.T) {
 	}{
 		{"trust over asking", gateRow{gateConfig: paused, State: gateStateTrust, Landings: asking}, "trust?", "warning"},
 		{"asking over landing", gateRow{gateConfig: paused, State: gateStateNeedsMe, Landings: asking}, "1 asking", tonePlain},
-		{"landing over paused", gateRow{gateConfig: paused, State: gateStatePaused, Landings: asking[1:]}, "1 landing", tonePlain},
+		{"landing over paused", gateRow{gateConfig: paused, State: gateStatePaused, Landings: asking[1:]}, "paused · 1 landing", tonePlain},
 		{"paused over last", gateRow{gateConfig: paused, State: gateStatePaused, Last: last(gateApproved, landgate.ByReviewer)}, gateStatePaused, ""},
 		{"approved", gateRow{State: gateStateActive, Last: last(gateApproved, landgate.ByReviewer)}, "approved 12m", "success"},
 		{"changes", gateRow{State: gateStateActive, Last: last(gateChanges, landgate.ByReviewer)}, "changes 12m", "warning"},
@@ -211,7 +211,7 @@ func TestTrustCardFoldsUnchangedStepsAndUsesDiffLines(t *testing.T) {
 	for _, b := range nodesOf(mac, "header")[0].Props["badges"].([]sdui.HeaderBadge) {
 		badges = append(badges, b.Text)
 	}
-	assert.Equal(t, []string{gateStatePaused, "trust?", "needs you"}, badges)
+	assert.Equal(t, []string{"paused · 1 held", "trust?", "needs you"}, badges)
 	assert.Equal(t, "trust?", gateItem(sc.Row, sc.Now, sc.Row.Name).Detail)
 }
 
@@ -328,9 +328,13 @@ func TestOnlyAChangedGraphCountsAsWaitingForTrust(t *testing.T) {
 	t.Parallel()
 	held := func(wait string) record { return record{Held: &heldTurn{Gate: "gt_1", Wait: wait}} }
 
-	assert.Equal(t, "gt_1", waitsForTrust(held(graphs.ErrGateGraphChanged.Error())))
+	assert.Equal(t, []string{"gt_1"}, waitsForTrust(held(graphs.ErrGateGraphChanged.Error())))
 	assert.Empty(t, waitsForTrust(held("held can't be read: no such graph")))
-	waits := []gateLanding{{Wait: heldWaitsTrust}, {Wait: heldWaitsTrust, Trust: true}}
+	both := held(graphs.ErrGateGraphChanged.Error())
+	both.Calls = []*callHold{{Hold: &heldTurn{Gate: "gt_0", Wait: graphs.ErrGateGraphChanged.Error()}}}
+	assert.Equal(t, []string{"gt_0", "gt_1"}, waitsForTrust(both))
+	waits := []gateLanding{{Wait: heldWaitsTrust}, {Wait: heldWaitsTrust, Trust: true, Call: "git push"}}
+	assert.Equal(t, "Until you trust it, the gate runs nothing. 1 call waits: git push.", trustWaitsText(gateRow{gateConfig: gateConfig{Point: gatePointTool}, State: gateStateTrust, Landings: waits}))
 	assert.Equal(t, "Graph changed · 1 waits", gateRow{State: gateStateTrust, Landings: waits}.trustRowWords())
 	assert.Equal(t, "Graph can't be read", gateRow{State: gateStateTrust, Unreadable: true, Landings: waits}.trustRowWords())
 }
@@ -532,4 +536,152 @@ func TestHeldTurnWaitingForTrustSaysSo(t *testing.T) {
 	assert.Equal(t, heldWaitsTrust, row.Cells[1].Text)
 	assert.Equal(t, []string{"Gate · Fable review · round 1", "Round 1 · waits for trust"}, textsOf(block))
 	assert.Empty(t, nodesOf(block, "button"))
+}
+
+func TestSheetHoldsToolCall(t *testing.T) {
+	t.Parallel()
+	repos := []gateRepo{{Path: "/src/shop", Primary: "/src/shop", Branch: "main"}}
+	d := gateDraft{Point: gatePointTool, Repo: "/src/shop", Call: "git push", Graph: "fable-review", Rounds: 2, Repos: repos, Choices: []graphs.GateGraphInfo{fableChoice()}, Unhooked: 2}
+	custom := d
+	custom.Call, custom.Text, custom.Unhooked = gateCallCustom, "make deploy", 0
+	taken := d
+	taken.Gates = []gateConfig{{ID: "gt_push", Repo: "/src/shop", Point: gatePointTool, Tool: "Bash", How: "command", Text: "git push"}}
+
+	sheets := []sdui.Node{gateSheetView(d), gateSheetView(custom), gateSheetView(taken)}
+
+	for _, n := range sheets {
+		require.NoError(t, internalsdui.Validate(sdui.VStack(n)))
+	}
+	assert.Equal(t, gatePointTool, nodesOf(sheets[0], "tabs")[0].Props["selected"])
+	assert.Equal(t, "terminal", nodesOf(sheets[0], "sheet")[0].Props["icon"])
+	call := nodesOf(sheets[0], "tabs")[1]
+	var chips []string
+	for _, it := range call.Props["items"].([]sdui.Item) {
+		chips = append(chips, it.ID+"="+it.Label)
+	}
+	assert.Equal(t, []string{"git push=git push", "gh pr create=gh pr create", "custom=Custom…"}, chips)
+	assert.Equal(t, "git push", call.Props["selected"])
+	texts := textsOf(sheets[0])
+	assert.Contains(t, texts, "An agent's tool call. The agent waits inside it while the graph runs.")
+	assert.Contains(t, texts, "= Bash · a git push command")
+	assert.Contains(t, texts, "2 sessions mid-turn pick this gate up when their turn ends")
+	assert.Equal(t, "Holds an agent's git push in shop; Fable review decides.", nodesOf(sheets[0], "sheet")[0].Props["note"])
+	assert.Nil(t, saveButton(t, sheets[0]).Props["disabled"])
+
+	fields := nodesOf(sheets[1], "textField")
+	require.Len(t, fields, 2)
+	assert.Equal(t, []string{gateSheetID + "/tool", "Bash", gateSheetID + "/text", "make deploy"}, []string{fields[0].ID, fmt.Sprint(fields[0].Props["placeholder"]), fields[1].ID, fmt.Sprint(fields[1].Props["value"])})
+	how := nodesOf(sheets[1], "tabs")[2]
+	assert.Equal(t, []string{"starts", "contains", "regex"}, ids2(how.Props["items"].([]sdui.Item)))
+	assert.Equal(t, "starts", how.Props["selected"])
+	assert.Contains(t, textsOf(sheets[1]), "= Bash · a command that starts with make deploy")
+	assert.NotContains(t, strings.Join(textsOf(sheets[1]), "\n"), "mid-turn")
+
+	assert.Contains(t, textsOf(sheets[2]), "Tool call · git push is there already")
+	assert.Equal(t, true, saveButton(t, sheets[2]).Props["disabled"])
+}
+
+func TestSheetOffersOnlyContainsAndRegexForOtherTools(t *testing.T) {
+	t.Parallel()
+	repos := []gateRepo{{Path: "/src/shop", Primary: "/src/shop", Branch: "main"}}
+	d := gateDraft{Point: gatePointTool, Repo: "/src/shop", Call: gateCallCustom, Tool: "Write", How: "starts", Text: " secrets ", Graph: "fable-review", Rounds: 2, Repos: repos, Choices: []graphs.GateGraphInfo{fableChoice()}}
+
+	sheet := gateSheetView(d)
+
+	require.NoError(t, internalsdui.Validate(sdui.VStack(sheet)))
+	how := nodesOf(sheet, "tabs")[2]
+	assert.Equal(t, []string{"contains", "regex"}, ids2(how.Props["items"].([]sdui.Item)))
+	assert.Equal(t, "contains", how.Props["selected"])
+	assert.Contains(t, textsOf(sheet), "= Write · the input contains secrets")
+	assert.Nil(t, saveButton(t, sheet).Props["disabled"])
+}
+
+func TestSheetCustomHowTabsHaveARowOfTheirOwn(t *testing.T) {
+	t.Parallel()
+	d := gateDraft{Point: gatePointTool, Repo: "/src/shop", Call: gateCallCustom, Text: "make deploy", Graph: "fable-review", Rounds: 2, Choices: []graphs.GateGraphInfo{fableChoice()}}
+
+	rows := slices.DeleteFunc(nodesOf(gateSheetView(d), "stack"), func(n sdui.Node) bool {
+		return !slices.ContainsFunc(n.Children, func(c sdui.Node) bool { return c.ID == gateSheetID+"/how" })
+	})
+
+	require.Len(t, rows, 1)
+	assert.Empty(t, nodesOf(rows[0], "textField"))
+}
+
+func TestGatePageFactsForToolCall(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 18, 13, 0, 0, 0, time.UTC)
+	g := gateConfig{ID: "gt_1", Repo: "/src/shop", Point: gatePointTool, Tool: "Bash", How: "command", Text: "git push", Rounds: 2, Paused: true}
+	history := []gateVerdict{
+		{Outcome: gateUngated, By: "hook", Title: "Fix the cart", Call: "git push origin fix/cart", At: now.Add(-time.Minute)},
+		{Outcome: gateApproved, By: landgate.ByUser, Title: "Fix the cart", Call: "git push", Round: 2, At: now.Add(-2 * time.Minute)},
+		{Outcome: gateReleased, By: byGateDeleted, Title: "Fix the cart", Call: "git push", At: now.Add(-3 * time.Minute)},
+		{Outcome: gateStopped, By: landgate.ByUser, Title: "Fix the cart", Call: "git push", At: now.Add(-4 * time.Minute)},
+	}
+	row := gateRow{
+		gateConfig: g, Name: toolGateName(g), Words: toolMatchWords(g), State: gateStatePaused,
+		Landings: []gateLanding{
+			{Lander: "agt_l", Title: "Ship the cart fix", Call: "git push origin fix/cart", State: gateStateReview, Round: 1, Reviewer: "agt_rev", Since: now.Add(-time.Minute)},
+			{Lander: "agt_m", Title: "Open the PR", Call: "git push -u origin pr", State: gateStateNeedsMe, Round: 2, Since: now.Add(-2 * time.Minute)},
+		},
+	}
+	sc := gateScreen{Row: row, History: history, Sessions: map[string]bool{"agt_l": true, "agt_m": true, "agt_rev": true}, Now: now, Loc: time.UTC}
+
+	tree := gateMain(sc)
+	reviewing := row
+	reviewing.Landings = row.Landings[:1]
+	item := gateItem(reviewing, now, dockGateLabel(row.Name))
+	fresh := gateItem(gateRow{gateConfig: gateConfig{Point: gatePointTool}, Name: row.Name}, now, "git push")
+	confirm := gateDeleteConfirm(row.Name, row.Repo)
+
+	require.NoError(t, internalsdui.Validate(tree))
+	assert.Equal(t, "terminal", nodesOf(tree, "header")[0].Props["icon"])
+	texts := textsOf(tree)
+	assert.Contains(t, texts, "an agent's tool call")
+	assert.Contains(t, texts, "Bash · a git push command")
+	assert.NotContains(t, texts, gateDocsOnly)
+	var titles []string
+	for _, c := range nodesOf(tree, "table")[0].Props["columns"].([]sdui.Column) {
+		titles = append(titles, c.Title)
+	}
+	assert.Equal(t, []string{"When", "Verdict", "Held"}, titles)
+	var got [][]string
+	for _, r := range nodesOf(tree, "table")[0].Props["rows"].([]sdui.TableRow) {
+		got = append(got, []string{r.Cells[1].Text, r.Cells[1].Tone, r.Cells[2].Text})
+	}
+	assert.Equal(t, [][]string{
+		{"reviewing", "warn", "Ship the cart fix · git push origin fix/cart"},
+		{landingAsking, "warn", "Open the PR · git push -u origin pr"},
+		{"ran ungated", "warn", "Fix the cart · git push origin fix/cart"},
+		{"you: run", "", "Fix the cart · git push"},
+		{"released: gate deleted", "warn", "Fix the cart · git push"},
+		{"stopped by you", "", "Fix the cart · git push"},
+	}, got)
+	assert.Equal(t, []string{"git push", "terminal", "paused · 1 held", toneAccent}, []string{item.Label, item.Icon, item.Detail, item.DetailTone})
+	assert.Equal(t, "no calls yet", fresh.Detail)
+	assert.Equal(t, "Delete the gate Tool call · git push on shop? Calls it holds then run without a review. Its verdict history goes too.", confirm)
+	assert.Contains(t, trustText(gatePointTool), "a held call stays held and its review runs on the new version once you trust it")
+}
+
+func ids2(items []sdui.Item) []string {
+	out := make([]string, 0, len(items))
+	for _, it := range items {
+		out = append(out, it.ID)
+	}
+	return out
+}
+
+func TestPausedGateShowsWhatItStillHolds(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 19, 13, 0, 0, 0, time.UTC)
+	g := gateConfig{ID: "gt_1", Repo: "/src/shop", Point: gatePointTurn, Graph: "fable-review", Rounds: 2, Paused: true}
+	row := gateRow{gateConfig: g, Name: doneGateName(nil), State: gateStatePaused, Landings: []gateLanding{{Lander: "agt_l", Title: "Plan the cache", State: gateStateReview, Round: 1, Since: now}}}
+
+	tree := gateMain(gateScreen{Row: row, Sessions: map[string]bool{"agt_l": true}, Now: now, Loc: time.UTC})
+	item := gateItem(row, now, dockGateLabel(row.Name))
+
+	require.NoError(t, internalsdui.Validate(tree))
+	badges := nodesOf(tree, "header")[0].Props["badges"].([]sdui.HeaderBadge)
+	assert.Equal(t, "paused · 1 held", badges[0].Text)
+	assert.Equal(t, []string{"paused · 1 held", toneAccent}, []string{item.Detail, item.DetailTone})
 }

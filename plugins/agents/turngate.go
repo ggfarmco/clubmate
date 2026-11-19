@@ -36,6 +36,7 @@ const (
 	gateNameAnyFile   = gateNameDone + "any file"
 	globAny           = "**"
 	turnVerdictKey    = "turn-verdict/"
+	toolVerdictKey    = "tool-verdict/"
 	byGatePaused      = "gate-paused"
 	byGateDeleted     = "gate-deleted"
 	byGateChanged     = "gate-changed"
@@ -50,7 +51,7 @@ var (
 	doneSessionsDefault = []string{doneTop, doneAFK}
 	donePlansAndSpecs   = []string{"**/plans/*.md", "**/specs/*.md"}
 
-	errGatePoint    = errors.New("point is land or turn")
+	errGatePoint    = errors.New("point is land, turn or tool")
 	errGateSessions = errors.New("sessions are top, child and afk")
 	errGateWrote    = errors.New("wrote holds file globs such as **/plans/*.md")
 	errGateTurnInto = errors.New("a Done gate matches sessions and wrote, not into")
@@ -61,12 +62,14 @@ type heldTurn struct {
 	Gate     string      `json:"gate"`
 	Key      string      `json:"key"`
 	Tree     string      `json:"tree,omitempty"`
+	Head     string      `json:"head,omitempty"`
 	Reviewed string      `json:"reviewed,omitempty"`
 	Run      string      `json:"run,omitempty"`
 	Reviewer string      `json:"reviewer,omitempty"`
 	TreeKey  string      `json:"treeKey,omitempty"`
 	Round    int         `json:"round,omitempty"`
 	Extra    int         `json:"extra,omitempty"`
+	Of       int         `json:"of,omitempty"`
 	Last     string      `json:"last,omitempty"`
 	Retried  bool        `json:"retried,omitempty"`
 	Moves    int         `json:"moves,omitempty"`
@@ -93,6 +96,7 @@ type turnOutcome struct {
 }
 
 type donePlan struct {
+	carry   string
 	from    *heldTurn
 	held    *heldTurn
 	base    *gateBase
@@ -126,8 +130,15 @@ func (a *app) planDone(s *session, cancelled bool) donePlan {
 	gates, err := a.gates(ctx)
 	if err != nil {
 		logError("read the gates for a finished turn", err)
-		return a.unreadPlan(ctx, prior, rec, a.lastGatesRead(), false, err)
+		last := a.lastGatesRead()
+		if last != nil {
+			kept := doneGates(*last, rec)
+			last = &kept
+		}
+		return a.unreadPlan(ctx, prior, rec, last, false, err)
 	}
+	paused := pausedHold(gates, prior)
+	gates = doneGates(gates, rec)
 	primary := ""
 	if prior != nil || turnGated(gates) {
 		if primary, err = primaryRead(ctx, rec.Worktree); err != nil {
@@ -138,11 +149,11 @@ func (a *app) planDone(s *session, cancelled bool) donePlan {
 	case prior != nil && primary == "" && !prior.Unread:
 		return sameRound(prior)
 	case primary == "" && turnGated(gates):
-		return donePlan{release: releasedBy(prior, byUnmatched)}
+		return donePlan{release: releasedBy(prior, cmp.Or(paused, byUnmatched))}
 	case !doneGated(gates, primary, rec):
-		return donePlan{base: clearedBase, release: releasedBy(prior, byGateChanged)}
+		return donePlan{base: clearedBase, release: releasedBy(prior, cmp.Or(paused, byGateChanged))}
 	case a.runningChildren(rec.ID) > 0:
-		return donePlan{release: releasedBy(prior, byChildren)}
+		return donePlan{release: releasedBy(prior, byChildren), carry: carriedGate(prior, rec.HeldGate)}
 	}
 	taken := time.Now().UTC()
 	tree, head, err := gitrepo.Snapshot(ctx, rec.Worktree)
@@ -156,13 +167,52 @@ func (a *app) planDone(s *session, cancelled bool) donePlan {
 	}
 	g := heldGate(gates, primary, rec, wrote, err == nil)
 	if g == nil {
-		return donePlan{release: releasedBy(prior, byUnmatched)}
+		return donePlan{release: releasedBy(prior, cmp.Or(paused, byUnmatched))}
 	}
 	key := heldKey(g.ID, head, tree, matchedPaths(*g, rec.Worktree, wrote))
 	if a.turnApproved(ctx, g.ID, key) {
 		return donePlan{base: a.reviewedBase(ctx, rec, tree, taken), release: releasedBy(prior, landgate.ByReviewer)}
 	}
 	return donePlan{from: prior, held: nextHold(prior, g.ID, key, tree, taken)}
+}
+
+func (h *heldTurn) holding() bool {
+	return h.Request != "" || h.Last != gateChanges
+}
+
+func stillHolding(gates []gateConfig, prior *heldTurn) []gateConfig {
+	if prior == nil || !prior.holding() {
+		return gates
+	}
+	return keptLive(gates, prior.Gate)
+}
+
+func doneGates(gates []gateConfig, rec record) []gateConfig {
+	return keptLive(stillHolding(gates, rec.Held), rec.HeldGate)
+}
+
+func carriedGate(prior *heldTurn, carried string) string {
+	if prior != nil && prior.holding() {
+		return prior.Gate
+	}
+	return carried
+}
+
+func keptLive(gates []gateConfig, id string) []gateConfig {
+	i := slices.IndexFunc(gates, func(g gateConfig) bool { return id != "" && g.ID == id && g.Paused })
+	if i < 0 {
+		return gates
+	}
+	out := slices.Clone(gates)
+	out[i].Paused = false
+	return out
+}
+
+func pausedHold(gates []gateConfig, prior *heldTurn) string {
+	if prior != nil && !prior.holding() && slices.ContainsFunc(gates, func(g gateConfig) bool { return g.ID == prior.Gate && g.Paused }) {
+		return byGatePaused
+	}
+	return ""
 }
 
 func (a *app) unreadPlan(ctx context.Context, prior *heldTurn, rec record, read *[]gateConfig, repoUnread bool, cause error) donePlan {
@@ -515,13 +565,14 @@ func (s *session) finishLocked(p donePlan) (bool, bool) {
 	case p.held != nil && s.rec.Held != p.from:
 		return true, true
 	case p.held != nil:
-		s.rec.Held = p.held
+		s.rec.Held, s.rec.HeldGate = p.held, ""
 		s.rec.UpdatedAt = time.Now().UTC()
 		return true, false
 	case p.stop && s.rec.Held != nil:
 		s.setStatusLocked(statusIdle, "")
 		return true, false
 	}
+	s.rec.HeldGate = p.carry
 	s.setStatusLocked(statusDone, "")
 	s.rebaseLocked(p.base)
 	return false, false
@@ -531,7 +582,7 @@ func (a *app) finishTurn(s *session) {
 	s.mu.Lock()
 	ok, epoch, cancelled := s.finishableLocked(), s.epoch, s.ending != nil && s.ending.cancelled
 	s.mu.Unlock()
-	if !ok {
+	if !ok || a.tellFindings(s, cancelled) {
 		return
 	}
 	plan := a.planDone(s, cancelled)
@@ -549,6 +600,7 @@ func (a *app) finishTurn(s *session) {
 		return
 	}
 	a.planned(s, plan, prior, held, ended, cancelled)
+	go a.rehookSession(s)
 }
 
 func (a *app) planned(s *session, plan donePlan, prior *heldTurn, held bool, ended api.Turn, cancelled bool) {
@@ -558,9 +610,9 @@ func (a *app) planned(s *session, plan donePlan, prior *heldTurn, held bool, end
 		a.logHeld(s, *prior, gateStopped, landgate.ByUser)
 	case held:
 		s.changed(changeStatus, true)
-		a.reviewHeld(s)
+		a.reviewHeld(s.doneHold())
 	default:
-		a.closeHeldRound(s, prior)
+		a.closeHeldRound(s.doneHold(), prior)
 		a.doneTail(s, ended, cancelled)
 		if plan.release != "" && prior != nil {
 			a.logReleased(s, *prior, plan.release)
@@ -624,7 +676,7 @@ func (a *app) releaseHeld(s *session, key, by string) {
 	s.setStatusLocked(statusDone, "")
 	ended := s.turnLocked()
 	s.mu.Unlock()
-	a.closeHeldRound(s, h)
+	a.closeHeldRound(s.doneHold(), h)
 	a.doneTail(s, ended, false)
 	a.logReleased(s, *h, by)
 }
@@ -640,8 +692,12 @@ func (a *app) logReleased(s *session, h heldTurn, by string) {
 }
 
 func (a *app) logHeld(s *session, h heldTurn, outcome, by string) {
+	a.logHeldCall(s, h, outcome, by, callLine(s.snapshot(), h.Gate))
+}
+
+func (a *app) logHeldCall(s *session, h heldTurn, outcome, by, call string) {
 	rec := s.snapshot()
-	a.logGateVerdict(context.Background(), gateVerdict{Gate: h.Gate, Workspace: rec.Workspace, Outcome: outcome, By: by, Lander: rec.ID, Title: rec.Title, Round: h.Round, Findings: h.Findings, Deferred: h.Deferred, Summary: h.Summary, At: time.Now().UTC()})
+	a.logGateVerdict(context.Background(), gateVerdict{Gate: h.Gate, Workspace: rec.Workspace, Outcome: outcome, By: by, Lander: rec.ID, Title: rec.Title, Call: call, Round: h.Round, Findings: h.Findings, Deferred: h.Deferred, Summary: h.Summary, At: time.Now().UTC()})
 }
 
 func (a *app) turnWrote(ctx context.Context, s *session, tree string) []string {
@@ -811,7 +867,11 @@ func validGlob(glob string) error {
 }
 
 func gateMatchOf(args gateAddArgs) (gateConfig, error) {
-	switch cmp.Or(args.Point, gatePointLand) {
+	point := cmp.Or(args.Point, gatePointLand)
+	if point != gatePointTool && args.Tool+args.How+args.Text != "" {
+		return gateConfig{}, errGateToolOnly
+	}
+	switch point {
 	case gatePointLand:
 		if len(args.Sessions) > 0 || len(args.Wrote) > 0 {
 			return gateConfig{}, errGateLandOnly
@@ -830,6 +890,11 @@ func gateMatchOf(args gateAddArgs) (gateConfig, error) {
 			return gateConfig{}, err
 		}
 		return gateConfig{Point: gatePointTurn, Sessions: kinds, Wrote: globs}, nil
+	case gatePointTool:
+		if args.Into != "" || len(args.Sessions) > 0 || len(args.Wrote) > 0 {
+			return gateConfig{}, errGateToolMatch
+		}
+		return toolMatch(args.Tool, args.How, args.Text)
 	}
 	return gateConfig{}, errGatePoint
 }

@@ -19,16 +19,19 @@ var (
 )
 
 type pendingPermission struct {
-	request string
-	at      time.Time
-	reply   chan acp.PermissionOutcome
-	elicit  chan acp.ElicitationResponse
+	request  string
+	at       time.Time
+	reply    chan acp.PermissionOutcome
+	elicit   chan acp.ElicitationResponse
+	userOnly bool
 }
 
-func (s *session) requestPermission(ctx context.Context, request string, params json.RawMessage) acp.PermissionOutcome {
+func (s *session) requestPermission(ctx context.Context, proc *agentProc, request string, params json.RawMessage) acp.PermissionOutcome {
 	perm := &pendingPermission{request: request, at: time.Now().UTC(), reply: make(chan acp.PermissionOutcome, 1)}
 	s.mu.Lock()
 	s.loadLocked()
+	perm.userOnly = s.userOnly[request]
+	delete(s.userOnly, request)
 	id := entryPermission + "-" + strconv.Itoa(s.nextID+1)
 	s.perms[id] = perm
 	s.recordLocked(s.actor(), kindPermission, permissionPayload{ID: id, RequestID: request, Params: params})
@@ -39,6 +42,9 @@ func (s *session) requestPermission(ctx context.Context, request string, params 
 	s.changed(changeStatus, true)
 	if s.requested != nil {
 		s.requested(entryPermission, id)
+	}
+	if proc != nil && proc.takeWithdrawn(request) {
+		s.cancelRequest(request)
 	}
 	var out acp.PermissionOutcome
 	select {
@@ -75,6 +81,13 @@ func (s *session) answer(id, option string) error {
 	delete(s.perms, id)
 	perm.reply <- acp.PermissionOutcome{Outcome: acp.OutcomeSelected, OptionID: option}
 	return nil
+}
+
+func (s *session) userOnlyPermission(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	perm, ok := s.perms[id]
+	return ok && perm.userOnly
 }
 
 func (s *session) pending() []string {

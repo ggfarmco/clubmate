@@ -123,7 +123,7 @@ func transcript(sc screen) sdui.Node {
 	for _, t := range v.Turns {
 		shas[t.Turn] = t.CheckpointSha
 	}
-	shown := openItemsLast(v.Entries)
+	shown := gateUnderCalls(openItemsLast(v.Entries))
 	rows := windowRows(sc, shown, stops)
 	from := 0
 	if start := windowStart(rows, sc.WindowFirst); start < len(rows) {
@@ -139,12 +139,16 @@ func transcript(sc screen) sdui.Node {
 		}
 		b := entryNode(sc, en, shas[en.Turn])
 		b.shown = b.shown && !pending(sc, en) && !foldsIntoPlan(shown, i)
+		held := heldNodes(sc, en)
 		cost := 0
 		if note != "" {
 			cost++
 		}
 		if b.shown {
 			cost += b.cost
+			for _, h := range held {
+				cost += nodeCost(h)
+			}
 		}
 		if cost > budget {
 			from = i + 1
@@ -155,6 +159,9 @@ func transcript(sc screen) sdui.Node {
 			nodes = append(nodes, sdui.MutedText(note))
 		}
 		if b.shown {
+			for _, h := range slices.Backward(held) {
+				nodes = append(nodes, h)
+			}
 			nodes = append(nodes, thoughtDuration(b.node, shown, i))
 		}
 	}
@@ -295,7 +302,7 @@ func entryShape(sc screen, shown []*entry, i int) (show, tool bool) {
 	case entryAgent, entryThought:
 		return strings.TrimSpace(en.Text) != "", false
 	case entryTool:
-		return !en.Hidden, !en.Hidden
+		return !en.Hidden, !en.Hidden && !blockShown(en) && len(en.HeldCalls) == 0
 	case entryElicitation:
 		return en.Elicitation != nil, false
 	case entryPlan:
@@ -309,6 +316,17 @@ func entryShape(sc screen, shown []*entry, i int) (show, tool bool) {
 		return json.Unmarshal(en.Notice, &n) == nil && (n.Title != "" || n.Description != ""), false
 	}
 	return false, false
+}
+
+func heldNodes(sc screen, en *entry) []sdui.Node {
+	var out []sdui.Node
+	sid := sc.View.Session.ID
+	for _, h := range en.HeldCalls {
+		if b := callBlockOf(h, sc.Calls[h.ID], nil, agentLabel(sc.View.Session.Agent), sc.Now); b != nil && b.Title != "" {
+			out = append(out, callBlockNode(sid+"/tool/"+h.ID, sid, *b))
+		}
+	}
+	return out
 }
 
 func sendingNode(sc screen) (sdui.Node, bool) {
@@ -438,7 +456,7 @@ func entryNode(sc screen, en *entry, sha string) builtNode {
 		}
 		return builtNode{node: n, shown: true, cost: nodeCost(n)}
 	}
-	if en.node == nil || en.Kind == entryTool && sc.Expanded[en.ID] || en.Kind == entryOpenItems || en.Kind == entryNotice {
+	if en.node == nil || en.Kind == entryTool && (sc.Expanded[en.ID] || markOf(en) != nil) || en.Kind == entryOpenItems || en.Kind == entryNotice {
 		return build()
 	}
 	key := nodeKey{sid: sc.View.Session.ID, root: sc.View.Session.Worktree, reviewable: sha != "", pending: sc.Pending[en.ID], from: sc.FromTitles[en.From], review: reviewCardKey(sc, en)}
@@ -469,6 +487,9 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 		}
 		if en.From != "" {
 			n.Props["from"] = cmp.Or(sc.FromTitles[en.From], fromAnother)
+		}
+		if en.Gate != nil {
+			n.Props["gate"] = gateMessageProp(*en.Gate)
 		}
 		n.ID = sid + "/msg/" + en.Kind + "/" + en.ID
 		return n, true
@@ -511,7 +532,17 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 		n.ID = sid + "/plan/" + strconv.Itoa(en.Turn)
 		return n, true
 	case entryTool:
-		return toolCard(sid+"/tool/"+en.ID, root, en, sc.Expanded[en.ID], sha != ""), !en.Hidden
+		id := sid + "/tool/" + en.ID
+		b := callBlockOf(en, sc.Calls[en.ID], refusalMessage(en, messageIn(sc.View.Entries)), agentLabel(sc.View.Session.Agent), sc.Now)
+		if b != nil && b.Title != "" {
+			return callBlockNode(id, sid, *b), !en.Hidden
+		}
+		n := toolCard(id, root, en, sc.Expanded[en.ID], sha != "")
+		if b != nil {
+			n.Props = maps.Clone(n.Props)
+			n.Props["statusWord"] = b.Word
+		}
+		return n, !en.Hidden
 	case entryPermission:
 		return permissionCard(sc, en), true
 	case entryElicitation:

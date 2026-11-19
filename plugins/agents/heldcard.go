@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -33,6 +34,15 @@ const (
 	heldTriedFormat   = "tried %s"
 	heldCheckLabel    = "Check again"
 	heldCheckShort    = "check again"
+	callRunLabel      = "Run anyway"
+	callRunShort      = "run anyway"
+	callAsk           = "Run it without another review?"
+	callManyChanges   = "%d gates still ask for changes"
+	callManyNeed      = "%d gates need you on this call"
+	callRoundsLine    = "%s · %d of %s"
+	callGroupHead     = "%s · %s"
+	callRuleChanges   = "Run anyway runs the call as it is. One more round refuses it and sends the agent the findings; its next matching call is reviewed again. Stop cancels the call and stops the turn."
+	callRuleRerun     = "Run anyway runs the call as it is. One more round runs the review again on this call. Stop cancels the call and stops the turn."
 )
 
 var errGateAction = errors.New("action is accept, more or stop")
@@ -50,9 +60,12 @@ func (a *app) gateAnswerCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 }
 
 func (a *app) answerHeld(ctx context.Context, workspaceID, request, action string) error {
-	s, h := a.findHeldRequest(workspaceID, request)
-	if s == nil {
+	r, h := a.findHeldRequest(workspaceID, request)
+	if h == nil {
 		return errLandStale
+	}
+	if r.point() == gatePointTool {
+		return a.answerCallCard(ctx, r.s, request, action)
 	}
 	n := *h
 	n.Request, n.Asked = "", time.Time{}
@@ -76,45 +89,51 @@ func (a *app) answerHeld(ctx context.Context, workspaceID, request, action strin
 		return fmt.Errorf("%w: %s", errGateAction, action)
 	}
 	a.gateMu.Lock()
-	if !s.casHeld(h, &n) {
+	if !r.cas(h, &n) {
 		a.gateMu.Unlock()
 		return errLandStale
 	}
 	if action == heldActionAccept && !h.Unread {
 		v := landgate.Verdict{Tree: h.Key, Outcome: gateApproved, By: landgate.ByUser, At: time.Now().UTC()}
-		if err := a.host.StorageSet(ctx, turnVerdictPath(h.Gate, h.Key), v); err != nil {
-			s.casHeld(&n, h)
+		if err := a.host.StorageSet(ctx, r.verdictPath(h.Gate, h.Key), v); err != nil {
+			r.cas(&n, h)
 			a.gateMu.Unlock()
 			return err
 		}
 	}
 	a.gateMu.Unlock()
-	s.changed(changeStatus, true)
+	r.s.changed(changeStatus, true)
 	switch {
 	case action == heldActionAccept:
-		a.releaseHeld(s, n.Key, landgate.ByUser)
+		a.releaseHold(r, n.Key, landgate.ByUser)
 	case action == heldActionStop:
-		a.cancel(s)
+		a.cancel(r.s, true)
 	case h.Unread:
-		a.finishTurn(s)
+		a.finishTurn(r.s)
 	case changes:
-		a.promptChanges(s, *g, n)
+		a.promptChanges(r, *g, n)
 	default:
-		a.reviewHeld(s)
+		a.reviewHeld(r)
 	}
 	return nil
 }
 
-func (a *app) findHeldRequest(workspaceID, request string) (*session, *heldTurn) {
+func (a *app) findHeldRequest(workspaceID, request string) (holdRef, *heldTurn) {
 	if request == "" {
-		return nil, nil
+		return holdRef{}, nil
 	}
 	for _, s := range a.workspaceSessions(workspaceID) {
-		if rec := s.snapshot(); !rec.closed() && rec.Held != nil && rec.Held.Request == request {
-			return s, rec.Held
+		rec := s.snapshot()
+		if rec.closed() {
+			continue
+		}
+		for _, r := range s.holds() {
+			if h := r.of(rec); h != nil && h.Request == request {
+				return r, h
+			}
 		}
 	}
-	return nil, nil
+	return holdRef{}, nil
 }
 
 func heldAction(landAction string) string {
@@ -203,4 +222,84 @@ func heldDetail(h heldTurn) string {
 
 func (r record) heldWaits() bool {
 	return !r.closed() && r.Held != nil && r.Held.Request != ""
+}
+
+func (r record) callRequests() []string {
+	if r.closed() {
+		return nil
+	}
+	var out []string
+	for _, c := range r.Calls {
+		if c.Hold.Request != "" && !slices.Contains(out, c.Hold.Request) {
+			out = append(out, c.Hold.Request)
+		}
+	}
+	return out
+}
+
+func callCard(rec record, request string) sdui.Node {
+	holds := rec.cardHolds(request)
+	rule := callRuleRerun
+	if slices.ContainsFunc(holds, func(c *callHold) bool { return c.Hold.Last == gateChanges }) {
+		rule = callRuleChanges
+	}
+	return roundsCard(rec, request, callRunLabel, gateMoreLabel, sdui.LandRequestProps{
+		Title:    callCardTitle(holds),
+		Caption:  callCaption(holds),
+		Name:     rec.Title,
+		Detail:   callDetail(holds),
+		Rule:     rule,
+		Question: callAsk,
+	})
+}
+
+func callCardTitle(holds []*callHold) string {
+	switch {
+	case len(holds) == 0:
+		return ""
+	case len(holds) == 1:
+		return heldCardTitle(*holds[0].Hold)
+	case slices.ContainsFunc(holds, func(c *callHold) bool { return c.Hold.Last != gateChanges }):
+		return fmt.Sprintf(callManyNeed, len(holds))
+	}
+	return fmt.Sprintf(callManyChanges, len(holds))
+}
+
+func callCaption(holds []*callHold) string {
+	if len(holds) == 1 {
+		return heldCaption(*holds[0].Hold)
+	}
+	parts := make([]string, 0, len(holds))
+	for _, c := range holds {
+		round := max(c.Hold.Round, 1)
+		parts = append(parts, fmt.Sprintf(callRoundsLine, callMatch(*c.Hold), round, counted(max(c.Hold.Of, round), "round")))
+	}
+	return strings.Join(parts, " · ")
+}
+
+func callDetail(holds []*callHold) string {
+	if len(holds) == 0 {
+		return ""
+	}
+	call := holds[0].Input
+	if i := slices.IndexFunc(holds, func(c *callHold) bool { return c.Call != "" }); i >= 0 {
+		call = holds[i].Input
+	}
+	if len(holds) == 1 {
+		return strings.Join(nonEmpty(call, heldDetail(*holds[0].Hold)), "\n\n")
+	}
+	parts := []string{call}
+	for _, c := range holds {
+		h := *c.Hold
+		body := heldDetail(h)
+		if h.Last != gateChanges {
+			body = heldCardTitle(h)
+		}
+		parts = append(parts, strings.Join(nonEmpty(fmt.Sprintf(callGroupHead, callMatch(h), cmp.Or(h.Graph, heldGraphFallback)), body), "\n"))
+	}
+	return strings.Join(nonEmpty(parts...), "\n\n")
+}
+
+func callMatch(h heldTurn) string {
+	return strings.TrimPrefix(h.Name, gateNameTool)
 }

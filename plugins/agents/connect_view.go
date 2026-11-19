@@ -95,6 +95,9 @@ func requestCard(sc screen) (sdui.Node, bool) {
 	if i := slices.IndexFunc(rec.LandReviews, func(st landReview) bool { return st.Request != "" }); i >= 0 {
 		return gateCard(rec, rec.LandReviews[i]), true
 	}
+	if requests := rec.callRequests(); len(requests) > 0 {
+		return callCard(rec, requests[0]), true
+	}
 	if rec.Task == nil {
 		return sdui.Node{}, false
 	}

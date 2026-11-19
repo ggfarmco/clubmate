@@ -98,7 +98,7 @@ struct ToolActionLine: View, Equatable {
                     }
                 }
                 Spacer(minLength: theme.gutter)
-                ToolStatusView(status: node.toolStatus)
+                ToolStatusView(status: node.toolStatus, word: node.toolStatusWord)
             }
             .help(title.help ?? fullTitle)
             if expanded, expandable {

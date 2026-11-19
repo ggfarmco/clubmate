@@ -12,8 +12,14 @@ import (
 var cycleKinds = []string{acp.UpdateAgentMessageChunk, acp.UpdateAgentThoughtChunk, acp.UpdateToolCall}
 
 type backgroundUpdate struct {
-	Cost json.RawMessage `json:"cost"`
-	Meta struct {
+	Cost       json.RawMessage `json:"cost"`
+	ToolCallID string          `json:"toolCallId"`
+	RawInput   struct {
+		Command      string `json:"command"`
+		InBackground bool   `json:"run_in_background"`
+	} `json:"rawInput"`
+	RawOutput json.RawMessage `json:"rawOutput"`
+	Meta      struct {
 		ClaudeCode struct {
 			ToolResponse json.RawMessage `json:"toolResponse"`
 		} `json:"claudeCode"`
@@ -43,12 +49,15 @@ func (s *session) trackLocked(kind string, payload json.RawMessage) (started, en
 			}
 			s.background[res.BackgroundTaskID] = true
 		}
+		s.noteBackgroundCallLocked(u, res.BackgroundTaskID)
 	case slices.Contains(cycleKinds, kind) && s.running && s.answered:
 		s.late = true
 	case kind == acp.UpdateUsage && s.late && s.running && hasCost(payload):
 		s.late = false
 	case kind == acp.UpdateUsage && s.cycle && !s.running && hasCost(payload):
 		s.cycle = false
+		s.followedUpLocked()
+		s.refuseCallsLocked()
 		return false, true
 	case slices.Contains(cycleKinds, kind) && !s.workingLocked() && s.proc != nil:
 		s.cycle = true
@@ -71,26 +80,27 @@ func (s *session) dropBackgroundLocked() {
 	s.background = nil
 }
 
-func (a *app) pruneBackground(s *session) {
+func (a *app) pruneBackground(s *session) bool {
 	s.mu.Lock()
 	p, agentID, pending := s.proc, s.rec.AgentSessionID, len(s.background) > 0
 	s.mu.Unlock()
 	if !pending {
-		return
+		return false
 	}
 	if p != nil {
 		procs, err := proc.List()
 		if err != nil {
-			return
+			return false
 		}
 		alive, known := sessionBackground(p.pgid, agentID, len(p.attached()) == 1, procs, proc.ReadArgs)
 		if !known || alive {
-			return
+			return false
 		}
 	}
 	s.mu.Lock()
 	s.background = nil
 	s.mu.Unlock()
+	return true
 }
 
 func sessionBackground(leader int, agentID string, alone bool, procs []proc.Process, args func(int) []string) (alive, known bool) {
@@ -123,5 +133,6 @@ func runsShell(root int, procs []proc.Process) bool {
 
 func (a *app) settleBackground(s *session) {
 	a.pruneBackground(s)
+	a.logRefusals(s)
 	a.finishTurn(s)
 }

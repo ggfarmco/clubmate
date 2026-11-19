@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
@@ -212,6 +213,8 @@ type promptArgs struct {
 	Answered    []string     `json:"-"`
 	Land        bool         `json:"-"`
 	Gate        bool         `json:"-"`
+	Message     *gateMessage `json:"-"`
+	User        bool         `json:"-"`
 }
 
 type attachment struct {
@@ -376,6 +379,7 @@ func (a *app) newCommand(ctx context.Context, cmd pluginsdk.CommandRun, args new
 func (a *app) promptCommand(_ context.Context, cmd pluginsdk.CommandRun, args promptArgs) (any, error) {
 	args.From = origin(cmd)
 	args.Voice = !cmd.Agent && cmd.Via == voicePlugin
+	args.User = a.userWord(cmd)
 	s, err := a.lookup(cmd.WorkspaceID, args.Session)
 	if err != nil {
 		return nil, err
@@ -404,6 +408,9 @@ func (a *app) permissionCommand(_ context.Context, cmd pluginsdk.CommandRun, arg
 	}
 	if !asUser(cmd) && (cmd.Caller == "" || !a.descendantOf(args.Session, cmd.Caller)) {
 		return nil, errNotDescendant
+	}
+	if !asUser(cmd) && s.userOnlyPermission(args.Request) {
+		return nil, errUserOnly
 	}
 	return nil, s.answer(args.Request, args.Option)
 }
@@ -528,20 +535,22 @@ func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 		if w, err = a.host.GetWorkspace(ctx, cmd.WorkspaceID); err != nil {
 			w = pluginsdk.Workspace{}
 		}
-		key = decorationKey(s.snapshot(), w)
+		rec := s.snapshot()
+		key = decorationKey(rec, w, callStamp(a.callLives(rec), time.Now())...)
 	}
 	var since *cursor
 	var always func(*entry) bool
 	if pos, seen, ok := parseCursor(args.Since); ok && !args.Last {
 		since = &pos
 		if seen != key {
-			always = decorated
+			always = func(en *entry) bool { return decorated(en) || gateDecorated(en) }
 		}
 	}
 	v := s.viewSince(args.FromTurn, since, always)
 	v.Cursor = v.pos.format(key)
 	if !cmd.Agent {
 		withPermissionContent(v.Session, v.Entries, w.Name)
+		a.withCallContent(&v, s)
 		a.withTaskContent(&v, w)
 		a.withAsideContent(&v, s)
 	}
@@ -619,7 +628,7 @@ func (a *app) cancelCommand(_ context.Context, cmd pluginsdk.CommandRun, args ca
 	if args.Turn != 0 && !s.turnActive(args.Turn) {
 		return nil, fmt.Errorf("%w: turn %d is over", errTurnChanged, args.Turn)
 	}
-	a.cancel(s)
+	a.cancel(s, a.userWord(cmd))
 	return nil, nil
 }
 

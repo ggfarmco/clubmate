@@ -24,6 +24,7 @@ type gateListed struct {
 	Wrote    []string `json:"wrote"`
 	Graph    string   `json:"graph"`
 	Name     string   `json:"name"`
+	Words    string   `json:"words"`
 	State    string   `json:"state"`
 	Pin      string   `json:"pin"`
 	Hash     string   `json:"hash"`
@@ -35,22 +36,26 @@ type gateListed struct {
 type gateHistory struct {
 	Landings []struct {
 		Lander   string `json:"lander"`
+		Call     string `json:"call"`
 		State    string `json:"state"`
 		Round    int    `json:"round"`
 		Reviewer string `json:"reviewer"`
 	} `json:"landings"`
-	Verdicts []struct {
-		Gate     string    `json:"gate"`
-		Outcome  string    `json:"outcome"`
-		By       string    `json:"by"`
-		Lander   string    `json:"lander"`
-		Into     string    `json:"into"`
-		Round    int       `json:"round"`
-		Reviewer string    `json:"reviewer"`
-		Findings []string  `json:"findings"`
-		Summary  string    `json:"summary"`
-		At       time.Time `json:"at"`
-	} `json:"verdicts"`
+	Verdicts []gateVerdictRow `json:"verdicts"`
+}
+
+type gateVerdictRow struct {
+	Gate     string    `json:"gate"`
+	Outcome  string    `json:"outcome"`
+	By       string    `json:"by"`
+	Lander   string    `json:"lander"`
+	Into     string    `json:"into"`
+	Call     string    `json:"call"`
+	Round    int       `json:"round"`
+	Reviewer string    `json:"reviewer"`
+	Findings []string  `json:"findings"`
+	Summary  string    `json:"summary"`
+	At       time.Time `json:"at"`
 }
 
 func (f *fixture) gates(t *testing.T, workspace string) []gateListed {
@@ -197,5 +202,42 @@ func TestDockRepoRowOpensItsFirstGate(t *testing.T) {
 
 	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
 		return slices.ContainsFunc(sheetNodes(n, "header"), func(h sdui.Node) bool { return h.Props["title"] == first.Name })
+	})
+}
+
+func TestDockRepoRowOpensTheFirstToolCallGateByName(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{})
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	f.addPushGate(t, workspace, repo)
+	f.addCommandGate(t, workspace, repo, "gh pr create")
+
+	f.h.Event(t, workspace, "agents.sidebar", "sessions", "select", "gate-repo:"+f.gates(t, workspace)[0].Repo)
+
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
+		return slices.ContainsFunc(sheetNodes(n, "header"), func(h sdui.Node) bool { return h.Props["title"] == "Tool call · gh pr create" })
+	})
+}
+
+func TestSheetCountsTheRepoSessionsMidTurn(t *testing.T) {
+	t.Parallel()
+	f := start(t, callScript(openTurn("hold")))
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	busy := f.newSession(t, workspace)
+	f.newSession(t, workspace)
+	f.prompt(t, workspace, busy, "hold")
+	f.waitStatus(t, workspace, busy, "running")
+	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
+
+	require.NoError(t, f.run(t, workspace, "agents.gates.new", map[string]any{}, nil))
+	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool { return len(sheetNodes(n, "sheet")) == 1 })
+	f.h.Event(t, workspace, "agents.sheet", "gateSheet/holds", "gateHolds", "tool")
+
+	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool {
+		return slices.ContainsFunc(sheetNodes(n, "text"), func(x sdui.Node) bool {
+			return x.Props["text"] == "1 session mid-turn picks this gate up when its turn ends"
+		})
 	})
 }

@@ -212,3 +212,19 @@ func TestSidebarInboxDrawsAGateWaitingForTrustOnOneLine(t *testing.T) {
 		Badges: []sdui.HeaderBadge{{Text: "to trust", Tone: toneWarning}}, Help: "Graph changed · 2 waits",
 	}}, got)
 }
+
+func TestNeedsYouFilterListsAGateWaitingForTrust(t *testing.T) {
+	t.Parallel()
+	held := inboxInfo(record{ID: "agt_h", Worktree: orderHome, Status: statusRunning}, 0)
+	infos := []sessionInfo{held, trustInfo("ws", trustNeed{Gate: "gt_1", Name: gateNameDone + "plans and specs", Point: gatePointTurn, Waits: 2, Since: inboxAt(5)})}
+	setGroups(infos)
+	var memo inboxMemo
+	memo.apply("ws", infos)
+
+	view := sidebarView([]sessionRow{{Rec: held.record}}, "", nil, inboxAt(90), orderHome, map[string]string{orderHome: homeListGroup}, false, filterNeeds, sidebarSearch{}, 0, sidebarPlus{}, inboxOf(infos))
+
+	trees := nodesOf(view, "tree")
+	require.Len(t, trees, 1)
+	require.NoError(t, internalsdui.Validate(trees[0]))
+	assert.Equal(t, []string{mirrorPrefix + gatePrefix + "gt_1"}, ids(trees[0].Props["items"].([]sdui.TreeItem)))
+}

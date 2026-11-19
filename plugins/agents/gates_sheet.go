@@ -11,6 +11,7 @@ import (
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/graphs"
 	"clubmate/plugins/internal/automation"
+	"clubmate/plugins/internal/toolgate"
 )
 
 const (
@@ -28,7 +29,22 @@ const (
 	gateUndecided        = "%s can't decide a landing: no node reports approved and changes"
 	gateUnreadableGraphs = "%s can't be read: open them in Graphs to see why"
 	gateSentence         = "Holds an agent's %s in %s; %s decides."
+	gateToolIcon         = "terminal"
+	gatePointToolCall    = "Tool call"
+	gateHoldsToolLine    = "An agent's tool call. The agent waits inside it while the graph runs."
+	gateHoldsTool        = "an agent's tool call"
+	gateCallCustom       = "custom"
+	gateCallCustomLabel  = "Custom…"
+	gateToolTextHint     = "make deploy"
+	gateToolCallWord     = "%s call"
+	gateUnhookedMany     = "%d sessions mid-turn pick this gate up when their turn ends"
+	gateUnhookedOne      = "1 session mid-turn picks this gate up when its turn ends"
+	gateUndecidedTool    = "%s can't decide a tool call: no node reports approved and changes"
+	gatePausedLine       = "a paused gate holds nothing new; what it holds stays held"
+	gatePausedToolLine   = "a paused gate takes no new call; what it holds stays held"
 )
+
+var gateCallPresets = []string{"git push", "gh pr create"}
 
 type gateDraft struct {
 	Edit      string
@@ -43,6 +59,11 @@ type gateDraft struct {
 	Graph     string
 	Rounds    int
 	Paused    bool
+	Call      string
+	Tool      string
+	How       string
+	Text      string
+	Unhooked  int
 	Err       string
 	Repos     []gateRepo
 	Gates     []gateConfig
@@ -111,8 +132,11 @@ func gateSheetView(d gateDraft) sdui.Node {
 	}
 	rows = append(rows, gateHoldsField(d)...)
 	match := gateIntoField
-	if d.Point == gatePointTurn {
+	switch d.Point {
+	case gatePointTurn:
 		match = gateDoneFields
+	case gatePointTool:
+		match = gateToolFields
 	}
 	fields, ok := match(d)
 	rows = append(rows, fields...)
@@ -122,9 +146,13 @@ func gateSheetView(d gateDraft) sdui.Node {
 	disabled = disabled || !ok
 	rows = append(rows, sdui.HStack(sdui.MutedText("Rounds"), sdui.WithAction(sdui.Select(gateSheetID+"/rounds", roundOptions(d.Rounds), strconv.Itoa(d.Rounds)), actGateRounds), sdui.MutedText(gateRoundsWords)))
 	if d.Edit != "" {
-		rows = append(rows, sdui.HStack(sdui.MutedText("Paused"), sdui.WithAction(sdui.Toggle(gateSheetID+"/paused", d.Paused), actGatePaused), sdui.MutedText("a paused gate holds nothing")))
+		paused := gatePausedLine
+		if d.Point == gatePointTool {
+			paused = gatePausedToolLine
+		}
+		rows = append(rows, sdui.HStack(sdui.MutedText("Paused"), sdui.WithAction(sdui.Toggle(gateSheetID+"/paused", d.Paused), actGatePaused), sdui.MutedText(paused)))
 	}
-	if d.Point != gatePointTurn {
+	if !heldPoint(d.Point) {
 		rows = append(rows, automation.Property("Docs only", gateDocsOnly, ""))
 	}
 	cancel := sdui.WithVariant(sdui.WithAction(sdui.Button(gateSheetID+"/cancel", "Cancel", ""), actGateCancel), sdui.VariantSecondary)
@@ -231,8 +259,11 @@ func gateGraphField(d gateDraft) ([]sdui.Node, bool) {
 	}
 	if len(undecided) > 0 {
 		words := gateUndecided
-		if d.Point == gatePointTurn {
+		switch d.Point {
+		case gatePointTurn:
 			words = gateUndecidedDone
+		case gatePointTool:
+			words = gateUndecidedTool
 		}
 		out = append(out, sdui.MutedText(fmt.Sprintf(words, strings.Join(undecided, ", "))))
 	}
@@ -264,9 +295,131 @@ func chainWords(g graphs.GateGraphInfo) string {
 
 func gateSentenceOf(d gateDraft) string {
 	chosen, _ := d.choice()
-	if d.Point == gatePointTurn {
+	switch d.Point {
+	case gatePointTurn:
 		return doneSentenceOf(d, cmp.Or(chosen.Title, chosen.Name), filepath.Base(d.primary()))
+	case gatePointTool:
+		g, _ := d.toolConfig()
+		return fmt.Sprintf(gateSentence, toolSentenceWhat(g), filepath.Base(d.primary()), cmp.Or(chosen.Title, chosen.Name))
 	}
 	what := "l" + strings.TrimPrefix(gateNameOf(d.Into, d.branch()), "L")
 	return fmt.Sprintf(gateSentence, what, filepath.Base(d.primary()), cmp.Or(chosen.Title, chosen.Name))
+}
+
+func (d gateDraft) call() string {
+	return cmp.Or(d.Call, gateCallPresets[0])
+}
+
+func (d gateDraft) customTool() string {
+	return cmp.Or(strings.TrimSpace(d.Tool), toolgate.Bash)
+}
+
+func (d gateDraft) customHow() string {
+	tool := d.customTool()
+	return cmp.Or(toolHowAfter(tool, d.How), toolHowDefault(tool))
+}
+
+func (d gateDraft) toolConfig() (gateConfig, error) {
+	if d.call() != gateCallCustom {
+		return toolMatch(toolgate.Bash, toolgate.HowCommand, d.call())
+	}
+	text := d.Text
+	if d.customHow() == toolgate.HowContains {
+		text = strings.TrimSpace(text)
+	}
+	return toolMatch(d.Tool, d.customHow(), text)
+}
+
+func (d gateDraft) takenTool() (gateConfig, bool) {
+	want, err := d.toolConfig()
+	if err != nil {
+		return gateConfig{}, false
+	}
+	primary := d.primary()
+	i := slices.IndexFunc(d.Gates, func(g gateConfig) bool {
+		return g.ID != d.Edit && g.Repo == primary && g.Point == gatePointTool && sameTool(g, want)
+	})
+	if i < 0 {
+		return gateConfig{}, false
+	}
+	return d.Gates[i], true
+}
+
+func (d gateDraft) freeCall() string {
+	for _, c := range gateCallPresets {
+		d.Call = c
+		if _, taken := d.takenTool(); !taken {
+			return c
+		}
+	}
+	return gateCallPresets[0]
+}
+
+func gateCallOf(g gateConfig) string {
+	if g.Tool == toolgate.Bash && g.How == toolgate.HowCommand && slices.Contains(gateCallPresets, g.Text) {
+		return g.Text
+	}
+	return gateCallCustom
+}
+
+func toolSentenceWhat(g gateConfig) string {
+	if g.Tool == toolgate.Bash {
+		return toolMatchName(g)
+	}
+	return fmt.Sprintf(gateToolCallWord, g.Tool)
+}
+
+func gateToolFields(d gateDraft) ([]sdui.Node, bool) {
+	items := make([]sdui.Item, 0, len(gateCallPresets)+1)
+	for _, c := range gateCallPresets {
+		items = append(items, sdui.Item{ID: c, Label: c})
+	}
+	items = append(items, sdui.Item{ID: gateCallCustom, Label: gateCallCustomLabel})
+	out := []sdui.Node{sdui.HStack(sdui.MutedText("Call"), sdui.WithAction(sdui.Tabs(gateSheetID+"/call", items, d.call()), actGateCall))}
+	g, err := d.toolConfig()
+	ok := err == nil
+	taken, isTaken := d.takenTool()
+	if d.call() == gateCallCustom {
+		text := sdui.WithAction(sdui.WithLive(sdui.TextField(gateSheetID+"/text", d.Text, gateToolTextHint)), actGateText)
+		switch {
+		case err != nil && (strings.TrimSpace(d.Text) != "" || d.customTool() != toolgate.Bash):
+			text = sdui.WithError(text, err.Error())
+		case isTaken:
+			text = sdui.WithError(text, fmt.Sprintf(gateMatchTaken, toolGateName(taken)))
+		}
+		tool := sdui.WithAction(sdui.WithLive(sdui.TextField(gateSheetID+"/tool", d.Tool, toolgate.Bash)), actGateTool)
+		how := sdui.WithAction(sdui.WithSegmented(sdui.Tabs(gateSheetID+"/how", gateHowItems(d), d.customHow())), actGateHow)
+		out = append(out, sdui.HStack(sdui.MutedText(""), how), sdui.HStack(sdui.MutedText(""), tool, text))
+	}
+	if ok {
+		out = append(out, sdui.MutedText("= "+toolMatchWords(g)))
+	}
+	if isTaken {
+		ok = false
+		if d.call() != gateCallCustom {
+			out = append(out, sdui.WithTone(sdui.Text(fmt.Sprintf(gateMatchTaken, toolGateName(taken))), toneWarning))
+		}
+	}
+	switch {
+	case d.Unhooked == 1:
+		out = append(out, sdui.MutedText(gateUnhookedOne))
+	case d.Unhooked > 1:
+		out = append(out, sdui.MutedText(fmt.Sprintf(gateUnhookedMany, d.Unhooked)))
+	}
+	return out, ok
+}
+
+func gateHowItems(d gateDraft) []sdui.Item {
+	items := []sdui.Item{
+		{ID: toolgate.HowStarts, Label: "starts with"},
+		{ID: toolgate.HowContains, Label: "contains"},
+		{ID: toolgate.HowRegex, Label: "regex"},
+	}
+	if d.customTool() != toolgate.Bash {
+		return items[1:]
+	}
+	if d.customHow() == toolgate.HowCommand {
+		items = append([]sdui.Item{{ID: toolgate.HowCommand, Label: "command"}}, items...)
+	}
+	return items
 }

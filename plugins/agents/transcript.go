@@ -126,6 +126,9 @@ type entry struct {
 	Hidden     bool              `json:"hidden,omitempty"`
 	Voice      *voicePrompt      `json:"voice,omitempty"`
 	Review     *reviewSent       `json:"review,omitempty"`
+	Gate       *gateMessage      `json:"gateMessage,omitempty"`
+	Call       *callBlock        `json:"gate,omitempty"`
+	HeldCalls  []*entry          `json:"heldCalls,omitempty"`
 
 	Items    []openItem `json:"items,omitempty"`
 	Overflow []int      `json:"overflow,omitempty"`
@@ -133,14 +136,15 @@ type entry struct {
 
 	Summary *toolSummary `json:"toolSummary,omitempty"`
 
-	node    *nodeCache
-	sub     *subagent
-	seq     int64
-	minor   int64
-	closed  bool
-	marked  string
-	numbers []int
-	taskIDs []int
+	node     *nodeCache
+	sub      *subagent
+	toolName string
+	seq      int64
+	minor    int64
+	closed   bool
+	marked   string
+	numbers  []int
+	taskIDs  []int
 }
 
 type voicePrompt struct {
@@ -165,13 +169,14 @@ type turnInfo struct {
 
 type promptPayload struct {
 	acp.PromptRequest
-	From      string      `json:"from,omitempty"`
-	FromTitle string      `json:"fromTitle,omitempty"`
-	Steered   bool        `json:"steered,omitempty"`
-	Voice     bool        `json:"voice,omitempty"`
-	Review    *reviewSent `json:"review,omitempty"`
-	Sent      string      `json:"sent,omitempty"`
-	Queued    []string    `json:"queued,omitempty"`
+	From      string       `json:"from,omitempty"`
+	FromTitle string       `json:"fromTitle,omitempty"`
+	Steered   bool         `json:"steered,omitempty"`
+	Voice     bool         `json:"voice,omitempty"`
+	Review    *reviewSent  `json:"review,omitempty"`
+	Sent      string       `json:"sent,omitempty"`
+	Queued    []string     `json:"queued,omitempty"`
+	Gate      *gateMessage `json:"gate,omitempty"`
 }
 
 type permissionPayload struct {
@@ -243,6 +248,9 @@ func (s *session) viewSince(fromTurn int, since *cursor, always func(*entry) boo
 		c.sub = nil
 		c.Text = cmp.Or(en.marked, en.Text)
 		c.Items = withNumbers(en.Items, en.numbers)
+		if en.sub != nil {
+			c.HeldCalls = heldInside(en.sub)
+		}
 		closed := false
 		if en.Tool != nil && (en.sub == nil && !s.workingLocked() || en.sub != nil && s.proc == nil) {
 			if tool, ok := closeTool(en.Tool); ok {
@@ -435,7 +443,12 @@ func (s *session) update(params json.RawMessage) {
 		e.Seq = s.log.write(e)
 	}
 	title, mode := s.rec.Title, s.rec.Mode
+	was := s.callStatusLocked(e.AgentSession, head.SessionUpdate, n.Update)
 	s.apply(e)
+	if head.SessionUpdate == acp.UpdateToolCallUpdate {
+		s.gateFailedLocked(e.AgentSession, n.Update)
+	}
+	ran := s.endedCallLocked(e.AgentSession, head.SessionUpdate, was, n.Update)
 	var started, ended bool
 	if e.AgentSession == "" {
 		started, ended = s.trackLocked(head.SessionUpdate, n.Update)
@@ -445,9 +458,15 @@ func (s *session) update(params json.RawMessage) {
 	s.changed(changeUpdate, meta)
 	if started {
 		s.changed(changeStatus, true)
+		if s.cycled != nil {
+			go s.cycled()
+		}
 	}
 	if ended && s.idled != nil {
 		go s.idled()
+	}
+	if ran != nil && s.ran != nil {
+		go s.ran(*ran)
 	}
 }
 
@@ -597,10 +616,18 @@ func (s *session) applyPrompt(e envelope) {
 	s.turnInfo(e.Turn)
 	s.prompted = true
 	id := promptEntryID(e.Turn)
-	if req.Steered {
+	switch {
+	case req.Gate != nil && req.Gate.Call != "":
+		id = gateEntryID(req.Gate.Call)
+		s.edited = false
+		s.hideGateEntry(req.Gate.Call)
+		if i, ok := s.index[key(entryTool, req.Gate.Call)]; ok {
+			s.touch(s.entries[i])
+		}
+	case req.Steered:
 		s.nextID++
 		id += "-" + strconv.Itoa(s.nextID)
-	} else {
+	default:
 		s.edited = false
 	}
 	en := s.upsert(entryUser, id, e.Turn)
@@ -608,6 +635,9 @@ func (s *session) applyPrompt(e envelope) {
 		s.senders = append(s.senders, req.FromTitle)
 	}
 	fillPrompt(en, req)
+	if req.Gate != nil {
+		en.Gate = req.Gate
+	}
 	if s.rec.Title == "" {
 		s.rec.Title = titleOf(en.Text)
 	}
@@ -676,6 +706,8 @@ func (s *session) applyUpdate(turn int, payload json.RawMessage) {
 		s.announceSubagent(nil, turn, payload)
 	case acp.UpdateSessionMessage:
 		s.sessionMessage(payload)
+	case updateGateMsg:
+		s.applyGateMessage(turn, payload)
 	case acp.UpdateNotice:
 		s.nextID++
 		s.upsert(entryNotice, "notice-"+strconv.Itoa(s.nextID), turn).Notice = payload
@@ -692,10 +724,13 @@ func (s *session) applyTool(create bool, turn int, payload json.RawMessage) {
 	if json.Unmarshal(payload, &fields) != nil || json.Unmarshal(payload, &head) != nil || head.ToolCallID == "" {
 		return
 	}
+	name := metaToolName(fields)
 	dropUnkeptToolFields(fields)
 	en := s.upsert(entryTool, head.ToolCallID, turn)
+	en.toolName = cmp.Or(name, en.toolName)
 	tool := make(map[string]json.RawMessage, len(en.Tool)+len(fields))
 	if !create {
+		keepHolds(en.Tool, fields)
 		maps.Copy(tool, en.Tool)
 	}
 	maps.Copy(tool, fields)

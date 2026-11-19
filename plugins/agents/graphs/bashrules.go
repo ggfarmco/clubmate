@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"clubmate/plugins/internal/bashcmd"
 )
 
 const (
@@ -141,6 +143,14 @@ func (rs ruleSet) decide(command string) (string, string) {
 	return verdictAsk, ""
 }
 
+func (e *Engine) BashAllowed(dir, command string) bool {
+	if !simpleCommand(command) {
+		return false
+	}
+	verdict, _ := loadRules(e.a.managedPath, e.a.home, dir, false).decide(command)
+	return verdict == verdictAllow
+}
+
 func (rs ruleSet) denied(command string) (string, bool) {
 	for _, rule := range rs.Deny {
 		if matchesAnyPart(rule, command) {
@@ -187,27 +197,12 @@ func commandWords(command string) []string {
 }
 
 func matchesAnyPart(rule, command string) bool {
-	for _, part := range commandParts(command) {
+	for _, part := range bashcmd.Parts(command) {
 		if bashMatch(rule, part, true) {
 			return true
 		}
 	}
 	return false
-}
-
-func commandParts(command string) []string {
-	parts := strings.FieldsFunc(command, func(r rune) bool { return strings.ContainsRune(";&|\n`()$", r) })
-	out := []string{command}
-	for _, p := range parts {
-		words := strings.Fields(p)
-		for len(words) > 0 && strings.Contains(words[0], "=") {
-			words = words[1:]
-		}
-		if len(words) > 0 {
-			out = append(out, strings.Join(words, " "))
-		}
-	}
-	return out
 }
 
 func bashMatch(rule, command string, broad bool) bool {

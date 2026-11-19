@@ -25,6 +25,7 @@ const (
 	gateNameAny      = "any branch"
 	gateNameBase     = "the base"
 	gateNameDefault  = "the default branch"
+	gateUngated      = "ungated"
 )
 
 var gateRank = map[string]int{gateApproved: 1, gateChanges: 2, gateStateReview: 3, gateStateNeedsMe: 4}
@@ -38,6 +39,7 @@ type gateVerdict struct {
 	Title     string    `json:"title,omitempty"`
 	Into      string    `json:"into"`
 	Source    string    `json:"source,omitempty"`
+	Call      string    `json:"call,omitempty"`
 	Round     int       `json:"round,omitempty"`
 	Reviewer  string    `json:"reviewer,omitempty"`
 	Findings  []string  `json:"findings,omitempty"`
@@ -49,6 +51,8 @@ type gateVerdict struct {
 type gateLanding struct {
 	Lander   string    `json:"lander"`
 	Title    string    `json:"title,omitempty"`
+	Call     string    `json:"call,omitempty"`
+	Caption  string    `json:"caption,omitempty"`
 	Into     string    `json:"into"`
 	Source   string    `json:"source,omitempty"`
 	State    string    `json:"state"`
@@ -65,6 +69,7 @@ type gateLanding struct {
 type gateRow struct {
 	gateConfig
 	Name       string        `json:"name"`
+	Words      string        `json:"words,omitempty"`
 	State      string        `json:"state"`
 	Hash       string        `json:"hash,omitempty"`
 	Unreadable bool          `json:"unreadable,omitempty"`
@@ -230,7 +235,7 @@ func (a *app) gateState(rec record) string {
 	best := ""
 	asks := a.gateAsks(rec)
 	for _, st := range rec.LandReviews {
-		if !a.gateLive(st.Gate) {
+		if !a.landingShown(st) {
 			continue
 		}
 		state := st.Last
@@ -244,7 +249,7 @@ func (a *app) gateState(rec record) string {
 			best = state
 		}
 	}
-	if rec.heldWaits() || asks[heldRun(rec)] != nil {
+	if rec.heldWaits() || len(rec.callRequests()) > 0 || asks[heldRun(rec)] != nil {
 		best = gateStateNeedsMe
 	}
 	return best
@@ -281,6 +286,9 @@ func (a *app) gateLandings(workspaceID, gateID string) []gateLanding {
 				out = append(out, l)
 			}
 		}
+		if l, ok := a.callGateLanding(rec, gateID); ok {
+			out = append(out, l)
+		}
 	}
 	slices.SortFunc(out, func(x, y gateLanding) int { return y.Since.Compare(x.Since) })
 	return out
@@ -301,13 +309,42 @@ func (a *app) heldLanding(rec record, asks map[string]*runNeed) (gateLanding, bo
 	}
 	l.State, l.Findings = gateStateReview, nil
 	if l.Wait = heldWaitWords(h); l.Wait != "" {
-		l.Trust = waitsForTrust(rec) != ""
+		l.Trust = holdWaitsTrust(h)
 		return l, true
 	}
 	if r := a.heldReviewer(rec); r != nil {
 		l.Reviewer, l.Since = r.ID, r.UpdatedAt
 		if s := a.session(r.ID); s != nil {
 			l.Since = cmp.Or(s.turnStart(), r.UpdatedAt)
+		}
+	}
+	return l, true
+}
+
+func (a *app) callGateLanding(rec record, gateID string) (gateLanding, bool) {
+	c := rec.call(gateID)
+	if c == nil || c.Hold == nil || c.Call == "" && c.Hold.Request == "" {
+		return gateLanding{}, false
+	}
+	h := c.Hold
+	l := gateLanding{Lander: rec.ID, Title: rec.Title, Call: c.Input, Caption: c.Caption, State: gateStateReview, Round: max(h.Round, 1), Since: h.Since}
+	if h.Request != "" {
+		l.State, l.Reviewer, l.Findings, l.Since = gateStateNeedsMe, h.Reviewer, h.Findings, cmp.Or(h.Asked, h.Since)
+		return l, true
+	}
+	if l.Wait = heldWaitWords(h); l.Wait != "" {
+		l.Trust = holdWaitsTrust(h)
+		return l, true
+	}
+	if n, ok := a.runNeeds.byRun(rec.Workspace)[h.Run]; ok && h.Run != "" {
+		l.State, l.Ask, l.Run, l.Since = gateStateNeedsMe, n.Text, n.Run, n.Since
+		return l, true
+	}
+	for _, s := range a.workspaceSessions(rec.Workspace) {
+		r := s.snapshot()
+		if gf := r.GateFor; gf != nil && gf.Point == gatePointTool && gf.Gate == gateID && gf.Lander == rec.ID && !gf.Done && gf.Verdict && !r.closed() && holdsNode(*h, *gf) {
+			l.Reviewer = r.ID
+			break
 		}
 	}
 	return l, true
@@ -346,6 +383,9 @@ func (a *app) gateRunLanding(workspaceID, run string) (gate, pick string, ok boo
 
 func (a *app) gateRow(ctx context.Context, workspaceID string, g gateConfig) gateRow {
 	row := gateRow{gateConfig: g, Name: a.gateMatchName(ctx, g), State: gateStateActive, Landings: a.gateLandings(workspaceID, g.ID)}
+	if g.Point == gatePointTool {
+		row.Words = toolMatchWords(g)
+	}
 	if history := a.gateHistory(ctx, workspaceID, g.ID); len(history) > 0 {
 		row.Last = &history[0]
 	}
@@ -365,8 +405,11 @@ func (a *app) gateRow(ctx context.Context, workspaceID string, g gateConfig) gat
 }
 
 func (a *app) gateMatchName(ctx context.Context, g gateConfig) string {
-	if g.Point == gatePointTurn {
+	switch g.Point {
+	case gatePointTurn:
 		return doneGateName(g.Wrote)
+	case gatePointTool:
+		return toolGateName(g)
 	}
 	return gateNameOf(g.Into, a.gateRepo(ctx, g.Repo).Branch)
 }
