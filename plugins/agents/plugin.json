@@ -59,7 +59,7 @@
         "args": {
           "properties": {
             "agent": {"type": "string", "enum": ["claude"], "default": "claude", "description": "Agent to run."},
-            "branch": {"type": "string", "description": "Branch for a new worktree to run the session in; omit to run in the caller's worktree (or the workspace's first git folder)."},
+            "branch": {"type": "string", "description": "Branch for a new worktree to run the session in; omit to run in the caller's worktree (or the workspace's first git folder). A new branch made from a caller's worktree on a non-default branch gets that branch as its base: git.land without into lands there, and a base (the parent's branch) gate holds it. An existing branch keeps the base it has, none if it was made with git."},
             "repo": {"type": "string", "description": "Path of a workspace folder: starts the child of that repo of a task. A repo that is no folder of the workspace is refused; connect it first with agents.connect-repo."},
             "slug": {"type": "string", "description": "The task's slug, only with repo: branch feat/<slug>, worktree .worktrees/<slug>."},
             "base": {"type": "string", "enum": ["default"], "description": "Only with repo: start from origin/<default> after a fetch, or the local default branch with a note. It is what repo does anyway."},
@@ -1077,7 +1077,7 @@
           "properties": {
             "repo": {"type": "string", "description": "A path in the repo; the gate holds for all its worktrees."},
             "point": {"type": "string", "enum": ["land", "turn", "tool"], "description": "Where it holds: land (an agent's landing, default), turn (an agent's turn that ends done) or tool (an agent's tool call)."},
-            "into": {"type": "string", "description": "Land only. Which landings it holds: any (default), default (the repo's default branch), base (the worktree's base branch), a branch name or a branch glob such as release/*."},
+            "into": {"type": "string", "description": "Land only. Which landings it holds: any (default), default (the repo's default branch), base (the parent's branch: the branch Clubmate made the source branch from; a branch made with git has none), a branch name or a branch glob such as release/*."},
             "sessions": {"type": "array", "items": {"type": "string", "enum": ["top", "child", "afk"]}, "description": "Turn only. Which sessions it holds: top (no parent session), child (has one); an AFK session also needs afk. Default [top, afk]."},
             "wrote": {"type": "array", "items": {"type": "string"}, "description": "Turn only. File globs relative to a repo root, ** for any folders (e.g. **/plans/*.md); the turn is held only when the session wrote a matching file since its last reviewed done. Empty: any turn."},
             "tool": {"type": "string", "description": "Tool only. The tool's name or a glob (path.Match) such as mcp__*; default Bash."},
@@ -1099,7 +1099,7 @@
             "id": {"type": "string", "description": "Gate id (gt_…)."},
             "paused": {"type": "boolean", "description": "A paused gate gates nothing."},
             "rounds": {"type": "integer", "description": "Rounds of changes before a landing needs the user."},
-            "into": {"type": "string", "description": "Land only. Which landings it holds: any, default, base, a branch name or a branch glob."},
+            "into": {"type": "string", "description": "Land only. Which landings it holds: any, default, base (the parent's branch), a branch name or a branch glob."},
             "sessions": {"type": "array", "items": {"type": "string", "enum": ["top", "child", "afk"]}, "description": "Turn only. Which sessions it holds: top, child, afk."},
             "wrote": {"type": "array", "items": {"type": "string"}, "description": "Turn only. File globs it requires; empty makes it hold any turn."},
             "tool": {"type": "string", "description": "Tool only. The tool's name or a glob."},

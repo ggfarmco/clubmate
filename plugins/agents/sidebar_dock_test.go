@@ -216,7 +216,7 @@ func TestDockGroupsGatesByRepo(t *testing.T) {
 	approved := &gateVerdict{Outcome: gateApproved, By: "reviewer", At: now.Add(-4 * time.Minute)}
 	rows := []gateRow{
 		{gateConfig: gateConfig{ID: "gt_main", Repo: "/src/shop", Into: gateIntoDefault}, Name: "Landing into main", State: gateStateActive, Last: approved},
-		{gateConfig: gateConfig{ID: "gt_base", Repo: "/src/shop", Into: gateIntoBase}, Name: "Landing into the base", State: gateStateReview, Landings: []gateLanding{{State: gateStateReview}}},
+		{gateConfig: gateConfig{ID: "gt_base", Repo: "/src/shop", Into: gateIntoBase}, Name: "Landing into the parent's branch", State: gateStateReview, Landings: []gateLanding{{State: gateStateReview}}},
 		{gateConfig: gateConfig{ID: "gt_infra", Repo: "/src/infra", Into: gateIntoDefault, Paused: true}, Name: "Landing into main", State: gateStateTrust},
 	}
 	plus := plusDock()
@@ -237,7 +237,7 @@ func TestDockGroupsGatesByRepo(t *testing.T) {
 	}
 	assert.Equal(t, [][]string{
 		{gatePrefix + "gt_main", "into main", gateLandIcon, "approved 4m", openGate},
-		{gatePrefix + "gt_base", "into the base", gateLandIcon, "1 landing", openGate},
+		{gatePrefix + "gt_base", "into the parent's branch", gateLandIcon, "1 landing", openGate},
 	}, got)
 	assert.Equal(t, "trust?", gates.Rows[1].Children[0].Detail)
 }

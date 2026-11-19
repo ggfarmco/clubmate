@@ -21,7 +21,7 @@ const (
 	gateRepoHint         = "%s · default branch %s"
 	gateHoldsLine        = "An agent's landing waits for the graph."
 	gateMatchTaken       = "%s is there already"
-	gateBaseLine         = "Only worktrees made from a branch have a base: their landing into that branch waits for the graph; other worktrees land as before."
+	gateBaseLine         = "Only a branch that Clubmate made from a parent's worktree has a parent's branch: its landing into that branch waits for the graph. A branch made with git has none and lands as before; to hold every landing into a feature branch, use any branch."
 	gateAnyLine          = "Every landing, also a child's merge into its parent's branch."
 	gateLikeLine         = "A pattern: * stays within one / segment, ** crosses them, so release/* holds release/1.0 and release/** also release/1.0/hotfix."
 	gateLikeKeyword      = "default, base and any are in the menu: pick it from there"
@@ -208,7 +208,7 @@ func gateIntoField(d gateDraft) ([]sdui.Node, bool) {
 	}
 	options := []sdui.Option{
 		{Value: gateIntoDefault, Label: "the default branch (" + cmp.Or(d.branch(), "main") + ")"},
-		{Value: gateIntoBase, Label: "the worktree's base"},
+		{Value: gateIntoBase, Label: "the parent's branch"},
 		{Value: gateIntoAny, Label: "any branch"},
 		{Value: gateIntoLike, Label: "Branches like…"},
 	}

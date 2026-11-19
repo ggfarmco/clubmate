@@ -23,7 +23,7 @@ const (
 	gateNameLanding  = "Landing "
 	gateNameFormat   = gateNameLanding + "into %s"
 	gateNameAny      = "any branch"
-	gateNameBase     = "the base"
+	gateNameBase     = "the parent's branch"
 	gateNameDefault  = "the default branch"
 	gateUngated      = "ungated"
 )

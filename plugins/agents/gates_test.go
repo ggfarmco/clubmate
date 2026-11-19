@@ -184,7 +184,7 @@ func TestGateNamesFromMatch(t *testing.T) {
 		names[g.Into] = g.Name
 	}
 
-	assert.Equal(t, map[string]string{"any": "Landing into any branch", "default": "Landing into main", "base": "Landing into the base", "release/*": "Landing into release/*"}, names)
+	assert.Equal(t, map[string]string{"any": "Landing into any branch", "default": "Landing into main", "base": "Landing into the parent's branch", "release/*": "Landing into release/*"}, names)
 }
 
 func TestDockRepoRowOpensItsFirstGate(t *testing.T) {

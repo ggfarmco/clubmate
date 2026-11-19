@@ -19,12 +19,12 @@ Slice 1 built the **Landing** point; slice 2 (17 Nov) adds **Done** (see "Done s
 |---|---|
 | Dock row | **Gates** (was "Land gates"); + on the row and ⌘K "New gate…" |
 | Point `land` | **Landing**, glyph merge |
-| A gate | "Landing into ‹match›": "Landing into main", "Landing into the base", "Landing into release/*", "Landing into any branch"; under its repo in the dock only "into ‹match›" shows, with the Landing glyph |
+| A gate | "Landing into ‹match›": "Landing into main", "Landing into the parent's branch", "Landing into release/*", "Landing into any branch"; under its repo in the dock only "into ‹match›" shows, with the Landing glyph |
 | Sheet fields | Repo · **Holds** · **Into** · **Decided by** · **Rounds** |
 
 ## Match (Landing)
 
-Into: the default branch (its name, e.g. `main`) · the worktree's base · any branch · Branches like… (a glob such as `release/*`). The base applies only to worktrees made from a branch. A change only in `.md` files lands without a review (Docs only). The most specific gate decides: exact branch › pattern › base › default › any; one run per landing. The sheet refuses an exact duplicate (same repo and into).
+Into: the default branch (its name, e.g. `main`) · the parent's branch · any branch · Branches like… (a glob such as `release/*`). The parent's branch applies only to a branch that Clubmate made from a parent's worktree; a branch made with git has none. A change only in `.md` files lands without a review (Docs only). The most specific gate decides: exact branch › pattern › base › default › any; one run per landing. The sheet refuses an exact duplicate (same repo and into).
 
 ## Dock
 

@@ -131,7 +131,7 @@ func TestGatePageListsGraphNodes(t *testing.T) {
 		{ID: "lint", Title: "Lint", Step: true, Command: "markdownlint docs/"},
 	}}
 	sc := gateScreen{
-		Row:   gateRow{gateConfig: gateConfig{ID: "gt_1", Repo: "/src/shop", Point: gatePointLand, Into: gateIntoBase, Graph: "pipeline", Pin: "3f9a1c00ff", Rounds: 2}, Name: "Landing into the base", State: gateStateActive},
+		Row:   gateRow{gateConfig: gateConfig{ID: "gt_1", Repo: "/src/shop", Point: gatePointLand, Into: gateIntoBase, Graph: "pipeline", Pin: "3f9a1c00ff", Rounds: 2}, Name: "Landing into the parent's branch", State: gateStateActive},
 		Repo:  gateRepo{Primary: "/src/shop", Branch: "main"},
 		Graph: &info,
 		Now:   now,

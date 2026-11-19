@@ -99,7 +99,7 @@ const (
 
 var gateHelpFacts = [][2]string{
 	{"Holds", "an agent's git_land (Landing), its turn that ends done (Done) or its tool call (Tool call) that a gate matches waits until the gate's graph decides the change (Fable review, built in, by default)"},
-	{"Into", "which landings a gate holds: into the default branch, into a worktree's base (the branch it was made from), into any branch, or into branches like release/*; when several gates match, the most specific decides"},
+	{"Into", "which landings a gate holds: into the default branch, into the parent's branch (the branch Clubmate made it from), into any branch, or into branches like release/*; when several gates match, the most specific decides"},
 	{"Tool call", "matches an agent's tool call by the tool's name and its input: git push, gh pr create, or Custom… (a tool, then starts with, contains or regex); the agent waits inside the call while the graph runs, and changes refuse it with the findings as a message from the gate. It checks a cooperative agent, not a security boundary"},
 	{"Done", "matches top-level, child or AFK sessions and what they wrote (plans and specs, any file, nothing required, or files like a glob); until the graph approves, the turn is held: no done, no Needs you, no notification"},
 	{"Decided by", "a graph from the repo's main checkout, your own graphs or the built-in ones; the gate pins its content, and a changed file waits until you trust it on the gate's page"},
@@ -443,9 +443,9 @@ func matchWords(into, branch string) string {
 	case into == gateIntoDefault:
 		return "landings into " + branch + ", the default branch"
 	case into == gateIntoBase:
-		return "landings into a worktree's base, the branch it was made from; only worktrees made from a branch have one"
+		return "landings into the parent's branch, the branch Clubmate made the worktree from; a branch made with git has none"
 	case into == gateIntoAny:
-		return "every landing: into " + branch + ", into a base, and a child's merge into its parent's branch"
+		return "every landing: into " + branch + ", into a parent's branch, and a child's merge into its parent's branch"
 	case isGlob(into):
 		return "landings into a branch like " + into
 	}
