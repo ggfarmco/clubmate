@@ -145,7 +145,7 @@ func (a *app) canAside(rec record) bool {
 func (s *session) forkable() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.prompted || !s.loaded
+	return !s.rec.Unprompted
 }
 
 func (a *app) forkSource(rec record) string {
@@ -686,6 +686,7 @@ func (a *app) asideKeepCommand(_ context.Context, cmd pluginsdk.CommandRun, args
 	s.rec.Aside, s.rec.ForkedFrom, s.rec.ParentSession, s.rec.DisallowedTools = &info, rec.ParentSession, "", nil
 	if mode != "" {
 		s.rec.Mode = mode
+		s.stampRecLocked()
 	}
 	p, agentID := s.proc, s.rec.AgentSessionID
 	s.proc = nil

@@ -33,7 +33,12 @@ func (c *branchCache) name(ctx context.Context, workspace, root string) string {
 	if _, err := os.Stat(root); err != nil {
 		return ""
 	}
-	name, _ = gitrepo.Branch(ctx, root)
+	name, err := gitrepo.Branch(ctx, root)
+	if err != nil {
+		if _, repo := gitrepo.RepoRoot(root); repo {
+			return ""
+		}
+	}
 	c.mu.Lock()
 	if c.names == nil {
 		c.names = map[string]map[string]string{}

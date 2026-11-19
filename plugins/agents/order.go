@@ -111,13 +111,13 @@ func setListFilters(infos []sessionInfo, needs map[string]runNeed) {
 	})
 }
 
-func (a *app) home(ctx context.Context, workspaceID string) string {
+func (a *app) home(ctx context.Context, workspaceID string) (string, error) {
 	workspace, err := a.host.GetWorkspace(ctx, workspaceID)
 	if err != nil {
-		return ""
+		return "", err
 	}
 	home, _, _ := workRoot(workspace)
-	return home
+	return home, nil
 }
 
 func sidebarWindow(recs []record) []record {

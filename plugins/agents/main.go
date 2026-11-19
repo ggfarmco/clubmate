@@ -466,8 +466,6 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			info.Pending = s.pending()
 			info.Asks = s.asks()
 			info.PendingSummary = s.permissionSummary()
-			info.ModeLabel = s.modeLabel()
-			info.Turns = s.turnsSoFar()
 			if started := s.turnStart().UTC(); rec.Status == statusRunning && !started.IsZero() {
 				info.TurnStartedAt = &started
 			}

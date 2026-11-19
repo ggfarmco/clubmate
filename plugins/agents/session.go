@@ -85,17 +85,29 @@ func (s *session) loadLocked() {
 		s.unloadLocked()
 	}
 	s.loaded, s.unread = true, false
+	stamps := s.rec.loadStamps()
 	if err := s.log.replay(s.apply); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: replay log:", err)
 		s.loaded, s.unread = false, true
+		s.rec.setLoadStamps(stamps)
 		return
 	}
 	s.stampDerivableLocked()
 	s.askTasksLocked()
 	open := s.rec.OpenCount
 	s.countOpen()
-	if s.rec.OpenCount != open && s.changed != nil {
+	switch {
+	case s.changed == nil:
+	case s.rec.OpenCount != open:
 		go s.changed(changeStatus, true)
+	case s.rec.loadStamps() != stamps:
+		go s.changed(changeUpdate, true)
+	}
+}
+
+func (s *session) stampRecLocked() {
+	if s.loaded {
+		s.rec.setLoadStamps(loadStamps{turns: s.turn, modeLabel: modeWord(s.rec.Mode, s.modes), unprompted: !s.prompted})
 	}
 }
 
@@ -209,12 +221,6 @@ func (s *session) turnStart() time.Time {
 	return s.started
 }
 
-func (s *session) turnsSoFar() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.turn
-}
-
 func (s *session) turnActive(turn int) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -227,12 +233,6 @@ func (s *session) currentTurn() int {
 	defer s.mu.Unlock()
 	s.loadLocked()
 	return s.turn
-}
-
-func (s *session) modeLabel() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return modeWord(s.rec.Mode, s.modes)
 }
 
 func newSetup(args worktreeNewArgs) *setup {

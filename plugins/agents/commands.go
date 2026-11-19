@@ -431,8 +431,12 @@ func (a *app) configCommand(ctx context.Context, cmd pluginsdk.CommandRun, args 
 }
 
 func (a *app) sessionsCommand(ctx context.Context, cmd pluginsdk.CommandRun, args sessionsArgs) (any, error) {
+	home, err := a.home(ctx, cmd.WorkspaceID)
+	if err != nil && args.Since != nil {
+		return nil, fmt.Errorf("sessions: workspace home: %w", err)
+	}
 	infos := a.infos(cmd.WorkspaceID)
-	setOrder(infos, a.home(ctx, cmd.WorkspaceID))
+	setOrder(infos, home)
 	setListFilters(infos, a.runNeeds.byRun(cmd.WorkspaceID))
 	setGroupLabels(infos, func(worktree string) string {
 		return branchLabel(a.branches.name(ctx, cmd.WorkspaceID, worktree))

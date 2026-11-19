@@ -55,6 +55,9 @@ type record struct {
 	TitleSet        bool           `json:"titleSet,omitempty"`
 	Status          string         `json:"status"`
 	Mode            string         `json:"mode"`
+	ModeLabel       string         `json:"modeLabel,omitempty"`
+	Turns           int            `json:"turns,omitempty"`
+	Unprompted      bool           `json:"unprompted,omitempty"`
 	Finish          string         `json:"finish,omitempty"`
 	Handoff         string         `json:"handoff,omitempty"`
 	HandoffLanded   string         `json:"handoffLanded,omitempty"`
@@ -125,7 +128,6 @@ type sessionInfo struct {
 	Pending         []string           `json:"pending,omitempty"`
 	PendingSummary  *pendingSummary    `json:"pendingSummary,omitempty"`
 	TurnStartedAt   *time.Time         `json:"turnStartedAt,omitempty"`
-	Turns           int                `json:"turns,omitempty"`
 	NotifyEffective string             `json:"notifyEffective"`
 	NeedsYou        bool               `json:"needsYou"`
 	Service         bool               `json:"service,omitempty"`
@@ -138,7 +140,6 @@ type sessionInfo struct {
 	ChildStatus     string             `json:"childStatus,omitempty"`
 	Failure         *sessionFailure    `json:"failure,omitempty"`
 	Reopen          *failureAction     `json:"reopen,omitempty"`
-	ModeLabel       string             `json:"modeLabel,omitempty"`
 	ReviewProgress  *reviewProgress    `json:"reviewProgress,omitempty"`
 	Repo            string             `json:"repo,omitempty"`
 	TaskSummary     string             `json:"taskSummary,omitempty"`
@@ -171,6 +172,12 @@ type sessionInfo struct {
 	InboxKey        string             `json:"inboxKey,omitempty"`
 	inbox           inboxEntry
 	gatePoint       string
+}
+
+type loadStamps struct {
+	turns      int
+	modeLabel  string
+	unprompted bool
 }
 
 type sessionFailure struct {
@@ -244,6 +251,14 @@ func loadRecords(ctx context.Context, kv sessionStore) ([]record, error) {
 		}
 	}
 	return out, nil
+}
+
+func (r record) loadStamps() loadStamps {
+	return loadStamps{turns: r.Turns, modeLabel: r.ModeLabel, unprompted: r.Unprompted}
+}
+
+func (r *record) setLoadStamps(st loadStamps) {
+	r.Turns, r.ModeLabel, r.Unprompted = st.turns, st.modeLabel, st.unprompted
 }
 
 func (r record) closed() bool {

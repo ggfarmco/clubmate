@@ -8,6 +8,8 @@
     "title": "Refactor the cart total into its own function",
     "status": "waiting",
     "mode": "default",
+    "modeLabel": "Ask before edits",
+    "turns": 1,
     "finish": "ask",
     "createdAt": "2026-10-30T09:41:00Z",
     "updatedAt": "2026-10-30T09:41:00Z",

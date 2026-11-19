@@ -43,3 +43,16 @@ func TestBranchCacheResetsOnlyTheChangedWorkspace(t *testing.T) {
 	assert.Equal(t, "next", c.name(ctx, "w1", one))
 	assert.Equal(t, "main", c.name(ctx, "w2", two))
 }
+
+func TestBranchCacheRetriesAfterGitFails(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	out, err := exec.Command("git", "-C", root, "init", "-q", "-b", "trunk").CombinedOutput()
+	require.NoError(t, err, string(out))
+	var c branchCache
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	assert.Empty(t, c.name(cancelled, "w", root))
+	assert.Equal(t, "trunk", c.name(t.Context(), "w", root))
+}

@@ -539,6 +539,7 @@ func (s *session) beginTurnLocked() (int, int) {
 	s.cancelRequested = false
 	s.started = time.Now()
 	s.turn++
+	s.stampRecLocked()
 	s.superseded = nil
 	s.asked = false
 	s.ending = nil

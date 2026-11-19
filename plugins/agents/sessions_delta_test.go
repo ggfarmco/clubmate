@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/testutil"
 )
 
 type sessionsPage struct {
@@ -68,4 +70,41 @@ func TestSessionsSinceACursorFromBeforeARestartReturnsTheFullList(t *testing.T) 
 	assert.False(t, p.Delta)
 	assert.Equal(t, []string{id}, p.ids())
 	assert.NotEmpty(t, p.Cursor)
+}
+
+func TestASessionRowIsTheSameWhetherItsTranscriptIsLoadedOrNot(t *testing.T) {
+	t.Parallel()
+	modes := map[string]any{"currentModeId": "loose", "availableModes": []map[string]string{{"id": "loose", "name": "Loose"}}}
+	f := start(t, map[string]any{"fork": true, "resume": true, "modes": modes})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "one")
+	f.waitStatus(t, workspace, session, "done")
+	row := func() map[string]any {
+		var list []map[string]any
+		require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
+		require.Len(t, list, 1)
+		return list[0]
+	}
+	f.prompt(t, workspace, session, "two")
+	testutil.Eventually(t, func() bool {
+		r := row()
+		return r["status"] == "done" && r["turns"] == 2.0
+	}, wait)
+	page := func(since string) sessionsPage {
+		var p sessionsPage
+		require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{"since": since}, &p))
+		return p
+	}
+	loaded := row()
+	assert.Equal(t, "Loose", loaded["modeLabel"])
+	assert.Equal(t, true, loaded["canAside"])
+
+	f.restartPlugin(t, workspace)
+	assert.Equal(t, loaded, row())
+	cursor := page("").Cursor
+	require.NoError(t, f.run(t, workspace, "agents.docs", map[string]any{}, nil))
+
+	assert.Empty(t, page(cursor).ids())
+	assert.Equal(t, loaded, row())
 }

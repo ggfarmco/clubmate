@@ -528,7 +528,10 @@ func (s *session) noticeUpdate(n noticeUpdate) {
 
 func (s *session) apply(e envelope) {
 	s.stamp, s.applying = e.Seq, true
-	defer func() { s.stamp, s.applying = 0, false }()
+	defer func() {
+		s.stamp, s.applying = 0, false
+		s.stampRecLocked()
+	}()
 	s.at = e.TS
 	if e.Turn > s.turn {
 		s.turn = e.Turn

@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
 )
@@ -219,4 +220,18 @@ func TestGroupLabelsNameTheBranchAndRunsSitWithTheirFirstNode(t *testing.T) {
 	assert.Equal(t, []string{"main", "feat-x", "feat-x", "feat-x"}, []string{infos[0].ListGroupLabel, infos[1].ListGroupLabel, infos[2].ListGroupLabel, infos[3].ListGroupLabel})
 	assert.Equal(t, infos[2].ListKey, infos[3].ListKey)
 	assert.Equal(t, infos[2].ListGroupKey, infos[3].ListGroupKey)
+}
+
+func TestSessionsSinceFailsWhenTheWorkspaceCannotBeRead(t *testing.T) {
+	h := scriptedHost(t, func(method, _ string) any {
+		if method == "workspace.get" {
+			return "unreadable"
+		}
+		return nil
+	})
+	a := &app{host: h}
+	since := ""
+
+	_, err := a.sessionsCommand(t.Context(), pluginsdk.CommandRun{WorkspaceID: "prj_1"}, sessionsArgs{Since: &since})
+	assert.Error(t, err)
 }
