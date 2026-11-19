@@ -1,0 +1,15 @@
+{
+  "title": "Opus review",
+  "description": "Fable review on Opus, for while the Fable limit is out: one read-only Opus reviewer that reads the change and reports approved or changes with agents_land_verdict. Its input is the land review prompt Clubmate writes for each round.",
+  "maxTurns": 12,
+  "nodes": [
+    {
+      "id": "reviewer",
+      "role": "Reviewer",
+      "start": true,
+      "model": "opus",
+      "prompt": "{{input}}",
+      "outcomes": ["approved", "changes"]
+    }
+  ]
+}
