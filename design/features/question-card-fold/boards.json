@@ -1,0 +1,12 @@
+{
+  "title": "Question card fold · B · Peek (decided 19 Nov)",
+  "fit": 1200,
+  "intro": [
+    "The user picked B, the designer's recommendation (Claude Design round 1, canvas “Clubmate · Question card fold”). Rules: rules.md next to this page.",
+    "The card has three heights: full, peek and bar. Peek is the default on the phone and iPad; the Mac opens full and folds with ⌥Q. While a question is pending the composer is the current question's Other, so nothing can be sent past it."
+  ],
+  "boards": [
+    {"file": "R1-B-Mac.dc.html", "w": 2704, "title": "Mac · 1280 Mate open / folded · 640 Mate light peek / folded", "caption": "The composer is aimed at the focused question (chip “Other · 2 Grouping”); folded, the bar plus that composer with Send answers ⌘↩."},
+    {"file": "R1-B-Companion.dc.html", "w": 2640, "title": "iPhone full / peek / bar · iPad peek", "caption": "A sheet with three stops; peek is the default; the only text field is the current question's Other; iPad full capped at 60% of the column."}
+  ]
+}

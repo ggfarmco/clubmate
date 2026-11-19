@@ -1,0 +1,19 @@
+{
+  "title": "Question card fold · round 1",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 19 Nov. Three directions on the same case: a 2-question card under a 4-line preamble, question 1 answered, question 2 current. Each has a Mac board (1280 Mate dark and 640 Mate light) and a phone board.",
+    "A · Bar: the card folds to one line above the composer; while Claude asks there is nothing to type into (Mac: composer locked, Send off). Cheapest; answering after reading takes two moves.",
+    "B · Peek (designer's pick): three stops: full, peek (header, current question in 2 lines, options as 44 pt rows, Skip / Send) and bar. Peek is the default on the phone and iPad; the Mac stays open and folds with ⌥Q. The composer becomes the current question's Other, so “no bypass” is useful rather than a lock.",
+    "C · In place: the card goes back into the transcript under its preamble; the dock is only for answering; the composer keeps a draft with Send off and a jump pill when the card is off screen. The designer would not build it: the card jumps around and a draft still invites a prompt.",
+    "All three: ⌥Q folds (Mac, iPad with a keyboard); the fold is kept per question set and a new set opens at its default; ⎋ stays Stop; a plugin guard refuses a plain prompt while a question is pending."
+  ],
+  "boards": [
+    {"file": "R1-A-Mac.dc.html", "w": 2704, "title": "A · Bar · Mac · 1280 Mate, 640 Mate light · unfolded / folded", "caption": "Folded: one warning bar above the composer, each question's chip with its pick; the composer shrinks to one locked line and Send is off."},
+    {"file": "R1-A-Phone.dc.html", "w": 1400, "title": "A · Bar · iPhone (iPad the same) · unfolded / folded / folded light", "caption": "Grabber and fold button on today's paged card; folded, the whole preamble is back and the bottom is the bar with Answer, no composer."},
+    {"file": "R1-B-Mac.dc.html", "w": 2704, "title": "B · Peek · Mac · 1280 Mate, 640 Mate light · open / peek / folded", "caption": "The Mac stays open; ⌥Q folds to the bar; the peek shows only when the window is short (640). The composer's chip reads “Other · 2 Grouping”; folded it offers “Send answers ⌘↩”."},
+    {"file": "R1-B-Companion.dc.html", "w": 2640, "title": "B · Peek · iPhone full / peek / bar · iPad peek", "caption": "Peek is the default: preamble and options on one screen. Typing in the composer answers the current question's Other; the bar's composer opens the peek. iPad full is capped at 60% of the column."},
+    {"file": "R1-C-Mac.dc.html", "w": 2704, "title": "C · In place · Mac · 1280 Mate, 640 Mate light · docked / in place", "caption": "The card returns to the transcript as a compact node; a hint line over a composer that keeps a draft with Send off."},
+    {"file": "R1-C-Phone.dc.html", "w": 1400, "title": "C · In place · iPhone (iPad the same) · docked / in place / scrolled up", "caption": "Into chat, drag down or scroll up puts the card back under its preamble; tap a question to dock it again; a “↓ Claude is asking” pill when it's off screen."}
+  ]
+}

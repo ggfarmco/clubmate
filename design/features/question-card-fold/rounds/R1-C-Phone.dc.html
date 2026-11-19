@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>R1 · C · In place · iPhone</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/c023ab103ce07020c88ddb7eaeb9e995">
+<link rel="stylesheet" href="/_blob/2603a0c2f68d8a2865344475a5892dee">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+.doc figure{margin:0;display:flex;flex-direction:column;gap:12px}
+.doc figcaption{font-size:15px;line-height:22px;color:#5B5F5C}
+.doc figcaption b{color:#1B1D1C;font-weight:600}
+
+.doc .cm code{background:var(--hov);color:inherit;font-family:inherit;font-size:12px;padding:0 4px;border-radius:3px}
+.doc .cm ul{padding-left:18px}
+.cm .ubm{align-self:flex-end;max-width:78%;padding:8px 12px;background:var(--s1);border-radius:8px}
+.cm .rep p{margin:0 0 8px}.cm .rep ul{margin:0 0 8px;padding-left:18px}.cm .rep li{margin:1px 0}
+.cm .qcard{border:1px solid var(--bd2);border-radius:8px;background:var(--s1);display:flex;flex-direction:column;min-width:0}
+.cm .qcard.block{border-color:var(--wa-bd);background:color-mix(in srgb,var(--wa) 7%,var(--bg))}
+.cm .qhd{display:flex;align-items:center;gap:8px;padding:9px 12px 8px;min-width:0}
+.cm .qitem{padding:8px 12px 9px;border-top:1px solid var(--bd);display:flex;flex-direction:column;gap:4px;min-width:0}
+.cm .qitem.foc{box-shadow:inset 2px 0 0 var(--ac);background:color-mix(in srgb,var(--fg) 2%,transparent)}
+.cm .qitem.fold{flex-direction:row;align-items:center;gap:8px;padding:6px 12px;white-space:nowrap}
+.cm .qnum{width:18px;height:18px;border-radius:9px;border:1px solid var(--bd2);font-size:10.5px;display:inline-flex;align-items:center;justify-content:center;color:var(--t2);flex:none}
+.cm .qnum.done{background:var(--ok-bg);border-color:var(--ok-bd);color:var(--ok-i)}
+.cm .qchip{font-size:10.5px;height:16px;line-height:16px;padding:0 6px;border-radius:4px;background:var(--hov);color:var(--t2);flex:none;white-space:nowrap}
+.cm .qctx{color:var(--t3);font-size:11px;line-height:16px;border-left:2px solid var(--bd2);padding-left:8px;margin:1px 0 2px 26px}
+.cm .qopts{display:flex;flex-direction:column;gap:1px;margin-left:18px}
+.cm .qopt{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:8px;align-items:start;padding:3px 8px;border-radius:5px;min-width:0}
+.cm .qopt.on{background:var(--sel)}
+.cm .qopt .ds{color:var(--t3);font-size:11px;line-height:15px;display:block}
+.cm .qcard.wide .qopt .ds{display:inline;margin-left:12px}
+.cm .qcard.wide .qopt{padding:2px 8px}
+.cm .qcard.wide .qitem{padding:7px 12px 7px}
+.cm .qopt .k{color:var(--t4);font-size:10.5px}
+.cm .rd{width:13px;height:13px;border-radius:7px;border:1.5px solid var(--bd2);margin-top:3px;box-sizing:border-box}
+.cm .rd.on{border-color:var(--ac);background:var(--ac);box-shadow:inset 0 0 0 2.5px var(--s1)}
+.cm .qft{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--bd);flex-wrap:wrap}
+.cm .qbar{display:flex;align-items:center;gap:10px;height:38px;padding:0 8px 0 12px;border:1px solid var(--wa-bd);border-radius:8px;background:color-mix(in srgb,var(--wa) 7%,var(--bg));white-space:nowrap;min-width:0}
+.cm .qa{display:inline-flex;align-items:center;gap:6px;min-width:0;flex:0 1 auto}
+.cm .sep{width:1px;height:16px;background:var(--bd2);flex:none}
+.cm .tgt{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 7px;border-radius:4px;border:1px solid var(--wa-bd);color:var(--wa-i);font-size:11px;line-height:16px;white-space:nowrap;flex:none}
+.cm .tgt svg.i{width:11px;height:11px}
+
+.comp .po{display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:12px;align-items:start;padding:12px 14px;border-radius:16px;background:var(--s2)}
+.comp .po.on{background:color-mix(in srgb,var(--ac) 22%,var(--s2))}
+.comp .po.sm{padding:0 14px;min-height:44px;align-items:center}
+.comp .po .r{width:22px;height:22px;border-radius:11px;border:2px solid var(--t4);margin-top:1px;box-sizing:border-box}
+.comp .po.sm .r{margin-top:0}
+.comp .po.on .r{border-color:var(--ac);background:var(--ac);box-shadow:inset 0 0 0 4px var(--s2)}
+.comp .chipq{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;background:var(--s2);color:var(--t2);font-size:12px;font-weight:600;white-space:nowrap;flex:none}
+.comp .chipq.wa{background:transparent;border:1.5px solid var(--wa-bd);color:var(--wa-i)}
+.comp .dots{display:flex;gap:6px;align-items:center}
+.comp .dots i{width:7px;height:7px;border-radius:4px;background:var(--t4);display:block}
+.comp .dots i.on{background:var(--fg);width:18px}
+.comp .dots i.done{background:var(--ok-i)}
+.comp .ctxq{font-size:13px;line-height:18px;color:var(--t3);border-left:2px solid var(--bd2);padding-left:10px}
+.comp .fold{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--bd);min-height:56px}
+.comp .num{width:22px;height:22px;border-radius:11px;border:1.5px solid var(--bd2);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex:none;color:var(--t2)}
+.comp .num.done{border-color:var(--ok-bd);color:var(--ok-i);background:var(--ok-bg)}
+.comp .grab{width:36px;height:5px;border-radius:3px;background:var(--bd2);align-self:center;flex:none}
+.comp .fb{width:36px;height:36px;border-radius:18px;background:var(--s2);display:flex;align-items:center;justify-content:center;color:var(--t2);flex:none}
+.comp .fb svg.i{width:18px;height:18px;stroke-width:1.8}
+.comp .qc{display:flex;flex-direction:column;border:1.5px solid var(--wa-bd);background:color-mix(in srgb,var(--wa) 9%,var(--s1))}
+.comp .pbar{display:flex;align-items:center;gap:12px;min-height:64px;padding:8px 8px 8px 12px;border-radius:32px;border:1.5px solid var(--wa-bd);background:color-mix(in srgb,var(--wa) 9%,var(--s1))}
+.comp .clamp2{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.comp .jump{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 16px;border-radius:19px;font-size:14px;line-height:18px;font-weight:600;color:var(--wa-i);border:1.5px solid var(--wa-bd);align-self:center}
+.comp .jump svg.i{width:15px;height:15px;stroke-width:1.9}
+.comp .sendb{width:44px;height:44px;border-radius:22px;background:var(--s2);color:var(--t4);display:flex;align-items:center;justify-content:center;flex:none}
+.comp .sendb svg.i{width:20px;height:20px;stroke-width:2}
+.comp .kh{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;line-height:16px;padding:0 5px;border-radius:4px;border:1px solid var(--bd2);color:var(--t3);white-space:nowrap}
+</style>
+</helmet>
+<div class="doc" style="width: 1400px; min-height: 1240px; box-sizing: border-box; padding: 56px; display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Round 1 · C · In place · iPhone (iPad: the same)</div>
+<h2>The question is a message again; the dock is only for answering</h2>
+<p class="lead" style="max-width: 1500px">Tap Into chat, drag the card down, or scroll up: the card returns to the transcript. Tap a question in it to dock it again at that question.</p>
+</div><div style="display: flex; gap: 48px; align-items: flex-start"><figure style="width: 393px"><div class="cm comp th-cdark" style="width: 393px; height: 852px; border-radius: 50px; display: flex; flex-direction: column; box-shadow: 0 0 0 1px #DAD8CF">
+<div class="edge"></div><div class="top"><button class="gbtn glass" aria-label="Back"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button><div class="t"><span class="tt">Rework the Send review sheet</span><span class="ts"><span class="wa-i">Waiting for you</span> · shop</span></div><button class="gbtn glass" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button></div>
+<div style="height: 112px; flex: none"></div>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; padding: 0 16px 12px"><span class="foot mut">5 actions · 2 commands, edited 2 files</span><p class="sub">Done. Files are grouped by directory; ⌘↩ sends and ⎋ closes. make app is green.</p><div class="ub">Fix ⌘↩ in the sheet (#185)</div><span class="foot mut">4 actions · read 3 files, ran 1 command</span><div class="sub" style="display: flex; flex-direction: column; gap: 6px"><p>Two things block the fix (#185):</p><p>· Lists keep a row detail up to 6 em, so ⌘↩ gives way to the title.</p><p>· A session waiting for your review sits under Done, so nobody sees it.</p><p>Both change shared rules, so I’d rather ask than pick.</p></div></div>
+<div style="flex: none; padding: 0 16px 30px; display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 5"><section class="cc qc" aria-label="Claude is asking" style="gap: 12px; padding: 8px 16px 16px">
+<div class="grab"></div>
+<div style="display: flex; align-items: center; gap: 10px"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg></span><span class="sub w6 wa-i" style="flex: 1">Claude is asking</span><div class="dots"><i class="done"></i><i class="on"></i></div><span class="foot mut">2 of 2</span><button class="fb" aria-label="Into chat"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11M2.5 7h11M2.5 10.5h6M11 9.5v4M9 11.5l2 2 2-2"/></svg></button></div>
+<div style="display: flex; align-items: center; gap: 8px; min-width: 0"><span class="chipq">Grouping</span><span class="foot mut ell">2 decisions before I change shared rules</span></div>
+<span class="t20">Where does a session waiting for your review go?</span>
+<span class="ctxq">#132: today it sits under Done.</span>
+<div class="po"><span class="r"></span><div style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span class="sub w6">Needs you</span><span class="cap mut">Counts in the badge</span></div></div><div class="po"><span class="r"></span><div style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span class="sub w6">Its own group</span><span class="cap mut">“Review”, between Running and Done</span></div></div><div class="po"><span class="r"></span><div style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span class="sub w6">Done</span><span class="cap mut">As today</span></div></div>
+<div class="po"><span class="r"></span><span class="sub w6 mut" style="font-weight: 500">Other…</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 10px"><button class="cb plain sm">Skip</button><button class="cb pri sm">Send</button></div>
+</section></div>
+</div><figcaption><b>Docked.</b> Today’s paged card with an Into chat button. Bottom: the card; the composer is hidden.</figcaption></figure><figure style="width: 393px"><div class="cm comp th-cdark" style="width: 393px; height: 852px; border-radius: 50px; display: flex; flex-direction: column; box-shadow: 0 0 0 1px #DAD8CF">
+<div class="edge"></div><div class="top"><button class="gbtn glass" aria-label="Back"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button><div class="t"><span class="tt">Rework the Send review sheet</span><span class="ts"><span class="wa-i">Waiting for you</span> · shop</span></div><button class="gbtn glass" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button></div>
+<div style="height: 112px; flex: none"></div>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; padding: 0 16px 12px"><span class="foot mut">5 actions · 2 commands, edited 2 files</span><p class="sub">Done. Files are grouped by directory; ⌘↩ sends and ⎋ closes. make app is green.</p><div class="ub">Fix ⌘↩ in the sheet (#185)</div><span class="foot mut">4 actions · read 3 files, ran 1 command</span><div class="sub" style="display: flex; flex-direction: column; gap: 6px"><p>Two things block the fix (#185):</p><p>· Lists keep a row detail up to 6 em, so ⌘↩ gives way to the title.</p><p>· A session waiting for your review sits under Done, so nobody sees it.</p><p>Both change shared rules, so I’d rather ask than pick.</p></div><section class="cc qc" aria-label="Claude is asking, in place" style="padding: 0">
+<div style="display: flex; align-items: center; gap: 10px; padding: 12px 14px"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg></span><span class="sub w6 wa-i" style="flex: 1">Claude is asking</span><span class="foot mut">2 questions</span></div>
+<div class="fold"><span class="num done">1</span><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="foot mut">Lists</span><span class="sub ell">Add an SDUI prop</span></div><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+<div class="fold"><span class="num">2</span><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="foot mut">Grouping · not answered</span><span class="sub ell">Where does a session waiting for your review go?</span></div><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</section></div>
+<div style="flex: none; padding: 0 16px 30px; display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 5"><span class="foot" style="text-align: center"><span class="wa-i">Answer or Skip Claude’s 2 questions first</span><span class="mut"> · your draft waits</span></span><div class="cmp"><div class="fld glass" style="color: var(--fg)">Then check the Cron rows too</div><button class="sendb" aria-label="Send, after you answer" aria-disabled="true"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button></div></div>
+</div><figcaption><b>In place.</b> The card sits under its preamble as a compact node; tap a question to dock it again. Bottom: the hint and a composer that keeps a draft, Send off.</figcaption></figure><figure style="width: 393px"><div class="cm comp th-cdark" style="width: 393px; height: 852px; border-radius: 50px; display: flex; flex-direction: column; box-shadow: 0 0 0 1px #DAD8CF">
+<div class="edge"></div><div class="top"><button class="gbtn glass" aria-label="Back"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button><div class="t"><span class="tt">Rework the Send review sheet</span><span class="ts"><span class="wa-i">Waiting for you</span> · shop</span></div><button class="gbtn glass" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button></div>
+<div style="height: 112px; flex: none"></div>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; padding: 0 16px 12px"><div class="ub">Rework the Send review sheet</div><p class="sub">I’ll group the files by directory and show each file’s count.</p><div class="code mono" style="font-size: 13px; line-height: 19px">sheet.go   +40 −18
+files.go   +12 −3</div><span class="foot mut">5 actions · 2 commands, edited 2 files</span><p class="sub">Done. Files are grouped by directory; ⌘↩ sends and ⎋ closes. make app is green.</p><div class="ub">Fix ⌘↩ in the sheet (#185)</div></div>
+<div style="flex: none; padding: 0 16px 30px; display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 5"><button class="jump glass"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3.5 8.5 8 13l4.5-4.5"/></svg>Claude is asking · 2 questions</button><span class="foot" style="text-align: center"><span class="wa-i">Answer or Skip Claude’s 2 questions first</span><span class="mut"> · your draft waits</span></span><div class="cmp"><div class="fld glass" style="color: var(--fg)">Then check the Cron rows too</div><button class="sendb" aria-label="Send, after you answer" aria-disabled="true"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button></div></div>
+</div><figcaption><b>Scrolled up.</b> When the card is off screen a jump pill appears over the composer: “↓ Claude is asking · 2 questions”.</figcaption></figure></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":1240}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
