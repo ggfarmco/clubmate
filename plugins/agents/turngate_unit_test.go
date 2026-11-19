@@ -265,3 +265,75 @@ func TestUnreadHoldOnlyUnderAGateOfTheSessionsRepo(t *testing.T) {
 	assert.Equal(t, "mysub", h.ReadRepo)
 	assert.Nil(t, a.unreadPlan(t.Context(), nil, record{ID: "d", Worktree: t.TempDir()}, &gates, false, bad).held)
 }
+
+func TestOnlyAnErrorKeepsTheGateOfAHoldingTurn(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		status string
+		held   *heldTurn
+		want   string
+	}{
+		{"error", statusError, &heldTurn{Gate: "gt_1"}, "gt_1"},
+		{"stop", statusIdle, &heldTurn{Gate: "gt_1"}, ""},
+		{"fix turn", statusError, &heldTurn{Gate: "gt_1", Last: gateChanges}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := newSession(record{ID: "s", Status: statusRunning, Held: tc.held}, nil, false, func(string, bool) {})
+
+			s.setStatusLocked(tc.status, "")
+
+			assert.Equal(t, tc.want, s.rec.HeldGate)
+			assert.Nil(t, s.rec.Held)
+		})
+	}
+}
+
+func TestDeletedGateReleasesItsHoldWithoutReadingTheGatesAgain(t *testing.T) {
+	t.Parallel()
+	h := scriptedHost(t, func(method, _ string) any {
+		if method == "storage.get" {
+			return map[string]any{"found": true, "value": "not a gate list"}
+		}
+		return nil
+	})
+	_, err := (&app{host: h}).gates(t.Context())
+	require.Error(t, err)
+	s := newSession(record{ID: "agt_1", Workspace: "ws", Status: statusRunning, Held: &heldTurn{Gate: "gt_1", Key: "k"}}, newEventLog(filepath.Join(t.TempDir(), "s.jsonl")), true, func(string, bool) {})
+	s.turned = func(api.Turn) {}
+	a := &app{host: h, notes: newNotifier(h, ""), sessions: map[string]*session{"agt_1": s}}
+
+	a.regateHolds(t.Context(), nil, "gt_1", byGateDeleted)
+
+	snap := s.snapshot()
+	assert.Nil(t, snap.Held)
+	assert.Equal(t, statusDone, snap.Status)
+}
+
+func TestFinishReplansOnlyWhenTheCarriedGateChangedUnderAHoldOrCarry(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		plan donePlan
+		want bool
+	}{
+		{"hold", donePlan{seen: "gt_1", held: &heldTurn{Gate: "gt_1"}}, true},
+		{"cancelled", donePlan{seen: "gt_1"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := newSession(record{ID: "s", Status: statusRunning, HeldGate: "gt_1"}, nil, false, func(string, bool) {})
+			s.rec.HeldGate = ""
+
+			held, stale := s.finishLocked(tc.plan)
+
+			assert.Equal(t, tc.want, stale)
+			assert.Equal(t, tc.want, held)
+			assert.Nil(t, s.rec.Held)
+			if tc.want {
+				assert.Equal(t, statusRunning, s.rec.Status)
+			}
+		})
+	}
+}

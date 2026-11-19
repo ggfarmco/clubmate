@@ -31,6 +31,7 @@ var (
 		"git.repos-in":           reposInCommand,
 		"git.land":               landCommand,
 		"git.gate-tree":          gateTreeCommand,
+		"git.worktree-base":      worktreeBaseCommand,
 	}
 )
 
@@ -163,7 +164,7 @@ func branchSwitchCommand(ctx context.Context, a *app, c call) (any, error) {
 
 func worktreeNewCommand(ctx context.Context, a *app, c call) (any, error) {
 	return a.startOp(ctx, c, func(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs) (opFunc, error) {
-		run, err := prepareNew(ctx, h, workspaceID, args)
+		run, err := prepareNew(ctx, a, h, workspaceID, args)
 		if err != nil {
 			return nil, err
 		}
@@ -230,9 +231,9 @@ func worktreeUnpushedCommand(ctx context.Context, _ *app, c call) (any, error) {
 	return unpushedWorktrees(ctx, c.h, c.workspaceID)
 }
 
-func branchDeleteCommand(ctx context.Context, _ *app, c call) (any, error) {
+func branchDeleteCommand(ctx context.Context, a *app, c call) (any, error) {
 	if c.via != discardPlugin || c.agentCall {
 		return nil, errBranchDeleteRefused
 	}
-	return nil, deleteBranch(ctx, c.h, c.workspaceID, c.args)
+	return nil, deleteBranch(ctx, a, c.h, c.workspaceID, c.args)
 }

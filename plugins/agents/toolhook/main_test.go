@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"clubmate/plugins/internal/toolgate"
 )
 
 const askLine = `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"Clubmate gate"}}`
@@ -132,4 +134,52 @@ func TestBatchHookCapsItsText(t *testing.T) {
 	raw, err := os.ReadFile(full)
 	require.NoError(t, err)
 	assert.Equal(t, "toolu_1"+long+"\n\ntoolu_2"+long, string(raw))
+}
+
+func TestToolHookAddsTheRulesOfTheRepoItCallsIn(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	push := `[{"id":"gt_1","tool":"Bash","how":"command","text":"git push"}]`
+	repo := func(rules string) string {
+		dir := t.TempDir()
+		require.NoError(t, os.Mkdir(filepath.Join(dir, ".git"), 0o700))
+		place, ok := toolgate.PlaceOf(dir)
+		require.True(t, ok)
+		if rules != "" {
+			hooks := filepath.Join(root, toolgate.HookDirName(place.Repo))
+			require.NoError(t, os.MkdirAll(hooks, 0o700))
+			require.NoError(t, os.WriteFile(filepath.Join(hooks, "rules.json"), []byte(rules), 0o600))
+		}
+		return place.Repo
+	}
+	own, gated, lax, broken, plain := repo(`[]`), repo(push), repo(`[]`), repo(`[{`), repo("")
+	dir := filepath.Join(root, toolgate.HookDirName(own))
+	require.NoError(t, os.Mkdir(filepath.Join(gated, "sub"), 0o700))
+	link := filepath.Join(t.TempDir(), "link")
+	require.NoError(t, os.Symlink(gated, link))
+	call := func(id, cwd string) string {
+		return `{"tool_name":"Bash","tool_input":{"command":"git push"},"tool_use_id":"` + id + `","cwd":"` + cwd + `"}`
+	}
+	markOf := func(id string) string {
+		raw, err := os.ReadFile(filepath.Join(dir, "marks", id))
+		require.NoError(t, err)
+		return string(raw)
+	}
+	inGated := `{"repo":"` + gated + `","tree":"` + gated + `"}`
+
+	assert.Empty(t, hook(dir, call("toolu_1", own)))
+	assert.Empty(t, hook(dir, call("toolu_2", plain)))
+	assert.Empty(t, hook(dir, call("toolu_3", lax)))
+	assert.Equal(t, askLine, hook(dir, call("toolu_4", filepath.Join(gated, "sub"))))
+	assert.JSONEq(t, inGated, markOf("toolu_4"))
+	assert.Equal(t, askLine, hook(dir, call("toolu_5", link)))
+	assert.JSONEq(t, inGated, markOf("toolu_5"))
+	assert.Equal(t, askLine, hook(dir, call("toolu_6", broken)))
+	assert.Equal(t, askLine, hook(filepath.Join(root, "all"), call("toolu_7", own)))
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "rules.json"), []byte(push), 0o600))
+	for id, cwd := range map[string]string{"toolu_8": plain, "toolu_9": lax, "toolu_10": filepath.Join(own, "gone")} {
+		assert.Equal(t, askLine, hook(dir, call(id, cwd)), cwd)
+		assert.Empty(t, markOf(id), cwd)
+	}
 }

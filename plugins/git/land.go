@@ -21,6 +21,7 @@ const (
 	landApproved   = "approved"
 	nothingToLand  = "%s adds nothing to %s; nothing landed"
 	baseGoneText   = "Base %s is gone, landed into %s."
+	baseIdleText   = "the branch's base %s is checked out in no worktree: check %s out in a worktree, or pass into to land somewhere else"
 )
 
 var (
@@ -79,12 +80,12 @@ type landPlan struct {
 func landCommand(ctx context.Context, a *app, c call) (any, error) {
 	a.landMu.Lock()
 	defer a.landMu.Unlock()
-	p, err := planLand(ctx, c)
+	p, err := planLand(ctx, a, c)
 	if err != nil {
 		return nil, err
 	}
 	if p.tree == "" {
-		return p.cleanup(ctx, c.h, c.workspaceID, landResult{Into: p.into, Source: p.source, Note: strings.TrimSpace(p.note + " " + fmt.Sprintf(nothingToLand, p.source, p.into))}), nil
+		return p.cleanup(ctx, a, c.h, c.workspaceID, landResult{Into: p.into, Source: p.source, Note: strings.TrimSpace(p.note + " " + fmt.Sprintf(nothingToLand, p.source, p.into))}), nil
 	}
 	gate := landGateCall{Session: c.caller, Target: p.target.Path, Worktree: p.own.Path, Into: p.into, Source: p.source, Head: p.head, Old: p.old, Tree: p.tree}
 	message := c.args.Message
@@ -108,10 +109,10 @@ func landCommand(ctx context.Context, a *app, c call) (any, error) {
 		gate.Commit = commit
 		logError("record landing", c.h.RunCommand(ctx, landDoneCmd, c.workspaceID, gate, nil))
 	}
-	return p.cleanup(ctx, c.h, c.workspaceID, landResult{Commit: commit, Into: p.into, Source: p.source, Note: p.note}), nil
+	return p.cleanup(ctx, a, c.h, c.workspaceID, landResult{Commit: commit, Into: p.into, Source: p.source, Note: p.note}), nil
 }
 
-func planLand(ctx context.Context, c call) (*landPlan, error) {
+func planLand(ctx context.Context, a *app, c call) (*landPlan, error) {
 	args := c.args
 	if strings.TrimSpace(args.Message) == "" {
 		return nil, errLandMessage
@@ -129,7 +130,7 @@ func planLand(ctx context.Context, c call) (*landPlan, error) {
 	}
 	p := &landPlan{folder: f, own: own, into: args.Into}
 	if p.into == "" {
-		if p.into, p.note, err = defaultInto(ctx, f, own, mode); err != nil {
+		if p.into, p.note, err = a.defaultInto(ctx, c.h, f, own, mode); err != nil {
 			return nil, err
 		}
 	}
@@ -184,17 +185,27 @@ func planLand(ctx context.Context, c call) (*landPlan, error) {
 	return p, nil
 }
 
-func defaultInto(ctx context.Context, f *folder, own gitrepo.Worktree, mode string) (string, string, error) {
-	base, ok := "", false
+func (a *app) defaultInto(ctx context.Context, h *pluginsdk.Host, f *folder, own gitrepo.Worktree, mode string) (string, string, error) {
+	var b baseResult
 	if mode == landModeBranch && own.Branch != "" {
-		base, ok = gitrepo.Base(ctx, own.Path, own.Branch)
+		var err error
+		if b, err = a.base(ctx, h, f.Folder, own.Branch); err != nil {
+			return "", "", err
+		}
 	}
-	if ok {
-		return base, "", nil
+	if b.Live {
+		return b.Base, "", nil
 	}
 	def, err := gitrepo.DefaultBranch(ctx, f.Trees[0].Path)
-	if err != nil || base == "" {
+	if err != nil || b.Base == "" {
 		return def, "", err
+	}
+	return intoWithoutBase(ctx, f, b.Base, def)
+}
+
+func intoWithoutBase(ctx context.Context, f *folder, base, def string) (string, string, error) {
+	if hasRef(ctx, f.Trees[0].Path, headsPrefix+base) {
+		return "", "", fmt.Errorf(baseIdleText, base, base)
 	}
 	return def, fmt.Sprintf(baseGoneText, base, def), nil
 }
@@ -295,7 +306,7 @@ func (p *landPlan) undo(ctx context.Context) {
 	logError("undo squash", err)
 }
 
-func (p *landPlan) cleanup(ctx context.Context, h *pluginsdk.Host, workspaceID string, res landResult) landResult {
+func (p *landPlan) cleanup(ctx context.Context, a *app, h *pluginsdk.Host, workspaceID string, res landResult) landResult {
 	if p.source == "" || p.keep {
 		return res
 	}
@@ -318,7 +329,10 @@ func (p *landPlan) cleanup(ctx context.Context, h *pluginsdk.Host, workspaceID s
 		return res
 	}
 	res.Removed = true
-	if err := forceDeleteBranch(ctx, top, p.source, p.head); errors.Is(err, errBranchMoved) {
+	logError("drop base of "+p.own.Path, h.StorageDelete(ctx, baseTreeKey(p.own.Real)))
+	err = forceDeleteBranch(ctx, top, p.source, p.head)
+	a.dropBaseIfGone(ctx, h, p.folder.Trees[0], p.source)
+	if errors.Is(err, errBranchMoved) {
 		res.Note = strings.TrimSpace(res.Note + " Kept the branch: " + p.source + " moved after the landing.")
 	} else if err != nil {
 		res.Note = strings.TrimSpace(res.Note + " Kept the branch: " + err.Error())

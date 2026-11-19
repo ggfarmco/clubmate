@@ -96,6 +96,7 @@ type turnOutcome struct {
 }
 
 type donePlan struct {
+	seen    string
 	carry   string
 	from    *heldTurn
 	held    *heldTurn
@@ -111,8 +112,9 @@ type gateBase struct {
 
 var clearedBase = &gateBase{}
 
-func (a *app) planDone(s *session, cancelled bool) donePlan {
+func (a *app) planDone(s *session, cancelled bool) (plan donePlan) {
 	rec := a.afkRec(s.snapshot())
+	defer func() { plan.seen = rec.HeldGate }()
 	prior := rec.Held
 	switch {
 	case cancelled && prior != nil:
@@ -562,6 +564,8 @@ func (s *session) finishableLocked() bool {
 func (s *session) finishLocked(p donePlan) (bool, bool) {
 	s.ending = nil
 	switch {
+	case (p.held != nil || p.carry != "") && p.seen != s.rec.HeldGate:
+		return true, true
 	case p.held != nil && s.rec.Held != p.from:
 		return true, true
 	case p.held != nil:
@@ -829,26 +833,7 @@ func relSlash(root, file string) string {
 }
 
 func globMatch(pattern, name string) bool {
-	return matchParts(strings.Split(pattern, "/"), strings.Split(name, "/"))
-}
-
-func matchParts(pattern, name []string) bool {
-	if len(pattern) == 0 {
-		return len(name) == 0
-	}
-	if pattern[0] == globAny {
-		for i := range len(name) + 1 {
-			if matchParts(pattern[1:], name[i:]) {
-				return true
-			}
-		}
-		return false
-	}
-	if len(name) == 0 {
-		return false
-	}
-	ok, _ := path.Match(pattern[0], name[0])
-	return ok && matchParts(pattern[1:], name[1:])
+	return landgate.Match(pattern, name)
 }
 
 func validGlob(glob string) error {

@@ -947,6 +947,66 @@ func TestPromptToAHeldTurnOnAPausedGateIsHeldAgain(t *testing.T) {
 	}, wait)
 }
 
+func TestPromptAfterAnErrorOnAPausedGatesHeldTurnIsHeldAgain(t *testing.T) {
+	t.Parallel()
+	exit := filepath.Join(t.TempDir(), "exit")
+	d := startDone(t, nil, map[string]any{
+		"resume": true,
+		"prompt": []map[string]any{{"match": "again", "run": "echo b > other.md"}},
+		"after": []map[string]any{
+			{"match": "WORK", "wait": exit},
+			{"match": "WORK", "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "more"}}},
+			{"match": "WORK", "exit": 1},
+		},
+	}, nil)
+	d.f.pauseGate(t, d.workspace, d.gate)
+	write(t, exit, "")
+	d.f.waitStatus(t, d.workspace, d.session, "error")
+
+	d.f.prompt(t, d.workspace, d.session, "again")
+
+	testutil.Eventually(t, func() bool {
+		h := d.held(t)
+		return h != nil && h.Gate == d.gate && d.f.session(t, d.workspace, d.session).Status == "running"
+	}, wait)
+}
+
+func TestPausingAGateAfterAPromptDroppedItsHoldLeavesTheNextTurnDone(t *testing.T) {
+	t.Parallel()
+	turn := filepath.Join(t.TempDir(), "turn")
+	d := startDone(t, nil, map[string]any{"prompt": []map[string]any{
+		{"match": "again", "wait": turn},
+		{"match": "again", "run": "echo b > other.md"},
+	}}, nil)
+	d.f.prompt(t, d.workspace, d.session, "again")
+	testutil.Eventually(t, func() bool { return d.held(t) == nil }, wait)
+
+	d.f.pauseGate(t, d.workspace, d.gate)
+	write(t, turn, "")
+
+	d.f.waitStatus(t, d.workspace, d.session, "done")
+}
+
+func TestPausingAPausedGateAgainKeepsTheCarriedHold(t *testing.T) {
+	t.Parallel()
+	turn := filepath.Join(t.TempDir(), "turn")
+	d := startDone(t, nil, map[string]any{"prompt": []map[string]any{
+		{"match": "again", "wait": turn},
+		{"match": "again", "run": "echo b > other.md"},
+	}}, nil)
+	d.f.pauseGate(t, d.workspace, d.gate)
+	d.f.prompt(t, d.workspace, d.session, "again")
+	testutil.Eventually(t, func() bool { return d.held(t) == nil }, wait)
+
+	d.f.pauseGate(t, d.workspace, d.gate)
+	write(t, turn, "")
+
+	testutil.Eventually(t, func() bool {
+		h := d.held(t)
+		return h != nil && h.Gate == d.gate && d.f.session(t, d.workspace, d.session).Status == "running"
+	}, wait)
+}
+
 func TestCycleReleasedForChildrenOnAPausedGateIsHeldAfterTheWake(t *testing.T) {
 	t.Parallel()
 	cycle, kidHold := filepath.Join(t.TempDir(), "cycle"), filepath.Join(t.TempDir(), "kid")

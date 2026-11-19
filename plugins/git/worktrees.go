@@ -36,7 +36,6 @@ const (
 	unsavedTitle        = "Worktree %s has %s. Remove it and discard the changes?"
 	missingText         = "Worktree %s no longer exists — back on main"
 	baseDefault         = "default"
-	baseKey             = ".clubmate-base"
 	baseUnrecordedText  = "Couldn't record %s as the branch's base: %v"
 	originRemote        = "origin"
 	invalidSlugText     = "'%s' is not a valid worktree name"
@@ -176,7 +175,7 @@ func movedIn(ctx context.Context, h *pluginsdk.Host, workspaceID, dir string) (m
 	return out, nil
 }
 
-func prepareNew(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs) (opFunc, error) {
+func prepareNew(ctx context.Context, a *app, h *pluginsdk.Host, workspaceID string, args worktreeArgs) (opFunc, error) {
 	f, err := gitFolder(ctx, h, workspaceID, args.Repo)
 	if err != nil {
 		return nil, err
@@ -230,11 +229,15 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, workspaceID string, args
 		var notes []string
 		switch {
 		case made != "" && parent != "":
-			if _, err := mutate(ctx, cur.Path, "config", "branch."+made+baseKey, parent); err != nil {
+			if err := errors.Join(a.recordBase(ctx, h, primary.Real, made, parent), recordTreeBase(ctx, h, dir, parent)); err != nil {
 				notes = append(notes, fmt.Sprintf(baseUnrecordedText, parent, err))
 			}
+			_, _ = mutate(ctx, cur.Path, "config", "branch."+made+baseConfigKey, parent)
 		case made != "":
-			_, _ = mutate(ctx, cur.Path, "config", "--unset-all", "branch."+made+baseKey)
+			logError("drop base of "+made, errors.Join(a.recordBase(ctx, h, primary.Real, made, ""), recordTreeBase(ctx, h, dir, "")))
+			_, _ = mutate(ctx, cur.Path, "config", "--unset-all", "branch."+made+baseConfigKey)
+		default:
+			logError("drop base of "+dir, recordTreeBase(ctx, h, dir, ""))
 		}
 		if err := copyIncluded(source, dir); err != nil {
 			notes = append(notes, err.Error())
@@ -345,6 +348,7 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 		if _, err := mutate(ctx, f.Checkout.Path, remove...); err != nil {
 			return "", err
 		}
+		logError("drop base of "+t.Path, h.StorageDelete(ctx, baseTreeKey(t.Real)))
 		p, err := h.GetWorkspace(ctx, workspaceID)
 		if err != nil {
 			return "", err
@@ -356,12 +360,14 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 	}, nil
 }
 
-func deleteBranch(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs) error {
+func deleteBranch(ctx context.Context, a *app, h *pluginsdk.Host, workspaceID string, args worktreeArgs) error {
 	f, err := gitFolder(ctx, h, workspaceID, args.Repo)
 	if err != nil {
 		return err
 	}
-	return deleteBranchIn(ctx, f.Checkout.Path, args.Branch, args.Tip)
+	err = deleteBranchIn(ctx, f.Checkout.Path, args.Branch, args.Tip)
+	a.dropBaseIfGone(ctx, h, f.Trees[0], args.Branch)
+	return err
 }
 
 func deleteBranchIn(ctx context.Context, top, branch, seen string) error {

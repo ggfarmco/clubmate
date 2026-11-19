@@ -85,6 +85,12 @@ const (
 	callMarkLog      = "remove an ended call's mark"
 )
 
+const (
+	callJudgeLog       = "judge a completed call"
+	callBlankFormat    = "%s call %s completed with no input; it isn't judged"
+	callRulesNewFormat = "%s is newer than the call; it isn't judged"
+)
+
 var errUserOnly = errors.New("only the user answers this request")
 
 type callHold struct {
@@ -144,6 +150,8 @@ type heldCall struct {
 	marks   []callMark
 	repo    string
 	primary string
+	other   string
+	tree    string
 	at      time.Time
 	waiting []string
 	decided map[string]*callHold
@@ -232,9 +240,14 @@ func (a *app) holdCall(ctx context.Context, s *session, p *agentProc, request st
 	}
 	call, tool, input := s.callOf(req)
 	primary, err := a.hookPrimary(ctx, rec.Worktree)
+	gates := a.gatesOrLast(ctx)
+	place := markedPlace(dir, call)
+	if place.Repo == primary || !slices.Contains(toolGatedRepos(gates), place.Repo) {
+		place = toolgate.Place{}
+	}
 	var hits []toolgate.Hit
-	if err == nil && tool != "" && len(input) > 0 {
-		hits = toolgate.Hits(a.toolRules(ctx, primary), tool, input)
+	if (err == nil || place.Repo != "") && tool != "" && len(input) > 0 {
+		hits = toolgate.Hits(callRules(gates, primary, place.Repo), tool, input)
 	}
 	if len(hits) == 0 || call == "" {
 		if err != nil || tool == "" || len(input) == 0 || call == "" || marked(dir, call) {
@@ -242,7 +255,7 @@ func (a *app) holdCall(ctx context.Context, s *session, p *agentProc, request st
 		}
 		return acp.PermissionOutcome{}, false
 	}
-	c := &heldCall{id: call, request: request, agent: req.SessionID, repo: filepath.Base(primary), primary: primary, at: time.Now().UTC(), tool: tool, text: toolgate.Input(tool, input), input: input, hits: hits, options: req.Options, reply: make(chan callAnswer, 1)}
+	c := &heldCall{id: call, request: request, agent: req.SessionID, repo: filepath.Base(cmp.Or(primary, place.Repo)), primary: primary, other: place.Repo, tree: cmp.Or(place.Tree, rec.Worktree), at: time.Now().UTC(), tool: tool, text: toolgate.Input(tool, input), input: input, hits: hits, options: req.Options, reply: make(chan callAnswer, 1)}
 	s.mu.Lock()
 	if s.rec.closed() || ctx.Err() != nil || p != nil && s.proc != p {
 		s.mu.Unlock()
@@ -327,13 +340,13 @@ func (a *app) takeCall(ctx context.Context, s *session, c *heldCall) {
 	a.settleTold(s)
 	a.resetStale(s, time.Now())
 	rec := s.snapshot()
-	tree, head, err := gitrepo.Snapshot(ctx, rec.Worktree)
+	tree, head, err := gitrepo.Snapshot(ctx, cmp.Or(c.tree, rec.Worktree))
 	if err != nil {
 		logError(callTakeLog, err)
 		tree, head = "", ""
 	}
 	gates := a.gatesOrLast(ctx)
-	live := toolgate.Hits(toolRulesOf(gates, c.primary), c.tool, c.input)
+	live := toolgate.Hits(callRules(gates, c.primary, c.other), c.tool, c.input)
 	hits := s.hitsOf(c)
 	keys := make(map[string]string, len(hits))
 	for _, hit := range hits {
@@ -348,11 +361,6 @@ func (a *app) takeCall(ctx context.Context, s *session, c *heldCall) {
 			approved[hit.ID] = true
 		case ok && v.Outcome == gateChanges:
 			refused[hit.ID] = v
-		}
-	}
-	for _, sp := range s.snapshot().Spare {
-		if key, ok := keys[sp.Gate]; ok && key != sp.Key {
-			a.dropVerdict(sp.Gate, sp.Key)
 		}
 	}
 	now := time.Now().UTC()
@@ -382,13 +390,14 @@ func (a *app) takeCall(ctx context.Context, s *session, c *heldCall) {
 			waiting = append(waiting, hit.ID)
 		}
 	}
-	s.takeSparesLocked(hitGates(c.hits))
+	taken := s.takeSparesLocked(hitGates(hits))
 	c.waiting, c.decided = waiting, map[string]*callHold{}
 	calls := slices.DeleteFunc(slices.Clone(s.rec.Calls), func(x *callHold) bool {
 		return slices.ContainsFunc(c.hits, func(h toolgate.Hit) bool { return h.ID == x.Hold.Gate })
 	})
 	marks := make([]callMark, 0, len(waiting))
 	var bumped []*callHold
+	reserved := map[string]string{}
 	request, asked := cardOf(s.rec, c.hits, keys, now)
 	for _, hit := range c.hits {
 		var g gateConfig
@@ -431,6 +440,7 @@ func (a *app) takeCall(ctx context.Context, s *session, c *heldCall) {
 		if !slices.Contains(waiting, hit.ID) {
 			c.decided[hit.ID] = decidedHold(hold, false)
 			s.spareLocked(hit.ID, keys[hit.ID])
+			reserved[hit.ID] = keys[hit.ID]
 			continue
 		}
 		calls = append(calls, hold)
@@ -448,6 +458,11 @@ func (a *app) takeCall(ctx context.Context, s *session, c *heldCall) {
 	}
 	for _, gate := range stray {
 		a.dropVerdict(gate, keys[gate])
+	}
+	for _, sp := range taken {
+		if reserved[sp.Gate] != sp.Key {
+			a.dropVerdict(sp.Gate, sp.Key)
+		}
 	}
 	s.changed(changeStatus, true)
 	if len(waiting) == 0 {
@@ -588,8 +603,10 @@ func (s *session) spareLocked(gate, key string) *callSpare {
 	return old
 }
 
-func (a *app) dropVerdict(gate, key string) {
-	logError("drop the gate's approval", a.host.StorageDelete(context.Background(), holdRef{gate: gate}.verdictPath(gate, key)))
+func (a *app) dropVerdict(gate, key string) error {
+	err := a.host.StorageDelete(context.Background(), holdRef{gate: gate}.verdictPath(gate, key))
+	logError("drop the gate's approval", err)
+	return err
 }
 
 func (a *app) approveCall(r holdRef, key string) {
@@ -811,9 +828,7 @@ func (a *app) runAnyway(ctx context.Context, s *session, request string) error {
 		a.logHeldCall(s, d.hold, gateApproved, landgate.ByUser, d.call)
 	}
 	a.dropVerdicts(heldOf(ran))
-	for _, sp := range spares {
-		a.dropVerdict(sp.Gate, sp.Key)
-	}
+	a.dropSpares(spares)
 	for _, c := range runs {
 		a.answerCall(s, c.request, callAllow)
 	}
@@ -1334,7 +1349,7 @@ func (s *session) hideGateEntry(call string) {
 func (a *app) releaseCall(s *session, c *heldCall) {
 	ctx := context.Background()
 	rec := s.snapshot()
-	tree, head, err := gitrepo.Snapshot(ctx, rec.Worktree)
+	tree, head, err := gitrepo.Snapshot(ctx, cmp.Or(c.tree, rec.Worktree))
 	if err != nil {
 		logError(callReleaseLog, err)
 		tree, head = "", ""
@@ -1365,12 +1380,20 @@ func (a *app) releaseCall(s *session, c *heldCall) {
 	if !live {
 		return
 	}
+	var undropped []string
 	for gate, d := range decided {
-		a.dropVerdict(gate, d.Hold.Key)
+		if a.dropVerdict(gate, d.Hold.Key) != nil && a.dropVerdict(gate, d.Hold.Key) != nil {
+			undropped = append(undropped, gate)
+		}
+	}
+	if len(undropped) > 0 {
+		a.reholdCall(ctx, s, c, undropped, tree, head)
+		return
 	}
 	s.mu.Lock()
-	s.takeSparesLocked(hitGates(hits))
+	spares := s.takeSparesLocked(hitGates(hits))
 	s.mu.Unlock()
+	a.dropSpares(spares)
 	a.answerCall(s, c.request, a.releaseAnswer(rec, c))
 }
 
@@ -1412,7 +1435,7 @@ func (a *app) reholdCall(ctx context.Context, s *session, c *heldCall, stale []s
 	}
 	var review []string
 	request := ""
-	s.takeSparesLocked(stale)
+	spares := s.takeSparesLocked(stale)
 	ours := slices.DeleteFunc(slices.Clone(s.rec.Calls), func(x *callHold) bool { return x.Call != c.id })
 	calls := slices.DeleteFunc(slices.Clone(s.rec.Calls), func(x *callHold) bool { return x.Call == c.id })
 	for _, gate := range stale {
@@ -1443,6 +1466,7 @@ func (a *app) reholdCall(ctx context.Context, s *session, c *heldCall, stale []s
 	s.rec.Calls, s.rec.UpdatedAt = calls, now
 	idle := len(c.waiting) == 0
 	s.mu.Unlock()
+	a.dropSpares(spares)
 	s.changed(changeStatus, true)
 	if idle {
 		a.settleCall(s, c)
@@ -1533,6 +1557,15 @@ func (a *app) callText(s *session, c *callHold) (string, bool) {
 	return c.Input, c.Cut
 }
 
+func (s *session) callTree(call, worktree string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if i := slices.IndexFunc(s.calls, func(x *heldCall) bool { return call != "" && x.id == call }); i >= 0 {
+		return cmp.Or(s.calls[i].tree, worktree)
+	}
+	return worktree
+}
+
 func (a *app) callKeyNow(ctx context.Context, r holdRef, g gateConfig) (string, string, string, bool) {
 	rec := r.s.snapshot()
 	c := rec.call(r.gate)
@@ -1541,15 +1574,15 @@ func (a *app) callKeyNow(ctx context.Context, r holdRef, g gateConfig) (string, 
 	}
 	r.s.mu.Lock()
 	i := slices.IndexFunc(r.s.calls, func(x *heldCall) bool { return x.id == c.Call })
-	text := ""
+	text, at := "", rec.Worktree
 	if i >= 0 {
-		text = r.s.calls[i].text
+		text, at = r.s.calls[i].text, cmp.Or(r.s.calls[i].tree, rec.Worktree)
 	}
 	r.s.mu.Unlock()
 	if i < 0 {
 		return "", "", "", false
 	}
-	tree, head, err := gitrepo.Snapshot(ctx, rec.Worktree)
+	tree, head, err := gitrepo.Snapshot(ctx, at)
 	if err != nil {
 		return "", "", "", false
 	}
@@ -1570,11 +1603,12 @@ func (a *app) callPrompts(ctx context.Context, r holdRef, rec record, g gateConf
 	if lost {
 		cut += callLostText
 	}
-	branch, base := callBranch(ctx, rec.Worktree)
+	at := r.s.callTree(c.Call, rec.Worktree)
+	branch, base := a.callBranch(ctx, rec.Workspace, at)
 	branch = cmp.Or(branch, "?")
-	block := strings.Join([]string{rec.Title, rec.Worktree, branch, c.Tool, shown}, "\n")
+	block := strings.Join([]string{rec.Title, at, branch, c.Tool, shown}, "\n")
 	fence := strings.Repeat("`", longestRun(block)+1)
-	data := fmt.Sprintf(callDataFormat, fence, rec.Title, rec.Worktree, branch, c.Tool, shown, fence) + cut
+	data := fmt.Sprintf(callDataFormat, fence, rec.Title, at, branch, c.Tool, shown, fence) + cut
 	if c.Caption != "" {
 		data += fmt.Sprintf(callSafeFormat, toolMatchName(g))
 	}
@@ -1596,14 +1630,14 @@ func (a *app) callPrompts(ctx context.Context, r holdRef, rec record, g gateConf
 	return first, fmt.Sprintf(callDeltaFormat, data, where.String()+fmt.Sprintf(callMovedFormat, h.Reviewed, h.Tree)+callReachText)
 }
 
-func callBranch(ctx context.Context, dir string) (string, string) {
+func (a *app) callBranch(ctx context.Context, workspace, dir string) (string, string) {
 	branch, err := gitrepo.Branch(ctx, dir)
 	if err != nil {
 		return "", ""
 	}
 	from := ""
-	if b, _ := gitrepo.Base(ctx, dir, branch); b != "" && b != branch {
-		from = b
+	if b, _ := a.worktreeBase(ctx, workspace, dir, branch); b.Base != "" && b.Base != branch {
+		from = b.Base
 	} else if def, err := gitrepo.DefaultBranch(ctx, dir); err == nil && def != branch {
 		from = def
 	} else if _, err := gitrepo.Run(ctx, dir, "rev-parse", "--verify", "--quiet", "@{upstream}"); err == nil {
@@ -1706,7 +1740,7 @@ func (a *app) withdrawCall(s *session, request string) bool {
 
 func (a *app) endCalls(s *session, user bool) {
 	s.mu.Lock()
-	dropped := s.endCallsLocked(user)
+	dropped, spares := s.endCallsLocked(user)
 	finish := s.settleLocked()
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
@@ -1717,6 +1751,13 @@ func (a *app) endCalls(s *session, user bool) {
 		a.logHeldCall(s, d.hold, gateStopped, landgate.ByUser, d.call)
 	}
 	a.dropVerdicts(heldOf(dropped))
+	a.dropSpares(spares)
+}
+
+func (a *app) dropSpares(spares []callSpare) {
+	for _, sp := range spares {
+		a.dropVerdict(sp.Gate, sp.Key)
+	}
 }
 
 func heldOf(dropped []droppedHold) []heldTurn {
@@ -1734,7 +1775,7 @@ func (a *app) dropVerdicts(holds []heldTurn) {
 	}
 }
 
-func (s *session) endCallsLocked(drop bool) []droppedHold {
+func (s *session) endCallsLocked(drop bool) ([]droppedHold, []callSpare) {
 	for _, c := range s.calls {
 		if c.taken {
 			s.markCallLocked(c.agent, c.id, nil)
@@ -1745,8 +1786,10 @@ func (s *session) endCallsLocked(drop bool) []droppedHold {
 	}
 	s.calls = nil
 	if !drop {
-		return nil
+		return nil, nil
 	}
+	spares := s.rec.Spare
+	s.rec.Spare = nil
 	dropped := make([]droppedHold, 0, len(s.rec.Calls))
 	for _, c := range s.rec.Calls {
 		dropped = append(dropped, droppedHold{hold: *c.Hold, call: clipRunes(c.Input, callLineMax)})
@@ -1755,7 +1798,7 @@ func (s *session) endCallsLocked(drop bool) []droppedHold {
 	}
 	s.unqueueMessageLocked("")
 	s.rec.Calls, s.telling = nil, nil
-	return dropped
+	return dropped, spares
 }
 
 func callOutcome(options []acp.PermissionOption, answer callAnswer) acp.PermissionOutcome {
@@ -1964,6 +2007,17 @@ func told(c *callHold) bool {
 	return c != nil && c.Told
 }
 
+func markedPlace(dir, call string) toolgate.Place {
+	var p toolgate.Place
+	if dir == "" || call == "" || strings.ContainsAny(call, `/\`) {
+		return p
+	}
+	if raw, err := os.ReadFile(filepath.Join(dir, toolHookMarks, call)); err == nil && len(raw) > 0 && json.Unmarshal(raw, &p) != nil {
+		return toolgate.Place{}
+	}
+	return p
+}
+
 func marked(dir, call string) bool {
 	if call == "" || strings.ContainsAny(call, `/\`) {
 		return false
@@ -2026,7 +2080,7 @@ func (s *session) endedCallLocked(agentSession, kind, was string, payload json.R
 	}
 	held := s.held[u.ID]
 	delete(s.held, u.ID)
-	if !hookable(s.rec) {
+	if !hookable(s.rec) || s.toolGated != nil && !s.toolGated() {
 		return nil
 	}
 	c := &endedCall{id: u.ID, held: held, dir: s.hookDir, unhooked: s.hookDir == "" || s.hookWhy != "", epoch: s.epoch, cycle: s.cycle && !s.running}
@@ -2038,21 +2092,38 @@ func (s *session) endedCallLocked(agentSession, kind, was string, payload json.R
 
 func (a *app) judgeCall(s *session, c endedCall) {
 	seen := c.dir != "" && marked(c.dir, c.id)
+	var place toolgate.Place
 	if seen {
+		place = markedPlace(c.dir, c.id)
 		logError(callMarkLog, os.Remove(filepath.Join(c.dir, toolHookMarks, c.id)))
+	}
+	if c.tool != "" && !c.at.IsZero() && !filled(c.input) {
+		s.blankInput.Do(func() { logError(callJudgeLog, fmt.Errorf(callBlankFormat, c.tool, c.id)) })
 	}
 	if c.tool == "" || !filled(c.input) || c.at.IsZero() {
 		return
 	}
 	ctx := context.Background()
 	rec := s.snapshot()
-	primary, err := a.hookPrimary(ctx, rec.Worktree)
-	gates, known := a.knownGates(ctx)
-	if err != nil || !known || !hookable(rec) {
+	if !hookable(rec) {
 		return
 	}
-	live := slices.DeleteFunc(slices.Clone(gates), func(g gateConfig) bool { return !g.since().Before(c.at) })
-	hits := slices.DeleteFunc(toolgate.Hits(toolRulesOf(live, primary), c.tool, c.input), func(h toolgate.Hit) bool { return slices.Contains(c.held, h.ID) })
+	primary, err := a.hookPrimary(ctx, rec.Worktree)
+	gates, known := a.knownGates(ctx)
+	if place.Repo == primary || known && !slices.Contains(toolGatedRepos(gates), place.Repo) {
+		place = toolgate.Place{}
+	}
+	if err != nil && place.Repo == "" {
+		return
+	}
+	var rules []toolgate.Rule
+	if known {
+		live := slices.DeleteFunc(slices.Clone(gates), func(g gateConfig) bool { return !g.since().Before(c.at) })
+		rules = callRules(live, primary, place.Repo)
+	} else {
+		rules = append(a.savedRules(primary, c.at), a.savedRules(place.Repo, c.at)...)
+	}
+	hits := slices.DeleteFunc(toolgate.Hits(rules, c.tool, c.input), func(h toolgate.Hit) bool { return slices.Contains(c.held, h.ID) })
 	if len(hits) == 0 {
 		return
 	}
@@ -2073,6 +2144,39 @@ func (a *app) judgeCall(s *session, c endedCall) {
 		a.logGateVerdict(ctx, gateVerdict{Gate: h.ID, Workspace: rec.Workspace, Outcome: gateUngated, By: by, Lander: rec.ID, Title: rec.Title, Call: call, Summary: fmt.Sprintf(ungatedSummary, words), At: time.Now().UTC()})
 	}
 	s.notice(fmt.Sprintf(ungatedTitle, strings.Join(names, " · ")), fmt.Sprintf(notice, strings.ToUpper(words[:1])+words[1:], call))
+}
+
+func callRules(gates []gateConfig, primary, other string) []toolgate.Rule {
+	rules := toolRulesOf(gates, primary)
+	if other != "" && other != primary {
+		rules = append(rules, toolRulesOf(gates, other)...)
+	}
+	return rules
+}
+
+func (a *app) savedRules(primary string, at time.Time) []toolgate.Rule {
+	if primary == "" {
+		return nil
+	}
+	path := filepath.Join(toolHookPath(a.toolHooksRoot(), primary), toolHookRules)
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil || !info.ModTime().Before(at) {
+		logError(callJudgeLog, cmp.Or(err, fmt.Errorf(callRulesNewFormat, path)))
+		return nil
+	}
+	var rules []toolgate.Rule
+	raw, err := os.ReadFile(path)
+	if err == nil {
+		err = json.Unmarshal(raw, &rules)
+	}
+	if err != nil {
+		logError(callJudgeLog, err)
+		return nil
+	}
+	return rules
 }
 
 func (a *app) stopTurn(s *session, epoch int, cycle bool) bool {

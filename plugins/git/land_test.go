@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -54,10 +55,37 @@ func baseWorktrees(t *testing.T) (string, string, string) {
 	return repo, a, b
 }
 
+func recordBase(t *testing.T, h *testutil.PluginHarness, repo, branch, base string) {
+	t.Helper()
+	value, err := json.Marshal(base)
+	require.NoError(t, err)
+	require.NoError(t, h.KV.Set(t.Context(), "git", baseKey(t, repo, branch), value))
+}
+
+func storedBase(t *testing.T, h *testutil.PluginHarness, repo, branch string) string {
+	t.Helper()
+	raw, found, err := h.KV.Get(t.Context(), "git", baseKey(t, repo, branch))
+	require.NoError(t, err)
+	var base string
+	if found {
+		require.NoError(t, json.Unmarshal(raw, &base))
+	}
+	return base
+}
+
+func baseKey(t *testing.T, repo, branch string) string {
+	t.Helper()
+	real, err := filepath.EvalSymlinks(repo)
+	require.NoError(t, err)
+	return "worktree-base/" + real + "/" + branch
+}
+
 func TestLandDefaultsIntoBase(t *testing.T) {
 	repo, _, b := baseWorktrees(t)
 	main := git(t, repo, "rev-parse", "main")
 	h, id := open(t, repo)
+	recordBase(t, h, repo, "B", "A")
+	git(t, b, "config", "branch.B.clubmate-base", "main")
 
 	var res landed
 	require.NoError(t, runCommand(t, h, id, "git.land", map[string]string{"path": b, "message": "feat: b"}, &res))
@@ -65,26 +93,140 @@ func TestLandDefaultsIntoBase(t *testing.T) {
 	assert.Equal(t, "A", res.Into)
 	assert.Equal(t, res.Commit, git(t, repo, "rev-parse", "A"))
 	assert.Equal(t, main, git(t, repo, "rev-parse", "main"))
+	assert.Empty(t, storedBase(t, h, repo, "B"))
 }
 
-func TestLandFallsBackWhenBaseGone(t *testing.T) {
-	for name, gone := range map[string]func(t *testing.T, repo, a string){
+func TestLandKeepsTheWorktreesBaseAfterARename(t *testing.T) {
+	repo := committedRepo(t)
+	other := filepath.Join(repo, ".worktrees", "other")
+	git(t, repo, "worktree", "add", "-q", "-b", "other", other)
+	h, id := open(t, repo)
+	child := awaitOp(t, h, id, "git.worktree-new", map[string]any{"branch": "child", "from": other, "switch": false})
+	require.Empty(t, child.Error)
+	write(t, filepath.Join(child.Path, "c.go"), "child\n")
+	git(t, child.Path, "add", ".")
+	git(t, child.Path, "commit", "-qm", "child")
+	git(t, child.Path, "branch", "-m", "renamed")
+
+	var res landed
+	require.NoError(t, runCommand(t, h, id, "git.land", map[string]string{"path": child.Path, "message": "feat: c"}, &res))
+
+	assert.Equal(t, "other", res.Into)
+}
+
+func TestWorktreeBaseIsTheAgentsPluginsAlone(t *testing.T) {
+	repo := committedRepo(t)
+	h, id := open(t, repo)
+
+	err := runCommand(t, h, id, "git.worktree-base", map[string]any{"path": repo}, nil)
+
+	require.ErrorContains(t, err, "agents plugin only")
+}
+
+func TestBranchDeleteDropsTheBase(t *testing.T) {
+	repo := committedRepo(t)
+	git(t, repo, "branch", "gone")
+	h, id := open(t, repo)
+	recordBase(t, h, repo, "gone", "main")
+
+	require.NoError(t, h.PluginCallResult(t, "agents", "command.run", map[string]any{"id": "git.branch-delete", "workspaceId": id, "args": map[string]any{"repo": repo, "branch": "gone", "tip": git(t, repo, "rev-parse", "gone")}}, nil))
+
+	assert.Empty(t, storedBase(t, h, repo, "gone"))
+}
+
+func TestLandWithIdleBaseAsksForInto(t *testing.T) {
+	for name, idle := range map[string]func(t *testing.T, repo, a string){
 		"removed":         func(t *testing.T, repo, a string) { git(t, repo, "worktree", "remove", a) },
 		"deleted by hand": func(t *testing.T, _, a string) { require.NoError(t, os.RemoveAll(a)) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			repo, a, b := baseWorktrees(t)
-			gone(t, repo, a)
+			idle(t, repo, a)
+			main := git(t, repo, "rev-parse", "main")
 			h, id := open(t, repo)
+			recordBase(t, h, repo, "B", "A")
 
-			var res landed
-			require.NoError(t, runCommand(t, h, id, "git.land", map[string]string{"path": b, "message": "feat: b"}, &res))
+			err := runCommand(t, h, id, "git.land", map[string]string{"path": b, "message": "feat: b"}, nil)
 
-			assert.Equal(t, "main", res.Into)
-			assert.Equal(t, res.Commit, git(t, repo, "rev-parse", "main"))
-			assert.Contains(t, res.Note, "Base A is gone, landed into main.")
+			require.ErrorContains(t, err, "base A is checked out in no worktree")
+			assert.ErrorContains(t, err, "pass into")
+			assert.Equal(t, main, git(t, repo, "rev-parse", "main"))
 		})
 	}
+}
+
+func TestLandFallsBackWhenBaseDeleted(t *testing.T) {
+	repo, a, b := baseWorktrees(t)
+	git(t, repo, "worktree", "remove", a)
+	git(t, repo, "branch", "-D", "A")
+	h, id := open(t, repo)
+	recordBase(t, h, repo, "B", "A")
+
+	var res landed
+	require.NoError(t, runCommand(t, h, id, "git.land", map[string]string{"path": b, "message": "feat: b"}, &res))
+
+	assert.Equal(t, "main", res.Into)
+	assert.Equal(t, res.Commit, git(t, repo, "rev-parse", "main"))
+	assert.Contains(t, res.Note, "Base A is gone, landed into main.")
+}
+
+func TestConfigBaseImportedOnce(t *testing.T) {
+	for name, want := range map[string]string{"first start": "A", "imported before": "main"} {
+		t.Run(name, func(t *testing.T) {
+			repo, _, b := baseWorktrees(t)
+			t.Setenv("SHELL", "/bin/sh")
+			h := testutil.NewHarness(t)
+			if want == "main" {
+				require.NoError(t, h.KV.Set(t.Context(), "git", "worktree-base/imported", json.RawMessage("true")))
+			}
+			p, err := h.Svc.CreateWorkspace(t.Context(), "demo", []string{repo})
+			require.NoError(t, err)
+			h.Start(t, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+			require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": p.ID}, nil))
+			waitReady(t, h)
+
+			var res landed
+			require.NoError(t, runCommand(t, h, p.ID, "git.land", map[string]string{"path": b, "message": "feat: b"}, &res))
+
+			assert.Equal(t, want, res.Into)
+		})
+	}
+}
+
+func TestBaseImportRetriesARepoItCouldNotRead(t *testing.T) {
+	repo, _, b := baseWorktrees(t)
+	broken := committedRepo(t)
+	config := filepath.Join(broken, ".git", "config")
+	good, err := os.ReadFile(config)
+	require.NoError(t, err)
+	write(t, config, string(good)+"[[[\n")
+	t.Setenv("SHELL", "/bin/sh")
+	h := testutil.NewHarness(t)
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", []string{repo})
+	require.NoError(t, err)
+	other, err := h.Svc.CreateWorkspace(t.Context(), "broken", []string{broken})
+	require.NoError(t, err)
+	h.Start(t, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": p.ID}, nil))
+	waitReady(t, h)
+	base := func() error {
+		return h.PluginCallResult(t, "agents", "command.run", map[string]any{"id": "git.worktree-base", "workspaceId": other.ID, "args": map[string]any{"path": broken}}, nil)
+	}
+	imported := func() bool {
+		_, found, err := h.KV.Get(t.Context(), "git", "worktree-base/imported")
+		require.NoError(t, err)
+		return found
+	}
+
+	var res landed
+	require.NoError(t, runCommand(t, h, p.ID, "git.land", map[string]string{"path": b, "message": "feat: b"}, &res))
+	assert.Equal(t, "A", res.Into)
+	require.Error(t, base())
+	assert.False(t, imported())
+
+	write(t, config, string(good))
+	require.NoError(t, base())
+	assert.True(t, imported())
 }
 
 func preCommit(t *testing.T, repo, script string) {

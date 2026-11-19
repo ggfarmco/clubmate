@@ -139,6 +139,9 @@ func (s *session) setStatusLocked(status, errText string) {
 	}
 	s.rec.Status = status
 	if status != statusRunning && status != statusWaiting {
+		if h := s.rec.Held; status == statusError && h != nil && h.holding() {
+			s.rec.HeldGate = h.Gate
+		}
 		s.rec.Held = nil
 	}
 	s.rec.AutoClosed = false

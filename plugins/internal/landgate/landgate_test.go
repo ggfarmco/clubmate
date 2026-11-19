@@ -39,8 +39,12 @@ func baseEnv() []string {
 }
 
 func (g gitEnv) agent(common string) []string {
+	return g.agentGlob(common, nil)
+}
+
+func (g gitEnv) agentGlob(common string, glob []string) []string {
 	env := baseEnv()
-	for k, v := range landgate.SessionEnv(env, g.hooks, common, []string{"refs/heads/main"}, g.marks) {
+	for k, v := range landgate.SessionEnv(env, g.hooks, common, []string{"refs/heads/main"}, glob, g.marks) {
 		env = append(env, k+"="+v)
 	}
 	return env
@@ -97,7 +101,7 @@ func TestUserCommitPasses(t *testing.T) {
 	g := newGitEnv(t)
 	repo := g.repo()
 	g.run(repo, baseEnv(), "commit", "-q", "--allow-empty", "-m", "user")
-	assert.Empty(t, landgate.SessionEnv(baseEnv(), g.hooks, "", nil, g.marks))
+	assert.Empty(t, landgate.SessionEnv(baseEnv(), g.hooks, "", nil, nil, g.marks))
 }
 
 func TestAbortAfterRefusedRebasePasses(t *testing.T) {
@@ -259,4 +263,83 @@ func TestFailingAwkRefusesProtectedUpdate(t *testing.T) {
 		assert.Contains(t, out, "git_land")
 	}
 	assert.Equal(t, before, g.run(repo, env, "rev-parse", "main"))
+}
+
+func TestMatchSegments(t *testing.T) {
+	for _, c := range []struct {
+		pattern, name string
+		want          bool
+	}{
+		{"release/*", "release/1.0", true},
+		{"release/*", "release/1.0/hotfix", false},
+		{"release/**", "release/1.0/hotfix", true},
+		{"**/hotfix", "release/1.0/hotfix", true},
+		{"release/**/hotfix", "release/hotfix", true},
+		{"refs/heads/**", "refs/heads/feat/x", true},
+		{"r?lease/[^0-9].*", "release/a.b", true},
+		{"r?lease/[^0-9].*", "release/1.0", false},
+		{"release/1.0", "release/1.0", true},
+	} {
+		assert.Equal(t, c.want, landgate.Match(c.pattern, c.name), c.pattern+" "+c.name)
+	}
+}
+
+func TestHookMatchesPatternsLikeMatch(t *testing.T) {
+	refs := []string{"main", "release/1.0", "release/2.0/hotfix", "release/hotfix", "release/a.b", "release/V1", "r1lease/a.b", "hotfix", "feat/x"}
+	patterns := []string{"refs/heads/release/*", "refs/heads/release/**", "refs/heads/r?lease/[^0-9].*", "refs/heads/**/hotfix", "refs/**/hotfix", "refs/heads/release/**/hotfix", "refs/heads/**", "refs/heads/release/[^a-z]*", "refs/heads/release/[0-_]*"}
+	for _, pattern := range patterns {
+		t.Run(pattern, func(t *testing.T) {
+			g := newGitEnv(t)
+			repo := g.repo()
+			tip := g.run(repo, baseEnv(), "commit-tree", "-p", "main", "-m", "tip", "main^{tree}")
+			for _, ref := range refs {
+				g.run(repo, baseEnv(), "update-ref", "refs/heads/"+ref, "main")
+			}
+			g.run(repo, baseEnv(), "pack-refs", "--all")
+			g.run(repo, baseEnv(), "checkout", "-q", "--detach")
+			env := g.agentGlob(filepath.Join(repo, ".git"), []string{pattern})
+
+			for _, ref := range refs[1:] {
+				for _, name := range []string{ref, strings.ToUpper(ref)} {
+					_, err := g.git(repo, env, "update-ref", "refs/heads/"+name, tip)
+					full := "refs/heads/" + name
+					want := landgate.Match(pattern, full) || landgate.Match(strings.ToLower(pattern), strings.ToLower(full))
+					assert.Equal(t, want, err != nil, name)
+				}
+			}
+		})
+	}
+}
+
+func TestNamedPatternProtectsLikeAnExactName(t *testing.T) {
+	g := newGitEnv(t)
+	repo := g.repo()
+	g.run(repo, baseEnv(), "update-ref", "refs/heads/release/1.0", "main")
+	g.run(repo, baseEnv(), "update-ref", "refs/heads/feat", g.run(repo, baseEnv(), "commit-tree", "-p", "main", "-m", "feat", "main^{tree}"))
+	g.run(repo, baseEnv(), "checkout", "-q", "release/1.0")
+	env := g.agentGlob(filepath.Join(repo, ".git"), []string{"refs/heads/release/*"})
+
+	for _, move := range [][]string{
+		{"commit", "--allow-empty", "-m", "on the branch"},
+		{"branch", "release/9.9", "feat"},
+		{"push", "-q", ".", "feat:release/1.0"},
+	} {
+		out, err := g.git(repo, env, move...)
+		require.Error(t, err, move)
+		assert.Contains(t, out, "git_land")
+	}
+	g.run(repo, env, "push", "-q", ".", "main:other")
+}
+
+func TestOwnBranchWorkPassesWithoutPatterns(t *testing.T) {
+	g := newGitEnv(t)
+	repo := g.repo()
+	env := g.agent(filepath.Join(repo, ".git"))
+	g.run(repo, baseEnv(), "branch", "tmp")
+
+	g.run(repo, env, "switch", "-qc", "work")
+	g.run(repo, env, "commit", "-q", "--allow-empty", "-m", "work")
+	g.run(repo, env, "branch", "-m", "work2")
+	g.run(repo, env, "worktree", "add", "-q", "-b", "sub", filepath.Join(t.TempDir(), "sub"))
+	g.run(repo, env, "branch", "-D", "tmp")
 }

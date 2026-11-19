@@ -1,8 +1,12 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -104,4 +108,70 @@ func TestHeldCallKeepsTheSessionFromDetaching(t *testing.T) {
 func TestNoTurnRefusalReadsRefusedInTheHistory(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "refused: no turn", verdictLook(gateVerdict{Outcome: gateRefused, By: byNoTurn}, gatePointTool).Word)
+}
+
+func TestCallThatRanWithNoGatesReadIsJudgedByTheSavedRules(t *testing.T) {
+	t.Parallel()
+	repo := gitRepo(t)
+	h := scriptedHost(t, func(method, key string) any {
+		if method == "storage.get" && key == gatesKey {
+			return map[string]any{"found": true, "value": "unreadable"}
+		}
+		return nil
+	})
+	a := &app{host: h, stateDir: t.TempDir(), registry: newRegistry()}
+	rules := filepath.Join(toolHookPath(a.toolHooksRoot(), repo), toolHookRules)
+	write(t, rules, `[{"id":"gt_1","tool":"Bash","how":"command","text":"git push"}]`)
+	past := time.Now().Add(-time.Minute)
+	require.NoError(t, os.Chtimes(rules, past, past))
+	s := newSession(record{ID: "agt_1", Workspace: "ws", Worktree: repo}, newEventLog(filepath.Join(t.TempDir(), "s.jsonl")), true, func(string, bool) {})
+
+	a.judgeCall(s, endedCall{id: "c1", tool: "Bash", input: json.RawMessage(`{"command":"git push"}`), at: time.Now(), unhooked: true})
+
+	history, err := a.readGateHistory(t.Context(), "gt_1")
+	require.NoError(t, err)
+	require.Len(t, history, 1)
+	assert.Equal(t, []string{gateUngated, "git push"}, []string{history[0].Outcome, history[0].Call})
+
+	a.judgeCall(s, endedCall{id: "c2", tool: "Bash", input: json.RawMessage(`{"command":"git push"}`), at: past.Add(-time.Minute), unhooked: true})
+
+	history, err = a.readGateHistory(t.Context(), "gt_1")
+	require.NoError(t, err)
+	assert.Len(t, history, 1)
+}
+
+func TestCompletedCallIsNotJudgedWhileNoToolGateExists(t *testing.T) {
+	t.Parallel()
+	s := newSession(record{ID: "agt_1"}, newEventLog(filepath.Join(t.TempDir(), "s.jsonl")), true, func(string, bool) {})
+	done := json.RawMessage(`{"toolCallId":"c1","status":"completed"}`)
+	gated := false
+	s.toolGated = func() bool { return gated }
+
+	assert.Nil(t, s.endedCallLocked("", acp.UpdateToolCallUpdate, "", done))
+	gated = true
+	assert.NotNil(t, s.endedCallLocked("", acp.UpdateToolCallUpdate, "", done))
+}
+
+func gitRepo(t *testing.T) string {
+	t.Helper()
+	repo, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	out, err := exec.Command("git", "-C", repo, "init", "-q", "-b", "main").CombinedOutput()
+	require.NoError(t, err, string(out))
+	return repo
+}
+
+func TestPlaceOfAWorktreeIsItsRepo(t *testing.T) {
+	t.Parallel()
+	repo := gitRepo(t)
+	tree := filepath.Join(repo, ".worktrees", "feat")
+	out, err := exec.Command("git", "-C", repo, "worktree", "add", "-q", "--orphan", "-b", "feat", tree).CombinedOutput()
+	require.NoError(t, err, string(out))
+	require.NoError(t, os.MkdirAll(filepath.Join(tree, "sub"), 0o700))
+
+	primary, err := primaryRead(t.Context(), tree)
+	require.NoError(t, err)
+	got, ok := toolgate.PlaceOf(filepath.Join(tree, "sub"))
+	require.True(t, ok)
+	assert.Equal(t, toolgate.Place{Repo: primary, Tree: tree}, got)
 }

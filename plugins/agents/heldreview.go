@@ -526,11 +526,25 @@ func (h *heldTurn) ask(facts heldAsk) {
 	h.Graph, h.Name, h.Repo, h.Of = facts.graph, facts.name, facts.repo, facts.rounds+h.Extra
 }
 
-func (a *app) regateHolds(ctx context.Context, gateID, by string) {
-	gates, err := a.gates(ctx)
-	if err != nil {
-		return
+func (s *session) dropCarriedGate(gateID string) {
+	s.mu.Lock()
+	drop := s.rec.HeldGate == gateID && (s.rec.Held == nil || !s.rec.Held.holding())
+	if drop {
+		s.rec.HeldGate = ""
 	}
+	s.mu.Unlock()
+	if drop {
+		s.changed(changeStatus, true)
+	}
+}
+
+func (a *app) dropCarriedGates(gateID string) {
+	for _, s := range a.allSessions() {
+		s.dropCarriedGate(gateID)
+	}
+}
+
+func (a *app) regateHolds(ctx context.Context, gates []gateConfig, gateID, by string) {
 	var g *gateConfig
 	if i := slices.IndexFunc(gates, func(x gateConfig) bool { return x.ID == gateID }); i >= 0 {
 		g = &gates[i]

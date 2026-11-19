@@ -309,9 +309,12 @@ func TestNewWorktreeFromOtherWorktree(t *testing.T) {
 	res := awaitOp(t, h, id, "git.worktree-new", map[string]any{"branch": "child", "from": other})
 	assert.Empty(t, res.Error)
 	assert.Equal(t, git(t, other, "rev-parse", "HEAD"), git(t, repo, "rev-parse", "child"))
+	assert.Equal(t, "other", storedBase(t, h, repo, "child"))
 	assert.Equal(t, "other", git(t, repo, "config", "--default=", "--get", "branch.child.clubmate-base"))
+	recordBase(t, h, repo, "fresh", "other")
 	git(t, repo, "config", "branch.fresh.clubmate-base", "other")
 	assert.Empty(t, awaitOp(t, h, id, "git.worktree-new", map[string]any{"branch": "fresh", "from": repo}).Error)
+	assert.Empty(t, storedBase(t, h, repo, "fresh"))
 	assert.Empty(t, git(t, repo, "config", "--default=", "--get", "branch.fresh.clubmate-base"))
 
 	_, err := startOp(t, h, id, "git.worktree-new", map[string]any{"branch": "bad", "from": t.TempDir()})

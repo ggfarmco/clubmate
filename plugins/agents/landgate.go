@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"clubmate/pkg/id"
 	"clubmate/pkg/pluginsdk"
@@ -34,10 +35,12 @@ const (
 	gateIntoAny       = "any"
 	gateIntoDefault   = "default"
 	gateIntoBase      = "base"
+	baseRank          = 3
 	gateGraphDefault  = "fable-review"
 	gateRoundsDefault = 2
 	gateIDPrefix      = "gt"
 	shortSha          = 10
+	headsPrefix       = "refs/heads/"
 	gateRequestPrefix = "lg"
 	gateTreeKeyPrefix = "lt"
 	hooksDirName      = "githooks"
@@ -364,16 +367,38 @@ func (g gateConfig) migrated() gateConfig {
 	return g
 }
 
-func (a *app) repoGated(ctx context.Context, worktree string) bool {
+func (a *app) repoLandGates(ctx context.Context, worktree string) []gateConfig {
 	gates, err := a.gates(ctx)
 	if err != nil || len(gates) == 0 {
-		return false
+		return nil
 	}
 	primary := primaryOf(ctx, worktree)
-	return primary != "" && slices.ContainsFunc(gates, func(g gateConfig) bool { return g.Repo == primary && !g.Paused && g.Point == gatePointLand })
+	if primary == "" {
+		return nil
+	}
+	return slices.DeleteFunc(slices.Clone(gates), func(g gateConfig) bool {
+		return g.Repo != primary || g.Paused || g.Point != gatePointLand
+	})
 }
 
-func (a *app) landingGate(ctx context.Context, lander, target, into, source string) *gateConfig {
+func (a *app) repoGated(ctx context.Context, worktree string) bool {
+	return len(a.repoLandGates(ctx, worktree)) > 0
+}
+
+func gateProtect(gates []gateConfig) (exact, glob []string) {
+	for _, g := range gates {
+		switch {
+		case g.Into == gateIntoAny || g.Into == gateIntoDefault || g.Into == gateIntoBase:
+		case isGlob(g.Into):
+			glob = appendNew(glob, headsPrefix+g.Into)
+		default:
+			exact = appendNew(exact, headsPrefix+g.Into)
+		}
+	}
+	return exact, glob
+}
+
+func (a *app) landingGate(ctx context.Context, workspace, lander, target, into, source string) *gateConfig {
 	gates, err := a.gates(ctx)
 	if err != nil || len(gates) == 0 {
 		return nil
@@ -383,10 +408,12 @@ func (a *app) landingGate(ctx context.Context, lander, target, into, source stri
 		return nil
 	}
 	def, _ := gitrepo.DefaultBranch(ctx, target)
-	base := ""
+	base, unread := "", false
 	if source != "" {
-		if b, ok := gitrepo.Base(ctx, target, source); ok {
-			base = b
+		b, err := a.worktreeBase(ctx, workspace, target, source)
+		unread = err != nil
+		if b.Live {
+			base = b.Base
 		}
 	}
 	held := ""
@@ -402,6 +429,9 @@ func (a *app) landingGate(ctx context.Context, lander, target, into, source stri
 			continue
 		}
 		rank := intoRank(g.Into, into, def, base)
+		if g.Into == gateIntoBase && (unread || a.sessionBase(lander, into)) {
+			rank = max(rank, baseRank)
+		}
 		if rank > bestRank || rank > 0 && rank == bestRank && len(g.Into) > len(best.Into) {
 			best, bestRank = &gates[i], rank
 		}
@@ -419,12 +449,12 @@ func intoRank(match, into, def, base string) int {
 		}
 	case match == gateIntoBase:
 		if base != "" && into == base {
-			return 3
+			return baseRank
 		}
 	case match == into:
 		return 5
 	case isGlob(match):
-		if ok, _ := path.Match(match, into); ok {
+		if landgate.Match(match, into) {
 			return 4
 		}
 	}
@@ -436,13 +466,38 @@ func isGlob(into string) bool {
 }
 
 func validInto(into string) error {
-	if into == "" || strings.TrimSpace(into) != into {
+	if into == "" || strings.ContainsFunc(into, unicode.IsSpace) || strings.HasPrefix(into, "refs/") {
 		return errGateInto
 	}
-	if _, err := path.Match(into, ""); err != nil {
+	for _, word := range []string{gateIntoAny, gateIntoDefault, gateIntoBase} {
+		if into != word && strings.EqualFold(into, word) {
+			return errGateInto
+		}
+	}
+	if strings.Contains(into, `\`) {
 		return errGateInto
+	}
+	for part := range strings.SplitSeq(into, "/") {
+		if _, err := path.Match(part, ""); err != nil || part == "" || badClass(part) {
+			return errGateInto
+		}
 	}
 	return nil
+}
+
+func badClass(part string) bool {
+	in := false
+	for _, r := range part {
+		switch {
+		case r == '[' && !in:
+			in = true
+		case r == ']':
+			in = false
+		case in && (r == '[' || unicode.IsUpper(r)):
+			return true
+		}
+	}
+	return false
 }
 
 func sameMatch(gates []gateConfig, g gateConfig) error {
@@ -484,7 +539,9 @@ func primaryRead(ctx context.Context, worktree string) (string, error) {
 
 func (a *app) gateEnv(ctx context.Context, rec record) map[string]string {
 	none := map[string]string{}
-	if !a.repoGated(ctx, rec.Worktree) {
+	bases := a.sessionBases(ctx, rec)
+	gates := a.repoLandGates(ctx, rec.Worktree)
+	if len(gates) == 0 {
 		return none
 	}
 	_, common, err := gitrepo.Dirs(ctx, rec.Worktree)
@@ -495,14 +552,15 @@ func (a *app) gateEnv(ctx context.Context, rec record) map[string]string {
 	if err != nil {
 		return none
 	}
-	protect := []string{"refs/heads/" + branch}
+	protect := []string{headsPrefix + branch}
 	if l := a.layout(ctx, rec); l != nil && !l.onDefault {
-		protect = append(protect, "refs/heads/"+l.parent.Branch)
+		protect = append(protect, headsPrefix+l.parent.Branch)
 	}
-	if base := baseOf(ctx, rec.Worktree); base != "" && !slices.Contains(protect, "refs/heads/"+base) {
-		protect = append(protect, "refs/heads/"+base)
+	exact, glob := gateProtect(gates)
+	for _, ref := range exact {
+		protect = appendNew(protect, ref)
 	}
-	return landgate.SessionEnv(os.Environ(), a.hooksDir(), common, protect, a.verdictsDir())
+	return landgate.SessionEnv(os.Environ(), a.hooksDir(), common, a.protectList(rec, protect, bases), glob, a.verdictsDir())
 }
 
 func (a *app) gatedMeta(ctx context.Context, rec record) (*acp.SessionMeta, string) {
@@ -587,6 +645,8 @@ func (a *app) gateUpdateCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 }
 
 func (a *app) updateGate(ctx context.Context, args gateUpdateArgs) error {
+	var saved []gateConfig
+	var pausing bool
 	err := a.changeGate(ctx, args.ID, func(gates []gateConfig, i int) ([]gateConfig, error) {
 		if args.Rounds != nil {
 			if *args.Rounds < 1 {
@@ -595,6 +655,7 @@ func (a *app) updateGate(ctx context.Context, args gateUpdateArgs) error {
 			gates[i].Rounds = *args.Rounds
 		}
 		if args.Paused != nil {
+			pausing = *args.Paused && !gates[i].Paused
 			gates[i].Paused = *args.Paused
 		}
 		if args.Into != nil {
@@ -673,16 +734,20 @@ func (a *app) updateGate(ctx context.Context, args gateUpdateArgs) error {
 			gates[i].Pin, gates[i].PinBuiltin = hash, hash == graphs.BuiltinHash(gates[i].Graph)
 			a.keepPinned(ctx, gates[i])
 		}
+		saved = gates
 		return gates, nil
 	})
 	if err != nil {
 		return err
 	}
 	if args.Paused != nil && *args.Paused {
-		a.regateHolds(ctx, args.ID, byGatePaused)
+		if pausing {
+			a.dropCarriedGates(args.ID)
+		}
+		a.regateHolds(ctx, saved, args.ID, byGatePaused)
 	}
 	if args.Sessions != nil || args.Wrote != nil || args.Tool != nil || args.How != nil || args.Text != nil {
-		a.regateHolds(ctx, args.ID, byGateChanged)
+		a.regateHolds(ctx, saved, args.ID, byGateChanged)
 	}
 	if args.Trust != nil || args.Graph != nil {
 		a.trustedHolds(args.ID)
@@ -735,15 +800,17 @@ func (a *app) gateDeleteCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 
 func (a *app) deleteGate(ctx context.Context, workspaceID, gateID string) error {
 	var repo string
+	var left []gateConfig
 	err := a.changeGate(ctx, gateID, func(gates []gateConfig, i int) ([]gateConfig, error) {
 		repo = gates[i].Repo
-		return slices.Delete(gates, i, i+1), nil
+		left = slices.Delete(gates, i, i+1)
+		return left, nil
 	})
 	if err != nil {
 		return err
 	}
 	a.dropGateLandings(ctx, gateID)
-	a.regateHolds(ctx, gateID, byGateDeleted)
+	a.regateHolds(ctx, left, gateID, byGateDeleted)
 	logError("remove gate worktree", a.host.RunCommand(ctx, gateTreeCmd, workspaceID, map[string]any{"repo": repo, "gate": gateID, "remove": true}, nil))
 	logError("forget pinned gate graph", a.host.StorageDelete(ctx, gatePinKey+gateID))
 	logError("forget the gate's turn verdicts", a.host.StorageDeletePrefix(ctx, turnVerdictKey+gateID+"/"))
@@ -821,7 +888,7 @@ func (a *app) landGateCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 	if cmd.Via != gitPlugin {
 		return nil, errGitOnly
 	}
-	g := a.landingGate(ctx, args.Session, args.Target, args.Into, args.Source)
+	g := a.landingGate(ctx, cmd.WorkspaceID, args.Session, args.Target, args.Into, args.Source)
 	v, decided := a.readVerdict(ctx, args.Old, args.Tree)
 	if g == nil {
 		return landGateResult{State: gateApproved, Summary: reviewedSummary(v, decided)}, nil
@@ -1485,7 +1552,7 @@ func (a *app) logUngatedMain(rec record, commits []string) {
 	if def, err := gitrepo.DefaultBranch(ctx, rec.Worktree); err != nil || def != branch {
 		return
 	}
-	if a.landingGate(ctx, rec.ID, rec.Worktree, branch, "") == nil {
+	if a.landingGate(ctx, rec.Workspace, rec.ID, rec.Worktree, branch, "") == nil {
 		return
 	}
 	for _, sha := range commits {

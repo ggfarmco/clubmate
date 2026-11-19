@@ -17,6 +17,7 @@ type app struct {
 	ops        opTable
 	meta       metaStore
 	landMu     sync.Mutex
+	bases      baseImport
 }
 
 func main() {
@@ -38,6 +39,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 			return err
 		}
 	}
+	a.bases.start(h)
 	for _, id := range present {
 		a.open(ctx, h, id)
 	}

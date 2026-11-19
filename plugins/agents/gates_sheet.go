@@ -23,7 +23,7 @@ const (
 	gateMatchTaken       = "%s is there already"
 	gateBaseLine         = "Only worktrees made from a branch have a base: their landing into that branch waits for the graph; other worktrees land as before."
 	gateAnyLine          = "Every landing, also a child's merge into its parent's branch."
-	gateLikeLine         = "A pattern: * stays within one / segment, so release/* holds release/1.0."
+	gateLikeLine         = "A pattern: * stays within one / segment, ** crosses them, so release/* holds release/1.0 and release/** also release/1.0/hotfix."
 	gateLikeKeyword      = "default, base and any are in the menu: pick it from there"
 	gateLikeHint         = "release/*"
 	gateUndecided        = "%s can't decide a landing: no node reports approved and changes"

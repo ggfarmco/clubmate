@@ -47,7 +47,44 @@ synced() {
 }
 
 protected() {
-	printf '%s\n' "$input" | awk -v p="$CLUBMATE_LAND_PROTECT" 'BEGIN { n = split(p, a, " "); for (i = 1; i <= n; i++) m[tolower(a[i])] = a[i] } NF >= 3 { k = tolower($3); if (k in m) { $3 = m[k]; print } }'
+	printf '%s\n' "$input" | awk '
+function rx(s,   i, n, c, out, j, cls) {
+	n = length(s)
+	for (i = 1; i <= n; i++) {
+		c = substr(s, i, 1)
+		if (c == "*") out = out "[^/]*"
+		else if (c == "?") out = out "[^/]"
+		else if (c == "[") {
+			cls = "["; i++
+			if (substr(s, i, 1) == "^") { cls = cls "^"; i++ }
+			for (; i <= n && (c = substr(s, i, 1)) != "]"; i++) {
+				cls = cls (c == "^" ? "\\^" : c)
+			}
+			out = out cls "]"
+		}
+		else out = out (index(sp, c) ? "\\" c : c)
+	}
+	return out
+}
+function walk(pi, ni,   k) {
+	if (pi > pn) return ni > nn
+	if (pp[pi] == "**") {
+		for (k = ni; k <= nn + 1; k++) if (walk(pi + 1, k)) return 1
+		return 0
+	}
+	if (ni > nn) return 0
+	return (np[ni] ~ ("^" rx(pp[pi]) "$")) && walk(pi + 1, ni + 1)
+}
+function hit(pat, ref) {
+	pn = split(pat, pp, "/"); nn = split(ref, np, "/")
+	return walk(1, 1)
+}
+BEGIN { sp = "[].^$|()+{}\\"; n = split(ENVIRON["CLUBMATE_LAND_PROTECT"], a, " "); for (i = 1; i <= n; i++) m[tolower(a[i])] = a[i]; ng = split(ENVIRON["CLUBMATE_LAND_PROTECT_GLOB"], og, " "); for (i = 1; i <= ng; i++) gl[i] = tolower(og[i]) }
+NF >= 3 {
+	k = tolower($3)
+	if (k in m) { $3 = m[k]; print; next }
+	for (i = 1; i <= ng; i++) if (hit(og[i], $3) || hit(gl[i], k)) { print; break }
+}'
 }
 
 gate() {

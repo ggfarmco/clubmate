@@ -429,7 +429,8 @@ func TestNewRoundClosesTheSupersededReviewer(t *testing.T) {
 func TestHookProtectsBase(t *testing.T) {
 	t.Parallel()
 	repo, b := baseTree(t)
-	f := start(t, nil)
+	f := startGit(t, nil)
+	f.recordBase(t, repo, "B", "A")
 	workspace := f.workspace(t, b)
 	require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": repo}, nil))
 	session := f.newSession(t, workspace)
@@ -498,16 +499,19 @@ func TestOldGateMigrates(t *testing.T) {
 	assert.Equal(t, []string{"gt_old", "land", "any", "fable-review"}, []string{gates[0].ID, gates[0].Point, gates[0].Into, gates[0].Graph})
 }
 
-func TestBaseGateMatchesLandingIntoBase(t *testing.T) {
+func TestBaseGateFollowsTheRecordedBaseNotGitConfig(t *testing.T) {
 	t.Parallel()
 	never := filepath.Join(t.TempDir(), "never")
 	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "Clubmate land review", "wait": never}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
 	repo, b := baseTree(t)
+	f.recordBase(t, repo, "B", "A")
 	c := filepath.Join(repo, ".worktrees", "C")
 	git(t, repo, "worktree", "add", "-q", "-b", "C", c)
+	git(t, b, "config", "--unset", "branch.B.clubmate-base")
+	git(t, c, "config", "branch.C.clubmate-base", "main")
 	workspace := f.workspace(t, repo)
-	var anyGate, baseGate gateListed
-	require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": repo}, &anyGate))
+	var defaultGate, baseGate gateListed
+	require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": repo, "into": "default"}, &defaultGate))
 	require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": repo, "into": "base"}, &baseGate))
 	decided := func(path string) string {
 		g := gateSetup{f: f, repo: repo, workspace: workspace, lander: f.newSession(t, workspace), worktree: path}
@@ -516,7 +520,99 @@ func TestBaseGateMatchesLandingIntoBase(t *testing.T) {
 		return g.reviewer(t).GateFor.Gate
 	}
 
-	assert.Equal(t, []string{baseGate.ID, anyGate.ID}, []string{decided(b), decided(c)})
+	assert.Equal(t, []string{baseGate.ID, defaultGate.ID}, []string{decided(b), decided(c)})
+}
+
+func TestBaseGateHoldsTheSessionsBaseFromAnyBranch(t *testing.T) {
+	t.Parallel()
+	never := filepath.Join(t.TempDir(), "never")
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "Clubmate land review", "wait": never}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	repo, b := baseTree(t)
+	f.recordBase(t, repo, "B", "A")
+	workspace := f.workspace(t, b)
+	require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": repo, "into": "base"}, nil))
+	lander := f.newSession(t, workspace)
+	f.waitCall(t, "session/new", func(c fakeCall) bool { return strings.Contains(string(c.Params), lander) })
+	elsewhere := filepath.Join(t.TempDir(), "elsewhere")
+	git(t, b, "switch", "-qc", "tmp")
+	git(t, b, "worktree", "add", "-q", "-b", "tmp2", elsewhere)
+
+	for _, dir := range []string{b, elsewhere} {
+		write(t, filepath.Join(dir, "x.go"), dir+"\n")
+		git(t, dir, "add", ".")
+		git(t, dir, "commit", "-qm", "x")
+		err := f.runAs(t, workspace, lander, "git.land", map[string]any{"path": dir, "into": "A", "message": "feat: x"}, nil)
+		assert.ErrorContains(t, err, "review pending", dir)
+	}
+}
+
+func TestBaseGateHoldsAnAncestorsBase(t *testing.T) {
+	t.Parallel()
+	never := filepath.Join(t.TempDir(), "never")
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "Clubmate land review", "wait": never}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	repo, b := baseTree(t)
+	f.recordBase(t, repo, "B", "A")
+	workspace := f.workspace(t, b)
+	require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": repo, "into": "base"}, nil))
+	parent := f.newSession(t, workspace)
+	f.waitCall(t, "session/new", func(c fakeCall) bool { return strings.Contains(string(c.Params), parent) })
+	kid := f.newChild(t, workspace, parent, map[string]any{"branch": "X", "prompt": "go"}).Session
+	f.waitCall(t, "session/new", func(c fakeCall) bool { return strings.Contains(string(c.Params), kid) })
+	x := f.session(t, workspace, kid).Worktree
+	write(t, filepath.Join(x, "x.go"), "x\n")
+	git(t, x, "add", ".")
+	git(t, x, "commit", "-qm", "x")
+
+	err := f.runAs(t, workspace, kid, "git.land", map[string]any{"path": x, "into": "A", "message": "feat: x"}, nil)
+
+	assert.ErrorContains(t, err, "review pending")
+}
+
+func TestResumeKeepsTheProtectedBase(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{"resume": true}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	repo, b := baseTree(t)
+	f.recordBase(t, repo, "B", "A")
+	workspace := f.workspace(t, b)
+	require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": repo}, nil))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "one")
+	f.waitStatus(t, workspace, session, "done")
+	real, err := filepath.EvalSymlinks(repo)
+	require.NoError(t, err)
+	require.NoError(t, f.h.KV.Delete(t.Context(), "git", "worktree-base/"+real+"/B"))
+	require.NoError(t, f.run(t, workspace, "agents.close", map[string]any{"session": session}, nil))
+	f.waitStatus(t, workspace, session, "closed")
+
+	require.NoError(t, f.run(t, workspace, "agents.resume", map[string]any{"session": session}, nil))
+
+	var meta struct {
+		Meta struct {
+			ClaudeCode struct {
+				Options struct {
+					Env map[string]string `json:"env"`
+				} `json:"options"`
+			} `json:"claudeCode"`
+		} `json:"_meta"`
+	}
+	require.NoError(t, json.Unmarshal(f.waitCall(t, "session/resume", func(c fakeCall) bool { return strings.Contains(string(c.Params), "env") }).Params, &meta))
+	assert.Contains(t, strings.Fields(meta.Meta.ClaudeCode.Options.Env["CLUBMATE_LAND_PROTECT"]), "refs/heads/A")
+}
+
+func TestUnreadBaseIsReviewedByBaseGates(t *testing.T) {
+	t.Parallel()
+	never := filepath.Join(t.TempDir(), "never")
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "Clubmate land review", "wait": never}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	repo, b := baseTree(t)
+	f.recordBase(t, repo, "B", 1)
+	workspace := f.workspace(t, repo)
+	require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": repo, "into": "base"}, nil))
+	g := gateSetup{f: f, repo: repo, workspace: workspace, lander: f.newSession(t, workspace), worktree: b}
+	g.commit(t, "x.go", "x\n")
+
+	err := f.runAs(t, workspace, g.lander, "git.land", map[string]any{"path": b, "into": "A", "message": "feat: x"}, nil)
+
+	assert.ErrorContains(t, err, "review pending")
 }
 
 func TestGateRunsItsGraph(t *testing.T) {
@@ -905,4 +1001,50 @@ func TestPausedLandGateFinishesItsRunningReview(t *testing.T) {
 	git(t, worktree, "add", ".")
 	git(t, worktree, "commit", "-qm", "c")
 	require.NoError(t, g.f.runAs(t, g.workspace, other, "git.land", map[string]any{"path": worktree, "message": "feat: c"}, nil))
+}
+
+func TestHookProtectsEveryBranchAGateNames(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, nil)
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	for _, into := range []string{"release/*", "develop", "any"} {
+		require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": repo, "into": into}, nil))
+	}
+	session := f.newSession(t, workspace)
+
+	var meta struct {
+		Meta struct {
+			ClaudeCode struct {
+				Options struct {
+					Env map[string]string `json:"env"`
+				} `json:"options"`
+			} `json:"claudeCode"`
+		} `json:"_meta"`
+	}
+	require.NoError(t, json.Unmarshal(f.waitCall(t, "session/new", func(c fakeCall) bool { return strings.Contains(string(c.Params), session) }).Params, &meta))
+
+	env := meta.Meta.ClaudeCode.Options.Env
+	assert.Equal(t, "refs/heads/main refs/heads/develop", env["CLUBMATE_LAND_PROTECT"])
+	assert.Equal(t, "refs/heads/release/*", env["CLUBMATE_LAND_PROTECT_GLOB"])
+}
+
+func TestLandingMatchingNoGateIsNotReviewed(t *testing.T) {
+	t.Parallel()
+	f := startGit(t, nil)
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	var gate gateListed
+	require.NoError(t, f.run(t, workspace, "agents.gate-add", map[string]any{"repo": repo, "into": "release/*"}, &gate))
+	g := gateSetup{f: f, repo: repo, workspace: workspace, lander: f.newSession(t, workspace), worktree: filepath.Join(repo, ".worktrees", "feat")}
+	git(t, repo, "worktree", "add", "-q", "-b", "feat", g.worktree)
+	g.commit(t, "b.go", "two\n")
+
+	require.NoError(t, g.land(t))
+
+	var h gateHistory
+	require.NoError(t, f.run(t, workspace, "agents.gate-verdicts", map[string]any{"id": gate.ID}, &h))
+	assert.Empty(t, h.Verdicts)
+	assert.Empty(t, h.Landings)
+	assert.FileExists(t, filepath.Join(repo, "b.go"))
 }

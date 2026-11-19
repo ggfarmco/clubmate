@@ -3,8 +3,10 @@ package main
 import (
 	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -19,6 +21,7 @@ import (
 const (
 	ask         = `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"Clubmate gate"}}`
 	rulesFile   = "rules.json"
+	askAllDir   = "all"
 	marksDir    = "marks"
 	batchArg    = "batch"
 	batchEvent  = "PostToolBatch"
@@ -35,6 +38,7 @@ type call struct {
 	Tool  string          `json:"tool_name"`
 	Input json.RawMessage `json:"tool_input"`
 	ID    string          `json:"tool_use_id"`
+	Cwd   string          `json:"cwd"`
 }
 
 type batch struct {
@@ -73,12 +77,39 @@ func asks(args []string, stdin io.Reader) bool {
 		return true
 	}
 	dir := args[0]
-	rules, ok := readRules(dir)
-	if ok && len(toolgate.All(rules, c.Tool, c.Input)) == 0 {
+	own := matches(dir, c)
+	place, there := cwdMatches(dir, c)
+	if !own && !there {
 		return false
 	}
-	mark(dir, c.ID)
+	if !there {
+		place = toolgate.Place{}
+	}
+	mark(dir, c.ID, place)
 	return true
+}
+
+func matches(dir string, c *call) bool {
+	rules, ok := readRules(dir)
+	return !ok || len(toolgate.All(rules, c.Tool, c.Input)) > 0
+}
+
+func cwdMatches(dir string, c *call) (toolgate.Place, bool) {
+	if filepath.Base(dir) == askAllDir || c.Cwd == "" {
+		return toolgate.Place{}, false
+	}
+	place, found := toolgate.PlaceOf(c.Cwd)
+	if !found {
+		return toolgate.Place{}, false
+	}
+	other := filepath.Join(filepath.Dir(dir), toolgate.HookDirName(place.Repo))
+	if other == dir {
+		return toolgate.Place{}, false
+	}
+	if _, err := os.Stat(filepath.Join(other, rulesFile)); errors.Is(err, fs.ErrNotExist) {
+		return toolgate.Place{}, false
+	}
+	return place, matches(other, c)
 }
 
 func readRules(dir string) ([]toolgate.Rule, bool) {
@@ -163,7 +194,7 @@ func safeID(id string) bool {
 	return id != "" && id != "." && id != ".." && !strings.ContainsAny(id, `/\`)
 }
 
-func mark(dir, id string) {
+func mark(dir, id string, place toolgate.Place) {
 	if !safeID(id) {
 		return
 	}
@@ -171,7 +202,9 @@ func mark(dir, id string) {
 	if os.MkdirAll(marks, 0o700) != nil {
 		return
 	}
-	if f, err := os.Create(filepath.Join(marks, id)); err == nil {
-		_ = f.Close()
+	var data []byte
+	if place.Repo != "" {
+		data, _ = json.Marshal(place)
 	}
+	_ = os.WriteFile(filepath.Join(marks, id), data, 0o600)
 }

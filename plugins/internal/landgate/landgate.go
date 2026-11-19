@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ import (
 const (
 	CommonEnv      = "CLUBMATE_LAND_COMMON"
 	ProtectEnv     = "CLUBMATE_LAND_PROTECT"
+	ProtectGlobEnv = "CLUBMATE_LAND_PROTECT_GLOB"
 	VerdictsEnv    = "CLUBMATE_LAND_VERDICTS"
 	priorCountEnv  = "CLUBMATE_GIT_CONFIG_COUNT"
 	configCountEnv = "GIT_CONFIG_COUNT"
@@ -78,9 +80,9 @@ func Install(dir string) error {
 	return nil
 }
 
-var Inherited = []string{priorCountEnv, CommonEnv, ProtectEnv, VerdictsEnv}
+var Inherited = []string{priorCountEnv, CommonEnv, ProtectEnv, ProtectGlobEnv, VerdictsEnv}
 
-func SessionEnv(env []string, hooksDir, common string, protect []string, verdicts string) map[string]string {
+func SessionEnv(env []string, hooksDir, common string, protect, glob []string, verdicts string) map[string]string {
 	if common == "" || len(protect) == 0 {
 		return map[string]string{}
 	}
@@ -97,6 +99,7 @@ func SessionEnv(env []string, hooksDir, common string, protect []string, verdict
 		configCountEnv:                            strconv.Itoa(count + 1),
 		CommonEnv:                                 common,
 		ProtectEnv:                                strings.Join(protect, " "),
+		ProtectGlobEnv:                            strings.Join(glob, " "),
 		VerdictsEnv:                               verdicts,
 	}
 }
@@ -128,4 +131,29 @@ func Write(dir string, v Verdict) error {
 
 func key(old, tree string) string {
 	return old + "-" + tree + ".json"
+}
+
+const anyDepth = "**"
+
+func Match(pattern, name string) bool {
+	return matchParts(strings.Split(pattern, "/"), strings.Split(name, "/"))
+}
+
+func matchParts(pattern, name []string) bool {
+	if len(pattern) == 0 {
+		return len(name) == 0
+	}
+	if pattern[0] == anyDepth {
+		for i := range len(name) + 1 {
+			if matchParts(pattern[1:], name[i:]) {
+				return true
+			}
+		}
+		return false
+	}
+	if len(name) == 0 {
+		return false
+	}
+	ok, _ := path.Match(pattern[0], name[0])
+	return ok && matchParts(pattern[1:], name[1:])
 }

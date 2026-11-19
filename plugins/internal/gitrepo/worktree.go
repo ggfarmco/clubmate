@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 )
 
@@ -163,23 +162,4 @@ func Canonical(path string) string {
 		rest = filepath.Join(filepath.Base(dir), rest)
 		dir = parent
 	}
-}
-
-func Base(ctx context.Context, dir, branch string) (string, bool) {
-	out, err := Run(ctx, dir, "config", "--get", "branch."+branch+".clubmate-base")
-	base := strings.TrimSpace(string(out))
-	if err != nil || base == "" {
-		return "", false
-	}
-	trees, err := Worktrees(ctx, dir)
-	if err != nil {
-		return base, false
-	}
-	return base, slices.ContainsFunc(trees, func(t Worktree) bool {
-		if t.Branch != base || t.Bare {
-			return false
-		}
-		_, err := os.Stat(t.Path)
-		return err == nil
-	})
 }

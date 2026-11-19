@@ -3,12 +3,15 @@ package testutil
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -42,6 +45,7 @@ type PluginHarness struct {
 	Sup     *plugin.Supervisor
 	Store   *internalsdui.Store
 	KV      *kv.Store
+	KVPath  string
 	Control *plugin.Control
 	Dirs    paths.Dirs
 	client  *rpc.Client
@@ -62,7 +66,8 @@ func NewHarness(t *testing.T, opts ...plugin.SupervisorOption) *PluginHarness {
 	t.Helper()
 	h := &PluginHarness{Store: internalsdui.NewStore(), Dirs: ShortDirs(t)}
 	h.Svc, h.Bus = NewServiceWithBusIn(t, h.Dirs, core.WithExcludePIDs(func() []int { return h.Sup.PIDs() }))
-	store, err := kv.Open(filepath.Join(t.TempDir(), "plugins.db"))
+	h.KVPath = filepath.Join(t.TempDir(), "plugins.db")
+	store, err := kv.Open(h.KVPath)
 	require.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	h.KV = store
@@ -230,3 +235,18 @@ func (b *SyncBuffer) String() string {
 }
 
 func (noopHandler) Handle(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) {}
+
+func (h *PluginHarness) FailKVDeletes(t *testing.T, plugin, prefix string) (heal func()) {
+	t.Helper()
+	db, err := sql.Open("sqlite", "file:"+h.KVPath+"?_pragma=busy_timeout(5000)")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+	quote := func(v string) string { return "'" + strings.ReplaceAll(v, "'", "''") + "'" }
+	name := fmt.Sprintf("fail_deletes_%d", time.Now().UnixNano())
+	_, err = db.Exec(fmt.Sprintf(`CREATE TRIGGER %s BEFORE DELETE ON kv WHEN old.plugin = %s AND substr(old.key, 1, %d) = %s BEGIN SELECT RAISE(ABORT, 'delete fault'); END`, name, quote(plugin), len(prefix), quote(prefix)))
+	require.NoError(t, err)
+	return func() {
+		_, err := db.Exec("DROP TRIGGER " + name)
+		require.NoError(t, err)
+	}
+}

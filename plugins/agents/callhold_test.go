@@ -1105,6 +1105,41 @@ func TestSpareApprovalIsDroppedByACallWithAnotherKey(t *testing.T) {
 	testutil.Never(t, func() bool { return f.allowed(t) != 1 }, time.Second)
 }
 
+func TestFailedApprovalDeleteKeepsTheCallHeld(t *testing.T) {
+	t.Parallel()
+	f := start(t, callScript(bashSteps("push", "push1", "git push", false)))
+	workspace, session := f.heldSession(t)
+	gate := f.session(t, workspace, session).Calls[0].Gate
+	r := f.callReviewer(t, workspace, session, gate, "")
+	f.h.FailKVDeletes(t, "agents", "tool-verdict/")
+
+	f.callVerdict(t, workspace, r, "approved")
+
+	f.waitRecord(t, workspace, session, "the card", func(r record) bool { return len(r.Calls) == 1 && r.Calls[0].Held && r.Calls[0].Request != "" })
+	testutil.Never(t, func() bool { return f.allowed(t) != 0 }, time.Second)
+}
+
+func TestStopDropsASpareApproval(t *testing.T) {
+	t.Parallel()
+	withdraw := filepath.Join(t.TempDir(), "withdraw")
+	steps := bashSteps("push", "push1", "git push", false)
+	steps[1]["withdraw"] = withdraw
+	f := start(t, callScript(steps, bashSteps("again", "push2", "git push", false)))
+	workspace, session := f.heldSession(t)
+	gate := f.session(t, workspace, session).Calls[0].Gate
+	r := f.callReviewer(t, workspace, session, gate, "")
+	write(t, withdraw, "")
+	f.waitRecord(t, workspace, session, "the hold kept", func(r record) bool { return len(r.Calls) == 1 && !r.Calls[0].Held && r.Status == "done" })
+	f.callVerdict(t, workspace, r, "approved")
+	f.waitRecord(t, workspace, session, "no hold", func(r record) bool { return len(r.Calls) == 0 })
+
+	require.NoError(t, f.run(t, workspace, "agents.cancel", map[string]any{"session": session}, nil))
+	f.prompt(t, workspace, session, "again")
+
+	f.waitHeldCall(t, workspace, session, 1)
+	testutil.Never(t, func() bool { return f.allowed(t) != 0 }, time.Second)
+}
+
 func TestSnapshotFailureAtReleaseKeepsTheCallHeld(t *testing.T) {
 	t.Parallel()
 	f := start(t, callScript(bashSteps("push", "push1", "git push", false)))
@@ -2361,4 +2396,22 @@ func TestUngatedCallAfterTheTurnIsOnlyLogged(t *testing.T) {
 	assert.Equal(t, "hook", f.ungatedRuns(t, workspace, gate, 1)[0].By)
 	testutil.Never(t, func() bool { return f.cancelled(t, workspace, session) }, time.Second)
 	assert.Equal(t, "Clubmate's hook didn't see it; the gate's history logs it.\ngit push", noticeOf(t, f.transcript(t, workspace, session))["description"])
+}
+
+func TestCallMadeInAnotherRepoIsHeldByThatReposGate(t *testing.T) {
+	t.Parallel()
+	f := start(t, callScript(bashSteps("push", "push1", "git push origin main", false)))
+	repo, other := newRepo(t), newRepo(t)
+	workspace := f.workspace(t, repo)
+	f.addCommandGate(t, workspace, repo, "make deploy")
+	gate := f.addPushGate(t, f.workspace(t, other), other).ID
+	session, dir := f.hookedSession(t, workspace)
+	write(t, filepath.Join(dir, "marks", "push1"), `{"repo":"`+other+`","tree":"`+other+`"}`)
+
+	f.prompt(t, workspace, session, "push")
+
+	assert.Equal(t, gate, f.waitHeldCall(t, workspace, session, 1).Calls[0].Gate)
+	var prompts []fakeCall
+	testutil.Eventually(t, func() bool { prompts = f.reviewPrompts(t); return len(prompts) == 1 }, wait)
+	assert.Contains(t, promptText(t, prompts[0]), "Worktree: "+other+"\n")
 }

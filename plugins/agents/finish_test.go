@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"testing"
 
@@ -18,10 +19,24 @@ func baseTree(t *testing.T) (string, string) {
 	return repo, b
 }
 
+func (f *fixture) recordBase(t *testing.T, repo, branch string, base any) {
+	t.Helper()
+	real, err := filepath.EvalSymlinks(repo)
+	require.NoError(t, err)
+	value, err := json.Marshal(base)
+	require.NoError(t, err)
+	require.NoError(t, f.h.KV.Set(t.Context(), "git", "worktree-base/"+real+"/"+branch, value))
+}
+
 func TestMergeFinishNamesBase(t *testing.T) {
 	t.Parallel()
-	_, b := baseTree(t)
-	f := start(t, nil)
+	repo := newRepo(t)
+	moved := t.TempDir()
+	b := filepath.Join(moved, "B")
+	git(t, repo, "worktree", "add", "-q", "-b", "A", filepath.Join(moved, "A"))
+	git(t, repo, "worktree", "add", "-q", "-b", "B", b, "A")
+	f := startGit(t, nil)
+	f.recordBase(t, repo, "B", "A")
 	workspace := f.workspace(t, b)
 	require.NoError(t, f.run(t, workspace, "agents.finish-default", map[string]any{"value": "merge"}, nil))
 	session := f.newSession(t, workspace)

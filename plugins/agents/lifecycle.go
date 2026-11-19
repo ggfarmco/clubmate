@@ -129,7 +129,7 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentP
 	s.dropBackgroundLocked()
 	s.queue, s.sending = nil, nil
 	s.cancelPermissionsLocked()
-	dropped := s.endCallsLocked(true)
+	dropped, spares := s.endCallsLocked(true)
 	if !s.rec.closed() {
 		s.recordLocked(actorUser, kindClose, acp.SessionRequest{SessionID: agentID})
 		s.setStatusLocked(statusClosed, "")
@@ -140,6 +140,7 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentP
 		a.journalSession(s)
 	}
 	a.dropVerdicts(heldOf(dropped))
+	a.dropSpares(spares)
 	if running {
 		s.turned(ended)
 	}

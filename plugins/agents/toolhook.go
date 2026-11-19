@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -70,13 +68,15 @@ var askAllRules = []toolgate.Rule{{Tool: "*"}}
 var bgOutputPath = regexp.MustCompile(`Output is being written to: (\S+?\.output)`)
 
 type hookState struct {
-	hookDir  string
-	hookWhy  string
-	hookOwed bool
-	cycled   func()
-	bgCalls  []*bgCall
-	held     map[string][]string
-	ran      func(endedCall)
+	hookDir    string
+	hookWhy    string
+	hookOwed   bool
+	cycled     func()
+	bgCalls    []*bgCall
+	held       map[string][]string
+	ran        func(endedCall)
+	toolGated  func() bool
+	blankInput sync.Once
 }
 
 type bgCall struct {
@@ -126,8 +126,7 @@ func (a *app) toolHooksRoot() string {
 }
 
 func toolHookPath(root, primary string) string {
-	sum := sha256.Sum256([]byte(primary))
-	return filepath.Join(root, hex.EncodeToString(sum[:])[:16])
+	return filepath.Join(root, toolgate.HookDirName(primary))
 }
 
 func (a *app) askAllDir() string {

@@ -97,6 +97,7 @@ type record struct {
 	RepoPath        string         `json:"repoPath,omitempty"`
 	GateFor         *gateFor       `json:"gateFor,omitempty"`
 	GateSince       string         `json:"gateSince,omitempty"`
+	Bases           []string       `json:"bases,omitempty"`
 	GateAt          time.Time      `json:"gateAt,omitzero"`
 	Held            *heldTurn      `json:"held,omitempty"`
 	HeldGate        string         `json:"heldGate,omitempty"`

@@ -83,7 +83,7 @@ func (a *app) policies(ctx context.Context, rec record) []acp.ContentBlock {
 func (a *app) finishText(ctx context.Context, rec record) string {
 	switch {
 	case rec.ParentSession == "" && rec.Finish == finishMerge:
-		if base := baseOf(ctx, rec.Worktree); base != "" {
+		if base := a.baseOf(ctx, rec); base != "" {
 			return fmt.Sprintf(finishMergeBaseFormat, base)
 		}
 		return finishMergeText
@@ -159,17 +159,6 @@ func openTaskTree(ctx context.Context, worktree string) *taskTree {
 		return nil
 	}
 	return t
-}
-
-func baseOf(ctx context.Context, worktree string) string {
-	t := openTaskTree(ctx, worktree)
-	if t == nil {
-		return ""
-	}
-	if base, ok := gitrepo.Base(ctx, t.own.Path, t.own.Branch); ok {
-		return base
-	}
-	return ""
 }
 
 func (a *app) cleanupChild(s *session) {

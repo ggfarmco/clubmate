@@ -233,6 +233,20 @@
         }
       },
       {
+        "id": "git.worktree-base",
+        "title": "Worktree base",
+        "hidden": true,
+        "agent": false,
+        "description": "Only the agents plugin: the base Clubmate recorded for a branch when git.worktree-new made it (never read from git config). live is true when some worktree of the repo whose folder exists has the base checked out. Returns {base, live}; empty when no base is recorded.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "A checkout of the repo."},
+            "branch": {"type": "string", "description": "The branch; the one checked out at path when empty."}
+          },
+          "required": ["path"]
+        }
+      },
+      {
         "id": "git.worktree-remove",
         "title": "Remove worktree",
         "hidden": true,

@@ -51,6 +51,7 @@ type app struct {
 	codePanel  bool
 	usage      usageTracker
 	branches   branchCache
+	baseCache  baseCache
 	texts      textIndex
 	found      searchCache
 	watchdog   watchdog
@@ -295,6 +296,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, sub string, ev pl
 		var p gitChanged
 		if json.Unmarshal(ev.Payload, &p) == nil {
 			a.branches.reset(p.Workspace)
+			a.baseCache.reset(p.Workspace)
 			a.kick(p.Workspace)
 		}
 	case editorFileTopic:
@@ -388,6 +390,10 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 	s.withdrawCall = func(request string) bool { return a.withdrawCall(s, request) }
 	s.cycled = func() { a.cycleStarted(s) }
 	s.ran = func(c endedCall) { a.judgeCall(s, c) }
+	s.toolGated = func() bool {
+		last := a.lastGates.Load()
+		return last == nil || len(toolGatedRepos(*last)) > 0
+	}
 	s.resolved = func(kind, request string) { a.notes.resolved(s, kind, request) }
 	s.began = a.notes.superseded
 	s.requested = func(kind, request string) {
