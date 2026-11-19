@@ -276,7 +276,7 @@ final class AgentsTests: XCTestCase {
         let store = AgentsStore(workspace: "w", runner: runner)
         await store.refresh()
         await store.refresh()
-        XCTAssertEqual(runner.sessionArgs, [.object(["since": .string("")]), .object(["since": .string("e.3")])])
+        XCTAssertEqual(runner.sessionArgs, [.object(["since": .string(""), "lean": .bool(true)]), .object(["since": .string("e.3"), "lean": .bool(true)])])
         XCTAssertEqual(store.sessions.map(\.id), ["a", "b", "d"])
         XCTAssertEqual(store.sessions[1].status, .running)
     }

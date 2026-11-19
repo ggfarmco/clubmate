@@ -123,6 +123,8 @@ public final class AgentsStore {
         self.retry = retry
         self.sleep = sleep
         if let saved = cache.load(cacheKey, as: Snapshot.self), saved.build == Snapshot.build {
+            runRows = saved.runs
+            dock = saved.dock
             list = saved.list
             syncedAt = saved.at
             loaded = true
@@ -142,6 +144,8 @@ public final class AgentsStore {
 
         var build = Self.build
         let list: AgentSessionList
+        let runs: [AgentRunRow]
+        let dock: [AgentDockRow]
         let at: Date
     }
 
@@ -375,13 +379,19 @@ public final class AgentsStore {
         }
     }
 
+    private static func lean(_ args: JSONValue) -> JSONValue {
+        guard case .object(var fields) = args else { return args }
+        fields["lean"] = .bool(true)
+        return .object(fields)
+    }
+
     private func loadSessions() async {
         guard let runner else { return }
         do {
-            let reply = try await runner.command(AgentCommand.sessions, workspace: workspace, args: list.args)
+            let reply = try await runner.command(AgentCommand.sessions, workspace: workspace, args: Self.lean(list.args))
             if reply.arrayValue == nil {
-                runRows = try reply["runs"].flatMap { $0 == .null ? nil : try $0.decode([AgentRunRow].self) }
-                dock = try reply["dock"].flatMap { $0 == .null ? nil : try $0.decode([AgentDockRow].self) } ?? []
+                if let runs = reply["runs"] { runRows = try runs == .null ? nil : runs.decode([AgentRunRow].self) }
+                if let rows = reply["dock"] { dock = try rows == .null ? [] : rows.decode([AgentDockRow].self) }
             }
             let before = Set(list.items.map(\.id))
             if let rows = reply.arrayValue { try list.replace(rows) } else { try list.apply(reply) }
@@ -391,7 +401,7 @@ public final class AgentsStore {
             syncedAt = .now
             saves.request { [weak self] in
                 guard let self, let at = self.syncedAt else { return }
-                self.cache.save(Snapshot(list: self.list, at: at), self.cacheKey)
+                self.cache.save(Snapshot(list: self.list, runs: self.runRows ?? [], dock: self.dock, at: at), self.cacheKey)
             }
         } catch {
             self.error = Self.message(error)

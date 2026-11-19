@@ -1316,6 +1316,10 @@
             "since": {
               "type": "string",
               "description": "Returns {sessions, removed, cursor, delta?} instead of the list. Pass \"\" for every session and a cursor; pass an earlier result's cursor for only the sessions that changed since then (delta true) and the ids of the ones removed since then. The counter survives restarts; a cursor from another epoch or older than the 256 removals kept is ignored and every session comes back without delta. With session the cursor covers only that session: it moves past changes to the sessions left out, so never reuse it for the whole list."
+            },
+            "lean": {
+              "type": "boolean",
+              "description": "With since, a delta reply leaves out runs and dock when they did not change since the cursor; keep the ones you hold. A reply that is not a delta always has both."
             }
           }
         }

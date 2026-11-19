@@ -7,23 +7,29 @@ import (
 	"clubmate/plugins/agents/api"
 )
 
+const (
+	runsKey = "#runs"
+	dockKey = "#dock"
+)
+
 type sessionsPage struct {
 	Sessions []sessionInfo `json:"sessions"`
 	Removed  []string      `json:"removed"`
 	Cursor   string        `json:"cursor"`
 	Delta    bool          `json:"delta,omitempty"`
-	Runs     []api.RunRow  `json:"runs"`
-	Dock     []api.DockRow `json:"dock"`
+	Runs     []api.RunRow  `json:"runs,omitzero"`
+	Dock     []api.DockRow `json:"dock,omitzero"`
 }
 
-func (a *app) sessionsPage(ctx context.Context, workspaceID string, infos []sessionInfo, since string) sessionsPage {
-	items := make(map[string]any, len(infos))
+func (a *app) sessionsPage(ctx context.Context, workspaceID string, infos []sessionInfo, st graphState, since string, lean bool) sessionsPage {
+	items := make(map[string]any, len(infos)+2)
 	for _, info := range infos {
 		items[info.ID] = info
 	}
+	items[runsKey], items[dockKey] = st.runs, st.dock
 	v, err := a.sessionRevs.Observe(ctx, sessionsTracker(workspaceID), items, since)
 	logError("sessions delta", err)
-	out := sessionsPage{Sessions: infos, Removed: []string{}, Cursor: v.Cursor}
+	out := sessionsPage{Sessions: infos, Removed: []string{}, Cursor: v.Cursor, Runs: st.runs, Dock: st.dock}
 	if v.Full {
 		return out
 	}
@@ -33,6 +39,15 @@ func (a *app) sessionsPage(ctx context.Context, workspaceID string, infos []sess
 		return !found
 	})
 	out.Removed = append(out.Removed, v.Removed...)
+	if !lean {
+		return out
+	}
+	if _, found := slices.BinarySearch(v.Changed, runsKey); !found {
+		out.Runs = nil
+	}
+	if _, found := slices.BinarySearch(v.Changed, dockKey); !found {
+		out.Dock = nil
+	}
 	return out
 }
 

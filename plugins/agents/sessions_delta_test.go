@@ -1,6 +1,9 @@
 package main_test
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -107,4 +110,58 @@ func TestASessionRowIsTheSameWhetherItsTranscriptIsLoadedOrNot(t *testing.T) {
 
 	assert.Empty(t, page(cursor).ids())
 	assert.Equal(t, loaded, row())
+}
+
+func TestSessionsLeanDeltaSendsRunsAndDockOnlyWhenTheyChanged(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	graphsDir := filepath.Join(repo, ".clubmate", "graphs")
+	require.NoError(t, os.MkdirAll(graphsDir, 0o755))
+	write(t, filepath.Join(graphsDir, "solo.json"), `{"title":"Solo","nodes":[{"id":"one","role":"One","start":true,"prompt":"done"}]}`)
+	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}})
+	workspace := f.workspace(t, repo)
+	testutil.Eventually(t, func() bool { return f.run(t, workspace, "agents.graph-list", map[string]any{}, nil) == nil }, restartWait)
+	page := func(args map[string]any) map[string]json.RawMessage {
+		var p map[string]json.RawMessage
+		require.NoError(t, f.run(t, workspace, "agents.sessions", args, &p))
+		return p
+	}
+	cursor := func(p map[string]json.RawMessage) string {
+		var c string
+		require.NoError(t, json.Unmarshal(p["cursor"], &c))
+		return c
+	}
+
+	full := page(map[string]any{"since": "", "lean": true})
+	assert.Contains(t, full, "runs")
+	assert.Contains(t, full, "dock")
+	base := cursor(full)
+	plain := page(map[string]any{"since": base})
+	assert.JSONEq(t, "true", string(plain["delta"]))
+	assert.JSONEq(t, "[]", string(plain["runs"]))
+	assert.JSONEq(t, string(full["dock"]), string(plain["dock"]))
+	lean := page(map[string]any{"since": base, "lean": true})
+	assert.NotContains(t, lean, "runs")
+	assert.NotContains(t, lean, "dock")
+
+	write(t, filepath.Join(graphsDir, "pair.json"), `{"title":"Pair","nodes":[{"id":"one","role":"One","start":true,"prompt":"done"}]}`)
+	var docked map[string]json.RawMessage
+	testutil.Eventually(t, func() bool {
+		docked = page(map[string]any{"since": base, "lean": true})
+		_, ok := docked["dock"]
+		return ok
+	}, wait)
+	assert.NotContains(t, docked, "runs")
+
+	var run graphRun
+	require.NoError(t, f.run(t, workspace, "agents.graph-run", map[string]any{"graph": "solo"}, &run))
+	testutil.Eventually(t, func() bool {
+		var p struct {
+			Runs []struct {
+				ID string `json:"id"`
+			} `json:"runs"`
+		}
+		require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{"since": cursor(docked), "lean": true}, &p))
+		return len(p.Runs) == 1 && p.Runs[0].ID == run.ID
+	}, wait)
 }

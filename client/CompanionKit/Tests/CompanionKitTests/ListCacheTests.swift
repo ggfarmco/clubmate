@@ -121,18 +121,20 @@ final class ListCacheTests: XCTestCase {
         XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: dir.path()).isEmpty)
     }
 
-    func testSessionsCursorSurvivesRestart() async throws {
+    func testSessionsCursorRunsAndDockSurviveRestart() async throws {
         let cache = ListCache(dir: dir)
         let runner = ScriptedRunner(replies: [], sessions: [
-            #"{"sessions":[{"id":"a","status":"done"}],"removed":[],"cursor":"e.3"}"#,
+            #"{"sessions":[{"id":"a","status":"done","run":{"id":"gr_1","title":"Review gate"}}],"removed":[],"cursor":"e.3","runs":[{"id":"gr_1","graph":"review-gate","title":"Review gate","state":"running","detail":"turn 2","sessions":["a"],"home":"group","group":"running","status":"running"}],"dock":[{"id":"graphs","label":"Graphs","icon":"point.3.connected.trianglepath.dotted","detail":"1","phoneDetail":"1"}]}"#,
             #"{"sessions":[{"id":"b","status":"running"}],"removed":[],"cursor":"e.4","delta":true}"#,
         ])
         await AgentsStore(workspace: "w", runner: runner, computer: "m", cache: cache).refresh()
         let store = AgentsStore(workspace: "w", runner: runner, computer: "m", cache: cache)
-        XCTAssertEqual(store.sessions.map(\.id), ["a"])
+        XCTAssertEqual(store.sessions.map(\.id), ["a", "gr_1"])
         await store.refresh()
-        XCTAssertEqual(runner.sessionArgs.last, .object(["since": .string("e.3")]))
-        XCTAssertEqual(store.sessions.map(\.id), ["a", "b"])
+        XCTAssertEqual(runner.sessionArgs.last, .object(["since": .string("e.3"), "lean": .bool(true)]))
+        XCTAssertEqual(store.sessions.map(\.id), ["a", "b", "gr_1"])
+        XCTAssertEqual(store.session("a")?.parentSession, "gr_1")
+        XCTAssertEqual(store.endRows.map(\.id), ["graphs"])
     }
 }
 

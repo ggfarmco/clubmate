@@ -138,6 +138,7 @@ type sessionArgs struct {
 type sessionsArgs struct {
 	Session string  `json:"session"`
 	Since   *string `json:"since"`
+	Lean    bool    `json:"lean"`
 }
 
 type revealArgs struct {
@@ -445,8 +446,7 @@ func (a *app) sessionsCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 		return onlySession(visibleInfos(cmd, infos), args.Session), nil
 	}
 	st := a.graphState(ctx, cmd.WorkspaceID, infos)
-	page := a.sessionsPage(ctx, cmd.WorkspaceID, infos, *args.Since)
-	page.Runs, page.Dock = st.runs, st.dock
+	page := a.sessionsPage(ctx, cmd.WorkspaceID, infos, st, *args.Since, args.Lean)
 	page.Sessions = onlySession(visibleInfos(cmd, page.Sessions), args.Session)
 	if args.Session != "" {
 		page.Removed = slices.DeleteFunc(page.Removed, func(id string) bool { return id != args.Session })
