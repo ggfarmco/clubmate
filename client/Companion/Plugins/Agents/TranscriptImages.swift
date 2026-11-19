@@ -12,13 +12,25 @@ extension EnvironmentValues {
 
 @MainActor
 private enum DecodedImages {
-    static let cache = NSCache<NSString, UIImage>()
+    static let cache = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 64
+        cache.totalCostLimit = 256 << 20
+        return cache
+    }()
 
     static func image(_ data: Data, key: String) -> UIImage? {
         if let cached = cache.object(forKey: key as NSString) { return cached }
-        guard let image = UIImage(data: data) else { return nil }
-        cache.setObject(image, forKey: key as NSString)
+        guard let decoded = UIImage(data: data) else { return nil }
+        let image = decoded.imageOrientation == .up ? decoded : upright(decoded)
+        cache.setObject(image, forKey: key as NSString, cost: Int(image.size.width * image.scale * image.size.height * image.scale) * 4)
         return image
+    }
+
+    private static func upright(_ image: UIImage) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = image.scale
+        return UIGraphicsImageRenderer(size: image.size, format: format).image { _ in image.draw(at: .zero) }
     }
 }
 
@@ -27,11 +39,12 @@ private struct LoadedImage {
     let entry: String
     let session: String
     let store: AgentsStore
+    var side: Int?
 
-    var key: String { session + "|" + entry + "|" + ref.path }
+    var key: String { AgentsStore.imageKey(ref.path, entry: entry, in: session, side: side) }
 
     @MainActor
-    var state: TranscriptImage? { store.image(ref.path, entry: entry, in: session) }
+    var state: TranscriptImage? { store.image(ref.path, entry: entry, in: session, side: side) }
 
     @MainActor
     var decoded: UIImage? {
@@ -49,12 +62,12 @@ private struct LoadedImage {
     }
 
     func load() async {
-        await store.loadImage(ref.path, entry: entry, in: session)
+        await store.loadImage(ref.path, entry: entry, in: session, side: side)
     }
 
     @MainActor
     func show(_ shown: Bool) {
-        store.showImage(ref.path, entry: entry, in: session, shown: shown)
+        store.showImage(ref.path, entry: entry, in: session, side: side, shown: shown)
         if shown, state == nil || state == .missing {
             Task { await load() }
         }
@@ -68,11 +81,12 @@ struct ImageTiles: View {
     let store: AgentsStore
     let open: (ImageRef) -> Void
     @State private var width = 0.0
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         FlowLayout(spacing: 8) {
             ForEach(images) { ref in
-                ImageTile(image: LoadedImage(ref: ref, entry: entry, session: session, store: store), maxWidth: width) { open(ref) }
+                ImageTile(image: LoadedImage(ref: ref, entry: entry, session: session, store: store, side: ImageTile.side(displayScale)), maxWidth: width) { open(ref) }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -82,6 +96,10 @@ struct ImageTiles: View {
 
 private struct ImageTile: View {
     static let height = 112.0
+
+    static func side(_ scale: Double) -> Int {
+        Int((height * scale).rounded(.up))
+    }
 
     let image: LoadedImage
     let maxWidth: Double
@@ -157,14 +175,21 @@ struct ImageScreen: View {
     let entry: String
     let session: String
     let store: AgentsStore
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         let image = LoadedImage(ref: ref, entry: entry, session: session, store: store)
+        let thumb = LoadedImage(ref: ref, entry: entry, session: session, store: store, side: ImageTile.side(displayScale))
         ZoomScreen(title: ref.name) {
             if let decoded = image.decoded, let cg = decoded.cgImage {
                 ZoomableImage(image: cg, scale: decoded.scale)
             } else if image.missing {
                 ImageMissing()
+            } else if let preview = thumb.decoded {
+                Image(uiImage: preview)
+                    .resizable()
+                    .scaledToFit()
+                    .overlay { ProgressView() }
             } else {
                 ProgressView()
             }

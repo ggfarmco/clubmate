@@ -54,6 +54,7 @@ type app struct {
 	baseCache  baseCache
 	texts      textIndex
 	found      searchCache
+	thumbs     thumbCache
 	watchdog   watchdog
 	reviews    *reviewBoard
 	self       *selfStore

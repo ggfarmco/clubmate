@@ -226,25 +226,31 @@ public final class AgentsStore {
         }
     }
 
-    public func image(_ path: String, entry: String, in session: String) -> TranscriptImage? {
-        images[session + "|" + entry + "|" + path]
+    nonisolated public static func imageKey(_ path: String, entry: String, in session: String, side: Int? = nil) -> String {
+        session + "|" + entry + "|" + path + (side.map { "|\($0)" } ?? "")
     }
 
-    public func showImage(_ path: String, entry: String, in session: String, shown: Bool) {
-        let key = session + "|" + entry + "|" + path
+    public func image(_ path: String, entry: String, in session: String, side: Int? = nil) -> TranscriptImage? {
+        images[Self.imageKey(path, entry: entry, in: session, side: side)]
+    }
+
+    public func showImage(_ path: String, entry: String, in session: String, side: Int? = nil, shown: Bool) {
+        let key = Self.imageKey(path, entry: entry, in: session, side: side)
         if shown { shownImages.insert(key) } else { shownImages.remove(key) }
     }
 
-    public func loadImage(_ path: String, entry: String, in session: String) async {
-        let key = session + "|" + entry + "|" + path
+    public func loadImage(_ path: String, entry: String, in session: String, side: Int? = nil) async {
+        let key = Self.imageKey(path, entry: entry, in: session, side: side)
         switch images[key] {
         case .loading, .loaded: return
         case .missing, nil: break
         }
         guard let runner else { return }
         images[key] = .loading
+        var args: [String: JSONValue] = ["session": .string(session), "path": .string(path)]
+        if let side { args["side"] = .number(Double(side)) }
         do {
-            let reply = try await runner.command(Self.imageCommand, workspace: workspace, args: .object(["session": .string(session), "path": .string(path)]))
+            let reply = try await runner.command(Self.imageCommand, workspace: workspace, args: .object(args))
             guard images[key] == .loading else { return }
             guard let data = reply["data"]?.stringValue.flatMap({ Data(base64Encoded: $0) }) else {
                 images[key] = .missing
@@ -252,6 +258,11 @@ public final class AgentsStore {
             }
             images[key] = .loaded(data)
             keepImage(key)
+            let full = Self.imageKey(path, entry: entry, in: session)
+            if side != nil, reply["scaled"]?.boolValue != true, images[full] != .loading {
+                images[full] = .loaded(data)
+                keepImage(full)
+            }
         } catch {
             guard images[key] == .loading else { return }
             images[key] = .missing
@@ -259,6 +270,7 @@ public final class AgentsStore {
     }
 
     private func keepImage(_ key: String) {
+        imageOrder.removeAll { $0 == key }
         imageOrder.append(key)
         var bytes = imageOrder.reduce(0) { total, key in
             guard case .loaded(let data) = images[key] else { return total }

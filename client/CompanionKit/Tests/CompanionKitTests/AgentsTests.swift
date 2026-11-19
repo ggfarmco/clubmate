@@ -414,6 +414,8 @@ final class SlowSessionsRunner: CommandRunner {
 final class ImageRunner: CommandRunner {
     var calls = 0
     var data: String?
+    var scaled = false
+    var sides: [Double?] = []
 
     func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
         if id == AgentCommand.sessions { return .array([]) }
@@ -421,7 +423,12 @@ final class ImageRunner: CommandRunner {
             return try JSONDecoder().decode(JSONValue.self, from: Data(#"{"session":{"id":"s","status":"done"},"entries":[]}"#.utf8))
         }
         calls += 1
+        let side = args?["side"]?.numberValue
+        sides.append(side)
         guard let data else { throw RemoteError.server(code: "error", message: "no such image") }
+        if scaled, let side {
+            return .object(["mimeType": .string("image/jpeg"), "data": .string(Data("thumb \(Int(side))".utf8).base64EncodedString()), "scaled": .bool(true)])
+        }
         return .object(["mimeType": .string("image/png"), "data": .string(data)])
     }
 }
@@ -440,6 +447,29 @@ final class TranscriptImageTests: XCTestCase {
         XCTAssertEqual(runner.calls, 2)
         await store.loadImage("/w/a.png", entry: "later", in: "s")
         XCTAssertEqual(runner.calls, 3)
+    }
+
+    func testThumbnailAndFullImageAreFetchedApart() async {
+        let runner = ImageRunner()
+        runner.data = Data("png".utf8).base64EncodedString()
+        runner.scaled = true
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.loadImage("/w/a.png", entry: "e", in: "s", side: 336)
+        XCTAssertEqual(store.image("/w/a.png", entry: "e", in: "s", side: 336), .loaded(Data("thumb 336".utf8)))
+        XCTAssertNil(store.image("/w/a.png", entry: "e", in: "s"))
+        await store.loadImage("/w/a.png", entry: "e", in: "s")
+        XCTAssertEqual(store.image("/w/a.png", entry: "e", in: "s"), .loaded(Data("png".utf8)))
+        XCTAssertEqual(runner.sides, [336, nil])
+    }
+
+    func testAnUnscaledThumbnailReplyServesTheFullImage() async {
+        let runner = ImageRunner()
+        runner.data = Data("png".utf8).base64EncodedString()
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.loadImage("/w/a.png", entry: "e", in: "s", side: 336)
+        await store.loadImage("/w/a.png", entry: "e", in: "s")
+        XCTAssertEqual(store.image("/w/a.png", entry: "e", in: "s"), .loaded(Data("png".utf8)))
+        XCTAssertEqual(runner.calls, 1)
     }
 
     func testLeavingASessionDropsItsImagesAndKeepsTheLastFewTranscripts() async throws {
