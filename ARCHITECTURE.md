@@ -47,7 +47,7 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 | `notify` | `notify.post`: validates, rate-limits (per workspace and global) and publishes `notify.posted`. |
 | `shellenv` | Resolves the login-shell environment once, so GUI-launched processes get your `PATH`. |
 | `diagnostics` | `diagnostics.collect`: the zip behind Help → Collect Diagnostics. |
-| `testutil` | Test harness: a core with the plugin supervisor, workspaces and test plugins (`plugins/echo`, `detach`). |
+| `testutil` | Test harness: a core with the plugin supervisor, workspaces and test plugins (`internal/testutil/plugins/echo`, `internal/testutil/detach`). |
 | `pluginmigrate` | One-time moves of a plugin's storage and state into another on core start (`graphs` into `agents`). |
 | `macui` | Mac UI tests (`make mac-ui-test`): each test drives its own test-mode instance of the Debug app on a scratch repo with `ui.key`/`ui.pointer` and asserts on snapshots and plugin commands; skipped without `CLUBMATE_TEST_APP`. See `docs/agents.md`. |
 | `paths`, `wire`, `fswatch`, `schema`, `buildinfo` | State and runtime dirs, session wire format, file watching, JSON schemas, version info. |

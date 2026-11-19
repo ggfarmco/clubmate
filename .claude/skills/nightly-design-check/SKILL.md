@@ -29,7 +29,7 @@ Scope → **Capture** (`capture.sh`) → Judge → Fixer → **Tests** (`tests.s
 - Sunday, or the run's input `all`: every board of `capture.sh` (`MAC_BOARDS`, `PHONE_BOARDS` in `scripts/design/lib.sh`).
 
 1. `DESIGN_CHECK_RUN=<run> scripts/design/capture.sh --plan` in `MAIN`.
-2. Read the window's commits (`git log -p <base>..HEAD` in `MAIN`, `base` in `RUN/base`). The map only sees paths: add the boards of a view whose change it missed (e.g. a `needsYou` rule in `plugins/agents/sessions.go` → the Agents boards), one name per line, only names from `lib.sh`. Never drop a board the map picked.
+2. Read the window's commits (`git log -p <base>..HEAD` in `MAIN`, `base` in `RUN/base`). The map only sees paths: add the boards of a view whose change it missed (e.g. a `needsYou` rule in `plugins/agents/sidebar.go` → the Agents boards), one name per line, only names from `lib.sh`. Never drop a board the map picked.
 3. End your turn. An empty `boards` makes Capture end with `nothing`.
 
 ## Capture (step)

@@ -8,7 +8,7 @@
   ],
   "contributes": {
     "shortcuts": [
-      {"keys": "cmd+return", "action": "Start an agent on the task while you own it; open the session or graph run that owns it"},
+      {"keys": "cmd+return", "action": "Open the Start agent popover on the task while you own it; else open the session or graph run that owns it"},
       {"keys": "d", "action": "Mark the task done"},
       {"keys": "w", "action": "Close the task as Won't do: opens the reason field, ↩ in it closes"},
       {"keys": "e", "action": "Edit the task's description, or finish editing it"},

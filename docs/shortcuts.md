@@ -12,7 +12,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⇧⌘N | New Home Terminal | `ClubmateApp.swift` |
 | ⌘O | Open Folder… | `ClubmateApp.swift` |
 | ⇧⌘D | Open Doc…: fuzzy picker over `docs.list` (agent-written docs first), ↩ opens the doc in the popup | `ClubmateApp.swift` |
-| ⌘W | Close terminal session, or the window when no terminal is focused (the popup when it has focus, see below; VS Code when it has focus, see VS Code) | `ClubmateApp.swift` (`CloseKeyOwner`) |
+| ⌘W | In Terminals, close the selected terminal, asking first while it runs a process; in a window with no workspace, close the window; in other sections of a workspace window, nothing (the popup and VS Code have their own rows) | `ClubmateApp.swift` (`CloseKeyOwner`) |
 | ⌥⌘⌫ | Close Session: the terminal session shown in the main pane, asking first while it runs a process (as ⌘W); in Agents the selected agent session with its child sessions, as its row's Close Session (a closed one stays as it is), asking first while its turn or a child session's turn runs or waits (`agents.busy`); with focus anywhere in an aside beside its parent (its prompt, a message, a card), that aside (Close without sending? when something is unsent) | `ClubmateApp.swift`, `ClubmateKit/CommandInvocation.swift` (`AgentsSection`) |
 | ⌘K | Command Palette | `ClubmateApp.swift` |
 | ⌘B, ⌃⌘S | Toggle Sidebar; in Neovim, Toggle Chat: the right column with the agent chat panel (per window) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
@@ -81,7 +81,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | P | Pause or resume the gate open in Agents | agents |
 | E | Edit the gate open in Agents: which landings it holds (Into) or, for a Done gate, which sessions (Sessions) and what they wrote (Wrote), the graph that decides, its rounds and whether it is paused | agents |
 | ⌘⌫ | Delete the gate open in Agents (confirmed; its verdict history goes too) | agents |
-| ⌥1 / ⌥2 / ⌥3 | A graph step waiting for approval: Allow once / Always allow… (asks first) / Reject | agents |
+| ⌥1 / ⌥2 / ⌥3 | A graph step waiting for approval: Allow once / Always allow… (asks first; only when the step's command can be a rule) / Reject | agents |
 | ⌥R | Open review: the land review of this landing. On a lander's page (second header line while its landing is gated) the latest round's reviewer; on a land gate's page the reviewer of the live card or of the selected verdict | agents |
 | ⌘[ | Back from a reviewer's page to where it was opened from (the lander, or the land gate's page) | agents |
 | ⌥↑ / ⌥↓ | A repo child of a task: the repo before / after it in landing order that has a session, no wrap-around (buttons in the crumb); in a text field they stay caret movement | agents |
@@ -92,7 +92,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | D | Mark the task done | backlog |
 | W | Close the task as Won't do: opens the "Why it won't be done" field under the task form, ↩ in it closes the task with that reason | backlog |
 | E | Edit the task's description; again (Done editing) shows it as a page | backlog |
-| S / P | Open the task's Status / Priority menu (a `select` with `shortcut`; ↑↓ ↩ pick, ⎋ closes) | backlog |
+| S / P | Open the task's Status / Priority menu (a `select` with `shortcut`; ↑↓ ↩ pick, ⎋ closes); no Status menu while the task is In progress | backlog |
 | ⌘N | Ask an agent to add a cron job (How cron works; the app menu's ⌘N does the same anywhere in Cron), ↩ on a schedule row asks for a job on that schedule | cron |
 | E | Edit the cron job; in the form, cancel the edit | cron |
 | ⌘S | Save the cron job's edit form | cron |
@@ -262,7 +262,7 @@ A connect request (`Connect a repo?`), a Land request (`Land ‹repo›?`) or a 
 | ↑ ↓ | Connect card: move between repos; moving past the third opens the folded ones |
 | ⌥1 ⌥2 ⌥3 | Land card: Review… (opens the repo's diff, never merges) · Merge · Leave it unlanded… (⌥3 again confirms, Esc or ↩ cancels) |
 | ⌥1 ⌥2 ⌥3 | Land review card ("‹graph› still asks for changes after N rounds"): Land anyway · One more round · Stop |
-| ⌥1 ⌥2 ⌥3 | Held turn card ("‹graph› still asks for changes after N rounds" / "‹graph› ended without a verdict"): Accept as done · One more round · Stop |
+| ⌥1 ⌥2 ⌥3 | Held turn card ("‹graph› still asks for changes after N rounds" / "‹graph› ended without a verdict"): Accept as done · One more round (Check again on "Couldn't check this turn against its gates") · Stop |
 
 ## Agent questions (Agents section or Code chat panel)
 
@@ -442,7 +442,7 @@ Paths are relative to `nvim-distro/`.
 
 ## Ergonomics notes
 
-- ⌘W does four different things depending on focus: popup, VS Code, terminal or window.
+- ⌘W does different things by focus and section: the popup, VS Code, the selected terminal in Terminals, the window without a workspace, nothing in other sections.
 - Toggle Sidebar has two bindings (⌘B and ⌃⌘S). Consider dropping one.
 - ↩ and o in a tree differ only on items with children (↩ toggles, o selects). Consider merging them.
 - nvim: `gr` (rename) waits for `timeoutlen` before firing, because nvim 0.12's built-in `grn`/`grr`/`gri`/`gra` start with it.
