@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Direction C: Everything at the bottom</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/b817086b800196f47552f5b8296120a7">
+<link rel="stylesheet" href="/_blob/335c10eb4f565f3d8439aed203fbbea6">
+<link rel="stylesheet" href="/_blob/c2936f2b42b1a4ba929170156f8c1e3a">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="doc r1" style="width: 2280px; height: 2960px; padding: 48px; display: flex; flex-direction: column; gap: 44px">
+
+<div style="display: grid; grid-template-columns: 1000px minmax(0, 1fr); gap: 64px; padding-bottom: 28px; border-bottom: 1.5px solid #1B1D1C">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div class="eyebrow">Round 1 · Direction C · iPhone 18 Pro 402×874 pt · iPad Pro 11″ 1210×834 / 834×1210</div>
+<h1>C · Everything at the bottom</h1>
+<p class="lead">There is no top bar. Back, the title and the actions live in one glass bar at the bottom, beside the composer and any waiting request, so the top of the screen is content and every control is in thumb reach. A page's own header is just the first lines of the page and scrolls away with it. On iPad the Macs column becomes a 64-pt rail for good, and the list column toggles from it.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3>Rules</h3>
+<ul style="font-size: 15px">
+<li>Bottom bar = back · title (+ state) · actions · •••. It never hides; it is the only chrome. Status bar stays.</li>
+<li>On a session the bar has two rows: title + state, then the composer. A waiting card sits above it — the whole “answers in the bottom 40%” rule, literally.</li>
+<li>Reading back folds card, title row and composer into one bar row that says what is waiting.</li>
+<li>Another session's request: an amber count in the bar's title row.</li>
+<li>Risk: a bottom title is not a system navigation bar. On iPhone Duo it would not move to the vertical side bar by itself (C2 asks for system bars) — it needs its own layout there.</li>
+</ul>
+<p class="muted" style="font-size: 13px">Blue is annotation only. The bar left of each phone = chrome above the first line; faint = everything docked at the bottom.</p>
+</div>
+</div>
+
+<div style="display: flex; gap: 72px; padding-left: 24px; align-items: flex-start">
+
+<div class="fig" style="width: 402px">
+<div class="fw">
+<div class="ruler" style="height: 62px"></div>
+<div class="ruler b" style="height: 100px"></div>
+<div class="cm comp th-{{theme}} dev ph">
+<div class="isl"></div>
+<div style="position: absolute; left: 0; right: 0; top: 0; height: 60px; background: var(--bg); z-index: 7"></div>
+<div class="scr rd" style="top: 62px; bottom: 0">
+<p>Today the cart is released and the user starts over, which costs about 30 orders a day.</p>
+<h4>How it works</h4>
+<ol>
+<li>The checkout holds the reservation for 10 minutes.</li>
+<li>A timeout retries the same idempotency key up to 3 times with backoff 1 s, 4 s, 9 s.</li>
+<li>After the last try the cart goes back to the user with the message “Payment didn't go through”.</li>
+</ol>
+<div class="code mono">for try := range 3 {
+  err := charge(ctx, key)
+  if !isTimeout(err) {
+    return err
+  }
+  time.Sleep(backoff[try])
+}</div>
+<h4>Decisions</h4>
+<p>Retries reuse the idempotency key, so the provider never charges twice.</p>
+</div>
+<div class="fadeb" style="height: 130px"></div>
+<div style="position: absolute; left: 12px; right: 12px; bottom: 34px; z-index: 8">
+<div class="bbar glass">
+<button class="gb" aria-label="Back to Wiki"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="nt">Checkout retries</span><span class="ns">Wiki · updated 08:41</span></div>
+<button class="gb" aria-label="Edit"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M11 2.5 13.5 5 6 12.5l-3 .5.5-3Z"/></svg></button>
+<button class="gb" aria-label="Voice"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.75" y="1.5" width="4.5" height="8" rx="2.25"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5"/></svg></button>
+<button class="gb" aria-label="More: History, Share, Open on Mac"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button>
+</div>
+</div>
+<div class="home"></div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="ftitle">C1 · Wiki page, scrolled</span>
+<span class="stat"><b>62 pt · 7%</b> above the text · today 248 pt · 28%</span>
+<span class="stat">bottom bar 100 pt · 11%, always there</span>
+<div class="fnote"><ul><li>Title, meta, Edit and History are the first lines of the page at rest and scroll away.</li><li>Back, title, Edit, voice and ••• are all within thumb reach.</li></ul></div>
+<div class="tags"><span class="tag b">(b) header node renders into the bottom bar</span><span class="tag a">(a) bottom bar</span></div>
+</div>
+</div>
+
+<div class="fig" style="width: 402px">
+<div class="fw">
+<div class="ruler" style="height: 62px"></div>
+<div class="ruler b" style="height: 393px"></div>
+<div class="cm comp th-{{theme}} dev ph">
+<div class="isl"></div>
+<div style="position: absolute; left: 0; right: 0; top: 0; height: 60px; background: var(--bg); z-index: 7"></div>
+<div class="tx" style="top: 62px; bottom: 393px">
+<div class="cc" style="padding: 10px 14px">
+<div class="cap mut" style="display: flex; justify-content: space-between"><span>Plan</span><span>2 of 3</span></div>
+<div class="row1" style="height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px; color: var(--ac-i)"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="sub w6">Add a test</span></div>
+<div class="row1" style="height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px; color: var(--t4)"><circle cx="8" cy="8" r="6"/></svg><span class="sub t2">Run the tests</span></div>
+</div>
+<div class="cc row1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px; color: var(--t3)"><path d="M11 2.5 13.5 5 6 12.5l-3 .5.5-3Z"/></svg><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="sub">3 actions</span><span class="cap mut ell">read cart.go · edit checkout-retries.md <span class="ok-i">+2</span> <span class="er-i">−1</span></span></div></div>
+<div class="cc row1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px; color: var(--t3)"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="sub ell">Explore: Check the cart tests</span><span class="cap mut">Running · 15 s</span></div></div>
+<p>Cart total moved. The rounding bug I found on the way is filed as <a class="lnk" href="#">#4</a>, see its notes before the next refactor.</p>
+</div>
+<div class="dock" style="padding: 10px 12px 34px">
+<section class="req" aria-label="Permission request" style="margin: 0 4px">
+<div class="row1"><span class="st wa" style="width: 26px; height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 15px; height: 15px"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><span class="w6" style="flex: 1">Run a command?</span><button class="gbtn" aria-label="More answers" style="width: 32px; height: 32px; color: var(--t3)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button></div>
+<div class="mono" style="padding: 10px 12px; border-radius: 12px; background: var(--bg)">go test ./...</div>
+<span class="cap mut">Claude says: Run the shop tests</span>
+<button class="cb pri full">Allow once</button>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px"><button class="cb plain sm">Always allow…</button><button class="cb dgt sm">Reject</button></div>
+</section>
+<div class="glass" style="border-radius: 30px; padding: 6px 6px 6px; display: flex; flex-direction: column; gap: 2px">
+<div class="row1" style="height: 26px; padding: 0 12px"><span class="foot w6 ell" style="flex: 1">Refactor the cart total into its own function</span><span class="foot wa-i" style="flex: none">Waiting for you</span><span class="adot" style="margin-left: 6px"></span><span class="foot wa-i w6">1</span></div>
+<div class="cmp" style="gap: 6px">
+<button class="gb" aria-label="Back to shop"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<label class="fld" for="c2-msg" style="background: var(--bg)">Queue a message</label>
+<input id="c2-msg" aria-label="Queue a message" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1">
+<button class="gb" aria-label="Voice"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.75" y="1.5" width="4.5" height="8" rx="2.25"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5"/></svg></button>
+<button class="gb" aria-label="More: stop, attach, mode"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button>
+</div>
+</div>
+</div>
+<div class="home"></div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="ftitle">C2 · Session, permission on arrival</span>
+<span class="stat"><b>419 pt · 48%</b> transcript · today 306 pt · 35%</span>
+<span class="stat">card + two-row bar 393 pt · 45%</span>
+<div class="fnote"><ul><li>Title, state and the other request (amber “1”) sit just above the composer.</li><li>Send appears in place of ••• once you type; attach moves into •••.</li></ul></div>
+<div class="tags"><span class="tag a">(a) bottom bar</span><span class="tag a">(a) composer merge</span></div>
+</div>
+</div>
+
+<div class="fig" style="width: 402px">
+<div class="fw">
+<div class="ruler" style="height: 62px"></div>
+<div class="ruler b" style="height: 100px"></div>
+<div class="cm comp th-{{theme}} dev ph">
+<div class="isl"></div>
+<div style="position: absolute; left: 0; right: 0; top: 0; height: 60px; background: var(--bg); z-index: 7"></div>
+<div class="tx" style="top: 62px; bottom: 100px">
+<div class="ub" style="justify-self: end">Refactor the cart total into its own function</div>
+<div class="cap mut">› Thought for 3 s</div>
+<p>I'll move the total into <span class="mono" style="font-size: 15px">cartTotal</span> and keep the behaviour the same. Rounding stays in one place.</p>
+<div class="code mono" style="font-size: 13px; line-height: 19px">func cartTotal(items []Item) int {
+  t := 0
+  for _, it := range items { t += it.Price }
+  return t
+}</div>
+<div class="cc" style="padding: 10px 14px">
+<div class="cap mut" style="display: flex; justify-content: space-between"><span>Plan</span><span>1 of 3</span></div>
+<div class="row1" style="height: 26px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="sub mut">Extract cartTotal</span></div>
+<div class="row1" style="height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px; color: var(--ac-i)"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="sub w6">Add a test</span></div>
+<div class="row1" style="height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px; color: var(--t4)"><circle cx="8" cy="8" r="6"/></svg><span class="sub t2">Run the tests</span></div>
+</div>
+<div class="cc row1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px; color: var(--t3)"><path d="M11 2.5 13.5 5 6 12.5l-3 .5.5-3Z"/></svg><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="sub">2 actions</span><span class="cap mut ell">read cart.go · edit cart.go <span class="ok-i">+1</span> <span class="er-i">−1</span></span></div></div>
+<div class="cc row1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px; color: var(--t3)"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="sub ell">Explore: Check the cart tests</span><span class="cap mut">Done · 41 s</span></div></div>
+</div>
+<div style="position: absolute; left: 12px; right: 12px; bottom: 34px; z-index: 8">
+<div class="bbar glass">
+<button class="gb" aria-label="Back to shop"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<button class="fold" aria-label="Open the request: run go test ./..." style="flex: 1; min-height: 44px; border-radius: 22px; padding: 4px 12px 4px 6px; gap: 8px">
+<span class="st wa" style="width: 28px; height: 28px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 15px; height: 15px"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span>
+<span class="sub ell" style="flex: 1"><span class="mono" style="font-size: 13px">go test ./...</span></span>
+<span class="sub wa-i w6">Answer</span>
+</button>
+<button class="gb" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button>
+</div>
+</div>
+<div class="home"></div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="ftitle">C3 · Same session, reading back</span>
+<span class="stat"><b>712 pt · 81%</b> transcript · today 306 pt · 35%</span>
+<span class="stat">bar 100 pt incl. home indicator</span>
+<div class="fnote"><ul><li>Card, title row and composer fold into one bar row that names what waits.</li><li>Tap it → live end, card and composer back.</li></ul></div>
+<div class="tags"><span class="tag a">(a) bar fold</span></div>
+</div>
+</div>
+
+<div class="fig" style="width: 402px">
+<div class="fw">
+<div class="ruler" style="height: 62px"></div>
+<div class="ruler b" style="height: 445px"></div>
+<div class="cm comp th-{{theme}} dev ph">
+<div class="isl"></div>
+<div style="position: absolute; left: 0; right: 0; top: 0; height: 60px; background: var(--bg); z-index: 7"></div>
+<div class="tx" style="top: 62px; bottom: 445px">
+<button class="cc row1" style="border: 0; color: var(--fg); text-align: left; width: 100%"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M10 3 5 8l5 5"/></svg><span style="flex: 1; display: flex; flex-direction: column; min-width: 0"><span class="cap mut">Started by</span><span class="sub ell">Refactor the cart total into its own function</span></span></button>
+<div class="ub" style="justify-self: end">Explain the checkout flow</div>
+<p>Checkout runs in three steps: <i>validate</i>, <i>reserve</i>, <i>charge</i>. <b>charge</b> calls the payment provider and can time out. Two things before I write the retry:</p>
+</div>
+<div class="dock" style="padding: 10px 12px 34px">
+<section class="req" aria-label="Questions from Claude, 1 of 2" style="gap: 8px; margin: 0 4px">
+<div class="row1"><span class="st wa" style="width: 26px; height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 15px; height: 15px"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2Z"/><path d="M6.6 6a1.5 1.5 0 1 1 2 1.4c-.4.2-.6.5-.6.9M8 9.6v.1"/></svg></span><span class="cap wa-i w6" style="flex: 1">Claude is asking · 1 of 2</span></div>
+<p class="w6" style="font-size: 19px; line-height: 25px">Should I add retries to the charge step?</p>
+<button class="opt on"><span class="rad"></span><span style="flex: 1">Yes, 3 tries with backoff</span><span class="cap mut">Suggested</span></button>
+<button class="opt"><span class="rad"></span><span style="flex: 1">Yes, one retry</span></button>
+<button class="opt"><span class="rad"></span><span style="flex: 1">No, fail fast</span></button>
+<div class="cap mut" style="padding: 0 4px">Next · 2 · Where should the retry count live?</div>
+</section>
+<div class="glass" style="border-radius: 30px; padding: 6px; display: flex; flex-direction: column; gap: 2px">
+<div class="row1" style="height: 26px; padding: 0 12px"><span class="foot w6 ell" style="flex: 1">Explain the checkout flow</span><span class="foot wa-i">Asking you · subagent</span></div>
+<div class="cmp" style="gap: 6px">
+<button class="gb" aria-label="Back to Refactor the cart total"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<label class="fld" for="c4-msg" style="background: var(--bg)">Or answer in your words</label>
+<input id="c4-msg" aria-label="Answer in your words" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1">
+<button class="gb" aria-label="Voice"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.75" y="1.5" width="4.5" height="8" rx="2.25"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5"/></svg></button>
+<button class="gb" aria-label="Send answers" disabled style="background: var(--s2); color: var(--t4)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="stroke-width: 2"><path d="M8 13V3M4 7l4-4 4 4"/></svg></button>
+</div>
+</div>
+</div>
+<div class="home"></div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="ftitle">C4 · Two questions, one at a time</span>
+<span class="stat"><b>367 pt · 42%</b> transcript · today 131 pt · 15%</span>
+<span class="stat">taps <b>3</b> (pick · pick · Send) · today 5</span>
+<div class="fnote"><ul><li>Same question card as A4; the bottom now holds 51% of the screen, which is the cost of C.</li><li>“Started by” stays in the transcript as today.</li></ul></div>
+<div class="tags"><span class="tag a">(a) question card</span><span class="tag a">(a) bottom bar</span></div>
+</div>
+</div>
+
+</div>
+
+<div style="display: flex; gap: 72px; padding-left: 24px; align-items: flex-start">
+
+<div class="fig" style="width: 1210px">
+<div class="fw">
+<div class="ruler" style="height: 40px"></div>
+<div class="ruler b" style="height: 92px"></div>
+<div class="cm comp th-{{theme}} dev pl">
+<nav class="rail" aria-label="Macs">
+<button class="rbtn" aria-label="Needs you, 3"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px"><path d="M8 4v5M8 11.5v.1"/></svg><span class="rbadge">3</span></button>
+<div style="width: 32px; height: 1px; background: var(--bd); margin: 4px 0"></div>
+<button class="rbtn on id-blue" aria-label="Mac Studio, shop"><svg class="i mtint" viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2"/><path d="M6 14h4M8 11v3"/></svg></button>
+<button class="rbtn id-magenta" aria-label="MacBook Pro"><svg class="i mtint" viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px"><path d="M3 3.5h10v7H3Z"/><path d="M1.5 12.5h13"/></svg></button>
+<button class="rbtn id-graphite" aria-label="MacBook Air, offline" style="opacity: .5"><svg class="i mtint" viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px"><path d="M3 3.5h10v7H3Z"/><path d="M1.5 12.5h13"/></svg></button>
+<span style="flex: 1"></span>
+<button class="rbtn" aria-label="Show the Wiki tree" style="margin-bottom: 24px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg></button>
+</nav>
+<div class="scr rd" style="top: 40px; bottom: 0; left: 297px; right: 233px; padding: 0">
+<div style="display: flex; flex-direction: column; gap: 2px"><h3>Checkout retries</h3><span class="meta">Wiki · updated 08:41 by agent</span></div>
+<p>How the <b>charge</b> step retries a provider timeout without losing the cart. Follows the <a class="lnk" href="#">payments overview</a> and the <a class="lnk" href="#">cart store</a>.</p>
+<h4>Why</h4>
+<p>The charge step fails about 0.4% of the time on a provider timeout. Today the cart is released and the user starts over, which costs about 30 orders a day.</p>
+<h4>How it works</h4>
+<ol>
+<li>The checkout holds the reservation for 10 minutes.</li>
+<li>A timeout retries the same idempotency key up to 3 times with backoff 1 s, 4 s, 9 s.</li>
+<li>After the last try the cart goes back to the user with the message “Payment didn't go through”.</li>
+</ol>
+<div class="code mono">for try := range 3 {
+  err := charge(ctx, key)
+  if !isTimeout(err) {
+    return err
+  }
+  time.Sleep(backoff[try])
+}</div>
+</div>
+<div class="fadeb" style="left: 64px; height: 120px"></div>
+<div style="position: absolute; left: 357px; width: 560px; bottom: 24px; z-index: 8">
+<div class="bbar glass">
+<button class="gb" aria-label="Back to Wiki"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="nt">Checkout retries</span><span class="ns">Wiki · shop</span></div>
+<button class="gb" aria-label="Edit"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M11 2.5 13.5 5 6 12.5l-3 .5.5-3Z"/></svg></button>
+<button class="gb" aria-label="History"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9M2.5 2.5v2.5H5"/><path d="M8 5v3l2 1.5"/></svg></button>
+<button class="gb" aria-label="Voice"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.75" y="1.5" width="4.5" height="8" rx="2.25"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5"/></svg></button>
+<button class="gb" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button>
+</div>
+</div>
+<span class="ann" style="top: 742px; left: 74px">rail button or ⌘1: tree column in / out</span>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="ftitle">C5 · iPad landscape · wiki page, list collapsed into the rail</span>
+<span class="stat"><b>1146 pt · 95%</b> detail width · today 47% · rail 64 pt always</span>
+<div class="fnote"><ul><li>Macs are icons in their identity colour; Needs you keeps its amber count on top.</li><li>The rail's last button brings the section's own list (here the Wiki tree) in and out.</li></ul></div>
+<div class="tags"><span class="tag a">(a) Macs rail</span><span class="tag b">(b) tree node in the list column</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 18px">
+<span class="ftitle">Columns: a rail that never goes, a list that toggles</span>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 6px"><div class="mini"><div style="width: 6%">·</div><div style="width: 31%">list / tree</div><div class="d">detail · 63%</div></div><span class="cap">Landscape · rail + list + detail</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div class="mini"><div style="width: 6%">·</div><div class="d">detail · 95%</div></div><span class="cap">Landscape · rail + detail</span></div>
+<p class="fnote" style="align-self: start">No state with the full Macs column: Mac names show in a popover from the rail. That costs a tap when you switch Macs often.</p>
+</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 6px"><div class="mini" style="position: relative"><div style="width: 8%">·</div><div class="d">detail</div><div style="position: absolute; left: 30px; top: 4px; bottom: 4px; width: 46%; box-shadow: 4px 0 12px rgba(0,0,0,.15)">list over</div></div><span class="cap">Portrait · list over detail</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div class="mini"><div style="width: 8%">·</div><div class="d">detail · 92%</div></div><span class="cap">Portrait · rail + detail</span></div>
+</div>
+</div>
+</div>
+
+<div class="fig" style="width: 834px">
+<div class="fw">
+<div class="ruler" style="height: 40px"></div>
+<div class="ruler b" style="height: 300px"></div>
+<div class="cm comp th-{{theme}} dev pp">
+<nav class="rail" aria-label="Macs">
+<button class="rbtn" aria-label="Needs you, 3"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px"><path d="M8 4v5M8 11.5v.1"/></svg><span class="rbadge">3</span></button>
+<div style="width: 32px; height: 1px; background: var(--bd); margin: 4px 0"></div>
+<button class="rbtn on id-blue" aria-label="Mac Studio, shop"><svg class="i mtint" viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2"/><path d="M6 14h4M8 11v3"/></svg></button>
+<button class="rbtn id-magenta" aria-label="MacBook Pro"><svg class="i mtint" viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px"><path d="M3 3.5h10v7H3Z"/><path d="M1.5 12.5h13"/></svg></button>
+<span style="flex: 1"></span>
+<button class="rbtn" aria-label="Show the sessions list" style="margin-bottom: 24px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg></button>
+</nav>
+<div class="tx" style="top: 40px; bottom: 300px; left: 64px; padding: 0 32px 10px; gap: 12px">
+<div class="ub" style="justify-self: end">Refactor the cart total into its own function</div>
+<div class="cap mut">› Thought for 3 s</div>
+<p>I'll move the total into <span class="mono" style="font-size: 15px">cartTotal</span> and keep the behaviour the same.</p>
+<div class="code mono" style="font-size: 13px; line-height: 19px">func cartTotal(items []Item) int {
+  t := 0
+  for _, it := range items { t += it.Price }
+  return t
+}</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+<div class="cc" style="padding: 10px 14px"><div class="cap mut" style="display: flex; justify-content: space-between"><span>Plan</span><span>2 of 3</span></div><div class="row1" style="height: 26px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="sub mut">Extract cartTotal</span></div><div class="row1" style="height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px; color: var(--ac-i)"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="sub w6">Add a test</span></div><div class="row1" style="height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px; color: var(--t4)"><circle cx="8" cy="8" r="6"/></svg><span class="sub t2">Run the tests</span></div></div>
+<div class="cc" style="padding: 10px 14px; display: flex; flex-direction: column; gap: 4px"><span class="cap mut">3 actions</span><span class="sub">Read cart.go</span><span class="sub">Edit cart.go <span class="ok-i">+1</span> <span class="er-i">−1</span></span><span class="sub ell">Write checkout-retries.md <span class="ok-i">+1</span></span></div>
+</div>
+<div class="cc row1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px; color: var(--t3)"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="sub">Explore: Check the cart tests · Read cart_test.go</span><span class="cap mut">Running · 16 s</span></div></div>
+<p>Cart total moved. The rounding bug I found on the way is filed as <a class="lnk" href="#">#4</a>, see its notes before the next refactor.</p>
+</div>
+<div class="dock" style="left: 64px; padding: 10px 32px 24px">
+<section class="req" aria-label="Permission request">
+<div class="row1"><span class="st wa" style="width: 26px; height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 15px; height: 15px"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><span class="w6">Run a command?</span><span class="mono" style="flex: 1; padding: 4px 10px; border-radius: 10px; background: var(--bg)">go test ./...</span><button class="gbtn" aria-label="More answers" style="width: 32px; height: 32px; color: var(--t3)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button></div>
+<span class="cap mut">Claude says: Run the shop tests</span>
+<div class="row1"><button class="cb pri sm">Allow once</button><button class="cb plain sm">Always allow…</button><span style="flex: 1"></span><button class="cb dgt sm">Reject</button></div>
+</section>
+<div class="glass" style="border-radius: 30px; padding: 6px; display: flex; flex-direction: column; gap: 2px">
+<div class="row1" style="height: 26px; padding: 0 12px"><span class="foot w6 ell" style="flex: 1">Refactor the cart total into its own function</span><span class="foot wa-i">Waiting for you</span><span class="foot mut">· Mac Studio · shop</span><span class="adot" style="margin-left: 6px"></span><span class="foot wa-i w6">1</span></div>
+<div class="cmp" style="gap: 6px">
+<button class="gb" aria-label="Back to shop"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<label class="fld" for="c6-msg" style="background: var(--bg)">Queue a message</label>
+<input id="c6-msg" aria-label="Queue a message" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1">
+<button class="gb" aria-label="Voice"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.75" y="1.5" width="4.5" height="8" rx="2.25"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5"/></svg></button>
+<button class="gb" aria-label="Stop the agent"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px"><rect x="3.5" y="3.5" width="9" height="9" rx="1.8" style="fill: currentColor"/></svg></button>
+<button class="gb" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="ftitle">C6 · iPad portrait · session, rail + detail</span>
+<span class="stat"><b>770 pt · 92%</b> detail width · today 54% · transcript 870 pt · 72%</span>
+<div class="fnote"><ul><li>The two-row bar and the one-row card buttons keep the bottom to 300 pt (25%).</li><li>Stop gets its own bar button in regular width (C2).</li></ul></div>
+<div class="tags"><span class="tag a">(a) Macs rail</span><span class="tag a">(a) bottom bar</span></div>
+</div>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["clight","cdark"],"default":"clight"},"$preview":{"width":2280,"height":2960}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'clight' };
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Direction B: Get out of the way</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/b817086b800196f47552f5b8296120a7">
+<link rel="stylesheet" href="/_blob/335c10eb4f565f3d8439aed203fbbea6">
+<link rel="stylesheet" href="/_blob/c2936f2b42b1a4ba929170156f8c1e3a">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="doc r1" style="width: 2280px; height: 2960px; padding: 48px; display: flex; flex-direction: column; gap: 44px">
+
+<div style="display: grid; grid-template-columns: 1000px minmax(0, 1fr); gap: 64px; padding-bottom: 28px; border-bottom: 1.5px solid #1B1D1C">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div class="eyebrow">Round 1 · Direction B · iPhone 18 Pro 402×874 pt · iPad Pro 11″ 1210×834 / 834×1210</div>
+<h1>B · Get out of the way</h1>
+<p class="lead">Reading is its own mode. Scroll down a wiki page, a doc or back through a transcript and the bars, the banner, the composer and the mic all step aside; only the status bar stays. Tap the text or scroll up a little and they float back over it. A request that waits for you never hides: it shrinks to an amber pill in reach. On iPad, one key turns the whole window into a reading view.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3>Rules</h3>
+<ul style="font-size: 15px">
+<li>Reading surfaces only: wiki pages, docs, and a transcript when you are not at its live end. Lists, forms and the live end of a session keep their chrome.</li>
+<li>Scroll down = chrome away. Scroll up 24 pt or tap empty text = chrome back, floating as glass over the text so nothing reflows. A link works on the first tap.</li>
+<li>Header and actions follow A when the chrome is visible (one bar, actions as bar buttons).</li>
+<li>A waiting request becomes an amber pill at the bottom centre: what it wants + Answer. Tap = back to the live end with the card open. Other sessions waiting show as “+1” in the same pill.</li>
+<li>VoiceOver, Switch Control or Reduce Motion on: chrome never hides.</li>
+</ul>
+<p class="muted" style="font-size: 13px">Blue is annotation only. The bar left of each phone = chrome above the first line; faint = docked at the bottom; circles = a tap.</p>
+</div>
+</div>
+
+<div style="display: flex; gap: 72px; padding-left: 24px; align-items: flex-start">
+
+<div class="fig" style="width: 402px">
+<div class="fw">
+<div class="ruler" style="height: 62px"></div>
+<div class="cm comp th-{{theme}} dev ph">
+<div class="isl"></div>
+<div style="position: absolute; left: 0; right: 0; top: 0; height: 60px; background: var(--bg); z-index: 7"></div>
+<div style="position: absolute; left: 0; top: 58px; width: 46%; height: 2px; background: var(--t4); z-index: 8"></div>
+<div class="scr rd" style="top: 62px; bottom: 0">
+<p>Today the cart is released and the user starts over, which costs about 30 orders a day.</p>
+<h4>How it works</h4>
+<ol>
+<li>The checkout holds the reservation for 10 minutes.</li>
+<li>A timeout retries the same idempotency key up to 3 times with backoff 1 s, 4 s, 9 s.</li>
+<li>After the last try the cart goes back to the user with the message “Payment didn't go through”.</li>
+</ol>
+<div class="code mono">for try := range 3 {
+  err := charge(ctx, key)
+  if !isTimeout(err) {
+    return err
+  }
+  time.Sleep(backoff[try])
+}</div>
+<h4>Decisions</h4>
+<p>Retries reuse the idempotency key, so the provider never charges twice. See the <a class="lnk" href="#">payments overview</a>.</p>
+<p>We keep the reservation for the whole retry window rather than re-reserving, because stock can move in 9 seconds.</p>
+</div>
+<div class="home"></div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="ftitle">B1 · Wiki page, reading</span>
+<span class="stat"><b>62 pt · 7%</b> above the text · today 248 pt · 28%</span>
+<span class="stat">nothing over the text · mic hidden</span>
+<div class="fnote"><ul><li>A 2-pt grey line under the status bar shows how far you are.</li><li>At the top of the page it looks like A at rest: title + one meta line, actions in the bar.</li></ul></div>
+<div class="tags"><span class="tag b">(b) document node: reading mode</span><span class="tag a">(a) mic hides</span></div>
+</div>
+</div>
+
+<div class="fig" style="width: 402px">
+<div class="fw">
+<div class="ruler" style="height: 62px"></div>
+<div class="cm comp th-{{theme}} dev ph">
+<div class="isl"></div>
+<div style="position: absolute; left: 0; right: 0; top: 0; height: 60px; background: var(--bg); z-index: 7"></div>
+<div class="nb">
+<button class="gbtn glass" aria-label="Back to Wiki"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<div class="t glass" style="flex: 1; height: 44px; border-radius: 22px; justify-content: center"><span class="nt">Checkout retries</span><span class="ns">Wiki · updated 08:41</span></div>
+<div class="gpill glass">
+<button aria-label="Edit"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M11 2.5 13.5 5 6 12.5l-3 .5.5-3Z"/></svg></button>
+<button aria-label="More: History, Share, Open on Mac"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button>
+</div>
+</div>
+<div class="scr rd" style="top: 62px; bottom: 0">
+<p>Today the cart is released and the user starts over, which costs about 30 orders a day.</p>
+<h4>How it works</h4>
+<ol>
+<li>The checkout holds the reservation for 10 minutes.</li>
+<li>A timeout retries the same idempotency key up to 3 times with backoff 1 s, 4 s, 9 s.</li>
+<li>After the last try the cart goes back to the user with the message “Payment didn't go through”.</li>
+</ol>
+<div class="code mono">for try := range 3 {
+  err := charge(ctx, key)
+  if !isTimeout(err) {
+    return err
+  }
+  time.Sleep(backoff[try])
+}</div>
+<h4>Decisions</h4>
+<p>Retries reuse the idempotency key, so the provider never charges twice. See the <a class="lnk" href="#">payments overview</a>.</p>
+<p>We keep the reservation for the whole retry window rather than re-reserving, because stock can move in 9 seconds.</p>
+</div>
+<div style="position: absolute; left: 16px; right: 16px; bottom: 34px; display: flex; justify-content: space-between; z-index: 8">
+<button class="gbtn glass" aria-label="Voice"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.75" y="1.5" width="4.5" height="8" rx="2.25"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5"/></svg></button>
+<button class="gbtn glass" aria-label="Contents of this page"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.1M2.5 8h.1M2.5 12h.1"/></svg></button>
+</div>
+<div class="tap" style="top: 470px; left: 300px"></div>
+<span class="ann" style="top: 524px; left: 214px">tap empty text: chrome floats back</span>
+<div class="home"></div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="ftitle">B2 · Same page, one tap later</span>
+<span class="stat"><b>0 pt</b> reflow · bars float over the text</span>
+<span class="stat">tap again or scroll down → B1</span>
+<div class="fnote"><ul><li>Bars come back as glass: the line you were reading stays where it was.</li><li>Bottom: voice and the page's contents (headings) — both leave with the bars.</li></ul></div>
+<div class="tags"><span class="tag a">(a) reading-mode chrome</span><span class="tag b">(b) headings from the document node</span></div>
+</div>
+</div>
+
+<div class="fig" style="width: 402px">
+<div class="fw">
+<div class="ruler" style="height: 62px"></div>
+<div class="ruler b" style="height: 98px"></div>
+<div class="cm comp th-{{theme}} dev ph">
+<div class="isl"></div>
+<div style="position: absolute; left: 0; right: 0; top: 0; height: 60px; background: var(--bg); z-index: 7"></div>
+<div class="tx" style="top: 62px; bottom: 98px">
+<div class="ub" style="justify-self: end">Refactor the cart total into its own function</div>
+<div class="cap mut">› Thought for 3 s</div>
+<p>I'll move the total into <span class="mono" style="font-size: 15px">cartTotal</span> and keep the behaviour the same. Rounding stays in one place.</p>
+<div class="code mono" style="font-size: 13px; line-height: 19px">func cartTotal(items []Item) int {
+  t := 0
+  for _, it := range items { t += it.Price }
+  return t
+}</div>
+<div class="cc" style="padding: 10px 14px">
+<div class="cap mut" style="display: flex; justify-content: space-between"><span>Plan</span><span>1 of 3</span></div>
+<div class="row1" style="height: 26px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="sub mut">Extract cartTotal</span></div>
+<div class="row1" style="height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px; color: var(--ac-i)"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="sub w6">Add a test</span></div>
+<div class="row1" style="height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px; color: var(--t4)"><circle cx="8" cy="8" r="6"/></svg><span class="sub t2">Run the tests</span></div>
+</div>
+<div class="cc row1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px; color: var(--t3)"><path d="M11 2.5 13.5 5 6 12.5l-3 .5.5-3Z"/></svg><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="sub">2 actions</span><span class="cap mut ell">read cart.go · edit cart.go <span class="ok-i">+1</span> <span class="er-i">−1</span></span></div></div>
+<div class="cc row1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px; color: var(--t3)"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="sub ell">Explore: Check the cart tests</span><span class="cap mut">Done · 41 s</span></div></div>
+</div>
+<div style="position: absolute; left: 16px; right: 16px; bottom: 34px; display: flex; justify-content: center; z-index: 8">
+<button class="fold glass" aria-label="Back to the live end: run go test ./..., and 1 more session needs you" style="width: auto; max-width: 100%; min-height: 52px; border-radius: 26px; padding: 6px 16px 6px 8px">
+<span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 15px; height: 15px"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span>
+<span class="sub ell">Wants to run <span class="mono" style="font-size: 13px">go test ./...</span></span>
+<span class="sub wa-i w6" style="flex: none">Answer</span>
+<span class="cap mut" style="flex: none">+1</span>
+</button>
+</div>
+<div class="home"></div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="ftitle">B3 · Session, reading back</span>
+<span class="stat"><b>714 pt · 82%</b> transcript · today 306 pt · 35%</span>
+<span class="stat">header, banner, card and composer → one 52-pt pill</span>
+<div class="fnote"><ul><li>The pill says what is waiting and is the way back: tap = live end, card open.</li><li>“+1” = another session needs you (today's 56-pt banner).</li></ul></div>
+<div class="tags"><span class="tag a">(a) transcript reading mode</span><span class="tag a">(a) request pill</span></div>
+</div>
+</div>
+
+<div class="fig" style="width: 402px">
+<div class="fw">
+<div class="ruler" style="height: 152px"></div>
+<div class="ruler b" style="height: 343px"></div>
+<div class="cm comp th-{{theme}} dev ph">
+<div class="isl"></div>
+<div class="fade" style="height: 150px"></div>
+<div class="nb">
+<button class="gbtn glass" aria-label="Back to Refactor the cart total"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<div class="t"><span class="nt">Explain the checkout flow</span><span class="ns"><span class="wa-i">Asking you</span> · subagent</span></div>
+<button class="gbtn glass" aria-label="More"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button>
+</div>
+<a class="glass row1" href="#" aria-label="Another request: Refactor the cart total, wants to run go test" style="position: absolute; top: 110px; left: 16px; right: 16px; height: 36px; border-radius: 18px; padding: 0 12px; z-index: 8; text-decoration: none; color: var(--fg)"><span class="adot"></span><span class="foot ell" style="flex: 1">Refactor the cart total · wants to run <span class="mono" style="font-size: 12px">go test</span></span><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 12px; height: 12px; color: var(--t4)"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></a>
+<div class="tx" style="top: 152px; bottom: 343px">
+<div class="ub" style="justify-self: end">Explain the checkout flow</div>
+<p>Checkout runs in three steps: <i>validate</i>, <i>reserve</i>, <i>charge</i>. <b>reserve</b> holds stock for 10 minutes; <b>charge</b> calls the payment provider and can time out.</p>
+<p>Two things before I write the retry:</p>
+</div>
+<div class="dock">
+<section class="req" aria-label="Questions from Claude, 1 of 2" style="gap: 8px">
+<div class="row1"><span class="st wa" style="width: 26px; height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 15px; height: 15px"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2Z"/><path d="M6.6 6a1.5 1.5 0 1 1 2 1.4c-.4.2-.6.5-.6.9M8 9.6v.1"/></svg></span><span class="cap wa-i w6" style="flex: 1">Claude is asking · 1 of 2</span></div>
+<p class="w6" style="font-size: 19px; line-height: 25px">Should I add retries to the charge step?</p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><button class="qchip on">Yes, 3 tries with backoff</button><button class="qchip">Yes, once</button><button class="qchip">No, fail fast</button></div>
+<div class="cap mut" style="padding: 0 4px">Next · 2 · Where should the retry count live?</div>
+</section>
+<div class="cmp">
+<button class="gbtn glass" aria-label="Voice"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.75" y="1.5" width="4.5" height="8" rx="2.25"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5"/></svg></button>
+<label class="fld glass" for="b4-msg">Or answer in your words</label>
+<input id="b4-msg" aria-label="Answer in your words" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1">
+<button class="gbtn" aria-label="Send answers" disabled style="background: var(--s2); color: var(--t4)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="stroke-width: 2"><path d="M8 13V3M4 7l4-4 4 4"/></svg></button>
+</div>
+</div>
+<div class="home"></div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="ftitle">B4 · Two questions, live end</span>
+<span class="stat"><b>379 pt · 43%</b> transcript · today 131 pt · 15%</span>
+<span class="stat">taps <b>3</b> (pick · pick · Send) · today 5</span>
+<div class="fnote"><ul><li>Answers as 44-pt chips: the card is 58 pt shorter than A4's rows.</li><li>The other request is a 36-pt glass line (today 56) and leaves with the chrome.</li></ul></div>
+<div class="tags"><span class="tag a">(a) question card</span><span class="tag a">(a) slim banner</span></div>
+</div>
+</div>
+
+</div>
+
+<div style="display: flex; gap: 72px; padding-left: 24px; align-items: flex-start">
+
+<div class="fig" style="width: 1210px">
+<div class="fw">
+<div class="ruler" style="height: 40px"></div>
+<div class="cm comp th-{{theme}} dev pl">
+<div style="position: absolute; left: 6px; top: 377px; width: 5px; height: 80px; border-radius: 3px; background: var(--bd2); z-index: 8"></div>
+<div style="position: absolute; left: 0; top: 24px; width: 46%; height: 2px; background: var(--t4); z-index: 8"></div>
+<div class="scr rd" style="top: 40px; bottom: 0; left: 265px; right: 265px; padding: 0">
+<p>The charge step fails about 0.4% of the time on a provider timeout. Today the cart is released and the user starts over, which costs about 30 orders a day.</p>
+<h4>How it works</h4>
+<ol>
+<li>The checkout holds the reservation for 10 minutes.</li>
+<li>A timeout retries the same idempotency key up to 3 times with backoff 1 s, 4 s, 9 s.</li>
+<li>After the last try the cart goes back to the user with the message “Payment didn't go through”.</li>
+</ol>
+<div class="code mono">for try := range 3 {
+  err := charge(ctx, key)
+  if !isTimeout(err) {
+    return err
+  }
+  time.Sleep(backoff[try])
+}</div>
+<h4>Decisions</h4>
+<p>Retries reuse the idempotency key, so the provider never charges twice. See the <a class="lnk" href="#">payments overview</a>. We keep the reservation for the whole retry window rather than re-reserving, because stock can move in 9 seconds.</p>
+<h4>Open questions</h4>
+<p>Whether a fourth try is worth it on Black Friday traffic; see <a class="lnk" href="#">#7 Retry the charge step on 502</a>.</p>
+</div>
+<span class="ann" style="top: 360px; left: 22px">edge swipe or Esc: columns back</span>
+<span class="ann" style="top: 34px; right: 22px">⌃⌘F · pinch out · reading button</span>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="ftitle">B5 · iPad landscape · wiki page, reading view</span>
+<span class="stat"><b>1210 pt · 100%</b> detail width, no bars · today 47% · text measure 680 pt</span>
+<div class="fnote"><ul><li>One step from any state to reading view and back to exactly the columns you had.</li><li>Tap empty text: the toolbar floats back as in B2; the columns stay away until you ask.</li></ul></div>
+<div class="tags"><span class="tag a">(a) reading view</span><span class="tag b">(b) document node: 680-pt measure</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 18px">
+<span class="ftitle">Columns: normal states + one reading view</span>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 6px"><div class="mini"><div style="width: 21%">Macs</div><div style="width: 31%">list / tree</div><div class="d">detail · 47%</div></div><span class="cap">Landscape · all columns</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div class="mini"><div style="width: 31%">list / tree</div><div class="d">detail · 69%</div></div><span class="cap">Sidebar button: list + detail</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div class="mini" style="background: #FBFAF6"><div class="d" style="background: #FFFFFF; border: 1px dashed #C9C6BA">reading · no bars</div></div><span class="cap">⌃⌘F from either: reading view</span></div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 6px"><div class="mini" style="position: relative"><div class="d">detail</div><div style="position: absolute; left: 4px; top: 4px; bottom: 4px; width: 46%; box-shadow: 4px 0 12px rgba(0,0,0,.15)">list slides over</div></div><span class="cap">Portrait · list over detail</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div class="mini" style="background: #FBFAF6"><div class="d" style="background: #FFFFFF; border: 1px dashed #C9C6BA">reading · no bars</div></div><span class="cap">Portrait · reading view</span></div>
+<p class="fnote" style="align-self: start">Reading view is a mode on top of the column state, not another column state: leaving it restores what you had. Sessions enter it only when you scroll back from the live end.</p>
+</div>
+</div>
+</div>
+
+<div class="fig" style="width: 834px">
+<div class="fw">
+<div class="ruler" style="height: 40px"></div>
+<div class="ruler b" style="height: 88px"></div>
+<div class="cm comp th-{{theme}} dev pp">
+<div class="tx" style="top: 40px; bottom: 88px; padding: 0 40px 10px; gap: 12px">
+<div class="ub" style="justify-self: end">Refactor the cart total into its own function</div>
+<div class="cap mut">› Thought for 3 s</div>
+<p>I'll move the total into <span class="mono" style="font-size: 15px">cartTotal</span> and keep the behaviour the same. Rounding stays in one place so the rounding bug can be fixed once.</p>
+<div class="code mono" style="font-size: 13px; line-height: 19px">func cartTotal(items []Item) int {
+  t := 0
+  for _, it := range items { t += it.Price }
+  return t
+}</div>
+<div class="cc row1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px; color: var(--t3)"><path d="M11 2.5 13.5 5 6 12.5l-3 .5.5-3Z"/></svg><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="sub">2 actions</span><span class="cap mut ell">read cart.go · edit cart.go <span class="ok-i">+1</span> <span class="er-i">−1</span></span></div></div>
+<p>Now a test that pins the current rounding, so the refactor can't change it by accident.</p>
+<div class="code mono" style="font-size: 13px; line-height: 19px">func TestCartTotal(t *testing.T) {
+  got := cartTotal([]Item{{Price: 199}, {Price: 1}})
+  if got != 200 { t.Fatalf("got %d", got) }
+}</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+<div class="cc" style="padding: 10px 14px"><div class="cap mut" style="display: flex; justify-content: space-between"><span>Plan</span><span>2 of 3</span></div><div class="row1" style="height: 26px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="sub mut">Extract cartTotal</span></div><div class="row1" style="height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px; color: var(--ac-i)"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="sub w6">Add a test</span></div><div class="row1" style="height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px; color: var(--t4)"><circle cx="8" cy="8" r="6"/></svg><span class="sub t2">Run the tests</span></div></div>
+<div class="cc" style="padding: 10px 14px; display: flex; flex-direction: column; gap: 4px"><span class="cap mut">1 action</span><span class="sub">Write cart_test.go <span class="ok-i">+9</span></span></div>
+</div>
+</div>
+<div style="position: absolute; left: 40px; right: 40px; bottom: 24px; display: flex; justify-content: center; z-index: 8">
+<button class="fold glass" aria-label="Back to the live end: run go test ./..." style="width: auto; min-height: 52px; border-radius: 26px; padding: 6px 18px 6px 8px">
+<span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 15px; height: 15px"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span>
+<span class="sub">Wants to run <span class="mono" style="font-size: 13px">go test ./...</span></span>
+<span class="sub wa-i w6">Answer</span>
+<span class="cap mut">+1</span>
+</button>
+</div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="ftitle">B6 · iPad portrait · session, reading back</span>
+<span class="stat"><b>1082 pt · 89%</b> transcript · 834 pt · 100% wide · today detail 54%</span>
+<div class="fnote"><ul><li>No toolbar, no list, no composer while you read back. Status bar stays.</li><li>Tap the pill: live end, card open as in A6 (buttons in one row).</li></ul></div>
+<div class="tags"><span class="tag a">(a) transcript reading mode</span><span class="tag a">(a) request pill</span></div>
+</div>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["clight","cdark"],"default":"clight"},"$preview":{"width":2280,"height":2960}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'clight' };
+}
+}
+</script>
+</body>
+</html>

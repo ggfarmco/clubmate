@@ -1,0 +1,34 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-11-19T13:00:00Z"},
+  "title": "Clubmate · Device UX",
+  "launch": {"view": "canvas", "page": "today"},
+  "pages": [
+    {"id": "today", "name": "Today (screenshots + current boards)"},
+    {"id": "r1", "name": "Round 1"},
+    {"id": "language", "name": "Language"}
+  ],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 2400, "h": 4500, "title": "Companion today · iPhone 18 Pro + iPad Pro 11\" simulator screenshots, light, 19 Nov", "page": "today"},
+    "C-Macs.dc.html": {"x": 0, "y": 4620, "w": 393, "h": 852, "radius": 50, "title": "iPhone · Macs (the board) · dark", "page": "today"},
+    "C-Workspace.dc.html": {"x": 473, "y": 4620, "w": 393, "h": 852, "radius": 50, "title": "iPhone · Workspace sessions (the board) · dark", "page": "today"},
+    "C-Permission.dc.html": {"x": 946, "y": 4620, "w": 393, "h": 852, "radius": 50, "title": "iPhone · Waiting for permission (the board) · dark", "page": "today"},
+    "C-Question.dc.html": {"x": 1419, "y": 4620, "w": 393, "h": 852, "radius": 50, "title": "iPhone · Asking a question (the board) · dark", "page": "today"},
+    "C-iPad.dc.html": {"x": 1892, "y": 4620, "w": 1194, "h": 834, "radius": 18, "title": "iPad · split view (the board) · dark", "page": "today"},
+    "C-Language.dc.html": {"x": 0, "y": 0, "w": 1400, "h": 2520, "title": "C2 · Companion adaptation", "page": "language"},
+    "C-Components.dc.html": {"x": 1480, "y": 0, "w": 1400, "h": 2340, "title": "C3 · Companion components", "page": "language"},
+    "R1-A-fold-into-bar.dc.html": {"x": 0, "y": 300, "w": 2280, "h": 3080, "title": "R1 · A · Fold into the bar · iPhone + iPad, light", "page": "r1"},
+    "R1-B-get-out-of-the-way.dc.html": {"x": 2360, "y": 300, "w": 2280, "h": 2960, "title": "R1 · B · Get out of the way · iPhone + iPad, light", "page": "r1"},
+    "R1-C-everything-at-the-bottom.dc.html": {"x": 4720, "y": 300, "w": 2280, "h": 2960, "title": "R1 · C · Everything at the bottom · iPhone + iPad, light", "page": "r1"},
+    "R1-Shared-navigation.dc.html": {"x": 0, "y": 3740, "w": 2280, "h": 2080, "title": "R1 · Shared · One navigation model · flows with tap counts", "page": "r1"},
+    "R1-Shared-recommendation.dc.html": {"x": 2360, "y": 3740, "w": 1400, "h": 2080, "title": "R1 · Recommendation and handoff (a)–(c)", "page": "r1"}
+  },
+  "order": ["Main.dc.html", "C-Macs.dc.html", "C-Workspace.dc.html", "C-Permission.dc.html", "C-Question.dc.html", "C-iPad.dc.html", "C-Language.dc.html", "C-Components.dc.html", "R1-A-fold-into-bar.dc.html", "R1-B-get-out-of-the-way.dc.html", "R1-C-everything-at-the-bottom.dc.html", "R1-Shared-navigation.dc.html", "R1-Shared-recommendation.dc.html"],
+  "notes": {
+    "r1A": {"x": 0, "y": 0, "text": "A · Fold into the bar: the system's own bars give the space back as you scroll", "kind": "title1", "maxW": 2280, "page": "r1"},
+    "r1B": {"x": 2360, "y": 0, "text": "B · Get out of the way: scroll and the bars, banner and mic leave the text; one tap brings them back", "kind": "title1", "maxW": 2280, "page": "r1"},
+    "r1C": {"x": 4720, "y": 0, "text": "C · Everything at the bottom: one bar carries back, title and actions; the top is all content", "kind": "title1", "maxW": 2280, "page": "r1"},
+    "r1S": {"x": 0, "y": 3460, "text": "Shared by A, B and C: one navigation model · then the recommendation and handoff", "kind": "title1", "maxW": 3760, "page": "r1"}
+  },
+  "designSystems": []
+}

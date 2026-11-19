@@ -1,0 +1,20 @@
+{
+  "title": "Device UX · round 1",
+  "fit": 1200,
+  "css": ["r1.css"],
+  "intro": [
+    "Claude Design, 19 Nov. Companion on iPhone 18 Pro and iPad Pro 11\", light. Three directions for how chrome gives the space back, each on the same six frames: wiki page, session with a permission, the same session reading back, two questions, iPad wiki (landscape) and iPad session (portrait), plus the iPad column states. One navigation model is shared by all three.",
+    "A · Fold into the bar (designer's pick): the system's own bars give the space back as you scroll. Headers fold into the bar, request cards fold to a 56-pt row, iPad columns step down with the sidebar button (all · list + detail · detail). Wiki chrome 28% → 13%; transcript under a permission 35% → 47%. Low cost, standard SwiftUI, iPhone Duo bars keep working.",
+    "B · Get out of the way: scroll and the bars, banner and mic leave the text; one tap brings them back. A waiting request becomes an amber pill. Wiki chrome 7%, reading back through a transcript 82%, iPad reading view on ⌃⌘F. Medium cost.",
+    "C · Everything at the bottom: one bottom bar holds back, title and actions, so the top is all content; on iPad the Macs column becomes a 64-pt rail. Not a system bar (needs its own Duo layout) and on a question the bottom takes 51%. High cost; the designer would leave it out.",
+    "Shared navigation: a link to another section (session → #4) pushes on the stack you are in with a back chip naming the origin; ••• › Show in Backlog moves you there for good. Wiki and doc links open in place, never in a popup (the phone stops catching openDoc; the wiki plugin already maps the path to its page). Each segment keeps its own stack and scroll. On iPad the list column shows the section's own tree. Needs you → answer → back 5 → 3 taps; session → #4 → back 1 + 3 → 1 + 1 (iPad: no way back → 1 + 1); wiki → linked page → back: popup → 1 + 1; two questions 5 → 3.",
+    "Recommendation: build A, add B's reading mode for wiki pages and docs only plus the iPad reading view; sessions keep A's folded row. Open for the pick: Wiki as its own iPhone segment (Agents · Backlog · Docs · Wiki · More, wiki in 2 taps; shown on A1 only) or under More as today (3 taps)."
+  ],
+  "boards": [
+    {"file": "R1-A-fold-into-bar.dc.html", "w": 2280, "title": "A · Fold into the bar · iPhone + iPad", "caption": "A1 wiki scrolled (with the Wiki-segment option noted below it) · A2 permission on arrival · A3 reading back, card folded to a row · A4 two questions one at a time · A5 iPad landscape wiki, detail only · A6 iPad portrait session; column states in both orientations."},
+    {"file": "R1-B-get-out-of-the-way.dc.html", "w": 2280, "title": "B · Get out of the way · iPhone + iPad", "caption": "B1 wiki reading, chrome gone · B2 one tap later · B3 session reading back with the amber pill · B4 two questions at the live end · B5 iPad landscape reading view · B6 iPad portrait session reading back."},
+    {"file": "R1-C-everything-at-the-bottom.dc.html", "w": 2280, "title": "C · Everything at the bottom · iPhone + iPad", "caption": "C1 wiki scrolled · C2 permission on arrival · C3 reading back · C4 two questions · C5 iPad landscape, list collapsed into the rail · C6 iPad portrait, rail + detail."},
+    {"file": "R1-Shared-navigation.dc.html", "w": 2280, "title": "Shared · one navigation model · flows with tap counts", "caption": "Needs you → answer → back; session → #4 → back (iPhone and iPad); wiki page → linked page → back; the rules behind them."},
+    {"file": "R1-Shared-recommendation.dc.html", "w": 1400, "title": "Recommendation and handoff (a)–(c)", "caption": "Measures per direction, jobs in taps, handoff tagged (a) companion SwiftUI, (b) SDUI node rendering, (c) plugin payload; the one open question."}
+  ]
+}

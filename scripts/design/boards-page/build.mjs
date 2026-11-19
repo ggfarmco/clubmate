@@ -15,7 +15,7 @@ const rendered = config.boards.map((b) => {
   const page = `<!doctype html><html><head><meta charset="utf-8"><style id="styles"></style></head><body><div id="board"></div><script>window.BOARD_SRC=${JSON.stringify(src).replace(/</g, "\\u003c")};</script><script>${shim}</script></body></html>`;
   const pagePath = join(work, b.file.replace('.dc.html', '.page.html'));
   writeFileSync(pagePath, page);
-  const dom = execFileSync(chrome, ['--headless=new', '--disable-gpu', '--virtual-time-budget=2000', '--dump-dom', 'file://' + pagePath], { maxBuffer: 64 << 20 }).toString();
+  const dom = execFileSync(chrome, ['--headless=new', '--disable-gpu', '--user-data-dir=' + join(work, 'chrome'), '--virtual-time-budget=2000', '--dump-dom', 'file://' + pagePath], { maxBuffer: 64 << 20 }).toString();
   const styles = /<style id="styles">([\s\S]*?)<\/style>/.exec(dom)[1];
   const board = /<div id="board">([\s\S]*?)<\/div><script>/.exec(dom)[1];
   return { ...b, styles, board };
@@ -23,7 +23,7 @@ const rendered = config.boards.map((b) => {
 
 const font = (f) => readFileSync(join(assetsDir, f)).toString('base64');
 const fonts = readFileSync(join(assetsDir, 'fonts.css'), 'utf8').replace(/url\('assets\/([^']+)'\)/g, (_, f) => `url(data:font/woff2;base64,${font(f)})`);
-const css = readFileSync(join(assetsDir, 'cm.css'), 'utf8') + '\n' + readFileSync(join(assetsDir, 'c.css'), 'utf8');
+const css = [join(assetsDir, 'cm.css'), join(assetsDir, 'c.css'), ...(config.css || []).map((f) => join(boardsDir, f))].map((f) => readFileSync(f, 'utf8')).join('\n');
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
 const cards = rendered.map((b) => {

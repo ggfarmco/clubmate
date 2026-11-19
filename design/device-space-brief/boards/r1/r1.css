@@ -1,0 +1,75 @@
+/* Clubmate companion · Round 1 (device UX) — layer over cm.css + companion.css.
+   Blue (--ms) is the annotation ink only: rulers, tap marks, step numbers. Never an app colour. */
+.r1{--ms:#2F6FEB}
+.r1 .fig{display:flex;flex-direction:column;gap:14px;flex:none}
+.r1 .fw{position:relative;flex:none}
+.r1 .dev{position:relative;overflow:hidden;flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.16),0 20px 44px rgba(0,0,0,.10)}
+.r1 .ph{width:402px;height:874px;border-radius:56px}
+.r1 .pl{width:1210px;height:834px;border-radius:22px}
+.r1 .pp{width:834px;height:1210px;border-radius:22px}
+.r1 .isl{position:absolute;top:11px;left:50%;width:124px;margin-left:-62px;height:36px;border-radius:18px;background:#000;z-index:20}
+.r1 .home{position:absolute;bottom:8px;left:50%;width:140px;margin-left:-70px;height:5px;border-radius:3px;background:var(--fg);z-index:20}
+.r1 .ruler{position:absolute;left:-18px;top:0;width:6px;border-radius:3px;background:var(--ms)}
+.r1 .ruler.b{top:auto;bottom:0;opacity:.45}
+
+/* phone chrome */
+.r1 .nb{position:absolute;left:16px;right:16px;top:59px;height:44px;display:flex;align-items:center;gap:8px;z-index:8}
+.r1 .nb .t{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center}
+.r1 .nt{font-size:15px;line-height:20px;font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r1 .ns{font-size:12px;line-height:16px;color:var(--t3);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.r1 .fade{position:absolute;left:0;right:0;top:0;height:116px;background:linear-gradient(var(--bg) 64%,transparent);z-index:7;pointer-events:none}
+.r1 .fadeb{position:absolute;left:0;right:0;bottom:0;height:150px;background:linear-gradient(transparent,var(--bg) 55%);z-index:7;pointer-events:none}
+.r1 .chip{display:inline-flex;align-items:center;gap:2px;height:44px;padding:0 14px 0 8px;border-radius:22px;font-size:15px;line-height:20px;font-weight:500;color:var(--fg);flex:none;max-width:210px;white-space:nowrap;overflow:hidden;text-decoration:none}
+.r1 .chip span{overflow:hidden;text-overflow:ellipsis}
+.r1 .apill{display:inline-flex;align-items:center;gap:7px;height:44px;padding:0 14px;border-radius:22px;font-size:15px;font-weight:600;color:var(--wa-i);flex:none}
+.r1 .adot{width:9px;height:9px;border-radius:5px;background:var(--wa);flex:none;display:inline-block}
+.r1 .gb{width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--fg);flex:none}
+.r1 .gb svg.i{width:21px;height:21px;stroke-width:1.7}
+
+/* reading */
+.r1 .rd{font-size:17px;line-height:26px;display:flex;flex-direction:column;gap:14px}
+.r1 .rd h3{margin:0;font-size:28px;line-height:34px;font-weight:700;letter-spacing:-.3px}
+.r1 .rd h4{margin:6px 0 0;font-size:20px;line-height:25px;font-weight:600}
+.r1 .rd ol{margin:0;padding-left:26px;display:flex;flex-direction:column;gap:6px}
+.r1 .rd li{margin:0}
+.r1 .lnk{color:var(--ac-i);text-decoration:none}
+.r1 .rd .code{font-size:14px;line-height:21px}
+.r1 .meta{font-size:13px;line-height:18px;color:var(--t3)}
+.r1 .scr{position:absolute;left:0;right:0;overflow:hidden;padding:0 20px}
+
+/* transcript + docked requests */
+.r1 .tx{position:absolute;left:0;right:0;overflow:hidden;display:grid;align-content:end;gap:10px;padding:0 16px 8px}
+.r1 .dock{position:absolute;left:0;right:0;bottom:0;padding:10px 16px 34px;display:flex;flex-direction:column;gap:10px;z-index:8;background:linear-gradient(transparent,var(--bg) 22px)}
+.r1 .req{display:flex;flex-direction:column;gap:10px;padding:14px;border:1.5px solid var(--wa-bd);background:color-mix(in srgb,var(--wa) 9%,var(--s1));border-radius:20px}
+.r1 .fold{display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 10px 8px 12px;border:1.5px solid var(--wa-bd);background:color-mix(in srgb,var(--wa) 9%,var(--s1));border-radius:28px;color:var(--fg);text-align:left;width:100%}
+.r1 .fold .st{width:28px;height:28px}
+.r1 .opt{display:flex;align-items:center;gap:12px;min-height:46px;padding:8px 14px;border-radius:14px;background:var(--s1);color:var(--fg);text-align:left;width:100%;font-size:16px;line-height:21px}
+.r1 .opt.on{box-shadow:inset 0 0 0 2px var(--ac);background:color-mix(in srgb,var(--ac) 10%,var(--s1))}
+.r1 .rad{width:22px;height:22px;border-radius:11px;border:1.5px solid var(--bd2);flex:none}
+.r1 .opt.on .rad{border:7px solid var(--ac)}
+.r1 .qchip{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 16px;border-radius:22px;background:var(--s1);border:1px solid var(--bd);font-size:16px;color:var(--fg);white-space:nowrap}
+.r1 .qchip.on{background:var(--ac);border-color:var(--ac);color:var(--on-ac);font-weight:600}
+.r1 .row1{display:flex;align-items:center;gap:10px;min-width:0}
+
+/* iPad */
+.r1 .itb{position:absolute;left:0;right:0;top:24px;height:56px;display:flex;align-items:center;gap:10px;padding:0 20px;z-index:8}
+.r1 .rail{position:absolute;left:0;top:0;bottom:0;width:64px;background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:34px;z-index:9}
+.r1 .rbtn{position:relative;width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--t2)}
+.r1 .rbtn.on{background:var(--ac-bg);color:var(--ac-i)}
+.r1 .rbadge{position:absolute;top:4px;right:3px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--wa);color:#1A1300;font-size:12px;line-height:18px;font-weight:700;text-align:center}
+.r1 .bbar{display:flex;align-items:center;gap:6px;height:56px;padding:0 6px;border-radius:28px}
+
+/* annotations */
+.r1 .tap{position:absolute;z-index:30;width:46px;height:46px;border-radius:23px;border:2.5px solid var(--ms);background:color-mix(in srgb,var(--ms) 16%,transparent);pointer-events:none}
+.r1 .ann{position:absolute;z-index:30;background:var(--ms);color:#fff;font:600 12px/16px 'IBM Plex Sans',sans-serif;padding:4px 9px;border-radius:11px;white-space:nowrap;letter-spacing:0}
+.r1 .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:14px;background:var(--ms);color:#fff;font:600 15px/1 'IBM Plex Sans',sans-serif;flex:none}
+.r1 .ftitle{font-size:17px;line-height:24px;font-weight:600}
+.r1 .stat{font-family:'JetBrains Mono',monospace;font-size:13px;line-height:19px;color:#3A3D3B}
+.r1 .stat b{font-size:20px;line-height:26px;color:var(--ms);font-weight:600}
+.r1 .fnote{font-size:14px;line-height:20px;color:#2C302D}
+.r1 .fnote ul{padding-left:16px}
+.r1 .fnote li{margin:0 0 3px}
+.r1 .tags{display:flex;gap:6px;flex-wrap:wrap}
+.r1 .mini{border-radius:10px;border:1.5px solid #C9C6BA;background:#FFFFFF;display:flex;gap:4px;padding:4px;height:96px}
+.r1 .mini>div{border-radius:6px;background:#E4E2D9;font-size:11px;line-height:14px;display:flex;align-items:center;justify-content:center;text-align:center;color:#3A3D3B;padding:2px}
+.r1 .mini>div.d{background:#D9EAD9;flex:1}

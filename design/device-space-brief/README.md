@@ -149,3 +149,16 @@ How you move today, and whether there is an obvious way back to where you were.
 - Dark theme: the iOS 27 simulator stayed light under both `XCUIDevice.appearance` and `simctl ui appearance dark`. Every shot is light; space and navigation don't depend on the theme.
 - iPad shots are rotated to landscape and downscaled: iPhone to 603 px wide, iPad to 1200 (landscape) or 1000 (portrait).
 - Leftovers (the wiki `#4` link on the phone, dark shots): backlog #938.
+
+## Round 1
+
+Claude Design, 19 Nov 2026. Canvas "Clubmate · Device UX": https://claude.ai/artifact/XgeKPdK3CsRqRPkGUMDMMy, chat https://claude.ai/chat/a77b7db2-9cd7-4fa6-b1a9-86906669d093. Pages: Today (`Main`: every screenshot captioned with its file name, plus `C-Macs`, `C-Workspace`, `C-Permission`, `C-Question`, `C-iPad`), r1, Language (`C-Language`, `C-Components`). Canvas copies of cm.css / c.css: `/_blob/335c10eb…` / `/_blob/b817086b…`; the round's own stylesheet `/_blob/c2936f2b…` is `boards/r1/r1.css`.
+
+- `round-1.html` (built from `round-1.json`): the round in one page. Boards in `boards/r1/` (`.dc.html` + `canvas.json` as pulled).
+- A · Fold into the bar (designer's pick): system bars fold on scroll, request cards fold to a 56-pt row, iPad columns step down with the sidebar button.
+- B · Get out of the way: chrome, banner and mic leave on scroll, one tap brings them back; amber pill for a waiting request; iPad reading view on ⌃⌘F.
+- C · Everything at the bottom: one bottom bar with back, title and actions; Macs column becomes a rail on iPad.
+- Shared navigation: cross-section links push on the current stack with a named back chip; wiki and doc links open in place (the phone stops catching `openDoc`, the wiki plugin already routes the path); one stack per segment.
+- Recommendation: A, plus B's reading mode for wiki pages and docs and the iPad reading view.
+- Answered in the chat from the code: today's 2 permission taps are open + Allow once (no confirm step); plugins send no typed link targets, so link routing needs no plugin change.
+- Open for the pick: Wiki as its own iPhone segment (2 taps to a page; drawn on A1 only) or under More (3 taps).

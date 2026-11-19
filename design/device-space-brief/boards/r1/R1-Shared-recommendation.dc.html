@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Round 1 recommendation and handoff</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/b817086b800196f47552f5b8296120a7">
+<link rel="stylesheet" href="/_blob/335c10eb4f565f3d8439aed203fbbea6">
+<link rel="stylesheet" href="/_blob/c2936f2b42b1a4ba929170156f8c1e3a">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+</helmet>
+<div class="doc r1" style="width: 1400px; height: 2080px; padding: 56px; display: flex; flex-direction: column; gap: 32px">
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div class="eyebrow">Round 1 · recommendation</div>
+<h1>A as the system, B's reading mode for pages</h1>
+<p class="lead">Build A: the system bars fold, cards fold, iPad columns step down with the sidebar button. It gets most of the space back with standard SwiftUI, keeps the iPhone Duo side bars working, and nothing hides that a person might be looking for. Add B's reading mode for wiki pages and docs only, plus the iPad reading view on ⌃⌘F. Keep sessions on A's folded row: they are live, and the composer should stay in reach. Leave C: the bottom bar is not a system bar, and on a question it takes half the screen.</p>
+</div>
+
+<table>
+<thead><tr><th style="width: 330px">Measure (iPhone 874 pt · iPad width)</th><th>Today</th><th>A</th><th>B</th><th>C</th></tr></thead>
+<tbody>
+<tr><td>Wiki page, chrome above the text, scrolled</td><td>28%</td><td>13%</td><td><b>7%</b></td><td>7% + 11% bar below</td></tr>
+<tr><td>Session waiting for permission, transcript</td><td>35%</td><td><b>47%</b></td><td>47% (A at the live end)</td><td>48%</td></tr>
+<tr><td>Same session, reading back</td><td>35%</td><td>70%</td><td><b>82%</b></td><td>81%</td></tr>
+<tr><td>Two questions, transcript</td><td>15%</td><td>41%</td><td><b>43%</b></td><td>42%</td></tr>
+<tr><td>iPad landscape, detail width</td><td>47%</td><td>100%</td><td><b>100%, no bars</b></td><td>95%</td></tr>
+<tr><td>iPad portrait, detail width</td><td>54%</td><td>100%</td><td>100%</td><td>92%</td></tr>
+<tr><td>System bars · iPhone Duo side bars</td><td>yes</td><td><b>yes</b></td><td>yes, hidden while reading</td><td>custom; needs its own Duo layout</td></tr>
+<tr><td>Build cost</td><td>—</td><td><b>low</b></td><td>medium</td><td>high</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th style="width: 330px">Job (taps)</th><th>Today</th><th>Every direction</th><th>How</th></tr></thead>
+<tbody>
+<tr><td>Check what needs you → answer → back</td><td>5</td><td><b>3</b></td><td>open 1 · Allow once 1 · back chip 1</td></tr>
+<tr><td>Session → #4 → back, iPhone</td><td>1 + 3, scroll lost</td><td><b>1 + 1</b>, scroll kept</td><td>#4 pushed on the session's stack</td></tr>
+<tr><td>Session → #4 → back, iPad</td><td>1 + no way back</td><td><b>1 + 1</b></td><td>#4 in the detail column, list unchanged</td></tr>
+<tr><td>Wiki page → linked page → back</td><td>popup + Done; page never opens</td><td><b>1 + 1</b></td><td>pushed in the wiki stack</td></tr>
+<tr><td>Answer two questions</td><td>5</td><td><b>3</b></td><td>pick · pick · Send</td></tr>
+<tr><td>Read a wiki page from Agents</td><td>3</td><td>A with a Wiki segment <b>2</b> · A without it, B and C 3 · next time <b>1</b></td><td>With: Wiki · page. Without: More · Wiki · page. The segment remembers its open page</td></tr>
+<tr><td>Start a session</td><td>2</td><td>2</td><td>unchanged</td></tr>
+</tbody>
+</table>
+
+<div style="display: flex; flex-direction: column; gap: 14px; padding-top: 8px; border-top: 1.5px solid #1B1D1C">
+<h2>Handoff</h2>
+<p class="muted" style="font-size: 14px"><span class="tag a">(a)</span> companion SwiftUI only · <span class="tag b">(b)</span> how the phone renders shared SDUI nodes · <span class="tag c">(c)</span> what a plugin sends</p>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 40px; font-size: 14px; line-height: 20px">
+<div style="display: flex; flex-direction: column; gap: 9px">
+<div><span class="tag a">(a)</span> Session bar: other sessions waiting = amber count; drop the 56-pt banner. Tap pushes that session with a back chip.</div>
+<div><span class="tag a">(a)</span> Docked permission and question cards: folded 56-pt row while scrolled back; full at the live end or on tap. The row never answers.</div>
+<div><span class="tag a">(a)</span> Question card: one question at a time, 46-pt option rows, auto-advance, Send after the last; typing answers the current one.</div>
+<div><span class="tag a">(a)</span> Mic: bar button on reading screens, composer row on sessions. No floating mic.</div>
+<div><span class="tag a">(a)</span> Navigation: one stack per section and segment, restored on return. Cross-section links push into the current stack with a named back chip, a section line and ••• › Show in &lt;section&gt;.</div>
+<div><span class="tag a">(a)</span> Entry points: Needs you, Inbox and the request banner push with a back chip; a lock-screen notification builds Macs › workspace › session.</div>
+<div><span class="tag a">(a)</span> Answered card: one muted row, then Next waiting or Back in the bottom 40%.</div>
+<div><span class="tag a">(a)</span> iPad: column visibility per section (all · list + detail · detail), sidebar button and ⌃⌘S; portrait opens detail-only with the list sliding over.</div>
+<div><span class="tag a">(a)</span> iPad reading view on ⌃⌘F / pinch out; Esc or edge swipe restores the previous columns. No auto-hide with VoiceOver, Switch Control or Reduce Motion.</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 9px">
+<div><span class="tag b">(b)</span> header node: large title + one meta line at rest; folds into the bar title after 44 pt; its actions render as bar buttons, primary first, the rest in •••. Applies to the wiki and every plugin section header.</div>
+<div><span class="tag b">(b)</span> header node: when its title equals the navigation title (the wiki list's “Wiki” twice), render it once.</div>
+<div><span class="tag b">(b)</span> document node: 680-pt measure in regular width (doc and wiki pages, sheets); reading mode that hides chrome on scroll, tap to bring it back; headings feed a contents button.</div>
+<div><span class="tag b">(b)</span> link inside a document: the result pushes (iPhone) or opens in the detail column (iPad), never a full-screen popup; a file outside any section opens as a doc page with a 680-pt measure.</div>
+<div><span class="tag b">(b)</span> tree node: on iPad, render in the list column with selection following the detail; on iPhone, a pushed list as today.</div>
+<div><span class="tag a">(a)</span> <span class="tag b">(b)</span> Link routing needs no plugin change. A document link fires openDoc with an absolute path (+ #anchor). The phone stops intercepting it and lets it reach the section's plugin: the wiki already maps the path to its page and selects it, and the phone pushes the result. Only a file outside any section falls back to a doc page. Task links like #4 stay markdown that the phone parses and resolves against the backlog.</div>
+<div><span class="tag c">(c)</span> Header actions carry a role (primary or secondary) so Edit goes in the bar and History in •••.</div>
+<div><span class="tag c">(c)</span> A section with its own navigation tree marks it as the section's navigation, so iPad places it in the list column.</div>
+<div><span class="tag c">(c)</span> Questions arrive as structured options with an optional suggested one (for the one-at-a-time card).</div>
+</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px; padding-top: 8px; border-top: 1px solid #DAD8CF">
+<h3>Open for you</h3>
+<ul style="font-size: 14px; line-height: 20px">
+<li><b>Your pick: Wiki as its own iPhone segment, or under More.</b> As a segment, the bar reads Agents · Backlog · Docs · Wiki · More and the first read of a wiki page from Agents is 2 taps. Under More, as today, it is 3. Shown on A1 only.</li>
+</ul>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":2080}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
