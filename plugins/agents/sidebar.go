@@ -264,12 +264,8 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		}
 		return sdui.VStack(top, field, docked(results))
 	}
-	oldest := map[string]time.Time{}
-	for _, row := range roots {
-		oldestNeed(row, kids, oldest, map[string]bool{})
-	}
 	filter = cmp.Or(filter, filterAll)
-	runs := markRoots(roots, kids)
+	runs, oldest := markRoots(roots, kids)
 	tabs := filterTabs(roots, filter, runs, plus.needRuns)
 	roots = slices.DeleteFunc(roots, func(row sessionRow) bool {
 		return !matchesFilter(row, filter) && (filter != filterNeeds || len(runs[row.Rec.ID]) == 0)
@@ -541,14 +537,58 @@ func sidebarTree(rows []sessionRow) ([]sessionRow, map[string][]sessionRow) {
 	return roots, kids
 }
 
-func markRoots(roots []sessionRow, kids map[string][]sessionRow) map[string][]string {
+type treeTally struct {
+	kids   map[string][]sessionRow
+	oldest map[string]time.Time
+	seen   map[string]bool
+	runs   []string
+	open   int
+	needs  bool
+}
+
+func markRoots(roots []sessionRow, kids map[string][]sessionRow) (map[string][]string, map[string]time.Time) {
 	runs := map[string][]string{}
+	t := treeTally{kids: kids, oldest: map[string]time.Time{}, seen: map[string]bool{}}
 	for i, row := range roots {
-		runs[row.Rec.ID] = runsNeeding(row, kids, map[string]bool{})
-		roots[i].Open = openTotal(row, kids, map[string]bool{})
-		roots[i].TreeNeeds = subtreeNeeds(row.Rec.ID, kids, map[string]bool{})
+		clear(t.seen)
+		t.runs, t.open, t.needs = nil, 0, false
+		t.walk(row, true)
+		runs[row.Rec.ID], roots[i].Open, roots[i].TreeNeeds = t.runs, t.open, t.needs
 	}
-	return runs
+	return runs, t.oldest
+}
+
+func (t *treeTally) walk(row sessionRow, root bool) time.Time {
+	t.seen[row.Rec.ID] = true
+	t.open += row.Rec.OpenCount
+	if !root && (needsYou(row.Rec) || row.GateAsk != nil) {
+		t.needs = true
+	}
+	var at time.Time
+	if needsYou(row.Rec) {
+		at = cmp.Or(row.Since, row.Rec.UpdatedAt)
+	}
+	for _, n := range []*runNeed{row.RunNeed, row.GateAsk} {
+		if n == nil {
+			continue
+		}
+		t.runs = append(t.runs, n.Run)
+		if at.IsZero() || n.Since.Before(at) {
+			at = n.Since
+		}
+	}
+	for _, kid := range t.kids[row.Rec.ID] {
+		if t.seen[kid.Rec.ID] {
+			continue
+		}
+		if k := t.walk(kid, false); !k.IsZero() && (at.IsZero() || k.Before(at)) {
+			at = k
+		}
+	}
+	if !at.IsZero() {
+		t.oldest[row.Rec.ID] = at
+	}
+	return at
 }
 
 func tallyFilters(roots []sessionRow, runs map[string][]string, needRuns []string, add func(id, filter string, n int)) {
@@ -605,22 +645,6 @@ func ownNeeds(row sessionRow) bool {
 	return needsYou(row.Rec) || row.Children == statusWaiting || row.TreeNeeds || row.GateAsk != nil
 }
 
-func runsNeeding(row sessionRow, kids map[string][]sessionRow, seen map[string]bool) []string {
-	seen[row.Rec.ID] = true
-	var out []string
-	for _, n := range []*runNeed{row.RunNeed, row.GateAsk} {
-		if n != nil {
-			out = append(out, n.Run)
-		}
-	}
-	for _, kid := range kids[row.Rec.ID] {
-		if !seen[kid.Rec.ID] {
-			out = append(out, runsNeeding(kid, kids, seen)...)
-		}
-	}
-	return out
-}
-
 func matchesFilter(row sessionRow, filter string) bool {
 	switch filter {
 	case filterNeeds:
@@ -631,42 +655,6 @@ func matchesFilter(row sessionRow, filter string) bool {
 		return !row.Rec.restricted() && (row.Open > 0 || row.Rec.MayAsk)
 	}
 	return true
-}
-
-func openTotal(row sessionRow, kids map[string][]sessionRow, seen map[string]bool) int {
-	seen[row.Rec.ID] = true
-	total := row.Rec.OpenCount
-	for _, kid := range kids[row.Rec.ID] {
-		if !seen[kid.Rec.ID] {
-			total += openTotal(kid, kids, seen)
-		}
-	}
-	return total
-}
-
-func oldestNeed(row sessionRow, kids map[string][]sessionRow, oldest map[string]time.Time, seen map[string]bool) time.Time {
-	seen[row.Rec.ID] = true
-	var at time.Time
-	if needsYou(row.Rec) {
-		at = cmp.Or(row.Since, row.Rec.UpdatedAt)
-	}
-	for _, n := range []*runNeed{row.RunNeed, row.GateAsk} {
-		if n != nil && (at.IsZero() || n.Since.Before(at)) {
-			at = n.Since
-		}
-	}
-	for _, kid := range kids[row.Rec.ID] {
-		if seen[kid.Rec.ID] {
-			continue
-		}
-		if k := oldestNeed(kid, kids, oldest, seen); !k.IsZero() && (at.IsZero() || k.Before(at)) {
-			at = k
-		}
-	}
-	if !at.IsZero() {
-		oldest[row.Rec.ID] = at
-	}
-	return at
 }
 
 func compareSince(x, y time.Time) int {
@@ -856,19 +844,6 @@ func groupItem(key, label, icon string, children []sdui.TreeItem, expanded bool)
 		item.Children = children
 	}
 	return item
-}
-
-func subtreeNeeds(id string, kids map[string][]sessionRow, seen map[string]bool) bool {
-	seen[id] = true
-	for _, kid := range kids[id] {
-		if seen[kid.Rec.ID] {
-			continue
-		}
-		if needsYou(kid.Rec) || kid.GateAsk != nil || subtreeNeeds(kid.Rec.ID, kids, seen) {
-			return true
-		}
-	}
-	return false
 }
 
 func descendantCount(id string, kids map[string][]sessionRow, seen map[string]bool) int {

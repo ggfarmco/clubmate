@@ -165,8 +165,8 @@ func trustInfo(workspace string, n trustNeed) sessionInfo {
 	}
 }
 
-func gateEntries(infos []sessionInfo) []string {
-	var out []string
+func needEntries(needs map[string]runNeed, infos []sessionInfo) []string {
+	out := slices.Sorted(maps.Keys(needs))
 	for _, info := range infos {
 		if info.Kind == kindGate {
 			out = append(out, info.ID)

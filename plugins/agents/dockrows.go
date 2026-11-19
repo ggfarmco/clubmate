@@ -66,11 +66,14 @@ func gateCounts(rows []gateRow, reviewersAsking int) gateCount {
 			c.trusted = append(c.trusted, label)
 		}
 	}
+	if reviewersAsking > 0 {
+		c.asked = nil
+	}
 	return c
 }
 
-func onlyOne(n int, names []string) string {
-	if n == 1 && len(names) == 1 {
+func onlyOne(names []string) string {
+	if len(names) == 1 {
 		return names[0]
 	}
 	return ""
@@ -90,13 +93,13 @@ func dockRows(service []sessionInfo, gates gateCount, defs []graphs.Definition) 
 	gate := countRow(dockGates, "Gates", gatesIcon, gates.Gated)
 	switch {
 	case gates.Trust > 0:
-		gate.State, gate.Which, gate.Attention = strconv.Itoa(gates.Trust)+" to trust", onlyOne(gates.Trust, gates.trusted), true
+		gate.State, gate.Which, gate.Attention = strconv.Itoa(gates.Trust)+" to trust", onlyOne(gates.trusted), true
 	case gates.Asking > 0:
-		gate.State, gate.Which = strconv.Itoa(gates.Asking)+" asking", onlyOne(gates.Asking, gates.asked)
+		gate.State, gate.Which = strconv.Itoa(gates.Asking)+" asking", onlyOne(gates.asked)
 	case gates.Landing > 0:
-		gate.State, gate.Which = landingCount(gates.Landing), onlyOne(gates.Landing, gates.landing)
+		gate.State, gate.Which = landingCount(gates.Landing), onlyOne(gates.landing)
 	case gates.Held > 0:
-		gate.State, gate.Which = heldCount(gates.Held), onlyOne(gates.Held, gates.held)
+		gate.State, gate.Which = heldCount(gates.Held), onlyOne(gates.held)
 	}
 	var waiting []string
 	for _, d := range defs {
@@ -106,7 +109,7 @@ func dockRows(service []sessionInfo, gates gateCount, defs []graphs.Definition) 
 	}
 	graph := countRow(dockGraphs, "Graphs", graphsIcon, len(defs))
 	if len(waiting) > 0 {
-		graph.State, graph.Which, graph.Attention = strconv.Itoa(len(waiting))+" to trust", onlyOne(len(waiting), waiting), true
+		graph.State, graph.Which, graph.Attention = strconv.Itoa(len(waiting))+" to trust", onlyOne(waiting), true
 	}
 	return []api.DockRow{svc, gate, graph}
 }

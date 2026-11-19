@@ -298,7 +298,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 		search.results = a.search(workspaceID, search.query)
 	}
 	plus := graphs.plus(dock)
-	plus.needRuns = append(slices.Sorted(maps.Keys(needs)), gateEntries(infos)...)
+	plus.needRuns = needEntries(needs, infos)
 	if err := a.push(ctx, p, workspaceID, sidebarSlot, sidebarView(rows, selected, collapsed, time.Now(), home, groups, branchOpen, filter, search, closedExtra, plus, inboxOf(infos))); err != nil {
 		return err
 	}

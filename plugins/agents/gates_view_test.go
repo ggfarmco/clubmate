@@ -507,13 +507,13 @@ func TestSheetHoldsDone(t *testing.T) {
 func TestGatesDockRowShowsHeldTurnsOnlyWithoutALanding(t *testing.T) {
 	t.Parallel()
 	done := gateRow{gateConfig: gateConfig{ID: "gt_done", Point: gatePointTurn}, Name: gateNamePlanSpecs, Landings: []gateLanding{{State: gateStateReview}}}
-	land := gateRow{gateConfig: gateConfig{ID: "gt_land", Point: gatePointLand}, Name: "Landing into main", Landings: []gateLanding{{State: gateStateReview}}}
+	land := gateRow{gateConfig: gateConfig{ID: "gt_land", Point: gatePointLand}, Name: "Landing into main", Landings: []gateLanding{{State: gateStateReview}, {State: gateStateReview}}}
 
 	only := dockRows(nil, gateCounts([]gateRow{done}, 0), nil)[1]
 	both := dockRows(nil, gateCounts([]gateRow{land, done}, 0), nil)[1]
 
 	assert.Equal(t, []string{"1", "1 held", "plans and specs"}, []string{only.Detail, only.State, only.Which})
-	assert.Equal(t, []string{"2", "1 landing", "into main"}, []string{both.Detail, both.State, both.Which})
+	assert.Equal(t, []string{"2", "2 landing", "into main"}, []string{both.Detail, both.State, both.Which})
 }
 
 func TestHeldTurnWaitingForTrustSaysSo(t *testing.T) {
