@@ -135,7 +135,7 @@ struct MessageNode: View {
         Group {
             switch MessageRole(node.string("role")) {
             case .user: UserBubble(text: text, fromAgent: node.string("from")?.isEmpty == false, images: [], files: attachments)
-            case .thought: ThoughtView(text: text, title: thought)
+            case .thought: ThoughtView(text: text, title: thought, open: node.bool("open") == true)
             case .agent:
                 AgentMessage(cards: node.docCards, entry: entry, images: node.images) { MarkdownView(text: text, docLinks: node.docLinks, imageLinks: node.imageLinks, taskLinks: node.taskLinks) }
                     .environment(\.openDoc, { target in

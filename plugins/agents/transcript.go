@@ -124,6 +124,7 @@ type entry struct {
 	ImageLinks map[string]string `json:"imageLinks,omitempty"`
 	TaskLinks  map[string]string `json:"taskLinks,omitempty"`
 	Hidden     bool              `json:"hidden,omitempty"`
+	Open       bool              `json:"open,omitempty"`
 	Voice      *voicePrompt      `json:"voice,omitempty"`
 	Review     *reviewSent       `json:"review,omitempty"`
 	Gate       *gateMessage      `json:"gateMessage,omitempty"`
@@ -229,12 +230,16 @@ func (s *session) viewSince(fromTurn int, since *cursor, always func(*entry) boo
 	}
 	marked := s.markedLocked()
 	numbers := openNumbers(s.opens)
+	opened := openThoughts(s.entries, s.runningTurnLocked())
 	for _, en := range s.entries {
 		if since == nil && en.Turn < fromTurn {
 			continue
 		}
 		s.refreshLocked(en)
 		changed, derived := en.node == nil, false
+		if opened[en] != en.Open {
+			en.Open, en.node, derived = opened[en], nil, true
+		}
 		if marked[en] != en.marked {
 			en.marked, en.node, derived = marked[en], nil, true
 		}

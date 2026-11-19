@@ -23,8 +23,8 @@ struct RowView: View {
             }
         case .held(_, let call):
             HeldCallBlock(call: call)
-        case .thought(_, let text, let title):
-            ThoughtView(text: text, title: title)
+        case .thought(_, let text, let title, let open):
+            ThoughtView(text: text, title: title, open: open)
         case .answered(let request):
             AnsweredRow(request: request)
         case .asked(let question):
@@ -49,7 +49,7 @@ struct EntryView: View {
         case .agent(let text):
             AgentMessage(cards: entry.docCards, entry: entry.id, images: entry.images) { MarkdownView(text: text, docLinks: entry.docLinks, imageLinks: entry.imageLinks, taskLinks: entry.taskLinks) }
         case .thought(let text):
-            ThoughtView(text: text, title: "Thought")
+            ThoughtView(text: text, title: "Thought", open: entry.open)
         case .tool(let tool):
             ToolRow(tool: tool)
         case .plan(let items):
@@ -584,7 +584,15 @@ private struct MermaidScreen: View {
 struct ThoughtView: View {
     let text: String
     let title: String
-    @State private var expanded = false
+    let open: Bool
+    @State private var expanded: Bool
+
+    init(text: String, title: String, open: Bool) {
+        self.text = text
+        self.title = title
+        self.open = open
+        _expanded = State(initialValue: open)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -611,6 +619,7 @@ struct ThoughtView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .onChange(of: open) { _, now in expanded = now }
     }
 }
 

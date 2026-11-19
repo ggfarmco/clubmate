@@ -59,7 +59,7 @@ final class SessionScreenTests: XCTestCase {
         """#
         let entries = try JSONDecoder.clubmate.decode([TranscriptEntry].self, from: Data(json.utf8))
         let rows = SessionScreen(entries: entries, session: AgentSession(id: "s", status: .running)).rows
-        XCTAssertEqual(rows.compactMap { if case .thought(_, _, let title) = $0 { title } else { nil } }, ["Thought for 3 s", "Thought", "Thought"])
+        XCTAssertEqual(rows.compactMap { if case .thought(_, _, let title, _) = $0 { title } else { nil } }, ["Thought for 3 s", "Thought", "Thought"])
         XCTAssertEqual(rows.first?.id, "thought/t1")
     }
 

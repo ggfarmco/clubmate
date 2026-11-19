@@ -268,3 +268,71 @@ func TestPresentedDocsAreMarkedAndAddedWhenTheTurnEnds(t *testing.T) {
 		{Path: filepath.Join(canonical, "notes.md"), Kind: "markdown", Title: "notes.md", Rel: "notes.md", Presented: true},
 	}, cards(2))
 }
+
+func TestOpenThoughtsStandInForAMissingReply(t *testing.T) {
+	t.Parallel()
+	thought := func(id string) *entry { return &entry{Kind: entryThought, ID: id, Turn: 1, Text: "why"} }
+	agent := func(id, text string) *entry { return &entry{Kind: entryAgent, ID: id, Turn: 1, Text: text} }
+	asked := func() *entry { return &entry{Kind: entryElicitation, ID: "q", Turn: 1} }
+	tool := func() *entry { return &entry{Kind: entryTool, ID: "c", Turn: 1, toolName: askUserQuestionTool} }
+	ids := func(open map[*entry]bool) []string {
+		var out []string
+		for en := range open {
+			out = append(out, en.ID)
+		}
+		return out
+	}
+	for _, tc := range []struct {
+		name    string
+		entries []*entry
+		running int
+		want    []string
+	}{
+		{"thought before a question form", []*entry{thought("t1"), asked()}, 1, []string{"t1"}},
+		{"thought before an AskUserQuestion call", []*entry{thought("t1"), tool()}, 1, []string{"t1"}},
+		{"only the last thought opens", []*entry{thought("t1"), thought("t2"), asked()}, 1, []string{"t2"}},
+		{"a reply before the question", []*entry{thought("t1"), agent("a1", "hi"), asked()}, 1, nil},
+		{"a blank reply is no reply", []*entry{thought("t1"), agent("a1", " \n"), asked()}, 1, []string{"t1"}},
+		{"each segment on its own", []*entry{thought("t1"), asked(), thought("t2"), agent("a1", "hi"), asked()}, 1, []string{"t1"}},
+		{"finished turn with only thoughts", []*entry{thought("t1"), thought("t2")}, 0, []string{"t2"}},
+		{"running turn has no end point", []*entry{thought("t1"), thought("t2")}, 1, nil},
+		{"next turn started before its prompt is recorded", []*entry{thought("t1"), thought("t2")}, 2, []string{"t2"}},
+		{"earlier turn is finished while the next runs", []*entry{thought("t1"), {Kind: entryThought, ID: "t2", Turn: 2, Text: "again"}}, 2, []string{"t1"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.ElementsMatch(t, tc.want, ids(openThoughts(tc.entries, tc.running)))
+		})
+	}
+}
+
+func TestThoughtOpensWhenItsTurnEnds(t *testing.T) {
+	t.Parallel()
+	lines := []string{
+		`{"turn":1,"kind":"session/prompt","payload":{"prompt":[{"type":"text","text":"go"}]}}`,
+		`{"turn":1,"kind":"session/update","payload":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"what to do"}}}`,
+	}
+	path := filepath.Join(t.TempDir(), "s.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600))
+	s := newSession(record{ID: "agt_1"}, newEventLog(path), false, func(string, bool) {})
+	s.mu.Lock()
+	s.running = true
+	s.mu.Unlock()
+
+	running := s.view(0)
+	pos, _, ok := parseCursor(running.Cursor)
+	require.True(t, ok)
+	assert.False(t, running.Entries[1].Open)
+
+	s.mu.Lock()
+	s.running = false
+	s.mu.Unlock()
+	done := s.viewSince(0, &pos, nil)
+	require.Len(t, done.Entries, 1)
+	assert.True(t, done.Entries[0].Open)
+
+	var props []any
+	for _, n := range nodesOf(transcript(screen{View: done}), "message") {
+		props = append(props, n.Props["open"])
+	}
+	assert.Equal(t, []any{true}, props)
+}

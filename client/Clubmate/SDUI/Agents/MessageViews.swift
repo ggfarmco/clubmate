@@ -30,7 +30,7 @@ struct MessageNodeView: View, Equatable {
             .help(sending ? "Sending…" : "")
             .accessibilityValue(sending ? "Sending" : "")
         case .thought:
-            ThoughtView(text: text, seconds: node.props["seconds"]?.numberValue.map(Int.init))
+            ThoughtView(text: text, seconds: node.props["seconds"]?.numberValue.map(Int.init), open: node.bool("open") == true)
         case .agent:
             let open = { [node, dispatch] (target: String) in dispatch(node, .named("openDoc", .string(target))) }
             let message = node.id ?? ""
@@ -245,9 +245,17 @@ private struct AttachmentLabels: View {
 private struct ThoughtView: View {
     let text: String
     let seconds: Int?
+    let open: Bool
 
-    @State private var expanded = false
+    @State private var expanded: Bool
     @Environment(\.theme) private var theme
+
+    init(text: String, seconds: Int?, open: Bool) {
+        self.text = text
+        self.seconds = seconds
+        self.open = open
+        _expanded = State(initialValue: open)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing.s) {
@@ -269,5 +277,6 @@ private struct ThoughtView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .onChange(of: open) { _, now in expanded = now }
     }
 }
