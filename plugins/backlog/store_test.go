@@ -118,7 +118,7 @@ func TestListSinceKeepsCachedOwners(t *testing.T) {
 	_, err = s.snapshot(t.Context(), "ws")
 	require.NoError(t, err)
 	since := ""
-	_, err = b.listCmd(t.Context(), "ws", commandArgs{Since: &since, Slim: true})
+	_, err = b.listCmd(t.Context(), pluginsdk.CommandRun{WorkspaceID: "ws"}, commandArgs{Since: &since, Slim: true})
 	require.NoError(t, err)
 
 	tasks, err := s.snapshot(t.Context(), "ws")

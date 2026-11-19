@@ -110,6 +110,26 @@ type taskReply struct {
 	Cursor string `json:"cursor"`
 }
 
+type agentReply struct {
+	ID        int      `json:"id"`
+	Title     string   `json:"title"`
+	Status    string   `json:"status"`
+	Priority  string   `json:"priority"`
+	Tags      []string `json:"tags,omitempty"`
+	ClaimedBy string   `json:"claimedBy,omitempty"`
+	Cursor    string   `json:"cursor"`
+}
+
+type listRow struct {
+	ID        int       `json:"id"`
+	Title     string    `json:"title"`
+	Status    string    `json:"status"`
+	Priority  string    `json:"priority"`
+	Tags      []string  `json:"tags,omitempty"`
+	ClaimedBy string    `json:"claimedBy,omitempty"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 type commandArgs struct {
 	ID          int           `json:"id"`
 	Status      *string       `json:"status"`
@@ -125,6 +145,7 @@ type commandArgs struct {
 	Note        *string       `json:"note"`
 	Owner       string        `json:"owner"`
 	Slim        bool          `json:"slim"`
+	Full        bool          `json:"full"`
 	Since       *string       `json:"since"`
 	Seen        string        `json:"seen"`
 	Reason      string        `json:"reason"`
@@ -163,7 +184,7 @@ func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.
 	}
 	switch cmd.ID {
 	case "backlog.list":
-		return b.listCmd(ctx, cmd.WorkspaceID, args)
+		return b.listCmd(ctx, cmd, args)
 	case "backlog.get":
 		return b.getCmd(ctx, cmd, args)
 	case "backlog.add":
@@ -200,8 +221,19 @@ func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
 
+func (b *backlog) agentCaller(ctx context.Context, cmd pluginsdk.CommandRun) bool {
+	return cmd.Agent || b.fromSession(ctx, cmd.WorkspaceID, cmd.Caller)
+}
+
+func (b *backlog) reply(ctx context.Context, cmd pluginsdk.CommandRun, t Task, cursor string) any {
+	if b.agentCaller(ctx, cmd) {
+		return agentReply{ID: t.ID, Title: t.Title, Status: t.Status, Priority: t.Priority, Tags: t.Tags, ClaimedBy: t.ClaimedBy, Cursor: cursor}
+	}
+	return taskReply{Task: t, Cursor: cursor}
+}
+
 func (b *backlog) notUser(ctx context.Context, cmd pluginsdk.CommandRun) error {
-	if cmd.Agent || b.fromSession(ctx, cmd.WorkspaceID, cmd.Caller) {
+	if b.agentCaller(ctx, cmd) {
 		return fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 	}
 	return nil
@@ -261,7 +293,8 @@ func (b *backlog) linked(ctx context.Context, workspaceID string, t Task) (map[i
 	return out, nil
 }
 
-func (b *backlog) listCmd(ctx context.Context, workspaceID string, args commandArgs) (any, error) {
+func (b *backlog) listCmd(ctx context.Context, cmd pluginsdk.CommandRun, args commandArgs) (any, error) {
+	workspaceID := cmd.WorkspaceID
 	if args.Since != nil {
 		p, err := b.store.since(ctx, workspaceID, *args.Since)
 		for i := range p.Tasks {
@@ -310,6 +343,13 @@ func (b *backlog) listCmd(ctx context.Context, workspaceID string, args commandA
 	if args.Limit > 0 && len(tasks) > args.Limit {
 		tasks = tasks[:args.Limit]
 	}
+	if !args.Full && b.agentCaller(ctx, cmd) {
+		rows := make([]listRow, 0, len(tasks))
+		for _, t := range tasks {
+			rows = append(rows, listRow{ID: t.ID, Title: t.Title, Status: t.Status, Priority: t.Priority, Tags: t.Tags, ClaimedBy: t.ClaimedBy, UpdatedAt: t.UpdatedAt})
+		}
+		return map[string]any{"tasks": rows}, nil
+	}
 	return map[string]any{"tasks": tasks}, nil
 }
 
@@ -348,7 +388,7 @@ func (b *backlog) addCmd(ctx context.Context, cmd pluginsdk.CommandRun, args com
 		return nil, err
 	}
 	b.changed(ctx, cmd.WorkspaceID, t.ID, kindAdded)
-	return taskReply{Task: t, Cursor: cursor}, nil
+	return b.reply(ctx, cmd, t, cursor), nil
 }
 
 func (b *backlog) updateCmd(ctx context.Context, cmd pluginsdk.CommandRun, args commandArgs) (any, error) {
@@ -403,7 +443,7 @@ func (b *backlog) updateCmd(ctx context.Context, cmd pluginsdk.CommandRun, args 
 		return nil, err
 	}
 	b.changed(ctx, cmd.WorkspaceID, t.ID, kindUpdated)
-	return taskReply{Task: t, Cursor: cursor}, nil
+	return b.reply(ctx, cmd, t, cursor), nil
 }
 
 func (b *backlog) claimCmd(ctx context.Context, cmd pluginsdk.CommandRun, args commandArgs) (any, error) {
@@ -415,7 +455,7 @@ func (b *backlog) claimCmd(ctx context.Context, cmd pluginsdk.CommandRun, args c
 	if err != nil {
 		return nil, err
 	}
-	return taskReply{Task: t, Cursor: cursor}, nil
+	return b.reply(ctx, cmd, t, cursor), nil
 }
 
 func (b *backlog) claim(ctx context.Context, workspaceID string, id int, seen string, mv OwnerMove, check func(*Task) error) (Task, string, error) {
@@ -624,7 +664,7 @@ func (b *backlog) releaseCmd(ctx context.Context, cmd pluginsdk.CommandRun, args
 		return nil, err
 	}
 	b.changed(ctx, cmd.WorkspaceID, t.ID, kindReleased)
-	return taskReply{Task: t, Cursor: cursor}, nil
+	return b.reply(ctx, cmd, t, cursor), nil
 }
 
 func (b *backlog) doneCmd(ctx context.Context, cmd pluginsdk.CommandRun, args commandArgs) (any, error) {
@@ -649,7 +689,7 @@ func (b *backlog) doneCmd(ctx context.Context, cmd pluginsdk.CommandRun, args co
 		return nil, err
 	}
 	b.changed(ctx, cmd.WorkspaceID, t.ID, kindDone)
-	return taskReply{Task: t, Cursor: cursor}, nil
+	return b.reply(ctx, cmd, t, cursor), nil
 }
 
 func (b *backlog) closeCmd(ctx context.Context, cmd pluginsdk.CommandRun, args commandArgs) (any, error) {
@@ -676,13 +716,13 @@ func (b *backlog) closeCmd(ctx context.Context, cmd pluginsdk.CommandRun, args c
 		return nil
 	})
 	if errors.Is(err, errUnchanged) {
-		return taskReply{Task: t, Cursor: cursor}, nil
+		return b.reply(ctx, cmd, t, cursor), nil
 	}
 	if err != nil {
 		return nil, err
 	}
 	b.changed(ctx, cmd.WorkspaceID, t.ID, kindClosed)
-	return taskReply{Task: t, Cursor: cursor}, nil
+	return b.reply(ctx, cmd, t, cursor), nil
 }
 
 func withReason(note, reason string) string {

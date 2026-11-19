@@ -3,6 +3,7 @@ package main_test
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -22,12 +23,13 @@ import (
 )
 
 type task struct {
-	ID       int      `json:"id"`
-	Title    string   `json:"title"`
-	Status   string   `json:"status"`
-	Priority string   `json:"priority"`
-	Tags     []string `json:"tags"`
-	Links    []struct {
+	ID          int      `json:"id"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Status      string   `json:"status"`
+	Priority    string   `json:"priority"`
+	Tags        []string `json:"tags"`
+	Links       []struct {
 		Kind   string `json:"kind"`
 		Task   int    `json:"task"`
 		Title  string `json:"title"`
@@ -146,7 +148,7 @@ func TestClaimIsExclusive(t *testing.T) {
 	claimed := e.must(e.agent("agt_a", "backlog.claim", map[string]any{"id": tk.ID}))
 	assert.Equal(t, "in_progress", claimed.Status)
 	assert.Equal(t, "agt_a", claimed.ClaimedBy)
-	assert.Equal(t, "todo", claimed.ClaimedFrom)
+	assert.Equal(t, "todo", e.must(e.user("backlog.get", map[string]any{"id": tk.ID})).ClaimedFrom)
 	_, err := e.agent("agt_b", "backlog.claim", map[string]any{"id": tk.ID})
 	assert.ErrorContains(t, err, "in progress by agt_a")
 	e.must(e.agent("agt_a", "backlog.claim", map[string]any{"id": tk.ID}))
@@ -163,6 +165,36 @@ func TestClaimIsExclusive(t *testing.T) {
 	}
 	wg.Wait()
 	assert.EqualValues(t, 1, wins.Load())
+}
+
+func TestAgentGetsShortWriteReply(t *testing.T) {
+	e := newEnv(t)
+	mic := e.add("Mic", map[string]any{"description": "body"})
+	var short map[string]any
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "backlog.update", "workspaceId": e.p, "args": map[string]any{"id": mic.ID, "note": "n"}, "agent": true, "caller": "agt_x"}, &short))
+	assert.ElementsMatch(t, []string{"id", "title", "status", "priority", "cursor"}, slices.Collect(maps.Keys(short)))
+	full := e.must(e.user("backlog.update", map[string]any{"id": mic.ID, "note": "m"}))
+	assert.Equal(t, "body", full.Description)
+	got := e.must(e.agent("agt_x", "backlog.get", map[string]any{"id": mic.ID}))
+	assert.Equal(t, "body", got.Description)
+}
+
+func TestAgentListGetsRowsUnlessFull(t *testing.T) {
+	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
+	e.add("Mic", map[string]any{"description": "body"})
+	list := func(agent bool, caller string, args map[string]any) map[string]any {
+		var res struct {
+			Tasks []map[string]any `json:"tasks"`
+		}
+		require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "backlog.list", "workspaceId": e.p, "args": args, "agent": agent, "caller": caller}, &res))
+		require.Len(t, res.Tasks, 1)
+		return res.Tasks[0]
+	}
+	rowKeys := []string{"id", "title", "status", "priority", "updatedAt"}
+	assert.ElementsMatch(t, rowKeys, slices.Collect(maps.Keys(list(true, "agt_live", map[string]any{}))))
+	assert.ElementsMatch(t, rowKeys, slices.Collect(maps.Keys(list(false, "agt_live", map[string]any{}))))
+	assert.Equal(t, "body", list(true, "agt_live", map[string]any{"full": true})["description"])
+	assert.Equal(t, "body", list(false, "", map[string]any{})["description"])
 }
 
 func TestOwnerRequiredWithoutCaller(t *testing.T) {
@@ -193,7 +225,8 @@ func TestReleaseAndDonePermissions(t *testing.T) {
 	assert.Equal(t, "idea", released.Status)
 	assert.Equal(t, "agt_a", released.LastClaimedBy)
 	e.must(e.agent("agt_a", "backlog.claim", map[string]any{"id": tk.ID}))
-	done := e.must(e.agent("agt_a", "backlog.done", map[string]any{"id": tk.ID, "note": "merged abc"}))
+	e.must(e.agent("agt_a", "backlog.done", map[string]any{"id": tk.ID, "note": "merged abc"}))
+	done := e.must(e.user("backlog.get", map[string]any{"id": tk.ID}))
 	assert.Equal(t, "done", done.Status)
 	assert.Equal(t, "merged abc", done.Note)
 	assert.Empty(t, done.ClaimedBy)
@@ -211,7 +244,8 @@ func TestUpdateCannotStartWork(t *testing.T) {
 	_, err = e.agent("agt_b", "backlog.update", map[string]any{"id": tk.ID, "status": "not_now"})
 	assert.Error(t, err)
 
-	moved := e.must(e.agent("agt_a", "backlog.update", map[string]any{"id": tk.ID, "status": "todo"}))
+	e.must(e.agent("agt_a", "backlog.update", map[string]any{"id": tk.ID, "status": "todo"}))
+	moved := e.must(e.user("backlog.get", map[string]any{"id": tk.ID}))
 	assert.Equal(t, "todo", moved.Status)
 	assert.Empty(t, moved.ClaimedBy)
 	assert.Equal(t, "agt_a", moved.LastClaimedBy)
@@ -229,7 +263,8 @@ func TestCloseAsWontDo(t *testing.T) {
 	_, err = e.agent("agt_a", "backlog.update", map[string]any{"id": tk.ID, "status": "wont_do"})
 	assert.Error(t, err)
 
-	closed := e.must(e.agent("agt_a", "backlog.close", map[string]any{"id": tk.ID, "reason": "superseded by #2"}))
+	e.must(e.agent("agt_a", "backlog.close", map[string]any{"id": tk.ID, "reason": "superseded by #2"}))
+	closed := e.must(e.user("backlog.get", map[string]any{"id": tk.ID}))
 	assert.Equal(t, "wont_do", closed.Status)
 	assert.Equal(t, "half done\n\nWon't do: superseded by #2", closed.Note)
 	assert.Empty(t, closed.ClaimedBy)
@@ -334,7 +369,8 @@ func TestStaleClaimIsTakenOver(t *testing.T) {
 	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
 	stale := e.add("stale", nil)
 	e.must(e.agent("agt_dead", "backlog.claim", map[string]any{"id": stale.ID}))
-	taken := e.must(e.agent("agt_live", "backlog.claim", map[string]any{"id": stale.ID}))
+	e.must(e.agent("agt_live", "backlog.claim", map[string]any{"id": stale.ID}))
+	taken := e.must(e.user("backlog.get", map[string]any{"id": stale.ID}))
 	assert.Equal(t, "agt_live", taken.ClaimedBy)
 	assert.Equal(t, "agt_dead", taken.LastClaimedBy)
 
