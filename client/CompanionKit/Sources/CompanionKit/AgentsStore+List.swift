@@ -11,7 +11,11 @@ public struct ShownSection: Sendable, Equatable, Identifiable {
 
 extension AgentsStore {
     public var treeMode: Bool {
-        AgentsTree.supported(sessions)
+        AgentsTree.supported(sessions) || olderShown
+    }
+
+    var olderRows: [AgentSession] {
+        departed + older.filter { row in !departed.contains { $0.id == row.id } }
     }
 
     public var listCounts: [ListFilter: Int] {
@@ -20,13 +24,14 @@ extension AgentsStore {
 
     public var shownSections: [ShownSection] {
         let latest = Dictionary(sessions.map { ($0.id, $0) }, uniquingKeysWith: { $1 })
-        return AgentsTree.sections(hold.shown ?? sessions, filter: listFilter).map { section in
+        return AgentsTree.sections(hold.shown ?? sessions, filter: listFilter, older: olderRows, olderCount: olderShown ? olderCount : 0).map { section in
             ShownSection(section: section, rows: section.rows(expanded: expanded, folded: foldedTasks, unfolded: unfoldedSections).map { $0.restyled(latest) })
         }
     }
 
     public func landList() {
         hold.land(sessions)
+        pruneDeparted()
     }
 
     @discardableResult
@@ -40,8 +45,10 @@ extension AgentsStore {
     func offerList() {
         if landAwaited() { return }
         guard treeMode, fetched else { return hold.land(sessions) }
+        let older = olderRows
+        let olderCount = olderShown ? olderCount : 0
         hold.offer(sessions, layout: { [listFilter, expanded, foldedTasks, unfoldedSections] sessions in
-            let sections = AgentsTree.sections(sessions, filter: listFilter)
+            let sections = AgentsTree.sections(sessions, filter: listFilter, older: older, olderCount: olderCount)
             return (sections, AgentsTree.layout(sections, expanded: expanded, folded: foldedTasks, unfolded: unfoldedSections))
         }, visible: visibleRows, onScreen: listOnScreen)
     }

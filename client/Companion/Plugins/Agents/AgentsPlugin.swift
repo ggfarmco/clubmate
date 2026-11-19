@@ -147,7 +147,7 @@ struct SessionListView: View {
                 } else if store.searchResults?.isEmpty == true {
                     ContentUnavailableView.search(text: store.searchQuery)
                 }
-            } else if store.sessions.isEmpty {
+            } else if store.sessions.isEmpty, !store.olderShown {
                 ContentUnavailableView {
                     Label("No Agent Sessions", systemImage: "sparkles")
                 } description: {
@@ -216,14 +216,20 @@ struct SessionListView: View {
                 let open = store.unfoldedSections.contains(section.id)
                 Section(isExpanded: Binding(get: { open }, set: { _ in })) {
                     rows(shown.rows)
+                    if section.kind == .older {
+                        OlderPageRow(loading: store.olderLoading, error: store.olderError, more: store.olderMore, left: store.olderLeft) {
+                            Task { await store.loadOlder() }
+                        }
+                    }
                 } header: {
                     Button {
                         Motion.disclose {
                             if store.unfoldedSections.remove(section.id) == nil { store.unfoldedSections.insert(section.id) }
                         }
+                        if section.kind == .older, !open { Task { await store.openOlder() } }
                     } label: {
                         HStack {
-                            Text("\(section.title(now: .now) ?? "") · \(section.nodes.count)")
+                            Text("\(section.title(now: .now) ?? "") · \(section.count)")
                             Spacer()
                             Image(systemName: "chevron.right")
                                 .rotationEffect(.degrees(open ? 90 : 0))
@@ -381,6 +387,54 @@ struct SessionListView: View {
             .onAppear { store.visibleRows.insert(row.id) }
             .onDisappear { store.visibleRows.remove(row.id) }
         }
+    }
+}
+
+struct OlderPageRow: View {
+    let loading: Bool
+    let error: String?
+    let more: Bool
+    let left: Int
+    let load: () -> Void
+
+    var body: some View {
+        Group {
+            if loading {
+                ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .accessibilityIdentifier("older.loading")
+            } else if let error {
+                HStack(spacing: 12) {
+                    Text(error)
+                        .font(.footnote)
+                        .foregroundStyle(Color.dangerInk)
+                        .lineLimit(2)
+                    Spacer(minLength: 0)
+                    Button("Retry", action: load)
+                        .buttonStyle(.borderless)
+                        .tint(.accentColor)
+                        .fontWeight(.semibold)
+                        .accessibilityIdentifier("older.retry")
+                }
+                .frame(minHeight: 44)
+            } else if more {
+                Button(action: load) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chevron.down")
+                            .font(.caption.weight(.semibold))
+                        Text(left > AgentsTree.olderPage ? "Show \(AgentsTree.olderPage) more · \(left) left" : left > 0 ? "Show \(left) more" : "Show more")
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tint)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("older.more")
+            }
+        }
+        .listRowDensity()
+        .selectionDisabled()
     }
 }
 

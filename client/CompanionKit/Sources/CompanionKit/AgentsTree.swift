@@ -20,12 +20,23 @@ public struct ListSection: Sendable, Equatable, Identifiable {
         case paused(Date?)
         case worktree(String)
         case closed
+        case older
         case service
     }
 
     public let kind: Kind
     public let title: String?
     public let nodes: [SessionNode]
+    public let count: Int
+
+    public static let olderID = "older"
+
+    public init(kind: Kind, title: String?, nodes: [SessionNode], count: Int? = nil) {
+        self.kind = kind
+        self.title = title
+        self.nodes = nodes
+        self.count = count ?? nodes.count
+    }
 
     public var id: String {
         switch kind {
@@ -34,6 +45,7 @@ public struct ListSection: Sendable, Equatable, Identifiable {
         case .paused(let until): "paused-\(until.map { Int($0.timeIntervalSince1970) } ?? 0)"
         case .worktree(let key): "wt:" + key
         case .closed: "closed"
+        case .older: Self.olderID
         case .service: "service"
         }
     }
@@ -43,7 +55,7 @@ public struct ListSection: Sendable, Equatable, Identifiable {
     }
 
     public var folds: Bool {
-        kind == .closed || kind == .service
+        kind == .closed || kind == .older || kind == .service
     }
 
     public func title(now: Date, calendar: Calendar = .autoupdatingCurrent) -> String? {
@@ -94,7 +106,7 @@ public enum AgentsTree {
         return out
     }
 
-    public static func sections(_ sessions: [AgentSession], filter: ListFilter = .all) -> [ListSection] {
+    public static func sections(_ sessions: [AgentSession], filter: ListFilter = .all, older: [AgentSession] = [], olderCount: Int = 0) -> [ListSection] {
         let roots = AgentSession.trees(sessions).filter { filter == .all || $0.matches(filter) }
         var out: [ListSection] = []
         if filter == .all {
@@ -134,6 +146,11 @@ public enum AgentsTree {
             out.append(ListSection(kind: .worktree(key), title: lone ? nil : nodes[0].groupLabel, nodes: nodes))
         }
         if !closed.isEmpty { out.append(ListSection(kind: .closed, title: SessionGroup.closed.title, nodes: closed.sorted(by: SessionNode.newerFirst))) }
+        if filter == .all, olderCount > 0 {
+            let listed = Set(sessions.map(\.id))
+            let rows = older.filter { !$0.hidden && !listed.contains($0.id) }
+            out.append(ListSection(kind: .older, title: Self.olderTitle, nodes: AgentSession.trees(rows), count: olderCount))
+        }
         if !service.isEmpty { out.append(ListSection(kind: .service, title: SessionGroup.service.title, nodes: service.sorted(by: SessionNode.newerFirst))) }
         return out
     }
@@ -145,6 +162,8 @@ public enum AgentsTree {
     }
 
     static let homeGroup = "0"
+    public static let olderTitle = "Older"
+    public static let olderPage = 30
     static let needsSection = "0"
 }
 

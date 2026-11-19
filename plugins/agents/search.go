@@ -57,6 +57,7 @@ type searchResult struct {
 	Worktree      string      `json:"worktree"`
 	ParentSession string      `json:"parentSession,omitempty"`
 	UpdatedAt     time.Time   `json:"updatedAt"`
+	Older         bool        `json:"older,omitempty"`
 	Hits          []searchHit `json:"hits"`
 }
 

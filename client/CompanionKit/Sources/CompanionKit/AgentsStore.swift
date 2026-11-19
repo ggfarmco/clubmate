@@ -41,6 +41,16 @@ public final class AgentsStore {
     @ObservationIgnored public var visibleRows: Set<String> = []
     @ObservationIgnored public var listOnScreen = false
     public private(set) var dock: [AgentDockRow] = []
+    public private(set) var olderCount = 0
+    public private(set) var older: [AgentSession] = []
+    public private(set) var olderNext: String?
+    public private(set) var olderLoading = false
+    public private(set) var olderError: String?
+    private var olderLoaded = false
+    private(set) var departed: [AgentSession] = []
+    @ObservationIgnored private var olderGeneration = 0
+    @ObservationIgnored private var olderSeen = 0
+    private var olderPages = 0
     public private(set) var transcripts: [String: AgentTranscript] = [:]
     public private(set) var loaded = false
     public private(set) var error: String?
@@ -125,6 +135,8 @@ public final class AgentsStore {
         if let saved = cache.load(cacheKey, as: Snapshot.self), saved.build == Snapshot.build {
             runRows = saved.runs
             dock = saved.dock
+            olderCount = saved.olderCount
+            olderSeen = saved.olderCount
             list = saved.list
             syncedAt = saved.at
             loaded = true
@@ -146,6 +158,7 @@ public final class AgentsStore {
         let list: AgentSessionList
         let runs: [AgentRunRow]
         let dock: [AgentDockRow]
+        let olderCount: Int
         let at: Date
     }
 
@@ -162,7 +175,7 @@ public final class AgentsStore {
     }
 
     public func session(_ id: String) -> AgentSession? {
-        listed.first { $0.id == id } ?? transcripts[id]?.session
+        listed.first { $0.id == id } ?? older.first { $0.id == id } ?? transcripts[id]?.session
     }
 
     public func entries(_ session: String) -> [TranscriptEntry] {
@@ -395,19 +408,92 @@ public final class AgentsStore {
             }
             let before = Set(list.items.map(\.id))
             if let rows = reply.arrayValue { try list.replace(rows) } else { try list.apply(reply) }
-            dropCached(before.subtracting(list.items.map(\.id)))
+            let ids = Set(list.items.map(\.id))
+            dropCached(before.subtracting(ids))
+            let count = reply["olderCount"]?.numberValue.map { Int($0) } ?? 0
+            let removed = Set(reply["removed"]?.arrayValue?.compactMap(\.stringValue) ?? [])
+            let full = reply["delta"]?.boolValue != true
+            let hit = !removed.isDisjoint(with: before) || older.contains { removed.contains($0.id) }
+            olderCount = count
+            if full || hit || count != olderSeen { resetOlder(listed: ids) }
+            olderSeen = count
+            pruneDeparted()
             error = nil
             fetched = true
             syncedAt = .now
             saves.request { [weak self] in
                 guard let self, let at = self.syncedAt else { return }
-                self.cache.save(Snapshot(list: self.list, runs: self.runRows ?? [], dock: self.dock, at: at), self.cacheKey)
+                self.cache.save(Snapshot(list: self.list, runs: self.runRows ?? [], dock: self.dock, olderCount: self.olderSeen, at: at), self.cacheKey)
             }
         } catch {
             self.error = Self.message(error)
         }
         loaded = true
         if shown == AgentsPluginInfo.openQueue { await loadOpenQueue() }
+    }
+
+    public var olderShown: Bool {
+        olderCount > 0 && runner?.supports(AgentCommand.sessionsOlder) == true
+    }
+
+    public var olderMore: Bool {
+        !olderLoaded || olderNext != nil
+    }
+
+    public var olderLeft: Int {
+        guard olderLoaded else { return olderCount }
+        return olderNext == nil ? 0 : max(olderCount - olderPages * AgentsTree.olderPage, 0)
+    }
+
+    public func openOlder() async {
+        guard !olderLoaded else { return }
+        await loadOlder()
+    }
+
+    public func loadOlder() async {
+        guard let runner, !olderLoading, olderMore else { return }
+        olderLoading = true
+        olderError = nil
+        defer { olderLoading = false }
+        while true {
+            let generation = olderGeneration
+            var args: [String: JSONValue] = ["limit": .number(Double(AgentsTree.olderPage))]
+            if let olderNext { args["before"] = .string(olderNext) }
+            do {
+                let reply = try await runner.command(AgentCommand.sessionsOlder, workspace: workspace, args: .object(args))
+                guard generation == olderGeneration else { continue }
+                let rows = try (reply["sessions"]?.arrayValue ?? []).map { try $0.decode(AgentSession.self) }
+                let known = Set(older.map(\.id))
+                older += rows.filter { !known.contains($0.id) }
+                olderNext = reply["next"]?.stringValue
+                if let count = reply["count"]?.numberValue { olderCount = Int(count) }
+                olderLoaded = true
+                olderPages += 1
+            } catch {
+                guard generation == olderGeneration else { continue }
+                olderError = Self.message(error)
+            }
+            return
+        }
+    }
+
+    private func resetOlder(listed: Set<String>) {
+        let back = older.filter { listed.contains($0.id) }
+        departed = departed.filter { old in !back.contains { $0.id == old.id } } + back
+        older = []
+        olderNext = nil
+        olderLoaded = false
+        olderPages = 0
+        olderError = nil
+        olderGeneration += 1
+        if olderShown, unfoldedSections.contains(ListSection.olderID) { Task { await loadOlder() } }
+    }
+
+    func pruneDeparted() {
+        guard !departed.isEmpty else { return }
+        let shown = Set((hold.shown ?? sessions).map(\.id))
+        let listed = Set(list.items.map(\.id))
+        departed.removeAll { shown.contains($0.id) || !listed.contains($0.id) }
     }
 
     public var searching: Bool {
@@ -650,6 +736,12 @@ public final class AgentsStore {
         await refreshSession(session)
     }
 
+    private func place(_ fetched: [JSONValue], for id: String) throws {
+        let row = try fetched.map { try $0.decode(AgentSession.self) }.first { $0.id == id }
+        guard let row, row.older else { return try list.replace(fetched, for: id) }
+        if let i = older.firstIndex(where: { $0.id == id }) { older[i] = row }
+    }
+
     private func sessionRows(_ session: String) async throws -> [JSONValue] {
         guard let runner, let rows = try await runner.command(AgentCommand.sessions, workspace: workspace, args: .object(["session": .string(session)])).arrayValue else { throw RemoteError.badResponse }
         return rows
@@ -664,7 +756,7 @@ public final class AgentsStore {
         guard let runner else { return }
         let online = !queues()
         if online {
-            try list.replace(try await sessionRows(session), for: session)
+            try place(try await sessionRows(session), for: session)
         }
         do {
             guard !online || self.session(session)?.pending.contains(request) == true else { throw AnswerError.alreadyAnswered }
@@ -837,7 +929,7 @@ public final class AgentsStore {
 
     private func ensureWaiting(_ session: String, request: String) async throws {
         guard let runner else { return }
-        try list.replace(try await sessionRows(session), for: session)
+        try place(try await sessionRows(session), for: session)
         guard self.session(session)?.requests.contains(request) == true else {
             await refreshSession(session)
             throw AnswerError.alreadyAnswered
@@ -1136,6 +1228,7 @@ public final class AgentsStore {
 
     private func refreshSession(_ session: String) async {
         await refresh()
+        if older.contains(where: { $0.id == session }), let rows = try? await sessionRows(session) { try? place(rows, for: session) }
         if watched[session] != nil { await loadTranscript(session, incremental: true) }
     }
 

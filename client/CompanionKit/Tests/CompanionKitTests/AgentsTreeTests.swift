@@ -33,6 +33,19 @@ final class AgentsTreeTests: XCTestCase {
         XCTAssertEqual(sections[5].rows(expanded: [], folded: [], unfolded: ["closed"]).map(\.session), ["c1"])
     }
 
+    func testOlderFollowsClosedOnlyInAllAndCountsWhatThePluginSent() throws {
+        let older = try sessions(#"[{"id":"o1","status":"closed","older":true},{"id":"o2","parentSession":"o1","status":"closed","older":true},{"id":"c1","status":"closed","older":true}]"#)
+        let all = AgentsTree.sections(try sessions(), older: older, olderCount: 40)
+        XCTAssertEqual(all.map(\.id).suffix(3), ["closed", "older", "service"])
+        let section = try XCTUnwrap(all.first { $0.kind == .older })
+        XCTAssertEqual(section.title, "Older")
+        XCTAssertEqual(section.count, 40)
+        XCTAssertEqual(section.nodes.map(\.id), ["o1"])
+        XCTAssertEqual(section.rows(expanded: [], folded: [], unfolded: []), [])
+        XCTAssertFalse(AgentsTree.sections(try sessions(), filter: .needs, older: older, olderCount: 40).contains { $0.kind == .older })
+        XCTAssertFalse(AgentsTree.sections(try sessions(), older: older).contains { $0.kind == .older })
+    }
+
     func testChipsFilterRootsAndCountWhatThePluginSent() throws {
         let all = try sessions()
         XCTAssertEqual(AgentsTree.counts(all), [.all: 5, .needs: 3, .open: 3, .running: 1])

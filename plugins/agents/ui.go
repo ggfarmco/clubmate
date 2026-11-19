@@ -76,6 +76,7 @@ type workspaceUI struct {
 	filter     string
 	query      string
 	closed     int
+	older      int
 	restored   bool
 	collapsed  map[string]bool
 	folds      bool
@@ -245,14 +246,28 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	children := childStatuses(recs)
 	kids := kidsOf(recs)
 	groups := groupKeys(recs, home)
-	recs = sidebarWindow(recs)
+	infos := a.infos(workspaceID)
+	if a.olderAfter > 0 {
+		setOlder(infos, time.Now().Add(-a.olderAfter), liveRunIDs(a.graphs.Runs(workspaceID)))
+	}
+	older := map[string]bool{}
+	for i := range infos {
+		if infos[i].Older {
+			older[infos[i].ID] = true
+		}
+	}
+	recs = sidebarWindow(recs, older)
 	selected, err := a.resolveSelected(ctx, workspaceID, recs)
 	if err != nil {
 		return err
 	}
+	a.uiMu.Lock()
+	olderExtra := p.older
+	a.uiMu.Unlock()
+	side, show := olderSidebar(olderUnitsOf(infos), selected, closedShown+olderExtra)
+	recs = slices.DeleteFunc(recs, func(rec record) bool { return older[rec.ID] && !show[rec.ID] })
 	rows := make([]sessionRow, 0, len(recs))
 	needs := a.runNeeds.byRun(workspaceID)
-	infos := a.infos(workspaceID)
 	graphs := a.graphState(ctx, workspaceID, infos)
 	infoByID := make(map[string]sessionInfo, len(infos))
 	for _, info := range infos {
@@ -266,9 +281,11 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	for _, rec := range recs {
 		row := a.sessionRow(ctx, rec, children[rec.ID])
 		row.CloseAsk = a.closeAsk(rec, kids).Message
-		if info, ok := infoByID[rec.ID]; ok && info.PausedUntil != nil {
+		info := infoByID[rec.ID]
+		if info.PausedUntil != nil {
 			row.Group, row.Until = info.Group, *info.PausedUntil
 		}
+		row.Older = info.Older
 		row.attachNeeds(needs, nest)
 		if rec.Run != nil {
 			row.RunRow = runRows[rec.Run.ID]
@@ -299,6 +316,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	}
 	plus := graphs.plus(dock)
 	plus.needRuns = needEntries(needs, infos)
+	plus.older = side
 	if err := a.push(ctx, p, workspaceID, sidebarSlot, sidebarView(rows, selected, collapsed, time.Now(), home, groups, branchOpen, filter, search, closedExtra, plus, inboxOf(infos))); err != nil {
 		return err
 	}
@@ -758,6 +776,9 @@ func (a *app) selectSession(ctx context.Context, workspaceID, sid string) error 
 		return err
 	}
 	open := map[string]bool{}
+	if a.older(workspaceID, sid) {
+		open[olderKey] = false
+	}
 	seen := map[string]bool{sid: true}
 	for s := a.session(sid); s != nil; {
 		rec := s.snapshot()
@@ -792,6 +813,14 @@ func (a *app) selectSession(ctx context.Context, workspaceID, sid string) error 
 		}
 	}
 	return a.setCollapsed(ctx, workspaceID, open)
+}
+
+func (a *app) older(workspaceID, sid string) bool {
+	if a.olderAfter <= 0 {
+		return false
+	}
+	_, ok := olderUnits(recordRefs(a.list(workspaceID)), time.Now().Add(-a.olderAfter), liveRunIDs(a.graphs.Runs(workspaceID)))[sid]
+	return ok
 }
 
 func (a *app) reveal(ctx context.Context, workspaceID, sid string) error {

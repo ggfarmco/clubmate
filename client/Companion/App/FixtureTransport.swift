@@ -79,6 +79,7 @@ actor FixtureServer {
     private var colour: String
 
     private var sessions: [[String: JSONValue]] = []
+    private lazy var olderRows: [[String: JSONValue]] = Self.olderRows(sessions.first)
     private var others: [[String: JSONValue]] = []
     private var transcripts: [String: [String: JSONValue]] = [:]
     private var tasks: [[String: JSONValue]] = []
@@ -384,7 +385,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.close", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", AgentCommand.toolCall, "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "agents.usage", "agents.graph-show", "agents.graph-approve", "agents.graph-continue", "agents.graph-stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove, AsideCommand.ask, AsideCommand.summary, AsideCommand.send, AsideCommand.pick, AsideCommand.keep, AsideCommand.busy].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", AgentCommand.sessionsOlder, "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.close", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", AgentCommand.toolCall, "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "agents.usage", "agents.graph-show", "agents.graph-approve", "agents.graph-continue", "agents.graph-stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove, AsideCommand.ask, AsideCommand.summary, AsideCommand.send, AsideCommand.pick, AsideCommand.keep, AsideCommand.busy].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed"), .string("awake.changed"), .string("agents.usage")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge")), "reports": .bool(true)])]))
         case "report":
             return (200, Self.json(["result": .object(["id": .string("r-fixture")])]))
@@ -442,6 +443,19 @@ actor FixtureServer {
         switch id {
         case "agents.sessions" where LandReviewFixture.on && workspace == self.workspace && args["session"] == nil:
             return .object(["sessions": .array(Self.treeKeyed(sessions.map(Self.listKeyed)).map(JSONValue.object)), "removed": .array([]), "cursor": .string("fx.land"), "dock": .array(LandReviewFixture.dock)])
+        case "agents.sessions" where OlderFixture.on && workspace == self.workspace && args["since"] == .string("fx.older"):
+            return .object(["sessions": .array([]), "removed": .array([]), "cursor": .string("fx.older"), "delta": .bool(true), "olderCount": .number(Double(olderRows.count))])
+        case "agents.sessions" where OlderFixture.on && workspace == self.workspace && args["session"] == nil:
+            return .object(["sessions": .array(Self.treeKeyed(sessions.map(Self.withAsideState).map(Self.listKeyed)).map(JSONValue.object)), "removed": .array([]), "cursor": .string("fx.older"), "olderCount": .number(Double(olderRows.count))])
+        case "agents.sessions" where OlderFixture.on && workspace == self.workspace && olderRows.contains(where: { $0["id"] == args["session"] }):
+            return .array(olderRows.filter { $0["id"] == args["session"] }.map(Self.listKeyed).map(JSONValue.object))
+        case AgentCommand.sessionsOlder:
+            let start = args["before"]?.stringValue.flatMap { Int($0.split(separator: ".").last ?? "") } ?? 0
+            let rows = OlderFixture.on && workspace == self.workspace ? olderRows : []
+            let page = Array(rows.dropFirst(start).prefix(OlderFixture.page))
+            var reply: [String: JSONValue] = ["sessions": .array(page.map(Self.listKeyed).map(JSONValue.object)), "count": .number(Double(rows.count))]
+            if start + page.count < rows.count { reply["next"] = .string("fx.older.\(start + page.count)") }
+            return .object(reply)
         case "agents.sessions":
             if workspace == self.workspace { scheduleHeldChange() }
             return .array(Self.treeKeyed((workspace == self.workspace ? sessions.map(Self.withAsideState) : others).map(Self.listKeyed)).map(JSONValue.object) + (workspace == self.workspace ? [] : runEntries))
@@ -470,7 +484,7 @@ actor FixtureServer {
                     return true
                 })
             }
-            if var record = sessions.first(where: { $0["id"]?.stringValue == session }) {
+            if var record = sessions.first(where: { $0["id"]?.stringValue == session }) ?? olderRows.first(where: { $0["id"]?.stringValue == session }) {
                 record["pending"] = nil
                 transcript["session"] = .object(Self.withAsideState(record))
                 withAsides(&transcript, record: record)
@@ -1425,7 +1439,7 @@ actor FixtureServer {
             let line = text[start...].replacingOccurrences(of: "\n", with: " ")
             return (start == text.startIndex ? "" : "…") + line.prefix(120)
         }
-        return (workspace == self.workspace ? sessions : others).compactMap { record in
+        return (workspace == self.workspace ? sessions + (OlderFixture.on ? olderRows : []) : others).compactMap { record in
             let id = record["id"]?.stringValue ?? ""
             let title = record["title"]?.stringValue ?? ""
             var hits: [JSONValue] = title.lowercased().contains(needle) ? [.object(["kind": .string("title"), "snippet": .string(title)])] : []
@@ -1436,6 +1450,7 @@ actor FixtureServer {
             guard !hits.isEmpty else { return nil }
             var result: [String: JSONValue] = ["session": .string(id), "title": .string(title), "status": record["status"] ?? .string("done"), "worktree": record["worktree"] ?? .string(""), "updatedAt": record["updatedAt"] ?? .null, "hits": .array(hits)]
             result["parentSession"] = record["parentSession"]
+            result["older"] = record["older"]
             return .object(result)
         }
     }
@@ -1675,6 +1690,17 @@ actor FixtureServer {
         publish("agents.changed", ["workspace": .string(workspace), "session": .string("agt_0000000000000041"), "kind": .string("status")])
     }
 
+    private static func olderRows(_ template: [String: JSONValue]?) -> [[String: JSONValue]] {
+        guard OlderFixture.on, let template else { return [] }
+        let titles = ["Fix the flaky checkout test", "Rename cart events", "Split the payments module", "Audit stock reservation logs", "Retry the charge step on 502", "Move coupons to their own table", "Draft the refund flow", "Clean up feature flags"]
+        return (0..<OlderFixture.count).map { index in
+            var fields = session(template, id: String(format: "agt_00000000000001%02x", index), title: titles[index % titles.count] + (index < titles.count ? "" : " (\(index / titles.count + 1))"), status: "closed", ago: 4 * 86_400 + Double(index) * 7_200)
+            fields["worktree"] = .string(index % 3 == 0 ? choreWorktree : homeWorktree)
+            fields["older"] = .bool(true)
+            return fields
+        }
+    }
+
     private static func treeKeyed(_ list: [[String: JSONValue]]) -> [[String: JSONValue]] {
         let ids = Set(list.compactMap { $0["id"]?.stringValue })
         return list.map { fields in
@@ -1724,5 +1750,10 @@ actor FixtureServer {
     private static func json(_ value: [String: JSONValue]) -> Data {
         (try? JSONEncoder().encode(JSONValue.object(value))) ?? Data()
     }
+}
+enum OlderFixture {
+    static var on: Bool { UserDefaults.standard.bool(forKey: "olderFixture") }
+    static let count = 32
+    static let page = 30
 }
 #endif

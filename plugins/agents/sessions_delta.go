@@ -13,15 +13,16 @@ const (
 )
 
 type sessionsPage struct {
-	Sessions []sessionInfo `json:"sessions"`
-	Removed  []string      `json:"removed"`
-	Cursor   string        `json:"cursor"`
-	Delta    bool          `json:"delta,omitempty"`
-	Runs     []api.RunRow  `json:"runs,omitzero"`
-	Dock     []api.DockRow `json:"dock,omitzero"`
+	Sessions   []sessionInfo `json:"sessions"`
+	Removed    []string      `json:"removed"`
+	Cursor     string        `json:"cursor"`
+	Delta      bool          `json:"delta,omitempty"`
+	Runs       []api.RunRow  `json:"runs,omitzero"`
+	Dock       []api.DockRow `json:"dock,omitzero"`
+	OlderCount int           `json:"olderCount,omitempty"`
 }
 
-func (a *app) sessionsPage(ctx context.Context, workspaceID string, infos []sessionInfo, st graphState, since string, lean bool) sessionsPage {
+func (a *app) sessionsPage(ctx context.Context, workspaceID string, infos []sessionInfo, st graphState, since string, lean, all bool) sessionsPage {
 	items := make(map[string]any, len(infos)+2)
 	for _, info := range infos {
 		items[info.ID] = info
@@ -31,11 +32,18 @@ func (a *app) sessionsPage(ctx context.Context, workspaceID string, infos []sess
 	logError("sessions delta", err)
 	out := sessionsPage{Sessions: infos, Removed: []string{}, Cursor: v.Cursor, Runs: st.runs, Dock: st.dock}
 	if v.Full {
+		if !all {
+			out.Sessions = slices.DeleteFunc(infos, func(info sessionInfo) bool { return info.Older })
+		}
 		return out
 	}
 	out.Delta = true
 	out.Sessions = slices.DeleteFunc(infos, func(info sessionInfo) bool {
 		_, found := slices.BinarySearch(v.Changed, info.ID)
+		if found && info.Older && !all {
+			out.Removed = append(out.Removed, info.ID)
+			return true
+		}
 		return !found
 	})
 	out.Removed = append(out.Removed, v.Removed...)

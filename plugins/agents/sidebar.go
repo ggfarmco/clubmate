@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"math"
 	"path"
 	"path/filepath"
 	"slices"
@@ -24,6 +25,10 @@ const (
 	pausedTitle  = "Paused until %s"
 	pausedIcon   = "pause.circle"
 	moreID       = groupPrefix + "more:closed"
+	olderKey     = "older:"
+	olderMoreID  = groupPrefix + "more:older"
+	olderTitle   = "Older"
+	olderIcon    = "clock.arrow.circlepath"
 	closedShown  = 3
 	closedBatch  = 25
 	closedMore   = "Show %d more"
@@ -129,6 +134,7 @@ type sessionRow struct {
 	TreeNeeds bool
 	Group     string
 	Until     int64
+	Older     bool
 }
 
 type sidebarPlus struct {
@@ -138,6 +144,14 @@ type sidebarPlus struct {
 	graphs   []sdui.TreeItem
 	open     string
 	needRuns []string
+	older    olderSide
+}
+
+type olderSide struct {
+	count int
+	left  int
+	mixed bool
+	rank  map[string]int
 }
 
 const (
@@ -292,12 +306,15 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		open     []sessionRow
 	}
 	var order []string
-	var closed []sessionRow
+	var closed, older []sessionRow
 	var resets []int64
 	paused := map[int64][]sessionRow{}
 	buckets := map[string]*bucket{}
 	for _, row := range roots {
 		switch {
+		case row.Older:
+			older = append(older, row)
+			continue
 		case row.Rec.closed():
 			closed = append(closed, row)
 			continue
@@ -345,6 +362,14 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		items := closedItems(closed, selected, closedShown+closedExtra, kids, collapsed, now, oldest)
 		group := groupItem(closedKey, "Closed", statusIcons[statusClosed], append(items, emptied...), ok && !folded)
 		group.Detail = strconv.Itoa(len(closed) + len(emptied))
+		groups = append(groups, group)
+	}
+	if len(older) > 0 {
+		slices.SortStableFunc(older, func(x, y sessionRow) int { return cmp.Compare(plus.older.at(x.Rec.ID), plus.older.at(y.Rec.ID)) })
+		folded, ok := collapsed[olderKey]
+		items := pageItems(older, plus.older.left, plus.older.mixed, olderKey, olderMoreID, kids, collapsed, now, oldest)
+		group := groupItem(olderKey, olderTitle, olderIcon, items, ok && !folded)
+		group.Detail = strconv.Itoa(plus.older.count)
 		groups = append(groups, group)
 	}
 	uniqueRunIDs(groups, map[string]int{})
@@ -410,12 +435,55 @@ func closedItems(rows []sessionRow, selected string, limit int, kids map[string]
 	if i := slices.IndexFunc(rows, func(row sessionRow) bool { return row.Rec.ID == selected }); i >= limit {
 		shown = append(slices.Clone(shown), rows[i])
 	}
-	items := runItems(shown, closedKey, kids, collapsed, now, map[string]bool{}, oldest)
 	worktrees := map[string]bool{}
 	for _, row := range rows {
 		worktrees[row.Rec.Worktree] = true
 	}
-	if len(worktrees) > 1 {
+	return pageItems(shown, len(rows)-len(shown), len(worktrees) > 1, closedKey, moreID, kids, collapsed, now, oldest)
+}
+
+func olderSidebar(units []olderUnit, selected string, limit int) (olderSide, map[string]bool) {
+	side := olderSide{count: len(units), rank: make(map[string]int, min(len(units), limit+1))}
+	show := map[string]bool{}
+	worktrees := map[string]bool{}
+	pick := -1
+	for i, u := range units {
+		for _, info := range u.rows {
+			if info.ID == u.root {
+				worktrees[info.Worktree] = true
+			}
+			if info.ID == selected && i >= limit {
+				pick = i
+			}
+		}
+	}
+	add := func(i int) {
+		side.rank[units[i].root] = i
+		for _, info := range units[i].rows {
+			show[info.ID] = true
+		}
+	}
+	for i := range min(limit, len(units)) {
+		add(i)
+	}
+	if pick >= 0 {
+		add(pick)
+	}
+	side.left = len(units) - len(side.rank)
+	side.mixed = len(worktrees) > 1
+	return side, show
+}
+
+func (side olderSide) at(id string) int {
+	if r, ok := side.rank[id]; ok {
+		return r
+	}
+	return math.MaxInt
+}
+
+func pageItems(shown []sessionRow, left int, mixed bool, scope, more string, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, oldest map[string]time.Time) []sdui.TreeItem {
+	items := runItems(shown, scope, kids, collapsed, now, map[string]bool{}, oldest)
+	if mixed {
 		short := map[string]string{}
 		for _, row := range shown {
 			short[row.Rec.ID] = path.Base(cmp.Or(row.Branch, row.Rec.Worktree))
@@ -426,12 +494,12 @@ func closedItems(rows []sessionRow, selected string, limit int, kids map[string]
 			}
 		}
 	}
-	if more := len(rows) - len(shown); more > 0 {
-		label := fmt.Sprintf(closedMore, more)
-		if more > closedBatch {
-			label = fmt.Sprintf(closedLeft, closedBatch, more)
+	if left > 0 {
+		label := fmt.Sprintf(closedMore, left)
+		if left > closedBatch {
+			label = fmt.Sprintf(closedLeft, closedBatch, left)
 		}
-		items = append(items, sdui.TreeItem{ID: moreID, Label: label, Faint: true, Action: true})
+		items = append(items, sdui.TreeItem{ID: more, Label: label, Faint: true, Action: true})
 	}
 	return items
 }

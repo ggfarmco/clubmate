@@ -287,10 +287,14 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return err
 		}
 		id = strings.TrimPrefix(id, mirrorPrefix)
-		if id == moreID {
+		if id == moreID || id == olderMoreID {
 			p := a.workspaceState(ev.WorkspaceID)
 			a.uiMu.Lock()
-			p.closed += closedBatch
+			if id == moreID {
+				p.closed += closedBatch
+			} else {
+				p.older += closedBatch
+			}
 			a.uiMu.Unlock()
 			return nil
 		}
@@ -405,10 +409,14 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return nil
 		}
 		key := foldKey(id)
-		if key == closedKey && ev.Action == actCollapse {
+		if (key == closedKey || key == olderKey) && ev.Action == actCollapse {
 			p := a.workspaceState(ev.WorkspaceID)
 			a.uiMu.Lock()
-			p.closed = 0
+			if key == closedKey {
+				p.closed = 0
+			} else {
+				p.older = 0
+			}
 			a.uiMu.Unlock()
 		}
 		return a.setCollapsed(ctx, ev.WorkspaceID, map[string]bool{key: ev.Action == actCollapse})

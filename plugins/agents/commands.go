@@ -38,6 +38,7 @@ var (
 		"agents.mode":           withArgs((*app).modeCommand),
 		"agents.config":         withArgs((*app).configCommand),
 		"agents.sessions":       withArgs((*app).sessionsCommand),
+		"agents.sessions-older": withArgs((*app).sessionsOlderCommand),
 		"agents.search":         withArgs((*app).searchCommand),
 		"agents.notify":         withArgs((*app).notifyCommand),
 		"agents.finish-default": withArgs((*app).finishDefaultCommand),
@@ -139,6 +140,7 @@ type sessionsArgs struct {
 	Session string  `json:"session"`
 	Since   *string `json:"since"`
 	Lean    bool    `json:"lean"`
+	Older   bool    `json:"older"`
 }
 
 type revealArgs struct {
@@ -436,22 +438,32 @@ func (a *app) sessionsCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 	if err != nil && args.Since != nil {
 		return nil, fmt.Errorf("sessions: workspace home: %w", err)
 	}
-	infos := a.infos(cmd.WorkspaceID)
-	setOrder(infos, home)
-	setListFilters(infos, a.runNeeds.byRun(cmd.WorkspaceID))
-	setGroupLabels(infos, func(worktree string) string {
-		return branchLabel(a.branches.name(ctx, cmd.WorkspaceID, worktree))
-	})
+	infos := a.listInfos(ctx, cmd.WorkspaceID, home)
 	if args.Since == nil {
 		return onlySession(visibleInfos(cmd, infos), args.Session), nil
 	}
 	st := a.graphState(ctx, cmd.WorkspaceID, infos)
-	page := a.sessionsPage(ctx, cmd.WorkspaceID, infos, st, *args.Since, args.Lean)
+	count := olderCount(visibleInfos(cmd, slices.Clone(infos)))
+	page := a.sessionsPage(ctx, cmd.WorkspaceID, infos, st, *args.Since, args.Lean, args.Older || args.Session != "")
 	page.Sessions = onlySession(visibleInfos(cmd, page.Sessions), args.Session)
+	page.OlderCount = count
 	if args.Session != "" {
 		page.Removed = slices.DeleteFunc(page.Removed, func(id string) bool { return id != args.Session })
 	}
 	return page, nil
+}
+
+func (a *app) listInfos(ctx context.Context, workspaceID, home string) []sessionInfo {
+	infos := a.infos(workspaceID)
+	setOrder(infos, home)
+	setListFilters(infos, a.runNeeds.byRun(workspaceID))
+	setGroupLabels(infos, func(worktree string) string {
+		return branchLabel(a.branches.name(ctx, workspaceID, worktree))
+	})
+	if a.olderAfter > 0 {
+		setOlder(infos, time.Now().Add(-a.olderAfter), liveRunIDs(a.graphs.Runs(workspaceID)))
+	}
+	return infos
 }
 
 func onlySession(infos []sessionInfo, id string) []sessionInfo {
@@ -717,6 +729,15 @@ func origin(cmd pluginsdk.CommandRun) string {
 }
 
 func (a *app) searchCommand(_ context.Context, cmd pluginsdk.CommandRun, args searchArgs) (any, error) {
-	recs := slices.DeleteFunc(a.list(cmd.WorkspaceID), func(rec record) bool { return hiddenFrom(cmd, rec) })
-	return a.searchIn(recs, args.Query), nil
+	all := a.list(cmd.WorkspaceID)
+	recs := slices.DeleteFunc(slices.Clone(all), func(rec record) bool { return hiddenFrom(cmd, rec) })
+	out := slices.Clone(a.searchIn(recs, args.Query))
+	if a.olderAfter <= 0 {
+		return out, nil
+	}
+	older := olderUnits(recordRefs(all), time.Now().Add(-a.olderAfter), liveRunIDs(a.graphs.Runs(cmd.WorkspaceID)))
+	for i, r := range out {
+		_, out[i].Older = older[r.Session]
+	}
+	return out, nil
 }

@@ -956,6 +956,8 @@ final class ScriptedRunner: CommandRunner {
     private(set) var toolCalls: [JSONValue] = []
     var durable = false
     var held = false
+    var unsupported: Set<String> = []
+    var heldCommand = "agents.transcript"
     private(set) var waiting: CheckedContinuation<Void, Never>?
 
     init(replies: [String], sessions: [String] = []) {
@@ -964,7 +966,7 @@ final class ScriptedRunner: CommandRunner {
     }
 
     func supports(_ command: String) -> Bool {
-        command != AgentCommand.toolCall || durable
+        (command != AgentCommand.toolCall || durable) && !unsupported.contains(command)
     }
 
     func release() {
@@ -978,7 +980,7 @@ final class ScriptedRunner: CommandRunner {
             toolCalls.append(args ?? .null)
             return .object(["tool": .object(["title": .string("Read a.go"), "kind": .string("read"), "content": .array([.object(["type": .string("content"), "content": .object(["type": .string("text"), "text": .string("package a")])])])])])
         }
-        if id == "agents.transcript", held { await withCheckedContinuation { waiting = $0 } }
+        if id == heldCommand, held { await withCheckedContinuation { waiting = $0 } }
         guard id == "agents.transcript" else {
             sessionArgs.append(args ?? .null)
             guard !sessions.isEmpty else { return .array([]) }
@@ -988,6 +990,153 @@ final class ScriptedRunner: CommandRunner {
         }
         self.args.append(args ?? .null)
         return try JSONDecoder().decode(JSONValue.self, from: Data(replies.removeFirst().utf8))
+    }
+}
+
+@MainActor
+final class AgentsOlderTests: XCTestCase {
+    private static let full = #"{"sessions":[{"id":"a","status":"done"}],"removed":[],"cursor":"e.1","olderCount":3}"#
+
+    private static func page(_ ids: [String], count: Int, next: String? = nil, title: String = "") -> String {
+        let rows = ids.map { #"{"id":"\#($0)","title":"\#(title)","status":"closed","older":true}"# }.joined(separator: ",")
+        return #"{"sessions":[\#(rows)],"count":\#(count)\#(next.map { #","next":"\#($0)""# } ?? "")}"#
+    }
+
+    private static func delta(_ rows: String = "", removed: [String] = [], count: Int, cursor: Int) -> String {
+        #"{"sessions":[\#(rows)],"removed":[\#(removed.map { "\"\($0)\"" }.joined(separator: ","))],"cursor":"e.\#(cursor)","delta":true,"olderCount":\#(count)}"#
+    }
+
+    func testOlderShowsOnlyWithACountAndTheCommand() async throws {
+        let unsupported = ScriptedRunner(replies: [], sessions: [Self.full])
+        unsupported.unsupported = [AgentCommand.sessionsOlder]
+        let store = AgentsStore(workspace: "w", runner: unsupported)
+        await store.refresh()
+        XCTAssertEqual(store.olderCount, 3)
+        XCTAssertFalse(store.olderShown)
+        XCTAssertFalse(store.shownSections.contains { $0.section.kind == .older })
+        let oldMac = AgentsStore(workspace: "w", runner: ScriptedRunner(replies: [], sessions: [#"[{"id":"a","status":"done"}]"#]))
+        await oldMac.refresh()
+        XCTAssertFalse(oldMac.olderShown)
+    }
+
+    func testOlderAloneStillDrawsTheTree() async throws {
+        let runner = ScriptedRunner(replies: [], sessions: [#"{"sessions":[{"id":"c","status":"closed","group":"closed"}],"removed":[],"cursor":"e.1","olderCount":2}"#])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.refresh()
+        XCTAssertTrue(store.treeMode)
+        XCTAssertEqual(store.shownSections.map(\.id), ["closed", "older"])
+    }
+
+    func testOlderPagesAppendWithoutDuplicatesUntilTheLast() async throws {
+        let runner = ScriptedRunner(replies: [], sessions: [Self.full, Self.page(["o1", "o2"], count: 3, next: "n.1"), Self.page(["o2", "o3"], count: 3)])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.refresh()
+        await store.openOlder()
+        await store.openOlder()
+        XCTAssertEqual(store.older.map(\.id), ["o1", "o2"])
+        await store.loadOlder()
+        await store.loadOlder()
+        XCTAssertEqual(store.older.map(\.id), ["o1", "o2", "o3"])
+        XCTAssertFalse(store.olderMore)
+        XCTAssertEqual(runner.sessionArgs.dropFirst(), [.object(["limit": .number(30)]), .object(["limit": .number(30), "before": .string("n.1")])])
+        store.unfoldedSections = [ListSection.olderID]
+        let older = try XCTUnwrap(store.shownSections.last)
+        XCTAssertEqual(older.section.count, 3)
+        XCTAssertEqual(older.rows.map(\.session), ["o1", "o2", "o3"])
+    }
+
+    func testOnlyOnePageRequestRunsAtATime() async throws {
+        let runner = ScriptedRunner(replies: [], sessions: [Self.full, Self.page(["o1"], count: 3, next: "n.1"), Self.page(["o2"], count: 3)])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.refresh()
+        runner.heldCommand = AgentCommand.sessionsOlder
+        runner.held = true
+        let first = Task { await store.openOlder() }
+        try await waitUntil { runner.waiting != nil }
+        runner.held = false
+        await store.loadOlder()
+        runner.release()
+        await first.value
+        XCTAssertEqual(runner.sessionArgs.count, 2)
+        XCTAssertEqual(store.older.map(\.id), ["o1"])
+    }
+
+    func testAFailedPageShowsItsErrorAndRetryLoadsIt() async throws {
+        let runner = ScriptedRunner(replies: [], sessions: [Self.full, ServerReason.stale, Self.page(["o1"], count: 3)])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.refresh()
+        await store.openOlder()
+        XCTAssertNotNil(store.olderError)
+        XCTAssertTrue(store.olderMore)
+        await store.loadOlder()
+        XCTAssertNil(store.olderError)
+        XCTAssertEqual(store.older.map(\.id), ["o1"])
+    }
+
+    func testTheCountSurvivesARelaunch() async throws {
+        let cache = ListCache(dir: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString))
+        let runner = ScriptedRunner(replies: [], sessions: [Self.full])
+        let first = AgentsStore(workspace: "w", runner: runner, cache: cache)
+        await first.refresh()
+        let relaunched = AgentsStore(workspace: "w", runner: runner, cache: cache)
+        XCTAssertEqual(relaunched.olderCount, 3)
+        XCTAssertTrue(relaunched.olderShown)
+    }
+
+    func testOpenOlderReloadsWhenARowCrossesChangesOrAFullReplyComes() async throws {
+        let runner = ScriptedRunner(replies: [], sessions: [
+            Self.full, Self.page(["o1"], count: 1),
+            Self.delta(removed: ["a"], count: 2, cursor: 2), Self.page(["a", "o1"], count: 2),
+            Self.delta(removed: ["o1"], count: 2, cursor: 3), Self.page(["a", "o1"], count: 2, title: "Renamed"),
+            #"{"sessions":[],"removed":[],"cursor":"e.4","olderCount":1}"#, Self.page(["a"], count: 1),
+        ])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.refresh()
+        store.unfoldedSections = [ListSection.olderID]
+        await store.openOlder()
+        await store.refresh()
+        try await waitUntil { store.older.map(\.id) == ["a", "o1"] }
+        await store.refresh()
+        try await waitUntil { store.older.map(\.title) == ["Renamed", "Renamed"] }
+        await store.refresh()
+        try await waitUntil { store.older.map(\.id) == ["a"] }
+        XCTAssertEqual(store.shownSections.last?.rows.map(\.session), ["a"])
+    }
+
+    func testARestoredRowStaysInOlderUntilTheHeldListLands() async throws {
+        let runner = ScriptedRunner(replies: [], sessions: [
+            #"{"sessions":[{"id":"a","status":"done","listKey":"t1 a","listGroupKey":"0","listFilters":["all"]}],"removed":[],"cursor":"e.1","olderCount":2}"#,
+            Self.page(["o1", "o2"], count: 2),
+            Self.delta(#"{"id":"o1","status":"done","listKey":"t0 o1","listGroupKey":"0","listFilters":["all"]}"#, count: 1, cursor: 2),
+            Self.page(["o2"], count: 1),
+        ])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.refresh()
+        store.unfoldedSections = [ListSection.olderID]
+        await store.openOlder()
+        store.listOnScreen = true
+        store.visibleRows = ["older|o1", "older|o2"]
+        await store.refresh()
+        try await waitUntil { store.older.map(\.id) == ["o2"] }
+        XCTAssertNotNil(store.hold.pill)
+        XCTAssertEqual(store.shownSections.map { $0.rows.map(\.session) }, [["a"], ["o1", "o2"]])
+        store.landList()
+        XCTAssertEqual(store.shownSections.map { $0.rows.map(\.session) }, [["o1", "a"], ["o2"]])
+    }
+
+    func testAFetchedOlderRowStaysOutOfTheList() async throws {
+        let runner = ScriptedRunner(replies: [], sessions: [
+            Self.full, Self.page(["o1"], count: 3),
+            "null", Self.delta(count: 3, cursor: 2), #"[{"id":"o1","title":"Reviewed","status":"closed","older":true}]"#,
+            #"[{"id":"o9","status":"closed","older":true}]"#, Self.delta(count: 3, cursor: 3),
+        ])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.refresh()
+        await store.openOlder()
+        try await store.reviewed("o1")
+        XCTAssertEqual(store.older.map(\.title), ["Reviewed"])
+        await XCTAssertThrowsAsync(try await store.answer("o9", request: "r1", option: "allow"), AnswerError.alreadyAnswered)
+        XCTAssertEqual(store.sessions.map(\.id), ["a"])
     }
 }
 

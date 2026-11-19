@@ -80,6 +80,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let listFilters: [String]?
     public let listOpen: Int
     public let inboxKey: String?
+    public let older: Bool
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -95,7 +96,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         limitShare: [String: Double] = [:], shareLabel: String? = nil, shareWords: [String: String] = [:], shareDetail: String? = nil, listKey: String? = nil,
         hidden: Bool = false, rowUnder: String? = nil, gateRound: GateRound? = nil, landing: SessionLanding? = nil, ungated: SessionUngated? = nil, turnHeld: Bool = false, heldRound: HeldRound? = nil,
         aside: AsideInfo? = nil, canAside: Bool = false, forkedFrom: String? = nil, composerDraft: ComposerDraft? = nil,
-        listGroupKey: String? = nil, listGroupLabel: String? = nil, listFilters: [String]? = nil, listOpen: Int = 0, inboxKey: String? = nil
+        listGroupKey: String? = nil, listGroupLabel: String? = nil, listFilters: [String]? = nil, listOpen: Int = 0, inboxKey: String? = nil, older: Bool = false
     ) {
         self.id = id
         self.workspace = workspace
@@ -176,6 +177,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.listFilters = listFilters
         self.listOpen = listOpen
         self.inboxKey = inboxKey
+        self.older = older
     }
 
     public var isClosed: Bool { status == .closed }
@@ -187,7 +189,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         case limitShare, shareLabel, shareWords, shareDetail, listKey
         case hidden, rowUnder, gateRound, landing, ungated, turnHeld, heldRound
         case aside, canAside, forkedFrom, composerDraft
-        case listGroupKey, listGroupLabel, listFilters, listOpen, inboxKey
+        case listGroupKey, listGroupLabel, listFilters, listOpen, inboxKey, older
     }
 
     public init(from decoder: any Decoder) throws {
@@ -276,7 +278,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             listGroupLabel: try optional(.listGroupLabel),
             listFilters: try c.decodeIfPresent([String].self, forKey: .listFilters),
             listOpen: try c.decodeIfPresent(Int.self, forKey: .listOpen) ?? 0,
-            inboxKey: try optional(.inboxKey)
+            inboxKey: try optional(.inboxKey),
+            older: try flag(.older)
         )
     }
 
@@ -363,6 +366,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encodeIfPresent(ungated, forKey: .ungated)
         if turnHeld { try c.encode(turnHeld, forKey: .turnHeld) }
         try c.encodeIfPresent(heldRound, forKey: .heldRound)
+        if older { try c.encode(older, forKey: .older) }
     }
 }
 

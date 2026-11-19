@@ -121,9 +121,13 @@ func TestSidebarKeepsTheNewestAndPicksTheNewest(t *testing.T) {
 		recs = append(recs, record{ID: fmt.Sprintf("agt_%04d", i), CreatedAt: t0.Add(time.Duration(i) * time.Second)})
 	}
 	recs[len(recs)-1].Night = "sleep"
-	window := sidebarWindow(recs)
+	window := sidebarWindow(recs, nil)
 	assert.Equal(t, []string{"agt_0002", "agt_1001"}, []string{window[0].ID, window[len(window)-1].ID})
 	assert.Equal(t, "agt_1000", newestPick(window))
+
+	older := sidebarWindow(recs, map[string]bool{"agt_0000": true})
+	assert.Equal(t, []string{"agt_0000", "agt_0002"}, idsOfRecs(older[:2]))
+	assert.Len(t, older, maxSidebarRows+1)
 }
 
 func idsOf(infos []sessionInfo) []string {
@@ -234,4 +238,12 @@ func TestSessionsSinceFailsWhenTheWorkspaceCannotBeRead(t *testing.T) {
 
 	_, err := a.sessionsCommand(t.Context(), pluginsdk.CommandRun{WorkspaceID: "prj_1"}, sessionsArgs{Since: &since})
 	assert.Error(t, err)
+}
+
+func idsOfRecs(recs []record) []string {
+	out := make([]string, 0, len(recs))
+	for _, rec := range recs {
+		out = append(out, rec.ID)
+	}
+	return out
 }

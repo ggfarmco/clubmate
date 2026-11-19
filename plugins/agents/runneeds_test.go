@@ -24,9 +24,9 @@ func TestRunNeedsListedAsRunEntries(t *testing.T) {
 	assert.Equal(t, pendingSummary{Kind: entryPermission, Text: "make test", Tool: toolExecute, Role: "Tests", At: time.Unix(100, 0)}, *got.PendingSummary)
 	assert.Equal(t, api.Run{ID: "gr_1", Title: "Review gate", Number: 4}, *got.Run)
 
-	full := a.sessionsPage(t.Context(), "ws", infos, graphState{}, "", false)
+	full := a.sessionsPage(t.Context(), "ws", infos, graphState{}, "", false, false)
 	a.setRunNeeds(t.Context(), "ws", nil)
-	assert.Equal(t, []string{"gr_1"}, a.sessionsPage(t.Context(), "ws", a.infos("ws"), graphState{}, full.Cursor, false).Removed)
+	assert.Equal(t, []string{"gr_1"}, a.sessionsPage(t.Context(), "ws", a.infos("ws"), graphState{}, full.Cursor, false, false).Removed)
 }
 
 func TestRunNeedChangesResolveWhatLeft(t *testing.T) {

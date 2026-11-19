@@ -170,9 +170,11 @@ type sessionInfo struct {
 	ListGroupLabel  string             `json:"listGroupLabel,omitempty"`
 	ListFilters     []string           `json:"listFilters,omitempty"`
 	ListOpen        int                `json:"listOpen,omitempty"`
+	Older           bool               `json:"older,omitempty"`
 	InboxKey        string             `json:"inboxKey,omitempty"`
 	inbox           inboxEntry
 	gatePoint       string
+	olderRoot       string
 }
 
 type loadStamps struct {

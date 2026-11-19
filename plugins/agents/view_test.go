@@ -152,6 +152,60 @@ func TestSidebarClosedShowsNewestWithWorktreeAndMore(t *testing.T) {
 	assert.Equal(t, []bool{false, false, false, false, true}, actions)
 }
 
+func TestSidebarOlderGroupFollowsClosedFoldedWithItsUnitCount(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	rows := []sessionRow{
+		{Rec: record{ID: "agt_open", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now}},
+		{Rec: record{ID: "agt_c", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, UpdatedAt: now}},
+		{Rec: record{ID: "agt_o0", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, UpdatedAt: now.Add(-96 * time.Hour)}, Older: true},
+		{Rec: record{ID: "agt_o1", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, UpdatedAt: now.Add(-99 * time.Hour)}, Older: true},
+		{Rec: record{ID: "agt_o1k", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, ParentSession: "agt_o1", UpdatedAt: now.Add(-90 * time.Hour)}, Older: true},
+	}
+	plus := sidebarPlus{older: olderSide{count: 7, left: 5, rank: map[string]int{"agt_o1": 0, "agt_o0": 1}}}
+	view := func(collapsed map[string]bool) []sdui.TreeItem {
+		return nodesOf(sidebarView(rows, "", collapsed, now, "/r/a", nil, false, "", sidebarSearch{}, 0, plus, nil), "tree")[0].Props["items"].([]sdui.TreeItem)
+	}
+
+	items := view(nil)
+	assert.Equal(t, []string{"agt_open", groupPrefix + closedKey, groupPrefix + olderKey}, ids(items))
+	assert.Equal(t, "1", items[1].Detail)
+	assert.Equal(t, []string{"Older", "7", olderIcon}, []string{items[2].Label, items[2].Detail, items[2].Icon})
+	assert.False(t, items[2].Expanded)
+	assert.Empty(t, items[2].Children)
+
+	open := view(map[string]bool{olderKey: false})[2]
+	assert.Equal(t, []string{"agt_o1", "agt_o0", olderMoreID}, ids(open.Children))
+	assert.Equal(t, "Show 5 more", open.Children[2].Label)
+}
+
+func TestOlderSidebarPagesNewestUnitsFirstAndAddsTheSelectedUnit(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	var infos []sessionInfo
+	for i := range 10 {
+		root, kid := fmt.Sprintf("agt_r%d", i), fmt.Sprintf("agt_k%d", i)
+		at := now.Add(-time.Duration(100+i) * time.Hour)
+		rootAt := at
+		if i == 1 {
+			rootAt = now.Add(-200 * time.Hour)
+		}
+		infos = append(infos,
+			sessionInfo{record: record{ID: root, Worktree: "/r/a", UpdatedAt: rootAt}, Older: true, olderRoot: root},
+			sessionInfo{record: record{ID: kid, ParentSession: root, Worktree: "/r/a", UpdatedAt: at}, Older: true, olderRoot: root},
+		)
+	}
+	infos = append(infos, sessionInfo{record: record{ID: "agt_h8", Worktree: "/r/a", UpdatedAt: now.Add(-108 * time.Hour)}, Hidden: true, Older: true, olderRoot: "agt_r8"})
+
+	for selected, root := range map[string]string{"agt_k9": "agt_r9", "agt_h8": "agt_r8"} {
+		side, show := olderSidebar(olderUnitsOf(infos), selected, closedShown)
+		assert.Equal(t, map[string]int{"agt_r0": 0, "agt_r1": 1, "agt_r2": 2, root: side.rank[root]}, side.rank, selected)
+		assert.Equal(t, [3]int{10, 6, 4}, [3]int{side.count, side.left, len(side.rank)}, selected)
+		assert.True(t, show[selected] && show[root] && show["agt_k1"], selected)
+		assert.False(t, show["agt_r3"], selected)
+	}
+}
+
 func TestSidebarFilter(t *testing.T) {
 	t.Parallel()
 	now := time.Now()

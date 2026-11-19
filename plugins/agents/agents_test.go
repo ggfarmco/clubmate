@@ -1883,44 +1883,86 @@ func TestCloseCancelsSignIn(t *testing.T) {
 	})
 }
 
-func TestSidebarClosedMoreRowExpandsUntilFolded(t *testing.T) {
+func TestSidebarClosedAndOlderMoreRowsExpandUntilFolded(t *testing.T) {
 	t.Parallel()
-	f := start(t, nil)
+	tests := []struct {
+		name  string
+		env   []string
+		group string
+		more  string
+	}{
+		{name: "closed", group: "wt:closed:", more: "wt:more:closed"},
+		{name: "older", env: []string{"CLUBMATE_AGENTS_OLDER_AFTER=1ns"}, group: "wt:older:", more: "wt:more:older"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := startEnv(t, tt.env, nil)
+			workspace := f.workspace(t, newRepo(t))
+			for range 5 {
+				id := f.newSession(t, workspace)
+				require.NoError(t, f.run(t, workspace, "agents.close", map[string]any{"session": id}, nil))
+			}
+			labels := func(n sdui.Node) []string {
+				var out []string
+				for _, item := range sidebarGroup(t, n, tt.group).Children {
+					out = append(out, item.Label)
+				}
+				return out
+			}
+			more := func(got []string) bool { return len(got) > 0 && strings.HasPrefix(got[len(got)-1], "Show ") }
+			var folded []string
+			f.h.Event(t, workspace, "agents.sidebar", "sessions", "expand", tt.group)
+			f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { folded = labels(n); return more(folded) })
+
+			f.h.Event(t, workspace, "agents.sidebar", "sessions", "select", tt.more)
+			f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { got := labels(n); return len(got) == 5 && !more(got) })
+
+			f.h.Event(t, workspace, "agents.sidebar", "sessions", "collapse", tt.group)
+			f.h.Event(t, workspace, "agents.sidebar", "sessions", "expand", tt.group)
+			f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return slices.Equal(labels(n), folded) })
+		})
+	}
+}
+
+func TestSelectingAnOlderSessionOpensTheOlderGroupOnce(t *testing.T) {
+	t.Parallel()
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_OLDER_AFTER=1ns"}, nil)
 	workspace := f.workspace(t, newRepo(t))
-	for range 5 {
-		id := f.newSession(t, workspace)
-		require.NoError(t, f.run(t, workspace, "agents.close", map[string]any{"session": id}, nil))
-	}
-	closed := func(n sdui.Node) []string {
-		trees := cardsOf(n, "tree")
-		if len(trees) == 0 {
-			return nil
-		}
-		raw, err := json.Marshal(trees[0].Props["items"])
-		require.NoError(t, err)
-		var groups []sdui.TreeItem
-		require.NoError(t, json.Unmarshal(raw, &groups))
-		i := slices.IndexFunc(groups, func(item sdui.TreeItem) bool { return item.ID == "wt:closed:" })
-		if i < 0 {
-			return nil
-		}
-		var labels []string
-		for _, item := range groups[i].Children {
-			labels = append(labels, item.Label)
-		}
-		return labels
-	}
-	more := func(got []string) bool { return len(got) > 0 && strings.HasPrefix(got[len(got)-1], "Show ") }
-	var folded []string
-	f.h.Event(t, workspace, "agents.sidebar", "sessions", "expand", "wt:closed:")
-	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { folded = closed(n); return more(folded) })
+	id := f.newSession(t, workspace)
+	require.NoError(t, f.run(t, workspace, "agents.close", map[string]any{"session": id}, nil))
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool {
+		g := sidebarGroup(t, n, "wt:older:")
+		return g.ID != "" && !g.Expanded
+	})
 
-	f.h.Event(t, workspace, "agents.sidebar", "sessions", "select", "wt:more:closed")
-	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { got := closed(n); return len(got) == 5 && !more(got) })
+	f.h.Event(t, workspace, "agents.sidebar", "sessions", "select", id)
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool {
+		return slices.ContainsFunc(sidebarGroup(t, n, "wt:older:").Children, func(item sdui.TreeItem) bool { return item.ID == id })
+	})
 
-	f.h.Event(t, workspace, "agents.sidebar", "sessions", "collapse", "wt:closed:")
-	f.h.Event(t, workspace, "agents.sidebar", "sessions", "expand", "wt:closed:")
-	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return slices.Equal(closed(n), folded) })
+	f.h.Event(t, workspace, "agents.sidebar", "sessions", "collapse", "wt:older:")
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool {
+		g := sidebarGroup(t, n, "wt:older:")
+		return g.ID != "" && !g.Expanded
+	})
+}
+
+func sidebarGroup(t *testing.T, n sdui.Node, id string) sdui.TreeItem {
+	t.Helper()
+	trees := cardsOf(n, "tree")
+	if len(trees) == 0 {
+		return sdui.TreeItem{}
+	}
+	raw, err := json.Marshal(trees[0].Props["items"])
+	require.NoError(t, err)
+	var groups []sdui.TreeItem
+	require.NoError(t, json.Unmarshal(raw, &groups))
+	i := slices.IndexFunc(groups, func(item sdui.TreeItem) bool { return item.ID == id })
+	if i < 0 {
+		return sdui.TreeItem{}
+	}
+	return groups[i]
 }
 
 func (f *fixture) rev(t *testing.T, workspace, slot string) int64 {

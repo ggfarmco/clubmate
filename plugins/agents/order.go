@@ -120,8 +120,22 @@ func (a *app) home(ctx context.Context, workspaceID string) (string, error) {
 	return home, nil
 }
 
-func sidebarWindow(recs []record) []record {
-	return recs[max(0, len(recs)-maxSidebarRows):]
+func sidebarWindow(recs []record, older map[string]bool) []record {
+	drop := -maxSidebarRows
+	for _, rec := range recs {
+		if !older[rec.ID] {
+			drop++
+		}
+	}
+	out := make([]record, 0, len(recs)-max(0, drop))
+	for _, rec := range recs {
+		if !older[rec.ID] && drop > 0 {
+			drop--
+			continue
+		}
+		out = append(out, rec)
+	}
+	return out
 }
 
 func newestPick(recs []record) string {

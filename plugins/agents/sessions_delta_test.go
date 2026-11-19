@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,10 +17,12 @@ type sessionsPage struct {
 	Sessions []struct {
 		ID     string `json:"id"`
 		Notify string `json:"notify"`
+		Older  bool   `json:"older"`
 	} `json:"sessions"`
-	Removed []string `json:"removed"`
-	Cursor  string   `json:"cursor"`
-	Delta   bool     `json:"delta"`
+	Removed    []string `json:"removed"`
+	Cursor     string   `json:"cursor"`
+	Delta      bool     `json:"delta"`
+	OlderCount int      `json:"olderCount"`
 }
 
 func (p sessionsPage) ids() []string {
@@ -59,6 +62,97 @@ func TestSessionsSinceReturnsOnlyChangedAndRemovedSessions(t *testing.T) {
 	assert.Equal(t, "muted", changed.Sessions[0].Notify)
 	assert.Equal(t, []string{deleted}, changed.Removed)
 	assert.Empty(t, page(changed.Cursor).ids())
+}
+
+func TestAClosedSessionLeavesTheDefaultListWhenItBecomesOlderAndComesBackWhenResumed(t *testing.T) {
+	t.Parallel()
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_OLDER_AFTER=1s"}, map[string]any{"resume": true})
+	workspace := f.workspace(t, newRepo(t))
+	kept, old := f.titledSession(t, workspace, "find kept"), f.titledSession(t, workspace, "find old")
+	f.waitStarted(t, workspace, old)
+	page := func(args map[string]any) sessionsPage {
+		var p sessionsPage
+		require.NoError(t, f.run(t, workspace, "agents.sessions", args, &p))
+		return p
+	}
+	cursor := page(map[string]any{"since": ""}).Cursor
+	f.close(t, workspace, old)
+	var crossed sessionsPage
+	testutil.Eventually(t, func() bool {
+		crossed = page(map[string]any{"since": cursor})
+		cursor = crossed.Cursor
+		return slices.Contains(crossed.Removed, old)
+	}, wait)
+	assert.NotContains(t, crossed.ids(), old)
+	assert.Equal(t, map[string]bool{kept: false, old: true}, f.searchOlder(t, workspace, "find"))
+
+	full := page(map[string]any{"since": ""})
+	assert.Equal(t, []string{kept}, full.ids())
+	assert.Equal(t, 1, full.OlderCount)
+	all := page(map[string]any{"since": "", "older": true})
+	assert.Equal(t, []string{kept, old}, all.ids())
+	assert.True(t, all.Sessions[1].Older)
+	one := page(map[string]any{"since": "", "session": old})
+	assert.Equal(t, []string{old}, one.ids())
+	var older struct {
+		Sessions []struct {
+			ID string `json:"id"`
+		} `json:"sessions"`
+		Count int `json:"count"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.sessions-older", map[string]any{}, &older))
+	assert.Equal(t, 1, older.Count)
+	require.Len(t, older.Sessions, 1)
+	assert.Equal(t, old, older.Sessions[0].ID)
+
+	require.NoError(t, f.run(t, workspace, "agents.resume", map[string]any{"session": old}, nil))
+	var back sessionsPage
+	testutil.Eventually(t, func() bool {
+		back = page(map[string]any{"since": cursor})
+		return slices.Equal(back.ids(), []string{old})
+	}, wait)
+	assert.False(t, back.Sessions[0].Older)
+	assert.Zero(t, back.OlderCount)
+}
+
+func TestOlderAfterZeroTurnsOlderOff(t *testing.T) {
+	t.Parallel()
+	f := startEnv(t, []string{"CLUBMATE_AGENTS_OLDER_AFTER=0"}, map[string]any{})
+	workspace := f.workspace(t, newRepo(t))
+	old := f.titledSession(t, workspace, "find old")
+	f.waitStarted(t, workspace, old)
+	f.close(t, workspace, old)
+
+	var p sessionsPage
+	require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{"since": ""}, &p))
+	assert.Equal(t, []string{old}, p.ids())
+	assert.False(t, p.Sessions[0].Older)
+	assert.Zero(t, p.OlderCount)
+	assert.Equal(t, map[string]bool{old: false}, f.searchOlder(t, workspace, "find"))
+}
+
+func (f *fixture) titledSession(t *testing.T, workspace, title string) string {
+	t.Helper()
+	var out struct {
+		Session string `json:"session"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{"title": title}, &out))
+	require.NotEmpty(t, out.Session)
+	return out.Session
+}
+
+func (f *fixture) searchOlder(t *testing.T, workspace, query string) map[string]bool {
+	t.Helper()
+	var hits []struct {
+		Session string `json:"session"`
+		Older   bool   `json:"older"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.search", map[string]any{"query": query}, &hits))
+	out := map[string]bool{}
+	for _, h := range hits {
+		out[h.Session] = h.Older
+	}
+	return out
 }
 
 func TestSessionsSinceACursorFromBeforeARestartReturnsTheFullList(t *testing.T) {

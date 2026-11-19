@@ -44,6 +44,7 @@ type app struct {
 	sendHold   time.Duration
 	takeHold   time.Duration
 	roundAfter time.Duration
+	olderAfter time.Duration
 	loaded     chan struct{}
 	quit       chan struct{}
 	notes      *notifier
@@ -154,6 +155,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.trustPoll = envDelay(trustPollEnv, trustPollDefault)
 	a.takeHold = envDelay(takeHoldEnv, 0)
 	a.roundAfter = envDelay(roundResetEnv, roundReset)
+	a.olderAfter = envDelay(olderAfterEnv, olderAfter)
 	a.groups = newGroups(a.stateDir)
 	a.groups.reap(orphanMarkers())
 	a.self = newSelfStore(a.stateDir)

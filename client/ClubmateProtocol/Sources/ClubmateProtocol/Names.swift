@@ -14,6 +14,7 @@ public enum AgentCommand {
     public static let toolCall = "agents.tool-call"
     public static let prompt = "agents.prompt"
     public static let new = "agents.new"
+    public static let sessionsOlder = "agents.sessions-older"
 }
 
 public enum BacklogCommand {
