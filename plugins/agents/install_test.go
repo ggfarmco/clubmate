@@ -88,9 +88,9 @@ func TestChromeFollowsClaudeCodeDefault(t *testing.T) {
 }
 
 func TestChromeOnlyForUnrestrictedSessions(t *testing.T) {
-	assert.Equal(t, map[string]*string{"chrome": nil}, sessionMeta(record{ID: "a"}, "", selfParts{}, true).ClaudeCode.Options.ExtraArgs)
-	assert.Nil(t, sessionMeta(record{ID: "a", SystemPrompt: "serve"}, "", selfParts{}, true).ClaudeCode.Options.ExtraArgs)
-	assert.Nil(t, sessionMeta(record{ID: "a"}, "", selfParts{}, false).ClaudeCode.Options.ExtraArgs)
+	assert.Equal(t, map[string]*string{"chrome": nil}, sessionMeta(record{ID: "a"}, "", selfParts{}, true, false).ClaudeCode.Options.ExtraArgs)
+	assert.Nil(t, sessionMeta(record{ID: "a", SystemPrompt: "serve"}, "", selfParts{}, true, false).ClaudeCode.Options.ExtraArgs)
+	assert.Nil(t, sessionMeta(record{ID: "a"}, "", selfParts{}, false, false).ClaudeCode.Options.ExtraArgs)
 }
 
 func TestChromeOnlyForSessionsTheUserStarted(t *testing.T) {
@@ -113,7 +113,7 @@ func TestLeanProfileForAgentStartedSessions(t *testing.T) {
 	assert.Equal(t, []string{"a@m", "b@m"}, userPlugins())
 
 	for _, rec := range []record{{ID: "c", ParentSession: "p"}, {ID: "n", Run: &api.Run{ID: "r"}}, {ID: "g", GateFor: &gateFor{}}} {
-		opts := sessionMeta(rec, "", selfParts{}, false).ClaudeCode.Options
+		opts := sessionMeta(rec, "", selfParts{}, false, false).ClaudeCode.Options
 		require.True(t, rec.lean(), rec.ID)
 		leanOptions(&opts, userPlugins())
 		assert.Equal(t, "1", opts.Env[advisorOffEnv], rec.ID)
@@ -121,13 +121,13 @@ func TestLeanProfileForAgentStartedSessions(t *testing.T) {
 		assert.True(t, opts.StrictMcpConfig, rec.ID)
 	}
 
-	byHand := sessionMeta(record{ID: "c", ParentSession: "p"}, "opus", selfParts{}, false).ClaudeCode.Options
+	byHand := sessionMeta(record{ID: "c", ParentSession: "p"}, "opus", selfParts{}, false, false).ClaudeCode.Options
 	assert.Equal(t, "opus", byHand.Settings.AdvisorModel)
 	assert.NotContains(t, byHand.Env, advisorOffEnv)
 
 	for _, rec := range []record{{ID: "top"}, {ID: "aside", ParentSession: "p", Aside: &asideInfo{Kept: true}}, {ID: "voice", ParentSession: "p", SystemPrompt: "serve"}} {
 		assert.False(t, rec.lean(), rec.ID)
-		assert.NotContains(t, sessionMeta(rec, "", selfParts{}, false).ClaudeCode.Options.Env, advisorOffEnv, rec.ID)
+		assert.NotContains(t, sessionMeta(rec, "", selfParts{}, false, false).ClaudeCode.Options.Env, advisorOffEnv, rec.ID)
 	}
 }
 

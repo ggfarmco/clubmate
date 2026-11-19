@@ -333,7 +333,7 @@ func registered(ctx context.Context, root string) bool {
 	return cmd.Run() == nil
 }
 
-func sessionMeta(rec record, advisor string, self selfParts, chrome bool) *acp.SessionMeta {
+func sessionMeta(rec record, advisor string, self selfParts, chrome, plain bool) *acp.SessionMeta {
 	opts := acp.ClaudeCodeOptions{Env: map[string]string{agentSessionEnv: rec.ID}, DisallowedTools: rec.DisallowedTools}
 	if chrome && !rec.restricted() {
 		opts.ExtraArgs = map[string]*string{chromeFlag: nil}
@@ -370,6 +370,9 @@ func sessionMeta(rec record, advisor string, self selfParts, chrome bool) *acp.S
 		text = asideSystemText
 	case rec.ParentSession == "":
 		text = askUserText
+	}
+	if plain {
+		text += "\n\n" + plainRule
 	}
 	if self.Prompt != "" {
 		text += "\n\n" + self.Prompt

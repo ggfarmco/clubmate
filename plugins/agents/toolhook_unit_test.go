@@ -35,7 +35,7 @@ func TestToolHookDirSkipsGateNodesAndNightsAndFailsClosed(t *testing.T) {
 
 func TestToolHookReachesSessionsWithASystemPrompt(t *testing.T) {
 	t.Parallel()
-	meta := sessionMeta(record{ID: "agt_1", SystemPrompt: "Route the user's words."}, "", selfParts{PluginDir: "/self"}, false)
+	meta := sessionMeta(record{ID: "agt_1", SystemPrompt: "Route the user's words."}, "", selfParts{PluginDir: "/self"}, false, false)
 
 	withToolHook(meta, "/hook")
 
@@ -47,7 +47,7 @@ func TestToolHookReachesSessionsWithASystemPrompt(t *testing.T) {
 
 func TestToolHookKeepsALeanSessionsUserPluginsOff(t *testing.T) {
 	t.Parallel()
-	meta := sessionMeta(record{ID: "agt_1"}, "", selfParts{PluginDir: "/self"}, false)
+	meta := sessionMeta(record{ID: "agt_1"}, "", selfParts{PluginDir: "/self"}, false, false)
 	leanOptions(&meta.ClaudeCode.Options, []string{"user@m"})
 
 	withToolHook(meta, "/hook")
