@@ -1705,6 +1705,7 @@ func TestRevealOpensTheGraphRunRow(t *testing.T) {
 }
 
 func TestRevealTurnAnchorsTranscript(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -1732,6 +1733,7 @@ func TestRevealTurnAnchorsTranscript(t *testing.T) {
 }
 
 func TestRevealSameTurnAgainBumpsAnchorRev(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -3413,6 +3415,7 @@ func (f *fixture) waitTurns(t *testing.T, session string, cond func([]api.Turn) 
 }
 
 func TestTurnEventCarriesTurnNumber(t *testing.T) {
+	t.Parallel()
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)

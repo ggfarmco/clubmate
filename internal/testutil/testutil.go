@@ -128,7 +128,7 @@ func EchoPluginDir(t *testing.T) string {
 	root := t.TempDir()
 	dir := filepath.Join(root, "echo")
 	require.NoError(t, os.Mkdir(dir, 0o700))
-	copyFile(t, bin, filepath.Join(dir, "echo"), 0o755)
+	linkBinary(t, bin, filepath.Join(dir, "echo"))
 	copyFile(t, filepath.Join(filepath.Dir(self), "plugins", "echo", "plugin.json"), filepath.Join(dir, "plugin.json"), 0o600)
 	return root
 }
@@ -144,7 +144,7 @@ func EchoPluginDirAs(t *testing.T, manifests ...string) string {
 		require.NoError(t, json.Unmarshal([]byte(manifest), &m))
 		dir := filepath.Join(root, m.ID)
 		require.NoError(t, os.Mkdir(dir, 0o700))
-		copyFile(t, bin, filepath.Join(dir, "echo"), 0o755)
+		linkBinary(t, bin, filepath.Join(dir, "echo"))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(manifest), 0o600))
 	}
 	return root
@@ -163,20 +163,36 @@ func BuildPluginDir(t *testing.T, pkg, manifestPath string) string {
 	root := t.TempDir()
 	dir := filepath.Join(root, m.ID)
 	require.NoError(t, os.Mkdir(dir, 0o700))
-	copyFile(t, bin, filepath.Join(dir, filepath.Base(pkg)), 0o755)
+	linkBinary(t, bin, filepath.Join(dir, filepath.Base(pkg)))
 	copyFile(t, manifest, filepath.Join(dir, "plugin.json"), 0o600)
 	return root
 }
 
+var findModuleRoot = sync.OnceValues(func() (string, error) {
+	gomod, err := exec.Command("go", "env", "GOMOD").Output()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Dir(strings.TrimSpace(string(gomod))), nil
+})
+
 func moduleRoot(t *testing.T) string {
 	t.Helper()
-	gomod, err := exec.Command("go", "env", "GOMOD").Output()
+	root, err := findModuleRoot()
 	require.NoError(t, err)
-	return filepath.Dir(strings.TrimSpace(string(gomod)))
+	return root
 }
 
 func Alive(pid int) bool {
 	return unix.Kill(pid, 0) == nil
+}
+
+func linkBinary(t *testing.T, src, dst string) {
+	t.Helper()
+	if os.Link(src, dst) == nil {
+		return
+	}
+	copyFile(t, src, dst, 0o755)
 }
 
 func copyFile(t *testing.T, src, dst string, perm os.FileMode) {
@@ -224,11 +240,10 @@ func killLeftovers(svc *core.Service) {
 }
 
 func build(pkg string) (string, error) {
-	gomod, err := exec.Command("go", "env", "GOMOD").Output()
+	root, err := findModuleRoot()
 	if err != nil {
 		return "", err
 	}
-	root := filepath.Dir(strings.TrimSpace(string(gomod)))
 	sum := sha256.Sum256([]byte(root + "\x00" + pkg))
 	if binCacheErr != nil {
 		return "", binCacheErr

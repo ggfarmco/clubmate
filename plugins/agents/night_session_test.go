@@ -9,6 +9,7 @@ import (
 )
 
 func TestNightMetaIsConfined(t *testing.T) {
+	t.Parallel()
 	m := sessionMeta(record{ID: "n", Night: nightSleep, SystemPrompt: "x", Allow: []string{"Edit(//d/**)"}}, "", selfParts{Prompt: "self"}, false, false)
 	o := m.ClaudeCode.Options
 	assert.Equal(t, []string{"Read", "Grep", "Glob", "Edit", "Write"}, o.Tools)
@@ -19,16 +20,19 @@ func TestNightMetaIsConfined(t *testing.T) {
 }
 
 func TestNightAllowCoversSandboxReadsAndDeclare(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, []string{"Edit(//s/**)", "Read(//w/**)", "mcp__clubmate__agents_self_declare"}, nightAllow("/s", []string{"/w"}))
 }
 
 func TestNightOutcomeTakesRejectOnceOrCancels(t *testing.T) {
+	t.Parallel()
 	options := []acp.PermissionOption{{OptionID: "yes", Kind: "allow_once"}, {OptionID: "never", Kind: "reject_always"}, {OptionID: "no", Kind: "reject_once"}}
 	assert.Equal(t, acp.PermissionOutcome{Outcome: acp.OutcomeSelected, OptionID: "no"}, nightOutcome(options))
 	assert.Equal(t, acp.PermissionOutcome{Outcome: acp.OutcomeCancelled}, nightOutcome(options[:2]))
 }
 
 func TestNightSpecMustBeConfinable(t *testing.T) {
+	t.Parallel()
 	good := nightSpec{Kind: nightSleep, Workspace: "w", Dir: "/s", System: "x", Reads: []string{"/w"}}
 	for _, bad := range []func(*nightSpec){
 		func(s *nightSpec) { s.Kind = "" },

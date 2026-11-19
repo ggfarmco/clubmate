@@ -43,6 +43,7 @@ func scriptedHost(t *testing.T, handle func(method, key string) any) *pluginsdk.
 }
 
 func TestGateHistoryIsReadFromStorageOnceUntilItChanges(t *testing.T) {
+	t.Parallel()
 	var mu sync.Mutex
 	stored := map[string]json.RawMessage{}
 	gets := 0
@@ -82,6 +83,7 @@ func TestGateHistoryIsReadFromStorageOnceUntilItChanges(t *testing.T) {
 }
 
 func TestStaleGatesReadDoesNotReplaceTheSavedGates(t *testing.T) {
+	t.Parallel()
 	a := &app{stateDir: t.TempDir()}
 	gen := a.gatesGen.Load()
 
@@ -97,6 +99,7 @@ func TestStaleGatesReadDoesNotReplaceTheSavedGates(t *testing.T) {
 }
 
 func TestTrustIsSyncedOnlyWhenASessionStartsOrStopsWaiting(t *testing.T) {
+	t.Parallel()
 	s := newSession(record{ID: "agt_1", Workspace: "ws"}, nil, false, func(string, bool) {})
 	hold := func(h *heldTurn) {
 		s.mu.Lock()
@@ -116,6 +119,7 @@ func TestTrustIsSyncedOnlyWhenASessionStartsOrStopsWaiting(t *testing.T) {
 }
 
 func TestTrustWithdrawalComesAfterThePostItRacesWith(t *testing.T) {
+	t.Parallel()
 	var mu sync.Mutex
 	var calls []string
 	posting := make(chan struct{})

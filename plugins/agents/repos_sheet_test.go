@@ -1,6 +1,8 @@
 package main_test
 
 import (
+	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -26,8 +28,13 @@ func reposParent(t *testing.T) (string, string, string) {
 	parent, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	older := repoIn(t, parent, "older")
-	t.Setenv("GIT_COMMITTER_DATE", "2030-01-01T10:00:00Z")
-	newer := repoIn(t, parent, "newer")
+	newer := filepath.Join(parent, "newer")
+	require.NoError(t, os.MkdirAll(newer, 0o700))
+	git(t, newer, "init", "-q", "-b", "main")
+	cmd := exec.Command("git", "-C", newer, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init")
+	cmd.Env = append(os.Environ(), "GIT_COMMITTER_DATE=2030-01-01T10:00:00Z")
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
 	return parent, older, newer
 }
 
@@ -63,6 +70,7 @@ func (f *fixture) reposSheetOpen(t *testing.T, workspace string) bool {
 }
 
 func TestReposSheetIsOfferedOnceAndRemembered(t *testing.T) {
+	t.Parallel()
 	f := startGit(t, map[string]any{})
 	parent, _, _ := reposParent(t)
 	workspace := f.workspace(t, parent)
@@ -80,6 +88,7 @@ func TestReposSheetIsOfferedOnceAndRemembered(t *testing.T) {
 }
 
 func TestAddedReposComeAfterTheParentInSheetOrder(t *testing.T) {
+	t.Parallel()
 	f := startGit(t, map[string]any{})
 	parent, older, newer := reposParent(t)
 	workspace := f.workspace(t, parent)
@@ -115,6 +124,7 @@ func TestAddedReposComeAfterTheParentInSheetOrder(t *testing.T) {
 }
 
 func TestAnAddedRepoIsADisabledTickedBox(t *testing.T) {
+	t.Parallel()
 	f := startGit(t, map[string]any{})
 	parent, older, newer := reposParent(t)
 	workspace := f.workspace(t, parent)
@@ -141,6 +151,7 @@ func TestAnAddedRepoIsADisabledTickedBox(t *testing.T) {
 }
 
 func TestAWorkspaceOfReposIsOfferedNothing(t *testing.T) {
+	t.Parallel()
 	f := startGit(t, map[string]any{})
 	workspace := f.workspace(t, newRepo(t))
 

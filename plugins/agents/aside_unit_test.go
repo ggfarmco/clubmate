@@ -15,10 +15,12 @@ import (
 )
 
 func TestAsideNotRestricted(t *testing.T) {
+	t.Parallel()
 	assert.False(t, record{Aside: &asideInfo{}, DisallowedTools: asideDenied}.restricted())
 }
 
 func TestAsideState(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		rec  record
@@ -37,6 +39,7 @@ func TestAsideState(t *testing.T) {
 }
 
 func TestAsideSeedText(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name   string
 		anchor asideAnchor
@@ -75,6 +78,7 @@ func parentItem(t *testing.T, rows []sessionRow) sdui.TreeItem {
 }
 
 func TestAsideRowsOrder(t *testing.T) {
+	t.Parallel()
 	item := parentItem(t, asideRows(2))
 	ids := make([]string, 0, len(item.Children))
 	for _, c := range item.Children {
@@ -87,12 +91,14 @@ func TestAsideRowsOrder(t *testing.T) {
 }
 
 func TestAsidesFold(t *testing.T) {
+	t.Parallel()
 	item := parentItem(t, asideRows(3))
 	require.Len(t, item.Children, 2)
 	assert.Equal(t, "Asides · 3", item.Children[1].Label)
 }
 
 func TestAsideAsksListsItsParent(t *testing.T) {
+	t.Parallel()
 	rows := asideRows(1)
 	rows[2].Rec.Status = statusWaiting
 	view := sidebarView(rows, "", map[string]bool{}, time.Now(), "/w", nil, false, filterNeeds, sidebarSearch{}, 0, sidebarPlus{}, nil)
@@ -111,6 +117,7 @@ func TestAsideAsksListsItsParent(t *testing.T) {
 }
 
 func TestAsideLeavesTaskSummaryAndArchivable(t *testing.T) {
+	t.Parallel()
 	a := &app{registry: newRegistry(), uiState: newUIState(), reviews: newReviewBoard(), watchdog: newWatchdog()}
 	dir := t.TempDir()
 	add := func(rec record) {
@@ -142,6 +149,7 @@ func treeItems(t *testing.T, rows []sessionRow, collapsed map[string]bool, filte
 }
 
 func TestAsidesHangUnderATaskParent(t *testing.T) {
+	t.Parallel()
 	rows := asideRows(1)
 	rows[0].Rec.Task = &taskRecord{Slug: "pause", Repos: []taskRepo{{Path: "/ads", Name: "ads", Session: "c", State: landWaits}}}
 	items := treeItems(t, rows, map[string]bool{expandPrefix + "p": false}, "")
@@ -151,6 +159,7 @@ func TestAsidesHangUnderATaskParent(t *testing.T) {
 }
 
 func TestNestedAsideAskingListsTheRoot(t *testing.T) {
+	t.Parallel()
 	rows := asideRows(1)
 	rows[2].Rec.ParentSession, rows[2].Rec.Status = "c", statusWaiting
 	items := treeItems(t, rows, map[string]bool{}, filterNeeds)
@@ -158,6 +167,7 @@ func TestNestedAsideAskingListsTheRoot(t *testing.T) {
 }
 
 func TestDeleteConfirmCountsNoAsides(t *testing.T) {
+	t.Parallel()
 	item := parentItem(t, asideRows(2))
 	i := slices.IndexFunc(item.Menu, func(m sdui.MenuEntry) bool { return m.Action == actDelete })
 	require.GreaterOrEqual(t, i, 0)
@@ -165,5 +175,6 @@ func TestDeleteConfirmCountsNoAsides(t *testing.T) {
 }
 
 func TestDraftTextQuotesEveryLine(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "> one\n> \n> two\n\nwhy", draftText("one\n\ntwo", "why"))
 }

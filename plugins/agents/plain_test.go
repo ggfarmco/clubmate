@@ -9,11 +9,13 @@ import (
 )
 
 func TestSessionMetaPutsPlainBetweenHintAndSelf(t *testing.T) {
+	t.Parallel()
 	m := sessionMeta(record{ID: "a"}, "", selfParts{Prompt: "be brief"}, false, true)
 	assert.Equal(t, askUserText+"\n\n"+plainRule+"\n\nbe brief", m.SystemPrompt.Append)
 }
 
 func TestPlainIsOnUnlessStoredOff(t *testing.T) {
+	t.Parallel()
 	var mu sync.Mutex
 	var stored json.RawMessage
 	h := scriptedHost(t, func(method, key string) any {

@@ -11,6 +11,7 @@ import (
 )
 
 func TestHeldCardIsAGateCardThatAsksAboutAPlan(t *testing.T) {
+	t.Parallel()
 	card := heldCard(record{ID: "agt_1"}, heldTurn{Request: "lg_1", Name: gateNamePlanSpecs, Last: gateChanges, Round: 2})
 	require.NoError(t, internalsdui.Validate(sdui.VStack(card)))
 
@@ -24,6 +25,7 @@ func TestHeldCardIsAGateCardThatAsksAboutAPlan(t *testing.T) {
 }
 
 func TestEveryRoundsCardAsksItsQuestion(t *testing.T) {
+	t.Parallel()
 	questions := map[string]string{
 		gateNameAnyTurn:       "Accept the turn as done?",
 		gateNameAnyFile:       "Accept the changes as done?",
@@ -37,6 +39,7 @@ func TestEveryRoundsCardAsksItsQuestion(t *testing.T) {
 }
 
 func TestHeldRoundLineNamesEachRound(t *testing.T) {
+	t.Parallel()
 	b := heldBlock{Graph: "Plan pipeline", Round: 2, Rounds: []finishedRound{{Round: 1, Verdict: gateChanges}}}
 	reviewing, waits := b, b
 	reviewing.Reviewing, waits.Wait = true, "waits for trust"
@@ -47,6 +50,7 @@ func TestHeldRoundLineNamesEachRound(t *testing.T) {
 }
 
 func TestTurnHeldOnlyWhileTheAgentIsNotWorking(t *testing.T) {
+	t.Parallel()
 	a := &app{}
 	cases := []struct {
 		name string
@@ -64,6 +68,7 @@ func TestTurnHeldOnlyWhileTheAgentIsNotWorking(t *testing.T) {
 }
 
 func TestDoneSentenceAndMatchNameWhoseTurn(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		sessions       []string
 		sentence, fact string
