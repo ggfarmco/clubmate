@@ -96,11 +96,12 @@ func (s *session) loadLocked() {
 	s.askTasksLocked()
 	open := s.rec.OpenCount
 	s.countOpen()
+	indexed := s.indexDocsLocked()
 	switch {
 	case s.changed == nil:
 	case s.rec.OpenCount != open:
 		go s.changed(changeStatus, true)
-	case s.rec.loadStamps() != stamps:
+	case s.rec.loadStamps() != stamps || indexed:
 		go s.changed(changeUpdate, true)
 	}
 }

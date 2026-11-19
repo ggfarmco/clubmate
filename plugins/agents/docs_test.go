@@ -51,6 +51,70 @@ func TestAgentDocsPerSession(t *testing.T) {
 	assert.ErrorIs(t, err, errNoSession)
 }
 
+func TestAgentDocsComeFromTheIndexWithoutLoadingASession(t *testing.T) {
+	t.Parallel()
+	sessions := []*session{
+		docsSession(t, "s1", "ws",
+			docLine(1, "", "a", "/r/a.md"),
+			`{"turn":1,"ts":"`+docsBase.Add(2*time.Minute).Format(time.RFC3339)+`","kind":"session/update","payload":{"sessionUpdate":"subagent_update","sessionId":"sub-1","title":"plan","state":{"state":"running"}}}`,
+			docLine(3, "sub-1", "c", "/r/sub.md"),
+			docLine(6, "", "a2", "/r/a.md"),
+		),
+		docsSession(t, "s2", "ws", `{"turn":1,"ts":"`+docsBase.Format(time.RFC3339)+`","kind":"session/prompt","payload":{"prompt":[{"type":"text","text":"go"}]}}`),
+		docsSession(t, "s3", "ws", docLine(4, "", "b", "/r/b.md"), docLine(5, "", "a", "/r/a.md")),
+	}
+	a := docsApp(t, sessions...)
+	want := []docRef{
+		{Path: "/r/a.md", Session: "s1", At: docsBase.Add(6 * time.Minute)},
+		{Path: "/r/b.md", Session: "s3", At: docsBase.Add(4 * time.Minute)},
+		{Path: "/r/sub.md", Session: "s1", At: docsBase.Add(3 * time.Minute)},
+	}
+
+	require.Equal(t, want, runDocs(t, a, "ws", ""))
+	for _, s := range sessions {
+		require.NoError(t, os.Chmod(s.log.path, 0))
+		t.Cleanup(func() { _ = os.Chmod(s.log.path, 0o600) })
+	}
+
+	assert.Equal(t, want, runDocs(t, a, "ws", ""))
+	assert.Equal(t, []string{"/r/a.md", "/r/sub.md"}, docPaths(runDocs(t, a, "ws", "s1")))
+	restarted := make([]*session, 0, len(sessions))
+	for _, s := range sessions {
+		raw, err := json.Marshal(s.snapshot())
+		require.NoError(t, err)
+		var rec record
+		require.NoError(t, json.Unmarshal(raw, &rec))
+		restarted = append(restarted, newSession(rec, newEventLog(s.log.path), false, func(string, bool) {}))
+	}
+	assert.Equal(t, want, runDocs(t, docsApp(t, restarted...), "ws", ""))
+	for _, s := range append(sessions, restarted...) {
+		assert.False(t, s.loaded, s.rec.ID)
+	}
+}
+
+func TestAgentDocsOfALiveSessionAreIndexedWhenItUnloads(t *testing.T) {
+	t.Parallel()
+	s := docsSession(t, "s1", "ws", docLine(1, "", "a", "/r/a.md"))
+	a := docsApp(t, s)
+	s.update(json.RawMessage(`{"update":{"sessionUpdate":"tool_call","toolCallId":"n","kind":"edit","status":"completed","content":[{"type":"diff","path":"/r/new.md","newText":"x"}]}}`))
+	var saves []string
+	s.changed = func(kind string, save bool) {
+		if save {
+			saves = append(saves, kind)
+		}
+	}
+
+	live := runDocs(t, a, "ws", "")
+	require.Equal(t, []string{"/r/new.md", "/r/a.md"}, docPaths(live))
+	a.unloadIdle(0)
+	require.NoError(t, os.Chmod(s.log.path, 0))
+	t.Cleanup(func() { _ = os.Chmod(s.log.path, 0o600) })
+
+	assert.Equal(t, []string{changeUpdate}, saves)
+	assert.Equal(t, live, runDocs(t, a, "ws", ""))
+	assert.False(t, s.loaded)
+}
+
 func docLine(minute int, sub, id, path string) string {
 	agent := ""
 	if sub != "" {

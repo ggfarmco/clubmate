@@ -112,6 +112,7 @@ type record struct {
 	ForkedFrom      string         `json:"forkedFrom,omitempty"`
 	ComposerDraft   *composerDraft `json:"composerDraft,omitempty"`
 	DraftRev        int64          `json:"draftRev,omitempty"`
+	DocIndex        *docIndex      `json:"docIndex,omitempty"`
 
 	Task            *taskRecord      `json:"task,omitempty"`
 	ConnectRequests []connectRequest `json:"connectRequests,omitempty"`

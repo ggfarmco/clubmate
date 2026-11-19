@@ -104,6 +104,17 @@ func (l *eventLog) high() int64 {
 	return l.seq
 }
 
+func (l *eventLog) size() int64 {
+	info, err := os.Stat(l.path)
+	switch {
+	case err == nil:
+		return info.Size()
+	case errors.Is(err, os.ErrNotExist):
+		return 0
+	}
+	return -1
+}
+
 func (l *eventLog) latest(e envelope) {
 	l.mu.Lock()
 	defer l.mu.Unlock()

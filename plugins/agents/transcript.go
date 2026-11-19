@@ -257,6 +257,7 @@ func (s *session) viewSince(fromTurn int, since *cursor, always func(*entry) boo
 	defer s.mu.Unlock()
 	s.loadLocked()
 	v := transcriptView{Session: s.rec, Modes: slices.Clone(s.modes), Configs: slices.Clone(s.configs), Usage: s.usage, Commands: slices.Clone(s.commands), Turns: slices.Clone(s.turns), ReviewStates: maps.Clone(s.reviewStates)}
+	v.Session.DocIndex = nil
 	high := s.log.high()
 	if since != nil && since.seq > high {
 		since = nil

@@ -39,6 +39,17 @@ type docsResult struct {
 	Docs []docRef `json:"docs"`
 }
 
+type docIndex struct {
+	Log      int64        `json:"log"`
+	Worktree string       `json:"worktree,omitempty"`
+	Docs     []indexedDoc `json:"docs,omitempty"`
+}
+
+type indexedDoc struct {
+	Path string    `json:"path"`
+	At   time.Time `json:"at"`
+}
+
 func (a *app) docsCommand(_ context.Context, cmd pluginsdk.CommandRun, args docsArgs) (any, error) {
 	var sessions []*session
 	if args.Session != "" {
@@ -71,7 +82,22 @@ func (a *app) docsCommand(_ context.Context, cmd pluginsdk.CommandRun, args docs
 func (s *session) docs() []docRef {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.loaded {
+		s.loadLocked()
+		return s.docsLocked()
+	}
+	if s.rec.DocIndex.fresh(s.log.size(), s.rec.Worktree) {
+		return s.rec.DocIndex.refs(s.rec.ID)
+	}
 	s.loadLocked()
+	docs := s.docsLocked()
+	if s.loaded {
+		s.unloadLocked()
+	}
+	return docs
+}
+
+func (s *session) docsLocked() []docRef {
 	var out []docRef
 	for _, en := range s.entries {
 		if en.Doc != "" {
@@ -86,6 +112,45 @@ func (s *session) docs() []docRef {
 		}
 	}
 	return out
+}
+
+func (s *session) indexDocsLocked() bool {
+	latest := map[string]time.Time{}
+	for _, d := range s.docsLocked() {
+		if at, ok := latest[d.Path]; !ok || d.At.After(at) {
+			latest[d.Path] = d.At
+		}
+	}
+	idx := &docIndex{Log: s.log.size(), Worktree: s.rec.Worktree}
+	for _, path := range slices.Sorted(maps.Keys(latest)) {
+		idx.Docs = append(idx.Docs, indexedDoc{Path: path, At: latest[path]})
+	}
+	if s.rec.DocIndex.equal(idx) {
+		return false
+	}
+	s.rec.DocIndex = idx
+	return true
+}
+
+func (x *docIndex) fresh(log int64, worktree string) bool {
+	return x != nil && log >= 0 && x.Log == log && x.Worktree == worktree
+}
+
+func (x *docIndex) refs(session string) []docRef {
+	out := make([]docRef, 0, len(x.Docs))
+	for _, d := range x.Docs {
+		out = append(out, docRef{Path: d.Path, Session: session, At: d.At})
+	}
+	return out
+}
+
+func (x *docIndex) equal(y *docIndex) bool {
+	if x == nil || y == nil {
+		return x == y
+	}
+	return x.Log == y.Log && x.Worktree == y.Worktree && slices.EqualFunc(x.Docs, y.Docs, func(a, b indexedDoc) bool {
+		return a.Path == b.Path && a.At.Equal(b.At)
+	})
 }
 
 const (

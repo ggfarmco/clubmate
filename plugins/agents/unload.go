@@ -13,10 +13,16 @@ func (a *app) unloadIdle(after time.Duration) {
 	a.mu.Unlock()
 	for _, s := range sessions {
 		s.mu.Lock()
+		indexed := false
 		if !shown[s.rec.ID] && s.unloadableLocked(after) {
+			s.log.flush()
+			indexed = s.indexDocsLocked()
 			s.unloadLocked()
 		}
 		s.mu.Unlock()
+		if indexed {
+			s.changed(changeUpdate, true)
+		}
 	}
 }
 

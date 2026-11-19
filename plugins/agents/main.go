@@ -451,6 +451,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 	tree := a.spendTree()
 	out := make([]sessionInfo, 0, len(recs))
 	for _, rec := range recs {
+		rec.DocIndex = nil
 		info := sessionInfo{record: rec, NotifyEffective: a.effectiveNotify(rec), ChildStatus: children[rec.ID]}
 		if n, ok := nest[rec.ID]; ok {
 			round := n.Round
