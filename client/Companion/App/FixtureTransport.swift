@@ -225,6 +225,11 @@ actor FixtureServer {
                 return Self.entry("agent", "shot-\(shot)", text: "Shot \(shot)", images: [Self.imageRef(path, width: 400, height: 300)])
             })]
         }
+        if UserDefaults.standard.bool(forKey: "smallImage") {
+            transcripts["agt_0000000000000004"] = ["entries": .array([
+                Self.entry("agent", "icon", text: "The icon", images: [Self.imageRef("/Users/me/src/shop/build/icon.png", width: 60, height: 40)]),
+            ])]
+        }
         if UserDefaults.standard.bool(forKey: "openFixture"), let template = sessions.first {
             for (id, title, ago, report, items) in Self.openSessions {
                 var record = Self.session(template, id: id, title: title, status: "done", ago: ago)
@@ -1471,10 +1476,24 @@ actor FixtureServer {
             return funnel(CGSize(width: 1200, height: 750), bars: [1.0, 0.72, 0.51, 0.38])
         case "checkout.png":
             return funnel(CGSize(width: 780, height: 1688), bars: [0.9, 0.6, 0.3])
+        case "icon.png":
+            return checker(CGSize(width: 60, height: 40))
         case let name where name.hasPrefix("shot-"):
             return funnel(CGSize(width: 400, height: 300), bars: [])
         default:
             return nil
+        }
+    }
+
+    private static func checker(_ size: CGSize) -> Data {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: size, format: format).pngData { context in
+            UIColor(red: 1, green: 0.82, blue: 0.4, alpha: 1).setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            UIColor(red: 0.03, green: 0.23, blue: 0.3, alpha: 1).setFill()
+            context.fill(CGRect(x: 0, y: 0, width: size.width / 2, height: size.height / 2))
+            context.fill(CGRect(x: size.width / 2, y: size.height / 2, width: size.width / 2, height: size.height / 2))
         }
     }
 

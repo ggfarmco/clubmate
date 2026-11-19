@@ -927,6 +927,15 @@ final class CompanionUITests: XCTestCase {
         }
     }
 
+    func testASmallImageKeepsItsSizeInItsTile() {
+        XCUIDevice.shared.appearance = .light
+        let app = launch(open: "agents/agt_0000000000000004", ["-smallImage", "YES"])
+        let tile = app.buttons["icon.png"]
+        XCTAssertTrue(tile.waitForExistence(timeout: 10))
+        XCTAssertTrue(poll { self.brightness(at: CGPoint(x: tile.frame.minX + 74, y: tile.frame.minY + 46), in: app.screenshot()) < 0.4 }, "the icon never showed")
+        XCTAssertGreaterThan(brightness(at: CGPoint(x: tile.frame.minX + 12, y: tile.frame.minY + 12), in: app.screenshot()), 0.6, "the icon was stretched over its tile")
+    }
+
     func testOpenCardSendsItsPicksAndKeepsTheRestOpen() {
         let app = launch(open: "agents/agt_0000000000000021", ["-openFixture", "YES"])
         let card = app.otherElements["open-card"]

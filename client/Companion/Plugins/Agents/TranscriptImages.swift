@@ -113,7 +113,7 @@ private struct ImageTile: View {
         Button(action: open) {
             VStack(alignment: .leading, spacing: 6) {
                 Color.surface2
-                    .overlay { thumbnail(decoded) }
+                    .overlay { thumbnail(decoded, fits: decoded.map { $0.size.width <= width && $0.size.height <= Self.height } ?? false) }
                     .frame(width: width, height: Self.height)
                     .clipShape(.rect(cornerRadius: 12))
                     .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Color(.separator), lineWidth: 1 / displayScale) }
@@ -133,8 +133,10 @@ private struct ImageTile: View {
     }
 
     @ViewBuilder
-    private func thumbnail(_ decoded: UIImage?) -> some View {
-        if let decoded {
+    private func thumbnail(_ decoded: UIImage?, fits: Bool) -> some View {
+        if let decoded, fits {
+            Image(uiImage: decoded)
+        } else if let decoded {
             Color.clear.overlay(alignment: .top) {
                 Image(uiImage: decoded)
                     .resizable()
