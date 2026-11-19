@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -78,7 +79,7 @@ type app struct {
 	docsRun        func(ctx context.Context, id, workspaceID string, args map[string]any) error
 	gateLogMu      sync.Mutex
 	outcomesMu     sync.Mutex
-	journaled      map[string]string
+	journaled      map[string][sha256.Size]byte
 	liveGates      atomic.Pointer[map[string]bool]
 	heldFacts      heldFacts
 	lastGates      atomic.Pointer[[]gateConfig]

@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"path/filepath"
@@ -164,33 +166,30 @@ func (a *app) outcomesDir() string {
 	return filepath.Join(a.stateDir, outcomesDirName)
 }
 
-func (a *app) appendOutcome(e outcomeEntry) {
+func (a *app) appendOutcome(e outcomeEntry) error {
 	if a.stateDir == "" {
-		return
+		return nil
 	}
 	line, err := json.Marshal(e)
 	if err != nil {
-		logError("outcome entry", err)
-		return
+		return err
 	}
 	a.outcomesMu.Lock()
 	defer a.outcomesMu.Unlock()
 	dir := a.outcomesDir()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		logError("outcomes dir", err)
-		return
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
 	}
 	path := filepath.Join(dir, e.At.UTC().Format(outcomesMonth)+".jsonl")
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		pruneOutcomes(dir, e.At)
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
-		logError("outcomes open", err)
-		return
+		return err
 	}
 	_, err = f.Write(append(line, '\n'))
-	logError("outcomes write", errors.Join(err, f.Close()))
+	return errors.Join(err, f.Close())
 }
 
 func pruneOutcomes(dir string, now time.Time) {
@@ -214,12 +213,18 @@ func (a *app) readOutcomes() []outcomeEntry {
 		if err != nil {
 			continue
 		}
-		sc := bufio.NewScanner(f)
-		sc.Buffer(nil, 4<<20)
-		for sc.Scan() {
+		r := bufio.NewReader(f)
+		for {
+			line, err := r.ReadBytes('\n')
 			var e outcomeEntry
-			if json.Unmarshal(sc.Bytes(), &e) == nil {
+			if len(line) > 0 && json.Unmarshal(line, &e) == nil {
 				out = append(out, e)
+			}
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					logError("read outcomes", err)
+				}
+				break
 			}
 		}
 		f.Close()
@@ -247,7 +252,7 @@ func (a *app) journal() outcomeJournal {
 }
 
 func (a *app) journalVerdict(v gateVerdict) {
-	a.appendOutcome(outcomeEntry{Type: outcomeVerdict, At: v.At, Workspace: v.Workspace, Verdict: &v})
+	logError("journal verdict", a.appendOutcome(outcomeEntry{Type: outcomeVerdict, At: v.At, Workspace: v.Workspace, Verdict: &v}))
 }
 
 func (a *app) journalSession(s *session) {
@@ -256,16 +261,29 @@ func (a *app) journalSession(s *session) {
 	if err != nil {
 		return
 	}
+	sum := sha256.Sum256(key)
+	a.outcomesMu.Lock()
+	same := a.journaled[o.Session] == sum
+	a.outcomesMu.Unlock()
+	if same {
+		return
+	}
+	if err := a.appendOutcome(outcomeEntry{Type: outcomeSession, At: time.Now().UTC(), Workspace: o.Workspace, Session: &o}); err != nil {
+		logError("journal session", err)
+		return
+	}
 	a.outcomesMu.Lock()
 	if a.journaled == nil {
-		a.journaled = map[string]string{}
+		a.journaled = map[string][sha256.Size]byte{}
 	}
-	same := a.journaled[o.Session] == string(key)
-	a.journaled[o.Session] = string(key)
+	a.journaled[o.Session] = sum
 	a.outcomesMu.Unlock()
-	if !same {
-		a.appendOutcome(outcomeEntry{Type: outcomeSession, At: time.Now().UTC(), Workspace: o.Workspace, Session: &o})
-	}
+}
+
+func (a *app) forgetJournaled(id string) {
+	a.outcomesMu.Lock()
+	delete(a.journaled, id)
+	a.outcomesMu.Unlock()
 }
 
 func (a *app) journalLanding(workspaceID string, args landGateArgs) {
@@ -285,7 +303,7 @@ func (a *app) journalLanding(workspaceID string, args landGateArgs) {
 			l.Costs[rec.ID] = s.outcome().Cost
 		}
 	}
-	a.appendOutcome(outcomeEntry{Type: outcomeLanding, At: time.Now().UTC(), Workspace: workspaceID, Landing: &l})
+	logError("journal landing", a.appendOutcome(outcomeEntry{Type: outcomeLanding, At: time.Now().UTC(), Workspace: workspaceID, Landing: &l}))
 }
 
 func sameLanding(gf *gateFor, l landingOutcome) bool {
@@ -323,11 +341,12 @@ func (a *app) builderOf(args landGateArgs) (*session, []*session) {
 			break
 		}
 	}
+	since := builder.snapshot().CreatedAt
 	seen := map[*session]bool{builder: true}
 	var fixers []*session
 	for _, s := range slices.Concat(on, a.subtree(builder)) {
 		rec := s.snapshot()
-		if seen[s] || rec.ID == args.Session || rec.isAside() || rec.GateFor != nil {
+		if seen[s] || rec.ID == args.Session || rec.isAside() || rec.GateFor != nil || rec.closed() && rec.UpdatedAt.Before(since) {
 			continue
 		}
 		seen[s] = true
