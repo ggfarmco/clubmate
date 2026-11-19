@@ -11,7 +11,8 @@ CI runs on a 3-core macOS runner under `-race`, about 3× slower than a dev Mac.
 7. **A test owns its processes.** Start them through the harness or `exec.CommandContext(t.Context(), …)` and kill them in `t.Cleanup`. `testutil.NewService` kills session leftovers.
 8. **No network.** Use a local fake server; check that the app is present before any DNS lookup. *Flake:* TestBrowserWithoutAppFailsFast resolved example.com.
 9. **`t.Parallel()` shares only read-only fixtures.** Each parallel test gets its own harness, bus, repo and temp dir. A test that calls `t.Setenv` cannot be parallel.
-10. **A failure explains itself.** A failing harness test prints the supervisor log, each plugin's state, last error and log tail. Wait helpers print the last state they saw. Keep it that way when you add helpers.
+10. **Tests don't see the shell's session.** Run from an agent session, `go test` inherits `CLUBMATE_AGENT_SESSION`, the land gate's `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_*`/`GIT_CONFIG_VALUE_*` (`core.hooksPath`) and other `CLUBMATE_*` vars. `internal/testutil` unsets them, and `GIT_DIR`-style git vars, once per test process before any test runs (`env.go`); `CLUBMATE_TEST_*` stay. A test sets what it needs with `t.Setenv` or a TestMain. A test package that doesn't import `internal/testutil` isn't covered.
+11. **A failure explains itself.** A failing harness test prints the supervisor log, each plugin's state, last error and log tail. Wait helpers print the last state they saw. Keep it that way when you add helpers.
 
 ## Checks
 

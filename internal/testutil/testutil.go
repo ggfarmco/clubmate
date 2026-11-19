@@ -175,18 +175,6 @@ func moduleRoot(t *testing.T) string {
 	return filepath.Dir(strings.TrimSpace(string(gomod)))
 }
 
-func ClearClubmateEnv(t *testing.T) {
-	t.Helper()
-	for _, kv := range os.Environ() {
-		if k, _, _ := strings.Cut(kv, "="); strings.HasPrefix(k, "CLUBMATE_") {
-			t.Setenv(k, "")
-			if err := os.Unsetenv(k); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-}
-
 func Alive(pid int) bool {
 	return unix.Kill(pid, 0) == nil
 }
