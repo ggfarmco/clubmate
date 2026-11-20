@@ -136,6 +136,16 @@ final class ListCacheTests: XCTestCase {
         XCTAssertEqual(store.session("a")?.parentSession, "gr_1")
         XCTAssertEqual(store.endRows.map(\.id), ["graphs"])
     }
+
+    func testRunRowsOfAListReplyShowAfterRestart() async throws {
+        let cache = ListCache(dir: dir)
+        let rows = #"[{"id":"a","status":"done"},{"id":"gr_1","kind":"run","workspace":"w","title":"Review gate","status":"waiting","run":{"id":"gr_1","title":"Review gate"}}]"#
+        let runner = ScriptedRunner(replies: [], sessions: [rows, rows])
+        await AgentsStore(workspace: "w", runner: runner, computer: "m", cache: cache).refresh()
+        let store = AgentsStore(workspace: "w", runner: runner, computer: "m", cache: cache)
+        await store.refresh()
+        XCTAssertEqual(store.sessions.map(\.id), ["a", "gr_1"])
+    }
 }
 
 private struct Envelope: Codable {

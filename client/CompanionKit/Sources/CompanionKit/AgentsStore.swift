@@ -405,6 +405,8 @@ public final class AgentsStore {
             if reply.arrayValue == nil {
                 if let runs = reply["runs"] { runRows = try runs == .null ? nil : runs.decode([AgentRunRow].self) }
                 if let rows = reply["dock"] { dock = try rows == .null ? [] : rows.decode([AgentDockRow].self) }
+            } else {
+                runRows = nil
             }
             let before = Set(list.items.map(\.id))
             if let rows = reply.arrayValue { try list.replace(rows) } else { try list.apply(reply) }
