@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -130,6 +131,50 @@ func TestResumePromptFencesAndCapsTheOutput(t *testing.T) {
 	assert.True(t, utf8.ValidString(got))
 	assert.Less(t, len(got), 4000+1000)
 	assert.Empty(t, resumePrompt(nil))
+}
+
+func TestBackgroundOutputReadsOnlyTheTail(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	small, big := filepath.Join(dir, "small.output"), filepath.Join(dir, "big.output")
+	require.NoError(t, os.WriteFile(small, []byte("first\nsecond\nthird\n"), 0o600))
+	var b strings.Builder
+	for i := range 20000 {
+		fmt.Fprintf(&b, "line %d\n", i)
+	}
+	require.NoError(t, os.WriteFile(big, []byte(b.String()), 0o600))
+
+	tail, err := readTail(small, 9)
+	require.NoError(t, err)
+	assert.Equal(t, "third\n", string(tail))
+	whole, err := readTail(small, 100)
+	require.NoError(t, err)
+	assert.Equal(t, "first\nsecond\nthird\n", string(whole))
+	got := outputBlock("`big`", big, bgTailBytes)
+	assert.Contains(t, got, "\nline 19980\n")
+	assert.Contains(t, got, "\nline 19999\n")
+	assert.NotContains(t, got, "line 19979")
+}
+
+func TestHookDirNeedsTheManifest(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	for _, f := range []string{toolHookHooks, toolHookRules, toolHookMarks} {
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, f), 0o700))
+	}
+
+	assert.False(t, hookDirReady(dir))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, toolHookManifest), 0o700))
+	assert.True(t, hookDirReady(dir))
+}
+
+func TestDotCallIDsAreRefused(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, toolHookMarks), 0o700))
+
+	assert.False(t, marked(dir, ".."))
+	assert.False(t, marked(dir, "."))
 }
 
 func TestToldOnlyWhenTheMessageIsDelivered(t *testing.T) {

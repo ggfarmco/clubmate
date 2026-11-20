@@ -43,6 +43,7 @@ type runState struct {
 	perms           map[string]*pendingPermission
 	calls           []*heldCall
 	refusals        []callRefusal
+	owed            []owedFindings
 	gateMsgs        map[string]gateMessage
 	telling         map[string]bool
 	userOnly        map[string]bool

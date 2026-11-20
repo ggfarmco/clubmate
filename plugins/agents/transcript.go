@@ -494,6 +494,9 @@ func (s *session) update(params json.RawMessage) {
 	}
 	meta := title != s.rec.Title || mode != s.rec.Mode
 	s.mu.Unlock()
+	if ended {
+		s.payRefusals()
+	}
 	s.changed(changeUpdate, meta)
 	if started {
 		s.changed(changeStatus, true)

@@ -19,20 +19,11 @@ import (
 )
 
 const (
-	ask         = `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"Clubmate gate"}}`
-	rulesFile   = "rules.json"
-	askAllDir   = "all"
-	marksDir    = "marks"
-	batchArg    = "batch"
-	batchEvent  = "PostToolBatch"
-	findingsDir = "findings"
-	toldDir     = "told"
-	messagesDir = "messages"
-	textMax     = 9000
-	cutFormat   = "\n…\nThe gate's message is cut here; the whole of it is in %s.\n"
+	ask        = `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"Clubmate gate"}}`
+	batchEvent = "PostToolBatch"
+	textMax    = 9000
+	cutFormat  = "\n…\nThe gate's message is cut here; the whole of it is in %s.\n"
 )
-
-var hows = []string{"", toolgate.HowCommand, toolgate.HowStarts, toolgate.HowContains, toolgate.HowRegex}
 
 type call struct {
 	Tool  string          `json:"tool_name"`
@@ -61,7 +52,7 @@ func main() {
 }
 
 func run(args []string, stdin io.Reader, stdout io.Writer) {
-	if len(args) > 0 && args[0] == batchArg {
+	if len(args) > 0 && args[0] == toolgate.BatchArg {
 		tell(args[1:], stdin, stdout)
 		return
 	}
@@ -95,7 +86,7 @@ func matches(dir string, c *call) bool {
 }
 
 func cwdMatches(dir string, c *call) (toolgate.Place, bool) {
-	if filepath.Base(dir) == askAllDir || c.Cwd == "" {
+	if filepath.Base(dir) == toolgate.AskAllDir || c.Cwd == "" {
 		return toolgate.Place{}, false
 	}
 	place, found := toolgate.PlaceOf(c.Cwd)
@@ -106,14 +97,14 @@ func cwdMatches(dir string, c *call) (toolgate.Place, bool) {
 	if other == dir {
 		return toolgate.Place{}, false
 	}
-	if _, err := os.Stat(filepath.Join(other, rulesFile)); errors.Is(err, fs.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(other, toolgate.RulesFile)); errors.Is(err, fs.ErrNotExist) {
 		return toolgate.Place{}, false
 	}
 	return place, matches(other, c)
 }
 
 func readRules(dir string) ([]toolgate.Rule, bool) {
-	raw, err := os.ReadFile(filepath.Join(dir, rulesFile))
+	raw, err := os.ReadFile(filepath.Join(dir, toolgate.RulesFile))
 	if err != nil {
 		return nil, false
 	}
@@ -125,7 +116,7 @@ func readRules(dir string) ([]toolgate.Rule, bool) {
 }
 
 func unusable(r toolgate.Rule) bool {
-	if _, err := path.Match(r.Tool, ""); err != nil || r.Tool == "" || !slices.Contains(hows, r.How) {
+	if _, err := path.Match(r.Tool, ""); err != nil || r.Tool == "" || r.How != "" && !slices.Contains(toolgate.Hows, r.How) {
 		return true
 	}
 	if r.How == toolgate.HowRegex {
@@ -159,15 +150,15 @@ func tell(args []string, stdin io.Reader, stdout io.Writer) {
 }
 
 func claim(dir, id string) (string, bool) {
-	if !safeID(id) {
+	if !toolgate.SafeID(id) {
 		return "", false
 	}
-	from := filepath.Join(dir, findingsDir, id)
+	from := filepath.Join(dir, toolgate.FindingsDir, id)
 	data, err := os.ReadFile(from)
 	if err != nil || len(data) == 0 {
 		return "", false
 	}
-	told := filepath.Join(dir, toldDir)
+	told := filepath.Join(dir, toolgate.ToldDir)
 	if os.MkdirAll(told, 0o700) != nil || os.Rename(from, filepath.Join(told, id)) != nil {
 		return "", false
 	}
@@ -178,7 +169,7 @@ func capped(dir, id, text string) string {
 	if len(text) <= textMax {
 		return text
 	}
-	full := filepath.Join(dir, messagesDir, "batch-"+id)
+	full := filepath.Join(dir, toolgate.MessagesDir, "batch-"+id)
 	if os.MkdirAll(filepath.Dir(full), 0o700) != nil || os.WriteFile(full, []byte(text), 0o600) != nil {
 		full = "(it could not be written)"
 	}
@@ -190,15 +181,11 @@ func capped(dir, id, text string) string {
 	return text[:end] + note
 }
 
-func safeID(id string) bool {
-	return id != "" && id != "." && id != ".." && !strings.ContainsAny(id, `/\`)
-}
-
 func mark(dir, id string, place toolgate.Place) {
-	if !safeID(id) {
+	if !toolgate.SafeID(id) {
 		return
 	}
-	marks := filepath.Join(dir, marksDir)
+	marks := filepath.Join(dir, toolgate.MarksDir)
 	if os.MkdirAll(marks, 0o700) != nil {
 		return
 	}

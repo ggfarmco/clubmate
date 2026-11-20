@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -28,20 +30,20 @@ const (
 	toolHookPluginID = toolHookPlugin + "@inline"
 	toolHookManifest = ".claude-plugin/plugin.json"
 	toolHookHooks    = "hooks/hooks.json"
-	toolHookRules    = "rules.json"
-	toolHookMarks    = "marks"
-	toolHookFindings = "findings"
-	toolHookTold     = "told"
-	toolHookMessages = "messages"
+	toolHookRules    = toolgate.RulesFile
+	toolHookMarks    = toolgate.MarksDir
+	toolHookFindings = toolgate.FindingsDir
+	toolHookTold     = toolgate.ToldDir
+	toolHookMessages = toolgate.MessagesDir
 	toolHookEvent    = "PreToolUse"
 	toolHookBatch    = "PostToolBatch"
-	toolHookBatchArg = "batch"
+	toolHookBatchArg = toolgate.BatchArg
 	toolHookMatcher  = ".*"
 	toolHookTimeout  = 10
 	toolHookFailure  = "block"
 	toolHookMarkAge  = 24 * time.Hour
 	toolHookSweep    = time.Hour
-	toolHookAskAll   = "all"
+	toolHookAskAll   = toolgate.AskAllDir
 	toolHookPollEnv  = "CLUBMATE_AGENTS_HOOK_POLL"
 	toolHookPoll     = 5 * time.Second
 	ungatedChip      = "not gated yet"
@@ -60,6 +62,7 @@ const (
 	bgAllBytes       = 4000
 	bgCommandRunes   = 200
 	bgCallsMax       = 5
+	bgReadMax        = 64 << 10
 	toolHookAsk      = `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"Clubmate gate"}}`
 )
 
@@ -311,7 +314,7 @@ func (a *app) toolHookDir(ctx context.Context, rec record) string {
 }
 
 func hookDirReady(dir string) bool {
-	for _, f := range []string{toolHookHooks, toolHookRules, toolHookMarks} {
+	for _, f := range []string{toolHookManifest, toolHookHooks, toolHookRules, toolHookMarks} {
 		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
 			return false
 		}
@@ -780,7 +783,7 @@ func commandText(command string) string {
 }
 
 func outputBlock(name, path string, budget int) string {
-	raw, err := os.ReadFile(path)
+	raw, err := readTail(path, bgReadMax)
 	if path == "" || err != nil {
 		return fmt.Sprintf(bgUnreadable, name)
 	}
@@ -797,6 +800,29 @@ func outputBlock(name, path string, budget int) string {
 	}
 	fence := strings.Repeat("`", longestRun(tail)+1)
 	return fmt.Sprintf(bgOutputFormat, name, fence, tail, fence)
+}
+
+func readTail(path string, limit int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	from := max(0, info.Size()-limit)
+	raw := make([]byte, info.Size()-from)
+	n, err := f.ReadAt(raw, from)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+	raw = raw[:n]
+	if i := bytes.IndexByte(raw, '\n'); from > 0 && i >= 0 {
+		raw = raw[i+1:]
+	}
+	return raw, nil
 }
 
 func stripControl(text string) string {

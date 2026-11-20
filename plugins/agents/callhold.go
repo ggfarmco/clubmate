@@ -210,6 +210,13 @@ type callRefusal struct {
 	round  int
 }
 
+type owedFindings struct {
+	dir   string
+	call  string
+	text  string
+	reply chan callAnswer
+}
+
 type droppedHold struct {
 	hold heldTurn
 	call string
@@ -266,7 +273,7 @@ func (a *app) holdCall(ctx context.Context, s *session, p *agentProc, request st
 		c.at = e.At
 	}
 	if !s.workingLocked() {
-		s.refuseLocked(c)
+		s.refuseLocked(c, nil)
 		s.mu.Unlock()
 		s.changed(changeUpdate, false)
 		a.logRefusals(s)
@@ -1101,7 +1108,7 @@ func (m gateMessage) text() string {
 }
 
 func writeFindings(dir string, m gateMessage) string {
-	if dir == "" || m.Call == "" || strings.ContainsAny(m.Call, `/\`) {
+	if dir == "" || !toolgate.SafeID(m.Call) {
 		return ""
 	}
 	text := m.text()
@@ -1122,7 +1129,7 @@ func writeFindings(dir string, m gateMessage) string {
 }
 
 func putFindings(dir, call, text string) string {
-	if dir == "" || call == "" || strings.ContainsAny(call, `/\`) {
+	if dir == "" || !toolgate.SafeID(call) {
 		return ""
 	}
 	path := filepath.Join(dir, toolHookFindings, call)
@@ -1138,7 +1145,7 @@ func putFindings(dir, call, text string) string {
 }
 
 func dropFindings(dir, call string) {
-	if dir == "" || call == "" {
+	if dir == "" || !toolgate.SafeID(call) {
 		return
 	}
 	for _, sub := range []string{toolHookFindings, toolHookTold} {
@@ -1149,7 +1156,7 @@ func dropFindings(dir, call string) {
 }
 
 func toldOn(dir, call string) bool {
-	if dir == "" || call == "" {
+	if dir == "" || !toolgate.SafeID(call) {
 		return false
 	}
 	_, err := os.Stat(filepath.Join(dir, toolHookTold, call))
@@ -1701,13 +1708,12 @@ func (a *app) answerCall(s *session, request string, answer callAnswer) bool {
 
 func (s *session) refuseCallsLocked() {
 	for _, c := range s.calls {
-		s.refuseLocked(c)
-		c.reply <- callRefuse
+		s.refuseLocked(c, c.reply)
 	}
 	s.calls = nil
 }
 
-func (s *session) refuseLocked(c *heldCall) {
+func (s *session) refuseLocked(c *heldCall, reply chan callAnswer) {
 	reasons := make([]string, 0, len(c.hits))
 	for _, h := range c.hits {
 		reason := fmt.Sprintf(callNoTurn, c.repo, toolMatchName(gateConfig{Tool: h.Tool, How: h.How, Text: h.Text}))
@@ -1718,14 +1724,28 @@ func (s *session) refuseLocked(c *heldCall) {
 		}
 		s.refusals = append(s.refusals, callRefusal{gate: h.ID, reason: reason, call: clipRunes(c.text, callLineMax), round: round})
 	}
-	putFindings(s.hookDir, c.id, strings.Join(reasons, "\n"))
+	s.owed = append(s.owed, owedFindings{dir: s.hookDir, call: c.id, text: strings.Join(reasons, "\n"), reply: reply})
 	s.markCallLocked(c.agent, c.id, &gateMark{State: callStateRefd, Round: s.rec.callRound(c.id), Reason: strings.Join(reasons, "\n")})
 	if c.taken {
 		s.rec.Calls = clearedCalls(s.rec.Calls, c.id, time.Now().UTC())
 	}
 }
 
+func (s *session) payRefusals() {
+	s.mu.Lock()
+	owed := s.owed
+	s.owed = nil
+	s.mu.Unlock()
+	for _, o := range owed {
+		putFindings(o.dir, o.call, o.text)
+		if o.reply != nil {
+			o.reply <- callRefuse
+		}
+	}
+}
+
 func (a *app) logRefusals(s *session) {
+	s.payRefusals()
 	s.mu.Lock()
 	out := s.refusals
 	s.refusals = nil
@@ -2017,7 +2037,7 @@ func told(c *callHold) bool {
 
 func markedPlace(dir, call string) toolgate.Place {
 	var p toolgate.Place
-	if dir == "" || call == "" || strings.ContainsAny(call, `/\`) {
+	if dir == "" || !toolgate.SafeID(call) {
 		return p
 	}
 	if raw, err := os.ReadFile(filepath.Join(dir, toolHookMarks, call)); err == nil && len(raw) > 0 && json.Unmarshal(raw, &p) != nil {
@@ -2027,7 +2047,7 @@ func markedPlace(dir, call string) toolgate.Place {
 }
 
 func marked(dir, call string) bool {
-	if call == "" || strings.ContainsAny(call, `/\`) {
+	if !toolgate.SafeID(call) {
 		return false
 	}
 	_, err := os.Stat(filepath.Join(dir, toolHookMarks, call))

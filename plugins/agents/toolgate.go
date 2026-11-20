@@ -46,7 +46,7 @@ func toolMatch(tool, how, text string) (gateConfig, error) {
 	if _, err := path.Match(tool, ""); err != nil {
 		return gateConfig{}, errGateTool
 	}
-	if how != "" && !slices.Contains([]string{toolgate.HowCommand, toolgate.HowStarts, toolgate.HowContains, toolgate.HowRegex}, how) {
+	if how != "" && !slices.Contains(toolgate.Hows, how) {
 		return gateConfig{}, errGateHow
 	}
 	if strings.TrimSpace(text) == "" {

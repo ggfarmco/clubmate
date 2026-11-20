@@ -540,12 +540,11 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 		if b != nil && b.Title != "" {
 			return callBlockNode(id, sid, *b), !en.Hidden
 		}
-		n := toolCard(id, root, en, sc.Expanded[en.ID], sha != "")
+		word := ""
 		if b != nil {
-			n.Props = maps.Clone(n.Props)
-			n.Props["statusWord"] = b.Word
+			word = b.Word
 		}
-		return n, !en.Hidden
+		return toolCard(id, root, en, sc.Expanded[en.ID], sha != "", word), !en.Hidden
 	case entryPermission:
 		return permissionCard(sc, en), true
 	case entryElicitation:
@@ -582,7 +581,7 @@ func parseTool(tool map[string]json.RawMessage) (toolFields, string, string) {
 	return f, kind, command
 }
 
-func toolCard(id, root string, en *entry, expanded, reviewable bool) sdui.Node {
+func toolCard(id, root string, en *entry, expanded, reviewable bool, word string) sdui.Node {
 	f, kind, command := parseTool(en.Tool)
 	status := f.Status
 	if status == "" {
@@ -591,7 +590,7 @@ func toolCard(id, root string, en *entry, expanded, reviewable bool) sdui.Node {
 	if !slices.Contains(cardStatuses, status) {
 		status = ""
 	}
-	p := sdui.ToolCardProps{Kind: kind, Title: cmp.Or(shortPaths(f.Title, root), command, kind), Status: status}
+	p := sdui.ToolCardProps{Kind: kind, Title: cmp.Or(shortPaths(f.Title, root), command, kind), Status: status, StatusWord: word}
 	body := toolBody(kind, command, root, f.Content)
 	scrolls := false
 	if body != nil && !slices.Contains(oneLineKinds, kind) {

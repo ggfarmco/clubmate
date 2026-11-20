@@ -24,6 +24,13 @@ const (
 	HowContains = "contains"
 	HowRegex    = "regex"
 	ViaUnread   = "unread"
+	RulesFile   = "rules.json"
+	AskAllDir   = "all"
+	MarksDir    = "marks"
+	FindingsDir = "findings"
+	ToldDir     = "told"
+	MessagesDir = "messages"
+	BatchArg    = "batch"
 	git         = "git"
 	xargs       = "xargs"
 	eval        = "eval"
@@ -32,6 +39,12 @@ const (
 	mentionCuts = "\"'();&|<>{}$=`"
 	nestMax     = 8
 )
+
+var Hows = []string{HowCommand, HowStarts, HowContains, HowRegex}
+
+func SafeID(id string) bool {
+	return id != "" && id != "." && id != ".." && !strings.ContainsAny(id, `/\`)
+}
 
 const (
 	fromNone = iota
