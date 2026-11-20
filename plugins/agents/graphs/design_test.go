@@ -134,15 +134,20 @@ func TestDesignLandAndRevert(t *testing.T) {
 	r.git("checkout", "-q", "main")
 
 	r.write("plugins/cron/view.go", "someone else's work")
-	out, code := r.script("land.sh", nil, "design/2026-11-04-cron", "gr_t1")
+	out, code := r.script("land.sh", nil, "check", "design/2026-11-04-cron")
 	assert.Equal(t, 1, code, out)
 	assert.Contains(t, out, "plugins/cron/view.go has uncommitted changes")
 	require.NoError(t, os.Remove(filepath.Join(r.dir, "plugins/cron/view.go")))
 
-	out, code = r.script("land.sh", nil, "design/2026-11-04-cron", "gr_t1")
+	out, code = r.script("land.sh", nil, "check", "design/2026-11-04-cron")
 	require.Equal(t, 0, code, out)
+	assert.Equal(t, "README.md", r.git("ls-tree", "-r", "--name-only", "HEAD"))
+
+	r.git("merge", "--squash", "-q", "design/2026-11-04-cron")
+	r.git("commit", "-q", "-m", "fix(cron): wording")
 	landed := r.git("rev-parse", "HEAD")
-	assert.Equal(t, "fix(cron): wording", r.git("log", "-1", "--format=%s"))
+	out, code = r.script("land.sh", nil, "record", landed, "design/2026-11-04-cron", "gr_t1")
+	require.Equal(t, 0, code, out)
 	assert.Equal(t, landed+" design/2026-11-04-cron\n", r.readRun("merged"))
 
 	out, code = r.script("tests.sh", nil, "--dry-run")

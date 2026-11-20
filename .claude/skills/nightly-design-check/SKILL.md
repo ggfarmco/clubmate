@@ -7,7 +7,7 @@ description: Use when running a node of the Clubmate repo's `design-check` graph
 
 Nobody is watching. The user should wake to at most a few small squashed UI commits on `main`, one short report, backlog items and a ready request for the Claude Design chat, never a red `main` or a redesign. When in doubt, file instead of editing.
 
-Every node is an AFK session: never ask the user and never wait for them. Decide yourself and ask the advisor (Fable) on every non-trivial call; what still needs the user goes to the backlog tagged `needs-you`, and the run moves on.
+Every node is an AFK session: never ask the user and never wait for them. Decide yourself: as a graph node you run without the advisor (`docs/agents.md` § Approvals), so when a call is not clearly safe, file it instead of editing; what still needs the user goes to the backlog tagged `needs-you`, and the run moves on.
 
 ## The graph
 
@@ -65,7 +65,7 @@ Not a divergence: what `design/check/prompt.md` §3 decides and §4 already trac
    - The repo's CLAUDE.md holds: a key change updates `docs/shortcuts.md`; transcript folding changes land on the Mac and the phone together; a rule about what something means to the user lives in the plugin, never re-derived in a client.
    - A behaviour change comes with a test; a pure look change comes with the before/after snapshots.
 3. Wait for them (`agents_wait`). Per child: its branch tip is the sha it reported; look at its after-snapshot yourself: it must match the board better than the before-snapshot, or the branch stays and the finding is filed.
-4. Land each passing branch with `scripts/design/land.sh <branch> <run>` in `MAIN`, one at a time. It refuses a non-empty index, an uncommitted file the branch changes, a detached HEAD or a squash that conflicts; it squashes and commits in one go and records the commit in `RUN/merged`. A refusal: leave the branch, file why.
+4. Land each passing branch one at a time. First `scripts/design/land.sh check <branch>` in `MAIN`: it refuses a non-empty index, an uncommitted file the branch changes, a detached HEAD or a branch with no new commits. Then the `git_land` tool (path the fix worktree, one conventional message `fix(<scope>): …`); on `review pending` end the turn and call it again when Clubmate prompts you, as in nightly-tidy step 5. Then `scripts/design/land.sh record <sha> <branch> <run>` with the sha `git_land` returned (`git rev-parse HEAD` in `MAIN`) writes it to `RUN/merged`. A refusal or findings you cannot fix: leave the branch, file why.
 5. File what didn't land (as in Judge step 3). Report `landed` when `RUN/merged` has a line, else `nothing`, once, after every child is done: a child's late turn prompts you again, and then you end the turn without reporting. Tests and the revert are steps after you: don't run them.
 
 ## Tests and Revert (steps)
