@@ -227,7 +227,7 @@ struct SessionDetailView: View {
                 if transcript != nil { updateWindow(count: count, atBottom: atBottom.value) }
             }
         }
-        .environment(\.subagentStop, context.connection.supports("agents.stop-subagent") ? SubagentStop(enabled: blocked == nil) { id in
+        .environment(\.subagentStop, context.connection.supports("agents.stop-subagent") ? SubagentStop(session: sessionID, enabled: blocked == nil) { id in
             do {
                 try await store.stopSubagent(id, in: sessionID)
                 return true
@@ -262,8 +262,8 @@ struct SessionDetailView: View {
         } : nil)
         .environment(\.openDoc, docOpener)
         .environment(\.openTask, taskOpener)
-        .environment(\.openSession) { id in context.navigation.detail = id }
-        .environment(\.toolCallLoader, ToolCallLoader { [store, sessionID] id in await store.toolCall(id, in: sessionID) })
+        .environment(\.openSession, Opener(key: context.connection.computer.id) { id in context.navigation.detail = id })
+        .environment(\.toolCallLoader, ToolCallLoader(session: sessionID) { [store, sessionID] id in await store.toolCall(id, in: sessionID) })
         .environment(\.imageStore, context.connection.supports(AgentsStore.imageCommand) ? store : nil)
         .environment(\.imageSession, sessionID)
         .onScrollGeometryChange(for: Bool.self) { geometry in
@@ -760,17 +760,17 @@ struct SessionDetailView: View {
         return context.model.docs(computer: context.connection.computer.id, workspace: store.workspace, session: sessionID)
     }
 
-    private var docOpener: (@MainActor (String) -> Void)? {
+    private var docOpener: Opener? {
         guard context.connection.supports(DocsCommand.read) else { return nil }
-        return { path in open(doc: path) }
+        return Opener(key: "\(context.connection.computer.id)/\(store.workspace)/\(sessionID)") { path in open(doc: path) }
     }
 
-    private var taskOpener: (@MainActor (String) -> Void)? {
+    private var taskOpener: Opener? {
         guard BacklogPluginInfo.requiredCommands.allSatisfy(context.connection.supports) else { return nil }
         let computer = context.connection.computer.id
         let workspace = store.workspace
         let model = context.model
-        return { target in
+        return Opener(key: "\(computer)/\(workspace)") { target in
             Task { @MainActor in
                 let backlog = model.backlog(computer: computer, workspace: workspace)
                 if let backlog, !backlog.fetched || MarkdownTaskLink.id(target).flatMap(backlog.task) == nil { await backlog.refresh() }

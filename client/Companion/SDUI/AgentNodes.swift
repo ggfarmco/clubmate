@@ -138,7 +138,7 @@ struct MessageNode: View {
             case .thought: ThoughtView(text: text, title: thought, open: node.bool("open") == true)
             case .agent:
                 AgentMessage(cards: node.docCards, entry: entry, images: node.images) { MarkdownView(text: text, docLinks: node.docLinks, imageLinks: node.imageLinks, taskLinks: node.taskLinks) }
-                    .environment(\.openDoc, { target in
+                    .environment(\.openDoc, Opener(key: node.id ?? "") { target in
                         context.run { await $0.fire(node, .named("openDoc", .string(target))) }
                     })
                     .environment(\.imageSession, session)

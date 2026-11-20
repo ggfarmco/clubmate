@@ -258,7 +258,7 @@ struct AgentMessage<Content: View>: View {
                 }
             }
         }
-        .environment(\.openImage, store == nil ? nil : { path in shown = images.first { $0.path == path } })
+        .environment(\.openImage, store == nil ? nil : Opener(key: ([entry] + images.map(\.path)).joined(separator: "\n")) { path in shown = images.first { $0.path == path } })
         .fullScreenCover(item: $shown) { ref in
             if let store {
                 ImageScreen(ref: ref, entry: entry, session: imageSession, store: store)
@@ -685,21 +685,44 @@ struct ToolRow: View {
     }
 }
 
-struct SubagentStop {
+struct SubagentStop: Equatable {
+    let session: String
     let enabled: Bool
     let run: @MainActor (String) async -> Bool
+
+    static func == (a: Self, b: Self) -> Bool {
+        a.session == b.session && a.enabled == b.enabled
+    }
 }
 
-struct ToolCallLoader {
+struct ToolCallLoader: Equatable {
+    let session: String
     let load: @MainActor (String) async -> ToolCall?
+
+    static func == (a: Self, b: Self) -> Bool {
+        a.session == b.session
+    }
+}
+
+struct Opener: Equatable {
+    let key: String
+    let run: @MainActor (String) -> Void
+
+    @MainActor func callAsFunction(_ target: String) {
+        run(target)
+    }
+
+    static func == (a: Self, b: Self) -> Bool {
+        a.key == b.key
+    }
 }
 
 extension EnvironmentValues {
     @Entry var subagentStop: SubagentStop?
     @Entry var toolCallLoader: ToolCallLoader?
-    @Entry var openDoc: (@MainActor (String) -> Void)?
-    @Entry var openTask: (@MainActor (String) -> Void)?
-    @Entry var openSession: (@MainActor (String) -> Void)?
+    @Entry var openDoc: Opener?
+    @Entry var openTask: Opener?
+    @Entry var openSession: Opener?
 }
 
 struct ToolLine: View {

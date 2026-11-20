@@ -7,7 +7,7 @@ import CompanionKit
 extension EnvironmentValues {
     @Entry var imageStore: AgentsStore? = nil
     @Entry var imageSession = ""
-    @Entry var openImage: ((String) -> Void)? = nil
+    @Entry var openImage: Opener? = nil
 }
 
 @MainActor
