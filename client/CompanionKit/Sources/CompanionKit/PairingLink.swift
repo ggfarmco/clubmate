@@ -8,6 +8,8 @@ public struct PairingLink: Sendable, Equatable {
         case badPort
         case expired
         case noTailnetHost
+        case badRelay
+        case badKey
 
         public var message: String {
             switch self {
@@ -17,6 +19,8 @@ public struct PairingLink: Sendable, Equatable {
             case .badPort: "The pairing link has an invalid port."
             case .expired: "This pairing code has expired. Ask Clubmate for a new one."
             case .noTailnetHost: "This link has no Tailscale address. Make sure Tailscale is running on the Mac, then show a new code."
+            case .badRelay: "The pairing link has a relay address this app can't use."
+            case .badKey: "The pairing link has an invalid relay key. Show a new code on the Mac."
             }
         }
     }
@@ -30,14 +34,18 @@ public struct PairingLink: Sendable, Equatable {
     public let computerID: String
     public let computerName: String
     public let expiresAt: Date
+    public let relay: RelayRoute?
+    public let pairingTicket: String?
 
-    public init(code: String, hosts: [String], port: Int, computerID: String, computerName: String, expiresAt: Date) {
+    public init(code: String, hosts: [String], port: Int, computerID: String, computerName: String, expiresAt: Date, relay: RelayRoute? = nil, pairingTicket: String? = nil) {
         self.code = code
         self.hosts = hosts
         self.port = port
         self.computerID = computerID
         self.computerName = computerName
         self.expiresAt = expiresAt
+        self.relay = relay
+        self.pairingTicket = pairingTicket
     }
 
     public static func isPairingURL(_ url: URL) -> Bool {
@@ -55,12 +63,23 @@ public struct PairingLink: Sendable, Equatable {
             items.filter { $0.name == name }.compactMap { $0.value?.replacingOccurrences(of: "+", with: " ").removingPercentEncoding }.filter { !$0.isEmpty }
         }
         guard let version = values("v").first else { throw .missing("version") }
-        guard version == "1" else { throw .unsupportedVersion(version) }
+        guard version == "1" || version == "2" else { throw .unsupportedVersion(version) }
         guard let code = values("c").first else { throw .missing("code") }
+        var relay: RelayRoute?
+        var ticket: String?
+        if version == "2", let address = values("r").first {
+            guard let url = URL(string: address), policy.allowsRelay(url) else { throw .badRelay }
+            guard let key = values("k").first, let kid = values("kid").first else { throw .badKey }
+            let route = RelayRoute(url: url, key: key, kid: kid.lowercased())
+            guard route.macKey != nil else { throw .badKey }
+            guard let pt = values("pt").first else { throw .missing("pairing ticket") }
+            relay = route
+            ticket = pt
+        }
         let hosts = values("h").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "[]")) }
-        guard !hosts.isEmpty else { throw .missing("host") }
+        guard !hosts.isEmpty || relay != nil else { throw .missing("host") }
         let allowed = policy.filter(hosts)
-        guard !allowed.isEmpty else { throw .noTailnetHost }
+        guard !allowed.isEmpty || relay != nil else { throw .noTailnetHost }
         guard let id = values("id").first else { throw .missing("computer id") }
         guard let expiry = values("e").first.flatMap(TimeInterval.init) else { throw .missing("expiry") }
         var port = defaultPort
@@ -70,7 +89,7 @@ public struct PairingLink: Sendable, Equatable {
         }
         let expiresAt = Date(timeIntervalSince1970: expiry)
         guard expiresAt > now else { throw .expired }
-        return PairingLink(code: code, hosts: allowed, port: port, computerID: id, computerName: values("n").first ?? "Mac", expiresAt: expiresAt)
+        return PairingLink(code: code, hosts: allowed, port: port, computerID: id, computerName: values("n").first ?? "Mac", expiresAt: expiresAt, relay: relay, pairingTicket: ticket)
     }
 }
 
@@ -110,7 +129,17 @@ public struct PairingReview: Sendable, Equatable, Identifiable {
         !addedHosts.isEmpty || !removedHosts.isEmpty || previousPort != nil
     }
 
+    public var changesRelay: Bool {
+        guard let existing else { return false }
+        return existing.relay?.url != link.relay?.url
+    }
+
+    public var changesKey: Bool {
+        guard let old = existing?.relay, let new = link.relay else { return false }
+        return old.key != new.key
+    }
+
     public func needsConfirmation(scanned: Bool) -> Bool {
-        !scanned || replacesExisting || changesAddress
+        !scanned || replacesExisting || changesAddress || changesRelay || changesKey
     }
 }

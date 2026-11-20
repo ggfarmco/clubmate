@@ -30,6 +30,14 @@ struct ConnectionView: View {
         let check = check ?? connection.makeCheck(probe: Self.probe)
         return List {
             Section {
+                LabeledContent("Path", value: pathValue(connection))
+                    .accessibilityIdentifier("connection.path")
+            } footer: {
+                if !connection.pathChoices.isEmpty {
+                    Text("Change it in \(connection.computer.name)'s details › Connect through.")
+                }
+            }
+            Section {
                 Button {
                     self.check = check
                     Task { await check.run() }
@@ -106,6 +114,11 @@ struct ConnectionView: View {
         }
     }
 
+    private func pathValue(_ connection: ComputerConnection) -> String {
+        let active = connection.activePath?.label ?? "Not connected"
+        return connection.pathChoices.isEmpty ? active : active + " · " + connection.computer.path.label
+    }
+
     private func checkFooter(_ check: ConnectionCheck, _ connection: ComputerConnection) -> String {
         guard let finishedAt = check.finishedAt else {
             return "Checks each step between this phone and \(connection.computer.name) and says what to fix."
@@ -115,7 +128,7 @@ struct ConnectionView: View {
     }
 
     private func report(_ connection: ComputerConnection, _ check: ConnectionCheck) -> String {
-        var parts = ["\(connection.computer.name) · \(connection.presence) · port \(connection.computer.port)"]
+        var parts = ["\(connection.computer.name) · \(connection.presence) · port \(connection.computer.port) · path \(connection.activePath?.rawValue ?? "none") (\(connection.computer.path.rawValue))"]
         if !check.steps.isEmpty { parts.append("Check\n" + check.text) }
         parts.append("Recent attempts\n" + (connection.log.attempts.isEmpty ? "none" : connection.log.text))
         return parts.joined(separator: "\n\n")

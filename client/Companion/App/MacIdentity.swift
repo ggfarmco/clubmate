@@ -53,6 +53,8 @@ struct MacLineSection: View {
 }
 
 struct MacSectionHeader: View {
+    static let relayGlyph = "point.3.connected.trianglepath.dotted"
+
     let connection: ComputerConnection
     let tinted: Bool
     var inline = false
@@ -67,9 +69,26 @@ struct MacSectionHeader: View {
                         .foregroundStyle(tinted ? tag.color : Color.captionInk)
                     if inline {
                         ViewThatFits(in: .horizontal) {
-                            inlineName(tag.name, presence(connection.presence))
-                            inlineName(tag.name, presence(connection.shortPresence))
-                            inlineName(tag.name, Text(connection.shortPresence))
+                            HStack(spacing: 8) {
+                                inlineName(tag.name, presence(connection.presence))
+                                pathMark
+                            }
+                            HStack(spacing: 8) {
+                                inlineName(tag.name, presence(connection.shortPresence))
+                                pathMark
+                            }
+                            if connection.activePath == .relay {
+                                HStack(spacing: 8) {
+                                    Text(tag.name)
+                                        .font(.subheadline.weight(.semibold))
+                                        .lineLimit(1)
+                                    pathMark
+                                }
+                            }
+                            HStack(spacing: 8) {
+                                inlineName(tag.name, Text(connection.shortPresence), squeeze: true)
+                                pathMark
+                            }
                         }
                     } else {
                         Text(tag.name)
@@ -84,6 +103,7 @@ struct MacSectionHeader: View {
             .accessibilityIdentifier("mac.header." + connection.computer.id)
             Spacer(minLength: inline ? 0 : 8)
             if !inline {
+                pathMark
                 presence(connection.presence)
                     .font(.subheadline)
                     .textCase(nil)
@@ -94,6 +114,17 @@ struct MacSectionHeader: View {
 }
 
 private extension MacSectionHeader {
+    @ViewBuilder
+    var pathMark: some View {
+        if connection.activePath == .relay {
+            Image(systemName: Self.relayGlyph)
+                .font(.footnote)
+                .foregroundStyle(Color.captionInk)
+                .accessibilityLabel("Through Clubmate relay")
+                .accessibilityIdentifier("mac.relay." + connection.computer.id)
+        }
+    }
+
     func presence(_ words: String) -> Text {
         guard connection.state == .online, let awake = connection.awake, awake.on else { return Text(words) }
         let gourd = Text(GourdGlyph.image(awake: true, size: 13)).baselineOffset(-2)
@@ -102,15 +133,22 @@ private extension MacSectionHeader {
     }
 }
 
-private func inlineName(_ name: String, _ presence: Text) -> some View {
+private func inlineName(_ name: String, _ presence: Text, squeeze: Bool = false) -> some View {
     HStack(spacing: 6) {
         Text(name)
             .font(.subheadline.weight(.semibold))
             .lineLimit(1)
-        Text("· \(presence)")
-            .font(.subheadline)
-            .lineLimit(1)
-            .fixedSize()
+            .layoutPriority(squeeze ? 1 : 0)
+        if squeeze {
+            Text("· \(presence)")
+                .font(.subheadline)
+                .lineLimit(1)
+        } else {
+            Text("· \(presence)")
+                .font(.subheadline)
+                .lineLimit(1)
+                .fixedSize()
+        }
     }
     .textCase(nil)
 }
@@ -122,6 +160,7 @@ struct MacDetailsView: View {
     @State private var choosing: MacColour?
     @State private var failure: String?
     @State private var forgetting = false
+    @State private var pathFailure: String?
 
     var body: some View {
         if let connection = model.connection(computerID) {
@@ -177,33 +216,27 @@ struct MacDetailsView: View {
                 Text(failure ?? reason ?? "Shown next to this Mac's name on your iPhone and iPad, and in the Mac's title bar. Changing it here changes it on the Mac.")
             }
             .disabled(reason != nil || choosing != nil)
-            Section("This Mac") {
-                LabeledContent("Name", value: tag.name)
-                Button {
-                    navigation.connectionSheet = ConnectionSheet(computer: computerID)
-                } label: {
-                    HStack(spacing: 8) {
-                        Text("Connection")
-                            .foregroundStyle(Color.primary)
-                        Spacer(minLength: 8)
-                        Text(connection.shortPresence)
-                            .foregroundStyle(Color.captionInk)
-                            .lineLimit(1)
-                        Image(systemName: "chevron.right")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(Color(uiColor: .tertiaryLabel))
-                    }
-                    .contentShape(.rect)
+            if connection.pathChoices.isEmpty {
+                Section {
+                    LabeledContent("Name", value: tag.name)
+                    connectionRows(connection)
+                } header: {
+                    Text("This Mac")
+                } footer: {
+                    pathFooter(connection)
                 }
-                .accessibilityIdentifier("mac.connection")
-                Button {
-                    navigation.reportSheet = ReportSheet(computer: computerID, about: nil)
-                } label: {
-                    Text("Report a Problem…")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(.rect)
+            } else {
+                Section {
+                    LabeledContent("Name", value: tag.name)
+                    PathPicker(connection: connection) { choose(path: $0) }
+                } header: {
+                    Text("This Mac")
+                } footer: {
+                    pathFooter(connection)
                 }
-                .accessibilityIdentifier("mac.report")
+                Section {
+                    connectionRows(connection)
+                }
             }
             Section {
                 Button("Forget this Mac", role: .destructive) { forgetting = true }
@@ -227,10 +260,62 @@ struct MacDetailsView: View {
         }
     }
 
+    @ViewBuilder
+    private func connectionRows(_ connection: ComputerConnection) -> some View {
+        Button {
+            navigation.connectionSheet = ConnectionSheet(computer: computerID)
+        } label: {
+            HStack(spacing: 8) {
+                Text("Connection")
+                    .foregroundStyle(Color.primary)
+                Spacer(minLength: 8)
+                Text(connectionValue(connection))
+                    .foregroundStyle(Color.captionInk)
+                    .lineLimit(1)
+                    .accessibilityIdentifier("mac.connection.value")
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color(uiColor: .tertiaryLabel))
+            }
+            .contentShape(.rect)
+        }
+        .accessibilityIdentifier("mac.connection")
+        Button {
+            navigation.reportSheet = ReportSheet(computer: computerID, about: nil)
+        } label: {
+            Text("Report a Problem…")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(.rect)
+        }
+        .accessibilityIdentifier("mac.report")
+    }
+
+    @ViewBuilder
+    private func pathFooter(_ connection: ComputerConnection) -> some View {
+        if let note = pathFailure ?? (connection.pathChoices.isEmpty ? nil : "Auto starts with the path that answered last and tries the other one when it can't connect.") {
+            Text(note)
+                .accessibilityIdentifier("mac.path.footer")
+        }
+    }
+
     private func summary(_ connection: ComputerConnection) -> String {
         let count = connection.workspaces.count
         guard connection.state == .online, count > 0 else { return connection.presence }
         return connection.presence + " · " + (count == 1 ? "1 workspace" : "\(count) workspaces")
+    }
+
+    private func connectionValue(_ connection: ComputerConnection) -> String {
+        guard connection.state == .online, let path = connection.activePath else { return connection.shortPresence }
+        return connection.shortPresence + " · " + path.label
+    }
+
+    private func choose(path: PathChoice) {
+        do {
+            try model.setPath(path, computer: computerID)
+            pathFailure = nil
+        } catch {
+            pathFailure = "Couldn't save the path: " + error.localizedDescription
+        }
     }
 
     private func changeBlocked(_ connection: ComputerConnection) -> String? {
@@ -251,6 +336,39 @@ struct MacDetailsView: View {
             }
             choosing = nil
         }
+    }
+}
+
+private struct PathPicker: View {
+    let connection: ComputerConnection
+    let choose: (PathChoice) -> Void
+
+    var body: some View {
+        let current = connection.computer.path
+        Menu {
+            Picker("Connect through", selection: Binding(get: { current }, set: choose)) {
+                ForEach(connection.pathChoices, id: \.self) { choice in
+                    Text(choice.label)
+                        .tag(choice)
+                        .accessibilityIdentifier("mac.path." + choice.rawValue)
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Text("Connect through")
+                    .foregroundStyle(Color.primary)
+                Spacer(minLength: 8)
+                Text(current.label)
+                    .foregroundStyle(Color.captionInk)
+                    .lineLimit(1)
+                    .accessibilityIdentifier("mac.path.value")
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.captionInk)
+            }
+            .contentShape(.rect)
+        }
+        .accessibilityIdentifier("mac.path")
     }
 }
 

@@ -173,6 +173,12 @@ func (c *relayClient) configured() bool {
 	return c.url != ""
 }
 
+func (c *relayClient) pushTarget() (string, string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.url, c.token
+}
+
 func (c *relayClient) reportTarget() (string, string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

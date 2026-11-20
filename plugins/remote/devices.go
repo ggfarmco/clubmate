@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"clubmate/internal/tunnelrelay"
 )
 
 const (
@@ -19,6 +21,7 @@ const (
 	devicePrefix     = "device/"
 	tokenPrefix      = "cmt_"
 	tokenBytes       = 32
+	ticketPrefix     = "cmk_"
 	seenPersistAt    = time.Minute
 )
 
@@ -31,7 +34,9 @@ type device struct {
 	PairedAt  time.Time `json:"pairedAt"`
 	LastSeen  time.Time `json:"lastSeen"`
 	TokenHash string    `json:"tokenHash"`
-	Macs      []macInfo `json:"macs,omitempty"`
+
+	TicketHash string    `json:"ticketHash,omitempty"`
+	Macs       []macInfo `json:"macs,omitempty"`
 
 	PushToken       string `json:"pushToken,omitempty"`
 	PushEnvironment string `json:"pushEnvironment,omitempty"`
@@ -80,13 +85,12 @@ func (s *deviceStore) load(ctx context.Context) error {
 	return nil
 }
 
-func (s *deviceStore) add(ctx context.Context, info deviceInfo) (string, error) {
-	raw := make([]byte, tokenBytes)
-	_, _ = rand.Read(raw)
-	token := tokenPrefix + base64.RawURLEncoding.EncodeToString(raw)
+func (s *deviceStore) add(ctx context.Context, info deviceInfo) (string, string, error) {
+	token := newSecret(tokenPrefix)
+	ticket := newSecret(ticketPrefix)
 	now := s.now()
 	id := info.ID
-	d := device{ID: id, Name: info.Name, Model: info.Model, PairedAt: now, LastSeen: now, TokenHash: hashToken(token)}
+	d := device{ID: id, Name: info.Name, Model: info.Model, PairedAt: now, LastSeen: now, TokenHash: hashToken(token), TicketHash: hashToken(ticket)}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	s.mu.Lock()
@@ -102,9 +106,29 @@ func (s *deviceStore) add(ctx context.Context, info deviceInfo) (string, error) 
 	s.mu.Unlock()
 	if err := s.persist(ctx, id); err != nil {
 		s.undoAdd(d, prev, prevSaved, hadSaved)
-		return "", err
+		return "", "", err
 	}
-	return token, nil
+	return token, ticket, nil
+}
+
+func (s *deviceStore) hasTicket(hash string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.ContainsFunc(s.devices, func(d device) bool { return d.TicketHash == hash })
+}
+
+func (s *deviceStore) tickets() []tunnelrelay.Ticket {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list := slices.Clone(s.devices)
+	slices.SortStableFunc(list, func(a, b device) int { return b.PairedAt.Compare(a.PairedAt) })
+	out := make([]tunnelrelay.Ticket, 0, len(list))
+	for _, d := range list {
+		if d.TicketHash != "" {
+			out = append(out, tunnelrelay.Ticket{Hash: d.TicketHash})
+		}
+	}
+	return out
 }
 
 func (s *deviceStore) authenticate(ctx context.Context, token string) (device, bool) {
@@ -319,6 +343,12 @@ func (s *deviceStore) persist(ctx context.Context, id string) error {
 
 func deviceKey(id string) string {
 	return devicePrefix + id
+}
+
+func newSecret(prefix string) string {
+	raw := make([]byte, tokenBytes)
+	_, _ = rand.Read(raw)
+	return prefix + base64.RawURLEncoding.EncodeToString(raw)
 }
 
 func hashToken(token string) string {

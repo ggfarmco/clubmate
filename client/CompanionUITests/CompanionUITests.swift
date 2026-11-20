@@ -5,6 +5,9 @@ final class CompanionUITests: XCTestCase {
     private static let fixtures = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         .appending(path: "CompanionKit/Tests/CompanionKitTests/Fixtures").path()
     private static let pairLink = "clubmate://pair?v=1&c=ABCDEF&h=100.101.1.2&p=47622&id=mac-mock&n=Mac%20Studio&e=4000000000"
+    private static let relayQuery = "&r=https%3A%2F%2Frelay.clubmate.test&k=B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw&kid=aaa8fff703b50b22&pt=pt_mac-mock"
+    private static let relayOnlyLink = "clubmate://pair?v=2&c=ABCDEF&p=47622&id=mac-mock&n=Mac%20Studio&e=4000000000" + relayQuery
+    private static let bothPathsLink = "clubmate://pair?v=2&c=ABCDEF&h=100.101.1.2&p=47622&id=mac-mock&n=Mac%20Studio&e=4000000000" + relayQuery
     private static let proLink = "clubmate://pair?v=1&c=ABCDEF&h=100.101.1.3&p=47622&id=mac-pro&n=MacBook%20Pro&e=4000000000"
 
     override func setUp() {
@@ -1052,6 +1055,51 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(wait(for: app.descendants(matching: .any)["connection.step.hello"], "label CONTAINS 'no address answered'"))
     }
 
+    func testARelayOnlyMacPairsThroughTheRelayAndItsHeaderShowsTheRelayMark() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-fixtures", Self.fixtures, "-latency", "20", "-pair", Self.relayOnlyLink]
+        app.launch()
+        let relay = app.descendants(matching: .any)["pair.relay"]
+        XCTAssertTrue(relay.waitForExistence(timeout: 10))
+        XCTAssertTrue(relay.label.contains("relay.clubmate.test"))
+        XCTAssertFalse(app.staticTexts["Tailscale addresses"].exists)
+        app.buttons["Pair"].tap()
+        XCTAssertTrue(app.staticTexts["Explain the checkout flow"].waitForExistence(timeout: 10))
+        app.navigationBars["shop"].buttons.firstMatch.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["mac.relay.mac-mock"].waitForExistence(timeout: 10))
+    }
+
+    func testConnectThroughPickerMovesTheMacBetweenTailscaleAndTheRelay() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-fixtures", Self.fixtures, "-latency", "20", "-autoConfirmPairing", "YES", "-pair", Self.bothPathsLink, "-open", "mac"]
+        app.launch()
+        let picker = app.buttons["mac.path"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["mac.path.value"].label, "Auto")
+        reveal(app.buttons["mac.connection"], in: app)
+        let value = app.staticTexts["mac.connection.value"]
+        for (choice, path) in [("Tailscale", "Tailscale"), ("Relay", "Clubmate relay"), ("Tailscale", "Tailscale")] {
+            picker.tap()
+            app.buttons[choice].tap()
+            XCTAssertTrue(wait(for: app.staticTexts["mac.path.value"], "label == %@", choice))
+            XCTAssertTrue(wait(for: value, "label == %@", "online · " + path))
+        }
+    }
+
+    func testIPadHeaderKeepsTheMacNameWhenTheRelayAccessIsRevoked() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "the inline Mac header is iPad only")
+        let app = XCUIApplication()
+        app.launchArguments = ["-fixtures", Self.fixtures, "-latency", "20", "-autoConfirmPairing", "YES", "-pair", Self.bothPathsLink, "-open", "mac", "-relayRevoked", "YES"]
+        app.launch()
+        let picker = app.buttons["mac.path"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        picker.tap()
+        app.buttons["Relay"].tap()
+        let header = app.buttons["mac.header.mac-mock"]
+        XCTAssertTrue(wait(for: header, "label CONTAINS 'revoked'"))
+        XCTAssertGreaterThan(header.staticTexts["Mac Studio"].frame.width, 60)
+    }
+
     func testKeepAwakeFromMacDetailsHoldsAndTurnsOff() {
         let app = launch(open: "mac")
         let state = app.staticTexts["mac.awake.state"]
@@ -1254,8 +1302,8 @@ final class CompanionUITests: XCTestCase {
         return condition()
     }
 
-    private func wait(for element: XCUIElement, _ predicate: String) -> Bool {
-        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: predicate), object: element)
+    private func wait(for element: XCUIElement, _ predicate: String, _ arguments: CVarArg...) -> Bool {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: predicate, argumentArray: arguments), object: element)
         return XCTWaiter().wait(for: [expectation], timeout: 5) == .completed
     }
 }

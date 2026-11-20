@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/tunnelrelay"
 	"clubmate/pkg/apns"
 )
 
@@ -206,7 +207,41 @@ func TestPutDevicesChecksTheMacAndTheTokens(t *testing.T) {
 	assert.Equal(t, http.StatusOK, status)
 }
 
-func newFixture(t *testing.T) *fixture {
+func TestTunnelPanicLeavesPushWorking(t *testing.T) {
+	tun, err := tunnelrelay.New(tunnelrelay.Config{Auth: func(string) (string, bool) { panic("tunnel bug") }})
+	require.NoError(t, err)
+	f := newFixture(t, func(r *relay) { r.tunnel = tun.Handler() })
+
+	tunnelStatus, _ := f.do(t, http.MethodGet, "/v1/mac/stream", f.studio, "")
+	pushStatus, _ := f.post(t, f.studio, validPush)
+
+	assert.Equal(t, http.StatusInternalServerError, tunnelStatus)
+	assert.Equal(t, http.StatusOK, pushStatus)
+}
+
+func TestTunnelAtGlobalCapLeavesPushWorking(t *testing.T) {
+	tun, err := tunnelrelay.New(tunnelrelay.Config{
+		Auth:   func(string) (string, bool) { return "studio", true },
+		Limits: tunnelrelay.Limits{Handlers: 1},
+	})
+	require.NoError(t, err)
+	f := newFixture(t, func(r *relay) { r.tunnel = tun.Handler() })
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.url+"/v1/mac/stream", nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+f.studio)
+	stream, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = stream.Body.Close() })
+	require.Equal(t, http.StatusOK, stream.StatusCode)
+
+	tunnelStatus, _ := f.do(t, http.MethodPost, "/v1/d/open", "", "msg1")
+	pushStatus, _ := f.post(t, f.studio, validPush)
+
+	assert.Equal(t, http.StatusTooManyRequests, tunnelStatus)
+	assert.Equal(t, http.StatusOK, pushStatus)
+}
+
+func newFixture(t *testing.T, opts ...func(*relay)) *fixture {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "tokens")
 	studio, err := addToken(path, "studio")
@@ -234,6 +269,9 @@ func newFixture(t *testing.T) *fixture {
 		devices:   devicesPath,
 	}
 	r := &relay{tokens: toks, devices: devices, apns: client, limiter: f.limiter, log: log.New(f.logs, "", 0)}
+	for _, o := range opts {
+		o(r)
+	}
 	ts := httptest.NewServer(r.handler())
 	t.Cleanup(ts.Close)
 	f.url = ts.URL

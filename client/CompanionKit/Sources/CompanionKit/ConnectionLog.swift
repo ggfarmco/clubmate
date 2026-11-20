@@ -54,8 +54,9 @@ public struct ConnectionAttempt: Codable, Sendable, Equatable, Identifiable {
     public var background: Bool
     public var lived: Int?
     public var cancelled: Bool?
+    public var path: NetworkPath?
 
-    public init(id: UUID = UUID(), at: Date, step: Step, ok: Bool, milliseconds: Int, error: String? = nil, tries: [HostTry] = [], streak: Int = 0, background: Bool = false, lived: Int? = nil, cancelled: Bool = false) {
+    public init(id: UUID = UUID(), at: Date, step: Step, ok: Bool, milliseconds: Int, error: String? = nil, tries: [HostTry] = [], streak: Int = 0, background: Bool = false, lived: Int? = nil, cancelled: Bool = false, path: NetworkPath? = nil) {
         self.id = id
         self.at = at
         last = at
@@ -69,6 +70,7 @@ public struct ConnectionAttempt: Codable, Sendable, Equatable, Identifiable {
         self.background = background
         self.lived = lived
         self.cancelled = cancelled ? true : nil
+        self.path = path
     }
 
     public var host: String? {
@@ -83,7 +85,7 @@ public struct ConnectionAttempt: Codable, Sendable, Equatable, Identifiable {
     }
 
     func repeats(_ other: ConnectionAttempt) -> Bool {
-        ok == other.ok && cancelled == other.cancelled && step == other.step && error == other.error && background == other.background && (lived == nil) == (other.lived == nil)
+        ok == other.ok && cancelled == other.cancelled && path == other.path && step == other.step && error == other.error && background == other.background && (lived == nil) == (other.lived == nil)
             && tries.map { [$0.host, $0.outcome] } == other.tries.map { [$0.host, $0.outcome] }
     }
 
@@ -122,6 +124,7 @@ public struct ConnectionAttempt: Codable, Sendable, Equatable, Identifiable {
         case .server(let code, let message): "server \(code) · \(message)"
         case .badResponse: "unreadable response"
         case .hostNotAllowed: "no tailnet address saved"
+        case .relayRevoked: "relay HTTP 401 · ticket refused"
         case .pairingFailed(let message), .unreachable(let message), .notSent(let message): message
         }
     }
@@ -168,7 +171,7 @@ public struct ConnectionLog: Codable, Sendable, Equatable {
 
     public var text: String {
         attempts.reversed().map { attempt in
-            var lines = [[ComputerConnection.clock(attempt.at), attempt.title, attempt.repeats > 1 ? "\(attempt.repeats)× until " + ComputerConnection.clock(attempt.last) : nil, attempt.background ? "background" : nil].compactMap { $0 }.joined(separator: " · ")]
+            var lines = [[ComputerConnection.clock(attempt.at), attempt.title, attempt.repeats > 1 ? "\(attempt.repeats)× until " + ComputerConnection.clock(attempt.last) : nil, attempt.background ? "background" : nil, attempt.path.map { "path " + $0.rawValue }].compactMap { $0 }.joined(separator: " · ")]
             if let error = attempt.error { lines.append("  " + error) }
             lines += attempt.tries.map { "  \($0.host) · \($0.milliseconds) ms · \($0.outcome)" }
             return lines.joined(separator: "\n")

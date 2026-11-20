@@ -2,6 +2,8 @@
 
 `clubmate-push-relay` (`cmd/clubmate-push-relay`) is a small server that holds the APNs auth key. Each Mac's `remote` plugin sends its pushes to the relay with its own token; the relay signs them with the key and forwards them to APNs. No Mac holds the `.p8`. What gets pushed and when is decided on the Mac by the workspace's triggers that call `remote.push` (see [Remote § Real push](remote.md#real-push)); the relay only authenticates, validates and forwards.
 
+The same server also serves the **tunnel routes** of the second Companion ↔ Mac path (`/v1/mac/…`, `/v1/d/…`, package `internal/tunnelrelay`): a Mac that uses the relay path holds a stream there with its push token, and its phones reach it through the relay when Tailscale does not. See [Tunnel relay](tunnel-relay.md).
+
 The same server also takes **problem reports** from any Clubmate install (signed, anonymous or trusted by a Mac token), stores them on disk and hands them only to an admin token — see [Problem reports](#problem-reports).
 
 ## Configuration
@@ -19,6 +21,7 @@ Flags, each with an environment fallback:
 | `-bans` | `PUSH_RELAY_BANS` | – | banned report keys and IPs; unset or missing → no bans |
 | `-reports` | `PUSH_RELAY_REPORTS` | `reports` | directory the reports are stored in (created `700`) |
 | `-devices` | `PUSH_RELAY_DEVICES` | – | JSON file of the device tokens each Mac registered (see [Device binding](#device-binding)); unset → kept in memory only, lost on restart |
+| `-tickets` | `PUSH_RELAY_TICKETS` | `tickets.json` next to `-devices` | JSON file of the tunnel's device tickets (see [Tunnel relay § Tickets](tunnel-relay.md#tickets)); unset and no `-devices` → kept in memory only, lost on restart |
 
 APNs topic is fixed: `com.clubmate.companion`. JWTs (ES256) are reused for 50 minutes.
 
@@ -52,6 +55,8 @@ The token itself is never stored on the relay; lose it and `token rm` + `token a
 `environment` picks `api.sandbox.push.apple.com` or `api.push.apple.com`; `apns-priority` comes from `type` (alert 10, background 5). `GET /healthz` → `200`.
 
 Every push logs one line, `push <mac name> <type> <APNs status> <reason>`, never the payload.
+
+The tunnel routes `/v1/mac/…` (Mac token, the same `cmr_` tokens) and `/v1/d/…` (device ticket) are in [Tunnel relay](tunnel-relay.md). Each tunnel request runs under its own `recover`, so a bug there answers `500` (or cuts that one response) and pushes go on.
 
 `PUT /v1/devices`, `Authorization: Bearer <mac token>`, `{"tokens": ["<hex device token>", …]}`: replaces the set of device tokens this Mac may push to. At most 32 tokens, each hex and at most 200 characters (`400` otherwise); `401` and `429` as for a push (the same bucket); `500` when the file can't be written (the old set stays); `204` on success. Logs `devices <mac name> <count>`.
 
@@ -142,7 +147,7 @@ One directory per report, `<reports>/<id>/bundle.zip` + `meta.json`, both writte
 exe.dev VMs are x86_64 Ubuntu 24.04 with systemd. A new VM's HTTPS proxy `https://<vm>.exe.xyz` (Let's Encrypt `*.exe.xyz` certificate) forwards to port 8000 (`ssh exe.dev share port <vm> 8000` sets it), so the relay itself serves plain HTTP on `0.0.0.0:8000`. The proxy is private (exe.dev login) until `ssh exe.dev share set-public <vm>`; Macs need it public, the relay checks their tokens itself.
 
 1. Create the VM: `ssh exe.dev new --name=<vm>`.
-2. From the repo: `scripts/deploy-push-relay.sh <vm>.exe.xyz`. It cross-builds a static linux/amd64 binary, copies it to `~/push-relay/` with `deploy/push-relay/clubmate-push-relay.service` (its `REPLACE_ME_USER` set to the VM login), creates empty `~/push-relay/tokens`, `admins` and `bans` (mode 600) and `~/push-relay/reports/` and `~/push-relay/state/` (mode 700) if missing, installs and enables the unit and restarts it once `~/push-relay/relay.env` exists. Run it again for every update; it never touches the key, `relay.env`, the tokens, the bans, the stored reports or the device bindings.
+2. From the repo: `scripts/deploy-push-relay.sh <vm>.exe.xyz`. It cross-builds a static linux/amd64 binary, copies it to `~/push-relay/` with `deploy/push-relay/clubmate-push-relay.service` (its `REPLACE_ME_USER` set to the VM login), creates empty `~/push-relay/tokens`, `admins` and `bans` (mode 600), `~/push-relay/reports/` and `~/push-relay/state/` (mode 700) and an empty tunnel tickets file `~/push-relay/state/tickets.json` (`{}`, mode 600) if missing, installs and enables the unit and restarts it once `~/push-relay/relay.env` exists. Run it again for every update; it never touches the key, `relay.env`, the tokens, the bans, the stored reports, the device bindings or the tickets file.
 3. Copy the key and write `relay.env` without either passing through a terminal:
 
    ```bash
@@ -154,7 +159,7 @@ exe.dev VMs are x86_64 Ubuntu 24.04 with systemd. A new VM's HTTPS proxy `https:
 
 4. Check: `curl -fsS https://<vm>.exe.xyz/healthz`.
 
-The unit sets `PUSH_RELAY_LISTEN=0.0.0.0:8000`, `PUSH_RELAY_TOKENS`, `PUSH_RELAY_ADMINS`, `PUSH_RELAY_BANS`, `PUSH_RELAY_REPORTS` and `PUSH_RELAY_DEVICES` (`~/push-relay/state/devices.json`) to the files above, runs as the VM login with `NoNewPrivileges`, a read-only home except `~/push-relay/reports` and `~/push-relay/state` (`ReadWritePaths=`) and `Restart=always`.
+The unit sets `PUSH_RELAY_LISTEN=0.0.0.0:8000`, `PUSH_RELAY_TOKENS`, `PUSH_RELAY_ADMINS`, `PUSH_RELAY_BANS`, `PUSH_RELAY_REPORTS`, `PUSH_RELAY_DEVICES` (`~/push-relay/state/devices.json`) and `PUSH_RELAY_TICKETS` (`~/push-relay/state/tickets.json`) to the files above, runs as the VM login with `NoNewPrivileges`, a read-only home except `~/push-relay/reports` and `~/push-relay/state` (`ReadWritePaths=`) and `Restart=always`.
 
 An admin token for the dev Mac: `ssh <vm>.exe.xyz '~/push-relay/clubmate-push-relay admin add <name> -admins ~/push-relay/admins'`.
 
@@ -169,4 +174,4 @@ Locally, `make push-relay` builds `bin/clubmate-push-relay` and `make push-relay
 
 ## Revoking a Mac
 
-`ssh <vm>.exe.xyz '~/push-relay/clubmate-push-relay token rm <mac name> -tokens ~/push-relay/tokens'`. Its next push gets `401`; the Mac logs it and its phones fall back to the background refresh. On the Mac itself `remote.set-push-relay url=` clears the relay.
+`ssh <vm>.exe.xyz '~/push-relay/clubmate-push-relay token rm <mac name> -tokens ~/push-relay/tokens'`. Its next push gets `401`, and within one ping (25 s) the relay ends its tunnel stream and drops its channels; the Mac logs it and its phones fall back to the background refresh. On the Mac itself `remote.set-push-relay url=` clears the relay.

@@ -11,7 +11,8 @@ let package = Package(
         .package(path: "../ClubmateProtocol")
     ],
     targets: [
-        .target(name: "CompanionKit", dependencies: ["ClubmateProtocol"]),
+        .systemLibrary(name: "CZlib", path: "Sources/CZlib"),
+        .target(name: "CompanionKit", dependencies: ["ClubmateProtocol", "CZlib"], resources: [.copy("Resources/dict-v1.bin")]),
         .testTarget(name: "CompanionKitTests", dependencies: ["CompanionKit"], resources: [.copy("Fixtures")]),
     ]
 )

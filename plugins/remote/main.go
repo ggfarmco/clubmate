@@ -55,6 +55,8 @@ var (
 		"remote.set-push-relay":   true,
 		"remote.report-upload":    true,
 		"remote.set-report-inbox": true,
+		"remote.set-tunnel":       true,
+		"remote.tunnel-rotate":    true,
 	}
 )
 
@@ -66,6 +68,7 @@ type app struct {
 	ln    *listeners
 	ident *identity
 	rep   *reports
+	tun   *tunnelClient
 
 	enableMu sync.Mutex
 	seedMu   sync.Mutex
@@ -86,17 +89,18 @@ type app struct {
 }
 
 type status struct {
-	Enabled        bool       `json:"enabled"`
-	Port           int        `json:"port"`
-	Listening      []string   `json:"listening"`
-	Hosts          []string   `json:"hosts"`
-	Error          string     `json:"error"`
-	Computer       computer   `json:"computer"`
-	TitleBarColour bool       `json:"titleBarColour"`
-	OtherMacs      []otherMac `json:"otherMacs"`
-	TitleDot       bool       `json:"titleDot"`
-	Push           bool       `json:"push"`
-	ReportRelay    string     `json:"reportRelay"`
+	Enabled        bool         `json:"enabled"`
+	Port           int          `json:"port"`
+	Listening      []string     `json:"listening"`
+	Hosts          []string     `json:"hosts"`
+	Error          string       `json:"error"`
+	Computer       computer     `json:"computer"`
+	TitleBarColour bool         `json:"titleBarColour"`
+	OtherMacs      []otherMac   `json:"otherMacs"`
+	TitleDot       bool         `json:"titleDot"`
+	Push           bool         `json:"push"`
+	ReportRelay    string       `json:"reportRelay"`
+	Tunnel         tunnelStatus `json:"tunnel"`
 }
 
 type otherMac struct {
@@ -112,6 +116,7 @@ type deviceView struct {
 	PairedAt  time.Time `json:"pairedAt"`
 	LastSeen  time.Time `json:"lastSeen"`
 	Connected bool      `json:"connected"`
+	Path      string    `json:"path"`
 	Push      bool      `json:"push"`
 	Macs      []macInfo `json:"macs"`
 }
@@ -190,6 +195,14 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		logf("clear watching: %v", err)
 	}
 	a.ln = newListeners(a.srv.handler(), os.Getenv(listenEnv), a.scanAddrs)
+	a.tun = newTunnelClient(ctx, relay, h, newKeyStore(comp.ID), a.srv.handler(), a.changed)
+	a.tun.allowed = enabled
+	a.tun.tickets = a.srv.ticketSet
+	a.tun.sess.classify = a.srv.ticketKind
+	a.srv.tun = a.tun
+	if err := a.tun.load(ctx); err != nil {
+		logf("load tunnel: %v", err)
+	}
 	a.subscribe(ctx, h, math.MaxInt64)
 	if enabled {
 		a.activate(ctx)
@@ -253,6 +266,7 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 		return a.pair(ctx)
 	case "remote.cancel-pair":
 		a.srv.pairing.cancel()
+		_ = a.srv.syncTickets(ctx)
 		return nil, nil
 	case "remote.devices":
 		return a.devices(), nil
@@ -279,6 +293,21 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, err
 		}
 		if err := a.srv.relay.configure(ctx, args.URL, args.Token); err != nil {
+			return nil, err
+		}
+		a.tun.restart()
+		return a.status(), nil
+	case "remote.set-tunnel":
+		var args tunnelArgs
+		if err := decodeArgs(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		if err := a.tun.configure(ctx, args.On); err != nil {
+			return nil, err
+		}
+		return a.status(), nil
+	case "remote.tunnel-rotate":
+		if err := a.tun.rotate(ctx); err != nil {
 			return nil, err
 		}
 		return a.status(), nil
@@ -356,6 +385,9 @@ func (a *app) shutdown(context.Context, *pluginsdk.Host) {
 	if a.ln != nil {
 		a.ln.stop()
 	}
+	if a.tun != nil {
+		a.tun.stop()
+	}
 }
 
 func (a *app) pair(ctx context.Context) (pairResult, error) {
@@ -365,11 +397,25 @@ func (a *app) pair(ctx context.Context) (pairResult, error) {
 		return pairResult{}, err
 	}
 	st := a.status()
-	if err := pairHostsError(st); err != nil {
-		return pairResult{}, err
+	route, err := a.tun.pairInfo(ctx)
+	if err != nil {
+		logf("pair link without the relay path: %v", err)
 	}
-	code, expires := a.srv.pairing.issue()
-	return pairResult{Link: pairLink(code, st.Hosts, st.Port, a.ident.get(), expires), Code: code, ExpiresAt: expires.UTC().Format(time.RFC3339)}, nil
+	if route == nil {
+		if err := pairHostsError(st); err != nil {
+			return pairResult{}, err
+		}
+	}
+	code, ticket, expires := a.srv.pairing.issueWithTicket()
+	var relay *linkRelay
+	if route != nil {
+		relay = &linkRelay{URL: route.URL, Key: route.Key, KID: route.KID, Ticket: ticket}
+		if err := a.srv.syncTickets(ctx); err != nil && len(st.Hosts) == 0 {
+			a.srv.pairing.cancel()
+			return pairResult{}, fmt.Errorf("the relay did not take the pairing ticket: %w", err)
+		}
+	}
+	return pairResult{Link: pairLink(code, st.Hosts, st.Port, a.ident.get(), expires, relay), Code: code, ExpiresAt: expires.UTC().Format(time.RFC3339)}, nil
 }
 
 func (a *app) setEnabled(ctx context.Context, enabled bool) error {
@@ -401,6 +447,9 @@ func (a *app) setEnabledLocked(ctx context.Context, enabled bool) error {
 	a.mu.Lock()
 	a.enabled = enabled
 	a.mu.Unlock()
+	if a.tun != nil {
+		a.tun.allow(enabled)
+	}
 	a.changed()
 	return nil
 }
@@ -425,6 +474,7 @@ func (a *app) setPort(ctx context.Context, port int) error {
 	a.mu.Unlock()
 	if enabled {
 		a.srv.pairing.cancel()
+		_ = a.srv.syncTickets(ctx)
 		a.srv.hub.closeAll()
 		a.ln.restart(port)
 	}
@@ -538,6 +588,9 @@ func (a *app) status() status {
 		Push:           a.srv.relay.configured(),
 		ReportRelay:    a.srv.relay.reportHost(),
 	}
+	if a.tun != nil {
+		st.Tunnel = a.tun.status()
+	}
 	dns := a.dns
 	a.mu.Unlock()
 	if !st.Enabled {
@@ -560,7 +613,7 @@ func (a *app) devices() []deviceView {
 	list := a.srv.devices.list()
 	out := make([]deviceView, 0, len(list))
 	for _, d := range list {
-		out = append(out, deviceView{ID: d.ID, Name: d.Name, Model: d.Model, PairedAt: wireTime(d.PairedAt), LastSeen: wireTime(d.LastSeen), Connected: a.srv.hub.connected(d.ID), Push: d.PushToken != "", Macs: nonNil(d.Macs)})
+		out = append(out, deviceView{ID: d.ID, Name: d.Name, Model: d.Model, PairedAt: wireTime(d.PairedAt), LastSeen: wireTime(d.LastSeen), Connected: a.srv.hub.connected(d.ID), Path: a.srv.hub.path(d.ID), Push: d.PushToken != "", Macs: nonNil(d.Macs)})
 	}
 	return out
 }

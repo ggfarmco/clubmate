@@ -1,5 +1,5 @@
 [Unit]
-Description=Clubmate push relay: forwards Mac pushes to APNs, takes problem reports
+Description=Clubmate push relay: forwards Mac pushes to APNs, takes problem reports, serves the tunnel routes
 After=network-online.target
 Wants=network-online.target
 
@@ -14,6 +14,7 @@ Environment=PUSH_RELAY_ADMINS=/home/REPLACE_ME_USER/push-relay/admins
 Environment=PUSH_RELAY_BANS=/home/REPLACE_ME_USER/push-relay/bans
 Environment=PUSH_RELAY_REPORTS=/home/REPLACE_ME_USER/push-relay/reports
 Environment=PUSH_RELAY_DEVICES=/home/REPLACE_ME_USER/push-relay/state/devices.json
+Environment=PUSH_RELAY_TICKETS=/home/REPLACE_ME_USER/push-relay/state/tickets.json
 ExecStart=/home/REPLACE_ME_USER/push-relay/clubmate-push-relay
 Restart=always
 RestartSec=2

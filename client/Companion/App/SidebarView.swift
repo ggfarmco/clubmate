@@ -417,7 +417,7 @@ struct StatusRow: View {
             } label: {
                 Label {
                     VStack(alignment: .leading) {
-                        Text("Access revoked")
+                        Text(connection.revokedTitle)
                         Text("Pair again").font(.footnote).foregroundStyle(.tint)
                     }
                 } icon: {

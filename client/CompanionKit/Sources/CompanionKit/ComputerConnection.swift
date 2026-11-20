@@ -80,10 +80,16 @@ public final class ComputerConnection: CommandRunner {
     public private(set) var usage: ClaudeUsage?
     public private(set) var log = ConnectionLog()
     public private(set) var events = EventLog()
+    public private(set) var activePath: NetworkPath?
+    public private(set) var revokedBy: RemoteError?
     @ObservationIgnored public internal(set) var background = false
     @ObservationIgnored public private(set) var streamID: String?
 
     @ObservationIgnored public private(set) var client: RemoteClient
+    @ObservationIgnored public private(set) var clients: [NetworkPath: RemoteClient] = [:]
+    @ObservationIgnored private var answered: NetworkPath?
+    @ObservationIgnored private var probeFrom: ContinuousClock.Instant?
+    @ObservationIgnored private var probeTask: Task<Void, Never>?
     @ObservationIgnored let sleep: @Sendable (Duration) async throws -> Void
     @ObservationIgnored let now: @Sendable () -> ContinuousClock.Instant
     @ObservationIgnored private var heardAt: ContinuousClock.Instant?
@@ -93,6 +99,8 @@ public final class ComputerConnection: CommandRunner {
     @ObservationIgnored private var interfaces: [String: WeakInterface] = [:]
     @ObservationIgnored private let cache: ListCache
     @ObservationIgnored private let token: String?
+    @ObservationIgnored private let relayTicket: String?
+    @ObservationIgnored public private(set) var routes: [RemoteClient.Route] = []
     @ObservationIgnored private let transport: any HTTPTransport
     @ObservationIgnored private let policy: HostPolicy
     @ObservationIgnored private let eventSaves = SaveThrottle()
@@ -101,7 +109,7 @@ public final class ComputerConnection: CommandRunner {
     @ObservationIgnored private var loggedState: String?
     @ObservationIgnored private var awakeSeq = 0
 
-    public init(computer: Computer, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, lastEventID: Int? = nil, cache: ListCache = ListCache(dir: nil), device: DeviceIdentity? = nil, appVersion: String = ProblemReport.appVersion, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }) {
+    public init(computer: Computer, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, relayTicket: String? = nil, lastEventID: Int? = nil, cache: ListCache = ListCache(dir: nil), device: DeviceIdentity? = nil, appVersion: String = ProblemReport.appVersion, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }) {
         self.computer = computer
         self.lastEventID = lastEventID
         lastSeen = computer.lastSeen
@@ -109,11 +117,16 @@ public final class ComputerConnection: CommandRunner {
         self.sleep = sleep
         self.now = now
         self.token = token
+        self.relayTicket = relayTicket
         self.transport = transport
         self.policy = policy
         self.device = device
         self.appVersion = appVersion
-        client = RemoteClient(hosts: computer.hosts, port: computer.port, token: token, transport: transport, policy: policy)
+        routes = Self.routes(computer, ticket: relayTicket, transport: transport, policy: policy)
+        clients = Dictionary(routes.map { ($0.path, RemoteClient(route: $0, token: token, transport: transport, policy: policy)) }) { first, _ in first }
+        client = RemoteClient(route: .tailnet(hosts: computer.hosts, port: computer.port), token: token, transport: transport, policy: policy)
+        answered = cache.load(pathKey, as: SavedPath.self)?.path
+        if let first = selector.order.first, let chosen = clients[first] { client = chosen }
         log = cache.load(logKey, as: ConnectionLog.self) ?? ConnectionLog()
         events = cache.load(eventsKey, as: EventLog.self) ?? EventLog()
         loggedState = events.lines.last { $0.kind == .state }?.text
@@ -130,6 +143,18 @@ public final class ComputerConnection: CommandRunner {
         let hello: Hello
         let workspaces: [Workspace]
         var awake: AwakeState?
+    }
+
+    private struct SavedPath: Codable {
+        let path: NetworkPath
+    }
+
+    private var pathKey: ListCache.Key {
+        ListCache.Key(computer: computer.id, workspace: "", collection: "path")
+    }
+
+    public var selector: PathSelector {
+        PathSelector(choice: computer.path, paths: Set(clients.keys), answered: answered)
     }
 
     private var savedKey: ListCache.Key {
@@ -156,7 +181,7 @@ public final class ComputerConnection: CommandRunner {
     private func move(to new: State, error: (any Error)? = nil) {
         state = new
         let line: String? = switch new {
-        case .online: "online"
+        case .online: "online" + (activePath.map { " path=" + $0.rawValue } ?? "")
         case .unauthorized: "unauthorized"
         case .offline: error.map { "offline err=" + EventLog.code($0) } ?? "offline stopped"
         case .connecting: nil
@@ -166,18 +191,54 @@ public final class ComputerConnection: CommandRunner {
         note(.state, line)
     }
 
+    public nonisolated static func routes(_ computer: Computer, ticket: String?, transport: any HTTPTransport, policy: HostPolicy) -> [RemoteClient.Route] {
+        var routes: [RemoteClient.Route] = []
+        if !policy.filter(computer.hosts).isEmpty {
+            routes.append(.tailnet(hosts: computer.hosts, port: computer.port))
+        }
+        if let relay = computer.relay, let key = relay.macKey, let ticket, policy.allowsRelay(relay.url) {
+            let tunnel = TunnelTransport(relay: relay.url, macKey: key, ticket: ticket, outer: transport)
+            let route = RemoteClient.Route.relay(tunnel, computer: computer.id)
+            if computer.path == .relay { routes.insert(route, at: 0) } else { routes.append(route) }
+        }
+        return routes
+    }
+
+    public func setRelay(_ relay: RelayRoute) {
+        guard relay != computer.relay else { return }
+        computer.relay = relay
+        routes = Self.routes(computer, ticket: relayTicket, transport: transport, policy: policy)
+        let fresh = routes.first { $0.path == .relay }.map { RemoteClient(route: $0, token: token, transport: transport, policy: policy) }
+        clients[.relay] = fresh
+        guard client.route.path == .relay, let fresh else { return }
+        client = fresh
+    }
+
+    public func setPath(_ choice: PathChoice) {
+        guard choice != computer.path else { return }
+        computer.path = choice
+        note(.state, "path choice=" + choice.rawValue)
+        guard task != nil, let first = selector.order.first, first != activePath else { return }
+        restart("the path changed")
+    }
+
     public func makeCheck(probe: any NetworkProbe) -> ConnectionCheck {
-        ConnectionCheck(hosts: client.hosts, port: computer.port, token: token, transport: transport, policy: policy, probe: probe) { [weak self] in
+        var relay: ConnectionCheck.Relay?
+        if routes.contains(where: { $0.path == .relay }), let route = computer.relay, let key = route.macKey, let relayTicket {
+            relay = ConnectionCheck.Relay(url: route.url, macKey: key, kid: route.kid, ticket: relayTicket, computer: computer.id)
+        }
+        let first = activePath ?? selector.order.first ?? .tailnet
+        return ConnectionCheck(hosts: policy.filter(computer.hosts), port: computer.port, token: token, transport: transport, policy: policy, probe: probe, relay: relay, macName: computer.name, first: first) { [weak self] in
             self?.reconnectNow()
         }
     }
 
-    private func record(_ step: ConnectionAttempt.Step, started: ContinuousClock.Instant, trace: HostTrace, error: String? = nil, lived: ContinuousClock.Instant? = nil, cancelled: Bool = false) {
+    private func record(_ step: ConnectionAttempt.Step, started: ContinuousClock.Instant, trace: HostTrace, path: NetworkPath? = nil, error: String? = nil, lived: ContinuousClock.Instant? = nil, cancelled: Bool = false) {
         pending = nil
         let elapsed = now() - started
         let milliseconds = Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000)
         let livedFor = lived.map { Int((now() - $0).components.seconds) }
-        log.record(ConnectionAttempt(at: .now, step: step, ok: error == nil, milliseconds: milliseconds, error: error, tries: trace.values, background: background, lived: livedFor, cancelled: cancelled))
+        log.record(ConnectionAttempt(at: .now, step: step, ok: error == nil, milliseconds: milliseconds, error: error, tries: trace.values, background: background, lived: livedFor, cancelled: cancelled, path: path))
         cache.save(log, logKey)
     }
 
@@ -188,7 +249,7 @@ public final class ComputerConnection: CommandRunner {
 
     private func abandon(_ why: String) {
         guard let pending else { return }
-        record(pending.step, started: pending.started, trace: pending.trace, error: why, cancelled: true)
+        record(pending.step, started: pending.started, trace: pending.trace, path: pending.path, error: why, cancelled: true)
     }
 
     private func save() {
@@ -207,6 +268,7 @@ public final class ComputerConnection: CommandRunner {
         task?.cancel()
         task = nil
         streamID = nil
+        leavePath()
         if state != .unauthorized { move(to: .offline(nil)) }
         saveEvents()
     }
@@ -221,6 +283,64 @@ public final class ComputerConnection: CommandRunner {
         task?.cancel()
         task = nil
         start()
+    }
+
+    private func restart(_ why: String) {
+        streamID = nil
+        abandon(why)
+        task?.cancel()
+        task = nil
+        endProbe()
+        start(background: background)
+    }
+
+    private func leavePath() {
+        activePath = nil
+        endProbe()
+    }
+
+    private func endProbe() {
+        probeTask?.cancel()
+        probeTask = nil
+        probeFrom = nil
+    }
+
+    private func remember(_ path: NetworkPath) {
+        activePath = path
+        probeFrom = path == .relay ? now() : nil
+        guard answered != path else { return }
+        answered = path
+        cache.save(SavedPath(path: path), pathKey)
+    }
+
+    private func probeIfDue() {
+        guard probeTask == nil, let from = probeFrom, selector.probeDue(active: activePath, elapsed: now() - from), let tailnet = clients[.tailnet] else { return }
+        probeFrom = now()
+        note(.state, "probe path=tailnet")
+        probeTask = Task { [weak self] in
+            let answers = await ConnectionCheck.answers(tailnet)
+            guard let self, !Task.isCancelled else { return }
+            probeTask = nil
+            guard answers, activePath == .relay else { return }
+            answered = .tailnet
+            cache.save(SavedPath(path: .tailnet), pathKey)
+            note(.state, "probe ok path=tailnet")
+            restart("the app moved to Tailscale")
+        }
+    }
+
+    private func hello(_ trace: HostTrace) async throws -> (NetworkPath, RemoteClient, Hello) {
+        let order = selector.order
+        for (index, path) in order.enumerated() {
+            guard let candidate = clients[path] else { continue }
+            pending?.path = path
+            do {
+                return (path, candidate, try await candidate.hello(trace: trace, quick: index < order.count - 1))
+            } catch {
+                guard !Task.isCancelled, index < order.count - 1, PathSelector.fallsOver(error) else { throw error }
+            }
+        }
+        throw RemoteError.hostNotAllowed
     }
 
     public func networkReturned() {
@@ -306,10 +426,10 @@ public final class ComputerConnection: CommandRunner {
     private func authorized<T: Sendable>(_ what: String, _ call: (RemoteClient) async throws -> T) async throws -> T {
         do {
             return try await call(client)
-        } catch RemoteError.unauthorized {
-            note(.command, "failed \(what) err=" + EventLog.code(RemoteError.unauthorized))
-            revoke()
-            throw RemoteError.unauthorized
+        } catch let error as RemoteError where error == .unauthorized || error == .relayRevoked {
+            note(.command, "failed \(what) err=" + EventLog.code(error))
+            revoke(error)
+            throw error
         } catch is CancellationError {
             throw CancellationError()
         } catch {
@@ -330,9 +450,9 @@ public final class ComputerConnection: CommandRunner {
         do {
             identify(try await client.setIdentityColour(colour.rawValue))
             return computer
-        } catch RemoteError.unauthorized {
-            revoke()
-            throw RemoteError.unauthorized
+        } catch let error as RemoteError where error == .unauthorized || error == .relayRevoked {
+            revoke(error)
+            throw error
         }
     }
 
@@ -340,9 +460,17 @@ public final class ComputerConnection: CommandRunner {
         switch state {
         case .online: "online"
         case .connecting: "connecting…"
-        case .unauthorized: "access revoked"
+        case .unauthorized: revokedBy == .relayRevoked ? "relay access revoked" : "access revoked"
         case .offline: lastSeen.map { "offline since " + Self.clock($0) } ?? "offline"
         }
+    }
+
+    public var revokedTitle: String {
+        revokedBy == .relayRevoked ? "Relay access revoked" : "Access revoked"
+    }
+
+    public var pathChoices: [PathChoice] {
+        selector.paths.count > 1 ? PathChoice.allCases : []
     }
 
     public var shortPresence: String {
@@ -422,9 +550,14 @@ public final class ComputerConnection: CommandRunner {
             let trace = HostTrace()
             var step = ConnectionAttempt.Step.hello
             var connectedAt: ContinuousClock.Instant?
+            var path: NetworkPath?
             pending = PendingAttempt(started: started, step: step, trace: trace)
             do {
-                let hello = try await client.hello(trace: trace)
+                let (answeredPath, active, hello) = try await hello(trace)
+                if Task.isCancelled { return }
+                path = answeredPath
+                client = active
+                remember(answeredPath)
                 step = .workspaces
                 advance(to: step)
                 let list = try await client.workspaces(trace: trace)
@@ -443,11 +576,12 @@ public final class ComputerConnection: CommandRunner {
                     failures = 0
                     lastSeen = .now
                     heardAt = now()
+                    probeIfDue()
                     switch item {
                     case .alive:
                         move(to: .online)
                         connectedAt = now()
-                        record(.events, started: started, trace: trace)
+                        record(.events, started: started, trace: trace, path: path)
                         emit(.online)
                         await loadAwake()
                         if Task.isCancelled { return }
@@ -497,18 +631,20 @@ public final class ComputerConnection: CommandRunner {
                     }
                 }
                 if Task.isCancelled { return }
-                record(step, started: started, trace: trace, error: connectedAt == nil ? "stream closed before it said connected" : "stream closed by the Mac", lived: connectedAt)
+                record(step, started: started, trace: trace, path: path, error: connectedAt == nil ? "stream closed before it said connected" : "stream closed by the Mac", lived: connectedAt)
                 streamID = nil
+                leavePath()
                 move(to: .offline(nil), error: RemoteError.unreachable(connectedAt == nil ? "stream closed before it said connected" : "stream closed by the Mac"))
-            } catch RemoteError.unauthorized {
+            } catch let error as RemoteError where error == .unauthorized || error == .relayRevoked {
                 if Task.isCancelled { return }
-                record(step, started: started, trace: trace, error: ConnectionAttempt.describe(RemoteError.unauthorized), lived: connectedAt)
-                revoke()
+                record(step, started: started, trace: trace, path: path ?? pending?.path, error: ConnectionAttempt.describe(error), lived: connectedAt)
+                revoke(error)
                 return
             } catch {
                 if Task.isCancelled { return }
-                record(step, started: started, trace: trace, error: ConnectionAttempt.describe(error), lived: connectedAt)
+                record(step, started: started, trace: trace, path: path ?? pending?.path, error: ConnectionAttempt.describe(error), lived: connectedAt)
                 streamID = nil
+                leavePath()
                 move(to: .offline(error is CancellationError ? nil : (error as? RemoteError)?.message ?? error.localizedDescription), error: error)
             }
             let delay = Self.backoff[min(failures, Self.backoff.count - 1)]
@@ -578,7 +714,9 @@ public final class ComputerConnection: CommandRunner {
         save()
     }
 
-    private func revoke() {
+    private func revoke(_ reason: RemoteError = .unauthorized) {
+        revokedBy = reason
+        leavePath()
         move(to: .unauthorized)
         saveEvents()
         streamID = nil
@@ -603,6 +741,7 @@ private struct PendingAttempt {
     let started: ContinuousClock.Instant
     var step: ConnectionAttempt.Step
     let trace: HostTrace
+    var path: NetworkPath?
 }
 
 private struct WeakInterface {

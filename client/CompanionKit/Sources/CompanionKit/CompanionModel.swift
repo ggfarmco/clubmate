@@ -107,13 +107,15 @@ public final class CompanionModel {
 
     public func pair(_ link: PairingLink) async throws -> Computer {
         let result = try await RemoteClient.pair(link, device: device, transport: transport, policy: policy)
-        try store.save(result.computer, token: result.token)
+        var computer = result.computer
+        if let existing = computers.first(where: { $0.id == computer.id }) { computer.path = existing.path }
+        try store.save(computer, token: result.token, relayTicket: result.relayTicket)
         computers = store.computers
-        detach(result.computer.id)
-        attach(result.computer)
-        connections[result.computer.id]?.start()
-        sendMacs(excluding: result.computer.id)
-        return result.computer
+        detach(computer.id)
+        attach(computer)
+        connections[computer.id]?.start()
+        sendMacs(excluding: computer.id)
+        return computer
     }
 
     public func remove(_ id: String) throws {
@@ -160,6 +162,26 @@ public final class CompanionModel {
         try? store.identify(computer.id, as: ComputerInfo(id: computer.id, name: computer.name, colour: computer.colour))
         computers = store.computers
         if computers.first(where: { $0.id == computer.id })?.tag != before { sendMacs(excluding: computer.id) }
+    }
+
+    public func setPath(_ path: PathChoice, computer id: String) throws {
+        try store.setPath(path, for: id)
+        computers = store.computers
+        connections[id]?.setPath(path)
+    }
+
+    private func tunnelChanged(_ tunnel: RelayRoute, connection: ComputerConnection) {
+        let id = connection.computer.id
+        guard let saved = computers.first(where: { $0.id == id })?.relay, saved != tunnel, tunnel.macKey != nil, policy.allowsRelay(tunnel.url) else { return }
+        do {
+            try store.setRelay(tunnel, for: id)
+        } catch {
+            connection.note(.state, "relay key not saved err=" + EventLog.code(error))
+            return
+        }
+        computers = store.computers
+        connection.setRelay(tunnel)
+        connection.note(.state, "relay key kid=" + tunnel.kid)
     }
 
     private func sendMacs(excluding id: String?) {
@@ -213,7 +235,7 @@ public final class CompanionModel {
     private func attach(_ computer: Computer) {
         let saved = cursors?.object(forKey: Self.cursorKey(computer.id)) as? Int
         lists.allow(computer: computer.id)
-        let connection = ComputerConnection(computer: computer, token: store.token(for: computer.id), transport: transport, policy: policy, lastEventID: saved, cache: lists, device: device, sleep: sleep)
+        let connection = ComputerConnection(computer: computer, token: store.token(for: computer.id), transport: transport, policy: policy, relayTicket: store.relayTicket(for: computer.id), lastEventID: saved, cache: lists, device: device, sleep: sleep)
         connections[computer.id] = connection
         observers[computer.id] = connection.observe { [weak self] signal in
             self?.route(signal, from: computer.id)
@@ -253,6 +275,7 @@ public final class CompanionModel {
             switch signal {
             case .online:
                 identified(connection.computer)
+                if let tunnel = connection.hello?.tunnel { tunnelChanged(tunnel, connection: connection) }
                 let list = macs(excluding: computer)
                 let token = pushToken
                 Task {

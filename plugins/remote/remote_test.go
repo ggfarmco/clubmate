@@ -208,7 +208,7 @@ func TestRevokeDuringAFailedRepairStaysRevoked(t *testing.T) {
 	entered, release := f.kv.holdNextSet()
 	paired := make(chan struct{})
 	go func() {
-		_, _ = f.srv.devices.add(t.Context(), deviceInfo{ID: "phone", Name: "iPhone", Model: "iPhone"})
+		_, _, _ = f.srv.devices.add(t.Context(), deviceInfo{ID: "phone", Name: "iPhone", Model: "iPhone"})
 		close(paired)
 	}()
 	<-entered
@@ -333,7 +333,7 @@ func TestSetIdentityColour(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newFixture(t)
-			token, err := f.srv.devices.add(t.Context(), deviceInfo{ID: "phone"})
+			token, _, err := f.srv.devices.add(t.Context(), deviceInfo{ID: "phone"})
 			require.NoError(t, err)
 
 			_, res := f.call(t, token, "setIdentityColour", colourRequest{Colour: tt.colour})
@@ -358,8 +358,8 @@ func TestSessionCallerCannotPairOrChangeAccess(t *testing.T) {
 	close(a.ready)
 	f.pair(t, "phone")
 	f.srv.pairing.issue()
-	args := json.RawMessage(`{"enabled":true,"port":1234,"device":"phone","url":"https://relay.example","token":"cmr_x","path":"/nope.zip"}`)
-	ids := []string{"remote.enable", "remote.set-port", "remote.pair", "remote.cancel-pair", "remote.revoke", "remote.set-push-relay", "remote.report-upload", "remote.set-report-inbox"}
+	args := json.RawMessage(`{"enabled":true,"port":1234,"device":"phone","url":"https://relay.example","token":"cmr_x","path":"/nope.zip","on":true}`)
+	ids := []string{"remote.enable", "remote.set-port", "remote.pair", "remote.cancel-pair", "remote.revoke", "remote.set-push-relay", "remote.report-upload", "remote.set-report-inbox", "remote.set-tunnel", "remote.tunnel-rotate"}
 
 	for _, id := range ids {
 		for _, cmd := range []pluginsdk.CommandRun{{ID: id, Args: args, Caller: "agt_1"}, {ID: id, Args: args, Agent: true}} {

@@ -46,6 +46,8 @@ type relay struct {
 	active     *inflight
 	grace      time.Duration
 	now        func() time.Time
+
+	tunnel http.Handler
 }
 
 type sender interface {
@@ -91,14 +93,15 @@ func (r *relay) handler() http.Handler {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
+	if r.tunnel != nil {
+		mux.Handle("/v1/mac/", r.tunnel)
+		mux.Handle("/v1/d/", r.tunnel)
+	}
 	return mux
 }
 
 func (r *relay) push(w http.ResponseWriter, req *http.Request) {
-	if err := r.tokens.refresh(); err != nil {
-		r.log.Printf("reload tokens: %v", err)
-	}
-	mac, ok := r.tokens.lookup(bearer(req))
+	mac, ok := r.macToken(bearer(req))
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -210,6 +213,13 @@ func (l *limiter) reclaim(now time.Time) bool {
 		}
 	}
 	return len(l.buckets) < l.max
+}
+
+func (r *relay) macToken(token string) (string, bool) {
+	if err := r.tokens.refresh(); err != nil {
+		r.log.Printf("reload tokens: %v", err)
+	}
+	return r.tokens.lookup(token)
 }
 
 func bearer(req *http.Request) string {

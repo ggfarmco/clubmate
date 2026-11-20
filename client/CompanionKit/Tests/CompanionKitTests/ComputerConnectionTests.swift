@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import XCTest
 
 import CompanionKit
@@ -383,3 +384,174 @@ final class ComputerConnectionTests: XCTestCase {
 private let awakeHoursJSON = #"{"on":true,"armed":false,"text":"Awake until 18:00 +1","detail":"Kept awake by you until 18:00 and by an agent's release build.","mode":"hours","hours":4,"until":1794870000,"value":"Until 18:00","ends":"until 18:00","holds":[{"kind":"you","title":"You","trailing":"for 4 hours · until 18:00"},{"kind":"agent","id":"ah_1","title":"release build","trailing":"Ship 2.4 release · ≤ 20:40","session":"agt_1","workspace":"prj_1"}],"labels":{"section":"Keep Awake","picker":"Keep awake","hours":{"title":"For Hours","active":"For 4 Hours","options":[{"hours":1,"title":"1 Hour","short":"1 h"},{"hours":2,"title":"2 Hours"},{"hours":4,"title":"4 Hours"},{"hours":8,"title":"8 Hours"},{"hours":24,"title":"24 Hours"}]},"agents":{"title":"While Agents Work","subtitle":"Running or waiting for you"},"on":{"title":"Until Turned Off"},"off":{"title":"Turn Off"}},"laptop":false,"onBattery":false}"#
 
 private let awakeOffJSON = #"{"on":false,"text":"","detail":"The Mac sleeps as usual.","mode":"","value":"Off","holds":[]}"#
+
+@MainActor
+final class ComputerConnectionPathTests: XCTestCase {
+    private final class Tailnet: Sendable {
+        let up = Mutex(true)
+        let held = Recorder<AsyncThrowingStream<Data, any Error>.Continuation>()
+        let transport: FakeTransport
+
+        init() {
+            let box = Mutex<Tailnet?>(nil)
+            transport = FakeTransport(reply: { request in
+                guard box.withLock({ $0! }).up.withLock({ $0 }) else { throw URLError(.cannotConnectToHost) }
+                if FakeTransport.rpc(request) == "voice.audio" { return (FakeTransport.result("{}"), 200) }
+                return (FakeTransport.result(FakeTransport.rpc(request) == "workspaces" ? workspacesJSON : helloJSON), 200)
+            }, stream: { _ in
+                let tailnet = box.withLock { $0! }
+                guard tailnet.up.withLock({ $0 }) else { throw URLError(.cannotConnectToHost) }
+                return (200, AsyncThrowingStream {
+                    $0.yield(Data(": connected\n\n".utf8))
+                    tailnet.held.add($0)
+                })
+            })
+            box.withLock { $0 = self }
+        }
+
+        func drop() {
+            up.withLock { $0 = false }
+            for stream in held.values { stream.finish() }
+        }
+
+        var streams: [URLRequest] { transport.requests.filter { $0.url?.path() == "/v1/events" } }
+    }
+
+    private func both(_ relay: FakeRelay, id: String = "mac1") -> Computer {
+        Computer(id: id, name: "Mac", hosts: ["100.64.0.1"], port: 47621, relay: relayRoute(relay.privateKey))
+    }
+
+    func testMacsOnTailscaleAndOnTheRelayAreOnlineAtOnceWithOneStreamEach() async throws {
+        let relay = FakeRelay(endStreams: false)
+        let tailnet = Tailnet()
+        let transport = RoutedTransport(relay: relay, tailnet: tailnet.transport)
+        let a = ComputerConnection(computer: Computer(id: "mac1", name: "A", hosts: ["100.64.0.1"], port: 47621), token: "t", transport: transport, sleep: { _ in })
+        let b = ComputerConnection(computer: Computer(id: "mac2", name: "B", hosts: [], port: 47621, relay: relayRoute(relay.privateKey)), token: "t", transport: transport, relayTicket: "cmk_t", sleep: { _ in })
+        a.start()
+        b.start()
+        try await waitUntil { a.state == .online && b.state == .online }
+
+        XCTAssertEqual(a.activePath, .tailnet)
+        XCTAssertEqual(b.activePath, .relay)
+        XCTAssertEqual(tailnet.streams.count, 1)
+        XCTAssertEqual(relay.transport.requests.filter { $0.url?.lastPathComponent == "stream" }.count, 1)
+        XCTAssertEqual(b.events.lines.last { $0.kind == .state }?.text, "online path=relay")
+        XCTAssertEqual(b.log.attempts.last?.path, .relay)
+        XCTAssertEqual(a.pathChoices, [])
+        XCTAssertEqual(b.pathChoices, [])
+        a.stop()
+        b.stop()
+    }
+
+    func testAutoFallsToTheRelayWhenTailscaleIsUnsentAndBackWhenTheRelayIs() async throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let relay = FakeRelay(endStreams: false)
+        let tailnet = Tailnet()
+        tailnet.up.withLock { $0 = false }
+        let transport = RoutedTransport(relay: relay, tailnet: tailnet.transport)
+        let connection = ComputerConnection(computer: both(relay), token: "t", transport: transport, relayTicket: "cmk_t", cache: ListCache(dir: dir), sleep: { _ in })
+        connection.start()
+        try await waitUntil { connection.state == .online && connection.activePath == .relay }
+
+        XCTAssertEqual(tailnet.transport.requests.first?.timeoutInterval, RemoteClient.probeTimeout)
+        let tries = try XCTUnwrap(connection.log.attempts.last?.tries.map(\.host))
+        XCTAssertEqual(tries.first, "100.64.0.1")
+        XCTAssertEqual(Set(tries.dropFirst()), ["relay relay.example"])
+        XCTAssertEqual(ComputerConnection(computer: both(relay), token: "t", transport: transport, relayTicket: "cmk_t", cache: ListCache(dir: dir)).selector.order, [.relay, .tailnet])
+
+        tailnet.up.withLock { $0 = true }
+        relay.fail("/v1/d/call", [.status(503)])
+        relay.closeStreams()
+        try await waitUntil { connection.state == .online && connection.activePath == .tailnet }
+
+        XCTAssertEqual(tailnet.streams.count, 1)
+        XCTAssertEqual(ComputerConnection(computer: both(relay), token: "t", transport: transport, relayTicket: "cmk_t", cache: ListCache(dir: dir)).selector.order, [.tailnet, .relay])
+        connection.stop()
+    }
+
+    func testAQueuedWriteLandsWithItsRequestIdAfterThePathChanges() async throws {
+        let relay = FakeRelay(endStreams: false)
+        let tailnet = Tailnet()
+        let connection = ComputerConnection(computer: both(relay), token: "t", transport: RoutedTransport(relay: relay, tailnet: tailnet.transport), relayTicket: "cmk_t", sleep: { _ in })
+        connection.start()
+        try await waitUntil { connection.state == .online && connection.activePath == .tailnet }
+        tailnet.drop()
+        let queue = ActionQueue(file: nil)
+        let item = QueuedAction(computer: "mac1", workspace: "w", command: BacklogCommand.update, args: .object(["id": .number(7), "title": .string("A")]), target: "task/7", title: "Edit task")
+        queue.enqueue(item)
+        try await waitUntil { connection.state == .online && connection.activePath == .relay }
+
+        _ = await queue.flush(computer: "mac1", runner: connection, supports: { _ in true })
+
+        XCTAssertTrue(queue.items.isEmpty)
+        let sent = try relay.bodies.filter { !$0.isEmpty }.map { try JSONDecoder().decode(JSONValue.self, from: $0) }.filter { $0["params"]?["id"]?.stringValue == BacklogCommand.update }
+        XCTAssertEqual(sent.map { $0["params"]?["requestId"]?.stringValue }, [item.id])
+        connection.stop()
+    }
+
+    func testAVoiceCallThatLostItsLinkIsNotResentOverTheOtherPath() async throws {
+        let relay = FakeRelay(endStreams: false)
+        let tailnet = Tailnet()
+        let computer = Computer(id: "mac1", name: "Mac", hosts: ["100.64.0.1"], port: 47621, relay: relayRoute(relay.privateKey), path: .relay)
+        let connection = ComputerConnection(computer: computer, token: "t", transport: RoutedTransport(relay: relay, tailnet: tailnet.transport), relayTicket: "cmk_t", sleep: { _ in })
+        connection.start()
+        try await waitUntil { connection.state == .online }
+        relay.fail("/v1/d/call", [.status(502)])
+
+        do {
+            _ = try await connection.command("voice.audio", workspace: nil, args: nil)
+            XCTFail("the voice call went through")
+        } catch {
+            XCTAssertEqual(error as? RemoteError, .unreachable(URLError(.networkConnectionLost).localizedDescription))
+        }
+
+        XCTAssertTrue(tailnet.transport.requests.isEmpty)
+        connection.stop()
+    }
+
+    func testABackgroundProbeMovesARelayConnectionBackToTailscale() async throws {
+        let relay = FakeRelay(endStreams: false)
+        let tailnet = Tailnet()
+        tailnet.up.withLock { $0 = false }
+        let clock = TestClock()
+        let connection = ComputerConnection(computer: both(relay), token: "t", transport: RoutedTransport(relay: relay, tailnet: tailnet.transport), relayTicket: "cmk_t", sleep: { _ in }, now: clock.now)
+        connection.start()
+        try await waitUntil { connection.state == .online && connection.activePath == .relay }
+        tailnet.up.withLock { $0 = true }
+
+        clock.advance(PathSelector.probeEvery)
+        try relay.push(": ping\n\n")
+        try await waitUntil { connection.events.lines.last { $0.kind == .state }?.text == "online path=tailnet" }
+
+        XCTAssertEqual(tailnet.streams.map { $0.url?.query() }, ["probe=1", nil])
+        XCTAssertEqual(connection.events.lines.filter { $0.kind == .state }.map(\.text).suffix(3), ["probe path=tailnet", "probe ok path=tailnet", "online path=tailnet"])
+        connection.stop()
+    }
+
+    func testARevokedRelayTicketNeedsAPairAndNeverFallsToTailscale() async throws {
+        let relay = FakeRelay(endStreams: false)
+        let tailnet = Tailnet()
+        let computer = Computer(id: "mac1", name: "Mac", hosts: ["100.64.0.1"], port: 47621, relay: relayRoute(relay.privateKey))
+        let dir = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        tailnet.up.withLock { $0 = false }
+        let first = ComputerConnection(computer: computer, token: "t", transport: RoutedTransport(relay: relay, tailnet: tailnet.transport), relayTicket: "cmk_t", cache: ListCache(dir: dir), sleep: { _ in })
+        first.start()
+        try await waitUntil { first.activePath == .relay }
+        first.stop()
+        tailnet.up.withLock { $0 = true }
+        relay.fail("/v1/d/open", [.status(401)])
+        let sent = tailnet.transport.requests.count
+
+        let connection = ComputerConnection(computer: computer, token: "t", transport: RoutedTransport(relay: relay, tailnet: tailnet.transport), relayTicket: "cmk_t", cache: ListCache(dir: dir), sleep: { _ in })
+        connection.start()
+        try await waitUntil { connection.state == .unauthorized }
+
+        XCTAssertEqual(connection.revokedBy, .relayRevoked)
+        XCTAssertEqual(connection.revokedTitle, "Relay access revoked")
+        XCTAssertEqual(connection.pathChoices, PathChoice.allCases)
+        XCTAssertEqual(tailnet.transport.requests.count, sent)
+        XCTAssertEqual(connection.log.attempts.last?.error, "relay HTTP 401 · ticket refused")
+    }
+}

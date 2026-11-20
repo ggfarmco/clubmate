@@ -32,6 +32,34 @@ public struct HostPolicy: Sendable, Equatable {
         return name
     }
 
+    public func allowsRelay(_ url: URL) -> Bool {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              components.user == nil, components.password == nil, components.query == nil, components.fragment == nil,
+              let host = components.percentEncodedHost?.lowercased(), !host.isEmpty
+        else { return false }
+        if components.port.map({ !(1...65535).contains($0) }) ?? false { return false }
+        switch components.scheme?.lowercased() {
+        case "https":
+            return Self.isDNSName(host)
+        case "http":
+            #if DEBUG
+            return allowLoopback && (host == "localhost" || host == "127.0.0.1" || host == "[::1]" || host == "::1")
+            #else
+            return false
+            #endif
+        default:
+            return false
+        }
+    }
+
+    private static func isDNSName(_ host: String) -> Bool {
+        let name = host.hasSuffix(".") ? String(host.dropLast()) : host
+        guard ipv4(name) == nil, ipv6(name) == nil, name.count <= 253 else { return false }
+        let labels = name.split(separator: ".", omittingEmptySubsequences: false)
+        guard labels.count >= 2, labels.allSatisfy(isLabel), let top = labels.last, !top.allSatisfy(\.isNumber) else { return false }
+        return true
+    }
+
     public func filter(_ hosts: [String]) -> [String] {
         var seen: Set<String> = []
         return hosts.compactMap(normalized).filter { seen.insert($0).inserted }

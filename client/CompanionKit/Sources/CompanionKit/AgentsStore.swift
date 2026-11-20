@@ -597,7 +597,7 @@ public final class AgentsStore {
 
     public func rerun(_ id: String) async throws -> String {
         guard let runner else { throw RemoteError.badResponse }
-        let reply = try await runner.command(GraphCommand.rerun, workspace: workspace, args: .object(["id": .string(id)]))
+        let reply = try await runner.command(GraphCommand.rerun, workspace: workspace, args: .object(["id": .string(id)]), requestId: UUID().uuidString)
         guard let run = reply["id"]?.stringValue else { throw RemoteError.badResponse }
         await refresh()
         return run

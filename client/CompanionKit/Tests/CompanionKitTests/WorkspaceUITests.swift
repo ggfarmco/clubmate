@@ -109,7 +109,10 @@ final class WorkspaceUITests: XCTestCase {
         let ui = try await server.started(["cron.sidebar"])
         let result = try await ui.send(slot: "cron.sidebar", nodeId: "jobs", action: "select", value: .string("cj_check"))
         XCTAssertEqual(result, .object(["ok": .bool(true)]))
-        XCTAssertEqual(server.events, [.object(["workspace": .string("w"), "slot": .string("cron.sidebar"), "nodeId": .string("jobs"), "action": .string("select"), "value": .string("cj_check")])])
+        let sent = try XCTUnwrap(server.events.first)
+        XCTAssertEqual(server.events.count, 1)
+        XCTAssertNotNil(sent["requestId"]?.stringValue.flatMap(UUID.init(uuidString:)))
+        XCTAssertEqual(sent, .object(["workspace": .string("w"), "slot": .string("cron.sidebar"), "nodeId": .string("jobs"), "action": .string("select"), "value": .string("cj_check"), "requestId": sent["requestId"]!]))
         server.connection.stop()
     }
 }

@@ -32,6 +32,11 @@ const (
 	closeRevoked  = "revoked"
 	closeShutdown = "shutdown"
 	closeError    = "error"
+	closeSwitched = "switched"
+
+	pathTailnet = "tailnet"
+	pathRelay   = "relay"
+	probeQuery  = "probe"
 )
 
 var (
@@ -57,6 +62,8 @@ type hub struct {
 type stream struct {
 	id      string
 	device  string
+	path    string
+	probe   bool
 	events  chan pluginsdk.Event
 	lagged  chan struct{}
 	lagging bool
@@ -78,14 +85,21 @@ func newHub(changed func()) *hub {
 	return &hub{changed: changed, streams: map[*stream]struct{}{}, spaces: map[string]*space{}}
 }
 
-func (h *hub) open(device string, valid func() bool) (*stream, bool) {
-	st := &stream{id: rand.Text(), device: device, events: make(chan pluginsdk.Event, streamBuffer), lagged: make(chan struct{}, 1), ui: newUIQueue(), watch: map[string][]string{}, done: make(chan struct{})}
+func (h *hub) open(device, path string, probe bool, valid func() bool) (*stream, bool) {
+	st := &stream{id: rand.Text(), device: device, path: path, probe: probe, events: make(chan pluginsdk.Event, streamBuffer), lagged: make(chan struct{}, 1), ui: newUIQueue(), watch: map[string][]string{}, done: make(chan struct{})}
 	h.mu.Lock()
 	if !valid() {
 		h.mu.Unlock()
 		return nil, false
 	}
 	first := !h.connectedLocked(device)
+	if !probe {
+		for other := range h.streams {
+			if other.device == device && other.path != path && !other.probe {
+				other.stopWith(closeSwitched)
+			}
+		}
+	}
 	h.streams[st] = struct{}{}
 	h.mu.Unlock()
 	if first {
@@ -161,6 +175,22 @@ func (h *hub) connected(device string) bool {
 	return h.connectedLocked(device)
 }
 
+func (h *hub) path(device string) string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	path := ""
+	for st := range h.streams {
+		if st.device != device {
+			continue
+		}
+		if !st.probe {
+			return st.path
+		}
+		path = st.path
+	}
+	return path
+}
+
 func (h *hub) connectedLocked(device string) bool {
 	for st := range h.streams {
 		if st.device == device {
@@ -190,7 +220,8 @@ func (s *server) events(w http.ResponseWriter, r *http.Request, d device) {
 	rc := http.NewResponseController(w)
 	_ = rc.SetReadDeadline(time.Time{})
 	valid := func() bool { return s.devices.valid(d) }
-	st, ok := s.hub.open(d.ID, valid)
+	path, probe := streamPath(r), r.URL.Query().Get(probeQuery) == "1"
+	st, ok := s.hub.open(d.ID, path, probe, valid)
 	if !ok {
 		logEvent("auth", "device", logID(d.ID), "path", r.URL.Path, "err", "revoked")
 		writeError(w, http.StatusUnauthorized, codeUnauthorized, "unknown or revoked device token")
@@ -202,7 +233,11 @@ func (s *server) events(w http.ResponseWriter, r *http.Request, d device) {
 	if resume {
 		resumeAt = strconv.FormatInt(after, 10)
 	}
-	logEvent("stream open", "device", logID(d.ID), "resume", resumeAt)
+	opening := []string{"device", logID(d.ID), "resume", resumeAt, "path", path}
+	if probe {
+		opening = append(opening, "probe", "1")
+	}
+	logEvent("stream open", opening...)
 	defer func() {
 		logEvent("stream close", "device", logID(d.ID), "lived", strconv.Itoa(int(s.now().Sub(opened).Seconds()))+"s", "reason", reason)
 	}()
@@ -338,6 +373,13 @@ func (s *server) send(rc *http.ResponseController, w io.Writer, frame string) bo
 		return false
 	}
 	return rc.Flush() == nil
+}
+
+func streamPath(r *http.Request) string {
+	if strings.HasPrefix(r.RemoteAddr, relayAddrPrefix) {
+		return pathRelay
+	}
+	return pathTailnet
 }
 
 func resumePoint(r *http.Request) (int64, bool, error) {

@@ -127,6 +127,20 @@ func TestUIEventRoutesOnlySlotsTheDeviceWatches(t *testing.T) {
 	assert.Equal(t, []string{"cron.main", "docs.popup"}, slotsOf(f.backend.uiEvents))
 }
 
+func TestUIEventWithARequestIDRunsOnce(t *testing.T) {
+	f := newFixture(t)
+	token := f.pair(t, "phone")
+	f.watchStream(t, token, "prj_1", "cron.main")
+	args := map[string]any{"workspace": "prj_1", "slot": "cron.main", "nodeId": "jobs", "action": "run", "requestId": "u1"}
+
+	_, first := f.call(t, token, "uiEvent", args)
+	_, again := f.call(t, token, "uiEvent", args)
+
+	assert.JSONEq(t, `{"ok":true}`, string(first.Result))
+	assert.JSONEq(t, `{"ok":true}`, string(again.Result))
+	assert.Len(t, f.backend.uiEvents, 1)
+}
+
 func slotsOf(events []pluginsdk.UIEvent) []string {
 	out := make([]string, 0, len(events))
 	for _, ev := range events {

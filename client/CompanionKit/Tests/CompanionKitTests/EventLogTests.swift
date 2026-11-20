@@ -45,7 +45,7 @@ final class EventLogTests: XCTestCase {
         let texts = connection.events.lines.map { "\($0.kind.rawValue) \($0.text)" }
         XCTAssertEqual(texts.filter { $0.hasPrefix("state offline err=") }.count, 1, "\(texts)")
         XCTAssertEqual(texts.last, "state offline stopped")
-        XCTAssertEqual(texts.filter { $0 == "state online" }.count, 1, "\(texts)")
+        XCTAssertEqual(texts.filter { $0 == "state online path=tailnet" }.count, 1, "\(texts)")
         XCTAssertTrue(texts.contains("stream reset seq=42"), "\(texts)")
         XCTAssertFalse(connection.events.text.contains("secret-token"))
 

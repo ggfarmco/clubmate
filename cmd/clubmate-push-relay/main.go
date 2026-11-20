@@ -10,10 +10,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
+	"clubmate/internal/tunnelrelay"
 	"clubmate/pkg/apns"
 )
 
@@ -24,7 +26,7 @@ const (
 )
 
 var (
-	errUsage    = errors.New("usage: clubmate-push-relay [-listen addr -key file -key-id id -team-id id -tokens file -admins file -bans file -reports dir -devices file] | token add|rm <name> -tokens file | token ls -tokens file | admin add|rm <name> -admins file | admin ls -admins file")
+	errUsage    = errors.New("usage: clubmate-push-relay [-listen addr -key file -key-id id -team-id id -tokens file -admins file -bans file -reports dir -devices file -tickets file] | token add|rm <name> -tokens file | token ls -tokens file | admin add|rm <name> -admins file | admin ls -admins file")
 	errNoKey    = errors.New("-key is required")
 	errNoKeyID  = errors.New("-key-id is required unless the key file is named AuthKey_<KEYID>.p8")
 	errNoTeamID = errors.New("-team-id is required")
@@ -57,6 +59,7 @@ type config struct {
 	bans    string
 	reports string
 	devices string
+	tickets string
 }
 
 type tokenFile struct {
@@ -98,8 +101,12 @@ func serve(args []string) error {
 	fs.StringVar(&cfg.bans, "bans", env("PUSH_RELAY_BANS", ""), "banned report keys and IPs (PUSH_RELAY_BANS)")
 	fs.StringVar(&cfg.reports, "reports", env("PUSH_RELAY_REPORTS", "reports"), "problem reports directory (PUSH_RELAY_REPORTS)")
 	fs.StringVar(&cfg.devices, "devices", env("PUSH_RELAY_DEVICES", ""), "device tokens each Mac registered, unset keeps them in memory (PUSH_RELAY_DEVICES)")
+	fs.StringVar(&cfg.tickets, "tickets", env("PUSH_RELAY_TICKETS", ""), "device tickets of the tunnel, default tickets.json next to -devices; unset with no -devices keeps them in memory (PUSH_RELAY_TICKETS)")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if cfg.tickets == "" && cfg.devices != "" {
+		cfg.tickets = filepath.Join(filepath.Dir(cfg.devices), "tickets.json")
 	}
 	client, err := cfg.apnsClient()
 	if err != nil {
@@ -151,6 +158,14 @@ func serve(args []string) error {
 		grace:      minTransfer,
 		now:        time.Now,
 	}
+	tun, err := tunnelrelay.New(tunnelrelay.Config{Auth: r.macToken, TicketsPath: cfg.tickets, Log: logger, Now: time.Now})
+	if err != nil {
+		return err
+	}
+	r.tunnel = tun.Handler()
+	if cfg.tickets == "" {
+		logger.Printf("no -tickets file: tunnel device tickets are lost on restart")
+	}
 	srv := &http.Server{
 		Addr:              cfg.listen,
 		Handler:           r.handler(),
@@ -160,6 +175,7 @@ func serve(args []string) error {
 		IdleTimeout:       2 * time.Minute,
 		MaxHeaderBytes:    16 << 10,
 	}
+	srv.RegisterOnShutdown(tun.Shutdown)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
 	errc := make(chan error, 1)

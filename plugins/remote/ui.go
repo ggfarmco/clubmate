@@ -46,6 +46,7 @@ type uiEventRequest struct {
 	NodeID    string          `json:"nodeId"`
 	Action    string          `json:"action"`
 	Value     json.RawMessage `json:"value"`
+	RequestID string          `json:"requestId"`
 }
 
 type uiWatchRequest struct {
@@ -112,6 +113,18 @@ func (s *server) uiEvent(ctx context.Context, d device, p uiEventRequest) (json.
 		logEvent("uiwatch refused", "device", logID(d.ID), "slot", p.Slot)
 		return nil, &apiError{Code: codeNotAllowed, Message: "this screen isn't connected to the Mac yet; try again, or reopen it"}
 	}
+	if p.RequestID == "" {
+		return s.sendUIEvent(ctx, p)
+	}
+	if !validRequestID(p.RequestID) {
+		return nil, &apiError{Code: codeInvalidParams, Message: "requestId must be at most 64 letters, digits, '-' or '_'"}
+	}
+	return s.requests.do(ctx, p.RequestID, func(ctx context.Context) (json.RawMessage, error) {
+		return s.sendUIEvent(ctx, p)
+	})
+}
+
+func (s *server) sendUIEvent(ctx context.Context, p uiEventRequest) (json.RawMessage, error) {
 	out, err := s.backend.UIEvent(ctx, pluginsdk.UIEvent{WorkspaceID: p.Workspace, Slot: p.Slot, NodeID: p.NodeID, Action: p.Action, Value: p.Value})
 	if err != nil {
 		return nil, err

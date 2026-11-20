@@ -321,10 +321,10 @@ public final class VoiceSession {
         }
     }
 
-    private func call(_ target: VoiceTarget, _ id: String, _ args: [String: JSONValue]) async -> Result<JSONValue, VoiceFailure> {
+    private func call(_ target: VoiceTarget, _ id: String, _ args: [String: JSONValue], requestId: String? = nil) async -> Result<JSONValue, VoiceFailure> {
         guard let runner = runner(target.computer) else { return .failure(VoiceFailure("The Mac is no longer paired")) }
         do {
-            return .success(try await runner.command(id, workspace: target.workspace, args: .object(args)))
+            return .success(try await runner.command(id, workspace: target.workspace, args: .object(args), requestId: requestId))
         } catch {
             return .failure(VoiceFailure((error as? RemoteError)?.message ?? error.localizedDescription))
         }
@@ -360,7 +360,7 @@ public final class VoiceSession {
         if let mode { args["mode"] = .string(mode) }
         let offered = makeEncoder()
         if offered != nil { args["format"] = .string(VoiceAudio.opusFormat) }
-        switch await call(target, "voice.start", args) {
+        switch await call(target, "voice.start", args, requestId: UUID().uuidString) {
         case .success(let value):
             guard let id = value["utterance"]?.stringValue else { return await fail("voice.start returned no utterance") }
             guard generation == self.generation else {

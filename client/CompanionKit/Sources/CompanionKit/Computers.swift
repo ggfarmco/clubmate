@@ -1,6 +1,29 @@
 import Foundation
 import Synchronization
 
+public struct RelayRoute: Codable, Sendable, Equatable, Hashable {
+    public let url: URL
+    public let key: String
+    public let kid: String
+
+    public init(url: URL, key: String, kid: String) {
+        self.url = url
+        self.key = key
+        self.kid = kid
+    }
+
+    public var macKey: Data? {
+        guard let data = try? Tunnel.decodeKey(key), Tunnel.keyID(data) == kid else { return nil }
+        return data
+    }
+}
+
+public enum PathChoice: String, Codable, Sendable, CaseIterable {
+    case auto
+    case tailnet
+    case relay
+}
+
 public struct Computer: Codable, Sendable, Equatable, Identifiable, Hashable {
     public let id: String
     public var name: String
@@ -9,8 +32,10 @@ public struct Computer: Codable, Sendable, Equatable, Identifiable, Hashable {
     public var pairedAt: Date
     public var lastSeen: Date?
     public var colour: String?
+    public var relay: RelayRoute?
+    public var path: PathChoice
 
-    public init(id: String, name: String, hosts: [String], port: Int, pairedAt: Date = .now, lastSeen: Date? = nil, colour: String? = nil) {
+    public init(id: String, name: String, hosts: [String], port: Int, pairedAt: Date = .now, lastSeen: Date? = nil, colour: String? = nil, relay: RelayRoute? = nil, path: PathChoice = .auto) {
         self.id = id
         self.name = name
         self.hosts = hosts
@@ -18,6 +43,21 @@ public struct Computer: Codable, Sendable, Equatable, Identifiable, Hashable {
         self.pairedAt = pairedAt
         self.lastSeen = lastSeen
         self.colour = colour
+        self.relay = relay
+        self.path = path
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        hosts = try c.decode([String].self, forKey: .hosts)
+        port = try c.decode(Int.self, forKey: .port)
+        pairedAt = try c.decode(Date.self, forKey: .pairedAt)
+        lastSeen = try c.decodeIfPresent(Date.self, forKey: .lastSeen)
+        colour = try c.decodeIfPresent(String.self, forKey: .colour)
+        relay = try? c.decodeIfPresent(RelayRoute.self, forKey: .relay)
+        path = (try? c.decodeIfPresent(PathChoice.self, forKey: .path)) ?? .auto
     }
 }
 
@@ -59,12 +99,25 @@ public final class ComputerStore {
         computers = file.flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder.clubmate.decode([Computer].self, from: $0) } ?? []
     }
 
+    public static func relayKey(_ id: String) -> String {
+        id + "#relay"
+    }
+
     public func token(for id: String) -> String? {
         vault.token(for: id)
     }
 
-    public func save(_ computer: Computer, token: String) throws {
+    public func relayTicket(for id: String) -> String? {
+        vault.token(for: Self.relayKey(id))
+    }
+
+    public func save(_ computer: Computer, token: String, relayTicket: String? = nil) throws {
         try vault.setToken(token, for: computer.id)
+        if let relayTicket {
+            try vault.setToken(relayTicket, for: Self.relayKey(computer.id))
+        } else {
+            try vault.removeToken(for: Self.relayKey(computer.id))
+        }
         if let index = computers.firstIndex(where: { $0.id == computer.id }) {
             computers[index] = computer
         } else {
@@ -89,9 +142,22 @@ public final class ComputerStore {
         try persist()
     }
 
+    public func setRelay(_ relay: RelayRoute, for id: String) throws {
+        guard let index = computers.firstIndex(where: { $0.id == id }), computers[index].relay != relay else { return }
+        computers[index].relay = relay
+        try persist()
+    }
+
+    public func setPath(_ path: PathChoice, for id: String) throws {
+        guard let index = computers.firstIndex(where: { $0.id == id }), computers[index].path != path else { return }
+        computers[index].path = path
+        try persist()
+    }
+
     public func remove(_ id: String) throws {
         computers.removeAll { $0.id == id }
         try vault.removeToken(for: id)
+        try vault.removeToken(for: Self.relayKey(id))
         try persist()
     }
 

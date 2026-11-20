@@ -27,6 +27,8 @@
     }, "required": ["workers"]}}},
     {"match": "E2E number", "update": {"sessionUpdate": "tool_call", "toolCallId": "n1", "title": "Got the number", "kind": "read", "status": "completed"}},
 
+    {"match": "E2E relay", "update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Relay reply."}}},
+
     {"match": "E2E push", "elicitation": {"mode": "form", "toolCallId": "ask-push", "message": "Ship it?", "requestedSchema": {"type": "object", "properties": {
       "question_0": {"type": "string", "title": "Ship it?", "oneOf": [{"const": "Yes", "title": "Yes", "description": "Ship now"}, {"const": "No", "title": "No", "description": "Wait"}]}
     }}}},

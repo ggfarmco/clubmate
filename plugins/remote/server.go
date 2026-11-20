@@ -13,6 +13,7 @@ import (
 
 	"github.com/sourcegraph/jsonrpc2"
 
+	"clubmate/internal/tunnelrelay"
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 )
@@ -26,6 +27,7 @@ const (
 	readTimeout       = 30 * time.Second
 	idleTimeout       = 2 * time.Minute
 	maxHeaderBytes    = 64 << 10
+	jsonContentType   = "application/json; charset=utf-8"
 	jsonrpcInvalid    = -32602
 )
 
@@ -36,6 +38,7 @@ const (
 	codeInvalidParams = "invalid_params"
 	codeFailed        = "failed"
 	codeRefused       = "refused"
+	codeTooLarge      = "too_large"
 )
 
 var errStreamClosed = errors.New("stream closed")
@@ -47,6 +50,7 @@ type server struct {
 	hub      *hub
 	identity *identity
 	relay    *relayClient
+	tun      *tunnelClient
 	requests *requestLog
 	changed  func()
 	watching func(contract.RemoteWatching)
@@ -96,8 +100,9 @@ type deviceInfo struct {
 }
 
 type pairResponse struct {
-	Token    string   `json:"token"`
-	Computer computer `json:"computer"`
+	Token       string   `json:"token"`
+	Computer    computer `json:"computer"`
+	RelayTicket string   `json:"relayTicket,omitempty"`
 }
 
 type rpcRequest struct {
@@ -125,13 +130,14 @@ type identityResult struct {
 }
 
 type helloResult struct {
-	Computer computer `json:"computer"`
-	Version  string   `json:"version"`
-	Commands []string `json:"commands"`
-	Topics   []string `json:"topics"`
-	UI       bool     `json:"ui"`
-	Requests bool     `json:"requests"`
-	Reports  bool     `json:"reports"`
+	Computer computer    `json:"computer"`
+	Version  string      `json:"version"`
+	Commands []string    `json:"commands"`
+	Topics   []string    `json:"topics"`
+	UI       bool        `json:"ui"`
+	Requests bool        `json:"requests"`
+	Reports  bool        `json:"reports"`
+	Tunnel   *tunnelInfo `json:"tunnel,omitempty"`
 }
 
 type workspaceInfo struct {
@@ -151,6 +157,14 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("POST /v1/rpc", gzipped(s.authed(s.rpc)))
 	mux.HandleFunc("GET /v1/events", s.authed(s.events))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch mode := pairingMode(r.Context()); {
+		case mode == pairingSpent:
+			writeError(w, http.StatusUnauthorized, codeUnauthorized, "a pairing channel takes one request")
+			return
+		case mode == pairingOpen && (r.Method != http.MethodPost || r.URL.Path != "/v1/pair"):
+			writeError(w, http.StatusUnauthorized, codeUnauthorized, "this relay ticket is for pairing only")
+			return
+		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 		mux.ServeHTTP(w, r)
 	})
@@ -184,7 +198,7 @@ func (s *server) pair(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, codePairingFailed, "the pairing code is wrong, expired or already used")
 		return
 	}
-	token, err := s.devices.add(r.Context(), req.Device)
+	token, ticket, err := s.devices.add(r.Context(), req.Device)
 	if err != nil {
 		s.pairing.reopen(gen)
 		writeError(w, http.StatusInternalServerError, codeFailed, err.Error())
@@ -193,7 +207,52 @@ func (s *server) pair(w http.ResponseWriter, r *http.Request) {
 	s.hub.revoke(req.Device.ID)
 	s.changed()
 	s.relayDevicesChanged(r.Context())
-	writeJSON(w, http.StatusOK, pairResponse{Token: token, Computer: s.identity.get()})
+	_ = s.syncTickets(r.Context(), s.pairing.ticketHash())
+	onReplySent(r.Context(), func() { _ = s.syncTickets(context.Background()) })
+	writeJSON(w, http.StatusOK, pairResponse{Token: token, Computer: s.identity.get(), RelayTicket: ticket})
+}
+
+func (s *server) syncTickets(ctx context.Context, keep ...string) error {
+	if s.tun == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, relaySyncTimeout)
+	defer cancel()
+	err := s.tun.syncTickets(ctx, keep...)
+	if err != nil {
+		logf("send the ticket set to the relay: %v", err)
+	}
+	return err
+}
+
+func (s *server) ticketKind(hash string) ticketKind {
+	if hash == "" {
+		return ticketUnknown
+	}
+	if s.devices.hasTicket(hash) {
+		return ticketDevice
+	}
+	if live, ok := s.pairing.liveTicket(); ok && live.Hash == hash {
+		return ticketPairing
+	}
+	return ticketUnknown
+}
+
+func (s *server) ticketSet(keep ...string) []tunnelrelay.Ticket {
+	list := s.devices.tickets()
+	room := tunnelrelay.MaxTickets - 1
+	if len(list) > room {
+		list = list[:room]
+	}
+	if live, ok := s.pairing.liveTicket(); ok {
+		list = append(list, live)
+	}
+	for _, h := range keep {
+		if h != "" && !slices.ContainsFunc(list, func(t tunnelrelay.Ticket) bool { return t.Hash == h }) {
+			list = append(list, tunnelrelay.Ticket{Hash: h, Exp: s.pairing.expiry().Unix()})
+		}
+	}
+	return list
 }
 
 func (s *server) revoke(ctx context.Context, id string) error {
@@ -203,6 +262,7 @@ func (s *server) revoke(ctx context.Context, id string) error {
 	s.hub.revoke(id)
 	s.changed()
 	s.relayDevicesChanged(ctx)
+	_ = s.syncTickets(ctx)
 	return nil
 }
 
@@ -314,7 +374,11 @@ func (s *server) hello(ctx context.Context) (helloResult, error) {
 	if err != nil {
 		return helloResult{}, err
 	}
-	return helloResult{Computer: s.identity.get(), Version: version, Commands: cmds, Topics: slices.Clone(forwardedTopics), UI: true, Requests: true, Reports: true}, nil
+	res := helloResult{Computer: s.identity.get(), Version: version, Commands: cmds, Topics: slices.Clone(forwardedTopics), UI: true, Requests: true, Reports: true}
+	if s.tun != nil {
+		res.Tunnel = s.tun.info()
+	}
+	return res, nil
 }
 
 func (s *server) workspaces(ctx context.Context) ([]workspaceInfo, error) {
@@ -484,6 +548,9 @@ func validMacs(macs []macInfo) bool {
 }
 
 func remoteHost(addr string) string {
+	if strings.HasPrefix(addr, relayAddrPrefix) {
+		return addr
+	}
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		return addr
@@ -530,7 +597,7 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Type", jsonContentType)
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }

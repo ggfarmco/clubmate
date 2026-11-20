@@ -32,6 +32,7 @@ type helper struct {
 	bundle    string
 	repos     string
 	corePID   int
+	tun       relayState
 
 	mu       sync.Mutex
 	pushes   []push
@@ -73,8 +74,13 @@ func main() {
 	flag.StringVar(&h.bundle, "bundle", "com.clubmate.companion", "app bundle id")
 	flag.StringVar(&h.repos, "repos", "", "directory new scratch repos go in")
 	flag.IntVar(&h.corePID, "core-pid", 0, "core process, frozen and thawed by /core/{stop,cont}")
+	relayToken := flag.String("relay-token", "e2e", "bearer token the Mac sends to the tunnel routes")
 	flag.Parse()
 
+	tunnel, err := newTunnelRelay(*relayToken)
+	if err != nil {
+		log.Fatal(err)
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /rpc", h.rpc)
 	mux.HandleFunc("POST /core/{signal}", h.core)
@@ -86,6 +92,13 @@ func main() {
 	mux.HandleFunc("POST /v1/reports", h.receiveReport)
 	mux.HandleFunc("GET /reports", h.listReports)
 	mux.HandleFunc("DELETE /pushes", h.clearPushes)
+	mux.Handle("/v1/mac/", h.tunnel(tunnel.Handler()))
+	mux.Handle("/v1/d/", h.tunnel(tunnel.Handler()))
+	mux.HandleFunc("GET /relay/log", h.relayLog)
+	mux.HandleFunc("DELETE /relay/log", h.clearRelayLog)
+	mux.HandleFunc("GET /relay/streams", h.relayStreams)
+	mux.HandleFunc("POST /relay/streams/drop", h.dropRelayStreams)
+	mux.HandleFunc("POST /relay/streams/release", h.releaseRelayStreams)
 	mux.HandleFunc("GET /config", h.config)
 	mux.HandleFunc("POST /repo/{name}", h.repo)
 	mux.HandleFunc("POST /commit", h.commit)

@@ -126,7 +126,7 @@ struct RootView: View {
     }
 
     private func selectDefault() {
-        if navigation.needsYouList || navigation.pairingSheetUp { return }
+        if navigation.needsYouList || navigation.macDetails != nil || navigation.pairingSheetUp { return }
         if let item = navigation.sidebar, model.connection(item.computer) != nil { return }
         navigation.sidebar = nil
         guard model.computers.count == 1, let computer = model.computers.first else { return }

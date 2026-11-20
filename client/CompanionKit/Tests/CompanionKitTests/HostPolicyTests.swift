@@ -34,4 +34,29 @@ final class HostPolicyTests: XCTestCase {
             XCTAssertEqual(HostPolicy.tailnetAndLoopback.allows(c.host), c.loopback, c.host)
         }
     }
+
+    func testRelayURLMustBeHTTPSToADNSName() {
+        let cases: [(url: String, release: Bool, debug: Bool)] = [
+            ("https://clubmate-push.exe.xyz", true, true),
+            ("https://Relay.Example:8443/base", true, true),
+            ("http://relay.example", false, false),
+            ("https://relay", false, false),
+            ("https://203.0.113.5", false, false),
+            ("https://[2001:db8::1]", false, false),
+            ("https://user@relay.example", false, false),
+            ("https://relay.example?x=1", false, false),
+            ("https://-bad.example", false, false),
+            ("https://evil%2ecom.example", false, false),
+            ("https://relay.123", false, false),
+            ("ftp://relay.example", false, false),
+            ("http://127.0.0.1:8080", false, true),
+            ("http://localhost:8080", false, true),
+            ("https://127.0.0.1", false, false),
+        ]
+        for c in cases {
+            let url = URL(string: c.url)!
+            XCTAssertEqual(HostPolicy.tailnet.allowsRelay(url), c.release, c.url)
+            XCTAssertEqual(HostPolicy.tailnetAndLoopback.allowsRelay(url), c.debug, c.url)
+        }
+    }
 }

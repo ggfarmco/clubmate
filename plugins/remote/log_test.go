@@ -72,7 +72,7 @@ func TestLogLinesCarryNoArgsOrTokens(t *testing.T) {
 		"rpc device=phone-01 method=command id=agents.sessions ms=3000",
 		"report device=phone-01 bytes=13 id=rpt_1",
 		"dedupe hit device=phone-01 request=r1",
-		"stream open device=phone-01 resume=live",
+		"stream open device=phone-01 resume=live path=tailnet",
 		"stream close device=phone-01 lived=0s reason=client",
 	} {
 		assert.Contains(t, out, want)

@@ -1,4 +1,5 @@
 #if DEBUG
+import CryptoKit
 import Foundation
 import Synchronization
 import UIKit
@@ -11,6 +12,7 @@ final class FixtureTransport: HTTPTransport {
     private let offline: ContinuousClock.Instant?
     private let latency: Duration
     private let offlineHosts = Mutex<[String: ContinuousClock.Instant]>([:])
+    private let channels = Mutex<(opened: Int, open: [String: (TunnelChannel, FixtureServer)])>((0, [:]))
 
     init(directory: URL, offlineAfter: Duration? = nil) {
         fallback = FixtureServer(directory: directory, mac: .studio)
@@ -36,12 +38,14 @@ final class FixtureTransport: HTTPTransport {
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         try await Task.sleep(for: latency)
         try reachable(request)
+        if request.url?.host() == FixtureMac.relayHost { return try await relay(request) }
         let (status, body) = await server(request).handle(path: request.url?.path() ?? "", body: request.httpBody ?? Data())
         return (body, HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: nil)!)
     }
 
     func stream(_ request: URLRequest) async throws -> (HTTPURLResponse, AsyncThrowingStream<Data, any Error>) {
         try reachable(request)
+        if request.url?.host() == FixtureMac.relayHost { return try await relayStream(request) }
         if request.url?.host() == FixtureMac.air.host {
             offlineHosts.withLock { $0[FixtureMac.air.host] = $0[FixtureMac.air.host] ?? .now + .seconds(3) }
         }
@@ -57,7 +61,87 @@ final class FixtureTransport: HTTPTransport {
     }
 }
 
+extension FixtureTransport {
+    private static let relayKey = try! Curve25519.KeyAgreement.PrivateKey(rawRepresentation: Data((1...32).map { UInt8($0) }))
+
+    private func relayResponse(_ request: URLRequest, _ status: Int, _ header: [String: String] = [:]) -> HTTPURLResponse {
+        HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: header.merging([TunnelTransport.relayHeader: "1"]) { first, _ in first })!
+    }
+
+    private func relayServer(ticket: String?) -> FixtureServer? {
+        let all = [FixtureMac.studio.id: fallback, FixtureMac.pro.id: servers[FixtureMac.pro.host], FixtureMac.air.id: servers[FixtureMac.air.host]]
+        guard let ticket, let id = ticket.split(separator: "_", maxSplits: 1).last.map(String.init), ticket.hasPrefix("pt_") || ticket.hasPrefix("rt_") else { return nil }
+        return all[id] ?? nil
+    }
+
+    private func inner(_ request: URLRequest) throws -> (TunnelChannel, FixtureServer, TunnelRequestHead, Data, UInt32)? {
+        guard let id = request.value(forHTTPHeaderField: TunnelTransport.channelHeader), let open = channels.withLock({ $0.open[id] }) else { return nil }
+        let (ch, server) = open
+        guard let message = try ch.readMessages(request.httpBody ?? Data()).first else { throw URLError(.badServerResponse) }
+        let (head, body) = try TunnelPack.unpack(message, dict: ch.dict)
+        let decoded = try JSONDecoder().decode(TunnelRequestHead.self, from: head ?? Data())
+        return (ch, server, decoded, body, message.msg)
+    }
+
+    private func relay(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        switch request.url?.path() {
+        case "/healthz":
+            return (Data("ok".utf8), relayResponse(request, 200))
+        case "/v1/d/open":
+            guard !UserDefaults.standard.bool(forKey: "relayRevoked"), let server = relayServer(ticket: request.value(forHTTPHeaderField: TunnelTransport.ticketHeader)) else { return (Data(), relayResponse(request, 401)) }
+            let id = channels.withLock { state in
+                state.opened += 1
+                return "ch_fx\(state.opened)"
+            }
+            let (ch, msg2) = try TunnelResponder.respond(channel: id, msg1: request.httpBody ?? Data(), statics: [Self.relayKey])
+            channels.withLock { $0.open[id] = (ch, server) }
+            return (msg2, relayResponse(request, 200, [TunnelTransport.channelHeader: id]))
+        case "/v1/d/call":
+            guard let found = try inner(request) else { return (Data(), relayResponse(request, 410)) }
+            let (ch, server, head, body, re) = found
+            let path = URLComponents(string: head.path)?.path ?? head.path
+            let (status, reply) = await server.handle(path: path, body: body)
+            let (plain, flags) = try TunnelPack.packReply(TunnelReplyHead(status: status, header: ["Content-Type": "application/json"]), body: reply, dict: ch.dict, deflate: head.deflate)
+            return (try ch.sealAnswer(type: .reply, flags: flags, re: re, seq: 0, plain: plain), relayResponse(request, 200))
+        default:
+            return (Data(), relayResponse(request, 404))
+        }
+    }
+
+    private func relayStream(_ request: URLRequest) async throws -> (HTTPURLResponse, AsyncThrowingStream<Data, any Error>) {
+        guard let found = try inner(request) else { return (relayResponse(request, 410), AsyncThrowingStream { $0.finish() }) }
+        let (ch, server, _, _, re) = found
+        let events = await server.subscribe()
+        if let deadline = deadline(request) {
+            Task {
+                try? await Task.sleep(until: deadline)
+                await server.drop()
+            }
+        }
+        let (out, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
+        let pump = Task {
+            do {
+                var seq: UInt32 = 0
+                for try await chunk in events {
+                    let (plain, flags) = try TunnelPack.pack(head: nil, body: chunk, dict: ch.dict, deflate: true)
+                    continuation.yield(Data("data: \(try ch.sealAnswer(type: .chunk, flags: flags, re: re, seq: seq, plain: plain).base64EncodedString())\n".utf8))
+                    seq += 1
+                }
+                continuation.finish()
+            } catch {
+                continuation.finish(throwing: error)
+            }
+        }
+        continuation.onTermination = { _ in pump.cancel() }
+        return (relayResponse(request, 200, ["Content-Type": "text/event-stream"]), out)
+    }
+}
+
 struct FixtureMac: Sendable {
+    static let relayHost = "relay.clubmate.test"
+    static let relayKey = "B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw"
+    static let relayKid = "aaa8fff703b50b22"
+
     static let studio = FixtureMac(id: "mac-mock", name: "Mac Studio", colour: "blue", host: "100.101.1.2", workspaces: [("prj_00000000000000f1", "shop"), ("prj_00000000000000f2", "clubmate")])
     static let pro = FixtureMac(id: "mac-pro", name: "MacBook Pro", colour: "magenta", host: "100.101.1.3", workspaces: [("prj_00000000000000f3", "infra")])
     static let air = FixtureMac(id: "mac-air", name: "MacBook Air", colour: "graphite", host: "100.101.1.4", workspaces: [("prj_00000000000000f4", "shop-api")])
@@ -380,7 +464,7 @@ actor FixtureServer {
     func handle(path: String, body: Data) -> (Int, Data) {
         let request = (try? JSONDecoder().decode(JSONValue.self, from: body)) ?? .null
         if path == "/v1/pair" {
-            return (200, Self.json(["token": .string("cmt_fixture"), "computer": computer]))
+            return (200, Self.json(["token": .string("cmt_fixture"), "relayTicket": .string("rt_" + mac.id), "computer": computer]))
         }
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {

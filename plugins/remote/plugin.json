@@ -12,7 +12,7 @@
         "title": "Companion status",
         "hidden": true,
         "scope": "app",
-        "description": "Whether companion access is on, the port, the addresses it listens on, the hosts a pairing link carries, why it is not listening, this Mac's identity, the title-bar colour setting, the other Macs paired phones reported and whether the title bar shows this Mac's dot and whether a push relay is set and the host problem reports go to: {enabled, port, listening, hosts, error, computer: {id, name, colour}, titleBarColour, otherMacs: [{name, colour, devices}], titleDot, push, reportRelay}."
+        "description": "Whether companion access is on, the port, the addresses it listens on, the hosts a pairing link carries, why it is not listening, this Mac's identity, the title-bar colour setting, the other Macs paired phones reported and whether the title bar shows this Mac's dot and whether a push relay is set, the host problem reports go to, and the relay path's state (on, the push relay URL it uses, whether its stream to the relay is up, why not, open phone channels): {enabled, port, listening, hosts, error, computer: {id, name, colour}, titleBarColour, otherMacs: [{name, colour, devices}], titleDot, push, reportRelay, tunnel: {on, url, connected, error, channels}}."
       },
       {
         "id": "remote.enable",
@@ -73,21 +73,21 @@
         "title": "Pair device",
         "hidden": true,
         "scope": "app",
-        "description": "Turn companion access on and issue a one-time pairing code (5 minutes, replaces the previous one): {link, code, expiresAt}."
+        "description": "Turn companion access on and issue a one-time pairing code (5 minutes, replaces the previous one): {link, code, expiresAt}. While the relay path is on (remote.set-tunnel) the link is version 2: it also carries the relay URL, this Mac's relay key and key id, and a pairing ticket (registered at the relay; good for one pair request until the code expires, is used or is cancelled), and it needs no Tailscale address. Otherwise it is version 1."
       },
       {
         "id": "remote.cancel-pair",
         "title": "Cancel pairing",
         "hidden": true,
         "scope": "app",
-        "description": "Drop the active pairing code."
+        "description": "Drop the active pairing code and its relay pairing ticket."
       },
       {
         "id": "remote.devices",
         "title": "Paired devices",
         "hidden": true,
         "scope": "app",
-        "description": "Paired devices, newest first: [{id, name, model, pairedAt, lastSeen, connected, push, macs: [{name, colour}]}]; push is true once the device sent a push token; macs are the other Macs that device has paired."
+        "description": "Paired devices, newest first: [{id, name, model, pairedAt, lastSeen, connected, path, push, macs: [{name, colour}]}]; connected is true while the device has an event stream open on any path; path is the path of that stream: tailnet, relay, or empty when none is open; push is true once the device sent a push token; macs are the other Macs that device has paired."
       },
       {
         "id": "remote.revoke",
@@ -96,7 +96,7 @@
         "scope": "app",
         "destructive": true,
         "confirm": "Revoke this device's access to Clubmate?",
-        "description": "Forget a paired device: its token stops working and its open streams close.",
+        "description": "Forget a paired device: its token and its relay ticket stop working, and its open streams close on both paths.",
         "args": {
           "properties": {
             "device": {"type": "string", "description": "Device id."}
@@ -132,6 +132,28 @@
           },
           "required": ["url"]
         }
+      },
+      {
+        "id": "remote.set-tunnel",
+        "title": "Set relay path",
+        "hidden": true,
+        "scope": "app",
+        "description": "Turn the relay path on or off: a second, end-to-end encrypted path for paired phones through the push relay set with remote.set-push-relay (same URL and cmr_ token). Refused while no push relay is set; runs only while companion access is on (remote.enable). The first time on makes this Mac's relay key in the login Keychain. User only. Returns the status.",
+        "args": {
+          "properties": {
+            "on": {"type": "boolean", "description": "true turns the relay path on, false turns it off."}
+          },
+          "required": ["on"]
+        }
+      },
+      {
+        "id": "remote.tunnel-rotate",
+        "title": "Make a new relay key",
+        "hidden": true,
+        "scope": "app",
+        "destructive": true,
+        "confirm": "Make a new relay key? Phones switch to it when they next connect.",
+        "description": "Make a new relay key for the relay path (remote.set-tunnel on). The old key stays in the login Keychain (account <install id>.old) and still answers phones for 7 days, so a phone that connects in that time gets the new key in hello.tunnel; after 7 days the old key is deleted and a phone that missed it must pair again. Refused while the relay path is off. User only. Returns the status."
       },
       {
         "id": "remote.report-upload",

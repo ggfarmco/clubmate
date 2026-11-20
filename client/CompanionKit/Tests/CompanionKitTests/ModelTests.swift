@@ -208,6 +208,114 @@ final class ModelTests: XCTestCase {
     }
 
     @MainActor
+    func testPairFallsToTheRelayAndStoresTicketAndKey() async throws {
+        let relay = FakeRelay()
+        let route = relayRoute(relay.privateKey)
+        relay.answer("/v1/pair", #"{"token":"cmt_dev","relayTicket":"cmk_dev","computer":{"id":"mac1","name":"Mac Studio"}}"#)
+        let store = ComputerStore(file: nil, vault: MemoryTokenVault())
+        let model = CompanionModel(store: store, transport: relay.transport, device: DeviceIdentity(id: "d", name: "Phone", model: "iPhone"))
+        let link = PairingLink(code: "C", hosts: ["100.64.0.1"], port: 47621, computerID: "mac1", computerName: "Mac", expiresAt: .distantFuture, relay: route, pairingTicket: "cmk_pt")
+
+        let computer = try await model.pair(link)
+        model.connection("mac1")?.stop()
+
+        XCTAssertEqual(computer.relay, route)
+        XCTAssertEqual(store.token(for: "mac1"), "cmt_dev")
+        XCTAssertEqual(store.relayTicket(for: "mac1"), "cmk_dev")
+        let requests = relay.transport.requests
+        XCTAssertEqual(requests.first?.url?.absoluteString, "http://100.64.0.1:47621/v1/pair")
+        XCTAssertEqual(requests.first?.timeoutInterval, RemoteClient.probeTimeout)
+        XCTAssertEqual(requests.dropFirst().first?.value(forHTTPHeaderField: TunnelTransport.ticketHeader), "cmk_pt")
+        XCTAssertEqual(relay.seen.map(\.path), ["/v1/pair"])
+        let routes = try XCTUnwrap(model.connection("mac1")?.routes)
+        guard routes.count == 2, case .tailnet = routes[0], case .relay(let tunnel, "mac1") = routes[1] else { return XCTFail("routes \(routes)") }
+        XCTAssertEqual(tunnel.macKey, route.macKey)
+        try store.remove("mac1")
+        XCTAssertNil(store.relayTicket(for: "mac1"))
+    }
+
+    @MainActor
+    func testATailscalePairThatTimesOutGoesToTheRelayAndAUsedCodeSaysItMayHavePaired() async throws {
+        let relay = FakeRelay()
+        let transport = RoutedTransport(relay: relay, tailnet: FakeTransport(reply: { _ in throw URLError(.timedOut) }))
+        let link = PairingLink(code: "C", hosts: ["mac.tail1.ts.net", "100.64.0.1"], port: 47621, computerID: "mac1", computerName: "Mac", expiresAt: .distantFuture, relay: relayRoute(relay.privateKey), pairingTicket: "cmk_pt")
+        let device = DeviceIdentity(id: "d", name: "Phone", model: "iPhone")
+        relay.answer("/v1/pair", #"{"error":{"code":"forbidden","message":"wrong, expired or already used"}}"#, status: 403)
+
+        do {
+            _ = try await RemoteClient.pair(link, device: device, transport: transport)
+            XCTFail("paired")
+        } catch {
+            XCTAssertEqual(error as? RemoteError, .pairingFailed(RemoteClient.mayHavePairedMessage))
+        }
+
+        relay.answer("/v1/pair", #"{"token":"cmt_dev","relayTicket":"cmk_dev","computer":{"id":"mac1","name":"Mac Studio"}}"#)
+        let paired = try await RemoteClient.pair(link, device: device, transport: transport)
+        XCTAssertEqual(paired.relayTicket, "cmk_dev")
+        XCTAssertEqual(relay.seen.map(\.path), ["/v1/pair", "/v1/pair"])
+    }
+
+    @MainActor
+    func testARelayPairWithoutARelayTicketIsRefused() async throws {
+        let relay = FakeRelay()
+        relay.answer("/v1/pair", #"{"token":"cmt_dev","computer":{"id":"mac1","name":"Mac Studio"}}"#)
+        let store = ComputerStore(file: nil, vault: MemoryTokenVault())
+        let model = CompanionModel(store: store, transport: relay.transport, device: DeviceIdentity(id: "d", name: "Phone", model: "iPhone"))
+        let link = PairingLink(code: "C", hosts: [], port: 47621, computerID: "mac1", computerName: "Mac", expiresAt: .distantFuture, relay: relayRoute(relay.privateKey), pairingTicket: "cmk_pt")
+
+        do {
+            _ = try await model.pair(link)
+            XCTFail("paired")
+        } catch {
+            XCTAssertEqual(error as? RemoteError, .pairingFailed(RemoteClient.noRelayTicketMessage))
+        }
+        XCTAssertTrue(store.computers.isEmpty)
+    }
+
+    @MainActor
+    func testSetPathSavesTheChoiceAndReconnectsOverIt() async throws {
+        let file = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).appending(path: "computers.json")
+        let vault = MemoryTokenVault()
+        let store = ComputerStore(file: file, vault: vault)
+        let relay = FakeRelay(endStreams: false)
+        try store.save(Computer(id: "mac1", name: "Mac Studio", hosts: ["100.64.0.1"], port: 47621, relay: relayRoute(relay.privateKey)), token: "t", relayTicket: "cmk_t")
+        let tailnet = FakeTransport(reply: { request in
+            (FakeTransport.result(FakeTransport.rpc(request) == "workspaces" ? workspacesJSON : helloJSON), 200)
+        }, stream: { _ in (200, AsyncThrowingStream { $0.yield(Data(": connected\n\n".utf8)) }) })
+        let model = CompanionModel(store: store, transport: RoutedTransport(relay: relay, tailnet: tailnet), device: DeviceIdentity(id: "d", name: "Phone", model: "iPhone"), sleep: { _ in })
+        model.start()
+        let connection = try XCTUnwrap(model.connection("mac1"))
+        try await waitUntil { connection.activePath == .tailnet && connection.state == .online }
+
+        try model.setPath(.relay, computer: "mac1")
+
+        try await waitUntil { connection.activePath == .relay && connection.state == .online }
+        XCTAssertEqual(ComputerStore(file: file, vault: vault).computers.first?.path, .relay)
+        connection.stop()
+    }
+
+    @MainActor
+    func testNewRelayKeyFromHelloIsStored() async throws {
+        let file = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).appending(path: "computers.json")
+        let vault = MemoryTokenVault()
+        let store = ComputerStore(file: file, vault: vault)
+        try store.save(Computer(id: "mac1", name: "Mac Studio", hosts: ["100.64.0.1"], port: 47621, relay: relayRoute()), token: "t", relayTicket: "cmk_dev")
+        let rotated = relayRoute()
+        let hello = #"{"computer":{"id":"mac1","name":"Mac Studio"},"version":"1","commands":[],"topics":[],"tunnel":{"url":"https://relay.example","key":"\#(rotated.key)","kid":"\#(rotated.kid)"}}"#
+        let transport = FakeTransport(reply: { request in
+            (FakeTransport.result(FakeTransport.rpc(request) == "workspaces" ? workspacesJSON : hello), 200)
+        }, stream: { _ in (200, AsyncThrowingStream { $0.yield(Data(": connected\n\n".utf8)) }) })
+        let model = CompanionModel(store: store, transport: transport, device: DeviceIdentity(id: "d", name: "Phone", model: "iPhone"), sleep: { _ in })
+        model.start()
+        try await waitUntil { model.computers.first?.relay == rotated }
+        model.connection("mac1")?.stop()
+
+        XCTAssertEqual(ComputerStore(file: file, vault: vault).computers.first?.relay, rotated)
+        guard case .relay(let tunnel, _)? = model.connection("mac1")?.routes.last else { return XCTFail("no relay route") }
+        XCTAssertEqual(tunnel.macKey, rotated.macKey)
+    }
+
+    @MainActor
     func testComputerStoreKeepsLastSeenAcrossLaunches() async throws {
         let file = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).appending(path: "computers.json")
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -216,6 +324,8 @@ final class ModelTests: XCTestCase {
         let store = ComputerStore(file: file, vault: vault)
         XCTAssertEqual(store.computers.map(\.id), ["m"])
         XCTAssertNil(store.computers[0].lastSeen)
+        XCTAssertNil(store.computers[0].relay)
+        XCTAssertEqual(store.computers[0].path, .auto)
         XCTAssertEqual(store.computers[0].tag.macColour, .graphite)
 
         let seen = Date(timeIntervalSince1970: 1_800_000_000)

@@ -9,6 +9,9 @@ public enum RemoteError: Error, Equatable, Sendable {
     case notSent(String)
     case badResponse
     case hostNotAllowed
+    case relayRevoked
+
+    public static let relayRevokedMessage = "This phone's relay access was revoked: pair again."
 
     public var message: String {
         switch self {
@@ -19,6 +22,7 @@ public enum RemoteError: Error, Equatable, Sendable {
         case .unreachable(let message), .notSent(let message): message
         case .badResponse: "The Mac sent a response this app doesn't understand."
         case .hostNotAllowed: "None of this Mac's addresses is on your Tailscale network."
+        case .relayRevoked: RemoteError.relayRevokedMessage
         }
     }
 }
@@ -43,8 +47,9 @@ public struct Hello: Codable, Sendable, Equatable {
     public let ui: Bool
     public let requests: Bool
     public let reports: Bool
+    public let tunnel: RelayRoute?
 
-    public init(computer: ComputerInfo, version: String, commands: [String], topics: [String], ui: Bool = false, requests: Bool = false, reports: Bool = false) {
+    public init(computer: ComputerInfo, version: String, commands: [String], topics: [String], ui: Bool = false, requests: Bool = false, reports: Bool = false, tunnel: RelayRoute? = nil) {
         self.computer = computer
         self.version = version
         self.commands = commands
@@ -52,6 +57,7 @@ public struct Hello: Codable, Sendable, Equatable {
         self.ui = ui
         self.requests = requests
         self.reports = reports
+        self.tunnel = tunnel
     }
 
     public init(from decoder: any Decoder) throws {
@@ -63,6 +69,7 @@ public struct Hello: Codable, Sendable, Equatable {
         ui = try c.decodeIfPresent(Bool.self, forKey: .ui) ?? false
         requests = try c.decodeIfPresent(Bool.self, forKey: .requests) ?? false
         reports = try c.decodeIfPresent(Bool.self, forKey: .reports) ?? false
+        tunnel = try? c.decodeIfPresent(RelayRoute.self, forKey: .tunnel)
     }
 }
 
@@ -109,10 +116,17 @@ public enum EventStreamItem: Sendable, Equatable {
 
 public struct PairResult: Sendable, Equatable {
     public let token: String
+    public let relayTicket: String?
     public let computer: Computer
 }
 
 public actor RemoteClient {
+    public enum Route: Sendable {
+        case tailnet(hosts: [String], port: Int)
+        case relay(TunnelTransport, computer: String)
+    }
+
+    public nonisolated let route: Route
     public nonisolated let hosts: [String]
     public nonisolated let port: Int
     private let token: String?
@@ -131,27 +145,75 @@ public actor RemoteClient {
     ]
     private static let lostErrors: Set<POSIXErrorCode> = [.ECONNRESET, .ECONNABORTED, .ENOTCONN, .ENETDOWN, .ENETUNREACH, .EHOSTUNREACH, .EPIPE]
 
-    public init(hosts: [String], port: Int, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, preferredHost: String? = nil) {
-        self.hosts = policy.filter(hosts)
+    public init(route: Route, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, preferredHost: String? = nil) {
+        self.route = route
+        switch route {
+        case .tailnet(let hosts, let port):
+            self.hosts = policy.filter(hosts)
+            self.port = port
+            self.transport = transport
+        case .relay(let tunnel, let computer):
+            hosts = [computer]
+            port = 0
+            self.transport = tunnel
+        }
         self.policy = policy
-        self.port = port
         self.token = token
-        self.transport = transport
         self.preferredHost = preferredHost
     }
 
+    public init(hosts: [String], port: Int, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, preferredHost: String? = nil) {
+        self.init(route: .tailnet(hosts: hosts, port: port), token: token, transport: transport, policy: policy, preferredHost: preferredHost)
+    }
+
     public static let mismatchMessage = "The Mac that answered isn't the one in the pairing link."
+    public static let mayHavePairedMessage = "The Mac didn't answer over Tailscale in time and may have paired this phone. Show a new pairing code on the Mac and scan it again."
+    public static let noRelayTicketMessage = "The Mac paired without relay access. Update Clubmate on the Mac, then pair again."
+    public static let pairingTicketMessage = "The relay refused this pairing code. Show a new pairing code on the Mac and scan it again."
 
     public static func pair(_ link: PairingLink, device: DeviceIdentity, transport: any HTTPTransport, policy: HostPolicy = .tailnet, now: Date = .now) async throws -> PairResult {
-        let client = RemoteClient(hosts: link.hosts, port: link.port, token: nil, transport: transport, policy: policy)
         let body = try JSONEncoder().encode(PairRequest(code: link.code, device: PairDevice(id: device.id, name: device.name, model: device.model)))
-        let (data, response, host) = try await client.exchange(path: "/v1/pair", method: "POST", body: body, probe: true)
+        let relay = link.relay.flatMap { route in
+            route.macKey.flatMap { key in link.pairingTicket.map { (route, key, $0) } }
+        }
+        var answer: (Data, HTTPURLResponse, String?)?
+        var mayHavePaired = false
+        let tailnet = policy.filter(link.hosts)
+        if !tailnet.isEmpty || relay == nil {
+            let client = RemoteClient(hosts: tailnet, port: link.port, token: nil, transport: transport, policy: policy)
+            do {
+                let (data, response, host) = try await client.exchange(path: "/v1/pair", method: "POST", body: body, probe: true, quick: relay != nil)
+                answer = (data, response, host)
+            } catch let error as RemoteError where relay != nil {
+                switch error {
+                case .notSent, .hostNotAllowed: break
+                case .unreachable: mayHavePaired = true
+                default: throw error
+                }
+            }
+        }
+        if answer == nil, case let (route, key, ticket)? = relay {
+            guard policy.allowsRelay(route.url) else { throw RemoteError.hostNotAllowed }
+            let tunnel = TunnelTransport(relay: route.url, macKey: key, ticket: ticket, outer: transport)
+            let client = RemoteClient(route: .relay(tunnel, computer: link.computerID), token: nil, transport: transport, policy: policy)
+            do {
+                let (data, response, _) = try await client.exchange(path: "/v1/pair", method: "POST", body: body, probe: true)
+                answer = (data, response, nil)
+            } catch RemoteError.relayRevoked {
+                throw RemoteError.pairingFailed(mayHavePaired ? mayHavePairedMessage : pairingTicketMessage)
+            }
+        }
+        guard case let (data, response, host)? = answer else { throw RemoteError.hostNotAllowed }
         switch response.statusCode {
         case 200:
             guard let reply = try? JSONDecoder.clubmate.decode(PairReply.self, from: data) else { throw RemoteError.badResponse }
             guard reply.computer.id == link.computerID else { throw RemoteError.pairingFailed(mismatchMessage) }
-            let hosts = [host] + policy.filter(link.hosts).filter { $0 != host }
-            return PairResult(token: reply.token, computer: Computer(id: reply.computer.id, name: reply.computer.name, hosts: hosts, port: link.port, pairedAt: now, colour: reply.computer.colour))
+            if host == nil, reply.relayTicket?.isEmpty ?? true { throw RemoteError.pairingFailed(noRelayTicketMessage) }
+            let hosts = host.map { first in [first] + tailnet.filter { $0 != first } } ?? tailnet
+            let computer = Computer(id: reply.computer.id, name: reply.computer.name, hosts: hosts, port: link.port, pairedAt: now, colour: reply.computer.colour, relay: link.relay)
+            return PairResult(token: reply.token, relayTicket: reply.relayTicket, computer: computer)
+        case 403 where host == nil && mayHavePaired:
+            throw RemoteError.pairingFailed(mayHavePairedMessage)
         case 403:
             throw RemoteError.pairingFailed((try? JSONDecoder().decode(Envelope<JSONValue>.self, from: data))?.error?.message ?? "")
         default:
@@ -163,11 +225,11 @@ public actor RemoteClient {
         try await rpc(method, params: params, as: JSONValue.self) ?? .null
     }
 
-    public func rpc<T: Decodable & Sendable>(_ method: String, params: JSONValue? = nil, as type: T.Type, trace: HostTrace? = nil) async throws -> T? {
+    public func rpc<T: Decodable & Sendable>(_ method: String, params: JSONValue? = nil, as type: T.Type, trace: HostTrace? = nil, quick: Bool = false) async throws -> T? {
         let body = try JSONEncoder().encode(RPCRequest(method: method, params: params))
         let slow = params?["id"]?.stringValue == TaskCommand.archive
         let timeout = method == "report" ? Self.reportTimeout : slow ? Self.archiveTimeout : Self.rpcTimeout
-        let (data, response, _) = try await exchange(path: "/v1/rpc", method: "POST", body: body, probe: method == "hello", timeout: timeout, trace: trace)
+        let (data, response, _) = try await exchange(path: "/v1/rpc", method: "POST", body: body, probe: method == "hello", quick: quick, timeout: timeout, trace: trace)
         if response.statusCode == 401 { throw RemoteError.unauthorized }
         guard let envelope = try? JSONDecoder.clubmate.decode(Envelope<T>.self, from: data) else {
             if let failure = (try? JSONDecoder().decode(Envelope<JSONValue>.self, from: data))?.error {
@@ -180,8 +242,8 @@ public actor RemoteClient {
         return envelope.result
     }
 
-    public func hello(trace: HostTrace? = nil) async throws -> Hello {
-        guard let hello = try await rpc("hello", as: Hello.self, trace: trace) else { throw RemoteError.badResponse }
+    public func hello(trace: HostTrace? = nil, quick: Bool = false) async throws -> Hello {
+        guard let hello = try await rpc("hello", as: Hello.self, trace: trace, quick: quick) else { throw RemoteError.badResponse }
         return hello
     }
 
@@ -240,7 +302,7 @@ public actor RemoteClient {
     }
 
     public func uiEvent(workspace: String, slot: String, nodeId: String, action: String, value: JSONValue?) async throws -> JSONValue {
-        try await rpc("uiEvent", params: .object(["workspace": .string(workspace), "slot": .string(slot), "nodeId": .string(nodeId), "action": .string(action), "value": value ?? .null]))
+        try await rpc("uiEvent", params: .object(["workspace": .string(workspace), "slot": .string(slot), "nodeId": .string(nodeId), "action": .string(action), "value": value ?? .null, "requestId": .string(UUID().uuidString)]))
     }
 
     private static func commandParams(_ id: String, workspace: String?, args: JSONValue?, requestId: String? = nil) -> JSONValue {
@@ -251,31 +313,31 @@ public actor RemoteClient {
         return .object(params)
     }
 
-    public func events(after seq: Int?, trace: HostTrace? = nil) async throws -> AsyncThrowingStream<EventStreamItem, any Error> {
+    public func events(after seq: Int?, probe: Bool = false, trace: HostTrace? = nil) async throws -> AsyncThrowingStream<EventStreamItem, any Error> {
         var (response, chunks): (HTTPURLResponse?, AsyncThrowingStream<Data, any Error>?) = (nil, nil)
         var lastError: (any Error)?
         for host in orderedHosts() {
-            var request = URLRequest(url: try url(host: host, path: "/v1/events"), timeoutInterval: Self.streamIdleTimeout)
+            var request = URLRequest(url: try url(host: host, path: "/v1/events", query: probe ? "probe=1" : nil), timeoutInterval: Self.streamIdleTimeout)
             request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
             authorize(&request)
             if let seq { request.setValue(String(seq), forHTTPHeaderField: "Last-Event-ID") }
             let started = ContinuousClock.now
             do {
                 (response, chunks) = try await transport.stream(request)
-                trace?.add(Self.tried(host, since: started, status: response?.statusCode ?? 0))
+                trace?.add(Self.tried(label(host), since: started, status: response?.statusCode ?? 0))
                 preferredHost = host
                 break
             } catch {
-                trace?.add(Self.tried(host, since: started, error: error))
+                trace?.add(Self.tried(label(host), since: started, error: error))
                 lastError = error
-                guard canFallBack(error, probe: false) || Self.lost(error) else { throw Self.mapped(error) }
+                guard canFallBack(error, probe: false) || Self.lost(error) else { throw Self.mapped(error, reached: !Self.unsent(error)) }
             }
         }
         guard let response, let chunks else { throw Self.mapped(lastError ?? RemoteError.hostNotAllowed) }
         if response.statusCode == 401 { throw RemoteError.unauthorized }
         guard response.statusCode == 200 else { throw RemoteError.http(response.statusCode) }
         let opened = ContinuousClock.now
-        let host = preferredHost ?? ""
+        let host = label(preferredHost ?? "")
         return AsyncThrowingStream { continuation in
             let task = Task {
                 var parser = SSEParser()
@@ -318,12 +380,12 @@ public actor RemoteClient {
         }
     }
 
-    private func exchange(path: String, method: String, body: Data, probe: Bool = false, timeout rpc: TimeInterval = rpcTimeout, trace: HostTrace? = nil) async throws -> (Data, HTTPURLResponse, String) {
+    private func exchange(path: String, method: String, body: Data, probe: Bool = false, quick: Bool = false, timeout rpc: TimeInterval = rpcTimeout, trace: HostTrace? = nil) async throws -> (Data, HTTPURLResponse, String) {
         var lastError: (any Error)?
         var reached = false
         let hosts = orderedHosts()
         for (index, host) in hosts.enumerated() {
-            let timeout = probe && index < hosts.count - 1 ? Self.probeTimeout : rpc
+            let timeout = probe && (quick || index < hosts.count - 1) ? Self.probeTimeout : rpc
             var request = URLRequest(url: try url(host: host, path: path), timeoutInterval: timeout)
             request.httpMethod = method
             request.httpBody = body
@@ -332,25 +394,26 @@ public actor RemoteClient {
             let started = ContinuousClock.now
             do {
                 let (data, response) = try await transport.send(request)
-                trace?.add(Self.tried(host, since: started, status: response.statusCode))
+                trace?.add(Self.tried(label(host), since: started, status: response.statusCode))
                 preferredHost = host
                 return (data, response, host)
             } catch {
-                trace?.add(Self.tried(host, since: started, error: error))
+                trace?.add(Self.tried(label(host), since: started, error: error))
                 lastError = error
                 if !Self.unsent(error) { reached = true }
-                guard canFallBack(error, probe: probe) else { throw Self.mapped(error) }
+                guard canFallBack(error, probe: probe) else { throw Self.mapped(error, reached: reached) }
             }
         }
         throw Self.mapped(lastError ?? RemoteError.hostNotAllowed, reached: reached)
     }
 
     private func orderedHosts() -> [String] {
-        guard let preferredHost, hosts.contains(preferredHost) else { return hosts }
+        guard case .tailnet = route, let preferredHost, hosts.contains(preferredHost) else { return hosts }
         return [preferredHost] + hosts.filter { $0 != preferredHost }
     }
 
     private func canFallBack(_ error: any Error, probe: Bool) -> Bool {
+        guard case .tailnet = route else { return false }
         if probe, Self.lost(error) { return true }
         guard let code = (error as? URLError)?.code else { return false }
         return Self.unsentErrors.contains(code) || (code == .timedOut && (probe || preferredHost == nil))
@@ -360,12 +423,27 @@ public actor RemoteClient {
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
     }
 
-    private nonisolated func url(host: String, path: String) throws -> URL {
+    private nonisolated func label(_ host: String) -> String {
+        guard case .relay(let tunnel, _) = route else { return host }
+        return "relay \(tunnel.relayHost)"
+    }
+
+    private nonisolated func url(host: String, path: String, query: String? = nil) throws -> URL {
+        if case .relay = route {
+            var components = URLComponents()
+            components.scheme = "clubmate-relay"
+            components.host = host
+            components.path = path
+            components.query = query
+            guard let url = components.url, url.host(percentEncoded: false) == host, url.port == nil, url.user == nil else { throw RemoteError.hostNotAllowed }
+            return url
+        }
         var components = URLComponents()
         components.scheme = "http"
         components.host = host.contains(":") ? "[\(host)]" : host
         components.port = port
         components.path = path
+        components.query = query
         guard let url = components.url, url.host(percentEncoded: false) == host, url.port == port, url.user == nil else { throw RemoteError.hostNotAllowed }
         return url
     }
@@ -416,6 +494,7 @@ private struct IdentityReply: Decodable {
 private struct PairReply: Decodable {
     let token: String
     let computer: ComputerInfo
+    let relayTicket: String?
 }
 
 private struct StreamFrame: Decodable {

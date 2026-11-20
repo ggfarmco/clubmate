@@ -64,6 +64,7 @@ public struct EventLog: Codable, Sendable, Equatable {
         case .notSent?: "not-sent"
         case .badResponse?: "bad-response"
         case .hostNotAllowed?: "host-not-allowed"
+        case .relayRevoked?: "relay-revoked"
         case .pairingFailed?: "pairing-failed"
         case nil: error is CancellationError ? "cancelled" : "error"
         }

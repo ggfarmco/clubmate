@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"clubmate/internal/tunnelrelay"
 )
 
 const (
@@ -18,6 +20,7 @@ const (
 	maxFailures      = 5
 	maxTotalFailures = 50
 	linkVersion      = "1"
+	linkVersionRelay = "2"
 
 	pairOK      = "ok"
 	pairBadCode = "bad-code"
@@ -34,6 +37,7 @@ type pairing struct {
 	active   bool
 	gen      uint64
 	hash     [sha256.Size]byte
+	ticket   string
 	expires  time.Time
 	failures map[string]int
 	total    int
@@ -50,18 +54,46 @@ func newPairing(now func() time.Time) *pairing {
 }
 
 func (p *pairing) issue() (string, time.Time) {
+	code, _, expires := p.issueWithTicket()
+	return code, expires
+}
+
+func (p *pairing) issueWithTicket() (string, string, time.Time) {
 	raw := make([]byte, codeBytes)
 	_, _ = rand.Read(raw)
 	code := codeEncoding.EncodeToString(raw)
+	ticket := newSecret(ticketPrefix)
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.active = true
 	p.gen++
 	p.hash = sha256.Sum256([]byte(code))
+	p.ticket = hashToken(ticket)
 	p.expires = p.now().Add(codeTTL)
 	p.failures = map[string]int{}
 	p.total = 0
-	return code, p.expires
+	return code, ticket, p.expires
+}
+
+func (p *pairing) ticketHash() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.ticket
+}
+
+func (p *pairing) expiry() time.Time {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.expires
+}
+
+func (p *pairing) liveTicket() (tunnelrelay.Ticket, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if !p.active || p.ticket == "" || !p.now().Before(p.expires) {
+		return tunnelrelay.Ticket{}, false
+	}
+	return tunnelrelay.Ticket{Hash: p.ticket, Exp: p.expires.Unix()}, true
 }
 
 func (p *pairing) cancel() {
@@ -110,13 +142,27 @@ func (p *pairing) reopen(gen uint64) {
 	}
 }
 
-func pairLink(code string, hosts []string, port int, c computer, expires time.Time) string {
+type linkRelay struct {
+	URL    string
+	Key    string
+	KID    string
+	Ticket string
+}
+
+func pairLink(code string, hosts []string, port int, c computer, expires time.Time, relay *linkRelay) string {
+	version := linkVersion
+	if relay != nil {
+		version = linkVersionRelay
+	}
 	var b strings.Builder
-	b.WriteString("clubmate://pair?v=" + linkVersion + "&c=" + code)
+	b.WriteString("clubmate://pair?v=" + version + "&c=" + code)
 	for _, h := range hosts {
 		b.WriteString("&h=" + queryEscape(h))
 	}
 	b.WriteString("&p=" + strconv.Itoa(port) + "&id=" + queryEscape(c.ID) + "&n=" + queryEscape(c.Name) + "&e=" + strconv.FormatInt(expires.Unix(), 10))
+	if relay != nil {
+		b.WriteString("&r=" + queryEscape(relay.URL) + "&k=" + queryEscape(relay.Key) + "&kid=" + queryEscape(relay.KID) + "&pt=" + queryEscape(relay.Ticket))
+	}
 	return b.String()
 }
 

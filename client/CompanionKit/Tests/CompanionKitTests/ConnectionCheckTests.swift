@@ -166,6 +166,45 @@ final class ConnectionCheckTests: XCTestCase {
         XCTAssertFalse(check.failed)
     }
 
+    private func relayCheck(_ relay: FakeRelay, passed: @escaping @MainActor () -> Void = {}) -> ConnectionCheck {
+        let pub = relay.privateKey.publicKey.rawRepresentation
+        let route = ConnectionCheck.Relay(url: URL(string: "https://relay.example")!, macKey: pub, kid: Tunnel.keyID(pub), ticket: "cmk_t", computer: "mac1")
+        return ConnectionCheck(hosts: [], port: 47621, token: token, transport: relay.transport, policy: .tailnet, probe: FakeProbe(mine: []), relay: route, macName: "Mac Studio", first: .relay, passed: passed)
+    }
+
+    func testARelayOnlyMacSkipsTailscaleAndChecksEachRelayStep() async {
+        let relay = FakeRelay()
+        let reconnects = Recorder<Bool>()
+        let check = relayCheck(relay) { reconnects.add(true) }
+        await check.run()
+
+        XCTAssertEqual(check.steps.map(\.id), ["relay", "relay-mac", "relay-key", "relay-hello", "relay-events"])
+        XCTAssertEqual(check.steps.map(\.verdict), Array(repeating: .pass, count: 5))
+        XCTAssertEqual(check.steps.first { $0.id == "relay-hello" }?.detail, "Mac Studio · Clubmate 0.0.13 via the relay")
+        XCTAssertEqual(relay.seen.last?.path, "/v1/events?probe=1")
+        XCTAssertEqual(reconnects.values, [true])
+    }
+
+    func testTheRelayStepsTellAnAbsentMacFromAnUnreachableRelay() async {
+        let cases: [(FakeRelay.Outcome, String)] = [
+            (.status(503), "Mac Studio is not connected to the relay: is Clubmate running?"),
+            (.proxy(503), TunnelTransport.relayUnreachable),
+            (.status(401), RemoteError.relayRevokedMessage),
+        ]
+        for (outcome, detail) in cases {
+            let relay = FakeRelay()
+            relay.fail("/v1/d/open", [outcome])
+            let check = relayCheck(relay)
+            await check.run()
+
+            let byID = Dictionary(uniqueKeysWithValues: check.steps.map { ($0.id, $0) })
+            XCTAssertEqual(byID["relay"]?.verdict, .pass)
+            XCTAssertEqual(byID["relay-mac"]?.verdict, .fail)
+            XCTAssertEqual(byID["relay-mac"]?.detail, detail)
+            XCTAssertEqual(["relay-key", "relay-hello", "relay-events"].map { byID[$0]?.verdict }, [.skipped, .skipped, .skipped])
+        }
+    }
+
     func testARefusedTokenSaysPairAgain() async {
         let check = ConnectionCheck(hosts: ["100.64.0.1"], port: 47621, token: "old", transport: stream(), policy: .tailnet, probe: FakeProbe())
         await check.run()

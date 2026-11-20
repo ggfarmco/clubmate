@@ -46,6 +46,22 @@ public struct CheckStep: Identifiable, Sendable, Equatable {
 @MainActor
 @Observable
 public final class ConnectionCheck {
+    public struct Relay: Sendable, Equatable {
+        public let url: URL
+        public let macKey: Data
+        public let kid: String
+        public let ticket: String
+        public let computer: String
+
+        public init(url: URL, macKey: Data, kid: String, ticket: String, computer: String) {
+            self.url = url
+            self.macKey = macKey
+            self.kid = kid
+            self.ticket = ticket
+            self.computer = computer
+        }
+    }
+
     public static let connectTimeout: Duration = .seconds(4)
     public static let streamTimeout: Duration = .seconds(5)
     public static let resolveTimeout: Duration = .seconds(5)
@@ -60,15 +76,21 @@ public final class ConnectionCheck {
     @ObservationIgnored private let transport: any HTTPTransport
     @ObservationIgnored private let policy: HostPolicy
     @ObservationIgnored private let probe: any NetworkProbe
+    @ObservationIgnored private let relay: Relay?
+    @ObservationIgnored private let macName: String
+    @ObservationIgnored private let first: NetworkPath
     @ObservationIgnored private let passed: @MainActor () -> Void
 
-    public init(hosts: [String], port: Int, token: String?, transport: any HTTPTransport, policy: HostPolicy, probe: any NetworkProbe, passed: @escaping @MainActor () -> Void = {}) {
+    public init(hosts: [String], port: Int, token: String?, transport: any HTTPTransport, policy: HostPolicy, probe: any NetworkProbe, relay: Relay? = nil, macName: String = "The Mac", first: NetworkPath = .tailnet, passed: @escaping @MainActor () -> Void = {}) {
         self.hosts = hosts
         self.port = port
         self.token = token
         self.transport = transport
         self.policy = policy
         self.probe = probe
+        self.relay = relay
+        self.macName = macName
+        self.first = first
         self.passed = passed
     }
 
@@ -85,6 +107,23 @@ public final class ConnectionCheck {
             running = false
             finishedAt = .now
         }
+        var answered = false
+        for path in first == .relay ? [NetworkPath.relay, .tailnet] : [.tailnet, .relay] {
+            let start = steps.count
+            switch path {
+            case .tailnet:
+                guard !hosts.isEmpty || relay == nil else { continue }
+                await checkTailnet()
+            case .relay:
+                guard let relay else { continue }
+                await checkRelay(relay)
+            }
+            if !steps[start...].contains(where: { $0.verdict == .fail }) { answered = true }
+        }
+        if !Task.isCancelled, answered { passed() }
+    }
+
+    private func checkTailnet() async {
         checkTailscale()
         await checkNames()
         let open = await checkPorts()
@@ -102,12 +141,102 @@ public final class ConnectionCheck {
             return
         }
         let client = RemoteClient(hosts: [host], port: port, token: token, transport: transport, policy: policy)
-        guard await checkHello(client, host: host) else {
+        guard await checkHello(client, id: "hello", via: host, hint: "Something answered on port \(port) but not as this app expects — update Clubmate on the Mac, or check that nothing else uses the port.") else {
             skip("events", "Live updates", because: "Skipped — Clubmate didn't answer")
             return
         }
-        await checkEvents(client)
-        if !Task.isCancelled, !failed { passed() }
+        await checkEvents(client, id: "events", hint: "The Mac answered but the live stream broke — another VPN or a proxy may cut long-lived connections.")
+    }
+
+    private func checkRelay(_ relay: Relay) async {
+        let host = relay.url.host() ?? relay.url.absoluteString
+        steps.append(CheckStep(id: "relay", title: "Reach the relay"))
+        var health = URLRequest(url: relay.url.appending(path: "healthz"), timeoutInterval: TimeInterval(Self.connectTimeout.components.seconds))
+        health.httpMethod = "GET"
+        let reachable: Bool
+        do {
+            let (_, response) = try await transport.send(health)
+            reachable = response.statusCode == 200
+            update("relay") { step in
+                step.verdict = reachable ? .pass : .fail
+                step.detail = reachable ? host + " answered" : "\(host) answered HTTP \(response.statusCode)"
+                if !reachable { step.hint = Self.relayDownHint }
+            }
+        } catch {
+            reachable = false
+            update("relay") { $0.verdict = .fail; $0.detail = ConnectionAttempt.describe(error); $0.hint = "Check this phone's internet connection. " + Self.relayDownHint }
+        }
+        let macStep = macName + " at the relay"
+        guard reachable else {
+            for (id, title) in [("relay-mac", macStep), ("relay-key", "The Mac's key"), ("relay-hello", "Clubmate answers through the relay"), ("relay-events", "Live updates through the relay")] {
+                skip(id, title, because: "Skipped — the relay didn't answer")
+            }
+            return
+        }
+        steps.append(CheckStep(id: "relay-mac", title: macStep))
+        let tunnel = TunnelTransport(relay: relay.url, macKey: relay.macKey, ticket: relay.ticket, outer: transport)
+        let opened = await tunnel.checkOpen()
+        switch opened {
+        case .open, .badKey:
+            update("relay-mac") { $0.verdict = .pass; $0.detail = macName + " is connected to the relay" }
+        case .macOffline:
+            update("relay-mac") { $0.verdict = .fail; $0.detail = macName + " is not connected to the relay: is Clubmate running?"; $0.hint = "Wake the Mac and check that Clubmate runs there with the relay on (remote.status shows tunnel connected)." }
+        case .relayUnreachable:
+            update("relay-mac") { $0.verdict = .fail; $0.detail = TunnelTransport.relayUnreachable; $0.hint = Self.relayDownHint }
+        case .revoked:
+            update("relay-mac") { $0.verdict = .fail; $0.detail = RemoteError.relayRevokedMessage; $0.hint = Self.pairHint }
+        case .failed(let reason):
+            update("relay-mac") { $0.verdict = .fail; $0.detail = reason; $0.hint = Self.relayDownHint }
+        }
+        switch opened {
+        case .open:
+            steps.append(CheckStep(id: "relay-key", title: "The Mac's key", verdict: .pass, detail: "The Mac holds the key " + relay.kid))
+        case .badKey:
+            steps.append(CheckStep(id: "relay-key", title: "The Mac's key", verdict: .fail, detail: "The Mac didn't prove the key " + relay.kid, hint: Self.pairHint))
+        default:
+            skip("relay-key", "The Mac's key", because: "Skipped — the Mac isn't at the relay")
+        }
+        guard case .open = opened else {
+            skip("relay-hello", "Clubmate answers through the relay", because: "Skipped — no channel to the Mac")
+            skip("relay-events", "Live updates through the relay", because: "Skipped — no channel to the Mac")
+            return
+        }
+        let client = RemoteClient(route: .relay(tunnel, computer: relay.computer), token: token, transport: transport, policy: policy)
+        guard await checkHello(client, id: "relay-hello", via: "the relay", title: "Clubmate answers through the relay", hint: "The relay reached the Mac but Clubmate didn't answer as this app expects — update Clubmate on the Mac.") else {
+            skip("relay-events", "Live updates through the relay", because: "Skipped — Clubmate didn't answer")
+            return
+        }
+        await checkEvents(client, id: "relay-events", title: "Live updates through the relay", hint: "The Mac answered but the live stream through the relay broke — check the relay and remote.status on the Mac.")
+    }
+
+    private static let relayDownHint = "The Clubmate relay may be down — try again in a minute, or connect over Tailscale."
+    private static let pairHint = "Pair again: on the Mac open Settings › Remote › Pair a device."
+
+    public static func answers(_ client: RemoteClient) async -> Bool {
+        guard (try? await client.hello(quick: true)) != nil else { return false }
+        return (try? await firstLine(client, timeout: streamTimeout).get()) == true
+    }
+
+    private static func firstLine(_ client: RemoteClient, timeout: Duration) async -> Result<Bool, any Error> {
+        await withTaskGroup(of: Result<Bool, any Error>?.self) { group in
+            group.addTask {
+                do {
+                    for try await item in try await client.events(after: nil, probe: true) where item == .alive {
+                        return .success(true)
+                    }
+                    return .success(false)
+                } catch {
+                    return .failure(error)
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(for: timeout)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first ?? .success(false)
+        }
     }
 
     public var text: String {
@@ -212,51 +341,36 @@ public final class ConnectionCheck {
         }
     }
 
-    private func checkHello(_ client: RemoteClient, host: String) async -> Bool {
-        steps.append(CheckStep(id: "hello", title: "Clubmate answers"))
+    private func checkHello(_ client: RemoteClient, id: String, via: String, title: String = "Clubmate answers", hint: String) async -> Bool {
+        steps.append(CheckStep(id: id, title: title))
         do {
             let hello = try await client.hello()
-            update("hello") { $0.verdict = .pass; $0.detail = "\(hello.computer.name) · Clubmate \(hello.version) via \(host)" }
+            update(id) { $0.verdict = .pass; $0.detail = "\(hello.computer.name) · Clubmate \(hello.version) via \(via)" }
             return true
         } catch RemoteError.unauthorized {
-            update("hello") { $0.verdict = .fail; $0.detail = "The Mac refused this phone's token (HTTP 401)"; $0.hint = "Pair again: on the Mac open Settings › Remote › Pair a device." }
+            update(id) { $0.verdict = .fail; $0.detail = "The Mac refused this phone's token (HTTP 401)"; $0.hint = Self.pairHint }
+        } catch RemoteError.relayRevoked {
+            update(id) { $0.verdict = .fail; $0.detail = RemoteError.relayRevokedMessage; $0.hint = Self.pairHint }
         } catch {
-            update("hello") { $0.verdict = .fail; $0.detail = ConnectionAttempt.describe(error); $0.hint = "Something answered on port \(port) but not as this app expects — update Clubmate on the Mac, or check that nothing else uses the port." }
+            update(id) { $0.verdict = .fail; $0.detail = ConnectionAttempt.describe(error); $0.hint = hint }
         }
         return false
     }
 
-    private func checkEvents(_ client: RemoteClient) async {
-        steps.append(CheckStep(id: "events", title: "Live updates"))
+    private func checkEvents(_ client: RemoteClient, id: String, title: String = "Live updates", hint: String) async {
+        steps.append(CheckStep(id: id, title: title))
         let timeout = Self.streamTimeout
-        let result: Result<Bool, any Error> = await withTaskGroup(of: Result<Bool, any Error>?.self) { group in
-            group.addTask {
-                do {
-                    for try await item in try await client.events(after: nil) where item == .alive {
-                        return .success(true)
-                    }
-                    return .success(false)
-                } catch {
-                    return .failure(error)
-                }
-            }
-            group.addTask {
-                try? await Task.sleep(for: timeout)
-                return nil
-            }
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first ?? .success(false)
-        }
-        switch result {
+        switch await Self.firstLine(client, timeout: timeout) {
         case .success(true):
-            update("events") { $0.verdict = .pass; $0.detail = "The event stream said “connected”" }
+            update(id) { $0.verdict = .pass; $0.detail = "The event stream said “connected”" }
         case .success(false):
-            update("events") { $0.verdict = .fail; $0.detail = "Nothing on the event stream in \(Int(timeout.components.seconds)) s"; $0.hint = "Something between the phone and the Mac holds back long-lived connections — another VPN or a proxy." }
+            update(id) { $0.verdict = .fail; $0.detail = "Nothing on the event stream in \(Int(timeout.components.seconds)) s"; $0.hint = "Something between the phone and the Mac holds back long-lived connections — another VPN or a proxy." }
         case .failure(RemoteError.unauthorized):
-            update("events") { $0.verdict = .fail; $0.detail = "The Mac refused this phone's token (HTTP 401)"; $0.hint = "Pair again: on the Mac open Settings › Remote › Pair a device." }
+            update(id) { $0.verdict = .fail; $0.detail = "The Mac refused this phone's token (HTTP 401)"; $0.hint = Self.pairHint }
+        case .failure(RemoteError.relayRevoked):
+            update(id) { $0.verdict = .fail; $0.detail = RemoteError.relayRevokedMessage; $0.hint = Self.pairHint }
         case .failure(let error):
-            update("events") { $0.verdict = .fail; $0.detail = ConnectionAttempt.describe(error); $0.hint = "The Mac answered but the live stream broke — another VPN or a proxy may cut long-lived connections." }
+            update(id) { $0.verdict = .fail; $0.detail = ConnectionAttempt.describe(error); $0.hint = hint }
         }
     }
 

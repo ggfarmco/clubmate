@@ -26,6 +26,9 @@ touch ~/push-relay/tokens ~/push-relay/admins ~/push-relay/bans
 chmod 600 ~/push-relay/tokens ~/push-relay/admins ~/push-relay/bans
 mkdir -p ~/push-relay/reports ~/push-relay/state
 chmod 700 ~/push-relay/reports ~/push-relay/state
+if [ ! -e ~/push-relay/state/tickets.json ]; then
+  (umask 077 && printf "{}" > ~/push-relay/state/tickets.json)
+fi
 sudo install -m 644 -o root -g root /tmp/clubmate-push-relay.service /etc/systemd/system/clubmate-push-relay.service
 rm -f /tmp/clubmate-push-relay.service
 sudo systemctl daemon-reload

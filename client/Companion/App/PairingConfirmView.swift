@@ -36,32 +36,65 @@ struct PairingConfirmView: View {
                     LabeledContent("Port", value: String(review.link.port))
                     if let previous = review.previousPort {
                         LabeledContent("Previous Port", value: String(previous))
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Color.warningInk)
                     }
                 }
-                Section {
-                    ForEach(review.link.hosts, id: \.self) { host in
-                        HStack {
-                            Text(host).font(.callout.monospaced())
-                            Spacer()
-                            if review.addedHosts.contains(host) {
-                                Text("New").font(.caption.weight(.semibold)).foregroundStyle(.orange)
+                if let relay = review.link.relay {
+                    Section {
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            Image(systemName: MacSectionHeader.relayGlyph)
+                                .foregroundStyle(Color.captionInk)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Through Clubmate relay")
+                                Text(relay.url.host() ?? relay.url.absoluteString)
+                                    .font(.footnote.monospaced())
+                                    .foregroundStyle(Color.captionInk)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            Spacer(minLength: 8)
+                            if review.changesRelay {
+                                Text(review.existing?.relay == nil ? "New" : "Changed").font(.caption.weight(.semibold)).foregroundStyle(Color.warningInk)
                             }
                         }
-                    }
-                    ForEach(review.removedHosts, id: \.self) { host in
-                        HStack {
-                            Text(host).font(.callout.monospaced()).strikethrough()
-                            Spacer()
-                            Text("Removed").font(.caption.weight(.semibold)).foregroundStyle(Color.captionInk)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("pair.relay")
+                        if review.changesKey {
+                            Label("The Mac's relay key changed", systemImage: "exclamationmark.triangle.fill")
+                                .foregroundStyle(Color.warningInk)
+                                .accessibilityIdentifier("pair.keyChanged")
                         }
-                        .foregroundStyle(Color.captionInk)
+                    } header: {
+                        Text("Relay")
+                    } footer: {
+                        Text(relayFooter)
                     }
-                } header: {
-                    Text("Addresses")
-                } footer: {
-                    if review.changesAddress {
-                        Text("The Mac's addresses changed since the last pairing.")
+                }
+                if !review.link.hosts.isEmpty || !review.removedHosts.isEmpty {
+                    Section {
+                        ForEach(review.link.hosts, id: \.self) { host in
+                            HStack {
+                                Text(host).font(.callout.monospaced())
+                                Spacer()
+                                if review.addedHosts.contains(host) {
+                                    Text("New").font(.caption.weight(.semibold)).foregroundStyle(Color.warningInk)
+                                }
+                            }
+                        }
+                        ForEach(review.removedHosts, id: \.self) { host in
+                            HStack {
+                                Text(host).font(.callout.monospaced()).strikethrough()
+                                Spacer()
+                                Text("Removed").font(.caption.weight(.semibold)).foregroundStyle(Color.captionInk)
+                            }
+                            .foregroundStyle(Color.captionInk)
+                        }
+                    } header: {
+                        Text("Tailscale addresses")
+                    } footer: {
+                        if review.changesAddress {
+                            Text("The Mac's addresses changed since the last pairing.")
+                        }
                     }
                 }
             }
@@ -82,5 +115,15 @@ struct PairingConfirmView: View {
                 }
             }
         }
+    }
+
+    private var relayFooter: String {
+        if review.changesKey {
+            return "The key proves the phone talks to this Mac. Continue only if you just asked Clubmate on this Mac for a new pairing code."
+        }
+        if review.link.hosts.isEmpty {
+            return "This Mac has no Tailscale address: the phone connects through the relay. The relay passes encrypted data and can't read it."
+        }
+        return "The phone uses Tailscale and falls back to the relay when Tailscale can't connect. The relay can't read the data."
     }
 }

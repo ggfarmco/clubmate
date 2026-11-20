@@ -63,6 +63,44 @@ struct Mac: Sendable {
         _ = try request("POST", "core/cont", nil)
     }
 
+    func setTunnel(_ on: Bool) throws {
+        _ = try run("remote.set-tunnel", ["on": on])
+    }
+
+    func tunnel() throws -> [String: Any] {
+        ((try run("remote.status") as? [String: Any])?["tunnel"] as? [String: Any]) ?? [:]
+    }
+
+    func devices() throws -> [[String: Any]] {
+        try run("remote.devices") as? [[String: Any]] ?? []
+    }
+
+    func revokeDevices() throws {
+        for device in try devices() {
+            _ = try run("remote.revoke", ["device": device["id"] as? String ?? ""])
+        }
+    }
+
+    func relayLog() throws -> [[String: Any]] {
+        try request("GET", "relay/log", nil) as? [[String: Any]] ?? []
+    }
+
+    func clearRelayLog() throws {
+        _ = try request("DELETE", "relay/log", nil)
+    }
+
+    func relayStreams() throws -> Int {
+        ((try request("GET", "relay/streams", nil) as? [String: Any])?["open"] as? Int) ?? 0
+    }
+
+    func dropRelayStreams(hold: Bool) throws {
+        _ = try request("POST", "relay/streams/drop", ["hold": hold])
+    }
+
+    func releaseRelayStreams() throws {
+        _ = try request("POST", "relay/streams/release", nil)
+    }
+
     func tasks(titled title: String) throws -> Int {
         let tasks = (try run("backlog.list", ["since": ""]) as? [String: Any])?["tasks"] as? [[String: Any]] ?? []
         return tasks.filter { $0["title"] as? String == title }.count
@@ -167,6 +205,8 @@ struct Mac: Sendable {
 
 @MainActor
 class E2ETestCase: XCTestCase {
+    static var notificationPromptHandled = false
+
     var mac: Mac!
 
     override func setUp() async throws {
@@ -181,7 +221,7 @@ class E2ETestCase: XCTestCase {
         Mac.out?.appending(path: "delivered.json")
     }
 
-    func launch(open target: String? = nil, _ extra: [String] = []) throws -> XCUIApplication {
+    func launch(open target: String? = nil, _ extra: [String] = [], pairLink: (String) -> String = { $0 }) throws -> XCUIApplication {
         let app = XCUIApplication()
         var arguments = extra
         if let target { arguments += ["-open", target] }
@@ -191,11 +231,12 @@ class E2ETestCase: XCTestCase {
             guard let link = (try mac.run("remote.pair") as? [String: Any])?["link"] as? String else {
                 throw MacError(description: "remote.pair returned no link")
             }
-            arguments += ["-autoConfirmPairing", "YES", "-pair", link]
+            arguments += ["-autoConfirmPairing", "YES", "-pair", pairLink(link)]
         }
         app.launchArguments = arguments
         app.launch()
-        allowNotifications(timeout: devices.isEmpty ? 15 : 2)
+        allowNotifications(timeout: devices.isEmpty && !Self.notificationPromptHandled ? 15 : 2)
+        Self.notificationPromptHandled = true
         return app
     }
 
