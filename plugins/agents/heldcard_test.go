@@ -43,7 +43,7 @@ func TestDoneGateCardAtCap(t *testing.T) {
 	rec := d.f.session(t, d.workspace, d.session)
 	assert.Equal(t, []any{"running", true, []string{req}, "needsYou", true}, []any{rec.Status, rec.NeedsYou, rec.Pending, rec.Group, rec.TurnHeld})
 	require.NotNil(t, rec.HeldRound)
-	assert.Equal(t, "Fable review · round 1 changes", rec.HeldRound.Text)
+	assert.Equal(t, "Opus review · round 1 changes", rec.HeldRound.Text)
 	assert.Equal(t, d.held(t).Run, rec.HeldRound.Run)
 	var list []record
 	require.NoError(t, d.f.run(t, d.workspace, "agents.sessions", map[string]any{}, &list))
@@ -51,7 +51,7 @@ func TestDoneGateCardAtCap(t *testing.T) {
 	testutil.Eventually(t, func() bool { return d.f.sidebarItem(t, d.workspace, d.session).Detail == "asking" }, wait)
 	assert.Equal(t, []string{req}, d.f.phoneSession(t, d.workspace, d.session).Requests)
 	card := d.card(t)
-	assert.Equal(t, "Fable review still asks for changes after 1 round", card["title"])
+	assert.Equal(t, "Opus review still asks for changes after 1 round", card["title"])
 	assert.True(t, strings.HasPrefix(card["caption"].(string), filepath.Base(d.repo)+" · Done · any turn · held since "), card["caption"])
 	assert.Contains(t, card["detail"], "note.md:1 — says x")
 	options, _ := card["options"].([]any)
@@ -87,7 +87,7 @@ func TestNoVerdictCardOneMoreRoundReruns(t *testing.T) {
 	stopped = append(stopped, d.held(t).Run)
 	require.NoError(t, d.f.run(t, d.workspace, "agents.graph-stop", map[string]any{"id": stopped[1]}, nil))
 	testutil.Eventually(t, func() bool { h := d.held(t); return h != nil && h.Request != "" }, wait)
-	assert.Equal(t, "Fable review ended without a verdict", d.card(t)["title"])
+	assert.Equal(t, "Opus review ended without a verdict", d.card(t)["title"])
 
 	d.answer(t, d.held(t).Request, "more")
 
@@ -360,7 +360,7 @@ func TestRunAnywayOverridesEveryGateOnTheCall(t *testing.T) {
 	card := f.waitRecord(t, workspace, session, "push's card", func(r record) bool {
 		return slices.ContainsFunc(r.Calls, func(c callRow) bool { return c.Gate == push && c.Request != "" })
 	})
-	assert.Equal(t, "Fable review ended without a verdict", f.phoneTranscript(t, workspace, session).Request.Props["title"])
+	assert.Equal(t, "Opus review ended without a verdict", f.phoneTranscript(t, workspace, session).Request.Props["title"])
 	request := card.Calls[slices.IndexFunc(card.Calls, func(c callRow) bool { return c.Gate == push })].Request
 
 	require.NoError(t, f.run(t, workspace, "agents.gate-answer", map[string]any{"request": request, "action": "accept"}, nil))

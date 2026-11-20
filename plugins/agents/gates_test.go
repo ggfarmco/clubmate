@@ -143,7 +143,7 @@ func TestGatesSectionAddsPausesAndDeletesAGateAsTheUser(t *testing.T) {
 
 	gates := f.gates(t, workspace)
 	require.Len(t, gates, 1)
-	assert.Equal(t, []any{3, "default", "fable-review"}, []any{gates[0].Rounds, gates[0].Into, gates[0].Graph})
+	assert.Equal(t, []any{3, "default", "opus-review"}, []any{gates[0].Rounds, gates[0].Into, gates[0].Graph})
 	f.h.WaitSlot(t, workspace, "agents.sheet", func(n sdui.Node) bool { return len(sheetNodes(n, "sheet")) == 0 })
 	f.h.WaitSlot(t, workspace, "agents.gates.sidebar", func(n sdui.Node) bool {
 		items, _ := n.Props["items"].([]any)

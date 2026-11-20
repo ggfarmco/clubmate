@@ -1,6 +1,6 @@
 {
   "title": "Fable review",
-  "description": "The land gate's default: one read-only Fable reviewer that reads the change and reports approved or changes with agents_land_verdict. Its input is the land review prompt Clubmate writes for each round.",
+  "description": "One read-only Fable reviewer that reads the change and reports approved or changes with agents_land_verdict. Its input is the land review prompt Clubmate writes for each round.",
   "maxTurns": 12,
   "nodes": [
     {

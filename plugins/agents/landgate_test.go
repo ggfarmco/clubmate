@@ -135,7 +135,7 @@ func TestLandWithoutVerdictStartsReviewAndRefuses(t *testing.T) {
 
 	require.ErrorContains(t, err, "review pending")
 	r := g.reviewer(t)
-	assert.Equal(t, "fable", r.StartModel)
+	assert.Equal(t, "opus", r.StartModel)
 	assert.Contains(t, r.DisallowedTools, "Edit")
 	assert.Equal(t, main, git(t, g.repo, "rev-parse", "main"))
 }

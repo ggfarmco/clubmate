@@ -36,7 +36,7 @@ const (
 	gateIntoDefault   = "default"
 	gateIntoBase      = "base"
 	baseRank          = 3
-	gateGraphDefault  = "fable-review"
+	gateGraphDefault  = "opus-review"
 	gateRoundsDefault = 2
 	gateIDPrefix      = "gt"
 	shortSha          = 10
@@ -362,7 +362,7 @@ func (st landReview) holding() bool {
 
 func (g gateConfig) migrated() gateConfig {
 	if g.Graph == "" {
-		g.Point, g.Into, g.Graph, g.Kind = gatePointLand, gateIntoAny, gateGraphDefault, ""
+		g.Point, g.Into, g.Graph, g.Kind = gatePointLand, gateIntoAny, gateKindReview, ""
 	}
 	return g
 }

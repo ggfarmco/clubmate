@@ -21,7 +21,7 @@ func TestHeldCardPostsOneNeedsYouNotification(t *testing.T) {
 
 	d.cardAtCap(t)
 
-	want := notePost{d.workspace, d.session, "Planner", "Fable review still asks for changes after 1 round · Accept the turn as done?", "needs-input"}
+	want := notePost{d.workspace, d.session, "Planner", "Opus review still asks for changes after 1 round · Accept the turn as done?", "needs-input"}
 	d.f.waitNotes(t, func(n []notePost) bool { return slices.Contains(n, want) })
 	testutil.Never(t, func() bool { return len(notesOf(d.f.notes(t), d.session)) > 1 }, quiet)
 }
@@ -42,7 +42,7 @@ func TestAnsweredLandCardWithdrawsItsNotification(t *testing.T) {
 	t.Parallel()
 	g := startGate(t)
 	req, _ := g.cardAtCap(t)
-	want := notePost{g.workspace, g.lander, g.f.session(t, g.workspace, g.lander).Title, "Fable review still asks for changes after 1 round · Land feat without another review?", "needs-input"}
+	want := notePost{g.workspace, g.lander, g.f.session(t, g.workspace, g.lander).Title, "Opus review still asks for changes after 1 round · Land feat without another review?", "needs-input"}
 	g.f.waitNotes(t, func(n []notePost) bool { return slices.Contains(n, want) })
 
 	g.answer(t, req, "leave")

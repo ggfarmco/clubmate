@@ -98,8 +98,8 @@ const (
 )
 
 var gateHelpFacts = [][2]string{
-	{"Holds", "an agent's git_land (Landing), its turn that ends done (Done) or its tool call (Tool call) that a gate matches waits until the gate's graph decides the change (Fable review, built in, by default)"},
-	{"Into", "which landings a gate holds: into the default branch, into the parent's branch (the branch Clubmate made it from), into any branch, or into branches like release/*; when several gates match, the most specific decides"},
+	{"Holds", "an agent's git_land (Landing), its turn that ends done (Done) or its tool call (Tool call) that a gate matches waits until the gate's graph decides the change (Opus review, built in, by default)"},
+	{"Into", "which landings a gate holds: into the default branch, into the parent's branch (the branch Clubmate made it from), into any branch, or into branches like release/* (such a gate also refuses an agent's plain git commit on any branch it matches, its own included); when several gates match, the most specific decides"},
 	{"Tool call", "matches an agent's tool call by the tool's name and its input: git push, gh pr create, or Custom… (a tool, then starts with, contains or regex); the agent waits inside the call while the graph runs, and changes refuse it with the findings as a message from the gate. It checks a cooperative agent, not a security boundary"},
 	{"Done", "matches top-level, child or AFK sessions and what they wrote (plans and specs, any file, nothing required, or files like a glob); until the graph approves, the turn is held: no done, no Needs you, no notification"},
 	{"Decided by", "a graph from the repo's main checkout, your own graphs or the built-in ones; the gate pins its content, and a changed file waits until you trust it on the gate's page"},
