@@ -35,11 +35,11 @@ func TestSidebarGroupsByStatus(t *testing.T) {
 		{ID: 1, Title: "Plan", Status: statusTodo, Priority: priorityNormal},
 		{ID: 2, Title: "Shipped", Status: statusDone, Priority: priorityNormal},
 	}
-	side := sidebarView(tasks, "", map[string]bool{statusDone: true}, 0, "", "", false)
+	side := sidebarView(tasks, "", map[string]bool{statusDone: true}, nil, 0, "", "", false)
 	assert.Contains(t, mustText(t, side.Children[0]), `"text":"3 open"`)
 	_, ok := findNode(side, "new")
 	assert.False(t, ok, "the New task field waits for + or cmd+n")
-	_, ok = findNode(sidebarView(tasks, "", nil, 0, "", "", true), "new")
+	_, ok = findNode(sidebarView(tasks, "", nil, nil, 0, "", "", true), "new")
 	assert.True(t, ok)
 	tree, ok := findNode(side, "tasks")
 	require.True(t, ok)
@@ -69,7 +69,7 @@ func TestSidebarFiltersByTag(t *testing.T) {
 		{ID: 3, Title: "Plain", Status: statusIdea, Priority: priorityNormal},
 		{ID: 4, Title: "Shipped", Status: statusDone, Priority: priorityNormal, Tags: []string{"phone", "old"}},
 	}
-	side := sidebarView(tasks, "", nil, 0, "audio", "", false)
+	side := sidebarView(tasks, "", nil, nil, 0, "audio", "", false)
 	tabs, ok := findNode(side, "tags")
 	require.True(t, ok)
 	assert.Equal(t, []sdui.Item{{ID: "all", Label: "All", Badge: "3"}, {ID: "tag:phone", Label: "phone", Badge: "2"}, {ID: "tag:audio", Label: "audio", Badge: "1"}}, tabs.Props["items"])
@@ -81,7 +81,7 @@ func TestSidebarFiltersByTag(t *testing.T) {
 	require.Len(t, groups[0].Children, 1)
 	assert.Equal(t, "1", groups[0].Children[0].ID)
 
-	_, ok = findNode(sidebarView(tasks[2:], "", nil, 0, "", "", false), "tags")
+	_, ok = findNode(sidebarView(tasks[2:], "", nil, nil, 0, "", "", false), "tags")
 	assert.False(t, ok)
 }
 
@@ -93,7 +93,7 @@ func TestSidebarSearch(t *testing.T) {
 		{ID: 12, Title: "Other", Status: statusTodo},
 	}
 	collapsed := map[string]bool{statusDone: true}
-	tree, ok := findNode(sidebarView(tasks, "", collapsed, 0, "audio", "mic", false), "tasks")
+	tree, ok := findNode(sidebarView(tasks, "", collapsed, nil, 0, "audio", "mic", false), "tasks")
 	require.True(t, ok)
 	groups := tree.Props["items"].([]sdui.TreeItem)
 	require.Len(t, groups, 2)
@@ -102,7 +102,7 @@ func TestSidebarSearch(t *testing.T) {
 	assert.True(t, groups[1].Expanded)
 	assert.Equal(t, "2", groups[1].Children[0].ID)
 
-	side := sidebarView(tasks, "", collapsed, 0, "", "nothing", false)
+	side := sidebarView(tasks, "", collapsed, nil, 0, "", "nothing", false)
 	_, ok = findNode(side, "tasks")
 	assert.False(t, ok)
 	_, ok = findNode(side, searchNode)
@@ -115,7 +115,7 @@ func TestSidebarTagsFitOneLine(t *testing.T) {
 		{ID: 2, Status: statusTodo, Tags: []string{"a", "b", "c"}},
 		{ID: 3, Status: statusTodo, Tags: []string{"a"}},
 	}
-	side := sidebarView(tasks, "", nil, 0, "d", "", false)
+	side := sidebarView(tasks, "", nil, nil, 0, "d", "", false)
 	tabs, ok := findNode(side, tagsNode)
 	require.True(t, ok)
 	var chips []string
@@ -127,7 +127,7 @@ func TestSidebarTagsFitOneLine(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, []sdui.Option{{Value: "", Label: "+2"}, {Value: "b", Label: "b 2"}, {Value: "c", Label: "c 2"}}, menu.Props["options"])
 	assert.Equal(t, actFilter, menu.Props["action"])
-	_, ok = findNode(sidebarView(tasks[2:], "", nil, 0, "", "", false), tagMenu)
+	_, ok = findNode(sidebarView(tasks[2:], "", nil, nil, 0, "", "", false), tagMenu)
 	assert.False(t, ok)
 }
 
@@ -438,7 +438,7 @@ func TestNumberQueryPinsExactTask(t *testing.T) {
 		{ID: 6010, Title: "Far", Status: statusTodo},
 	}
 	for _, query := range []string{"601", "#601"} {
-		tree, ok := findNode(sidebarView(tasks, "601", map[string]bool{statusDone: true}, 0, "", query, false), "tasks")
+		tree, ok := findNode(sidebarView(tasks, "601", map[string]bool{statusDone: true}, nil, 0, "", query, false), "tasks")
 		require.True(t, ok, query)
 		items := tree.Props["items"].([]sdui.TreeItem)
 		require.Len(t, items, 2, query)
@@ -453,11 +453,11 @@ func TestNumberQueryPinsExactTask(t *testing.T) {
 		require.Len(t, items[1].Children, 1)
 		assert.Equal(t, "590", items[1].Children[0].ID)
 	}
-	tree, ok := findNode(sidebarView(tasks, "", nil, 0, "ui", "601", false), "tasks")
+	tree, ok := findNode(sidebarView(tasks, "", nil, nil, 0, "ui", "601", false), "tasks")
 	require.True(t, ok, "a tag filter does not hide the pinned task")
 	assert.Len(t, tree.Props["items"].([]sdui.TreeItem), 1)
 
-	tree, ok = findNode(sidebarView(tasks, "", nil, 0, "", "999", false), "tasks")
+	tree, ok = findNode(sidebarView(tasks, "", nil, nil, 0, "", "999", false), "tasks")
 	require.True(t, ok)
 	items := tree.Props["items"].([]sdui.TreeItem)
 	require.Len(t, items, 1)
@@ -497,4 +497,41 @@ func TestWontDoOnlyFromItsOwnPath(t *testing.T) {
 	assert.Contains(t, statuses(shut), statusWontDo)
 	assert.Equal(t, 1, openCount([]Task{{Status: statusTodo}, {Status: statusDone}, {Status: statusWontDo}}))
 	assert.False(t, slices.ContainsFunc(taskMenu(Task{Status: statusDone}), func(m sdui.MenuEntry) bool { return m.Action == actCloseOpen }), "a done task offers no Won't do")
+}
+
+func TestSidebarStaysUnderNodeLimitAndKeepsSelected(t *testing.T) {
+	tasks := make([]Task, 0, 2000)
+	for i := range 2000 {
+		tasks = append(tasks, Task{ID: i + 1, Title: "Task", Status: []string{statusTodo, statusDone}[i%2], Priority: priorityNormal, ClaimedBy: "agt_a"})
+	}
+	side := sidebarView(tasks, "2000", nil, map[string]int{statusTodo: 9}, 0, "", "task", false)
+	require.NoError(t, isdui.Validate(side))
+	tree, ok := findNode(side, "tasks")
+	require.True(t, ok)
+	items := tree.Props["items"].([]sdui.TreeItem)
+	require.Len(t, items, 2)
+	assert.Equal(t, "1000", items[0].Detail)
+	assert.Equal(t, "1000", items[1].Detail)
+	assert.True(t, slices.ContainsFunc(items[1].Children, func(c sdui.TreeItem) bool { return c.ID == "2000" }))
+}
+
+func TestGroupShowsMoreRowAndPages(t *testing.T) {
+	tasks := make([]Task, 0, 250)
+	for i := range 250 {
+		tasks = append(tasks, Task{ID: i + 1, Title: "Task", Status: statusTodo, Priority: priorityNormal})
+	}
+	rows := func(pages map[string]int) []sdui.TreeItem {
+		tree, ok := findNode(sidebarView(tasks, "", nil, pages, 0, "", "", false), "tasks")
+		require.True(t, ok)
+		return tree.Props["items"].([]sdui.TreeItem)[0].Children
+	}
+	first := rows(nil)
+	require.Len(t, first, groupPage+1)
+	more := first[groupPage]
+	assert.Equal(t, moreRow+statusTodo, more.ID)
+	assert.Equal(t, "Show 100 more · 150 left", more.Label)
+	assert.True(t, more.Faint)
+	assert.True(t, more.Action)
+	last := rows(map[string]int{statusTodo: 2})
+	require.Len(t, last, 250)
 }

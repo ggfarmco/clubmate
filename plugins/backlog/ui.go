@@ -36,6 +36,7 @@ type workspaceUI struct {
 	render     sync.Mutex
 	selected   int
 	collapsed  map[string]bool
+	pages      map[string]int
 	formRev    int
 	fieldRev   int
 	sent       map[string][32]byte
@@ -68,7 +69,7 @@ func (b *backlog) workspace(workspaceID string) *workspaceUI {
 	defer b.mu.Unlock()
 	w, ok := b.ui[workspaceID]
 	if !ok {
-		w = &workspaceUI{collapsed: map[string]bool{statusDone: true, statusWontDo: true}, sent: map[string][32]byte{}}
+		w = &workspaceUI{collapsed: map[string]bool{statusDone: true, statusWontDo: true}, pages: map[string]int{}, sent: map[string][32]byte{}}
 		b.ui[workspaceID] = w
 	}
 	return w
@@ -154,7 +155,7 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 	if w.tagFilter != "" && tagCounts(tasks)[w.tagFilter] == 0 {
 		w.tagFilter = ""
 	}
-	selected, collapsed, rev, fieldRev, fieldErr, editing, prompt, filter, query, adding, linking, closing := w.selected, maps.Clone(w.collapsed), w.formRev, w.fieldRev, w.fieldError, w.editing, w.prompt, w.tagFilter, w.query, w.adding, w.linking, w.closing
+	selected, collapsed, pages, rev, fieldRev, fieldErr, editing, prompt, filter, query, adding, linking, closing := w.selected, maps.Clone(w.collapsed), maps.Clone(w.pages), w.formRev, w.fieldRev, w.fieldError, w.editing, w.prompt, w.tagFilter, w.query, w.adding, w.linking, w.closing
 	b.mu.Unlock()
 	var current *Task
 	byID := make(map[int]Task, len(tasks))
@@ -173,7 +174,7 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 		selectedID = strconv.Itoa(current.ID)
 	}
 	owners := b.ownerLabels(ctx, workspaceID, current)
-	if err := b.push(ctx, w, workspaceID, sidebarSlot, sidebarView(tasks, selectedID, collapsed, rev, filter, query, adding)); err != nil {
+	if err := b.push(ctx, w, workspaceID, sidebarSlot, sidebarView(tasks, selectedID, collapsed, pages, rev, filter, query, adding)); err != nil {
 		return err
 	}
 	var errs map[string]string
@@ -482,10 +483,19 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 	if item == missingRow {
 		return nil
 	}
+	if status, ok := strings.CutPrefix(item, moreRow); ok {
+		b.mu.Lock()
+		if ev.Action == "select" {
+			w.pages[status]++
+		}
+		b.mu.Unlock()
+		return nil
+	}
 	if status, ok := strings.CutPrefix(item, groupPrefix); ok {
 		b.mu.Lock()
 		if w.query == "" && (ev.Action == "expand" || ev.Action == "collapse") {
 			w.collapsed[status] = ev.Action == "collapse"
+			delete(w.pages, status)
 		}
 		b.mu.Unlock()
 		return nil

@@ -85,6 +85,11 @@ const (
 	attachField   = "attachText"
 	maxOpenName   = 32
 	lifecycleGap  = 12
+	groupPage     = 100
+	nodeBudget    = 4500
+	moreRow       = "more:"
+	moreLeft      = "Show %d more · %d left"
+	moreLast      = "Show %d more"
 	emptyText     = "Tasks are ideas and todos, for you or for an agent. Start agent hands a task to a session; it owns the task until it ends or you take it back."
 )
 
@@ -217,7 +222,7 @@ func newTaskForm(rev int) sdui.Node {
 	return form
 }
 
-func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formRev int, filter, query string, adding bool) sdui.Node {
+func sidebarView(tasks []Task, selected string, collapsed map[string]bool, pages map[string]int, formRev int, filter, query string, adding bool) sdui.Node {
 	head := sidebarHead(tasks)
 	if len(tasks) == 0 {
 		if adding {
@@ -244,6 +249,7 @@ func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formR
 		}
 	}
 	groups := make([]sdui.TreeItem, 0, len(groupOrder))
+	budget := nodeBudget
 	for _, status := range groupOrder {
 		rows := byStatus[status]
 		if len(rows) == 0 {
@@ -258,7 +264,7 @@ func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formR
 			Action:      true,
 		}
 		if g.Expanded {
-			g.Children = rows
+			g.Children = pageRows(rows, status, selected, groupPage*(1+pages[status]), &budget)
 		}
 		groups = append(groups, g)
 	}
@@ -277,6 +283,29 @@ func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formR
 		return sdui.VStack(append(top, sdui.Empty("No tasks match"))...)
 	}
 	return sdui.VStack(append(top, sdui.Scroll(sdui.Tree("tasks", groups, selected)))...)
+}
+
+func pageRows(rows []sdui.TreeItem, status, selected string, limit int, budget *int) []sdui.TreeItem {
+	shown := make([]sdui.TreeItem, 0, min(len(rows), limit)+1)
+	full := false
+	for _, row := range rows {
+		cost := 1 + len(row.Menu)
+		full = full || len(shown) >= limit || cost > *budget
+		if !full || row.ID == selected {
+			shown = append(shown, row)
+			*budget -= cost
+		}
+	}
+	left := len(rows) - len(shown)
+	if left == 0 {
+		return shown
+	}
+	label := fmt.Sprintf(moreLast, left)
+	if left > groupPage {
+		label = fmt.Sprintf(moreLeft, groupPage, left)
+	}
+	*budget--
+	return append(shown, sdui.TreeItem{ID: moreRow + status, Label: label, Faint: true, Action: true})
 }
 
 func taskItem(t Task) sdui.TreeItem {
