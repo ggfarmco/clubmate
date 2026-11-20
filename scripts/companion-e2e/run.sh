@@ -63,7 +63,8 @@ WORKSPACE="$(cm --json workspace create e2e --repo "$OUT/repo" | python3 -c 'imp
 cm command run agents.graph-trust graph=e2e >/dev/null || exit 1
 cm command run remote.set-push-relay url="http://127.0.0.1:$HELPER_PORT" token=e2e >/dev/null || exit 1
 
-UDID="$(xcrun simctl list devices | grep " $SIM (" | grep -oE '[0-9A-F-]{36}' | head -1)"
+scripts/sim.sh reap
+UDID="$(xcrun simctl list devices | grep " $SIM ("| grep -oE '[0-9A-F-]{36}' | head -1)"
 [[ -n "$UDID" ]] || UDID="$(xcrun simctl create "$SIM" "$SIM_TYPE")" || exit 1
 xcrun simctl shutdown "$UDID" 2>/dev/null
 xcrun simctl erase "$UDID" && xcrun simctl boot "$UDID" && xcrun simctl bootstatus "$UDID" >/dev/null || exit 1

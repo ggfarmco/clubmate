@@ -98,7 +98,8 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 1' INT TERM
 
-UDID="$(xcrun simctl list devices | grep -F " $SIM (" | grep -oE '[0-9A-F-]{36}' | head -1)"
+"$(dirname "$0")/../sim.sh" reap >&2
+UDID="$(xcrun simctl list devices | grep -F " $SIM ("| grep -oE '[0-9A-F-]{36}' | head -1)"
 if [[ -z "$UDID" ]]; then
   UDID="$(xcrun simctl create "$SIM" "iPhone 18 Pro" 2>/dev/null)" || { UDID=""; fail "cannot create simulator $SIM"; }
 fi
