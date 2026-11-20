@@ -1100,6 +1100,23 @@ final class CompanionUITests: XCTestCase {
         XCTAssertGreaterThan(header.staticTexts["Mac Studio"].frame.width, 60)
     }
 
+    func testForgettingTheMacFromItsDetailsReturnsToTheMacs() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-fixtures", Self.fixtures, "-latency", "20", "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-macs", "2", "-open", "mac"]
+        app.launch()
+        XCTAssertTrue(app.buttons["mac.connection"].waitForExistence(timeout: 10))
+        let forget = app.buttons["Forget this Mac"]
+        reveal(forget, in: app)
+        forget.tap()
+        app.buttons["Forget"].tap()
+        XCTAssertTrue(app.navigationBars["Macs"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Macs"].isHittable)
+        add(screenshot(app, "after-forget"))
+        XCTAssertFalse(app.staticTexts["Choose a Mac"].exists)
+        XCTAssertFalse(app.staticTexts["Move the state bucket to the new account"].exists)
+        XCTAssertTrue(app.staticTexts["MacBook Pro"].exists)
+    }
+
     func testKeepAwakeFromMacDetailsHoldsAndTurnsOff() {
         let app = launch(open: "mac")
         let state = app.staticTexts["mac.awake.state"]

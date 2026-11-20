@@ -247,13 +247,8 @@ struct MacDetailsView: View {
         .navigationTitle(tag.name)
         .confirmationDialog("Forget \(tag.name)?", isPresented: $forgetting, titleVisibility: .visible) {
             Button("Forget", role: .destructive) {
-                navigation.macDetails = nil
-                if navigation.sidebar?.computer == computerID {
-                    navigation.sidebar = nil
-                    navigation.detail = nil
-                }
+                navigation.forget(computerID)
                 try? model.remove(computerID)
-                navigation.arrange()
             }
         } message: {
             Text("This phone forgets the Mac and its access token. Revoke the device in Clubmate on the Mac to cut access there too.")

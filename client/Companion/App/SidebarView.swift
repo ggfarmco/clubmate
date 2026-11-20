@@ -67,7 +67,10 @@ struct SidebarView: View {
         .refreshable { model.reconnectAll() }
         .confirmationDialog("Remove \(removing?.name ?? "")?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible) {
             Button("Remove", role: .destructive) {
-                if let removing { try? model.remove(removing.id) }
+                if let removing {
+                    navigation.forget(removing.id)
+                    try? model.remove(removing.id)
+                }
                 removing = nil
             }
         } message: {

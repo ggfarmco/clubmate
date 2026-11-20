@@ -80,8 +80,8 @@ struct RootView: View {
             Text(pairing.failureMessage ?? "")
         }
         .sensoryFeedback(.success, trigger: pairing.paired)
-        .task { selectDefault() }
-        .onChange(of: model.computers) { _, _ in selectDefault() }
+        .task { selectDefault(open: true) }
+        .onChange(of: model.computers) { old, new in selectDefault(open: new.count > old.count) }
     }
 
     @ViewBuilder
@@ -125,11 +125,11 @@ struct RootView: View {
         return PluginContext(model: model, connection: connection, navigation: navigation)
     }
 
-    private func selectDefault() {
+    private func selectDefault(open: Bool) {
         if navigation.needsYouList || navigation.macDetails != nil || navigation.pairingSheetUp { return }
         if let item = navigation.sidebar, model.connection(item.computer) != nil { return }
         navigation.sidebar = nil
-        guard model.computers.count == 1, let computer = model.computers.first else { return }
+        guard open, model.computers.count == 1, let computer = model.computers.first else { return }
         navigation.sidebar = SidebarItem(computer: computer.id, plugin: AgentsPluginInfo.id)
         navigation.preferredColumn = .content
     }

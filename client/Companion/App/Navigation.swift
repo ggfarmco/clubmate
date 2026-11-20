@@ -129,6 +129,15 @@ final class AppNavigation {
         preferredColumn = .content
     }
 
+    func forget(_ computer: String) {
+        if macDetails == computer { macDetails = nil }
+        if sidebar?.computer == computer {
+            sidebar = nil
+            detail = nil
+        }
+        arrange()
+    }
+
     func arrange() {
         let chosen = sidebar != nil || macDetails != nil || needsYouList
         switch layout.columns(chosen: chosen, sidebarHidden: sidebarHidden) {
