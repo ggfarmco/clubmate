@@ -96,6 +96,15 @@ func TestLandDefaultsIntoBase(t *testing.T) {
 	assert.Empty(t, storedBase(t, h, repo, "B"))
 }
 
+func TestLandRefusesIntoInAnotherCase(t *testing.T) {
+	repo, feat := featWorktree(t)
+	h, id := open(t, repo)
+
+	err := runCommand(t, h, id, "git.land", map[string]string{"path": feat, "into": "MAIN", "message": "feat: b"}, nil)
+
+	require.ErrorContains(t, err, "MAIN is main")
+}
+
 func TestLandKeepsTheWorktreesBaseAfterARename(t *testing.T) {
 	repo := committedRepo(t)
 	other := filepath.Join(repo, ".worktrees", "other")

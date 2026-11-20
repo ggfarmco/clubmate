@@ -609,6 +609,14 @@ func (a *app) dropVerdict(gate, key string) error {
 	return err
 }
 
+func (a *app) dropVerdictRetry(gate, key string) error {
+	err := a.dropVerdict(gate, key)
+	if err != nil {
+		err = a.dropVerdict(gate, key)
+	}
+	return err
+}
+
 func (a *app) approveCall(r holdRef, key string) {
 	a.decideCall(r, key, false)
 }
@@ -1382,7 +1390,7 @@ func (a *app) releaseCall(s *session, c *heldCall) {
 	}
 	var undropped []string
 	for gate, d := range decided {
-		if a.dropVerdict(gate, d.Hold.Key) != nil && a.dropVerdict(gate, d.Hold.Key) != nil {
+		if a.dropVerdictRetry(gate, d.Hold.Key) != nil {
 			undropped = append(undropped, gate)
 		}
 	}

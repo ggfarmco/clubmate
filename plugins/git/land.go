@@ -36,6 +36,7 @@ var (
 	errLandTree      = errors.New("the squashed result differs from the reviewed one; call git_land again")
 	errLandHook      = errors.New("the repo's commit hook changed the committed tree")
 	errNoLandTarget  = errors.New("no worktree has the target branch checked out")
+	errLandIntoCase  = errors.New("into names a branch in a different case; pass its exact name")
 )
 
 type landGateCall struct {
@@ -133,6 +134,9 @@ func planLand(ctx context.Context, a *app, c call) (*landPlan, error) {
 		if p.into, p.note, err = a.defaultInto(ctx, c.h, f, own, mode); err != nil {
 			return nil, err
 		}
+	}
+	if err := exactInto(ctx, own.Path, p.into); err != nil {
+		return nil, err
 	}
 	i := -1
 	for j, t := range f.Trees {
@@ -338,6 +342,27 @@ func (p *landPlan) cleanup(ctx context.Context, a *app, h *pluginsdk.Host, works
 		res.Note = strings.TrimSpace(res.Note + " Kept the branch: " + err.Error())
 	}
 	return res
+}
+
+func exactInto(ctx context.Context, dir, into string) error {
+	out, err := run(ctx, dir, "for-each-ref", "--format=%(refname)", headsPrefix)
+	if err != nil {
+		return err
+	}
+	other := ""
+	for line := range strings.Lines(string(out)) {
+		branch := strings.TrimPrefix(strings.TrimSpace(line), headsPrefix)
+		if branch == into {
+			return nil
+		}
+		if strings.EqualFold(branch, into) {
+			other = branch
+		}
+	}
+	if other != "" {
+		return fmt.Errorf("%w: %s is %s", errLandIntoCase, into, other)
+	}
+	return nil
 }
 
 func revParse(ctx context.Context, dir, rev string) (string, error) {

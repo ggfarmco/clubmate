@@ -444,17 +444,17 @@ func intoRank(match, into, def, base string) int {
 	case match == gateIntoAny:
 		return 1
 	case match == gateIntoDefault:
-		if def == "" || into == def {
+		if def == "" || strings.EqualFold(into, def) {
 			return 2
 		}
 	case match == gateIntoBase:
-		if base != "" && into == base {
+		if base != "" && strings.EqualFold(into, base) {
 			return baseRank
 		}
-	case match == into:
+	case strings.EqualFold(match, into):
 		return 5
 	case isGlob(match):
-		if landgate.Match(match, into) {
+		if landgate.Match(strings.ToLower(match), strings.ToLower(into)) {
 			return 4
 		}
 	}

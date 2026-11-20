@@ -17,6 +17,18 @@ func TestIntoRankOrdersMatches(t *testing.T) {
 	assert.Equal(t, 2, intoRank("default", "main", "", ""))
 }
 
+func TestIntoRankIgnoresCase(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, 5, intoRank("main", "MAIN", "main", ""))
+	assert.Equal(t, 2, intoRank("default", "MAIN", "main", ""))
+	assert.Equal(t, baseRank, intoRank("base", "Feat", "main", "feat"))
+	assert.Equal(t, 4, intoRank("release/*", "RELEASE/1.0", "main", ""))
+
+	a := &app{registry: registry{sessions: map[string]*session{}}}
+	a.sessions["s"] = newSession(record{ID: "s", Bases: []string{"feat"}}, nil, true, func(string, bool) {})
+	assert.True(t, a.sessionBase("s", "FEAT"))
+}
+
 func TestIntoGlobDepth(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, 0, intoRank("release/*", "release/1.0/hotfix", "main", ""))

@@ -2,7 +2,6 @@ package main
 
 import (
 	"cmp"
-	"context"
 	"errors"
 	"fmt"
 	"path"
@@ -154,10 +153,6 @@ func toolMatchWords(g gateConfig) string {
 		return fmt.Sprintf(toolWordsRegex, g.Tool, what, g.Text)
 	}
 	return fmt.Sprintf(toolWordsHas, g.Tool, what, g.Text)
-}
-
-func (a *app) toolRules(ctx context.Context, primary string) []toolgate.Rule {
-	return toolRulesOf(a.gatesOrLast(ctx), primary)
 }
 
 func toolRulesOf(gates []gateConfig, primary string) []toolgate.Rule {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"slices"
+	"strings"
 	"sync"
 )
 
@@ -127,5 +128,5 @@ func (a *app) keepBase(id, base string) {
 }
 
 func (a *app) sessionBase(id, into string) bool {
-	return slices.Contains(a.lineageBases(record{ID: id}), into)
+	return slices.ContainsFunc(a.lineageBases(record{ID: id}), func(b string) bool { return strings.EqualFold(b, into) })
 }

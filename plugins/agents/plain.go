@@ -12,6 +12,7 @@ const (
 func (a *app) plainEnabled(ctx context.Context) bool {
 	on := true
 	if _, err := a.host.StorageGet(ctx, plainKey, &on); err != nil {
+		logError("read the plain language setting", err)
 		return true
 	}
 	return on
