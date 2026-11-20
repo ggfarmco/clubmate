@@ -390,13 +390,18 @@ func TestStopClosesTheSessionsOtherCards(t *testing.T) {
 		f.callChanges(t, workspace, f.callReviewer(t, workspace, session, g, ""), "x")
 	}
 	cards := f.waitRecord(t, workspace, session, "two cards", func(r record) bool { return len(r.Pending) == 2 }).Pending
-	raw, _, err := f.h.KV.Get(t.Context(), "agents", "session/"+workspace+"/"+session)
-	require.NoError(t, err)
+	var raw []byte
+	testutil.Eventually(t, func() bool {
+		stored, _, err := f.h.KV.Get(t.Context(), "agents", "session/"+workspace+"/"+session)
+		require.NoError(t, err)
+		raw = stored
+		return strings.Contains(string(raw), cards[0]) && strings.Contains(string(raw), cards[1])
+	}, wait)
 	var rec map[string]any
 	require.NoError(t, json.Unmarshal(raw, &rec))
 	rec["landReviews"] = []map[string]any{{"into": "main", "source": "feat", "repo": repo, "request": "lg_0123456789abcdef", "reqOld": "a", "reqTree": "b", "since": time.Now().UTC()}}
 	rec["updatedAt"] = time.Now().Add(time.Hour).UTC()
-	raw, err = json.Marshal(rec)
+	raw, err := json.Marshal(rec)
 	require.NoError(t, err)
 	require.NoError(t, f.h.KV.Set(t.Context(), "agents", "session/"+session, raw))
 	f.restartAgents(t, workspace)
