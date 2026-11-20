@@ -34,6 +34,7 @@ const (
 	minThumbSide      = 64
 	maxThumbSide      = 1024
 	maxThumbs         = 64
+	maxThumbBytes     = 32 << 20
 	jpegQuality       = 85
 )
 
@@ -68,6 +69,7 @@ type thumbCache struct {
 	shrink sync.Mutex
 	items  map[thumbKey]imageResult
 	order  []thumbKey
+	bytes  int
 }
 
 type fitFunc func(w, h int) (int, int)
@@ -135,7 +137,7 @@ func (c *thumbCache) image(path string, side int) (imageResult, error) {
 	if res, ok := c.get(key); ok {
 		return res, nil
 	}
-	dst, _, ok := scaleImage(data, thumbFit(side))
+	dst, _, ok := scaleImage(data, thumbFit(side), false)
 	if !ok {
 		return encodeResult(data, mime), nil
 	}
@@ -162,16 +164,23 @@ func (c *thumbCache) get(key thumbKey) (imageResult, bool) {
 }
 
 func (c *thumbCache) put(key thumbKey, res imageResult) {
+	if len(res.Data) > maxThumbBytes {
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.items == nil {
 		c.items = map[thumbKey]imageResult{}
 	}
-	if _, ok := c.items[key]; !ok {
+	if old, ok := c.items[key]; ok {
+		c.bytes -= len(old.Data)
+	} else {
 		c.order = append(c.order, key)
 	}
 	c.items[key] = res
-	for len(c.order) > maxThumbs {
+	c.bytes += len(res.Data)
+	for len(c.order) > maxThumbs || c.bytes > maxThumbBytes {
+		c.bytes -= len(c.items[c.order[0]].Data)
 		delete(c.items, c.order[0])
 		c.order = c.order[1:]
 	}
@@ -190,7 +199,7 @@ func attachedImage(path string) (attachment, error) {
 	if err != nil {
 		return attachment{}, err
 	}
-	if dst, format, ok := scaleImage(data, longFit(attachedImageSide)); ok {
+	if dst, format, ok := scaleImage(data, longFit(attachedImageSide), true); ok {
 		if out, outMime, err := encodeImage(dst, format != "jpeg"); err == nil {
 			data, mime = out, outMime
 		}
@@ -277,7 +286,7 @@ func longFit(side int) fitFunc {
 	}
 }
 
-func scaleImage(data []byte, fit fitFunc) (*image.RGBA, string, bool) {
+func scaleImage(data []byte, fit fitFunc, reorient bool) (*image.RGBA, string, bool) {
 	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil || cfg.Width*cfg.Height > maxShrinkPixels {
 		return nil, "", false
@@ -288,7 +297,7 @@ func scaleImage(data []byte, fit fitFunc) (*image.RGBA, string, bool) {
 		w, h = h, w
 	}
 	tw, th := fit(w, h)
-	if tw >= w && th >= h {
+	if tw >= w && th >= h && !(reorient && orientation >= 2) {
 		return nil, "", false
 	}
 	src, format, err := image.Decode(bytes.NewReader(data))

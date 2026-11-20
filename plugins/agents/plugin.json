@@ -1323,7 +1323,7 @@
             },
             "older": {
               "type": "boolean",
-              "description": "With since, the reply also holds the older sessions. Without it, a reply with since leaves out every older session, a delta puts the id of each changed session that is now older in removed, and every reply has olderCount: the number of older root trees you can see that are not hidden (left out at 0). Fetch the older sessions with agents.sessions-older. A cursor is for one mode: do not use a cursor from a call with older true in a call without it, or the opposite."
+              "description": "With since, the reply also holds the older sessions. Without it, a reply with since leaves out every older session, a delta puts the id of each changed session that is now older in removed, and every reply has olderCount: the number of older root trees you can see that are not hidden (left out at 0). agents.sessions-older pages them for the phone; an agent passes older true here. A cursor is for one mode: do not use a cursor from a call with older true in a call without it, or the opposite."
             }
           }
         }
@@ -1408,7 +1408,7 @@
         "title": "Agent image",
         "hidden": true,
         "remote": true,
-        "description": "An image an agent message of the session names (an images entry of agents.transcript), for clients that can't read the Mac's files. Returns {mimeType, data} with data base64; fails for any other path and for files over 8 MiB. Non-destructive.",
+        "description": "An image an agent message of the session names (an images entry of agents.transcript), for clients that can't read the Mac's files. Returns {mimeType, data} with data base64; fails for any other path and for files over 8 MiB. The optional side (shorter side in px, clamped 64–1024) returns a reduced copy turned upright, and the reply has scaled: true when the image was shrunk. Non-destructive.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session whose agent message names the image."},

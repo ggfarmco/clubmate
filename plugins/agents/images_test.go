@@ -180,6 +180,39 @@ func TestRotatedJPEGThumbIsUpright(t *testing.T) {
 	assert.Equal(t, [2]int{200, 400}, [2]int{ref.Width, ref.Height})
 }
 
+func TestThumbCacheStaysWithinByteBudget(t *testing.T) {
+	t.Parallel()
+	var c thumbCache
+	big := imageResult{Data: strings.Repeat("a", maxThumbBytes/2+1)}
+	c.put(thumbKey{path: "a"}, big)
+	c.put(thumbKey{path: "b"}, big)
+	c.put(thumbKey{path: "huge"}, imageResult{Data: strings.Repeat("a", maxThumbBytes+1)})
+
+	_, hasA := c.get(thumbKey{path: "a"})
+	_, hasB := c.get(thumbKey{path: "b"})
+	_, hasHuge := c.get(thumbKey{path: "huge"})
+	assert.False(t, hasA)
+	assert.True(t, hasB)
+	assert.False(t, hasHuge)
+	assert.LessOrEqual(t, c.bytes, maxThumbBytes)
+}
+
+func TestAttachedSmallRotatedJPEGIsUpright(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "photo.jpg")
+	require.NoError(t, os.WriteFile(path, exifJPEG(t, solidImage(400, 200, color.RGBA{R: 255, A: 255}), 6), 0o600))
+
+	att, err := attachedImage(path)
+	require.NoError(t, err)
+
+	data, err := base64.StdEncoding.DecodeString(att.Data)
+	require.NoError(t, err)
+	img, err := jpeg.Decode(bytes.NewReader(data))
+	require.NoError(t, err)
+	assert.Equal(t, image.Rect(0, 0, 200, 400), img.Bounds())
+	assert.Equal(t, 1, exifOrientation(data))
+}
+
 func namingApp(t *testing.T, dir string, paths ...string) *app {
 	t.Helper()
 	text := "Look:"
