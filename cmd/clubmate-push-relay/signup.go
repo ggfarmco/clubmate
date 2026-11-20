@@ -18,8 +18,9 @@ const (
 	maxSignupBody  = 1 << 10
 	maxSelfSigned  = 20_000
 	newKeysBucket  = "new"
-	newKeysPerHour = 50
+	newKeysPerHour = 50.0
 	newKeysBurst   = 300
+	maxSignupWait  = 24 * time.Hour
 )
 
 var (
@@ -132,17 +133,13 @@ func (r *relay) postMac(w http.ResponseWriter, req *http.Request) {
 		if !fresh {
 			return r.devices.ensure(name)
 		}
-		if wait := r.signup.newKeys.wait(newKeysBucket); wait > 0 {
-			return &signupRefusal{status: http.StatusTooManyRequests, err: errTooManySignup, retry: wait}
-		}
 		if self >= r.signup.cap {
 			return &signupRefusal{status: http.StatusServiceUnavailable, err: errSignupClosed}
 		}
-		if err := r.devices.set(name, nil); err != nil {
-			return err
+		if !r.signup.newKeys.allow(newKeysBucket) {
+			return &signupRefusal{status: http.StatusTooManyRequests, err: errTooManySignup, retry: r.signup.newKeys.wait(newKeysBucket)}
 		}
-		r.signup.newKeys.allow(newKeysBucket)
-		return nil
+		return r.devices.set(name, nil)
 	})
 	r.dropBindings(pruned)
 	if ref, ok := errors.AsType[*signupRefusal](err); ok {
@@ -199,5 +196,8 @@ func (l *limiter) wait(key string) time.Duration {
 	if b.tokens >= 1 {
 		return 0
 	}
-	return time.Duration((1 - b.tokens) / l.rate * float64(time.Second))
+	if l.rate <= 0 {
+		return maxSignupWait
+	}
+	return min(maxSignupWait, time.Duration((1-b.tokens)/l.rate*float64(time.Second)))
 }

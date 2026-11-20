@@ -116,6 +116,14 @@ func TestSignupRefusals(t *testing.T) {
 			res, _ = f.signup(t, newKey(t, 1))
 			return res
 		}, http.StatusTooManyRequests},
+		{"global new-key budget refills each hour", func(t *testing.T, f *signupFixture) *httptest.ResponseRecorder {
+			f.relay.signup.newKeys = newLimiter(newKeysPerHour/3600, 1, f.relay.now)
+			res, _ := f.signup(t, f.key)
+			require.Equal(t, http.StatusCreated, res.Code)
+			f.now = f.now.Add(time.Hour / newKeysPerHour)
+			res, _ = f.signup(t, newKey(t, 1))
+			return res
+		}, http.StatusCreated},
 		{"cap of self-signed entries", func(t *testing.T, f *signupFixture) *httptest.ResponseRecorder {
 			f.relay.signup.cap = 1
 			res, _ := f.signup(t, f.key)
