@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
 )
 
@@ -87,7 +88,7 @@ func TestOlderPagesHoldWholeUnitsNewestFirstAndKeepTheirPlaceWhenAUnitEnters(t *
 	require.NoError(t, err)
 	assert.Equal(t, []string{"a", "a1", "b"}, ids(first))
 	assert.Equal(t, 4, count)
-	assert.Equal(t, 4, olderCount(infos))
+	assert.Equal(t, 4, olderCount(pluginsdk.CommandRun{}, infos))
 
 	infos = append(infos, row("z", "", 7))
 	setOlder(infos, at(10), nil)
@@ -98,4 +99,16 @@ func TestOlderPagesHoldWholeUnitsNewestFirstAndKeepTheirPlaceWhenAUnitEnters(t *
 
 	_, _, _, err = olderPage(infos, "nope", 2)
 	assert.ErrorIs(t, err, errOlderCursor)
+}
+
+func TestAUnitWithAHiddenRootIsNotShownAsOlder(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	old := now.Add(-2 * time.Hour)
+	recs := []record{
+		{ID: "plain", Status: statusClosed, UpdatedAt: old},
+		{ID: "reviewer", Status: statusClosed, UpdatedAt: old, GateFor: &gateFor{Lander: "gone"}},
+		{ID: "child", Status: statusClosed, UpdatedAt: old, lineage: lineage{ParentSession: "reviewer"}},
+	}
+	assert.Equal(t, map[string]string{"plain": "plain"}, shownUnits(recs, now.Add(-time.Hour), nil))
 }

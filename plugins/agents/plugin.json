@@ -1376,7 +1376,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Read a session's transcript from Clubmate's own log: {session, modes, configOptions, advisor?, usage?, commands, turns:[{turn, checkpointSha, stopReason, commits}], entries:[{kind, id, turn, at?, ...}], cursor, delta?}. kind is user, agent, thought, tool, plan, permission, elicitation, notice, compaction or openItems. at is when the entry began (RFC 3339); a permission or elicitation entry also has answeredAt once answered. To read what a session did in its latest turn, pass last=true and compact=true. Non-destructive.",
+        "description": "Read a session's transcript from Clubmate's own log: {session, modes, configOptions, advisor?, usage?, commands, turns:[{turn, checkpointSha, stopReason, commits}], entries:[{kind, id, turn, at?, ...}], cursor, headerRev, delta?}. A delta reply to a caller that sent headerRev may leave out modes, configOptions, commands and turns and list them in kept; the caller keeps its own copy of each. kind is user, agent, thought, tool, plan, permission, elicitation, notice, compaction or openItems. at is when the entry began (RFC 3339); a permission or elicitation entry also has answeredAt once answered. To read what a session did in its latest turn, pass last=true and compact=true. Non-destructive.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},

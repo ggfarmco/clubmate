@@ -247,9 +247,8 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	kids := kidsOf(recs)
 	groups := groupKeys(recs, home)
 	infos := a.infos(workspaceID)
-	if a.olderAfter > 0 {
-		setOlder(infos, time.Now().Add(-a.olderAfter), liveRunIDs(a.graphs.Runs(workspaceID)))
-	}
+	runs := a.graphs.Runs(workspaceID)
+	a.setOlderIn(infos, workspaceID, runs)
 	older := map[string]bool{}
 	for i := range infos {
 		if infos[i].Older {
@@ -268,7 +267,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	recs = slices.DeleteFunc(recs, func(rec record) bool { return older[rec.ID] && !show[rec.ID] })
 	rows := make([]sessionRow, 0, len(recs))
 	needs := a.runNeeds.byRun(workspaceID)
-	graphs := a.graphState(ctx, workspaceID, infos)
+	graphs := a.graphState(ctx, workspaceID, infos, runs)
 	infoByID := make(map[string]sessionInfo, len(infos))
 	for _, info := range infos {
 		infoByID[info.ID] = info
@@ -816,10 +815,7 @@ func (a *app) selectSession(ctx context.Context, workspaceID, sid string) error 
 }
 
 func (a *app) older(workspaceID, sid string) bool {
-	if a.olderAfter <= 0 {
-		return false
-	}
-	_, ok := olderUnits(recordRefs(a.list(workspaceID)), time.Now().Add(-a.olderAfter), liveRunIDs(a.graphs.Runs(workspaceID)))[sid]
+	_, ok := a.olderShown(workspaceID, a.list(workspaceID))[sid]
 	return ok
 }
 

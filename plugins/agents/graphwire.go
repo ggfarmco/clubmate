@@ -87,7 +87,7 @@ type graphState struct {
 	now   time.Time
 }
 
-func (a *app) graphState(ctx context.Context, workspace string, infos []sessionInfo) graphState {
+func (a *app) graphState(ctx context.Context, workspace string, infos []sessionInfo, runs []graphs.RunSnapshot) graphState {
 	byID := make(map[string]sessionInfo, len(infos))
 	var service []sessionInfo
 	asking := 0
@@ -108,7 +108,7 @@ func (a *app) graphState(ctx context.Context, workspace string, infos []sessionI
 	}
 	sortGateRows(rows)
 	defs := a.graphs.Definitions(ctx, workspace)
-	return graphState{runs: runRows(a.graphs.Runs(workspace), byID), dock: dockRows(service, gateCounts(rows, asking), defs), defs: defs, gates: rows, now: time.Now()}
+	return graphState{runs: runRows(runs, byID), dock: dockRows(service, gateCounts(rows, asking), defs), defs: defs, gates: rows, now: time.Now()}
 }
 
 func (st graphState) plus(open string) sidebarPlus {

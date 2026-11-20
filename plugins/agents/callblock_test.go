@@ -194,3 +194,22 @@ func TestQueuedGateMessageTouchesItsCallAndCarriesTitles(t *testing.T) {
 	assert.Equal(t, "From the gate · shop · git push · round 1 of 2 · changes", titled(m).Groups[0].Title)
 	assert.Empty(t, m.Groups[0].Title)
 }
+
+func TestGateUnderCallsMovesAGateMessageBelowItsCallOnly(t *testing.T) {
+	t.Parallel()
+	call := &entry{Kind: entryTool, ID: "t1", Turn: 2}
+	other := &entry{Kind: entryAgent, Turn: 3}
+	gate := &entry{Kind: entryUser, Turn: 5, Gate: &gateMessage{Call: "t1"}}
+	loose := &entry{Kind: entryUser, Turn: 5, Gate: &gateMessage{Call: "gone"}}
+
+	got := gateUnderCalls([]*entry{call, other, gate, loose})
+	require.Len(t, got, 4)
+	assert.Same(t, call, got[0])
+	assert.Equal(t, 2, got[1].Turn)
+	assert.Equal(t, "t1", got[1].Gate.Call)
+	assert.Same(t, other, got[2])
+	assert.Same(t, loose, got[3])
+
+	plain := []*entry{call, other}
+	assert.Equal(t, plain, gateUnderCalls(plain))
+}

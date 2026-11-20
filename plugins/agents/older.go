@@ -50,7 +50,7 @@ func (a *app) sessionsOlderCommand(ctx context.Context, cmd pluginsdk.CommandRun
 	if args.Limit > 0 {
 		limit = min(args.Limit, olderPageMax)
 	}
-	infos := visibleInfos(cmd, a.listInfos(ctx, cmd.WorkspaceID, home))
+	infos := visibleInfos(cmd, a.listInfos(ctx, cmd.WorkspaceID, home, nil))
 	rows, next, count, err := olderPage(infos, args.Before, limit)
 	if err != nil {
 		return nil, err
@@ -103,14 +103,50 @@ func olderPage(infos []sessionInfo, before string, limit int) ([]sessionInfo, st
 	return rows, next, len(units), nil
 }
 
-func olderCount(infos []sessionInfo) int {
+func olderCount(cmd pluginsdk.CommandRun, infos []sessionInfo) int {
 	n := 0
-	for _, info := range infos {
-		if info.Older && info.ID == info.olderRoot && !info.Hidden {
+	for i := range infos {
+		info := &infos[i]
+		if info.Older && info.ID == info.olderRoot && !info.Hidden && !hiddenFrom(cmd, info.record) {
 			n++
 		}
 	}
 	return n
+}
+
+func (a *app) olderInputs(workspaceID string, runs []graphs.RunSnapshot) (time.Time, map[string]bool, bool) {
+	if a.olderAfter <= 0 {
+		return time.Time{}, nil, false
+	}
+	if runs == nil {
+		runs = a.graphs.Runs(workspaceID)
+	}
+	return time.Now().Add(-a.olderAfter), liveRunIDs(runs), true
+}
+
+func (a *app) setOlderIn(infos []sessionInfo, workspaceID string, runs []graphs.RunSnapshot) {
+	if cutoff, live, ok := a.olderInputs(workspaceID, runs); ok {
+		setOlder(infos, cutoff, live)
+	}
+}
+
+func (a *app) olderShown(workspaceID string, recs []record) map[string]string {
+	cutoff, live, ok := a.olderInputs(workspaceID, nil)
+	if !ok {
+		return nil
+	}
+	return shownUnits(recs, cutoff, live)
+}
+
+func shownUnits(recs []record, cutoff time.Time, live map[string]bool) map[string]string {
+	units := olderUnits(recordRefs(recs), cutoff, live)
+	nest := reviewNests(recs)
+	for id, root := range units {
+		if n, ok := nest[root]; ok && !n.Shown {
+			delete(units, id)
+		}
+	}
+	return units
 }
 
 func olderUnits(recs []*record, cutoff time.Time, liveRuns map[string]bool) map[string]string {

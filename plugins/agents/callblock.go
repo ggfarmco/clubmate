@@ -352,6 +352,11 @@ func doneGateMessage(text string) *gateMessage {
 }
 
 func gateUnderCalls(shown []*entry) []*entry {
+	if !slices.ContainsFunc(shown, func(en *entry) bool {
+		return en.Kind == entryUser && en.Gate != nil && en.Gate.Call != ""
+	}) {
+		return shown
+	}
 	at := map[string]int{}
 	for i, en := range shown {
 		if en.Kind == entryTool {

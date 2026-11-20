@@ -11,6 +11,7 @@ import (
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/agents/graphs"
 )
 
 const (
@@ -438,12 +439,16 @@ func (a *app) sessionsCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 	if err != nil && args.Since != nil {
 		return nil, fmt.Errorf("sessions: workspace home: %w", err)
 	}
-	infos := a.listInfos(ctx, cmd.WorkspaceID, home)
+	var runs []graphs.RunSnapshot
+	if args.Since != nil {
+		runs = a.graphs.Runs(cmd.WorkspaceID)
+	}
+	infos := a.listInfos(ctx, cmd.WorkspaceID, home, runs)
 	if args.Since == nil {
 		return onlySession(visibleInfos(cmd, infos), args.Session), nil
 	}
-	st := a.graphState(ctx, cmd.WorkspaceID, infos)
-	count := olderCount(visibleInfos(cmd, slices.Clone(infos)))
+	st := a.graphState(ctx, cmd.WorkspaceID, infos, runs)
+	count := olderCount(cmd, infos)
 	page := a.sessionsPage(ctx, cmd.WorkspaceID, infos, st, *args.Since, args.Lean, args.Older || args.Session != "")
 	page.Sessions = onlySession(visibleInfos(cmd, page.Sessions), args.Session)
 	page.OlderCount = count
@@ -453,16 +458,14 @@ func (a *app) sessionsCommand(ctx context.Context, cmd pluginsdk.CommandRun, arg
 	return page, nil
 }
 
-func (a *app) listInfos(ctx context.Context, workspaceID, home string) []sessionInfo {
+func (a *app) listInfos(ctx context.Context, workspaceID, home string, runs []graphs.RunSnapshot) []sessionInfo {
 	infos := a.infos(workspaceID)
 	setOrder(infos, home)
 	setListFilters(infos, a.runNeeds.byRun(workspaceID))
 	setGroupLabels(infos, func(worktree string) string {
 		return branchLabel(a.branches.name(ctx, workspaceID, worktree))
 	})
-	if a.olderAfter > 0 {
-		setOlder(infos, time.Now().Add(-a.olderAfter), liveRunIDs(a.graphs.Runs(workspaceID)))
-	}
+	a.setOlderIn(infos, workspaceID, runs)
 	return infos
 }
 
@@ -732,10 +735,7 @@ func (a *app) searchCommand(_ context.Context, cmd pluginsdk.CommandRun, args se
 	all := a.list(cmd.WorkspaceID)
 	recs := slices.DeleteFunc(slices.Clone(all), func(rec record) bool { return hiddenFrom(cmd, rec) })
 	out := slices.Clone(a.searchIn(recs, args.Query))
-	if a.olderAfter <= 0 {
-		return out, nil
-	}
-	older := olderUnits(recordRefs(all), time.Now().Add(-a.olderAfter), liveRunIDs(a.graphs.Runs(cmd.WorkspaceID)))
+	older := a.olderShown(cmd.WorkspaceID, all)
 	for i, r := range out {
 		_, out[i].Older = older[r.Session]
 	}
