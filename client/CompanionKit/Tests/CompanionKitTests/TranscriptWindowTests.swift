@@ -37,6 +37,12 @@ final class TranscriptWindowTests: XCTestCase {
         XCTAssertEqual(window.skip(grown), 50)
     }
 
+    func testTheBottomCountsTheTopInset() {
+        XCTAssertTrue(TranscriptWindow.atBottom(offset: 8264, insetTop: 184, container: 573, content: 9022))
+        XCTAssertFalse(TranscriptWindow.atBottom(offset: 8100, insetTop: 184, container: 573, content: 9022))
+        XCTAssertTrue(TranscriptWindow.atBottom(offset: -733, insetTop: 733, container: 573, content: 24))
+    }
+
     func testAShorterRefetchFallsBackToTheLastRows() throws {
         var window = TranscriptWindow()
         window.update(count: 300, atBottom: true)

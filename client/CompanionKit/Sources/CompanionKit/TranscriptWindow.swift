@@ -7,6 +7,10 @@ public struct TranscriptWindow: Sendable, Equatable {
 
     public init() {}
 
+    public static func atBottom(offset: Double, insetTop: Double, container: Double, content: Double) -> Bool {
+        offset + insetTop + container >= content - 80
+    }
+
     public func skip(_ rows: [TranscriptRow]) -> Int {
         var skip = hidden.flatMap { $0 < rows.count ? $0 : nil } ?? max(0, rows.count - Self.size)
         if skip > 0, rows[skip].isTools, rows[skip - 1].isPlan { skip -= 1 }

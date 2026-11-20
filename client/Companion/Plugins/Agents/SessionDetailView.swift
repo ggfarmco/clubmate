@@ -30,7 +30,7 @@ struct SessionDetailView: View {
     @State private var reviewing: LandCard?
     @State private var archiving = false
     @State private var window = TranscriptWindow()
-    @State private var atBottom = true
+    @State private var atBottom = ScrollFlag()
     @State private var draftSeen: Int?
     @State private var showingAsides = false
     @State private var pickedAside: String?
@@ -41,6 +41,12 @@ struct SessionDetailView: View {
     @State private var foldingOpen = false
 
     private static let pairedWidth = 520.0
+
+    private func updateWindow(count: Int, atBottom: Bool) {
+        var next = window
+        next.update(count: count, atBottom: atBottom)
+        if next != window { window = next }
+    }
 
     private var mode: SessionRole {
         role == .plain && store.session(sessionID)?.isAside == true ? .asideFull : role
@@ -218,10 +224,7 @@ struct SessionDetailView: View {
             .onGeometryChange(for: Double.self) { $0.size.width } action: { width = $0 }
             .frame(maxWidth: .infinity)
             .onChange(of: rows.count, initial: true) { _, count in
-                if transcript != nil { window.update(count: count, atBottom: atBottom) }
-            }
-            .onChange(of: atBottom) { _, atBottom in
-                if transcript != nil { window.update(count: rows.count, atBottom: atBottom) }
+                if transcript != nil { updateWindow(count: count, atBottom: atBottom.value) }
             }
         }
         .environment(\.subagentStop, context.connection.supports("agents.stop-subagent") ? SubagentStop(enabled: blocked == nil) { id in
@@ -264,9 +267,10 @@ struct SessionDetailView: View {
         .environment(\.imageStore, context.connection.supports(AgentsStore.imageCommand) ? store : nil)
         .environment(\.imageSession, sessionID)
         .onScrollGeometryChange(for: Bool.self) { geometry in
-            geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 80
+            TranscriptWindow.atBottom(offset: geometry.contentOffset.y, insetTop: geometry.contentInsets.top, container: geometry.containerSize.height, content: geometry.contentSize.height)
         } action: { _, bottom in
-            atBottom = bottom
+            atBottom.value = bottom
+            if transcript != nil { updateWindow(count: rows.count, atBottom: bottom) }
         }
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom)
@@ -1342,4 +1346,8 @@ struct HeldRoundLine: View {
             .contentShape(.rect)
             .id("held-round")
     }
+}
+
+private final class ScrollFlag {
+    var value = true
 }
