@@ -130,15 +130,17 @@ final class RemoteDevicesTests: XCTestCase {
     }
 
     func testDecodesRelayFieldsAndOldPlugin() throws {
-        let new = try decoded(#"{"enabled":true,"relay":{"mode":"manual","url":"https://relay.example.com","state":"ready","detail":"Ready"},"tunnel":{"on":true,"url":"https://relay.example.com","connected":true,"error":"","channels":2,"state":"connected","detail":"Connected"},"pairReady":false,"pairHint":"Start Tailscale"}"#, as: RemoteStatus.self)
+        let new = try decoded(#"{"enabled":true,"relay":{"mode":"manual","url":"https://relay.example.com","state":"ready","detail":"Ready"},"tunnel":{"on":true,"url":"https://relay.example.com","connected":true,"error":"","channels":2,"state":"connected","detail":"Connected"},"tailnet":{"state":"off","severity":"note","detail":"Tailscale is stopped on this Mac. Phones connect through the relay."},"pairReady":false,"pairHint":"Start Tailscale"}"#, as: RemoteStatus.self)
         XCTAssertEqual(new.relay, RemoteRelay(mode: "manual", url: "https://relay.example.com", state: "ready", detail: "Ready"))
         XCTAssertEqual(new.relay?.host, "relay.example.com")
         XCTAssertEqual(new.tunnel, RemoteTunnel(on: true, url: "https://relay.example.com", connected: true, channels: 2, state: "connected", detail: "Connected"))
+        XCTAssertEqual(new.tailnet, RemoteTailnet(state: "off", severity: .note, detail: "Tailscale is stopped on this Mac. Phones connect through the relay."))
         XCTAssertEqual(new.pairReady, false)
         XCTAssertEqual(new.pairHint, "Start Tailscale")
 
         let old = try decoded(#"{"enabled":true,"tunnel":{"on":false}}"#, as: RemoteStatus.self)
         XCTAssertNil(old.relay)
+        XCTAssertNil(old.tailnet)
         XCTAssertEqual(old.tunnel, RemoteTunnel(on: false))
         XCTAssertNil(old.pairReady)
 

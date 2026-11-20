@@ -38,7 +38,7 @@ enum DevicesPreview {
     @MainActor
     private static func relay(_ state: String, identity: Identity) -> String {
         guard state.hasPrefix("relay-") else { return "" }
-        let state = state == "relay-pairing" ? "relay-connected" : state
+        let state = state == "relay-pairing" || state == "relay-tailscale-off" ? "relay-connected" : state
         let on = identity.tunnelOn ?? (state != "relay-off")
         let shown = on ? (state == "relay-off" ? "relay-connected" : state) : "relay-off"
         let url = "https://clubmate-push.exe.xyz"
@@ -58,10 +58,19 @@ enum DevicesPreview {
     private static func replies(_ state: String, now: Date, identity: Identity) -> [String: String] {
         let others = #"[{"name":"MacBook Pro","colour":"magenta","devices":["Vadim’s iPhone"]},{"name":"MacBook Air","colour":"graphite","devices":["Vadim’s iPhone"]}]"#
         let fields = #""computer":{"id":"cmp_3f9a1c","name":"Mac Studio","colour":"\#(identity.colour)"},"titleBarColour":\#(identity.titleBar),"otherMacs":\#(others),"titleDot":\#(identity.titleBar)"# + relay(state, identity: identity)
-        let listening = state == "relay-error"
-            ? #"{"enabled":true,"port":47621,"listening":[],"hosts":[],"error":"no Tailscale address on this Mac",\#(fields)}"#
-            : #"{"enabled":true,"port":47621,"listening":["100.101.1.2:47621","[fd7a:115c:a1e0::1]:47621"],"hosts":["mac-studio.tail1234.ts.net","100.101.1.2","fd7a:115c:a1e0::1"],"error":"",\#(fields)}"#
-        let noTailscale = #"{"enabled":true,"port":47621,"listening":[],"hosts":[],"error":"no Tailscale address on this Mac"}"#
+        let relayOn = identity.tunnelOn ?? true
+        let stopped = relayOn
+            ? #""tailnet":{"state":"off","severity":"note","detail":"Tailscale is stopped on this Mac. Phones connect through the relay."}"#
+            : #""tailnet":{"state":"off","severity":"error","detail":"Tailscale is stopped on this Mac."}"#
+        let listening = switch state {
+        case "relay-error":
+            #"{"enabled":true,"port":47621,"listening":[],"hosts":[],"error":"Tailscale is stopped on this Mac","tailnet":{"state":"off","severity":"error","detail":"Tailscale is stopped on this Mac."},\#(fields)}"#
+        case "relay-tailscale-off":
+            #"{"enabled":true,"port":47621,"listening":[],"hosts":[],"error":"Tailscale is stopped on this Mac",\#(stopped),\#(fields)}"#
+        default:
+            #"{"enabled":true,"port":47621,"listening":["100.101.1.2:47621","[fd7a:115c:a1e0::1]:47621"],"hosts":["mac-studio.tail1234.ts.net","100.101.1.2","fd7a:115c:a1e0::1"],"error":"","tailnet":{"state":"ok","severity":"ok","detail":"Listening on mac-studio.tail1234.ts.net:47621"},\#(fields)}"#
+        }
+        let noTailscale = #"{"enabled":true,"port":47621,"listening":[],"hosts":[],"error":"no Tailscale address","tailnet":{"state":"off","severity":"error","detail":"No Tailscale address."}}"#
         let expires = now.addingTimeInterval(state == "expired" ? -1 : 287).formatted(.iso8601)
         let link = "clubmate://pair?v=1&c=K7Q2M4XJ9P3RT6WZB5N8C2D4F6H8J2L4&h=mac-studio.tail1234.ts.net&h=100.101.1.2&h=fd7a:115c:a1e0::1&p=47621&id=cmp_3f9a1c&n=Vadim%E2%80%99s%20Mac%20Studio&e=\(Int(now.timeIntervalSince1970) + 287)"
         let viaRelay = state.hasPrefix("relay-") && (identity.tunnelOn ?? (state != "relay-off"))

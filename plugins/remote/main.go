@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
 	"net/http"
 	"net/netip"
 	"os"
@@ -83,7 +84,9 @@ type app struct {
 	port     int
 	dns      string
 	tsIPs    []netip.Addr
+	tsReason string
 	tsCLI    bool
+	upAddrs  func() ([]netip.Addr, error)
 	sub      string
 	lastSeq  int64
 }
@@ -102,8 +105,26 @@ type status struct {
 	ReportRelay    string       `json:"reportRelay"`
 	Relay          relayView    `json:"relay"`
 	Tunnel         tunnelStatus `json:"tunnel"`
+	Tailnet        tailnetView  `json:"tailnet"`
 	PairReady      bool         `json:"pairReady"`
 	PairHint       string       `json:"pairHint"`
+}
+
+const (
+	tailnetOK    = "ok"
+	tailnetOff   = "off"
+	tailnetError = "error"
+
+	severityOK    = "ok"
+	severityNote  = "note"
+	severityWarn  = "warn"
+	severityError = "error"
+)
+
+type tailnetView struct {
+	State    string `json:"state"`
+	Severity string `json:"severity"`
+	Detail   string `json:"detail"`
 }
 
 type otherMac struct {
@@ -600,18 +621,35 @@ func (a *app) setTailscale(self tailscaleSelf) {
 	defer a.mu.Unlock()
 	a.tsCLI = self.installed
 	if !self.failed {
-		a.dns, a.tsIPs = self.dns, self.ips
+		a.dns, a.tsIPs, a.tsReason = self.dns, self.ips, self.reason
 	}
 }
 
 func (a *app) scanAddrs() ([]netip.Addr, error) {
 	a.mu.Lock()
-	ips, cli := slices.Clone(a.tsIPs), a.tsCLI
+	ips, reason, cli, up := slices.Clone(a.tsIPs), a.tsReason, a.tsCLI, a.upAddrs
 	a.mu.Unlock()
-	if len(ips) > 0 || cli {
-		return ips, nil
+	if up == nil {
+		up = utunAddrs
 	}
-	return utunAddrs()
+	if len(ips) == 0 && !cli {
+		return utunAddrs()
+	}
+	if reason != "" {
+		return nil, noTailnetError{reason}
+	}
+	if len(ips) == 0 {
+		return nil, noTailnetError{errNoTailnet}
+	}
+	present, err := up()
+	if err != nil {
+		return nil, err
+	}
+	ips = slices.DeleteFunc(ips, func(ip netip.Addr) bool { return !slices.Contains(present, ip) })
+	if len(ips) == 0 {
+		return nil, noTailnetError{errTailscaleNotUp}
+	}
+	return ips, nil
 }
 
 func (a *app) status() status {
@@ -635,9 +673,10 @@ func (a *app) status() status {
 	if a.tun != nil {
 		st.Tunnel = a.tun.status()
 	}
+	offline := false
 	if st.Enabled {
 		ls := a.ln.state()
-		st.Port, st.Error = ls.port, ls.err
+		st.Port, st.Error, offline = ls.port, ls.err, ls.offline
 		if len(ls.listening) > 0 {
 			st.Listening = ls.listening
 			if dns != "" {
@@ -650,6 +689,7 @@ func (a *app) status() status {
 	if st.Enabled && !st.PairReady {
 		st.PairHint = pairHint(st)
 	}
+	st.Tailnet = tailnetState(st, offline)
 	return st
 }
 
@@ -662,6 +702,44 @@ func pairHint(st status) string {
 		return "No Tailscale address (" + reason + ") and the relay path is down: " + st.Tunnel.Detail
 	}
 	return "No Tailscale address (" + reason + "). Turn on the relay path to pair without Tailscale."
+}
+
+func tailnetState(st status, offline bool) tailnetView {
+	if !st.Enabled {
+		return tailnetView{State: tailnetOff, Severity: severityNote, Detail: "Off"}
+	}
+	if len(st.Listening) > 0 {
+		if st.Error != "" {
+			return tailnetView{State: tailnetError, Severity: severityWarn, Detail: st.Error}
+		}
+		return tailnetView{State: tailnetOK, Severity: severityOK, Detail: "Listening on " + listenAddress(st)}
+	}
+	if !offline && st.Error != "" {
+		severity := severityError
+		if st.Tunnel.State == tunnelConnected {
+			severity = severityWarn
+		}
+		return tailnetView{State: tailnetError, Severity: severity, Detail: st.Error}
+	}
+	reason := sentence(cmp.Or(st.Error, errNoTailnet))
+	switch st.Tunnel.State {
+	case tunnelConnected:
+		return tailnetView{State: tailnetOff, Severity: severityNote, Detail: reason + ". Phones connect through the relay."}
+	case tunnelConnecting:
+		return tailnetView{State: tailnetOff, Severity: severityWarn, Detail: reason + ". The relay path is still connecting."}
+	}
+	return tailnetView{State: tailnetOff, Severity: severityError, Detail: reason + "."}
+}
+
+func listenAddress(st status) string {
+	if len(st.Hosts) == 0 {
+		return st.Listening[0]
+	}
+	return net.JoinHostPort(st.Hosts[0], strconv.Itoa(st.Port))
+}
+
+func sentence(s string) string {
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 func (a *app) devices() []deviceView {

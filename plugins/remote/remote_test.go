@@ -646,14 +646,14 @@ func TestTailnetAddrs(t *testing.T) {
 }
 
 func TestParseTailscaleKeepsTailnetIPs(t *testing.T) {
-	got, _ := parseTailscale([]byte(`{"Self":{"DNSName":"mac.tail1.ts.net.","TailscaleIPs":["fd7a:115c:a1e0::5","100.101.1.2","192.168.1.5"]}}`))
+	got, _ := parseTailscale([]byte(`{"BackendState":"Running","Self":{"DNSName":"mac.tail1.ts.net.","TailscaleIPs":["fd7a:115c:a1e0::5","100.101.1.2","192.168.1.5"]}}`))
 
 	assert.Equal(t, "mac.tail1.ts.net", got.dns)
 	assert.Equal(t, []netip.Addr{netip.MustParseAddr("100.101.1.2"), netip.MustParseAddr("fd7a:115c:a1e0::5")}, got.ips)
 }
 
 func TestTailscaleAppBinaryRunsAsCLI(t *testing.T) {
-	bin := fakeTailscale(t, `[ "$TAILSCALE_BE_CLI" = 1 ] && echo '{"Self":{"TailscaleIPs":["100.101.1.2"]}}' || echo 'The Tailscale GUI failed to start'`)
+	bin := fakeTailscale(t, `[ "$TAILSCALE_BE_CLI" = 1 ] && echo '{"BackendState":"Running","Self":{"TailscaleIPs":["100.101.1.2"]}}' || echo 'The Tailscale GUI failed to start'`)
 
 	got := runTailscale(context.Background(), bin)
 
@@ -665,7 +665,7 @@ func TestTailscaleOutputThatIsNotJSON(t *testing.T) {
 	assert.Equal(t, tailscaleSelf{installed: true, failed: true}, runTailscale(context.Background(), keepsLast))
 
 	exitsWithError := fakeTailscale(t, `echo 'failed to connect to local Tailscale service'; exit 1`)
-	assert.Equal(t, tailscaleSelf{installed: true}, runTailscale(context.Background(), exitsWithError), "an error exit means no addresses, never the last ones")
+	assert.Equal(t, tailscaleSelf{installed: true, reason: errTailscaleDown}, runTailscale(context.Background(), exitsWithError), "an error exit means no addresses, never the last ones")
 }
 
 func fakeTailscale(t *testing.T, script string) string {
@@ -676,8 +676,8 @@ func fakeTailscale(t *testing.T, script string) string {
 }
 
 func TestTailscaleCLIWithoutAddressesListensNowhere(t *testing.T) {
-	a := &app{}
 	tailnet := []netip.Addr{netip.MustParseAddr("100.101.1.2")}
+	a := &app{upAddrs: func() ([]netip.Addr, error) { return tailnet, nil }}
 	a.setTailscale(tailscaleSelf{installed: true, ips: tailnet})
 	a.setTailscale(tailscaleSelf{installed: true, failed: true})
 	ips, err := a.scanAddrs()
@@ -686,8 +686,63 @@ func TestTailscaleCLIWithoutAddressesListensNowhere(t *testing.T) {
 
 	a.setTailscale(tailscaleSelf{installed: true})
 	ips, err = a.scanAddrs()
-	require.NoError(t, err)
+	assert.Equal(t, noTailnetError{errNoTailnet}, err)
 	assert.Empty(t, ips)
+}
+
+func TestStoppedTailscaleGivesItsReasonAndNoAddress(t *testing.T) {
+	self, ok := parseTailscale([]byte(`{"BackendState":"Stopped","Self":{"DNSName":"mac.tail1.ts.net.","TailscaleIPs":["100.74.77.39","fd7a:115c:a1e0::5"]}}`))
+	require.True(t, ok)
+	assert.Equal(t, tailscaleSelf{reason: errTailscaleOff}, self)
+
+	login, _ := parseTailscale([]byte(`{"BackendState":"NeedsLogin","Self":{"TailscaleIPs":["100.74.77.39"]}}`))
+	assert.Equal(t, errTailscaleLogin, login.reason)
+
+	a := &app{upAddrs: func() ([]netip.Addr, error) { return nil, nil }}
+	self.installed = true
+	a.setTailscale(self)
+	l := newListeners(http.NotFoundHandler(), "", a.scanAddrs)
+	l.start(0)
+	t.Cleanup(l.stop)
+	st := l.state()
+	assert.Equal(t, listenState{err: errTailscaleOff, offline: true}, st)
+}
+
+func TestTailscaleAddressesNotOnAnInterfaceAreNotBound(t *testing.T) {
+	v4, v6 := netip.MustParseAddr("100.74.77.39"), netip.MustParseAddr("fd7a:115c:a1e0::5")
+	var present []netip.Addr
+	a := &app{upAddrs: func() ([]netip.Addr, error) { return present, nil }}
+	a.setTailscale(tailscaleSelf{installed: true, ips: []netip.Addr{v4, v6}})
+	l := newListeners(http.NotFoundHandler(), "", a.scanAddrs)
+	l.start(0)
+	t.Cleanup(l.stop)
+	assert.Equal(t, listenState{err: errTailscaleNotUp, offline: true}, l.state(), "no bind attempt, so no bind error")
+
+	present = []netip.Addr{v6}
+	ips, err := a.scanAddrs()
+	require.NoError(t, err)
+	assert.Equal(t, []netip.Addr{v6}, ips)
+}
+
+func TestTailnetStateSaysHowBadItIs(t *testing.T) {
+	relay := tunnelStatus{State: tunnelConnected}
+	cases := []struct {
+		name    string
+		st      status
+		offline bool
+		want    tailnetView
+	}{
+		{"access off", status{}, false, tailnetView{tailnetOff, severityNote, "Off"}},
+		{"listening", status{Enabled: true, Port: 47621, Listening: []string{"100.1.2.3:47621"}, Hosts: []string{"mac.ts.net", "100.1.2.3"}}, false, tailnetView{tailnetOK, severityOK, "Listening on mac.ts.net:47621"}},
+		{"stopped, relay connected", status{Enabled: true, Error: errTailscaleOff, Tunnel: relay}, true, tailnetView{tailnetOff, severityNote, "Tailscale is stopped on this Mac. Phones connect through the relay."}},
+		{"stopped, relay connecting", status{Enabled: true, Error: errTailscaleOff, Tunnel: tunnelStatus{State: tunnelConnecting}}, true, tailnetView{tailnetOff, severityWarn, "Tailscale is stopped on this Mac. The relay path is still connecting."}},
+		{"no path", status{Enabled: true, Error: errNoTailnet, Tunnel: tunnelStatus{State: tunnelError}}, true, tailnetView{tailnetOff, severityError, "No Tailscale address."}},
+		{"bind error, no relay", status{Enabled: true, Error: "listen tcp 100.1.2.3:47621: bind: address already in use"}, false, tailnetView{tailnetError, severityError, "listen tcp 100.1.2.3:47621: bind: address already in use"}},
+		{"bind error, relay connected", status{Enabled: true, Error: "listen tcp: busy", Tunnel: relay}, false, tailnetView{tailnetError, severityWarn, "listen tcp: busy"}},
+	}
+	for _, c := range cases {
+		assert.Equal(t, c.want, tailnetState(c.st, c.offline), c.name)
+	}
 }
 
 func newFixture(t *testing.T) *fixture {

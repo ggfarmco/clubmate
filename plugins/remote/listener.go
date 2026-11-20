@@ -22,17 +22,22 @@ var tailnetPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("fd7a:115c:a1e0::/48"),
 }
 
+type noTailnetError struct{ reason string }
+
+func (e noTailnetError) Error() string { return e.reason }
+
 type listeners struct {
 	handler  http.Handler
 	override string
 	scan     func() ([]netip.Addr, error)
 
-	mu     sync.Mutex
-	srv    *http.Server
-	port   int
-	active map[string]net.Listener
-	err    string
-	wg     sync.WaitGroup
+	mu      sync.Mutex
+	srv     *http.Server
+	port    int
+	active  map[string]net.Listener
+	err     string
+	offline bool
+	wg      sync.WaitGroup
 }
 
 type listenState struct {
@@ -40,6 +45,7 @@ type listenState struct {
 	hosts     []string
 	port      int
 	err       string
+	offline   bool
 }
 
 func newListeners(handler http.Handler, override string, scan func() ([]netip.Addr, error)) *listeners {
@@ -78,12 +84,13 @@ func (l *listeners) stop() {
 	l.srv = nil
 	l.active = map[string]net.Listener{}
 	l.err = ""
+	l.offline = false
 }
 
 func (l *listeners) state() listenState {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	st := listenState{port: l.port, err: l.err}
+	st := listenState{port: l.port, err: l.err, offline: l.offline}
 	keys := make([]string, 0, len(l.active))
 	for key := range l.active {
 		keys = append(keys, key)
@@ -109,6 +116,7 @@ func (l *listeners) refreshLocked() bool {
 	}
 	wanted, err := l.wanted()
 	l.err = ""
+	l.offline = errors.As(err, new(noTailnetError))
 	if err != nil {
 		l.err = err.Error()
 	}
@@ -157,7 +165,7 @@ func (l *listeners) wanted() ([]string, error) {
 		return nil, err
 	}
 	if len(ips) == 0 {
-		return nil, errors.New(errNoTailnet)
+		return nil, noTailnetError{errNoTailnet}
 	}
 	out := make([]string, 0, len(ips))
 	for _, ip := range ips {

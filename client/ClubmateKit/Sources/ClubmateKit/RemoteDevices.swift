@@ -23,10 +23,11 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
     public let titleDot: Bool
     public let relay: RemoteRelay?
     public let tunnel: RemoteTunnel?
+    public let tailnet: RemoteTailnet?
     public let pairReady: Bool?
     public let pairHint: String
 
-    public init(enabled: Bool, port: Int, listening: [String], hosts: [String], error: String, computer: RemoteComputer? = nil, titleBarColour: Bool = true, otherMacs: [RemoteOtherMac] = [], titleDot: Bool = false, relay: RemoteRelay? = nil, tunnel: RemoteTunnel? = nil, pairReady: Bool? = nil, pairHint: String = "") {
+    public init(enabled: Bool, port: Int, listening: [String], hosts: [String], error: String, computer: RemoteComputer? = nil, titleBarColour: Bool = true, otherMacs: [RemoteOtherMac] = [], titleDot: Bool = false, relay: RemoteRelay? = nil, tunnel: RemoteTunnel? = nil, tailnet: RemoteTailnet? = nil, pairReady: Bool? = nil, pairHint: String = "") {
         self.enabled = enabled
         self.port = port
         self.listening = listening
@@ -38,6 +39,7 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
         self.titleDot = titleDot
         self.relay = relay
         self.tunnel = tunnel
+        self.tailnet = tailnet
         self.pairReady = pairReady
         self.pairHint = pairHint
     }
@@ -55,12 +57,13 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
         titleDot = try container.decodeIfPresent(Bool.self, forKey: .titleDot) ?? false
         relay = try container.decodeIfPresent(RemoteRelay.self, forKey: .relay)
         tunnel = try container.decodeIfPresent(RemoteTunnel.self, forKey: .tunnel)
+        tailnet = try container.decodeIfPresent(RemoteTailnet.self, forKey: .tailnet)
         pairReady = try container.decodeIfPresent(Bool.self, forKey: .pairReady)
         pairHint = try container.decodeIfPresent(String.self, forKey: .pairHint) ?? ""
     }
 
     private enum CodingKeys: String, CodingKey {
-        case enabled, port, listening, hosts, error, computer, titleBarColour, otherMacs, titleDot, relay, tunnel, pairReady, pairHint
+        case enabled, port, listening, hosts, error, computer, titleBarColour, otherMacs, titleDot, relay, tunnel, tailnet, pairReady, pairHint
     }
 
     public var state: State {
@@ -81,6 +84,33 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
     private var address: String {
         guard let host = hosts.first else { return listening.first ?? "" }
         return host.contains(":") ? "[\(host)]:\(port)" : "\(host):\(port)"
+    }
+}
+
+public struct RemoteTailnet: Decodable, Sendable, Equatable {
+    public enum Severity: String, Decodable, Sendable {
+        case ok, note, warn, error
+    }
+
+    public let state: String
+    public let severity: Severity
+    public let detail: String
+
+    public init(state: String, severity: Severity, detail: String) {
+        self.state = state
+        self.severity = severity
+        self.detail = detail
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        state = try container.decodeIfPresent(String.self, forKey: .state) ?? ""
+        severity = (try? container.decodeIfPresent(Severity.self, forKey: .severity)) ?? .error
+        detail = try container.decodeIfPresent(String.self, forKey: .detail) ?? ""
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case state, severity, detail
     }
 }
 

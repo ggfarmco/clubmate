@@ -69,12 +69,14 @@ struct DevicesSettings: View {
             SettingsToggle(title: "Allow companion devices", isOn: enabled)
                 .disabled(model.busy || model.status == nil)
             if let status = model.status {
+                let line = statusLine(status)
                 HStack(spacing: theme.spacing.s) {
-                    Circle().fill(color(status.state)).frame(width: 7, height: 7)
-                    Text(status.summary)
+                    Circle().fill(line.dot).frame(width: 7, height: 7)
+                    Text(line.text)
+                        .foregroundStyle(line.ink)
                         .lineLimit(2)
                         .truncationMode(.label)
-                        .help(status.summary)
+                        .help(line.text)
                         .textSelection(.enabled)
                 }
                 .font(.subheadline)
@@ -115,6 +117,16 @@ struct DevicesSettings: View {
 
     private var pairing: Binding<Bool> {
         Binding { model.pairing != nil } set: { if !$0 { Task { await model.done() } } }
+    }
+
+    private func statusLine(_ status: RemoteStatus) -> (text: String, dot: Color, ink: Color) {
+        guard let tailnet = status.tailnet else { return (status.summary, color(status.state), theme.foreground) }
+        switch tailnet.severity {
+        case .ok: return (tailnet.detail, theme.success, theme.foreground)
+        case .note: return (tailnet.detail, theme.faint, theme.muted)
+        case .warn: return (tailnet.detail, theme.warning, theme.foreground)
+        case .error: return (tailnet.detail, theme.danger, theme.foreground)
+        }
     }
 
     private func color(_ state: RemoteStatus.State) -> Color {
