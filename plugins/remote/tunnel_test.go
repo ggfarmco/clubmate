@@ -87,7 +87,7 @@ func TestTunnelCarriesHelloAndCommands(t *testing.T) {
 	runs := f.backend.calls()
 	require.Len(t, runs, 2)
 	assert.Contains(t, runs[1].args, hex.EncodeToString(big))
-	assert.Equal(t, tunnelStatus{On: true, URL: tr.ts.URL, Connected: true, Channels: 1}, tc.status())
+	assert.Equal(t, tunnelStatus{On: true, URL: tr.ts.URL, Connected: true, Channels: 1, State: tunnelConnected, Detail: "Connected through " + relayHost(tr.ts.URL)}, tc.status())
 }
 
 func TestTunnelChecksTheDeviceTokenInside(t *testing.T) {
@@ -409,11 +409,14 @@ func TestAReplyOverTheRelayLimitIsASealedError(t *testing.T) {
 	}
 }
 
-func TestSetTunnelNeedsAPushRelayAndStopsWhenItIsRemoved(t *testing.T) {
+func TestSetTunnelSignsUpWithNoPushRelayAndStopsWhenItIsRemoved(t *testing.T) {
+	t.Setenv(testModeEnv, "1")
 	f, tr := newTunnelFixture(t)
 	tc := newTestTunnel(t, f, fileStore{path: filepath.Join(t.TempDir(), "key")})
 	require.NoError(t, f.srv.relay.configure(t.Context(), "", ""))
-	require.ErrorIs(t, tc.configure(t.Context(), true), errTunnelNoRelay)
+	err := tc.configure(t.Context(), true)
+	require.ErrorIs(t, err, errSignupFailed)
+	assert.ErrorContains(t, err, detailTestMode)
 	assert.Empty(t, f.kv.get(tunnelOnKey))
 	require.NoError(t, f.srv.relay.configure(t.Context(), tr.ts.URL, testMacToken))
 	require.NoError(t, tc.configure(t.Context(), true))
@@ -422,7 +425,7 @@ func TestSetTunnelNeedsAPushRelayAndStopsWhenItIsRemoved(t *testing.T) {
 	require.NoError(t, f.srv.relay.configure(t.Context(), "", ""))
 	tc.restart()
 
-	assert.Equal(t, tunnelStatus{On: true, Error: errTunnelNoRelay.Error()}, tc.status())
+	assert.Equal(t, tunnelStatus{On: true, Error: errTunnelNoRelay.Error(), State: tunnelError, Detail: errTunnelNoRelay.Error()}, tc.status())
 	assert.Equal(t, "true", f.kv.get(tunnelOnKey))
 }
 
@@ -436,7 +439,7 @@ func TestTunnelStopsWhileCompanionAccessIsOff(t *testing.T) {
 	phone := &fakePhone{base: tr.ts.URL, ticket: testTicket}
 
 	testutil.Eventually(t, func() bool { return phone.open(t.Context(), t, macKey(t, tc)) == http.StatusServiceUnavailable }, 10*time.Second)
-	assert.Equal(t, tunnelStatus{On: true, URL: tr.ts.URL, Error: errAccessOff.Error()}, tc.status())
+	assert.Equal(t, tunnelStatus{On: true, URL: tr.ts.URL, Error: errAccessOff.Error(), State: tunnelOff, Detail: "Companion access is off"}, tc.status())
 }
 
 func TestKeychainStoreKeepsTheKeyOffTheCommandLine(t *testing.T) {

@@ -22,10 +22,14 @@ scp -q "$OUT/clubmate-push-relay.service" "$HOST:/tmp/clubmate-push-relay.servic
 ssh "$HOST" 'set -e
 chmod 755 ~/push-relay/clubmate-push-relay.new
 mv -f ~/push-relay/clubmate-push-relay.new ~/push-relay/clubmate-push-relay
-touch ~/push-relay/tokens ~/push-relay/admins ~/push-relay/bans
-chmod 600 ~/push-relay/tokens ~/push-relay/admins ~/push-relay/bans
 mkdir -p ~/push-relay/reports ~/push-relay/state
 chmod 700 ~/push-relay/reports ~/push-relay/state
+if [ -f ~/push-relay/tokens ] && [ ! -e ~/push-relay/state/tokens ]; then
+  mv ~/push-relay/tokens ~/push-relay/state/tokens
+  echo "moved ~/push-relay/tokens to ~/push-relay/state/tokens"
+fi
+touch ~/push-relay/state/tokens ~/push-relay/admins ~/push-relay/bans
+chmod 600 ~/push-relay/state/tokens ~/push-relay/admins ~/push-relay/bans
 if [ ! -e ~/push-relay/state/tickets.json ]; then
   (umask 077 && printf "{}" > ~/push-relay/state/tickets.json)
 fi

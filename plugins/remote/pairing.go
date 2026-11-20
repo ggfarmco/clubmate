@@ -47,6 +47,7 @@ type pairResult struct {
 	Link      string `json:"link"`
 	Code      string `json:"code"`
 	ExpiresAt string `json:"expiresAt"`
+	Relay     bool   `json:"relay"`
 }
 
 func newPairing(now func() time.Time) *pairing {

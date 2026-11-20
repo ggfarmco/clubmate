@@ -34,9 +34,15 @@ const (
 	frameClose     = "close"
 	frameReplaced  = "replaced"
 	tunnelTokenErr = "the push relay refused this Mac's token"
+
+	tunnelOff        = "off"
+	tunnelConnecting = "connecting"
+	tunnelConnected  = "connected"
+	tunnelError      = "error"
 )
 
 var (
+	errTunnelToken      = errors.New(tunnelTokenErr)
 	errTunnelNoRelay    = errors.New("set the push relay first: remote.set-push-relay")
 	errRelayUnreachable = errors.New("relay unreachable")
 	errReplaced         = errors.New("another Clubmate with this Mac's token took over the relay stream")
@@ -61,6 +67,7 @@ type tunnelClient struct {
 	liveness     time.Duration
 
 	runMu  sync.Mutex
+	keyMu  sync.Mutex
 	cancel context.CancelFunc
 	done   chan struct{}
 	conn   macConn
@@ -91,6 +98,8 @@ type tunnelStatus struct {
 	Connected bool   `json:"connected"`
 	Error     string `json:"error"`
 	Channels  int    `json:"channels"`
+	State     string `json:"state"`
+	Detail    string `json:"detail"`
 }
 
 type tunnelArgs struct {
@@ -138,10 +147,31 @@ func (c *tunnelClient) load(ctx context.Context) error {
 	return nil
 }
 
+func (c *tunnelClient) defaultOn(ctx context.Context) {
+	var on bool
+	found, err := c.kv.StorageGet(ctx, tunnelOnKey, &on)
+	if err != nil {
+		logEvent("tunnel", "err", "read the relay path setting: "+err.Error())
+		return
+	}
+	if found {
+		return
+	}
+	if err := c.kv.StorageSet(ctx, tunnelOnKey, true); err != nil {
+		logEvent("tunnel", "err", "turn the relay path on: "+err.Error())
+		return
+	}
+	c.mu.Lock()
+	c.on = true
+	c.mu.Unlock()
+}
+
 func (c *tunnelClient) configure(ctx context.Context, on bool) error {
 	if on {
 		if !c.relay.configured() {
-			return errTunnelNoRelay
+			if err := c.relay.signUpNow(ctx); err != nil {
+				return err
+			}
 		}
 		if _, err := c.key(ctx); err != nil {
 			return err
@@ -168,6 +198,8 @@ func (c *tunnelClient) allow(allowed bool) {
 }
 
 func (c *tunnelClient) key(ctx context.Context) (*tunnel.Static, error) {
+	c.keyMu.Lock()
+	defer c.keyMu.Unlock()
 	c.mu.Lock()
 	s := c.static
 	c.mu.Unlock()
@@ -372,9 +404,9 @@ func (c *tunnelClient) restart() {
 	if on {
 		c.url = base
 		switch {
-		case base == "":
+		case base == "" && c.relay.relayMode() != relayAuto:
 			c.err = errTunnelNoRelay.Error()
-		case !allowed:
+		case base != "" && !allowed:
 			c.err = errAccessOff.Error()
 		}
 	}
@@ -415,8 +447,41 @@ func (c *tunnelClient) stopLocked() {
 
 func (c *tunnelClient) status() tunnelStatus {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	return tunnelStatus{On: c.on, URL: c.url, Connected: c.connected, Error: c.err, Channels: c.sess.count()}
+	st := tunnelStatus{On: c.on, URL: c.url, Connected: c.connected, Error: c.err, Channels: c.sess.count()}
+	allowed := c.allowed
+	c.mu.Unlock()
+	st.State, st.Detail = c.stateDetail(st, allowed)
+	return st
+}
+
+func (c *tunnelClient) stateDetail(st tunnelStatus, allowed bool) (string, string) {
+	rv := c.relay.view(allowed)
+	switch {
+	case !st.On:
+		return tunnelOff, "Off"
+	case !allowed:
+		return tunnelOff, "Companion access is off"
+	case st.Connected:
+		return tunnelConnected, "Connected through " + relayHost(st.URL)
+	case st.Error != "":
+		return tunnelError, oneLine(st.Error)
+	case st.URL == "" && rv.State == relayStateSigningUp:
+		return tunnelConnecting, rv.Detail
+	case st.URL == "" || rv.State == relayStateError:
+		return tunnelError, rv.Detail
+	}
+	return tunnelConnecting, "Connecting to " + relayHost(st.URL) + "…"
+}
+
+func oneLine(msg string) string {
+	switch {
+	case strings.HasPrefix(msg, errRelayUnreachable.Error()):
+		return "Relay unreachable, trying again"
+	case strings.HasPrefix(msg, "relay closed the stream"):
+		return "Relay closed the stream, trying again"
+	}
+	line, _, _ := strings.Cut(msg, "\n")
+	return line
 }
 
 func (c *tunnelClient) setState(connected bool, err string) {
@@ -517,6 +582,9 @@ func (c *tunnelClient) connect(run context.Context, mc macConn) error {
 	}
 	defer res.Body.Close()
 	if err := relayStatus(res); err != nil {
+		if errors.Is(err, errTunnelToken) {
+			c.relay.tokenRefused(mc.token)
+		}
 		return err
 	}
 	mc.stream = res.Header.Get(tunnelrelay.HeaderStream)
@@ -588,7 +656,7 @@ func relayStatus(res *http.Response) error {
 	case http.StatusOK:
 		return nil
 	case http.StatusUnauthorized:
-		return errors.New(tunnelTokenErr)
+		return errTunnelToken
 	}
 	return fmt.Errorf("relay: %d %s", res.StatusCode, relayError(res.Body))
 }

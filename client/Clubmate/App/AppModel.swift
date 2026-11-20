@@ -416,13 +416,13 @@ final class AppModel {
 
     private func makeRemoteDevices() -> RemoteDevicesModel {
         #if DEBUG
-        if CommandLine.arguments.contains("--remote-fixture") { return DevicesPreview.model("devices") }
+        if let state = TestHarness.remoteFixture { return DevicesPreview.model(state) }
         #endif
         return RemoteDevicesModel(
             run: { [weak self] invocation in
                 await self?.runCommand(invocation, in: self?.defaultWorkspace ?? "") ?? .failure(.notRunning)
             },
-            confirm: { message in await Confirmation.ask(message, action: "Revoke", destructive: true) }
+            confirm: { ask in await Confirmation.ask(ask.message, action: ask.action, destructive: ask.destructive) }
         )
     }
 

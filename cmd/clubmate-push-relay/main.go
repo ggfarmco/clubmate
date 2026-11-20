@@ -26,12 +26,13 @@ const (
 )
 
 var (
-	errUsage    = errors.New("usage: clubmate-push-relay [-listen addr -key file -key-id id -team-id id -tokens file -admins file -bans file -reports dir -devices file -tickets file] | token add|rm <name> -tokens file | token ls -tokens file | admin add|rm <name> -admins file | admin ls -admins file")
-	errNoKey    = errors.New("-key is required")
-	errNoKeyID  = errors.New("-key-id is required unless the key file is named AuthKey_<KEYID>.p8")
-	errNoTeamID = errors.New("-team-id is required")
-	errNoTokens = errors.New("-tokens is required")
-	errNoAdmins = errors.New("-admins is required")
+	errUsage     = errors.New("usage: clubmate-push-relay [-listen addr -key file -key-id id -team-id id -tokens file -admins file -bans file -reports dir -devices file -tickets file -signup on|off] | token add|rm <name> -tokens file | token ls -tokens file | admin add|rm <name> -admins file | admin ls -admins file")
+	errNoKey     = errors.New("-key is required")
+	errNoKeyID   = errors.New("-key-id is required unless the key file is named AuthKey_<KEYID>.p8")
+	errNoTeamID  = errors.New("-team-id is required")
+	errNoTokens  = errors.New("-tokens is required")
+	errNoAdmins  = errors.New("-admins is required")
+	errBadSignup = errors.New("-signup must be on or off")
 
 	macTokens = tokenFile{
 		command: "token",
@@ -60,6 +61,7 @@ type config struct {
 	reports string
 	devices string
 	tickets string
+	signup  string
 }
 
 type tokenFile struct {
@@ -102,8 +104,12 @@ func serve(args []string) error {
 	fs.StringVar(&cfg.reports, "reports", env("PUSH_RELAY_REPORTS", "reports"), "problem reports directory (PUSH_RELAY_REPORTS)")
 	fs.StringVar(&cfg.devices, "devices", env("PUSH_RELAY_DEVICES", ""), "device tokens each Mac registered, unset keeps them in memory (PUSH_RELAY_DEVICES)")
 	fs.StringVar(&cfg.tickets, "tickets", env("PUSH_RELAY_TICKETS", ""), "device tickets of the tunnel, default tickets.json next to -devices; unset with no -devices keeps them in memory (PUSH_RELAY_TICKETS)")
+	fs.StringVar(&cfg.signup, "signup", env("PUSH_RELAY_SIGNUP", "on"), "self sign-up of Macs at POST /v1/macs, on or off (PUSH_RELAY_SIGNUP)")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if cfg.signup != "on" && cfg.signup != "off" {
+		return errBadSignup
 	}
 	if cfg.tickets == "" && cfg.devices != "" {
 		cfg.tickets = filepath.Join(filepath.Dir(cfg.devices), "tickets.json")
@@ -157,6 +163,9 @@ func serve(args []string) error {
 		active:     newInflight(),
 		grace:      minTransfer,
 		now:        time.Now,
+	}
+	if cfg.signup == "on" {
+		r.signup = newSignupLimits(time.Now)
 	}
 	tun, err := tunnelrelay.New(tunnelrelay.Config{Auth: r.macToken, TicketsPath: cfg.tickets, Log: logger, Now: time.Now})
 	if err != nil {

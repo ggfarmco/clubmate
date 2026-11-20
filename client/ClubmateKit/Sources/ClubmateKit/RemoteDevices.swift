@@ -21,8 +21,12 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
     public let titleBarColour: Bool
     public let otherMacs: [RemoteOtherMac]
     public let titleDot: Bool
+    public let relay: RemoteRelay?
+    public let tunnel: RemoteTunnel?
+    public let pairReady: Bool?
+    public let pairHint: String
 
-    public init(enabled: Bool, port: Int, listening: [String], hosts: [String], error: String, computer: RemoteComputer? = nil, titleBarColour: Bool = true, otherMacs: [RemoteOtherMac] = [], titleDot: Bool = false) {
+    public init(enabled: Bool, port: Int, listening: [String], hosts: [String], error: String, computer: RemoteComputer? = nil, titleBarColour: Bool = true, otherMacs: [RemoteOtherMac] = [], titleDot: Bool = false, relay: RemoteRelay? = nil, tunnel: RemoteTunnel? = nil, pairReady: Bool? = nil, pairHint: String = "") {
         self.enabled = enabled
         self.port = port
         self.listening = listening
@@ -32,6 +36,10 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
         self.titleBarColour = titleBarColour
         self.otherMacs = otherMacs
         self.titleDot = titleDot
+        self.relay = relay
+        self.tunnel = tunnel
+        self.pairReady = pairReady
+        self.pairHint = pairHint
     }
 
     public init(from decoder: any Decoder) throws {
@@ -45,10 +53,14 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
         titleBarColour = try container.decodeIfPresent(Bool.self, forKey: .titleBarColour) ?? true
         otherMacs = try container.decodeIfPresent([RemoteOtherMac].self, forKey: .otherMacs) ?? []
         titleDot = try container.decodeIfPresent(Bool.self, forKey: .titleDot) ?? false
+        relay = try container.decodeIfPresent(RemoteRelay.self, forKey: .relay)
+        tunnel = try container.decodeIfPresent(RemoteTunnel.self, forKey: .tunnel)
+        pairReady = try container.decodeIfPresent(Bool.self, forKey: .pairReady)
+        pairHint = try container.decodeIfPresent(String.self, forKey: .pairHint) ?? ""
     }
 
     private enum CodingKeys: String, CodingKey {
-        case enabled, port, listening, hosts, error, computer, titleBarColour, otherMacs, titleDot
+        case enabled, port, listening, hosts, error, computer, titleBarColour, otherMacs, titleDot, relay, tunnel, pairReady, pairHint
     }
 
     public var state: State {
@@ -69,6 +81,71 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
     private var address: String {
         guard let host = hosts.first else { return listening.first ?? "" }
         return host.contains(":") ? "[\(host)]:\(port)" : "\(host):\(port)"
+    }
+}
+
+public struct RemoteRelay: Decodable, Sendable, Equatable {
+    public let mode: String
+    public let url: String
+    public let state: String
+    public let detail: String
+
+    public init(mode: String, url: String, state: String, detail: String) {
+        self.mode = mode
+        self.url = url
+        self.state = state
+        self.detail = detail
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        mode = try container.decodeIfPresent(String.self, forKey: .mode) ?? ""
+        url = try container.decodeIfPresent(String.self, forKey: .url) ?? ""
+        state = try container.decodeIfPresent(String.self, forKey: .state) ?? ""
+        detail = try container.decodeIfPresent(String.self, forKey: .detail) ?? ""
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case mode, url, state, detail
+    }
+
+    public var host: String {
+        URL(string: url)?.host ?? url
+    }
+}
+
+public struct RemoteTunnel: Decodable, Sendable, Equatable {
+    public let on: Bool
+    public let url: String
+    public let connected: Bool
+    public let error: String
+    public let channels: Int
+    public let state: String
+    public let detail: String
+
+    public init(on: Bool, url: String = "", connected: Bool = false, error: String = "", channels: Int = 0, state: String = "", detail: String = "") {
+        self.on = on
+        self.url = url
+        self.connected = connected
+        self.error = error
+        self.channels = channels
+        self.state = state
+        self.detail = detail
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        on = try container.decodeIfPresent(Bool.self, forKey: .on) ?? false
+        url = try container.decodeIfPresent(String.self, forKey: .url) ?? ""
+        connected = try container.decodeIfPresent(Bool.self, forKey: .connected) ?? false
+        error = try container.decodeIfPresent(String.self, forKey: .error) ?? ""
+        channels = try container.decodeIfPresent(Int.self, forKey: .channels) ?? 0
+        state = try container.decodeIfPresent(String.self, forKey: .state) ?? ""
+        detail = try container.decodeIfPresent(String.self, forKey: .detail) ?? ""
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case on, url, connected, error, channels, state, detail
     }
 }
 
@@ -176,11 +253,25 @@ public struct RemotePairing: Decodable, Sendable, Equatable {
     public let link: String
     public let code: String
     public let expiresAt: Date
+    public let relay: Bool
 
-    public init(link: String, code: String, expiresAt: Date) {
+    public init(link: String, code: String, expiresAt: Date, relay: Bool = false) {
         self.link = link
         self.code = code
         self.expiresAt = expiresAt
+        self.relay = relay
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        link = try container.decode(String.self, forKey: .link)
+        code = try container.decode(String.self, forKey: .code)
+        expiresAt = try container.decode(Date.self, forKey: .expiresAt)
+        relay = try container.decodeIfPresent(Bool.self, forKey: .relay) ?? false
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case link, code, expiresAt, relay
     }
 
     public var computerName: String {
@@ -215,10 +306,17 @@ public final class RemoteDevicesModel {
         case unavailable(String)
     }
 
+    public struct Ask: Sendable, Equatable {
+        public let message: String
+        public let action: String
+        public let destructive: Bool
+    }
+
     public typealias Run = @MainActor (CommandInvocation) async -> Result<JSONValue, ClubmateError>
 
     public static let topic = "remote.changed"
-    public static let revokeMessage = "Revoke this device's access to Clubmate?"
+    public static let revoke = Ask(message: "Revoke this device's access to Clubmate?", action: "Revoke", destructive: true)
+    public static let rotate = Ask(message: "Make a new relay key? Phones switch to it when they next connect.", action: "Make New Key", destructive: false)
     public static let tailscaleHint = "Companion devices connect over Tailscale. Start Tailscale on this Mac and sign in to the same tailnet as your iPhone or iPad."
     public static let missingPlugin = "The remote plugin is not installed or not running."
     static let qrSide = 720
@@ -232,15 +330,21 @@ public final class RemoteDevicesModel {
     public private(set) var error: String?
     public private(set) var busy = false
 
-    public var needsTailscale: Bool {
-        status?.state == .failed || status?.state == .starting
+    public var pairReady: Bool {
+        guard let status else { return true }
+        return status.pairReady ?? !(status.state == .failed || status.state == .starting)
+    }
+
+    public var pairHint: String {
+        guard !pairReady else { return "" }
+        return status?.pairReady == nil ? Self.tailscaleHint : status?.pairHint ?? ""
     }
 
     @ObservationIgnored private let run: Run
-    @ObservationIgnored private let confirm: @MainActor (String) async -> Bool
+    @ObservationIgnored private let confirm: @MainActor (Ask) async -> Bool
     @ObservationIgnored private var baseline: [RemoteDevice]?
 
-    public init(run: @escaping Run, confirm: @escaping @MainActor (String) async -> Bool) {
+    public init(run: @escaping Run, confirm: @escaping @MainActor (Ask) async -> Bool) {
         self.run = run
         self.confirm = confirm
     }
@@ -286,6 +390,15 @@ public final class RemoteDevicesModel {
         await act { self.status = try await self.call("remote.set-title-bar-colour", ["enabled": .bool(enabled)]) }
     }
 
+    public func setTunnel(_ on: Bool) async {
+        await act { self.status = try await self.call("remote.set-tunnel", ["on": .bool(on)]) }
+    }
+
+    public func rotateRelayKey() async {
+        guard await confirm(Self.rotate) else { return }
+        await act { self.status = try await self.call("remote.tunnel-rotate") }
+    }
+
     public func pair() async {
         if pairing == nil { baseline = devices }
         notice = nil
@@ -304,7 +417,7 @@ public final class RemoteDevicesModel {
     }
 
     public func revoke(_ device: RemoteDevice) async {
-        guard await confirm(Self.revokeMessage) else { return }
+        guard await confirm(Self.revoke) else { return }
         await act { let _: JSONValue = try await self.call("remote.revoke", ["device": .string(device.id)]) }
         await load()
     }

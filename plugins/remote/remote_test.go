@@ -402,8 +402,15 @@ func TestMacsReplaceTheDevicesListAndDriveTheTitleDot(t *testing.T) {
 
 func TestPairHostsError(t *testing.T) {
 	assert.NoError(t, pairHostsError(status{Hosts: []string{"100.64.0.1"}}))
+	assert.NoError(t, pairHostsError(status{PairReady: true}))
 	assert.EqualError(t, pairHostsError(status{}), "pairing needs a Tailscale address: no Tailscale address")
 	assert.EqualError(t, pairHostsError(status{Error: "listen tcp: busy"}), "pairing needs a Tailscale address: listen tcp: busy")
+}
+
+func TestPairHintSaysWhyThereIsNoWayToPair(t *testing.T) {
+	assert.Equal(t, "No Tailscale address (no Tailscale address); the relay path is still connecting.", pairHint(status{Tunnel: tunnelStatus{State: tunnelConnecting}}))
+	assert.Equal(t, "No Tailscale address (listen tcp: busy) and the relay path is down: Relay unreachable, trying again", pairHint(status{Error: "listen tcp: busy", Tunnel: tunnelStatus{State: tunnelError, Detail: "Relay unreachable, trying again"}}))
+	assert.Equal(t, "No Tailscale address (no Tailscale address). Turn on the relay path to pair without Tailscale.", pairHint(status{Tunnel: tunnelStatus{State: tunnelOff}}))
 }
 
 func TestResumeAfter(t *testing.T) {
@@ -699,6 +706,7 @@ func newFixture(t *testing.T) *fixture {
 		ping:     time.Hour,
 		now:      f.clock.Now,
 	}
+	f.srv.relay.bind(t.Context())
 	f.ts = httptest.NewServer(f.srv.handler())
 	t.Cleanup(func() {
 		f.srv.hub.closeAll()

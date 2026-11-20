@@ -21,19 +21,24 @@ Flags, each with an environment fallback:
 | `-bans` | `PUSH_RELAY_BANS` | – | banned report keys and IPs; unset or missing → no bans |
 | `-reports` | `PUSH_RELAY_REPORTS` | `reports` | directory the reports are stored in (created `700`) |
 | `-devices` | `PUSH_RELAY_DEVICES` | – | JSON file of the device tokens each Mac registered (see [Device binding](#device-binding)); unset → kept in memory only, lost on restart |
+| `-signup` | `PUSH_RELAY_SIGNUP` | `on` | self sign-up of Macs at `POST /v1/macs` (see [Self sign-up](#self-sign-up)); `off` → that route answers `404` |
 | `-tickets` | `PUSH_RELAY_TICKETS` | `tickets.json` next to `-devices` | JSON file of the tunnel's device tickets (see [Tunnel relay § Tickets](tunnel-relay.md#tickets)); unset and no `-devices` → kept in memory only, lost on restart |
 
 APNs topic is fixed: `com.clubmate.companion`. JWTs (ES256) are reused for 50 minutes.
 
 ## Mac tokens
 
-The tokens file has one line per Mac: `<name> <sha256 hex of the token>` (blank lines and `#` lines are skipped). The relay re-reads it when its modification time or size changes, so adding or revoking a Mac needs no restart.
+The tokens file has one line per Mac: `<name> <sha256 hex of the token>` (blank lines and `#` lines are skipped). A self-signed Mac (see [Self sign-up](#self-sign-up)) has two more fields: `k-<16 hex> <sha256 hex> key=<base64url public key> at=<unix time of the sign-up>`. The relay re-reads the file when its modification time or size changes, so adding or revoking a Mac needs no restart.
+
+The relay writes the file itself (a sign-up), to a temp file and renames it, under an exclusive `flock` on `<tokens>.lock`; `token add` and `token rm` take the same lock, so a sign-up and a `token add` at the same time lose no line. Keep the file in a directory the relay can write (the unit uses `~/push-relay/state/tokens`).
 
 ```
 clubmate-push-relay token add <name> -tokens <file>   # prints a new cmr_… token once, appends its hash
 clubmate-push-relay token rm <name> -tokens <file>    # removes the Mac's line
-clubmate-push-relay token ls -tokens <file>           # lists names
+clubmate-push-relay token ls -tokens <file>           # lists names, a self-signed one with " (self)"
 ```
+
+`token add` refuses a name that starts with `k-`: those are for self sign-up.
 
 The token itself is never stored on the relay; lose it and `token rm` + `token add` the Mac again.
 
@@ -60,11 +65,43 @@ The tunnel routes `/v1/mac/…` (Mac token, the same `cmr_` tokens) and `/v1/d/�
 
 `PUT /v1/devices`, `Authorization: Bearer <mac token>`, `{"tokens": ["<hex device token>", …]}`: replaces the set of device tokens this Mac may push to. At most 32 tokens, each hex and at most 200 characters (`400` otherwise); `401` and `429` as for a push (the same bucket); `500` when the file can't be written (the old set stays); `204` on success. Logs `devices <mac name> <count>`.
 
+### Self sign-up
+
+`POST /v1/macs` gives a Mac its own `cmr_` token with no step on the VM. The Mac signs the request like a problem report (`pkg/report.Sign` with the install's Ed25519 key: `X-Clubmate-Key`, `X-Clubmate-Time`, `X-Clubmate-Signature` over `method + path + time + sha256(body)`), no `Authorization`. The body is a JSON object of at most 1 KiB, today `{}`; unknown fields are ignored.
+
+The Mac's name on the relay is `k-` + the first 16 hex of its public key. The body has no Mac name, user name or host name.
+
+Checks, first failure answers (plain-text error; `429` has `Retry-After` in seconds):
+
+| Check | Answer |
+|---|---|
+| `-signup off` | `404` |
+| client IP banned | `403` |
+| IP (IPv6 as its /64): 5 an hour and 20 a day, charged before the body is read | `429` |
+| body over 1 KiB | `413` |
+| missing or bad signature, time more than 5 min off | `401` |
+| the same signature seen in the last 10 min | `401` |
+| body not a JSON object | `400` |
+| key banned | `403` |
+| key: 3 an hour and 6 a day, a sign-up again included | `429` |
+| new key: all new keys together 300 a day | `429` |
+| new key: 20 000 self-signed entries in the tokens file | `503` `sign-up closed` |
+| the name has a line for another key | `409` |
+| device set or tokens file not written | `500` |
+
+Success: `201` for a new name, `200` for the same key again, `{"token": "cmr_…", "name": "k-<16 hex>"}`. A sign-up again replaces the line of that key: the new token works at once and the old one stops (its next push gets `401`, its tunnel stream ends within one ping), and the Mac's device set stays. For a new name the relay first writes an empty device set (see [Device binding](#device-binding)), then the token line, so a self-signed token never pushes in the open mode.
+
+Logs: `signup k-<16 hex> new|again <ip>`, `signup refused <status> <ip>`. Never the token.
+
+A key ban (`key <hex prefix>` in the bans file) also takes the token away: push, `PUT /v1/devices` and the tunnel answer `401` for a self-signed Mac whose key is banned. A self-signed token does not make a problem report trusted: anyone can sign up, so the report stays anonymous (see [`POST /v1/reports`](#post-v1reports-public)).
+
+`token rm k-<16 hex>` removes a self-signed Mac like any other; it can sign up again with the same key unless its key is banned.
+
 ### Device binding
 
 Without it, any Mac token could push to any device token, and a phone that removed a Mac still got that Mac's pushes. Now:
 
-- A Mac that has never called `PUT /v1/devices` (a Mac from before 10 Nov 2026) may push to any device token, as before. Old Macs and old phones keep working until they update.
+- A Mac that has never called `PUT /v1/devices` (a Mac from before 10 Nov 2026) may push to any device token, as before. A self-signed Mac never has this open mode: its empty set is written at its first sign-up. Old Macs and old phones keep working until they update.
 - Once a Mac has registered a set, even an empty one, a push to a device token outside it gets `403`. There is no way back to the open mode for that Mac name short of deleting its entry from the devices file.
 - A current Mac sends its full set after a pair, a `pushToken` from a phone (an empty one when the phone removes that Mac, see [Remote § Real push](remote.md#real-push)), a revoke, and before a push when the set changed. A `403` makes it register again and retry once, so a relay that lost its file (or runs without `-devices`) catches up on the next push.
 - The file stores the sha256 of each device token (lower-case hex), not the token, keyed by Mac name: `{"<mac name>": ["<sha256 hex>", …]}`, written to a temp file and renamed. `token rm` leaves the Mac's entry; a Mac added again under the same name registers its set on its first push.
@@ -75,7 +112,7 @@ What it does not stop: the registration is authenticated by the Mac token alone.
 
 ### `POST /v1/reports` (public)
 
-The body is the report zip itself (`Content-Type: application/zip`, at most 25 MiB) with `report.json` at its root (`pkg/report.Meta`; `text` required, `text` and `summary` at most 20 KiB each). Every request is signed by the install's Ed25519 key (`pkg/report.Sign`): headers `X-Clubmate-Key`, `X-Clubmate-Time`, `X-Clubmate-Signature` over `method + path + time + sha256(body)`. An optional `Authorization: Bearer <mac token>` marks the report **trusted** with that Mac's name; an unknown bearer is ignored and the report stays anonymous. A trusted report still needs a valid signature.
+The body is the report zip itself (`Content-Type: application/zip`, at most 25 MiB) with `report.json` at its root (`pkg/report.Meta`; `text` required, `text` and `summary` at most 20 KiB each). Every request is signed by the install's Ed25519 key (`pkg/report.Sign`): headers `X-Clubmate-Key`, `X-Clubmate-Time`, `X-Clubmate-Signature` over `method + path + time + sha256(body)`. An optional `Authorization: Bearer <mac token>` marks the report **trusted** with that Mac's name; an unknown or self-signed bearer is ignored and the report stays anonymous. A trusted report still needs a valid signature.
 
 Checks, cheapest first; the first that fails answers:
 
@@ -147,7 +184,7 @@ One directory per report, `<reports>/<id>/bundle.zip` + `meta.json`, both writte
 exe.dev VMs are x86_64 Ubuntu 24.04 with systemd. A new VM's HTTPS proxy `https://<vm>.exe.xyz` (Let's Encrypt `*.exe.xyz` certificate) forwards to port 8000 (`ssh exe.dev share port <vm> 8000` sets it), so the relay itself serves plain HTTP on `0.0.0.0:8000`. The proxy is private (exe.dev login) until `ssh exe.dev share set-public <vm>`; Macs need it public, the relay checks their tokens itself.
 
 1. Create the VM: `ssh exe.dev new --name=<vm>`.
-2. From the repo: `scripts/deploy-push-relay.sh <vm>.exe.xyz`. It cross-builds a static linux/amd64 binary, copies it to `~/push-relay/` with `deploy/push-relay/clubmate-push-relay.service` (its `REPLACE_ME_USER` set to the VM login), creates empty `~/push-relay/tokens`, `admins` and `bans` (mode 600), `~/push-relay/reports/` and `~/push-relay/state/` (mode 700) and an empty tunnel tickets file `~/push-relay/state/tickets.json` (`{}`, mode 600) if missing, installs and enables the unit and restarts it once `~/push-relay/relay.env` exists. Run it again for every update; it never touches the key, `relay.env`, the tokens, the bans, the stored reports, the device bindings or the tickets file.
+2. From the repo: `scripts/deploy-push-relay.sh <vm>.exe.xyz`. It cross-builds a static linux/amd64 binary, copies it to `~/push-relay/` with `deploy/push-relay/clubmate-push-relay.service` (its `REPLACE_ME_USER` set to the VM login), creates `~/push-relay/reports/` and `~/push-relay/state/` (mode 700), moves an old `~/push-relay/tokens` to `~/push-relay/state/tokens` once (the relay writes the tokens file, and the unit lets it write only in `reports/` and `state/`), creates empty `~/push-relay/state/tokens`, `admins` and `bans` (mode 600) and an empty tunnel tickets file `~/push-relay/state/tickets.json` (`{}`, mode 600) if missing, installs and enables the unit and restarts it once `~/push-relay/relay.env` exists. Run it again for every update; it never touches the key, `relay.env`, the tokens, the bans, the stored reports, the device bindings or the tickets file.
 3. Copy the key and write `relay.env` without either passing through a terminal:
 
    ```bash
@@ -159,7 +196,7 @@ exe.dev VMs are x86_64 Ubuntu 24.04 with systemd. A new VM's HTTPS proxy `https:
 
 4. Check: `curl -fsS https://<vm>.exe.xyz/healthz`.
 
-The unit sets `PUSH_RELAY_LISTEN=0.0.0.0:8000`, `PUSH_RELAY_TOKENS`, `PUSH_RELAY_ADMINS`, `PUSH_RELAY_BANS`, `PUSH_RELAY_REPORTS`, `PUSH_RELAY_DEVICES` (`~/push-relay/state/devices.json`) and `PUSH_RELAY_TICKETS` (`~/push-relay/state/tickets.json`) to the files above, runs as the VM login with `NoNewPrivileges`, a read-only home except `~/push-relay/reports` and `~/push-relay/state` (`ReadWritePaths=`) and `Restart=always`.
+The unit sets `PUSH_RELAY_LISTEN=0.0.0.0:8000`, `PUSH_RELAY_TOKENS` (`~/push-relay/state/tokens`), `PUSH_RELAY_ADMINS`, `PUSH_RELAY_BANS`, `PUSH_RELAY_REPORTS`, `PUSH_RELAY_DEVICES` (`~/push-relay/state/devices.json`) and `PUSH_RELAY_TICKETS` (`~/push-relay/state/tickets.json`) to the files above, runs as the VM login with `NoNewPrivileges`, a read-only home except `~/push-relay/reports` and `~/push-relay/state` (`ReadWritePaths=`) and `Restart=always`.
 
 An admin token for the dev Mac: `ssh <vm>.exe.xyz '~/push-relay/clubmate-push-relay admin add <name> -admins ~/push-relay/admins'`.
 
@@ -169,9 +206,11 @@ Locally, `make push-relay` builds `bin/clubmate-push-relay` and `make push-relay
 
 ## Adding a Mac
 
-1. On the VM: `ssh <vm>.exe.xyz '~/push-relay/clubmate-push-relay token add <mac name> -tokens ~/push-relay/tokens'` prints `cmr_…`.
+A Mac gets its token by [Self sign-up](#self-sign-up). Nothing to do for a current Mac: the remote plugin signs up by itself while companion access is on and the Mac has no relay set by hand (relay mode `auto`; [Remote § Relay for every Mac](remote.md#relay-for-every-mac)): it sends `POST /v1/macs` signed with its install key to the default address (`buildinfo.RelayURL`, `CLUBMATE_RELAY_URL` overrides it), stores the token, and signs up again with the same key after a `401`. It retries a refused or failed sign-up after 1 minute, ×2 up to 1 hour (a `429` waits its `Retry-After`) and stops on a `403`. A Mac with a hand-made token (`remote.set-push-relay url token`, mode `manual`) never signs up. By hand:
+
+1. On the VM: `ssh <vm>.exe.xyz '~/push-relay/clubmate-push-relay token add <mac name> -tokens ~/push-relay/state/tokens'` prints `cmr_…`.
 2. On the Mac: `clubmate command run remote.set-push-relay url=https://<vm>.exe.xyz token=cmr_…`; `remote.status` shows `push: true`.
 
 ## Revoking a Mac
 
-`ssh <vm>.exe.xyz '~/push-relay/clubmate-push-relay token rm <mac name> -tokens ~/push-relay/tokens'`. Its next push gets `401`, and within one ping (25 s) the relay ends its tunnel stream and drops its channels; the Mac logs it and its phones fall back to the background refresh. On the Mac itself `remote.set-push-relay url=` clears the relay.
+`ssh <vm>.exe.xyz '~/push-relay/clubmate-push-relay token rm <mac name> -tokens ~/push-relay/state/tokens'`. A self-signed Mac can sign up again; to keep it out, ban its key (see [Bans](#bans)). Its next push gets `401`, and within one ping (25 s) the relay ends its tunnel stream and drops its channels; the Mac logs it and its phones fall back to the background refresh. On the Mac itself `remote.set-push-relay url=` clears the relay.

@@ -6,6 +6,8 @@ var (
 	Version = "0.0.0-dev"
 	Commit  = ""
 	Flavor  = "dev"
+
+	RelayURL = "https://clubmate-push.exe.xyz"
 )
 
 func String() string {

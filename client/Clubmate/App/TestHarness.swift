@@ -8,6 +8,12 @@ final class TestHarness {
     static let shared = TestHarness()
     static let defaultSize = NSSize(width: 1200, height: 800)
     static let approvals = CommandLine.arguments.contains("--test-approvals")
+    static let remoteFixture: String? = {
+        let arguments = CommandLine.arguments
+        guard let index = arguments.firstIndex(of: "--remote-fixture") else { return nil }
+        let next = arguments.indices.contains(index + 1) ? arguments[index + 1] : ""
+        return next.hasPrefix("relay-") ? next : "devices"
+    }()
 
     private let probes = NSHashTable<TestProbeNSView>.weakObjects()
     private let monitors = NSHashTable<KeyMonitorView>.weakObjects()

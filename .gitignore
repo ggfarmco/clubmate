@@ -12,6 +12,7 @@ client/Clubmate/Resources/terminfo
 /dist/
 /docs/superpowers
 /docs/verification
+/cmd/clubmate-push-relay/clubmate-push-relay
 /plugins/agents/agents
 /agents
 /editor-nvim

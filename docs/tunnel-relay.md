@@ -25,7 +25,7 @@ The proxy sends its own `503` HTML when a response has no headers after 300 s. S
 
 ## Auth
 
-- **Mac:** `Authorization: Bearer cmr_…`, the push relay's Mac token and tokens file. `internal/tunnelrelay` gets a `func(bearer) (mac, ok)` from `main.go`. The Mac stream checks the token again at each ping; after `token rm` the stream ends and the Mac's channels are dropped.
+- **Mac:** `Authorization: Bearer cmr_…`, the push relay's Mac token and tokens file, a self-signed one too ([Push relay § Self sign-up](push-relay.md#self-sign-up)). `internal/tunnelrelay` gets a `func(bearer) (mac, ok)` from `main.go`. The Mac stream checks the token again at each ping; after `token rm`, a sign-up again with the same key (a new token) or a ban of a self-signed Mac's key, the stream ends and the Mac's channels are dropped.
 - **Device:** `X-Clubmate-Ticket: cmk_…`, no `Authorization`. A ticket only lets a phone use relay bandwidth for one Mac. The device token is checked by the Mac inside the tunnel.
 
 ### Tickets
@@ -40,7 +40,7 @@ The proxy sends its own `503` HTML when a response has no headers after 300 s. S
 
 ## Mac side
 
-All with `Authorization: Bearer cmr_…`; `401` without a valid token.
+All with `Authorization: Bearer cmr_…`; `401` without a valid token. A Mac gets its token by [self sign-up](push-relay.md#self-sign-up) (`POST /v1/macs`, started by the plugin when companion access is on, see [Remote § Relay for every Mac](remote.md#relay-for-every-mac)) or by hand. After the first sign-up the plugin turns the relay path on when `tunnelOn` was never stored. A `401` on `GET /v1/mac/stream` for a token the Mac got by signing up makes the plugin sign up again with the same key (at most once per 10 minutes), then restart the stream with the new token; `remote.status.tunnel.state` / `detail` tell the UI where it is (`connecting`: "Signing up to the Clubmate relay…" / "Connecting to <host>…", `connected`: "Connected through <host>", `error`: one line).
 
 **Stream id:** two Clubmates with the same token look the same to the relay, so each Mac stream gets a random id, sent in the `X-Clubmate-Stream: st_…` header of the `GET /v1/mac/stream` response. `PUT /v1/mac/tickets`, `POST /v1/mac/push` and `POST /v1/mac/close/{ch}` must carry it in `X-Clubmate-Stream`; a missing id or one that is not the Mac's current stream gets `409` `{"error": "not this Mac's current stream"}` and changes nothing (no ticket set, no `gone` list taken, no quota bytes, no channel closed). `open`, the body pull and `reply` act on an open or a request that the relay sent on one stream and drops when that stream ends, so a replaced stream gets `410` there; the Mac sends the header on them too.
 
@@ -157,7 +157,7 @@ The tunnel routes run in the push relay process on `clubmate-push.exe.xyz` (exe.
 
 2. Deploy: `scripts/deploy-push-relay.sh clubmate-push.exe.xyz` (see [Push relay § Deploy on exe.dev](push-relay.md#deploy-on-exedev); it adds `PUSH_RELAY_TICKETS` and an empty `~/push-relay/state/tickets.json`).
 3. `curl -fsS https://clubmate-push.exe.xyz/healthz` → `200`.
-4. Add a test Mac and keep its token in a shell variable only: `TOK=$(ssh clubmate-push.exe.xyz '~/push-relay/clubmate-push-relay token add relay-e2e-<date> -tokens ~/push-relay/tokens')`, and remove it on exit: `trap "ssh clubmate-push.exe.xyz '~/push-relay/clubmate-push-relay token rm relay-e2e-<date> -tokens ~/push-relay/tokens'" EXIT`.
+4. Add a test Mac and keep its token in a shell variable only: `TOK=$(ssh clubmate-push.exe.xyz '~/push-relay/clubmate-push-relay token add relay-e2e-<date> -tokens ~/push-relay/state/tokens')`, and remove it on exit: `trap "ssh clubmate-push.exe.xyz '~/push-relay/clubmate-push-relay token rm relay-e2e-<date> -tokens ~/push-relay/state/tokens'" EXIT`.
 5. Push probe: `POST /v1/push` with `Bearer $TOK` and a device token of 64 zeros (`{"token": "000…", "environment": "development", "type": "alert", "payload": {"aps": {}}}`) → `{"status":400,"reason":"BadDeviceToken"}`: APNs took the key and the JWT.
 6. Tunnel check through the exe.dev proxy: `CLUBMATE_TEST_LIVE_RELAY=https://clubmate-push.exe.xyz CLUBMATE_TEST_LIVE_RELAY_TOKEN=$TOK go test -count=1 -run TestHelloAndAnEventStreamThroughTheLiveRelay ./plugins/remote/`. A fake Mac (the `remote` plugin's tunnel client) and a fake phone open a channel, send one `hello` and read one event stream (a replayed event and a live one). The test uses a random ticket and sends an empty ticket set at the end, so the tickets file keeps no entry for the test Mac. Without the two variables the test is skipped; `TestHelloAndAnEventStreamThroughTheRelayBinary` runs the same check against a local relay binary.
 

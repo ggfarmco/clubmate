@@ -129,6 +129,60 @@ final class RemoteDevicesTests: XCTestCase {
         XCTAssertEqual(model.status?.titleDot, true)
     }
 
+    func testDecodesRelayFieldsAndOldPlugin() throws {
+        let new = try decoded(#"{"enabled":true,"relay":{"mode":"manual","url":"https://relay.example.com","state":"ready","detail":"Ready"},"tunnel":{"on":true,"url":"https://relay.example.com","connected":true,"error":"","channels":2,"state":"connected","detail":"Connected"},"pairReady":false,"pairHint":"Start Tailscale"}"#, as: RemoteStatus.self)
+        XCTAssertEqual(new.relay, RemoteRelay(mode: "manual", url: "https://relay.example.com", state: "ready", detail: "Ready"))
+        XCTAssertEqual(new.relay?.host, "relay.example.com")
+        XCTAssertEqual(new.tunnel, RemoteTunnel(on: true, url: "https://relay.example.com", connected: true, channels: 2, state: "connected", detail: "Connected"))
+        XCTAssertEqual(new.pairReady, false)
+        XCTAssertEqual(new.pairHint, "Start Tailscale")
+
+        let old = try decoded(#"{"enabled":true,"tunnel":{"on":false}}"#, as: RemoteStatus.self)
+        XCTAssertNil(old.relay)
+        XCTAssertEqual(old.tunnel, RemoteTunnel(on: false))
+        XCTAssertNil(old.pairReady)
+
+        let pairing = try decoded(#"{"link":"clubmate://pair?v=2","code":"A","expiresAt":"2026-10-30T10:05:00Z","relay":true}"#, as: RemotePairing.self)
+        XCTAssertTrue(pairing.relay)
+    }
+
+    func testPairReadinessComesFromPlugin() async throws {
+        let fake = FakeRemote()
+        let model = fake.model()
+        fake.status = #"{"enabled":true,"port":47621,"listening":[],"hosts":[],"error":"no Tailscale address","pairReady":true}"#
+        await model.load()
+        XCTAssertTrue(model.pairReady)
+        XCTAssertEqual(model.pairHint, "")
+
+        fake.status = #"{"enabled":true,"port":47621,"listening":["100.1.2.3:47621"],"hosts":["100.1.2.3"],"error":"","pairReady":false,"pairHint":"Turn on the relay"}"#
+        await model.load()
+        XCTAssertFalse(model.pairReady)
+        XCTAssertEqual(model.pairHint, "Turn on the relay")
+
+        fake.status = #"{"enabled":true,"port":47621,"listening":[],"hosts":[],"error":"no Tailscale address"}"#
+        await model.load()
+        XCTAssertEqual(model.pairHint, RemoteDevicesModel.tailscaleHint)
+    }
+
+    func testRelayActionsSendCommands() async throws {
+        let fake = FakeRemote()
+        let model = fake.model()
+
+        await model.setTunnel(true)
+        XCTAssertEqual(fake.calls.last, CommandInvocation(id: "remote.set-tunnel", args: .object(["on": .bool(true)])))
+        XCTAssertEqual(model.status?.tunnel?.on, true)
+
+        fake.confirmed = false
+        await model.rotateRelayKey()
+        XCTAssertFalse(fake.calls.contains { $0.id == "remote.tunnel-rotate" })
+
+        fake.confirmed = true
+        await model.rotateRelayKey()
+        XCTAssertEqual(fake.asked, [RemoteDevicesModel.rotate, RemoteDevicesModel.rotate])
+        XCTAssertEqual(fake.calls.last, CommandInvocation(id: "remote.tunnel-rotate", args: .object([:])))
+        XCTAssertNil(model.error)
+    }
+
     func testRevokeNeedsConfirmation() async throws {
         let fake = FakeRemote()
         let model = fake.model()
@@ -140,7 +194,7 @@ final class RemoteDevicesTests: XCTestCase {
 
         fake.confirmed = true
         await model.revoke(device)
-        XCTAssertEqual(fake.asked, [RemoteDevicesModel.revokeMessage, RemoteDevicesModel.revokeMessage])
+        XCTAssertEqual(fake.asked, [RemoteDevicesModel.revoke, RemoteDevicesModel.revoke])
         XCTAssertTrue(fake.calls.contains(CommandInvocation(id: "remote.revoke", args: .object(["device": .string("d1")]))))
         XCTAssertNil(model.error)
     }
@@ -181,6 +235,10 @@ final class RemoteDevicesTests: XCTestCase {
     }
 }
 
+private func decoded<T: Decodable>(_ text: String, as type: T.Type) throws -> T {
+    try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)).decode(type)
+}
+
 @MainActor
 private final class FakeRemote {
     var status = #"{"enabled":true,"port":47621,"listening":["100.101.1.2:47621"],"hosts":["mac.tailnet.ts.net","100.101.1.2"],"error":""}"#
@@ -188,13 +246,13 @@ private final class FakeRemote {
     var failure: ClubmateError?
     var confirmed = true
     private(set) var calls: [CommandInvocation] = []
-    private(set) var asked: [String] = []
+    private(set) var asked: [RemoteDevicesModel.Ask] = []
 
     func model() -> RemoteDevicesModel {
         RemoteDevicesModel(
             run: { [unowned self] invocation in self.answer(invocation) },
-            confirm: { [unowned self] message in
-                self.asked.append(message)
+            confirm: { [unowned self] ask in
+                self.asked.append(ask)
                 return self.confirmed
             }
         )
@@ -208,6 +266,7 @@ private final class FakeRemote {
         case "remote.devices": return .success(json(devices))
         case "remote.enable": return .success(json(#"{"enabled":false,"port":47621,"listening":[],"hosts":[],"error":""}"#))
         case "remote.set-colour": return .success(json(#"{"enabled":true,"computer":{"id":"c1","name":"Mac Studio","colour":"magenta"},"titleBarColour":false,"otherMacs":[{"name":"MacBook Pro","colour":"blue","devices":["iPhone"]}],"titleDot":true}"#))
+        case "remote.set-tunnel", "remote.tunnel-rotate": return .success(json(#"{"enabled":true,"tunnel":{"on":true,"state":"connecting","detail":"Connecting…"}}"#))
         case "remote.pair": return .success(json(#"{"link":"clubmate://pair?v=1&c=ABC&n=Mac","code":"ABC","expiresAt":"2026-10-30T10:05:00Z"}"#))
         default: return .success(.null)
         }

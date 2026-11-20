@@ -12,14 +12,14 @@
         "title": "Companion status",
         "hidden": true,
         "scope": "app",
-        "description": "Whether companion access is on, the port, the addresses it listens on, the hosts a pairing link carries, why it is not listening, this Mac's identity, the title-bar colour setting, the other Macs paired phones reported and whether the title bar shows this Mac's dot and whether a push relay is set, the host problem reports go to, and the relay path's state (on, the push relay URL it uses, whether its stream to the relay is up, why not, open phone channels): {enabled, port, listening, hosts, error, computer: {id, name, colour}, titleBarColour, otherMacs: [{name, colour, devices}], titleDot, push, reportRelay, tunnel: {on, url, connected, error, channels}}."
+        "description": "Whether companion access is on, the port, the addresses it listens on, the hosts a pairing link carries, why it is not listening, this Mac's identity, the title-bar colour setting, the other Macs paired phones reported and whether the title bar shows this Mac's dot and whether a push relay is set, the host problem reports go to, and the Clubmate relay (mode auto|manual|off, its URL, state none|signing-up|ready|error and a one-line detail the UI shows as is), the relay path's state (on, the URL it uses, whether its stream to the relay is up, why not, open phone channels, state off|connecting|connected|error and a one-line detail) and whether a phone can be paired now (a Tailscale address exists, or the relay path is connected; pairHint says why not while access is on): {enabled, port, listening, hosts, error, computer: {id, name, colour}, titleBarColour, otherMacs: [{name, colour, devices}], titleDot, push, reportRelay, relay: {mode, url, state, detail}, tunnel: {on, url, connected, error, channels, state, detail}, pairReady, pairHint}."
       },
       {
         "id": "remote.enable",
         "title": "Allow companion devices",
         "hidden": true,
         "scope": "app",
-        "description": "Turn companion access on or off; returns the status.",
+        "description": "Turn companion access on or off; returns the status. Turning it on also signs this Mac up to the Clubmate relay in the background when the relay mode is auto and no token is stored (signed with this install's key; no name or host is sent): push and the relay path come on once it is done. It is the only time a Mac that never set a relay calls the relay server. Turning access off stops it. A refused sign-up (blocked) stops, also across a restart, until the user turns access off and on, or sets remote.set-push-relay auto=true.",
         "args": {
           "properties": {
             "enabled": {"type": "boolean", "description": "Listen for paired devices."}
@@ -73,7 +73,7 @@
         "title": "Pair device",
         "hidden": true,
         "scope": "app",
-        "description": "Turn companion access on and issue a one-time pairing code (5 minutes, replaces the previous one): {link, code, expiresAt}. While the relay path is on (remote.set-tunnel) the link is version 2: it also carries the relay URL, this Mac's relay key and key id, and a pairing ticket (registered at the relay; good for one pair request until the code expires, is used or is cancelled), and it needs no Tailscale address. Otherwise it is version 1."
+        "description": "Turn companion access on and issue a one-time pairing code (5 minutes, replaces the previous one): {link, code, expiresAt, relay}. While the relay path is on (remote.set-tunnel) the link is version 2 and relay is true: it also carries the relay URL, this Mac's relay key and key id, and a pairing ticket (registered at the relay; good for one pair request until the code expires, is used or is cancelled), and it needs no Tailscale address. Otherwise it is version 1 and relay is false."
       },
       {
         "id": "remote.cancel-pair",
@@ -124,13 +124,13 @@
         "title": "Set push relay",
         "hidden": true,
         "scope": "app",
-        "description": "Set the push relay paired phones get push notifications through: the relay's https url and this Mac's relay token (cmr_…, from `clubmate-push-relay token add` on the relay host). An empty url clears both. Returns the status.",
+        "description": "Set how this Mac reaches the push relay paired phones get push notifications through. auto=true: the Clubmate relay at the default address, signed up to by itself with this install's key (needs no token; a hand-made url and token are dropped; runs when companion access is on, or now when it is on already). url and token: the relay's https url and this Mac's relay token (cmr_…, from `clubmate-push-relay token add` on the relay host); this Mac never signs up. An empty url clears both and turns the relay off until auto=true or remote.set-tunnel on=true. Returns the status.",
         "args": {
           "properties": {
+            "auto": {"type": "boolean", "description": "true signs this Mac up to the Clubmate relay by itself; cannot be combined with url or token."},
             "url": {"type": "string", "description": "Relay base url, https://<host>[:port]; empty clears the relay."},
             "token": {"type": "string", "description": "This Mac's relay token."}
-          },
-          "required": ["url"]
+          }
         }
       },
       {
@@ -138,7 +138,7 @@
         "title": "Set relay path",
         "hidden": true,
         "scope": "app",
-        "description": "Turn the relay path on or off: a second, end-to-end encrypted path for paired phones through the push relay set with remote.set-push-relay (same URL and cmr_ token). Refused while no push relay is set; runs only while companion access is on (remote.enable). The first time on makes this Mac's relay key in the login Keychain. User only. Returns the status.",
+        "description": "Turn the relay path on or off: a second, end-to-end encrypted path for paired phones through the push relay (same URL and cmr_ token as push). With no relay set it signs this Mac up to the Clubmate relay first (relay mode becomes auto, up to 30 s) and fails with the reason when the sign-up fails. The relay path is on by default after the first automatic sign-up unless it was turned off before. Runs only while companion access is on (remote.enable). The first time on makes this Mac's relay key in the login Keychain. User only. Returns the status.",
         "args": {
           "properties": {
             "on": {"type": "boolean", "description": "true turns the relay path on, false turns it off."}
@@ -161,7 +161,7 @@
         "hidden": true,
         "scope": "app",
         "timeout": 150,
-        "description": "Sign a problem report zip with this install's key and upload it: to the push relay with this Mac's relay token when one is set, else to https://clubmate-push.exe.xyz without a token. The core calls it after the user pressed Send in the report sheet. Returns {id}.",
+        "description": "Sign a problem report zip with this install's key and upload it: to the push relay with this Mac's relay token when one is set (a token from a hand-made setup makes the report trusted; a token the Mac got by signing up does not), else to the default relay (https://clubmate-push.exe.xyz, or CLUBMATE_RELAY_URL) without a token. The core calls it after the user pressed Send in the report sheet. Returns {id}.",
         "args": {
           "properties": {
             "path": {"type": "string", "description": "Absolute path of the report zip (at most 25 MiB)."}

@@ -21,10 +21,9 @@ import (
 )
 
 const (
-	defaultReportRelay = "https://clubmate-push.exe.xyz"
-	reportKeyFile      = "report-key"
-	reportsPath        = "/v1/reports"
-	reportTimeout      = 2 * time.Minute
+	reportKeyFile = "report-key"
+	reportsPath   = "/v1/reports"
+	reportTimeout = 2 * time.Minute
 )
 
 var (

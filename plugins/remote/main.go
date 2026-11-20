@@ -100,7 +100,10 @@ type status struct {
 	TitleDot       bool         `json:"titleDot"`
 	Push           bool         `json:"push"`
 	ReportRelay    string       `json:"reportRelay"`
+	Relay          relayView    `json:"relay"`
 	Tunnel         tunnelStatus `json:"tunnel"`
+	PairReady      bool         `json:"pairReady"`
+	PairHint       string       `json:"pairHint"`
 }
 
 type otherMac struct {
@@ -142,6 +145,12 @@ type relayArgs struct {
 	Token string `json:"token"`
 }
 
+type pushRelayArgs struct {
+	URL   string `json:"url"`
+	Token string `json:"token"`
+	Auto  bool   `json:"auto"`
+}
+
 func main() {
 	a := &app{ready: make(chan struct{}), seedEvery: seedEvery, seedFor: seedFor}
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, Command: a.command, BusEvent: a.busEvent, BusClosed: a.busClosed, UIUpdated: a.uiUpdated, Shutdown: a.shutdown})
@@ -174,6 +183,10 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.enabled, a.port, a.titleBar = enabled, port, titleBar
 	a.ident = &identity{kv: h, publish: a.publish, comp: comp}
 	relay := newRelayClient(h, &http.Client{Timeout: relayTimeout})
+	relay.dir = pluginsdk.StateDir()
+	relay.changed = a.changed
+	relay.onSigned = a.relaySigned
+	relay.bind(ctx)
 	if err := relay.load(ctx); err != nil {
 		logf("load push relay: %v", err)
 	}
@@ -204,8 +217,10 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		logf("load tunnel: %v", err)
 	}
 	a.subscribe(ctx, h, math.MaxInt64)
+	relay.setAccess(enabled)
 	if enabled {
 		a.activate(ctx)
+		relay.ensure()
 	}
 	close(a.ready)
 	go a.rescanLoop(ctx)
@@ -288,14 +303,13 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 		defer cancel()
 		return a.srv.pushCommand(ctx, cmd.WorkspaceID, enabled, args)
 	case "remote.set-push-relay":
-		var args relayArgs
+		var args pushRelayArgs
 		if err := decodeArgs(cmd.Args, &args); err != nil {
 			return nil, err
 		}
-		if err := a.srv.relay.configure(ctx, args.URL, args.Token); err != nil {
+		if err := a.setPushRelay(ctx, args); err != nil {
 			return nil, err
 		}
-		a.tun.restart()
 		return a.status(), nil
 	case "remote.set-tunnel":
 		var args tunnelArgs
@@ -415,7 +429,29 @@ func (a *app) pair(ctx context.Context) (pairResult, error) {
 			return pairResult{}, fmt.Errorf("the relay did not take the pairing ticket: %w", err)
 		}
 	}
-	return pairResult{Link: pairLink(code, st.Hosts, st.Port, a.ident.get(), expires, relay), Code: code, ExpiresAt: expires.UTC().Format(time.RFC3339)}, nil
+	return pairResult{Link: pairLink(code, st.Hosts, st.Port, a.ident.get(), expires, relay), Code: code, ExpiresAt: expires.UTC().Format(time.RFC3339), Relay: relay != nil}, nil
+}
+
+func (a *app) setPushRelay(ctx context.Context, args pushRelayArgs) error {
+	relay := a.srv.relay
+	if args.Auto {
+		if args.URL != "" || args.Token != "" {
+			return errSignupAutoArgs
+		}
+		if err := relay.setAuto(ctx); err != nil {
+			return err
+		}
+		relay.ensure()
+	} else if err := relay.configure(ctx, args.URL, args.Token); err != nil {
+		return err
+	}
+	a.tun.restart()
+	return nil
+}
+
+func (a *app) relaySigned(ctx context.Context) {
+	a.tun.defaultOn(ctx)
+	a.tun.restart()
 }
 
 func (a *app) setEnabled(ctx context.Context, enabled bool) error {
@@ -449,6 +485,11 @@ func (a *app) setEnabledLocked(ctx context.Context, enabled bool) error {
 	a.mu.Unlock()
 	if a.tun != nil {
 		a.tun.allow(enabled)
+	}
+	a.srv.relay.setAccess(enabled)
+	if enabled {
+		a.srv.relay.resume(ctx)
+		a.srv.relay.ensure()
 	}
 	a.changed()
 	return nil
@@ -588,25 +629,39 @@ func (a *app) status() status {
 		Push:           a.srv.relay.configured(),
 		ReportRelay:    a.srv.relay.reportHost(),
 	}
+	dns := a.dns
+	a.mu.Unlock()
+	st.Relay = a.srv.relay.view(st.Enabled)
 	if a.tun != nil {
 		st.Tunnel = a.tun.status()
 	}
-	dns := a.dns
-	a.mu.Unlock()
-	if !st.Enabled {
-		return st
+	if st.Enabled {
+		ls := a.ln.state()
+		st.Port, st.Error = ls.port, ls.err
+		if len(ls.listening) > 0 {
+			st.Listening = ls.listening
+			if dns != "" {
+				st.Hosts = append(st.Hosts, dns)
+			}
+			st.Hosts = append(st.Hosts, ls.hosts...)
+		}
 	}
-	ls := a.ln.state()
-	st.Port, st.Error = ls.port, ls.err
-	if len(ls.listening) == 0 {
-		return st
+	st.PairReady = len(st.Hosts) > 0 || st.Tunnel.State == tunnelConnected
+	if st.Enabled && !st.PairReady {
+		st.PairHint = pairHint(st)
 	}
-	st.Listening = ls.listening
-	if dns != "" {
-		st.Hosts = append(st.Hosts, dns)
-	}
-	st.Hosts = append(st.Hosts, ls.hosts...)
 	return st
+}
+
+func pairHint(st status) string {
+	reason := cmp.Or(st.Error, errNoTailnet)
+	switch st.Tunnel.State {
+	case tunnelConnecting:
+		return "No Tailscale address (" + reason + "); the relay path is still connecting."
+	case tunnelError:
+		return "No Tailscale address (" + reason + ") and the relay path is down: " + st.Tunnel.Detail
+	}
+	return "No Tailscale address (" + reason + "). Turn on the relay path to pair without Tailscale."
 }
 
 func (a *app) devices() []deviceView {
@@ -670,7 +725,7 @@ func otherMacs(devices []device) []otherMac {
 }
 
 func pairHostsError(st status) error {
-	if len(st.Hosts) > 0 {
+	if st.PairReady || len(st.Hosts) > 0 {
 		return nil
 	}
 	return fmt.Errorf("%w: %s", errNoPairHost, cmp.Or(st.Error, errNoTailnet))

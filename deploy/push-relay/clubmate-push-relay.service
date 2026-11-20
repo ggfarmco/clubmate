@@ -9,7 +9,7 @@ User=REPLACE_ME_USER
 WorkingDirectory=/home/REPLACE_ME_USER/push-relay
 EnvironmentFile=/home/REPLACE_ME_USER/push-relay/relay.env
 Environment=PUSH_RELAY_LISTEN=0.0.0.0:8000
-Environment=PUSH_RELAY_TOKENS=/home/REPLACE_ME_USER/push-relay/tokens
+Environment=PUSH_RELAY_TOKENS=/home/REPLACE_ME_USER/push-relay/state/tokens
 Environment=PUSH_RELAY_ADMINS=/home/REPLACE_ME_USER/push-relay/admins
 Environment=PUSH_RELAY_BANS=/home/REPLACE_ME_USER/push-relay/bans
 Environment=PUSH_RELAY_REPORTS=/home/REPLACE_ME_USER/push-relay/reports

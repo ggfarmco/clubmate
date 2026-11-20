@@ -24,6 +24,13 @@ struct DevicesSettings: View {
                         Task { await model.setTitleBarColour(enabled) }
                     }
                 }
+                if let status = model.status, status.enabled, let tunnel = status.tunnel {
+                    RelaySection(relay: status.relay, tunnel: tunnel, busy: model.busy) { on in
+                        Task { await model.setTunnel(on) }
+                    } rotate: {
+                        Task { await model.rotateRelayKey() }
+                    }
+                }
                 status
                 devices
             }
@@ -71,8 +78,8 @@ struct DevicesSettings: View {
                         .textSelection(.enabled)
                 }
                 .font(.subheadline)
-                if model.needsTailscale {
-                    SettingsDetail(RemoteDevicesModel.tailscaleHint)
+                if !model.pairHint.isEmpty {
+                    SettingsDetail(model.pairHint)
                 }
             }
             if let notice = model.notice {
@@ -215,6 +222,71 @@ private struct ThisMacSection: View {
     }
 }
 
+private struct RelaySection: View {
+    let relay: RemoteRelay?
+    let tunnel: RemoteTunnel
+    let busy: Bool
+    let setOn: (Bool) -> Void
+    let rotate: () -> Void
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Section("Relay") {
+            SettingsToggle(
+                title: "Connect through Clubmate relay",
+                detail: "Phones reach this Mac through Clubmate’s relay when Tailscale can’t. End‑to‑end encrypted.",
+                isOn: Binding { tunnel.on } set: { setOn($0) }
+            )
+            .disabled(busy)
+            if let relay, relay.mode == "manual", !relay.host.isEmpty {
+                LabeledContent("Relay") {
+                    Text(relay.host)
+                        .lineLimit(1)
+                        .truncationMode(.label)
+                        .help(relay.url)
+                        .textSelection(.enabled)
+                }
+            }
+            if let line {
+                HStack(spacing: theme.spacing.s) {
+                    Circle().fill(line.colour).frame(width: 7, height: 7)
+                    Text(line.text)
+                        .lineLimit(2)
+                        .truncationMode(.label)
+                        .help(line.text)
+                        .textSelection(.enabled)
+                }
+                .font(.subheadline)
+            }
+            if tunnel.on {
+                SettingsRow(title: "Relay key") {
+                    Button("Make a new relay key") { rotate() }
+                        .fixedSize()
+                        .disabled(busy)
+                }
+            }
+        }
+    }
+
+    private var line: (text: String, colour: Color)? {
+        if let relay, relay.state == "signing-up" || relay.state == "error", !relay.detail.isEmpty {
+            return (relay.detail, relay.state == "error" ? Color.red : Color.orange)
+        }
+        guard !tunnel.detail.isEmpty else { return nil }
+        return (tunnel.detail, colour(tunnel.state))
+    }
+
+    private func colour(_ state: String) -> Color {
+        switch state {
+        case "connected": .green
+        case "connecting": .orange
+        case "error": .red
+        default: .secondary
+        }
+    }
+}
+
 private struct Swatch: View {
     let token: String
     let selected: Bool
@@ -343,6 +415,13 @@ private struct PairDeviceSheet: View {
                         Text(left.map { "Expires in \($0)" } ?? "Code expired. Choose New Code.")
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(left == nil ? Color.red : Color.secondary)
+                        if pairing.relay {
+                            Text("Works without Tailscale: includes the relay path")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
             }
@@ -352,8 +431,8 @@ private struct PairDeviceSheet: View {
                     .foregroundStyle(.red)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
-                if model.needsTailscale {
-                    Text(RemoteDevicesModel.tailscaleHint)
+                if !model.pairHint.isEmpty {
+                    Text(model.pairHint)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

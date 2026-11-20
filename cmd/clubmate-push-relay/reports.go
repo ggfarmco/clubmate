@@ -96,7 +96,10 @@ func (r *relay) postReport(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, errBanned.Error(), http.StatusForbidden)
 		return
 	}
-	mac, trusted := r.tokens.lookup(bearer(req))
+	mac, self, trusted := r.tokens.lookup(bearer(req), r.bannedKey)
+	if self {
+		mac, trusted = "", false
+	}
 	if !trusted && !r.limits.ip.allow(ipKey) {
 		http.Error(w, errTooMany.Error(), http.StatusTooManyRequests)
 		return
@@ -264,7 +267,7 @@ func (r *relay) adminOnly(next http.HandlerFunc) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if _, ok := r.admins.lookup(bearer(req)); !ok {
+		if _, _, ok := r.admins.lookup(bearer(req), nil); !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -289,7 +292,11 @@ func (r *relay) housekeep(now time.Time) {
 	if err := r.reports.sweep(now); err != nil {
 		r.log.Printf("sweep reports: %v", err)
 	}
-	for _, l := range []*limiter{r.limiter, r.limits.keyHour, r.limits.keyDay, r.limits.ip, r.limits.anon, r.limits.mac} {
+	ls := []*limiter{r.limiter, r.limits.keyHour, r.limits.keyDay, r.limits.ip, r.limits.anon, r.limits.mac}
+	if r.signup != nil {
+		ls = append(ls, r.signup.all()...)
+	}
+	for _, l := range ls {
 		l.prune(now)
 	}
 	r.seen.prune(now)
@@ -298,6 +305,9 @@ func (r *relay) housekeep(now time.Time) {
 func (r *relay) refresh() {
 	if err := r.tokens.refresh(); err != nil {
 		r.log.Printf("reload tokens: %v", err)
+	}
+	if r.bans == nil {
+		return
 	}
 	if err := r.bans.refresh(); err != nil {
 		r.log.Printf("reload bans: %v", err)

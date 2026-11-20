@@ -47,6 +47,8 @@ type relay struct {
 	grace      time.Duration
 	now        func() time.Time
 
+	signup *signupLimits
+
 	tunnel http.Handler
 }
 
@@ -87,6 +89,9 @@ func (r *relay) handler() http.Handler {
 	mux.HandleFunc("POST /v1/push", r.push)
 	mux.HandleFunc("PUT /v1/devices", r.putDevices)
 	mux.HandleFunc("POST /v1/reports", r.postReport)
+	if r.signup != nil {
+		mux.HandleFunc("POST /v1/macs", r.postMac)
+	}
 	mux.HandleFunc("GET /v1/reports", r.adminOnly(r.listReports))
 	mux.HandleFunc("GET /v1/reports/{id}/bundle", r.adminOnly(r.reportBundle))
 	mux.HandleFunc("DELETE /v1/reports/{id}", r.adminOnly(r.deleteReport))
@@ -216,10 +221,17 @@ func (l *limiter) reclaim(now time.Time) bool {
 }
 
 func (r *relay) macToken(token string) (string, bool) {
-	if err := r.tokens.refresh(); err != nil {
-		r.log.Printf("reload tokens: %v", err)
-	}
-	return r.tokens.lookup(token)
+	name, _, ok := r.mac(token)
+	return name, ok
+}
+
+func (r *relay) mac(token string) (string, bool, bool) {
+	r.refresh()
+	return r.tokens.lookup(token, r.bannedKey)
+}
+
+func (r *relay) bannedKey(hexKey string) bool {
+	return r.bans != nil && r.bans.key(hexKey)
 }
 
 func bearer(req *http.Request) string {

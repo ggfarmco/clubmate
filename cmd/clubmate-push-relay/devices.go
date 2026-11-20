@@ -108,10 +108,7 @@ func (b *bindings) save() error {
 }
 
 func (r *relay) putDevices(w http.ResponseWriter, req *http.Request) {
-	if err := r.tokens.refresh(); err != nil {
-		r.log.Printf("reload tokens: %v", err)
-	}
-	mac, ok := r.tokens.lookup(bearer(req))
+	mac, ok := r.macToken(bearer(req))
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return

@@ -40,12 +40,34 @@ var (
 type relayClient struct {
 	kv     kvStore
 	client *http.Client
+	dir    string
+	now    func() time.Time
+	first  time.Duration
+	max    time.Duration
+
+	cfgMu     sync.Mutex
+	attemptMu sync.Mutex
 
 	mu         sync.Mutex
+	ctx        context.Context
+	changed    func()
+	onSigned   func(context.Context)
 	url        string
 	token      string
 	reportURL  string
 	registered string
+	mode       string
+	access     bool
+	next       time.Time
+	state      string
+	detail     string
+	blocked    bool
+	resign     bool
+	running    bool
+	cancelLoop context.CancelFunc
+	loopID     int
+	gen        int
+	lastResign time.Time
 }
 
 type relayPush struct {
@@ -68,7 +90,7 @@ type relayRequest struct {
 }
 
 func newRelayClient(kv kvStore, client *http.Client) *relayClient {
-	return &relayClient{kv: kv, client: noRedirects(client), reportURL: defaultReportRelay}
+	return &relayClient{kv: kv, client: noRedirects(client), reportURL: relayDefault(), mode: relayAuto, now: time.Now, first: signupFirst, max: signupMax}
 }
 
 func noRedirects(client *http.Client) *http.Client {
@@ -78,15 +100,42 @@ func noRedirects(client *http.Client) *http.Client {
 }
 
 func (c *relayClient) load(ctx context.Context) error {
-	var u, token string
+	var u, token, mode string
+	var next time.Time
+	var blocked bool
+	if _, err := c.kv.StorageGet(ctx, pushRelayBlockedKey, &blocked); err != nil {
+		return err
+	}
 	if _, err := c.kv.StorageGet(ctx, pushRelayURLKey, &u); err != nil {
 		return err
 	}
 	if _, err := c.kv.StorageGet(ctx, pushRelayTokenKey, &token); err != nil {
 		return err
 	}
+	if _, err := c.kv.StorageGet(ctx, pushRelayModeKey, &mode); err != nil {
+		return err
+	}
+	if _, err := c.kv.StorageGet(ctx, pushRelaySignupNextKey, &next); err != nil {
+		return err
+	}
+	if mode != relayAuto && mode != relayManual && mode != relayOff {
+		mode = relayAuto
+		if u != "" && token != "" {
+			mode = relayManual
+			if err := c.kv.StorageSet(ctx, pushRelayModeKey, mode); err != nil {
+				return err
+			}
+		}
+	}
+	if base, err := signupBase(); mode == relayAuto && u != "" && err == nil && base != u {
+		u, token = "", ""
+		if err := c.writeConfig(ctx, relayAuto, "", ""); err != nil {
+			return err
+		}
+	}
 	c.mu.Lock()
-	c.url, c.token, c.registered = u, token, ""
+	c.mode, c.url, c.token, c.registered, c.next = mode, u, token, "", next
+	c.state, c.detail, c.blocked, c.resign = "", "", blocked && mode == relayAuto, false
 	c.mu.Unlock()
 	for _, k := range legacyAPNSKeys {
 		if err := c.kv.StorageDelete(ctx, k); err != nil {
@@ -96,9 +145,20 @@ func (c *relayClient) load(ctx context.Context) error {
 	return nil
 }
 
+func (c *relayClient) writeConfig(ctx context.Context, mode, rawURL, token string) error {
+	if err := c.kv.StorageSet(ctx, pushRelayModeKey, mode); err != nil {
+		return err
+	}
+	if err := c.kv.StorageSet(ctx, pushRelayURLKey, rawURL); err != nil {
+		return err
+	}
+	return c.kv.StorageSet(ctx, pushRelayTokenKey, token)
+}
+
 func (c *relayClient) configure(ctx context.Context, rawURL, token string) error {
+	mode := relayManual
 	if rawURL == "" {
-		token = ""
+		token, mode = "", relayOff
 	} else {
 		base, ok := httpsBase(rawURL)
 		if !ok {
@@ -109,15 +169,24 @@ func (c *relayClient) configure(ctx context.Context, rawURL, token string) error
 		}
 		rawURL = base
 	}
-	if err := c.kv.StorageSet(ctx, pushRelayURLKey, rawURL); err != nil {
+	c.cfgMu.Lock()
+	defer c.cfgMu.Unlock()
+	if err := c.writeConfig(ctx, mode, rawURL, token); err != nil {
 		return err
 	}
-	if err := c.kv.StorageSet(ctx, pushRelayTokenKey, token); err != nil {
+	if err := c.kv.StorageDelete(ctx, pushRelaySignupNextKey); err != nil {
+		return err
+	}
+	if err := c.kv.StorageDelete(ctx, pushRelayBlockedKey); err != nil {
 		return err
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.url, c.token, c.registered = rawURL, token, ""
+	c.mode, c.url, c.token, c.registered = mode, rawURL, token, ""
+	c.state, c.detail, c.blocked, c.resign = "", "", false, false
+	c.next = time.Time{}
+	c.gen++
+	c.stopLoopLocked()
 	return nil
 }
 
@@ -150,6 +219,9 @@ func (c *relayClient) register(ctx context.Context, deviceTokens []string) error
 	raw, _ := io.ReadAll(io.LimitReader(res.Body, relayMaxReply))
 	switch res.StatusCode {
 	case http.StatusOK, http.StatusNoContent, http.StatusNotFound, http.StatusMethodNotAllowed:
+	case http.StatusUnauthorized:
+		c.tokenRefused(token)
+		return fmt.Errorf("push relay devices: %d %s", res.StatusCode, strings.TrimSpace(string(raw)))
 	default:
 		return fmt.Errorf("push relay devices: %d %s", res.StatusCode, strings.TrimSpace(string(raw)))
 	}
@@ -222,6 +294,9 @@ func (c *relayClient) send(ctx context.Context, env, deviceToken string, p relay
 	raw, err := io.ReadAll(io.LimitReader(res.Body, relayMaxReply))
 	if err != nil {
 		return apns.Reply{}, err
+	}
+	if res.StatusCode == http.StatusUnauthorized {
+		c.tokenRefused(token)
 	}
 	if res.StatusCode == http.StatusForbidden {
 		return apns.Reply{}, fmt.Errorf("%w: %s", errRelayUnbound, strings.TrimSpace(string(raw)))
