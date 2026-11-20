@@ -55,11 +55,44 @@ func loadBindings(path string) (*bindings, error) {
 	return b, nil
 }
 
-func (b *bindings) allowed(mac, deviceToken string) bool {
+func (b *bindings) allowed(mac, deviceToken string, self bool) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	bound, ok := b.macs[mac]
-	return !ok || slices.Contains(bound, deviceHash(deviceToken))
+	if !ok {
+		return !self
+	}
+	return slices.Contains(bound, deviceHash(deviceToken))
+}
+
+func (b *bindings) ensure(mac string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if _, ok := b.macs[mac]; ok {
+		return nil
+	}
+	b.macs[mac] = []string{}
+	if err := b.save(); err != nil {
+		delete(b.macs, mac)
+		return err
+	}
+	return nil
+}
+
+func (b *bindings) drop(macs []string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	removed := false
+	for _, mac := range macs {
+		if _, ok := b.macs[mac]; ok {
+			delete(b.macs, mac)
+			removed = true
+		}
+	}
+	if !removed {
+		return nil
+	}
+	return b.save()
 }
 
 func (b *bindings) set(mac string, deviceTokens []string) error {
@@ -108,7 +141,7 @@ func (b *bindings) save() error {
 }
 
 func (r *relay) putDevices(w http.ResponseWriter, req *http.Request) {
-	mac, ok := r.macToken(bearer(req))
+	mac, _, ok := r.usedMac(bearer(req))
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return

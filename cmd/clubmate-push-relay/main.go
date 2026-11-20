@@ -33,6 +33,7 @@ var (
 	errNoTokens  = errors.New("-tokens is required")
 	errNoAdmins  = errors.New("-admins is required")
 	errBadSignup = errors.New("-signup must be on or off")
+	errSignupMem = errors.New("-signup on needs a -devices file: a self-signed Mac must keep its device set over a restart")
 
 	macTokens = tokenFile{
 		command: "token",
@@ -110,6 +111,9 @@ func serve(args []string) error {
 	}
 	if cfg.signup != "on" && cfg.signup != "off" {
 		return errBadSignup
+	}
+	if cfg.signup == "on" && cfg.devices == "" {
+		return errSignupMem
 	}
 	if cfg.tickets == "" && cfg.devices != "" {
 		cfg.tickets = filepath.Join(filepath.Dir(cfg.devices), "tickets.json")
@@ -200,7 +204,9 @@ func serve(args []string) error {
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
-	return srv.Shutdown(shutdownCtx)
+	err = srv.Shutdown(shutdownCtx)
+	r.sweepTokens(r.now())
+	return err
 }
 
 func tokenCommand(file tokenFile, args []string, out io.Writer) error {

@@ -15,9 +15,11 @@ import (
 )
 
 const (
-	maxSignupBody = 1 << 10
-	maxSelfSigned = 20_000
-	newKeysBucket = "new"
+	maxSignupBody  = 1 << 10
+	maxSelfSigned  = 20_000
+	newKeysBucket  = "new"
+	newKeysPerHour = 50
+	newKeysBurst   = 300
 )
 
 var (
@@ -52,7 +54,7 @@ func newSignupLimits(now func() time.Time) *signupLimits {
 		ipDay:   newLimiter(20.0/86400, 20, now),
 		keyHour: newLimiter(3.0/3600, 3, now),
 		keyDay:  newLimiter(6.0/86400, 6, now),
-		newKeys: newLimiter(300.0/86400, 300, now),
+		newKeys: newLimiter(newKeysPerHour/3600, newKeysBurst, now),
 		cap:     maxSelfSigned,
 	}
 }
@@ -126,9 +128,9 @@ func (r *relay) postMac(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	name := macName(pub)
-	token, fresh, err := r.tokens.signup(pub, now, func(fresh bool, self int) error {
+	token, fresh, pruned, err := r.tokens.signup(pub, now, func(fresh bool, self int) error {
 		if !fresh {
-			return nil
+			return r.devices.ensure(name)
 		}
 		if wait := r.signup.newKeys.wait(newKeysBucket); wait > 0 {
 			return &signupRefusal{status: http.StatusTooManyRequests, err: errTooManySignup, retry: wait}
@@ -142,6 +144,7 @@ func (r *relay) postMac(w http.ResponseWriter, req *http.Request) {
 		r.signup.newKeys.allow(newKeysBucket)
 		return nil
 	})
+	r.dropBindings(pruned)
 	if ref, ok := errors.AsType[*signupRefusal](err); ok {
 		refuse(ref.status, ref.err, ref.retry)
 		return

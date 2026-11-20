@@ -34,7 +34,7 @@ func TestHelloAndAnEventStreamThroughTheRelayBinary(t *testing.T) {
 	tokens := filepath.Join(dir, "tokens")
 	macToken := relayCommand(t, bin, "token", "add", "studio", "-tokens", tokens)
 	addr := freeAddr(t)
-	relay := exec.Command(bin, "-listen", addr, "-key", apnsKey(t, dir), "-team-id", "TEAM000001", "-tokens", tokens, "-tickets", filepath.Join(dir, "tickets.json"))
+	relay := exec.Command(bin, "-listen", addr, "-key", apnsKey(t, dir), "-team-id", "TEAM000001", "-tokens", tokens, "-tickets", filepath.Join(dir, "tickets.json"), "-signup", "off")
 	require.NoError(t, relay.Start())
 	t.Cleanup(func() {
 		_ = relay.Process.Kill()

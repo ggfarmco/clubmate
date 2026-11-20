@@ -96,7 +96,7 @@ func (r *relay) postReport(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, errBanned.Error(), http.StatusForbidden)
 		return
 	}
-	mac, self, trusted := r.tokens.lookup(bearer(req), r.bannedKey)
+	mac, self, trusted := r.tokens.lookup(bearer(req), r.now(), r.bannedKey)
 	if self {
 		mac, trusted = "", false
 	}
@@ -267,7 +267,7 @@ func (r *relay) adminOnly(next http.HandlerFunc) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if _, _, ok := r.admins.lookup(bearer(req), nil); !ok {
+		if _, _, ok := r.admins.lookup(bearer(req), r.now(), nil); !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -289,6 +289,7 @@ func (r *relay) sweepEvery(ctx context.Context, interval time.Duration) {
 }
 
 func (r *relay) housekeep(now time.Time) {
+	r.sweepTokens(now)
 	if err := r.reports.sweep(now); err != nil {
 		r.log.Printf("sweep reports: %v", err)
 	}

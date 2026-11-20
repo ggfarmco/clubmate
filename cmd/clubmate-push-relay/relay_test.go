@@ -178,8 +178,8 @@ func TestPushGoesOnlyToRegisteredDevicesOnceTheMacRegistered(t *testing.T) {
 	assert.NotContains(t, strings.ToLower(string(raw)), "bb02")
 	reloaded, err := loadBindings(f.devices)
 	require.NoError(t, err)
-	assert.Equal(t, [2]bool{false, true}, [2]bool{reloaded.allowed("studio", "aa01"), reloaded.allowed("studio", "bb02")})
-	assert.True(t, reloaded.allowed("mini", "aa01"))
+	assert.Equal(t, [2]bool{false, true}, [2]bool{reloaded.allowed("studio", "aa01", false), reloaded.allowed("studio", "bb02", false)})
+	assert.True(t, reloaded.allowed("mini", "aa01", false))
 
 	status, _ = f.do(t, http.MethodPut, "/v1/devices", f.studio, `{"tokens":[]}`)
 	require.Equal(t, http.StatusNoContent, status)
@@ -268,7 +268,7 @@ func newFixture(t *testing.T, opts ...func(*relay)) *fixture {
 		limiter:   newLimiter(pushRate, pushBurst, func() time.Time { return now }),
 		devices:   devicesPath,
 	}
-	r := &relay{tokens: toks, devices: devices, apns: client, limiter: f.limiter, log: log.New(f.logs, "", 0)}
+	r := &relay{tokens: toks, devices: devices, apns: client, limiter: f.limiter, log: log.New(f.logs, "", 0), now: func() time.Time { return now }}
 	for _, o := range opts {
 		o(r)
 	}

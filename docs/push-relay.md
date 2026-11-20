@@ -21,14 +21,14 @@ Flags, each with an environment fallback:
 | `-bans` | `PUSH_RELAY_BANS` | – | banned report keys and IPs; unset or missing → no bans |
 | `-reports` | `PUSH_RELAY_REPORTS` | `reports` | directory the reports are stored in (created `700`) |
 | `-devices` | `PUSH_RELAY_DEVICES` | – | JSON file of the device tokens each Mac registered (see [Device binding](#device-binding)); unset → kept in memory only, lost on restart |
-| `-signup` | `PUSH_RELAY_SIGNUP` | `on` | self sign-up of Macs at `POST /v1/macs` (see [Self sign-up](#self-sign-up)); `off` → that route answers `404` |
+| `-signup` | `PUSH_RELAY_SIGNUP` | `on` | self sign-up of Macs at `POST /v1/macs` (see [Self sign-up](#self-sign-up)); `off` → that route answers `404`; `on` with no `-devices` → the relay does not start |
 | `-tickets` | `PUSH_RELAY_TICKETS` | `tickets.json` next to `-devices` | JSON file of the tunnel's device tickets (see [Tunnel relay § Tickets](tunnel-relay.md#tickets)); unset and no `-devices` → kept in memory only, lost on restart |
 
 APNs topic is fixed: `com.clubmate.companion`. JWTs (ES256) are reused for 50 minutes.
 
 ## Mac tokens
 
-The tokens file has one line per Mac: `<name> <sha256 hex of the token>` (blank lines and `#` lines are skipped). A self-signed Mac (see [Self sign-up](#self-sign-up)) has two more fields: `k-<16 hex> <sha256 hex> key=<base64url public key> at=<unix time of the sign-up>`. The relay re-reads the file when its modification time or size changes, so adding or revoking a Mac needs no restart.
+The tokens file has one line per Mac: `<name> <sha256 hex of the token>` (blank lines and `#` lines are skipped). A self-signed Mac (see [Self sign-up](#self-sign-up)) has two more fields: `k-<16 hex> <sha256 hex> key=<base64url public key> at=<unix time of the sign-up> [used=<unix time of the last use>]`. The relay re-reads the file when its modification time or size changes, so adding or revoking a Mac needs no restart.
 
 The relay writes the file itself (a sign-up), to a temp file and renames it, under an exclusive `flock` on `<tokens>.lock`; `token add` and `token rm` take the same lock, so a sign-up and a `token add` at the same time lose no line. Keep the file in a directory the relay can write (the unit uses `~/push-relay/state/tokens`).
 
@@ -84,12 +84,14 @@ Checks, first failure answers (plain-text error; `429` has `Retry-After` in seco
 | body not a JSON object | `400` |
 | key banned | `403` |
 | key: 3 an hour and 6 a day, a sign-up again included | `429` |
-| new key: all new keys together 300 a day | `429` |
-| new key: 20 000 self-signed entries in the tokens file | `503` `sign-up closed` |
+| new key: all new keys together 50 an hour, a burst of 300 | `429` |
+| new key: 20 000 live self-signed entries in the tokens file | `503` `sign-up closed` |
 | the name has a line for another key | `409` |
 | device set or tokens file not written | `500` |
 
-Success: `201` for a new name, `200` for the same key again, `{"token": "cmr_…", "name": "k-<16 hex>"}`. A sign-up again replaces the line of that key: the new token works at once and the old one stops (its next push gets `401`, its tunnel stream ends within one ping), and the Mac's device set stays. For a new name the relay first writes an empty device set (see [Device binding](#device-binding)), then the token line, so a self-signed token never pushes in the open mode.
+Success: `201` for a new name, `200` for the same key again, `{"token": "cmr_…", "name": "k-<16 hex>"}`. A sign-up again replaces the line of that key: the new token works at once and the old one stops (its next push gets `401`, its tunnel stream ends within one ping), and the Mac's device set stays; if the set is missing, the relay writes an empty one. For a new name the relay first writes an empty device set (see [Device binding](#device-binding)), then the token line. A self-signed Mac with no device set pushes to no device (`403`), so a lost devices file never opens the open mode for it.
+
+Expiry: a self-signed entry expires when it was not used within 7 days of its sign-up, or when it was not used for 90 days. A use is a push, a `PUT /v1/devices` or any tunnel `/v1/mac/…` call. The relay writes the time of the first use at once and later uses in one batch once an hour and at shutdown, as `used=` on the line. An expired token gets `401`, so a current Mac signs up again. The relay removes expired lines and their device sets at each sign-up and once an hour (logs `expired <n> self-signed Macs`); only live entries count toward the 20 000 cap. A sign-up again starts the 7 days again. Lines without `key=` (`token add`) never expire.
 
 Logs: `signup k-<16 hex> new|again <ip>`, `signup refused <status> <ip>`. Never the token.
 
@@ -101,10 +103,10 @@ A key ban (`key <hex prefix>` in the bans file) also takes the token away: push,
 
 Without it, any Mac token could push to any device token, and a phone that removed a Mac still got that Mac's pushes. Now:
 
-- A Mac that has never called `PUT /v1/devices` (a Mac from before 10 Nov 2026) may push to any device token, as before. A self-signed Mac never has this open mode: its empty set is written at its first sign-up. Old Macs and old phones keep working until they update.
+- A Mac that has never called `PUT /v1/devices` (a Mac from before 10 Nov 2026) may push to any device token, as before. A self-signed Mac never has this open mode: its empty set is written at its first sign-up, and with no set at all (a lost devices file) it pushes to no device. Old Macs and old phones keep working until they update.
 - Once a Mac has registered a set, even an empty one, a push to a device token outside it gets `403`. There is no way back to the open mode for that Mac name short of deleting its entry from the devices file.
 - A current Mac sends its full set after a pair, a `pushToken` from a phone (an empty one when the phone removes that Mac, see [Remote § Real push](remote.md#real-push)), a revoke, and before a push when the set changed. A `403` makes it register again and retry once, so a relay that lost its file (or runs without `-devices`) catches up on the next push.
-- The file stores the sha256 of each device token (lower-case hex), not the token, keyed by Mac name: `{"<mac name>": ["<sha256 hex>", …]}`, written to a temp file and renamed. `token rm` leaves the Mac's entry; a Mac added again under the same name registers its set on its first push.
+- The file stores the sha256 of each device token (lower-case hex), not the token, keyed by Mac name: `{"<mac name>": ["<sha256 hex>", …]}`, written to a temp file and renamed. `token rm` leaves the Mac's entry (the expiry of a self-signed Mac removes it); a Mac added again under the same name registers its set on its first push.
 
 What it does not stop: the registration is authenticated by the Mac token alone. Whoever holds a Mac's relay token (a copied state dir) can register any device token for it and push there. Unpairing on the phone stops an honest Mac; against a leaked token the fix is still `token rm` on the relay. A phone-side proof (the phone, not the Mac, authorising each binding) is a backlog item.
 

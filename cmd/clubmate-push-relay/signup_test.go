@@ -7,10 +7,12 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -108,7 +110,7 @@ func TestSignupRefusals(t *testing.T) {
 			return res
 		}, http.StatusTooManyRequests},
 		{"global new-key limit", func(t *testing.T, f *signupFixture) *httptest.ResponseRecorder {
-			f.relay.signup.newKeys = newLimiter(300.0/86400, 1, f.relay.now)
+			f.relay.signup.newKeys = newLimiter(newKeysPerHour/3600, 1, f.relay.now)
 			res, _ := f.signup(t, f.key)
 			require.Equal(t, http.StatusCreated, res.Code)
 			res, _ = f.signup(t, newKey(t, 1))
@@ -165,7 +167,7 @@ func TestSignupEntrySurvivesARestart(t *testing.T) {
 
 	toks, err := loadTokens(f.relay.tokens.path)
 	require.NoError(t, err)
-	name, self, ok := toks.lookup(reply.Token, nil)
+	name, self, ok := toks.lookup(reply.Token, f.now, nil)
 	names, err := tokenNames(toks.path)
 	require.NoError(t, err)
 	_, addErr := addToken(toks.path, "k-mine")
@@ -178,6 +180,89 @@ func TestSignupEntrySurvivesARestart(t *testing.T) {
 	assert.Equal(t, f.now.Unix(), toks.entries[1].at)
 	assert.Equal(t, []string{"studio", reply.Name + selfMark}, names)
 	assert.ErrorIs(t, addErr, errSelfName)
+}
+
+func TestSelfSignedMacWithNoDeviceSetPushesNowhere(t *testing.T) {
+	f := newSignupFixture(t)
+	_, reply := f.signup(t, f.key)
+	require.NoError(t, os.Remove(f.relay.devices.path))
+	devices, err := loadBindings(f.relay.devices.path)
+	require.NoError(t, err)
+	f.relay.devices = devices
+
+	lost := f.push(t, reply.Token, "aa01")
+	manual := f.push(t, f.studio, "aa01")
+	res, again := f.signup(t, f.key)
+	reloaded, err := loadBindings(f.relay.devices.path)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusForbidden, lost)
+	assert.Equal(t, http.StatusOK, manual)
+	require.Equal(t, http.StatusOK, res.Code)
+	assert.Equal(t, http.StatusForbidden, f.push(t, again.Token, "aa01"))
+	assert.Contains(t, reloaded.macs, reply.Name)
+}
+
+func TestSignupOnRefusesToStartWithoutADevicesFile(t *testing.T) {
+	t.Setenv("PUSH_RELAY_DEVICES", "")
+
+	err := run([]string{"-signup", "on", "-tokens", filepath.Join(t.TempDir(), "tokens")}, io.Discard)
+
+	assert.ErrorIs(t, err, errSignupMem)
+}
+
+func TestUnusedSelfSignedMacExpiresAndFreesTheCap(t *testing.T) {
+	f := newSignupFixture(t)
+	f.relay.signup.cap = 1
+	_, unused := f.signup(t, f.key)
+	f.now = f.now.Add(unusedTTL)
+
+	expired := f.push(t, unused.Token, "aa01")
+	res, _ := f.signup(t, newKey(t, 1))
+	entries, err := readTokens(f.relay.tokens.path)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusUnauthorized, expired)
+	assert.Equal(t, http.StatusCreated, res.Code)
+	assert.Len(t, entries, 2)
+	assert.False(t, slices.ContainsFunc(entries, func(e tokenEntry) bool { return e.name == unused.Name }))
+	assert.NotContains(t, f.relay.devices.macs, unused.Name)
+}
+
+func TestUsedSelfSignedMacOutlivesARestartUntilIdle(t *testing.T) {
+	f := newSignupFixture(t)
+	_, used := f.signup(t, f.key)
+	_, unused := f.signup(t, newKey(t, 1))
+	require.Equal(t, http.StatusNoContent, f.call(t, http.MethodPut, "/v1/devices", used.Token, `{"tokens":["aa01"]}`).Code)
+	restart := func() {
+		toks, err := loadTokens(f.relay.tokens.path)
+		require.NoError(t, err)
+		devices, err := loadBindings(f.relay.devices.path)
+		require.NoError(t, err)
+		f.relay.tokens, f.relay.devices = toks, devices
+	}
+	names := func() []string {
+		names, err := tokenNames(f.relay.tokens.path)
+		require.NoError(t, err)
+		return names
+	}
+
+	restart()
+	f.now = f.now.Add(unusedTTL)
+	f.relay.housekeep(f.now)
+	restart()
+	afterWeek := names()
+	_, unusedBound := f.relay.devices.macs[unused.Name]
+	push := f.push(t, used.Token, "aa01")
+	f.now = f.now.Add(idleTTL)
+	f.relay.housekeep(f.now)
+	restart()
+
+	assert.Equal(t, []string{"studio", used.Name + selfMark}, afterWeek)
+	assert.False(t, unusedBound)
+	assert.Equal(t, http.StatusOK, push)
+	assert.Equal(t, []string{"studio"}, names())
+	assert.NotContains(t, f.relay.devices.macs, used.Name)
 }
 
 func TestTokenAddAndSignupAtOnceLoseNoLine(t *testing.T) {
@@ -194,7 +279,7 @@ func TestTokenAddAndSignupAtOnceLoseNoLine(t *testing.T) {
 			errs <- err
 		})
 		wg.Go(func() {
-			_, _, err := toks.signup(newKey(t, i).Public().(ed25519.PublicKey), time.Now(), func(bool, int) error { return nil })
+			_, _, _, err := toks.signup(newKey(t, i).Public().(ed25519.PublicKey), time.Now(), func(bool, int) error { return nil })
 			errs <- err
 		})
 	}

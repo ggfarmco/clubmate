@@ -32,7 +32,7 @@ func TestReportReachesTheRealRelayAndComesBackThroughTheInbox(t *testing.T) {
 	macToken := relayCommand(t, bin, "token", "add", "studio", "-tokens", tokens)
 	admin := relayCommand(t, bin, "admin", "add", "dev", "-admins", admins)
 	addr := freeAddr(t)
-	relay := exec.Command(bin, "-listen", addr, "-key", apnsKey(t, dir), "-team-id", "TEAM000001", "-tokens", tokens, "-admins", admins, "-reports", filepath.Join(dir, "reports"))
+	relay := exec.Command(bin, "-listen", addr, "-key", apnsKey(t, dir), "-team-id", "TEAM000001", "-tokens", tokens, "-admins", admins, "-reports", filepath.Join(dir, "reports"), "-signup", "off")
 	require.NoError(t, relay.Start())
 	t.Cleanup(func() {
 		_ = relay.Process.Kill()

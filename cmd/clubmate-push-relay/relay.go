@@ -106,7 +106,7 @@ func (r *relay) handler() http.Handler {
 }
 
 func (r *relay) push(w http.ResponseWriter, req *http.Request) {
-	mac, ok := r.macToken(bearer(req))
+	mac, self, ok := r.usedMac(bearer(req))
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -124,7 +124,7 @@ func (r *relay) push(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if !r.devices.allowed(mac, p.Token) {
+	if !r.devices.allowed(mac, p.Token, self) {
 		r.log.Printf("push %s %s refused: device not registered", mac, p.Type)
 		http.Error(w, errDeviceNotBound.Error(), http.StatusForbidden)
 		return
@@ -221,13 +221,36 @@ func (l *limiter) reclaim(now time.Time) bool {
 }
 
 func (r *relay) macToken(token string) (string, bool) {
-	name, _, ok := r.mac(token)
+	name, _, ok := r.usedMac(token)
 	return name, ok
 }
 
-func (r *relay) mac(token string) (string, bool, bool) {
+func (r *relay) usedMac(token string) (string, bool, bool) {
 	r.refresh()
-	return r.tokens.lookup(token, r.bannedKey)
+	now := r.now()
+	name, self, ok := r.tokens.lookup(token, now, r.bannedKey)
+	if ok && self && r.tokens.touch(name, now) {
+		r.sweepTokens(now)
+	}
+	return name, self, ok
+}
+
+func (r *relay) sweepTokens(now time.Time) {
+	pruned, err := r.tokens.sweep(now)
+	if err != nil {
+		r.log.Printf("sweep tokens: %v", err)
+	}
+	r.dropBindings(pruned)
+}
+
+func (r *relay) dropBindings(pruned []string) {
+	if len(pruned) == 0 {
+		return
+	}
+	r.log.Printf("expired %d self-signed Macs", len(pruned))
+	if err := r.devices.drop(pruned); err != nil {
+		r.log.Printf("drop devices: %v", err)
+	}
 }
 
 func (r *relay) bannedKey(hexKey string) bool {

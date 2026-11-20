@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -28,6 +29,8 @@ const (
 	tokenPrefix = "cmr_"
 	selfPrefix  = "k-"
 	selfMark    = " (self)"
+	unusedTTL   = 7 * 24 * time.Hour
+	idleTTL     = 90 * 24 * time.Hour
 )
 
 var (
@@ -35,7 +38,7 @@ var (
 	errSelfName    = errors.New("names starting with k- are for self sign-up")
 	errMacExists   = errors.New("name already has a token")
 	errUnknownMac  = errors.New("no token for that name")
-	errBadTokenRow = errors.New("want <name> <sha256 hex> [key=<base64url> at=<unix>]")
+	errBadTokenRow = errors.New("want <name> <sha256 hex> [key=<base64url> at=<unix> used=<unix>]")
 	errNameTaken   = errors.New("name taken by another key")
 )
 
@@ -46,6 +49,7 @@ type tokens struct {
 	modTime time.Time
 	size    int64
 	entries []tokenEntry
+	used    map[string]int64
 }
 
 type tokenEntry struct {
@@ -53,10 +57,11 @@ type tokenEntry struct {
 	hash []byte
 	key  []byte
 	at   int64
+	used int64
 }
 
 func loadTokens(path string) (*tokens, error) {
-	t := &tokens{path: path}
+	t := &tokens{path: path, used: map[string]int64{}}
 	if err := t.refresh(); err != nil {
 		return nil, err
 	}
@@ -85,7 +90,7 @@ func (t *tokens) load(force bool) error {
 	return nil
 }
 
-func (t *tokens) lookup(token string, banned func(hexKey string) bool) (string, bool, bool) {
+func (t *tokens) lookup(token string, now time.Time, banned func(hexKey string) bool) (string, bool, bool) {
 	sum := sha256.Sum256([]byte(token))
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -99,18 +104,124 @@ func (t *tokens) lookup(token string, banned func(hexKey string) bool) (string, 
 		return "", false, false
 	}
 	self := len(found.key) > 0
+	if self && !found.live(now, t.used[found.name]) {
+		return "", false, false
+	}
 	if self && banned != nil && banned(hex.EncodeToString(found.key)) {
 		return "", false, false
 	}
 	return found.name, self, true
 }
 
-func (t *tokens) signup(pub ed25519.PublicKey, now time.Time, admit func(fresh bool, self int) error) (string, bool, error) {
+func (t *tokens) touch(name string, now time.Time) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	first := t.used[name] == 0
+	for _, e := range t.entries {
+		if e.name == name && e.used > 0 {
+			first = false
+		}
+	}
+	t.used[name] = now.Unix()
+	return first
+}
+
+func (t *tokens) sweep(now time.Time) ([]string, error) {
+	var pruned []string
+	t.mu.Lock()
+	pending := maps.Clone(t.used)
+	t.mu.Unlock()
+	err := withTokensLock(t.path, func() error {
+		raw, err := os.ReadFile(t.path)
+		if err != nil {
+			return err
+		}
+		if _, err := parseTokens(t.path, raw); err != nil {
+			return err
+		}
+		out, changed := editTokens(raw, func(e tokenEntry) (string, bool) {
+			if len(e.key) == 0 {
+				return "", true
+			}
+			if !e.live(now, pending[e.name]) {
+				pruned = append(pruned, e.name)
+				return "", false
+			}
+			if u := pending[e.name]; u > e.used {
+				e.used = u
+				return e.line(), true
+			}
+			return "", true
+		})
+		if !changed {
+			return nil
+		}
+		return replaceFile(t.path, out)
+	})
+	if err != nil {
+		return nil, err
+	}
+	t.mu.Lock()
+	for name, u := range pending {
+		if t.used[name] <= u {
+			delete(t.used, name)
+		}
+	}
+	t.mu.Unlock()
+	return pruned, t.load(true)
+}
+
+func (e tokenEntry) live(now time.Time, used int64) bool {
+	if len(e.key) == 0 {
+		return true
+	}
+	if last := max(e.used, used); last > 0 {
+		return now.Sub(time.Unix(last, 0)) < idleTTL
+	}
+	return now.Sub(time.Unix(e.at, 0)) < unusedTTL
+}
+
+func (e tokenEntry) line() string {
+	l := fmt.Sprintf("%s %s key=%s at=%d", e.name, hex.EncodeToString(e.hash), base64.RawURLEncoding.EncodeToString(e.key), e.at)
+	if e.used > 0 {
+		l += fmt.Sprintf(" used=%d", e.used)
+	}
+	return l + "\n"
+}
+
+func editTokens(raw []byte, edit func(e tokenEntry) (string, bool)) ([]byte, bool) {
+	var out bytes.Buffer
+	changed := false
+	for l := range strings.Lines(string(raw)) {
+		e, ok := parseTokenLine(strings.Fields(l))
+		if !ok {
+			out.WriteString(l)
+			continue
+		}
+		line, keep := edit(e)
+		switch {
+		case !keep:
+			changed = true
+		case line != "":
+			out.WriteString(line)
+			changed = true
+		default:
+			out.WriteString(l)
+		}
+	}
+	return out.Bytes(), changed
+}
+
+func (t *tokens) signup(pub ed25519.PublicKey, now time.Time, admit func(fresh bool, self int) error) (string, bool, []string, error) {
 	name := macName(pub)
 	var (
-		token string
-		fresh = true
+		token  string
+		fresh  = true
+		pruned []string
 	)
+	t.mu.Lock()
+	pending := maps.Clone(t.used)
+	t.mu.Unlock()
 	err := withTokensLock(t.path, func() error {
 		raw, err := os.ReadFile(t.path)
 		if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -122,14 +233,15 @@ func (t *tokens) signup(pub ed25519.PublicKey, now time.Time, admit func(fresh b
 		}
 		self := 0
 		for _, e := range entries {
-			if len(e.key) > 0 {
-				self++
-			}
 			if e.name == name {
 				if !bytes.Equal(e.key, pub) {
 					return errNameTaken
 				}
 				fresh = false
+				continue
+			}
+			if len(e.key) > 0 && e.live(now, pending[e.name]) {
+				self++
 			}
 		}
 		if err := admit(fresh, self); err != nil {
@@ -137,31 +249,37 @@ func (t *tokens) signup(pub ed25519.PublicKey, now time.Time, admit func(fresh b
 		}
 		token = tokenPrefix + rand.Text()
 		sum := sha256.Sum256([]byte(token))
-		line := fmt.Sprintf("%s %s key=%s at=%d\n", name, hex.EncodeToString(sum[:]), base64.RawURLEncoding.EncodeToString(pub), now.Unix())
-		var out bytes.Buffer
+		line := tokenEntry{name: name, hash: sum[:], key: pub, at: now.Unix()}.line()
 		replaced := false
-		for l := range strings.Lines(string(raw)) {
-			if fields := strings.Fields(l); len(fields) > 0 && fields[0] == name {
-				if !replaced {
-					out.WriteString(line)
-					replaced = true
+		out, _ := editTokens(raw, func(e tokenEntry) (string, bool) {
+			if e.name == name {
+				if replaced {
+					return "", false
 				}
-				continue
+				replaced = true
+				return line, true
 			}
-			out.WriteString(l)
-		}
+			if !e.live(now, pending[e.name]) {
+				pruned = append(pruned, e.name)
+				return "", false
+			}
+			return "", true
+		})
 		if !replaced {
-			if out.Len() > 0 && !bytes.HasSuffix(out.Bytes(), []byte("\n")) {
-				out.WriteByte('\n')
+			if len(out) > 0 && !bytes.HasSuffix(out, []byte("\n")) {
+				out = append(out, '\n')
 			}
-			out.WriteString(line)
+			out = append(out, line...)
 		}
-		return replaceFile(t.path, out.Bytes())
+		return replaceFile(t.path, out)
 	})
 	if err != nil {
-		return "", false, err
+		return "", false, nil, err
 	}
-	return token, fresh, t.load(true)
+	t.mu.Lock()
+	delete(t.used, name)
+	t.mu.Unlock()
+	return token, fresh, pruned, t.load(true)
 }
 
 func macName(pub ed25519.PublicKey) string {
@@ -289,6 +407,12 @@ func parseTokenLine(fields []string) (tokenEntry, bool) {
 				return tokenEntry{}, false
 			}
 			e.at = at
+		case "used":
+			used, err := strconv.ParseInt(v, 10, 64)
+			if err != nil {
+				return tokenEntry{}, false
+			}
+			e.used = used
 		default:
 			return tokenEntry{}, false
 		}
