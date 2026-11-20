@@ -104,3 +104,15 @@ schemes:
       config: Debug
       targets:
         - CompanionE2ETests
+  CompanionPerf:
+    build:
+      targets:
+        Companion: all
+        CompanionUITests: [test]
+    test:
+      config: Debug
+      disableMainThreadChecker: true
+      environmentVariables:
+        PERF_NAV: "1"
+      targets:
+        - CompanionUITests

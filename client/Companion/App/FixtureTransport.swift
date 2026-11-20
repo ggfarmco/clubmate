@@ -1,6 +1,7 @@
 #if DEBUG
 import CryptoKit
 import Foundation
+import OSLog
 import Synchronization
 import UIKit
 
@@ -11,6 +12,9 @@ final class FixtureTransport: HTTPTransport {
     private let fallback: FixtureServer
     private let offline: ContinuousClock.Instant?
     private let latency: Duration
+    private let jitter: Int
+    private static let signposter = OSSignposter(subsystem: "com.clubmate.companion.perf", category: .pointsOfInterest)
+    private static let log = Logger(subsystem: "com.clubmate.companion.perf", category: "request")
     private let offlineHosts = Mutex<[String: ContinuousClock.Instant]>([:])
     private let channels = Mutex<(opened: Int, open: [String: (TunnelChannel, FixtureServer)])>((0, [:]))
 
@@ -19,6 +23,7 @@ final class FixtureTransport: HTTPTransport {
         servers = [FixtureMac.pro.host: FixtureServer(directory: directory, mac: .pro), FixtureMac.air.host: FixtureServer(directory: directory, mac: .air)]
         offline = offlineAfter.map { .now + $0 }
         latency = .milliseconds(UserDefaults.standard.object(forKey: "latency") == nil ? 120 : UserDefaults.standard.integer(forKey: "latency"))
+        jitter = max(UserDefaults.standard.integer(forKey: "latencyJitter"), 0)
     }
 
     private func server(_ request: URLRequest) -> FixtureServer {
@@ -36,11 +41,27 @@ final class FixtureTransport: HTTPTransport {
     }
 
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        try await Task.sleep(for: latency)
+        let name = Self.describe(request)
+        let state = Self.signposter.beginInterval("request", id: Self.signposter.makeSignpostID(), "\(name, privacy: .public)")
+        Self.log.info("begin \(name, privacy: .public)")
+        defer {
+            Self.signposter.endInterval("request", state)
+            Self.log.info("end \(name, privacy: .public)")
+        }
+        try await Task.sleep(for: latency + .milliseconds(jitter > 0 ? Int.random(in: 0...jitter) : 0))
         try reachable(request)
         if request.url?.host() == FixtureMac.relayHost { return try await relay(request) }
         let (status, body) = await server(request).handle(path: request.url?.path() ?? "", body: request.httpBody ?? Data())
         return (body, HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: nil)!)
+    }
+
+    private static func describe(_ request: URLRequest) -> String {
+        let path = request.url?.path() ?? ""
+        guard let body = request.httpBody, let fields = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else { return path }
+        let params = fields["params"] as? [String: Any] ?? [:]
+        let command = params["id"] as? String ?? ""
+        let args = (params["args"]).flatMap { try? JSONSerialization.data(withJSONObject: $0, options: [.sortedKeys]) }.map { String(decoding: $0, as: UTF8.self) } ?? ""
+        return "\(path) \(fields["method"] as? String ?? "") \(command) \(args.prefix(160))"
     }
 
     func stream(_ request: URLRequest) async throws -> (HTTPURLResponse, AsyncThrowingStream<Data, any Error>) {
@@ -313,6 +334,18 @@ actor FixtureServer {
         }
         if UserDefaults.standard.bool(forKey: "longTranscript") {
             transcripts["agt_0000000000000004"] = ["entries": .array(Self.longTranscript)]
+        }
+        if PerfFixture.on, let template = sessions.first {
+            let parent = "agt_0000000000000004"
+            for index in 0..<PerfFixture.sessions {
+                let id = PerfFixture.id(index)
+                let status = ["done", "idle", "done", "error", "running", "done", "idle"][index % 7]
+                var record = Self.session(template, id: id, title: PerfFixture.title(index), status: status, ago: Double(300 + (PerfFixture.sessions - index) * 900))
+                if index % 4 == 1 { record["parentSession"] = .string(parent) }
+                sessions.append(record)
+                transcripts[id] = ["entries": .array(Self.perfTranscript(turns: index < PerfFixture.long ? PerfFixture.turns : 2, seed: index))]
+            }
+            transcripts[parent] = ["entries": .array(Self.perfTranscript(turns: PerfFixture.turns, seed: 99))]
         }
         if UserDefaults.standard.bool(forKey: "manyImages") {
             transcripts["agt_0000000000000004"] = ["entries": .array((1...60).map { shot in
@@ -1874,6 +1907,77 @@ actor FixtureServer {
         (try? JSONEncoder().encode(JSONValue.object(value))) ?? Data()
     }
 }
+extension FixtureServer {
+    fileprivate static func perfTranscript(turns: Int, seed: Int) -> [JSONValue] {
+        (1...turns).flatMap { turn -> [JSONValue] in
+            let id = "perf-\(seed)-\(turn)"
+            let tool = { (suffix: String, kind: String, title: String, path: String) -> JSONValue in
+                .object(["kind": .string("tool"), "id": .string(id + suffix), "turn": .number(Double(turn)), "tool": .object([
+                    "kind": .string(kind), "status": .string("completed"), "title": .string(title), "toolCallId": .string(id + suffix),
+                    "locations": .array([.object(["path": .string(path)])]),
+                ])])
+            }
+            let markdown = """
+            ## Step \(turn): stock holds
+
+            The hold in `reserve.go` stays until the **expiry job** frees it. See [the plan](https://example.com/plan/\(turn)).
+
+            - `Reserve` writes the row with `expiresAt`
+            - the job runs every *minute* and frees rows past `expiresAt`
+            - a shopper who pays in time keeps the items
+
+            ```go
+            func expire(ctx context.Context, db *sql.DB, now time.Time) (int64, error) {
+            \treturn db.ExecContext(ctx, "DELETE FROM holds WHERE expires_at < $1", now)
+            }
+            ```
+
+            | case | result |
+            |------|--------|
+            | paid | kept |
+            | late | freed |
+            """
+            var rows: [JSONValue] = [
+                entry("user", id + "-u", text: "Turn \(turn): go on with the expiry job and keep the tests green"),
+                .object(["kind": .string("thought"), "id": .string(id + "-t"), "turn": .number(Double(turn)), "text": .string("The expiry job needs an index on expires_at; reserve.go owns the write.")]),
+                entry("agent", id + "-a", text: markdown),
+                tool("-r", "read", "Read reserve.go", "/Users/me/src/shop/reserve.go"),
+                tool("-e", "edit", "Edit reserve.go", "/Users/me/src/shop/reserve.go"),
+                tool("-x", "execute", "go test ./...", "/Users/me/src/shop"),
+                entry("agent", id + "-d", text: "Done with step \(turn) of \(seed). Tests pass."),
+            ]
+            if turn % 9 == 0 {
+                rows.append(entry("agent", id + "-i", text: "Screenshot \(turn)", images: [imageRef("/Users/me/src/shop/build/shots/shot-\(turn).png", width: 400, height: 300)]))
+            }
+            return rows.map { row in
+                guard case .object(var fields) = row else { return row }
+                fields["turn"] = .number(Double(turn))
+                return .object(fields)
+            }
+        }
+    }
+}
+
+enum PerfFixture {
+    static var on: Bool { UserDefaults.standard.bool(forKey: "perfFixture") }
+    static var sessions: Int { value("perfSessions", 80) }
+    static var turns: Int { value("perfTurns", 45) }
+    static let long = 10
+
+    private static func value(_ key: String, _ fallback: Int) -> Int {
+        let set = UserDefaults.standard.integer(forKey: key)
+        return set > 0 ? set : fallback
+    }
+
+    static func id(_ index: Int) -> String {
+        String(format: "agt_%016x", 0x900 + index)
+    }
+
+    static func title(_ index: Int) -> String {
+        ["Add stock reservation expiry", "Fix flaky cart test", "Refactor checkout totals", "Bump Go toolchain", "Draft release notes", "Split payment adapter", "Trace slow search"][index % 7] + " #\(index)"
+    }
+}
+
 enum OlderFixture {
     static var on: Bool { UserDefaults.standard.bool(forKey: "olderFixture") }
     static let count = 32

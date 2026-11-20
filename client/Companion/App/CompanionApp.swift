@@ -69,6 +69,8 @@ struct CompanionApp: App {
             #if DEBUG
             if let gallery = DebugLaunch.gallery {
                 SDUIGalleryScreen(focus: gallery)
+            } else if UserDefaults.standard.bool(forKey: "perfBare") {
+                PerfBareScreen()
             } else {
                 root
             }
