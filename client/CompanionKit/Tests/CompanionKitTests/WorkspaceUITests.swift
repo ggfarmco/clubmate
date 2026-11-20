@@ -11,10 +11,12 @@ final class WorkspaceUITests: XCTestCase {
         let ui = server.connection.workspaceUI("w")
         XCTAssertTrue(ui === server.connection.workspaceUI("w"))
         ui.show(["cron.sidebar"], owner: "list")
+        XCTAssertFalse(ui.sectionsLoaded)
         server.connection.start()
         try await waitUntil { ui.view("cron.sidebar") != nil }
         XCTAssertTrue(server.connection.supportsUI)
         XCTAssertEqual(ui.sections.map(\.id), ["editor-nvim", "terminals", "agents", "backlog", "processes", "cron", "triggers", "docs"])
+        XCTAssertTrue(ui.sectionsLoaded)
 
         ui.show(["cron.main"], owner: "detail")
         try await waitUntil { ui.view("cron.main") != nil }
@@ -89,7 +91,8 @@ final class WorkspaceUITests: XCTestCase {
     }
 
     func testMoreListsTheSectionsWithoutANativeScreen() throws {
-        let sections = try JSONDecoder().decode(JSONValue.self, from: fixture("sdui"))["sections"] ?? .array([])
+        let wiki = JSONValue.object(["id": .string("wiki"), "title": .string("Wiki"), "icon": .string("book"), "order": .number(40), "scope": .string("workspace"), "autoNew": .bool(false), "plugin": .string("wiki")])
+        let sections = JSONValue.array((try JSONDecoder().decode(JSONValue.self, from: fixture("sdui"))["sections"]?.arrayValue ?? []) + [wiki])
         let decoded = try JSONDecoder().decode([SectionInfo].self, from: JSONEncoder().encode(sections))
         XCTAssertEqual(PhoneSections.more(decoded.reversed()).map(\.id), ["processes", "cron", "triggers"])
     }
@@ -102,6 +105,17 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertEqual(PhoneSections.root("cron", sidebar: cleared, main: main), "cron.main")
         XCTAssertEqual(PhoneSections.root("cron", sidebar: nil, main: main), "cron.main")
         XCTAssertNil(PhoneSections.root("cron", sidebar: nil, main: nil))
+    }
+
+    func testAWikiPageShowsOnlyTheMainSlotOfItsOwnPage() {
+        func main(_ path: String) -> SDUINode {
+            SDUINode(type: "stack", children: [SDUINode(type: "header"), SDUINode(type: "document", id: "page", props: ["path": .string(path)])])
+        }
+        XCTAssertTrue(PhoneSections.shows(main("/w/wiki/notes/guide.md"), page: "shop/notes/guide.md", path: ""))
+        XCTAssertFalse(PhoneSections.shows(main("/w/wiki/notes/other.md"), page: "shop/notes/guide.md", path: ""))
+        XCTAssertTrue(PhoneSections.shows(main("/w/wiki/notes/guide.md@abc1"), page: "shop/notes/guide.md", path: "/w/wiki/notes/guide.md"))
+        XCTAssertFalse(PhoneSections.shows(main("/x/wiki/notes/guide.md"), page: "shop/notes/guide.md", path: "/w/wiki/notes/guide.md"))
+        XCTAssertTrue(PhoneSections.shows(SDUINode(type: "empty"), page: "shop/notes/guide.md", path: ""))
     }
 
     func testSendPassesTheEventAndItsResult() async throws {

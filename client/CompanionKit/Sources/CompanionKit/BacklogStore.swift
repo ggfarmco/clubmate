@@ -17,7 +17,11 @@ public final class BacklogStore {
     public private(set) var syncedAt: Date?
     public private(set) var fetched = false
     public var newDraft = BacklogDraft()
-    public var searchQuery = ""
+    public var searchQuery = "" {
+        didSet { if searchQuery != oldValue { scheduleSearch() } }
+    }
+    public private(set) var search: BacklogSearch?
+    public private(set) var searchError: String?
     public var arrival: Arrival?
 
     public struct Arrival: Equatable, Sendable {
@@ -37,6 +41,9 @@ public final class BacklogStore {
     @ObservationIgnored private var inflight = false
     @ObservationIgnored private var again = false
     @ObservationIgnored private var waiters: [CheckedContinuation<Void, Never>] = []
+    @ObservationIgnored private var searchTask: Task<Void, Never>?
+
+    public static let searchDelay: Duration = .milliseconds(250)
 
     public init(workspace: String, runner: any CommandRunner, queue: ActionQueue = ActionQueue(file: nil), cache: ListCache = ListCache(dir: nil), computer: String = "", queues: @escaping @MainActor () -> Bool = { false }, retry: @escaping @MainActor () -> Void = {}, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.workspace = workspace
@@ -100,8 +107,36 @@ public final class BacklogStore {
         BacklogTask.grouped(tasks).map { ($0.status, $0.status.closed ? Array($0.tasks.prefix(Self.doneLimit)) : $0.tasks) }
     }
 
-    public var search: BacklogSearch? {
-        searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : BacklogSearch(searchQuery, tasks: tasks)
+    public var searchText: String {
+        searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func scheduleSearch() {
+        searchTask?.cancel()
+        searchError = nil
+        let query = searchText
+        guard !query.isEmpty else { return search = nil }
+        searchTask = Task { [weak self, sleep] in
+            do {
+                try await sleep(Self.searchDelay)
+            } catch {
+                return
+            }
+            await self?.find(query)
+        }
+    }
+
+    private func find(_ query: String) async {
+        guard let runner else { return }
+        do {
+            let reply = try await runner.command(BacklogCommand.list, workspace: workspace, args: .object(["query": .string(query), "slim": .bool(true)]))
+            let results = try (reply["tasks"]?.arrayValue ?? []).map { try $0.decode(BacklogTask.self) }
+            guard query == searchText else { return }
+            search = BacklogSearch(query, results: results)
+        } catch {
+            guard query == searchText, !Task.isCancelled else { return }
+            searchError = (error as? RemoteError)?.message ?? error.localizedDescription
+        }
     }
 
     public func seen(_ id: Int) -> String? {

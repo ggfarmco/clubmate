@@ -325,7 +325,7 @@ An aside opens beside its parent (a split in a wide window, under it in a narrow
 
 Defined by the `keys` scope in `plugins/agents/open_view.go`, handled in `plugins/agents/open_actions.go`. ⌥O is the `shortcut` on the sidebar's Open chip.
 
-## Companion on iPad / Fold (hardware keyboard, a session open)
+## Companion on iPad / Fold (hardware keyboard)
 
 | Keys | Action |
 |---|---|
@@ -333,12 +333,21 @@ Defined by the `keys` scope in `plugins/agents/open_view.go`, handled in `plugin
 | ⌘↩ | Send the composer's message (Session menu) |
 | ⌥1 ⌥2 ⌥3 | On a graph run's screen, a step waiting for approval: ⌥1 Allow once, ⌥2 opens the Always allow confirm sheet (only when the step's command can be a rule), ⌥3 Reject |
 | ⌘↩ | On a graph run's screen held at a round cap: Continue (Session menu) |
-| ⌘F | In an open doc sheet: the system find bar (WebKit's find interaction; also the Find button in the doc's toolbar) |
+| ⌘F | On an open wiki or doc page: the system find bar (WebKit's find interaction; also Find in Page in the page's •••) |
 | ⌥↩, Esc | In the voice panel's confirmation of a dangerous action (any screen): Yes, No. ⌥↩ is ignored for the first 0.6 s, like a tap on Yes |
 | Esc | In the voice panel while an utterance waits its 1 s before going to the assistant (any screen): Cancel |
-| ↩ | In the Backlog search field (iPhone too), with a number that pins a task: open that task; typing never opens it |
+| Esc | On a wiki or doc page in reading mode: leave reading mode (the bars come back) |
+| ⇧⌘F | Focus the current tab's search field: Agents, Backlog or Wiki (on the iPhone layout it pops to the tab root first); off on More (Edit menu, Search) |
+| ↩ | In the Backlog list's search field (iPhone too), with a number that pins a task: open that task on the Backlog stack; typing never opens it |
+| ⌃⌘S | iPad: show or hide the current tab's list column (list + detail ↔ detail only), the same as the sidebar button at the edge of the bar; where the detail would keep less than 640 pt (11-inch portrait) the list slides over the open page. Each tab keeps its state; from the reading view it leaves the reading view (View menu, Show List / Hide List) |
+| ⌃⌘F | iPad: reading view on or off on a wiki page, a doc page or a session: no bars, no columns, text 680 pt centred; leaving restores the columns (View menu) |
+| Esc | iPad, in order: leave the reading view → close the list over the open page (11-inch portrait) → otherwise the key goes on (the voice panel's Cancel or No). Never stops a turn (View menu) |
+| ⌘[ | Back (the chevron or the back chip); on the iPad only inside the detail column (Go menu) |
+| ⌘1 ⌘2 ⌘3 ⌘4 | Tabs Agents · Backlog · Wiki · More (⌘3 only when the workspace has a wiki); on the iPad the tabs are buttons at the bottom of the list column, and the keys also work while the list is hidden (Go menu) |
+| ⇧⌘I | Inbox, pushed on the current tab (Go menu) |
+| ⌘N | The current tab's create action: New Session on Agents, New Task on Backlog; nothing on Wiki and More (File menu) |
 
-Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/Agents/SessionKeys.swift`, key mapping in CompanionKit `PermissionRequest.keyed`, the run card's in `RunRequestCard` (`client/Companion/Plugins/Agents/RunDetailView.swift`); the voice keys in `client/Companion/App/VoicePanel.swift`; the Backlog search's ↩ in `TaskListView` (`client/Companion/Plugins/Backlog/BacklogPlugin.swift`).
+Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/Agents/SessionKeys.swift`, key mapping in CompanionKit `PermissionRequest.keyed`, the run card's in `RunRequestCard` (`client/Companion/Plugins/Agents/RunDetailView.swift`); the voice keys in `client/Companion/App/VoicePanel.swift`; reading mode's Esc in `client/Companion/App/ReadingModeModifier.swift`; ⇧⌘F (`TabSearchCommands`) and the per-tab field (`TabSearch`) in `client/Companion/App/TabSearch.swift`; the Backlog search field's ↩ in `client/Companion/Plugins/Backlog/BacklogPlugin.swift` (`TaskListView`); ⌃⌘S, ⌃⌘F, the iPad Esc, ⌘[, ⌘1–⌘4, ⇧⌘I and ⌘N in `client/Companion/App/AppKeys.swift` (View, Go and File menus).
 
 ## Review (Code section, a review tab current in Neovim)
 

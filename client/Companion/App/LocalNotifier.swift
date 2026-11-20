@@ -6,7 +6,7 @@ import CompanionKit
 @MainActor
 final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
     private let center = UNUserNotificationCenter.current()
-    private var opened: ((_ computer: String, _ workspace: String, _ session: String?) -> Void)?
+    private var opened: ((_ computer: String, _ workspace: String, _ session: String?, _ active: Bool) -> Void)?
     private var background: UIBackgroundTaskIdentifier = .invalid
     private weak var model: CompanionModel?
     private var pending: (computer: String, workspace: String, session: String?)?
@@ -21,17 +21,12 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
 
     func attach(model: CompanionModel, navigation: AppNavigation) {
         self.model = model
-        opened = { computer, workspace, session in
-            if let session {
-                navigation.workspaces[computer] = workspace
-                navigation.open(computer: computer, plugin: AgentsPluginInfo.id, detail: session)
-            } else {
-                navigation.open(computer: computer, plugin: InboxPluginInfo.id)
-            }
+        opened = { [weak navigation] computer, workspace, session, active in
+            navigation?.notified(computer: computer, workspace: workspace, session: session, active: active)
         }
         if let pending {
             self.pending = nil
-            opened?(pending.computer, pending.workspace, pending.session)
+            opened?(pending.computer, pending.workspace, pending.session, false)
         }
         model.posted = { [weak self, weak model] item in
             guard let self, let model, UIApplication.shared.applicationState != .active else { return }
@@ -98,18 +93,18 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
         nonisolated(unsafe) let done = completionHandler
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
-                if let computer { self.open(computer, workspace, session) }
+                if let computer { self.open(computer, workspace, session, active: UIApplication.shared.applicationState == .active) }
             }
             done()
         }
     }
 
-    private func open(_ computer: String, _ workspace: String, _ session: String?) {
+    func open(_ computer: String, _ workspace: String, _ session: String?, active: Bool) {
         guard let opened else {
             pending = (computer, workspace, session)
             return
         }
-        opened(computer, workspace, session)
+        opened(computer, workspace, session, active)
     }
 
     private func post(_ alert: LocalAlert) {

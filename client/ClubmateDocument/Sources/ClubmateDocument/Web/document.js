@@ -80,6 +80,17 @@
     post({ type: 'height', value: Math.ceil(rect.bottom + window.scrollY) });
   };
 
+  const column = () => {
+    const root = document.documentElement;
+    root.classList.toggle('column', getComputedStyle(root).getPropertyValue('--column').trim() !== '');
+  };
+
+  const fade = (code) => code.parentElement.classList.toggle('more', code.scrollWidth - code.clientWidth - code.scrollLeft > 1);
+  const fades = () => doc.querySelectorAll('pre:not(.diff) > code:only-child').forEach(fade);
+  doc.addEventListener('scroll', (event) => {
+    if (event.target.matches?.('pre:not(.diff) > code:only-child')) fade(event.target);
+  }, { capture: true, passive: true });
+
   const lightbox = (() => {
     const root = document.createElement('div');
     const stage = document.createElement('div');
@@ -288,11 +299,13 @@
     window.scrollTo(0, y);
     errors.forEach((error) => post({ type: 'mermaidError', ...error }));
     height();
+    fades();
     return true;
   };
 
   const setTheme = (css) => {
     document.getElementById('theme').textContent = css;
+    column();
     diagrams = new Map();
     configure();
     return setBody(body);
@@ -308,7 +321,11 @@
     return target != null;
   };
 
-  new ResizeObserver(height).observe(doc);
+  new ResizeObserver(() => {
+    height();
+    fades();
+  }).observe(doc);
+  column();
   configure();
   window.clubmate = { setBody, setTheme, scrollTo, ready: setBody(body) };
 })();

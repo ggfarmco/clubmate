@@ -73,7 +73,7 @@ public final class DocsStore {
         Task { await changed(path: path, rev: Int(rev)) }
     }
 
-    private static func split(_ link: String) -> (String, String?) {
+    public static func split(_ link: String) -> (String, String?) {
         guard let hash = link.lastIndex(of: "#"), [".md", ".markdown", ".mmd", ".html", ".htm"].contains(where: { link[..<hash].lowercased().hasSuffix($0) }) else { return (link, nil) }
         return (String(link[..<hash]), String(link[link.index(after: hash)...]))
     }

@@ -57,11 +57,13 @@ struct ComposerMic: View {
 struct VoiceButton: View {
     static let floating: CGFloat = 50
     static let inComposer: CGFloat = 44
+    static let inBar: CGFloat = 44
     static let hintFor = Duration.seconds(2)
 
     let size: CGFloat
     let online: Bool
     var into: String?
+    var bar = false
 
     @Environment(VoiceSession.self) private var voice
     @State private var hint = 0
@@ -83,7 +85,7 @@ struct VoiceButton: View {
                             .animation(.easeOut(duration: 0.2), value: voice.level)
                     }
                 }
-                .glassEffect(voice.active ? .identity : .regular.interactive(), in: .circle)
+                .glassEffect(voice.active || bar ? .identity : .regular.interactive(), in: .circle)
                 .contentShape(.circle)
         }
         .buttonStyle(VoicePressStyle(
@@ -92,7 +94,7 @@ struct VoiceButton: View {
         ))
         .accessibilityLabel(voice.active ? "Stop listening" : enabled ? label : "\(label), Mac offline")
         .accessibilityAction { if enabled { voice.active ? voice.finish() : voice.begin(into: into) } }
-        .overlay(alignment: .bottomLeading) {
+        .overlay(alignment: bar ? .bottomTrailing : .bottomLeading) {
             if hint > 0 {
                 Text("Mac offline")
                     .font(.footnote)
@@ -101,7 +103,7 @@ struct VoiceButton: View {
                     .frame(minHeight: 32)
                     .glassEffect(.regular, in: .capsule)
                     .fixedSize()
-                    .padding(.bottom, size + 8)
+                    .padding(.bottom, bar ? -(size + 8 + 32) : size + 8)
                     .transition(.opacity)
                     .accessibilityHidden(true)
             }
@@ -150,38 +152,6 @@ private struct VoiceDock: ViewModifier {
     }
 }
 
-struct SearchBar: ViewModifier {
-    let text: Binding<String>
-    let prompt: String
-
-    @Environment(CompanionModel.self) private var model
-    @Environment(AppNavigation.self) private var navigation
-    @State private var searching = false
-
-    func body(content: Content) -> some View {
-        if navigation.layout == .compact {
-            content
-                .searchable(text: text, isPresented: $searching, prompt: prompt)
-                .onChange(of: searching) { _, searching in navigation.searching = searching }
-                .onAppear { navigation.searching = searching }
-                .onDisappear { navigation.searching = false }
-                .toolbar {
-                    if navigation.voiceTarget(model) != nil {
-                        ToolbarItem(placement: .bottomBar) {
-                            ComposerMic()
-                                .voiceDock(active: navigation.preferredColumn != .detail)
-                        }
-                        .sharedBackgroundVisibility(.hidden)
-                    }
-                    DefaultToolbarItem(kind: .search, placement: .bottomBar)
-                }
-        } else {
-            content
-                .searchable(text: text, prompt: prompt)
-        }
-    }
-}
-
 extension View {
     func voiceDock(active: Bool = true) -> some View {
         modifier(VoiceDock(active: active))
@@ -202,27 +172,25 @@ private struct VoicePressStyle: ButtonStyle {
 
 extension AppNavigation {
     func floatingMic(_ model: CompanionModel, listening: Bool) -> Bool {
-        (listening || !typing) && !searching && !screenHasMic(model) && voiceTarget(model) != nil
-    }
-
-    private func screenHasMic(_ model: CompanionModel) -> Bool {
-        guard let item = sidebar, let connection = model.connection(item.computer),
-              let plugin = CompanionPlugins.all.first(where: { $0.id == item.plugin }) else { return false }
-        if layout != .compact || preferredColumn == .detail {
-            return detail.map { plugin.detailHasMic(connection: connection, selection: $0) } ?? false
-        }
-        return preferredColumn == .content && plugin.listHasMic(connection: connection)
+        (listening || !typing) && path.last?.destination.floatsMic == true && voiceTarget(model) != nil
     }
 
     func voiceTarget(_ model: CompanionModel) -> VoiceTarget? {
-        let onSidebar = layout == .compact && preferredColumn == .sidebar
-        let item = onSidebar ? nil : sidebar
+        let item = shownPlugin
         let single = model.computers.count == 1 ? model.computers.first?.id : nil
-        guard let computer = item?.computer ?? (onSidebar ? nil : macDetails) ?? single,
+        guard let computer = item?.computer ?? single,
               let connection = model.connection(computer), connection.voiceAvailable else { return nil }
         let workspace = workspace(for: connection)?.id
         guard workspace != nil || connection.state != .online else { return nil }
-        let detailShown = layout != .compact || preferredColumn == .detail
-        return .phone(computer: computer, workspace: workspace ?? "", plugin: item?.plugin, detail: item != nil && detailShown && !GraphRun.isRun(detail ?? "") ? detail : nil)
+        let detailShown = layout != .compact || !path.isEmpty
+        return .phone(computer: computer, workspace: workspace ?? "", plugin: item?.plugin, detail: item != nil && detailShown && !GraphRun.isRun(shownDetail ?? "") ? shownDetail : nil)
+    }
+
+    private var shownPlugin: SidebarItem? {
+        computer.map { SidebarItem(computer: $0, plugin: CompanionPlugins.plugin(for: tab)?.id ?? AgentsPluginInfo.id) }
+    }
+
+    private var shownDetail: String? {
+        path.last.flatMap { Self.tag($0.destination) }
     }
 }

@@ -621,18 +621,25 @@ func (w *wiki) openLink(ctx context.Context, workspaceID string, u *workspaceUI,
 	if action == "openFile" {
 		return w.h.RunCommand(ctx, "editor.open", workspaceID, map[string]string{"path": abs}, nil)
 	}
+	if p, page, ok := locate(projects, abs); ok {
+		w.mu.Lock()
+		u.selected, u.history, u.opening, u.find, u.change = pageID(p.Name, page), anchor == historyAnchor, true, "", ""
+		w.mu.Unlock()
+		return nil
+	}
+	return w.h.RunCommand(ctx, "docs.open", workspaceID, map[string]string{"path": target}, nil)
+}
+
+func locate(projects []wikiroot.Project, abs string) (wikiroot.Project, string, bool) {
 	for _, p := range projects {
 		dir := gitrepo.Canonical(p.Dir)
 		if rel, err := filepath.Rel(dir, abs); err == nil && gitrepo.Within(abs, dir) {
 			if page, err := cleanPage(filepath.ToSlash(rel)); err == nil {
-				w.mu.Lock()
-				u.selected, u.history, u.opening, u.find, u.change = pageID(p.Name, page), anchor == historyAnchor, true, "", ""
-				w.mu.Unlock()
-				return nil
+				return p, page, true
 			}
 		}
 	}
-	return w.h.RunCommand(ctx, "docs.open", workspaceID, map[string]string{"path": target}, nil)
+	return wikiroot.Project{}, "", false
 }
 
 func (w *wiki) renderOthers(ctx context.Context, workspaceID string) {

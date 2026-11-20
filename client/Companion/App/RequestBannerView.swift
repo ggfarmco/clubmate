@@ -11,8 +11,7 @@ struct RequestBannerHost: View {
         Group {
             if let banner {
                 RequestBannerView(banner: banner) {
-                    navigation.workspaces[banner.item.computer] = banner.item.workspace.id
-                    navigation.open(computer: banner.item.computer, plugin: AgentsPluginInfo.id, detail: banner.item.session.id)
+                    navigation.push(.session(banner.item.session.id), from: navigation.origin(), in: WorkspaceKey(computer: banner.item.computer, workspace: banner.item.workspace.id))
                 }
                 .transition(.opacity)
             }
@@ -21,8 +20,8 @@ struct RequestBannerHost: View {
     }
 
     private var current: String? {
-        guard let item = navigation.sidebar, item.plugin == AgentsPluginInfo.id, let detail = navigation.detail, AgentsPluginInfo.isSession(detail) else { return nil }
-        return NeedsYouItem.id(computer: item.computer, session: detail)
+        guard let top = navigation.path.last, case .session(let id) = top.destination, let computer = top.workspace?.computer ?? navigation.computer else { return nil }
+        return NeedsYouItem.id(computer: computer, session: id)
     }
 }
 

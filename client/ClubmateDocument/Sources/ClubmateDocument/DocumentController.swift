@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import WebKit
 
 @MainActor
@@ -13,6 +14,8 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
     let kind: DocumentKind
     var onLink: (DocumentLink) -> Void = { _ in }
     var onHeight: (CGFloat) -> Void = { _ in }
+    var onScroll: ((DocumentScroll) -> Void)?
+    var onTextTap: (() -> Void)?
     var zoom: DocumentZoom? {
         didSet { zoom?.controller = self }
     }
@@ -27,6 +30,14 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
     private let artifact = ArtifactScheme()
     private static let findScript = (try? String(contentsOf: DocumentPage.web.appendingPathComponent("find.js"), encoding: .utf8)) ?? ""
     private var artifactLoad: URL?
+    private static let tapScript = "let start = null; addEventListener('touchstart', e => { start = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() } : null }, { passive: true, capture: true }); addEventListener('touchend', e => { const s = start; start = null; const p = e.changedTouches[0]; if (!s || !p || Date.now() - s.t > 400 || Math.hypot(p.clientX - s.x, p.clientY - s.y) > 10) return; if (e.target.closest && e.target.closest('a, button, input, textarea, select, summary, label, img, svg, [onclick], [contenteditable]')) return; if (getSelection().toString()) return; window.webkit.messageHandlers.clubmateTap.postMessage(1) }, { passive: true, capture: true })"
+    #if os(iOS)
+    private var headerHost: UIHostingController<AnyView>?
+    private var offsetWatch: NSKeyValueObservation?
+    private var lastOffset: CGFloat?
+    private var lastTop: CGFloat?
+    private var keeping = false
+    #endif
 
     init(kind: DocumentKind = .markdown) {
         self.kind = kind
@@ -54,6 +65,12 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
             webView.uiDelegate = self
         }
         installFind()
+        #if os(iOS)
+        configuration.userContentController.add(MessageProxy(self), contentWorld: .defaultClient, name: "clubmateTap")
+        offsetWatch = webView.scrollView.observe(\.contentOffset) { [weak self] scrollView, _ in
+            MainActor.assumeIsolated { self?.scrolled(scrollView) }
+        }
+        #endif
         webView.navigationDelegate = self
         webView.allowsLinkPreview = false
         webView.allowsBackForwardNavigationGestures = false
@@ -113,10 +130,53 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
     func presentFindNavigator() {
         webView.findInteraction?.presentFindNavigator(showingReplace: false)
     }
+
+    func setHardTopEdge(_ hard: Bool) {
+        webView.scrollView.topEdgeEffect.style = hard ? .hard : .automatic
+    }
+
+    func setHeader(_ header: AnyView?) {
+        guard let header else {
+            headerHost = nil
+            webView.header = nil
+            return
+        }
+        if let headerHost {
+            headerHost.rootView = header
+        } else {
+            let host = UIHostingController(rootView: header)
+            host.view.backgroundColor = .clear
+            headerHost = host
+            webView.header = host.view
+        }
+        webView.setNeedsLayout()
+    }
+
+    private func scrolled(_ scrollView: UIScrollView) {
+        let top = scrollView.adjustedContentInset.top
+        if !keeping, let lastOffset, let lastTop, top != lastTop, lastOffset > -lastTop + 1, !scrollView.isTracking, !scrollView.isDecelerating, scrollView.contentOffset.y != lastOffset {
+            keeping = true
+            scrollView.contentOffset.y = lastOffset
+            keeping = false
+        }
+        let y = scrollView.contentOffset.y
+        defer {
+            lastOffset = y
+            lastTop = top
+        }
+        guard let onScroll, let lastOffset else { return }
+        let inset = scrollView.adjustedContentInset
+        let offset = y + inset.top
+        let range = scrollView.contentSize.height + inset.top + inset.bottom - scrollView.bounds.height
+        onScroll(DocumentScroll(offset: offset, delta: y - lastOffset, progress: range > 0 ? min(max(offset / range, 0), 1) : 0, tracking: scrollView.isTracking || scrollView.isDecelerating))
+    }
     #endif
 
     private func installFind() {
         webView.configuration.userContentController.addUserScript(WKUserScript(source: Self.findScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient))
+        #if os(iOS)
+        webView.configuration.userContentController.addUserScript(WKUserScript(source: Self.tapScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient))
+        #endif
     }
 
     func settled() async {
@@ -127,6 +187,10 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
         if kind == .markdown {
             webView.configuration.userContentController.removeScriptMessageHandler(forName: "clubmate")
         }
+        #if os(iOS)
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "clubmateTap", contentWorld: .defaultClient)
+        offsetWatch = nil
+        #endif
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
         zoom?.lightbox = false
@@ -224,7 +288,11 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
         loading = nil
     }
 
-    fileprivate func receive(_ body: Any) {
+    fileprivate func receive(_ name: String, _ body: Any) {
+        if name == "clubmateTap" {
+            onTextTap?()
+            return
+        }
         guard let message = body as? [String: Any] else { return }
         switch message["type"] as? String {
         case "height":
@@ -303,6 +371,6 @@ private final class MessageProxy: NSObject, WKScriptMessageHandler {
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        target?.receive(message.body)
+        target?.receive(message.name, message.body)
     }
 }

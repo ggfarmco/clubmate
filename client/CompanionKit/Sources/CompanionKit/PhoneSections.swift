@@ -1,7 +1,7 @@
 import Foundation
 
 public enum PhoneSections {
-    public static let native: Set<String> = [AgentsPluginInfo.id, BacklogPluginInfo.id, DocsPluginInfo.id, "terminals", "editor-nvim", "editor-vscode"]
+    public static let native: Set<String> = [AgentsPluginInfo.id, BacklogPluginInfo.id, DocsPluginInfo.id, WikiPluginInfo.id, "terminals", "editor-nvim", "editor-vscode"]
 
     public static func more(_ sections: [SectionInfo]) -> [SectionInfo] {
         sections
@@ -12,6 +12,18 @@ public enum PhoneSections {
     public static func root(_ section: String, sidebar: SlotView?, main: SlotView?) -> String? {
         if let sidebar, !cleared(sidebar.tree) { return sidebar.slot }
         return main == nil ? nil : "\(section).main"
+    }
+
+    public static func shows(_ main: SDUINode, page id: String, path: String) -> Bool {
+        guard let shown = document(in: main)?.string("path") else { return true }
+        if !path.isEmpty { return shown == path || shown.hasPrefix(path + "@") }
+        let page = id.split(separator: "/", maxSplits: 1).last.map(String.init) ?? id
+        return shown.hasSuffix("/" + page) || shown.contains("/" + page + "@")
+    }
+
+    private static func document(in node: SDUINode) -> SDUINode? {
+        if node.type == "document" { return node }
+        return node.children.lazy.compactMap(document(in:)).first
     }
 
     private static func cleared(_ tree: SDUINode) -> Bool {

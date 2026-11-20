@@ -58,8 +58,7 @@ struct VoicePanel: View {
             }
             if let session = voice.state?.session, let target = voice.target, !voice.active {
                 Button("Open Voice session") {
-                    navigation.workspaces[target.computer] = target.workspace
-                    navigation.open(computer: target.computer, plugin: AgentsPluginInfo.id, detail: session)
+                    navigation.push(.session(session), from: navigation.origin(), in: WorkspaceKey(computer: target.computer, workspace: target.workspace))
                     voice.dismiss()
                 }
                 .font(.subheadline.weight(.semibold))

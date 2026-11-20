@@ -34,6 +34,7 @@ struct CompanionApp: App {
         #endif
         let model = CompanionModel(store: store, transport: transport, device: device, policy: policy, cursors: .standard, queueFile: support.appending(path: "queue.json"), reportsDir: support.appending(path: "reports", directoryHint: .isDirectory), listsDir: support.appending(path: "lists", directoryHint: .isDirectory))
         let navigation = AppNavigation()
+        navigation.model = model
         let notifier = LocalNotifier()
         let voice = VoiceSession(runner: { model.connection($0) }, source: VoiceCapture(), target: { navigation.voiceTarget(model) })
         model.received = { [weak voice] computer, signal in voice?.handle(signal, from: computer) }
@@ -75,7 +76,11 @@ struct CompanionApp: App {
             root
             #endif
         }
-        .commands { SessionCommands() }
+        .commands {
+            SessionCommands()
+            TabSearchCommands(navigation: navigation)
+            AppCommands(model: model, navigation: navigation)
+        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
@@ -107,7 +112,7 @@ struct CompanionApp: App {
                 notifier.attach(model: model, navigation: navigation)
                 model.start()
                 #if DEBUG
-                await DebugLaunch.apply(model: model, navigation: navigation, pairing: pairing, voice: voice)
+                await DebugLaunch.apply(model: model, navigation: navigation, pairing: pairing, voice: voice, notifier: notifier)
                 #endif
             }
             .task {

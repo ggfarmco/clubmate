@@ -7,20 +7,36 @@ struct AgentsPlugin: CompanionPluginUI {
     let title = "Agents"
     let systemImage = "sparkles"
     let requiredCommands = AgentsPluginInfo.requiredCommands
-    let inWorkspace = true
+    let tab: CompanionTab? = .agents
 
     @MainActor
-    func makeList(context: PluginContext) -> AnyView {
+    func makeRoot(context: PluginContext) -> AnyView {
         AnyView(AgentsListView(context: context))
     }
 
     @MainActor
-    func makeDetail(context: PluginContext, selection: String?) -> AnyView {
+    func makeEmptyDetail(context: PluginContext) -> AnyView {
         if context.connection.state == .unauthorized {
             return AnyView(ConnectionUnavailableView(connection: context.connection))
         }
-        guard let selection, let store = Self.store(context) else {
-            return AnyView(ContentUnavailableView("No Session Selected", systemImage: "sparkles", description: Text("Pick a session to read its transcript and reply.")))
+        return AnyView(AgentsEmptyDetail(context: context))
+    }
+
+    @MainActor
+    func makeDestination(_ destination: Destination, context: PluginContext) -> AnyView? {
+        let selection: String
+        var item: String?
+        switch destination {
+        case .session(let id), .run(let id):
+            selection = id
+        case .section(let id, let entry) where id == AgentsPluginInfo.newSession || id == AgentsPluginInfo.openQueue || id.hasPrefix(AgentsPluginInfo.id + "."):
+            selection = id
+            item = entry
+        default:
+            return nil
+        }
+        guard context.connection.state != .unauthorized, let store = Self.store(context) else {
+            return makeEmptyDetail(context: context)
         }
         if selection == AgentsPluginInfo.newSession {
             return AnyView(NewSessionView(context: context, store: store))
@@ -29,12 +45,12 @@ struct AgentsPlugin: CompanionPluginUI {
             return AnyView(OpenQueueView(context: context, store: store))
         }
         if selection.hasPrefix(AgentsPluginInfo.id + "."), let workspace = context.navigation.workspace(for: context.connection) {
-            return AnyView(SectionScreen(connection: context.connection, workspace: workspace.id, section: selection).id("\(workspace.id)/\(selection)"))
+            return AnyView(SectionScreen(connection: context.connection, workspace: workspace.id, section: selection, item: item).id("\(workspace.id)/\(selection)/\(item ?? "")"))
         }
         if GraphRun.isRun(selection) {
             return AnyView(RunDetailView(context: context, store: store, runID: selection).id(selection))
         }
-        return AnyView(NavigationStack { SessionDetailView(context: context, store: store, sessionID: selection) }.id(selection))
+        return AnyView(SessionDetailView(context: context, store: store, sessionID: selection).id(selection))
     }
 
     @MainActor
@@ -42,24 +58,40 @@ struct AgentsPlugin: CompanionPluginUI {
         Self.store(context)?.needsInputCount ?? 0
     }
 
-    func listHasMic(connection: ComputerConnection) -> Bool {
-        connection.supports(AgentsStore.searchCommand)
-    }
-
-    func detailHasMic(connection: ComputerConnection, selection: String) -> Bool {
-        connection.state != .unauthorized && !GraphRun.isRun(selection) && selection != AgentsPluginInfo.openQueue
-    }
-
     @MainActor
     static func store(_ context: PluginContext) -> AgentsStore? {
-        guard let workspace = context.navigation.workspace(for: context.connection) else { return nil }
+        guard let workspace = context.shownWorkspace else { return nil }
         return context.model.agents(computer: context.connection.computer.id, workspace: workspace.id)
     }
 
     @MainActor
     static func startNew(_ context: PluginContext) {
-        context.navigation.detail = AgentsPluginInfo.newSession
-        context.navigation.preferredColumn = .detail
+        context.navigation.select(AgentsPluginInfo.newSession, tab: .agents)
+    }
+}
+
+struct AgentsEmptyDetail: View {
+    let context: PluginContext
+
+    var body: some View {
+        let computer = context.connection.computer.id
+        let workspace = context.shownWorkspace
+        let waiting = workspace.map { context.model.waitingCount(computer: computer, workspace: $0.id) } ?? 0
+        let oldest = workspace.flatMap { workspace in context.model.needsYou().first { $0.computer == computer && $0.workspace.id == workspace.id } }
+        ContentUnavailableView {
+            Label("No Session Selected", systemImage: "sparkles")
+        } description: {
+            Text(waiting == 0 ? "Pick a session to read its transcript and reply." : waiting == 1 ? "1 session needs you." : "\(waiting) sessions need you.")
+        } actions: {
+            if let oldest {
+                Button("Open the oldest waiting") { context.navigation.select(oldest.session.id, tab: .agents) }
+                    .buttonStyle(.glassProminent)
+            } else {
+                Button("New session") { AgentsPlugin.startNew(context) }
+                    .buttonStyle(.glassProminent)
+                    .disabled(workspace == nil || !context.connection.canWrite)
+            }
+        }
     }
 }
 
@@ -78,9 +110,7 @@ struct AgentsListView: View {
                 ConnectionUnavailableView(connection: context.connection)
             }
         }
-        .workspaceChrome(context, title: workspace?.name ?? "Agents")
-        .toolbar {
-            WorkspaceMenu(context: context)
+        .tabRootChrome(context, title: "Agents") {
             ToolbarItem(placement: .primaryAction) {
                 Button("New Session", systemImage: "square.and.pencil") { AgentsPlugin.startNew(context) }
                     .disabled(workspace == nil || !context.connection.canWrite)
@@ -96,56 +126,46 @@ struct SessionListView: View {
     @Environment(\.scenePhase) private var phase
 
     var body: some View {
-        List(selection: Binding(get: { context.navigation.detail }, set: { id in
-            context.navigation.detail = id
-            if let id, GateEntry.matches(id) { context.navigation.openGate(id) }
-            if id != nil { context.navigation.preferredColumn = .detail }
-        })) {
-            WorkspaceTabs(context: context)
-            if context.connection.state != .online {
-                Section {
-                    ConnectionBanner(connection: context.connection)
-                }
-            }
-            ListAgeSection { store.ageLine(now: $0) }
-            ForEach(store.queue?.notes(computer: context.connection.computer.id) ?? []) { note in
-                Section {
-                    QueueNoteRow(note: note) { store.queue?.dismiss(note) }
-                        .listRowInsets(EdgeInsets())
-                }
-            }
-            if !store.pendingCreates.isEmpty {
-                Section("Starting") {
-                    ForEach(store.pendingCreates) { item in
-                        QueuedLine(item: item, queuedLine: context.connection.queuedLine) { store.queue?.cancel(item) }
-                            .selectionDisabled()
+        List(selection: context.navigation.selection(.agents)) {
+            TabListRows {
+                ListHeader(context: context)
+                OfflineRow(connection: context.connection)
+                ListAgeSection { store.ageLine(now: $0) }
+                ForEach(store.queue?.notes(computer: context.connection.computer.id) ?? []) { note in
+                    Section {
+                        QueueNoteRow(note: note) { store.queue?.dismiss(note) }
+                            .listRowInsets(EdgeInsets())
+                            .columnRow()
                     }
                 }
-            }
-            if store.searching {
-                ForEach(store.searchResults ?? []) { result in
-                    SearchResultRow(result: result, session: store.session(result.session))
-                        .listRowDensity()
-                        .listRowSeparator(wide ? .hidden : .automatic)
-                        .tag(result.session)
-                        .modifier(SelectedSessionRow(active: wide, selected: context.navigation.detail == result.session))
+                if !store.pendingCreates.isEmpty {
+                    Section("Starting") {
+                        ForEach(store.pendingCreates) { item in
+                            QueuedLine(item: item, queuedLine: context.connection.queuedLine) { store.queue?.cancel(item) }
+                                .selectionDisabled()
+                                .columnRow()
+                        }
+                    }
                 }
-            } else {
-                sections
+                if store.searching {
+                    found
+                } else {
+                    sections
+                }
             }
         }
-        .listStyle(insetGrouped: context.navigation.layout == .compact)
-        .searchBar(enabled: context.connection.supports(AgentsStore.searchCommand), text: Bindable(store).searchQuery, prompt: "Search sessions")
+        .columnList()
+        .tabSearch(.agents, text: Bindable(store).searchQuery, prompt: "Search sessions")
         .overlay {
             if !store.loaded {
                 ProgressView()
             } else if store.searching {
                 if let error = store.searchError {
                     ContentUnavailableView("Search Failed", systemImage: "magnifyingglass", description: Text(error))
-                } else if store.searchResults == nil {
+                } else if let results = store.searchResults {
+                    if results.isEmpty { ContentUnavailableView.search(text: store.searchQuery) }
+                } else {
                     ProgressView()
-                } else if store.searchResults?.isEmpty == true {
-                    ContentUnavailableView.search(text: store.searchQuery)
                 }
             } else if store.sessions.isEmpty, !store.olderShown {
                 ContentUnavailableView {
@@ -177,13 +197,30 @@ struct SessionListView: View {
         .onChange(of: store.arrived) { _, arrived in
             guard let arrived else { return }
             store.arrived = nil
-            context.navigation.detail = arrived
-            context.navigation.preferredColumn = .detail
+            context.navigation.land(arrived)
         }
     }
 
     private var onScreen: Bool {
-        phase != .background && (wide || context.navigation.detail == nil)
+        phase != .background && (wide || context.navigation.path(.agents).isEmpty)
+    }
+
+    private var found: some View {
+        Section {
+            ForEach(store.searchResults ?? []) { result in
+                Group {
+                    if let session = store.session(result.session) {
+                        SessionRow(session: session, chevron: true)
+                    } else {
+                        FoundSessionRow(result: result)
+                    }
+                }
+                .listRowDensity()
+                .tag(result.session)
+                .columnRow(selected: context.navigation.selected(.agents) == result.session)
+                .accessibilityIdentifier("row." + result.session)
+            }
+        }
     }
 
     @ViewBuilder
@@ -207,8 +244,8 @@ struct SessionListView: View {
                 }
             }
             .textCase(nil)
-            .padding(.top, wide ? 0 : 4)
-            .listRowInsets(wide ? nil : EdgeInsets())
+            .padding(.top, 4)
+            .listRowInsets(EdgeInsets())
         }
         ForEach(store.shownSections) { shown in
             let section = shown.section
@@ -345,7 +382,7 @@ struct SessionListView: View {
                     }
                     .listRowDensity()
                     .tag(row.section)
-                    .modifier(SelectedSessionRow(active: wide, selected: context.navigation.detail == row.section))
+                    .columnRow(selected: context.navigation.selected(.agents) == row.section)
                 }
             }
         }
@@ -357,8 +394,7 @@ struct SessionListView: View {
 
     private func answerAll() {
         store.beginOpenPass()
-        context.navigation.detail = AgentsPluginInfo.openQueue
-        context.navigation.preferredColumn = .detail
+        context.navigation.select(AgentsPluginInfo.openQueue, tab: .agents)
     }
 
     private func rows(_ rows: [ListRow]) -> some View {
@@ -371,18 +407,25 @@ struct SessionListView: View {
                 } else {
                     SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants, waitingAsides: item.node.waitingAsides, chevron: item.toggleCount == nil, taskRow: item.taskRow, place: row.place)
                 }
-                if let count = item.toggleCount {
+                if let count = item.toggleCount, !wide {
                     SubagentToggle(count: count, expanded: item.expanded) {
                         Motion.disclose { store.toggleTree(item) }
                     }
                 }
             }
             .listRowDensity()
-            .listRowSeparator(item.depth > 0 || wide ? .hidden : .automatic, edges: .top)
-            .listRowSeparator(nestedBelow || wide ? .hidden : .automatic, edges: .bottom)
+            .listRowSeparator(item.depth > 0 ? .hidden : .automatic, edges: .top)
+            .listRowSeparator(nestedBelow ? .hidden : .automatic, edges: .bottom)
             .tag(item.id)
             .selectionDisabled(item.repo != nil)
-            .modifier(SelectedSessionRow(active: wide, selected: context.navigation.detail == item.id))
+            .columnRow(selected: context.navigation.selected(.agents) == item.id)
+            .contextMenu {
+                if let count = item.toggleCount, wide {
+                    Button(item.expanded ? "Hide \(count) Subagents" : "Show \(count) Subagents", systemImage: item.expanded ? "chevron.up" : "chevron.down") {
+                        Motion.disclose { store.toggleTree(item) }
+                    }
+                }
+            }
             .accessibilityIdentifier(row.section.hasPrefix("inbox") ? "inbox." + item.id : "row." + item.id)
             .onAppear { store.visibleRows.insert(row.id) }
             .onDisappear { store.visibleRows.remove(row.id) }
@@ -501,41 +544,6 @@ struct HoldPill: View {
 }
 
 
-struct SelectedSessionRow: ViewModifier {
-    let active: Bool
-    let selected: Bool
-
-    func body(content: Content) -> some View {
-        if active {
-            content
-                .listRowBackground(RoundedRectangle(cornerRadius: 16).fill(selected ? Color.accentColor.opacity(0.2) : .clear).padding(.horizontal, 8))
-                .foregroundStyle(selected ? AnyShapeStyle(Color(.label)) : AnyShapeStyle(.foreground))
-        } else {
-            content
-        }
-    }
-}
-
-extension View {
-    @ViewBuilder
-    func searchBar(enabled: Bool = true, text: Binding<String>, prompt: String) -> some View {
-        if enabled {
-            modifier(SearchBar(text: text, prompt: prompt))
-        } else {
-            self
-        }
-    }
-
-    @ViewBuilder
-    func listStyle(insetGrouped: Bool) -> some View {
-        if insetGrouped {
-            listStyle(.insetGrouped)
-        } else {
-            listStyle(.plain)
-        }
-    }
-}
-
 struct SubagentToggle: View {
     let count: Int
     let expanded: Bool
@@ -627,33 +635,20 @@ struct SessionRow: View {
     }
 }
 
-struct SearchResultRow: View {
+struct FoundSessionRow: View {
     let result: AgentSearchResult
-    let session: AgentSession?
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { timeline in
             HStack(alignment: .top, spacing: 12) {
-                SessionGlyphView(glyph: session?.glyph ?? result.glyph)
+                SessionGlyphView(glyph: result.glyph)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(result.displayTitle)
-                        .font(.body.weight(session?.glyph.needsYou == true ? .semibold : .regular))
                         .foregroundStyle(result.status == .closed ? Color.captionInk : .primary)
                         .lineLimit(2)
-                    StateLineText(line: session?.stateLine(now: timeline.date) ?? result.stateLine(now: timeline.date))
+                    StateLineText(line: result.stateLine(now: timeline.date))
                         .font(.subheadline)
                         .lineLimit(1)
-                    ForEach(Array(result.snippets.enumerated()), id: \.offset) { _, hit in
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Image(systemName: hit.kind == .prompt ? "person" : "bubble.left")
-                                .accessibilityLabel(hit.kind == .prompt ? "Prompt" : "Reply")
-                            Text(hit.snippet)
-                                .lineLimit(2)
-                        }
-                        .font(.footnote)
-                        .foregroundStyle(Color.captionInk)
-                        .padding(.top, 4)
-                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 RowChevron()
@@ -889,11 +884,11 @@ struct NewSessionView: View {
         Task {
             do {
                 if let id = try await store.create(text, attachments: attached) {
-                    context.navigation.detail = id
+                    context.navigation.replaceTop(.session(id))
                 } else {
                     draft = ""
                     attachments = []
-                    context.navigation.detail = nil
+                    context.navigation.pop()
                 }
             } catch {
                 failure = (error as? RemoteError)?.message ?? error.localizedDescription

@@ -25,11 +25,13 @@ html.fit, html.fit body { overflow: hidden; }
 
 #doc {
   box-sizing: border-box;
-  padding: 16px var(--inset, 24px) 48px;
+  padding: var(--top, 16px) var(--inset, 24px) 48px;
   overflow-wrap: break-word;
 }
 
 #doc > :is(p, ul, ol, dl, blockquote, details, h1, h2, h3, h4, h5, h6, .footnotes) { max-width: var(--measure); }
+
+html.column #doc { max-width: calc(var(--column) + 2 * var(--inset, 24px)); margin-inline: auto; }
 
 html.fit #doc { padding: 0; }
 html.fit #doc > :is(p, ul, ol, dl, blockquote, details, h1, h2, h3, h4, h5, h6, .footnotes) { max-width: none; }
@@ -123,6 +125,20 @@ pre {
 html.fit pre { width: auto; min-width: 0; }
 
 pre > code { padding: 0; background: none; font-size: 1em; }
+
+pre:not(.diff):has(> code:only-child) { position: relative; padding: 0; overflow: hidden; }
+pre:not(.diff) > code:only-child { display: block; padding: 8px 12px; overflow-x: auto; }
+pre.more::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 40px;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(to right, transparent, var(--code-bg));
+  pointer-events: none;
+}
 
 table {
   display: block;
@@ -267,8 +283,8 @@ pre.mermaid-failed {
 .wm-fold { display: flex; padding: 12px 0 4px; }
 
 @media (min-width: 960px) {
-  #doc:has(> .wiki-margin) { padding-right: calc(var(--inset, 24px) + var(--margin-col) + var(--margin-gap)); }
-  .wiki-margin {
+  html:not(.column) #doc:has(> .wiki-margin) { padding-right: calc(var(--inset, 24px) + var(--margin-col) + var(--margin-gap)); }
+  html:not(.column) .wiki-margin {
     display: flex;
     position: fixed;
     top: 16px;
@@ -278,8 +294,8 @@ pre.mermaid-failed {
     max-height: calc(100vh - 32px);
     overflow-y: auto;
   }
-  .wiki-fold { display: none; }
-  .wiki-margin > nav { flex: none; max-height: 50vh; overflow-y: auto; }
+  html:not(.column) .wiki-fold { display: none; }
+  html:not(.column) .wiki-margin > nav { flex: none; max-height: 50vh; overflow-y: auto; }
 }
 
 .wm-sec { display: flex; flex-direction: column; min-width: 0; }

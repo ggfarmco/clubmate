@@ -6,6 +6,7 @@ import Observation
 public final class WorkspaceUI {
     public let workspace: String
     public private(set) var sections: [SectionInfo] = []
+    public private(set) var sectionsLoaded = false
     public private(set) var failure: String?
     private var views: [String: SlotView] = [:]
 
@@ -96,6 +97,7 @@ public final class WorkspaceUI {
                     sectionsStream = stream
                     do {
                         sections = try await connection.uiSections()
+                        sectionsLoaded = true
                     } catch {
                         sectionsStream = nil
                         throw error

@@ -7,7 +7,7 @@ struct SDUIContext {
     let slot: String
     let send: (String, String, JSONValue?) async -> Void
     let open: (String) -> Void
-    var openDoc: ((String) -> Void)? = nil
+    var openLink: ((String) -> Void)? = nil
 
     var mainSlot: String? {
         guard slot.hasSuffix(".sidebar") else { return nil }
@@ -16,12 +16,12 @@ struct SDUIContext {
 
     func fire(_ node: SDUINode, _ trigger: ClubmateProtocol.UIAction.Trigger) async {
         let event = ClubmateProtocol.UIAction.event(for: node, trigger: trigger, slot: slot, workspaceID: "")
-        if event.action == "openDoc", let openDoc, let path = event.value.stringValue { return openDoc(path) }
+        if event.action == "openDoc", let openLink, let path = event.value.stringValue { return openLink(path) }
         await send(event.nodeId, event.action, event.value)
     }
 
     func select(_ node: SDUINode, _ id: String) async {
-        if let mainSlot { open(mainSlot) }
+        if mainSlot != nil { open(id) }
         await fire(node, .select(id))
     }
 

@@ -7,6 +7,9 @@ struct StackNode: View {
     let context: SDUIContext
     @Environment(\.sduiInset) private var inset
     @Environment(\.sduiFormRow) private var formRow
+    @Environment(\.sduiPage) private var page
+    @Environment(\.sectionLine) private var sectionLine
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     private var gap: CGFloat? {
         node.props["gap"]?.numberValue.map { CGFloat($0) }
@@ -30,8 +33,20 @@ struct StackNode: View {
         }
     }
 
+    private func pageHeader(_ header: SDUINode, page: SDUIPage) -> AnyView? {
+        if PadLayout.on(sizeClass) {
+            let title = header.string("title").flatMap { $0.isEmpty ? nil : $0 } ?? page.title
+            return AnyView(PageHeaderColumn(title: title, meta: PageHeaderColumn.meta(sectionLine, header.string("meta")), badges: header.headerBadges()))
+        }
+        let inline = PageHeaderInline(node: header, page: page, sectionLine: sectionLine)
+        return inline.isEmpty ? nil : AnyView(inline)
+    }
+
     var body: some View {
-        if let key = propertyKey {
+        if let page, let parts = node.pageDocument {
+            DocumentNode(node: parts.document, context: context, header: pageHeader(parts.header, page: page))
+                .modifier(PageHeaderBar(node: parts.header, context: context, find: page.find))
+        } else if let key = propertyKey {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Text(key.string("text") ?? "")
                     .foregroundStyle(Color.captionInk)
@@ -84,6 +99,7 @@ private struct ScrollsUnlessNested: ViewModifier {
                 content.padding(.vertical, 12)
             }
             .scrollDismissesKeyboard(.interactively)
+            .dismissesLiveField()
             .environment(\.sduiInScroll, true)
         }
     }
@@ -141,6 +157,7 @@ struct ScrollNode: View {
                 column.padding(.vertical, 12)
             }
             .scrollDismissesKeyboard(.interactively)
+            .dismissesLiveField()
             .environment(\.sduiInScroll, true)
         }
     }

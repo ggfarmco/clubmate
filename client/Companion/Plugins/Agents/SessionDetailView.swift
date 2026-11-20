@@ -18,6 +18,7 @@ struct SessionDetailView: View {
     @State private var failure: String?
     @State private var answeredElsewhere = 0
     @State private var position = ScrollPosition(edge: .bottom)
+    @State private var scrolledDock: SessionDock??
     @State private var confirmingClose = false
     @State private var confirmingStop = false
     @State private var confirmingHeaderStop = false
@@ -100,7 +101,7 @@ struct SessionDetailView: View {
             case .full where !asideSheetUp: pushReady = true
             case .kept(let id) where !asideSheetUp:
                 store.asidePresentation[sessionID] = nil
-                context.navigation.detail = id
+                replaceSession(id)
             case .full, .kept: break
             default: pushReady = false
             }
@@ -147,7 +148,7 @@ struct SessionDetailView: View {
                 if let session, let aside = session.aside {
                     ForkedFromCard(anchor: aside.anchor, panel: transcript?.asidePanel)
                 } else if let parent {
-                    StartedByCard(parent: parent) { context.navigation.detail = parent.id }
+                    StartedByCard(parent: parent) { reachSession(parent.id) }
                 }
                 if leadCard && entries.isEmpty && transcript == nil {
                     loadState(loaded: false, empty: true)
@@ -197,7 +198,7 @@ struct SessionDetailView: View {
                     FailureActionsView(buttons: failureButtons, onMac: session.failureOnMac(context.connection.computer.name), blocked: blocked) { action in
                         perform {
                             if let next = try await store.recover(sessionID, with: action) {
-                                context.navigation.detail = next
+                                replaceSession(next)
                             }
                         }
                     }
@@ -208,7 +209,7 @@ struct SessionDetailView: View {
                     }
                 }
                 if let round = session?.heldRound {
-                    HeldRoundLine(round: round) { run in context.navigation.detail = run }
+                    HeldRoundLine(round: round) { run in pushRun(run) }
                 } else if session?.status == .running, session?.turnHeld != true {
                     HStack(spacing: 8) {
                         ProgressView()
@@ -262,7 +263,7 @@ struct SessionDetailView: View {
         } : nil)
         .environment(\.openDoc, docOpener)
         .environment(\.openTask, taskOpener)
-        .environment(\.openSession, Opener(key: context.connection.computer.id) { id in context.navigation.detail = id })
+        .environment(\.openSession, Opener(key: "\(context.connection.computer.id)/\(store.workspace)/\(sessionID)") { id in reachSession(id) })
         .environment(\.toolCallLoader, ToolCallLoader(session: sessionID) { [store, sessionID] id in await store.toolCall(id, in: sessionID) })
         .environment(\.imageStore, context.connection.supports(AgentsStore.imageCommand) ? store : nil)
         .environment(\.imageSession, sessionID)
@@ -361,7 +362,7 @@ struct SessionDetailView: View {
                             LandDock(card: card, later: store.landLater.contains(card.request), session: repos?.row(named: card.name)?.session, blocked: blocked) {
                                 reviewing = card
                             } openSession: { session in
-                                context.navigation.detail = session
+                                pushSession(session)
                             } notNow: { later in
                                 withAnimation {
                                     if later { store.landLater.insert(card.request) } else { store.landLater.remove(card.request) }
@@ -528,6 +529,8 @@ struct SessionDetailView: View {
             cardField = nil
         }
         .task(id: screen.dock) {
+            guard scrolledDock != .some(screen.dock) else { return }
+            scrolledDock = .some(screen.dock)
             try? await Task.sleep(for: .milliseconds(150))
             withAnimation { position.scrollTo(edge: .bottom) }
         }
@@ -570,7 +573,7 @@ struct SessionDetailView: View {
         case .full: pushReady = true
         case .kept(let id):
             store.asidePresentation[sessionID] = nil
-            context.navigation.detail = id
+            replaceSession(id)
         default: break
         }
     }
@@ -638,7 +641,7 @@ struct SessionDetailView: View {
         guard let parent = asideParent else { return }
         let pushed = store.asidePresentation[parent] == .full(sessionID)
         store.asidePresentation[parent] = .sheet(sessionID)
-        if !pushed { context.navigation.detail = parent }
+        if !pushed { replaceSession(parent) }
     }
 
     private var asideParent: String? {
@@ -664,7 +667,7 @@ struct SessionDetailView: View {
         try await store.close(sessionID)
         guard let parent else { return }
         store.asidePresentation[parent] = nil
-        if role == .plain { context.navigation.detail = parent }
+        if role == .plain { replaceSession(parent) }
         await store.loadTranscript(parent, incremental: true)
     }
 
@@ -774,16 +777,32 @@ struct SessionDetailView: View {
             Task { @MainActor in
                 let backlog = model.backlog(computer: computer, workspace: workspace)
                 if let backlog, !backlog.fetched || MarkdownTaskLink.id(target).flatMap(backlog.task) == nil { await backlog.refresh() }
-                guard let detail = backlog.map({ $0.detail(link: target) }) ?? MarkdownTaskLink.id(target).map(String.init) else { return }
-                navigation.workspaces[computer] = workspace
-                navigation.open(computer: computer, plugin: BacklogPluginInfo.id, detail: detail)
+                guard let task = (backlog.map({ $0.detail(link: target) }) ?? MarkdownTaskLink.id(target).map(String.init)).flatMap(Int.init) else { return }
+                navigation.push(Destination.task(task), from: navigation.origin(), in: WorkspaceKey(computer: computer, workspace: workspace))
             }
         }
     }
 
+    private func pushSession(_ session: String) {
+        context.navigation.push(Destination.session(session), from: context.navigation.origin())
+    }
+
+    private func pushRun(_ run: String) {
+        context.navigation.push(Destination.run(run), from: context.navigation.origin())
+    }
+
+    private func replaceSession(_ session: String) {
+        context.navigation.replaceTop(Destination.session(session))
+    }
+
+    private func reachSession(_ session: String) {
+        context.navigation.reach(Destination.session(session), from: context.navigation.origin())
+    }
+
     private func open(doc path: String) {
         store.dismissOpenedDoc(sessionID)
-        navigation.openDoc(computer: context.connection.computer.id, workspace: store.workspace, path: path)
+        let (file, anchor) = DocsStore.split(path)
+        navigation.openLink(file, anchor: anchor, from: navigation.origin())
     }
 
     private func folded(_ card: OpenCard) -> Bool {
@@ -824,7 +843,7 @@ struct SessionDetailView: View {
             reopen: { action in
                 perform {
                     if let next = try await store.recover(sessionID, with: action) {
-                        context.navigation.detail = next
+                        replaceSession(next)
                     }
                 }
             },
@@ -890,7 +909,7 @@ struct SessionDetailView: View {
     private func run(_ action: ReposCard.Action, row: ReposCard.Row) {
         switch action.kind {
         case .session:
-            if let session = row.session { context.navigation.detail = session }
+            if let session = row.session { pushSession(session) }
         case .fix:
             guard let path = row.path else { return }
             perform { try await store.repoFix(sessionID, repo: path) }

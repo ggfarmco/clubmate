@@ -103,6 +103,12 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, err
 		}
 		return a.searchFiles(ctx, h, cmd.WorkspaceID, args)
+	case "search.workspace":
+		var args workspaceArgs
+		if err := decodeArgs(cmd, &args); err != nil {
+			return nil, err
+		}
+		return a.searchWorkspace(ctx, h, cmd.WorkspaceID, args)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }

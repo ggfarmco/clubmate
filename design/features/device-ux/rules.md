@@ -1,6 +1,6 @@
 # Device UX (Companion, iPhone + iPad) — rules (decided 19 Nov 2026)
 
-Source of truth for the build. Claude Design round 2, canvas "Clubmate · Device UX" (https://claude.ai/artifact/XgeKPdK3CsRqRPkGUMDMMy, page r2). Boards: `R2-iPhone-sections-wiki`, `R2-iPhone-session-requests`, `R2-iPhone-navigation`, `R2-iPad-landscape`, `R2-iPad-portrait`, `R2-Build-rules` (`.dc.html` here, all six in `boards.html`; styles `rounds/r1.css` + `r2.css`). Brief, audit and screenshots of today: `design/device-space-brief/`. Rejected round-1 directions (B as a system, C) and the round-1 page: `rounds/`.
+Source of truth for the build. Claude Design round 2, canvas "Clubmate · Device UX" (https://claude.ai/artifact/XgeKPdK3CsRqRPkGUMDMMy, page r2). Boards: `R2-iPhone-sections-wiki`, `R2-iPhone-session-requests`, `R2-iPhone-navigation`, `R2-iPad-landscape`, `R2-iPad-portrait`, `R2-Build-rules` (`.dc.html` here, all six in `boards.html`; styles `rounds/r1.css` + `r2.css`). Brief, audit and screenshots of today: `design/device-space-brief/`. Rejected round-1 directions (B as a system, C) and the round-1 page: `rounds/`. Round 3 (20 Nov, after the first visual check V1) changes some rules below: see § Round 3 at the end; where it differs, Round 3 wins. Round 4 (20 Nov, iPad only, after the user's notes) replaces the iPad layout: see § Round 4 at the end; on the iPad it wins over R2 and R3.
 
 ## Decisions
 
@@ -8,7 +8,7 @@ Source of truth for the build. Claude Design round 2, canvas "Clubmate · Device
 |---|---|
 | Direction A (bars fold, cards fold, iPad columns step down) + B's reading mode for wiki/doc pages and the iPad reading view | user, after round 1 |
 | Shared navigation: cross-section links push on the current stack with a named back chip; wiki/doc links open in place; one stack per tab | round 1, kept |
-| Sections are a native `TabView` (Liquid Glass): Agents · Backlog · Wiki · More + `Tab(role: .search)` | user («отдельная вкладка», Liquid Glass tabs) |
+| Sections are a native `TabView` (Liquid Glass): Agents · Backlog · Wiki · More (Search tab dropped 2026-11-20) | user («отдельная вкладка», Liquid Glass tabs) |
 | Docs section removed; no Docs row anywhere | user («docs можно убрать») |
 | iPhone Macs screen removed: workspace capsule menu + Inbox tray on every tab root | user accepted the designer's call |
 | Search covers the current workspace only | user |
@@ -17,14 +17,15 @@ Source of truth for the build. Claude Design round 2, canvas "Clubmate · Device
 
 ## Structure
 
-- **iPhone**: `TabView` is the app root. Tabs Agents · Backlog · Wiki · More + Search. Each tab = one `NavigationStack`, kept per workspace and restored on return. `.tabBarMinimizeBehavior(.onScrollDown)`.
+- **iPhone**: `TabView` is the app root. Tabs Agents · Backlog · Wiki · More. Each tab = one `NavigationStack`, kept per workspace and restored on return. `.tabBarMinimizeBehavior(.onScrollDown)`.
 - **Wiki tab** only when the workspace has the wiki plugin (else three tabs). Root = the plugin's tree node (`wiki.sidebar`); pages = its document nodes. "Recently updated" is the first group when the plugin sends it.
 - **iPad**: same `TabView`, `.sidebarAdaptable`. Sidebar showing → tabs are its rows, with Needs you, Inbox and workspaces below. Sidebar hidden → system tab bar at the top. Inside each tab a `NavigationSplitView` list + detail. Portrait: the sidebar never sits inline, so the tab bar is always at the top; Needs you/Inbox/workspaces are reached from the capsule and the tray.
 - **Workspace capsule**: leading glass capsule (`Menu`) "● shop ⌄" on every tab root. Lists Macs with their state → workspaces with amber counts · Mac details · Pair a Mac. Replaces the iPhone Macs root and today's `WorkspaceMenu` folder button. Switching swaps all four stacks to that workspace's saved ones.
 - **Mac details** (connection, usage, paired devices, Pair a Mac, unpair): More › This Mac (usage line on that row) and the capsule menu row.
 - **Connection state**: per Mac in the capsule menu. Current Mac offline/unauthorized → every tab root shows C3's offline row under the title, the capsule dot goes hollow, answer buttons disable as in C3.
 - **Inbox**: tray button, trailing, on every tab root, amber dot while anything waits; pushes the Inbox page on the current tab. "Waiting for you" (today's Needs you, across all Macs) first, "Earlier" below. Seen rows lose the dot; answered ones move to Earlier. iPad sidebar keeps Needs you and Inbox rows.
-- **Search tab**: scope = current workspace. Groups in order Sessions · Tasks · Wiki pages · Docs (`docs.list`: docs this workspace's sessions opened), 3 each then "Show all n". A result pushes on the Search tab's own stack with its section line; Back returns to the results, query kept. Empty field: Recent searches (5), Recently opened (5). No results: "Nothing in shop for "x"". The field's own mic is dictation only.
+- **Search in context** (replaced the Search tab 2026-11-20; the user: «серч плохо сделан, мне не нравится. надо чтобы серч был привязан к контексту где мы находимся, отдельный tab search плохо»): Agents, Backlog and Wiki each search their own list with the Backlog's stock `.searchable` (under the large title, hides on scroll, filters in place); More has none; pages keep ⌘F; ⇧⌘F focuses the current tab's field. The Search tab rules below are history.
+- ~~**Search tab**~~: scope = current workspace. Groups in order Sessions · Tasks · Wiki pages · Docs (`docs.list`: docs this workspace's sessions opened), 3 each then "Show all n". A result pushes on the Search tab's own stack with its section line; Back returns to the results, query kept. Empty field: Recent searches (5), Recently opened (5). No results: "Nothing in shop for "x"". The field's own mic is dictation only.
 - **Mic**: Voice is a bar button on tab roots and pages and the first composer button in sessions. Nothing floats over content (the floating `VoiceButton` goes).
 - **Top bar trailing**: tab root = Inbox · Voice · the section's create action. Pages = up to two actions (e.g. Edit) · Voice · ••• (History inside). Sessions: mic in the composer.
 - **Tab bar hidden** in a session, on anything pushed above a session, and in reading mode.
@@ -34,11 +35,11 @@ Source of truth for the build. Claude Design round 2, canvas "Clubmate · Device
 | Element | Value |
 |---|---|
 | Navigation bar | 44 pt at y 59 (safe area 62) |
-| Large title + subtitle | 34/41 + 15/20 pt; folds into the bar over the first 52 pt of scroll |
+| Large title + subtitle | 34/41 + system subtitle (pages only; tab roots have none); folds into the bar over the first 52 pt of scroll |
 | Tab bar | capsule 62 pt high, 20 pt side inset, 22 pt from the bottom → 84 pt bottom chrome; Search circle 62 pt, 12 pt gap |
 | Tab bar minimized | two 54-pt circles, 20 pt inset, 26 pt from the bottom |
-| Tab badge | 18 pt amber, sessions waiting in this workspace (Agents only) |
-| Back chip | glass capsule 44 pt, padding 8 / 14, max 200 pt, chevron 20 pt; label ≤ 18 characters then "…" |
+| Tab badge | none (round 3) |
+| Back chip | glass capsule 44 pt, padding 8 / 14, ≈ 150 pt, chevron 20 pt; label ≤ 12 characters including "…" |
 | Amber count (session bar) | glass capsule 44 pt, dot 9 pt + count |
 | Permission card | open 251 pt · folded row 56 pt, radius 28, amber 1.5 pt border |
 | Question card | peek 286 pt (grabber 36 × 5, header 36, question, option titles 46 each) · full ≤ 60% of the screen (366 here, with descriptions) · bar 56 pt (same row as the folded permission card) |
@@ -103,7 +104,7 @@ Reading mode is not used with VoiceOver or Switch Control.
 | Esc | in order: leave reading view → close the list or sidebar over the detail → today's meaning (closes the voice panel). Never stops the turn on iPad |
 | ⌘[ | Back (chevron or chip) |
 | ⌘1 ⌘2 ⌘3 ⌘4 | Agents · Backlog · Wiki · More |
-| ⇧⌘F | Search tab, field focused (everywhere) |
+| ⇧⌘F | the current tab's search field focused (Agents, Backlog, Wiki) |
 | ⌘F | find in page on an open wiki or doc page (WebKit find bar, as today); nothing elsewhere |
 | ⇧⌘I | Inbox |
 | ⌘N | the current tab's create action: new session, task, page |
@@ -167,12 +168,12 @@ Deployment target is already iOS 27.0 (`client/companion.yml:13`, `client/Compan
 
 | Part | Stock API | Ours |
 |---|---|---|
-| Sections | `TabView` + `Tab` × 4, `Tab(role: .search)` | which tabs show (Wiki only with the wiki plugin), per-workspace stack restore |
+| Sections | `TabView` + `Tab` × 4 | which tabs show (Wiki only with the wiki plugin), per-workspace stack restore |
 | Tab bar shrinking on scroll | `.tabBarMinimizeBehavior(.onScrollDown)` | — |
 | iPad sidebar / tab bar | `.tabViewStyle(.sidebarAdaptable)`, sidebar toggle | Needs you, Inbox, workspaces rows under the tabs; ⌃⌘S step-down, remembered per section |
 | Columns | `NavigationSplitView` with `columnVisibility` incl. `.detailOnly` | the step order and defaults per orientation |
 | Large title folding into the bar, glass bars | `navigationTitle` + large display mode, system glass bar, `.scrollEdgeEffectStyle(.soft, for: .top)` (already used in `SessionDetailView.swift:274`) | the SDUI `header` node moving into the scroll so it can fold |
-| Search | `Tab(role: .search)` + `.searchable` | result groups, scope, recents |
+| Search | `.searchable` on each tab's list | what each tab asks the Mac |
 | Back | `NavigationStack` back button, long-press stack menu | the back chip (glass capsule with the origin title) where Back crosses a section |
 | Workspace capsule | `Menu` with `.buttonStyle(.glass)` | its content (Macs, states, counts, This Mac, Pair) |
 | Reading mode / reading view | — | ours: hiding bars + tab bar on the thresholds above, progress line |
@@ -220,3 +221,102 @@ New or changed companion components and patterns, to add to the language boards 
 - The designer did not open the rendered boards; `boards.html` was checked only in a headless Chrome render.
 - Dark: no layout differs; each board has a Theme tweak, not exported as separate boards.
 - iPad band 2 placement to verify on a device (see iPad columns).
+
+## Round 3 (after V1)
+
+Claude Design, 20 Nov, same canvas, page r3, same chat. Input: the V1 shots (`clubmate-notes/checks/2026-11-20-device-ux-v1/shots/`, iPhone 18 Pro and iPad Pro 11" portrait, light). Boards: `R3-Rulings`, `R3-iPhone-changes`, `R3-iPad-changes` (`.dc.html` here, first in `boards.html`). Stock first holds: every ruling uses the system `TabView`, `Menu`, navigation bar and empty state.
+
+| # | Question | Ruling | Stock way | Goes to |
+|---|---|---|---|---|
+| 1 | Tab root title ("shop" twice, "shop ⌄ shop" scrolled) | The section name ("Agents", "Backlog", "Wiki", "More") is the large title, with no subtitle, on iPhone tab roots and in the iPad list column. Workspace and Mac show only in the capsule; the Mac state shows only when the Mac is not online (C3 offline row). Scrolled bar: "● shop ⌄ · Agents". | `.navigationTitle(section)`, no `.navigationSubtitle` on roots | fix after V1; iPad list column in T13 |
+| 2 | Wiki subtitle 11 pt, text 31 pt below it | Keep the system subtitle at its own size. The text starts 14 pt below it (the document node's top padding, not the bar) → 188 pt (21.5%) at rest. "15/20 pt" in § iPhone measurements becomes "system". | `.navigationSubtitle` | fix after V1 |
+| 3 | Reading mode: text under the status bar | Text must not show under the status bar. While reading mode hides the bars, the top scroll edge uses the hard style; the 2-pt progress line sits on its lower edge. Board W6 stays. | `.scrollEdgeEffectStyle(.hard, for: .top)` (on the WKWebView's scroll view: UIKit `topEdgeEffect.style = .hard`) | fix after V1 |
+| 4 | Back chip fills 200 pt; no room for the title | Label ≤ 12 characters including "…", system 17 pt (≈ 150 pt with the glass). Voice stays on every page (L6 is right; r2 navigation frame 2 was missing it). The title "#7" and the section line "Backlog · shop" then fit. | toolbar `Button` with a label; cut the string, not the font | fix after V1 |
+| 5 | Capsule menu: no trailing counts in the system Menu | Accept the build: "n waiting" as the row subtitle, a Mac Details row per Mac, Pair a Mac last. r2 W2 is superseded. | `Menu` with a `Section` per Mac | accepted, no change |
+| 6 | More order | Accept the build's order: plugin rows first, This Mac last. Add the usage line as This Mac's subtitle ("Online · usage 42% of the limit"). | list row with a subtitle | fix after V1 (usage line) |
+| 7 | Tab badge: system badge is red, cannot be tinted | No tab badge on either device: red means failed in the companion language. The amber Inbox dot and the amber count in the session bar carry "needs you". | no `.badge` on `Tab` | fix after V1 (remove the badge) |
+| 8 | Inbox: large or inline title | Accept the inline title: Inbox is a pushed page like #7 and a session, and inline saves 52 pt. | inline display mode | accepted, no change |
+| 9 | iPad Wiki detail when nothing is open | Wiki never shows an empty detail: it opens the last page read, the first time the wiki home (the tree's root page); the tree selection follows. Agents and Backlog never open something by themselves: stock empty state with one action — Agents "Open the oldest waiting" when something waits, else "New session"; Backlog "New task". | restored split-view selection; `ContentUnavailableView` | T13 (wiki home: plugin marks its home page, handoff (c)) |
+| 10 | iPad portrait: column bar below the tab bar (54 pt at y 106) | Keep band 2 below the tab bar as built: no stock placement puts items beside the iPadOS tab bar. Remove our own sidebar toggle from band 2; the tab bar's system sidebar button is the only one (⌃⌘S stays). This replaces the band-1 layout on r2 L2–L6 and P1–P6. | `sidebarAdaptable`'s own sidebar button | T13 |
+
+Rules that change:
+
+- § iPhone measurements: large title "34/41 + 15/20 pt" → "34/41 + system subtitle (pages only; tab roots have none)"; tab badge → none; back chip label ≤ 12 characters, ≈ 150 pt.
+- § iPad columns, Bands: band 2 is always under the tab bar (54 pt at y 106); the "verify on a device" note is closed.
+- § Structure, Mac details: More › This Mac is the last row, with the usage line as its subtitle.
+- § Language changes: no tab badge; the header line under a tab root's title goes.
+
+Seen by the designer, not asked: in the capsule-menu and inbox shots the tab bar shows Agents · Backlog · More without Wiki while the workspace is still shop. The tab set may change only when the workspace changes; this looks like the wiki plugin's state reloading (a bug, not a ruling; backlog #1012).
+
+Not done in round 3 (backlog #1013): two note lines on `R3-Rulings` ("Seen in the shots") and `R3-iPad-changes` ("Rulings shown") still touch the right edge of their board in the headless render; the frames are not cut.
+
+## Round 4 (iPad, after the user's notes)
+
+Claude Design, 20 Nov, same canvas, page r4, same chat. Input: the user's notes and screenshots from their own 13-inch iPad on build `614712fb0` (`clubmate-notes/checks/2026-11-20-ipad-notes/`, notes N1–N7 and mark A), and simulator shots of the same build on iPad Pro 11" (M5), landscape and portrait, light and dark. Boards: `R4-Rulings`, `R4-iPad-left-column`, `R4-iPad-landscape`, `R4-iPad-portrait`, `R4-iPad-13inch` (`.dc.html` here, first in `boards.html`). The user's notes win over earlier rulings. The iPhone does not change: the new layout applies only when `idiom == .pad` and the horizontal size class is regular; iPhone (also Pro Max landscape) and iPad compact width (Slide Over) keep the iPhone layout. The reference for every iPad screen is the iPhone Agents and Backlog tabs (memory: Backlog is the reference design).
+
+### Rulings on the user's notes
+
+| # | User's note | Ruling | Stock way (iPadOS 27) | No stock API · cost |
+|---|---|---|---|---|
+| N1 | "что сверху?" — empty strip above the capsule and Inbox | No band: the list column's bar is the first thing under the status bar (y 24). Hiding the tab bar (N2) removes it. | — | — |
+| N2 | "табы хочу там как на телефоне"; the top tab bar "надо чтобы можно было свернуть"; a Mac shows as a tab | The sections are icon tabs at the bottom of the list column, as on the iPhone. The top tab bar is hidden, not folded. Workspaces leave the tab set; they are only in the capsule menu. | `TabView(selection:)` kept for the per-tab state; on iPad regular `.tabViewStyle(.tabBarOnly)` + `.toolbarVisibility(.hidden, for: .tabBar)`; the tabs are a `ToolbarItemGroup(placement: .bottomBar)` in each list root, icon + label buttons bound to the selection, `ToolbarSpacer(.fixed)` before Search; the workspace `TabSection` goes | iPadOS has no bottom tab bar, so these are toolbar buttons. Costs: no tab customization; ⌘1–⌘4 added by hand (`.keyboardShortcut`); VoiceOver needs `.isSelected` and a "tab" hint; the tabs leave with the list when it collapses (⌘1–⌘4 still switch) |
+| N3 | Wiki: "Откуда и зачем такие отступы?" | Title, meta line and body share one 680-pt measure, centred in the detail; no large-title band; tree rows are one line, cut at the end. | detail `.navigationBarTitleDisplayMode(.inline)`; tree rows `.lineLimit(1)`; list `.searchable` | the title and meta move into the document (handoff (b)): the system large title cannot follow a centred measure |
+| N4 | "слишком много места этот хедер занимает"; code line cut | A scrolled page has one 50-pt bar (inline title + actions): 74 pt (9%) above the text, was ≈ 150. Scrolling on enters reading mode. Code blocks scroll sideways inside their box with a right fade. iPad only. | inline title shows once the document's H1 passes under the bar; `.toolbarVisibility(.hidden, for: .navigationBar)` in reading mode | the H1-under-bar trigger is ours (web view scroll offset); code scroll is document CSS (b) |
+| N5 | Backlog: "Цвета? Почему отличается от всего остального?" | One list style for every list column = the iPhone Agents list: white grouped cards on the system grouped background, system selection tinted Mate green, 360 pt wide on every tab. | `.listStyle(.insetGrouped)`, `List(selection:)`, `.tint`, `.navigationSplitViewColumnWidth(360)` | — |
+| N6 | "Надо чтобы эта сайд панелька сворачивалась" — "По кнопке" | A visible button collapses the list column: two states, list + detail ↔ detail only. The button is at the leading edge of the bar in both states; ⌃⌘S does the same. The reading view sits on top and restores the state it came from. | `NavigationSplitView(columnVisibility:)` and its own sidebar toggle: keep it, do not remove it | — |
+| N7 | Title cut to "A…"; rows show through under the top area | No title in the iPad list column: the selected tab names the section. The list is the stack's root scroll view, so the bar gets the system scroll edge and rows never show through. | `.toolbar(removing: .title)`; List as the root scroll view | — |
+| A | "31 ›" on a session row — "фигня лишняя" (not confirmed by the user) | Yes, remove on iPad: rows of a selection list get no count and no chevron. The iPhone keeps its chevrons (push navigation). | `List(selection:)` with tags, not `NavigationLink` rows | — |
+
+### Audit of build 614712fb0 against the iPad boards
+
+| # | Finding | Breaks | Fixed by |
+|---|---|---|---|
+| 1 | Empty band ≈ 60 pt above the list column's bar (behind the floating tab bar) | R3 ruling 10, R2 L2 band 2 | N1/N2 |
+| 2 | Workspaces show as tabs: "MacBook Pro (3)", "Mac Studio" (the sidebar-only `TabSection` leaks into the tab bar) | R2 L2 tab set | N2 |
+| 3 | No visible control collapses the list column | R2 L1–L3 toggle | N6 |
+| 4 | ⌃⌘S: first press does nothing; order list + detail → detail → list + detail; all columns only from the tab bar's button | R2 L1–L3 step order | N6 (two states; #1016 works on the step today) |
+| 5 | Reading view from all columns keeps the TabView sidebar; the transcript stays narrow | R2 L4 | N6 |
+| 6 | Portrait reading view leaves the sidebar open over a dimmed page | R2 P4 | N6 |
+| 7 | Agents list column has no "Agents" title at rest | R3 ruling 1 (iPad part, now replaced) | N7 |
+| 8 | Folded title cut to "A…"; rows scroll under the bar, "3 open" overlaps the section header | R2 L1 | N7 |
+| 9 | Backlog column darker grey, grey grouped rows, pale green selection, ≈ 415 pt (others ≈ 363) | R2 widths, R3 P-c | N5 |
+| 10 | Session rows show a count and a chevron | R2 L1 (state line only) | A |
+| 11 | Wiki title at the column margin (x ≈ 340) and body centred (x ≈ 425); tall empty band above the title | R2 L5 | N3 |
+| 12 | Wiki tree rows wrap to two lines or are cut | R2 L5 | N3 |
+| 13 | Scrolled wiki page keeps tab bar + folded title + "updated … by …" (≈ 150 pt) | R2 L5 / W5 | N4 |
+| 14 | Code line cut at the right edge, no scroll hint | R2 L5 | N4 |
+| 15 | Wiki body blank at rest in landscape until scrolled (simulator, light run; the dark run drew it: intermittent) | R2 L5 | bug, no ruling |
+| 16 | Session shows the old request banner row (`RequestBannerHost`) | R2 rules: amber count in the bar | not built yet (R2) |
+| 17 | Question uses the old card ("Paused until you answer"), not peek / full / bar with the Other composer | R2 S3–S5, § Session screen | not built yet (R2) |
+| 18 | Usage line ("7d 64%") under the capsule in the list column | R2 § Structure, Mac details | not built yet (R2) |
+| 19 | "Sends after the current turn" footnote under the composer | R2 § Session screen | not built yet (R2) |
+| 20 | Agents / Backlog empty states match R3 ruling 9 | — | accepted |
+| 21 | Backlog list column bar sits 64 pt lower than on Agents (bar at y 150 vs 86 in landscape, light and dark): one more empty band (seen after the designer's audit, not shown to the designer) | R2 L1–L3 | N1, N5 |
+
+### iPad measurements (replace § iPad columns)
+
+| | 11" 1210 × 834 / 834 × 1210 | 13" 1376 × 1032 / 1032 × 1376 |
+|---|---|---|
+| List column | 360 on every tab | 360 on every tab |
+| Landscape | list 360 + detail 850 (70%) · collapsed: detail 1210 | list 360 + detail 1016 (74%) · collapsed: detail 1376 |
+| Portrait | detail 834; the list (360) slides over it (`.prominentDetail`), picking a row or the toggle or Esc closes it | list 360 + detail 672 side by side |
+| Rule | the list sits beside the detail only when the detail keeps ≥ 640 pt | same |
+| Bars | status 24 · column bar 50 · bottom icon tabs 56 pt, 20 pt from the bottom | same |
+| Text measure | 680 centred, title and meta inside it | same |
+| Wiki scrolled chrome | 74 pt (9%) | 74 pt (7%) |
+
+Keys change: ⌃⌘S toggles list + detail ↔ detail only (two states, both orientations); ⌘1–⌘4 are bound by hand on iPad since the tabs are toolbar buttons. `docs/shortcuts.md` § Companion on iPad changes in the commit that rebinds ⌃⌘S.
+
+### What round 4 replaces
+
+- `R2-iPad-landscape`, `R2-iPad-portrait`: the `sidebarAdaptable` top tab bar, bands 1 and 2, the 260-pt sidebar with Needs you, Inbox and workspaces, the three column states, list 360 / 320.
+- § Decisions "iPad: `.tabViewStyle(.sidebarAdaptable)`"; § Structure, iPad bullet; § iPad columns; § Keys ⌃⌘S three steps; the iPad rows of § Stock SwiftUI.
+- R3 ruling 10. R3 ruling 1 for the iPad list column (the iPhone part stands). R3 ruling 9 stands.
+- On the iPad, Needs you is reached through Inbox ("Waiting for you") and workspaces through the capsule menu, as on the iPhone.
+- Findings 16–19 are R2 rules the build has not done yet, not new rulings.
+
+### Open
+
+- For the user: the bottom tabs are drawn with 10-pt labels like the iPhone tab bar; the user said "icons", so the labels can go if the user prefers.
+- For the builder (spike first): the designer believes a `.bottomBar` toolbar shows at the bottom of a split view's list column (as in Notes and Reminders) and that the system sidebar button sits at the leading edge of that column's bar. Confirm both on the simulator and on a 13-inch before building the rest.
+- `R4-iPad-left-column` has an empty lower part in the headless render (board taller than its frames); nothing is cut.

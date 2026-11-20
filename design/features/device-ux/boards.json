@@ -1,17 +1,100 @@
 {
-  "title": "Device UX · final (decided 19 Nov)",
+  "title": "Device UX · final (decided 19 Nov, round 3 and round 4 on 20 Nov)",
   "fit": 1200,
-  "css": ["rounds/r1.css", "r2.css"],
+  "css": [
+    "rounds/r1.css",
+    "r2.css"
+  ],
   "intro": [
     "Claude Design round 2, canvas “Clubmate · Device UX”, page r2. The user picked A · Fold into the bar plus B's reading mode, Wiki as its own tab, Docs removed, sections as a native Liquid Glass TabView; then accepted dropping the iPhone Macs screen (workspace capsule + Inbox tray) and Search over the current workspace. Rules: rules.md next to this page.",
-    "iPhone: Agents · Backlog · Wiki · More + Search tab; bars and the tab bar minimize on scroll; wiki pages fold their header and enter reading mode; the permission card folds to a 56-pt row; the question card follows the Question card fold ruling (peek · full · bar). Cross-section jumps push with a named back chip. iPad: sidebarAdaptable TabView, columns step down (all · list + detail · detail) with ⌃⌘S, reading view on ⌃⌘F, wiki tree in the list column, docs open in the detail column."
+    "iPhone: Agents · Backlog · Wiki · More + Search tab; bars and the tab bar minimize on scroll; wiki pages fold their header and enter reading mode; the permission card folds to a 56-pt row; the question card follows the Question card fold ruling (peek · full · bar). Cross-section jumps push with a named back chip. iPad: sidebarAdaptable TabView, columns step down (all · list + detail · detail) with ⌃⌘S, reading view on ⌃⌘F, wiki tree in the list column, docs open in the detail column.",
+    "Round 3 (20 Nov, after the first visual check V1 of the build): ten rulings. Tab roots take the section name as the title with no subtitle; the wiki page keeps the system subtitle with the text 14 pt below it; reading mode gets a hard top scroll edge; the back chip label is at most 12 characters; no tab badge; the stock capsule menu, More order, inline Inbox title and the iPad portrait band 2 are accepted as built; the iPad Wiki tab opens the last page read (first time: the wiki home) and Agents / Backlog show a stock empty state. The R3 boards come first; where they differ from R2, R3 wins.",
+    "Round 4 (20 Nov, iPad only, after the user's notes on their own iPad): the top tab bar goes; the sections are icon tabs at the bottom of the list column (toolbar buttons: iPadOS has no bottom tab bar); workspaces leave the tab set; one list style (iPhone Agents) and 360 pt on every tab; the split view's own button collapses the list column, two states; no title in the iPad list column; wiki title, meta and body share one 680-pt measure, a scrolled page has one 50-pt bar, code scrolls sideways. The iPhone does not change. The R4 boards come first; on the iPad, R4 wins over R2 and R3."
   ],
   "boards": [
-    {"file": "R2-iPhone-sections-wiki.dc.html", "w": 3800, "title": "iPhone · tabs, workspace menu, wiki at rest / scrolled / reading, More, Search", "caption": "W1 Agents tab · W2 workspace menu · Wiki tree · wiki page at rest 21% / scrolled 13% / reading 7% · More without Docs · Search."},
-    {"file": "R2-iPhone-session-requests.dc.html", "w": 2880, "title": "iPhone · session: permission open / folded, question peek / full / bar, answered", "caption": "Tab bar hidden in sessions; permission folds to a 56-pt row on scroll; question card per the Question card fold ruling; answered + Next row."},
-    {"file": "R2-iPhone-navigation.dc.html", "w": 2920, "title": "iPhone · session → #4 → session · Inbox → session → Inbox", "caption": "Back chip names the origin; scroll and card state survive the round trip."},
-    {"file": "R2-iPad-landscape.dc.html", "w": 2400, "title": "iPad landscape · columns, reading view, wiki tree, doc in detail", "caption": "L1 all · L2 list + detail · L3 detail only · L4 reading view · wiki tree in the list column · doc in the detail column."},
-    {"file": "R2-iPad-portrait.dc.html", "w": 3400, "title": "iPad portrait · columns, reading view, wiki tree, doc in detail", "caption": "Detail first; list 320 slides over; tab bar always at the top."},
-    {"file": "R2-Build-rules.dc.html", "w": 2400, "title": "Build rules and handoff", "caption": "Structure, measurements, fold triggers and animations, keys, removing Docs, every jump with its back control, component changes tagged (a)/(b)/(c)."}
+    {
+      "file": "R4-Rulings.dc.html",
+      "w": 2600,
+      "title": "Round 4 · iPad audit and rulings",
+      "caption": "20 audit findings against the R2/R3 iPad boards, the ruling on each user note (N1–N7, mark A) with the stock way and the cost, measurements for 11″ and 13″, and the rules it replaces."
+    },
+    {
+      "file": "R4-iPad-left-column.dc.html",
+      "w": 2060,
+      "title": "Round 4 · iPad list column at 1:1",
+      "caption": "Agents, Backlog and Wiki list columns with the bottom icon tabs, and the collapsed state."
+    },
+    {
+      "file": "R4-iPad-landscape.dc.html",
+      "w": 2460,
+      "title": "Round 4 · iPad landscape",
+      "caption": "Agents · collapsed · Backlog with #4 · Wiki at rest and scrolled · reading view."
+    },
+    {
+      "file": "R4-iPad-portrait.dc.html",
+      "w": 2340,
+      "title": "Round 4 · iPad portrait",
+      "caption": "Detail first, the list column over it, the same bottom tabs and collapse button."
+    },
+    {
+      "file": "R4-iPad-13inch.dc.html",
+      "w": 1700,
+      "title": "Round 4 · iPad 13-inch",
+      "caption": "1376×1032 landscape and 1032×1376 portrait: list 360 beside the detail in both."
+    },
+    {
+      "file": "R3-Rulings.dc.html",
+      "w": 2000,
+      "title": "Round 3 · rulings on the build after V1",
+      "caption": "The ten rulings with the stock way for each, the measurements that change, and what the designer saw in the shots without a question."
+    },
+    {
+      "file": "R3-iPhone-changes.dc.html",
+      "w": 2560,
+      "title": "Round 3 · iPhone frames that change",
+      "caption": "Agents tab at rest and scrolled (section title, no subtitle, no badge) · wiki page with the system subtitle and a 14-pt gap · task above a session with a 12-character chip and Voice · More with This Mac last and its usage line."
+    },
+    {
+      "file": "R3-iPad-changes.dc.html",
+      "w": 1800,
+      "title": "Round 3 · iPad portrait: empty detail and the bars",
+      "caption": "Wiki opens the wiki home · Agents and Backlog with a stock empty state · band 2 under the tab bar, one sidebar button."
+    },
+    {
+      "file": "R2-iPhone-sections-wiki.dc.html",
+      "w": 3800,
+      "title": "iPhone · tabs, workspace menu, wiki at rest / scrolled / reading, More, Search",
+      "caption": "W1 Agents tab · W2 workspace menu · Wiki tree · wiki page at rest 21% / scrolled 13% / reading 7% · More without Docs · Search."
+    },
+    {
+      "file": "R2-iPhone-session-requests.dc.html",
+      "w": 2880,
+      "title": "iPhone · session: permission open / folded, question peek / full / bar, answered",
+      "caption": "Tab bar hidden in sessions; permission folds to a 56-pt row on scroll; question card per the Question card fold ruling; answered + Next row."
+    },
+    {
+      "file": "R2-iPhone-navigation.dc.html",
+      "w": 2920,
+      "title": "iPhone · session → #4 → session · Inbox → session → Inbox",
+      "caption": "Back chip names the origin; scroll and card state survive the round trip."
+    },
+    {
+      "file": "R2-iPad-landscape.dc.html",
+      "w": 2400,
+      "title": "iPad landscape · columns, reading view, wiki tree, doc in detail",
+      "caption": "L1 all · L2 list + detail · L3 detail only · L4 reading view · wiki tree in the list column · doc in the detail column."
+    },
+    {
+      "file": "R2-iPad-portrait.dc.html",
+      "w": 3400,
+      "title": "iPad portrait · columns, reading view, wiki tree, doc in detail",
+      "caption": "Detail first; list 320 slides over; tab bar always at the top."
+    },
+    {
+      "file": "R2-Build-rules.dc.html",
+      "w": 2400,
+      "title": "Build rules and handoff",
+      "caption": "Structure, measurements, fold triggers and animations, keys, removing Docs, every jump with its back control, component changes tagged (a)/(b)/(c)."
+    }
   ]
 }

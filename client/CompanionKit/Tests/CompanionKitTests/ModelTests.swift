@@ -87,8 +87,8 @@ final class ModelTests: XCTestCase {
         let sections = inbox.sections(computer: "m") { $0.session.map { $0 == "agt_1" } }
         XCTAssertEqual(sections.waiting.map(\.notificationID), ["q", "u"])
         XCTAssertEqual(sections.earlier.map(\.notificationID), ["p", "a", "s", "d"])
-        XCTAssertEqual(sections.waiting.map { inbox.showsDot($0, in: sections) }, [false, true])
-        XCTAssertFalse(inbox.showsDot(done, in: sections))
+        XCTAssertEqual(sections.waiting.map(inbox.isUnread), [false, true])
+        XCTAssertEqual(sections.earlier.map(inbox.isUnread), [true, true, false, true])
     }
 
     func testResolvedSessionLeavesWaitingAndReturnsItsPermissionAlerts() {
@@ -462,6 +462,38 @@ final class ModelTests: XCTestCase {
         try await waitUntil { model.inbox.items.count == 2 }
         XCTAssertEqual(posted.values, ["n1"])
         XCTAssertEqual(model.inbox.unread, ["m|n1"])
+        try model.remove("m")
+    }
+}
+
+extension ModelTests {
+    @MainActor
+    func testGoneCutsStacksOnlyWhereTheStoreFetched() async throws {
+        let store = ComputerStore(file: nil, vault: MemoryTokenVault())
+        try store.save(Computer(id: "m", name: "Mac", hosts: ["100.64.0.1"], port: 1), token: "t")
+        let transport = FakeTransport(reply: { request in
+            switch FakeTransport.rpc(request) {
+            case "workspaces": (FakeTransport.result(workspacesJSON), 200)
+            case AgentCommand.sessions: (FakeTransport.result(#"[{"id":"agt_1","workspace":"w","title":"Kept","status":"idle"}]"#), 200)
+            default: (FakeTransport.result(helloJSON), 200)
+            }
+        }, stream: { _ in (200, AsyncThrowingStream { $0.yield(Data(": connected\n\n".utf8)) }) })
+        let model = CompanionModel(store: store, transport: transport, device: DeviceIdentity(id: "d", name: "P", model: "iPhone"), sleep: { _ in })
+        model.start()
+        var stacks = TabStacks()
+        stacks.select(computer: "m", workspace: "other")
+        stacks.push(.session("agt_2"))
+        stacks.select(computer: "m", workspace: "w")
+        stacks.push(.session("agt_1"))
+        stacks.push(.session("agt_2"))
+        stacks.push(.session("agt_1"))
+        let agents = try XCTUnwrap(model.agents(computer: "m", workspace: "w"))
+
+        await agents.refresh()
+        stacks.drop(where: model.gone)
+
+        XCTAssertEqual(stacks.path.map(\.destination), [.session("agt_1")])
+        XCTAssertEqual(stacks.path(for: StackKey(computer: "m", workspace: "other", tab: .agents)).map(\.destination), [.session("agt_2")])
         try model.remove("m")
     }
 }

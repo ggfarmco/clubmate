@@ -36,7 +36,7 @@ final class CompanionUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-latency", "20", "-scan", Self.pairLink]
         app.launch()
-        app.buttons["Scan pairing code"].tap()
+        app.buttons["Pair a Mac"].tap()
         app.buttons["Scan QR Code"].tap()
         XCTAssertTrue(app.staticTexts["Explain the checkout flow"].waitForExistence(timeout: 10))
     }
@@ -53,13 +53,13 @@ final class CompanionUITests: XCTestCase {
 
     func testScanningAnotherMacOpensItsSessions() {
         let app = XCUIApplication()
-        app.launchArguments = ["-fixtures", Self.fixtures, "-latency", "20", "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", "sidebar", "-scan", Self.proLink]
+        app.launchArguments = ["-fixtures", Self.fixtures, "-latency", "20", "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", "agents", "-scan", Self.proLink]
         app.launch()
-        let add = app.navigationBars.buttons["Pair a Mac"]
-        XCTAssertTrue(add.waitForExistence(timeout: 10))
-        sleep(2)
-        add.tap()
-        app.buttons["Scan QR Code"].tap()
+        openCapsule(app)
+        menuItem(app, "Pair a Mac").tap()
+        let scan = app.buttons["Scan QR Code"]
+        XCTAssertTrue(scan.waitForExistence(timeout: 10))
+        scan.tap()
         XCTAssertTrue(app.staticTexts["Move the state bucket to the new account"].waitForExistence(timeout: 10))
     }
 
@@ -282,10 +282,10 @@ final class CompanionUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "(renamed on the Mac)")).firstMatch.waitForExistence(timeout: 5))
         add(screenshot(app, "backlog-after-delta"))
-        app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(app.navigationBars["Macs"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Send again"].firstMatch.exists)
-        add(screenshot(app, "macs-queued"))
+        app.tabBars.buttons["More"].tap()
+        XCTAssertTrue(app.tabBars.buttons["More"].isSelected)
+        XCTAssertTrue(app.buttons["Send again"].firstMatch.waitForExistence(timeout: 5))
+        add(screenshot(app, "more-queued"))
         app.buttons["queued.dismiss"].tap()
         XCTAssertTrue(wait(for: app.staticTexts["Changed on the Mac"], "exists == false"))
     }
@@ -330,13 +330,17 @@ final class CompanionUITests: XCTestCase {
         return title
     }
 
-    func testFloatingMicStepsAsideWhileTypingATask() {
-        let app = launch(open: "backlog/new")
-        XCTAssertTrue(app.textFields["taskTitle"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["Talk to Clubmate"].exists)
-        app.navigationBars["New Task"].buttons.firstMatch.tap()
-        XCTAssertTrue(app.buttons["Talk to Clubmate"].waitForExistence(timeout: 5))
+    func testBacklogSearchPinsANumberAndReturnOpensIt() {
+        let app = launch(open: "backlog")
+        let search = app.searchFields["Search, or a #number"]
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Retry the charge step on 502")).firstMatch.waitForExistence(timeout: 10))
+        if !search.waitForExistence(timeout: 2) { app.swipeDown() }
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("4")
+        XCTAssertTrue(app.staticTexts["Return opens #4"].waitForExistence(timeout: 10))
+        search.typeText("\n")
+        XCTAssertTrue(app.buttons["Start agent"].waitForExistence(timeout: 10))
     }
 
     func testNewTaskDraftSurvivesLeavingTheForm() {
@@ -352,17 +356,6 @@ final class CompanionUITests: XCTestCase {
         new.tap()
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         XCTAssertEqual(title.value as? String, "Kept while away")
-    }
-
-    func testANumberPinsItsTaskAndReturnOpensIt() {
-        let app = launch(open: "backlog", ["-search", "4"])
-        XCTAssertTrue(app.staticTexts["Return opens #4"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Bump Go to 1.26")).firstMatch.exists)
-        XCTAssertFalse(app.buttons["Start agent"].exists)
-        let search = app.searchFields["Search, or a #number"]
-        search.tap()
-        search.typeText("\n")
-        XCTAssertTrue(app.buttons["Start agent"].waitForExistence(timeout: 5))
     }
 
     func testWontDoAsksForAReasonAndClosesTheTask() {
@@ -384,25 +377,41 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(group.exists)
     }
 
-    func testTheFloatingMicStaysClearOfTheBackButtonOnATask() {
-        let app = launch(open: "backlog/4")
-        let mic = app.buttons["Talk to Clubmate"]
-        XCTAssertTrue(mic.waitForExistence(timeout: 10))
-        XCTAssertGreaterThan(mic.frame.minY, app.windows.firstMatch.frame.midY)
-        app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(app.searchFields["Search, or a #number"].waitForExistence(timeout: 5))
+    func testNoFloatingMicOnListsAndPages() {
+        for target in ["agents", "backlog", "more", "backlog/4"] {
+            let app = launch(open: target)
+            let mic = app.buttons["Talk to Clubmate"]
+            XCTAssertTrue(mic.waitForExistence(timeout: 10), target)
+            XCTAssertLessThan(mic.frame.maxY, app.windows.firstMatch.frame.height * 0.2, target)
+            app.terminate()
+        }
     }
 
-    func testBacklogOpensFromTheWorkspaceNotTheMac() {
-        let app = launch(open: "sidebar")
-        XCTAssertTrue(app.navigationBars["Macs"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.staticTexts["Backlog"].exists)
-        app.staticTexts["shop"].tap()
-        let backlog = app.buttons["Backlog"]
-        XCTAssertTrue(backlog.waitForExistence(timeout: 5))
-        backlog.tap()
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Retry the charge step on 502")).firstMatch.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.navigationBars["shop"].exists)
+    func testVoiceBarButtonStartsVoice() {
+        let app = launch(open: "agents")
+        let mic = app.buttons["Talk to Clubmate"]
+        XCTAssertTrue(mic.waitForExistence(timeout: 10))
+        mic.tap()
+        XCTAssertTrue(app.buttons["Stop listening"].waitForExistence(timeout: 5))
+    }
+
+    func testCreateActionPerTab() {
+        let app = launch(open: "agents")
+        app.navigationBars.buttons["New Session"].tap()
+        XCTAssertTrue(app.navigationBars["New Session"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons.firstMatch.tap()
+        app.tabBars.buttons["Backlog"].tap()
+        app.navigationBars.buttons["New Task"].tap()
+        XCTAssertTrue(app.navigationBars["New Task"].waitForExistence(timeout: 5))
+    }
+
+    func testTheLastRowOfAListScrollsClearOfTheTabBar() {
+        let app = launch(open: "agents", ["-landReview", "YES"])
+        XCTAssertTrue(app.staticTexts["Explain the checkout flow"].waitForExistence(timeout: 10))
+        for _ in 0..<6 { app.swipeUp() }
+        let gates = app.staticTexts["Gates"]
+        XCTAssertTrue(gates.exists)
+        XCTAssertLessThanOrEqual(gates.frame.maxY, app.tabBars.firstMatch.frame.minY)
     }
 
     func testAPluginSectionOpensFromMore() {
@@ -410,64 +419,247 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Terminal 1"].waitForExistence(timeout: 10))
     }
 
-    func testBackToMacsNeverShowsChooseAMac() {
-        let app = launch(open: "sidebar")
-        let macs = app.navigationBars["Macs"]
-        XCTAssertTrue(macs.waitForExistence(timeout: 10))
-        for (row, title, swipe) in [("shop", "shop", false), ("shop", "shop", true), ("Inbox", "Inbox", false)] {
-            reveal(app.staticTexts[row], in: app)
-            app.staticTexts[row].tap()
-            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5))
-            if swipe {
-                let edge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
-                edge.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)))
-            } else {
-                app.navigationBars[title].buttons.firstMatch.tap()
-            }
-            XCTAssertTrue(macs.waitForExistence(timeout: 5))
-            XCTAssertFalse(app.staticTexts["Choose a Mac"].waitForExistence(timeout: 2))
-            XCTAssertTrue(macs.exists)
+    func testCapsuleSwitchesWorkspaceAndRestoresStacks() {
+        let app = launch(open: "backlog/9")
+        let task = app.buttons["Won't do"]
+        XCTAssertTrue(task.waitForExistence(timeout: 10))
+        for _ in 0..<2 {
+            app.tabBars.buttons["Agents"].tap()
+            openCapsule(app)
+            menuItem(app, "clubmate").tap()
+            app.tabBars.buttons["Backlog"].tap()
+            XCTAssertTrue(capsuleShows(app, "clubmate"))
+            XCTAssertFalse(task.exists)
+            app.tabBars.buttons["Agents"].tap()
+            openCapsule(app)
+            menuItem(app, "shop").tap()
+            app.tabBars.buttons["Backlog"].tap()
+            XCTAssertTrue(task.waitForExistence(timeout: 10))
         }
     }
 
-    func testWorkspaceAndInboxTitlesAreLargeEveryTimeTheyOpen() {
+    func testCapsuleMenuRowsTap() {
+        let app = launch(open: "agents")
+        XCTAssertTrue(app.staticTexts["Explain the checkout flow"].waitForExistence(timeout: 10))
+        openCapsule(app)
+        menuItem(app, "clubmate").tap()
+        XCTAssertTrue(capsuleShows(app, "clubmate"))
+        openCapsule(app)
+        menuItem(app, "Mac Details").tap()
+        XCTAssertTrue(app.buttons["mac.connection"].waitForExistence(timeout: 10))
+        app.navigationBars.buttons.firstMatch.tap()
+        openCapsule(app)
+        menuItem(app, "Pair a Mac").tap()
+        XCTAssertTrue(app.buttons["Scan QR Code"].waitForExistence(timeout: 10))
+    }
+
+    func testInboxTrayPushesInboxAndBackReturns() {
+        let app = launch(open: "backlog")
+        let tray = app.buttons["inbox.tray"]
+        XCTAssertTrue(tray.waitForExistence(timeout: 10))
+        tray.tap()
+        let inbox = app.navigationBars["Inbox"]
+        XCTAssertTrue(inbox.waitForExistence(timeout: 10))
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Refactor the cart total")).firstMatch
+        for _ in 0..<3 {
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
+            row.tap()
+            XCTAssertTrue(app.textViews["composer"].waitForExistence(timeout: 10))
+            app.buttons["back.chip"].tap()
+            XCTAssertTrue(inbox.waitForExistence(timeout: 5))
+        }
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(tray.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.tabBars.buttons["Backlog"].isSelected)
+    }
+
+    func testWikiTabStaysWhileTheCapsuleMenuAndInboxOpen() {
+        let app = launch(open: "agents", ["-wiki", "YES", "-macs", "3"])
+        let wiki = app.tabBars.buttons["Wiki"]
+        XCTAssertTrue(wiki.waitForExistence(timeout: 15))
+        openCapsule(app)
+        XCTAssertTrue(menuItem(app, "Pair a Mac").exists)
+        XCTAssertTrue(wiki.exists)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.95)).tap()
+        app.buttons["inbox.tray"].tap()
+        XCTAssertTrue(app.navigationBars["Inbox"].waitForExistence(timeout: 10))
+        XCTAssertTrue(wiki.exists)
+    }
+
+    func testTabsCarryNoBadge() {
+        let app = launch(open: "agents")
+        XCTAssertTrue(app.staticTexts["Explain the checkout flow"].waitForExistence(timeout: 10))
+        for tab in ["Agents", "Backlog", "More"] {
+            XCTAssertEqual(app.tabBars.buttons[tab].value as? String ?? "", "", tab)
+        }
+    }
+
+    func testMoreThisMacCarriesPresenceAsItsSubtitleAndComesLast() {
+        let app = launch(open: "tab:more", ["-usage", "normal"])
+        let subtitle = app.staticTexts["more.thisMac.subtitle"]
+        XCTAssertTrue(subtitle.waitForExistence(timeout: 10))
+        XCTAssertTrue(subtitle.label.hasPrefix("Online · usage "), subtitle.label)
+        XCTAssertGreaterThan(app.buttons["more.thisMac"].frame.minY, app.staticTexts["Cron"].frame.minY)
+    }
+
+    func testOfflineRowOnEveryTabRoot() {
+        let app = launch(open: "agents", ["-offline", "4"])
+        let row = app.descendants(matching: .any)["offline.row"]
+        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["workspace.capsule"].exists)
+        for tab in ["Backlog", "More", "Agents"] {
+            app.tabBars.buttons[tab].tap()
+            XCTAssertTrue(row.waitForExistence(timeout: 5), tab)
+        }
+    }
+
+    func testThisMacOpensDetails() {
+        let app = launch(open: "tab:more")
+        let row = app.buttons["more.thisMac"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+        XCTAssertTrue(app.buttons["mac.connection"].waitForExistence(timeout: 10))
+    }
+
+    func testTabRootTitlesAreLargeEveryTimeTheyOpen() {
         for macs in [[], ["-macs", "3"]] {
-            let app = launch(open: "sidebar", macs)
-            XCTAssertTrue(app.navigationBars["Macs"].waitForExistence(timeout: 10))
+            let app = launch(open: "agents", macs)
+            let row = app.staticTexts["Explain the checkout flow"]
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
             for _ in 0..<3 {
-                reveal(app.staticTexts["shop"].firstMatch, in: app)
-                app.staticTexts["shop"].firstMatch.tap()
-                XCTAssertTrue(poll { largeTitle(app, "shop") }, "\(macs) on entry")
-                XCTAssertTrue(app.staticTexts["mac.line"].exists)
-                let row = app.staticTexts["Explain the checkout flow"]
-                XCTAssertTrue(row.waitForExistence(timeout: 5))
+                XCTAssertTrue(poll { largeTitle(app, "Agents") }, "\(macs) on Agents")
+                XCTAssertFalse(app.staticTexts["mac.line"].exists)
                 row.tap()
                 XCTAssertTrue(app.textViews["composer"].waitForExistence(timeout: 5))
                 app.navigationBars.buttons.firstMatch.tap()
-                XCTAssertTrue(poll { largeTitle(app, "shop") }, "\(macs) back from a session")
-                app.buttons["Backlog"].firstMatch.tap()
-                XCTAssertTrue(poll { largeTitle(app, "shop") }, "\(macs) on Backlog")
-                app.buttons["Agents"].firstMatch.tap()
+                XCTAssertTrue(poll { largeTitle(app, "Agents") }, "\(macs) back from a session")
+                app.tabBars.buttons["Backlog"].tap()
+                XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Retry the charge step on 502")).firstMatch.waitForExistence(timeout: 5))
+                XCTAssertTrue(poll { largeTitle(app, "Backlog") }, "\(macs) on Backlog")
+                app.tabBars.buttons["Agents"].tap()
                 XCTAssertTrue(row.waitForExistence(timeout: 5))
-                app.navigationBars["shop"].buttons.firstMatch.tap()
-                XCTAssertTrue(app.navigationBars["Macs"].waitForExistence(timeout: 5))
-                reveal(app.staticTexts["Inbox"].firstMatch, in: app)
-                app.staticTexts["Inbox"].firstMatch.tap()
-                XCTAssertTrue(poll { largeTitle(app, "Inbox") }, "\(macs) Inbox")
-                app.navigationBars["Inbox"].buttons.firstMatch.tap()
-                XCTAssertTrue(app.navigationBars["Macs"].waitForExistence(timeout: 5))
             }
             app.terminate()
         }
+        let inbox = launch(open: "agents")
+        let tray = inbox.buttons["inbox.tray"]
+        XCTAssertTrue(tray.waitForExistence(timeout: 10))
+        for _ in 0..<3 {
+            tray.tap()
+            XCTAssertTrue(inbox.navigationBars["Inbox"].waitForExistence(timeout: 5))
+            XCTAssertTrue(poll { inbox.navigationBars["Inbox"].staticTexts["Inbox"].exists && !largeTitle(inbox, "Inbox") }, "Inbox")
+            inbox.navigationBars.buttons.firstMatch.tap()
+            XCTAssertTrue(tray.waitForExistence(timeout: 5))
+        }
     }
 
-    func testFilterChipsStartInLineWithTheTabs() {
+    func testTabBarAndAgentsTitleComeBackAfterEveryWayOutOfASession() {
+        let app = launch(open: "agents", ["-macs", "3", "-wiki", "YES", "-wikiOnStudio", "YES", "-latency", "20"])
+        let bar = app.tabBars.firstMatch
+        let left = app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
+        func swipeBack(to dx: CGFloat) {
+            left.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: dx, dy: 0.5)), withVelocity: dx > 0.5 ? .fast : .slow, thenHoldForDuration: 0.2)
+        }
+        func atRoot(_ step: String) {
+            XCTAssertTrue(poll { largeTitle(app, "Agents") }, "no large Agents title after \(step)")
+            XCTAssertTrue(poll { bar.exists && bar.isHittable && bar.buttons["Agents"].isHittable }, "no tab bar after \(step)")
+        }
+        for (workspace, title) in [("shop", "Explain the checkout flow"), ("infra", "Move the state bucket to the new account"), ("clubmate", "Draft the companion brief")] {
+            if workspace != "shop" {
+                openCapsule(app)
+                menuItem(app, workspace).tap()
+                XCTAssertTrue(capsuleShows(app, workspace))
+            }
+            let row = app.staticTexts[title].firstMatch
+            let page = app.navigationBars[title]
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
+            let spot = row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            func open(_ step: String) {
+                spot.tap()
+                XCTAssertTrue(page.waitForExistence(timeout: 5), "\(workspace): \(step)")
+                XCTAssertTrue(poll { !(bar.exists && bar.isHittable) }, "\(workspace): tab bar on a session at \(step)")
+            }
+            for round in 0..<2 {
+                let step = "\(workspace) round \(round)"
+                open(step)
+                page.buttons.firstMatch.tap()
+                atRoot("\(step): Back")
+                open(step)
+                swipeBack(to: 0.9)
+                atRoot("\(step): edge swipe")
+                open(step)
+                swipeBack(to: 0.3)
+                XCTAssertTrue(page.waitForExistence(timeout: 5))
+                XCTAssertTrue(poll { !(bar.exists && bar.isHittable) }, "\(step): tab bar after a cancelled swipe")
+                page.buttons.firstMatch.tap()
+                atRoot("\(step): Back after a cancelled swipe")
+                open(step)
+                page.buttons.firstMatch.tap()
+                spot.tap()
+                XCTAssertTrue(page.waitForExistence(timeout: 5), "\(step): push during the pop")
+                page.buttons.firstMatch.tap()
+                atRoot("\(step): push during the pop")
+            }
+        }
+        app.buttons["inbox.tray"].tap()
+        let inbox = app.navigationBars["Inbox"]
+        XCTAssertTrue(inbox.waitForExistence(timeout: 5))
+        for round in 0..<2 {
+            for label in ["terraform plan", "go test"] {
+                app.buttons.matching(NSPredicate(format: "label CONTAINS %@", label)).firstMatch.tap()
+                XCTAssertTrue(app.textViews["composer"].waitForExistence(timeout: 10))
+                if round == 0 { app.buttons["back.chip"].tap() } else { swipeBack(to: 0.9) }
+                XCTAssertTrue(inbox.waitForExistence(timeout: 5))
+                XCTAssertTrue(poll { bar.exists && bar.isHittable }, "no tab bar on the Inbox after \(label) in round \(round)")
+            }
+        }
+        inbox.buttons.firstMatch.tap()
+        atRoot("sessions of other Macs from the Inbox")
+    }
+
+    func testSlowRepliesKeepTheWikiTabAcrossWorkspaceSwitchesAndTheTrayWorksAtLaunch() {
+        let app = launch(open: "tab:agents", ["-macs", "3", "-wiki", "YES", "-wikiOnStudio", "YES", "-latency", "900"])
+        let tray = app.buttons["inbox.tray"]
+        let inbox = app.navigationBars["Inbox"]
+        let wiki = app.tabBars.buttons["Wiki"]
+        XCTAssertTrue(tray.waitForExistence(timeout: 10))
+        tray.tap()
+        XCTAssertTrue(inbox.waitForExistence(timeout: 5), "the tray did nothing right after launch")
+        XCTAssertTrue(wiki.waitForExistence(timeout: 10))
+        inbox.buttons.firstMatch.tap()
+        openCapsule(app)
+        menuItem(app, "clubmate").tap()
+        XCTAssertTrue(stays { wiki.exists }, "Wiki left the tab bar on a switch to clubmate")
+        tray.tap()
+        XCTAssertTrue(inbox.waitForExistence(timeout: 5), "the tray did nothing after a switch to clubmate")
+        app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "go test")).firstMatch.tap()
+        XCTAssertTrue(app.textViews["composer"].waitForExistence(timeout: 10))
+        app.buttons["back.chip"].tap()
+        XCTAssertTrue(inbox.waitForExistence(timeout: 5))
+        XCTAssertTrue(stays { wiki.exists }, "Wiki left the tab bar after an Inbox jump to shop")
+    }
+
+    func testEachWorkspaceKeepsItsTabStacksAcrossLaunches() {
+        let restore = ["-restoreStacks", "YES"]
+        let shop = launch(open: "backlog/9", restore)
+        XCTAssertTrue(shop.buttons["Won't do"].waitForExistence(timeout: 10))
+        shop.terminate()
+        let clubmate = launch(open: "tab:backlog", restore + ["-workspace", "prj_00000000000000f2"])
+        XCTAssertTrue(capsuleShows(clubmate, "clubmate"))
+        XCTAssertFalse(clubmate.buttons["Won't do"].exists)
+        clubmate.terminate()
+        let back = launch(open: "tab:backlog", restore + ["-workspace", "prj_00000000000000f1"])
+        XCTAssertTrue(back.buttons["Won't do"].waitForExistence(timeout: 10))
+        XCTAssertTrue(back.tabBars.buttons["Backlog"].isSelected)
+    }
+
+    func testFilterChipsStartInLineWithTheTitle() {
         let app = launch(open: "agents", ["-macs", "3"])
-        let tabs = app.segmentedControls.firstMatch
+        let title = app.navigationBars["Agents"].staticTexts["Agents"].firstMatch
         let first = app.buttons["chip.all"]
-        XCTAssertTrue(tabs.waitForExistence(timeout: 10))
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
         XCTAssertTrue(first.waitForExistence(timeout: 10))
-        XCTAssertTrue(poll { abs(first.frame.minX - tabs.frame.minX) <= 2 }, "first chip at \(first.frame.minX), tabs at \(tabs.frame.minX)")
+        XCTAssertTrue(poll { abs(first.frame.minX - title.frame.minX) <= 2 }, "first chip at \(first.frame.minX), title at \(title.frame.minX)")
     }
 
     private func largeTitle(_ app: XCUIApplication, _ title: String) -> Bool {
@@ -490,7 +682,7 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(stop.waitForExistence(timeout: 5))
         stop.tap()
         XCTAssertTrue(app.buttons["Send"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.staticTexts["Working…"].exists)
+        XCTAssertTrue(wait(for: app.staticTexts["Working…"], "exists == false"))
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Got it'")).firstMatch.waitForExistence(timeout: 5))
     }
 
@@ -563,12 +755,46 @@ final class CompanionUITests: XCTestCase {
         }
     }
 
-    func testMessageDocLinkOpensTheDocSheet() {
+    func testTabsSwitchAndKeepStacks() {
+        let app = launch(open: "backlog")
+        let task = app.staticTexts.matching(NSPredicate(format: "label ENDSWITH %@", "Retry the charge step on 502")).firstMatch
+        XCTAssertTrue(task.waitForExistence(timeout: 10))
+        task.tap()
+        let page = app.navigationBars["#7"]
+        XCTAssertTrue(page.waitForExistence(timeout: 10))
+        let tabs = app.tabBars.firstMatch
+        for _ in 0..<3 {
+            tabs.buttons["Agents"].tap()
+            XCTAssertTrue(app.staticTexts["Explain the checkout flow"].waitForExistence(timeout: 10))
+            XCTAssertFalse(page.exists)
+            tabs.buttons["Backlog"].tap()
+            XCTAssertTrue(page.waitForExistence(timeout: 5))
+        }
+    }
+
+    func testDocLinkPushesDocPage() {
         let app = launch(open: "agents/agt_0000000000000002")
         let link = app.links["the retries plan"]
         XCTAssertTrue(link.waitForExistence(timeout: 10))
         link.tap()
-        XCTAssertTrue(app.navigationBars["Checkout retries"].waitForExistence(timeout: 10))
+        let page = app.navigationBars["Checkout retries"]
+        XCTAssertTrue(page.waitForExistence(timeout: 10))
+        let chip = app.buttons["back.chip"]
+        XCTAssertTrue(chip.waitForExistence(timeout: 5))
+        XCTAssertEqual(chip.label, "Explain the…")
+        XCTAssertTrue(page.buttons["Talk to Clubmate"].waitForExistence(timeout: 5))
+        XCTAssertFalse(page.buttons["OverflowBarButtonItem"].exists)
+        page.buttons["More"].tap()
+        XCTAssertTrue(app.buttons["Find in Page"].waitForExistence(timeout: 5))
+        page.staticTexts["Checkout retries"].tap()
+        chip.tap()
+        XCTAssertTrue(app.navigationBars["Explain the checkout flow"].waitForExistence(timeout: 5))
+    }
+
+    func testDocTitleDrawnOnce() {
+        let app = launch(open: "agents", ["-doc", "/Users/me/src/shop/docs/checkout-retries.md"])
+        XCTAssertTrue(app.webViews.staticTexts["Why"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label == %@", "Checkout retries")).count, 1)
     }
 
     func testCodeBlockCopyButtonCopies() {
@@ -582,7 +808,7 @@ final class CompanionUITests: XCTestCase {
         add(screenshot(app, "code-copied"))
     }
 
-    func testDocCardOpensTheDocSheet() {
+    func testDocCardOpensTheDocPage() {
         let app = launch(open: "agents/agt_0000000000000002")
         let card = app.buttons["Open Checkout retries"]
         XCTAssertTrue(card.waitForExistence(timeout: 10))
@@ -602,7 +828,6 @@ final class CompanionUITests: XCTestCase {
     func testDocLinkPushesUpdatesLiveAndBackReturns() {
         let app = launch(open: "agents", ["-doc", "/Users/me/src/shop/docs/checkout-retries.md"])
         XCTAssertTrue(app.navigationBars["Checkout retries"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.navigationBars.buttons["Back"].exists)
         add(screenshot(app, "doc-top"))
         let link = app.webViews.links["payments overview"]
         XCTAssertTrue(link.waitForExistence(timeout: 5))
@@ -612,14 +837,14 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.webViews.links["checkout retries"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.webViews.staticTexts["Updated while you were reading."].waitForExistence(timeout: 10))
         add(screenshot(app, "doc-linked-updated"))
-        app.navigationBars.buttons["Back"].tap()
+        XCTAssertFalse(app.buttons["back.chip"].exists)
+        app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(app.navigationBars["Checkout retries"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.navigationBars.buttons["Back"].exists)
         for index in 1...3 {
             app.webViews.firstMatch.swipeUp()
             add(screenshot(app, "doc-scroll-\(index)"))
         }
-        app.buttons["Done"].tap()
+        app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(wait(for: app.navigationBars["Checkout retries"], "exists == false"))
     }
 
@@ -630,7 +855,7 @@ final class CompanionUITests: XCTestCase {
         add(screenshot(app, "doc-banner"))
         app.buttons["Open"].tap()
         XCTAssertTrue(app.navigationBars["Checkout retries"].waitForExistence(timeout: 10))
-        app.buttons["Done"].tap()
+        app.buttons["back.chip"].tap()
         XCTAssertTrue(wait(for: banner, "exists == false"))
         let group = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '3 actions'")).firstMatch
         reveal(group, in: app)
@@ -642,19 +867,7 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Checkout retries"].waitForExistence(timeout: 10))
     }
 
-    func testDocsOpenFromTheWorkspaceListAndTheSessionMenu() {
-        let app = launch(open: "docs")
-        let payments = app.buttons["payments.md"]
-        XCTAssertTrue(payments.waitForExistence(timeout: 10))
-        add(screenshot(app, "docs-list"))
-        let search = app.searchFields["Search docs"]
-        search.tap()
-        search.typeText("decisions")
-        XCTAssertTrue(wait(for: payments, "exists == false"))
-        add(screenshot(app, "docs-search"))
-        app.buttons["0007-reserve-stock-before-charging-the-card-and-release-on-timeout.md"].tap()
-        XCTAssertTrue(app.navigationBars["0007-reserve-stock-before-charging-the-card-and-release-on-timeout"].waitForExistence(timeout: 10))
-
+    func testDocsOpenFromTheSessionMenu() {
         let session = launch(open: "agents/agt_0000000000000001")
         session.buttons["More"].firstMatch.tap()
         let docs = session.buttons["Docs"]
@@ -693,14 +906,6 @@ final class CompanionUITests: XCTestCase {
             app.navigationBars.buttons.firstMatch.tap()
             XCTAssertTrue(row.waitForExistence(timeout: 5))
         }
-    }
-
-    func testSearchTakesTheWholeBottomBarWhenVoiceIsOff() {
-        let app = launch(open: "agents", ["-voiceOff", "YES"])
-        let search = app.searchFields["Search sessions"]
-        XCTAssertTrue(search.waitForExistence(timeout: 10))
-        XCTAssertFalse(app.buttons["Talk to Clubmate"].exists)
-        XCTAssertLessThan(search.frame.minX, 40)
     }
 
     func testHandOffAFailedSessionOpensTheNewOne() {
@@ -1007,7 +1212,7 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["1 answered"].waitForExistence(timeout: 5))
         for number in 2...6 {
             sleep(1)
-            app.buttons[number == 3 ? "Backlog" : number == 2 ? "Next" : "Later"].tap()
+            (number == 3 ? stepBar(app, "Backlog") : app.buttons[number == 2 ? "Next" : "Later"]).tap()
             XCTAssertTrue(app.staticTexts["\(number) of 7"].waitForExistence(timeout: 5))
         }
         sleep(1)
@@ -1019,6 +1224,11 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Open"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Rework the Send review sheet"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Send answers"].exists)
+    }
+
+    private func stepBar(_ app: XCUIApplication, _ title: String) -> XCUIElement {
+        let row = app.buttons["Later"].frame.midY
+        return app.buttons.matching(identifier: title).allElementsBoundByIndex.first { abs($0.frame.midY - row) < 4 } ?? app.buttons[title]
     }
 
     private func typeOther(_ text: String, in card: XCUIElement) {
@@ -1100,7 +1310,7 @@ final class CompanionUITests: XCTestCase {
         XCTAssertGreaterThan(header.staticTexts["Mac Studio"].frame.width, 60)
     }
 
-    func testForgettingTheMacFromItsDetailsReturnsToTheMacs() {
+    func testForgettingTheMacFromItsDetailsOpensTheOtherMac() {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-latency", "20", "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-macs", "2", "-open", "mac"]
         app.launch()
@@ -1109,12 +1319,13 @@ final class CompanionUITests: XCTestCase {
         reveal(forget, in: app)
         forget.tap()
         app.buttons["Forget"].tap()
-        XCTAssertTrue(app.navigationBars["Macs"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.navigationBars["Macs"].isHittable)
+        let other = app.staticTexts["Move the state bucket to the new account"]
+        XCTAssertTrue(other.waitForExistence(timeout: 10))
+        XCTAssertTrue(other.isHittable)
         add(screenshot(app, "after-forget"))
-        XCTAssertFalse(app.staticTexts["Choose a Mac"].exists)
-        XCTAssertFalse(app.staticTexts["Move the state bucket to the new account"].exists)
-        XCTAssertTrue(app.staticTexts["MacBook Pro"].exists)
+        XCTAssertTrue(app.tabBars.buttons["Agents"].isSelected)
+        XCTAssertFalse(app.buttons["mac.connection"].exists)
+        XCTAssertFalse(app.staticTexts["Explain the checkout flow"].exists)
     }
 
     func testKeepAwakeFromMacDetailsHoldsAndTurnsOff() {
@@ -1148,11 +1359,9 @@ final class CompanionUITests: XCTestCase {
     }
 
     func testUsageLineOpensClaudeUsageAndSessionInfoShowsTheShares() {
-        let app = launch(open: "sidebar", ["-usage", "normal", "-macs", "3"])
-        XCTAssertTrue(app.staticTexts["MacBook Pro"].waitForExistence(timeout: 20))
-        app.staticTexts["shop"].firstMatch.tap()
+        let app = launch(open: "agents", ["-usage", "normal", "-macs", "3"])
         let line = app.buttons["usage.header"]
-        XCTAssertTrue(line.waitForExistence(timeout: 10))
+        XCTAssertTrue(line.waitForExistence(timeout: 20))
         XCTAssertTrue(wait(for: line, "label CONTAINS 'alex@acme · 5h 42% · 7d 81%'"), line.label)
         add(screenshot(app, "usage-header-accounts"))
         line.tap()
@@ -1203,6 +1412,7 @@ final class CompanionUITests: XCTestCase {
         text.tap()
         text.typeText("Can't connect")
         send.tap()
+        app.tabBars.buttons["More"].tap()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Problem report'")).firstMatch.waitForExistence(timeout: 10))
         add(screenshot(app, "report-queued"))
         let undo = app.buttons["Undo"]
@@ -1221,13 +1431,10 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(sent.waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["r-fixture"].exists)
         XCTAssertFalse(app.staticTexts["Queued"].exists)
-        add(screenshot(app, "report-sent-macs"))
-        app.staticTexts["shop"].tap()
-        XCTAssertTrue(sent.waitForExistence(timeout: 10))
+        add(screenshot(app, "report-sent-agents"))
         sent.tap()
         let opened = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true"), object: app.navigationBars["Session"])
         XCTAssertEqual(XCTWaiter().wait(for: [opened], timeout: 3), .timedOut)
-        add(screenshot(app, "report-sent-agents"))
     }
 
     func testReportOpensOverTheConnectionSheetAndCancelKeepsIt() {
@@ -1243,7 +1450,7 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(run.exists)
     }
 
-    func testATaskLinkInAnAgentMessageOpensThatTask() {
+    func testSessionToTaskAndBackKeepsScroll() {
         let app = launch(open: "agents/agt_0000000000000002")
         let link = app.links["#7"]
         XCTAssertTrue(link.waitForExistence(timeout: 10))
@@ -1253,8 +1460,94 @@ final class CompanionUITests: XCTestCase {
             app.swipeDown()
         }
         XCTAssertFalse(app.links["#3"].exists)
+        let before = link.frame
         link.tap()
         XCTAssertTrue(app.staticTexts["Retry the charge step on 502"].waitForExistence(timeout: 10))
+        let chip = app.buttons["back.chip"]
+        XCTAssertTrue(chip.waitForExistence(timeout: 5))
+        XCTAssertEqual(chip.label, "Explain the…")
+        chip.tap()
+        XCTAssertTrue(link.waitForExistence(timeout: 5))
+        XCTAssertTrue(poll { abs(link.frame.minY - before.minY) < 2 }, "\(link.frame) vs \(before)")
+    }
+
+    func testEdgeSwipeLeavesAChipPage() {
+        let app = launch(open: "agents/agt_0000000000000002")
+        let link = app.links["#7"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        for _ in 0..<2 {
+            link.tap()
+            XCTAssertTrue(app.buttons["back.chip"].waitForExistence(timeout: 10))
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 2, dy: 0))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 300, dy: 0)), withVelocity: .fast, thenHoldForDuration: 0.1)
+            XCTAssertTrue(app.textViews["composer"].waitForExistence(timeout: 5))
+        }
+    }
+
+    func testTaskToTaskUsesChevron() {
+        let app = launch(open: "backlog/4")
+        let link = app.webViews.links["#7"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        link.tap()
+        XCTAssertTrue(app.navigationBars["#7"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["back.chip"].exists)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["#4"].waitForExistence(timeout: 5))
+    }
+
+    func testAnUnreadEarlierRowShowsItsDotUntilOpened() {
+        let app = launch(open: "agents", ["-inboxQuiet", "YES"])
+        let tray = app.buttons["inbox.tray"]
+        XCTAssertTrue(tray.waitForExistence(timeout: 10))
+        XCTAssertTrue(wait(for: tray, "value == 'Something waits'"))
+        tray.tap()
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Build finished")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Earlier"].exists)
+        XCTAssertTrue(row.label.contains("Unread"), row.label)
+        row.tap()
+        XCTAssertTrue(app.buttons["back.chip"].waitForExistence(timeout: 10))
+        app.buttons["back.chip"].tap()
+        XCTAssertTrue(wait(for: row, "NOT (label CONTAINS 'Unread')"))
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(tray.waitForExistence(timeout: 5))
+        XCTAssertTrue(wait(for: tray, "NOT (value == 'Something waits')"))
+    }
+
+    func testInboxRowBackReturnsToInbox() {
+        let app = launch(open: "inbox")
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Should I add retries")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+        let chip = app.buttons["back.chip"]
+        XCTAssertTrue(chip.waitForExistence(timeout: 10))
+        XCTAssertEqual(chip.label, "Inbox")
+        chip.tap()
+        XCTAssertTrue(app.navigationBars["Inbox"].waitForExistence(timeout: 5))
+        XCTAssertTrue(row.exists)
+    }
+
+    func testNotificationInFrontPushesWithChip() {
+        let app = launch(open: "tab:backlog", ["-workspace", "prj_00000000000000f2", "-questionFixture", "YES", "-notify", "prj_00000000000000f1/agt_0000000000000004", "-notifyDelay", "3"])
+        let card = app.otherElements["elicitation-card"]
+        XCTAssertTrue(card.staticTexts["1 of 2"].waitForExistence(timeout: 20))
+        let chip = app.buttons["back.chip"]
+        XCTAssertEqual(chip.label, "clubmate")
+        chip.tap()
+        XCTAssertTrue(app.navigationBars["Backlog"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.tabBars.buttons["Backlog"].isSelected)
+    }
+
+    func testTapCurrentTabPopsToRoot() {
+        let app = launch(open: "backlog/7")
+        let task = app.navigationBars["#7"]
+        let tab = app.tabBars.buttons["Backlog"]
+        XCTAssertTrue(task.waitForExistence(timeout: 10))
+        tab.tap()
+        XCTAssertTrue(app.navigationBars["Backlog"].waitForExistence(timeout: 5))
+        XCTAssertFalse(task.exists)
+        tab.tap()
+        XCTAssertTrue(app.navigationBars["Backlog"].exists)
     }
 
     private func launch(open target: String, _ extra: [String] = []) -> XCUIApplication {
@@ -1262,6 +1555,23 @@ final class CompanionUITests: XCTestCase {
         app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target] + extra
         app.launch()
         return app
+    }
+
+    private func capsuleShows(_ app: XCUIApplication, _ workspace: String) -> Bool {
+        let capsule = app.buttons["workspace.capsule"]
+        return capsule.waitForExistence(timeout: 10) && wait(for: capsule, "label CONTAINS '\(workspace)'")
+    }
+
+    private func openCapsule(_ app: XCUIApplication) {
+        let capsule = app.buttons["workspace.capsule"]
+        XCTAssertTrue(capsule.waitForExistence(timeout: 10))
+        capsule.tap()
+    }
+
+    private func menuItem(_ app: XCUIApplication, _ label: String) -> XCUIElement {
+        let item = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", label)).element(boundBy: 0)
+        XCTAssertTrue(item.waitForExistence(timeout: 10))
+        return item
     }
 
     private func screenshot(_ app: XCUIApplication, _ name: String) -> XCTAttachment {
@@ -1272,9 +1582,14 @@ final class CompanionUITests: XCTestCase {
     }
 
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
-        for _ in 0..<5 where !(element.exists && element.isHittable) {
+        for _ in 0..<5 where !(element.exists && element.isHittable && clearOfTabBar(element, in: app)) {
             app.swipeUp()
         }
+    }
+
+    private func clearOfTabBar(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        let bar = app.tabBars.firstMatch
+        return !bar.exists || element.frame.maxY <= bar.frame.minY
     }
 
     private func brightness(at point: CGPoint, in shot: XCUIScreenshot) -> CGFloat {
@@ -1315,6 +1630,15 @@ final class CompanionUITests: XCTestCase {
         while Date.now < deadline {
             if condition() { return true }
             RunLoop.current.run(until: .now.addingTimeInterval(0.2))
+        }
+        return condition()
+    }
+
+    private func stays(_ condition: () -> Bool) -> Bool {
+        let deadline = Date.now.addingTimeInterval(2)
+        while Date.now < deadline {
+            if !condition() { return false }
+            RunLoop.current.run(until: .now.addingTimeInterval(0.1))
         }
         return condition()
     }

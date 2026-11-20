@@ -56,6 +56,32 @@ final class DocumentTests: XCTestCase {
         XCTAssertFalse(html.replacingOccurrences(of: "http-equiv", with: "").contains("http"))
     }
 
+    func testColumnCentresTextAndLongCodeFades() async throws {
+        let long = String(repeating: "booking.roots2:30:17: error ", count: 20)
+        let html = "<p id=\"p\">text</p><pre id=\"long\"><code>\(long)</code></pre><pre id=\"short\"><code>ok</code></pre>"
+        for (column, left) in [(680.0, 160.0), (nil, 20.0)] {
+            var theme = DocumentTheme.system(dark: false)
+            theme.inset = 20
+            theme.column = column
+            let page = DocumentController()
+            page.webView.frame = CGRect(x: 0, y: 0, width: 1000, height: 600)
+            page.show(DocumentContent(path: "/r/a.md", html: html, rev: 1), theme: theme, size: .fill)
+            await page.settled()
+            let state = try await page.webView.callAsyncJavaScript("""
+                return [
+                    document.documentElement.classList.contains('column'),
+                    document.getElementById('p').getBoundingClientRect().left,
+                    document.getElementById('long').classList.contains('more'),
+                    document.getElementById('short').classList.contains('more'),
+                ]
+                """, contentWorld: .page) as? [Any]
+            XCTAssertEqual(state?[0] as? Bool, column != nil)
+            XCTAssertEqual(state?[1] as? Double, left)
+            XCTAssertEqual(state?[2] as? Bool, true)
+            XCTAssertEqual(state?[3] as? Bool, false)
+        }
+    }
+
     func testSamePathKeepsScroll() async throws {
         let page = DocumentController()
         page.webView.frame = CGRect(x: 0, y: 0, width: 400, height: 300)

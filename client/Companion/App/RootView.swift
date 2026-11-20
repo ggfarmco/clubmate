@@ -8,38 +8,57 @@ struct RootView: View {
     @Environment(PairingFlow.self) private var pairing
     @Environment(VoiceSession.self) private var voice
     @Environment(\.horizontalSizeClass) private var sizeClass
-    @State private var width = 0.0
+    @State private var size = CGSize.zero
     @State private var sectionUI: WorkspaceUI?
+    @State private var tabsUI: WorkspaceUI?
     private static let sectionOwner = "root.section"
+    private static let tabsOwner = "root.tabs"
 
     var body: some View {
-        @Bindable var navigation = navigation
-        NavigationSplitView(columnVisibility: $navigation.visibility, preferredCompactColumn: $navigation.preferredColumn) {
-            SidebarView()
-                .navigationSplitViewColumnWidth(260)
-        } content: {
-            content
-                .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 440)
-        } detail: {
-            detail
+        sheets(tracked(model.computers.isEmpty ? AnyView(WelcomeView()) : AnyView(shell)))
+    }
+
+    @ViewBuilder
+    private var shell: some View {
+        if navigation.layout == .compact {
+            tabView
+        } else if case .section(let tab) = shown(navigation.root) {
+            TabRoot(tab: tab)
+                .id(tab)
         }
-        .navigationSplitViewStyle(.balanced)
+    }
+
+    private var tabView: some View {
+        TabView(selection: Binding(get: { shown(navigation.root) }, set: { pick in
+            guard case .section(let tab) = pick else { return }
+            navigation.pick(tab)
+        })) {
+            sections
+        }
+        .tabViewStyle(.tabBarOnly)
+        .tabBarMinimizeBehavior(.onScrollDown)
+    }
+
+    @TabContentBuilder<RootTab>
+    private var sections: some TabContent<RootTab> {
+        ForEach(tabs, id: \.self) { tab in
+            Tab(tab.title, systemImage: tab.systemImage, value: RootTab.section(tab)) {
+                TabRoot(tab: tab)
+            }
+        }
+    }
+
+    private func tracked(_ content: some View) -> some View {
+        content
         .contentMargins(.bottom, navigation.floatingMic(model, listening: voice.active) ? VoiceButton.floating + 16 : 0, for: .scrollContent)
         .overlay { VoiceOverlay() }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in navigation.typing = true }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in navigation.typing = false }
-        .onGeometryChange(for: Double.self) { $0.size.width } action: { width = $0 }
-        .onChange(of: CompanionLayout(width: width, compactClass: sizeClass == .compact), initial: true) { _, layout in navigation.layout = layout }
-        .onChange(of: navigation.layout) { _, _ in navigation.arrange() }
-        .onChange(of: navigation.sidebar) { _, _ in navigation.arrange() }
-        .onChange(of: navigation.needsYouList) { _, _ in navigation.arrange() }
-        .onChange(of: navigation.visibility) { _, _ in navigation.visibilityChanged() }
-        .onChange(of: navigation.preferredColumn) { _, column in
-            if column == .sidebar, navigation.layout == .compact {
-                navigation.macDetails = nil
-                navigation.needsYouList = false
-            }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
+        .onChange(of: CompanionLayout(width: size.width, compactClass: sizeClass == .compact), initial: true) { _, layout in
+            navigation.layout = layout
         }
+        .onChange(of: ColumnStep.Room(width: size.width), initial: true) { _, room in navigation.room = room }
         .onChange(of: shownAgents, initial: true) { old, new in
             if let old, old.store != new?.store { model.agents(computer: old.store.computer, workspace: old.store.workspace)?.show(nil) }
             if let new { model.agents(computer: new.store.computer, workspace: new.store.workspace)?.show(new.detail) }
@@ -49,6 +68,24 @@ struct RootView: View {
             sectionUI = shown.flatMap { model.connection($0.computer)?.workspaceUI($0.workspace) }
             if let shown { sectionUI?.show([shown.section + ".sidebar", shown.section + ".main"], owner: Self.sectionOwner) }
         }
+        .onChange(of: tabsSource, initial: true) { _, key in
+            tabsUI?.hide(owner: Self.tabsOwner)
+            tabsUI = key.flatMap { model.connection($0.computer)?.workspaceUI($0.workspace) }
+            tabsUI?.show([], owner: Self.tabsOwner)
+        }
+        .onChange(of: navigation.liveTabs(model), initial: true) { _, live in
+            if let live { navigation.remember(live) }
+        }
+        .onChange(of: fetched) { _, _ in navigation.prune() }
+        .onChange(of: navigation.keyState, initial: true) { _, _ in UIMenuSystem.main.setNeedsRebuild() }
+        .task { navigation.follow(model) }
+        .onChange(of: model.computers) { _, _ in navigation.follow(model) }
+        .onChange(of: workspaceIDs) { _, _ in navigation.follow(model) }
+    }
+
+    private func sheets(_ content: some View) -> some View {
+        @Bindable var navigation = navigation
+        return content
         .sheet(isPresented: $navigation.showingAddComputer, onDismiss: navigation.pairingSheetDismissed) {
             AddComputerView()
                 .onAppear { navigation.pairingSheetAppeared() }
@@ -66,9 +103,6 @@ struct RootView: View {
         .sheet(item: $navigation.usageSheet) { sheet in
             ClaudeUsageView(computerID: sheet.computer)
         }
-        .fullScreenCover(item: $navigation.doc) { doc in
-            DocumentSheet(doc: doc)
-        }
         .overlay {
             if case .pairing(let name) = pairing.phase {
                 PairingOverlay(name: name)
@@ -80,58 +114,223 @@ struct RootView: View {
             Text(pairing.failureMessage ?? "")
         }
         .sensoryFeedback(.success, trigger: pairing.paired)
-        .task { selectDefault(open: true) }
-        .onChange(of: model.computers) { old, new in selectDefault(open: new.count > old.count) }
     }
 
-    @ViewBuilder
-    private var content: some View {
-        if let context, let plugin = navigation.sidebar.flatMap({ CompanionPlugins.plugin($0.plugin) }) {
-            plugin.makeList(context: context)
-        } else if let computer = navigation.macDetails {
-            MacDetailsView(computerID: computer)
-        } else if navigation.needsYouList {
-            NeedsYouListView()
-        } else if model.computers.isEmpty {
-            WelcomeView()
-        } else {
-            ContentUnavailableView("Choose a Mac", systemImage: "desktopcomputer", description: Text("Pick Agents or Inbox under one of your Macs."))
-        }
+    private func shown(_ root: RootTab) -> RootTab {
+        guard case .section(let tab) = root, !tabs.contains(tab), let first = tabs.first else { return root }
+        return .section(first)
     }
 
-    @ViewBuilder
-    private var detail: some View {
-        if let context, let plugin = navigation.sidebar.flatMap({ CompanionPlugins.plugin($0.plugin) }) {
-            plugin.makeDetail(context: context, selection: navigation.detail)
-        } else {
-            ContentUnavailableView("Clubmate", systemImage: "bubble.left.and.text.bubble.right", description: Text("Control the agents running on your Macs."))
-        }
+    private var tabs: [CompanionTab] {
+        navigation.tabs(model)
+    }
+
+    private var tabsSource: WorkspaceKey? {
+        navigation.stacks.workspace.flatMap { model.connection($0.computer) == nil ? nil : $0 }
+    }
+
+    private var workspaceIDs: [[String]] {
+        model.computers.map { computer in model.connection(computer.id)?.workspaces.map(\.id) ?? [] }
+    }
+
+    private var fetched: [Bool] {
+        guard let key = navigation.stacks.workspace else { return [] }
+        return [model.agents(computer: key.computer, workspace: key.workspace)?.fetched == true, model.backlog(computer: key.computer, workspace: key.workspace)?.fetched == true]
     }
 
     private var shownAgents: ShownAgents? {
-        guard let item = navigation.sidebar, item.plugin == AgentsPluginInfo.id, let connection = model.connection(item.computer), let workspace = navigation.workspace(for: connection) else { return nil }
-        let visible = navigation.layout != .compact || navigation.preferredColumn == .detail
-        return ShownAgents(store: ShownAgents.Store(computer: item.computer, workspace: workspace.id), detail: visible ? navigation.detail : nil)
+        guard let current = navigation.stacks.workspace else { return nil }
+        let top = navigation.path.last { $0.destination.tab == .agents || navigation.tab == .agents && $0.destination.tab == .more }
+        let key = top?.workspace ?? current
+        let detail = top.flatMap { AppNavigation.tag($0.destination) }
+        return ShownAgents(store: ShownAgents.Store(computer: key.computer, workspace: key.workspace), detail: detail)
     }
 
     private var shownSection: ShownSection? {
-        guard let item = navigation.sidebar, let section = navigation.detail, item.plugin == MorePluginInfo.id || item.plugin == AgentsPluginInfo.id && section.hasPrefix(AgentsPluginInfo.id + "."), let connection = model.connection(item.computer),
-              let workspace = navigation.workspace(for: connection), navigation.layout != .compact || navigation.preferredColumn == .detail else { return nil }
-        return ShownSection(computer: item.computer, workspace: workspace.id, section: section)
+        guard let key = navigation.stacks.workspace, case .section(let section, _)? = navigation.path.last?.destination,
+              section != InboxPluginInfo.id, navigation.tab == .more || navigation.tab == .agents && section.hasPrefix(AgentsPluginInfo.id + ".") else { return nil }
+        return ShownSection(computer: key.computer, workspace: key.workspace, section: section)
+    }
+}
+
+struct TabRoot: View {
+    let tab: CompanionTab
+    @Environment(CompanionModel.self) private var model
+    @Environment(AppNavigation.self) private var navigation
+
+    var body: some View {
+        if let computer = navigation.computer, let connection = model.connection(computer), let plugin = CompanionPlugins.plugin(for: tab) {
+            let context = PluginContext(model: model, connection: connection, navigation: navigation)
+            if navigation.layout == .compact {
+                NavigationStack(path: Binding(get: { navigation.path(tab) }, set: { navigation.setPath($0, tab: tab) })) {
+                    plugin.makeRoot(context: context)
+                        .navigationDestination(for: StackEntry.self) { entry in
+                            DestinationView(entry: entry, tab: tab, context: context)
+                        }
+                }
+                .toolbarVisibility(navigation.hidesTabBar(tab) ? .hidden : .automatic, for: .tabBar)
+            } else {
+                NavigationSplitView(columnVisibility: columns) {
+                    plugin.makeRoot(context: context)
+                        .navigationSplitViewColumnWidth(ListColumn.width)
+                        .toolbar { ListColumnTabs(tabs: navigation.tabs(model)) }
+                } detail: {
+                    TabDetail(tab: tab, plugin: plugin, context: context)
+                }
+                .modifier(SplitStyle(over: navigation.overlays))
+                .onChange(of: navigation.path(tab).first) { _, first in
+                    if first != nil { navigation.listOver = false }
+                }
+            }
+        } else {
+            ContentUnavailableView("Connecting", systemImage: "desktopcomputer", description: Text("Waiting for your Mac's workspaces."))
+        }
     }
 
-    private var context: PluginContext? {
-        guard let item = navigation.sidebar, let connection = model.connection(item.computer) else { return nil }
-        return PluginContext(model: model, connection: connection, navigation: navigation)
+    private var columns: Binding<NavigationSplitViewVisibility> {
+        Binding(get: { navigation.listShown ? .doubleColumn : .detailOnly }, set: { visibility in
+            guard visibility != .automatic, (visibility != .detailOnly) != navigation.listShown else { return }
+            navigation.toggleList()
+        })
+    }
+}
+
+struct ListColumnTabs: ToolbarContent {
+    let tabs: [CompanionTab]
+    @Environment(AppNavigation.self) private var navigation
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .bottomBar) {
+            HStack(spacing: 0) {
+                ForEach(tabs, id: \.self) { tab in
+                    button(tab)
+                }
+            }
+        }
     }
 
-    private func selectDefault(open: Bool) {
-        if navigation.needsYouList || navigation.macDetails != nil || navigation.pairingSheetUp { return }
-        if let item = navigation.sidebar, model.connection(item.computer) != nil { return }
-        navigation.sidebar = nil
-        guard open, model.computers.count == 1, let computer = model.computers.first else { return }
-        navigation.sidebar = SidebarItem(computer: computer.id, plugin: AgentsPluginInfo.id)
-        navigation.preferredColumn = .content
+    private func button(_ tab: CompanionTab) -> some View {
+        let selected = navigation.tab == tab
+        return Button {
+            navigation.pick(tab)
+        } label: {
+            VStack(spacing: 2) {
+                Image(systemName: tab.systemImage)
+                    .font(.system(size: 18, weight: .medium))
+                    .frame(height: 22)
+                Text(tab.title)
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .foregroundStyle(selected ? Color.accentColor : Color.primary)
+            .frame(minWidth: 56, minHeight: 44)
+        }
+        .accessibilityLabel(tab.title)
+        .accessibilityHint("Tab")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+struct SplitStyle: ViewModifier {
+    let over: Bool
+
+    func body(content: Content) -> some View {
+        if over {
+            content.navigationSplitViewStyle(.prominentDetail)
+        } else {
+            content.navigationSplitViewStyle(.balanced)
+        }
+    }
+}
+
+struct TabDetail: View {
+    let tab: CompanionTab
+    let plugin: any CompanionPluginUI
+    let context: PluginContext
+    @Environment(AppNavigation.self) private var navigation
+
+    var body: some View {
+        let path = navigation.path(tab)
+        Group {
+            if let first = path.first {
+                NavigationStack(path: Binding(get: { Array(navigation.path(tab).dropFirst()) }, set: { navigation.setPath([first] + $0, tab: tab) })) {
+                    DestinationView(entry: first, tab: tab, context: context)
+                        .navigationDestination(for: StackEntry.self) { entry in
+                            DestinationView(entry: entry, tab: tab, context: context)
+                        }
+                }
+                .id(first)
+            } else {
+                plugin.makeEmptyDetail(context: context)
+            }
+        }
+        .onChange(of: path.first, initial: true) { _, first in
+            guard tab == .wiki, let first, case .wikiPage = first.destination, let key = navigation.stacks.workspace else { return }
+            navigation.lastWiki[key] = first
+        }
+    }
+}
+
+struct DestinationView: View {
+    let entry: StackEntry
+    let tab: CompanionTab
+    let context: PluginContext
+    @Environment(CompanionModel.self) private var model
+    @Environment(AppNavigation.self) private var navigation
+    @State private var reading = false
+
+    var body: some View {
+        let context = entry.workspace.flatMap { key in model.connection(key.computer).map { PluginContext(model: model, connection: $0, navigation: navigation, workspace: key.workspace) } } ?? context
+        (CompanionPlugins.destination(entry.destination, tab: tab, context: context) ?? AnyView(ContentUnavailableView("Not Found", systemImage: "questionmark")))
+            .frame(maxWidth: readingView && entry.destination.isSession ? 680 : .infinity)
+            .frame(maxWidth: .infinity)
+            .onPreferenceChange(ReadingActiveKey.self) { reading = $0 }
+            .onChange(of: reading) { _, reading in navigation.reading(reading, entry) }
+            .environment(\.readingView, readingView)
+            .modifier(ReadingViewBars(hidden: readingView, owned: entry.destination.readsInPlace))
+            .modifier(BackChipModifier(entry: entry, tab: tab))
+            .modifier(SectionLineModifier(entry: entry, tab: tab))
+    }
+
+    private var readingView: Bool {
+        navigation.readingView && navigation.tab == tab && navigation.layout != .compact
+    }
+}
+
+struct ReadingViewBars: ViewModifier {
+    let hidden: Bool
+    let owned: Bool
+
+    func body(content: Content) -> some View {
+        if owned {
+            content
+        } else {
+            content.toolbarVisibility(hidden ? .hidden : .automatic, for: .navigationBar)
+        }
+    }
+}
+
+extension Destination {
+    var readsInPlace: Bool {
+        switch self {
+        case .wikiPage, .doc: true
+        default: false
+        }
+    }
+
+    var isSession: Bool {
+        if case .session = self { return true }
+        return false
+    }
+}
+
+extension CompanionTab {
+    var systemImage: String {
+        switch self {
+        case .agents: "sparkles"
+        case .backlog: "checklist"
+        case .wiki: "book"
+        case .more: "ellipsis.circle"
+        }
     }
 }
 

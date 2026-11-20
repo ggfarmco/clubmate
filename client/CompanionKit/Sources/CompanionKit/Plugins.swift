@@ -54,3 +54,7 @@ public enum MorePluginInfo {
 public enum InboxPluginInfo {
     public static let id = "inbox"
 }
+
+public enum WikiPluginInfo {
+    public static let id = "wiki"
+}

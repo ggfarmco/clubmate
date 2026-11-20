@@ -112,12 +112,66 @@ struct SDUIButtonLabel: View {
     }
 }
 
+@MainActor
+@Observable
+final class SDUILiveFocus {
+    var focused = false
+    @ObservationIgnored var field = CGRect.null
+    private(set) var dismissals = 0
+
+    func dismiss(at point: CGPoint) {
+        if focused, !field.contains(point) { dismissals += 1 }
+    }
+}
+
+private struct DismissesLiveField: ViewModifier {
+    @Environment(SDUILiveFocus.self) private var focus: SDUILiveFocus?
+
+    func body(content: Content) -> some View {
+        content.gesture(LiveFieldTap(focus: focus))
+    }
+}
+
+private struct LiveFieldTap: UIGestureRecognizerRepresentable {
+    let focus: SDUILiveFocus?
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+            true
+        }
+    }
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIGestureRecognizer(context: Context) -> UITapGestureRecognizer {
+        let tap = UITapGestureRecognizer()
+        tap.cancelsTouchesInView = false
+        tap.delaysTouchesEnded = false
+        tap.delegate = context.coordinator
+        return tap
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UITapGestureRecognizer, context: Context) {
+        guard recognizer.state == .ended else { return }
+        focus?.dismiss(at: recognizer.location(in: nil))
+    }
+}
+
+extension View {
+    func dismissesLiveField() -> some View {
+        modifier(DismissesLiveField())
+    }
+}
+
 struct TextFieldNode: View {
     let node: SDUINode
     let context: SDUIContext
     @State private var text = ""
     @State private var pending: Task<Void, Never>?
     @FocusState private var focused: Bool
+    @Environment(SDUILiveFocus.self) private var liveFocus: SDUILiveFocus?
     @Environment(\.sduiForm) private var form
     @Environment(\.sduiFormRow) private var formRow
     @Environment(\.sduiInset) private var inset
@@ -138,6 +192,9 @@ struct TextFieldNode: View {
         VStack(alignment: .leading, spacing: 4) {
             field
                 .focused($focused)
+                .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frame in
+                    if live { liveFocus?.field = frame }
+                }
                 .onSubmit(submit)
                 .padding(.horizontal, formRow ? 0 : 14)
                 .padding(.vertical, formRow ? 4 : 10)
@@ -157,6 +214,10 @@ struct TextFieldNode: View {
         .padding(.horizontal, inset)
         .onChange(of: focused) { _, now in
             if !now { form?.flush() }
+            if live { liveFocus?.focused = now }
+        }
+        .onChange(of: liveFocus?.dismissals) {
+            if live { focused = false }
         }
         .onChange(of: node.string("value"), initial: true) { _, value in
             if form?.autosave == true || live, focused { return }

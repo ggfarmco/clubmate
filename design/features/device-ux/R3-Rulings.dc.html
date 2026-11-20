@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Round 3 rulings</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/b817086b800196f47552f5b8296120a7">
+<link rel="stylesheet" href="/_blob/335c10eb4f565f3d8439aed203fbbea6">
+<link rel="stylesheet" href="/_blob/c2936f2b42b1a4ba929170156f8c1e3a">
+<link rel="stylesheet" href="/_blob/1f8773efaaba7d2141a71ee08088922f">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="doc r1 r2" style="width: 2000px; height: 1500px; padding: 48px; display: flex; flex-direction: column; gap: 44px">
+<div style="display: flex; flex-direction: column; gap: 12px; padding-bottom: 24px; border-bottom: 1.5px solid #1B1D1C"><div class="eyebrow">Round 3 · after visual check V1 · 20 Nov</div><h1>Rulings on the build</h1><p class="lead">Stock first: every ruling uses the system TabView, Menu, navigation bar and empty state. Where the build already does the stock thing, it is accepted and nothing is drawn.</p></div><table><thead><tr><th style="width: 40px">#</th><th style="width: 180px">Question</th><th>Ruling</th><th style="width: 300px">Stock way</th><th style="width: 250px">Status</th></tr></thead><tbody><tr><td>1</td><td>Tab root title</td><td>Section name (“Agents”, “Backlog”, “Wiki”, “More”) as the large title, no subtitle, on iPhone tab roots and in the iPad list column alike. Workspace and Mac live only in the capsule; the Mac's state shows only when it is not online (C3 offline row).</td><td><code>.navigationTitle(section)</code>, drop <code>.navigationSubtitle</code> on roots</td><td><span class="tag a">board stands</span> <span class="tag b">changed · R3 frame</span></td></tr><tr><td>2</td><td>Wiki subtitle</td><td>Keep the system subtitle and its size. The page text starts <b>14 pt</b> below it (build 31) → 188 pt · 21.5% at rest. Rules §2 “15/20” becomes “system”.</td><td><code>.navigationSubtitle</code>; the gap is the document node's top padding</td><td><span class="tag b">changed · R3 frame</span></td></tr><tr><td>3</td><td>Reading mode under the status bar</td><td>Text must not show under the status bar. While reading mode hides the bars, the top scroll edge is the hard style; the 2-pt progress line sits on its lower edge.</td><td><code>.scrollEdgeEffectStyle(.hard, for: .top)</code> on the document's scroll view</td><td><span class="tag a">board stands</span></td></tr><tr><td>4</td><td>Back chip width</td><td>Label ≤ 12 characters including “…”, system 17 pt (≈ 150 pt with glass). Voice stays on every page. Title + section line stay in the bar.</td><td>ToolbarItem(.topBarLeading) Button with Label; truncate the string, not the font</td><td><span class="tag b">changed · R3 frame</span></td></tr><tr><td>5</td><td>Capsule menu</td><td>Accept the stock Menu: “n waiting” as the row subtitle, a Mac Details row per Mac, Pair a Mac last. r2 W2 is superseded.</td><td>Menu with Section per Mac</td><td><span class="tag">build accepted</span></td></tr><tr><td>6</td><td>More order</td><td>Build order: plugin rows first, This Mac last. Add the usage line as This Mac's subtitle.</td><td>List row with subtitle</td><td><span class="tag b">changed · R3 frame</span></td></tr><tr><td>7</td><td>Tab badge</td><td>No tab badge on either device: the system badge is red, and red means failed. The amber Inbox dot on every tab root and the amber count in the session bar carry “needs you”.</td><td>no <code>.badge</code> on Tab</td><td><span class="tag b">changed · R3 frame</span></td></tr><tr><td>8</td><td>Inbox title</td><td>Accept the inline title: Inbox is a pushed page like #7 and the session, and it gains 52 pt.</td><td>inline display mode</td><td><span class="tag">build accepted</span></td></tr><tr><td>9</td><td>iPad empty detail</td><td>Wiki: open the last page read; the first time, the wiki home (tree root page). Agents / Backlog: never auto-open; stock empty state with one action (Open the oldest waiting · or New session; New task).</td><td>NavigationSplitView selection restored; <code>ContentUnavailableView</code></td><td><span class="tag b">changed · R3 frame</span></td></tr><tr><td>10</td><td>iPad portrait column bar</td><td>Keep band 2 below the tab bar as built: no stock placement puts items beside the iPadOS tab bar. Remove our sidebar toggle from band 2; the tab bar's system sidebar button is the only one (⌃⌘S unchanged).</td><td>sidebarAdaptable's own sidebar button</td><td><span class="tag">build accepted</span> <span class="tag b">changed · R3 frame</span></td></tr></tbody></table><div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px"><div class="grp"><h2>Measurements that change</h2><table><thead><tr><th style="width: 220px">Item</th><th>r2</th><th>Now</th></tr></thead><tbody><tr><td>Wiki page at rest, above the text</td><td>188 pt (15/20 subtitle)</td><td>188 pt · system subtitle + 14-pt gap</td></tr><tr><td>Tab root at rest</td><td>title 52 pt</td><td>title only; no subtitle row</td></tr><tr><td>Back chip</td><td>≤ 18 characters, max 200 pt</td><td>≤ 12 characters, ≈ 150 pt</td></tr><tr><td>Tab badge</td><td>18 pt amber</td><td>none</td></tr><tr><td>iPad band 2</td><td>only with the sidebar hidden, beside band 1 items</td><td>always under the tab bar (54 pt at y 106)</td></tr></tbody></table></div><div class="grp"><h2>Seen in the shots, not asked</h2><ul style="font-size: 14px; line-height: 20px; display: flex; flex-direction: column; gap: 6px"><li>In <b>capsule-menu</b> and <b>inbox</b> the tab bar shows Agents · Backlog · More, without Wiki, while the workspace is still shop. The tab set may change only when the workspace changes; this looks like the wiki plugin's state reloading.</li><li>iPad portrait shows two sidebar buttons (tab bar and column bar): fixed by ruling 10.</li></ul></div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["clight","cdark"],"default":"clight"},"$preview":{"width":2000,"height":1500}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'clight' };
+}
+}
+</script>
+</body>
+</html>

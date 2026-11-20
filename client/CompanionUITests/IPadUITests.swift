@@ -1,0 +1,295 @@
+import UIKit
+import XCTest
+
+@MainActor
+final class IPadUITests: XCTestCase {
+    private static let fixtures = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .appending(path: "CompanionKit/Tests/CompanionKitTests/Fixtures").path()
+    private static let pairLink = "clubmate://pair?v=1&c=ABCDEF&h=100.101.1.2&p=47622&id=mac-mock&n=Mac%20Studio&e=4000000000"
+    private static let task = "!! Retry the charge step on 502"
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "the columns and keys are iPad only")
+        XCUIDevice.shared.orientation = .landscapeLeft
+    }
+
+    override func tearDown() {
+        XCUIDevice.shared.orientation = .portrait
+    }
+
+    func testTabsAtTheBottomOfTheListSwitchTabs() {
+        let app = launch(open: "tab:agents")
+        let row = sessionRow(app)
+        let backlog = tab(app, "Backlog")
+        XCTAssertTrue(backlog.waitForExistence(timeout: 10))
+        XCTAssertFalse(tab(app, "Search").exists)
+        XCTAssertGreaterThan(backlog.frame.minY, app.windows.firstMatch.frame.height * 0.85)
+        XCTAssertLessThan(backlog.frame.maxX, 360)
+        backlog.tap()
+        XCTAssertTrue(shown(app.staticTexts[Self.task]))
+        XCTAssertTrue(backlog.isSelected)
+        XCTAssertTrue(hidden(row))
+        tab(app, "Agents").tap()
+        XCTAssertTrue(shown(row))
+    }
+
+    func testNoTabBarNoWorkspaceTabNoListTitle() {
+        let app = launch(open: "tab:agents")
+        _ = sessionRow(app)
+        XCTAssertTrue(hidden(app.tabBars.firstMatch))
+        XCTAssertFalse(app.buttons["Mac Studio"].exists)
+        XCTAssertFalse(app.navigationBars.staticTexts["Agents"].exists)
+        XCTAssertLessThan(app.buttons["workspace.capsule"].frame.minY, 40)
+    }
+
+    func testSidebarButtonAndKeyToggleTheList() {
+        let app = launch(open: "agents/agt_0000000000000004")
+        let row = sessionRow(app)
+        XCTAssertTrue(shown(row))
+        toggle(app).tap()
+        XCTAssertTrue(listHidden(app))
+        XCTAssertLessThan(toggle(app).frame.minX, 60)
+        toggle(app).tap()
+        XCTAssertTrue(shown(row))
+        XCTAssertTrue(press(app, "s", [.control, .command], until: listHidden(app)))
+        XCTAssertTrue(press(app, "s", [.control, .command], until: shown(row)))
+    }
+
+    func testPortraitListSlidesOverAndClosesOnPick() {
+        XCUIDevice.shared.orientation = .portrait
+        let app = launch(open: "agents/agt_0000000000000004")
+        XCTAssertTrue(app.navigationBars["Add stock reservation expiry"].waitForExistence(timeout: 15))
+        let row = app.staticTexts["row.agt_0000000000000006"]
+        XCTAssertTrue(hidden(row))
+        toggle(app).tap()
+        XCTAssertTrue(shown(row))
+        row.tap()
+        XCTAssertTrue(hidden(row))
+    }
+
+    func testColumnStateKeptPerTab() {
+        let app = launch(open: "agents/agt_0000000000000004")
+        let row = sessionRow(app)
+        XCTAssertTrue(shown(row))
+        XCTAssertTrue(press(app, "s", [.control, .command], until: listHidden(app)))
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(shown(app.staticTexts[Self.task]))
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(app.navigationBars["Add stock reservation expiry"].waitForExistence(timeout: 10))
+        XCTAssertTrue(listHidden(app))
+    }
+
+    func testReadingViewRestoresColumns() {
+        let app = launch(open: "tab:wiki", ["-wiki", "YES"])
+        let page = app.webViews.staticTexts["Shop wiki part 1 explains one step of the shop in detail."]
+        XCTAssertTrue(page.waitForExistence(timeout: 15))
+        let tree = app.buttons["Checkout flow"].firstMatch
+        XCTAssertTrue(press(app, "f", [.control, .command], until: hidden(tree)))
+        XCTAssertTrue(hidden(app.navigationBars["Shop wiki"]))
+        XCTAssertTrue(press(app, "f", [.control, .command], until: shown(tree)))
+        XCTAssertTrue(press(app, "s", [.control, .command], until: hidden(tree)))
+        XCTAssertTrue(press(app, "f", [.control, .command], until: hidden(app.navigationBars["Shop wiki"])))
+        XCTAssertTrue(press(app, "f", [.control, .command], until: shown(app.navigationBars["Shop wiki"])))
+        XCTAssertTrue(hidden(tree))
+        XCTAssertTrue(page.exists)
+    }
+
+    func testEveryListColumnLooksLikeAgents() {
+        XCUIDevice.shared.orientation = .portrait
+        let app = launch(open: "tab:agents", ["-wiki", "YES"])
+        let agents = column(app, app.staticTexts["row.agt_0000000000000006"])
+        XCTAssertEqual(agents.list.minX, 0)
+        XCTAssertEqual(agents.list.width, 360)
+        for (name, text) in [("Backlog", app.staticTexts[Self.task]), ("More", app.staticTexts["Processes"]), ("Wiki", app.buttons["Checkout flow"].firstMatch)] {
+            tab(app, name).tap()
+            if name == "Wiki" {
+                XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 15))
+                toggle(app).tap()
+            }
+            XCTAssertEqual(column(app, text), agents, name)
+        }
+    }
+
+    func testTabKeys() {
+        let app = launch(open: "backlog/7")
+        XCTAssertTrue(app.navigationBars["#7"].waitForExistence(timeout: 15))
+        app.typeKey("i", modifierFlags: [.command, .shift])
+        XCTAssertTrue(app.navigationBars["Inbox"].waitForExistence(timeout: 10))
+        app.typeKey("[", modifierFlags: .command)
+        XCTAssertTrue(app.navigationBars["#7"].waitForExistence(timeout: 10))
+        app.typeKey("n", modifierFlags: .command)
+        XCTAssertTrue(app.navigationBars["New Task"].waitForExistence(timeout: 10))
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["No Session Selected"].waitForExistence(timeout: 10))
+    }
+
+    func testShiftCommandFFocusesTheTabSearch() {
+        let app = launch(open: "tab:backlog")
+        let field = app.searchFields["Search, or a #number"]
+        XCTAssertTrue(field.waitForExistence(timeout: 15))
+        app.typeKey("f", modifierFlags: [.command, .shift])
+        XCTAssertTrue(wait(field, "hasKeyboardFocus == true"))
+        app.typeText("split")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Split checkout.go")).firstMatch.waitForExistence(timeout: 10))
+    }
+
+    func testEmptyAgentsDetailOpensTheOldestWaiting() {
+        let app = launch(open: "tab:agents")
+        let open = app.buttons["Open the oldest waiting"]
+        XCTAssertTrue(open.waitForExistence(timeout: 15))
+        open.tap()
+        XCTAssertTrue(app.navigationBars["Explain the checkout flow"].waitForExistence(timeout: 10))
+        XCTAssertFalse(open.exists)
+    }
+
+    func testWikiBodyDrawnAtRest() {
+        for _ in 0..<3 {
+            let app = launch(open: "tab:wiki", ["-wiki", "YES"])
+            let text = app.webViews.staticTexts["Shop wiki part 1 explains one step of the shop in detail."]
+            XCTAssertTrue(text.waitForExistence(timeout: 15))
+            XCTAssertTrue(wait { self.inked(text.frame, in: XCUIScreen.main.screenshot()) }, "no text drawn in \(text.frame)")
+            app.terminate()
+        }
+    }
+
+    func testWikiTitleAndBodyShareTheColumn() {
+        let app = openCheckoutFlow()
+        let title = app.staticTexts["page.title"]
+        let text = app.webViews.staticTexts["Checkout flow part 1 explains one step of the shop in detail."]
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        XCTAssertEqual(title.frame.minX, text.frame.minX, accuracy: 2)
+        let bar = app.navigationBars["Checkout flow"]
+        XCTAssertLessThanOrEqual(title.frame.minY - bar.frame.maxY, 12)
+        XCTAssertLessThanOrEqual(text.frame.width, 681)
+        let barTitle = app.staticTexts["page.barTitle"]
+        XCTAssertFalse(barTitle.exists && barTitle.label == "Checkout flow")
+    }
+
+    func testScrolledWikiPageKeepsOneBarThenReads() {
+        let app = openCheckoutFlow()
+        let bar = app.navigationBars["Checkout flow"]
+        let start = app.webViews.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -110)), withVelocity: .slow, thenHoldForDuration: 0.3)
+        let barTitle = app.staticTexts["page.barTitle"]
+        XCTAssertTrue(wait { barTitle.exists && barTitle.label == "Checkout flow" })
+        XCTAssertLessThanOrEqual(bar.frame.height, 56)
+        app.webViews.firstMatch.swipeUp()
+        app.webViews.firstMatch.swipeUp()
+        XCTAssertTrue(wait { !(bar.exists && bar.isHittable) })
+    }
+
+    func testLongCodeLineScrollsSideways() {
+        let app = openCheckoutFlow()
+        let code = app.webViews.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "booking.roots2")).firstMatch
+        XCTAssertTrue(code.waitForExistence(timeout: 10))
+        let before = code.frame.minX
+        code.swipeLeft()
+        XCTAssertTrue(wait { code.frame.minX < before - 40 }, "\(code.frame.minX) vs \(before)")
+    }
+
+    private func openCheckoutFlow() -> XCUIApplication {
+        let app = launch(open: "tab:wiki", ["-wiki", "YES"])
+        let row = app.buttons["Checkout flow"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        row.tap()
+        XCTAssertTrue(app.navigationBars["Checkout flow"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.webViews.staticTexts["Checkout flow part 1 explains one step of the shop in detail."].waitForExistence(timeout: 10))
+        return app
+    }
+
+    private func inked(_ frame: CGRect, in shot: XCUIScreenshot) -> Bool {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let upright = UIGraphicsImageRenderer(size: shot.image.size, format: format).image { _ in shot.image.draw(at: .zero) }
+        guard upright.size.width > upright.size.height, let image = upright.cgImage, frame.width > 0, frame.height > 0,
+              let crop = image.cropping(to: frame.integral) else { return false }
+        let width = crop.width, height = crop.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let context = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        context?.draw(crop, in: CGRect(x: 0, y: 0, width: width, height: height))
+        let lumas = stride(from: 0, to: pixels.count, by: 4).map { Int(pixels[$0]) + Int(pixels[$0 + 1]) + Int(pixels[$0 + 2]) }
+        guard let low = lumas.min(), let high = lumas.max() else { return false }
+        return high - low > 300
+    }
+
+    private func wait(_ condition: @escaping () -> Bool) -> Bool {
+        XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in condition() }, object: nil)], timeout: 5) == .completed
+    }
+
+    private struct Column: Equatable {
+        let list: CGRect
+        let capsule: CGRect
+        let card: [UInt8]
+        let ground: [UInt8]
+    }
+
+    private func column(_ app: XCUIApplication, _ text: XCUIElement) -> Column {
+        XCTAssertTrue(shown(text))
+        let frame = app.cells.containing(NSPredicate(format: "identifier == %@ OR label == %@", text.identifier, text.label)).firstMatch.frame
+        let list = app.collectionViews.allElementsBoundByIndex.first { $0.frame.contains(frame) }?.frame ?? .zero
+        let shot = upright(app.screenshot())
+        return Column(list: list, capsule: app.buttons["workspace.capsule"].frame,
+                      card: color(at: CGPoint(x: list.maxX - 22, y: text.frame.midY), in: shot),
+                      ground: color(at: CGPoint(x: 6, y: text.frame.midY), in: shot))
+    }
+
+    private func tab(_ app: XCUIApplication, _ title: String) -> XCUIElement {
+        app.toolbars.buttons[title]
+    }
+
+    private func toggle(_ app: XCUIApplication) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "identifier CONTAINS[c] 'sidebar' OR label CONTAINS[c] 'sidebar'")).element(boundBy: 0)
+    }
+
+    private func sessionRow(_ app: XCUIApplication) -> XCUIElement {
+        let row = app.staticTexts["row.agt_0000000000000006"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        return row
+    }
+
+    private func press(_ app: XCUIApplication, _ key: String, _ modifiers: XCUIElement.KeyModifierFlags, until done: @autoclosure () -> Bool) -> Bool {
+        for _ in 0..<3 {
+            app.typeKey(key, modifierFlags: modifiers)
+            if done() { return true }
+        }
+        return false
+    }
+
+    private func shown(_ element: XCUIElement) -> Bool {
+        wait(element, "exists == true AND hittable == true")
+    }
+
+    private func hidden(_ element: XCUIElement) -> Bool {
+        wait(element, "exists == false OR hittable == false")
+    }
+
+    private func listHidden(_ app: XCUIApplication) -> Bool {
+        app.buttons["Show Sidebar"].waitForExistence(timeout: 10)
+    }
+
+    private func wait(_ element: XCUIElement, _ format: String) -> Bool {
+        XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: format), object: element)], timeout: 10) == .completed
+    }
+
+    private func upright(_ shot: XCUIScreenshot) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = shot.image.scale
+        return UIGraphicsImageRenderer(size: shot.image.size, format: format).image { _ in shot.image.draw(at: .zero) }
+    }
+
+    private func color(at point: CGPoint, in image: UIImage) -> [UInt8] {
+        guard let cgImage = image.cgImage else { return [] }
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = CGContext(data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        context?.draw(cgImage, in: CGRect(x: -point.x * image.scale, y: point.y * image.scale - CGFloat(cgImage.height) + 1, width: CGFloat(cgImage.width), height: CGFloat(cgImage.height)))
+        return Array(pixel.prefix(3))
+    }
+
+    private func launch(open target: String, _ extra: [String] = []) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target] + extra
+        app.launch()
+        return app
+    }
+}

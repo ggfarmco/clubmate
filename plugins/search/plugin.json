@@ -26,6 +26,27 @@
             "indexing": {"type": "boolean", "description": "The first index of the workspace is still being built; matches is empty, retry shortly."}
           }
         }
+      },
+      {
+        "id": "search.workspace",
+        "title": "Search workspace",
+        "hidden": true,
+        "remote": true,
+        "description": "Searches the workspace's agent sessions (agents.search), backlog tasks (backlog.list), wiki pages (wiki.search) and docs (docs.list, name or relative path, any case) at once. Returns {groups:[{id, title, total, items:[{kind, id, title, line, target}]}], errors?:[{id, error}]} in the order sessions, tasks, wiki, docs; a group with no match is left out, a source that is missing or fails is left out and named in errors. A number query puts that task first.",
+        "args": {
+          "properties": {
+            "query": {"type": "string", "description": "Text to find; empty returns no groups."},
+            "limit": {"type": "integer", "default": 3, "description": "Items per group; total still counts every match."},
+            "group": {"type": "string", "enum": ["sessions", "tasks", "wiki", "docs"], "description": "Return only this group with every match."}
+          },
+          "required": ["query"]
+        },
+        "result": {
+          "properties": {
+            "groups": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "title": {"type": "string"}, "total": {"type": "integer"}}}, "description": "Each group also has items: [{kind, id, title, line, target}]; kind is session, task, wiki or doc; target is the session id, the task id, the wiki page's absolute path or the doc's absolute path; line is worktree · status, #id · status, the wiki project or the doc's relative path."},
+            "errors": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "error": {"type": "string"}}}, "description": "Sources that are not installed or failed: {id, error}."}
+          }
+        }
       }
     ]
   }

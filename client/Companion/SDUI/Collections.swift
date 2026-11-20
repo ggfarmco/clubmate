@@ -116,14 +116,15 @@ struct RowGroup<Header: View, Row: View>: View {
                     Section {
                         ForEach(section.ids, id: \.self) { id in
                             row(id)
-                                .listRowBackground(id == selected ? Color.accentColor.opacity(0.15) : nil)
+                                .columnRow(selected: id == selected, always: true)
                         }
                     } header: {
                         header(section.id)
                     }
                 }
             }
-            .listStyle(.insetGrouped)
+            .columnList()
+            .dismissesLiveField()
             .environment(\.sduiInScroll, true)
         }
     }

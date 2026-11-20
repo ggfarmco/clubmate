@@ -20,4 +20,9 @@ extension NeedsYouItem {
     public static func id(computer: String, session: String) -> String {
         computer + "|" + session
     }
+
+    public static func next(_ items: [NeedsYouItem], after session: String, computer: String, workspace: String) -> NeedsYouItem? {
+        let others = items.filter { !$0.offline && $0.id != id(computer: computer, session: session) }
+        return others.first { $0.computer == computer && $0.workspace.id == workspace } ?? others.first
+    }
 }

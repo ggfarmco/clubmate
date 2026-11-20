@@ -17,23 +17,17 @@ final class BacklogTests: XCTestCase {
         XCTAssertEqual(tasks.last?.priority, .normal)
     }
 
-    func testANumberPinsItsTaskAboveTheTextMatches() {
-        let tasks = [
-            BacklogTask(id: 40, title: "Open items Mac", status: .todo, tags: ["open-items"]),
-            BacklogTask(id: 81, title: "Land gate", status: .todo, note: "See #12 and #40."),
-            BacklogTask(id: 78, title: "roots compare.py", status: .done, note: "agree on 40 roots"),
-            BacklogTask(id: 5, title: "Other", status: .todo),
-        ]
-        let number = BacklogSearch("40", tasks: tasks)
-        XCTAssertEqual(number.label, "Task #40")
-        XCTAssertEqual(number.groups.map { $0.tasks.map(\.id) }, [[81], [78]])
-        XCTAssertEqual(BacklogSearch(" #40 ", tasks: tasks).matches.map(\.id), [81])
-        let text = BacklogSearch("OPEN-items", tasks: tasks)
-        XCTAssertNil(text.pinned)
-        XCTAssertEqual(text.matches.map(\.id), [40])
-        XCTAssertEqual(BacklogSearch("999", tasks: tasks).missing, "No task #999 · last is #81")
-        XCTAssertNil(BacklogSearch("0", tasks: tasks).missing)
-        XCTAssertTrue(BacklogSearch("nothing", tasks: tasks).isEmpty)
+    func testSearchPinsTheNumberedTaskTheMacPutsFirst() throws {
+        let tasks = try XCTUnwrap(JSONDecoder().decode(JSONValue.self, from: fixture("backlog-tasks"))["tasks"]).decode([BacklogTask].self)
+        let first = try XCTUnwrap(tasks.first)
+        let pinned = BacklogSearch("#\(first.id)", results: tasks)
+        XCTAssertEqual(pinned.pinned?.id, first.id)
+        XCTAssertEqual(pinned.matches.count, tasks.count - 1)
+        XCTAssertNil(pinned.missing)
+        let missing = BacklogSearch("999", results: Array(tasks.dropFirst()))
+        XCTAssertNil(missing.pinned)
+        XCTAssertEqual(missing.missing, "No task #999")
+        XCTAssertEqual(missing.matches.count, tasks.count - 1)
     }
 
     func testStoreLoadsEveryStatusOnChangesForItsWorkspace() async throws {

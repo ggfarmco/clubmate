@@ -247,8 +247,9 @@ struct MacDetailsView: View {
         .navigationTitle(tag.name)
         .confirmationDialog("Forget \(tag.name)?", isPresented: $forgetting, titleVisibility: .visible) {
             Button("Forget", role: .destructive) {
-                navigation.forget(computerID)
+                if navigation.isTop(.macDetails(computer: computerID)) { navigation.pop() }
                 try? model.remove(computerID)
+                navigation.follow(model)
             }
         } message: {
             Text("This phone forgets the Mac and its access token. Revoke the device in Clubmate on the Mac to cut access there too.")
@@ -283,6 +284,14 @@ struct MacDetailsView: View {
                 .contentShape(.rect)
         }
         .accessibilityIdentifier("mac.report")
+        Button {
+            navigation.showingAddComputer = true
+        } label: {
+            Text("Pair a Mac…")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(.rect)
+        }
+        .accessibilityIdentifier("mac.pair")
     }
 
     @ViewBuilder
@@ -493,8 +502,8 @@ private struct AwakeSection: View {
     private func open(_ hold: AwakeHold) {
         guard let session = hold.session else { return }
         let computer = connection.computer.id
-        if let workspace = hold.workspace { navigation.workspaces[computer] = workspace }
-        navigation.open(computer: computer, plugin: AgentsPluginInfo.id, detail: session)
+        guard let workspace = hold.workspace ?? navigation.workspace(for: connection)?.id else { return }
+        navigation.push(.session(session), from: navigation.origin(), in: WorkspaceKey(computer: computer, workspace: workspace))
     }
 
     private func set(_ mode: String, hours: Int? = nil) {

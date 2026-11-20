@@ -219,10 +219,14 @@ struct SDUIDiff: View {
 struct DocumentNode: View {
     let node: SDUINode
     let context: SDUIContext
+    var header: AnyView?
     @Environment(\.colorScheme) private var scheme
     @Environment(\.openURL) private var openURL
     @Environment(\.sduiInScroll) private var inScroll
     @Environment(\.sduiInset) private var inset
+    @Environment(\.sduiPage) private var page
+    @Environment(\.documentReading) private var reading
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     private var fit: Bool { node.string("size") == "fit" }
 
@@ -230,12 +234,37 @@ struct DocumentNode: View {
         DocumentContent(path: node.string("path") ?? "", html: node.string("html") ?? "", rev: Int(node.props["rev"]?.numberValue ?? 0), anchor: node.string("anchor"), kind: node.string("kind") == "artifact" ? .artifact : .markdown)
     }
 
+    private func pageContent(_ page: SDUIPage) -> DocumentContent {
+        let content = content
+        guard content.kind == .markdown else { return content }
+        return DocumentContent(path: content.path, html: page.dropTitle(content.html), rev: content.rev, anchor: content.anchor, kind: content.kind)
+    }
+
+    private var pad: Bool { PadLayout.on(sizeClass) }
+
+    private var pageTheme: DocumentTheme {
+        var theme = DocumentTheme.system(dark: scheme == .dark)
+        theme.top = 0
+        if pad {
+            theme.inset = PadLayout.margin
+            theme.column = PadLayout.measure
+        }
+        return theme
+    }
+
     var body: some View {
-        DocumentWebView(content: content, theme: .system(dark: scheme == .dark), size: fit ? .fit : .fill, onLink: follow)
-            .frame(maxWidth: .infinity)
-            .frame(height: !fit && inScroll ? 480 : nil)
-            .frame(maxHeight: fit || inScroll ? nil : .infinity)
-            .padding(.horizontal, fit ? inset : 0)
+        if let page, !fit, !inScroll {
+            DocumentWebView(content: pageContent(page), theme: pageTheme, size: .fill, find: page.find, header: header, onScroll: reading?.scroll, onTextTap: reading?.tap, hardTopEdge: reading?.active == true, onLink: follow)
+                .frame(maxWidth: sizeClass == .regular && !pad ? 680 : .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity)
+                .ignoresSafeArea(.container, edges: [.top, .bottom])
+        } else {
+            DocumentWebView(content: content, theme: .system(dark: scheme == .dark), size: fit ? .fit : .fill, onLink: follow)
+                .frame(maxWidth: .infinity)
+                .frame(height: !fit && inScroll ? 480 : nil)
+                .frame(maxHeight: fit || inScroll ? nil : .infinity)
+                .padding(.horizontal, fit ? inset : 0)
+        }
     }
 
     private func follow(_ link: DocumentLink) {
@@ -309,12 +338,25 @@ struct HeaderNode: View {
     @State private var confirming: SDUINode?
     @Environment(\.sduiInset) private var inset
     @Environment(\.sduiForm) private var form
+    @Environment(\.showIn) private var showIn
+    @Environment(\.sduiPage) private var page
+    @Environment(\.sectionLine) private var sectionLine
 
     private var line: String {
         [node.string("agent"), node.string("branch"), node.string("mode")].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: " · ")
     }
 
     var body: some View {
+        if let page, node.isPageHeader {
+            PageHeaderInline(node: node, page: page, sectionLine: sectionLine, inset: inset)
+                .modifier(PageHeaderBar(node: node, context: context, find: nil))
+        } else {
+            standard
+        }
+    }
+
+    @ViewBuilder
+    private var standard: some View {
         let split = node.headerOverflow()
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -325,8 +367,9 @@ struct HeaderNode: View {
                 }
                 title
                 Spacer(minLength: 4)
-                if !split.more.isEmpty {
+                if !split.more.isEmpty || showIn != nil {
                     Menu {
+                        ShowInButton()
                         ForEach(split.more) { child in
                             Button(child.node.string("label") ?? "", systemImage: child.node.string("icon") ?? "") { press(child.node) }
                                 .disabled(child.node.bool("disabled") == true)

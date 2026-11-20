@@ -364,7 +364,7 @@ struct SendBackSheet: View {
                     ZStack(alignment: .topLeading) {
                         TextEditor(text: $text)
                             .frame(minHeight: 120)
-                            .scrollContentBackground(.hidden)
+                            .bareEditor()
                             .accessibilityIdentifier("sendBack.text")
                         if from == .summary, store.summaryAsked[aside] == nil, text.isEmpty {
                             Button("Ask \(agentName) for a Summary", systemImage: "text.badge.star") { requestSummary() }

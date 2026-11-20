@@ -634,7 +634,6 @@ struct OpenQueueView: View {
 
     private func leave() {
         store.endOpenPass()
-        navigation.detail = nil
-        navigation.preferredColumn = .content
+        navigation.pop()
     }
 }

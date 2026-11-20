@@ -48,7 +48,7 @@ final class SDUIRendererTests: XCTestCase {
         XCTAssertEqual(sent.map(\.0), ["jobs"])
         XCTAssertEqual(sent.map(\.1), ["select"])
         XCTAssertEqual(sent.map(\.2), [.string("j1")])
-        XCTAssertEqual(opened, ["cron.main"])
+        XCTAssertEqual(opened, ["j1"])
     }
 
     func testToggleSendsItsBool() async {

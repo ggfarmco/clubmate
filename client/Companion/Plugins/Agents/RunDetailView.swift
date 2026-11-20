@@ -124,7 +124,7 @@ struct RunDetailView: View {
                         Button("Run again with this input", systemImage: "arrow.clockwise.circle") {
                             Task {
                                 do {
-                                    context.navigation.detail = try await store.rerun(runID)
+                                    context.navigation.replaceTop(AppNavigation.destination(try await store.rerun(runID), tab: .agents))
                                 } catch {
                                     failure = (error as? RemoteError)?.message ?? error.localizedDescription
                                 }

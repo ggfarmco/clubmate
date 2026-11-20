@@ -178,6 +178,8 @@ actor FixtureServer {
     private var subscribers: [AsyncThrowingStream<Data, any Error>.Continuation] = []
     private var uiSections: JSONValue = .array([])
     private var uiViews: [String: (rev: Int, tree: JSONValue)] = [:]
+    private var wikiSelected = WikiFixture.pages[0].id
+    private var wikiQuery = ""
     private var gateTrusted: [String: JSONValue] = [:]
     private var streams = 0
     private var seq = 100
@@ -263,6 +265,14 @@ actor FixtureServer {
         ])]
         if UserDefaults.standard.string(forKey: "reopenAction") == "resume", let index = sessions.firstIndex(where: { $0["id"] == .string("agt_0000000000000003") }) {
             sessions[index]["reopen"] = .object(["id": .string("reopen"), "label": .string("Reopen"), "icon": .string("arrow.clockwise"), "command": .string("agents.resume"), "args": .object(["session": .string("agt_0000000000000003")])])
+        }
+        if UserDefaults.standard.bool(forKey: "inboxQuiet") {
+            for index in sessions.indices where sessions[index]["needsYou"] == .bool(true) {
+                for key in ["pending", "requests", "pendingSummary", "needsYouSince"] { sessions[index][key] = nil }
+                sessions[index]["needsYou"] = .bool(false)
+                sessions[index]["status"] = .string("done")
+                Self.regroup(&sessions[index])
+            }
         }
         let asideFixture = UserDefaults.standard.string(forKey: "asideFixture")
         if UserDefaults.standard.bool(forKey: "questionFixture") || asideFixture != nil, sessions.count > 3 {
@@ -407,11 +417,17 @@ actor FixtureServer {
                 uiViews[slot] = (1, tree)
             }
         }
+        if WikiFixture.on {
+            uiSections = .array((uiSections.arrayValue ?? []) + [WikiFixture.section])
+            uiViews[WikiFixture.sidebar] = (1, WikiFixture.sidebarTree(selected: WikiFixture.pages[0].id))
+            uiViews[WikiFixture.main] = (1, WikiFixture.mainTree(WikiFixture.pages[0]))
+        }
         if let slot = UserDefaults.standard.string(forKey: "empty"), let tree = sdui["empty"]?[slot] {
             uiViews[slot] = (1, tree)
         }
         voice = decode("voice-states.json")
         guard mac.id != FixtureMac.studio.id else { return }
+        if UserDefaults.standard.bool(forKey: "wikiOnStudio") { uiSections = .array([]) }
         uiViews = [:]
         docs = [:]
         docsList = []
@@ -469,7 +485,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", AgentCommand.sessionsOlder, "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.close", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", AgentCommand.toolCall, "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "agents.usage", "agents.graph-show", "agents.graph-approve", "agents.graph-continue", "agents.graph-stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove, AsideCommand.ask, AsideCommand.summary, AsideCommand.send, AsideCommand.pick, AsideCommand.keep, AsideCommand.busy].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", AgentCommand.sessionsOlder, "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.close", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", AgentCommand.toolCall, "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "awake.state", "awake.set", "awake.settings-set", "agents.usage", "agents.graph-show", "agents.graph-approve", "agents.graph-continue", "agents.graph-stop", OpenCommand.answer, OpenCommand.later, OpenCommand.backlog, OpenCommand.no, OpenCommand.queue, OpenCommand.convert, TaskCommand.connectAnswer, TaskCommand.landAnswer, TaskCommand.landCommits, TaskCommand.repoFix, TaskCommand.repoLeave, TaskCommand.archivePlan, TaskCommand.archive, TaskCommand.folderRemove, AsideCommand.ask, AsideCommand.summary, AsideCommand.send, AsideCommand.pick, AsideCommand.keep, AsideCommand.busy].map(JSONValue.string) + (WikiFixture.on ? [.string("wiki.locate")] : [])
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed"), .string("awake.changed"), .string("agents.usage")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge")), "reports": .bool(true)])]))
         case "report":
             return (200, Self.json(["result": .object(["id": .string("r-fixture")])]))
@@ -483,6 +499,15 @@ actor FixtureServer {
             return (200, Self.json(["result": .null]))
         case "uiEvent":
             if GateTrustFixture.on, params["action"]?.stringValue == "gateTrust" { trustGate() }
+            if WikiFixture.on, params["slot"]?.stringValue == WikiFixture.sidebar, params["action"]?.stringValue == "select", let page = WikiFixture.page(params["value"]?.stringValue) {
+                wikiSelected = page.id
+                replace(WikiFixture.sidebar, WikiFixture.sidebarTree(selected: page.id, query: wikiQuery))
+                replace(WikiFixture.main, WikiFixture.mainTree(page))
+            }
+            if WikiFixture.on, params["slot"]?.stringValue == WikiFixture.sidebar, params["action"]?.stringValue == "search" {
+                wikiQuery = params["value"]?.stringValue ?? ""
+                replace(WikiFixture.sidebar, WikiFixture.sidebarTree(selected: wikiSelected, query: wikiQuery))
+            }
             return (200, Self.json(["result": LandReviewFixture.on ? LandReviewFixture.opens(params) ?? .null : .null]))
         case "workspaces":
             return (200, Self.json(["result": .array(mac.workspaces.map { item in
@@ -499,6 +524,8 @@ actor FixtureServer {
                 return (200, Self.json(["error": .object(["code": .string("internal"), "message": .string("open: no such file or directory")])]))
             }
             return (200, Self.json(["result": .object(["mimeType": .string("image/png"), "data": .string(image.base64EncodedString())])]))
+        case "command" where params["id"]?.stringValue == "wiki.locate" && WikiFixture.on:
+            return (200, Self.json(["result": WikiFixture.locate(params["args"]?["path"]?.stringValue ?? "", home: params["args"]?["home"] == .bool(true))]))
         case "command" where params["id"]?.stringValue == "docs.read":
             return (200, Self.json(read(params["args"]?["path"]?.stringValue ?? "")))
         case "command" where params["id"]?.stringValue == "backlog.update" && UserDefaults.standard.bool(forKey: "staleEdit"):
@@ -750,11 +777,16 @@ actor FixtureServer {
             return .object(reply)
         case "backlog.list":
             guard workspace == self.workspace else { return .object(["tasks": .array([])]) }
-            let status = args["status"]?.stringValue ?? "open"
+            let query = (args["query"]?.stringValue ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+            let number = BacklogSearch.number(query)
+            let status = args["status"]?.stringValue ?? (query.isEmpty ? "open" : "")
             var list = tasks.filter { task in
                 let value = task["status"]?.stringValue ?? ""
-                return status == "open" ? ["idea", "todo", "in_progress"].contains(value) : value == status
+                let id = task["id"]?.numberValue.map(Int.init)
+                guard query.isEmpty || id == number || (task["title"]?.stringValue ?? "").lowercased().contains(query) else { return false }
+                return status.isEmpty ? value != "archived" : status == "open" ? ["idea", "todo", "in_progress"].contains(value) : value == status
             }
+            list = list.filter { $0["id"]?.numberValue.map(Int.init) == number } + list.filter { $0["id"]?.numberValue.map(Int.init) != number }
             if case .number(let limit) = args["limit"] ?? .null { list = Array(list.prefix(Int(limit))) }
             return .object(["tasks": .array(list.map { task in
                 var task = task
@@ -1343,6 +1375,9 @@ actor FixtureServer {
             publish("notify.posted", ["id": .string("ntf_p1"), "workspace": .string(workspace), "session": sessions.first?["id"] ?? .null, "title": .string("Permission needed"), "message": .string("Claude wants to run terraform plan in infra."), "kind": .string("permission"), "agent": .bool(true), "ts": Self.stamp(ago: 240)])
         }
         guard mac.id == FixtureMac.studio.id else { return }
+        if UserDefaults.standard.bool(forKey: "inboxQuiet") {
+            return publish("notify.posted", ["id": .string("ntf_1"), "workspace": .string(workspace), "title": .string("Build finished"), "message": .string("make test passed in 42 s."), "kind": .string("done"), "ts": Self.stamp(ago: 600)])
+        }
         if UserDefaults.standard.bool(forKey: "docOpened"), let session = sessions.first?["id"] {
             Task {
                 try? await Task.sleep(for: .seconds(3))
@@ -1379,12 +1414,16 @@ actor FixtureServer {
 
     private func trustGate() {
         for (slot, tree) in gateTrusted {
-            let rev = (uiViews[slot]?.rev ?? 0) + 1
-            uiViews[slot] = (rev, tree)
-            let wire = Data("event: ui\ndata: ".utf8) + Self.json(slotView(slot, rev: rev, tree: tree).objectValue ?? [:]) + Data("\n\n".utf8)
-            for subscriber in subscribers {
-                subscriber.yield(wire)
-            }
+            replace(slot, tree)
+        }
+    }
+
+    private func replace(_ slot: String, _ tree: JSONValue) {
+        let rev = (uiViews[slot]?.rev ?? 0) + 1
+        uiViews[slot] = (rev, tree)
+        let wire = Data("event: ui\ndata: ".utf8) + Self.json(slotView(slot, rev: rev, tree: tree).objectValue ?? [:]) + Data("\n\n".utf8)
+        for subscriber in subscribers {
+            subscriber.yield(wire)
         }
     }
 

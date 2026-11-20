@@ -8,28 +8,33 @@ struct BacklogPlugin: CompanionPluginUI {
     let title = "Backlog"
     let systemImage = "checklist"
     let requiredCommands = BacklogPluginInfo.requiredCommands
-    let inWorkspace = true
+    let tab: CompanionTab? = .backlog
 
     @MainActor
-    func makeList(context: PluginContext) -> AnyView {
+    func makeRoot(context: PluginContext) -> AnyView {
         AnyView(BacklogListView(context: context))
     }
 
     @MainActor
-    func makeDetail(context: PluginContext, selection: String?) -> AnyView {
+    func makeEmptyDetail(context: PluginContext) -> AnyView {
         if context.connection.state == .unauthorized {
             return AnyView(ConnectionUnavailableView(connection: context.connection))
         }
-        guard let selection, let store = Self.store(context, newTask: selection == BacklogPluginInfo.newTask) else {
-            return AnyView(ContentUnavailableView("No Task Selected", systemImage: "checklist", description: Text("Pick a task to read it, start it or mark it done.")))
-        }
-        if selection == BacklogPluginInfo.newTask {
+        return AnyView(BacklogEmptyDetail(context: context))
+    }
+
+    @MainActor
+    func makeDestination(_ destination: Destination, context: PluginContext) -> AnyView? {
+        switch destination {
+        case .task(let id):
+            guard context.connection.state != .unauthorized, let store = Self.store(context) else { return makeEmptyDetail(context: context) }
+            return AnyView(TaskDetailView(context: context, store: store, taskID: id).id(String(id)))
+        case .section(BacklogPluginInfo.newTask, _) where context.navigation.tab == .backlog:
+            guard context.connection.state != .unauthorized, let store = Self.store(context, newTask: true) else { return makeEmptyDetail(context: context) }
             return AnyView(NewTaskView(context: context, store: store))
+        default:
+            return nil
         }
-        guard let id = Int(selection) else {
-            return AnyView(ContentUnavailableView("Task Not Found", systemImage: "checklist"))
-        }
-        return AnyView(TaskDetailView(context: context, store: store, taskID: id).id(selection))
     }
 
     @MainActor
@@ -37,13 +42,9 @@ struct BacklogPlugin: CompanionPluginUI {
         0
     }
 
-    func listHasMic(connection: ComputerConnection) -> Bool {
-        true
-    }
-
     @MainActor
     static func store(_ context: PluginContext, newTask: Bool = false) -> BacklogStore? {
-        let shown = context.navigation.workspace(for: context.connection)?.id
+        let shown = context.shownWorkspace?.id
         guard let workspace = newTask ? context.navigation.newTaskWorkspaces[context.connection.computer.id] ?? shown : shown else { return nil }
         return context.model.backlog(computer: context.connection.computer.id, workspace: workspace)
     }
@@ -53,8 +54,7 @@ struct BacklogPlugin: CompanionPluginUI {
         if let workspace = context.navigation.workspace(for: context.connection) {
             context.navigation.newTaskWorkspaces[context.connection.computer.id] = workspace.id
         }
-        context.navigation.detail = BacklogPluginInfo.newTask
-        context.navigation.preferredColumn = .detail
+        context.navigation.select(BacklogPluginInfo.newTask, tab: .backlog)
     }
 
     @MainActor
@@ -64,6 +64,24 @@ struct BacklogPlugin: CompanionPluginUI {
         guard AgentSessionID.matches(owner), let workspace = context.navigation.workspace(for: context.connection),
               let session = context.model.agents(computer: context.connection.computer.id, workspace: workspace.id)?.session(owner) else { return owner }
         return "\(session.agentName) · \(session.displayTitle)"
+    }
+}
+
+struct BacklogEmptyDetail: View {
+    let context: PluginContext
+
+    var body: some View {
+        let workspace = context.shownWorkspace
+        let open = BacklogPlugin.store(context).map { $0.tasks.count { [.inProgress, .todo].contains($0.status) } } ?? 0
+        ContentUnavailableView {
+            Label("No Task Selected", systemImage: "checklist")
+        } description: {
+            Text(workspace.map { open == 1 ? "1 open task in \($0.name)." : "\(open) open tasks in \($0.name)." } ?? "Pick a task to read it, start it or mark it done.")
+        } actions: {
+            Button("New task") { BacklogPlugin.startNew(context) }
+                .buttonStyle(.glassProminent)
+                .disabled(workspace == nil || !context.connection.canWrite)
+        }
     }
 }
 
@@ -82,9 +100,7 @@ struct BacklogListView: View {
                 ConnectionUnavailableView(connection: context.connection)
             }
         }
-        .workspaceChrome(context, title: workspace?.name ?? "Backlog")
-        .toolbar {
-            WorkspaceMenu(context: context)
+        .tabRootChrome(context, title: "Backlog") {
             ToolbarItem(placement: .primaryAction) {
                 Button("New Task", systemImage: "plus") { BacklogPlugin.startNew(context) }
                     .disabled(workspace == nil || !context.connection.canWrite)
@@ -101,36 +117,34 @@ struct TaskListView: View {
     @State private var closing: BacklogTask?
 
     var body: some View {
-        List(selection: Binding(get: { context.navigation.detail }, set: { id in
-            context.navigation.detail = id
-            if id != nil { context.navigation.preferredColumn = .detail }
-        })) {
-            WorkspaceTabs(context: context)
-            if context.connection.state != .online {
-                Section {
-                    ConnectionBanner(connection: context.connection)
+        List(selection: context.navigation.selection(.backlog)) {
+            TabListRows {
+                ListHeader(context: context)
+                OfflineRow(connection: context.connection)
+                ListAgeSection { store.ageLine(now: $0) }
+                if store.searchText.isEmpty {
+                    everything
+                } else if let search = store.search {
+                    found(search)
                 }
             }
-            ListAgeSection { store.ageLine(now: $0) }
-            if let search = store.search {
-                found(search)
-            } else {
-                everything
-            }
         }
-        .listStyle(.insetGrouped)
-        .searchBar(text: Bindable(store).searchQuery, prompt: "Search, or a #number")
+        .columnList()
+        .tabSearch(.backlog, text: Bindable(store).searchQuery, prompt: "Search, or a #number")
         .onSubmit(of: .search) {
-            guard let pinned = store.search?.pinned else { return }
-            context.navigation.detail = String(pinned.id)
-            context.navigation.preferredColumn = .detail
+            guard let search = store.search, search.query == store.searchText, let pinned = search.pinned else { return }
+            context.navigation.select(String(pinned.id), tab: .backlog)
         }
         .overlay {
             if !store.loaded {
                 ProgressView()
-            } else if let search = store.search {
-                if search.isEmpty {
-                    ContentUnavailableView.search(text: store.searchQuery)
+            } else if !store.searchText.isEmpty {
+                if let error = store.searchError {
+                    ContentUnavailableView("Search Failed", systemImage: "magnifyingglass", description: Text(error))
+                } else if let search = store.search {
+                    if search.isEmpty { ContentUnavailableView.search(text: search.query) }
+                } else {
+                    ProgressView()
                 }
             } else if store.tasks.isEmpty {
                 ContentUnavailableView {
@@ -151,11 +165,11 @@ struct TaskListView: View {
 
     @ViewBuilder
     private func found(_ search: BacklogSearch) -> some View {
-        if let pinned = search.pinned, let label = search.label {
+        if let pinned = search.pinned {
             Section {
                 rows([pinned], pinned: true)
             } header: {
-                Text(label)
+                Text("Task \(pinned.number)")
             } footer: {
                 Text("Return opens \(pinned.number)")
                     .foregroundStyle(Color.captionInk)
@@ -187,6 +201,7 @@ struct TaskListView: View {
             Section("Queued") {
                 ForEach(store.outbox) { item in
                     QueuedLine(item: item, queuedLine: context.connection.queuedLine, sendAgain: { attempt($failure) { try await store.sendAgain(item) } }) { store.queue.cancel(item) }
+                        .columnRow()
                 }
             }
         }
@@ -224,12 +239,15 @@ struct TaskListView: View {
         }
     }
 
+    private func selected(_ task: BacklogTask) -> Bool {
+        context.navigation.layout != .compact && context.navigation.selected(.backlog) == String(task.id)
+    }
+
     private func rows(_ tasks: [BacklogTask], pinned: Bool = false) -> some View {
         ForEach(tasks) { task in
             TaskRow(task: task, owner: BacklogPlugin.owner(task, context: context), queued: store.queued(task.id).contains { $0.failure == nil }, pinned: pinned)
                 .tag(String(task.id))
-                .modifier(PinnedRing(on: pinned, selected: selected(task)))
-                .selectedRow(selected(task))
+                .columnRow(selected: selected(task), ring: pinned)
                 .swipeActions(edge: .trailing) {
                     if task.status != .done {
                         Button("Done", systemImage: "checkmark") { perform { try await store.done(task.id) } }
@@ -252,10 +270,6 @@ struct TaskListView: View {
                     TaskActions(task: task, store: store, agentStart: agentStart, failure: $failure, close: closes ? { closing = $0 } : nil)
                 }
         }
-    }
-
-    private func selected(_ task: BacklogTask) -> Bool {
-        context.navigation.layout != .compact && context.navigation.detail == String(task.id)
     }
 
     private var agentStart: Bool {
@@ -356,21 +370,6 @@ struct TaskRow: View {
     }
 }
 
-private struct PinnedRing: ViewModifier {
-    let on: Bool
-    let selected: Bool
-
-    func body(content: Content) -> some View {
-        if on {
-            content.listRowBackground((selected ? Color.selectedRow : Color(.secondarySystemGroupedBackground)).overlay {
-                RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(Color.accentColor, lineWidth: 1.5)
-            })
-        } else {
-            content
-        }
-    }
-}
-
 struct TaskStatusIcon: View {
     let status: BacklogStatus
 
@@ -444,6 +443,7 @@ struct TaskDetailView: View {
                         }
                         ToolbarItem(placement: .primaryAction) {
                             Menu("More", systemImage: "ellipsis") {
+                                ShowInButton()
                                 TaskActions(task: task, store: store, agentStart: context.connection.supports(BacklogCommand.start), failure: $failure, close: closes ? { closing = $0 } : nil)
                             }
                             .disabled(!context.connection.canWrite)
@@ -552,7 +552,7 @@ struct TaskDetailView: View {
                 if let full = detail?.task, !full.links.isEmpty {
                     TaskSection(title: "Links", count: full.links.count) {
                         ForEach(full.links) { link in
-                            Button { context.navigation.detail = String(link.task) } label: {
+                            Button { context.navigation.push(.task(link.task), from: context.navigation.origin()) } label: {
                                 TaskRefRow(symbol: (link.status ?? .other).symbol, label: "#\(link.task) \(link.title ?? "")", detail: link.detail, chevron: true, stacked: true)
                             }
                             .buttonStyle(.plain)
@@ -615,7 +615,7 @@ struct TaskDetailView: View {
             openURL(url)
         case .doc(let path, _):
             if let id = path.split(separator: "/").last.flatMap({ Int($0) }), path.hasPrefix("/task/") {
-                context.navigation.detail = String(id)
+                context.navigation.push(.task(id), from: context.navigation.origin())
             }
         case .file, .anchor, .ignore:
             break
@@ -635,8 +635,9 @@ struct TaskDetailView: View {
         case .url:
             if let url = URL(string: attachment.ref) { openURL(url) }
         case .doc:
-            guard let path = attachment.path, let workspace = context.navigation.workspace(for: context.connection) else { return }
-            context.navigation.openDoc(computer: context.connection.computer.id, workspace: workspace.id, path: path)
+            guard let path = attachment.path else { return }
+            let (file, anchor) = DocsStore.split(path)
+            context.navigation.openLink(file, anchor: anchor, from: context.navigation.origin())
         default:
             break
         }
@@ -714,7 +715,7 @@ struct TaskDetailView: View {
     }
 
     private func openSession(_ session: String) {
-        context.navigation.open(computer: context.connection.computer.id, plugin: AgentsPluginInfo.id, detail: session)
+        context.navigation.reach(.session(session), from: context.navigation.origin())
     }
 
     @ViewBuilder
@@ -1081,7 +1082,8 @@ struct NewTaskView: View {
 
     var body: some View {
         TaskEditorView(store: store, connection: context.connection, task: nil) { id in
-            context.navigation.detail = id.map(String.init)
+            guard let id else { return context.navigation.pop() }
+            context.navigation.replaceTop(.task(id))
         }
     }
 }

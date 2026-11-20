@@ -205,8 +205,4 @@ extension Inbox {
         }
         return InboxSections(waiting: waiting, earlier: earlier)
     }
-
-    public func showsDot(_ item: InboxItem, in sections: InboxSections) -> Bool {
-        isUnread(item) && sections.waiting.contains(item)
-    }
 }

@@ -1156,12 +1156,14 @@ final class SlowRunner: CommandRunner {
 final class SearchRunner: CommandRunner {
     private var held: CheckedContinuation<Void, Never>?
     private(set) var queries: [String] = []
+    private(set) var returned = 0
 
     func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
         let query = args?["query"]?.stringValue ?? ""
         queries.append(query)
         if query == "cart" { await withCheckedContinuation { held = $0 } }
-        return try JSONDecoder().decode(JSONValue.self, from: Data(#"[{"session":"s-\#(query)","title":"","status":"closed","worktree":"/w","updatedAt":"2026-10-30T09:41:00Z","hits":[{"kind":"title","snippet":"t"},{"kind":"prompt","turn":2,"snippet":"p"},{"kind":"reply","turn":2,"snippet":"r"}]}]"#.utf8))
+        returned += 1
+        return try JSONDecoder().decode(JSONValue.self, from: Data(#"[{"session":"s-\#(query)","title":"","status":"closed","worktree":"/w","updatedAt":"2026-10-30T09:41:00Z","hits":[{"kind":"prompt","turn":2,"snippet":"p"}]}]"#.utf8))
     }
 
     func release() {
@@ -1180,14 +1182,10 @@ final class AgentSearchTests: XCTestCase {
         store.searchQuery = "checkout"
         try await waitUntil { store.searchResults != nil }
         runner.release()
-        try await Task.sleep(for: .milliseconds(20))
-        let result = try XCTUnwrap(store.searchResults?.first)
-        XCTAssertEqual(store.searchResults?.count, 1)
-        XCTAssertEqual(result.session, "s-checkout")
-        XCTAssertEqual(result.status, .closed)
-        XCTAssertEqual(result.displayTitle, "New Session")
-        XCTAssertEqual(result.snippets.map(\.kind), [.prompt, .reply])
-        XCTAssertEqual(result.snippets.map(\.turn), [2, 2])
+        try await waitUntil { runner.returned == 2 }
+        XCTAssertEqual(store.searchResults?.map(\.session), ["s-checkout"])
+        XCTAssertEqual(store.searchResults?.first?.status, .closed)
+        XCTAssertEqual(store.searchResults?.first?.displayTitle, "New Session")
     }
 }
 

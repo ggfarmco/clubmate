@@ -3,11 +3,16 @@ package main
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 
+	"clubmate/pkg/docext"
 	"clubmate/pkg/pluginsdk"
+	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/gitrepo"
 	"clubmate/plugins/internal/wikiroot"
@@ -31,6 +36,19 @@ type listArgs struct {
 
 type pageArgs struct {
 	Page string `json:"page"`
+}
+
+type locateArgs struct {
+	Path string `json:"path"`
+	Home bool   `json:"home"`
+}
+
+type locateOut struct {
+	ID      string `json:"id,omitempty"`
+	Path    string `json:"path,omitempty"`
+	Title   string `json:"title,omitempty"`
+	Anchor  string `json:"anchor,omitempty"`
+	History bool   `json:"history,omitempty"`
 }
 
 type writeArgs struct {
@@ -101,6 +119,12 @@ func (w *wiki) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Com
 			return nil, err
 		}
 		return w.readCmd(ctx, cmd, args)
+	case "wiki.locate":
+		var args locateArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		return w.locateCmd(ctx, cmd, args)
 	case "wiki.write":
 		var args writeArgs
 		if err := decode(cmd.Args, &args); err != nil {
@@ -227,6 +251,82 @@ func (w *wiki) readCmd(ctx context.Context, cmd pluginsdk.CommandRun, args pageA
 		sources = []string{}
 	}
 	return readOut{Page: p.Path, Title: p.Title, Content: content, Sources: sources, Updated: p.Updated, By: p.By, Stale: p.Stale, Path: filepath.Join(s.p.Dir, filepath.FromSlash(p.Path))}, nil
+}
+
+func (w *wiki) locateCmd(ctx context.Context, cmd pluginsdk.CommandRun, args locateArgs) (any, error) {
+	target, anchor, _ := strings.Cut(args.Path, "#")
+	ws, err := w.h.GetWorkspace(ctx, cmd.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	projects := w.projects(ctx, ws)
+	if args.Home {
+		return home(ctx, projects, w.now)
+	}
+	abs := gitrepo.Canonical(filepath.Clean(target))
+	if !filepath.IsAbs(target) || !scope(ws, projects)(abs) {
+		return nil, errNotInWorkspace
+	}
+	p, page, ok := locate(projects, abs)
+	if !ok {
+		return locateOut{}, nil
+	}
+	out := locateOut{ID: pageID(p.Name, page), Path: filepath.Join(p.Dir, filepath.FromSlash(page)), Title: docext.FileTitle(page), Anchor: anchor, History: anchor == historyAnchor}
+	found, _, err := Open(p, w.now).Read(ctx, page)
+	switch {
+	case errors.Is(err, errNotFound), errors.Is(err, errNotPage):
+		return locateOut{}, nil
+	case errors.Is(err, errTooLarge):
+		return out, nil
+	case err != nil:
+		return nil, err
+	}
+	out.Title = found.Title
+	return out, nil
+}
+
+func home(ctx context.Context, projects []wikiroot.Project, now func() time.Time) (locateOut, error) {
+	for _, p := range projects {
+		pages, err := Open(p, now).List(ctx, false)
+		if err != nil {
+			return locateOut{}, err
+		}
+		pg, ok := homePage(pages)
+		if !ok {
+			continue
+		}
+		return locateOut{ID: pageID(p.Name, pg.Path), Path: filepath.Join(p.Dir, filepath.FromSlash(pg.Path)), Title: pg.Title}, nil
+	}
+	return locateOut{}, nil
+}
+
+func homePage(pages []Page) (Page, bool) {
+	for _, name := range indexNames {
+		if i := slices.IndexFunc(pages, func(pg Page) bool { return pg.Path == name }); i >= 0 {
+			return pages[i], true
+		}
+	}
+	id, ok := firstPage(folderItems("", "", pages, nil, false, true))
+	if !ok {
+		return Page{}, false
+	}
+	i := slices.IndexFunc(pages, func(pg Page) bool { return pageID("", pg.Path) == id })
+	return pages[i], i >= 0
+}
+
+func firstPage(items []sdui.TreeItem) (string, bool) {
+	for _, it := range items {
+		switch {
+		case it.MirrorOf != "":
+			return it.MirrorOf, true
+		case !strings.HasPrefix(it.ID, dirPrefix):
+			return it.ID, true
+		}
+		if id, ok := firstPage(it.Children); ok {
+			return id, true
+		}
+	}
+	return "", false
 }
 
 func (w *wiki) writeCmd(ctx context.Context, cmd pluginsdk.CommandRun, args writeArgs) (any, error) {

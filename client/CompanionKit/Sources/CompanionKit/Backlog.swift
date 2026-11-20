@@ -341,12 +341,6 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
         claimedBy == "user"
     }
 
-    public func matches(_ query: String) -> Bool {
-        let query = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if query.isEmpty || BacklogSearch.number(query) == id { return true }
-        return ([title, description, note] + tags).contains { $0.lowercased().contains(query) }
-    }
-
     public static func grouped(_ tasks: [BacklogTask]) -> [(status: BacklogStatus, tasks: [BacklogTask])] {
         let buckets = Dictionary(grouping: tasks, by: \.status)
         return (BacklogStatus.groupOrder + [.other]).compactMap { status in
@@ -357,36 +351,31 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
 }
 
 public struct BacklogSearch: Sendable, Equatable {
+    public let query: String
     public let number: Int?
     public let pinned: BacklogTask?
-    public let last: Int?
     public let matches: [BacklogTask]
 
-    public init(_ query: String, tasks: [BacklogTask]) {
-        let number = Self.number(query).flatMap { $0 > 0 ? $0 : nil }
-        let pinned = number.flatMap { number in tasks.first { $0.id == number } }
+    public init(_ query: String, results: [BacklogTask]) {
+        self.query = query
+        let number = Self.number(query)
         self.number = number
-        self.pinned = pinned
-        last = tasks.map(\.id).max()
-        matches = tasks.filter { $0.id != pinned?.id && $0.matches(query) }
+        pinned = results.first.flatMap { $0.id == number ? $0 : nil }
+        matches = pinned == nil ? results : Array(results.dropFirst())
     }
 
     public static func number(_ query: String) -> Int? {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return Int(query.hasPrefix("#") ? String(query.dropFirst()) : query)
+        return Int(query.hasPrefix("#") ? String(query.dropFirst()) : query).flatMap { $0 > 0 ? $0 : nil }
     }
 
     public var groups: [(status: BacklogStatus, tasks: [BacklogTask])] {
         BacklogTask.grouped(matches)
     }
 
-    public var label: String? {
-        pinned.map { "Task \($0.number)" }
-    }
-
     public var missing: String? {
         guard let number, pinned == nil else { return nil }
-        return "No task #\(number)" + (last.map { " · last is #\($0)" } ?? "")
+        return "No task #\(number)"
     }
 
     public var isEmpty: Bool {

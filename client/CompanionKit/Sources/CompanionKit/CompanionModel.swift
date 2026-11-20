@@ -212,6 +212,15 @@ public final class CompanionModel {
         }, offline: offline)
     }
 
+    public func nextWaiting(after session: String, computer: String, workspace: String) -> NeedsYouItem? {
+        NeedsYouItem.next(needsYou(), after: session, computer: computer, workspace: workspace)
+    }
+
+    public func waitingCount(computer: String, workspace: String, excluding session: String? = nil) -> Int {
+        guard let store = agents(computer: computer, workspace: workspace), store.fetched else { return 0 }
+        return WorkspaceActivity(store.sessions.filter { $0.id != session }).waiting
+    }
+
     public func backlog(computer: String, workspace: String) -> BacklogStore? {
         let key = computer + "|" + workspace
         if let existing = backlogs[key] { return existing }

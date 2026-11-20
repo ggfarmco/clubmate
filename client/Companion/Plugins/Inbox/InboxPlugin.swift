@@ -9,22 +9,41 @@ struct InboxPlugin: CompanionPluginUI {
     let requiredCommands: [String] = []
 
     @MainActor
-    func makeList(context: PluginContext) -> AnyView {
+    func makeRoot(context: PluginContext) -> AnyView {
         AnyView(InboxListView(context: context))
     }
 
     @MainActor
-    func makeDetail(context: PluginContext, selection: String?) -> AnyView {
-        guard let selection, let item = context.model.inbox.items.first(where: { $0.id == selection }) else {
-            return AnyView(ContentUnavailableView("No Notification Selected", systemImage: "tray", description: Text("Notifications that point at a session open it in Agents.")))
+    func makeEmptyDetail(context: PluginContext) -> AnyView {
+        AnyView(ContentUnavailableView("No Notification Selected", systemImage: "tray", description: Text("Notifications that point at a session open it in Agents.")))
+    }
+
+    @MainActor
+    func makeDestination(_ destination: Destination, context: PluginContext) -> AnyView? {
+        switch destination {
+        case .inbox:
+            return makeRoot(context: context)
+        case .section(InboxPluginInfo.id, let selection?):
+            guard let item = context.model.inbox.items.first(where: { $0.id == selection }) else { return makeEmptyDetail(context: context) }
+            return AnyView(InboxDetailView(item: item, workspace: context.connection.workspaces.first { $0.id == item.workspace }?.name))
+        default:
+            return nil
         }
-        return AnyView(InboxDetailView(item: item, workspace: context.connection.workspaces.first { $0.id == item.workspace }?.name))
+    }
+
+    static func isEntry(_ destination: Destination) -> Bool {
+        if case .section(InboxPluginInfo.id, _) = destination { return true }
+        return false
+    }
+
+    static func entry(_ item: InboxItem) -> Destination {
+        .section(id: InboxPluginInfo.id, item: item.id)
     }
 
     @MainActor
     func badge(context: PluginContext) -> Int {
         let sections = Self.sections(context)
-        return sections.waiting.count { context.model.inbox.showsDot($0, in: sections) }
+        return sections.waiting.count(where: context.model.inbox.isUnread)
     }
 
     @MainActor
@@ -45,92 +64,109 @@ struct InboxListView: View {
     let context: PluginContext
 
     var body: some View {
-        let sections = InboxPlugin.sections(context)
-        let workspaces = Set((sections.waiting + sections.earlier).map(\.workspace)).sorted()
+        let model = context.model
+        let needs = model.needsYou()
+        let waiting = Set(needs.map(\.id))
+        let earlier = model.inbox.items.filter { item in item.session.map { !waiting.contains(NeedsYouItem.id(computer: item.computerID, session: $0)) } ?? true }
+        let stores = Set(earlier.map { WorkspaceKey(computer: $0.computerID, workspace: $0.workspace) })
         List {
-            MacLineSection(text: context.model.tag(context.connection.computer.id)?.lead("") ?? Text(context.connection.computer.name))
-            if !sections.waiting.isEmpty {
+            if !needs.isEmpty {
                 Section {
-                    rows(sections.waiting, sections: sections, waiting: true)
+                    ForEach(needs) { item in
+                        NeedsYouRow(item: item, dot: unread(item).isEmpty == false) { open(item) }
+                    }
                 } header: {
                     HStack {
                         Text("Waiting for you")
                         Spacer()
-                        Text("\(sections.waiting.count)")
+                        Text("\(needs.count)")
+                    }
+                } footer: {
+                    ForEach(model.offlineMacNames(needs), id: \.self) { name in
+                        Text("\(name) is offline — answer when it's back.")
                     }
                 }
             }
-            if !sections.earlier.isEmpty {
+            if !earlier.isEmpty {
                 Section("Earlier") {
-                    rows(sections.earlier, sections: sections, waiting: false)
+                    ForEach(earlier) { item in
+                        Button {
+                            open(item)
+                        } label: {
+                            InboxRow(item: item, waiting: false, dot: model.inbox.isUnread(item), command: nil, place: place(item))
+                        }
+                        .buttonStyle(.plain)
+                        .swipeActions(edge: .leading) {
+                            if model.inbox.isUnread(item) {
+                                Button("Mark as Read", systemImage: "envelope.open") { model.inbox.markRead(item) }
+                                    .tint(.accentColor)
+                            }
+                        }
+                    }
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .columnList()
         .overlay {
-            if sections.waiting.isEmpty && sections.earlier.isEmpty {
-                ContentUnavailableView("Nothing Needs You", systemImage: "tray", description: Text("Questions, permission requests and finished runs from agents on \(context.connection.computer.name) land here while the app is open."))
+            if needs.isEmpty && earlier.isEmpty {
+                ContentUnavailableView("Nothing Needs You", systemImage: "tray", description: Text("Questions, permission requests and finished runs from your Macs land here while the app is open."))
             }
         }
-        .task(id: workspaces) {
-            for workspace in workspaces {
-                guard let store = context.model.agents(computer: context.connection.computer.id, workspace: workspace), !store.fetched else { continue }
+        .task(id: stores) {
+            for key in stores {
+                guard let store = model.agents(computer: key.computer, workspace: key.workspace), !store.fetched else { continue }
                 await store.refresh()
             }
         }
         .navigationTitle("Inbox")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationSubtitle(model.computers.count > 1 ? "All Macs" : "")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu("More", systemImage: "ellipsis") {
-                    Button("Mark All as Read", systemImage: "envelope.open") { context.model.inbox.markAllRead() }
+                    Button("Mark All as Read", systemImage: "envelope.open") { model.inbox.markAllRead() }
                     Button("Clear", systemImage: "trash", role: .destructive) {
-                        context.model.inbox.remove(computer: context.connection.computer.id)
-                        context.navigation.detail = nil
+                        model.inbox.clear()
+                        context.navigation.setPath(context.navigation.path.filter { !InboxPlugin.isEntry($0.destination) }, tab: context.navigation.tab)
                     }
                 }
-                .disabled(sections.waiting.isEmpty && sections.earlier.isEmpty)
+                .disabled(model.inbox.items.isEmpty)
             }
         }
     }
 
-    private func rows(_ items: [InboxItem], sections: InboxSections, waiting: Bool) -> some View {
-        ForEach(items) { item in
-            let store = InboxPlugin.store(context, item)
-            Button {
-                open(item)
-            } label: {
-                InboxRow(
-                    item: item,
-                    waiting: waiting,
-                    dot: context.model.inbox.showsDot(item, in: sections),
-                    command: item.kind == .permission ? item.session.flatMap { store?.transcripts[$0] }.flatMap { InboxItem.pendingCommand($0.entries) } : nil,
-                    place: [context.connection.workspaces.first { $0.id == item.workspace }?.name, item.session.flatMap { store?.session($0)?.displayTitle }].compactMap { $0 }.joined(separator: " · ")
-                )
-            }
-            .buttonStyle(.plain)
-            .listRowBackground(context.navigation.detail == item.id ? Color.accentColor.opacity(0.15) : nil)
-            .swipeActions(edge: .leading) {
-                if context.model.inbox.isUnread(item) {
-                    Button("Mark as Read", systemImage: "envelope.open") { context.model.inbox.markRead(item) }
-                        .tint(.accentColor)
-                }
-            }
-            .task(id: item.id) {
-                guard waiting, item.kind == .permission, let session = item.session, let store, store.transcripts[session] == nil else { return }
-                await store.loadTranscript(session)
-            }
-        }
+    private func unread(_ item: NeedsYouItem) -> [InboxItem] {
+        context.model.inbox.items.filter { $0.computerID == item.computer && $0.session == item.session.id && context.model.inbox.isUnread($0) }
+    }
+
+    private func place(_ item: InboxItem) -> String {
+        let store = InboxPlugin.store(context, item)
+        let workspace = context.model.connection(item.computerID)?.workspaces.first { $0.id == item.workspace }?.name
+        return [workspace, item.session.flatMap { store?.session($0)?.displayTitle }].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    private func open(_ item: NeedsYouItem) {
+        for note in unread(item) { context.model.inbox.markRead(note) }
+        context.navigation.pushFromInbox(.session(item.session.id), in: WorkspaceKey(computer: item.computer, workspace: item.workspace.id))
     }
 
     private func open(_ item: InboxItem) {
         context.model.inbox.markRead(item)
-        if let session = item.session {
-            context.navigation.workspaces[item.computerID] = item.workspace
-            context.navigation.open(computer: item.computerID, plugin: AgentsPluginInfo.id, detail: session)
-        } else {
-            context.navigation.detail = item.id
-            context.navigation.preferredColumn = .detail
-        }
+        let key = WorkspaceKey(computer: item.computerID, workspace: item.workspace)
+        context.navigation.pushFromInbox(item.session.map(Destination.session) ?? InboxPlugin.entry(item), in: key)
+    }
+}
+
+struct UnreadDot: View {
+    let shown: Bool
+
+    var body: some View {
+        Circle()
+            .fill(Color.accentColor)
+            .frame(width: 9, height: 9)
+            .opacity(shown ? 1 : 0)
+            .accessibilityHidden(!shown)
+            .accessibilityLabel("Unread")
     }
 }
 
@@ -172,13 +208,8 @@ struct InboxRow: View {
                         .lineLimit(1)
                 }
             }
-            Circle()
-                .fill(Color.accentColor)
-                .frame(width: 9, height: 9)
+            UnreadDot(shown: dot)
                 .padding(.top, 7)
-                .opacity(dot ? 1 : 0)
-                .accessibilityHidden(!dot)
-                .accessibilityLabel("Unread")
         }
         .frame(minHeight: 44)
         .contentShape(.rect)

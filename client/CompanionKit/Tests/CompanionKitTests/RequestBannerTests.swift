@@ -28,4 +28,15 @@ final class RequestBannerTests: XCTestCase {
         XCTAssertNil(RequestBanner(items([permission("c", "p2", ago: 10)]), current: "mac|c"))
         XCTAssertNil(RequestBanner(NeedsYouItem.collect([("mac", nil, shop, [permission("a", "p1", ago: 5)])], offline: ["mac"]), current: "mac|x"))
     }
+
+    func testNextWaitingPrefersThisWorkspaceThenOldest() {
+        let api = Workspace(id: "w2", name: "api")
+        let list = NeedsYouItem.collect([
+            ("mac", nil, shop, [permission("a", "p1", ago: 30), permission("b", "p2", ago: 10)]),
+            ("mac", nil, api, [permission("c", "p3", ago: 90)]),
+            ("mac2", nil, api, [permission("d", "p4", ago: 200)]),
+        ], offline: ["mac2"])
+        XCTAssertEqual(NeedsYouItem.next(list, after: "a", computer: "mac", workspace: "w1")?.session.id, "b")
+        XCTAssertEqual(NeedsYouItem.next(list, after: "c", computer: "mac", workspace: "w2")?.session.id, "a")
+    }
 }

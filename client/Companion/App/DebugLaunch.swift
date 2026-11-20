@@ -1,5 +1,6 @@
 #if DEBUG
 import Foundation
+import SwiftUI
 import UIKit
 import UserNotifications
 
@@ -48,7 +49,7 @@ enum DebugLaunch {
         return defaults.string(forKey: "fixtures").map { FixtureTransport(directory: URL(filePath: $0), offlineAfter: offline) }
     }
 
-    static func apply(model: CompanionModel, navigation: AppNavigation, pairing: PairingFlow, voice: VoiceSession) async {
+    static func apply(model: CompanionModel, navigation: AppNavigation, pairing: PairingFlow, voice: VoiceSession, notifier: LocalNotifier) async {
         let defaults = UserDefaults.standard
         if defaults.string(forKey: "orientation") == "landscape" {
             for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
@@ -74,14 +75,19 @@ enum DebugLaunch {
                 try? await Task.sleep(for: .milliseconds(100))
             }
             try? await Task.sleep(for: .seconds(defaults.double(forKey: "voiceDelay")))
-            voice.begin(into: defaults.bool(forKey: "voiceDictation") ? navigation.detail : nil)
+            voice.begin(into: defaults.bool(forKey: "voiceDictation") ? navigation.path.last.flatMap { AppNavigation.tag($0.destination) } : nil)
+        }
+        if let target = defaults.string(forKey: "notify"), let computer = model.computers.first {
+            let parts = target.split(separator: "/", maxSplits: 1).map(String.init)
+            try? await Task.sleep(for: .seconds(defaults.double(forKey: "notifyDelay")))
+            notifier.open(computer.id, parts[0], parts.count > 1 ? parts[1] : nil, active: true)
         }
         if let path = defaults.string(forKey: "doc"), let computer = model.computers.first {
             for _ in 0..<50 where model.connection(computer.id)?.state != .online {
                 try? await Task.sleep(for: .milliseconds(100))
             }
             if let connection = model.connection(computer.id), let workspace = defaults.string(forKey: "workspace") ?? navigation.workspace(for: connection)?.id {
-                navigation.openDoc(computer: computer.id, workspace: workspace, path: path)
+                withTransaction(\.disablesAnimations, true) { navigation.push(.doc(path: path, anchor: nil), in: WorkspaceKey(computer: computer.id, workspace: workspace)) }
             }
         }
     }
@@ -89,11 +95,10 @@ enum DebugLaunch {
     private static func navigate(model: CompanionModel, navigation: AppNavigation) async {
         let defaults = UserDefaults.standard
         guard let target = defaults.string(forKey: "open"), let computer = model.computers.first else { return }
-        if target == "sidebar" || target == "mac" || target == "connection" || target == "report" {
+        if target == "sidebar" || target == "mac" || target == "connection" || target == "report" || target == "pair" {
             try? await Task.sleep(for: .seconds(1))
-            navigation.sidebar = nil
-            navigation.preferredColumn = .sidebar
-            if target == "mac" || target == "connection" { navigation.showMac(computer.id) }
+            if target == "pair" { navigation.showingAddComputer = true }
+            if target == "mac" || target == "connection" { navigation.push(.macDetails(computer: computer.id)) }
             if target == "connection" {
                 try? await Task.sleep(for: .seconds(1))
                 navigation.connectionSheet = ConnectionSheet(computer: computer.id)
@@ -108,26 +113,74 @@ enum DebugLaunch {
             for _ in 0..<50 where model.connection(computer.id)?.usage == nil {
                 try? await Task.sleep(for: .milliseconds(100))
             }
-            navigation.open(computer: computer.id, plugin: AgentsPluginInfo.id)
+            navigation.switchTab(.agents)
             try? await Task.sleep(for: .seconds(1))
             navigation.usageSheet = UsageSheet(computer: computer.id)
             return
         }
-        let parts = target.split(separator: "/", maxSplits: 2).map(String.init)
         if let workspace = defaults.string(forKey: "workspace") {
             navigation.workspaces[computer.id] = workspace
         }
-        for _ in 0..<50 where model.connection(computer.id)?.state != .online {
+        for _ in 0..<200 where model.connection(computer.id)?.state != .online || model.connection(computer.id)?.workspaces.isEmpty != false {
             try? await Task.sleep(for: .milliseconds(100))
         }
-        navigation.sectionItem = parts.count > 2 ? parts[2] : nil
-        navigation.open(computer: computer.id, plugin: parts[0], detail: parts.count > 1 ? parts[1] : nil)
-        if let query = defaults.string(forKey: "search"), let connection = model.connection(computer.id), let workspace = navigation.workspace(for: connection) {
-            if parts[0] == BacklogPluginInfo.id {
-                model.backlog(computer: computer.id, workspace: workspace.id)?.searchQuery = query
-            } else {
-                model.agents(computer: computer.id, workspace: workspace.id)?.searchQuery = query
+        navigation.follow(model)
+        guard let connection = model.connection(computer.id), navigation.workspace(for: connection) != nil else { return }
+        if target.hasPrefix("docs/") {
+            withTransaction(\.disablesAnimations, true) {
+                navigation.switchTab(.agents)
+                navigation.push(.doc(path: String(target.dropFirst(5)), anchor: nil))
             }
+            return
+        }
+        guard let route = route(target, navigation: navigation) else { return }
+        withTransaction(\.disablesAnimations, true) {
+            navigation.switchTab(route.tab)
+            if let destination = route.destination {
+                navigation.showIn(route.tab, destination)
+            } else if !target.hasPrefix("tab:") {
+                navigation.popToRoot(route.tab)
+            }
+        }
+    }
+
+    private static func route(_ target: String, navigation: AppNavigation) -> (tab: CompanionTab, destination: Destination?)? {
+        if target.hasPrefix("tab:") {
+            return CompanionTab(rawValue: String(target.dropFirst(4))).map { ($0, nil) }
+        }
+        if target.hasPrefix("push:") {
+            return destination(String(target.dropFirst(5)), computer: navigation.computer).map { ($0.tab ?? .agents, $0) }
+        }
+        let parts = target.split(separator: "/", maxSplits: 2).map(String.init)
+        switch parts[0] {
+        case InboxPluginInfo.id:
+            return (.agents, .inbox)
+        case DocsPluginInfo.id:
+            return (.agents, nil)
+        default:
+            let tab = CompanionPlugins.plugin(parts[0])?.tab ?? .agents
+            guard parts.count > 1 else { return (tab, nil) }
+            navigation.sectionItem = parts.count > 2 ? parts[2] : nil
+            if tab == .agents, GateEntry.matches(parts[1]) {
+                navigation.sectionItem = parts[1]
+                return (tab, .section(id: GateEntry.section, item: nil))
+            }
+            return (tab, AppNavigation.destination(parts[1], tab: tab))
+        }
+    }
+
+    private static func destination(_ text: String, computer: String?) -> Destination? {
+        let parts = text.split(separator: "/", maxSplits: 1).map(String.init)
+        let value = parts.count > 1 ? parts[1] : nil
+        switch (parts.first, value) {
+        case ("session", let id?): return .session(id)
+        case ("run", let id?): return .run(id)
+        case ("task", let number?): return Int(number).map(Destination.task)
+        case ("doc", let path?): return .doc(path: path, anchor: nil)
+        case ("section", let id?): return .section(id: id, item: nil)
+        case ("inbox", nil): return .inbox
+        case ("mac", nil): return computer.map { .macDetails(computer: $0) }
+        default: return nil
         }
     }
 }

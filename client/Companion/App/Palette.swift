@@ -10,6 +10,7 @@ extension Color {
     static let onWarning = Color(light: 0x1A1300, dark: 0x1A1300)
     static let danger = Color(light: 0xC93A30, dark: 0xFF6B5E)
     static let dangerInk = Color(light: 0xB23A33, dark: 0xFF7A6E)
+    static let listGround = Color(light: 0xF2F2F7, dark: 0x000000)
     static let surface1 = Color(light: 0xFFFFFF, dark: 0x1C1C1E)
     static let surface2 = Color(light: 0xE9E9EE, dark: 0x2C2C2E)
     static let selectedRow = Color(light: 0xE3ECE1, dark: 0x37412A)

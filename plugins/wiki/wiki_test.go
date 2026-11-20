@@ -115,7 +115,7 @@ func TestDeleteIsDestructive(t *testing.T) {
 			assert.Equal(t, c.ID == "wiki.delete", c.Destructive, c.ID)
 		}
 	}
-	assert.Equal(t, 6, seen)
+	assert.Equal(t, 7, seen)
 }
 
 func TestSectionShowsNewestPageAndDeletes(t *testing.T) {

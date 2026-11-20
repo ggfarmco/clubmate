@@ -93,6 +93,28 @@
         }
       },
       {
+        "id": "wiki.locate",
+        "title": "Locate a path in the wiki",
+        "hidden": true,
+        "remote": true,
+        "description": "Tell whether an absolute path (optionally with #anchor) is a page of a wiki project of this workspace. Opens nothing and selects nothing. Returns an empty object for any other path in the workspace; fails with not in workspace for a relative path or one outside the workspace's folders and wikis. With home, returns the wiki's home page instead (path is ignored), or an empty object when the wiki has no page.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "Absolute path, may end in #anchor."},
+            "home": {"type": "boolean", "description": "Return the home page: the first project's root index.md, else its root README.md, else the first page of its tree."}
+          }
+        },
+        "result": {
+          "properties": {
+            "id": {"type": "string", "description": "Page id in the section's tree: <project>/<page>."},
+            "path": {"type": "string", "description": "Absolute path of the page file."},
+            "title": {"type": "string", "description": "Page title."},
+            "anchor": {"type": "string", "description": "The fragment of the path, when it had one."},
+            "history": {"type": "boolean", "description": "The fragment is wiki:history: the Mac opens the page's History for it."}
+          }
+        }
+      },
+      {
         "id": "wiki.write",
         "title": "Write wiki page",
         "hidden": true,

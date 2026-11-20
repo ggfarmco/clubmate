@@ -971,6 +971,7 @@ struct QueueSection: View {
                         QueuedLine(item: item, queuedLine: model.connection(item.computer)?.queuedLine ?? "Queued", sendAgain: sendAgain(item), report: report(item)) {
                             queue.cancel(item)
                         }
+                        .columnRow()
                     }
                 }
             }
@@ -978,6 +979,7 @@ struct QueueSection: View {
                 Section {
                     QueueNoteRow(note: note) { queue.dismiss(note) }
                         .listRowInsets(EdgeInsets())
+                        .columnRow()
                 }
             }
         }
