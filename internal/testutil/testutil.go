@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,6 +31,7 @@ import (
 const (
 	testKillGrace = 300 * time.Millisecond
 	binCacheTTL   = 24 * time.Hour
+	binRootMarker = ".root"
 )
 
 type builtBinary struct {
@@ -252,6 +255,9 @@ func build(pkg string) (string, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
+	if err := writeRootMarker(dir, root); err != nil {
+		return "", err
+	}
 	out := filepath.Join(dir, filepath.Base(pkg))
 	tmp, err := os.CreateTemp(dir, filepath.Base(pkg)+".*")
 	if err != nil {
@@ -277,11 +283,46 @@ func pruneBinCache(dir string, before time.Time) {
 		return
 	}
 	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		entry := filepath.Join(dir, e.Name())
 		info, err := e.Info()
-		if err == nil && e.IsDir() && info.ModTime().Before(before) {
-			os.RemoveAll(filepath.Join(dir, e.Name()))
+		if err == nil && info.ModTime().Before(before) || rootGone(entry) {
+			os.RemoveAll(entry)
 		}
 	}
+}
+
+func writeRootMarker(dir, root string) error {
+	marker := filepath.Join(dir, binRootMarker)
+	if cur, err := os.ReadFile(marker); err == nil && string(cur) == root {
+		return nil
+	}
+	tmp, err := os.CreateTemp(dir, binRootMarker+".*")
+	if err != nil {
+		return err
+	}
+	_, err = tmp.WriteString(root)
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Rename(tmp.Name(), marker)
+	}
+	if err != nil {
+		os.Remove(tmp.Name())
+	}
+	return err
+}
+
+func rootGone(entry string) bool {
+	root, err := os.ReadFile(filepath.Join(entry, binRootMarker))
+	if err != nil || strings.TrimSpace(string(root)) == "" {
+		return false
+	}
+	_, err = os.Stat(string(root))
+	return errors.Is(err, fs.ErrNotExist)
 }
 
 type buildError struct {
