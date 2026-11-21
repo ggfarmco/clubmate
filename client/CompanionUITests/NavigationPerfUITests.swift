@@ -74,6 +74,10 @@ final class NavigationPerfUITests: XCTestCase {
         measure(metrics: metrics(app), options: manual) {
             let card = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Started by'")).firstMatch
             XCTAssertTrue(card.waitForExistence(timeout: 10))
+            for _ in 0..<20 {
+                if card.isHittable { break }
+                app.swipeDown(velocity: .fast)
+            }
             startMeasuring()
             Self.log.info("step switch begin \(Self.parent.id, privacy: .public)")
             card.tap()

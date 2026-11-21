@@ -1086,6 +1086,7 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Last reply of the long session"].waitForExistence(timeout: 10))
         XCTAssertFalse(first.exists)
         let earlier = app.buttons["earlier-rows"]
+        scrollToTop(earlier, in: app)
         earlier.tap()
         let window = app.windows.firstMatch
         XCTAssertTrue(poll { first.exists && window.frame.contains(first.frame) })
@@ -1099,6 +1100,7 @@ final class CompanionUITests: XCTestCase {
         let window = app.windows.firstMatch
         for (label, first) in [("Show 100 earlier · 111 left", "Reply 6"), ("Show 11 earlier", "Turn 1: go on")] {
             XCTAssertEqual(earlier.label, label)
+            scrollToTop(earlier, in: app)
             earlier.tap()
             let landed = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", first)).firstMatch
             XCTAssertTrue(poll { landed.exists && window.frame.contains(landed.frame) }, "\(label) did not land on \(first)")
@@ -1597,8 +1599,19 @@ final class CompanionUITests: XCTestCase {
         return CGRect(x: window.minX, y: window.minY + 200, width: window.width, height: window.height - 350)
     }
 
+    private func scrollToTop(_ element: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<30 {
+            if element.exists && element.isHittable { return }
+            app.swipeDown(velocity: .fast)
+        }
+    }
+
     private func bringIntoView(_ element: XCUIElement, in app: XCUIApplication) {
         for _ in 0..<60 {
+            guard element.exists else {
+                app.swipeDown(velocity: .fast)
+                continue
+            }
             let band = band(app)
             let frame = element.frame
             if band.contains(frame) { return }

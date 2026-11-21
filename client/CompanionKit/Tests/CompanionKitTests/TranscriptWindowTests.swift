@@ -37,6 +37,22 @@ final class TranscriptWindowTests: XCTestCase {
         XCTAssertEqual(window.skip(grown), 50)
     }
 
+    func testDrawsTheLastRowsFirstKeepsThemWhileRowsArriveAndDrawsMoreOnRequest() throws {
+        var window = TranscriptWindow()
+        let all = try rows(300)
+        window.update(count: all.count, atBottom: true)
+        window.pin(all)
+        XCTAssertEqual(window.drawn(all), 290)
+        let grown = try rows(305)
+        window.update(count: grown.count, atBottom: false)
+        window.pin(grown)
+        XCTAssertEqual(window.drawn(grown), 290)
+        window.drawMore(grown)
+        XCTAssertEqual(window.drawn(grown), 280)
+        window.showEarlier(grown)
+        XCTAssertEqual(window.drawn(grown), window.skip(grown))
+    }
+
     func testTheBottomCountsTheTopInset() {
         XCTAssertTrue(TranscriptWindow.atBottom(offset: 8264, insetTop: 184, container: 573, content: 9022))
         XCTAssertFalse(TranscriptWindow.atBottom(offset: 8100, insetTop: 184, container: 573, content: 9022))

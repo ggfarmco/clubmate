@@ -32,6 +32,9 @@ struct SessionDetailView: View {
     @State private var archiving = false
     @State private var window = TranscriptWindow()
     @State private var atBottom = ScrollFlag()
+    @State private var growing = false
+    @State private var scrolled = false
+    @State private var moreVisible = false
     @State private var draftSeen: Int?
     @State private var showingAsides = false
     @State private var pickedAside: String?
@@ -47,6 +50,20 @@ struct SessionDetailView: View {
         var next = window
         next.update(count: count, atBottom: atBottom)
         if next != window { window = next }
+    }
+
+    private func pin(_ rows: [TranscriptRow]) {
+        var next = window
+        next.pin(rows)
+        if next != window { window = next }
+    }
+
+    private func drawMore(_ rows: [TranscriptRow], keepingOffset: Bool) {
+        var next = window
+        next.drawMore(rows)
+        guard next != window else { return }
+        growing = keepingOffset
+        window = next
     }
 
     private var mode: SessionRole {
@@ -134,6 +151,7 @@ struct SessionDetailView: View {
         let queued = store.queue?.item(sessionID)
         let rows = screen.rows
         let skip = window.skip(rows)
+        let drawn = window.drawn(rows)
         let cardTyping = typingInCard(screen)
         let keySend: (() -> Void)? = cardTyping ? nil : { send() }
         let answerDocked = switch screen.dock {
@@ -158,7 +176,15 @@ struct SessionDetailView: View {
                 if skip > 0 {
                     EarlierRowsButton(left: skip, page: TranscriptWindow.page) { window.showEarlier(rows) }
                 }
-                ForEach(Self.blocks(Array(rows[skip...]), paired: width >= Self.pairedWidth), id: \.[0].id) { block in
+                if drawn > skip {
+                    Color.clear
+                        .frame(height: 1)
+                        .onScrollVisibilityChange(threshold: 0.01) { visible in
+                            moreVisible = visible
+                            if visible && scrolled { drawMore(rows, keepingOffset: true) }
+                        }
+                }
+                ForEach(Self.blocks(Array(rows[drawn...]), paired: width >= Self.pairedWidth), id: \.[0].id) { block in
                     if block.count == 2 {
                         HStack(alignment: .top, spacing: 10) {
                             RowView(row: block[0])
@@ -235,6 +261,7 @@ struct SessionDetailView: View {
             .frame(maxWidth: .infinity)
             .onChange(of: rows.count, initial: true) { _, count in
                 if transcript != nil { updateWindow(count: count, atBottom: atBottom.value) }
+                pin(rows)
             }
         }
         .environment(\.subagentStop, context.connection.supports("agents.stop-subagent") ? SubagentStop(session: sessionID, enabled: blocked == nil) { id in
@@ -281,6 +308,17 @@ struct SessionDetailView: View {
         } action: { _, bottom in
             atBottom.value = bottom
             if transcript != nil { updateWindow(count: rows.count, atBottom: bottom) }
+        }
+        .onScrollGeometryChange(for: ScrollGeometry.self) { $0 } action: { old, new in
+            if new.contentSize.height < new.containerSize.height { drawMore(rows, keepingOffset: false) }
+            guard growing, new.contentSize.height != old.contentSize.height else { return }
+            growing = false
+            position.scrollTo(y: new.contentOffset.y + new.contentInsets.top + new.contentSize.height - old.contentSize.height)
+        }
+        .onScrollPhaseChange { _, phase in
+            guard phase == .interacting || phase == .decelerating else { return }
+            scrolled = true
+            if moreVisible { drawMore(rows, keepingOffset: true) }
         }
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom)
