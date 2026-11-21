@@ -123,7 +123,7 @@ Global caps, so a tunnel flood cannot starve `/v1/push` in the same process:
 | Cap | Default | Over it |
 |---|---|---|
 | Mac streams (above the 20 000 self sign-up cap) | 25 000 | `429` `quota: mac-streams` on `GET /v1/mac/stream`, `Retry-After: 60` |
-| Mac streams from one client IP (IPv6 as its /64, the same client IP as the sign-up limit) (`MacStreamsPerIP`) | 32 | `429` `quota: ip-mac-streams` on a new Mac's `GET /v1/mac/stream`, `Retry-After: 60`; a Mac that replaces its own stream from the same IP is let in |
+| Mac streams from one client IP (IPv6 as its /64, the same client IP as the sign-up limit) (`MacStreamsPerIP`) | 32 | `429` `quota: ip-mac-streams` on a new Mac's `GET /v1/mac/stream`, `Retry-After: 60`; a Mac that replaces its own stream from the same IP is let in. The cap counts every Mac, trusted ones (`token add`) too, unlike the report IP limit in [push-relay.md](push-relay.md), which trusted Macs skip: more than 32 Macs behind one NAT or one IPv6 /64 get this `429` |
 | bytes of all self-signed Macs together per UTC day (`SelfBytesPerDayAll`) | 200 GiB | `429` `quota: self-bytes` to self-signed Macs only, on the requests that the per-Mac byte quota refuses, `Retry-After` until 00:00 UTC; Macs with a token from `token add` are not affected |
 | channels (open and opening) | 100 000 | idle channels are dropped first, then `429` on `open` |
 | tunnel requests in progress | 10 000 | `429` on any tunnel route |
