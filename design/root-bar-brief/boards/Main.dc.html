@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Root bar today</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#357A27}a:hover{color:#1F4F18}
+</style>
+</helmet>
+<div style="width: 1800px; height: 2100px; box-sizing: border-box; padding: 48px; background: #F2F2F7; font-family: Inter, system-ui, sans-serif; color: #1C1C1E; display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h1 style="margin: 0; font-size: 40px; line-height: 48px">Root bar today: capsule · inbox · mic · compose</h1>
+<p style="margin: 0; font-size: 18px; line-height: 26px; color: #636366; max-width: 1500px">Every tab root (Agents, Backlog, Wiki, More) has the workspace capsule top left and one glass group top right: inbox tray with an amber dot, mic (press and hold), compose. Capsule, inbox and mic are custom SwiftUI views hosted in the bar; compose is a plain native bar button. On iPad the same items sit over the list column.</p>
+</div>
+<div style="display: flex; gap: 40px">
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><img src="/_blob/29ed8679b197c8555190f4811bce6996" alt="iPhone Agents dark" style="width: 393px; height: 854px; border-radius: 40px"><figcaption style="font-size: 15px; color: #636366">iPhone · Agents · dark</figcaption></figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><img src="/_blob/52fd2c9344bcb20c4bb6a3420ff82127" alt="iPhone Agents light" style="width: 393px; height: 854px; border-radius: 40px"><figcaption style="font-size: 15px; color: #636366">iPhone · Agents · light</figcaption></figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><img src="/_blob/b707dea5cbbee97cd342e27f73bddec4" alt="iPhone Backlog dark" style="width: 393px; height: 854px; border-radius: 40px"><figcaption style="font-size: 15px; color: #636366">iPhone · Backlog · dark</figcaption></figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><img src="/_blob/42a4dee4332adc0e8f9a7715b5127595" alt="iPhone Backlog light" style="width: 393px; height: 854px; border-radius: 40px"><figcaption style="font-size: 15px; color: #636366">iPhone · Backlog · light</figcaption></figure>
+</div>
+<div style="display: flex; gap: 40px">
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><img src="/_blob/8df762378cbdbbbfaf6826a9c083dabf" alt="iPad Agents dark" style="width: 551px; height: 800px; border-radius: 24px"><figcaption style="font-size: 15px; color: #636366">iPad 11" portrait · Agents · dark</figcaption></figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><img src="/_blob/ee923452d593a0861a0cf84b3d5c4917" alt="iPad Agents light" style="width: 551px; height: 800px; border-radius: 24px"><figcaption style="font-size: 15px; color: #636366">iPad 11" portrait · Agents · light</figcaption></figure>
+<div style="flex: 1; display: flex; flex-direction: column; gap: 12px; font-size: 17px; line-height: 25px">
+<h2 style="margin: 0; font-size: 24px">What hurts</h2>
+<p style="margin: 0">Back swipe from a session to this list: mid-swipe the bar keeps the session's chevron and •••; the root items show only when the swipe ends, with a glass fade. Users read it as a hitch.</p>
+<p style="margin: 0">Measured main-thread cost of the three hosted items: ~43 ms per push, ~48–58 ms per pop. One hosted item costs ~24 ms even in a bare SwiftUI app; a plain native Button or Menu item costs ~0 and animates with the bar.</p>
+<p style="margin: 0">Target: root bar cost per pop ≤ ~10 ms, so every item must be native (ToolbarItem / ToolbarItemGroup with Button or Menu and a Label or Image, system glass grouping, system badge).</p>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1800,"height":2100}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

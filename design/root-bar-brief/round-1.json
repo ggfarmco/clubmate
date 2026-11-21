@@ -1,0 +1,18 @@
+{
+  "title": "Root bar · round 1 · ruled",
+  "fit": 1200,
+  "css": ["r1-a.css", "r1-b.css"],
+  "intro": [
+    "Claude Design, 21 Nov. Companion root bar with native items only (hosted custom views cost ~48 ms per back move and draw only when a swipe ends). iPhone 18 Pro dark + light, iPad.",
+    "Ruling: capsule = Text-only stock Menu; Mac offline in the system subtitle; Inbox = tray / tray.full.fill, no badge, own glass; top trailing = [Inbox] · [New]. Voice leaves the top bar: a voice bar in tabViewBottomAccessory on tab roots (hold to talk, tap for hands-free), the same view in a bottom safe-area inset on composer-less pushed pages (the floating mic retires). Fallback: native top-bar mic, tap only. Gate: root bar ≤ 10 ms per push and pop, items move with the bar mid-swipe.",
+    "Q3 Mic and Q4 Order still show the mic in the top bar (the B3 fallback); Q3b and the ruling board override them."
+  ],
+  "boards": [
+    {"file": "R1-Ruling.dc.html", "w": 1720, "title": "Ruling · per item, must stay / may change / SwiftUI API", "caption": "Nine lines ruled on the draft, colour roles, data, device checks."},
+    {"file": "R1-Q3b-Mic-bottom.dc.html", "w": 1960, "title": "Q3b · Mic top or bottom (B1 · B2 · B3 · B4)", "caption": "Ruled B2: voice bar in the tab bar accessory; B4 floating mic and composer-less pushed pages compared."},
+    {"file": "R1-Q1-Capsule.dc.html", "w": 1720, "title": "Q1 · Workspace capsule and Mac offline", "caption": "Text label only, offline in the subtitle, stock menu with inline Picker."},
+    {"file": "R1-Q2-Inbox.dc.html", "w": 1720, "title": "Q2 · Inbox mark", "caption": "tray → tray.full.fill; amber prominent in reserve; system badge rejected."},
+    {"file": "R1-Q3-Mic.dc.html", "w": 1720, "title": "Q3 · Mic in the top bar (fallback B3)", "caption": "Tap-toggle, waveform prominent while listening, Send · Cancel long-press menu."},
+    {"file": "R1-Q4-Order-iPad.dc.html", "w": 1720, "title": "Q4 · Order and grouping, iPad", "caption": "Drawn with the mic in the top bar; with B2 the trailing side is [Inbox] · [New]."}
+  ]
+}

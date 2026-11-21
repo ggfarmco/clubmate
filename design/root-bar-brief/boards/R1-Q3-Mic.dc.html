@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mic and listening</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/31ad2da29136b73faec06ecbe6a68f2d">
+<link rel="stylesheet" href="/_blob/9b269f6bbd9ab9335eedd14ae0e3d60c">
+<link rel="stylesheet" href="/_blob/8404f4a1ffa11758ef1ead9d9ac4b565">
+<link rel="stylesheet" href="/_blob/cbceea1b9e4923e8ec10f8452c9e45bb">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.strip{position:relative;width:402px;height:116px;border-radius:44px 44px 16px 16px;overflow:hidden;flex:none}
+.strip.tall{height:250px}
+.tb{position:absolute;left:16px;right:16px;top:59px;height:44px;display:flex;align-items:center;gap:8px;z-index:8}
+.tb .sp{flex:1}
+.wsb.cap17{font-size:17px;font-weight:500;padding:0 16px}
+.gpill>button.prom{background:var(--ac);color:var(--on-ac);border-radius:22px}
+.gpill>button.dim{opacity:.32}
+.veil{position:absolute;inset:0;background:color-mix(in srgb,var(--bg) 55%,transparent);z-index:9}
+.lift{position:absolute;top:59px;right:16px;z-index:10;height:44px;display:flex;align-items:center}
+.cmenu{position:absolute;top:112px;right:16px;width:230px;border-radius:24px;background:var(--s2);box-shadow:var(--sh);z-index:10;padding:6px 0;font-size:17px;line-height:22px}
+.th-clight .cmenu{background:#FFFFFF}
+.cmenu .mr{display:flex;align-items:center;justify-content:space-between;height:48px;padding:0 20px}
+.cmenu .mr+.mr{border-top:1px solid var(--bd)}
+.cmenu svg.i{width:20px;height:20px;stroke-width:1.8}
+.bot{position:relative;width:402px;height:120px;border-radius:16px 16px 44px 44px;overflow:hidden;flex:none}
+.bot .cmp{position:absolute;left:16px;right:16px;top:20px}
+.bot .fld{font-size:17px}
+.bot .gbtn.hold{background:var(--ac);color:var(--on-ac);box-shadow:0 0 0 6px var(--ac-bg)}
+.lab{display:flex;flex-direction:column;gap:8px;align-self:center}
+.note{font-size:14px;line-height:21px;color:#2C302D;align-self:center}
+.box{display:flex;flex-direction:column;gap:10px;padding:20px 22px}
+</style>
+</helmet>
+<div class="doc r1 r2" style="width: 1720px; height: 1500px; padding: 48px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 560px; gap: 64px; padding-bottom: 28px; border-bottom: 1.5px solid #1B1D1C">
+<div style="display: flex; flex-direction: column; gap: 12px"><div class="eyebrow">Round 1 · Q3 · iPhone 18 Pro 402 pt · dark + light</div><h1>Mic and its listening state</h1><p class="lead">Option (a). On the root the mic is a stock button: tap starts, tap sends. While listening it becomes filled accent glass with a waveform, and a long press opens the system menu Send · Cancel. Press and hold stays on the composer mic inside a session, where it is content, not bar.</p></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><h3>Rules shown here</h3><ul style="font-size: 15px"><li><b>Listening</b> = Mate green prominent glass. Green in the bar only ever means live.</li><li><b>Cancel</b> is a menu item with no destructive role: red stays failure.</li><li><b>Offline</b>: <code>.disabled</code>, same glyph; the subtitle says why (Q1).</li></ul></div>
+</div>
+
+<div style="display: grid; grid-template-columns: 230px 402px 402px minmax(0, 1fr); column-gap: 40px; row-gap: 28px">
+<span></span><span class="eyebrow" style="color: #5B5F5C">dark</span><span class="eyebrow" style="color: #5B5F5C">light</span><span></span>
+
+<div class="lab"><span><span class="tag a">A · ruled</span></span><h3>Idle</h3></div>
+<div class="cm comp th-cdark dev strip"><div class="isl"></div><div class="tb"><button class="wsb glass cap17">shop</button><span class="sp"></span><div class="gpill glass"><button aria-label="Inbox"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 6.2A2 2 0 0 1 7.5 5h9a2 2 0 0 1 1.9 1.2L21 13.5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5"/></svg></button></div><div class="gpill glass"><button aria-label="Voice"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button></div></div></div>
+<div class="cm comp th-clight dev strip"><div class="isl"></div><div class="tb"><button class="wsb glass cap17">shop</button><span class="sp"></span><div class="gpill glass"><button aria-label="Inbox"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 6.2A2 2 0 0 1 7.5 5h9a2 2 0 0 1 1.9 1.2L21 13.5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5"/></svg></button></div><div class="gpill glass"><button aria-label="Voice"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button></div></div></div>
+<p class="note"><code>Button("Voice", systemImage: "mic")</code>. Tap starts listening. No hold gesture in the bar.</p>
+
+<div class="lab"><span><span class="tag a">A · ruled</span></span><h3>Listening</h3><p class="muted" style="font-size: 13px">Tap sends</p></div>
+<div class="cm comp th-cdark dev strip"><div class="isl"></div><div class="tb"><button class="wsb glass cap17">shop</button><span class="sp"></span><div class="gpill glass"><button aria-label="Inbox"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 6.2A2 2 0 0 1 7.5 5h9a2 2 0 0 1 1.9 1.2L21 13.5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5"/></svg></button></div><div class="gpill glass"><button class="prom" aria-label="Send voice message"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 10.5v3"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button></div></div></div>
+<div class="cm comp th-clight dev strip"><div class="isl"></div><div class="tb"><button class="wsb glass cap17">shop</button><span class="sp"></span><div class="gpill glass"><button aria-label="Inbox"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 6.2A2 2 0 0 1 7.5 5h9a2 2 0 0 1 1.9 1.2L21 13.5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5"/></svg></button></div><div class="gpill glass"><button class="prom" aria-label="Send voice message"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 10.5v3"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button></div></div></div>
+<p class="note">Filled accent glass, as today, drawn by the system: <code>.buttonStyle(.glassProminent).tint(.accent)</code>. The glyph is <code>waveform</code>, which says "listening"; <code>mic.fill</code> would only say "on". Fallback if prominent measures hosted: a plain <code>waveform</code>.</p>
+
+<div class="lab"><span><span class="tag a">A · ruled</span></span><h3>Listening · long press</h3><p class="muted" style="font-size: 13px">System menu replaces "press while sending cancels"</p></div>
+<div class="cm comp th-cdark dev strip tall"><div class="isl"></div><div class="tb"><button class="wsb glass cap17">shop</button><span class="sp"></span><div class="gpill glass"><button aria-label="Inbox"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 6.2A2 2 0 0 1 7.5 5h9a2 2 0 0 1 1.9 1.2L21 13.5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5"/></svg></button></div><div class="gpill glass"><button class="prom" aria-label="Send voice message"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 10.5v3"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button></div></div><div class="veil"></div><div class="cmenu"><div class="mr"><span>Send</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></div><div class="mr"><span>Cancel</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></div></div></div>
+<div class="cm comp th-clight dev strip tall"><div class="isl"></div><div class="tb"><button class="wsb glass cap17">shop</button><span class="sp"></span><div class="gpill glass"><button aria-label="Inbox"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 6.2A2 2 0 0 1 7.5 5h9a2 2 0 0 1 1.9 1.2L21 13.5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5"/></svg></button></div><div class="gpill glass"><button class="prom" aria-label="Send voice message"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 10.5v3"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button></div></div><div class="veil"></div><div class="cmenu"><div class="mr"><span>Send</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></div><div class="mr"><span>Cancel</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></div></div></div>
+<p class="note"><code>Menu(primaryAction:)</code>: tap runs Send, long press opens the menu. It's all system: no gesture of ours, and the item stays native. Cancel is a plain item, not <code>role: .destructive</code>. The idle mic stays a plain Button with no menu.</p>
+
+<div class="lab"><span><span class="tag a">A · ruled</span></span><h3>Mac offline</h3></div>
+<div class="cm comp th-cdark dev strip"><div class="isl"></div><div class="tb"><button class="wsb glass cap17">shop</button><span class="sp"></span><div class="gpill glass"><button aria-label="Inbox"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 6.2A2 2 0 0 1 7.5 5h9a2 2 0 0 1 1.9 1.2L21 13.5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5"/></svg></button></div><div class="gpill glass"><button class="dim" aria-label="Voice, unavailable while the Mac is offline" disabled><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button></div></div></div>
+<div class="cm comp th-clight dev strip"><div class="isl"></div><div class="tb"><button class="wsb glass cap17">shop</button><span class="sp"></span><div class="gpill glass"><button aria-label="Inbox"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 6.2A2 2 0 0 1 7.5 5h9a2 2 0 0 1 1.9 1.2L21 13.5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5"/></svg></button></div><div class="gpill glass"><button class="dim" aria-label="Voice, unavailable while the Mac is offline" disabled><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button></div></div></div>
+<p class="note"><code>.disabled(!mac.isOnline)</code>: the system dims it. The glyph stays <code>mic</code> (the draft's <code>mic.slash</code> goes). The subtitle under the large title says why.</p>
+
+<div class="lab"><span><span class="tag a">Unchanged</span></span><h3>In a session: composer</h3><p class="muted" style="font-size: 13px">Press and hold lives here</p></div>
+<div class="cm comp th-cdark dev bot"><div class="cmp"><div class="fld glass">Message</div><button class="gbtn hold" aria-label="Hold to talk"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" style="fill: currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button></div></div>
+<div class="cm comp th-clight dev bot"><div class="cmp"><div class="fld glass">Message</div><button class="gbtn hold" aria-label="Hold to talk"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" style="fill: currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button></div></div>
+<p class="note">The composer mic sits in content, not in the bar, so it costs nothing on push or pop. It keeps both gestures: tap toggles, press and hold talks and release sends. Drawn here mid-hold.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px">
+<div class="panel box"><h3><span class="tag a">Ruled</span> (a) tap-toggle in the bar</h3><p style="font-size: 14px; line-height: 21px">Every root keeps one-tap voice. Hold-to-talk moves to the place people already hold the phone to talk: the session composer.</p></div>
+<div class="panel box"><h3><span class="tag">Not taken</span> (b) mic out of the bar</h3><p style="font-size: 14px; line-height: 21px">A search-role tab borrows a slot iOS reserves for search. A bottom accessory sits on every tab, takes height above the tab bar, and is still a hosted view that redraws on every tab-bar return.</p></div>
+<div class="panel box"><h3><span class="tag">Not taken</span> (c) keep it custom</h3><p style="font-size: 14px; line-height: 21px">That keeps one hosted item (~24 ms per move) and the end-of-swipe pop-in that started this round, all to keep one gesture.</p></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1720,"height":1500}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

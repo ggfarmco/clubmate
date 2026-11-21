@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Order and grouping</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/31ad2da29136b73faec06ecbe6a68f2d">
+<link rel="stylesheet" href="/_blob/9b269f6bbd9ab9335eedd14ae0e3d60c">
+<link rel="stylesheet" href="/_blob/8404f4a1ffa11758ef1ead9d9ac4b565">
+<link rel="stylesheet" href="/_blob/cbceea1b9e4923e8ec10f8452c9e45bb">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.strip{position:relative;width:402px;height:116px;border-radius:44px 44px 16px 16px;overflow:hidden;flex:none}
+.strip.an{height:140px}
+.tb{position:absolute;left:16px;right:16px;top:59px;height:44px;display:flex;align-items:center;gap:8px;z-index:8}
+.tb .sp{flex:1}
+.wsb.cap17{font-size:17px;font-weight:500;padding:0 16px}
+.n2{position:absolute;top:110px;width:22px;height:22px;border-radius:11px;background:var(--ms);color:#FFFFFF;font:600 12px/22px 'IBM Plex Sans',sans-serif;text-align:center;z-index:12}
+.pad{position:relative;width:834px;height:170px;border-radius:22px 22px 10px 10px;overflow:hidden;flex:none}
+.pad .lc{position:absolute;left:0;top:0;bottom:0;width:360px;border-right:1px solid var(--bd)}
+.pad .tb{left:12px;right:12px;top:24px}
+.pad .srch{position:absolute;left:12px;right:12px;top:86px;height:44px;border-radius:22px;background:var(--s2);display:flex;align-items:center;gap:8px;padding:0 14px;color:var(--t3);font-size:17px}
+.pad .srch svg.i{width:20px;height:20px;stroke-width:1.8}
+.pad .det{position:absolute;left:360px;right:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;color:var(--t4);font-size:15px}
+.lab{display:flex;flex-direction:column;gap:8px;align-self:center}
+.note{font-size:14px;line-height:21px;color:#2C302D;align-self:center;display:flex;flex-direction:column;gap:8px}
+.x{opacity:.55}
+.leg{display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:20px}
+.leg span.k{display:inline-flex;width:22px;height:22px;border-radius:11px;background:#2F6FEB;color:#FFFFFF;font:600 12px/22px 'IBM Plex Sans',sans-serif;justify-content:center;margin-right:8px;flex:none}
+.leg div{display:flex;align-items:flex-start}
+</style>
+</helmet>
+<div class="doc r1 r2" style="width: 1720px; height: 1300px; padding: 48px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 560px; gap: 64px; padding-bottom: 28px; border-bottom: 1.5px solid #1B1D1C">
+<div style="display: flex; flex-direction: column; gap: 12px"><div class="eyebrow">Round 1 · Q4 · iPhone 18 Pro 402 pt + iPad 11" portrait · dark + light</div><h1>Order and grouping</h1><p class="lead">Two glass groups on the trailing side: <b>[Inbox] · [Voice · New]</b>. Inbox is a place with a status mark; Voice and New both make something. New stays trailing-most. iPad is the same over the list column, and the sidebar toggle keeps its own glass where the system puts it.</p></div>
+<div class="leg"><h3 style="margin-bottom: 4px">Toolbar anatomy (numbers on the strip)</h3><div><span class="k">1</span><span><code>ToolbarItem(placement: .topBarTrailing) { inbox }</code></span></div><div><span class="k">2</span><span><code>ToolbarSpacer(.fixed, placement: .topBarTrailing)</code></span></div><div><span class="k">3</span><span><code>ToolbarItemGroup(placement: .topBarTrailing) { voice; new }</code></span></div><p class="muted" style="font-size: 13px">Blue = annotation only, never an app colour.</p></div>
+</div>
+
+<div style="display: grid; grid-template-columns: 230px 402px 402px minmax(0, 1fr); column-gap: 40px; row-gap: 28px">
+<span></span><span class="eyebrow" style="color: #5B5F5C">iPhone · dark</span><span class="eyebrow" style="color: #5B5F5C">iPhone · light</span><span></span>
+
+<div class="lab x"><span><span class="tag">Draft</span></span><h3>One group</h3></div>
+<div class="cm comp th-cdark dev strip x"><div class="isl"></div><div class="tb"><button class="wsb glass cap17">shop</button><span class="sp"></span><div class="gpill glass"><button aria-label="Inbox, 1 needs you"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 6.2A2 2 0 0 1 7.5 5h9a2 2 0 0 1 1.9 1.2L21 13.5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" style="fill: currentColor"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5M8 8.5h8M7 11h10" style="stroke: var(--s1)"/></svg></button><button aria-label="Voice"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button></div></div></div>
+<div class="cm comp th-clight dev strip x"><div class="isl"></div><div class="tb"><button class="wsb glass cap17">shop</button><span class="sp"></span><div class="gpill glass"><button aria-label="Inbox, 1 needs you"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 6.2A2 2 0 0 1 7.5 5h9a2 2 0 0 1 1.9 1.2L21 13.5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" style="fill: currentColor"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5M8 8.5h8M7 11h10" style="stroke: var(--s1)"/></svg></button><button aria-label="Voice"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button></div></div></div>
+<p class="note x">In one capsule the inbox's state mark sits between two actions and reads as one of them, and the listening circle ends up beside the inbox glyph.</p>
+
+<div class="lab"><span><span class="tag a">Ruled</span></span><h3>[Inbox] · [Voice · New]</h3></div>
+<div class="cm comp th-cdark dev strip an"><div class="isl"></div><div class="tb"><button class="wsb glass cap17">shop</button><span class="sp"></span><div class="gpill glass"><button aria-label="Inbox, 1 needs you"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 6.2A2 2 0 0 1 7.5 5h9a2 2 0 0 1 1.9 1.2L21 13.5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" style="fill: currentColor"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5M8 8.5h8M7 11h10" style="stroke: var(--s1)"/></svg></button></div><div class="gpill glass"><button aria-label="Voice"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button></div></div><span class="n2" style="left: 245px">1</span><span class="n2" style="left: 275px">2</span><span class="n2" style="left: 327px">3</span></div>
+<div class="cm comp th-clight dev strip an"><div class="isl"></div><div class="tb"><button class="wsb glass cap17">shop</button><span class="sp"></span><div class="gpill glass"><button aria-label="Inbox, 1 needs you"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 6.2A2 2 0 0 1 7.5 5h9a2 2 0 0 1 1.9 1.2L21 13.5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" style="fill: currentColor"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5M8 8.5h8M7 11h10" style="stroke: var(--s1)"/></svg></button></div><div class="gpill glass"><button aria-label="Voice"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button></div></div><span class="n2" style="left: 245px">1</span><span class="n2" style="left: 275px">2</span><span class="n2" style="left: 327px">3</span></div>
+<div class="note"><p>The order left to right is <b>capsule … Inbox · Voice · New</b>. New is trailing-most, where a thumb finds create. Inbox, a place, gets its own glass so its filled or empty state reads as status.</p><p>Every item is 44 pt (system). In the same Agents, Backlog, Wiki and More order, only New's action changes per section.</p></div>
+</div>
+
+<div style="display: grid; grid-template-columns: 230px 834px minmax(0, 1fr); column-gap: 40px; row-gap: 28px">
+<div class="lab"><span><span class="tag a">Ruled</span></span><h3>iPad 11" · dark</h3><p class="muted" style="font-size: 13px">Over the list column</p></div>
+<div class="cm comp th-cdark dev pad"><div class="lc"><div class="tb"><button class="wsb glass cap17">shop</button><span class="sp"></span><div class="gpill glass"><button aria-label="Inbox, 1 needs you"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 6.2A2 2 0 0 1 7.5 5h9a2 2 0 0 1 1.9 1.2L21 13.5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" style="fill: currentColor"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5M8 8.5h8M7 11h10" style="stroke: var(--s1)"/></svg></button></div><div class="gpill glass"><button aria-label="Voice"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button></div><div class="gpill glass"><button aria-label="Show sidebar"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M9 5v14"/></svg></button></div></div><div class="srch"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><span>Search sessions</span></div></div><div class="det">No Session Selected</div></div>
+<div class="note" style="grid-row: span 2"><p>The same toolbar code as iPhone, declared on the list column's view. Nothing iPad-only.</p><p>The <b>sidebar toggle</b> is the system's (<code>NavigationSplitView</code>), in its own glass where the system puts it. We don't move it or group it with ours.</p><p>In a narrow column (⅓ split) the system's toolbar overflow decides what folds away. Check on device that Inbox and New stay out. No custom handling.</p></div>
+
+<div class="lab"><span><span class="tag a">Ruled</span></span><h3>iPad 11" · light</h3><p class="muted" style="font-size: 13px">Listening shown</p></div>
+<div class="cm comp th-clight dev pad"><div class="lc"><div class="tb"><button class="wsb glass cap17">shop</button><span class="sp"></span><div class="gpill glass"><button aria-label="Inbox"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 6.2A2 2 0 0 1 7.5 5h9a2 2 0 0 1 1.9 1.2L21 13.5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5"/></svg></button></div><div class="gpill glass"><button aria-label="Send voice message" style="background: var(--ac); color: var(--on-ac); border-radius: 22px"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 10.5v3"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button></div><div class="gpill glass"><button aria-label="Show sidebar"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M9 5v14"/></svg></button></div></div><div class="srch"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><span>Search sessions</span></div></div><div class="det">No Session Selected</div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1720,"height":1300}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

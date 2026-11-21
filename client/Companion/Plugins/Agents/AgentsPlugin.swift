@@ -116,7 +116,7 @@ struct AgentsListView: View {
         }
         .tabRootChrome(context, title: "Agents") {
             ToolbarItem(placement: .primaryAction) {
-                Button("New Session", systemImage: "square.and.pencil") { AgentsPlugin.startNew(context) }
+                Button("New Session", systemImage: "plus") { AgentsPlugin.startNew(context) }
                     .disabled(workspace == nil || !context.connection.canWrite)
             }
         }
@@ -176,7 +176,7 @@ struct SessionListView: View {
                 } description: {
                     Text(store.error ?? "Start a session and follow it from here.")
                 } actions: {
-                    Button("New Session", systemImage: "square.and.pencil") { AgentsPlugin.startNew(context) }
+                    Button("New Session", systemImage: "plus") { AgentsPlugin.startNew(context) }
                         .buttonStyle(.glassProminent)
                         .disabled(!context.connection.canWrite)
                 }
