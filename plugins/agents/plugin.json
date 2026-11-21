@@ -1177,7 +1177,7 @@
             "tree": {"type": "string", "description": "The tree sha a land review prompt names; the same as key for a landing."},
             "outcome": {"type": "string", "enum": ["approved", "changes"], "description": "The verdict."},
             "findings": {"type": "array", "items": {"type": "string"}, "description": "Confirmed bugs, \"file:line — what breaks\"; required with changes."},
-            "deferred": {"type": "array", "items": {"type": "string"}, "description": "Nits and suggestions that don't block."},
+            "deferred": {"type": "array", "items": {"type": "string"}, "description": "Nits and suggestions that don't block; the lander is asked to fix them in the same change."},
             "summary": {"type": "string", "description": "A short summary of the change, kept with the verdict."}
           },
           "required": ["outcome"]

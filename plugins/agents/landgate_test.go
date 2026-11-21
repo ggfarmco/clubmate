@@ -155,6 +155,20 @@ func TestApprovedVerdictLands(t *testing.T) {
 	assert.Empty(t, git(t, g.repo, "branch", "--list", "feat"))
 }
 
+func TestDeferredAsksToFixBeforeLanding(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	require.Error(t, g.land(t))
+
+	r := g.reviewer(t)
+	require.NoError(t, g.f.runAs(t, g.workspace, r.ID, "agents.land-verdict", map[string]any{"tree": r.GateFor.Tree, "outcome": "approved", "deferred": []string{"b.go:1 — typo"}}, nil))
+
+	g.f.waitCall(t, "session/prompt", func(c fakeCall) bool {
+		p := string(c.Params)
+		return strings.Contains(p, "b.go:1 — typo") && strings.Contains(p, "fix every item above") && !strings.Contains(p, "file them in the backlog")
+	})
+}
+
 func TestApprovedSummaryInCommitBody(t *testing.T) {
 	t.Parallel()
 	g := startGate(t)

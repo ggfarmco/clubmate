@@ -120,7 +120,7 @@ func TestRefusedBlockHasTheMessageUnderItWithoutATurnBreak(t *testing.T) {
 
 func TestGateMessageBlock(t *testing.T) {
 	t.Parallel()
-	done := doneMessage(promptArgs{Gate: true, Text: fmt.Sprintf(heldChangesFormat, "shop", "plans and specs", 1, 2, bullets([]string{"plan.md:3 — no rollback\n  step 4 drops the table"})) + fmt.Sprintf(heldNotBlocking, bullets([]string{"typo in the title"})) + heldChangesTail}, true)
+	done := doneMessage(promptArgs{Gate: true, Text: fmt.Sprintf(heldChangesFormat, "shop", "plans and specs", 1, 2, bullets([]string{"plan.md:3 — no rollback\n  step 4 drops the table"})) + fmt.Sprintf(heldNotBlocking, bullets([]string{"typo in the title"})) + fixRule(true) + heldChangesTail}, true)
 	tool := gateMessage{Call: "t1", Groups: []gateFindings{{Head: "[Clubmate] From the gate · shop · git push · round 1 of 2 · changes", Findings: []string{"a"}, Deferred: []string{"b"}}}, Tail: "The next git push goes through the gate again, as round 2."}
 	sc := gateScreenOf(nil, nil, nil)
 

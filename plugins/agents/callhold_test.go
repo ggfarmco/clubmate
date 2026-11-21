@@ -1259,8 +1259,10 @@ func gateEntries(tr transcript, call string) []entry {
 	return slices.DeleteFunc(slices.Clone(tr.Entries), func(e entry) bool { return !strings.Contains(string(e.Gate), `"call":"`+call+`"`) })
 }
 
+const gateFixLine = "\nAsk the user with AskUserQuestion only about an item you can't fix without their decision. Put an item in the backlog only when it is a separate task of its own."
+
 func gateText(repo string, of int, findings string) string {
-	return fmt.Sprintf("%s · %s · git push · round 1 of %d · changes\n%s\nThe next git push goes through the gate again, as round 2.", gateFrom, filepath.Base(repo), of, findings)
+	return fmt.Sprintf("%s · %s · git push · round 1 of %d · changes\n%s%s\nThe next git push goes through the gate again, as round 2.", gateFrom, filepath.Base(repo), of, findings, gateFixLine)
 }
 
 func TestToolGateChangesRefusesThenSendsFindings(t *testing.T) {
@@ -1389,8 +1391,8 @@ func TestTwoGatesSendOneRefusalAndOneMessage(t *testing.T) {
 	f.waitStatus(t, workspace, session, "done")
 	assert.Equal(t, 1, f.refused(t))
 	second := fmt.Sprintf("%s · %s · origin · round 1 of %d · changes\n- o", gateFrom, filepath.Base(repo), of)
-	first, tail, _ := strings.Cut(gateText(repo, of, "- p"), "\nThe next")
-	assert.Equal(t, []string{first + "\n\n" + second + "\nThe next" + tail}, f.told(t))
+	first, tail, _ := strings.Cut(gateText(repo, of, "- p"), gateFixLine+"\nThe next")
+	assert.Equal(t, []string{first + "\n\n" + second + gateFixLine + "\nThe next" + tail}, f.told(t))
 }
 
 func TestChangesWithNobodyWaiting(t *testing.T) {
@@ -1649,7 +1651,7 @@ func TestSameCallAfterChangesCountsARound(t *testing.T) {
 	f.agentPrompt(t, workspace, session, "beta")
 
 	testutil.Eventually(t, func() bool { return len(f.told(t)) == 2 }, wait)
-	want := fmt.Sprintf("%s · %s · git push · round 2 of 3 · changes\n- x\nThe next git push goes through the gate again, as round 3.", gateFrom, filepath.Base(repo))
+	want := fmt.Sprintf("%s · %s · git push · round 2 of 3 · changes\n- x%s\nThe next git push goes through the gate again, as round 3.", gateFrom, filepath.Base(repo), gateFixLine)
 	assert.Equal(t, want, f.told(t)[1])
 	assert.Equal(t, 2, f.refused(t))
 	assert.Len(t, f.reviewPrompts(t), 1)

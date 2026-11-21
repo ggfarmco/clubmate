@@ -1097,14 +1097,16 @@ func callMessage(gates []gateConfig, call string, holds []*callHold) gateMessage
 
 func (m gateMessage) text() string {
 	parts := make([]string, 0, len(m.Groups))
+	deferred := false
 	for _, g := range m.Groups {
 		text := g.Head + "\n" + bullets(g.Findings)
 		if len(g.Deferred) > 0 {
 			text += fmt.Sprintf(heldNotBlocking, bullets(g.Deferred))
+			deferred = true
 		}
 		parts = append(parts, text)
 	}
-	return strings.Join(parts, "\n\n") + "\n" + m.Tail
+	return strings.Join(parts, "\n\n") + fixRule(deferred) + "\n" + m.Tail
 }
 
 func writeFindings(dir string, m gateMessage) string {

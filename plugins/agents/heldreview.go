@@ -38,6 +38,8 @@ const (
 	heldChangesFormat  = "[Clubmate] From the gate · %s · %s · round %d of %d · changes\n%s"
 	heldNotBlocking    = "\nNot blocking:\n%s"
 	heldChangesTail    = "\nFix these; your next finished turn goes back to the gate."
+	heldFixDeferred    = "\nFix the items that don't block too."
+	heldFixAsk         = "\n" + gateFixAsk
 	heldNudgeText      = "[Clubmate] Your Done review ended without a verdict. Call agents_land_verdict now with the key your review prompt names: approved, or changes with the confirmed problems as findings."
 	heldReviewerText   = "[Clubmate Done reviewer] You review an agent's finished turn before the user sees it as done. You are read-only: never edit files, commit, merge, reset, check out, stash or delete anything, and never start sessions. Read the change and the files around it, run read-only commands when they help, and end every review with exactly one agents_land_verdict call with the key your review prompt names."
 	heldNodeText       = "[Clubmate Done gate node] You help a Done gate review an agent's finished turn. You are read-only: never edit files, commit, merge, reset, check out, stash or delete anything, and never start sessions. Do what your node's prompt asks and put your findings in your reply; only a deciding node of the gate's graph gives the verdict, so don't call agents_land_verdict: it refuses you."
@@ -400,7 +402,14 @@ func (a *app) promptChanges(r holdRef, g gateConfig, h heldTurn) {
 	if len(h.Deferred) > 0 {
 		text += fmt.Sprintf(heldNotBlocking, bullets(h.Deferred))
 	}
-	logError("send the gate's findings", a.submit(r.s, &promptArgs{Text: text + heldChangesTail, Gate: true}))
+	logError("send the gate's findings", a.submit(r.s, &promptArgs{Text: text + fixRule(len(h.Deferred) > 0) + heldChangesTail, Gate: true}))
+}
+
+func fixRule(deferred bool) string {
+	if deferred {
+		return heldFixDeferred + heldFixAsk
+	}
+	return heldFixAsk
 }
 
 func (a *app) heldRunEnded(workspaceID, run string) {

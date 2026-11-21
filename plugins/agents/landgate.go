@@ -66,7 +66,9 @@ const (
 	gateNoVerdictText   = "[Clubmate] The land review of %s ended without a verdict. Call git_land again to start it over."
 	gateApprovedText    = "[Clubmate] Land review of %s: approved by %s. Call git_land again to land it."
 	gateChangesText     = "[Clubmate] Land review of %s asks for changes (round %d of %d). Fix these, commit, and call git_land again:\n%s"
-	gateDeferredText    = "\nDeferred (file them in the backlog, they don't block):\n%s"
+	gateDeferredText    = "\nNot blocking:\n%s"
+	gateFixAsk          = "Ask the user with AskUserQuestion only about an item you can't fix without their decision. Put an item in the backlog only when it is a separate task of its own."
+	gateFixRule         = "\nBefore you call git_land again, fix every item above in this change. " + gateFixAsk
 	gateUserLandText    = "[Clubmate] The user agreed to land %s without another review. Call git_land again to land it."
 	gateUserMoreText    = "[Clubmate] The user allowed one more review round for %s. Call git_land again for one more review round."
 	gateUserMoreFixText = "[Clubmate] The user allowed one more review round for %s. Fix the review's findings and commit, then call git_land again for one more review round."
@@ -1332,6 +1334,9 @@ func (a *app) landVerdictCommand(ctx context.Context, cmd pluginsdk.CommandRun, 
 	}
 	if len(args.Deferred) > 0 {
 		text += fmt.Sprintf(gateDeferredText, bullets(args.Deferred))
+	}
+	if args.Outcome == gateChanges || len(args.Deferred) > 0 {
+		text += gateFixRule
 	}
 	lander.putLandReview(st)
 	a.saveNow(ctx, lander)

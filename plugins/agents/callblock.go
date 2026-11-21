@@ -331,7 +331,7 @@ func doneGateMessage(text string) *gateMessage {
 		return nil
 	}
 	body, tailed := strings.CutSuffix(text, heldChangesTail)
-	lines := strings.Split(body, "\n")
+	lines := strings.Split(strings.TrimSuffix(strings.TrimSuffix(body, heldFixAsk), heldFixDeferred), "\n")
 	g := gateFindings{Head: lines[0]}
 	list := &g.Findings
 	for _, line := range lines[1:] {
