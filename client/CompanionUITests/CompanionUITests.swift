@@ -1265,7 +1265,7 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(wait(for: app.descendants(matching: .any)["connection.step.hello"], "label CONTAINS 'no address answered'"))
     }
 
-    func testARelayOnlyMacPairsThroughTheRelayAndItsHeaderShowsTheRelayMark() {
+    func testARelayOnlyMacPairsThroughTheRelayAndItsDetailsNameTheRelay() {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-latency", "20", "-pair", Self.relayOnlyLink]
         app.launch()
@@ -1275,8 +1275,12 @@ final class CompanionUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Tailscale addresses"].exists)
         app.buttons["Pair"].tap()
         XCTAssertTrue(app.staticTexts["Explain the checkout flow"].waitForExistence(timeout: 10))
-        app.navigationBars["shop"].buttons.firstMatch.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["mac.relay.mac-mock"].waitForExistence(timeout: 10))
+        openCapsule(app)
+        menuItem(app, "Mac Details").tap()
+        let connection = app.buttons["mac.connection"]
+        XCTAssertTrue(connection.waitForExistence(timeout: 10))
+        reveal(connection, in: app)
+        XCTAssertTrue(wait(for: app.staticTexts["mac.connection.value"], "label == %@", "online · Clubmate relay"))
     }
 
     func testConnectThroughPickerMovesTheMacBetweenTailscaleAndTheRelay() {
@@ -1296,20 +1300,6 @@ final class CompanionUITests: XCTestCase {
         }
     }
 
-    func testIPadHeaderKeepsTheMacNameWhenTheRelayAccessIsRevoked() throws {
-        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "the inline Mac header is iPad only")
-        let app = XCUIApplication()
-        app.launchArguments = ["-fixtures", Self.fixtures, "-latency", "20", "-autoConfirmPairing", "YES", "-pair", Self.bothPathsLink, "-open", "mac", "-relayRevoked", "YES"]
-        app.launch()
-        let picker = app.buttons["mac.path"]
-        XCTAssertTrue(picker.waitForExistence(timeout: 10))
-        picker.tap()
-        app.buttons["Relay"].tap()
-        let header = app.buttons["mac.header.mac-mock"]
-        XCTAssertTrue(wait(for: header, "label CONTAINS 'revoked'"))
-        XCTAssertGreaterThan(header.staticTexts["Mac Studio"].frame.width, 60)
-    }
-
     func testForgettingTheMacFromItsDetailsOpensTheOtherMac() {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-latency", "20", "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-macs", "2", "-open", "mac"]
@@ -1319,13 +1309,14 @@ final class CompanionUITests: XCTestCase {
         reveal(forget, in: app)
         forget.tap()
         app.buttons["Forget"].tap()
-        let other = app.staticTexts["Move the state bucket to the new account"]
+        let other = app.staticTexts["row.agt_0000000000000011"]
         XCTAssertTrue(other.waitForExistence(timeout: 10))
-        XCTAssertTrue(other.isHittable)
         add(screenshot(app, "after-forget"))
         XCTAssertTrue(app.tabBars.buttons["Agents"].isSelected)
         XCTAssertFalse(app.buttons["mac.connection"].exists)
         XCTAssertFalse(app.staticTexts["Explain the checkout flow"].exists)
+        other.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.navigationBars["Move the state bucket to the new account"].waitForExistence(timeout: 5))
     }
 
     func testKeepAwakeFromMacDetailsHoldsAndTurnsOff() {

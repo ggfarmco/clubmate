@@ -42,7 +42,7 @@ struct PairingConfirmView: View {
                 if let relay = review.link.relay {
                     Section {
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Image(systemName: MacSectionHeader.relayGlyph)
+                            Image(systemName: "point.3.connected.trianglepath.dotted")
                                 .foregroundStyle(Color.captionInk)
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("Through Clubmate relay")

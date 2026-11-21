@@ -3,7 +3,7 @@ import XCTest
 final class ReportTests: E2ETestCase {
     func testAReportWrittenOfflineReachesTheRelayWithMacLogs() throws {
         var app = try launch(open: "sidebar")
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'mac.header.'")).firstMatch.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["workspace.capsule"].waitForExistence(timeout: 20))
         app.terminate()
         try mac.setRemote(false)
         addTeardownBlock { [mac] in try? mac?.setRemote(true) }
