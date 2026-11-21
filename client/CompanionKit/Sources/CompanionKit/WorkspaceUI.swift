@@ -29,7 +29,16 @@ public final class WorkspaceUI {
     @ObservationIgnored private var kept: [(slot: String, page: String?, path: String, tree: SDUINode)] = []
     @ObservationIgnored private var selecting: [String: (item: String, run: Task<Result<JSONValue, any Error>, Never>)] = [:]
     @ObservationIgnored private var starts: [String: Int] = [:]
-    @ObservationIgnored private var settling: [String: (item: String, mark: Task<Void, Never>, grace: Task<Void, Never>)] = [:]
+    @ObservationIgnored private var settling: [String: Settling] = [:]
+    @ObservationIgnored private var looping: [String: Int] = [:]
+    @ObservationIgnored private var naps: [UUID: Task<Void, Never>] = [:]
+
+    private struct Settling {
+        let item: String
+        let mark: Task<Void, Never>
+        var grace: Task<Void, Never>?
+        var stream: String?
+    }
 
     static let firstRetry: Duration = .seconds(1)
     static let longestRetry: Duration = .seconds(30)
@@ -63,8 +72,10 @@ public final class WorkspaceUI {
     }
 
     public func select(_ item: String, in slot: String) async {
+        looping[item, default: 0] += 1
         defer {
-            if selecting[slot]?.item != item, settling[slot]?.item != item, updating.contains(item) { updating.remove(item) }
+            if let count = looping[item], count > 1 { looping[item] = count - 1 } else { looping[item] = nil }
+            release(item, in: slot)
         }
         var wait = Self.firstRetry
         while !Task.isCancelled {
@@ -74,9 +85,20 @@ public final class WorkspaceUI {
                 continue
             }
             if case .success = await start(item, in: slot, nodeId: id, value: .string(item)).value { return }
-            guard let sleep = connection?.sleep, (try? await sleep(wait)) != nil else { return }
-            wait = min(wait * 2, Self.longestRetry)
+            let stream = connection?.streamID
+            guard await nap(wait) else { return }
+            wait = connection?.streamID == stream ? min(wait * 2, Self.longestRetry) : Self.firstRetry
         }
+    }
+
+    private func nap(_ wait: Duration) async -> Bool {
+        guard let sleep = connection?.sleep else { return false }
+        let id = UUID()
+        let task = Task { _ = try? await sleep(wait) }
+        naps[id] = task
+        await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
+        naps[id] = nil
+        return !Task.isCancelled
     }
 
     public func send(slot: String, nodeId: String, action: String, value: JSONValue?) async throws -> JSONValue {
@@ -111,17 +133,46 @@ public final class WorkspaceUI {
     private func replied(_ item: String, in slot: String, start: Int, mark: Task<Void, Never>, ok: Bool) {
         guard starts[slot] == start else {
             mark.cancel()
-            if selecting[slot]?.item != item, settling[slot]?.item != item, updating.contains(item) { updating.remove(item) }
-            return
+            return release(item, in: slot)
         }
         selecting[slot] = nil
-        guard ok else { return mark.cancel() }
-        let grace = Task { [weak self, sleep = connection?.sleep] in
-            guard let sleep, (try? await sleep(Self.settleGrace)) != nil, !Task.isCancelled else { return }
-            self?.settle(slot, force: true)
+        guard ok else {
+            mark.cancel()
+            return release(item, in: slot)
         }
-        settling[slot] = (item, mark, grace)
+        let stream = synced
+        settling[slot] = Settling(item: item, mark: mark, grace: stream.map { grace(slot, on: $0) }, stream: stream)
         settle(slot, force: false)
+    }
+
+    private var synced: String? {
+        guard let stream = connection?.streamID, stream == sentStream else { return nil }
+        return stream
+    }
+
+    private func grace(_ slot: String, on stream: String) -> Task<Void, Never> {
+        Task { [weak self, sleep = connection?.sleep] in
+            guard let sleep, (try? await sleep(Self.settleGrace)) != nil, !Task.isCancelled, let self, synced == stream else { return }
+            settle(slot, force: true)
+        }
+    }
+
+    private func arm(_ stream: String) {
+        for (slot, pending) in settling where pending.stream != stream {
+            guard sent.contains(slot) else {
+                settling[slot] = nil
+                end(pending)
+                continue
+            }
+            pending.grace?.cancel()
+            settling[slot]?.grace = grace(slot, on: stream)
+            settling[slot]?.stream = stream
+        }
+    }
+
+    private func release(_ item: String, in slot: String) {
+        guard selecting[slot]?.item != item, settling[slot]?.item != item, looping[item] == nil, updating.contains(item) else { return }
+        updating.remove(item)
     }
 
     private func settle(_ slot: String, force: Bool) {
@@ -135,9 +186,9 @@ public final class WorkspaceUI {
         kept.removeAll { $0.slot == main && $0.page == pending.item }
     }
 
-    private func end(_ pending: (item: String, mark: Task<Void, Never>, grace: Task<Void, Never>)) {
+    private func end(_ pending: Settling) {
         pending.mark.cancel()
-        pending.grace.cancel()
+        pending.grace?.cancel()
         if updating.contains(pending.item) { updating.remove(pending.item) }
     }
 
@@ -161,6 +212,7 @@ public final class WorkspaceUI {
 
     func reload() {
         stale = Set(views.keys)
+        for nap in naps.values { nap.cancel() }
         sync()
     }
 
@@ -228,6 +280,7 @@ public final class WorkspaceUI {
                 }
                 sent = target
                 sentStream = stream
+                arm(stream)
                 failure = nil
                 backoff = Self.firstRetry
             } catch {

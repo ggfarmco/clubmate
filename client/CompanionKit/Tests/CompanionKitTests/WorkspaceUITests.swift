@@ -184,6 +184,77 @@ final class WorkspaceUITests: XCTestCase {
         server.connection.stop()
     }
 
+    func testAPageIsNotMissingWhileTheStreamReconnects() async throws {
+        let server = try UIServer(holdReconnect: true)
+        let ui = try await server.started(["cron.sidebar", "cron.main"])
+        server.push("cron.sidebar", rev: 2, tree: UIServer.list(selected: "shop/b.md"))
+        server.push("cron.main", rev: 2, tree: UIServer.page("/w/shop/b.md", "b"))
+        server.push("cron.sidebar", rev: 3, tree: UIServer.list(selected: "shop/a.md"))
+        server.push("cron.main", rev: 3, tree: UIServer.page("/w/shop/a.md", "a"))
+        try await waitUntil { ui.view("cron.main")?.rev == 3 }
+        server.drop()
+        try await waitUntil { server.streamCount == 2 }
+        server.render("cron.sidebar", UIServer.list(selected: "shop/b.md"))
+        server.render("cron.main", UIServer.page("/w/shop/a.md", "a"))
+
+        await ui.select("shop/b.md", in: "cron.sidebar")
+        server.resume()
+
+        try await waitUntil { server.watches.last?.stream == "s2" && ui.updating.isEmpty }
+        XCTAssertTrue(ui.missing.isEmpty)
+        XCTAssertEqual(ui.page("shop/b.md", path: "", in: "cron.main")?.tree.string("html"), "b")
+        server.connection.stop()
+    }
+
+    func testAPageTheMacDidNotSelectWhileTheStreamWasDownIsMissingAfterTheResync() async throws {
+        let server = try UIServer(holdReconnect: true)
+        let ui = try await server.started(["cron.sidebar"])
+        server.drop()
+        try await waitUntil { server.streamCount == 2 }
+
+        await ui.select("cj_other", in: "cron.sidebar")
+        server.resume()
+
+        try await waitUntil { ui.missing == ["cj_other"] }
+        XCTAssertTrue(ui.updating.isEmpty)
+        server.connection.stop()
+    }
+
+    func testAFailedSelectClearsUpdating() async throws {
+        let server = try UIServer()
+        let ui = try await server.started(["cron.sidebar"])
+        server.failEvents(1)
+        server.holdEvents()
+        let tap = Task { try await ui.send(slot: "cron.sidebar", nodeId: "jobs", action: "select", value: .string("cj_other")) }
+        try await waitUntil { ui.updating == ["cj_other"] }
+
+        server.openEvents()
+
+        let tapped = await tap.result
+        XCTAssertThrowsError(try tapped.get())
+        XCTAssertTrue(ui.updating.isEmpty)
+        server.connection.stop()
+    }
+
+    func testAFailedSelectIsSentAgainAtOnceOnANewStream() async throws {
+        let naps = Recorder<Duration>()
+        let server = try UIServer(sleep: {
+            guard $0 == .seconds(1) else { return }
+            naps.add($0)
+            try await Task.sleep(for: .seconds(60))
+        })
+        let ui = try await server.started(["cron.sidebar"])
+        server.failEvents(1)
+        let select = Task { await ui.select("cj_other", in: "cron.sidebar") }
+        try await waitUntil { naps.values.count == 1 }
+
+        server.restream("s9")
+
+        try await waitUntil { server.events.count == 2 }
+        await select.value
+        server.connection.stop()
+    }
+
     func testASelectStillOnItsWayIsNotSentAgain() async throws {
         let server = try UIServer()
         let ui = try await server.started(["cron.sidebar"])
@@ -224,13 +295,16 @@ private final class UIServer {
     private let failed = Recorder<Bool>()
     private let failingEvents = Recorder<Bool>()
     private let failedEvents = Recorder<Bool>()
+    private let rendered = Recorder<(slot: String, tree: JSONValue)>()
+    private let holds = Recorder<Bool>()
+    private let opens = Recorder<Bool>()
     let connection: ComputerConnection
 
-    init(sleep: @escaping @Sendable (Duration) async throws -> Void = { _ in }) throws {
+    init(sleep: @escaping @Sendable (Duration) async throws -> Void = { _ in }, holdReconnect: Bool = false) throws {
         let fixture = try JSONDecoder().decode(JSONValue.self, from: fixture("sdui"))
         let sections = fixture["sections"] ?? .array([])
         let views = fixture["views"]?.objectValue ?? [:]
-        let (watches, gets, events, streams, disabled, removed, failing, failed, failingEvents, failedEvents) = (watchLog, getLog, eventLog, streams, disabled, removed, failing, failed, failingEvents, failedEvents)
+        let (watches, gets, events, streams, disabled, removed, failing, failed, failingEvents, failedEvents, rendered, holds, opens) = (watchLog, getLog, eventLog, streams, disabled, removed, failing, failed, failingEvents, failedEvents, rendered, holds, opens)
         let hello = #"{"computer":{"id":"mac1","name":"Mac Studio"},"version":"0.0.21","commands":[],"topics":[],"ui":true}"#
         let transport = FakeTransport(reply: { request in
             let body = (try? JSONDecoder().decode(JSONValue.self, from: request.httpBody ?? Data())) ?? .null
@@ -254,11 +328,14 @@ private final class UIServer {
                 gets.add(slots)
                 let gone = Set(removed.values)
                 let found = slots.filter { !gone.contains($0) }.compactMap { slot in
-                    views[slot].map { JSONValue.object(["workspaceId": params["workspace"] ?? .null, "slot": .string(slot), "owner": .string("p"), "rev": .number(1), "tree": $0]) }
+                    (rendered.values.last { $0.slot == slot }?.tree ?? views[slot]).map { JSONValue.object(["workspaceId": params["workspace"] ?? .null, "slot": .string(slot), "owner": .string("p"), "rev": .number(1), "tree": $0]) }
                 }
                 return (try JSONEncoder().encode(JSONValue.object(["result": .array(found)])), 200)
             case "uiEvent":
                 events.add(params)
+                while holds.values.count > opens.values.count {
+                    try await Task.sleep(for: .milliseconds(5))
+                }
                 if failingEvents.values.count > failedEvents.values.count {
                     failedEvents.add(true)
                     return (Data(), 503)
@@ -269,6 +346,7 @@ private final class UIServer {
         }, stream: { _ in
             (200, AsyncThrowingStream {
                 streams.add($0)
+                guard !holdReconnect || streams.values.count == 1 else { return }
                 $0.yield(Data("event: stream\ndata: {\"id\":\"s\(streams.values.count)\"}\n\n".utf8))
             })
         })
@@ -286,6 +364,7 @@ private final class UIServer {
     var watches: [Watch] { watchLog.values }
     var gets: [[String]] { getLog.values }
     var events: [JSONValue] { eventLog.values }
+    var streamCount: Int { streams.values.count }
 
     func started(_ slots: Set<String>) async throws -> WorkspaceUI {
         let ui = connection.workspaceUI("w")
@@ -297,6 +376,26 @@ private final class UIServer {
 
     func push(_ slot: String, rev: Int, tree: String, workspace: String = "w") {
         streams.values.last?.yield(Data("event: ui\ndata: {\"workspace\":\"\(workspace)\",\"slot\":\"\(slot)\",\"rev\":\(rev),\"tree\":\(tree)}\n\n".utf8))
+    }
+
+    func render(_ slot: String, _ tree: String) {
+        rendered.add((slot, (try? JSONDecoder().decode(JSONValue.self, from: Data(tree.utf8))) ?? .null))
+    }
+
+    func resume() {
+        restream("s\(streams.values.count)")
+    }
+
+    func restream(_ id: String) {
+        streams.values.last?.yield(Data("event: stream\ndata: {\"id\":\"\(id)\"}\n\n".utf8))
+    }
+
+    func holdEvents() {
+        holds.add(true)
+    }
+
+    func openEvents() {
+        opens.add(true)
     }
 
     func failEvents(_ count: Int) {
