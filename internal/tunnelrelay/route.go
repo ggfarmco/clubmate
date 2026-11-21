@@ -62,6 +62,7 @@ type macConn struct {
 	once   sync.Once
 	why    string
 	buf    *budget
+	wake   func()
 	mu     sync.Mutex
 	closed bool
 }
@@ -169,6 +170,7 @@ func (m *macConn) end(why string) {
 	m.once.Do(func() {
 		m.why = why
 		close(m.done)
+		m.wake()
 	})
 }
 
@@ -229,8 +231,8 @@ func event(name string, data any) []byte {
 	return []byte("event: " + name + "\ndata: " + string(raw) + "\n\n")
 }
 
-func (r *router) attach(name string) *macConn {
-	m := &macConn{id: newID("st_", 16), name: name, frames: make(chan []byte, macQueue), done: make(chan struct{}), buf: r.buf}
+func (r *router) attach(name string, wake func()) *macConn {
+	m := &macConn{id: newID("st_", 16), name: name, frames: make(chan []byte, macQueue), done: make(chan struct{}), buf: r.buf, wake: wake}
 	r.mu.Lock()
 	old := r.macs[name]
 	if old == nil && len(r.macs) >= r.lim.MacStreams {
@@ -583,16 +585,6 @@ func (r *router) addGoneLocked(mac, id string) {
 	r.gone[mac] = append(g, id)
 }
 
-func (r *router) req(id, mac, kind string) *pending {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	p := r.reqs[id]
-	if p == nil || p.mac != mac || p.kind != kind {
-		return nil
-	}
-	return p
-}
-
 func (r *router) takeCall(id, mac string) *pending {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -669,10 +661,12 @@ func (r *router) closeChannel(mac, ch string) bool {
 func (r *router) closeChannels(mac string, keep func(ticket string) bool) []string {
 	r.mu.Lock()
 	var closed []*channel
-	for _, c := range r.chans {
-		if c.mac == mac && !keep(c.ticket) {
-			r.dropChanLocked(c)
-			closed = append(closed, c)
+	if l := r.load[mac]; l != nil {
+		for _, c := range l.chans {
+			if !keep(c.ticket) {
+				r.dropChanLocked(c)
+				closed = append(closed, c)
+			}
 		}
 	}
 	for id, o := range r.opens {

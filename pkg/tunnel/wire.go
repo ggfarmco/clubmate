@@ -86,10 +86,14 @@ func (pr *PushReader) Next() (PushItem, error) {
 	if n > MaxPushItem {
 		return PushItem{}, fmt.Errorf("%w: push item of %d bytes", ErrFrame, n)
 	}
-	it.Data = make([]byte, n)
-	if _, err := io.ReadFull(pr.r, it.Data); err != nil {
-		return PushItem{}, unexpected(err)
+	data, err := io.ReadAll(io.LimitReader(pr.r, int64(n)))
+	if err != nil {
+		return PushItem{}, err
 	}
+	if len(data) < int(n) {
+		return PushItem{}, io.ErrUnexpectedEOF
+	}
+	it.Data = data
 	return it, nil
 }
 

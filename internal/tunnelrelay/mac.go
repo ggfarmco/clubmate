@@ -29,7 +29,8 @@ func (r *Relay) macStream(w http.ResponseWriter, req *http.Request) {
 	if !ok {
 		return
 	}
-	m := r.route.attach(mac)
+	rc := http.NewResponseController(w)
+	m := r.route.attach(mac, func() { _ = rc.SetWriteDeadline(time.Now()) })
 	if m == nil {
 		r.refuseQuota(w, "", refusal{what: QuotaMacs, retry: macsRetry})
 		return
@@ -48,8 +49,8 @@ func (r *Relay) macStream(w http.ResponseWriter, req *http.Request) {
 	}()
 	t := time.NewTicker(r.ping)
 	defer t.Stop()
-	rc := http.NewResponseController(w)
 	write := func(b []byte) bool {
+		r.writeBy(rc)
 		if _, err := w.Write(b); err != nil {
 			m.end(endDropped)
 			return false
@@ -196,9 +197,8 @@ func (r *Relay) macPush(w http.ResponseWriter, req *http.Request) {
 			writeError(w, http.StatusBadRequest, "bad push batch")
 			return
 		}
-		if r.route.deliver(mac, hex.EncodeToString(it.ID[:]), item{data: it.Data, end: it.Kind == tunnel.PushEnd}) {
-			r.quota.charge(mac, int64(len(it.Data)))
-		}
+		r.route.deliver(mac, hex.EncodeToString(it.ID[:]), item{data: it.Data, end: it.Kind == tunnel.PushEnd})
+		r.quota.charge(mac, int64(len(it.Data)))
 	}
 	gone := r.route.takeGone(mac)
 	if gone == nil {

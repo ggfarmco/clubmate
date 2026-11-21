@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -45,8 +46,9 @@ type fixture struct {
 }
 
 type setup struct {
-	limits Limits
-	server func(*http.Server)
+	limits   Limits
+	server   func(*http.Server)
+	liveness time.Duration
 }
 
 type clock struct {
@@ -602,6 +604,96 @@ func TestFullChannelSetDropsTheOldestUnusedChannel(t *testing.T) {
 	assert.Equal(t, http.StatusOK, got.res.StatusCode)
 }
 
+func TestMacThatStopsReadingIsDropped(t *testing.T) {
+	f := newFixture(t, "", setup{liveness: 100 * time.Millisecond})
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.url+"/v1/mac/stream", nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+macToken)
+	res, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = res.Body.Close() })
+	m := f.relay.route.mac("studio")
+	require.NotNil(t, m)
+	frame := make([]byte, 1<<20)
+	for range 64 {
+		m.send(frame, true)
+	}
+
+	testutil.Eventually(t, func() bool {
+		return f.relay.route.mac("studio") == nil && f.relay.buf.used.Load() == 0
+	}, wait)
+}
+
+func TestDeviceThatStopsReadingEndsItsStream(t *testing.T) {
+	f := newFixture(t, "", setup{liveness: 100 * time.Millisecond})
+	mac := f.connect(t)
+	ch := f.openChannel(t, mac, ticketA)
+	f.stream(t, t.Context(), ticketA, ch)
+	id := mac.req(t).ID
+	data := make([]byte, 1<<20)
+	for range 64 {
+		f.relay.route.deliver("studio", id, item{data: data})
+	}
+
+	testutil.Eventually(t, func() bool { return f.relay.buf.used.Load() == 0 }, wait)
+}
+
+func TestReplyToADeviceThatStopsReadingEnds(t *testing.T) {
+	f := newFixture(t, "", setup{liveness: 100 * time.Millisecond})
+	mac := f.connect(t)
+	ch := f.openChannel(t, mac, ticketA)
+	f.call(t, ticketA, ch)
+	id := mac.req(t).ID
+
+	done := f.macAsync(t, http.MethodPost, "/v1/mac/reply/"+id, bytes.NewReader(make([]byte, MaxBody)))
+
+	select {
+	case got := <-done:
+		require.NoError(t, got.err)
+		assert.Equal(t, http.StatusGone, got.res.StatusCode)
+	case <-time.After(testutil.Timeout(wait)):
+		require.FailNow(t, "the reply to a stuck device did not end")
+	}
+}
+
+func TestPushToAnUnknownIDIsCharged(t *testing.T) {
+	f := newFixture(t, "")
+	f.connect(t)
+	id := strings.Repeat("ab", tunnel.IDSize)
+
+	gone := f.push(t, pushItem(tunnel.PushData, id, "lost bytes"))
+
+	assert.Equal(t, []string{id}, gone)
+	assert.Equal(t, int64(len("lost bytes")), f.relay.quota.used("studio"))
+}
+
+func TestUnchangedTicketSetKeepsTheFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tickets.json")
+	f := newFixture(t, path)
+	f.connect(t)
+	f.putTickets(t, ticketA)
+	before, err := os.Stat(path)
+	require.NoError(t, err)
+
+	f.putTickets(t, ticketA)
+
+	after, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.True(t, os.SameFile(before, after))
+}
+
+func TestQuotaSweepRunsOncePerInterval(t *testing.T) {
+	now := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	q := newQuota(DefaultLimits(), func() time.Time { return now }, func(string, ...any) {})
+	q.sweep(now)
+	q.tickets["a"] = &bucket{last: now.Add(-bucketIdleTime)}
+
+	q.sweep(now.Add(time.Second))
+	assert.Contains(t, q.tickets, "a")
+	q.sweep(now.Add(sweepEvery))
+	assert.NotContains(t, q.tickets, "a")
+}
+
 func newFixture(t *testing.T, tickets string, opts ...setup) *fixture {
 	t.Helper()
 	logs := &syncBuffer{}
@@ -627,6 +719,9 @@ func newFixture(t *testing.T, tickets string, opts ...setup) *fixture {
 	})
 	require.NoError(t, err)
 	r.headWait = 50 * time.Millisecond
+	if o.liveness > 0 {
+		r.liveness = o.liveness
+	}
 	ts := httptest.NewUnstartedServer(r.Handler())
 	if o.server != nil {
 		o.server(ts.Config)

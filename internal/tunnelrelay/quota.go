@@ -138,6 +138,7 @@ type quota struct {
 	macs    map[string]*macQuota
 	tickets map[string]*bucket
 	global  map[string]time.Time
+	swept   time.Time
 }
 
 type macQuota struct {
@@ -274,6 +275,10 @@ func (q *quota) reportGlobal(what string) {
 func (q *quota) sweep(now time.Time) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if now.Sub(q.swept) < sweepEvery {
+		return
+	}
+	q.swept = now
 	for h, b := range q.tickets {
 		if now.Sub(b.last) >= bucketIdleTime {
 			delete(q.tickets, h)

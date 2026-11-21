@@ -172,7 +172,7 @@ func (r *Relay) pipeCall(w http.ResponseWriter, p *pending, rp *replyPipe) pipeR
 		case <-done:
 		}
 	}()
-	res := pipe(w, rp.body)
+	res := pipe(w, rp.body, r.liveness)
 	close(done)
 	<-watched
 	if res.readErr != nil || res.writeErr != nil {
@@ -225,6 +225,7 @@ func (r *Relay) deviceStream(w http.ResponseWriter, req *http.Request) {
 	rc := http.NewResponseController(w)
 	write := func(b []byte) bool {
 		begin()
+		r.writeBy(rc)
 		_, err := w.Write(b)
 		if err == nil {
 			err = rc.Flush()
@@ -301,13 +302,14 @@ func (r *Relay) deny(w http.ResponseWriter, mac string, d denial) {
 	}
 }
 
-func pipe(w http.ResponseWriter, body io.Reader) pipeResult {
+func pipe(w http.ResponseWriter, body io.Reader, liveness time.Duration) pipeResult {
 	rc := http.NewResponseController(w)
 	buf := make([]byte, pipeChunk)
 	var res pipeResult
 	for {
 		n, err := body.Read(buf)
 		if n > 0 {
+			_ = rc.SetWriteDeadline(time.Now().Add(liveness))
 			if _, werr := w.Write(buf[:n]); werr != nil {
 				res.writeErr = werr
 				return res

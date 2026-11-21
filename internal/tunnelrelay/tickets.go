@@ -123,6 +123,9 @@ func (t *tickets) set(mac string, list []Ticket, current func() bool) (int, erro
 	if !current() {
 		return 0, errNotCurrent
 	}
+	if slices.Equal(t.macs[mac], clean) {
+		return len(clean), nil
+	}
 	next := make(map[string][]Ticket, len(t.macs)+1)
 	for m, l := range t.macs {
 		next[m] = l

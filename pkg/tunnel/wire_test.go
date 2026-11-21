@@ -2,7 +2,9 @@ package tunnel
 
 import (
 	"bytes"
+	"encoding/binary"
 	"io"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,6 +30,19 @@ func TestPushBatchRoundTrip(t *testing.T) {
 
 	_, err = NewPushReader(bytes.NewReader(batch[:10])).Next()
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+}
+
+func TestPushReaderAllocatesByTheBodyNotTheHeader(t *testing.T) {
+	batch := AppendPush(nil, PushItem{Kind: PushData, Data: []byte("short")})
+	binary.BigEndian.PutUint32(batch[1+IDSize:], MaxPushItem)
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+
+	_, err := NewPushReader(bytes.NewReader(batch)).Next()
+
+	runtime.ReadMemStats(&after)
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	require.Less(t, after.TotalAlloc-before.TotalAlloc, uint64(1<<20))
 }
 
 func TestRecordReaderRefusesBadLengths(t *testing.T) {

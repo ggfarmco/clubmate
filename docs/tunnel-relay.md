@@ -21,7 +21,7 @@ From the spike through the exe.dev proxy (`research/2026-11-20-relay-sse-spike.m
 | `OpenWait` | 10 s | how long `POST /v1/d/open` waits for the Mac's msg2 |
 | `CallWait` | 2 min 10 s | how long `POST /v1/d/call` waits for the Mac's reply to start |
 
-The proxy sends its own `503` HTML when a response has no headers after 300 s. So every long response writes its headers and flushes them early: `/v1/mac/stream` at once; `/v1/d/call` and `/v1/d/stream` at the first byte from the Mac or after `HeadWait` (3 s), whichever comes first. The short wait lets the relay answer `410` when the Mac says it does not know the channel (`POST /v1/mac/close/{ch}`). The long handlers also clear the server's read and write deadlines, so the push relay's 10 s / 30 s server timeouts do not cut them; body transfers get 5 min.
+The proxy sends its own `503` HTML when a response has no headers after 300 s. So every long response writes its headers and flushes them early: `/v1/mac/stream` at once; `/v1/d/call` and `/v1/d/stream` at the first byte from the Mac or after `HeadWait` (3 s), whichever comes first. The short wait lets the relay answer `410` when the Mac says it does not know the channel (`POST /v1/mac/close/{ch}`). The long handlers also clear the server's read and write deadlines, so the push relay's 10 s / 30 s server timeouts do not cut them; body transfers get 5 min. Each write on a long response (`/v1/mac/stream`, `/v1/d/stream`, the piped reply of `/v1/d/call`) gets its own deadline of `Liveness` (55 s). A peer that stops reading ends the response, and the relay gives back the bytes queued for it. When the relay ends a Mac stream (replaced, slow, revoked, shutdown), it cuts a write that waits.
 
 ## Auth
 
@@ -36,7 +36,7 @@ The proxy sends its own `503` HTML when a response has no headers after 300 s. S
 - A hash that another Mac registered gets `409`, unless it is that Mac's pairing ticket and its `exp` has passed: then it is free and moves to this Mac.
 - The PUT carries `X-Clubmate-Stream` with the id of this Mac's current stream (see [Mac side](#mac-side)); else `409` `not this Mac's current stream`, checked under the same lock as the write, so a Clubmate whose stream was replaced cannot overwrite the set of the one that holds the stream.
 - `204` on success. The relay closes every channel (and every open still waiting) that was opened with a ticket that left the set: the Mac gets `close` with `why: ticket-revoked`, and that device's requests on the channel are cut, a reply that is already piping too (the Mac's `POST /v1/mac/reply/{id}` gets `410`). An `open` still waiting with that ticket gets `401`.
-- The file (`-tickets`, see [Push relay § Configuration](push-relay.md#configuration)) stores only hashes, keyed by Mac name: `{"<mac name>": [{"h": "…", "exp": …}]}`, written to a temp file and renamed. It survives a restart; channels do not.
+- The file (`-tickets`, see [Push relay § Configuration](push-relay.md#configuration)) stores only hashes, keyed by Mac name: `{"<mac name>": [{"h": "…", "exp": …}]}`, written to a temp file and renamed. A `PUT` with the same set as stored does not write the file. It survives a restart; channels do not.
 
 ## Mac side
 
@@ -102,7 +102,7 @@ Constants in `internal/tunnelrelay/quota.go` (`DefaultLimits`). Per Mac name:
 
 | Quota | Default | Over it |
 |---|---|---|
-| bytes in + out per UTC day | 2 GiB | `429` on `open`, `call`, `stream` and `POST /v1/mac/push`, `Retry-After` until 00:00 UTC |
+| bytes in + out per UTC day; push items for an id the relay does not know count too | 2 GiB | `429` on `open`, `call`, `stream` and `POST /v1/mac/push`, `Retry-After` until 00:00 UTC |
 | open channels | 32 | the oldest channel with no request in flight is dropped (`close` `why: idle` to the Mac); when all have one, `429` on `open` |
 | calls in flight | 64 | `429` on `call` |
 | open device streams | 16 | `429` on `stream` |

@@ -60,6 +60,7 @@ type Relay struct {
 	active  atomic.Int64
 
 	ping     time.Duration
+	liveness time.Duration
 	openWait time.Duration
 	callWait time.Duration
 	headWait time.Duration
@@ -90,6 +91,7 @@ func New(cfg Config) (*Relay, error) {
 		buf:      buf,
 		lim:      lim,
 		ping:     PingEvery,
+		liveness: Liveness,
 		openWait: OpenWait,
 		callWait: CallWait,
 		headWait: HeadWait,
@@ -230,6 +232,10 @@ func transfer(w http.ResponseWriter) {
 	until := time.Now().Add(transferTime)
 	_ = rc.SetReadDeadline(until)
 	_ = rc.SetWriteDeadline(until)
+}
+
+func (r *Relay) writeBy(rc *http.ResponseController) {
+	_ = rc.SetWriteDeadline(time.Now().Add(r.liveness))
 }
 
 func startStream(w http.ResponseWriter, contentType string) {
