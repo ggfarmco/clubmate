@@ -32,6 +32,7 @@ public final class BacklogStore {
     @ObservationIgnored private weak var runner: (any CommandRunner)?
     @ObservationIgnored private let cache: ListCache
     @ObservationIgnored private let key: ListCache.Key
+    @ObservationIgnored private let offMain = OffMain()
     @ObservationIgnored private let computer: String
     @ObservationIgnored private let queues: @MainActor () -> Bool
     @ObservationIgnored private let retry: @MainActor () -> Void
@@ -130,7 +131,7 @@ public final class BacklogStore {
         guard let runner else { return }
         do {
             let reply = try await runner.command(BacklogCommand.list, workspace: workspace, args: .object(["query": .string(query), "slim": .bool(true)]))
-            let results = try (reply["tasks"]?.arrayValue ?? []).map { try $0.decode(BacklogTask.self) }
+            let results = try await offMain.run("search") { try (reply["tasks"]?.arrayValue ?? []).map { try $0.decode(BacklogTask.self) } }
             guard query == searchText else { return }
             search = BacklogSearch(query, results: results)
         } catch {
@@ -196,8 +197,8 @@ public final class BacklogStore {
     public func get(_ id: Int) async throws -> BacklogTask? {
         guard let runner else { return nil }
         let result = try await runner.command(BacklogCommand.get, workspace: workspace, args: .object(["id": .number(Double(id))]))
-        guard let task = try? result.decode(BacklogTask.self) else { return nil }
-        cache.save(result, taskKey(id))
+        guard let task = try? await offMain.run("task/\(id)", { try result.decode(BacklogTask.self) }) else { return nil }
+        cache.store(result, taskKey(id))
         return task
     }
 
@@ -332,7 +333,12 @@ public final class BacklogStore {
             if !legacy {
                 let reply = try await runner.command(BacklogCommand.list, workspace: workspace, args: .object(["since": .string(list.cursor ?? ""), "slim": .bool(true)]))
                 if SyncedList<BacklogTask>.synced(reply) {
-                    try list.apply(reply)
+                    let base = list
+                    list = try await offMain.run("list") {
+                        var next = base
+                        try next.apply(reply)
+                        return next
+                    }
                 } else {
                     legacy = true
                     open = reply["tasks"]?.arrayValue
@@ -350,7 +356,12 @@ public final class BacklogStore {
                     guard let tasks = try await runner.command(BacklogCommand.list, workspace: workspace, args: .object(args))["tasks"]?.arrayValue else { throw RemoteError.badResponse }
                     raw += tasks
                 }
-                try list.replace(raw)
+                let rows = raw
+                list = try await offMain.run("list") {
+                    var next = SyncedList<BacklogTask>()
+                    try next.replace(rows)
+                    return next
+                }
             }
             settling.removeAll { $0.at <= started }
             error = nil
@@ -358,7 +369,7 @@ public final class BacklogStore {
             syncedAt = .now
             saves.request { [weak self] in
                 guard let self, let at = self.syncedAt else { return }
-                self.cache.save(Snapshot(tasks: .array(self.list.rows), cursor: self.list.cursor, at: at), self.key)
+                self.cache.store(Snapshot(tasks: .array(self.list.rows), cursor: self.list.cursor, at: at), self.key)
             }
         } catch is CancellationError {
         } catch {
@@ -367,7 +378,7 @@ public final class BacklogStore {
         loaded = true
     }
 
-    private struct Snapshot: Codable {
+    private struct Snapshot: Codable, Sendable {
         let tasks: JSONValue
         var cursor: String?
         let at: Date

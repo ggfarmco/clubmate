@@ -10,6 +10,7 @@ final class NavigationPerfUITests: XCTestCase {
     private static let child = (id: "agt_0000000000000901", seed: 1)
     private static let long = [(id: "agt_0000000000000900", seed: 0), (id: "agt_0000000000000902", seed: 2), (id: "agt_0000000000000903", seed: 3), (id: "agt_0000000000000904", seed: 4), (id: "agt_0000000000000906", seed: 6), (id: "agt_0000000000000907", seed: 7), (id: "agt_0000000000000908", seed: 8)]
     private static let iterations = Int(ProcessInfo.processInfo.environment["PERF_ITERATIONS"] ?? "") ?? 6
+    private static let stream = ProcessInfo.processInfo.environment["PERF_STREAM"] ?? "400"
     private static let log = Logger(subsystem: "com.clubmate.companion.perf", category: "step")
 
     private var latency: String {
@@ -84,6 +85,19 @@ final class NavigationPerfUITests: XCTestCase {
         backMoves("backbutton") { app in
             app.navigationBars.buttons.element(boundBy: 0).tap()
         }
+    }
+
+    func testScrollStreaming() {
+        let target = Self.long[3]
+        let app = launch(open: "agents/" + target.id, extra: ["-frameMonitor", "YES", "-perfStream", Self.stream])
+        XCTAssertTrue(last(target.seed, in: app).waitForExistence(timeout: 20))
+        scrollMoves("scroll", in: app)
+    }
+
+    func testListScrollRefreshing() {
+        let app = launch(open: "tab:agents", extra: ["-frameMonitor", "YES", "-perfStream", Self.stream])
+        XCTAssertTrue(row(Self.long[0].id, in: app).waitForExistence(timeout: 20))
+        scrollMoves("listscroll", in: app)
     }
 
     func testSessionToSession() {
@@ -186,6 +200,14 @@ final class NavigationPerfUITests: XCTestCase {
         shot(app, "wiki-revisit-1s", after: 0.7)
         XCTAssertTrue(app.staticTexts["Updating…"].waitForNonExistence(timeout: 10))
         shot(app, "wiki-revisit-fresh", after: 0)
+    }
+
+    private func scrollMoves(_ kind: String, in app: XCUIApplication) {
+        for index in 0..<Self.iterations * 2 {
+            Self.log.info("step \(kind, privacy: .public) begin \(index, privacy: .public)")
+            if index % 2 == 0 { app.swipeDown(velocity: .slow) } else { app.swipeUp(velocity: .slow) }
+            Self.log.info("step \(kind, privacy: .public) end \(index, privacy: .public)")
+        }
     }
 
     private func backMoves(_ kind: String, move: (XCUIApplication) -> Void) {

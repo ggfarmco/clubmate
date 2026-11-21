@@ -250,7 +250,7 @@ public final class DocsListStore {
                 var saved: [String: JSONValue] = ["docs": .array(self.list.rows), "truncated": .bool(self.truncated)]
                 if let cursor = self.list.cursor { saved["cursor"] = .string(cursor) }
                 if let etag = self.etag { saved["etag"] = .string(etag) }
-                self.cache.save(Snapshot(list: .object(saved), at: at), self.key)
+                self.cache.store(Snapshot(list: .object(saved), at: at), self.key)
             }
         } catch {
             self.error = (error as? RemoteError)?.message ?? error.localizedDescription
@@ -258,7 +258,7 @@ public final class DocsListStore {
         loaded = true
     }
 
-    private struct Snapshot: Codable {
+    private struct Snapshot: Codable, Sendable {
         let list: JSONValue
         let at: Date
     }

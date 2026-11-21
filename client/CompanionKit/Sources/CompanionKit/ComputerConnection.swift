@@ -35,7 +35,8 @@ extension CommandRunner {
     }
 
     @MainActor public func command<T: Decodable & Sendable>(_ id: String, workspace: String?, args: JSONValue?, as type: T.Type) async throws -> T {
-        try await command(id, workspace: workspace, args: args).decode(type)
+        let value = try await command(id, workspace: workspace, args: args)
+        return try await OffMain.commands.run((workspace ?? "") + "/" + id) { try value.decode(type) }
     }
 }
 
@@ -139,13 +140,13 @@ public final class ComputerConnection: CommandRunner {
         }
     }
 
-    private struct Saved: Codable {
+    private struct Saved: Codable, Sendable {
         let hello: Hello
         let workspaces: [Workspace]
         var awake: AwakeState?
     }
 
-    private struct SavedPath: Codable {
+    private struct SavedPath: Codable, Sendable {
         let path: NetworkPath
     }
 
@@ -310,7 +311,7 @@ public final class ComputerConnection: CommandRunner {
         probeFrom = path == .relay ? now() : nil
         guard answered != path else { return }
         answered = path
-        cache.save(SavedPath(path: path), pathKey)
+        cache.store(SavedPath(path: path), pathKey)
     }
 
     private func probeIfDue() {
@@ -323,7 +324,7 @@ public final class ComputerConnection: CommandRunner {
             probeTask = nil
             guard answers, activePath == .relay else { return }
             answered = .tailnet
-            cache.save(SavedPath(path: .tailnet), pathKey)
+            cache.store(SavedPath(path: .tailnet), pathKey)
             note(.state, "probe ok path=tailnet")
             restart("the app moved to Tailscale")
         }

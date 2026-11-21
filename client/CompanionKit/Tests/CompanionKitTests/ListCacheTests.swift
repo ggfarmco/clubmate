@@ -68,6 +68,15 @@ final class ListCacheTests: XCTestCase {
         XCTAssertEqual(cache.load(keys[0], as: Int.self), 9)
     }
 
+    func testStoredWritesLandInOrderBeforeALoadFromAnotherInstance() {
+        let cache = ListCache(dir: dir)
+        let key = ListCache.Key(computer: "m", workspace: "w", collection: "backlog")
+        for value in 0..<50 { cache.store(value, key) }
+        XCTAssertEqual(ListCache(dir: dir).load(key, as: Int.self), 49)
+        cache.remove(key)
+        XCTAssertNil(ListCache(dir: dir).load(key, as: Int.self))
+    }
+
     func testTaskDetailComesFromTheSavedCopy() async throws {
         let cache = ListCache(dir: dir)
         let runner = ScriptedRunner(replies: [], sessions: [#"{"id":7,"title":"t","status":"todo","description":"body"}"#])

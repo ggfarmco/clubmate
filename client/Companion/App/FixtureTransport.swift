@@ -205,6 +205,8 @@ actor FixtureServer {
     private var streams = 0
     private var seq = 100
     private var notified = false
+    private var streaming: Task<Void, Never>?
+    private var streamed = 0
     private var voice: JSONValue = .null
     private var voicePhase = "listening"
     private var voiceMode = "assistant"
@@ -498,6 +500,15 @@ actor FixtureServer {
             Task {
                 try? await Task.sleep(for: .seconds(1))
                 notifyAll()
+            }
+            if PerfFixture.on, PerfFixture.stream > 0 {
+                streaming = Task { [weak self] in
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .milliseconds(PerfFixture.stream))
+                        guard let self else { return }
+                        await self.streamPerf()
+                    }
+                }
             }
         }
         return stream
@@ -1403,6 +1414,24 @@ actor FixtureServer {
         publish("agents.changed", ["workspace": .string(runsWorkspace), "session": .string(id), "kind": .string("resolved"), "request": .string(id == Self.stepRun ? "step-squash" : "cap-1")])
     }
 
+    deinit {
+        streaming?.cancel()
+    }
+
+    private func streamPerf() {
+        let session = PerfFixture.id(PerfFixture.streamed)
+        streamed += 1
+        let count = streamed
+        let turn = Double(PerfFixture.turns + 1 + count / 6)
+        var row = Self.entry("agent", "perf-stream-\(count)", text: "Streamed reply \(count): the expiry job frees **\(count)** holds in `reserve.go`.\n\n- checked `expiresAt`\n- ran `go test ./...`")
+        if case .object(var fields) = row {
+            fields["turn"] = .number(turn)
+            row = .object(fields)
+        }
+        append(session, row)
+        update(session) { $0["activity"] = .string("Streamed reply \(count)") }
+    }
+
     private func notifyAll() {
         if mac.id == FixtureMac.pro.id {
             publish("notify.posted", ["id": .string("ntf_p1"), "workspace": .string(workspace), "session": sessions.first?["id"] ?? .null, "title": .string("Permission needed"), "message": .string("Claude wants to run terraform plan in infra."), "kind": .string("permission"), "agent": .bool(true), "ts": Self.stamp(ago: 240)])
@@ -1963,6 +1992,8 @@ enum PerfFixture {
     static var sessions: Int { value("perfSessions", 80) }
     static var turns: Int { value("perfTurns", 45) }
     static let long = 10
+    static let streamed = 4
+    static var stream: Int { UserDefaults.standard.integer(forKey: "perfStream") }
 
     private static func value(_ key: String, _ fallback: Int) -> Int {
         let set = UserDefaults.standard.integer(forKey: key)

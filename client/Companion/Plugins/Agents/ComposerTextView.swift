@@ -56,8 +56,16 @@ struct ComposerTextView: UIViewRepresentable {
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView view: UITextView, context: Context) -> CGSize? {
         let width = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? (view.bounds.width > 0 ? view.bounds.width : proposal.replacingUnspecifiedDimensions().width)
-        let content = view.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
-        let limit = ceil((view.font?.lineHeight ?? 20) * CGFloat(Self.maxLines))
+        let line = view.font?.lineHeight ?? 20
+        let coordinator = context.coordinator
+        let measure = Coordinator.Measure(text: view.text, line: line)
+        if coordinator.measure != measure {
+            coordinator.measure = measure
+            coordinator.heights = [:]
+        }
+        let content = coordinator.heights[width] ?? view.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
+        coordinator.heights[width] = content
+        let limit = ceil(line * CGFloat(Self.maxLines))
         if view.isScrollEnabled != (content > limit) { view.isScrollEnabled = content > limit }
         return CGSize(width: width, height: min(content, limit))
     }
@@ -77,8 +85,15 @@ struct ComposerTextView: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject, UITextViewDelegate, UITextPasteDelegate {
+        struct Measure: Equatable {
+            let text: String
+            let line: CGFloat
+        }
+
         var parent: ComposerTextView
         var updating = false
+        var measure: Measure?
+        var heights: [CGFloat: CGFloat] = [:]
 
         init(parent: ComposerTextView) {
             self.parent = parent

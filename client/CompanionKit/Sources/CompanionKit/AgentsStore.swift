@@ -21,12 +21,10 @@ public enum TranscriptImage: Sendable, Equatable {
 @Observable
 public final class AgentsStore {
     public let workspace: String
-    private var list = AgentSessionList() {
-        didSet { listed = RunRows.sessions(list.rows, runs: runRows) }
-    }
-    private var runRows: [AgentRunRow]? {
-        didSet { listed = RunRows.sessions(list.rows, runs: runRows) }
-    }
+    private var list = AgentSessionList()
+    private var runRows: [AgentRunRow]?
+    @ObservationIgnored private var listRev = 0
+    @ObservationIgnored private let offMain = OffMain()
     private var listed: [AgentSession] = [] {
         didSet {
             sessions = listed.filter { !$0.hidden }
@@ -143,7 +141,34 @@ public final class AgentsStore {
             list = saved.list
             syncedAt = saved.at
             loaded = true
+            relist()
         }
+    }
+
+    private func relist() {
+        listed = RunRows.sessions(list.rows, runs: runRows)
+        listRev += 1
+    }
+
+    private struct Listing: Sendable {
+        let list: AgentSessionList
+        let runs: [AgentRunRow]?
+        let dock: [AgentDockRow]?
+        let listed: [AgentSession]
+    }
+
+    nonisolated private static func listing(_ reply: JSONValue, list: AgentSessionList, runs: [AgentRunRow]?) throws -> Listing {
+        var list = list
+        var runs = runs
+        var dock: [AgentDockRow]?
+        if reply.arrayValue == nil {
+            if let rows = reply["runs"] { runs = try rows == .null ? nil : rows.decode([AgentRunRow].self) }
+            if let rows = reply["dock"] { dock = try rows == .null ? [] : rows.decode([AgentDockRow].self) }
+        } else {
+            runs = nil
+        }
+        if let rows = reply.arrayValue { try list.replace(rows) } else { try list.apply(reply) }
+        return Listing(list: list, runs: runs, dock: dock, listed: runs == nil ? list.items : RunRows.sessions(list.rows, runs: runs))
     }
 
     public func ageLine(now: Date = .now) -> String? {
@@ -154,7 +179,7 @@ public final class AgentsStore {
         ListCache.Key(computer: computer, workspace: workspace, collection: "sessions")
     }
 
-    private struct Snapshot: Codable {
+    private struct Snapshot: Codable, Sendable {
         static let build = [Bundle.main.infoDictionary?["CFBundleShortVersionString"], Bundle.main.infoDictionary?["CFBundleVersion"]].compactMap { $0 as? String }.joined(separator: "+")
 
         var build = Self.build
@@ -414,14 +439,19 @@ public final class AgentsStore {
         guard let runner else { return }
         do {
             let reply = try await runner.command(AgentCommand.sessions, workspace: workspace, args: Self.lean(list.args))
-            if reply.arrayValue == nil {
-                if let runs = reply["runs"] { runRows = try runs == .null ? nil : runs.decode([AgentRunRow].self) }
-                if let rows = reply["dock"] { dock = try rows == .null ? [] : rows.decode([AgentDockRow].self) }
-            } else {
-                runRows = nil
-            }
+            var next: Listing
+            var rev: Int
+            repeat {
+                rev = listRev
+                let (base, runs) = (list, runRows)
+                next = try await offMain.run("sessions") { try Self.listing(reply, list: base, runs: runs) }
+            } while rev != listRev
             let before = Set(list.items.map(\.id))
-            if let rows = reply.arrayValue { try list.replace(rows) } else { try list.apply(reply) }
+            list = next.list
+            runRows = next.runs
+            if let rows = next.dock { dock = rows }
+            listed = next.listed
+            listRev += 1
             let ids = Set(list.items.map(\.id))
             dropCached(before.subtracting(ids))
             let count = reply["olderCount"]?.numberValue.map { Int($0) } ?? 0
@@ -437,7 +467,7 @@ public final class AgentsStore {
             syncedAt = .now
             saves.request { [weak self] in
                 guard let self, let at = self.syncedAt else { return }
-                self.cache.save(Snapshot(list: self.list, runs: self.runRows ?? [], dock: self.dock, olderCount: self.olderSeen, at: at), self.cacheKey)
+                self.cache.store(Snapshot(list: self.list, runs: self.runRows ?? [], dock: self.dock, olderCount: self.olderSeen, at: at), self.cacheKey)
             }
         } catch {
             self.error = Self.message(error)
@@ -635,7 +665,8 @@ public final class AgentsStore {
             var failure: (any Error)?
             for _ in 0..<2 {
                 do {
-                    let loaded = incremental ? transcripts[session] : nil
+                    let base = transcripts[session]
+                    let loaded = incremental ? base : nil
                     let fromTurn = loaded?.lastTurn ?? 0
                     var full: [String: JSONValue] = ["session": .string(session), "compact": .bool(true)]
                     if slim { full["slim"] = .bool(true) }
@@ -650,11 +681,12 @@ public final class AgentsStore {
                     if stale {
                         fetched = try await runner.command(AgentCommand.transcript, workspace: workspace, args: .object(full), as: AgentTranscript.self)
                     }
-                    let merged = if let loaded, fetched.delta { loaded.merging(delta: fetched) } else if let loaded, fromTurn > 0, !stale { loaded.merging(fetched, fromTurn: fromTurn) } else { fetched }
+                    let (merged, changed) = await offMain.run("transcript/" + session) { [fetched] in Self.merged(fetched, into: loaded, base: base, fromTurn: fromTurn, stale: stale) }
                     for entry in fetched.entries {
                         if case .tool = entry.content { forgetToolCall(entry.entryID, in: session) }
                     }
-                    if transcripts[session] != merged {
+                    let current = transcripts[session]
+                    if current == base ? changed : current != merged {
                         transcripts[session] = merged
                         transcriptChanged(session)
                     }
@@ -669,6 +701,11 @@ public final class AgentsStore {
             }
             transcriptErrors[session] = failure.map(Self.message)
         }
+    }
+
+    nonisolated private static func merged(_ fetched: AgentTranscript, into loaded: AgentTranscript?, base: AgentTranscript?, fromTurn: Int, stale: Bool) -> (AgentTranscript, Bool) {
+        let merged = if let loaded, fetched.delta { loaded.merging(delta: fetched) } else if let loaded, fromTurn > 0, !stale { loaded.merging(fetched, fromTurn: fromTurn) } else { fetched }
+        return (merged, base != merged)
     }
 
     private func follow(_ session: String) async {
@@ -763,7 +800,10 @@ public final class AgentsStore {
 
     private func place(_ fetched: [JSONValue], for id: String) throws {
         let row = try fetched.map { try $0.decode(AgentSession.self) }.first { $0.id == id }
-        guard let row, row.older else { return try list.replace(fetched, for: id) }
+        guard let row, row.older else {
+            try list.replace(fetched, for: id)
+            return relist()
+        }
         if let i = older.firstIndex(where: { $0.id == id }) { older[i] = row }
     }
 

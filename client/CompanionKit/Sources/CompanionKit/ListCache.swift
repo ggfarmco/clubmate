@@ -23,6 +23,8 @@ public struct ListCache: Sendable {
         let computers = Mutex<Set<String>>([])
     }
 
+    private static let queues = (0..<8).map { DispatchQueue(label: "clubmate.list-cache.\($0)", qos: .utility) }
+
     private let dir: URL?
     private let forgotten = Forgotten()
 
@@ -31,34 +33,63 @@ public struct ListCache: Sendable {
     }
 
     public func load<T: Decodable>(_ key: Key, as type: T.Type) -> T? {
-        guard let file = file(key), let data = try? Data(contentsOf: file) else { return nil }
-        return try? JSONDecoder.clubmate.decode(T.self, from: data)
+        guard let file = file(key) else { return nil }
+        return Self.queue(file).sync {
+            guard let data = try? Data(contentsOf: file) else { return nil }
+            return try? JSONDecoder.clubmate.decode(T.self, from: data)
+        }
     }
 
     @discardableResult
     public func save<T: Encodable>(_ value: T, _ key: Key) -> Int? {
-        guard let file = file(key), !forgotten.computers.withLock({ $0.contains(key.computer) }) else { return nil }
+        guard let file = file(key), !refused(key) else { return nil }
+        return Self.queue(file).sync { refused(key) ? nil : Self.write(value, to: file) }
+    }
+
+    public func store<T: Encodable & Sendable>(_ value: T, _ key: Key) {
+        guard let file = file(key), !refused(key) else { return }
+        Self.queue(file).async { [self] in
+            guard !refused(key) else { return }
+            Self.write(value, to: file)
+        }
+    }
+
+    public func remove(_ key: Key) {
+        guard let file = file(key) else { return }
+        Self.queue(file).async { try? FileManager.default.removeItem(at: file) }
+    }
+
+    public func forget(computer: String) {
+        forgotten.computers.withLock { _ = $0.insert(computer) }
+        guard let dir else { return }
+        let folder = dir.appending(path: Self.hash(computer), directoryHint: .isDirectory)
+        for queue in Self.queues {
+            queue.sync {}
+        }
+        try? FileManager.default.removeItem(at: folder)
+    }
+
+    public func allow(computer: String) {
+        forgotten.computers.withLock { _ = $0.remove(computer) }
+    }
+
+    private func refused(_ key: Key) -> Bool {
+        forgotten.computers.withLock { $0.contains(key.computer) }
+    }
+
+    private static func queue(_ file: URL) -> DispatchQueue {
+        let hash = SHA256.hash(data: Data(file.standardizedFileURL.path().utf8)).withUnsafeBytes { $0[0] }
+        return queues[Int(hash) % queues.count]
+    }
+
+    @discardableResult
+    private static func write<T: Encodable>(_ value: T, to file: URL) -> Int? {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         guard let data = try? encoder.encode(value) else { return nil }
         try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         guard (try? data.write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])) != nil else { return nil }
         return data.count
-    }
-
-    public func remove(_ key: Key) {
-        guard let file = file(key) else { return }
-        try? FileManager.default.removeItem(at: file)
-    }
-
-    public func forget(computer: String) {
-        forgotten.computers.withLock { _ = $0.insert(computer) }
-        guard let dir else { return }
-        try? FileManager.default.removeItem(at: dir.appending(path: Self.hash(computer), directoryHint: .isDirectory))
-    }
-
-    public func allow(computer: String) {
-        forgotten.computers.withLock { _ = $0.remove(computer) }
     }
 
     public static func ageLine(syncedAt: Date?, error: String?, empty: Bool, now: Date) -> String? {
