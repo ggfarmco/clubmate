@@ -472,7 +472,7 @@ final class TranscriptImageTests: XCTestCase {
         XCTAssertEqual(runner.calls, 1)
     }
 
-    func testLeavingASessionDropsItsImagesAndKeepsTheLastFewTranscripts() async throws {
+    func testLeavingASessionKeepsImagesAndTranscriptsOfTheLastFew() async throws {
         let runner = ImageRunner()
         runner.data = Data("png".utf8).base64EncodedString()
         let store = AgentsStore(workspace: "w", runner: runner)
@@ -482,11 +482,13 @@ final class TranscriptImageTests: XCTestCase {
             try await waitUntil { store.transcripts[session] != nil }
         }
         await store.loadImage("/w/a.png", entry: "e", in: "s0")
+        await store.loadImage("/w/a.png", entry: "e", in: "s1")
         await store.loadImage("/w/a.png", entry: "e", in: "t")
 
         for session in sessions { store.unwatch(session) }
 
         XCTAssertNil(store.image("/w/a.png", entry: "e", in: "s0"))
+        XCTAssertEqual(store.image("/w/a.png", entry: "e", in: "s1"), .loaded(Data("png".utf8)))
         XCTAssertEqual(store.image("/w/a.png", entry: "e", in: "t"), .loaded(Data("png".utf8)))
         XCTAssertNil(store.transcripts["s0"])
         XCTAssertEqual(sessions.dropFirst().filter { store.transcripts[$0] != nil }, Array(sessions.dropFirst()))
@@ -546,6 +548,32 @@ final class TranscriptRefreshTests: XCTestCase {
         XCTAssertEqual(transcript.entries[2].content, .agent("full answer"))
         XCTAssertEqual(transcript.session.status, .running)
         store.unwatch("s")
+    }
+
+    func testAWarmRevisitMarksRefreshingOnlyWhileTheSlowReplyRuns() async throws {
+        let reply = #"{"session":{"id":"s","status":"done"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"}]}"#
+        let runner = ScriptedRunner(replies: [reply, reply])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        store.watch("s")
+        try await waitUntil { store.transcripts["s"] != nil }
+        XCTAssertTrue(store.refreshing.isEmpty)
+        store.unwatch("s")
+        runner.held = true
+        store.watch("s")
+        try await waitUntil { store.refreshing == ["s"] }
+        runner.release()
+        try await waitUntil { store.refreshing.isEmpty }
+        store.unwatch("s")
+    }
+
+    func testTheListRefreshesOnReappearOnlyWhenStale() async throws {
+        let runner = ScriptedRunner(replies: [])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.refreshIfStale()
+        await store.refreshIfStale()
+        XCTAssertEqual(runner.sessionArgs.count, 1)
+        await store.refreshIfStale(now: .now + AgentsStore.listFresh)
+        XCTAssertEqual(runner.sessionArgs.count, 2)
     }
 
     func testAHiddenRunningReviewerOpenedByIDKeepsFollowingItsTranscript() async throws {

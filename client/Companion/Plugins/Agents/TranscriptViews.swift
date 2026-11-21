@@ -199,13 +199,13 @@ private struct UserText: View {
             VStack(alignment: .leading, spacing: 8) {
                 if expanded {
                     ScrollView {
-                        Text(Markdown.inline(text))
+                        Text(MarkdownCache.inline(text))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .frame(maxHeight: 480)
                 } else {
-                    Text(Markdown.inline(long.preview))
+                    Text(MarkdownCache.inline(long.preview))
                         .textSelection(.enabled)
                 }
                 Button {
@@ -220,7 +220,7 @@ private struct UserText: View {
                 .buttonStyle(.plain)
             }
         } else {
-            Text(Markdown.inline(text))
+            Text(MarkdownCache.inline(text))
                 .textSelection(.enabled)
         }
     }
@@ -381,7 +381,7 @@ struct MarkdownView: View {
     }
 
     init(text: String, docLinks: [String: String] = [:], imageLinks: [String: String] = [:], taskLinks: [String: String] = [:], markerFont: Font = .body) {
-        blocks = Markdown.blocks(text)
+        blocks = MarkdownCache.blocks(text)
         self.docLinks = docLinks
         self.imageLinks = imageLinks
         self.taskLinks = taskLinks
@@ -389,7 +389,7 @@ struct MarkdownView: View {
     }
 
     private func inline(_ text: String) -> AttributedString {
-        Markdown.inline(text, docLinks: docLinks, imageLinks: openImage == nil ? [:] : imageLinks, taskLinks: openTask == nil ? [:] : taskLinks)
+        MarkdownCache.inline(text, docLinks: docLinks, imageLinks: openImage == nil ? [:] : imageLinks, taskLinks: openTask == nil ? [:] : taskLinks)
     }
 
     var body: some View {

@@ -217,6 +217,15 @@ struct SessionDetailView: View {
                     }
                     .font(.callout)
                     .id("working")
+                } else if store.refreshing.contains(sessionID) {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .controlSize(.mini)
+                        Text("Updating…")
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(Color.captionInk)
+                    .id("updating")
                 }
             }
             .padding(.horizontal)

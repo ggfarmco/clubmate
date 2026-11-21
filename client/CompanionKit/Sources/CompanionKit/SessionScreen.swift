@@ -168,7 +168,7 @@ public struct SessionScreen: Sendable, Equatable {
         var asked: (index: Int, question: String, drop: Bool)?
         if session?.state == .askingYou, let index = entries.lastIndex(where: { if case .agent = $0.content { true } else { false } }),
            case .agent(let text) = entries[index].content {
-            asked = Self.question(in: Markdown.blocks(text)).map { (index, $0.text, $0.whole) }
+            asked = Self.question(in: MarkdownCache.blocks(text)).map { (index, $0.text, $0.whole) }
         }
         var rows: [TranscriptRow] = []
         var waiting: [PermissionRequest] = []
@@ -186,7 +186,7 @@ public struct SessionScreen: Sendable, Equatable {
         for (index, entry) in entries.enumerated() {
             switch entry.content {
             case .agent(let text):
-                var blocks = Markdown.blocks(text)
+                var blocks = MarkdownCache.blocks(text)
                 if index + 1 < entries.count, case .plan = entries[index + 1].content {
                     blocks = Self.foldPlan(blocks)
                 }

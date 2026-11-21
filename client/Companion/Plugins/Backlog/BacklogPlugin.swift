@@ -93,7 +93,7 @@ struct BacklogListView: View {
         Group {
             if let workspace, let store = BacklogPlugin.store(context) {
                 TaskListView(context: context, store: store)
-                    .task(id: workspace.id) { await store.refresh() }
+                    .task(id: workspace.id) { await store.refreshIfStale() }
             } else if context.connection.state == .online {
                 ContentUnavailableView("No Workspaces", systemImage: "folder", description: Text("Open a workspace in Clubmate on \(context.connection.computer.name)."))
             } else {

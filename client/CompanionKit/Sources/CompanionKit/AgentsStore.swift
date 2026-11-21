@@ -57,6 +57,7 @@ public final class AgentsStore {
     public private(set) var syncedAt: Date?
     public private(set) var fetched = false
     public private(set) var transcriptErrors: [String: String] = [:]
+    public private(set) var refreshing: Set<String> = []
     public private(set) var openedDocs: [String: String] = [:]
     public var expanded: Set<String> = []
     public var searchQuery = "" {
@@ -95,6 +96,8 @@ public final class AgentsStore {
     public static let transcriptSaveInterval: Duration = .seconds(30)
     public static let openNoUndo: Duration = .seconds(5)
     public static let imageBytes = 48 << 20
+    public static let listFresh: TimeInterval = 10
+    public static let refreshMark: Duration = .milliseconds(300)
 
     @ObservationIgnored private weak var runner: (any CommandRunner)?
     @ObservationIgnored private var imageOrder: [String] = []
@@ -301,18 +304,22 @@ public final class AgentsStore {
     }
 
     private func forget(_ session: String) {
-        let prefix = session + "|"
-        images = images.filter { !$0.key.hasPrefix(prefix) }
-        imageOrder.removeAll { $0.hasPrefix(prefix) }
-        shownImages = shownImages.filter { !$0.hasPrefix(prefix) }
+        shownImages = shownImages.filter { !$0.hasPrefix(session + "|") }
         if transcriptErrors[session] != nil { transcriptErrors[session] = nil }
         left.removeAll { $0 == session }
         left.append(session)
         while left.count > Self.keptTranscripts {
             let oldest = left.removeFirst()
+            dropImages(oldest)
             guard self.session(oldest)?.needsYou != true else { continue }
             transcripts[oldest] = nil
         }
+    }
+
+    private func dropImages(_ session: String) {
+        let prefix = session + "|"
+        images = images.filter { !$0.key.hasPrefix(prefix) }
+        imageOrder.removeAll { $0.hasPrefix(prefix) }
     }
 
     private var slim: Bool {
@@ -384,6 +391,11 @@ public final class AgentsStore {
         for run in watchedRuns.keys {
             await loadRun(run)
         }
+    }
+
+    public func refreshIfStale(now: Date = .now) async {
+        if fetched, error == nil, let syncedAt, now.timeIntervalSince(syncedAt) < Self.listFresh { return }
+        await refresh()
     }
 
     public func refresh() async {
@@ -661,7 +673,7 @@ public final class AgentsStore {
 
     private func follow(_ session: String) async {
         await restore(session)
-        await load(session)
+        await catchUp(session)
         while !Task.isCancelled {
             do {
                 try await sleep(Self.followInterval)
@@ -676,6 +688,17 @@ public final class AgentsStore {
 
     private func load(_ session: String) async {
         await Task { await loadTranscript(session, incremental: true) }.value
+    }
+
+    private func catchUp(_ session: String) async {
+        guard transcripts[session] != nil else { return await load(session) }
+        let mark = Task { [weak self, sleep] in
+            guard (try? await sleep(Self.refreshMark)) != nil, !Task.isCancelled else { return }
+            self?.refreshing.insert(session)
+        }
+        await load(session)
+        mark.cancel()
+        if refreshing.contains(session) { refreshing.remove(session) }
     }
 
     public func send(_ text: String, attachments: [ComposerAttachment] = [], to session: String) async throws {

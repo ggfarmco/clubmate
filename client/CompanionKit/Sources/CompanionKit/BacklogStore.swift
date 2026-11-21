@@ -171,6 +171,11 @@ public final class BacklogStore {
         }
     }
 
+    public func refreshIfStale(now: Date = .now) async {
+        if fetched, error == nil, let syncedAt, now.timeIntervalSince(syncedAt) < AgentsStore.listFresh { return }
+        await refresh()
+    }
+
     public func refresh() async {
         guard !inflight else {
             again = true
