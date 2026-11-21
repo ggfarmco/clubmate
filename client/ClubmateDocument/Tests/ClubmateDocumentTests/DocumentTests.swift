@@ -56,29 +56,48 @@ final class DocumentTests: XCTestCase {
         XCTAssertFalse(html.replacingOccurrences(of: "http-equiv", with: "").contains("http"))
     }
 
-    func testColumnCentresTextAndLongCodeFades() async throws {
-        let long = String(repeating: "booking.roots2:30:17: error ", count: 20)
-        let html = "<p id=\"p\">text</p><pre id=\"long\"><code>\(long)</code></pre><pre id=\"short\"><code>ok</code></pre>"
-        for (column, left) in [(680.0, 160.0), (nil, 20.0)] {
+    func testColumnPlacesProseMarginAndCode() async throws {
+        let long = String(repeating: "booking.roots2:30:17: error ", count: 40)
+        let margin = "<aside class=\"wiki-margin\" id=\"aside\"><nav class=\"wm-sec\">On this page</nav></aside><details class=\"wiki-fold\" id=\"fold\"><summary>On this page</summary></details>"
+        let html = margin + "<p id=\"p\">text</p><pre id=\"long\"><code>\(long)</code></pre><pre id=\"short\"><code>ok</code></pre>"
+        let cases: [(width: Double, column: Double?, aside: Double?, left: Double, code: Double, asideLeft: Double?)] = [
+            (1000, 780, 240, 110, 862, nil),
+            (1210, 780, 240, 75, 780, 895),
+            (1210, 780, nil, 215, 967, nil),
+            (1000, nil, nil, 28, 704, 772),
+        ]
+        for c in cases {
             var theme = DocumentTheme.system(dark: false)
-            theme.inset = 20
-            theme.column = column
+            theme.inset = 28
+            theme.column = c.column
+            theme.aside = c.aside
             let page = DocumentController()
-            page.webView.frame = CGRect(x: 0, y: 0, width: 1000, height: 600)
+            page.webView.frame = CGRect(x: 0, y: 0, width: c.width, height: 600)
             page.show(DocumentContent(path: "/r/a.md", html: html, rev: 1), theme: theme, size: .fill)
             await page.settled()
             let state = try await page.webView.callAsyncJavaScript("""
+                const box = (id) => document.getElementById(id).getBoundingClientRect();
+                const shown = (id) => getComputedStyle(document.getElementById(id)).display !== 'none';
                 return [
                     document.documentElement.classList.contains('column'),
-                    document.getElementById('p').getBoundingClientRect().left,
+                    Math.round(box('p').left),
+                    Math.round(box('long').left),
+                    Math.round(box('long').width),
+                    shown('aside') ? Math.round(box('aside').left) : -1,
+                    shown('fold'),
                     document.getElementById('long').classList.contains('more'),
                     document.getElementById('short').classList.contains('more'),
                 ]
                 """, contentWorld: .page) as? [Any]
-            XCTAssertEqual(state?[0] as? Bool, column != nil)
-            XCTAssertEqual(state?[1] as? Double, left)
-            XCTAssertEqual(state?[2] as? Bool, true)
-            XCTAssertEqual(state?[3] as? Bool, false)
+            let label = "\(c.width) column \(String(describing: c.column)) aside \(String(describing: c.aside))"
+            XCTAssertEqual(state?[0] as? Bool, c.column != nil, label)
+            XCTAssertEqual(state?[1] as? Double, c.left, label)
+            XCTAssertEqual(state?[2] as? Double, c.left, label)
+            XCTAssertEqual(state?[3] as? Double, c.code, label)
+            XCTAssertEqual(state?[4] as? Double, c.asideLeft ?? -1, label)
+            XCTAssertEqual(state?[5] as? Bool, c.asideLeft == nil, label)
+            XCTAssertEqual(state?[6] as? Bool, true, label)
+            XCTAssertEqual(state?[7] as? Bool, false, label)
         }
     }
 
@@ -131,7 +150,7 @@ final class DocumentTests: XCTestCase {
 
     func testMermaidErrorKeepsSource() async throws {
         let page = DocumentController()
-        page.webView.frame = CGRect(x: 0, y: 0, width: 400, height: 300)
+        page.webView.frame = CGRect(x: 0, y: 0, width: 1200, height: 300)
         let html = "<pre class=\"mermaid\">flowchart LR\n  A --&gt; B</pre><pre class=\"mermaid\">flowchart LR\n  A --&gt;</pre><p id=\"after\">after</p>"
         page.show(DocumentContent(path: "/r/a.md", html: html, rev: 1), theme: .mate(dark: false), size: .fill)
         await page.settled()
@@ -142,6 +161,8 @@ final class DocumentTests: XCTestCase {
                 document.querySelector('pre.mermaid-failed')?.textContent ?? '',
                 document.querySelector('pre.mermaid-failed + .mermaid-error')?.textContent ?? '',
                 document.getElementById('after')?.textContent ?? '',
+                Math.round(document.querySelector('pre.mermaid-failed').getBoundingClientRect().right),
+                Math.round(document.querySelector('.mermaid-error').getBoundingClientRect().right),
             ]
             """, contentWorld: .page) as? [Any]
         XCTAssertEqual(state?[0] as? String, "object")
@@ -149,6 +170,7 @@ final class DocumentTests: XCTestCase {
         XCTAssertEqual(state?[2] as? String, "flowchart LR\n  A -->")
         XCTAssertTrue((state?[3] as? String ?? "").contains("Parse error"), "\(state?[3] ?? "")")
         XCTAssertEqual(state?[4] as? String, "after")
+        XCTAssertEqual(state?[5] as? Int, state?[6] as? Int)
     }
 
     func testZoomSteps() {

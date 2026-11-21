@@ -98,7 +98,9 @@
 
   const column = () => {
     const root = document.documentElement;
-    root.classList.toggle('column', getComputedStyle(root).getPropertyValue('--column').trim() !== '');
+    const style = getComputedStyle(root);
+    root.classList.toggle('column', style.getPropertyValue('--column').trim() !== '');
+    root.classList.toggle('aside', style.getPropertyValue('--aside').trim() !== '');
   };
 
   const fade = (code) => code.parentElement.classList.toggle('more', code.scrollWidth - code.clientWidth - code.scrollLeft > 1);

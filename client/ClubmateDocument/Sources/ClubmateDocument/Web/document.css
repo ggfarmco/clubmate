@@ -31,7 +31,16 @@ html.fit, html.fit body { overflow: hidden; }
 
 #doc > :is(p, ul, ol, dl, blockquote, details, h1, h2, h3, h4, h5, h6, .footnotes) { max-width: var(--measure); }
 
-html.column #doc { max-width: calc(var(--column) + 2 * var(--inset, 24px)); margin-inline: auto; }
+html.column {
+  --prose: min(var(--column), 100vw - 2 * var(--inset, 24px));
+  --measure: var(--prose);
+  --wide: 1060px;
+}
+
+html.column #doc { padding-left: calc((100vw - var(--prose)) / 2); }
+html.column #doc img { max-width: min(100%, var(--prose)); }
+html.column #doc :is(pre, table, .mermaid-diagram, .mermaid-error) { max-width: min(var(--wide), 100%); }
+html.column pre.more::after { width: 56px; }
 
 html.fit #doc { padding: 0; }
 html.fit #doc > :is(p, ul, ol, dl, blockquote, details, h1, h2, h3, h4, h5, h6, .footnotes) { max-width: none; }
@@ -233,6 +242,7 @@ html.lightbox-open, html.lightbox-open body { overflow: hidden; }
 .lightbox-button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 pre.mermaid-failed {
+  width: 100%;
   margin-bottom: 0;
   border-color: var(--danger);
   border-bottom-left-radius: 0;
@@ -240,6 +250,7 @@ pre.mermaid-failed {
 }
 
 .mermaid-error {
+  box-sizing: border-box;
   margin: 0 0 12px;
   padding: 4px 12px;
   border: 1px solid var(--danger);
@@ -296,6 +307,33 @@ pre.mermaid-failed {
   }
   html:not(.column) .wiki-fold { display: none; }
   html:not(.column) .wiki-margin > nav { flex: none; max-height: 50vh; overflow-y: auto; }
+}
+
+@media (min-width: 1116px) {
+  html.column.aside #doc:has(> .wiki-margin) {
+    position: relative;
+    padding-left: calc((100vw - var(--wide)) / 2);
+    padding-right: calc((100vw - var(--wide)) / 2 + var(--aside) + var(--margin-gap));
+  }
+  html.column.aside .wiki-margin {
+    display: flex;
+    position: absolute;
+    top: var(--top, 16px);
+    right: calc((100vw - var(--wide)) / 2);
+    bottom: 48px;
+    box-sizing: border-box;
+    width: var(--aside);
+  }
+  html.column.aside .wiki-margin > nav {
+    position: sticky;
+    top: 16px;
+    z-index: 1;
+    flex: none;
+    max-height: 50vh;
+    overflow-y: auto;
+    background: var(--bg);
+  }
+  html.column.aside .wiki-fold { display: none; }
 }
 
 .wm-sec { display: flex; flex-direction: column; min-width: 0; }

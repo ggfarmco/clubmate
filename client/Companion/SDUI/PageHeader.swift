@@ -83,11 +83,20 @@ struct PageHeaderColumn: View {
     let title: String
     var meta: String?
     var badges: [SDUIHeaderBadge] = []
+    var aside = false
 
     static let top: CGFloat = 10
     static let titleEnd: Double = 44
 
     var body: some View {
+        PadProse(aside: aside) {
+            lines.frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.top, Self.top)
+        .padding(.bottom, 14)
+    }
+
+    private var lines: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.title.weight(.bold))
@@ -109,11 +118,6 @@ struct PageHeaderColumn: View {
                 .padding(.top, 6)
             }
         }
-        .frame(maxWidth: PadLayout.measure, alignment: .leading)
-        .padding(.horizontal, PadLayout.margin)
-        .frame(maxWidth: .infinity)
-        .padding(.top, Self.top)
-        .padding(.bottom, 14)
     }
 
     static func meta(_ parts: String?...) -> String? {

@@ -228,6 +228,7 @@ struct DocumentNode: View {
     @Environment(\.documentReading) private var reading
     @Environment(\.documentHeld) private var held
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.readingView) private var readingView
 
     private var fit: Bool { node.string("size") == "fit" }
 
@@ -249,6 +250,7 @@ struct DocumentNode: View {
         if pad {
             theme.inset = PadLayout.margin
             theme.column = PadLayout.measure
+            if !readingView, PadLayout.hasAside(node.string("html")) { theme.aside = PadLayout.aside }
         }
         return theme
     }

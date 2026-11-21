@@ -248,7 +248,7 @@ final class WikiUITests: XCTestCase {
     func testTextStartsFourteenPointsBelowTheSubtitle() {
         let app = openCheckoutFlow()
         let subtitle = app.navigationBars["Checkout flow"].staticTexts["Updated 08:41 by agent"]
-        let text = app.webViews.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Back to the")).firstMatch
+        let text = app.webViews.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "On this page")).firstMatch
         XCTAssertTrue(text.waitForExistence(timeout: 10))
         XCTAssertTrue(wait { abs(text.frame.minY - subtitle.frame.maxY - 14) <= 3 }, "text at \(text.frame.minY), subtitle ends at \(subtitle.frame.maxY)")
         XCTAssertLessThanOrEqual(text.frame.minY / app.windows.firstMatch.frame.height, 0.225)

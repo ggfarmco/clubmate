@@ -161,9 +161,22 @@ final class IPadUITests: XCTestCase {
         XCTAssertEqual(title.frame.minX, text.frame.minX, accuracy: 2)
         let bar = app.navigationBars["Checkout flow"]
         XCTAssertLessThanOrEqual(title.frame.minY - bar.frame.maxY, 12)
-        XCTAssertLessThanOrEqual(text.frame.width, 681)
+        XCTAssertLessThanOrEqual(text.frame.width, 781)
         let barTitle = app.staticTexts["page.barTitle"]
         XCTAssertFalse(barTitle.exists && barTitle.label == "Checkout flow")
+    }
+
+    func testWikiMarginColumnShowsWhenTheListHides() {
+        let app = openCheckoutFlow()
+        let title = app.staticTexts["page.title"]
+        let text = app.webViews.staticTexts["Checkout flow part 1 explains one step of the shop in detail."]
+        let outline = app.webViews.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "On this page")).firstMatch
+        XCTAssertTrue(outline.waitForExistence(timeout: 10))
+        XCTAssertLessThan(outline.frame.minX, text.frame.minX + 30)
+        toggle(app).tap()
+        XCTAssertTrue(listHidden(app))
+        XCTAssertTrue(wait { outline.exists && outline.frame.minX > text.frame.maxX + 30 }, "\(outline.frame) vs \(text.frame)")
+        XCTAssertEqual(title.frame.minX, text.frame.minX, accuracy: 2)
     }
 
     func testScrolledWikiPageKeepsOneBarThenReads() {

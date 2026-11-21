@@ -333,7 +333,7 @@ Ruling: option C + D. The prose takes the Mac wiki's measure (88ch ≈ 780 pt at
 - **Margin column** when the detail is ≥ 1116 pt (28 + 780 + 40 + 240 + 28): 240 pt wide, 40-pt gap; prose + column = 1060 pt, centred as one block. The prose never shrinks to make room. The column's top aligns with the title; it scrolls with the page, "On this page" sticks 16 pt under the bar. Sections and data as on the Mac (`docs/wiki.md` § Margin column): On this page, In this folder, Stale, Changes, Linked from.
 - **Below 1116**: no column; the one-row fold "On this page · n changes · stale · n links" under the meta, as on the Mac below 960; a tap opens it in place.
 - **Code and tables** start at the prose's left edge. Without the column they may run wider, up to min(1060, detail − left margin − 28); with the column they stop at the prose's right edge. Past that, code scrolls inside its box (no wrap) with a 56-pt right fade and a scroll indicator; table cells wrap, a table still too wide scrolls.
-- **Reading view** (⌃⌘F): no bars, no column, prose 780 centred on the screen, code and tables up to 1060, fold row kept.
+- **Reading view** (⌃⌘F): no bars, no column, prose min(780, detail − 56) centred on the screen, code and tables up to 1060, fold row kept.
 - **iPhone and iPad compact width**: no change (full width, 20-pt margins).
 
 | Detail (pt) | Where | Prose | Margins L / R | Margin column | Fold row | Code / tables max |

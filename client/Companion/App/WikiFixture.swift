@@ -26,10 +26,12 @@ enum WikiFixture {
 
     static let pages = [
         Page(id: "shop/README.md", title: "Shop wiki", body: "<p>Start with the <a href=\"clubmate-doc:\(root)checkout.md\">checkout flow</a> or the <a href=\"clubmate-doc:/Users/me/src/shop/docs/payments.md\">payments overview</a>.</p>", foot: "<p>Then <a href=\"clubmate-doc:\(root)checkout.md\">read the checkout flow next</a>.</p>"),
-        Page(id: "shop/checkout.md", title: "Checkout flow", body: "<p>Back to the <a href=\"clubmate-doc:\(root)README.md\">shop wiki</a>.</p><pre><code>booking.roots2:30:17: error: `Booking` needs `room`: only optional fields can be left out of create, and room is not optional here</code></pre>"),
+        Page(id: "shop/checkout.md", title: "Checkout flow", body: margin + "<p>Back to the <a href=\"clubmate-doc:\(root)README.md\">shop wiki</a>.</p><pre><code>booking.roots2:30:17: error: `Booking` needs `room`: only optional fields can be left out of create, and room is not optional here</code></pre>"),
         Page(id: "shop/notes/retries.md", title: "Retry notes", body: "<p>Charge retries keep the idempotency key.</p>"),
         Page(id: "shop/checkout-retries.md", title: "Checkout retries", body: "<p>Retries keep the idempotency key.</p>", file: "/Users/me/src/shop/docs/checkout-retries.md"),
     ] + guides
+
+    static let margin = "<aside class=\"wiki-margin\" aria-label=\"About this page\"><nav class=\"wm-sec\"><div class=\"wm-cap\">On this page</div><a class=\"wm-oln\" href=\"#part-1\">Part 1</a></nav></aside><details class=\"wiki-fold\"><summary>On this page</summary><div class=\"wm-fold\"><a class=\"wm-oln\" href=\"#part-1\">Part 1</a></div></details>"
 
     static let guides = ["Payments", "Refunds", "Shipping rates", "Tax rules", "Inventory sync", "Search ranking", "Email templates", "Feature flags", "Release checklist", "On-call runbook", "Error budgets", "Data retention"].map { title in
         Page(id: "shop/guides/\(title.lowercased().replacing(" ", with: "-")).md", title: title, body: "<p>\(title) for the shop.</p>")

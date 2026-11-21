@@ -340,7 +340,7 @@ Defined by the `keys` scope in `plugins/agents/open_view.go`, handled in `plugin
 | ⇧⌘F | Focus the current tab's search field: Agents, Backlog or Wiki (on the iPhone layout it pops to the tab root first); off on More (Edit menu, Search) |
 | ↩ | In the Backlog list's search field (iPhone too), with a number that pins a task: open that task on the Backlog stack; typing never opens it |
 | ⌃⌘S | iPad: show or hide the current tab's list column (list + detail ↔ detail only), the same as the sidebar button at the edge of the bar; where the detail would keep less than 640 pt (11-inch portrait) the list slides over the open page. Each tab keeps its state; from the reading view it leaves the reading view (View menu, Show List / Hide List) |
-| ⌃⌘F | iPad: reading view on or off on a wiki page, a doc page or a session: no bars, no columns, text 680 pt centred; leaving restores the columns (View menu) |
+| ⌃⌘F | iPad: reading view on or off on a wiki page, a doc page or a session: no bars, no columns, prose min(780, width − 56) pt centred (a session: 680 pt), code and tables up to 1060 pt, the wiki margin folded; leaving restores the columns (View menu) |
 | Esc | iPad, in order: leave the reading view → close the list over the open page (11-inch portrait) → otherwise the key goes on (the voice panel's Cancel or No). Never stops a turn (View menu) |
 | ⌘[ | Back (the chevron or the back chip); on the iPad only inside the detail column (Go menu) |
 | ⌘1 ⌘2 ⌘3 ⌘4 | Tabs Agents · Backlog · Wiki · More (⌘3 only when the workspace has a wiki); on the iPad the tabs are buttons at the bottom of the list column, and the keys also work while the list is hidden (Go menu) |
