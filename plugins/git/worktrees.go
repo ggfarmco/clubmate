@@ -232,10 +232,12 @@ func prepareNew(ctx context.Context, a *app, h *pluginsdk.Host, workspaceID stri
 			if err := errors.Join(a.recordBase(ctx, h, primary.Real, made, parent), recordTreeBase(ctx, h, dir, parent)); err != nil {
 				notes = append(notes, fmt.Sprintf(baseUnrecordedText, parent, err))
 			}
-			_, _ = mutate(ctx, cur.Path, "config", "branch."+made+baseConfigKey, parent)
+			_, err := mutate(ctx, cur.Path, "config", "branch."+made+baseConfigKey, parent)
+			logError("record base of "+made, err)
 		case made != "":
 			logError("drop base of "+made, errors.Join(a.recordBase(ctx, h, primary.Real, made, ""), recordTreeBase(ctx, h, dir, "")))
-			_, _ = mutate(ctx, cur.Path, "config", "--unset-all", "branch."+made+baseConfigKey)
+			_, err := mutate(ctx, cur.Path, "config", "--unset-all", "branch."+made+baseConfigKey)
+			logError("unset base of "+made, err)
 		default:
 			logError("drop base of "+dir, recordTreeBase(ctx, h, dir, ""))
 		}

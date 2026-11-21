@@ -478,7 +478,10 @@ func (a *app) lastNight(ctx context.Context) time.Time {
 }
 
 func (a *app) clearNight(ctx context.Context, date string) error {
-	ledger, _ := a.ledger(ctx)
+	ledger, ok := a.ledger(ctx)
+	if !ok {
+		return errors.New("night: read ledger")
+	}
 	for _, id := range ledger.Sessions {
 		s := a.session(id)
 		if s == nil {

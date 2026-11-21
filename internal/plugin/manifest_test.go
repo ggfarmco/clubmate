@@ -28,36 +28,24 @@ func writeManifest(t *testing.T, dir, body string) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(body), 0o600))
 }
 
-func TestLoadRejectsInvalidViewSlot(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
-	writeManifest(t, dir, `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"views":[{"slot":"alpha.footer"}]}}`)
-	_, err := plugin.Load(dir)
-	assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
-}
-
-func TestLoadRejectsInvalidSectionScope(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
-	writeManifest(t, dir, `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"sections":[{"id":"beta","title":"Beta","scope":"global"}]}}`)
-	_, err := plugin.Load(dir)
-	assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
-}
-
-func TestLoadRejectsProjectScope(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
-	writeManifest(t, dir, `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"commands":[{"id":"beta.go","title":"Go","scope":"project"}]}}`)
-	_, err := plugin.Load(dir)
-	assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
-}
-
-func TestLoadRejectsReservedID(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
-	writeManifest(t, dir, `{"id":"workspace","name":"W","version":"0.1.0","protocol":1,"command":["run"]}`)
-	_, err := plugin.Load(dir)
-	assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
+func TestLoadRejectsInvalidManifest(t *testing.T) {
+	for name, body := range map[string]string{
+		"invalidViewSlot":          `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"views":[{"slot":"alpha.footer"}]}}`,
+		"invalidSectionScope":      `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"sections":[{"id":"beta","title":"Beta","scope":"global"}]}}`,
+		"projectScope":             `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"commands":[{"id":"beta.go","title":"Go","scope":"project"}]}}`,
+		"reservedID":               `{"id":"workspace","name":"W","version":"0.1.0","protocol":1,"command":["run"]}`,
+		"invalidArgsSchema":        `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"commands":[{"id":"beta.go","title":"Go","args":{"properties":{"x":{"type":"object"}}}}]}}`,
+		"selfHostedSection":        `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"sections":[{"id":"beta","title":"Beta","host":"beta"}]}}`,
+		"commandTimeoutOutOfRange": `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"commands":[{"id":"beta.go","title":"Go","timeout":601}]}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
+			writeManifest(t, dir, body)
+			_, err := plugin.Load(dir)
+			assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
+		})
+	}
 }
 
 func TestManifestMetadataOptional(t *testing.T) {
@@ -68,22 +56,6 @@ func TestManifestMetadataOptional(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []rpc.CommandDef{{ID: "beta.go", Title: "Go"}}, m.Contributes.Commands)
 	assert.Equal(t, "mic", m.Icon)
-}
-
-func TestLoadRejectsInvalidArgsSchema(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
-	writeManifest(t, dir, `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"commands":[{"id":"beta.go","title":"Go","args":{"properties":{"x":{"type":"object"}}}}]}}`)
-	_, err := plugin.Load(dir)
-	assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
-}
-
-func TestLoadRejectsSelfHostedSection(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
-	writeManifest(t, dir, `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"sections":[{"id":"beta","title":"Beta","host":"beta"}]}}`)
-	_, err := plugin.Load(dir)
-	assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
 }
 
 func TestLoadRejectsInvalidExtraSlot(t *testing.T) {
@@ -108,14 +80,6 @@ func TestLoadSettingsSlotOnlyForOwnID(t *testing.T) {
 			assert.ErrorIs(t, err, plugin.ErrInvalidManifest, slot)
 		}
 	}
-}
-
-func TestLoadRejectsCommandTimeoutOutOfRange(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
-	writeManifest(t, dir, `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"commands":[{"id":"beta.go","title":"Go","timeout":601}]}}`)
-	_, err := plugin.Load(dir)
-	assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
 }
 
 func TestLoadChecksCommandIDStyle(t *testing.T) {

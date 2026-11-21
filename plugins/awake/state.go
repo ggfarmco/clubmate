@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"clubmate/plugins/internal/plural"
 )
 
 const (
@@ -320,7 +322,7 @@ func (k *keeper) text() string {
 	case k.choiceHolds() && k.choice.Mode == modeOn:
 		lead = "Awake"
 	case k.choiceHolds():
-		lead = "Awake · " + plural(k.working(), "agent")
+		lead = "Awake · " + plural.N(k.working(), "agent")
 	case len(k.holds) > 0:
 		lead = "Awake · " + k.holds[0].Reason
 		others--
@@ -346,7 +348,7 @@ func (k *keeper) awakeDetail() string {
 			if k.working() == 1 {
 				verb = " works"
 			}
-			phrases = append(phrases, "while "+plural(k.working(), "agent")+verb)
+			phrases = append(phrases, "while "+plural.N(k.working(), "agent")+verb)
 		}
 	}
 	for _, h := range k.holds {
@@ -441,9 +443,9 @@ func (k *keeper) ruleTrailing() string {
 	case n == 0:
 		return "no agent working"
 	case !k.ruleHolds():
-		return "waits for power · " + plural(n, "session")
+		return "waits for power · " + plural.N(n, "session")
 	}
-	return plural(n, "session")
+	return plural.N(n, "session")
 }
 
 func (k *keeper) labels() labels {
@@ -483,11 +485,4 @@ func hoursWords(h int) string {
 func titleCase(s string) string {
 	n, word, _ := strings.Cut(s, " ")
 	return n + " " + strings.ToUpper(word[:1]) + word[1:]
-}
-
-func plural(n int, word string) string {
-	if n == 1 {
-		return "1 " + word
-	}
-	return fmt.Sprintf("%d %ss", n, word)
 }

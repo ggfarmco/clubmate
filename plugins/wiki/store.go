@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -188,17 +187,6 @@ func (s *Store) List(ctx context.Context, shadow bool) ([]Page, error) {
 		check.apply(&pages[i], listed[i])
 	}
 	return pages, err
-}
-
-func (s *Store) Recent(ctx context.Context, n int) ([]Page, error) {
-	pages, err := s.List(ctx, false)
-	if err != nil {
-		return nil, err
-	}
-	slices.SortStableFunc(pages, func(a, b Page) int {
-		return cmp.Or(b.Updated.Compare(a.Updated), cmp.Compare(a.Path, b.Path))
-	})
-	return pages[:min(n, len(pages))], nil
 }
 
 func (s *Store) Delete(ctx context.Context, page, by string) error {

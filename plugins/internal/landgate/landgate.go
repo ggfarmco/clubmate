@@ -104,15 +104,6 @@ func SessionEnv(env []string, hooksDir, common string, protect, glob []string, v
 	}
 }
 
-func Read(dir, old, tree string) (Verdict, bool) {
-	var v Verdict
-	data, err := os.ReadFile(filepath.Join(dir, key(old, tree)))
-	if err != nil || json.Unmarshal(data, &v) != nil {
-		return Verdict{}, false
-	}
-	return v, true
-}
-
 func Write(dir string, v Verdict) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err

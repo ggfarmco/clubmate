@@ -20,4 +20,6 @@ func TestPlural(t *testing.T) {
 		assert.Equal(t, tc.word, plural.Word(tc.n, "run", "runs"))
 		assert.Equal(t, tc.cnt, plural.Count(tc.n, "missed 1 run", "missed %d runs"))
 	}
+	assert.Equal(t, "1 agent", plural.N(1, "agent"))
+	assert.Equal(t, "0 agents", plural.N(0, "agent"))
 }

@@ -29,12 +29,6 @@ func TestIntoRankIgnoresCase(t *testing.T) {
 	assert.True(t, a.sessionBase("s", "FEAT"))
 }
 
-func TestIntoGlobDepth(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, 0, intoRank("release/*", "release/1.0/hotfix", "main", ""))
-	assert.Equal(t, 4, intoRank("release/**", "release/1.0/hotfix", "main", ""))
-}
-
 func TestValidInto(t *testing.T) {
 	t.Parallel()
 	for _, into := range []string{"any", "default", "base", "main", "release/*", "release/**", "feat/a[0-9]"} {

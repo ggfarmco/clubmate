@@ -239,6 +239,15 @@ func TestUnreadLedgerIsNotOverwritten(t *testing.T) {
 	assert.Zero(t, sets.Load())
 }
 
+func TestClearNightKeepsUnreadLedger(t *testing.T) {
+	t.Parallel()
+	h, sets := unreadableStorage(t)
+	a := &app{host: h}
+
+	assert.Error(t, a.clearNight(t.Context(), "2026-11-21"))
+	assert.Zero(t, sets.Load())
+}
+
 func unreadableStorage(t *testing.T) (*pluginsdk.Host, *atomic.Int32) {
 	t.Helper()
 	sets := &atomic.Int32{}
