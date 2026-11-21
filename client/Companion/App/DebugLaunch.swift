@@ -138,8 +138,6 @@ enum DebugLaunch {
             navigation.switchTab(route.tab)
             if let destination = route.destination {
                 navigation.showIn(route.tab, destination)
-            } else if !target.hasPrefix("tab:") {
-                navigation.popToRoot(route.tab)
             }
         }
     }

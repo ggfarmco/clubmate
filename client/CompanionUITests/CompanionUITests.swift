@@ -890,7 +890,9 @@ final class CompanionUITests: XCTestCase {
 
     func testDocsOpenFromTheSessionMenu() {
         let session = launch(open: "agents/agt_0000000000000001")
-        session.buttons["More"].firstMatch.tap()
+        let more = session.navigationBars.buttons["More"]
+        XCTAssertTrue(more.waitForExistence(timeout: 10))
+        more.tap()
         let docs = session.buttons["Docs"]
         XCTAssertTrue(docs.waitForExistence(timeout: 5))
         docs.tap()

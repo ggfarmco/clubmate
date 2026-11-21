@@ -113,6 +113,7 @@ final class NavigationPerfUITests: XCTestCase {
         let app = launch(open: "tab:agents", extra: ["-wiki", "YES"])
         let tabs = app.tabBars.firstMatch
         XCTAssertTrue(row(Self.long[0].id, in: app).waitForExistence(timeout: 20))
+        XCTAssertTrue(tabs.buttons["Wiki"].waitForExistence(timeout: 20))
         let stops: [(tab: String, shown: XCUIElement)] = [
             ("Backlog", app.navigationBars["Backlog"]),
             ("Wiki", app.buttons["Checkout flow"].firstMatch),

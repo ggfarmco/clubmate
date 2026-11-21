@@ -226,8 +226,8 @@ final class IPadUITests: XCTestCase {
         return high - low > 300
     }
 
-    private func wait(_ condition: @escaping () -> Bool) -> Bool {
-        XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in condition() }, object: nil)], timeout: 5) == .completed
+    private func wait(timeout: TimeInterval = 5, _ condition: @escaping () -> Bool) -> Bool {
+        XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in condition() }, object: nil)], timeout: timeout) == .completed
     }
 
     private struct Column: Equatable {
@@ -270,11 +270,17 @@ final class IPadUITests: XCTestCase {
     }
 
     private func shown(_ element: XCUIElement) -> Bool {
-        wait(element, "exists == true AND hittable == true")
+        wait(timeout: 10) { self.onScreen(element) && element.isHittable }
     }
 
     private func hidden(_ element: XCUIElement) -> Bool {
-        wait(element, "exists == false OR hittable == false")
+        wait(timeout: 10) { !self.onScreen(element) || !element.isHittable }
+    }
+
+    private func onScreen(_ element: XCUIElement) -> Bool {
+        guard element.exists else { return false }
+        let frame = element.frame
+        return !frame.isEmpty && XCUIApplication().windows.firstMatch.frame.contains(CGPoint(x: frame.midX, y: frame.midY))
     }
 
     private func listHidden(_ app: XCUIApplication) -> Bool {
@@ -303,6 +309,9 @@ final class IPadUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target] + extra
         app.launch()
+        let window = app.windows.firstMatch
+        let landscape = XCUIDevice.shared.orientation.isLandscape
+        XCTAssertTrue(wait(timeout: 10) { window.exists && (window.frame.width > window.frame.height) == landscape }, "the app did not turn to the device orientation")
         return app
     }
 }
