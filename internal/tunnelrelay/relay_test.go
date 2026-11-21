@@ -1002,3 +1002,17 @@ func (b *syncBuffer) String() string {
 	defer b.mu.Unlock()
 	return b.b.String()
 }
+
+func TestMacStreamIsWokenOnlyWhileItCanWrite(t *testing.T) {
+	r := newRouter(nil, DefaultLimits(), &budget{max: 1 << 20})
+	var woke atomic.Int32
+	old := r.attach("studio", func() { woke.Add(1) })
+	cur := r.attach("studio", func() { woke.Add(1) })
+
+	assert.Zero(t, woke.Load())
+	cur.halt(endDropped)
+	assert.Equal(t, int32(1), woke.Load())
+	old.drain()
+	old.halt(endDropped)
+	assert.Equal(t, int32(1), woke.Load())
+}

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"clubmate/internal/tunnelrelay"
 	"clubmate/pkg/apns"
 )
 
@@ -50,6 +51,7 @@ type relay struct {
 	signup *signupLimits
 
 	tunnel http.Handler
+	tun    *tunnelrelay.Relay
 }
 
 type sender interface {
@@ -250,6 +252,12 @@ func (r *relay) dropBindings(pruned []string) {
 	r.log.Printf("expired %d self-signed Macs", len(pruned))
 	if err := r.devices.drop(pruned); err != nil {
 		r.log.Printf("drop devices: %v", err)
+	}
+	if r.tun == nil {
+		return
+	}
+	if err := r.tun.DropMacs(pruned); err != nil {
+		r.log.Printf("drop tickets: %v", err)
 	}
 }
 

@@ -177,6 +177,7 @@ func serve(args []string) error {
 		return err
 	}
 	r.tunnel = tun.Handler()
+	r.tun = tun
 	if cfg.tickets == "" {
 		logger.Printf("no -tickets file: tunnel device tickets are lost on restart")
 	}

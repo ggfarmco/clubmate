@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -154,6 +155,24 @@ func (t *tickets) set(mac string, list []Ticket, current func() bool) (int, erro
 	t.macs = next
 	t.index()
 	return len(clean), nil
+}
+
+func (t *tickets) drop(names []string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	next := maps.Clone(t.macs)
+	for _, name := range names {
+		delete(next, name)
+	}
+	if len(next) == len(t.macs) {
+		return nil
+	}
+	if err := save(t.path, next); err != nil {
+		return err
+	}
+	t.macs = next
+	t.index()
+	return nil
 }
 
 func save(path string, macs map[string][]Ticket) error {

@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/tunnelrelay"
 	"clubmate/pkg/apns"
 	"clubmate/pkg/report"
 )
@@ -223,11 +224,19 @@ func TestUnusedSelfSignedMacExpiresAndFreesTheCap(t *testing.T) {
 	f := newSignupFixture(t)
 	f.relay.signup.cap = 1
 	_, unused := f.signup(t, f.key)
+	tickets := filepath.Join(t.TempDir(), "tickets.json")
+	seed := fmt.Sprintf(`{%q:[{"h":%q}],"studio":[{"h":%q}]}`, unused.Name, strings.Repeat("a", 64), strings.Repeat("b", 64))
+	require.NoError(t, os.WriteFile(tickets, []byte(seed), 0o600))
+	tun, err := tunnelrelay.New(tunnelrelay.Config{Auth: f.relay.macToken, TicketsPath: tickets, Log: f.relay.log, Now: func() time.Time { return f.now }})
+	require.NoError(t, err)
+	f.relay.tun = tun
 	f.now = f.now.Add(unusedTTL)
 
 	expired := f.push(t, unused.Token, "aa01")
 	res, _ := f.signup(t, newKey(t, 1))
 	entries, err := readTokens(f.relay.tokens.path)
+	require.NoError(t, err)
+	left, err := os.ReadFile(tickets)
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusUnauthorized, expired)
@@ -235,6 +244,7 @@ func TestUnusedSelfSignedMacExpiresAndFreesTheCap(t *testing.T) {
 	assert.Len(t, entries, 2)
 	assert.False(t, slices.ContainsFunc(entries, func(e tokenEntry) bool { return e.name == unused.Name }))
 	assert.NotContains(t, f.relay.devices.macs, unused.Name)
+	assert.JSONEq(t, fmt.Sprintf(`{"studio":[{"h":%q}]}`, strings.Repeat("b", 64)), string(left))
 }
 
 func TestUsedSelfSignedMacOutlivesARestartUntilIdle(t *testing.T) {

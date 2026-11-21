@@ -74,17 +74,6 @@ func KeyID(pub []byte) string {
 
 func EncodeKey(pub []byte) string { return base64.RawURLEncoding.EncodeToString(pub) }
 
-func DecodeKey(s string) ([]byte, error) {
-	b, err := base64.RawURLEncoding.DecodeString(s)
-	if err != nil {
-		return nil, fmt.Errorf("tunnel: key: %w", err)
-	}
-	if len(b) != KeySize {
-		return nil, fmt.Errorf("tunnel: key is %d bytes, want %d", len(b), KeySize)
-	}
-	return b, nil
-}
-
 type hello struct {
 	Dicts []int  `json:"dicts"`
 	KID   string `json:"kid"`

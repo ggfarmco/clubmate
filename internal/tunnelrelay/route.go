@@ -170,8 +170,16 @@ func (m *macConn) end(why string) {
 	m.once.Do(func() {
 		m.why = why
 		close(m.done)
-		m.wake()
 	})
+}
+
+func (m *macConn) halt(why string) {
+	m.end(why)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.closed {
+		m.wake()
+	}
 }
 
 func (m *macConn) send(frame []byte, force bool) int {
@@ -197,6 +205,7 @@ func (m *macConn) send(frame []byte, force bool) int {
 	default:
 		m.buf.give(n)
 		m.end(endSlow)
+		m.wake()
 		return sendGone
 	}
 }

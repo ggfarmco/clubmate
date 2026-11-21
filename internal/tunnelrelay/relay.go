@@ -137,8 +137,18 @@ func (r *Relay) Shutdown() {
 	}
 	r.route.mu.Unlock()
 	for _, m := range macs {
-		m.end(endDropped)
+		m.halt(endDropped)
 	}
+}
+
+func (r *Relay) DropMacs(names []string) error {
+	if err := r.tickets.drop(names); err != nil {
+		return err
+	}
+	for _, name := range names {
+		r.route.closeChannels(name, func(string) bool { return false })
+	}
+	return nil
 }
 
 func (r *Relay) recover(w *relayWriter, req *http.Request) {
