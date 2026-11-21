@@ -8,7 +8,7 @@ struct WorkspaceCapsule: View {
     var body: some View {
         let model = context.model
         let navigation = context.navigation
-        let current = navigation.stacks.workspace
+        let current = navigation.workspaceKey
         Menu {
             ForEach(model.computers) { computer in
                 if let connection = model.connection(computer.id) {

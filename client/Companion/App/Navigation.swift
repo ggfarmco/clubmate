@@ -33,9 +33,16 @@ enum RootTab: Hashable {
 @Observable
 final class AppNavigation {
     @ObservationIgnored weak var model: CompanionModel?
-    var stacks: TabStacks {
-        didSet { if persists, stacks != oldValue { stacks.save(to: .standard) } }
+    @ObservationIgnored private var stacks: TabStacks {
+        didSet {
+            guard stacks != oldValue else { return }
+            publish()
+            if persists { stacks.save(to: .standard) }
+        }
     }
+    private(set) var workspaceKey: WorkspaceKey?
+    private(set) var shownTab: CompanionTab = .agents
+    private let paths = Dictionary(uniqueKeysWithValues: CompanionTab.allCases.map { ($0, TabPath()) })
     private(set) var knownTabs: KnownTabs {
         didSet { if persists, knownTabs != oldValue { knownTabs.save(to: .standard) } }
     }
@@ -75,6 +82,19 @@ final class AppNavigation {
         stacks = restore ? TabStacks.restore(from: .standard) : TabStacks()
         knownTabs = restore ? KnownTabs.restore(from: .standard) : KnownTabs()
         if let key = stacks.workspace { workspaces[key.computer] = key.workspace }
+        publish()
+    }
+
+    private func publish() {
+        if workspaceKey != stacks.workspace { workspaceKey = stacks.workspace }
+        if shownTab != stacks.tab { shownTab = stacks.tab }
+        for (tab, box) in paths {
+            box.update(stacks.workspace.map { stacks.path(for: StackKey($0, tab: tab)) } ?? [], column: stacks.column(for: tab))
+        }
+    }
+
+    private func box(_ tab: CompanionTab) -> TabPath {
+        paths[tab] ?? TabPath()
     }
 
     private static var restores: Bool {
@@ -86,10 +106,10 @@ final class AppNavigation {
         #endif
     }
 
-    var computer: String? { stacks.workspace?.computer }
+    var computer: String? { workspaceKey?.computer }
 
     var tab: CompanionTab {
-        get { stacks.tab }
+        get { shownTab }
         set { stacks.tab = newValue }
     }
 
@@ -106,16 +126,16 @@ final class AppNavigation {
         tapped(tab)
     }
 
-    var path: [StackEntry] { stacks.path }
+    var path: [StackEntry] { path(tab) }
 
     func tabs(_ model: CompanionModel) -> [CompanionTab] {
-        if let known = knownTabs.tabs(for: stacks.workspace, live: liveTabs(model)?.tabs) { return known }
+        if let known = knownTabs.tabs(for: workspaceKey, live: liveTabs(model)?.tabs) { return known }
         let partial = CompanionPlugins.tabs(computer.flatMap { model.connection($0) }, sections: [])
         return CompanionTab.allCases.filter { partial.contains($0) || $0 == tab }
     }
 
     func liveTabs(_ model: CompanionModel) -> LiveTabs? {
-        guard let key = stacks.workspace, let connection = model.connection(key.computer) else { return nil }
+        guard let key = workspaceKey, let connection = model.connection(key.computer) else { return nil }
         return CompanionPlugins.liveTabs(connection, ui: connection.workspaceUI(key.workspace)).map { LiveTabs(workspace: key, tabs: $0) }
     }
 
@@ -137,7 +157,7 @@ final class AppNavigation {
     }
 
     func path(_ tab: CompanionTab) -> [StackEntry] {
-        stacks.workspace.map { stacks.path(for: StackKey($0, tab: tab)) } ?? []
+        box(tab).entries
     }
 
     func setPath(_ entries: [StackEntry], tab: CompanionTab) {
@@ -169,7 +189,7 @@ final class AppNavigation {
     }
 
     func title(_ entry: StackEntry) -> String {
-        let key = entry.workspace ?? stacks.workspace
+        let key = entry.workspace ?? workspaceKey
         switch entry.destination {
         case .session(let id):
             return key.flatMap { model?.agents(computer: $0.computer, workspace: $0.workspace)?.session(id)?.displayTitle } ?? "Session"
@@ -191,22 +211,22 @@ final class AppNavigation {
     }
 
     var rootTitle: String {
-        guard let key = stacks.workspace, let connection = model?.connection(key.computer) else { return tab.title }
+        guard let key = workspaceKey, let connection = model?.connection(key.computer) else { return tab.title }
         return connection.workspaces.first { $0.id == key.workspace }?.name ?? tab.title
     }
 
     func workspaceName(_ key: WorkspaceKey?) -> String {
-        guard let key = key ?? stacks.workspace else { return "" }
+        guard let key = key ?? workspaceKey else { return "" }
         return model?.connection(key.computer)?.workspaces.first { $0.id == key.workspace }?.name ?? ""
     }
 
     func openLink(_ path: String, anchor: String?, from origin: Origin) {
-        guard let key = stacks.workspace, let connection = model?.connection(key.computer) else { return }
+        guard let key = workspaceKey, let connection = model?.connection(key.computer) else { return }
         let doc = Destination.doc(path: path, anchor: anchor)
         guard connection.supports(WikiCommand.locate) else { return push(doc, from: origin) }
         Task {
             let page = try? await connection.command(WikiCommand.locate, workspace: key.workspace, args: .object(["path": .string(anchor.map { path + "#" + $0 } ?? path)]), as: WikiLocation.self)
-            guard stacks.workspace == key else { return }
+            guard workspaceKey == key else { return }
             if let page, let id = page.id, let file = page.path {
                 push(.wikiPage(id: id, path: file, title: page.title ?? URL(filePath: file).deletingPathExtension().lastPathComponent), from: origin)
             } else {
@@ -228,7 +248,7 @@ final class AppNavigation {
     func notified(computer: String, workspace: String?, session: String?, active: Bool) {
         let workspace = workspace.flatMap { $0.isEmpty ? nil : $0 }
         let destination = session.map(Destination.session) ?? .inbox
-        guard active, let current = stacks.workspace, model?.connection(computer) != nil else {
+        guard active, let current = workspaceKey, model?.connection(computer) != nil else {
             jump(computer: computer, workspace: workspace, tab: .agents, to: destination)
             return
         }
@@ -253,7 +273,7 @@ final class AppNavigation {
     }
 
     func selected(_ tab: CompanionTab) -> String? {
-        path(tab).first.flatMap { Self.tag($0.destination) }
+        box(tab).first.flatMap { Self.tag($0.destination) }
     }
 
     func selection(_ tab: CompanionTab) -> Binding<String?> {
@@ -282,7 +302,7 @@ final class AppNavigation {
     }
 
     func switchTab(_ tab: CompanionTab) {
-        if stacks.tab != tab {
+        if shownTab != tab {
             readingView = false
             listOver = false
         }
@@ -313,7 +333,7 @@ final class AppNavigation {
     }
 
     func columnState(_ tab: CompanionTab) -> ColumnStep {
-        stacks.column(for: tab)
+        box(tab).column
     }
 
     var overlays: Bool {
@@ -478,6 +498,20 @@ final class AppNavigation {
     func workspace(for connection: ComputerConnection) -> Workspace? {
         let list = connection.workspaces
         return list.first { $0.id == workspaces[connection.computer.id] } ?? list.first
+    }
+}
+
+@MainActor
+@Observable
+final class TabPath {
+    private(set) var entries: [StackEntry] = []
+    private(set) var first: StackEntry?
+    private(set) var column: ColumnStep = .listDetail
+
+    func update(_ entries: [StackEntry], column: ColumnStep) {
+        if self.entries != entries { self.entries = entries }
+        if first != entries.first { first = entries.first }
+        if self.column != column { self.column = column }
     }
 }
 

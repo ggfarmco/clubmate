@@ -126,7 +126,7 @@ struct RootView: View {
     }
 
     private var tabsSource: WorkspaceKey? {
-        navigation.stacks.workspace.flatMap { model.connection($0.computer) == nil ? nil : $0 }
+        navigation.workspaceKey.flatMap { model.connection($0.computer) == nil ? nil : $0 }
     }
 
     private var workspaceIDs: [[String]] {
@@ -134,12 +134,12 @@ struct RootView: View {
     }
 
     private var fetched: [Bool] {
-        guard let key = navigation.stacks.workspace else { return [] }
+        guard let key = navigation.workspaceKey else { return [] }
         return [model.agents(computer: key.computer, workspace: key.workspace)?.fetched == true, model.backlog(computer: key.computer, workspace: key.workspace)?.fetched == true]
     }
 
     private var shownAgents: ShownAgents? {
-        guard let current = navigation.stacks.workspace else { return nil }
+        guard let current = navigation.workspaceKey else { return nil }
         let top = navigation.path.last { $0.destination.tab == .agents || navigation.tab == .agents && $0.destination.tab == .more }
         let key = top?.workspace ?? current
         let detail = top.flatMap { AppNavigation.tag($0.destination) }
@@ -147,7 +147,7 @@ struct RootView: View {
     }
 
     private var shownSection: ShownSection? {
-        guard let key = navigation.stacks.workspace, case .section(let section, _)? = navigation.path.last?.destination,
+        guard let key = navigation.workspaceKey, case .section(let section, _)? = navigation.path.last?.destination,
               section != InboxPluginInfo.id, navigation.tab == .more || navigation.tab == .agents && section.hasPrefix(AgentsPluginInfo.id + ".") else { return nil }
         return ShownSection(computer: key.computer, workspace: key.workspace, section: section)
     }
@@ -264,7 +264,7 @@ struct TabDetail: View {
             }
         }
         .onChange(of: path.first, initial: true) { _, first in
-            guard tab == .wiki, let first, case .wikiPage = first.destination, let key = navigation.stacks.workspace else { return }
+            guard tab == .wiki, let first, case .wikiPage = first.destination, let key = navigation.workspaceKey else { return }
             navigation.lastWiki[key] = first
         }
     }

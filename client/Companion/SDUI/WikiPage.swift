@@ -49,18 +49,18 @@ struct WikiHomeDetail: View {
                 ProgressView()
             }
         }
-        .task(id: context.navigation.stacks.workspace) { await open() }
+        .task(id: context.navigation.workspaceKey) { await open() }
     }
 
     private func open() async {
         let navigation = context.navigation
-        guard let key = navigation.stacks.workspace else { return }
+        guard let key = navigation.workspaceKey else { return }
         if let last = navigation.lastWiki.removeValue(forKey: key) {
             return navigation.setPath([last], tab: .wiki)
         }
         guard context.connection.supports(WikiCommand.locate),
               let home = try? await context.connection.command(WikiCommand.locate, workspace: key.workspace, args: .object(["home": .bool(true)]), as: WikiLocation.self) else { return empty = true }
-        guard navigation.stacks.workspace == key, navigation.path(.wiki).isEmpty else { return }
+        guard navigation.workspaceKey == key, navigation.path(.wiki).isEmpty else { return }
         guard let id = home.id, let path = home.path else { return empty = true }
         navigation.setPath([StackEntry(.wikiPage(id: id, path: path, title: home.title ?? URL(filePath: path).deletingPathExtension().lastPathComponent))], tab: .wiki)
     }
