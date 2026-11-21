@@ -6,6 +6,7 @@ public struct TranscriptWindow: Sendable, Equatable {
     private var hidden: Int?
     private var drawnUpTo = 0
     private var drawnFrom: String?
+    private var drawnAt: Int?
 
     public init() {}
 
@@ -19,27 +20,44 @@ public struct TranscriptWindow: Sendable, Equatable {
 
     public func drawn(_ rows: [TranscriptRow]) -> Int {
         let skip = skip(rows)
+        guard !rows.isEmpty else { return 0 }
         if let drawnFrom, let index = rows[skip...].firstIndex(where: { $0.id == drawnFrom }) { return index }
+        if let drawnAt { return Self.edge(rows, at: min(max(skip, drawnAt), rows.count - 1), floor: skip) }
         return Self.edge(rows, at: max(skip, rows.count - Self.opening), floor: skip)
+    }
+
+    public func earlier(_ rows: [TranscriptRow]) -> Int? {
+        let skip = skip(rows)
+        return skip > 0 && drawn(rows) == skip ? skip : nil
     }
 
     public mutating func pin(_ rows: [TranscriptRow]) {
         guard !rows.isEmpty else { return }
-        let id = rows[drawn(rows)].id
-        if id != drawnFrom { drawnFrom = id }
+        draw(rows, from: drawn(rows))
     }
 
     public mutating func drawMore(_ rows: [TranscriptRow]) {
         let skip = skip(rows)
         let start = drawn(rows)
         guard start > skip else { return }
-        drawnFrom = rows[Self.edge(rows, at: max(skip, start - Self.opening), floor: skip)].id
+        draw(rows, from: Self.edge(rows, at: max(skip, start - Self.opening), floor: skip))
+    }
+
+    public mutating func drawAll(_ rows: [TranscriptRow]) {
+        guard !rows.isEmpty else { return }
+        draw(rows, from: skip(rows))
     }
 
     public mutating func showEarlier(_ rows: [TranscriptRow]) {
         hidden = max(0, skip(rows) - Self.page)
         drawnUpTo = rows.count
-        drawnFrom = rows.isEmpty ? nil : rows[skip(rows)].id
+        guard !rows.isEmpty else { return }
+        draw(rows, from: skip(rows))
+    }
+
+    private mutating func draw(_ rows: [TranscriptRow], from index: Int) {
+        drawnFrom = rows[index].id
+        drawnAt = index
     }
 
     private static func edge(_ rows: [TranscriptRow], at index: Int, floor: Int) -> Int {
@@ -51,6 +69,8 @@ public struct TranscriptWindow: Sendable, Equatable {
         if let hidden, hidden < count, !(atBottom && count - drawnUpTo >= Self.page) { return }
         hidden = max(0, count - Self.size)
         drawnUpTo = count
+        drawnFrom = nil
+        drawnAt = nil
     }
 }
 

@@ -1101,13 +1101,15 @@ final class CompanionUITests: XCTestCase {
         }
     }
 
-    func testALongTranscriptDrawsItsLastRowsAndTheEarlierOnesOnATap() {
+    func testALongTranscriptDrawsItsWindowOnAStatusBarTapAndTheEarlierRowsOnATap() {
         let app = launch(open: "agents/agt_0000000000000004", ["-longTranscript", "YES"])
         let first = app.staticTexts["Turn 1: go on"]
         XCTAssertTrue(app.staticTexts["Last reply of the long session"].waitForExistence(timeout: 10))
         XCTAssertFalse(first.exists)
         let earlier = app.buttons["earlier-rows"]
-        scrollToTop(earlier, in: app)
+        XCTAssertFalse(earlier.exists)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0)).withOffset(CGVector(dx: 0, dy: 10)).tap()
+        XCTAssertTrue(poll { earlier.exists && earlier.isHittable })
         earlier.tap()
         let window = app.windows.firstMatch
         XCTAssertTrue(poll { first.exists && window.frame.contains(first.frame) })
@@ -1120,8 +1122,8 @@ final class CompanionUITests: XCTestCase {
         let earlier = app.buttons["earlier-rows"]
         let window = app.windows.firstMatch
         for (label, first) in [("Show 100 earlier · 111 left", "Reply 6"), ("Show 11 earlier", "Turn 1: go on")] {
-            XCTAssertEqual(earlier.label, label)
             scrollToTop(earlier, in: app)
+            XCTAssertEqual(earlier.label, label)
             earlier.tap()
             let landed = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", first)).firstMatch
             XCTAssertTrue(poll { landed.exists && window.frame.contains(landed.frame) }, "\(label) did not land on \(first)")

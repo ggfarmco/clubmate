@@ -32,8 +32,10 @@ struct SessionDetailView: View {
     @State private var archiving = false
     @State private var window = TranscriptWindow()
     @State private var atBottom = ScrollFlag()
-    @State private var growing = false
+    @State private var scrollY = ScrollOffset()
+    @State private var growing: String?
     @State private var scrolled = false
+    @State private var scrollPhase = ScrollPhase.idle
     @State private var moreVisible = false
     @State private var draftSeen: Int?
     @State private var showingAsides = false
@@ -45,6 +47,7 @@ struct SessionDetailView: View {
     @State private var foldingOpen = false
 
     private static let pairedWidth = 520.0
+    private static let rowsSpace = "transcript-rows"
 
     private func updateWindow(count: Int, atBottom: Bool) {
         var next = window
@@ -62,7 +65,16 @@ struct SessionDetailView: View {
         var next = window
         next.drawMore(rows)
         guard next != window else { return }
-        growing = keepingOffset
+        growing = keepingOffset ? rows[window.drawn(rows)].id : nil
+        window = next
+    }
+
+    private func drawAtRest(_ rows: [TranscriptRow]) {
+        guard scrolled, moreVisible, scrollPhase == .idle, scrollY.value <= 1 else { return }
+        var next = window
+        next.drawAll(rows)
+        guard next != window else { return }
+        growing = nil
         window = next
     }
 
@@ -152,6 +164,7 @@ struct SessionDetailView: View {
         let rows = screen.rows
         let skip = window.skip(rows)
         let drawn = window.drawn(rows)
+        let anchor = growing ?? (drawn < rows.count ? rows[drawn].id : nil)
         let cardTyping = typingInCard(screen)
         let keySend: (() -> Void)? = cardTyping ? nil : { send() }
         let answerDocked = switch screen.dock {
@@ -173,25 +186,41 @@ struct SessionDetailView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
                 }
-                if skip > 0 {
-                    EarlierRowsButton(left: skip, page: TranscriptWindow.page) { window.showEarlier(rows) }
+                if let earlier = window.earlier(rows) {
+                    EarlierRowsButton(left: earlier, page: TranscriptWindow.page) { window.showEarlier(rows) }
                 }
                 if drawn > skip {
                     Color.clear
                         .frame(height: 1)
                         .onScrollVisibilityChange(threshold: 0.01) { visible in
                             moreVisible = visible
-                            if visible && scrolled { drawMore(rows, keepingOffset: true) }
+                            guard visible, scrolled else { return }
+                            switch scrollPhase {
+                            case .interacting, .decelerating: drawMore(rows, keepingOffset: true)
+                            case .idle: drawAtRest(rows)
+                            default: break
+                            }
                         }
                 }
                 ForEach(Self.blocks(Array(rows[drawn...]), paired: width >= Self.pairedWidth), id: \.[0].id) { block in
-                    if block.count == 2 {
-                        HStack(alignment: .top, spacing: 10) {
+                    Group {
+                        if block.count == 2 {
+                            HStack(alignment: .top, spacing: 10) {
+                                RowView(row: block[0])
+                                RowView(row: block[1])
+                            }
+                        } else {
                             RowView(row: block[0])
-                            RowView(row: block[1])
                         }
-                    } else {
-                        RowView(row: block[0])
+                    }
+                    .background {
+                        if block.contains(where: { $0.id == anchor }) {
+                            Color.clear.onGeometryChange(for: Double.self) { $0.frame(in: .named(Self.rowsSpace)).minY } action: { old, new in
+                                guard growing != nil, new != old else { return }
+                                growing = nil
+                                position.scrollTo(y: scrollY.value + new - old)
+                            }
+                        }
                     }
                 }
                 if let repos {
@@ -248,6 +277,7 @@ struct SessionDetailView: View {
                         .id("updating")
                 }
             }
+            .coordinateSpace(.named(Self.rowsSpace))
             .padding(.horizontal)
             .padding(.vertical, 12)
             .frame(maxWidth: 820)
@@ -303,16 +333,23 @@ struct SessionDetailView: View {
             atBottom.value = bottom
             if transcript != nil { updateWindow(count: rows.count, atBottom: bottom) }
         }
-        .onScrollGeometryChange(for: ScrollGeometry.self) { $0 } action: { old, new in
+        .onScrollGeometryChange(for: ScrollGeometry.self) { $0 } action: { _, new in
+            scrollY.value = new.contentOffset.y + new.contentInsets.top
+            drawAtRest(rows)
             if new.contentSize.height < new.containerSize.height { drawMore(rows, keepingOffset: false) }
-            guard growing, new.contentSize.height != old.contentSize.height else { return }
-            growing = false
-            position.scrollTo(y: new.contentOffset.y + new.contentInsets.top + new.contentSize.height - old.contentSize.height)
+            if !scrolled, !moreVisible, new.contentSize.height > new.containerSize.height, TranscriptWindow.atBottom(offset: new.contentOffset.y, insetTop: new.contentInsets.top, container: new.containerSize.height, content: new.contentSize.height) { scrolled = true }
         }
         .onScrollPhaseChange { _, phase in
-            guard phase == .interacting || phase == .decelerating else { return }
-            scrolled = true
-            if moreVisible { drawMore(rows, keepingOffset: true) }
+            scrollPhase = phase
+            switch phase {
+            case .interacting, .decelerating:
+                scrolled = true
+                if moreVisible { drawMore(rows, keepingOffset: true) }
+            case .idle:
+                drawAtRest(rows)
+            default:
+                break
+            }
         }
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom)
@@ -1410,4 +1447,8 @@ struct HeldRoundLine: View {
 
 private final class ScrollFlag {
     var value = true
+}
+
+private final class ScrollOffset {
+    var value = 0.0
 }

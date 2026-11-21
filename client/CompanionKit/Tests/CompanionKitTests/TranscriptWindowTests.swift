@@ -4,8 +4,8 @@ import XCTest
 import CompanionKit
 
 final class TranscriptWindowTests: XCTestCase {
-    private func rows(_ count: Int) throws -> [TranscriptRow] {
-        let entries = (1...count).map { #"{"kind":"agent","id":"a\#($0)","turn":\#($0),"text":"reply \#($0)"}"# }
+    private func rows(_ count: Int, renamed: Int? = nil) throws -> [TranscriptRow] {
+        let entries = (1...count).map { #"{"kind":"agent","id":"\#($0 == renamed ? "b" : "a")\#($0)","turn":\#($0),"text":"reply \#($0)"}"# }
         return try screenRows("[" + entries.joined(separator: ",") + "]")
     }
 
@@ -49,8 +49,25 @@ final class TranscriptWindowTests: XCTestCase {
         XCTAssertEqual(window.drawn(grown), 290)
         window.drawMore(grown)
         XCTAssertEqual(window.drawn(grown), 280)
+        XCTAssertNil(window.earlier(grown))
+        window.drawAll(grown)
+        XCTAssertEqual(window.earlier(grown), 240)
         window.showEarlier(grown)
-        XCTAssertEqual(window.drawn(grown), window.skip(grown))
+        XCTAssertEqual(window.earlier(grown), 140)
+    }
+
+    func testKeepsTheDrawnEdgeWhenItsTopRowChangesItsID() throws {
+        var window = TranscriptWindow()
+        let all = try rows(300)
+        window.update(count: all.count, atBottom: true)
+        window.pin(all)
+        window.drawMore(all)
+        XCTAssertEqual(window.drawn(all), 280)
+        let merged = try rows(300, renamed: 281)
+        XCTAssertEqual(window.drawn(merged), 280)
+        window.pin(merged)
+        window.drawMore(merged)
+        XCTAssertEqual(window.drawn(merged), 270)
     }
 
     func testTheBottomCountsTheTopInset() {
