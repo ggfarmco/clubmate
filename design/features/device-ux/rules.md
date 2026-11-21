@@ -57,13 +57,13 @@ Resulting space: wiki page chrome 28% today → 21% at rest, 13% scrolled, 7% re
 | All columns | sidebar 260 · list 360 · detail 590 (49%) | — (sidebar only over the content) |
 | List + detail | list 360 · detail 850 (70%) | list 320 · detail 514 (62%) |
 | Detail only | 1210 | 834; list 320 slides over (shadow, no dim); picking a row closes it |
-| Reading view | 1210, no bars, text 680 centred | 834, no bars, text 680 centred |
+| Reading view | 1210, no bars, text 780 centred (round 5) | 834, no bars, text 778 (round 5) |
 | Bands | tab bar 48 pt at y 26 (band 1 = 24–74); column bars 44 pt at y 80 (band 2); column bars at y 26 when the sidebar shows | same |
 | Default | Agents, Backlog, Wiki open as list + detail; each section remembers its last state | list + detail while nothing is open; detail only once something opens |
 
 - The list column belongs to the tab: Agents list, Backlog list, Wiki tree, More list. A push never changes it; selection in it follows the detail.
 - Wiki tree + page in portrait: tree 320 · page 514 (text 434).
-- Document measure in regular width: 680 pt.
+- Document measure in regular width: min(780, detail − 56) pt, with the wiki margin column from a 1116-pt detail (round 5; was 680).
 - Band 2 (column bars below the tab bar) needs checking on a device: if iPadOS puts the column buttons beside the tab bar, band 2 goes away. Build with the system placement and compare.
 
 ## What folds, when, how it moves
@@ -302,7 +302,7 @@ Claude Design, 20 Nov, same canvas, page r4, same chat. Input: the user's notes 
 | Portrait | detail 834; the list (360) slides over it (`.prominentDetail`), picking a row or the toggle or Esc closes it | list 360 + detail 672 side by side |
 | Rule | the list sits beside the detail only when the detail keeps ≥ 640 pt | same |
 | Bars | status 24 · column bar 50 · bottom icon tabs 56 pt, 20 pt from the bottom | same |
-| Text measure | 680 centred, title and meta inside it | same |
+| Text measure | round 5: prose min(780, detail − 56), margin column from detail 1116 (was 680 centred) | same |
 | Wiki scrolled chrome | 74 pt (9%) | 74 pt (7%) |
 
 Keys change: ⌃⌘S toggles list + detail ↔ detail only (two states, both orientations); ⌘1–⌘4 are bound by hand on iPad since the tabs are toolbar buttons. `docs/shortcuts.md` § Companion on iPad changes in the commit that rebinds ⌃⌘S.
@@ -320,3 +320,43 @@ Keys change: ⌃⌘S toggles list + detail ↔ detail only (two states, both ori
 - For the user: the bottom tabs are drawn with 10-pt labels like the iPhone tab bar; the user said "icons", so the labels can go if the user prefers.
 - For the builder (spike first): the designer believes a `.bottomBar` toolbar shows at the bottom of a split view's list column (as in Notes and Reminders) and that the system sidebar button sits at the leading edge of that column's bar. Confirm both on the simulator and on a 13-inch before building the rest.
 - `R4-iPad-left-column` has an empty lower part in the headless render (board taller than its frames); nothing is cut.
+
+## Round 5 (iPad text measure, 21 Nov)
+
+Claude Design, 21 Nov, same canvas, page r5, same chat. Input: the user's question "Откуда на айпаде на вики по бокам столько отступов" (asked before as N3) and simulator shots of build `73511a0b5` on iPad Pro 11" and 13" (M5), landscape, wiki page Checkout flow, list shown and hidden. Today the text is 680 pt (+ 20-pt inset) centred: side margins ~65 (11", list shown), ~168 (13", list shown), ~245 (11", list hidden), ~330 (13", list hidden). Boards: `R5-Rulings`, `R5-iPad-11-list-hidden`, `R5-iPad-13-list-hidden`, `R5-iPad-11-list-shown` (`.dc.html` here, first in `boards.html`; the round as one page: `rounds/round-5.html`).
+
+Ruling: option C + D. The prose takes the Mac wiki's measure (88ch ≈ 780 pt at the 17-pt body); when the detail holds the prose and the Mac's margin column side by side, the column fills the right. A (680 always) keeps 245–330 pt of empty space on each side; B adds a breakpoint the Mac has not got; E gives ≈ 130-character lines; D alone keeps two measures for the same page on the Mac and the iPad.
+
+### Rules
+
+- **Prose** = min(780, detail − 56) pt; side gutter at least 28 pt. Title and meta sit on the prose's left edge, in the same column; headings follow the prose. Images: at most the prose width.
+- **Margin column** when the detail is ≥ 1116 pt (28 + 780 + 40 + 240 + 28): 240 pt wide, 40-pt gap; prose + column = 1060 pt, centred as one block. The prose never shrinks to make room. The column's top aligns with the title; it scrolls with the page, "On this page" sticks 16 pt under the bar. Sections and data as on the Mac (`docs/wiki.md` § Margin column): On this page, In this folder, Stale, Changes, Linked from.
+- **Below 1116**: no column; the one-row fold "On this page · n changes · stale · n links" under the meta, as on the Mac below 960; a tap opens it in place.
+- **Code and tables** start at the prose's left edge. Without the column they may run wider, up to min(1060, detail − left margin − 28); with the column they stop at the prose's right edge. Past that, code scrolls inside its box (no wrap) with a 56-pt right fade and a scroll indicator; table cells wrap, a table still too wide scrolls.
+- **Reading view** (⌃⌘F): no bars, no column, prose 780 centred on the screen, code and tables up to 1060, fold row kept.
+- **iPhone and iPad compact width**: no change (full width, 20-pt margins).
+
+| Detail (pt) | Where | Prose | Margins L / R | Margin column | Fold row | Code / tables max |
+|---|---|---|---|---|---|---|
+| 514 | 11" portrait, list beside | 458 | 28 / 28 | — | yes | 458 |
+| 672 | 13" portrait, list shown | 616 | 28 / 28 | — | yes | 616 |
+| 834 | 11" portrait, list hidden | 778 | 28 / 28 | — | yes | 778 |
+| 850 | 11" landscape, list shown | 780 | 35 / 35 | — | yes | 787 |
+| 1016 | 13" landscape, list shown | 780 | 118 / 118 | — | yes | 870 |
+| 1032 | 13" portrait, list hidden | 780 | 126 / 126 | — | yes | 878 |
+| 1210 | 11" landscape, list hidden | 780 | 75 / 75 | 240, gap 40 | — | 780 |
+| 1376 | 13" landscape, list hidden | 780 | 158 / 158 | 240, gap 40 | — | 780 |
+| 1210 · 1376 | reading view | 780 | 215 / 298 | — | yes | 967 · 1050 |
+
+### What round 5 replaces
+
+- R4 N3 "Title, meta line and body share one 680-pt measure, centred in the detail" (the rest of N3 stands: inline bar title, one-line tree rows, `.searchable`).
+- § iPad measurements, row "Text measure"; § iPad columns, row "Reading view" and the bullet "Document measure in regular width: 680 pt".
+- The 680-pt measure in handoff (a) and (b) (`document` node).
+
+### For the builder
+
+- Today: `PadLayout.measure = 680` (`client/Companion/App/PadLayout.swift`), passed as `theme.column` in `client/Companion/SDUI/Content.swift` (`pageTheme`) and `client/Companion/Plugins/Docs/DocPageView.swift` (`theme`); `html.column #doc` in `client/ClubmateDocument/Sources/ClubmateDocument/Web/document.css` caps `#doc` at column + 2 × inset and hides `.wiki-margin` (it shows only under `html:not(.column)` from 960 px, 200 px wide).
+- The wiki document already carries `<aside class="wiki-margin">` and `<details class="wiki-fold">` for every client (`plugins/wiki/margin.go`), so the column and the fold are document CSS work (b), no plugin change. The iPad column is 240 pt, the Mac's stays 200 px.
+- Doc pages (docs viewer) have no margin column: they take the prose rule only.
+- The Mac and the iPad then share one prose measure (88ch ≈ 780 pt).

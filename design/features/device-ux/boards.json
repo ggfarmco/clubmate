@@ -1,5 +1,5 @@
 {
-  "title": "Device UX · final (decided 19 Nov, round 3 and round 4 on 20 Nov)",
+  "title": "Device UX · final (decided 19 Nov, rounds 3–4 on 20 Nov, round 5 on 21 Nov)",
   "fit": 1200,
   "css": [
     "rounds/r1.css",
@@ -9,9 +9,34 @@
     "Claude Design round 2, canvas “Clubmate · Device UX”, page r2. The user picked A · Fold into the bar plus B's reading mode, Wiki as its own tab, Docs removed, sections as a native Liquid Glass TabView; then accepted dropping the iPhone Macs screen (workspace capsule + Inbox tray) and Search over the current workspace. Rules: rules.md next to this page.",
     "iPhone: Agents · Backlog · Wiki · More + Search tab; bars and the tab bar minimize on scroll; wiki pages fold their header and enter reading mode; the permission card folds to a 56-pt row; the question card follows the Question card fold ruling (peek · full · bar). Cross-section jumps push with a named back chip. iPad: sidebarAdaptable TabView, columns step down (all · list + detail · detail) with ⌃⌘S, reading view on ⌃⌘F, wiki tree in the list column, docs open in the detail column.",
     "Round 3 (20 Nov, after the first visual check V1 of the build): ten rulings. Tab roots take the section name as the title with no subtitle; the wiki page keeps the system subtitle with the text 14 pt below it; reading mode gets a hard top scroll edge; the back chip label is at most 12 characters; no tab badge; the stock capsule menu, More order, inline Inbox title and the iPad portrait band 2 are accepted as built; the iPad Wiki tab opens the last page read (first time: the wiki home) and Agents / Backlog show a stock empty state. The R3 boards come first; where they differ from R2, R3 wins.",
-    "Round 4 (20 Nov, iPad only, after the user's notes on their own iPad): the top tab bar goes; the sections are icon tabs at the bottom of the list column (toolbar buttons: iPadOS has no bottom tab bar); workspaces leave the tab set; one list style (iPhone Agents) and 360 pt on every tab; the split view's own button collapses the list column, two states; no title in the iPad list column; wiki title, meta and body share one 680-pt measure, a scrolled page has one 50-pt bar, code scrolls sideways. The iPhone does not change. The R4 boards come first; on the iPad, R4 wins over R2 and R3."
+    "Round 4 (20 Nov, iPad only, after the user's notes on their own iPad): the top tab bar goes; the sections are icon tabs at the bottom of the list column (toolbar buttons: iPadOS has no bottom tab bar); workspaces leave the tab set; one list style (iPhone Agents) and 360 pt on every tab; the split view's own button collapses the list column, two states; no title in the iPad list column; wiki title, meta and body share one 680-pt measure, a scrolled page has one 50-pt bar, code scrolls sideways. The iPhone does not change. The R4 boards come first; on the iPad, R4 wins over R2 and R3.",
+    "Round 5 (21 Nov, iPad only, the user's question about the wide wiki margins): wiki and doc pages take the Mac's prose measure, min(780, detail − 56) pt (≈ 88 characters), title and meta on its left edge; from a 1116-pt detail the wiki margin column (240 pt, 40 gap) sits on the right and prose + column centre as one 1060-pt block; below 1116 the one-row fold shows under the meta. Reading view: 780 centred. Replaces R4 N3 “680 centred”. The R5 boards come first."
   ],
   "boards": [
+    {
+      "file": "R5-Rulings.dc.html",
+      "w": 1900,
+      "title": "Round 5 · the text measure on the iPad",
+      "caption": "C + D: prose min(780, detail − 56), margin column from a 1116-pt detail, the table per detail width, code and tables, reading view, why not A, B, E."
+    },
+    {
+      "file": "R5-iPad-11-list-hidden.dc.html",
+      "w": 1350,
+      "title": "Round 5 · 11″ list hidden · detail 1210",
+      "caption": "Prose 780 + gap 40 + column 240 centred: 75 / 75 (build: 680, 245 each side)."
+    },
+    {
+      "file": "R5-iPad-13-list-hidden.dc.html",
+      "w": 1516,
+      "title": "Round 5 · 13″ list hidden · detail 1376",
+      "caption": "The same 1060 block: 158 / 158 (build: 330 each side); lines do not get longer."
+    },
+    {
+      "file": "R5-iPad-11-list-shown.dc.html",
+      "w": 1350,
+      "title": "Round 5 · 11″ list shown · detail 850",
+      "caption": "Prose 780, 35 / 35, the one-row fold under the meta, code and tables up to 787."
+    },
     {
       "file": "R4-Rulings.dc.html",
       "w": 2600,

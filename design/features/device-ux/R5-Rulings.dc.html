@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>R5 text measure</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/b817086b800196f47552f5b8296120a7">
+<link rel="stylesheet" href="/_blob/335c10eb4f565f3d8439aed203fbbea6">
+<link rel="stylesheet" href="/_blob/c2936f2b42b1a4ba929170156f8c1e3a">
+<link rel="stylesheet" href="/_blob/1f8773efaaba7d2141a71ee08088922f">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="doc r1 r2" style="width: 1900px; height: 1400px; padding: 48px; display: flex; flex-direction: column; gap: 44px">
+<div style="display: flex; flex-direction: column; gap: 12px; padding-bottom: 24px; border-bottom: 1.5px solid #1B1D1C"><div class="eyebrow">Round 5 · iPad wiki and doc pages · replaces R4 N3 “680 centred”</div><h1>The text measure on the iPad</h1><p class="lead">Option <b>C + D</b>: the prose follows the Mac wiki (88 characters ≈ 780 pt at our 17-pt body), and when the detail can hold the prose and the Mac's margin column side by side (≥ 1116 pt), the column fills the right. iPhone unchanged.</p></div><div style="display: grid; grid-template-columns: minmax(0, 1fr) 620px; gap: 48px; align-items: start"><div class="grp"><h2>Per width</h2><table><thead><tr><th style="width: 90px">Detail</th><th>Where</th><th style="width: 80px">Prose</th><th style="width: 170px">Margins L / R</th><th style="width: 140px">Margin column</th><th style="width: 90px">Fold row</th><th style="width: 170px">Code / tables max</th></tr></thead><tbody><tr><td>514</td><td>11″ portrait, list beside (rare)</td><td>458</td><td>28 / 28</td><td>—</td><td>yes</td><td>458</td></tr><tr><td>672</td><td>13″ portrait, list shown</td><td>616</td><td>28 / 28</td><td>—</td><td>yes</td><td>616</td></tr><tr><td>834</td><td>11″ portrait, list hidden</td><td>778</td><td>28 / 28</td><td>—</td><td>yes</td><td>778</td></tr><tr><td>850</td><td>11″ landscape, list shown</td><td>780</td><td>35 / 35</td><td>—</td><td>yes</td><td>787</td></tr><tr><td>1016</td><td>13″ landscape, list shown</td><td>780</td><td>118 / 118</td><td>—</td><td>yes</td><td>870</td></tr><tr><td>1032</td><td>13″ portrait, list hidden</td><td>780</td><td>126 / 126</td><td>—</td><td>yes</td><td>878</td></tr><tr><td>1210</td><td>11″ landscape, list hidden</td><td>780</td><td>75 / 75</td><td>240, gap 40</td><td>—</td><td>780</td></tr><tr><td>1376</td><td>13″ landscape, list hidden</td><td>780</td><td>158 / 158</td><td>240, gap 40</td><td>—</td><td>780</td></tr><tr><td>1210 · 1376</td><td>reading view (⌃⌘F)</td><td>780</td><td>215 / 298 (prose)</td><td>—</td><td>yes</td><td>967 · 1050</td></tr></tbody></table></div><div class="grp"><h2>Rules</h2><ul style="font-size: 15px; line-height: 22px; display: flex; flex-direction: column; gap: 6px"><li><b>Prose</b> = min(780, detail − 56). Side gutter 28 minimum.</li><li><b>Margin column</b> when detail ≥ 1116 (28 + 780 + 40 + 240 + 28): 240 wide, 40 gap; prose + column = 1060, centred. The prose never shrinks to fit the column.</li><li><b>Below 1116</b>: no column; the one-row fold “On this page · n changes · stale · n links” under the meta, as on the Mac below 960.</li><li><b>Title and meta</b> sit on the prose's left edge, in the same column; headings follow the prose. With the column, its top aligns with the title.</li><li><b>Code and tables</b> start at the prose's left edge. Without the column they may run wider, up to min(1060, detail − left margin − 28); with the column they stop at the prose edge. Past that, code scrolls inside its box (no wrap) with a 56-pt right fade and a scroll indicator; table cells wrap, a too-wide table scrolls.</li><li><b>Images</b>: max prose width.</li><li><b>Reading view</b>: bars and column hidden, prose 780 centred on the screen, code / tables up to 1060, fold row kept.</li><li><b>Column content</b>: On this page (sticks 16 pt under the bar), In this folder, Stale, Changes, Linked from — the same sections and data as the Mac. <span class="tag b">(b)</span> if the wiki document already carries this data for the Mac; <span class="tag c">(c)</span> if the phone does not get it today.</li><li><b>iPhone</b>: no change (full width, 20-pt margins). The renderer gets the detail width; compact width keeps today's path.</li></ul></div></div><div class="grp" style="margin-top: 32px"><h2>Why not the others</h2><ul style="font-size: 15px; line-height: 22px"><li><b>A · 680 always</b>: narrower than the Mac and leaves 245–330 pt of white on each side with the list hidden — the user's complaint.</li><li><b>B · wider only past 1100</b>: an extra breakpoint with no Mac counterpart; still ~250 pt of empty sides on 13″.</li><li><b>E · fill with 20-pt margins</b>: 1170 pt lines ≈ 130 characters; hard to read, and code / tables lose their room.</li><li><b>D alone</b> (680 + column): two measures across Mac and iPad for the same page.</li></ul></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["clight","cdark"],"default":"clight"},"$preview":{"width":1900,"height":1400}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'clight' };
+}
+}
+</script>
+</body>
+</html>
