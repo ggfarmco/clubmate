@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -42,6 +43,8 @@ const (
 
 type Config struct {
 	Auth        func(bearer string) (mac string, ok bool)
+	AuthSelf    func(bearer string) (mac string, self bool, ok bool)
+	ClientIP    func(req *http.Request) string
 	TicketsPath string
 	Log         *log.Logger
 	Now         func() time.Time
@@ -49,7 +52,8 @@ type Config struct {
 }
 
 type Relay struct {
-	auth    func(string) (string, bool)
+	auth    func(string) (string, bool, bool)
+	ip      func(*http.Request) string
 	log     *log.Logger
 	now     func() time.Time
 	tickets *tickets
@@ -67,8 +71,18 @@ type Relay struct {
 }
 
 func New(cfg Config) (*Relay, error) {
-	if cfg.Auth == nil {
+	if cfg.AuthSelf == nil && cfg.Auth != nil {
+		auth := cfg.Auth
+		cfg.AuthSelf = func(b string) (string, bool, bool) {
+			mac, ok := auth(b)
+			return mac, false, ok
+		}
+	}
+	if cfg.AuthSelf == nil {
 		return nil, errors.New("tunnelrelay: Auth is required")
+	}
+	if cfg.ClientIP == nil {
+		cfg.ClientIP = remoteHost
 	}
 	if cfg.Log == nil {
 		cfg.Log = log.New(io.Discard, "", 0)
@@ -81,9 +95,10 @@ func New(cfg Config) (*Relay, error) {
 		return nil, err
 	}
 	lim := cfg.Limits.withDefaults()
-	buf := &budget{max: lim.Buffered}
+	buf := newBudget(lim.Buffered, lim.MacBuffered)
 	r := &Relay{
-		auth:     cfg.Auth,
+		auth:     cfg.AuthSelf,
+		ip:       cfg.ClientIP,
 		log:      cfg.Log,
 		now:      cfg.Now,
 		tickets:  t,
@@ -121,7 +136,7 @@ func (r *Relay) Handler() http.Handler {
 		defer r.recover(rw, req)
 		if r.active.Add(1) > int64(r.lim.Handlers) {
 			r.active.Add(-1)
-			r.refuseQuota(rw, "", refusal{what: QuotaHandlers, retry: busyRetry})
+			r.refuseQuota(rw, "", refusal{what: QuotaHandlers, retry: busyRetry, relay: true})
 			return
 		}
 		defer r.active.Add(-1)
@@ -172,11 +187,12 @@ func (r *Relay) macAuth(w http.ResponseWriter, req *http.Request) (string, strin
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return "", "", false
 	}
-	mac, ok := r.auth(token)
+	mac, self, ok := r.auth(token)
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return "", "", false
 	}
+	r.quota.mark(mac, self)
 	return mac, token, true
 }
 
@@ -256,19 +272,27 @@ func startStream(w http.ResponseWriter, contentType string) {
 	http.NewResponseController(w).Flush()
 }
 
-func (r *Relay) readHeld(w http.ResponseWriter, req *http.Request, limit int64) ([]byte, int64, bool) {
-	br := &budgetReader{r: http.MaxBytesReader(w, req.Body, limit), b: r.buf}
+func (r *Relay) readHeld(w http.ResponseWriter, req *http.Request, mac string, limit int64) ([]byte, int64, bool) {
+	br := &budgetReader{r: http.MaxBytesReader(w, req.Body, limit), b: r.buf, mac: mac}
 	b, err := io.ReadAll(br)
-	if br.busy {
-		r.buf.give(br.held)
-		r.refuseQuota(w, "", refusal{what: QuotaBuffered, retry: busyRetry})
+	if br.busy != fits {
+		r.buf.give(mac, br.held)
+		r.refuseQuota(w, mac, br.busy.refusal())
 		return nil, 0, false
 	}
 	if !bodyOK(w, err) {
-		r.buf.give(br.held)
+		r.buf.give(mac, br.held)
 		return nil, 0, false
 	}
 	return b, br.held, true
+}
+
+func remoteHost(req *http.Request) string {
+	host, _, err := net.SplitHostPort(req.RemoteAddr)
+	if err != nil {
+		return req.RemoteAddr
+	}
+	return host
 }
 
 func readBody(w http.ResponseWriter, req *http.Request, limit int64) ([]byte, bool) {

@@ -29,6 +29,8 @@ import (
 const (
 	macToken   = "cmr_studio"
 	otherToken = "cmr_other"
+	selfToken  = "cmr_self"
+	ipHeader   = "X-Test-IP"
 	ticketA    = "cmk_phone_a"
 	ticketB    = "cmk_phone_b"
 	wait       = 5 * time.Second
@@ -229,7 +231,7 @@ func TestShutdownEndsMacStreamsAndCutsTheirRequests(t *testing.T) {
 
 func TestRefusals(t *testing.T) {
 	f := newFixture(t, "")
-	_, err := f.relay.tickets.set("studio", []Ticket{{Hash: hashTicket(ticketA)}}, func() bool { return true })
+	_, err := f.relay.tickets.set("studio", []Ticket{{Hash: hashTicket(ticketA)}}, func() bool { return true }, func() bool { return true })
 	require.NoError(t, err)
 
 	noMac := <-f.device(t, "/v1/d/open", ticketA, "", []byte("msg1"))
@@ -516,6 +518,18 @@ func TestQuotaRefusals(t *testing.T) {
 			got := <-f.device(t, "/v1/d/call", ticketA, ch, make([]byte, 2000))
 			return got.res, got.body
 		}, "1", "quota relay buffered"},
+		{"ticket sets", Limits{TicketsBurst: 1}, func(t *testing.T, f *fixture, _ *fakeMac, _ string) (*http.Response, []byte) {
+			res := f.setTickets(t, macToken, Ticket{Hash: hashTicket(ticketB)})
+			return res, readAll(t, res)
+		}, "10", "quota studio tickets"},
+		{"push batches in flight", Limits{}, func(t *testing.T, f *fixture, _ *fakeMac, _ string) (*http.Response, []byte) {
+			pr, pw := io.Pipe()
+			t.Cleanup(func() { _ = pw.Close() })
+			f.macAsync(t, http.MethodPost, "/v1/mac/push", pr)
+			testutil.Eventually(t, func() bool { return f.quotaOf("studio").pushing }, wait)
+			res := f.mac(t, http.MethodPost, "/v1/mac/push", nil)
+			return res, readAll(t, res)
+		}, "1", "quota studio push"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(t, "", setup{limits: tc.limits})
@@ -620,7 +634,7 @@ func TestMacThatStopsReadingIsDropped(t *testing.T) {
 	}
 
 	testutil.Eventually(t, func() bool {
-		return f.relay.route.mac("studio") == nil && f.relay.buf.used.Load() == 0
+		return f.relay.route.mac("studio") == nil && f.relay.buf.total() == 0
 	}, wait)
 }
 
@@ -635,7 +649,7 @@ func TestDeviceThatStopsReadingEndsItsStream(t *testing.T) {
 		f.relay.route.deliver("studio", id, item{data: data})
 	}
 
-	testutil.Eventually(t, func() bool { return f.relay.buf.used.Load() == 0 }, wait)
+	testutil.Eventually(t, func() bool { return f.relay.buf.total() == 0 }, wait)
 }
 
 func TestReplyToADeviceThatStopsReadingEnds(t *testing.T) {
@@ -703,15 +717,18 @@ func newFixture(t *testing.T, tickets string, opts ...setup) *fixture {
 		o = opts[0]
 	}
 	r, err := New(Config{
-		Auth: func(b string) (string, bool) {
+		AuthSelf: func(b string) (string, bool, bool) {
 			switch b {
 			case macToken:
-				return "studio", true
+				return "studio", false, true
 			case otherToken:
-				return "other", true
+				return "other", false, true
+			case selfToken:
+				return "self", true, true
 			}
-			return "", false
+			return "", false, false
 		},
+		ClientIP:    func(req *http.Request) string { return req.Header.Get(ipHeader) },
 		TicketsPath: tickets,
 		Log:         log.New(logs, "", 0),
 		Now:         c.now,
@@ -750,14 +767,15 @@ func (f *fixture) connect(t *testing.T) *fakeMac {
 
 func (f *fixture) connectAs(t *testing.T, token, name string) *fakeMac {
 	t.Helper()
+	return f.connectFrom(t, token, name, "")
+}
+
+func (f *fixture) connectFrom(t *testing.T, token, name, ip string) *fakeMac {
+	t.Helper()
 	before := f.relay.route.mac(name)
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.url+"/v1/mac/stream", nil)
-	require.NoError(t, err)
-	req.Header.Set("Authorization", "Bearer "+token)
-	res, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
+	res := f.macStream(t, ctx, token, ip)
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	require.NotEmpty(t, res.Header.Get(HeaderStream))
 	f.mu.Lock()
@@ -770,6 +788,29 @@ func (f *fixture) connectAs(t *testing.T, token, name string) *fakeMac {
 		return now != nil && now != before
 	}, wait)
 	return m
+}
+
+func (f *fixture) macStream(t *testing.T, ctx context.Context, token, ip string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.url+"/v1/mac/stream", nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+	if ip != "" {
+		req.Header.Set(ipHeader, ip)
+	}
+	res, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	return res
+}
+
+func (f *fixture) quotaOf(mac string) macQuota {
+	q := f.relay.quota
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if m := q.macs[mac]; m != nil {
+		return *m
+	}
+	return macQuota{}
 }
 
 func (f *fixture) streamID(token string) string {
@@ -831,11 +872,16 @@ func (m *fakeMac) req(t *testing.T) reqFrame {
 
 func (f *fixture) openChannel(t *testing.T, m *fakeMac, ticket string) string {
 	t.Helper()
-	f.putTickets(t, ticket)
+	return f.openChannelAs(t, m, macToken, ticket)
+}
+
+func (f *fixture) openChannelAs(t *testing.T, m *fakeMac, token, ticket string) string {
+	t.Helper()
+	require.Equal(t, http.StatusNoContent, f.setTickets(t, token, Ticket{Hash: hashTicket(ticket)}).StatusCode)
 	done := f.device(t, "/v1/d/open", ticket, "", []byte("msg1"))
 	var frame openFrame
 	require.NoError(t, json.Unmarshal([]byte(m.next(t, "open").data), &frame))
-	require.Equal(t, http.StatusNoContent, f.mac(t, http.MethodPost, "/v1/mac/open/"+frame.Ch, []byte("msg2")).StatusCode)
+	require.Equal(t, http.StatusNoContent, f.do(t, http.MethodPost, "/v1/mac/open/"+frame.Ch, token, []byte("msg2")).StatusCode)
 	got := <-done
 	require.NoError(t, got.err)
 	require.Equal(t, http.StatusOK, got.res.StatusCode)
@@ -904,7 +950,12 @@ func (f *fixture) send(t *testing.T, method, path, token, stream string, body []
 
 func (f *fixture) device(t *testing.T, path, ticket, ch string, body []byte) <-chan result {
 	t.Helper()
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, f.url+path, bytes.NewReader(body))
+	return f.deviceFrom(t, path, ticket, ch, bytes.NewReader(body))
+}
+
+func (f *fixture) deviceFrom(t *testing.T, path, ticket, ch string, body io.Reader) <-chan result {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, f.url+path, body)
 	require.NoError(t, err)
 	req.Header.Set(HeaderTicket, ticket)
 	if ch != "" {
@@ -1004,10 +1055,10 @@ func (b *syncBuffer) String() string {
 }
 
 func TestMacStreamIsWokenOnlyWhileItCanWrite(t *testing.T) {
-	r := newRouter(nil, DefaultLimits(), &budget{max: 1 << 20})
+	r := newRouter(nil, DefaultLimits(), newBudget(1<<20, 1<<20))
 	var woke atomic.Int32
-	old := r.attach("studio", func() { woke.Add(1) })
-	cur := r.attach("studio", func() { woke.Add(1) })
+	old, _ := r.attach("studio", "", func() { woke.Add(1) })
+	cur, _ := r.attach("studio", "", func() { woke.Add(1) })
 
 	assert.Zero(t, woke.Load())
 	cur.halt(endDropped)
@@ -1015,4 +1066,90 @@ func TestMacStreamIsWokenOnlyWhileItCanWrite(t *testing.T) {
 	old.drain()
 	old.halt(endDropped)
 	assert.Equal(t, int32(1), woke.Load())
+}
+
+func TestMacOverItsHeldShareLeavesOtherMacsAlone(t *testing.T) {
+	f := newFixture(t, "", setup{limits: Limits{MacBuffered: 160 << 10}})
+	studio := f.connect(t)
+	other := f.connectAs(t, otherToken, "other")
+	ch := f.openChannel(t, studio, ticketA)
+	otherCh := f.openChannelAs(t, other, otherToken, ticketB)
+
+	f.device(t, "/v1/d/call", ticketA, ch, make([]byte, 100<<10))
+	studio.req(t)
+	refused := <-f.device(t, "/v1/d/call", ticketA, ch, make([]byte, 70<<10))
+	f.device(t, "/v1/d/call", ticketB, otherCh, make([]byte, 70<<10))
+	req := other.req(t)
+
+	assert.Equal(t, http.StatusTooManyRequests, refused.res.StatusCode)
+	assert.JSONEq(t, `{"error":"quota: buffered"}`, string(refused.body))
+	assert.Contains(t, f.logs.String(), "quota studio buffered")
+	assert.Equal(t, 70<<10, req.N)
+}
+
+func TestMacAtItsHandlerCapLeavesOtherMacsAlone(t *testing.T) {
+	f := newFixture(t, "", setup{limits: Limits{MacHandlers: 1}})
+	studio := f.connect(t)
+	other := f.connectAs(t, otherToken, "other")
+	ch := f.openChannel(t, studio, ticketA)
+	otherCh := f.openChannelAs(t, other, otherToken, ticketB)
+	pr, pw := io.Pipe()
+	t.Cleanup(func() { _ = pw.Close() })
+
+	f.deviceFrom(t, "/v1/d/call", ticketA, ch, pr)
+	testutil.Eventually(t, func() bool { return f.quotaOf("studio").handlers == 1 }, wait)
+	refused := <-f.device(t, "/v1/d/call", ticketA, ch, []byte("x"))
+	f.device(t, "/v1/d/call", ticketB, otherCh, []byte("x"))
+	req := other.req(t)
+
+	assert.Equal(t, http.StatusTooManyRequests, refused.res.StatusCode)
+	assert.Equal(t, "1", refused.res.Header.Get("Retry-After"))
+	assert.JSONEq(t, `{"error":"quota: mac-handlers"}`, string(refused.body))
+	assert.Contains(t, f.logs.String(), "quota studio mac-handlers")
+	assert.Equal(t, otherCh, req.Ch)
+}
+
+func TestMacStreamsPerIPLeaveOtherIPsAlone(t *testing.T) {
+	f := newFixture(t, "", setup{limits: Limits{MacStreamsPerIP: 1}})
+	f.connectFrom(t, macToken, "studio", "192.0.2.1")
+
+	refused := f.macStream(t, t.Context(), otherToken, "192.0.2.1")
+	body := readAll(t, refused)
+	f.connectFrom(t, otherToken, "other", "192.0.2.2")
+	f.connectFrom(t, macToken, "studio", "192.0.2.1")
+
+	assert.Equal(t, http.StatusTooManyRequests, refused.StatusCode)
+	assert.Equal(t, "60", refused.Header.Get("Retry-After"))
+	assert.JSONEq(t, `{"error":"quota: ip-mac-streams"}`, string(body))
+	assert.Contains(t, f.logs.String(), "quota relay ip-mac-streams")
+}
+
+func TestSpentSelfSignedBudgetRefusesOnlySelfSignedMacs(t *testing.T) {
+	f := newFixture(t, "", setup{limits: Limits{SelfBytesPerDayAll: 8}})
+	studio := f.connect(t)
+	self := f.connectAs(t, selfToken, "self")
+	ch := f.openChannel(t, studio, ticketA)
+	selfCh := f.openChannelAs(t, self, selfToken, ticketB)
+
+	refused := <-f.device(t, "/v1/d/call", ticketB, selfCh, []byte("x"))
+	f.device(t, "/v1/d/call", ticketA, ch, []byte("x"))
+	req := studio.req(t)
+
+	assert.Equal(t, http.StatusTooManyRequests, refused.res.StatusCode)
+	assert.Equal(t, "43200", refused.res.Header.Get("Retry-After"))
+	assert.JSONEq(t, `{"error":"quota: self-bytes"}`, string(refused.body))
+	assert.Contains(t, f.logs.String(), "quota relay self-bytes")
+	assert.Equal(t, ch, req.Ch)
+}
+
+func TestUnchangedTicketSetCostsNoTicketsQuota(t *testing.T) {
+	f := newFixture(t, "", setup{limits: Limits{TicketsBurst: 1}})
+	f.connect(t)
+
+	for range 20 {
+		f.putTickets(t, ticketA)
+	}
+	changed := f.setTickets(t, macToken, Ticket{Hash: hashTicket(ticketB)})
+
+	assert.Equal(t, http.StatusTooManyRequests, changed.StatusCode)
 }

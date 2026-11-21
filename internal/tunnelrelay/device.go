@@ -41,6 +41,11 @@ func (r *Relay) deviceOpen(w http.ResponseWriter, req *http.Request) {
 	if !ok {
 		return
 	}
+	if q := r.quota.enter(mac); q.what != "" {
+		r.refuseQuota(w, mac, q)
+		return
+	}
+	defer r.quota.leave(mac)
 	if q := r.quota.allowOpen(mac, hash); q.what != "" {
 		r.refuseQuota(w, mac, q)
 		return
@@ -88,12 +93,17 @@ func (r *Relay) deviceCall(w http.ResponseWriter, req *http.Request) {
 	if !ok {
 		return
 	}
+	if q := r.quota.enter(c.mac); q.what != "" {
+		r.refuseQuota(w, c.mac, q)
+		return
+	}
+	defer r.quota.leave(c.mac)
 	if q := r.quota.allowCall(c.mac); q.what != "" {
 		r.refuseQuota(w, c.mac, q)
 		return
 	}
 	transfer(w)
-	body, held, ok := r.readHeld(w, req, MaxBody)
+	body, held, ok := r.readHeld(w, req, c.mac, MaxBody)
 	if !ok {
 		return
 	}
@@ -190,12 +200,17 @@ func (r *Relay) deviceStream(w http.ResponseWriter, req *http.Request) {
 	if !ok {
 		return
 	}
+	if q := r.quota.enter(c.mac); q.what != "" {
+		r.refuseQuota(w, c.mac, q)
+		return
+	}
+	defer r.quota.leave(c.mac)
 	if q := r.quota.allowCall(c.mac); q.what != "" {
 		r.refuseQuota(w, c.mac, q)
 		return
 	}
 	transfer(w)
-	body, held, ok := r.readHeld(w, req, MaxBody)
+	body, held, ok := r.readHeld(w, req, c.mac, MaxBody)
 	if !ok {
 		return
 	}
@@ -240,7 +255,7 @@ func (r *Relay) deviceStream(w http.ResponseWriter, req *http.Request) {
 	for {
 		select {
 		case it := <-p.items:
-			r.buf.give(int64(len(it.data)))
+			r.buf.give(c.mac, int64(len(it.data)))
 			if len(it.data) > 0 && !write([]byte(tunnel.SSEData(it.data))) {
 				return
 			}

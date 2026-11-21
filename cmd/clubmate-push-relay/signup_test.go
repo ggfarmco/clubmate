@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -227,7 +228,7 @@ func TestUnusedSelfSignedMacExpiresAndFreesTheCap(t *testing.T) {
 	tickets := filepath.Join(t.TempDir(), "tickets.json")
 	seed := fmt.Sprintf(`{%q:[{"h":%q}],"studio":[{"h":%q}]}`, unused.Name, strings.Repeat("a", 64), strings.Repeat("b", 64))
 	require.NoError(t, os.WriteFile(tickets, []byte(seed), 0o600))
-	tun, err := tunnelrelay.New(tunnelrelay.Config{Auth: f.relay.macToken, TicketsPath: tickets, Log: f.relay.log, Now: func() time.Time { return f.now }})
+	tun, err := tunnelrelay.New(f.relay.tunnelConfig(tickets))
 	require.NoError(t, err)
 	f.relay.tun = tun
 	f.now = f.now.Add(unusedTTL)
@@ -364,4 +365,41 @@ func (f *signupFixture) call(t *testing.T, method, path, token, body string) *ht
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+token)
 	return f.serve(req)
+}
+
+func TestSelfSignedMacGetsTheSmallerDailyQuota(t *testing.T) {
+	f := newSignupFixture(t)
+	_, self := f.signup(t, f.key)
+	cfg := f.relay.tunnelConfig("")
+	cfg.Log = nil
+	tun, err := tunnelrelay.New(cfg)
+	require.NoError(t, err)
+	f.relay.tun, f.relay.tunnel = tun, tun.Handler()
+	ts := httptest.NewServer(f.relay.handler())
+	t.Cleanup(ts.Close)
+	t.Cleanup(tun.Shutdown)
+	daily := func(token string) int64 {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, ts.URL+"/v1/mac/stream", nil)
+		require.NoError(t, err)
+		req.Header.Set("Authorization", "Bearer "+token)
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		br := bufio.NewReader(res.Body)
+		for {
+			line, err := br.ReadString('\n')
+			require.NoError(t, err)
+			if data, ok := strings.CutPrefix(line, "data: "); ok {
+				var limits struct {
+					BytesPerDay int64 `json:"bytesPerDay"`
+				}
+				require.NoError(t, json.Unmarshal([]byte(data), &limits))
+				return limits.BytesPerDay
+			}
+		}
+	}
+
+	assert.Equal(t, int64(512<<20), daily(self.Token))
+	assert.Equal(t, int64(2<<30), daily(f.studio))
 }

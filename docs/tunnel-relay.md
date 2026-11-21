@@ -51,7 +51,7 @@ All with `Authorization: Bearer cmr_…`; `401` without a valid token. A Mac get
 | `GET /v1/mac/req/{id}/body` | The request body of a `req` over 64 KiB (binary records). Once per request. `410` when the device left. |
 | `POST /v1/mac/reply/{id}` | Body = binary records of the reply, piped straight into the device's waiting response. `204` after the last byte; `410` when the device left (or the reply came too late); `413` over 17 MiB. |
 | `POST /v1/mac/close/{ch}` | The Mac does not know this channel (its keys are only in memory: a plugin restart, the 10 min idle forget, a relay change). The relay drops the channel; each request on it that is still waiting gets `410` when its headers are not sent yet, else it is cut. Always `204`. |
-| `POST /v1/mac/push` | Batch of stream frames: repeated `kind (1 B) \| id (16 B) \| len (u32 BE) \| len bytes`. Kind 1 = stream data (sealed records), kind 2 = stream end (its bytes, if any, go to the phone first). `200 {"gone": ["<id>", …]}`: streams whose device left since the last push, and ids in this batch the relay does not know. Send one batch at a time. |
+| `POST /v1/mac/push` | Batch of stream frames: repeated `kind (1 B) \| id (16 B) \| len (u32 BE) \| len bytes`. Kind 1 = stream data (sealed records), kind 2 = stream end (its bytes, if any, go to the phone first). `200 {"gone": ["<id>", …]}`: streams whose device left since the last push, and ids in this batch the relay does not know. Send one batch at a time: a second batch while one is in progress gets `429` `quota: push` (`Retry-After: 1`); the Mac sends the same batch again after `Retry-After` when it is 10 s or less. |
 | `PUT /v1/mac/tickets` | See [Tickets](#tickets). |
 
 ### Mac stream frames
@@ -61,7 +61,7 @@ Each frame is `event: <name>` + `data: <JSON>`:
 - `open` `{"ch", "d": "<base64 msg1>"}`: a device opens a channel. Answer with `POST /v1/mac/open/{ch}`.
 - `req` `{"id", "ch", "kind": "call"|"stream", "n": <bytes>, "d"?: "<base64 records>"}`. No `d` when `n` is over 64 KiB: pull the body. `id` is 32 hex characters (the 16 bytes of a push item's id).
 - `close` `{"ch", "id"?, "why": "device-gone"|"ticket-revoked"|"idle"|"timeout"|"cut"}`: a channel (no `id`) or one request ended. The relay sends it for every request that ends without a full reply or stream end, so the Mac stops the handler: `device-gone` when a phone leaves a stream or a call before its reply, `timeout` when a call had no reply in 2 min 10 s (`CallWait`), `cut` when the relay cut the response (the Mac stream dropped, the reply upload broke, a stream frame did not fit); `idle` when the relay dropped the channel (see [Quotas](#quotas)).
-- `limits` `{"bytesPerDay", "bytesToday", "channels", "calls", "streams", "body", "rate", "burst", "openRate", "openBurst", "idleSeconds"}`: once, first on each new stream. The quotas of this Mac and the bytes it used today (UTC).
+- `limits` `{"bytesPerDay", "bytesToday", "channels", "calls", "streams", "body", "rate", "burst", "openRate", "openBurst", "idleSeconds"}`: once, first on each new stream. The quotas of this Mac and the bytes it used today (UTC); `bytesPerDay` is 512 MiB for a self-signed Mac.
 - `replaced` `{}`: a newer stream of this Mac took over; this one ends.
 
 The Mac does not trust the relay to keep these limits (`plugins/remote/tunnel_session.go`): it serves at most 80 requests at a time (the relay's 64 calls and 16 streams) and cuts the rest; it inflates a request to at most 16 MiB + 64 KiB (the handlers' body limit plus a head), so a deflate bomb ends before the device token is checked; it ends a call's handler at `CallWait` (2 min 10 s) and when `close` names it; it cuts an inner `GET /v1/events` sent as kind `call` (an event stream comes only as kind `stream`). A cut call gets an empty `POST /v1/mac/reply/{id}`, a cut stream a push end item. A call's reply whose sealed records are over `MaxBody` (17 MiB), or that is over 64 MiB before deflate (the most the Mac holds), is not cut: the Mac sends a sealed reply bound to the request (`re`, seq 0) with inner status `413` and `{"error": {"code": "too_large", "message": "This reply is too large for the relay path."}}`, so the phone shows a clear error and does not take it for "may have run". A stream chunk over 16 MiB ends the stream.
@@ -102,7 +102,11 @@ Constants in `internal/tunnelrelay/quota.go` (`DefaultLimits`). Per Mac name:
 
 | Quota | Default | Over it |
 |---|---|---|
-| bytes in + out per UTC day; push items for an id the relay does not know count too | 2 GiB | `429` on `open`, `call`, `stream` and `POST /v1/mac/push`, `Retry-After` until 00:00 UTC |
+| bytes in + out per UTC day; push items for an id the relay does not know count too | 2 GiB; a self-signed Mac 512 MiB (`SelfBytesPerDay`) | `429` `quota: bytes` on `open`, `call`, `stream` and `POST /v1/mac/push`, `Retry-After` until 00:00 UTC |
+| bytes the relay holds for this Mac (its request bodies, its queued Mac frames, its stream frames not yet sent) (`MacBuffered`) | 34 MiB (2 × `MaxBody`) | `429` `quota: buffered` on this Mac's request that would cross it, before the body is held; a stream frame over it ends that stream (its id goes to `gone`); other Macs are not affected |
+| device requests in progress (`open`, `call`, `stream`), counted from before the body is read to the end of the response (`MacHandlers`) | 256 | `429` `quota: mac-handlers`, `Retry-After: 1` |
+| `PUT /v1/mac/tickets` that changes the set (`TicketsRate`, `TicketsBurst`); a set equal to the stored one costs nothing | 1 per 10 s, burst 10 | `429` `quota: tickets`, nothing stored; the Mac sends the set again at its next 1-minute check, or, when the `PUT` was the one after a new stream, it opens the stream again with its stream backoff |
+| `POST /v1/mac/push` in progress | 1 | `429` `quota: push`, `Retry-After: 1` |
 | open channels | 32 | the oldest channel with no request in flight is dropped (`close` `why: idle` to the Mac); when all have one, `429` on `open` |
 | calls in flight | 64 | `429` on `call` |
 | open device streams | 16 | `429` on `stream` |
@@ -118,12 +122,14 @@ Global caps, so a tunnel flood cannot starve `/v1/push` in the same process:
 
 | Cap | Default | Over it |
 |---|---|---|
-| Mac streams | 5000 | `429` on `GET /v1/mac/stream`, `Retry-After: 60` |
+| Mac streams (above the 20 000 self sign-up cap) | 25 000 | `429` `quota: mac-streams` on `GET /v1/mac/stream`, `Retry-After: 60` |
+| Mac streams from one client IP (IPv6 as its /64, the same client IP as the sign-up limit) (`MacStreamsPerIP`) | 32 | `429` `quota: ip-mac-streams` on a new Mac's `GET /v1/mac/stream`, `Retry-After: 60`; a Mac that replaces its own stream from the same IP is let in |
+| bytes of all self-signed Macs together per UTC day (`SelfBytesPerDayAll`) | 200 GiB | `429` `quota: self-bytes` to self-signed Macs only, on the requests that the per-Mac byte quota refuses, `Retry-After` until 00:00 UTC; Macs with a token from `token add` are not affected |
 | channels (open and opening) | 100 000 | idle channels are dropped first, then `429` on `open` |
 | tunnel requests in progress | 10 000 | `429` on any tunnel route |
 | bytes the relay holds (request bodies, queued Mac frames, stream frames not yet sent) | 256 MiB | `429` on the request that would cross it; a stream frame over it ends that stream (its id goes to `gone`) |
 
-Every refusal is `429` with `Retry-After` (seconds, at least 1), `X-Clubmate-Relay: 1` and a JSON error `quota: <what>`. The counters live in memory: a restart resets them.
+Every refusal is `429` with `Retry-After` (seconds, at least 1), `X-Clubmate-Relay: 1` and a JSON error `quota: <what>`. The counters live in memory: a restart resets them. The relay knows that a Mac is self-signed from its token (`Config.AuthSelf`; a line with `key=` in the tokens file), and it learns the client IP from `Config.ClientIP`.
 
 ## Records and handshake
 

@@ -172,7 +172,7 @@ func serve(args []string) error {
 	if cfg.signup == "on" {
 		r.signup = newSignupLimits(time.Now)
 	}
-	tun, err := tunnelrelay.New(tunnelrelay.Config{Auth: r.macToken, TicketsPath: cfg.tickets, Log: logger, Now: time.Now})
+	tun, err := tunnelrelay.New(r.tunnelConfig(cfg.tickets))
 	if err != nil {
 		return err
 	}

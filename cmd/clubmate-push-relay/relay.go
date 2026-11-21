@@ -222,9 +222,14 @@ func (l *limiter) reclaim(now time.Time) bool {
 	return len(l.buckets) < l.max
 }
 
-func (r *relay) macToken(token string) (string, bool) {
-	name, _, ok := r.usedMac(token)
-	return name, ok
+func (r *relay) tunnelConfig(tickets string) tunnelrelay.Config {
+	return tunnelrelay.Config{
+		AuthSelf:    r.usedMac,
+		ClientIP:    func(req *http.Request) string { return bucketKey(clientIP(req)) },
+		TicketsPath: tickets,
+		Log:         r.log,
+		Now:         r.now,
+	}
 }
 
 func (r *relay) usedMac(token string) (string, bool, bool) {

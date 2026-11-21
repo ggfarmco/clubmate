@@ -293,6 +293,39 @@ func TestPushReplyGoneCancelsTheStream(t *testing.T) {
 	testutil.Eventually(t, func() bool { return ctx.Err() != nil }, 10*time.Second)
 }
 
+func TestPushBatchRefusedAsBusyIsSentAgain(t *testing.T) {
+	var calls atomic.Int32
+	got := make(chan []byte, 1)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		w.Header().Set(tunnelrelay.HeaderRelay, "1")
+		if calls.Add(1) == 1 {
+			w.Header().Set("Retry-After", "1")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		got <- body
+		_, _ = w.Write([]byte(`{"gone":[]}`))
+	}))
+	t.Cleanup(ts.Close)
+	s := newSessions(http.NotFoundHandler(), http.DefaultClient, time.Now)
+	s.add("ch_test", nil, false)
+	id := [tunnel.IDSize]byte{1}
+	_, ctx, done := s.begin(t.Context(), reqFrame{ID: hex.EncodeToString(id[:]), Ch: "ch_test"})
+	defer done()
+	item := tunnel.PushItem{Kind: tunnel.PushData, ID: id, Data: []byte("x")}
+
+	require.NoError(t, s.pushes.add(t.Context(), macConn{base: ts.URL, token: testMacToken}, false, item))
+
+	select {
+	case body := <-got:
+		assert.Equal(t, tunnel.AppendPush(nil, item), body)
+	case <-time.After(testutil.Timeout(10 * time.Second)):
+		require.FailNow(t, "the refused push batch was not sent again")
+	}
+	assert.NoError(t, ctx.Err())
+}
+
 func TestCallOnAChannelTheMacForgotIsResentOnce(t *testing.T) {
 	f, tr := newTunnelFixture(t)
 	keys := fileStore{path: filepath.Join(t.TempDir(), "key")}

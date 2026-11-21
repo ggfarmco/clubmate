@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -22,6 +21,11 @@ const (
 	QuotaAllChans  = "all-channels"
 	QuotaHandlers  = "handlers"
 	QuotaBuffered  = "buffered"
+	QuotaMacCalls  = "mac-handlers"
+	QuotaSelfBytes = "self-bytes"
+	QuotaMacsPerIP = "ip-mac-streams"
+	QuotaTickets   = "tickets"
+	QuotaPush      = "push"
 	busyRetry      = time.Second
 	macsRetry      = time.Minute
 	sweepEvery     = time.Minute
@@ -46,6 +50,14 @@ type Limits struct {
 	AllChannels int
 	Handlers    int
 	Buffered    int64
+
+	MacBuffered        int64
+	MacHandlers        int
+	SelfBytesPerDay    int64
+	SelfBytesPerDayAll int64
+	MacStreamsPerIP    int
+	TicketsRate        float64
+	TicketsBurst       int
 }
 
 func DefaultLimits() Limits {
@@ -59,10 +71,18 @@ func DefaultLimits() Limits {
 		OpenRate:    1,
 		OpenBurst:   10,
 		Idle:        10 * time.Minute,
-		MacStreams:  5000,
+		MacStreams:  25_000,
 		AllChannels: 100_000,
 		Handlers:    10_000,
 		Buffered:    256 << 20,
+
+		MacBuffered:        2 * MaxBody,
+		MacHandlers:        256,
+		SelfBytesPerDay:    512 << 20,
+		SelfBytesPerDayAll: 200 << 30,
+		MacStreamsPerIP:    32,
+		TicketsRate:        0.1,
+		TicketsBurst:       10,
 	}
 }
 
@@ -107,6 +127,27 @@ func (l Limits) withDefaults() Limits {
 	if l.Buffered <= 0 {
 		l.Buffered = d.Buffered
 	}
+	if l.MacBuffered <= 0 {
+		l.MacBuffered = d.MacBuffered
+	}
+	if l.MacHandlers <= 0 {
+		l.MacHandlers = d.MacHandlers
+	}
+	if l.SelfBytesPerDay <= 0 {
+		l.SelfBytesPerDay = d.SelfBytesPerDay
+	}
+	if l.SelfBytesPerDayAll <= 0 {
+		l.SelfBytesPerDayAll = d.SelfBytesPerDayAll
+	}
+	if l.MacStreamsPerIP <= 0 {
+		l.MacStreamsPerIP = d.MacStreamsPerIP
+	}
+	if l.TicketsRate <= 0 {
+		l.TicketsRate = d.TicketsRate
+	}
+	if l.TicketsBurst <= 0 {
+		l.TicketsBurst = d.TicketsBurst
+	}
 	return l
 }
 
@@ -127,6 +168,7 @@ type limitsFrame struct {
 type refusal struct {
 	what  string
 	retry time.Duration
+	relay bool
 }
 
 type quota struct {
@@ -139,13 +181,20 @@ type quota struct {
 	tickets map[string]*bucket
 	global  map[string]time.Time
 	swept   time.Time
+
+	selfDay   int64
+	selfBytes int64
 }
 
 type macQuota struct {
-	day    int64
-	bytes  int64
-	rate   bucket
-	logged map[string]int64
+	day      int64
+	bytes    int64
+	self     bool
+	handlers int
+	pushing  bool
+	rate     bucket
+	puts     bucket
+	logged   map[string]int64
 }
 
 type bucket struct {
@@ -168,7 +217,12 @@ func untilMidnight(t time.Time) time.Duration {
 func (q *quota) macLocked(mac string, now time.Time) *macQuota {
 	m := q.macs[mac]
 	if m == nil {
-		m = &macQuota{day: dayOf(now), rate: bucket{tokens: float64(q.lim.Burst), last: now}, logged: map[string]int64{}}
+		m = &macQuota{
+			day:    dayOf(now),
+			rate:   bucket{tokens: float64(q.lim.Burst), last: now},
+			puts:   bucket{tokens: float64(q.lim.TicketsBurst), last: now},
+			logged: map[string]int64{},
+		}
 		q.macs[mac] = m
 	}
 	if d := dayOf(now); d != m.day {
@@ -177,14 +231,33 @@ func (q *quota) macLocked(mac string, now time.Time) *macQuota {
 	return m
 }
 
+func (q *quota) selfLocked(now time.Time) int64 {
+	if d := dayOf(now); d != q.selfDay {
+		q.selfDay, q.selfBytes = d, 0
+	}
+	return q.selfBytes
+}
+
+func (q *quota) mark(mac string, self bool) {
+	now := q.now()
+	q.mu.Lock()
+	q.macLocked(mac, now).self = self
+	q.mu.Unlock()
+}
+
 func (q *quota) charge(mac string, n int64) {
 	if n <= 0 {
 		return
 	}
 	now := q.now()
 	q.mu.Lock()
-	q.macLocked(mac, now).bytes += n
-	q.mu.Unlock()
+	defer q.mu.Unlock()
+	m := q.macLocked(mac, now)
+	m.bytes += n
+	if m.self {
+		q.selfLocked(now)
+		q.selfBytes += n
+	}
 }
 
 func (q *quota) used(mac string) int64 {
@@ -194,16 +267,70 @@ func (q *quota) used(mac string) int64 {
 	return q.macLocked(mac, now).bytes
 }
 
-func (q *quota) allowBytes(mac string) refusal {
-	now := q.now()
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	return q.bytesLocked(q.macLocked(mac, now), now)
+func (q *quota) dailyLocked(m *macQuota) int64 {
+	if m.self {
+		return q.lim.SelfBytesPerDay
+	}
+	return q.lim.BytesPerDay
 }
 
 func (q *quota) bytesLocked(m *macQuota, now time.Time) refusal {
-	if m.bytes >= q.lim.BytesPerDay {
+	if m.self && q.selfLocked(now) >= q.lim.SelfBytesPerDayAll {
+		return refusal{what: QuotaSelfBytes, retry: untilMidnight(now), relay: true}
+	}
+	if m.bytes >= q.dailyLocked(m) {
 		return refusal{what: QuotaBytes, retry: untilMidnight(now)}
+	}
+	return refusal{}
+}
+
+func (q *quota) enter(mac string) refusal {
+	now := q.now()
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	m := q.macLocked(mac, now)
+	if m.handlers >= q.lim.MacHandlers {
+		return refusal{what: QuotaMacCalls, retry: busyRetry}
+	}
+	m.handlers++
+	return refusal{}
+}
+
+func (q *quota) leave(mac string) {
+	now := q.now()
+	q.mu.Lock()
+	q.macLocked(mac, now).handlers--
+	q.mu.Unlock()
+}
+
+func (q *quota) allowPush(mac string) refusal {
+	now := q.now()
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	m := q.macLocked(mac, now)
+	if r := q.bytesLocked(m, now); r.what != "" {
+		return r
+	}
+	if m.pushing {
+		return refusal{what: QuotaPush, retry: busyRetry}
+	}
+	m.pushing = true
+	return refusal{}
+}
+
+func (q *quota) pushed(mac string) {
+	now := q.now()
+	q.mu.Lock()
+	q.macLocked(mac, now).pushing = false
+	q.mu.Unlock()
+}
+
+func (q *quota) allowTickets(mac string) refusal {
+	now := q.now()
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if wait, ok := q.macLocked(mac, now).puts.take(now, q.lim.TicketsRate, q.lim.TicketsBurst); !ok {
+		return refusal{what: QuotaTickets, retry: wait}
 	}
 	return refusal{}
 }
@@ -287,9 +414,14 @@ func (q *quota) sweep(now time.Time) {
 }
 
 func (q *quota) limits(mac string) limitsFrame {
+	now := q.now()
+	q.mu.Lock()
+	m := q.macLocked(mac, now)
+	daily, used := q.dailyLocked(m), m.bytes
+	q.mu.Unlock()
 	return limitsFrame{
-		BytesPerDay: q.lim.BytesPerDay,
-		BytesToday:  q.used(mac),
+		BytesPerDay: daily,
+		BytesToday:  used,
 		Channels:    q.lim.Channels,
 		Calls:       q.lim.Calls,
 		Streams:     q.lim.Streams,
@@ -322,44 +454,90 @@ func (b *bucket) take(now time.Time, rate float64, burst int) (time.Duration, bo
 	return 0, true
 }
 
+type fit int
+
+const (
+	fits fit = iota
+	overMac
+	overAll
+)
+
 type budget struct {
-	max  int64
-	used atomic.Int64
+	max    int64
+	macMax int64
+
+	mu    sync.Mutex
+	used  int64
+	byMac map[string]int64
 }
 
-func (b *budget) take(n int64) bool {
-	if b.used.Add(n) > b.max {
-		b.used.Add(-n)
-		return false
-	}
-	return true
+func newBudget(all, mac int64) *budget {
+	return &budget{max: all, macMax: mac, byMac: map[string]int64{}}
 }
 
-func (b *budget) force(n int64) { b.used.Add(n) }
-
-func (b *budget) give(n int64) {
-	if n > 0 {
-		b.used.Add(-n)
+func (b *budget) take(mac string, n int64) fit {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.byMac[mac]+n > b.macMax {
+		return overMac
 	}
+	if b.used+n > b.max {
+		return overAll
+	}
+	b.used += n
+	b.byMac[mac] += n
+	return fits
+}
+
+func (b *budget) force(mac string, n int64) {
+	b.mu.Lock()
+	b.used += n
+	b.byMac[mac] += n
+	b.mu.Unlock()
+}
+
+func (b *budget) give(mac string, n int64) {
+	if n <= 0 {
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.used -= n
+	if left := b.byMac[mac] - n; left > 0 {
+		b.byMac[mac] = left
+	} else {
+		delete(b.byMac, mac)
+	}
+}
+
+func (b *budget) total() int64 {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.used
+}
+
+func (f fit) refusal() refusal {
+	return refusal{what: QuotaBuffered, retry: busyRetry, relay: f == overAll}
 }
 
 type budgetReader struct {
 	r    io.Reader
 	b    *budget
+	mac  string
 	held int64
-	busy bool
+	busy fit
 }
 
 func (br *budgetReader) Read(p []byte) (int, error) {
 	if len(p) > readChunk {
 		p = p[:readChunk]
 	}
-	if !br.b.take(int64(len(p))) {
-		br.busy = true
+	if f := br.b.take(br.mac, int64(len(p))); f != fits {
+		br.busy = f
 		return 0, errBusy
 	}
 	n, err := br.r.Read(p)
-	br.b.give(int64(len(p) - n))
+	br.b.give(br.mac, int64(len(p)-n))
 	br.held += int64(n)
 	return n, err
 }
@@ -373,10 +551,9 @@ func retryAfter(d time.Duration) string {
 }
 
 func (r *Relay) refuseQuota(w http.ResponseWriter, mac string, q refusal) {
-	switch {
-	case mac == "", q.what == QuotaMacs, q.what == QuotaAllChans, q.what == QuotaHandlers, q.what == QuotaBuffered:
+	if mac == "" || q.relay {
 		r.quota.reportGlobal(q.what)
-	default:
+	} else {
 		r.quota.report(mac, q)
 	}
 	w.Header().Set("Retry-After", retryAfter(q.retry))

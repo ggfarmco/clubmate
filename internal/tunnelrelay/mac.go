@@ -30,9 +30,9 @@ func (r *Relay) macStream(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	rc := http.NewResponseController(w)
-	m := r.route.attach(mac, func() { _ = rc.SetWriteDeadline(time.Now()) })
+	m, what := r.route.attach(mac, r.ip(req), func() { _ = rc.SetWriteDeadline(time.Now()) })
 	if m == nil {
-		r.refuseQuota(w, "", refusal{what: QuotaMacs, retry: macsRetry})
+		r.refuseQuota(w, "", refusal{what: what, retry: macsRetry, relay: true})
 		return
 	}
 	longLived(w)
@@ -67,12 +67,12 @@ func (r *Relay) macStream(w http.ResponseWriter, req *http.Request) {
 	for {
 		select {
 		case f := <-m.frames:
-			m.buf.give(int64(len(f)))
+			m.buf.give(mac, int64(len(f)))
 			if !write(f) {
 				return
 			}
 		case <-t.C:
-			if who, ok := r.auth(token); !ok || who != mac {
+			if who, _, ok := r.auth(token); !ok || who != mac {
 				m.end(endRevoked)
 				continue
 			}
@@ -127,7 +127,7 @@ func (r *Relay) macPullBody(w http.ResponseWriter, req *http.Request) {
 		writeError(w, http.StatusGone, "device left")
 		return
 	}
-	defer r.buf.give(held)
+	defer r.buf.give(mac, held)
 	transfer(w)
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.WriteHeader(http.StatusOK)
@@ -177,10 +177,11 @@ func (r *Relay) macPush(w http.ResponseWriter, req *http.Request) {
 	if !ok {
 		return
 	}
-	if q := r.quota.allowBytes(mac); q.what != "" {
+	if q := r.quota.allowPush(mac); q.what != "" {
 		r.refuseQuota(w, mac, q)
 		return
 	}
+	defer r.quota.pushed(mac)
 	transfer(w)
 	pr := tunnel.NewPushReader(http.MaxBytesReader(w, req.Body, MaxBody))
 	for {
@@ -230,9 +231,16 @@ func (r *Relay) putTickets(w http.ResponseWriter, req *http.Request) {
 		writeError(w, http.StatusBadRequest, "bad request body")
 		return
 	}
-	stored, err := r.tickets.set(mac, body.Tickets, func() bool { return r.route.current(mac, stream) })
+	var q refusal
+	allow := func() bool {
+		q = r.quota.allowTickets(mac)
+		return q.what == ""
+	}
+	stored, err := r.tickets.set(mac, body.Tickets, func() bool { return r.route.current(mac, stream) }, allow)
 	if err != nil {
 		switch {
+		case errors.Is(err, errTicketsRate):
+			r.refuseQuota(w, mac, q)
 		case errors.Is(err, errNotCurrent):
 			writeError(w, http.StatusConflict, NotCurrentStream)
 		case errors.Is(err, errTicketTaken):

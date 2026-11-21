@@ -36,6 +36,7 @@ const (
 	maxTunnelHead   = 64 << 10
 	maxServing      = 80
 	eventsPath      = "/v1/events"
+	pushRetryMax    = 10 * time.Second
 )
 
 var replyTooLargeBody, _ = json.Marshal(errorBody{Error: apiError{Code: codeTooLarge, Message: "This reply is too large for the relay path."}})
@@ -475,27 +476,32 @@ func (s *sessions) forget(ctx context.Context, mc macConn, ch string) {
 }
 
 func (s *sessions) post(ctx context.Context, mc macConn, path string, body []byte, out any) (int, error) {
+	status, _, err := s.postHead(ctx, mc, path, body, out)
+	return status, err
+}
+
+func (s *sessions) postHead(ctx context.Context, mc macConn, path string, body []byte, out any) (int, http.Header, error) {
 	ctx, cancel := context.WithTimeout(ctx, tunnelTransfer)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mc.base+path, bytes.NewReader(body))
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	mc.auth(req)
 	req.Header.Set("Content-Type", "application/octet-stream")
 	res, err := s.client.Do(req)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	defer res.Body.Close()
 	if res.Header.Get(tunnelrelay.HeaderRelay) != "1" {
-		return res.StatusCode, errRelayUnreachable
+		return res.StatusCode, res.Header, errRelayUnreachable
 	}
 	if out != nil && res.StatusCode == http.StatusOK {
-		return res.StatusCode, json.NewDecoder(io.LimitReader(res.Body, relayMaxReply)).Decode(out)
+		return res.StatusCode, res.Header, json.NewDecoder(io.LimitReader(res.Body, relayMaxReply)).Decode(out)
 	}
 	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, relayMaxReply))
-	return res.StatusCode, nil
+	return res.StatusCode, res.Header, nil
 }
 
 func onReplySent(ctx context.Context, fn func()) {
@@ -605,7 +611,7 @@ func (q *pushQueue) send(ctx context.Context, mc macConn, batch []tunnel.PushIte
 		body = tunnel.AppendPush(body, it)
 	}
 	var reply pushReply
-	status, err := q.s.post(ctx, mc, macPushPath, body, &reply)
+	status, err := q.post(ctx, mc, body, &reply)
 	if err == nil && status != http.StatusOK {
 		err = fmt.Errorf("%w: %d", errPushRefused, status)
 	}
@@ -618,6 +624,23 @@ func (q *pushQueue) send(ctx context.Context, mc macConn, batch []tunnel.PushIte
 		ids = append(ids, hex.EncodeToString(it.ID[:]))
 	}
 	return ids
+}
+
+func (q *pushQueue) post(ctx context.Context, mc macConn, body []byte, reply *pushReply) (int, error) {
+	for {
+		status, head, err := q.s.postHead(ctx, mc, macPushPath, body, reply)
+		wait := retryAfter(head)
+		if err != nil || status != http.StatusTooManyRequests || wait == 0 || wait > pushRetryMax {
+			return status, err
+		}
+		t := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			t.Stop()
+			return status, ctx.Err()
+		case <-t.C:
+		}
+	}
 }
 
 func (w *streamWriter) Flush() { _ = w.FlushError() }

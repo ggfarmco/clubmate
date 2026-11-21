@@ -41,6 +41,7 @@ type router struct {
 	reqs    map[string]*pending
 	gone    map[string][]string
 	load    map[string]*macLoad
+	ips     map[string]int
 	swept   time.Time
 	tickets *tickets
 
@@ -57,6 +58,7 @@ type macLoad struct {
 type macConn struct {
 	id     string
 	name   string
+	ip     string
 	frames chan []byte
 	done   chan struct{}
 	once   sync.Once
@@ -131,6 +133,7 @@ type denial struct {
 const (
 	sent = iota
 	sendGone
+	sendFull
 	sendBusy
 )
 
@@ -145,6 +148,7 @@ func newRouter(t *tickets, lim Limits, buf *budget) *router {
 		gone:    map[string][]string{},
 		cur:     map[string]string{},
 		load:    map[string]*macLoad{},
+		ips:     map[string]int{},
 		tickets: t,
 	}
 }
@@ -164,6 +168,14 @@ func short(ch string) string {
 
 func quotaDenial(what string, retry time.Duration) denial {
 	return denial{code: http.StatusTooManyRequests, quota: refusal{what: what, retry: retry}}
+}
+
+func busyDenial(res int) denial {
+	f := overMac
+	if res == sendBusy {
+		f = overAll
+	}
+	return denial{code: http.StatusTooManyRequests, quota: f.refusal()}
 }
 
 func (m *macConn) end(why string) {
@@ -195,15 +207,20 @@ func (m *macConn) send(frame []byte, force bool) int {
 	}
 	n := int64(len(frame))
 	if force {
-		m.buf.force(n)
-	} else if !m.buf.take(n) {
-		return sendBusy
+		m.buf.force(m.name, n)
+	} else {
+		switch m.buf.take(m.name, n) {
+		case overMac:
+			return sendFull
+		case overAll:
+			return sendBusy
+		}
 	}
 	select {
 	case m.frames <- frame:
 		return sent
 	default:
-		m.buf.give(n)
+		m.buf.give(m.name, n)
 		m.end(endSlow)
 		m.wake()
 		return sendGone
@@ -217,7 +234,7 @@ func (m *macConn) drain() {
 	for {
 		select {
 		case f := <-m.frames:
-			m.buf.give(int64(len(f)))
+			m.buf.give(m.name, int64(len(f)))
 		default:
 			return
 		}
@@ -240,14 +257,22 @@ func event(name string, data any) []byte {
 	return []byte("event: " + name + "\ndata: " + string(raw) + "\n\n")
 }
 
-func (r *router) attach(name string, wake func()) *macConn {
-	m := &macConn{id: newID("st_", 16), name: name, frames: make(chan []byte, macQueue), done: make(chan struct{}), buf: r.buf, wake: wake}
+func (r *router) attach(name, ip string, wake func()) (*macConn, string) {
+	m := &macConn{id: newID("st_", 16), name: name, ip: ip, frames: make(chan []byte, macQueue), done: make(chan struct{}), buf: r.buf, wake: wake}
 	r.mu.Lock()
 	old := r.macs[name]
 	if old == nil && len(r.macs) >= r.lim.MacStreams {
 		r.mu.Unlock()
-		return nil
+		return nil, QuotaMacs
 	}
+	if (old == nil || old.ip != ip) && r.ips[ip] >= r.lim.MacStreamsPerIP {
+		r.mu.Unlock()
+		return nil, QuotaMacsPerIP
+	}
+	if old != nil {
+		r.leaveIPLocked(old.ip)
+	}
+	r.ips[ip]++
 	r.macs[name] = m
 	r.curMu.Lock()
 	r.cur[name] = m.id
@@ -256,7 +281,15 @@ func (r *router) attach(name string, wake func()) *macConn {
 	if old != nil {
 		old.end(endReplaced)
 	}
-	return m
+	return m, ""
+}
+
+func (r *router) leaveIPLocked(ip string) {
+	if r.ips[ip] <= 1 {
+		delete(r.ips, ip)
+		return
+	}
+	r.ips[ip]--
 }
 
 func (r *router) detach(m *macConn) {
@@ -265,6 +298,7 @@ func (r *router) detach(m *macConn) {
 	defer r.mu.Unlock()
 	if r.macs[m.name] == m {
 		delete(r.macs, m.name)
+		r.leaveIPLocked(m.ip)
 		r.curMu.Lock()
 		delete(r.cur, m.name)
 		r.curMu.Unlock()
@@ -402,7 +436,7 @@ func (r *router) startOpen(mac, ticket string, msg1 []byte, now time.Time) (*ope
 		conns := r.connsLocked(idle)
 		r.mu.Unlock()
 		r.closeIdle(idle, conns)
-		return nil, quotaDenial(QuotaAllChans, busyRetry)
+		return nil, denial{code: http.StatusTooManyRequests, quota: refusal{what: QuotaAllChans, retry: busyRetry, relay: true}}
 	}
 	l := r.loadLocked(mac)
 	if len(l.chans)+r.opensLocked(mac) >= r.lim.Channels {
@@ -422,10 +456,10 @@ func (r *router) startOpen(mac, ticket string, msg1 []byte, now time.Time) (*ope
 	conns := r.connsLocked(idle)
 	r.mu.Unlock()
 	r.closeIdle(idle, conns)
-	switch m.send(event("open", openFrame{Ch: o.ch, D: msg1}), false) {
-	case sendBusy:
+	switch res := m.send(event("open", openFrame{Ch: o.ch, D: msg1}), false); res {
+	case sendFull, sendBusy:
 		r.endOpen(o)
-		return nil, quotaDenial(QuotaBuffered, busyRetry)
+		return nil, busyDenial(res)
 	case sendGone:
 		r.endOpen(o)
 		return nil, denial{code: http.StatusServiceUnavailable}
@@ -489,24 +523,24 @@ func (r *router) startReq(c *channel, kind string, body []byte, held int64, now 
 	r.mu.Lock()
 	if r.chans[c.id] != c {
 		r.mu.Unlock()
-		r.buf.give(held)
+		r.buf.give(c.mac, held)
 		return nil, denial{code: http.StatusGone}
 	}
 	m := r.macs[c.mac]
 	if m == nil {
 		r.mu.Unlock()
-		r.buf.give(held)
+		r.buf.give(c.mac, held)
 		return nil, denial{code: http.StatusServiceUnavailable}
 	}
 	l := r.loadLocked(c.mac)
 	if kind == KindCall && l.calls >= r.lim.Calls {
 		r.mu.Unlock()
-		r.buf.give(held)
+		r.buf.give(c.mac, held)
 		return nil, quotaDenial(QuotaCalls, busyRetry)
 	}
 	if kind == KindStream && l.streams >= r.lim.Streams {
 		r.mu.Unlock()
-		r.buf.give(held)
+		r.buf.give(c.mac, held)
 		return nil, quotaDenial(QuotaStreams, busyRetry)
 	}
 	if kind == KindCall {
@@ -517,17 +551,17 @@ func (r *router) startReq(c *channel, kind string, body []byte, held int64, now 
 	if len(body) > InlineMax {
 		p.body, p.held = body, held
 	} else {
-		r.buf.give(held)
+		r.buf.give(c.mac, held)
 	}
 	p.conn = m
 	r.reqs[p.id] = p
 	c.reqs[p.id] = p
 	c.used = now
 	r.mu.Unlock()
-	switch m.send(event("req", f), false) {
-	case sendBusy:
+	switch res := m.send(event("req", f), false); res {
+	case sendFull, sendBusy:
 		r.endReq(p, "", now)
-		return nil, quotaDenial(QuotaBuffered, busyRetry)
+		return nil, busyDenial(res)
 	case sendGone:
 		r.endReq(p, "", now)
 		return nil, denial{code: http.StatusServiceUnavailable}
@@ -543,13 +577,13 @@ func (r *router) endReq(p *pending, why string, now time.Time) {
 	if why == WhyDeviceGone && p.kind == KindStream && !p.ended {
 		r.addGoneLocked(p.mac, p.id)
 	}
-	r.buf.give(p.held)
+	r.buf.give(p.mac, p.held)
 	p.held, p.body = 0, nil
 	if p.items != nil {
 		for drained := false; !drained; {
 			select {
 			case it := <-p.items:
-				r.buf.give(int64(len(it.data)))
+				r.buf.give(p.mac, int64(len(it.data)))
 			default:
 				drained = true
 			}
@@ -626,7 +660,7 @@ func (r *router) deliver(mac, id string, it item) bool {
 		return false
 	}
 	n := int64(len(it.data))
-	if r.buf.take(n) {
+	if r.buf.take(mac, n) == fits {
 		select {
 		case p.items <- it:
 			if it.end {
@@ -635,7 +669,7 @@ func (r *router) deliver(mac, id string, it item) bool {
 			}
 			return true
 		default:
-			r.buf.give(n)
+			r.buf.give(mac, n)
 		}
 	}
 	r.dropLocked(id, p)

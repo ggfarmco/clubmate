@@ -22,6 +22,7 @@ var (
 	errTooMany     = fmt.Errorf("at most %d tickets", MaxTickets)
 	errTicketTaken = errors.New("a ticket hash belongs to another Mac")
 	errNotCurrent  = errors.New(NotCurrentStream)
+	errTicketsRate = errors.New("ticket set changes over the rate")
 )
 
 type Ticket struct {
@@ -100,7 +101,7 @@ func (t *tickets) has(mac, hash string) bool {
 	return ok && o.mac == mac && (o.exp == 0 || t.now().Unix() < o.exp)
 }
 
-func (t *tickets) set(mac string, list []Ticket, current func() bool) (int, error) {
+func (t *tickets) set(mac string, list []Ticket, current, allow func() bool) (int, error) {
 	if len(list) > MaxTickets {
 		return 0, errTooMany
 	}
@@ -126,6 +127,9 @@ func (t *tickets) set(mac string, list []Ticket, current func() bool) (int, erro
 	}
 	if slices.Equal(t.macs[mac], clean) {
 		return len(clean), nil
+	}
+	if !allow() {
+		return 0, errTicketsRate
 	}
 	next := make(map[string][]Ticket, len(t.macs)+1)
 	for m, l := range t.macs {

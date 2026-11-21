@@ -83,7 +83,6 @@ case "${1:-}" in
     wait "$xp"
     kill "$wd" 2>/dev/null
     wait "$tp"
-    pkill -9 -f "xctrace record.*--device $udid" 2>/dev/null
     kill "$lp"
     metrics "$tag"
     xcrun xctrace export --input "$OUT/$tag.trace" --toc > "$OUT/$tag.toc.xml"
