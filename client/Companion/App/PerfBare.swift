@@ -18,6 +18,7 @@ struct PerfBareScreen: View {
                         .accessibilityIdentifier(String(format: "row.agt_%016x", 0x900 + seed))
                     }
                     .navigationTitle("Agents")
+                    .modifier(PerfBareSearch())
                     .toolbar {
                         if UserDefaults.standard.bool(forKey: "perfBareBar") {
                             ToolbarItem(placement: .topBarLeading) {
@@ -56,6 +57,17 @@ struct PerfBareScreen: View {
                 }
             }
             Tab("Backlog", systemImage: "checklist") { Text("Backlog") }
+        }
+    }
+}
+struct PerfBareSearch: ViewModifier {
+    @State private var text = ""
+
+    func body(content: Content) -> some View {
+        if UserDefaults.standard.bool(forKey: "perfBareSearch") {
+            content.searchable(text: $text, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search sessions")
+        } else {
+            content
         }
     }
 }

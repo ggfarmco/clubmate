@@ -117,7 +117,7 @@ struct TaskListView: View {
     @State private var closing: BacklogTask?
 
     var body: some View {
-        List(selection: context.navigation.selection(.backlog)) {
+        List(selection: context.navigation.listSelection(.backlog)) {
             TabListRows {
                 ListHeader(context: context)
                 OfflineRow(connection: context.connection)

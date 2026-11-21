@@ -22,6 +22,7 @@ struct RootView: View {
         content
         .contentMargins(.bottom, navigation.floatingMic(model, listening: voice.active) ? VoiceButton.floating + 16 : 0, for: .scrollContent)
         .overlay { VoiceOverlay() }
+        .background { MenuFeed(board: navigation.menu) }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in navigation.typing = true }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in navigation.typing = false }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
@@ -47,7 +48,6 @@ struct RootView: View {
             if let live { navigation.remember(live) }
         }
         .onChange(of: fetched) { _, _ in navigation.prune() }
-        .onChange(of: navigation.keyState, initial: true) { _, _ in UIMenuSystem.main.setNeedsRebuild() }
         .task { navigation.follow(model) }
         .onChange(of: model.computers) { _, _ in navigation.follow(model) }
         .onChange(of: workspaceIDs) { _, _ in navigation.follow(model) }

@@ -9,7 +9,7 @@ final class NavigationPerfUITests: XCTestCase {
     private static let parent = (id: "agt_0000000000000004", seed: 99)
     private static let child = (id: "agt_0000000000000901", seed: 1)
     private static let long = [(id: "agt_0000000000000900", seed: 0), (id: "agt_0000000000000902", seed: 2), (id: "agt_0000000000000903", seed: 3), (id: "agt_0000000000000904", seed: 4), (id: "agt_0000000000000906", seed: 6), (id: "agt_0000000000000907", seed: 7), (id: "agt_0000000000000908", seed: 8)]
-    private static let iterations = 6
+    private static let iterations = Int(ProcessInfo.processInfo.environment["PERF_ITERATIONS"] ?? "") ?? 6
     private static let log = Logger(subsystem: "com.clubmate.companion.perf", category: "step")
 
     private var latency: String {
@@ -65,6 +65,24 @@ final class NavigationPerfUITests: XCTestCase {
             startMeasuring()
             back(to: target.id, in: app)
             stopMeasuring()
+        }
+    }
+
+    func testSwipeBackSlow() {
+        backMoves("swipeslow") { app in
+            self.edgeDrag(app, to: 0.85, velocity: XCUIGestureVelocity(rawValue: 220))
+        }
+    }
+
+    func testSwipeBackFast() {
+        backMoves("swipefast") { app in
+            self.edgeDrag(app, to: 0.7, velocity: XCUIGestureVelocity(rawValue: 1500))
+        }
+    }
+
+    func testBackButton() {
+        backMoves("backbutton") { app in
+            app.navigationBars.buttons.element(boundBy: 0).tap()
         }
     }
 
@@ -167,6 +185,25 @@ final class NavigationPerfUITests: XCTestCase {
         shot(app, "wiki-revisit-1s", after: 0.7)
         XCTAssertTrue(app.staticTexts["Updating…"].waitForNonExistence(timeout: 10))
         shot(app, "wiki-revisit-fresh", after: 0)
+    }
+
+    private func backMoves(_ kind: String, move: (XCUIApplication) -> Void) {
+        let app = launch(open: "tab:agents", extra: ["-frameMonitor", "YES"])
+        let target = Self.long[0]
+        XCTAssertTrue(row(target.id, in: app).waitForExistence(timeout: 20))
+        for _ in 0..<Self.iterations {
+            open(target, in: app)
+            Self.log.info("step \(kind, privacy: .public) begin \(target.id, privacy: .public)")
+            move(app)
+            Self.log.info("step \(kind, privacy: .public) end \(target.id, privacy: .public)")
+            XCTAssertTrue(row(target.id, in: app).waitForExistence(timeout: 20))
+        }
+    }
+
+    private func edgeDrag(_ app: XCUIApplication, to x: CGFloat, velocity: XCUIGestureVelocity) {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 1, dy: 0))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: x, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: end, withVelocity: velocity, thenHoldForDuration: 0)
     }
 
     private var manual: XCTMeasureOptions {

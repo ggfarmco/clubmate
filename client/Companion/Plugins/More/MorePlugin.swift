@@ -74,7 +74,7 @@ private struct MoreSectionsList: View {
 
     var body: some View {
         let sections = PhoneSections.more(ui.sections)
-        List(selection: context.navigation.selection(.more)) {
+        List(selection: context.navigation.listSelection(.more)) {
             QueueSection(failure: $queueFailure)
             OfflineRow(connection: context.connection)
             Section {

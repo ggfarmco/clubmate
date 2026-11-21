@@ -8,36 +8,49 @@ struct AppCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            Button(navigation.createTitle) { navigation.create(model) }
+            Button(state.createTitle) { navigation.create(model) }
                 .keyboardShortcut("n", modifiers: .command)
-                .disabled(!navigation.canCreate(model))
+                .disabled(!state.canCreate)
         }
         CommandGroup(replacing: .sidebar) {
-            Button(navigation.listShown ? "Hide List" : "Show List") { withAnimation(.easeInOut(duration: 0.3)) { navigation.toggleList() } }
+            Button(state.listShown ? "Hide List" : "Show List") { withAnimation(.easeInOut(duration: 0.3)) { navigation.toggleList() } }
                 .keyboardShortcut("s", modifiers: [.control, .command])
-                .disabled(navigation.layout == .compact)
-            Button(navigation.readingView ? "Leave Reading View" : "Reading View") { withAnimation(.easeInOut(duration: 0.3)) { navigation.toggleReading() } }
+                .disabled(!state.wide)
+            Button(state.readingView ? "Leave Reading View" : "Reading View") { withAnimation(.easeInOut(duration: 0.3)) { navigation.toggleReading() } }
                 .keyboardShortcut("f", modifiers: [.control, .command])
-                .disabled(!navigation.readingView && !navigation.canRead)
-            Button("Close") { withAnimation(.easeInOut(duration: 0.3)) { navigation.escape() } }
+                .disabled(!state.readingView && !state.canRead)
+            Button("Close") {
+                guard navigation.canEscape else { return }
+                withAnimation(.easeInOut(duration: 0.3)) { navigation.escape() }
+            }
                 .keyboardShortcut(.cancelAction)
-                .disabled(!navigation.canEscape)
+                .disabled(!state.canEscape)
         }
         CommandMenu("Go") {
             Button("Back") { navigation.back() }
                 .keyboardShortcut("[", modifiers: .command)
-                .disabled(!navigation.canGoBack)
+                .disabled(!state.canGoBack)
             Divider()
             ForEach(Array(CompanionTab.keyed.enumerated()), id: \.element) { index, tab in
-                Button(tab.title) { navigation.root = .section(tab) }
+                Button(tab.title) {
+                    guard navigation.shows(tab, model) else { return }
+                    navigation.root = .section(tab)
+                }
                     .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
-                    .disabled(!navigation.shows(tab, model))
+                    .disabled(!state.shownTabs.contains(tab))
             }
             Divider()
-            Button("Inbox") { navigation.openInbox() }
+            Button("Inbox") {
+                guard navigation.computer != nil else { return }
+                navigation.openInbox()
+            }
                 .keyboardShortcut("i", modifiers: [.command, .shift])
-                .disabled(navigation.computer == nil)
+                .disabled(!state.hasComputer)
         }
+    }
+
+    private var state: MenuState {
+        navigation.menu.state
     }
 }
 
@@ -46,10 +59,6 @@ extension CompanionTab {
 }
 
 extension AppNavigation {
-    var keyState: [Bool] {
-        [layout != .compact, listShown, readingView, canRead, canEscape, canGoBack, tab == .agents || tab == .backlog]
-    }
-
     func shows(_ tab: CompanionTab, _ model: CompanionModel) -> Bool {
         tabs(model).contains(tab)
     }

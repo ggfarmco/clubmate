@@ -103,7 +103,11 @@ struct AgentsListView: View {
         Group {
             if let workspace, let store = AgentsPlugin.store(context) {
                 SessionListView(context: context, store: store)
-                    .task(id: workspace.id) { await store.refreshIfStale() }
+                    .task(id: workspace.id) {
+                        if store.fetched { try? await Task.sleep(for: Motion.navigationSettle) }
+                        guard !Task.isCancelled else { return }
+                        await store.refreshIfStale()
+                    }
             } else if context.connection.state == .online {
                 ContentUnavailableView("No Workspaces", systemImage: "folder", description: Text("Open a workspace in Clubmate on \(context.connection.computer.name)."))
             } else {
@@ -123,10 +127,9 @@ struct SessionListView: View {
     let context: PluginContext
     let store: AgentsStore
     @State private var unfolded: Set<SessionGroup> = []
-    @Environment(\.scenePhase) private var phase
 
     var body: some View {
-        List(selection: context.navigation.selection(.agents)) {
+        List(selection: context.navigation.listSelection(.agents)) {
             TabListRows {
                 ListHeader(context: context)
                 OfflineRow(connection: context.connection)
@@ -190,10 +193,7 @@ struct SessionListView: View {
                 }
             }
         }
-        .onChange(of: onScreen, initial: true) { _, shown in
-            store.listOnScreen = shown
-            if shown { store.landList() }
-        }
+        .modifier(ListOnScreen(store: store, navigation: context.navigation))
         .onChange(of: store.arrived) { _, arrived in
             guard let arrived else { return }
             store.arrived = nil
@@ -201,8 +201,8 @@ struct SessionListView: View {
         }
     }
 
-    private var onScreen: Bool {
-        phase != .background && (wide || context.navigation.path(.agents).isEmpty)
+    private var picked: String? {
+        wide ? context.navigation.selected(.agents) : nil
     }
 
     private var found: some View {
@@ -217,7 +217,7 @@ struct SessionListView: View {
                 }
                 .listRowDensity()
                 .tag(result.session)
-                .columnRow(selected: context.navigation.selected(.agents) == result.session)
+                .columnRow(selected: picked == result.session)
                 .accessibilityIdentifier("row." + result.session)
             }
         }
@@ -382,7 +382,7 @@ struct SessionListView: View {
                     }
                     .listRowDensity()
                     .tag(row.section)
-                    .columnRow(selected: context.navigation.selected(.agents) == row.section)
+                    .columnRow(selected: picked == row.section)
                 }
             }
         }
@@ -418,7 +418,7 @@ struct SessionListView: View {
             .listRowSeparator(nestedBelow ? .hidden : .automatic, edges: .bottom)
             .tag(item.id)
             .selectionDisabled(item.repo != nil)
-            .columnRow(selected: context.navigation.selected(.agents) == item.id)
+            .columnRow(selected: picked == item.id)
             .contextMenu {
                 if let count = item.toggleCount, wide {
                     Button(item.expanded ? "Hide \(count) Subagents" : "Show \(count) Subagents", systemImage: item.expanded ? "chevron.up" : "chevron.down") {
@@ -430,6 +430,23 @@ struct SessionListView: View {
             .onAppear { store.visibleRows.insert(row.id) }
             .onDisappear { store.visibleRows.remove(row.id) }
         }
+    }
+}
+
+private struct ListOnScreen: ViewModifier {
+    let store: AgentsStore
+    let navigation: AppNavigation
+    @Environment(\.scenePhase) private var phase
+
+    func body(content: Content) -> some View {
+        content.onChange(of: onScreen, initial: true) { _, shown in
+            store.listOnScreen = shown
+            if shown { store.landList() }
+        }
+    }
+
+    private var onScreen: Bool {
+        phase != .background && (navigation.layout != .compact || navigation.path(.agents).isEmpty)
     }
 }
 

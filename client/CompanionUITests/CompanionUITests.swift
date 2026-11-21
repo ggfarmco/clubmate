@@ -730,6 +730,27 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(wait(for: app.buttons["Reject"], "exists == false"))
     }
 
+    func testAKeyPressedRightAfterLeavingASessionDoesNotAnswerIt() {
+        let app = launch(open: "agents/agt_0000000000000001", ["-menuSettle", "8"])
+        let reject = app.buttons["Reject"]
+        XCTAssertTrue(reject.waitForExistence(timeout: 10))
+        let confirm = app.staticTexts["Always allow this command?"]
+        var armed = false
+        for _ in 0..<12 where !armed {
+            app.typeKey("2", modifierFlags: .option)
+            armed = confirm.waitForExistence(timeout: 1.5)
+        }
+        XCTAssertTrue(armed)
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(wait(for: confirm, "exists == false"))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let row = app.descendants(matching: .any)["row.agt_0000000000000001"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        app.typeKey("1", modifierFlags: .option)
+        row.tap()
+        XCTAssertTrue(reject.waitForExistence(timeout: 10))
+    }
+
     func testOptionKeysAnswerARunStep() {
         let step = launch(open: "agents/gr_0000000000000004", ["-runs", "YES", "-workspace", "prj_00000000000000f2"])
         let reject = step.buttons["Reject"]

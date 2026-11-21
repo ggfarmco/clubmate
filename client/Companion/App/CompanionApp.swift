@@ -23,6 +23,7 @@ struct CompanionApp: App {
         let device = DeviceIdentity.stable(defaults: .standard, name: UIDevice.current.name, model: UIDevice.current.model)
         #if DEBUG
         DebugLaunch.forgetMacs(support.appending(path: "computers.json"))
+        FrameMonitor.startIfAsked()
         #endif
         let store = ComputerStore(file: support.appending(path: "computers.json"), vault: KeychainTokenVault())
         #if DEBUG
@@ -79,7 +80,7 @@ struct CompanionApp: App {
             #endif
         }
         .commands {
-            SessionCommands()
+            SessionCommands(menu: navigation.menu)
             TabSearchCommands(navigation: navigation)
             AppCommands(model: model, navigation: navigation)
         }

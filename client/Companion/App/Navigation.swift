@@ -33,6 +33,7 @@ enum RootTab: Hashable {
 @Observable
 final class AppNavigation {
     @ObservationIgnored weak var model: CompanionModel?
+    @ObservationIgnored let menu = MenuBoard()
     @ObservationIgnored private var stacks: TabStacks {
         didSet {
             guard stacks != oldValue else { return }
@@ -278,6 +279,13 @@ final class AppNavigation {
 
     func selection(_ tab: CompanionTab) -> Binding<String?> {
         Binding(get: { self.selected(tab) }, set: { self.select($0, tab: tab) })
+    }
+
+    func listSelection(_ tab: CompanionTab) -> Binding<String?> {
+        guard layout == .compact else { return selection(tab) }
+        return Binding(get: { nil }, set: { tag in
+            if let tag { self.select(tag, tab: tab) }
+        })
     }
 
     func select(_ tag: String?, tab: CompanionTab) {

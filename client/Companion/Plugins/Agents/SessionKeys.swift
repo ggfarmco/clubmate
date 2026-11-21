@@ -72,22 +72,32 @@ struct SessionKeysModifier: ViewModifier {
 }
 
 struct SessionCommands: Commands {
-    @FocusedValue(\.sessionKeys) private var keys
+    let menu: MenuBoard
 
     var body: some Commands {
         CommandMenu("Session") {
-            Button(keys?.send?.label ?? "Send") { keys?.send?.run() }
-                .keyboardShortcut(.return, modifiers: .command)
-                .disabled(keys?.enabled != true || keys?.send == nil)
+            Button(keys?.send?.label ?? "Send") {
+                guard let live = menu.live.keys, live.enabled else { return }
+                live.send?.run()
+            }
+            .keyboardShortcut(.return, modifiers: .command)
+            .disabled(keys?.enabled != true || keys?.send == nil)
             if let keys {
                 ForEach(1...PermissionRequest.keyCount, id: \.self) { digit in
                     if let action = keys.answers[digit] {
-                        Button(action.label, action: action.run)
-                            .keyboardShortcut(KeyEquivalent(Character(String(digit))), modifiers: .option)
-                            .disabled(!keys.enabled)
+                        Button(action.label) {
+                            guard let live = menu.live.keys, live.enabled else { return }
+                            live.answers[digit]?.run()
+                        }
+                        .keyboardShortcut(KeyEquivalent(Character(String(digit))), modifiers: .option)
+                        .disabled(!keys.enabled)
                     }
                 }
             }
         }
+    }
+
+    private var keys: SessionKeyActions? {
+        menu.state.keys
     }
 }

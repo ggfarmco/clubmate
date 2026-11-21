@@ -56,7 +56,7 @@ struct TabSearchCommands: Commands {
         CommandGroup(after: .textEditing) {
             Button("Search", systemImage: "magnifyingglass") { navigation.focusSearch() }
                 .keyboardShortcut("f", modifiers: [.command, .shift])
-                .disabled(!navigation.tabHasSearch)
+                .disabled(!navigation.menu.state.tabHasSearch)
         }
     }
 }

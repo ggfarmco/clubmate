@@ -4,10 +4,12 @@ set -uo pipefail
 usage() {
   cat >&2 <<USAGE
 usage: $0 build                                   build the CompanionPerf scheme (-O, DEBUG fixtures)
-       $0 run <tag> <latency ms> <jitter ms> <test>...   XCTest metrics + request log for the named NavigationPerfUITests tests
+       $0 run <tag> <latency ms> <jitter ms> <test>...   XCTest metrics + request log for the named NavigationPerfUITests tests;
+                                                  testSwipeBackSlow/testSwipeBackFast/testBackButton also print dropped frames per move
+                                                  (app launched with -frameMonitor YES; RECORD=1 also records the sim screen to <tag>.mov)
        $0 profile <tag> <test> [seconds]          Time Profiler attached to the app while one test runs, then the per-move table
        $0 fresh                                   delete and recreate the simulator (stale app state after many runs)
-env:   SIM (default cm-navperf), PERF_ARGS (extra app launch args, e.g. "-perfTurns 2", "-perfSessions 5", "-perfBare YES"; with -perfBare, "-perfBareBar YES" adds a glass Menu bar item and "-perfBareNative YES" a plain bar button)
+env:   SIM (default cm-navperf), PERF_ITERATIONS (moves per test, default 6), PERF_ARGS (extra app launch args, e.g. "-perfTurns 2", "-perfSessions 5", "-perfBare YES"; with -perfBare, "-perfBareBar YES" adds a glass Menu bar item, "-perfBareNative YES" a plain bar button and "-perfBareSearch YES" a search field)
 output: build/navperf/<tag>.*  (a move window ends 0.3 s after its end mark or at the next step's begin)
 USAGE
   exit 2
@@ -37,7 +39,7 @@ xctest() {
   local only=()
   for t in "$@"; do only+=(-only-testing:"CompanionUITests/NavigationPerfUITests/$t"); done
   rm -rf "$OUT/$tag.xcresult"
-  TEST_RUNNER_PERF_LATENCY=$lat TEST_RUNNER_PERF_JITTER=$jit TEST_RUNNER_PERF_ARGS="${PERF_ARGS:-}" \
+  TEST_RUNNER_PERF_ITERATIONS="${PERF_ITERATIONS:-6}" TEST_RUNNER_PERF_LATENCY=$lat TEST_RUNNER_PERF_JITTER=$jit TEST_RUNNER_PERF_ARGS="${PERF_ARGS:-}" \
     xcodebuild test-without-building -project Companion.xcodeproj -scheme CompanionPerf -destination id="$udid" \
     -derivedDataPath "$DD" "${only[@]}" -resultBundlePath "$OUT/$tag.xcresult" > "$OUT/$tag.log" 2>&1
 }
@@ -58,10 +60,17 @@ case "${1:-}" in
     [[ $# -ge 5 ]] || usage
     tag=$2 lat=$3 jit=$4; shift 4
     lp=$(logstream "$tag")
+    rp=""
+    if [[ -n "${RECORD:-}" ]]; then
+      xcrun simctl io "$udid" recordVideo --force "$OUT/$tag.mov" > /dev/null 2>&1 &
+      rp=$!
+    fi
     xctest "$tag" "$lat" "$jit" "$@"
+    [[ -n "$rp" ]] && kill -INT "$rp" && wait "$rp"
     kill "$lp"
     metrics "$tag"
     python3 "$HERE/steps.py" "$OUT/$tag.reqlog" 2
+    python3 "$HERE/frames.py" "$OUT/$tag.reqlog"
     ;;
   profile)
     [[ $# -ge 3 ]] || usage

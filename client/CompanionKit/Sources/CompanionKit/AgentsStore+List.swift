@@ -30,7 +30,7 @@ extension AgentsStore {
     }
 
     public func landList() {
-        hold.land(sessions)
+        if hold.held || hold.shown != sessions { hold.land(sessions) }
         pruneDeparted()
     }
 

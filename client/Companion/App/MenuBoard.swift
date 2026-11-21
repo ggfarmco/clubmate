@@ -1,0 +1,111 @@
+import SwiftUI
+import UIKit
+
+import CompanionKit
+
+struct MenuState: Equatable {
+    var createTitle = "New"
+    var canCreate = false
+    var wide = false
+    var listShown = false
+    var readingView = false
+    var canRead = false
+    var canEscape = false
+    var canGoBack = false
+    var shownTabs: [CompanionTab] = []
+    var hasComputer = false
+    var tabHasSearch = false
+    var keys: SessionKeyActions?
+
+    var enabled: Set<String> {
+        var items: Set<String> = []
+        if canCreate { items.insert("create") }
+        if wide { items.insert("list") }
+        if readingView || canRead { items.insert("read") }
+        if canEscape { items.insert("escape") }
+        if canGoBack { items.insert("back") }
+        if hasComputer { items.insert("inbox") }
+        if tabHasSearch { items.insert("search") }
+        items.formUnion(shownTabs.map { "tab." + $0.rawValue })
+        if let keys, keys.enabled {
+            if keys.send != nil { items.insert("send") }
+            items.formUnion(keys.answers.keys.map { "answer.\($0)" })
+        }
+        return items
+    }
+}
+
+struct MenuMove: Equatable {
+    let tab: CompanionTab
+    let depth: Int
+}
+
+@MainActor
+@Observable
+final class MenuBoard {
+    private(set) var state = MenuState()
+    @ObservationIgnored private(set) var live = MenuState()
+    @ObservationIgnored private var pending: MenuState?
+    @ObservationIgnored private var move: MenuMove?
+    @ObservationIgnored private var settling: Task<Void, Never>?
+
+    func offer(_ next: MenuState, move: MenuMove) {
+        let moved = self.move != nil && self.move != move
+        self.move = move
+        live = next
+        pending = next
+        if !next.enabled.isSubset(of: state.enabled) {
+            settling?.cancel()
+            publish()
+        } else if moved {
+            settling?.cancel()
+            settling = Task { [weak self] in
+                try? await Task.sleep(for: Motion.navigationSettle)
+                guard !Task.isCancelled else { return }
+                self?.publish()
+            }
+        } else if settling == nil {
+            publish()
+        }
+    }
+
+    private func publish() {
+        settling = nil
+        guard let pending else { return }
+        self.pending = nil
+        guard pending != state else { return }
+        state = pending
+        UIMenuSystem.main.setNeedsRebuild()
+    }
+}
+
+struct MenuFeed: View {
+    let board: MenuBoard
+    @Environment(CompanionModel.self) private var model
+    @Environment(AppNavigation.self) private var navigation
+    @FocusedValue(\.sessionKeys) private var keys
+
+    var body: some View {
+        Color.clear
+            .onChange(of: state, initial: true) { _, state in
+                board.offer(state, move: MenuMove(tab: navigation.tab, depth: navigation.path.count))
+            }
+    }
+
+    private var state: MenuState {
+        MenuState(
+            createTitle: navigation.createTitle,
+            canCreate: navigation.canCreate(model),
+            wide: navigation.layout != .compact,
+            listShown: navigation.listShown,
+            readingView: navigation.readingView,
+            canRead: navigation.canRead,
+            canEscape: navigation.canEscape,
+            canGoBack: navigation.canGoBack,
+            shownTabs: CompanionTab.keyed.filter { navigation.shows($0, model) },
+            hasComputer: navigation.computer != nil,
+            tabHasSearch: navigation.tabHasSearch,
+            keys: keys
+        )
+    }
+}

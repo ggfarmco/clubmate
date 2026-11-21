@@ -1152,6 +1152,21 @@ final class AgentsOlderTests: XCTestCase {
         XCTAssertEqual(store.shownSections.map { $0.rows.map(\.session) }, [["o1", "a"], ["o2"]])
     }
 
+    func testLandingAListWithNothingNewLeavesTheHoldUntouched() async throws {
+        let runner = ScriptedRunner(replies: [], sessions: [#"{"sessions":[{"id":"a","status":"done","listKey":"t1 a","listGroupKey":"0","listFilters":["all"]}],"removed":[],"cursor":"e.1"}"#])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.refresh()
+        store.landList()
+        let changed = Mutex(false)
+        withObservationTracking {
+            _ = store.hold
+        } onChange: {
+            changed.withLock { $0 = true }
+        }
+        store.landList()
+        XCTAssertFalse(changed.withLock { $0 })
+    }
+
     func testAFetchedOlderRowStaysOutOfTheList() async throws {
         let runner = ScriptedRunner(replies: [], sessions: [
             Self.full, Self.page(["o1"], count: 3),
