@@ -528,7 +528,7 @@ struct SessionDetailView: View {
             Text(failure ?? "")
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: sent)
-        .sessionKeys(enabled: context.connection.state == .online, pending: store.pendingPermission(sessionID), answer: { request, option in
+        .sessionKeys(scope: sessionID, enabled: context.connection.state == .online, pending: store.pendingPermission(sessionID), answer: { request, option in
             perform { try await answer(request: request.id, option: option) }
         }, confirmAlways: { alwaysAsked = AlwaysAsk(option: $0) }, send: keySend)
         .onChange(of: entries.count) { _, _ in

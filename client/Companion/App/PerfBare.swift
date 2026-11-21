@@ -18,6 +18,27 @@ struct PerfBareScreen: View {
                         .accessibilityIdentifier(String(format: "row.agt_%016x", 0x900 + seed))
                     }
                     .navigationTitle("Agents")
+                    .toolbar {
+                        if UserDefaults.standard.bool(forKey: "perfBareBar") {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Menu {
+                                    Button("Pair a Mac") {}
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "circle.fill").font(.system(size: 9))
+                                        Text("shop")
+                                        Image(systemName: "chevron.down")
+                                    }
+                                }
+                                .buttonStyle(.glass)
+                            }
+                        }
+                        if UserDefaults.standard.bool(forKey: "perfBareNative") {
+                            ToolbarItem(placement: .primaryAction) {
+                                Button("New Session", systemImage: "square.and.pencil") {}
+                            }
+                        }
+                    }
                     .navigationDestination(for: Int.self) { seed in
                         ScrollView {
                             VStack(alignment: .leading, spacing: 10) {

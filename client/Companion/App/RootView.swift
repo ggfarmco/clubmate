@@ -15,37 +15,7 @@ struct RootView: View {
     private static let tabsOwner = "root.tabs"
 
     var body: some View {
-        sheets(tracked(model.computers.isEmpty ? AnyView(WelcomeView()) : AnyView(shell)))
-    }
-
-    @ViewBuilder
-    private var shell: some View {
-        if navigation.layout == .compact {
-            tabView
-        } else if case .section(let tab) = shown(navigation.root) {
-            TabRoot(tab: tab)
-                .id(tab)
-        }
-    }
-
-    private var tabView: some View {
-        TabView(selection: Binding(get: { shown(navigation.root) }, set: { pick in
-            guard case .section(let tab) = pick else { return }
-            navigation.pick(tab)
-        })) {
-            sections
-        }
-        .tabViewStyle(.tabBarOnly)
-        .tabBarMinimizeBehavior(.onScrollDown)
-    }
-
-    @TabContentBuilder<RootTab>
-    private var sections: some TabContent<RootTab> {
-        ForEach(tabs, id: \.self) { tab in
-            Tab(tab.title, systemImage: tab.systemImage, value: RootTab.section(tab)) {
-                TabRoot(tab: tab)
-            }
-        }
+        sheets(tracked(model.computers.isEmpty ? AnyView(WelcomeView()) : AnyView(RootShell())))
     }
 
     private func tracked(_ content: some View) -> some View {
@@ -116,15 +86,6 @@ struct RootView: View {
         .sensoryFeedback(.success, trigger: pairing.paired)
     }
 
-    private func shown(_ root: RootTab) -> RootTab {
-        guard case .section(let tab) = root, !tabs.contains(tab), let first = tabs.first else { return root }
-        return .section(first)
-    }
-
-    private var tabs: [CompanionTab] {
-        navigation.tabs(model)
-    }
-
     private var tabsSource: WorkspaceKey? {
         navigation.workspaceKey.flatMap { model.connection($0.computer) == nil ? nil : $0 }
     }
@@ -150,6 +111,54 @@ struct RootView: View {
         guard let key = navigation.workspaceKey, case .section(let section, _)? = navigation.path.last?.destination,
               section != InboxPluginInfo.id, navigation.tab == .more || navigation.tab == .agents && section.hasPrefix(AgentsPluginInfo.id + ".") else { return nil }
         return ShownSection(computer: key.computer, workspace: key.workspace, section: section)
+    }
+}
+
+struct RootShell: View {
+    @Environment(CompanionModel.self) private var model
+    @Environment(AppNavigation.self) private var navigation
+
+    var body: some View {
+        shell
+    }
+
+    @ViewBuilder
+    private var shell: some View {
+        if navigation.layout == .compact {
+            tabView
+        } else if case .section(let tab) = shown(navigation.root) {
+            TabRoot(tab: tab)
+                .id(tab)
+        }
+    }
+
+    private var tabView: some View {
+        TabView(selection: Binding(get: { shown(navigation.root) }, set: { pick in
+            guard case .section(let tab) = pick else { return }
+            navigation.pick(tab)
+        })) {
+            sections
+        }
+        .tabViewStyle(.tabBarOnly)
+        .tabBarMinimizeBehavior(.onScrollDown)
+    }
+
+    @TabContentBuilder<RootTab>
+    private var sections: some TabContent<RootTab> {
+        ForEach(tabs, id: \.self) { tab in
+            Tab(tab.title, systemImage: tab.systemImage, value: RootTab.section(tab)) {
+                TabRoot(tab: tab)
+            }
+        }
+    }
+
+    private func shown(_ root: RootTab) -> RootTab {
+        guard case .section(let tab) = root, !tabs.contains(tab), let first = tabs.first else { return root }
+        return .section(first)
+    }
+
+    private var tabs: [CompanionTab] {
+        navigation.tabs(model)
     }
 }
 

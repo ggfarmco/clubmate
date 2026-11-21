@@ -6,8 +6,9 @@ usage() {
 usage: $0 build                                   build the CompanionPerf scheme (-O, DEBUG fixtures)
        $0 run <tag> <latency ms> <jitter ms> <test>...   XCTest metrics + request log for the named NavigationPerfUITests tests
        $0 profile <tag> <test> [seconds]          Time Profiler attached to the app while one test runs, then the per-move table
-env:   SIM (default cm-navperf), PERF_ARGS (extra app launch args, e.g. "-perfTurns 2", "-perfSessions 5", "-perfBare YES")
-output: build/navperf/<tag>.*
+       $0 fresh                                   delete and recreate the simulator (stale app state after many runs)
+env:   SIM (default cm-navperf), PERF_ARGS (extra app launch args, e.g. "-perfTurns 2", "-perfSessions 5", "-perfBare YES"; with -perfBare, "-perfBareBar YES" adds a glass Menu bar item and "-perfBareNative YES" a plain bar button)
+output: build/navperf/<tag>.*  (a move window ends 0.3 s after its end mark or at the next step's begin)
 USAGE
   exit 2
 }
@@ -18,6 +19,11 @@ DD="$ROOT/build/NavPerfO"
 HERE="$ROOT/scripts/companion-perf"
 SIM="${SIM:-cm-navperf}"
 mkdir -p "$OUT"
+if [[ "${1:-}" == fresh ]]; then
+  "$ROOT/scripts/sim.sh" down "$SIM"
+  "$ROOT/scripts/sim.sh" up "$SIM" >/dev/null
+  exit
+fi
 udid="$("$ROOT/scripts/sim.sh" up "$SIM")" || exit 1
 cd "$ROOT/client"
 
@@ -70,8 +76,14 @@ case "${1:-}" in
       [[ -n "$pid" ]] && break
       sleep 0.1
     done
-    xcrun xctrace record --template "Time Profiler" --device "$udid" --attach "$pid" --time-limit "${secs}s" --output "$OUT/$tag.trace" > "$OUT/$tag.xctrace.log" 2>&1
+    xcrun xctrace record --template "Time Profiler" --device "$udid" --attach "$pid" --time-limit "${secs}s" --output "$OUT/$tag.trace" > "$OUT/$tag.xctrace.log" 2>&1 &
+    xp=$!
+    (sleep $((secs + 60)); kill -INT "$xp" 2>/dev/null; sleep 30; kill -9 "$xp" 2>/dev/null) &
+    wd=$!
+    wait "$xp"
+    kill "$wd" 2>/dev/null
     wait "$tp"
+    pkill -9 -f "xctrace record.*--device $udid" 2>/dev/null
     kill "$lp"
     metrics "$tag"
     xcrun xctrace export --input "$OUT/$tag.trace" --toc > "$OUT/$tag.toc.xml"

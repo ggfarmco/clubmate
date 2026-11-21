@@ -12,10 +12,15 @@ struct KeyedAction {
     let run: () -> Void
 }
 
-struct SessionKeyActions {
+struct SessionKeyActions: Equatable {
+    let scope: String
     let enabled: Bool
     let answers: [Int: KeyedAction]
     let send: KeyedAction?
+
+    static func == (lhs: SessionKeyActions, rhs: SessionKeyActions) -> Bool {
+        lhs.scope == rhs.scope && lhs.enabled == rhs.enabled && lhs.send?.label == rhs.send?.label && lhs.answers.mapValues(\.label) == rhs.answers.mapValues(\.label)
+    }
 }
 
 extension FocusedValues {
@@ -23,12 +28,13 @@ extension FocusedValues {
 }
 
 extension View {
-    func sessionKeys(enabled: Bool, pending: PermissionRequest?, answer: @escaping (PermissionRequest, String) -> Void, confirmAlways: @escaping (String) -> Void, send: (() -> Void)?) -> some View {
-        modifier(SessionKeysModifier(enabled: enabled, pending: pending, answer: answer, confirmAlways: confirmAlways, send: send))
+    func sessionKeys(scope: String, enabled: Bool, pending: PermissionRequest?, answer: @escaping (PermissionRequest, String) -> Void, confirmAlways: @escaping (String) -> Void, send: (() -> Void)?) -> some View {
+        modifier(SessionKeysModifier(scope: scope, enabled: enabled, pending: pending, answer: answer, confirmAlways: confirmAlways, send: send))
     }
 }
 
 struct SessionKeysModifier: ViewModifier {
+    let scope: String
     let enabled: Bool
     let pending: PermissionRequest?
     let answer: (PermissionRequest, String) -> Void
@@ -39,7 +45,7 @@ struct SessionKeysModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .focusedSceneValue(\.sessionKeys, SessionKeyActions(enabled: enabled, answers: answers, send: send.map { KeyedAction(label: "Send", run: $0) }))
+            .focusedSceneValue(\.sessionKeys, SessionKeyActions(scope: scope + "|" + (pending?.id ?? ""), enabled: enabled, answers: answers, send: send.map { KeyedAction(label: "Send", run: $0) }))
             .task(id: pending?.id) {
                 armed = nil
                 try? await Task.sleep(for: .milliseconds(600))

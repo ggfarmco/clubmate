@@ -389,9 +389,9 @@ struct RunRequestCard: View {
         case .step(_, _, _, _, let rule):
             var answers = [1: KeyedAction(label: "Allow once") { pick("once") { try await approve("once") } }, 3: KeyedAction(label: "Reject") { pick("reject") { try await approve("reject") } }]
             if rule != nil { answers[2] = KeyedAction(label: "Always allow…") { confirmingAlways = true } }
-            return SessionKeyActions(enabled: answerable, answers: answers, send: nil)
+            return SessionKeyActions(scope: graph + "|" + request.id, enabled: answerable, answers: answers, send: nil)
         case .cap(let edge, _):
-            return SessionKeyActions(enabled: answerable, answers: [:], send: KeyedAction(label: "Continue") { pick("continue") { try await proceed(edge) } })
+            return SessionKeyActions(scope: graph + "|" + request.id, enabled: answerable, answers: [:], send: KeyedAction(label: "Continue") { pick("continue") { try await proceed(edge) } })
         }
     }
 

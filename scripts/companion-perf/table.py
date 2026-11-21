@@ -22,7 +22,8 @@ def run(tp,toc,reqlog,kinds):
     for i,(t,k,be) in enumerate(steps):
         if be=='begin' and k in ws:
             e=next((tt for tt,kk,bb in steps[i+1:] if bb=='end' and kk==k),None)
-            if e: ws[k].append((t,e+0.3))
+            n=next((tt for tt,kk,bb in steps[i+1:] if bb=='begin'),float('inf'))
+            if e: ws[k].append((t,min(e+0.3,n)))
     ids={}
     def res(el):
         r=el.get('ref'); return ids[r] if r is not None else el
