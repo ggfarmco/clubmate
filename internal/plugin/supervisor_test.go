@@ -111,6 +111,21 @@ func TestSupervisorKillsLeftoverProcessGroupWhenPluginExits(t *testing.T) {
 	testutil.Eventually(t, func() bool { return !testutil.Alive(forked.PID) }, 5*time.Second)
 }
 
+func TestKillGroupRepeatsUntilTheGroupIsEmpty(t *testing.T) {
+	var calls []int
+	plugin.SetKillpg(t, func(pid int, sig syscall.Signal) error {
+		calls = append(calls, pid)
+		if len(calls) < 3 {
+			return nil
+		}
+		return syscall.ESRCH
+	})
+
+	plugin.KillGroup(42)
+
+	assert.Equal(t, []int{-42, -42, -42}, calls)
+}
+
 func TestStopDoesNotHangOnWedgedPlugin(t *testing.T) {
 	t.Setenv("ECHO_WEDGE", "1")
 	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute))

@@ -40,6 +40,8 @@ const (
 	termAfter              = 2 * time.Second
 	killAfter              = 5 * time.Second
 	crashKillGrace         = 500 * time.Millisecond
+	groupKillFor           = time.Second
+	groupKillPoll          = 10 * time.Millisecond
 	defaultPingEvery       = 15 * time.Second
 	defaultPingTimeout     = 5 * time.Second
 	defaultPingMisses      = 3
@@ -747,10 +749,22 @@ func initialize(ctx context.Context, m Manifest, conn *jsonrpc2.Conn) error {
 	return nil
 }
 
+var killpg = syscall.Kill
+
 func (p *process) wait() {
 	p.waitErr = p.cmd.Wait()
-	p.signal(syscall.SIGKILL)
+	killGroup(p.cmd.Process.Pid)
 	close(p.exited)
+}
+
+func killGroup(pgid int) {
+	if pgid <= 1 {
+		return
+	}
+	deadline := time.Now().Add(groupKillFor)
+	for killpg(-pgid, syscall.SIGKILL) == nil && time.Now().Before(deadline) {
+		time.Sleep(groupKillPoll)
+	}
 }
 
 func (p *process) abort(cause error) error {
