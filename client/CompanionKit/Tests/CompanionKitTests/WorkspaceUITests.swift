@@ -118,21 +118,69 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertTrue(PhoneSections.shows(SDUINode(type: "empty"), page: "shop/notes/guide.md", path: ""))
     }
 
-    func testAPageSeenBeforeShowsFromMemoryUntilTheServerSendsIt() async throws {
+    func testAPageSeenBeforeShowsFromMemoryByItsPageAndSlot() async throws {
         let server = try UIServer()
-        let ui = try await server.started(["cron.main"])
-        func page(_ path: String, _ html: String) -> String {
-            #"{"type":"document","id":"page","props":{"path":"\#(path)","html":"\#(html)"}}"#
+        let ui = try await server.started(["cron.sidebar", "cron.main"])
+        var rev = 1
+        func open(_ id: String, _ path: String, _ html: String) {
+            rev += 1
+            server.push("cron.sidebar", rev: rev, tree: UIServer.list(selected: id))
+            server.push("cron.main", rev: rev, tree: UIServer.page(path, html))
         }
-        server.push("cron.main", rev: 2, tree: page("/w/wiki/a.md", "a1"))
-        server.push("cron.main", rev: 3, tree: page("/w/wiki/b.md", "b1"))
-        try await waitUntil { ui.view("cron.main")?.rev == 3 }
-        XCTAssertEqual(ui.page("shop/a.md", path: "", in: "cron.main")?.tree.string("html"), "a1")
+        open("shop/a.md", "/w/shop/a.md", "shop")
+        open("farm/a.md", "/w/farm/a.md", "farm")
+        open("shop/b.md", "/w/shop/b.md", "b1")
+        try await waitUntil { ui.view("cron.main")?.rev == Int64(rev) }
+        XCTAssertEqual(ui.page("shop/a.md", path: "", in: "cron.main")?.tree.string("html"), "shop")
+        XCTAssertEqual(ui.page("farm/a.md", path: "", in: "cron.main")?.tree.string("html"), "farm")
         XCTAssertNil(ui.page("shop/c.md", path: "", in: "cron.main"))
+        XCTAssertNil(ui.page("shop/a.md", path: "", in: "other.main"))
 
-        server.push("cron.main", rev: 4, tree: page("/w/wiki/a.md", "a2"))
+        open("shop/a.md", "/w/shop/a.md", "shop2")
 
-        try await waitUntil { ui.page("shop/a.md", path: "", in: "cron.main")?.tree.string("html") == "a2" }
+        try await waitUntil { ui.page("shop/a.md", path: "", in: "cron.main")?.tree.string("html") == "shop2" }
+        server.connection.stop()
+    }
+
+    func testAPageResendsAListTapSelectThatFailed() async throws {
+        let server = try UIServer()
+        let ui = try await server.started(["cron.sidebar"])
+        server.failEvents(1)
+        let tap = Task { try await ui.send(slot: "cron.sidebar", nodeId: "jobs", action: "select", value: .string("cj_other")) }
+        try await waitUntil { server.events.count == 1 }
+        await ui.select("cj_other", in: "cron.sidebar")
+        let tapped = await tap.result
+        XCTAssertThrowsError(try tapped.get())
+        XCTAssertEqual(server.events.map { $0["value"] }, [.string("cj_other"), .string("cj_other")])
+        server.connection.stop()
+    }
+
+    func testUpdatingStaysUntilTheSidebarShowsTheSelect() async throws {
+        let server = try UIServer(sleep: { if $0 == .seconds(2) { try await Task.sleep(for: .seconds(60)) } })
+        let ui = try await server.started(["cron.sidebar"])
+        await ui.select("cj_other", in: "cron.sidebar")
+        try await waitUntil { ui.updating == ["cj_other"] }
+
+        server.push("cron.sidebar", rev: 2, tree: UIServer.list(selected: "cj_other"))
+
+        try await waitUntil { ui.updating.isEmpty }
+        XCTAssertTrue(ui.missing.isEmpty)
+        server.connection.stop()
+    }
+
+    func testAPageTheMacDidNotSelectIsMissingAndDropped() async throws {
+        let server = try UIServer()
+        let ui = try await server.started(["cron.sidebar", "cron.main"])
+        server.push("cron.sidebar", rev: 2, tree: UIServer.list(selected: "shop/a.md"))
+        server.push("cron.main", rev: 2, tree: UIServer.page("/w/shop/a.md", "a"))
+        server.push("cron.sidebar", rev: 3, tree: UIServer.list(selected: "shop/b.md"))
+        server.push("cron.main", rev: 3, tree: UIServer.page("/w/shop/b.md", "b"))
+        try await waitUntil { ui.view("cron.main")?.rev == 3 }
+
+        await ui.select("shop/a.md", in: "cron.sidebar")
+
+        try await waitUntil { ui.missing == ["shop/a.md"] }
+        XCTAssertNil(ui.page("shop/a.md", path: "", in: "cron.main"))
         server.connection.stop()
     }
 
@@ -174,13 +222,15 @@ private final class UIServer {
     private let removed = Recorder<String>()
     private let failing = Recorder<Bool>()
     private let failed = Recorder<Bool>()
+    private let failingEvents = Recorder<Bool>()
+    private let failedEvents = Recorder<Bool>()
     let connection: ComputerConnection
 
-    init() throws {
+    init(sleep: @escaping @Sendable (Duration) async throws -> Void = { _ in }) throws {
         let fixture = try JSONDecoder().decode(JSONValue.self, from: fixture("sdui"))
         let sections = fixture["sections"] ?? .array([])
         let views = fixture["views"]?.objectValue ?? [:]
-        let (watches, gets, events, streams, disabled, removed, failing, failed) = (watchLog, getLog, eventLog, streams, disabled, removed, failing, failed)
+        let (watches, gets, events, streams, disabled, removed, failing, failed, failingEvents, failedEvents) = (watchLog, getLog, eventLog, streams, disabled, removed, failing, failed, failingEvents, failedEvents)
         let hello = #"{"computer":{"id":"mac1","name":"Mac Studio"},"version":"0.0.21","commands":[],"topics":[],"ui":true}"#
         let transport = FakeTransport(reply: { request in
             let body = (try? JSONDecoder().decode(JSONValue.self, from: request.httpBody ?? Data())) ?? .null
@@ -209,6 +259,10 @@ private final class UIServer {
                 return (try JSONEncoder().encode(JSONValue.object(["result": .array(found)])), 200)
             case "uiEvent":
                 events.add(params)
+                if failingEvents.values.count > failedEvents.values.count {
+                    failedEvents.add(true)
+                    return (Data(), 503)
+                }
                 return (FakeTransport.result(#"{"ok":true}"#), 200)
             default: return (Data(), 404)
             }
@@ -218,7 +272,15 @@ private final class UIServer {
                 $0.yield(Data("event: stream\ndata: {\"id\":\"s\(streams.values.count)\"}\n\n".utf8))
             })
         })
-        connection = ComputerConnection(computer: Computer(id: "mac1", name: "Mac", hosts: ["100.64.0.1"], port: 47621), token: "t", transport: transport, sleep: { _ in })
+        connection = ComputerConnection(computer: Computer(id: "mac1", name: "Mac", hosts: ["100.64.0.1"], port: 47621), token: "t", transport: transport, sleep: sleep)
+    }
+
+    static func list(selected: String) -> String {
+        #"{"type":"list","id":"jobs","props":{"selected":"\#(selected)"}}"#
+    }
+
+    static func page(_ path: String, _ html: String) -> String {
+        #"{"type":"document","id":"page","props":{"path":"\#(path)","html":"\#(html)"}}"#
     }
 
     var watches: [Watch] { watchLog.values }
@@ -235,6 +297,10 @@ private final class UIServer {
 
     func push(_ slot: String, rev: Int, tree: String, workspace: String = "w") {
         streams.values.last?.yield(Data("event: ui\ndata: {\"workspace\":\"\(workspace)\",\"slot\":\"\(slot)\",\"rev\":\(rev),\"tree\":\(tree)}\n\n".utf8))
+    }
+
+    func failEvents(_ count: Int) {
+        for _ in 0..<count { failingEvents.add(true) }
     }
 
     func failWatches(_ count: Int) {

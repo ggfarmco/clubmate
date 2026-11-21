@@ -14,6 +14,7 @@ public final class WorkspaceUI {
     public private(set) var sectionsLoaded = false
     public private(set) var failure: String?
     public private(set) var updating: Set<String> = []
+    public private(set) var missing: Set<String> = []
     private var views: [String: SlotView] = [:]
 
     @ObservationIgnored private weak var connection: ComputerConnection?
@@ -25,12 +26,15 @@ public final class WorkspaceUI {
     @ObservationIgnored private var syncing: Task<Void, Never>?
     @ObservationIgnored private var waiting: Task<Void, Never>?
     @ObservationIgnored private var backoff = WorkspaceUI.firstRetry
-    @ObservationIgnored private var kept: [(path: String, tree: SDUINode)] = []
-    @ObservationIgnored private var selecting: [String: String] = [:]
+    @ObservationIgnored private var kept: [(slot: String, page: String?, path: String, tree: SDUINode)] = []
+    @ObservationIgnored private var selecting: [String: (item: String, run: Task<Result<JSONValue, any Error>, Never>)] = [:]
+    @ObservationIgnored private var starts: [String: Int] = [:]
+    @ObservationIgnored private var settling: [String: (item: String, mark: Task<Void, Never>, grace: Task<Void, Never>)] = [:]
 
     static let firstRetry: Duration = .seconds(1)
     static let longestRetry: Duration = .seconds(30)
     public static let keptPages = 20
+    static let settleGrace: Duration = .seconds(2)
 
     public init(connection: ComputerConnection, workspace: String) {
         self.connection = connection
@@ -53,46 +57,100 @@ public final class WorkspaceUI {
 
     public func page(_ id: String, path: String, in slot: String) -> PageTree? {
         let live = views[slot]?.tree
-        if let live, PhoneSections.document(in: live) != nil, PhoneSections.shows(live, page: id, path: path) { return PageTree(tree: live, updating: false) }
-        if let tree = kept.last(where: { PhoneSections.shows($0.tree, page: id, path: path) })?.tree { return PageTree(tree: tree, updating: updating.contains(id)) }
-        return live.flatMap { PhoneSections.shows($0, page: id, path: path) ? PageTree(tree: $0, updating: false) : nil }
+        if let live, PhoneSections.document(in: live) != nil, path.isEmpty ? owner(of: live, in: slot) == id : PhoneSections.shows(live, page: id, path: path) { return PageTree(tree: live, updating: false) }
+        if let tree = kept.last(where: { $0.slot == slot && (path.isEmpty ? $0.page == id : $0.path == path) })?.tree { return PageTree(tree: tree, updating: updating.contains(id)) }
+        return live.flatMap { PhoneSections.document(in: $0) == nil ? PageTree(tree: $0, updating: false) : nil }
     }
 
     public func select(_ item: String, in slot: String) async {
-        guard let list = views[slot].flatMap({ PhoneSections.list(in: $0.tree) }), let id = list.id, list.string("selected") != item, selecting[slot] != item else { return }
-        let mark = selecting(item, in: slot)
-        await Task { [connection, workspace] in
-            _ = try? await connection?.uiEvent(workspace: workspace, slot: slot, nodeId: id, action: "select", value: .string(item))
-        }.value
-        selected(item, in: slot, mark: mark)
+        defer {
+            if selecting[slot]?.item != item, settling[slot]?.item != item, updating.contains(item) { updating.remove(item) }
+        }
+        var wait = Self.firstRetry
+        while !Task.isCancelled {
+            guard let list = views[slot].flatMap({ PhoneSections.list(in: $0.tree) }), let id = list.id, list.string("selected") != item else { return }
+            if let running = selecting[slot], running.item == item {
+                if case .success = await running.run.value { return }
+                continue
+            }
+            if case .success = await start(item, in: slot, nodeId: id, value: .string(item)).value { return }
+            guard let sleep = connection?.sleep, (try? await sleep(wait)) != nil else { return }
+            wait = min(wait * 2, Self.longestRetry)
+        }
     }
 
     public func send(slot: String, nodeId: String, action: String, value: JSONValue?) async throws -> JSONValue {
         guard let connection else { throw CancellationError() }
         guard action == "select", let item = value?.stringValue else { return try await connection.uiEvent(workspace: workspace, slot: slot, nodeId: nodeId, action: action, value: value) }
-        let mark = selecting(item, in: slot)
-        defer { selected(item, in: slot, mark: mark) }
-        return try await connection.uiEvent(workspace: workspace, slot: slot, nodeId: nodeId, action: action, value: value)
+        return try await start(item, in: slot, nodeId: nodeId, value: value).value.get()
     }
 
-    private func selecting(_ item: String, in slot: String) -> Task<Void, Never> {
-        selecting[slot] = item
-        return Task { [weak self, sleep = connection?.sleep] in
+    private func start(_ item: String, in slot: String, nodeId: String, value: JSONValue?) -> Task<Result<JSONValue, any Error>, Never> {
+        if let pending = settling.removeValue(forKey: slot) { end(pending) }
+        starts[slot, default: 0] += 1
+        let start = starts[slot] ?? 0
+        let mark = Task { [weak self, sleep = connection?.sleep] in
             guard let sleep, (try? await sleep(AgentsStore.refreshMark)) != nil, !Task.isCancelled else { return }
             self?.updating.insert(item)
         }
+        let run = Task { [weak self, connection, workspace] () -> Result<JSONValue, any Error> in
+            let result: Result<JSONValue, any Error>
+            do {
+                guard let connection else { throw CancellationError() }
+                result = .success(try await connection.uiEvent(workspace: workspace, slot: slot, nodeId: nodeId, action: "select", value: value))
+            } catch {
+                result = .failure(error)
+            }
+            self?.replied(item, in: slot, start: start, mark: mark, ok: (try? result.get()) != nil)
+            return result
+        }
+        selecting[slot] = (item, run)
+        return run
     }
 
-    private func selected(_ item: String, in slot: String, mark: Task<Void, Never>) {
-        mark.cancel()
-        if selecting[slot] == item { selecting[slot] = nil }
-        if updating.contains(item) { updating.remove(item) }
+    private func replied(_ item: String, in slot: String, start: Int, mark: Task<Void, Never>, ok: Bool) {
+        guard starts[slot] == start else {
+            mark.cancel()
+            if selecting[slot]?.item != item, settling[slot]?.item != item, updating.contains(item) { updating.remove(item) }
+            return
+        }
+        selecting[slot] = nil
+        guard ok else { return mark.cancel() }
+        let grace = Task { [weak self, sleep = connection?.sleep] in
+            guard let sleep, (try? await sleep(Self.settleGrace)) != nil, !Task.isCancelled else { return }
+            self?.settle(slot, force: true)
+        }
+        settling[slot] = (item, mark, grace)
+        settle(slot, force: false)
     }
 
-    private func keep(_ tree: SDUINode) {
-        guard let path = PhoneSections.document(in: tree)?.string("path"), !path.contains("@") else { return }
-        kept.removeAll { $0.path == path }
-        kept.append((path, tree))
+    private func settle(_ slot: String, force: Bool) {
+        guard let pending = settling[slot] else { return }
+        let selected = PhoneSections.selected(in: views[slot])
+        guard force || selected == pending.item else { return }
+        settling[slot] = nil
+        end(pending)
+        guard selected != pending.item, let main = PhoneSections.main(of: slot) else { return }
+        missing.insert(pending.item)
+        kept.removeAll { $0.slot == main && $0.page == pending.item }
+    }
+
+    private func end(_ pending: (item: String, mark: Task<Void, Never>, grace: Task<Void, Never>)) {
+        pending.mark.cancel()
+        pending.grace.cancel()
+        if updating.contains(pending.item) { updating.remove(pending.item) }
+    }
+
+    private func owner(of tree: SDUINode, in slot: String) -> String? {
+        guard let sidebar = PhoneSections.sidebar(of: slot), let selected = PhoneSections.selected(in: views[sidebar]), PhoneSections.shows(tree, page: selected, path: "") else { return nil }
+        return selected
+    }
+
+    private func keep(_ view: SlotView) {
+        guard let path = PhoneSections.document(in: view.tree)?.string("path"), !path.contains("@") else { return }
+        let page = owner(of: view.tree, in: view.slot)
+        kept.removeAll { $0.slot == view.slot && ($0.path == path || (page != nil && $0.page == page)) }
+        kept.append((view.slot, page, path, view.tree))
         if kept.count > Self.keptPages { kept.removeFirst(kept.count - Self.keptPages) }
     }
 
@@ -109,7 +167,9 @@ public final class WorkspaceUI {
     func receive(_ view: SlotView) {
         guard stale.remove(view.slot) != nil || view.rev > views[view.slot]?.rev ?? 0 else { return }
         views[view.slot] = view
-        keep(view.tree)
+        if let selected = PhoneSections.selected(in: view), missing.contains(selected) { missing.remove(selected) }
+        keep(view)
+        settle(view.slot, force: false)
     }
 
     private var desired: Set<String> {
@@ -158,7 +218,7 @@ public final class WorkspaceUI {
                 let fetch = target.subtracting(previous)
                 if !fetch.isEmpty {
                     let found = try await connection.uiGet(workspace: workspace, slots: fetch.sorted()).filter { $0.workspaceId == workspace }
-                    for view in found {
+                    for view in found.sorted(by: { PhoneSections.main(of: $0.slot) != nil && PhoneSections.main(of: $1.slot) == nil }) {
                         receive(view)
                     }
                     for slot in fetch.subtracting(found.map(\.slot)) {

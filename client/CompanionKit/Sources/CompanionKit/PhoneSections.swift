@@ -21,6 +21,14 @@ public enum PhoneSections {
         return shown.hasSuffix("/" + page) || shown.contains("/" + page + "@")
     }
 
+    public static func sidebar(of main: String) -> String? {
+        main.hasSuffix(".main") ? String(main.dropLast(5)) + ".sidebar" : nil
+    }
+
+    public static func main(of sidebar: String) -> String? {
+        sidebar.hasSuffix(".sidebar") ? String(sidebar.dropLast(8)) + ".main" : nil
+    }
+
     public static func list(in node: SDUINode) -> SDUINode? {
         if node.type == "list" || node.type == "tree", node.id != nil { return node }
         return node.children.lazy.compactMap(list(in:)).first

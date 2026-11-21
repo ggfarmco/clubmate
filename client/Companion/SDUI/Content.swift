@@ -226,6 +226,7 @@ struct DocumentNode: View {
     @Environment(\.sduiInset) private var inset
     @Environment(\.sduiPage) private var page
     @Environment(\.documentReading) private var reading
+    @Environment(\.documentHeld) private var held
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     private var fit: Bool { node.string("size") == "fit" }
@@ -253,8 +254,10 @@ struct DocumentNode: View {
     }
 
     var body: some View {
-        if let page, !fit, !inScroll {
-            DocumentWebView(content: pageContent(page), theme: pageTheme, size: .fill, find: page.find, header: header, onScroll: reading?.scroll, onTextTap: reading?.tap, hardTopEdge: reading?.active == true, onLink: follow)
+        if page != nil, !fit, !inScroll, held {
+            Color.clear
+        } else if let page, !fit, !inScroll {
+            DocumentWebView(content: pageContent(page), theme: pageTheme, size: .fill, find: page.find, header: header, onScroll: reading?.scroll, onTextTap: reading?.tap, hardTopEdge: reading?.active == true, warm: true, onLink: follow)
                 .frame(maxWidth: sizeClass == .regular && !pad ? 680 : .infinity, maxHeight: .infinity)
                 .frame(maxWidth: .infinity)
                 .ignoresSafeArea(.container, edges: [.top, .bottom])

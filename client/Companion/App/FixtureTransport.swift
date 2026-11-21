@@ -532,7 +532,7 @@ actor FixtureServer {
             return (200, Self.json(["result": .null]))
         case "uiEvent":
             if GateTrustFixture.on, params["action"]?.stringValue == "gateTrust" { trustGate() }
-            if WikiFixture.on, params["slot"]?.stringValue == WikiFixture.sidebar, params["action"]?.stringValue == "select", let page = WikiFixture.page(params["value"]?.stringValue) {
+            if WikiFixture.on, params["slot"]?.stringValue == WikiFixture.sidebar, params["action"]?.stringValue == "select", let page = WikiFixture.page(params["value"]?.stringValue), !WikiFixture.gone(page.id) {
                 wikiSelected = page.id
                 replace(WikiFixture.sidebar, WikiFixture.sidebarTree(selected: page.id, query: wikiQuery))
                 replace(WikiFixture.main, WikiFixture.mainTree(page))

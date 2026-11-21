@@ -31,6 +31,9 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
     private static let markdownStore = WKWebsiteDataStore.nonPersistent()
     private static let findScript = (try? String(contentsOf: DocumentPage.web.appendingPathComponent("find.js"), encoding: .utf8)) ?? ""
     private var artifactLoad: URL?
+    private static var spare: DocumentController?
+    private var warmed = false
+    private var refills = false
     private static let tapScript = "let start = null; addEventListener('touchstart', e => { start = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() } : null }, { passive: true, capture: true }); addEventListener('touchend', e => { const s = start; start = null; const p = e.changedTouches[0]; if (!s || !p || Date.now() - s.t > 400 || Math.hypot(p.clientX - s.x, p.clientY - s.y) > 10) return; if (e.target.closest && e.target.closest('a, button, input, textarea, select, summary, label, img, svg, [onclick], [contenteditable]')) return; if (getSelection().toString()) return; window.webkit.messageHandlers.clubmateTap.postMessage(1) }, { passive: true, capture: true })"
     #if os(iOS)
     private var headerHost: UIHostingController<AnyView>?
@@ -87,6 +90,20 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
         #endif
+    }
+
+    static func prepare() {
+        guard spare == nil else { return }
+        let page = DocumentController()
+        page.webView.loadHTMLString(DocumentPage.html(DocumentContent(path: "", html: "", rev: 0), theme: .system(dark: false), size: .fill), baseURL: DocumentScheme.base)
+        spare = page
+    }
+
+    static func make(kind: DocumentKind) -> DocumentController {
+        guard kind == .markdown, let page = spare, page.warmed else { return DocumentController(kind: kind) }
+        spare = nil
+        page.refills = true
+        return page
     }
 
     func show(_ content: DocumentContent, theme: DocumentTheme, size: DocumentSize) {
@@ -246,6 +263,10 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
         if kind == .markdown {
             await call("return await window.clubmate.ready", [:])
         }
+        if refills {
+            refills = false
+            Self.prepare()
+        }
         await scroll(to: request.content.anchor)
     }
 
@@ -343,6 +364,7 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        warmed = true
         finishLoading()
     }
 
@@ -355,6 +377,7 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        if Self.spare === self { Self.spare = nil }
         finishLoading()
         shown = nil
         if work == nil, wanted != nil {

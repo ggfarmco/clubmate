@@ -39,6 +39,10 @@ enum WikiFixture {
         pages.first { $0.id == id }
     }
 
+    static func gone(_ id: String) -> Bool {
+        UserDefaults.standard.string(forKey: "wikiGone") == id
+    }
+
     static func locate(_ path: String, home: Bool = false) -> JSONValue {
         guard let page = home ? pages.first : pages.first(where: { $0.path == path }) else { return .object([:]) }
         return .object(["id": .string(page.id), "path": .string(page.path), "title": .string(page.title)])

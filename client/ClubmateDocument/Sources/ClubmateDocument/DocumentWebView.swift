@@ -18,10 +18,11 @@ public struct DocumentWebView: View {
     private let onScroll: ((DocumentScroll) -> Void)?
     private let onTextTap: (() -> Void)?
     private let hardTopEdge: Bool
+    private let warm: Bool
     private let onLink: (DocumentLink) -> Void
     @State private var height: CGFloat = 0
 
-    public init(content: DocumentContent, theme: DocumentTheme, size: DocumentSize, zoom: DocumentZoom? = nil, find: DocumentFind? = nil, header: AnyView? = nil, onScroll: ((DocumentScroll) -> Void)? = nil, onTextTap: (() -> Void)? = nil, hardTopEdge: Bool = false, onLink: @escaping (DocumentLink) -> Void) {
+    public init(content: DocumentContent, theme: DocumentTheme, size: DocumentSize, zoom: DocumentZoom? = nil, find: DocumentFind? = nil, header: AnyView? = nil, onScroll: ((DocumentScroll) -> Void)? = nil, onTextTap: (() -> Void)? = nil, hardTopEdge: Bool = false, warm: Bool = false, onLink: @escaping (DocumentLink) -> Void) {
         self.content = content
         self.theme = theme
         self.size = size
@@ -31,12 +32,17 @@ public struct DocumentWebView: View {
         self.onScroll = onScroll
         self.onTextTap = onTextTap
         self.hardTopEdge = hardTopEdge
+        self.warm = warm
         self.onLink = onLink
+    }
+
+    public static func prepare() {
+        DocumentController.prepare()
     }
 
     public var body: some View {
         let size = content.kind == .artifact ? .fill : size
-        DocumentRepresentable(content: content, theme: theme, size: size, zoom: zoom, find: find, scale: zoom?.scale ?? 1, header: header, onScroll: onScroll, onTextTap: onTextTap, hardTopEdge: hardTopEdge, onLink: onLink) { height = $0 }
+        DocumentRepresentable(content: content, theme: theme, size: size, zoom: zoom, find: find, scale: zoom?.scale ?? 1, header: header, onScroll: onScroll, onTextTap: onTextTap, hardTopEdge: hardTopEdge, warm: warm, onLink: onLink) { height = $0 }
             .id(content.kind)
             .frame(height: size == .fit ? height : nil)
     }
@@ -54,11 +60,12 @@ private struct DocumentRepresentable {
     let onScroll: ((DocumentScroll) -> Void)?
     let onTextTap: (() -> Void)?
     let hardTopEdge: Bool
+    let warm: Bool
     let onLink: (DocumentLink) -> Void
     let onHeight: (CGFloat) -> Void
 
     func makeCoordinator() -> DocumentController {
-        DocumentController(kind: content.kind)
+        warm ? DocumentController.make(kind: content.kind) : DocumentController(kind: content.kind)
     }
 
     private func update(_ controller: DocumentController) {

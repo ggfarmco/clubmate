@@ -26,6 +26,14 @@ final class WikiUITests: XCTestCase {
         }
     }
 
+    func testAPageDeletedOnTheMacSaysSo() {
+        let app = launch(["-wiki", "YES", "-wikiGone", "shop/notes/retries.md"], open: "tab:wiki")
+        let row = app.buttons["Retry notes"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+        XCTAssertTrue(app.staticTexts["Page Not Found"].waitForExistence(timeout: 10))
+    }
+
     func testWikiRowHeightMatchesBacklog() {
         let app = launch(["-wiki", "YES"], open: "tab:backlog")
         let task = app.cells.containing(NSPredicate(format: "label CONTAINS %@", "Retry the charge step on 502")).firstMatch

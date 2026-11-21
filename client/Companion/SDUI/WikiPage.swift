@@ -80,6 +80,7 @@ struct WikiRoot: View {
             }
         }
         .tabRootChrome(context, title: "Wiki")
+        .onAppear { DocumentWebView.prepare() }
     }
 }
 
@@ -93,6 +94,7 @@ struct WikiPageView: View {
     @State private var visible = false
     @State private var shown: PageTree?
     @State private var find = DocumentFind()
+    @State private var pushed = false
     private static let sidebar = WikiPluginInfo.id + ".sidebar"
     private static let main = WikiPluginInfo.id + ".main"
 
@@ -106,9 +108,12 @@ struct WikiPageView: View {
 
     var body: some View {
         Group {
-            if let shown = shown ?? ui.page(page, path: path, in: Self.main) {
+            if ui.missing.contains(page) {
+                ContentUnavailableView("Page Not Found", systemImage: "book", description: Text("It was deleted or moved on the Mac."))
+            } else if let shown = shown ?? ui.page(page, path: path, in: Self.main) {
                 SectionSlot(ui: ui, slot: Self.main, tree: shown.tree, connection: connection)
                     .environment(\.sduiPage, SDUIPage(title: title, find: find))
+                    .environment(\.documentHeld, !pushed)
                     .overlay(alignment: .bottom) {
                         if shown.updating {
                             UpdatingLine()
@@ -125,6 +130,7 @@ struct WikiPageView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(PushSettled { pushed = true })
         .background(Color(.systemBackground))
         .navigationTitle(title)
         .modifier(PadPageTitle(title: title))
