@@ -21,7 +21,16 @@ public enum PhoneSections {
         return shown.hasSuffix("/" + page) || shown.contains("/" + page + "@")
     }
 
-    private static func document(in node: SDUINode) -> SDUINode? {
+    public static func list(in node: SDUINode) -> SDUINode? {
+        if node.type == "list" || node.type == "tree", node.id != nil { return node }
+        return node.children.lazy.compactMap(list(in:)).first
+    }
+
+    public static func selected(in view: SlotView?) -> String? {
+        view.flatMap { list(in: $0.tree) }.flatMap { $0.string("selected") }
+    }
+
+    static func document(in node: SDUINode) -> SDUINode? {
         if node.type == "document" { return node }
         return node.children.lazy.compactMap(document(in:)).first
     }

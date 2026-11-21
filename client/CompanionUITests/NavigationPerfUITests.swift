@@ -149,6 +149,26 @@ final class NavigationPerfUITests: XCTestCase {
         shot(app, "warm-push-300ms", after: 0.3)
     }
 
+    func testWikiShots() {
+        let app = launch(open: "tab:wiki", latency: "3000", extra: ["-wiki", "YES"])
+        let checkout = app.buttons["Checkout flow"].firstMatch
+        XCTAssertTrue(checkout.waitForExistence(timeout: 30))
+        checkout.tap()
+        shot(app, "wiki-cold-300ms", after: 0.3)
+        XCTAssertTrue(app.webViews.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Checkout flow part 1")).firstMatch.waitForExistence(timeout: 30))
+        shot(app, "wiki-cold-loaded", after: 0)
+        app.navigationBars["Checkout flow"].buttons.firstMatch.tap()
+        app.buttons["Shop wiki"].firstMatch.tap()
+        XCTAssertTrue(app.webViews.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Start with the")).firstMatch.waitForExistence(timeout: 30))
+        app.navigationBars["Shop wiki"].buttons.firstMatch.tap()
+        checkout.tap()
+        shot(app, "wiki-revisit-300ms", after: 0.3)
+        XCTAssertTrue(app.staticTexts["Updating…"].exists)
+        shot(app, "wiki-revisit-1s", after: 0.7)
+        XCTAssertTrue(app.staticTexts["Updating…"].waitForNonExistence(timeout: 10))
+        shot(app, "wiki-revisit-fresh", after: 0)
+    }
+
     private var manual: XCTMeasureOptions {
         let options = XCTMeasureOptions()
         options.invocationOptions = [.manuallyStart, .manuallyStop]

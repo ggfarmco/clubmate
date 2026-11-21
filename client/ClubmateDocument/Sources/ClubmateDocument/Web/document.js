@@ -66,7 +66,23 @@
     });
   };
 
+  let loading = null;
+  const load = () => {
+    loading ??= new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'mermaid.min.js';
+      script.onload = () => {
+        configure();
+        resolve();
+      };
+      script.onerror = () => resolve();
+      document.head.append(script);
+    });
+    return loading;
+  };
+
   const draw = async (source, id) => {
+    await load();
     if (typeof mermaid !== 'object') return { error: 'mermaid is not loaded' };
     try {
       return { svg: (await mermaid.render(id, source)).svg };

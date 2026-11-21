@@ -91,7 +91,7 @@ struct WikiPageView: View {
     @State private var ui: WorkspaceUI
     @State private var owner = UUID()
     @State private var visible = false
-    @State private var shown: SDUINode?
+    @State private var shown: PageTree?
     @State private var find = DocumentFind()
     private static let sidebar = WikiPluginInfo.id + ".sidebar"
     private static let main = WikiPluginInfo.id + ".main"
@@ -106,9 +106,20 @@ struct WikiPageView: View {
 
     var body: some View {
         Group {
-            if let shown {
-                SectionSlot(ui: ui, slot: Self.main, tree: shown, connection: connection)
+            if let shown = shown ?? ui.page(page, path: path, in: Self.main) {
+                SectionSlot(ui: ui, slot: Self.main, tree: shown.tree, connection: connection)
                     .environment(\.sduiPage, SDUIPage(title: title, find: find))
+                    .overlay(alignment: .bottom) {
+                        if shown.updating {
+                            UpdatingLine()
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .glassEffect(.regular, in: .capsule)
+                                .padding(.bottom, 8)
+                                .transition(.opacity)
+                        }
+                    }
+                    .animation(.easeOut(duration: 0.2), value: shown.updating)
             } else {
                 ProgressView()
             }
@@ -120,17 +131,18 @@ struct WikiPageView: View {
         .onAppear {
             visible = true
             ui.show([Self.sidebar, Self.main], owner: owner)
+            shown = ui.page(page, path: path, in: Self.main) ?? shown
         }
         .onDisappear {
             visible = false
             ui.hide(owner: owner)
         }
-        .onChange(of: ui.view(Self.main), initial: true) { _, view in
-            if visible || shown == nil, let tree = view?.tree, PhoneSections.shows(tree, page: page, path: path) { shown = tree }
+        .onChange(of: ui.page(page, path: path, in: Self.main)) { _, fresh in
+            if visible || shown == nil, let fresh { shown = fresh }
         }
-        .task(id: "\(visible)|\(SectionScreen.selected(in: ui.view(Self.sidebar)) ?? "")") {
+        .task(id: "\(visible)|\(PhoneSections.selected(in: ui.view(Self.sidebar)) ?? "")") {
             guard visible else { return }
-            await SectionSlot.select(page, in: ui, slot: Self.sidebar)
+            await ui.select(page, in: Self.sidebar)
         }
     }
 }

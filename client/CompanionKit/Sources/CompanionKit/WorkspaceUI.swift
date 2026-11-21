@@ -1,6 +1,11 @@
 import Foundation
 import Observation
 
+public struct PageTree: Equatable {
+    public let tree: SDUINode
+    public let updating: Bool
+}
+
 @MainActor
 @Observable
 public final class WorkspaceUI {
@@ -8,6 +13,7 @@ public final class WorkspaceUI {
     public private(set) var sections: [SectionInfo] = []
     public private(set) var sectionsLoaded = false
     public private(set) var failure: String?
+    public private(set) var updating: Set<String> = []
     private var views: [String: SlotView] = [:]
 
     @ObservationIgnored private weak var connection: ComputerConnection?
@@ -19,9 +25,12 @@ public final class WorkspaceUI {
     @ObservationIgnored private var syncing: Task<Void, Never>?
     @ObservationIgnored private var waiting: Task<Void, Never>?
     @ObservationIgnored private var backoff = WorkspaceUI.firstRetry
+    @ObservationIgnored private var kept: [(path: String, tree: SDUINode)] = []
+    @ObservationIgnored private var selecting: [String: String] = [:]
 
     static let firstRetry: Duration = .seconds(1)
     static let longestRetry: Duration = .seconds(30)
+    public static let keptPages = 20
 
     public init(connection: ComputerConnection, workspace: String) {
         self.connection = connection
@@ -42,9 +51,49 @@ public final class WorkspaceUI {
         sync()
     }
 
+    public func page(_ id: String, path: String, in slot: String) -> PageTree? {
+        let live = views[slot]?.tree
+        if let live, PhoneSections.document(in: live) != nil, PhoneSections.shows(live, page: id, path: path) { return PageTree(tree: live, updating: false) }
+        if let tree = kept.last(where: { PhoneSections.shows($0.tree, page: id, path: path) })?.tree { return PageTree(tree: tree, updating: updating.contains(id)) }
+        return live.flatMap { PhoneSections.shows($0, page: id, path: path) ? PageTree(tree: $0, updating: false) : nil }
+    }
+
+    public func select(_ item: String, in slot: String) async {
+        guard let list = views[slot].flatMap({ PhoneSections.list(in: $0.tree) }), let id = list.id, list.string("selected") != item, selecting[slot] != item else { return }
+        let mark = selecting(item, in: slot)
+        await Task { [connection, workspace] in
+            _ = try? await connection?.uiEvent(workspace: workspace, slot: slot, nodeId: id, action: "select", value: .string(item))
+        }.value
+        selected(item, in: slot, mark: mark)
+    }
+
     public func send(slot: String, nodeId: String, action: String, value: JSONValue?) async throws -> JSONValue {
         guard let connection else { throw CancellationError() }
+        guard action == "select", let item = value?.stringValue else { return try await connection.uiEvent(workspace: workspace, slot: slot, nodeId: nodeId, action: action, value: value) }
+        let mark = selecting(item, in: slot)
+        defer { selected(item, in: slot, mark: mark) }
         return try await connection.uiEvent(workspace: workspace, slot: slot, nodeId: nodeId, action: action, value: value)
+    }
+
+    private func selecting(_ item: String, in slot: String) -> Task<Void, Never> {
+        selecting[slot] = item
+        return Task { [weak self, sleep = connection?.sleep] in
+            guard let sleep, (try? await sleep(AgentsStore.refreshMark)) != nil, !Task.isCancelled else { return }
+            self?.updating.insert(item)
+        }
+    }
+
+    private func selected(_ item: String, in slot: String, mark: Task<Void, Never>) {
+        mark.cancel()
+        if selecting[slot] == item { selecting[slot] = nil }
+        if updating.contains(item) { updating.remove(item) }
+    }
+
+    private func keep(_ tree: SDUINode) {
+        guard let path = PhoneSections.document(in: tree)?.string("path"), !path.contains("@") else { return }
+        kept.removeAll { $0.path == path }
+        kept.append((path, tree))
+        if kept.count > Self.keptPages { kept.removeFirst(kept.count - Self.keptPages) }
     }
 
     func reloadSections() {
@@ -60,6 +109,7 @@ public final class WorkspaceUI {
     func receive(_ view: SlotView) {
         guard stale.remove(view.slot) != nil || view.rev > views[view.slot]?.rev ?? 0 else { return }
         views[view.slot] = view
+        keep(view.tree)
     }
 
     private var desired: Set<String> {

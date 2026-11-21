@@ -40,7 +40,7 @@ struct SectionScreen: View {
                 if navigation.path.last?.destination == .section(id: section, item: nil), !sections.contains(where: { $0.id == section }) { navigation.pop() }
             }
             .task(id: ui.view(main) != nil && ui.view(sidebar) != nil) { await openItem() }
-            .task(id: "\(visible)|\(Self.selected(in: ui.view(sidebar)) ?? "")") { await follow() }
+            .task(id: "\(visible)|\(PhoneSections.selected(in: ui.view(sidebar)) ?? "")") { await follow() }
     }
 
     @ViewBuilder
@@ -75,30 +75,21 @@ struct SectionScreen: View {
 
     private func openItem() async {
         guard item == nil, let item = navigation.sectionItem, navigation.path.last?.destination == .section(id: section, item: nil), PhoneSections.root(section, sidebar: ui.view(sidebar), main: ui.view(main)) == sidebar,
-              ui.view(sidebar).flatMap({ Self.list(in: $0.tree) }) != nil, ui.view(main) != nil else { return }
+              ui.view(sidebar).flatMap({ PhoneSections.list(in: $0.tree) }) != nil, ui.view(main) != nil else { return }
         navigation.sectionItem = nil
         navigation.push(.section(id: section, item: item))
     }
 
     private func follow() async {
         guard visible, let item else { return }
-        await SectionSlot.select(item, in: ui, slot: sidebar)
-    }
-
-    static func selected(in view: SlotView?) -> String? {
-        view.flatMap { list(in: $0.tree) }.flatMap { $0.string("selected") }
-    }
-
-    static func list(in node: SDUINode) -> SDUINode? {
-        if node.type == "list" || node.type == "tree", node.id != nil { return node }
-        return node.children.lazy.compactMap(list(in:)).first
+        await ui.select(item, in: sidebar)
     }
 
     private static func label(of id: String, in node: SDUINode) -> String? {
         func find(_ items: [SDUITreeItem]) -> String? {
             items.lazy.compactMap { $0.target == id ? $0.item.label : find($0.children) }.first
         }
-        return list(in: node).flatMap { find($0.treeItems()) }
+        return PhoneSections.list(in: node).flatMap { find($0.treeItems()) }
     }
 
     private var title: String {
@@ -117,11 +108,6 @@ struct SectionSlot: View {
     @Environment(CompanionModel.self) private var model
     @State private var error: String?
     @State private var liveFocus = SDUILiveFocus()
-
-    static func select(_ item: String, in ui: WorkspaceUI, slot: String) async {
-        guard let list = ui.view(slot).flatMap({ SectionScreen.list(in: $0.tree) }), let id = list.id, list.string("selected") != item else { return }
-        _ = try? await ui.send(slot: slot, nodeId: id, action: "select", value: .string(item))
-    }
 
     var body: some View {
         let shown = tree ?? ui.view(slot)?.tree

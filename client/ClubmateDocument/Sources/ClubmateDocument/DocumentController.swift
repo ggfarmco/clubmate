@@ -28,6 +28,7 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
     private var work: Task<Void, Never>?
     private var loading: CheckedContinuation<Void, Never>?
     private let artifact = ArtifactScheme()
+    private static let markdownStore = WKWebsiteDataStore.nonPersistent()
     private static let findScript = (try? String(contentsOf: DocumentPage.web.appendingPathComponent("find.js"), encoding: .utf8)) ?? ""
     private var artifactLoad: URL?
     private static let tapScript = "let start = null; addEventListener('touchstart', e => { start = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() } : null }, { passive: true, capture: true }); addEventListener('touchend', e => { const s = start; start = null; const p = e.changedTouches[0]; if (!s || !p || Date.now() - s.t > 400 || Math.hypot(p.clientX - s.x, p.clientY - s.y) > 10) return; if (e.target.closest && e.target.closest('a, button, input, textarea, select, summary, label, img, svg, [onclick], [contenteditable]')) return; if (getSelection().toString()) return; window.webkit.messageHandlers.clubmateTap.postMessage(1) }, { passive: true, capture: true })"
@@ -42,7 +43,7 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
     init(kind: DocumentKind = .markdown) {
         self.kind = kind
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = .nonPersistent()
+        configuration.websiteDataStore = kind == .markdown ? Self.markdownStore : .nonPersistent()
         switch kind {
         case .markdown:
             configuration.setURLSchemeHandler(DocumentScheme(), forURLScheme: DocumentScheme.name)

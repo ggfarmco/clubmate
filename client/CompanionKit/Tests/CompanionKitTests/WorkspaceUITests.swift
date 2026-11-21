@@ -118,6 +118,34 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertTrue(PhoneSections.shows(SDUINode(type: "empty"), page: "shop/notes/guide.md", path: ""))
     }
 
+    func testAPageSeenBeforeShowsFromMemoryUntilTheServerSendsIt() async throws {
+        let server = try UIServer()
+        let ui = try await server.started(["cron.main"])
+        func page(_ path: String, _ html: String) -> String {
+            #"{"type":"document","id":"page","props":{"path":"\#(path)","html":"\#(html)"}}"#
+        }
+        server.push("cron.main", rev: 2, tree: page("/w/wiki/a.md", "a1"))
+        server.push("cron.main", rev: 3, tree: page("/w/wiki/b.md", "b1"))
+        try await waitUntil { ui.view("cron.main")?.rev == 3 }
+        XCTAssertEqual(ui.page("shop/a.md", path: "", in: "cron.main")?.tree.string("html"), "a1")
+        XCTAssertNil(ui.page("shop/c.md", path: "", in: "cron.main"))
+
+        server.push("cron.main", rev: 4, tree: page("/w/wiki/a.md", "a2"))
+
+        try await waitUntil { ui.page("shop/a.md", path: "", in: "cron.main")?.tree.string("html") == "a2" }
+        server.connection.stop()
+    }
+
+    func testASelectStillOnItsWayIsNotSentAgain() async throws {
+        let server = try UIServer()
+        let ui = try await server.started(["cron.sidebar"])
+        let first = Task { await ui.select("cj_other", in: "cron.sidebar") }
+        await ui.select("cj_other", in: "cron.sidebar")
+        await first.value
+        XCTAssertEqual(server.events.map { $0["value"] }, [.string("cj_other")])
+        server.connection.stop()
+    }
+
     func testSendPassesTheEventAndItsResult() async throws {
         let server = try UIServer()
         let ui = try await server.started(["cron.sidebar"])
