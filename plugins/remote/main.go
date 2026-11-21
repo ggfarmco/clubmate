@@ -633,7 +633,7 @@ func (a *app) scanAddrs() ([]netip.Addr, error) {
 		up = utunAddrs
 	}
 	if len(ips) == 0 && !cli {
-		return utunAddrs()
+		return up()
 	}
 	if reason != "" {
 		return nil, noTailnetError{reason}

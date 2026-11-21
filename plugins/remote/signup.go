@@ -476,6 +476,12 @@ func (c *relayClient) signUpNow(ctx context.Context) error {
 	if err := c.setAuto(ctx); err != nil {
 		return err
 	}
+	c.mu.Lock()
+	access := c.access
+	c.mu.Unlock()
+	if !access {
+		return nil
+	}
 	ctx, cancel := context.WithTimeout(ctx, signupTimeout)
 	defer cancel()
 	if err := c.attempt(ctx); err != nil {

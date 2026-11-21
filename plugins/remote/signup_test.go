@@ -259,6 +259,7 @@ func TestTestModeWithoutTheRelayEnvNeverSignsUp(t *testing.T) {
 	t.Setenv(testModeEnv, "1")
 	t.Setenv(relayURLEnv, "")
 	f.srv.relay.dir = t.TempDir()
+	f.srv.relay.setAccess(true)
 
 	f.srv.relay.ensure()
 	f.srv.relay.mu.Lock()
@@ -337,6 +338,18 @@ func TestSetTunnelSignsUpAndAStreamTokenRefusalSignsUpAgain(t *testing.T) {
 	assert.Equal(t, strconv.Quote("cmr_2"), f.kv.get(pushRelayTokenKey))
 	assert.Equal(t, "true", f.kv.get(tunnelOnKey))
 	assert.Equal(t, tunnelConnected, tc.status().State)
+}
+
+func TestSetTunnelWithAccessOffMakesNoSignUpCall(t *testing.T) {
+	f, fs := newSignupFixture(t)
+	f.srv.relay.setAccess(false)
+	tc := newTestTunnel(t, f, fileStore{path: filepath.Join(t.TempDir(), "key")})
+
+	require.NoError(t, tc.configure(t.Context(), true))
+
+	testutil.Never(t, func() bool { return fs.callCount() > 0 }, 200*time.Millisecond)
+	assert.Equal(t, "true", f.kv.get(tunnelOnKey))
+	assert.False(t, f.srv.relay.configured())
 }
 
 func TestTheFirstSignUpTurnsTheRelayPathOnOnlyWhenItWasNeverStored(t *testing.T) {

@@ -84,9 +84,9 @@ Checks, first failure answers (plain-text error; `429` has `Retry-After` in seco
 | body not a JSON object | `400` |
 | key banned | `403` |
 | key: 3 an hour and 6 a day, a sign-up again included | `429` |
-| new key: all new keys together 50 an hour, a burst of 300 | `429` |
-| new key: 20 000 live self-signed entries in the tokens file | `503` `sign-up closed` |
 | the name has a line for another key | `409` |
+| new key: 20 000 live self-signed entries in the tokens file | `503` `sign-up closed` |
+| new key: all new keys together 50 an hour, a burst of 300 | `429` |
 | device set or tokens file not written | `500` |
 
 Success: `201` for a new name, `200` for the same key again, `{"token": "cmr_…", "name": "k-<16 hex>"}`. A sign-up again replaces the line of that key: the new token works at once and the old one stops (its next push gets `401`, its tunnel stream ends within one ping), and the Mac's device set stays; if the set is missing, the relay writes an empty one. For a new name the relay first writes an empty device set (see [Device binding](#device-binding)), then the token line. A self-signed Mac with no device set pushes to no device (`403`), so a lost devices file never opens the open mode for it.

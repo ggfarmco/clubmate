@@ -6,7 +6,6 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -31,6 +30,8 @@ const (
 	selfMark    = " (self)"
 	unusedTTL   = 7 * 24 * time.Hour
 	idleTTL     = 90 * 24 * time.Hour
+
+	recheckTokens = time.Second
 )
 
 var (
@@ -45,11 +46,16 @@ var (
 type tokens struct {
 	path string
 
-	mu      sync.Mutex
-	modTime time.Time
-	size    int64
-	entries []tokenEntry
-	used    map[string]int64
+	recheck time.Duration
+
+	mu       sync.Mutex
+	checked  time.Time
+	modTime  time.Time
+	size     int64
+	entries  []tokenEntry
+	byHash   map[string]int
+	usedFile map[string]bool
+	used     map[string]int64
 }
 
 type tokenEntry struct {
@@ -62,13 +68,24 @@ type tokenEntry struct {
 
 func loadTokens(path string) (*tokens, error) {
 	t := &tokens{path: path, used: map[string]int64{}}
-	if err := t.refresh(); err != nil {
+	if err := t.load(false); err != nil {
 		return nil, err
 	}
 	return t, nil
 }
 
 func (t *tokens) refresh() error {
+	if t.recheck > 0 {
+		t.mu.Lock()
+		skip := time.Since(t.checked) < t.recheck
+		if !skip {
+			t.checked = time.Now()
+		}
+		t.mu.Unlock()
+		if skip {
+			return nil
+		}
+	}
 	return t.load(false)
 }
 
@@ -87,6 +104,14 @@ func (t *tokens) load(force bool) error {
 		return err
 	}
 	t.modTime, t.size, t.entries = info.ModTime(), info.Size(), entries
+	t.byHash = make(map[string]int, len(entries))
+	t.usedFile = map[string]bool{}
+	for i, e := range entries {
+		t.byHash[string(e.hash)] = i
+		if e.used > 0 {
+			t.usedFile[e.name] = true
+		}
+	}
 	return nil
 }
 
@@ -94,15 +119,11 @@ func (t *tokens) lookup(token string, now time.Time, banned func(hexKey string) 
 	sum := sha256.Sum256([]byte(token))
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	var found *tokenEntry
-	for i := range t.entries {
-		if subtle.ConstantTimeCompare(t.entries[i].hash, sum[:]) == 1 {
-			found = &t.entries[i]
-		}
-	}
-	if token == "" || found == nil {
+	i, ok := t.byHash[string(sum[:])]
+	if token == "" || !ok {
 		return "", false, false
 	}
+	found := &t.entries[i]
 	self := len(found.key) > 0
 	if self && !found.live(now, t.used[found.name]) {
 		return "", false, false
@@ -116,12 +137,7 @@ func (t *tokens) lookup(token string, now time.Time, banned func(hexKey string) 
 func (t *tokens) touch(name string, now time.Time) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	first := t.used[name] == 0
-	for _, e := range t.entries {
-		if e.name == name && e.used > 0 {
-			first = false
-		}
-	}
+	first := t.used[name] == 0 && !t.usedFile[name]
 	t.used[name] = now.Unix()
 	return first
 }

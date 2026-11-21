@@ -129,6 +129,7 @@ func serve(args []string) error {
 	if err != nil {
 		return err
 	}
+	toks.recheck = recheckTokens
 	var admins *tokens
 	if cfg.admins != "" {
 		if admins, err = loadTokens(cfg.admins); err != nil {

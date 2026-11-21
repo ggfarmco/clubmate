@@ -414,6 +414,7 @@ func TestSetTunnelSignsUpWithNoPushRelayAndStopsWhenItIsRemoved(t *testing.T) {
 	f, tr := newTunnelFixture(t)
 	tc := newTestTunnel(t, f, fileStore{path: filepath.Join(t.TempDir(), "key")})
 	require.NoError(t, f.srv.relay.configure(t.Context(), "", ""))
+	f.srv.relay.setAccess(true)
 	err := tc.configure(t.Context(), true)
 	require.ErrorIs(t, err, errSignupFailed)
 	assert.ErrorContains(t, err, detailTestMode)
