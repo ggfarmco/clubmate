@@ -286,7 +286,12 @@ func (a *app) playTurn(s *session, turn, epoch int, args promptArgs) (int, int, 
 	ctx, cancel = context.WithTimeout(context.Background(), callTimeout)
 	req.Prompt = append(slices.Clip(req.Prompt), a.policies(ctx, rec)...)
 	cancel()
-	if args.From != "" {
+	if s.isCommand(args.Text) {
+		req.Prompt = append(slices.Clip(req.Prompt[1:]), req.Prompt[0])
+		if args.From != "" {
+			req.Prompt = slices.Insert(req.Prompt, 0, acp.ContentBlock{Type: "text", Text: fromPrefix(args.From, fromTitle)})
+		}
+	} else if args.From != "" {
 		req.Prompt[0].Text = fromPrefix(args.From, fromTitle) + req.Prompt[0].Text
 	}
 	ctx, cancel = context.WithTimeout(context.Background(), callTimeout)
@@ -679,6 +684,21 @@ func promptBlocks(args promptArgs, root string, caps acp.PromptCapabilities) []a
 		}
 	}
 	return blocks
+}
+
+func (s *session) isCommand(text string) bool {
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return false
+	}
+	name, ok := strings.CutPrefix(words[0], "/")
+	if !ok {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadLocked()
+	return name != "" && slices.ContainsFunc(s.commands, func(c acp.AvailableCommand) bool { return c.Name == name })
 }
 
 func sendable(blocks []acp.ContentBlock) []acp.ContentBlock {

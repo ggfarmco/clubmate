@@ -1153,6 +1153,40 @@ func TestFinishMode(t *testing.T) {
 	}
 }
 
+func TestSlashCommandIsTheLastBlock(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{"commands": []map[string]string{{"name": "review", "description": "Review the diff"}}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	testutil.Eventually(t, func() bool { return len(f.transcript(t, workspace, session).Commands) == 1 }, wait)
+
+	f.prompt(t, workspace, session, "/review main")
+	f.waitStatus(t, workspace, session, "done")
+	f.prompt(t, workspace, session, "/reviewer is a path")
+	f.waitStatus(t, workspace, session, "done")
+
+	prompts := f.calls(t, "session/prompt")
+	require.Len(t, prompts, 2)
+	texts := func(i int) []string {
+		var req struct {
+			Prompt []struct {
+				Text string `json:"text"`
+			} `json:"prompt"`
+		}
+		require.NoError(t, json.Unmarshal(prompts[i].Params, &req))
+		var out []string
+		for _, b := range req.Prompt {
+			out = append(out, b.Text)
+		}
+		return out
+	}
+	command, path := texts(0), texts(1)
+	require.Len(t, command, 2)
+	assert.Contains(t, command[0], "Clubmate finish mode")
+	assert.Equal(t, "/review main", command[1])
+	assert.Equal(t, "/reviewer is a path", path[0])
+}
+
 func TestSettingsViewFinishDefault(t *testing.T) {
 	t.Parallel()
 	f := start(t, nil)
