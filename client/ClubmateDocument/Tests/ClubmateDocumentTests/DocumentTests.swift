@@ -96,6 +96,39 @@ final class DocumentTests: XCTestCase {
         XCTAssertEqual(state?.last as? String, "new")
     }
 
+    func testNewPageRestoresReportedPlaceOverAnchor() async throws {
+        let long = (1...200).map { "<p>line \($0)</p>" }.joined()
+        let content = DocumentContent(path: "/r/a.md", html: long + "<h2 id=\"sec2\">Two</h2>" + long, rev: 1, anchor: "sec2")
+        let first = DocumentController()
+        first.webView.frame = CGRect(x: 0, y: 0, width: 400, height: 300)
+        let reported = expectation(description: "scroll reported")
+        first.onPlace = { if $0 == 1500 { reported.fulfill() } }
+        first.show(content, theme: .mate(dark: true), size: .fill)
+        await first.settled()
+        _ = try await first.webView.evaluateJavaScript("window.scrollTo(0, 1500)")
+        await fulfillment(of: [reported], timeout: 10)
+        first.close()
+
+        let second = DocumentController()
+        second.webView.frame = CGRect(x: 0, y: 0, width: 400, height: 300)
+        second.onPlace = { _ in }
+        second.restore(1500)
+        second.show(content, theme: .mate(dark: true), size: .fill)
+        await second.settled()
+        let y = try await second.webView.callAsyncJavaScript("return window.scrollY", contentWorld: .page) as? Double
+        XCTAssertEqual(y, 1500)
+    }
+
+    func testPlacesMatchPathAndAnchor() {
+        let places = DocumentPlaces()
+        let page = DocumentContent(path: "/r/a.md", html: "", rev: 1, anchor: "hit")
+        places.save("w\nwiki.main", for: page, y: 900)
+        XCTAssertEqual(places.place("w\nwiki.main", for: DocumentContent(path: "/r/a.md", html: "<p>new</p>", rev: 2, anchor: "hit")), 900)
+        XCTAssertNil(places.place("w\nwiki.main", for: DocumentContent(path: "/r/a.md", html: "", rev: 1, anchor: "other")))
+        XCTAssertNil(places.place("w\nwiki.main", for: DocumentContent(path: "/r/b.md", html: "", rev: 1, anchor: "hit")))
+        XCTAssertNil(places.place("v\nwiki.main", for: page))
+    }
+
     func testMermaidErrorKeepsSource() async throws {
         let page = DocumentController()
         page.webView.frame = CGRect(x: 0, y: 0, width: 400, height: 300)

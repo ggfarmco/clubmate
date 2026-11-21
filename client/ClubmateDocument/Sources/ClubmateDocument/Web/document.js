@@ -107,6 +107,24 @@
     if (event.target.matches?.('pre:not(.diff) > code:only-child')) fade(event.target);
   }, { capture: true, passive: true });
 
+  let tracking = false;
+  let place = null;
+  const settle = () => {
+    if (place == null) return;
+    window.scrollTo(0, place);
+    if (Math.abs(window.scrollY - place) < 1) place = null;
+  };
+  addEventListener('scroll', () => {
+    if (tracking && place == null) post({ type: 'scroll', value: window.scrollY });
+  }, { passive: true });
+  ['wheel', 'keydown', 'mousedown', 'touchstart'].forEach((name) => addEventListener(name, () => { place = null; }, { capture: true, passive: true }));
+  const track = (y) => {
+    tracking = true;
+    if (y == null) return;
+    place = y;
+    settle();
+  };
+
   const lightbox = (() => {
     const root = document.createElement('div');
     const stage = document.createElement('div');
@@ -340,8 +358,9 @@
   new ResizeObserver(() => {
     height();
     fades();
+    settle();
   }).observe(doc);
   column();
   configure();
-  window.clubmate = { setBody, setTheme, scrollTo, ready: setBody(body) };
+  window.clubmate = { setBody, setTheme, scrollTo, track, ready: setBody(body) };
 })();

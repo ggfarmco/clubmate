@@ -31,8 +31,14 @@ struct DocumentNodeView: View {
         return document
     }
 
+    private var placeKey: String {
+        "\(dispatch.workspaceID)\n\(dispatch.slot)\n\(node.id ?? "")"
+    }
+
     var body: some View {
-        DocumentWebView(content: content, theme: documentTheme, size: fit ? .fit : .fill, zoom: fit ? nil : zoom, find: fit ? nil : find) { link in
+        let content = content
+        let key = placeKey
+        DocumentWebView(content: content, theme: documentTheme, size: fit ? .fit : .fill, zoom: fit ? nil : zoom, find: fit ? nil : find, place: fit ? nil : DocumentPlaces.shared.place(key, for: content), onPlace: fit ? nil : { DocumentPlaces.shared.save(key, for: content, y: $0) }) { link in
             open(link)
         }
         .frame(maxWidth: .infinity, maxHeight: fit ? nil : .infinity)
