@@ -261,6 +261,9 @@ func (a *app) closeIdle(ctx context.Context, s *session) bool {
 }
 
 func (a *app) closeUnlessBusy(ctx context.Context, s *session, evenAsking, idleOK bool) bool {
+	if rec := s.snapshot(); a.activeBelow(rec.Workspace, rec.ID) {
+		return false
+	}
 	a.noteBranch(ctx, s)
 	s.mu.Lock()
 	if s.running || len(s.queue) > 0 || s.rec.Status != statusDone && !(idleOK && s.rec.Status == statusIdle) || s.rec.OpenCount > 0 || !evenAsking && s.asksLocked() {

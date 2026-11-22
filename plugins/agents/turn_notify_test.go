@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"encoding/json"
+	"os"
 	"slices"
 	"testing"
 	"time"
@@ -142,6 +143,60 @@ func TestCancelledTurnPostsNothing(t *testing.T) {
 
 	f.waitStatus(t, workspace, session, "done")
 	testutil.Never(t, func() bool { return len(f.notes(t)) > 0 }, 300*time.Millisecond)
+}
+
+func TestDoneWaitsForGrandchildren(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "work", "sleep": 3000}}})
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	kid := f.newChild(t, workspace, parent, map[string]any{}).Session
+	grandkid := f.newChild(t, workspace, kid, map[string]any{"prompt": "work"}).Session
+	f.waitStatus(t, workspace, grandkid, "running")
+
+	f.prompt(t, workspace, parent, "go")
+
+	f.waitStatus(t, workspace, parent, "done")
+	testutil.Never(t, func() bool { return len(f.notes(t)) > 0 }, 500*time.Millisecond)
+	f.waitStatus(t, workspace, grandkid, "done")
+	f.waitNotes(t, func(n []notePost) bool {
+		return slices.ContainsFunc(n, func(p notePost) bool { return p.Session == parent && p.Kind == "done" })
+	})
+}
+
+func TestDoneComesAfterAGrandchildUnderAVanishedChild(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "work", "sleep": 3000}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	kid := f.newChild(t, workspace, parent, map[string]any{"branch": "kid", "prompt": "hi"})
+	f.waitStatus(t, workspace, kid.Session, "done")
+	grandkid := f.newChild(t, workspace, kid.Session, map[string]any{"prompt": "work"}).Session
+	f.waitStatus(t, workspace, grandkid, "running")
+	require.NoError(t, os.RemoveAll(kid.Worktree))
+
+	f.prompt(t, workspace, parent, "go")
+
+	f.waitStatus(t, workspace, grandkid, "done")
+	f.waitNotes(t, func(n []notePost) bool {
+		return slices.ContainsFunc(n, func(p notePost) bool { return p.Session == parent && p.Kind == "done" })
+	})
+}
+
+func TestDoneWaitsForLandReview(t *testing.T) {
+	t.Parallel()
+	g := startGate(t)
+	require.ErrorContains(t, g.land(t), "review pending")
+	landerDone := func(n []notePost) bool {
+		return slices.ContainsFunc(n, func(p notePost) bool { return p.Session == g.lander && p.Kind == "done" })
+	}
+
+	g.f.prompt(t, g.workspace, g.lander, "go")
+
+	g.f.waitStatus(t, g.workspace, g.lander, "done")
+	testutil.Never(t, func() bool { return landerDone(g.f.notes(t)) }, 500*time.Millisecond)
+	g.verdict(t, "approved")
+	g.f.waitNotes(t, landerDone)
 }
 
 func TestDoneWaitsForChildren(t *testing.T) {

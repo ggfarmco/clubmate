@@ -122,7 +122,11 @@ func (a *app) ancestry(rec record) iter.Seq[record] {
 }
 
 func (a *app) finished(t api.Turn) bool {
-	return t.Status == statusDone && activeDescendant(t.Session, statusKids(a.list(t.Workspace)), map[string]bool{}) == ""
+	return t.Status == statusDone && !a.activeBelow(t.Workspace, t.Session)
+}
+
+func (a *app) activeBelow(workspace, id string) bool {
+	return activeDescendant(id, statusKids(a.list(workspace)), map[string]bool{}) != ""
 }
 
 func statusParent(rec record) string {
