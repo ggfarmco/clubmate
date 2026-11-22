@@ -1706,6 +1706,45 @@ func TestStepWalksTheShownSessionsAround(t *testing.T) {
 	selects(-2, order[(at+2)%3])
 }
 
+func TestNewFromThePhoneKeepsTheMacSelection(t *testing.T) {
+	t.Parallel()
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	first := f.newSession(t, workspace)
+	var out struct {
+		Session string `json:"session"`
+	}
+
+	require.NoError(t, f.h.PluginCallResult(t, "remote", "command.run", map[string]any{"id": "agents.new", "workspaceId": workspace, "args": map[string]any{}}, &out))
+
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool {
+		return strings.Contains(sheetText(n), out.Session) && cardsOf(n, "tree")[0].Props["selected"] == first
+	})
+}
+
+func TestHandoffFromThePhoneFollowsOnlyTheMacSelection(t *testing.T) {
+	t.Parallel()
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	other := f.newSession(t, workspace)
+	shown := f.newSession(t, workspace)
+	handoff := func(sid string) string {
+		var out struct {
+			Session string `json:"session"`
+		}
+		require.NoError(t, f.h.PluginCallResult(t, "remote", "command.run", map[string]any{"id": "agents.handoff", "workspaceId": workspace, "args": map[string]any{"session": sid}}, &out))
+		return out.Session
+	}
+
+	away := handoff(other)
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool {
+		return strings.Contains(sheetText(n), away) && cardsOf(n, "tree")[0].Props["selected"] == shown
+	})
+
+	next := handoff(shown)
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return cardsOf(n, "tree")[0].Props["selected"] == next })
+}
+
 func TestRevealOpensTheGraphRunRow(t *testing.T) {
 	t.Parallel()
 	f := start(t, nil)

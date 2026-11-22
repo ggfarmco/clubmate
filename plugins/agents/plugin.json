@@ -63,6 +63,7 @@
             "repo": {"type": "string", "description": "Path of a workspace folder: starts the child of that repo of a task. A repo that is no folder of the workspace is refused; connect it first with agents.connect-repo."},
             "slug": {"type": "string", "description": "The task's slug, only with repo: branch feat/<slug>, worktree .worktrees/<slug>."},
             "base": {"type": "string", "enum": ["default"], "description": "Only with repo: start from origin/<default> after a fetch, or the local default branch with a note. It is what repo does anyway."},
+            "background": {"type": "boolean", "description": "Don't select the new top-level session on the Mac (Backlog passes it for a Start from the phone). A session started from the phone, a cron job or a trigger is never selected."},
             "prompt": {"type": "string", "description": "First prompt; omit to start the session idle."},
             "title": {"type": "string", "description": "Session title; defaults to the first line of the first prompt."},
             "notify": {"type": "string", "enum": ["all", "needs-input", "muted"], "default": "all", "description": "Notification policy of the session: all notifications, only needs-input, permission and question ones, or none. A session's children are limited by it too."},

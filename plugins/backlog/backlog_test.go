@@ -790,6 +790,15 @@ func TestStartAgentOptions(t *testing.T) {
 	e.neverEchoed("agents.new", "Fails on CI.")
 }
 
+func TestStartFromThePhoneStartsInTheBackground(t *testing.T) {
+	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
+	tk := e.add("Fix the flaky switcher test", nil)
+
+	_ = e.h.PluginCall(t, "remote", "command.run", map[string]any{"id": "backlog.start", "workspaceId": e.p, "args": map[string]any{"id": tk.ID}})
+
+	e.waitEchoed("agents.new", `"background":true`)
+}
+
 func TestPlainCmFromASessionCannotStartOrTakeBack(t *testing.T) {
 	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
 	todo := e.add("Todo", nil)

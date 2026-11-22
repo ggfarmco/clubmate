@@ -189,6 +189,7 @@ type newArgs struct {
 	Repo            string         `json:"repo"`
 	Slug            string         `json:"slug"`
 	Base            string         `json:"base"`
+	Background      bool           `json:"background"`
 	worktree        string
 	review          *reviewSent
 	via             string
@@ -366,12 +367,13 @@ func (a *app) newCommand(ctx context.Context, cmd pluginsdk.CommandRun, args new
 	if err != nil {
 		return nil, err
 	}
-	if res.parent == "" && !restricted {
+	selected := res.parent == "" && !restricted && !fromAway(cmd) && !args.Background
+	if selected {
 		if err := a.selectSession(ctx, cmd.WorkspaceID, res.Session); err != nil {
 			return nil, err
 		}
 	}
-	if res.parent != "" || cmd.Agent || cmd.Via != "" {
+	if !selected || cmd.Agent || cmd.Via != "" {
 		a.kick(cmd.WorkspaceID)
 		return res, nil
 	}
@@ -379,6 +381,27 @@ func (a *app) newCommand(ctx context.Context, cmd pluginsdk.CommandRun, args new
 		return nil, err
 	}
 	return res, a.focusComposer(ctx, cmd.WorkspaceID, res.Session)
+}
+
+func fromAway(cmd pluginsdk.CommandRun) bool {
+	switch cmd.Via {
+	case remotePlugin, cronPlugin, triggerPlugin:
+		return true
+	}
+	return false
+}
+
+func (a *app) macOn(ctx context.Context, workspaceID, sid string) (bool, error) {
+	p := a.workspaceState(workspaceID)
+	a.uiMu.Lock()
+	restored, selected := p.restored, p.selected
+	a.uiMu.Unlock()
+	if !restored {
+		if _, err := a.host.StorageGet(ctx, selectedKey+workspaceID, &selected); err != nil {
+			return false, err
+		}
+	}
+	return selected == sid, nil
 }
 
 func (a *app) promptCommand(_ context.Context, cmd pluginsdk.CommandRun, args promptArgs) (any, error) {
@@ -606,7 +629,7 @@ func (a *app) importCommand(ctx context.Context, cmd pluginsdk.CommandRun, args 
 	if err != nil {
 		return nil, err
 	}
-	if !cmd.Agent {
+	if !cmd.Agent && !fromAway(cmd) {
 		if err := a.selectSession(ctx, cmd.WorkspaceID, res.Session); err != nil {
 			return nil, err
 		}
@@ -623,11 +646,17 @@ func (a *app) handoffCommand(ctx context.Context, cmd pluginsdk.CommandRun, args
 	if a.bySession(cmd) && !a.descendantOf(args.Session, cmd.Caller) {
 		return nil, errNotDescendant
 	}
+	follow := !fromAway(cmd)
+	if !follow {
+		if follow, err = a.macOn(ctx, cmd.WorkspaceID, args.Session); err != nil {
+			return nil, err
+		}
+	}
 	next, err := a.handoff(ctx, s, args, origin(cmd))
 	if err != nil {
 		return nil, err
 	}
-	if !cmd.Agent {
+	if !cmd.Agent && follow {
 		if err := a.selectSession(ctx, cmd.WorkspaceID, next.snapshot().ID); err != nil {
 			return nil, err
 		}

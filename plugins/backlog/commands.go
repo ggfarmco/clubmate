@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	userOwner  = "user"
-	agentOwner = "agent"
-	sessionPfx = api.IDPrefix + "_"
+	userOwner    = "user"
+	agentOwner   = "agent"
+	sessionPfx   = api.IDPrefix + "_"
+	remotePlugin = "remote"
 
 	kindAdded    = "added"
 	kindUpdated  = "updated"
@@ -158,6 +159,7 @@ type startOptions struct {
 	Mode   string `json:"mode"`
 	Where  string `json:"where"`
 	Prompt string `json:"prompt"`
+	phone  bool
 }
 
 func (o startOptions) check() error {
@@ -203,7 +205,9 @@ func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.
 		if err := b.notUser(ctx, cmd); err != nil {
 			return nil, err
 		}
-		return b.startAgent(ctx, cmd.WorkspaceID, cmd.Caller, args.ID, args.Seen, args.startOptions)
+		opts := args.startOptions
+		opts.phone = cmd.Via == remotePlugin
+		return b.startAgent(ctx, cmd.WorkspaceID, cmd.Caller, args.ID, args.Seen, opts)
 	case "backlog.takeback":
 		if err := b.notUser(ctx, cmd); err != nil {
 			return nil, err
@@ -543,7 +547,10 @@ func (b *backlog) startAgent(ctx context.Context, workspaceID, caller string, id
 	if p := strings.TrimSpace(opts.Prompt); p != "" {
 		body = p
 	}
-	args := map[string]string{"prompt": body + "\n\n" + ownsLine(t.ID), "title": t.Title}
+	args := map[string]any{"prompt": body + "\n\n" + ownsLine(t.ID), "title": t.Title}
+	if opts.phone {
+		args["background"] = true
+	}
 	if opts.Mode != "" {
 		args["firstMode"] = opts.Mode
 	}
