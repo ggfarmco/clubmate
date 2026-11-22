@@ -13,7 +13,10 @@ import (
 	"clubmate/pkg/pluginsdk"
 )
 
-const changedTopic = "wiki.changed"
+const (
+	changedTopic = "wiki.changed"
+	pageTopic    = "wiki.page"
+)
 
 type wiki struct {
 	h       *pluginsdk.Host
@@ -31,6 +34,12 @@ type wiki struct {
 type changedEvent struct {
 	Workspace string `json:"workspace"`
 	Page      string `json:"page"`
+}
+
+type pageEvent struct {
+	Workspace string `json:"workspace"`
+	Page      string `json:"page"`
+	Title     string `json:"title"`
 }
 
 func newWiki() *wiki {
@@ -81,6 +90,17 @@ func (w *wiki) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plu
 func (w *wiki) changed(ctx context.Context, workspaceID, page string) {
 	_, err := w.h.Publish(ctx, changedTopic, changedEvent{Workspace: workspaceID, Page: page})
 	logError("publish "+changedTopic, err)
+}
+
+func (w *wiki) pageShown(ctx context.Context, u *workspaceUI, ev pageEvent) {
+	if u.shown == ev {
+		return
+	}
+	if _, err := w.h.Publish(ctx, pageTopic, ev); err != nil {
+		logError("publish "+pageTopic, err)
+		return
+	}
+	u.shown = ev
 }
 
 func decode(raw json.RawMessage, v any) error {

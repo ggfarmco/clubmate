@@ -101,6 +101,7 @@
     const style = getComputedStyle(root);
     root.classList.toggle('column', style.getPropertyValue('--column').trim() !== '');
     root.classList.toggle('aside', style.getPropertyValue('--aside').trim() !== '');
+    root.classList.toggle('chat', style.getPropertyValue('--chat').trim() !== '');
   };
 
   const fade = (code) => code.parentElement.classList.toggle('more', code.scrollWidth - code.clientWidth - code.scrollLeft > 1);

@@ -99,6 +99,12 @@ type reviewPayload struct {
 	Comments    []commentState `json:"comments,omitempty"`
 }
 
+type currentReview struct {
+	WorkspaceID string `json:"workspaceId"`
+	Worktree    string `json:"worktree"`
+	ID          string `json:"id"`
+}
+
 type commentState struct {
 	ID     int64  `json:"id"`
 	Status string `json:"status"`
@@ -292,11 +298,90 @@ func (a *app) removeReviewLocked(ctx context.Context, h reviewHost, r *review) {
 	}
 	a.publishReviewLocked(ctx, h, r, true)
 	delete(a.reviewPublished, r.ID)
+	a.publishCurrentLocked(ctx, h, r.Workspace, r.Root)
 }
 
 func (a *app) reviewChangedLocked(ctx context.Context, h reviewHost, r *review) {
 	a.publishReviewLocked(ctx, h, r, false)
+	a.publishCurrentLocked(ctx, h, r.Workspace, r.Root)
 	a.renderReviewsLocked(ctx, h, r.Workspace)
+}
+
+func editorTabKey(ws, root string) string {
+	return ws + "\x00" + root
+}
+
+type nvimConn struct{ _ byte }
+
+type editorTab struct {
+	tab  int
+	conn *nvimConn
+}
+
+func (a *app) tabEntered(ctx context.Context, h reviewHost, ws, root string, tab int) {
+	a.setTab(ws, root, tab, nil)
+	a.publishCurrent(ctx, h, ws, root)
+}
+
+func (a *app) setTab(ws, root string, tab int, conn *nvimConn) {
+	a.tabMu.Lock()
+	defer a.tabMu.Unlock()
+	a.reviewTabs[editorTabKey(ws, root)] = editorTab{tab: tab, conn: conn}
+}
+
+func (a *app) clearTabOnExit(h reviewHost, ws, root string, c *client, conn *nvimConn) {
+	<-c.done
+	a.clearTab(context.Background(), h, ws, root, conn)
+}
+
+func (a *app) clearTab(ctx context.Context, h reviewHost, ws, root string, conn *nvimConn) {
+	key := editorTabKey(ws, root)
+	a.reviewMu.Lock()
+	defer a.reviewMu.Unlock()
+	a.tabMu.Lock()
+	cur, ok := a.reviewTabs[key]
+	if ok && cur.conn == conn {
+		delete(a.reviewTabs, key)
+	}
+	a.tabMu.Unlock()
+	if !ok || cur.conn != conn {
+		return
+	}
+	last, ok := a.currentSent[key]
+	delete(a.currentSent, key)
+	if !ok || last.ID == "" {
+		return
+	}
+	if _, err := h.Publish(ctx, currentReviewTopic, currentReview{WorkspaceID: ws, Worktree: root}); err != nil {
+		logError("publish current review", err)
+	}
+}
+
+func (a *app) publishCurrent(ctx context.Context, h reviewHost, ws, root string) {
+	a.reviewMu.Lock()
+	defer a.reviewMu.Unlock()
+	a.publishCurrentLocked(ctx, h, ws, root)
+}
+
+func (a *app) publishCurrentLocked(ctx context.Context, h reviewHost, ws, root string) {
+	key := editorTabKey(ws, root)
+	a.tabMu.Lock()
+	cur, ok := a.reviewTabs[key]
+	a.tabMu.Unlock()
+	if !ok {
+		return
+	}
+	p := currentReview{WorkspaceID: ws, Worktree: root}
+	if r := a.reviewAtLocked(ws, root, cur.tab); r != nil {
+		p.ID = r.ID
+	}
+	if last, sent := a.currentSent[key]; sent && last == p {
+		return
+	}
+	a.currentSent[key] = p
+	if _, err := h.Publish(ctx, currentReviewTopic, p); err != nil {
+		logError("publish current review", err)
+	}
 }
 
 func (a *app) publishReviewLocked(ctx context.Context, h reviewHost, r *review, closed bool) {

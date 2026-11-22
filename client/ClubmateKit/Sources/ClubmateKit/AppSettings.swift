@@ -8,20 +8,8 @@ public enum SidebarSide: String, Sendable, CaseIterable {
 
 public enum CodeSection {
     public static let id = "editor-nvim"
-    public static let chatSlot = "editor-nvim.sidebar"
     public static let reviewSlot = "editor-nvim.review"
-    public static let stackedBelow: Double = 1100
     public static let narrowBelow: Double = 900
-    public static let columnMinWidth: Double = 280
-    public static let chatWidth: Double = 380
-
-    public static func stacksChat(width: Double) -> Bool {
-        width > 0 && width < stackedBelow
-    }
-
-    public static func columnWidth(saved: Double?, limit: Double) -> Double {
-        min(max(saved ?? chatWidth, columnMinWidth), max(columnMinWidth, limit))
-    }
 
     public static func editorWidth(row: Double, rail: Double, column: Double?) -> Double {
         row - rail - 1 - (column.map { $0 + 1 } ?? 0)
@@ -29,6 +17,31 @@ public enum CodeSection {
 
     public static func reviewLayout(width: Double) -> String {
         width > 0 && width < narrowBelow ? "inline" : "split"
+    }
+}
+
+public enum ChatColumn {
+    public static let suffix = ".chat"
+    public static let stackedBelow: Double = 1100
+    public static let minWidth: Double = 320
+    public static let defaultWidth: Double = 392
+    public static let hintSection = "wiki"
+    public static let keyHint = "⌘B now opens chat; the tree is ⌃⌘S"
+
+    public static func slot(for section: String) -> String {
+        section + suffix
+    }
+
+    public static func section(ofSlot slot: String) -> String? {
+        slot.hasSuffix(suffix) ? String(slot.dropLast(suffix.count)) : nil
+    }
+
+    public static func stacksChat(width: Double) -> Bool {
+        width > 0 && width < stackedBelow
+    }
+
+    public static func width(saved: Double?, limit: Double) -> Double {
+        min(max(saved ?? defaultWidth, minWidth), max(minWidth, limit))
     }
 }
 

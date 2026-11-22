@@ -294,8 +294,8 @@ pre.mermaid-failed {
 .wm-fold { display: flex; padding: 12px 0 4px; }
 
 @media (min-width: 960px) {
-  html:not(.column) #doc:has(> .wiki-margin) { padding-right: calc(var(--inset, 24px) + var(--margin-col) + var(--margin-gap)); }
-  html:not(.column) .wiki-margin {
+  html:not(.column):not(.chat) #doc:has(> .wiki-margin) { padding-right: calc(var(--inset, 24px) + var(--margin-col) + var(--margin-gap)); }
+  html:not(.column):not(.chat) .wiki-margin {
     display: flex;
     position: fixed;
     top: 16px;
@@ -305,17 +305,17 @@ pre.mermaid-failed {
     max-height: calc(100vh - 32px);
     overflow-y: auto;
   }
-  html:not(.column) .wiki-fold { display: none; }
-  html:not(.column) .wiki-margin > nav { flex: none; max-height: 50vh; overflow-y: auto; }
+  html:not(.column):not(.chat) .wiki-fold { display: none; }
+  html:not(.column):not(.chat) .wiki-margin > nav { flex: none; max-height: 50vh; overflow-y: auto; }
 }
 
 @media (min-width: 1116px) {
-  html.column.aside #doc:has(> .wiki-margin) {
+  html.column.aside:not(.chat) #doc:has(> .wiki-margin) {
     position: relative;
     padding-left: calc((100vw - var(--wide)) / 2);
     padding-right: calc((100vw - var(--wide)) / 2 + var(--aside) + var(--margin-gap));
   }
-  html.column.aside .wiki-margin {
+  html.column.aside:not(.chat) .wiki-margin {
     display: flex;
     position: absolute;
     top: var(--top, 16px);
@@ -324,7 +324,7 @@ pre.mermaid-failed {
     box-sizing: border-box;
     width: var(--aside);
   }
-  html.column.aside .wiki-margin > nav {
+  html.column.aside:not(.chat) .wiki-margin > nav {
     position: sticky;
     top: 16px;
     z-index: 1;
@@ -333,7 +333,7 @@ pre.mermaid-failed {
     overflow-y: auto;
     background: var(--bg);
   }
-  html.column.aside .wiki-fold { display: none; }
+  html.column.aside:not(.chat) .wiki-fold { display: none; }
 }
 
 .wm-sec { display: flex; flex-direction: column; min-width: 0; }

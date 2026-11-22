@@ -17,7 +17,7 @@ final class TestCore {
     let env: [String: String]
     private var process: Process?
 
-    private init(base: URL, bin: URL) {
+    private init(base: URL, bin: URL, extraEnv: [String: String]) {
         self.base = base
         self.bin = bin
         paths = ClubmatePaths(state: base.appending(path: "state"), runtime: base.appending(path: "run"))
@@ -26,17 +26,17 @@ final class TestCore {
             "CLUBMATE_RUNTIME_DIR": paths.runtime.path(percentEncoded: false),
             "CLUBMATE_PLUGINS_PATH": bin.appending(path: "plugins").path(percentEncoded: false),
             "CLUBMATE_HOME_WORKSPACE_DIR": base.appending(path: "home").path(percentEncoded: false),
-        ]) { $1 }
+        ].merging(extraEnv) { $1 }) { $1 }
     }
 
     nonisolated static let commit = "0123456789abcdef0123456789abcdef01234567"
 
-    static func prepare(bin: URL? = nil) throws -> TestCore {
-        TestCore(base: try makeTempDir(), bin: try bin ?? goBinaries.get())
+    static func prepare(bin: URL? = nil, env: [String: String] = [:]) throws -> TestCore {
+        TestCore(base: try makeTempDir(), bin: try bin ?? goBinaries.get(), extraEnv: env)
     }
 
-    static func start(bin: URL? = nil) async throws -> TestCore {
-        let core = try prepare(bin: bin)
+    static func start(bin: URL? = nil, env: [String: String] = [:]) async throws -> TestCore {
+        let core = try prepare(bin: bin, env: env)
         try await core.launch()
         return core
     }

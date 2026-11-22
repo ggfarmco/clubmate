@@ -43,6 +43,10 @@ func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 		go a.openDoc(h, e, ev.File)
 		return
 	}
+	if ev.Event == "TabEnter" || ev.Event == "BufEnter" {
+		a.setTab(e.id, e.root, ev.Tab, ev.conn)
+		go a.publishCurrent(ctx, h, e.id, e.root)
+	}
 	branch, refresh := "", ev.Event == "BufEnter" || ev.Event == "DirChanged"
 	if refresh {
 		branch = gitrepo.BranchAt(ctx, branchDir(ev.File, e.root))

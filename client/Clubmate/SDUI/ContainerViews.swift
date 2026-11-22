@@ -10,6 +10,8 @@ struct StackNodeView: View {
     @Environment(\.sduiPopover) private var popover
     @Environment(\.formSheet) private var formSheet
     @Environment(\.theme) private var theme
+    @Environment(\.sduiGutter) private var gutter
+    @Environment(\.sduiInsetButtons) private var insetButtons
 
     private var footer: Bool {
         (popover != nil || formSheet) && node.string("direction") == "horizontal" && !node.children.isEmpty && node.children.allSatisfy { $0.type == "button" }
@@ -31,6 +33,10 @@ struct StackNodeView: View {
     private var propertyKey: SDUINode? {
         guard keyWidth != nil, node.string("direction") == "horizontal", node.children.count > 1, let first = node.children.first, first.type == "text", first.string("style") == "muted" else { return nil }
         return first
+    }
+
+    private static func filled(_ child: SDUINode) -> Bool {
+        child.type == "button" && ["primary", "secondary", "danger"].contains(child.string("variant") ?? "")
     }
 
     private static func priority(_ child: SDUINode) -> Double {
@@ -66,6 +72,8 @@ struct StackNodeView: View {
                 ForEach(node.identifiedChildren) { child in
                     if child.node.type == "spacer" {
                         Spacer(minLength: 0)
+                    } else if child.node.type == "divider" {
+                        VerticalRule(node: child.node)
                     } else {
                         SDUINodeView(node: child.node)
                             .equatable()
@@ -74,8 +82,35 @@ struct StackNodeView: View {
                 }
             }
         } else {
-            VStack(alignment: alignment, spacing: gap) { SDUIChildren(node: node) }
+            VStack(alignment: alignment, spacing: gap) {
+                ForEach(node.identifiedChildren) { child in
+                    SDUINodeView(node: child.node)
+                        .equatable()
+                        .padding(.horizontal, gutter && insetButtons && Self.filled(child.node) ? theme.gutter : 0)
+                        .layoutPriority(child.node.bool("dock") == true ? 1 : 0)
+                }
+            }
         }
+    }
+}
+
+private struct VerticalRule: View {
+    let node: SDUINode
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        if TestMode.current {
+            rule.modifier(SDUIProbe(node: node))
+        } else {
+            rule
+        }
+    }
+
+    private var rule: some View {
+        Rectangle()
+            .fill(theme.border)
+            .frame(width: 1, height: theme.spacing.xxl)
     }
 }
 

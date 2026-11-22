@@ -148,7 +148,7 @@ func SettingsPlugin(slot string) (string, bool) {
 }
 
 func SlotSection(slot string) (string, bool) {
-	for _, suffix := range []string{".sidebar", ".main", ".status"} {
+	for _, suffix := range []string{".sidebar", ".main", ".status", ".chat"} {
 		if section, ok := strings.CutSuffix(slot, suffix); ok && section != "" {
 			return section, true
 		}

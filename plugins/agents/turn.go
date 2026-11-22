@@ -681,6 +681,8 @@ func promptBlocks(args promptArgs, root string, caps acp.PromptCapabilities) []a
 				continue
 			}
 			blocks = append(blocks, acp.ContentBlock{Type: "text", Text: path + ":" + lines + "\n```\n" + att.Text + "\n```"})
+		case "review", "page":
+			blocks = append(blocks, acp.ContentBlock{Type: "text", Text: att.Text})
 		}
 	}
 	return blocks

@@ -55,7 +55,8 @@ public enum AppShortcuts {
     public static let closeSession = Shortcut("app.close-session", ["cmd+opt+delete"], "Close Session")
     public static let close = Shortcut("app.close", ["cmd+w"], "Close terminal session, popup or window")
     public static let palette = Shortcut("app.palette", ["cmd+k"], "Command Palette")
-    public static let toggleSidebar = Shortcut("app.toggle-sidebar", ["cmd+b", "ctrl+cmd+s"], "Toggle Sidebar; in Code, Toggle Chat")
+    public static let toggleSidebar = Shortcut("app.toggle-sidebar", ["ctrl+cmd+s"], "Toggle Sidebar")
+    public static let toggleChat = Shortcut("app.toggle-chat", ["cmd+b"], "Toggle Chat", when: "A section with a chat panel")
     public static let fontIncrease = Shortcut("app.font-increase", ["cmd+=", "⌘+"], "Increase font size where focus is")
     public static let fontDecrease = Shortcut("app.font-decrease", ["cmd+-"], "Decrease font size where focus is")
     public static let fontReset = Shortcut("app.font-reset", ["cmd+0"], "Reset font size where focus is")
@@ -77,7 +78,7 @@ public enum AppShortcuts {
 
     public static let groups: [ShortcutGroup] = [
         ShortcutGroup(id: "app", title: "App and windows", shortcuts: [
-            new, newHomeTerminal, openFolder, openHome, openDoc, close, closeSession, palette, toggleSidebar,
+            new, newHomeTerminal, openFolder, openHome, openDoc, close, closeSession, palette, toggleChat, toggleSidebar,
             fontIncrease, fontDecrease, fontReset, section, nextWorkspace, previousWorkspace, nextSession, previousSession, workspaceSwitcher, notifications, keepAwake, retry, showLog,
             Shortcut("voice.talk", ["opt+space"], "Voice: hold to talk, release to send", when: "While voice is on"),
             Shortcut("voice.confirm", ["return", "esc"], "Voice confirmation: yes, no", when: "Voice panel"),
@@ -147,7 +148,7 @@ public enum AppShortcuts {
         ShortcutGroup(id: "vscode", title: "VS Code", shortcuts: [
             Shortcut("vscode.keys", ["cmd+w", "cmd+n", "cmd+o", "cmd+p", "cmd+shift+p"], "Go to VS Code: close, new, open, quick open, palette", when: "VS Code focused"),
             Shortcut("vscode.palette", ["cmd+k"], "Stays the Command Palette", when: "VS Code focused"),
-            Shortcut("vscode.chat", ["cmd+b"], "Stays Toggle Chat", when: "VS Code focused"),
+            Shortcut("vscode.chat", ["cmd+b"], "Stays Toggle Chat, which does nothing in VS Code", when: "VS Code focused"),
             Shortcut("vscode.popup", ["cmd+j"], "Stays Switch Popup Focus", when: "VS Code focused"),
         ]),
     ]

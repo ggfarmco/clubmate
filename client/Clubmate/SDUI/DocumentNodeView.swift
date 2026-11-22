@@ -7,6 +7,7 @@ import ClubmateKit
 extension EnvironmentValues {
     @Entry var documentZoom: DocumentZoom?
     @Entry var documentFind: DocumentFind?
+    @Entry var chatColumnShown = false
 }
 
 struct DocumentNodeView: View {
@@ -16,6 +17,7 @@ struct DocumentNodeView: View {
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.documentZoom) private var zoom
     @Environment(\.documentFind) private var find
+    @Environment(\.chatColumnShown) private var chatShown
 
     private var content: DocumentContent {
         DocumentContent(path: node.string("path") ?? "", html: node.string("html") ?? "", rev: Int(node.props["rev"]?.numberValue ?? 0), anchor: node.string("anchor"), kind: node.string("kind") == "artifact" ? .artifact : .markdown)
@@ -28,6 +30,7 @@ struct DocumentNodeView: View {
     private var documentTheme: DocumentTheme {
         var document = theme.document
         document.inset = theme.gutter
+        document.chat = chatShown
         return document
     }
 

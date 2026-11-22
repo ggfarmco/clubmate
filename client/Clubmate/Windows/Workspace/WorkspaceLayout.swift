@@ -16,7 +16,7 @@ struct WorkspaceLayout: View {
         let side = app.settings.sidebarSide
         let sidebar = store.sidebarSlot
         let column = store.columnSlot
-        let stacked = column != nil && CodeSection.stacksChat(width: Double(rowWidth))
+        let stacked = column != nil && ChatColumn.stacksChat(width: Double(rowWidth))
         let content = stacked ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
         VStack(spacing: 0) {
             HStack(spacing: 0) {
@@ -32,23 +32,23 @@ struct WorkspaceLayout: View {
                 if let sidebar, side == .left {
                     SidebarPane(store: store, slot: sidebar, side: .left)
                 }
-                content {
+                if let sidebar, side == .right, !stacked {
                     mainPane
+                    SidebarPane(store: store, slot: sidebar, side: .right)
+                    chatColumn(column, stacked: false)
+                } else {
+                    content {
+                        mainPane
+                        chatColumn(column, stacked: stacked)
+                    }
                     if let sidebar, side == .right {
                         SidebarPane(store: store, slot: sidebar, side: .right)
-                    }
-                    if let column {
-                        CodeColumn(store: store, slot: column, stacked: stacked, width: columnWidth(limit: Double(columnLimit)), limit: columnLimit) { [store] width in
-                            store.chatWidth = width
-                        }
                     }
                 }
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
             .background {
                 Group {
-                    Button("Toggle Sidebar") { store.toggleSidebar() }
-                        .keyboardShortcut(AppShortcuts.toggleSidebar, key: AppShortcuts.toggleSidebar.keys[1])
                     Button("Increase Font Size") { [panes, store] in app.stepFont(1, panes: panes, store: store) }
                         .keyboardShortcut(AppShortcuts.fontIncrease, key: AppShortcuts.fontIncrease.keys[1])
                 }
@@ -102,11 +102,20 @@ struct WorkspaceLayout: View {
         }
     }
 
+    @ViewBuilder private func chatColumn(_ slot: String?, stacked: Bool) -> some View {
+        if let slot {
+            ChatColumnView(store: store, slot: slot, stacked: stacked, width: columnWidth(limit: Double(columnLimit)), limit: columnLimit) { [store] width in
+                store.chatWidth = width
+            }
+        }
+    }
+
     private var mainPane: some View {
-        let stacked = store.asideShown && CodeSection.stacksChat(width: Double(rowWidth))
+        let stacked = store.asideShown && ChatColumn.stacksChat(width: Double(rowWidth))
         let split = stacked ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
         return split {
             SlotPane(store: store, slot: "\(section).main")
+                .environment(\.chatColumnShown, store.columnShown)
                 .modifier(MainFocus(store: store, slot: "\(section).main"))
                 .overlay(alignment: .top) {
                     if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
@@ -138,7 +147,7 @@ struct WorkspaceLayout: View {
     }
 
     private func columnWidth(limit: Double) -> CGFloat {
-        CGFloat(CodeSection.columnWidth(saved: store.chatWidth, limit: limit))
+        CGFloat(ChatColumn.width(saved: store.chatWidth, limit: limit))
     }
 
     private var editorWidth: Double {

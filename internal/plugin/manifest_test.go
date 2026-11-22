@@ -3,6 +3,7 @@ package plugin_test
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -14,6 +15,7 @@ import (
 
 	"clubmate/internal/plugin"
 	"clubmate/internal/rpc"
+	"clubmate/internal/sdui"
 )
 
 func TestLoadRejectsCommandOutsideDir(t *testing.T) {
@@ -59,13 +61,23 @@ func TestManifestMetadataOptional(t *testing.T) {
 }
 
 func TestLoadRejectsInvalidExtraSlot(t *testing.T) {
-	for _, slot := range []string{"main", "settings"} {
+	for _, slot := range []string{"main", "settings", "chat"} {
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
 		writeManifest(t, dir, fmt.Sprintf(`{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"sections":[{"id":"beta","title":"Beta","slots":[%q]}]}}`, slot))
 		_, err := plugin.Load(dir)
 		assert.ErrorIs(t, err, plugin.ErrInvalidManifest, slot)
 	}
+}
+
+func TestManifestAcceptsChatSlotClaim(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
+	writeManifest(t, dir, `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"views":[{"slot":"alpha.chat"}]}}`)
+	m, err := plugin.Load(dir)
+	require.NoError(t, err)
+	alpha := plugin.Manifest{ID: "alpha", Contributes: plugin.Contributes{Sections: []sdui.SectionDef{{ID: "alpha"}}}}
+	assert.Equal(t, []sdui.ViewDef{{Slot: "alpha.chat", Plugin: "beta"}}, plugin.ViewDefs([]plugin.Manifest{alpha, m}, slog.New(slog.DiscardHandler)))
 }
 
 func TestLoadSettingsSlotOnlyForOwnID(t *testing.T) {

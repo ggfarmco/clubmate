@@ -1009,16 +1009,17 @@ func TestCodePanelHeaderAndStarters(t *testing.T) {
 	t.Parallel()
 	rec := record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusIdle}
 	idle := screen{View: transcriptView{Session: rec}, Composer: "agt_1/composer/0", Branch: "docs/design-brief"}
-	tree := codeView([]record{rec}, "agt_1", &idle, "/r/a/internal/notify/notify.go")
+	back := sdui.WithShortcut(sdui.WithAction(sdui.Button(chatBackNode, backLabel, "chevron.left"), actChatBack), backKey)
+	tree := codeView([]record{rec}, idle, codePanel{Back: back, Worktree: "side", File: "/r/a/internal/notify/notify.go"})
 	require.NoError(t, internalsdui.Validate(tree))
 
 	assert.Subset(t, texts(tree), []string{"New chat in docs/design-brief", starterNote})
 	row := tree.Children[0].Children[0].Children
-	assert.Equal(t, []string{"icon", "select"}, []string{row[0].Type, row[1].Type})
-	assert.Equal(t, []sdui.Option{{Value: "agt_1", Label: "New chat"}}, row[1].Props["options"])
-	assert.Equal(t, "circle", row[0].Props["name"])
-	assert.Equal(t, true, row[len(row)-1].Props["iconOnly"])
-	assert.Len(t, nodesOf(tree, "select"), 1)
+	assert.Equal(t, []string{"button", "divider", "icon", "text", "text"}, []string{row[0].Type, row[1].Type, row[2].Type, row[3].Type, row[4].Type})
+	assert.Equal(t, []any{backLabel, backKey}, []any{row[0].Props["label"], row[0].Props["shortcut"]})
+	assert.Equal(t, "circle", row[2].Props["name"])
+	assert.Equal(t, []any{newSessionLabel, "side"}, []any{row[3].Props["text"], row[4].Props["text"]})
+	assert.Empty(t, nodesOf(tree, "select"))
 	assert.Equal(t, "notify.go", nodesOf(tree, "badge")[0].Props["text"])
 	var starts []string
 	for _, b := range nodesOf(tree, "button") {
@@ -1030,21 +1031,6 @@ func TestCodePanelHeaderAndStarters(t *testing.T) {
 	assert.Equal(t, []string{"Explain notify.go", "Review the last commit", "Write a test for notify.go"}, starts)
 }
 
-func TestCodePickerKeepsTheNewestFirst(t *testing.T) {
-	t.Parallel()
-	t0 := time.Now()
-	recs := make([]record, 0, maxCodeOptions+2)
-	for i := range maxCodeOptions + 2 {
-		recs = append(recs, record{ID: fmt.Sprintf("agt_%02d", i), Worktree: "/r/a", Agent: agentClaude, Status: statusIdle, CreatedAt: t0.Add(time.Duration(i) * time.Second)})
-	}
-	bound := recs[len(recs)-1]
-	sc := screen{View: transcriptView{Session: bound}, Composer: bound.ID + "/composer/0"}
-	opts, ok := nodesOf(codeView(recs, bound.ID, &sc, ""), "select")[0].Props["options"].([]sdui.Option)
-	require.True(t, ok)
-	require.Len(t, opts, maxCodeOptions)
-	assert.Equal(t, []string{"agt_51", "agt_50", "agt_02"}, []string{opts[0].Value, opts[1].Value, opts[len(opts)-1].Value})
-}
-
 func TestCodePanelOnUnstartedGraphStep(t *testing.T) {
 	t.Parallel()
 	coderRun := &api.Run{ID: "gr_1", Title: "Review loop", After: []api.RunAfter{{Role: "Reviewer", On: "outcome", Outcome: "changes"}}}
@@ -1052,13 +1038,13 @@ func TestCodePanelOnUnstartedGraphStep(t *testing.T) {
 	coder := record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Review loop · Coder", Status: statusWaiting, Run: coderRun, CreatedAt: time.Unix(1, 0)}
 	reviewer := record{ID: "agt_2", Worktree: "/r/a", Agent: agentClaude, Title: "Review loop · Reviewer", Status: statusIdle, Run: reviewerRun, CreatedAt: time.Unix(2, 0)}
 	sc := screen{View: transcriptView{Session: reviewer}, Composer: "agt_2/composer/0"}
-	tree := codeView([]record{coder, reviewer}, "agt_2", &sc, "")
+	tree := codeView([]record{coder, reviewer}, sc, codePanel{Back: sdui.WithAction(sdui.Button(chatBackNode, backLabel, "chevron.left"), actChatBack)})
 	require.NoError(t, internalsdui.Validate(tree))
 
 	composer := nodesOf(tree, "composer")
 	require.Len(t, composer, 1)
 	assert.Equal(t, []any{true, "Reviewer runs as part of Review loop"}, []any{composer[0].Props["disabled"], composer[0].Props["placeholder"]})
-	assert.Equal(t, graphIcon, tree.Children[0].Children[0].Children[0].Props["name"])
+	assert.Equal(t, graphIcon, tree.Children[0].Children[0].Children[2].Props["name"])
 	assert.Equal(t, true, nodesOf(tree, "transcript")[0].Props["center"])
 	assert.Contains(t, texts(tree), "It starts on its own when Coder finishes its turn or stops with an error, and gets Coder's result. You can write here once it has run.")
 	tones := map[string]any{}
@@ -1074,23 +1060,13 @@ func TestCodePanelOnUnstartedGraphStep(t *testing.T) {
 	for _, b := range nodesOf(tree, "button") {
 		actions = append(actions, b.Props["action"].(string))
 	}
-	assert.Subset(t, actions, []string{actOpenGraphs, actCodeNew})
+	assert.Subset(t, actions, []string{actOpenGraphs, actChatNew})
 }
 
 func TestStepNoteNamesEveryIncomingEdge(t *testing.T) {
 	t.Parallel()
 	after := []api.RunAfter{{Role: "Reviewer", On: "outcome", Outcome: "changes"}, {Role: "Tester", On: "asks"}}
 	assert.Equal(t, "It starts on its own when Reviewer says changes or Tester asks a question, and gets their result. You can write here once it has run.", stepNoteFor(after))
-}
-
-func TestDefaultCodeSessionSkipsGraphSteps(t *testing.T) {
-	t.Parallel()
-	step := record{ID: "agt_1", Status: statusWaiting, Run: &api.Run{ID: "gr_1"}, UpdatedAt: time.Unix(9, 0)}
-	older := record{ID: "agt_2", Status: statusDone, UpdatedAt: time.Unix(1, 0)}
-	newer := record{ID: "agt_3", Status: statusIdle, UpdatedAt: time.Unix(5, 0)}
-	closed := record{ID: "agt_4", Status: statusClosed, UpdatedAt: time.Unix(8, 0)}
-	assert.Equal(t, "agt_3", defaultCodeSession([]record{step, older, newer, closed}))
-	assert.Empty(t, defaultCodeSession([]record{step}))
 }
 
 func TestEntryNodeCachedUntilEntryChanges(t *testing.T) {

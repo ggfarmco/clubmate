@@ -68,7 +68,7 @@ struct SidebarPane: View {
     }
 }
 
-struct CodeColumn: View {
+struct ChatColumnView: View {
     let store: WorkspaceUIStore
     let slot: String
     let stacked: Bool
@@ -78,7 +78,7 @@ struct CodeColumn: View {
 
     @Environment(\.theme) private var theme
 
-    private static let minWidth = CGFloat(CodeSection.columnMinWidth)
+    private static let minWidth = CGFloat(ChatColumn.minWidth)
 
     var body: some View {
         if stacked {
@@ -97,6 +97,7 @@ struct CodeColumn: View {
     private var pane: some View {
         SlotPane(store: store, slot: slot)
             .environment(\.composerFocusSlot, slot)
+            .environment(\.sduiInsetButtons, true)
     }
 }
 

@@ -197,8 +197,10 @@ struct TabRoot: View {
                         .navigationSplitViewColumnWidth(ListColumn.width)
                         .toolbar { if tab == navigation.listTab { ListColumnTabs(tabs: navigation.tabs(model), owner: tab) } }
                 } detail: {
-                    TabDetail(tab: tab, plugin: plugin, context: context)
-                        .background { SplitHidden() }
+                    ChatDock(tab: tab, connection: connection) {
+                        TabDetail(tab: tab, plugin: plugin, context: context)
+                            .background { SplitHidden() }
+                    }
                 }
                 .modifier(SplitStyle(over: navigation.overlays(tab)))
                 .environment(\.ownerTab, tab)

@@ -146,6 +146,7 @@ struct WikiPageView: View {
             if visible || shown == nil, let fresh { shown = fresh }
         }
         .modifier(TabShownWatch(ui: ui, slots: [Self.sidebar, Self.main], owner: owner))
+        .modifier(ChatButton(connection: connection, workspace: ui.workspace, visible: visible && tabShown))
         .task(id: "\(visible && tabShown)|\(PhoneSections.selected(in: ui.view(Self.sidebar)) ?? "")") {
             guard visible, tabShown else { return }
             await ui.select(page, in: Self.sidebar)

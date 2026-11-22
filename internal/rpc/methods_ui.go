@@ -447,7 +447,7 @@ func focusSlots(sections *sdui.Sections, section string) []string {
 	var slots []string
 	rail := sections.InRail(section)
 	if rail {
-		slots = append(slots, "", section+".sidebar", section+".main")
+		slots = append(slots, "", section+".sidebar", section+".main", section+".chat")
 	}
 	for _, sec := range sections.List() {
 		if sec.ID != section {

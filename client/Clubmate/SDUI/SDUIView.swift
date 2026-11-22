@@ -384,4 +384,5 @@ private struct GutterInset: ViewModifier {
 
 extension EnvironmentValues {
     @Entry var sduiGutter = true
+    @Entry var sduiInsetButtons = false
 }

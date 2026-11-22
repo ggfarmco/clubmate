@@ -891,6 +891,10 @@ func promptAttachments(content []json.RawMessage, root string) []sdui.Attachment
 				textSeen = true
 				continue
 			}
+			if a, ok := contextAttachment(b.Text); ok {
+				out = append(out, a)
+				continue
+			}
 			if m := selectionRe.FindStringSubmatch(b.Text); m != nil {
 				start, _ := strconv.Atoi(m[2])
 				end, _ := strconv.Atoi(m[3])

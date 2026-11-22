@@ -23,7 +23,7 @@ func BenchmarkRenderMainAndCode(b *testing.B) {
 		for b.Loop() {
 			mainView(benchScreen(s))
 			sc := benchScreen(s)
-			codeView([]record{rec}, rec.ID, &sc, "")
+			codeView([]record{rec}, sc, codePanel{})
 		}
 	})
 	b.Run("marshal", func(b *testing.B) {
@@ -35,7 +35,7 @@ func BenchmarkRenderMainAndCode(b *testing.B) {
 				b.Fatal(err)
 			}
 			sc := benchScreen(s)
-			code, err := json.Marshal(codeView([]record{rec}, rec.ID, &sc, ""))
+			code, err := json.Marshal(codeView([]record{rec}, sc, codePanel{}))
 			if err != nil {
 				b.Fatal(err)
 			}

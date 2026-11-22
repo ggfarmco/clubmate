@@ -150,38 +150,140 @@ struct ListNodeView: View {
     let node: SDUINode
 
     @State private var selected: String?
+    @State private var cursor: String?
+    @State private var query = ""
     @FocusState private var focused: Bool
+    @FocusState private var filterFocused: Bool
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.scrollProxy) private var scroll
     @Environment(\.focusRouter) private var router
     @Environment(\.sidebarSide) private var side
     @Environment(\.sidebarSlot) private var sidebarSlot
+    @Environment(\.theme) private var theme
 
-    var body: some View {
-        LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(node.items()) { item in
-                ItemRow(item: item, selected: item.id == selected, active: focused, tone: item.tone) {
-                    focused = true
-                    select(item.id)
+    private var routedSlot: String? {
+        sidebarSlot ?? (picking && dispatch.slot.hasSuffix(".chat") ? dispatch.slot : nil)
+    }
+
+    private var picking: Bool { node.string("focus") != nil }
+
+    private var filter: SDUIListFilter? {
+        guard let filter = node.listFilter(), filter.shown(rows: node.items().filter { !$0.section }.count) else { return nil }
+        return filter
+    }
+
+    private var shownItems: [SDUIItem] {
+        let items = node.items()
+        guard filter != nil, !query.trimmingCharacters(in: .whitespaces).isEmpty else { return items }
+        var shown: [SDUIItem] = []
+        var heading: SDUIItem?
+        for item in items {
+            if item.section {
+                heading = item
+            } else if SDUIListFilter.matches(item, query) {
+                if let pending = heading {
+                    shown.append(pending)
+                    heading = nil
                 }
-                .itemMenu(item.menu) { dispatch.choose($0, item: item.id, in: node) }
-                .id(item.id)
+                shown.append(item)
             }
         }
-        .focusable()
-        .focusEffectDisabled()
-        .focused($focused)
-        .keyMonitor(active: focused, handle: handle)
-        .reportsFocus(.list, focused, slot: sidebarSlot)
+        return shown
+    }
+
+    private var rows: [SDUIItem] { shownItems.filter { !$0.section } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let filter {
+                filterField(filter)
+            }
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(shownItems.enumerated()), id: \.element.id) { index, item in
+                    if item.section {
+                        SectionRow(item: item, first: index == 0)
+                            .id(item.id)
+                    } else {
+                        listRow(item)
+                    }
+                }
+            }
+            .focusable()
+            .focusEffectDisabled()
+            .focused($focused)
+            .keyMonitor(active: focused, handle: handle)
+            .reportsFocus(.list, focused, slot: sidebarSlot)
+        }
         .onChange(of: node.string("selected"), initial: true) { _, value in
             guard value != selected else { return }
             selected = value
             if let value { scroll?.scrollTo(value, anchor: .center) }
         }
+        .onChange(of: node.string("focus"), initial: true) { _, value in
+            if let value { cursor = value }
+        }
+        .onChange(of: query) { clampCursor() }
+        .onChange(of: rows.map(\.id)) { clampCursor() }
         .onChange(of: router?.pending, initial: true) {
-            guard let sidebarSlot, router?.take(sidebarSlot) == true else { return }
+            guard let routedSlot, router?.take(routedSlot) == true else { return }
             focused = true
         }
+    }
+
+    private func listRow(_ item: SDUIItem) -> some View {
+        let current: Bool = picking ? item.id == cursor : item.id == selected
+        let cap: String? = picking && focused && item.id == cursor ? "↩" : nil
+        return ItemRow(item: item, selected: current, active: focused, tone: item.tone, keyCap: cap, badgeTone: item.tone) {
+            focused = true
+            cursor = item.id
+            select(item.id)
+        } leading: {
+            EmptyView()
+        }
+        .itemMenu(item.menu) { dispatch.choose($0, item: item.id, in: node) }
+        .id(item.id)
+    }
+
+    private func filterField(_ filter: SDUIListFilter) -> some View {
+        HStack(spacing: theme.spacing.m) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(theme.muted)
+            TextField("", text: $query, prompt: Text(filter.placeholder).foregroundStyle(theme.muted))
+                .textFieldStyle(.plain)
+                .focused($filterFocused)
+                .onSubmit {
+                    guard let first = rows.first else { return }
+                    cursor = first.id
+                    select(first.id)
+                }
+                .onKeyPress(.downArrow) {
+                    focused = true
+                    return .handled
+                }
+                .onKeyPress(.escape) {
+                    guard !query.isEmpty else { return .ignored }
+                    query = ""
+                    return .handled
+                }
+            if !query.isEmpty {
+                Text("\(rows.count) of \(node.items().filter { !$0.section }.count)")
+                    .font(theme.uiSmall)
+                    .foregroundStyle(theme.muted)
+                    .monospacedDigit()
+            }
+        }
+        .font(theme.ui)
+        .foregroundStyle(theme.foreground)
+        .padding(.horizontal, theme.spacing.m)
+        .frame(height: theme.control)
+        .fieldChrome(focused: filterFocused, error: nil, dashed: false)
+        .padding(.horizontal, theme.gutter)
+        .padding(.vertical, theme.spacing.s)
+    }
+
+    private func clampCursor() {
+        guard picking, !rows.contains(where: { $0.id == cursor }) else { return }
+        cursor = rows.contains(where: { $0.id == node.string("focus") }) ? node.string("focus") : rows.first?.id
     }
 
     private func select(_ id: String) {
@@ -191,18 +293,54 @@ struct ListNodeView: View {
 
     private func handle(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags
+        if filter != nil, event.charactersIgnoringModifiers == "/", flags.intersection([.command, .control, .option]).isEmpty {
+            filterFocused = true
+            return true
+        }
         switch TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side, shift: flags.contains(.shift)) {
         case .move(let delta):
-            let rows = node.items().map { TreeRow(id: $0.id, depth: 0, parent: nil, hasChildren: false, expanded: false) }
-            guard let id = TreeCursor.move(selected, by: delta, in: rows) else { return true }
-            if id != selected { select(id) }
+            let ids = rows.map { TreeRow(id: $0.id, depth: 0, parent: nil, hasChildren: false, expanded: false) }
+            guard let id = TreeCursor.move(picking ? cursor : selected, by: delta, in: ids) else { return true }
+            if picking {
+                cursor = id
+            } else if id != selected {
+                select(id)
+            }
             scroll?.scrollTo(id)
+        case .open where picking:
+            guard let cursor else { return true }
+            select(cursor)
         case .open, .focusMain, .escape:
-            router?.requestMain(from: sidebarSlot ?? dispatch.slot)
+            router?.requestMain(from: routedSlot ?? dispatch.slot)
         default:
             return false
         }
         return true
+    }
+}
+
+private struct SectionRow: View {
+    let item: SDUIItem
+    let first: Bool
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: theme.spacing.m) {
+            Text(item.label)
+                .lineLimit(1)
+            Spacer(minLength: theme.spacing.m)
+            if let detail = item.detail {
+                Text(detail)
+                    .monospacedDigit()
+            }
+        }
+        .font(theme.uiSmall)
+        .foregroundStyle(theme.muted)
+        .padding(.horizontal, theme.gutter)
+        .padding(.top, first ? 0 : theme.spacing.m)
+        .frame(height: theme.rowHeight + (first ? 0 : theme.spacing.m), alignment: .bottomLeading)
+        .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -576,6 +714,8 @@ struct ItemRow<Leading: View>: View {
     var note: ItemNote?
     var reserveIcon = false
     var reserveTrailing: CGFloat = 0
+    var keyCap: String?
+    var badgeTone: String?
     let action: () -> Void
     @ViewBuilder let leading: () -> Leading
 
@@ -613,15 +753,25 @@ struct ItemRow<Leading: View>: View {
                     .frame(width: 14)
             }
             RowLayout(hasDetail: item.detail != nil, lead: labelIcon == nil ? theme.gutter + theme.spacing.m * 2 : theme.spacing.l, spacing: theme.spacing.m, keptLabel: keptLabel, keptDetail: keptDetail) {
-                HStack(spacing: theme.spacing.s) {
-                    Text(item.label)
-                        .foregroundStyle(faint ? theme.faint : muted ? theme.muted : theme.foreground)
-                        .lineLimit(1)
-                        .truncationMode(Text.TruncationMode(item.truncate))
-                        .help(help ?? item.label)
-                        .layoutPriority(1)
-                    if let note {
-                        ItemNoteView(note: note)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: theme.spacing.s) {
+                        Text(item.label)
+                            .foregroundStyle(faint ? theme.faint : muted ? theme.muted : theme.foreground)
+                            .lineLimit(1)
+                            .truncationMode(Text.TruncationMode(item.truncate))
+                            .help(help ?? item.label)
+                            .layoutPriority(1)
+                        if let note {
+                            ItemNoteView(note: note)
+                        }
+                    }
+                    if let caption = item.caption {
+                        Text(caption)
+                            .font(theme.uiSmall)
+                            .foregroundStyle(theme.muted)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .help(caption)
                     }
                 }
                 ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
@@ -649,17 +799,25 @@ struct ItemRow<Leading: View>: View {
             }
             .frame(maxWidth: .infinity)
             if let badge = item.badge {
-                BadgeLabel(text: badge, tone: theme.accentInk)
+                BadgeLabel(text: badge, tone: theme.tone(badgeTone) ?? theme.accentInk)
                     .fixedSize()
             }
             if let changes {
                 ChangeCounts(changes: changes)
             }
+            if let keyCap {
+                Text(keyCap)
+                    .font(theme.uiSmall)
+                    .foregroundStyle(theme.accentInk)
+                    .padding(theme.spacing.badge)
+                    .overlay(RoundedRectangle(cornerRadius: theme.radius.s).strokeBorder(theme.accent))
+                    .fixedSize()
+            }
         }
         .font(theme.ui)
         .padding(.leading, theme.gutter + CGFloat(depth) * theme.indent)
         .padding(.trailing, theme.gutter + reserveTrailing)
-        .frame(height: theme.rowHeight)
+        .frame(height: item.caption == nil ? theme.rowHeight : theme.rowHeight2)
         .background(alignment: .leading) { guides }
         .background(background, ignoresSafeAreaEdges: [])
         .overlay {

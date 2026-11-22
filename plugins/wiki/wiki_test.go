@@ -198,6 +198,27 @@ func TestLinkToPageSelectsIt(t *testing.T) {
 	})
 }
 
+func TestWikiPagePublishedOnOpen(t *testing.T) {
+	e := newPluginEnv(t)
+	require.NoError(t, e.run("wiki.write", "", map[string]any{"page": "b.md", "content": "# Bee\n", "summary": "x"}, nil))
+	var out struct {
+		Path string `json:"path"`
+	}
+	require.NoError(t, e.run("wiki.write", "", map[string]any{"page": "a.md", "content": "# A\n", "summary": "x"}, &out))
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.ws}, nil))
+	last := func(want pageEvent) func([]bus.Event) bool {
+		return func(events []bus.Event) bool {
+			var got pageEvent
+			return len(events) > 0 && json.Unmarshal(events[len(events)-1].Payload, &got) == nil && got == want
+		}
+	}
+	testutil.WaitEvents(t, e.h.Bus, pageTopic, last(pageEvent{Workspace: e.ws, Page: "app/a.md", Title: "A"}))
+
+	e.h.Event(t, e.ws, mainSlot, docNode, "openDoc", filepath.Join(filepath.Dir(out.Path), "b.md"))
+
+	testutil.WaitEvents(t, e.h.Bus, pageTopic, last(pageEvent{Workspace: e.ws, Page: "app/b.md", Title: "Bee"}))
+}
+
 func TestMarginListsBacklinksAndOpensHistory(t *testing.T) {
 	e := newPluginEnv(t)
 	require.NoError(t, e.run("wiki.write", "", map[string]any{"page": "guides/a.md", "content": "# Aye\n\nSee [b](../b.md#two).\n", "summary": "x"}, nil))

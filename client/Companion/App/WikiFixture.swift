@@ -16,6 +16,7 @@ enum WikiFixture {
 
     static let sidebar = WikiPluginInfo.id + ".sidebar"
     static let main = WikiPluginInfo.id + ".main"
+    static let chat = WikiPluginInfo.id + ".chat"
     static let root = "/Users/me/src/shop/wiki/"
 
     static var on: Bool {
@@ -89,6 +90,46 @@ enum WikiFixture {
         let header = JSONValue.object(["type": .string("header"), "id": .string("header"), "props": .object(["title": .string(page.title), "icon": .string("doc.text"), "meta": .string("Updated 08:41 by agent")]), "children": actions])
         let document = JSONValue.object(["type": .string("document"), "id": .string("page"), "props": .object(["html": .string(html), "path": .string(page.path), "rev": .number(Double((pages.firstIndex { $0.id == page.id } ?? 0) + 1)), "size": .string("fill")])])
         return .object(["type": .string("stack"), "props": .object(["direction": .string("vertical")]), "children": .array([header, document])])
+    }
+
+    private static func node(_ type: String, _ id: String? = nil, _ props: [String: JSONValue] = [:], _ children: [JSONValue] = []) -> JSONValue {
+        var fields: [String: JSONValue] = ["type": .string(type)]
+        if let id { fields["id"] = .string(id) }
+        if !props.isEmpty { fields["props"] = .object(props) }
+        if !children.isEmpty { fields["children"] = .array(children) }
+        return .object(fields)
+    }
+
+    static var chatPicker: JSONValue {
+        func row(_ id: String, _ label: String, _ caption: String, badge: String? = nil) -> JSONValue {
+            var fields: [String: JSONValue] = ["id": .string(id), "label": .string(label), "caption": .string(caption), "icon": .string("circle.fill")]
+            if let badge { fields["badge"] = .string(badge); fields["tone"] = .string("warning") }
+            return .object(fields)
+        }
+        let items = JSONValue.array([
+            .object(["id": .string("suggested"), "label": .string("Suggested"), "section": .bool(true)]),
+            row("agt_chat_1", "Rate-limit notifications", "last used here · 1h"),
+            .object(["id": .string("open-in"), "label": .string("Open in shop"), "detail": .string("3"), "section": .bool(true)]),
+            row("agt_chat_2", "Wiki: document review flow", "docs/wiki · 12m", badge: "needs you"),
+            row("agt_chat_3", "Fix flaky land gate test", "main · 25m"),
+            row("agt_chat_4", "Port cron to the detail pattern", "docs/design-brief · 2h"),
+        ])
+        let list = node("list", "chat/sessions", ["action": .string("chatPick"), "focus": .string("agt_chat_1"), "items": items, "filter": .object(["placeholder": .string("Filter sessions"), "minRows": .number(10)])])
+        let add = node("button", "chat/new", ["label": .string("New session"), "icon": .string("plus"), "variant": .string("secondary"), "action": .string("chatNew"), "hint": .string("n")])
+        let note = node("text", nil, ["text": .string("Sees the page Checkout flow"), "style": .string("muted")])
+        let foot = node("stack", nil, ["direction": .string("vertical"), "gap": .number(6)], [node("divider"), add, note])
+        return node("keys", "chat/picker", ["keys": .array([.string("n")]), "action": .string("chatNew"), "hints": .string("↩ open · ↑↓ j k move · N new · / filter")], [node("stack", nil, ["direction": .string("vertical")], [list, foot])])
+    }
+
+    static var chatSession: JSONValue {
+        let back = node("button", "chat/back", ["label": .string("All sessions"), "icon": .string("chevron.left"), "variant": .string("ghost"), "action": .string("chatBack"), "shortcut": .string("cmd+[")])
+        let title = node("text", nil, ["text": .string("Rate-limit notifications"), "style": .string("strong"), "lines": .number(1)])
+        let head = node("stack", nil, ["direction": .string("horizontal"), "gap": .number(6)], [back, node("divider"), node("icon", nil, ["name": .string("circle.fill")]), title, node("spacer")])
+        let message = node("message", "agt_chat_1/msg/agent/1", ["role": .string("agent"), "text": .string("I can add a paragraph under Send about a closed opener.")])
+        let transcript = node("transcript", "agt_chat_1", [:], [message])
+        let chip = JSONValue.object(["id": .string("ctx/page"), "kind": .string("page"), "path": .string("Checkout flow page"), "context": .bool(true), "removable": .bool(true)])
+        let composer = node("composer", "agt_chat_1/composer", ["attachments": .array([chip])])
+        return node("stack", nil, ["direction": .string("vertical")], [head, transcript, composer])
     }
 }
 #endif

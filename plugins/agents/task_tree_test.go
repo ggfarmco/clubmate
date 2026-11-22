@@ -156,9 +156,9 @@ func TestAFKRowInTheCodePanelKnowsTheFolder(t *testing.T) {
 	require.Equal(t, "connected", f.connect(t, workspace, session, map[string]any{"path": other}).Status)
 	f.subscribe(t, workspace)
 	f.pick(t, workspace, f.newSession(t, workspace))
-	f.fire(t, workspace, "editor-nvim.sidebar", "code/session", "codeSelect", session)
+	f.fire(t, workspace, codeSlot, chatSessionsNode, actChatPick, session)
 
-	f.h.WaitSlot(t, workspace, "editor-nvim.sidebar", func(n sdui.Node) bool {
+	f.h.WaitSlot(t, workspace, "editor-nvim.chat", func(n sdui.Node) bool {
 		return strings.Contains(string(rawTree(t, n)), "Remove from")
 	})
 }

@@ -60,7 +60,7 @@ struct StartupSkeleton: View {
                     }
                     if chat {
                         if stacked { theme.border.frame(height: 1) } else { theme.border.frame(width: 1) }
-                        PaneSkeleton(kind: failure == nil ? kind(CodeSection.chatSlot) : .terminal, slot: CodeSection.chatSlot)
+                        PaneSkeleton(kind: failure == nil ? kind(chatSlot) : .terminal, slot: chatSlot)
                             .frame(width: stacked ? nil : chatWidth)
                             .frame(maxHeight: .infinity)
                     }
@@ -109,8 +109,12 @@ struct StartupSkeleton: View {
         return record.chatShown(in: section)
     }
 
+    private var chatSlot: String {
+        ChatColumn.slot(for: section ?? "")
+    }
+
     private var stacked: Bool {
-        CodeSection.stacksChat(width: Double(width))
+        ChatColumn.stacksChat(width: Double(width))
     }
 
     private var content: AnyLayout {
@@ -118,7 +122,7 @@ struct StartupSkeleton: View {
     }
 
     private var chatWidth: CGFloat {
-        CGFloat(CodeSection.columnWidth(saved: record?.chatWidth, limit: width > 0 ? Double(width) / 2 : 640))
+        CGFloat(ChatColumn.width(saved: record?.chatWidth, limit: width > 0 ? Double(width) / 2 : 640))
     }
 
     private var sidebarPane: some View {

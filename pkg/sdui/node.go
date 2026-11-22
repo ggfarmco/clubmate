@@ -19,6 +19,13 @@ type Item struct {
 	Menu     []MenuEntry `json:"menu,omitempty"`
 	Truncate string      `json:"truncate,omitempty"`
 	Shortcut string      `json:"shortcut,omitempty"`
+	Caption  string      `json:"caption,omitempty"`
+	Section  bool        `json:"section,omitempty"`
+}
+
+type ListFilter struct {
+	Placeholder string `json:"placeholder,omitempty"`
+	MinRows     int    `json:"minRows,omitempty"`
 }
 
 type MenuEntry struct {
@@ -127,6 +134,8 @@ type Attachment struct {
 	Path      string `json:"path"`
 	StartLine int    `json:"startLine,omitempty"`
 	EndLine   int    `json:"endLine,omitempty"`
+	Context   bool   `json:"context,omitempty"`
+	Removable bool   `json:"removable,omitempty"`
 }
 
 type DocCard struct {
@@ -337,6 +346,17 @@ func Tabs(id string, items []Item, selected string) Node {
 
 func List(id string, items []Item, selected string) Node {
 	return Node{Type: "list", ID: id, Props: withOptional(map[string]any{"items": nonNil(items)}, "selected", selected)}
+}
+
+func (n Node) WithFocus(id string) Node {
+	if id == "" {
+		return n
+	}
+	return withProp(n, "focus", id)
+}
+
+func (n Node) WithFilter(placeholder string, minRows int) Node {
+	return withProp(n, "filter", ListFilter{Placeholder: placeholder, MinRows: minRows})
 }
 
 func Tree(id string, items []TreeItem, selected string) Node {

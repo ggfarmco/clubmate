@@ -15,6 +15,7 @@ public final class WorkspaceUI {
     public private(set) var failure: String?
     public private(set) var updating: Set<String> = []
     public private(set) var missing: Set<String> = []
+    public private(set) var absent: Set<String> = []
     private var views: [String: SlotView] = [:]
 
     @ObservationIgnored private weak var connection: ComputerConnection?
@@ -99,6 +100,14 @@ public final class WorkspaceUI {
         await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
         naps[id] = nil
         return !Task.isCancelled
+    }
+
+    public static func chatSlot(_ section: String) -> String {
+        section + ".chat"
+    }
+
+    public func openChat(section: String) async throws {
+        _ = try await send(slot: Self.chatSlot(section), nodeId: "panel", action: "open", value: nil)
     }
 
     public func send(slot: String, nodeId: String, action: String, value: JSONValue?) async throws -> JSONValue {
@@ -219,6 +228,7 @@ public final class WorkspaceUI {
     func receive(_ view: SlotView) {
         guard stale.remove(view.slot) != nil || view.rev > views[view.slot]?.rev ?? 0 else { return }
         views[view.slot] = view
+        absent.remove(view.slot)
         if let selected = PhoneSections.selected(in: view), missing.contains(selected) { missing.remove(selected) }
         keep(view)
         settle(view.slot, force: false)
@@ -275,6 +285,7 @@ public final class WorkspaceUI {
                     }
                     for slot in fetch.subtracting(found.map(\.slot)) {
                         views[slot] = nil
+                        absent.insert(slot)
                         stale.remove(slot)
                     }
                 }

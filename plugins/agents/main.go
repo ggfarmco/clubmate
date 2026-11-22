@@ -50,6 +50,7 @@ type app struct {
 	notes      *notifier
 	groups     *groups
 	codePanel  bool
+	wikiPanel  bool
 	usage      usageTracker
 	branches   branchCache
 	baseCache  baseCache
@@ -173,6 +174,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		return err
 	}
 	a.codePanel = slices.ContainsFunc(sections, func(s sectionRef) bool { return s.ID == editorSection })
+	a.wikiPanel = slices.ContainsFunc(sections, func(s sectionRef) bool { return s.ID == wikiSection })
 	recs, err := loadRecords(ctx, h)
 	if err != nil {
 		return err
@@ -235,6 +237,9 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		return err
 	}
 	if _, err := h.Subscribe(ctx, editorFileTopic, ready.Seq); err != nil {
+		return err
+	}
+	if _, err := h.Subscribe(ctx, currentReviewTopic+","+wikiPageTopic, 0); err != nil {
 		return err
 	}
 	reviewsAfter, err := a.loadReviews(ctx, h)
@@ -306,6 +311,16 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, sub string, ev pl
 		var f editorFile
 		if json.Unmarshal(ev.Payload, &f) == nil && a.setEditorFile(f) {
 			a.kick(f.Workspace)
+		}
+	case currentReviewTopic:
+		var c currentReview
+		if json.Unmarshal(ev.Payload, &c) == nil && a.setCurrentReview(c) {
+			a.kick(c.WorkspaceID)
+		}
+	case wikiPageTopic:
+		var p wikiPage
+		if json.Unmarshal(ev.Payload, &p) == nil && a.setWikiPage(p) {
+			a.kick(p.Workspace)
 		}
 	case reviewTopic:
 		if ws, people, ok := a.reviews.apply(ev.Payload); ok {

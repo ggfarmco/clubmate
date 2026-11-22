@@ -66,11 +66,16 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 	if err := a.render(ctx, h, e, mainSlot, runningView(s)); err != nil {
 		return nil, err
 	}
-	c, err := connect(ctx, sock, func(ev nvimEvent) { a.nvimEvent(h, e, ev) })
+	conn := &nvimConn{}
+	c, err := connect(ctx, sock, func(ev nvimEvent) {
+		ev.conn = conn
+		a.nvimEvent(h, e, ev)
+	})
 	if err != nil {
 		return nil, err
 	}
 	e.setClient(c)
+	go a.clearTabOnExit(h, e.id, e.root, c, conn)
 	go a.adoptReviews(context.Background(), h, e.id, e.root, c)
 	go a.applyTheme(c)
 	go a.offerImport(h, e, c)

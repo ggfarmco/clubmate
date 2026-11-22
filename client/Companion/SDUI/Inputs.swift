@@ -24,6 +24,8 @@ struct ButtonNode: View {
     @State private var confirming = false
     @State private var pressed = 0
     @Environment(\.sduiForm) private var form
+    @Environment(\.sduiInset) private var inset
+    @Environment(\.sduiRowHeight) private var panelRows
 
     private var loading: String? {
         if let verb = node.string("loading"), !verb.isEmpty { return verb }
@@ -43,6 +45,7 @@ struct ButtonNode: View {
             SDUIButtonLabel(label: label, icon: node.string("icon"), variant: node.string("variant"), iconOnly: node.bool("iconOnly") == true && node.string("icon") != nil, loading: loading)
         }
         .buttonStyle(.plain)
+        .padding(.horizontal, panelRows == nil ? 0 : inset)
         .disabled(disabled)
         .opacity(disabled ? 0.5 : 1)
         .accessibilityLabel(label)

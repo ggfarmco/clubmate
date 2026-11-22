@@ -452,8 +452,24 @@ struct ComposerNode: View {
     private var empty: Bool { text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var running: Bool { node.bool("running") == true }
 
+    private var chips: [ContextChip] {
+        (node.props["attachments"]?.arrayValue ?? []).compactMap { value in
+            guard value["context"]?.boolValue == true, let kind = value["kind"]?.stringValue, let label = value["path"]?.stringValue else { return nil }
+            return ContextChip(id: value["id"]?.stringValue, kind: kind, label: label, removable: value["removable"]?.boolValue == true)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            if !chips.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(chips, id: \.key) { chip in
+                            ContextChipView(chip: chip, open: { context.run { await $0.fire(node, .named("context", .null)) } }, remove: { id in context.run { await $0.fire(node, .named("detach", .string(id))) } })
+                        }
+                    }
+                }
+            }
             HStack(alignment: .bottom, spacing: 10) {
                 TextField(node.string("placeholder") ?? "Message", text: $text, axis: .vertical)
                     .lineLimit(1...6)
@@ -484,5 +500,56 @@ struct ComposerNode: View {
         let value = text
         text = ""
         context.run { await $0.fire(node, .named("send", .object(["text": .string(value)]))) }
+    }
+}
+
+struct ContextChip {
+    let id: String?
+    let kind: String
+    let label: String
+    let removable: Bool
+
+    var key: String { id ?? kind + label }
+    var symbol: String {
+        switch kind {
+        case "review": "checklist"
+        case "page": "book"
+        default: "doc.text"
+        }
+    }
+}
+
+struct ContextChipView: View {
+    let chip: ContextChip
+    let open: () -> Void
+    let remove: (String) -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button(action: open) {
+                Label(chip.label, systemImage: chip.symbol)
+                    .font(.footnote)
+                    .lineLimit(1)
+                    .foregroundStyle(Color.captionInk)
+                    .padding(.leading, 12)
+                    .padding(.trailing, chip.removable ? 0 : 12)
+                    .frame(minHeight: 32)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            if chip.removable, let id = chip.id {
+                Button { remove(id) } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Color.captionInk)
+                        .frame(width: 32, height: 32)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Leave out \(chip.label)")
+            }
+        }
+        .background(Color.surface2, in: .capsule)
+        .accessibilityIdentifier("composer.chip.\(chip.kind)")
     }
 }

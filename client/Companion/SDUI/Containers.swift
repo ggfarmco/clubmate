@@ -70,6 +70,7 @@ struct StackNode: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: node.children.contains { $0.type == "divider" })
             .environment(\.sduiInset, 0)
             .padding(.horizontal, inset)
         } else {

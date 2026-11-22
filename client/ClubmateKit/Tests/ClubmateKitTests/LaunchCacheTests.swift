@@ -50,6 +50,15 @@ final class LaunchCacheTests: XCTestCase {
         XCTAssertNil(LaunchCache(url: url, version: "1.0").record("ws"))
     }
 
+    func testChatShowsWhereItWasOpenAndCached() {
+        var record = LaunchRecord()
+        record.kinds = ["wiki.chat": .list]
+        XCTAssertFalse(record.chatShown(in: "wiki"))
+        record.chatHidden = ["wiki": false]
+        XCTAssertTrue(record.chatShown(in: "wiki"))
+        XCTAssertTrue(PaneKind.caches("wiki.chat"))
+    }
+
     func testPaneKindComesFromTheTree() {
         let header = SDUINode(type: "header")
         XCTAssertEqual(PaneKind.of(SDUINode(type: "stack", children: [header, SDUINode(type: "tree")])), .list)

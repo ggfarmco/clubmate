@@ -10,6 +10,8 @@ struct MenuState: Equatable {
     var listShown = false
     var readingView = false
     var canRead = false
+    var canChat = false
+    var chatShown = false
     var canEscape = false
     var canGoBack = false
     var shownTabs: [CompanionTab] = []
@@ -22,6 +24,7 @@ struct MenuState: Equatable {
         if canCreate { items.insert("create") }
         if wide { items.insert("list") }
         if readingView || canRead { items.insert("read") }
+        if chatShown || canChat { items.insert("chat") }
         if canEscape { items.insert("escape") }
         if canGoBack { items.insert("back") }
         if hasComputer { items.insert("inbox") }
@@ -100,6 +103,8 @@ struct MenuFeed: View {
             listShown: navigation.listShown,
             readingView: navigation.readingView,
             canRead: navigation.canRead,
+            canChat: navigation.canChat,
+            chatShown: navigation.chatShown,
             canEscape: navigation.canEscape,
             canGoBack: navigation.canGoBack,
             shownTabs: CompanionTab.keyed.filter { navigation.shows($0, model) },

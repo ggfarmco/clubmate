@@ -21,7 +21,7 @@ public enum PaneKind: String, Codable, Sendable {
     }
 
     public static func caches(_ slot: String) -> Bool {
-        slot.hasSuffix(".main") || slot.hasSuffix(".sidebar")
+        slot.hasSuffix(".main") || slot.hasSuffix(".sidebar") || slot.hasSuffix(ChatColumn.suffix)
     }
 
     private static let decisive: [String: PaneKind] = [
@@ -48,6 +48,7 @@ public struct LaunchRecord: Codable, Equatable, Sendable {
     public var selected: String?
     public var kinds: [String: PaneKind] = [:]
     public var sidebarHidden: [String: Bool] = [:]
+    public var chatHidden: [String: Bool] = [:]
     public var sidebarWidth: Double?
     public var chatWidth: Double?
 
@@ -58,7 +59,7 @@ public struct LaunchRecord: Codable, Equatable, Sendable {
     }
 
     public func chatShown(in section: String) -> Bool {
-        section == CodeSection.id && kinds[CodeSection.chatSlot] != nil && sidebarHidden[CodeSection.id] == false
+        kinds[ChatColumn.slot(for: section)] != nil && chatHidden[section] == false
     }
 
     public func kind(_ slot: String) -> PaneKind {

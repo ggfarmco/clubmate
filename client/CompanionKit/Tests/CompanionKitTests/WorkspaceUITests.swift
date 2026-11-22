@@ -276,6 +276,28 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertEqual(sent, .object(["workspace": .string("w"), "slot": .string("cron.sidebar"), "nodeId": .string("jobs"), "action": .string("select"), "value": .string("cj_check"), "requestId": sent["requestId"]!]))
         server.connection.stop()
     }
+
+    func testOpenSendsPanelOpenEvent() async throws {
+        let server = try UIServer()
+        let ui = try await server.started(["cron.sidebar"])
+        try await ui.openChat(section: "wiki")
+        let sent = try XCTUnwrap(server.events.first)
+        XCTAssertEqual(server.events.count, 1)
+        XCTAssertEqual(sent["slot"], .string("wiki.chat"))
+        XCTAssertEqual(sent["nodeId"], .string("panel"))
+        XCTAssertEqual(sent["action"], .string("open"))
+        server.connection.stop()
+    }
+
+    func testASlotTheMacDoesNotRenderIsAbsent() async throws {
+        let server = try UIServer()
+        server.remove("wiki.chat")
+        let ui = try await server.started(["cron.sidebar"])
+        ui.show(["cron.sidebar", "wiki.chat"], owner: "screen")
+        try await waitUntil { ui.absent == ["wiki.chat"] }
+        XCTAssertNotNil(ui.view("cron.sidebar"))
+        server.connection.stop()
+    }
 }
 
 @MainActor

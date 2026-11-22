@@ -228,9 +228,121 @@ final class StoresTests: XCTestCase {
         store.toggleSidebar()
         XCTAssertEqual(store.sidebarHidden, ["terminals": true])
         XCTAssertNil(store.sidebarSlot)
-        store.revealSidebar(CodeSection.id)
-        XCTAssertEqual(store.sidebarHidden, ["terminals": true, CodeSection.id: false])
+        await store.stop()
+        await client.close()
+    }
+
+    func testToggleChatSendsOpen() async throws {
+        let client = try await startCore(chat: true)
+        let workspace = try await client.createWorkspace(name: "demo")
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
+        try await store.start()
+        store.selectedSection = "echo"
+        try await waitUntil { store.togglesChat }
+        XCTAssertNil(store.columnSlot)
+
+        await store.toggleChat()?.value
+        XCTAssertEqual(store.columnSlot, "echo.chat")
+        let afterShow = try await echoOpens(store)
+        XCTAssertEqual(afterShow, 1)
+
+        XCTAssertNil(store.toggleChat())
+        XCTAssertNil(store.columnSlot)
+        let afterHide = try await echoOpens(store)
+        XCTAssertEqual(afterHide, 1)
+        await store.stop()
+        await client.close()
+    }
+
+    func testRestoreDoesNotSendOpen() async throws {
+        let client = try await startCore(chat: true)
+        let workspace = try await client.createWorkspace(name: "demo")
+        let first = WorkspaceUIStore(client: client, workspaceID: workspace.id)
+        try await first.start()
+        first.selectedSection = "echo"
+        try await waitUntil { first.togglesChat }
+        await first.toggleChat()?.value
+        await first.stop()
+
+        let second = WorkspaceUIStore(client: client, workspaceID: workspace.id)
+        try await second.start()
+        try await waitUntil { second.columnSlot == "echo.chat" }
+        let opens = try await echoOpens(second)
+        XCTAssertEqual(opens, 1)
+        await second.stop()
+        await client.close()
+    }
+
+    func testChatHiddenMigratesFromSidebarHidden() async throws {
+        let client = try await startCore()
+        let workspace = try await client.createWorkspace(name: "demo")
+        try await client.uiStatePatch(workspaceID: workspace.id, key: "sidebarHidden", value: .object([CodeSection.id: .bool(false), "terminals": .bool(true)]))
+
+        let first = WorkspaceUIStore(client: client, workspaceID: workspace.id)
+        try await first.start()
+        XCTAssertEqual(first.chatHidden, [CodeSection.id: false])
+        XCTAssertEqual(first.sidebarHidden, ["terminals": true])
+        await first.stop()
+        let state = try await client.uiStateGet(workspaceID: workspace.id)
+        XCTAssertEqual(state?.objectValue?["chatHidden"], .object([CodeSection.id: .bool(false)]))
+        XCTAssertEqual(state?.objectValue?["sidebarHidden"], .object(["terminals": .bool(true)]))
+
+        try await client.uiStatePatch(workspaceID: workspace.id, key: "sidebarHidden", value: .object([CodeSection.id: .bool(true)]))
+        let second = WorkspaceUIStore(client: client, workspaceID: workspace.id)
+        try await second.start()
+        XCTAssertEqual(second.chatHidden, [CodeSection.id: false])
+        await second.stop()
+
+        let other = try await client.createWorkspace(name: "other")
+        try await client.uiStatePatch(workspaceID: other.id, key: "sidebarHidden", value: .object([CodeSection.id: .bool(true)]))
+        let hidden = WorkspaceUIStore(client: client, workspaceID: other.id)
+        try await hidden.start()
+        XCTAssertEqual(hidden.chatHidden, [CodeSection.id: true])
+        XCTAssertEqual(hidden.sidebarHidden, [:])
+        await hidden.stop()
+        let state2 = try await client.uiStateGet(workspaceID: other.id)
+        XCTAssertEqual(state2?.objectValue?["chatHidden"], .object([CodeSection.id: .bool(true)]))
+        await client.close()
+    }
+
+    func testCtrlCmdSTogglesSidebarOnly() async throws {
+        let client = try await startCore(chat: true)
+        let workspace = try await client.createWorkspace(name: "demo")
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
+        try await store.start()
+        store.selectedSection = "terminals"
+        try await waitUntil { store.togglesSidebar }
+        XCTAssertFalse(store.togglesChat)
+        store.toggleSidebar()
+        XCTAssertEqual(store.sidebarHidden, ["terminals": true])
         XCTAssertNil(store.sidebarSlot)
+        XCTAssertEqual(store.chatHidden, [:])
+
+        store.selectedSection = "echo"
+        try await waitUntil { store.togglesChat }
+        await store.toggleChat()?.value
+        store.toggleSidebar()
+        XCTAssertTrue(store.columnShown)
+        XCTAssertEqual(store.chatHidden, ["echo": false])
+        await store.stop()
+        await client.close()
+    }
+
+    func testAnySectionWithAClaimedChatSlotHasAChatColumn() async throws {
+        let client = try await startCore(chat: true)
+        let workspace = try await client.createWorkspace(name: "demo")
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
+        try await store.start()
+        store.selectedSection = "terminals"
+        XCTAssertFalse(store.togglesChat)
+        XCTAssertNil(store.toggleChat())
+        XCTAssertEqual(store.chatHidden, [:])
+
+        store.selectedSection = "echo"
+        try await waitUntil { store.togglesChat }
+        XCTAssertEqual(ChatColumn.slot(for: "echo"), "echo.chat")
+        store.revealChat("echo")
+        XCTAssertEqual(store.columnSlot, "echo.chat")
         await store.stop()
         await client.close()
     }
@@ -240,16 +352,16 @@ final class StoresTests: XCTestCase {
         let workspace = try await client.createWorkspace(name: "demo")
         let first = WorkspaceUIStore(client: client, workspaceID: workspace.id, legacyChat: LegacyChat(shown: true, width: 420))
         try await first.start()
-        XCTAssertEqual(first.sidebarHidden, [CodeSection.id: false])
+        XCTAssertEqual(first.chatHidden, [CodeSection.id: false])
         XCTAssertEqual(first.chatWidth, 420)
         await first.stop()
         let state = try await client.uiStateGet(workspaceID: workspace.id)
-        XCTAssertEqual(state?.objectValue?["sidebarHidden"], .object([CodeSection.id: .bool(false)]))
+        XCTAssertEqual(state?.objectValue?["chatHidden"], .object([CodeSection.id: .bool(false)]))
         XCTAssertEqual(state?.objectValue?["chatWidth"], .number(420))
 
         let second = WorkspaceUIStore(client: client, workspaceID: workspace.id, legacyChat: LegacyChat(shown: false, width: 300))
         try await second.start()
-        XCTAssertEqual(second.sidebarHidden, [CodeSection.id: false])
+        XCTAssertEqual(second.chatHidden, [CodeSection.id: false])
         XCTAssertEqual(second.chatWidth, 420)
         await second.stop()
         await client.close()
@@ -525,13 +637,14 @@ final class StoresTests: XCTestCase {
         let entries = CommandPalette.entries(commands: commands, sections: sections, sidebar: true, worktrees: worktrees.worktrees)
 
         XCTAssertEqual(entries.map(\.title), ["Open terminal here", "Companion status", "Go to Code", "Go to Terminals", "Toggle sidebar", "Open folder…", "Open Home", "New home terminal", "Switch worktree…", "New worktree…"])
-        XCTAssertEqual(entries.map(\.detail), ["Code", "Remote", "⌘1", "⌘2", "⌘B", "⌘O", "⇧⌘H", "⇧⌘N", "", ""])
+        XCTAssertEqual(entries.map(\.detail), ["Code", "Remote", "⌘1", "⌘2", "⌃⌘S", "⌘O", "⇧⌘H", "⇧⌘N", "", ""])
         XCTAssertEqual(
             entries.map { PaletteAction(entryID: $0.id) },
             [.command("editor-nvim.terminal"), .command("remote.status"), .section("editor-nvim"), .section("terminals"), .toggleSidebar, .openFolder, .openHome, .newHomeTerminal, .switchWorktree, .newWorktree]
         )
         XCTAssertFalse(CommandPalette.entries(commands: [], sections: [], sidebar: false).contains { $0.title == "Toggle sidebar" })
-        XCTAssertEqual(CommandPalette.entries(commands: [], sections: [], sidebar: true, chat: true).first { $0.id == PaletteAction.toggleSidebar.entryID }?.title, "Toggle chat")
+        let chat = CommandPalette.entries(commands: [], sections: [], sidebar: false, chat: true).first { $0.id == PaletteAction.toggleChat.entryID }
+        XCTAssertEqual([chat?.title, chat?.detail], ["Toggle chat", "⌘B"])
         let docs = try JSONDecoder().decode([Command].self, from: Data(#"[{"id":"docs.list","title":"List Docs","plugin":"docs","hidden":true}]"#.utf8))
         let docEntry = try XCTUnwrap(CommandPalette.entries(commands: docs, sections: [], sidebar: false).first)
         XCTAssertEqual([docEntry.title, docEntry.detail], ["Open doc…", "⇧⌘D"])
@@ -672,10 +785,15 @@ final class StoresTests: XCTestCase {
 
     private let exited = SDUINode(type: "stack", children: [SDUINode(type: "text", props: ["text": .string("Terminal exited (code 0)")]), SDUINode(type: "button", id: "restart")])
 
-    private func startCore() async throws -> CoreClient {
-        let core = try await TestCore.start()
+    private func startCore(chat: Bool = false) async throws -> CoreClient {
+        let core = try await TestCore.start(env: chat ? ["ECHO_CHAT": "1"] : [:])
         self.core = core
         return try await CoreClient.connect(paths: core.paths)
+    }
+
+    private func echoOpens(_ store: WorkspaceUIStore) async throws -> Int? {
+        let result = await store.send(UIEvent(workspaceId: store.workspaceID, slot: "echo.main", nodeId: "n", action: "opens"))
+        return try result.get().objectValue?["opens"]?.numberValue.map { Int($0) }
     }
 }
 

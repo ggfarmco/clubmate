@@ -83,7 +83,7 @@ var (
 
 	itemFields = map[string]propCheck{
 		"id": uniqueItemID, "label": isString, "detail": isString, "icon": isString, "badge": isString, "menu": listOf(menuEntryCheck),
-		"truncate": oneOf(truncates), "tone": oneOf(badgeTones), "shortcut": shortcutCheck,
+		"truncate": oneOf(truncates), "tone": oneOf(badgeTones), "shortcut": shortcutCheck, "caption": isString, "section": isBool,
 	}
 	itemRequired = []string{"id", "label"}
 
@@ -95,8 +95,9 @@ var (
 	toolFormats      = []string{"diff", "text", "terminal"}
 	permissionKinds  = []string{"allow_once", "allow_always", "reject_once", "reject_always"}
 	attachSources    = []string{"file", "selection"}
-	attachmentKinds  = []string{"file", "selection", "image"}
-	attachmentFields = map[string]propCheck{"id": uniqueItemID, "kind": oneOf(attachmentKinds), "path": isString, "startLine": countNumber, "endLine": countNumber}
+	attachmentKinds  = []string{"file", "selection", "image", "review", "page"}
+	attachmentFields = map[string]propCheck{"id": uniqueItemID, "kind": oneOf(attachmentKinds), "path": isString, "startLine": countNumber, "endLine": countNumber, "context": isBool, "removable": isBool}
+	listFilterCheck  = objectCheck(nil, map[string]propCheck{"placeholder": isString, "minRows": countNumber})
 	attachmentsCheck = listOf(objectCheck([]string{"kind", "path"}, attachmentFields))
 
 	docCardKinds  = []string{"markdown", "mermaid", "artifact"}
@@ -196,7 +197,7 @@ var (
 		},
 		"list": {
 			required:    []string{"items"},
-			props:       map[string]propCheck{"items": listOf(itemCheck), "selected": isString, "action": actionCheck},
+			props:       map[string]propCheck{"items": listOf(itemCheck), "selected": isString, "action": actionCheck, "focus": isString, "filter": listFilterCheck},
 			children:    noChildren,
 			interactive: true,
 		},
@@ -784,7 +785,18 @@ func uniqueItemID(c *validator, v any) error {
 }
 
 func itemCheck(c *validator, v any) error {
-	return objectCheck(itemRequired, itemFields)(c, v)
+	if err := objectCheck(itemRequired, itemFields)(c, v); err != nil {
+		return err
+	}
+	obj, _ := v.(map[string]any)
+	if section, _ := obj["section"].(bool); section {
+		for _, name := range []string{"menu", "shortcut"} {
+			if _, ok := obj[name]; ok {
+				return fmt.Errorf("section item takes no %s", name)
+			}
+		}
+	}
+	return nil
 }
 
 func headerBadgeCheck(c *validator, v any) error {
@@ -937,6 +949,9 @@ func treeItemCheck(c *validator, v any) error {
 		"labelIcon": isString, "pinned": isBool, "open": oneOf(treeOpens), "mirrorOf": isString, "help": isString,
 	}
 	for k, f := range itemFields {
+		if k == "caption" || k == "section" {
+			continue
+		}
 		fields[k] = f
 	}
 	return objectCheck(itemRequired, fields)(c, v)

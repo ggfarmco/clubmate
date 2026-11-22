@@ -8,7 +8,7 @@ final class WorkspaceUIStoreTests: XCTestCase {
     }
 
     func testChatColumnAtDefaultWidthMakes1280Inline() {
-        let chat = CodeSection.columnWidth(saved: nil, limit: 640)
+        let chat = ChatColumn.width(saved: nil, limit: 640)
         XCTAssertEqual(CodeSection.reviewLayout(width: CodeSection.editorWidth(row: 1280, rail: 40, column: chat)), "inline")
         XCTAssertEqual(CodeSection.reviewLayout(width: CodeSection.editorWidth(row: 1280, rail: 40, column: nil)), "split")
     }

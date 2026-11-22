@@ -26,8 +26,10 @@ const (
 	sidebarSlot   = "agents.sidebar"
 	mainSlot      = "agents.main"
 	sectionID     = "agents"
-	codeSlot      = "editor-nvim.sidebar"
+	codeSlot      = "editor-nvim.chat"
 	editorSection = "editor-nvim"
+	wikiChatSlot  = "wiki.chat"
+	wikiSection   = "wiki"
 
 	renderEvery    = 100 * time.Millisecond
 	tickEvery      = 30 * time.Second
@@ -57,6 +59,8 @@ type uiState struct {
 	sections       map[string]string
 	watched        map[string][]string
 	editorFiles    map[string]editorFile
+	currentReviews map[string]map[string]string
+	wikiPages      map[string]wikiPage
 }
 
 const editorFileTopic = "editor-nvim.file"
@@ -83,8 +87,8 @@ type workspaceUI struct {
 	branch     bool
 	sessions   map[string]*sessionUI
 	focusAfter string
-	code       map[string]string
-	codeRead   bool
+	chat       map[string]chatEntry
+	chatRead   bool
 	folder     *folderSheet
 	archive    *archiveSheet
 	cleanup    *cleanupSheet
@@ -120,6 +124,7 @@ type sessionUI struct {
 	contextSelected string
 	contextOpen     map[string]bool
 	contextReader   *claudectx.Reader
+	contextOff      map[string]string
 }
 
 func newUIState() uiState {
@@ -127,6 +132,7 @@ func newUIState() uiState {
 		ui: map[string]*workspaceUI{}, goneWorkspaces: map[string]bool{}, reposChecked: map[string]bool{}, auth: map[string]authCommand{}, signIns: map[string]string{},
 		resumable: map[string]bool{}, forks: map[string]bool{}, steers: map[string]bool{}, noResume: map[string]bool{}, advisors: map[string]string{},
 		present: map[string]bool{}, sections: map[string]string{}, watched: map[string][]string{}, editorFiles: map[string]editorFile{},
+		currentReviews: map[string]map[string]string{}, wikiPages: map[string]wikiPage{},
 	}
 }
 
@@ -173,6 +179,8 @@ func (a *app) forgetWorkspace(workspaceID string) {
 	delete(a.sections, workspaceID)
 	delete(a.watched, workspaceID)
 	delete(a.editorFiles, workspaceID)
+	delete(a.currentReviews, workspaceID)
+	delete(a.wikiPages, workspaceID)
 	a.uiMu.Unlock()
 	a.reminders.mu.Lock()
 	delete(a.reminders.byWS, workspaceID)
@@ -235,6 +243,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	}
 	home, _, _ := workRoot(workspace)
 	recs := a.list(workspaceID)
+	all := slices.Clone(recs)
 	children := childStatuses(recs)
 	kids := kidsOf(recs)
 	groups := groupKeys(recs, home)
@@ -347,17 +356,25 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 		}
 	}
 	logError("render gates", a.renderGates(ctx, p, workspace, slots))
-	if !slices.Contains(slots, codeSlot) {
-		return nil
+	for _, slot := range []string{wikiChatSlot, codeSlot} {
+		if slices.Contains(slots, slot) {
+			if err := a.renderChat(ctx, p, workspace, all, children, shown, slot); err != nil {
+				return err
+			}
+		}
 	}
-	return a.renderCode(ctx, p, workspace, recs, children, shown)
+	return nil
 }
 
 func (a *app) slots() []string {
+	slots := []string{sidebarSlot, mainSlot, asideSlot, sheetSlot, gatesSidebarSlot, gatesMainSlot}
 	if a.codePanel {
-		return []string{sidebarSlot, mainSlot, asideSlot, sheetSlot, gatesSidebarSlot, gatesMainSlot, codeSlot}
+		slots = append(slots, codeSlot)
 	}
-	return []string{sidebarSlot, mainSlot, asideSlot, sheetSlot, gatesSidebarSlot, gatesMainSlot}
+	if a.wikiPanel {
+		slots = append(slots, wikiChatSlot)
+	}
+	return slots
 }
 
 func (a *app) shownSlots(workspaceID string) []string {
@@ -377,6 +394,9 @@ func (a *app) shownSlots(workspaceID string) []string {
 	}
 	if a.codePanel && shown(editorSection) {
 		slots = append(slots, codeSlot)
+	}
+	if a.wikiPanel && shown(wikiSection) {
+		slots = append(slots, wikiChatSlot)
 	}
 	return slots
 }
@@ -452,37 +472,6 @@ func (a *app) setSection(workspaceID, section string) {
 	if !a.goneWorkspaces[workspaceID] {
 		a.sections[workspaceID] = section
 	}
-}
-
-func (a *app) renderCode(ctx context.Context, p *workspaceUI, workspace pluginsdk.Workspace, recs []record, children map[string]string, shown *screen) error {
-	if !a.codePanel {
-		return nil
-	}
-	root, _, err := workRoot(workspace)
-	if err != nil {
-		return a.push(ctx, p, workspace.ID, codeSlot, sdui.Empty(err.Error()))
-	}
-	bound, err := a.codeSession(ctx, workspace.ID, root)
-	if err != nil {
-		return err
-	}
-	canonical := gitrepo.Canonical(root)
-	here := slices.DeleteFunc(slices.Clone(recs), func(r record) bool {
-		return r.Worktree != root && gitrepo.Canonical(r.Worktree) != canonical
-	})
-	if a.session(bound) == nil || !slices.ContainsFunc(recs, func(r record) bool { return r.ID == bound }) {
-		bound = defaultCodeSession(here)
-	}
-	sc := shown
-	if sc == nil || sc.View.Session.ID != bound {
-		sc = nil
-		if s := a.session(bound); s != nil {
-			v := a.screen(ctx, workspace.ID, s, children[bound])
-			v.Workspace, v.Folders = workspace.Name, workspace
-			sc = &v
-		}
-	}
-	return a.push(ctx, p, workspace.ID, codeSlot, codeView(here, bound, sc, a.editorFile(workspace.ID, root)))
 }
 
 func (a *app) setEditorFile(f editorFile) bool {
@@ -676,54 +665,6 @@ func (a *app) push(ctx context.Context, p *workspaceUI, workspaceID, slot string
 	}
 	p.sent[slot] = raw
 	return nil
-}
-
-func (a *app) codeSessions(ctx context.Context, workspaceID string) (map[string]string, error) {
-	p := a.workspaceState(workspaceID)
-	a.uiMu.Lock()
-	read, code := p.codeRead, maps.Clone(p.code)
-	a.uiMu.Unlock()
-	if read {
-		return code, nil
-	}
-	if _, err := a.host.StorageGet(ctx, codeKey+workspaceID, &code); err != nil {
-		return nil, err
-	}
-	a.uiMu.Lock()
-	defer a.uiMu.Unlock()
-	if !p.codeRead {
-		p.code, p.codeRead = code, true
-	}
-	return maps.Clone(p.code), nil
-}
-
-func (a *app) codeSession(ctx context.Context, workspaceID, root string) (string, error) {
-	code, err := a.codeSessions(ctx, workspaceID)
-	return code[root], err
-}
-
-func (a *app) bindCode(ctx context.Context, workspaceID, sid string) error {
-	workspace, err := a.host.GetWorkspace(ctx, workspaceID)
-	if err != nil {
-		return err
-	}
-	root, _, err := workRoot(workspace)
-	if err != nil {
-		return err
-	}
-	code, err := a.codeSessions(ctx, workspaceID)
-	if err != nil {
-		return err
-	}
-	if code == nil {
-		code = map[string]string{}
-	}
-	code[root] = sid
-	p := a.workspaceState(workspaceID)
-	a.uiMu.Lock()
-	p.code = maps.Clone(code)
-	a.uiMu.Unlock()
-	return a.host.StorageSet(ctx, codeKey+workspaceID, code)
 }
 
 func (a *app) resolveSelected(ctx context.Context, workspaceID string, recs []record) (string, error) {

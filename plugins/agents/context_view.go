@@ -223,6 +223,9 @@ func (v *sessionUI) contextEvent(action, id string) {
 
 func isContextEvent(ev pluginsdk.UIEvent) (string, bool) {
 	sid, rest, ok := strings.Cut(ev.NodeID, "/")
+	if ok && ev.Action == actContext && strings.HasPrefix(rest, "composer/") {
+		return sid, true
+	}
 	if !ok || (rest != contextNode && !strings.HasPrefix(rest, contextNode+"/")) {
 		return "", false
 	}

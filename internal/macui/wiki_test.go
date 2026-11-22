@@ -8,8 +8,11 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/testutil"
 )
 
 func TestWikiAgentNotesFoldHistoryKeyAndRestoreConfirm(t *testing.T) {
@@ -83,6 +86,51 @@ func TestWikiMarginAllChangesOpensHistory(t *testing.T) {
 	in.eventually("a click on All 4 changes in the margin opens History", opened)
 }
 
+func TestWikiChatPanelOpensOnPicker(t *testing.T) {
+	in := start(t, "macui-wiki-chat", askScript)
+	for i := range 4 {
+		args, err := json.Marshal(map[string]string{"page": "a.md", "content": "# A\n\nBody " + strconv.Itoa(i) + ".\n", "summary": "v" + strconv.Itoa(i)})
+		require.NoError(t, err)
+		in.cm("command", "run", "wiki.write", "--args", string(args))
+	}
+	var spawned struct {
+		Session string `json:"session"`
+	}
+	in.json(&spawned, "agent", "spawn", "Hello")
+	in.focusSection("wiki", "wiki.sidebar")
+	var page *element
+	in.eventually("the page shows at 1280", func() bool {
+		page = in.snapshotAt("1280x800").main().find(func(e element) bool { return e.ID == "page" })
+		return page != nil
+	})
+	marginShown := func() bool {
+		for y := 90; y <= 140; y += 5 {
+			in.pointer("click", "page", "--at", fmt.Sprintf("%d,%d", int(page.Frame.Width)-110, y))
+			if in.snapshot().main().has("changes") {
+				return true
+			}
+		}
+		return false
+	}
+	in.eventually("the margin is beside the page", marginShown)
+	in.key("cmd+y")
+	in.eventually("cmd+y goes back to the page", func() bool { return in.snapshot().main().has("page") })
+
+	in.key("cmd+b")
+	row := "chat/sessions#" + spawned.Session
+	in.eventually("cmd+b opens the picker with the suggestion selected", func() bool { return hasRole(in.snapshot().main().node(row), "selected") })
+	in.key("return")
+	in.focusIn(spawned.Session)
+	in.eventually("the margin is folded while the panel shows", func() bool { return !marginShown() })
+
+	in.key("cmd+b")
+	in.eventually("cmd+b again closes the panel", func() bool { return !in.snapshot().main().has("chat/sessions") })
+	in.eventually("the margin is back", func() bool {
+		page = in.snapshotAt("1280x800").main().find(func(e element) bool { return e.ID == "page" })
+		return page != nil && marginShown()
+	})
+}
+
 func TestWikiFolderRowOpensItsIndexPage(t *testing.T) {
 	in := start(t, "macui-wiki-index", "")
 	for page, content := range map[string]string{"a.md": "# A\n\nBody.\n", "guides/sdui/index.md": "# SDUI protocol\n\nIndex.\n", "guides/sdui/nodes.md": "# Nodes\n\nNodes.\n", "guides/sdui/examples/e.md": "# Example\n\nE.\n", "solo/index.md": "# Solo page\n\nSolo.\n"} {
@@ -147,4 +195,61 @@ func TestWikiFolderRowOpensItsIndexPage(t *testing.T) {
 
 	in.pointer("click", row("/solo/index.md").ID)
 	in.eventually("a folder holding only its page opens like a page", func() bool { return title() == "Solo page" && selected("/solo/index.md") })
+}
+
+func TestChatPickerFilterTakesN(t *testing.T) {
+	in := start(t, "macui-chat-filter", "")
+	args, err := json.Marshal(map[string]string{"page": "a.md", "content": "# A\n\nBody.\n", "summary": "seed"})
+	require.NoError(t, err)
+	in.cm("command", "run", "wiki.write", "--args", string(args))
+	prompts := []string{"Check nq row", "Fix q bug"}
+	for i := range 9 {
+		prompts = append(prompts, "Fix bug "+strconv.Itoa(i))
+	}
+	var first struct {
+		Session string `json:"session"`
+	}
+	in.json(&first, "agent", "spawn", prompts[0])
+	for i, p := range prompts[1:] {
+		if i < 7 {
+			in.cm("agent", "spawn", p)
+		} else {
+			in.runAs(first.Session, "agent", "spawn", p)
+		}
+	}
+	in.eventually("every session has its title", func() bool {
+		var titles []string
+		for _, s := range in.sessions() {
+			titles = append(titles, s.Title)
+		}
+		return len(titles) == len(prompts) && !slices.ContainsFunc(prompts, func(p string) bool { return !slices.Contains(titles, p) })
+	})
+	in.focusSection("wiki", "wiki.sidebar")
+	in.key("cmd+b")
+	rows := func() []string {
+		var labels []string
+		for _, e := range in.snapshot().main().elements {
+			if strings.HasPrefix(e.ID, "chat/sessions#agt_") {
+				labels = append(labels, e.Label)
+			}
+		}
+		return labels
+	}
+	in.eventually("the picker lists every session", func() bool { return len(rows()) == len(prompts) })
+	w := in.snapshot().main()
+	list, add := w.node("chat/sessions"), w.node("chat/new")
+	require.NotNil(t, list)
+	require.NotNil(t, add)
+	require.Greater(t, add.Frame.X, list.Frame.X, "the chat column insets New session from the pane edge")
+
+	in.key("/")
+	in.eventually("/ focuses the filter", func() bool { return strings.Contains(in.snapshot().key().Responder, "FieldEditor") })
+	in.key("n", "q")
+
+	only := func() bool {
+		r := rows()
+		return len(r) == 1 && strings.Contains(r[0], "Check nq row")
+	}
+	in.eventually("n goes into the filter, so nq shows only its row", only)
+	testutil.Never(t, func() bool { return len(in.sessions()) != len(prompts) || !only() }, testutil.Timeout(time.Second))
 }

@@ -18,15 +18,15 @@ final class SectionHostingTests: XCTestCase {
 
     func testHostedSectionResolvesToItsHostTab() throws {
         let all = try sections(#"""
-        [{"id":"editor-nvim","title":"Code","icon":"","order":10,"scope":"workspace","plugin":"editor-nvim"},
-         {"id":"alpha","title":"Alpha","icon":"","order":15,"scope":"workspace","plugin":"alpha","host":"editor-nvim","slots":["extra"]}]
+        [{"id":"files","title":"Files","icon":"","order":10,"scope":"workspace","plugin":"files"},
+         {"id":"alpha","title":"Alpha","icon":"","order":15,"scope":"workspace","plugin":"alpha","host":"files","slots":["extra"]}]
         """#)
 
-        XCTAssertEqual(SectionHosting.rail(all).map(\.id), ["editor-nvim"])
-        XCTAssertEqual(SectionHosting.resolve("alpha", slot: "alpha.sidebar", in: all), SectionTarget(section: "editor-nvim", tab: "alpha.sidebar", slot: "editor-nvim.sidebar"))
-        XCTAssertEqual(SectionHosting.resolve("alpha", slot: "", in: all), SectionTarget(section: "editor-nvim", tab: "alpha.sidebar", slot: ""))
-        XCTAssertEqual(SectionHosting.resolve("alpha", slot: "alpha.extra", in: all), SectionTarget(section: "editor-nvim", tab: "alpha.extra", slot: "editor-nvim.sidebar"))
-        XCTAssertEqual(SectionHosting.resolve("editor-nvim", slot: "editor-nvim.main", in: all), SectionTarget(section: "editor-nvim", tab: nil, slot: "editor-nvim.main"))
+        XCTAssertEqual(SectionHosting.rail(all).map(\.id), ["files"])
+        XCTAssertEqual(SectionHosting.resolve("alpha", slot: "alpha.sidebar", in: all), SectionTarget(section: "files", tab: "alpha.sidebar", slot: "files.sidebar"))
+        XCTAssertEqual(SectionHosting.resolve("alpha", slot: "", in: all), SectionTarget(section: "files", tab: "alpha.sidebar", slot: ""))
+        XCTAssertEqual(SectionHosting.resolve("alpha", slot: "alpha.extra", in: all), SectionTarget(section: "files", tab: "alpha.extra", slot: "files.sidebar"))
+        XCTAssertEqual(SectionHosting.resolve("files", slot: "files.main", in: all), SectionTarget(section: "files", tab: nil, slot: "files.main"))
         XCTAssertEqual(SectionHosting.rail(Array(all.dropFirst())).map(\.id), ["alpha"])
     }
 

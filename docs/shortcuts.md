@@ -16,7 +16,8 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⌘W | In Terminals, close the selected terminal, asking first while it runs a process; in a window with no workspace, close the window; in other sections of a workspace window, nothing (the popup and VS Code have their own rows) | `ClubmateApp.swift` (`CloseKeyOwner`) |
 | ⌥⌘⌫ | Close Session: the terminal session shown in the main pane, asking first while it runs a process (as ⌘W); in Agents the selected agent session with its child sessions, as its row's Close Session (a closed one stays as it is), asking first while its turn or a child session's turn runs or waits (`agents.busy`); with focus anywhere in an aside beside its parent (its prompt, a message, a card), that aside (Close without sending? when something is unsent) | `ClubmateApp.swift`, `ClubmateKit/CommandInvocation.swift` (`AgentsSection`) |
 | ⌘K | Command Palette | `ClubmateApp.swift` |
-| ⌘B, ⌃⌘S | Toggle Sidebar; in Neovim, Toggle Chat: the right column with the agent chat panel (per window) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
+| ⌘B | Toggle Chat in Code and Wiki: the right column with the agent chat panel (per workspace; stacked under the editor or the page below 1100 pt). Opening it shows the session picker and focuses the suggestion; hiding it returns focus to the section's main pane. The first time in a workspace that ⌘B shows the chat in Wiki, a banner says "⌘B now opens chat; the tree is ⌃⌘S". In a section without a chat panel it does nothing | `ClubmateApp.swift`, `WorkspaceUIStore.swift` |
+| ⌃⌘S | Toggle Sidebar (the tree) in every section that has one; it never touches the chat panel, and Code has no sidebar | `ClubmateApp.swift`, `WorkspaceUIStore.swift` |
 | ⌘= (⌘+), ⌘-, ⌘0 | Font size up, down, reset where focus is: in a terminal or nvim (or with nothing focused) the terminal font for all terminals; in the agent chat (composer) the chat font, shared by every chat; in another pane (e.g. the Backlog sidebar) that plugin's font, both its sidebar and its main pane. The terminal font is Settings → Terminals → Font size, the chat font Settings → Agents → Chat font size and a plugin's font its own Settings page → Font size; a plugin follows Settings → General → Interface font size until zoomed or set there, ⌘0 puts it back (General → Plugin fonts resets them all); sizes are kept across restarts. While the popup shows a doc and has focus it zooms the doc instead, see below | `ClubmateApp.swift`, `WorkspaceLayout.swift`, `WorkspacePanes.swift` (`ClubmateKit/PaneFocus.swift`, `AppSettings.swift`) |
 | ⌘1…⌘9 | Switch to the Nth section in the rail, in your order (drag icons to reorder; right-click the rail to reset). Graphs and Gates are not in the rail: they are docked at the bottom of the Agents sidebar (see § Trees), so ⌘8 and ⌘9 go to the sections after them | `ClubmateApp.swift` |
 | ⌃⌘→, ⌃⌘← | Next, previous workspace | `ClubmateApp.swift` |
@@ -103,7 +104,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌘Y | Show the wiki page's history; again (Back to page) shows the page | wiki |
 | ↩ | Edit the task title (title focused); while editing ↩ saves it, Esc cancels | backlog |
 | @ | In the empty Attachments field: pick a file to attach | backlog |
-| ⌘I | Show the session's context, or back to the transcript | agents |
+| ⌘I | Show the session's context, or back to the transcript; in the chat panel, with the composer focused and showing context chips (they replace the header button), the same as a click on a chip | agents, `SDUI/ComposerView.swift` |
 | ⌘R | Open the session's review in the Code section (while it opened or received an open review; the header's Open review, printed also on that review's card in the transcript) | agents |
 | ⇧K | Kill the selected process and its children (confirmed) | processes |
 | ⇧⌘R | Reveal the selected process's executable in Finder | processes |
@@ -343,6 +344,7 @@ Defined by the `keys` scope in `plugins/agents/open_view.go`, handled in `plugin
 | ⇧⌘F | Focus the current tab's search field: Agents, Backlog or Wiki (on the iPhone layout it pops to the tab root first); off on More (Edit menu, Search) |
 | ↩ | In the Backlog list's search field (iPhone too), with a number that pins a task: open that task on the Backlog stack; typing never opens it |
 | ⌃⌘S | iPad: show or hide the current tab's list column (list + detail ↔ detail only), the same as the sidebar button at the edge of the bar; where the detail would keep less than 640 pt (11-inch portrait) the list slides over the open page. Each tab keeps its state; from the reading view it leaves the reading view (View menu, Show List / Hide List) |
+| ⌘B | iPad, on a wiki page: show or hide the chat panel (the Chat button in the page toolbar; View menu, Show Chat / Hide Chat). A 400 pt panel beside the page in a window wider than 1000 pt, which hides the list column until it closes; a sheet otherwise. ⌃⌘S while the panel is beside the page closes it. In the picker (focus in the panel) ↩ takes the suggested row, ↑ ↓ j k move, `/` focuses the filter and N starts a new session; All sessions has no ⌘[ on the iPad, ⌘[ stays Back in the detail column |
 | ⌃⌘F | iPad: reading view on or off on a wiki page, a doc page or a session: no bars, no columns, prose min(780, width − 56) pt centred (a session: 680 pt), code and tables up to 1060 pt, the wiki margin folded; leaving restores the columns (View menu) |
 | Esc | iPad, in order: leave the reading view → close the list over the open page (11-inch portrait) → otherwise the key goes on (the voice panel's Cancel or No). Never stops a turn (View menu) |
 | ⌘[ | Back (the chevron or the back chip); on the iPad only inside the detail column (Go menu) |
@@ -362,6 +364,18 @@ The review's file panel is the diffview fork's, inside nvim; its keys are in the
 | ⌘↩ | In the Send sheet: send the open comments to the chosen session | `plugins/editor-nvim/review_send.go`, `SDUI/FormSheet.swift` |
 | ⎋ | In the Send sheet: cancel | `SDUI/FormSheet.swift` |
 
+## Chat panel session picker (Code or Wiki, the picker has focus)
+
+The picker keys act only while the picker has focus, so they never reach Neovim, a terminal or the composer. Defined by the agents plugin (`plugins/agents/chat_panel.go`); the client draws the list and its filter.
+
+| Keys | Action | Where defined |
+|---|---|---|
+| ↩ | Take the focused row (the suggestion when the picker opens); in the filter field, the first match | `plugins/agents/chat_panel.go`, `SDUI/CollectionViews.swift` |
+| ↑ ↓, J K | Move between the rows | `SDUI/CollectionViews.swift` |
+| N | New session (in Code with a review current: New session for this review) | `plugins/agents/chat_panel.go` |
+| / | Focus the filter field; ⎋ clears it | `SDUI/CollectionViews.swift` |
+| ⌘[ | In the chat after the pick: All sessions, back to the picker | `plugins/agents/chat_panel.go` |
+
 ## Code chat panel starters (session with no turns yet)
 
 Starters have no keys: ⌥1–⌥3 answer permission requests only. A click sends the starter prompt; "Explain" and "Write a test" attach the file open in Neovim. Defined by the agents plugin (`plugins/agents/view.go`).
@@ -374,7 +388,7 @@ While a VS Code page (a `webview` node) has focus, these keys go to it instead o
 |---|---|---|
 | ⌘W, ⌘N, ⌘O, ⌘P, ⇧⌘P | Go to VS Code (close editor, new file, open, quick open, command palette) | `WebViewHost.swift` (`CodeWebView`) |
 | ⌘K | Stays the Command Palette, so VS Code's ⌘K chords don't work | `ClubmateApp.swift` |
-| ⌘B | Stays Toggle Sidebar (the chat panel is only in the Neovim section), so VS Code's sidebar toggle is shadowed | `ClubmateApp.swift` |
+| ⌘B | Stays Toggle Chat (VS Code has no chat panel, so it does nothing), so VS Code's sidebar toggle is shadowed | `ClubmateApp.swift` |
 | ⌘J | Stays Switch Popup Focus; use ⌃` for VS Code's panel | `ClubmateApp.swift` |
 
 ## nvim (Clubmate distribution, leader `,`)
@@ -456,6 +470,5 @@ Paths are relative to `nvim-distro/`.
 ## Ergonomics notes
 
 - ⌘W does different things by focus and section: the popup, VS Code, the selected terminal in Terminals, the window without a workspace, nothing in other sections.
-- Toggle Sidebar has two bindings (⌘B and ⌃⌘S). Consider dropping one.
 - ↩ and o in a tree differ only on items with children (↩ toggles, o selects). Consider merging them.
 - nvim: `gr` (rename) waits for `timeoutlen` before firing, because nvim 0.12's built-in `grn`/`grr`/`gri`/`gra` start with it.

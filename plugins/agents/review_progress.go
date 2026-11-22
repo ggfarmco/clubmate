@@ -210,6 +210,13 @@ func (a *app) reviewsChanged(ctx context.Context, seq int64, people map[string][
 	}
 }
 
+func (b *reviewBoard) ref(id string) (reviewRef, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	p, ok := b.open[id]
+	return reviewRef{ID: p.ID, Worktree: p.Worktree, Base: p.Base, Head: p.Head, Opener: p.Opener, Recipient: p.Recipient}, ok
+}
+
 func (b *reviewBoard) progress(session string) *reviewProgress {
 	b.mu.Lock()
 	defer b.mu.Unlock()

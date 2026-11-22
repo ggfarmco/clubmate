@@ -8,10 +8,21 @@ public struct SDUIAttachment: Sendable, Equatable, Identifiable {
     public let path: String
     public let startLine: Int?
     public let endLine: Int?
+    public let context: Bool
+    public let removable: Bool
 
     public var id: String { key ?? "\(kind):\(path):\(startLine ?? 0)-\(endLine ?? 0)" }
 
+    public var icon: String {
+        switch kind {
+        case "review": "arrow.triangle.branch"
+        case "page": "doc.text"
+        default: "paperclip"
+        }
+    }
+
     public var label: String {
+        if kind == "review" || kind == "page" { return path }
         if kind == "image" { return path.isEmpty || path == "image" ? "Image" : "Image · \(path)" }
         guard kind == "selection", let startLine else { return "@ \(path)" }
         guard let endLine, endLine != startLine else { return "\(path) · line \(startLine)" }
@@ -25,6 +36,8 @@ public struct SDUIAttachment: Sendable, Equatable, Identifiable {
         self.path = path
         startLine = fields["startLine"]?.numberValue.map(Int.init)
         endLine = fields["endLine"]?.numberValue.map(Int.init)
+        context = fields["context"]?.boolValue ?? false
+        removable = fields["removable"]?.boolValue ?? false
     }
 }
 

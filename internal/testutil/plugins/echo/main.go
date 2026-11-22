@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 )
+
+var chatOpens atomic.Int64
 
 type forkedPayload struct {
 	PID int `json:"pid"`
@@ -55,6 +58,9 @@ func initialize(ctx context.Context, h *pluginsdk.Host) error {
 		if _, err := h.Render(ctx, p.ID, mainSlot(h), sdui.Text("hello")); err != nil {
 			return err
 		}
+		if err := renderChat(ctx, h, p.ID); err != nil {
+			return err
+		}
 	}
 	_, err = h.Subscribe(ctx, "workspace.*", ready.Seq)
 	return err
@@ -75,9 +81,26 @@ func busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev pluginsdk.Eve
 	if _, err := h.Render(ctx, created.Workspace, mainSlot(h), sdui.Text("hello")); err != nil {
 		fmt.Fprintln(os.Stderr, "echo: render:", err)
 	}
+	if err := renderChat(ctx, h, created.Workspace); err != nil {
+		fmt.Fprintln(os.Stderr, "echo: render chat:", err)
+	}
+}
+
+func renderChat(ctx context.Context, h *pluginsdk.Host, workspace string) error {
+	if os.Getenv("ECHO_CHAT") != "1" {
+		return nil
+	}
+	_, err := h.Render(ctx, workspace, h.PluginID()+".chat", sdui.Text("chat"))
+	return err
 }
 
 func uiEvent(_ context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
+	if ev.Action == "open" && ev.NodeID == "panel" {
+		return map[string]any{"slot": ev.Slot, "opens": chatOpens.Add(1)}, nil
+	}
+	if ev.Action == "opens" {
+		return map[string]any{"opens": chatOpens.Load()}, nil
+	}
 	if ev.Action != "say" {
 		return nil, fmt.Errorf("unknown action %q", ev.Action)
 	}

@@ -22,6 +22,22 @@ final class SDUITests: XCTestCase {
         XCTAssertEqual(DiffLine.rows(lines, fold: false).count, 5)
     }
 
+    func testItemDecodesCaptionAndSection() throws {
+        let json = #"{"type": "list", "id": "pick", "props": {"focus": "a", "filter": {"placeholder": "Filter sessions", "minRows": 10}, "items": [{"id": "s", "label": "Suggested", "section": true}, {"id": "a", "label": "Fix login", "caption": "opened this review · 3 m"}, {"id": "b", "label": "Refactor", "caption": "wt-2 · 1 h"}]}}"#
+        let list = try JSONDecoder().decode(SDUINode.self, from: Data(json.utf8))
+        let items = list.items()
+
+        XCTAssertEqual(items.map(\.section), [true, false, false])
+        XCTAssertEqual(items.map(\.caption), [nil, "opened this review · 3 m", "wt-2 · 1 h"])
+        XCTAssertEqual(list.string("focus"), "a")
+
+        let filter = try XCTUnwrap(list.listFilter())
+        XCTAssertEqual(filter.placeholder, "Filter sessions")
+        XCTAssertFalse(filter.shown(rows: 9))
+        XCTAssertTrue(filter.shown(rows: 10))
+        XCTAssertEqual(items.filter { SDUIListFilter.matches($0, "WT-2") }.map(\.id), ["b"])
+    }
+
     func testTableDecodes() throws {
         let json = """
         {"type": "table", "id": "procs", "props": {

@@ -179,6 +179,26 @@ final class IPadUITests: XCTestCase {
         XCTAssertEqual(title.frame.minX, text.frame.minX, accuracy: 2)
     }
 
+    func testWikiChatPanelOpensOnPicker() {
+        let app = openCheckoutFlow()
+        let row = app.buttons["Checkout flow"].firstMatch
+        let panel = app.otherElements["chat.panel"]
+        app.buttons["wiki.chat"].tap()
+        XCTAssertTrue(panel.waitForExistence(timeout: 10))
+        let first = app.staticTexts["Wiki: document review flow"]
+        let second = app.staticTexts["Fix flaky land gate test"]
+        XCTAssertTrue(shown(second))
+        XCTAssertFalse(app.staticTexts["I can add a paragraph under Send about a closed opener."].exists)
+        XCTAssertEqual(panel.frame.width, 400, accuracy: 2)
+        XCTAssertGreaterThanOrEqual(second.frame.minY - first.frame.minY, 56)
+        XCTAssertTrue(listHidden(app))
+        app.buttons["chat.close"].tap()
+        XCTAssertTrue(wait { !panel.exists })
+        XCTAssertTrue(shown(row))
+        XCTAssertTrue(press(app, "b", .command, until: panel.waitForExistence(timeout: 4)))
+        XCTAssertTrue(listHidden(app))
+    }
+
     func testScrolledWikiPageKeepsOneBarThenReads() {
         let app = openCheckoutFlow()
         let bar = app.navigationBars["Checkout flow"]

@@ -111,6 +111,7 @@ type fakeHost struct {
 	mu       sync.Mutex
 	views    map[string]sdui.Node
 	payloads []reviewPayload
+	current  []currentReview
 	store    map[string][]byte
 	sessions []agentSession
 	sent     []sendReviewArgs
@@ -191,8 +192,11 @@ func (f *fakeHost) Render(_ context.Context, ws, slot string, n sdui.Node) (int6
 func (f *fakeHost) Publish(_ context.Context, topic string, payload any) (pluginsdk.Event, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if topic == reviewTopic {
+	switch topic {
+	case reviewTopic:
 		f.payloads = append(f.payloads, payload.(reviewPayload))
+	case currentReviewTopic:
+		f.current = append(f.current, payload.(currentReview))
 	}
 	return pluginsdk.Event{}, nil
 }
@@ -210,7 +214,7 @@ func (f *fakeHost) last() reviewPayload {
 }
 
 func newTestApp() *app {
-	return &app{reviews: map[string]*review{}, reviewSel: map[string]string{}, reviewLayouts: map[string]string{}, reviewPublished: map[string]reviewPayload{}, reviewWatched: map[*client]bool{}, readComments: func(string) ([]reviewComment, error) { return nil, nil }}
+	return &app{reviews: map[string]*review{}, reviewSel: map[string]string{}, reviewLayouts: map[string]string{}, reviewPublished: map[string]reviewPayload{}, reviewTabs: map[string]editorTab{}, currentSent: map[string]currentReview{}, reviewWatched: map[*client]bool{}, readComments: func(string) ([]reviewComment, error) { return nil, nil }}
 }
 
 func openTestReview(t *testing.T, a *app, h *fakeHost, nv *fakeReviewer) *review {
@@ -244,6 +248,53 @@ func TestReviewFollowsNvimEvents(t *testing.T) {
 	assert.True(t, isReviewDB("/repo/.git/review.db-wal"))
 	a.syncReviews(t.Context(), h, "ws")
 	assert.Equal(t, 0, h.last().Open)
+}
+
+func TestReviewCurrentPublishedOnTabEnter(t *testing.T) {
+	a, h := newTestApp(), &fakeHost{}
+	nv := &fakeReviewer{}
+	first := openTestReview(t, a, h, nv)
+	second := newReview("ws", "/repo", reviewKey{Worktree: "/repo", Base: "feat"}, 2, nv, nv.readComments)
+	a.reviewMu.Lock()
+	a.addReviewLocked(second)
+	a.reviewMu.Unlock()
+	current := func() currentReview {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		return h.current[len(h.current)-1]
+	}
+
+	a.tabEntered(t.Context(), h, "ws", "/repo", 2)
+	assert.Equal(t, currentReview{WorkspaceID: "ws", Worktree: "/repo", ID: second.ID}, current())
+	a.tabEntered(t.Context(), h, "ws", "/repo", 1)
+	assert.Equal(t, first.ID, current().ID)
+	a.tabEntered(t.Context(), h, "ws", "/repo", 1)
+	assert.Len(t, h.current, 2)
+	a.tabEntered(t.Context(), h, "ws", "/repo", 3)
+	assert.Equal(t, currentReview{WorkspaceID: "ws", Worktree: "/repo"}, current())
+
+	a.tabEntered(t.Context(), h, "ws", "/repo", 1)
+	a.applyReviewEvent(t.Context(), h, "ws", "/repo", nvimEvent{Event: "review", Kind: "closed", Tab: 1})
+	assert.Empty(t, current().ID)
+
+	held, exited := &nvimConn{}, &nvimConn{}
+	a.setTab("ws", "/repo", 4, exited)
+	a.setTab("ws", "/repo", 4, held)
+	a.clearTab(t.Context(), h, "ws", "/repo", exited)
+	late := newReview("ws", "/repo", reviewKey{Worktree: "/repo", Base: "late"}, 4, nv, nv.readComments)
+	a.reviewMu.Lock()
+	a.addReviewLocked(late)
+	a.reviewChangedLocked(t.Context(), h, late)
+	a.reviewMu.Unlock()
+	assert.Equal(t, late.ID, current().ID)
+
+	a.clearTab(t.Context(), h, "ws", "/repo", held)
+	assert.Empty(t, current().ID)
+	sent := len(h.current)
+	a.reviewMu.Lock()
+	a.reviewChangedLocked(t.Context(), h, late)
+	a.reviewMu.Unlock()
+	assert.Len(t, h.current, sent)
 }
 
 func TestReviewKeepsCommentsWhenNrevFails(t *testing.T) {

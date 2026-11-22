@@ -34,6 +34,7 @@ public enum PaletteAction: Hashable, Sendable {
     case command(String)
     case section(String)
     case toggleSidebar
+    case toggleChat
     case openFolder
     case openHome
     case newHomeTerminal
@@ -48,7 +49,7 @@ public enum PaletteAction: Hashable, Sendable {
     case openDoc
 
     private static let fixed: [PaletteAction] = [
-        .toggleSidebar, .openFolder, .openHome, .newHomeTerminal,
+        .toggleChat, .toggleSidebar, .openFolder, .openHome, .newHomeTerminal,
         .renameWorkspace, .closeWorkspace, .removeWorkspace, .moveWorkspaceToNewWindow,
         .switchWorktree, .newWorktree, .removeWorktree, .openDoc,
     ]
@@ -73,6 +74,7 @@ public enum PaletteAction: Hashable, Sendable {
         case .section(let id): "section:\(id)"
         case .switchWorkspace(let id): "workspace:\(id)"
         case .toggleSidebar: "toggle-sidebar"
+        case .toggleChat: "toggle-chat"
         case .openFolder: "open-folder"
         case .openHome: "open-home"
         case .newHomeTerminal: "new-home-terminal"
@@ -96,9 +98,10 @@ extension CommandPalette {
         let sectionEntries = SectionHosting.rail(sections).enumerated().map { index, section in
             PaletteEntry(id: PaletteAction.section(section.id).entryID, title: "Go to \(section.title)", detail: index < 9 ? "⌘\(index + 1)" : "")
         }
-        let sidebarEntries = sidebar ? [PaletteEntry(id: PaletteAction.toggleSidebar.entryID, title: chat ? "Toggle chat" : "Toggle sidebar", detail: "⌘B")] : []
+        let chatEntries = chat ? [PaletteEntry(id: PaletteAction.toggleChat.entryID, title: "Toggle chat", detail: "⌘B")] : []
+        let sidebarEntries = sidebar ? [PaletteEntry(id: PaletteAction.toggleSidebar.entryID, title: "Toggle sidebar", detail: "⌃⌘S")] : []
         let docEntries = commands.contains { $0.id == DocsPicker.listCommand } ? [PaletteEntry(id: PaletteAction.openDoc.entryID, title: "Open doc…", detail: "⇧⌘D")] : []
-        return commandEntries + sectionEntries + sidebarEntries + docEntries + workspaceEntries(workspaces, active: active) + worktreeEntries(worktrees)
+        return commandEntries + sectionEntries + chatEntries + sidebarEntries + docEntries + workspaceEntries(workspaces, active: active) + worktreeEntries(worktrees)
     }
 
     private static func pluginName(_ plugin: String, sections: [SectionInfo]) -> String {

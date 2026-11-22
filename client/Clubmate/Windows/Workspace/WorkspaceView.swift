@@ -41,7 +41,9 @@ struct WorkspaceView: View {
             .onChange(of: session.store?.focusRequest) { _, request in
                 guard let request, !request.slot.isEmpty else { return }
                 session.closeOverlay()
-                if request.slot.hasSuffix(Self.sidebarSuffix) {
+                if let section = ChatColumn.section(ofSlot: request.slot), session.store?.hasSlot(request.slot) == true {
+                    session.store?.revealChat(section)
+                } else if request.slot.hasSuffix(Self.sidebarSuffix) {
                     session.store?.revealSidebar(String(request.slot.dropLast(Self.sidebarSuffix.count)))
                 }
                 focus.request(request.field ? request.slot + SidebarField.suffix : request.slot, node: request.node)
@@ -88,15 +90,25 @@ struct WorkspaceView: View {
                 guard let new, new.hidden, old?.section == new.section, old?.hidden == false else { return }
                 focus.request("\(new.section).main")
             }
-            .onChange(of: columnShown) { old, shown in
-                guard old != nil, let shown else { return }
-                focus.request(shown ? session.store?.columnSlot ?? CodeSection.chatSlot : "\(CodeSection.id).main")
+            .onChange(of: columnKey) { old, new in
+                guard let old, let new, old.section == new.section, old.shown != new.shown else { return }
+                focus.request(new.shown ? ChatColumn.slot(for: new.section) : "\(new.section).main")
+            }
+            .onChange(of: session.store?.chatKeyHint) { _, hint in
+                guard let hint else { return }
+                session.banner.show(hint, quiet: true)
+                session.store?.chatKeyHint = nil
             }
     }
 
-    private var columnShown: Bool? {
-        guard let store = session.store, store.togglesChat else { return nil }
-        return store.columnShown
+    private struct ColumnKey: Equatable {
+        let section: String
+        let shown: Bool
+    }
+
+    private var columnKey: ColumnKey? {
+        guard let store = session.store, let section = store.selectedSection, store.togglesChat else { return nil }
+        return ColumnKey(section: section, shown: store.columnShown)
     }
 
     private static let sidebarSuffix = ".sidebar"
@@ -164,7 +176,7 @@ struct WorkspaceView: View {
     private func paletteEntries() -> [PaletteEntry] {
         let workspaces = (windows.window(windowID)?.workspaces ?? []).map { PaletteWorkspace(id: $0, name: app.workspace($0)?.name ?? $0, home: app.workspace($0)?.home == true) }
         let sections = app.settings.ordered(session.store?.sections ?? [])
-        return CommandPalette.entries(commands: app.commands, sections: sections, sidebar: true, chat: session.store?.togglesChat == true, workspaces: workspaces, active: session.workspaceID, worktrees: session.worktrees.worktrees)
+        return CommandPalette.entries(commands: app.commands, sections: sections, sidebar: session.store?.togglesSidebar == true, chat: session.store?.togglesChat == true, workspaces: workspaces, active: session.workspaceID, worktrees: session.worktrees.worktrees)
     }
 
     private func perform(_ action: PaletteAction) {
@@ -172,6 +184,7 @@ struct WorkspaceView: View {
         case .command(let id): session.runConfirmed(id, commands: app.commands)
         case .section(let id): session.store?.select(id)
         case .toggleSidebar: session.store?.toggleSidebar()
+        case .toggleChat: session.store?.toggleChat()
         case .openFolder: actions.openFolder(in: windowID)
         case .openHome: actions.openHome(in: windowID)
         case .newHomeTerminal: actions.newHomeTerminal(in: windowID)
@@ -194,7 +207,7 @@ private struct VisibleSlotsWatch: View {
 
     private var revs: [Int64?] {
         let section = store?.selectedSection
-        return [section.flatMap { store?.slot("\($0).sidebar")?.rev }, section.flatMap { store?.slot("\($0).main")?.rev }, store?.columnShown == true ? store?.slot(CodeSection.chatSlot)?.rev : nil]
+        return [section.flatMap { store?.slot("\($0).sidebar")?.rev }, section.flatMap { store?.slot("\($0).main")?.rev }, store?.columnSlot.flatMap { store?.slot($0)?.rev }]
     }
 
     var body: some View {

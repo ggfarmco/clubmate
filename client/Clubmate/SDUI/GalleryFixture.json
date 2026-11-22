@@ -198,7 +198,7 @@
               {"id": "reject", "label": "Reject", "kind": "reject_once", "shortcut": "opt+3"},
               {"id": "reject-always", "label": "Always reject", "kind": "reject_always", "menu": true}
             ]}},
-            {"type": "composer", "id": "gallery-composer", "props": {"placeholder": "Answer Claude…", "hint": "/ for commands, @ for files", "agent": "Claude", "mode": "default", "modes": [{"value": "default", "label": "Ask before edits"}]}},
+            {"type": "composer", "id": "gallery-composer", "props": {"placeholder": "Answer Claude…", "hint": "/ for commands, @ for files", "agent": "Claude", "mode": "default", "modes": [{"value": "default", "label": "Ask before edits"}], "attachments": [{"id": "ctx-review", "kind": "review", "path": "Review main → feat/chat-panel", "context": true, "removable": true}, {"id": "ctx-page", "kind": "page", "path": "Roadmap page", "context": true}]}},
             {"type": "composer", "id": "gallery-composer-off", "props": {"placeholder": "Reviewer runs as part of Review loop", "agent": "Claude", "mode": "default", "modes": [{"value": "default", "label": "Ask before edits"}], "disabled": true}}
           ]
         },
@@ -232,6 +232,21 @@
           ]}
         ]},
         {"type": "text", "props": {"text": "SESSIONS", "style": "muted"}},
+        {
+          "type": "list",
+          "id": "picker",
+          "props": {
+            "focus": "p1",
+            "filter": {"placeholder": "Filter sessions", "minRows": 2},
+            "items": [
+              {"id": "sec-suggested", "label": "Suggested", "section": true},
+              {"id": "p1", "label": "Fix the login redirect", "icon": "circle.fill", "caption": "opened this review · 3 m"},
+              {"id": "sec-open", "label": "Open in shop", "detail": "2", "section": true},
+              {"id": "p2", "label": "Refactor the cache", "icon": "circle.fill", "tone": "warning", "badge": "needs you", "caption": "wt-cache · 1 h"},
+              {"id": "p3", "label": "Write the release notes", "icon": "circle", "caption": "2 d"}
+            ]
+          }
+        },
         {
           "type": "list",
           "id": "sessions",

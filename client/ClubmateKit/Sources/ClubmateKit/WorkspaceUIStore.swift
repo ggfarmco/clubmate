@@ -37,6 +37,20 @@ public final class WorkspaceUIStore {
             cacheLayout()
         }
     }
+    public var chatHidden: [String: Bool] = [:] {
+        didSet {
+            guard !restoring, chatHidden != oldValue else { return }
+            updateState("chatHidden", .object(chatHidden.mapValues { .bool($0) }))
+            cacheLayout()
+        }
+    }
+    public var chatKeyHint: String?
+    public private(set) var chatKeyHintShown = false {
+        didSet {
+            guard !restoring, chatKeyHintShown != oldValue else { return }
+            updateState("chatKeyHintShown", .bool(chatKeyHintShown))
+        }
+    }
     public var chatWidth: Double? {
         didSet {
             guard !restoring, chatWidth != oldValue, let chatWidth else { return }
@@ -272,12 +286,18 @@ public final class WorkspaceUIStore {
         return "\(selectedSection).sidebar"
     }
 
+    public var togglesSidebar: Bool {
+        guard let selectedSection, selectedSection != CodeSection.id else { return false }
+        return hasSlot("\(selectedSection).sidebar")
+    }
+
     public var togglesChat: Bool {
-        selectedSection == CodeSection.id && hasSlot(CodeSection.chatSlot)
+        selectedSection.map { hasSlot(ChatColumn.slot(for: $0)) } ?? false
     }
 
     public var columnShown: Bool {
-        togglesChat && !isSidebarHidden(CodeSection.id)
+        guard let selectedSection else { return false }
+        return togglesChat && !isChatHidden(selectedSection)
     }
 
     public var asideShown: Bool {
@@ -285,28 +305,52 @@ public final class WorkspaceUIStore {
     }
 
     public var columnSlot: String? {
-        columnShown ? CodeSection.chatSlot : nil
+        columnShown ? selectedSection.map(ChatColumn.slot) : nil
     }
 
     public func toggleSidebar() {
-        guard let selectedSection, selectedSection != CodeSection.id || togglesChat else { return }
+        guard let selectedSection, selectedSection != CodeSection.id else { return }
         setSidebarHidden(selectedSection, !isSidebarHidden(selectedSection))
+    }
+
+    @discardableResult
+    public func toggleChat() -> Task<Void, Never>? {
+        guard let selectedSection, togglesChat else { return nil }
+        guard isChatHidden(selectedSection) else {
+            setChatHidden(selectedSection, true)
+            return nil
+        }
+        setChatHidden(selectedSection, false)
+        if selectedSection == ChatColumn.hintSection, !chatKeyHintShown {
+            chatKeyHintShown = true
+            chatKeyHint = ChatColumn.keyHint
+        }
+        let event = UIEvent(workspaceId: workspaceID, slot: ChatColumn.slot(for: selectedSection), nodeId: "panel", action: "open")
+        return Task { [weak self] in _ = await self?.send(event) }
     }
 
     public func revealSidebar(_ section: String) {
         setSidebarHidden(section, false)
     }
 
+    public func revealChat(_ section: String) {
+        setChatHidden(section, false)
+    }
+
     private func isSidebarHidden(_ section: String) -> Bool {
-        sidebarHidden[section] ?? Self.hiddenByDefault(section)
+        sidebarHidden[section] ?? false
     }
 
     private func setSidebarHidden(_ section: String, _ hidden: Bool) {
-        sidebarHidden[section] = hidden == Self.hiddenByDefault(section) ? nil : hidden
+        sidebarHidden[section] = hidden ? true : nil
     }
 
-    private static func hiddenByDefault(_ section: String) -> Bool {
-        section == CodeSection.id
+    private func isChatHidden(_ section: String) -> Bool {
+        chatHidden[section] ?? true
+    }
+
+    private func setChatHidden(_ section: String, _ hidden: Bool) {
+        chatHidden[section] = hidden ? nil : false
     }
 
     public func send(_ event: UIEvent) async -> Result<JSONValue, ClubmateError> {
@@ -386,9 +430,15 @@ public final class WorkspaceUIStore {
     }
 
     private func refocus(_ section: String) {
-        guard let slot = focusedSlots[section], !slot.hasPrefix("\(section).sidebar") || !isSidebarHidden(section) else { return }
+        guard let slot = focusedSlots[section], refocusable(slot, in: section) else { return }
         focusSerial += 1
         focusRequest = FocusRequest(slot: slot, serial: focusSerial)
+    }
+
+    private func refocusable(_ slot: String, in section: String) -> Bool {
+        if slot.hasPrefix(ChatColumn.slot(for: section)) { return !isChatHidden(section) }
+        if slot.hasPrefix("\(section).sidebar") { return !isSidebarHidden(section) }
+        return true
     }
 
     private func focus(_ params: UIFocusNotification) {
@@ -488,6 +538,7 @@ public final class WorkspaceUIStore {
             record.selected = selectedSection
             record.kinds = kinds
             record.sidebarHidden = sidebarHidden
+            record.chatHidden = chatHidden
             record.sidebarWidth = sidebarWidth
             record.chatWidth = chatWidth
         }
@@ -500,9 +551,16 @@ public final class WorkspaceUIStore {
         if let section = requestedSection ?? saved["section"]?.stringValue { select(section) }
         sidebarWidth = saved["sidebarWidth"]?.numberValue
         sidebarHidden = saved["sidebarHidden"]?.objectValue?.compactMapValues(\.boolValue) ?? [:]
+        chatHidden = saved["chatHidden"]?.objectValue?.compactMapValues(\.boolValue) ?? [:]
+        chatKeyHintShown = saved["chatKeyHintShown"]?.boolValue ?? false
         chatWidth = saved["chatWidth"]?.numberValue
         asideWidth = saved["asideWidth"]?.numberValue
+        let migrated = saved["chatHidden"] == nil ? sidebarHidden[CodeSection.id] : nil
         restoring = false
+        if let migrated {
+            sidebarHidden[CodeSection.id] = nil
+            chatHidden[CodeSection.id] = migrated
+        }
         adoptLegacyChat()
         if let selectedSection, saved["section"]?.stringValue != selectedSection { updateState("section", .string(selectedSection)) }
     }
@@ -510,7 +568,7 @@ public final class WorkspaceUIStore {
     private func adoptLegacyChat() {
         guard let legacy = legacyChat else { return }
         legacyChat = nil
-        if legacy.shown, sidebarHidden[CodeSection.id] == nil { revealSidebar(CodeSection.id) }
+        if legacy.shown, chatHidden[CodeSection.id] == nil { revealChat(CodeSection.id) }
         if chatWidth == nil, let width = legacy.width { chatWidth = width }
     }
 

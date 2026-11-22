@@ -34,6 +34,7 @@ const (
 	restartWait      = 15 * time.Second
 	diffviewManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.diffview","title":"Diffview","hidden":true}]},"echoResults":{"editor-nvim.diffview":{}}}`
 	editorManifest   = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.checktime","title":"Checktime","hidden":true}]},"echoResults":{"editor-nvim.checktime":{}}}`
+	wikiManifest     = `{"id":"wiki","name":"Wiki","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"wiki","title":"Wiki","icon":"book","order":28}]}}`
 	codeManifest     = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","icon":"code","order":10}],"commands":[{"id":"editor-nvim.open","provides":["editor.open"],"title":"Open File","hidden":true}]},"echoResults":{"editor-nvim.open":{}}}`
 	docsManifest     = `{"id":"docs","name":"Docs","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"docs.open","title":"Open Doc","hidden":true}]},"echoResults":{"docs.open":{}}}`
 	stopManifest     = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.stop-root","title":"Stop","hidden":true,"handles":["git.worktree.removing"]},{"id":"editor-nvim.release-root","title":"Release","hidden":true,"handles":["git.worktree.released"]}]},"echoResults":{"editor-nvim.stop-root":{},"editor-nvim.release-root":{}}}`
@@ -1844,38 +1845,34 @@ func waitFocus(t *testing.T, c *rpc.Client, section, slot, node string) {
 	}
 }
 
-func TestCodePanelFollowsWorktree(t *testing.T) {
+func TestWikiChatPickLeavesCodeBinding(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{}, testutil.EchoPluginDirAs(t, codeManifest), testutil.EchoPluginDirAs(t, wikiManifest))
+	workspace := f.workspace(t, newRepo(t))
+	first := f.newSession(t, workspace)
+	second := f.newSession(t, workspace)
+	f.h.Event(t, workspace, codeSlot, chatSessionsNode, actChatPick, second)
+	f.h.WaitSlot(t, workspace, codeSlot, chatting(second))
+
+	f.h.Event(t, workspace, wikiChatSlot, chatSessionsNode, actChatPick, first)
+
+	f.h.WaitSlot(t, workspace, wikiChatSlot, chatting(first))
+	f.h.WaitSlot(t, workspace, codeSlot, chatting(second))
+}
+
+func TestChatPanelNewFocusesThePanel(t *testing.T) {
 	t.Parallel()
 	f := start(t, map[string]any{}, testutil.EchoPluginDirAs(t, codeManifest))
-	repo := newRepo(t)
-	workspace := f.workspace(t, repo)
+	workspace := f.workspace(t, newRepo(t))
 	first := f.newSession(t, workspace)
-	shows := func(sid string) func(sdui.Node) bool {
-		return func(n sdui.Node) bool {
-			composers := cardsOf(n, "composer")
-			return len(composers) == 1 && strings.HasPrefix(composers[0].ID, sid+"/")
-		}
-	}
-	f.h.WaitSlot(t, workspace, "editor-nvim.sidebar", shows(first))
-
-	var other struct {
-		Session string `json:"session"`
-	}
-	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{"branch": "side"}, &other))
-	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return strings.Contains(string(rawTree(t, n)), other.Session) })
-	panel := f.h.WaitSlot(t, workspace, "editor-nvim.sidebar", shows(first))
-	assert.NotContains(t, string(rawTree(t, panel)), other.Session)
-
 	c := f.h.Client(t)
 	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": workspace}, nil))
-	f.h.Event(t, workspace, "editor-nvim.sidebar", "code/new", "codeNew", nil)
-	waitFocus(t, c, "editor-nvim", "editor-nvim.sidebar", "")
-	panel = f.h.WaitSlot(t, workspace, "editor-nvim.sidebar", func(n sdui.Node) bool { return !shows(first)(n) && len(cardsOf(n, "composer")) == 1 })
-	second := strings.SplitN(cardsOf(panel, "composer")[0].ID, "/", 2)[0]
-	assert.NotEqual(t, other.Session, second)
 
-	f.h.Event(t, workspace, "editor-nvim.sidebar", "code/session", "codeSelect", first)
-	f.h.WaitSlot(t, workspace, "editor-nvim.sidebar", shows(first))
+	f.h.Event(t, workspace, codeSlot, chatNewNode, actChatNew, nil)
+
+	waitFocus(t, c, editorSection, codeSlot, "")
+	panel := f.h.WaitSlot(t, workspace, codeSlot, func(n sdui.Node) bool { return len(cardsOf(n, "composer")) == 1 && !chatting(first)(n) })
+	assert.Len(t, buttonsWith(panel, actChatBack), 1)
 }
 
 func TestCodePanelStarterAttachesEditorFile(t *testing.T) {
@@ -1887,16 +1884,17 @@ func TestCodePanelStarterAttachesEditorFile(t *testing.T) {
 	file := filepath.Join(repo, "notify.go")
 	c := f.h.Client(t)
 	require.NoError(t, c.Call(t.Context(), "bus.publish", map[string]any{"topic": "editor-nvim.file", "payload": map[string]string{"workspace": workspace, "root": repo, "path": file}}, nil))
-	f.h.WaitSlot(t, workspace, "editor-nvim.sidebar", func(n sdui.Node) bool {
+	f.h.Event(t, workspace, codeSlot, chatSessionsNode, actChatPick, session)
+	f.h.WaitSlot(t, workspace, "editor-nvim.chat", func(n sdui.Node) bool {
 		badges := cardsOf(n, "badge")
 		return len(badges) == 1 && badges[0].Props["text"] == "notify.go"
 	})
 
-	f.h.Event(t, workspace, "editor-nvim.sidebar", session+"/starter/1", "starter", nil)
+	f.h.Event(t, workspace, "editor-nvim.chat", session+"/starter/1", "starter", nil)
 	call := f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
 	assert.Contains(t, string(call.Params), "Explain this file.")
 	assert.Contains(t, string(call.Params), "notify.go")
-	f.h.WaitSlot(t, workspace, "editor-nvim.sidebar", func(n sdui.Node) bool { return len(buttonsWith(n, "starter")) == 0 })
+	f.h.WaitSlot(t, workspace, "editor-nvim.chat", func(n sdui.Node) bool { return len(buttonsWith(n, "starter")) == 0 })
 }
 
 func rawTree(t *testing.T, n sdui.Node) []byte {
@@ -2107,7 +2105,7 @@ func TestHiddenSlotsStayUnrendered(t *testing.T) {
 	for i := range 100 {
 		commands = append(commands, map[string]string{"name": "skill-" + strconv.Itoa(i), "description": strings.Repeat("Use when the task needs skill "+strconv.Itoa(i)+". ", 25)})
 	}
-	f := start(t, map[string]any{"prompt": steps, "commands": commands}, testutil.EchoPluginDirAs(t, codeManifest))
+	f := start(t, map[string]any{"prompt": steps, "commands": commands}, testutil.EchoPluginDirAs(t, codeManifest), testutil.EchoPluginDirAs(t, wikiManifest))
 	workspace := f.workspace(t, newRepo(t))
 	c := f.h.Client(t)
 	session := f.newSession(t, workspace)
@@ -2117,9 +2115,9 @@ func TestHiddenSlotsStayUnrendered(t *testing.T) {
 		return len(composers) == 1 && composers[0].Props["commands"] != nil
 	})
 
-	slots := []string{"agents.main", "agents.sidebar", "editor-nvim.sidebar"}
+	slots := []string{"agents.main", "agents.sidebar", "editor-nvim.chat", "wiki.chat"}
 	renders := map[string]map[string]int64{}
-	for _, section := range []string{"agents", "terminals", "closed"} {
+	for _, section := range []string{"agents", "terminals", "wiki", "closed"} {
 		if section == "closed" {
 			require.NoError(t, c.Call(t.Context(), "ui.state.patch", map[string]any{"workspaceId": workspace, "key": "section", "value": "agents"}, nil))
 			require.NoError(t, c.Call(t.Context(), "ui.unsubscribe", map[string]string{"subscription": f.subs[workspace]}, nil))
@@ -2140,10 +2138,14 @@ func TestHiddenSlotsStayUnrendered(t *testing.T) {
 	}
 
 	assert.Positive(t, renders["agents"]["agents.main"])
-	assert.Zero(t, renders["agents"]["editor-nvim.sidebar"])
+	assert.Zero(t, renders["agents"]["editor-nvim.chat"])
+	assert.Zero(t, renders["agents"]["wiki.chat"])
 	assert.Zero(t, renders["terminals"]["agents.main"])
-	assert.Zero(t, renders["terminals"]["editor-nvim.sidebar"])
-	assert.Equal(t, map[string]int64{"agents.main": 0, "agents.sidebar": 0, "editor-nvim.sidebar": 0}, renders["closed"])
+	assert.Zero(t, renders["terminals"]["editor-nvim.chat"])
+	assert.Zero(t, renders["terminals"]["wiki.chat"])
+	assert.Positive(t, renders["wiki"]["wiki.chat"])
+	assert.Zero(t, renders["wiki"]["editor-nvim.chat"])
+	assert.Equal(t, map[string]int64{"agents.main": 0, "agents.sidebar": 0, "editor-nvim.chat": 0, "wiki.chat": 0}, renders["closed"])
 
 	main := f.rev(t, workspace, "agents.main")
 	f.subscribe(t, workspace)

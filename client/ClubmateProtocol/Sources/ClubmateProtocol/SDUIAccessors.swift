@@ -16,6 +16,8 @@ public struct SDUIItem: Sendable, Equatable, Identifiable {
     public let menu: [SDUIMenuEntry]
     public let truncate: SDUITruncate
     public let shortcut: String?
+    public let caption: String?
+    public let section: Bool
 
     public init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let id = fields["id"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
@@ -28,6 +30,27 @@ public struct SDUIItem: Sendable, Equatable, Identifiable {
         menu = fields["menu"]?.arrayValue?.compactMap(SDUIMenuEntry.init) ?? []
         truncate = fields["truncate"]?.stringValue.flatMap(SDUITruncate.init) ?? .tail
         shortcut = fields["shortcut"]?.stringValue
+        caption = fields["caption"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
+        section = fields["section"]?.boolValue ?? false
+    }
+}
+
+public struct SDUIListFilter: Sendable, Equatable {
+    public let placeholder: String
+    public let minRows: Int
+
+    public init?(_ value: JSONValue?) {
+        guard let fields = value?.objectValue else { return nil }
+        placeholder = fields["placeholder"]?.stringValue ?? ""
+        minRows = fields["minRows"]?.numberValue.map(Int.init) ?? 0
+    }
+
+    public func shown(rows: Int) -> Bool { rows >= minRows }
+
+    public static func matches(_ item: SDUIItem, _ query: String) -> Bool {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return true }
+        return [item.label, item.caption].compactMap { $0 }.contains { $0.localizedCaseInsensitiveContains(q) }
     }
 }
 
@@ -557,6 +580,10 @@ extension SDUINode {
 
     public func items() -> [SDUIItem] {
         props["items"]?.arrayValue?.compactMap(SDUIItem.init) ?? []
+    }
+
+    public func listFilter() -> SDUIListFilter? {
+        SDUIListFilter(props["filter"])
     }
 
     public func treeItems() -> [SDUITreeItem] {

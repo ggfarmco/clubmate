@@ -72,6 +72,8 @@ final class AppNavigation {
     }
     var readingView = false
     var listOver = false
+    private(set) var chatShown = false
+    @ObservationIgnored private var chatOpenPending = false
     var lastWiki: [WorkspaceKey: StackEntry] = [:]
     private var readingEntry: StackEntry?
 
@@ -370,7 +372,7 @@ final class AppNavigation {
     var listShown: Bool { listShown(listTab, shown: true) }
 
     func listShown(_ tab: CompanionTab, shown: Bool) -> Bool {
-        guard layout != .compact, !(shown && readingView) else { return false }
+        guard layout != .compact, !(shown && readingView), !(tab == .wiki && chatDocked) else { return false }
         return overlays(tab) ? shown && listOver : columnState(tab) == .listDetail
     }
 
@@ -380,6 +382,10 @@ final class AppNavigation {
 
     func toggleList(_ tab: CompanionTab) {
         guard layout != .compact else { return }
+        if tab == .wiki, chatDocked, !readingView {
+            chatShown = false
+            guard !listShown(tab, shown: true) else { return }
+        }
         if readingView {
             readingView = false
             return
@@ -389,6 +395,28 @@ final class AppNavigation {
         } else {
             stacks.toggleColumns(for: tab)
         }
+    }
+
+    var chatDocked: Bool { chatShown && layout == .wide }
+
+    var canChat: Bool {
+        guard UIDevice.current.userInterfaceIdiom == .pad, tab == .wiki, case .wikiPage = path.last?.destination else { return false }
+        return true
+    }
+
+    func toggleChat() {
+        if chatShown {
+            chatShown = false
+            chatOpenPending = false
+        } else if canChat {
+            chatShown = true
+            chatOpenPending = true
+        }
+    }
+
+    func takeChatOpen() -> Bool {
+        defer { chatOpenPending = false }
+        return chatOpenPending
     }
 
     var canRead: Bool {

@@ -126,7 +126,7 @@ open_code() {
   sleep 1
   cm command run editor-nvim.open path="$TREE/internal/notify/notify.go" line=40 >/dev/null
   sleep 2
-  focus editor-nvim editor-nvim.sidebar 2
+  focus editor-nvim editor-nvim.chat 2
 }
 
 agents_card() {
@@ -175,9 +175,9 @@ pass_dark() {
     open_code
     wanted Code-1280 && snap Code-1280
     if wanted Mac-ChatGraphStep; then
-      select_in editor-nvim.sidebar code/session "$REVIEWER" codeSelect
+      select_in editor-nvim.chat chat/sessions "$REVIEWER" chatPick
       snap Mac-ChatGraphStep && sips -c 1520 762 --cropOffset 80 1798 "$SHOTS/Mac-ChatGraphStep.png" >/dev/null 2>&1
-      select_in editor-nvim.sidebar code/session "$RATE" codeSelect
+      select_in editor-nvim.chat chat/sessions "$RATE" chatPick
     fi
   fi
   if wanted Backlog-1280; then

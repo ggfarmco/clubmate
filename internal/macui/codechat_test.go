@@ -32,8 +32,8 @@ func TestCodeChatQuestionCardSendKey(t *testing.T) {
 	in.json(&spawned, "agent", "spawn", "Ask two things")
 	sid := spawned.Session
 	card := sid + "/elicitation/elicitation-1"
-	in.cm("command", "run", "ui.focus", "section=editor-nvim", "slot=editor-nvim.sidebar")
-	in.cm("ui", "event", "--workspace="+in.workspace, "--slot=editor-nvim.sidebar", "--node=code/session", "--action=codeSelect", `--value="`+sid+`"`)
+	in.cm("command", "run", "ui.focus", "section=editor-nvim", "slot=editor-nvim.chat")
+	in.cm("ui", "event", "--workspace="+in.workspace, "--slot=editor-nvim.chat", "--node=chat/sessions", "--action=chatPick", `--value="`+sid+`"`)
 	in.cm("command", "run", "editor-nvim.diffview", "cwd="+in.repo, "rev="+gitRun(t, in.repo, "rev-parse", "HEAD"))
 	nrev := exec.Command(filepath.Join(appPath(t), "Contents", "Resources", "tools", "nrev"), "add", "--file", "f.txt", "--line-start", "2", "--type", "issue", "--text", "fix it")
 	nrev.Dir = in.repo
@@ -63,16 +63,21 @@ func TestCodeChatQuestionCardSendKey(t *testing.T) {
 		in.key("esc")
 		in.eventually("esc closes it", func() bool { return in.snapshot().kind("sheet") == nil })
 	})
-	t.Run("cmd+return with nothing picked and focus elsewhere in the chat does nothing", func(t *testing.T) {
+	t.Run("cmd+return in the picker opens Send review, since no card shows", func(t *testing.T) {
 		in := in.at(t)
-		in.key("--focus", "code/session", "cmd+return")
-		assert.Equal(t, "code/session", in.snapshot().key().Focus)
-		assert.Nil(t, in.snapshot().kind("sheet"))
+		in.cm("ui", "event", "--workspace="+in.workspace, "--slot=editor-nvim.chat", "--node=chat/back", "--action=chatBack")
+		in.cm("command", "run", "ui.focus", "section=editor-nvim", "slot=editor-nvim.chat")
+		in.eventually("the picker shows", func() bool { return in.snapshot().main().has("chat/sessions") })
+		in.key("cmd+return")
+		in.eventually("the Send review sheet is the key window", sendSheet)
 		assert.True(t, waiting())
+		in.key("esc")
+		in.eventually("esc closes it", func() bool { return in.snapshot().kind("sheet") == nil })
+		in.cm("ui", "event", "--workspace="+in.workspace, "--slot=editor-nvim.chat", "--node=chat/sessions", "--action=chatPick", `--value="`+sid+`"`)
 	})
 	t.Run("cmd+return from the empty composer answers the card, not Send review", func(t *testing.T) {
 		in := in.at(t)
-		in.cm("command", "run", "ui.focus", "section=editor-nvim", "slot=editor-nvim.sidebar")
+		in.cm("command", "run", "ui.focus", "section=editor-nvim", "slot=editor-nvim.chat")
 		in.focusIn(sid)
 		in.pointer("click", card+"/f/0#Global")
 		in.eventually("the pick folds the first question", func() bool { return in.snapshot().main().has(card + "/f/0#question") })

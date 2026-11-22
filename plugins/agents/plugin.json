@@ -39,7 +39,8 @@
       {"keys": "p", "action": "Pause or resume the gate", "when": "a gate is open in Gates"},
       {"keys": "e", "action": "Edit the gate: into (a Done gate: sessions, wrote), graph, rounds, paused", "when": "a gate is open in Gates"},
       {"keys": "cmd+delete", "action": "Delete the gate (confirmed), or remove the finished run (confirmed)", "when": "a gate is open in Gates, or a finished run in Graphs"},
-      {"keys": "cmd+[", "action": "Back to the session you came from; in an aside, to its parent, scrolled to what it is about", "when": "a run, graph or gate page, or an aside, is open in Agents"},
+      {"keys": "cmd+[", "action": "Back to the session you came from; in an aside, to its parent, scrolled to what it is about; in the chat panel, back to the session picker (All sessions)", "when": "a run, graph or gate page, or an aside, is open in Agents, or a session is open in the chat panel of Code or Wiki"},
+      {"keys": "n", "action": "New session from the chat panel: in Code with a review current, one that opens that review and gets its comments", "when": "the chat panel's session picker has focus"},
       {"keys": "cmd+]", "action": "To the session's aside beside it; again steps through its asides", "when": "the session has asides"},
       {"keys": "cmd+shift+\\", "action": "Aside: full page or beside its parent", "when": "an aside is open"},
       {"keys": "cmd+shift+return", "action": "Aside: open the Send back panel", "when": "an aside is open"},
@@ -47,7 +48,7 @@
       {"keys": "cmd+.", "action": "Stop the run (confirmed)", "when": "a running run is open in Graphs"}
     ],
     "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25, "slots": ["sheet", "aside"]}, {"id": "agents.graphs", "title": "Graphs", "icon": "point.3.connected.trianglepath.dotted", "order": 37, "rail": false}, {"id": "agents.gates", "title": "Gates", "icon": "checkmark.shield", "order": 38, "rail": false}],
-    "views": [{"slot": "editor-nvim.sidebar"}, {"slot": "agents.settings"}],
+    "views": [{"slot": "editor-nvim.chat"}, {"slot": "wiki.chat"}, {"slot": "agents.settings"}],
     "commands": [
       {
         "id": "agents.new",

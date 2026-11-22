@@ -39,19 +39,6 @@ var (
 	}
 )
 
-func defaultCodeSession(here []record) string {
-	var best *record
-	for i, rec := range here {
-		if rec.Run == nil && !rec.closed() && (best == nil || !rec.UpdatedAt.Before(best.UpdatedAt)) {
-			best = &here[i]
-		}
-	}
-	if best == nil {
-		return ""
-	}
-	return best.ID
-}
-
 func unstartedStep(sc screen) bool {
 	return sc.View.Session.Run != nil && startable(sc)
 }
@@ -82,7 +69,7 @@ func stepView(sc screen, recs []record) sdui.Node {
 		nodes = append(nodes, sdui.HStack(sdui.MutedText(nodeLabel(step)), glyph, value))
 	}
 	open := sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/"+actOpenGraphs, openGraphs, ""), actOpenGraphs), "secondary")
-	chat := sdui.WithVariant(sdui.WithAction(sdui.Button(codeNewNode+"/step", newChat, ""), actCodeNew), "ghost")
+	chat := sdui.WithVariant(sdui.WithAction(sdui.Button(chatNewNode+"/step", newChat, ""), actChatNew), "ghost")
 	nodes = append(nodes, sdui.HStack(open, chat))
 	return sdui.CenteredTranscript(sid+"/transcript", nodes...)
 }

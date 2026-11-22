@@ -24,8 +24,6 @@ const (
 	actNewBranch   = "newBranch"
 	actShowBranch  = "showBranch"
 	actHideBranch  = "hideBranch"
-	actCodeNew     = "codeNew"
-	actCodeSelect  = "codeSelect"
 	actSelect      = "select"
 	actFilter      = "filter"
 	actFilterAll   = "filterAll"
@@ -173,8 +171,8 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 		sid := p.selected
 		a.uiMu.Unlock()
 		err = a.focusComposer(ctx, ev.WorkspaceID, sid)
-	case ev.Action == actCodeNew:
-		err = h.Focus(ctx, ev.WorkspaceID, editorSection, codeSlot)
+	case isChatAction(ev) && ev.Action != actChatOpen:
+		err = a.chatFocus(ctx, ev)
 	case ev.Action == actShowBranch:
 		err = h.FocusField(ctx, ev.WorkspaceID, sectionID)
 	}
@@ -216,6 +214,9 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		}
 		return a.folderSheetAct(ev)
 	}
+	if isChatAction(ev) {
+		return a.chatAct(ctx, ev)
+	}
 	if sid, ok := isContextEvent(ev); ok {
 		return a.contextAct(ev, sid)
 	}
@@ -226,12 +227,6 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return err
 		}
 		return a.selectSession(ctx, ev.WorkspaceID, res.Session)
-	case actCodeNew:
-		res, err := a.newSession(ctx, a.host, ev.WorkspaceID, "", newArgs{})
-		if err != nil {
-			return err
-		}
-		return a.bindCode(ctx, ev.WorkspaceID, res.Session)
 	case actOpenGraphs:
 		sid, _, _ := strings.Cut(ev.NodeID, "/")
 		s, err := a.lookup(ev.WorkspaceID, sid)
@@ -242,21 +237,6 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return a.showRun(ctx, ev.WorkspaceID, run.ID)
 		}
 		return nil
-	case actCodeSelect:
-		id, err := itemID(ev)
-		if err != nil {
-			return err
-		}
-		s, err := a.lookup(ev.WorkspaceID, id)
-		if err != nil {
-			return err
-		}
-		if rec := s.snapshot(); rec.RepoPath != "" {
-			if err := a.moveCode(ctx, ev.WorkspaceID, rec.RepoPath, rec.Worktree); err != nil {
-				fmt.Fprintln(os.Stderr, "agents: move code:", err)
-			}
-		}
-		return a.bindCode(ctx, ev.WorkspaceID, id)
 	case actShowBranch, actHideBranch:
 		p := a.workspaceState(ev.WorkspaceID)
 		a.uiMu.Lock()
@@ -507,7 +487,7 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		if err := decode(ev.Value, &v); err != nil {
 			return err
 		}
-		return a.send(ctx, ev.WorkspaceID, s, st, v.Text)
+		return a.send(ctx, ev.WorkspaceID, s, st, v.Text, a.panelAttachments(ctx, ev, s.snapshot()))
 	case actStop:
 		a.cancel(s, true)
 		return nil
@@ -630,9 +610,24 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		if err := decode(ev.Value, &v); err != nil {
 			return err
 		}
+		if strings.HasPrefix(v.ID, ctxChipPrefix) {
+			chips := a.panelChips(ctx, ev, s.snapshot(), false)
+			i := slices.IndexFunc(chips, func(c contextChip) bool { return c.chip.ID == v.ID })
+			if i < 0 {
+				return nil
+			}
+			content := chips[i].content()
+			a.uiMu.Lock()
+			defer a.uiMu.Unlock()
+			if st.contextOff == nil {
+				st.contextOff = map[string]string{}
+			}
+			st.contextOff[v.ID] = content
+			return nil
+		}
 		a.uiMu.Lock()
+		defer a.uiMu.Unlock()
 		st.attachments = slices.DeleteFunc(st.attachments, func(p pendingAttachment) bool { return p.ID == v.ID })
-		a.uiMu.Unlock()
 		return nil
 	case actOpenLocation:
 		var v pathValue
@@ -741,8 +736,8 @@ func (a *app) start(workspaceID string, s *session, node string) error {
 }
 
 func (a *app) show(ctx context.Context, ev pluginsdk.UIEvent, sid string) error {
-	if ev.Slot == codeSlot {
-		return a.bindCode(ctx, ev.WorkspaceID, sid)
+	if chatSlot(ev.Slot) {
+		return a.bindChat(ctx, ev.WorkspaceID, ev.Slot, sid)
 	}
 	return a.selectSession(ctx, ev.WorkspaceID, sid)
 }
@@ -762,7 +757,7 @@ func (a *app) addAttachment(st *sessionUI, att attachment) {
 	st.attachments = append(st.attachments, pendingAttachment{ID: "a" + strconv.Itoa(st.nextID), attachment: att})
 }
 
-func (a *app) send(ctx context.Context, workspaceID string, s *session, st *sessionUI, text string) error {
+func (a *app) send(ctx context.Context, workspaceID string, s *session, st *sessionUI, text string, panel []attachment) error {
 	time.Sleep(a.takeHold)
 	a.uiMu.Lock()
 	pending := st.attachments
@@ -770,7 +765,8 @@ func (a *app) send(ctx context.Context, workspaceID string, s *session, st *sess
 	if strings.TrimSpace(text) == "" && len(pending) == 0 {
 		return nil
 	}
-	atts := make([]attachment, 0, len(pending))
+	atts := make([]attachment, 0, len(panel)+len(pending))
+	atts = append(atts, panel...)
 	for _, p := range pending {
 		atts = append(atts, p.attachment)
 	}
@@ -790,7 +786,7 @@ func (a *app) send(ctx context.Context, workspaceID string, s *session, st *sess
 		return err
 	}
 	a.uiMu.Lock()
-	st.attachments = nil
+	st.attachments, st.contextOff = nil, nil
 	st.gen++
 	a.uiMu.Unlock()
 	return nil

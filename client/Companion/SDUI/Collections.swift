@@ -139,9 +139,11 @@ extension RowGroup where Header == EmptyView {
 struct ItemLabel: View {
     let item: SDUIItem
     var detailTone: String?
+    var badgeTone: String?
     var muted = false
     var faint = false
     var opens = false
+    @Environment(\.sduiRowHeight) private var rowHeight
 
     var body: some View {
         HStack(spacing: 12) {
@@ -161,10 +163,16 @@ struct ItemLabel: View {
                         .foregroundStyle(SDUITone.ink(detailTone) ?? Color.captionInk)
                         .lineLimit(1)
                 }
+                if let caption = item.caption {
+                    Text(caption)
+                        .font(.footnote)
+                        .foregroundStyle(Color.captionInk)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 8)
             if let badge = item.badge, !badge.isEmpty {
-                BadgeView(text: badge, tone: nil)
+                BadgeView(text: badge, tone: badgeTone)
             }
             if opens {
                 Image(systemName: "chevron.right")
@@ -172,7 +180,7 @@ struct ItemLabel: View {
                     .foregroundStyle(.tertiary)
             }
         }
-        .frame(minHeight: 52)
+        .frame(minHeight: rowHeight ?? (item.caption == nil ? 52 : 56))
         .contentShape(.rect)
     }
 }
@@ -255,27 +263,169 @@ struct ListNode: View {
     let node: SDUINode
     let context: SDUIContext
     @State private var selected: String?
+    @State private var cursor: String?
     @State private var choice: MenuChoice?
+    @State private var query = ""
+    @FocusState private var listFocused: Bool
+    @FocusState private var filterFocused: Bool
+    @Environment(\.sduiKeysTyping) private var keysTyping
+
+    private var picker: Bool { node.string("focus") != nil }
+
+    private var filter: SDUIListFilter? {
+        guard let filter = node.listFilter(), filter.shown(rows: node.items().filter { !$0.section }.count) else { return nil }
+        return filter
+    }
+
+    private var sections: [RowSection] {
+        let active = filter != nil && !query.trimmingCharacters(in: .whitespaces).isEmpty
+        var sections: [RowSection] = []
+        var current = ""
+        var ids: [String] = []
+        for item in node.items() {
+            if item.section {
+                if !current.isEmpty || !ids.isEmpty { sections.append(RowSection(id: current, ids: ids)) }
+                current = item.id
+                ids = []
+            } else if !active || SDUIListFilter.matches(item, query) {
+                ids.append(item.id)
+            }
+        }
+        sections.append(RowSection(id: current, ids: ids))
+        return active ? sections.filter { !$0.ids.isEmpty } : sections
+    }
 
     var body: some View {
         let items = node.items()
         let byID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        RowGroup(ids: items.map(\.id), selected: selected) { id in
-            if let item = byID[id] {
-                Button {
-                    selected = id
-                    context.run { await $0.select(node, id) }
-                } label: {
-                    ItemLabel(item: item, opens: context.mainSlot != nil)
-                }
-                .buttonStyle(.plain)
-                .itemMenu(item.menu) { context.choose($0, item: id, in: node, confirm: &choice) }
+        VStack(alignment: .leading, spacing: 8) {
+            if let filter {
+                TextField(filter.placeholder, text: $query)
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 16)
+                    .focused($filterFocused)
+                    .onDisappear { keysTyping?.wrappedValue = false }
+                    .onSubmit { if let first = sections.lazy.flatMap(\.ids).first { take(first) } }
+                    .onKeyPress(.escape) {
+                        guard !query.isEmpty else { return .ignored }
+                        query = ""
+                        return .handled
+                    }
+                    .onKeyPress(.downArrow) {
+                        filterFocused = false
+                        listFocused = true
+                        return .handled
+                    }
             }
+            RowGroup(sections: sections, selected: picker ? cursor : selected) { id in
+                if let heading = byID[id] {
+                    HStack {
+                        Text(heading.label)
+                        Spacer()
+                        if let detail = heading.detail { Text(detail).monospacedDigit() }
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.captionInk)
+                }
+            } row: { id in
+                if let item = byID[id] {
+                    Button {
+                        take(id)
+                    } label: {
+                        ItemLabel(item: item, badgeTone: item.tone, opens: context.mainSlot != nil)
+                    }
+                    .buttonStyle(.plain)
+                    .itemMenu(item.menu) { context.choose($0, item: id, in: node, confirm: &choice) }
+                }
+            }
+            .modifier(PickerKeys(on: picker, focused: $listFocused, press: press))
         }
         .menuConfirm($choice, node: node, context: context)
         .onChange(of: node.string("selected"), initial: true) { _, value in
             selected = value
         }
+        .onChange(of: node.string("focus"), initial: true) { _, value in
+            cursor = value
+            if value != nil { listFocused = true }
+        }
+        .onChange(of: filterFocused) { _, focused in
+            keysTyping?.wrappedValue = focused
+        }
+        .onChange(of: query) {
+            let ids = sections.flatMap(\.ids)
+            if query.trimmingCharacters(in: .whitespaces).isEmpty {
+                cursor = node.string("focus") ?? cursor
+            } else if cursor.map({ !ids.contains($0) }) ?? true {
+                cursor = ids.first
+            }
+        }
+    }
+
+    private func take(_ id: String) {
+        selected = id
+        cursor = id
+        context.run { await $0.select(node, id) }
+    }
+
+    private func press(_ press: KeyPress) -> KeyPress.Result {
+        switch (press.key, press.characters) {
+        case (.return, _):
+            guard let cursor else { return .ignored }
+            take(cursor)
+        case (.downArrow, _), (_, "j"):
+            move(1)
+        case (.upArrow, _), (_, "k"):
+            move(-1)
+        case (_, "/") where filter != nil:
+            filterFocused = true
+        default:
+            return .ignored
+        }
+        return .handled
+    }
+
+    private func move(_ step: Int) {
+        let ids = sections.flatMap(\.ids)
+        let next = (cursor.flatMap { ids.firstIndex(of: $0) } ?? (step > 0 ? -1 : ids.count)) + step
+        if ids.indices.contains(next) { cursor = ids[next] }
+    }
+}
+
+private struct PickerKeys: ViewModifier {
+    let on: Bool
+    var focused: FocusState<Bool>.Binding
+    let press: (KeyPress) -> KeyPress.Result
+
+    func body(content: Content) -> some View {
+        if on {
+            content
+                .focusable()
+                .focused(focused)
+                .focusEffectDisabled()
+                .onKeyPress(phases: .down, action: press)
+        } else {
+            content
+        }
+    }
+}
+
+struct KeysNode: View {
+    let node: SDUINode
+    let context: SDUIContext
+    @State private var typing = false
+
+    private var keys: Set<Character> {
+        Set((node.props["keys"]?.arrayValue ?? []).compactMap { $0.stringValue?.first })
+    }
+
+    var body: some View {
+        SDUIChildren(node: node, context: context)
+            .environment(\.sduiKeysTyping, $typing)
+            .onKeyPress(characters: CharacterSet(charactersIn: String(keys)), phases: .down) { press in
+                guard !typing, let action = node.string("action"), press.characters.first.map(keys.contains) == true else { return .ignored }
+                context.run { await $0.fire(node, .named(action, .null)) }
+                return .handled
+            }
     }
 }
 

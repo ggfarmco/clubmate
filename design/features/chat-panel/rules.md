@@ -20,7 +20,7 @@ Boards (`.dc.html` here, all four in `boards.html`; the iPad board needs `r1.css
 10. **Context chips.** What the session sees shows as chips at the top of the composer: the file and lines, the review (`Review ‹base› → ‹head›`), or the wiki page (`‹title› page`). A chip opens the context detail (⌘I, as the Context button did); × on a chip leaves it out of the next message. The chips replace today's Context ⌘I header button.
 11. **Send** stays the panel's one primary button. Names over ids everywhere.
 12. **Wiki W1.** The panel is the same right column as in Code. While it is open, the margin column (On this page, Changes, Linked from) folds into the one-row fold above the body (Wiki rule 2's narrow fold row); closing the panel brings the margin back.
-13. **Width.** One width per window, shared by Code and Wiki: default 392, min 320, at most half the window. Below 1100 pt the panel stacks under the editor or the page (Code: as today; Wiki: the same), rows stay 36 high.
+13. **Width.** One width per workspace, shared by Code and Wiki: default 392, min 320, at most half the window. Below 1100 pt the panel stacks under the editor or the page (Code: as today; Wiki: the same), rows stay 36 high.
 14. **iPad P1** (landscape, regular width): a 400 pt side panel on the right; opening it hides the list column, closing it brings the list back. Opened from a Chat button in the detail toolbar, or ⌘B with a hardware keyboard.
 15. **iPad P2** (portrait, Split View, compact): a sheet with medium and large detents; the medium detent keeps the top of the page readable.
 16. **iPad rows** in the panel are 56 pt; key caps show only with a hardware keyboard. "New session for this review" only where the iPad shows that review.

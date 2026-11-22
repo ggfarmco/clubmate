@@ -46,6 +46,7 @@ type nvimEvent struct {
 	Kind       string   `msgpack:"kind"`
 	Path       string   `msgpack:"path"`
 	Tab        int      `msgpack:"tab"`
+	conn       *nvimConn
 }
 
 type client struct {

@@ -56,6 +56,7 @@ type workspaceUI struct {
 	change     string
 	collapsed  map[string]bool
 	sent       map[string][32]byte
+	shown      pageEvent
 }
 
 func (w *wiki) workspace(workspaceID string) *workspaceUI {
@@ -145,6 +146,7 @@ func (w *wiki) renderNow(ctx context.Context, workspaceID string) error {
 		return err
 	}
 	if len(ws.Folders) == 0 {
+		w.pageShown(ctx, u, pageEvent{Workspace: workspaceID})
 		if err := w.push(ctx, u, workspaceID, sidebarSlot, sdui.Empty(noFoldersText)); err != nil {
 			return err
 		}
@@ -186,8 +188,10 @@ func (w *wiki) renderNow(ctx context.Context, workspaceID string) error {
 		current, ok = newest(all)
 	}
 	m := mainData{Home: ws.Home}
+	shown := pageEvent{Workspace: workspaceID}
 	if ok {
 		d.Selected = pageID(current.Project, current.Page.Path)
+		shown.Page, shown.Title = d.Selected, current.Page.Title
 		m = w.pageData(ctx, ws, projects, stores[current.Project], current, projectPages(d.Projects, current.Project), history, f)
 		if history {
 			w.historyData(ctx, stores[current.Project], &m, change, collapsed)
@@ -199,6 +203,7 @@ func (w *wiki) renderNow(ctx context.Context, workspaceID string) error {
 	}
 	d.New = newToYou(all, read)
 	w.settleSelection(u, selected, d.Selected)
+	w.pageShown(ctx, u, shown)
 	if err := w.push(ctx, u, workspaceID, sidebarSlot, sidebarView(d)); err != nil {
 		return err
 	}

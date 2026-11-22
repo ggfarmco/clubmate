@@ -130,10 +130,6 @@ private struct WorkspaceCommands: Commands {
         session?.store
     }
 
-    private var toggleTitle: String {
-        store?.togglesChat == true ? "Toggle Chat" : "Toggle Sidebar"
-    }
-
     private var active: String? {
         windowID.flatMap(windows.window)?.active
     }
@@ -214,7 +210,10 @@ private struct WorkspaceCommands: Commands {
             Button("Command Palette") { shortcut(.palette) }
                 .keyboardShortcut(AppShortcuts.palette)
                 .disabled(session == nil)
-            Button(toggleTitle) { store?.toggleSidebar() }
+            Button("Toggle Chat") { store?.toggleChat() }
+                .keyboardShortcut(AppShortcuts.toggleChat)
+                .disabled(store == nil)
+            Button("Toggle Sidebar") { store?.toggleSidebar() }
                 .keyboardShortcut(AppShortcuts.toggleSidebar)
                 .disabled(store == nil)
             Divider()

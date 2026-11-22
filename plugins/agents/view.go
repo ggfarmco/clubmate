@@ -23,13 +23,8 @@ const (
 	homePickText   = "Agents in Home can read every workspace's backlog, sessions and wiki, and never change them. Try \"What waits for me today?\""
 	newSessionNode = "main/new"
 	newSessionText = "New session"
-	noCodeTitle    = "No agent session in this worktree"
-	noCodeSession  = "Start one to ask about the code you're on."
-	codeSelectNode = "code/session"
-	codeNewNode    = "code/new"
 	starterPrefix  = "starter/"
 	starterNote    = "It sees the file and selection you're on. Ask anything, or start from one of these."
-	maxCodeOptions = 50
 	commandRunes   = 300
 	composerHint   = "/ for commands, @ for files"
 	waitingBadge   = "waiting for you"
@@ -114,9 +109,10 @@ type screen struct {
 }
 
 type codePanel struct {
-	Picker sdui.Node
-	New    sdui.Node
-	File   string
+	Back     sdui.Node
+	Worktree string
+	File     string
+	Chips    []sdui.Attachment
 }
 
 type starter struct {
@@ -204,27 +200,12 @@ func pickSessionView(home bool) sdui.Node {
 	return sdui.EmptyState(pickSession, sdui.EmptyProps{Icon: pickIcon, Action: &add, Center: true})
 }
 
-func codeView(recs []record, bound string, sc *screen, file string) sdui.Node {
-	if sc == nil {
-		add := sdui.WithVariant(sdui.WithAction(sdui.Button(codeNewNode, "New", "plus"), actCodeNew), "ghost")
-		return sdui.EmptyState(noCodeSession, sdui.EmptyProps{Title: noCodeTitle, Action: &add})
+func codeView(recs []record, sc screen, panel codePanel) sdui.Node {
+	sc.Code = &panel
+	if unstartedStep(sc) {
+		return sdui.VStack(header(sc), stepView(sc, recs), stepComposer(sc))
 	}
-	add := sdui.WithIconOnly(sdui.WithVariant(sdui.WithAction(sdui.Button(codeNewNode, newChat, "plus"), actCodeNew), "ghost"))
-	var opts []sdui.Option
-	for _, rec := range slices.Backward(recs) {
-		if len(opts) < maxCodeOptions && (!rec.closed() || rec.ID == bound) {
-			opts = append(opts, sdui.Option{Value: rec.ID, Label: cmp.Or(rec.Title, newChat)})
-		}
-	}
-	if !slices.ContainsFunc(opts, func(o sdui.Option) bool { return o.Value == bound }) {
-		opts = append(opts, sdui.Option{Value: bound, Label: cmp.Or(sc.View.Session.Title, newChat)})
-	}
-	v := *sc
-	v.Code = &codePanel{Picker: sdui.WithAction(sdui.Select(codeSelectNode, opts, bound), actCodeSelect), New: add, File: file}
-	if unstartedStep(v) {
-		return sdui.VStack(header(v), stepView(v, recs), stepComposer(v))
-	}
-	return mainView(v)
+	return mainView(sc)
 }
 
 func startable(sc screen) bool {
@@ -310,8 +291,10 @@ func header(sc screen) sdui.Node {
 	if rec.HandoffFrom != "" {
 		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/"+handoffFromNode, "Earlier session", "clock.arrow.circlepath"), actOpenHandoff))
 	}
-	if b, ok := contextButton(sc); ok {
+	if b, ok := contextButton(sc); ok && (sc.Code == nil || sc.Context != nil) {
 		buttons = append(buttons, b)
+	} else if ok && len(sc.Code.Chips) == 0 {
+		buttons = append(buttons, sdui.WithIconOnly(sdui.WithVariant(b, sdui.VariantGhost)))
 	}
 	if sc.Changes {
 		buttons = append(buttons, reviewButton(sid, sc.ReviewBases, sc.ReviewBase))
@@ -330,8 +313,11 @@ func header(sc screen) sdui.Node {
 		if unstartedStep(sc) {
 			icon = graphIcon
 		}
-		row := append([]sdui.Node{sdui.Icon(icon), sc.Code.Picker}, buttons...)
-		top = sdui.HStack(append(row, sc.Code.New)...)
+		row := []sdui.Node{sc.Code.Back, sdui.Divider(), sdui.Icon(icon), sdui.WithLines(openStrong(cmp.Or(rec.Title, newSessionLabel)), 1)}
+		if sc.Code.Worktree != "" {
+			row = append(row, sdui.WithLines(sdui.MutedText(sc.Code.Worktree), 1))
+		}
+		top = sdui.WithGap(sdui.HStack(append(append(row, sdui.Spacer()), buttons...)...), 6)
 	} else {
 		var badges []sdui.HeaderBadge
 		title := cmp.Or(rec.Title, "New session")
@@ -444,6 +430,9 @@ func composer(sc screen) sdui.Node {
 			path = a.Name
 		}
 		attachments = append(attachments, sdui.Attachment{ID: a.ID, Kind: a.Kind, Path: path, StartLine: a.StartLine, EndLine: a.EndLine})
+	}
+	if sc.Code != nil {
+		attachments = append(slices.Clone(sc.Code.Chips), attachments...)
 	}
 	modes := modeOptions(v)
 	if rec.isAside() {

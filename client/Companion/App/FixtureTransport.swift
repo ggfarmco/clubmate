@@ -457,6 +457,7 @@ actor FixtureServer {
             uiSections = .array((uiSections.arrayValue ?? []) + [WikiFixture.section])
             uiViews[WikiFixture.sidebar] = (1, WikiFixture.sidebarTree(selected: WikiFixture.pages[0].id))
             uiViews[WikiFixture.main] = (1, WikiFixture.mainTree(WikiFixture.pages[0]))
+            uiViews[WikiFixture.chat] = (1, WikiFixture.chatSession)
         }
         if let slot = UserDefaults.standard.string(forKey: "empty"), let tree = sdui["empty"]?[slot] {
             uiViews[slot] = (1, tree)
@@ -552,6 +553,13 @@ actor FixtureServer {
             if WikiFixture.on, params["slot"]?.stringValue == WikiFixture.sidebar, params["action"]?.stringValue == "search" {
                 wikiQuery = params["value"]?.stringValue ?? ""
                 replace(WikiFixture.sidebar, WikiFixture.sidebarTree(selected: wikiSelected, query: wikiQuery))
+            }
+            if WikiFixture.on, params["slot"]?.stringValue == WikiFixture.chat {
+                switch params["action"]?.stringValue {
+                case "open", "chatBack": replace(WikiFixture.chat, WikiFixture.chatPicker)
+                case "chatPick": replace(WikiFixture.chat, WikiFixture.chatSession)
+                default: break
+                }
             }
             return (200, Self.json(["result": LandReviewFixture.on ? LandReviewFixture.opens(params) ?? .null : .null]))
         case "workspaces":

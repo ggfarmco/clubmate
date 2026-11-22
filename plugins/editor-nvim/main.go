@@ -17,11 +17,12 @@ import (
 )
 
 const (
-	mainSlot     = "editor-nvim.main"
-	statusSlot   = "editor-nvim.status"
-	reviewSlot   = "editor-nvim.review"
-	reviewTopic  = "editor-nvim.review"
-	sessionTitle = "nvim"
+	mainSlot           = "editor-nvim.main"
+	statusSlot         = "editor-nvim.status"
+	reviewSlot         = "editor-nvim.review"
+	reviewTopic        = "editor-nvim.review"
+	currentReviewTopic = "editor-nvim.review.current"
+	sessionTitle       = "nvim"
 )
 
 var errUnknownAction = errors.New("unknown action")
@@ -42,6 +43,9 @@ type app struct {
 	reviewSel        map[string]string
 	reviewLayouts    map[string]string
 	reviewPublished  map[string]reviewPayload
+	tabMu            sync.Mutex
+	reviewTabs       map[string]editorTab
+	currentSent      map[string]currentReview
 	reviewSeq        int
 	reviewWatched    map[*client]bool
 	reviewStatusHint func(workspaceID string)
@@ -64,6 +68,8 @@ func main() {
 		reviewSel:       map[string]string{},
 		reviewLayouts:   map[string]string{},
 		reviewPublished: map[string]reviewPayload{},
+		reviewTabs:      map[string]editorTab{},
+		currentSent:     map[string]currentReview{},
 		reviewWatched:   map[*client]bool{},
 		reviewDBDelay:   reviewDBDelay,
 	}

@@ -16,6 +16,9 @@ struct AppCommands: Commands {
             Button(state.listShown ? "Hide List" : "Show List") { withAnimation(.easeInOut(duration: 0.3)) { navigation.toggleList() } }
                 .keyboardShortcut("s", modifiers: [.control, .command])
                 .disabled(!state.wide)
+            Button(state.chatShown ? "Hide Chat" : "Show Chat") { withAnimation(.easeInOut(duration: 0.3)) { navigation.toggleChat() } }
+                .keyboardShortcut("b", modifiers: .command)
+                .disabled(!state.chatShown && !state.canChat)
             Button(state.readingView ? "Leave Reading View" : "Reading View") { withAnimation(.easeInOut(duration: 0.3)) { navigation.toggleReading() } }
                 .keyboardShortcut("f", modifiers: [.control, .command])
                 .disabled(!state.readingView && !state.canRead)

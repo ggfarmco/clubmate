@@ -101,6 +101,25 @@ final class DocumentTests: XCTestCase {
         }
     }
 
+    func testChatFoldsTheMarginAtAnyWidth() async throws {
+        let margin = "<aside class=\"wiki-margin\" id=\"aside\"><nav class=\"wm-sec\">On this page</nav></aside><details class=\"wiki-fold\" id=\"fold\"><summary>On this page</summary></details>"
+        var shown: [Bool] = []
+        for chat in [false, true] {
+            var theme = DocumentTheme.system(dark: false)
+            theme.chat = chat
+            let page = DocumentController()
+            page.webView.frame = CGRect(x: 0, y: 0, width: 1210, height: 600)
+            page.show(DocumentContent(path: "/r/a.md", html: margin + "<p>text</p>", rev: 1), theme: theme, size: .fill)
+            await page.settled()
+            let state = try await page.webView.callAsyncJavaScript("""
+                const visible = (id) => getComputedStyle(document.getElementById(id)).display !== 'none';
+                return [visible('aside'), visible('fold')]
+                """, contentWorld: .page) as? [Bool]
+            shown += state ?? []
+        }
+        XCTAssertEqual(shown, [true, false, false, true])
+    }
+
     func testSamePathKeepsScroll() async throws {
         let page = DocumentController()
         page.webView.frame = CGRect(x: 0, y: 0, width: 400, height: 300)

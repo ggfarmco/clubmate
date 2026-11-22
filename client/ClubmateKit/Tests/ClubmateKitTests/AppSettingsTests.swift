@@ -100,7 +100,7 @@ final class AppSettingsTests: XCTestCase {
     }
 
     func testCodeChatStacksUnderTheEditorBelow1100() {
-        XCTAssertEqual([0, 900, 1099, 1100, 1280].map(CodeSection.stacksChat), [false, true, true, false, false])
+        XCTAssertEqual([0, 900, 1099, 1100, 1280].map(ChatColumn.stacksChat), [false, true, true, false, false])
     }
 
     func testSectionOrderKeepsUnknownSectionsAtDefaultPosition() {

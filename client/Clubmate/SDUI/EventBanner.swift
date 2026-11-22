@@ -7,14 +7,16 @@ import ClubmateKit
 @Observable
 final class EventBanner {
     private(set) var message: String?
+    private(set) var quiet = false
 
     @ObservationIgnored private var dismissal: Task<Void, Never>?
 
-    func show(_ message: String) {
+    func show(_ message: String, quiet: Bool = false) {
         self.message = message
+        self.quiet = quiet
         dismissal?.cancel()
         dismissal = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: .seconds(quiet ? 6 : 3))
             guard !Task.isCancelled else { return }
             self?.message = nil
         }
@@ -34,7 +36,7 @@ private struct EventBannerModifier: ViewModifier {
             .environment(banner)
             .overlay(alignment: .bottom) {
                 if let message = banner.message {
-                    BannerLabel(text: message, edge: .top)
+                    BannerLabel(text: message, edge: .top, quiet: banner.quiet)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -45,6 +47,7 @@ private struct EventBannerModifier: ViewModifier {
 struct BannerLabel: View {
     let text: String
     let edge: Alignment
+    var quiet = false
 
     @Environment(\.theme) private var theme
 
@@ -57,7 +60,7 @@ struct BannerLabel: View {
             .padding(.horizontal, theme.gutter * 1.5)
             .padding(.vertical, theme.gutter * 0.75)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.toneBg(theme.danger))
+            .background(quiet ? theme.surface1 : theme.toneBg(theme.danger))
             .background(theme.background)
             .overlay(alignment: edge) { theme.border.frame(height: 1) }
             .testNode("banner", role: "banner", label: text)

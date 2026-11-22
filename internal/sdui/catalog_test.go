@@ -420,3 +420,36 @@ func TestDiffLinesNodeValidates(t *testing.T) {
 	assert.NoError(t, internalsdui.Validate(sdui.VStack(sdui.DiffLines("d", lines, true), trust)))
 	assert.ErrorContains(t, internalsdui.Validate(sdui.DiffLines("d", []sdui.DiffLine{{Sign: "~", Text: "x"}}, false)), "sign")
 }
+
+func TestCatalogAcceptsListFilterAndFocus(t *testing.T) {
+	items := []sdui.Item{{ID: "s", Label: "Suggested", Section: true}, {ID: "a", Label: "A", Caption: "opened this review · 3 m"}}
+	assert.NoError(t, internalsdui.Validate(sdui.List("l", items, "").WithFocus("a").WithFilter("Filter sessions", 10)))
+	bad := sdui.List("l", items, "").WithFilter("Filter sessions", -1)
+	assert.ErrorIs(t, internalsdui.Validate(bad), internalsdui.ErrInvalidTree)
+}
+
+func TestCatalogRejectsActionOnSectionItem(t *testing.T) {
+	for name, item := range map[string]sdui.Item{
+		"menu":     {ID: "s", Label: "Suggested", Section: true, Menu: []sdui.MenuEntry{{Action: "close", Label: "Close"}}},
+		"shortcut": {ID: "s", Label: "Suggested", Section: true, Shortcut: "n"},
+	} {
+		assert.ErrorIs(t, internalsdui.Validate(sdui.List("l", []sdui.Item{item}, "")), internalsdui.ErrInvalidTree, name)
+	}
+}
+
+func TestCatalogRejectsCaptionOnTreeItem(t *testing.T) {
+	item := sdui.TreeItem{ID: "a", Label: "A"}
+	assert.NoError(t, internalsdui.Validate(sdui.Tree("t", []sdui.TreeItem{item}, "")))
+	bad := sdui.Node{Type: "tree", ID: "t", Props: map[string]any{"items": []any{map[string]any{"id": "a", "label": "A", "caption": "x"}}}}
+	assert.ErrorIs(t, internalsdui.Validate(bad), internalsdui.ErrInvalidTree)
+}
+
+func TestCatalogAcceptsContextAttachment(t *testing.T) {
+	chips := []sdui.Attachment{
+		{ID: "review", Kind: "review", Path: "Review main → feat/x", Context: true, Removable: true},
+		{ID: "page", Kind: "page", Path: "Roadmap page", Context: true},
+	}
+	assert.NoError(t, internalsdui.Validate(sdui.Composer("c", sdui.ComposerProps{Attachments: chips})))
+	bad := []sdui.Attachment{{Kind: "tab", Path: "x"}}
+	assert.ErrorIs(t, internalsdui.Validate(sdui.Composer("c", sdui.ComposerProps{Attachments: bad})), internalsdui.ErrInvalidTree)
+}

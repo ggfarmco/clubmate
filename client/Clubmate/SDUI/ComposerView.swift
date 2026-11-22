@@ -149,17 +149,46 @@ struct ComposerNodeView: View {
         }
         .padding(theme.gutter)
         .background(RoundedRectangle(cornerRadius: theme.radius.l).fill(theme.surface2))
+        .background {
+            if focused, node.attachments().contains(where: \.context) {
+                Button("Show what this session sees") { dispatch(node, .named("context", .null)) }
+                    .keyboardShortcut(KeyboardShortcut(Self.contextKey))
+                    .opacity(0)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
         .overlay(RoundedRectangle(cornerRadius: theme.radius.l).stroke(focused ? theme.accent : theme.border, lineWidth: 1))
         .contentShape(Rectangle())
         .onTapGesture { if !disabled { focused = true } }
     }
 
+    private static let contextKey = "cmd+i"
+
     private func chip(_ attachment: SDUIAttachment) -> some View {
         HStack(spacing: theme.spacing.s) {
-            Text(attachment.label)
-                .lineLimit(1)
-                .truncationMode(.label)
-            if let key = attachment.key {
+            if attachment.context {
+                Button {
+                    dispatch(node, .named("context", .null))
+                } label: {
+                    HStack(spacing: theme.spacing.s) {
+                        Image(systemName: attachment.icon)
+                            .font(theme.glyph)
+                            .foregroundStyle(theme.muted)
+                        Text(attachment.label)
+                            .lineLimit(1)
+                            .truncationMode(.label)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Show what this session sees")
+            } else {
+                Text(attachment.label)
+                    .lineLimit(1)
+                    .truncationMode(.label)
+            }
+            if let key = attachment.key, !attachment.context || attachment.removable {
                 Button {
                     dispatch(node, .named("detach", .object(["id": .string(key)])))
                 } label: {

@@ -30,7 +30,7 @@ var (
 	slotPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 	nounPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*(\.[a-z][a-z0-9]*(-[a-z0-9]+)*)?$`)
 	aliasPrefix = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}\.`)
-	fixedSlots  = []string{"sidebar", "main", "status", "settings"}
+	fixedSlots  = []string{"sidebar", "main", "status", "settings", "chat"}
 
 	reservedIDs = []string{"core", "session", "workspace", "process", "ui", "diagnostics"}
 )
