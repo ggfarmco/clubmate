@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wiki 1280 · chat after the pick</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/5b757fa785f75eca47c580c656373554">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+
+.doc .dir{display:flex;flex-direction:column;gap:14px;min-width:0}
+.doc .pitch{font-size:16px;line-height:23px;color:#2C302D}
+.doc .sub{font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:16px;letter-spacing:.06em;text-transform:uppercase;color:#5B5F5C}
+.doc .k{display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:4px;border:1px solid #B9B6AA;background:#FFFFFF;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:18px;color:#1B1D1C;white-space:nowrap}
+.doc .keys{display:grid;grid-template-columns:120px minmax(0,1fr);gap:6px 12px;font-size:14px;line-height:20px;align-items:center}
+.doc .frame{border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px #1B1D1C,0 12px 28px rgba(0,0,0,.12);flex:none}
+.doc .rec{background:#D9EAD9;color:#1D5A2B}
+.doc .note{font-size:13.5px;line-height:20px;color:#3A3D3B}
+.doc .pc{font-size:13.5px;line-height:20px}
+.doc .pc b{font-weight:600}
+
+</style>
+</helmet>
+<div class="cm th-mate" style="width: 1280px; height: 800px; overflow: hidden">
+<div class="win">
+<header class="tb">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="pill" style="flex: 0 1 auto; min-width: 0"><span class="ell">clubmate</span><span class="faint">/</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span class="ell">feat/send-review</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="pill" aria-label="Notifications: 2 need you"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">2</span></button>
+<button class="pill" aria-label="Windows: 1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M5.5 1.5h7a2 2 0 0 1 2 2v7"/></svg><span class="t2">1</span></button>
+</header>
+<div class="body" style="grid-template-columns: 40px 248px minmax(0, 1fr) 392px">
+<nav class="rail" aria-label="Sections"><button class="ri" aria-label="Code ⌘1"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button><button class="ri" aria-label="Terminals ⌘2"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button><button class="ri" aria-label="Agents ⌘3, 2 need you"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="bdg"></span></button><button class="ri" aria-label="Backlog ⌘4"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button><button class="ri on" aria-label="Wiki ⌘5"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h8.5a1 1 0 0 1 1 1v10H4a1 1 0 0 1-1-1Z"/><path d="M3 11.5a1 1 0 0 1 1-1h8.5"/></svg></button><button class="ri" aria-label="Processes ⌘6"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg></button><button class="ri" aria-label="Cron ⌘7"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button><button class="ri" aria-label="Triggers ⌘8"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg></button></nav>
+<aside class="side" aria-label="Wiki pages">
+<div class="phead"><span class="ttl">Wiki</span><span class="mut cap">4 pages</span><span style="flex: 1"></span><button class="btn ico sm gh" aria-label="New page"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button></div>
+<div style="padding: 8px 8px 4px; flex: none"><span class="field"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg><span class="phd">Search wiki</span></span></div>
+<div style="display: flex; flex-direction: column; padding: 0 4px">
+<div class="row"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5Z"/><path d="M9 1.5V5h3.5"/></svg><span class="l">Architecture</span></div>
+<div class="row seli"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5Z"/><path d="M9 1.5V5h3.5"/></svg><span class="l">Review flow</span></div>
+<div class="sec">agents</div>
+<div class="row"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5Z"/><path d="M9 1.5V5h3.5"/></svg><span class="l">Land gates</span></div>
+<div class="row"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5Z"/><path d="M9 1.5V5h3.5"/></svg><span class="l">Sessions</span></div>
+</div>
+</aside>
+<main class="main" aria-label="Page">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 16px 24px 12px; border-bottom: 1px solid var(--bd); flex: none">
+<div style="display: flex; align-items: center; gap: 8px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5Z"/><path d="M9 1.5V5h3.5"/></svg><h1 class="h" style="margin: 0">Review flow</h1><span style="flex: 1"></span><span class="mut cap">updated 16:03 by you</span></div>
+<div style="display: flex; align-items: center; gap: 8px"><button class="btn pri"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><path d="M11 2.5 13.5 5 6 12.5l-3 .5.5-3Z"/></svg>Edit<span class="kbd">E</span></button><button class="btn"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg>History<span class="kbd">⌘Y</span></button><span style="flex: 1"></span><button class="btn ico sm gh" aria-label="More"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button></div>
+</div>
+<div style="flex: 1; min-height: 0; overflow: hidden; padding: 14px 24px; display: flex; flex-direction: column; gap: 14px; font-size: 13px; line-height: 21px; max-width: 600px">
+<button class="row" style="height: 28px; border: 1px solid var(--bd); background: var(--s1); border-radius: 6px; width: 100%; text-align: left"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><span class="l t2">On this page · 1 change</span><span class="d cap">margin folded while chat is open</span></button>
+<p>How a review goes from nvim to an agent.</p>
+<h2 class="h" style="margin: 4px 0 0">Open a review</h2>
+<p>Review changes (⌘R) opens the diff of the worktree against its base.</p>
+<h2 class="h" style="margin: 4px 0 0">Send</h2>
+<p>Send collects the open comments and sends them to the session that opened the review.</p>
+<div style="background: var(--s1); border: 1px solid var(--bd); border-radius: 6px; padding: 8px 12px"><span class="ac-i">func</span> <span class="b">Send</span>(to <span class="ok-i">string</span>) <span class="ok-i">error</span></div>
+</div>
+</main>
+<aside aria-label="Chat" style="display: flex; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid var(--bd); background: var(--bg)">
+<div class="phead" style="padding: 0 6px 0 4px; background: var(--s1); gap: 6px"><button class="btn sm gh" aria-label="All sessions ⌘[" style="padding: 0 6px 0 4px"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg><span class="kbd">⌘[</span></button><span class="vr" style="margin: 8px 2px"></span><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg><span class="ttl ell" style="flex: 0 1 auto">Wiki: document review flow</span><span class="mut cap ell" style="flex: 0 1 auto">docs/wiki</span><span style="flex: 1"></span><button class="btn ico sm gh" aria-label="Hide chat ⌘B"><svg class="i " viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M10 2.5v11"/></svg></button></div>
+<div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; padding: 12px 16px">
+<div class="cap mut" style="text-align: center">earlier in this session · 3 messages</div>
+<div style="display: flex; gap: 10px; padding: 6px 10px; background: var(--s1); border-radius: 8px"><span class="b" style="color: var(--t3)">›</span><p>Does this page say where the comments go when the opener is closed?</p></div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<p>Not yet. <b>Send</b> says they go to the session that opened the review; it says nothing about a closed opener.</p>
+<p class="t2">The code falls back to <code>r.Opener</code> only when <code>SendTo</code> is empty, so a closed opener gets them anyway. I can add one paragraph under Send.</p>
+</div>
+</div>
+<div style="padding: 0 12px 12px; flex: none">
+<div class="card" style="display: flex; flex-direction: column">
+<div style="display: flex; gap: 6px; padding: 8px 8px 0; flex-wrap: wrap"><button class="badge" style="border: 1px solid var(--bd); background: var(--s1); height: 20px; border-radius: 5px; gap: 5px"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h8.5a1 1 0 0 1 1 1v10H4a1 1 0 0 1-1-1Z"/><path d="M3 11.5a1 1 0 0 1 1-1h8.5"/></svg><span>Review flow</span><span class="mut">page</span><span class="kbd" style="height: 14px; font-size: 10px">⌘I</span></button></div>
+<label for="wiki-chat" class="faint" style="padding: 6px 12px 0; min-height: 40px">Ask about this page, @ to attach</label>
+<textarea id="wiki-chat" aria-label="Message Claude" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1"></textarea>
+<div style="display: flex; align-items: center; gap: 4px; padding: 4px 6px 6px 6px">
+<button class="btn sm gh">Claude · Ask before edits<svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="btn sm pri dis" disabled>Send<span class="kbd">⌘⏎</span></button>
+</div>
+</div>
+</div>
+</aside>
+</div>
+<footer class="sb">
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span>
+<span>6 agents · <span class="wa-i">2 need you</span></span>
+<span style="flex: 1"></span>
+<span>⌘[ sessions</span>
+<span>⌘I context</span>
+<span>⌘B chat · ⌃⌘S sidebar</span>
+<span>⌘K commands</span>
+</footer>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

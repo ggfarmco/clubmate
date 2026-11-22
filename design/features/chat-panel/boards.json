@@ -1,0 +1,37 @@
+{
+  "title": "Chat panel · ruled 22 Nov",
+  "fit": 1200,
+  "css": [
+    "r1.css",
+    "r2.css"
+  ],
+  "intro": [
+    "Ruled 22 Nov: picker A (one list, suggestion first and focused, reason as caption), header H1 (back ⌘[, context chips in the composer), Wiki W1 (chat takes the margin column’s place), key K1 (⌘B chat in Code and Wiki, ⌃⌘S sidebar everywhere), iPad P1 side panel in landscape + P2 sheet in portrait and compact. Rules: rules.md beside this page. The A/B/C round: design/chat-panel-brief/round-1.html; its mixed boards (picker A/B/C, header and Wiki options) in rounds/."
+  ],
+  "boards": [
+    {
+      "file": "R1-Code-1280-Review.dc.html",
+      "w": 1280,
+      "title": "2 · Code 1280 · Mate dark · review current · picker A",
+      "caption": "Suggested: “Send review: pick the session · opened this review”; then 5 open sessions; New session for this review (N)."
+    },
+    {
+      "file": "R1-Wiki-1280-Chat.dc.html",
+      "w": 1280,
+      "title": "3 · Wiki 1280 · Mate dark · after the pick (H1, page chip, W1)",
+      "caption": "Back ⌘[ in the header, the page as a chip in the composer, the margin column folded into the fold row."
+    },
+    {
+      "file": "R1-640-iPad.dc.html",
+      "w": 1448,
+      "title": "5 · 640 Mate light (Code, Wiki) · iPad P1 / P2",
+      "caption": "Code 640 without a review (“last used here”), Wiki 640 stacked under the page; iPad side panel and sheet."
+    },
+    {
+      "file": "R1-Rules-Handoff.dc.html",
+      "w": 1560,
+      "title": "6 · Rules, handoff (a/b/c), recommendation",
+      "caption": "A · H1 · W1 · K1 · P1+P2; 20 handoff items."
+    }
+  ]
+}

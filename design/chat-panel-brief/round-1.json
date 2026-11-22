@@ -1,0 +1,20 @@
+{
+  "title": "Chat panel · round 1",
+  "fit": 1200,
+  "css": ["r1.css", "r2.css"],
+  "intro": [
+    "Claude Design, 22 Nov. The panel opens on a session picker every time, the same tree in Code and Wiki. Same moment on every picker: review main → feat/send-review is current, 6 sessions open. The empty state is shared: the empty node with “New session for this review” as primary, ↩ takes it.",
+    "A · One list (designer's pick): the suggestion is the first, focused row, its reason on a second line (“opened this review · 4m”); a filter field appears above 9 sessions. Only existing nodes plus two props (row caption, initial focus).",
+    "B · Suggestion card: the suggestion is a card with a primary Continue ↩ button; the other sessions are a quiet list below; 20+ get a “Show 14 more” row.",
+    "C · Grouped by nearness: sections for this review, this worktree and other worktrees; New session sits inside the group it would join; other worktrees fold into one row each with a count.",
+    "Also on the boards: chat header H1 back button ⌘[ + context chips in the composer (pick), H2 title opens the picker, H3 “Sessions / title” breadcrumb. Wiki W1 chat takes the margin column's place (pick), W2 right of the margin, W3 Outline | Chat tabs. Key K1 (pick): ⌘B toggles the chat in Code and Wiki, ⌃⌘S the sidebar everywhere; in Wiki ⌘B changes meaning. iPad in scope: P1 400 pt side panel in landscape (list column hides), P2 sheet with medium/large detents in portrait and compact."
+  ],
+  "boards": [
+    {"file": "R1-Picker-Directions.dc.html", "w": 1560, "title": "1 · Picker: A one list · B card · C grouped", "caption": "Mate dark, 392 wide. Each direction with its long list, keys, pros and cons; the shared empty state."},
+    {"file": "R1-Code-1280-Review.dc.html", "w": 1280, "title": "2 · Code 1280 · Mate dark · review current · picker A", "caption": "Suggested: “Send review: pick the session · opened this review”; then 5 open sessions; New session for this review (N)."},
+    {"file": "R1-Wiki-1280-Chat.dc.html", "w": 1280, "title": "3 · Wiki 1280 · Mate dark · after the pick (H1, page chip, W1)", "caption": "Back ⌘[ in the header, the page as a chip in the composer, the margin column folded into the fold row."},
+    {"file": "R1-Header-Wiki-Keys.dc.html", "w": 1560, "title": "4 · Header H1–H3 · Wiki W1–W3 · toggle key K1–K3", "caption": "Chat header options, where the panel sits in Wiki, which key toggles it."},
+    {"file": "R1-640-iPad.dc.html", "w": 1448, "title": "5 · 640 Mate light (Code, Wiki) · iPad P1 / P2", "caption": "Code 640 without a review (“last used here”), Wiki 640 stacked under the page; iPad side panel and sheet."},
+    {"file": "R1-Rules-Handoff.dc.html", "w": 1560, "title": "6 · Rules, handoff (a/b/c), recommendation", "caption": "A · H1 · W1 · K1 · P1+P2; 20 handoff items."}
+  ]
+}

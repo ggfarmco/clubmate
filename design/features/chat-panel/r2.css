@@ -1,0 +1,46 @@
+/* Clubmate companion · Round 2 (final) — layer over cm.css + companion.css + r1.css */
+/* iPhone tab bar (TabView, iOS 26 Liquid Glass) */
+.r2 .tbar{position:absolute;left:20px;right:94px;bottom:22px;height:62px;border-radius:31px;display:flex;align-items:center;padding:0 4px;z-index:9}
+.r2 .ti{position:relative;flex:1;height:54px;border-radius:27px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--fg);font-size:10px;line-height:12px;font-weight:600;letter-spacing:0}
+.r2 .ti svg.i{width:24px;height:24px;stroke-width:1.6}
+.r2 .ti.on{color:var(--ac-i);background:color-mix(in srgb,var(--fg) 7%,transparent)}
+.r2 .tbadge{position:absolute;top:3px;left:calc(50% + 5px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--wa);color:#1A1300;font-size:11px;line-height:18px;font-weight:700;text-align:center}
+.r2 .tsrch{position:absolute;right:20px;bottom:22px;width:62px;height:62px;border-radius:31px;display:flex;align-items:center;justify-content:center;color:var(--fg);z-index:9}
+.r2 .tsrch svg.i,.r2 .tmin svg.i{width:24px;height:24px;stroke-width:1.7}
+.r2 .tmin{position:absolute;left:20px;bottom:26px;width:54px;height:54px;border-radius:27px;display:flex;align-items:center;justify-content:center;color:var(--ac-i);z-index:9}
+.r2 .tsrch.min{width:54px;height:54px;bottom:26px}
+.r2 .sfield{position:absolute;left:90px;right:20px;bottom:26px;height:54px;border-radius:27px;display:flex;align-items:center;gap:10px;padding:0 8px 0 18px;z-index:9;color:var(--fg);font-size:17px}
+/* root top bar + large title */
+.r2 .wsb{display:inline-flex;align-items:center;gap:7px;height:44px;padding:0 14px;border-radius:22px;font-size:15px;font-weight:600;color:var(--fg);flex:none}
+.r2 .lt{position:absolute;left:20px;right:20px;top:110px;display:flex;flex-direction:column;gap:2px;z-index:6}
+.r2 .ltt{margin:0;font-size:34px;line-height:41px;font-weight:700;letter-spacing:.2px}
+.r2 .lts{font-size:15px;line-height:20px;color:var(--t3)}
+.r2 .secl{font-size:13px;line-height:18px;color:var(--t3)}
+.r2 .pg{position:absolute;left:0;right:0;overflow:hidden}
+.r2 .fchip{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:18px;background:var(--s2);font-size:15px;color:var(--fg);white-space:nowrap}
+.r2 .fchip.on{background:var(--fg);color:var(--bg)}
+/* scaled device wrappers */
+.r2 .sc{position:absolute;left:0;top:0;transform-origin:0 0}
+/* iPad */
+.r2 .itab{position:absolute;top:26px;height:48px;border-radius:24px;display:flex;align-items:center;padding:0 4px;gap:2px;z-index:9;transform:translateX(-50%)}
+.r2 .it{height:40px;padding:0 16px;border-radius:20px;font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px;color:var(--fg);position:relative}
+.r2 .it.on{color:var(--ac-i);background:color-mix(in srgb,var(--fg) 7%,transparent)}
+.r2 .it svg.i{width:20px;height:20px;stroke-width:1.7}
+.r2 .ic{position:absolute;top:0;bottom:0;overflow:hidden}
+.r2 .ic.side{background:var(--s1);border-right:1px solid var(--bd)}
+.r2 .ic.list{border-right:1px solid var(--bd);background:var(--bg)}
+.r2 .ic.over{box-shadow:12px 0 40px rgba(0,0,0,.18);z-index:7}
+.r2 .ctb{position:absolute;left:12px;right:12px;top:26px;height:48px;display:flex;align-items:center;gap:8px;z-index:8}
+.r2 .chd{position:absolute;left:20px;right:20px;top:84px;display:flex;flex-direction:column;gap:2px}
+.r2 .chd .ltt{font-size:28px;line-height:34px}
+.r2 .rows{position:absolute;left:10px;right:10px;top:160px;display:flex;flex-direction:column;gap:2px}
+.r2 .rw{display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 12px;border-radius:14px}
+.r2 .rw.sel{background:var(--ac-bg)}
+.r2 .rw .cbody{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.r2 .srow{display:flex;align-items:center;gap:10px;min-height:44px;padding:6px 10px;border-radius:12px;font-size:15px}
+.r2 .srow.sel{background:var(--ac-bg);font-weight:600}
+.r2 .dim{position:absolute;inset:0;background:var(--scrim);z-index:6}
+/* spec sheet */
+.r2 .kb{display:inline-flex;align-items:center;height:22px;padding:0 7px;border-radius:5px;border:1px solid #B9B6AA;background:#FFFFFF;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:20px;color:#1B1D1C;white-space:nowrap}
+.r2 .grp{display:flex;flex-direction:column;gap:12px}
+.r2 .grp h2{padding-bottom:6px;border-bottom:1.5px solid #1B1D1C}
