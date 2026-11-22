@@ -1,0 +1,157 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-22T16:07:23Z"
+  },
+  "title": "Clubmate · Startup skeleton",
+  "launch": {
+    "view": "canvas",
+    "page": "today"
+  },
+  "pages": [
+    {
+      "id": "today",
+      "name": "Today (screenshots)"
+    },
+    {
+      "id": "r1",
+      "name": "Round 1"
+    },
+    {
+      "id": "language",
+      "name": "Language"
+    }
+  ],
+  "boards": {
+    "Main.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 2720,
+      "h": 3800,
+      "title": "Today · start-up and loaded windows, Mac test app (Mate dark), 22 Nov",
+      "page": "today"
+    },
+    "Principles.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1000,
+      "h": 2220,
+      "title": "Principles",
+      "page": "language"
+    },
+    "Tokens.dc.html": {
+      "x": 1080,
+      "y": 0,
+      "w": 1480,
+      "h": 2720,
+      "title": "Tokens",
+      "page": "language"
+    },
+    "Components.dc.html": {
+      "x": 2640,
+      "y": 0,
+      "w": 1480,
+      "h": 2360,
+      "title": "Components",
+      "page": "language"
+    },
+    "Patterns.dc.html": {
+      "x": 4200,
+      "y": 0,
+      "w": 1480,
+      "h": 1940,
+      "title": "Patterns",
+      "page": "language"
+    },
+    "Agents-Mate-1280.dc.html": {
+      "x": 0,
+      "y": 2840,
+      "w": 1280,
+      "h": 800,
+      "title": "Agents · 1280 · Mate (target layout)",
+      "page": "language"
+    },
+    "Code-1280-Mate.dc.html": {
+      "x": 1360,
+      "y": 2840,
+      "w": 1280,
+      "h": 800,
+      "title": "Code + chat · 1280 · Mate (target layout)",
+      "page": "language"
+    },
+    "Backlog-1280-Mate.dc.html": {
+      "x": 2720,
+      "y": 2840,
+      "w": 1280,
+      "h": 800,
+      "title": "Backlog task · 1280 · Mate (target layout)",
+      "page": "language"
+    },
+    "R1-A-Remembered-layout.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 2720,
+      "h": 2240,
+      "title": "A · Remembered layout (pick)",
+      "page": "r1"
+    },
+    "R1-B-Neutral-frame.dc.html": {
+      "x": 2800,
+      "y": 0,
+      "w": 2720,
+      "h": 2240,
+      "title": "B · Neutral frame",
+      "page": "r1"
+    },
+    "R1-C-Remembered-geometry.dc.html": {
+      "x": 5600,
+      "y": 0,
+      "w": 2720,
+      "h": 2240,
+      "title": "C · Remembered geometry",
+      "page": "r1"
+    },
+    "R1-Timeline-A.dc.html": {
+      "x": 0,
+      "y": 2360,
+      "w": 2720,
+      "h": 2560,
+      "title": "Timeline · A",
+      "page": "r1"
+    },
+    "R1-Rules-A.dc.html": {
+      "x": 2800,
+      "y": 2360,
+      "w": 1920,
+      "h": 3200,
+      "title": "Rules · A",
+      "page": "r1"
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Principles.dc.html",
+    "Tokens.dc.html",
+    "Components.dc.html",
+    "Patterns.dc.html",
+    "Agents-Mate-1280.dc.html",
+    "Code-1280-Mate.dc.html",
+    "Backlog-1280-Mate.dc.html",
+    "R1-A-Remembered-layout.dc.html",
+    "R1-B-Neutral-frame.dc.html",
+    "R1-C-Remembered-geometry.dc.html",
+    "R1-Timeline-A.dc.html",
+    "R1-Rules-A.dc.html"
+  ],
+  "notes": {
+    "r1-title": {
+      "x": 0,
+      "y": -320,
+      "text": "Round 1 · what a window shows while the core starts",
+      "kind": "title1",
+      "maxW": 8320,
+      "page": "r1"
+    }
+  }
+}

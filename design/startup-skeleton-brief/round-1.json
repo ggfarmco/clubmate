@@ -1,0 +1,19 @@
+{
+  "title": "Startup skeleton · round 1",
+  "fit": 1200,
+  "build": "python3 -I design/startup-skeleton-brief/inline-imports.py design/features/startup-skeleton design/language/source build/skel-boards, then build.mjs on build/skel-boards (the Timeline board imports Agents-Mate-1280, which the boards-page shim does not resolve)",
+  "intro": [
+    "Claude Design, 22 Nov. Three directions for what a Mac window shows before the core is up; all three are client-only (a), no SDUI, plugin or core change.",
+    "A · Remembered layout (designer's pick): the window opens as it was last time. Rail icons, selected section and pane layout come from a small client cache (≈1 KB per window); each pane is drawn in the shape of its kind (list, transcript, detail, table; a terminal pane stays plain bg).",
+    "B · Neutral frame: no cache. Rail squares, default sidebar, one generic row shape in every pane. Simplest, but the layout jumps at ready when the sidebar was hidden or the chat column was shown.",
+    "C · Remembered geometry: caches only which panes show and their widths. No jump, but an anonymous rail and list rows over a terminal; same cache mechanism as A for less.",
+    "For A: skeleton at 0 ms, no text; ≥ 5 s status bar 'Starting core…' with a mini progress; ≥ 15 s 'Still starting core…' + Show log ⌘L; ready → 180 ms cross-fade (none if ready ≤ 250 ms); failure → chrome stays, message + Retry ⌘R at the top of the content; reconnect → last content at full ink, core actions disabled. The designer moved the slow threshold from 3 s to 5 s because the test app is ready at 3.6 s."
+  ],
+  "boards": [
+    {"file": "R1-A-Remembered-layout.dc.html", "w": 2720, "title": "1 · A · Remembered layout (pick)", "caption": "Agents and Code + chat at 1280 dark, Agents at 640 light, Welcome; rail from the cache, pane shapes per kind."},
+    {"file": "rounds/R1-B-Neutral-frame.dc.html", "w": 2720, "title": "2 · B · Neutral frame", "caption": "No cache: rail squares, one shape everywhere; the Code + chat window draws the same skeleton and jumps at ready."},
+    {"file": "rounds/R1-C-Remembered-geometry.dc.html", "w": 2720, "title": "3 · C · Remembered geometry", "caption": "Cached pane geometry only: no jump, but a neutral rail and list rows where nvim will be."},
+    {"file": "R1-Timeline-A.dc.html", "w": 2720, "title": "4 · Timeline for A", "caption": "0 ms skeleton → ≥ 5 s slow → ≥ 15 s long → 180 ms fade → ready; failure; reconnect; Welcome at 0 ms and on failure."},
+    {"file": "R1-Rules-A.dc.html", "w": 1920, "title": "5 · Rules for A", "caption": "States, timings, every text, placeholder rules, kinds → shapes, 9 changes, all (a)."}
+  ]
+}
