@@ -603,6 +603,7 @@ struct SDUIProbe: ViewModifier {
 
     @Environment(\.sduiParent) private var parent
     @Environment(\.theme) private var theme
+    @Environment(\.sduiGutter) private var gutter
 
     func body(content: Content) -> some View {
         content
@@ -626,7 +627,7 @@ struct SDUIProbe: ViewModifier {
 
     private var idealWidth: Double? {
         guard let font, let text = node.string("text") else { return nil }
-        return (text as NSString).size(withAttributes: [.font: font]).width.rounded(.up) + theme.gutter * 2
+        return (text as NSString).size(withAttributes: [.font: font]).width.rounded(.up) + (gutter && SDUIGutter.pads(node) ? theme.gutter * 2 : 0)
     }
 
     private var lineHeight: Double? {

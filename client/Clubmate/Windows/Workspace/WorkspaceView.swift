@@ -94,11 +94,6 @@ struct WorkspaceView: View {
                 guard let old, let new, old.section == new.section, old.shown != new.shown else { return }
                 focus.request(new.shown ? ChatColumn.slot(for: new.section) : "\(new.section).main")
             }
-            .onChange(of: session.store?.chatKeyHint) { _, hint in
-                guard let hint else { return }
-                session.banner.show(hint, quiet: true)
-                session.store?.chatKeyHint = nil
-            }
     }
 
     private struct ColumnKey: Equatable {

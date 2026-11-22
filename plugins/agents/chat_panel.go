@@ -27,6 +27,7 @@ const (
 	chatSessionsNode = "chat/sessions"
 	chatNewNode      = "chat/new"
 	chatBackNode     = "chat/back"
+	chatHideNode     = "chat/hide"
 	panelNode        = "panel"
 	ctxChipPrefix    = "ctx/"
 	suggestedRow     = "chat/section/suggested"
@@ -55,12 +56,18 @@ const (
 	newKey          = "n"
 	noOpenTitle     = "No open sessions in %s"
 	closedStay      = "Closed sessions stay in Agents"
+	pickerTitle     = "Chat"
+	pickerSub       = "· pick a session"
+	hideLabel       = "Hide chat"
+	hideIcon        = "sidebar.right"
+	hideKey         = "cmd+b"
+	pickerGap       = 8
 	filterHint      = "Filter sessions"
 	filterMinRows   = 10
 	pickerHints     = "↩ open · ↑↓ j k move · N new · / filter"
 	emptyHints      = "↩ new session"
 	needsYouBadge   = "needs you"
-	reviewLabel     = "Review %s → %s"
+	reviewLabel     = "Review %s"
 	pageLabel       = "%s page"
 	reviewNote      = "The user has the review %s → %s open in Neovim (worktree %s)."
 	pageNote        = "The user is reading the wiki page %s (%s) in Clubmate's Wiki."
@@ -77,7 +84,7 @@ func noteRe(format string) *regexp.Regexp {
 
 func contextAttachment(text string) (sdui.Attachment, bool) {
 	if m := reviewNoteRe.FindStringSubmatch(text); m != nil {
-		return sdui.Attachment{Kind: "review", Path: fmt.Sprintf(reviewLabel, shortRev(m[1]), shortRev(m[2]))}, true
+		return sdui.Attachment{Kind: "review", Path: fmt.Sprintf(reviewLabel, shortRev(m[2]))}, true
 	}
 	if m := pageNoteRe.FindStringSubmatch(text); m != nil {
 		return sdui.Attachment{Kind: "page", Path: fmt.Sprintf(pageLabel, m[1])}, true
@@ -199,13 +206,13 @@ func suggestChat(recs []record, cc chatContext, st chatEntry, rev *reviewRef) (s
 func pickerView(pk chatPicker) sdui.Node {
 	open := slices.DeleteFunc(slices.Clone(pk.Recs), func(r record) bool { return r.closed() || serviceSession(r) && r.ID != pk.Suggested })
 	newButton := func(variant string) sdui.Node {
-		return sdui.WithHint(sdui.WithVariant(sdui.WithAction(sdui.Button(chatNewNode, pk.NewLabel, "plus"), actChatNew), variant), newKey)
+		return sdui.WithKeyCap(sdui.WithHint(sdui.WithVariant(sdui.WithAction(sdui.Button(chatNewNode, pk.NewLabel, "plus"), actChatNew), variant), newKey))
 	}
 	if len(open) == 0 {
 		add := newButton(sdui.VariantPrimary)
 		text := strings.TrimSuffix(pk.NewNote, ".") + "."
-		empty := sdui.EmptyState("A new session "+lowerFirst(text), sdui.EmptyProps{Title: fmt.Sprintf(noOpenTitle, pk.Workspace), Icon: "bubble.left.and.bubble.right", Hint: closedStay, Action: &add})
-		return sdui.WithHints(sdui.WithAction(sdui.Keys(chatPickerNode, []string{newKey}, empty), actChatNew), emptyHints)
+		empty := sdui.EmptyState("A new session "+lowerFirst(text), sdui.EmptyProps{Title: fmt.Sprintf(noOpenTitle, pk.Workspace), Icon: "bubble.left.and.bubble.right", Note: closedStay, NoteSection: sectionID, Action: &add})
+		return sdui.WithHints(sdui.WithAction(sdui.Keys(chatPickerNode, []string{newKey}, sdui.VStack(pickerHeader(), empty)), actChatNew), emptyHints)
 	}
 	slices.SortStableFunc(open, func(x, y record) int { return y.UpdatedAt.Compare(x.UpdatedAt) })
 	var items []sdui.Item
@@ -220,8 +227,20 @@ func pickerView(pk chatPicker) sdui.Node {
 		}
 	}
 	list := sdui.WithAction(sdui.List(chatSessionsNode, items, ""), actChatPick).WithFocus(pk.Suggested).WithFilter(filterHint, filterMinRows)
-	foot := sdui.WithGap(sdui.VStack(sdui.Divider(), newButton(sdui.VariantSecondary), sdui.MutedText(pk.NewNote)), 6)
-	return sdui.WithHints(sdui.WithAction(sdui.Keys(chatPickerNode, []string{newKey}, sdui.VStack(list, foot)), actChatNew), pickerHints)
+	foot := sdui.WithInset(sdui.WithGap(sdui.VStack(sdui.WithFill(newButton(sdui.VariantSecondary)), sdui.MutedText(pk.NewNote)), 6), sdui.InsetFoot)
+	return sdui.WithHints(sdui.WithAction(sdui.Keys(chatPickerNode, []string{newKey}, sdui.VStack(pickerHeader(), list, sdui.Divider(), foot)), actChatNew), pickerHints)
+}
+
+func pickerHeader() sdui.Node {
+	return sdui.WithNotes(chatBar(openStrong(pickerTitle), sdui.WithLines(sdui.MutedText(pickerSub), 1), sdui.Spacer(), hideButton()))
+}
+
+func chatBar(children ...sdui.Node) sdui.Node {
+	return sdui.WithInset(sdui.WithGap(sdui.HStack(children...), pickerGap), sdui.InsetBar)
+}
+
+func hideButton() sdui.Node {
+	return sdui.WithClientAction(sdui.WithHint(sdui.WithIconOnly(sdui.WithVariant(sdui.Button(chatHideNode, hideLabel, hideIcon), sdui.VariantGhost)), hideKey), sdui.ClientHideChat)
 }
 
 func serviceSession(rec record) bool {
@@ -235,7 +254,7 @@ func (pk chatPicker) item(rec record, lead string) sdui.Item {
 		Label:   cmp.Or(rec.Title, newSessionLabel),
 		Icon:    cmp.Or(statusIcons[display], statusIcons[statusIdle]),
 		Tone:    statusTones[display],
-		Caption: strings.Join(nonEmpty(lead, ago(rec.UpdatedAt, pk.Now)), " · "),
+		Caption: strings.Join(nonEmpty(lead, shortAge(pk.Now.Sub(rec.UpdatedAt), rec.UpdatedAt)), " · "),
 	}
 	if needsYou(rec) {
 		it.Icon, it.Tone, it.Badge = statusIcons[statusWaiting], statusTones[statusWaiting], needsYouBadge
@@ -258,23 +277,33 @@ func lowerFirst(s string) string {
 }
 
 func reviewChipLabel(rev reviewRef, branch string) string {
-	return fmt.Sprintf(reviewLabel, shortRev(rev.Base), shortRev(cmp.Or(rev.Head, branch)))
+	head := rev.Head
+	if head == "" || commitID(head) {
+		head = cmp.Or(branch, shortRev(head))
+	}
+	return fmt.Sprintf(reviewLabel, head)
+}
+
+func commitID(rev string) bool {
+	return len(rev) == 40 && strings.Trim(rev, "0123456789abcdef") == ""
 }
 
 func shortRev(rev string) string {
-	if len(rev) == 40 && strings.Trim(rev, "0123456789abcdef") == "" {
+	if commitID(rev) {
 		return rev[:7]
 	}
 	return rev
 }
 
-func newSessionNote(branch string, rev *reviewRef, page *wikiPage) string {
+func newSessionNote(branch, file string, rev *reviewRef, page *wikiPage) string {
 	starts := "Starts on " + cmp.Or(branch, "this worktree")
 	switch {
 	case rev != nil:
-		return starts + " and opens the review " + shortRev(rev.Base) + " → " + shortRev(cmp.Or(rev.Head, branch))
+		return starts + " with this review"
 	case page != nil:
-		return starts + " and sees the page " + page.Title
+		return starts + " and sees the page " + cmp.Or(page.Title, page.Page)
+	case file != "":
+		return starts + " and sees " + filepath.Base(file)
 	}
 	return starts
 }
@@ -580,7 +609,7 @@ func (a *app) renderChat(ctx context.Context, p *workspaceUI, workspace pluginsd
 	branch := branchLabel(a.branches.name(ctx, workspace.ID, cc.Root))
 	pk := chatPicker{
 		Workspace: workspace.Name, Root: cc.Root, Recs: recs, Children: children,
-		Suggested: sid, Reason: reason, NewLabel: newSessionLabel, NewNote: newSessionNote(branch, rev, page), Now: time.Now(),
+		Suggested: sid, Reason: reason, NewLabel: newSessionLabel, NewNote: newSessionNote(branch, a.panelFile(workspace.ID, cc), rev, page), Now: time.Now(),
 	}
 	if rev != nil {
 		pk.NewLabel = newReviewLabel
@@ -598,14 +627,23 @@ func (a *app) panelChat(ctx context.Context, workspace pluginsdk.Workspace, cc c
 	}
 	branch := a.branchOf(ctx, rec)
 	panel := codePanel{
-		Back:     sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(chatBackNode, backLabel, "chevron.left"), actChatBack), sdui.VariantGhost), backKey),
+		Back:     backButton(),
 		Worktree: chatPicker{Root: cc.Root}.worktreeOf(rec),
+		Chips:    a.shownChips(workspace.ID, cc, rec, branch),
 	}
-	if sameTree(rec.Worktree, cc.Root) && !cc.wiki() {
-		panel.File = a.editorFile(workspace.ID, cc.Root)
-	}
-	for _, c := range a.shownChips(workspace.ID, cc, rec, branch) {
-		panel.Chips = append(panel.Chips, c.chip)
+	if sameTree(rec.Worktree, cc.Root) {
+		panel.File = a.panelFile(workspace.ID, cc)
 	}
 	return codeView(recs, *sc, panel)
+}
+
+func backButton() sdui.Node {
+	return sdui.WithKeyCap(sdui.WithIconOnly(sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(chatBackNode, backLabel, "chevron.left"), actChatBack), sdui.VariantGhost), backKey)))
+}
+
+func (a *app) panelFile(workspaceID string, cc chatContext) string {
+	if cc.wiki() {
+		return ""
+	}
+	return a.editorFile(workspaceID, cc.Root)
 }

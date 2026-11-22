@@ -11,6 +11,11 @@ struct StackNode: View {
     @Environment(\.sectionLine) private var sectionLine
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.readingView) private var readingView
+    @Environment(\.sduiRowHeight) private var panelRows
+
+    static func chromeBar(_ node: SDUINode) -> Bool {
+        node.string("inset") == "bar" && node.children.allSatisfy { ["text", "spacer", "icon"].contains($0.type) || $0.string("clientAction") != nil }
+    }
 
     private var gap: CGFloat? {
         node.props["gap"]?.numberValue.map { CGFloat($0) }
@@ -45,7 +50,9 @@ struct StackNode: View {
     }
 
     var body: some View {
-        if let page, let parts = node.pageDocument {
+        if panelRows != nil, Self.chromeBar(node) {
+            EmptyView()
+        } else if let page, let parts = node.pageDocument {
             DocumentNode(node: parts.document, context: context, header: pageHeader(parts.header, document: parts.document, page: page))
                 .modifier(PageHeaderBar(node: parts.header, context: context, find: page.find))
         } else if let key = propertyKey {

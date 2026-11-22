@@ -112,7 +112,7 @@ type codePanel struct {
 	Back     sdui.Node
 	Worktree string
 	File     string
-	Chips    []sdui.Attachment
+	Chips    []contextChip
 }
 
 type starter struct {
@@ -291,10 +291,8 @@ func header(sc screen) sdui.Node {
 	if rec.HandoffFrom != "" {
 		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/"+handoffFromNode, "Earlier session", "clock.arrow.circlepath"), actOpenHandoff))
 	}
-	if b, ok := contextButton(sc); ok && (sc.Code == nil || sc.Context != nil) {
+	if b, ok := contextButton(sc); ok && sc.Code == nil {
 		buttons = append(buttons, b)
-	} else if ok && len(sc.Code.Chips) == 0 {
-		buttons = append(buttons, sdui.WithIconOnly(sdui.WithVariant(b, sdui.VariantGhost)))
 	}
 	if sc.Changes {
 		buttons = append(buttons, reviewButton(sid, sc.ReviewBases, sc.ReviewBase))
@@ -317,7 +315,7 @@ func header(sc screen) sdui.Node {
 		if sc.Code.Worktree != "" {
 			row = append(row, sdui.WithLines(sdui.MutedText(sc.Code.Worktree), 1))
 		}
-		top = sdui.WithGap(sdui.HStack(append(append(row, sdui.Spacer()), buttons...)...), 6)
+		top = chatBar(append(append(append(row, sdui.Spacer()), buttons...), hideButton())...)
 	} else {
 		var badges []sdui.HeaderBadge
 		title := cmp.Or(rec.Title, "New session")
@@ -431,8 +429,14 @@ func composer(sc screen) sdui.Node {
 		}
 		attachments = append(attachments, sdui.Attachment{ID: a.ID, Kind: a.Kind, Path: path, StartLine: a.StartLine, EndLine: a.EndLine})
 	}
+	contextLabel := ""
 	if sc.Code != nil {
-		attachments = append(slices.Clone(sc.Code.Chips), attachments...)
+		chips := make([]sdui.Attachment, 0, len(sc.Code.Chips))
+		for _, c := range sc.Code.Chips {
+			chips = append(chips, c.chip)
+		}
+		attachments = append(chips, attachments...)
+		contextLabel = composerContext(sc)
 	}
 	modes := modeOptions(v)
 	if rec.isAside() {
@@ -451,8 +455,19 @@ func composer(sc screen) sdui.Node {
 		Running:     turnActive(rec),
 		Steers:      sc.Steers,
 		Docked:      docked(sc),
+		Context:     contextLabel,
 		Draft:       composerDraftNode(rec.ComposerDraft),
 	})
+}
+
+func composerContext(sc screen) string {
+	switch {
+	case !hasContext(sc.View.Session):
+		return ""
+	case sc.Context != nil:
+		return transcriptLabel
+	}
+	return contextLabel
 }
 
 func modeOptions(v transcriptView) []sdui.Option {

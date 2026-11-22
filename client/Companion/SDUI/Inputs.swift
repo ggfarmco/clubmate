@@ -38,8 +38,14 @@ struct ButtonNode: View {
     }
 
     var body: some View {
+        if node.string("clientAction") == nil {
+            button
+        }
+    }
+
+    private var button: some View {
         let label = node.string("label") ?? ""
-        Button {
+        return Button {
             if node.confirmation() != nil { confirming = true } else { press() }
         } label: {
             SDUIButtonLabel(label: label, icon: node.string("icon"), variant: node.string("variant"), iconOnly: node.bool("iconOnly") == true && node.string("icon") != nil, loading: loading)

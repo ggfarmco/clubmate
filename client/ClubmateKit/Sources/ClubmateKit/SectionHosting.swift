@@ -15,6 +15,10 @@ public enum SectionHosting {
         sections.filter { $0.rail && host(of: $0, in: sections) == nil }
     }
 
+    public static func railKeys(_ sections: [SectionInfo]) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: rail(sections).prefix(9).enumerated().map { ($1.id, "⌘\($0 + 1)") })
+    }
+
     public static func hosted(_ sections: [SectionInfo]) -> [SectionInfo] {
         sections.filter { host(of: $0, in: sections) != nil }
     }

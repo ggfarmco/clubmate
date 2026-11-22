@@ -192,11 +192,26 @@ final class IPadUITests: XCTestCase {
         XCTAssertEqual(panel.frame.width, 400, accuracy: 2)
         XCTAssertGreaterThanOrEqual(second.frame.minY - first.frame.minY, 56)
         XCTAssertTrue(listHidden(app))
+        XCTAssertFalse(app.staticTexts["· pick a session"].exists)
+        XCTAssertFalse(app.buttons["Hide chat"].exists)
         app.buttons["chat.close"].tap()
         XCTAssertTrue(wait { !panel.exists })
         XCTAssertTrue(shown(row))
         XCTAssertTrue(press(app, "b", .command, until: panel.waitForExistence(timeout: 4)))
         XCTAssertTrue(listHidden(app))
+    }
+
+    func testWikiChatContextToggleStaysAfterTheLastChip() {
+        let app = openCheckoutFlow()
+        app.buttons["wiki.chat"].tap()
+        let session = app.staticTexts["Rate-limit notifications"].firstMatch
+        XCTAssertTrue(session.waitForExistence(timeout: 10))
+        session.tap()
+        let chip = app.descendants(matching: .any)["composer.chip.page"]
+        XCTAssertTrue(chip.waitForExistence(timeout: 10))
+        app.buttons["Leave out Checkout flow page"].tap()
+        XCTAssertTrue(wait { !chip.exists })
+        XCTAssertTrue(app.buttons["composer.context"].exists)
     }
 
     func testScrolledWikiPageKeepsOneBarThenReads() {

@@ -115,13 +115,14 @@ struct ComposerNodeView: View {
     private var editor: some View {
         VStack(alignment: .leading, spacing: theme.spacing.m) {
             let attachments = node.attachments()
-            if !attachments.isEmpty {
-                ScrollView(.horizontal) {
-                    HStack(spacing: theme.spacing.m) {
-                        ForEach(attachments) { attachment in chip(attachment) }
+            if !attachments.isEmpty || contextLabel != nil {
+                FlowLayout(spacing: theme.spacing.m) {
+                    ForEach(attachments) { attachment in chip(attachment) }
+                    if let contextLabel {
+                        contextControl(contextLabel, alone: attachments.isEmpty)
                     }
                 }
-                .scrollIndicators(.never)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             Text(model.text.isEmpty ? " " : model.text + " ")
                 .font(theme.ui)
@@ -149,27 +150,58 @@ struct ComposerNodeView: View {
         }
         .padding(theme.gutter)
         .background(RoundedRectangle(cornerRadius: theme.radius.l).fill(theme.surface2))
-        .background {
-            if focused, node.attachments().contains(where: \.context) {
-                Button("Show what this session sees") { dispatch(node, .named("context", .null)) }
-                    .keyboardShortcut(KeyboardShortcut(Self.contextKey))
-                    .opacity(0)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-            }
-        }
+        .keyMonitor(active: contextLabel != nil, handle: contextKey)
         .overlay(RoundedRectangle(cornerRadius: theme.radius.l).stroke(focused ? theme.accent : theme.border, lineWidth: 1))
         .contentShape(Rectangle())
         .onTapGesture { if !disabled { focused = true } }
     }
 
-    private static let contextKey = "cmd+i"
+    private static let contextCombo = KeyCombo("cmd+i")
+
+    private func ownsKeys(_ responder: NSResponder?) -> Bool {
+        guard responder is NSText else { return true }
+        return focused || focusSlot.map { PaneMarker.holds($0, responder) } == true
+    }
+
+    private var contextLabel: String? { node.string("context").flatMap { $0.isEmpty ? nil : $0 } }
+
+    private func contextKey(_ event: NSEvent) -> Bool {
+        guard Self.contextCombo?.fires(on: event) == true, ownsKeys(event.window?.firstResponder) else { return false }
+        dispatch(node, .named("context", .null))
+        return true
+    }
+
+    private func contextControl(_ label: String, alone: Bool) -> some View {
+        let key = Self.contextCombo?.label ?? ""
+        return Button {
+            dispatch(node, .named("context", .null))
+        } label: {
+            HStack(spacing: theme.spacing.s) {
+                if alone {
+                    Text(label)
+                }
+                KeyCapLabel(label: key)
+            }
+            .font(theme.uiSmall)
+            .foregroundStyle(theme.muted)
+            .padding(alone ? theme.spacing.chip : EdgeInsets())
+            .overlay {
+                if alone {
+                    RoundedRectangle(cornerRadius: theme.radius.m).strokeBorder(theme.border, style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("\(label) \(key)")
+        .accessibilityLabel("\(label) \(key)")
+    }
 
     private func chip(_ attachment: SDUIAttachment) -> some View {
         HStack(spacing: theme.spacing.s) {
             if attachment.context {
                 Button {
-                    dispatch(node, .named("context", .null))
+                    dispatch(node, .named("context", attachment.key.map { .string($0) } ?? .null))
                 } label: {
                     HStack(spacing: theme.spacing.s) {
                         Image(systemName: attachment.icon)
@@ -177,16 +209,18 @@ struct ComposerNodeView: View {
                             .foregroundStyle(theme.muted)
                         Text(attachment.label)
                             .lineLimit(1)
-                            .truncationMode(.label)
+                            .truncationMode(attachment.kind == "file" ? .middle : .label)
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help("Show what this session sees")
+                .help(attachment.tooltip)
+                .accessibilityLabel("Context: \(attachment.label)")
             } else {
                 Text(attachment.label)
                     .lineLimit(1)
                     .truncationMode(.label)
+                    .help(attachment.tooltip)
             }
             if let key = attachment.key, !attachment.context || attachment.removable {
                 Button {
@@ -194,10 +228,11 @@ struct ComposerNodeView: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(theme.glyph)
+                        .foregroundStyle(theme.muted)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help("Remove")
+                .help(attachment.context ? "Leave out of the next message" : "Remove")
                 .accessibilityLabel("Remove \(attachment.label)")
             }
         }

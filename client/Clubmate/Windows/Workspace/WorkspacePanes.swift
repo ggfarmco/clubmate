@@ -34,6 +34,7 @@ struct SlotPane: View {
                 return result
             }
             .equatable()
+            .environment(\.railKeys, SectionHosting.railKeys(app.settings.ordered(store.sections)))
             .environment(\.theme, paneTheme ?? theme.interface(family: app.settings.paneFontFamily(fontKey), size: app.settings.paneFontSize(fontKey)))
         } else {
             EmptyNodeView(text: "")
@@ -98,6 +99,18 @@ struct ChatColumnView: View {
         SlotPane(store: store, slot: slot)
             .environment(\.composerFocusSlot, slot)
             .environment(\.sduiInsetButtons, true)
+            .background(PaneMarker(slot: slot))
+            .environment(\.barNote, hint)
+            .environment(\.sduiClientAction) { [store] action in
+                guard action == SDUIClientAction.hideChat else { return false }
+                store.hideChat()
+                return true
+            }
+    }
+
+    private var hint: BarNote? {
+        guard store.chatHintShown, slot == ChatColumn.slot(for: ChatHint.section) else { return nil }
+        return BarNote(text: ChatHint.text, action: ChatHint.dismiss) { [store] in store.dismissChatHint() }
     }
 }
 

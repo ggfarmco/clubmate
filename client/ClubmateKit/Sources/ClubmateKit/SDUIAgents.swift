@@ -17,16 +17,22 @@ public struct SDUIAttachment: Sendable, Equatable, Identifiable {
         switch kind {
         case "review": "arrow.triangle.branch"
         case "page": "doc.text"
+        case "file": "doc"
         default: "paperclip"
         }
     }
 
     public var label: String {
         if kind == "review" || kind == "page" { return path }
+        if kind == "file" { return (path as NSString).lastPathComponent }
         if kind == "image" { return path.isEmpty || path == "image" ? "Image" : "Image · \(path)" }
         guard kind == "selection", let startLine else { return "@ \(path)" }
         guard let endLine, endLine != startLine else { return "\(path) · line \(startLine)" }
         return "\(path) · lines \(startLine)–\(endLine)"
+    }
+
+    public var tooltip: String {
+        kind == "file" || kind == "selection" ? path : label
     }
 
     init?(_ value: JSONValue) {

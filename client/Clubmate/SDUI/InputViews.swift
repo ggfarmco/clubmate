@@ -18,6 +18,7 @@ struct ButtonNodeView: View {
     @Environment(\.buttonIsDefault) private var isDefault
     @Environment(\.sduiPopover) private var popover
     @Environment(\.formDocked) private var docked
+    @Environment(\.sduiClientAction) private var clientAction
 
     private var variant: String? { node.string("variant") }
     private var disabled: Bool { press.disabled }
@@ -59,6 +60,9 @@ struct ButtonNodeView: View {
     private var popoverForm: SDUINode? { node.children.first { $0.type == "form" } }
 
     private var iconOnly: Bool { node.bool("iconOnly") == true && node.string("icon") != nil }
+    private var keyCap: Bool { node.bool("keyCap") == true || fullWidth }
+    private var fullWidth: Bool { node.bool("fill") == true }
+    private var square: Bool { iconOnly && !(keyCap && keyLabel != nil) }
 
     private var height: CGFloat { variant == nil ? theme.rowHeight : theme.control }
 
@@ -77,8 +81,9 @@ struct ButtonNodeView: View {
         }
         .font(theme.ui)
         .foregroundStyle(foreground)
-        .padding(.horizontal, iconOnly ? 0 : theme.gutter)
-        .frame(width: iconOnly ? height : nil, height: height)
+        .padding(.horizontal, square ? 0 : iconOnly ? theme.spacing.s : theme.gutter)
+        .frame(width: square ? height : nil, height: height)
+        .frame(maxWidth: fullWidth ? .infinity : nil)
         .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(fill))
         .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(hovering && !disabled ? theme.hover : .clear))
         .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(stroke, lineWidth: 1))
@@ -96,15 +101,21 @@ struct ButtonNodeView: View {
     static let mouseEvents: Set<NSEvent.EventType> = [.leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp, .otherMouseDown, .otherMouseUp]
 
     private var label: some View {
-        HStack(spacing: theme.spacing.m) {
+        HStack(spacing: iconOnly ? theme.spacing.s : theme.spacing.m) {
             if let icon = node.string("icon") {
                 Image(systemName: SymbolName.resolve(icon))
             }
             if !iconOnly {
                 Text(node.string("label") ?? "")
                     .lineLimit(1)
+                    .truncationMode(.tail)
             }
-            if let keyLabel, !iconOnly {
+            if fullWidth {
+                Spacer(minLength: 0)
+            }
+            if let keyLabel, keyCap {
+                KeyCapLabel(label: keyLabel, onAccent: variant == "primary")
+            } else if let keyLabel, !iconOnly {
                 Text(keyLabel)
                     .font(theme.uiSmall)
                     .foregroundStyle(disabled ? theme.faint : variant == "primary" ? theme.onAccent : theme.muted)
@@ -113,7 +124,7 @@ struct ButtonNodeView: View {
     }
 
     private var press: ButtonPress {
-        ButtonPress(node: node, dispatch: dispatch, form: form, open: popoverForm == nil ? nil : { popoverShown = true }, dismiss: popover?.dismiss)
+        ButtonPress(node: node, dispatch: dispatch, form: form, open: popoverForm == nil ? nil : { popoverShown = true }, dismiss: popover?.dismiss, client: clientAction)
     }
 
     private var keyLabel: String? { combo?.label ?? node.string("hint").flatMap(KeyCombo.init)?.label ?? (popover == nil ? nil : SDUIPopover.keyLabel(node)) ?? keyHint }
@@ -163,6 +174,7 @@ struct ButtonPress {
     let form: FormState?
     var open: (() -> Void)?
     var dismiss: (() -> Void)?
+    var client: (@MainActor (String) -> Bool)?
 
     var combo: KeyCombo? { node.string("shortcut").flatMap(KeyCombo.init) }
     var loading: String? { node.string("loading").flatMap { $0.isEmpty ? nil : $0 } }
@@ -186,6 +198,7 @@ struct ButtonPress {
 
     private func perform() {
         if let text = node.string("copy") { return Clipboard.copy(text) }
+        if let action = node.string("clientAction"), client?(action) == true { return }
         if let open { return open() }
         if let dismiss, node.string("action") == SDUIPopover.dismissAction { return dismiss() }
         guard let form else { return dispatch(node, .click) }

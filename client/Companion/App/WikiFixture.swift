@@ -117,18 +117,28 @@ enum WikiFixture {
         let list = node("list", "chat/sessions", ["action": .string("chatPick"), "focus": .string("agt_chat_1"), "items": items, "filter": .object(["placeholder": .string("Filter sessions"), "minRows": .number(10)])])
         let add = node("button", "chat/new", ["label": .string("New session"), "icon": .string("plus"), "variant": .string("secondary"), "action": .string("chatNew"), "hint": .string("n")])
         let note = node("text", nil, ["text": .string("Sees the page Checkout flow"), "style": .string("muted")])
-        let foot = node("stack", nil, ["direction": .string("vertical"), "gap": .number(6)], [node("divider"), add, note])
-        return node("keys", "chat/picker", ["keys": .array([.string("n")]), "action": .string("chatNew"), "hints": .string("↩ open · ↑↓ j k move · N new · / filter")], [node("stack", nil, ["direction": .string("vertical")], [list, foot])])
+        let foot = node("stack", nil, ["direction": .string("vertical"), "gap": .number(6), "inset": .string("foot")], [add, note])
+        let header = node("stack", nil, ["direction": .string("horizontal"), "gap": .number(8), "inset": .string("bar"), "notes": .bool(true)], [
+            node("text", nil, ["text": .string("Chat"), "style": .string("strong")]),
+            node("text", nil, ["text": .string("· pick a session"), "style": .string("muted"), "lines": .number(1)]),
+            node("spacer"),
+            hide,
+        ])
+        return node("keys", "chat/picker", ["keys": .array([.string("n")]), "action": .string("chatNew"), "hints": .string("↩ open · ↑↓ j k move · N new · / filter")], [node("stack", nil, ["direction": .string("vertical")], [header, list, node("divider"), foot])])
     }
 
-    static var chatSession: JSONValue {
-        let back = node("button", "chat/back", ["label": .string("All sessions"), "icon": .string("chevron.left"), "variant": .string("ghost"), "action": .string("chatBack"), "shortcut": .string("cmd+[")])
+    private static var hide: JSONValue {
+        node("button", "chat/hide", ["label": .string("Hide chat"), "icon": .string("sidebar.right"), "variant": .string("ghost"), "iconOnly": .bool(true), "hint": .string("cmd+b"), "clientAction": .string("hideChat")])
+    }
+
+    static func chatSession(chip shown: Bool = true) -> JSONValue {
+        let back = node("button", "chat/back", ["label": .string("All sessions"), "icon": .string("chevron.left"), "variant": .string("ghost"), "action": .string("chatBack"), "shortcut": .string("cmd+["), "iconOnly": .bool(true), "keyCap": .bool(true)])
         let title = node("text", nil, ["text": .string("Rate-limit notifications"), "style": .string("strong"), "lines": .number(1)])
-        let head = node("stack", nil, ["direction": .string("horizontal"), "gap": .number(6)], [back, node("divider"), node("icon", nil, ["name": .string("circle.fill")]), title, node("spacer")])
+        let head = node("stack", nil, ["direction": .string("horizontal"), "gap": .number(8), "inset": .string("bar")], [back, node("divider"), node("icon", nil, ["name": .string("circle.fill")]), title, node("spacer"), hide])
         let message = node("message", "agt_chat_1/msg/agent/1", ["role": .string("agent"), "text": .string("I can add a paragraph under Send about a closed opener.")])
         let transcript = node("transcript", "agt_chat_1", [:], [message])
         let chip = JSONValue.object(["id": .string("ctx/page"), "kind": .string("page"), "path": .string("Checkout flow page"), "context": .bool(true), "removable": .bool(true)])
-        let composer = node("composer", "agt_chat_1/composer", ["attachments": .array([chip])])
+        let composer = node("composer", "agt_chat_1/composer", ["attachments": .array(shown ? [chip] : []), "context": .string("Context")])
         return node("stack", nil, ["direction": .string("vertical")], [head, transcript, composer])
     }
 }

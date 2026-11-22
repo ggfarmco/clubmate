@@ -214,6 +214,9 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		}
 		return a.folderSheetAct(ev)
 	}
+	if ev.NodeID == chatHideNode {
+		return nil
+	}
 	if isChatAction(ev) {
 		return a.chatAct(ctx, ev)
 	}

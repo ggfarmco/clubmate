@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"maps"
 	"os"
@@ -20,6 +21,12 @@ const (
 
 	ctxGroup        = "g:"
 	ctxInstructions = "instructions"
+	ctxChat         = "chat"
+	ctxChatItem     = "c:"
+	contextLabel    = "Context"
+	transcriptLabel = "Transcript"
+	chatGroupLabel  = "Next message"
+	chipNote        = "Goes with your next message. × on the chip leaves it out."
 	noContextLog    = "Claude has not written a log for this session yet."
 	deferredNote    = "Loaded on demand through ToolSearch; the log has no description for it."
 	notUsed         = "Not used in this session."
@@ -60,9 +67,9 @@ func contextButton(sc screen) (sdui.Node, bool) {
 	if !hasContext(rec) {
 		return sdui.Node{}, false
 	}
-	label, icon := "Context", "list.bullet.rectangle"
+	label, icon := contextLabel, "list.bullet.rectangle"
 	if sc.Context != nil {
-		label, icon = "Transcript", "bubble.left"
+		label, icon = transcriptLabel, "bubble.left"
 	}
 	return sdui.WithShortcut(sdui.WithAction(sdui.Button(rec.ID+"/"+contextNode+"/toggle", label, icon), actContext), contextKey), true
 }
@@ -73,10 +80,16 @@ func hasContext(rec record) bool {
 
 func contextView(sc screen) sdui.Node {
 	c := sc.Context
-	if c.Problem != "" {
+	var groups []contextGroup
+	if sc.Code != nil && len(sc.Code.Chips) > 0 {
+		groups = append(groups, chipGroup(sc.Code.Chips))
+	}
+	switch {
+	case c.Problem == "":
+		groups = append(groups, contextGroups(*c)...)
+	case len(groups) == 0:
 		return sdui.EmptyState(c.Problem, sdui.EmptyProps{Icon: "doc.text.magnifyingglass"})
 	}
-	groups := contextGroups(*c)
 	selected := c.Selected
 	if selected == "" && len(groups[0].items) > 0 {
 		selected = groups[0].items[0].id
@@ -86,7 +99,7 @@ func contextView(sc screen) sdui.Node {
 	for _, g := range groups {
 		open := c.Open[g.id]
 		if _, set := c.Open[g.id]; !set {
-			open = g.id == ctxInstructions
+			open = g.id == ctxInstructions || g.id == ctxChat
 		}
 		gi := sdui.TreeItem{ID: ctxGroup + g.id, Label: g.label, Icon: g.icon, Detail: groupDetail(g), HasChildren: len(g.items) > 0, Expanded: open}
 		for _, it := range g.items {
@@ -106,7 +119,11 @@ func contextView(sc screen) sdui.Node {
 		body = sdui.MutedText("Pick an item to read what the session sees.")
 	}
 	tree := sdui.Tree(sc.View.Session.ID+"/"+contextNode, items, selected)
-	return sdui.Split("vertical", tree, sdui.Scroll(body))
+	split := sdui.Split("vertical", tree, sdui.Scroll(body))
+	if c.Problem == "" {
+		return split
+	}
+	return sdui.VStack(sdui.MutedText(c.Problem), split)
 }
 
 func contextGroups(c contextScreen) []contextGroup {
@@ -146,6 +163,18 @@ func contextGroups(c contextScreen) []contextGroup {
 		usedGroup("tools", "Tools", "wrench.and.screwdriver", "t:", d.Tools, ""),
 		usedGroup("deferred", "Deferred tools", "clock", "d:", d.Deferred, deferredNote),
 	}
+}
+
+func chipGroup(chips []contextChip) contextGroup {
+	g := contextGroup{id: ctxChat, label: chatGroupLabel, icon: "paperclip"}
+	for _, c := range chips {
+		it := contextItem{id: ctxChatItem + c.chip.ID, label: c.chip.Path, title: c.chip.Path, meta: chipNote, body: c.att.Text, truncate: "middle"}
+		if c.att.Kind == "file" {
+			it.label, it.body = filepath.Base(c.att.Path), c.att.Path
+		}
+		g.items = append(g.items, it)
+	}
+	return g
 }
 
 func usedGroup(id, label, icon, prefix string, entries []claudectx.Entry, note string) contextGroup {
@@ -210,6 +239,14 @@ func displayPath(path, worktree string) string {
 func (v *sessionUI) contextEvent(action, id string) {
 	switch action {
 	case actContext:
+		if id != "" {
+			v.context, v.contextSelected = true, ctxChatItem+id
+			if v.contextOpen == nil {
+				v.contextOpen = map[string]bool{}
+			}
+			v.contextOpen[ctxChat] = true
+			return
+		}
 		v.context = !v.context
 	case actSelect:
 		v.contextSelected = id
@@ -272,7 +309,7 @@ func (a *app) contextAct(ev pluginsdk.UIEvent, sid string) error {
 	if _, err := a.lookup(ev.WorkspaceID, sid); err != nil {
 		return err
 	}
-	id := ""
+	id := chipTarget(ev)
 	if ev.Action != actContext {
 		var err error
 		if id, err = itemID(ev); err != nil {
@@ -284,4 +321,12 @@ func (a *app) contextAct(ev pluginsdk.UIEvent, sid string) error {
 	defer a.uiMu.Unlock()
 	st.contextEvent(ev.Action, id)
 	return nil
+}
+
+func chipTarget(ev pluginsdk.UIEvent) string {
+	var id string
+	if json.Unmarshal(ev.Value, &id) != nil {
+		return ""
+	}
+	return id
 }

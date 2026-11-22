@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	internalsdui "clubmate/internal/sdui"
+	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/acp"
 	"clubmate/plugins/agents/api"
@@ -69,29 +70,47 @@ func TestPickerViewRows(t *testing.T) {
 	items := list.Props["items"].([]sdui.Item)
 	assert.Equal(t, []sdui.Item{
 		{ID: suggestedRow, Label: suggestedLabel, Section: true},
-		{ID: "agt_1", Label: "Fix login", Icon: statusIcons[statusDone], Caption: "last used here · 1 h ago"},
+		{ID: "agt_1", Label: "Fix login", Icon: statusIcons[statusDone], Caption: "last used here · 1h"},
 		{ID: openInRow, Label: "Open in shop", Detail: "1", Section: true},
-		{ID: "agt_2", Label: "Docs", Icon: statusIcons[statusWaiting], Tone: "warning", Badge: needsYouBadge, Caption: "docs · just now"},
+		{ID: "agt_2", Label: "Docs", Icon: statusIcons[statusWaiting], Tone: "warning", Badge: needsYouBadge, Caption: "docs · now"},
 	}, items)
 	assert.Equal(t, []any{"agt_1", sdui.ListFilter{Placeholder: filterHint, MinRows: filterMinRows}}, []any{list.Props["focus"], list.Props["filter"]})
 	assert.Equal(t, []any{"keys", []string{newKey}, actChatNew, pickerHints}, []any{tree.Type, tree.Props["keys"], tree.Props["action"], tree.Props["hints"]})
-	add := nodesOf(tree, "button")[0]
-	assert.Equal(t, []any{newSessionLabel, sdui.VariantSecondary, newKey}, []any{add.Props["label"], add.Props["variant"], add.Props["hint"]})
+	add := buttonsOf(tree, actChatNew)[0]
+	assert.Equal(t, []any{newSessionLabel, sdui.VariantSecondary, newKey, true}, []any{add.Props["label"], add.Props["variant"], add.Props["hint"], add.Props["fill"]})
+	assert.Equal(t, sdui.ClientHideChat, nodesOf(tree, "button")[0].Props["clientAction"])
 
 	pk.Recs = recs[2:]
 	pk.Suggested = ""
-	empty := pickerView(pk)
-	require.NoError(t, internalsdui.Validate(empty))
-	assert.Equal(t, []any{"No open sessions in shop", "A new session starts on main.", closedStay}, []any{empty.Children[0].Props["title"], empty.Children[0].Props["text"], empty.Children[0].Props["hint"]})
-	assert.Equal(t, sdui.VariantPrimary, nodesOf(empty, "button")[0].Props["variant"])
-	assert.Equal(t, emptyHints, empty.Props["hints"])
+	tree = pickerView(pk)
+	require.NoError(t, internalsdui.Validate(tree))
+	empty := nodesOf(tree, "empty")[0]
+	assert.Equal(t, []any{"No open sessions in shop", "A new session starts on main.", closedStay, sectionID}, []any{empty.Props["title"], empty.Props["text"], empty.Props["note"], empty.Props["noteSection"]})
+	assert.Equal(t, []any{sdui.VariantPrimary, nil}, []any{buttonsOf(tree, actChatNew)[0].Props["variant"], buttonsOf(tree, actChatNew)[0].Props["fill"]})
+	assert.Equal(t, pickerTitle, nodesOf(tree, "text")[0].Props["text"])
+	assert.Equal(t, emptyHints, tree.Props["hints"])
 }
 
-func TestReviewNamesShortenCommits(t *testing.T) {
+func TestNewSessionCaptions(t *testing.T) {
 	t.Parallel()
 	rev := &reviewRef{Base: "1cd7f025ff2e47614a70d3a578a96552469fadeb", Head: "feat/send"}
-	assert.Equal(t, "Starts on feat/send and opens the review 1cd7f02 → feat/send", newSessionNote("feat/send", rev, nil))
-	assert.Equal(t, "Review main → feat/send", reviewChipLabel(reviewRef{Base: "main"}, "feat/send"))
+	assert.Equal(t, []string{
+		"Starts on feat/send with this review",
+		"Starts on feat/send and sees send.go",
+		"Starts on main and sees the page Roadmap",
+		"Starts on main",
+	}, []string{
+		newSessionNote("feat/send", "/r/api/send.go", rev, nil),
+		newSessionNote("feat/send", "/r/api/send.go", nil, nil),
+		newSessionNote("main", "", nil, &wikiPage{Title: "Roadmap"}),
+		newSessionNote("main", "", nil, nil),
+	})
+}
+
+func TestReviewChipNamesTheHeadBranch(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "Review feat/send", reviewChipLabel(reviewRef{Base: "main", Head: "1cd7f025ff2e47614a70d3a578a96552469fadeb"}, "feat/send"))
+	assert.Equal(t, "Review feat/x", reviewChipLabel(reviewRef{Base: "main", Head: "feat/x"}, "feat/send"))
 }
 
 func TestPanelReviewIsPerWorktree(t *testing.T) {
@@ -110,18 +129,67 @@ func TestPanelReviewIsPerWorktree(t *testing.T) {
 	assert.Nil(t, a.panelReview("ws", chatContext{Slot: codeSlot, Root: "/r/b"}))
 }
 
-func TestPanelContextButtonOnlyWithoutChips(t *testing.T) {
+func TestPanelContextLivesInTheComposer(t *testing.T) {
 	t.Parallel()
 	rec := record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, AgentSessionID: "s1", Status: statusDone}
 	sc := screen{View: transcriptView{Session: rec, Entries: []*entry{{Kind: entryUser, ID: "u1", Text: "hi"}}}, Composer: "agt_1/composer/0"}
-	back := sdui.WithAction(sdui.Button(chatBackNode, backLabel, "chevron.left"), actChatBack)
+	chip := contextChip{chip: sdui.Attachment{ID: "ctx/page", Kind: "page", Path: "Roadmap page", Context: true, Removable: true}, att: attachment{Kind: "page", Path: "Roadmap page", Text: "page note"}}
+	st := &sessionUI{}
+	render := func() sdui.Node {
+		s := sc
+		if st.context {
+			s.Context = &contextScreen{Problem: noContextLog, Selected: st.contextSelected, Open: st.contextOpen, Worktree: "/r"}
+		}
+		tree := codeView([]record{rec}, s, codePanel{Back: backButton(), Chips: []contextChip{chip}})
+		require.NoError(t, internalsdui.Validate(tree))
+		return tree
+	}
 
-	bare := buttonsOf(codeView([]record{rec}, sc, codePanel{Back: back}), actContext)
-	chipped := buttonsOf(codeView([]record{rec}, sc, codePanel{Back: back, Chips: []sdui.Attachment{{ID: "ctx/page", Kind: "page", Path: "Roadmap page", Context: true}}}), actContext)
+	tree := render()
+	assert.Empty(t, buttonsOf(tree, actContext))
+	assert.Equal(t, contextLabel, nodesOf(tree, "composer")[0].Props["context"])
+	row := barOf(t, tree)
+	assert.Equal(t, []string{chatBackNode, chatHideNode}, []string{row.Children[0].ID, row.Children[len(row.Children)-1].ID})
 
-	require.Len(t, bare, 1)
-	assert.Equal(t, []any{true, contextKey}, []any{bare[0].Props["iconOnly"], bare[0].Props["shortcut"]})
-	assert.Empty(t, chipped)
+	st.contextOpen = map[string]bool{ctxChat: false}
+	st.contextEvent(actContext, "ctx/page")
+	tree = render()
+	assert.Empty(t, buttonsOf(tree, actContext))
+	assert.Equal(t, transcriptLabel, nodesOf(tree, "composer")[0].Props["context"])
+	groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
+	assert.Equal(t, []any{1, ctxGroup + ctxChat, true, ctxChatItem + "ctx/page"}, []any{len(groups), groups[0].ID, groups[0].Expanded, nodesOf(tree, "tree")[0].Props["selected"]})
+	assert.Equal(t, "page note", nodesOf(tree, "markdown")[0].Props["text"])
+	assert.Contains(t, texts(tree), noContextLog)
+}
+
+func TestPanelContextDetailKeepsAWayBackWithoutChips(t *testing.T) {
+	t.Parallel()
+	rec := record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, AgentSessionID: "s1", Status: statusDone}
+	sc := screen{View: transcriptView{Session: rec}, Composer: "agt_1/composer/0", Context: &contextScreen{Problem: noContextLog, Selected: ctxChatItem + "ctx/page"}}
+
+	tree := codeView([]record{rec}, sc, codePanel{Back: backButton()})
+
+	require.NoError(t, internalsdui.Validate(tree))
+	assert.Len(t, nodesOf(tree, "empty"), 1)
+	assert.Equal(t, transcriptLabel, nodesOf(tree, "composer")[0].Props["context"])
+}
+
+func TestPanelHideClickIsIgnored(t *testing.T) {
+	t.Parallel()
+	a := &app{uiState: newUIState(), reviews: newReviewBoard()}
+
+	assert.NoError(t, a.act(t.Context(), pluginsdk.UIEvent{WorkspaceID: "ws", Slot: wikiChatSlot, NodeID: chatHideNode, Action: "click"}))
+}
+
+func barOf(t *testing.T, n sdui.Node) sdui.Node {
+	t.Helper()
+	for _, s := range nodesOf(n, "stack") {
+		if s.Props["inset"] == sdui.InsetBar {
+			return s
+		}
+	}
+	t.Fatal("no bar")
+	return sdui.Node{}
 }
 
 func buttonsOf(n sdui.Node, action string) []sdui.Node {
@@ -137,7 +205,7 @@ func buttonsOf(n sdui.Node, action string) []sdui.Node {
 func TestContextChipsShowInTheSentMessage(t *testing.T) {
 	t.Parallel()
 	atts := []attachment{
-		{Kind: "review", Path: "Review 0123456 → feat/x", Text: fmt.Sprintf(reviewNote, "0123456789abcdef0123456789abcdef01234567", "feat/x", "/r")},
+		{Kind: "review", Path: "Review feat/x", Text: fmt.Sprintf(reviewNote, "0123456789abcdef0123456789abcdef01234567", "feat/x", "/r")},
 		{Kind: "page", Path: "Roadmap page", Text: fmt.Sprintf(pageNote, "Roadmap", "shop/roadmap")},
 	}
 	var content []json.RawMessage
@@ -147,7 +215,7 @@ func TestContextChipsShowInTheSentMessage(t *testing.T) {
 		content = append(content, raw)
 	}
 
-	assert.Equal(t, []sdui.Attachment{{Kind: "review", Path: "Review 0123456 → feat/x"}, {Kind: "page", Path: "Roadmap page"}}, promptAttachments(content, "/r"))
+	assert.Equal(t, []sdui.Attachment{{Kind: "review", Path: "Review feat/x"}, {Kind: "page", Path: "Roadmap page"}}, promptAttachments(content, "/r"))
 }
 
 func TestRemovedChipComesBackForNewContent(t *testing.T) {
@@ -170,5 +238,5 @@ func TestRemovedChipComesBackForNewContent(t *testing.T) {
 
 	shown := a.shownChips("ws", cc, rec, "feat/x")
 	require.Len(t, shown, 1)
-	assert.Equal(t, "Review dev → feat/x", shown[0].chip.Path)
+	assert.Equal(t, fmt.Sprintf(reviewNote, "dev", "feat/x", "/r"), shown[0].att.Text)
 }

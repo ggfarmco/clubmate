@@ -44,13 +44,7 @@ public final class WorkspaceUIStore {
             cacheLayout()
         }
     }
-    public var chatKeyHint: String?
-    public private(set) var chatKeyHintShown = false {
-        didSet {
-            guard !restoring, chatKeyHintShown != oldValue else { return }
-            updateState("chatKeyHintShown", .bool(chatKeyHintShown))
-        }
-    }
+    public private(set) var chatHintShown = false
     public var chatWidth: Double? {
         didSet {
             guard !restoring, chatWidth != oldValue, let chatWidth else { return }
@@ -83,6 +77,7 @@ public final class WorkspaceUIStore {
     @ObservationIgnored private var legacyChat: LegacyChat?
     @ObservationIgnored private let order: @MainActor ([SectionInfo]) -> [SectionInfo]
     @ObservationIgnored private let launchCache: LaunchCache?
+    @ObservationIgnored private let chatHint: ChatHint
     public let launchRecord: LaunchRecord?
 
     public init(
@@ -90,8 +85,10 @@ public final class WorkspaceUIStore {
         workspaceID: String,
         legacyChat: LegacyChat? = nil,
         launchCache: LaunchCache? = nil,
+        chatHint: ChatHint = ChatHint(),
         order: @escaping @MainActor ([SectionInfo]) -> [SectionInfo] = { $0 }
     ) {
+        self.chatHint = chatHint
         self.client = client
         self.workspaceID = workspaceID
         self.legacyChat = legacyChat
@@ -310,21 +307,30 @@ public final class WorkspaceUIStore {
 
     public func toggleSidebar() {
         guard let selectedSection, selectedSection != CodeSection.id else { return }
+        if selectedSection == ChatHint.section { dismissChatHint() }
         setSidebarHidden(selectedSection, !isSidebarHidden(selectedSection))
+    }
+
+    public func dismissChatHint() {
+        chatHintShown = false
+        chatHint.finish()
+    }
+
+    public func hideChat() {
+        guard let selectedSection, togglesChat else { return }
+        chatHintShown = false
+        setChatHidden(selectedSection, true)
     }
 
     @discardableResult
     public func toggleChat() -> Task<Void, Never>? {
         guard let selectedSection, togglesChat else { return nil }
         guard isChatHidden(selectedSection) else {
-            setChatHidden(selectedSection, true)
+            hideChat()
             return nil
         }
         setChatHidden(selectedSection, false)
-        if selectedSection == ChatColumn.hintSection, !chatKeyHintShown {
-            chatKeyHintShown = true
-            chatKeyHint = ChatColumn.keyHint
-        }
+        chatHintShown = selectedSection == ChatHint.section && chatHint.show()
         let event = UIEvent(workspaceId: workspaceID, slot: ChatColumn.slot(for: selectedSection), nodeId: "panel", action: "open")
         return Task { [weak self] in _ = await self?.send(event) }
     }
@@ -552,7 +558,6 @@ public final class WorkspaceUIStore {
         sidebarWidth = saved["sidebarWidth"]?.numberValue
         sidebarHidden = saved["sidebarHidden"]?.objectValue?.compactMapValues(\.boolValue) ?? [:]
         chatHidden = saved["chatHidden"]?.objectValue?.compactMapValues(\.boolValue) ?? [:]
-        chatKeyHintShown = saved["chatKeyHintShown"]?.boolValue ?? false
         chatWidth = saved["chatWidth"]?.numberValue
         asideWidth = saved["asideWidth"]?.numberValue
         let migrated = saved["chatHidden"] == nil ? sidebarHidden[CodeSection.id] : nil

@@ -12,6 +12,7 @@ struct StackNodeView: View {
     @Environment(\.theme) private var theme
     @Environment(\.sduiGutter) private var gutter
     @Environment(\.sduiInsetButtons) private var insetButtons
+    @Environment(\.barNote) private var barNote
 
     private var footer: Bool {
         (popover != nil || formSheet) && node.string("direction") == "horizontal" && !node.children.isEmpty && node.children.allSatisfy { $0.type == "button" }
@@ -45,6 +46,33 @@ struct StackNodeView: View {
     }
 
     var body: some View {
+        switch node.string("inset") {
+        case "bar": bar
+        case "foot":
+            stack
+                .environment(\.sduiGutter, false)
+                .padding(.top, theme.spacing.l + theme.spacing.xs)
+                .padding(.horizontal, theme.spacing.xl)
+                .padding(.bottom, theme.spacing.xl)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        default: stack
+        }
+    }
+
+    private var bar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            stack
+                .environment(\.sduiGutter, false)
+                .padding(.leading, theme.spacing.xl)
+                .padding(.trailing, theme.spacing.m)
+                .frame(maxWidth: .infinity, minHeight: theme.control + theme.spacing.m, maxHeight: theme.control + theme.spacing.m, alignment: .leading)
+            if let barNote, node.bool("notes") == true {
+                BarNoteView(note: barNote)
+            }
+        }
+    }
+
+    @ViewBuilder private var stack: some View {
         if let keyWidth, let key = propertyKey {
             HStack(alignment: .firstTextBaseline, spacing: gap) {
                 SDUINodeView(node: key)
@@ -77,7 +105,7 @@ struct StackNodeView: View {
                     } else {
                         SDUINodeView(node: child.node)
                             .equatable()
-                            .layoutPriority(Self.priority(child.node))
+                            .layoutPriority(node.string("inset") == "bar" && child.node.type == "button" ? 2 : Self.priority(child.node))
                     }
                 }
             }
@@ -86,7 +114,7 @@ struct StackNodeView: View {
                 ForEach(node.identifiedChildren) { child in
                     SDUINodeView(node: child.node)
                         .equatable()
-                        .padding(.horizontal, gutter && insetButtons && Self.filled(child.node) ? theme.gutter : 0)
+                        .padding(.horizontal, gutter && insetButtons && node.string("inset") == nil && Self.filled(child.node) ? theme.gutter : 0)
                         .layoutPriority(child.node.bool("dock") == true ? 1 : 0)
                 }
             }

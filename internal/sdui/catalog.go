@@ -69,13 +69,15 @@ var (
 	anyChildren = childRule{min: 0, max: -1}
 	noChildren  = childRule{min: 0, max: 0}
 
-	directions   = []string{"vertical", "horizontal"}
-	textStyles   = []string{"body", "muted", "title", "strong", "mono", "block"}
-	diffSigns    = []string{"-", "+", ""}
-	alignments   = []string{"leading", "center", "trailing"}
-	variants     = []string{"primary", "secondary", "ghost", "danger"}
-	toggleStyles = []string{"switch", "checkbox"}
-	choiceStyles = []string{"radio", "check"}
+	directions    = []string{"vertical", "horizontal"}
+	textStyles    = []string{"body", "muted", "title", "strong", "mono", "block"}
+	diffSigns     = []string{"-", "+", ""}
+	alignments    = []string{"leading", "center", "trailing"}
+	variants      = []string{"primary", "secondary", "ghost", "danger"}
+	insets        = []string{"bar", "foot"}
+	clientActions = []string{"hideChat"}
+	toggleStyles  = []string{"switch", "checkbox"}
+	choiceStyles  = []string{"radio", "check"}
 
 	reservedKeys = []string{"esc", "return", "tab"}
 	badgeTones   = []string{"neutral", "accent", "success", "warning", "danger"}
@@ -184,7 +186,7 @@ var (
 	sparkHeight = number(func(n float64) bool { return n >= minSparkHeight && n <= maxSparkHeight }, fmt.Sprintf("a number within %d…%d", minSparkHeight, maxSparkHeight))
 
 	catalog = map[string]spec{
-		"stack":   {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions), "align": oneOf(alignments), "gap": nonNegative}, children: anyChildren},
+		"stack":   {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions), "align": oneOf(alignments), "gap": nonNegative, "inset": oneOf(insets), "notes": isBool}, children: anyChildren},
 		"split":   {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions)}, children: childRule{min: 2, max: 4}},
 		"scroll":  {props: map[string]propCheck{"fit": isBool}, children: childRule{min: 1, max: 1}},
 		"spacer":  {children: noChildren},
@@ -238,7 +240,7 @@ var (
 		},
 		"button": {
 			required:    []string{"label"},
-			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "confirmMessage": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck, "hint": isString, "loading": isString, "iconOnly": isBool, "copy": isString, "overflow": isBool, "withForm": isBool, "pill": isBool, "corner": isBool, "detail": isString, "detailTone": oneOf(badgeTones)},
+			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "confirmMessage": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck, "hint": isString, "loading": isString, "iconOnly": isBool, "keyCap": isBool, "fill": isBool, "clientAction": oneOf(clientActions), "copy": isString, "overflow": isBool, "withForm": isBool, "pill": isBool, "corner": isBool, "detail": isString, "detailTone": oneOf(badgeTones)},
 			children:    childRule{min: 0, max: 1, only: []string{"form"}},
 			interactive: true,
 		},
@@ -281,7 +283,7 @@ var (
 		},
 		"empty": {
 			required: []string{"text"},
-			props:    map[string]propCheck{"text": isString, "title": isString, "icon": isString, "hint": isString, "center": isBool},
+			props:    map[string]propCheck{"text": isString, "title": isString, "icon": isString, "hint": isString, "note": isString, "noteSection": isString, "center": isBool},
 			children: childRule{min: 0, max: 3, only: []string{"button", "flow", "form", "stack"}, once: []string{"button", "flow", "form", "stack"}},
 		},
 
@@ -404,7 +406,7 @@ var (
 		"composer": {
 			props: map[string]propCheck{
 				"placeholder": isString, "hint": isString, "agent": isString, "modes": listOf(optionCheck), "mode": isString, "pickers": listOf(pickerCheck),
-				"commands": listOf(commandCheck), "attach": listOf(oneOf(attachSources)), "attachments": attachmentsCheck, "running": isBool, "steers": isBool, "docked": isBool, "disabled": isBool,
+				"commands": listOf(commandCheck), "attach": listOf(oneOf(attachSources)), "attachments": attachmentsCheck, "running": isBool, "steers": isBool, "docked": isBool, "disabled": isBool, "context": isString,
 				"draft": objectCheck([]string{"text", "rev"}, map[string]propCheck{"text": isString, "rev": countNumber}),
 			},
 			children:    noChildren,

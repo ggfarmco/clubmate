@@ -1058,7 +1058,9 @@ func TestCodePanelOnUnstartedGraphStep(t *testing.T) {
 	assert.Empty(t, nodesOf(tree, "badge"))
 	var actions []string
 	for _, b := range nodesOf(tree, "button") {
-		actions = append(actions, b.Props["action"].(string))
+		if action, ok := b.Props["action"].(string); ok {
+			actions = append(actions, action)
+		}
 	}
 	assert.Subset(t, actions, []string{actOpenGraphs, actChatNew})
 }

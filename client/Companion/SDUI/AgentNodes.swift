@@ -455,17 +455,22 @@ struct ComposerNode: View {
     private var chips: [ContextChip] {
         (node.props["attachments"]?.arrayValue ?? []).compactMap { value in
             guard value["context"]?.boolValue == true, let kind = value["kind"]?.stringValue, let label = value["path"]?.stringValue else { return nil }
-            return ContextChip(id: value["id"]?.stringValue, kind: kind, label: label, removable: value["removable"]?.boolValue == true)
+            return ContextChip(id: value["id"]?.stringValue, kind: kind, label: kind == "file" ? (label as NSString).lastPathComponent : label, removable: value["removable"]?.boolValue == true)
         }
     }
 
+    private var contextLabel: String? { node.string("context").flatMap { $0.isEmpty ? nil : $0 } }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if !chips.isEmpty {
+            if !chips.isEmpty || contextLabel != nil {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(chips, id: \.key) { chip in
-                            ContextChipView(chip: chip, open: { context.run { await $0.fire(node, .named("context", .null)) } }, remove: { id in context.run { await $0.fire(node, .named("detach", .string(id))) } })
+                            ContextChipView(chip: chip, open: { context.run { await $0.fire(node, .named("context", chip.openValue)) } }, remove: { id in context.run { await $0.fire(node, .named("detach", .string(id))) } })
+                        }
+                        if let contextLabel {
+                            ContextToggleView(label: contextLabel) { context.run { await $0.fire(node, .named("context", .null)) } }
                         }
                     }
                 }
@@ -510,12 +515,32 @@ struct ContextChip {
     let removable: Bool
 
     var key: String { id ?? kind + label }
+    var openValue: JSONValue { id.map { .string($0) } ?? .null }
     var symbol: String {
         switch kind {
         case "review": "checklist"
         case "page": "book"
         default: "doc.text"
         }
+    }
+}
+
+struct ContextToggleView: View {
+    let label: String
+    let toggle: () -> Void
+
+    var body: some View {
+        Button(action: toggle) {
+            Text(label)
+                .font(.footnote)
+                .foregroundStyle(Color.captionInk)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 32)
+                .overlay(Capsule().strokeBorder(Color.captionInk.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("composer.context")
     }
 }
 

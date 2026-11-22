@@ -25,8 +25,6 @@ public enum ChatColumn {
     public static let stackedBelow: Double = 1100
     public static let minWidth: Double = 320
     public static let defaultWidth: Double = 392
-    public static let hintSection = "wiki"
-    public static let keyHint = "⌘B now opens chat; the tree is ⌃⌘S"
 
     public static func slot(for section: String) -> String {
         section + suffix
@@ -42,6 +40,37 @@ public enum ChatColumn {
 
     public static func width(saved: Double?, limit: Double) -> Double {
         min(max(saved ?? defaultWidth, minWidth), max(minWidth, limit))
+    }
+}
+
+@MainActor
+public final class ChatHint {
+    public static let section = "wiki"
+    public static let text = "⌘B opens chat here now. The page tree moved to ⌃⌘S."
+    public static let dismiss = "Got it"
+    public static let maxShows = 3
+
+    private let defaults: UserDefaults
+
+    public init(defaults: UserDefaults = TestMode.defaults) {
+        self.defaults = defaults
+    }
+
+    public func show() -> Bool {
+        guard !defaults.bool(forKey: Key.done) else { return false }
+        let shows = defaults.integer(forKey: Key.shows) + 1
+        defaults.set(shows, forKey: Key.shows)
+        if shows >= Self.maxShows { finish() }
+        return true
+    }
+
+    public func finish() {
+        defaults.set(true, forKey: Key.done)
+    }
+
+    private enum Key {
+        static let shows = "chatHintShows"
+        static let done = "chatHintDone"
     }
 }
 

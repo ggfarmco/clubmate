@@ -289,6 +289,7 @@ type ComposerProps struct {
 	Steers      bool
 	Docked      bool
 	Disabled    bool
+	Context     string
 	Draft       *ComposerDraft
 }
 
@@ -314,6 +315,19 @@ func WithID(n Node, id string) Node {
 
 func WithGap(n Node, gap int) Node {
 	return withProp(n, "gap", gap)
+}
+
+const (
+	InsetBar  = "bar"
+	InsetFoot = "foot"
+)
+
+func WithInset(n Node, inset string) Node {
+	return withProp(n, "inset", inset)
+}
+
+func WithNotes(n Node) Node {
+	return withProp(n, "notes", true)
 }
 
 func HStack(children ...Node) Node {
@@ -881,15 +895,18 @@ func Crumb(p CrumbProps, actions ...Node) Node {
 }
 
 type EmptyProps struct {
-	Title  string
-	Icon   string
-	Hint   string
-	Action *Node
-	Center bool
+	Title       string
+	Icon        string
+	Hint        string
+	Note        string
+	NoteSection string
+	Action      *Node
+	Center      bool
 }
 
 func EmptyState(text string, p EmptyProps) Node {
 	props := withOptional(withOptional(withOptional(map[string]any{"text": text}, "title", p.Title), "icon", p.Icon), "hint", p.Hint)
+	props = withOptional(withOptional(props, "note", p.Note), "noteSection", p.NoteSection)
 	if p.Center {
 		props["center"] = true
 	}
@@ -1108,6 +1125,7 @@ func Composer(id string, p ComposerProps) Node {
 	if p.Disabled {
 		props["disabled"] = true
 	}
+	props = withOptional(props, "context", p.Context)
 	if p.Draft != nil {
 		props["draft"] = *p.Draft
 	}
@@ -1193,6 +1211,20 @@ func WithTone(n Node, tone string) Node {
 
 func WithIconOnly(n Node) Node {
 	return withProp(n, "iconOnly", true)
+}
+
+func WithKeyCap(n Node) Node {
+	return withProp(n, "keyCap", true)
+}
+
+func WithFill(n Node) Node {
+	return withProp(n, "fill", true)
+}
+
+const ClientHideChat = "hideChat"
+
+func WithClientAction(n Node, action string) Node {
+	return withProp(n, "clientAction", action)
 }
 
 func WithDisabled(n Node) Node {

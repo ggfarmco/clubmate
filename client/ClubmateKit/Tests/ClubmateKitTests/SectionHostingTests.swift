@@ -30,6 +30,16 @@ final class SectionHostingTests: XCTestCase {
         XCTAssertEqual(SectionHosting.rail(Array(all.dropFirst())).map(\.id), ["alpha"])
     }
 
+    func testRailKeysFollowTheRailAndSkipHostedSections() throws {
+        let all = try sections(#"""
+        [{"id":"files","title":"Files","icon":"","order":10,"scope":"workspace","plugin":"files"},
+         {"id":"alpha","title":"Alpha","icon":"","order":15,"scope":"workspace","plugin":"alpha","host":"files"},
+         {"id":"agents","title":"Agents","icon":"","order":20,"scope":"workspace","plugin":"agents"}]
+        """#)
+
+        XCTAssertEqual(SectionHosting.railKeys(all), ["files": "⌘1", "agents": "⌘2"])
+    }
+
     func testRailFalseSectionIsNotListed() throws {
         let all = try sections(#"""
         [{"id":"terminals","title":"Terminals","icon":"","order":20,"scope":"workspace","plugin":"terminals"},

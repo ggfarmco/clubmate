@@ -836,7 +836,15 @@ struct EmptyNodeView: View {
 
     @Environment(\.theme) private var theme
 
+    @Environment(\.railKeys) private var railKeys
+
     private var center: Bool { node.bool("center") == true }
+
+    private var note: String? {
+        guard let text = node.string("note") else { return nil }
+        guard let key = node.string("noteSection").flatMap({ railKeys[$0] }) else { return text }
+        return text + " " + key
+    }
 
     var body: some View {
         VStack(alignment: center ? .center : .leading, spacing: theme.spacing.m) {
@@ -865,6 +873,13 @@ struct EmptyNodeView: View {
                     .background(RoundedRectangle(cornerRadius: theme.radius.s).fill(theme.surface2))
             }
             SDUIChildren(node: node)
+            if let note {
+                Text(note)
+                    .font(theme.uiSmall)
+                    .foregroundStyle(theme.muted)
+                    .multilineTextAlignment(center ? .center : .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: center ? Self.centredWidth : nil)
         .padding(theme.gutter * 2)

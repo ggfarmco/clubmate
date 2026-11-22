@@ -27,6 +27,20 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertNil(saved.takeLegacyTerminalFontSize())
     }
 
+    func testChatHintShowsThreeTimesOrUntilDismissed() throws {
+        let name = "AppSettingsTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        XCTAssertEqual((0..<4).map { _ in ChatHint(defaults: defaults).show() }, [true, true, true, false])
+
+        defaults.removePersistentDomain(forName: name)
+        let hint = ChatHint(defaults: defaults)
+        XCTAssertTrue(hint.show())
+        hint.finish()
+        XCTAssertFalse(ChatHint(defaults: defaults).show())
+    }
+
     func testPaneFontStepsOnlyThatPaneAndResetFollowsInterface() throws {
         let name = "AppSettingsTests-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))

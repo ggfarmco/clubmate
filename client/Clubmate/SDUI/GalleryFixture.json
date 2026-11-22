@@ -198,7 +198,8 @@
               {"id": "reject", "label": "Reject", "kind": "reject_once", "shortcut": "opt+3"},
               {"id": "reject-always", "label": "Always reject", "kind": "reject_always", "menu": true}
             ]}},
-            {"type": "composer", "id": "gallery-composer", "props": {"placeholder": "Answer Claude…", "hint": "/ for commands, @ for files", "agent": "Claude", "mode": "default", "modes": [{"value": "default", "label": "Ask before edits"}], "attachments": [{"id": "ctx-review", "kind": "review", "path": "Review main → feat/chat-panel", "context": true, "removable": true}, {"id": "ctx-page", "kind": "page", "path": "Roadmap page", "context": true}]}},
+            {"type": "composer", "id": "gallery-composer", "props": {"placeholder": "Answer Claude…", "hint": "/ for commands, @ for files", "agent": "Claude", "mode": "default", "modes": [{"value": "default", "label": "Ask before edits"}], "attachments": [{"id": "ctx-review", "kind": "review", "path": "Review feat/chat-panel", "context": true, "removable": true}, {"id": "ctx-file", "kind": "file", "path": "plugins/agents/chat_panel.go", "context": true, "removable": true}, {"id": "ctx-page", "kind": "page", "path": "Roadmap page", "context": true, "removable": true}], "context": "Context"}},
+            {"type": "composer", "id": "gallery-composer-context", "props": {"placeholder": "Message Claude…", "agent": "Claude", "context": "Context"}},
             {"type": "composer", "id": "gallery-composer-off", "props": {"placeholder": "Reviewer runs as part of Review loop", "agent": "Claude", "mode": "default", "modes": [{"value": "default", "label": "Ask before edits"}], "disabled": true}}
           ]
         },
@@ -571,6 +572,25 @@
                     },
                     {
                       "type": "stack",
+                      "props": {"direction": "horizontal", "gap": 8, "inset": "bar"},
+                      "children": [
+                        {"type": "button", "id": "gallery-bar/back", "props": {"label": "All sessions", "icon": "chevron.left", "variant": "ghost", "iconOnly": true, "keyCap": true, "hint": "cmd+["}},
+                        {"type": "divider"},
+                        {"type": "text", "props": {"text": "Wiki: document the review flow", "style": "strong", "lines": 1}},
+                        {"type": "spacer"},
+                        {"type": "button", "id": "gallery-bar/hide", "props": {"label": "Hide chat", "icon": "sidebar.right", "variant": "ghost", "iconOnly": true, "hint": "cmd+b", "clientAction": "hideChat"}}
+                      ]
+                    },
+                    {
+                      "type": "stack",
+                      "props": {"direction": "vertical", "gap": 6, "inset": "foot"},
+                      "children": [
+                        {"type": "button", "id": "gallery-foot/new", "props": {"label": "New session", "icon": "plus", "variant": "secondary", "hint": "n", "fill": true}},
+                        {"type": "text", "props": {"text": "Starts on feat/chat-panel and sees chat_panel.go", "style": "muted"}}
+                      ]
+                    },
+                    {
+                      "type": "stack",
                       "props": {"direction": "horizontal"},
                       "children": [
                         {"type": "button", "id": "saving", "props": {"label": "Save changes", "icon": "checkmark", "variant": "primary", "shortcut": "cmd+s", "loading": "Saving…"}},
@@ -666,7 +686,7 @@
                 {"type": "surface", "props": {"sessionId": "ses_0123456789abcdef"}},
                 {
                   "type": "empty",
-                  "props": {"text": "Graphs chain agents: when one finishes, the next starts.", "title": "No graph runs yet", "icon": "point.3.connected.trianglepath.dotted", "hint": ".clubmate/graphs/<name>.json", "center": true},
+                  "props": {"text": "Graphs chain agents: when one finishes, the next starts.", "title": "No graph runs yet", "icon": "point.3.connected.trianglepath.dotted", "hint": ".clubmate/graphs/<name>.json", "note": "Finished runs stay in Graphs", "noteSection": "graphs", "center": true},
                   "children": [{"type": "button", "id": "start", "props": {"label": "Run a graph", "variant": "primary", "shortcut": "cmd+shift+r"}}]
                 }
               ]

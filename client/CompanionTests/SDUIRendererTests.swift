@@ -26,6 +26,21 @@ final class SDUIRendererTests: XCTestCase {
         XCTAssertEqual(types.subtracting(MacOnlyCaption.types).subtracting(placeholderOnPhone).filter { SDUIKind(rawValue: $0) == nil }, [])
     }
 
+    func testChatPickerBarIsLeftToThePanelChrome() {
+        let text = SDUINode(type: "text", props: ["text": .string("Chat")])
+        let hide = SDUINode(type: "button", id: "chat/hide", props: ["label": .string("Hide chat"), "clientAction": .string("hideChat")])
+        let back = SDUINode(type: "button", id: "chat/back", props: ["label": .string("All sessions"), "action": .string("chatBack")])
+        let bar: ([SDUINode]) -> SDUINode = { SDUINode(type: "stack", props: ["direction": .string("horizontal"), "inset": .string("bar")], children: $0) }
+
+        XCTAssertTrue(StackNode.chromeBar(bar([text, SDUINode(type: "spacer"), hide])))
+        XCTAssertFalse(StackNode.chromeBar(bar([back, text, hide])))
+    }
+
+    func testContextChipTapNamesTheChip() {
+        XCTAssertEqual(ContextChip(id: "ctx/page", kind: "page", label: "Roadmap page", removable: true).openValue, .string("ctx/page"))
+        XCTAssertEqual(ContextChip(id: nil, kind: "page", label: "Roadmap page", removable: false).openValue, .null)
+    }
+
     func testUnknownTypePlaceholder() {
         let tree = SDUINode(type: "stack", props: ["direction": .string("vertical")], children: [
             SDUINode(type: "text", props: ["text": .string("before")]),
