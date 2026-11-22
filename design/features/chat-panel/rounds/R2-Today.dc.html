@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chat panel built</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#357A27}a:hover{color:#1F4F18}
+</style>
+</helmet>
+<div style="width: 2400px; height: 2620px; box-sizing: border-box; padding: 48px; background: #F4F1EA; font-family: Inter, system-ui, sans-serif; color: #1C1C1E; display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h1 style="margin: 0; font-size: 40px; line-height: 48px">Chat panel as built (main, 22 Nov) · what round 2 must rule</h1>
+<p style="margin: 0; font-size: 18px; line-height: 26px; color: #4A4A4F; max-width: 2200px">Test app, Mate dark, 1280 × 800, and iPad 11" portrait. Picker A, header H1, W1 and K1 are built from the R1 boards. The numbers in the captions are the round-2 questions: Q1–Q5 open questions, F1–F6 drift from the R1 boards.</p>
+</div>
+<div style="display: flex; gap: 40px">
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><img src="/_blob/bd1e952ca654d02d831f7da2a26b50fd" alt="Code 1280, picker with a review current" style="width: 1120px; height: 700px; border-radius: 12px; border: 1px solid #D8D2C4"><figcaption style="font-size: 15px; line-height: 22px; color: #4A4A4F; width: 1120px">Code 1280 · picker. F1 the caption under New session sits on the pane's bottom edge (board: ~12 pt below). F2 New session sizes to its label, N is muted text (board: full width, boxed N cap). F3 no header "Chat · pick a session" and no hide button.</figcaption></figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><img src="/_blob/fc1c5da62e20f238439a58e3e8570c9b" alt="Wiki 1280, empty picker" style="width: 1120px; height: 700px; border-radius: 12px; border: 1px solid #D8D2C4"><figcaption style="font-size: 15px; line-height: 22px; color: #4A4A4F; width: 1120px">Wiki 1280 · empty. Q3 the hint "Closed sessions stay in Agents" draws as a chip ABOVE New session (rule 8 lists it after). Q4 copy "A new session starts on ‹branch› and sees the page ‹title›." is on no board.</figcaption></figure>
+</div>
+<div style="display: flex; gap: 40px">
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><img src="/_blob/b01c7684b3f6582b6bcf5d08a199fd51" alt="Code 1280, after the pick, with file and review chips" style="width: 1120px; height: 700px; border-radius: 12px; border: 1px solid #D8D2C4"><figcaption style="font-size: 15px; line-height: 22px; color: #4A4A4F; width: 1120px">Code 1280 · after the pick, chips "@ internal/review/send.go ×" and "Review 1cd7f025f". Q1 when the composer has NO chips (a session from another worktree), the header keeps an icon-only Context ⌘I button: the only way to the context detail. Rules 9–10 say no Context button. F5 title is plain, not bold, and wraps.</figcaption></figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><img src="/_blob/9169d7d6697395199f8aac7d3c898146" alt="Wiki 1280, sidebar on the right, chat after the pick" style="width: 1120px; height: 700px; border-radius: 12px; border: 1px solid #D8D2C4"><figcaption style="font-size: 15px; line-height: 22px; color: #4A4A4F; width: 1120px">Wiki 1280 · after the pick. Q5 / F4 Back sends the label "All sessions", cut to "All sessi… ⌘[" at 392 pt (board: "‹ ⌘[" only). F6 chip "Review flow page ×" (board R1-Wiki-1280-Chat: "Review flow page ⌘I", key cap, no ×). Q2 the one-time Wiki hint "⌘B now opens chat; the tree is ⌃⌘S" is a quiet bottom banner for 6 s today, on no board.</figcaption></figure>
+</div>
+<div style="display: flex; gap: 40px">
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 10px"><img src="/_blob/2ef94a632dea0e49440cc39bbbb93a80" alt="iPad portrait, chat sheet with the picker" style="width: 482px; height: 700px; border-radius: 20px; border: 1px solid #D8D2C4"><figcaption style="font-size: 15px; line-height: 22px; color: #4A4A4F; width: 482px">iPad 11" portrait · sheet. F1 the caption "Sees the page Checkout flow" sits on the sheet's bottom edge.</figcaption></figure>
+<div style="flex: 1; display: flex; flex-direction: column; gap: 12px; font-size: 17px; line-height: 25px">
+<h2 style="margin: 0; font-size: 24px">Questions (Q) · drift to confirm or change (F)</h2>
+<p style="margin: 0">Q1 Icon-only Context ⌘I in the chat header when the composer has no chips: keep, drop, or another way to the context detail?</p>
+<p style="margin: 0">Q2 Where the one-time Wiki hint "⌘B now opens chat; the tree is ⌃⌘S" sits.</p>
+<p style="margin: 0">Q3 Empty state order (icon, sentence, hint, New session) and the hint's look (chip or muted text).</p>
+<p style="margin: 0">Q4 New-session caption copy for Wiki (picker foot) and the empty sentence.</p>
+<p style="margin: 0">Q5 Back with or without the "All sessions" label.</p>
+<p style="margin: 0">F1 Footer bottom inset ~12 pt · F2 New session full width with a boxed N cap · F3 hide button last in the header and the picker header "Chat · pick a session" · F4 Back "‹ ⌘[" at 392 pt · F5 bold title · F6 context chip "‹label› ⌘I" with a key cap or ×.</p>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2400,"height":2620}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

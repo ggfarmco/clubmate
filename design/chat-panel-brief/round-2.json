@@ -1,0 +1,17 @@
+{
+  "title": "Chat panel · round 2",
+  "fit": 1200,
+  "css": ["r1.css", "r2.css"],
+  "intro": [
+    "Claude Design, 22 Nov, round 2 on the built panel (main 43e13defb). Each board puts a crop of the 22 Nov test-app shot (as built) beside the ruled version. Four open choices, the designer's pick marked “recommended”: Q1 (Context ⌘I with no chips) and Q5 (Back label) and F6 (chip anatomy) on board 3, Q2 (Wiki one-time hint) on board 4.",
+    "Confirmed without options: F1 foot inset 10/12/12 (iPad sheet 12/20/20), F2 full-width secondary New session with a boxed N cap, F3 32-pt picker header “Chat · pick a session” with the hide button last, F4 ghost ‹ ⌘[ + 1×16 vertical rule, F5 bold one-line title. Q3: icon + title · sentence · primary New session N · muted hint (no chip). Q4: one copy table (board 2).",
+    "Extra drift the designer found (E): review chip by branch name, short ages (1m), the panel opens focused on the suggestion, file chip = icon + base name, chips wrap, iPad rows use Companion status glyphs. E1 (Wiki tree moved right) is not drift: that shot used Settings › Sidebar side = right."
+  ],
+  "boards": [
+    {"file": "R2-1-Picker-Code.dc.html", "w": 1640, "title": "1 · Picker in Code: built vs ruled (F1 F2 F3 E3 E4, Q4 Code)", "caption": "32-pt header with hide, full-width New session with boxed N, foot inset 12, short ages, suggestion focused with ⏎."},
+    {"file": "R2-2-Empty-Copy.dc.html", "w": 1640, "title": "2 · Empty state and New session copy (Q3 Q4)", "caption": "Order: icon + title, sentence, primary New session N, muted hint. Copy table for every context."},
+    {"file": "R2-3-Header-Chips.dc.html", "w": 1640, "title": "3 · Chat header and chips (F4 F5; options Q1, Q5, F6)", "caption": "‹ ⌘[ · rule · status · bold title · hide. Options side by side: Q1 A/B, Q5 label/no label, F6 A/B."},
+    {"file": "R2-4-Wiki-Hint.dc.html", "w": 2200, "title": "4 · Wiki: the one-time ⌘B hint (Q2 options)", "caption": "A bottom banner 6 s (built) vs B one line + Got it under the picker header (recommended)."},
+    {"file": "R2-5-iPad-Rulings.dc.html", "w": 1640, "title": "5 · iPad sheet and all rulings with handoff tags", "caption": "Sheet foot 12/20/20, 44-pt New session capsule, Companion status glyphs; one table of every ruling tagged (a)/(b)/(c)."}
+  ]
+}

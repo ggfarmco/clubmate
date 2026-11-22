@@ -1,12 +1,13 @@
 {
-  "title": "Chat panel · ruled 22 Nov",
+  "title": "Chat panel · ruled 22 Nov (round 1 + round 2)",
   "fit": 1200,
   "css": [
     "r1.css",
     "r2.css"
   ],
   "intro": [
-    "Ruled 22 Nov: picker A (one list, suggestion first and focused, reason as caption), header H1 (back ⌘[, context chips in the composer), Wiki W1 (chat takes the margin column’s place), key K1 (⌘B chat in Code and Wiki, ⌃⌘S sidebar everywhere), iPad P1 side panel in landscape + P2 sheet in portrait and compact. Rules: rules.md beside this page. The A/B/C round: design/chat-panel-brief/round-1.html; its mixed boards (picker A/B/C, header and Wiki options) in rounds/."
+    "Ruled 22 Nov: picker A (one list, suggestion first and focused, reason as caption), header H1 (back ⌘[, context chips in the composer), Wiki W1 (chat takes the margin column’s place), key K1 (⌘B chat in Code and Wiki, ⌃⌘S sidebar everywhere), iPad P1 side panel in landscape + P2 sheet in portrait and compact. Rules: rules.md beside this page. The A/B/C round: design/chat-panel-brief/round-1.html; its mixed boards (picker A/B/C, header and Wiki options) in rounds/.",
+    "Round 2, 22 Nov, on the built panel: Q1 B (no header Context button; ⌘I cap ends the chip row, dashed “Context ⌘I” chip when there are none), Q2 B (the Wiki ⌘B hint is one line + Got it under the picker header), Q3 hint after New session as muted text, Q4 one copy table, Q5 Back without a label (‹ ⌘[), F6 A (× always, label opens the context detail, one ⌘I cap). F1–F5 confirmed. Round page: design/chat-panel-brief/round-2.html."
   ],
   "boards": [
     {
@@ -32,6 +33,36 @@
       "w": 1560,
       "title": "6 · Rules, handoff (a/b/c), recommendation",
       "caption": "A · H1 · W1 · K1 · P1+P2; 20 handoff items."
+    },
+    {
+      "file": "R2-1-Picker-Code.dc.html",
+      "w": 1640,
+      "title": "R2 · 1 · Picker in Code: built vs ruled",
+      "caption": "32-pt header with hide, full-width New session with boxed N, foot inset 10/12/12, short ages, suggestion focused with ⏎."
+    },
+    {
+      "file": "R2-2-Empty-Copy.dc.html",
+      "w": 1640,
+      "title": "R2 · 2 · Empty state and New session copy",
+      "caption": "Icon + title, sentence, primary New session N, muted hint. Copy table for every context."
+    },
+    {
+      "file": "R2-3-Header-Chips.dc.html",
+      "w": 1640,
+      "title": "R2 · 3 · Chat header and chips",
+      "caption": "‹ ⌘[ · 1×16 rule · status · bold title · hide; chips: × always, one ⌘I cap, dashed Context ⌘I chip when none."
+    },
+    {
+      "file": "R2-4-Wiki-Hint.dc.html",
+      "w": 2200,
+      "title": "R2 · 4 · Wiki: the one-time ⌘B hint",
+      "caption": "One line + Got it under the picker header (B). Its E1 (tree moved right) is not drift: the shot used Sidebar side = right."
+    },
+    {
+      "file": "R2-5-iPad-Rulings.dc.html",
+      "w": 1640,
+      "title": "R2 · 5 · iPad sheet and all rulings",
+      "caption": "Sheet foot 12/20/20, 44-pt New session capsule, Companion status glyphs; every ruling tagged (a)/(b)/(c)."
     }
   ]
 }
