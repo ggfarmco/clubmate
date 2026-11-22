@@ -358,7 +358,8 @@ struct PaneSkeleton: View {
             RoundedRectangle(cornerRadius: theme.radius.l)
                 .fill(theme.surface2)
                 .overlay(RoundedRectangle(cornerRadius: theme.radius.l).stroke(theme.border))
-                .frame(height: 64)
+                .frame(height: 56)
+                .padding(.bottom, Self.composerControls)
         }
         .padding(theme.spacing.xxl)
     }
@@ -404,6 +405,7 @@ struct PaneSkeleton: View {
 
     private static let rows: [(depth: Int, width: CGFloat)] = [(0, 120), (1, 96), (1, 140), (1, 110), (0, 88), (1, 132), (1, 104), (0, 116), (1, 92)]
     private static let columns: [CGFloat] = [140, 64, 80, 56, 96]
+    private static let composerControls: CGFloat = 21
 }
 
 struct SkeletonBar: View {

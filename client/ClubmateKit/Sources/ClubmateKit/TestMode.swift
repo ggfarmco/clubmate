@@ -3,9 +3,11 @@ import Foundation
 public enum TestMode {
     nonisolated(unsafe) public static let defaults: UserDefaults = {
         guard current, let suite = UserDefaults(suiteName: suiteName(paths: ClubmatePaths.resolve())) else { return .standard }
-        suite.removePersistentDomain(forName: suiteName(paths: ClubmatePaths.resolve()))
+        if startHold == nil { suite.removePersistentDomain(forName: suiteName(paths: ClubmatePaths.resolve())) }
         return suite
     }()
+
+    public static let startHold: String? = current ? ProcessInfo.processInfo.environment["CLUBMATE_TEST_START_HOLD"] : nil
 
     public static func suiteName(paths: ClubmatePaths) -> String {
         "com.clubmate.app.dev.test." + paths.state.deletingLastPathComponent().lastPathComponent

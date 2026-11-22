@@ -22,6 +22,28 @@ final class TestHarness {
     private var sized = Set<Int>()
     private var entered: [NSTrackingArea] = []
     private var timer: Timer?
+    private var startHold = TestMode.startHold
+    private var heldClient: CoreClient?
+
+    func holdStart(_ client: CoreClient) async throws {
+        if let heldClient {
+            self.heldClient = nil
+            await heldClient.close()
+        }
+        guard let hold = startHold else { return }
+        startHold = nil
+        do {
+            try await client.register(handles: ["ui.snapshot", "ui.present", "ui.key", "ui.pointer"])
+        } catch {
+            await client.close()
+            throw error
+        }
+        if hold.hasPrefix("fail:") {
+            heldClient = client
+            throw ClubmateError.coreStartFailed(String(hold.dropFirst(5)))
+        }
+        try? await Task.sleep(for: .seconds(Double(hold) ?? 0))
+    }
 
     func start() {
         NSApp.setActivationPolicy(.accessory)

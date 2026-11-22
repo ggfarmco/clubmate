@@ -15,7 +15,7 @@ struct WorkspaceWindow: View {
         WindowMinimum(size: CGSize(width: 800, height: 500)) { content }
             .background(theme.background, ignoresSafeAreaEdges: .all)
             .navigationTitle(title)
-            .toolbar(removing: worktreeSession == nil ? nil : .title)
+            .toolbar(removing: titleShown ? nil : .title)
             .overlay {
                 if let windowID, windows.switcherWindow == windowID {
                     SwitcherGridView(windowID: windowID)
@@ -50,8 +50,13 @@ struct WorkspaceWindow: View {
     }
 
     var worktreeSession: WorkspaceSession? {
-        guard let session = active.flatMap(app.sessions.existing), !session.worktrees.worktrees.isEmpty else { return nil }
+        guard let session = active.flatMap(app.sessions.existing), session.ready, !session.worktrees.worktrees.isEmpty else { return nil }
         return session
+    }
+
+    var titleShown: Bool {
+        guard let session = active.flatMap(app.sessions.existing) else { return true }
+        return session.ready && session.worktrees.worktrees.isEmpty
     }
 
     var title: String {
