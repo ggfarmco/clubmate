@@ -123,11 +123,14 @@ final class AppNavigation {
     }
 
     func pick(_ tab: CompanionTab) {
+        #if DEBUG
+        FrameMonitor.mark("tab")
+        #endif
         guard tab == self.tab else { return switchTab(tab) }
         tapped(tab)
     }
 
-    var path: [StackEntry] { path(tab) }
+    var path: [StackEntry] { path(listTab) }
 
     func tabs(_ model: CompanionModel) -> [CompanionTab] {
         if let known = knownTabs.tabs(for: workspaceKey, live: liveTabs(model)?.tabs) { return known }
@@ -171,10 +174,12 @@ final class AppNavigation {
     }
 
     func push(_ destination: Destination, from origin: Origin? = nil, in workspace: WorkspaceKey? = nil) {
+        adoptListTab()
         stacks.push(destination, from: origin, in: workspace)
     }
 
     func replaceTop(_ destination: Destination) {
+        adoptListTab()
         guard !path.isEmpty else { return push(destination) }
         if path.last?.destination != destination { stacks.replaceTop(destination) }
     }
@@ -302,7 +307,13 @@ final class AppNavigation {
     }
 
     func pop() {
+        adoptListTab()
         stacks.pop()
+    }
+
+    private func adoptListTab() {
+        let shown = listTab
+        if shown != stacks.tab { switchTab(shown) }
     }
 
     func popToRoot(_ tab: CompanionTab) {
@@ -344,22 +355,36 @@ final class AppNavigation {
         box(tab).column
     }
 
-    var overlays: Bool {
-        layout != .compact && room == .over && !path.isEmpty
+    var listTab: CompanionTab {
+        guard let model else { return tab }
+        let tabs = tabs(model)
+        return tabs.contains(tab) ? tab : tabs.first ?? tab
     }
 
-    var listShown: Bool {
-        guard layout != .compact, !readingView else { return false }
-        return overlays ? listOver : columnState(tab) == .listDetail
+    var overlays: Bool { overlays(listTab) }
+
+    func overlays(_ tab: CompanionTab) -> Bool {
+        layout != .compact && room == .over && !path(tab).isEmpty
+    }
+
+    var listShown: Bool { listShown(listTab, shown: true) }
+
+    func listShown(_ tab: CompanionTab, shown: Bool) -> Bool {
+        guard layout != .compact, !(shown && readingView) else { return false }
+        return overlays(tab) ? shown && listOver : columnState(tab) == .listDetail
     }
 
     func toggleList() {
+        toggleList(listTab)
+    }
+
+    func toggleList(_ tab: CompanionTab) {
         guard layout != .compact else { return }
         if readingView {
             readingView = false
             return
         }
-        if overlays {
+        if overlays(tab) {
             listOver.toggle()
         } else {
             stacks.toggleColumns(for: tab)

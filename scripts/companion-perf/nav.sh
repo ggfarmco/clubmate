@@ -6,10 +6,11 @@ usage() {
 usage: $0 build                                   build the CompanionPerf scheme (-O, DEBUG fixtures)
        $0 run <tag> <latency ms> <jitter ms> <test>...   XCTest metrics + request log for the named NavigationPerfUITests tests;
                                                   testSwipeBackSlow/testSwipeBackFast/testBackButton/testScrollStreaming/testListScrollRefreshing also print dropped frames per move
-                                                  (app launched with -frameMonitor YES; RECORD=1 also records the sim screen to <tag>.mov)
+                                                  (app launched with -frameMonitor YES; RECORD=1 also records the sim screen to <tag>.mov);
+                                                  testTabSwitch/testTabSwitchWithDetail also print ms from a tab tap to the first frame after it
        $0 profile <tag> <test> [seconds]          Time Profiler attached to the app while one test runs (PERF_LATENCY ms, default 120), then the per-move table
        $0 fresh                                   delete and recreate the simulator (stale app state after many runs)
-env:   SIM (default cm-navperf), PERF_ITERATIONS (moves per test, default 6), PERF_STREAM (ms between streamed replies in the scroll tests, default 400), PERF_ARGS (extra app launch args, e.g. "-perfTurns 2", "-perfSessions 5", "-perfBare YES"; with -perfBare, "-perfBareBar YES" adds a glass Menu bar item, "-perfBareNative YES" a plain bar button and "-perfBareSearch YES" a search field)
+env:   SIM (default cm-navperf), SIM_TYPE (device type of a new SIM, e.g. "iPad Pro 11-inch (M5)"), PERF_ITERATIONS (moves per test, default 6), PERF_STREAM (ms between streamed replies in the scroll tests, default 400), PERF_ARGS (extra app launch args, e.g. "-perfTurns 2", "-perfSessions 5", "-perfBare YES"; with -perfBare, "-perfBareBar YES" adds a glass Menu bar item, "-perfBareNative YES" a plain bar button and "-perfBareSearch YES" a search field)
 output: build/navperf/<tag>.*  (a move window ends 0.3 s after its end mark or at the next step's begin)
 USAGE
   exit 2
@@ -23,10 +24,10 @@ SIM="${SIM:-cm-navperf}"
 mkdir -p "$OUT"
 if [[ "${1:-}" == fresh ]]; then
   "$ROOT/scripts/sim.sh" down "$SIM"
-  "$ROOT/scripts/sim.sh" up "$SIM" >/dev/null
+  "$ROOT/scripts/sim.sh" up "$SIM" ${SIM_TYPE:+"$SIM_TYPE"} >/dev/null
   exit
 fi
-udid="$("$ROOT/scripts/sim.sh" up "$SIM")" || exit 1
+udid="$("$ROOT/scripts/sim.sh" up "$SIM" ${SIM_TYPE:+"$SIM_TYPE"})" || exit 1
 cd "$ROOT/client"
 
 logstream() {
@@ -71,6 +72,7 @@ case "${1:-}" in
     metrics "$tag"
     python3 "$HERE/steps.py" "$OUT/$tag.reqlog" 2
     python3 "$HERE/frames.py" "$OUT/$tag.reqlog"
+    python3 "$HERE/drawn.py" "$OUT/$tag.reqlog"
     ;;
   profile)
     [[ $# -ge 3 ]] || usage

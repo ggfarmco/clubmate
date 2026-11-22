@@ -118,6 +118,8 @@ struct RootShell: View {
     @Environment(CompanionModel.self) private var model
     @Environment(AppNavigation.self) private var navigation
 
+    @State private var visited: Set<CompanionTab> = []
+
     var body: some View {
         shell
     }
@@ -126,9 +128,19 @@ struct RootShell: View {
     private var shell: some View {
         if navigation.layout == .compact {
             tabView
-        } else if case .section(let tab) = shown(navigation.root) {
-            TabRoot(tab: tab)
-                .id(tab)
+        } else if case .section(let current) = shown(navigation.root) {
+            ZStack {
+                ForEach(tabs.filter { visited.contains($0) || $0 == current }, id: \.self) { tab in
+                    let active = tab == current
+                    TabRoot(tab: tab)
+                        .opacity(active ? 1 : 0)
+                        .allowsHitTesting(active)
+                        .accessibilityHidden(!active)
+                        .zIndex(active ? 1 : 0)
+                        .environment(\.tabShown, active)
+                }
+            }
+            .onChange(of: current, initial: true) { _, tab in visited.insert(tab) }
         }
     }
 
@@ -178,17 +190,20 @@ struct TabRoot: View {
                         }
                 }
                 .toolbarVisibility(navigation.hidesTabBar(tab) ? .hidden : .automatic, for: .tabBar)
+                .environment(\.ownerTab, tab)
             } else {
                 NavigationSplitView(columnVisibility: columns) {
                     plugin.makeRoot(context: context)
                         .navigationSplitViewColumnWidth(ListColumn.width)
-                        .toolbar { ListColumnTabs(tabs: navigation.tabs(model)) }
+                        .toolbar { if tab == navigation.listTab { ListColumnTabs(tabs: navigation.tabs(model), owner: tab) } }
                 } detail: {
                     TabDetail(tab: tab, plugin: plugin, context: context)
+                        .background { SplitHidden() }
                 }
-                .modifier(SplitStyle(over: navigation.overlays))
+                .modifier(SplitStyle(over: navigation.overlays(tab)))
+                .environment(\.ownerTab, tab)
                 .onChange(of: navigation.path(tab).first) { _, first in
-                    if first != nil { navigation.listOver = false }
+                    if first != nil, tab == navigation.listTab { navigation.listOver = false }
                 }
             }
         } else {
@@ -197,15 +212,17 @@ struct TabRoot: View {
     }
 
     private var columns: Binding<NavigationSplitViewVisibility> {
-        Binding(get: { navigation.listShown ? .doubleColumn : .detailOnly }, set: { visibility in
-            guard visibility != .automatic, (visibility != .detailOnly) != navigation.listShown else { return }
-            navigation.toggleList()
+        Binding(get: { navigation.listShown(tab, shown: tab == navigation.listTab) ? .doubleColumn : .detailOnly }, set: { visibility in
+            let shown = tab == navigation.listTab
+            guard shown, visibility != .automatic, (visibility != .detailOnly) != navigation.listShown(tab, shown: shown) else { return }
+            navigation.toggleList(tab)
         })
     }
 }
 
 struct ListColumnTabs: ToolbarContent {
     let tabs: [CompanionTab]
+    let owner: CompanionTab
     @Environment(AppNavigation.self) private var navigation
 
     var body: some ToolbarContent {
@@ -219,7 +236,7 @@ struct ListColumnTabs: ToolbarContent {
     }
 
     private func button(_ tab: CompanionTab) -> some View {
-        let selected = navigation.tab == tab
+        let selected = tab == owner
         return Button {
             navigation.pick(tab)
         } label: {
@@ -237,6 +254,91 @@ struct ListColumnTabs: ToolbarContent {
         .accessibilityHint("Tab")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
+}
+
+struct SplitHidden: UIViewRepresentable {
+    func makeUIView(context: Context) -> Probe {
+        Probe()
+    }
+
+    func updateUIView(_ probe: Probe, context: Context) {
+        probe.concealed = !context.environment.tabShown
+    }
+
+    final class Probe: UIView {
+        var concealed = false {
+            didSet {
+                guard concealed != oldValue else { return }
+                apply()
+                UIAccessibility.post(notification: .layoutChanged, argument: nil)
+            }
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            apply()
+        }
+
+        #if DEBUG
+        private static let hosts = NSMapTable<UIView, UISplitViewController>.weakToWeakObjects()
+        #endif
+
+        private func apply() {
+            guard let split = sequence(first: self as UIResponder, next: \.next).lazy.compactMap({ $0 as? UISplitViewController }).first else { return }
+            if concealed { split.view.endEditing(true) }
+            let host = split.view.superview.flatMap { $0.subviews == [split.view] ? $0 : nil }
+            #if DEBUG
+            if let host {
+                assert(Self.hosts.object(forKey: host).map { $0 === split } ?? true, "SplitHidden: two split views share one host view")
+                Self.hosts.setObject(split, forKey: host)
+            }
+            #endif
+            for view in [split.view, host].compactMap({ $0 }) {
+                view.isHidden = concealed
+                view.accessibilityElementsHidden = concealed
+                view.accessibilityElements = concealed ? [] : nil
+            }
+        }
+    }
+}
+
+extension EnvironmentValues {
+    @Entry var tabShown = true
+    @Entry var ownerTab: CompanionTab?
+    @Entry var stackEntry: StackEntry?
+}
+
+struct TabShownWatch: ViewModifier {
+    let ui: WorkspaceUI
+    let slots: Set<String>
+    let owner: UUID
+    @Environment(\.tabShown) private var shown
+    @State private var appeared = false
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                appeared = true
+                if shown { ui.show(slots, owner: owner) }
+            }
+            .onDisappear {
+                appeared = false
+                ui.hide(owner: owner)
+            }
+            .onChange(of: shown) { _, shown in
+                guard appeared else { return }
+                if shown {
+                    ui.show(slots, owner: owner)
+                } else {
+                    ui.hide(owner: owner)
+                }
+            }
+    }
+}
+
+struct TabFetch: Hashable {
+    let workspace: String
+    let shown: Bool
 }
 
 struct SplitStyle: ViewModifier {
@@ -298,6 +400,7 @@ struct DestinationView: View {
             .modifier(ReadingViewBars(hidden: readingView, owned: entry.destination.readsInPlace))
             .modifier(BackChipModifier(entry: entry, tab: tab))
             .modifier(SectionLineModifier(entry: entry, tab: tab))
+            .environment(\.stackEntry, entry)
     }
 
     private var readingView: Bool {

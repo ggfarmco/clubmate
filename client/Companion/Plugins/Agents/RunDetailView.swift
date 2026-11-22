@@ -364,7 +364,7 @@ struct RunRequestCard: View {
             try? await Task.sleep(for: .milliseconds(600))
             armed = true
         }
-        .focusedSceneValue(\.sessionKeys, keys)
+        .modifier(SessionKeysRegistration(keys: keys))
         .sheet(isPresented: $confirmingAlways) {
             if case .step(_, let role, _, _, let rule?) = request {
                 RunAlwaysAllowSheet(rule: rule, role: role) {

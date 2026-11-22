@@ -8,6 +8,8 @@ struct SectionScreen: View {
     let tabRoot: Bool
     let connection: ComputerConnection
     @Environment(AppNavigation.self) private var navigation
+    @Environment(\.ownerTab) private var ownerTab
+    @Environment(\.tabShown) private var tabShown
     @State private var ui: WorkspaceUI
     @State private var owner = UUID()
     @State private var visible = false
@@ -28,19 +30,16 @@ struct SectionScreen: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(.systemGroupedBackground))
             .navigationTitle(unless: tabRoot, title)
-            .onAppear {
-                visible = true
-                ui.show([sidebar, main], owner: owner)
-            }
-            .onDisappear {
-                visible = false
-                ui.hide(owner: owner)
-            }
+            .onAppear { visible = true }
+            .onDisappear { visible = false }
             .onChange(of: ui.sections) { _, sections in
-                if navigation.path.last?.destination == .section(id: section, item: nil), !sections.contains(where: { $0.id == section }) { navigation.pop() }
+                let tab = ownerTab ?? navigation.tab
+                let path = navigation.path(tab)
+                if path.last?.destination == .section(id: section, item: nil), !sections.contains(where: { $0.id == section }) { navigation.setPath(Array(path.dropLast()), tab: tab) }
             }
-            .task(id: ui.view(main) != nil && ui.view(sidebar) != nil) { await openItem() }
-            .task(id: "\(visible)|\(PhoneSections.selected(in: ui.view(sidebar)) ?? "")") { await follow() }
+            .task(id: ui.view(main) != nil && ui.view(sidebar) != nil && tabShown) { await openItem() }
+            .modifier(TabShownWatch(ui: ui, slots: [sidebar, main], owner: owner))
+            .task(id: "\(visible && tabShown)|\(PhoneSections.selected(in: ui.view(sidebar)) ?? "")") { await follow() }
     }
 
     @ViewBuilder
@@ -74,14 +73,16 @@ struct SectionScreen: View {
     }
 
     private func openItem() async {
-        guard item == nil, let item = navigation.sectionItem, navigation.path.last?.destination == .section(id: section, item: nil), PhoneSections.root(section, sidebar: ui.view(sidebar), main: ui.view(main)) == sidebar,
+        let tab = ownerTab ?? navigation.tab
+        let path = navigation.path(tab)
+        guard tabShown, item == nil, let item = navigation.sectionItem, path.last?.destination == .section(id: section, item: nil), PhoneSections.root(section, sidebar: ui.view(sidebar), main: ui.view(main)) == sidebar,
               ui.view(sidebar).flatMap({ PhoneSections.list(in: $0.tree) }) != nil, ui.view(main) != nil else { return }
         navigation.sectionItem = nil
-        navigation.push(.section(id: section, item: item))
+        navigation.setPath(path + [StackEntry(.section(id: section, item: item))], tab: tab)
     }
 
     private func follow() async {
-        guard visible, let item else { return }
+        guard visible, tabShown, let item else { return }
         await ui.select(item, in: sidebar)
     }
 

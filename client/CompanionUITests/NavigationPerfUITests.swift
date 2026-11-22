@@ -1,4 +1,5 @@
 import OSLog
+import UIKit
 import XCTest
 
 @MainActor
@@ -9,6 +10,8 @@ final class NavigationPerfUITests: XCTestCase {
     private static let parent = (id: "agt_0000000000000004", seed: 99)
     private static let child = (id: "agt_0000000000000901", seed: 1)
     private static let long = [(id: "agt_0000000000000900", seed: 0), (id: "agt_0000000000000902", seed: 2), (id: "agt_0000000000000903", seed: 3), (id: "agt_0000000000000904", seed: 4), (id: "agt_0000000000000906", seed: 6), (id: "agt_0000000000000907", seed: 7), (id: "agt_0000000000000908", seed: 8)]
+    private static let task = "!! Retry the charge step on 502"
+    private static let note = "tests written, wiring the client"
     private static let iterations = Int(ProcessInfo.processInfo.environment["PERF_ITERATIONS"] ?? "") ?? 6
     private static let stream = ProcessInfo.processInfo.environment["PERF_STREAM"] ?? "400"
     private static let log = Logger(subsystem: "com.clubmate.companion.perf", category: "step")
@@ -24,6 +27,11 @@ final class NavigationPerfUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         try XCTSkipUnless(ProcessInfo.processInfo.environment["PERF_NAV"] != nil, "run with TEST_RUNNER_PERF_NAV=1")
+        if UIDevice.current.userInterfaceIdiom == .pad { XCUIDevice.shared.orientation = .landscapeLeft }
+    }
+
+    override func tearDown() {
+        XCUIDevice.shared.orientation = .portrait
     }
 
     func testPushListToTranscript() {
@@ -124,29 +132,57 @@ final class NavigationPerfUITests: XCTestCase {
     }
 
     func testTabSwitch() {
-        let app = launch(open: "tab:agents", extra: ["-wiki", "YES"])
-        let tabs = app.tabBars.firstMatch
+        let app = launch(open: "tab:agents", extra: ["-wiki", "YES", "-frameMonitor", "YES"])
         XCTAssertTrue(row(Self.long[0].id, in: app).waitForExistence(timeout: 20))
-        XCTAssertTrue(tabs.buttons["Wiki"].waitForExistence(timeout: 20))
-        let stops: [(tab: String, shown: XCUIElement)] = [
-            ("Backlog", app.navigationBars["Backlog"]),
+        XCTAssertTrue(tab("Wiki", in: app).waitForExistence(timeout: 20))
+        switchTabs([
+            ("Backlog", app.staticTexts[Self.task]),
             ("Wiki", app.buttons["Checkout flow"].firstMatch),
             ("Agents", row(Self.long[0].id, in: app)),
-        ]
+        ], in: app)
+    }
+
+    func testTabSwitchWithDetail() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "the iPhone hides the tab bar over a detail")
+        let app = launch(open: "tab:agents", extra: ["-wiki", "YES", "-frameMonitor", "YES"])
+        let target = Self.long[0]
+        XCTAssertTrue(row(target.id, in: app).waitForExistence(timeout: 20))
+        XCTAssertTrue(tab("Wiki", in: app).waitForExistence(timeout: 20))
+        open(target, in: app)
+        tab("Backlog", in: app).tap()
+        let task = app.staticTexts[Self.task]
+        XCTAssertTrue(task.waitForExistence(timeout: 20))
+        task.tap()
+        let note = app.staticTexts[Self.note]
+        XCTAssertTrue(note.waitForExistence(timeout: 20))
+        tab("Wiki", in: app).tap()
+        let page = app.buttons["Checkout flow"].firstMatch
+        XCTAssertTrue(page.waitForExistence(timeout: 20))
+        page.tap()
+        let body = app.webViews.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Checkout flow part 1")).firstMatch
+        XCTAssertTrue(body.waitForExistence(timeout: 20))
+        switchTabs([("Agents", last(target.seed, in: app)), ("Backlog", note), ("Wiki", body)], in: app)
+    }
+
+    private func switchTabs(_ stops: [(tab: String, shown: XCUIElement)], in app: XCUIApplication) {
         for stop in stops {
-            tabs.buttons[stop.tab].tap()
+            tab(stop.tab, in: app).tap()
             XCTAssertTrue(stop.shown.waitForExistence(timeout: 20))
         }
         measure(metrics: metrics(app), options: manual) {
             startMeasuring()
             for stop in stops {
                 Self.log.info("step tab begin \(stop.tab, privacy: .public)")
-                tabs.buttons[stop.tab].tap()
+                tab(stop.tab, in: app).tap()
                 XCTAssertTrue(stop.shown.waitForExistence(timeout: 20))
                 Self.log.info("step tab end \(stop.tab, privacy: .public)")
             }
             stopMeasuring()
         }
+    }
+
+    private func tab(_ title: String, in app: XCUIApplication) -> XCUIElement {
+        UIDevice.current.userInterfaceIdiom == .pad ? app.toolbars.buttons[title] : app.tabBars.firstMatch.buttons[title]
     }
 
     func testWikiPageToPage() {

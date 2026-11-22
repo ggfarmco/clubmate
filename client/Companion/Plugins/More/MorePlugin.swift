@@ -103,8 +103,7 @@ private struct MoreSectionsList: View {
                 ContentUnavailableView("Nothing Else Here", systemImage: "ellipsis.circle", description: Text("Plugins with their own screens on the Mac show here."))
             }
         }
-        .onAppear { ui.show([], owner: owner) }
-        .onDisappear { ui.hide(owner: owner) }
+        .modifier(TabShownWatch(ui: ui, slots: [], owner: owner))
     }
 }
 

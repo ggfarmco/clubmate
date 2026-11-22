@@ -23,8 +23,68 @@ struct SessionKeyActions: Equatable {
     }
 }
 
-extension FocusedValues {
-    @Entry var sessionKeys: SessionKeyActions?
+@MainActor
+@Observable
+final class SessionKeyBoard {
+    private struct Entry {
+        let id: UUID
+        var keys: SessionKeyActions
+        var page: StackEntry?
+    }
+
+    private var entries: [CompanionTab: [Entry]] = [:]
+
+    func keys(for tab: CompanionTab, top: StackEntry?) -> SessionKeyActions? {
+        entries[tab]?.last { $0.page == nil || $0.page == top }?.keys
+    }
+
+    func set(_ keys: SessionKeyActions, id: UUID, tab: CompanionTab, page: StackEntry?) {
+        if let index = entries[tab]?.firstIndex(where: { $0.id == id }) {
+            if entries[tab]?[index].keys != keys { entries[tab]?[index].keys = keys }
+            if entries[tab]?[index].page != page { entries[tab]?[index].page = page }
+            return
+        }
+        for other in entries.keys where other != tab { entries[other]?.removeAll { $0.id == id } }
+        entries[tab, default: []].append(Entry(id: id, keys: keys, page: page))
+    }
+
+    func remove(_ id: UUID) {
+        for tab in entries.keys where entries[tab]?.contains(where: { $0.id == id }) == true {
+            entries[tab]?.removeAll { $0.id == id }
+        }
+    }
+}
+
+final class SessionKeyToken {
+    let id = UUID()
+    weak var board: SessionKeyBoard?
+
+    deinit {
+        let id = id
+        let board = board
+        Task { @MainActor in board?.remove(id) }
+    }
+}
+
+struct SessionKeysRegistration: ViewModifier {
+    private struct Registration: Equatable {
+        let keys: SessionKeyActions
+        let page: StackEntry?
+    }
+
+    let keys: SessionKeyActions
+    @Environment(AppNavigation.self) private var navigation: AppNavigation?
+    @Environment(\.ownerTab) private var ownerTab
+    @Environment(\.stackEntry) private var page
+    @State private var token = SessionKeyToken()
+
+    func body(content: Content) -> some View {
+        content.onChange(of: Registration(keys: keys, page: page), initial: true) { _, registration in
+            guard let navigation else { return }
+            token.board = navigation.menu.keys
+            navigation.menu.keys.set(registration.keys, id: token.id, tab: ownerTab ?? navigation.tab, page: registration.page)
+        }
+    }
 }
 
 extension View {
@@ -45,7 +105,7 @@ struct SessionKeysModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .focusedSceneValue(\.sessionKeys, SessionKeyActions(scope: scope + "|" + (pending?.id ?? ""), enabled: enabled, answers: answers, send: send.map { KeyedAction(label: "Send", run: $0) }))
+            .modifier(SessionKeysRegistration(keys: SessionKeyActions(scope: scope + "|" + (pending?.id ?? ""), enabled: enabled, answers: answers, send: send.map { KeyedAction(label: "Send", run: $0) })))
             .task(id: pending?.id) {
                 armed = nil
                 try? await Task.sleep(for: .milliseconds(600))

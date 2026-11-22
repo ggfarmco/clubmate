@@ -87,13 +87,17 @@ struct BacklogEmptyDetail: View {
 
 struct BacklogListView: View {
     let context: PluginContext
+    @Environment(\.tabShown) private var shown
 
     var body: some View {
         let workspace = context.navigation.workspace(for: context.connection)
         Group {
             if let workspace, let store = BacklogPlugin.store(context) {
                 TaskListView(context: context, store: store)
-                    .task(id: workspace.id) { await store.refreshIfStale() }
+                    .task(id: TabFetch(workspace: workspace.id, shown: shown)) {
+                        guard shown else { return }
+                        await store.refreshIfStale()
+                    }
             } else if context.connection.state == .online {
                 ContentUnavailableView("No Workspaces", systemImage: "folder", description: Text("Open a workspace in Clubmate on \(context.connection.computer.name)."))
             } else {

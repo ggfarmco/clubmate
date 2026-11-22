@@ -95,6 +95,7 @@ struct WikiPageView: View {
     @State private var shown: PageTree?
     @State private var find = DocumentFind()
     @State private var pushed = false
+    @Environment(\.tabShown) private var tabShown
     private static let sidebar = WikiPluginInfo.id + ".sidebar"
     private static let main = WikiPluginInfo.id + ".main"
 
@@ -136,18 +137,17 @@ struct WikiPageView: View {
         .modifier(PadPageTitle(title: title))
         .onAppear {
             visible = true
-            ui.show([Self.sidebar, Self.main], owner: owner)
             shown = ui.page(page, path: path, in: Self.main) ?? shown
         }
         .onDisappear {
             visible = false
-            ui.hide(owner: owner)
         }
         .onChange(of: ui.page(page, path: path, in: Self.main)) { _, fresh in
             if visible || shown == nil, let fresh { shown = fresh }
         }
-        .task(id: "\(visible)|\(PhoneSections.selected(in: ui.view(Self.sidebar)) ?? "")") {
-            guard visible else { return }
+        .modifier(TabShownWatch(ui: ui, slots: [Self.sidebar, Self.main], owner: owner))
+        .task(id: "\(visible && tabShown)|\(PhoneSections.selected(in: ui.view(Self.sidebar)) ?? "")") {
+            guard visible, tabShown else { return }
             await ui.select(page, in: Self.sidebar)
         }
     }

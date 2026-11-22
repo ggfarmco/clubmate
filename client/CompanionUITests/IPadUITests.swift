@@ -192,6 +192,94 @@ final class IPadUITests: XCTestCase {
         XCTAssertTrue(wait { !(bar.exists && bar.isHittable) })
     }
 
+    func testTabSwitchKeepsTheScrolledPageAndHidesTheOtherTabs() {
+        let app = openCheckoutFlow()
+        let start = app.webViews.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -110)), withVelocity: .slow, thenHoldForDuration: 0.3)
+        let part = app.webViews.staticTexts["Checkout flow part 3 explains one step of the shop in detail."]
+        XCTAssertTrue(part.waitForExistence(timeout: 10))
+        var top = part.frame.minY
+        XCTAssertTrue(wait { let now = part.frame.minY; defer { top = now }; return now == top })
+        tab(app, "Agents").tap()
+        XCTAssertTrue(shown(sessionRow(app)))
+        XCTAssertTrue(wait { !app.navigationBars["Checkout flow"].exists && !app.buttons["Shop wiki"].exists && app.webViews.count == 0 })
+        tab(app, "Wiki").tap()
+        XCTAssertTrue(part.waitForExistence(timeout: 10))
+        XCTAssertEqual(part.frame.minY, top, accuracy: 1)
+    }
+
+    func testAFallbackTabKeepsTheTabsAndTheListToggle() {
+        let app = launch(open: "tab:wiki")
+        let agents = tab(app, "Agents")
+        XCTAssertTrue(wait(timeout: 15) { agents.exists && agents.isSelected && !self.tab(app, "Wiki").exists })
+        XCTAssertTrue(shown(sessionRow(app)))
+        toggle(app).tap()
+        XCTAssertTrue(listHidden(app))
+    }
+
+    func testOptionKeyDoesNotAnswerASessionInAHiddenTab() {
+        let app = launch(open: "agents/agt_0000000000000001")
+        let reject = app.buttons["Reject"]
+        XCTAssertTrue(reject.waitForExistence(timeout: 15))
+        tab(app, "Backlog").tap()
+        XCTAssertTrue(shown(app.staticTexts[Self.task]))
+        app.typeKey("1", modifierFlags: .option)
+        tab(app, "Agents").tap()
+        XCTAssertTrue(shown(reject))
+        let answered = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: reject)
+        answered.isInverted = true
+        XCTAssertEqual(XCTWaiter().wait(for: [answered], timeout: 3), .completed)
+    }
+
+    func testOptionKeyAnswersTheSessionOpenedFromTheInboxOverAnotherTab() {
+        let app = launch(open: "tab:backlog")
+        XCTAssertTrue(shown(app.staticTexts[Self.task]))
+        app.buttons["inbox.tray"].tap()
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "go test")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+        let reject = app.buttons["Reject"]
+        XCTAssertTrue(reject.waitForExistence(timeout: 10))
+        tab(app, "Agents").tap()
+        app.staticTexts["row.agt_0000000000000006"].tap()
+        XCTAssertTrue(app.textViews["composer"].waitForExistence(timeout: 10))
+        tab(app, "Backlog").tap()
+        XCTAssertTrue(shown(reject))
+        XCTAssertTrue(press(app, "1", .option, until: wait(timeout: 3) { !reject.exists }))
+    }
+
+    func testOptionKeyLeavesACoveredSessionAndAnswersItAfterBack() {
+        let app = launch(open: "agents/agt_0000000000000001")
+        let reject = app.buttons["Reject"]
+        XCTAssertTrue(reject.waitForExistence(timeout: 15))
+        app.buttons["inbox.tray"].tap()
+        let inbox = app.navigationBars["Inbox"]
+        XCTAssertTrue(inbox.waitForExistence(timeout: 10))
+        app.typeKey("1", modifierFlags: .option)
+        inbox.buttons.firstMatch.tap()
+        XCTAssertTrue(shown(reject))
+        let answered = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: reject)
+        answered.isInverted = true
+        XCTAssertEqual(XCTWaiter().wait(for: [answered], timeout: 3), .completed)
+        XCTAssertTrue(press(app, "1", .option, until: wait(timeout: 3) { !reject.exists }))
+    }
+
+    func testAFallbackTabTakesAPushAndItsBack() {
+        let app = launch(open: "tab:wiki")
+        let agents = tab(app, "Agents")
+        XCTAssertTrue(wait(timeout: 15) { agents.exists && agents.isSelected && !self.tab(app, "Wiki").exists })
+        app.buttons["inbox.tray"].tap()
+        let inbox = app.navigationBars["Inbox"]
+        XCTAssertTrue(inbox.waitForExistence(timeout: 10))
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "go test")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+        let reject = app.buttons["Reject"]
+        XCTAssertTrue(reject.waitForExistence(timeout: 10))
+        app.typeKey("[", modifierFlags: .command)
+        XCTAssertTrue(wait { inbox.exists && !reject.exists })
+    }
+
     func testLongCodeLineScrollsSideways() {
         let app = openCheckoutFlow()
         let code = app.webViews.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "booking.roots2")).firstMatch

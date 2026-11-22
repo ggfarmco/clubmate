@@ -45,6 +45,7 @@ struct MenuMove: Equatable {
 final class MenuBoard {
     private(set) var state = MenuState()
     @ObservationIgnored private(set) var live = MenuState()
+    @ObservationIgnored let keys = SessionKeyBoard()
     @ObservationIgnored private var pending: MenuState?
     @ObservationIgnored private var move: MenuMove?
     @ObservationIgnored private var settling: Task<Void, Never>?
@@ -83,7 +84,6 @@ struct MenuFeed: View {
     let board: MenuBoard
     @Environment(CompanionModel.self) private var model
     @Environment(AppNavigation.self) private var navigation
-    @FocusedValue(\.sessionKeys) private var keys
 
     var body: some View {
         Color.clear
@@ -105,7 +105,7 @@ struct MenuFeed: View {
             shownTabs: CompanionTab.keyed.filter { navigation.shows($0, model) },
             hasComputer: navigation.computer != nil,
             tabHasSearch: navigation.tabHasSearch,
-            keys: keys
+            keys: board.keys.keys(for: navigation.listTab, top: navigation.path.last)
         )
     }
 }

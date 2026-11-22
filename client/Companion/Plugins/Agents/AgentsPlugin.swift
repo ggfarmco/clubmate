@@ -97,13 +97,15 @@ struct AgentsEmptyDetail: View {
 
 struct AgentsListView: View {
     let context: PluginContext
+    @Environment(\.tabShown) private var shown
 
     var body: some View {
         let workspace = context.navigation.workspace(for: context.connection)
         Group {
             if let workspace, let store = AgentsPlugin.store(context) {
                 SessionListView(context: context, store: store)
-                    .task(id: workspace.id) {
+                    .task(id: TabFetch(workspace: workspace.id, shown: shown)) {
+                        guard shown else { return }
                         if store.fetched { try? await Task.sleep(for: Motion.navigationSettle) }
                         guard !Task.isCancelled else { return }
                         await store.refreshIfStale()
