@@ -649,6 +649,7 @@ actor FixtureServer {
             let call = (transcripts[session]?["entries"]?.arrayValue ?? []).first { $0["kind"] == .string("tool") && $0["id"] == args["tool"] }
             return .object(["tool": call?["tool"] ?? .null])
         case "agents.prompt":
+            if PerfFixture.on, sessions.first(where: { $0["id"]?.stringValue == session })?["status"] == .string("running") { return .null }
             let text = args["text"]?.stringValue ?? ""
             var prompt = Self.entry("user", "prompt-\(UUID().uuidString)", text: text)
             if case .object(var fields) = prompt, let attachments = args["attachments"]?.arrayValue, !attachments.isEmpty {

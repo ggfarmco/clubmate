@@ -4,7 +4,7 @@ import ClubmateDocument
 import CompanionKit
 
 
-struct RowView: View {
+struct RowView: View, Equatable {
     let row: TranscriptRow
 
     var body: some View {
@@ -12,9 +12,9 @@ struct RowView: View {
         case .entry(let entry):
             EntryView(entry: entry)
                 .opacity(entry.isOutgoing ? 0.6 : 1)
-        case .agent(let id, let blocks, let docLinks, let docCards, let images, let imageLinks, let taskLinks):
+        case .agent(let id, let text, let blocks, let docLinks, let docCards, let images, let imageLinks, let taskLinks):
             AgentMessage(cards: docCards, entry: id, images: images) { MarkdownView(blocks: blocks, docLinks: docLinks, imageLinks: imageLinks, taskLinks: taskLinks) }
-                .messageAsideMenu(id)
+                .messageAsideMenu(id, text: text)
         case .tools(_, let group):
             if group.calls.count == 1 {
                 ToolRow(tool: group.calls[0])

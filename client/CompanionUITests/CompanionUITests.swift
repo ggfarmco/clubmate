@@ -1568,6 +1568,39 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Backlog"].exists)
     }
 
+    func testAStreamedReplyLeavesTheReaderOnOlderRows() throws {
+        let app = launch(open: "agents/agt_0000000000000904", ["-perfFixture", "YES", "-perfStream", "400"])
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Streamed reply")).firstMatch.waitForExistence(timeout: 20))
+        let visible = visibleBand(app)
+        queue("Check the expired holds", in: app, visible: visible)
+        app.swipeDown(velocity: .slow)
+        app.swipeDown(velocity: .slow)
+        XCTAssertFalse(shown(app.staticTexts["Check the expired holds"], in: visible), "the swipes did not leave the last row")
+        let read = try app.snapshot().texts { $0.label.hasPrefix("Streamed reply") && visible.contains($0.frame) }.min { $0.frame.minY < $1.frame.minY }
+        let label = try XCTUnwrap(read?.label, "the transcript went back to its last row")
+        XCTAssertTrue(stays { shown(app.staticTexts[label], in: visible) }, "a streamed reply moved the transcript off \(label)")
+        queue("Then free them", in: app, visible: visible)
+    }
+
+    private func queue(_ text: String, in app: XCUIApplication, visible: CGRect) {
+        let composer = app.textViews["composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        composer.tap()
+        composer.typeText(text)
+        app.buttons["Queue"].tap()
+        XCTAssertTrue(poll { shown(app.staticTexts[text], in: visible) }, "sending did not scroll to \(text)")
+    }
+
+    private func visibleBand(_ app: XCUIApplication) -> CGRect {
+        let top = app.navigationBars.firstMatch.frame.maxY
+        let bottom = app.textViews["composer"].frame.minY
+        return CGRect(x: 0, y: top, width: app.windows.firstMatch.frame.width, height: bottom - top)
+    }
+
+    private func shown(_ element: XCUIElement, in visible: CGRect) -> Bool {
+        element.exists && visible.contains(element.frame)
+    }
+
     private func launch(open target: String, _ extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target] + extra
@@ -1675,5 +1708,11 @@ final class CompanionUITests: XCTestCase {
     private func wait(for element: XCUIElement, _ predicate: String, _ arguments: CVarArg...) -> Bool {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: predicate, argumentArray: arguments), object: element)
         return XCTWaiter().wait(for: [expectation], timeout: 5) == .completed
+    }
+}
+
+private extension XCUIElementSnapshot {
+    func texts(where match: (XCUIElementSnapshot) -> Bool) -> [XCUIElementSnapshot] {
+        (elementType == .staticText && match(self) ? [self] : []) + children.flatMap { $0.texts(where: match) }
     }
 }

@@ -8,10 +8,14 @@ enum SessionRole: Equatable {
     case asideFull
 }
 
-struct AsideEntry {
+struct AsideEntry: Equatable {
+    let key: String
     let ask: @MainActor (AsideAnchor) -> Void
     let mark: @MainActor (AsideAnchor) -> AsideState?
-    let message: @MainActor (String) -> String?
+
+    static func == (a: Self, b: Self) -> Bool {
+        a.key == b.key
+    }
 }
 
 extension EnvironmentValues {
@@ -23,8 +27,8 @@ extension View {
         modifier(AsideOptionMenu(anchor: anchor))
     }
 
-    func messageAsideMenu(_ row: String) -> some View {
-        modifier(MessageAsideMenu(row: row))
+    func messageAsideMenu(_ row: String, text: String) -> some View {
+        modifier(MessageAsideMenu(row: row, text: text))
     }
 }
 
@@ -45,10 +49,11 @@ private struct AsideOptionMenu: ViewModifier {
 
 private struct MessageAsideMenu: ViewModifier {
     let row: String
+    let text: String
     @Environment(\.asideEntry) private var entry
 
     func body(content: Content) -> some View {
-        if let entry, let text = entry.message(row) {
+        if let entry {
             content.contextMenu {
                 Button("Ask aside", systemImage: AsideGlyph.symbol) {
                     entry.ask(AsideAnchor(message: String(row.split(separator: "/", maxSplits: 1).last ?? Substring(row)), quote: text))

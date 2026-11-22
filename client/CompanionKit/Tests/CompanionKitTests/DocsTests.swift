@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import XCTest
 
 import CompanionKit
@@ -103,6 +104,27 @@ final class DocsTests: XCTestCase {
         store.handle(.event(BusEvent(seq: 4, topic: "agents.changed", payload: .object(["workspace": .string("w"), "session": .string("agt_1"), "kind": .string("status")]))))
         try await waitUntil { runner.calls.count == 2 }
         XCTAssertTrue(store.loaded)
+    }
+
+    func testAnUnchangedDocsListLeavesTheDocsAlone() async {
+        let runner = DocsListRunner()
+        let store = DocsListStore(workspace: "w", session: nil, runner: runner)
+        await store.refresh()
+        XCTAssertFalse(store.docs.isEmpty)
+        let changed = Mutex(false)
+        withObservationTracking {
+            _ = store.docs
+            _ = store.truncated
+            _ = store.loaded
+            _ = store.error
+            _ = store.syncedAt
+            _ = store.ageLine()
+        } onChange: {
+            changed.withLock { $0 = true }
+        }
+        await store.refresh()
+        XCTAssertEqual(runner.calls.count, 2)
+        XCTAssertFalse(changed.withLock { $0 })
     }
 }
 

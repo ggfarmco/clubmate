@@ -882,8 +882,13 @@ struct QueueNoteRow: View {
     }
 }
 
-struct FolderRemove {
+struct FolderRemove: Equatable {
+    let key: String
     let run: @MainActor (String) async -> Void
+
+    static func == (a: Self, b: Self) -> Bool {
+        a.key == b.key
+    }
 }
 
 extension EnvironmentValues {

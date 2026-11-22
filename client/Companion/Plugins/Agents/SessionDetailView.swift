@@ -166,6 +166,7 @@ struct SessionDetailView: View {
         let drawn = window.drawn(rows)
         let anchor = growing ?? (drawn < rows.count ? rows[drawn].id : nil)
         let cardTyping = typingInCard(screen)
+        let echoes = entries.count { $0.isOutgoing }
         let keySend: (() -> Void)? = cardTyping ? nil : { send() }
         let answerDocked = switch screen.dock {
         case .permission, .elicitation, .connect, .land: true
@@ -202,26 +203,13 @@ struct SessionDetailView: View {
                             }
                         }
                 }
-                ForEach(Self.blocks(Array(rows[drawn...]), paired: width >= Self.pairedWidth), id: \.[0].id) { block in
-                    Group {
-                        if block.count == 2 {
-                            HStack(alignment: .top, spacing: 10) {
-                                RowView(row: block[0])
-                                RowView(row: block[1])
-                            }
-                        } else {
-                            RowView(row: block[0])
-                        }
+                if drawn < rows.count {
+                    TranscriptBlocks(blocks: Self.blocks(Array(rows[drawn...]), paired: width >= Self.pairedWidth), anchor: anchor, space: Self.rowsSpace) { old, new in
+                        guard growing != nil, new != old else { return }
+                        growing = nil
+                        position.scrollTo(y: scrollY.value + new - old)
                     }
-                    .background {
-                        if block.contains(where: { $0.id == anchor }) {
-                            Color.clear.onGeometryChange(for: Double.self) { $0.frame(in: .named(Self.rowsSpace)).minY } action: { old, new in
-                                guard growing != nil, new != old else { return }
-                                growing = nil
-                                position.scrollTo(y: scrollY.value + new - old)
-                            }
-                        }
-                    }
+                    .equatable()
                 }
                 if let repos {
                     ReposCardView(card: repos, fold: store.reposFold(sessionID), blocked: blocked) {
@@ -278,6 +266,7 @@ struct SessionDetailView: View {
                 }
             }
             .coordinateSpace(.named(Self.rowsSpace))
+            .wholeWidth()
             .padding(.horizontal)
             .padding(.vertical, 12)
             .frame(maxWidth: 820)
@@ -313,7 +302,7 @@ struct SessionDetailView: View {
                     .background(Color(.systemGroupedBackground))
             }
         }
-        .environment(\.folderRemove, blocked == nil && context.connection.supports(TaskCommand.folderRemove) ? FolderRemove { path in
+        .environment(\.folderRemove, blocked == nil && context.connection.supports(TaskCommand.folderRemove) ? FolderRemove(key: sessionID) { path in
             do {
                 failure = try await store.removeFolder(path)
                 await context.connection.refreshWorkspaces()
@@ -600,7 +589,7 @@ struct SessionDetailView: View {
         .sessionKeys(scope: sessionID, enabled: context.connection.state == .online, pending: store.pendingPermission(sessionID), answer: { request, option in
             perform { try await answer(request: request.id, option: option) }
         }, confirmAlways: { alwaysAsked = AlwaysAsk(option: $0) }, send: keySend)
-        .onChange(of: entries.count) { _, _ in
+        .followingRows(entries.count, echoes: echoes, atBottom: { atBottom.value }) {
             withAnimation { position.scrollTo(edge: .bottom) }
         }
         .onChange(of: cardDock(screen)) {
@@ -658,14 +647,14 @@ struct SessionDetailView: View {
 
     private func asideEntry(_ session: AgentSession?, blocked: String?) -> AsideEntry? {
         guard mode == .plain, let session, session.canAside, !session.isAside, blocked == nil, context.connection.supports(AsideCommand.ask) else { return nil }
-        let transcript = store.transcripts[sessionID]
-        return AsideEntry { anchor in
+        return AsideEntry(key: sessionID) { anchor in
             perform {
                 let id = try await store.askAside(sessionID, anchor: anchor)
                 store.asidePresentation[sessionID] = .sheet(id)
             }
         } mark: { anchor in
             guard let option = anchor.option else { return nil }
+            let transcript = store.transcripts[sessionID]
             let mark = if let request = anchor.elicitation, let field = anchor.field, let key = Self.fieldKey(transcript, request: request, index: field) {
                 transcript?.optionAside(elicitation: request, field: key, option: option)
             } else if let item = anchor.open {
@@ -674,9 +663,6 @@ struct SessionDetailView: View {
                 nil as OptionAside?
             }
             return mark.map { store.session($0.id)?.aside?.state ?? $0.state }
-        } message: { row in
-            guard let entry = transcript?.entries.first(where: { $0.id == row }), case .agent(let text) = entry.content else { return nil }
-            return text
         }
     }
 
@@ -1019,6 +1005,66 @@ extension View {
         } message: {
             Text("The current turn ends now. The session stays open for your next message.")
         }
+    }
+}
+
+struct TranscriptBlocks: View, Equatable {
+    let blocks: [[TranscriptRow]]
+    let anchor: String?
+    let space: String
+    let moved: @MainActor (Double, Double) -> Void
+
+    nonisolated static func == (a: Self, b: Self) -> Bool {
+        a.blocks == b.blocks && a.anchor == b.anchor && a.space == b.space
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(blocks, id: \.[0].id) { block in
+                Group {
+                    if block.count == 2 {
+                        HStack(alignment: .top, spacing: 10) {
+                            RowView(row: block[0]).equatable()
+                            RowView(row: block[1]).equatable()
+                        }
+                    } else {
+                        RowView(row: block[0]).equatable()
+                    }
+                }
+                .background {
+                    if block.contains(where: { $0.id == anchor }) {
+                        Color.clear.onGeometryChange(for: Double.self) { $0.frame(in: .named(space)).minY } action: { old, new in
+                            moved(old, new)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+extension View {
+    func followingRows(_ count: Int, echoes: Int, atBottom: @escaping () -> Bool, follow: @escaping () -> Void) -> some View {
+        onChange(of: count) {
+            if atBottom() { follow() }
+        }
+        .onChange(of: echoes) { old, new in
+            if new > old { follow() }
+        }
+    }
+
+    func wholeWidth() -> some View {
+        WholeWidth { self }
+    }
+}
+
+private struct WholeWidth: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        subviews.first?.sizeThatFits(ProposedViewSize(width: proposal.width?.rounded(.down), height: proposal.height)) ?? .zero
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(width: proposal.width?.rounded(.down), height: proposal.height))
     }
 }
 
