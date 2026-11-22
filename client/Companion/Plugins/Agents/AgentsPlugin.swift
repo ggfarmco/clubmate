@@ -796,12 +796,14 @@ struct ConnectionBanner: View {
             Label {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(connection.state.label)
+                        .foregroundStyle(connection.state == .connecting ? Color.captionInk : Color.primary)
                     if let detail = connection.offlineDetail {
                         Text(detail).font(.footnote).foregroundStyle(Color.captionInk)
                     }
                 }
             } icon: {
                 Image(systemName: connection.state == .unauthorized ? "lock.slash" : "wifi.slash")
+                    .foregroundStyle(Color.captionInk)
             }
         }
         .disabled(connection.state == .connecting)
