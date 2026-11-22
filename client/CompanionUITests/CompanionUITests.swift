@@ -558,7 +558,7 @@ final class CompanionUITests: XCTestCase {
         let bar = app.tabBars.firstMatch
         let left = app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
         func swipeBack(to dx: CGFloat) {
-            left.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: dx, dy: 0.5)), withVelocity: dx > 0.5 ? .fast : .slow, thenHoldForDuration: 0.2)
+            left.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: dx, dy: 0.5)), withVelocity: dx > 0.5 ? XCUIGestureVelocity(400) : .slow, thenHoldForDuration: 0.3)
         }
         func atRoot(_ step: String) {
             XCTAssertTrue(poll { largeTitle(app, "Agents") }, "no large Agents title after \(step)")
@@ -566,9 +566,7 @@ final class CompanionUITests: XCTestCase {
         }
         for (workspace, title) in [("shop", "Explain the checkout flow"), ("infra", "Move the state bucket to the new account"), ("clubmate", "Draft the companion brief")] {
             if workspace != "shop" {
-                openCapsule(app)
-                menuItem(app, workspace).tap()
-                XCTAssertTrue(capsuleShows(app, workspace))
+                switchWorkspace(app, workspace)
             }
             let row = app.staticTexts[title].firstMatch
             let page = app.navigationBars[title]
@@ -627,8 +625,7 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(inbox.waitForExistence(timeout: 5), "the tray did nothing right after launch")
         XCTAssertTrue(wiki.waitForExistence(timeout: 10))
         inbox.buttons.firstMatch.tap()
-        openCapsule(app)
-        menuItem(app, "clubmate").tap()
+        switchWorkspace(app, "clubmate")
         XCTAssertTrue(stays { wiki.exists }, "Wiki left the tab bar on a switch to clubmate")
         tray.tap()
         XCTAssertTrue(inbox.waitForExistence(timeout: 5), "the tray did nothing after a switch to clubmate")
@@ -1497,7 +1494,7 @@ final class CompanionUITests: XCTestCase {
             link.tap()
             XCTAssertTrue(app.buttons["back.chip"].waitForExistence(timeout: 10))
             let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 2, dy: 0))
-            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 300, dy: 0)), withVelocity: .fast, thenHoldForDuration: 0.1)
+            start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 300, dy: 0)), withVelocity: XCUIGestureVelocity(400), thenHoldForDuration: 0.3)
             XCTAssertTrue(app.textViews["composer"].waitForExistence(timeout: 5))
         }
     }
@@ -1619,8 +1616,20 @@ final class CompanionUITests: XCTestCase {
         capsule.tap()
     }
 
+    private func switchWorkspace(_ app: XCUIApplication, _ workspace: String) {
+        openCapsule(app)
+        let capsule = app.buttons["workspace.capsule"]
+        for _ in 0..<3 {
+            let item = menuItem(app, workspace)
+            item.tap()
+            if wait(for: capsule, "label CONTAINS %@", workspace) { return }
+            guard item.exists else { break }
+        }
+        XCTFail("the capsule did not switch to \(workspace)")
+    }
+
     private func menuItem(_ app: XCUIApplication, _ label: String) -> XCUIElement {
-        let item = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", label)).element(boundBy: 0)
+        let item = app.buttons.matching(NSPredicate(format: "identifier != 'workspace.capsule' AND (label == %@ OR label BEGINSWITH %@)", label, label + ", ")).element(boundBy: 0)
         XCTAssertTrue(item.waitForExistence(timeout: 10))
         return item
     }
