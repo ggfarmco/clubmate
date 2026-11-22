@@ -169,6 +169,7 @@ public final class DocsListStore {
     @ObservationIgnored private let saves = SaveThrottle()
     @ObservationIgnored private var inflight = false
     @ObservationIgnored private var again = false
+    @ObservationIgnored private let offMain = OffMain()
 
     public init(workspace: String, session: String?, runner: any CommandRunner, cache: ListCache = ListCache(dir: nil), computer: String = "") {
         self.workspace = workspace
@@ -229,17 +230,22 @@ public final class DocsListStore {
             if let session { args["session"] = .string(session) }
             if let etag { args["ifNoneMatch"] = .string(etag) }
             let reply = try await runner.command(DocsCommand.list, workspace: workspace, args: .object(args))
-            if SyncedList<DocEntry>.synced(reply) {
-                try list.apply(reply)
-                set(\.truncated, reply["truncated"]?.boolValue ?? false)
-                etag = nil
-            } else {
-                let legacy = try reply.decode(DocsList.self)
-                if !legacy.unchanged {
-                    try list.replace(reply["docs"]?.arrayValue ?? [])
-                    set(\.truncated, legacy.truncated)
-                    etag = legacy.etag
+            let base = list
+            let applied = try await offMain.run("docs") { () throws -> Applied? in
+                var list = base
+                if SyncedList<DocEntry>.synced(reply) {
+                    try list.apply(reply)
+                    return Applied(list: list, truncated: reply["truncated"]?.boolValue ?? false, etag: nil)
                 }
+                let legacy = try reply.decode(DocsList.self)
+                if legacy.unchanged { return nil }
+                try list.replace(reply["docs"]?.arrayValue ?? [])
+                return Applied(list: list, truncated: legacy.truncated, etag: legacy.etag)
+            }
+            if let applied {
+                list = applied.list
+                set(\.truncated, applied.truncated)
+                etag = applied.etag
             }
             set(\.docs, list.items)
             syncedAt = .now
@@ -259,6 +265,12 @@ public final class DocsListStore {
 
     private func set<T: Equatable>(_ key: ReferenceWritableKeyPath<DocsListStore, T>, _ value: T) {
         if self[keyPath: key] != value { self[keyPath: key] = value }
+    }
+
+    private struct Applied: Sendable {
+        let list: SyncedList<DocEntry>
+        let truncated: Bool
+        let etag: String?
     }
 
     private struct Snapshot: Codable, Sendable {

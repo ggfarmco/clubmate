@@ -172,10 +172,8 @@ struct SDUIDiff: View {
     var limit = 12
     @State private var full = false
 
-    private var files: [DiffFile] { DiffFile.parse(text) }
-
     var body: some View {
-        let files = files
+        let files = DiffCache.parse(text).files
         VStack(alignment: .leading, spacing: 8) {
             ForEach(Array(files.enumerated()), id: \.offset) { _, file in
                 lines(file, limit: limit)
@@ -212,7 +210,7 @@ struct SDUIDiff: View {
     }
 
     static func changes(_ text: String) -> (added: Int, removed: Int) {
-        DiffFile.parse(text).reduce((0, 0)) { ($0.0 + $1.added, $0.1 + $1.removed) }
+        DiffCache.parse(text).changes
     }
 }
 
