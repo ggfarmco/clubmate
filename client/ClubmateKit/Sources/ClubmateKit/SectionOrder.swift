@@ -37,6 +37,12 @@ extension AppSettings {
         return SectionOrder.apply(sectionOrder, to: sections.map(\.id)).compactMap { byID[$0] }
     }
 
+    public func ordered(_ sections: [LaunchSection]) -> [LaunchSection] {
+        guard let sectionOrder else { return sections }
+        let byID = Dictionary(sections.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return SectionOrder.apply(sectionOrder, to: sections.map(\.id)).compactMap { byID[$0] }
+    }
+
     public func moveSection(_ id: String, onto target: String, in sections: [SectionInfo]) {
         guard let order = SectionOrder.move(id, onto: target, visible: sections.map(\.id), saved: sectionOrder ?? []) else { return }
         sectionOrder = order

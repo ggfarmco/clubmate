@@ -118,6 +118,40 @@ final class StoresTests: XCTestCase {
         await client.close()
     }
 
+    func testStoreCachesItsLayoutOnceReady() async throws {
+        let client = try await startCore()
+        let workspace = try await client.createWorkspace(name: "demo")
+        let cache = LaunchCache(url: FileManager.default.temporaryDirectory.appending(path: "launch-\(UUID().uuidString).json"), version: "test")
+        let first = WorkspaceUIStore(client: client, workspaceID: workspace.id, launchCache: cache)
+        try await first.start()
+        XCTAssertEqual(cache.record(workspace.id)?.sections.map(\.id), ["terminals", "echo"])
+        XCTAssertEqual(cache.record(workspace.id)?.selected, "terminals")
+        let kind = try await waitFor { cache.record(workspace.id)?.kinds["terminals.sidebar"] }
+        first.selectedSection = "echo"
+        XCTAssertEqual(cache.record(workspace.id)?.selected, "echo")
+        await first.stop()
+
+        let second = WorkspaceUIStore(client: client, workspaceID: workspace.id, launchCache: cache)
+        XCTAssertEqual(second.launchKind("terminals.sidebar"), kind)
+        try await second.start()
+        try await waitUntil { second.launchKind("terminals.sidebar") == nil }
+        await second.stop()
+        await client.close()
+    }
+
+    func testCachedSlotMissingAtConnectLosesItsLaunchKind() async throws {
+        let client = try await startCore()
+        let workspace = try await client.createWorkspace(name: "demo")
+        let cache = LaunchCache(url: FileManager.default.temporaryDirectory.appending(path: "launch-\(UUID().uuidString).json"), version: "test")
+        cache.update(workspace.id) { $0.kinds["gone.main"] = .list }
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id, launchCache: cache)
+        XCTAssertEqual(store.launchKind("gone.main"), .list)
+        try await store.start()
+        XCTAssertNil(store.launchKind("gone.main"))
+        await store.stop()
+        await client.close()
+    }
+
     func testShownSectionWinsOverSaved() async throws {
         let client = try await startCore()
         let workspace = try await client.createWorkspace(name: "demo")

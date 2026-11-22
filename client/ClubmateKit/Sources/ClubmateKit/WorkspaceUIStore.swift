@@ -14,29 +14,34 @@ public final class WorkspaceUIStore {
     public private(set) var connected = false
     public private(set) var failure: String?
     public private(set) var focusRequest: FocusRequest?
+    private var launchSettled = false
     public var selectedSection: String? {
         didSet {
             guard !restoring, selectedSection != oldValue, let selectedSection else { return }
             updateState("section", .string(selectedSection))
             refocus(selectedSection)
+            cacheLayout()
         }
     }
     public var sidebarWidth: Double? {
         didSet {
             guard !restoring, sidebarWidth != oldValue, let sidebarWidth else { return }
             updateState("sidebarWidth", .number(sidebarWidth))
+            cacheLayout()
         }
     }
     public var sidebarHidden: [String: Bool] = [:] {
         didSet {
             guard !restoring, sidebarHidden != oldValue else { return }
             updateState("sidebarHidden", .object(sidebarHidden.mapValues { .bool($0) }))
+            cacheLayout()
         }
     }
     public var chatWidth: Double? {
         didSet {
             guard !restoring, chatWidth != oldValue, let chatWidth else { return }
             updateState("chatWidth", .number(chatWidth))
+            cacheLayout()
         }
     }
     public var asideWidth: Double? {
@@ -63,16 +68,21 @@ public final class WorkspaceUIStore {
     @ObservationIgnored private var requestedSection: String?
     @ObservationIgnored private var legacyChat: LegacyChat?
     @ObservationIgnored private let order: @MainActor ([SectionInfo]) -> [SectionInfo]
+    @ObservationIgnored private let launchCache: LaunchCache?
+    public let launchRecord: LaunchRecord?
 
     public init(
         client: CoreClient,
         workspaceID: String,
         legacyChat: LegacyChat? = nil,
+        launchCache: LaunchCache? = nil,
         order: @escaping @MainActor ([SectionInfo]) -> [SectionInfo] = { $0 }
     ) {
         self.client = client
         self.workspaceID = workspaceID
         self.legacyChat = legacyChat
+        self.launchCache = workspaceID.isEmpty ? nil : launchCache
+        launchRecord = workspaceID.isEmpty ? nil : launchCache?.record(workspaceID)
         self.order = order
     }
 
@@ -117,11 +127,14 @@ public final class WorkspaceUIStore {
         }
         connected = true
         failure = nil
+        if !launchSettled { launchSettled = true }
         applyRequestedSection()
+        cacheLayout()
         openGate()
     }
 
     private func adopt(_ sections: [SectionInfo]) {
+        launchCache?.plugins(Set(sections.map(\.plugin)))
         let scoped = sections.filter { $0.scope == scope }
         let rail = SectionHosting.rail(scoped)
         let hosted = SectionHosting.hosted(scoped)
@@ -130,6 +143,7 @@ public final class WorkspaceUIStore {
         popupSections = scoped.filter { !Popups.slots([$0]).isEmpty }
         let popups = Popups.slots(popupSections)
         if popupSlots != popups { popupSlots = popups }
+        cacheLayout()
     }
 
     private func refreshSections(_ generation: Int) async {
@@ -165,6 +179,12 @@ public final class WorkspaceUIStore {
 
     public func hasSlot(_ name: String) -> Bool {
         cell(name).present
+    }
+
+    public func launchKind(_ name: String) -> PaneKind? {
+        let cell = cell(name)
+        guard !cell.present, !cell.seen, !launchSettled else { return nil }
+        return launchRecord?.kinds[name]
     }
 
     public func surfaceSessionID(_ name: String) -> String? {
@@ -453,13 +473,31 @@ public final class WorkspaceUIStore {
             popupOrder.append(name)
         }
         cell.set(view)
+        guard connected, let launchCache, PaneKind.caches(name) else { return }
+        let kind = PaneKind.of(view.tree)
+        if launchCache.record(workspaceID)?.kinds[name] != kind { launchCache.update(workspaceID) { $0.kinds[name] = kind } }
+    }
+
+    private func cacheLayout() {
+        guard let launchCache, connected, !restoring else { return }
+        let kinds = Dictionary(uniqueKeysWithValues: cells.compactMap { name, cell in
+            cell.view.flatMap { PaneKind.caches(name) ? (name, PaneKind.of($0.tree)) : nil }
+        })
+        launchCache.update(workspaceID) { record in
+            record.sections = sections.map { LaunchSection(id: $0.id, title: $0.title, icon: $0.icon) }
+            record.selected = selectedSection
+            record.kinds = kinds
+            record.sidebarHidden = sidebarHidden
+            record.sidebarWidth = sidebarWidth
+            record.chatWidth = chatWidth
+        }
     }
 
     private func restore(from state: JSONValue?) {
         let saved = state?.objectValue ?? [:]
         restoring = true
         selectedSection = order(sections).first?.id
-        if let section = saved["section"]?.stringValue { select(section) }
+        if let section = requestedSection ?? saved["section"]?.stringValue { select(section) }
         sidebarWidth = saved["sidebarWidth"]?.numberValue
         sidebarHidden = saved["sidebarHidden"]?.objectValue?.compactMapValues(\.boolValue) ?? [:]
         chatWidth = saved["chatWidth"]?.numberValue
@@ -496,6 +534,7 @@ private final class SlotCell {
     private(set) var textFieldID: String?
     private(set) var hasComposer = false
     private(set) var tabs: SDUINode?
+    @ObservationIgnored private(set) var seen = false
     @ObservationIgnored private var tracked: Set<SlotFact> = []
     @ObservationIgnored private var tree: SDUINode?
 
@@ -503,6 +542,7 @@ private final class SlotCell {
         guard self.view != view else { return }
         self.view = view
         tree = view?.tree
+        if view != nil { seen = true }
         if present != (view != nil) { present = view != nil }
         let open = view.map(Popups.isOpen) ?? false
         if self.open != open { self.open = open }

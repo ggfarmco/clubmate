@@ -9,25 +9,25 @@ struct WelcomeView: View {
     @Environment(WindowRouter.self) private var windows
     @Environment(WorkspaceActions.self) private var actions
     @Environment(\.theme) private var theme
+    @State private var height: CGFloat = 0
+    @State private var watch = StartupWatch()
+
+    static let recentPlaceholders = 8
 
     var body: some View {
-        switch app.phase {
-        case .connecting:
-            EmptyNodeView(text: "Starting core…")
-        case .failed(let message):
-            VStack(spacing: theme.gutter * 1.5) {
-                Text(message)
-                    .font(theme.ui)
-                    .foregroundStyle(theme.danger)
-                    .multilineTextAlignment(.center)
-                    .textSelection(.enabled)
-                Button("Retry") { app.retry() }
+        welcome
+            .task(id: starting) {
+                guard starting else { return }
+                await watch.run()
             }
-            .padding(theme.gutter * 3)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .ready, .reconnecting:
-            welcome
-        }
+            .onChange(of: watch.label(.core)) { old, new in
+                guard old == nil, let new, starting else { return }
+                AccessibilityNotification.Announcement(new).post()
+            }
+    }
+
+    private var starting: Bool {
+        app.workspaceStore == nil && app.startFailure == nil
     }
 
     private var welcome: some View {
@@ -39,7 +39,22 @@ struct WelcomeView: View {
                 WelcomeAction(title: "Open folder…", icon: "folder", shortcut: "⌘O") { actions.openFolder(in: windowID) }
                 WelcomeAction(title: "New terminal", icon: "terminal", shortcut: "⇧⌘N") { actions.newHomeTerminal(in: windowID) }
             }
-            if !recents.isEmpty {
+            if let failure = app.startFailure {
+                StartupFailure(message: failure)
+            } else if starting, let note = watch.label(.core) {
+                StartupNote(text: note, showsLog: watch.showsLog)
+            } else if starting, app.launchCache.recentCount > 0 {
+                VStack(alignment: .leading, spacing: theme.gutter / 2) {
+                    Text("Recent")
+                        .font(theme.uiSmall)
+                        .foregroundStyle(theme.muted)
+                    ForEach(0..<app.launchCache.recentCount, id: \.self) { index in
+                        RecentPlaceholder(index: index)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Starting core")
+            } else if !recents.isEmpty {
                 VStack(alignment: .leading, spacing: theme.gutter / 2) {
                     Text("Recent")
                         .font(theme.uiSmall)
@@ -62,7 +77,9 @@ struct WelcomeView: View {
         }
         .frame(width: 440)
         .padding(theme.gutter * 3)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, height * 0.25)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
     }
 
     private var recents: [Workspace] {
@@ -103,6 +120,33 @@ private struct WelcomeAction: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
     }
+}
+
+private struct RecentPlaceholder: View {
+    let index: Int
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: theme.spacing.xs) {
+            line(font: theme.ui, width: Self.names[index % Self.names.count])
+            line(font: theme.uiSmall, width: Self.folders[index % Self.folders.count])
+        }
+        .padding(.horizontal, theme.gutter)
+        .padding(.vertical, theme.gutter / 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func line(font: Font, width: CGFloat) -> some View {
+        Text(" ")
+            .font(font)
+            .hidden()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .leading) { SkeletonBar(width: width) }
+    }
+
+    private static let names: [CGFloat] = [96, 120, 80, 108]
+    private static let folders: [CGFloat] = [220, 180, 240, 200]
 }
 
 private struct RecentRow: View {

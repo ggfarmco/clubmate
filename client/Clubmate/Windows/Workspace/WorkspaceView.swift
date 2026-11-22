@@ -9,8 +9,17 @@ struct WorkspaceView: View {
     @Environment(AppModel.self) private var app
     @Environment(WindowRouter.self) private var windows
     @Environment(WorkspaceActions.self) private var actions
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var focus = FocusRouter()
     @State private var rowWidth: CGFloat = 0
+    @State private var handOver: StartupHandOver
+    @State private var watch = StartupWatch()
+
+    init(session: WorkspaceSession, windowID: String) {
+        self.session = session
+        self.windowID = windowID
+        _handOver = State(initialValue: StartupHandOver(skeleton: !session.ready))
+    }
 
     var body: some View {
         content
@@ -44,6 +53,18 @@ struct WorkspaceView: View {
             }
             .onChange(of: app.workspace(session.workspaceID)) {
                 Task { await session.worktrees.load(retrying: true) }
+            }
+            .task(id: watching) {
+                guard watching else { return }
+                await watch.run()
+            }
+            .task(id: session.ready) {
+                guard session.ready else { return }
+                if panesPending { try? await Task.sleep(for: StartupHandOver.group) }
+                handOver.finish(reduceMotion: reduceMotion)
+            }
+            .onChange(of: panesPending) { _, pending in
+                if session.ready, !pending { handOver.finish(reduceMotion: reduceMotion) }
             }
             .onChange(of: session.store?.selectedSection) {
                 session.closeOverlay()
@@ -91,24 +112,43 @@ struct WorkspaceView: View {
         return AutoNewGate.Key(section: section, loaded: section.map { session.store?.hasSlot("\($0).main") == true } ?? false, request: session.autoNewRequest)
     }
 
-    @ViewBuilder private var content: some View {
-        if let store = session.store, let section = store.selectedSection {
-            WorkspaceLayout(store: store, section: section, rowWidth: $rowWidth)
-        } else {
-            EmptyNodeView(text: placeholder)
+    private var content: some View {
+        ZStack {
+            if let store = session.store, let section = store.selectedSection {
+                WorkspaceLayout(store: store, section: section, rowWidth: $rowWidth)
+            } else if let placeholder {
+                EmptyNodeView(text: placeholder)
+            }
+            if handOver.skeleton, placeholder == nil {
+                StartupSkeleton(record: session.launchRecord, selected: session.launchSection, note: watch.label(app.startWait), showsLog: watch.showsLog, failure: startFailure) { [session] section in
+                    session.selectSection(section)
+                }
+                .allowsHitTesting(!session.ready)
+                .transition(.opacity)
+            }
         }
     }
 
-    private var placeholder: String {
+    private var placeholder: String? {
+        guard !session.ready else { return nil }
         if let store = session.store {
             if let failure = store.failure { return failure }
             if store.connected, store.sections.isEmpty { return "No plugins provide sections" }
         }
-        switch app.phase {
-        case .connecting: return "Starting core…"
-        case .failed(let message): return message
-        case .ready, .reconnecting: return "Connecting…"
-        }
+        return nil
+    }
+
+    private var startFailure: String? {
+        session.ready ? nil : app.startFailure
+    }
+
+    private var watching: Bool {
+        !session.ready && startFailure == nil
+    }
+
+    private var panesPending: Bool {
+        guard let store = session.store, let section = store.selectedSection else { return false }
+        return [store.sidebarSlot, "\(section).main", store.columnSlot].compactMap(\.self).contains { store.launchKind($0) != nil }
     }
 
     private var palettePresented: Binding<Bool> {

@@ -11,8 +11,21 @@ struct SlotPane: View {
 
     @Environment(AppModel.self) private var app
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let launchKind = store.launchKind(slot)
+        ZStack {
+            pane
+            if let launchKind {
+                PaneSkeleton(kind: launchKind, slot: slot)
+                    .transition(.opacity)
+            }
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: StartupHandOver.fade), value: launchKind == nil)
+    }
+
+    @ViewBuilder private var pane: some View {
         if let view = store.slot(slot) {
             SDUIView(node: view.tree, slot: slot, workspaceID: store.workspaceID, rev: view.rev, drafts: store.drafts) { [store, hold] event in
                 await hold?.act()

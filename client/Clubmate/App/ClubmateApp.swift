@@ -234,6 +234,10 @@ private struct WorkspaceCommands: Commands {
         }
         CommandGroup(after: .help) {
             Button("\(Diagnostics.title)…") { app.collectDiagnostics() }
+            if app.startFailure != nil {
+                Button("Retry Core") { app.retry() }
+                    .keyboardShortcut(AppShortcuts.retry)
+            }
         }
         CommandMenu("Section") {
             ForEach(1..<10, id: \.self) { index in
@@ -300,9 +304,10 @@ private struct WorkspaceCommands: Commands {
         session.run(resolve(store, app.commands))
     }
 
-    private func section(_ index: Int) -> SectionInfo? {
-        guard let sections = store.map({ app.settings.ordered($0.sections) }), sections.indices.contains(index - 1) else { return nil }
-        return sections[index - 1]
+    private func section(_ index: Int) -> LaunchSection? {
+        guard let session else { return nil }
+        let sections = session.ready ? app.settings.ordered(session.store?.sections ?? []).map { LaunchSection(id: $0.id, title: $0.title, icon: $0.icon) } : app.settings.ordered(session.launchSections)
+        return sections.indices.contains(index - 1) ? sections[index - 1] : nil
     }
 
     private func sectionTitle(_ index: Int) -> String {
@@ -311,7 +316,7 @@ private struct WorkspaceCommands: Commands {
 
     private func selectSection(_ index: Int) {
         guard let id = section(index)?.id else { return }
-        store?.selectedSection = id
+        session?.selectSection(id)
     }
 }
 

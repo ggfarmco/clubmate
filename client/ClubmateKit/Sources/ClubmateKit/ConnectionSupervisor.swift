@@ -20,6 +20,8 @@ public final class ConnectionSupervisor {
     @ObservationIgnored private let browser: Bool
     @ObservationIgnored private var started = false
     @ObservationIgnored private var running = false
+    @ObservationIgnored private var pausing: Task<Void, Never>?
+    @ObservationIgnored private var skipped = false
 
     public init(
         connect: @escaping @MainActor () async throws -> CoreClient,
@@ -40,6 +42,11 @@ public final class ConnectionSupervisor {
     }
 
     public func retry() {
+        if case .reconnecting = phase {
+            skipped = true
+            pausing?.cancel()
+            return
+        }
         guard !running, case .failed = phase else { return }
         supervise()
     }
@@ -78,12 +85,23 @@ public final class ConnectionSupervisor {
             phase = .connecting
             if let client = try await attempt() { return client }
         }
-        for attempt in 1...10 {
+        var attempt = 1
+        while attempt <= 10 {
             phase = .reconnecting(attempt: attempt)
-            try? await sleep(min(.milliseconds(500) * (1 << (attempt - 1)), .seconds(5)))
+            await pause(min(.milliseconds(500) * (1 << (attempt - 1)), .seconds(5)))
             if let client = try await self.attempt() { return client }
+            attempt = skipped ? 1 : attempt + 1
+            skipped = false
         }
         return nil
+    }
+
+    private func pause(_ delay: Duration) async {
+        let sleep = self.sleep
+        let wait = Task { _ = try? await sleep(delay) }
+        pausing = wait
+        await wait.value
+        pausing = nil
     }
 
     private func attempt() async throws(ClubmateError) -> CoreClient? {
@@ -110,6 +128,7 @@ public final class ConnectionSupervisor {
 
     private func bind(_ client: CoreClient) async {
         self.client = client
+        skipped = false
         phase = .ready
         await withTaskGroup(of: Void.self) { group in
             for store in stores() {

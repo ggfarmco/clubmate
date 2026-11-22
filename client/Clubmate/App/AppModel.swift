@@ -15,6 +15,7 @@ final class AppModel {
     let claude = ClaudeIntegration()
     let onboarding = OnboardingModel()
     let reports = ReportModel()
+    let launchCache = LaunchCache(url: ClubmatePaths.resolve().state.appending(path: "launch-cache.json"), version: Bundle.main.clubmateVersion)
     private(set) var workspaceStore: WorkspacesStore?
     private(set) var commands: [Command] = []
     var settingsRequest: SettingsPage?
@@ -32,7 +33,7 @@ final class AppModel {
     @ObservationIgnored private var presence: [String: WorkspacePresence] = [:]
     @ObservationIgnored private var publishedTheme: (client: ObjectIdentifier, event: ThemeEvent)?
 
-    @ObservationIgnored private(set) lazy var sessions: SessionRegistry = SessionRegistry(supervisor: supervisor, settings: settings) { [weak self] id in
+    @ObservationIgnored private(set) lazy var sessions: SessionRegistry = SessionRegistry(supervisor: supervisor, settings: settings, launchCache: launchCache) { [weak self] id in
         self?.workspace(id)
     }
 
@@ -172,6 +173,20 @@ final class AppModel {
         supervisor.retry()
     }
 
+    func showLog() {
+        guard !TestMode.current else { return }
+        NSWorkspace.shared.open(ClubmatePaths.resolve().state.appending(path: "core.log"))
+    }
+
+    var startWait: StartupWait {
+        supervisor.client != nil && phase == .ready ? .workspace : .core
+    }
+
+    var startFailure: String? {
+        if case .failed(let message) = phase { return message }
+        return nil
+    }
+
     func revealSession(_ session: String, in workspace: String) {
         focus.reveal(workspace, session: session, owner: nil)
     }
@@ -299,11 +314,19 @@ final class AppModel {
         }) else { return }
         let present = Set(listed.map(\.id))
         notifications.keep(present)
+        cacheNames(listed)
         let workspaces = windows.openWorkspaces
         presence = presence.filter { workspaces.contains($0.key) }
         let gone = workspaces.filter { presence[$0, default: WorkspacePresence()].observe(present.contains($0)) }
         guard !gone.isEmpty else { return }
         windows.forget(gone)
+    }
+
+    private func cacheNames(_ listed: [Workspace]) {
+        launchCache.recentCount = min(Workspace.recents(listed).count, WelcomeView.recentPlaceholders)
+        for workspace in listed where windows.openWorkspaces.contains(workspace.id) {
+            launchCache.update(workspace.id) { $0.name = workspace.name }
+        }
     }
 
     private func trackClient() {

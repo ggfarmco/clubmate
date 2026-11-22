@@ -38,6 +38,8 @@ final class WorkspaceSession {
     let popupFind = DocumentFind()
     @ObservationIgnored var autoNew = AutoNewGate()
     private(set) var store: WorkspaceUIStore?
+    let launchRecord: LaunchRecord?
+    private(set) var launchSection: String?
     @ObservationIgnored private let lookup: @MainActor () -> Workspace?
     @ObservationIgnored private var legacyChat: LegacyChat?
     @ObservationIgnored private(set) lazy var worktrees = WorktreeModel(
@@ -64,9 +66,10 @@ final class WorkspaceSession {
     static let revealCommand = "agents.reveal"
     private static let pillReopenGuard: TimeInterval = 0.3
 
-    init(workspaceID: String, legacyChat: LegacyChat? = nil, workspace: @escaping @MainActor () -> Workspace?) {
+    init(workspaceID: String, legacyChat: LegacyChat? = nil, launchRecord: LaunchRecord? = nil, workspace: @escaping @MainActor () -> Workspace?) {
         self.workspaceID = workspaceID
         self.legacyChat = legacyChat
+        self.launchRecord = launchRecord
         lookup = workspace
     }
 
@@ -242,9 +245,27 @@ final class WorkspaceSession {
         }
     }
 
-    func adopt(_ client: CoreClient, _ settings: AppSettings) -> WorkspaceUIStore? {
+    var ready: Bool {
+        store?.selectedSection != nil
+    }
+
+    var launchSections: [LaunchSection] {
+        launchRecord?.sections ?? []
+    }
+
+    func selectSection(_ section: String) {
+        if let store, ready {
+            store.selectedSection = section
+            return
+        }
+        launchSection = section
+        store?.show(section: section)
+    }
+
+    func adopt(_ client: CoreClient, _ settings: AppSettings, _ launchCache: LaunchCache) -> WorkspaceUIStore? {
         guard store == nil else { return nil }
-        let store = WorkspaceUIStore(client: client, workspaceID: workspaceID, legacyChat: legacyChat) { [weak settings] in settings?.ordered($0) ?? $0 }
+        let store = WorkspaceUIStore(client: client, workspaceID: workspaceID, legacyChat: legacyChat, launchCache: launchCache) { [weak settings] in settings?.ordered($0) ?? $0 }
+        if let launchSection { store.show(section: launchSection) }
         legacyChat = nil
         self.store = store
         return store

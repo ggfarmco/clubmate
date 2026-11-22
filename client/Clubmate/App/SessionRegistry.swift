@@ -7,12 +7,14 @@ import ClubmateKit
 final class SessionRegistry {
     private let supervisor: ConnectionSupervisor
     private let settings: AppSettings
+    private let launchCache: LaunchCache
     private let workspace: @MainActor (String) -> Workspace?
     private var sessions: [String: WorkspaceSession] = [:]
 
-    init(supervisor: ConnectionSupervisor, settings: AppSettings, workspace: @escaping @MainActor (String) -> Workspace?) {
+    init(supervisor: ConnectionSupervisor, settings: AppSettings, launchCache: LaunchCache, workspace: @escaping @MainActor (String) -> Workspace?) {
         self.supervisor = supervisor
         self.settings = settings
+        self.launchCache = launchCache
         self.workspace = workspace
     }
 
@@ -43,13 +45,13 @@ final class SessionRegistry {
     }
 
     private func open(_ workspaceID: String, legacyChat: LegacyChat?) {
-        let session = WorkspaceSession(workspaceID: workspaceID, legacyChat: legacyChat) { [workspace] in workspace(workspaceID) }
+        let session = WorkspaceSession(workspaceID: workspaceID, legacyChat: legacyChat, launchRecord: launchCache.record(workspaceID)) { [workspace] in workspace(workspaceID) }
         sessions[workspaceID] = session
         if let client = supervisor.client { adopt(session, client) }
     }
 
     private func adopt(_ session: WorkspaceSession, _ client: CoreClient) {
-        guard let store = session.adopt(client, settings) else { return }
+        guard let store = session.adopt(client, settings, launchCache) else { return }
         supervisor.attach(store)
     }
 }

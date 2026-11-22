@@ -22,6 +22,7 @@ struct StatusBar<Trailing: View>: View {
     @ViewBuilder let trailing: Trailing
 
     @State private var width: CGFloat = 0
+    @State private var reconnectShown = false
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -31,10 +32,20 @@ struct StatusBar<Trailing: View>: View {
             }
             HStack(spacing: theme.spacing.s) {
                 Text(dot).foregroundStyle(tone)
-                Text(label).foregroundStyle(connected ? theme.muted : tone)
+                Text(label).foregroundStyle(quiet ? theme.muted : tone)
             }
-            if case .failed = connection {
-                Button("Retry", action: retry)
+            .help(failure ?? "")
+            if failure != nil {
+                Button(action: retry) {
+                    HStack(spacing: theme.spacing.s) {
+                        Text("Retry")
+                        Text(Shortcut.label(AppShortcuts.retry.key)).foregroundStyle(theme.muted)
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(theme.accentInk)
+            } else if reconnectShown, case .reconnecting(let attempt) = connection, attempt >= 3 {
+                Button("Retry now", action: retry)
                     .buttonStyle(.plain)
                     .foregroundStyle(theme.accentInk)
             }
@@ -72,30 +83,53 @@ struct StatusBar<Trailing: View>: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .background(theme.surface1, ignoresSafeAreaEdges: [])
         .overlay(alignment: .top) { theme.border.frame(height: 1) }
+        .task(id: reconnecting) {
+            reconnectShown = false
+            guard reconnecting else { return }
+            try? await Task.sleep(for: Self.reconnectQuiet)
+            reconnectShown = !Task.isCancelled
+        }
     }
+
+    private static var reconnectQuiet: Duration { .milliseconds(500) }
 
     private var connected: Bool {
         if case .connected = connection { return true }
         return false
     }
 
+    private var reconnecting: Bool {
+        if case .reconnecting = connection { return true }
+        return false
+    }
+
+    private var quiet: Bool {
+        connected || reconnecting && !reconnectShown
+    }
+
+    private var failure: String? {
+        if case .failed(let message) = connection { return message }
+        return nil
+    }
+
     private var dot: String {
-        connected ? "●" : "○"
+        quiet || failure != nil ? "●" : "○"
     }
 
     private var label: String {
         switch connection {
         case .connected: "core"
         case .connecting: "core connecting"
-        case .reconnecting(let attempt): "core reconnecting (attempt \(attempt))"
-        case .failed(let message): message
+        case .reconnecting(let attempt): reconnectShown ? "core reconnecting (attempt \(attempt))" : "core"
+        case .failed: "core stopped"
         }
     }
 
     private var tone: Color {
         switch connection {
         case .connected: theme.muted
-        case .connecting, .reconnecting: theme.warning
+        case .connecting: theme.warning
+        case .reconnecting: reconnectShown ? theme.warning : theme.muted
         case .failed: theme.danger
         }
     }

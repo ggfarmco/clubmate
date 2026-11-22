@@ -18,6 +18,7 @@ final class WindowRouter {
     @ObservationIgnored private var captured: [String: ContinuousClock.Instant] = [:]
     @ObservationIgnored private var shownWindows: Set<String> = []
     @ObservationIgnored private var restored = false
+    @ObservationIgnored private var launched = false
     @ObservationIgnored private let sessions: SessionRegistry
     @ObservationIgnored private let opened: (Set<String>) -> Void
     @ObservationIgnored private let touched: (String) -> Void
@@ -37,6 +38,11 @@ final class WindowRouter {
 
     func launch(_ openWindow: OpenWindowAction) {
         self.openWindow = openWindow
+        guard !launched else { return }
+        launched = true
+        for window in layout.windows where !shownWindows.contains(window.id) {
+            openWindow(value: window.id)
+        }
     }
 
     func terminating() {
@@ -171,9 +177,6 @@ final class WindowRouter {
         restored = true
         layout.forget(missing: layout.workspaces.subtracting(listed.map(\.id)))
         syncSessions()
-        for window in layout.windows where !shownWindows.contains(window.id) {
-            openWindow?(value: window.id)
-        }
     }
 
     func forget(_ gone: Set<String>) {

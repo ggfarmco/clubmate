@@ -36,12 +36,12 @@ struct WorkspaceWindow: View {
                 if let windowID { windows.windowClosed(windowID) }
             })
             .onAppear {
-                app.launch(openWindow)
                 if let windowID, windows.window(windowID) != nil {
                     windows.windowShown(windowID)
                 } else {
                     windowID = windows.claimWindow()
                 }
+                app.launch(openWindow)
             }
     }
 
@@ -60,7 +60,7 @@ struct WorkspaceWindow: View {
     }
 
     var workspaceName: String {
-        active.map { app.workspace($0)?.name ?? $0 } ?? "Clubmate"
+        active.flatMap { app.workspace($0)?.name ?? app.launchCache.record($0)?.name } ?? "Clubmate"
     }
 
     @ViewBuilder private var content: some View {

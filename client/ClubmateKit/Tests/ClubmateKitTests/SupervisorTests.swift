@@ -21,6 +21,57 @@ final class SupervisorTests: XCTestCase {
         XCTAssertEqual(delays.values, [0.5, 1, 2, 4, 5, 5, 5, 5, 5, 5].map { Duration.seconds($0) })
     }
 
+    func testRetryNowResetsTheBackoff() async throws {
+        let delays = Recorder<Duration>()
+        let supervisor = ConnectionSupervisor(connect: { throw ClubmateError.notRunning }, sleep: { delay in
+            await delays.add(delay)
+            if await delays.values.count == 3 { try await Task.sleep(for: .seconds(3600)) }
+        })
+        supervisor.start()
+        try await waitUntil { delays.values.count == 3 }
+        supervisor.retry()
+        try await waitUntil { supervisor.phase == .failed("Core unreachable") }
+        XCTAssertEqual(delays.values, [0.5, 1, 2, 0.5, 1, 2, 4, 5, 5, 5, 5, 5, 5].map { Duration.seconds($0) })
+    }
+
+    func testRetryNowDuringAnAttemptResetsTheBackoff() async throws {
+        let delays = Recorder<Duration>()
+        let connects = Recorder<Int>()
+        let release = Recorder<Int>()
+        let supervisor = ConnectionSupervisor(connect: {
+            connects.add(1)
+            if connects.values.count == 3 {
+                while release.values.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+            }
+            throw ClubmateError.notRunning
+        }, sleep: { await delays.add($0) })
+        supervisor.start()
+        try await waitUntil { connects.values.count == 3 }
+        supervisor.retry()
+        release.add(1)
+        try await waitUntil { supervisor.phase == .failed("Core unreachable") }
+        XCTAssertEqual(delays.values, [0.5, 1, 0.5, 1, 2, 4, 5, 5, 5, 5, 5, 5].map { Duration.seconds($0) })
+    }
+
+    func testRetryNowDuringTheLastAttemptStartsAnotherRound() async throws {
+        let delays = Recorder<Duration>()
+        let connects = Recorder<Int>()
+        let release = Recorder<Int>()
+        let supervisor = ConnectionSupervisor(connect: {
+            connects.add(1)
+            if connects.values.count == 11 {
+                while release.values.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+            }
+            throw ClubmateError.notRunning
+        }, sleep: { await delays.add($0) })
+        supervisor.start()
+        try await waitUntil { connects.values.count == 11 }
+        supervisor.retry()
+        release.add(1)
+        try await waitUntil { supervisor.phase == .failed("Core unreachable") }
+        XCTAssertEqual(connects.values.count, 21)
+    }
+
     func testSupervisorFailsFastOnPermanentError() async throws {
         let delays = Recorder<Duration>()
         let connects = Recorder<Int>()

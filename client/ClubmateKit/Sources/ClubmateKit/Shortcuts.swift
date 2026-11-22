@@ -67,6 +67,9 @@ public enum AppShortcuts {
     public static let notifications = Shortcut("app.notifications", ["cmd+shift+i"], "Notifications")
     public static let keepAwake = Shortcut("app.keep-awake", ["cmd+opt+a"], "Keep Awake: Until Turned Off, or Turn Off while a choice is active")
 
+    public static let retry = Shortcut("app.retry", ["cmd+r"], "Retry starting the core", when: "Core didn't start or stopped")
+    public static let showLog = Shortcut("app.show-log", ["cmd+l"], "Show the core log", when: "Core slow to start or didn't start")
+
     public static func section(_ index: Int) -> String {
         "cmd+\(index)"
     }
@@ -74,7 +77,7 @@ public enum AppShortcuts {
     public static let groups: [ShortcutGroup] = [
         ShortcutGroup(id: "app", title: "App and windows", shortcuts: [
             new, newHomeTerminal, openFolder, openDoc, close, closeSession, palette, toggleSidebar,
-            fontIncrease, fontDecrease, fontReset, section, nextWorkspace, previousWorkspace, nextSession, previousSession, workspaceSwitcher, notifications, keepAwake,
+            fontIncrease, fontDecrease, fontReset, section, nextWorkspace, previousWorkspace, nextSession, previousSession, workspaceSwitcher, notifications, keepAwake, retry, showLog,
             Shortcut("voice.talk", ["opt+space"], "Voice: hold to talk, release to send", when: "While voice is on"),
             Shortcut("voice.confirm", ["return", "esc"], "Voice confirmation: yes, no", when: "Voice panel"),
             Shortcut("voice.cancel", ["esc"], "Cancel the utterance before it is sent", when: "Voice panel, Sending"),
