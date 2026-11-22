@@ -122,6 +122,7 @@ public final class AgentsStore {
     @ObservationIgnored private var watchedRuns: [String: Int] = [:]
     @ObservationIgnored private var closings: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var promptKnown: [String: Set<String>] = [:]
+    @ObservationIgnored private var cached: CacheLoad<Cached>?
 
     public init(workspace: String, runner: any CommandRunner, queue: ActionQueue? = nil, computer: String = "", cache: ListCache = ListCache(dir: nil), transcriptCache: TranscriptCache? = nil, queues: @escaping @MainActor () -> Bool = { false }, retry: @escaping @MainActor () -> Void = {}, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.workspace = workspace
@@ -133,16 +134,37 @@ public final class AgentsStore {
         self.queues = queues
         self.retry = retry
         self.sleep = sleep
-        if let saved = cache.load(cacheKey, as: Snapshot.self), saved.build == Snapshot.build {
-            runRows = saved.runs
-            dock = saved.dock
-            olderCount = saved.olderCount
-            olderSeen = saved.olderCount
-            list = saved.list
-            syncedAt = saved.at
-            loaded = true
-            relist()
+        cached = cache.loadOffMain(cacheKey, as: Snapshot.self) { saved in
+            saved.build == Snapshot.build ? Cached(saved: saved, listed: RunRows.sessions(saved.list.rows, runs: saved.runs)) : nil
         }
+        if cached != nil { Task { [weak self] in await self?.awaitCache() } }
+    }
+
+    public func settle() {
+        guard let cached else { return }
+        adopt(cached.wait())
+    }
+
+    private func awaitCache() async {
+        guard let cached else { return }
+        let value = await cached.value
+        guard self.cached === cached else { return }
+        adopt(value)
+    }
+
+    private func adopt(_ value: Cached?) {
+        cached = nil
+        guard let value, listRev == 0 else { return }
+        let saved = value.saved
+        runRows = saved.runs
+        dock = saved.dock
+        olderCount = saved.olderCount
+        olderSeen = saved.olderCount
+        list = saved.list
+        syncedAt = saved.at
+        loaded = true
+        listed = value.listed
+        listRev += 1
     }
 
     private func relist() {
@@ -177,6 +199,11 @@ public final class AgentsStore {
 
     private var cacheKey: ListCache.Key {
         ListCache.Key(computer: computer, workspace: workspace, collection: "sessions")
+    }
+
+    private struct Cached: Sendable {
+        let saved: Snapshot
+        let listed: [AgentSession]
     }
 
     private struct Snapshot: Codable, Sendable {
@@ -436,6 +463,7 @@ public final class AgentsStore {
     }
 
     private func loadSessions() async {
+        await awaitCache()
         guard let runner else { return }
         do {
             let reply = try await runner.command(AgentCommand.sessions, workspace: workspace, args: Self.lean(list.args))
@@ -808,6 +836,7 @@ public final class AgentsStore {
     }
 
     private func sessionRows(_ session: String) async throws -> [JSONValue] {
+        await awaitCache()
         guard let runner, let rows = try await runner.command(AgentCommand.sessions, workspace: workspace, args: .object(["session": .string(session)])).arrayValue else { throw RemoteError.badResponse }
         return rows
     }

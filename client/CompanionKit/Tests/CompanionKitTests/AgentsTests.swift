@@ -1107,6 +1107,7 @@ final class AgentsOlderTests: XCTestCase {
         let first = AgentsStore(workspace: "w", runner: runner, cache: cache)
         await first.refresh()
         let relaunched = AgentsStore(workspace: "w", runner: runner, cache: cache)
+        relaunched.settle()
         XCTAssertEqual(relaunched.olderCount, 3)
         XCTAssertTrue(relaunched.olderShown)
     }

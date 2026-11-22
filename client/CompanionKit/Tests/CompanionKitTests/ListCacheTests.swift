@@ -21,6 +21,7 @@ final class ListCacheTests: XCTestCase {
 
         runner.failure = .unreachable("context deadline exceeded")
         let second = BacklogStore(workspace: "w", runner: runner, cache: cache, computer: "m")
+        second.settle()
         XCTAssertTrue(second.loaded)
         XCTAssertEqual(second.tasks.map(\.id), first.tasks.map(\.id))
         await second.refresh()
@@ -48,11 +49,11 @@ final class ListCacheTests: XCTestCase {
     func testCorruptCacheIsIgnored() throws {
         let cache = ListCache(dir: dir)
         cache.save(Envelope(tasks: .array([.object(["title": .string("no id")])]), at: .now), ListCache.Key(computer: "m", workspace: "w", collection: "backlog"))
-        XCTAssertFalse(BacklogStore(workspace: "w", runner: BacklogRunner(), cache: cache, computer: "m").loaded)
+        XCTAssertFalse(settled(BacklogStore(workspace: "w", runner: BacklogRunner(), cache: cache, computer: "m")).loaded)
         let files = try XCTUnwrap(FileManager.default.enumerator(at: dir, includingPropertiesForKeys: nil)).compactMap { $0 as? URL }.filter { $0.pathExtension == "json" }
         XCTAssertEqual(files.count, 1)
         try Data("{garbage".utf8).write(to: files[0])
-        XCTAssertFalse(BacklogStore(workspace: "w", runner: BacklogRunner(), cache: cache, computer: "m").loaded)
+        XCTAssertFalse(settled(BacklogStore(workspace: "w", runner: BacklogRunner(), cache: cache, computer: "m")).loaded)
     }
 
     func testForgetDropsOneMacAndRefusesItsLateSaves() {
@@ -92,6 +93,7 @@ final class ListCacheTests: XCTestCase {
         let runner = ScriptedRunner(replies: [], sessions: [waiting, waiting])
         await AgentsStore(workspace: "w", runner: runner, computer: "m", cache: cache).refresh()
         let store = AgentsStore(workspace: "w", runner: runner, computer: "m", cache: cache)
+        store.settle()
         XCTAssertEqual(store.sessions.map(\.id), ["a"])
         XCTAssertEqual(store.needsInputCount, 0)
         await store.refresh()
@@ -138,12 +140,51 @@ final class ListCacheTests: XCTestCase {
         ])
         await AgentsStore(workspace: "w", runner: runner, computer: "m", cache: cache).refresh()
         let store = AgentsStore(workspace: "w", runner: runner, computer: "m", cache: cache)
+        store.settle()
         XCTAssertEqual(store.sessions.map(\.id), ["a", "gr_1"])
         await store.refresh()
         XCTAssertEqual(runner.sessionArgs.last, .object(["since": .string("e.3"), "lean": .bool(true)]))
         XCTAssertEqual(store.sessions.map(\.id), ["a", "b", "gr_1"])
         XCTAssertEqual(store.session("a")?.parentSession, "gr_1")
         XCTAssertEqual(store.endRows.map(\.id), ["graphs"])
+    }
+
+    func testRefreshAsksSinceTheCachedCursorBeforeTheCacheIsShown() async throws {
+        let cache = ListCache(dir: dir)
+        let sessions = ScriptedRunner(replies: [], sessions: [#"{"sessions":[{"id":"a","status":"done"}],"removed":[],"cursor":"e.3"}"#, #"{"sessions":[],"removed":[],"cursor":"e.4","delta":true}"#])
+        await AgentsStore(workspace: "w", runner: sessions, computer: "m", cache: cache).refresh()
+        let backlog = ScriptedRunner(replies: [], sessions: [#"{"tasks":[{"id":7,"title":"t","status":"todo"}],"removed":[],"cursor":"b.5"}"#, #"{"tasks":[],"removed":[],"cursor":"b.6","delta":true}"#])
+        await BacklogStore(workspace: "w", runner: backlog, cache: cache, computer: "m").refresh()
+
+        await AgentsStore(workspace: "w", runner: sessions, computer: "m", cache: cache).refresh()
+        await BacklogStore(workspace: "w", runner: backlog, cache: cache, computer: "m").refresh()
+        XCTAssertEqual(sessions.sessionArgs.last?["since"], .string("e.3"))
+        XCTAssertEqual(backlog.sessionArgs.last?["since"], .string("b.5"))
+    }
+
+    func testAnIdleStoreShowsTheCacheOnceTheDecodeEnds() async throws {
+        let cache = ListCache(dir: dir)
+        let sessions = ScriptedRunner(replies: [], sessions: [#"{"sessions":[{"id":"a","status":"done"}],"removed":[],"cursor":"e.3"}"#])
+        await AgentsStore(workspace: "w", runner: sessions, computer: "m", cache: cache).refresh()
+        let backlog = ScriptedRunner(replies: [], sessions: [#"{"tasks":[{"id":7,"title":"t","status":"todo"}],"removed":[],"cursor":"b.5"}"#])
+        await BacklogStore(workspace: "w", runner: backlog, cache: cache, computer: "m").refresh()
+
+        let agents = AgentsStore(workspace: "w", runner: sessions, computer: "m", cache: cache)
+        let tasks = BacklogStore(workspace: "w", runner: backlog, cache: cache, computer: "m")
+        try await waitUntil { agents.loaded && agents.sessions.map(\.id) == ["a"] && tasks.loaded && tasks.tasks.map(\.id) == [7] }
+    }
+
+    func testAReplyIsNotReplacedByTheOlderCache() async throws {
+        let cache = ListCache(dir: dir)
+        let runner = ScriptedRunner(replies: [], sessions: [
+            #"{"sessions":[{"id":"a","title":"Old","status":"done"}],"removed":[],"cursor":"e.1"}"#,
+            #"{"sessions":[{"id":"a","title":"New","status":"done"}],"removed":[],"cursor":"e.2"}"#,
+        ])
+        await AgentsStore(workspace: "w", runner: runner, computer: "m", cache: cache).refresh()
+        let store = AgentsStore(workspace: "w", runner: runner, computer: "m", cache: cache)
+        await store.refresh()
+        store.settle()
+        XCTAssertEqual(store.session("a")?.title, "New")
     }
 
     func testRunRowsOfAListReplyShowAfterRestart() async throws {
@@ -155,6 +196,12 @@ final class ListCacheTests: XCTestCase {
         await store.refresh()
         XCTAssertEqual(store.sessions.map(\.id), ["a", "gr_1"])
     }
+}
+
+@MainActor
+private func settled(_ store: BacklogStore) -> BacklogStore {
+    store.settle()
+    return store
 }
 
 private struct Envelope: Codable {

@@ -96,7 +96,7 @@ struct RootView: View {
 
     private var fetched: [Bool] {
         guard let key = navigation.workspaceKey else { return [] }
-        return [model.agents(computer: key.computer, workspace: key.workspace)?.fetched == true, model.backlog(computer: key.computer, workspace: key.workspace)?.fetched == true]
+        return [model.agents(computer: key.computer, workspace: key.workspace, settled: false)?.fetched == true, model.backlog(computer: key.computer, workspace: key.workspace, settled: false)?.fetched == true]
     }
 
     private var shownAgents: ShownAgents? {

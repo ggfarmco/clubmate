@@ -40,6 +40,14 @@ public struct ListCache: Sendable {
         }
     }
 
+    public func loadOffMain<T: Decodable, R: Sendable>(_ key: Key, as type: T.Type, _ prepare: @escaping @Sendable (T) -> R?) -> CacheLoad<R>? {
+        guard let file = file(key) else { return nil }
+        return CacheLoad {
+            guard let data = Self.queue(file).sync(execute: { try? Data(contentsOf: file) }), let value = try? JSONDecoder.clubmate.decode(T.self, from: data) else { return nil }
+            return prepare(value)
+        }
+    }
+
     @discardableResult
     public func save<T: Encodable>(_ value: T, _ key: Key) -> Int? {
         guard let file = file(key), !refused(key) else { return nil }
@@ -104,6 +112,39 @@ public struct ListCache: Sendable {
 
     private static func hash(_ text: String) -> String {
         SHA256.hash(data: Data(text.utf8)).prefix(16).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+public final class CacheLoad<Value: Sendable>: Sendable {
+    private final class Box: Sendable {
+        let value = Mutex<Value?>(nil)
+    }
+
+    private let box: Box
+    nonisolated(unsafe) private let item: DispatchWorkItem
+
+    init(_ work: @escaping @Sendable () -> Value?) {
+        let box = Box()
+        self.box = box
+        item = DispatchWorkItem(qos: .userInitiated) {
+            let value = work()
+            box.value.withLock { $0 = value }
+        }
+        DispatchQueue.global(qos: .userInitiated).async(execute: item)
+    }
+
+    public func wait() -> Value? {
+        item.wait()
+        return box.value.withLock { $0 }
+    }
+
+    public var value: Value? {
+        get async {
+            await withCheckedContinuation { done in
+                item.notify(queue: .global(qos: .userInitiated)) { done.resume() }
+            }
+            return box.value.withLock { $0 }
+        }
     }
 }
 

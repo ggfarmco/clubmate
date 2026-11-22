@@ -191,7 +191,13 @@ public final class CompanionModel {
         }
     }
 
-    public func agents(computer: String, workspace: String) -> AgentsStore? {
+    public func agents(computer: String, workspace: String, settled: Bool = true) -> AgentsStore? {
+        let store = agentsStore(computer: computer, workspace: workspace)
+        if settled { store?.settle() }
+        return store
+    }
+
+    private func agentsStore(computer: String, workspace: String) -> AgentsStore? {
         let key = computer + "|" + workspace
         if let existing = agents[key] { return existing }
         guard let connection = connections[computer] else { return nil }
@@ -207,7 +213,7 @@ public final class CompanionModel {
         let offline = Set(known.filter { $0.state != .online }.map(\.computer.id))
         return NeedsYouItem.collect(known.flatMap { connection in
             connection.workspaces.compactMap { workspace in
-                agents(computer: connection.computer.id, workspace: workspace.id).map { (connection.computer.id, tag(connection.computer.id), workspace, $0.fetched ? $0.sessions : []) }
+                agentsStore(computer: connection.computer.id, workspace: workspace.id).map { (connection.computer.id, tag(connection.computer.id), workspace, $0.fetched ? $0.sessions : []) }
             }
         }, offline: offline)
     }
@@ -217,11 +223,17 @@ public final class CompanionModel {
     }
 
     public func waitingCount(computer: String, workspace: String, excluding session: String? = nil) -> Int {
-        guard let store = agents(computer: computer, workspace: workspace), store.fetched else { return 0 }
+        guard let store = agentsStore(computer: computer, workspace: workspace), store.fetched else { return 0 }
         return WorkspaceActivity(store.sessions.filter { $0.id != session }).waiting
     }
 
-    public func backlog(computer: String, workspace: String) -> BacklogStore? {
+    public func backlog(computer: String, workspace: String, settled: Bool = true) -> BacklogStore? {
+        let store = backlogStore(computer: computer, workspace: workspace)
+        if settled { store?.settle() }
+        return store
+    }
+
+    private func backlogStore(computer: String, workspace: String) -> BacklogStore? {
         let key = computer + "|" + workspace
         if let existing = backlogs[key] { return existing }
         guard let connection = connections[computer] else { return nil }

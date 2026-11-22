@@ -198,7 +198,7 @@ final class AppNavigation {
         let key = entry.workspace ?? workspaceKey
         switch entry.destination {
         case .session(let id):
-            return key.flatMap { model?.agents(computer: $0.computer, workspace: $0.workspace)?.session(id)?.displayTitle } ?? "Session"
+            return key.flatMap { model?.agents(computer: $0.computer, workspace: $0.workspace, settled: false)?.session(id)?.displayTitle } ?? "Session"
         case .run:
             return "Run"
         case .task(let number):

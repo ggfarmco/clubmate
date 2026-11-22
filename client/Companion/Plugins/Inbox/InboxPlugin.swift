@@ -114,7 +114,7 @@ struct InboxListView: View {
         }
         .task(id: stores) {
             for key in stores {
-                guard let store = model.agents(computer: key.computer, workspace: key.workspace), !store.fetched else { continue }
+                guard let store = model.agents(computer: key.computer, workspace: key.workspace, settled: false), !store.fetched else { continue }
                 await store.refresh()
             }
         }

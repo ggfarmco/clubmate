@@ -43,6 +43,7 @@ public final class BacklogStore {
     @ObservationIgnored private var again = false
     @ObservationIgnored private var waiters: [CheckedContinuation<Void, Never>] = []
     @ObservationIgnored private var searchTask: Task<Void, Never>?
+    @ObservationIgnored private var cached: CacheLoad<Cached>?
 
     public static let searchDelay: Duration = .milliseconds(250)
 
@@ -56,11 +57,30 @@ public final class BacklogStore {
         self.retry = retry
         self.sleep = sleep
         key = ListCache.Key(computer: computer, workspace: workspace, collection: "backlog")
-        if let saved = cache.load(key, as: Snapshot.self), let list = try? SyncedList<BacklogTask>(rows: saved.tasks.arrayValue ?? [], cursor: saved.cursor) {
-            self.list = list
-            syncedAt = saved.at
-            loaded = true
+        cached = cache.loadOffMain(key, as: Snapshot.self) { saved in
+            (try? SyncedList<BacklogTask>(rows: saved.tasks.arrayValue ?? [], cursor: saved.cursor)).map { Cached(list: $0, at: saved.at) }
         }
+        if cached != nil { Task { [weak self] in await self?.awaitCache() } }
+    }
+
+    public func settle() {
+        guard let cached else { return }
+        adopt(cached.wait())
+    }
+
+    private func awaitCache() async {
+        guard let cached else { return }
+        let value = await cached.value
+        guard self.cached === cached else { return }
+        adopt(value)
+    }
+
+    private func adopt(_ value: Cached?) {
+        cached = nil
+        guard let value, !fetched else { return }
+        list = value.list
+        syncedAt = value.at
+        loaded = true
     }
 
     public func ageLine(now: Date = .now) -> String? {
@@ -326,6 +346,7 @@ public final class BacklogStore {
     }
 
     private func load() async {
+        await awaitCache()
         guard let runner else { return }
         let started = Date.now
         do {
@@ -376,6 +397,11 @@ public final class BacklogStore {
             self.error = (error as? RemoteError)?.message ?? error.localizedDescription
         }
         loaded = true
+    }
+
+    private struct Cached: Sendable {
+        let list: SyncedList<BacklogTask>
+        let at: Date
     }
 
     private struct Snapshot: Codable, Sendable {

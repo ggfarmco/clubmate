@@ -124,7 +124,7 @@ struct SectionSlot: View {
                 ProgressView()
             }
         }
-        .environment(\.imageStore, connection.supports(AgentsStore.imageCommand) ? model.agents(computer: connection.computer.id, workspace: ui.workspace) : nil)
+        .environment(\.imageStore, connection.supports(AgentsStore.imageCommand) ? model.agents(computer: connection.computer.id, workspace: ui.workspace, settled: false) : nil)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .environment(liveFocus)
         .alert("Couldn't Do That", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
