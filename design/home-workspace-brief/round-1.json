@@ -1,0 +1,18 @@
+{
+  "title": "Home workspace · round 1",
+  "fit": 1200,
+  "intro": [
+    "Claude Design, 22 Nov. One direction, with the behaviour choice drawn both ways on board 1.",
+    "A · first in every list (designer's pick): Home is first in Open Recent (own item + separator, outside the 10-item cap, Clear Menu skips it), on Welcome (own one-row group above Recent, no trash) and under each Mac in the phone menu; in a window's switcher it is a normal tile, first when open, and × / ⌫ close it from that window. Window model unchanged, cost S. Reason: the user's rule (Home is not a different kind of workspace); a tile that ignores ⌫ with its own auto-open and restore is exactly that.",
+    "B · always open in every window (not picked, drawn small on board 1): auto-open, restore and a refused close for one tile, cost M/L.",
+    "Look: the SF Symbol house, outline, muted, before the name; no pin, no badge, no accent; it stays when Home is renamed. New key ⇧⌘H Open Home (Open Recent item 1, ⌘K). Empty Home: same empty nodes as a project, one text changed per section; Agents gets 'Start a session about anything' and New session ⌘N."
+  ],
+  "boards": [
+    {"file": "R1-Switcher.dc.html", "w": 1408, "title": "1 · Mac switcher with Home · (a) picked, (b) small", "caption": "Home tile first when open in this window, house glyph in the label, × and ⌫ as on any tile; a 640 window without Home; (b) at half size with its cost."},
+    {"file": "R1-Recent.dc.html", "w": 1408, "title": "2 · Welcome + File › Open Recent", "caption": "Home row above Recent with path, open and ⇧⌘H, never a trash; Open Recent item 1 with the house image, then a separator."},
+    {"file": "R1-Phone.dc.html", "w": 1780, "title": "3 · iPhone + iPad capsule menu", "caption": "Label(\"Home\", systemImage: \"house\") first in each Mac section; subtitle only when something waits; capsule reads ● Home ⌄."},
+    {"file": "R1-Empty.dc.html", "w": 1408, "title": "4 · Empty Home on the Mac: Agents, Backlog, Wiki", "caption": "Same empty nodes as a project, Home's words: what a Home agent can see, a first prompt to try, New session ⌘N."},
+    {"file": "R1-EmptyPhone.dc.html", "w": 1400, "title": "5 · Empty Home on the iPhone", "caption": "Same words without keycaps; the action is a capsule."},
+    {"file": "R1-Rules.dc.html", "w": 1400, "title": "6 · Rules", "caption": "Ruling and reasons, the glyph, every text, 10 changes: 7 client (a), 3 plugin content (c), no new node or logic."}
+  ]
+}

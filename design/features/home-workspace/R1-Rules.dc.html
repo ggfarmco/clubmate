@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>R1 · Home rules, texts and change tags</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8eab21fc432cecef848e901fbdf5b5dd">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+</helmet>
+<div class="doc" style="width: 1400px; min-height: 2900px; padding: 64px; display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div class="eyebrow">Clubmate · Home workspace · round 1 · board 6 of 6</div>
+<h1>Rules for Home</h1>
+<p class="lead">The a/b ruling, the glyph, how “always there, first, cannot be removed” shows on each surface, every text, and every change, tagged (a) client · (b) SDUI node or prop · (c) plugin content · (d) new plugin or core logic. Result: 7 × (a), 0 × (b), 3 × (c), 0 × (d) from this design.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 40px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div class="eyebrow">Ruling</div>
+<h2>(a): first in every list, but a window can still close it</h2>
+<p class="muted" style="font-size: 14px">Cost S. The window model does not change.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; font-size: 15px">
+<ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px">
+<li><b>The user's rule decides it.</b> “Home is not a different kind of workspace.” (b) gives Home its own window lifecycle: auto-open, restore, and a refused Close. A tile that ignores ⌫ is exactly a different kind of workspace.</li>
+<li><b>“Always there” is about finding it, not about it being open.</b> It is met where you look for workspaces: first in Open Recent, first on Welcome, first under each Mac on the phone, and ⇧⌘H from anywhere. None of these can lose it: no cap, no Clear Menu, no trash.</li>
+<li><b>Windows are for focus.</b> A window opened for shop should not carry a Home tile, Home terminals and Home agents it did not ask for. With (b), Home is open in N windows at once, and every window's restore brings it back.</li>
+<li><b>One rule fewer to explain.</b> With (a), × and ⌫ behave the same on every tile. With (b), we need a disabled ×, a refusal message and a Close Workspace exception, all for one workspace.</li>
+<li><b>Cost.</b> (a) is list ordering and menu drawing, all in the client. (b) touches window creation, state restore and the close path (M/L).</li>
+</ol>
+<p class="muted" style="font-size: 14px">What (a) gives up: in a window where Home was never opened, the switcher has no Home tile. I chose not to fix that with a ghost tile, because that is (b) by another name. ⇧⌘H opens Home in the current window in one key, and from then on it leads that window's grid.</p>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 40px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div class="eyebrow">Glyph</div>
+<h2>SF Symbol <code style="font-size: 20px">house</code>, outline, muted</h2>
+<div class="cm th-mate" style="border-radius: 10px; padding: 16px; display: flex; gap: 20px; align-items: center">
+<svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 32px; height: 32px; stroke-width: 1.2"><path d="M2.5 7.5 8 3l5.5 4.5M4 6.3V13h8V6.3M6.8 13v-3.2h2.4V13"/></svg>
+<span style="display: flex; align-items: center; gap: 6px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 7.5 8 3l5.5 4.5M4 6.3V13h8V6.3M6.8 13v-3.2h2.4V13"/></svg>Home</span>
+<span class="row sel" style="width: 150px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 7.5 8 3l5.5 4.5M4 6.3V13h8V6.3M6.8 13v-3.2h2.4V13"/></svg><span class="l">Home</span></span>
+</div>
+<div class="cm th-matelight" style="border-radius: 10px; padding: 16px; display: flex; gap: 20px; align-items: center; box-shadow: 0 0 0 1px #DAD8CF">
+<svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 32px; height: 32px; stroke-width: 1.2"><path d="M2.5 7.5 8 3l5.5 4.5M4 6.3V13h8V6.3M6.8 13v-3.2h2.4V13"/></svg>
+<span style="display: flex; align-items: center; gap: 6px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 7.5 8 3l5.5 4.5M4 6.3V13h8V6.3M6.8 13v-3.2h2.4V13"/></svg>Home</span>
+<span class="row sel" style="width: 150px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 7.5 8 3l5.5 4.5M4 6.3V13h8V6.3M6.8 13v-3.2h2.4V13"/></svg><span class="l">Home</span></span>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; font-size: 15px">
+<ul style="display: flex; flex-direction: column; gap: 6px">
+<li><b>Mac:</b> <code>house</code> drawn at the label's size: 12 in tile labels and the title bar, 14 in Welcome and Open Recent. Text level is muted; the name next to it stays fg.</li>
+<li><b>Phone and iPad:</b> <code>Label("Home", systemImage: "house")</code>. When selected, the system checkmark replaces it, as it replaces <code>folder</code> today.</li>
+<li><b>Never</b> <code>house.fill</code>, never accent or a tone (colour is state, and Home is not a state), never the gourd mark (that is the brand), never “~”.</li>
+<li><b>The glyph marks Home, so it survives a rename.</b> A Home renamed “life” still shows the house.</li>
+<li><b>Why not a pin.</b> A pin says “the user chose this” and invites unpinning. Home was not chosen and cannot be unpinned, and “never a badge for pinned alone” rules out the alternative anyway.</li>
+</ul>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div class="eyebrow">Always there · first · cannot be removed</div>
+<table>
+<thead><tr><th style="width: 200px">Surface</th><th>First</th><th>Always there</th><th>Cannot be removed</th><th style="width: 70px">Tag</th></tr></thead>
+<tbody>
+<tr><td>Mac switcher ⌃⌘W</td><td>first tile when open in this window</td><td>n/a: per window, by ruling (a)</td><td>× / ⌫ close it from the window only, like any tile; it is not removed</td><td><span class="tag a">a</span></td></tr>
+<tr><td>File › Open Recent</td><td>item 1, then a separator</td><td>outside the 10-item cap; Clear Menu skips it</td><td>the menu has no remove action</td><td><span class="tag a">a</span></td></tr>
+<tr><td>Welcome</td><td>its own one-row group above “Recent”</td><td>always drawn, also when Recent is empty</td><td>no trash on hover</td><td><span class="tag a">a</span></td></tr>
+<tr><td>⌘K palette</td><td>“Open Home ⇧⌘H”</td><td>always listed</td><td>n/a</td><td><span class="tag a">a</span></td></tr>
+<tr><td>iPhone / iPad menu</td><td>first row in each Mac section</td><td>present whenever that Mac's core reports one</td><td>no remove action; leave it out in Mac Details if Mac Details ever gets one</td><td><span class="tag a">a</span></td></tr>
+</tbody>
+</table>
+<p class="muted" style="font-size: 14px">No surface says “pinned”, “always” or “can't be removed”. Users learn it from Home always being where they left it. The core still refuses removal, so a stray API call can't delete it either.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div class="eyebrow">Every text</div>
+<table>
+<thead><tr><th style="width: 220px">Where</th><th>Text</th><th style="width: 180px">Case</th><th style="width: 70px">Tag</th></tr></thead>
+<tbody>
+<tr><td colspan="4" class="mono muted" style="padding-top: 16px">Mac</td></tr>
+<tr><td>title bar</td><td class="mono">⌂ Home</td><td>name</td><td><span class="tag a">a</span></td></tr>
+<tr><td>switcher tile label</td><td class="mono">⌂ Home</td><td>name</td><td><span class="tag a">a</span></td></tr>
+<tr><td>switcher ×, tooltip</td><td class="mono">Close from this window</td><td>sentence</td><td><span class="tag a">a</span></td></tr>
+<tr><td>File › Open Recent, item 1</td><td class="mono">⌂ Home    ⇧⌘H</td><td>name (Title Case menu)</td><td><span class="tag a">a</span></td></tr>
+<tr><td>File › Open Recent, last</td><td class="mono">Clear Menu <span class="muted">(unchanged; skips Home)</span></td><td>Title Case</td><td><span class="tag a">a</span></td></tr>
+<tr><td>File, unchanged</td><td class="mono">New Home Terminal    ⇧⌘N</td><td>Title Case</td><td><span class="tag">—</span></td></tr>
+<tr><td>Welcome, Home row</td><td class="mono">Home · ~/.clubmate/home · open · ⇧⌘H</td><td>sentence</td><td><span class="tag a">a</span></td></tr>
+<tr><td>⌘K palette</td><td class="mono">Open Home    ⇧⌘H</td><td>sentence (Home is a name)</td><td><span class="tag a">a</span></td></tr>
+<tr><td>Agents · sidebar</td><td class="mono">No agent sessions <span class="muted">(same as a project)</span></td><td>sentence</td><td><span class="tag">—</span></td></tr>
+<tr><td>Agents · empty title</td><td class="mono">Start a session about anything</td><td>sentence</td><td><span class="tag a">c</span></td></tr>
+<tr><td>Agents · empty text</td><td class="mono">Agents in Home can read every workspace's backlog, sessions and wiki, and never change them. Try “What waits for me today?”</td><td>sentence</td><td><span class="tag a">c</span></td></tr>
+<tr><td>Agents · empty action</td><td class="mono">New session    ⌘N</td><td>sentence</td><td><span class="tag a">c</span></td></tr>
+<tr><td>Backlog · empty text</td><td class="mono">Tasks are ideas and todos outside your projects, for you or for an agent. Start agent hands a task to a session; it owns the task until it ends or you take it back.</td><td>sentence</td><td><span class="tag a">c</span></td></tr>
+<tr><td>Wiki · empty text</td><td class="mono">Agents write here as they work: plans, lists and notes for your life outside projects.</td><td>sentence</td><td><span class="tag a">c</span></td></tr>
+<tr><td colspan="4" class="mono muted" style="padding-top: 16px">iPhone · iPad</td></tr>
+<tr><td>capsule</td><td class="mono">● Home ⌄</td><td>name</td><td><span class="tag">—</span></td></tr>
+<tr><td>menu row</td><td class="mono">Home · house · “n waiting” only when n &gt; 0</td><td>name</td><td><span class="tag a">a</span></td></tr>
+<tr><td>empty states</td><td class="mono">same title, text and action as the Mac; no keycaps</td><td>sentence</td><td><span class="tag a">c</span></td></tr>
+<tr><td colspan="4" class="mono muted" style="padding-top: 16px">Gone</td></tr>
+<tr><td>Agents</td><td class="mono" style="text-decoration: line-through">Agents aren't available in the home workspace</td><td></td><td><span class="tag c">feature</span></td></tr>
+<tr><td>Wiki</td><td class="mono" style="text-decoration: line-through">Open a project workspace to see its wiki.</td><td></td><td><span class="tag c">feature</span></td></tr>
+<tr><td>everywhere</td><td class="mono" style="text-decoration: line-through">~</td><td></td><td><span class="tag c">feature</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div class="eyebrow">Changes, tagged</div>
+<table>
+<thead><tr><th style="width: 40px">#</th><th>Change</th><th style="width: 140px">Where</th><th style="width: 70px">Tag</th></tr></thead>
+<tbody>
+<tr><td class="n">1</td><td>Put the workspace with <code>home: true</code> first: switcher (when open in this window), Open Recent, Welcome, phone menu (per Mac section). The rest keep the core order.</td><td>Mac, phone</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n">2</td><td>Stop hiding Home in Open Recent and Welcome, and stop special-casing “~”: show the core's name.</td><td>Mac</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n">3</td><td>Open Recent: Home as its own item + separator, outside the 10-item cap. Clear Menu clears only the recents below it.</td><td>Mac</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n">4</td><td>Welcome: Home row group above Recent. Glyph in the left margin, path line, “open” when open, ⇧⌘H keycap, no trash.</td><td>Mac</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n">5</td><td><code>house</code> glyph in the tile label, title bar, Open Recent item and Welcome row; <code>systemImage: "house"</code> on the phone row.</td><td>Mac, phone</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n">6</td><td>⇧⌘H opens Home in the current window: the key on Open Recent item 1, and “Open Home” in ⌘K. If ⇧⌘H is already taken, use any free key; principle 5 only needs one.</td><td>Mac</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n">7</td><td>Switcher × tooltip “Close from this window”, the same on every tile.</td><td>Mac</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n">8</td><td>Agents plugin: when the workspace is Home, empty title, text, and the one action New session ⌘N (its existing new-session action).</td><td>plugin</td><td><span class="tag a">c</span></td></tr>
+<tr><td class="n">9</td><td>Backlog plugin: when the workspace is Home, sentence 1 of the empty text.</td><td>plugin</td><td><span class="tag a">c</span></td></tr>
+<tr><td class="n">10</td><td>Wiki plugin: when the workspace is Home, the empty text.</td><td>plugin</td><td><span class="tag a">c</span></td></tr>
+<tr><td class="n">—</td><td>No new SDUI node or prop. The empty node's icon · title · text · action covers all three.</td><td></td><td><span class="tag b">b: none</span></td></tr>
+<tr><td class="n">—</td><td>No new logic from this design. The plugins already tell Home apart today (that is how they say “not available”), so choosing Home's words is content. Making <code>~/.clubmate/home</code>, the name, <code>home: true</code>, refusing removal, allowing rename, and the read-only cross-workspace access are the feature itself, not this design.</td><td></td><td><span class="tag c">d: none</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3>Not doing</h3>
+<ul style="font-size: 14px; display: flex; flex-direction: column; gap: 4px">
+<li>A Home tile in windows where Home is not open: that would be (b) by another name.</li>
+<li>Folder icons on the other recents to match Home's glyph.</li>
+<li>A “pinned”, “always” or lock badge anywhere.</li>
+<li>Prefilling or sending “What waits for me today?”. It is suggested in text only.</li>
+<li>A Home row in the phone menu built by the client when the core sends none.</li>
+</ul>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3>Open for round 2</h3>
+<ul style="font-size: 14px; display: flex; flex-direction: column; gap: 4px">
+<li>Is ⇧⌘H free in Clubmate's key map?</li>
+<li>The wiki empty state's action, if a project has one: keep it for Home as is.</li>
+<li>Whether the project's Agents empty state should also get the New session action. That is out of scope here, but it would make the two match.</li>
+</ul>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":2900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

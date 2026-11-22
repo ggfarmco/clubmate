@@ -1,0 +1,31 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-11-22T16:10:00Z"},
+  "title": "Clubmate · Home workspace",
+  "launch": {"view": "canvas", "page": "today"},
+  "pages": [
+    {"id": "today", "name": "Today (screenshots)"},
+    {"id": "r1", "name": "Round 1"},
+    {"id": "language", "name": "Language"}
+  ],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 2400, "h": 3800, "title": "Today · Mac test app (Mate dark) + iPhone/iPad simulator (light), 22 Nov", "page": "today"},
+    "Principles.dc.html": {"x": 0, "y": 0, "w": 1000, "h": 2220, "title": "2 · Principles", "page": "language"},
+    "Tokens.dc.html": {"x": 1080, "y": 0, "w": 1480, "h": 2720, "title": "Tokens", "page": "language"},
+    "Components.dc.html": {"x": 2640, "y": 0, "w": 1480, "h": 2360, "title": "Components", "page": "language"},
+    "Patterns.dc.html": {"x": 4200, "y": 0, "w": 1480, "h": 1940, "title": "Patterns", "page": "language"},
+    "C-Language.dc.html": {"x": 0, "y": 2840, "w": 1400, "h": 2520, "title": "C2 · Companion adaptation", "page": "language"},
+    "C-Components.dc.html": {"x": 1480, "y": 2840, "w": 1400, "h": 2340, "title": "C3 · Companion components", "page": "language"},
+    "C-Workspace.dc.html": {"x": 2960, "y": 2840, "w": 393, "h": 852, "radius": 50, "title": "iPhone · Workspace sessions · dark", "page": "language"},
+    "R1-Switcher.dc.html": {"x": 0, "y": 0, "w": 1408, "h": 1900, "title": "R1 · 1 · Mac switcher with Home (a), (b) small", "page": "r1"},
+    "R1-Recent.dc.html": {"x": 1488, "y": 0, "w": 1408, "h": 1960, "title": "R1 · 2 · Welcome + File › Open Recent with Home", "page": "r1"},
+    "R1-Phone.dc.html": {"x": 2976, "y": 0, "w": 1780, "h": 1460, "title": "R1 · 3 · iPhone + iPad capsule menu with Home", "page": "r1"},
+    "R1-Empty.dc.html": {"x": 0, "y": 2080, "w": 1408, "h": 3560, "title": "R1 · 4 · Empty Home on the Mac: Agents, Backlog, Wiki", "page": "r1"},
+    "R1-EmptyPhone.dc.html": {"x": 1488, "y": 2080, "w": 1400, "h": 1180, "title": "R1 · 5 · Empty Home on the iPhone", "page": "r1"},
+    "R1-Rules.dc.html": {"x": 2968, "y": 2080, "w": 1400, "h": 2900, "title": "R1 · 6 · Rules: a/b ruling, glyph, texts, change tags", "page": "r1"}
+  },
+  "order": ["Main.dc.html", "Principles.dc.html", "Tokens.dc.html", "Components.dc.html", "Patterns.dc.html", "C-Language.dc.html", "C-Components.dc.html", "C-Workspace.dc.html", "R1-Switcher.dc.html", "R1-Recent.dc.html", "R1-Phone.dc.html", "R1-Empty.dc.html", "R1-EmptyPhone.dc.html", "R1-Rules.dc.html"],
+  "notes": {
+    "r1title": {"x": 0, "y": -320, "text": "Round 1 · Home, always there: Mac, iPhone, iPad", "kind": "title1", "maxW": 4760, "page": "r1"}
+  }
+}
