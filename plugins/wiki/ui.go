@@ -144,11 +144,11 @@ func (w *wiki) renderNow(ctx context.Context, workspaceID string) error {
 	if err != nil {
 		return err
 	}
-	if ws.Home || len(ws.Folders) == 0 {
-		if err := w.push(ctx, u, workspaceID, sidebarSlot, sidebarView(sidebarData{Home: true})); err != nil {
+	if len(ws.Folders) == 0 {
+		if err := w.push(ctx, u, workspaceID, sidebarSlot, sdui.Empty(noFoldersText)); err != nil {
 			return err
 		}
-		return w.push(ctx, u, workspaceID, mainSlot, mainView(mainData{Home: true}))
+		return w.push(ctx, u, workspaceID, mainSlot, sdui.Empty(noFoldersText))
 	}
 	w.mu.Lock()
 	selected, query, notes, history, change, collapsed, opening := u.selected, u.query, u.agentNotes, u.history, u.change, maps.Clone(u.collapsed), u.opening
@@ -185,7 +185,7 @@ func (w *wiki) renderNow(ctx context.Context, workspaceID string) error {
 	if !ok {
 		current, ok = newest(all)
 	}
-	m := mainData{}
+	m := mainData{Home: ws.Home}
 	if ok {
 		d.Selected = pageID(current.Project, current.Page.Path)
 		m = w.pageData(ctx, ws, projects, stores[current.Project], current, projectPages(d.Projects, current.Project), history, f)
@@ -669,7 +669,7 @@ func (w *wiki) pollOnce(ctx context.Context) {
 			continue
 		}
 		ws, err := w.h.GetWorkspace(ctx, id)
-		if err != nil || ws.Home {
+		if err != nil {
 			continue
 		}
 		dirty := false

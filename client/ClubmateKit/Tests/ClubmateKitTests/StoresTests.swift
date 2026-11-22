@@ -20,7 +20,7 @@ final class StoresTests: XCTestCase {
         let workspaces = WorkspacesStore(client: client)
         try await workspaces.start()
         let workspace = try await workspaces.create(name: "demo", repos: [])
-        XCTAssertEqual(workspaces.workspaces.map(\.id), [workspace.id])
+        XCTAssertEqual(workspaces.workspaces.filter { !$0.home }.map(\.id), [workspace.id])
         let other = try await client.createWorkspace(name: "other")
         try await waitUntil { workspaces.workspaces.map(\.id).contains(other.id) }
 
@@ -176,6 +176,8 @@ final class StoresTests: XCTestCase {
 
         XCTAssertEqual(Workspace.recents(workspaces).map(\.id), ["d", "b", "a"])
         XCTAssertEqual(Workspace.recents(workspaces, hiddenBefore: try Date("2026-02-01T12:00:00Z", strategy: .iso8601)).map(\.id), ["d"])
+        XCTAssertEqual(Workspace.home(in: workspaces)?.id, "c")
+        XCTAssertNil(Workspace.home(in: Array(workspaces.filter { !$0.home })))
     }
 
     func testWorkspaceFoldersDecode() throws {
@@ -522,11 +524,11 @@ final class StoresTests: XCTestCase {
 
         let entries = CommandPalette.entries(commands: commands, sections: sections, sidebar: true, worktrees: worktrees.worktrees)
 
-        XCTAssertEqual(entries.map(\.title), ["Open terminal here", "Companion status", "Go to Code", "Go to Terminals", "Toggle sidebar", "Open folder…", "New home terminal", "Switch worktree…", "New worktree…"])
-        XCTAssertEqual(entries.map(\.detail), ["Code", "Remote", "⌘1", "⌘2", "⌘B", "⌘O", "⇧⌘N", "", ""])
+        XCTAssertEqual(entries.map(\.title), ["Open terminal here", "Companion status", "Go to Code", "Go to Terminals", "Toggle sidebar", "Open folder…", "Open Home", "New home terminal", "Switch worktree…", "New worktree…"])
+        XCTAssertEqual(entries.map(\.detail), ["Code", "Remote", "⌘1", "⌘2", "⌘B", "⌘O", "⇧⌘H", "⇧⌘N", "", ""])
         XCTAssertEqual(
             entries.map { PaletteAction(entryID: $0.id) },
-            [.command("editor-nvim.terminal"), .command("remote.status"), .section("editor-nvim"), .section("terminals"), .toggleSidebar, .openFolder, .newHomeTerminal, .switchWorktree, .newWorktree]
+            [.command("editor-nvim.terminal"), .command("remote.status"), .section("editor-nvim"), .section("terminals"), .toggleSidebar, .openFolder, .openHome, .newHomeTerminal, .switchWorktree, .newWorktree]
         )
         XCTAssertFalse(CommandPalette.entries(commands: [], sections: [], sidebar: false).contains { $0.title == "Toggle sidebar" })
         XCTAssertEqual(CommandPalette.entries(commands: [], sections: [], sidebar: true, chat: true).first { $0.id == PaletteAction.toggleSidebar.entryID }?.title, "Toggle chat")
@@ -545,6 +547,16 @@ final class StoresTests: XCTestCase {
         XCTAssertFalse(titles.contains("Switch to api"))
         XCTAssertTrue(titles.contains("Remove workspace…"))
         XCTAssertFalse(titles.contains("Open Workspaces"))
+    }
+
+    func testPaletteOpensHomeAndNeverRemovesIt() {
+        let workspaces = [PaletteWorkspace(id: "h", name: "Home", home: true), PaletteWorkspace(id: "a", name: "api")]
+
+        let entries = CommandPalette.entries(commands: [], sections: [], sidebar: true, workspaces: workspaces, active: "h")
+
+        XCTAssertEqual(entries.first { $0.id == PaletteAction.openHome.entryID }?.detail, "⇧⌘H")
+        XCTAssertFalse(entries.contains { $0.title == "Remove workspace…" })
+        XCTAssertNotNil(CommandPalette.entries(commands: [], sections: [], sidebar: true).first { $0.id == PaletteAction.openHome.entryID })
     }
 
     func testSectionCommandInvocations() throws {

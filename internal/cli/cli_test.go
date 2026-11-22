@@ -377,7 +377,7 @@ func coreCLI(t *testing.T) func(args ...string) (string, int) {
 		require.NoError(t, os.WriteFile(filepath.Join(bins, name), data, 0o755))
 	}
 	dirs := testutil.ShortDirs(t)
-	env := append(os.Environ(), "CLUBMATE_STATE_DIR="+dirs.State, "CLUBMATE_RUNTIME_DIR="+dirs.Runtime)
+	env := append(os.Environ(), "CLUBMATE_STATE_DIR="+dirs.State, "CLUBMATE_RUNTIME_DIR="+dirs.Runtime, "CLUBMATE_HOME_WORKSPACE_DIR="+filepath.Join(t.TempDir(), "home"))
 	clubmate := func(args ...string) (string, int) {
 		cmd := exec.Command(filepath.Join(bins, "clubmate"), args...)
 		cmd.Env = env

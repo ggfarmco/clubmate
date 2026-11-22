@@ -9,8 +9,8 @@ public struct CommandInvocation: Sendable, Equatable {
         self.args = args
     }
 
-    public static func new(section: String?, commands: [Command]) -> CommandInvocation? {
-        resolve("new", section: section, commands: commands).map { CommandInvocation(id: $0) }
+    public static func new(section: String?, commands: [Command], args: JSONValue = .null) -> CommandInvocation? {
+        resolve("new", section: section, commands: commands).map { CommandInvocation(id: $0, args: args) }
     }
 
     public static func close(section: String?, main: SDUINode?, commands: [Command]) -> CommandInvocation? {

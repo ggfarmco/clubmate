@@ -5,6 +5,7 @@ import ClubmateKit
 struct WorktreeTitleMenu: View {
     let session: WorkspaceSession
     let workspace: String
+    var home = false
     let remote: RemoteStatus?
     var newFolders = 0
     var opened: () -> Void = {}
@@ -28,6 +29,11 @@ struct WorktreeTitleMenu: View {
                 if let remote, remote.titleDot {
                     MacDot(colour: remote.computer?.colour)
                         .help(remote.computer.map { "\($0.name) · \(Theme.identityName($0.colour))" } ?? "")
+                }
+                if home {
+                    Image(systemName: "house")
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.muted)
                 }
                 Text(workspace)
                     .lineLimit(1)

@@ -162,6 +162,7 @@ struct FixtureMac: Sendable {
     static let relayHost = "relay.clubmate.test"
     static let relayKey = "B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw"
     static let relayKid = "aaa8fff703b50b22"
+    static let homeWorkspace = "prj_00000000000000f0"
 
     static let studio = FixtureMac(id: "mac-mock", name: "Mac Studio", colour: "blue", host: "100.101.1.2", workspaces: [("prj_00000000000000f1", "shop"), ("prj_00000000000000f2", "clubmate")])
     static let pro = FixtureMac(id: "mac-pro", name: "MacBook Pro", colour: "magenta", host: "100.101.1.3", workspaces: [("prj_00000000000000f3", "infra")])
@@ -554,9 +555,12 @@ actor FixtureServer {
             }
             return (200, Self.json(["result": LandReviewFixture.on ? LandReviewFixture.opens(params) ?? .null : .null]))
         case "workspaces":
+            let home: [JSONValue] = mac.id == FixtureMac.studio.id
+                ? [.object(["id": .string(FixtureMac.homeWorkspace), "name": .string("Home"), "folders": .array([.object(["path": .string("/Users/me/.clubmate/home")])]), "home": .bool(true)])]
+                : []
             return (200, Self.json(["result": .array(mac.workspaces.map { item in
                 .object(["id": .string(item.id), "name": .string(TaskFixture.scene == nil ? item.name : "ads"), "folders": .array(TaskFixture.scene == nil ? [.object(["path": .string("/Users/me/src/" + item.name)])] : TaskFixture.folders)])
-            })]))
+            } + home)]))
         case "macs":
             return (200, Self.json(["result": .null]))
         case "setIdentityColour":
@@ -613,6 +617,7 @@ actor FixtureServer {
             return .object(reply)
         case "agents.sessions":
             if workspace == self.workspace { scheduleHeldChange() }
+            if workspace == FixtureMac.homeWorkspace { return .array([]) }
             return .array(Self.treeKeyed((workspace == self.workspace ? sessions.map(Self.withAsideState) : others).map(Self.listKeyed)).map(JSONValue.object) + (workspace == self.workspace ? [] : runEntries))
         case "agents.graph-show":
             return shownRun(args["id"]?.stringValue ?? "")

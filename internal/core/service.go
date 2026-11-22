@@ -55,6 +55,8 @@ type Service struct {
 	exclude    func() []int
 
 	workspaceMu sync.Mutex
+	homeMu      sync.Mutex
+	homeDir     string
 
 	transitionsMu sync.Mutex
 	baselined     bool
@@ -82,6 +84,10 @@ func WithExcludePIDs(fn func() []int) Option {
 
 func WithStartTime(fn func(pid int) (time.Time, error)) Option {
 	return func(s *Service) { s.startTime = fn }
+}
+
+func WithHomeDir(dir string) Option {
+	return func(s *Service) { s.homeDir = dir }
 }
 
 func WithKillGrace(d time.Duration) Option {
@@ -141,20 +147,7 @@ func (s *Service) OpenFolders(ctx context.Context, folders []string) (workspace.
 }
 
 func (s *Service) HomeWorkspace(ctx context.Context) (workspace.Workspace, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return workspace.Workspace{}, fmt.Errorf("resolve home dir: %w", err)
-	}
-	s.workspaceMu.Lock()
-	defer s.workspaceMu.Unlock()
-	p, created, err := s.workspaces.Home(ctx, home)
-	if err != nil {
-		return workspace.Workspace{}, err
-	}
-	if created {
-		s.publishWorkspace(ctx, contract.TopicWorkspaceCreated, p)
-	}
-	return p, nil
+	return s.EnsureHome(ctx)
 }
 
 func (s *Service) RenameWorkspace(ctx context.Context, id, name string) (workspace.Workspace, error) {
@@ -241,8 +234,12 @@ func (s *Service) CheckWorktrees(ctx context.Context, id string) (workspace.Work
 }
 
 func (s *Service) DeleteWorkspace(ctx context.Context, id string) error {
-	if _, err := s.workspaces.Get(ctx, id); err != nil {
+	p, err := s.workspaces.Get(ctx, id)
+	if err != nil {
 		return err
+	}
+	if p.Home {
+		return ErrHomeDelete
 	}
 	nodes, err := s.processTree(ctx, TreeFilter{WorkspaceID: id}, s.freshSnapshot)
 	if err != nil {

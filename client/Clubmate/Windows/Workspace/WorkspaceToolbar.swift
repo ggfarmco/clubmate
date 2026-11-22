@@ -4,8 +4,20 @@ extension WorkspaceWindow {
     @ToolbarContentBuilder var toolbarItems: some ToolbarContent {
         if let worktreeSession {
             ToolbarItem(placement: .navigation) {
-                WorktreeTitleMenu(session: worktreeSession, workspace: workspaceName, remote: app.remoteDevices.status, newFolders: app.newFolders(worktreeSession.workspaceID).count) {
+                WorktreeTitleMenu(session: worktreeSession, workspace: workspaceName, home: activeIsHome, remote: app.remoteDevices.status, newFolders: app.newFolders(worktreeSession.workspaceID).count) {
                     app.markFoldersSeen(worktreeSession.workspaceID)
+                }
+            }
+            .sharedBackgroundVisibility(.hidden)
+        } else if activeIsHome {
+            ToolbarItem(placement: .navigation) {
+                HStack(spacing: 6) {
+                    Image(systemName: "house")
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.muted)
+                    Text(workspaceName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
                 }
             }
             .sharedBackgroundVisibility(.hidden)

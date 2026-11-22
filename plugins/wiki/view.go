@@ -44,7 +44,8 @@ const (
 	copyNode      = "copyPath"
 	revealNode    = "reveal"
 	emptyText     = "Agents write here as they work: how things work, why they were decided, examples. You can add a page too."
-	homeText      = "Open a project workspace to see its wiki."
+	noFoldersText = "Add a folder to see its wiki."
+	homeEmptyText = "Agents write here as they work: plans, lists and notes for your life outside projects."
 )
 
 const folderPageIcon = "list.bullet.rectangle.portrait"
@@ -67,7 +68,6 @@ type hitRow struct {
 }
 
 type sidebarData struct {
-	Home       bool
 	Projects   []projectView
 	New        []recentRow
 	Now        time.Time
@@ -107,9 +107,6 @@ func splitID(id string) (string, string, bool) {
 }
 
 func sidebarView(d sidebarData) sdui.Node {
-	if d.Home {
-		return sdui.VStack(sdui.EmptyState(homeText, sdui.EmptyProps{Icon: "book.closed"}))
-	}
 	search := sdui.WithAction(sdui.WithLive(sdui.TextField(searchNode, d.Query, "Search wiki")), "search")
 	items := pageItems(d)
 	var body sdui.Node
@@ -362,12 +359,13 @@ func newButton() sdui.Node {
 }
 
 func mainView(d mainData) sdui.Node {
-	if d.Home {
-		return sdui.EmptyState(homeText, sdui.EmptyProps{Icon: "book.closed", Center: true})
-	}
 	if d.Page == nil {
 		action := sdui.WithVariant(newButton(), sdui.VariantPrimary)
-		return sdui.EmptyState(emptyText, sdui.EmptyProps{Title: "No wiki pages yet", Icon: "book.closed", Action: &action, Center: true})
+		text := emptyText
+		if d.Home {
+			text = homeEmptyText
+		}
+		return sdui.EmptyState(text, sdui.EmptyProps{Title: "No wiki pages yet", Icon: "book.closed", Action: &action, Center: true})
 	}
 	p := *d.Page
 	actions := []sdui.Node{

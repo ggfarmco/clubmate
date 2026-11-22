@@ -2849,6 +2849,21 @@ func TestPermissionFromVoicePluginIsUser(t *testing.T) {
 	f.waitStatus(t, workspace, session, "done")
 }
 
+func TestNewSessionInHomeWorkspace(t *testing.T) {
+	for _, key := range []string{"GOPATH", "GOMODCACHE", "GOCACHE"} {
+		out, err := exec.Command("go", "env", key).Output()
+		require.NoError(t, err)
+		t.Setenv(key, strings.TrimSpace(string(out)))
+	}
+	t.Setenv("HOME", t.TempDir())
+	f := start(t, map[string]any{})
+	home, err := f.h.Svc.HomeWorkspace(t.Context())
+	require.NoError(t, err)
+	f.subscribe(t, home.ID)
+
+	assert.NotEmpty(t, f.newSession(t, home.ID))
+}
+
 func TestNewSessionOptionsOnlyFromPlugin(t *testing.T) {
 	t.Parallel()
 	f := start(t, map[string]any{

@@ -506,6 +506,16 @@ func TestWorkspacesListFoldersAndLegacyRoots(t *testing.T) {
 	assert.JSONEq(t, `[{"id":"prj_1","name":"demo","folders":[{"path":"/tmp/demo","worktree":"/tmp/demo-wt","seen":true}],"roots":["/tmp/demo-wt"]}]`, string(got.Result))
 }
 
+func TestWorkspacesMarkHome(t *testing.T) {
+	f := newFixture(t)
+	f.backend.workspaces = []pluginsdk.Workspace{{ID: "prj_1", Name: "demo"}, {ID: "prj_h", Name: "Home", Home: true}}
+	token := f.pair(t, "phone")
+
+	_, got := f.call(t, token, "workspaces", nil)
+
+	assert.JSONEq(t, `[{"id":"prj_1","name":"demo","folders":[],"roots":[]},{"id":"prj_h","name":"Home","folders":[],"roots":[],"home":true}]`, string(got.Result))
+}
+
 func TestEventsStreamLiveAllowlistedTopics(t *testing.T) {
 	f := newFixture(t)
 	res, r := f.openEvents(t, f.pair(t, "phone"), "")

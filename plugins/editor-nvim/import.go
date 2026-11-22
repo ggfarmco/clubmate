@@ -18,7 +18,6 @@ const (
 )
 
 var (
-	errImportHome   = errors.New("open a folder workspace first")
 	errImportSource = errors.New("no ~/.config/nvim to import")
 
 	//go:embed import_prompt.md
@@ -64,13 +63,6 @@ func nvimGuide() string {
 }
 
 func (a *app) importConfig(ctx context.Context, h *pluginsdk.Host, workspaceID string) (agentsNewResult, error) {
-	p, err := h.GetWorkspace(ctx, workspaceID)
-	if err != nil {
-		return agentsNewResult{}, err
-	}
-	if p.Home {
-		return agentsNewResult{}, errImportHome
-	}
 	source := importSource()
 	if source == "" {
 		return agentsNewResult{}, errImportSource
@@ -100,10 +92,6 @@ func (a *app) importFromEditor(h *pluginsdk.Host, e *editor) {
 func (a *app) offerImport(h *pluginsdk.Host, e *editor, c *client) {
 	ctx := context.Background()
 	if !distroInUse() || importSource() == "" {
-		return
-	}
-	p, err := h.GetWorkspace(ctx, e.id)
-	if err != nil || p.Home {
 		return
 	}
 	a.offerMu.Lock()

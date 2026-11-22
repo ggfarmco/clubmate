@@ -146,6 +146,14 @@ private struct WorkspaceCommands: Commands {
         Array(Workspace.recents(app.workspaceStore?.workspaces ?? [], hiddenBefore: app.settings.recentsClearedAt).prefix(10))
     }
 
+    private var homeName: String {
+        Workspace.home(in: app.workspaceStore?.workspaces ?? [])?.name ?? "Home"
+    }
+
+    private var activeIsHome: Bool {
+        active.flatMap(app.workspace)?.home == true
+    }
+
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
             Button("About Clubmate") { showAbout() }
@@ -167,10 +175,15 @@ private struct WorkspaceCommands: Commands {
             Button("Open Folder…") { actions.openFolder(in: windowID) }
                 .keyboardShortcut(AppShortcuts.openFolder)
             Menu("Open Recent") {
+                Button { actions.openHome(in: windowID) } label: {
+                    Label(homeName, systemImage: "house")
+                }
+                .keyboardShortcut(AppShortcuts.openHome)
+                Divider()
                 ForEach(recents, id: \.id) { workspace in
                     Button(workspace.name) { windows.open(workspace.id, in: windowID) }
                 }
-                Divider()
+                if !recents.isEmpty { Divider() }
                 Button("Clear Menu") { app.settings.recentsClearedAt = Date() }
                     .disabled(recents.isEmpty)
             }
@@ -188,7 +201,7 @@ private struct WorkspaceCommands: Commands {
             Button("Close Workspace") { closeWorkspace() }
                 .disabled(active == nil)
             Button("Remove Workspace…") { active.map(actions.remove) }
-                .disabled(active == nil)
+                .disabled(active == nil || activeIsHome)
             Divider()
             Button("Close Session") { closeSession() }
             .keyboardShortcut(AppShortcuts.closeSession)

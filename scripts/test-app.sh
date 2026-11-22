@@ -115,6 +115,7 @@ launch() {
     --env "XDG_STATE_HOME=$dir/xdg/state"
     --env "XDG_CACHE_HOME=$dir/xdg/cache"
     --env "CLUBMATE_WIKI_DIR=$dir/wiki"
+    --env "CLUBMATE_HOME_WORKSPACE_DIR=$dir/home"
   )
   local passthrough=()
   for v in $(env | grep -o '^CLUBMATE_AGENTS_[A-Z_]*\|^CLUBMATE_VOICE_[A-Z_]*\|^HF_HOME\|^UV_CACHE_DIR\|^FAKEAGENT_[A-Z_]*\|^CLUBMATE_ONBOARDING\|^CLUBMATE_TEST_START_HOLD' || true); do passthrough+=(--env "$v=${!v}"); done

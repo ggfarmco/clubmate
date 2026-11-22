@@ -211,6 +211,11 @@ func TestEmptyWikiShowsNewPage(t *testing.T) {
 	assert.True(t, ok)
 }
 
+func TestEmptyWikiWordsFollowTheWorkspace(t *testing.T) {
+	assert.Equal(t, emptyText, mainView(mainData{}).Props["text"])
+	assert.Equal(t, homeEmptyText, mainView(mainData{Home: true}).Props["text"])
+}
+
 func TestRenderKeepsSelectionMadeMeanwhile(t *testing.T) {
 	w := newWiki()
 	u := w.workspace("ws")

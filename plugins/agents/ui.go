@@ -233,14 +233,6 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	if err != nil {
 		return err
 	}
-	if workspace.Home {
-		for _, slot := range slots {
-			if err := a.push(ctx, p, workspaceID, slot, sdui.Empty(errHome.Error())); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
 	home, _, _ := workRoot(workspace)
 	recs := a.list(workspaceID)
 	children := childStatuses(recs)
@@ -321,7 +313,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	}
 	var shown *screen
 	if slices.Contains(slots, mainSlot) {
-		main := sdui.Empty(pickSession)
+		main := pickSessionView(workspace.Home)
 		if filter == filterOpen {
 			q := a.openQueueScreen(workspaceID, rows, selected)
 			q.Now = time.Now()

@@ -182,6 +182,11 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 		errs = map[string]string{fieldErr.field: fieldErr.text}
 	}
 	d := detail{owners: owners, linked: byID, hasTasks: len(tasks) > 0, errs: errs, editing: current != nil && editing == current.ID, prompt: current != nil && prompt == current.ID, linking: current != nil && linking == current.ID, closing: current != nil && closing == current.ID, noteVer: noteVer, rev: rev + fieldRev}
+	if !d.hasTasks {
+		if ws, err := b.h.GetWorkspace(ctx, workspaceID); err == nil {
+			d.home = ws.Home
+		}
+	}
 	return b.push(ctx, w, workspaceID, mainSlot, mainView(current, d))
 }
 

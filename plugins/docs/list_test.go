@@ -50,7 +50,7 @@ func TestListSkipsDeleted(t *testing.T) {
 	assert.Equal(t, []string{"kept.md"}, rels(e.list("s1")))
 }
 
-func TestListCappedAndHomeOnlyAgentDocs(t *testing.T) {
+func TestListCapped(t *testing.T) {
 	e := newEnv(t)
 	for i := range maxListed + 1 {
 		e.doc(fmt.Sprintf("d%04d.md", i), "")
@@ -61,11 +61,6 @@ func TestListCappedAndHomeOnlyAgentDocs(t *testing.T) {
 	assert.Len(t, got.Docs, maxListed)
 	assert.True(t, got.Truncated)
 	assert.Equal(t, []string{"d1999.md", "d0000.md"}, rels(got)[:2])
-
-	e.core.ws.Home = true
-	home := e.list("")
-	assert.Equal(t, []listItem{{Path: filepath.Join(e.dir, "d1999.md"), Rel: "d1999.md", Kind: "markdown", Modified: got.Docs[0].Modified, Agent: true}}, home.Docs)
-	assert.False(t, home.Truncated)
 }
 
 func TestListIfNoneMatch(t *testing.T) {

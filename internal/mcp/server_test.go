@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -444,4 +445,90 @@ func TestToolListFollowsCoreGoingAndComing(t *testing.T) {
 		assert.Equal(t, "notifications/tools/list_changed", p.recv(t).Method)
 		assert.Contains(t, names(p.call(t, 3, "tools/list", nil)), "alpha_one")
 	})
+}
+
+type homeCore struct {
+	mu    sync.Mutex
+	runs  []string
+	lists atomic.Int32
+}
+
+func (c *homeCore) Call(_ context.Context, method string, params, result any) error {
+	switch method {
+	case "command.list":
+		cmds := append(rpc.PrimitiveCommands(),
+			rpc.Command{CommandDef: rpc.CommandDef{ID: "backlog.list", Title: "List", Agent: true, ReadOnly: true}, Plugin: "backlog"},
+			rpc.Command{CommandDef: rpc.CommandDef{ID: "backlog.add", Title: "Add", Agent: true}, Plugin: "backlog"},
+		)
+		raw, err := json.Marshal(cmds)
+		if err != nil {
+			return err
+		}
+		return json.Unmarshal(raw, result)
+	case "command.capabilities":
+		return nil
+	case "workspace.list":
+		c.lists.Add(1)
+		return json.Unmarshal([]byte(`[{"id":"prj_project"},{"id":"prj_home","home":true},{"id":"prj_third"}]`), result)
+	case "command.run":
+		p := params.(map[string]any)
+		c.mu.Lock()
+		c.runs = append(c.runs, fmt.Sprintf("%s@%s", p["id"], p["workspaceId"]))
+		c.mu.Unlock()
+		return json.Unmarshal([]byte(`{}`), result)
+	}
+	return fmt.Errorf("unexpected %s", method)
+}
+
+func (*homeCore) Close() error {
+	return nil
+}
+
+func TestHomeReadsOtherWorkspaces(t *testing.T) {
+	tests := []struct {
+		name      string
+		workspace string
+		tool      string
+		target    string
+		denied    string
+		run       string
+	}{
+		{name: "home reads a project", workspace: "prj_home", tool: "backlog_list", target: "prj_project", run: "backlog.list@prj_project"},
+		{name: "home writes to a project", workspace: "prj_home", tool: "backlog_add", target: "prj_project", denied: "workspace prj_project is not this session's workspace (prj_home); from Home only read tools reach other workspaces"},
+		{name: "project reads home", workspace: "prj_project", tool: "backlog_list", target: "prj_home", denied: "workspace prj_home is not this session's workspace (prj_project); agents act only in their own workspace"},
+		{name: "project reads a third workspace", workspace: "prj_project", tool: "backlog_list", target: "prj_third", denied: "workspace prj_third is not this session's workspace (prj_project); agents act only in their own workspace"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			core := &homeCore{}
+			p := start(t, func(context.Context) (mcp.Core, error) { return core, nil }, tt.workspace)
+			var want []string
+			for id := range 2 {
+				res := p.call(t, id+1, "tools/call", map[string]any{"name": tt.tool, "arguments": map[string]any{"workspace": tt.target}})
+				if tt.denied == "" {
+					require.False(t, res.Result.IsError, res.Result.Content)
+					want = append(want, tt.run)
+					continue
+				}
+				require.True(t, res.Result.IsError)
+				assert.Equal(t, tt.denied, res.Result.Content[0].Text)
+			}
+			core.mu.Lock()
+			defer core.mu.Unlock()
+			assert.Equal(t, want, core.runs)
+			assert.Equal(t, int32(1), core.lists.Load(), "the Home answer is asked once")
+		})
+	}
+}
+
+func TestReadOnlyHintFollowsTheFlag(t *testing.T) {
+	core := &homeCore{}
+	p := start(t, func(context.Context) (mcp.Core, error) { return core, nil }, "prj_home")
+	hints := map[string]bool{}
+	for _, tool := range p.call(t, 1, "tools/list", nil).Result.Tools {
+		hints[tool.Name] = tool.Annotations.ReadOnlyHint
+	}
+	assert.True(t, hints["backlog_list"])
+	assert.True(t, hints["workspace_list"])
+	assert.False(t, hints["backlog_add"])
 }

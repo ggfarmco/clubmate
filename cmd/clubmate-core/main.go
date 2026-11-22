@@ -160,6 +160,9 @@ func run(logger *slog.Logger) error {
 	if err := control.LoadOnboarding(context.Background(), len(existing) == 0 && onboardingAllowed()); err != nil {
 		return err
 	}
+	if _, err := svc.EnsureHome(context.Background()); err != nil {
+		logger.Error("ensure home workspace", "err", err)
+	}
 	uiStore := sdui.NewStore()
 	sup = plugin.NewSupervisor(srv, dirs, logger, plugin.WithOnStop(uiStore.ClearOwner), plugin.WithBus(eventBus), plugin.WithResourcesDir(filepath.Dir(filepath.Dir(exe))), plugin.WithEnabled(control.StartEnabled))
 	router := plugin.NewRouter(sup)

@@ -147,7 +147,7 @@ func (d *docs) list(ctx context.Context, h *pluginsdk.Host, workspaceID string, 
 			return l.res, nil
 		}
 	}
-	if args.Session != "" || ws.Home {
+	if args.Session != "" {
 		return l.res, nil
 	}
 	roots := ws.Roots()

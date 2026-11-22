@@ -90,7 +90,9 @@ const (
 	moreRow       = "more:"
 	moreLeft      = "Show %d more · %d left"
 	moreLast      = "Show %d more"
-	emptyText     = "Tasks are ideas and todos, for you or for an agent. Start agent hands a task to a session; it owns the task until it ends or you take it back."
+	emptyRest     = " Start agent hands a task to a session; it owns the task until it ends or you take it back."
+	emptyText     = "Tasks are ideas and todos, for you or for an agent." + emptyRest
+	homeEmptyText = "Tasks are ideas and todos outside your projects, for you or for an agent." + emptyRest
 )
 
 var (
@@ -123,6 +125,7 @@ type detail struct {
 	owners   map[string]owner
 	linked   map[int]Task
 	hasTasks bool
+	home     bool
 	errs     map[string]string
 	editing  bool
 	prompt   bool
@@ -354,7 +357,7 @@ func mainView(t *Task, d detail) sdui.Node {
 	case t == nil && d.hasTasks:
 		return sdui.Empty("Select a task")
 	case t == nil:
-		return emptyView(d.rev)
+		return emptyView(d.rev, d.home)
 	}
 	errs := d.errs
 	meta := fmt.Sprintf("#%d · saved", t.ID)
@@ -569,9 +572,13 @@ func ownerLanes(t *Task, owners map[string]owner) sdui.Node {
 	return sdui.Lanes(ownersNode, sdui.LanesProps{Actors: actors, Moves: moves, Title: "Owners"})
 }
 
-func emptyView(rev int) sdui.Node {
+func emptyView(rev int, home bool) sdui.Node {
 	add := sdui.WithAction(sdui.Form("new", sdui.HStack(sdui.TextField(newTitleNode, "", "New task…"), sdui.WithVariant(sdui.Button("add", "Add", "plus"), sdui.VariantPrimary))), "add")
-	empty := sdui.EmptyState(emptyText, sdui.EmptyProps{Title: "Nothing in the backlog", Icon: "checklist", Center: true})
+	text := emptyText
+	if home {
+		text = homeEmptyText
+	}
+	empty := sdui.EmptyState(text, sdui.EmptyProps{Title: "Nothing in the backlog", Icon: "checklist", Center: true})
 	empty.Children = []sdui.Node{add, lifecycle()}
 	view := sdui.VStack(empty)
 	view.ID = fmt.Sprintf("empty-%d", rev)

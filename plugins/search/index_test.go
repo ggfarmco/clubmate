@@ -88,16 +88,6 @@ func TestSearchFilesLineSuffix(t *testing.T) {
 	assert.Equal(t, match{Path: "main.go", AbsPath: filepath.Join(dir, "main.go"), Positions: []int{0, 1, 2, 3, 4, 5, 6}, Line: 12}, got.Matches[0])
 }
 
-func TestHomeWorkspaceRefused(t *testing.T) {
-	h, _ := start(t, tempDir(t))
-	home, err := h.Svc.HomeWorkspace(t.Context())
-	require.NoError(t, err)
-
-	err = h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "search.files", "workspaceId": home.ID, "args": map[string]any{"query": "a"}}, nil)
-
-	assert.ErrorContains(t, err, "search unavailable in the home workspace")
-}
-
 func start(t *testing.T, folders ...string) (*testutil.PluginHarness, string) {
 	t.Helper()
 	h := testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/search", "plugins/search/plugin.json"))

@@ -170,7 +170,7 @@ func findTasks(ctx context.Context, h *pluginsdk.Host, workspaceID, query string
 
 func findWikiPages(ctx context.Context, h *pluginsdk.Host, workspaceID, query string) ([]searchItem, error) {
 	ws, err := h.GetWorkspace(ctx, workspaceID)
-	if err != nil || ws.Home || len(ws.Folders) == 0 {
+	if err != nil || len(ws.Folders) == 0 {
 		return nil, err
 	}
 	var out struct {

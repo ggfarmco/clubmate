@@ -82,7 +82,6 @@ struct FilePickerView: View {
     private var message: String? {
         switch model.status {
         case .indexing: "Indexing…"
-        case .unavailable: FilePickerModel.homeMessage
         case .failed(let error): error
         case .ready: model.results.isEmpty ? (model.query.isEmpty ? "No files" : "No matches") : nil
         }

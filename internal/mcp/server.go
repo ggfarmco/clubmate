@@ -54,7 +54,6 @@ var (
 	ErrNoCore = errors.New("Clubmate isn't running")
 
 	supportedVersions = []string{ProtocolVersion, "2025-03-26", "2024-11-05"}
-	readOnly          = []string{"workspace.list", "session.list", "session.read", "process.tree", "terminals.busy"}
 	toolName          = strings.NewReplacer(".", "_", "-", "_")
 	validName         = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
 )
@@ -90,6 +89,15 @@ type Server struct {
 	inflight   map[string]*inflightCall
 
 	unsubscribed bool
+
+	homeMu  sync.Mutex
+	homeSet bool
+	home    bool
+}
+
+type listedWorkspace struct {
+	ID   string `json:"id"`
+	Home bool   `json:"home"`
 }
 
 type inflightCall struct {
@@ -342,7 +350,9 @@ func (s *Server) call(ctx context.Context, p callParams) (any, error) {
 		delete(p.Arguments, workspaceArg)
 	}
 	if s.Workspace != "" && workspace != "" && workspace != s.Workspace {
-		return failure(fmt.Errorf("workspace %s is not this session's workspace (%s); agents act only in their own workspace", workspace, s.Workspace)), nil
+		if err := s.reach(ctx, core, tools[i], workspace); err != nil {
+			return failure(err), nil
+		}
 	}
 	if workspace == "" {
 		workspace = s.Workspace
@@ -372,6 +382,34 @@ func (s *Server) call(ctx context.Context, p callParams) (any, error) {
 		out = json.RawMessage("null")
 	}
 	return callResult{Content: []content{{Type: "text", Text: string(out)}}}, nil
+}
+
+func (s *Server) reach(ctx context.Context, core Core, t tool, workspace string) error {
+	home, err := s.inHome(ctx, core)
+	switch {
+	case err != nil:
+		return err
+	case home && t.Annotations.ReadOnlyHint:
+		return nil
+	case home:
+		return fmt.Errorf("workspace %s is not this session's workspace (%s); from Home only read tools reach other workspaces", workspace, s.Workspace)
+	}
+	return fmt.Errorf("workspace %s is not this session's workspace (%s); agents act only in their own workspace", workspace, s.Workspace)
+}
+
+func (s *Server) inHome(ctx context.Context, core Core) (bool, error) {
+	s.homeMu.Lock()
+	defer s.homeMu.Unlock()
+	if s.homeSet {
+		return s.home, nil
+	}
+	var workspaces []listedWorkspace
+	if err := core.Call(ctx, "workspace.list", struct{}{}, &workspaces); err != nil {
+		return false, err
+	}
+	s.homeSet = true
+	s.home = slices.ContainsFunc(workspaces, func(w listedWorkspace) bool { return w.Home && w.ID == s.Workspace })
+	return s.home, nil
 }
 
 func (s *Server) tools(ctx context.Context) ([]tool, error) {
@@ -584,7 +622,7 @@ func newTool(target string, c rpc.Command) tool {
 		Title:       c.Title,
 		Description: description,
 		InputSchema: inputSchema(c.Args),
-		Annotations: annotations{Title: c.Title, ReadOnlyHint: slices.Contains(readOnly, c.ID), DestructiveHint: c.Destructive},
+		Annotations: annotations{Title: c.Title, ReadOnlyHint: c.ReadOnly, DestructiveHint: c.Destructive},
 		target:      target,
 	}
 }
@@ -598,7 +636,7 @@ func inputSchema(args *schema.Object) map[string]any {
 		}
 		required = args.Required
 	}
-	props[workspaceArg] = schema.Prop{Type: "string", Description: "Workspace id. Defaults to $CLUBMATE_WORKSPACE_ID, else the most recently opened workspace; ignored by tools that don't act on a workspace. When $CLUBMATE_WORKSPACE_ID is set, any other workspace is refused: agents act only in their own workspace."}
+	props[workspaceArg] = schema.Prop{Type: "string", Description: "Workspace id. Defaults to $CLUBMATE_WORKSPACE_ID, else the most recently opened workspace; ignored by tools that don't act on a workspace. When $CLUBMATE_WORKSPACE_ID is set, any other workspace is refused: agents act only in their own workspace. An agent in Home may pass another workspace to read-only tools; workspace_list gives the ids."}
 	out := map[string]any{"type": "object", "properties": props}
 	if len(required) > 0 {
 		out["required"] = required

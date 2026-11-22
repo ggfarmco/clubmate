@@ -91,15 +91,19 @@ func TestUserWriteIsYou(t *testing.T) {
 	assert.Equal(t, "you", got.By)
 }
 
-func TestHomeWorkspaceHasNoWiki(t *testing.T) {
+func TestHomeWorkspaceHasAWiki(t *testing.T) {
 	e := newPluginEnv(t)
 	home, err := e.h.Svc.HomeWorkspace(t.Context())
 	require.NoError(t, err)
 
-	err = e.runIn(home.ID, "wiki.list", "", map[string]any{}, nil)
+	require.NoError(t, e.runIn(home.ID, "wiki.write", "", map[string]any{"page": "plans.md", "content": "# Plans\n", "summary": "x"}, nil))
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no wiki here")
+	var got struct {
+		Pages []map[string]any `json:"pages"`
+	}
+	require.NoError(t, e.runIn(home.ID, "wiki.list", "", map[string]any{}, &got))
+	require.Len(t, got.Pages, 1)
+	assert.Equal(t, "plans.md", got.Pages[0]["page"])
 }
 
 func TestDeleteIsDestructive(t *testing.T) {

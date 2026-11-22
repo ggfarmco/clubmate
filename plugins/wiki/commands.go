@@ -152,7 +152,7 @@ func (w *wiki) who(ctx context.Context, cmd pluginsdk.CommandRun) (caller, error
 	if err != nil {
 		return caller{}, err
 	}
-	if ws.Home || len(ws.Folders) == 0 {
+	if len(ws.Folders) == 0 {
 		return caller{}, errNoWiki
 	}
 	c := caller{by: userName, folder: ws.Folders[0].Root()}

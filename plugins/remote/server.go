@@ -145,6 +145,7 @@ type workspaceInfo struct {
 	Name    string             `json:"name"`
 	Folders []pluginsdk.Folder `json:"folders"`
 	Roots   []string           `json:"roots"`
+	Home    bool               `json:"home,omitempty"`
 }
 
 type deviceCtxKey struct{}
@@ -392,7 +393,7 @@ func (s *server) workspaces(ctx context.Context) ([]workspaceInfo, error) {
 		if folders == nil {
 			folders = []pluginsdk.Folder{}
 		}
-		out = append(out, workspaceInfo{ID: p.ID, Name: p.Name, Folders: folders, Roots: p.Roots()})
+		out = append(out, workspaceInfo{ID: p.ID, Name: p.Name, Folders: folders, Roots: p.Roots(), Home: p.Home})
 	}
 	return out, nil
 }

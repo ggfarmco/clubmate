@@ -257,3 +257,22 @@ func TestMissingSelectionFallsBack(t *testing.T) {
 	assert.True(t, got.Folders[1].Missing)
 	assert.Equal(t, []string{a, b}, got.Roots())
 }
+
+func TestSetHomeReplacesFirstFolder(t *testing.T) {
+	s := openStore(t)
+	old := workspace.CanonicalPath(t.TempDir())
+	extra, wt, dir := t.TempDir(), t.TempDir(), t.TempDir()
+	p, _, err := s.Home(t.Context(), old)
+	require.NoError(t, err)
+	_, err = s.AddRepo(t.Context(), p.ID, extra, workspace.FolderMeta{})
+	require.NoError(t, err)
+	_, err = s.SetWorktree(t.Context(), p.ID, old, wt)
+	require.NoError(t, err)
+	require.NoError(t, s.Rename(t.Context(), p.ID, "~"))
+	require.NoError(t, s.SetHome(t.Context(), p.ID, dir, "~", "Home"))
+	got, err := s.Get(t.Context(), p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Home", got.Name)
+	assert.Equal(t, []string{dir, extra}, got.Paths())
+	assert.Equal(t, []string{dir, extra}, got.Roots())
+}

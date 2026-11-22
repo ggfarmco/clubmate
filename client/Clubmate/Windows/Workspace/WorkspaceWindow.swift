@@ -15,7 +15,7 @@ struct WorkspaceWindow: View {
         WindowMinimum(size: CGSize(width: 800, height: 500)) { content }
             .background(theme.background, ignoresSafeAreaEdges: .all)
             .navigationTitle(title)
-            .toolbar(removing: titleShown ? nil : .title)
+            .toolbar(removing: titleShown && !activeIsHome ? nil : .title)
             .overlay {
                 if let windowID, windows.switcherWindow == windowID {
                     SwitcherGridView(windowID: windowID)
@@ -47,6 +47,10 @@ struct WorkspaceWindow: View {
 
     var active: String? {
         windowID.flatMap { windows.window($0)?.active }
+    }
+
+    var activeIsHome: Bool {
+        active.flatMap(app.workspace)?.home == true
     }
 
     var worktreeSession: WorkspaceSession? {

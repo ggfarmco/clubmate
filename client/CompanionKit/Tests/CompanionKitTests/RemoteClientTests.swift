@@ -16,6 +16,13 @@ final class RemoteClientTests: XCTestCase {
         XCTAssertEqual(transport.requests.last?.value(forHTTPHeaderField: "Authorization"), "Bearer cmt_x")
     }
 
+    func testWorkspaceDecodesHomeAndHomeLeads() throws {
+        let list = try JSONDecoder().decode([Workspace].self, from: Data(#"[{"id":"a","name":"shop"},{"id":"h","name":"Home","home":true}]"#.utf8))
+
+        XCTAssertEqual(Workspace.homeFirst(list).map(\.id), ["h", "a"])
+        XCTAssertEqual(Workspace.homeFirst(Array(list.prefix(1))).map(\.id), ["a"])
+    }
+
     func testReportSendsTheWireContractWithBase64FilesAndALongTimeout() async throws {
         let transport = FakeTransport(reply: { _ in (FakeTransport.result(#"{"id":"r-9"}"#), 200) })
         let client = RemoteClient(hosts: ["100.64.0.2"], port: 47621, token: "t", transport: transport)

@@ -185,7 +185,7 @@ func (a *app) night(parent context.Context) error {
 	if err := a.host.StorageSet(ctx, selfLastRunKey, now); err != nil {
 		return err
 	}
-	workspaces, err := a.nightWorkspaces(ctx)
+	workspaces, err := a.host.ListWorkspaces(ctx)
 	if err != nil {
 		return err
 	}
@@ -438,14 +438,6 @@ func (a *app) dropImprove(s *session, dir string) {
 		a.closeNight(s)
 	}
 	a.removeSandbox(dir)
-}
-
-func (a *app) nightWorkspaces(ctx context.Context) ([]pluginsdk.Workspace, error) {
-	list, err := a.host.ListWorkspaces(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return slices.DeleteFunc(list, func(p pluginsdk.Workspace) bool { return p.Home }), nil
 }
 
 func (a *app) nightDays(workspaces []pluginsdk.Workspace, since time.Time) []nightDay {

@@ -48,6 +48,7 @@ public struct ShortcutGroup: Identifiable, Equatable, Sendable {
 public enum AppShortcuts {
     public static let new = Shortcut("app.new", ["cmd+n"], "New terminal, or a new item in the current section")
     public static let newHomeTerminal = Shortcut("app.new-home-terminal", ["cmd+shift+n"], "New Home Terminal")
+    public static let openHome = Shortcut("app.open-home", ["cmd+shift+h"], "Open Home")
     public static let openFolder = Shortcut("app.open-folder", ["cmd+o"], "Open Folder…")
     public static let openDoc = Shortcut("app.open-doc", ["cmd+shift+d"], "Open Doc…")
     public static let switchPopupFocus = Shortcut("app.switch-popup-focus", ["cmd+j"], "Switch Popup Focus", when: "A popup is open")
@@ -76,7 +77,7 @@ public enum AppShortcuts {
 
     public static let groups: [ShortcutGroup] = [
         ShortcutGroup(id: "app", title: "App and windows", shortcuts: [
-            new, newHomeTerminal, openFolder, openDoc, close, closeSession, palette, toggleSidebar,
+            new, newHomeTerminal, openFolder, openHome, openDoc, close, closeSession, palette, toggleSidebar,
             fontIncrease, fontDecrease, fontReset, section, nextWorkspace, previousWorkspace, nextSession, previousSession, workspaceSwitcher, notifications, keepAwake, retry, showLog,
             Shortcut("voice.talk", ["opt+space"], "Voice: hold to talk, release to send", when: "While voice is on"),
             Shortcut("voice.confirm", ["return", "esc"], "Voice confirmation: yes, no", when: "Voice panel"),

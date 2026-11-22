@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -151,6 +152,9 @@ func TestMainEmptyState(t *testing.T) {
 	assert.Equal(t, "add", empty.Children[0].Props["action"])
 	assert.Equal(t, "lifecycle", empty.Children[1].ID)
 	require.NoError(t, isdui.Validate(mainView(nil, detail{})))
+	assert.True(t, strings.HasPrefix(empty.Props["text"].(string), "Tasks are ideas and todos, for you or for an agent."))
+	home := mainView(nil, detail{home: true}).Children[0].Children[0]
+	assert.True(t, strings.HasPrefix(home.Props["text"].(string), "Tasks are ideas and todos outside your projects, for you or for an agent."))
 }
 
 func TestImageOpensOnlyInsideTheRoot(t *testing.T) {

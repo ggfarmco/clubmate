@@ -53,6 +53,7 @@
         "title": "List backlog tasks",
         "hidden": true,
         "agent": true,
+        "readOnly": true,
         "description": "List this workspace's backlog tasks ordered by priority, then oldest first (done and wont_do: newest first). Workflow: list status todo, pick the first, claim it, record progress with backlog.update note, finish with backlog.done and a note naming the commit, or backlog.release when you give up. Tasks you find yourself go in as idea; use todo only when the user asked for the task to be done. An agent gets rows {id, title, status, priority, tags, claimedBy, updatedAt}; pass full for whole tasks, or read one with backlog.get.",
         "args": {
           "properties": {
@@ -206,6 +207,7 @@
         "title": "Get backlog task",
         "hidden": true,
         "agent": true,
+        "readOnly": true,
         "description": "Read one backlog task with its full description, note, links (with the other tasks' titles and statuses), attachments and owner history.",
         "args": {
           "properties": {

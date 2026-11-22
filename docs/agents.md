@@ -450,9 +450,9 @@ Once a day Claude reviews its own day, changes how it works and tidies each proj
 
 **The night** starts at 04:00 local time, on the plugin's own timer. If the Mac slept through it, it runs on the next core start or wake, but only before 08:00; later the night is skipped. The next digest reaches back to the last night that finished without stopping early (`self.digestedUntil`; `self.lastRun` only keeps a night from running twice), so a skipped or failed night loses nothing. `cm command run agents.night-run` starts one now, in the background (`self-improvement is off` while the setting is off, `a night is already running` during one). Each night:
 
-1. Digest. Go collects, per non-home workspace, the sessions updated since then: your prompts, the agent's final replies, and facts from the log (cancelled turns, denied permissions, failed tools by name, repeated Bash commands). Tool output, thoughts and fetched pages are left out. Capped at 8 KB per session and 64 KB per workspace. All digests empty: nothing runs, no session and no report.
+1. Digest. Go collects, per workspace, the sessions updated since then: your prompts, the agent's final replies, and facts from the log (cancelled turns, denied permissions, failed tools by name, repeated Bash commands). Tool output, thoughts and fetched pages are left out. Capped at 8 KB per session and 64 KB per workspace. All digests empty: nothing runs, no session and no report.
 2. Sleep. One session per project with a digest and a memory dir, one after another, titled "Sleep: <workspace>". Its sandbox holds that project's digest, memory and undone cleanups and nothing else, and it may read the project's folders. It merges, removes what is stale, checks facts against the code and shrinks. Night sessions have no tool that deletes, so it removes a file by writing it empty: `agents.self-declare` drops empty memory files before it commits, except `MEMORY.md`, since an empty index more likely means a mistake than a cleanup. Memory means `~/.claude/projects/<escaped folder>/memory/` of your workspace folders, or `autoMemoryDirectory` when set. Applying is all or nothing per project: if a memory file changed since the sandbox was made, that project's sleep is dropped and comes back the next night.
-3. Improve. One session, titled "Night review", in the most recently opened non-home workspace, after every Sleep. Its sandbox holds a copy of the self and all digests, and no memory. It checks whether a recent change's problem repeated, and reverts that change if so; then it picks at most two patterns that cost you the most and edits `prompt.md` or a skill, with a hypothesis in `lessons.md`. No clear pattern, no edit.
+3. Improve. One session, titled "Night review", in the most recently opened workspace (Home too, when it is the most recent), after every Sleep. Its sandbox holds a copy of the self and all digests, and no memory. It checks whether a recent change's problem repeated, and reverts that change if so; then it picks at most two patterns that cost you the most and edits `prompt.md` or a skill, with a hypothesis in `lessons.md`. No clear pattern, no edit.
 4. Apply. A night session calls `agents.self-declare` after each change, which commits its sandbox. Only declared changes count, and only once the session has ended; a crash or a timeout applies nothing from that session.
 5. Report. See below.
 
@@ -634,6 +634,15 @@ Built (one machine): `agents.export session=… dir=…` (`clubmate agent export
 
 Design (not built): continuing the agent's own conversation instead of a brief. Claude Code keeps it in `~/.claude/projects/<encoded cwd>/<agentSessionId>.jsonl`; the bundle would carry that file (found by globbing for the id), import would place it under the target cwd's project directory and `session/resume` with the old `agentSessionId`, falling back to the brief when resume fails. On another machine the same bundle works once the branch is pushed and fetched; a relay or shared store for bundles belongs with the mobile companion work.
 
+## Home reads
+
+An agent in Home can read other workspaces. It gets the workspace ids from `workspace_list` and passes one as `workspace` to a read-only tool: a command with `"readOnly": true` in its manifest, which changes nothing. Today these are `workspace.list`, `session.list`, `session.read`, `process.tree`, `terminals.busy`, `backlog.list`, `backlog.get`, `wiki.list`, `wiki.read`, `wiki.search`, `agents.sessions`, `agents.transcript` and `agents.search`.
+
+- Any other tool with another workspace is refused: "workspace … is not this session's workspace (…); from Home only read tools reach other workspaces".
+- The rule works only from Home outward. An agent in a project that passes Home's id, or the id of a third workspace, is refused as before.
+- It applies to every caller in a Home terminal with `$CLUBMATE_WORKSPACE_ID` set, also a plain `claude`. The MCP server asks `workspace.list` once whether its workspace is Home and keeps the answer.
+- The core checks it again: an agent session (`agt_…`) that is not in the target workspace passes only for a `readOnly` command and only when the agents plugin lists it in the `home: true` workspace. The same holds for `session.read` on a session of another workspace.
+
 ## MCP (Claude Code and other MCP clients)
 
 `clubmate mcp` is a stdio MCP server over the same registry. Every call it makes is an agent call.
@@ -641,7 +650,7 @@ Design (not built): continuing the agent's own conversation instead of a brief. 
 Its `initialize` instructions end with "Working in Clubmate" (`internal/mcp/clubmate.md`) and "Tasks across repos" (`internal/mcp/clubmate_repos.md`), both embedded in the binary: split a task, run independent parts as child sessions with `agents_new` and a branch, collect them with `agents_wait`, and use `cron_add` and `triggers_add` instead of polling. Every MCP client that connects gets it, in any project.
 
 - Tools are named after the command or capability with `.` and `-` replaced by `_` (`editor_open`, `workspace_list`, `terminal_close`). A plugin command that provides a capability appears under the capability's name only.
-- Every tool takes an optional `workspace` id. It defaults to `$CLUBMATE_WORKSPACE_ID`, then the most recently opened workspace. With `$CLUBMATE_WORKSPACE_ID` set, any other workspace is refused ("workspace … is not this session's workspace (…); agents act only in their own workspace"): an agent acts only in its own workspace.
+- Every tool takes an optional `workspace` id. It defaults to `$CLUBMATE_WORKSPACE_ID`, then the most recently opened workspace. With `$CLUBMATE_WORKSPACE_ID` set, any other workspace is refused ("workspace … is not this session's workspace (…); agents act only in their own workspace"): an agent acts only in its own workspace. The one exception is an agent in Home, see [Home reads](#home-reads).
 - If Clubmate isn't running, the tools still list the core primitives, and calls fail with "Clubmate isn't running". The server never starts Clubmate itself.
 
 To connect Claude Code, use **Settings → Agents → Connect Claude Code**. It runs:

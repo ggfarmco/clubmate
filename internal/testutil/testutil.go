@@ -99,6 +99,9 @@ func newServiceIn(t *testing.T, dirs paths.Dirs, opts ...core.Option) *core.Serv
 	require.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	tracker := proc.NewTracker(proc.ReadEnv, os.Getpid())
+	if os.Getenv("CLUBMATE_HOME_WORKSPACE_DIR") == "" {
+		opts = append([]core.Option{core.WithHomeDir(filepath.Join(t.TempDir(), "home"))}, opts...)
+	}
 	svc := core.NewService(store, session.NewManager(dirs, bin), tracker, proc.Snapshot, append(opts, core.WithKillGrace(testKillGrace))...)
 	t.Cleanup(func() { killLeftovers(svc) })
 	return svc

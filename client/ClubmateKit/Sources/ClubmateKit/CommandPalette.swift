@@ -21,10 +21,12 @@ public enum CommandPalette {
 public struct PaletteWorkspace: Hashable, Sendable {
     public let id: String
     public let name: String
+    public let home: Bool
 
-    public init(id: String, name: String) {
+    public init(id: String, name: String, home: Bool = false) {
         self.id = id
         self.name = name
+        self.home = home
     }
 }
 
@@ -33,6 +35,7 @@ public enum PaletteAction: Hashable, Sendable {
     case section(String)
     case toggleSidebar
     case openFolder
+    case openHome
     case newHomeTerminal
     case renameWorkspace
     case closeWorkspace
@@ -45,7 +48,7 @@ public enum PaletteAction: Hashable, Sendable {
     case openDoc
 
     private static let fixed: [PaletteAction] = [
-        .toggleSidebar, .openFolder, .newHomeTerminal,
+        .toggleSidebar, .openFolder, .openHome, .newHomeTerminal,
         .renameWorkspace, .closeWorkspace, .removeWorkspace, .moveWorkspaceToNewWindow,
         .switchWorktree, .newWorktree, .removeWorktree, .openDoc,
     ]
@@ -71,6 +74,7 @@ public enum PaletteAction: Hashable, Sendable {
         case .switchWorkspace(let id): "workspace:\(id)"
         case .toggleSidebar: "toggle-sidebar"
         case .openFolder: "open-folder"
+        case .openHome: "open-home"
         case .newHomeTerminal: "new-home-terminal"
         case .renameWorkspace: "rename-workspace"
         case .closeWorkspace: "close-workspace"
@@ -116,14 +120,17 @@ extension CommandPalette {
     private static func workspaceEntries(_ workspaces: [PaletteWorkspace], active: String?) -> [PaletteEntry] {
         var entries = [
             PaletteEntry(id: PaletteAction.openFolder.entryID, title: "Open folder…", detail: "⌘O"),
+            PaletteEntry(id: PaletteAction.openHome.entryID, title: "Open Home", detail: "⇧⌘H"),
             PaletteEntry(id: PaletteAction.newHomeTerminal.entryID, title: "New home terminal", detail: "⇧⌘N"),
         ]
         guard let active, workspaces.contains(where: { $0.id == active }) else { return entries }
         entries += [
             PaletteEntry(id: PaletteAction.renameWorkspace.entryID, title: "Rename workspace…", detail: ""),
             PaletteEntry(id: PaletteAction.closeWorkspace.entryID, title: "Close workspace", detail: ""),
-            PaletteEntry(id: PaletteAction.removeWorkspace.entryID, title: "Remove workspace…", detail: ""),
         ]
+        if workspaces.first(where: { $0.id == active })?.home != true {
+            entries.append(PaletteEntry(id: PaletteAction.removeWorkspace.entryID, title: "Remove workspace…", detail: ""))
+        }
         if workspaces.count > 1 {
             entries.append(PaletteEntry(id: PaletteAction.moveWorkspaceToNewWindow.entryID, title: "Move workspace to new window", detail: ""))
         }

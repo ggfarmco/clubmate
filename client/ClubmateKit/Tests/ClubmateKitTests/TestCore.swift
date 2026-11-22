@@ -25,6 +25,7 @@ final class TestCore {
             "CLUBMATE_STATE_DIR": paths.state.path(percentEncoded: false),
             "CLUBMATE_RUNTIME_DIR": paths.runtime.path(percentEncoded: false),
             "CLUBMATE_PLUGINS_PATH": bin.appending(path: "plugins").path(percentEncoded: false),
+            "CLUBMATE_HOME_WORKSPACE_DIR": base.appending(path: "home").path(percentEncoded: false),
         ]) { $1 }
     }
 

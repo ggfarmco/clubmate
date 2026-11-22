@@ -76,21 +76,3 @@ func TestOpenFoldersExactBeatsFirstFolder(t *testing.T) {
 	assert.False(t, created)
 	assert.Equal(t, exact.ID, got.ID)
 }
-
-func TestHomeWorkspace(t *testing.T) {
-	home, err := filepath.EvalSymlinks(t.TempDir())
-	require.NoError(t, err)
-	t.Setenv("HOME", home)
-	svc := testutil.NewService(t)
-	p, err := svc.HomeWorkspace(t.Context())
-	require.NoError(t, err)
-	again, err := svc.HomeWorkspace(t.Context())
-	require.NoError(t, err)
-	assert.Equal(t, p.ID, again.ID)
-	assert.True(t, again.Home)
-	assert.Equal(t, "~", again.Name)
-	assert.Equal(t, []string{home}, again.Paths())
-	all, err := svc.ListWorkspaces(t.Context())
-	require.NoError(t, err)
-	assert.Len(t, all, 1)
-}

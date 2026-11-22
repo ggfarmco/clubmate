@@ -20,7 +20,7 @@ final class ClubmateKitTests: XCTestCase {
         XCTAssertNotNil(ping.sessionProtocol)
         let workspace = try await client.createWorkspace(name: "demo", repos: [])
         let workspaces = try await client.listWorkspaces()
-        XCTAssertEqual(workspaces.map(\.name), ["demo"])
+        XCTAssertEqual(workspaces.map(\.name).sorted(), ["Home", "demo"])
         try core?.cli("session", "create", "--workspace", workspace.id, "--", "/bin/sleep", "60")
         let live = try await client.liveSessionCount()
         XCTAssertEqual(live, 1)

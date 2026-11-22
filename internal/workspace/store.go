@@ -31,7 +31,7 @@ var (
 )
 
 const (
-	homeName      = "~"
+	homeName      = "Home"
 	workspaceCols = "id, name, created_at, home, last_opened_at"
 	homeIndex     = `CREATE UNIQUE INDEX IF NOT EXISTS projects_home ON projects(home) WHERE home = 1`
 
@@ -149,6 +149,40 @@ func (s *Store) Home(ctx context.Context, dir string) (Workspace, bool, error) {
 		return Workspace{}, false, err
 	}
 	return p, false, nil
+}
+
+func (s *Store) SetHome(ctx context.Context, id, dir, oldName, newName string) error {
+	if err := validateRepo(dir); err != nil {
+		return err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer tx.Rollback()
+	var first string
+	if err := tx.QueryRowContext(ctx, `SELECT path FROM repos WHERE project_id = ? ORDER BY position LIMIT 1`, id).Scan(&first); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("get home folder: %w", err)
+	}
+	if first != dir {
+		stmts := []struct {
+			q    string
+			args []any
+		}{
+			{`DELETE FROM worktrees WHERE project_id = ? AND repo IN (?, ?)`, []any{id, first, dir}},
+			{`DELETE FROM repos WHERE project_id = ? AND path IN (?, ?)`, []any{id, first, dir}},
+			{`INSERT INTO repos(project_id, position, path, added_at) VALUES(?, (SELECT COALESCE(MIN(position), 1) - 1 FROM repos WHERE project_id = ?), ?, ?)`, []any{id, id, dir, time.Now().UnixNano()}},
+		}
+		for _, st := range stmts {
+			if _, err := tx.ExecContext(ctx, st.q, st.args...); err != nil {
+				return fmt.Errorf("set home folder: %w", err)
+			}
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE projects SET name = ? WHERE id = ? AND home = 1 AND name = ?`, newName, id, oldName); err != nil {
+		return fmt.Errorf("rename home workspace: %w", err)
+	}
+	return tx.Commit()
 }
 
 func (s *Store) FindByRepos(ctx context.Context, repos []string) (Workspace, bool, error) {

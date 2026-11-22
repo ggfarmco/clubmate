@@ -87,11 +87,17 @@ public struct Workspace: Codable, Sendable, Equatable, Identifiable, Hashable {
     public let id: String
     public let name: String
     public let folders: [Folder]?
+    public let home: Bool?
 
-    public init(id: String, name: String, folders: [Folder]? = nil) {
+    public init(id: String, name: String, folders: [Folder]? = nil, home: Bool? = nil) {
         self.id = id
         self.name = name
         self.folders = folders
+        self.home = home
+    }
+
+    public static func homeFirst(_ workspaces: [Workspace]) -> [Workspace] {
+        workspaces.filter { $0.home == true } + workspaces.filter { $0.home != true }
     }
 
     public var foldersLine: String? {

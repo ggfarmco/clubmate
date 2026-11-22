@@ -12,13 +12,16 @@ struct SwitcherGridView: View {
     @Environment(\.theme) private var theme
     @State private var highlight: Int?
     @State private var hovered: Int?
+    @State private var picking = false
+    @State private var pickCursor = 0
 
     static let tile = CGSize(width: 240, height: 150)
     private static let spacing: CGFloat = 16
     private static let padding: CGFloat = 24
 
     private var workspaces: [String] {
-        windows.window(windowID)?.workspaces ?? []
+        let all = windows.window(windowID)?.workspaces ?? []
+        return all.filter { app.workspace($0)?.home == true } + all.filter { app.workspace($0)?.home != true }
     }
 
     private var current: Int {
@@ -36,8 +39,8 @@ struct SwitcherGridView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { windows.hideSwitcher() }
                 ViewThatFits(in: .vertical) {
-                    panel(columns: columns)
-                    ScrollView { panel(columns: columns) }
+                    content(columns: columns)
+                    ScrollView { content(columns: columns) }
                 }
                 .background(theme.surface3)
                 .clipShape(RoundedRectangle(cornerRadius: theme.radius.xl))
@@ -55,6 +58,19 @@ struct SwitcherGridView: View {
     private func columns(width: CGFloat) -> Int {
         let available = width - Self.padding * 4 + Self.spacing
         return max(1, min(workspaces.count + 1, Int(available / (Self.tile.width + Self.spacing))))
+    }
+
+    @ViewBuilder private func content(columns: Int) -> some View {
+        if picking {
+            WelcomeView(windowID: windowID, cursor: pickEntries.indices.contains(pickCursor) ? pickEntries[pickCursor] : nil) { windows.hideSwitcher() }
+                .padding(Self.padding)
+        } else {
+            panel(columns: columns)
+        }
+    }
+
+    private var pickEntries: [WelcomeEntry] {
+        WelcomeEntry.all(app.workspaceStore?.workspaces ?? [])
     }
 
     private func panel(columns: Int) -> some View {
@@ -91,7 +107,13 @@ struct SwitcherGridView: View {
                 if let workspace, workspace == windows.window(windowID)?.active {
                     Circle().fill(theme.accent).frame(width: 6, height: 6)
                 }
-                Text(workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open folder…")
+                if let workspace, app.workspace(workspace)?.home == true {
+                    Image(systemName: "house")
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.muted)
+                        .accessibilityHidden(true)
+                }
+                Text(workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open…")
                     .font(theme.ui)
                     .foregroundStyle(highlighted ? theme.foreground : theme.muted)
                     .lineLimit(1)
@@ -111,7 +133,7 @@ struct SwitcherGridView: View {
         }
         .onTapGesture { choose(index) }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open folder…")
+        .accessibilityLabel(workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open…")
         .accessibilityAddTraits(workspace != nil && workspace == windows.window(windowID)?.active ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { choose(index) }
         .accessibilityActions {
@@ -119,7 +141,7 @@ struct SwitcherGridView: View {
                 Button("Close workspace") { close(workspace) }
             }
         }
-        .testNode("switcher#\(workspace ?? "open")", role: "button", label: workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open folder…")
+        .testNode("switcher#\(workspace ?? "open")", role: "button", label: workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open…")
     }
 
     private func closeButton(_ workspace: String, highlighted: Bool) -> some View {
@@ -133,7 +155,7 @@ struct SwitcherGridView: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .help("Close workspace ⌫")
+        .help("Close from this window")
         .padding(theme.spacing.s)
         .testNode("switcher.close#\(workspace)", role: "button", label: "Close workspace")
     }
@@ -179,13 +201,23 @@ struct SwitcherGridView: View {
     private func handle(_ key: SwitcherKey, columns: Int) {
         switch key {
         case .arrow(let arrow):
+            if picking {
+                pickCursor = SwitcherGrid.pickerMove(cursor: pickCursor, count: pickEntries.count, key: arrow)
+                return
+            }
             highlight = SwitcherGrid.move(highlight: current, count: workspaces.count, columns: columns, key: arrow)
         case .choose:
-            choose(current)
+            if picking {
+                if pickEntries.indices.contains(pickCursor), actions.pick(pickEntries[pickCursor], in: windowID) {
+                    windows.hideSwitcher()
+                }
+            } else {
+                choose(current)
+            }
         case .dismiss:
-            windows.hideSwitcher()
+            if picking { picking = false } else { windows.hideSwitcher() }
         case .close:
-            if workspaces.indices.contains(current) { close(workspaces[current]) }
+            if !picking, workspaces.indices.contains(current) { close(workspaces[current]) }
         }
     }
 
@@ -195,8 +227,9 @@ struct SwitcherGridView: View {
 
     private func choose(_ index: Int) {
         guard workspaces.indices.contains(index) else {
-            windows.hideSwitcher()
-            return actions.openFolder(in: windowID)
+            pickCursor = pickEntries.firstIndex { if case .workspace = $0 { true } else { false } } ?? 0
+            picking = true
+            return
         }
         windows.activateFromSwitcher(workspaces[index], in: windowID)
     }

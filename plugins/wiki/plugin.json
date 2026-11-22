@@ -12,7 +12,8 @@
         "title": "Search wiki",
         "hidden": true,
         "agent": true,
-        "description": "Full-text search of this project's wiki (title > headings > body, any case, every word must match). The wiki is the project's knowledge base the user reads: how subsystems work, why things were decided, examples. Search it before you explore a subsystem; it may already explain it. A page with stale true explains code that changed on the default branch after it was written: check it against the code and refresh it with wiki_write. Fails with no wiki here in the home workspace.",
+        "readOnly": true,
+        "description": "Full-text search of this project's wiki (title > headings > body, any case, every word must match). The wiki is the project's knowledge base the user reads: how subsystems work, why things were decided, examples. Search it before you explore a subsystem; it may already explain it. A page with stale true explains code that changed on the default branch after it was written: check it against the code and refresh it with wiki_write.",
         "args": {
           "properties": {
             "query": {"type": "string", "description": "Words to find."},
@@ -43,7 +44,8 @@
         "title": "List wiki pages",
         "hidden": true,
         "agent": true,
-        "description": "List this project's wiki pages by path, with title, last change, who made it and whether the page is stale. Fails with no wiki here in the home workspace.",
+        "readOnly": true,
+        "description": "List this project's wiki pages by path, with title, last change, who made it and whether the page is stale.",
         "args": {
           "properties": {
             "shadow": {"type": "boolean", "description": "Also list the agents' own notes under .agents/."}
@@ -72,6 +74,7 @@
         "title": "Read wiki page",
         "hidden": true,
         "agent": true,
+        "readOnly": true,
         "description": "Read one wiki page: its content and metadata. Fails with bad page path, not a page, not found or no wiki here.",
         "args": {
           "properties": {

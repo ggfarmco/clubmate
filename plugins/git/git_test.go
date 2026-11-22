@@ -641,27 +641,16 @@ func TestSwitchRefusedWhileBusy(t *testing.T) {
 	assert.Empty(t, waitOp(t, h, id, op).Error)
 }
 
-func TestHomeWorkspaceHasNoWorktrees(t *testing.T) {
-	for _, key := range []string{"GOPATH", "GOMODCACHE", "GOCACHE"} {
-		out, err := exec.Command("go", "env", key).Output()
-		require.NoError(t, err)
-		t.Setenv(key, strings.TrimSpace(string(out)))
-	}
-	home, err := filepath.EvalSymlinks(t.TempDir())
-	require.NoError(t, err)
-	t.Setenv("HOME", home)
-	git(t, home, "init", "-q")
+func TestHomeWorkspaceListsWorktrees(t *testing.T) {
 	h := testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
 	p, err := h.Svc.HomeWorkspace(t.Context())
 	require.NoError(t, err)
+	require.Len(t, p.Folders, 1)
 	waitReady(t, h)
 
-	assert.Empty(t, listWorktrees(t, h, p.ID))
-	assert.ErrorContains(t, runCommand(t, h, p.ID, "git.worktree-switch", map[string]string{"path": home}, nil), "worktrees unavailable in the home workspace")
-	_, err = startOp(t, h, p.ID, "git.worktree-new", map[string]string{"branch": "x"})
-	assert.ErrorContains(t, err, "worktrees unavailable in the home workspace")
-	_, err = startOp(t, h, p.ID, "git.worktree-remove", map[string]string{"path": home})
-	assert.ErrorContains(t, err, "worktrees unavailable in the home workspace")
+	list := listWorktrees(t, h, p.ID)
+	require.Len(t, list, 1)
+	assert.Equal(t, p.Folders[0].Path, list[0].Path)
 }
 
 type branchEntry struct {

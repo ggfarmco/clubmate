@@ -1087,12 +1087,8 @@ func TestImportStartsAgentSession(t *testing.T) {
 func TestImportRefused(t *testing.T) {
 	home := importHome(t)
 	e := startEditorIn(t, setup{plugins: []string{fakeAgents(t)}})
-	p, err := e.h.Svc.HomeWorkspace(t.Context())
-	require.NoError(t, err)
-	err = e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.import-config", "workspaceId": p.ID}, nil)
-	assert.ErrorContains(t, err, "open a folder workspace first")
 	require.NoError(t, os.RemoveAll(filepath.Join(home, ".config", "nvim")))
-	err = e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.import-config", "workspaceId": e.workspaceID}, nil)
+	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.import-config", "workspaceId": e.workspaceID}, nil)
 	assert.ErrorContains(t, err, "no ~/.config/nvim to import")
 	testutil.Never(t, func() bool { return len(agentCalls(t, e, 0)) > 0 }, 250*time.Millisecond)
 }

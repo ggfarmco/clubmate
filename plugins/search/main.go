@@ -15,8 +15,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/sourcegraph/jsonrpc2"
-
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/fileindex"
 	"clubmate/plugins/internal/fuzzy"
@@ -31,7 +29,6 @@ const (
 var (
 	errUnknownCommand = errors.New("unknown command")
 	errNoWorkspace    = errors.New("command needs a workspace")
-	errHome           = &jsonrpc2.Error{Code: jsonrpc2.CodeInvalidParams, Message: "search unavailable in the home workspace"}
 )
 
 type filesArgs struct {
@@ -288,9 +285,6 @@ func lookupWorkspace(ctx context.Context, h *pluginsdk.Host, id string) (plugins
 	p, err := h.GetWorkspace(ctx, id)
 	if err != nil {
 		return pluginsdk.Workspace{}, err
-	}
-	if p.Home {
-		return pluginsdk.Workspace{}, errHome
 	}
 	return p, nil
 }

@@ -11,6 +11,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⌘N | New (terminal or item in the current section; in Backlog it opens the New task field above the list and focuses it, like the sidebar header's +, in Triggers and Cron it starts an agent session that asks you for a trigger or a cron job and adds it) | `ClubmateApp.swift` |
 | ⇧⌘N | New Home Terminal | `ClubmateApp.swift` |
 | ⌘O | Open Folder… | `ClubmateApp.swift` |
+| ⇧⌘H | Open Home in this window (File › Open Recent, item 1; also the Home row on Welcome and Open Home in ⌘K) | `ClubmateApp.swift` |
 | ⇧⌘D | Open Doc…: fuzzy picker over `docs.list` (agent-written docs first), ↩ opens the doc in the popup | `ClubmateApp.swift` |
 | ⌘W | In Terminals, close the selected terminal, asking first while it runs a process; in a window with no workspace, close the window; in other sections of a workspace window, nothing (the popup and VS Code have their own rows) | `ClubmateApp.swift` (`CloseKeyOwner`) |
 | ⌥⌘⌫ | Close Session: the terminal session shown in the main pane, asking first while it runs a process (as ⌘W); in Agents the selected agent session with its child sessions, as its row's Close Session (a closed one stays as it is), asking first while its turn or a child session's turn runs or waits (`agents.busy`); with focus anywhere in an aside beside its parent (its prompt, a message, a card), that aside (Close without sending? when something is unsent) | `ClubmateApp.swift`, `ClubmateKit/CommandInvocation.swift` (`AgentsSection`) |

@@ -111,16 +111,6 @@ func TestWorkspaceSearchMissingSourceIsSkipped(t *testing.T) {
 	assert.Contains(t, errs["docs"], "boom")
 }
 
-func TestWorkspaceSearchHomeSkipsWiki(t *testing.T) {
-	h, _ := startWorkspace(t, tempDir(t))
-	home, err := h.Svc.HomeWorkspace(t.Context())
-	require.NoError(t, err)
-
-	got := searchWorkspace(t, h, home.ID, map[string]any{"query": "plan"})
-
-	assert.ElementsMatch(t, []string{"sessions", "tasks", "docs"}, errorIDs(got))
-}
-
 func startWorkspace(t *testing.T, folder string, pluginDirs ...string) (*testutil.PluginHarness, string) {
 	t.Helper()
 	dirs := append([]string{testutil.BuildPluginDir(t, "clubmate/plugins/search", "plugins/search/plugin.json")}, pluginDirs...)

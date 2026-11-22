@@ -121,9 +121,6 @@ func baseFolders(ctx context.Context, h *pluginsdk.Host) ([]string, error) {
 	}
 	var folders []string
 	for _, w := range list {
-		if w.Home {
-			continue
-		}
 		for _, r := range w.Folders {
 			folders = append(folders, r.Path)
 		}

@@ -131,7 +131,7 @@ func (a *app) reportNight(ctx context.Context, date, workspace string, host *ses
 }
 
 func (a *app) reportRestart(ctx context.Context, ledger nightLedger, refused int) {
-	workspaces, err := a.nightWorkspaces(ctx)
+	workspaces, err := a.host.ListWorkspaces(ctx)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "agents: night restart report:", err)
 		return

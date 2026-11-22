@@ -77,8 +77,12 @@ struct WorkspaceView: View {
                 let store = session.store
                 let section = store?.sections.first { $0.id == new.section }
                 let main = new.section.flatMap { store?.mainTree($0) }
-                guard session.autoNew.fires(from: old, to: new, section: section, main: main) else { return }
-                session.run(.new(section: new.section, commands: app.commands))
+                let terminals = new.section == TerminalsSection.id
+                guard session.autoNew.fires(from: old, to: new, section: section, main: main) else {
+                    if terminals, main != nil { session.clearAutoNewArgs() }
+                    return
+                }
+                session.run(.new(section: new.section, commands: app.commands, args: terminals ? session.takeAutoNewArgs() : .null))
             }
             .onChange(of: sidebarKey) { old, new in
                 guard let new, new.hidden, old?.section == new.section, old?.hidden == false else { return }
@@ -158,7 +162,7 @@ struct WorkspaceView: View {
     }
 
     private func paletteEntries() -> [PaletteEntry] {
-        let workspaces = (windows.window(windowID)?.workspaces ?? []).map { PaletteWorkspace(id: $0, name: app.workspace($0)?.name ?? $0) }
+        let workspaces = (windows.window(windowID)?.workspaces ?? []).map { PaletteWorkspace(id: $0, name: app.workspace($0)?.name ?? $0, home: app.workspace($0)?.home == true) }
         let sections = app.settings.ordered(session.store?.sections ?? [])
         return CommandPalette.entries(commands: app.commands, sections: sections, sidebar: true, chat: session.store?.togglesChat == true, workspaces: workspaces, active: session.workspaceID, worktrees: session.worktrees.worktrees)
     }
@@ -169,6 +173,7 @@ struct WorkspaceView: View {
         case .section(let id): session.store?.select(id)
         case .toggleSidebar: session.store?.toggleSidebar()
         case .openFolder: actions.openFolder(in: windowID)
+        case .openHome: actions.openHome(in: windowID)
         case .newHomeTerminal: actions.newHomeTerminal(in: windowID)
         case .renameWorkspace: actions.rename(session.workspaceID)
         case .closeWorkspace: windows.closeWorkspace(session.workspaceID, in: windowID)

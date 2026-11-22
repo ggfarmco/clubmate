@@ -30,6 +30,8 @@ final class WorkspaceSession {
     private(set) var filePicker: FilePickerModel?
     var thumbnail: NSImage?
     var autoNewRequest = 0
+    @ObservationIgnored private var autoNewArgs: JSONValue = .null
+    @ObservationIgnored private var terminalWaiting = false
     var popupPoppedOut = false
     var popupHidden = false
     private(set) var popupFocusRequest = 0
@@ -268,7 +270,28 @@ final class WorkspaceSession {
         if let launchSection { store.show(section: launchSection) }
         legacyChat = nil
         self.store = store
+        if terminalWaiting { openTerminal(store) }
         return store
+    }
+
+    func requestTerminal(cwd: String) {
+        autoNewArgs = .object(["cwd": .string(cwd)])
+        if let store { openTerminal(store) } else { terminalWaiting = true }
+    }
+
+    func takeAutoNewArgs() -> JSONValue {
+        defer { autoNewArgs = .null }
+        return autoNewArgs
+    }
+
+    func clearAutoNewArgs() {
+        autoNewArgs = .null
+    }
+
+    private func openTerminal(_ store: WorkspaceUIStore) {
+        terminalWaiting = false
+        store.show(section: TerminalsSection.id)
+        autoNewRequest += 1
     }
 
     func run(_ invocation: CommandInvocation?) {

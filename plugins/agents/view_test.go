@@ -48,6 +48,24 @@ func rawJSON(t *testing.T, v any) json.RawMessage {
 	return raw
 }
 
+func TestPickSessionViewOffersNewSession(t *testing.T) {
+	t.Parallel()
+	project := pickSessionView(false)
+	home := pickSessionView(true)
+
+	for _, n := range []sdui.Node{project, home} {
+		require.Len(t, n.Children, 1)
+		assert.Equal(t, actNew, n.Children[0].Props["action"])
+		assert.Equal(t, newSessionText, n.Children[0].Props["label"])
+		assert.Equal(t, "cmd+n", n.Children[0].Props["shortcut"])
+		assert.Equal(t, pickIcon, n.Props["icon"])
+		assert.Equal(t, true, n.Props["center"])
+	}
+	assert.Equal(t, pickSession, project.Props["text"])
+	assert.Equal(t, homePickTitle, home.Props["title"])
+	assert.Equal(t, homePickText, home.Props["text"])
+}
+
 func TestSidebarGroupsByWorktree(t *testing.T) {
 	t.Parallel()
 	now := time.Now()

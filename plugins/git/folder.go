@@ -13,9 +13,8 @@ import (
 )
 
 var (
-	errNoGitFolder   = errors.New("no git folder in the workspace")
-	errUnknownRepo   = errors.New("unknown repository")
-	errHomeWorktrees = errors.New("worktrees unavailable in the home workspace")
+	errNoGitFolder = errors.New("no git folder in the workspace")
+	errUnknownRepo = errors.New("unknown repository")
 )
 
 type folder struct {
@@ -33,9 +32,6 @@ func gitFolder(ctx context.Context, h *pluginsdk.Host, workspaceID, repo string)
 	p, err := h.GetWorkspace(ctx, workspaceID)
 	if err != nil {
 		return nil, err
-	}
-	if p.Home {
-		return nil, errHomeWorktrees
 	}
 	for i, r := range p.Folders {
 		if repo != "" && r.Path != repo {
@@ -59,9 +55,6 @@ func eachFolder(ctx context.Context, h *pluginsdk.Host, workspaceID string, fn f
 	p, err := h.GetWorkspace(ctx, workspaceID)
 	if err != nil {
 		return err
-	}
-	if p.Home {
-		return nil
 	}
 	for i := range p.Folders {
 		f, err := openFolder(ctx, p, i)

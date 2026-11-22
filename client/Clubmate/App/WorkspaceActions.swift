@@ -19,12 +19,27 @@ final class WorkspaceActions {
         self.workspace = workspace
     }
 
-    func openFolder(in window: String?) {
-        guard let folders = Self.chooseFolders(prompt: "Open") else { return }
+    @discardableResult
+    func openFolder(in window: String?) -> Bool {
+        guard let folders = Self.chooseFolders(prompt: "Open") else { return false }
         perform { [windows] client in
             let id = try await client.openFolders(folders)
             windows.open(id, in: window)
         }
+        return true
+    }
+
+    @discardableResult
+    func pick(_ entry: WelcomeEntry, in window: String?) -> Bool {
+        switch entry {
+        case .openFolder:
+            return openFolder(in: window)
+        case .newTerminal:
+            newHomeTerminal(in: window)
+        case .workspace(let id):
+            windows.open(id, in: window)
+        }
+        return true
     }
 
     func newHomeTerminal(in window: String?) {
@@ -32,8 +47,13 @@ final class WorkspaceActions {
             let id = try await client.homeWorkspace()
             windows.open(id, in: window)
             let session = sessions.existing(id)
-            session?.store?.show(section: TerminalsSection.id)
-            session?.autoNewRequest += 1
+            session?.requestTerminal(cwd: NSHomeDirectory())
+        }
+    }
+
+    func openHome(in window: String?) {
+        perform { [windows] client in
+            windows.open(try await client.homeWorkspace(), in: window)
         }
     }
 
@@ -55,6 +75,7 @@ final class WorkspaceActions {
     }
 
     func remove(_ workspaceID: String) {
+        guard workspace(workspaceID)?.home != true else { return }
         Task {
             guard await Confirmation.ask(
                 "Remove “\(workspace(workspaceID)?.name ?? "workspace")”?",

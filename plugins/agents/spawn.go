@@ -28,7 +28,6 @@ const (
 )
 
 var (
-	errHome       = errors.New("Agents aren't available in the home workspace")
 	errNoFolder   = errors.New("the workspace has no folders")
 	errNotGit     = errors.New("the worktree is not in a git folder of the workspace")
 	errBadBranch  = errors.New("not a valid branch name")
@@ -161,9 +160,6 @@ func workspaceRoot(ctx context.Context, h *pluginsdk.Host, workspaceID string) (
 	p, err := h.GetWorkspace(ctx, workspaceID)
 	if err != nil {
 		return pluginsdk.Workspace{}, "", err
-	}
-	if p.Home {
-		return pluginsdk.Workspace{}, "", errHome
 	}
 	root, _, err := workRoot(p)
 	return p, root, err

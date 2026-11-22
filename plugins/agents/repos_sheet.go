@@ -148,7 +148,7 @@ func (f reposFound) left(added map[string]bool) int {
 func (a *app) addReposActions(ctx context.Context, workspaceID string, folders []worktreeFolder) []pickerAddRepos {
 	var out []pickerAddRepos
 	w, err := a.host.GetWorkspace(ctx, workspaceID)
-	if err != nil || w.Home {
+	if err != nil {
 		return out
 	}
 	added := addedPaths(w)
@@ -174,7 +174,7 @@ func (a *app) offerRepos(workspaceID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), reposRead)
 	defer cancel()
 	w, err := a.host.GetWorkspace(ctx, workspaceID)
-	if err != nil || w.Home {
+	if err != nil {
 		return
 	}
 	added := addedPaths(w)

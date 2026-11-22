@@ -50,6 +50,7 @@ type CommandDef struct {
 	Remote      bool           `json:"remote"`
 	Scope       string         `json:"scope,omitempty"`
 	Destructive bool           `json:"destructive"`
+	ReadOnly    bool           `json:"readOnly"`
 	Provides    []string       `json:"provides,omitempty"`
 	Handles     []string       `json:"handles,omitempty"`
 	Aliases     []string       `json:"aliases,omitempty"`
@@ -363,7 +364,7 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 		return nil, invalidParams(err.Error())
 	}
 	if p.Agent {
-		if err := s.requireCallerIn(ctx, p.Caller, p.WorkspaceID); err != nil {
+		if err := s.requireCallerIn(ctx, p.Caller, p.WorkspaceID, c.ReadOnly); err != nil {
 			return nil, err
 		}
 		if p.Args, err = exactArgs(c, p.Args); err != nil {
@@ -375,7 +376,9 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 			return nil, err
 		}
 		if p.Agent && scope != p.WorkspaceID {
-			return nil, fmt.Errorf("%w: the session is not in workspace %q; agents act only in their own workspace", ErrDenied, p.WorkspaceID)
+			if err := s.requireScopeIn(ctx, c, p.Caller, p.WorkspaceID); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if p.Agent && c.Destructive {

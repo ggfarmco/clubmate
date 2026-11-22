@@ -133,9 +133,6 @@ func (a *app) worktreeIndex(ctx context.Context, c call) ([]indexEntry, error) {
 		return nil, err
 	}
 	out := []indexEntry{}
-	if p.Home {
-		return out, nil
-	}
 	cached, complete, fresh := c.state.indexSnapshot(p)
 	switch {
 	case !complete:

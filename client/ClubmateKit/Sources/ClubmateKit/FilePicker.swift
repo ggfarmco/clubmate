@@ -66,7 +66,6 @@ public struct HighlightRun: Equatable, Sendable {
 public enum FilePickerStatus: Equatable, Sendable {
     case ready
     case indexing
-    case unavailable
     case failed(String)
 }
 
@@ -74,8 +73,6 @@ public enum FilePickerStatus: Equatable, Sendable {
 @Observable
 public final class FilePickerModel {
     public static let searchCommand = "search.files"
-    public static let homeError = "search unavailable in the home workspace"
-    public static let homeMessage = "Search isn't available in the home workspace"
 
     public typealias Run = @MainActor (CommandInvocation) async -> Result<JSONValue, ClubmateError>
 
@@ -180,13 +177,8 @@ public final class FilePickerModel {
             results = []
             truncated = false
             capped = false
-            status = Self.isHome(error) ? .unavailable : .failed(error.message)
+            status = .failed(error.message)
         }
         selection = 0
-    }
-
-    private static func isHome(_ error: ClubmateError) -> Bool {
-        if case .rpc(_, let message) = error { return message.hasSuffix(homeError) }
-        return false
     }
 }

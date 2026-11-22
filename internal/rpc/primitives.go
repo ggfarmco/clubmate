@@ -25,7 +25,7 @@ type primitive struct {
 
 var primitives = browserPrimitives(map[string]primitive{
 	"workspace.list": {
-		cmd:    coreCommand("workspace.list", "List Workspaces", "List the workspaces, most recently opened first.", nil),
+		cmd:    readOnly(coreCommand("workspace.list", "List Workspaces", "List the workspaces, most recently opened first.", nil)),
 		method: "workspace.list",
 	},
 	"workspace.open": {
@@ -39,7 +39,7 @@ var primitives = browserPrimitives(map[string]primitive{
 		params: passArgs,
 	},
 	"workspace.home": {
-		cmd:    coreCommand("workspace.home", "Open Home Workspace", "Open the home workspace (rooted at the user's home directory) in the app.", nil),
+		cmd:    coreCommand("workspace.home", "Open Home Workspace", "Open the Home workspace in its own folder in the app.", nil),
 		method: "workspace.home",
 	},
 	"workspace.worktree.set": {
@@ -74,7 +74,7 @@ var primitives = browserPrimitives(map[string]primitive{
 		params:         withWorkspace,
 	},
 	"session.list": {
-		cmd:         coreCommand("session.list", "List Sessions", "List the terminal and plugin sessions of the workspace.", nil),
+		cmd:         readOnly(coreCommand("session.list", "List Sessions", "List the terminal and plugin sessions of the workspace.", nil)),
 		method:      "session.list",
 		agentScoped: true,
 	},
@@ -114,20 +114,20 @@ var primitives = browserPrimitives(map[string]primitive{
 		scope:  sessionWorkspace,
 	},
 	"session.read": {
-		cmd: coreCommand("session.read", "Read Session", "Read the tail of a session's output, without ANSI escapes unless raw. A full-screen app gives altScreen true and no text.", &schema.Object{
+		cmd: readOnly(coreCommand("session.read", "Read Session", "Read the tail of a session's output, without ANSI escapes unless raw. A full-screen app gives altScreen true and no text.", &schema.Object{
 			Properties: map[string]schema.Prop{
 				"id":    {Type: "string", Description: "Session id."},
 				"bytes": {Type: "integer", Description: "Bytes of output to read from the end (default 16384, max 262144)."},
 				"raw":   {Type: "boolean", Description: "Keep ANSI escapes."},
 			},
 			Required: []string{"id"},
-		}),
+		})),
 		method: "session.read",
 		params: passArgs,
 		scope:  sessionWorkspace,
 	},
 	"process.tree": {
-		cmd:         coreCommand("process.tree", "Process Tree", "List the processes of the workspace's sessions and of processes plugins register for it (e.g. agents), flagging orphans and duplicates.", nil),
+		cmd:         readOnly(coreCommand("process.tree", "Process Tree", "List the processes of the workspace's sessions and of processes plugins register for it (e.g. agents), flagging orphans and duplicates.", nil)),
 		method:      "process.tree",
 		agentScoped: true,
 	},
@@ -182,6 +182,11 @@ func coreCommand(id, title, description string, args *schema.Object) Command {
 
 func destructive(c Command) Command {
 	c.Destructive = true
+	return c
+}
+
+func readOnly(c Command) Command {
+	c.ReadOnly = true
 	return c
 }
 

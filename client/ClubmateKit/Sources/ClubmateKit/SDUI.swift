@@ -39,6 +39,10 @@ public struct Workspace: Codable, Sendable, Equatable {
         lastOpenedAt = try container.decodeIfPresent(Date.self, forKey: .lastOpenedAt)
     }
 
+    public static func home(in workspaces: [Workspace]) -> Workspace? {
+        workspaces.first { $0.home }
+    }
+
     public static func recents(_ workspaces: [Workspace], hiddenBefore cutoff: Date? = nil) -> [Workspace] {
         workspaces
             .filter { workspace in

@@ -18,6 +18,11 @@ import (
 
 const (
 	pickSession    = "Start an agent session with + New"
+	homePickTitle  = "Start a session about anything"
+	pickIcon       = "sparkles"
+	homePickText   = "Agents in Home can read every workspace's backlog, sessions and wiki, and never change them. Try \"What waits for me today?\""
+	newSessionNode = "main/new"
+	newSessionText = "New session"
 	noCodeTitle    = "No agent session in this worktree"
 	noCodeSession  = "Start one to ask about the code you're on."
 	codeSelectNode = "code/session"
@@ -189,6 +194,14 @@ func mainView(sc screen) sdui.Node {
 		children = append(children, sendBackPanel(sid, *sc.SendBack))
 	}
 	return sdui.VStack(append(children, composer(sc))...)
+}
+
+func pickSessionView(home bool) sdui.Node {
+	add := sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button(newSessionNode, newSessionText, "plus"), actNew), sdui.VariantPrimary), "cmd+n")
+	if home {
+		return sdui.EmptyState(homePickText, sdui.EmptyProps{Title: homePickTitle, Icon: pickIcon, Action: &add, Center: true})
+	}
+	return sdui.EmptyState(pickSession, sdui.EmptyProps{Icon: pickIcon, Action: &add, Center: true})
 }
 
 func codeView(recs []record, bound string, sc *screen, file string) sdui.Node {

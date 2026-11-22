@@ -13,13 +13,13 @@ struct WorkspaceCapsule: View {
             ForEach(model.computers) { computer in
                 if let connection = model.connection(computer.id) {
                     Section(connection.computer.name + " · " + connection.shortPresence) {
-                        ForEach(connection.workspaces) { workspace in
+                        ForEach(Workspace.homeFirst(connection.workspaces)) { workspace in
                             let key = WorkspaceKey(computer: computer.id, workspace: workspace.id)
                             let waiting = model.waitingCount(computer: computer.id, workspace: workspace.id)
                             Button {
                                 navigation.switchWorkspace(computer: computer.id, workspace: workspace.id)
                             } label: {
-                                Label(workspace.name, systemImage: key == current ? "checkmark" : "folder")
+                                Label(workspace.name, systemImage: key == current ? "checkmark" : (workspace.home == true ? "house" : "folder"))
                                 if waiting > 0 {
                                     Text("\(waiting) waiting")
                                 }
