@@ -65,7 +65,7 @@ firstRun   nvimImport unasked | imported | declined
 |---|---|---|
 | Welcome | title · line | Clubmate · Your workshop, set up your way. |
 | Welcome | primary · row | Open folder… ⌘O · Home · agents across all projects ⇧⌘H |
-| Welcome | keys | ↑↓ choose · ⏎ open · ⇧⌘N new terminal · ⌘K commands |
+| Welcome | keys | ↑↓ choose · ⏎ open · ⇧⌘N new terminal (no ⌘K: the palette needs a workspace) |
 | Setup node_missing | row / empty title · detail · action | Node 22+ is required to run Claude · Node not found · Install Node… |
 | | empty text · hint | Claude runs through claude-agent-acp, which needs Node 22 or later. · Runs brew install node@22 in a terminal tab. Checked again when it finishes. |
 | Setup node_old | detail · text | found 18.19 · Found Node 18.19 at /usr/local/bin/node. Claude runs through claude-agent-acp, which needs Node 22 or later. |

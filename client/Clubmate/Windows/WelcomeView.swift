@@ -1,14 +1,14 @@
+import AppKit
 import SwiftUI
 
 import ClubmateKit
 
 enum WelcomeEntry: Hashable {
     case openFolder
-    case newTerminal
     case workspace(String)
 
     static func all(_ workspaces: [Workspace]) -> [WelcomeEntry] {
-        [.openFolder, .newTerminal]
+        [.openFolder]
             + (Workspace.home(in: workspaces).map { [.workspace($0.id)] } ?? [])
             + Workspace.recents(workspaces).map { .workspace($0.id) }
     }
@@ -25,11 +25,42 @@ struct WelcomeView: View {
     @Environment(\.theme) private var theme
     @State private var height: CGFloat = 0
     @State private var watch = StartupWatch()
+    @State private var own: WelcomeEntry = .openFolder
 
     static let recentPlaceholders = 8
 
+    private var entries: [WelcomeEntry] {
+        WelcomeEntry.all(app.workspaceStore?.workspaces ?? [])
+    }
+
+    private var current: WelcomeEntry? {
+        if picked != nil { return cursor }
+        return entries.contains(own) ? own : .openFolder
+    }
+
+    private func handle(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags
+        guard !flags.contains(.shift),
+              let action = ListKeys.welcome(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), option: flags.contains(.option))
+        else { return false }
+        let list = entries
+        switch action {
+        case .move(let delta):
+            guard let index = list.firstIndex(of: current ?? .openFolder) else { return false }
+            own = list[SwitcherGrid.step(cursor: index, count: list.count, by: delta)]
+        case .open:
+            choose(current ?? .openFolder)
+        }
+        return true
+    }
+
+    private var keysActive: Bool {
+        picked == nil && !(windowID != nil && windows.switcherWindow == windowID)
+    }
+
     var body: some View {
         welcome
+            .keyMonitor(active: keysActive, handle: handle)
             .task(id: starting) {
                 guard starting else { return }
                 await watch.run()
@@ -46,15 +77,17 @@ struct WelcomeView: View {
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: theme.gutter * 3) {
-            Text("Clubmate")
-                .font(theme.title)
-                .foregroundStyle(theme.foreground)
-            HStack(spacing: theme.gutter) {
-                WelcomeAction(title: "Open folder…", icon: "folder", shortcut: "⌘O", highlighted: cursor == .openFolder) { choose(.openFolder) }
-                WelcomeAction(title: "New terminal", icon: "terminal", shortcut: "⇧⌘N", highlighted: cursor == .newTerminal) { choose(.newTerminal) }
+            VStack(alignment: .leading, spacing: theme.spacing.xs) {
+                Text("Clubmate")
+                    .font(theme.title)
+                    .foregroundStyle(theme.foreground)
+                Text("Your workshop, set up your way.")
+                    .font(theme.ui)
+                    .foregroundStyle(theme.muted)
             }
+            WelcomeAction(title: "Open folder…", icon: "folder", shortcut: "⌘O", highlighted: current == .openFolder) { choose(.openFolder) }
             if let home = Workspace.home(in: app.workspaceStore?.workspaces ?? []) {
-                HomeRow(workspace: home, open: open.contains(home.id), highlighted: cursor == .workspace(home.id), defaultAction: picked == nil) {
+                HomeRow(workspace: home, open: open.contains(home.id), highlighted: current == .workspace(home.id)) {
                     choose(.workspace(home.id))
                 }
             }
@@ -78,15 +111,21 @@ struct WelcomeView: View {
                     Text("Recent")
                         .font(theme.uiSmall)
                         .foregroundStyle(theme.muted)
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(recents, id: \.id) { workspace in
-                                RecentRow(workspace: workspace, open: open.contains(workspace.id), highlighted: cursor == .workspace(workspace.id)) {
-                                    choose(.workspace(workspace.id))
-                                } remove: {
-                                    actions.remove(workspace.id)
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(recents, id: \.id) { workspace in
+                                    RecentRow(workspace: workspace, open: open.contains(workspace.id), highlighted: current == .workspace(workspace.id)) {
+                                        choose(.workspace(workspace.id))
+                                    } remove: {
+                                        actions.remove(workspace.id)
+                                    }
+                                    .id(workspace.id)
                                 }
                             }
+                        }
+                        .onChange(of: current) { _, entry in
+                            if case .workspace(let id) = entry { proxy.scrollTo(id) }
                         }
                     }
                     .frame(maxHeight: 360)
@@ -99,6 +138,14 @@ struct WelcomeView: View {
         .padding(.top, picked == nil ? height * 0.25 : 0)
         .frame(maxWidth: picked == nil ? .infinity : nil, maxHeight: picked == nil ? .infinity : nil, alignment: .top)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        .overlay(alignment: .bottom) {
+            if picked == nil {
+                Text("↑↓ choose · ⏎ open · ⇧⌘N new terminal")
+                    .font(theme.uiSmall)
+                    .foregroundStyle(theme.muted)
+                    .padding(.bottom, theme.gutter * 1.5)
+            }
+        }
     }
 
     private func choose(_ entry: WelcomeEntry) {
@@ -129,20 +176,22 @@ private struct WelcomeAction: View {
             HStack(spacing: theme.gutter) {
                 Image(systemName: icon)
                 Text(title)
+                    .fontWeight(.semibold)
                 Spacer(minLength: theme.gutter)
                 Text(shortcut)
-                    .foregroundStyle(theme.muted)
+                    .opacity(0.75)
             }
             .font(theme.ui)
-            .foregroundStyle(theme.foreground)
+            .foregroundStyle(theme.onAccent)
             .padding(.horizontal, theme.gutter * 1.5)
-            .frame(maxWidth: .infinity, minHeight: theme.rowHeight * 2)
-            .background(RoundedRectangle(cornerRadius: 6).fill(theme.foreground.opacity(hovering ? 0.10 : 0.05)))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(highlighted ? theme.accent : theme.border, lineWidth: highlighted ? theme.focusRing : 1))
+            .frame(maxWidth: .infinity, minHeight: theme.rowHeight * 1.5)
+            .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.accent.opacity(hovering ? 0.9 : 1)))
+            .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(highlighted ? theme.foreground : .clear, lineWidth: theme.focusRing))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        .testNode("welcome.open", role: "button", label: title)
     }
 }
 
@@ -177,7 +226,6 @@ private struct HomeRow: View {
     let workspace: Workspace
     let open: Bool
     var highlighted = false
-    var defaultAction = true
     let select: () -> Void
 
     @Environment(\.theme) private var theme
@@ -186,17 +234,14 @@ private struct HomeRow: View {
     var body: some View {
         Button(action: select) {
             HStack(spacing: theme.gutter) {
-                VStack(alignment: .leading, spacing: theme.spacing.xs) {
-                    Text(workspace.name)
-                        .font(theme.ui)
-                        .foregroundStyle(theme.foreground)
-                        .lineLimit(1)
-                    Text(folders)
-                        .font(theme.uiSmall)
-                        .foregroundStyle(theme.muted)
-                        .lineLimit(1)
-                        .truncationMode(.label)
-                }
+                Image(systemName: "house")
+                    .foregroundStyle(theme.muted)
+                    .accessibilityHidden(true)
+                (Text("Home").foregroundStyle(theme.foreground)
+                    + Text(" · agents across all projects").foregroundStyle(theme.muted))
+                    .font(theme.ui)
+                    .lineLimit(1)
+                    .truncationMode(.label)
                 Spacer(minLength: theme.gutter)
                 if open {
                     Text("open")
@@ -210,27 +255,15 @@ private struct HomeRow: View {
                     .overlay(RoundedRectangle(cornerRadius: theme.radius.s).stroke(theme.border))
             }
             .padding(.horizontal, theme.gutter)
-            .padding(.vertical, theme.gutter / 2)
+            .frame(minHeight: theme.rowHeight)
             .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(hovering || highlighted ? theme.hover : .clear))
             .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(highlighted ? theme.accent : .clear, lineWidth: theme.focusRing))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .keyboardShortcut(defaultAction ? .defaultAction : nil)
         .onHover { hovering = $0 }
-        .overlay(alignment: .leading) {
-            Image(systemName: "house")
-                .font(.system(size: 14))
-                .foregroundStyle(theme.muted)
-                .offset(x: -theme.gutter * 2.5)
-                .accessibilityHidden(true)
-        }
         .accessibilityLabel(workspace.name)
         .testNode("welcome.home", role: "button", label: workspace.name)
-    }
-
-    private var folders: String {
-        workspace.folders.map { ($0.path as NSString).abbreviatingWithTildeInPath }.joined(separator: ", ")
     }
 }
 

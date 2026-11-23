@@ -22,4 +22,13 @@ final class ListKeysTests: XCTestCase {
         }
         XCTAssertNil(ListKeys.gridArrow(keyCode: 38, control: true, command: false, option: false))
     }
+
+    func testWelcomeKeys() {
+        let plain: [(UInt16, ListKeyAction)] = [(125, .move(1)), (38, .move(1)), (126, .move(-1)), (40, .move(-1)), (36, .open), (76, .open)]
+        for (keyCode, action) in plain {
+            XCTAssertEqual(ListKeys.welcome(keyCode: keyCode, control: false, command: false, option: false), action, "\(keyCode)")
+        }
+        XCTAssertEqual(ListKeys.welcome(keyCode: 45, control: true, command: false, option: false), .move(1))
+        XCTAssertNil(ListKeys.welcome(keyCode: 125, control: false, command: true, option: false))
+    }
 }

@@ -18,13 +18,7 @@ public enum SwitcherGrid {
         return target
     }
 
-    public static func pickerMove(cursor: Int, count: Int, key: Arrow) -> Int {
-        let target = switch key {
-        case .left: cursor == 1 ? 0 : cursor
-        case .right: cursor == 0 ? 1 : cursor
-        case .up: cursor == 2 ? 0 : cursor > 2 ? cursor - 1 : cursor
-        case .down: cursor < 2 ? 2 : cursor + 1
-        }
-        return (0..<count).contains(target) ? target : cursor
+    public static func step(cursor: Int, count: Int, by delta: Int) -> Int {
+        (0..<count).contains(cursor + delta) ? cursor + delta : cursor
     }
 }

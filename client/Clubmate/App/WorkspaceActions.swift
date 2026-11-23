@@ -34,8 +34,6 @@ final class WorkspaceActions {
         switch entry {
         case .openFolder:
             return openFolder(in: window)
-        case .newTerminal:
-            newHomeTerminal(in: window)
         case .workspace(let id):
             windows.open(id, in: window)
         }

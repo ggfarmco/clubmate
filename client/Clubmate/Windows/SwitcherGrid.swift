@@ -202,7 +202,11 @@ struct SwitcherGridView: View {
         switch key {
         case .arrow(let arrow):
             if picking {
-                pickCursor = SwitcherGrid.pickerMove(cursor: pickCursor, count: pickEntries.count, key: arrow)
+                switch arrow {
+                case .up: pickCursor = SwitcherGrid.step(cursor: pickCursor, count: pickEntries.count, by: -1)
+                case .down: pickCursor = SwitcherGrid.step(cursor: pickCursor, count: pickEntries.count, by: 1)
+                case .left, .right: break
+                }
                 return
             }
             highlight = SwitcherGrid.move(highlight: current, count: workspaces.count, columns: columns, key: arrow)
