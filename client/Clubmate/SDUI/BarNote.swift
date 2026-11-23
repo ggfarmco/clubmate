@@ -31,6 +31,7 @@ struct BarNoteView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button(note.action) { note.dismiss() }
+                .testNode("barNote/dismiss", role: "button", label: note.action)
                 .buttonStyle(.plain)
                 .font(theme.uiSmall)
                 .foregroundStyle(theme.text2)

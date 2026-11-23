@@ -726,7 +726,7 @@ struct ItemRow<Leading: View>: View {
 
     var body: some View {
         row
-            .testRow(item.id, label: item.label, selected: selected, focused: cursor, hovered: hovering)
+            .testRow(item.id, label: item.label, selected: selected, focused: cursor, keyCap: keyCap != nil, hovered: hovering)
     }
 
     private var row: some View {

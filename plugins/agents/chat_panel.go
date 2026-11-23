@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
@@ -454,6 +455,13 @@ func isChatAction(ev pluginsdk.UIEvent) bool {
 		return ev.NodeID == panelNode
 	}
 	return false
+}
+
+func openFocuses(ev pluginsdk.UIEvent) bool {
+	var v struct {
+		Focus bool `json:"focus"`
+	}
+	return json.Unmarshal(ev.Value, &v) == nil && v.Focus
 }
 
 func (a *app) setCurrentReview(c currentReview) bool {

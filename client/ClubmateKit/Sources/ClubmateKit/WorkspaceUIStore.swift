@@ -331,7 +331,7 @@ public final class WorkspaceUIStore {
         }
         setChatHidden(selectedSection, false)
         chatHintShown = selectedSection == ChatHint.section && chatHint.show()
-        let event = UIEvent(workspaceId: workspaceID, slot: ChatColumn.slot(for: selectedSection), nodeId: "panel", action: "open")
+        let event = UIEvent(workspaceId: workspaceID, slot: ChatColumn.slot(for: selectedSection), nodeId: "panel", action: "open", value: .object(["focus": .bool(true)]))
         return Task { [weak self] in _ = await self?.send(event) }
     }
 

@@ -78,6 +78,7 @@ struct ChatColumnView: View {
     let commit: (Double) -> Void
 
     @Environment(\.theme) private var theme
+    @Environment(\.focusRouter) private var router
 
     private static let minWidth = CGFloat(ChatColumn.minWidth)
 
@@ -110,7 +111,10 @@ struct ChatColumnView: View {
 
     private var hint: BarNote? {
         guard store.chatHintShown, slot == ChatColumn.slot(for: ChatHint.section) else { return nil }
-        return BarNote(text: ChatHint.text, action: ChatHint.dismiss) { [store] in store.dismissChatHint() }
+        return BarNote(text: ChatHint.text, action: ChatHint.dismiss) { [store, router, slot] in
+            store.dismissChatHint()
+            router?.request(slot)
+        }
     }
 }
 

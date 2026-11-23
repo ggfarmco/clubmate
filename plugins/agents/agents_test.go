@@ -1828,6 +1828,17 @@ func TestRevealSameTurnAgainBumpsAnchorRev(t *testing.T) {
 func waitFocus(t *testing.T, c *rpc.Client, section, slot, node string) {
 	t.Helper()
 	deadline := time.After(testutil.Timeout(wait))
+	for got := focusBefore(t, c, section, slot, deadline); node != "" && got != node; got = focusBefore(t, c, section, slot, deadline) {
+	}
+}
+
+func nextFocus(t *testing.T, c *rpc.Client, section, slot string) string {
+	t.Helper()
+	return focusBefore(t, c, section, slot, time.After(testutil.Timeout(wait)))
+}
+
+func focusBefore(t *testing.T, c *rpc.Client, section, slot string, deadline <-chan time.Time) string {
+	t.Helper()
 	for {
 		select {
 		case n := <-c.Notifications():
@@ -1836,8 +1847,8 @@ func waitFocus(t *testing.T, c *rpc.Client, section, slot, node string) {
 			}
 			var got struct{ Section, Slot, Node string }
 			require.NoError(t, json.Unmarshal(n.Params, &got))
-			if got.Section == section && got.Slot == slot && (node == "" || got.Node == node) {
-				return
+			if got.Section == section && got.Slot == slot {
+				return got.Node
 			}
 		case <-deadline:
 			t.Fatal("no ui.focus notification")
@@ -1873,6 +1884,23 @@ func TestChatPanelNewFocusesThePanel(t *testing.T) {
 	waitFocus(t, c, editorSection, codeSlot, "")
 	panel := f.h.WaitSlot(t, workspace, codeSlot, func(n sdui.Node) bool { return len(cardsOf(n, "composer")) == 1 && !chatting(first)(n) })
 	assert.Len(t, buttonsWith(panel, actChatBack), 1)
+}
+
+func TestChatPanelOpenFocusesThePickerOnlyWhenAsked(t *testing.T) {
+	t.Parallel()
+	f := start(t, map[string]any{}, testutil.EchoPluginDirAs(t, codeManifest))
+	workspace := f.workspace(t, newRepo(t))
+	sid := f.newSession(t, workspace)
+	c := f.h.Client(t)
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": workspace}, nil))
+	f.h.Event(t, workspace, codeSlot, panelNode, actChatOpen, nil)
+	f.h.Event(t, workspace, codeSlot, chatSessionsNode, actChatPick, sid)
+	assert.Equal(t, sid+"/composer", nextFocus(t, c, editorSection, codeSlot))
+
+	f.h.Event(t, workspace, codeSlot, panelNode, actChatOpen, map[string]bool{"focus": true})
+	deadline := time.After(testutil.Timeout(wait))
+	for focusBefore(t, c, editorSection, codeSlot, deadline) != "" {
+	}
 }
 
 func TestCodePanelStarterAttachesEditorFile(t *testing.T) {

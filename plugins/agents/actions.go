@@ -171,7 +171,7 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 		sid := p.selected
 		a.uiMu.Unlock()
 		err = a.focusComposer(ctx, ev.WorkspaceID, sid)
-	case isChatAction(ev) && ev.Action != actChatOpen:
+	case isChatAction(ev) && (ev.Action != actChatOpen || openFocuses(ev)):
 		err = a.chatFocus(ctx, ev)
 	case ev.Action == actShowBranch:
 		err = h.FocusField(ctx, ev.WorkspaceID, sectionID)

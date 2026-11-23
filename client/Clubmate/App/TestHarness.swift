@@ -654,12 +654,13 @@ struct RowProbe: ViewModifier {
     let label: String
     let selected: Bool
     let focused: Bool
+    let keyCap: Bool
     let hovered: Bool
 
     @Environment(\.sduiParent) private var parent
 
     func body(content: Content) -> some View {
-        content.background(TestProbe(nodeID: "\(parent ?? "")#\(id)", source: "row", role: (["row"] + (selected ? ["selected"] : []) + (focused ? ["focused"] : []) + (hovered ? ["hovered"] : [])).joined(separator: " "), label: label, parent: parent, idealWidth: nil, menu: nil))
+        content.background(TestProbe(nodeID: "\(parent ?? "")#\(id)", source: "row", role: (["row"] + (selected ? ["selected"] : []) + (focused ? ["focused"] : []) + (keyCap ? ["keycap"] : []) + (hovered ? ["hovered"] : [])).joined(separator: " "), label: label, parent: parent, idealWidth: nil, menu: nil))
     }
 }
 
@@ -685,9 +686,9 @@ extension View {
     }
 
     @ViewBuilder
-    func testRow(_ id: String, label: String, selected: Bool, focused: Bool = false, hovered: Bool = false) -> some View {
+    func testRow(_ id: String, label: String, selected: Bool, focused: Bool = false, keyCap: Bool = false, hovered: Bool = false) -> some View {
         if TestMode.current {
-            modifier(RowProbe(id: id, label: label, selected: selected, focused: focused, hovered: hovered))
+            modifier(RowProbe(id: id, label: label, selected: selected, focused: focused, keyCap: keyCap, hovered: hovered))
         } else {
             self
         }
