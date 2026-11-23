@@ -47,11 +47,14 @@ public enum PaletteAction: Hashable, Sendable {
     case newWorktree
     case removeWorktree
     case openDoc
+    case pairDevice
+
+    public static let pairCommand = "remote.pair"
 
     private static let fixed: [PaletteAction] = [
         .toggleChat, .toggleSidebar, .openFolder, .openHome, .newHomeTerminal,
         .renameWorkspace, .closeWorkspace, .removeWorkspace, .moveWorkspaceToNewWindow,
-        .switchWorktree, .newWorktree, .removeWorktree, .openDoc,
+        .switchWorktree, .newWorktree, .removeWorktree, .openDoc, .pairDevice,
     ]
 
     public init?(entryID: String) {
@@ -86,6 +89,7 @@ public enum PaletteAction: Hashable, Sendable {
         case .newWorktree: "new-worktree"
         case .removeWorktree: "remove-worktree"
         case .openDoc: "open-doc"
+        case .pairDevice: "pair-device"
         }
     }
 }
@@ -101,7 +105,8 @@ extension CommandPalette {
         let chatEntries = chat ? [PaletteEntry(id: PaletteAction.toggleChat.entryID, title: "Toggle chat", detail: "⌘B")] : []
         let sidebarEntries = sidebar ? [PaletteEntry(id: PaletteAction.toggleSidebar.entryID, title: "Toggle sidebar", detail: "⌃⌘S")] : []
         let docEntries = commands.contains { $0.id == DocsPicker.listCommand } ? [PaletteEntry(id: PaletteAction.openDoc.entryID, title: "Open doc…", detail: "⇧⌘D")] : []
-        return commandEntries + sectionEntries + chatEntries + sidebarEntries + docEntries + workspaceEntries(workspaces, active: active) + worktreeEntries(worktrees)
+        let pairEntries = commands.contains { $0.id == PaletteAction.pairCommand } ? [PaletteEntry(id: PaletteAction.pairDevice.entryID, title: "Pair iPhone or iPad…", detail: "Remote")] : []
+        return commandEntries + sectionEntries + chatEntries + sidebarEntries + docEntries + pairEntries + workspaceEntries(workspaces, active: active) + worktreeEntries(worktrees)
     }
 
     private static func pluginName(_ plugin: String, sections: [SectionInfo]) -> String {

@@ -16,6 +16,7 @@ struct StatusBar<Trailing: View>: View {
     let usage: SubscriptionUsage?
     let awake: KeepAwakeModel?
     let hints: String?
+    var pairPhone: (() -> Void)?
     let retry: () -> Void
     let awakeSettings: () -> Void
     let openSession: (_ session: String, _ workspace: String) -> Void
@@ -58,6 +59,17 @@ struct StatusBar<Trailing: View>: View {
                 .layoutPriority(-2)
             if connected, let awake {
                 KeepAwakeItem(model: awake, barWidth: width, settings: awakeSettings, openSession: openSession)
+            }
+            if connected, let pairPhone {
+                Button(action: pairPhone) {
+                    Label("Pair iPhone", systemImage: "iphone")
+                        .labelStyle(StatusItemLabel())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(theme.muted)
+                .fixedSize()
+                .help("Pair an iPhone or iPad")
+                .accessibilityIdentifier("statusbar.pair-phone")
             }
             trailing
                 .lineLimit(1)
@@ -131,6 +143,17 @@ struct StatusBar<Trailing: View>: View {
         case .connecting: theme.warning
         case .reconnecting: reconnectShown ? theme.warning : theme.muted
         case .failed: theme.danger
+        }
+    }
+}
+
+private struct StatusItemLabel: LabelStyle {
+    @Environment(\.theme) private var theme
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: theme.spacing.s) {
+            configuration.icon
+            configuration.title
         }
     }
 }

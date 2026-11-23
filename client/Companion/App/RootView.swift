@@ -488,11 +488,21 @@ struct WelcomeView: View {
         ContentUnavailableView {
             Label("Pair a Mac", systemImage: "macbook.and.iphone")
         } description: {
-            Text("On your Mac, open Clubmate Settings → Devices → Pair Device…, then scan the code. Both devices need Tailscale.")
+            Text("On your Mac, open Clubmate Settings › Remote › Pair Device…, then scan the code.\n\nWorks over Tailscale, or through the relay without it.")
         } actions: {
-            Button("Pair a Mac", systemImage: "qrcode.viewfinder") { navigation.showingAddComputer = true }
-                .buttonStyle(.glassProminent)
-                .controlSize(.large)
+            Button("Scan code", systemImage: "qrcode.viewfinder") {
+                navigation.scanOnPair = true
+                navigation.showingAddComputer = true
+            }
+            .buttonStyle(.glassProminent)
+            .controlSize(.large)
+            VStack(spacing: 2) {
+                Text("No Clubmate on your Mac yet?")
+                    .foregroundStyle(Color.captionInk)
+                Link("github.com/ggfarmco/clubmate", destination: AddComputerView.macDownload)
+            }
+            .font(.footnote)
+            .padding(.top, 12)
         }
     }
 }

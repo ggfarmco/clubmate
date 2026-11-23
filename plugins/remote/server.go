@@ -44,19 +44,20 @@ const (
 var errStreamClosed = errors.New("stream closed")
 
 type server struct {
-	backend  backend
-	devices  *deviceStore
-	pairing  *pairing
-	hub      *hub
-	identity *identity
-	relay    *relayClient
-	tun      *tunnelClient
-	requests *requestLog
-	changed  func()
-	watching func(contract.RemoteWatching)
-	ping     time.Duration
-	now      func() time.Time
-	pushed   pushLog
+	backend   backend
+	devices   *deviceStore
+	companion *companionStore
+	pairing   *pairing
+	hub       *hub
+	identity  *identity
+	relay     *relayClient
+	tun       *tunnelClient
+	requests  *requestLog
+	changed   func()
+	watching  func(contract.RemoteWatching)
+	ping      time.Duration
+	now       func() time.Time
+	pushed    pushLog
 
 	relayAlert relayAlert
 
@@ -206,6 +207,9 @@ func (s *server) pair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.hub.revoke(req.Device.ID)
+	if _, err := s.companion.paired(r.Context()); err != nil {
+		logf("end the pairing offer: %v", err)
+	}
 	s.changed()
 	s.relayDevicesChanged(r.Context())
 	_ = s.syncTickets(r.Context(), s.pairing.ticketHash())

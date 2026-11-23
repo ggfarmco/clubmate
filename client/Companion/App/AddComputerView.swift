@@ -4,6 +4,8 @@ import VisionKit
 import CompanionKit
 
 struct AddComputerView: View {
+    static let macDownload = URL(string: "https://github.com/ggfarmco/clubmate")!
+
     @Environment(CompanionModel.self) private var model
     @Environment(AppNavigation.self) private var navigation
     @Environment(PairingFlow.self) private var pairing
@@ -22,7 +24,7 @@ struct AddComputerView: View {
                             .symbolRenderingMode(.hierarchical)
                         Text("Pair a Mac")
                             .font(.title2.bold())
-                        Text("In Clubmate on your Mac, open Settings → Devices and choose Pair Device… Both devices must be on the same Tailscale network.")
+                        Text("On your Mac, open Clubmate Settings › Remote › Pair Device…, then scan the code. Works over Tailscale, or through the relay without it.")
                             .font(.callout)
                             .foregroundStyle(Color.captionInk)
                             .multilineTextAlignment(.center)
@@ -34,7 +36,7 @@ struct AddComputerView: View {
                     Button {
                         scanning = true
                     } label: {
-                        Label("Scan QR Code", systemImage: "qrcode.viewfinder")
+                        Label("Scan code", systemImage: "qrcode.viewfinder")
                     }
                     .disabled(!QRScannerView.isAvailable && QRScannerView.fixtureCode == nil)
                     PasteButton(payloadType: String.self) { strings in
@@ -78,6 +80,11 @@ struct AddComputerView: View {
                 }
             }
             .onDisappear { pairing.dismissFailure() }
+            .task {
+                guard navigation.scanOnPair else { return }
+                navigation.scanOnPair = false
+                scanning = QRScannerView.isAvailable || QRScannerView.fixtureCode != nil
+            }
             .sheet(item: Binding(get: { pairing.review }, set: { pairing.review = $0 })) { review in
                 PairingConfirmView(review: review)
             }

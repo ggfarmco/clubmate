@@ -58,6 +58,7 @@ var (
 		"remote.set-report-inbox": true,
 		"remote.set-tunnel":       true,
 		"remote.tunnel-rotate":    true,
+		"remote.dismiss-offer":    true,
 	}
 )
 
@@ -92,22 +93,23 @@ type app struct {
 }
 
 type status struct {
-	Enabled        bool         `json:"enabled"`
-	Port           int          `json:"port"`
-	Listening      []string     `json:"listening"`
-	Hosts          []string     `json:"hosts"`
-	Error          string       `json:"error"`
-	Computer       computer     `json:"computer"`
-	TitleBarColour bool         `json:"titleBarColour"`
-	OtherMacs      []otherMac   `json:"otherMacs"`
-	TitleDot       bool         `json:"titleDot"`
-	Push           bool         `json:"push"`
-	ReportRelay    string       `json:"reportRelay"`
-	Relay          relayView    `json:"relay"`
-	Tunnel         tunnelStatus `json:"tunnel"`
-	Tailnet        tailnetView  `json:"tailnet"`
-	PairReady      bool         `json:"pairReady"`
-	PairHint       string       `json:"pairHint"`
+	Enabled        bool          `json:"enabled"`
+	Port           int           `json:"port"`
+	Listening      []string      `json:"listening"`
+	Hosts          []string      `json:"hosts"`
+	Error          string        `json:"error"`
+	Computer       computer      `json:"computer"`
+	TitleBarColour bool          `json:"titleBarColour"`
+	OtherMacs      []otherMac    `json:"otherMacs"`
+	TitleDot       bool          `json:"titleDot"`
+	Push           bool          `json:"push"`
+	ReportRelay    string        `json:"reportRelay"`
+	Relay          relayView     `json:"relay"`
+	Tunnel         tunnelStatus  `json:"tunnel"`
+	Tailnet        tailnetView   `json:"tailnet"`
+	PairReady      bool          `json:"pairReady"`
+	PairHint       string        `json:"pairHint"`
+	Companion      companionView `json:"companion"`
 }
 
 const (
@@ -202,6 +204,15 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		return err
 	}
 	a.enabled, a.port, a.titleBar = enabled, port, titleBar
+	companion := newCompanionStore(h)
+	if err := companion.load(ctx); err != nil {
+		return err
+	}
+	if len(devices.list()) > 0 {
+		if _, err := companion.paired(ctx); err != nil {
+			return err
+		}
+	}
 	a.ident = &identity{kv: h, publish: a.publish, comp: comp}
 	relay := newRelayClient(h, &http.Client{Timeout: relayTimeout})
 	relay.dir = pluginsdk.StateDir()
@@ -213,17 +224,18 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	}
 	a.rep = newReports(relay, h, &http.Client{Timeout: reportTimeout}, pluginsdk.StateDir(), time.Now)
 	a.srv = &server{
-		backend:  hostBackend{host: h},
-		devices:  devices,
-		pairing:  newPairing(time.Now),
-		hub:      newHub(a.changed),
-		identity: a.ident,
-		relay:    relay,
-		requests: newRequestLog(h, time.Now),
-		changed:  a.changed,
-		watching: a.watching,
-		ping:     pingInterval,
-		now:      time.Now,
+		backend:   hostBackend{host: h},
+		devices:   devices,
+		companion: companion,
+		pairing:   newPairing(time.Now),
+		hub:       newHub(a.changed),
+		identity:  a.ident,
+		relay:     relay,
+		requests:  newRequestLog(h, time.Now),
+		changed:   a.changed,
+		watching:  a.watching,
+		ping:      pingInterval,
+		now:       time.Now,
 	}
 	if err := a.srv.clearWatching(ctx); err != nil {
 		logf("clear watching: %v", err)
@@ -300,6 +312,15 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 		return a.status(), nil
 	case "remote.pair":
 		return a.pair(ctx)
+	case "remote.dismiss-offer":
+		moved, err := a.srv.companion.dismiss(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if moved {
+			a.changed()
+		}
+		return a.status(), nil
 	case "remote.cancel-pair":
 		a.srv.pairing.cancel()
 		_ = a.srv.syncTickets(ctx)
@@ -653,7 +674,8 @@ func (a *app) scanAddrs() ([]netip.Addr, error) {
 }
 
 func (a *app) status() status {
-	others := otherMacs(a.srv.devices.list())
+	paired := a.srv.devices.list()
+	others := otherMacs(paired)
 	a.mu.Lock()
 	st := status{
 		Enabled:        a.enabled,
@@ -690,6 +712,7 @@ func (a *app) status() status {
 		st.PairHint = pairHint(st)
 	}
 	st.Tailnet = tailnetState(st, offline)
+	st.Companion = companionState(a.srv.companion.get(), len(paired), st)
 	return st
 }
 

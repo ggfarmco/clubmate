@@ -106,6 +106,61 @@ final class RemoteDevicesTests: XCTestCase {
         XCTAssertEqual(fake.calls.last, CommandInvocation(id: "remote.cancel-pair", args: .object([:])))
     }
 
+    func testPairingFromAWindowShowsOnlyThereAndKeepsAFailureOpen() async throws {
+        let fake = FakeRemote()
+        let model = fake.model()
+        fake.failure = .rpc(code: -32000, message: "pairing needs a Tailscale address")
+
+        await model.pair(in: "w1")
+        let failedThere = model.presents(in: "w1")
+        fake.failure = nil
+        await model.pair()
+        let settings = model.presents(in: RemoteDevicesModel.settingsPresenter)
+        await model.done()
+
+        XCTAssertTrue(failedThere)
+        XCTAssertFalse(settings)
+        XCTAssertTrue(fake.calls.contains(CommandInvocation(id: "remote.pair", args: .object([:]))))
+        XCTAssertFalse(model.presents(in: "w1"))
+    }
+
+    func testAnOldSheetClosingKeepsTheCodeOfTheNewPlace() async throws {
+        let fake = FakeRemote()
+        let model = fake.model()
+        await model.pair(in: "w1")
+        await model.pair(in: "w2")
+
+        await model.done(in: "w1")
+
+        XCTAssertTrue(model.presents(in: "w2"))
+        XCTAssertNotNil(model.pairing)
+        XCTAssertFalse(fake.calls.contains { $0.id == "remote.cancel-pair" })
+    }
+
+    func testClosingSettingsAfterAFailedCodeClearsItsPresenter() async throws {
+        let fake = FakeRemote()
+        let model = fake.model()
+        fake.failure = .rpc(code: -32000, message: "pairing needs a Tailscale address")
+        await model.pair()
+        let failed = model.presenter
+
+        await model.done(in: RemoteDevicesModel.settingsPresenter)
+
+        XCTAssertEqual(failed, RemoteDevicesModel.settingsPresenter)
+        XCTAssertNil(model.presenter)
+    }
+
+    func testCompanionRoute() throws {
+        let tailscale = try decoded(#"{"enabled":true,"companion":{"state":"dismissed","via":"tailscale","host":"mac.tailnet.ts.net"}}"#, as: RemoteStatus.self).companion
+        let relay = try decoded(#"{"companion":{"state":"later","via":"relay","host":""}}"#, as: RemoteStatus.self).companion
+
+        XCTAssertEqual(tailscale?.state, .dismissed)
+        XCTAssertEqual(tailscale?.route?.detail, "mac.tailnet.ts.net")
+        XCTAssertEqual(relay?.state, .unpaired)
+        XCTAssertEqual(relay?.route?.label, "Tailscale off on this Mac")
+        XCTAssertNil(RemoteCompanion(state: .paired).route)
+    }
+
     func testEnableUpdatesStatus() async throws {
         let fake = FakeRemote()
         let model = fake.model()

@@ -649,6 +649,10 @@ final class StoresTests: XCTestCase {
         let docEntry = try XCTUnwrap(CommandPalette.entries(commands: docs, sections: [], sidebar: false).first)
         XCTAssertEqual([docEntry.title, docEntry.detail], ["Open doc…", "⇧⌘D"])
         XCTAssertEqual(PaletteAction(entryID: docEntry.id), .openDoc)
+        let remote = try JSONDecoder().decode([Command].self, from: Data(#"[{"id":"remote.pair","title":"Pair device","plugin":"remote","hidden":true}]"#.utf8))
+        let pairEntry = try XCTUnwrap(CommandPalette.entries(commands: remote, sections: [], sidebar: false).first)
+        XCTAssertEqual([pairEntry.title, pairEntry.detail], ["Pair iPhone or iPad…", "Remote"])
+        XCTAssertEqual(PaletteAction(entryID: pairEntry.id), .pairDevice)
     }
 
     func testPaletteWorkspaceEntries() {

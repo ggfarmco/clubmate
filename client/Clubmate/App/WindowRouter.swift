@@ -53,6 +53,10 @@ final class WindowRouter {
         layout.window(id)
     }
 
+    func window(holding workspace: String) -> String? {
+        layout.windows.first { $0.workspaces.contains(workspace) }?.id
+    }
+
     func host(_ window: String) -> NSWindow? {
         hosts.object(forKey: window as NSString)
     }

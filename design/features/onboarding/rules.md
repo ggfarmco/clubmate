@@ -123,7 +123,7 @@ Tags: (a) token or renderer, client SwiftUI · (b) new SDUI node or prop · (c) 
 | 12 | Phone offer: Remote plugin sets `companion.state = offer` after the first finished turn; in-place dashed row with a second action (Not now). | (b) |
 | 13 | Status bar: "Pair iPhone" item when `companion.state = dismissed`; opens the pairing sheet. | (a) |
 | 14 | Palette and Clubmate menu: Pair iPhone or iPad…. | (c) |
-| 15 | Pairing sheet: route line (Tailscale host or relay), App Store line, Done ⎋. | (c) |
+| 15 | Pairing sheet: route line (Tailscale host or relay), App Store line, Done ⎋. The App Store line is deferred until the Companion has a public install path (backlog #1204). | (c) |
 | 16 | Companion first screen: new text, button "Scan code", foot line ("Settings → Devices" is wrong today: the Mac tab is Remote; the relay works without Tailscale). | (a) |
 | 17 | Settings › General › Editors: Neovim switch, Neovim config row (Neovim on, not imported), VS Code switch, one caption per state (SDUISettingsRows). | (c) |
 | 18 | Palette: Turn on VS Code…, Turn off Neovim, Import ~/.config/nvim…, Open Settings › General › Editors. | (c) |

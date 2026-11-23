@@ -43,7 +43,7 @@ struct DevicesSettings: View {
         }
         .formStyle(.grouped)
         .task(id: DevicesKey(client: client.map(ObjectIdentifier.init), active: active)) { await follow() }
-        .sheet(isPresented: pairing) { PairDeviceSheet(model: model) }
+        .sheet(isPresented: pairing) { PairDeviceSheet(model: model, presenter: RemoteDevicesModel.settingsPresenter) }
     }
 
     private func follow() async {
@@ -102,7 +102,7 @@ struct DevicesSettings: View {
             if model.devices.isEmpty {
                 VStack(alignment: .leading, spacing: theme.spacing.xs) {
                     Text("No devices paired yet").foregroundStyle(.secondary)
-                    SettingsDetail("Install Clubmate on your iPhone or iPad. Both devices must be on the same Tailscale tailnet.")
+                    SettingsDetail("Pair Device… shows a code to scan with Clubmate on your iPhone or iPad. Works over Tailscale, or through the relay without it.")
                 }
             }
             ForEach(model.devices) { device in
@@ -116,7 +116,7 @@ struct DevicesSettings: View {
     }
 
     private var pairing: Binding<Bool> {
-        Binding { model.pairing != nil } set: { if !$0 { Task { await model.done() } } }
+        Binding { model.presents(in: RemoteDevicesModel.settingsPresenter) } set: { if !$0 { Task { await model.done(in: RemoteDevicesModel.settingsPresenter) } } }
     }
 
     private func statusLine(_ status: RemoteStatus) -> (text: String, dot: Color, ink: Color) {
@@ -402,67 +402,95 @@ private struct DeviceRow: View {
     }
 }
 
-private struct PairDeviceSheet: View {
+struct PairDeviceSheet: View {
     let model: RemoteDevicesModel
+    let presenter: String
+
+    @Environment(\.theme) private var theme
 
     var body: some View {
-        VStack(spacing: 12) {
-            Text("Pair Device").font(.headline)
-            Text("Scan this code with Clubmate on your iPhone or iPad.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+        VStack(alignment: .leading, spacing: theme.spacing.xl) {
+            VStack(alignment: .leading, spacing: theme.spacing.xs) {
+                Text("Pair an iPhone or iPad")
+                    .font(theme.heading)
+                    .foregroundStyle(theme.foreground)
+                Text("Open Clubmate on your iPhone or iPad, tap Scan code and point it at this code.")
+                    .font(theme.ui)
+                    .foregroundStyle(theme.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let pairing = model.pairing {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     let left = pairing.countdown(now: context.date)
-                    VStack(spacing: 8) {
+                    HStack(alignment: .top, spacing: theme.spacing.xl) {
                         code.opacity(left == nil ? 0.15 : 1)
-                        if !pairing.computerName.isEmpty {
-                            Text(pairing.computerName)
-                                .fontWeight(.medium)
-                                .lineLimit(1)
-                                .truncationMode(.label)
-                                .help(pairing.computerName)
+                        VStack(alignment: .leading, spacing: theme.spacing.l) {
+                            if let route = model.status?.companion?.route {
+                                field(route.label, route.detail)
+                            }
+                            if !pairing.computerName.isEmpty {
+                                field("This Mac", pairing.computerName)
+                            }
+                            if let left {
+                                field("Code", "Expires in \(left)")
+                            } else {
+                                VStack(alignment: .leading, spacing: theme.spacing.s) {
+                                    Text("Code expired")
+                                        .font(theme.ui)
+                                        .foregroundStyle(theme.danger)
+                                    CardButton(label: "New code") { Task { await model.pair() } }
+                                        .disabled(model.busy)
+                                }
+                            }
                         }
-                        Text(left.map { "Expires in \($0)" } ?? "Code expired. Choose New Code.")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(left == nil ? Color.red : Color.secondary)
-                        if pairing.relay {
-                            Text("Works without Tailscale: includes the relay path")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                     }
                 }
+            } else if model.busy {
+                ProgressView().controlSize(.small)
             }
             if let error = model.error {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !model.pairHint.isEmpty {
-                    Text(model.pairHint)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: theme.spacing.xs) {
+                    Text(error)
+                        .foregroundStyle(theme.danger)
+                        .textSelection(.enabled)
+                    if !model.pairHint.isEmpty {
+                        Text(model.pairHint).foregroundStyle(theme.muted)
+                    }
                 }
+                .font(theme.uiSmall)
+                .fixedSize(horizontal: false, vertical: true)
             }
             HStack {
-                Button("New Code") { Task { await model.pair() } }
-                    .disabled(model.busy)
                 Spacer()
-                Button("Done") { Task { await model.done() } }
+                CardButton(label: "Done", shortcut: "⎋", tone: .primary, isDefault: true) { close() }
                     .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(20)
-        .frame(width: 340)
-        .onExitCommand { Task { await model.done() } }
-        .onDisappear { Task { await model.done() } }
+        .padding(EdgeInsets(top: theme.spacing.xxl, leading: theme.spacing.xxl, bottom: theme.spacing.xl, trailing: theme.spacing.xxl))
+        .frame(width: 520, alignment: .topLeading)
+        .background(theme.surface3)
+        .onExitCommand { close() }
+        .onDisappear { close() }
+    }
+
+    private func close() {
+        Task { await model.done(in: presenter) }
+    }
+
+    private func field(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(label)
+                .font(theme.uiSmall)
+                .foregroundStyle(theme.muted)
+            Text(value)
+                .font(theme.ui)
+                .foregroundStyle(theme.foreground)
+                .lineLimit(1)
+                .truncationMode(.label)
+                .help(value)
+                .textSelection(.enabled)
+        }
     }
 
     @ViewBuilder private var code: some View {
@@ -477,8 +505,8 @@ private struct PairDeviceSheet: View {
                     .foregroundStyle(.black)
             }
         }
-        .frame(width: 240, height: 240)
-        .padding(10)
-        .background(.white, in: RoundedRectangle(cornerRadius: 8))
+        .frame(width: 152, height: 152)
+        .padding(8)
+        .background(.white, in: RoundedRectangle(cornerRadius: theme.radius.l))
     }
 }

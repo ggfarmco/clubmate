@@ -36,8 +36,7 @@ final class CompanionUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-latency", "20", "-scan", Self.pairLink]
         app.launch()
-        app.buttons["Pair a Mac"].tap()
-        app.buttons["Scan QR Code"].tap()
+        app.buttons["Scan code"].tap()
         XCTAssertTrue(app.staticTexts["Explain the checkout flow"].waitForExistence(timeout: 10))
     }
 
@@ -57,7 +56,7 @@ final class CompanionUITests: XCTestCase {
         app.launch()
         openCapsule(app)
         menuItem(app, "Pair a Mac").tap()
-        let scan = app.buttons["Scan QR Code"]
+        let scan = app.buttons["Scan code"]
         XCTAssertTrue(scan.waitForExistence(timeout: 10))
         scan.tap()
         XCTAssertTrue(app.staticTexts["Move the state bucket to the new account"].waitForExistence(timeout: 10))
@@ -450,7 +449,7 @@ final class CompanionUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         openCapsule(app)
         menuItem(app, "Pair a Mac").tap()
-        XCTAssertTrue(app.buttons["Scan QR Code"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Scan code"].waitForExistence(timeout: 10))
     }
 
     func testInboxTrayPushesInboxAndBackReturns() {

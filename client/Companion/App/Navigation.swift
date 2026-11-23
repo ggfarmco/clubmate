@@ -55,6 +55,7 @@ final class AppNavigation {
     }
     var newTaskWorkspaces: [String: String] = [:]
     var showingAddComputer = false
+    @ObservationIgnored var scanOnPair = false
     @ObservationIgnored private(set) var pairingSheetUp = false
     @ObservationIgnored private var pairedUnderSheet: String?
     @ObservationIgnored private var pending: (computer: String, workspace: String?, tab: CompanionTab, destination: Destination?)?

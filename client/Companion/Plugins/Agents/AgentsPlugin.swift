@@ -841,7 +841,7 @@ struct ConnectionUnavailableView: View {
             ContentUnavailableView {
                 Label("Access Revoked", systemImage: "lock.slash")
             } description: {
-                Text("\(connection.computer.name) no longer accepts this phone. Pair it again from Clubmate Settings → Devices.")
+                Text("\(connection.computer.name) no longer accepts this phone. Pair it again from Clubmate Settings › Remote.")
             } actions: {
                 Button("Pair Again") { navigation.showingAddComputer = true }
                     .buttonStyle(.glassProminent)

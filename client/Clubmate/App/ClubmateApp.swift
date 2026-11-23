@@ -161,6 +161,8 @@ private struct WorkspaceCommands: Commands {
             Button(app.awake.state?.mode == nil ? "Keep Mac Awake Until Turned Off" : "Turn Off Keep Awake") { Task { await app.awake.toggle() } }
                 .keyboardShortcut(AppShortcuts.keepAwake)
                 .disabled(app.awake.state == nil)
+            Button("Pair iPhone or iPad…") { pairDevice() }
+                .disabled(windowID == nil || !app.commands.contains { $0.id == PaletteAction.pairCommand })
         }
         CommandGroup(replacing: .newItem) {
             Button("New") { newItem() }
@@ -272,6 +274,11 @@ private struct WorkspaceCommands: Commands {
 
     private var canSwitchWorkspace: Bool {
         (windowID.flatMap(windows.window)?.workspaces.count ?? 0) > 1
+    }
+
+    private func pairDevice() {
+        guard let windowID else { return }
+        Task { await app.remoteDevices.pair(in: windowID) }
     }
 
     private func newItem() {

@@ -19,6 +19,10 @@ struct WorkspacePresenters: ViewModifier {
             .testPresenter("onboarding", onboardingPresented)
             .testPresenter("onboarding-vscode", onboardingVSCodePresented)
             .sheet(isPresented: reportPresented) { ReportSheet(model: app.reports) }
+            .sheet(isPresented: pairPresented) {
+                if let windowID { PairDeviceSheet(model: app.remoteDevices, presenter: windowID) }
+            }
+            .testPresenter("pair", pairPresented)
             .testPresenter("report", reportFixture(over: false))
             .testPresenter("report-over", reportFixture(over: true))
             .task(id: app.onboarding.show) {
@@ -36,6 +40,15 @@ struct WorkspacePresenters: ViewModifier {
         Binding { [app] in app.onboarding.presented(in: windowID) && app.onboarding.step == .vscode } set: { [app] shown in
             app.onboarding.present(shown, in: windowID)
             if shown { Task { await app.onboarding.finish(.vscode) } }
+        }
+    }
+
+    private var pairPresented: Binding<Bool> {
+        Binding { [app] in app.remoteDevices.presents(in: windowID) } set: { [app] shown in
+            guard let windowID else { return }
+            Task {
+                if shown { await app.remoteDevices.pair(in: windowID) } else { await app.remoteDevices.done(in: windowID) }
+            }
         }
     }
 

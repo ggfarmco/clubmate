@@ -57,7 +57,9 @@ enum DevicesPreview {
     @MainActor
     private static func replies(_ state: String, now: Date, identity: Identity) -> [String: String] {
         let others = #"[{"name":"MacBook Pro","colour":"magenta","devices":["Vadim’s iPhone"]},{"name":"MacBook Air","colour":"graphite","devices":["Vadim’s iPhone"]}]"#
-        let fields = #""computer":{"id":"cmp_3f9a1c","name":"Mac Studio","colour":"\#(identity.colour)"},"titleBarColour":\#(identity.titleBar),"otherMacs":\#(others),"titleDot":\#(identity.titleBar)"# + relay(state, identity: identity)
+        let route = state == "relay-tailscale-off" ? #""via":"relay","host":"""# : #""via":"tailscale","host":"mac-studio.tail1234.ts.net""#
+        let companion = #","companion":{"state":"\#(state == "empty" ? "unpaired" : "dismissed")",\#(route)}"#
+        let fields = #""computer":{"id":"cmp_3f9a1c","name":"Mac Studio","colour":"\#(identity.colour)"},"titleBarColour":\#(identity.titleBar),"otherMacs":\#(others),"titleDot":\#(identity.titleBar)"# + relay(state, identity: identity) + companion
         let relayOn = identity.tunnelOn ?? true
         let stopped = relayOn
             ? #""tailnet":{"state":"off","severity":"note","detail":"Tailscale is stopped on this Mac. Phones connect through the relay."}"#

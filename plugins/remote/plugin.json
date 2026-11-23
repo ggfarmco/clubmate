@@ -12,7 +12,7 @@
         "title": "Companion status",
         "hidden": true,
         "scope": "app",
-        "description": "Whether companion access is on, the port, the addresses it listens on, the hosts a pairing link carries, why it is not listening, this Mac's identity, the title-bar colour setting, the other Macs paired phones reported and whether the title bar shows this Mac's dot and whether a push relay is set, the host problem reports go to, and the Clubmate relay (mode auto|manual|off, its URL, state none|signing-up|ready|error and a one-line detail the UI shows as is), the relay path's state (on, the URL it uses, whether its stream to the relay is up, why not, open phone channels, state off|connecting|connected|error and a one-line detail) the Tailscale path as the UI shows it (state ok|off|error, severity ok|note|warn|error: Tailscale off while the relay path is connected is a note, and a one-line detail the UI shows as is) and whether a phone can be paired now (a Tailscale address exists, or the relay path is connected; pairHint says why not while access is on): {enabled, port, listening, hosts, error, computer: {id, name, colour}, titleBarColour, otherMacs: [{name, colour, devices}], titleDot, push, reportRelay, relay: {mode, url, state, detail}, tunnel: {on, url, connected, error, channels, state, detail}, tailnet: {state, severity, detail}, pairReady, pairHint}."
+        "description": "Whether companion access is on, the port, the addresses it listens on, the hosts a pairing link carries, why it is not listening, this Mac's identity, the title-bar colour setting, the other Macs paired phones reported and whether the title bar shows this Mac's dot and whether a push relay is set, the host problem reports go to, and the Clubmate relay (mode auto|manual|off, its URL, state none|signing-up|ready|error and a one-line detail the UI shows as is), the relay path's state (on, the URL it uses, whether its stream to the relay is up, why not, open phone channels, state off|connecting|connected|error and a one-line detail) the Tailscale path as the UI shows it (state ok|off|error, severity ok|note|warn|error: Tailscale off while the relay path is connected is a note, and a one-line detail the UI shows as is) and whether a phone can be paired now (a Tailscale address exists, or the relay path is connected; pairHint says why not while access is on), and the companion state the Mac UI shows (state unpaired|offer|dismissed|paired: paired while any device is paired, else the stored state; via tailscale|relay|empty: the route a pairing link uses now; host: the Tailscale host when via is tailscale): {enabled, port, listening, hosts, error, computer: {id, name, colour}, titleBarColour, otherMacs: [{name, colour, devices}], titleDot, push, reportRelay, relay: {mode, url, state, detail}, tunnel: {on, url, connected, error, channels, state, detail}, tailnet: {state, severity, detail}, pairReady, pairHint, companion: {state, via, host}}."
       },
       {
         "id": "remote.enable",
@@ -74,6 +74,13 @@
         "hidden": true,
         "scope": "app",
         "description": "Turn companion access on and issue a one-time pairing code (5 minutes, replaces the previous one): {link, code, expiresAt, relay}. While the relay path is on (remote.set-tunnel) the link is version 2 and relay is true: it also carries the relay URL, this Mac's relay key and key id, and a pairing ticket (registered at the relay; good for one pair request until the code expires, is used or is cancelled), and it needs no Tailscale address. Otherwise it is version 1 and relay is false."
+      },
+      {
+        "id": "remote.dismiss-offer",
+        "title": "Not now (pair a phone)",
+        "hidden": true,
+        "scope": "app",
+        "description": "The user's Not now on the offer to pair a phone: companion.state moves from unpaired or offer to dismissed and stays there across a restart, so the offer does not come back and the Mac's status bar shows Pair iPhone instead. No effect in any other state. User only. Returns the status."
       },
       {
         "id": "remote.cancel-pair",

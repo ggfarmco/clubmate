@@ -26,8 +26,9 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
     public let tailnet: RemoteTailnet?
     public let pairReady: Bool?
     public let pairHint: String
+    public let companion: RemoteCompanion?
 
-    public init(enabled: Bool, port: Int, listening: [String], hosts: [String], error: String, computer: RemoteComputer? = nil, titleBarColour: Bool = true, otherMacs: [RemoteOtherMac] = [], titleDot: Bool = false, relay: RemoteRelay? = nil, tunnel: RemoteTunnel? = nil, tailnet: RemoteTailnet? = nil, pairReady: Bool? = nil, pairHint: String = "") {
+    public init(enabled: Bool, port: Int, listening: [String], hosts: [String], error: String, computer: RemoteComputer? = nil, titleBarColour: Bool = true, otherMacs: [RemoteOtherMac] = [], titleDot: Bool = false, relay: RemoteRelay? = nil, tunnel: RemoteTunnel? = nil, tailnet: RemoteTailnet? = nil, pairReady: Bool? = nil, pairHint: String = "", companion: RemoteCompanion? = nil) {
         self.enabled = enabled
         self.port = port
         self.listening = listening
@@ -42,6 +43,7 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
         self.tailnet = tailnet
         self.pairReady = pairReady
         self.pairHint = pairHint
+        self.companion = companion
     }
 
     public init(from decoder: any Decoder) throws {
@@ -60,10 +62,11 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
         tailnet = try container.decodeIfPresent(RemoteTailnet.self, forKey: .tailnet)
         pairReady = try container.decodeIfPresent(Bool.self, forKey: .pairReady)
         pairHint = try container.decodeIfPresent(String.self, forKey: .pairHint) ?? ""
+        companion = try? container.decodeIfPresent(RemoteCompanion.self, forKey: .companion)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case enabled, port, listening, hosts, error, computer, titleBarColour, otherMacs, titleDot, relay, tunnel, tailnet, pairReady, pairHint
+        case enabled, port, listening, hosts, error, computer, titleBarColour, otherMacs, titleDot, relay, tunnel, tailnet, pairReady, pairHint, companion
     }
 
     public var state: State {
@@ -84,6 +87,45 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
     private var address: String {
         guard let host = hosts.first else { return listening.first ?? "" }
         return host.contains(":") ? "[\(host)]:\(port)" : "\(host):\(port)"
+    }
+}
+
+public struct RemoteCompanion: Decodable, Sendable, Equatable {
+    public enum State: String, Decodable, Sendable {
+        case unpaired, offer, dismissed, paired
+    }
+
+    public enum Via: String, Decodable, Sendable {
+        case tailscale, relay
+    }
+
+    public let state: State
+    public let via: Via?
+    public let host: String
+
+    public init(state: State, via: Via? = nil, host: String = "") {
+        self.state = state
+        self.via = via
+        self.host = host
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        state = (try? container.decodeIfPresent(State.self, forKey: .state)) ?? .unpaired
+        via = try? container.decodeIfPresent(Via.self, forKey: .via)
+        host = try container.decodeIfPresent(String.self, forKey: .host) ?? ""
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case state, via, host
+    }
+
+    public var route: (label: String, detail: String)? {
+        switch via {
+        case .tailscale: ("Connects over Tailscale", host)
+        case .relay: ("Tailscale off on this Mac", "the phone connects through the relay")
+        case nil: nil
+        }
     }
 }
 
@@ -349,12 +391,14 @@ public final class RemoteDevicesModel {
     public static let rotate = Ask(message: "Make a new relay key? Phones switch to it when they next connect.", action: "Make New Key", destructive: false)
     public static let tailscaleHint = "Companion devices connect over Tailscale. Start Tailscale on this Mac and sign in to the same tailnet as your iPhone or iPad."
     public static let missingPlugin = "The remote plugin is not installed or not running."
+    public static let settingsPresenter = "settings"
     static let qrSide = 720
 
     public private(set) var phase = Phase.loading
     public private(set) var status: RemoteStatus?
     public private(set) var devices: [RemoteDevice] = []
     public private(set) var pairing: RemotePairing?
+    public private(set) var presenter: String?
     public private(set) var qr: CGImage?
     public private(set) var notice: String?
     public private(set) var error: String?
@@ -429,8 +473,9 @@ public final class RemoteDevicesModel {
         await act { self.status = try await self.call("remote.tunnel-rotate") }
     }
 
-    public func pair() async {
+    public func pair(in presenter: String? = nil) async {
         if pairing == nil { baseline = devices }
+        if let presenter { self.presenter = presenter } else if self.presenter == nil { self.presenter = Self.settingsPresenter }
         notice = nil
         await act {
             let pairing: RemotePairing = try await self.call("remote.pair")
@@ -440,7 +485,18 @@ public final class RemoteDevicesModel {
         await load()
     }
 
+    public func presents(in presenter: String?) -> Bool {
+        guard let presenter, self.presenter == presenter else { return false }
+        return presenter != Self.settingsPresenter || pairing != nil
+    }
+
+    public func done(in presenter: String) async {
+        guard self.presenter == presenter else { return }
+        await done()
+    }
+
     public func done() async {
+        presenter = nil
         guard pairing != nil else { return }
         close()
         _ = await run(CommandInvocation(id: "remote.cancel-pair", args: .object([:])))
@@ -453,6 +509,7 @@ public final class RemoteDevicesModel {
     }
 
     private func close() {
+        presenter = nil
         pairing = nil
         qr = nil
         baseline = nil

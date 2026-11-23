@@ -192,6 +192,7 @@ struct WorkspaceView: View {
         case .newWorktree: session.newWorktree(chooseFolder: true)
         case .removeWorktree: session.chooseWorktreeToRemove()
         case .openDoc: session.chooseDoc()
+        case .pairDevice: Task { [app, windowID] in await app.remoteDevices.pair(in: windowID) }
         }
     }
 }

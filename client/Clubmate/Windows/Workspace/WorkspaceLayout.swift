@@ -8,6 +8,7 @@ struct WorkspaceLayout: View {
     @Binding var rowWidth: CGFloat
 
     @Environment(AppModel.self) private var app
+    @Environment(WindowRouter.self) private var windows
     @Environment(\.theme) private var theme
     @Environment(\.paneFocus) private var panes
     @Environment(\.openSettings) private var openSettings
@@ -77,7 +78,7 @@ struct WorkspaceLayout: View {
                         .padding(voice.dictating ? .top : .bottom, theme.spacing.xl)
                 }
             }
-            StatusBar(voice: voice, connection: connection, agents: app.notifications.agents[store.workspaceID], usage: app.usage.usage, awake: app.awake, hints: panes?.hints) { [app] in
+            StatusBar(voice: voice, connection: connection, agents: app.notifications.agents[store.workspaceID], usage: app.usage.usage, awake: app.awake, hints: panes?.hints, pairPhone: pairPhone) { [app] in
                 app.retry()
             } awakeSettings: { [app, openSettings] in
                 app.settingsRequest = .plugin("awake")
@@ -100,6 +101,11 @@ struct WorkspaceLayout: View {
         .onChange(of: app.voiceSettings.isOn) { _, on in
             if !on { app.sessions.existing(store.workspaceID)?.voice.cancel() }
         }
+    }
+
+    private var pairPhone: (() -> Void)? {
+        guard app.remoteDevices.status?.companion?.state == .dismissed, let window = windows.window(holding: store.workspaceID) else { return nil }
+        return { [app] in Task { await app.remoteDevices.pair(in: window) } }
     }
 
     @ViewBuilder private func chatColumn(_ slot: String?, stacked: Bool) -> some View {
